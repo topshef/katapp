@@ -1,5 +1,7 @@
 .env
 .env*
+config.php
+
 error_log
 error_log*.log
 *.txt
@@ -17,6 +19,8 @@ zz*
 *.lock
 *.bak
 login
+vendor
+
 
 
 
