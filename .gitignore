@@ -19,7 +19,7 @@ zz*
 *.lock
 *.bak
 login
-vendor
+#vendor
 content
 
 
