@@ -4,14 +4,23 @@
 error_reporting(E_ERROR | E_WARNING | E_PARSE);
 
 include '../pagevisit.php';
+include '../logEvent.php';
+
 
 
 //grab details for the site content
 require_once 'gatekeep.php';
 
 require_once 'constants.php';
-require_once './content/loadcontent.php';
 
+logEvent('begin loadcontent.php');
+
+require_once './content/loadcontent.php';
+logEvent('end loadcontent.php');
+
+// logEvent('test1');
+// sleep(2);
+// logEvent('test2');
 
 
 // common functions - tbc where to put these
