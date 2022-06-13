@@ -1,5 +1,6 @@
 .env
 .env*
+.htaccess*
 
 error_log
 error_log*.log
