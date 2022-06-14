@@ -109,7 +109,7 @@
 //require_once './content/loadcontent.php';
 
 $url_privacy_policy = $content['terms'][1]['url_privacy_policy'];
-if ($url_privacy_policy == null) $url_privacy_policy = 'privacy.html';
+if ($url_privacy_policy == null) $url_privacy_policy = 'content/assets/privacy.html';
 
 
 ?>
