@@ -28,6 +28,8 @@ require_once('config.php'); //redundant but hey
     <link rel="stylesheet" href="assets/css/fontawesome.css">
     <link rel="stylesheet" href="assets/css/style.css">
     <link rel="stylesheet" href="assets/css/owl.css">
+	
+	<link rel="shortcut icon" href="assets/images/GM.ico">
   </head>
 
   <body>

@@ -9,13 +9,13 @@
 	function getCacheData($url, $timeoutseconds = null) {
 		/* get a file from cache or download it
 		$timeoutseconds = 0      don't use cache
-		$timeoutseconds = null   default
+		$timeoutseconds = null   default, never timeout
 		*/
 		
 		extract($_SESSION['flags']);
 		//$isDebugMode = $GLOBALS['isDebugMode'];
 		
-		if ($timeoutseconds === null) $timeoutseconds = 60 * 60 * 24; // default 1 day
+		//if ($timeoutseconds === null) $timeoutseconds = 60 * 60 * 24; // default 1 day
 		
 		$url = str_replace('&nocache','',$url);
 		$url = str_replace('?nocache','?',$url);
@@ -30,7 +30,7 @@
 		if ($isDebugMode) error_log("cachepath = $cachepath");
 
 		if (file_exists($cachepath)) {
-			//if ($timeoutseconds === false) return file_get_contents($cachepath); // never timeout (not in use)
+			if ($timeoutseconds === null) return file_get_contents($cachepath); // never timeout
 			
 			$ageseconds = time() - filemtime($cachepath);
 			//if ($ageseconds < $timeoutseconds) exit("use cache, ageseconds = $ageseconds, timeoutseconds = $timeoutseconds");
