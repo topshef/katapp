@@ -1,0 +1,5 @@
+@media (max-width: 999px){
+.hide-if-mobile {
+display: none;
+}
+}
