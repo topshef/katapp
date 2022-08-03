@@ -85,7 +85,10 @@ require_once('config.php'); //redundant but hey
               </li>
 			  
 			  <?php
+if ($isPocMode) 
 $menu = array('products.php' => 'Gallery', 'checkout.php' => 'Checkout', 'account.php' => 'Your account'); 
+else  $menu = array('products.php' => 'Gallery'); 
+
 
 if ($shopstatus == 'closed') unset($menu['checkout.php']);
 if ($_SESSION['isShoppingAllowed'] == 0) unset($menu['checkout.php']);
@@ -121,11 +124,17 @@ EOMENU;
                 <a class="nav-link" href="contact.php">Contact Us</a>
               </li>
 <?php } ?>
+<?php if (false) {  //disabled for now  ?>
+			   <li class="nav-item">
+				<button id='pair-btn-icon' class='header-icon'><img src='./assets/images/hashpack-icon-white-trans.svg' width=30>
+				</button>
+              </li>
+<?php } ?>			  
 <?php if ($twitter_handle != null) {  ?>
 			   <li class="nav-item">
 				<a class="nav-link" href="https://twitter.com/<?php echo $twitter_handle; ?>" target='twitter_gomintme'><i class="fa fa-twitter"></i></a>
               </li>
-<?php } ?>			  
+<?php } ?>	
 			  
             </ul>
           </div>

@@ -24,6 +24,24 @@ h1,h2,h3,h4,h5,h6 {
 	margin: 0px;
 }
 
+
+.header-icon {
+	position:relative; top:7px;
+	background-color: transparent;
+	border: none;
+}
+
+.hashpack-button {
+	border-radius: 30px;
+	border-color: #cccccc;
+	background-color: #f2f2f2;
+}
+
+.hashpack-button:hover {
+	background-color: transparent;
+}
+
+
 a.filled-button {
 	background-color: #4caf50;
 	color: #fff;

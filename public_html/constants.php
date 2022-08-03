@@ -12,4 +12,6 @@ $api_endpoint_NFT_explore = $env['url_api_gomint_NFT_explore'];
 
 //echo "<PRE>" . print_r($env, true); exit;
 
+$isPocMode = $env['POCMODE'] === 'yes'; // probably we'll delete the poc code but leave it for now and use this flag to disable it
+
 ?>
