@@ -326,8 +326,8 @@ header .navbar {
 	background-image: none;
 }
 .navbar .navbar-toggler {
-	border-color: #fff;
-	background-color: #fff;	
+	border-color: transparent;
+	background-color: transparent;	
 	height: 36px;
 	outline: none;
 	border-radius: 0px;
