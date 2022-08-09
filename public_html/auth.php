@@ -1,6 +1,11 @@
 <?php
 
 	$ip = $_SERVER['REMOTE_ADDR'];
+	
+	require_once 'readenv.php';
+	$ip_tester = $env['ip_tester'];
+	$is_tester_based_on_ip = strpos($ip_tester, $ip) !== false;
+	
 	$ip_admin = '130.185.251.53 ';  // self, not admin 194.35.12.127
 	$isAdmin = strpos($ip_admin, $ip) !== false;
 
@@ -27,7 +32,7 @@
 		$_SESSION['user_profile'] = $user;
 	}
 
-	$isTester = $_SESSION['user_profile']['IS_TESTER'] === 'TRUE';  //
+	$isTester = $is_tester_based_on_ip || $_SESSION['user_profile']['IS_TESTER'] === 'TRUE';  //
 	$shopStatus = $content['general'][1]['shop_status'];
 	$isShoppingAllowed = ($isTester || $shopStatus != 'closedbeta') && $shopStatus != 'closed'; //
 	$_SESSION['isShoppingAllowed'] = ($isShoppingAllowed) ? 1 : 0;
