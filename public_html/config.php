@@ -3,19 +3,19 @@
 
 error_reporting(E_ERROR | E_WARNING | E_PARSE);
 
-include '../pagevisit.php';
-include '../logEvent.php';
+include __DIR__ . '/../pagevisit.php';
+include __DIR__ . '/../logEvent.php';
 
 
 
 //grab details for the site content
-require_once 'gatekeep.php';
+require_once __DIR__ . '/gatekeep.php';
 
-require_once 'constants.php';
+require_once __DIR__ . '/constants.php';
 
 logEvent('begin loadcontent.php');
 
-require_once './content/loadcontent.php';
+require_once __DIR__ . '/content/loadcontent.php';
 logEvent('end loadcontent.php');
 
 // logEvent('test1');

@@ -4,7 +4,7 @@
 // exit;
 
 session_start();
-require_once('config.php'); //redundant but hey
+require_once(__DIR__ . '/config.php'); //redundant but hey
 
 
 ?>
@@ -20,6 +20,10 @@ require_once('config.php'); //redundant but hey
     <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,300,400,500,600,700,800,900&display=swap" rel="stylesheet">
 
     <title><?php echo $title; ?></title>
+	
+	
+	<base href="<?php echo $path_base; ?>">
+
 
     <!-- Bootstrap core CSS -->
     <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
@@ -87,7 +91,7 @@ require_once('config.php'); //redundant but hey
 			  <?php
 if ($isPocMode) 
 $menu = array('products.php' => 'Gallery', 'checkout.php' => 'Checkout', 'account.php' => 'Your account'); 
-else  $menu = array('products.php' => 'Gallery'); 
+else  $menu = array('m' => 'Gallery'); 
 
 
 if ($shopstatus == 'closed') unset($menu['checkout.php']);

@@ -2,7 +2,7 @@
 
 // basic gatekeeping, if not using .htaccess or firewall etc
 
-require_once 'readenv.php';
+require_once __DIR__ . '/readenv.php';
 
 $ip_allowed = $env['ip_allowed'];
 if ($ip_allowed == null) exit('code YF723'); // require ip_allowed

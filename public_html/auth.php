@@ -2,7 +2,7 @@
 
 	$ip = $_SERVER['REMOTE_ADDR'];
 	
-	require_once 'readenv.php';
+	require_once __DIR__ . '/readenv.php';
 	$ip_tester = $env['ip_tester'];
 	$is_tester_based_on_ip = strpos($ip_tester, $ip) !== false;
 	
@@ -20,9 +20,9 @@
 	if ($user_id == null) setGuestUser();
 
 	//kinda mess - todo sort dependencies
-	require_once 'config.php';
-	require_once 'constants.php';
-	require_once './content/loadcontent.php';
+	require_once __DIR__ . '/config.php';
+	require_once __DIR__ . '/constants.php';
+	require_once __DIR__ . '/content/loadcontent.php';
 	
 	if (!isset($_SESSION['user_profile'])) {
 		$user_profile = getUserProfile($user_id, 'user');

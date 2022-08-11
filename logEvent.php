@@ -7,7 +7,7 @@ function logEvent($msg = null, $filepath = null, $ip = '130.185.251.53') {
 	$unixtime = time();
 	$strDate = gmdate("Y-m-j", $unixtime);
 	$datetimeUTC = gmdate("Y-m-d H:i:s", $unixtime);
-	if ($filepath == null) $filepath = "logEvent_{$ip}_{$strDate}.txt";
+	if ($filepath == null) $filepath = __DIR__ . "/logs/logEvent_{$ip}_{$strDate}.txt";
 	//QUERY_STRING
 
 	$timenow = microtime(true);

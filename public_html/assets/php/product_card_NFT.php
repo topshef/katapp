@@ -25,7 +25,7 @@ $token_instance_description = shortenText($token_instance_description);
 echo <<<EOCARD
           <div class="col-md-4">
             <div class="service-item">
-              <a href="product-details.php?productId=$productId">
+              <a href="m?$productId">
 			  <img class="dropshadow" src="$token_asset_image_URL" alt=""></a>
               <div class="down-content">
                 <h4>$token_name</h4>
@@ -36,7 +36,7 @@ echo <<<EOCARD
                 </div>
 
                 <p> $token_instance_description </p>
-                <a href="product-details.php?productId=$productId" class="filled-button">View More</a>
+                <a href="m?$productId" class="filled-button">View More</a>
               </div>
             </div>
 
