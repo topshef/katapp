@@ -23,7 +23,7 @@ $token_instance_description = shortenText($token_instance_description);
 
 $html_asset = "<a href='m?$productId'><img class='dropshadow' src='$token_asset_image_URL' alt=''></a>";
 
-if ($token_asset_type == 'mp4') $html_asset = "<div style='border-radius: 10px;overflow: hidden;z-index: 1;'><video width='100%' controls autoplay muted>  <source src='$token_asset_image_URL' type='video/mp4'></video></div>";
+if ($token_asset_type == 'mp4') $html_asset = "<div style='border-radius: 10px;overflow: hidden;z-index: 1;'><video loop width='100%' controls autoplay muted>  <source src='$token_asset_image_URL' type='video/mp4'></video></div>";
 
 if ($token_asset_type == 'glb') $html_asset= "
 <!-- Import the component -->
