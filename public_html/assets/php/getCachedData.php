@@ -6,7 +6,7 @@
 		return 	getCacheData($url, $timeoutseconds, $cacheOnly);
 	}
 
-	function getCacheData($url, $timeoutseconds = null, $cacheOnly = false, $cacheFolder = null) {
+	function getCacheData($url, $timeoutseconds = null, $cacheOnly = false, $cachefolder = null) {
 		/* get a file from cache or download it
 		$timeoutseconds = 0      don't use cache
 		$timeoutseconds = null   default, never timeout
@@ -27,10 +27,11 @@
 		$hash = hash('SHA1', $url);
 		
 		//exit("$hash<BR>$url $timeoutseconds");
-		//if ($cacheFolder == null) $cacheFolder = __DIR__ . "/cache";
-		if ($cacheFolder == null) $cacheFolder = "{$_SERVER['DOCUMENT_ROOT']}/cache";
+		//if ($cachefolder == null) $cachefolder = __DIR__ . "/cache";
+		if ($cachefolder == null) $cachefolder = "{$_SERVER['DOCUMENT_ROOT']}/cache";
 		
-		$cachepath = "$cacheFolder/autocache.$hash.txt";
+		$cachefile = "autocache.$hash.txt";
+		$cachepath = "$cachefolder/$cachefile";
 		if ($isDebugMode) error_log("cachepath = $cachepath");
 
 		if (file_exists($cachepath)) {
@@ -51,7 +52,7 @@
 		
 		if ($cacheOnly) {
 			error_log("cacheOnly=true but could not find cache for $url $hash");
-			$cachepath = "$cacheFolder/autocache.$hash.missing";
+			$cachepath = "$cachefolder/autocache.$hash.missing";
 			file_put_contents($cachepath, $url);
 			return false;
 		}
@@ -60,13 +61,13 @@
 		error_log("getting data from $url");
 		$data = file_get_contents($url);
 		if ($data) {
-			file_put_contents("$cacheFolder/dir.txt", time() . "\t$hash\t$url\n", FILE_APPEND);
+			file_put_contents("$cachefolder/dir.txt", time() . "\t$hash\t$url\n", FILE_APPEND);
 			file_put_contents($cachepath, $data);
 			
-			// write a header file for debug
+			// write a header file for debug, and management
 			$cachepath_header = str_replace('.txt','.header.txt', $cachepath);
 			$callDuration = time() - $startTime;
-			$header = compact('url','timeoutseconds', 'cacheOnly', 'cacheFolder', 'callDuration');
+			$header = compact('url','hash', 'cachefolder', 'cachefile', 'timeoutseconds', 'cacheOnly', 'callDuration');
 			file_put_contents($cachepath_header, json_encode($header, JSON_PRETTY_PRINT));
 			
 			error_log("wrote data $cachepath");
@@ -77,7 +78,7 @@
   
 	function updateMissingCache($limit=10) {
 		// eg use for cron job update missing cache data
-		$pattern = glob("$cacheFolder/autocache.*.missing");
+		$pattern = glob("$cachefolder/autocache.*.missing");
 		$files = glob($pattern);
 		foreach ($files as $filepath) {
 			$url = file_get_contents($filepath);
