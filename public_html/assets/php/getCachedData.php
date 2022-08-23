@@ -11,7 +11,7 @@
 		$timeoutseconds = 0      don't use cache
 		$timeoutseconds = null   default, never timeout
 		*/
-		
+		//error_log("calling getCacheData timeoutseconds=$timeoutseconds cacheOnly=$cacheOnly for for url=$url");
 		$startTime = time(); // for debug only, see header below
 		
 		extract($_SESSION['flags']);
@@ -35,7 +35,10 @@
 		if ($isDebugMode) error_log("cachepath = $cachepath");
 
 		if (file_exists($cachepath)) {
-			if ($timeoutseconds === null) return file_get_contents($cachepath); // never timeout
+			if ($timeoutseconds === null) {
+				//error_log("return from getCacheData cachepath=$cachepath ");
+				return file_get_contents($cachepath); // never timeout
+			}
 			
 			$ageseconds = time() - filemtime($cachepath);
 			//if ($ageseconds < $timeoutseconds) exit("use cache, ageseconds = $ageseconds, timeoutseconds = $timeoutseconds");
