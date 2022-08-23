@@ -21,5 +21,15 @@
 		return $out;
 	}
 
-
+	require_once "{$_SERVER['DOCUMENT_ROOT']}/assets/php/getCachedData.php";
+	
+	
+	function getTokenInfo($network, $tokenId) {
+		if ($network == 'mainnet') $url = "https://mainnet-public";
+		else $url = "https://$network";
+		$url .= ".mirrornode.hedera.com/api/v1/tokens/$tokenId";
+		$json = getCacheData($url);
+		return json_decode($json,true);
+	}
+	
 ?>
