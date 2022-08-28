@@ -21,9 +21,21 @@ $token_instance_description = shortenText($token_instance_description);
 
 //https://shop.music.gomint.me/product-details.php?productId=mainnet;0.0.571591;H488152
 
+if ($layer2['json']['type'] == 'image/gif') $token_asset_type = 'gif'; // fudge fix
+	
+$pattern = "{$_SERVER['DOCUMENT_ROOT']}/content/assets/thumbnails/$network.$token_id.png";
+$thumbnails = glob($pattern);
+
+if ($thumbnails != null) {
+	$token_asset_image_URL = $thumbnails[0];
+	$token_asset_image_URL = str_replace($_SERVER['DOCUMENT_ROOT'], "https://{$_SERVER['SERVER_NAME']}", $token_asset_image_URL);
+	$token_asset_type = 'png';
+	error_log("thumbnail found $token_asset_image_URL ");
+}
+
 $html_asset = "<a href='m?$productId'><img class='dropshadow' src='$token_asset_image_URL' alt=''></a>";
 
-if ($layer2['json']['type'] == 'image/gif') $html_asset = "<a href='m?$productId'><img class='dropshadow' src='$token_asset_URL' alt=''></a>";
+if ($token_asset_type == 'gif') $html_asset = "<a href='m?$productId'><img class='dropshadow' src='$token_asset_URL' alt=''></a>";
 
 if ($token_asset_type == 'mp4') $html_asset = "<div style='border-radius: 10px;overflow: hidden;z-index: 1;'><video loop width='100%' controls autoplay muted>  <source src='$token_asset_URL' type='video/mp4'></video></div>";
 
@@ -32,6 +44,7 @@ if ($token_asset_type == 'glb') $html_asset= "
 <script type='module' src='https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js'></script>
 
 <model-viewer src='$token_asset_URL' alt='glb' ar ar-modes='webxr scene-viewer quick-look' environment-image='neutral'  auto-rotate camera-controls></model-viewer>";
+
 
 //$tokenName = urldecode($tokenName);
 echo <<<EOCARD
