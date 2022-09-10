@@ -27,7 +27,7 @@ export const ShowCube = (images, imageLinks, options) => {
     1000
     )
     
-    camera.position.z = 15;
+    camera.position.z = 90;
     
     const renderer = new THREE.WebGLRenderer({alpha: true})
     renderer.setClearColor( 0x000000, 0);
