@@ -8,7 +8,7 @@ import Stats from 'https://cdn.skypack.dev/three/examples/jsm/libs/stats.module'
 export const ShowCube = (images, imageLinks, options) => {
 
     // Set Options
-    const introAnimation = {
+    var introAnimation = {
       isActive: options.introAnimation.isActive ? true: false,
       speed: options.introAnimation.speed || 0.14
     }
@@ -238,9 +238,29 @@ export const ShowCube = (images, imageLinks, options) => {
 Animates the intro of the cube (starts samll.. then zooms in) 
 */ 
 function animateIntro(camera, introAnimation) {
-  if (camera.position.z >= 2) {
-    camera.position.z -= introAnimation.speed;
-  } else {
-    introAnimation.isActive = false;
-  }
+
+	switch (true){
+		case camera.position.z >= 4 :
+		camera.position.z -= introAnimation.speed;
+		break;
+		
+		case camera.position.z >= 2 :
+		// dampened stop
+		//map 4 to x1 (ie no change) and 2 to x0 (ie complete stop)
+		camera.position.z -= (introAnimation.speed * (camera.position.z - 2) / 2) ;
+		break;
+		
+		case camera.position.z < 2 :
+		introAnimation.isActive = false;
+	}
+	
+	/*
+	  if (camera.position.z >= 2) {
+		camera.position.z -= introAnimation.speed;
+	  } else {
+		introAnimation.isActive = false;
+	  }
+	 */
+	 
+ 
 }
