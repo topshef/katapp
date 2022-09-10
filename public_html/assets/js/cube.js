@@ -5,14 +5,17 @@ import Stats from 'https://cdn.skypack.dev/three/examples/jsm/libs/stats.module'
 
 
 // The 2 parameters should be arrays.
-export const ShowCube = (images, imageLinks) => {
-    console.log(images);
-    console.log(imageLinks);
+export const ShowCube = (images, imageLinks, options) => {
+
+    // Set Options
+    const introAnimation = {
+      isActive: options.introAnimation.isActive ? true: false,
+      speed: options.introAnimation.speed || 0.14
+    }
+
 
     images = Object.keys(images).map(function(k) {return images[k]; });
     imageLinks = Object.keys(imageLinks).map(function(k) {return imageLinks[k]; });
-    console.log(images);
-    console.log(imageLinks);
 
     const scene = new THREE.Scene()
     scene.add(new THREE.AxesHelper(0))
@@ -23,7 +26,8 @@ export const ShowCube = (images, imageLinks) => {
     0.1,
     1000
     )
-    camera.position.z = 2
+    
+    camera.position.z = 15;
     
     const renderer = new THREE.WebGLRenderer({alpha: true})
     renderer.setClearColor( 0x000000, 0);
@@ -64,8 +68,7 @@ export const ShowCube = (images, imageLinks) => {
         geometry.push(new THREE.PlaneGeometry( 1, 1 ));
         material.push(new THREE.MeshBasicMaterial( {map: new THREE.TextureLoader().load(img), opacity: cubeOpacity, transparent: true, side: THREE.DoubleSide} ));
     });
-    console.log(geometry);
-    console.log(material);
+
     /*
     <?php foreach (range(1,6) as $i) {  							
             echo "const geometry$i = new THREE.PlaneGeometry( 1, 1 );
@@ -107,9 +110,7 @@ export const ShowCube = (images, imageLinks) => {
     scene.add(face1, face2, face3, face4, face5, face6);
     let num1 = 0;
     let num2 = 0;
-    
-    console.log(scene);
-    console.log(camera);
+
     window.onbeforeunload = function(){
       
       setInterval(() => {
@@ -155,14 +156,12 @@ export const ShowCube = (images, imageLinks) => {
         // And finally change the color:
         if (intersects.length > 0) {
     
-    console.log('test');
         imageLinks.forEach((link, i)=>{
-            console.log('face'+(i+1));
             if(intersects[0].object.name == 'face'+(i+1)){
                 window.location.href = link;
             }
         })
-        console.log('test2');
+
         /*
     <?php foreach (range(1,6) as $i) {  				
             echo "if(intersects[0].object.name == 'face{$i}'){";
@@ -189,13 +188,20 @@ export const ShowCube = (images, imageLinks) => {
       requestAnimationFrame(animate);
       // trackball controls needs to be updated in the animation loop before it will work
       controls.update();
-    
+      
+      if (introAnimation.isActive) {
+        animateIntro(camera, introAnimation);
+      }
+       
+
       render();
       
       // stats.update()
     }
+
+
     
-    var canvasEl = document.querySelector('.main-banner canvas'); console.log(canvasEl);
+    var canvasEl = document.querySelector('.main-banner canvas'); 
     var isTouching = false;
     
     canvasEl.addEventListener('touchstart', (e)=>{
@@ -223,5 +229,18 @@ export const ShowCube = (images, imageLinks) => {
       renderer.render(scene, camera)
     }
     
+
     animate();
+}
+
+
+/**
+Animates the intro of the cube (starts samll.. then zooms in) 
+*/ 
+function animateIntro(camera, introAnimation) {
+  if (camera.position.z >= 2) {
+    camera.position.z -= introAnimation.speed;
+  } else {
+    introAnimation.isActive = false;
+  }
 }
