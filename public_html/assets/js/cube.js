@@ -4,8 +4,15 @@ import { TextureLoader } from 'https://cdn.skypack.dev/three/src/loaders/Texture
 import Stats from 'https://cdn.skypack.dev/three/examples/jsm/libs/stats.module'
 
 
-// The 2 parameters should be arrays.
-export const ShowCube = (images, imageLinks, options) => {
+/**
+ * Display a 3D cube
+ * @containerSelector {string} - css selector of the container element for the canvas
+ * @images {object} - list of images
+ * @imageLinks {object} - list of links for redirecting when images are clicked
+ * @options {object} - settings
+ * @returns nothing
+ */
+export const ShowCube = (containerSelector, images, imageLinks, options) => {
 
     // Set Options
     var introAnimation = {
@@ -33,7 +40,7 @@ export const ShowCube = (images, imageLinks, options) => {
     renderer.setClearColor( 0x000000, 0);
     renderer.setSize(window.innerWidth, window.innerHeight);
     //document.body.appendChild(renderer.domElement);
-    document.querySelector('.main-banner .img-fill').appendChild(renderer.domElement);
+    document.querySelector(containerSelector).appendChild(renderer.domElement);
     var raycaster = new THREE.Raycaster(); // Needed for object intersection
     var mouse = new THREE.Vector2(); //Needed for mouse coordinates
     
@@ -201,21 +208,21 @@ export const ShowCube = (images, imageLinks, options) => {
 
 
     
-    var canvasEl = document.querySelector('.main-banner canvas'); 
+    //var canvasEl = document.getElementById(canvasId); 
     var isTouching = false;
     
-    canvasEl.addEventListener('touchstart', (e)=>{
+    renderer.domElement.addEventListener('touchstart', (e)=>{
       isTouching = true;
       document.querySelector('.drag_gif').style.display = 'none';
     })
-    canvasEl.addEventListener('mousedown', (e)=>{
+    renderer.domElement.addEventListener('mousedown', (e)=>{
       isTouching = true;
       document.querySelector('.drag_gif').style.display = 'none';
     })
-    canvasEl.addEventListener('touchend', (e)=>{
+    renderer.domElement.addEventListener('touchend', (e)=>{
       isTouching = false;
     })
-    canvasEl.addEventListener('mouseup', (e)=>{
+    renderer.domElement.addEventListener('mouseup', (e)=>{
       isTouching = false;
     })
     
