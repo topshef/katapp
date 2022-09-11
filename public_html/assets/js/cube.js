@@ -239,18 +239,23 @@ Animates the intro of the cube (starts samll.. then zooms in)
 */ 
 function animateIntro(camera, introAnimation) {
 
+	//const stopz = 0.5; // enter cube
+	const slowz = 4;
+	const stopz = 2;
+	
+
 	switch (true){
-		case camera.position.z >= 4 :
+		case camera.position.z >= slowz :
 		camera.position.z -= introAnimation.speed;
 		break;
 		
-		case camera.position.z >= 2 :
+		case camera.position.z >= stopz :
 		// dampened stop
 		//map 4 to x1 (ie no change) and 2 to x0 (ie complete stop)
-		camera.position.z -= (introAnimation.speed * (camera.position.z - 2) / 2) ;
+		camera.position.z -= (introAnimation.speed * (camera.position.z - stopz) / (slowz-stopz)) ;
 		break;
 		
-		case camera.position.z < 2 :
+		case camera.position.z < stopz :
 		introAnimation.isActive = false;
 	}
 	
