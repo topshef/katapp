@@ -249,21 +249,24 @@ function animateIntro(camera, introAnimation) {
 	//const stopz = 0.5; // enter cube
 	const slowz = 4;
 	const stopz = 2;
+  const dragGif = document.querySelector('.drag_gif');
+  const roundedCameraZ = (Math.round(camera.position.z  * 100) / 100);
 	
 
 	switch (true){
 		case camera.position.z >= slowz :
-		camera.position.z -= introAnimation.speed;
-		break;
+		  camera.position.z -= introAnimation.speed;
+		  break;
 		
-		case camera.position.z >= stopz :
+		case roundedCameraZ > stopz :
 		// dampened stop
 		//map 4 to x1 (ie no change) and 2 to x0 (ie complete stop)
-		camera.position.z -= (introAnimation.speed * (camera.position.z - stopz) / (slowz-stopz)) ;
-		break;
+		  camera.position.z -= (introAnimation.speed * (camera.position.z - stopz) / (slowz-stopz)) ;
+		  break;
 		
-		case camera.position.z < stopz :
-		introAnimation.isActive = false;
+		case roundedCameraZ <= stopz :
+		  introAnimation.isActive = false;
+      dragGif.style.opacity = 1;
 	}
 	
 	/*
