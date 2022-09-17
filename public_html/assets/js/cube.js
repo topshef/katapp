@@ -19,47 +19,70 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
       isActive: options.introAnimation.isActive ? true: false,
       speed: options.introAnimation.speed || 0.14
     }
+    let redirectAnimation = {
+      isActive: false,
+      speed: 0.07
+    }
+    let focusAnimation = {
+      isActive: false, // is focusing on a specific face of a cube
+      speed: 0.18,
+      focusTarget: null  // TODO: targets the face object/mesh of a cube
+    }
 
+    let isTouching = false;
+    let isRotating = options.isRotating ? true : false; 
+    let rotatingTimeout = null; 
+    const rotationMatrix = new THREE.Matrix4();
+    const targetQuaternion = new THREE.Quaternion();
 
+    // Convert images & image links to arrays
     images = Object.keys(images).map(function(k) {return images[k]; });
     imageLinks = Object.keys(imageLinks).map(function(k) {return imageLinks[k]; });
 
+    // Create scene
     const scene = new THREE.Scene()
     scene.add(new THREE.AxesHelper(0))
+    console.log(scene);
     
+    // Create camera
     const camera = new THREE.PerspectiveCamera(
     75,
     window.innerWidth / window.innerHeight,
     0.1,
     1000
     )
-    
+  
     camera.position.z = 90;
+
     
+    // Create renderer
     const renderer = new THREE.WebGLRenderer({alpha: true})
     renderer.setClearColor( 0x000000, 0);
     renderer.setSize(window.innerWidth, window.innerHeight);
-    //document.body.appendChild(renderer.domElement);
     document.querySelector(containerSelector).appendChild(renderer.domElement);
+
+    // Create raycaster for object intersection
     var raycaster = new THREE.Raycaster(); // Needed for object intersection
     var mouse = new THREE.Vector2(); //Needed for mouse coordinates
     
-    
+    // Controls (TrackballControlls)
     const controls = new TrackballControls(camera, renderer.domElement)
     // controls.addEventListener('change', () => console.log("Controls Change"))
     controls.addEventListener('start', () => {
-        controls.staticMoving = false
+        controls.staticMoving = false;
+        console.log(camera);
         controls.update()
     })
     // controls.addEventListener('end', () => console.log("Controls End Event"))
     // controls.enabled = false
+   
     controls.rotateSpeed = 3.0
     // controls.zoomSpeed = 1.2
     // controls.panSpeed = 0.8
     // controls.keys = ['KeyA', 'KeyS', 'KeyD']
     controls.noPan = true //default false
     // controls.noRotate = true //default false
-    controls.noZoom = false //default false
+    controls.noZoom = true //default false
     // controls.staticMoving = true //default false
     controls.dynamicDampingFactor = 0.05;
     // controls.maxDistance = 4
@@ -71,6 +94,7 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
     let geometry = [];
     let material = [];
 
+    // Create geometry & materials from images
     images.forEach((img, i)=>{
         geometry.push(new THREE.PlaneGeometry( 1, 1 ));
         material.push(new THREE.MeshBasicMaterial( {map: new THREE.TextureLoader().load(img), opacity: cubeOpacity, transparent: true, side: THREE.DoubleSide} ));
@@ -94,27 +118,50 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
     const face1 = new THREE.Mesh(geometry[0], material[0]);
     face1.position.z = 0.5;
     face1.name = "face1";
+    face1.userData.Quaternion = new THREE.Quaternion(0,0,0,1);
+
     const face2 = new THREE.Mesh(geometry[1], material[1]);
     face2.position.z = -0.5;
     face2.name = "face2";
+    face2.userData.Quaternion = new THREE.Quaternion(0,.99,0,-.029);
+
     const face3 = new THREE.Mesh(geometry[2], material[2]);
     face3.rotation.y = 1.57;
     face3.position.x = 0.5;
     face3.name = "face3";
+    face3.userData.Quaternion = new THREE.Quaternion(0,-.71,0,.69);
+
     const face4 = new THREE.Mesh(geometry[3], material[3]);
     face4.rotation.y = 1.57;
     face4.position.x = -0.5;
     face4.name = "face4";
+    face4.userData.Quaternion = new THREE.Quaternion(0,.71,0,.69);
     const face5 = new THREE.Mesh(geometry[4], material[4]);
     face5.rotation.x = 1.57;
     face5.position.y = 0.5;
     face5.name = "face5";
+    face5.userData.Quaternion = new THREE.Quaternion(.71,0,0,.69);
+
     const face6 = new THREE.Mesh(geometry[5], material[5]);
     face6.rotation.x = 1.57;
     face6.position.y = -0.5;
     face6.name = "face6";
+    face6.userData.Quaternion = new THREE.Quaternion(-.64,0,0,.76);
     
-    scene.add(face1, face2, face3, face4, face5, face6);
+    let faces = [face1, face2, face3, face4, face5, face6];
+
+    // Create a cube container
+    const cubeContainer = new THREE.Object3D();
+  
+    // Create a group called cube with all the faces added
+    const cube = new THREE.Group();
+    cube.add(face1, face2, face3, face4, face5, face6);
+
+    //scene.add(face1, face2, face3, face4, face5, face6);
+    //scene.add(cube);
+    scene.add(cubeContainer);
+    cubeContainer.add(cube);
+
     let num1 = 0;
     let num2 = 0;
 
@@ -160,14 +207,30 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
         controls.staticMoving = true
         controls.update()
     
-        // And finally change the color:
+        clearTimeout(rotatingTimeout);
+
+        // Check click intersects and perform actions:
         if (intersects.length > 0) {
-    
-        imageLinks.forEach((link, i)=>{
-            if(intersects[0].object.name == 'face'+(i+1)){
-                window.location.href = link;
-            }
-        })
+      
+          imageLinks.forEach((link, i)=>{
+              if(intersects[0].object.name == 'face'+(i+1)){
+                if (!isRotating){
+                  redirectAnimation.isActive = true;
+                  renderer.domElement.style.zIndex = 2;
+                  window.location.href = link;
+                }
+                else {
+                  pauseRotation(10000);
+                  
+                  cube.setRotationFromQuaternion(intersects[0].object.userData.Quaternion);
+                  rotationMatrix.lookAt( camera.position, cubeContainer.position, camera.up );
+                 // rotationMatrix.lookAt( camera.position, cube.position, cube.up );
+                  targetQuaternion.setFromRotationMatrix( rotationMatrix );
+                  focusAnimation.isActive = true;
+                }
+                  
+              }
+          })
 
         /*
     <?php foreach (range(1,6) as $i) {  				
@@ -180,24 +243,30 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
     }
     
     
-    window.addEventListener('resize', onWindowResize, false)
+    window.addEventListener('resize', onWindowResize, false);
     function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight
-    camera.updateProjectionMatrix()
-    renderer.setSize(window.innerWidth, window.innerHeight)
-    render()
+      camera.aspect = window.innerWidth / window.innerHeight
+      camera.updateProjectionMatrix()
+      renderer.setSize(window.innerWidth, window.innerHeight)
+      render()
     }
     
     // const stats = Stats()
     // document.body.appendChild(stats.dom)
     
-    function animate() { 
-      requestAnimationFrame(animate);
+    function animate() {
       // trackball controls needs to be updated in the animation loop before it will work
       controls.update();
       
       if (introAnimation.isActive) {
         animateIntro(camera, introAnimation);
+        //console.log(camera);
+      }
+      if (redirectAnimation.isActive) {
+        animateRedirect(faces, redirectAnimation);
+      }
+      if (focusAnimation.isActive) {
+        focusOnFace();
       }
        
 
@@ -208,9 +277,8 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
 
 
     
-    //var canvasEl = document.getElementById(canvasId); 
-    var isTouching = false;
     
+    // Add Event Listeners to <canvas>
     renderer.domElement.addEventListener('touchstart', (e)=>{
       isTouching = true;
       document.querySelector('.drag_gif').style.display = 'none';
@@ -226,17 +294,122 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
       isTouching = false;
     })
     
+    // Pausing the cube rotation for x amount of ms
+    function pauseRotation(ms) {
+      isRotating = false;
+      rotatingTimeout = setTimeout(()=>{isRotating = true}, ms);
+    }
+    
+  
+    function focusOnFace() {
+      if ( ! cubeContainer.quaternion.equals( targetQuaternion ) ) {
+        cubeContainer.quaternion.rotateTowards( targetQuaternion, focusAnimation.speed);
+      }
+      else {
+        focusAnimation.isActive = false;
+      }     
+    }
+   
+
     function render() {
    
-      if (!isTouching) {
-        scene.rotation.y += 0.005;
-        
+      if (isRotating && !isTouching) {
+        cubeContainer.rotation.y += 0.005;
+        //console.log(scene);
+        //console.log(cube);
+        //console.log(cubeContainer);
       }
       
       renderer.render(scene, camera)
+      requestAnimationFrame(animate);
+    }
+
+
+    function testMode() {
+
+      let cubeUpBtn = document.createElement('button');
+      let cubeDownBtn = document.createElement('button');
+      let cubeLeftBtn = document.createElement('button');
+      let cubeRightBtn = document.createElement('button');
+      let camUpBtn = document.createElement('button');
+      let camDownBtn = document.createElement('button');
+      let camLeftBtn = document.createElement('button');
+      let camRightBtn = document.createElement('button');
+      let sceneUpBtn = document.createElement('button');
+      let sceneDownBtn = document.createElement('button');
+      let sceneLeftBtn = document.createElement('button');
+      let sceneRightBtn = document.createElement('button');
+      let btns = [cubeUpBtn, cubeDownBtn, cubeLeftBtn, cubeRightBtn, camUpBtn, camDownBtn, camLeftBtn, camRightBtn, sceneUpBtn, sceneDownBtn, sceneLeftBtn, sceneRightBtn];
+      let txts = ['Cube Up', 'Cube Down', 'Cube Left', 'Cube Right', 'Cam Up', 'Cam Down', 'Cam Left', 'Cam Right', 'Scene Rotate Up', 'Scene Rotate Down', 'Scene Rotate Left', 'Scene Rotate Right'];
+
+      btns.forEach((btn, i)=>{
+        btn.innerHTML = txts[i];
+        document.querySelector('.main-banner').appendChild(btn);
+
+        btn.addEventListener('click', ()=>{
+          const cubeAmountX = 0.2;
+          const cubeAmountY = 0.2;
+          const camAmountX = 0.2;
+          const camAmountY = 0.2;
+          const sceneAmountX = 0.2;
+          const sceneAmountY = 0.2;
+
+          switch(txts[i]) {
+            case 'Cube Up' : 
+              cube.rotation.x -= cubeAmountX;
+              break;
+            case 'Cube Down' : 
+              cube.rotation.x += cubeAmountX;
+              break;
+            case 'Cube Left' : 
+              cube.rotation.y -= cubeAmountY;
+              break;
+            case 'Cube Right' : 
+              cube.rotation.y += cubeAmountY;
+              break;
+            case 'Cam Up' : 
+              camera.up.x -= camAmountX;
+              break;
+            case 'Cam Down' : 
+              camera.up.x += camAmountX;
+              break;
+            case 'Cam Left' : 
+              camera.up.y -= camAmountY;
+              break;
+            case 'Cam Right' : 
+              camera.up.y += camAmountY;
+              break;
+            case 'Scene Rotate Up' : 
+              scene.rotation.x -= sceneAmountX;
+              break;
+            case 'Scene Rotate Down' : 
+              scene.rotation.x += sceneAmountX;
+              break;
+            case 'Scene Rotate Left' : 
+              scene.rotation.y -= sceneAmountY;
+              break;
+            case 'Scene Rotate Right' : 
+              scene.rotation.y += sceneAmountY;
+              break;
+          }
+
+          //console.log('cube.getWorldPosition(): ');
+          //console.log(cube.getWorldQuaternion(new THREE.Quaternion()));
+          console.log('************scene **************');
+          console.log(scene);
+          console.log('************cube.getWorldDirection(): **************');
+          console.log(cube.getWorldDirection(new THREE.Vector3()));
+
+          cube.updateMatrix();
+          camera.updateProjectionMatrix();
+          controls.update();
+        })
+      })
+
     }
     
-
+    
+    //testMode();
     animate();
 }
 
@@ -278,4 +451,65 @@ function animateIntro(camera, introAnimation) {
 	 */
 	 
  
+}
+
+/**
+Animates the cube when redirecting the page after an image-link click
+*/ 
+function animateRedirect(faces, redirectAnimation) {
+  
+	const slowScale = 1.9;
+	const stopScale = 2.6;
+	
+  console.log('slowScale: ' + slowScale);
+  console.log('stopScale: ' + stopScale);
+
+  faces.forEach((face)=>{
+    const roundedScaleX = (Math.round(face.scale.x  * 100) / 100);
+    //const roundedScaleY = (Math.round(face.scale.y  * 100) / 100);
+    console.log('roundedScaleX: ' + roundedScaleX);
+
+    switch (true){
+      case roundedScaleX <= slowScale :
+        face.scale.x += redirectAnimation.speed;
+        face.scale.y += redirectAnimation.speed;
+        if (face.position.x < 0) // if negative
+          face.position.x -= redirectAnimation.speed / 2;
+        else if (face.position.x > 0)
+          face.position.x += redirectAnimation.speed / 2;
+        if (face.position.y < 0) // if negative
+          face.position.y -= redirectAnimation.speed / 2;
+        else if (face.position.y > 0)
+          face.position.y += redirectAnimation.speed / 2;
+        if (face.position.z < 0) // if negative
+          face.position.z -= redirectAnimation.speed / 2;
+        else if (face.position.z > 0)
+          face.position.z += redirectAnimation.speed / 2;
+        break;
+      
+      case roundedScaleX < stopScale :
+      // dampened stop
+      // map 4 to x1 (ie no change) and 2 to x0 (ie complete stop)
+        face.scale.x += (redirectAnimation.speed * (face.scale.x - stopScale) / (slowScale-stopScale));
+        face.scale.y += (redirectAnimation.speed * (face.scale.y - stopScale) / (slowScale-stopScale));
+        if (face.position.x < 0) // if negative
+          face.position.x -= (redirectAnimation.speed * ((face.position.x * -2) - stopScale) / (slowScale-stopScale));
+        else if (face.position.x > 0)
+          face.position.x += (redirectAnimation.speed * ((face.position.x * 2) - stopScale) / (slowScale-stopScale));
+        if (face.position.y < 0) // if negative
+          face.position.y -= (redirectAnimation.speed * ((face.position.y * -2) - stopScale) / (slowScale-stopScale));
+        else if (face.position.y > 0)
+          face.position.y += (redirectAnimation.speed * ((face.position.y * 2) - stopScale) / (slowScale-stopScale));
+        if (face.position.z < 0) // if negative
+          face.position.z -= (redirectAnimation.speed * ((face.position.z * -2) - stopScale) / (slowScale-stopScale));
+        else if (face.position.z > 0)
+          face.position.z += (redirectAnimation.speed * ((face.position.z * 2) - stopScale) / (slowScale-stopScale));
+          
+        break;
+      
+      case roundedScaleX >= stopScale :
+        redirectAnimation.isActive = false;
+    }
+
+  });
 }
