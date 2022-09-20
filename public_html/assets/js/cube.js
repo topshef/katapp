@@ -82,7 +82,7 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
     // controls.keys = ['KeyA', 'KeyS', 'KeyD']
     controls.noPan = true //default false
     // controls.noRotate = true //default false
-    controls.noZoom = true //default false
+    controls.noZoom = false //default false
     // controls.staticMoving = true //default false
     controls.dynamicDampingFactor = 0.05;
     // controls.maxDistance = 4
