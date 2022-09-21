@@ -21,7 +21,9 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
     }
     let redirectAnimation = {
       isActive: false,
-      speed: 0.07
+      speed: 0.07,
+      slowScale: 1.9,
+      stopScale: 4.0 //2.6
     }
     let focusAnimation = {
       isActive: false, // is focusing on a specific face of a cube
@@ -215,18 +217,17 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
           imageLinks.forEach((link, i)=>{
               if(intersects[0].object.name == 'face'+(i+1)){
                 if (!isRotating){
+                  cube.setRotationFromQuaternion(intersects[0].object.userData.Quaternion);
+                  rotationMatrix.lookAt( camera.position, cubeContainer.position, camera.up );
+                 // rotationMatrix.lookAt( camera.position, cube.position, cube.up );
+                  targetQuaternion.setFromRotationMatrix( rotationMatrix );
+                  focusAnimation.isActive = true;
                   redirectAnimation.isActive = true;
                   renderer.domElement.style.zIndex = 2;
                   window.location.href = link;
                 }
                 else {
                   pauseRotation(10000);
-                  
-                  cube.setRotationFromQuaternion(intersects[0].object.userData.Quaternion);
-                  rotationMatrix.lookAt( camera.position, cubeContainer.position, camera.up );
-                 // rotationMatrix.lookAt( camera.position, cube.position, cube.up );
-                  targetQuaternion.setFromRotationMatrix( rotationMatrix );
-                  focusAnimation.isActive = true;
                 }
                   
               }
@@ -458,16 +459,15 @@ Animates the cube when redirecting the page after an image-link click
 */ 
 function animateRedirect(faces, redirectAnimation) {
   
-	const slowScale = 1.9;
-	const stopScale = 2.6;
+	const slowScale = redirectAnimation.slowScale;
+	const stopScale = redirectAnimation.stopScale;
 	
-  console.log('slowScale: ' + slowScale);
-  console.log('stopScale: ' + stopScale);
+//  console.log('slowScale: ' + slowScale);
+//  console.log('stopScale: ' + stopScale);
 
   faces.forEach((face)=>{
     const roundedScaleX = (Math.round(face.scale.x  * 100) / 100);
     //const roundedScaleY = (Math.round(face.scale.y  * 100) / 100);
-    console.log('roundedScaleX: ' + roundedScaleX);
 
     switch (true){
       case roundedScaleX <= slowScale :
