@@ -22,7 +22,7 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
     let redirectAnimation = {
       isActive: false,
       speed: 0.07,
-      slowScale: 1.9,
+      slowScale: 0.9,
       stopScale: 4.0 //2.6
     }
     let focusAnimation = {
