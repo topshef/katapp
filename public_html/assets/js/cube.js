@@ -17,7 +17,10 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
   // Set Options
   var introAnimation = {
     isActive: options.introAnimation.isActive ? true : false,
-    speed: options.introAnimation.speed || 0.14
+    speed: options.introAnimation.speed || 0.94,
+    zoomStart: 90,
+    zoomSlow: 4,
+    zoomEnd: 2
   }
   let redirectAnimation = {
     isActive: false,
@@ -36,6 +39,7 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
   let rotatingTimeout = null;
   const rotationMatrix = new THREE.Matrix4();
   const targetQuaternion = new THREE.Quaternion();
+  
 
   // Convert images & image links to arrays
   images = Object.keys(images).map(function (k) { return images[k]; });
@@ -53,8 +57,8 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
     0.1,
     1000
   )
-
-  camera.position.z = 90;
+  let prevCamPos = {x: camera.position.x, y: camera.position.y};
+  introAnimation.isActive ? camera.position.z = introAnimation.zoomStart : camera.position.z = 2;
 
 
   // Create renderer
@@ -71,11 +75,19 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
   const controls = new TrackballControls(camera, renderer.domElement);
   // controls.addEventListener('change', () => console.log("Controls Change"))
   controls.addEventListener('start', () => {
-    controls.staticMoving = false;
+    //controls.staticMoving = false;
     console.log(camera);
-    controls.update();
+    console.log(controls);
+    //controls.update();
   })
-  // controls.addEventListener('end', () => console.log("Controls End Event"));
+  controls.addEventListener('change', () => {
+    controls.staticMoving = false;
+  });
+   controls.addEventListener('end', () => {
+    //console.log("Controls End Event");
+    //isRotating = true;
+  });
+   
   // controls.enabled = false;
 
   controls.rotateSpeed = 3.0;
@@ -120,35 +132,36 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
   const face1 = new THREE.Mesh(geometry[0], material[0]);
   face1.position.z = 0.5;
   face1.name = "face1";
-  face1.userData.Quaternion = new THREE.Quaternion(0, 0, 0, 1);
+  //face1.userData.Quaternion = new THREE.Quaternion(0, 0, 0, 1);
 
   const face2 = new THREE.Mesh(geometry[1], material[1]);
   face2.position.z = -0.5;
   face2.name = "face2";
-  face2.userData.Quaternion = new THREE.Quaternion(0, .99, 0, -.029);
+  //face2.userData.Quaternion = new THREE.Quaternion(0, .99, 0, -.029);
 
   const face3 = new THREE.Mesh(geometry[2], material[2]);
   face3.rotation.y = 1.57;
   face3.position.x = 0.5;
   face3.name = "face3";
-  face3.userData.Quaternion = new THREE.Quaternion(0, -.71, 0, .69);
+  //face3.userData.Quaternion = new THREE.Quaternion(0, -.71, 0, .69);
 
   const face4 = new THREE.Mesh(geometry[3], material[3]);
   face4.rotation.y = 1.57;
   face4.position.x = -0.5;
   face4.name = "face4";
-  face4.userData.Quaternion = new THREE.Quaternion(0, .71, 0, .69);
+  //face4.userData.Quaternion = new THREE.Quaternion(0, .71, 0, .69);
+
   const face5 = new THREE.Mesh(geometry[4], material[4]);
   face5.rotation.x = 1.57;
   face5.position.y = 0.5;
   face5.name = "face5";
-  face5.userData.Quaternion = new THREE.Quaternion(.71, 0, 0, .69);
+  //face5.userData.Quaternion = new THREE.Quaternion(.71, 0, 0, .69);
 
   const face6 = new THREE.Mesh(geometry[5], material[5]);
   face6.rotation.x = 1.57;
   face6.position.y = -0.5;
   face6.name = "face6";
-  face6.userData.Quaternion = new THREE.Quaternion(-.64, 0, 0, .76);
+  //face6.userData.Quaternion = new THREE.Quaternion(-.64, 0, 0, .76);
 
   let faces = [face1, face2, face3, face4, face5, face6];
 
@@ -206,8 +219,8 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
     // does your cursor intersect the object on click ?
     //console.log(intersects.length > 0 ? "yes" : "no");
 
-    controls.staticMoving = true;
-    controls.update();
+    //controls.staticMoving = true;
+    //controls.update();
 
     clearTimeout(rotatingTimeout);
 
@@ -216,17 +229,19 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
 
       imageLinks.forEach((link, i) => {
         if (intersects[0].object.name == 'face' + (i + 1)) {
-          if (!isRotating) {
-            cube.setRotationFromQuaternion(intersects[0].object.userData.Quaternion);
-            rotationMatrix.lookAt(camera.position, cubeContainer.position, camera.up);
+
+          if (!isRotating && controls.staticMoving) {
+            //cube.setRotationFromQuaternion(intersects[0].object.userData.Quaternion);
+            //rotationMatrix.lookAt(camera.position, cubeContainer.position, camera.up);
             // rotationMatrix.lookAt( camera.position, cube.position, cube.up );
-            targetQuaternion.setFromRotationMatrix(rotationMatrix);
-            focusAnimation.isActive = true;
+            //targetQuaternion.setFromRotationMatrix(rotationMatrix);
+            //focusAnimation.isActive = true;
             redirectAnimation.isActive = true;
             renderer.domElement.style.zIndex = 2;
             window.location.href = link;
           }
           else {
+            console.log('pause');
             pauseRotation(10000);
           }
 
@@ -264,7 +279,7 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
       //console.log(camera);
     }
     if (redirectAnimation.isActive) {
-      animateRedirect(faces, redirectAnimation);
+      animateRedirect(cube, redirectAnimation);
     }
     if (focusAnimation.isActive) {
       focusOnFace();
@@ -298,6 +313,7 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
   // Pausing the cube rotation for x amount of ms
   function pauseRotation(ms) {
     isRotating = false;
+    controls.staticMoving = true;
     rotatingTimeout = setTimeout(() => { isRotating = true }, ms);
   }
 
@@ -310,7 +326,6 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
       focusAnimation.isActive = false;
     }
   }
-
 
   function render() {
 
@@ -421,8 +436,8 @@ Animates the intro of the cube (starts samll.. then zooms in)
 function animateIntro(camera, introAnimation) {
 
   //const stopz = 0.5; // enter cube
-  const slowz = 4;
-  const stopz = 2;
+  const slowz = introAnimation.zoomSlow; // 4
+  const stopz = introAnimation.zoomEnd;
   const dragGif = document.querySelector('.drag_gif');
   const roundedCameraZ = (Math.round(camera.position.z * 100) / 100);
 
@@ -457,59 +472,32 @@ function animateIntro(camera, introAnimation) {
 /**
 Animates the cube when redirecting the page after an image-link click
 */
-function animateRedirect(faces, redirectAnimation) {
+function animateRedirect(cube, redirectAnimation) {
 
   const slowScale = redirectAnimation.slowScale;
   const stopScale = redirectAnimation.stopScale;
+  const roundedScaleX = (Math.round(cube.scale.x * 100) / 100);
 
   //  console.log('slowScale: ' + slowScale);
   //  console.log('stopScale: ' + stopScale);
+  
+  switch (true) {
+    case roundedScaleX <= slowScale:
+      cube.scale.x += redirectAnimation.speed;
+      cube.scale.y += redirectAnimation.speed;
+      cube.scale.z += redirectAnimation.speed;
+      break;
 
-  faces.forEach((face) => {
-    const roundedScaleX = (Math.round(face.scale.x * 100) / 100);
-    //const roundedScaleY = (Math.round(face.scale.y  * 100) / 100);
+    case roundedScaleX < stopScale:
+      // dampened stop
+      //map 4 to x1 (ie no change) and 2 to x0 (ie complete stop)
+      cube.scale.x += (redirectAnimation.speed * (cube.scale.x - stopScale) / (slowScale - stopScale));
+      cube.scale.y += (redirectAnimation.speed * (cube.scale.y - stopScale) / (slowScale - stopScale));
+      cube.scale.z += (redirectAnimation.speed * (cube.scale.z - stopScale) / (slowScale - stopScale));
+      break;
 
-    switch (true) {
-      case roundedScaleX <= slowScale:
-        face.scale.x += redirectAnimation.speed;
-        face.scale.y += redirectAnimation.speed;
-        if (face.position.x < 0) // if negative
-          face.position.x -= redirectAnimation.speed / 2;
-        else if (face.position.x > 0)
-          face.position.x += redirectAnimation.speed / 2;
-        if (face.position.y < 0) // if negative
-          face.position.y -= redirectAnimation.speed / 2;
-        else if (face.position.y > 0)
-          face.position.y += redirectAnimation.speed / 2;
-        if (face.position.z < 0) // if negative
-          face.position.z -= redirectAnimation.speed / 2;
-        else if (face.position.z > 0)
-          face.position.z += redirectAnimation.speed / 2;
-        break;
-
-      case roundedScaleX < stopScale:
-        // dampened stop
-        // map 4 to x1 (ie no change) and 2 to x0 (ie complete stop)
-        face.scale.x += (redirectAnimation.speed * (face.scale.x - stopScale) / (slowScale - stopScale));
-        face.scale.y += (redirectAnimation.speed * (face.scale.y - stopScale) / (slowScale - stopScale));
-        if (face.position.x < 0) // if negative
-          face.position.x -= (redirectAnimation.speed * ((face.position.x * -2) - stopScale) / (slowScale - stopScale));
-        else if (face.position.x > 0)
-          face.position.x += (redirectAnimation.speed * ((face.position.x * 2) - stopScale) / (slowScale - stopScale));
-        if (face.position.y < 0) // if negative
-          face.position.y -= (redirectAnimation.speed * ((face.position.y * -2) - stopScale) / (slowScale - stopScale));
-        else if (face.position.y > 0)
-          face.position.y += (redirectAnimation.speed * ((face.position.y * 2) - stopScale) / (slowScale - stopScale));
-        if (face.position.z < 0) // if negative
-          face.position.z -= (redirectAnimation.speed * ((face.position.z * -2) - stopScale) / (slowScale - stopScale));
-        else if (face.position.z > 0)
-          face.position.z += (redirectAnimation.speed * ((face.position.z * 2) - stopScale) / (slowScale - stopScale));
-
-        break;
-
-      case roundedScaleX >= stopScale:
-        redirectAnimation.isActive = false;
-    }
-
-  });
+    case roundedScaleX >= stopScale:
+      introAnimation.isActive = false;
+      dragGif.style.opacity = 1;
+  }
 }
