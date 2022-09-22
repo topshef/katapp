@@ -1,7 +1,7 @@
-//import * as THREE from 'https://cdn.skypack.dev/three';
+// import * as THREE from 'https://cdn.skypack.dev/three';
 import { TrackballControls } from '../../TrackballControls.js';
-import { TextureLoader } from 'https://cdn.skypack.dev/three/src/loaders/TextureLoader';
-import Stats from 'https://cdn.skypack.dev/three/examples/jsm/libs/stats.module';
+// import { TextureLoader } from 'https://cdn.skypack.dev/three/src/loaders/TextureLoader';
+// import Stats from 'https://cdn.skypack.dev/three/examples/jsm/libs/stats.module';
 
 
 /**
@@ -17,9 +17,9 @@ export const ShowGlb = (containerSelector, src, options) => {
   var introAnimation = {
     isActive: options.introAnimation.isActive ? true : false,
     speed: options.introAnimation.speed || 0.94,
-    zoomStart: 300,
-    zoomSlow: 40,
-    zoomEnd: 20
+    zoomStart: options.introAnimation.zoomStart || 300,
+    zoomSlow: options.introAnimation.zoomSlow || 40,
+    zoomEnd: options.introAnimation.zoomEnd || 20
   }
   let redirectAnimation = {
     isActive: false,
@@ -105,10 +105,11 @@ export const ShowGlb = (containerSelector, src, options) => {
   // Load 3D .glb / .gltf file
   const gltfLoader = new THREE.GLTFLoader();
   gltfLoader.load(src, (gltf)=> {
-    console.log('loading complete');
-    console.log(gltf);
-    gltf.scene.position.y = -8;
-    scene.add(gltf.scene);
+    console.log('gltf loading complete.');
+    //console.log(gltf);
+    let mroot = configGlb(gltf.scene);
+
+    scene.add(mroot);
     isLoaded = true;
   },
   (progress) => {
@@ -260,6 +261,29 @@ export const ShowGlb = (containerSelector, src, options) => {
     }
   }
 
+  /**
+ * Mainly resizes and repositions the loaded .glb / .gltf. 
+ * @gltfScene {Object3D -> Group} - gltf scene property
+ * @returns Returns adjusted gltf scene property
+ */
+  function configGlb(gltfScene) {
+    var mroot = gltfScene;
+    var bbox = new THREE.Box3().setFromObject(mroot);
+    var cent = bbox.getCenter(new THREE.Vector3());
+    var size = bbox.getSize(new THREE.Vector3());
+
+    //Rescale the object to normalized space
+    var maxAxis = Math.max(size.x, size.y, size.z);
+    mroot.scale.multiplyScalar(15.0 / maxAxis);
+    bbox.setFromObject(mroot);
+    bbox.getCenter(cent);
+    bbox.getSize(size);
+    // Reposition to 0,halfY,0
+    mroot.position.copy(cent).multiplyScalar(-1);
+    // mroot.position.y -= (size.y * 0.5);
+
+    return mroot;
+  }
 
   function render() {
 
@@ -400,9 +424,9 @@ function animateIntro(camera, introAnimation) {
 
 }
 
-/**
-Animates the cube when redirecting the page after an image-link click
-*/
+/*************************************************************************
+/* Animates the cube when redirecting the page after an image-link click 
+/*************************************************************************/
 function animateRedirect(faces, redirectAnimation) {
 
   const slowScale = redirectAnimation.slowScale;
