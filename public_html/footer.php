@@ -87,7 +87,7 @@
     </div>
 
    <!-- Cookie Consent -->
-   <?php require_once('cookieConsent.php'); ?>
+   <?php //disable pending checks  require_once('cookieConsent.php'); ?>
 
    <!-- Bootstrap core JavaScript -->
     <script src="vendor/jquery/jquery.min.js"></script>
