@@ -12,6 +12,11 @@ import { TrackballControls } from '../../TrackballControls.js';
  * @returns nothing
  */
 export const ShowGlb = (containerSelector, src, options) => {
+  /* -------------------------------------------------------------------------------------*/
+  /*                                                                                      */
+  /* Initialization                                                                       */
+  /*                                                                                      */
+  /* -------------------------------------------------------------------------------------*/
 
   // Set Options
   var introAnimation = {
@@ -23,70 +28,65 @@ export const ShowGlb = (containerSelector, src, options) => {
   }
   let redirectAnimation = {
     isActive: false,
-    speed: 0.07,
-    slowScale: 1.9,
-    stopScale: 4.0 //2.6
+    speed: options.redirectAnimation.speed || 0.07,       // how fast the cube grows
+    slowScale: options.redirectAnimation.slowScale || 1.9,
+    stopScale: options.redirectAnimation.stopScale || 4.0 // max growth of cube
   }
-  let focusAnimation = {
-    isActive: false, // is focusing on a specific face of a cube
-    speed: 0.18,
-    focusTarget: null  // TODO: targets the face object/mesh of a cube
-  }
-
   let isLoaded = false;
-  let isTouching = false;
   let isRotating = options.isRotating ? true : false;
+  let isTouching = false;
   let rotatingTimeout = null;
-  const rotationMatrix = new THREE.Matrix4();
-  const targetQuaternion = new THREE.Quaternion();
-
-  // Create scene
+  const renderer = new THREE.WebGLRenderer({ alpha: true });
   const scene = new THREE.Scene();
-  scene.add(new THREE.AxesHelper(0));
-  console.log(scene);
+  const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+  const light = new THREE.DirectionalLight(0xFFFFFF, 1);
+  const light2 = new THREE.DirectionalLight(0xFFFFFF, 1);
+  const raycaster = new THREE.Raycaster(); // Needed for object intersection
+  const mouse = new THREE.Vector2(); // Needed for mouse coordinates
+  const cube = new THREE.Group(); // Group called cube with the the faces added later on
+  const cubeContainer = new THREE.Object3D(); // Was used to help with rotating towards camera while cube spins inside
+  let cubeOpacity = 0.8;
+  let geometry = [];
+  let material = [];
+  let mouseDownX = 0;
+  let mouseUpX = 0;
+  let enableAxisHelper = false;
+  // const rotationMatrix = new THREE.Matrix4();
+  // const targetQuaternion = new THREE.Quaternion();
+  // const stats = Stats();
 
-  // Create camera
-  const camera = new THREE.PerspectiveCamera(
-    75,
-    window.innerWidth / window.innerHeight,
-    0.1,
-    1000
-  );
 
+
+
+  /* -------------------------------------------------------------------------------------*/
+  /*                                                                                      */
+  /* Control Flow                                                                         */
+  /*                                                                                      */
+  /* -------------------------------------------------------------------------------------*/
+
+  // console.log(scene);
+  // testMode();
+  // document.body.appendChild(stats.dom)
+
+  if (enableAxisHelper)
+    scene.add(new THREE.AxesHelper(30));
+
+
+  // Set camera z position depending on if introAnimation is active
   introAnimation.isActive ? camera.position.z = introAnimation.zoomStart : camera.position.z = 2;
 
 
-  // Create renderer
-  const renderer = new THREE.WebGLRenderer({ alpha: true });
+  // Set renderer options & append <canvas> (domElement) to dom
   renderer.setClearColor(0x000000, 0);
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.physicallyCorrectLights = true; // required for GLTFLoader
   renderer.outputEncoding = THREE.sRGBEncoding; // required for GLTFLoader
   document.querySelector(containerSelector).appendChild(renderer.domElement);
+  
 
-  // Create light
-  const light = new THREE.DirectionalLight(0xFFFFFF, 1);
-  light.position.set(20,2,5);
-  scene.add(light);
-  const light2 = new THREE.DirectionalLight(0xFFFFFF, 1);
-  light2.position.set(-20,2,5);
-  scene.add(light2);
-
-  // Create raycaster for object intersection
-  var raycaster = new THREE.Raycaster(); // Needed for object intersection
-  var mouse = new THREE.Vector2(); //Needed for mouse coordinates
-
-  // Controls (TrackballControlls)
+  // Create controls after domElement is rendered and set options
   const controls = new TrackballControls(camera, renderer.domElement);
-  // controls.addEventListener('change', () => console.log("Controls Change"))
-  controls.addEventListener('start', () => {
-    controls.staticMoving = false;
-    console.log(camera);
-    controls.update();
-  })
-  // controls.addEventListener('end', () => console.log("Controls End Event"))
   // controls.enabled = false
-
   controls.rotateSpeed = 3.0;
   // controls.zoomSpeed = 1.2;
   // controls.panSpeed = 0.8;
@@ -98,9 +98,14 @@ export const ShowGlb = (containerSelector, src, options) => {
   controls.dynamicDampingFactor = 0.05;
   // controls.maxDistance = 4;
   // controls.minDistance = 2;
+  
 
+  // Set light options & add to scene
+  light.position.set(20,2,5);
+  light2.position.set(-20,2,5);
+  scene.add(light);
+  scene.add(light2);
 
-  const cubeOpacity = 0.8;
 
   // Load 3D .glb / .gltf file
   const gltfLoader = new THREE.GLTFLoader();
@@ -120,114 +125,20 @@ export const ShowGlb = (containerSelector, src, options) => {
   });
 
 
-  let num1 = 0;
-  let num2 = 0;
-
-  window.onbeforeunload = function () {
-
-    setInterval(() => {
-      //camera.fov -= 4;
-      //camera.updateProjectionMatrix();
-    }, .03);
-  };
-  window.addEventListener('mousedown', (event) => { num1 = onDocumentMouseDown(event).x }, false);
-  window.addEventListener('mouseup', (event) => {
-    num2 = onDocumentMouseDown(event).x;
-
-    if (num1 == num2) {
-      resault(event);
-    }
-  }, false);
-
-  function onDocumentMouseDown(event) {
-
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-    raycaster.setFromCamera(mouse, camera);
-
-    return mouse;
-  }
-
-  function resault(event) {
-
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  // Run the animation
+  animate();
 
 
-    raycaster.setFromCamera(mouse, camera);
+  
 
-    var intersects = raycaster.intersectObjects(scene.children);
-
-    controls.staticMoving = true;
-    controls.update();
-
-    clearTimeout(rotatingTimeout);
-
-    // Check click intersects and perform actions:
-    if (intersects.length > 0) {
-      
-      if (!isRotating) {
-        //cube.setRotationFromQuaternion(intersects[0].object.userData.Quaternion);
-        //rotationMatrix.lookAt(camera.position, cubeContainer.position, camera.up);
-        //targetQuaternion.setFromRotationMatrix(rotationMatrix);
-        //focusAnimation.isActive = true;
-        //redirectAnimation.isActive = true;
-        //renderer.domElement.style.zIndex = 2;
-        //window.location.href = link;
-      }
-      else {
-        pauseRotation(10000);
-      }
-
-      /*
-  <?php foreach (range(1,6) as $i) {  				
-          echo "if(intersects[0].object.name == 'face{$i}'){";
-          echo "window.location.href = '{$imagelink[$i]}';}";
-  } ?>  */
-
-    }
-
-  }
-
+  /* -------------------------------------------------------------------------------------*/
+  /*                                                                                      */
+  /* Event Listeners                                                                      */
+  /*                                                                                      */
+  /* -------------------------------------------------------------------------------------*/
 
   window.addEventListener('resize', onWindowResize, false);
-  function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    render();
-  }
-
-  // const stats = Stats()
-  // document.body.appendChild(stats.dom)
-
-  function animate() {
-    // trackball controls needs to be updated in the animation loop before it will work
-    controls.update();
-
-    if (isLoaded) {
-
-      if (introAnimation.isActive) {
-        animateIntro(camera, introAnimation);
-        //console.log(camera);
-      }
-      if (redirectAnimation.isActive) {
-        animateRedirect(faces, redirectAnimation);
-      }
-      if (focusAnimation.isActive) {
-        focusOnFace();
-      }
-
-    }
-
-    render();
-
-    // stats.update()
-  }
-
-
-
+  
 
   // Add Event Listeners to <canvas>
   renderer.domElement.addEventListener('touchstart', (e) => {
@@ -245,47 +156,62 @@ export const ShowGlb = (containerSelector, src, options) => {
     isTouching = false;
   })
 
-  // Pausing the cube rotation for x amount of ms
-  function pauseRotation(ms) {
-    isRotating = false;
-    rotatingTimeout = setTimeout(() => { isRotating = true }, ms);
-  }
+  // Add Event Listeners to the controls
+  // controls.addEventListener('change', () => console.log("Controls Change"))
+  controls.addEventListener('start', () => {
+    controls.staticMoving = false;
+    console.log(camera);
+    controls.update();
+  })
+  // controls.addEventListener('end', () => console.log("Controls End Event"))
 
 
-  function focusOnFace() {
-    if (!cubeContainer.quaternion.equals(targetQuaternion)) {
-      cubeContainer.quaternion.rotateTowards(targetQuaternion, focusAnimation.speed);
+  window.onbeforeunload = function () {
+    setInterval(() => {
+      // camera.fov -= 4;
+      // camera.updateProjectionMatrix();
+    }, .03);
+  };
+    
+
+  // Overall listens when a mouse is clicked and checks if it released on the same mouse down x spot
+  window.addEventListener('mousedown', (event) => { mouseDownX = onDocumentMouseDown(event).x }, false);
+  window.addEventListener('mouseup', (event) => {
+    mouseUpX = onDocumentMouseDown(event).x;
+
+    if (mouseDownX == mouseUpX) {
+      intersectActions(event);
     }
-    else {
-      focusAnimation.isActive = false;
-    }
-  }
+  }, false);
+
+
+
+
+  /* -------------------------------------------------------------------------------------*/
+  /*                                                                                      */
+  /* General Functions                                                                    */
+  /*                                                                                      */
+  /* -------------------------------------------------------------------------------------*/
 
   /**
- * Mainly resizes and repositions the loaded .glb / .gltf. 
- * @gltfScene {Object3D -> Group} - gltf scene property
- * @returns Returns adjusted gltf scene property
- */
-  function configGlb(gltfScene) {
-    var mroot = gltfScene;
-    var bbox = new THREE.Box3().setFromObject(mroot);
-    var cent = bbox.getCenter(new THREE.Vector3());
-    var size = bbox.getSize(new THREE.Vector3());
+  * Animation loop that renders the 3D world
+  */
+  function animate() {
+    requestAnimationFrame(animate);
 
-    //Rescale the object to normalized space
-    var maxAxis = Math.max(size.x, size.y, size.z);
-    mroot.scale.multiplyScalar(15.0 / maxAxis);
-    bbox.setFromObject(mroot);
-    bbox.getCenter(cent);
-    bbox.getSize(size);
-    // Reposition to 0,halfY,0
-    mroot.position.copy(cent).multiplyScalar(-1);
-    // mroot.position.y -= (size.y * 0.5);
+    // trackball controls needs to be updated in the animation loop before it will work
+    controls.update();
 
-    return mroot;
-  }
+    if (isLoaded) {
 
-  function render() {
+      if (introAnimation.isActive) {
+        animateIntro();
+        //console.log(camera);
+      }
+      if (redirectAnimation.isActive) {
+        animateRedirect();
+      }
+    }
 
     if (isRotating && !isTouching) {
       scene.rotation.y += 0.005;
@@ -293,10 +219,210 @@ export const ShowGlb = (containerSelector, src, options) => {
     }
 
     renderer.render(scene, camera)
-    requestAnimationFrame(animate);
+
+    // stats.update()
   }
 
 
+  /**
+  * Mainly updates aspect ratio & size of the 3D world
+  */
+  function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    render();
+  }
+
+
+  /**
+  * Pauses the cube rotation for x amount of ms
+  * @ms {number} - milliseconds
+  */
+  function pauseRotation(ms) {
+    isRotating = false;
+    rotatingTimeout = setTimeout(() => { isRotating = true }, ms);
+  }
+
+
+  /**
+  * Animates the intro of the cube (starts samll.. then zooms in) 
+  */
+  function animateIntro() {
+
+    //const stopz = 0.5; // enter cube
+    const slowz = introAnimation.zoomSlow; // 4
+    const stopz = introAnimation.zoomEnd;
+    const dragGif = document.querySelector('.drag_gif');
+    const roundedCameraZ = (Math.round(camera.position.z * 100) / 100);
+
+    switch (true) {
+      case camera.position.z >= slowz:
+        camera.position.z -= introAnimation.speed;
+        break;
+
+      case roundedCameraZ > stopz:
+        // dampened stop
+        //map 4 to x1 (ie no change) and 2 to x0 (ie complete stop)
+        camera.position.z -= (introAnimation.speed * (camera.position.z - stopz) / (slowz - stopz));
+        break;
+
+      case roundedCameraZ <= stopz:
+        introAnimation.isActive = false;
+        dragGif.style.opacity = 1;
+    }
+
+    /*
+      if (camera.position.z >= 2) {
+      camera.position.z -= introAnimation.speed;
+      } else {
+      introAnimation.isActive = false;
+      }
+    */
+  }
+
+
+  /**
+  * Animates the cube when redirecting the page after an image-link click
+  */
+  function animateRedirect(faces, redirectAnimation) {
+
+    const slowScale = redirectAnimation.slowScale;
+    const stopScale = redirectAnimation.stopScale;
+
+    //  console.log('slowScale: ' + slowScale);
+    //  console.log('stopScale: ' + stopScale);
+
+    faces.forEach((face) => {
+      const roundedScaleX = (Math.round(face.scale.x * 100) / 100);
+      //const roundedScaleY = (Math.round(face.scale.y  * 100) / 100);
+
+      switch (true) {
+        case roundedScaleX <= slowScale:
+          face.scale.x += redirectAnimation.speed;
+          face.scale.y += redirectAnimation.speed;
+          if (face.position.x < 0) // if negative
+            face.position.x -= redirectAnimation.speed / 2;
+          else if (face.position.x > 0)
+            face.position.x += redirectAnimation.speed / 2;
+          if (face.position.y < 0) // if negative
+            face.position.y -= redirectAnimation.speed / 2;
+          else if (face.position.y > 0)
+            face.position.y += redirectAnimation.speed / 2;
+          if (face.position.z < 0) // if negative
+            face.position.z -= redirectAnimation.speed / 2;
+          else if (face.position.z > 0)
+            face.position.z += redirectAnimation.speed / 2;
+          break;
+
+        case roundedScaleX < stopScale:
+          // dampened stop
+          // map 4 to x1 (ie no change) and 2 to x0 (ie complete stop)
+          face.scale.x += (redirectAnimation.speed * (face.scale.x - stopScale) / (slowScale - stopScale));
+          face.scale.y += (redirectAnimation.speed * (face.scale.y - stopScale) / (slowScale - stopScale));
+          if (face.position.x < 0) // if negative
+            face.position.x -= (redirectAnimation.speed * ((face.position.x * -2) - stopScale) / (slowScale - stopScale));
+          else if (face.position.x > 0)
+            face.position.x += (redirectAnimation.speed * ((face.position.x * 2) - stopScale) / (slowScale - stopScale));
+          if (face.position.y < 0) // if negative
+            face.position.y -= (redirectAnimation.speed * ((face.position.y * -2) - stopScale) / (slowScale - stopScale));
+          else if (face.position.y > 0)
+            face.position.y += (redirectAnimation.speed * ((face.position.y * 2) - stopScale) / (slowScale - stopScale));
+          if (face.position.z < 0) // if negative
+            face.position.z -= (redirectAnimation.speed * ((face.position.z * -2) - stopScale) / (slowScale - stopScale));
+          else if (face.position.z > 0)
+            face.position.z += (redirectAnimation.speed * ((face.position.z * 2) - stopScale) / (slowScale - stopScale));
+
+          break;
+
+        case roundedScaleX >= stopScale:
+          redirectAnimation.isActive = false;
+      }
+
+    });
+  }
+
+
+  /**
+  * TODO: fill out description
+  * @event - event object
+  * @returns {Vector2} - mouse coordinates {x: ?, y: ?}
+  */
+  function onDocumentMouseDown(event) {
+
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+
+    return mouse;
+  }
+
+
+  /**
+  * Launched if mouse is clicked without dragging it
+  * @event - event object
+  */
+  function intersectActions(event) {
+
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+
+    raycaster.setFromCamera(mouse, camera);
+
+    var intersects = raycaster.intersectObjects(scene.children);
+
+    controls.staticMoving = true;
+
+    clearTimeout(rotatingTimeout);
+
+    // Check click intersects and perform actions:
+    if (intersects.length > 0) {
+      
+      if (!isRotating) {
+        //cube.setRotationFromQuaternion(intersects[0].object.userData.Quaternion);
+        //rotationMatrix.lookAt(camera.position, cubeContainer.position, camera.up);
+        //targetQuaternion.setFromRotationMatrix(rotationMatrix);
+        //redirectAnimation.isActive = true;
+        //renderer.domElement.style.zIndex = 2;
+        //window.location.href = link;
+      }
+      else {
+        pauseRotation(10000);
+      }
+    }
+  }
+
+
+ /**
+ * Mainly resizes and repositions the loaded .glb / .gltf. 
+ * @gltfScene {Object3D -> Group} - gltf scene property
+ * @returns Returns adjusted gltf scene property
+ */
+     function configGlb(gltfScene) {
+      var mroot = gltfScene;
+      var bbox = new THREE.Box3().setFromObject(mroot);
+      var cent = bbox.getCenter(new THREE.Vector3());
+      var size = bbox.getSize(new THREE.Vector3());
+  
+      //Rescale the object to normalized space
+      var maxAxis = Math.max(size.x, size.y, size.z);
+      mroot.scale.multiplyScalar(15.0 / maxAxis);
+      bbox.setFromObject(mroot);
+      bbox.getCenter(cent);
+      bbox.getSize(size);
+      // Reposition to 0,halfY,0
+      mroot.position.copy(cent).multiplyScalar(-1);
+      // mroot.position.y -= (size.y * 0.5);
+  
+      return mroot;
+    }
+
+
+  /**
+  * Launch test mode
+  */
   function testMode() {
 
     let cubeUpBtn = document.createElement('button');
@@ -379,107 +505,4 @@ export const ShowGlb = (containerSelector, src, options) => {
     })
 
   }
-
-
-  //testMode();
-  animate();
-}
-
-
-/**
-Animates the intro of the cube (starts samll.. then zooms in) 
-*/
-function animateIntro(camera, introAnimation) {
-
-  //const stopz = 0.5; // enter cube
-  const slowz = introAnimation.zoomSlow; // 4
-  const stopz = introAnimation.zoomEnd;
-  const dragGif = document.querySelector('.drag_gif');
-  const roundedCameraZ = (Math.round(camera.position.z * 100) / 100);
-
-  switch (true) {
-    case camera.position.z >= slowz:
-      camera.position.z -= introAnimation.speed;
-      break;
-
-    case roundedCameraZ > stopz:
-      // dampened stop
-      //map 4 to x1 (ie no change) and 2 to x0 (ie complete stop)
-      camera.position.z -= (introAnimation.speed * (camera.position.z - stopz) / (slowz - stopz));
-      break;
-
-    case roundedCameraZ <= stopz:
-      introAnimation.isActive = false;
-      dragGif.style.opacity = 1;
-  }
-
-  /*
-    if (camera.position.z >= 2) {
-    camera.position.z -= introAnimation.speed;
-    } else {
-    introAnimation.isActive = false;
-    }
-   */
-
-
-}
-
-/*************************************************************************
-/* Animates the cube when redirecting the page after an image-link click 
-/*************************************************************************/
-function animateRedirect(faces, redirectAnimation) {
-
-  const slowScale = redirectAnimation.slowScale;
-  const stopScale = redirectAnimation.stopScale;
-
-  //  console.log('slowScale: ' + slowScale);
-  //  console.log('stopScale: ' + stopScale);
-
-  faces.forEach((face) => {
-    const roundedScaleX = (Math.round(face.scale.x * 100) / 100);
-    //const roundedScaleY = (Math.round(face.scale.y  * 100) / 100);
-
-    switch (true) {
-      case roundedScaleX <= slowScale:
-        face.scale.x += redirectAnimation.speed;
-        face.scale.y += redirectAnimation.speed;
-        if (face.position.x < 0) // if negative
-          face.position.x -= redirectAnimation.speed / 2;
-        else if (face.position.x > 0)
-          face.position.x += redirectAnimation.speed / 2;
-        if (face.position.y < 0) // if negative
-          face.position.y -= redirectAnimation.speed / 2;
-        else if (face.position.y > 0)
-          face.position.y += redirectAnimation.speed / 2;
-        if (face.position.z < 0) // if negative
-          face.position.z -= redirectAnimation.speed / 2;
-        else if (face.position.z > 0)
-          face.position.z += redirectAnimation.speed / 2;
-        break;
-
-      case roundedScaleX < stopScale:
-        // dampened stop
-        // map 4 to x1 (ie no change) and 2 to x0 (ie complete stop)
-        face.scale.x += (redirectAnimation.speed * (face.scale.x - stopScale) / (slowScale - stopScale));
-        face.scale.y += (redirectAnimation.speed * (face.scale.y - stopScale) / (slowScale - stopScale));
-        if (face.position.x < 0) // if negative
-          face.position.x -= (redirectAnimation.speed * ((face.position.x * -2) - stopScale) / (slowScale - stopScale));
-        else if (face.position.x > 0)
-          face.position.x += (redirectAnimation.speed * ((face.position.x * 2) - stopScale) / (slowScale - stopScale));
-        if (face.position.y < 0) // if negative
-          face.position.y -= (redirectAnimation.speed * ((face.position.y * -2) - stopScale) / (slowScale - stopScale));
-        else if (face.position.y > 0)
-          face.position.y += (redirectAnimation.speed * ((face.position.y * 2) - stopScale) / (slowScale - stopScale));
-        if (face.position.z < 0) // if negative
-          face.position.z -= (redirectAnimation.speed * ((face.position.z * -2) - stopScale) / (slowScale - stopScale));
-        else if (face.position.z > 0)
-          face.position.z += (redirectAnimation.speed * ((face.position.z * 2) - stopScale) / (slowScale - stopScale));
-
-        break;
-
-      case roundedScaleX >= stopScale:
-        redirectAnimation.isActive = false;
-    }
-
-  });
 }
