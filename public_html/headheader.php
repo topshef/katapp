@@ -7,7 +7,7 @@ session_start();
 require_once(__DIR__ . '/config.php'); //redundant but hey
 
 $twitter_image = $token_asset_image_URL;
-if ($twitter_image == null) $twitter_image = $content['twitter'][1]['default_image'];
+if ($twitter_image == null) $twitter_image = $content['twitter'][1]['fallback_image'];
 if ($twitter_image == null) $twitter_image = 'https://pat.gomint.me/assets/images/gmlogo4.png';
 	
 
