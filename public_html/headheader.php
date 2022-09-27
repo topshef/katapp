@@ -6,6 +6,10 @@
 session_start();
 require_once(__DIR__ . '/config.php'); //redundant but hey
 
+$twitter_image = $token_asset_image_URL;
+if ($twitter_image == null) $twitter_image = $content['twitter'][1]['fallback_image'];
+if ($twitter_image == null) $twitter_image = 'https://pat.gomint.me/assets/images/gmlogo4.png';
+	
 
 ?>
 <!DOCTYPE html>
@@ -20,6 +24,18 @@ require_once(__DIR__ . '/config.php'); //redundant but hey
     <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,300,400,500,600,700,800,900&display=swap" rel="stylesheet">
 
     <title><?php echo $title; ?></title>
+
+	<meta property="og:title" content="GoMint - tokenize the future">
+	<meta property="og:url" content="https://gomint.me">
+	<meta property="og:description" content="Tokenize your content with GoMint, engage and incentivise your fans to sponsor or promote your work. Hello Future!">
+	<meta property="og:image" content="assets/images/GM.ico">
+
+	<meta name="twitter:card" content="summary_large_image">
+	<meta name="twitter:site" content="@<?php echo $content['general'][1]['twitter_handle'];?>">
+	<meta name="twitter:creator" content="@<?php echo $content['general'][1]['twitter_handle'];?>">
+	<meta name="twitter:title" content="<?php echo $content['twitter'][1]['title'];?>">
+	<meta name="twitter:description" content="<?php echo $content['twitter'][1]['description'];?>">
+	<meta name="twitter:image" content="<?php echo $twitter_image; ?>">
 	
 	
 	<base href="<?php echo $path_base; ?>">
