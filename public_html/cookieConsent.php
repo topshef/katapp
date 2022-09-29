@@ -131,6 +131,8 @@ if ($url_privacy_policy == null) $url_privacy_policy = 'content/assets/privacy.h
 </div>
 
 <script>
+    /* Using the cookie method to check for the cookie consent popup
+
     // Create cookie
     function setCookie(cname, cvalue, exdays) {
         const d = new Date();
@@ -178,4 +180,62 @@ if ($url_privacy_policy == null) $url_privacy_policy = 'content/assets/privacy.h
     }else{
         document.getElementById("cookieNotice").style.display = "block";
     }
+
+    */
+
+    /**
+    * Checks if localStorage or sessionStorage is available in the browser.
+    * @type - storage type
+    * @return - boolean
+    */
+    function storageAvailable(type) {
+        let storage;
+        try {
+            storage = window[type];
+            const x = '__storage_test__';
+            storage.setItem(x, x);
+            storage.removeItem(x);
+            return true;
+        }
+        catch (e) {
+            return e instanceof DOMException && (
+                // everything except Firefox
+                e.code === 22 ||
+                // Firefox
+                e.code === 1014 ||
+                // test name field too, because code might not be present
+                // everything except Firefox
+                e.name === 'QuotaExceededError' ||
+                // Firefox
+                e.name === 'NS_ERROR_DOM_QUOTA_REACHED') &&
+                // acknowledge QuotaExceededError only if there's something already stored
+                (storage && storage.length !== 0);
+        }
+    }
+
+
+    // Set cookie consent
+    function acceptCookieConsent(){
+        localStorage.removeItem('user_cookie_consent');
+        localStorage.setItem('user_cookie_consent', 1);
+        document.getElementById("cookieNotice").style.display = "none";
+    }
+
+    // Check if LocalStorage is available
+    if (storageAvailable('localStorage')) {
+        // LocalStorage is available
+
+        // The following code will check the localStorage acceptance flag in JavaScript WebStorage when the web page is loaded.
+        let cookie_consent = localStorage.getItem("user_cookie_consent");
+        if(cookie_consent != "" && cookie_consent != null){
+            document.getElementById("cookieNotice").style.display = "none";
+        }else{
+            document.getElementById("cookieNotice").style.display = "block";
+        }
+    }
+    else {
+        // No localStorage for us
+        console.log('LocalStorage not supported');
+    }
+    
 </script>
