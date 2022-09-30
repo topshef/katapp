@@ -7,9 +7,17 @@ session_start();
 require_once(__DIR__ . '/config.php'); //redundant but hey
 
 $twitter_image = $token_asset_image_URL;
+
+// messing about still, ref getting ipfs images to preview
+// still hit & miss https://cards-dev.twitter.com/validator
+if (substr($twitter_image,-1,1) == '/') $twitter_image = substr($twitter_image,0,-1);
+if (strpos($twitter_image, 'ipfs') !== false) // possible ipfs link - use cache instead
+	$twitter_image = "https://{$_SERVER['SERVER_NAME']}/cache/getCacheURL.php?url=$twitter_image";
+
+
 if ($twitter_image == null) $twitter_image = $content['twitter'][1]['fallback_image'];
 if ($twitter_image == null) $twitter_image = 'https://pat.gomint.me/assets/images/gmlogo4.png';
-	
+
 
 ?>
 <!DOCTYPE html>
