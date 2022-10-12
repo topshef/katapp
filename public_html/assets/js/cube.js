@@ -381,7 +381,8 @@ export const ShowCube = (containerSelector, images, imageLinks, options) => {
       imageLinks.forEach((link, i) => {
         if (intersects[0].object.name == 'face' + (i + 1)) {
 
-          if (!isRotating && controls.staticMoving) {
+          //if (!isRotating && controls.staticMoving) {
+		  if (true) { // redirect on click - previous intention was to pause the spin only if the rotate speed was above some value X, otherwise redirect. But actually simple like this  is quite fun 
             redirectAnimation.isActive = true;
             renderer.domElement.style.zIndex = 2;
             window.location.href = link;
