@@ -265,6 +265,10 @@ export const ShowGlb = (containerSelector, src, options) => {
         // dampened stop
         //map 4 to x1 (ie no change) and 2 to x0 (ie complete stop)
         camera.position.z -= (introAnimation.speed * (camera.position.z - stopz) / (slowz - stopz));
+		
+		//fade in shop button, to max 0.6 opacity
+		document.querySelector('.filled-button').style.opacity 
+			= 0.6 * (1 - (camera.position.z - stopz) / (slowz - stopz));
         break;
 
       case roundedCameraZ <= stopz:
