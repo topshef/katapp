@@ -18,7 +18,7 @@
 		if (is_array($in)) $ip = $in['IP'];
 		else  $ip = $in;
 
-		$cachepath = __DIR__ . "/cache/ip_country/{$ip}.txt";
+		$cachepath = "{$_SERVER['DOCUMENT_ROOT']}/cache/ip_country_{$ip}.json";
 		
 		if (file_exists($cachepath)) return file_get_contents($cachepath);
 		
