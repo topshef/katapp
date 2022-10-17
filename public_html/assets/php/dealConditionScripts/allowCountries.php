@@ -8,7 +8,7 @@
 	$userCountry = getCountryFromIP($userIP); // eg PT = Portugal
 	if ($userCountry == null) exitFail("cannot find country for IP $userIP");
 	
-	error_log("userIP = $userIP  userCountry= $userCountry");
+	//error_log("userIP = $userIP  userCountry= $userCountry");
 	
 	$allowedCountries = $parameters['allowedCountries']; // comma or space separation
 	$isAllowed = strpos($allowedCountries, $userCountry) !== false;
@@ -21,7 +21,7 @@
 		exit;
 	}
 	
-	error_log("allowCountries passed ok");
+	error_log("allowCountries passed ok for $userIP $userCountry in $allowedCountries");
 	//if $isAllowed then the script(s) resume and the page may load if all pass
 	
 
