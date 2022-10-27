@@ -16,7 +16,7 @@ if (strpos($twitter_image, 'ipfs') !== false) // possible ipfs link - use cache 
 
 
 if ($twitter_image == null) $twitter_image = $content['twitter'][1]['fallback_image'];
-if ($twitter_image == null) $twitter_image = 'https://pat.gomint.me/assets/images/gmlogo4.png';
+if ($twitter_image == null) $twitter_image = 'https://shop.gomint.me/assets/images/gmlogo4.png';
 
 
 ?>
