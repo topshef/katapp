@@ -3,6 +3,8 @@
 	//$dealConditions must be set - an array of conditions to apply
 	error_log("deal conditions were found");
 	
+	
+	
 	$scriptFolder = "{$_SERVER['DOCUMENT_ROOT']}/assets/php/dealConditionScripts";
 	
 	foreach ($dealConditions as $dealCondition) {
@@ -12,6 +14,8 @@
 		error_log("including $scriptName");
 		include "$scriptFolder/$scriptName";
 	}
+
+	$html_conditions = "<div id='deal_conditions'>Conditions apply</div>";
 
 	// functions can be used by any condition in the loop...
 	function exitFail($message) {
