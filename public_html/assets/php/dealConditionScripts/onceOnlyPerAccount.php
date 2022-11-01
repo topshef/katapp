@@ -37,6 +37,16 @@
 	
 	function getTokenBalanceForAccount($network, $tokenId, $accountId) {
 		$tokenId = explode('-', $tokenId)[0];
+		
+		$url = 'https://gomint.me/api/query/getTokenBalance.php?';
+		//https://gomint.me/api/query/getTokenBalance.php?accountId=0.0.1176332&tokenId=0.0.1034578
+		$url .= "&network=$network";
+		$url .= "&tokenId=$tokenId";
+		$url .= "&accountId=$accountId";
+		
+		$balance = file_get_contents($url);
+
+		/* mirror node version - would be too slow to update
 		$url = 'https://';
 		$url .= ($network == 'mainnet') ? 'mainnet-public' : $network ;
 		$url .= '.mirrornode.hedera.com/api/v1/';
@@ -48,6 +58,8 @@
 		if (key($arr) != 'timestamp') return 'error'; 
 		
 		$balance = $arr['balances'][0]['balance'];
+		*/
+		
 		error_log("balance for $network token $tokenId for account $accountId is $balance");
 		return $balance;
 	}
