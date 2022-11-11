@@ -1315,6 +1315,10 @@ footer .contact-form button.filled-button:hover {
 }
 
 
+/* Page: product-details.php */
+.product-details .wc-image {
+	max-width: 550px;
+}
 
 
 /* Responsive Style */
