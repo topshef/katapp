@@ -54,7 +54,14 @@ if ($twitter_image == null) $twitter_image = 'https://shop.gomint.me/assets/imag
 
     <!-- Additional CSS Files -->
     <link rel="stylesheet" href="assets/css/fontawesome.css">
-    <link rel="stylesheet" href="assets/css/style.css">
+<?php
+		$path_style_css = 'assets/css/style.css';
+		
+		$cachebust = filemtime("{$_SERVER['DOCUMENT_ROOT']}/$path_style_css");
+		//error_log("$path_style_css has date $cachebust");
+?>
+	
+    <link rel="stylesheet" href="assets/css/style.css?<?= $cachebust ?>">
     <link rel="stylesheet" href="assets/css/owl.css">
 	
 	<link rel="shortcut icon" href="assets/images/GM.ico">

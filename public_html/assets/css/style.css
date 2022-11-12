@@ -582,7 +582,7 @@ ul.slick-dots {
 /* Services */
 
 .services {
-	margin-top: 140px;
+	margin-top: 40px;
 }
 
 .service-item img {
@@ -1317,7 +1317,7 @@ footer .contact-form button.filled-button:hover {
 
 /* Page: product-details.php */
 .product-details .wc-image {
-	max-width: 550px;
+	max-width: 100%;
 }
 
 
