@@ -16,8 +16,30 @@
 	function splitProductId($productId) { // experimental
 		$v = explode(';', $productId);
 		$out['network'] = $v[0];
-		$out['token_id'] = $v[1];
+		$out['NFT'] = $v[1];  // could be a range
 		$out['seller'] = $v[2];
+		
+		$tokenparts = explode('-', $out['NFT']);
+		$out['tokenId'] = $tokenparts[0];
+		$serialpart = $tokenparts[1];
+		$fromTo = explode(':', $serialpart);
+		$out['serialFrom'] = $fromTo[0];
+		$out['serialTo'] = $fromTo[1];
+		
+		/* just an idea
+		if ($out['serialTo'] == null && $out['serialFrom'] != null)
+			$out['productZoom'] = 'NFT';
+		
+		if ($out['serialTo'] != null && $out['serialFrom'] != null)
+			$out['productZoom'] = 'range';
+		
+		if ($out['serialTo'] == null && $out['serialFrom'] == null)
+			$out['productZoom'] = 'collection';
+		*/
+
+		$out['isRange'] = $out['serialTo'] != null;
+		
+		//error_log(print_r($out,true));
 		return $out;
 	}
 
