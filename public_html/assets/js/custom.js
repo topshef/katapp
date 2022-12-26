@@ -1,6 +1,23 @@
 jQuery( document ).ready(function( $ ) {
 	"use strict";
 
+    // Initial settings
+    var settings = {
+        defaultHeaderMT: $("header .navbar-brand").css("margin-top"), // default header margin top
+        defaultFilterH: $(".product-filters").css("height"), // default product-filter height
+        isSmallHeader: false,
+        lastScrollPos: $(window).scrollTop(), // last scroll position
+        isScrollUp: false,
+        isScrollDown: false,
+        isFilterSticky: false,
+        isFilterHidden: false,
+    }
+
+    $("header .navbar-brand").css("transition", "all 0.5s");
+    $(".product-filters").css("transition", "all 0.5s");
+    $(".product-filters-placeholder").css("transition", "all 0.5s");
+    $(".product-filters-placeholder").css("height", settings.defaultFilterH);
+
     $(function() {
         $( "#tabs" ).tabs();
     });
@@ -13,16 +30,49 @@ jQuery( document ).ready(function( $ ) {
         }, 300);
     });
     
+    // Scroll Event
     $(window).scroll(function() {
       var scroll = $(window).scrollTop();
       var box = $('.header-text').height();
       var header = $('header').height();
 
+      if (scroll > settings.lastScrollPos) {
+        settings.isScrollDown = true;
+        settings.isScrollUp = false;
+        settings.lastScrollPos = scroll;
+        //console.log('scroll down');
+      } else {
+        settings.isScrollDown = false;
+        settings.isScrollUp = true;
+        settings.lastScrollPos = scroll;
+        //console.log('scroll up');
+      }
+
+      if ($(".product-filters").hasClass("sticky")) {
+        settings.isFilterSticky = true;
+      } else {
+        settings.isFilterSticky = false;
+      }
+
+      // Checks if scrolling passed the header
       if (scroll >= box - header) {
         $("header").addClass("background-header");
+        if (!settings.isSmallHeader) { smallHeader(); }
+
       } else {
         $("header").removeClass("background-header");
+        if (settings.isSmallHeader) { defaultHeader(); }
       }
+
+      if (settings.isFilterSticky && settings.isScrollDown) {
+        if (!settings.isFilterHidden) { hideFilter(); }
+      } else if (settings.isFilterSticky && settings.isScrollUp) {
+        if (settings.isFilterHidden) { showFilter(); }
+      } else {
+
+      }
+
+      
     });
 
 	if ($('.owl-testimonials').length) {
@@ -71,4 +121,37 @@ jQuery( document ).ready(function( $ ) {
         prevArrow:'<button class="PrevArrow"></button>',
         nextArrow:'<button class="NextArrow"></button>', 
     });
+
+    /** Makes the header smaller **/
+    function smallHeader() {
+        //console.log('smallHeader');
+        $("header .navbar-brand").css("margin-top", 0);
+        settings.isSmallHeader = true;
+    }
+    
+    /** Reverts to the header's default **/
+    function defaultHeader () {
+        //console.log('defaultHeader');
+        $("header .navbar-brand").css("margin-top", settings.defaultHeaderMT);
+        settings.isSmallHeader = false;
+    }
+
+    /** Shows product filter **/
+    function showFilter() {
+        console.log('showFilter');
+        $(".product-filters").css("transform", "translateY(0px)");
+        $(".product-filters-placeholder").css("transform", "translateY(0px)");
+        //$(".product-filters").css("opacity", 1);
+        settings.isFilterHidden = false;
+    }
+    
+    /** Hides product filter **/
+    function hideFilter() {
+        console.log('hideFilter');
+        $(".product-filters").css("transform", "translateY(-135px)");
+        $(".product-filters-placeholder").css("transform", "translateY(-135px)");
+        //$(".product-filters").css("opacity", 0);
+        settings.isFilterHidden = true;
+    }
+    
 });
