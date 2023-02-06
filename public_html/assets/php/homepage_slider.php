@@ -71,6 +71,12 @@ if (isset($youtube)) // wip https://chat.openai.com/chat/0eebfaa1-0625-41f0-b57c
 }
 
 </style>
+                <div class="text-content">
+                  <h6>$title</h6>
+                  <h4>$subtitle</h4>
+                  <p>$text</p>
+                  $html_button
+                </div>
 			  <div id="video-container"></div>
 			  <script>
 			  
