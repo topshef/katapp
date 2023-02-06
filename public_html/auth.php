@@ -9,6 +9,7 @@
 	
 	$ip_admin = '130.185.251.53 ';  // self, not admin 194.35.12.127
 	$isAdmin = strpos($ip_admin, $ip) !== false;
+	if (!defined('IS_ADMIN')) define('IS_ADMIN', $isAdmin);
 	if ($isAdmin) $_SESSION['flags']['isAdmin'] = true;
 
 	$isDev = $isAdmin && isset($_GET['dev']);
