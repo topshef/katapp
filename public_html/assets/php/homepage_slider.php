@@ -20,22 +20,16 @@ if (isset($youtube)) // wip https://chat.openai.com/chat/0eebfaa1-0625-41f0-b57c
 			<div class="img-fill">
 
 			  <style> 
-			  :root {
-  --video-width: 100vw;
-  --video-height: 100vh;
-}
-			  #video-container {
+
+  
+	#video-container {
   // width: 100vw;
   // height: 100vh;
   
-  width: var(--video-width);
-  height: var(--video-height);
+  transform: scale(1.5,1.5); 
 
-  // transform: translate(0%, -50%);
-// top: 50%;
-  // left: 50%;
   object-fit: cover;
-  position: fixed;
+  position: relative;
   top: 0;
   right: 0;
   bottom: 0;
@@ -43,32 +37,13 @@ if (isset($youtube)) // wip https://chat.openai.com/chat/0eebfaa1-0625-41f0-b57c
   overflow: hidden;
 }
 
-
-@media (min-aspect-ratio: 16/9) {
-  .video-container {
-    /* height = 100 * (9 / 16) = 56.25 */
-    //height: 56.25vw;
-	--video-height: 56.25vw;
-  }
-}
-@media (max-aspect-ratio: 16/9) {
-  .video-container {
-    /* width = 100 / (9 / 16) = 177.777777 */
-    //width: 177.78vh;
-	 --video-width: 177.78vh;
-  }
+@media (max-width: 768px) {
+	#video-container {
+		transform: scale(4,4);
+	}
 }
 
-//i don't think this does anything
-//https://chat.openai.com/chat/0eebfaa1-0625-41f0-b57c-c5a837fae458
 
-.ytp-title-text {
-  display: none;
-}
-
-.ytp-chrome-top {
-  display: none;
-}
 
 </style>
                 <div class="text-content">
