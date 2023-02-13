@@ -19,7 +19,10 @@
 		if ($balance != null) $isAllowed = false; // not sure if this is fail-safe
 		// also someone could buy multiple really quickly before mirror node updates
 		// so would need create some kind of purchase delay or cache
-		if ($balance == 0) $isAllowed = true;
+		
+		$limit = $parameters['limit'] ?? null;
+		if ($limit == null)  exitFail("limit missing from deal data");
+		if ($balance <= $limit) $isAllowed = true;
 		
 	}
 
