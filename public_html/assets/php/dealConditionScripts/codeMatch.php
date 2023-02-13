@@ -8,7 +8,9 @@
 		
 	$userCode = $_SESSION['dealGate']['userMessage'] ?? null;
 	
-	if ($userCode == null) {// request code from user
+	if ($userCode == null || $parameters['code'] !== $userCode) {// request code from user
+		$_SESSION['dealGate']['retries'] += 1;
+		if ($_SESSION['dealGate']['retries'] > 3) exitFail("exceeded 3 retries");
 		$_SESSION['dealGate']['dealURL'] = "https://{$_SERVER['SERVER_NAME']}{$_SERVER['REQUEST_URI']}";
 		error_log("requesting info from user... return to {$_SESSION['dealGate']['dealURL']}");
 		header("Location: https://{$_SERVER['SERVER_NAME']}/form.php");
