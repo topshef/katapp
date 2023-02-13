@@ -4,7 +4,6 @@
 	error_log("deal conditions were found");
 	
 	
-	
 	$scriptFolder = "{$_SERVER['DOCUMENT_ROOT']}/assets/php/dealConditionScripts";
 	
 	foreach ($dealConditions as $dealCondition) {
@@ -12,6 +11,8 @@
 		$parameters = $dealCondition['parameters'];
 		if (substr($scriptName,-4,4) != '.php') $scriptName .= '.php';
 		error_log("including $scriptName");
+		if (!file_exists("$scriptFolder/$scriptName"))
+			exitFail("missing $scriptFolder/$scriptName");
 		include "$scriptFolder/$scriptName";
 	}
 
