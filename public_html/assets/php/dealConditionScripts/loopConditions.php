@@ -3,6 +3,9 @@
 	//$dealConditions must be set - an array of conditions to apply
 	error_log("deal conditions were found");
 	
+	session_start();
+	//unset($_SESSION['dealGate']);  // maybe some scenarios where we need to unset 
+	$_SESSION['dealGate']['status'] = 'pending';
 	
 	$scriptFolder = "{$_SERVER['DOCUMENT_ROOT']}/assets/php/dealConditionScripts";
 	
@@ -14,8 +17,11 @@
 		if (!file_exists("$scriptFolder/$scriptName"))
 			exitFail("missing $scriptFolder/$scriptName");
 		include "$scriptFolder/$scriptName";
+		$_SESSION['dealGate']['debug']['status_x_condition'][$scriptName] = 'allow'; // if a condition fails
 	}
 
+	$_SESSION['dealGate']['status'] = 'allow';  // tx_signer should read this to confirm deal ok to execute?
+	
 	$html_conditions = "<div id='deal_conditions'>Conditions apply</div>";
 
 	// functions can be used by any condition in the loop...
