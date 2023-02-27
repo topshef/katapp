@@ -12,13 +12,14 @@ session_start();
 $network = $_GET['network'];
 $txid = $_GET['txid'] ?? null;
 
+$subfolder = $_GET['subfolder'] ?? 'current';
 
 if ($txid != null) {
 	include('tx_approval.php');
 	exit;
 }
 
-$url = "{$env['url_api_gomint_hashconnect']}txList.php?base=future";
+$url = "{$env['url_api_gomint_hashconnect']}txList.php?base=future&subfolder=$subfolder";
 $html_list = file_get_contents($url);
 
 
