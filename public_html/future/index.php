@@ -19,7 +19,9 @@ if ($txid != null) {
 	exit;
 }
 
-$url = "{$env['url_api_gomint_hashconnect']}txList.php?base=future&subfolder=$subfolder";
+$format = $_GET['format'] ?? 'html';
+
+$url = "{$env['url_api_gomint_hashconnect']}txList.php?format=$format&base=future&subfolder=$subfolder";
 $html_list = file_get_contents($url);
 
 
