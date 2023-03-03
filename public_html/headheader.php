@@ -65,6 +65,7 @@ if ($twitter_image == null) $twitter_image = 'https://shop.gomint.me/assets/imag
     <link rel="stylesheet" href="assets/css/owl.css">
 	
 	<link rel="shortcut icon" href="assets/images/GM.ico">
+	<?php echo $custom_style; ?>
   </head>
 
   <body>

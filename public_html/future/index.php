@@ -28,7 +28,63 @@ $html_list = file_get_contents($url);
 $path_base = "https://{$_SERVER['SERVER_NAME']}";
 
 //require_once "{$_SERVER['DOCUMENT_ROOT']}/config.php";	
+
+
+$custom_style = "
+<style>
+a { text-decoration: none; }
+				
+	a:hover {font-weight: 800;}
+
+	.success {color: green;}
+
+	.notsigned {color: orange;}
+
+	.signed {color: green;} 
+	
+	pre {
+    text-align: left;
+	}
+	
+	
+	.nowrap {
+	  white-space: nowrap;
+	}
+
+	.bidrow {
+		display: flex; justify-content: space-between; 
+		/* align-items: flex-start; */
+
+	}
+
+	.bidcell {
+	  display: inline-block; 
+	  text-align: left;
+	  padding: 10px;
+
+	}
+
+	@media only screen and (max-width: 600px) {
+	  .bidcell {
+		flex-basis: 100%;
+	  }
+	  
+	  .bidrow {
+
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between
+		align-items: center;
+	
+	  }
+	}
+	
+	
+</style>	
+";
+
 require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";	
+
 
 
 ?>
@@ -59,7 +115,7 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
 								</div>
 								<BR><BR>
 
-<div> 
+<div style='display: flex; justify-content: center; align-items: center;flex-wrap: wrap;'>
 <?php echo $html_list; ?>
 </div>
 
