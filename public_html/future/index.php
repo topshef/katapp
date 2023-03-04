@@ -19,7 +19,7 @@ if ($txid != null) {
 	exit;
 }
 
-$format = $_GET['format'] ?? 'html';
+$format = $_GET['format'] ?? 'html_simpleNFT';
 
 $url = "{$env['url_api_gomint_hashconnect']}txList.php?format=$format&base=future&subfolder=$subfolder";
 $html_list = file_get_contents($url);
@@ -45,43 +45,71 @@ a { text-decoration: none; }
 	pre {
     text-align: left;
 	}
+
 	
-	
-	.nowrap {
-	  white-space: nowrap;
-	}
 
-	.bidrow {
-		display: flex; justify-content: space-between; 
-		/* align-items: flex-start; */
 
-	}
+.bidtable {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  grid-gap: 10px;
+  /* margin: 0 5px 10px 5px;  */
+  margin: 0 auto;  Center the container horizontally */
+  max-width: 100%; /* Set a maximum width for the container */
 
-	.bidcell {
-	  display: inline-block; 
-	  text-align: left;
-	  padding: 10px;
 
-	}
+}
 
-	@media only screen and (max-width: 600px) {
-	  .bidcell {
-		flex-basis: 100%;
+.bidrow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  /* grid-template-columns: repeat(4, 25%);  */
+  grid-gap: 10px;
+  align-items: center;
+  align-items: flex-start;
+
+ 
+}
+
+.bidcell {
+  text-align: left;
+  padding: 10px;
+}
+
+@media only screen and (max-width: 600px) {
+
+	/*
+	.bidtable {
+		margin: 0 0px;
 	  }
 	  
-	  .bidrow {
+	  */
+	  
+	  
+	.bidrow {
+		grid-template-columns: repeat(1, 1fr); /* Set a single column for smaller screens */
 
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: space-between
-		align-items: center;
-	
+		border-bottom: 1px solid #ccc; /* Add a border to the bottom of each row */
+		padding-bottom: 10px; /* Add padding to the bottom of each row */
 	  }
+
+	.bidcell {
+		/* width: 100% !important; */
+		/* padding: 5px; */
+		grid-column: 1 / -1; /* Set each bidcell to span the full width of the row */
+		/* border-bottom: 5px solid red;  test only */
 	}
-	
-	
+
+}
+
+
 </style>	
 ";
+
+
+	$html_viewport = '<meta name="viewport" content="width=device-width, initial-scale=1.0">';
+//'<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">';
+
 
 require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";	
 
@@ -111,18 +139,12 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
 <p>Select a queued transaction to review/sign</p>
 
  									
-									
 								</div>
-								<BR><BR>
+<BR><BR>
 
-<div style='display: flex; justify-content: center; align-items: center;flex-wrap: wrap;'>
+<div class='bidtable'>
 <?php echo $html_list; ?>
 </div>
-
-
-					<script type="text/javascript" src="../vendor/hashconnect/dist/bundle.js"></script>
-
-								<BR><BR>
 
 
 								

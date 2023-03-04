@@ -18,6 +18,10 @@ if (strpos($twitter_image, 'ipfs') !== false) // possible ipfs link - use cache 
 if ($twitter_image == null) $twitter_image = $content['twitter'][1]['fallback_image'];
 if ($twitter_image == null) $twitter_image = 'https://shop.gomint.me/assets/images/gmlogo4.png';
 
+if (!isset($html_viewport)) 
+	$html_viewport = '<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">';
+
+//'<meta name="viewport" content="width=device-width, initial-scale=1.0">';
 
 ?>
 <!DOCTYPE html>
@@ -26,7 +30,7 @@ if ($twitter_image == null) $twitter_image = 'https://shop.gomint.me/assets/imag
   <head>
 
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <?=$html_viewport?>
     <meta name="description" content="">
     <meta name="author" content="">
     <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,300,400,500,600,700,800,900&display=swap" rel="stylesheet">
