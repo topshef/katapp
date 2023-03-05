@@ -21,7 +21,7 @@ if ($txid != null) {
 
 $format = $_GET['format'] ?? 'html_simpleNFT';
 
-$url = "{$env['url_api_gomint_hashconnect']}txList.php?format=$format&base=future&subfolder=$subfolder";
+$url = "{$env['url_api_gomint_hashconnect']}txList.php?network=$network&format=$format&base=future&subfolder=$subfolder";
 $html_list = file_get_contents($url);
 
 
