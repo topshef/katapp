@@ -20,92 +20,16 @@ $format = $_GET['format'] ?? 'html_simpleNFT';
 $url = "{$env['url_api_gomint_hashconnect']}txList.php?network=$network&format=$format&base=future&subfolder=$subfolder&query=$txid";
 $html_list = file_get_contents($url);
 
+$custom_style = '<link rel="stylesheet" type="text/css" href="future/future.css">';
+
 if ($txid != null) {
 	include('tx_approval.php');
 	exit;
 }
 
-
 $path_base = "https://{$_SERVER['SERVER_NAME']}";
 
 //require_once "{$_SERVER['DOCUMENT_ROOT']}/config.php";	
-
-
-$custom_style = "
-<style>
-a { text-decoration: none; }
-				
-	a:hover {font-weight: 800;}
-
-	.success {color: green;}
-
-	.notsigned {color: orange;}
-
-	.signed {color: green;} 
-	
-	pre {
-    text-align: left;
-	}
-
-	
-
-
-.bidtable {
-  display: grid;
-  grid-template-columns: repeat(1, 1fr);
-  grid-gap: 10px;
-  /* margin: 0 5px 10px 5px;  */
-  margin: 0 auto;  Center the container horizontally */
-  max-width: 100%; /* Set a maximum width for the container */
-
-
-}
-
-.bidrow {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  /* grid-template-columns: repeat(4, 25%);  */
-  grid-gap: 10px;
-  align-items: center;
-  align-items: flex-start;
-
- 
-}
-
-.bidcell {
-  text-align: left;
-  padding: 10px;
-}
-
-@media only screen and (max-width: 600px) {
-
-	/*
-	.bidtable {
-		margin: 0 0px;
-	  }
-	  
-	  */
-	  
-	  
-	.bidrow {
-		grid-template-columns: repeat(1, 1fr); /* Set a single column for smaller screens */
-
-		border-bottom: 1px solid #ccc; /* Add a border to the bottom of each row */
-		padding-bottom: 10px; /* Add padding to the bottom of each row */
-	  }
-
-	.bidcell {
-		/* width: 100% !important; */
-		/* padding: 5px; */
-		grid-column: 1 / -1; /* Set each bidcell to span the full width of the row */
-		/* border-bottom: 5px solid red;  test only */
-	}
-
-}
-
-
-</style>	
-";
 
 
 	$html_viewport = '<meta name="viewport" content="width=device-width, initial-scale=1.0">';

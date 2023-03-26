@@ -1,0 +1,90 @@
+a { text-decoration: none; }
+				
+	a:hover {font-weight: 800;}
+
+	.success {color: green;}
+
+	.notsigned {color: orange;}
+
+	.signed {color: green;} 
+	
+	pre {
+    text-align: left;
+	}
+
+	
+
+
+.bidtable {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  grid-gap: 10px;
+  /* margin: 0 5px 10px 5px;  */
+  margin: 0 auto;  Center the container horizontally */
+  max-width: 100%; /* Set a maximum width for the container */
+
+
+}
+
+.bidrow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  /* grid-template-columns: repeat(4, 25%);  */
+  grid-gap: 10px;
+  align-items: center;
+  align-items: flex-start;
+
+ 
+}
+
+.bidcell {
+  text-align: left;
+  padding: 10px;
+}
+
+@media only screen and (max-width: 600px) {
+
+	/*
+	.bidtable {
+		margin: 0 0px;
+	  }
+	  
+	  */
+	  
+	  
+	.bidrow {
+		grid-template-columns: repeat(1, 1fr); /* Set a single column for smaller screens */
+
+		border-bottom: 1px solid #ccc; /* Add a border to the bottom of each row */
+		padding-bottom: 10px; /* Add padding to the bottom of each row */
+	  }
+
+	.bidcell {
+		/* width: 100% !important; */
+		/* padding: 5px; */
+		grid-column: 1 / -1; /* Set each bidcell to span the full width of the row */
+		/* border-bottom: 5px solid red;  test only */
+	}
+
+}
+
+#bidinfo p {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+}
+
+#bidinfo p span:first-child {
+  min-width: 80px;
+  text-align: right;
+  padding-right: 10px;
+}
+
+#bidinfo p span:last-child {
+  text-align: left !important;
+flex: 1;
+/* color: red; test select*/
+font-weight: bold
+}
+
+
