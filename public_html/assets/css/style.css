@@ -1451,3 +1451,17 @@ h5 a:hover { color: inherit; }
 padding: 120px 0px 10px 0px;
 }
 }
+
+
+.user_input {
+    border: 1px solid #ccc;
+    border-radius: 10px; /* add this property for rounded corners */
+    padding: 8px;
+    margin: 4px 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+
+
+
