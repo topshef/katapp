@@ -13,16 +13,17 @@ $network = $_GET['network'];
 $txid = $_GET['txid'] ?? null;
 
 $subfolder = $_GET['subfolder'] ?? 'current';
+if ($txid) $subfolder = '*';
+
+$format = $_GET['format'] ?? 'html_simpleNFT';
+
+$url = "{$env['url_api_gomint_hashconnect']}txList.php?network=$network&format=$format&base=future&subfolder=$subfolder&query=$txid";
+$html_list = file_get_contents($url);
 
 if ($txid != null) {
 	include('tx_approval.php');
 	exit;
 }
-
-$format = $_GET['format'] ?? 'html_simpleNFT';
-
-$url = "{$env['url_api_gomint_hashconnect']}txList.php?network=$network&format=$format&base=future&subfolder=$subfolder";
-$html_list = file_get_contents($url);
 
 
 $path_base = "https://{$_SERVER['SERVER_NAME']}";
