@@ -18,6 +18,7 @@ if ($txid) $subfolder = '*';
 $format = $_GET['format'] ?? 'html_simpleNFT';
 
 $url = "{$env['url_api_gomint_hashconnect']}txList.php?network=$network&format=$format&base=future&subfolder=$subfolder&query=$txid";
+error_log("calling $url");
 $html_list = file_get_contents($url);
 
 $custom_style = '<link rel="stylesheet" type="text/css" href="future/future.css">';
