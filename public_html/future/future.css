@@ -78,6 +78,7 @@ a { text-decoration: none; }
   min-width: 80px;
   text-align: right;
   padding-right: 10px;
+
 }
 
 #bidinfo p span:last-child {
@@ -85,6 +86,12 @@ a { text-decoration: none; }
 flex: 1;
 /* color: red; test select*/
 font-weight: bold
+}
+
+
+.bidrow .bidcell:nth-child(1) {
+  text-align: center;
+  padding: 10px;
 }
 
 
