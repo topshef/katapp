@@ -47,7 +47,7 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
       <div class="container">
         <div class="row">
           <div class="col-md-12">
-            <h1>Scheduled trades</h1>
+            <h1>OPEN OFFERS</h1>
             <span>Sign to approve</span>
           </div>
         </div>
@@ -55,7 +55,7 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
     </div>
 
 
-    <div class="callback-form contact-us" style="padding-top: 10px; margin-top: 20px;">
+    <div class="callback-form contact-us" style="padding-top: 10px; margin-top: 0px;">
       <div class="container">
 
             <div class="contact-form">
