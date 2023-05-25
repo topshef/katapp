@@ -4,7 +4,7 @@
 // exit;
 
 session_start();
-require_once(__DIR__ . '/config.php'); //redundant but hey
+require_once(__DIR__ . '/config.php'); //redundant but hey. is it?
 
 $twitter_image = $token_asset_image_URL;
 
@@ -36,7 +36,9 @@ $url_icon = $content['general'][1]['url_ico'] ?? './assets/images/GM.ico';
     <?=$html_viewport?>
     <meta name="description" content="">
     <meta name="author" content="">
-    <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,300,400,500,600,700,800,900&display=swap" rel="stylesheet">
+ <!--   <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,300,400,500,600,700,800,900&display=swap" rel="stylesheet">
+
+-->
 
     <title><?php echo $title; ?></title>
 
@@ -62,13 +64,13 @@ $url_icon = $content['general'][1]['url_ico'] ?? './assets/images/GM.ico';
     <!-- Additional CSS Files -->
     <link rel="stylesheet" href="assets/css/fontawesome.css">
 <?php
-		$path_style_css = 'assets/css/style.css';
+		$path_style_css = 'assets/css/style.css.php';
 		
 		$cachebust = filemtime("{$_SERVER['DOCUMENT_ROOT']}/$path_style_css");
 		//error_log("$path_style_css has date $cachebust");
 ?>
 	
-    <link rel="stylesheet" href="assets/css/style.css?<?= $cachebust ?>">
+    <link rel="stylesheet" href="assets/css/style.css.php?<?= $cachebust ?>">
     <link rel="stylesheet" href="assets/css/owl.css">
 	
 	<link rel="shortcut icon" href="<?=$url_icon?>">
