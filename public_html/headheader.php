@@ -25,6 +25,13 @@ if (!isset($html_viewport))
 
 $url_icon = $content['general'][1]['url_ico'] ?? './assets/images/GM.ico';
 
+$og_title = $content['og'][1]['title'] ?? 'GoMint - tokenize the future';
+$og_url = $content['og'][1]['url'] ?? 'https://gomint.me';
+$og_desc = $content['og'][1]['description'] ?? 'Tokenize your content with GoMint, engage and incentivise your fans to sponsor or promote your work. Hello Future!';
+$og_image = $content['og'][1]['image'] ?? $url_icon;
+
+
+$menu = $content['general'][1]['menu'] ?? 'm=Gallery';
 
 ?>
 <!DOCTYPE html>
@@ -42,9 +49,9 @@ $url_icon = $content['general'][1]['url_ico'] ?? './assets/images/GM.ico';
 
     <title><?php echo $title; ?></title>
 
-	<meta property="og:title" content="GoMint - tokenize the future">
-	<meta property="og:url" content="https://gomint.me">
-	<meta property="og:description" content="Tokenize your content with GoMint, engage and incentivise your fans to sponsor or promote your work. Hello Future!">
+	<meta property="og:title" content="<?=$og_title?>">
+	<meta property="og:url" content="<?=$og_url?>">
+	<meta property="og:description" content="<?=$og_desc?>">
 	<meta property="og:image" content="<?=$url_icon?>">
 
 	<meta name="twitter:card" content="summary_large_image">
@@ -130,9 +137,18 @@ $url_icon = $content['general'][1]['url_ico'] ?? './assets/images/GM.ico';
               </li>
 			  
 			  <?php
-if ($isPocMode) 
-$menu = array('products.php' => 'Gallery', 'checkout.php' => 'Checkout', 'account.php' => 'Your account'); 
-else  $menu = array('m' => 'Gallery'); 
+
+
+$temp = $menu;
+$menu = [];
+foreach (explode(',', $temp) as $pair) {
+    list($key, $value) = explode('=', $pair);
+    $menu[$key] = $value;
+}
+
+// if ($isPocMode) 
+// $menu = array('products.php' => 'Gallery', 'checkout.php' => 'Checkout', 'account.php' => 'Your account'); 
+// else  $menu = array('m' => 'Gallery'); 
 
 
 if ($shopstatus == 'closed') unset($menu['checkout.php']);
