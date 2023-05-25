@@ -23,6 +23,9 @@ if (!isset($html_viewport))
 
 //'<meta name="viewport" content="width=device-width, initial-scale=1.0">';
 
+$url_icon = $content['general'][1]['url_ico'] ?? './assets/images/GM.ico';
+
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -40,7 +43,7 @@ if (!isset($html_viewport))
 	<meta property="og:title" content="GoMint - tokenize the future">
 	<meta property="og:url" content="https://gomint.me">
 	<meta property="og:description" content="Tokenize your content with GoMint, engage and incentivise your fans to sponsor or promote your work. Hello Future!">
-	<meta property="og:image" content="assets/images/GM.ico">
+	<meta property="og:image" content="<?=$url_icon?>">
 
 	<meta name="twitter:card" content="summary_large_image">
 	<meta name="twitter:site" content="@<?php echo $content['general'][1]['twitter_handle'];?>">
@@ -68,7 +71,7 @@ if (!isset($html_viewport))
     <link rel="stylesheet" href="assets/css/style.css?<?= $cachebust ?>">
     <link rel="stylesheet" href="assets/css/owl.css">
 	
-	<link rel="shortcut icon" href="assets/images/GM.ico">
+	<link rel="shortcut icon" href="<?=$url_icon?>">
 	<?php echo $custom_style; ?>
   </head>
 
