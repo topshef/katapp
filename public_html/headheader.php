@@ -4,7 +4,11 @@
 // exit;
 
 session_start();
-require_once(__DIR__ . '/config.php'); //redundant but hey. is it?
+//require_once(__DIR__ . '/config.php'); //redundant but hey. is it?
+require_once "{$_SERVER['DOCUMENT_ROOT']}/readenv.php";
+require_once "{$_SERVER['DOCUMENT_ROOT']}/auth.php";
+require_once "{$_SERVER['DOCUMENT_ROOT']}/config.php";
+
 
 $twitter_image = $token_asset_image_URL;
 

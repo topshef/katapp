@@ -5,7 +5,7 @@ if ($token_name == null) $token_name = $token_class['name'];
 
 //market info
 if (isset($market_info)) {	
-	$price = $market_info['price'];
+	$price = $market_info['price']; // this does not exist!
 	$unit = $market_info['unit'];
 	$symbol = $unit;
 	if ($unit == 'hbar') $symbol = 'ℏ';

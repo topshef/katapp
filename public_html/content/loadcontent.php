@@ -1,5 +1,7 @@
 <?php
 
+session_start();
+
 // various snippets used around the site, and kinda env
 
 // for testing
@@ -27,7 +29,6 @@ if ($isAdmin && $isDirect) echo "<PRE>" . print_r(get_defined_vars(),true);
 	
 	//$content = json_decode(file_get_contents(__DIR__ . "/$path_content"), true);
 	$content = json_decode(file_get_contents(__DIR__ . '/content.json'), true);
-	
 	
 	if ($isAdmin && isset($_GET['showcontent'])) {echo "<PRE>" . print_r($content, true); exit; }
 
