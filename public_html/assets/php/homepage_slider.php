@@ -13,7 +13,21 @@
 //extract($slider[1]);
 $html_button = ($button_text == null) ? '' : "<a href='$href' class='filled-button'>$button_text</a>";
 
-if (isset($youtube)) // wip https://chat.openai.com/chat/0eebfaa1-0625-41f0-b57c-c5a837fae458
+if (isset($iframe))
+	echo <<<EOSLIDER_IFRAME
+<div class="page-heading header-text" style="position: relative; height: 500px;">
+  $iframe
+  <div class="container" style="position: relative; background: rgba(255,255,255,0); height: 100%;">
+		<div class="text-content">
+                  <h6>$title</h6>
+                  <h4>$subtitle</h4>
+                  <p>$text</p>
+                  $html_button
+                </div>  </div>
+		</div>
+EOSLIDER_IFRAME;
+
+else if (isset($youtube)) // wip https://chat.openai.com/chat/0eebfaa1-0625-41f0-b57c-c5a837fae458
 	echo <<<EOSLIDER_YOUTUBE
           <div class="item item-$key">
 		  <script src="https://www.youtube.com/iframe_api"></script>
@@ -139,4 +153,36 @@ unset($imgsrc, $imgstyle);
 }
 
 */		  
+
+/* have a go with this some time, example iframe insert
+
+BEFORE
+<div class="page-heading header-text" style="background-image: url('https://swap.kpay.live/assets/images/matrix.png');">
+      <div class="container">
+        <div class="row">
+          <div class="col-md-12">
+            <h1>#katomic swaps</h1>
+            <span>Multi-party multi-asset atomic swaps</span>
+          </div>
+        </div>
+      </div>
+    </div>
+	
+AFTER
+<div class="page-heading header-text" style="position: relative; height: 500px;">
+  <iframe src="https://kpay.live/matrix/" style="position: absolute; width: 200%; height: 200%; z-index: -1; top: -100%; left: -50%;"></iframe>
+  <div class="container" style="position: relative; background: rgba(255,255,255,0); height: 100%;">
+    <div class="row">
+      <div class="col-md-12">
+        <h1>#katomic swaps</h1>
+        <span>Multi-party multi-asset atomic swaps</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+*/
+
+
 ?>
