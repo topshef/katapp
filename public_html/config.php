@@ -28,6 +28,7 @@ logEvent('end loadcontent.php');
 		global $api_endpoint;
 		$url = "$api_endpoint/getUserProfile.php?userId=$user_id&type=$type";
 		$json = file_get_contents($url);
+		//error_log("get user profile for $user_id from $url result $json");
 		$user = json_decode($json, true);	
 		return $user;
 	}
