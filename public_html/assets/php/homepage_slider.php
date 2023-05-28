@@ -15,16 +15,20 @@ $html_button = ($button_text == null) ? '' : "<a href='$href' class='filled-butt
 
 if (isset($iframe))
 	echo <<<EOSLIDER_IFRAME
-<div class="page-heading header-text" style="position: relative; height: 500px;">
-  $iframe
-  <div class="container" style="position: relative; background: rgba(255,255,255,0); height: 100%;">
-		<div class="text-content">
+<div class="item item-$key">
+	<div class="page-heading header-text" style="position: relative; height: 500px;">
+	$iframe
+			<div class="container" style="position: relative; background: rgba(255,255,255,0); height: 100%;">
+				<div class="text-content">
                   <h6>$title</h6>
                   <h4>$subtitle</h4>
                   <p>$text</p>
                   $html_button
-                </div>  </div>
-		</div>
+                </div>
+			</div>
+	</div>
+</div>
+
 EOSLIDER_IFRAME;
 
 else if (isset($youtube)) // wip https://chat.openai.com/chat/0eebfaa1-0625-41f0-b57c-c5a837fae458
