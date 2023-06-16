@@ -1126,6 +1126,7 @@ footer .contact-form button.filled-button:hover {
 
 .page-heading {
 	text-align: center;
+	/* background-color: #000000; */
 	/* background-image: url(../images/banner-image-1-1920x500.jpg); */
 	background-position: center center;
 	background-repeat: no-repeat;
@@ -1148,6 +1149,17 @@ footer .contact-form button.filled-button:hover {
 	bottom: 0;
 	background-color: rgba(0,0,0,0.5);
 	z-index: 1;
+}
+
+.page-heading:after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #000000;
+    z-index: -2;
 }
 
 .page-heading h1 {
