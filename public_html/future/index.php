@@ -17,7 +17,9 @@ if ($txid) $subfolder = '*';
 
 $format = $_GET['format'] ?? 'html_simpleNFT';
 
-$url = "{$env['url_api_gomint_hashconnect']}txList.php?network=$network&format=$format&base=future&subfolder=$subfolder&query=$txid";
+$url = "{$env['url_api_gomint_hashconnect']}txList.php?network=$network&format=$format&base=future&subfolder=$subfolder";
+if ($txid) $url .= "&txid=$txid";
+
 error_log("calling $url");
 $html_list = file_get_contents($url);
 
