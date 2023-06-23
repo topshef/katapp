@@ -17,10 +17,10 @@ if ($txid) $subfolder = '*';
 
 $format = $_GET['format'] ?? 'html_simpleNFT';
 
-$urlDealList = $env['url_api_txlist'] ?? $env['url_api_gomint_hashconnect'];
-$urlDealList = rtrim($urlDealList, '/');
+$urlTxAppnet = $env['url_api_tx_appnet'] ?? $env['url_api_gomint_hashconnect'];
+$urlTxAppnet = rtrim($urlTxAppnet, '/');
 
-$url = "$urlDealList/txList.php?network=$network&format=$format&base=future&subfolder=$subfolder";
+$url = "$urlTxAppnet/txList.php?network=$network&format=$format&base=future&subfolder=$subfolder";
 if ($txid) $url .= "&txid=$txid";
 
 error_log("calling $url");
