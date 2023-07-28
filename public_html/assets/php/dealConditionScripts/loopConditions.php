@@ -1,5 +1,8 @@
 <?php
 
+	// in prog.. conditions to be moved to saas kfund
+	// then this folder to be deprecated
+
 	//$dealConditions must be set - an array of conditions to apply
 	error_log("deal conditions were found");
 	
