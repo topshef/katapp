@@ -2,7 +2,7 @@ node_modules
 
 .env
 .env*
-.htaccess*
+#.htaccess*
 
 error_log
 error_log*.log
