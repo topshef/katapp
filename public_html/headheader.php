@@ -66,7 +66,7 @@ $menu = $content['general'][1]['menu'] ?? 'm=Gallery';
 	<meta name="twitter:image" content="<?php echo $twitter_image; ?>">
 	
 	
-	<base href="<?php echo $path_base; ?>">
+	<base href="<?php echo $path_base; //note ?>">  
 
 
     <!-- Bootstrap core CSS -->
