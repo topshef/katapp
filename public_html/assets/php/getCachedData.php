@@ -14,7 +14,7 @@
 		//error_log("calling getCacheData timeoutseconds=$timeoutseconds cacheOnly=$cacheOnly for for url=$url");
 		$startTime = time(); // for debug only, see header below
 		
-		extract($_SESSION['flags']);
+		if ($_SESSION['flags']) extract($_SESSION['flags']);
 		
 		//$isDebugMode = $GLOBALS['isDebugMode'];
 		

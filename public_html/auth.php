@@ -1,5 +1,5 @@
 <?php
-	session_start();
+	$session_result = session_start();
 	
 	$ip = $_SERVER['REMOTE_ADDR'];
 	
@@ -16,10 +16,9 @@
 
 
 	// start with basic guest account login only
-	$session_result = session_start();
 	if (!$session_result) exit('fat-free cookies required'); // placeholder
 
-	$user_id = $_SESSION['user_id'];
+	$user_id = $_SESSION['user_id'] ?? false;
 	if ($user_id == null) setGuestUser();
 
 	//kinda mess - todo sort dependencies
@@ -30,7 +29,7 @@
 	if (!isset($_SESSION['user_profile'])) {
 		$user_profile = getUserProfile($user_id, 'user');
 		$user_permissions = getUserProfile($user_id, 'admin');
-		$user = array_merge($user_profile, (array)$user_permissions);
+		$user = array_merge((array)$user_profile, (array)$user_permissions);
 
 		$_SESSION['user_profile'] = $user;
 	}
@@ -63,6 +62,7 @@
 	}
 	
 	function hexToAlphaNum($input) {
+        $output = '';
 		for ($i = 0; $i <= strlen($input)/2 ; $i++) 
 			$output .= base_convert(substr($input,2 * $i,2), 16, 36);
 		return $output;
