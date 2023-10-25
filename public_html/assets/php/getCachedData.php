@@ -71,9 +71,9 @@
 			$cachepath_header = str_replace('.txt','.header.txt', $cachepath);
 			$callDuration = time() - $startTime;
 			$header = compact('url','hash', 'cachefolder', 'cachefile', 'timeoutseconds', 'cacheOnly', 'callDuration');
-			file_put_contents($cachepath_header, json_encode($header, JSON_PRETTY_PRINT));
+			$result = file_put_contents($cachepath_header, json_encode($header, JSON_PRETTY_PRINT));
 			
-			error_log("wrote data $cachepath");
+            error_log("result $result writing cache for $url to $cachepath");
 		}
 		return $data;
 
