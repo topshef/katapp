@@ -1340,6 +1340,19 @@ footer .contact-form button.filled-button:hover {
 /* Responsive Style */
 @media (max-width: 768px) {
 
+    .page-heading.header-text {
+       /* display: none;  */
+       height: 0px;
+       visibility: hidden;
+       padding: 80px 0px 10px 0px ;
+    }
+    
+    body > div.services.product-details {
+        margin-top: 0px; 
+    }
+
+    
+    
 	.sub-header {
 		display: none;
 	}
@@ -1462,12 +1475,6 @@ h5 a:hover { color: inherit; }
     { width:200px;
     box-shadow: 5px 5px 5px #999; }
 	
-@media (max-width: 768px) {
-.page-heading.header-text {
-padding: 120px 0px 10px 0px;
-}
-}
-
 
 .user_input {
     border: 1px solid #ccc;
