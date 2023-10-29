@@ -1350,6 +1350,22 @@ footer .contact-form button.filled-button:hover {
     body > div.services.product-details {
         margin-top: 0px; 
     }
+    
+    .background-header {
+        background-color: rgba(255, 255, 255, 0.92) !important;
+    }
+
+    
+    .services {
+        margin-top: 0px !important; 
+    }
+    .product-filters-icon {
+         /* display: none;  */
+        height: 0px;
+        visibility: hidden;
+        padding: 0px;
+        margin: 0px;
+    }
 
     
     
