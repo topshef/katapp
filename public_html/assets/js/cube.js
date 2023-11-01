@@ -1,7 +1,16 @@
-import * as THREE from 'https://cdn.skypack.dev/three';
+//import * as THREE from 'https://cdn.skypack.dev/three';
+//import * as THREE from 'https://cdn.skypack.dev/three@0.158.0';
+import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
+
+
+
 import { TrackballControls } from '../../TrackballControls.js'
-import { TextureLoader } from 'https://cdn.skypack.dev/three/src/loaders/TextureLoader'
-import Stats from 'https://cdn.skypack.dev/three/examples/jsm/libs/stats.module'
+//import { TextureLoader } from 'https://cdn.skypack.dev/three/src/loaders/TextureLoader'
+import { TextureLoader } from 'https://unpkg.com/three@0.158.0/build/three.module.js';
+
+//import Stats from 'https://cdn.skypack.dev/three/examples/jsm/libs/stats.module'
+import Stats from 'https://unpkg.com/three@0.158.0/examples/jsm/libs/stats.module.js';
+
 
 
 /**
