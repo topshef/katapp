@@ -5,6 +5,7 @@
 require_once "{$_SERVER['DOCUMENT_ROOT']}/readenv.php";
 require_once "{$_SERVER['DOCUMENT_ROOT']}/auth.php";
 require_once "{$_SERVER['DOCUMENT_ROOT']}/config.php";
+require_once "{$_SERVER['DOCUMENT_ROOT']}/assets/php/elog.php";
 
 
 session_start();
