@@ -44,7 +44,7 @@
 				//$_SERVER['REMOTE_PORT'] . 
 				$_SERVER['HTTP_USER_AGENT'] . 
 				$_SERVER['HTTP_ACCEPT'] . 
-				$_SERVER['HTTP_ACCEPT_LANGUAGE'] .
+				($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? '') .
 				$_SERVER['HTTP_ACCEPT_ENCODING']
 				;
 		$hash = hash('sha256', $seed);

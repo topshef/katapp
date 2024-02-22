@@ -18,10 +18,13 @@ if ($txid) $subfolder = '*';
 
 $format = $_GET['format'] ?? 'html_simpleNFT';
 
-$urlTxAppnet = $env['url_api_tx_appnet'] ?? $env['url_api_gomint_hashconnect'];
+$saas_domain = $_SESSION['last_saas_domain'] ?? false; 
+if ($saas_domain) $urlTxAppnet = "https://$saas_domain/api/hashconnect";
+else $urlTxAppnet = $env['url_api_tx_appnet'] ?? $env['url_api_gomint_hashconnect']; // tbc how to refactor this shite
+
 $urlTxAppnet = rtrim($urlTxAppnet, '/');
 
-$url = "$urlTxAppnet/txList.php?network=$network&format=$format&base=future&subfolder=$subfolder";
+$url .= "$urlTxAppnet/txList.php?network=$network&format=$format&base=future&subfolder=$subfolder";
 if ($txid) $url .= "&txid=$txid";
 
 error_log("calling $url");
