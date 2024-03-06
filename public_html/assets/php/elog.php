@@ -1,19 +1,24 @@
 <?php
 
-    //error logging v2.3
+    //error logging v2.4
     
     require_once("{$_SERVER['DOCUMENT_ROOT']}/readenv.php");
 
     $envLogPath = getenv('PHP_ERROR_LOG'); // eg cong file SetEnv PHP_ERROR_LOG "/path to log"
-    if ($envLogPath !== false) {
-        elog('error_log was at' . ini_set('error_log'));
+    if ($envLogPath !== false)
         ini_set('error_log', $envLogPath);
-        elog("error_log is now at $envLogPath");
-    }
+
     
     if (isset($env['LOG_LEVEL']) && $env['LOG_LEVEL'] == 'DEBUG') {
         $GLOBALS['isVerbose'] = true; 
         elog("note: global isVerbose was set by env LOG_LEVEL=DEBUG");
+    }
+
+    // error log then exit
+    function exlog($message, $label = null, $source = null) {
+        elog($message, $label, $source);
+        $exitMessage = $label ?? $message;
+        exit($exitMessage);
     }
 
 	function elog($message, $label = null, $source = null) {
@@ -42,8 +47,8 @@
 
         if (is_array($message) || is_object($message)) {//
             $message = json_encode($message, JSON_PRETTY_PRINT); //
-            $open = ($isVerbose) ? 'open' : '';
-            $message = "\n<details $open><summary>$label</summary>$message</details>";
+            $open = ($isVerbose) ? ' open' : '';
+            $message = "\n<details$open><summary>$label</summary>$message</details>";
         } else $message = "$label $message";
         
         
