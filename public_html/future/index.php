@@ -32,10 +32,7 @@ $html_list = file_get_contents($url);
 
 $custom_style = '<link rel="stylesheet" type="text/css" href="future/future.css">';
 
-if ($txid != null) {
-	include('tx_approval.php');
-	exit;
-}
+if ($txid) exit(include('tx_approval.php'));
 
 $path_base = "https://{$_SERVER['SERVER_NAME']}";
 
