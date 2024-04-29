@@ -26,6 +26,7 @@ $urlTxAppnet = rtrim($urlTxAppnet, '/');
 
 $url .= "$urlTxAppnet/txList.php?network=$network&format=$format&base=future&subfolder=$subfolder";
 if ($txid) $url .= "&txid=$txid";
+if ($isDev) $url .= "&dev";
 
 error_log("calling $url");
 $html_list = file_get_contents($url);

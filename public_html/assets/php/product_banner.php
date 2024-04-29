@@ -4,7 +4,7 @@
 if ($iframe) {  
 ?>
     <!-- Page Content -->
-   <div class="page-heading header-text" style="position: relative; height: 100%;">
+   <div class="page-heading header-text">
 	<iframe src="<?=$iframe?>" style="border: none; position: absolute; width: 200%; height: 200%; z-index: -1; top: -100%; left: -50%;"></iframe>
       <div class="container">
         <div class="row">
