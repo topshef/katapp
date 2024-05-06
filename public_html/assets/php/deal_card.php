@@ -1,13 +1,18 @@
 <?php
 
+$btnLabelViewDeal = $content['theme'][1]['btnLabelViewDeal'] ?? 'View deal';
+
+// first para only
+$shortDealDescription = explode("<BR>", $dealDescription)[0];
+
 echo <<<EOCARD
           <div class="col-md-4">
             <div class="service-item">
               <img src="$dealThumbnail" alt="">
               <div class="down-content">
                 <h4>$dealTitle</h4>
-                <p> $dealDescription </p>
-                <a href="m?dealonly&dealId=$dealId&network=$dealNetwork" class="filled-button">View More</a>
+                <p> $shortDealDescription </p>
+                <a href="m?dealonly&dealId=$dealId&network=$dealNetwork" class="filled-button">$btnLabelViewDeal</a>
               </div>
             </div>
 
