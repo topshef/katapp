@@ -1501,6 +1501,14 @@ h5 a:hover { color: inherit; }
     box-sizing: border-box;
 }
 
-
+.code {
+    font-family: monospace;
+    background-color: #f6f8fa; /* Light gray background */
+    padding: 1px 3px; 
+    margin: 0 2px;
+    border-radius: 5px;
+    border: 0.5px solid #ddd;
+    display: inline-block;
+}
 
 
