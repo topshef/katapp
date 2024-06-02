@@ -46,7 +46,10 @@
         }
 
         if (is_array($message) || is_object($message)) {//
-            $message = json_encode($message, JSON_PRETTY_PRINT); //
+            //$message = compressObjectForLog($message);
+            //$cloneMessage = $message; // disable if any issues
+            $cloneMessage = compressObjectForLog(json_decode(json_encode($message)));
+            $message = json_encode($cloneMessage, JSON_PRETTY_PRINT); //
             $open = ($isVerbose) ? ' open' : '';
             $message = "\n<details$open><summary>$label</summary>$message</details>";
         } else $message = "$label $message";
@@ -79,5 +82,45 @@
         return $matches[1] ?? null; // Return the variable name, if found
     }
 
+
+
+
+
+    // for debug via elog
+    function compressObjectForLog($obj) {
+        if (!$obj) return $obj;
+        if (is_string($obj)) return $obj;
+        if (is_array($obj)) return array_map('compressObjectForLog', $obj);
+        //if (is_array($obj)) $obj = json_decode(json_encode($obj));
+        //$obj = json_decode(json_encode($obj));
+        try {
+            foreach ($obj as $key => $value) {
+                $obj->$key = is_object($value) 
+                    ? (isset($value->type, $value->data) && $value->type === 'Buffer' && is_array($value->data) 
+                        ? (object) array_merge((array) $value, [
+                            'type' => 'Buffer (debug mode compressed WQ98233)',
+                            //'data' => implode(',', str_replace(array("\r", "\n"), '', $value->data)),
+                            'data' => implode(',', $value->data),
+                            'hex' => toHexString_TY76341($value->data)
+                          ]) 
+                        : compressObjectForLog($value))
+                    : (is_array($value) 
+                        ? array_map('compressObjectForLog', $value) 
+                        : $value);
+            }
+        } catch (Throwable $e) { // if error i just want to return the $obj as it is
+            elog($e, "warning YR77212 compressObjectForLog failed");
+            throw new Exception("Error in compressObjectForLog: " . $e->getMessage(), 0, $e);    
+            //return $obj;  // unreachable return
+        }
+        return $obj;
+    }
+    
+    function toHexString_TY76341($bytes) {
+        return implode('', array_map(function($byte) { 
+            return sprintf('%02x', $byte); 
+        }, $bytes));
+    }
+    
     
 ?>
