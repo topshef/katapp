@@ -9,16 +9,27 @@
 // get list of env files
 $files_env     = glob(__DIR__ . '/.env');        // this is at most 1 file
 $files_envpath = glob(__DIR__ . '/.envpath*');   // this can be many files
+//elog($files_envpath);
 
 array_multisort($files_envpath, SORT_ASC, $files_envpath); //sort alphabetical, i think
 $files = array_merge($files_envpath, $files_env);
-	
+
+//elog($files);	
+    
 foreach($files as $filepath) {
 	//echo $filepath . "<BR>";
 	$filename = basename($filepath);
 	if (substr($filename, 0, 8) == '.envpath') $envpath = preg_replace( "/\r|\n/", "", file($filepath)[0]);  //read 1st line only
 		else $envpath = $filepath;
-	
+
+    if ($envpath[0] !== '/')
+        $envpath = realpath(__DIR__ . "/" . $envpath);
+    
+    if (!file_exists($envpath)) {
+        elog("RW83774 failed to find env file $envpath");
+        continue;
+    }
+
 	// read environment variables 
 	$envdata = file($envpath);
 
@@ -34,3 +45,9 @@ foreach($files as $filepath) {
 	}
 	
 } // end of foreach files
+
+
+// seems overkill
+// function is_absolute_path($path) {
+    // return ($path[0] === '/' || $path[0] === '\\' || (strlen($path) > 1 && $path[1] === ':'));
+// }

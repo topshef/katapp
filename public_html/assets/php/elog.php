@@ -1,6 +1,6 @@
 <?php
 
-    //error logging v2.4
+    //error logging v2.5 - ljexit added from explore.hbar.live
     
     require_once("{$_SERVER['DOCUMENT_ROOT']}/readenv.php");
 
@@ -14,12 +14,38 @@
         elog("note: global isVerbose was set by env LOG_LEVEL=DEBUG");
     }
 
-    // error log then exit
+    // error log then exit - legacy 2023
     function exlog($message, $label = null, $source = null) {
         elog($message, $label, $source);
         $exitMessage = $label ?? $message;
         exit($exitMessage);
     }
+
+    //log json exit
+    function ljexit($responseData, $responseCode = false, $logMessage = false) {
+        
+        if (!$logMessage) $logMessage = $responseData;
+        if (!is_string($logMessage)) $logMessage = json_encode($logMessage);
+        
+        elog($responseData, $logMessage);
+        
+        jexit($responseData, $responseCode);
+    }
+    
+    //json exit
+    function jexit($responseData, $responseCode = false) {
+        
+        header('Content-Type: application/json');
+        if ($responseCode) http_response_code($responseCode);
+        
+        if ($responseCode == '200') exit(json_encode(['status' => 'success', 'data' => $responseData]));
+        
+        if ($responseCode && $responseCode < 400) exit(json_encode($responseData));
+        
+        exit(json_encode(['error' => $responseData]));
+    }
+
+
 
 	function elog($message, $label = null, $source = null) {
 

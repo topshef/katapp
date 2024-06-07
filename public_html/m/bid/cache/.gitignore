@@ -1,0 +1,9 @@
+# this folder is used to store appnet mirror data
+
+# Ignore everything in this directory
+*
+# Except this file
+!.gitignore
+!index.php
+
+#https://stackoverflow.com/questions/115983/how-can-i-add-an-empty-directory-to-a-git-repository
