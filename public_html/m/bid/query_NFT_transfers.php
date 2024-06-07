@@ -12,10 +12,13 @@
     $bucketSeconds = 60 * 60; // 60 mins for testing //60 * 5; // 5 mins - to help with caching. increase this to reduce api call frequency
     $days = 1; // number of days to search
     
-    $parms['transferAfter'] = bucketTime(time() - 60*60*24 * $days, $bucketSeconds);
-    $parms['transferBefore'] = bucketTime(time(), $bucketSeconds);
+    $parms['transferAfter'] ??= bucketTime(time() - 60*60*24 * $days, $bucketSeconds);
+    $parms['transferBefore'] ??= bucketTime(time(), $bucketSeconds);
     
-    $result = dragonglass_v4b($parms);
+    $ageRequestSeconds = time() -strtotime($parms['transferBefore']);
+    if ($ageRequestSeconds > $bucketSeconds) $bucketSeconds = null; // null forces cache if available
+    
+    $result = dragonglass_v4b($parms, $bucketSeconds);
     //elog($result);
     elog(json_decode($result), "result from DG");
     
