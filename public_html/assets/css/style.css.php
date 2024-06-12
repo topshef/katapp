@@ -812,12 +812,12 @@ ul.slick-dots {
 
 .callback-services {
 	border-top: 1px solid #eee;
-	padding-top: 140px;
+	padding-top: 70px;
 }
 
 .contact-us {
 	background-color: #f7f7f7;
-	padding: 140px 0px;
+	padding: 30px 0px;
 }
 
 .contact-us .contact-form {
@@ -826,7 +826,7 @@ ul.slick-dots {
 }
 
 .callback-form {
-	margin-top: 140px;
+	margin-top: 10px;
 }
 
 .callback-form .contact-form {
@@ -1344,7 +1344,12 @@ footer .contact-form button.filled-button:hover {
        /* display: none;  */
        height: 0px;
        visibility: hidden;
-       padding: 80px 0px 10px 0px ;
+       padding: 10px 0px 10px 0px ;
+    }
+
+    .contact-us {
+        padding: 10px 0px;
+        margin: 100px 0px;
     }
     
     body > div.services.product-details {
