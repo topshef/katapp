@@ -1,12 +1,18 @@
 <?php
 
-    //error logging v2.61
-    
+    //error logging v2.7
+
     require_once("{$_SERVER['DOCUMENT_ROOT']}/readenv.php");
 
-    $envLogPath = getenv('PHP_ERROR_LOG'); // eg cong file SetEnv PHP_ERROR_LOG "/path to log"
-    if ($envLogPath !== false)
-        ini_set('error_log', $envLogPath);
+    // Check environment variable for log path, fall back to php.ini setting if not found.
+    $pathlog = getenv('PHP_ERROR_LOG') ?: ini_get('error_log');
+
+    // If no path or it's not writable, use a temp directory fallback.
+    if (!$pathlog || !is_writable($pathlog)) 
+        $pathlog = sys_get_temp_dir() . '/JY78764.php.fallback.log';
+
+    // Set the error log to the determined or fallback path.
+    ini_set('error_log', $pathlog);
 
     
     // error log then exit - legacy 2023
