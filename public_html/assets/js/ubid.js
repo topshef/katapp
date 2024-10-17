@@ -208,10 +208,29 @@ async function processData({ product, deal }) {
     ubid.title = product?.token_instance_name ?? deal.display.title ?? 'untitled RH45323'
     ubid.description = product?.token_instance_description ?? deal.display.description ?? 'no desc WK83843'
     ubid.image = product?.token_asset_image_URL ?? deal.display.thumbnail ?? ''
+
+
+    if (hasParm('operatorId'))
+        deal.parameters.operatorId = 'Operator account ID [eg 0.0.12345] hentity'
+
+    if (hasParm('node')) // optionally choose a specific Hedera node to submit to
+        deal.parameters.node = 'Hedera node account ID [eg 5] hentity'
     
+    const hasUserParameters = deal.parameters && Object.keys(deal.parameters).length > 0
+    const hasApi = deal.api && Array.isArray(deal.api) && deal.api.length > 0
+    const maxDelaySeconds = deal?.constants?.maxDelaySeconds ?? 0
+    
+    let showDelayOption = false
+    if (hasParm('starttime')) showDelayOption = true
+    if (getParm('starttime') == 'now') showDelayOption = false
+    if (hasApi && !maxDelaySeconds) showDelayOption = false // suppress if there's an api involved, unless maxDelaySeconds > 0
+
+    if (showDelayOption)
+        deal.parameters.starttime = '⏱️ Delay execution by [eg 30 mins] text'
+
 
     ubid.user_inputs = []
-    Object.entries(deal.parameters).forEach(([parmname, parminfo]) =>  {
+    if (hasUserParameters) Object.entries(deal.parameters).forEach(([parmname, parminfo]) =>  {
         const regex = /^(.*?) \[(.*?)\] (.*)$/
         const [, parmlabel, placeholder, type] = parminfo.match(regex) || []
         if (!parmlabel) return ubid.user_inputs.push('Error HD34423') 
@@ -225,7 +244,6 @@ async function processData({ product, deal }) {
 
         ubid.user_inputs.push(`<div><label for='${parmname}'>${label}</label></div>
         <div><input class='user_input' type='text' id='${parmname}' placeholder='${placeholder}'${defaultAttr}></div>`)
-        
     })
 
 
