@@ -233,7 +233,13 @@ async function processData({ product, deal }) {
     const allTransfers = [...deal.addHbarTransfer, ...deal.addTokenTransfer, ...deal.addNftTransfer]
 
     allTransfers.forEach(xfer => {
-        const line_item = xfer.userInput.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
+        let line_item = xfer.userInput.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
+
+        for (const [key, value] of Object.entries(deal.alias)) {
+            const link = `<a href='https://kpay.uk/${value}' target='${value}'>${key}</a>`
+            const regex = new RegExp(`\\b${key}\\b`, 'g')
+            line_item = line_item.replace(regex, link)
+        }
 
         ubid.transfers.push(line_item)
     })
