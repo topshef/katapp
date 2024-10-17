@@ -199,10 +199,26 @@ async function processData({ product, deal }) {
     // for simple OG deals this can still look like a regular product sale
     // but for multiasset it can present as a kind of bundle or proposal
 
+
+    deal = deal?.deal || deal
+    console.log("deal is now=",deal) // todo align input format of deal object
+
     let ubid = {}
-    ubid.title = product?.token_instance_name ?? deal?.deal?.display.title ?? 'untitled RH45323'
-    ubid.description = product?.token_instance_description ?? deal?.deal?.display.description ?? 'no desc WK83843'
-    ubid.image = product?.token_asset_image_URL ?? deal?.deal?.display.thumbnail ?? ''
+    ubid.transfers = []
+    ubid.title = product?.token_instance_name ?? deal.display.title ?? 'untitled RH45323'
+    ubid.description = product?.token_instance_description ?? deal.display.description ?? 'no desc WK83843'
+    ubid.image = product?.token_asset_image_URL ?? deal.display.thumbnail ?? ''
+    
+    deal.addTokenTransfer.forEach(xfer => 
+        ubid.transfers.push(xfer.userInput)
+    )
+
+    //inject urser parameter input boxes
+    //todo...
+    // deal.parameters.forEach(user_param => 
+        // ubid.user_param.push(uparm....)
+    // )
+    
 
     console.log("ubid=", ubid)
     return ubid
@@ -212,8 +228,15 @@ async function processData({ product, deal }) {
 function hydratePage(data) {
    
     document.getElementById('ubid-title').textContent = data.title
-    document.getElementById('ubid-description').textContent = data.description
+    document.getElementById('ubid-description').innerHTML = data.description
     document.querySelector('#ubid-media img').src = data.image
+
+
+    document.getElementById('ubid-transfers').innerHTML = data.transfers.join('<BR>')
+    
+    const dealIdshort = dealId.slice(0, 6)
+
+    document.getElementById('ubid-link-katomic').innerHTML = `<a href='https://katomic.org/labs/?dealId=${dealId}' target='katomic'>${dealIdshort}</a>`
   
 }
 
