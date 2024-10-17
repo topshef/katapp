@@ -1508,12 +1508,24 @@ h5 a:hover { color: inherit; }
 
 .code {
     font-family: monospace;
+    font-size: 90%;
     background-color: #f6f8fa; /* Light gray background */
     padding: 1px 3px; 
     margin: 0 2px;
+    zzmargin: 4px 2px 0 2px;
     border-radius: 5px;
     border: 0.5px solid #ddd;
     display: inline-block;
+    color: rgba(0, 0, 0, 0.5); 
+}
+
+
+#ubid-transfers {
+    line-height: 1.8; /* Increases line spacing for transfers */
+}
+
+#ubid-transfers .code {
+    line-height: 1.4; /* Keep normal line-height for code elements */
 }
 
 

@@ -209,9 +209,6 @@ async function processData({ product, deal }) {
     ubid.description = product?.token_instance_description ?? deal.display.description ?? 'no desc WK83843'
     ubid.image = product?.token_asset_image_URL ?? deal.display.thumbnail ?? ''
     
-    deal.addTokenTransfer.forEach(xfer => 
-        ubid.transfers.push(xfer.userInput)
-    )
 
     ubid.user_inputs = []
     Object.entries(deal.parameters).forEach(([parmname, parminfo]) =>  {
@@ -231,6 +228,30 @@ async function processData({ product, deal }) {
         
     })
 
+
+
+    const allTransfers = [...deal.addHbarTransfer, ...deal.addTokenTransfer, ...deal.addNftTransfer]
+
+    allTransfers.forEach(xfer => {
+        const line_item = xfer.userInput.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
+
+        ubid.transfers.push(line_item)
+    })
+    
+    /*
+    deal.addHbarTransfer.forEach(xfer => 
+        ubid.transfers.push(xfer.userInput)
+    )
+    
+    deal.addTokenTransfer.forEach(xfer => 
+        ubid.transfers.push(xfer.userInput)
+    )
+    
+    deal.addNftTransfer.forEach(xfer => 
+        ubid.transfers.push(xfer.userInput)
+    )
+    */
+    
     console.log("ubid=", ubid)
     return ubid
 }
@@ -247,7 +268,7 @@ function hydratePage(data) {
 
     document.getElementById('ubid-user-inputs').innerHTML = data.user_inputs.join('<BR>')
     document.querySelectorAll('.user_input').forEach(input => {
-        input.addEventListener('input', () => setParm(input.id, input.value))
+        input.addEventListener('input', () => setParm(input.id, input.value)) //save to url
     })
     
     const dealIdshort = dealId.slice(0, 6)
