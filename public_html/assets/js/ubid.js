@@ -213,12 +213,23 @@ async function processData({ product, deal }) {
         ubid.transfers.push(xfer.userInput)
     )
 
-    //inject urser parameter input boxes
-    //todo...
-    // deal.parameters.forEach(user_param => 
-        // ubid.user_param.push(uparm....)
-    // )
-    
+    ubid.user_inputs = []
+    Object.entries(deal.parameters).forEach(([parmname, parminfo]) =>  {
+        const regex = /^(.*?) \[(.*?)\] (.*)$/
+        const [, parmlabel, placeholder, type] = parminfo.match(regex) || []
+        if (!parmlabel) return ubid.user_inputs.push('Error HD34423') 
+
+        const defaultValue = getParm(parmname) || ''
+        const defaultAttr = defaultValue ? ` value='${defaultValue}'` : ''
+
+        // Optionally add parameter name to the label if 'detail' is present in the URL
+        let label = parmlabel
+        if (isFlagSet('detail')) label += ` &nbsp<span class='code'>${parmname}</span>`
+
+        ubid.user_inputs.push(`<div><label for='${parmname}'>${label}</label></div>
+        <div><input class='user_input' type='text' id='${parmname}' placeholder='${placeholder}'${defaultAttr}></div>`)
+        
+    })
 
     console.log("ubid=", ubid)
     return ubid
@@ -233,6 +244,11 @@ function hydratePage(data) {
 
 
     document.getElementById('ubid-transfers').innerHTML = data.transfers.join('<BR>')
+
+    document.getElementById('ubid-user-inputs').innerHTML = data.user_inputs.join('<BR>')
+    document.querySelectorAll('.user_input').forEach(input => {
+        input.addEventListener('input', () => setParm(input.id, input.value))
+    })
     
     const dealIdshort = dealId.slice(0, 6)
 
