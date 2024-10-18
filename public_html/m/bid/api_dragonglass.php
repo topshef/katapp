@@ -16,7 +16,7 @@ function dragonglass_v4b($parms, $cacheSeconds = 60 * 5) {
     $baseurl = "https://api.dragonglass.me/hedera/api";
  
     $endpoint = $parms['endpoint'] ?? 'transactions';
-    $endpoint = preg_replace('/[^0-9A-Za-z_\/]/', '', $endpoint);
+    $endpoint = preg_replace('/[^0-9A-Za-z_\/\.]/', '', $endpoint);
     
     $url = "$baseurl/$endpoint";
     unset($parms['endpoint']);
@@ -24,15 +24,18 @@ function dragonglass_v4b($parms, $cacheSeconds = 60 * 5) {
     $parmsAllowed['transactions']  = 'query accountFrom accountTo amountFrom amountTo memo contractID consensusStartInEpoch consensusEndInEpoch payerID transactionTypes serviceTypes from size sortOn sortBy';
     $parmsAllowed['nfts/transfers'] = 'query tokenId serialNumber sender receiver transferAfter transferBefore from size sortOn sortBy';
     
-    $parmsAllowed = explode(' ', $parmsAllowed[$endpoint]);
-    if (!$parmsAllowed) ljexit("internal, please quote WJ73642", 500, "WJ73642 invalid endpoint $endpoint");
-    
-    $parmsOriginal = $parms;
-    $parms = array_intersect_key($parms, array_flip($parmsAllowed));
-    $removedKeys = array_diff_key($parmsOriginal, $parms);
-    if ($removedKeys) elog($removedKeys, "JE87442 invalid keys removed");
-    
-    if (!$parms) return ljexit("please provide some parameter(s): https://app.dragonglass.me/hedera/apiview", 400);
+    if ($parmsAllowed[$endpoint]) { // only enforce if endpoint details available
+        $arrParmsAllowed = explode(' ', $parmsAllowed[$endpoint]);
+        
+        if (!$arrParmsAllowed) ljexit("internal, please quote WJ73642", 500, "WJ73642 invalid endpoint $endpoint");
+        
+        $parmsOriginal = $parms;
+        $parms = array_intersect_key($parms, array_flip($arrParmsAllowed));
+        $removedKeys = array_diff_key($parmsOriginal, $parms);
+        if ($removedKeys) elog($removedKeys, "JE87442 invalid keys removed");
+        
+        if (!$parms) return ljexit("please provide some parameter(s): {$parmsAllowed[$endpoint]} https://app.dragonglass.me/hedera/apiview", 400);
+    }
     
     $querystring = http_build_query($parms);
     elog($parms, "query parms for DG, cacheSeconds=$cacheSeconds");
