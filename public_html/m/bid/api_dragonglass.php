@@ -5,15 +5,18 @@ require_once("{$_SERVER['DOCUMENT_ROOT']}/elog.php");
 require_once("{$_SERVER['DOCUMENT_ROOT']}/readenv.php");
 
 
-function dragonglass_v4b($parms, $cacheSeconds = 60 * 5) {
+function dragonglass_v4c($parms, $cacheSeconds = 60 * 5) {
     //https://app.dragonglass.me/hedera/apiview
     
-    $DG_accesskey_mainnet = $GLOBALS['env']['DG_accesskey_mainnet'] ?? false;
-    if (!$DG_accesskey_mainnet) ljexit("internal, please quote HE83742", 500, "HE83742 missing env");
-
-    $auth = "x-api-key:$DG_accesskey_mainnet"; 
+    $network = $parms['network'] ?? 'mainnet';
     
-    $baseurl = "https://api.dragonglass.me/hedera/api";
+    $DG_accesskey = $GLOBALS['env']["DG_accesskey_{$network}"] ?? false;
+    if (!$DG_accesskey) ljexit("internal, please quote HE83742", 500, "HE83742 missing env");
+
+    $auth = "x-api-key:$DG_accesskey"; 
+    
+    if ($network == 'testnet') $baseurl = "https://api-testnet.dragonglass.me/hedera/api";
+    else $baseurl = "https://api.dragonglass.me/hedera/api";
  
     $endpoint = $parms['endpoint'] ?? 'transactions';
     $endpoint = preg_replace('/[^0-9A-Za-z_\/\.]/', '', $endpoint);

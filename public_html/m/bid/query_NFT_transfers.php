@@ -7,6 +7,7 @@
     
    
     $parms = $_GET;
+    
     $parms['endpoint'] = 'nfts/transfers';  //https://app.dragonglass.me/hedera/apiview
     
     $bucketSeconds = 60 * 60; // 60 mins for testing //60 * 5; // 5 mins - to help with caching. increase this to reduce api call frequency
@@ -18,7 +19,7 @@
     $ageRequestSeconds = time() -strtotime($parms['transferBefore']);
     if ($ageRequestSeconds > $bucketSeconds) $bucketSeconds = null; // null forces cache if available
     
-    $result = dragonglass_v4b($parms, $bucketSeconds);
+    $result = dragonglass_v4c($parms, $bucketSeconds);
     //elog($result);
     elog(json_decode($result), "result from DG");
     
