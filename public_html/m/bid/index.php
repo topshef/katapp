@@ -1,10 +1,20 @@
-<?php
+<!--
 
 //tire kickign discovery
 
 // todo demo links to eg 
 //https://dev4.shop.gomint.me/m/?dealonly=&dealId=087e095b465c65d91c58cd224b71d94dad8ea260d06f74597fd5433b9be7e812&v=labs&detail=&serial=26&seller=0.0.1532&bid_amount=0.1&tokenId=0.0.3626892&starttime=40secs&node=3&operatorId=0.0.1819
-?>
+
+reported on DG NFT transfers 005823833172962711969325840
+missing leading zero for nanoseconds
+correct txid 0.0.5823833-1729627119-069325840
+
+this is retarded. there is no way to reliably decode the txid
+as a fudge for now we could look for the 17 as start of seconds, which must be 10 digits
+
+
+
+-->
 <head>
 <!-- Bootstrap CSS -->
 <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
@@ -54,6 +64,18 @@ async function fetchTokenInfo(network, tokenId) {
 }
 
 
+// ┌─┐┬ ┬┌─┐┌─┐  ╔═╗┬┬─┐┌─┐┌┬┐  ╔╦╗┌─┐┌┬┐┌─┐┬ ┬
+// └─┐│││├─┤├─┘  ╠╣ │├┬┘└─┐ │   ║║║├─┤ │ │  ├─┤
+// └─┘└┴┘┴ ┴┴    ╚  ┴┴└─└─┘ ┴   ╩ ╩┴ ┴ ┴ └─┘┴ ┴
+// swap First Match
+function swapFirstMatch(str, swaps) {
+    for (let { find, replace } of swaps)
+        if (find.test(str))
+            return str.replace(find, replace)
+    return str
+}
+
+
 // ┌─┐┌─┐┌┐┌┬  ┬┌─┐┬─┐┌┬┐  ╔╦╗─┐ ┬  ╦┌┬┐
 // │  │ ││││└┐┌┘├┤ ├┬┘ │    ║ ┌┴┬┘  ║ ││
 // └─┘└─┘┘└┘ └┘ └─┘┴└─ ┴    ╩ ┴ └─  ╩─┴┘
@@ -64,7 +86,52 @@ function convertTxId(txid) { // input any txid and return various formats and el
     out.input = txid
 
     // detect numeric
-    txid = txid.replace(/^(\d)(\d)(\d+)(\d{10})(\d{9})$/, '$1.$2.$3-$4-$5')
+    //txid = txid.replace(/^(\d)(\d)(\d+)(\d{10})(\d{9})$/, '$1.$2.$3-$4-$5')
+    
+    // total fudge for DG fuckup
+    // reported on DG NFT transfers 005823833172962711969325840
+    // missing leading zero for nanoseconds
+    // correct txid 0.0.5823833-1729627119-069325840
+
+    // txid = txid.replace(
+      // /^00(\d{1,8})17(\d{8})(\d{7,9})$/,
+      // (_, acct, secsRest, nanos) =>
+        // `0.0.${parseInt(acct, 10)}-17${secsRest}-${nanos.padStart(9, '0')}`
+    // )
+
+//why does this not match?
+
+//0010514021729634287739085329
+//0010514021729634287739085329
+//001051402
+//1729634287
+//739085329
+
+    let swaps = [
+        { find: /^00(\d{4})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
+        { find: /^00(\d{5})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
+        { find: /^00(\d{6})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
+        { find: /^00(\d{7})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
+        { find: /^00(\d{7})17(\d{8})(\d{8})$/, replace: '0.0.$1-17$2-0$3' },
+    ]
+    
+    // ok until
+    // Epoch time 1800000000 (10 digits)
+    // This corresponds to November 15, 2027, 00:00:00 UTC.
+
+    txid = swapFirstMatch(txid, swaps)
+    
+    // txid = txid.replace(
+      // /^00(\d{1,8})(?=17)(17)(\d{8})(\d{7,9})$/,
+      // (_, acct, seventeen, secsRest, nanos) =>
+        // `0.0.${parseInt(acct, 10)}-${seventeen}${secsRest}-${nanos.padStart(9, '0')}`
+    // )
+
+    //0.0.7326527
+    
+    //00500820
+    //1729630337
+    //88953719
 
     let regex = /^(?<operatorId>\d+\.\d+\.\d+)[-@](?<startSeconds>\d+)[-\.](?<startNanos>\d+)$/
     let matches = txid.match(regex)
@@ -110,6 +177,7 @@ async function fetchHederaMirror(network, endpoint, queryObject) {
       ? '?' + new URLSearchParams(queryObject).toString() 
       : ''
     
+    //console.log(`fetchHederaMirror ${baseUrl}${endpoint}${queryParams}`)
     const response = await fetch(`${baseUrl}${endpoint}${queryParams}`)
     if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`)
 
@@ -155,7 +223,7 @@ async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
   const params = new URLSearchParams()
   params.append('network', network)
   
-  params.append('limit', 100)
+  // params.append('limit', 100)
   if (tokenId) params.append('tokenId', tokenId)
   if (sender) params.append('sender', sender)
   if (receiver) params.append('receiver', receiver)
@@ -171,11 +239,17 @@ async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
         
         
       const tokenInfo = await fetchTokenInfo(network, `${item.tokenId}-${item.serialNumber}`)
-      
+      console.log(`fetchTokenInfo ${network} ${item.tokenId}-${item.serialNumber}`, tokenInfo)
       const txids = convertTxId(item.transactionId)
-      console.log(txids)
+      if (!txids) {
+          console.log(`skipping ${item.transactionId} as failed to convert`)
+          continue
+      }
+      console.log(`converting txid ${item.transactionId}`,txids)
 
       const txns = await fetchHederaMirror(network, `transactions/${txids.hyphen}`)
+      if (!txns) continue
+      
       const tx = txns.transactions[0]
       let hbarXfers = ignoreHederaAccounts(tx.transfers)
       let senderHbarXfers = hbarXfers.filter(line => line.amount < 0)
@@ -208,7 +282,7 @@ async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
       const shopDomain = (network == 'testnet') ? 'dev4.shop.gomint.me' : 'shop.gomint.me'
       const bidUrl = `https://${shopDomain}/m/?dealonly=&dealId=${dealId}&v=labs&detail=&serial=${item.serialNumber}&seller=${seller}&bid_amount=${bid_amount}&tokenId=${item.tokenId}&starttime=${delaySeconds}`
       
-      
+      console.log(`bidUrl=${bidUrl}`)
       
       
       
