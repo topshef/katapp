@@ -25,7 +25,6 @@ function setParm(name, value) {
 }
 
 
-
 // ┌─┐┌─┐┌┬┐  ╔╦╗┌─┐┬┌─┌─┐┌┐┌  ╦┌┐┌┌─┐┌─┐
 // │ ┬├┤  │    ║ │ │├┴┐├┤ │││  ║│││├┤ │ │
 // └─┘└─┘ ┴    ╩ └─┘┴ ┴└─┘┘└┘  ╩┘└┘└  └─┘
@@ -46,102 +45,6 @@ async function getTokenInfo(network, tokenId) {
 }
 
 
-// ┌─┐┬ ┬┌─┐┌─┐  ╔═╗┬┬─┐┌─┐┌┬┐  ╔╦╗┌─┐┌┬┐┌─┐┬ ┬
-// └─┐│││├─┤├─┘  ╠╣ │├┬┘└─┐ │   ║║║├─┤ │ │  ├─┤
-// └─┘└┴┘┴ ┴┴    ╚  ┴┴└─└─┘ ┴   ╩ ╩┴ ┴ ┴ └─┘┴ ┴
-// swap First Match
-function swapFirstMatch(str, swaps) {
-    for (let { find, replace } of swaps)
-        if (find.test(str))
-            return str.replace(find, replace)
-    return str
-}
-
-
-// ┌─┐┌─┐┌┐┌┬  ┬┌─┐┬─┐┌┬┐  ╔╦╗─┐ ┬  ╦┌┬┐
-// │  │ ││││└┐┌┘├┤ ├┬┘ │    ║ ┌┴┬┘  ║ ││
-// └─┘└─┘┘└┘ └┘ └─┘┴└─ ┴    ╩ ┴ └─  ╩─┴┘
-// convert Tx Id
-// copied from php explore.hbar
-function convertTxId(txid) { // input any txid and return various formats and elements
-    let out = {}
-    out.input = txid
-
-    // detect numeric
-    //txid = txid.replace(/^(\d)(\d)(\d+)(\d{10})(\d{9})$/, '$1.$2.$3-$4-$5')
-    
-    // total fudge for DG fuckup
-    // reported on DG NFT transfers 005823833172962711969325840
-    // missing leading zero for nanoseconds
-    // correct txid 0.0.5823833-1729627119-069325840
-
-    // txid = txid.replace(
-      // /^00(\d{1,8})17(\d{8})(\d{7,9})$/,
-      // (_, acct, secsRest, nanos) =>
-        // `0.0.${parseInt(acct, 10)}-17${secsRest}-${nanos.padStart(9, '0')}`
-    // )
-
-//why does this not match?
-
-//0010514021729634287739085329
-//0010514021729634287739085329
-//001051402
-//1729634287
-//739085329
-
-    let swaps = [
-        { find: /^00(\d{4})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
-        { find: /^00(\d{5})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
-        { find: /^00(\d{6})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
-        { find: /^00(\d{7})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
-        { find: /^00(\d{7})17(\d{8})(\d{8})$/, replace: '0.0.$1-17$2-0$3' },
-    ]
-    
-    // ok until
-    // Epoch time 1800000000 (10 digits)
-    // This corresponds to November 15, 2027, 00:00:00 UTC.
-
-    txid = swapFirstMatch(txid, swaps)
-    
-    // txid = txid.replace(
-      // /^00(\d{1,8})(?=17)(17)(\d{8})(\d{7,9})$/,
-      // (_, acct, seventeen, secsRest, nanos) =>
-        // `0.0.${parseInt(acct, 10)}-${seventeen}${secsRest}-${nanos.padStart(9, '0')}`
-    // )
-
-    //0.0.7326527
-    
-    //00500820
-    //1729630337
-    //88953719
-
-    let regex = /^(?<operatorId>\d+\.\d+\.\d+)[-@](?<startSeconds>\d+)[-\.](?<startNanos>\d+)$/
-    let matches = txid.match(regex)
-
-    if (!matches) return console.error("no match found HJ52399/" + txid) && false
-
-    let { operatorId, startSeconds, startNanos } = matches.groups
-    txid = `${operatorId}-${startSeconds}-${startNanos}`
-
-    out.hyphen = `${operatorId}-${startSeconds}-${startNanos}`
-    out.classic = `${operatorId}@${startSeconds}.${startNanos}`
-    out.numeric = operatorId.replace(/\./g, '') + startSeconds + startNanos
-
-    let patternHyphen = /^(\d+\.\d+\.\d+)-(\d+)-(\d+)$/
-    if (patternHyphen.test(txid)) {
-        out.hyphen = txid
-        let [, opId, sSeconds, sNanos] = txid.match(patternHyphen)
-        out.classic = `${opId}@${sSeconds}.${sNanos}`
-    }
-
-    out.operatorId = operatorId
-    out.startSeconds = startSeconds
-    out.startNanos = startNanos
-    out.startSecondsNanos = `${startSeconds}.${startNanos}`
-    out.startDateTime = new Date(parseInt(startSeconds) * 1000).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
-
-    return out
-}
 
 // ┌─┐┌─┐┌┬┐  ╦ ╦┌─┐┌┬┐┌─┐┬─┐┌─┐  ╔╦╗┬┬─┐┬─┐┌─┐┬─┐  ╔╦╗┌─┐┌┬┐┌─┐
 // │ ┬├┤  │   ╠═╣├┤  ││├┤ ├┬┘├─┤  ║║║│├┬┘├┬┘│ │├┬┘   ║║├─┤ │ ├─┤
@@ -181,23 +84,21 @@ function ignoreHederaAccounts(xfers) {
 
 
 
-// ┌─┐┌─┐┌┬┐┌─┐┬ ┬  ╔╗╔┌─┐┌┬┐  ╔╦╗┬─┐┌─┐┌┐┌┌─┐┌─┐┌─┐┬─┐┌─┐
-// ├┤ ├┤  │ │  ├─┤  ║║║├┤  │    ║ ├┬┘├─┤│││└─┐├┤ ├┤ ├┬┘└─┐
-// └  └─┘ ┴ └─┘┴ ┴  ╝╚╝└   ┴    ╩ ┴└─┴ ┴┘└┘└─┘└  └─┘┴└─└─┘
-// fetch Nft Transfers
+//todo refactor..
 async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
-  const params = new URLSearchParams()
-  params.append('network', network)
-  
-  params.append('size', 5)
-  if (tokenId) params.append('tokenId', tokenId)
-  if (sender) params.append('sender', sender)
-  if (receiver) params.append('receiver', receiver)
-  if (serialNumber) params.append('serialNumber', serialNumber)
+    const params = {
+        network,
+        size: 5
+      }
+      
+      if (tokenId) params.tokenId = tokenId
+      if (sender) params.sender = sender
+      if (receiver) params.receiver = receiver
+      if (serialNumber) params.serialNumber = serialNumber
 
-  const response = await fetch(`./api/nft/transfers?${params.toString()}`)
-  const data = await response.json()
-  console.log(data)
+      const data = await getData('./api/nft/transfers', params, 30)
+      console.log(data)
+
   
     const container = document.createElement('div')
     container.className = 'container mt-4'
@@ -335,3 +236,104 @@ async function getData(url, params, expirySeconds = 0) {
   return data
 }
 
+
+
+
+
+// ┌─┐┬ ┬┌─┐┌─┐  ╔═╗┬┬─┐┌─┐┌┬┐  ╔╦╗┌─┐┌┬┐┌─┐┬ ┬
+// └─┐│││├─┤├─┘  ╠╣ │├┬┘└─┐ │   ║║║├─┤ │ │  ├─┤
+// └─┘└┴┘┴ ┴┴    ╚  ┴┴└─└─┘ ┴   ╩ ╩┴ ┴ ┴ └─┘┴ ┴
+// swap First Match
+function swapFirstMatch(str, swaps) {
+    for (let { find, replace } of swaps)
+        if (find.test(str))
+            return str.replace(find, replace)
+    return str
+}
+
+
+//todo tidy..
+// ┌─┐┌─┐┌┐┌┬  ┬┌─┐┬─┐┌┬┐  ╔╦╗─┐ ┬  ╦┌┬┐
+// │  │ ││││└┐┌┘├┤ ├┬┘ │    ║ ┌┴┬┘  ║ ││
+// └─┘└─┘┘└┘ └┘ └─┘┴└─ ┴    ╩ ┴ └─  ╩─┴┘
+// convert Tx Id
+// copied from php explore.hbar
+function convertTxId(txid) { // input any txid and return various formats and elements
+    let out = {}
+    out.input = txid
+
+    // detect numeric
+    //txid = txid.replace(/^(\d)(\d)(\d+)(\d{10})(\d{9})$/, '$1.$2.$3-$4-$5')
+    
+    // total fudge for DG fuckup
+    // reported on DG NFT transfers 005823833172962711969325840
+    // missing leading zero for nanoseconds
+    // correct txid 0.0.5823833-1729627119-069325840
+
+    // txid = txid.replace(
+      // /^00(\d{1,8})17(\d{8})(\d{7,9})$/,
+      // (_, acct, secsRest, nanos) =>
+        // `0.0.${parseInt(acct, 10)}-17${secsRest}-${nanos.padStart(9, '0')}`
+    // )
+
+//why does this not match?
+
+//0010514021729634287739085329
+//0010514021729634287739085329
+//001051402
+//1729634287
+//739085329
+
+    let swaps = [
+        { find: /^00(\d{4})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
+        { find: /^00(\d{5})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
+        { find: /^00(\d{6})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
+        { find: /^00(\d{7})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
+        { find: /^00(\d{7})17(\d{8})(\d{8})$/, replace: '0.0.$1-17$2-0$3' },
+    ]
+    
+    // ok until
+    // Epoch time 1800000000 (10 digits)
+    // This corresponds to November 15, 2027, 00:00:00 UTC.
+
+    txid = swapFirstMatch(txid, swaps)
+    
+    // txid = txid.replace(
+      // /^00(\d{1,8})(?=17)(17)(\d{8})(\d{7,9})$/,
+      // (_, acct, seventeen, secsRest, nanos) =>
+        // `0.0.${parseInt(acct, 10)}-${seventeen}${secsRest}-${nanos.padStart(9, '0')}`
+    // )
+
+    //0.0.7326527
+    
+    //00500820
+    //1729630337
+    //88953719
+
+    let regex = /^(?<operatorId>\d+\.\d+\.\d+)[-@](?<startSeconds>\d+)[-\.](?<startNanos>\d+)$/
+    let matches = txid.match(regex)
+
+    if (!matches) return console.error("no match found HJ52399/" + txid) && false
+
+    let { operatorId, startSeconds, startNanos } = matches.groups
+    txid = `${operatorId}-${startSeconds}-${startNanos}`
+
+    out.hyphen = `${operatorId}-${startSeconds}-${startNanos}`
+    out.classic = `${operatorId}@${startSeconds}.${startNanos}`
+    out.numeric = operatorId.replace(/\./g, '') + startSeconds + startNanos
+
+    let patternHyphen = /^(\d+\.\d+\.\d+)-(\d+)-(\d+)$/
+    if (patternHyphen.test(txid)) {
+        out.hyphen = txid
+        let [, opId, sSeconds, sNanos] = txid.match(patternHyphen)
+        out.classic = `${opId}@${sSeconds}.${sNanos}`
+    }
+
+    out.operatorId = operatorId
+    out.startSeconds = startSeconds
+    out.startNanos = startNanos
+    out.startSecondsNanos = `${startSeconds}.${startNanos}`
+    out.startDateTime = new Date(parseInt(startSeconds) * 1000).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+
+    return out
+}
