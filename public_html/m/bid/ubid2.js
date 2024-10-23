@@ -24,17 +24,20 @@ function setParm(name, value) {
   window.history.replaceState({}, '', url)
 }
 
-// ┌─┐┌─┐┌┬┐┌─┐┬ ┬  ╔╦╗┌─┐┬┌─┌─┐┌┐┌  ╦┌┐┌┌─┐┌─┐
-// ├┤ ├┤  │ │  ├─┤   ║ │ │├┴┐├┤ │││  ║│││├┤ │ │
-// └  └─┘ ┴ └─┘┴ ┴   ╩ └─┘┴ ┴└─┘┘└┘  ╩┘└┘└  └─┘
-// fetch Token Info
-async function fetchTokenInfo(network, tokenId) {
-  try {
-    const response = await fetch(`https://tools.gomint.me/explore/NFT/?json&network=${network}&tokenId=${tokenId}`)
-    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`)
 
-    const tokenInfo = await response.json() // Await the response.json() call
-    // console.log(tokenInfo)
+
+// ┌─┐┌─┐┌┬┐  ╔╦╗┌─┐┬┌─┌─┐┌┐┌  ╦┌┐┌┌─┐┌─┐
+// │ ┬├┤  │    ║ │ │├┴┐├┤ │││  ║│││├┤ │ │
+// └─┘└─┘ ┴    ╩ └─┘┴ ┴└─┘┘└┘  ╩┘└┘└  └─┘
+// get Token Info
+async function getTokenInfo(network, tokenId) {
+  try {
+    const url = 'https://tools.gomint.me/explore/NFT/'
+    const params = { json: '', network, tokenId }
+
+    const tokenInfo = await getData(url, params, 'infinite') // cache never expires
+    if (!tokenInfo) throw new Error('Failed to fetch token info')
+
     return tokenInfo
   } catch (error) {
     console.error('Error fetching token info:', error)
@@ -140,34 +143,27 @@ function convertTxId(txid) { // input any txid and return various formats and el
     return out
 }
 
-// ┌─┐┌─┐┌┬┐┌─┐┬ ┬  ╦ ╦┌─┐┌┬┐┌─┐┬─┐┌─┐  ╔╦╗┬┬─┐┬─┐┌─┐┬─┐
-// ├┤ ├┤  │ │  ├─┤  ╠═╣├┤  ││├┤ ├┬┘├─┤  ║║║│├┬┘├┬┘│ │├┬┘
-// └  └─┘ ┴ └─┘┴ ┴  ╩ ╩└─┘─┴┘└─┘┴└─┴ ┴  ╩ ╩┴┴└─┴└─└─┘┴└─
-// fetch Hedera Mirror
-async function fetchHederaMirror(network, endpoint, queryObject) {
+// ┌─┐┌─┐┌┬┐  ╦ ╦┌─┐┌┬┐┌─┐┬─┐┌─┐  ╔╦╗┬┬─┐┬─┐┌─┐┬─┐  ╔╦╗┌─┐┌┬┐┌─┐
+// │ ┬├┤  │   ╠═╣├┤  ││├┤ ├┬┘├─┤  ║║║│├┬┘├┬┘│ │├┬┘   ║║├─┤ │ ├─┤
+// └─┘└─┘ ┴   ╩ ╩└─┘─┴┘└─┘┴└─┴ ┴  ╩ ╩┴┴└─┴└─└─┘┴└─  ═╩╝┴ ┴ ┴ ┴ ┴
+// get Hedera Mirror Data
+async function getHederaMirrorData(network, endpoint, queryObject) {
   try {
     // Construct the base URL based on the network
     const baseUrl = network === 'mainnet' 
       ? 'https://mainnet-public.mirrornode.hedera.com/api/v1/' 
       : 'https://testnet.mirrornode.hedera.com/api/v1/'
-    
-    // Add query parameters if provided
-    const queryParams = queryObject 
-      ? '?' + new URLSearchParams(queryObject).toString() 
-      : ''
-    
-    //console.log(`fetchHederaMirror ${baseUrl}${endpoint}${queryParams}`)
-    const response = await fetch(`${baseUrl}${endpoint}${queryParams}`)
-    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`)
 
-    const data = await response.json()
-    console.log(data)
+    const data = await getData(`${baseUrl}${endpoint}`, queryObject, 30)
+    if (!data) throw new Error('Failed to fetch data')
+
     return data
   } catch (error) {
     console.error('Error fetching Hedera mirror data:', error)
     return null // Return null or handle the error as needed
   }
 }
+
 
 
 
@@ -208,8 +204,8 @@ async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
     for (const item of data.data)  { //data.data.forEach(item => {
         
         
-      const tokenInfo = await fetchTokenInfo(network, `${item.tokenId}-${item.serialNumber}`)
-      console.log(`fetchTokenInfo ${network} ${item.tokenId}-${item.serialNumber}`, tokenInfo)
+      const tokenInfo = await getTokenInfo(network, `${item.tokenId}-${item.serialNumber}`)
+      console.log(`getTokenInfo ${network} ${item.tokenId}-${item.serialNumber}`, tokenInfo)
       const txids = convertTxId(item.transactionId)
       if (!txids) {
           console.log(`skipping ${item.transactionId} as failed to convert`)
@@ -217,7 +213,7 @@ async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
       }
       console.log(`converting txid ${item.transactionId}`,txids)
 
-      const txns = await fetchHederaMirror(network, `transactions/${txids.hyphen}`)
+      const txns = await getHederaMirrorData(network, `transactions/${txids.hyphen}`)
       if (!txns) continue
       
       const tx = txns.transactions[0]
@@ -282,37 +278,60 @@ async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
 
 
 
-
+// ┌─┐┌─┐┌┐┌┌─┐┬─┐┌─┐┌┬┐┌─┐  ╔═╗┌─┐┌─┐┬ ┬┌─┐  ╦╔═┌─┐┬ ┬
+// │ ┬├┤ │││├┤ ├┬┘├─┤ │ ├┤   ║  ├─┤│  ├─┤├┤   ╠╩╗├┤ └┬┘
+// └─┘└─┘┘└┘└─┘┴└─┴ ┴ ┴ └─┘  ╚═╝┴ ┴└─┘┴ ┴└─┘  ╩ ╩└─┘ ┴ 
+// generate Cache Key
 // Helper to generate a unique cache key based on the URL and parameters
 function generateCacheKey(url, params) {
   return `${url}?${new URLSearchParams(params).toString()}`
 }
 
-// Get cached data if available
-async function getFromCache(url, params) {
+// ┌─┐┌─┐┌┬┐  ╔═╗┬─┐┌─┐┌┬┐  ╔═╗┌─┐┌─┐┬ ┬┌─┐
+// │ ┬├┤  │   ╠╣ ├┬┘│ ││││  ║  ├─┤│  ├─┤├┤ 
+// └─┘└─┘ ┴   ╚  ┴└─└─┘┴ ┴  ╚═╝┴ ┴└─┘┴ ┴└─┘
+// get From Cache
+// Get cached data if available, and recent enough
+async function getFromCache(url, params, expirySeconds = 'infinite') {
   const key = generateCacheKey(url, params)
   const record = await db.collection('apiCache').doc(key).get()
-  return record ? record.data : null
+  
+  if (!record) return null
+  if (!record.data) return null
+
+  console.log(`🗄️ cache from ${url}`, record)
+  
+  if (expirySeconds === 'infinite') return record.data
+  const ageSeconds = (Date.now() - record.timestamp) / 1000
+  if (ageSeconds > expirySeconds) return null
+
+  return record.data
 }
 
-// Save data to cache
+// ┌─┐┌─┐┬  ┬┌─┐  ╔╦╗┌─┐  ╔═╗┌─┐┌─┐┬ ┬┌─┐
+// └─┐├─┤└┐┌┘├┤    ║ │ │  ║  ├─┤│  ├─┤├┤ 
+// └─┘┴ ┴ └┘ └─┘   ╩ └─┘  ╚═╝┴ ┴└─┘┴ ┴└─┘
+// save To Cache
 async function saveToCache(url, params, data) {
   const key = generateCacheKey(url, params)
   await db.collection('apiCache').doc(key).set({ url, params, data, timestamp: Date.now() })
 }
 
-// Fetch data with optional caching
-async function getCacheData(url, params, expirySeconds = 60) {
+// ┌─┐┌─┐┌┬┐  ╔╦╗┌─┐┌┬┐┌─┐
+// │ ┬├┤  │    ║║├─┤ │ ├─┤
+// └─┘└─┘ ┴   ═╩╝┴ ┴ ┴ ┴ ┴
+// get Data
+async function getData(url, params, expirySeconds = 0) {
   if (expirySeconds) {
-    const cachedData = await getFromCache(url, params)
-    if (cachedData) {
-     const ageSeconds = (Date.now() - cachedData.timestamp) / 1000
-     if (ageSeconds < expirySeconds) return cachedData.data
-    }
+    const cachedData = await getFromCache(url, params, expirySeconds)
+    if (cachedData) return cachedData
   }
   // Make the API call if cache not available or expired
+  
   const response = await fetch(`${url}?${new URLSearchParams(params)}`)
   const data = await response.json()
+  console.log(`⚡ live call to ${url}`, data)
   if (data) await saveToCache(url, params, data)
   return data
 }
+
