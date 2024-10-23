@@ -23,6 +23,8 @@ as a fudge for now we could look for the 17 as start of seconds, which must be 1
 <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
 
+<script src="https://cdn.jsdelivr.net/npm/localbase/dist/localbase.min.js"></script>
+
 </head>
 <script>
 
@@ -223,7 +225,7 @@ async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
   const params = new URLSearchParams()
   params.append('network', network)
   
-  // params.append('limit', 100)
+  params.append('size', 5)
   if (tokenId) params.append('tokenId', tokenId)
   if (sender) params.append('sender', sender)
   if (receiver) params.append('receiver', receiver)
@@ -238,7 +240,7 @@ async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
     for (const item of data.data)  { //data.data.forEach(item => {
         
         
-      const tokenInfo = await fetchTokenInfo(network, `${item.tokenId}-${item.serialNumber}`)
+      const tokenInfo = await (fetchTokenInfonetwork, `${item.tokenId}-${item.serialNumber}`)
       console.log(`fetchTokenInfo ${network} ${item.tokenId}-${item.serialNumber}`, tokenInfo)
       const txids = convertTxId(item.transactionId)
       if (!txids) {
@@ -308,23 +310,6 @@ async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
     document.body.appendChild(container)
 
 }
-
-/* https://testnet.dragonglass.me/hedera/apiview
-
-query			Free text search
-tokenId
-* multiple values allowed
-Fetch NFT transfersfor given token Id
-serialNumber
-* multiple values allowed
-Fetch NFT tranfers for given serial Number
-sender
-* multiple values allowed
-Fetch NFT tranfers from account
-receiver
-* multiple values allowed
-Fetch NFT tranfers to account
-*/
 
 
 

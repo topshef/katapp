@@ -9,6 +9,13 @@
 
 // could also be moved to hootstrap
 
+// 23 oct 2024 note this isn't yet used for ubid
+// it's more tire kicking for refactoring the og gomint ui
+// for ubid see also /m/bid/index.phpjabbers/issues/48
+// tunnelling from 2 ends.. todo see how to connect and refactor
+// eg refactor.. DONE: remove actions from this script
+// https://github.com/topshef/phpjabbers/issues/48
+
 
 function hasParm(name) {
   const params = new URLSearchParams(window.location.search)
@@ -40,8 +47,6 @@ function isFlagSet(name) {
   return value !== null && value !== '0' && value !== 'false'
 }
 
-const productId = getParm('productId')
-const dealId = getParm('dealId')
 
 // ┌─┐┌─┐┌┬┐┌─┐┬ ┬╔╦╗┌─┐┌┬┐┌─┐
 // ├┤ ├┤  │ │  ├─┤ ║║├─┤ │ ├─┤
@@ -309,8 +314,6 @@ function fetchDataAndHydratePage() {
     .catch(error => console.error('WJ76673 Error fetching data:', error))
 }
 
-// Trigger the main flow
-fetchDataAndHydratePage()
 
 
 
