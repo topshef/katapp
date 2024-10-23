@@ -240,7 +240,7 @@ async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
     for (const item of data.data)  { //data.data.forEach(item => {
         
         
-      const tokenInfo = await (fetchTokenInfonetwork, `${item.tokenId}-${item.serialNumber}`)
+      const tokenInfo = await fetchTokenInfo(network, `${item.tokenId}-${item.serialNumber}`)
       console.log(`fetchTokenInfo ${network} ${item.tokenId}-${item.serialNumber}`, tokenInfo)
       const txids = convertTxId(item.transactionId)
       if (!txids) {

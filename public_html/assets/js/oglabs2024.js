@@ -1,20 +1,17 @@
+// ╔═╗╔═╗  ┬  ┌─┐┌┐ ┌─┐  
+// ║ ║║ ╦  │  ├─┤├┴┐└─┐  
+// ╚═╝╚═╝  ┴─┘┴ ┴└─┘└─┘  
+// OG labs 2024
 
-// ┬ ┬┌┐ ┬┌┬┐
-// │ │├┴┐│ ││
-// └─┘└─┘┴─┴┘
-// ubid
-
-// placeholder location for js code refactoring
+// wip refactoring the og gomint ui
 // https://github.com/topshef/phpjabbers/issues/50
-
 // could also be moved to hootstrap
 
-// 23 oct 2024 note this isn't yet used for ubid
-// it's more tire kicking for refactoring the og gomint ui
-// for ubid see also /m/bid/index.phpjabbers/issues/48
-// tunnelling from 2 ends.. todo see how to connect and refactor
-// eg refactor.. DONE: remove actions from this script
+// it was called ubid as was gonna refactor towards that
+// but for ubid we're tunnelling from a clean start
+// see /m/bid/index.ph
 // https://github.com/topshef/phpjabbers/issues/48
+// however there is lots of ref to ubid below due to that intention
 
 
 function hasParm(name) {
