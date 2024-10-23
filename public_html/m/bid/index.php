@@ -16,29 +16,38 @@ as a fudge for now we could look for the 17 as start of seconds, which must be 1
 
 -->
 <head>
-<!-- Bootstrap CSS -->
-<link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap CSS -->
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
 
-<!-- Optional Bootstrap JavaScript and dependencies -->
-<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Optional Bootstrap JavaScript and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
 
-<script src="https://cdn.jsdelivr.net/npm/localbase/dist/localbase.min.js"></script>
-<script src="ubid2.js"></script>
 
 </head>
+<body>
+
+    <script src="ubid2.js"></script>
+    <!-- <script src="https://unpkg.com/localbase/dist/localbase.min.js"></script> -->
+    <script src="localbase.min.js"></script> <!-- beware spelling of Localbase -->
+
 <script>
 
-// requires ubid2.js
-const network = getParm('network') ?? 'testnet'
-const tokenId = getParm('tokenId') ?? ''
-const sender = getParm('sender') ?? ''
-const receiver = getParm('receiver') ?? ''
-const serialNumber = getParm('serialNumber') ?? ''
+    // Requires ubid2.js
+    const network = getParm('network') ?? 'testnet'
+    const tokenId = getParm('tokenId') ?? ''
+    const sender  = getParm('sender') ?? ''
+    const receiver = getParm('receiver') ?? ''
+    const serialNumber = getParm('serialNumber') ?? ''
 
-document.addEventListener('DOMContentLoaded', async () => {
-  await fetchNftTransfers({ tokenId, sender, receiver, serialNumber })
-})
+    // Initialize https://github.com/samuk190/localbase
+    let db = new Localbase('apiCache')  // not LocalBase fucking cunts changed capitazation
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        await fetchNftTransfers({ tokenId, sender, receiver, serialNumber })
+    })
 
 
 </script>
+
+</body>

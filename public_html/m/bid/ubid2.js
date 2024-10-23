@@ -169,6 +169,8 @@ async function fetchHederaMirror(network, endpoint, queryObject) {
   }
 }
 
+
+
 // ┬┌─┐┌┐┌┌─┐┬─┐┌─┐  ╦ ╦┌─┐┌┬┐┌─┐┬─┐┌─┐  ╔═╗┌─┐┌─┐┌─┐┬ ┬┌┐┌┌┬┐┌─┐
 // ││ ┬││││ │├┬┘├┤   ╠═╣├┤  ││├┤ ├┬┘├─┤  ╠═╣│  │  │ ││ ││││ │ └─┐
 // ┴└─┘┘└┘└─┘┴└─└─┘  ╩ ╩└─┘─┴┘└─┘┴└─┴ ┴  ╩ ╩└─┘└─┘└─┘└─┘┘└┘ ┴ └─┘
@@ -275,4 +277,42 @@ async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
     }
     document.body.appendChild(container)
 
+}
+
+
+
+
+
+// Helper to generate a unique cache key based on the URL and parameters
+function generateCacheKey(url, params) {
+  return `${url}?${new URLSearchParams(params).toString()}`
+}
+
+// Get cached data if available
+async function getFromCache(url, params) {
+  const key = generateCacheKey(url, params)
+  const record = await db.collection('apiCache').doc(key).get()
+  return record ? record.data : null
+}
+
+// Save data to cache
+async function saveToCache(url, params, data) {
+  const key = generateCacheKey(url, params)
+  await db.collection('apiCache').doc(key).set({ url, params, data, timestamp: Date.now() })
+}
+
+// Fetch data with optional caching
+async function getCacheData(url, params, expirySeconds = 60) {
+  if (expirySeconds) {
+    const cachedData = await getFromCache(url, params)
+    if (cachedData) {
+     const ageSeconds = (Date.now() - cachedData.timestamp) / 1000
+     if (ageSeconds < expirySeconds) return cachedData.data
+    }
+  }
+  // Make the API call if cache not available or expired
+  const response = await fetch(`${url}?${new URLSearchParams(params)}`)
+  const data = await response.json()
+  if (data) await saveToCache(url, params, data)
+  return data
 }
