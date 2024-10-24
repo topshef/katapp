@@ -6,82 +6,6 @@
 // ubid1 is the other end of the tunnel.. OG refactoring.. issue #50
 // though who knows this tunnel might end up somewhere else
 
-function hasParm(name) {
-  const params = new URLSearchParams(window.location.search)
-  return params.has(name)
-}
-
-
-function getParm(name) {
-  const params = new URLSearchParams(window.location.search)
-  return params.get(name)
-}
-
-
-function setParm(name, value) {
-  const url = new URL(window.location)
-  url.searchParams.set(name, value)
-  window.history.replaceState({}, '', url)
-}
-
-
-// ┌─┐┌─┐┌┬┐  ╔╦╗┌─┐┬┌─┌─┐┌┐┌  ╦┌┐┌┌─┐┌─┐
-// │ ┬├┤  │    ║ │ │├┴┐├┤ │││  ║│││├┤ │ │
-// └─┘└─┘ ┴    ╩ └─┘┴ ┴└─┘┘└┘  ╩┘└┘└  └─┘
-// get Token Info
-async function getTokenInfo(network, tokenId) {
-  try {
-    const url = 'https://tools.gomint.me/explore/NFT/'
-    const params = { json: '', network, tokenId }
-
-    const tokenInfo = await getData(url, params, 'infinite') // cache never expires
-    if (!tokenInfo) throw new Error('Failed to fetch token info')
-
-    return tokenInfo
-  } catch (error) {
-    console.error('Error fetching token info:', error)
-    return null // Return null or handle the error as needed
-  }
-}
-
-
-
-// ┌─┐┌─┐┌┬┐  ╦ ╦┌─┐┌┬┐┌─┐┬─┐┌─┐  ╔╦╗┬┬─┐┬─┐┌─┐┬─┐  ╔╦╗┌─┐┌┬┐┌─┐
-// │ ┬├┤  │   ╠═╣├┤  ││├┤ ├┬┘├─┤  ║║║│├┬┘├┬┘│ │├┬┘   ║║├─┤ │ ├─┤
-// └─┘└─┘ ┴   ╩ ╩└─┘─┴┘└─┘┴└─┴ ┴  ╩ ╩┴┴└─┴└─└─┘┴└─  ═╩╝┴ ┴ ┴ ┴ ┴
-// get Hedera Mirror Data
-async function getHederaMirrorData(network, endpoint, queryObject) {
-  try {
-    // Construct the base URL based on the network
-    const baseUrl = network === 'mainnet' 
-      ? 'https://mainnet-public.mirrornode.hedera.com/api/v1/' 
-      : 'https://testnet.mirrornode.hedera.com/api/v1/'
-
-    const data = await getData(`${baseUrl}${endpoint}`, queryObject, 30)
-    if (!data) throw new Error('Failed to fetch data')
-
-    return data
-  } catch (error) {
-    console.error('Error fetching Hedera mirror data:', error)
-    return null // Return null or handle the error as needed
-  }
-}
-
-
-
-
-// ┬┌─┐┌┐┌┌─┐┬─┐┌─┐  ╦ ╦┌─┐┌┬┐┌─┐┬─┐┌─┐  ╔═╗┌─┐┌─┐┌─┐┬ ┬┌┐┌┌┬┐┌─┐
-// ││ ┬││││ │├┬┘├┤   ╠═╣├┤  ││├┤ ├┬┘├─┤  ╠═╣│  │  │ ││ ││││ │ └─┐
-// ┴└─┘┘└┘└─┘┴└─└─┘  ╩ ╩└─┘─┴┘└─┘┴└─┴ ┴  ╩ ╩└─┘└─┘└─┘└─┘┘└┘ ┴ └─┘
-// ignore Hedera Accounts
-function ignoreHederaAccounts(xfers) {
-    return xfers.filter(line => {
-        const accountNumber = parseInt(line.account.split('.')[2])
-        const isHederaAccount = accountNumber < 100 || line.account === '0.0.800'
-        return !isHederaAccount
-    })
-}
-
 
 
 // ╔╦╗╦  ╦╔═╗  ┌─┐┌─┐┌┐┌┌┬┐┬─┐┌─┐┬  
@@ -109,17 +33,37 @@ function ignoreHederaAccounts(xfers) {
 // popup with suggested new tx, but user can alter to suit, sign and add to kpool
 
 
-// Fetch NFT Transfers and Render Them Using View Functions
-async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
-  const params = {
-    network,
-    size: getParm('size') ?? 5
-  }
+async function initUbid() {
 
-  if (tokenId) params.tokenId = tokenId
-  if (sender) params.sender = sender
-  if (receiver) params.receiver = receiver
-  if (serialNumber) params.serialNumber = serialNumber
+    // populate page by loading recent NFT transfers
+    // see above ideas on extending this
+
+    // Fetch NFT Transfers and Render Them Using View Functions
+
+
+    // Define allowed parameters
+    const allowedParms = 'network query tokenId serialNumber sender receiver transferAfter transferBefore from size sortOn sortBy'.split(' ') //https://app.dragonglass.me/hedera/apiview
+    // transferAfter 2017-01-01T01:01:00.00Z
+    //sortOn	consensusTime	token, serialNumber,consensusTime,transactionId	field on which the response will be sorted
+
+    // Create URLSearchParams from window location
+    const urlParams = new URLSearchParams(window.location.search)
+
+    // Default values for specific parameters
+    const defaultValues = {
+        network: 'testnet',
+        size: 5
+    }
+
+    // Create the params object by iterating over allowed parameters
+    const params = {}
+    allowedParms.forEach(parm => {
+        const value = urlParams.get(parm) ?? defaultValues[parm] ?? ''
+        if (value) params[parm] = value
+    })
+
+    network = params.network
+
 
   try {
     const data = await getData('./api/nft/transfers', params, 30)
@@ -209,6 +153,57 @@ async function processItem(item) {
     console.error('⚠️ Error processing item:', error);
     return null;
   }
+}
+
+
+
+// ╔╦╗╦  ╦╔═╗  ┌┬┐┌─┐┌┬┐┌─┐┬  
+// ║║║╚╗╔╝║    ││││ │ ││├┤ │  
+// ╩ ╩ ╚╝ ╚═╝  ┴ ┴└─┘─┴┘└─┘┴─┘
+// MVC model
+
+// get Token Info
+async function getTokenInfo(network, tokenId) {
+  try {
+    const url = 'https://tools.gomint.me/explore/NFT/'
+    const params = { json: '', network, tokenId }
+
+    const tokenInfo = await getData(url, params, 'infinite') // cache never expires
+    if (!tokenInfo) throw new Error('Failed to fetch token info')
+
+    return tokenInfo
+  } catch (error) {
+    console.error('Error fetching token info:', error)
+    return null // Return null or handle the error as needed
+  }
+}
+
+// get Hedera Mirror Data
+async function getHederaMirrorData(network, endpoint, queryObject) {
+  try {
+    // Construct the base URL based on the network
+    const baseUrl = network === 'mainnet' 
+      ? 'https://mainnet-public.mirrornode.hedera.com/api/v1/' 
+      : 'https://testnet.mirrornode.hedera.com/api/v1/'
+
+    const data = await getData(`${baseUrl}${endpoint}`, queryObject, 30)
+    if (!data) throw new Error('Failed to fetch data')
+
+    return data
+  } catch (error) {
+    console.error('Error fetching Hedera mirror data:', error)
+    return null // Return null or handle the error as needed
+  }
+}
+
+
+// ignore Hedera Accounts
+function ignoreHederaAccounts(xfers) {
+    return xfers.filter(line => {
+        const accountNumber = parseInt(line.account.split('.')[2])
+        const isHederaAccount = accountNumber < 100 || line.account === '0.0.800'
+        return !isHederaAccount
+    })
 }
 
 
@@ -329,9 +324,13 @@ async function getData(url, params, expirySeconds = 0) {
 
 
 
-// ┌─┐┬ ┬┌─┐┌─┐  ╔═╗┬┬─┐┌─┐┌┬┐  ╔╦╗┌─┐┌┬┐┌─┐┬ ┬
-// └─┐│││├─┤├─┘  ╠╣ │├┬┘└─┐ │   ║║║├─┤ │ │  ├─┤
-// └─┘└┴┘┴ ┴┴    ╚  ┴┴└─└─┘ ┴   ╩ ╩┴ ┴ ┴ └─┘┴ ┴
+
+// ┬ ┬┌─┐┬  ┌─┐┌─┐┬─┐┌─┐
+// ├─┤├┤ │  ├─┘├┤ ├┬┘└─┐
+// ┴ ┴└─┘┴─┘┴  └─┘┴└─└─┘
+// helpers
+
+
 // swap First Match
 function swapFirstMatch(str, swaps) {
     for (let { find, replace } of swaps)
@@ -340,11 +339,7 @@ function swapFirstMatch(str, swaps) {
     return str
 }
 
-
 //todo tidy..
-// ┌─┐┌─┐┌┐┌┬  ┬┌─┐┬─┐┌┬┐  ╔╦╗─┐ ┬  ╦┌┬┐
-// │  │ ││││└┐┌┘├┤ ├┬┘ │    ║ ┌┴┬┘  ║ ││
-// └─┘└─┘┘└┘ └┘ └─┘┴└─ ┴    ╩ ┴ └─  ╩─┴┘
 // convert Tx Id
 // copied from php explore.hbar
 function convertTxId(txid) { // input any txid and return various formats and elements
@@ -426,3 +421,25 @@ function convertTxId(txid) { // input any txid and return various formats and el
 
     return out
 }
+
+
+
+/* not in use
+function hasParm(name) {
+  const params = new URLSearchParams(window.location.search)
+  return params.has(name)
+}
+
+
+function getParm(name) {
+  const params = new URLSearchParams(window.location.search)
+  return params.get(name)
+}
+
+
+function setParm(name, value) {
+  const url = new URL(window.location)
+  url.searchParams.set(name, value)
+  window.history.replaceState({}, '', url)
+}
+*/

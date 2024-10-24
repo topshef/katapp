@@ -33,18 +33,16 @@ as a fudge for now we could look for the 17 as start of seconds, which must be 1
 
 <script>
 
-    // Requires ubid2.js
-    const network = getParm('network') ?? 'testnet'
-    const tokenId = getParm('tokenId') ?? ''
-    const sender  = getParm('sender') ?? ''
-    const receiver = getParm('receiver') ?? ''
-    const serialNumber = getParm('serialNumber') ?? ''
-
+    
     // Initialize https://github.com/samuk190/localbase
-    let db = new Localbase('apiCache')  // not LocalBase fucking cunts changed capitazation
-
+    let db = new Localbase('apiCache')
+    
+    let network
+    
+    
     document.addEventListener('DOMContentLoaded', async () => {
-        await fetchNftTransfers({ tokenId, sender, receiver, serialNumber })
+        // Requires ubid2.js
+        await initUbid()
     })
 
 
