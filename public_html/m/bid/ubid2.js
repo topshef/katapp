@@ -83,137 +83,156 @@ function ignoreHederaAccounts(xfers) {
 }
 
 
-
-//todo refactor..
+// Fetch NFT Transfers and Render Them Using View Functions
 async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
-    const params = {
-        network,
-        size: 5
-      }
-      
-      if (tokenId) params.tokenId = tokenId
-      if (sender) params.sender = sender
-      if (receiver) params.receiver = receiver
-      if (serialNumber) params.serialNumber = serialNumber
+  const params = {
+    network,
+    size: 5,
+  };
 
-      const data = await getData('./api/nft/transfers', params, 30)
-      console.log(data)
+  if (tokenId) params.tokenId = tokenId;
+  if (sender) params.sender = sender;
+  if (receiver) params.receiver = receiver;
+  if (serialNumber) params.serialNumber = serialNumber;
 
-  
-    const container = document.createElement('div')
-    container.className = 'container mt-4'
-    for (const item of data.data)  { //data.data.forEach(item => {
-        
-        
-      const tokenInfo = await getTokenInfo(network, `${item.tokenId}-${item.serialNumber}`)
-      console.log(`getTokenInfo ${network} ${item.tokenId}-${item.serialNumber}`, tokenInfo)
-      const txids = convertTxId(item.transactionId)
-      if (!txids) {
-          console.log(`skipping ${item.transactionId} as failed to convert`)
-          continue
-      }
-      console.log(`converting txid ${item.transactionId}`,txids)
+  try {
+    const data = await getData('./api/nft/transfers', params, 30);
+    console.log('🔵ℹ️ ./api/nft/transfers', {params, data})
 
-      const txns = await getHederaMirrorData(network, `transactions/${txids.hyphen}`)
-      if (!txns) continue
-      
-      const tx = txns.transactions[0]
-      let hbarXfers = ignoreHederaAccounts(tx.transfers)
-      let senderHbarXfers = hbarXfers.filter(line => line.amount < 0)
-      let mainSenderXfer = senderHbarXfers.sort((a, b) => a.amount - b.amount)[0]
-      const price = Math.abs(mainSenderXfer.amount / 100000000).toFixed(4)
-      const unit = 'hbar'
-      console.log("mainSenderXfer=", mainSenderXfer)
+    const container = document.createElement('div');
+    container.className = 'container mt-4';
+    document.body.appendChild(container);
 
-      // todo expand to FT and generally to pricing algorithm based on historic data
-      // let ftXfers = ignoreHederaAccounts(tx.token_transfers)
-      // let senderFtXfers = ftXfers.filter(line => line.value < 0)
-      // let mainSenderFtXfer = senderFtXfers.sort((a, b) => a.value - b.value)[0]
-      // console.log("mainSenderFtXfer=", mainSenderFtXfer)
+    // Process each item and render as it loads
+    data.data.forEach((item) => {
+      const cardBody = renderLoadingCard(container); // Render loading state
 
-      const memo = atob(tx.memo_base64)
-      
+    processItem(item)
+      .then(processedItem => {
+        processedItem 
+          ? renderItemCard(cardBody, processedItem) 
+          : renderErrorCard(cardBody)
+      })
+      .catch(error => {
+        console.error('Error processing item', error)
+        renderErrorCard(cardBody)
+      })
 
-      
-      const urlExploreNFT = `https://hashscan.io/${network}/token/${item.tokenId}/${item.serialNumber}`
-      
-      const urlExploreTx = `https://hashscan.io/${network}/transaction/${tx.consensus_timestamp}`
-      
-      //💱🔄🪙
-      
-      const delaySeconds = '90 secs' 
-      const dealId = '087e095b465c65d91c58cd224b71d94dad8ea260d06f74597fd5433b9be7e812'
-      const seller = item.receiver // ie the past person to receive it - we coudl check this
-      const bid_amount = price * 1.05 // 5% more example
-      
-      const shopDomain = (network == 'testnet') ? 'dev4.shop.gomint.me' : 'shop.gomint.me'
-      const bidUrl = `https://${shopDomain}/m/?dealonly=&dealId=${dealId}&v=labs&detail=&serial=${item.serialNumber}&seller=${seller}&bid_amount=${bid_amount}&tokenId=${item.tokenId}&starttime=${delaySeconds}`
-      
-      console.log(`bidUrl=${bidUrl}`)
-      
-      
-      
-      const card = document.createElement('div')
-      card.className = 'card mb-3'
-      const cardBody = document.createElement('div')
-      cardBody.className = 'card-body'
-      cardBody.innerHTML = `
-        <p class="card-text">#️⃣   <a href='${urlExploreTx}' target='${tx.transaction_id}'>${tx.transaction_id}</a></p>
-        <p class="card-text">🕘 ${item.consensusTime}</p>
-        <p class="card-text">📝 ${memo}</p>
-        <p class="card-text">💳 ${item.sender} → ${item.receiver}</p>
-        <p class="card-text">🖼️ ${item.tokenId}#${item.serialNumber}</p>
-        <p class="card-text">🪙 ${price} ${unit}</p>
-        <p class="card-text">🔨 <a href='${bidUrl}' target='_blank'>Bid ${bid_amount} ${unit}</a></p>
-        <span class="card-text"><a href='${urlExploreNFT}' target='${network}-${item.tokenId}'><img src='${tokenInfo.token_asset_image_URL}' height='100px'></a>
-        </span>
-        
-      `
-      card.appendChild(cardBody)
-      container.appendChild(card)
-    }
-    document.body.appendChild(container)
-
+    });
+  } catch (error) {
+    console.error('Error fetching NFT transfers:', error);
+  }
 }
 
+// Process each item to prepare data for rendering
+async function processItem(item) {
+  try {
+    const tokenInfo = await getTokenInfo(network, `${item.tokenId}-${item.serialNumber}`);
+    console.log(`getTokenInfo ${network} ${item.tokenId}-${item.serialNumber}`, tokenInfo);
 
-// ╔╦╗╦  ╦╔═╗  ┬  ┬┬┌─┐┬ ┬
-// ║║║╚╗╔╝║    └┐┌┘│├┤ │││
-// ╩ ╩ ╚╝ ╚═╝   └┘ ┴└─┘└┴┘
-// MVC view
+    const txids = convertTxId(item.transactionId);
+    if (!txids) {
+      console.log(`Skipping ${item.transactionId} as failed to convert`);
+      return null;
+    }
+    console.log(`Converting txid ${item.transactionId}`, txids);
+
+    const txns = await getHederaMirrorData(network, `transactions/${txids.hyphen}`);
+    if (!txns) return null;
+
+    const tx = txns.transactions[0];
+    const hbarXfers = ignoreHederaAccounts(tx.transfers);
+    const senderHbarXfers = hbarXfers.filter((line) => line.amount < 0);
+    const mainSenderXfer = senderHbarXfers.sort((a, b) => a.amount - b.amount)[0];
+    const price = Math.abs(mainSenderXfer.amount / 100000000).toFixed(4);
+    const unit = 'hbar';
+    console.log('mainSenderXfer=', mainSenderXfer);
+
+    const memo = atob(tx.memo_base64);
+
+    const urlExploreNFT = `https://hashscan.io/${network}/token/${item.tokenId}/${item.serialNumber}`;
+    const urlExploreTx = `https://hashscan.io/${network}/transaction/${tx.consensus_timestamp}`;
+
+    const delaySeconds = '90 secs';
+    const dealId = '087e095b465c65d91c58cd224b71d94dad8ea260d06f74597fd5433b9be7e812';
+    const seller = item.receiver; // The previous receiver
+    const bidAmount = (price * 1.05).toFixed(4); // Example: 5% more
+
+    const shopDomain = network === 'testnet' ? 'dev4.shop.gomint.me' : 'shop.gomint.me';
+    const bidUrl = `https://${shopDomain}/m/?dealonly=&dealId=${dealId}&v=labs&detail=&serial=${item.serialNumber}&seller=${seller}&bidAmount=${bidAmount}&tokenId=${item.tokenId}&starttime=${delaySeconds}`;
+
+    console.log(`bidUrl=${bidUrl}`);
+
+    return {
+      tx,
+      item,
+      tokenInfo,
+      price,
+      unit,
+      bidUrl,
+      urlExploreNFT,
+      urlExploreTx,
+      memo,
+      bidAmount,
+      network,
+    };
+  } catch (error) {
+    console.error('⚠️ Error processing item:', error);
+    return null;
+  }
+}
+
+// View Functions
 
 function clearContainer(container) {
-  container.innerHTML = '' // Clear all child elements
+  container.innerHTML = ''; // Clear all child elements
 }
 
-function renderItems(container, items) {
-  items.forEach(item => {
-    const cardBody = renderLoadingCard(container)
-    try {
-      // Use item data directly (assume data already includes necessary fields)
-      renderItemCard(cardBody, {
-        tx: { transaction_id: item.transactionId },
-        item,
-        tokenInfo: { token_asset_image_URL: item.token_asset_image_URL },
-        price: item.price,
-        unit: item.unit,
-        bidUrl: item.bidUrl,
-        urlExploreNFT: item.urlExploreNFT,
-        urlExploreTx: item.urlExploreTx,
-        memo: item.memo
-      })
-    } catch (error) {
-      console.error('Error rendering item:', error)
-      renderErrorCard(cardBody)
-    }
-  })
+function renderLoadingCard(container) {
+  const card = document.createElement('div');
+  card.className = 'card mb-3';
+  const cardBody = document.createElement('div');
+  cardBody.className = 'card-body';
+  cardBody.innerHTML = `<p>Loading...</p>`;
+  card.appendChild(cardBody);
+  container.appendChild(card);
+  return cardBody;
+}
+
+function renderItemCard(cardBody, data) {
+  const {
+    tx,
+    item,
+    tokenInfo,
+    price,
+    unit,
+    bidUrl,
+    urlExploreNFT,
+    urlExploreTx,
+    memo,
+    bidAmount,
+    network,
+  } = data;
+
+  cardBody.innerHTML = `
+    <p class="card-text">#️⃣ <a href='${urlExploreTx}' target='_blank'>${tx.transaction_id}</a></p>
+    <p class="card-text">🕘 ${item.consensusTime}</p>
+    <p class="card-text">📝 ${memo}</p>
+    <p class="card-text">💳 ${item.sender} → ${item.receiver}</p>
+    <p class="card-text">🖼️ ${item.tokenId}#${item.serialNumber}</p>
+    <p class="card-text">🪙 ${price} ${unit}</p>
+    <p class="card-text">🔨 <a href='${bidUrl}' target='_blank'>Bid ${bidAmount} ${unit}</a></p>
+    <span class="card-text">
+      <a href='${urlExploreNFT}' target='_blank'>
+        <img src='${tokenInfo.token_asset_image_URL}' height='100px'>
+      </a>
+    </span>
+  `;
 }
 
 function renderErrorCard(cardBody) {
-  cardBody.innerHTML = `<p>Error loading item data.</p>`
+  cardBody.innerHTML = `<p>⚠️ Error loading item data.</p>`
 }
-
-
 
 
 
