@@ -177,20 +177,58 @@ async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
 }
 
 
+// ╔╦╗╦  ╦╔═╗  ┬  ┬┬┌─┐┬ ┬
+// ║║║╚╗╔╝║    └┐┌┘│├┤ │││
+// ╩ ╩ ╚╝ ╚═╝   └┘ ┴└─┘└┴┘
+// MVC view
+
+function clearContainer(container) {
+  container.innerHTML = '' // Clear all child elements
+}
+
+function renderItems(container, items) {
+  items.forEach(item => {
+    const cardBody = renderLoadingCard(container)
+    try {
+      // Use item data directly (assume data already includes necessary fields)
+      renderItemCard(cardBody, {
+        tx: { transaction_id: item.transactionId },
+        item,
+        tokenInfo: { token_asset_image_URL: item.token_asset_image_URL },
+        price: item.price,
+        unit: item.unit,
+        bidUrl: item.bidUrl,
+        urlExploreNFT: item.urlExploreNFT,
+        urlExploreTx: item.urlExploreTx,
+        memo: item.memo
+      })
+    } catch (error) {
+      console.error('Error rendering item:', error)
+      renderErrorCard(cardBody)
+    }
+  })
+}
+
+function renderErrorCard(cardBody) {
+  cardBody.innerHTML = `<p>Error loading item data.</p>`
+}
 
 
-// ┌─┐┌─┐┌┐┌┌─┐┬─┐┌─┐┌┬┐┌─┐  ╔═╗┌─┐┌─┐┬ ┬┌─┐  ╦╔═┌─┐┬ ┬
-// │ ┬├┤ │││├┤ ├┬┘├─┤ │ ├┤   ║  ├─┤│  ├─┤├┤   ╠╩╗├┤ └┬┘
-// └─┘└─┘┘└┘└─┘┴└─┴ ┴ ┴ └─┘  ╚═╝┴ ┴└─┘┴ ┴└─┘  ╩ ╩└─┘ ┴ 
+
+
+
+
+// ┌─┐┌─┐┌─┐┬ ┬┌─┐  ┌─┐┬ ┬┌┐┌┌─┐┌┬┐┬┌─┐┌┐┌┌─┐
+// │  ├─┤│  ├─┤├┤   ├┤ │ │││││   │ ││ ││││└─┐
+// └─┘┴ ┴└─┘┴ ┴└─┘  └  └─┘┘└┘└─┘ ┴ ┴└─┘┘└┘└─┘
+// cache functions
+
 // generate Cache Key
 // Helper to generate a unique cache key based on the URL and parameters
 function generateCacheKey(url, params) {
   return `${url}?${new URLSearchParams(params).toString()}`
 }
 
-// ┌─┐┌─┐┌┬┐  ╔═╗┬─┐┌─┐┌┬┐  ╔═╗┌─┐┌─┐┬ ┬┌─┐
-// │ ┬├┤  │   ╠╣ ├┬┘│ ││││  ║  ├─┤│  ├─┤├┤ 
-// └─┘└─┘ ┴   ╚  ┴└─└─┘┴ ┴  ╚═╝┴ ┴└─┘┴ ┴└─┘
 // get From Cache
 // Get cached data if available, and recent enough
 async function getFromCache(url, params, expirySeconds = 'infinite') {
@@ -209,18 +247,12 @@ async function getFromCache(url, params, expirySeconds = 'infinite') {
   return record.data
 }
 
-// ┌─┐┌─┐┬  ┬┌─┐  ╔╦╗┌─┐  ╔═╗┌─┐┌─┐┬ ┬┌─┐
-// └─┐├─┤└┐┌┘├┤    ║ │ │  ║  ├─┤│  ├─┤├┤ 
-// └─┘┴ ┴ └┘ └─┘   ╩ └─┘  ╚═╝┴ ┴└─┘┴ ┴└─┘
 // save To Cache
 async function saveToCache(url, params, data) {
   const key = generateCacheKey(url, params)
   await db.collection('apiCache').doc(key).set({ url, params, data, timestamp: Date.now() })
 }
 
-// ┌─┐┌─┐┌┬┐  ╔╦╗┌─┐┌┬┐┌─┐
-// │ ┬├┤  │    ║║├─┤ │ ├─┤
-// └─┘└─┘ ┴   ═╩╝┴ ┴ ┴ ┴ ┴
 // get Data
 async function getData(url, params, expirySeconds = 0) {
   if (expirySeconds) {
