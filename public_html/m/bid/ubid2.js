@@ -82,47 +82,46 @@ function ignoreHederaAccounts(xfers) {
     })
 }
 
-
 // Fetch NFT Transfers and Render Them Using View Functions
 async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
   const params = {
     network,
-    size: 5,
-  };
+    size: 5
+  }
 
-  if (tokenId) params.tokenId = tokenId;
-  if (sender) params.sender = sender;
-  if (receiver) params.receiver = receiver;
-  if (serialNumber) params.serialNumber = serialNumber;
+  if (tokenId) params.tokenId = tokenId
+  if (sender) params.sender = sender
+  if (receiver) params.receiver = receiver
+  if (serialNumber) params.serialNumber = serialNumber
 
   try {
-    const data = await getData('./api/nft/transfers', params, 30);
-    console.log('🔵ℹ️ ./api/nft/transfers', {params, data})
+    const data = await getData('./api/nft/transfers', params, 30)
+    console.log('🔵ℹ️ ./api/nft/transfers', { params, data })
 
-    const container = document.createElement('div');
-    container.className = 'container mt-4';
-    document.body.appendChild(container);
+    const container = document.createElement('div')
+    container.className = 'container mt-4'
+    document.body.appendChild(container)
 
     // Process each item and render as it loads
     data.data.forEach((item) => {
-      const cardBody = renderLoadingCard(container); // Render loading state
+      const cardBody = renderLoadingCard(container) // Render loading state
 
-    processItem(item)
-      .then(processedItem => {
-        processedItem 
-          ? renderItemCard(cardBody, processedItem) 
-          : renderErrorCard(cardBody)
-      })
-      .catch(error => {
-        console.error('Error processing item', error)
-        renderErrorCard(cardBody)
-      })
-
-    });
+      processItem(item)
+        .then(processedItem => {
+          processedItem 
+            ? renderItemCard(cardBody, processedItem) 
+            : renderErrorCard(cardBody)
+        })
+        .catch(error => {
+          console.error('Error processing item', error)
+          renderErrorCard(cardBody)
+        })
+    })
   } catch (error) {
-    console.error('Error fetching NFT transfers:', error);
+    console.error('Error fetching NFT transfers:', error)
   }
 }
+
 
 // Process each item to prepare data for rendering
 async function processItem(item) {
