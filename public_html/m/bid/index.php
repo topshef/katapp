@@ -2,16 +2,8 @@
 
 //tire kickign discovery
 
-// todo demo links to eg 
-//https://dev4.shop.gomint.me/m/?dealonly=&dealId=087e095b465c65d91c58cd224b71d94dad8ea260d06f74597fd5433b9be7e812&v=labs&detail=&serial=26&seller=0.0.1532&bid_amount=0.1&tokenId=0.0.3626892&starttime=40secs&node=3&operatorId=0.0.1819
-
-reported on DG NFT transfers 005823833172962711969325840
-missing leading zero for nanoseconds
-correct txid 0.0.5823833-1729627119-069325840
-
-this is retarded. there is no way to reliably decode the txid
-as a fudge for now we could look for the 17 as start of seconds, which must be 10 digits
-
+// eg 
+// https://dev4.shop.gomint.me/m/bid/?network=mainnet&size=10&tokenId=0.0.878200
 
 
 -->

@@ -20,7 +20,7 @@
 // on basis that nfts that are currebtly trading have active users
 // but refactor to generate a pool of products instead
 // use tx to populate this product pool, both directly as products found in the tx
-// but also indirectly via products that the participating users are holding
+// but also indirectly via products that the participating users are holding ***
 // This is early stage inference discovery on needs and wants of users
 // later put in other feedback loops
 
@@ -31,6 +31,12 @@
 // and animiated bubbles as future dated tx
 // to create a new bubble, user clicks on existing tx
 // popup with suggested new tx, but user can alter to suit, sign and add to kpool
+
+// *** this could also be a better way around the DG nanos fuckup,
+// eg just ignore the bullshit DG txid and instead use the sender receiver to query regular tx
+// from hedera mirror, and we scoop up the nft transfers as a subset of these
+// we could anyway refactor to have background processes async spider scrape from the users starting query
+
 
 
 async function initUbid() {
