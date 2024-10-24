@@ -182,10 +182,10 @@ async function processItem(item) {
     const delaySeconds = '90 secs';
     const dealId = '087e095b465c65d91c58cd224b71d94dad8ea260d06f74597fd5433b9be7e812';
     const seller = item.receiver; // The previous receiver
-    const bidAmount = (price * 1.05).toFixed(4); // Example: 5% more
+    const bid_amount = (price * 1.05).toFixed(4); // Example: 5% more
 
     const shopDomain = network === 'testnet' ? 'dev4.shop.gomint.me' : 'shop.gomint.me';
-    const bidUrl = `https://${shopDomain}/m/?dealonly=&dealId=${dealId}&v=labs&detail=&serial=${item.serialNumber}&seller=${seller}&bidAmount=${bidAmount}&tokenId=${item.tokenId}&starttime=${delaySeconds}`;
+    const bidUrl = `https://${shopDomain}/m/?dealonly=&dealId=${dealId}&v=labs&detail=&serial=${item.serialNumber}&seller=${seller}&bid_amount=${bid_amount}&tokenId=${item.tokenId}&starttime=${delaySeconds}`;
 
     console.log(`bidUrl=${bidUrl}`);
 
@@ -199,7 +199,7 @@ async function processItem(item) {
       urlExploreNFT,
       urlExploreTx,
       memo,
-      bidAmount,
+      bid_amount,
       network,
     };
   } catch (error) {
@@ -242,7 +242,7 @@ function renderItemCard(cardBody, data) {
     urlExploreNFT,
     urlExploreTx,
     memo,
-    bidAmount,
+    bid_amount,
     network,
   } = data;
 
@@ -256,7 +256,7 @@ function renderItemCard(cardBody, data) {
     <p class="card-text">💳 ${sender} → ${item.receiver}</p>
     <p class="card-text">🖼️ ${item.tokenId}#${item.serialNumber}</p>
     <p class="card-text">🪙 ${price} ${unit}</p>
-    <p class="card-text">🔨 <a href='${bidUrl}' target='_blank'>Bid ${bidAmount} ${unit}</a></p>
+    <p class="card-text">🔨 <a href='${bidUrl}' target='_blank'>Bid ${bid_amount} ${unit}</a></p>
     <span class="card-text">
       <a href='${urlExploreNFT}' target='_blank'>
         <img src='${tokenInfo.token_asset_image_URL}' height='100px'>
