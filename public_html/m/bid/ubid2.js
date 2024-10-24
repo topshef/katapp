@@ -82,11 +82,38 @@ function ignoreHederaAccounts(xfers) {
     })
 }
 
+
+
+// ╔╦╗╦  ╦╔═╗  ┌─┐┌─┐┌┐┌┌┬┐┬─┐┌─┐┬  
+// ║║║╚╗╔╝║    │  │ ││││ │ ├┬┘│ ││  
+// ╩ ╩ ╚╝ ╚═╝  └─┘└─┘┘└┘ ┴ ┴└─└─┘┴─┘
+// MVC control
+
+// todo contiunue refactor
+// top level concept of "possibility" card to be a product (ft or nft), not a tx
+//hmm maybe not see below earth **
+// tx exist to provide first simplest suggestion for a product offering 
+// on basis that nfts that are currebtly trading have active users
+// but refactor to generate a pool of products instead
+// use tx to populate this product pool, both directly as products found in the tx
+// but also indirectly via products that the participating users are holding
+// This is early stage inference discovery on needs and wants of users
+// later put in other feedback loops
+
+// create a localbase of products? pulled from apiCache? if adding metadata to apicache eg tokens, account etc as array so cache can be mined
+// later feedback what other users are searching, possibly sync cache info torrent Style
+
+// ** but back to earth.. maybe keep the square cards as confirmed tx
+// and animiated bubbles as future dated tx
+// to create a new bubble, user clicks on existing tx
+// popup with suggested new tx, but user can alter to suit, sign and add to kpool
+
+
 // Fetch NFT Transfers and Render Them Using View Functions
 async function fetchNftTransfers({ tokenId, sender, receiver, serialNumber }) {
   const params = {
     network,
-    size: 5
+    size: getParm('size') ?? 5
   }
 
   if (tokenId) params.tokenId = tokenId
@@ -181,7 +208,13 @@ async function processItem(item) {
   }
 }
 
-// View Functions
+
+
+// ╔╦╗╦  ╦╔═╗  ┬  ┬┬┌─┐┬ ┬
+// ║║║╚╗╔╝║    └┐┌┘│├┤ │││
+// ╩ ╩ ╚╝ ╚═╝   └┘ ┴└─┘└┴┘
+// MVC view functions
+
 
 function clearContainer(container) {
   container.innerHTML = ''; // Clear all child elements
@@ -213,11 +246,14 @@ function renderItemCard(cardBody, data) {
     network,
   } = data;
 
+  let sender = item.sender
+  if (sender == '0.0.0') sender = 'mint'
+  
   cardBody.innerHTML = `
     <p class="card-text">#️⃣ <a href='${urlExploreTx}' target='_blank'>${tx.transaction_id}</a></p>
     <p class="card-text">🕘 ${item.consensusTime}</p>
     <p class="card-text">📝 ${memo}</p>
-    <p class="card-text">💳 ${item.sender} → ${item.receiver}</p>
+    <p class="card-text">💳 ${sender} → ${item.receiver}</p>
     <p class="card-text">🖼️ ${item.tokenId}#${item.serialNumber}</p>
     <p class="card-text">🪙 ${price} ${unit}</p>
     <p class="card-text">🔨 <a href='${bidUrl}' target='_blank'>Bid ${bidAmount} ${unit}</a></p>
