@@ -180,7 +180,10 @@ async function processItem(item) {
     const urlExploreTx = `https://hashscan.io/${network}/transaction/${tx.consensus_timestamp}`;
 
     const delaySeconds = '90 secs';
-    const dealId = '087e095b465c65d91c58cd224b71d94dad8ea260d06f74597fd5433b9be7e812';
+    
+    const dealId = (network == 'mainnet')
+    ? '5f07af91960ac463e652c5ff0521b66d8017aff3c237718ce570d14d2b65028a'
+    : '087e095b465c65d91c58cd224b71d94dad8ea260d06f74597fd5433b9be7e812'
     const seller = item.receiver; // The previous receiver
     const bid_amount = (price * 1.05).toFixed(4); // Example: 5% more
 
