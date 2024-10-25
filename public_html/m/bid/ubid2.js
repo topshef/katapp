@@ -110,7 +110,7 @@ async function processTx(nftXfer) {
     const expirySeconds = 0
     const tokenInfoGoMint = await getTokenInfoFromGoMint(network, `${nftXfer.tokenId}-${nftXfer.serialNumber}`, expirySeconds)
     // console.log(`getTokenInfo ${network} ${nftXfer.tokenId}-${nftXfer.serialNumber}`, tokenInfo);
-    const urlImage = tokenInfoGoMint.token_asset_image_URL
+    const urlImage = tokenInfoGoMint.token_asset_image_URL ?? 'https://tse4.mm.bing.net/th?id=OIP.CIKnUJBqUdu87khXGAyLVgHaHa&pid=Api'
     // const urlImage = tokenInfoGoMint.token_thumbnail_cache ?? tokenInfoGoMint.token_asset_image_URL ?? 'https://tse4.mm.bing.net/th?id=OIP.CIKnUJBqUdu87khXGAyLVgHaHa&pid=Api'
     
 
@@ -156,6 +156,7 @@ async function processTx(nftXfer) {
     ? '5f07af91960ac463e652c5ff0521b66d8017aff3c237718ce570d14d2b65028a'
     : '087e095b465c65d91c58cd224b71d94dad8ea260d06f74597fd5433b9be7e812'
     const seller = nftXfer.receiver; // The previous receiver
+    
     const bid_amount = (price * 1.05).toFixed(4); // Example: 5% more
 
     const shopDomain = network === 'testnet' ? 'dev4.shop.gomint.me' : 'shop.gomint.me';
@@ -288,12 +289,20 @@ function renderItemCard(cardBody, data) {
       </a>
     </span>
     <p class="card-text">🖼️ ${tokenId}#${serialNumber}</p>
-    <p class="card-text">🔨 <a href='${bidUrl}' target='_blank'>Bid ${bid_amount} ${unit}</a></p>
+    
     <button class="show-more-button">Show more</button>
   `
 
   // Set up modal data
-  const lastTransferInfo = {
+  const modalInfo = {
+    network,
+    tokenId,
+    serialNumber,
+    bidUrl,
+    bid_amount,
+    unit,
+    urlExploreNFT,
+    urlImage,
     txid: txids.hyphen,
     consensusTime,
     memo,
@@ -305,13 +314,19 @@ function renderItemCard(cardBody, data) {
   }
 
   // Attach event listener to the "Show more" button
-  cardBody.querySelector('.show-more-button').addEventListener('click', () => showModal(lastTransferInfo))
+  cardBody.querySelector('.show-more-button').addEventListener('click', () => showModal(modalInfo))
 }
 
 // Function to update and show modal
 function showModal(info) {
   const modalBody = document.getElementById('modal-body')
   modalBody.innerHTML = `
+    <a href='${info.urlExploreNFT}' target='_blank'><img src='${info.urlImage}' height='100px'></a>
+    
+    <p class="card-text">
+        <a href='${info.urlExploreNFT}' target='_blank'>🖼️ ${info.tokenId}#${info.serialNumber}</a>
+    </p>
+    <p class="card-text">🔨 <a href='${info.bidUrl}' target='_blank'>Bid ${info.bid_amount} ${info.unit}</a></p>
     <p class="modal-text">Last transfer:</p>
     <p class="modal-text">#️⃣ <a href='${info.urlExploreTx}' target='_blank'>${info.txid}</a></p>
     <p class="modal-text">🕘 ${info.consensusTime}</p>

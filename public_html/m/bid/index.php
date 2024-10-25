@@ -38,6 +38,7 @@
   border: 1px solid #888;
   width: 80%; /* Adjust as needed */
   position: relative;
+  opacity: 95%;
 }
 
 /* Close Button */
