@@ -103,9 +103,24 @@ async function initUbid() {
 // Process each item to prepare data for rendering
 async function processItem(item) {
   try {
-    const tokenInfo = await getTokenInfo(network, `${item.tokenId}-${item.serialNumber}`);
-    console.log(`getTokenInfo ${network} ${item.tokenId}-${item.serialNumber}`, tokenInfo);
+      // some issues tbc
+    const tokenInfoGoMint = await getTokenInfoFromGoMint(network, `${item.tokenId}-${item.serialNumber}`);
+    // console.log(`getTokenInfo ${network} ${item.tokenId}-${item.serialNumber}`, tokenInfo);
+    const urlImage = tokenInfoGoMint.token_asset_image_URL
 
+    /* on hold
+    const token_class = await getHederaMirrorData(network, `tokens/${item.tokenId}`)
+    const token_instance = await getHederaMirrorData(network, `tokens/${item.tokenId}/nfts/${item.serialNumber}`)
+    const metadata = atob(token_instance.metadata)
+    // const currentOwner = token_instance.account_id // this shoudl match receiver of last tx
+    const urlMetadata = convertToPinataUrl(metadata)
+    const metadataExpanded = await getData(urlMetadata, {},'infinite')
+    const urlImage = metadataExpanded.image
+    const tokenInfo = {token_class, token_instance, metadata, urlMetadata, metadataExpanded}
+    console.log("🔵ℹ️ tokenInfo=", {urlImage, tokenInfo, tokenInfoGoMint})
+    //"ipfs://bafybeihgsfwlhdfwnqztmgyjimjfpbfbya63kza46f42xsxtxa7sc7ct5m/3308.json"
+    */  
+    
     const txids = convertTxId(item.transactionId);
     if (!txids) {
       console.log(`Skipping ${item.transactionId} as failed to convert`);
@@ -145,7 +160,8 @@ async function processItem(item) {
     return {
       tx,
       item,
-      tokenInfo,
+      urlImage,
+      // tokenInfo,
       price,
       unit,
       bidUrl,
@@ -168,13 +184,15 @@ async function processItem(item) {
 // ╩ ╩ ╚╝ ╚═╝  ┴ ┴└─┘─┴┘└─┘┴─┘
 // MVC model
 
-// get Token Info
-async function getTokenInfo(network, tokenId, expirySeconds = 'infinite') {
+
+// get Token Info from GoMint
+async function getTokenInfoFromGoMint(network, tokenId, expirySeconds = 'infinite') {
   try {
+    //todo reroute or fix this endpoint
     const url = 'https://tools.gomint.me/explore/NFT/'
     const params = { json: '', network, tokenId, refresh: '' }
 
-    expirySeconds = 0
+    // expirySeconds = 0
     const tokenInfo = await getData(url, params, expirySeconds)
     if (!tokenInfo) throw new Error('Failed to fetch token info')
 
@@ -243,7 +261,8 @@ function renderItemCard(cardBody, data) {
   const {
     tx,
     item,
-    tokenInfo,
+    urlImage,
+    // tokenInfo,
     price,
     unit,
     bidUrl,
@@ -267,7 +286,7 @@ function renderItemCard(cardBody, data) {
     <p class="card-text">🔨 <a href='${bidUrl}' target='_blank'>Bid ${bid_amount} ${unit}</a></p>
     <span class="card-text">
       <a href='${urlExploreNFT}' target='_blank'>
-        <img src='${tokenInfo.token_asset_image_URL}' height='100px'>
+        <img src='${urlImage}' height='100px'>
       </a>
     </span>
   `;
@@ -287,6 +306,25 @@ function renderErrorCard(cardBody) {
 // ├─┤├┤ │  ├─┘├┤ ├┬┘└─┐
 // ┴ ┴└─┘┴─┘┴  └─┘┴└─└─┘
 // helpers
+
+
+
+
+function convertToPinataUrl(input) {
+  let cidRegex = /bafy[0-9a-zA-Z]{46,}/
+  let match = input.match(cidRegex)
+  
+  if (match) {
+    let cid = match[0]
+    if (input.endsWith('.json')) 
+      return `https://gateway.pinata.cloud/ipfs/${cid}/${input.split('/').pop().replace('.json', '.png')}`
+
+    return `https://gateway.pinata.cloud/ipfs/${cid}`
+  }
+  
+  return null // Return null if no CID found
+}
+
 
 
 // swap First Match
