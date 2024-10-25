@@ -79,7 +79,7 @@ async function initUbid() {
     const nftXfers = result.data  // nft transfers only
     
     const container = document.createElement('div')
-    container.className = 'container mt-4'
+    container.className = 'ubid-container'
     document.body.appendChild(container)
 
     // Process each tx and render as it loads
@@ -281,17 +281,18 @@ function renderItemCard(cardBody, data) {
 
   const displaySender = sender === '0.0.0' ? 'mint' : sender
 
-  // Set card content
-  cardBody.innerHTML = `
-    <span class="card-text">
+  
+    // Apply the 'card' class directly to 'cardBody'
+    cardBody.className = 'ubid-card'
+    cardBody.innerHTML = `
       <a href='${urlExploreNFT}' target='_blank'>
         <img src='${urlImage}' height='100px'>
       </a>
-    </span>
-    <p class="card-text">🖼️ ${tokenId}#${serialNumber}</p>
-    
-    <button class="show-more-button">Show more</button>
-  `
+      <p>🖼️ ${tokenId}#${serialNumber}</p>
+      <button class="show-more-button">Show more</button>
+    `
+
+  
 
   // Set up modal data
   const modalInfo = {
@@ -316,6 +317,23 @@ function renderItemCard(cardBody, data) {
   // Attach event listener to the "Show more" button
   cardBody.querySelector('.show-more-button').addEventListener('click', () => showModal(modalInfo))
 }
+
+/*
+
+so now we have a modal that links to a page where you can bid,
+but.. it's shit and we want to bid directly on the page, so..
+we need to add in the relevant user parameter inputs directly on the modal 
+minimum is just the suggested bid price as is now except we allow the user to change it
+eg with a slider (5% down, no change +5% etc) or type it in
+Then we need to wire in the wallet connection
+we can use the existing hashconnect or new walletconnect (todo see shimanto demo etc)
+
+then we need to add in view for all the offline tx, so that's another version of processTx but for offline (kpos.uk/pool)
+
+at this point though we may want to further refactor
+
+*/
+
 
 // Function to update and show modal
 function showModal(info) {

@@ -8,6 +8,7 @@
 
 -->
 <head>
+
     <!-- Bootstrap CSS -->
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
 
@@ -16,6 +17,28 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <style>
+
+
+.ubid-container {
+  display: flex; /* Use flexbox for alignment */
+  flex-wrap: wrap; /* Allow wrapping */
+  gap: 5px; /* Space between cards */
+  justify-content: center; /* Center horizontally */
+  align-items: center; /* Center vertically */
+  height: 100vh; /* Optional: Set a height for vertical centering */
+}
+
+
+/* Basic card styling */
+.ubid-card {
+  border: 0px solid blue;
+  padding: 10px;
+  background-color: #f9f9f9;
+  display: inline-block;
+  margin: 0px;
+  vertical-align: top;
+}
+
 
 /* Modal Background */
 .modal {
