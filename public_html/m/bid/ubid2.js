@@ -267,7 +267,7 @@ function renderLoadingCard(container) {
 
 function renderItemCard(cardBody, data) {
   const {
-    last_tx,
+    last_tx: { tokenId, serialNumber, sender, txids, consensusTime, receiver },
     urlImage,
     price,
     unit,
@@ -276,60 +276,52 @@ function renderItemCard(cardBody, data) {
     urlExploreTx,
     memo,
     bid_amount,
-    network,
   } = data
 
-  let sender = last_tx.sender
-  if (sender == '0.0.0') sender = 'mint'
-  
-      
-      cardBody.innerHTML = `
-      <span class="card-text">
-        <a href='${urlExploreNFT}' target='_blank'>
-          <img src='${urlImage}' height='100px'>
-        </a>
-      </span>
-      <p class="card-text">🖼️ ${last_tx.tokenId}#${last_tx.serialNumber}</p>
-      <p class="card-text">🔨 <a href='${bidUrl}' target='_blank'>Bid ${bid_amount} ${unit}</a></p>
-      <button class="show-more-button">Show more</button>
-    `
+  const displaySender = sender === '0.0.0' ? 'mint' : sender
 
-    // Attach event listener to the "Show more" button
-    const showMoreButton = cardBody.querySelector('.show-more-button')
+  // Set card content
+  cardBody.innerHTML = `
+    <span class="card-text">
+      <a href='${urlExploreNFT}' target='_blank'>
+        <img src='${urlImage}' height='100px'>
+      </a>
+    </span>
+    <p class="card-text">🖼️ ${tokenId}#${serialNumber}</p>
+    <p class="card-text">🔨 <a href='${bidUrl}' target='_blank'>Bid ${bid_amount} ${unit}</a></p>
+    <button class="show-more-button">Show more</button>
+  `
 
-    showMoreButton.lastTransferInfo = {
-      txid: last_tx.txids.hyphen,
-      consensusTime: last_tx.consensusTime,
-      memo: memo,
-      sender: sender,
-      receiver: last_tx.receiver,
-      price: price,
-      unit: unit,
-      urlExploreTx: urlExploreTx
-    };
+  // Set up modal data
+  const lastTransferInfo = {
+    txid: txids.hyphen,
+    consensusTime,
+    memo,
+    sender: displaySender,
+    receiver,
+    price,
+    unit,
+    urlExploreTx
+  }
 
-    showMoreButton.addEventListener('click', function() {
-      const info = this.lastTransferInfo;
-
-      // Update modal content
-      const modalBody = document.getElementById('modal-body');
-      modalBody.innerHTML = `
-        <p class="modal-text">Last transfer:</p>
-        <p class="modal-text">#️⃣ <a href='${info.urlExploreTx}' target='_blank'>${info.txid}</a></p>
-        <p class="modal-text">🕘 ${info.consensusTime}</p>
-        <p class="modal-text">📝 ${info.memo}</p>
-        <p class="modal-text">💳 ${info.sender} → ${info.receiver}</p>
-        <p class="modal-text">🪙 ${info.price} ${info.unit}</p>
-      `;
-
-      // Show the modal
-      const modal = document.getElementById('modal');
-      modal.style.display = 'block';
-    });
-
-
-  
+  // Attach event listener to the "Show more" button
+  cardBody.querySelector('.show-more-button').addEventListener('click', () => showModal(lastTransferInfo))
 }
+
+// Function to update and show modal
+function showModal(info) {
+  const modalBody = document.getElementById('modal-body')
+  modalBody.innerHTML = `
+    <p class="modal-text">Last transfer:</p>
+    <p class="modal-text">#️⃣ <a href='${info.urlExploreTx}' target='_blank'>${info.txid}</a></p>
+    <p class="modal-text">🕘 ${info.consensusTime}</p>
+    <p class="modal-text">📝 ${info.memo}</p>
+    <p class="modal-text">💳 ${info.sender} → ${info.receiver}</p>
+    <p class="modal-text">🪙 ${info.price} ${info.unit}</p>
+  `
+  document.getElementById('modal').style.display = 'block'
+}
+
 
 function initModal() {
   // Close modal when 'X' button is clicked
