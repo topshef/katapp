@@ -22,15 +22,13 @@
     <script src="ubid2.js"></script>
     <!-- <script src="https://unpkg.com/localbase/dist/localbase.min.js"></script> -->
     <script src="localbase.min.js"></script> <!-- beware spelling of Localbase -->
+    <script src="localCacheDB.js"></script>
 
 <script>
 
     
-    // Initialize https://github.com/samuk190/localbase
-    let db = new Localbase('apiCache')
     
     let network
-    
     
     document.addEventListener('DOMContentLoaded', async () => {
         // Requires ubid2.js

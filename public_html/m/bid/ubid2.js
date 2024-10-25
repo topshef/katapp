@@ -113,7 +113,7 @@ async function processItem(item) {
     }
     console.log(`Converting txid ${item.transactionId}`, txids);
 
-    const txns = await getHederaMirrorData(network, `transactions/${txids.hyphen}`);
+    const txns = await getHederaMirrorData(network, `transactions/${txids.hyphen}`)
     if (!txns) return null;
 
     const tx = txns.transactions[0];
@@ -169,12 +169,13 @@ async function processItem(item) {
 // MVC model
 
 // get Token Info
-async function getTokenInfo(network, tokenId) {
+async function getTokenInfo(network, tokenId, expirySeconds = 'infinite') {
   try {
     const url = 'https://tools.gomint.me/explore/NFT/'
-    const params = { json: '', network, tokenId }
+    const params = { json: '', network, tokenId, refresh: '' }
 
-    const tokenInfo = await getData(url, params, 'infinite') // cache never expires
+    expirySeconds = 0
+    const tokenInfo = await getData(url, params, expirySeconds)
     if (!tokenInfo) throw new Error('Failed to fetch token info')
 
     return tokenInfo
@@ -192,7 +193,10 @@ async function getHederaMirrorData(network, endpoint, queryObject) {
       ? 'https://mainnet-public.mirrornode.hedera.com/api/v1/' 
       : 'https://testnet.mirrornode.hedera.com/api/v1/'
 
-    const data = await getData(`${baseUrl}${endpoint}`, queryObject, 30)
+    let expirySeconds = 30
+    if (baseUrl.startsWith('transactions/')) expirySeconds = 'infinite' // tx are final
+    
+    const data = await getData(`${baseUrl}${endpoint}`, queryObject, expirySeconds)
     if (!data) throw new Error('Failed to fetch data')
 
     return data
@@ -273,58 +277,6 @@ function renderErrorCard(cardBody) {
   cardBody.innerHTML = `<p>⚠️ Error loading item data.</p>`
 }
 
-
-
-
-// ┌─┐┌─┐┌─┐┬ ┬┌─┐  ┌─┐┬ ┬┌┐┌┌─┐┌┬┐┬┌─┐┌┐┌┌─┐
-// │  ├─┤│  ├─┤├┤   ├┤ │ │││││   │ ││ ││││└─┐
-// └─┘┴ ┴└─┘┴ ┴└─┘  └  └─┘┘└┘└─┘ ┴ ┴└─┘┘└┘└─┘
-// cache functions
-
-// generate Cache Key
-// Helper to generate a unique cache key based on the URL and parameters
-function generateCacheKey(url, params) {
-  return `${url}?${new URLSearchParams(params).toString()}`
-}
-
-// get From Cache
-// Get cached data if available, and recent enough
-async function getFromCache(url, params, expirySeconds = 'infinite') {
-  const key = generateCacheKey(url, params)
-  const record = await db.collection('apiCache').doc(key).get()
-  
-  if (!record) return null
-  if (!record.data) return null
-
-  console.log(`🗄️ cache from ${url}`, record)
-  
-  if (expirySeconds === 'infinite') return record.data
-  const ageSeconds = (Date.now() - record.timestamp) / 1000
-  if (ageSeconds > expirySeconds) return null
-
-  return record.data
-}
-
-// save To Cache
-async function saveToCache(url, params, data) {
-  const key = generateCacheKey(url, params)
-  await db.collection('apiCache').doc(key).set({ url, params, data, timestamp: Date.now() })
-}
-
-// get Data
-async function getData(url, params, expirySeconds = 0) {
-  if (expirySeconds) {
-    const cachedData = await getFromCache(url, params, expirySeconds)
-    if (cachedData) return cachedData
-  }
-  // Make the API call if cache not available or expired
-  
-  const response = await fetch(`${url}?${new URLSearchParams(params)}`)
-  const data = await response.json()
-  console.log(`⚡ live call to ${url}`, data)
-  if (data) await saveToCache(url, params, data)
-  return data
-}
 
 
 
