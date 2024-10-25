@@ -46,6 +46,8 @@ async function initUbid() {
 
     // Fetch NFT Transfers and Render Them Using View Functions
 
+    initModal()
+
     // Define allowed parameters
     const allowedParms = 'network query tokenId serialNumber sender receiver transferAfter transferBefore from size sortOn sortBy'.split(' ') //https://app.dragonglass.me/hedera/apiview
     // transferAfter 2017-01-01T01:01:00.00Z
@@ -280,25 +282,77 @@ function renderItemCard(cardBody, data) {
   let sender = last_tx.sender
   if (sender == '0.0.0') sender = 'mint'
   
-  cardBody.innerHTML = `
-    <span class="card-text">
-      <a href='${urlExploreNFT}' target='_blank'>
-        <img src='${urlImage}' height='100px'>
-      </a>
-    </span>
-    <p class="card-text">🖼️ ${last_tx.tokenId}#${last_tx.serialNumber}</p>
-    <p class="card-text">🔨 <a href='${bidUrl}' target='_blank'>Bid ${bid_amount} ${unit}</a></p>
-    <span>
+      
+      cardBody.innerHTML = `
+      <span class="card-text">
+        <a href='${urlExploreNFT}' target='_blank'>
+          <img src='${urlImage}' height='100px'>
+        </a>
+      </span>
+      <p class="card-text">🖼️ ${last_tx.tokenId}#${last_tx.serialNumber}</p>
+      <p class="card-text">🔨 <a href='${bidUrl}' target='_blank'>Bid ${bid_amount} ${unit}</a></p>
+      <button class="show-more-button">Show more</button>
+    `
 
-        <p class="card-text">Last transfer:</p>
-        <p class="card-text">#️⃣ <a href='${urlExploreTx}' target='_blank'>${last_tx.txids.hyphen}</a></p>
-        <p class="card-text">🕘 ${last_tx.consensusTime}</p>
-        <p class="card-text">📝 ${memo}</p>
-        <p class="card-text">💳 ${sender} → ${last_tx.receiver}</p>
-        <p class="card-text">🪙 ${price} ${unit}</p>
-    </span>
-  `;
+    // Attach event listener to the "Show more" button
+    const showMoreButton = cardBody.querySelector('.show-more-button')
+
+    showMoreButton.lastTransferInfo = {
+      txid: last_tx.txids.hyphen,
+      consensusTime: last_tx.consensusTime,
+      memo: memo,
+      sender: sender,
+      receiver: last_tx.receiver,
+      price: price,
+      unit: unit,
+      urlExploreTx: urlExploreTx
+    };
+
+    showMoreButton.addEventListener('click', function() {
+      const info = this.lastTransferInfo;
+
+      // Update modal content
+      const modalBody = document.getElementById('modal-body');
+      modalBody.innerHTML = `
+        <p class="modal-text">Last transfer:</p>
+        <p class="modal-text">#️⃣ <a href='${info.urlExploreTx}' target='_blank'>${info.txid}</a></p>
+        <p class="modal-text">🕘 ${info.consensusTime}</p>
+        <p class="modal-text">📝 ${info.memo}</p>
+        <p class="modal-text">💳 ${info.sender} → ${info.receiver}</p>
+        <p class="modal-text">🪙 ${info.price} ${info.unit}</p>
+      `;
+
+      // Show the modal
+      const modal = document.getElementById('modal');
+      modal.style.display = 'block';
+    });
+
+
+  
 }
+
+function initModal() {
+  // Close modal when 'X' button is clicked
+  const closeButton = document.querySelector('.close-button');
+  const modal = document.getElementById('modal');
+
+  if (!closeButton || !modal) {
+    console.error('Modal elements not found');
+    return;
+  }
+
+  closeButton.addEventListener('click', function() {
+    modal.style.display = 'none';
+  });
+
+  // Close modal when clicking outside of the modal content
+  window.addEventListener('click', function(event) {
+    if (event.target == modal) {
+      modal.style.display = 'none';
+    }
+  });
+}
+
 
 function renderErrorCard(cardBody) {
   cardBody.innerHTML = `<p>⚠️ Error loading data ref KR94852</p>`
