@@ -108,24 +108,30 @@ async function processTx(nftXfer) {
   try {
       // some issues tbc
     const expirySeconds = 0
-    const tokenInfoGoMint = await getTokenInfoFromGoMint(network, `${nftXfer.tokenId}-${nftXfer.serialNumber}`, expirySeconds)
+    // const tokenInfoGoMint = await getTokenInfoFromGoMint(network, `${nftXfer.tokenId}-${nftXfer.serialNumber}`, expirySeconds)
     // console.log(`getTokenInfo ${network} ${nftXfer.tokenId}-${nftXfer.serialNumber}`, tokenInfo);
-    const urlImage = tokenInfoGoMint.token_asset_image_URL ?? 'https://tse4.mm.bing.net/th?id=OIP.CIKnUJBqUdu87khXGAyLVgHaHa&pid=Api'
+    // const urlImage = tokenInfoGoMint.token_asset_image_URL ?? 'https://tse4.mm.bing.net/th?id=OIP.CIKnUJBqUdu87khXGAyLVgHaHa&pid=Api'
     // const urlImage = tokenInfoGoMint.token_thumbnail_cache ?? tokenInfoGoMint.token_asset_image_URL ?? 'https://tse4.mm.bing.net/th?id=OIP.CIKnUJBqUdu87khXGAyLVgHaHa&pid=Api'
     
 
-    /* on hold
     const token_class = await getHederaMirrorData(network, `tokens/${nftXfer.tokenId}`)
     const token_instance = await getHederaMirrorData(network, `tokens/${nftXfer.tokenId}/nfts/${nftXfer.serialNumber}`)
     const metadata = atob(token_instance.metadata)
+    
+    let dataIPFS = await IPFS_cache.processMetadataFromIPFS(metadata)
+    
+    const urlImage = dataIPFS?.imgSrc ??'https://tse3.mm.bing.net/th?id=OIP.51wVQMynr7Zxo56CVLbwpQHaHa&pid=Api'
+    
+    // imgElement.src = dataIPFS.imgSrc
+    
+    
     // const currentOwner = token_instance.account_id // this shoudl match receiver of last tx
-    const urlMetadata = convertToPinataUrl(metadata)
-    const metadataExpanded = await getData(urlMetadata, {},'infinite')
-    const urlImage = metadataExpanded.image
-    const tokenInfo = {token_class, token_instance, metadata, urlMetadata, metadataExpanded}
-    console.log("🔵ℹ️ tokenInfo=", {urlImage, tokenInfo, tokenInfoGoMint})
+    // const urlMetadata = convertToPinataUrl(metadata)
+    // const metadataExpanded = await getData(urlMetadata, {},'infinite')
+    // const urlImage = metadataExpanded.image
+    // const tokenInfo = {token_class, token_instance, metadata, urlMetadata, metadataExpanded}
+    // console.log("🔵ℹ️ tokenInfo=", {urlImage, tokenInfo, tokenInfoGoMint})
     //"ipfs://bafybeihgsfwlhdfwnqztmgyjimjfpbfbya63kza46f42xsxtxa7sc7ct5m/3308.json"
-    */  
     
     const txids = convertTxId(nftXfer.transactionId);
     if (!txids) {
@@ -346,7 +352,7 @@ function showModal(info) {
     </p>
     <p class="card-text">🔨 <a href='${info.bidUrl}' target='_blank'>Bid ${info.bid_amount} ${info.unit}</a></p>
     <p class="modal-text">Last transfer:</p>
-    <p class="modal-text">#️⃣ <a href='${info.urlExploreTx}' target='_blank'>${info.txid}</a></p>
+    <p class="modal-text">🆔 <a href='${info.urlExploreTx}' target='_blank'>${info.txid}</a></p>
     <p class="modal-text">🕘 ${info.consensusTime}</p>
     <p class="modal-text">📝 ${info.memo}</p>
     <p class="modal-text">💳 ${info.sender} → ${info.receiver}</p>

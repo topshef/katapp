@@ -28,7 +28,6 @@
   height: 100vh; /* Optional: Set a height for vertical centering */
 }
 
-
 /* Basic card styling */
 .ubid-card {
   border: 0px solid blue;
@@ -102,6 +101,8 @@
     <!-- <script src="https://unpkg.com/localbase/dist/localbase.min.js"></script> -->
     <script src="localbase.min.js"></script> <!-- beware spelling of Localbase -->
     <script src="localCacheDB.js"></script>
+    <script src="localCacheIFPS.js"></script> 
+
 
 <script>
 
