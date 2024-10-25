@@ -281,17 +281,21 @@ function renderItemCard(cardBody, data) {
   if (sender == '0.0.0') sender = 'mint'
   
   cardBody.innerHTML = `
-    <p class="card-text">#️⃣ <a href='${urlExploreTx}' target='_blank'>${last_tx.txids.hyphen}</a></p>
-    <p class="card-text">🕘 ${last_tx.consensusTime}</p>
-    <p class="card-text">📝 ${memo}</p>
-    <p class="card-text">💳 ${sender} → ${last_tx.receiver}</p>
-    <p class="card-text">🖼️ ${last_tx.tokenId}#${last_tx.serialNumber}</p>
-    <p class="card-text">🪙 ${price} ${unit}</p>
-    <p class="card-text">🔨 <a href='${bidUrl}' target='_blank'>Bid ${bid_amount} ${unit}</a></p>
     <span class="card-text">
       <a href='${urlExploreNFT}' target='_blank'>
         <img src='${urlImage}' height='100px'>
       </a>
+    </span>
+    <p class="card-text">🖼️ ${last_tx.tokenId}#${last_tx.serialNumber}</p>
+    <p class="card-text">🔨 <a href='${bidUrl}' target='_blank'>Bid ${bid_amount} ${unit}</a></p>
+    <span>
+
+        <p class="card-text">Last transfer:</p>
+        <p class="card-text">#️⃣ <a href='${urlExploreTx}' target='_blank'>${last_tx.txids.hyphen}</a></p>
+        <p class="card-text">🕘 ${last_tx.consensusTime}</p>
+        <p class="card-text">📝 ${memo}</p>
+        <p class="card-text">💳 ${sender} → ${last_tx.receiver}</p>
+        <p class="card-text">🪙 ${price} ${unit}</p>
     </span>
   `;
 }
