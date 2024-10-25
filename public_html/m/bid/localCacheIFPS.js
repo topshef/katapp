@@ -1,17 +1,14 @@
-
-//cache IPFS data in indexedDB using localbase
-
 // Encapsulate in window.IPFS_cache
 window.IPFS_cache = (() => {
     // Initialize LocalBase
-    let dbIPFS = new Localbase('IPFS_cache')
+    let dbIPFS = new Localbase('IPFS_cache');
 
     // IPFS Gateway URLs to try
     const gateways = [
         'https://ipfs.io/ipfs/',
         'https://dweb.link/ipfs/',
         'https://gateway.pinata.cloud/ipfs/'
-    ]
+    ];
 
     // Fetch data from IPFS using multiple gateways
     async function fetchFromIPFS(cid, responseType = 'text') {
@@ -31,25 +28,6 @@ window.IPFS_cache = (() => {
         throw new Error('All IPFS gateways failed');
     }
 
-
-    // Cache handling function
-    async function cacheData(key, data) {
-        await dbIPFS.collection('cache').add({ key, data, timestamp: Date.now() })
-    }
-
-    // Get data from IPFS, with caching
-    async function getDataIPFS(key, responseType = 'text') {
-        let cached = await dbIPFS.collection('cache').doc({ key }).get()
-        if (cached && (Date.now() - cached.timestamp < 24 * 60 * 60 * 1000)) {
-            console.log(`Using cached data for ${key}`)
-            return cached.data
-        } else {
-            let data = await fetchFromIPFS(key, responseType)
-            await cacheData(key, data)
-            return data
-        }
-    }
-
     // Convert a Blob to a Base64 string
     function blobToBase64(blob) {
         return new Promise((resolve, reject) => {
@@ -64,29 +42,91 @@ window.IPFS_cache = (() => {
         });
     }
 
+    // Convert a Base64 string back to a Blob
+    function base64ToBlob(base64Data, contentType = 'application/octet-stream') {
+        const byteCharacters = atob(base64Data);
+        const byteArrays = [];
+        const sliceSize = 1024;
+
+        for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+            const slice = byteCharacters.slice(offset, offset + sliceSize);
+
+            const byteNumbers = new Array(slice.length);
+            for (let i = 0; i < slice.length; i++) {
+                byteNumbers[i] = slice.charCodeAt(i);
+            }
+
+            const byteArray = new Uint8Array(byteNumbers);
+            byteArrays.push(byteArray);
+        }
+
+        return new Blob(byteArrays, { type: contentType });
+    }
+
+    // Cache handling function
+    async function cacheData(key, data, responseType = 'text') {
+        let storedData;
+        if (responseType === 'blob') {
+            // Convert Blob to Base64 string for storage
+            storedData = await blobToBase64(data);
+            await dbIPFS.collection('cache').doc({ key }).set({
+                key,
+                data: storedData,
+                isBlob: true,
+                timestamp: Date.now(),
+            });
+        } else {
+            storedData = data;
+            await dbIPFS.collection('cache').doc({ key }).set({
+                key,
+                data: storedData,
+                isBlob: false,
+                timestamp: Date.now(),
+            });
+        }
+    }
+
+    // Get data from IPFS, with caching
+    async function getDataIPFS(key, responseType = 'text') {
+        let cached = await dbIPFS.collection('cache').doc({ key }).get();
+        if (cached && cached.data) {
+            console.log(`Using cached data for ${key}`);
+            if (responseType === 'blob' && cached.isBlob) {
+                // Convert Base64 string back to Blob
+                let blob = base64ToBlob(cached.data, 'image/jpeg'); // Adjust MIME type if necessary
+                return blob;
+            } else {
+                return cached.data;
+            }
+        } else {
+            let data = await fetchFromIPFS(key, responseType);
+            await cacheData(key, data, responseType);
+            return data;
+        }
+    }
 
     // Generate a thumbnail using <canvas>
     function createThumbnail(imgSrc, maxWidth = 200) {
         return new Promise((resolve) => {
-            let img = new Image()
-            img.crossOrigin = 'Anonymous' // Allow cross-origin image loading
+            let img = new Image();
+            img.crossOrigin = 'Anonymous'; // Allow cross-origin image loading
             img.onload = () => {
-                let canvas = document.createElement('canvas')
-                let scale = maxWidth / img.width
-                canvas.width = maxWidth
-                canvas.height = img.height * scale
-                let ctx = canvas.getContext('2d')
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-                resolve(canvas.toDataURL()) // Return the data URL for the thumbnail
-            }
-            img.src = imgSrc
-        })
+                let canvas = document.createElement('canvas');
+                let scale = maxWidth / img.width;
+                canvas.width = maxWidth;
+                canvas.height = img.height * scale;
+                let ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL()); // Return the data URL for the thumbnail
+            };
+            img.src = imgSrc;
+        });
     }
 
     // Process metadata from IPFS and return image data
     async function processMetadataFromIPFS(ipfsAddress) {
         try {
-            let metadata = await getDataIPFS(ipfsAddress);
+            let metadata = await getDataIPFS(ipfsAddress); // Fetch metadata as text
             let jsonData = JSON.parse(metadata);
 
             // Extract the image URL (CID) from the JSON data
@@ -96,7 +136,7 @@ window.IPFS_cache = (() => {
                 return null;
             }
 
-            // Check if the image is cached or needs to be fetched
+            // Fetch the image as a Blob
             let imageKey = `ipfs://${imageCid.replace(/^ipfs:\/\//, '')}`;
             let imageBlob = await getDataIPFS(imageKey, 'blob');
 
@@ -108,7 +148,7 @@ window.IPFS_cache = (() => {
 
             // Convert the Blob to a Base64 string
             let base64Image = await blobToBase64(imageBlob);
-            let imgSrc = `data:image/jpeg;base64,${base64Image}`; // Use data:image/png;base64 if the format is PNG
+            let imgSrc = `data:image/jpeg;base64,${base64Image}`; // Adjust MIME type if necessary
 
             // Generate a thumbnail
             let thumbnail = await createThumbnail(imgSrc);
@@ -124,6 +164,6 @@ window.IPFS_cache = (() => {
         fetchFromIPFS,
         getDataIPFS,
         processMetadataFromIPFS,
-        createThumbnail
-    }
-})()
+        createThumbnail,
+    };
+})();
