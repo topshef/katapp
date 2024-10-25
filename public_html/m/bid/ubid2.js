@@ -46,7 +46,6 @@ async function initUbid() {
 
     // Fetch NFT Transfers and Render Them Using View Functions
 
-
     // Define allowed parameters
     const allowedParms = 'network query tokenId serialNumber sender receiver transferAfter transferBefore from size sortOn sortBy'.split(' ') //https://app.dragonglass.me/hedera/apiview
     // transferAfter 2017-01-01T01:01:00.00Z
@@ -72,25 +71,27 @@ async function initUbid() {
 
 
   try {
-    const data = await getData('./api/nft/transfers', params, 30)
-    console.log('🔵ℹ️ ./api/nft/transfers', { params, data })
+    const result = await getData('./api/nft/transfers', params, 30)
+    console.log('🔵ℹ️ ./api/nft/transfers', { params, result })
 
+    const nftXfers = result.data  // nft transfers only
+    
     const container = document.createElement('div')
     container.className = 'container mt-4'
     document.body.appendChild(container)
 
-    // Process each item and render as it loads
-    data.data.forEach((item) => {
+    // Process each tx and render as it loads
+    nftXfers.forEach((nftXfer) => {
       const cardBody = renderLoadingCard(container) // Render loading state
 
-      processItem(item)
+      processTx(nftXfer)
         .then(processedItem => {
           processedItem 
             ? renderItemCard(cardBody, processedItem) 
             : renderErrorCard(cardBody)
         })
         .catch(error => {
-          console.error('Error processing item', error)
+          console.error('Error processing nftXfer', error)
           renderErrorCard(cardBody)
         })
     })
@@ -100,17 +101,20 @@ async function initUbid() {
 }
 
 
-// Process each item to prepare data for rendering
-async function processItem(item) {
+// Process each tx to prepare data for rendering
+async function processTx(nftXfer) {
   try {
       // some issues tbc
-    const tokenInfoGoMint = await getTokenInfoFromGoMint(network, `${item.tokenId}-${item.serialNumber}`);
-    // console.log(`getTokenInfo ${network} ${item.tokenId}-${item.serialNumber}`, tokenInfo);
+    const expirySeconds = 0
+    const tokenInfoGoMint = await getTokenInfoFromGoMint(network, `${nftXfer.tokenId}-${nftXfer.serialNumber}`, expirySeconds)
+    // console.log(`getTokenInfo ${network} ${nftXfer.tokenId}-${nftXfer.serialNumber}`, tokenInfo);
     const urlImage = tokenInfoGoMint.token_asset_image_URL
+    // const urlImage = tokenInfoGoMint.token_thumbnail_cache ?? tokenInfoGoMint.token_asset_image_URL ?? 'https://tse4.mm.bing.net/th?id=OIP.CIKnUJBqUdu87khXGAyLVgHaHa&pid=Api'
+    
 
     /* on hold
-    const token_class = await getHederaMirrorData(network, `tokens/${item.tokenId}`)
-    const token_instance = await getHederaMirrorData(network, `tokens/${item.tokenId}/nfts/${item.serialNumber}`)
+    const token_class = await getHederaMirrorData(network, `tokens/${nftXfer.tokenId}`)
+    const token_instance = await getHederaMirrorData(network, `tokens/${nftXfer.tokenId}/nfts/${nftXfer.serialNumber}`)
     const metadata = atob(token_instance.metadata)
     // const currentOwner = token_instance.account_id // this shoudl match receiver of last tx
     const urlMetadata = convertToPinataUrl(metadata)
@@ -121,12 +125,12 @@ async function processItem(item) {
     //"ipfs://bafybeihgsfwlhdfwnqztmgyjimjfpbfbya63kza46f42xsxtxa7sc7ct5m/3308.json"
     */  
     
-    const txids = convertTxId(item.transactionId);
+    const txids = convertTxId(nftXfer.transactionId);
     if (!txids) {
-      console.log(`Skipping ${item.transactionId} as failed to convert`);
+      console.log(`Skipping ${nftXfer.transactionId} as failed to convert`);
       return null;
     }
-    console.log(`Converting txid ${item.transactionId}`, txids);
+    console.log(`Converting txid ${nftXfer.transactionId}`, txids);
 
     const txns = await getHederaMirrorData(network, `transactions/${txids.hyphen}`)
     if (!txns) return null;
@@ -141,7 +145,7 @@ async function processItem(item) {
 
     const memo = atob(tx.memo_base64);
 
-    const urlExploreNFT = `https://hashscan.io/${network}/token/${item.tokenId}/${item.serialNumber}`;
+    const urlExploreNFT = `https://hashscan.io/${network}/token/${nftXfer.tokenId}/${nftXfer.serialNumber}`;
     const urlExploreTx = `https://hashscan.io/${network}/transaction/${tx.consensus_timestamp}`;
 
     const delaySeconds = '90 secs';
@@ -149,17 +153,17 @@ async function processItem(item) {
     const dealId = (network == 'mainnet')
     ? '5f07af91960ac463e652c5ff0521b66d8017aff3c237718ce570d14d2b65028a'
     : '087e095b465c65d91c58cd224b71d94dad8ea260d06f74597fd5433b9be7e812'
-    const seller = item.receiver; // The previous receiver
+    const seller = nftXfer.receiver; // The previous receiver
     const bid_amount = (price * 1.05).toFixed(4); // Example: 5% more
 
     const shopDomain = network === 'testnet' ? 'dev4.shop.gomint.me' : 'shop.gomint.me';
-    const bidUrl = `https://${shopDomain}/m/?dealonly=&dealId=${dealId}&v=labs&detail=&serial=${item.serialNumber}&seller=${seller}&bid_amount=${bid_amount}&tokenId=${item.tokenId}&starttime=${delaySeconds}`;
+    const bidUrl = `https://${shopDomain}/m/?dealonly=&dealId=${dealId}&v=labs&detail=&serial=${nftXfer.serialNumber}&seller=${seller}&bid_amount=${bid_amount}&tokenId=${nftXfer.tokenId}&starttime=${delaySeconds}`;
 
     console.log(`bidUrl=${bidUrl}`);
 
     return {
-      tx,
-      item,
+      last_tx: {...nftXfer, txids},
+      // tx,
       urlImage,
       // tokenInfo,
       price,
@@ -172,7 +176,7 @@ async function processItem(item) {
       network,
     };
   } catch (error) {
-    console.error('⚠️ Error processing item:', error);
+    console.error('⚠️ Error processing nftXfer:', error);
     return null;
   }
 }
@@ -190,7 +194,9 @@ async function getTokenInfoFromGoMint(network, tokenId, expirySeconds = 'infinit
   try {
     //todo reroute or fix this endpoint
     const url = 'https://tools.gomint.me/explore/NFT/'
-    const params = { json: '', network, tokenId, refresh: '' }
+    // const url = 'https://gmws3.gomint.me/explore/NFT/'
+    // const params = { json: '', network, tokenId, refresh: 1, thumbnail: 1 }
+    const params = { json: '', network, tokenId}
 
     // expirySeconds = 0
     const tokenInfo = await getData(url, params, expirySeconds)
@@ -247,22 +253,20 @@ function clearContainer(container) {
 }
 
 function renderLoadingCard(container) {
-  const card = document.createElement('div');
-  card.className = 'card mb-3';
-  const cardBody = document.createElement('div');
-  cardBody.className = 'card-body';
-  cardBody.innerHTML = `<p>Loading...</p>`;
-  card.appendChild(cardBody);
-  container.appendChild(card);
-  return cardBody;
+    const card = document.createElement('div')
+    card.className = 'card mb-3'
+    const cardBody = document.createElement('div')
+    cardBody.className = 'card-body'
+    cardBody.innerHTML = `<p>Loading...</p>`
+    card.appendChild(cardBody)
+    container.appendChild(card)
+    return cardBody
 }
 
 function renderItemCard(cardBody, data) {
   const {
-    tx,
-    item,
+    last_tx,
     urlImage,
-    // tokenInfo,
     price,
     unit,
     bidUrl,
@@ -271,17 +275,17 @@ function renderItemCard(cardBody, data) {
     memo,
     bid_amount,
     network,
-  } = data;
+  } = data
 
-  let sender = item.sender
+  let sender = last_tx.sender
   if (sender == '0.0.0') sender = 'mint'
   
   cardBody.innerHTML = `
-    <p class="card-text">#️⃣ <a href='${urlExploreTx}' target='_blank'>${tx.transaction_id}</a></p>
-    <p class="card-text">🕘 ${item.consensusTime}</p>
+    <p class="card-text">#️⃣ <a href='${urlExploreTx}' target='_blank'>${last_tx.txids.hyphen}</a></p>
+    <p class="card-text">🕘 ${last_tx.consensusTime}</p>
     <p class="card-text">📝 ${memo}</p>
-    <p class="card-text">💳 ${sender} → ${item.receiver}</p>
-    <p class="card-text">🖼️ ${item.tokenId}#${item.serialNumber}</p>
+    <p class="card-text">💳 ${sender} → ${last_tx.receiver}</p>
+    <p class="card-text">🖼️ ${last_tx.tokenId}#${last_tx.serialNumber}</p>
     <p class="card-text">🪙 ${price} ${unit}</p>
     <p class="card-text">🔨 <a href='${bidUrl}' target='_blank'>Bid ${bid_amount} ${unit}</a></p>
     <span class="card-text">
@@ -293,7 +297,7 @@ function renderItemCard(cardBody, data) {
 }
 
 function renderErrorCard(cardBody) {
-  cardBody.innerHTML = `<p>⚠️ Error loading item data.</p>`
+  cardBody.innerHTML = `<p>⚠️ Error loading data ref KR94852</p>`
 }
 
 
@@ -308,24 +312,19 @@ function renderErrorCard(cardBody) {
 // helpers
 
 
+/* fuckem all 
+pinata especially "abusive behaviour detected"
+rotate requests 
+https://ipfs.io/ipfs/
+https://gateway.pinata.cloud/ipfs/
+https://dweb.link/ipfs/
 
-
-function convertToPinataUrl(input) {
   let cidRegex = /bafy[0-9a-zA-Z]{46,}/
   let match = input.match(cidRegex)
-  
   if (match) {
     let cid = match[0]
-    if (input.endsWith('.json')) 
-      return `https://gateway.pinata.cloud/ipfs/${cid}/${input.split('/').pop().replace('.json', '.png')}`
 
-    return `https://gateway.pinata.cloud/ipfs/${cid}`
-  }
-  
-  return null // Return null if no CID found
-}
-
-
+*/
 
 // swap First Match
 function swapFirstMatch(str, swaps) {
