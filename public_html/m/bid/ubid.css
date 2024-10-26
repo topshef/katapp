@@ -24,6 +24,7 @@
   gap: 5px; /* Space between cards */
   justify-content: center; /* Center horizontally */
   align-items: center; /* Center vertically */
+  align-content: center; 
   height: 100vh; /* Optional: Set a height for vertical centering */
 }
 
