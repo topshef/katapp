@@ -28,6 +28,8 @@
         <h4>UBID</h4>
         <!-- Placeholder for future elements like login, filters, etc. -->
 
+        <!-- todo add in search filters etc. to update url. see also modal -->
+
         <!-- wallet stuff copied from OG 
         may replace with walletconnect but for tire kicking this will be ok
         plus hashpack is the leader anyway

@@ -388,6 +388,12 @@ function showModal(info) {
   document.getElementById('create-tx').innerHTML = `Bid for ${info.bid_amount} ${info.unit}`
   document.getElementById('widget-container').appendChild(bidWidget) 
   
+  // todo update url parms so that hashconnect bundle.js can process tx
+  // also makes the modal bookmarkable
+  // todo draw the high level flow and decide on ideal level for certain actions
+  // eg price discovery/ suggestions/ see also etc
+  
+  
   document.getElementById('modal').style.display = 'block'
 }
 
