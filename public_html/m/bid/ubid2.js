@@ -363,7 +363,8 @@ at this point though we may want to further refactor
 // Function to update and show modal
 function showModal(info) {
   const modalBody = document.getElementById('modal-body')
-  const createTxButton = document.getElementById('create-tx')  // access the pre-injected hidden button
+  const bidWidget = document.getElementById('bid-widget')
+  
 
   modalBody.innerHTML = `
     <a href='${info.urlExploreNFT}' target='_blank'><img src='${info.urlImage}' height='100px'></a>
@@ -371,7 +372,7 @@ function showModal(info) {
     <p class="card-text">
         <a href='${info.urlExploreNFT}' target='_blank'>🖼️ ${info.tokenId}#${info.serialNumber}</a>
     </p>
-    <span id="bid-button-container"></span> <!-- bid button will be move here -->
+    <span id="widget-container"></span> <!-- Widget will be moved here -->
 
     <p class="card-text">🔨 <a href='${info.bidUrl}' target='_blank'>Bid ${info.bid_amount} ${info.unit}</a> (OG wireframe - dev only)</p>
     
@@ -384,14 +385,8 @@ function showModal(info) {
     <p class="modal-text">🪙 ${info.price} ${info.unit}</p>
   `
   
-  // Move and update the bid button content
-  createTxButton.innerHTML = `&nbsp;Bid for ${info.bid_amount} ${info.unit}&nbsp;`
-  
-  document.getElementById('bid-button-container').appendChild(createTxButton)  
-  
-  // modalBody.appendChild(createTxButton)  // Move the button into the modal
-  // createTxButton.style.display = 'inline-block'  // Show the button
-  
+  document.getElementById('create-tx').innerHTML = `Bid for ${info.bid_amount} ${info.unit}`
+  document.getElementById('widget-container').appendChild(bidWidget) 
   
   document.getElementById('modal').style.display = 'block'
 }
@@ -400,8 +395,7 @@ function showModal(info) {
 function initModal() {
   // Close modal when 'X' button is clicked
   const closeButton = document.querySelector('.close-button');
-  const modal = document.getElementById('modal');
-  const createTxButton = document.getElementById('create-tx')  // Pre-injected button
+  const modal = document.getElementById('modal')
 
   if (!closeButton || !modal) {
     console.error('Modal elements not found');
@@ -410,14 +404,12 @@ function initModal() {
 
   closeButton.addEventListener('click', function() {
     closeModal()  // Use closeModal function to handle button reset
-    //modal.style.display = 'none';
-  });
+  })
 
   // Close modal when clicking outside of the modal content
   window.addEventListener('click', function(event) {
     if (event.target == modal) {
       closeModal()
-      //modal.style.display = 'none';
     }
   });
 }
@@ -425,12 +417,14 @@ function initModal() {
 // Function to close modal and reset button
 function closeModal() {
   const modal = document.getElementById('modal')
-  const createTxButton = document.getElementById('create-tx')
+  const bidWidget = document.getElementById('bid-widget')
 
   modal.style.display = 'none'
-  // createTxButton.style.display = 'none'  // Hide button again
-  document.getElementById('bid-button-parked').appendChild(createTxButton)  // Move button back to the hidden span
+  // Move button back to the hidden parking space
+  // (this keeps the bundle.js listener active)    
+  document.getElementById('bid-widget-parked').appendChild(bidWidget) 
 }
+
 
 
 function renderErrorCard(cardBody) {
