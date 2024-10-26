@@ -38,6 +38,7 @@
 // we could anyway refactor to have background processes async spider scrape from the users starting query
 
 
+const displayedImages = []  // maintain array to avoid duplicates
 
 async function initUbid() {
 
@@ -47,6 +48,7 @@ async function initUbid() {
     // Fetch NFT Transfers and Render Them Using View Functions
 
     initModal()
+    
 
     // Define allowed parameters
     const allowedParms = 'network query tokenId serialNumber sender receiver transferAfter transferBefore from size sortOn sortBy'.split(' ') //https://app.dragonglass.me/hedera/apiview
@@ -84,13 +86,13 @@ async function initUbid() {
 
     // Process each tx and render as it loads
     nftXfers.forEach((nftXfer) => {
-      const cardBody = renderLoadingCard(container) // Render loading state
+      // const cardBody = renderLoadingCard(container) // Render loading state
 
       processTx(nftXfer)
         .then(processedItem => {
           processedItem 
-            ? renderItemCard(cardBody, processedItem) 
-            : renderErrorCard(cardBody)
+            ? renderItemCard(container, processedItem) 
+            : console.warn(`Failed to process ${nftXfer.tokenId}-${nftXfer.serialNumber}`)
         })
         .catch(error => {
           console.error('Error processing nftXfer', error)
@@ -108,8 +110,9 @@ async function processTx(nftXfer) {
   try {
       // some issues tbc
     const expirySeconds = 0
-    // const tokenInfoGoMint = await getTokenInfoFromGoMint(network, `${nftXfer.tokenId}-${nftXfer.serialNumber}`, expirySeconds)
-    // console.log(`getTokenInfo ${network} ${nftXfer.tokenId}-${nftXfer.serialNumber}`, tokenInfo);
+    const tokenSerial = `${nftXfer.tokenId}-${nftXfer.serialNumber}`
+    // const tokenInfoGoMint = await getTokenInfoFromGoMint(network, tokenSerial, expirySeconds)
+    // console.log(`getTokenInfo ${network} ${tokenSerial}`, tokenInfo);
     // const urlImage = tokenInfoGoMint.token_asset_image_URL ?? 'https://tse4.mm.bing.net/th?id=OIP.CIKnUJBqUdu87khXGAyLVgHaHa&pid=Api'
     // const urlImage = tokenInfoGoMint.token_thumbnail_cache ?? tokenInfoGoMint.token_asset_image_URL ?? 'https://tse4.mm.bing.net/th?id=OIP.CIKnUJBqUdu87khXGAyLVgHaHa&pid=Api'
     
@@ -119,9 +122,22 @@ async function processTx(nftXfer) {
     const metadata = atob(token_instance.metadata)
     
     let dataIPFS = await IPFS_cache.processMetadataFromIPFS(metadata)
+    console.log('dataIPFS=', dataIPFS)
     
-    const urlImage = dataIPFS?.imgSrc ??'https://tse3.mm.bing.net/th?id=OIP.51wVQMynr7Zxo56CVLbwpQHaHa&pid=Api'
+    const urlImage = dataIPFS?.imgSrc
+        || getImageUrlFromGoMint(network, tokenSerial)
+        || 'https://tse3.mm.bing.net/th?id=OIP.51wVQMynr7Zxo56CVLbwpQHaHa&pid=Api'
     
+    
+    const imageKey = dataIPFS?.ipfsAddress || urlImage
+    console.log('imageKey=', imageKey)
+    
+    const isAlreadyDisplayed = displayedImages.includes(imageKey)
+    if (isAlreadyDisplayed) return console.log(`already displayed ${tokenSerial}`) && false
+        //todo maybe push the market info to an array for pricing assistance
+        
+    displayedImages.push(imageKey)
+        
     // imgElement.src = dataIPFS.imgSrc
     
     
@@ -198,6 +214,16 @@ async function processTx(nftXfer) {
 // MVC model
 
 
+
+async function getImageUrlFromGoMint(network, tokenId, expirySeconds = 'infinite') {
+    const tokenInfoGoMint = await getTokenInfoFromGoMint(network, tokenId, expirySeconds)
+    if (!tokenInfoGoMint) return null
+    const urlImage = tokenInfoGoMint.token_asset_image_URL ?? null
+    if (urlImage) console.log(`image retrieved via gomint`)
+    
+    return urlImage
+}
+
 // get Token Info from GoMint
 async function getTokenInfoFromGoMint(network, tokenId, expirySeconds = 'infinite') {
   try {
@@ -226,7 +252,7 @@ async function getHederaMirrorData(network, endpoint, queryObject) {
       ? 'https://mainnet-public.mirrornode.hedera.com/api/v1/' 
       : 'https://testnet.mirrornode.hedera.com/api/v1/'
 
-    let expirySeconds = 30
+    let expirySeconds = 600
     if (baseUrl.startsWith('transactions/')) expirySeconds = 'infinite' // tx are final
     
     const data = await getData(`${baseUrl}${endpoint}`, queryObject, expirySeconds)
@@ -261,19 +287,8 @@ function clearContainer(container) {
   container.innerHTML = ''; // Clear all child elements
 }
 
-function renderLoadingCard(container) {
-    const card = document.createElement('div')
-    card.className = 'card mb-3'
-    const cardBody = document.createElement('div')
-    cardBody.className = 'card-body'
-    cardBody.innerHTML = `<p>Loading...</p>`
-    card.appendChild(cardBody)
-    container.appendChild(card)
-    return cardBody
-}
-
-function renderItemCard(cardBody, data) {
-  const {
+function renderItemCard(container, data) {
+    const {
     last_tx: { tokenId, serialNumber, sender, txids, consensusTime, receiver },
     urlImage,
     price,
@@ -283,11 +298,14 @@ function renderItemCard(cardBody, data) {
     urlExploreTx,
     memo,
     bid_amount,
-  } = data
+    } = data
 
-  const displaySender = sender === '0.0.0' ? 'mint' : sender
+    const displaySender = sender === '0.0.0' ? 'mint' : sender
 
-  
+    const card = document.createElement('div')
+    card.className = 'card mb-3'
+    const cardBody = document.createElement('div')
+
     // Apply the 'card' class directly to 'cardBody'
     cardBody.className = 'ubid-card'
     cardBody.innerHTML = `
@@ -298,10 +316,11 @@ function renderItemCard(cardBody, data) {
       <button class="show-more-button">Show more</button>
     `
 
-  
+    card.appendChild(cardBody)
+    container.appendChild(card) 
 
-  // Set up modal data
-  const modalInfo = {
+    // Set up modal data
+    const modalInfo = {
     network,
     tokenId,
     serialNumber,
@@ -318,10 +337,10 @@ function renderItemCard(cardBody, data) {
     price,
     unit,
     urlExploreTx
-  }
+    }
 
-  // Attach event listener to the "Show more" button
-  cardBody.querySelector('.show-more-button').addEventListener('click', () => showModal(modalInfo))
+    // Attach event listener to the "Show more" button
+    cardBody.querySelector('.show-more-button').addEventListener('click', () => showModal(modalInfo))
 }
 
 /*

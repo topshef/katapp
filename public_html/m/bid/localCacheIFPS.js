@@ -5,10 +5,17 @@ window.IPFS_cache = (() => {
 
     // IPFS Gateway URLs to try
     const gateways = [
-        'https://ipfs.io/ipfs/',
-        'https://dweb.link/ipfs/',
-        'https://gateway.pinata.cloud/ipfs/'
+        // 'https://ipfs.io/ipfs/',
+        // 'https://dweb.link/ipfs/',
+        'https://gateway.pinata.cloud/ipfs/',
+        'https://ipfs.infura.io/ipfs/',
+        'https://ipfs.fleek.co/ipfs/',
+        'https://cloudflare-ipfs.com/ipfs/',
+        'https://ipfs.eternum.io/ipfs/',
+        // 'https://ipfs.drink.cafe/ipfs/',
+        'https://gateway.serph.network/ipfs/'
     ];
+
 
     // Fetch data from IPFS using multiple gateways
     async function fetchFromIPFS(cid, responseType = 'text') {
@@ -69,26 +76,19 @@ window.IPFS_cache = (() => {
         if (responseType === 'blob') {
             // Convert Blob to Base64 string for storage
             storedData = await blobToBase64(data);
-            await dbIPFS.collection('cache').doc({ key }).set({
-                key,
-                data: storedData,
-                isBlob: true,
-                timestamp: Date.now(),
-            });
         } else {
             storedData = data;
-            await dbIPFS.collection('cache').doc({ key }).set({
-                key,
-                data: storedData,
-                isBlob: false,
-                timestamp: Date.now(),
-            });
         }
+        await dbIPFS.collection('cache').doc(key).set({
+            data: storedData,
+            isBlob: responseType === 'blob',
+            timestamp: Date.now(),
+        });
     }
 
     // Get data from IPFS, with caching
     async function getDataIPFS(key, responseType = 'text') {
-        let cached = await dbIPFS.collection('cache').doc({ key }).get();
+        let cached = await dbIPFS.collection('cache').doc(key).get();
         if (cached && cached.data) {
             console.log(`Using cached data for ${key}`);
             if (responseType === 'blob' && cached.isBlob) {
@@ -126,7 +126,9 @@ window.IPFS_cache = (() => {
     // Process metadata from IPFS and return image data
     async function processMetadataFromIPFS(ipfsAddress) {
         try {
-            let metadata = await getDataIPFS(ipfsAddress); // Fetch metadata as text
+            // Remove 'ipfs://' prefix if present
+            let cid = ipfsAddress.replace(/^ipfs:\/\//, '');
+            let metadata = await getDataIPFS(cid); // Fetch metadata as text
             let jsonData = JSON.parse(metadata);
 
             // Extract the image URL (CID) from the JSON data
@@ -136,9 +138,11 @@ window.IPFS_cache = (() => {
                 return null;
             }
 
+            // Remove 'ipfs://' prefix if present
+            imageCid = imageCid.replace(/^ipfs:\/\//, '');
+
             // Fetch the image as a Blob
-            let imageKey = `ipfs://${imageCid.replace(/^ipfs:\/\//, '')}`;
-            let imageBlob = await getDataIPFS(imageKey, 'blob');
+            let imageBlob = await getDataIPFS(imageCid, 'blob');
 
             // Ensure that the fetched data is a Blob before proceeding
             if (!(imageBlob instanceof Blob)) {
@@ -152,7 +156,7 @@ window.IPFS_cache = (() => {
 
             // Generate a thumbnail
             let thumbnail = await createThumbnail(imgSrc);
-            return { imgSrc, thumbnail };
+            return { ipfsAddress, imgSrc, thumbnail }
         } catch (error) {
             console.error('Error processing metadata from IPFS:', error);
             return null;
