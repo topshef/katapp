@@ -102,6 +102,11 @@ async function initUbid() {
   } catch (error) {
     console.error('Error fetching NFT transfers:', error)
   }
+  
+  // todo also load up offline tx kpos.uk/pool 
+  // but this needs a separate modal view so todo refactor overall flow first
+  
+  
 }
 
 
