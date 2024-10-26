@@ -363,19 +363,15 @@ at this point though we may want to further refactor
 // Function to update and show modal
 function showModal(info) {
   const modalBody = document.getElementById('modal-body')
+  const createTxButton = document.getElementById('create-tx')  // access the pre-injected hidden button
+
   modalBody.innerHTML = `
     <a href='${info.urlExploreNFT}' target='_blank'><img src='${info.urlImage}' height='100px'></a>
     
     <p class="card-text">
         <a href='${info.urlExploreNFT}' target='_blank'>🖼️ ${info.tokenId}#${info.serialNumber}</a>
     </p>
-
-    <!-- buy/ bid button for hashconnect
-    todo. i don't think this is connected though as the bundle.js event listener needs this to exist in advance
-    also it needs all the data in the url, so need update shareable urls when model opens
-    -->
-    <button id='create-tx' class='wallet-button'>&nbsp;Bid for ${info.bid_amount} ${info.unit}&nbsp;</button>
-
+    <span id="bid-button-container"></span> <!-- bid button will be move here -->
 
     <p class="card-text">🔨 <a href='${info.bidUrl}' target='_blank'>Bid ${info.bid_amount} ${info.unit}</a> (OG wireframe - dev only)</p>
     
@@ -387,6 +383,16 @@ function showModal(info) {
     <p class="modal-text">💳 ${info.sender} → ${info.receiver}</p>
     <p class="modal-text">🪙 ${info.price} ${info.unit}</p>
   `
+  
+  // Move and update the bid button content
+  createTxButton.innerHTML = `&nbsp;Bid for ${info.bid_amount} ${info.unit}&nbsp;`
+  
+  document.getElementById('bid-button-container').appendChild(createTxButton)  
+  
+  // modalBody.appendChild(createTxButton)  // Move the button into the modal
+  // createTxButton.style.display = 'inline-block'  // Show the button
+  
+  
   document.getElementById('modal').style.display = 'block'
 }
 
@@ -395,6 +401,7 @@ function initModal() {
   // Close modal when 'X' button is clicked
   const closeButton = document.querySelector('.close-button');
   const modal = document.getElementById('modal');
+  const createTxButton = document.getElementById('create-tx')  // Pre-injected button
 
   if (!closeButton || !modal) {
     console.error('Modal elements not found');
@@ -402,15 +409,27 @@ function initModal() {
   }
 
   closeButton.addEventListener('click', function() {
-    modal.style.display = 'none';
+    closeModal()  // Use closeModal function to handle button reset
+    //modal.style.display = 'none';
   });
 
   // Close modal when clicking outside of the modal content
   window.addEventListener('click', function(event) {
     if (event.target == modal) {
-      modal.style.display = 'none';
+      closeModal()
+      //modal.style.display = 'none';
     }
   });
+}
+
+// Function to close modal and reset button
+function closeModal() {
+  const modal = document.getElementById('modal')
+  const createTxButton = document.getElementById('create-tx')
+
+  modal.style.display = 'none'
+  // createTxButton.style.display = 'none'  // Hide button again
+  document.getElementById('bid-button-parked').appendChild(createTxButton)  // Move button back to the hidden span
 }
 
 

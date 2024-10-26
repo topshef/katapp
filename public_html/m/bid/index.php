@@ -76,7 +76,14 @@
                         </button>
                     </span>
                 </div>
-                <!-- OG button was here, now on modal -->
+                <!-- OG button was here, now on modal
+                adding hidden button here so bundle can add event listener 
+                we then move and unhide it onto each modal
+                ... no need to unhide if we define here as a hidden parkign spot
+                -->
+                <span id='bid-button-parked' style="display: none;">
+                    <button id="create-tx" class="wallet-button" ></button>
+                </span>
             </div>
 
             <div id="last_tx"></div>
