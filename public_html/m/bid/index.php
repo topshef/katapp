@@ -80,6 +80,10 @@
                 adding hidden button here so bundle can add event listener 
                 we then move and unhide it onto each modal
                 ... no need to unhide if we define here as a hidden parkign spot
+                
+                button is wired ok now. we could include the last_tx id next to the button
+                as it's showing in the header. a simple way maybe do a button widget span 
+                and move the lot to the modal in one go, instead of just the button
                 -->
                 <span id='bid-button-parked' style="display: none;">
                     <button id="create-tx" class="wallet-button" ></button>
