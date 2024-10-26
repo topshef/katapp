@@ -369,7 +369,17 @@ function showModal(info) {
     <p class="card-text">
         <a href='${info.urlExploreNFT}' target='_blank'>🖼️ ${info.tokenId}#${info.serialNumber}</a>
     </p>
-    <p class="card-text">🔨 <a href='${info.bidUrl}' target='_blank'>Bid ${info.bid_amount} ${info.unit}</a></p>
+
+    <!-- buy/ bid button for hashconnect
+    todo. i don't think this is connected though as the bundle.js event listener needs this to exist in advance
+    also it needs all the data in the url, so need update shareable urls when model opens
+    -->
+    <button id='create-tx' class='wallet-button'>&nbsp;Bid for ${info.bid_amount} ${info.unit}&nbsp;</button>
+
+
+    <p class="card-text">🔨 <a href='${info.bidUrl}' target='_blank'>Bid ${info.bid_amount} ${info.unit}</a> (OG wireframe - dev only)</p>
+    
+                
     <p class="modal-text">Last transfer:</p>
     <p class="modal-text">🆔 <a href='${info.urlExploreTx}' target='_blank'>${info.txid}</a></p>
     <p class="modal-text">🕘 ${info.consensusTime}</p>

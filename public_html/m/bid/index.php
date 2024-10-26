@@ -50,12 +50,15 @@
             </div>
 
             <span class='hide' id='pairing'>
+                <p>Check your Hashpack wallet..</p>
+            <!-- for QR need to fix path to qr process
                 <span>Scan with <a href='https://www.hashpack.app/download' target='hashpack'>Hashpack app</a></span>
                 <span id="pairing-png"></span>
                 <span style='color:grey; font-size: 70%;'>
                     <br>Or copy-paste this "pairing string"
                     <div id="pairing-string"></div>
                 </span><br><br>
+                -->
             </span>
 
             <div class="hide" id="paired">
@@ -73,8 +76,7 @@
                         </button>
                     </span>
                 </div>
-<!-- buy/ bid button to move to modal -->
-                <button id='create-tx' class='wallet-button'>&nbsp;Buy now&nbsp;</button>
+                <!-- OG button was here, now on modal -->
             </div>
 
             <div id="last_tx"></div>
@@ -116,6 +118,20 @@
 
 </script>
 
+<?php // OG fudge for config flexibility while testing
+$pathConfig = "{$_SERVER['DOCUMENT_ROOT']}/vendor/hashconnect/config.json";
+if (file_exists($pathConfig)) {
+    $jsonConfig = file_get_contents($pathConfig);
+    $config = json_decode($jsonConfig);    
+    // $config = json_decode(file_get_contents($pathConfig));
+    $network = $config->network ?? null;
+    if (!$network) elog($config, "UH73664 failed to read network from $pathConfig");
+} else elog("warning: WJ73764 failed to find config file $pathConfig");
+
+?>
+<script>
+let jsonConfig = `<?=$jsonConfig?>`
+</script>
 <script src="/vendor/hashconnect/dist/bundle.js"></script> 
 
 
