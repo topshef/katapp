@@ -9,6 +9,8 @@
 -->
 <head>
 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <!-- Bootstrap CSS -->
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
 
@@ -58,9 +60,14 @@
   margin: 10% auto; /* Centered */
   padding: 20px;
   border: 1px solid #888;
-  width: 80%; /* Adjust as needed */
+  max-width: 500px; /* Max width */
+  max-height: 500px; /* Max height */
+  width: calc(100% - 20px); /* Full width minus margin */
+  height: calc(100% - 20px); /* Full height minus margin */
+  
   position: relative;
   opacity: 95%;
+  overflow: auto; 
 }
 
 /* Close Button */
