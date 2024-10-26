@@ -23,6 +23,14 @@
 </head>
 <body>
 
+<div class="sticky-header">
+    <div class="container">
+        <h4>UBID</h4>
+        <!-- Placeholder for future elements like login, filters, etc. -->
+    </div>
+</div>
+
+
 <div id="modal" class="modal">
   <div class="modal-content">
     <span class="close-button">&times;</span>

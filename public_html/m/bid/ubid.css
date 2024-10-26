@@ -1,4 +1,23 @@
 
+
+.sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000; /* Ensure it stays above other elements */
+    background-color: #fff;
+    border-bottom: 1px solid #ddd;
+    width: 100%;
+    padding: 10px 0;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+.sticky-header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+
+
 .ubid-container {
   display: flex; /* Use flexbox for alignment */
   flex-wrap: wrap; /* Allow wrapping */
