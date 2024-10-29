@@ -61,7 +61,7 @@
   max-width: 500px; /* Max width */
   max-height: 700px; /* Max height */
   width: calc(100% - 20px); /* Full width minus margin */
-  height: calc(100% - 20px); /* Full height minus margin */
+  height: auto;
   
   position: relative;
   opacity: 95%;

@@ -123,6 +123,9 @@ async function processTx(nftXfer) {
     
 
     const token_class = await getHederaMirrorData(network, `tokens/${nftXfer.tokenId}`)
+    // console.log(`token class info for ${nftXfer.tokenId}`,token_class)
+    // const treasury = token_class.treasury_account_id  // nahwe dont need it
+    
     const token_instance = await getHederaMirrorData(network, `tokens/${nftXfer.tokenId}/nfts/${nftXfer.serialNumber}`)
     const metadata = atob(token_instance.metadata)
     
@@ -137,9 +140,12 @@ async function processTx(nftXfer) {
     const imageKey = dataIPFS?.ipfsAddress || urlImage
     console.log('imageKey=', imageKey)
     
-    const isAlreadyDisplayed = displayedImages.includes(imageKey)
-    if (isAlreadyDisplayed) return console.log(`already displayed ${tokenSerial}`) && false
+    const suppressDuplicates = false // todo grab from url or filter options
+    if (suppressDuplicates) {
+        const isAlreadyDisplayed = displayedImages.includes(imageKey)
+        if (isAlreadyDisplayed) return console.log(`already displayed ${tokenSerial}`) && false
         //todo maybe push the market info to an array for pricing assistance
+    }
         
     displayedImages.push(imageKey)
         
@@ -192,6 +198,7 @@ async function processTx(nftXfer) {
     console.log(`bidUrl=${bidUrl}`);
 
     return {
+      dealId,
       last_tx: {...nftXfer, txids},
       // tx,
       urlImage,
@@ -293,8 +300,10 @@ function clearContainer(container) {
 }
 
 function renderItemCard(container, data) {
+    
     const {
-    last_tx: { tokenId, serialNumber, sender, txids, consensusTime, receiver },
+    dealId,
+    last_tx: { tokenId, serialNumber, txids, consensusTime, sender, receiver },
     urlImage,
     price,
     unit,
@@ -305,7 +314,7 @@ function renderItemCard(container, data) {
     bid_amount,
     } = data
 
-    const displaySender = sender === '0.0.0' ? 'mint' : sender
+    const displaySender = sender === '0.0.0' ? 'mint' : sender  //uh-oh we also need the treasury if mint
 
     const card = document.createElement('div')
     card.className = 'card mb-3'
@@ -326,6 +335,7 @@ function renderItemCard(container, data) {
 
     // Set up modal data
     const modalInfo = {
+    dealId,    
     network,
     tokenId,
     serialNumber,
@@ -337,7 +347,7 @@ function renderItemCard(container, data) {
     txid: txids.hyphen,
     consensusTime,
     memo,
-    sender: displaySender,
+    sender,
     receiver,
     price,
     unit,
@@ -398,6 +408,18 @@ function showModal(info) {
   // todo draw the high level flow and decide on ideal level for certain actions
   // eg price discovery/ suggestions/ see also etc
   
+  document.getElementById('dealId').value = info.dealId // atm this only varies by network
+  
+  // let starttime = (Date.now() + 2 * 60 * 60 * 1000) / 1000
+    const starttime = '2 hours'
+  
+  document.getElementById('bid_parameters').innerHTML = `
+  <input class='user_input' id='tokenId' value='${info.tokenId}'>
+  <input class='user_input' id='serial' value='${info.serialNumber}'>
+  <input class='user_input' id='seller' value='${info.receiver}'>
+  <input class='user_input' id='bid_amount' value='${info.price}'>
+  <input class='user_input' id='starttime' value='${starttime}'>
+  `
   
   document.getElementById('modal').style.display = 'block'
 }
@@ -432,7 +454,9 @@ function closeModal() {
 
   modal.style.display = 'none'
   // Move button back to the hidden parking space
-  // (this keeps the bundle.js listener active)    
+  // (this keeps the bundle.js listener active)
+  document.getElementById('last_tx').innerHTML = '' // remove existing parameters
+  document.getElementById('bid_parameters').innerHTML = '' // remove existing parameters
   document.getElementById('bid-widget-parked').appendChild(bidWidget) 
 }
 

@@ -2,3 +2,10 @@ RewriteEngine On
 
 # Map /tokens to tokens.php
 RewriteRule ^api/nft/transfers$ query_NFT_transfers.php [L,QSA]
+
+RewriteRule ^future(.*)$ /future$1 [R=301,L]
+RewriteRule ^vendor/hashconnect/(.*)$ /vendor/hashconnect/$1 [L]
+
+
+
+
