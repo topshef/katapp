@@ -39,6 +39,7 @@
 
 
 const displayedImages = []  // maintain array to avoid duplicates
+const displayedNFTs = []  // for use this instead
 
 async function initUbid() {
 
@@ -139,15 +140,25 @@ async function processTx(nftXfer) {
     
     const imageKey = dataIPFS?.ipfsAddress || urlImage
     console.log('imageKey=', imageKey)
+
+
+    const isNftAlreadyDisplayed = displayedNFTs.includes(tokenSerial)
+    if (isNftAlreadyDisplayed) return console.log(`already displayed ${tokenSerial}`) && false
+        
+    displayedNFTs.push(tokenSerial)
+
     
-    const suppressDuplicates = false // todo grab from url or filter options
-    if (suppressDuplicates) {
+    const suppressDuplicateImages = false // todo grab from url or filter options
+    if (suppressDuplicateImages) {
         const isAlreadyDisplayed = displayedImages.includes(imageKey)
         if (isAlreadyDisplayed) return console.log(`already displayed ${tokenSerial}`) && false
         //todo maybe push the market info to an array for pricing assistance
     }
         
-    displayedImages.push(imageKey)
+        
+        
+        
+    // displayedImages.push(imageKey)
         
     // imgElement.src = dataIPFS.imgSrc
     
@@ -160,17 +171,17 @@ async function processTx(nftXfer) {
     // console.log("🔵ℹ️ tokenInfo=", {urlImage, tokenInfo, tokenInfoGoMint})
     //"ipfs://bafybeihgsfwlhdfwnqztmgyjimjfpbfbya63kza46f42xsxtxa7sc7ct5m/3308.json"
     
-    const txids = convertTxId(nftXfer.transactionId);
-    if (!txids) {
-      console.log(`Skipping ${nftXfer.transactionId} as failed to convert`);
-      return null;
-    }
-    console.log(`Converting txid ${nftXfer.transactionId}`, txids);
-
-    const txns = await getHederaMirrorData(network, `transactions/${txids.hyphen}`)
+    // using a consensus time as dragonglass messes up txid by using numeric
+    const ct_seconds_nanos = toEpochSecondsNanos(nftXfer.consensusTime)
+    const txns = await getHederaMirrorData(network, `transactions`, {'transactiontype' : 'CRYPTOTRANSFER', 'timestamp' : ct_seconds_nanos })
+    
     if (!txns) return null;
 
-    const tx = txns.transactions[0];
+    const tx = txns.transactions[0]
+    const txid = tx.transaction_id
+    const txids = convertTxId(txid)
+    console.log(txids)
+    
     const hbarXfers = ignoreHederaAccounts(tx.transfers);
     const senderHbarXfers = hbarXfers.filter((line) => line.amount < 0);
     const mainSenderXfer = senderHbarXfers.sort((a, b) => a.amount - b.amount)[0];
@@ -264,7 +275,7 @@ async function getHederaMirrorData(network, endpoint, queryObject) {
       ? 'https://mainnet-public.mirrornode.hedera.com/api/v1/' 
       : 'https://testnet.mirrornode.hedera.com/api/v1/'
 
-    let expirySeconds = 600
+    let expirySeconds = 60
     if (baseUrl.startsWith('transactions/')) expirySeconds = 'infinite' // tx are final
     
     const data = await getData(`${baseUrl}${endpoint}`, queryObject, expirySeconds)
@@ -323,11 +334,12 @@ function renderItemCard(container, data) {
     // Apply the 'card' class directly to 'cardBody'
     cardBody.className = 'ubid-card'
     cardBody.innerHTML = `
+      <button class="show-more-button"><img src='${urlImage}' height='100px'></button>
       <a href='${urlExploreNFT}' target='_blank'>
-        <img src='${urlImage}' height='100px'>
+        <p>🖼️ ${tokenId}#${serialNumber}</p>
       </a>
-      <p>🖼️ ${tokenId}#${serialNumber}</p>
-      <button class="show-more-button">Show more</button>
+      <!-- <p>🕘 ${consensusTime}</p> -->
+      <p>👤 ${receiver}</p>
     `
 
     card.appendChild(cardBody)
@@ -379,7 +391,12 @@ at this point though we may want to further refactor
 function showModal(info) {
   const modalBody = document.getElementById('modal-body')
   const bidWidget = document.getElementById('bid-widget')
+
+  document.getElementById('dealId').value = info.dealId // atm this only varies by network
   
+  // let starttime = (Date.now() + 2 * 60 * 60 * 1000) / 1000
+    const starttime = '2 hours'
+    
 
   modalBody.innerHTML = `
     <a href='${info.urlExploreNFT}' target='_blank'><img src='${info.urlImage}' height='100px'></a>
@@ -387,9 +404,13 @@ function showModal(info) {
     <p class="card-text">
         <a href='${info.urlExploreNFT}' target='_blank'>🖼️ ${info.tokenId}#${info.serialNumber}</a>
     </p>
-    <span id="widget-container"></span> <!-- Widget will be moved here -->
-
-    <p class="card-text">🔨 <a href='${info.bidUrl}' target='_blank'>Bid ${info.bid_amount} ${info.unit}</a> (OG wireframe - dev only)</p>
+    <input class='user_input' id='bid_amount' value='${info.price}'>${info.unit}
+    <input class='user_input' id='starttime' value='${starttime}'>
+    <span id="widget-container">
+        
+    </span> <!-- Widget will be moved here -->
+    
+    <p class="card-text">🔨 <a href='${info.bidUrl}' target='_blank'>Place bid</a> (OG wireframe - dev only)</p>
     
                 
     <p class="modal-text">Last transfer:</p>
@@ -400,7 +421,7 @@ function showModal(info) {
     <p class="modal-text">🪙 ${info.price} ${info.unit}</p>
   `
   
-  document.getElementById('create-tx').innerHTML = `Bid for ${info.bid_amount} ${info.unit}`
+  
   document.getElementById('widget-container').appendChild(bidWidget) 
   
   // todo update url parms so that hashconnect bundle.js can process tx
@@ -408,17 +429,13 @@ function showModal(info) {
   // todo draw the high level flow and decide on ideal level for certain actions
   // eg price discovery/ suggestions/ see also etc
   
-  document.getElementById('dealId').value = info.dealId // atm this only varies by network
-  
-  // let starttime = (Date.now() + 2 * 60 * 60 * 1000) / 1000
-    const starttime = '2 hours'
-  
+
   document.getElementById('bid_parameters').innerHTML = `
   <input class='user_input' id='tokenId' value='${info.tokenId}'>
   <input class='user_input' id='serial' value='${info.serialNumber}'>
   <input class='user_input' id='seller' value='${info.receiver}'>
-  <input class='user_input' id='bid_amount' value='${info.price}'>
-  <input class='user_input' id='starttime' value='${starttime}'>
+  
+  
   `
   
   document.getElementById('modal').style.display = 'block'
@@ -455,9 +472,11 @@ function closeModal() {
   modal.style.display = 'none'
   // Move button back to the hidden parking space
   // (this keeps the bundle.js listener active)
-  document.getElementById('last_tx').innerHTML = '' // remove existing parameters
-  document.getElementById('bid_parameters').innerHTML = '' // remove existing parameters
-  document.getElementById('bid-widget-parked').appendChild(bidWidget) 
+  document.getElementById('last_tx').innerHTML = ''
+  // document.getElementById('bid_parameters').innerHTML = '' // remove existing parameters
+  document.getElementById('bid-widget-parked').appendChild(bidWidget)
+  document.getElementById('modal-body').innerHTML = '' // remove existing modal info
+
 }
 
 
@@ -500,6 +519,16 @@ function swapFirstMatch(str, swaps) {
     return str
 }
 
+
+
+
+function toEpochSecondsNanos(isoTimestamp) {
+    const [seconds, nanosWithZ] = isoTimestamp.split('.')
+    const nanos = nanosWithZ.slice(0, -1) // Remove the trailing 'Z'
+    return `${new Date(seconds).getTime() / 1000}.${nanos}`
+}
+
+
 //todo tidy..
 // convert Tx Id
 // copied from php explore.hbar
@@ -507,8 +536,11 @@ function convertTxId(txid) { // input any txid and return various formats and el
     let out = {}
     out.input = txid
 
+
+    // we can drop this and use consensus time as the key instead
+    
     // detect numeric
-    //txid = txid.replace(/^(\d)(\d)(\d+)(\d{10})(\d{9})$/, '$1.$2.$3-$4-$5')
+    txid = txid.replace(/^(\d)(\d)(\d+)(\d{10})(\d{9})$/, '$1.$2.$3-$4-$5')
     
     // total fudge for DG fuckup
     // reported on DG NFT transfers 005823833172962711969325840

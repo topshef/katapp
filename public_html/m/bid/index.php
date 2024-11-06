@@ -84,7 +84,7 @@
                 -->
                 <span id="bid-widget-parked" style="display: none;">
                     <span id="bid-widget">
-                        <button id="create-tx" class="wallet-button"></button>
+                        <button id="create-tx" class="wallet-button">Place bid</button>
                         <div id="last_tx"></div>
                         <input id='dealId' style='display:none;' value=''>
                         <span id='bid_parameters' style='display:none;'>placeholder for user parameters<span>
