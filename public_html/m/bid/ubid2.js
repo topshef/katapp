@@ -52,7 +52,7 @@ async function initUbid() {
     
 
     // Define allowed parameters
-    const allowedParms = 'network query tokenId serialNumber sender receiver transferAfter transferBefore from size sortOn sortBy'.split(' ') //https://app.dragonglass.me/hedera/apiview
+    const allowedParms = 'days network query tokenId serialNumber sender receiver transferAfter transferBefore from size sortOn sortBy'.split(' ') //https://app.dragonglass.me/hedera/apiview
     // transferAfter 2017-01-01T01:01:00.00Z
     //sortOn	consensusTime	token, serialNumber,consensusTime,transactionId	field on which the response will be sorted
 
@@ -73,7 +73,6 @@ async function initUbid() {
     })
 
     network = params.network
-
 
   try {
     const result = await getData('./api/nft/transfers', params, 30)

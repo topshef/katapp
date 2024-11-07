@@ -8,12 +8,13 @@ window.IPFS_cache = (() => {
         // 'https://ipfs.io/ipfs/',
         // 'https://dweb.link/ipfs/',
         'https://gateway.pinata.cloud/ipfs/',
-        'https://ipfs.infura.io/ipfs/',
-        'https://ipfs.fleek.co/ipfs/',
-        'https://cloudflare-ipfs.com/ipfs/',
+        // 'https://ipfs.infura.io/ipfs/',
+        // 'https://ipfs.fleek.co/ipfs/',
+        // 'https://cloudflare-ipfs.com/ipfs/',
         'https://ipfs.eternum.io/ipfs/',
         // 'https://ipfs.drink.cafe/ipfs/',
-        'https://gateway.serph.network/ipfs/'
+        // 'https://gateway.serph.network/ipfs/',
+        'https://nftstorage.link/ipfs/'
     ];
 
 
