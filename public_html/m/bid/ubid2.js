@@ -116,18 +116,21 @@ async function processTx(nftXfer) {
   try {
       // some issues tbc
     const expirySeconds = 0
-    const tokenSerial = `${nftXfer.tokenId}-${nftXfer.serialNumber}`
+    
+    const {tokenId, serialNumber, consensusTime, receiver} = nftXfer
+    
+    const tokenSerial = `${tokenId}-${serialNumber}`
     // const tokenInfoGoMint = await getTokenInfoFromGoMint(network, tokenSerial, expirySeconds)
     // console.log(`getTokenInfo ${network} ${tokenSerial}`, tokenInfo);
     // const urlImage = tokenInfoGoMint.token_asset_image_URL ?? 'https://tse4.mm.bing.net/th?id=OIP.CIKnUJBqUdu87khXGAyLVgHaHa&pid=Api'
     // const urlImage = tokenInfoGoMint.token_thumbnail_cache ?? tokenInfoGoMint.token_asset_image_URL ?? 'https://tse4.mm.bing.net/th?id=OIP.CIKnUJBqUdu87khXGAyLVgHaHa&pid=Api'
     
 
-    const token_class = await getHederaMirrorData(network, `tokens/${nftXfer.tokenId}`)
-    // console.log(`token class info for ${nftXfer.tokenId}`,token_class)
+    const token_class = await getHederaMirrorData(network, `tokens/${tokenId}`)
+    // console.log(`token class info for ${tokenId}`,token_class)
     // const treasury = token_class.treasury_account_id  // nahwe dont need it
     
-    const token_instance = await getHederaMirrorData(network, `tokens/${nftXfer.tokenId}/nfts/${nftXfer.serialNumber}`)
+    const token_instance = await getHederaMirrorData(network, `tokens/${tokenId}/nfts/${serialNumber}`)
     const metadata = atob(token_instance.metadata)
     
     let dataIPFS = await IPFS_cache.processMetadataFromIPFS(metadata)
@@ -155,9 +158,6 @@ async function processTx(nftXfer) {
         //todo maybe push the market info to an array for pricing assistance
     }
         
-        
-        
-        
     // displayedImages.push(imageKey)
         
     // imgElement.src = dataIPFS.imgSrc
@@ -172,7 +172,7 @@ async function processTx(nftXfer) {
     //"ipfs://bafybeihgsfwlhdfwnqztmgyjimjfpbfbya63kza46f42xsxtxa7sc7ct5m/3308.json"
     
     // using a consensus time as dragonglass messes up txid by using numeric
-    const ct_seconds_nanos = toEpochSecondsNanos(nftXfer.consensusTime)
+    const ct_seconds_nanos = toEpochSecondsNanos(consensusTime)
     const txns = await getHederaMirrorData(network, `transactions`, {'transactiontype' : 'CRYPTOTRANSFER', 'timestamp' : ct_seconds_nanos })
     
     if (!txns) return null;
@@ -189,40 +189,33 @@ async function processTx(nftXfer) {
     const unit = 'hbar';
     console.log('mainSenderXfer=', mainSenderXfer);
 
-    const memo = atob(tx.memo_base64);
+    // const memo = atob(tx.memo_base64)
 
-    const urlExploreNFT = `https://hashscan.io/${network}/token/${nftXfer.tokenId}/${nftXfer.serialNumber}`;
-    const urlExploreTx = `https://hashscan.io/${network}/transaction/${tx.consensus_timestamp}`;
-
-    const delaySeconds = '90 secs';
-    
     const dealId = (network == 'mainnet')
     ? '5f07af91960ac463e652c5ff0521b66d8017aff3c237718ce570d14d2b65028a'
     : '087e095b465c65d91c58cd224b71d94dad8ea260d06f74597fd5433b9be7e812'
-    const seller = nftXfer.receiver; // The previous receiver
+    const seller = receiver // The previous receiver
     
     const bid_amount = (price * 1.05).toFixed(4); // Example: 5% more
 
-    const shopDomain = network === 'testnet' ? 'dev4.shop.gomint.me' : 'shop.gomint.me';
-    const bidUrl = `https://${shopDomain}/m/?dealonly=&dealId=${dealId}&v=labs&detail=&serial=${nftXfer.serialNumber}&seller=${seller}&bid_amount=${bid_amount}&tokenId=${nftXfer.tokenId}&starttime=${delaySeconds}`;
+    // const shopDomain = network === 'testnet' ? 'dev4.shop.gomint.me' : 'shop.gomint.me';
 
-    console.log(`bidUrl=${bidUrl}`);
 
     return {
-      dealId,
-      last_tx: {...nftXfer, txids},
-      // tx,
-      urlImage,
-      // tokenInfo,
-      price,
-      unit,
-      bidUrl,
-      urlExploreNFT,
-      urlExploreTx,
-      memo,
-      bid_amount,
-      network,
-    };
+
+       bid: { // single line item for now
+        urlImage,
+        network,
+        dealId,
+        tokenId,
+        serialNumber,
+        seller,
+        bid_amount, 
+        unit,
+        starttime: '60 secs',
+        },
+        history: [{consensusTime}]
+    }
   } catch (error) {
     console.error('⚠️ Error processing nftXfer:', error);
     return null;
@@ -231,12 +224,144 @@ async function processTx(nftXfer) {
 
 
 
+
+
+// ╔╦╗╦  ╦╔═╗  ┬  ┬┬┌─┐┬ ┬
+// ║║║╚╗╔╝║    └┐┌┘│├┤ │││
+// ╩ ╩ ╚╝ ╚═╝   └┘ ┴└─┘└┴┘
+// MVC view functions
+
+
+function clearContainer(container) {
+  container.innerHTML = ''; // Clear all child elements
+}
+
+function renderItemCard(container, data) {
+    
+    // const displaySender = sender === '0.0.0' ? 'mint' : sender  //uh-oh we also need the treasury if mint
+    const {network, tokenId, serialNumber, seller, urlImage} = data.bid
+    
+
+    const card = document.createElement('div')
+    card.className = 'card mb-3'
+    const cardBody = document.createElement('div')
+
+    // Apply the 'card' class directly to 'cardBody' 🗂️📚
+    cardBody.className = 'ubid-card'
+    cardBody.innerHTML = `
+      <button class="show-more-button"><img src='${urlImage}' height='100px'></button>
+      <a href='${linkToken(network, tokenId, serialNumber)}' target='_blank'>
+        <p>🖼️ ${tokenId} # ${serialNumber}</p>
+      </a>
+      <p>🕘 ${formatLocalTime(data.history[0].consensusTime)}</p>
+      <p>👤 ${seller}</p>
+    `
+
+    card.appendChild(cardBody)
+    container.appendChild(card) 
+
+    // Attach event listener to the "Show more" button
+    cardBody.querySelector('.show-more-button').addEventListener('click', () => showModal(data))
+}
+
+/*
+
+then we need to add in view for all the offline tx eg kpos.uk/pool
+
+at this point though we may want to further refactor ....
+
+*/
+
+
+// Function to update and show modal
+function showModal(data) {
+
+  console.log("showModal data", data)
+  
+  const {network, dealId, tokenId, serialNumber, seller, urlImage, bid_amount, unit, starttime} = data.bid
+
+  const modalBody = document.getElementById('modal-body')
+  modalBody.innerHTML = `
+    <a href='${linkToken(network, tokenId, serialNumber)}' target='_blank'><img src='${urlImage}' height='100px'></a>
+    
+    <p class="card-text">
+        <a href='${linkToken(network, tokenId, serialNumber)}' target='_blank'>🖼️ ${tokenId}#${serialNumber}</a>
+    </p>
+    <p>Bid amount <input class='user_input' id='bid_amount' value='${bid_amount}'> ${unit}</p>
+    <p>Strike time <input class='user_input' id='starttime' value='${starttime}'></p>
+    
+    <span id="widget-container">
+        
+    </span> <!-- Widget will be moved here -->
+    
+  `
+  
+  document.getElementById('dealId').value = dealId // atm this only varies by network
+  const bidWidget = document.getElementById('bid-widget')
+  document.getElementById('widget-container').appendChild(bidWidget) 
+  
+  // todo update url parms so that hashconnect bundle.js can process tx
+  // also makes the modal bookmarkable
+  // todo draw the high level flow and decide on ideal level for certain actions
+  // eg price discovery/ suggestions/ see also etc
+
+  document.getElementById('bid_parameters').innerHTML = `
+  <input class='user_input' id='tokenId' value='${tokenId}'>
+  <input class='user_input' id='serial' value='${serialNumber}'>
+  <input class='user_input' id='seller' value='${seller}'>
+  
+  
+  `
+  
+  document.getElementById('modal').style.display = 'block'
+}
+
+
+function initModal() {
+  // Close modal when 'X' button is clicked
+  const closeButton = document.querySelector('.close-button')
+  const modal = document.getElementById('modal')
+
+  if (!closeButton || !modal)
+    return console.error('Modal elements not found') && false
+
+  closeButton.addEventListener('click', function() {
+    closeModal()  // Use closeModal function to handle button reset
+  })
+
+  // Close modal when clicking outside of the modal content
+  window.addEventListener('click', function(event) {
+    if (event.target == modal) 
+        closeModal()
+  })
+}
+
+// Function to close modal and reset button
+function closeModal() {
+  const modal = document.getElementById('modal')
+  const bidWidget = document.getElementById('bid-widget')
+
+  modal.style.display = 'none'
+  // Move button back to the hidden parking space
+  // (this keeps the bundle.js listener active)
+  document.getElementById('last_tx').innerHTML = ''
+  // document.getElementById('bid_parameters').innerHTML = '' // remove existing parameters
+  document.getElementById('bid-widget-parked').appendChild(bidWidget)
+  document.getElementById('modal-body').innerHTML = '' // remove existing modal info
+
+}
+
+
+function renderErrorCard(cardBody) {
+  cardBody.innerHTML = `<p>⚠️ Error loading data ref KR94852</p>`
+}
+
+
+
 // ╔╦╗╦  ╦╔═╗  ┌┬┐┌─┐┌┬┐┌─┐┬  
 // ║║║╚╗╔╝║    ││││ │ ││├┤ │  
 // ╩ ╩ ╚╝ ╚═╝  ┴ ┴└─┘─┴┘└─┘┴─┘
 // MVC model
-
-
 
 async function getImageUrlFromGoMint(network, tokenId, expirySeconds = 'infinite') {
     const tokenInfoGoMint = await getTokenInfoFromGoMint(network, tokenId, expirySeconds)
@@ -300,197 +425,6 @@ function ignoreHederaAccounts(xfers) {
 
 
 
-// ╔╦╗╦  ╦╔═╗  ┬  ┬┬┌─┐┬ ┬
-// ║║║╚╗╔╝║    └┐┌┘│├┤ │││
-// ╩ ╩ ╚╝ ╚═╝   └┘ ┴└─┘└┴┘
-// MVC view functions
-
-
-function clearContainer(container) {
-  container.innerHTML = ''; // Clear all child elements
-}
-
-function renderItemCard(container, data) {
-    
-    const {
-    dealId,
-    last_tx: { tokenId, serialNumber, txids, consensusTime, sender, receiver },
-    urlImage,
-    price,
-    unit,
-    bidUrl,
-    urlExploreNFT,
-    urlExploreTx,
-    memo,
-    bid_amount,
-    } = data
-
-    const displaySender = sender === '0.0.0' ? 'mint' : sender  //uh-oh we also need the treasury if mint
-
-    const card = document.createElement('div')
-    card.className = 'card mb-3'
-    const cardBody = document.createElement('div')
-
-    // Apply the 'card' class directly to 'cardBody'
-    cardBody.className = 'ubid-card'
-    cardBody.innerHTML = `
-      <button class="show-more-button"><img src='${urlImage}' height='100px'></button>
-      <a href='${urlExploreNFT}' target='_blank'>
-        <p>🖼️ ${tokenId}#${serialNumber}</p>
-      </a>
-      <!-- <p>🕘 ${consensusTime}</p> -->
-      <p>👤 ${receiver}</p>
-    `
-
-    card.appendChild(cardBody)
-    container.appendChild(card) 
-
-    // Set up modal data
-    const modalInfo = {
-    dealId,    
-    network,
-    tokenId,
-    serialNumber,
-    bidUrl,
-    bid_amount,
-    unit,
-    urlExploreNFT,
-    urlImage,
-    txid: txids.hyphen,
-    consensusTime,
-    memo,
-    sender,
-    receiver,
-    price,
-    unit,
-    urlExploreTx
-    }
-
-    // Attach event listener to the "Show more" button
-    cardBody.querySelector('.show-more-button').addEventListener('click', () => showModal(modalInfo))
-}
-
-/*
-
-so now we have a modal that links to a page where you can bid,
-but.. it's shit and we want to bid directly on the page, so..
-we need to add in the relevant user parameter inputs directly on the modal 
-minimum is just the suggested bid price as is now except we allow the user to change it
-eg with a slider (5% down, no change +5% etc) or type it in
-Then we need to wire in the wallet connection
-we can use the existing hashconnect or new walletconnect (todo see shimanto demo etc)
-
-then we need to add in view for all the offline tx, so that's another version of processTx but for offline (kpos.uk/pool)
-
-at this point though we may want to further refactor
-
-*/
-
-
-// Function to update and show modal
-function showModal(info) {
-  const modalBody = document.getElementById('modal-body')
-  const bidWidget = document.getElementById('bid-widget')
-
-  document.getElementById('dealId').value = info.dealId // atm this only varies by network
-  
-  // let starttime = (Date.now() + 2 * 60 * 60 * 1000) / 1000
-    const starttime = '2 hours'
-    
-
-  modalBody.innerHTML = `
-    <a href='${info.urlExploreNFT}' target='_blank'><img src='${info.urlImage}' height='100px'></a>
-    
-    <p class="card-text">
-        <a href='${info.urlExploreNFT}' target='_blank'>🖼️ ${info.tokenId}#${info.serialNumber}</a>
-    </p>
-    <input class='user_input' id='bid_amount' value='${info.price}'>${info.unit}
-    <input class='user_input' id='starttime' value='${starttime}'>
-    <span id="widget-container">
-        
-    </span> <!-- Widget will be moved here -->
-    
-    <p class="card-text">🔨 <a href='${info.bidUrl}' target='_blank'>Place bid</a> (OG wireframe - dev only)</p>
-    
-                
-    <p class="modal-text">Last transfer:</p>
-    <p class="modal-text">🆔 <a href='${info.urlExploreTx}' target='_blank'>${info.txid}</a></p>
-    <p class="modal-text">🕘 ${info.consensusTime}</p>
-    <p class="modal-text">📝 ${info.memo}</p>
-    <p class="modal-text">💳 ${info.sender} → ${info.receiver}</p>
-    <p class="modal-text">🪙 ${info.price} ${info.unit}</p>
-  `
-  
-  
-  document.getElementById('widget-container').appendChild(bidWidget) 
-  
-  // todo update url parms so that hashconnect bundle.js can process tx
-  // also makes the modal bookmarkable
-  // todo draw the high level flow and decide on ideal level for certain actions
-  // eg price discovery/ suggestions/ see also etc
-  
-
-  document.getElementById('bid_parameters').innerHTML = `
-  <input class='user_input' id='tokenId' value='${info.tokenId}'>
-  <input class='user_input' id='serial' value='${info.serialNumber}'>
-  <input class='user_input' id='seller' value='${info.receiver}'>
-  
-  
-  `
-  
-  document.getElementById('modal').style.display = 'block'
-}
-
-
-function initModal() {
-  // Close modal when 'X' button is clicked
-  const closeButton = document.querySelector('.close-button');
-  const modal = document.getElementById('modal')
-
-  if (!closeButton || !modal) {
-    console.error('Modal elements not found');
-    return;
-  }
-
-  closeButton.addEventListener('click', function() {
-    closeModal()  // Use closeModal function to handle button reset
-  })
-
-  // Close modal when clicking outside of the modal content
-  window.addEventListener('click', function(event) {
-    if (event.target == modal) {
-      closeModal()
-    }
-  });
-}
-
-// Function to close modal and reset button
-function closeModal() {
-  const modal = document.getElementById('modal')
-  const bidWidget = document.getElementById('bid-widget')
-
-  modal.style.display = 'none'
-  // Move button back to the hidden parking space
-  // (this keeps the bundle.js listener active)
-  document.getElementById('last_tx').innerHTML = ''
-  // document.getElementById('bid_parameters').innerHTML = '' // remove existing parameters
-  document.getElementById('bid-widget-parked').appendChild(bidWidget)
-  document.getElementById('modal-body').innerHTML = '' // remove existing modal info
-
-}
-
-
-
-function renderErrorCard(cardBody) {
-  cardBody.innerHTML = `<p>⚠️ Error loading data ref KR94852</p>`
-}
-
-
-
-
-
-
-
 // ┬ ┬┌─┐┬  ┌─┐┌─┐┬─┐┌─┐
 // ├─┤├┤ │  ├─┘├┤ ├┬┘└─┐
 // ┴ ┴└─┘┴─┘┴  └─┘┴└─└─┘
@@ -511,17 +445,22 @@ https://dweb.link/ipfs/
 
 */
 
-// swap First Match
-function swapFirstMatch(str, swaps) {
-    for (let { find, replace } of swaps)
-        if (find.test(str))
-            return str.replace(find, replace)
-    return str
+
+
+function linkToken(network, tokenId, serialNumber = '') {
+    return `https://hashscan.io/${network}/token/${tokenId}/${serialNumber}`
+}
+
+function linkTx(network, txid_or_consensus_timestamp) {
+    return `https://hashscan.io/${network}/transaction/${txid_or_consensus_timestamp}`
 }
 
 
 
-
+// ┌─┐┌─┐┌┐┌┬  ┬┌─┐┬─┐┌─┐┬┌─┐┌┐┌┌─┐
+// │  │ ││││└┐┌┘├┤ ├┬┘└─┐││ ││││└─┐
+// └─┘└─┘┘└┘ └┘ └─┘┴└─└─┘┴└─┘┘└┘└─┘
+// conversions
 function toEpochSecondsNanos(isoTimestamp) {
     const [seconds, nanosWithZ] = isoTimestamp.split('.')
     const nanos = nanosWithZ.slice(0, -1) // Remove the trailing 'Z'
@@ -529,63 +468,23 @@ function toEpochSecondsNanos(isoTimestamp) {
 }
 
 
-//todo tidy..
+function formatLocalTime(isoTimestamp) {
+    const [seconds] = toEpochSecondsNanos(isoTimestamp).split('.')
+    const date = new Date(seconds * 1000) // Convert seconds to milliseconds
+    return `${date.getDate()} ${date.toLocaleString('default', { month: 'short' })} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`
+}
+
+
+// ┌─┐┌─┐┌┐┌┬  ┬┌─┐┬─┐┌┬┐  ╔╦╗─┐ ┬  ╦┌┬┐
+// │  │ ││││└┐┌┘├┤ ├┬┘ │    ║ ┌┴┬┘  ║ ││
+// └─┘└─┘┘└┘ └┘ └─┘┴└─ ┴    ╩ ┴ └─  ╩─┴┘
 // convert Tx Id
-// copied from php explore.hbar
 function convertTxId(txid) { // input any txid and return various formats and elements
     let out = {}
     out.input = txid
 
-
-    // we can drop this and use consensus time as the key instead
-    
-    // detect numeric
+    // detect numeric - note this is not reliable (see commit before this comment for ditched fudge)
     txid = txid.replace(/^(\d)(\d)(\d+)(\d{10})(\d{9})$/, '$1.$2.$3-$4-$5')
-    
-    // total fudge for DG fuckup
-    // reported on DG NFT transfers 005823833172962711969325840
-    // missing leading zero for nanoseconds
-    // correct txid 0.0.5823833-1729627119-069325840
-
-    // txid = txid.replace(
-      // /^00(\d{1,8})17(\d{8})(\d{7,9})$/,
-      // (_, acct, secsRest, nanos) =>
-        // `0.0.${parseInt(acct, 10)}-17${secsRest}-${nanos.padStart(9, '0')}`
-    // )
-
-//why does this not match?
-
-//0010514021729634287739085329
-//0010514021729634287739085329
-//001051402
-//1729634287
-//739085329
-
-    let swaps = [
-        { find: /^00(\d{4})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
-        { find: /^00(\d{5})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
-        { find: /^00(\d{6})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
-        { find: /^00(\d{7})17(\d{8})(\d{9})$/, replace: '0.0.$1-17$2-$3' },
-        { find: /^00(\d{7})17(\d{8})(\d{8})$/, replace: '0.0.$1-17$2-0$3' },
-    ]
-    
-    // ok until
-    // Epoch time 1800000000 (10 digits)
-    // This corresponds to November 15, 2027, 00:00:00 UTC.
-
-    txid = swapFirstMatch(txid, swaps)
-    
-    // txid = txid.replace(
-      // /^00(\d{1,8})(?=17)(17)(\d{8})(\d{7,9})$/,
-      // (_, acct, seventeen, secsRest, nanos) =>
-        // `0.0.${parseInt(acct, 10)}-${seventeen}${secsRest}-${nanos.padStart(9, '0')}`
-    // )
-
-    //0.0.7326527
-    
-    //00500820
-    //1729630337
-    //88953719
 
     let regex = /^(?<operatorId>\d+\.\d+\.\d+)[-@](?<startSeconds>\d+)[-\.](?<startNanos>\d+)$/
     let matches = txid.match(regex)
@@ -635,4 +534,17 @@ function setParm(name, value) {
   url.searchParams.set(name, value)
   window.history.replaceState({}, '', url)
 }
+
+
+
+// swap First Match
+function swapFirstMatch(str, swaps) {
+    for (let { find, replace } of swaps)
+        if (find.test(str))
+            return str.replace(find, replace)
+    return str
+}
+
+
+
 */

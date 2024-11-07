@@ -48,6 +48,9 @@ async function getData(url, params, expirySeconds = 0) {
   const response = await fetch(`${url}?${new URLSearchParams(params)}`)
   const data = await response.json()
   console.log(`⚡ live call to ${url}?${new URLSearchParams(params)}`, data)
+  
+  //todo add optional condition to save - ie response code and or regex on data
+  //to avoid caching invalid data
   if (data) await saveToCache(url, params, data)
   return data
 }
