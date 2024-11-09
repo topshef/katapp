@@ -8,9 +8,15 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/config.php";
 require_once "{$_SERVER['DOCUMENT_ROOT']}/assets/php/elog.php";
 
 
-session_start();
+session_start(); // not needed with configLoad
 
-$network = $_GET['network'];
+require_once "{$_SERVER['DOCUMENT_ROOT']}/vendor/hashconnect/configLoad.php";
+// $config = getConfig();
+// elog([$config, $_SESSION], "hashconnect config and session");
+$network = getNetwork() ?? $_GET['network'];
+
+
+// $network = $_GET['network'];
 $txid = $_GET['txid'] ?? null;
 
 $subfolder = $_GET['subfolder'] ?? 'current';
