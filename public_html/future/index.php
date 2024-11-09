@@ -18,9 +18,9 @@ if ($txid) $subfolder = '*';
 
 $format = $_GET['format'] ?? 'html_simpleNFT';
 
-$saas_domain = $_SESSION['last_saas_domain'] ?? false; 
+$saas_domain = $_GET['saas_domain'] ?? $_SESSION['last_saas_domain'] ?? false; 
 if ($saas_domain) $urlTxAppnet = "https://$saas_domain/api/hashconnect";
-else $urlTxAppnet = $env['url_api_tx_appnet'] ?? $env['url_api_gomint_hashconnect']; // tbc how to refactor this shite
+else $urlTxAppnet = $env['url_api_tx_appnet'] ?? $env['url_api_gomint_hashconnect']; // tbc how to refactor this shite .. 1. create a wrapper to fetch data, 2. migrate to kpos
 
 $urlTxAppnet = rtrim($urlTxAppnet, '/');
 
