@@ -19,16 +19,22 @@ if ($txid) $subfolder = '*';
 $format = $_GET['format'] ?? 'html_simpleNFT';
 
 $saas_domain = $_GET['saas_domain'] ?? $_SESSION['last_saas_domain'] ?? false; 
+
+if ($_SESSION['network_override'] && !$saas_domain) // default saas_domain if network switched
+    $saas_domain = ($network == 'testnet') ? 'dev.gomint.me' : 'gmws2.gomint.me';
+
 if ($saas_domain) $urlTxAppnet = "https://$saas_domain/api/hashconnect";
 else $urlTxAppnet = $env['url_api_tx_appnet'] ?? $env['url_api_gomint_hashconnect']; // tbc how to refactor this shite .. 1. create a wrapper to fetch data, 2. migrate to kpos
 
 $urlTxAppnet = rtrim($urlTxAppnet, '/');
 
 $url .= "$urlTxAppnet/txList.php?network=$network&format=$format&base=future&subfolder=$subfolder";
+// review... migrate to kpos and render json client side
+
 if ($txid) $url .= "&txid=$txid";
 if ($isDev) $url .= "&dev";
 
-error_log("calling $url");
+elog("calling $url");
 $html_list = file_get_contents($url);
 
 $custom_style = '<link rel="stylesheet" type="text/css" href="future/future.css">';
