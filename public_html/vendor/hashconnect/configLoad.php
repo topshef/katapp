@@ -22,7 +22,7 @@ require_once("{$_SERVER['DOCUMENT_ROOT']}/elog.php");
 // allowing user to override
 function getNetwork() {
 
-    $config_network = getConfig();
+    $config_network = getConfig()->network ?? false;
     
     $user_network = $_GET['network'] ?? '';
     $user_network = in_array($user_network, ['testnet', 'mainnet']) ? $user_network : false;
