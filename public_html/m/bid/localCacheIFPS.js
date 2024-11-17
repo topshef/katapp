@@ -21,6 +21,13 @@ window.IPFS_cache = (() => {
     // Fetch data from IPFS using multiple gateways
     async function fetchFromIPFS(cid, responseType = 'text') {
         let contentPath = cid.replace(/^ipfs:\/\//, ''); // Remove 'ipfs://' prefix
+        
+        // console.log(`CID = ${contentPath}`)
+        // if (!/^[a-zA-Z0-9]{46}$/.test(contentPath)) {
+            // console.log(`invalid format for CID ${contentPath}`)
+            // return false
+        // }
+
         let shuffledGateways = gateways.sort(() => Math.random() - 0.5); // Randomize gateway order
         for (let gateway of shuffledGateways) {
             try {
@@ -100,7 +107,12 @@ window.IPFS_cache = (() => {
                 return cached.data;
             }
         } else {
-            let data = await fetchFromIPFS(key, responseType);
+            //todo support arweave eg
+            //ar://PQ05X1SDqOznFhtSY0So6BjZb2HD_r1pIunC-CLq0DU
+            //https://arweave.net/PQ05X1SDqOznFhtSY0So6BjZb2HD_r1pIunC-CLq0DU
+            
+            let data = await fetchFromIPFS(key, responseType)
+            if (!data) return false
             await cacheData(key, data, responseType);
             return data;
         }
@@ -125,10 +137,11 @@ window.IPFS_cache = (() => {
     }
 
     // Process metadata from IPFS and return image data
-    async function processMetadataFromIPFS(ipfsAddress) {
+    async function processMetadataFromIPFS(address) {
         try {
+            
             // Remove 'ipfs://' prefix if present
-            let cid = ipfsAddress.replace(/^ipfs:\/\//, '');
+            let cid = address.replace(/^ipfs:\/\//, '');
             let metadata = await getDataIPFS(cid); // Fetch metadata as text
             let jsonData = JSON.parse(metadata);
 
@@ -157,7 +170,7 @@ window.IPFS_cache = (() => {
 
             // Generate a thumbnail
             let thumbnail = await createThumbnail(imgSrc);
-            return { ipfsAddress, imgSrc, thumbnail }
+            return { address, imgSrc, thumbnail }
         } catch (error) {
             console.error('Error processing metadata from IPFS:', error);
             return null;

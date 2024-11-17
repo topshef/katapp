@@ -114,6 +114,7 @@
     <script src="localbase.min.js"></script> <!-- beware spelling of Localbase -->
     <script src="localCacheDB.js"></script>
     <script src="localCacheIFPS.js"></script> 
+    <script src="localCacheArweave.js"></script> 
     
 
 <script>

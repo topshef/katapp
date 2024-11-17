@@ -132,15 +132,51 @@ async function processTx(nftXfer) {
     const token_instance = await getHederaMirrorData(network, `tokens/${tokenId}/nfts/${serialNumber}`)
     const metadata = atob(token_instance.metadata)
     
-    let dataIPFS = await IPFS_cache.processMetadataFromIPFS(metadata)
-    console.log('dataIPFS=', dataIPFS)
     
-    const urlImage = dataIPFS?.imgSrc
+    
+    
+    //arweave example: ar://AuOqbfnqunPq6khupc0EK_SDgZ526koHKUt1spsq0kw
+
+    let fileData
+    const metadataSource = inferMetadataSource(metadata)
+
+    
+    switch (metadataSource) {
+        case 'arweave':
+            fileData = await Arweave_cache.processMetadataFromArweave(metadata)
+            break
+
+        case 'ipfs':
+            fileData = await IPFS_cache.processMetadataFromIPFS(metadata)
+            
+            break
+
+        case 'kns':
+            // Add code to handle KNS resolution if needed
+            break
+        
+        case 'https':
+            // fileData = await fetchJsonFromUrl(metadata)
+        
+            // console.log(`Regular URL detected: ${metadata}`)
+            // Add code here to handle fetching data from a regular URL if needed
+            break
+
+        default:
+            // console.log(`Unknown metadata source: ${metadata}`)
+    }
+    
+    console.log(`${metadataSource} metaData=${metadata} `, fileData)
+
+    if (!fileData) return console.log(`RH87734 could not decode metadata for ${metadataSource}`) && false
+    
+    const urlImage = fileData?.imgSrc
+        || fileData?.image
         || getImageUrlFromGoMint(network, tokenSerial)
         || 'https://tse3.mm.bing.net/th?id=OIP.51wVQMynr7Zxo56CVLbwpQHaHa&pid=Api'
     
     
-    const imageKey = dataIPFS?.ipfsAddress || urlImage
+    const imageKey = fileData?.address || urlImage
     console.log('imageKey=', imageKey)
 
 
@@ -159,7 +195,7 @@ async function processTx(nftXfer) {
         
     // displayedImages.push(imageKey)
         
-    // imgElement.src = dataIPFS.imgSrc
+    // imgElement.src = fileData.imgSrc
     
     
     // const currentOwner = token_instance.account_id // this shoudl match receiver of last tx
@@ -174,9 +210,10 @@ async function processTx(nftXfer) {
     const ct_seconds_nanos = toEpochSecondsNanos(consensusTime)
     const txns = await getHederaMirrorData(network, `transactions`, {'transactiontype' : 'CRYPTOTRANSFER', 'timestamp' : ct_seconds_nanos })
     
-    if (!txns) return null;
+    if (!txns) return console.log(`WP98474 no txns from getHederaMirrorData for ct ${ct_seconds_nanos}`) && false
 
     const tx = txns.transactions[0]
+    if (!tx) return console.log(`EY66454 no tx found`) && false
     const txid = tx.transaction_id
     const txids = convertTxId(txid)
     console.log(txids)
@@ -363,11 +400,16 @@ function renderErrorCard(cardBody) {
 // MVC model
 
 async function getImageUrlFromGoMint(network, tokenId, expirySeconds = 'infinite') {
+    console.log(`fallback: attempt to get image via GoMint for token ${tokenId}`)
     const tokenInfoGoMint = await getTokenInfoFromGoMint(network, tokenId, expirySeconds)
-    if (!tokenInfoGoMint) return null
+    
+    if (!tokenInfoGoMint)
+        return console.log(`DK878374 failed to retrieve data for token ${tokenId}`) && false
+    
+    console.log(tokenInfoGoMint)
     const urlImage = tokenInfoGoMint.token_asset_image_URL ?? null
     if (urlImage) console.log(`image retrieved via gomint`)
-    
+    else console.log(`WY76463 failed to retrieve image for token ${tokenId}`)
     return urlImage
 }
 
@@ -382,7 +424,10 @@ async function getTokenInfoFromGoMint(network, tokenId, expirySeconds = 'infinit
 
     // expirySeconds = 0
     const tokenInfo = await getData(url, params, expirySeconds)
-    if (!tokenInfo) throw new Error('Failed to fetch token info')
+    if (!tokenInfo)
+        return console.log(`JU72663 failed to getTokenInfoFromGoMint ${url}`, params, expirySeconds) && false
+        
+    //throw new Error('Failed to fetch token info')
 
     return tokenInfo
   } catch (error) {
@@ -443,6 +488,36 @@ https://dweb.link/ipfs/
     let cid = match[0]
 
 */
+
+
+
+async function fetchJsonFromUrl(url) {
+    try {
+        const response = await fetch(url)
+        if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`)
+        return await response.json()
+    } catch (error) {
+        console.error(`Failed to fetch data from ${url}:`, error)
+        return null
+    }
+}
+
+
+function inferMetadataSource(metadata) {
+    const regexPatterns = [
+        { type: 'arweave', pattern: /^ar:\/\/[a-zA-Z0-9_-]{43}$/ },
+        { type: 'ipfs', pattern: /^ipfs:\/\/[a-zA-Z0-9]{46}(\/[\w.-]+\.json)?$/ },
+        { type: 'ipfs', pattern: /^(ipfs:\/\/)?(baf[a-zA-Z0-9]{48,}|Qm[a-zA-Z0-9]{44})$/ },
+        { type: 'ipfs', pattern: /^ipfs:\/\/(baf[a-zA-Z0-9]+|Qm[a-zA-Z0-9]+)(\/[\w.-]*)?$/ },
+        { type: 'https', pattern: /^https:\/\/.+$/ },
+        { type: 'kns', pattern: /^kns:[\w\W]+$/ }
+    ]
+
+    for (const { type, pattern } of regexPatterns)
+        if (pattern.test(metadata)) return type
+    
+    return 'unknown'
+}
 
 
 
