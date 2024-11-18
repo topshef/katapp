@@ -16,7 +16,6 @@ body {
   outline: none; /* Removes default focus outline */
 }
 
-
 .sticky-header {
     position: sticky;
     top: 0;
@@ -70,6 +69,13 @@ body {
   font-size: 80%;
   transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; 
 }
+
+
+.ubid-card img {
+  border-radius: 5px;
+}
+
+
 
 .ubid-card:hover {
   transform: scale(1.03); /* Slightly enlarge the card on hover */

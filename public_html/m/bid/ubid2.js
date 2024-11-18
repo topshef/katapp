@@ -88,7 +88,7 @@ async function initUbid() {
     nftXfers.forEach((nftXfer) => {
       // const cardBody = renderLoadingCard(container) // Render loading state
 
-      processTx(nftXfer)
+      processNFT(nftXfer)
         .then(processedItem => {
           processedItem 
             ? renderItemCard(container, processedItem) 
@@ -111,11 +111,23 @@ async function initUbid() {
 
 
 // Process each tx to prepare data for rendering
-async function processTx(nftXfer) {
+async function processNFT(NFT) {
+    /*
+      wip refactor strategy:
+      move towards NFT as the process entity (not last tx)
+        so we can add in other NFT sources, eg the pool itself, user prefs etc
+      get trading history eg last tx separately (maybe from localbase async db)
+      
+      so require only NFT input info, with optional consensusTime
+         get seller from the ownership info on hedera mirror
+         default price blank if consensusTime not provided, for now
+    
+    */
+    
   try {
       // some issues tbc
-    const expirySeconds = 0
-    const {tokenId, serialNumber, consensusTime, receiver} = nftXfer
+    // const expirySeconds = 0
+    const {tokenId, serialNumber, consensusTime} = NFT  // later drop consensusTime and get trading history separately
     
     const tokenSerial = `${tokenId}-${serialNumber}`
     // const tokenInfoGoMint = await getTokenInfoFromGoMint(network, tokenSerial, expirySeconds)
@@ -130,9 +142,7 @@ async function processTx(nftXfer) {
     
     const token_instance = await getHederaMirrorData(network, `tokens/${tokenId}/nfts/${serialNumber}`)
     const metadata = atob(token_instance.metadata)
-    
-    
-    
+    const owner = token_instance.account_id
     
     //arweave example: ar://AuOqbfnqunPq6khupc0EK_SDgZ526koHKUt1spsq0kw
 
@@ -169,10 +179,10 @@ async function processTx(nftXfer) {
 
     if (!fileData) return console.log(`RH87734 could not decode metadata for ${metadataSource}`) && false
     
-    const urlImage = fileData?.imgSrc
-        || fileData?.image
-        || getImageUrlFromGoMint(network, tokenSerial)
+    const urlImage = fileData.imgSrc || fileData.image
         || 'https://tse3.mm.bing.net/th?id=OIP.51wVQMynr7Zxo56CVLbwpQHaHa&pid=Api'
+        // || getImageUrlFromGoMint(network, tokenSerial)
+        // || 'https://tse3.mm.bing.net/th?id=OIP.51wVQMynr7Zxo56CVLbwpQHaHa&pid=Api'
     
     
     const imageKey = fileData?.address || urlImage
@@ -183,7 +193,6 @@ async function processTx(nftXfer) {
     if (isNftAlreadyDisplayed) return console.log(`already displayed ${tokenSerial}`) && false
         
     displayedNFTs.push(tokenSerial)
-
     
     const suppressDuplicateImages = false // todo grab from url or filter options
     if (suppressDuplicateImages) {
@@ -196,7 +205,6 @@ async function processTx(nftXfer) {
         
     // imgElement.src = fileData.imgSrc
     
-    
     // const currentOwner = token_instance.account_id // this shoudl match receiver of last tx
     // const urlMetadata = convertToPinataUrl(metadata)
     // const metadataExpanded = await getData(urlMetadata, {},'infinite')
@@ -205,31 +213,41 @@ async function processTx(nftXfer) {
     // console.log("🔵ℹ️ tokenInfo=", {urlImage, tokenInfo, tokenInfoGoMint})
     //"ipfs://bafybeihgsfwlhdfwnqztmgyjimjfpbfbya63kza46f42xsxtxa7sc7ct5m/3308.json"
     
-    // using a consensus time as dragonglass messes up txid by using numeric
-    const ct_seconds_nanos = toEpochSecondsNanos(consensusTime)
-    const txns = await getHederaMirrorData(network, `transactions`, {'transactiontype' : 'CRYPTOTRANSFER', 'timestamp' : ct_seconds_nanos })
-    
-    if (!txns) return console.log(`WP98474 no txns from getHederaMirrorData for ct ${ct_seconds_nanos}`) && false
+//  /api/v1/tokens/{tokenId}/nfts/{serialNumber}
 
-    const tx = txns.transactions[0]
-    if (!tx) return console.log(`EY66454 no tx found`) && false
-    const txid = tx.transaction_id
-    const txids = convertTxId(txid)
-    console.log(txids)
+    let price
+    let unit = 'hbar'
     
-    const hbarXfers = ignoreHederaAccounts(tx.transfers);
-    const senderHbarXfers = hbarXfers.filter((line) => line.amount < 0);
-    const mainSenderXfer = senderHbarXfers.sort((a, b) => a.amount - b.amount)[0];
-    const price = Math.abs(mainSenderXfer.amount / 100000000).toFixed(4);
-    const unit = 'hbar';
-    console.log('mainSenderXfer=', mainSenderXfer);
+//XX1 this can be moved to a getTradingHistory type function
+    if (consensusTime) { // get price from that tx for now
+        // using a consensus time as dragonglass messes up txid by using numeric
+        const ct_seconds_nanos = toEpochSecondsNanos(consensusTime)
+        const txns = await getHederaMirrorData(network, `transactions`, {'transactiontype' : 'CRYPTOTRANSFER', 'timestamp' : ct_seconds_nanos })
+        
+        if (!txns) return console.log(`WP98474 no txns from getHederaMirrorData for ct ${ct_seconds_nanos}`) && false
+
+        const tx = txns.transactions[0]
+        if (!tx) return console.log(`EY66454 no tx found`) && false
+        const txid = tx.transaction_id
+        const txids = convertTxId(txid)
+        console.log(txids)
+        
+        const hbarXfers = ignoreHederaAccounts(tx.transfers);
+        const senderHbarXfers = hbarXfers.filter((line) => line.amount < 0);
+        const mainSenderXfer = senderHbarXfers.sort((a, b) => a.amount - b.amount)[0];
+        price = Math.abs(mainSenderXfer.amount / 100000000).toFixed(4);
+        
+        console.log('mainSenderXfer=', mainSenderXfer);
+    }
+//XX1
 
     // const memo = atob(tx.memo_base64)
 
     const dealId = (network == 'mainnet')
     ? '5f07af91960ac463e652c5ff0521b66d8017aff3c237718ce570d14d2b65028a'
     : '087e095b465c65d91c58cd224b71d94dad8ea260d06f74597fd5433b9be7e812'
-    const seller = receiver // The previous receiver
+    // const seller = receiver // The previous receiver
+    const seller = owner
     
     const bid_amount = (price * 1.05).toFixed(4); // Example: 5% more
 
@@ -317,7 +335,7 @@ async function showModal(data) {
 
   const modalBody = document.getElementById('modal-body')
   modalBody.innerHTML = `
-    <a href='${linkToken(network, tokenId, serialNumber)}' target='_blank'><img src='${urlImage}' height='100px'></a>
+    <a href='${linkToken(network, tokenId, serialNumber)}' target='_blank'><img src='${urlImage}' height='250px'></a>
     
     <p class="card-text">
         <a href='${linkToken(network, tokenId, serialNumber)}' target='_blank'>🖼️ ${tokenId}#${serialNumber}</a>
@@ -474,14 +492,14 @@ async function getTokenInfoFromGoMint(network, tokenId, expirySeconds = 'infinit
 }
 
 // get Hedera Mirror Data
-async function getHederaMirrorData(network, endpoint, queryObject) {
+async function getHederaMirrorData(network, endpoint, queryObject, expirySeconds = 20) {
   try {
     // Construct the base URL based on the network
     const baseUrl = network === 'mainnet' 
       ? 'https://mainnet-public.mirrornode.hedera.com/api/v1/' 
       : 'https://testnet.mirrornode.hedera.com/api/v1/'
 
-    let expirySeconds = 20
+    // let expirySeconds = 20
     if (baseUrl.startsWith('transactions/')) expirySeconds = 'infinite' // tx are final
     
     const data = await getData(`${baseUrl}${endpoint}`, queryObject, expirySeconds)
