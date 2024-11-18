@@ -103,10 +103,50 @@ async function initUbid() {
     console.error('Error fetching NFT transfers:', error)
   }
   
-  // todo also load up offline tx kpos.uk/pool 
-  // but this needs a separate modal view so todo refactor overall flow first
+  // todo add pool pulse once cards are loaded
   
+  // await Promise.all(cardRenderPromises)
   
+  // load up offline tx kpos.uk/pool 
+  // pool tx are now already shown on modal
+  // here we want to add some indication onto the existing NFT cards
+  const poolParms = {network} //noddy: '1'
+  const poolTx = await fetchPoolTx(poolParms)
+  console.log(poolTx)
+  
+  // let poolNotes = {}
+  
+    for (const txid in poolTx) {
+            
+        const hoot = poolTx[txid].hoot
+        if (!hoot) continue
+        if (hoot.secondsRemaining < -600) continue
+        
+        const tx = hoot.tx
+        if (!tx) continue
+        
+        const xfer = tx._nftTransfers?.[0]
+        if (!xfer) continue
+        
+        let tokenId = xfer.tokenId?.num?.low ?? xfer.tokenId
+        if (!tokenId) continue
+        if (tokenId == +tokenId) tokenId = `0.0.${tokenId}`
+        
+        let serialNumber = xfer.serialNumber.low ?? xfer.serialNumber
+        console.log(`pool tx exist for ${tokenId} #${serialNumber}`)
+
+        // Select the card using the tokenId and serialNumber attributes
+        const card = document.querySelector(`.ubid-card[data-token-id="${tokenId}"][data-serial-number="${serialNumber}"]`)
+
+        if (card) card.classList.add('poolNFT') // Add the class if the card is found
+        // some sporadic issue doing this. sometimes this loop does not run
+        
+        // let NFT = `${tokenId}-${serialNumber}`
+        // poolNotes[NFT] = (poolNotes[NFT] || '') + hoot.current_emoji
+        
+    }      
+    // console.log(poolNotes)
+
 }
 
 
@@ -301,6 +341,9 @@ function renderItemCard(container, data) {
 
     // Apply the 'card' class directly to 'cardBody' 🗂️📚
     cardBody.className = 'ubid-card'
+    cardBody.setAttribute('data-token-id', tokenId)
+    cardBody.setAttribute('data-serial-number', serialNumber)    
+    
     cardBody.innerHTML = `
       <button class="show-more-button"><img src='${urlImage}' width='125px'></button>
       <a href='${linkToken(network, tokenId, serialNumber)}' target='_blank'>
@@ -372,7 +415,7 @@ async function showModal(data) {
   const poolParms = {network, tokenId, serialNumber} //noddy: '1'
   const poolTx = await fetchPoolTx(poolParms)
   console.log(poolTx)
-  if (poolTx && Object.keys(poolTx).length > 0) modalBody.innerHTML += '<br>Pending pool transactions:<br>'
+  if (poolTx && Object.keys(poolTx).length > 0) modalBody.innerHTML += '<br>Current bids:<br>'
 
     for (const txid in poolTx) {
         
