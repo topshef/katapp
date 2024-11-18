@@ -284,7 +284,7 @@ function renderItemCard(container, data) {
     // Apply the 'card' class directly to 'cardBody' 🗂️📚
     cardBody.className = 'ubid-card'
     cardBody.innerHTML = `
-      <button class="show-more-button"><img src='${urlImage}' height='100px'></button>
+      <button class="show-more-button"><img src='${urlImage}' width='125px'></button>
       <a href='${linkToken(network, tokenId, serialNumber)}' target='_blank'>
         <p>🖼️ ${tokenId} # ${serialNumber}</p>
       </a>
@@ -354,7 +354,7 @@ async function showModal(data) {
   const poolParms = {network, tokenId, serialNumber} //noddy: '1'
   const poolTx = await fetchPoolTx(poolParms)
   console.log(poolTx)
-  if (poolTx) modalBody.innerHTML += '<br>Pending pool transactions:<br>'
+  if (poolTx && Object.keys(poolTx).length > 0) modalBody.innerHTML += '<br>Pending pool transactions:<br>'
 
     for (const txid in poolTx) {
         

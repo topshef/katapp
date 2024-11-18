@@ -1,10 +1,27 @@
 
 
+
+
+body {
+  background-color: #d3d3d3;
+  zzmargin: 0; /* Removes default margin */
+  zzpadding: 0; /* Removes default padding */
+}
+
+
+.user_input {
+  border: 1px solid #d3d3d3; 
+  border-radius: 5px; /* Rounded corners */
+  padding: 5px; /* Optional: Adds some padding inside the input */
+  outline: none; /* Removes default focus outline */
+}
+
+
 .sticky-header {
     position: sticky;
     top: 0;
     z-index: 1000; /* Ensure it stays above other elements */
-    background-color: #fff;
+    background-color: #f5f5f5;
     border-bottom: 1px solid #ddd;
     width: 100%;
     padding: 10px 0;
@@ -18,27 +35,46 @@
 
 
 
-.ubid-container {
+.zzubid-container {
   display: flex; /* Use flexbox for alignment */
   flex-wrap: wrap; /* Allow wrapping */
-  gap: 5px; /* Space between cards */
+  gap: 7px; /* Space between cards */
   justify-content: center; /* Center horizontally */
   align-items: center; /* Center vertically */
   align-content: center; 
   height: 100vh; /* Optional: Set a height for vertical centering */
+  margin-top: 20px;
 }
+
+.ubid-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px; /* Space between cards */
+  justify-content: center; /* Center the group of cards horizontally */
+  align-items: flex-start; /* Align cards to the top */
+  align-content: flex-start; /* Ensure wrapping starts at the top */
+  margin-top: 20px;
+  padding: 20px; /* Optional: Add padding around the container */
+}
+
 
 /* Basic card styling */
 .ubid-card {
   border: 0px solid blue;
+  border-radius: 5px; /* something obscuring this*/
   padding: 10px;
   background-color: #f9f9f9;
   display: inline-block;
   margin: 0px;
   vertical-align: top;
   font-size: 80%;
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; 
 }
 
+.ubid-card:hover {
+  transform: scale(1.03); /* Slightly enlarge the card on hover */
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+}
 
 /* Modal Background */
 .modal {
@@ -73,8 +109,8 @@
 .close-button {
   color: #aaa;
   position: absolute;
-  top: 10px;
-  right: 25px;
+  top: 8px;
+  right: 20px;
   font-size: 28px;
   font-weight: bold;
   cursor: pointer;
