@@ -25,7 +25,8 @@
 
 <div class="sticky-header">
     <div class="container">
-        <h4>UBID</h4>
+        <!--<h4>UBID</h4>-->
+        <img src='/assets/images/gmlogo4.png' height='50px'>
         <!-- Placeholder for future elements like login, filters, etc. -->
 
         <!-- todo add in search filters etc. to update url. see also modal -->
@@ -41,7 +42,8 @@
             <div class="show" id='before-pair'>
                 <!-- Connect Hashpack -->
                 <button class='wallet-button' id='pair-btn'>
-                    <img src='/assets/images/hashpack-icon-blue-trans.png' width=30> Connect your Hashpack wallet &nbsp
+                    <img src='/assets/images/hashpack-icon-blue-trans.png' width=30>
+                    <span class="wallet-text">Connect wallet &nbsp</span>
                 </button>&nbsp;
 
                 <!-- Connect Blade .. prpbably not working.. use walletconnect
@@ -70,7 +72,7 @@
                     </span>
                     <span style="white-space: nowrap;">
                         <select class='wallet-button' id="account-id"></select>&nbsp;
-                        <button id="pair-btn" class='wallet-button tooltip-p'> &plus;
+                        <button id="pair-btn" class='wallet-button tooltip-p'>&plus;
                             <span class="tooltiptext-p">Connect another account</span>
                         </button>&nbsp;
                         <button class="wallet-button tooltip-p" id="disconnect"> ✕

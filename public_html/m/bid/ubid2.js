@@ -75,7 +75,7 @@ async function initUbid() {
     network = params.network
 
   try {
-    const result = await getData('./api/nft/transfers', params, 30)
+    const result = await getData('./api/nft/transfers', params, 20)
     console.log('🔵ℹ️ ./api/nft/transfers', { params, result })
 
     const nftXfers = result.data  // nft transfers only
@@ -115,7 +115,6 @@ async function processTx(nftXfer) {
   try {
       // some issues tbc
     const expirySeconds = 0
-    
     const {tokenId, serialNumber, consensusTime, receiver} = nftXfer
     
     const tokenSerial = `${tokenId}-${serialNumber}`
@@ -310,7 +309,7 @@ at this point though we may want to further refactor ....
 
 
 // Function to update and show modal
-function showModal(data) {
+async function showModal(data) {
 
   console.log("showModal data", data)
   
@@ -350,6 +349,44 @@ function showModal(data) {
   `
   
   document.getElementById('modal').style.display = 'block'
+  
+  //show existing pool tx.. 
+  const poolParms = {network, tokenId, serialNumber} //noddy: '1'
+  const poolTx = await fetchPoolTx(poolParms)
+  console.log(poolTx)
+  if (poolTx) modalBody.innerHTML += '<br>Pending pool transactions:<br>'
+
+    for (const txid in poolTx) {
+        
+        const link = `/future/?network=${network}&txid=${txid}`
+        
+        const hoot = poolTx[txid].hoot
+        const current_emoji = hoot.current_emoji
+        const validStartStr = hoot.validStartStr
+        const secondsRemaining = Math.round(hoot.secondsRemaining)
+        let comment
+        if (secondsRemaining < 6000) comment = ` (${secondsRemaining} seconds remaining)`
+        if (secondsRemaining < -600) continue // more than 10 mins past
+        
+        // Create a link element
+        const linkElement = document.createElement('a')
+        linkElement.href = link
+        linkElement.textContent = `${current_emoji} ${validStartStr} ${comment}`
+        linkElement.target = '_blank' // Open link in a new tab
+
+        // Append the link to the modal
+        modalBody.appendChild(linkElement)
+
+        // Optionally, add a line break for readability
+        modalBody.appendChild(document.createElement('br'))
+
+
+    }
+
+
+  //or maybe get data globally..sdfghfjwsd
+  
+  
 }
 
 
@@ -444,7 +481,7 @@ async function getHederaMirrorData(network, endpoint, queryObject) {
       ? 'https://mainnet-public.mirrornode.hedera.com/api/v1/' 
       : 'https://testnet.mirrornode.hedera.com/api/v1/'
 
-    let expirySeconds = 60
+    let expirySeconds = 20
     if (baseUrl.startsWith('transactions/')) expirySeconds = 'infinite' // tx are final
     
     const data = await getData(`${baseUrl}${endpoint}`, queryObject, expirySeconds)
@@ -489,7 +526,15 @@ https://dweb.link/ipfs/
 
 */
 
+//https://kpos.uk/pool/?network=mainnet&noddy=1&&tokenId=0.0.878200&&serial=5428
 
+async function fetchPoolTx(parms) {
+    const baseUrl = 'https://kpos.uk/pool/'
+    const queryParams = new URLSearchParams(parms).toString()
+    const url = `${baseUrl}?${queryParams}`
+    
+    return await fetchJsonFromUrl(url) // yeah go ai finally, fuck try catch
+}
 
 async function fetchJsonFromUrl(url) {
     try {

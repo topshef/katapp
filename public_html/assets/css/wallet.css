@@ -1,5 +1,11 @@
+
+.wallet-text {
+    position: relative;
+    top: 2px;
+}
+
 .wallet-button {
-										border-radius: 30px;
+                                        border-radius: 30px;
 										border-color: #4ee38a;
 										//background-color: #a7f1c5;
 										background-color: white;
