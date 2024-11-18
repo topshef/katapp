@@ -5,18 +5,19 @@ window.IPFS_cache = (() => {
 
     // IPFS Gateway URLs to try
     const gateways = [
-        // 'https://ipfs.io/ipfs/',
-        // 'https://dweb.link/ipfs/',
+
         'https://gateway.pinata.cloud/ipfs/',
-        // 'https://ipfs.infura.io/ipfs/',
-        // 'https://ipfs.fleek.co/ipfs/',
-        // 'https://cloudflare-ipfs.com/ipfs/',
-        'https://ipfs.eternum.io/ipfs/',
-        // 'https://ipfs.drink.cafe/ipfs/',
-        // 'https://gateway.serph.network/ipfs/',
+        // 'https://ipfs.eternum.io/ipfs/',
         'https://nftstorage.link/ipfs/'
     ];
 
+        // 'https://ipfs.io/ipfs/',
+        // 'https://dweb.link/ipfs/',
+        // 'https://ipfs.drink.cafe/ipfs/',
+        // 'https://gateway.serph.network/ipfs/',        
+        // 'https://ipfs.infura.io/ipfs/',
+        // 'https://ipfs.fleek.co/ipfs/',
+        // 'https://cloudflare-ipfs.com/ipfs/',
 
     // Fetch data from IPFS using multiple gateways
     async function fetchFromIPFS(cid, responseType = 'text') {

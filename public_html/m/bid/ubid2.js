@@ -91,7 +91,8 @@ async function initUbid() {
                     if (processedItem) {
                         renderItemCard(container, processedItem)
                     } else {
-                        console.warn(`Failed to process ${nftXfer.tokenId}-${nftXfer.serialNumber}`)
+                        const ct_seconds_nanos = toEpochSecondsNanos(nftXfer.consensusTime)
+                        console.warn(`Failed to process ${nftXfer.tokenId}-${nftXfer.serialNumber} ${ct_seconds_nanos}`)
                     }
                 })
                 .catch(error => {
@@ -648,10 +649,24 @@ function linkTx(network, txid_or_consensus_timestamp) {
 // │  │ ││││└┐┌┘├┤ ├┬┘└─┐││ ││││└─┐
 // └─┘└─┘┘└┘ └┘ └─┘┴└─└─┘┴└─┘┘└┘└─┘
 // conversions
+
+//cunted maybe - check data we sometimes get 1 hour out
 function toEpochSecondsNanos(isoTimestamp) {
     const [seconds, nanosWithZ] = isoTimestamp.split('.')
     const nanos = nanosWithZ.slice(0, -1) // Remove the trailing 'Z'
+
     return `${new Date(seconds).getTime() / 1000}.${nanos}`
+}
+
+// cunted also
+function zztoEpochSecondsNanos(isoTimestamp) {
+    const [seconds, nanosWithZ] = isoTimestamp.split('.')
+    const nanos = nanosWithZ ? nanosWithZ.slice(0, -1).padEnd(9, '0') : '000000000'
+
+    const dateInMilliseconds = Date.parse(seconds + 'Z')
+    const dateInSeconds = dateInMilliseconds / 1000
+
+    return dateInSeconds + Number(`0.${nanos}`)
 }
 
 
