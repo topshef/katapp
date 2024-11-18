@@ -44,17 +44,13 @@ const displayedNFTs = []  // for use this instead
 async function initUbid() {
 
     // populate page by loading recent NFT transfers
-    // see above ideas on extending this
 
     // Fetch NFT Transfers and Render Them Using View Functions
 
     initModal()
-    
 
     // Define allowed parameters
-    const allowedParms = 'days network query tokenId serialNumber sender receiver transferAfter transferBefore from size sortOn sortBy'.split(' ') //https://app.dragonglass.me/hedera/apiview
-    // transferAfter 2017-01-01T01:01:00.00Z
-    //sortOn	consensusTime	token, serialNumber,consensusTime,transactionId	field on which the response will be sorted
+    const allowedParms = 'days network query tokenId serialNumber sender receiver transferAfter transferBefore from size sortOn sortBy'.split(' ') // https://app.dragonglass.me/hedera/apiview
 
     // Create URLSearchParams from window location
     const urlParams = new URLSearchParams(window.location.search)
@@ -74,81 +70,92 @@ async function initUbid() {
 
     network = params.network
 
-  try {
-    const result = await getData('./api/nft/transfers', params, 20)
-    console.log('🔵ℹ️ ./api/nft/transfers', { params, result })
+    try {
+        const result = await getData('./api/nft/transfers', params, 20)
+        console.log('🔵ℹ️ ./api/nft/transfers', { params, result })
 
-    const nftXfers = result.data  // nft transfers only
+        const nftXfers = result.data  // nft transfers only
+
+        const container = document.createElement('div')
+        container.className = 'ubid-container'
+        document.body.appendChild(container)
+
+        // Introduce a counter to track completed renderings
+        let remainingCards = nftXfers.length
+
+        // Process each tx and render as it loads
+        nftXfers.forEach((nftXfer) => {
+
+            processNFT(nftXfer)
+                .then(processedItem => {
+                    if (processedItem) {
+                        renderItemCard(container, processedItem)
+                    } else {
+                        console.warn(`Failed to process ${nftXfer.tokenId}-${nftXfer.serialNumber}`)
+                    }
+                })
+                .catch(error => {
+                    console.error('Error processing nftXfer', error)
+                    // renderErrorCard(cardBody) // Uncomment if you have cardBody defined
+                })
+                .finally(() => {
+                    remainingCards--
+                    if (remainingCards === 0) {
+                        // All cards are rendered, now process poolTx
+                        addPoolPulse()
+                    }
+                })
+        })
+    } catch (error) {
+        console.error('Error fetching NFT transfers:', error)
+        addPoolPulse() // Proceed to poolTx processing even if fetching NFT transfers fails
+    }
+
+    //ai fuck this but it works
     
-    const container = document.createElement('div')
-    container.className = 'ubid-container'
-    document.body.appendChild(container)
+    // Function to process poolTx and update cards
+    function addPoolPulse() {
+        // Load up offline tx from kpos.uk/pool
+        const poolParms = { network } // Additional parameters if needed
+        fetchPoolTx(poolParms)
+            .then(poolTx => {
+                console.log(poolTx)
 
-    // Process each tx and render as it loads
-    nftXfers.forEach((nftXfer) => {
-      // const cardBody = renderLoadingCard(container) // Render loading state
+                for (const txid in poolTx) {
 
-      processNFT(nftXfer)
-        .then(processedItem => {
-          processedItem 
-            ? renderItemCard(container, processedItem) 
-            : console.warn(`Failed to process ${nftXfer.tokenId}-${nftXfer.serialNumber}`)
-        })
-        .catch(error => {
-          console.error('Error processing nftXfer', error)
-          renderErrorCard(cardBody)
-        })
-    })
-  } catch (error) {
-    console.error('Error fetching NFT transfers:', error)
-  }
-  
-  // todo add pool pulse once cards are loaded
-  
-  // await Promise.all(cardRenderPromises)
-  
-  // load up offline tx kpos.uk/pool 
-  // pool tx are now already shown on modal
-  // here we want to add some indication onto the existing NFT cards
-  const poolParms = {network} //noddy: '1'
-  const poolTx = await fetchPoolTx(poolParms)
-  console.log(poolTx)
-  
-  // let poolNotes = {}
-  
-    for (const txid in poolTx) {
-            
-        const hoot = poolTx[txid].hoot
-        if (!hoot) continue
-        if (hoot.secondsRemaining < -600) continue
-        
-        const tx = hoot.tx
-        if (!tx) continue
-        
-        const xfer = tx._nftTransfers?.[0]
-        if (!xfer) continue
-        
-        let tokenId = xfer.tokenId?.num?.low ?? xfer.tokenId
-        if (!tokenId) continue
-        if (tokenId == +tokenId) tokenId = `0.0.${tokenId}`
-        
-        let serialNumber = xfer.serialNumber.low ?? xfer.serialNumber
-        console.log(`pool tx exist for ${tokenId} #${serialNumber}`)
+                    const hoot = poolTx[txid].hoot
+                    if (!hoot) continue
+                    if (hoot.secondsRemaining < -600) continue
 
-        // Select the card using the tokenId and serialNumber attributes
-        const card = document.querySelector(`.ubid-card[data-token-id="${tokenId}"][data-serial-number="${serialNumber}"]`)
+                    const tx = hoot.tx
+                    if (!tx) continue
 
-        if (card) card.classList.add('poolNFT') // Add the class if the card is found
-        // some sporadic issue doing this. sometimes this loop does not run
-        
-        // let NFT = `${tokenId}-${serialNumber}`
-        // poolNotes[NFT] = (poolNotes[NFT] || '') + hoot.current_emoji
-        
-    }      
-    // console.log(poolNotes)
+                    const xfer = tx._nftTransfers?.[0]
+                    if (!xfer) continue
+
+                    let tokenId = xfer.tokenId?.num?.low ?? xfer.tokenId
+                    if (!tokenId) continue
+                    if (tokenId == +tokenId) tokenId = `0.0.${tokenId}`
+
+                    let serialNumber = xfer.serialNumber.low ?? xfer.serialNumber
+                    console.log(`pool tx exists for ${tokenId} #${serialNumber}`)
+
+                    // Select the card using the tokenId and serialNumber attributes
+                    const card = document.querySelector(`.ubid-card[data-token-id="${tokenId}"][data-serial-number="${serialNumber}"]`)
+
+                    if (card) {
+                        card.classList.add('poolNFT') // Add the class if the card is found
+                    } else {
+                        console.warn(`Card not found for ${tokenId} #${serialNumber}`)
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching poolTx:', error)
+            })
+    }
 
 }
-
 
 // Process each tx to prepare data for rendering
 async function processNFT(NFT) {
