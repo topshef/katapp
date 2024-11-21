@@ -400,6 +400,9 @@ async function showModal(data) {
     <p class="card-text">
         <a href='${linkToken(network, tokenId, serialNumber)}' target='_blank'>🖼️ ${tokenId}#${serialNumber}</a>
     </p>
+    <p>Token ID <input class='user_input' id='tokenId' value='${tokenId}'></p>
+    <p>Serial <input class='user_input' id='serial' value='${serialNumber}'></p>
+    <p>Seller <input class='user_input' id='seller' value='${seller}'></p>
     <p>Bid amount <input class='user_input' id='bid_amount' value='${bid_amount}'> ${unit}</p>
     <p>Strike time <input class='user_input' id='starttime' value='${starttime}'></p>
     
@@ -418,13 +421,9 @@ async function showModal(data) {
   // todo draw the high level flow and decide on ideal level for certain actions
   // eg price discovery/ suggestions/ see also etc
 
-  document.getElementById('bid_parameters').innerHTML = `
-  <input class='user_input' id='tokenId' value='${tokenId}'>
-  <input class='user_input' id='serial' value='${serialNumber}'>
-  <input class='user_input' id='seller' value='${seller}'>
-  
-  
-  `
+  // document.getElementById('bid_parameters').innerHTML = `
+  // <input class='user_input' id='seller' value='${seller}'>
+  // `
   
   document.getElementById('modal').style.display = 'block'
   
