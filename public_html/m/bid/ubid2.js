@@ -263,19 +263,27 @@ async function processNFT(NFT) {
     
 //  /api/v1/tokens/{tokenId}/nfts/{serialNumber}
 
-    let price
+    // let price
     let unit = 'hbar'
     
 //XX1 this can be moved to a getTradingHistory type function
-    if (consensusTime) { // get price from that tx for now
+// yeah this is fucked anyway, so lets move to getTradingHistory(token)
+// just disable lookup and should still display NFTs but no price
+// anyway we could instead call the trading history when the user clicks to open modal
+    // price = 1  // hbar placeconst bid_amount =holder
+    if (false && consensusTime) { // get price from that tx for now
         // using a consensus time as dragonglass messes up txid by using numeric
         const ct_seconds_nanos = toEpochSecondsNanos(consensusTime)
+        
+        //1728994828.850519000 correct
+        //1728991228.850519000 incorrect - 1 hour too early
+        
         const txns = await getHederaMirrorData(network, `transactions`, {'transactiontype' : 'CRYPTOTRANSFER', 'timestamp' : ct_seconds_nanos })
         
         if (!txns) return console.log(`WP98474 no txns from getHederaMirrorData for ct ${ct_seconds_nanos}`) && false
-
+        console.log(txns)
         const tx = txns.transactions[0]
-        if (!tx) return console.log(`EY66454 no tx found`) && false
+        if (!tx) return console.log(`EY66454 no tx found for ${tokenId} #${serialNumber}`) && false
         const txid = tx.transaction_id
         const txids = convertTxId(txid)
         console.log(txids)
@@ -287,7 +295,7 @@ async function processNFT(NFT) {
         
         console.log('mainSenderXfer=', mainSenderXfer);
     }
-//XX1
+//XX1  end of shite to ditch
 
     // const memo = atob(tx.memo_base64)
 
@@ -297,7 +305,8 @@ async function processNFT(NFT) {
     // const seller = receiver // The previous receiver
     const seller = owner
     
-    const bid_amount = (price * 1.05).toFixed(4); // Example: 5% more
+    // const bid_amount = (price * 1.05).toFixed(4); // Example: 5% more
+    const bid_amount = 1 //  '' // work out pricing when clicking modal
 
     // const shopDomain = network === 'testnet' ? 'dev4.shop.gomint.me' : 'shop.gomint.me';
 

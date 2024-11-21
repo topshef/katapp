@@ -63,6 +63,12 @@
                     <div id="pairing-string"></div>
                 </span><br><br>
                 -->
+                <!--  adding back the following as the bundle currently requires them -->
+                <span style='display: none;'>
+                    <span id="pairing-png"></span>
+                    <span id="pairing-string"></span>
+                </span>
+
             </span>
 
             <div class="hide" id="paired">
