@@ -1,6 +1,6 @@
 <?php
 
-    //error logging v2.7
+    //error logging v2.72 fix *** open, and escape html chars
 
     require_once("{$_SERVER['DOCUMENT_ROOT']}/readenv.php");
 
@@ -64,7 +64,7 @@
         $out = "$ip $source";
         
         
-        $open = (!$label || strpos($label, '*') === false) ?  '' : ' open';  // default closed unless *    
+        $open = (!$label || strpos($label, '***') === false) ?  '' : ' open';  // default closed unless *    
         $label = "<I>$label</I>";
         
 
@@ -77,6 +77,7 @@
             }, $message);
 
             
+            $message = htmlspecialchars($message, ENT_QUOTES | ENT_HTML5, 'UTF-8');
             $message = "\n<details $open><summary>$label</summary>$message</details>";
         } else $message = "$label $message";
         
