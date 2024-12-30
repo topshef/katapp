@@ -441,7 +441,8 @@ async function showModal(data) {
   // <input class='user_input' id='seller' value='${seller}'>
   // `
   
-  document.getElementById('modal').style.display = 'block'
+  // document.getElementById('modal').style.display = 'block'
+  document.getElementById('modal').style.display = 'flex'
   
   //show existing pool tx.. 
   const poolParms = {network, tokenId, serialNumber} //noddy: '1'

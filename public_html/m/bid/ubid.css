@@ -104,21 +104,22 @@ body {
   top: 0;
   width: 100%; /* Full width */
   height: 100%; /* Full height */
-  overflow: auto; /* Enable scroll */
+  overflow: hidden;
+  align-items: center;      /* requires display: flex set with js */
+  justify-content: center;  /* requires display: flex set with js */
   background-color: rgba(0,0,0,0.5); /* Black with opacity */
 }
 
 /* Modal Content */
 .modal-content {
   background-color: #fefefe;
-  margin: 10% auto; /* Centered */
+  margin: 0; 
   padding: 20px;
   border: 1px solid #888;
   max-width: 500px; /* Max width */
   max-height: 700px; /* Max height */
   width: calc(100% - 20px); /* Full width minus margin */
   height: auto;
-  
   position: relative;
   opacity: 95%;
   overflow: auto; 
