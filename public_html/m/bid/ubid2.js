@@ -426,8 +426,6 @@ async function showModal(data) {
     <span id="widget-container">
         
     </span> <!-- Widget will be moved here -->
-
- 
     
   `
   
@@ -466,14 +464,17 @@ async function showModal(data) {
         if (secondsRemaining < -600) continue // more than 10 mins past
         
         if (secondsRemaining < 6000) {
-           let elementId = `rem-${tokenId}-${serialNumber}`
-           comment = ` (<span id="${elementId}">${secondsRemaining}</span> seconds remaining)`
-           setInterval(() => {
-             let e = document.getElementById(elementId)
-             if (!e) return
-             let val = parseInt(e.innerText)
-             e.innerText = (val > -120) ? val - 1 : 'expired - 0'
-           }, 1000)
+          let id = `rem-${tokenId}-${serialNumber}`
+          comment = ` [<span id="${id}" data-secs="${secondsRemaining}">${formatSecondsRemaining(secondsRemaining)}</span>]`
+
+          modal.dataset.timerId = setInterval(()=>{
+            let el = document.getElementById(id)
+            if(!el) return
+            let n = +el.dataset.secs || 0
+            if(n < -180) return el.textContent = 'expired'
+            el.dataset.secs = n - 1
+            el.textContent = formatSecondsRemaining(n - 1)
+          },1000)
         }
         
         // Create a link element
@@ -536,6 +537,13 @@ function closeModal() {
   // document.getElementById('bid_parameters').innerHTML = '' // remove existing parameters
   document.getElementById('bid-widget-parked').appendChild(bidWidget)
   document.getElementById('modal-body').innerHTML = '' // remove existing modal info
+  
+  
+  if (modal.dataset.timerId) { // not sure if this is working
+    clearInterval(modal.dataset.timerId)
+    delete modal.dataset.timerId // Remove the data attribute
+  }
+  
 
 }
 
@@ -733,6 +741,15 @@ function formatLocalTime(isoTimestamp) {
     const [seconds] = toEpochSecondsNanos(isoTimestamp).split('.')
     const date = new Date(seconds * 1000) // Convert seconds to milliseconds
     return `${date.getDate()} ${date.toLocaleString('default', { month: 'short' })} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`
+}
+
+
+function formatSecondsRemaining(secondsRemaining) {
+    if (secondsRemaining < 0) return secondsRemaining
+    const hours = Math.floor(secondsRemaining / 3600).toString().padStart(2, '0')
+    const minutes = Math.floor((secondsRemaining % 3600) / 60).toString().padStart(2, '0')
+    const seconds = (secondsRemaining % 60).toString().padStart(2, '0')
+    return `${hours}:${minutes}:${seconds}`
 }
 
 
