@@ -270,12 +270,12 @@ async function processNFT(NFT) {
     // let price
     let unit = 'hbar'
     
-//XX1 this can be moved to a getTradingHistory type function
-// yeah this is fucked anyway, so lets move to getTradingHistory(token)
+//XX1 this can be moved to a getTradingHistory type function //
+// yeah this is fucked anyway, so lets move to getTradingHistory(token) 
 // just disable lookup and should still display NFTs but no price
-// anyway we could instead call the trading history when the user clicks to open modal
+// anyway we could instead call the trading history when the user clicks to open modal 
     // price = 1  // hbar placeconst bid_amount =holder
-    if (false && consensusTime) { // get price from that tx for now
+    if (false && consensusTime) { // get price from that tx for now 
         // using a consensus time as dragonglass messes up txid by using numeric
         const ct_seconds_nanos = toEpochSecondsNanos(consensusTime)
         
@@ -310,7 +310,7 @@ async function processNFT(NFT) {
     const seller = owner
     
     // const bid_amount = (price * 1.05).toFixed(4); // Example: 5% more
-    const bid_amount = 1 //  '' // work out pricing when clicking modal
+    const bid_amount = 1 //  '' // work out pricing when clicking modal  //
 
     // const shopDomain = network === 'testnet' ? 'dev4.shop.gomint.me' : 'shop.gomint.me';
 
@@ -328,7 +328,7 @@ async function processNFT(NFT) {
         unit,
         starttime: '60 secs',
         },
-        history: [{consensusTime}]
+        history: [{consensusTime}] //
     }
   } catch (error) {
     console.error('⚠️ Error processing nftXfer:', error);
