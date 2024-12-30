@@ -462,13 +462,24 @@ async function showModal(data) {
         const validStartStr = hoot.validStartStr
         const secondsRemaining = Math.round(hoot.secondsRemaining)
         let comment
-        if (secondsRemaining < 6000) comment = ` (${secondsRemaining} seconds remaining)`
+        
         if (secondsRemaining < -600) continue // more than 10 mins past
+        
+        if (secondsRemaining < 6000) {
+           let elementId = `rem-${tokenId}-${serialNumber}`
+           comment = ` (<span id="${elementId}">${secondsRemaining}</span> seconds remaining)`
+           setInterval(() => {
+             let e = document.getElementById(elementId)
+             if (!e) return
+             let val = parseInt(e.innerText)
+             e.innerText = (val > -120) ? val - 1 : 'expired - 0'
+           }, 1000)
+        }
         
         // Create a link element
         const linkElement = document.createElement('a')
         linkElement.href = link
-        linkElement.textContent = `${current_emoji} ${validStartStr} ${comment}`
+        linkElement.innerHTML = `${current_emoji} ${validStartStr} ${comment}`
         linkElement.target = '_blank' // Open link in a new tab
 
         // Append the link to the modal
@@ -489,10 +500,7 @@ async function showModal(data) {
             <pre>${JSON.stringify(data, null, 2)}</pre>
         </details>     
       `
-  
-
   //or maybe get data globally..sdfghfjwsd
-  
   
 }
 
