@@ -115,6 +115,7 @@ body {
   background-color: #fefefe;
   margin: 0; 
   padding: 20px;
+  padding-top: 5px;
   border: 1px solid #888;
   max-width: 500px; /* Max width */
   max-height: 700px; /* Max height */
@@ -125,12 +126,23 @@ body {
   overflow: auto; 
 }
 
+.modal-content p {
+  margin: 5px 0; /* Reduced vertical spacing */
+}
+
+
+
 /* Close Button */
 .close-button {
+  position: sticky;
+  top: 0px;
+  right: 5px;
+  margin-left: auto;
+  margin-bottom: -20px;
+  z-index: 1100; /* Higher than modal to ensure visibility */
+  
   color: #aaa;
-  position: absolute;
-  top: 8px;
-  right: 20px;
+  zzposition: absolute;
   font-size: 28px;
   font-weight: bold;
   cursor: pointer;
