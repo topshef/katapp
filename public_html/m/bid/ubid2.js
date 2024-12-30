@@ -75,6 +75,10 @@ async function initUbid() {
         console.log('🔵ℹ️ ./api/nft/transfers', { params, result })
 
         const nftXfers = result.data  // nft transfers only
+        
+        // sort not needed here - already sorted in api call, but later the cards are sorted anyway
+        // nftXfers.sort((a, b) => parseFloat(toEpochSecondsNanos(b.consensusTime)) - parseFloat(toEpochSecondsNanos(a.consensusTime)))
+        // console.log('🔵ℹ️ nftXfers', nftXfers)
 
         const container = document.createElement('div')
         container.className = 'ubid-container'
@@ -142,7 +146,7 @@ async function initUbid() {
                     console.log(`pool tx exists for ${tokenId} #${serialNumber}`)
 
                     // Select the card using the tokenId and serialNumber attributes
-                    const card = document.querySelector(`.ubid-card[data-token-id="${tokenId}"][data-serial-number="${serialNumber}"]`)
+                    const card = document.querySelector(`.card[data-token-id="${tokenId}"][data-serial-number="${serialNumber}"]`)
 
                     if (card) {
                         card.classList.add('poolNFT') // Add the class if the card is found
@@ -358,20 +362,32 @@ function renderItemCard(container, data) {
 
     // Apply the 'card' class directly to 'cardBody' 🗂️📚
     cardBody.className = 'ubid-card'
-    cardBody.setAttribute('data-token-id', tokenId)
-    cardBody.setAttribute('data-serial-number', serialNumber)    
+    
+    
+    const consensusTimeOfLastTx = data.history[0].consensusTime
+    card.setAttribute('data-consensus-time', parseFloat(toEpochSecondsNanos(consensusTimeOfLastTx)))
+    
+    card.setAttribute('data-token-id', tokenId)
+    card.setAttribute('data-serial-number', serialNumber)
+    
     
     cardBody.innerHTML = `
       <button class="show-more-button"><img src='${urlImage}' width='125px'></button>
       <a href='${linkToken(network, tokenId, serialNumber)}' target='_blank'>
         <p>🖼️ ${tokenId} # ${serialNumber}</p>
       </a>
-      <p>🕘 ${formatLocalTime(data.history[0].consensusTime)}</p>
+      <p>🕘 ${formatLocalTime(consensusTimeOfLastTx)}</p>
       <p>👤 ${seller}</p>
     `
 
     card.appendChild(cardBody)
     container.appendChild(card) 
+
+    const urlParams = new URLSearchParams(window.location.search)
+    const sortField = urlParams.get('sortField') || 'consensus-time'
+    const sortOrder = urlParams.get('sortOrder') || 'desc'
+    // sortCards(container, 'consensus-time', 'desc')
+    sortCards(container, sortField, sortOrder)
 
     // Attach event listener to the "Show more" button
     cardBody.querySelector('.show-more-button').addEventListener('click', () => showModal(data))
@@ -587,6 +603,19 @@ function ignoreHederaAccounts(xfers) {
 // ├─┤├┤ │  ├─┘├┤ ├┬┘└─┐
 // ┴ ┴└─┘┴─┘┴  └─┘┴└─└─┘
 // helpers
+
+// Generic sorter: sorts <div class="card"> children by chosen data attribute and order
+function sortCards(container, dataAttr, order = 'desc') {
+    const cardDivs = Array.from(container.querySelectorAll('.card'))
+    cardDivs.sort((a, b) => {
+        const valA = parseFloat(a.getAttribute(`data-${dataAttr}`)) || 0
+        const valB = parseFloat(b.getAttribute(`data-${dataAttr}`)) || 0
+        return order === 'asc' ? valA - valB : valB - valA
+    })
+    cardDivs.forEach(cardDiv => {
+        container.appendChild(cardDiv)
+    })
+}
 
 
 /* fuckem all 
