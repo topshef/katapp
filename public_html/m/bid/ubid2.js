@@ -421,10 +421,13 @@ async function showModal(data) {
     <p>Seller <input class='user_input' id='seller' value='${seller}'></p>
     <p>Bid amount <input class='user_input' id='bid_amount' value='${bid_amount}'> ${unit}</p>
     <p>Strike time <input class='user_input' id='starttime' value='${starttime}'></p>
+   
     
     <span id="widget-container">
         
     </span> <!-- Widget will be moved here -->
+
+ 
     
   `
   
@@ -477,6 +480,16 @@ async function showModal(data) {
 
     }
 
+ const urlParams = new URLSearchParams(window.location.search)
+ if (urlParams.has('dev'))
+ // urlParams.get('sortField') || 'consensus-time'
+      modalBody.innerHTML += `
+        <details>
+            <summary>Show Data Details</summary>
+            <pre>${JSON.stringify(data, null, 2)}</pre>
+        </details>     
+      `
+  
 
   //or maybe get data globally..sdfghfjwsd
   
