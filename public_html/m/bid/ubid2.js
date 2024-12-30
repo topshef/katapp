@@ -466,15 +466,7 @@ async function showModal(data) {
         if (secondsRemaining < 6000) {
           let id = `rem-${tokenId}-${serialNumber}`
           comment = ` [<span id="${id}" data-secs="${secondsRemaining}">${formatSecondsRemaining(secondsRemaining)}</span>]`
-
-          modal.dataset.timerId = setInterval(()=>{
-            let el = document.getElementById(id)
-            if(!el) return
-            let n = +el.dataset.secs || 0
-            if(n < -180) return el.textContent = 'expired'
-            el.dataset.secs = n - 1
-            el.textContent = formatSecondsRemaining(n - 1)
-          },1000)
+          modal.dataset.timerId = manageModalTimer(secondsRemaining, id)
         }
         
         // Create a link element
@@ -633,6 +625,27 @@ function ignoreHederaAccounts(xfers) {
 // ├─┤├┤ │  ├─┘├┤ ├┬┘└─┐
 // ┴ ┴└─┘┴─┘┴  └─┘┴└─└─┘
 // helpers
+
+
+function manageModalTimer(secondsRemaining, id) {
+  const intervalId = setInterval(() => {
+    const el = document.getElementById(id)
+    if (!el) {
+      clearInterval(intervalId) // Stop timer if element is missing
+      return
+    }
+    const currentSecs = parseInt(el.dataset.secs, 10) || 0
+    if (currentSecs <= 0) {
+      el.textContent = 'expired'
+      clearInterval(intervalId)
+      return
+    }
+    el.dataset.secs = currentSecs - 1
+    el.textContent = formatSecondsRemaining(currentSecs - 1)
+  }, 1000)
+  return intervalId
+}
+
 
 // Generic sorter: sorts <div class="card"> children by chosen data attribute and order
 function sortCards(container, dataAttr, order = 'desc') {
