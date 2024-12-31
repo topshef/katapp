@@ -635,7 +635,7 @@ function manageModalTimer(secondsRemaining, id) {
       return
     }
     const currentSecs = parseInt(el.dataset.secs, 10) || 0
-    if (currentSecs <= 0) {
+    if (currentSecs <= 180) {
       el.textContent = 'expired'
       clearInterval(intervalId)
       return
