@@ -190,7 +190,7 @@ async function processNFT(NFT) {
 
     const token_class = await getHederaMirrorData(network, `tokens/${tokenId}`)
     // console.log(`token class info for ${tokenId}`,token_class)
-    // const treasury = token_class.treasury_account_id  // nahwe dont need it
+    const treasury = token_class.treasury_account_id  // only for ref
     
     const token_instance = await getHederaMirrorData(network, `tokens/${tokenId}/nfts/${serialNumber}`)
     const metadata = atob(token_instance.metadata)
@@ -322,6 +322,7 @@ async function processNFT(NFT) {
         network,
         dealId,
         tokenId,
+        treasury, // for display ref only
         serialNumber,
         seller,
         bid_amount, 
@@ -353,7 +354,7 @@ function clearContainer(container) {
 function renderItemCard(container, data) {
     
     // const displaySender = sender === '0.0.0' ? 'mint' : sender  //uh-oh we also need the treasury if mint
-    const {network, tokenId, serialNumber, seller, urlImage} = data.bid
+    const {network, tokenId, treasury, serialNumber, seller, urlImage} = data.bid
     
 
     const card = document.createElement('div')
@@ -370,6 +371,7 @@ function renderItemCard(container, data) {
     card.setAttribute('data-token-id', tokenId)
     card.setAttribute('data-serial-number', serialNumber)
     
+    const sellerIcon = (seller == treasury) ? '🏦' : '👤'
     
     cardBody.innerHTML = `
       <button class="show-more-button"><img src='${urlImage}' width='125px'></button>
@@ -377,7 +379,7 @@ function renderItemCard(container, data) {
         <p>🖼️ ${tokenId} # ${serialNumber}</p>
       </a>
       <p>🕘 ${formatLocalTime(consensusTimeOfLastTx)}</p>
-      <p>👤 ${seller}</p>
+      <p>${sellerIcon} ${seller}</p>
     `
 
     card.appendChild(cardBody)
