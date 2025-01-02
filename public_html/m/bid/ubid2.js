@@ -431,10 +431,7 @@ async function showModal(data) {
     
   `
   
-  document.getElementById('dealId').value = dealId // atm this only varies by network
-  const bidWidget = document.getElementById('bid-widget')
-  document.getElementById('widget-container').appendChild(bidWidget) 
-  
+
   // todo update url parms so that hashconnect bundle.js can process tx
   // also makes the modal bookmarkable
   // todo draw the high level flow and decide on ideal level for certain actions
@@ -453,6 +450,12 @@ async function showModal(data) {
   console.log(poolTx)
   if (poolTx && Object.keys(poolTx).length > 0) modalBody.innerHTML += '<br>Current bids:<br>'
 
+      
+  document.getElementById('dealId').value = dealId // atm this only varies by network
+  const bidWidget = document.getElementById('bid-widget')
+  document.getElementById('widget-container').appendChild(bidWidget) 
+
+
     for (const txid in poolTx) {
         
         const link = `/future/?network=${network}&txid=${txid}`
@@ -466,9 +469,12 @@ async function showModal(data) {
         if (secondsRemaining < -600) continue // more than 10 mins past
         
         if (secondsRemaining < 6000) {
-          let id = `rem-${tokenId}-${serialNumber}`
+          let id = `rem-${tokenId}-${serialNumber}-${txid}`
           comment = ` [<span id="${id}" data-secs="${secondsRemaining}">${formatSecondsRemaining(secondsRemaining)}</span>]`
-          modal.dataset.timerId = manageModalTimer(secondsRemaining, id)
+          // modal.dataset.timerId = manageModalTimer(secondsRemaining, id)
+          if (!modal.dataset.timerIds) modal.dataset.timerIds = ''
+          if (modal.dataset.timerIds.length > 0) modal.dataset.timerIds += ','
+          modal.dataset.timerIds += manageModalTimer(secondsRemaining, id)
         }
         
         // Create a link element
@@ -483,19 +489,20 @@ async function showModal(data) {
         // Optionally, add a line break for readability
         modalBody.appendChild(document.createElement('br'))
 
-
     }
+        
+  //or maybe get data globally..sdfghfjwsd
 
- const urlParams = new URLSearchParams(window.location.search)
- if (urlParams.has('dev'))
- // urlParams.get('sortField') || 'consensus-time'
-      modalBody.innerHTML += `
+    const urlParams = new URLSearchParams(window.location.search)
+
+    if (urlParams.has('dev'))
+      modalBody.insertAdjacentHTML('beforeend', `
         <details>
             <summary>Show Data Details</summary>
             <pre>${JSON.stringify(data, null, 2)}</pre>
-        </details>     
-      `
-  //or maybe get data globally..sdfghfjwsd
+        </details>
+      `)
+      
   
 }
 
@@ -533,11 +540,11 @@ function closeModal() {
   document.getElementById('modal-body').innerHTML = '' // remove existing modal info
   
   
-  if (modal.dataset.timerId) { // not sure if this is working
-    clearInterval(modal.dataset.timerId)
-    delete modal.dataset.timerId // Remove the data attribute
+  if (modal.dataset.timerIds) {
+    let arr = modal.dataset.timerIds.split(',')
+    arr.forEach(timerId => clearInterval(timerId))
+    delete modal.dataset.timerIds
   }
-  
 
 }
 
@@ -637,7 +644,7 @@ function manageModalTimer(secondsRemaining, id) {
       return
     }
     const currentSecs = parseInt(el.dataset.secs, 10) || 0
-    if (currentSecs <= 180) {
+    if (currentSecs <= -180) {
       el.textContent = 'expired'
       clearInterval(intervalId)
       return
