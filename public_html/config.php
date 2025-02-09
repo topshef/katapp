@@ -25,6 +25,7 @@ logEvent('end loadcontent.php');
 
 // common functions - tbc where to put these
 	function getUserProfile($user_id, $type) {
+        if (!$user_id) return false;
 		global $api_endpoint;
 		$url = "$api_endpoint/getUserProfile.php?userId=$user_id&type=$type";
 		$json = file_get_contents($url);
