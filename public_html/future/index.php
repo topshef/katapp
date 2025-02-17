@@ -34,7 +34,12 @@ else $urlTxAppnet = $env['url_api_tx_appnet'] ?? $env['url_api_gomint_hashconnec
 
 $urlTxAppnet = rtrim($urlTxAppnet, '/');
 
-$url .= "$urlTxAppnet/txList.php?network=$network&format=$format&base=future&subfolder=$subfolder";
+// $mempool = 'kpool';
+$mempool = 'kfund';
+$querystring = http_build_query(compact('network', 'format', 'mempool', 'subfolder'));
+
+$url .= "$urlTxAppnet/txList.php?base=future&$querystring";
+//network=$network&format=$format&base=future&subfolder=$subfolder
 // review... migrate to kpos and render json client side
 
 if ($txid) $url .= "&txid=$txid";
