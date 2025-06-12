@@ -130,6 +130,30 @@ body {
   margin: 5px 0; /* Reduced vertical spacing */
 }
 
+#modal-body .field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+}
+
+#modal-body .field label {
+  flex: 0 0 100px;
+  text-align: right;
+  margin: 0;
+  font-weight: bold;
+}
+
+
+#modal-body .field input {
+  flex: 1;
+  min-width: 0;
+  max-width: 25ch;
+}
+
+#modal-body .field button {
+  max-width: 25ch;
+}
 
 
 /* Close Button */

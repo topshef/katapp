@@ -412,25 +412,23 @@ async function showModal(data) {
   const {network, dealId, tokenId, serialNumber, seller, urlImage, bid_amount, unit, starttime} = data.bid
 
   const modalBody = document.getElementById('modal-body')
-  modalBody.innerHTML = `
-    <a href='${linkToken(network, tokenId, serialNumber)}' target='_blank'><img src='${urlImage}' height='250px'></a>
-    
-    <p class="card-text">
-        <a href='${linkToken(network, tokenId, serialNumber)}' target='_blank'>🖼️ ${tokenId}#${serialNumber}</a>
-    </p>
-    <p>Token ID <input class='user_input' id='tokenId' value='${tokenId}'></p>
-    <p>Serial <input class='user_input' id='serial' value='${serialNumber}'></p>
-    <p>Seller <input class='user_input' id='seller' value='${seller}'></p>
-    <p>Bid amount <input class='user_input' id='bid_amount' value='${bid_amount}'> ${unit}</p>
-    <p>Strike time <input class='user_input' id='starttime' value='${starttime}'></p>
-   
-    
-    <span id="widget-container">
-        
-    </span> <!-- Widget will be moved here -->
-    
-  `
-  
+    modalBody.innerHTML = `
+      <a href='${linkToken(network, tokenId, serialNumber)}' target='_blank'><img src='${urlImage}' height='250px'></a>
+
+      <div class="field"><label for="tokenId">Token ID</label><input class='user_input' id='tokenId' value='${tokenId}'></div>
+      <div class="field"><label for="serial">Serial</label><input class='user_input' id='serial' value='${serialNumber}'></div>
+      <div class="field"><label for="seller">Seller</label><input class='user_input' id='seller' value='${seller}'></div>
+      <div class="field"><label for="bid_amount">Bid</label><input class='user_input' id='bid_amount' value='${bid_amount}'> ${unit}</div>
+      <div class="field"><label for="starttime">Strike</label><input class='user_input' id='starttime' value='${starttime}'></div>
+
+    <div class="field">
+      <label></label>
+      <span id="widget-container"></span>
+    </div>
+
+
+    `
+      
 
   // todo update url parms so that hashconnect bundle.js can process tx
   // also makes the modal bookmarkable
