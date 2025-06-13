@@ -130,6 +130,13 @@ body {
   margin: 5px 0; /* Reduced vertical spacing */
 }
 
+
+#modal-body img {
+  display: block;
+  margin: 0 auto;
+}
+
+
 #modal-body .field {
   display: flex;
   align-items: center;
