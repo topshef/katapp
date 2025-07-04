@@ -123,6 +123,29 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
     <script src="assets/js/slick.js"></script>
     <script src="assets/js/accordions.js"></script>
 
+    <script>
+        function getQueryParam(key) {
+          const urlParams = new URLSearchParams(window.location.search)
+          return urlParams.get(key)
+        }
+
+        function filterBids() {
+          const accountId = getQueryParam('accountId')
+          const tokenId = getQueryParam('tokenId')
+
+          document.querySelectorAll('.bidgroup').forEach(group => {
+            const accounts = JSON.parse(group.dataset.accounts || '[]')
+            const tokens = JSON.parse(group.dataset.tokens || '[]')
+
+            const matchesAccount = !accountId || accounts.includes(accountId)
+            const matchesToken = !tokenId || tokens.includes(tokenId)
+
+            group.style.display = (matchesAccount && matchesToken) ? '' : 'none'
+          })
+        }
+
+        window.addEventListener('DOMContentLoaded', filterBids)
+    </script>
 
 
   </body>
