@@ -44,6 +44,7 @@ $url .= "$urlTxAppnet/txList.php?base=future&$querystring";
 
 if ($txid) $url .= "&txid=$txid";
 if ($isDev) $url .= "&dev";
+if ($_GET['ksig']) $url .= "&ksig=1";
 
 elog("calling $url");
 $html_list = file_get_contents($url);
@@ -146,6 +147,7 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
 
         window.addEventListener('DOMContentLoaded', filterBids)
     </script>
+
 
 
   </body>

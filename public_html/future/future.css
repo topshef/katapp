@@ -143,6 +143,63 @@ a:hover {
   line-height: 1.4;
 }
 
+#bidinfo p span:last-child {
+  flex-grow: 1;
+  min-width: 0; /* allow shrinking */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+#bidinfo p {
+  margin: 0;
+  line-height: 1.2;    /* tighter than default */
+}
+
+#bidinfo span {
+  display: inline;     /* don’t force block or flex */
+  white-space: normal; 
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+#bidinfo {
+  min-width: 0;              /* let it shrink inside grid */
+  overflow-wrap: anywhere;   /* break long hashes */
+  word-break: break-word;
+  white-space: normal;
+}
+
+/* force 2nd column to wrap long text */
+#bidinfo {
+  min-width: 0;                /* allow grid cell to shrink */
+  white-space: normal;         /* allow wrapping */
+  overflow-wrap: anywhere;     /* break long words/hashes */
+  word-break: break-word;
+}
+
+/* and its flex children */
+#bidinfo p {
+  display: block;              /* stop using flex here */
+}
+
+#bidinfo span {
+  min-width: 0;                /* critical: flex shrink allowed */
+  white-space: normal !important;
+}
+
+
+
+
+.bidrow:has(.bidcell:first-child:empty) {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.bidrow .bidcell:first-child img,
+.bidrow .bidcell:first-child video {
+  border-radius: 12px;  /* adjust to taste */
+  overflow: hidden;
+}
 
 
 .code {
