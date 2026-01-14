@@ -318,8 +318,10 @@ function fetchDataAndHydratePage() {
 //see also kfund kpayuk and kpos
 function unpack_KWT_to_JWT(kwt) {
     // Split the KWT into components
-    const [dealIdSnippet, serial, signature] = kwt.split('~')
+    const [dealIdSnippet, parameters, signature] = kwt.split('~')
+    // parameters is usually just serial, but can be eg a comma-delimited list
     // serial could be an amount or any other parameter data
+    // see also other versions of this function eg on kfund
 
     // Reconstruct the JWT header and payload
     const header = {
@@ -333,7 +335,7 @@ function unpack_KWT_to_JWT(kwt) {
         const dealId = dealIdSnippet
     
     const payload = {
-        sub: `${dealId}.${serial}` // sub contains the full deal ID and serial
+        sub: `${dealId}.${parameters}` // sub contains the full deal ID and parameters (eg serial)
     }
 
     // Base64Url encode the header and payload
