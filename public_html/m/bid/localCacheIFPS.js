@@ -159,6 +159,16 @@ window.IPFS_cache = (() => {
             // Remove 'ipfs://' prefix if present
             imageCid = imageCid.replace(/^ipfs:\/\//, '');
 
+            if (imageCid?.includes('#')) {
+                console.warn('double-encoding IPFS path due to # in metadata', imageCid)
+                let parts = imageCid.split('/')
+                let cid = parts.shift()
+                let path = parts.join('/')
+                path = encodeURIComponent(encodeURIComponent(path))
+                imageCid = `${cid}/${path}`
+            }
+
+
             // Fetch the image as a Blob
             let imageBlob = await getDataIPFS(imageCid, 'blob');
 
