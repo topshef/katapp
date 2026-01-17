@@ -6,9 +6,10 @@ window.IPFS_cache = (() => {
     // IPFS Gateway URLs to try
     const gateways = [
 
-        'https://gateway.pinata.cloud/ipfs/',
+        'https://shop.gomint.me/m/ipfs/',
+        //'https://gateway.pinata.cloud/ipfs/',
         // 'https://ipfs.eternum.io/ipfs/',
-        'https://nftstorage.link/ipfs/'
+        //'https://nftstorage.link/ipfs/'
     ];
 
         // 'https://ipfs.io/ipfs/',
@@ -32,7 +33,9 @@ window.IPFS_cache = (() => {
         let shuffledGateways = gateways.sort(() => Math.random() - 0.5); // Randomize gateway order
         for (let gateway of shuffledGateways) {
             try {
-                let response = await fetch(gateway + contentPath, { mode: 'cors' }); // Enable CORS mode
+                //let response = await fetch(gateway + contentPath, { mode: 'cors' }); // Enable CORS mode
+                let response = await fetch(gateway + contentPath)
+
                 if (response.ok) {
                     console.log('Live fetch from IPFS', cid);
                     return responseType === 'blob' ? await response.blob() : await response.text();
