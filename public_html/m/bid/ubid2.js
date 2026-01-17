@@ -57,8 +57,10 @@ async function initUbid() {
 
     // Default values for specific parameters
     const defaultValues = {
-        network: 'testnet',
-        size: 5
+        network: 'mainnet',
+        size: 100,
+        days: 30,
+        
     }
 
     // Create the params object by iterating over allowed parameters
