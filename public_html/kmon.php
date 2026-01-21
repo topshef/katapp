@@ -1,12 +1,23 @@
 <?php
 
-    // require_once "{$_SERVER['DOCUMENT_ROOT']}/assets/php/helpers/sendPost.php"; //kfund
-    require_once "{$_SERVER['DOCUMENT_ROOT']}/assets/php/sendPost.php"; //phpjabbers
+    require_once "{$_SERVER['DOCUMENT_ROOT']}/assets/php/helpers/sendPost.php";
+
+		$GLOBALS['repo'] = getRepoName();
+
+		function getRepoName() {
+			$repo = trim(shell_exec('git config --get remote.origin.url'));
+			if ($repo) $repoName = basename(parse_url(str_replace(':', '/', $repo), PHP_URL_PATH), '.git');
+			return $repoName;
+		}
 
     function kmon($test_id, $status, $notesOrDetails) {
+        //v0.12 auto inject $_SERVER info and repo
         //v0.11 copied from pistmanAlert v0.11 wa papi
         $url = "https://kpay.uk/devtools/monitor/api.php";
         
+				$test_id = injectServerInfo($test_id);
+				$notesOrDetails = injectServerInfo($notesOrDetails);
+				
         $details = $notesOrDetails; // fudging for upstream.. wip
         $notes = '';
         
@@ -35,5 +46,19 @@
         elog($data, "result $res of $url");
         return $res;
     }
-    
+			
+		
+		function injectServerInfo($text) {
+				if (!is_string($text)) return $text;
+				if (strpos($text, '{') === false) return $text;
+				
+			  $vars = $_SERVER;
+				$vars['repo'] = $GLOBALS['repo'];
+
+				return preg_replace_callback('/\{([^}]+)\}/', function ($m) use ($vars) {
+						return array_key_exists($m[1], $vars) ? $vars[$m[1]] : $m[0];
+				}, $text);
+		}
+
+		
 ?>
