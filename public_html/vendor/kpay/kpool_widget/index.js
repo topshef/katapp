@@ -98,7 +98,7 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 
 	const renderTxReadDebug = async ({ network, txid, details }) => {
 
-		const { url, json } = await txRead({ network, txid })
+		const { url, json, transfers } = await txRead({ network, txid })
 
 		// link to raw API
 		const link = document.createElement('a')
@@ -142,7 +142,8 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 		injectTxReadCSS()
 
 		details.classList.add('txread')
-		const columns = buildTxReadColumns(json)
+		const columns = buildTxReadColumns({ json, transfers })
+
     details.appendChild(columns)
 
 		details.appendChild(table)
@@ -152,7 +153,8 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 	}
 
 
-	const buildTxReadColumns = json => {
+	const buildTxReadColumns = ({ json, transfers }) => {
+
 		const grid = document.createElement('div')
 		grid.className = 'txread-grid'
 
@@ -162,8 +164,8 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 		const col2 = document.createElement('div')
 		col2.className = 'txread-col'
 
-		const transfers = buildTransferList(json)
-		col2.appendChild(transfers)
+		const transfersView = buildTransferList(transfers.lineItems)
+		col2.appendChild(transfersView)
 
 
 
@@ -195,7 +197,8 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 		return grid
 	}
 
-	const buildTransferList = json => {
+	const buildTransferList = lineItems => {
+
 		const container = document.createElement('div')
 		container.className = 'txread-xfers'
 
@@ -223,38 +226,11 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 			container.appendChild(c)
 		}
 
-		// HBAR transfers
-		;(get(json, 'result.deal.addHbarTransfer') || []).forEach(x => {
+		lineItems.forEach(item => {
 			addRow(
-				x.accountId,
-				'HBAR',
-				x.value
-			)
-		})
-
-		// Token (FT) transfers
-		;(get(json, 'result.deal.addTokenTransfer') || []).forEach(x => {
-			addRow(
-				x.accountId,
-				x.tokenId,
-				x.value
-			)
-		})
-
-		// NFT transfers (sender = -1, receiver = +1)
-		;(get(json, 'result.deal.addNftTransfer') || []).forEach(x => {
-			const asset = `${x.tokenId} #${x.serial}`
-
-			addRow(
-				x.sender,
-				asset,
-				-1
-			)
-
-			addRow(
-				x.receiver,
-				asset,
-				+1
+				item.account,
+				item.asset,
+				item.amount
 			)
 		})
 
