@@ -66,40 +66,6 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
   if (kpool_widget) kpool_widget.append(details)
 		
 
-	const buildFieldTable = (json, fields) => {
-		const table = document.createElement('table')
-		table.style.borderCollapse = 'collapse'
-
-		fields.forEach(f => {
-			const tr = document.createElement('tr')
-
-			const tdPath = document.createElement('td')
-			tdPath.textContent = f.path
-			tdPath.style.verticalAlign = 'top'
-			tdPath.style.fontFamily = 'monospace'
-			tdPath.style.padding = '4px 8px'
-
-			const tdValue = document.createElement('td')
-			const value = get(json, f.path)
-			tdValue.style.padding = '4px 8px'
-			tdValue.textContent =
-				typeof value === 'object'
-					? JSON.stringify(value, null, 2)
-					: value ?? ''
-
-			const tdNote = document.createElement('td')
-			tdNote.style.padding = '4px 8px'
-			tdNote.textContent = f.note || ''
-
-			tr.appendChild(tdPath)
-			tr.appendChild(tdValue)
-			tr.appendChild(tdNote)
-
-			table.appendChild(tr)
-		})
-
-		return table
-	}
 
 	const renderTxReadDebug = async ({ network, txid, details }) => {
 
@@ -120,30 +86,6 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 		pre.appendChild(code)
 
 
-		// fields we want to inventory
-		const fields = [
-			// Core
-			{ path: 'result.network', note: 'network' },
-			{ path: 'result.txid', note: 'transaction id' },
-
-			// Deal display
-			{ path: 'result.deal.display.title', note: 'card title' },
-			{ path: 'result.deal.display.thumbnail', note: 'thumbnail image (fallback later)' },
-
-			// Transfers
-			{ path: 'result.deal.addHbarTransfer', note: 'hbar transfers (array)' },
-			{ path: 'result.deal.addTokenTransfer', note: 'token transfers (array)' },
-			{ path: 'result.deal.addNftTransfer', note: 'nft transfers (array)' },
-
-			// Signatures
-			{ path: 'result.sigs', note: 'raw signatures; derive accounts later' },
-
-			// Raw tx
-			{ path: 'result.bodyBytesHex', note: 'decode via mirror node later' }
-		]
-
-		const table = buildFieldTable(json, fields)
-		
 		injectTxReadCSS()
 
 		details.classList.add('txread')
@@ -156,7 +98,6 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 
     details.appendChild(columns)
 
-		details.appendChild(table)
 	  details.appendChild(link)
 		details.appendChild(pre)
 
