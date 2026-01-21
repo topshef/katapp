@@ -48,7 +48,9 @@ if ($_GET['ksig']) $url .= "&ksig=1";
 
 elog("calling $url");
 $html_list = file_get_contents($url);
-if ($txid && $isAdmin) $html_list_v2 = file_get_contents("$url&v=v2");
+
+// might not use this.. if we bypass kfund compeltely
+// if ($txid && $isAdmin) $html_list_v2 = file_get_contents("$url&v=v2");
 
 
 $custom_style = '<link rel="stylesheet" type="text/css" href="future/future.css">';
