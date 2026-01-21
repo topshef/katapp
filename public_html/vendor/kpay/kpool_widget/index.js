@@ -1,14 +1,28 @@
 
-console.log('injecting kpool widget')
+	console.log('injecting kpool widget')
+
+	const params = new URLSearchParams(window.location.search)
+	const network = params.get('network')
+	const txid = params.get('txid')
+
+	const main = async () => {
+		if (!network) {
+			renderError('FR67657 Missing network')
+			return
+		}
+
+		if (txid) {
+			await renderSingleTx(network, txid)
+		} else {
+			renderError('UH7688 Transaction list not yet implemented')
+		}
+	}
 
 
-document.addEventListener('DOMContentLoaded', () => {
-  const params = new URLSearchParams(window.location.search)
+	main()
 
-  const network = params.get('network')
-  const txid = params.get('txid')
-
-  if (!network || !txid) return
+// const renderSingleTx = async (network, txid) => {   // does not hoist. enables this.shitshow
+async function renderSingleTx(network, txid) {         // does hoist. old-skool explicit
 
 
 	// inject KSIG QR widget
@@ -464,8 +478,4 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	})()
 
-	
-
-	
-})
-
+}	
