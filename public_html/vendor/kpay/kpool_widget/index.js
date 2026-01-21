@@ -7,6 +7,10 @@ import {
 } from './utils.js'
 
 
+import { txRead } from './model.js'
+
+
+
 	console.log('injecting kpool widget')
 
 	const params = new URLSearchParams(window.location.search)
@@ -93,12 +97,8 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 	}
 
 	const renderTxReadDebug = async ({ network, txid, details }) => {
-		const url = `https://kpos.uk/pool/txRead?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}&detail=1`
 
-		const res = await fetch(url)
-		if (!res.ok) return
-
-		const json = await res.json()
+		const { url, json } = await txRead({ network, txid })
 
 		// link to raw API
 		const link = document.createElement('a')
