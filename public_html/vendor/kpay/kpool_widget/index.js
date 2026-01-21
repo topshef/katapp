@@ -2,7 +2,10 @@
 
 import { txRead } from './model.js'
 
-import { injectTxReadCSS } from './view.js'
+import {
+	injectTxReadCSS,
+	buildTxReadColumns
+} from './view.js'
 
 import {
 	get,
@@ -144,7 +147,12 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 		injectTxReadCSS()
 
 		details.classList.add('txread')
-		const columns = buildTxReadColumns({ json, transfers })
+		const columns = buildTxReadColumns({
+			json,
+			transfers,
+			network,
+			txid
+		})
 
     details.appendChild(columns)
 
@@ -155,161 +163,6 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 	}
 
 
-	const buildTxReadColumns = ({ json, transfers }) => {
-
-		const grid = document.createElement('div')
-		grid.className = 'txread-grid'
-
-		const col1 = document.createElement('div')
-		col1.className = 'txread-col txread-thumb'
-
-		const col2 = document.createElement('div')
-		col2.className = 'txread-col'
-
-		const transfersView = buildTransferList(transfers.lineItems)
-		col2.appendChild(transfersView)
-
-
-
-		const col3 = document.createElement('div')
-		col3.className = 'txread-col'
-		const sigs = buildSignatureList(json)
-		col3.appendChild(sigs)
-		
-
-		const col4 = document.createElement('div')
-		col4.className = 'txread-col'
-		const timing = buildTimingBlock(json, get(json, 'result.network') || network, get(json, 'result.txid') || txid)
-		col4.appendChild(timing)
-
-		// thumbnail (column 1)
-		const thumbUrl = get(json, 'result.deal.display.thumbnail')
-		if (thumbUrl) {
-			const img = document.createElement('img')
-			img.src = thumbUrl
-			img.alt = 'deal thumbnail'
-			col1.appendChild(img)
-		}
-
-		grid.appendChild(col1)
-		grid.appendChild(col2)
-		grid.appendChild(col3)
-		grid.appendChild(col4)
-
-		return grid
-	}
-
-	const buildTransferList = lineItems => {
-
-		const container = document.createElement('div')
-		container.className = 'txread-xfers'
-
-		// header row
-		;['Account', 'Asset', 'Amount'].forEach(h => {
-			const el = document.createElement('div')
-			el.className = 'txread-xfer-head'
-			el.textContent = h
-			container.appendChild(el)
-		})
-
-		// helper to add one row
-		const addRow = (account, asset, amount) => {
-			const a = document.createElement('div')
-			a.textContent = account
-
-			const b = document.createElement('div')
-			b.textContent = asset
-
-			const c = document.createElement('div')
-			c.textContent = amount
-
-			container.appendChild(a)
-			container.appendChild(b)
-			container.appendChild(c)
-		}
-
-		lineItems.forEach(item => {
-			addRow(
-				item.account,
-				item.asset,
-				item.amount
-			)
-		})
-
-		return container
-	}
-
-
-	const buildSignatureList = json => {
-		const container = document.createElement('div')
-		container.className = 'txread-sigs'
-
-		const title = document.createElement('div')
-		title.className = 'txread-sigs-title'
-		title.textContent = 'Signatures received'
-		container.appendChild(title)
-
-		const sigs = get(json, 'result.sigs') || []
-
-		if (!sigs.length) {
-			const empty = document.createElement('div')
-			empty.textContent = '—'
-			container.appendChild(empty)
-			return container
-		}
-
-		sigs.forEach(s => {
-			const pubKey = s.pubKey || ''
-			const short = pubKey.slice(-4)
-
-			const el = document.createElement('div')
-			el.className = 'txread-sig'
-			el.textContent = short
-
-			container.appendChild(el)
-		})
-
-		return container
-	}
-
-
-	const buildTimingBlock = (json, network, txid) => {
-		const container = document.createElement('div')
-		container.className = 'txread-timing'
-
-		const timeInfo = parseTxIdTime(txid)
-		if (!timeInfo) return container
-
-		const nowSec = Math.floor(Date.now() / 1000)
-		const diff = timeInfo.seconds - nowSec
-
-		// time until execution
-		const countdown = document.createElement('div')
-		countdown.className = 'txread-countdown'
-		countdown.textContent = `⏱ ${formatCountdown(diff)}`
-		container.appendChild(countdown)
-
-		// formatted start time
-		const startTime = document.createElement('div')
-		startTime.textContent = formatUtcTime(timeInfo.seconds)
-		container.appendChild(startTime)
-
-		// txid link (HashScan)
-		const txLink = document.createElement('a')
-		txLink.href = `https://hashscan.io/${network}/transaction/${txid}`
-		txLink.target = '_blank'
-		txLink.rel = 'noopener'
-		txLink.textContent = txid
-		txLink.style.wordBreak = 'break-all'
-		container.appendChild(txLink)
-
-		// network label
-		const net = document.createElement('div')
-		net.textContent = `Hedera ${network}`
-		container.appendChild(net)
-
-		return container
-	}
 
 	// usage (inside DOMContentLoaded is perfect)
 	;(async () => {
