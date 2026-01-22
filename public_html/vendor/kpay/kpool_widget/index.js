@@ -42,8 +42,13 @@ import {
 async function renderSingleTx(network, txid) {         // does hoist. old-skool explicit
 
 
+	// main container
+	const container = document.createElement('div')
+
 	// inject KSIG QR widget
-  const details = document.createElement('details')
+	const details = document.createElement('details')
+
+
   const summary = document.createElement('summary')
   summary.innerHTML = "Sign with <a href='https://ksig.uk/pwa' target='KPAYPWA'>KSIG</a>"
 
@@ -63,7 +68,7 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
   details.appendChild(iframe)
 
   const kpool_widget = document.querySelector('#kpool_widget')
-  if (kpool_widget) kpool_widget.append(details)
+  if (kpool_widget) kpool_widget.append(container)
 		
 
 
@@ -71,24 +76,20 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 
 		const { url, json, transfers } = await txRead({ network, txid })
 
-		// link to raw API
-		const link = document.createElement('a')
-		link.href = url
-		link.target = '_blank'
-		link.rel = 'noopener'
-		link.textContent = 'View txRead API response'
-		link.style.display = 'block'
 
-		// raw JSON dump
-		const pre = document.createElement('pre')
-		const code = document.createElement('code')
-		code.textContent = JSON.stringify(json, null, 2)
-		pre.appendChild(code)
-
+		// raw JSON dump (collapsible, with API link inside)
+		const jsonDetails = document.createElement('details')
+		jsonDetails.innerHTML = `
+			<summary>View raw JSON</summary>
+			<a href="${url}" target="_blank" rel="noopener" style="display:block;margin:4px 0">
+				⚙️ View txRead API response
+			</a>
+			<pre><code>${JSON.stringify(json, null, 2)}</code></pre>
+		`
 
 		injectTxReadCSS()
 
-		details.classList.add('txread')
+		container.classList.add('txread')
 		const columns = buildTxReadColumns({
 			json,
 			transfers,
@@ -96,10 +97,9 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 			txid
 		})
 
-    details.appendChild(columns)
-
-	  details.appendChild(link)
-		details.appendChild(pre)
+		container.appendChild(columns)
+		container.appendChild(details)
+		container.appendChild(jsonDetails)
 
 	}
 
