@@ -158,10 +158,22 @@ function showBuildBanner({
     ${dirtyEntries.length
       ? `<div style="margin-top:6px;font-weight:400;">
            ${dirtyEntries.map(([path, rec]) => {
-             const seconds = rec.mtime
-               ? Math.floor(Date.now() / 1000 - rec.mtime)
-               : "?"
-             return `${seconds}s ${path}`
+
+							let age = "?"
+
+							if (rec.mtime) {
+								const seconds = Math.floor(Date.now() / 1000 - rec.mtime)
+
+								if (seconds < 60)
+									age = "<1m"
+								else if (seconds < 3600)
+									age = "<1h"
+								else
+									age = `${Math.floor(seconds / 3600)}h`
+							}
+
+							return `${age} ${path}`
+
            }).join("<br>")}
          </div>`
       : ""}
