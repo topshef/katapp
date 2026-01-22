@@ -2,9 +2,9 @@
 
     require_once "{$_SERVER['DOCUMENT_ROOT']}/assets/php/helpers/sendPost.php";
 
-		$GLOBALS['repo'] = getRepoName();
+		$GLOBALS['repo'] = getRepoName(); 
 
-		function getRepoName() {
+		function getRepoName() { //see also build.php
 			$repo = trim(shell_exec('git config --get remote.origin.url'));
 			if ($repo) $repoName = basename(parse_url(str_replace(':', '/', $repo), PHP_URL_PATH), '.git');
 			return $repoName;
