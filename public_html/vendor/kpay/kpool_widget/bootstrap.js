@@ -93,7 +93,7 @@ function showBootstrapStatus(state) {
 	
 
   const dirtyLabel = isClean
-    ? "🧹 clean"
+    ? "✅ clean"
     : `🧹 ${dirtyPaths.length} dirty`
 	
 
