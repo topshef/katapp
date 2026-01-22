@@ -53,47 +53,82 @@ if (workingHash) {
   }, 5000)
 }
 
-
 function showBootstrapStatus(state) {
-  const banner = document.createElement("div")
+  // kill any existing one
+  const old = document.getElementById("build-bootstrap-overlay")
+  if (old) old.remove()
 
-  banner.style.position = "fixed"
-  banner.style.top = "8px"
-  banner.style.right = "8px"
-
-  banner.style.background = "rgba(220, 235, 255, 0.9)" // soft info blue
-  banner.style.border = "1px solid rgba(120, 160, 220, 0.8)"
-  banner.style.borderRadius = "8px"
-
-  banner.style.color = "#123"
-  banner.style.fontSize = "12px"
-  banner.style.fontWeight = "500"
-
-  banner.style.padding = "6px 10px"
-  banner.style.zIndex = "99998"
-  banner.style.boxShadow = "0 4px 10px rgba(0,0,0,0.15)"
-
-  const dirtyCount = Object.keys(state.dirtyFiles).length    //state.dirtyFiles?.length ?? 0
-  const dirtyLabel = dirtyCount === 0
-    ? "🧹 clean"
-    : `🧹 ${dirtyCount} dirty`
-
-  banner.innerHTML = `
-    <span>
-      🧱 ${state.buildId}
-      &nbsp;·&nbsp;
-      🔧 ${state.workingHash}
-      &nbsp;·&nbsp;
-      ${dirtyLabel}
-    </span>
-    <button id="close" style="margin-left: 8px; border-radius: 4px;">×</button>
+  const overlay = document.createElement("div")
+  overlay.id = "build-bootstrap-overlay"
+  overlay.style.cssText = `
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483647 !important;
+    pointer-events: all !important;
+    background: rgba(0,0,0,0.001) !important;
   `
 
-  banner.querySelector("#close").onclick = () => banner.remove()
+  const banner = document.createElement("div")
+  banner.style.cssText = `
+    position: fixed !important;
+    top: 8px !important;
+    right: 8px !important;
+    background: rgba(220,235,255,0.95) !important;
+    border: 1px solid rgba(120,160,220,0.8) !important;
+    border-radius: 8px !important;
+    color: #123 !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    padding: 8px 10px !important;
+    max-width: 420px !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2) !important;
+    pointer-events: all !important;
+  `
 
-  document.body.appendChild(banner)
+  const dirtyPaths = Object.keys(state.dirtyFiles || {})
+  const dirtyLabel = dirtyPaths.length === 0
+    ? "🧹 clean"
+    : `🧹 ${dirtyPaths.length} dirty`
 
-  setTimeout(() => banner.remove(), 10000)
+  const commitUrl = `https://github.com/${state.repo}/commit/${state.buildId}`
+
+  banner.innerHTML = `
+    <button id="close"
+      style="position:absolute;top:4px;right:6px;border-radius:4px;">
+      ×
+    </button>
+
+    <div style="margin-bottom:4px;padding-right:18px;">
+      📦 ${state.repo}
+    </div>
+
+    <div>
+      🧱 <a href="${commitUrl}" target="_blank" style="color:inherit;">
+        ${state.buildId}
+      </a>
+      · 🔧 ${state.workingHash}
+      · ${dirtyLabel}
+    </div>
+
+    ${dirtyPaths.length
+      ? `<div style="margin-top:6px;font-weight:400;">
+           ${dirtyPaths.map(p => `• ${p}`).join("<br>")}
+         </div>`
+      : ""}
+  `
+
+  banner.onclick = e => e.stopPropagation()
+  overlay.onclick = e => { e.preventDefault(); e.stopPropagation() }
+
+  banner.querySelector("#close").onclick = e => {
+    e.stopPropagation()
+    overlay.remove()
+  }
+
+  overlay.appendChild(banner)
+  document.body.appendChild(overlay)
+
+  setTimeout(() => overlay.remove(), 20000)
 }
 
 
