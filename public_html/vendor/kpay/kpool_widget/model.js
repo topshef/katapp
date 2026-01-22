@@ -13,7 +13,7 @@ export async function txRead({ network, txid }) {
 	return {
 		url,
 		rawTx,
-		transfers: getAllTransfers(json)
+		transfers: getAllTransfers(rawTx)
 	}
 }
 
