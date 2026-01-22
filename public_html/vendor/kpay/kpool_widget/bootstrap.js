@@ -45,7 +45,9 @@ if (workingHash) {
 
 			if (latest !== workingHash && latest !== lastNotifiedHash) {
 				lastNotifiedHash = latest
-				showReloadBanner()
+				// showReloadBanner()
+				showReloadBanner({ ...window.__BUILD__, workingHash: latest })
+
 			}
 
 			
@@ -53,50 +55,81 @@ if (workingHash) {
   }, 5000)
 }
 
+//
+
 function showBootstrapStatus(state) {
-  // kill any existing one
-  const old = document.getElementById("build-bootstrap-overlay")
+  const dirtyCount = Object.keys(state.dirtyFiles || {}).length
+
+  showBuildBanner({
+    state,
+    mode: "info",
+    autoDismissMs: dirtyCount === 0 ? 20000 : null
+  })
+}
+
+
+function showReloadBanner(state) {
+  showBuildBanner({
+    state,
+    mode: "reload",
+    onReload: () => location.reload()
+  })
+}
+
+
+function showBuildBanner({
+  state,
+  mode,            // "info" | "reload"
+  onReload = null, // function or null
+  autoDismissMs = null
+}) {
+  // remove any existing banner
+  const old = document.getElementById("build-banner-overlay")
   if (old) old.remove()
 
   const overlay = document.createElement("div")
-  overlay.id = "build-bootstrap-overlay"
+  overlay.id = "build-banner-overlay"
   overlay.style.cssText = `
-    position: fixed !important;
-    inset: 0 !important;
-    z-index: 2147483647 !important;
-    pointer-events: all !important;
-    background: rgba(0,0,0,0.001) !important;
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    pointer-events: all;
+    background: rgba(0,0,0,0.001);
   `
 
   const banner = document.createElement("div")
   banner.style.cssText = `
-    position: fixed !important;
-    top: 8px !important;
-    right: 8px !important;
-    border: 1px solid rgba(120,160,220,0.8) !important;
-    border-radius: 8px !important;
-    color: #123 !important;
-    font-size: 12px !important;
-    font-weight: 500 !important;
-    padding: 8px 10px !important;
-    max-width: 420px !important;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.2) !important;
-    pointer-events: all !important;
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 8px 10px;
+    max-width: 420px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    pointer-events: all;
   `
 
-	const dirtyEntries = Object.entries(state.dirtyFiles || {})
+  const dirtyEntries = Object.entries(state.dirtyFiles || {})
+  const isClean = dirtyEntries.length === 0
 
-	const isClean = dirtyEntries.length === 0
-	
-	banner.style.background = isClean
-		? "rgba(220,245,220,0.95)"   // light green
-		: "rgba(220,235,255,0.95)"   // blue
-	
+  // color by mode / state
+  if (mode === "reload") {
+    banner.style.background = "rgba(255,245,230,0.95)"
+    banner.style.border = "1px solid rgba(255,165,0,0.6)"
+    banner.style.color = "#222"
+  } else {
+    banner.style.background = isClean
+      ? "rgba(220,245,220,0.95)"
+      : "rgba(220,235,255,0.95)"
+    banner.style.border = "1px solid rgba(120,160,220,0.8)"
+    banner.style.color = "#123"
+  }
 
   const dirtyLabel = isClean
     ? "✅ clean"
     : `🧹 ${dirtyEntries.length} dirty`
-	
 
   const commitUrl = `https://github.com/${state.repo}/commit/${state.buildId}`
 
@@ -118,17 +151,22 @@ function showBootstrapStatus(state) {
       · ${dirtyLabel}
     </div>
 
-		${dirtyEntries.length
-			? `<div style="margin-top:6px;font-weight:400;">
-					 ${dirtyEntries.map(([path, rec]) => {
-						 const seconds = rec.mtime
-							 ? Math.floor(Date.now() / 1000 - rec.mtime)
-							 : "?"
-						 return `${seconds}s ${path}`
-					 }).join("<br>")}
-				 </div>`
-			: ""}
+    ${dirtyEntries.length
+      ? `<div style="margin-top:6px;font-weight:400;">
+           ${dirtyEntries.map(([path, rec]) => {
+             const seconds = rec.mtime
+               ? Math.floor(Date.now() / 1000 - rec.mtime)
+               : "?"
+             return `${seconds}s ${path}`
+           }).join("<br>")}
+         </div>`
+      : ""}
 
+    ${mode === "reload"
+      ? `<div style="margin-top:6px;">
+           <button id="reload" style="border-radius:4px;">Reload</button>
+         </div>`
+      : ""}
   `
 
   banner.onclick = e => e.stopPropagation()
@@ -139,53 +177,16 @@ function showBootstrapStatus(state) {
     overlay.remove()
   }
 
+  if (onReload) {
+    banner.querySelector("#reload").onclick = () => onReload()
+  }
+
   overlay.appendChild(banner)
   document.body.appendChild(overlay)
 
-  if (isClean)
-		setTimeout(() => overlay.remove(), 20000)
-
+  if (autoDismissMs)
+    setTimeout(() => overlay.remove(), autoDismissMs)
 }
 
-
-function showReloadBanner() {
-  if (document.getElementById("build-reload-banner"))
-    return
-
-  const banner = document.createElement("div")
-  banner.id = "build-reload-banner"
-
-	banner.style.position = "fixed"
-	banner.style.top = "8px"
-	banner.style.right = "8px"
-
-	banner.style.background = "rgba(255, 245, 230, 0.85)" // warm, mostly opaque
-	banner.style.border = "1px solid rgba(255, 165, 0, 0.6)"
-	banner.style.borderRadius = "8px"
-
-	banner.style.color = "#222"
-	banner.style.fontWeight = "500"
-	banner.style.fontSize = "13px"
-
-	banner.style.padding = "8px 10px"
-	banner.style.zIndex = "99999"
-
-	banner.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)"
-
-  banner.innerHTML = `
-    <span>📣 New version available.</span>
-    <button id="reload" style="margin-left: 6px; border-radius: 4px;">Reload</button>
-    <button id="dismiss" style="border-radius: 4px;">×</button>
-  `
-
-  banner.querySelector("#reload").onclick = () => location.reload()
-  // banner.querySelector("#dismiss").onclick = () => banner.remove()  //only remove banner, but allow retrigger
-	banner.querySelector("#dismiss").onclick = () => {
-		watchEnabled = false  // turn off watch completely (admin user needs to reload to reenable)
-		banner.remove()
-	}
-
-  document.body.appendChild(banner)
-}
 
 /////
