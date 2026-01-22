@@ -15,10 +15,15 @@ export async function txRead({ network, txid }) {
 
 	const rawTx = await res.json()
 
+	const transfers = getAllTransfers(rawTx)
+	const accounts = getAccountsWithRoles({ transfers, txid })
+	
+console.log({transfers, accounts, rawTx, url})
 	return {
 		url,
 		rawTx,
-		transfers: getAllTransfers(rawTx)
+		transfers,
+		accounts
 	}
 }
 
@@ -79,4 +84,33 @@ function getAllTransfers(rawTx) {
 		raw,        // original shapes, grouped
 		lineItems  // accounting-friendly flat list
 	}
+}
+
+
+function getAccountsWithRoles({ transfers, txid }) {
+	const accounts = {}
+
+	const addRole = (accountId, role) => {
+		if (!accountId) return
+		if (!accounts[accountId]) {
+			accounts[accountId] = { roles: [] }
+		}
+		if (!accounts[accountId].roles.includes(role)) {
+			accounts[accountId].roles.push(role)
+		}
+	}
+
+	// operator from txid
+	const parsed = parseTxId(txid)
+	if (parsed?.operatorId) {
+		addRole(parsed.operatorId, 'operator')
+	}
+
+	// roles from transfers
+	transfers.lineItems.forEach(x => {
+		if (x.amount < 0) addRole(x.account, 'sender')
+		if (x.amount > 0) addRole(x.account, 'receiver')
+	})
+
+	return accounts
 }
