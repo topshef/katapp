@@ -3,6 +3,9 @@
 let workingHash = null   // changes if any of the git tracked code changes
 let lastNotifiedHash = null
 let watchEnabled = true
+let bannerActive = true
+let bannerTimer = null
+
 
 try {
 	const res = await fetch("/build.php", { cache: "no-store" })
@@ -32,30 +35,27 @@ if (workingHash)
 await import(appRoot)
 
 
-
 if (workingHash) {
-  setInterval(async () => {
+  bannerTimer = setInterval(async () => {
     try {
-			
-			if (!watchEnabled)
-				return
-			
+      if (!bannerActive)
+        return
+
       const res = await fetch("/build.php", { cache: "no-store" })
-      const { workingHash: latest } = await res.json()
+      const state = await res.json()
 
-			if (latest !== workingHash && latest !== lastNotifiedHash) {
-				lastNotifiedHash = latest
-				// showReloadBanner()
-				showReloadBanner({ ...window.__BUILD__, workingHash: latest })
+      const hasChanged = state.workingHash !== workingHash
 
-			}
+      showBuildBanner({
+        state,
+        mode: hasChanged ? "reload" : "info",
+        onReload: hasChanged ? () => location.reload() : null
+      })
 
-			
     } catch {}
   }, 5000)
 }
 
-//
 
 function showBootstrapStatus(state) {
   const dirtyCount = Object.keys(state.dirtyFiles || {}).length
@@ -120,11 +120,15 @@ function showBuildBanner({
     banner.style.border = "1px solid rgba(255,165,0,0.6)"
     banner.style.color = "#222"
   } else {
-    banner.style.background = isClean
-      ? "rgba(220,245,220,0.95)"
-      : "rgba(220,235,255,0.95)"
-    banner.style.border = "1px solid rgba(120,160,220,0.8)"
-    banner.style.color = "#123"
+		banner.style.background = isClean
+			? "rgba(220,245,220,0.95)"   // green
+			: "rgba(255,245,230,0.95)"   // orange
+
+		banner.style.border = isClean
+			? "1px solid rgba(120,180,120,0.8)"
+			: "1px solid rgba(255,165,0,0.6)"
+
+		banner.style.color = "#222"
   }
 
   const dirtyLabel = isClean
@@ -172,10 +176,14 @@ function showBuildBanner({
   banner.onclick = e => e.stopPropagation()
   overlay.onclick = e => { e.preventDefault(); e.stopPropagation() }
 
-  banner.querySelector("#close").onclick = e => {
-    e.stopPropagation()
-    overlay.remove()
-  }
+	banner.querySelector("#close").onclick = e => {
+		e.stopPropagation()
+		bannerActive = false
+		if (bannerTimer)
+			clearInterval(bannerTimer)
+		overlay.remove()
+	}
+
 
   if (onReload) {
     banner.querySelector("#reload").onclick = () => onReload()
