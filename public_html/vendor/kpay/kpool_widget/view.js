@@ -179,15 +179,18 @@
 
 		const title = document.createElement('div')
 		title.className = 'txread-sigs-title'
-		title.textContent = 'Accounts involved'
+		title.textContent = 'Accounts to sign'
 		container.appendChild(title)
 
-		Object.keys(accounts).forEach(accountId => {
-			const el = document.createElement('div')
-			el.className = 'txread-sig'
-			el.textContent = accountId
-			container.appendChild(el)
+		Object.entries(accounts)
+			.filter(([_, acc]) => acc.mustSign)
+			.forEach(([accountId]) => {
+				const el = document.createElement('div')
+				el.className = 'txread-sig'
+				el.textContent = accountId
+				container.appendChild(el)
 		})
+		
 	}
 
 

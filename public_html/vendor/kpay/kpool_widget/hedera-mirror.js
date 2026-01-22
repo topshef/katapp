@@ -58,4 +58,4 @@ async function zztestMirror() {
   console.log('TY76465 Hedera account info:', info)
 }
 
-zztestMirror()
+// zztestMirror()

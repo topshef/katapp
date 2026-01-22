@@ -1,6 +1,6 @@
 
 
-import { txRead, calcAccountsInfo } from './model.js'
+import { txRead, enrichAccountsInfo, calcAccountsThatSign  } from './model.js'
 
 import {
 	injectTxReadCSS,
@@ -113,11 +113,13 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 		try {
 			const tx = await renderTxReadDebug({ network, txid, details })
 						
-			await calcAccountsInfo({
+			await enrichAccountsInfo({
 				network,
 				accounts: tx.accounts
 			})			
+			calcAccountsThatSign(tx.accounts)
 			console.log('accounts after enrichment (controller)', tx.accounts)
+
 		  renderAccountsInfo(tx.accounts)
 
 		} catch (e) {

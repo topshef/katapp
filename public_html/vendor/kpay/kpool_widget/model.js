@@ -118,7 +118,7 @@ function getAccountsWithRoles({ transfers, txid }) {
 }
 
 
-export async function calcAccountsInfo({ network, accounts }) {
+export async function enrichAccountsInfo({ network, accounts }) {
 	const entries = Object.entries(accounts)
 
 	await Promise.all(entries.map(async ([accountId, acc]) => {
@@ -131,3 +131,20 @@ export async function calcAccountsInfo({ network, accounts }) {
 	}))
 
 }
+
+
+export function calcAccountsThatSign(accounts) {
+	Object.values(accounts).forEach(acc => {
+		const roles = acc.roles || []
+
+		const isOperator = roles.includes('operator')
+		const isSender = roles.includes('sender')
+		const isReceiverNeedingSig =
+			roles.includes('receiver') &&
+			acc.info &&
+			acc.info.receiver_sig_required === true
+
+		acc.mustSign = isOperator || isSender || isReceiverNeedingSig
+	})
+}
+
