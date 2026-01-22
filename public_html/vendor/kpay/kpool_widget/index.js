@@ -9,7 +9,7 @@ import {
 
 import {
 	get,
-	parseTxIdTime,
+	parseTxId,
 	formatUtcTime,
 	formatCountdown
 } from './utils.js'

@@ -6,16 +6,21 @@ export const get = (obj, path) =>
 		obj
 	)
 
-export const parseTxIdTime = txid => {
+// export const parseTxIdTime = txid => {
+export const parseTxId = txid => {
 	// 0.0.123@1769033572.006227887
-	const [, atPart] = txid.split('@')
-	if (!atPart) return null
+	const [operatorId, startTime] = txid.split('@')
+	const [shard, realm, entityNum] =
+	operatorId.split('.').map(v => parseInt(v, 10))
 
-	const [secStr, nanoStr] = atPart.split('.')
-	const seconds = parseInt(secStr, 10)
-	const nanos = parseInt(nanoStr || '0', 10)
 
-	return { seconds, nanos }
+	if (!startTime) return null
+
+	
+	const [seconds, nanos] =
+		startTime.split('.').map(v => parseInt(v, 10))
+
+	return {operatorId, shard, realm, entityNum, seconds, nanos }
 }
 
 export const formatUtcTime = seconds => {

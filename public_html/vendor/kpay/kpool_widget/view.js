@@ -1,7 +1,7 @@
 
 	import {
 		get,
-		parseTxIdTime,
+		parseTxId,
 		formatUtcTime,
 		formatCountdown
 	} from './utils.js'
@@ -123,16 +123,16 @@
 		return container
 	}
 
-
+	//4th section
 	export const buildTimingBlock = (network, txid) => {
 		const container = document.createElement('div')
 		container.className = 'txread-timing'
 
-		const timeInfo = parseTxIdTime(txid)
-		if (!timeInfo) return container
+		const txidInfo = parseTxId(txid)
+		if (!txidInfo) return container
 
 		const nowSec = Math.floor(Date.now() / 1000)
-		const diff = timeInfo.seconds - nowSec
+		const diff = txidInfo.seconds - nowSec
 
 		// time until execution
 		const countdown = document.createElement('div')
@@ -142,7 +142,7 @@
 
 		// formatted start time
 		const startTime = document.createElement('div')
-		startTime.textContent = formatUtcTime(timeInfo.seconds)
+		startTime.textContent = formatUtcTime(txidInfo.seconds)
 		container.appendChild(startTime)
 
 		// txid link (HashScan)

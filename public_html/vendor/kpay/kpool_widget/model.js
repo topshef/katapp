@@ -1,5 +1,10 @@
 // model.js
 
+	import {
+		parseTxId,
+	} from './utils.js'
+
+
 export async function txRead({ network, txid }) {
 	const url = `https://kpos.uk/pool/txRead?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}&detail=1`
 
@@ -18,11 +23,11 @@ export async function txRead({ network, txid }) {
 }
 
 
-function getAllTransfers(json) {
+function getAllTransfers(rawTx) {
 	const raw = {
-		hbar: json?.result?.deal?.addHbarTransfer || [],
-		token: json?.result?.deal?.addTokenTransfer || [],
-		nft: json?.result?.deal?.addNftTransfer || []
+		hbar: rawTx?.result?.deal?.addHbarTransfer || [],
+		token: rawTx?.result?.deal?.addTokenTransfer || [],
+		nft: rawTx?.result?.deal?.addNftTransfer || []
 	}
 
 	const lineItems = []
