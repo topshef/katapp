@@ -9,6 +9,8 @@ try {
 	const serverState = await res.json()
 
 	window.__BUILD__ = serverState
+	
+	showBootstrapStatus(serverState)
 
 	console.log("🛠 Build diagnostics", serverState)
 
@@ -51,6 +53,51 @@ if (workingHash) {
   }, 5000)
 }
 
+
+function showBootstrapStatus(state) {
+  const banner = document.createElement("div")
+
+  banner.style.position = "fixed"
+  banner.style.top = "8px"
+  banner.style.right = "8px"
+
+  banner.style.background = "rgba(220, 235, 255, 0.9)" // soft info blue
+  banner.style.border = "1px solid rgba(120, 160, 220, 0.8)"
+  banner.style.borderRadius = "8px"
+
+  banner.style.color = "#123"
+  banner.style.fontSize = "12px"
+  banner.style.fontWeight = "500"
+
+  banner.style.padding = "6px 10px"
+  banner.style.zIndex = "99998"
+  banner.style.boxShadow = "0 4px 10px rgba(0,0,0,0.15)"
+
+  const dirtyCount = Object.keys(state.dirtyFiles).length    //state.dirtyFiles?.length ?? 0
+  const dirtyLabel = dirtyCount === 0
+    ? "🧹 clean"
+    : `🧹 ${dirtyCount} dirty`
+
+  banner.innerHTML = `
+    <span>
+      🧱 ${state.buildId}
+      &nbsp;·&nbsp;
+      🔧 ${state.workingHash}
+      &nbsp;·&nbsp;
+      ${dirtyLabel}
+    </span>
+    <button id="close" style="margin-left: 8px; border-radius: 4px;">×</button>
+  `
+
+  banner.querySelector("#close").onclick = () => banner.remove()
+
+  document.body.appendChild(banner)
+
+  setTimeout(() => banner.remove(), 10000)
+}
+
+
+
 function showReloadBanner() {
   if (document.getElementById("build-reload-banner"))
     return
@@ -91,4 +138,4 @@ function showReloadBanner() {
   document.body.appendChild(banner)
 }
 
-//
+/////
