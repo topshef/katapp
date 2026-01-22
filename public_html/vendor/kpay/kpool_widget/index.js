@@ -1,6 +1,6 @@
 
 
-import { txRead } from './model.js'
+import { txRead, calcAccountsInfo } from './model.js'
 
 import {
 	injectTxReadCSS,
@@ -75,7 +75,7 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 
 	const renderTxReadDebug = async ({ network, txid, details }) => {
 
-		const { url, rawTx, transfers } = await txRead({ network, txid })
+		const { url, rawTx, transfers, accounts } = await txRead({ network, txid })
 
 
 		// raw JSON dump (collapsible, with API link inside)
@@ -101,7 +101,8 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 		container.appendChild(columns)
 		container.appendChild(details)
 		container.appendChild(jsonDetails)
-
+		
+		return { url, rawTx, transfers, accounts }
 	}
 
 
@@ -109,7 +110,14 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 	// usage (inside DOMContentLoaded is perfect)
 	;(async () => {
 		try {
-			await renderTxReadDebug({ network, txid, details })
+			const tx = await renderTxReadDebug({ network, txid, details })
+						
+			await calcAccountsInfo({
+				network,
+				accounts: tx.accounts
+			})			
+			console.log('accounts after enrichment (controller)', tx.accounts)
+			
 		} catch (e) {
 			console.warn('txRead fetch failed', e)
 		}

@@ -4,6 +4,8 @@
 		parseTxId,
 	} from './utils.js'
 
+import { getAccountInfo } from './hedera-mirror.js'
+
 
 export async function txRead({ network, txid }) {
 	const url = `https://kpos.uk/pool/txRead?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}&detail=1`
@@ -17,8 +19,8 @@ export async function txRead({ network, txid }) {
 
 	const transfers = getAllTransfers(rawTx)
 	const accounts = getAccountsWithRoles({ transfers, txid })
-	
-console.log({transfers, accounts, rawTx, url})
+			
+	console.log({transfers, accounts, rawTx, url})
 	return {
 		url,
 		rawTx,
@@ -113,4 +115,19 @@ function getAccountsWithRoles({ transfers, txid }) {
 	})
 
 	return accounts
+}
+
+
+export async function calcAccountsInfo({ network, accounts }) {
+	const entries = Object.entries(accounts)
+
+	await Promise.all(entries.map(async ([accountId, acc]) => {
+		try {
+			const info = await getAccountInfo(network, accountId)
+			acc.info = info
+		} catch (err) {
+			acc.infoError = err.message || String(err)
+		}
+	}))
+
 }
