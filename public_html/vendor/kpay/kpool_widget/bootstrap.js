@@ -1,4 +1,29 @@
 
+/*
+  v0.1
+	bootstrap.js — Admin build / live-reload helper
+
+  Purpose:
+  - Fetches server build state from /build.php on load
+  - Imports index.js with a cache-busting hash (workingHash)
+  - Shows a non-intrusive admin banner with:
+      • repo + latest commit link
+      • working hash
+      • clean / dirty status
+      • list of dirty files with coarse “age” hints
+  - Polls server state every 5s while banner is active
+
+  Behaviour:
+  - Green banner: repo clean and page in sync
+  - Orange banner: repo dirty OR page out of sync
+  - Reload button appears once server workingHash changes
+    (even if repo later becomes clean again)
+  - Closing the banner disables further polling until page reload
+
+  Scope:
+  - Intended for admin / dev use only
+  - No impact on normal users
+*/
 
 let workingHash = null   // changes if any of the git tracked code changes
 let lastNotifiedHash = null
