@@ -2,6 +2,7 @@
 
 let workingHash = null   // changes if any of the git tracked code changes
 let lastNotifiedHash = null
+let watchEnabled = true
 
 try {
 	const res = await fetch("/build.php", { cache: "no-store" })
@@ -33,22 +34,22 @@ await import(appRoot)
 if (workingHash) {
   setInterval(async () => {
     try {
+			
+			if (!watchEnabled)
+				return
+			
       const res = await fetch("/build.php", { cache: "no-store" })
       const { workingHash: latest } = await res.json()
 
-      // if (latest !== workingHash)
-        // showReloadBanner()
-			
 			if (latest !== workingHash && latest !== lastNotifiedHash) {
 				lastNotifiedHash = latest
 				showReloadBanner()
 			}
+
 			
     } catch {}
   }, 5000)
 }
-
-
 
 function showReloadBanner() {
   if (document.getElementById("build-reload-banner"))
@@ -74,13 +75,6 @@ function showReloadBanner() {
 
 	banner.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)"
 
-	banner.style.fontWeight = "500"
-
-  banner.style.padding = "8px 10px"
-  banner.style.borderRadius = "6px"
-  banner.style.zIndex = "99999"
-  banner.style.fontSize = "13px"
-
   banner.innerHTML = `
     <span>📣 New version available.</span>
     <button id="reload" style="margin-left: 6px; border-radius: 4px;">Reload</button>
@@ -88,8 +82,13 @@ function showReloadBanner() {
   `
 
   banner.querySelector("#reload").onclick = () => location.reload()
-  banner.querySelector("#dismiss").onclick = () => banner.remove()
+  // banner.querySelector("#dismiss").onclick = () => banner.remove()  //only remove banner, but allow retrigger
+	banner.querySelector("#dismiss").onclick = () => {
+		watchEnabled = false  // turn off watch completely (admin user needs to reload to reenable)
+		banner.remove()
+	}
 
   document.body.appendChild(banner)
 }
 
+//
