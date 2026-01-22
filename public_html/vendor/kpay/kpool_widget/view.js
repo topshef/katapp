@@ -91,6 +91,7 @@
 		return container
 	}
 
+	// 3rd section - signing status
 	export const buildSignatureList = rawTx => {
 		const container = document.createElement('div')
 		container.className = 'txread-sigs'
@@ -120,10 +121,17 @@
 			container.appendChild(el)
 		})
 
+		// accounts placeholder (for enrichment)
+		const accounts = document.createElement('div')
+		accounts.id = 'txread-accounts'
+		accounts.style.marginTop = '8px'
+		container.appendChild(accounts)
+
+
 		return container
 	}
 
-	//4th section
+	//4th section - tx status
 	export const buildTimingBlock = (network, txid) => {
 		const container = document.createElement('div')
 		container.className = 'txread-timing'
@@ -161,7 +169,26 @@
 
 		return container
 	}
-	
+		
+		
+	export function renderAccountsInfo(accounts) {
+		const container = document.getElementById('txread-accounts')
+		if (!container) return
+
+		container.innerHTML = ''
+
+		const title = document.createElement('div')
+		title.className = 'txread-sigs-title'
+		title.textContent = 'Accounts involved'
+		container.appendChild(title)
+
+		Object.keys(accounts).forEach(accountId => {
+			const el = document.createElement('div')
+			el.className = 'txread-sig'
+			el.textContent = accountId
+			container.appendChild(el)
+		})
+	}
 
 
 export function injectTxReadCSS() {

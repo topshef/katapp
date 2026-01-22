@@ -4,7 +4,8 @@ import { txRead, calcAccountsInfo } from './model.js'
 
 import {
 	injectTxReadCSS,
-	buildTxReadColumns
+	buildTxReadColumns,
+	renderAccountsInfo
 } from './view.js'
 
 import {
@@ -117,7 +118,8 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 				accounts: tx.accounts
 			})			
 			console.log('accounts after enrichment (controller)', tx.accounts)
-			
+		  renderAccountsInfo(tx.accounts)
+
 		} catch (e) {
 			console.warn('txRead fetch failed', e)
 		}
