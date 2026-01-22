@@ -74,7 +74,7 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 
 	const renderTxReadDebug = async ({ network, txid, details }) => {
 
-		const { url, json, transfers } = await txRead({ network, txid })
+		const { url, rawTx, transfers } = await txRead({ network, txid })
 
 
 		// raw JSON dump (collapsible, with API link inside)
@@ -84,14 +84,14 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 			<a href="${url}" target="_blank" rel="noopener" style="display:block;margin:4px 0">
 				⚙️ View txRead API response
 			</a>
-			<pre><code>${JSON.stringify(json, null, 2)}</code></pre>
+			<pre><code>${JSON.stringify(rawTx, null, 2)}</code></pre>
 		`
 
 		injectTxReadCSS()
 
 		container.classList.add('txread')
 		const columns = buildTxReadColumns({
-			json,
+			rawTx,
 			transfers,
 			network,
 			txid

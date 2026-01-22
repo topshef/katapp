@@ -8,11 +8,11 @@ export async function txRead({ network, txid }) {
 		throw new Error(`txRead failed (${res.status})`)
 	}
 
-	const json = await res.json()
+	const rawTx = await res.json()
 
 	return {
 		url,
-		json,
+		rawTx,
 		transfers: getAllTransfers(json)
 	}
 }

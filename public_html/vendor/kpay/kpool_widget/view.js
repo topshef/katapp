@@ -7,7 +7,7 @@
 	} from './utils.js'
 
 
-	export const buildTxReadColumns = ({ json, transfers, network, txid }) => {
+	export const buildTxReadColumns = ({ rawTx, transfers, network, txid }) => {
 
 
 		const grid = document.createElement('div')
@@ -26,17 +26,17 @@
 
 		const col3 = document.createElement('div')
 		col3.className = 'txread-col'
-		const sigs = buildSignatureList(json)
+		const sigs = buildSignatureList(rawTx)
 		col3.appendChild(sigs)
 		
 
 		const col4 = document.createElement('div')
 		col4.className = 'txread-col'
-		const timing = buildTimingBlock(json, get(json, 'result.network') || network, get(json, 'result.txid') || txid)
+		const timing = buildTimingBlock(network, txid)
 		col4.appendChild(timing)
 
 		// thumbnail (column 1)
-		const thumbUrl = get(json, 'result.deal.display.thumbnail')
+		const thumbUrl = get(rawTx, 'result.deal.display.thumbnail')
 		if (thumbUrl) {
 			const img = document.createElement('img')
 			img.src = thumbUrl
@@ -91,7 +91,7 @@
 		return container
 	}
 
-	export const buildSignatureList = json => {
+	export const buildSignatureList = rawTx => {
 		const container = document.createElement('div')
 		container.className = 'txread-sigs'
 
@@ -100,7 +100,7 @@
 		title.textContent = 'Signatures received'
 		container.appendChild(title)
 
-		const sigs = get(json, 'result.sigs') || []
+		const sigs = get(rawTx, 'result.sigs') || []
 
 		if (!sigs.length) {
 			const empty = document.createElement('div')
@@ -124,7 +124,7 @@
 	}
 
 
-	export const buildTimingBlock = (json, network, txid) => {
+	export const buildTimingBlock = (network, txid) => {
 		const container = document.createElement('div')
 		container.className = 'txread-timing'
 
