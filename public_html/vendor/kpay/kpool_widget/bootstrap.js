@@ -84,8 +84,9 @@ function showBootstrapStatus(state) {
     pointer-events: all !important;
   `
 
-  const dirtyPaths = Object.keys(state.dirtyFiles || {})
-	const isClean = dirtyPaths.length === 0
+	const dirtyEntries = Object.entries(state.dirtyFiles || {})
+
+	const isClean = dirtyEntries.length === 0
 	
 	banner.style.background = isClean
 		? "rgba(220,245,220,0.95)"   // light green
@@ -94,7 +95,7 @@ function showBootstrapStatus(state) {
 
   const dirtyLabel = isClean
     ? "✅ clean"
-    : `🧹 ${dirtyPaths.length} dirty`
+    : `🧹 ${dirtyEntries.length} dirty`
 	
 
   const commitUrl = `https://github.com/${state.repo}/commit/${state.buildId}`
@@ -117,11 +118,17 @@ function showBootstrapStatus(state) {
       · ${dirtyLabel}
     </div>
 
-    ${dirtyPaths.length
-      ? `<div style="margin-top:6px;font-weight:400;">
-           ${dirtyPaths.map(p => `• ${p}`).join("<br>")}
-         </div>`
-      : ""}
+		${dirtyEntries.length
+			? `<div style="margin-top:6px;font-weight:400;">
+					 ${dirtyEntries.map(([path, rec]) => {
+						 const seconds = rec.mtime
+							 ? Math.floor(Date.now() / 1000 - rec.mtime)
+							 : "?"
+						 return `${seconds}s ${path}`
+					 }).join("<br>")}
+				 </div>`
+			: ""}
+
   `
 
   banner.onclick = e => e.stopPropagation()
@@ -139,7 +146,6 @@ function showBootstrapStatus(state) {
 		setTimeout(() => overlay.remove(), 20000)
 
 }
-
 
 
 function showReloadBanner() {
