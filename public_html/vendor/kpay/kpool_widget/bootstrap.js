@@ -73,7 +73,6 @@ function showBootstrapStatus(state) {
     position: fixed !important;
     top: 8px !important;
     right: 8px !important;
-    background: rgba(220,235,255,0.95) !important;
     border: 1px solid rgba(120,160,220,0.8) !important;
     border-radius: 8px !important;
     color: #123 !important;
@@ -86,9 +85,17 @@ function showBootstrapStatus(state) {
   `
 
   const dirtyPaths = Object.keys(state.dirtyFiles || {})
-  const dirtyLabel = dirtyPaths.length === 0
+	const isClean = dirtyPaths.length === 0
+	
+	banner.style.background = isClean
+		? "rgba(220,245,220,0.95)"   // light green
+		: "rgba(220,235,255,0.95)"   // blue
+	
+
+  const dirtyLabel = isClean
     ? "🧹 clean"
     : `🧹 ${dirtyPaths.length} dirty`
+	
 
   const commitUrl = `https://github.com/${state.repo}/commit/${state.buildId}`
 
@@ -128,7 +135,9 @@ function showBootstrapStatus(state) {
   overlay.appendChild(banner)
   document.body.appendChild(overlay)
 
-  setTimeout(() => overlay.remove(), 20000)
+  if (isClean)
+		setTimeout(() => overlay.remove(), 20000)
+
 }
 
 
