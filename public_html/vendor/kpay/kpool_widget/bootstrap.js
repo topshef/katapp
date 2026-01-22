@@ -1,6 +1,7 @@
 
 /*
-  v0.1
+  v0.11 bucket days
+  v0.1  initial version
 	bootstrap.js — Admin build / live-reload helper
 
   Purpose:
@@ -193,8 +194,10 @@ function showBuildBanner({
 									age = "<1m"
 								else if (seconds < 3600)
 									age = "<1h"
-								else
+								else if (seconds < 86400)
 									age = `${Math.floor(seconds / 3600)}h`
+								else
+									age = `${Math.floor(seconds / 86400)}d`
 							}
 
 							return `${age} ${path}`

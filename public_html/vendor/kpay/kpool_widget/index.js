@@ -14,6 +14,7 @@ import {
 	formatCountdown
 } from './utils.js'
 
+import { getHederaMirrorData } from './hedera-mirror.js'
 
 
 	console.log('injecting kpool widget')
