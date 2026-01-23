@@ -120,9 +120,8 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 			calcAccountsThatSign(tx.accounts)
 			console.log('accounts after enrichment (controller)', tx.accounts)
 
-		  // renderAccountsInfo(tx.accounts)
-			renderSigningInfo({rawTx: tx.rawTx, network, accounts: tx.accounts})
-	
+		  // renderAccountsInfo(tx.accounts)  // later recycle.. maybe have an acs info section but related to signing 
+			renderSigningInfo({rawTx: tx.rawTx, network, accounts: tx.accounts})  //
 
 
 		} catch (e) {

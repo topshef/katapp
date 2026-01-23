@@ -182,7 +182,8 @@ export function renderSigningInfo({ rawTx, network, accounts }) {
 }
 
 		
-export function renderAccountsInfo(accounts) {
+export function renderAccountsInfo(accounts) {  //todo rename this it's about signing not jjst accoutns.. or extract to above
+// ..and then recycle this for pure ac info not signing
 	const container = document.getElementById('txread-accounts')
 	if (!container) return
 
@@ -245,7 +246,8 @@ export function renderAccountsInfo(accounts) {
 }
 
 
-export function renderKeyPieCharts({ network, accounts, signedPubkeys }) {
+export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
+	// later todo bring this widget in locally.. or package it as a dependency
 	const container = document.getElementById('txread-accounts')
 	if (!container) return
 
