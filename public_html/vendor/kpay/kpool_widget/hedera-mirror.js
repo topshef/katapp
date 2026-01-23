@@ -10,6 +10,7 @@ export async function getKeyInfo(network, accountId) {
 }
 
 async function getKeyInfoKpos(network, accountId) {
+	// todo consider replacing this as a local wrapper
 	 try {
 			// https://kpos.uk/sign/pop/getAccountInfo.php?accountId=0.0.27500&detail=1
 			const url = 'https://kpos.uk/sign/pop/getAccountInfo.php'

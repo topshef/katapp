@@ -170,6 +170,17 @@
 		return container
 	}
 		
+
+export function renderSigningInfo({ rawTx, network, accounts }) {
+	// derive signed keys ONCE
+	const signedPubkeys = (get(rawTx, 'result.sigs') || [])
+		.map(s => s.pubKey)
+		.filter(Boolean)
+
+	renderAccountsInfo(accounts)
+	renderKeyPieCharts({ network, accounts, signedPubkeys })
+}
+
 		
 export function renderAccountsInfo(accounts) {
 	const container = document.getElementById('txread-accounts')
@@ -191,6 +202,9 @@ export function renderAccountsInfo(accounts) {
 			container.appendChild(el)
 		})
 
+	//note this is all keys score not beased on signed context so far
+	// todo enrich and format the table to show the current status considering keys that have signed
+	// work out latest MWC minimum voting coalitions
 	const scoresTitle = document.createElement('div')
 	scoresTitle.className = 'txread-sigs-title'
 	scoresTitle.textContent = 'Key control'
@@ -227,6 +241,67 @@ export function renderAccountsInfo(accounts) {
 			row.textContent = `${keySuffix} | ${pct}% | ${red}% | ${bucket}`
 			container.appendChild(row)
 		})
+	})
+}
+
+
+export function renderKeyPieCharts({ network, accounts, signedPubkeys }) {
+	const container = document.getElementById('txread-accounts')
+	if (!container) return
+
+	const title = document.createElement('div')
+	title.className = 'txread-sigs-title'
+	title.textContent = 'Signing progress'
+	container.appendChild(title)
+
+	const charts = document.createElement('div')
+	charts.style.display = 'flex'
+	charts.style.flexWrap = 'wrap'
+	charts.style.gap = '12px'
+	container.appendChild(charts)
+
+	const signed = (signedPubkeys || []).join(',')
+
+	Object.keys(accounts).forEach(accountId => {
+		const wrapper = document.createElement('div')
+		wrapper.style.width = '200px'
+		wrapper.style.height = '230px'
+		wrapper.style.position = 'relative'
+		wrapper.style.overflow = 'hidden'
+		wrapper.style.fontFamily = 'monospace'
+		wrapper.style.fontSize = '12px'
+		wrapper.style.textAlign = 'center'
+
+		const iframe = document.createElement('iframe')
+		iframe.src =
+			`https://kpay.uk/devtools/scratchpad/amcharts/ksig_pie_widget.php` +
+			`?network=${network}` +
+			`&accountId=${accountId}` +
+			`&signedPublicKeys=${signed}`
+
+		iframe.style.width = '450px'
+		iframe.style.height = '450px'
+		iframe.style.transform = 'scale(0.45)'
+		iframe.style.transformOrigin = 'top left'
+		iframe.style.border = 'none'
+		iframe.style.position = 'absolute'
+		iframe.style.top = '0'
+		iframe.style.left = '0'
+		iframe.scrolling = 'no'
+
+		const label = document.createElement('div')
+		label.textContent = accountId
+		label.style.position = 'absolute'
+		label.style.bottom = '4px'
+		label.style.left = '0'
+		label.style.right = '0'
+		label.style.whiteSpace = 'nowrap'
+		label.style.overflow = 'hidden'
+		label.style.textOverflow = 'ellipsis'
+
+		wrapper.appendChild(iframe)
+		wrapper.appendChild(label)
+		charts.appendChild(wrapper)
 	})
 }
 
