@@ -196,6 +196,11 @@ export function renderAccountsInfo(accounts) {
 	scoresTitle.textContent = 'Key control'
 	container.appendChild(scoresTitle)
 
+	const subtitle = document.createElement('div')
+	subtitle.className = 'txread-sig'
+	subtitle.textContent = 'pubkey|banzhaf|redundancy|bucket'
+	container.appendChild(subtitle)
+
 	Object.entries(accounts).forEach(([accountId, acc]) => {
 		const scores = acc.keyInfo?.banzhafScores?.scores
 		const redundancy = acc.keyInfo?.banzhafScores?.redundancy
