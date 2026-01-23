@@ -13,7 +13,8 @@ async function getKeyInfoKpos(network, accountId) {
 	 try {
 			// https://kpos.uk/sign/pop/getAccountInfo.php?accountId=0.0.27500&detail=1
 			const url = 'https://kpos.uk/sign/pop/getAccountInfo.php'
-			const params = { network, accountId }
+			const detail = 1
+			const params = { network, accountId, detail }
 			const data = await getData(url, params,  30) // note kpos has its own cache so BEWARE
 
 			return data
