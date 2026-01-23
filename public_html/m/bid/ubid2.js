@@ -43,11 +43,50 @@ const displayedNFTs = []  // for use this instead
 
 async function initUbid() {
 
+
+
     // populate page by loading recent NFT transfers
 
     // Fetch NFT Transfers and Render Them Using View Functions
 
     initModal()
+
+
+		// basic tokenId search (app-level)
+		const input = document.getElementById('token-search')
+		if (input) {
+
+				// preload from URL
+				if (hasParm('tokenId'))
+						input.value = getParm('tokenId')
+
+				// restrict to digits + dots
+				input.addEventListener('input', e => {
+						const filtered = e.target.value.replace(/[^0-9.]/g, '')
+						if (filtered !== e.target.value)
+								e.target.value = filtered
+				})
+
+				// when user tabs / clicks out, commit + refresh
+				input.addEventListener('blur', () => {
+						let value = input.value
+						if (!value) return
+						
+						// if user entered only digits, prefix as tokenId
+						if (/^\d+$/.test(value))
+								value = `0.0.${value}`
+
+						if (value)
+								setParm('tokenId', value)
+						else
+								setParm('tokenId', '') // optional: clear
+
+						// simplest + safest for now
+						window.location.reload()
+				})
+		}
+
+
 
     // Define allowed parameters
     const allowedParms = 'days network query tokenId serialNumber sender receiver transferAfter transferBefore from size sortOn sortBy'.split(' ') // https://app.dragonglass.me/hedera/apiview
@@ -817,25 +856,23 @@ function convertTxId(txid) { // input any txid and return various formats and el
 
 
 
-/* not in use
-function hasParm(name) {
+function hasParm(name) { 
   const params = new URLSearchParams(window.location.search)
   return params.has(name)
 }
 
 
-function getParm(name) {
+function getParm(name) { 
   const params = new URLSearchParams(window.location.search)
   return params.get(name)
 }
 
 
-function setParm(name, value) {
+function setParm(name, value) { 
   const url = new URL(window.location)
   url.searchParams.set(name, value)
   window.history.replaceState({}, '', url)
 }
-
 
 
 // swap First Match
@@ -845,7 +882,3 @@ function swapFirstMatch(str, swaps) {
             return str.replace(find, replace)
     return str
 }
-
-
-
-*/

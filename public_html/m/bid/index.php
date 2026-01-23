@@ -18,7 +18,7 @@
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
     
-    <link href="ubid.css" rel="stylesheet">
+    <link href="ubid.css?v=<?php echo filemtime('ubid.css');?>" rel="stylesheet">
     <link rel="shortcut icon" href="/assets/images/GM.ico">
 
 </head>
@@ -28,6 +28,18 @@
     <div class="container">
         <!--<h4>UBID</h4>-->
         <img src='/assets/images/gmlogo4.png' height='50px'>
+				
+				<span style="margin-left: 10px;">
+						🔍
+						<input
+								id="token-search"
+								class="token-search"
+								type="text"
+								placeholder="token eg 0.0.1019788"
+								value="0.0.1019788"
+						>
+				</span>
+				
         <!-- Placeholder for future elements like login, filters, etc. -->
 
         <!-- todo add in search filters etc. to update url. see also modal -->
@@ -118,7 +130,7 @@
 
 
 
-    <script src="ubid2.js"></script>
+    <script src="ubid2.js?v=<?php echo filemtime('ubid2.js');?>"></script>
     <!-- <script src="https://unpkg.com/localbase/dist/localbase.min.js"></script> -->
     <script src="localbase.min.js"></script> <!-- beware spelling of Localbase -->
     <script src="localCacheDB.js"></script>

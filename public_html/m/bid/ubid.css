@@ -20,6 +20,13 @@ body {
 }
 
 
+/* Header token search */
+.token-search {
+  max-width: 12ch;
+  font-size: 85%;
+  padding: 4px 6px;
+  border-radius: 8px; /* slightly softer than default */
+}
 
 
 .user_input {
@@ -45,6 +52,48 @@ body {
     align-items: center;
 }
 
+
+
+
+@media (max-width: 576px) {
+
+  .sticky-header .container {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+  }
+
+  .sticky-header img {
+    height: 36px;
+  }
+
+  .token-search {
+    max-width: 100%;
+    text-align: center;
+  }
+
+  /* wallet / account area */
+  #before-pair,
+  #paired {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* dropdown + buttons inside paired state */
+  #paired > div {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
 
 
 .zzubid-container {
