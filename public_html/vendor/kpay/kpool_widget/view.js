@@ -171,55 +171,6 @@
 	}
 		
 		
-
-export function zzrenderAccountsInfo(accounts) {
-	const container = document.getElementById('txread-accounts')
-	if (!container) return
-
-	container.innerHTML = ''
-
-	const title = document.createElement('div')
-	title.className = 'txread-sigs-title'
-	title.textContent = 'Accounts to sign'
-	container.appendChild(title)
-
-	Object.entries(accounts)
-		.filter(([_, acc]) => acc.mustSign)
-		.forEach(([accountId]) => {
-			const el = document.createElement('div')
-			el.className = 'txread-sig'
-			el.textContent = accountId
-			container.appendChild(el)
-		})
-
-	const scoresTitle = document.createElement('div')
-	scoresTitle.className = 'txread-sigs-title'
-	scoresTitle.textContent = 'Banzhaf scores'
-	container.appendChild(scoresTitle)
-
-	Object.entries(accounts).forEach(([accountId, acc]) => {
-		const scores = acc.keyInfo?.banzhafScores?.scores
-		if (!scores) return
-
-		const row = document.createElement('div')
-		row.className = 'txread-banzhaf-account-row'
-
-		const accEl = document.createElement('span')
-		accEl.className = 'txread-banzhaf-account'
-		accEl.textContent = accountId
-		row.appendChild(accEl)
-
-		Object.entries(scores).forEach(([pubkey, score]) => {
-			const keyEl = document.createElement('span')
-			keyEl.className = 'txread-banzhaf-key'
-			keyEl.textContent = `${pubkey.slice(-4)} (${score})`
-			row.appendChild(keyEl)
-		})
-
-		container.appendChild(row)
-	})
-}
-
 export function renderAccountsInfo(accounts) {
 	const container = document.getElementById('txread-accounts')
 	if (!container) return
@@ -242,28 +193,35 @@ export function renderAccountsInfo(accounts) {
 
 	const scoresTitle = document.createElement('div')
 	scoresTitle.className = 'txread-sigs-title'
-	scoresTitle.textContent = 'Banzhaf scores'
+	scoresTitle.textContent = 'Key control'
 	container.appendChild(scoresTitle)
 
 	Object.entries(accounts).forEach(([accountId, acc]) => {
 		const scores = acc.keyInfo?.banzhafScores?.scores
-		if (!scores) return
+		const redundancy = acc.keyInfo?.banzhafScores?.redundancy
+		const buckets = acc.keyInfo?.keyControlScoresAll
+		if (!scores || !buckets) return
 
-		const row = document.createElement('div')
-		row.className = 'txread-sig'
-
-		const accEl = document.createElement('span')
+		const accEl = document.createElement('div')
+		accEl.className = 'txread-sig'
 		accEl.textContent = accountId
-		row.appendChild(accEl)
+		container.appendChild(accEl)
 
 		Object.entries(scores).forEach(([pubkey, score]) => {
-			const keyEl = document.createElement('span')
-			keyEl.style.marginLeft = '8px'
-			keyEl.textContent = `${pubkey.slice(-4)} (${Math.round(score * 100)}%)`
-			row.appendChild(keyEl)
-		})
+			const row = document.createElement('div')
+			row.className = 'txread-sig'
+			row.style.paddingLeft = '16px'
 
-		container.appendChild(row)
+			const keySuffix = pubkey.slice(-4)
+			const pct = Math.round(score * 100)
+			const red = redundancy?.[pubkey] != null
+				? Math.round(redundancy[pubkey] * 100)
+				: '-'
+			const bucket = buckets?.[pubkey]?.bucket ?? '-'
+
+			row.textContent = `${keySuffix} | ${pct}% | ${red}% | ${bucket}`
+			container.appendChild(row)
+		})
 	})
 }
 
