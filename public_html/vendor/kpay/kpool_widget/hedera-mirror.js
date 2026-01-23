@@ -3,6 +3,26 @@
 import { getData } from './cache.js'
 
 
+
+export async function getKeyInfo(network, accountId) {
+	return getKeyInfoKpos(network, accountId)
+	// todo replace this with local function that reads protobuf key from the mirror into we already have from getAccountInfo 
+}
+
+async function getKeyInfoKpos(network, accountId) {
+	 try {
+			// https://kpos.uk/sign/pop/getAccountInfo.php?accountId=0.0.27500&detail=1
+			const url = 'https://kpos.uk/sign/pop/getAccountInfo.php'
+			const params = { network, accountId }
+			const data = await getData(url, params,  30) // note kpos has its own cache so BEWARE
+
+			return data
+		} catch (error) {
+			console.error('HY83643 Error fetching data:', error)
+			return null // Return null or handle the error as needed
+		}
+}
+
 export async function getAccountInfo(network, accountId, expirySeconds = 20) {
   return await getHederaMirrorData(
     network,

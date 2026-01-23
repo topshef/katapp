@@ -4,7 +4,7 @@
 		parseTxId,
 	} from './utils.js'
 
-import { getAccountInfo } from './hedera-mirror.js'
+import { getAccountInfo, getKeyInfo } from './hedera-mirror.js'
 
 
 export async function txRead({ network, txid }) {
@@ -129,7 +129,20 @@ export async function enrichAccountsInfo({ network, accounts }) {
 			acc.infoError = err.message || String(err)
 		}
 	}))
+}
 
+
+export async function enrichAccountsKeyInfo({ network, accounts }) {
+	const entries = Object.entries(accounts)
+
+	await Promise.all(entries.map(async ([accountId, acc]) => {
+		try {
+			const keyInfo = await getKeyInfo(network, accountId)
+			acc.keyInfo = keyInfo
+		} catch (err) {
+			acc.keyInfoError = err.message || String(err)
+		}
+	}))
 }
 
 
