@@ -499,6 +499,9 @@ async function showModal(data) {
         
         // const link = `/future/?network=${network}&txid=${txid}` //original still running
         const link = `../sign/?network=${network}&txid=${txid}`    // htaccess rerouted.. shoudl work in hashpack
+        // const link = `./sign/?network=${network}&txid=${txid}`    // htaccess rerouted.. shoudl work in hashpack
+        //todo consider allowing m/bid/sign as clone
+        // const link = `https://shop.gomint.me/m/sign/?network=${network}&txid=${txid}` //test
         
         const hoot = poolTx[txid].hoot
         const current_emoji = hoot.current_emoji
