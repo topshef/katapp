@@ -6,8 +6,10 @@ let handlers = {
   onConnect: null,
   onDisconnect: null,
   onSessionUpdate: null,
-  onError: null
+  onError: null,
+  onConnectUri: null
 }
+
 
 function emit(name, payload) {
   const fn = handlers[name]
@@ -55,16 +57,29 @@ export function getSession() {
   return session
 }
 
+
 export async function connectWallet(requiredNamespaces) {
-  if (!client) throw new Error('WalletConnect not initialised')
+  if (!client) {
+    const err = new Error('WalletConnect not initialised')
+    emit('onError', err)
+    throw err
+  }
 
-  const { uri, approval } = await client.connect({ requiredNamespaces })
-  if (uri) emit('onConnectUri', { uri })
+  try {
+    const { uri, approval } = await client.connect({ requiredNamespaces })
+    if (uri) emit('onConnectUri', { uri })
 
-  session = await approval()
-  emit('onConnect', { session })
-  return session
+    session = await approval()
+    emit('onConnect', { session })
+    return session
+  } catch (err) {
+    emit('onError', err)
+    throw err
+  }
 }
+
+
+
 
 export async function disconnectWallet(reason) {
   if (!client || !session) return true
