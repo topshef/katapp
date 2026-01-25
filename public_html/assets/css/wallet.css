@@ -1,10 +1,16 @@
 
+
+.alert .btn-close {
+  float: right;
+  margin-left: 0.5rem;
+}
+
 .wallet-text {
     position: relative;
     top: 2px;
 }
 
-.wallet-button {
+									.wallet-button {
                                         border-radius: 30px;
 										border-color: #4ee38a;
 										//background-color: #a7f1c5;
