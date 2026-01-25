@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
+  define: {
+    'process.env': {}
+  },
   build: {
     lib: {
       entry: 'src/index.js',

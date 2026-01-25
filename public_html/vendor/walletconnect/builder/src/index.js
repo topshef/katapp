@@ -1,7 +1,10 @@
 import SignClient from '@walletconnect/sign-client'
+import { WalletConnectModal } from '@walletconnect/modal'
 
 let client = null
 let session = null
+let modal = null
+
 let handlers = {
   onConnect: null,
   onDisconnect: null,
@@ -9,7 +12,6 @@ let handlers = {
   onError: null,
   onConnectUri: null
 }
-
 
 function emit(name, payload) {
   const fn = handlers[name]
@@ -32,6 +34,12 @@ export async function initWalletConnect(opts, callbacks) {
   if (callbacks) handlers = { ...handlers, ...callbacks }
 
   client = await SignClient.init(opts)
+
+  if (opts.projectId) {
+    modal = new WalletConnectModal({
+      projectId: opts.projectId
+    })
+  }
 
   setSessionFromClient()
   if (session) emit('onConnect', { session })
@@ -57,29 +65,30 @@ export function getSession() {
   return session
 }
 
+export async function connectWithModal(requiredNamespaces) {
+  if (!client) throw new Error('WalletConnect not initialised')
+  if (!modal) throw new Error('Modal not initialised')
 
-export async function connectWallet(requiredNamespaces) {
-  if (!client) {
-    const err = new Error('WalletConnect not initialised')
-    emit('onError', err)
-    throw err
-  }
+  const { uri, approval } = await client.connect({ requiredNamespaces })
 
-  try {
-    const { uri, approval } = await client.connect({ requiredNamespaces })
-    if (uri) emit('onConnectUri', { uri })
+  modal.openModal({ uri })
 
-    session = await approval()
-    emit('onConnect', { session })
-    return session
-  } catch (err) {
-    emit('onError', err)
-    throw err
-  }
+  session = await approval()
+  modal.closeModal()
+  emit('onConnect', { session })
+  return session
 }
 
+export async function connectWallet(requiredNamespaces) {
+  if (!client) throw new Error('WalletConnect not initialised')
 
+  const { uri, approval } = await client.connect({ requiredNamespaces })
+  if (uri) emit('onConnectUri', { uri })
 
+  session = await approval()
+  emit('onConnect', { session })
+  return session
+}
 
 export async function disconnectWallet(reason) {
   if (!client || !session) return true
