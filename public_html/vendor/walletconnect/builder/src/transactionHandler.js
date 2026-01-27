@@ -59,14 +59,19 @@ async function loadConfig() {
     }
 
     // ---- normalize into what the app expects ----
-    const finalConfig = {
-      metadata: rawConfig.metadata,
-      walletConnect: {
-        projectId: rawConfig.projectId,
-        relayUrl: rawConfig.relayUrl || "wss://relay.walletconnect.com",
-        requiredNamespaces: rawConfig.requiredNamespaces
-      }
-    }
+		const finalConfig = {
+			metadata: rawConfig.metadata,
+			networkConfig: {
+				mainnet: {
+					network: rawConfig.networkConfig
+				}
+			},
+			walletConnect: {
+				projectId: rawConfig.projectId,
+				relayUrl: rawConfig.relayUrl || "wss://relay.walletconnect.com",
+				requiredNamespaces: rawConfig.requiredNamespaces
+			}
+		}
 
     walletConfig = finalConfig // expose for UX / receipt timing, etc
     return finalConfig
