@@ -10,8 +10,24 @@ import { showBootstrapAlert, createTransactionAlert } from "./dealPage.js";
 let dappConnector;
 let walletConfig
 
-const BUILD_ID = "WC BUILD 2026-01-27 04" // bump this manually when testing
-console.log(BUILD_ID); 
+// ---- capture THIS script once (safe for async / base href / bundling)
+const __WC_SCRIPT__ = (() => {
+  const script =
+    document.currentScript ||
+    document.querySelector('script[src*="walletconnect-hedera"]')
+
+  if (!script)
+    throw new Error("[WC-001] WalletConnect script tag not found")
+
+  if (!script.src)
+    throw new Error("[WC-002] WalletConnect script has no src")
+
+  return script
+})()
+
+// const BUILD_ID = "[WC] BUILD 2026-01-27 06" // bump this manually when testing
+// console.log(BUILD_ID); 
+console.log("[WC] BUILD 2026-01-27 06"); 
 
 /**
  * Expects a config.json file to exist alongside the bundled JS file
@@ -26,7 +42,74 @@ console.log(BUILD_ID);
  *   "requiredNamespaces": { "hedera": { ... } }
  * }
  */
+ 
 async function loadConfig() {
+  try {
+    let configUrl
+
+    // 1️⃣ explicit data-config on script tag
+    if (__WC_SCRIPT__.dataset?.config) {
+      configUrl = new URL(
+        __WC_SCRIPT__.dataset.config,
+        __WC_SCRIPT__.src
+      ).href
+    } else {
+      // 2️⃣ fallback: config.json next to bundle
+      configUrl =
+        __WC_SCRIPT__.src.slice(
+          0,
+          __WC_SCRIPT__.src.lastIndexOf("/") + 1
+        ) + "config.json"
+    }
+
+    console.info("[WC] TG22874 Loading config from", configUrl)
+
+    const response = await fetch(configUrl)
+    if (!response.ok) {
+      alert(
+        `[WC-101] Failed to load config.json\n\n${configUrl}\n\nStatus: ${response.status}`
+      )
+      throw new Error("Failed to load config.json")
+    }
+
+    const rawConfig = await response.json()
+
+    // ---- hard validation ----
+    if (!rawConfig.projectId)
+      throw new Error("[WC-201] config.json missing projectId")
+
+    if (!rawConfig.metadata?.name)
+      throw new Error("[WC-202] config.json missing metadata.name")
+
+    if (!rawConfig.requiredNamespaces?.hedera)
+      throw new Error("[WC-203] config.json missing requiredNamespaces.hedera")
+
+    const hederaNetwork =
+      getHederaNetworkFromNamespaces(rawConfig.requiredNamespaces)
+
+    const finalConfig = {
+      metadata: rawConfig.metadata,
+      hedera: { network: hederaNetwork },
+      walletConnect: {
+        projectId: rawConfig.projectId,
+        relayUrl: rawConfig.relayUrl || "wss://relay.walletconnect.com",
+        requiredNamespaces: rawConfig.requiredNamespaces
+      }
+    }
+
+    walletConfig = finalConfig
+    return finalConfig
+  } catch (error) {
+    console.error("[WC] YH84775 Error loading config.json:", error)
+    alert(
+      `[WC-999] WalletConnect config load failed\n\n${error.message}`
+    )
+    throw error
+  }
+}
+
+ 
+async function zzloadConfig() {
   try {
     // Resolve base URL from the currently executing bundle
     const script =
@@ -80,7 +163,7 @@ async function loadConfig() {
     walletConfig = finalConfig // expose for UX / receipt timing, etc
     return finalConfig
   } catch (error) {
-    console.error("Error loading config.json:", error)
+    console.error("[WC] PL28343 Error loading config.json:", error)
     throw error
   }
 }
