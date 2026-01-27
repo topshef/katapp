@@ -10,7 +10,7 @@ import { showBootstrapAlert, createTransactionAlert } from "./dealPage.js";
 let dappConnector;
 let walletConfig
 
-console.log("[WC] BUILD 2026-01-27 08"); 
+console.log("[WC] BUILD 2026-01-27 09"); 
 
 // Script tag that loaded this bundle (used to resolve config + metadata)
 // ---- capture THIS script once (safe for async / base href / bundling)
@@ -99,65 +99,6 @@ async function loadConfig() {
   }
 }
 
- 
-async function zzloadConfig() {
-  try {
-    // Resolve base URL from the currently executing bundle
-    const script =
-      document.currentScript || document.scripts[document.scripts.length - 1]
-
-    if (!script || !script.src) {
-      throw new Error("Unable to determine bundle location")
-    }
-
-		// Resolve relative to the bundle itself, immune to module scripts
-		const baseUrl = new URL(".", import.meta.url).href
-    // const baseUrl = script.src.substring(0, script.src.lastIndexOf("/") + 1)
-    const configUrl = `${baseUrl}config.json`
-
-    const response = await fetch(configUrl)
-    if (!response.ok) {
-      throw new Error(`Failed to load config.json from ${configUrl}`)
-    }
-
-    const rawConfig = await response.json()
-
-    // ---- hard validation (no guessing) ----
-    if (!rawConfig.projectId) {
-      throw new Error("config.json is missing required field: projectId")
-    }
-
-    if (!rawConfig.metadata?.name) {
-      throw new Error("config.json is missing metadata.name")
-    }
-
-    if (!rawConfig.requiredNamespaces?.hedera) {
-      throw new Error("config.json is missing requiredNamespaces.hedera")
-    }
-
-    // ---- normalize into what the app expects ----
-		const hederaNetwork =
-			getHederaNetworkFromNamespaces(rawConfig.requiredNamespaces)
-
-		const finalConfig = {
-			metadata: rawConfig.metadata,
-			hedera: {
-				network: hederaNetwork
-			},
-			walletConnect: {
-				projectId: rawConfig.projectId,
-				relayUrl: rawConfig.relayUrl || "wss://relay.walletconnect.com",
-				requiredNamespaces: rawConfig.requiredNamespaces
-			}
-		}
-
-    walletConfig = finalConfig // expose for UX / receipt timing, etc
-    return finalConfig
-  } catch (error) {
-    console.error("[WC] PL28343 Error loading config.json:", error)
-    throw error
-  }
-}
 
 
 function getHederaNetworkFromNamespaces(requiredNamespaces) {
@@ -266,7 +207,13 @@ const restoreWalletSession = async () => {
 };
 
 const updateWalletConnectionUI = (accountId) => {
-  const walletConnectButton = document.getElementById("pair-walletconnect-btn");
+  const walletConnectButton = document.getElementById("pair-walletconnect-btn")
+	if (!walletConnectButton) {
+		console.info("[WC] pair-walletconnect-btn not found, skipping connect binding")
+		return
+	}	
+	
+	
   const disconnectButton = document.getElementById("wallet-disconnect");
 
   if (accountId) {

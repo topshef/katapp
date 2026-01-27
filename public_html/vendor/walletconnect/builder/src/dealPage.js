@@ -179,14 +179,7 @@ const UI = {
       actionButton ? actionButton : null
     );
 
-    // Add event listener to existing button if it exists
-    const existingButton = document.getElementById("create-tx");
-    if (existingButton) {
-      existingButton.addEventListener("click", async (event) => {
-        event.preventDefault();
-        await handleButton();
-      });
-    }
+		
   },
 
   createElement(tag, textContent = "", attributes = {}) {
@@ -316,11 +309,6 @@ const UI = {
         style: "margin-top: 10px;",
         class: "btn btn-primary",
       });
-      // Add event listener to new button
-      button.addEventListener("click", async (event) => {
-        event.preventDefault();
-        await handleButton();
-      });
       return button;
     }
   },
@@ -399,23 +387,46 @@ export const showBootstrapAlert = (
   }, 5000);
 };
 
+
+//refactopring...
+// This is the important conceptual shift:
+// Rendering is conditional
+// Behaviour is unconditional
+
+function attachCreateTxHandler() {
+	const btn = document.getElementById("create-tx")
+	if (!btn) return
+
+	// Prevent double-binding
+	if (btn.dataset.txBound) return
+	btn.dataset.txBound = "1"
+
+	btn.addEventListener("click", async event => {
+		event.preventDefault()
+		await handleButton()
+	})
+}
+
+
 // Main initialization
 async function init() {
 	const widgetRoot = document.getElementById('katomic-widget')
 
-	if (!widgetRoot) {
-		console.info('[KATOMIC] Widget anchor not found. Skipping UI render.')
-		return
-	}
-	console.log("[KATOMIC] render deal widget")
-  UI.renderFullPage();
-  const dealId = Utils.getQueryParam("dealId");
-  if (dealId) {
-    const dealData = await API.fetchDealData(dealId);
-    UI.renderDealUI(dealData);
-  } else {
-    UI.renderFallbackUI(document.getElementById("deal-section"));
-  }
+	if (widgetRoot) {
+		console.log("[KATOMIC] render deal widget")
+		UI.renderFullPage()
+
+		const dealId = Utils.getQueryParam("dealId")
+		if (dealId) {
+			const dealData = await API.fetchDealData(dealId)
+			UI.renderDealUI(dealData)
+		} else {
+			UI.renderFallbackUI(document.getElementById("deal-section"))
+		}
+	} else console.info('[KATOMIC] Widget anchor not found. Skipping UI render.')
+
+	// Always attach behaviour (widget or not) // later move this out
+	attachCreateTxHandler()
 }
 
 init();
