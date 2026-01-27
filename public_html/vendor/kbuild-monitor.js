@@ -68,7 +68,7 @@ export async function initBuildBanner({
 				if (!bannerActive)
 					return
 
-				const res = await fetch("/build.php", { cache: "no-store" })
+				const res = await fetch(endpoint, { cache: "no-store" })
 				const state = await res.json()
 
 				const hasChanged = state.workingHash !== workingHash
@@ -123,7 +123,7 @@ function showBuildBanner({
     position: fixed;
     inset: 0;
     z-index: 2147483647;
-    pointer-events: all;
+    pointer-events: none;
     background: rgba(0,0,0,0.001);
   `
 
