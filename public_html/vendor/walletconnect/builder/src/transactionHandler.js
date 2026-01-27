@@ -10,7 +10,7 @@ import { showBootstrapAlert, createTransactionAlert } from "./dealPage.js";
 let dappConnector;
 let walletConfig
 
-console.log("[WC] BUILD 2026-01-27 09"); 
+console.log("[WC] BUILD 2026-01-27 v10"); 
 
 // Script tag that loaded this bundle (used to resolve config + metadata)
 // ---- capture THIS script once (safe for async / base href / bundling)

@@ -115,36 +115,6 @@ const UI = {
         </div>
       `;
       document.body.appendChild(mainContainer);
-      this.initWalletDisconnect();
-    }
-  },
-
-  initWalletDisconnect() {
-    const disconnectButton = document.getElementById("wallet-disconnect");
-    const walletConnectAccountId = localStorage.getItem(
-      "walletConnectAccountId"
-    );
-
-    if (disconnectButton) {
-      if (walletConnectAccountId) {
-        disconnectButton.style.display = "block";
-        disconnectButton.style.marginTop = "10px";
-      }
-
-      disconnectButton.addEventListener("click", () => {
-        localStorage.removeItem("walletConnectAccountId");
-        disconnectButton.style.display = "none";
-        const walletConnectButton = document.getElementById(
-          "pair-walletconnect-btn"
-        );
-        if (walletConnectButton) {
-          walletConnectButton.textContent = "Open WalletConnect Modal";
-          walletConnectButton.disabled = false;
-        }
-        location.reload();
-      });
-    } else {
-      console.error("Disconnect button not found in the DOM.");
     }
   },
 
@@ -393,6 +363,36 @@ export const showBootstrapAlert = (
 // Rendering is conditional
 // Behaviour is unconditional
 
+function attachWalletConnectHandlers() {
+	const connectBtn = document.getElementById("pair-walletconnect-btn")
+	if (connectBtn && !connectBtn.dataset.wcBound) {
+		connectBtn.dataset.wcBound = "1"
+		connectBtn.addEventListener("click", async () => {
+			if (window.openWalletConnectModal)
+				await window.openWalletConnectModal()
+			else
+				console.warn("[KATOMIC] WalletConnect modal handler not found")
+		})
+	}
+
+	const disconnectBtn = document.getElementById("wallet-disconnect")
+	if (disconnectBtn && !disconnectBtn.dataset.wcBound) {
+		disconnectBtn.dataset.wcBound = "1"
+		disconnectBtn.addEventListener("click", () => {
+			try {
+				if (window.walletConnectDisconnect)
+					window.walletConnectDisconnect()
+			} catch (e) {
+				console.warn("Disconnect failed", e)
+			}
+
+			localStorage.removeItem("walletConnectAccountId")
+			location.reload()
+		})
+	}
+}
+
+
 function attachCreateTxHandler() {
 	const btn = document.getElementById("create-tx")
 	if (!btn) return
@@ -426,6 +426,7 @@ async function init() {
 	} else console.info('[KATOMIC] Widget anchor not found. Skipping UI render.')
 
 	// Always attach behaviour (widget or not) // later move this out
+	attachWalletConnectHandlers()
 	attachCreateTxHandler()
 }
 
