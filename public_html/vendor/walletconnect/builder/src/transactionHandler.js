@@ -10,8 +10,11 @@ import { showBootstrapAlert, createTransactionAlert } from "./dealPage.js";
 let dappConnector;
 let walletConfig
 
+console.log("[WC] BUILD 2026-01-27 07"); 
+
+// Script tag that loaded this bundle (used to resolve config + metadata)
 // ---- capture THIS script once (safe for async / base href / bundling)
-const __WC_SCRIPT__ = (() => {
+const EL_LOADER = (() => {
   const script =
     document.currentScript ||
     document.querySelector('script[src*="walletconnect-hedera"]')
@@ -24,10 +27,6 @@ const __WC_SCRIPT__ = (() => {
 
   return script
 })()
-
-// const BUILD_ID = "[WC] BUILD 2026-01-27 06" // bump this manually when testing
-// console.log(BUILD_ID); 
-console.log("[WC] BUILD 2026-01-27 06"); 
 
 /**
  * Expects a config.json file to exist alongside the bundled JS file
@@ -47,20 +46,12 @@ async function loadConfig() {
   try {
     let configUrl
 
-    // 1️⃣ explicit data-config on script tag
-    if (__WC_SCRIPT__.dataset?.config) {
-      configUrl = new URL(
-        __WC_SCRIPT__.dataset.config,
-        __WC_SCRIPT__.src
-      ).href
-    } else {
-      // 2️⃣ fallback: config.json next to bundle
-      configUrl =
-        __WC_SCRIPT__.src.slice(
-          0,
-          __WC_SCRIPT__.src.lastIndexOf("/") + 1
-        ) + "config.json"
-    }
+		const dataConfig = EL_LOADER.dataset?.config // 1️⃣ explicit data-config on script tag
+		if (dataConfig) 
+			configUrl = new URL(dataConfig, EL_LOADER.src).href
+		else // 2️⃣ fallback: config.json next to bundle
+			configUrl = `${EL_LOADER.src.slice(0, EL_LOADER.src.lastIndexOf("/") + 1)}config.json` 
+
 
     console.info("[WC] TG22874 Loading config from", configUrl)
 
