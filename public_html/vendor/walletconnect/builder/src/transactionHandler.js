@@ -10,79 +10,74 @@ import { showBootstrapAlert, createTransactionAlert } from "./dealPage.js";
 let dappConnector;
 let walletConfig
 
+
+
+/**
+ * Expects a config.json file to exist alongside the bundled JS file
+ * (i.e. in the same directory as walletconnect-hedera.iife.js).
+ *
+ * This loader supports the following config.json shape:
+ *
+ * {
+ *   "projectId": "...",
+ *   "relayUrl": "wss://relay.walletconnect.com",
+ *   "metadata": { "name": "...", "description": "...", "url": "...", "icons": [] },
+ *   "requiredNamespaces": { "hedera": { ... } }
+ * }
+ */
 async function loadConfig() {
   try {
-    // Check for project ID in hidden input element
-    const projectIdInput = document.getElementById("walletConnectProjectID");
-    const hiddenProjectId = projectIdInput ? projectIdInput.value : null;
-    console.log("Hidden Project ID:", hiddenProjectId);
+    // Resolve base URL from the currently executing bundle
+    const script =
+      document.currentScript || document.scripts[document.scripts.length - 1]
 
-    let config;
-    try {
-      // Attempt to fetch the config from the JSON file
-      const response = await fetch(`${import.meta.env.BASE_URL}config.json`);
-      if (!response.ok) {
-        throw new Error("Failed to load config");
-      }
-      config = await response.json();
-    } catch (error) {
-      console.warn(
-        "Config file not found or invalid, using fallback values:",
-        error
-      );
-      // Fallback configuration
-      config = {
-        metadata: {
-          name: window.location.host, // Use current domain as name
-          description: "Hedera dApp",
-          icons: ["/icon.png"],
-        },
-        networkConfig: {
-          mainnet: {
-            network: "mainnet",
-          },
-        },
-        walletConnect: {
-          projectId: "e982424244b13437d6b567852a6b051e", // Fallback project ID
-          relayUrl: "wss://relay.walletconnect.org",
-        },
-      };
+    if (!script || !script.src) {
+      throw new Error("Unable to determine bundle location")
     }
 
-    // Use hidden project ID if available, otherwise use config's project ID or fallback
-    const projectId = hiddenProjectId || config.walletConnect?.projectId;
+    const baseUrl = script.src.substring(0, script.src.lastIndexOf("/") + 1)
+    const configUrl = `${baseUrl}config.json`
 
-    if (!projectId) {
-      throw new Error("No WalletConnect project ID available");
+    const response = await fetch(configUrl)
+    if (!response.ok) {
+      throw new Error(`Failed to load config.json from ${configUrl}`)
     }
 
-    // Ensure all required configuration sections exist
+    const rawConfig = await response.json()
+
+    // ---- hard validation (no guessing) ----
+    if (!rawConfig.projectId) {
+      throw new Error("config.json is missing required field: projectId")
+    }
+
+    if (!rawConfig.metadata?.name) {
+      throw new Error("config.json is missing metadata.name")
+    }
+
+    if (!rawConfig.requiredNamespaces?.hedera) {
+      throw new Error("config.json is missing requiredNamespaces.hedera")
+    }
+
+    // ---- normalize into what the app expects ----
     const finalConfig = {
-      metadata: {
-        name: config.metadata?.name || window.location.host,
-        description: config.metadata?.description || "Hedera dApp",
-        icons: config.metadata?.icons || ["/icon.png"],
-      },
-      networkConfig: {
-        mainnet: {
-          network: config.networkConfig?.mainnet?.network || "mainnet",
-        },
-      },
+      metadata: rawConfig.metadata,
       walletConnect: {
-        projectId: projectId,
-        relayUrl:
-          config.walletConnect?.relayUrl || "wss://relay.walletconnect.org",
-      },
-    };
+        projectId: rawConfig.projectId,
+        relayUrl: rawConfig.relayUrl || "wss://relay.walletconnect.com",
+        requiredNamespaces: rawConfig.requiredNamespaces
+      }
+    }
 
-    console.log("Final config:", finalConfig);
-		walletConfig = finalConfig  // make accessible to rest of app for UX stuff
-    return finalConfig;
+    walletConfig = finalConfig // expose for UX / receipt timing, etc
+    return finalConfig
   } catch (error) {
-    console.error("Error in loadConfig:", error);
-    throw new Error(`Configuration error: ${error.message}`);
+    console.error("Error loading config.json:", error)
+    throw error
   }
 }
+
+
+
 
 // Initialize WalletConnect with retry mechanism
 const initializeWalletConnect = async (retryCount = 0) => {
