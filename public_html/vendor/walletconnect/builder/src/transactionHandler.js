@@ -10,7 +10,8 @@ import { showBootstrapAlert, createTransactionAlert } from "./dealPage.js";
 let dappConnector;
 let walletConfig
 
-console.log("WC BUILD 2026-01-27-01"); // bump this manually when testing
+const BUILD_ID = "WC BUILD 2026-01-27 04" // bump this manually when testing
+console.log(BUILD_ID); 
 
 /**
  * Expects a config.json file to exist alongside the bundled JS file
@@ -61,12 +62,13 @@ async function loadConfig() {
     }
 
     // ---- normalize into what the app expects ----
+		const hederaNetwork =
+			getHederaNetworkFromNamespaces(rawConfig.requiredNamespaces)
+
 		const finalConfig = {
 			metadata: rawConfig.metadata,
-			networkConfig: {
-				mainnet: {
-					network: rawConfig.networkConfig
-				}
+			hedera: {
+				network: hederaNetwork
 			},
 			walletConnect: {
 				projectId: rawConfig.projectId,
@@ -83,6 +85,33 @@ async function loadConfig() {
   }
 }
 
+
+function getHederaNetworkFromNamespaces(requiredNamespaces) {
+  const chains = requiredNamespaces?.hedera?.chains
+
+  if (!chains || chains.length === 0)
+    throw new Error("No Hedera chains defined in requiredNamespaces")
+
+  // Expect format: "hedera:mainnet" | "hedera:testnet" | "hedera:previewnet"
+  const [, network] = chains[0].split(":")
+
+  if (!network)
+    throw new Error(`Invalid Hedera chain format: ${chains[0]}`)
+
+  return network
+}
+
+
+
+function hederaChainIdFromNetwork(network) {
+  switch (network) {
+    case "mainnet": return HederaChainId.Mainnet
+    case "testnet": return HederaChainId.Testnet
+    case "previewnet": return HederaChainId.Previewnet
+    default:
+      throw new Error(`Unsupported Hedera network: ${network}`)
+  }
+}
 
 
 
@@ -103,21 +132,16 @@ const initializeWalletConnect = async (retryCount = 0) => {
     const currentDomain = window.location.host;
     console.log("Initializing WalletConnect for domain:", currentDomain);
 
-    // Ensure networkConfig and mainnet are defined
-    if (!config.networkConfig || !config.networkConfig.mainnet) {
-      throw new Error("Network configuration is missing or invalid.");
-    }
-
     // Initialize the WalletConnect DAppConnector with loaded config
     dappConnector = new DAppConnector(
       {
         ...config.metadata,
       },
-      LedgerId.fromString(config.networkConfig.mainnet.network),
+      LedgerId.fromString(config.hedera.network),
       config.walletConnect.projectId,
       Object.values(HederaJsonRpcMethod),
       [HederaSessionEvent.ChainChanged, HederaSessionEvent.AccountsChanged],
-      [HederaChainId.Testnet]
+      [hederaChainIdFromNetwork(config.hedera.network)]
     );
 
     try {
