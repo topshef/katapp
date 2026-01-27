@@ -401,6 +401,13 @@ export const showBootstrapAlert = (
 
 // Main initialization
 async function init() {
+	const widgetRoot = document.getElementById('katomic-widget')
+
+	if (!widgetRoot) {
+		console.info('[KATOMIC] Widget anchor not found. Skipping UI render.')
+		return
+	}
+	console.log("[KATOMIC] render deal widget")
   UI.renderFullPage();
   const dealId = Utils.getQueryParam("dealId");
   if (dealId) {
