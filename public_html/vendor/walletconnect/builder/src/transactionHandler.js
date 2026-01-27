@@ -10,7 +10,7 @@ import { showBootstrapAlert, createTransactionAlert } from "./dealPage.js";
 let dappConnector;
 let walletConfig
 
-
+console.log("WC BUILD 2026-01-27-01"); // bump this manually when testing
 
 /**
  * Expects a config.json file to exist alongside the bundled JS file
@@ -241,7 +241,7 @@ const processTransactionBytes = async (transactionBytes) => {
     }
   } catch (error) {
     console.error("Error processing transaction:", error);
-    createTransactionAlert(error.message, "danger");
+    //createTransactionAlert(error.message, "danger");
     throw error;
   }
 };
@@ -300,7 +300,10 @@ export const handleButton = async () => {
 
     const data = await response.json();
     if (!data.bytes?.data) {
-      throw new Error("Transaction bytes not found in response.");
+      // throw new Error("Transaction bytes not found in response.");
+			console.warn("Deal bytes not ready yet", data);
+			return; // silently ignore, do NOT alert user
+			// im not fucking convinced
     }
 		
 		// if (!data.bytes?.data) {
@@ -328,7 +331,7 @@ export const handleButton = async () => {
       }
     } catch (error) {
       console.error(error);
-      createTransactionAlert(error.message, "danger");
+      throw error; // let outer catch handle UX   //createTransactionAlert(error.message, "danger");
     }
   } catch (error) {
     console.error("Error occurred while signing", error);

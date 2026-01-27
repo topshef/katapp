@@ -205,8 +205,9 @@ function showBuildBanner({
 								else
 									age = `${Math.floor(seconds / 86400)}d`
 							}
-
-							return `${age} ${path}`
+							
+							const shortHash = rec.sha1 ? rec.sha1.slice(0, 4) : "----"
+							return `${age}&nbsp${path}&nbsp${shortHash}`
 
            }).join("<br>")}
          </div>`
