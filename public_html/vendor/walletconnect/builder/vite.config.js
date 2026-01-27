@@ -6,7 +6,7 @@ export default defineConfig({
   },
   build: {
     lib: {
-      entry: 'src/index.js',
+      entry: 'src/app.js',
       name: 'WalletConnectHedera',
       fileName: 'walletconnect-hedera',
       formats: ['iife']
