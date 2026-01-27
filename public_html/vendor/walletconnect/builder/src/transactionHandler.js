@@ -35,7 +35,9 @@ async function loadConfig() {
       throw new Error("Unable to determine bundle location")
     }
 
-    const baseUrl = script.src.substring(0, script.src.lastIndexOf("/") + 1)
+		// Resolve relative to the bundle itself, immune to module scripts
+		const baseUrl = new URL(".", import.meta.url).href
+    // const baseUrl = script.src.substring(0, script.src.lastIndexOf("/") + 1)
     const configUrl = `${baseUrl}config.json`
 
     const response = await fetch(configUrl)

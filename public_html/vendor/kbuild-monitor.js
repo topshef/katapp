@@ -119,13 +119,15 @@ function showBuildBanner({
 
   const overlay = document.createElement("div")
   overlay.id = "build-banner-overlay"
-  overlay.style.cssText = `
-    position: fixed;
-    inset: 0;
-    z-index: 2147483647;
-    pointer-events: none;
-    background: rgba(0,0,0,0.001);
-  `
+	overlay.style.cssText = `
+		position: fixed;
+		inset: auto;
+		top: 0;
+		right: 0;
+		z-index: 2147483647;
+		pointer-events: none;
+	`
+
 
   const banner = document.createElement("div")
   banner.style.cssText = `
@@ -218,7 +220,7 @@ function showBuildBanner({
   `
 
   banner.onclick = e => e.stopPropagation()
-  overlay.onclick = e => { e.preventDefault(); e.stopPropagation() }
+  // overlay.onclick = e => { e.preventDefault(); e.stopPropagation() }
 
 	banner.querySelector("#close").onclick = e => {
 		e.stopPropagation()
