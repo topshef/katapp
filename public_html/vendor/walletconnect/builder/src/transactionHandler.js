@@ -475,34 +475,6 @@ export const executeDealFlow = async () => {
 				console.log("[WC] only sign, dont submit")
 				const signedTransaction = await signTransactionBytesOnly(transactionBytes)
 				const saveResult = await saveSignedTransaction(signedTransaction)
-
-				const showTxSaveResult = saveResult => {
-					const ok = saveResult?.success === true
-					const result = saveResult?.result || {}
-					const { comments = [], errors = [] } = result
-
-					if (ok) {
-						let msg = comments.length
-								? comments.join("<br>")
-								: "Transaction saved successfully"
-					  msg += ` https://kpos.uk/pool/txRead?network=${result.network}&txid=${result.txId}`
-						createTransactionAlert(
-							msg,
-							"success",
-							"last_tx"
-						)
-					} else {
-						let msg = errors.length
-								? `<pre>${JSON.stringify(errors, null, 2)}</pre>`
-								: "Transaction save failed"
-						msg += ` https://kpos.uk/pool/txRead?network=${result.network}&txid=${result.txId}`
-						createTransactionAlert(
-							msg,
-							"warning",   // orange
-							"last_tx"
-						)
-					}
-				}
 				showTxSaveResult(saveResult)
 				
 			}
@@ -639,6 +611,46 @@ const saveSignedTransaction = async signedTransaction => {
     throw error
   }
 }
+
+//rendering utils
+const showTxSaveResult = saveResult => {
+  const ok = saveResult?.success === true
+  const result = saveResult?.result || {}
+  const { comments = [], errors = [], network, txId } = result
+
+  const txLink =
+    network && txId
+      ? `<a href="https://kpos.uk/pool/txRead?network=${network}&txid=${txId}"
+           target="_blank" rel="noopener">
+           View saved tx ${txId}
+         </a>`
+      : ""
+
+  if (ok) {
+    const msg = [
+      comments.length
+        ? comments.join("<br>")
+        : "Transaction saved successfully",
+      txLink
+    ]
+      .filter(Boolean)
+      .join("<br><br>")
+
+    createTransactionAlert(msg, "success", "last_tx")
+  } else {
+    const msg = [
+      errors.length
+        ? `<pre>${JSON.stringify(errors, null, 2)}</pre>`
+        : "Transaction save failed",
+      txLink
+    ]
+      .filter(Boolean)
+      .join("<br><br>")
+
+    createTransactionAlert(msg, "warning", "last_tx")
+  }
+}
+
 
 
 
