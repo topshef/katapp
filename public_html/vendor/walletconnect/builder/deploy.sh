@@ -15,6 +15,12 @@ for file in "$DIST_DIR"/*; do
   [ -f "$file" ] || continue
 
   filename=$(basename "$file")
+  case "$filename" in
+    *.map)
+      continue
+      ;;
+  esac	
+	
   name="${filename%.*}"
   ext="${filename##*.}"
 
@@ -27,6 +33,13 @@ for file in "$DIST_DIR"/*; do
 
   cp -f "$file" "$prod"
   cp -f "$file" "$archived"
+
+  # Deploy & archive sourcemap using bundle hash
+  if [ -f "$DIST_DIR/$filename.map" ]; then
+    cp -f "$DIST_DIR/$filename.map" "$PROD_DIR/$filename.map"
+    cp -f "$DIST_DIR/$filename.map" \
+      "$ARCHIVE_DIR/${name}_${hash}.${ext}.map"
+  fi
 
   cat > "$info" <<EOF
 # ${name}

@@ -5,6 +5,7 @@ export default defineConfig({
     'process.env': {}
   },
   build: {
+		sourcemap: true,
     lib: {
       entry: 'src/app.js',
       name: 'WalletConnectHedera',

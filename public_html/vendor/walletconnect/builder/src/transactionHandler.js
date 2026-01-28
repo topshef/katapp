@@ -10,7 +10,7 @@ import { showBootstrapAlert, createTransactionAlert } from "./dealPage.js";
 let dappConnector;
 let walletConfig
 
-console.log("[WC] BUILD 2026-01-27 v12"); 
+console.log("[WC] BUILD 2026-01-28 v01"); 
 
 // Script tag that loaded this bundle (used to resolve config + metadata)
 // ---- capture THIS script once (safe for async / base href / bundling)
@@ -302,9 +302,9 @@ export const handleButton = async () => {
   const dealIdInput = document.getElementById("dealId")?.value;
   const urlParams = new URLSearchParams(window.location.search);
 	
-	// wcSubmit flag (default = true)
-	let wcSubmit = true
-	if (urlParams.get("submitServerSide")) wcSubmit = false
+	// submitNow flag (default = true)
+	let submitNow = true
+	if (urlParams.get("submitServerSide")) submitNow = false
 
   const dealId = dealIdInput || urlParams.get("dealId");
   if (!dealId) {
@@ -365,7 +365,16 @@ export const handleButton = async () => {
     const transactionBytes = new Uint8Array(data.bytes.data);
 
     try {
-			if (wcSubmit) {	
+			
+			// check the tx first
+			const { transaction, txId, txInfo } =
+				await prepareTransaction(transactionBytes)
+				const txidParts = parseTxId(txId)
+				console.log("[WC] tx inspection:", txInfo)
+				console.log("[WC] tx inspection:", txidParts)
+			
+			
+			if (submitNow) {	
 				const txResult = await processTransactionBytes(transactionBytes);
 				console.log("Transaction Result:", txResult);
 				if (txResult.transactionId) {
@@ -441,3 +450,53 @@ const handleDisconnect = () => {
   updateWalletConnectionUI(null);
   location.reload(); // Optional: remove if you don't want page refresh on disconnect
 };
+
+
+//hedera sdk actions only
+const prepareTransaction = async transactionBytes => {
+  const transaction = Transaction.fromBytes(transactionBytes)
+
+  // Freeze WITHOUT executing
+  if (!transaction.isFrozen())
+    await transaction.freeze()
+
+  const txId = transaction.transactionId?.toString()
+  if (!txId)
+    throw new Error("Transaction ID missing after freeze")
+
+  const txInfo = parseTxId(txId)
+
+  return { transaction, txId, txInfo }
+}
+
+
+
+//utils
+export const parseTxId = txid => {
+	// 0.0.123@1769033572.006227887
+	if (!txid || typeof txid !== "string")
+			throw new Error("Invalid transaction ID")
+	
+	const [operatorId, startTime] = txid.split('@')
+	const [shard, realm, entityNum] =
+	operatorId.split('.').map(v => parseInt(v, 10))
+
+	if (!startTime)
+		throw new Error("Invalid transaction ID - missing start time")
+	
+	const [startSeconds, startNanos] =
+		startTime.split('.').map(v => parseInt(v, 10))
+
+	const nowSeconds = Math.floor(Date.now() / 1000)
+	
+  let status = "valid"
+  if (startSeconds > nowSeconds) // todo consider clock drift
+    status = "not_yet_valid"
+		
+  const expiresAt = startSeconds + 120 // todo replace with actual valid window (120 is default)	
+  if (nowSeconds > expiresAt ) // todo consider clock drift
+    status = "expired"
+	
+	return {operatorId, shard, realm, entityNum, startSeconds, startNanos, status }
+}
+
