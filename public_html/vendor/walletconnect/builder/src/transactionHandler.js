@@ -41,7 +41,45 @@ const EL_LOADER = (() => {
  *   "requiredNamespaces": { "hedera": { ... } }
  * }
  */
- 
+
+
+// High-level mental grouping (not file structure)
+//
+// --- WalletConnect lifecycle & session management
+// loadConfig
+// initializeWalletConnect
+// restoreWalletSession
+// openWalletConnectModal
+// handleDisconnect
+//
+// --- Hedera network & SDK helpers
+// getHederaNetworkFromNamespaces
+// hederaChainIdFromNetwork
+// prepareTransaction
+// parseTxId
+//
+// --- Transaction execution & signing
+// processTransactionBytes
+// signTransactionBytesOnly
+//
+// --- Deal orchestration (cross-cutting)
+// handleButton  // spans: UI input, API IO, tx inspection, signing, submission
+//
+// --- UI / view helpers
+// updateWalletConnectionUI
+//
+// Notes:
+// - Functions appearing in multiple sections are good candidates for future splits
+// - handleButton is intentionally orchestration-heavy; name should reflect that
+// - Utilities are already fairly clean; most coupling lives in the orchestration layer
+
+
+// loadConfig
+// Loads, validates, and normalises the WalletConnect config.json used to initialise the dapp connector.
+//
+// Suggestions:
+// - Could split URL resolution vs fetch vs validation later
+// - Mostly a config bootstrap concern, not WalletConnect lifecycle
 async function loadConfig() {
   try {
     let configUrl
@@ -100,7 +138,12 @@ async function loadConfig() {
 }
 
 
-
+// getHederaNetworkFromNamespaces
+// Extracts the Hedera network name (mainnet/testnet/previewnet) from WalletConnect requiredNamespaces.
+//
+// Suggestions:
+// - Pure utility, could live near other Hedera helpers
+// - Assumes first chain only (might be worth making explicit)
 function getHederaNetworkFromNamespaces(requiredNamespaces) {
   const chains = requiredNamespaces?.hedera?.chains
 
@@ -117,7 +160,12 @@ function getHederaNetworkFromNamespaces(requiredNamespaces) {
 }
 
 
-
+// hederaChainIdFromNetwork
+// Maps a Hedera network string to the corresponding HederaChainId enum.
+//
+// Suggestions:
+// - Could be a lookup map instead of switch
+// - Naming is fine but could be read as "resolve" instead of "from"
 function hederaChainIdFromNetwork(network) {
   switch (network) {
     case "mainnet": return HederaChainId.Mainnet
@@ -130,7 +178,12 @@ function hederaChainIdFromNetwork(network) {
 
 
 
-// Initialize WalletConnect with retry mechanism
+// initializeWalletConnect
+// Creates and initialises a WalletConnect DAppConnector using loaded config, handling reconnects.
+//
+// Suggestions:
+// - Doing config load + disconnect + init is a lot for one function
+// - Reads like a lifecycle step rather than a one-off init
 const initializeWalletConnect = async (retryCount = 0) => {
   try {
     const config = await loadConfig();
@@ -179,7 +232,12 @@ const initializeWalletConnect = async (retryCount = 0) => {
   }
 };
 
-// Restore wallet session
+// restoreWalletSession
+// Attempts to restore a previously connected wallet session from localStorage.
+//
+// Suggestions:
+// - Mixes persistence, connection, and validation logic
+// - Could later split “load stored account” vs “verify active session”
 const restoreWalletSession = async () => {
   const storedAccountId = localStorage.getItem("walletConnectAccountId");
   if (storedAccountId) {
@@ -206,6 +264,12 @@ const restoreWalletSession = async () => {
   return false;
 };
 
+// updateWalletConnectionUI
+// Updates connect / disconnect button UI based on current wallet connection state.
+//
+// Suggestions:
+// - Purely view-related, no wallet logic
+// - Assumes specific DOM IDs (implicit coupling)
 const updateWalletConnectionUI = (accountId) => {
   const walletConnectButton = document.getElementById("pair-walletconnect-btn")
 	if (!walletConnectButton) {
@@ -237,7 +301,12 @@ const updateWalletConnectionUI = (accountId) => {
   }
 };
 
-// Modify the openWalletConnectModal function
+// openWalletConnectModal
+// Initialises WalletConnect (if needed) and opens the WalletConnect pairing modal.
+//
+// Suggestions:
+// - Combines init, modal open, and post-connect handling
+// - Timing delay is a subtle dependency worth documenting
 const openWalletConnectModal = async () => {
   try {
     await initializeWalletConnect();
@@ -263,7 +332,12 @@ const openWalletConnectModal = async () => {
   }
 };
 
-// Process transaction bytes
+// processTransactionBytes
+// Freezes, signs, and submits a Hedera transaction from raw transaction bytes.
+//
+// Suggestions:
+// - Does both preparation and execution
+// - Could later separate “prepare tx” vs “submit tx”
 const processTransactionBytes = async (transactionBytes) => {
   try {
     const transaction = Transaction.fromBytes(transactionBytes);
@@ -291,7 +365,12 @@ const processTransactionBytes = async (transactionBytes) => {
   }
 };
 
-// Handlebutton  functionality
+// handleButton
+// High-level action handler that fetches deal transaction bytes, inspects, signs, and optionally submits.
+//
+// Suggestions:
+// - Name is very non-descriptive for how much work happens here
+// - This is effectively the main orchestration function
 export const handleButton = async () => {
   const accountId = localStorage.getItem("walletConnectAccountId");
   if (!accountId) {
@@ -405,6 +484,13 @@ export const handleButton = async () => {
 };
 
 // Sign transaction only (do NOT submit)
+// signTransactionBytesOnly
+// Signs a Hedera transaction without submitting it to the network.
+//
+// Suggestions:
+// - Closely related to processTransactionBytes
+// - Return value is useful but downstream handling is unclear
+
 const signTransactionBytesOnly = async transactionBytes => {
   try {
     const transaction = Transaction.fromBytes(transactionBytes)
@@ -453,6 +539,13 @@ const handleDisconnect = () => {
 
 
 //hedera sdk actions only
+
+// prepareTransaction
+// Parses and freezes a transaction and extracts basic transaction metadata without executing it.
+//
+// Suggestions:
+// - Pure SDK-level helper
+// - Nice separation point already compared to execution logic
 const prepareTransaction = async transactionBytes => {
   const transaction = Transaction.fromBytes(transactionBytes)
 
@@ -472,6 +565,14 @@ const prepareTransaction = async transactionBytes => {
 
 
 //utils
+// parseTxId
+// Parses a Hedera transaction ID string into structured components and basic validity status.
+//
+// Suggestions:
+// - Pure utility, no WalletConnect dependency
+// - Status logic could evolve independently of parsing
+
+
 export const parseTxId = txid => {
 	// 0.0.123@1769033572.006227887
 	if (!txid || typeof txid !== "string")
