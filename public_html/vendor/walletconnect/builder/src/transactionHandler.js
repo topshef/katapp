@@ -330,38 +330,44 @@ const openWalletConnectModal = async () => {
   }
 };
 
-// processTransactionBytes
-// Freezes, signs, and submits a Hedera transaction from raw transaction bytes.
+// processPreparedTransaction
+// Executes a pre-prepared (already frozen) Hedera transaction using the active signer.
 //
-// Suggestions:
-// - Does both preparation and execution
-// - Could later separate “prepare tx” vs “submit tx”
-const processTransactionBytes = async (transactionBytes) => {
+// Responsibilities:
+// - Assumes the Transaction has already been constructed and frozen
+// - Executes the transaction with the connected wallet signer
+// - Returns the execution result containing the transactionId
+//
+// Notes:
+// - Does NOT parse bytes
+// - Does NOT freeze or modify the transaction
+// - Separation of concerns: preparation happens upstream (prepareTransaction)
+// - Safe to reuse in different execution paths (immediate submit, retries, etc.)
+//
+// Errors:
+// - Throws if no signer is available
+// - Throws if execution fails or no transactionId is returned
+
+const processPreparedTransaction = async transaction => {
   try {
-    const transaction = Transaction.fromBytes(transactionBytes);
-    const signer = dappConnector.signers[0];
-
+    const signer = dappConnector.signers[0]
     if (!signer)
-      throw new Error("No signer available. Please reconnect your wallet.");
+      throw new Error("No signer available. Please reconnect your wallet.")
 
-    if (!transaction.isFrozen()) {
-      await transaction.freezeWithSigner(signer);
-    }
+    const txResult = await transaction.executeWithSigner(signer)
 
-    const txResult = await transaction.executeWithSigner(signer);
-    console.log("Transaction Result:", txResult);
-    if (txResult?.transactionId) {
-      return txResult;
-    } else {
-      console.error("Transaction ID not found in result.");
-      throw new Error("Transaction not successful");
-    }
+    if (!txResult?.transactionId)
+      throw new Error("Transaction not successful")
+
+    return txResult
   } catch (error) {
-    console.error("Error processing transaction:", error);
-    //createTransactionAlert(error.message, "danger");
-    throw error;
+    console.error("Error processing transaction:", error)
+    throw error
   }
-};
+}
+
+
+
 
 // ┌─┐─┐ ┬┌─┐┌─┐┬ ┬┌┬┐┌─┐  ╔╦╗┌─┐┌─┐┬    ╔═╗┬  ┌─┐┬ ┬
 // ├┤ ┌┴┬┘├┤ │  │ │ │ ├┤    ║║├┤ ├─┤│    ╠╣ │  │ ││││
@@ -447,36 +453,36 @@ export const executeDealFlow = async () => {
     const transactionBytes = new Uint8Array(data.bytes.data);
 
     try {
-			
-			// check the tx first
+						
+			const signer = dappConnector.signers[0]
+
 			const { transaction, txId, txInfo } =
-				await prepareTransaction(transactionBytes)
+		  await prepareTransaction(transactionBytes, signer)
+			
 			console.log("[WC] tx inspection:", txInfo)
 			
 			if (txInfo.status == 'not_yet_valid')
 				submitNow = false
 			
-			if (submitNow) {	
-				const txResult = await processTransactionBytes(transactionBytes);
-				console.log("Transaction Result:", txResult);
-				if (txResult.transactionId) {
-					setTimeout(() => {
-						createTransactionAlert(
-							`Success!`,
-							"success",
-							"last_tx",  //aligns with gomint kpay xproof etc
-							txResult.transactionId
-						)
-					}, walletConfig?.receiptDelayMs ?? 3000)  // helps avoid user hitting mirror before ready
-				} else {
-					throw new Error("Transaction not successful");
-				}
+			if (submitNow) {
+				const txResult = await processPreparedTransaction(transaction)
+
+				setTimeout(() => {
+					createTransactionAlert(
+						"Success!",
+						"success",
+						"last_tx",
+						txResult.transactionId
+					)
+				}, walletConfig?.receiptDelayMs ?? 3000)
+
 			} else {
 				console.log("[WC] only sign, dont submit")
-				const signedTransaction = await signTransactionBytesOnly(transactionBytes)
+
+				const signedTransaction = await signPreparedTransaction(transaction)
 				const saveResult = await saveSignedTransaction(signedTransaction)
+
 				showTxSaveResult(saveResult)
-				
 			}
 			
     } catch (error) {
@@ -489,35 +495,24 @@ export const executeDealFlow = async () => {
   }
 };
 
-// Sign transaction only (do NOT submit)
-// signTransactionBytesOnly
-// Signs a Hedera transaction without submitting it to the network.
-//
-// Suggestions:
-// - Closely related to processTransactionBytes
-// - Return value is useful but downstream handling is unclear
-
-const signTransactionBytesOnly = async transactionBytes => {
+// signPreparedTransaction
+// Signs an already-prepared (frozen) Hedera transaction without submitting it.
+const signPreparedTransaction = async transaction => {
   try {
-    const transaction = Transaction.fromBytes(transactionBytes)
     const signer = dappConnector.signers[0]
-
     if (!signer)
       throw new Error("No signer available. Please reconnect your wallet.")
 
-    if (!transaction.isFrozen())
-      await transaction.freezeWithSigner(signer)
-
-		const signedTransaction = await transaction.signWithSigner(signer)
+    const signedTransaction = await transaction.signWithSigner(signer)
 
     console.log("[WC] Signed transaction (not submitted):", signedTransaction)
-
     return signedTransaction
   } catch (error) {
     console.error("[WC] Error signing transaction only:", error)
     throw error
   }
 }
+
 
 
 // Update the event listener section
@@ -545,18 +540,17 @@ const handleDisconnect = () => {
 
 //hedera sdk actions only
 
-// prepareTransaction
-// Parses and freezes a transaction and extracts basic transaction metadata without executing it.
-//
-// Suggestions:
-// - Pure SDK-level helper
-// - Nice separation point already compared to execution logic
-const prepareTransaction = async transactionBytes => {
+// processPreparedTransaction
+// Executes an already-prepared (frozen) Hedera transaction using the active signer.
+const prepareTransaction = async (transactionBytes, signer) => {
   const transaction = Transaction.fromBytes(transactionBytes)
 
-  // Freeze WITHOUT executing
-  if (!transaction.isFrozen())
-    await transaction.freeze()
+  // Freeze once, correctly
+  if (!transaction.isFrozen()) {
+    signer
+      ? await transaction.freezeWithSigner(signer)
+      : await transaction.freeze()
+  }
 
   const txId = transaction.transactionId?.toString()
   if (!txId)
@@ -566,6 +560,7 @@ const prepareTransaction = async transactionBytes => {
 
   return { transaction, txId, txInfo }
 }
+
 
 // kpos actions
 // saveSignedTransaction
