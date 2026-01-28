@@ -63,14 +63,14 @@ const EL_LOADER = (() => {
 // signTransactionBytesOnly
 //
 // --- Deal orchestration (cross-cutting)
-// handleButton  // spans: UI input, API IO, tx inspection, signing, submission
+// executeDealFlow  // spans: UI input, API IO, tx inspection, signing, submission
 //
 // --- UI / view helpers
 // updateWalletConnectionUI
 //
 // Notes:
 // - Functions appearing in multiple sections are good candidates for future splits
-// - handleButton is intentionally orchestration-heavy; name should reflect that
+// - executeDealFlow is intentionally orchestration-heavy
 // - Utilities are already fairly clean; most coupling lives in the orchestration layer
 
 
@@ -365,13 +365,18 @@ const processTransactionBytes = async (transactionBytes) => {
   }
 };
 
-// handleButton
+// ┌─┐─┐ ┬┌─┐┌─┐┬ ┬┌┬┐┌─┐  ╔╦╗┌─┐┌─┐┬    ╔═╗┬  ┌─┐┬ ┬
+// ├┤ ┌┴┬┘├┤ │  │ │ │ ├┤    ║║├┤ ├─┤│    ╠╣ │  │ ││││
+// └─┘┴ └─└─┘└─┘└─┘ ┴ └─┘  ═╩╝└─┘┴ ┴┴─┘  ╚  ┴─┘└─┘└┴┘
+// execute Deal Flow
+
+// executeDealFlow
 // High-level action handler that fetches deal transaction bytes, inspects, signs, and optionally submits.
 //
 // Suggestions:
-// - Name is very non-descriptive for how much work happens here
 // - This is effectively the main orchestration function
-export const handleButton = async () => {
+
+export const executeDealFlow = async () => {
   const accountId = localStorage.getItem("walletConnectAccountId");
   if (!accountId) {
     showBootstrapAlert("Please connect your wallet first.", "warning");

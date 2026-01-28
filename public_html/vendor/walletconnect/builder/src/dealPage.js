@@ -1,4 +1,4 @@
-import { handleButton } from "./transactionHandler.js";
+import { executeDealFlow } from "./transactionHandler.js";
 
 // Utility functions
 const Utils = {
@@ -403,7 +403,7 @@ function attachCreateTxHandler() {
 
 	btn.addEventListener("click", async event => {
 		event.preventDefault()
-		await handleButton()
+		await executeDealFlow()
 	})
 }
 
