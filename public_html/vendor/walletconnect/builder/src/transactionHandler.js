@@ -10,7 +10,7 @@ import { showBootstrapAlert, createTransactionAlert } from "./dealPage.js";
 let dappConnector;
 let walletConfig
 
-console.log("[WC] BUILD 2026-01-27 v10"); 
+console.log("[WC] BUILD 2026-01-27 v12"); 
 
 // Script tag that loaded this bundle (used to resolve config + metadata)
 // ---- capture THIS script once (safe for async / base href / bundling)
@@ -301,6 +301,11 @@ export const handleButton = async () => {
 
   const dealIdInput = document.getElementById("dealId")?.value;
   const urlParams = new URLSearchParams(window.location.search);
+	
+	// wcSubmit flag (default = true)
+	let wcSubmit = true
+	if (urlParams.get("submitServerSide")) wcSubmit = false
+
   const dealId = dealIdInput || urlParams.get("dealId");
   if (!dealId) {
     showBootstrapAlert("Please provide a valid dealId.", "warning");
@@ -360,20 +365,26 @@ export const handleButton = async () => {
     const transactionBytes = new Uint8Array(data.bytes.data);
 
     try {
-      const txResult = await processTransactionBytes(transactionBytes);
-      console.log("Transaction Result:", txResult);
-      if (txResult.transactionId) {
-				setTimeout(() => {
-					createTransactionAlert(
-						`Success!`,
-						"success",
-						"last_tx",  //aligns with gomint kpay xproof etc
-						txResult.transactionId
-					)
-				}, walletConfig?.receiptDelayMs ?? 3000)  // helps avoid user hitting mirror before ready
-      } else {
-        throw new Error("Transaction not successful");
-      }
+			if (wcSubmit) {	
+				const txResult = await processTransactionBytes(transactionBytes);
+				console.log("Transaction Result:", txResult);
+				if (txResult.transactionId) {
+					setTimeout(() => {
+						createTransactionAlert(
+							`Success!`,
+							"success",
+							"last_tx",  //aligns with gomint kpay xproof etc
+							txResult.transactionId
+						)
+					}, walletConfig?.receiptDelayMs ?? 3000)  // helps avoid user hitting mirror before ready
+				} else {
+					throw new Error("Transaction not successful");
+				}
+			} else {
+				console.log("[WC] only sign, dont submit")
+				await signTransactionBytesOnly(transactionBytes)
+			}
+			
     } catch (error) {
       console.error(error);
       throw error; // let outer catch handle UX   //createTransactionAlert(error.message, "danger");
@@ -383,6 +394,31 @@ export const handleButton = async () => {
     createTransactionAlert(error.message, "danger");
   }
 };
+
+// Sign transaction only (do NOT submit)
+const signTransactionBytesOnly = async transactionBytes => {
+  try {
+    const transaction = Transaction.fromBytes(transactionBytes)
+    const signer = dappConnector.signers[0]
+
+    if (!signer)
+      throw new Error("No signer available. Please reconnect your wallet.")
+
+    if (!transaction.isFrozen())
+      await transaction.freezeWithSigner(signer)
+
+		const signedTransaction = await transaction.signWithSigner(signer)
+
+    console.log("[WC] Signed transaction (not submitted):", signedTransaction)
+    alert("Transaction signed. Process to be wired.")
+
+    return signedTransaction
+  } catch (error) {
+    console.error("[WC] Error signing transaction only:", error)
+    throw error
+  }
+}
+
 
 // Update the event listener section
 document.addEventListener("DOMContentLoaded", async () => {
