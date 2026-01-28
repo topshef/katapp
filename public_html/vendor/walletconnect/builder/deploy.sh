@@ -10,29 +10,27 @@ PROD_DIR=".."          # Live deployment target (parent dir)
 BUILD_LOG="$(mktemp)"
 
 #
-# Build ID auto-increment
+# Build ID injection (UTC timestamp)
 #
-# If the source file contains a BUILDID like:
-#   const BUILDID = "2026-01-28 v02"
-# this block will increment the version (v02 -> v03) *before* the build.
+# Replaces the BUILDID value with a full UTC timestamp, e.g.:
+#   const BUILDID = "2026-01-28T14:37:22Z"
 #
-# This guarantees the BUILDID is baked into the bundled output.
-# If the file or version tag is missing, this silently does nothing.
+# This runs immediately before the build so the value is guaranteed
+# to be baked into the bundled output.
+# If the BUILDID line is missing, this silently does nothing.
 #
+
 PATH_BUILD_TAG="src/transactionHandler.js"
 
 if [ -f "$PATH_BUILD_TAG" ]; then
-  current=$(grep -oE 'v[0-9]+' "$PATH_BUILD_TAG" | head -1 || true)
+  # Generate UTC timestamp (ISO-like, filesystem- and log-friendly)
+  #build_ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  build_ts=$(date -u +"%Y-%m-%d %a %H:%M:%S UTC")
 
-  if [ -n "$current" ]; then
-	  # Strip leading 'v', normalise to decimal, then increment
-    num=${current#v}
-		num=$(printf "%d" "$num")
-		next=$(printf "v%02d" $((num + 1)))
-
-		# Replace version in-place; failure here should not abort deploy
-    sed -i "s/$current/$next/" "$PATH_BUILD_TAG" || true
-  fi
+  # Replace existing BUILDID string value, if present
+  sed -i \
+    "s/\(BUILDID *= *\"\)[^\"]*\(\".*\)/\1$build_ts\2/" \
+    "$PATH_BUILD_TAG" || true
 fi
 
 
