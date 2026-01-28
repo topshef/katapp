@@ -10,10 +10,6 @@ import { showBootstrapAlert, createTransactionAlert } from "./dealPage.js";
 let dappConnector;
 let walletConfig
 
-// BUILDID is injected during deployment using deploy.sh
-const BUILDID = "2026-01-28 Wed 11:46:03 UTC"
-console.log("[WC] BUILD " + BUILDID); 
-
 // Script tag that loaded this bundle (used to resolve config + metadata)
 // ---- capture THIS script once (safe for async / base href / bundling)
 const EL_LOADER = (() => {

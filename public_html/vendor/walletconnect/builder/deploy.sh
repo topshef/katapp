@@ -6,8 +6,21 @@ DIST_DIR="dist"        # Build output from npm
 ARCHIVE_DIR="archive"  # Historical copies of deployed bundles
 PROD_DIR=".."          # Live deployment target (parent dir)
 
+# Absolute path to the directory containing this script
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# echo "SCRIPT_DIR = $SCRIPT_DIR"
+
+
 # Temporary file to capture full build output for later reference
 BUILD_LOG="$(mktemp)"
+
+# get git info
+#[ -f "./git_info.sh" ] && . ./git_info.sh
+[ -f "$SCRIPT_DIR/git_info.sh" ] && . "$SCRIPT_DIR/git_info.sh"
+
+# echo "GIT_REPO   = $GIT_REPO"
+# echo "GIT_BRANCH = $GIT_BRANCH"
+# echo "GIT_HASH   = $GIT_HASH"
 
 #
 # Build ID injection (UTC timestamp)
@@ -20,18 +33,31 @@ BUILD_LOG="$(mktemp)"
 # If the BUILDID line is missing, this silently does nothing.
 #
 
-PATH_BUILD_TAG="src/transactionHandler.js"
+PATH_BUILD_TAG="src/buildInfo.js"
 
 if [ -f "$PATH_BUILD_TAG" ]; then
   # Generate UTC timestamp (ISO-like, filesystem- and log-friendly)
   #build_ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
   build_ts=$(date -u +"%Y-%m-%d %a %H:%M:%S UTC")
 
+	build_id="$build_ts"
+
+  # Append git diagnostics if available
+	if [ -n "$GIT_REPO" ] && [ -n "$GIT_BRANCH" ]; then
+		build_id="$build_id  $GIT_REPO/tree/$GIT_BRANCH"
+		[ -n "$GIT_HASH" ] && build_id="$build_id#$GIT_HASH"
+	fi
+	
   # Replace existing BUILDID string value, if present
-  sed -i \
-    "s/\(BUILDID *= *\"\)[^\"]*\(\".*\)/\1$build_ts\2/" \
-    "$PATH_BUILD_TAG" || true
+	sed -i \
+		"s|\(BUILDID *= *\"\)[^\"]*\(\".*\)|\1$build_id\2|" \
+		"$PATH_BUILD_TAG" || true
+		
 fi
+
+#test build id
+echo "BUILDID = $build_id"
+# exit 0
 
 
 # Run build and capture output (both console + log file)
