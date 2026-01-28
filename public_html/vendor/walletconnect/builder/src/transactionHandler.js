@@ -475,12 +475,36 @@ export const executeDealFlow = async () => {
 				console.log("[WC] only sign, dont submit")
 				const signedTransaction = await signTransactionBytesOnly(transactionBytes)
 				const saveResult = await saveSignedTransaction(signedTransaction)
-				createTransactionAlert(
-					`<pre>${JSON.stringify(saveResult, null, 2)}</pre>`,
-					"info",
-					"last_tx"
-				)
 
+				const showTxSaveResult = saveResult => {
+					const ok = saveResult?.success === true
+					const result = saveResult?.result || {}
+					const { comments = [], errors = [] } = result
+
+					if (ok) {
+						let msg = comments.length
+								? comments.join("<br>")
+								: "Transaction saved successfully"
+					  msg += ` https://kpos.uk/pool/txRead?network=${result.network}&txid=${result.txId}`
+						createTransactionAlert(
+							msg,
+							"success",
+							"last_tx"
+						)
+					} else {
+						let msg = errors.length
+								? `<pre>${JSON.stringify(errors, null, 2)}</pre>`
+								: "Transaction save failed"
+						msg += ` https://kpos.uk/pool/txRead?network=${result.network}&txid=${result.txId}`
+						createTransactionAlert(
+							msg,
+							"warning",   // orange
+							"last_tx"
+						)
+					}
+				}
+				showTxSaveResult(saveResult)
+				
 			}
 			
     } catch (error) {
@@ -515,7 +539,6 @@ const signTransactionBytesOnly = async transactionBytes => {
 		const signedTransaction = await transaction.signWithSigner(signer)
 
     console.log("[WC] Signed transaction (not submitted):", signedTransaction)
-    alert("Transaction signed. Process to be wired.")
 
     return signedTransaction
   } catch (error) {
@@ -585,12 +608,14 @@ const saveSignedTransaction = async signedTransaction => {
   try {
     const apiUrl = "https://kpos.uk/pool/txSave" 
 
-    const payload = {
-      // safest generic form: raw bytes
-      signedTransactionBytes: Array.from(
-        signedTransaction.toBytes()
-      )
-    }
+		const payload = {
+				network: walletConfig.hedera.network, // "testnet" | "mainnet"
+				response: {
+					signedTransaction: Array.from(
+						signedTransaction.toBytes()
+					)
+				}
+			}
 
     console.log("[WC] Saving signed transaction to API:", payload)
 
