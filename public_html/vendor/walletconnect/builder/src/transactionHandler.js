@@ -10,7 +10,8 @@ import { showBootstrapAlert, createTransactionAlert } from "./dealPage.js";
 let dappConnector;
 let walletConfig
 
-console.log("[WC] BUILD 2026-01-28 v01"); 
+const BUILDID = "2026-01-28 v05"
+console.log("[WC] BUILD " + BUILDID); 
 
 // Script tag that loaded this bundle (used to resolve config + metadata)
 // ---- capture THIS script once (safe for async / base href / bundling)
@@ -453,10 +454,10 @@ export const executeDealFlow = async () => {
 			// check the tx first
 			const { transaction, txId, txInfo } =
 				await prepareTransaction(transactionBytes)
-				const txidParts = parseTxId(txId)
-				console.log("[WC] tx inspection:", txInfo)
-				console.log("[WC] tx inspection:", txidParts)
+			console.log("[WC] tx inspection:", txInfo)
 			
+			if (txInfo.status == 'not_yet_valid')
+				submitNow = false
 			
 			if (submitNow) {	
 				const txResult = await processTransactionBytes(transactionBytes);
@@ -475,7 +476,14 @@ export const executeDealFlow = async () => {
 				}
 			} else {
 				console.log("[WC] only sign, dont submit")
-				await signTransactionBytesOnly(transactionBytes)
+				const signedTransaction = await signTransactionBytesOnly(transactionBytes)
+				const saveResult = await saveSignedTransaction(signedTransaction)
+				createTransactionAlert(
+					`<pre>${JSON.stringify(saveResult, null, 2)}</pre>`,
+					"info",
+					"last_tx"
+				)
+
 			}
 			
     } catch (error) {
@@ -565,6 +573,49 @@ const prepareTransaction = async transactionBytes => {
   const txInfo = parseTxId(txId)
 
   return { transaction, txId, txInfo }
+}
+
+// kpos actions
+// saveSignedTransaction
+// Dummy API wrapper to persist a signed (but unsubmitted) transaction
+//
+// Notes:
+// - Endpoint URL is placeholder
+// - Payload shape is intentionally minimal
+// - Replace URL and body as needed
+
+const saveSignedTransaction = async signedTransaction => {
+  try {
+    const apiUrl = "https://kpos.uk/pool/txSave" 
+
+    const payload = {
+      // safest generic form: raw bytes
+      signedTransactionBytes: Array.from(
+        signedTransaction.toBytes()
+      )
+    }
+
+    console.log("[WC] Saving signed transaction to API:", payload)
+
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok)
+      throw new Error(`Failed to save signed transaction (${response.status})`)
+
+    const result = await response.json()
+    console.log("[WC] Signed transaction saved:", result)
+
+    return result
+  } catch (error) {
+    console.error("[WC] Failed to save signed transaction:", error)
+    throw error
+  }
 }
 
 
