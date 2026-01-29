@@ -10,6 +10,7 @@ import { showBootstrapAlert, createTransactionAlert } from "./dealPage.js";
 let dappConnector;
 let walletConfig
 
+
 // Script tag that loaded this bundle (used to resolve config + metadata)
 // ---- capture THIS script once (safe for async / base href / bundling)
 const EL_LOADER = (() => {
@@ -93,6 +94,14 @@ console.info(
 // - Utilities are already fairly clean; most coupling lives in the orchestration layer
 
 
+
+
+
+// ┬ ┬┌─┐┬  ┬  ┌─┐┌┬┐┌─┐┌─┐┌┐┌┌┐┌┌─┐┌─┐┌┬┐  ┌─┐┌─┐┬─┐┌─┐
+// │││├─┤│  │  ├┤  │ │  │ │││││││├┤ │   │───│  │ │├┬┘├┤ 
+// └┴┘┴ ┴┴─┘┴─┘└─┘ ┴ └─┘└─┘┘└┘┘└┘└─┘└─┘ ┴   └─┘└─┘┴└─└─┘
+// walletconnect-core
+
 // loadConfig
 // Loads, validates, and normalises the WalletConnect config.json used to initialise the dapp connector.
 //
@@ -157,46 +166,6 @@ async function loadConfig() {
 }
 
 
-// getHederaNetworkFromNamespaces
-// Extracts the Hedera network name (mainnet/testnet/previewnet) from WalletConnect requiredNamespaces.
-//
-// Suggestions:
-// - Pure utility, could live near other Hedera helpers
-// - Assumes first chain only (might be worth making explicit)
-function getHederaNetworkFromNamespaces(requiredNamespaces) {
-  const chains = requiredNamespaces?.hedera?.chains
-
-  if (!chains || chains.length === 0)
-    throw new Error("No Hedera chains defined in requiredNamespaces")
-
-  // Expect format: "hedera:mainnet" | "hedera:testnet" | "hedera:previewnet"
-  const [, network] = chains[0].split(":")
-
-  if (!network)
-    throw new Error(`Invalid Hedera chain format: ${chains[0]}`)
-
-  return network
-}
-
-
-// hederaChainIdFromNetwork
-// Maps a Hedera network string to the corresponding HederaChainId enum.
-//
-// Suggestions:
-// - Could be a lookup map instead of switch
-// - Naming is fine but could be read as "resolve" instead of "from"
-function hederaChainIdFromNetwork(network) {
-  switch (network) {
-    case "mainnet": return HederaChainId.Mainnet
-    case "testnet": return HederaChainId.Testnet
-    case "previewnet": return HederaChainId.Previewnet
-    default:
-      throw new Error(`Unsupported Hedera network: ${network}`)
-  }
-}
-
-
-
 // initializeWalletConnect
 // Creates and initialises a WalletConnect DAppConnector using loaded config, handling reconnects.
 //
@@ -254,6 +223,41 @@ async function initializeWalletConnect(retryCount = 0) {
 
 
 
+// connectWalletCore
+// Headless intent: initialise WalletConnect, open modal, return accountId
+// const connectWalletCore = async () => {
+async function connectWalletCore() {
+  await initializeWalletConnect()
+
+  // Ensure connector is ready
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  await dappConnector.openModal()
+
+  const accountId = dappConnector.signers[0]?.getAccountId()?.toString()
+  if (!accountId)
+    throw new Error("Wallet connection failed")
+
+  return accountId
+}
+
+// disconnectWalletCore
+// Headless intent: clear wallet session and disconnect active connector
+// const disconnectWalletCore = async () => {
+async function disconnectWalletCore() {
+  localStorage.removeItem("walletConnectAccountId")
+
+  if (dappConnector) {
+    try {
+      await dappConnector.disconnect()
+    } catch (error) {
+      console.warn("[WC] Error during wallet disconnect:", error)
+    }
+  }
+
+  return true
+}
+
 // restoreWalletSessionCore
 // Headless intent: attempt to restore a valid wallet session and return accountId
 // const restoreWalletSessionCore = async () => {
@@ -289,6 +293,194 @@ const restoreWalletSession = async () => {
   return !!accountId
 }
 
+
+
+
+
+// ┬ ┬┌─┐┌┬┐┌─┐┬─┐┌─┐   ┌─┐┌─┐┬─┐┌─┐
+// ├─┤├┤  ││├┤ ├┬┘├─┤───│  │ │├┬┘├┤ 
+// ┴ ┴└─┘─┴┘└─┘┴└─┴ ┴   └─┘└─┘┴└─└─┘
+// hedera-core
+
+// processPreparedTransaction
+// Executes an already-prepared (frozen) Hedera transaction using the active signer.
+// const prepareTransaction = async (transactionBytes, signer) => {
+async function prepareTransaction(transactionBytes, signer) {
+  const transaction = Transaction.fromBytes(transactionBytes)
+
+  // Freeze once, correctly
+  if (!transaction.isFrozen()) {
+    signer
+      ? await transaction.freezeWithSigner(signer)
+      : await transaction.freeze()
+  }
+
+  const txId = transaction.transactionId?.toString()
+  if (!txId)
+    throw new Error("Transaction ID missing after freeze")
+
+  const txInfo = parseTxId(txId)
+
+  return { transaction, txId, txInfo }
+}
+
+
+// processPreparedTransaction
+// Executes a pre-prepared (already frozen) Hedera transaction using the active signer.
+//
+// Responsibilities:
+// - Assumes the Transaction has already been constructed and frozen
+// - Executes the transaction with the connected wallet signer
+// - Returns the execution result containing the transactionId
+//
+// Notes:
+// - Does NOT parse bytes
+// - Does NOT freeze or modify the transaction
+// - Separation of concerns: preparation happens upstream (prepareTransaction)
+// - Safe to reuse in different execution paths (immediate submit, retries, etc.)
+//
+// Errors:
+// - Throws if no signer is available
+// - Throws if execution fails or no transactionId is returned
+
+// const processPreparedTransaction = async transaction => {
+async function processPreparedTransaction(transaction) {
+  try {
+    const signer = dappConnector.signers[0]
+    if (!signer)
+      throw new Error("No signer available. Please reconnect your wallet.")
+
+    const txResult = await transaction.executeWithSigner(signer)
+
+    if (!txResult?.transactionId)
+      throw new Error("Transaction not successful")
+
+    return txResult
+  } catch (error) {
+    console.error("Error processing transaction:", error)
+    throw error
+  }
+}
+
+// signPreparedTransaction
+// Signs an already-prepared (frozen) Hedera transaction without submitting it.
+// const signPreparedTransaction = async transaction => {
+async function signPreparedTransaction(transaction) {
+  try {
+    const signer = dappConnector.signers[0]
+    if (!signer)
+      throw new Error("No signer available. Please reconnect your wallet.")
+
+    const signedTransaction = await transaction.signWithSigner(signer)
+
+    console.log("[WC] Signed transaction (not submitted):", signedTransaction)
+    return signedTransaction
+  } catch (error) {
+    console.error("[WC] Error signing transaction only:", error)
+    throw error
+  }
+}
+
+// parseTxId
+// Parses a Hedera transaction ID string into structured components and basic validity status.
+//
+// Suggestions:
+// - Pure utility, no WalletConnect dependency
+// - Status logic could evolve independently of parsing
+// export const parseTxId = txid => {
+export function parseTxId(txid) {
+	// 0.0.123@1769033572.006227887
+	if (!txid || typeof txid !== "string")
+			throw new Error("Invalid transaction ID")
+	
+	const [operatorId, startTime] = txid.split('@')
+	const [shard, realm, entityNum] =
+	operatorId.split('.').map(v => parseInt(v, 10))
+
+	if (!startTime)
+		throw new Error("Invalid transaction ID - missing start time")
+	
+	const [startSeconds, startNanos] =
+		startTime.split('.').map(v => parseInt(v, 10))
+
+	const nowSeconds = Math.floor(Date.now() / 1000)
+	
+  let status = "valid"
+  if (startSeconds > nowSeconds) // todo consider clock drift
+    status = "not_yet_valid"
+		
+  const expiresAt = startSeconds + 120 // todo replace with actual valid window (120 is default)	
+  if (nowSeconds > expiresAt ) // todo consider clock drift
+    status = "expired"
+	
+	return {operatorId, shard, realm, entityNum, startSeconds, startNanos, status }
+}
+
+
+
+
+// ┬┌─┌─┐┌─┐┌─┐  ╔═╗╔═╗╦
+// ├┴┐├─┘│ │└─┐  ╠═╣╠═╝║
+// ┴ ┴┴  └─┘└─┘  ╩ ╩╩  ╩
+// kpos API
+
+
+// saveSignedTransaction
+// Dummy API wrapper to persist a signed (but unsubmitted) transaction
+//
+// Notes:
+// - Endpoint URL is placeholder
+// - Payload shape is intentionally minimal
+// - Replace URL and body as needed
+
+// todo extract from execDealFLow the kpos read step
+
+
+// const saveSignedTransaction = async signedTransaction => {
+async function saveSignedTransaction(signedTransaction) {
+  try {
+    const apiUrl = "https://kpos.uk/pool/txSave" 
+
+		const payload = {
+				network: walletConfig.hedera.network, // "testnet" | "mainnet"
+				response: {
+					signedTransaction: Array.from(
+						signedTransaction.toBytes()
+					)
+				}
+			}
+
+    console.log("[WC] Saving signed transaction to API:", payload)
+
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok)
+      throw new Error(`Failed to save signed transaction (${response.status})`)
+
+    const result = await response.json()
+    console.log("[WC] Signed transaction saved:", result)
+
+    return result
+  } catch (error) {
+    console.error("[WC] Failed to save signed transaction:", error)
+    throw error
+  }
+}
+
+
+
+
+
+// ┬┌┐┌┌┬┐┌─┐┬─┐┌─┐┌─┐┌┬┐┬┌─┐┌┐┌  ┌─┐┌┬┐┌┬┐┌─┐┌─┐┌┬┐┌─┐┬─┐┌─┐
+// ││││ │ ├┤ ├┬┘├─┤│   │ ││ ││││  ├─┤ ││ ││├─┤├─┘ │ │ │├┬┘└─┐
+// ┴┘└┘ ┴ └─┘┴└─┴ ┴└─┘ ┴ ┴└─┘┘└┘  ┴ ┴─┴┘─┴┘┴ ┴┴   ┴ └─┘┴└─└─┘
+// interaction addaptors
 
 // resolveWalletUIState
 // Headless intent: derive wallet UI state from account connection
@@ -364,170 +556,11 @@ const openWalletConnectModal = async () => {
   }
 }
 
-// connectWalletCore
-// Headless intent: initialise WalletConnect, open modal, return accountId
-// const connectWalletCore = async () => {
-async function connectWalletCore() {
-  await initializeWalletConnect()
-
-  // Ensure connector is ready
-  await new Promise(resolve => setTimeout(resolve, 500))
-
-  await dappConnector.openModal()
-
-  const accountId = dappConnector.signers[0]?.getAccountId()?.toString()
-  if (!accountId)
-    throw new Error("Wallet connection failed")
-
-  return accountId
-}
 
 
 
 
-// parseTxId
-// Parses a Hedera transaction ID string into structured components and basic validity status.
-//
-// Suggestions:
-// - Pure utility, no WalletConnect dependency
-// - Status logic could evolve independently of parsing
-// export const parseTxId = txid => {
-export function parseTxId(txid) {
-	// 0.0.123@1769033572.006227887
-	if (!txid || typeof txid !== "string")
-			throw new Error("Invalid transaction ID")
-	
-	const [operatorId, startTime] = txid.split('@')
-	const [shard, realm, entityNum] =
-	operatorId.split('.').map(v => parseInt(v, 10))
 
-	if (!startTime)
-		throw new Error("Invalid transaction ID - missing start time")
-	
-	const [startSeconds, startNanos] =
-		startTime.split('.').map(v => parseInt(v, 10))
-
-	const nowSeconds = Math.floor(Date.now() / 1000)
-	
-  let status = "valid"
-  if (startSeconds > nowSeconds) // todo consider clock drift
-    status = "not_yet_valid"
-		
-  const expiresAt = startSeconds + 120 // todo replace with actual valid window (120 is default)	
-  if (nowSeconds > expiresAt ) // todo consider clock drift
-    status = "expired"
-	
-	return {operatorId, shard, realm, entityNum, startSeconds, startNanos, status }
-}
-
-
-
-// processPreparedTransaction
-// Executes a pre-prepared (already frozen) Hedera transaction using the active signer.
-//
-// Responsibilities:
-// - Assumes the Transaction has already been constructed and frozen
-// - Executes the transaction with the connected wallet signer
-// - Returns the execution result containing the transactionId
-//
-// Notes:
-// - Does NOT parse bytes
-// - Does NOT freeze or modify the transaction
-// - Separation of concerns: preparation happens upstream (prepareTransaction)
-// - Safe to reuse in different execution paths (immediate submit, retries, etc.)
-//
-// Errors:
-// - Throws if no signer is available
-// - Throws if execution fails or no transactionId is returned
-
-// const processPreparedTransaction = async transaction => {
-async function processPreparedTransaction(transaction) {
-  try {
-    const signer = dappConnector.signers[0]
-    if (!signer)
-      throw new Error("No signer available. Please reconnect your wallet.")
-
-    const txResult = await transaction.executeWithSigner(signer)
-
-    if (!txResult?.transactionId)
-      throw new Error("Transaction not successful")
-
-    return txResult
-  } catch (error) {
-    console.error("Error processing transaction:", error)
-    throw error
-  }
-}
-
-
-// processPreparedTransaction
-// Executes an already-prepared (frozen) Hedera transaction using the active signer.
-// const prepareTransaction = async (transactionBytes, signer) => {
-async function prepareTransaction(transactionBytes, signer) {
-  const transaction = Transaction.fromBytes(transactionBytes)
-
-  // Freeze once, correctly
-  if (!transaction.isFrozen()) {
-    signer
-      ? await transaction.freezeWithSigner(signer)
-      : await transaction.freeze()
-  }
-
-  const txId = transaction.transactionId?.toString()
-  if (!txId)
-    throw new Error("Transaction ID missing after freeze")
-
-  const txInfo = parseTxId(txId)
-
-  return { transaction, txId, txInfo }
-}
-
-
-
-// saveSignedTransaction
-// Dummy API wrapper to persist a signed (but unsubmitted) transaction
-//
-// Notes:
-// - Endpoint URL is placeholder
-// - Payload shape is intentionally minimal
-// - Replace URL and body as needed
-
-// const saveSignedTransaction = async signedTransaction => {
-async function saveSignedTransaction(signedTransaction) {
-  try {
-    const apiUrl = "https://kpos.uk/pool/txSave" 
-
-		const payload = {
-				network: walletConfig.hedera.network, // "testnet" | "mainnet"
-				response: {
-					signedTransaction: Array.from(
-						signedTransaction.toBytes()
-					)
-				}
-			}
-
-    console.log("[WC] Saving signed transaction to API:", payload)
-
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    })
-
-    if (!response.ok)
-      throw new Error(`Failed to save signed transaction (${response.status})`)
-
-    const result = await response.json()
-    console.log("[WC] Signed transaction saved:", result)
-
-    return result
-  } catch (error) {
-    console.error("[WC] Failed to save signed transaction:", error)
-    throw error
-  }
-}
 
 
 
@@ -576,6 +609,8 @@ const showTxSaveResult = saveResult => {
 // ├┤ ┌┴┬┘├┤ │  │ │ │ ├┤    ║║├┤ ├─┤│    ╠╣ │  │ ││││
 // └─┘┴ └─└─┘└─┘└─┘ ┴ └─┘  ═╩╝└─┘┴ ┴┴─┘  ╚  ┴─┘└─┘└┴┘
 // execute Deal Flow
+
+// this is still too long.. needs breaking up.. lets extract the kpos bit first
 
 // executeDealFlowCore
 // Headless intent: fetch, prepare, sign, and optionally submit a deal transaction
@@ -735,27 +770,20 @@ export const executeDealFlow = async () => {
 }
 
 
-
-// signPreparedTransaction
-// Signs an already-prepared (frozen) Hedera transaction without submitting it.
-// const signPreparedTransaction = async transaction => {
-async function signPreparedTransaction(transaction) {
+// handleDisconnect
+// UI-triggered disconnect wrapper (buttons, menus, etc.)
+const handleDisconnect = async () => {
   try {
-    const signer = dappConnector.signers[0]
-    if (!signer)
-      throw new Error("No signer available. Please reconnect your wallet.")
-
-    const signedTransaction = await transaction.signWithSigner(signer)
-
-    console.log("[WC] Signed transaction (not submitted):", signedTransaction)
-    return signedTransaction
+    await disconnectWalletCore()
+    updateWalletConnectionUI(null)
+    location.reload() // preserve existing behavior
   } catch (error) {
-    console.error("[WC] Error signing transaction only:", error)
-    throw error
+    console.error("[WC] Disconnect failed:", error)
   }
 }
 
 
+//what do we call this? where does it go?
 
 // Update the event listener section
 document.addEventListener("DOMContentLoaded", async () => {
@@ -774,39 +802,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 
 
-// handleDisconnect
-// UI-triggered disconnect wrapper (buttons, menus, etc.)
-const handleDisconnect = async () => {
-  try {
-    await disconnectWalletCore()
-    updateWalletConnectionUI(null)
-    location.reload() // preserve existing behavior
-  } catch (error) {
-    console.error("[WC] Disconnect failed:", error)
-  }
-}
-
-// disconnectWalletCore
-// Headless intent: clear wallet session and disconnect active connector
-// const disconnectWalletCore = async () => {
-async function disconnectWalletCore() {
-  localStorage.removeItem("walletConnectAccountId")
-
-  if (dappConnector) {
-    try {
-      await dappConnector.disconnect()
-    } catch (error) {
-      console.warn("[WC] Error during wallet disconnect:", error)
-    }
-  }
-
-  return true
-}
-
-
-
-
-
+// ┬ ┬┌─┐┌─┐┌┬┐┬  ┌─┐┌─┐┌─┐  ┌─┐┌┬┐┌─┐┌─┐┌┬┐┌─┐┬─┐
+// ├─┤├┤ ├─┤ │││  ├┤ └─┐└─┐  ├─┤ ││├─┤├─┘ │ │ │├┬┘
+// ┴ ┴└─┘┴ ┴─┴┘┴─┘└─┘└─┘└─┘  ┴ ┴─┴┘┴ ┴┴   ┴ └─┘┴└─
+// headless adaptor
 
 // exposeHeadlessAPI
 // Explicitly expose wallet actions for non-DOM / gesture-driven integrations
@@ -840,4 +839,53 @@ const exposeHeadlessAPI = () => {
 
 // Initialise optional headless exposure
 exposeHeadlessAPI()
+
+
+
+
+// ┬ ┬┌┬┐┬┬  ┌─┐
+// │ │ │ ││  └─┐
+// └─┘ ┴ ┴┴─┘└─┘
+// utils
+//no dependencies...
+
+// getHederaNetworkFromNamespaces
+// Extracts the Hedera network name (mainnet/testnet/previewnet) from WalletConnect requiredNamespaces.
+//
+// Suggestions:
+// - Pure utility, could live near other Hedera helpers
+// - Assumes first chain only (might be worth making explicit)
+function getHederaNetworkFromNamespaces(requiredNamespaces) {
+  const chains = requiredNamespaces?.hedera?.chains
+
+  if (!chains || chains.length === 0)
+    throw new Error("No Hedera chains defined in requiredNamespaces")
+
+  // Expect format: "hedera:mainnet" | "hedera:testnet" | "hedera:previewnet"
+  const [, network] = chains[0].split(":")
+
+  if (!network)
+    throw new Error(`Invalid Hedera chain format: ${chains[0]}`)
+
+  return network
+}
+
+
+// hederaChainIdFromNetwork
+// Maps a Hedera network string to the corresponding HederaChainId enum.
+//
+// Suggestions:
+// - Could be a lookup map instead of switch
+// - Naming is fine but could be read as "resolve" instead of "from"
+function hederaChainIdFromNetwork(network) {
+  switch (network) {
+    case "mainnet": return HederaChainId.Mainnet
+    case "testnet": return HederaChainId.Testnet
+    case "previewnet": return HederaChainId.Previewnet
+    default:
+      throw new Error(`Unsupported Hedera network: ${network}`)
+  }
+}
+
+
 
