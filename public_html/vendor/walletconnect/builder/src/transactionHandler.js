@@ -230,37 +230,44 @@ const initializeWalletConnect = async (retryCount = 0) => {
   }
 };
 
-// restoreWalletSession
-// Attempts to restore a previously connected wallet session from localStorage.
-//
-// Suggestions:
-// - Mixes persistence, connection, and validation logic
-// - Could later split “load stored account” vs “verify active session”
-const restoreWalletSession = async () => {
-  const storedAccountId = localStorage.getItem("walletConnectAccountId");
-  if (storedAccountId) {
-    try {
-      await initializeWalletConnect();
 
-      const isConnected =
-        dappConnector.signers[0]?.getAccountId()?.toString() ===
-        storedAccountId;
 
-      if (isConnected) {
-        console.log("Wallet session restored:", storedAccountId);
-        return true;
-      } else {
-        console.warn("Stored wallet session is not active. Please reconnect.");
-        localStorage.removeItem("walletConnectAccountId");
-      }
-    } catch (error) {
-      console.error("Error restoring wallet session:", error);
+// restoreWalletSessionCore
+// Headless intent: attempt to restore a valid wallet session and return accountId
+const restoreWalletSessionCore = async () => {
+  const storedAccountId = localStorage.getItem("walletConnectAccountId")
+  if (!storedAccountId)
+    return null
+
+  try {
+    await initializeWalletConnect()
+
+    const activeAccountId =
+      dappConnector.signers[0]?.getAccountId()?.toString()
+
+    if (activeAccountId === storedAccountId) {
+      console.log("Wallet session restored:", storedAccountId)
+      return storedAccountId
     }
-  }
 
-  console.log("No wallet session found.");
-  return false;
-};
+    console.warn("Stored wallet session is not active. Please reconnect.")
+    localStorage.removeItem("walletConnectAccountId")
+    return null
+  } catch (error) {
+    console.error("Error restoring wallet session:", error)
+    return null
+  }
+}
+
+// restoreWalletSession
+// Wrapper preserving boolean contract for existing call sites
+const restoreWalletSession = async () => {
+  const accountId = await restoreWalletSessionCore()
+  return !!accountId
+}
+
+
+
 
 // updateWalletConnectionUI
 // Updates connect / disconnect button UI based on current wallet connection state.
