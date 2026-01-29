@@ -203,7 +203,8 @@ function hederaChainIdFromNetwork(network) {
 // Suggestions:
 // - Doing config load + disconnect + init is a lot for one function
 // - Reads like a lifecycle step rather than a one-off init
-const initializeWalletConnect = async (retryCount = 0) => {
+// const initializeWalletConnect = async (retryCount = 0) => {
+async function initializeWalletConnect(retryCount = 0) {
   try {
     const config = await loadConfig();
 
@@ -255,7 +256,8 @@ const initializeWalletConnect = async (retryCount = 0) => {
 
 // restoreWalletSessionCore
 // Headless intent: attempt to restore a valid wallet session and return accountId
-const restoreWalletSessionCore = async () => {
+// const restoreWalletSessionCore = async () => {
+async function restoreWalletSessionCore() {
   const storedAccountId = localStorage.getItem("walletConnectAccountId")
   if (!storedAccountId)
     return null
@@ -364,7 +366,8 @@ const openWalletConnectModal = async () => {
 
 // connectWalletCore
 // Headless intent: initialise WalletConnect, open modal, return accountId
-const connectWalletCore = async () => {
+// const connectWalletCore = async () => {
+async function connectWalletCore() {
   await initializeWalletConnect()
 
   // Ensure connector is ready
@@ -388,7 +391,8 @@ const connectWalletCore = async () => {
 // Suggestions:
 // - Pure utility, no WalletConnect dependency
 // - Status logic could evolve independently of parsing
-export const parseTxId = txid => {
+// export const parseTxId = txid => {
+export function parseTxId(txid) {
 	// 0.0.123@1769033572.006227887
 	if (!txid || typeof txid !== "string")
 			throw new Error("Invalid transaction ID")
@@ -436,7 +440,8 @@ export const parseTxId = txid => {
 // - Throws if no signer is available
 // - Throws if execution fails or no transactionId is returned
 
-const processPreparedTransaction = async transaction => {
+// const processPreparedTransaction = async transaction => {
+async function processPreparedTransaction(transaction) {
   try {
     const signer = dappConnector.signers[0]
     if (!signer)
@@ -457,7 +462,8 @@ const processPreparedTransaction = async transaction => {
 
 // processPreparedTransaction
 // Executes an already-prepared (frozen) Hedera transaction using the active signer.
-const prepareTransaction = async (transactionBytes, signer) => {
+// const prepareTransaction = async (transactionBytes, signer) => {
+async function prepareTransaction(transactionBytes, signer) {
   const transaction = Transaction.fromBytes(transactionBytes)
 
   // Freeze once, correctly
@@ -486,7 +492,8 @@ const prepareTransaction = async (transactionBytes, signer) => {
 // - Payload shape is intentionally minimal
 // - Replace URL and body as needed
 
-const saveSignedTransaction = async signedTransaction => {
+// const saveSignedTransaction = async signedTransaction => {
+async function saveSignedTransaction(signedTransaction) {
   try {
     const apiUrl = "https://kpos.uk/pool/txSave" 
 
@@ -572,12 +579,13 @@ const showTxSaveResult = saveResult => {
 
 // executeDealFlowCore
 // Headless intent: fetch, prepare, sign, and optionally submit a deal transaction
-const executeDealFlowCore = async ({
+// const executeDealFlowCore = async ({
+async function executeDealFlowCore ({
   accountId,
   dealId,
   userParamsString,
   submitNow
-}) => {
+}) {
   const apiUrl =
     `https://kpos.uk/deal/bytes/?dealId=${dealId}` +
     `&${userParamsString}` +
@@ -730,7 +738,8 @@ export const executeDealFlow = async () => {
 
 // signPreparedTransaction
 // Signs an already-prepared (frozen) Hedera transaction without submitting it.
-const signPreparedTransaction = async transaction => {
+// const signPreparedTransaction = async transaction => {
+async function signPreparedTransaction(transaction) {
   try {
     const signer = dappConnector.signers[0]
     if (!signer)
@@ -779,7 +788,8 @@ const handleDisconnect = async () => {
 
 // disconnectWalletCore
 // Headless intent: clear wallet session and disconnect active connector
-const disconnectWalletCore = async () => {
+// const disconnectWalletCore = async () => {
+async function disconnectWalletCore() {
   localStorage.removeItem("walletConnectAccountId")
 
   if (dappConnector) {
