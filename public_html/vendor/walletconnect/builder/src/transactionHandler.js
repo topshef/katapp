@@ -380,6 +380,44 @@ const connectWalletCore = async () => {
 }
 
 
+
+
+// parseTxId
+// Parses a Hedera transaction ID string into structured components and basic validity status.
+//
+// Suggestions:
+// - Pure utility, no WalletConnect dependency
+// - Status logic could evolve independently of parsing
+export const parseTxId = txid => {
+	// 0.0.123@1769033572.006227887
+	if (!txid || typeof txid !== "string")
+			throw new Error("Invalid transaction ID")
+	
+	const [operatorId, startTime] = txid.split('@')
+	const [shard, realm, entityNum] =
+	operatorId.split('.').map(v => parseInt(v, 10))
+
+	if (!startTime)
+		throw new Error("Invalid transaction ID - missing start time")
+	
+	const [startSeconds, startNanos] =
+		startTime.split('.').map(v => parseInt(v, 10))
+
+	const nowSeconds = Math.floor(Date.now() / 1000)
+	
+  let status = "valid"
+  if (startSeconds > nowSeconds) // todo consider clock drift
+    status = "not_yet_valid"
+		
+  const expiresAt = startSeconds + 120 // todo replace with actual valid window (120 is default)	
+  if (nowSeconds > expiresAt ) // todo consider clock drift
+    status = "expired"
+	
+	return {operatorId, shard, realm, entityNum, startSeconds, startNanos, status }
+}
+
+
+
 // processPreparedTransaction
 // Executes a pre-prepared (already frozen) Hedera transaction using the active signer.
 //
@@ -416,6 +454,114 @@ const processPreparedTransaction = async transaction => {
   }
 }
 
+
+// processPreparedTransaction
+// Executes an already-prepared (frozen) Hedera transaction using the active signer.
+const prepareTransaction = async (transactionBytes, signer) => {
+  const transaction = Transaction.fromBytes(transactionBytes)
+
+  // Freeze once, correctly
+  if (!transaction.isFrozen()) {
+    signer
+      ? await transaction.freezeWithSigner(signer)
+      : await transaction.freeze()
+  }
+
+  const txId = transaction.transactionId?.toString()
+  if (!txId)
+    throw new Error("Transaction ID missing after freeze")
+
+  const txInfo = parseTxId(txId)
+
+  return { transaction, txId, txInfo }
+}
+
+
+
+// saveSignedTransaction
+// Dummy API wrapper to persist a signed (but unsubmitted) transaction
+//
+// Notes:
+// - Endpoint URL is placeholder
+// - Payload shape is intentionally minimal
+// - Replace URL and body as needed
+
+const saveSignedTransaction = async signedTransaction => {
+  try {
+    const apiUrl = "https://kpos.uk/pool/txSave" 
+
+		const payload = {
+				network: walletConfig.hedera.network, // "testnet" | "mainnet"
+				response: {
+					signedTransaction: Array.from(
+						signedTransaction.toBytes()
+					)
+				}
+			}
+
+    console.log("[WC] Saving signed transaction to API:", payload)
+
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok)
+      throw new Error(`Failed to save signed transaction (${response.status})`)
+
+    const result = await response.json()
+    console.log("[WC] Signed transaction saved:", result)
+
+    return result
+  } catch (error) {
+    console.error("[WC] Failed to save signed transaction:", error)
+    throw error
+  }
+}
+
+
+
+
+const showTxSaveResult = saveResult => {
+  const ok = saveResult?.success === true
+  const result = saveResult?.result || {}
+  const { comments = [], errors = [], network, txId } = result
+
+  const txLink =
+    network && txId
+      ? `<a href="https://kpos.uk/pool/txRead?network=${network}&txid=${txId}"
+           target="_blank" rel="noopener">
+           View saved tx ${txId}
+         </a>`
+      : ""
+
+  if (ok) {
+    const msg = [
+      comments.length
+        ? comments.join("<br>")
+        : "Transaction saved successfully",
+      txLink
+    ]
+      .filter(Boolean)
+      .join("<br><br>")
+
+    createTransactionAlert(msg, "success", "last_tx")
+  } else {
+    const msg = [
+      errors.length
+        ? `<pre>${JSON.stringify(errors, null, 2)}</pre>`
+        : "Transaction save failed",
+      txLink
+    ]
+      .filter(Boolean)
+      .join("<br><br>")
+
+    createTransactionAlert(msg, "warning", "last_tx")
+  }
+}
 
 
 
@@ -617,8 +763,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   walletConnectButton.addEventListener("click", openWalletConnectModal);
 });
 
-// Initialise optional headless exposure
-exposeHeadlessAPI()
 
 
 // handleDisconnect
@@ -649,154 +793,6 @@ const disconnectWalletCore = async () => {
   return true
 }
 
-
-//hedera sdk actions only
-
-// processPreparedTransaction
-// Executes an already-prepared (frozen) Hedera transaction using the active signer.
-const prepareTransaction = async (transactionBytes, signer) => {
-  const transaction = Transaction.fromBytes(transactionBytes)
-
-  // Freeze once, correctly
-  if (!transaction.isFrozen()) {
-    signer
-      ? await transaction.freezeWithSigner(signer)
-      : await transaction.freeze()
-  }
-
-  const txId = transaction.transactionId?.toString()
-  if (!txId)
-    throw new Error("Transaction ID missing after freeze")
-
-  const txInfo = parseTxId(txId)
-
-  return { transaction, txId, txInfo }
-}
-
-
-// kpos actions
-// saveSignedTransaction
-// Dummy API wrapper to persist a signed (but unsubmitted) transaction
-//
-// Notes:
-// - Endpoint URL is placeholder
-// - Payload shape is intentionally minimal
-// - Replace URL and body as needed
-
-const saveSignedTransaction = async signedTransaction => {
-  try {
-    const apiUrl = "https://kpos.uk/pool/txSave" 
-
-		const payload = {
-				network: walletConfig.hedera.network, // "testnet" | "mainnet"
-				response: {
-					signedTransaction: Array.from(
-						signedTransaction.toBytes()
-					)
-				}
-			}
-
-    console.log("[WC] Saving signed transaction to API:", payload)
-
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    })
-
-    if (!response.ok)
-      throw new Error(`Failed to save signed transaction (${response.status})`)
-
-    const result = await response.json()
-    console.log("[WC] Signed transaction saved:", result)
-
-    return result
-  } catch (error) {
-    console.error("[WC] Failed to save signed transaction:", error)
-    throw error
-  }
-}
-
-//rendering utils
-const showTxSaveResult = saveResult => {
-  const ok = saveResult?.success === true
-  const result = saveResult?.result || {}
-  const { comments = [], errors = [], network, txId } = result
-
-  const txLink =
-    network && txId
-      ? `<a href="https://kpos.uk/pool/txRead?network=${network}&txid=${txId}"
-           target="_blank" rel="noopener">
-           View saved tx ${txId}
-         </a>`
-      : ""
-
-  if (ok) {
-    const msg = [
-      comments.length
-        ? comments.join("<br>")
-        : "Transaction saved successfully",
-      txLink
-    ]
-      .filter(Boolean)
-      .join("<br><br>")
-
-    createTransactionAlert(msg, "success", "last_tx")
-  } else {
-    const msg = [
-      errors.length
-        ? `<pre>${JSON.stringify(errors, null, 2)}</pre>`
-        : "Transaction save failed",
-      txLink
-    ]
-      .filter(Boolean)
-      .join("<br><br>")
-
-    createTransactionAlert(msg, "warning", "last_tx")
-  }
-}
-
-
-
-
-//utils
-// parseTxId
-// Parses a Hedera transaction ID string into structured components and basic validity status.
-//
-// Suggestions:
-// - Pure utility, no WalletConnect dependency
-// - Status logic could evolve independently of parsing
-
-
-export const parseTxId = txid => {
-	// 0.0.123@1769033572.006227887
-	if (!txid || typeof txid !== "string")
-			throw new Error("Invalid transaction ID")
-	
-	const [operatorId, startTime] = txid.split('@')
-	const [shard, realm, entityNum] =
-	operatorId.split('.').map(v => parseInt(v, 10))
-
-	if (!startTime)
-		throw new Error("Invalid transaction ID - missing start time")
-	
-	const [startSeconds, startNanos] =
-		startTime.split('.').map(v => parseInt(v, 10))
-
-	const nowSeconds = Math.floor(Date.now() / 1000)
-	
-  let status = "valid"
-  if (startSeconds > nowSeconds) // todo consider clock drift
-    status = "not_yet_valid"
-		
-  const expiresAt = startSeconds + 120 // todo replace with actual valid window (120 is default)	
-  if (nowSeconds > expiresAt ) // todo consider clock drift
-    status = "expired"
-	
-	return {operatorId, shard, realm, entityNum, startSeconds, startNanos, status }
-}
 
 
 
@@ -831,4 +827,7 @@ const exposeHeadlessAPI = () => {
 
   console.info("[WC] Headless API exposed on window.WC")
 }
+
+// Initialise optional headless exposure
+exposeHeadlessAPI()
 
