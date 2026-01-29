@@ -87,7 +87,7 @@ for file in "$DIST_DIR"/*; do
   hash=$(sha1sum "$file" | cut -c1-6)
 	
 	# Deployment timestamp (UTC)
-  ts=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+  ts=$(date -u +"%Y-%m-%d %a %H:%M:%S UTC")
 
 	 # Target paths
   archived="${ARCHIVE_DIR}/${name}_${hash}.${ext}"
@@ -111,6 +111,7 @@ for file in "$DIST_DIR"/*; do
 
 - **Bundle:** ${filename}
 - **SHA-1:** ${hash}
+- **Build ID:** ${build_id}
 - **Deployed:** ${ts}
 - **Source:** npm run build
 
