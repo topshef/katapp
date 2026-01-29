@@ -299,36 +299,43 @@ const updateWalletConnectionUI = (accountId) => {
   }
 };
 
+
 // openWalletConnectModal
 // Initialises WalletConnect (if needed) and opens the WalletConnect pairing modal.
-//
-// Suggestions:
-// - Combines init, modal open, and post-connect handling
-// - Timing delay is a subtle dependency worth documenting
 const openWalletConnectModal = async () => {
   try {
-    await initializeWalletConnect();
+    const accountId = await connectWalletCore()
 
-    // Add a small delay before opening modal to ensure proper initialization
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    localStorage.setItem("walletConnectAccountId", accountId)
+    console.log("Account ID stored in localStorage:", accountId)
 
-    await dappConnector.openModal();
-    console.log("WalletConnect modal opened successfully!");
-
-    const accountId = dappConnector.signers[0]?.getAccountId()?.toString();
-    if (accountId) {
-      localStorage.setItem("walletConnectAccountId", accountId);
-      console.log("Account ID stored in localStorage:", accountId);
-      updateWalletConnectionUI(accountId);
-    }
+    updateWalletConnectionUI(accountId)
   } catch (error) {
-    console.error("Error opening WalletConnect modal:", error);
+    console.error("Error opening WalletConnect modal:", error)
     showBootstrapAlert(
       "Failed to open WalletConnect modal. Please try again.",
       "danger"
-    );
+    )
   }
-};
+}
+
+// connectWalletCore
+// Headless intent: initialise WalletConnect, open modal, return accountId
+const connectWalletCore = async () => {
+  await initializeWalletConnect()
+
+  // Ensure connector is ready
+  await new Promise(resolve => setTimeout(resolve, 500))
+
+  await dappConnector.openModal()
+
+  const accountId = dappConnector.signers[0]?.getAccountId()?.toString()
+  if (!accountId)
+    throw new Error("Wallet connection failed")
+
+  return accountId
+}
+
 
 // processPreparedTransaction
 // Executes a pre-prepared (already frozen) Hedera transaction using the active signer.
