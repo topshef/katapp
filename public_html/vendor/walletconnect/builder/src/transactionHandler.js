@@ -5,7 +5,7 @@ import {
   HederaChainId,
 } from "@hashgraph/hedera-wallet-connect";
 import { Transaction, LedgerId } from "@hashgraph/sdk";
-import { showBootstrapAlert, createTransactionAlert } from "./dealPage.js";
+// import { createTransactionAlert } from "./dealPage.js";
 
 let dappConnector;
 let walletConfig
@@ -101,6 +101,19 @@ console.info(
 // │││├─┤│  │  ├┤  │ │  │ │││││││├┤ │   │───│  │ │├┬┘├┤ 
 // └┴┘┴ ┴┴─┘┴─┘└─┘ ┴ └─┘└─┘┘└┘┘└┘└─┘└─┘ ┴   └─┘└─┘┴└─└─┘
 // walletconnect-core
+
+
+ let walletUI = {
+   showAlert: (msg, type) => {
+     console.warn("[WC]", type, msg)
+   },
+   showTxAlert: () => {}
+ }
+
+export function registerWalletUI(ui) {
+  walletUI = { ...walletUI, ...ui }
+}
+
 
 // loadConfig
 // Loads, validates, and normalises the WalletConnect config.json used to initialise the dapp connector.
@@ -205,7 +218,7 @@ async function initializeWalletConnect(retryCount = 0) {
       await dappConnector.init();
     } catch (error) {
       console.error("Error initializing WalletConnect:", error);
-      showBootstrapAlert(
+      walletUI.showAlert(
         "Failed to initialize WalletConnect. Please try again.",
         "danger"
       );
@@ -216,7 +229,7 @@ async function initializeWalletConnect(retryCount = 0) {
     const errorMessage =
       "Failed to initialize WalletConnect. Please check your project ID and try again.";
 
-    showBootstrapAlert(errorMessage, "danger");
+    walletUI.showAlert(errorMessage, "danger");
     throw error;
   }
 };
@@ -549,7 +562,7 @@ const openWalletConnectModal = async () => {
     updateWalletConnectionUI(accountId)
   } catch (error) {
     console.error("Error opening WalletConnect modal:", error)
-    showBootstrapAlert(
+    walletUI.showAlert(
       "Failed to open WalletConnect modal. Please try again.",
       "danger"
     )
@@ -588,7 +601,7 @@ const showTxSaveResult = saveResult => {
       .filter(Boolean)
       .join("<br><br>")
 
-    createTransactionAlert(msg, "success", "last_tx")
+    walletUI.showTxAlert(msg, "success", "last_tx")
   } else {
     const msg = [
       errors.length
@@ -599,7 +612,7 @@ const showTxSaveResult = saveResult => {
       .filter(Boolean)
       .join("<br><br>")
 
-    createTransactionAlert(msg, "warning", "last_tx")
+    walletUI.showTxAlert(msg, "warning", "last_tx")
   }
 }
 
@@ -682,7 +695,7 @@ export const executeDealFlow = async () => {
     localStorage.getItem("walletConnectAccountId")
 
   if (!accountId) {
-    showBootstrapAlert(
+    walletUI.showAlert(
       "Please connect your wallet first.",
       "warning"
     )
@@ -703,7 +716,7 @@ export const executeDealFlow = async () => {
     dealIdInput || urlParams.get("dealId")
 
   if (!dealId) {
-    showBootstrapAlert(
+    walletUI.showAlert(
       "Please provide a valid dealId.",
       "warning"
     )
@@ -745,7 +758,7 @@ export const executeDealFlow = async () => {
 
     if (result.status === "submitted") {
       setTimeout(() => {
-        createTransactionAlert(
+        walletUI.showTxAlert(
           "Success!",
           "success",
           "last_tx",
@@ -762,7 +775,7 @@ export const executeDealFlow = async () => {
 
   } catch (error) {
     console.error("Error occurred while signing", error)
-    createTransactionAlert(
+    walletUI.showTxAlert(
       error.message,
       "danger"
     )

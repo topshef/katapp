@@ -1,4 +1,9 @@
-import { executeDealFlow } from "./transactionHandler.js";
+import { executeDealFlow, registerWalletUI} from "./transactionHandler.js";
+
+registerWalletUI({
+  showAlert: showBootstrapAlert,
+  showTxAlert: createTransactionAlert
+})
 
 // Utility functions
 const Utils = {
@@ -306,12 +311,12 @@ const createReceiptLink = transactionId => {
 }
 
 // Update the createTransactionAlert function
-export const createTransactionAlert = (
+export function  createTransactionAlert(
   message,
   type = "info",
   containerId = "last_tx",  //aligns with gomint kpay xproof etc
   transactionId = null // Add transactionId parameter
-) => {
+) {
   const alertContainer = document.getElementById(containerId);
 
   const alert = document.createElement("div");
@@ -331,13 +336,13 @@ export const createTransactionAlert = (
 
   alert.style.fontSize = "0.75rem";
   alertContainer.appendChild(alert);
-};
+}
 
-export const showBootstrapAlert = (
+export function showBootstrapAlert(
   message,
   type = "info",
   containerId = "alert"
-) => {
+) {
   const alertContainer = document.getElementById(containerId);
 
   const alert = document.createElement("div");
@@ -355,7 +360,7 @@ export const showBootstrapAlert = (
     alert.classList.remove("show");
     setTimeout(() => alert.remove(), 300); // Allow fade-out animation
   }, 5000);
-};
+}
 
 
 //refactopring...
