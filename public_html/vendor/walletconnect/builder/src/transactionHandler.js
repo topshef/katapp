@@ -537,12 +537,34 @@ document.addEventListener("DOMContentLoaded", async () => {
   walletConnectButton.addEventListener("click", openWalletConnectModal);
 });
 
-// Update disconnect functionality
-const handleDisconnect = () => {
-  localStorage.removeItem("walletConnectAccountId");
-  updateWalletConnectionUI(null);
-  location.reload(); // Optional: remove if you don't want page refresh on disconnect
-};
+
+// handleDisconnect
+// UI-triggered disconnect wrapper (buttons, menus, etc.)
+const handleDisconnect = async () => {
+  try {
+    await disconnectWalletCore()
+    updateWalletConnectionUI(null)
+    location.reload() // preserve existing behavior
+  } catch (error) {
+    console.error("[WC] Disconnect failed:", error)
+  }
+}
+
+// disconnectWalletCore
+// Headless intent: clear wallet session and disconnect active connector
+const disconnectWalletCore = async () => {
+  localStorage.removeItem("walletConnectAccountId")
+
+  if (dappConnector) {
+    try {
+      await dappConnector.disconnect()
+    } catch (error) {
+      console.warn("[WC] Error during wallet disconnect:", error)
+    }
+  }
+
+  return true
+}
 
 
 //hedera sdk actions only
