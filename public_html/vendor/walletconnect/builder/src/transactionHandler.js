@@ -403,126 +403,163 @@ const processPreparedTransaction = async transaction => {
 // └─┘┴ └─└─┘└─┘└─┘ ┴ └─┘  ═╩╝└─┘┴ ┴┴─┘  ╚  ┴─┘└─┘└┴┘
 // execute Deal Flow
 
-// executeDealFlow
-// High-level action handler that fetches deal transaction bytes, inspects, signs, and optionally submits.
-//
-// Suggestions:
-// - This is effectively the main orchestration function
+// executeDealFlowCore
+// Headless intent: fetch, prepare, sign, and optionally submit a deal transaction
+const executeDealFlowCore = async ({
+  accountId,
+  dealId,
+  userParamsString,
+  submitNow
+}) => {
+  const apiUrl =
+    `https://kpos.uk/deal/bytes/?dealId=${dealId}` +
+    `&${userParamsString}` +
+    `&userAccountId=${accountId}`
 
-export const executeDealFlow = async () => {
-  const accountId = localStorage.getItem("walletConnectAccountId");
-  if (!accountId) {
-    showBootstrapAlert("Please connect your wallet first.", "warning");
-    return;
-  }
+  console.log(apiUrl)
 
-  const dealIdInput = document.getElementById("dealId")?.value;
-  const urlParams = new URLSearchParams(window.location.search);
-	
-	// submitNow flag (default = true)
-	let submitNow = true
-	if (urlParams.get("submitServerSide")) submitNow = false
-
-  const dealId = dealIdInput || urlParams.get("dealId");
-  if (!dealId) {
-    showBootstrapAlert("Please provide a valid dealId.", "warning");
-    return;
-  }
-
-  // Get the usdAmount from the URL
-  const amountUSD = urlParams.get("amountUSD");
-  const sender = urlParams.get("sender");
-  const receiver = urlParams.get("receiver");
-  const amountHbar = urlParams.get("amountHbar");
-  const memo = urlParams.get("memo");
-
-  let userParameters = [];
-  if (amountUSD) userParameters.push(`amountUSD=${amountUSD}`);
-  if (sender) userParameters.push(`sender=${sender}`);
-  if (receiver) userParameters.push(`receiver=${receiver}`);
-  if (amountHbar) userParameters.push(`amountHbar=${amountHbar}`);
-  if (memo) userParameters.push(`memo=${memo}`);
-
-  // Correctly format the parameters
-  const userParamsString = userParameters
-    .map(
-      (param) =>
-        `user_parameters[${param.split("=")[0]}]=${param.split("=")[1]}`
+  const response = await fetch(apiUrl)
+  if (!response.ok)
+    throw new Error(
+      `Failed to fetch transaction bytes: ${response.statusText}`
     )
-    .join("&");
 
-  console.log(userParamsString);
+  const data = await response.json()
+  if (!data.bytes?.data) {
+    console.warn("Deal bytes not ready yet", data)
+    return { status: "not_ready" }
+  }
+
+  const transactionBytes = new Uint8Array(data.bytes.data)
+  const signer = dappConnector.signers[0]
+
+  const { transaction, txId, txInfo } =
+    await prepareTransaction(transactionBytes, signer)
+
+  console.log("[WC] tx inspection:", txInfo)
+
+  let finalSubmitNow = submitNow
+  if (txInfo.status === "not_yet_valid")
+    finalSubmitNow = false
+
+  if (finalSubmitNow) {
+    const txResult =
+      await processPreparedTransaction(transaction)
+
+    return {
+      status: "submitted",
+      transactionId: txResult.transactionId
+    }
+  }
+
+  const signedTransaction =
+    await signPreparedTransaction(transaction)
+
+  const saveResult =
+    await saveSignedTransaction(signedTransaction)
+
+  return {
+    status: "signed_only",
+    saveResult
+  }
+}
+
+
+// executeDealFlow
+// UI-triggered wrapper preserving existing behaviour and alerts
+export const executeDealFlow = async () => {
+  const accountId =
+    localStorage.getItem("walletConnectAccountId")
+
+  if (!accountId) {
+    showBootstrapAlert(
+      "Please connect your wallet first.",
+      "warning"
+    )
+    return
+  }
+
+  const dealIdInput =
+    document.getElementById("dealId")?.value
+
+  const urlParams =
+    new URLSearchParams(window.location.search)
+
+  let submitNow = true
+  if (urlParams.get("submitServerSide"))
+    submitNow = false
+
+  const dealId =
+    dealIdInput || urlParams.get("dealId")
+
+  if (!dealId) {
+    showBootstrapAlert(
+      "Please provide a valid dealId.",
+      "warning"
+    )
+    return
+  }
+
+  const amountUSD = urlParams.get("amountUSD")
+  const sender = urlParams.get("sender")
+  const receiver = urlParams.get("receiver")
+  const amountHbar = urlParams.get("amountHbar")
+  const memo = urlParams.get("memo")
+
+  let userParameters = []
+  if (amountUSD) userParameters.push(`amountUSD=${amountUSD}`)
+  if (sender) userParameters.push(`sender=${sender}`)
+  if (receiver) userParameters.push(`receiver=${receiver}`)
+  if (amountHbar) userParameters.push(`amountHbar=${amountHbar}`)
+  if (memo) userParameters.push(`memo=${memo}`)
+
+  const userParamsString =
+    userParameters
+      .map(
+        p =>
+          `user_parameters[${p.split("=")[0]}]=${p.split("=")[1]}`
+      )
+      .join("&")
 
   try {
-    // Construct the API URL with dealId, usdAmount, and accountId
-    const apiUrl = `https://kpos.uk/deal/bytes/?dealId=${dealId}&${userParamsString}&userAccountId=${accountId}`;
-    console.log(apiUrl);
-    const response = await fetch(apiUrl);
+    const result =
+      await executeDealFlowCore({
+        accountId,
+        dealId,
+        userParamsString,
+        submitNow
+      })
 
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch transaction bytes: ${response.statusText}`
-      );
+    if (!result)
+      return
+
+    if (result.status === "submitted") {
+      setTimeout(() => {
+        createTransactionAlert(
+          "Success!",
+          "success",
+          "last_tx",
+          result.transactionId
+        )
+      }, walletConfig?.receiptDelayMs ?? 3000)
+      return
     }
 
-    const data = await response.json();
-    if (!data.bytes?.data) {
-      // throw new Error("Transaction bytes not found in response.");
-			console.warn("Deal bytes not ready yet", data);
-			return; // silently ignore, do NOT alert user
-			// im not fucking convinced
+    if (result.status === "signed_only") {
+      showTxSaveResult(result.saveResult)
+      return
     }
-		
-		// if (!data.bytes?.data) {
-			// console.warn("Deal bytes not ready yet", data);
-			// return; // silently ignore
-		// }
 
-    console.log(data);
-    const transactionBytes = new Uint8Array(data.bytes.data);
-
-    try {
-						
-			const signer = dappConnector.signers[0]
-
-			const { transaction, txId, txInfo } =
-		  await prepareTransaction(transactionBytes, signer)
-			
-			console.log("[WC] tx inspection:", txInfo)
-			
-			if (txInfo.status == 'not_yet_valid')
-				submitNow = false
-			
-			if (submitNow) {
-				const txResult = await processPreparedTransaction(transaction)
-
-				setTimeout(() => {
-					createTransactionAlert(
-						"Success!",
-						"success",
-						"last_tx",
-						txResult.transactionId
-					)
-				}, walletConfig?.receiptDelayMs ?? 3000)
-
-			} else {
-				console.log("[WC] only sign, dont submit")
-
-				const signedTransaction = await signPreparedTransaction(transaction)
-				const saveResult = await saveSignedTransaction(signedTransaction)
-
-				showTxSaveResult(saveResult)
-			}
-			
-    } catch (error) {
-      console.error(error);
-      throw error; // let outer catch handle UX   //createTransactionAlert(error.message, "danger");
-    }
   } catch (error) {
-    console.error("Error occurred while signing", error);
-    createTransactionAlert(error.message, "danger");
+    console.error("Error occurred while signing", error)
+    createTransactionAlert(
+      error.message,
+      "danger"
+    )
   }
-};
+}
+
+
 
 // signPreparedTransaction
 // Signs an already-prepared (frozen) Hedera transaction without submitting it.
