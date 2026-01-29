@@ -267,44 +267,59 @@ const restoreWalletSession = async () => {
 }
 
 
+// resolveWalletUIState
+// Headless intent: derive wallet UI state from account connection
+const resolveWalletUIState = (accountId) => {
+  if (accountId) {
+    return {
+      connected: true,
+      label: `Connected: ${accountId}`,
+      connectDisabled: true,
+      showDisconnect: true
+    }
+  }
+
+  return {
+    connected: false,
+    label: "Open WalletConnect Modal",
+    connectDisabled: false,
+    showDisconnect: false
+  }
+}
 
 
 // updateWalletConnectionUI
-// Updates connect / disconnect button UI based on current wallet connection state.
-//
-// Suggestions:
-// - Purely view-related, no wallet logic
-// - Assumes specific DOM IDs (implicit coupling)
+// Button-based UI adapter for wallet connection state
 const updateWalletConnectionUI = (accountId) => {
-  const walletConnectButton = document.getElementById("pair-walletconnect-btn")
-	if (!walletConnectButton) {
-		console.info("[WC] pair-walletconnect-btn not found, skipping connect binding")
-		return
-	}	
-	
-	
-  const disconnectButton = document.getElementById("wallet-disconnect");
+  const walletConnectButton =
+    document.getElementById("pair-walletconnect-btn")
 
-  if (accountId) {
-    // Update connect button
-    walletConnectButton.textContent = `Connected: ${accountId}`;
-    walletConnectButton.disabled = true;
-
-    // Show disconnect button
-    if (disconnectButton) {
-      disconnectButton.style.display = "block";
-      disconnectButton.style.marginTop = "10px";
-    }
-  } else {
-    // Reset to initial state
-    walletConnectButton.textContent = "Open WalletConnect Modal";
-    walletConnectButton.disabled = false;
-
-    if (disconnectButton) {
-      disconnectButton.style.display = "none";
-    }
+  if (!walletConnectButton) {
+    console.info(
+      "[WC] pair-walletconnect-btn not found, skipping wallet UI update"
+    )
+    return
   }
-};
+
+  const disconnectButton =
+    document.getElementById("wallet-disconnect")
+
+  const uiState = resolveWalletUIState(accountId)
+
+  // Update connect button
+  walletConnectButton.textContent = uiState.label
+  walletConnectButton.disabled = uiState.connectDisabled
+
+  // Update disconnect button
+  if (disconnectButton) {
+    disconnectButton.style.display =
+      uiState.showDisconnect ? "block" : "none"
+
+    if (uiState.showDisconnect)
+      disconnectButton.style.marginTop = "10px"
+  }
+}
+
 
 
 // openWalletConnectModal
