@@ -26,6 +26,27 @@ const EL_LOADER = (() => {
   return script
 })()
 
+
+// walletConnectMode
+// Determines how the bundle exposes control (default = button-based)
+const WALLETCONNECT_MODE =
+  (EL_LOADER.dataset?.mode || "").toLowerCase() || "default"
+
+console.info(
+  "[WC] Initialising WalletConnect bundle in mode:",
+  WALLETCONNECT_MODE
+)
+
+//  WALLETCONNECT_MODE
+// | Script tag             | Result                 |
+// | ---------------------- | ---------------------- |
+// | no `data-mode`         | `"default"`            |
+// | `data-mode=""`         | `"default"`            |
+// | `data-mode="headless"` | `"headless"`           |
+// | typo / unknown         | treated as `"default"` |
+
+
+
 /**
  * Expects a config.json file to exist alongside the bundled JS file
  * (i.e. in the same directory as walletconnect-hedera.iife.js).
@@ -596,6 +617,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   walletConnectButton.addEventListener("click", openWalletConnectModal);
 });
 
+// Initialise optional headless exposure
+exposeHeadlessAPI()
+
 
 // handleDisconnect
 // UI-triggered disconnect wrapper (buttons, menus, etc.)
@@ -772,5 +796,39 @@ export const parseTxId = txid => {
     status = "expired"
 	
 	return {operatorId, shard, realm, entityNum, startSeconds, startNanos, status }
+}
+
+
+
+
+
+// exposeHeadlessAPI
+// Explicitly expose wallet actions for non-DOM / gesture-driven integrations
+const exposeHeadlessAPI = () => {
+  if (WALLETCONNECT_MODE !== "headless")
+    return
+
+  if (window.WC) {
+    console.warn("[WC] window.WC already exists, skipping overwrite")
+    return
+  }
+
+  window.WC = {
+    // lifecycle
+    connect: connectWalletCore,
+    disconnect: disconnectWalletCore,
+    restoreSession: restoreWalletSessionCore,
+
+    // deal execution
+    executeDeal: executeDealFlowCore,
+
+    // helpers / state
+    getAccount: () =>
+      localStorage.getItem("walletConnectAccountId") || null,
+
+    mode: WALLETCONNECT_MODE
+  }
+
+  console.info("[WC] Headless API exposed on window.WC")
 }
 
