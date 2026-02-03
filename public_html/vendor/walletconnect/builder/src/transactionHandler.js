@@ -674,11 +674,16 @@ async function signTxCore ({
   const signedTransaction =
     await signPreparedTransaction(transaction)
 
+  const saveResult =
+    await saveSignedTransaction(signedTransaction)
+
+
   return {
     status: "signed_only",
     signedTransaction: Array.from(
       signedTransaction.toBytes()
-    )
+    ),
+		saveResult
   }
 }
 
