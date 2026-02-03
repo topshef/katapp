@@ -618,6 +618,72 @@ const showTxSaveResult = saveResult => {
 
 
 
+
+// signTxCore
+// Headless intent: sign (and optionally submit) raw transaction bytes
+//
+// Inputs:
+// - accountId: string (wallet account expected to sign)
+// - transactionBytes: Uint8Array (already constructed tx bytes)
+// - submitNow: boolean
+//
+// Behaviour:
+// - submitNow === true  -> sign + submit, return transactionId
+// - submitNow === false -> sign only, return signed tx bytes
+
+async function signTxCore ({
+  accountId,
+  transactionBytes,
+  submitNow
+}) {
+  if (!accountId)
+    throw new Error("Missing accountId")
+
+  if (!(transactionBytes instanceof Uint8Array))
+    throw new Error("transactionBytes must be Uint8Array")
+
+  const signer = dappConnector?.signers?.[0]
+  if (!signer)
+    throw new Error("No signer available. Please reconnect wallet.")
+
+  const activeAccountId =
+    signer.getAccountId()?.toString()
+
+  if (activeAccountId !== accountId)
+    throw new Error("Active wallet account does not match accountId")
+
+  const { transaction, txId, txInfo } =
+    await prepareTransaction(transactionBytes, signer)
+
+  console.log("[WC] signTX tx inspection:", txInfo)
+
+  let finalSubmitNow = submitNow
+  if (txInfo.status === "not_yet_valid")
+    finalSubmitNow = false
+
+  if (finalSubmitNow) {
+    const txResult =
+      await processPreparedTransaction(transaction)
+
+    return {
+      status: "submitted",
+      transactionId: txResult.transactionId
+    }
+  }
+
+  const signedTransaction =
+    await signPreparedTransaction(transaction)
+
+  return {
+    status: "signed_only",
+    signedTransaction: Array.from(
+      signedTransaction.toBytes()
+    )
+  }
+}
+
+
+
 // ┌─┐─┐ ┬┌─┐┌─┐┬ ┬┌┬┐┌─┐  ╔╦╗┌─┐┌─┐┬    ╔═╗┬  ┌─┐┬ ┬
 // ├┤ ┌┴┬┘├┤ │  │ │ │ ├┤    ║║├┤ ├─┤│    ╠╣ │  │ ││││
 // └─┘┴ └─└─┘└─┘└─┘ ┴ └─┘  ═╩╝└─┘┴ ┴┴─┘  ╚  ┴─┘└─┘└┴┘
@@ -839,6 +905,9 @@ const exposeHeadlessAPI = () => {
 
     // deal execution
     executeDeal: executeDealFlowCore,
+
+    // raw tx signing
+    signTx: signTxCore,
 
     // helpers / state
     getAccount: () =>
