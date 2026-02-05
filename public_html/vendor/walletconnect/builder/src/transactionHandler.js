@@ -687,6 +687,93 @@ async function signTxCore ({
   }
 }
 
+// signTxCoreV2
+// Headless intent: sign a Hedera transaction via WalletConnect ONLY
+//
+// Inputs:
+// - accountId: string
+// - transactionBytes: Uint8Array (unsigned or partially signed)
+//
+// Output:
+// - signedTransactionBase64: string
+//
+// Notes:
+// - Does NOT submit
+// - Does NOT inspect tx semantics
+// - Does NOT depend on legacy helpers
+
+async function signTxCoreV2 ({
+  accountId,
+  transactionBytes
+}) {
+  if (!accountId)
+    throw new Error("Missing accountId")
+
+  if (!(transactionBytes instanceof Uint8Array))
+    throw new Error("transactionBytes must be Uint8Array")
+
+  const signer = dappConnector?.signers?.[0]
+  if (!signer)
+    throw new Error("No signer available. Please reconnect wallet.")
+
+  const activeAccountId =
+    signer.getAccountId()?.toString()
+
+  if (activeAccountId !== accountId)
+    throw new Error("Active wallet account does not match accountId")
+
+  // Rebuild transaction from bytes
+  const transaction =
+    Transaction.fromBytes(transactionBytes)
+
+  // Freeze if required (recommended WC flow)
+  if (!transaction.isFrozen()) {
+    await transaction.freezeWithSigner(signer)
+  }
+
+  // WalletConnect signature request (NO execution)
+  const signedTransaction =
+    await signer.signTransaction(transaction)
+
+
+  const saveResult = await saveSignedTransaction(signedTransaction)
+
+
+  // Encode for transport
+  const signedBytes =
+    signedTransaction.toBytes()
+
+
+
+
+    return {
+      saveResult,
+      signedTransactionHex: bytesToHex(signedBytes),
+      // signedTransaction: // hex
+        // Array
+          // .from(signedBytes)
+          // .map(b => b.toString(16).padStart(2, "0"))
+          // .join("")
+    }
+
+
+  // return {
+    // signedTransactionBase64:
+      // Buffer.from(signedBytes).toString("base64"),
+    // signedTransactionHex:
+      // Buffer.from(signedBytes).toString("hex")  
+  // }
+
+  
+}
+
+
+function bytesToHex(bytes) {
+  return Array
+    .from(bytes)
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("")
+}
 
 
 // ┌─┐─┐ ┬┌─┐┌─┐┬ ┬┌┬┐┌─┐  ╔╦╗┌─┐┌─┐┬    ╔═╗┬  ┌─┐┬ ┬
@@ -912,7 +999,8 @@ const exposeHeadlessAPI = () => {
     executeDeal: executeDealFlowCore,
 
     // raw tx signing
-    signTx: signTxCore,
+    // signTx: signTxCore,
+    signTx: signTxCoreV2,
 
     // helpers / state
     getAccount: () =>
