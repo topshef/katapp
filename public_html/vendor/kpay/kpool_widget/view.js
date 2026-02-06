@@ -218,6 +218,14 @@ export function renderAccountsInfo(accounts) {  //todo rename this it's about si
 
 	Object.entries(accounts).forEach(([accountId, acc]) => {
 		const scores = acc.keyInfo?.banzhafScores?.scores
+		if (!scores) {
+			const el = document.createElement('div')
+			el.className = 'txread-sig'
+			el.textContent = `YH64664 no scores for ${accountId}`
+			container.appendChild(el)
+			return
+		}
+
 		const redundancy = acc.keyInfo?.banzhafScores?.redundancy
 		const buckets = acc.keyInfo?.keyControlScoresAll
 		if (!scores || !buckets) return
@@ -245,6 +253,16 @@ export function renderAccountsInfo(accounts) {  //todo rename this it's about si
 	})
 }
 
+const isSingleKeyAccount = acc =>
+	typeof acc?.keyInfo === 'string'
+
+
+const renderSingleKeyCheckbox = ({ accountId, signed }) => {
+	const row = document.createElement('div')
+	row.textContent = `${signed ? '☑️' : '🔲'}\u00A0${accountId}`
+	return row
+}
+
 
 export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
 	// later todo bring this widget in locally.. or package it as a dependency
@@ -265,6 +283,21 @@ export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
 	const signed = (signedPubkeys || []).join(',')
 
 	Object.keys(accounts).forEach(accountId => {
+		
+		// handle single keys differently
+		const acc = accounts[accountId]
+		console.log(acc)
+		if (isSingleKeyAccount(acc)) {
+			const signed = signedPubkeys.includes(acc.keyInfo)
+			console.log("signed=", signed)
+			const checkbox = renderSingleKeyCheckbox({
+				accountId,
+				signed
+			})
+			charts.appendChild(checkbox)
+			return
+		}		
+		
 		const wrapper = document.createElement('div')
 		wrapper.style.width = '200px'
 		wrapper.style.height = '230px'
@@ -277,7 +310,8 @@ export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
 		const iframe = document.createElement('iframe')
 		iframe.src =
 			`https://kpay.uk/devtools/scratchpad/amcharts/ksig_pie_widget.php` +
-			`?network=${network}` +
+			`?showTooltips=0` +
+			`&network=${network}` +
 			`&accountId=${accountId}` +
 			`&signedPublicKeys=${signed}`
 
