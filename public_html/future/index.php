@@ -2,6 +2,12 @@
 
 //list of scheduled transactions in queue for execution or approval
 
+//direct to api if action parameter is supplied
+if (isset($_GET['action'])) {
+	require_once('kpool.php');
+	exit;
+}
+
 require_once "{$_SERVER['DOCUMENT_ROOT']}/readenv.php";
 require_once "{$_SERVER['DOCUMENT_ROOT']}/auth.php";
 require_once "{$_SERVER['DOCUMENT_ROOT']}/config.php";
