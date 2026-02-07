@@ -450,7 +450,7 @@ export function parseTxId(txid) {
 
 
 // const saveSignedTransaction = async signedTransaction => {
-async function saveSignedTransaction(signedTransaction) {
+async function saveSignedTransaction(signedTransaction) {  // to migrate this and deprecate here
   try {
     const apiUrl = "https://kpos.uk/pool/txSave" 
     // const apiUrl = "/txSave" //nah.. have the app do this, and keep WC pure
@@ -737,8 +737,8 @@ async function signTxCoreV2 ({
   const signedTransaction =
     await signer.signTransaction(transaction)
 
-
-  const saveResult = await saveSignedTransaction(signedTransaction)
+	// dont save.. let the client do it (affects reporting on "new" signatures)
+  // const saveResult = await saveSignedTransaction(signedTransaction)
 
 
   // Encode for transport
@@ -749,7 +749,7 @@ async function signTxCoreV2 ({
 
 
     return {
-      saveResult,
+      // saveResult,
       signedTransactionHex: bytesToHex(signedBytes),
       // signedTransaction: // hex
         // Array
