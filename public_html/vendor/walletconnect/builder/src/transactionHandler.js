@@ -453,6 +453,7 @@ export function parseTxId(txid) {
 async function saveSignedTransaction(signedTransaction) {
   try {
     const apiUrl = "https://kpos.uk/pool/txSave" 
+    // const apiUrl = "/txSave" //nah.. have the app do this, and keep WC pure
 
 		const payload = {
 				network: walletConfig.hedera.network, // "testnet" | "mainnet"
