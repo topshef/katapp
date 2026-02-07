@@ -461,7 +461,8 @@ async function saveSignedTransaction(signedTransaction) {
 					signedTransaction: Array.from(
 						signedTransaction.toBytes()
 					)
-				}
+				},
+				comment: 'AR84754 tracer, WC in-bundle to be deprecated',  // dev use only
 			}
 
     console.log("[WC] Saving signed transaction to API:", payload)
