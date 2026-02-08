@@ -329,6 +329,7 @@ async function prepareTransaction(transactionBytes, signer) {
   }
 
   const txId = transaction.transactionId?.toString()
+
   if (!txId)
     throw new Error("Transaction ID missing after freeze")
 
@@ -370,8 +371,15 @@ async function processPreparedTransaction(transaction) {
 
     return txResult
   } catch (error) {
-    console.error("Error processing transaction:", error)
-    throw error
+		
+			if (error?.txError?.message === "USER_REJECT") {
+				return {
+					status: "rejected by user",
+					reason: "user"
+				}
+			}
+			
+			throw error		
   }
 }
 
@@ -883,19 +891,22 @@ export const executeDealFlow = async () => {
     return
   }
 
-  const amountUSD = urlParams.get("amountUSD")
-  const sender = urlParams.get("sender")
-  const receiver = urlParams.get("receiver")
-  const amountHbar = urlParams.get("amountHbar")
-  const memo = urlParams.get("memo")
 
-  let userParameters = []
-  if (amountUSD) userParameters.push(`amountUSD=${amountUSD}`)
-  if (sender) userParameters.push(`sender=${sender}`)
-  if (receiver) userParameters.push(`receiver=${receiver}`)
-  if (amountHbar) userParameters.push(`amountHbar=${amountHbar}`)
-  if (memo) userParameters.push(`memo=${memo}`)
+	const userParameters = []
 
+	document
+		.querySelectorAll(".user_input")
+		.forEach(el => {
+			const id = el.id
+			const value = el.value
+
+			if (!id || value == null || value === "")
+				return
+
+			userParameters.push(`${id}=${value}`)
+		})
+
+	
   const userParamsString =
     userParameters
       .map(
@@ -904,6 +915,8 @@ export const executeDealFlow = async () => {
       )
       .join("&")
 
+	console.log(userParameters)
+	console.log(userParamsString)
   try {
     const result =
       await executeDealFlowCore({
