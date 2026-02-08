@@ -919,8 +919,8 @@ export const executeDealFlow = async () => {
     if (result.status === "submitted") {
       setTimeout(() => {
         walletUI.showTxAlert(
-          "Success!",
-          "success",
+          "Transaction submitted",
+          "info",
           "last_tx",
           result.transactionId
         )
