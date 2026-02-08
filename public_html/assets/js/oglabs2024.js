@@ -210,7 +210,7 @@ async function processData({ product, deal }) {
     ubid.title = product?.token_instance_name ?? deal.display.title ?? 'untitled RH45323'
     ubid.description = product?.token_instance_description ?? deal.display.description ?? 'no desc WK83843'
     ubid.image = product?.token_asset_image_URL ?? deal.display.thumbnail ?? ''
-
+		ubid.button = deal.display?.button || 'Buy now'
 
     if (hasParm('operatorId'))
         deal.parameters.operatorId = 'Operator account ID [eg 0.0.12345] hentity'
@@ -218,18 +218,17 @@ async function processData({ product, deal }) {
     if (hasParm('node')) // optionally choose a specific Hedera node to submit to
         deal.parameters.node = 'Hedera node account ID [eg 5] hentity'
     
-    const hasUserParameters = deal.parameters && Object.keys(deal.parameters).length > 0
     const hasApi = deal.api && Array.isArray(deal.api) && deal.api.length > 0
     const maxDelaySeconds = deal?.constants?.maxDelaySeconds ?? 0
     
     let showDelayOption = false
     if (hasParm('starttime')) showDelayOption = true
-    if (getParm('starttime') == 'now') showDelayOption = false
     if (hasApi && !maxDelaySeconds) showDelayOption = false // suppress if there's an api involved, unless maxDelaySeconds > 0
 
     if (showDelayOption)
         deal.parameters.starttime = '⏱️ Delay execution by [eg 30 mins] text'
 
+    const hasUserParameters = deal.parameters && Object.keys(deal.parameters).length > 0
 
     ubid.user_inputs = []
     if (hasUserParameters) Object.entries(deal.parameters).forEach(([parmname, parminfo]) =>  {
@@ -283,6 +282,21 @@ async function processData({ product, deal }) {
 }
 
 
+function updateButtonNowLater() {
+  const btn = document.getElementById('create-tx')
+  const input = document.getElementById('starttime')
+  if (!btn || !input) return
+
+  const v = (input.value || '').trim().toLowerCase()
+  const isNow = v === '' || v === 'now' || v === '0'
+
+  btn.innerText = btn.innerText
+    .replace(/\blater\b/i, 'now')
+    .replace(/\bnow\b/i, isNow ? 'now' : 'later')
+}
+
+
+
 function hydratePage(data) {
    
     document.getElementById('ubid-title').textContent = data.title
@@ -296,11 +310,22 @@ function hydratePage(data) {
     document.querySelectorAll('.user_input').forEach(input => {
         input.addEventListener('input', () => setParm(input.id, input.value)) //save to url
     })
-    
+
+		document.getElementById('starttime')?.addEventListener('input', updateButtonNowLater)
+
     const dealIdshort = dealId.slice(0, 6)
 
     document.getElementById('ubid-link-katomic').innerHTML = `<a href='https://katomic.org/labs/?dealId=${dealId}' target='katomic'>${dealIdshort}</a>`
   
+		document.getElementById('create-tx').innerText = data.button
+		updateButtonNowLater()
+	
+		const btn = document.getElementById('create-tx')
+		if (btn && data.button) {
+			btn.innerText = data.button
+			updateButtonNowLater()
+		}
+			
 }
 
 
