@@ -178,6 +178,31 @@ async function loadConfig() {
   }
 }
 
+let wcInitPromise = null
+
+async function zzlater_initializeWalletConnect() {
+  if (wcInitPromise) return wcInitPromise
+
+  wcInitPromise = (async () => {
+    const config = await loadConfig()
+
+    if (!dappConnector) {
+      dappConnector = new DAppConnector(
+        { ...config.metadata },
+        LedgerId.fromString(config.hedera.network),
+        config.walletConnect.projectId,
+        Object.values(HederaJsonRpcMethod),
+        [HederaSessionEvent.ChainChanged, HederaSessionEvent.AccountsChanged],
+        [hederaChainIdFromNetwork(config.hedera.network)]
+      )
+
+      await dappConnector.init()
+    }
+  })()
+
+  return wcInitPromise
+}
+
 
 // initializeWalletConnect
 // Creates and initialises a WalletConnect DAppConnector using loaded config, handling reconnects.
