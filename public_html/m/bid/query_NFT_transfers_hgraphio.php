@@ -38,6 +38,8 @@ $where = [];
 
 // consensus_timestamp is BIGINT (nanoseconds)
 $where[] = "consensus_timestamp: { _gte: $transferAfter, _lte: $transferBefore }";
+// $where[] = "consensus_timestamp: { _gte: \"$transferAfter\", _lte: \"$transferBefore\" }";
+
 
 if (isset($parms['tokenId']))
     $where[] = "token_id: { _eq: " . hederaIdToEntityInt($parms['tokenId'], 'tokenId') . " }";
@@ -72,6 +74,9 @@ query {
 }
 GQL;
 
+
+// exit($query);
+
 // --------------------
 // endpoint
 // --------------------
@@ -104,6 +109,8 @@ $ch = curl_init($endpoint);
 curl_setopt_array($ch, [
     CURLOPT_POST => true,
     CURLOPT_RETURNTRANSFER => true,
+		// CURLOPT_CONNECTTIMEOUT => 2,
+		// CURLOPT_TIMEOUT        => 10,
     CURLOPT_HTTPHEADER => [
         'Content-Type: application/json',
         'Accept: application/json',
@@ -116,8 +123,20 @@ $response = curl_exec($ch);
 curl_close($ch);
 
 $obj = json_decode($response);
-if (json_last_error() !== JSON_ERROR_NONE || !isset($obj->data->nft_transfer))
-    ljexit("invalid hgraph response", 502);
+$isJsonOk = json_last_error() === JSON_ERROR_NONE;
+if (!$isJsonOk || !isset($obj->data->nft_transfer)) {
+    
+		$out = (object)[];
+		$out->endpoint = $endpoint;
+		$out->query = $query;
+		$out->response = $obj;
+		if (!$isJsonOk) {
+			$out->response = $response;
+			$out->json_error = json_last_error_msg();
+		}
+		elog($out, "errors from $endpoint\n$response");
+		ljexit($out, 502);
+}
 
 // --------------------
 // NORMALISE TO APP FORMAT
@@ -155,9 +174,14 @@ exit;
 // helpers
 // --------------------
 
+// function bucketEpochNs($epochSeconds, $bucketSeconds) {
+    // return floor($epochSeconds / $bucketSeconds) * $bucketSeconds * 1_000_000_000;
+// }
 function bucketEpochNs($epochSeconds, $bucketSeconds) {
-    return floor($epochSeconds / $bucketSeconds) * $bucketSeconds * 1_000_000_000;
+    $bucketedSeconds = intdiv((int)$epochSeconds, (int)$bucketSeconds) * (int)$bucketSeconds;
+    return $bucketedSeconds * 1_000_000_000;
 }
+
 
 function hederaIdToEntityInt($raw, $label = 'id') {
     $parts = explode('.', trim($raw));
