@@ -412,9 +412,20 @@ function hydratePage(data) {
 		}
 		
 		// document.getElementById('deal-container')?.classList.remove('skeleton')
+		// document
+    // .querySelectorAll('#deal-container .skeleton')
+			// .forEach(el => el.classList.remove('skeleton'))
+
+		const img = document.querySelector('#ubid-media img')
+
+		if (img) {
+			img.addEventListener('load', () => img.classList.remove('skeleton'), { once: true })
+		}
+
 		document
-    .querySelectorAll('#deal-container .skeleton')
+			.querySelectorAll('#deal-container .skeleton:not(img)')
 			.forEach(el => el.classList.remove('skeleton'))
+
 
 }
 
