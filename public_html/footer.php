@@ -79,7 +79,7 @@
         <div class="row">
           <div class="col-md-12">
             <p>
-                <?php echo $html_copyright; if (isAdmin) echo " |  You are admin. <a href='/m/bid'>Bid labs</a>";?> 
+                <?php echo $html_copyright; if ($isAdmin) echo " |  <a href='/m/bid'>Bid labs</a>";?> 
             </p>
           </div>
         </div>
