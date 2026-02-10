@@ -286,6 +286,7 @@ async function processData({ product, deal }) {
     ubid.image = product?.token_asset_image_URL ?? deal.display.thumbnail ?? ''
 		ubid.button = deal?.display?.button || 'Buy now'
 
+		
 		if (!deal) return ubid
 		
     if (hasParm('operatorId'))
@@ -382,17 +383,25 @@ function hydratePage(data) {
 
     document.getElementById('ubid-transfers').innerHTML = data.transfers.join('<BR>')
 
-    document.getElementById('ubid-user-inputs').innerHTML = data.user_inputs.join('<BR>')
+
+		
+    document.getElementById('ubid-user-inputs').innerHTML = (data.user_inputs || []).join('<BR>')
     document.querySelectorAll('.user_input').forEach(input => {
         input.addEventListener('input', () => setParm(input.id, input.value)) //save to url
     })
 
 		document.getElementById('starttime')?.addEventListener('input', updateButtonNowLater)
 
-    const dealIdshort = dealId.slice(0, 6)
 
-    document.getElementById('ubid-link-katomic').innerHTML = `<a href='https://katomic.org/labs/?dealId=${dealId}' target='katomic'>${dealIdshort}</a>`
-  
+		if (dealId) {
+			// const dealIdshort = dealId.slice(0, 6)
+			document.getElementById('ubid-asset-link').innerHTML = `#katomic <a href='https://katomic.org/labs/?dealId=${dealId}' target='_blank'>${dealId.slice(0, 6)}</a>`
+															
+		} else if (productId) {
+			document.getElementById('ubid-asset-link').innerHTML = `Hedera <a href='https://tools.gomint.me/explore/NFT/?productId=${productId}' target='_blank'>${productId.replaceAll(';', ' | ')}</a>`
+		}
+
+	
 		document.getElementById('create-tx').innerText = data.button
 		updateButtonNowLater()
 	
@@ -401,7 +410,12 @@ function hydratePage(data) {
 			btn.innerText = data.button
 			updateButtonNowLater()
 		}
-			
+		
+		// document.getElementById('deal-container')?.classList.remove('skeleton')
+		document
+    .querySelectorAll('#deal-container .skeleton')
+			.forEach(el => el.classList.remove('skeleton'))
+
 }
 
 
