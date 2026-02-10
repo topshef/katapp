@@ -54,15 +54,72 @@ function fetchData(productId, dealId) {
     .then(([product, deal]) => ({ product, deal })) // Return an object with both product and deal
 }
 
+function zz_longer_fetchData(productId, dealId) {
+  console.log('fetchData called with', productId, dealId)
+
+  return Promise.all([
+    fetchProduct(productId),
+    fetchDeal(dealId)
+  ])
+    .then(([product, deal]) => {
+      console.log('fetchData results', { product, deal })
+      return { product, deal }
+    })
+    .catch(err => {
+      console.error('fetchData failed', err)
+      throw err
+    })
+}
+
 // ┌─┐┌─┐┌┬┐┌─┐┬ ┬╔═╗┬─┐┌─┐┌┬┐┬ ┬┌─┐┌┬┐
 // ├┤ ├┤  │ │  ├─┤╠═╝├┬┘│ │ │││ ││   │ 
 // └  └─┘ ┴ └─┘┴ ┴╩  ┴└─└─┘─┴┘└─┘└─┘ ┴ 
 // fetchProduct
-function fetchProduct(productId) {
+function zzfetchProduct(productId) {
   return productId
     ? fetch(`https://tools.gomint.me/explore/NFT/?json&productId=${productId}`)
     .then(response => response.json())
     : Promise.resolve(null)
+}
+
+function zzdummy_fetchProduct(productId) {
+  if (!productId) return Promise.resolve(null)
+
+  // expected format: network;tokenId-serial;owner
+  const parts = productId.split(';')
+  const network = parts[0] || 'unknown'
+  const [tokenId, serial] = (parts[1] || '').split('-')
+
+  return Promise.resolve({
+    token_instance_name: `Test NFT ${tokenId || ''} #${serial || ''}`.trim(),
+    token_instance_description: `Placeholder description for ${network} ${tokenId || ''}${serial ? `-${serial}` : ''}`,
+    token_asset_image_URL: `https://placehold.co/600x600?text=${encodeURIComponent(tokenId || 'NFT')}`
+  })
+}
+
+
+function fetchProduct(productId) {
+  if (!productId) {
+    console.log('fetchProduct: no productId')
+    return Promise.resolve(null)
+  }
+
+  const url = `https://tools.gomint.me/explore/NFT/?json&productId=${productId}`
+  console.log('fetchProduct URL:', url)
+
+  return fetch(url)
+    .then(response => {
+      console.log('fetchProduct response:', response.status, response.ok)
+      return response.json()
+    })
+    .then(data => {
+      console.log('fetchProduct data:', data)
+      return data
+    })
+    .catch(err => {
+      console.error('fetchProduct error:', err)
+      throw err
+    })
 }
 
 // ┌─┐┌─┐┌┬┐┌─┐┬ ┬╔╦╗┌─┐┌─┐┬  
@@ -152,6 +209,22 @@ function fetchDealsFromProduct(productId) {
 // splitProductId
 function splitProductId(productId) {
   const parts = productId.split(';')
+	const tokenPart = parts[1] || ''
+	let [tokenId, serialFromTo] = tokenPart.split('-')
+	serialFromTo = (serialFromTo || '').replace(':', 'to')
+  //kfund/kpos has serial range stored to separator "to"
+  serialFromTo = serialFromTo.replace(':', 'to')
+
+  return {
+    network: parts[0],
+    tokenId: tokenId,
+    serial: serialFromTo,
+    sender: parts[2] || ''
+  }
+}
+
+function zzsimpler_splitProductId(productId) {
+  const parts = productId.split(';')
   let [tokenId, serialFromTo] = parts[1].split('-')
   // const [serialFrom, serialTo] = serialFromTo.split(':')
   
@@ -165,7 +238,6 @@ function splitProductId(productId) {
     sender: parts[2]
   }
 }
-
 
 // ┌─┐┬─┐┌─┐┌─┐┌─┐┌─┐┌─┐╔╦╗┌─┐┌┬┐┌─┐
 // ├─┘├┬┘│ ││  ├┤ └─┐└─┐ ║║├─┤ │ ├─┤
@@ -190,7 +262,9 @@ async function processData({ product, deal }) {
         //keep it simple OG for now
         const deals = await fetchDealsFromProduct(productId)
         console.log(deals)
-        deal = deals[0].deal
+        // deal = deals[0].deal
+				deal = deals?.[0]?.deal
+
         console.log("deal=", deal)
     }
 
@@ -210,8 +284,10 @@ async function processData({ product, deal }) {
     ubid.title = product?.token_instance_name ?? deal.display.title ?? 'untitled RH45323'
     ubid.description = product?.token_instance_description ?? deal.display.description ?? 'no desc WK83843'
     ubid.image = product?.token_asset_image_URL ?? deal.display.thumbnail ?? ''
-		ubid.button = deal.display?.button || 'Buy now'
+		ubid.button = deal?.display?.button || 'Buy now'
 
+		if (!deal) return ubid
+		
     if (hasParm('operatorId'))
         deal.parameters.operatorId = 'Operator account ID [eg 0.0.12345] hentity'
 
@@ -298,7 +374,7 @@ function updateButtonNowLater() {
 
 
 function hydratePage(data) {
-   
+   console.log(data)
     document.getElementById('ubid-title').textContent = data.title
     document.getElementById('ubid-description').innerHTML = data.description
     document.querySelector('#ubid-media img').src = data.image
