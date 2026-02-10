@@ -73,7 +73,9 @@ $menu = $content['general'][1]['menu'] ?? 'm=Gallery';
     <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
 
     <!-- Additional CSS Files -->
-    <link rel="stylesheet" href="assets/css/fontawesome.css">
+    <!-- <link rel="stylesheet" href="assets/css/fontawesome.css"> -->
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
 <?php
 		$path_style_css = 'assets/css/style.css.php';
 		
@@ -101,27 +103,7 @@ $menu = $content['general'][1]['menu'] ?? 'm=Gallery';
     <!-- ***** Preloader End ***** -->
 
     <!-- Header -->
-	<!--
-    <div class="sub-header">
-      <div class="container">
-        <div class="row">
-          <div class="col-md-8 col-xs-12">
-            <ul class="left-info">
-              <li><a href="#"><i class="fa fa-envelope"></i>contact@company.com</a></li>
-              <li><a href="#"><i class="fa fa-phone"></i>123-456-7890</a></li>
-            </ul>
-          </div>
-          <div class="col-md-4">
-            <ul class="right-icons">
-              <li><a href="#"><i class="fa fa-facebook"></i></a></li>
-              <li><a href="#"><i class="fa fa-twitter"></i></a></li>
-              <li><a href="#"><i class="fa fa-linkedin"></i></a></li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
-	-->
+
 
     <header class="">
       <nav class="navbar navbar-expand-lg">
@@ -197,7 +179,7 @@ EOMENU;
 <?php } ?>			  
 <?php if ($twitter_handle != null) {  ?>
 			   <li class="nav-item">
-				<a class="nav-link" href="https://twitter.com/<?php echo $twitter_handle; ?>" target='twitter_gomintme'><i class="fa fa-twitter"></i></a>
+				<a class="nav-link" href="https://twitter.com/<?php echo $twitter_handle; ?>" target='twitter_gomintme'><i class="fa-brands fa-x-twitter"></i></a>
               </li>
 <?php } ?>	
 			  
