@@ -26,11 +26,13 @@ function setParm(name, value) {
 
 
 function isFlagSet(name) {
-  const value = getParm(name)
-
+  let value = getParm(name)
   if (value === null) return false
   if (value === '0') return false
+
+	value = value.toLowerCase()
   if (value === 'false') return false
+  if (value === 'off') return false
 
   return true
 }
