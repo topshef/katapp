@@ -225,63 +225,6 @@ function buildTransferNarratives(deal) {
 }
 
 
-async function getTokenInfo(network, tokenId, expirySeconds = 60 * 60 * 24 * 30) {
-    const endpoint = getMirrorEndpoint(network)
-    const url = `https://${endpoint}/api/v1/tokens/${tokenId}`
-
-    const data = await fetchCacheData(url, expirySeconds)
-
-    return {
-        tokenId,
-        name: data.name,
-        symbol: data.symbol,
-        decimals: data.decimals,
-        totalSupply: data.total_supply
-    }
-}
-
-function getMirrorEndpoint(network) {
-    const map = {
-        mainnet: 'mainnet-public.mirrornode.hedera.com',
-        testnet: 'testnet.mirrornode.hedera.com',
-        previewnet: 'previewnet.mirrornode.hedera.com'
-    }
-
-    if (!map[network]) throw new Error(`Unsupported network: ${network}`)
-
-    return map[network]
-}
-
-async function fetchCacheData(url, expirySeconds = 120) {
-    const hasStorage = typeof localStorage !== 'undefined'
-    const hash = btoa(url)
-    const now = Date.now()
-
-    if (hasStorage) {
-        const cachedData = localStorage.getItem(hash)
-
-        if (cachedData) {
-            const { timestamp, data } = JSON.parse(cachedData)
-
-            if (now - timestamp < expirySeconds * 1000) {
-                return data
-            }
-        }
-    }
-
-    const response = await fetch(url)
-
-    if (!response.ok)
-        throw new Error(`Fetch failed: ${response.status} ${response.statusText}`)
-
-    const data = await response.json()
-
-    if (hasStorage)
-        localStorage.setItem(hash, JSON.stringify({ timestamp: now, data }))
-
-    return data
-}
-
 
 
 // ┌─┐┌─┐┌┬┐┌─┐┬ ┬  ┌┬┐┌─┐┌─┐┬  ┌─┐
@@ -623,49 +566,4 @@ async function ubid_init() {  // later export as ubid object
   } catch (err) {
     console.error(err)
   }
-}
-
-
-//untested placeholder .. for use with eg MOBOT treasure hunt releases
-//see also kfund kpayuk and kpos
-function unpack_KWT_to_JWT(kwt) {
-    // Split the KWT into components
-    const [dealIdSnippet, parameters, signature] = kwt.split('~')
-    // parameters is usually just serial, but can be eg a comma-delimited list
-    // serial could be an amount or any other parameter data
-    // see also other versions of this function eg on kfund
-
-    // Reconstruct the JWT header and payload
-    const header = {
-        alg: 'EdDSA',
-        typ: 'JWT'
-    }
-
-    //if (dealIdSnippet.length != 64)
-        //const dealId = ....dealIdSnippet // todo lookup full deal async if not supplied here
-    //else 
-        const dealId = dealIdSnippet
-    
-    const payload = {
-        sub: `${dealId}.${parameters}` // sub contains the full deal ID and parameters (eg serial)
-    }
-
-    // Base64Url encode the header and payload
-    const base64UrlHeader = btoa(JSON.stringify(header))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '')
-    
-    const base64UrlPayload = btoa(JSON.stringify(payload))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '')
-
-    // The signature is already Base64Url encoded, so use it directly
-    const base64UrlSignature = signature
-
-    // Reconstruct the JWT
-    const jwt = `${base64UrlHeader}.${base64UrlPayload}.${base64UrlSignature}`
-
-    return jwt
 }
