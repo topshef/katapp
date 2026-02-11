@@ -1,4 +1,47 @@
 
+
+
+// ╦ ╦╦═╗╦    ┌─┐┌─┐┬─┐┌┬┐┌─┐
+// ║ ║╠╦╝║    ├─┘├─┤├┬┘│││└─┐
+// ╚═╝╩╚═╩═╝  ┴  ┴ ┴┴└─┴ ┴└─┘
+// URL parms
+
+function hasParm(name) {
+  const params = new URLSearchParams(window.location.search)
+  return params.has(name)
+}
+
+
+function getParm(name) {
+  const params = new URLSearchParams(window.location.search)
+  return params.get(name)
+}
+
+
+function setParm(name, value) {
+  const url = new URL(window.location)
+  url.searchParams.set(name, value)
+  window.history.replaceState({}, '', url)
+}
+
+function isFlagSet(name) {
+  const value = getParm(name) // null means parameter was missing
+    // Missing parameter (?): isFlagSet('dealonly') → false
+    // ?dealonly: isFlagSet('dealonly') → true
+    // ?dealonly=1: isFlagSet('dealonly') → true
+    // ?dealonly=0: isFlagSet('dealonly') → false
+    // ?dealonly=false: isFlagSet('dealonly') → false
+    // ?dealonly=anythingelsetruthy: isFlagSet('dealonly') → true
+
+  return value !== null && value !== '0' && value !== 'false'
+}
+
+
+// ┬ ┬┌─┐┌┬┐┌─┐┬─┐┌─┐  ┌┬┐┬┬─┐┬─┐┌─┐┬─┐  ┌┬┐┌─┐┌┬┐┌─┐
+// ├─┤├┤  ││├┤ ├┬┘├─┤  ││││├┬┘├┬┘│ │├┬┘   ││├─┤ │ ├─┤
+// ┴ ┴└─┘─┴┘└─┘┴└─┴ ┴  ┴ ┴┴┴└─┴└─└─┘┴└─  ─┴┘┴ ┴ ┴ ┴ ┴
+// hedera mirror data
+
 async function getTokenInfo(network, tokenId, expirySeconds = 60 * 60 * 24 * 30) {
     const endpoint = getMirrorEndpoint(network)
     const url = `https://${endpoint}/api/v1/tokens/${tokenId}`
