@@ -570,8 +570,18 @@ const updateWalletConnectionUI = (accountId) => {
   const uiState = resolveWalletUIState(accountId)
 
   // Update connect button
-  walletConnectButton.textContent = uiState.label
-  walletConnectButton.disabled = uiState.connectDisabled
+  // walletConnectButton.textContent = uiState.label
+  // walletConnectButton.disabled = uiState.connectDisabled
+
+
+	// Update connect button visibility instead of disabling
+	if (uiState.connected) {
+		walletConnectButton.style.display = "none"
+	} else {
+		walletConnectButton.style.display = "block"
+		walletConnectButton.textContent = uiState.label
+		walletConnectButton.disabled = false
+	}
 
   // Update disconnect button
   if (disconnectButton) {
