@@ -16,58 +16,10 @@
 
 
 
-// ┌─┐┌─┐┌┬┐┌─┐┬ ┬╔╦╗┌─┐┌┬┐┌─┐
-// ├┤ ├┤  │ │  ├─┤ ║║├─┤ │ ├─┤
-// └  └─┘ ┴ └─┘┴ ┴═╩╝┴ ┴ ┴ ┴ ┴
-// fetchData
-function fetchData(productId, dealId) {
-  return Promise.all([fetchProduct(productId), fetchDeal(dealId)])
-    .then(([product, deal]) => ({ product, deal })) // Return an object with both product and deal
-}
-
-function zz_longer_fetchData(productId, dealId) {
-  console.log('fetchData called with', productId, dealId)
-
-  return Promise.all([
-    fetchProduct(productId),
-    fetchDeal(dealId)
-  ])
-    .then(([product, deal]) => {
-      console.log('fetchData results', { product, deal })
-      return { product, deal }
-    })
-    .catch(err => {
-      console.error('fetchData failed', err)
-      throw err
-    })
-}
-
 // ┌─┐┌─┐┌┬┐┌─┐┬ ┬╔═╗┬─┐┌─┐┌┬┐┬ ┬┌─┐┌┬┐
 // ├┤ ├┤  │ │  ├─┤╠═╝├┬┘│ │ │││ ││   │ 
 // └  └─┘ ┴ └─┘┴ ┴╩  ┴└─└─┘─┴┘└─┘└─┘ ┴ 
 // fetchProduct
-function zzfetchProduct(productId) {
-  return productId
-    ? fetch(`https://tools.gomint.me/explore/NFT/?json&productId=${productId}`)
-    .then(response => response.json())
-    : Promise.resolve(null)
-}
-
-function zzdummy_fetchProduct(productId) {
-  if (!productId) return Promise.resolve(null)
-
-  // expected format: network;tokenId-serial;owner
-  const parts = productId.split(';')
-  const network = parts[0] || 'unknown'
-  const [tokenId, serial] = (parts[1] || '').split('-')
-
-  return Promise.resolve({
-    token_instance_name: `Test NFT ${tokenId || ''} #${serial || ''}`.trim(),
-    token_instance_description: `Placeholder description for ${network} ${tokenId || ''}${serial ? `-${serial}` : ''}`,
-    token_asset_image_URL: `https://placehold.co/600x600?text=${encodeURIComponent(tokenId || 'NFT')}`
-  })
-}
-
 
 function fetchProduct(productId) {
   if (!productId) {
@@ -99,12 +51,6 @@ function fetchProduct(productId) {
 // fetchDeal
 // could ditch this and use kpos fetchDeals instead - though kpos is not live (db based on cron) 
 // Function to fetch data for dealId or return null if dealId is not present
-function zzfetchDeal(dealId) {
-  return dealId
-    ? fetch(`https://kpos.uk/deal/query/?dealId=${dealId}`).then(response => response.json())
-    : Promise.resolve(null)
-}
-
 async function fetchDeal(dealId) {
   if (!dealId) return null
 
@@ -234,6 +180,13 @@ function buildTransferNarratives(deal) {
         "created": "2023-10-08 07:07:58"
     },
     
+		
+		note: there are now 2 more endpoints:
+		did these having forgotten about above but i think they probably serve faster (no joins)
+		they return actual line items from the deals, with various filter options
+			https://kpos.uk/deal/query/NFT
+			https://kpos.uk/deal/query/FT
+		
     */
     
     
@@ -243,7 +196,8 @@ function buildTransferNarratives(deal) {
 // fetchDeals    
 //on hold    
 function zz_hold_fetchDeals(params) {
-    
+    //feb 2026 todo check if this is needed and vs endpoints above
+		
     //this will work for serial ranges if exact match to deal eg serial=226to250
     // so we can split product id and process OG requests
     const query = new URLSearchParams(params).toString()
@@ -314,52 +268,18 @@ function zzsimpler_splitProductId(productId) {
 // ├─┘├┬┘│ ││  ├┤ └─┐└─┐ ║║├─┤ │ ├─┤
 // ┴  ┴└─└─┘└─┘└─┘└─┘└─┘═╩╝┴ ┴ ┴ ┴ ┴
 // processData
-// combine product vs deals
-async function processData({ product, deal }) {  // todo split so we dont handle both deals and products(assets) in one
-    const dealonly = isFlagSet('dealonly')
 
-    if (dealonly && product)
-      return console.log('KR37432 dont supply productId if presenting dealonly') || false
-
-    console.log("product=", product)
-    console.log("deal=", deal)
-    console.log("dealonly=", dealonly)
-    
-    // handle case if productId supplied but no deal
-    // ie discover deals related to that product (token)
-    if (!deal && !dealonly) {
-        // lookup deals associated with this product
-        // const deals = await fetchDealsFromProduct({format: 'json', productId: productId, 'detail':1})
-        //keep it simple OG for now
-        const deals = await fetchDealsFromProduct(productId)
-        console.log(deals)
-        // deal = deals[0].deal
-				deal = deals?.[0]?.deal
-
-        console.log("deal=", deal)
-    }
-
-    // in the OG gomint, if product was not set we defaulted by looking it up
-    // but thinking afresh maybe best not to have any user-driven focus on a single product
-    // if we want to highlight a particular product as part of a deal, then set the deal parameters accordingly (title desc thumbnail etc)
-    // gomint can still separately detail the contents of the deal 
-    // for simple OG deals this can still look like a regular product sale
-    // but for multiasset it can present as a kind of bundle or proposal
-
-
-    deal = deal?.deal || deal
-    console.log("deal is now=",deal) // todo align input format of deal object
+async function processDealData({deal}) {  
+    console.log({deal})
 
     let ubid = {}
     ubid.transfers = []
-    ubid.title = product?.token_instance_name ?? deal.display.title ?? 'untitled RH45323'
-    ubid.description = product?.token_instance_description ?? deal.display.description ?? 'no desc WK83843'
-    ubid.image = product?.token_asset_image_URL ?? deal.display.thumbnail ?? ''
-		ubid.button = deal?.display?.button || 'Buy now'
+    ubid.title = deal.display.title ?? 'untitled RH45323'
+    ubid.description = deal.display.description ?? 'no desc WK83843'
+    ubid.image = deal.display.thumbnail ?? ''
+		ubid.button = deal.display.button || 'Buy now'
 
-		
-		if (!deal) return ubid
-		
+
     if (hasParm('operatorId'))
         deal.parameters.operatorId = 'Operator account ID [eg 0.0.12345] hentity'
 
@@ -378,6 +298,7 @@ async function processData({ product, deal }) {  // todo split so we dont handle
 
     const hasUserParameters = deal.parameters && Object.keys(deal.parameters).length > 0
 
+
     ubid.user_inputs = []
     if (hasUserParameters) Object.entries(deal.parameters).forEach(([parmname, parminfo]) =>  {
         const regex = /^(.*?) \[(.*?)\] (.*)$/
@@ -394,9 +315,8 @@ async function processData({ product, deal }) {  // todo split so we dont handle
         ubid.user_inputs.push(`<div><label for='${parmname}'>${label}</label></div>
         <div><input class='user_input' type='text' id='${parmname}' placeholder='${placeholder}'${defaultAttr}></div>`)
     })
-
-
-
+		//todo separate html model vs view
+		
     const allTransfers = [...deal.addHbarTransfer, ...deal.addTokenTransfer, ...deal.addNftTransfer]
 		console.log(allTransfers)
     allTransfers.forEach(xfer => {
@@ -410,24 +330,40 @@ async function processData({ product, deal }) {  // todo split so we dont handle
 
         ubid.transfers.push(line_item)
     })
-    
-    /*
-    deal.addHbarTransfer.forEach(xfer => 
-        ubid.transfers.push(xfer.userInput)
-    )
-    
-    deal.addTokenTransfer.forEach(xfer => 
-        ubid.transfers.push(xfer.userInput)
-    )
-    
-    deal.addNftTransfer.forEach(xfer => 
-        ubid.transfers.push(xfer.userInput)
-    )
-    */
-    
-    console.log("ubid=", ubid)
-    return ubid
+
+		console.log("ubid=", ubid)
+		return ubid
 }
+
+async function processProductData({product}) {  
+    if (isFlagSet('dealonly'))
+      return console.log('KR37432 dont supply productId if presenting dealonly') || false
+
+    console.log({product})
+
+    let ubid = {}
+    ubid.transfers = []  // remove
+    ubid.title = product?.token_instance_name ?? 'untitled DJ93844'
+    ubid.description = product.token_instance_description ?? 'no desc PJ92384'
+    ubid.image = product.token_asset_image_URL ?? ''
+		ubid.button = 'N/A HJ76444 shoudl be hidden'
+		
+		console.log("ubid=", ubid)
+		return ubid
+}
+
+// combine product vs deals
+//deprecated. but keepign old notes for now..
+
+		//2024 notes...
+    // in the OG gomint, if product was not set we defaulted by looking it up
+    // but thinking afresh maybe best not to have any user-driven focus on a single product
+    // if we want to highlight a particular product as part of a deal, then set the deal parameters accordingly (title desc thumbnail etc)
+    // gomint can still separately detail the contents of the deal 
+    // for simple OG deals this can still look like a regular product sale
+    // but for multiasset it can present as a kind of bundle or proposal
+
+
 
 
 function updateButtonNowLater() {
@@ -445,34 +381,34 @@ function updateButtonNowLater() {
 
 
 
-function hydratePage(data) {
-   console.log(data)
-    document.getElementById('ubid-title').textContent = data.title
-    document.getElementById('ubid-description').innerHTML = data.description
-    document.querySelector('#ubid-media img').src = data.image
+function renderProductPanel(data) {
+	  document.querySelector('#product-panel .ubid-title').innerHTML = data.title
+	  document.querySelector('#product-panel .ubid-description').innerHTML = data.description
+	  document.querySelector('#combo-container .ubid-media img').src = data.image
+	  document.querySelector('#product-panel .ubid-asset-link').innerHTML =  `Hedera <a href='https://tools.gomint.me/explore/NFT/?productId=${productId}' target='_blank'>${productId.replaceAll(';', ' | ')}</a>`
 
-
-    document.getElementById('ubid-transfers').innerHTML = data.transfers.join('<BR>')
-
-
+ 		const img = document.querySelector('#combo-container .ubid-media img')
+		if (img)
+			img.addEventListener('load', () => img.classList.remove('skeleton'), { once: true })
 		
-    document.getElementById('ubid-user-inputs').innerHTML = (data.user_inputs || []).join('<BR>')
-    document.querySelectorAll('.user_input').forEach(input => {
-        input.addEventListener('input', () => setParm(input.id, input.value)) //save to url
-    })
-
-		document.getElementById('starttime')?.addEventListener('input', updateButtonNowLater)
-
-
-		if (dealId) {
-			// const dealIdshort = dealId.slice(0, 6)
-			document.getElementById('ubid-asset-link').innerHTML = `#katomic <a href='https://katomic.org/labs/?dealId=${dealId}' target='_blank'>${dealId.slice(0, 6)}</a>`
-															
-		} else if (productId) {
-			document.getElementById('ubid-asset-link').innerHTML = `Hedera <a href='https://tools.gomint.me/explore/NFT/?productId=${productId}' target='_blank'>${productId.replaceAll(';', ' | ')}</a>`
-		}
-
+		document
+			.querySelectorAll('#product-panel .skeleton:not(img)')
+			.forEach(el => el.classList.remove('skeleton'))
+			
+		document.querySelector('#product-panel').style.display = 'block'
 	
+}
+
+function renderDealPanel(data) {
+	  document.querySelector('#deal-panel .ubid-title').innerHTML = data.title
+	  document.querySelector('#deal-panel .ubid-description').innerHTML = data.description
+	  document.querySelector('#combo-container .ubid-media img').src = data.image
+		
+		document.querySelector('#deal-panel .ubid-transfers').innerHTML = data.transfers.join('<BR>')
+		document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = (data.user_inputs || []).join('<BR>')
+		
+	  document.querySelector('#deal-panel .ubid-asset-link').innerHTML = `#katomic <a href='https://katomic.org/labs/?dealId=${dealId}' target='_blank'>${dealId.slice(0, 6)}</a>`
+
 		document.getElementById('create-tx').innerText = data.button
 		updateButtonNowLater()
 	
@@ -482,24 +418,18 @@ function hydratePage(data) {
 			updateButtonNowLater()
 		}
 		
-		// document.getElementById('deal-container')?.classList.remove('skeleton')
-		// document
-    // .querySelectorAll('#deal-container .skeleton')
-			// .forEach(el => el.classList.remove('skeleton'))
-
-		const img = document.querySelector('#ubid-media img')
-
-		if (img) {
+		const img = document.querySelector('#combo-container .ubid-media img')
+		if (img)
 			img.addEventListener('load', () => img.classList.remove('skeleton'), { once: true })
-		}
-
+		
 		document
-			.querySelectorAll('#deal-container .skeleton:not(img)')
+			.querySelectorAll('#combo-container .skeleton:not(img)')
 			.forEach(el => el.classList.remove('skeleton'))
-
-
+			
+		document.querySelector('#deal-panel').style.display = 'block'
+		// document.querySelector('#combo-panel').style.display = 'block'
+		
 }
-
 
 async function hydrateRelatedDeals(productId) {
   try {
@@ -510,7 +440,7 @@ async function hydrateRelatedDeals(productId) {
       const fullDeal = await fetchDeal(dealInfo.dealId)
 			console.log(fullDeal)
       // process it minimally
-      const ubid = await processData({ product: null, deal: fullDeal })
+      const ubid = await processDealData({ deal: fullDeal })
 			console.log(ubid)
 			//do nothing yet
       // append to DOM progressively
@@ -523,18 +453,77 @@ async function hydrateRelatedDeals(productId) {
 }
 
 
+
+function resolveEntityType(productId, dealId) {
+  if (dealId) return 'deal'
+  if (productId) return 'product'
+  return null
+}
+
 async function ubid_init() {  // later export as ubid object
   try {
-    const raw = await fetchData(productId, dealId)
-    const processed = await processData(raw)
-    hydratePage(processed)
 
-    // 🔥 Fire-and-forget branch
-    if (productId && !dealId) {
-      hydrateRelatedDeals(productId) // DO NOT await
-    }
+		const entityType = resolveEntityType(productId, dealId)
+		console.log({entityType})
+		
+		let raw = {}
+
+		if (entityType === 'deal') {
+			raw.deal = await fetchDeal(dealId)
+			const processed = await processDealData(raw)
+			renderDealPanel(processed)
+
+		}
+
+		if (entityType === 'product') {
+			raw.product = await fetchProduct(productId)
+			const processed = await processProductData(raw)
+			
+			console.log(processed)
+			renderProductPanel(processed)
+			
+			hydrateRelatedDeals(productId)
+		}
+		
 
   } catch (err) {
     console.error(err)
   }
 }
+
+
+
+/* wank not doing anything...
+async function processDealEntity(deal) {
+  if (!deal) return null
+
+  const title = deal.display?.title ?? 'Untitled deal'
+  const description = deal.display?.description ?? ''
+  const image = deal.display?.thumbnail ?? ''
+
+  const transfers = [
+    ...(deal.addHbarTransfer || []),
+    ...(deal.addTokenTransfer || []),
+    ...(deal.addNftTransfer || [])
+  ].map(x => x.userInput)
+
+  return {
+    type: 'deal',
+    title,
+    description,
+    image,
+    transfers
+  }
+}
+
+async function processProductEntity(product) {
+  if (!product) return null
+
+  return {
+    type: 'product',
+    title: product.token_instance_name ?? 'Untitled product',
+    description: product.token_instance_description ?? '',
+    image: product.token_asset_image_URL ?? ''
+  }
+}
+*/
