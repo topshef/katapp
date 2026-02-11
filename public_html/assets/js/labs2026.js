@@ -1,7 +1,7 @@
 // ╔═╗╔═╗  ┬  ┌─┐┌┐ ┌─┐  
 // ║ ║║ ╦  │  ├─┤├┴┐└─┐  
 // ╚═╝╚═╝  ┴─┘┴ ┴└─┘└─┘  
-// OG labs 2024
+// OG labs 2026
 
 // wip refactoring the og gomint ui
 // https://github.com/topshef/phpjabbers/issues/50
