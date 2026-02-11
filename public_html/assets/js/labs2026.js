@@ -128,11 +128,160 @@ function fetchProduct(productId) {
 // fetchDeal
 // could ditch this and use kpos fetchDeals instead - though kpos is not live (db based on cron) 
 // Function to fetch data for dealId or return null if dealId is not present
-function fetchDeal(dealId) {
+function zzfetchDeal(dealId) {
   return dealId
     ? fetch(`https://kpos.uk/deal/query/?dealId=${dealId}`).then(response => response.json())
     : Promise.resolve(null)
 }
+
+async function fetchDeal(dealId) {
+  if (!dealId) return null
+
+  const response = await fetch(`https://kpos.uk/deal/query/?dealId=${dealId}`)
+  let data = await response.json()
+	console.log(data)
+
+  if (Array.isArray(data))
+    data = data[0]
+
+  const deal = data.deal || data
+	console.log(deal)
+	const out = deal.header
+    ? normalisePreKatomicDeal(deal)
+    : deal
+  console.log(out)
+	return out
+}
+
+
+function normalisePreKatomicDeal(deal) {
+  const { dealName, dealDescription, network } = deal.header
+
+  const data = {
+    ...deal,
+    network,
+    display: {
+      title: dealName,
+      description: dealDescription
+    },
+		
+		// ensure modern-safe defaults
+    alias: deal.alias || {},
+    parameters: deal.parameters || {},
+    addHbarTransfer: deal.addHbarTransfer || [],
+    addTokenTransfer: deal.addTokenTransfer || [],
+    addNftTransfer: deal.addNftTransfer || []
+		
+  }
+	
+	// return buildTransferNarratives(data)  //same .. output mutates input
+	buildTransferNarratives(data)  // this is kinda enrichment.. consider putting in different Function
+																	// katomic outputs userInput whereas this reverses it.. so naming isn't accurate
+																	// consider intent and .kat mime type rules for katomic
+	return data
+
+}
+
+function buildTransferNarratives(deal) {
+	const network = deal.network
+	
+  const buildHbar = xfer => {
+    const amount = Number(xfer.value)
+    const abs = Math.abs(amount)
+    const verb = amount < 0 ? 'sends' : 'receives'
+
+    xfer.assetType = 'HBAR'
+    xfer.asset = 'HBAR'
+    xfer.userInput = `${xfer.accountId} ${verb} ${abs} HBAR`
+  }
+
+  const buildFT = xfer => {
+    const amount = Number(xfer.value)
+    const abs = Math.abs(amount)
+    const verb = amount < 0 ? 'sends' : 'receives'
+		
+		// do this later as async that swaps the dom values.. use a class to flip
+		// const tokenInfo = getTokenInfo(network, xfer.tokenId)
+		// const tokenInfo = await getTokenInfo(network, xfer.tokenId)
+		// console.log(tokenInfo)
+		
+    xfer.assetType = 'FT'
+    xfer.asset = xfer.tokenId
+    xfer.userInput = `${xfer.accountId} ${verb} ${abs} ${xfer.tokenId}`
+		xfer.needsHydration = true
+  }
+
+  const buildNFT = xfer => {
+    xfer.assetType = 'NFT'
+    xfer.asset = xfer.tokenId
+    xfer.userInput = `${xfer.sender} sends NFT ${xfer.tokenId}#${xfer.serial} to ${xfer.receiver}`
+  }
+
+  ;(deal.addHbarTransfer || []).forEach(buildHbar)
+  ;(deal.addTokenTransfer || []).forEach(buildFT)
+  ;(deal.addNftTransfer || []).forEach(buildNFT)
+
+  return deal
+}
+
+
+async function getTokenInfo(network, tokenId, expirySeconds = 60 * 60 * 24 * 30) {
+    const endpoint = getMirrorEndpoint(network)
+    const url = `https://${endpoint}/api/v1/tokens/${tokenId}`
+
+    const data = await fetchCacheData(url, expirySeconds)
+
+    return {
+        tokenId,
+        name: data.name,
+        symbol: data.symbol,
+        decimals: data.decimals,
+        totalSupply: data.total_supply
+    }
+}
+
+function getMirrorEndpoint(network) {
+    const map = {
+        mainnet: 'mainnet-public.mirrornode.hedera.com',
+        testnet: 'testnet.mirrornode.hedera.com',
+        previewnet: 'previewnet.mirrornode.hedera.com'
+    }
+
+    if (!map[network]) throw new Error(`Unsupported network: ${network}`)
+
+    return map[network]
+}
+
+async function fetchCacheData(url, expirySeconds = 120) {
+    const hasStorage = typeof localStorage !== 'undefined'
+    const hash = btoa(url)
+    const now = Date.now()
+
+    if (hasStorage) {
+        const cachedData = localStorage.getItem(hash)
+
+        if (cachedData) {
+            const { timestamp, data } = JSON.parse(cachedData)
+
+            if (now - timestamp < expirySeconds * 1000) {
+                return data
+            }
+        }
+    }
+
+    const response = await fetch(url)
+
+    if (!response.ok)
+        throw new Error(`Fetch failed: ${response.status} ${response.statusText}`)
+
+    const data = await response.json()
+
+    if (hasStorage)
+        localStorage.setItem(hash, JSON.stringify({ timestamp: now, data }))
+
+    return data
+}
+
 
 
 // ┌─┐┌─┐┌┬┐┌─┐┬ ┬  ┌┬┐┌─┐┌─┐┬  ┌─┐
@@ -252,7 +401,7 @@ function zzsimpler_splitProductId(productId) {
 // ┴  ┴└─└─┘└─┘└─┘└─┘└─┘═╩╝┴ ┴ ┴ ┴ ┴
 // processData
 // combine product vs deals
-async function processData({ product, deal }) {
+async function processData({ product, deal }) {  // todo split so we dont handle both deals and products(assets) in one
     const dealonly = isFlagSet('dealonly')
 
     if (dealonly && product)
@@ -335,7 +484,7 @@ async function processData({ product, deal }) {
 
 
     const allTransfers = [...deal.addHbarTransfer, ...deal.addTokenTransfer, ...deal.addNftTransfer]
-
+		console.log(allTransfers)
     allTransfers.forEach(xfer => {
         let line_item = xfer.userInput.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
 
@@ -438,12 +587,26 @@ function hydratePage(data) {
 }
 
 
-// function fetchDataAndHydratePage() {
-  // fetchData(productId, dealId)
-    // .then(processData) // Pass the combined { product, deal } object to processData
-    // .then(hydratePage) // Pass the processed data to hydratePage
-    // .catch(error => console.error('WJ76673 Error fetching data:', error))
-// }
+async function hydrateRelatedDeals(productId) {
+  try {
+    const deals = await fetchDealsFromProduct(productId)
+
+    for (const dealInfo of deals) {
+      // fetch full deal detail
+      const fullDeal = await fetchDeal(dealInfo.dealId)
+			console.log(fullDeal)
+      // process it minimally
+      const ubid = await processData({ product: null, deal: fullDeal })
+			console.log(ubid)
+			//do nothing yet
+      // append to DOM progressively
+      // appendDealToPage(ubid)  //tbc
+    }
+
+  } catch (err) {
+    console.error('Related deal hydration failed', err)
+  }
+}
 
 
 async function ubid_init() {  // later export as ubid object
@@ -453,9 +616,9 @@ async function ubid_init() {  // later export as ubid object
     hydratePage(processed)
 
     // 🔥 Fire-and-forget branch
-    // if (productId && !dealId) {
-      // hydrateRelatedDeals(productId) // DO NOT await
-    // }
+    if (productId && !dealId) {
+      hydrateRelatedDeals(productId) // DO NOT await
+    }
 
   } catch (err) {
     console.error(err)
