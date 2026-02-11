@@ -13,6 +13,7 @@
 // https://github.com/topshef/phpjabbers/issues/48
 // however there is lots of ref to ubid below due to that intention
 
+// 2026 mucho en flux. gonna iterate here as a baseline working framework
 
 
 
@@ -264,12 +265,12 @@ function zzsimpler_splitProductId(productId) {
   }
 }
 
-// ┌─┐┬─┐┌─┐┌─┐┌─┐┌─┐┌─┐╔╦╗┌─┐┌┬┐┌─┐
-// ├─┘├┬┘│ ││  ├┤ └─┐└─┐ ║║├─┤ │ ├─┤
-// ┴  ┴└─└─┘└─┘└─┘└─┘└─┘═╩╝┴ ┴ ┴ ┴ ┴
-// processData
+// ┌┬┐┬─┐┌─┐┌┐┌┌─┐┌─┐┌─┐┬─┐┌┬┐  ┌┬┐┌─┐┌┬┐┌─┐
+//  │ ├┬┘├─┤│││└─┐├┤ │ │├┬┘│││   ││├─┤ │ ├─┤
+//  ┴ ┴└─┴ ┴┘└┘└─┘└  └─┘┴└─┴ ┴  ─┴┘┴ ┴ ┴ ┴ ┴
+// transform data
 
-async function processDealData({deal}) {  
+async function transformDealData({deal}) {  
     console.log({deal})
 
     let ubid = {}
@@ -278,7 +279,6 @@ async function processDealData({deal}) {
     ubid.description = deal.display.description ?? 'no desc WK83843'
     ubid.image = deal.display.thumbnail ?? ''
 		ubid.button = deal.display.button || 'Buy now'
-
 
     if (hasParm('operatorId'))
         deal.parameters.operatorId = 'Operator account ID [eg 0.0.12345] hentity'
@@ -298,44 +298,36 @@ async function processDealData({deal}) {
 
     const hasUserParameters = deal.parameters && Object.keys(deal.parameters).length > 0
 
+		ubid.parameters = []
 
-    ubid.user_inputs = []
-    if (hasUserParameters) Object.entries(deal.parameters).forEach(([parmname, parminfo]) =>  {
-        const regex = /^(.*?) \[(.*?)\] (.*)$/
-        const [, parmlabel, placeholder, type] = parminfo.match(regex) || []
-        if (!parmlabel) return ubid.user_inputs.push('Error HD34423') 
+		if (hasUserParameters)
+			Object.entries(deal.parameters).forEach(([parmname, parminfo]) => {
+				const regex = /^(.*?) \[(.*?)\] (.*)$/
+				const [, parmlabel, placeholder, type] = parminfo.match(regex) || []
+				if (!parmlabel) return
 
-        const defaultValue = getParm(parmname) || ''
-        const defaultAttr = defaultValue ? ` value='${defaultValue}'` : ''
+				ubid.parameters.push({
+					name: parmname,
+					label: parmlabel,
+					placeholder,
+					type,
+					defaultValue: getParm(parmname) || ''
+				})
+			})
 
-        // Optionally add parameter name to the label if 'detail' is present in the URL
-        let label = parmlabel
-        if (isFlagSet('detail')) label += ` &nbsp<span class='code'>${parmname}</span>`
-
-        ubid.user_inputs.push(`<div><label for='${parmname}'>${label}</label></div>
-        <div><input class='user_input' type='text' id='${parmname}' placeholder='${placeholder}'${defaultAttr}></div>`)
-    })
-		//todo separate html model vs view
-		
     const allTransfers = [...deal.addHbarTransfer, ...deal.addTokenTransfer, ...deal.addNftTransfer]
 		console.log(allTransfers)
-    allTransfers.forEach(xfer => {
-        let line_item = xfer.userInput.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
 
-        for (const [key, value] of Object.entries(deal.alias)) {
-            const link = `<a href='https://kpay.uk/${value}' target='${value}'>${key}</a>`
-            const regex = new RegExp(`\\b${key}\\b`, 'g')
-            line_item = line_item.replace(regex, link)
-        }
-
-        ubid.transfers.push(line_item)
-    })
+		ubid.transfers = allTransfers.map(xfer => ({
+			text: xfer.userInput,
+			aliases: deal.alias || {}
+		}))		
 
 		console.log("ubid=", ubid)
 		return ubid
 }
 
-async function processProductData({product}) {  
+async function transformProductData({product}) {  
     if (isFlagSet('dealonly'))
       return console.log('KR37432 dont supply productId if presenting dealonly') || false
 
@@ -399,13 +391,50 @@ function renderProductPanel(data) {
 	
 }
 
+
+function renderTransfer(x)
+{
+  let text = x.text
+
+  text = text.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
+
+  for (const [key, value] of Object.entries(x.aliases))
+  {
+    const link = `<a href='https://kpay.uk/${value}' target='${value}'>${key}</a>`
+    const regex = new RegExp(`\\b${key}\\b`, 'g')
+    text = text.replace(regex, link)
+  }
+
+  return text
+}
+
+function renderParameter(p)
+{
+  return `
+    <div>
+      <label for='${p.name}'>${p.label}</label>
+    </div>
+    <div>
+      <input
+        class='user_input'
+        type='text'
+        id='${p.name}'
+        placeholder='${p.placeholder}'
+        value='${p.defaultValue}'
+      >
+    </div>
+  `
+}
+
+
 function renderDealPanel(data) {
 	  document.querySelector('#deal-panel .ubid-title').innerHTML = data.title
 	  document.querySelector('#deal-panel .ubid-description').innerHTML = data.description
 	  document.querySelector('#combo-container .ubid-media img').src = data.image
 		
-		document.querySelector('#deal-panel .ubid-transfers').innerHTML = data.transfers.join('<BR>')
-		document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = (data.user_inputs || []).join('<BR>')
+		document.querySelector('#deal-panel .ubid-transfers').innerHTML = data.transfers.map(renderTransfer).join('<BR>')
+
+		document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = (data.parameters || []).map(renderParameter).join('')
 		
 	  document.querySelector('#deal-panel .ubid-asset-link').innerHTML = `#katomic <a href='https://katomic.org/labs/?dealId=${dealId}' target='_blank'>${dealId.slice(0, 6)}</a>`
 
@@ -440,7 +469,7 @@ async function hydrateRelatedDeals(productId) {
       const fullDeal = await fetchDeal(dealInfo.dealId)
 			console.log(fullDeal)
       // process it minimally
-      const ubid = await processDealData({ deal: fullDeal })
+      const ubid = await transformDealData({ deal: fullDeal })
 			console.log(ubid)
 			//do nothing yet
       // append to DOM progressively
@@ -470,14 +499,14 @@ async function ubid_init() {  // later export as ubid object
 
 		if (entityType === 'deal') {
 			raw.deal = await fetchDeal(dealId)
-			const processed = await processDealData(raw)
+			const processed = await transformDealData(raw)
 			renderDealPanel(processed)
 
 		}
 
 		if (entityType === 'product') {
 			raw.product = await fetchProduct(productId)
-			const processed = await processProductData(raw)
+			const processed = await transformProductData(raw)
 			
 			console.log(processed)
 			renderProductPanel(processed)
