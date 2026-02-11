@@ -193,15 +193,23 @@ function zz_hold_fetchDeals(params) {
 // ├┤ ├┤  │ │  ├─┤ ║║├┤ ├─┤│  └─┐╠╣ ├┬┘│ ││││╠═╝├┬┘│ │ │││ ││   │ 
 // └  └─┘ ┴ └─┘┴ ┴═╩╝└─┘┴ ┴┴─┘└─┘╚  ┴└─└─┘┴ ┴╩  ┴└─└─┘─┴┘└─┘└─┘ ┴ 
 // fetchDealsFromProduct
-function fetchDealsFromProduct(productId) {
-    const parts = splitProductId(productId)
-    const query = new URLSearchParams(parts).toString()
-    //kpos supports query by product id directly but not for serial range
-    const url = `https://kpos.uk/deal/query/?detail&format=json&${query}`
-    
-    console.log("fetchDealsFromProduct url=", url)
-    return fetch(url).then(response => response.json())
+
+async function fetchDealsFromProduct(productId) {
+  const parts = splitProductId(productId)
+  const query = new URLSearchParams(parts).toString()
+  const url = `https://kpos.uk/deal/query/?legacy=1&format=json&${query}`
+
+  console.log('fetchDealsFromProduct url =', url)
+
+  const response = await fetch(url)
+  console.log('fetchDealsFromProduct status =', response.status)
+
+  const data = await response.json()
+  console.log('fetchDealsFromProduct data =', data)
+
+  return data
 }
+
 
 // ┌─┐┌─┐┬  ┬┌┬┐╔═╗┬─┐┌─┐┌┬┐┬ ┬┌─┐┌┬┐╦┌┬┐
 // └─┐├─┘│  │ │ ╠═╝├┬┘│ │ │││ ││   │ ║ ││

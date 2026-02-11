@@ -179,7 +179,7 @@ EOMENU;
 <?php } ?>			  
 <?php if ($twitter_handle != null) {  ?>
 			   <li class="nav-item">
-				<a class="nav-link" href="https://twitter.com/<?php echo $twitter_handle; ?>" target='twitter_gomintme'><i class="fa-brands fa-x-twitter"></i></a>
+				<a class="nav-link" href="https://x.com/<?php echo $twitter_handle; ?>" target='twitter_gomintme'><i class="fa-brands fa-x-twitter"></i></a>
               </li>
 <?php } ?>	
 			  
