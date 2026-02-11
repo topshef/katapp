@@ -460,13 +460,25 @@ function renderDealPanel(data) {
 		
 }
 
-async function hydrateRelatedDeals(productId) {
+async function renderRelatedDeals(productId) {
   try {
     const deals = await fetchDealsFromProduct(productId)
-
+		console.log(deals)
+		
+		const elRelatedDeals = document.querySelector('#product-panel .ubid-related')
+		// elRelatedDeals.innerHTML = ''
+		
     for (const dealInfo of deals) {
       // fetch full deal detail
       const fullDeal = await fetchDeal(dealInfo.dealId)
+			
+			
+			const dealIdShort = dealInfo.dealId.slice(0,6)
+			elRelatedDeals.innerHTML +=
+				`<a href='${window.location.pathname}?dealonly&v=labs&dealId=${dealInfo.dealId}' target='_blank'>${dealIdShort}</a> `
+			//related
+			
+			console.log({dealIdShort})
 			console.log(fullDeal)
       // process it minimally
       const ubid = await transformDealData({ deal: fullDeal })
@@ -511,7 +523,7 @@ async function ubid_init() {  // later export as ubid object
 			console.log(processed)
 			renderProductPanel(processed)
 			
-			hydrateRelatedDeals(productId)
+			renderRelatedDeals(productId)
 		}
 		
 
