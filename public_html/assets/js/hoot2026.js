@@ -24,16 +24,15 @@ function setParm(name, value) {
   window.history.replaceState({}, '', url)
 }
 
-function isFlagSet(name) {
-  const value = getParm(name) // null means parameter was missing
-    // Missing parameter (?): isFlagSet('dealonly') → false
-    // ?dealonly: isFlagSet('dealonly') → true
-    // ?dealonly=1: isFlagSet('dealonly') → true
-    // ?dealonly=0: isFlagSet('dealonly') → false
-    // ?dealonly=false: isFlagSet('dealonly') → false
-    // ?dealonly=anythingelsetruthy: isFlagSet('dealonly') → true
 
-  return value !== null && value !== '0' && value !== 'false'
+function isFlagSet(name) {
+  const value = getParm(name)
+
+  if (value === null) return false
+  if (value === '0') return false
+  if (value === 'false') return false
+
+  return true
 }
 
 
