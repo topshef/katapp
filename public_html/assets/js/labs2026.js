@@ -438,14 +438,29 @@ function hydratePage(data) {
 }
 
 
-function fetchDataAndHydratePage() {
-  fetchData(productId, dealId)
-    .then(processData) // Pass the combined { product, deal } object to processData
-    .then(hydratePage) // Pass the processed data to hydratePage
-    .catch(error => console.error('WJ76673 Error fetching data:', error))
+// function fetchDataAndHydratePage() {
+  // fetchData(productId, dealId)
+    // .then(processData) // Pass the combined { product, deal } object to processData
+    // .then(hydratePage) // Pass the processed data to hydratePage
+    // .catch(error => console.error('WJ76673 Error fetching data:', error))
+// }
+
+
+async function ubid_init() {  // later export as ubid object
+  try {
+    const raw = await fetchData(productId, dealId)
+    const processed = await processData(raw)
+    hydratePage(processed)
+
+    // 🔥 Fire-and-forget branch
+    // if (productId && !dealId) {
+      // hydrateRelatedDeals(productId) // DO NOT await
+    // }
+
+  } catch (err) {
+    console.error(err)
+  }
 }
-
-
 
 
 //untested placeholder .. for use with eg MOBOT treasure hunt releases
