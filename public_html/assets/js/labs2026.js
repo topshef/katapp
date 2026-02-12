@@ -470,18 +470,20 @@ async function renderRelatedDeals(productId) {
 		
     for (const dealInfo of deals) {
       // fetch full deal detail
-      const fullDeal = await fetchDeal(dealInfo.dealId)
+      const deal = await fetchDeal(dealInfo.dealId)
+			console.log(deal)
 			
 			
 			const dealIdShort = dealInfo.dealId.slice(0,6)
-			elRelatedDeals.innerHTML +=
-				`<a href='${window.location.pathname}?dealonly&v=labs&dealId=${dealInfo.dealId}' target='_blank'>${dealIdShort}</a> `
-			//related
 			
+			const href = `?dealonly&v=labs&dealId=${dealInfo.dealId}`
+			const label = `${dealIdShort}`
+			const tooltip = `${deal.display?.title} | ${deal.display?.description} | ${dealInfo.created?.slice(0,10)}`
+			elRelatedDeals.innerHTML += renderLocalLink(href, label, tooltip)
+
 			console.log({dealIdShort})
-			console.log(fullDeal)
       // process it minimally
-      const ubid = await transformDealData({ deal: fullDeal })
+      const ubid = await transformDealData({ deal })
 			console.log(ubid)
 			//do nothing yet
       // append to DOM progressively
@@ -493,6 +495,22 @@ async function renderRelatedDeals(productId) {
   }
 }
 
+function renderLocalLink(href, label, tooltip = '', title = '')
+  {
+    const safeTitle = title || tooltip
+
+    return `
+      <a
+        href="${href}"
+        onclick="window.location.search='${href}'; return false;"
+        class="utooltip"
+        data-tooltip="${tooltip}"
+        title="${safeTitle}"
+      >
+        ${label}
+      </a>
+    `
+  }
 
 
 function resolveEntityType(productId, dealId) {
