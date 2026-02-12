@@ -69,16 +69,16 @@ async function fetchDeal(dealId) {
 	console.log(data)
 	console.log(data.deal?.addNftTransfer?.[0]?.userInput)
 
-  if (Array.isArray(data))
+  if (Array.isArray(data)) // todo check upstream shape
     data = data[0]
 
-  const deal = data.deal || data
-	console.log(deal)
-	const out = deal.header
-    ? normalisePreKatomicDeal(deal)
-    : deal
-  console.log(out)
-	return out
+  const deal = data.deal || data 
+
+	console.log('normalisePreKatomicDeal before', deal)
+	normalisePreKatomicDeal(deal) // this mutates deal
+	console.log('normalisePreKatomicDeal after', deal)
+
+	return deal
 }
 
 
@@ -86,7 +86,8 @@ function normalisePreKatomicDeal(deal) {
 	
 	// or do this if mutating the input
 	// deal.network ||= deal.header?.network
-
+	const network = deal.network || deal.header?.network
+	
   const data = {
     ...deal,
     network: deal.network || deal.header?.network,
@@ -103,61 +104,14 @@ function normalisePreKatomicDeal(deal) {
     addNftTransfer: deal.addNftTransfer || []
 		
   }
-	
+
 	// deepFreeze(data)  // detect mutation when 'use strict'
 	// return buildTransferNarratives(data)  //same .. output mutates input
-	buildTransferNarratives(data)  // this is kinda enrichment.. consider putting in different Function
-																	// katomic outputs userInput whereas this reverses it.. so naming isn't accurate
-																	// consider intent and .kat mime type rules for katomic
+	// buildTransferNarratives(data)  // builds narrative, but cheats and uses userInput where available
+	
 	return data
 
 }
-
-function buildTransferNarratives(data) {
-	const network = data.network
-	
-  const buildHbar = xfer => {
-    const amount = Number(xfer.value)
-    const abs = Math.abs(amount)
-    const verb = amount < 0 ? 'sends' : 'receives'
-
-    xfer.assetType = 'HBAR'
-    xfer.asset = 'HBAR'
-    xfer.userInput = `${xfer.accountId} ${verb} ${abs} HBAR`
-  }
-
-  const buildFT = xfer => {
-    const amount = Number(xfer.value)
-    const abs = Math.abs(amount)
-    const verb = amount < 0 ? 'sends' : 'receives'
-		
-		// do this later as async that swaps the dom values.. use a class to flip
-		// const tokenInfo = getTokenInfo(network, xfer.tokenId)
-		// const tokenInfo = await getTokenInfo(network, xfer.tokenId)
-		// console.log(tokenInfo)
-		
-    xfer.assetType = 'FT'
-    xfer.asset = xfer.tokenId
-		xfer.narrative = xfer.userInput || `${xfer.accountId} ${verb} ${abs} ${xfer.tokenId}`
-		if (!xfer.userInput) xfer.comment = 'UY84753 narrative generated'
-		xfer.needsHydration = true
-  }
-
-  const buildNFT = xfer => {
-    xfer.assetType = 'NFT'
-    xfer.asset = xfer.tokenId
-		xfer.narrative = xfer.userInput || `${xfer.sender} sends NFT ${xfer.tokenId}#${xfer.serial} to ${xfer.receiver}`
-		if (!xfer.userInput) xfer.comment = 'TG78464 narrative generated'
-  }
-
-  ;(data.addHbarTransfer || []).forEach(buildHbar)
-  ;(data.addTokenTransfer || []).forEach(buildFT)
-  ;(data.addNftTransfer || []).forEach(buildNFT)
-
-  return data
-}
-
-
 
 
 	// ┌─┐┌─┐┌┬┐┌─┐┬ ┬  ┌┬┐┌─┐┌─┐┬  ┌─┐
@@ -288,13 +242,13 @@ function zzsimpler_splitProductId(productId) {
 async function transformDealData({deal}) {  
     console.log({deal})
 
-    let ubid = {}
+    let out = {}
 		// ubid.deal = deal // return the input ?
-    ubid.transfers = []
-    ubid.title = deal.display.title ?? 'untitled RH45323'
-    ubid.description = deal.display.description ?? 'no desc WK83843'
-    ubid.image = deal.display.thumbnail ?? ''
-		ubid.button = deal.display.button || 'Buy now'
+		out.allTransfers = mergeAllTransfers(deal) // add this back into the input
+    out.title       = deal.display.title ?? 'untitled RH45323'
+    out.description = deal.display.description ?? 'no desc WK83843'
+    out.image       = deal.display.thumbnail ?? ''
+		out.button      = deal.display.button || 'Buy now'
 
     if (hasParm('operatorId'))
         deal.parameters.operatorId = 'Operator account ID [eg 0.0.12345] hentity'
@@ -314,7 +268,7 @@ async function transformDealData({deal}) {
 
     const hasUserParameters = deal.parameters && Object.keys(deal.parameters).length > 0
 
-		ubid.parameters = []
+		out.parameters = []
 
 		if (hasUserParameters)
 			Object.entries(deal.parameters).forEach(([parmname, parminfo]) => {
@@ -322,7 +276,7 @@ async function transformDealData({deal}) {
 				const [, parmlabel, placeholder, type] = parminfo.match(regex) || []
 				if (!parmlabel) return
 
-				ubid.parameters.push({
+				out.parameters.push({
 					name: parmname,
 					label: parmlabel,
 					placeholder,
@@ -331,27 +285,76 @@ async function transformDealData({deal}) {
 				})
 			})
 
-		ubid.alias = deal.alias
-		ubid.aliasReversed = Object.entries(deal.alias)
+		out.alias = deal.alias
+		out.aliasReversed = Object.entries(deal.alias)
 			.reduce((acc, [a, id]) => {
 				if (!(id in acc))
 					acc[id] = a
 				return acc
 			}, {})
 
-    const allTransfers = [...deal.addHbarTransfer, ...deal.addTokenTransfer, ...deal.addNftTransfer]
-		console.log(allTransfers)
-		
-		ubid.allTransfers = allTransfers
-		
-		// ubid.transfers = allTransfers.map(xfer => ({
-			// ...xfer,
-			// alias: deal.alias || {}
-		// }))		
 
-		console.log("ubid=", ubid)
-		return ubid
+		console.log("out=", out)
+		return out
 }
+
+
+
+function mergeAllTransfers(deal) {
+  
+
+  const normaliseHbar = xfer => {
+    const amount = xfer.value
+    const abs = Math.abs(amount)
+    const verb = amount < 0 ? 'sends' : 'receives'
+
+    return {
+      // ...xfer,
+      assetType: 'HBAR',
+      asset: 'HBAR',
+      amount,
+      narrative: xfer.userInput || `${xfer.accountId} ${verb} ${abs} HBAR`
+    }
+  }
+
+  const normaliseFT = xfer => {
+    const amount = xfer.value
+    const abs = Math.abs(amount)
+    const verb = amount < 0 ? 'sends' : 'receives'
+
+    return {
+      // ...xfer,
+      assetType: 'FT',
+      asset: xfer.tokenId,
+      amount,
+      narrative: xfer.userInput || `${xfer.accountId} ${verb} ${abs} ${xfer.tokenId}`,
+      needsHydration: true
+    }
+  }
+
+  const normaliseNFT = xfer => {
+    return {
+      // ...xfer,
+      assetType: 'NFT',
+      asset: xfer.tokenId,
+      narrative:
+        xfer.userInput ||
+        `${xfer.sender} sends NFT ${xfer.tokenId}#${xfer.serial} to ${xfer.receiver}`
+    }
+  }
+
+  const allTransfers = [
+    ...(deal.addHbarTransfer || []).map(normaliseHbar),
+    ...(deal.addTokenTransfer || []).map(normaliseFT),
+    ...(deal.addNftTransfer || []).map(normaliseNFT)
+  ]
+
+  return allTransfers
+}
+
+
+
+
 
 async function transformProductData({product}) {  
     if (isFlagSet('dealonly'))
@@ -426,6 +429,49 @@ function renderTransfer(xfer, entityLabels) {
 	// return  renderTooltip(text, 'example tooltip ' + xfer.narrative)
 }
 
+function zzrenderTransfer(xfer, entityLabels = {}) {
+  const label = id => entityLabels[id] || id
+
+  if (xfer.assetType === 'NFT') {
+    const from = label(xfer.sender)
+    const to = label(xfer.receiver)
+
+    return `${from} sends NFT ${xfer.asset}#${xfer.serial} to ${to}`
+  }
+
+  const { isNegative, abs } = parseAmount(xfer.amount)
+  const verb = isNegative ? 'sends' : 'receives'
+  const account = label(xfer.accountId)
+
+  if (xfer.assetType === 'HBAR') {
+    return `${account} ${verb} ${abs} HBAR`
+  }
+
+  if (xfer.assetType === 'FT') {
+    return `${account} ${verb} ${abs} ${xfer.asset}`
+  }
+
+	
+	// renderTooltip(text, 'example tooltip ' + xfer.narrative)
+	
+  return 'Unknown transfer type'
+}
+
+
+function parseAmount(value) {
+  const str = String(value).trim()
+
+  const isNegative = str.startsWith('-')
+  const abs = isNegative ? str.slice(1).trim() : str
+
+  return {
+    isNegative,
+    abs
+  }
+}
+
+
+
 function renderDealPanel(data) {
 	  document.querySelector('#deal-panel .ubid-title').innerHTML = data.title
 	  document.querySelector('#deal-panel .ubid-description').innerHTML = data.description
@@ -437,6 +483,7 @@ function renderDealPanel(data) {
 		console.log(data.transfers)
 		document.querySelector('#deal-panel .ubid-transfers').innerHTML 
 			= data.allTransfers.map(x => renderTransfer(x, entityLabels)).join('<BR>')
+			// = data.allTransfers.map(x => renderTransfer(x, entityLabels)).join('<BR>')
 
 		document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = (data.parameters || []).map(renderParameter).join('')
 		
