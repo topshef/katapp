@@ -67,7 +67,7 @@ async function fetchDeal(dealId) {
   const response = await fetch(`https://kpos.uk/deal/query/?dealId=${dealId}`)
   let data = await response.json()
 	console.log(data)
-	console.log(data.deal?.addNftTransfer?.[0].userInput)
+	console.log(data.deal?.addNftTransfer?.[0]?.userInput)
 
   if (Array.isArray(data))
     data = data[0]
@@ -138,20 +138,16 @@ function buildTransferNarratives(data) {
 		
     xfer.assetType = 'FT'
     xfer.asset = xfer.tokenId
-		if (xfer.userInput)
-			xfer.comment = 'UY84753 userInput untouched'
-		else
-			xfer.userInput = `${xfer.accountId} ${verb} ${abs} ${xfer.tokenId}`
+		xfer.narrative = xfer.userInput || `${xfer.accountId} ${verb} ${abs} ${xfer.tokenId}`
+		if (!xfer.userInput) xfer.comment = 'UY84753 narrative generated'
 		xfer.needsHydration = true
   }
 
   const buildNFT = xfer => {
     xfer.assetType = 'NFT'
     xfer.asset = xfer.tokenId
-		if (xfer.userInput)
-			xfer.comment = 'RW389853 userInput untouched'
-		else 
-			xfer.userInput = `${xfer.sender} sends NFT ${xfer.tokenId}#${xfer.serial} to ${xfer.receiver}`
+		xfer.narrative = xfer.userInput || `${xfer.sender} sends NFT ${xfer.tokenId}#${xfer.serial} to ${xfer.receiver}`
+		if (!xfer.userInput) xfer.comment = 'TG78464 narrative generated'
   }
 
   ;(data.addHbarTransfer || []).forEach(buildHbar)
@@ -335,7 +331,8 @@ async function transformDealData({deal}) {
 				})
 			})
 
-		ubid.accountAlias = Object.entries(deal.alias)
+		ubid.alias = deal.alias
+		ubid.aliasReversed = Object.entries(deal.alias)
 			.reduce((acc, [a, id]) => {
 				if (!(id in acc))
 					acc[id] = a
@@ -415,24 +412,27 @@ function renderProductPanel(data) {
 
 
 function renderTransfer(xfer, entityLabels) {
-  let text = xfer.userInput
+	console.log(xfer)  // todo build narrative from primitives
+  let text = xfer.narrative ?? xfer.userInput
   text = text.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
-
+	
   for (const [key, value] of Object.entries(entityLabels)) {
     const link = `<a href='https://kpay.uk/${value}' target='${value}'>${key}</a>`
     const regex = new RegExp(`\\b${key}\\b`, 'g')
     text = text.replace(regex, link)
   }
-  return text
+  
+	return  text
+	// return  renderTooltip(text, 'example tooltip ' + xfer.narrative)
 }
 
 function renderDealPanel(data) {
 	  document.querySelector('#deal-panel .ubid-title').innerHTML = data.title
 	  document.querySelector('#deal-panel .ubid-description').innerHTML = data.description
-	  document.querySelector('#combo-container .ubid-media img').src = data.image
+	  document.querySelector('#combo-container .ubid-media img').src = data.image || 'https://katomic.org/demo/defaultDealThumbnail.png'
 		
 		console.log(data)
-		const entityLabels = data.accountAlias || []
+		const entityLabels = data.aliasReversed || []
 		console.log({entityLabels})
 		console.log(data.transfers)
 		document.querySelector('#deal-panel .ubid-transfers').innerHTML 
@@ -492,7 +492,9 @@ async function renderRelatedDeals(productId) {
   }
 }
 
-
+function renderTooltip(text, tooltipText) { //requires hoot
+  return `<span class="utooltip" data-tooltip="${escapeHtml(tooltipText)}">${text}</span>`
+}
 
 function renderLocalLink({
   href,
@@ -543,6 +545,8 @@ function renderParameter(p) {
     </div>
   `
 }
+
+
 
 function resolveEntityType(productId, dealId) {
   if (dealId) return 'deal'

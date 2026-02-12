@@ -106,6 +106,25 @@ async function fetchCacheData(url, expirySeconds = 120) {
 // ┴ ┴└─┘┴─┘┴  └─┘┴└─└─┘
 // helpers
 
+
+function zzescapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function escapeHtml(s){return multiReplace(s,'&=&amp;|<=&lt;|>=&gt;|"=&quot;|\'=&#39;')}
+
+function multiReplace(str, mappingString){
+  const map = Object.fromEntries(mappingString.split('|').map(p=>p.split('=')))
+  const pattern = new RegExp(Object.keys(map).map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|'),'g')
+  return String(str).replace(pattern,m=>map[m])
+}
+
+
 function deepFreeze(obj) {
   Object.getOwnPropertyNames(obj).forEach(name => {
     const value = obj[name]
