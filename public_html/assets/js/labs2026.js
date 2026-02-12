@@ -15,6 +15,8 @@
 
 // 2026 mucho en flux. gonna iterate here as a baseline working framework
 
+'use strict'  // eg can detect mutation with deepFreeze
+
 let productId //= getParm('productId')
 let dealId //= getParm('dealId')
 
@@ -65,6 +67,7 @@ async function fetchDeal(dealId) {
   const response = await fetch(`https://kpos.uk/deal/query/?dealId=${dealId}`)
   let data = await response.json()
 	console.log(data)
+	console.log(data.deal?.addNftTransfer?.[0].userInput)
 
   if (Array.isArray(data))
     data = data[0]
@@ -80,14 +83,16 @@ async function fetchDeal(dealId) {
 
 
 function normalisePreKatomicDeal(deal) {
-  const { dealName, dealDescription, network } = deal.header
+	
+	// or do this if mutating the input
+	// deal.network ||= deal.header?.network
 
   const data = {
     ...deal,
-    network,
+    network: deal.network || deal.header?.network,
     display: {
-      title: dealName,
-      description: dealDescription
+      title: deal.display?.title || deal.header?.dealName,
+      description: deal.display?.description || deal.header?.dealDescription
     },
 		
 		// ensure modern-safe defaults
@@ -99,6 +104,7 @@ function normalisePreKatomicDeal(deal) {
 		
   }
 	
+	// deepFreeze(data)  // detect mutation when 'use strict'
 	// return buildTransferNarratives(data)  //same .. output mutates input
 	buildTransferNarratives(data)  // this is kinda enrichment.. consider putting in different Function
 																	// katomic outputs userInput whereas this reverses it.. so naming isn't accurate
@@ -107,8 +113,8 @@ function normalisePreKatomicDeal(deal) {
 
 }
 
-function buildTransferNarratives(deal) {
-	const network = deal.network
+function buildTransferNarratives(data) {
+	const network = data.network
 	
   const buildHbar = xfer => {
     const amount = Number(xfer.value)
@@ -132,21 +138,27 @@ function buildTransferNarratives(deal) {
 		
     xfer.assetType = 'FT'
     xfer.asset = xfer.tokenId
-    xfer.userInput = `${xfer.accountId} ${verb} ${abs} ${xfer.tokenId}`
+		if (xfer.userInput)
+			xfer.comment = 'UY84753 userInput untouched'
+		else
+			xfer.userInput = `${xfer.accountId} ${verb} ${abs} ${xfer.tokenId}`
 		xfer.needsHydration = true
   }
 
   const buildNFT = xfer => {
     xfer.assetType = 'NFT'
     xfer.asset = xfer.tokenId
-    xfer.userInput = `${xfer.sender} sends NFT ${xfer.tokenId}#${xfer.serial} to ${xfer.receiver}`
+		if (xfer.userInput)
+			xfer.comment = 'RW389853 userInput untouched'
+		else 
+			xfer.userInput = `${xfer.sender} sends NFT ${xfer.tokenId}#${xfer.serial} to ${xfer.receiver}`
   }
 
-  ;(deal.addHbarTransfer || []).forEach(buildHbar)
-  ;(deal.addTokenTransfer || []).forEach(buildFT)
-  ;(deal.addNftTransfer || []).forEach(buildNFT)
+  ;(data.addHbarTransfer || []).forEach(buildHbar)
+  ;(data.addTokenTransfer || []).forEach(buildFT)
+  ;(data.addNftTransfer || []).forEach(buildNFT)
 
-  return deal
+  return data
 }
 
 
@@ -281,6 +293,7 @@ async function transformDealData({deal}) {
     console.log({deal})
 
     let ubid = {}
+		// ubid.deal = deal // return the input ?
     ubid.transfers = []
     ubid.title = deal.display.title ?? 'untitled RH45323'
     ubid.description = deal.display.description ?? 'no desc WK83843'
@@ -322,13 +335,22 @@ async function transformDealData({deal}) {
 				})
 			})
 
+		ubid.accountAlias = Object.entries(deal.alias)
+			.reduce((acc, [a, id]) => {
+				if (!(id in acc))
+					acc[id] = a
+				return acc
+			}, {})
+
     const allTransfers = [...deal.addHbarTransfer, ...deal.addTokenTransfer, ...deal.addNftTransfer]
 		console.log(allTransfers)
-
-		ubid.transfers = allTransfers.map(xfer => ({
-			text: xfer.userInput,
-			aliases: deal.alias || {}
-		}))		
+		
+		ubid.allTransfers = allTransfers
+		
+		// ubid.transfers = allTransfers.map(xfer => ({
+			// ...xfer,
+			// alias: deal.alias || {}
+		// }))		
 
 		console.log("ubid=", ubid)
 		return ubid
@@ -390,12 +412,31 @@ function renderProductPanel(data) {
 	
 }
 
+
+
+function renderTransfer(xfer, entityLabels) {
+  let text = xfer.userInput
+  text = text.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
+
+  for (const [key, value] of Object.entries(entityLabels)) {
+    const link = `<a href='https://kpay.uk/${value}' target='${value}'>${key}</a>`
+    const regex = new RegExp(`\\b${key}\\b`, 'g')
+    text = text.replace(regex, link)
+  }
+  return text
+}
+
 function renderDealPanel(data) {
 	  document.querySelector('#deal-panel .ubid-title').innerHTML = data.title
 	  document.querySelector('#deal-panel .ubid-description').innerHTML = data.description
 	  document.querySelector('#combo-container .ubid-media img').src = data.image
 		
-		document.querySelector('#deal-panel .ubid-transfers').innerHTML = data.transfers.map(renderTransfer).join('<BR>')
+		console.log(data)
+		const entityLabels = data.accountAlias || []
+		console.log({entityLabels})
+		console.log(data.transfers)
+		document.querySelector('#deal-panel .ubid-transfers').innerHTML 
+			= data.allTransfers.map(x => renderTransfer(x, entityLabels)).join('<BR>')
 
 		document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = (data.parameters || []).map(renderParameter).join('')
 		
@@ -434,8 +475,7 @@ async function renderRelatedDeals(productId) {
     for (const dealInfo of deals) {
       // fetch full deal detail
       const deal = await fetchDeal(dealInfo.dealId)
-			console.log(deal)
-			
+			// console.log(deal)
 			
 			const dealIdShort = dealInfo.dealId.slice(0,6)
 			
@@ -443,20 +483,16 @@ async function renderRelatedDeals(productId) {
 			const label = `${dealIdShort}`
 			const tooltip = `${deal.display?.title} | ${deal.display?.description} | ${dealInfo.created?.slice(0,10)}`
 			elRelatedDeals.innerHTML += renderLocalLink({href, label, tooltip})
-
-			console.log({dealIdShort})
-      // process it minimally
-      const ubid = await transformDealData({ deal })
-			console.log(ubid)
-			//do nothing yet
-      // append to DOM progressively
-      // appendDealToPage(ubid)  //tbc
+      // const ubid = await transformDealData({ deal })  // not needed yet
+			// console.log(ubid)
     }
 
   } catch (err) {
     console.error('Related deal hydration failed', err)
   }
 }
+
+
 
 function renderLocalLink({
   href,
@@ -490,17 +526,6 @@ function renderLocalLink({
   `
 }
 
-function renderTransfer(x) {
-  let text = x.text
-  text = text.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
-
-  for (const [key, value] of Object.entries(x.aliases)) {
-    const link = `<a href='https://kpay.uk/${value}' target='${value}'>${key}</a>`
-    const regex = new RegExp(`\\b${key}\\b`, 'g')
-    text = text.replace(regex, link)
-  }
-  return text
-}
 
 function renderParameter(p) {
   return `
