@@ -15,6 +15,8 @@
 
 // 2026 mucho en flux. gonna iterate here as a baseline working framework
 
+let productId //= getParm('productId')
+let dealId //= getParm('dealId')
 
 
 // ┌┬┐┌─┐┌┬┐┌─┐  ┌┬┐┌─┐┌┬┐┌─┐┬  
@@ -440,7 +442,7 @@ async function renderRelatedDeals(productId) {
 			const href = `?dealonly&v=labs&dealId=${dealInfo.dealId}`
 			const label = `${dealIdShort}`
 			const tooltip = `${deal.display?.title} | ${deal.display?.description} | ${dealInfo.created?.slice(0,10)}`
-			elRelatedDeals.innerHTML += renderLocalLink(href, label, tooltip)
+			elRelatedDeals.innerHTML += renderLocalLink({href, label, tooltip})
 
 			console.log({dealIdShort})
       // process it minimally
@@ -456,20 +458,36 @@ async function renderRelatedDeals(productId) {
   }
 }
 
-function renderLocalLink(href, label, tooltip = '', title = '') {
-    const safeTitle = title || tooltip
+function renderLocalLink({
+  href,
+  label,
+  tooltip = '',
+  title = '',
+  onNavigate = 'navigateLocal'
+}) {
+	// v0.1
+	// Renders a local navigation link with optional custom click handler
+	// Defaults to navigateLocal for SPA routing, falls back to hard reload if needed
+	// Designed to tolerate base href environments and embedded browser contexts
+	// Allows flexible click behaviour while preserving normal anchor semantics
+	// Supports tooltip/title metadata for UI enrichment
+  const safeTitle = title || tooltip
 
-    return `
-      <a
-        href="${href}"
-        onclick="window.location.search='${href}'; return false;"
-        class="utooltip"
-        data-tooltip="${tooltip}"
-        title="${safeTitle}"
-      >
-        ${label}
-      </a>
-    `
+  const action = onNavigate
+    ? `${onNavigate}('${href}'); return false;`  // if a function name is provided run this function
+    : `window.location.search='${href}'; return false;`  // else directly navigate to the link
+
+  return `
+    <a
+      href="${href}"
+      onclick="${action}"
+      class="utooltip"
+      data-tooltip="${tooltip}"
+      title="${safeTitle}"
+    >
+      ${label}
+    </a>
+  `
 }
 
 function renderTransfer(x) {
@@ -525,34 +543,72 @@ function updateButtonNowLater() {
 // │  │ ││││ │ ├┬┘│ ││  │  ├┤ ├┬┘
 // └─┘└─┘┘└┘ ┴ ┴└─└─┘┴─┘┴─┘└─┘┴└─
 // controller
-async function ubid_init() {  // later export as ubid object
-  try {
 
-		const entityType = resolveEntityType(productId, dealId)
-		console.log({entityType})
-		
-		let raw = {}
 
-		if (entityType === 'deal') {
-			raw.deal = await fetchDeal(dealId)
-			const processed = await transformDealData(raw)
-			renderDealPanel(processed)
+function parseSearchParams(search) {
+  const params = new URLSearchParams(search)
+  productId = params.get('productId')
+  dealId = params.get('dealId')
+}
 
-		}
+async function navigateLocal(search) {
+	// v0.1
+	// Performs SPA-style navigation by updating only the query string (no reload)
+	// Mirrors window.location.search behaviour while preserving path + hash
+	// Normalises pathname to avoid double-slash issues and base href conflicts
+	// Safe for embedded/restricted browsers (e.g. Hashpack) using pushState
+	// Re-parses params and re-renders combo container deterministically
+   const s = search.startsWith('?') ? search : `?${search}`
 
-		if (entityType === 'product') {
-			raw.product = await fetchProduct(productId)
-			const processed = await transformProductData(raw)
-			
-			console.log(processed)
-			renderProductPanel(processed)
-			
-			renderRelatedDeals(productId)
-		}
-		
+	 const path = window.location.pathname.replace(/^\/+/, '/')
 
-  } catch (err) {
-    console.error(err)
+   history.pushState(
+     {},
+     '',
+// -    window.location.pathname + s + window.location.hash
+     path + s + window.location.hash
+   )
+
+   parseSearchParams(s)
+
+   await renderPage()
+ }
+
+window.addEventListener('popstate', () => {
+  parseSearchParams(window.location.search)
+  renderPage()
+})
+
+async function renderPage() {
+  parseSearchParams(window.location.search)
+
+  // reset entire UI state
+  document.querySelector('#combo-container .ubid-media img').src = ""
+  document.querySelectorAll('.skeleton').forEach(el => el.classList.add('skeleton'))
+
+  document.querySelector('#product-panel').style.display = 'none'
+  document.querySelector('#deal-panel').style.display = 'none'
+
+  document.querySelector('#product-panel .ubid-related').innerHTML = 'Related deals '
+  document.querySelector('#deal-panel .ubid-transfers').innerHTML = ''
+  document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = ''
+
+  const entityType = resolveEntityType(productId, dealId)
+
+  let raw = {}
+
+  if (entityType === 'deal') {
+    raw.deal = await fetchDeal(dealId)
+    const processed = await transformDealData(raw)
+    renderDealPanel(processed)
+  }
+
+  if (entityType === 'product') {
+    raw.product = await fetchProduct(productId)
+    const processed = await transformProductData(raw)
+    renderProductPanel(processed)
+    renderRelatedDeals(productId)
   }
 }
+
 
