@@ -17,10 +17,15 @@
 
 
 
-// ┌─┐┌─┐┌┬┐┌─┐┬ ┬╔═╗┬─┐┌─┐┌┬┐┬ ┬┌─┐┌┬┐
-// ├┤ ├┤  │ │  ├─┤╠═╝├┬┘│ │ │││ ││   │ 
-// └  └─┘ ┴ └─┘┴ ┴╩  ┴└─└─┘─┴┘└─┘└─┘ ┴ 
-// fetchProduct
+// ┌┬┐┌─┐┌┬┐┌─┐  ┌┬┐┌─┐┌┬┐┌─┐┬  
+//  ││├─┤ │ ├─┤  ││││ │ ││├┤ │  
+// ─┴┘┴ ┴ ┴ ┴ ┴  ┴ ┴└─┘─┴┘└─┘┴─┘
+// data model
+
+	// ┌─┐┌─┐┌┬┐┌─┐┬ ┬╔═╗┬─┐┌─┐┌┬┐┬ ┬┌─┐┌┬┐
+	// ├┤ ├┤  │ │  ├─┤╠═╝├┬┘│ │ │││ ││   │ 
+	// └  └─┘ ┴ └─┘┴ ┴╩  ┴└─└─┘─┴┘└─┘└─┘ ┴ 
+	// fetchProduct
 
 function fetchProduct(productId) {
   if (!productId) {
@@ -46,12 +51,12 @@ function fetchProduct(productId) {
     })
 }
 
-// ┌─┐┌─┐┌┬┐┌─┐┬ ┬╔╦╗┌─┐┌─┐┬  
-// ├┤ ├┤  │ │  ├─┤ ║║├┤ ├─┤│  
-// └  └─┘ ┴ └─┘┴ ┴═╩╝└─┘┴ ┴┴─┘
-// fetchDeal
-// could ditch this and use kpos fetchDeals instead - though kpos is not live (db based on cron) 
-// Function to fetch data for dealId or return null if dealId is not present
+	// ┌─┐┌─┐┌┬┐┌─┐┬ ┬╔╦╗┌─┐┌─┐┬  
+	// ├┤ ├┤  │ │  ├─┤ ║║├┤ ├─┤│  
+	// └  └─┘ ┴ └─┘┴ ┴═╩╝└─┘┴ ┴┴─┘
+	// fetchDeal
+	// could ditch this and use kpos fetchDeals instead - though kpos is not live (db based on cron) 
+	// Function to fetch data for dealId or return null if dealId is not present
 async function fetchDeal(dealId) {
   if (!dealId) return null
 
@@ -145,10 +150,10 @@ function buildTransferNarratives(deal) {
 
 
 
-// ┌─┐┌─┐┌┬┐┌─┐┬ ┬  ┌┬┐┌─┐┌─┐┬  ┌─┐
-// ├┤ ├┤  │ │  ├─┤   ││├┤ ├─┤│  └─┐
-// └  └─┘ ┴ └─┘┴ ┴  ─┴┘└─┘┴ ┴┴─┘└─┘
-// fetch deals
+	// ┌─┐┌─┐┌┬┐┌─┐┬ ┬  ┌┬┐┌─┐┌─┐┬  ┌─┐
+	// ├┤ ├┤  │ │  ├─┤   ││├┤ ├─┤│  └─┐
+	// └  └─┘ ┴ └─┘┴ ┴  ─┴┘└─┘┴ ┴┴─┘└─┘
+	// fetch deals
    /*
     eg
     https://kpos.uk/deal/query/?productId=mainnet;0.0.3729729
@@ -191,11 +196,11 @@ function buildTransferNarratives(deal) {
     */
     
     
-// ┌─┐┌─┐┌┬┐┌─┐┬ ┬╔╦╗┌─┐┌─┐┬  ┌─┐
-// ├┤ ├┤  │ │  ├─┤ ║║├┤ ├─┤│  └─┐
-// └  └─┘ ┴ └─┘┴ ┴═╩╝└─┘┴ ┴┴─┘└─┘
-// fetchDeals    
-//on hold    
+	// ┌─┐┌─┐┌┬┐┌─┐┬ ┬╔╦╗┌─┐┌─┐┬  ┌─┐
+	// ├┤ ├┤  │ │  ├─┤ ║║├┤ ├─┤│  └─┐
+	// └  └─┘ ┴ └─┘┴ ┴═╩╝└─┘┴ ┴┴─┘└─┘
+	// fetchDeals    
+	//on hold    	
 function zz_hold_fetchDeals(params) {
     //feb 2026 todo check if this is needed and vs endpoints above
 		
@@ -207,10 +212,10 @@ function zz_hold_fetchDeals(params) {
     return fetch().then(response => response.json())
 }
 
-// ┌─┐┌─┐┌┬┐┌─┐┬ ┬╔╦╗┌─┐┌─┐┬  ┌─┐╔═╗┬─┐┌─┐┌┬┐╔═╗┬─┐┌─┐┌┬┐┬ ┬┌─┐┌┬┐
-// ├┤ ├┤  │ │  ├─┤ ║║├┤ ├─┤│  └─┐╠╣ ├┬┘│ ││││╠═╝├┬┘│ │ │││ ││   │ 
-// └  └─┘ ┴ └─┘┴ ┴═╩╝└─┘┴ ┴┴─┘└─┘╚  ┴└─└─┘┴ ┴╩  ┴└─└─┘─┴┘└─┘└─┘ ┴ 
-// fetchDealsFromProduct
+	// ┌─┐┌─┐┌┬┐┌─┐┬ ┬╔╦╗┌─┐┌─┐┬  ┌─┐╔═╗┬─┐┌─┐┌┬┐╔═╗┬─┐┌─┐┌┬┐┬ ┬┌─┐┌┬┐
+	// ├┤ ├┤  │ │  ├─┤ ║║├┤ ├─┤│  └─┐╠╣ ├┬┘│ ││││╠═╝├┬┘│ │ │││ ││   │ 
+	// └  └─┘ ┴ └─┘┴ ┴═╩╝└─┘┴ ┴┴─┘└─┘╚  ┴└─└─┘┴ ┴╩  ┴└─└─┘─┴┘└─┘└─┘ ┴ 
+	// fetchDealsFromProduct
 
 async function fetchDealsFromProduct(productId) {
   const parts = splitProductId(productId)
@@ -229,10 +234,10 @@ async function fetchDealsFromProduct(productId) {
 }
 
 
-// ┌─┐┌─┐┬  ┬┌┬┐╔═╗┬─┐┌─┐┌┬┐┬ ┬┌─┐┌┬┐╦┌┬┐
-// └─┐├─┘│  │ │ ╠═╝├┬┘│ │ │││ ││   │ ║ ││
-// └─┘┴  ┴─┘┴ ┴ ╩  ┴└─└─┘─┴┘└─┘└─┘ ┴ ╩─┴┘
-// splitProductId
+	// ┌─┐┌─┐┬  ┬┌┬┐╔═╗┬─┐┌─┐┌┬┐┬ ┬┌─┐┌┬┐╦┌┬┐
+	// └─┐├─┘│  │ │ ╠═╝├┬┘│ │ │││ ││   │ ║ ││
+	// └─┘┴  ┴─┘┴ ┴ ╩  ┴└─└─┘─┴┘└─┘└─┘ ┴ ╩─┴┘
+	// splitProductId
 function splitProductId(productId) {
   const parts = productId.split(';')
 	const tokenPart = parts[1] || ''
@@ -265,10 +270,10 @@ function zzsimpler_splitProductId(productId) {
   }
 }
 
-// ┌┬┐┬─┐┌─┐┌┐┌┌─┐┌─┐┌─┐┬─┐┌┬┐  ┌┬┐┌─┐┌┬┐┌─┐
-//  │ ├┬┘├─┤│││└─┐├┤ │ │├┬┘│││   ││├─┤ │ ├─┤
-//  ┴ ┴└─┴ ┴┘└┘└─┘└  └─┘┴└─┴ ┴  ─┴┘┴ ┴ ┴ ┴ ┴
-// transform data
+	// ┌┬┐┬─┐┌─┐┌┐┌┌─┐┌─┐┌─┐┬─┐┌┬┐  ┌┬┐┌─┐┌┬┐┌─┐
+	//  │ ├┬┘├─┤│││└─┐├┤ │ │├┬┘│││   ││├─┤ │ ├─┤
+	//  ┴ ┴└─┴ ┴┘└┘└─┘└  └─┘┴└─┴ ┴  ─┴┘┴ ┴ ┴ ┴ ┴
+	// transform data
 
 async function transformDealData({deal}) {  
     console.log({deal})
@@ -358,18 +363,10 @@ async function transformProductData({product}) {
 
 
 
-function updateButtonNowLater() {
-  const btn = document.getElementById('create-tx')
-  const input = document.getElementById('starttime')
-  if (!btn || !input) return
-
-  const v = (input.value || '').trim().toLowerCase()
-  const isNow = v === '' || v === 'now' || v === '0'
-
-  btn.innerText = btn.innerText
-    .replace(/\blater\b/i, 'now')
-    .replace(/\bnow\b/i, isNow ? 'now' : 'later')
-}
+// ┬─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐  ┬  ┬┬┌─┐┬ ┬
+// ├┬┘├┤ │││ ││├┤ ├┬┘  └┐┌┘│├┤ │││
+// ┴└─└─┘┘└┘─┴┘└─┘┴└─   └┘ ┴└─┘└┴┘
+// render view
 
 
 
@@ -390,42 +387,6 @@ function renderProductPanel(data) {
 		document.querySelector('#product-panel').style.display = 'block'
 	
 }
-
-
-function renderTransfer(x)
-{
-  let text = x.text
-
-  text = text.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
-
-  for (const [key, value] of Object.entries(x.aliases))
-  {
-    const link = `<a href='https://kpay.uk/${value}' target='${value}'>${key}</a>`
-    const regex = new RegExp(`\\b${key}\\b`, 'g')
-    text = text.replace(regex, link)
-  }
-
-  return text
-}
-
-function renderParameter(p)
-{
-  return `
-    <div>
-      <label for='${p.name}'>${p.label}</label>
-    </div>
-    <div>
-      <input
-        class='user_input'
-        type='text'
-        id='${p.name}'
-        placeholder='${p.placeholder}'
-        value='${p.defaultValue}'
-      >
-    </div>
-  `
-}
-
 
 function renderDealPanel(data) {
 	  document.querySelector('#deal-panel .ubid-title').innerHTML = data.title
@@ -495,8 +456,7 @@ async function renderRelatedDeals(productId) {
   }
 }
 
-function renderLocalLink(href, label, tooltip = '', title = '')
-  {
+function renderLocalLink(href, label, tooltip = '', title = '') {
     const safeTitle = title || tooltip
 
     return `
@@ -510,8 +470,36 @@ function renderLocalLink(href, label, tooltip = '', title = '')
         ${label}
       </a>
     `
-  }
+}
 
+function renderTransfer(x) {
+  let text = x.text
+  text = text.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
+
+  for (const [key, value] of Object.entries(x.aliases)) {
+    const link = `<a href='https://kpay.uk/${value}' target='${value}'>${key}</a>`
+    const regex = new RegExp(`\\b${key}\\b`, 'g')
+    text = text.replace(regex, link)
+  }
+  return text
+}
+
+function renderParameter(p) {
+  return `
+    <div>
+      <label for='${p.name}'>${p.label}</label>
+    </div>
+    <div>
+      <input
+        class='user_input'
+        type='text'
+        id='${p.name}'
+        placeholder='${p.placeholder}'
+        value='${p.defaultValue}'
+      >
+    </div>
+  `
+}
 
 function resolveEntityType(productId, dealId) {
   if (dealId) return 'deal'
@@ -519,6 +507,24 @@ function resolveEntityType(productId, dealId) {
   return null
 }
 
+function updateButtonNowLater() {
+  const btn = document.getElementById('create-tx')
+  const input = document.getElementById('starttime')
+  if (!btn || !input) return
+
+  const v = (input.value || '').trim().toLowerCase()
+  const isNow = v === '' || v === 'now' || v === '0'
+
+  btn.innerText = btn.innerText
+    .replace(/\blater\b/i, 'now')
+    .replace(/\bnow\b/i, isNow ? 'now' : 'later')
+}
+
+
+// ┌─┐┌─┐┌┐┌┌┬┐┬─┐┌─┐┬  ┬  ┌─┐┬─┐
+// │  │ ││││ │ ├┬┘│ ││  │  ├┤ ├┬┘
+// └─┘└─┘┘└┘ ┴ ┴└─└─┘┴─┘┴─┘└─┘┴└─
+// controller
 async function ubid_init() {  // later export as ubid object
   try {
 
@@ -550,39 +556,3 @@ async function ubid_init() {  // later export as ubid object
   }
 }
 
-
-
-/* wank not doing anything...
-async function processDealEntity(deal) {
-  if (!deal) return null
-
-  const title = deal.display?.title ?? 'Untitled deal'
-  const description = deal.display?.description ?? ''
-  const image = deal.display?.thumbnail ?? ''
-
-  const transfers = [
-    ...(deal.addHbarTransfer || []),
-    ...(deal.addTokenTransfer || []),
-    ...(deal.addNftTransfer || [])
-  ].map(x => x.userInput)
-
-  return {
-    type: 'deal',
-    title,
-    description,
-    image,
-    transfers
-  }
-}
-
-async function processProductEntity(product) {
-  if (!product) return null
-
-  return {
-    type: 'product',
-    title: product.token_instance_name ?? 'Untitled product',
-    description: product.token_instance_description ?? '',
-    image: product.token_asset_image_URL ?? ''
-  }
-}
-*/
