@@ -38,15 +38,15 @@ function fetchProduct(productId) {
   }
 
   const url = `https://tools.gomint.me/explore/NFT/?json&productId=${productId}`
-  console.log('fetchProduct URL:', url)
+  // console.log('fetchProduct URL:', url)
 
   return fetch(url)
     .then(response => {
-      console.log('fetchProduct response:', response.status, response.ok)
+      // console.log('fetchProduct response:', response.status, response.ok)
       return response.json()
     })
     .then(data => {
-      console.log('fetchProduct data:', data)
+      // console.log('fetchProduct data:', data)
       return data
     })
     .catch(err => {
@@ -66,17 +66,17 @@ async function fetchDeal(dealId) {
 
   const response = await fetch(`https://kpos.uk/deal/query/?dealId=${dealId}`)
   let data = await response.json()
-	console.log(data)
-	console.log(data.deal?.addNftTransfer?.[0]?.userInput)
+	// console.log(data)
+	// console.log(data.deal?.addNftTransfer?.[0]?.userInput)
 
   if (Array.isArray(data)) // todo check upstream shape
     data = data[0]
 
   const deal = data.deal || data 
 
-	console.log('normalisePreKatomicDeal before', deal)
+	// console.log('normalisePreKatomicDeal before', deal)
 	normalisePreKatomicDeal(deal) // this mutates deal
-	console.log('normalisePreKatomicDeal after', deal)
+	// console.log('normalisePreKatomicDeal after', deal)
 
 	return deal
 }
@@ -84,32 +84,18 @@ async function fetchDeal(dealId) {
 
 function normalisePreKatomicDeal(deal) {
 	
-	// or do this if mutating the input
-	// deal.network ||= deal.header?.network
-	const network = deal.network || deal.header?.network
-	
-  const data = {
-    ...deal,
-    network: deal.network || deal.header?.network,
-    display: {
-      title: deal.display?.title || deal.header?.dealName,
-      description: deal.display?.description || deal.header?.dealDescription
-    },
-		
-		// ensure modern-safe defaults
-    alias: deal.alias || {},
-    parameters: deal.parameters || {},
-    addHbarTransfer: deal.addHbarTransfer || [],
-    addTokenTransfer: deal.addTokenTransfer || [],
-    addNftTransfer: deal.addNftTransfer || []
-		
-  }
+	deal.network ||= deal.header?.network
+	deal.alias ||= {}
+	deal.parameters ||= {}
+	deal.addHbarTransfer  ||= []
+	deal.addTokenTransfer ||= []
+	deal.addNftTransfer   ||= []
+	deal.display ||= {}
+	deal.display.title       ||= deal.header?.dealName
+  deal.display.description ||= deal.header?.dealDescription
 
-	// deepFreeze(data)  // detect mutation when 'use strict'
-	// return buildTransferNarratives(data)  //same .. output mutates input
-	// buildTransferNarratives(data)  // builds narrative, but cheats and uses userInput where available
-	
-	return data
+	// deepFreeze(deal)  // detect mutation when 'use strict'
+	return deal
 
 }
 
@@ -184,8 +170,27 @@ function zz_hold_fetchDeals(params) {
 async function fetchDealsFromProduct(productId) {
   const parts = splitProductId(productId)
   const query = new URLSearchParams(parts).toString()
-  const url = `https://kpos.uk/deal/query/?legacy=1&format=json&${query}`
+  const url = `https://kpos.uk/deal/query/NFT/?limit=100&order=desc&sort=id&${query}`
+	//this is then specific to the serial range provided
+	// untested for single serial deal
+	
+  console.log('fetchDealsFromProduct url =', url)
 
+  const response = await fetch(url)
+  console.log('fetchDealsFromProduct status =', response.status)
+
+  const data = await response.json()
+  console.log('fetchDealsFromProduct data =', data)
+
+  return data
+}
+
+async function fetchDealsFromProductV1(productId) {
+  const parts = splitProductId(productId)
+  const query = new URLSearchParams(parts).toString()
+  const url = `https://kpos.uk/deal/query/?legacy=1&format=json&${query}`
+	//https://kpos.uk/deal/query/NFT/?limit=100&order=asc&sort=id&tokenId=0.0.1276737&serialFrom=350&serialTo=400
+	
   console.log('fetchDealsFromProduct url =', url)
 
   const response = await fetch(url)
@@ -203,35 +208,22 @@ async function fetchDealsFromProduct(productId) {
 	// └─┘┴  ┴─┘┴ ┴ ╩  ┴└─└─┘─┴┘└─┘└─┘ ┴ ╩─┴┘
 	// splitProductId
 function splitProductId(productId) {
-  const parts = productId.split(';')
-	const tokenPart = parts[1] || ''
-	let [tokenId, serialFromTo] = tokenPart.split('-')
-	serialFromTo = (serialFromTo || '').replace(':', 'to')
-  //kfund/kpos has serial range stored to separator "to"
-  serialFromTo = serialFromTo.replace(':', 'to')
+  let [network, tokenSerial, holder] = productId.split(';')
+	
+	tokenSerial = tokenSerial.replace(':', 'to') // normalise to db version, more caveman
+	
+	let [tokenId, serialRange] = tokenSerial.split('-')
+	serialRange ||= ''
+	
+	let [serialFrom, serialTo] = serialRange.split('to')
+	serialTo ||= serialFrom
 
-  return {
-    network: parts[0],
-    tokenId: tokenId,
-    serial: serialFromTo,
-    sender: parts[2] || ''
-  }
-}
-
-function zzsimpler_splitProductId(productId) {
-  const parts = productId.split(';')
-  let [tokenId, serialFromTo] = parts[1].split('-')
-  // const [serialFrom, serialTo] = serialFromTo.split(':')
-  
-  //kfund/kpos has serial range stored to separator "to"
-  serialFromTo = serialFromTo.replace(':', 'to')
-
-  return {
-    network: parts[0],
-    tokenId: tokenId,
-    serial: serialFromTo,
-    sender: parts[2]
-  }
+	const out = { network, tokenId, serialRange, serialFrom, serialTo, holder }
+	// if (serialRange) // offer back collection id for expanded searches
+	out.collectionProductId = `${network};${tokenId}`  // offer back collection id for expanded searches
+	
+	console.log({productId, out})
+  return out
 }
 
 	// ┌┬┐┬─┐┌─┐┌┐┌┌─┐┌─┐┌─┐┬─┐┌┬┐  ┌┬┐┌─┐┌┬┐┌─┐
@@ -299,42 +291,60 @@ async function transformDealData({deal}) {
 }
 
 
+function parseAmount(value) {
+  const str = String(value).trim()
 
-function mergeAllTransfers(deal) {
-  
+  const isNegative = str.startsWith('-')
+  const absAmount = isNegative ? str.slice(1).trim() : str
 
+  return {
+    sign: isNegative ? '-' : '+',
+		verb: isNegative ? 'receives' : 'sends',
+    absAmount
+  }
+}
+
+function mergeAllTransfers(deal) {  // too long atm.. todo remove narrative and handle in render
+ 
+	
   const normaliseHbar = xfer => {
-    const amount = xfer.value
-    const abs = Math.abs(amount)
-    const verb = amount < 0 ? 'sends' : 'receives'
-
+    const {sign, verb, absAmount} = parseAmount(xfer.value) 
+		console.log({xfer,sign, verb,absAmount})
+    // const verb = amount < 0 ? 'sends' : 'receives'
+		const asset = 'HBAR'
+		
     return {
       // ...xfer,
-      assetType: 'HBAR',
-      asset: 'HBAR',
-      amount,
-      narrative: xfer.userInput || `${xfer.accountId} ${verb} ${abs} HBAR`
+			asset,
+			sign, verb, absAmount, 
+      assetType: 'FT',
+			accountId: xfer.accountId,
+			amount: xfer.value,
+      // narrative: xfer.userInput || `${xfer.accountId} ${verb} ${absAmount} HBAR`
+      narrative: `${xfer.accountId} ${verb} ${absAmount} ${asset}`
     }
   }
 
   const normaliseFT = xfer => {
-    const amount = xfer.value
-    const abs = Math.abs(amount)
-    const verb = amount < 0 ? 'sends' : 'receives'
-
+		const {sign, verb, absAmount} = parseAmount(xfer.value) 
+		const asset = xfer.tokenId
+		
     return {
       // ...xfer,
+			asset, needsHydration: true,
+			sign, verb, absAmount,
       assetType: 'FT',
-      asset: xfer.tokenId,
-      amount,
-      narrative: xfer.userInput || `${xfer.accountId} ${verb} ${abs} ${xfer.tokenId}`,
-      needsHydration: true
+			accountId: xfer.accountId,
+      amount: xfer.value,
+      // narrative: xfer.userInput || `${xfer.accountId} ${verb} ${abs} ${xfer.tokenId}`,
+			narrative: `${xfer.accountId} ${verb} ${absAmount} ${asset}`,
+      
     }
   }
 
   const normaliseNFT = xfer => {
     return {
-      // ...xfer,
+      ...xfer,
       assetType: 'NFT',
       asset: xfer.tokenId,
       narrative:
@@ -349,6 +359,7 @@ function mergeAllTransfers(deal) {
     ...(deal.addNftTransfer || []).map(normaliseNFT)
   ]
 
+	console.log(allTransfers)
   return allTransfers
 }
 
@@ -416,60 +427,31 @@ function renderProductPanel(data) {
 
 function renderTransfer(xfer, entityLabels) {
 	console.log(xfer)  // todo build narrative from primitives
-  let text = xfer.narrative ?? xfer.userInput
-  text = text.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
 	
-  for (const [key, value] of Object.entries(entityLabels)) {
-    const link = `<a href='https://kpay.uk/${value}' target='${value}'>${key}</a>`
-    const regex = new RegExp(`\\b${key}\\b`, 'g')
-    text = text.replace(regex, link)
-  }
+	let debug = xfer.userInput || xfer.narrative || ''
+	
+	let narrative = (xfer.assetType == 'NFT')
+		? `${xfer.sender} sends ${xfer.asset}#${xfer.serial} to ${xfer.receiver}` // test9ng ony
+		: `${xfer.accountId} ${xfer.verb} ${xfer.absAmount} ${xfer.asset} ${xfer.assetType}` // test9ng ony
+
   
-	return  text
-	// return  renderTooltip(text, 'example tooltip ' + xfer.narrative)
+  narrative = narrative.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
+
+	// todo later depending on wallet connect state
+	// narrative = narrative
+		// .replace(/\bbuyer receives\b/g, 'You receive')
+		// .replace(/\bbuyer sends\b/g, 'You send')
+
+
+  // for (const [key, value] of Object.entries(entityLabels)) {
+    // const link = `<a href='https://kpay.uk/${value}' target='${value}'>${key}</a>`
+    // const regex = new RegExp(`\\b${key}\\b`, 'g')
+    // text = text.replace(regex, link)
+  // }
+		
+	// return  text
+	return  renderTooltip(narrative, `debug YU87457: ${debug}`)
 }
-
-function zzrenderTransfer(xfer, entityLabels = {}) {
-  const label = id => entityLabels[id] || id
-
-  if (xfer.assetType === 'NFT') {
-    const from = label(xfer.sender)
-    const to = label(xfer.receiver)
-
-    return `${from} sends NFT ${xfer.asset}#${xfer.serial} to ${to}`
-  }
-
-  const { isNegative, abs } = parseAmount(xfer.amount)
-  const verb = isNegative ? 'sends' : 'receives'
-  const account = label(xfer.accountId)
-
-  if (xfer.assetType === 'HBAR') {
-    return `${account} ${verb} ${abs} HBAR`
-  }
-
-  if (xfer.assetType === 'FT') {
-    return `${account} ${verb} ${abs} ${xfer.asset}`
-  }
-
-	
-	// renderTooltip(text, 'example tooltip ' + xfer.narrative)
-	
-  return 'Unknown transfer type'
-}
-
-
-function parseAmount(value) {
-  const str = String(value).trim()
-
-  const isNegative = str.startsWith('-')
-  const abs = isNegative ? str.slice(1).trim() : str
-
-  return {
-    isNegative,
-    abs
-  }
-}
-
 
 
 function renderDealPanel(data) {
@@ -511,14 +493,16 @@ function renderDealPanel(data) {
 		
 }
 
-async function renderRelatedDeals(productId) {
+async function renderRelatedDeals(productId, selector = '#product-panel .ubid-related-by-serial') {
   try {
+    // const dealsV1 = await fetchDealsFromProductV1(productId) // og query maybe useful for testing
     const deals = await fetchDealsFromProduct(productId)
 		console.log(deals)
 		
-		const elRelatedDeals = document.querySelector('#product-panel .ubid-related')
+		const elRelatedDeals = document.querySelector(selector)
 		// elRelatedDeals.innerHTML = ''
 		
+		// todo think about list length eg offer detail summary expand especially if list is long
     for (const dealInfo of deals) {
       // fetch full deal detail
       const deal = await fetchDeal(dealInfo.dealId)
@@ -528,7 +512,8 @@ async function renderRelatedDeals(productId) {
 			
 			const href = `?dealonly&v=labs&dealId=${dealInfo.dealId}`
 			const label = `${dealIdShort}`
-			const tooltip = `${deal.display?.title} | ${deal.display?.description} | ${dealInfo.created?.slice(0,10)}`
+			const created = dealInfo.created?.slice(0,10) || ''
+			const tooltip = `${deal.display?.title} | ${deal.display?.description} | ${created}`
 			elRelatedDeals.innerHTML += renderLocalLink({href, label, tooltip})
       // const ubid = await transformDealData({ deal })  // not needed yet
 			// console.log(ubid)
@@ -665,7 +650,8 @@ async function renderPage() {
   document.querySelector('#product-panel').style.display = 'none'
   document.querySelector('#deal-panel').style.display = 'none'
 
-  document.querySelector('#product-panel .ubid-related').innerHTML = 'Related deals '
+  document.querySelector('#product-panel .ubid-related-by-serial').innerHTML = 'Related by serial '
+  document.querySelector('#product-panel .ubid-related-by-collection').innerHTML = 'Related by collection '
   document.querySelector('#deal-panel .ubid-transfers').innerHTML = ''
   document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = ''
 
@@ -683,7 +669,13 @@ async function renderPage() {
     raw.product = await fetchProduct(productId)
     const processed = await transformProductData(raw)
     renderProductPanel(processed)
-    renderRelatedDeals(productId)
+		
+		const {collectionProductId, serialRange} = splitProductId(productId)
+		if (serialRange) renderRelatedDeals(productId,'#product-panel .ubid-related-by-serial')
+		if (collectionProductId) renderRelatedDeals(collectionProductId,'#product-panel .ubid-related-by-collection')
+			
+
+		
   }
 }
 
