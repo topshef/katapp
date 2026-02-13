@@ -4,6 +4,7 @@
 // └─┘┴ ┴└─┘┴ ┴└─┘  └  └─┘┘└┘└─┘ ┴ ┴└─┘┘└┘└─┘
 // cache functions
 
+//v0.11 don't cache invalid data
 //v0.1 base version from 2025-ish at phpjabbers m/bid
 
 // Initialize https://github.com/samuk190/localbase
@@ -48,13 +49,60 @@ async function getData(url, params, expirySeconds = 0) {
   // Make the API call if cache not available or expired
   
   const response = await fetch(`${url}?${new URLSearchParams(params)}`)
-  const data = await response.json()
-  console.log(`⚡ live call to ${url}?${new URLSearchParams(params)}`, data)
-  
-  //todo add optional condition to save - ie response code and or regex on data
-  //to avoid caching invalid data
-  if (data) await saveToCache(url, params, data)
+		
+	let data
+	try {
+		data = await response.json()
+	} catch (e) {
+		data = null
+	}	
+	
+	const type = classifyResponse(response, data)
+
+	console.log(`⚡ live call to ${url}?${new URLSearchParams(params)}`, { type, data })
+
+	let finalExpiry = 0
+	
+	if (typeof expirySeconds === 'number') 
+		finalExpiry = (type === 'ok') ? expirySeconds : 0
+	
+	else if (typeof expirySeconds === 'object' && expirySeconds !== null && !Array.isArray(expirySeconds)) 
+		finalExpiry = expirySeconds[type] ?? 0
+	
+	else if (typeof expirySeconds === 'function')
+		finalExpiry = expirySeconds({ response, data, type }) ?? 0
+	
+	else if (expirySeconds === 'infinite')
+		finalExpiry = (type === 'ok') ? Infinity : 0
+	
+	if (finalExpiry > 0 && data)
+		await saveToCache(url, params, data)
+	
   return data
+}
+
+
+
+function isHttpError(response) {
+  return !response.ok
+}
+
+function isJsonError(data) {
+  return typeof data === 'object' &&
+         data !== null &&
+         data.error
+}
+
+
+function isStringError(data) {
+  return typeof data === 'string' && data.toLowerCase().includes('error')
+}
+
+function classifyResponse(response, data) {
+  if (isHttpError(response)) return 'httpError'
+  if (isJsonError(data)) return 'jsonError'
+  if (isStringError(data)) return 'stringError'
+  return 'ok'
 }
 
 
