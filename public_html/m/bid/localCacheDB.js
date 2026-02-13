@@ -10,7 +10,8 @@
 
 // Initialize https://github.com/samuk190/localbase
 let db = new Localbase('apiCache')
-let refreshQueue = new Set()
+let refreshQueue = new Map()
+
 let isRefreshing = false
 
 
@@ -66,10 +67,16 @@ async function getData(url, params, expirySeconds = 0, staleSeconds = 3600) {
 
 			// Stale window
 			if (staleSeconds && ageSeconds <= staleSeconds) {
-				console.log('🟡 stale cache — serving + refreshing')
+				console.log('🟡 stale cache — serving + refreshing', {url, params, expirySeconds, staleSeconds})
 
-				refreshQueue.add({ url, params, expirySeconds })
-				setTimeout(processRefreshQueue, 0)
+				const refreshKey = generateCacheKey(url, params)
+
+				if (!refreshQueue.has(refreshKey)) {
+					console.log('🟡 queued for background refresh:', refreshKey)
+
+					refreshQueue.set(refreshKey, { url, params, expirySeconds })
+					setTimeout(processRefreshQueue, 0)
+				}
 
 				return record.data
 			}
@@ -136,24 +143,27 @@ function classifyResponse(response, data) {
 }
 
 
-
 async function processRefreshQueue() {
   if (isRefreshing) return
   isRefreshing = true
+	console.log('🔄 background refresh worker started')
 
-  for (const item of refreshQueue) {
-    refreshQueue.delete(item)
+  for (const [key, item] of refreshQueue) {
+    refreshQueue.delete(key)
+
     const { url, params, expirySeconds } = item
 
     try {
-      await getData(url, params, expirySeconds)
+      // force real refresh (no stale window)
+			console.log('🚀 refreshing:', key)
+      await getData(url, params, expirySeconds, 0)
     } catch (e) {
       console.warn('Background refresh failed', url)
     }
   }
 
   isRefreshing = false
+	console.log('✅ background refresh worker finished')
+
 }
-
-
 

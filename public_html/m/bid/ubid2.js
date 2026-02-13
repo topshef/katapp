@@ -229,11 +229,11 @@ async function processNFT(NFT) {
     // const urlImage = tokenInfoGoMint.token_thumbnail_cache ?? tokenInfoGoMint.token_asset_image_URL ?? 'https://tse4.mm.bing.net/th?id=OIP.CIKnUJBqUdu87khXGAyLVgHaHa&pid=Api'
     
 
-    const token_class = await getHederaMirrorData(network, `tokens/${tokenId}`)
+    const token_class = await getHederaMirrorData(network, `tokens/${tokenId}`, null, 60*60)
     // console.log(`token class info for ${tokenId}`,token_class)
     const treasury = token_class.treasury_account_id  // only for ref
     
-    const token_instance = await getHederaMirrorData(network, `tokens/${tokenId}/nfts/${serialNumber}`)
+    const token_instance = await getHederaMirrorData(network, `tokens/${tokenId}/nfts/${serialNumber}`, null, 60)
     const metadata = atob(token_instance.metadata)
     const owner = token_instance.account_id
     
@@ -651,7 +651,7 @@ async function getHederaMirrorData(network, endpoint, queryObject, expirySeconds
     // let expirySeconds = 20
     if (baseUrl.startsWith('transactions/')) expirySeconds = 'infinite' // tx are final
     
-    const data = await getData(`${baseUrl}${endpoint}`, queryObject, expirySeconds)
+    const data = await getData(`${baseUrl}${endpoint}`, queryObject || {}, expirySeconds)
     if (!data) throw new Error('Failed to fetch data')
 
     return data
