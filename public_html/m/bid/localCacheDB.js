@@ -4,6 +4,8 @@
 // └─┘┴ ┴└─┘┴ ┴└─┘  └  └─┘┘└┘└─┘ ┴ ┴└─┘┘└┘└─┘
 // cache functions
 
+//v0.1 base version from 2025-ish at phpjabbers m/bid
+
 // Initialize https://github.com/samuk190/localbase
 let db = new Localbase('apiCache')
 
