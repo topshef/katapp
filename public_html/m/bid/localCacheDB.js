@@ -40,10 +40,29 @@ async function getFromCache(url, params, expirySeconds = 'infinite') {
 }
 
 // save To Cache
-async function saveToCache(url, params, data) {
+async function zzblind_saveToCache(url, params, data) {
   const key = generateCacheKey(url, params)
   await db.collection('apiCache').doc(key).set({ url, params, data, timestamp: Date.now() })
 }
+
+async function saveToCache(url, params, data) {
+  const key = generateCacheKey(url, params)
+  const existing = await db.collection('apiCache').doc(key).get()
+
+  const oldData = existing?.data
+  const hasChanged = JSON.stringify(oldData) !== JSON.stringify(data)
+
+  await db.collection('apiCache').doc(key).set({
+    url,
+    params,
+    data,
+    timestamp: Date.now()
+  })
+
+  return hasChanged
+}
+
+
 
 // get Data
 async function getData(url, params, expirySeconds = 0, staleSeconds = 3600) {
@@ -112,8 +131,19 @@ async function getData(url, params, expirySeconds = 0, staleSeconds = 3600) {
 	else if (expirySeconds === 'infinite')
 		finalExpiry = (type === 'ok') ? Infinity : 0
 	
-	if (finalExpiry > 0 && data)
-		await saveToCache(url, params, data)
+	// if (finalExpiry > 0 && data)
+		// await saveToCache(url, params, data)
+
+	if (finalExpiry > 0 && data) {
+		const key = generateCacheKey(url, params)
+		const changed = await saveToCache(url, params, data)
+
+		if (changed) {
+			console.log('🔔 cache mutated:', key)
+			// zzfoggy_emitCacheUpdate(key, data)
+			emitCacheUpdate({ url, params, key, data })
+		}
+	}
 	
   return data
 }
@@ -166,4 +196,40 @@ async function processRefreshQueue() {
 	console.log('✅ background refresh worker finished')
 
 }
+
+
+function emitCacheUpdate({ url, params, key, data }) {
+  window.dispatchEvent(
+    new CustomEvent('cache:update', {
+      detail: {
+        url,
+        params,
+        key,
+        data,
+        timestamp: Date.now()
+      }
+    })
+  )
+}
+
+
+function zzfoggy_emitCacheUpdate(key, data) {
+  window.dispatchEvent(
+    new CustomEvent('cache:update', {
+      detail: { key, data }
+    })
+  )
+}
+
+/*  client side to pick up mutation events
+window.addEventListener('cache:update', (e) => {
+  console.log('Cache updated!', e.detail)
+
+  // Option 1: selectively refresh component
+  // Option 2: trigger state update
+  // Option 3: re-fetch data
+})
+
+*/
+
 

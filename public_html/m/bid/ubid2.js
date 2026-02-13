@@ -885,3 +885,20 @@ function swapFirstMatch(str, swaps) {
             return str.replace(find, replace)
     return str
 }
+
+
+
+
+/*  todo .. pick up mutation events from localCacheDB.js mutation
+window.addEventListener('cache:update', (e) => {
+  console.log('Cache updated!', e.detail)
+
+  // Option 1: selectively refresh component
+  // Option 2: trigger state update
+  // Option 3: re-fetch data
+})
+
+*/
+
+
+
