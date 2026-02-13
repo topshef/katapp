@@ -411,15 +411,15 @@ function renderProductPanel(data) {
 	  document.querySelector('#combo-container .ubid-media img').src = data.image
 	  document.querySelector('#product-panel .ubid-asset-link').innerHTML =  `Hedera <a href='https://tools.gomint.me/explore/NFT/?productId=${productId}' target='_blank'>${productId.replaceAll(';', ' | ')}</a>`
 
- 		const img = document.querySelector('#combo-container .ubid-media img')
-		if (img)
-			img.addEventListener('load', () => img.classList.remove('skeleton'), { once: true })
+ 		// const img = document.querySelector('#combo-container .ubid-media img')
+		// if (img)
+			// img.addEventListener('load', () => img.classList.remove('skeleton'), { once: true })
 		
-		document
-			.querySelectorAll('#product-panel .skeleton:not(img)')
-			.forEach(el => el.classList.remove('skeleton'))
+		// document
+			// .querySelectorAll('#product-panel .skeleton:not(img)')
+			// .forEach(el => el.classList.remove('skeleton'))
 			
-		document.querySelector('#product-panel').style.display = 'block'
+		// document.querySelector('#product-panel').style.display = 'block'
 	
 }
 
@@ -471,8 +471,8 @@ function renderDealPanel(data) {
 		
 	  document.querySelector('#deal-panel .ubid-asset-link').innerHTML = `#katomic <a href='https://katomic.org/labs/?dealId=${dealId}' target='_blank'>${dealId.slice(0, 6)}</a>`
 
-		document.getElementById('create-tx').innerText = data.button
-		updateButtonNowLater()
+		// document.getElementById('create-tx').innerText = data.button
+		// updateButtonNowLater()
 	
 		const btn = document.getElementById('create-tx')
 		if (btn && data.button) {
@@ -480,16 +480,13 @@ function renderDealPanel(data) {
 			updateButtonNowLater()
 		}
 		
-		const img = document.querySelector('#combo-container .ubid-media img')
-		if (img)
-			img.addEventListener('load', () => img.classList.remove('skeleton'), { once: true })
+		// const img = document.querySelector('#combo-container .ubid-media img')
+		// if (img)
+			// img.addEventListener('load', () => img.classList.remove('skeleton'), { once: true })
 		
-		document
-			.querySelectorAll('#combo-container .skeleton:not(img)')
-			.forEach(el => el.classList.remove('skeleton'))
-			
-		document.querySelector('#deal-panel').style.display = 'block'
-		// document.querySelector('#combo-panel').style.display = 'block'
+		// document
+			// .querySelectorAll('#combo-container .skeleton:not(img)')
+			// .forEach(el => el.classList.remove('skeleton'))
 		
 }
 
@@ -635,7 +632,8 @@ async function navigateLocal(search) {
 
    parseSearchParams(s)
 
-   await renderPage()
+   renderPage()
+   // await renderPage()
  }
 
 window.addEventListener('popstate', () => {
@@ -643,15 +641,22 @@ window.addEventListener('popstate', () => {
   renderPage()
 })
 
+
+function showPanel(type) {
+  document.querySelectorAll('.panel')
+    .forEach(p => p.classList.remove('is-active'))
+
+  const target = document.getElementById(`${type}-panel`)
+  if (target)
+    target.classList.add('is-active')
+}
+
+
 async function renderPage() {
   parseSearchParams(window.location.search)
 
   // reset entire UI state
-  document.querySelector('#combo-container .ubid-media img').src = ""
-  document.querySelectorAll('.skeleton').forEach(el => el.classList.add('skeleton'))
-
-  document.querySelector('#product-panel').style.display = 'none'
-  document.querySelector('#deal-panel').style.display = 'none'
+  // document.querySelectorAll('.skeleton').forEach(el => el.classList.add('skeleton'))
 
   document.querySelector('#product-panel .ubid-related-by-serial').innerHTML = 'Related by serial '
   document.querySelector('#product-panel .ubid-related-by-collection').innerHTML = 'Related by collection '
@@ -659,6 +664,7 @@ async function renderPage() {
   document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = ''
 
   const entityType = resolveEntityType(productId, dealId)
+	showPanel(entityType)
 
   let raw = {}
 
@@ -676,10 +682,8 @@ async function renderPage() {
 		const {collectionProductId, serialRange} = splitProductId(productId)
 		if (serialRange) renderRelatedDeals(productId,'#product-panel .ubid-related-by-serial')
 		if (collectionProductId) renderRelatedDeals(collectionProductId,'#product-panel .ubid-related-by-collection')
-			
-
-		
   }
+
 }
 
 
