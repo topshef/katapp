@@ -4,11 +4,15 @@
 // └─┘┴ ┴└─┘┴ ┴└─┘  └  └─┘┘└┘└─┘ ┴ ┴└─┘┘└┘└─┘
 // cache functions
 
+//v0.12 allow serve stale cache within window, and background update
 //v0.11 don't cache invalid data
 //v0.1 base version from 2025-ish at phpjabbers m/bid
 
 // Initialize https://github.com/samuk190/localbase
 let db = new Localbase('apiCache')
+let refreshQueue = new Set()
+let isRefreshing = false
+
 
 // generate Cache Key
 // Helper to generate a unique cache key based on the URL and parameters
@@ -41,13 +45,39 @@ async function saveToCache(url, params, data) {
 }
 
 // get Data
-async function getData(url, params, expirySeconds = 0) {
-  if (expirySeconds) {
-    const cachedData = await getFromCache(url, params, expirySeconds)
-    if (cachedData) return cachedData
-  }
+async function getData(url, params, expirySeconds = 0, staleSeconds = 3600) {
+// async function getData(url, params, expirySeconds = 0) {
+  // if (expirySeconds) {
+    // const cachedData = await getFromCache(url, params, expirySeconds)
+    // if (cachedData) return cachedData
+  // }
+	if (expirySeconds) {
+		const key = generateCacheKey(url, params)
+		const record = await db.collection('apiCache').doc(key).get()
+
+		if (record && record.data) {
+			const ageSeconds = (Date.now() - record.timestamp) / 1000
+
+			// Fresh
+			if (expirySeconds === 'infinite' || ageSeconds <= expirySeconds) {
+				console.log('🟢 fresh cache')
+				return record.data
+			}
+
+			// Stale window
+			if (staleSeconds && ageSeconds <= staleSeconds) {
+				console.log('🟡 stale cache — serving + refreshing')
+
+				refreshQueue.add({ url, params, expirySeconds })
+				setTimeout(processRefreshQueue, 0)
+
+				return record.data
+			}
+		}
+	}
+	
+	
   // Make the API call if cache not available or expired
-  
   const response = await fetch(`${url}?${new URLSearchParams(params)}`)
 		
 	let data
@@ -59,7 +89,7 @@ async function getData(url, params, expirySeconds = 0) {
 	
 	const type = classifyResponse(response, data)
 
-	console.log(`⚡ live call to ${url}?${new URLSearchParams(params)}`, { type, data })
+	console.log(`⚡ live call to ${url}?${new URLSearchParams(params)}`, { type, data, expirySeconds })
 
 	let finalExpiry = 0
 	
@@ -104,5 +134,26 @@ function classifyResponse(response, data) {
   if (isStringError(data)) return 'stringError'
   return 'ok'
 }
+
+
+
+async function processRefreshQueue() {
+  if (isRefreshing) return
+  isRefreshing = true
+
+  for (const item of refreshQueue) {
+    refreshQueue.delete(item)
+    const { url, params, expirySeconds } = item
+
+    try {
+      await getData(url, params, expirySeconds)
+    } catch (e) {
+      console.warn('Background refresh failed', url)
+    }
+  }
+
+  isRefreshing = false
+}
+
 
 
