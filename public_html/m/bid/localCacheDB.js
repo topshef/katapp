@@ -11,16 +11,21 @@
 // Initialize https://github.com/samuk190/localbase
 let db = new Localbase('apiCache')
 let refreshQueue = new Map()
-
 let isRefreshing = false
+const DEBUG = true
 
-
+// ┌─┐┌─┐┌┐┌┌─┐┬─┐┌─┐┌┬┐┌─┐  ╔═╗┌─┐┌─┐┬ ┬┌─┐  ╦╔═┌─┐┬ ┬
+// │ ┬├┤ │││├┤ ├┬┘├─┤ │ ├┤   ║  ├─┤│  ├─┤├┤   ╠╩╗├┤ └┬┘
+// └─┘└─┘┘└┘└─┘┴└─┴ ┴ ┴ └─┘  ╚═╝┴ ┴└─┘┴ ┴└─┘  ╩ ╩└─┘ ┴ 
 // generate Cache Key
 // Helper to generate a unique cache key based on the URL and parameters
 function generateCacheKey(url, params) {
   return `${url}?${new URLSearchParams(params).toString()}`
 }
 
+// ┌─┐┌─┐┌┬┐  ╔═╗┬─┐┌─┐┌┬┐  ╔═╗┌─┐┌─┐┬ ┬┌─┐
+// │ ┬├┤  │   ╠╣ ├┬┘│ ││││  ║  ├─┤│  ├─┤├┤ 
+// └─┘└─┘ ┴   ╚  ┴└─└─┘┴ ┴  ╚═╝┴ ┴└─┘┴ ┴└─┘
 // get From Cache
 // Get cached data if available, and recent enough
 async function getFromCache(url, params, expirySeconds = 'infinite') {
@@ -40,10 +45,64 @@ async function getFromCache(url, params, expirySeconds = 'infinite') {
 }
 
 // save To Cache
-async function zzblind_saveToCache(url, params, data) {
+// async function zzblind_saveToCache(url, params, data) {
+  // const key = generateCacheKey(url, params)
+  // await db.collection('apiCache').doc(key).set({ url, params, data, timestamp: Date.now() })
+// }
+
+// async function zzsaveToCache(url, params, data) {
+  // const key = generateCacheKey(url, params)
+  // const existing = await db.collection('apiCache').doc(key).get()
+
+  // const oldData = existing?.data
+  // const hasChanged = JSON.stringify(oldData) !== JSON.stringify(data)
+
+  // await db.collection('apiCache').doc(key).set({
+    // url,
+    // params,
+    // data,
+    // timestamp: Date.now()
+  // })
+
+  // return hasChanged
+// }
+
+// ┌─┐┌─┐┬  ┬┌─┐  ╔╦╗┌─┐  ╔═╗┌─┐┌─┐┬ ┬┌─┐
+// └─┐├─┤└┐┌┘├┤    ║ │ │  ║  ├─┤│  ├─┤├┤ 
+// └─┘┴ ┴ └┘ └─┘   ╩ └─┘  ╚═╝┴ ┴└─┘┴ ┴└─┘
+// save To Cache
+//keep short history of changes
+async function zzsaveToCache(url, params, data, maxSnapshots = 3) {
   const key = generateCacheKey(url, params)
-  await db.collection('apiCache').doc(key).set({ url, params, data, timestamp: Date.now() })
+  const existing = await db.collection('apiCache').doc(key).get()
+
+  const oldData = existing?.data
+  const hasChanged = JSON.stringify(oldData) !== JSON.stringify(data)
+
+  let history = existing?.history || []
+
+  // Only push to history if there was a change
+  if (hasChanged && oldData !== undefined) {
+    history.unshift({
+      data: oldData,
+      timestamp: existing.timestamp
+    })
+
+    // keep last 3 changes only
+    history = history.slice(0, maxSnapshots)
+  }
+
+  await db.collection('apiCache').doc(key).set({
+    url,
+    params,
+    data,
+    timestamp: Date.now(),
+    history
+  })
+
+  return hasChanged
 }
+
 
 async function saveToCache(url, params, data) {
   const key = generateCacheKey(url, params)
@@ -52,18 +111,52 @@ async function saveToCache(url, params, data) {
   const oldData = existing?.data
   const hasChanged = JSON.stringify(oldData) !== JSON.stringify(data)
 
-  await db.collection('apiCache').doc(key).set({
+  let history = existing?.history || []
+
+  if (hasChanged && oldData !== undefined) {
+    history.unshift({
+      data: oldData,
+      timestamp: existing.timestamp
+    })
+
+    history = history.slice(0, 3)
+  }
+
+  const updatedRecord = {
     url,
     params,
     data,
-    timestamp: Date.now()
-  })
+    timestamp: Date.now(),
+    history
+  }
+
+  await db.collection('apiCache').doc(key).set(updatedRecord)
+
+	if (DEBUG) {
+		const isNewEntry = oldData === undefined
+
+		if (isNewEntry) {
+			console.group(`🆕 new cache entry: ${key}`)
+			console.log({ current: data })
+			console.groupEnd()
+		}
+
+		else if (hasChanged) {
+			const diff = computeDiff(oldData, data)
+
+			console.group(`🔁 cache mutated: ${key}`)
+			console.log({ previous: oldData, current: data, diff })
+			console.groupEnd()
+		}
+	}
 
   return hasChanged
 }
 
 
-
+// ┌─┐┌─┐┌┬┐  ╔╦╗┌─┐┌┬┐┌─┐
+// │ ┬├┤  │    ║║├─┤ │ ├─┤
+// └─┘└─┘ ┴   ═╩╝┴ ┴ ┴ ┴ ┴
 // get Data
 async function getData(url, params, expirySeconds = 0, staleSeconds = 3600) {
 // async function getData(url, params, expirySeconds = 0) {
@@ -101,8 +194,11 @@ async function getData(url, params, expirySeconds = 0, staleSeconds = 3600) {
 			}
 		}
 	}
-	
-	
+		
+	// ┬  ┬┬  ┬┌─┐  ┌─┐┌─┐┌┬┐┌─┐┬ ┬
+	// │  │└┐┌┘├┤   ├┤ ├┤  │ │  ├─┤
+	// ┴─┘┴ └┘ └─┘  └  └─┘ ┴ └─┘┴ ┴
+	// live fetch	
   // Make the API call if cache not available or expired
   const response = await fetch(`${url}?${new URLSearchParams(params)}`)
 		
@@ -139,7 +235,12 @@ async function getData(url, params, expirySeconds = 0, staleSeconds = 3600) {
 		const changed = await saveToCache(url, params, data)
 
 		if (changed) {
-			console.log('🔔 cache mutated:', key)
+			// console.log('🔔 cache mutated:', key)
+			console.log('🔔 cache mutated:', {
+				key,
+				previousVersions: (await db.collection('apiCache').doc(key).get())?.history?.length || 0
+			})
+			
 			// zzfoggy_emitCacheUpdate(key, data)
 			emitCacheUpdate({ url, params, key, data })
 		}
@@ -149,7 +250,10 @@ async function getData(url, params, expirySeconds = 0, staleSeconds = 3600) {
 }
 
 
-
+// ┌─┐┬─┐┬─┐┌─┐┬─┐  ┬ ┬┌─┐┌┐┌┌┬┐┬  ┬┌┐┌┌─┐
+// ├┤ ├┬┘├┬┘│ │├┬┘  ├─┤├─┤│││ │││  │││││ ┬
+// └─┘┴└─┴└─└─┘┴└─  ┴ ┴┴ ┴┘└┘─┴┘┴─┘┴┘└┘└─┘
+// error handling
 function isHttpError(response) {
   return !response.ok
 }
@@ -172,7 +276,10 @@ function classifyResponse(response, data) {
   return 'ok'
 }
 
-
+// ┌─┐┬─┐┌─┐┌─┐┌─┐┌─┐┌─┐  ╦═╗┌─┐┌─┐┬─┐┌─┐┌─┐┬ ┬  ╔═╗ ┬ ┬┌─┐┬ ┬┌─┐
+// ├─┘├┬┘│ ││  ├┤ └─┐└─┐  ╠╦╝├┤ ├┤ ├┬┘├┤ └─┐├─┤  ║═╬╗│ │├┤ │ │├┤ 
+// ┴  ┴└─└─┘└─┘└─┘└─┘└─┘  ╩╚═└─┘└  ┴└─└─┘└─┘┴ ┴  ╚═╝╚└─┘└─┘└─┘└─┘
+// process Refresh Queue
 async function processRefreshQueue() {
   if (isRefreshing) return
   isRefreshing = true
@@ -197,7 +304,10 @@ async function processRefreshQueue() {
 
 }
 
-
+// ┌─┐┌┬┐┬┌┬┐  ╔═╗┌─┐┌─┐┬ ┬┌─┐  ╦ ╦┌─┐┌┬┐┌─┐┌┬┐┌─┐
+// ├┤ ││││ │   ║  ├─┤│  ├─┤├┤   ║ ║├─┘ ││├─┤ │ ├┤ 
+// └─┘┴ ┴┴ ┴   ╚═╝┴ ┴└─┘┴ ┴└─┘  ╚═╝┴  ─┴┘┴ ┴ ┴ └─┘
+// emit Cache Update
 function emitCacheUpdate({ url, params, key, data }) {
   window.dispatchEvent(
     new CustomEvent('cache:update', {
@@ -231,5 +341,32 @@ window.addEventListener('cache:update', (e) => {
 })
 
 */
+
+// ┬ ┬┌─┐┬  ┌─┐┌─┐┬─┐┌─┐
+// ├─┤├┤ │  ├─┘├┤ ├┬┘└─┐
+// ┴ ┴└─┘┴─┘┴  └─┘┴└─└─┘
+// helpers
+function computeDiff(oldData, newData) {
+  if (!oldData || !newData) return null
+  if (typeof oldData !== 'object' || typeof newData !== 'object') return null
+
+  const diff = {}
+
+  const keys = new Set([
+    ...Object.keys(oldData),
+    ...Object.keys(newData)
+  ])
+
+  for (const k of keys) {
+    const oldVal = oldData[k]
+    const newVal = newData[k]
+
+    if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+      diff[k] = { old: oldVal, new: newVal }
+    }
+  }
+
+  return Object.keys(diff).length ? diff : null
+}
 
 
