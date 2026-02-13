@@ -20,11 +20,22 @@
 let productId //= getParm('productId')
 let dealId //= getParm('dealId')
 
-
 // ┌┬┐┌─┐┌┬┐┌─┐  ┌┬┐┌─┐┌┬┐┌─┐┬  
 //  ││├─┤ │ ├─┤  ││││ │ ││├┤ │  
 // ─┴┘┴ ┴ ┴ ┴ ┴  ┴ ┴└─┘─┴┘└─┘┴─┘
 // data model
+
+
+//temp get approvals info to decide what gomint deals to showDelayOption
+//eg https://kpos.uk/deal/query/?legacy=1&network=mainnet&dealId=428dc6
+async function fetchLegacyDeal(dealId) {
+
+	const url = `https://kpos.uk/deal/query/?legacy=1&dealId=${dealId}`
+	const response = await fetch(url)
+	let data = await response.json()
+	// console.log({url,data})
+	return data
+}
 
 	// ┌─┐┌─┐┌┬┐┌─┐┬ ┬╔═╗┬─┐┌─┐┌┬┐┬ ┬┌─┐┌┬┐
 	// ├┤ ├┤  │ │  ├─┤╠═╝├┬┘│ │ │││ ││   │ 
@@ -534,15 +545,27 @@ async function renderRelatedDeals(productId, selector = '#product-panel .ubid-re
 		
 		// todo think about list length eg offer detail summary expand especially if list is long
     for (const dealInfo of deals) {
-      // fetch full deal detail
-      const deal = await fetchDeal(dealInfo.dealId)
-			// console.log(deal)
-			
+
+			// ┬  ┌─┐┌─┐┌─┐┌─┐┬ ┬  ┌─┐┌─┐┌┬┐┌─┐┬ ┬
+			// │  ├┤ │ ┬├─┤│  └┬┘  ├┤ ├┤  │ │  ├─┤
+			// ┴─┘└─┘└─┘┴ ┴└─┘ ┴   └  └─┘ ┴ └─┘┴ ┴
+			// legacy fetch			
+			//***** to review.. for now only show deals approved via legacy process
+			const legacyDeal = await fetchLegacyDeal(dealInfo.dealId)
+			const isApproved = legacyDeal.isApproved == true
+			// console.log(legacyDeal)
+			if (!isApproved) continue;
+
+		
 			const dealIdShort = dealInfo.dealId.slice(0,6)
 			
 			const href = `?dealonly&v=labs&dealId=${dealInfo.dealId}`
 			// const label = `${dealIdShort}`
 			const created = dealInfo.created?.slice(0,10) || ''
+			
+      // fetch full deal detail
+      const deal = await fetchDeal(dealInfo.dealId)
+							
 			const title = stripHtml(deal.display?.title || '')
 			const description = stripHtml(deal.display?.description || '')
 			
