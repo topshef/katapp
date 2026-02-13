@@ -116,6 +116,15 @@ function zzescapeHtml(str) {
     .replace(/'/g, '&#39;')
 }
 
+
+function stripHtml(html) {
+	if (!html) return ''
+  const temp = document.createElement('div')
+  temp.innerHTML = html
+  return temp.textContent || temp.innerText || ''
+}
+
+
 function escapeHtml(s){return multiReplace(s,'&=&amp;|<=&lt;|>=&gt;|"=&quot;|\'=&#39;')}
 
 function multiReplace(str, mappingString){

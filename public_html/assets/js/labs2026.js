@@ -510,7 +510,10 @@ async function renderRelatedDeals(productId, selector = '#product-panel .ubid-re
 			const href = `?dealonly&v=labs&dealId=${dealInfo.dealId}`
 			const label = `${dealIdShort}`
 			const created = dealInfo.created?.slice(0,10) || ''
-			const tooltip = `${deal.display?.title} | ${deal.display?.description} | ${created}`
+			const title = stripHtml(deal.display?.title || '')
+			const description = stripHtml(deal.display?.description || '')
+			
+			const tooltip = `${title} | ${description} | ${created}`
 			elRelatedDeals.innerHTML += renderLocalLink({href, label, tooltip})
       // const ubid = await transformDealData({ deal })  // not needed yet
 			// console.log(ubid)
