@@ -107,11 +107,6 @@ async function saveToCache(url, params, data, maxSnapshots = 3) {
 // └─┘└─┘ ┴   ═╩╝┴ ┴ ┴ ┴ ┴
 // get Data
 async function getData(url, params, expirySeconds = 0, staleSeconds = 3600) {
-// async function getData(url, params, expirySeconds = 0) {
-  // if (expirySeconds) {
-    // const cachedData = await getFromCache(url, params, expirySeconds)
-    // if (cachedData) return cachedData
-  // }
 	if (expirySeconds) {
 		const key = generateCacheKey(url, params)
 		const record = await db.collection('apiCache').doc(key).get()
