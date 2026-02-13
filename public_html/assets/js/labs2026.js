@@ -221,6 +221,14 @@ function splitProductId(productId) {
 	const out = { network, tokenId, serialRange, serialFrom, serialTo, holder }
 	// if (serialRange) // offer back collection id for expanded searches
 	out.collectionProductId = `${network};${tokenId}`  // offer back collection id for expanded searches
+
+	// notes on holder
+	// OG market allows productId to include the holder - this is handy for splitting offers by seller
+	// but we are not yet filtering on this.. todo link with xproof etc and also get pre-signing status etc
+	// eg we could call for bytes and see if the holders signature is included.. bit hacky but coudl work
+	// anyway meanwhile we could display a bare product id that does not include the holder
+	// nah.. that woudl be a hack.. we just put the holder into the input.. park for now it will come
+	// out.bareProductId = `${network};${tokenId}-${serialRange}` //ignore filter on holder
 	
 	console.log({productId, out})
   return out
@@ -508,13 +516,21 @@ async function renderRelatedDeals(productId, selector = '#product-panel .ubid-re
 			const dealIdShort = dealInfo.dealId.slice(0,6)
 			
 			const href = `?dealonly&v=labs&dealId=${dealInfo.dealId}`
-			const label = `${dealIdShort}`
+			// const label = `${dealIdShort}`
 			const created = dealInfo.created?.slice(0,10) || ''
 			const title = stripHtml(deal.display?.title || '')
 			const description = stripHtml(deal.display?.description || '')
 			
-			const tooltip = `${title} | ${description} | ${created}`
-			elRelatedDeals.innerHTML += renderLocalLink({href, label, tooltip})
+			// const tooltip = `${title} | ${description} | ${created}`
+			// elRelatedDeals.innerHTML += renderLocalLink({href, label, tooltip})
+			const label = title || dealIdShort
+			const tooltip = `${description} | ${created} (${dealIdShort})`
+
+			elRelatedDeals.innerHTML += `
+				<div>
+					${renderLocalLink({href, label, tooltip})}
+				</div>
+			`
       // const ubid = await transformDealData({ deal })  // not needed yet
 			// console.log(ubid)
     }
@@ -661,8 +677,8 @@ async function renderPage() {
   // reset entire UI state
   // document.querySelectorAll('.skeleton').forEach(el => el.classList.add('skeleton'))
 
-  document.querySelector('#product-panel .ubid-related-by-serial').innerHTML = 'Related by serial '
-  document.querySelector('#product-panel .ubid-related-by-collection').innerHTML = 'Related by collection '
+  document.querySelector('#product-panel .ubid-related-by-serial').innerHTML = ''
+  document.querySelector('#product-panel .ubid-related-by-collection').innerHTML = ''
   document.querySelector('#deal-panel .ubid-transfers').innerHTML = ''
   document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = ''
 
