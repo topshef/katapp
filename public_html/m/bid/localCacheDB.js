@@ -14,6 +14,7 @@ let refreshQueue = new Map()
 let isRefreshing = false
 const DEBUG = true
 
+
 // ┌─┐┌─┐┌┐┌┌─┐┬─┐┌─┐┌┬┐┌─┐  ╔═╗┌─┐┌─┐┬ ┬┌─┐  ╦╔═┌─┐┬ ┬
 // │ ┬├┤ │││├┤ ├┬┘├─┤ │ ├┤   ║  ├─┤│  ├─┤├┤   ╠╩╗├┤ └┬┘
 // └─┘└─┘┘└┘└─┘┴└─┴ ┴ ┴ └─┘  ╚═╝┴ ┴└─┘┴ ┴└─┘  ╩ ╩└─┘ ┴ 
@@ -22,6 +23,7 @@ const DEBUG = true
 function generateCacheKey(url, params) {
   return `${url}?${new URLSearchParams(params).toString()}`
 }
+
 
 // ┌─┐┌─┐┌┬┐  ╔═╗┬─┐┌─┐┌┬┐  ╔═╗┌─┐┌─┐┬ ┬┌─┐
 // │ ┬├┤  │   ╠╣ ├┬┘│ ││││  ║  ├─┤│  ├─┤├┤ 
@@ -44,35 +46,12 @@ async function getFromCache(url, params, expirySeconds = 'infinite') {
   return record.data
 }
 
-// save To Cache
-// async function zzblind_saveToCache(url, params, data) {
-  // const key = generateCacheKey(url, params)
-  // await db.collection('apiCache').doc(key).set({ url, params, data, timestamp: Date.now() })
-// }
-
-// async function zzsaveToCache(url, params, data) {
-  // const key = generateCacheKey(url, params)
-  // const existing = await db.collection('apiCache').doc(key).get()
-
-  // const oldData = existing?.data
-  // const hasChanged = JSON.stringify(oldData) !== JSON.stringify(data)
-
-  // await db.collection('apiCache').doc(key).set({
-    // url,
-    // params,
-    // data,
-    // timestamp: Date.now()
-  // })
-
-  // return hasChanged
-// }
 
 // ┌─┐┌─┐┬  ┬┌─┐  ╔╦╗┌─┐  ╔═╗┌─┐┌─┐┬ ┬┌─┐
 // └─┐├─┤└┐┌┘├┤    ║ │ │  ║  ├─┤│  ├─┤├┤ 
 // └─┘┴ ┴ └┘ └─┘   ╩ └─┘  ╚═╝┴ ┴└─┘┴ ┴└─┘
 // save To Cache
-//keep short history of changes
-async function zzsaveToCache(url, params, data, maxSnapshots = 3) {
+async function saveToCache(url, params, data, maxSnapshots = 3) {
   const key = generateCacheKey(url, params)
   const existing = await db.collection('apiCache').doc(key).get()
 
@@ -81,45 +60,14 @@ async function zzsaveToCache(url, params, data, maxSnapshots = 3) {
 
   let history = existing?.history || []
 
-  // Only push to history if there was a change
+	//bit overkill but for debug etc maybe..
   if (hasChanged && oldData !== undefined) {
     history.unshift({
       data: oldData,
       timestamp: existing.timestamp
     })
 
-    // keep last 3 changes only
     history = history.slice(0, maxSnapshots)
-  }
-
-  await db.collection('apiCache').doc(key).set({
-    url,
-    params,
-    data,
-    timestamp: Date.now(),
-    history
-  })
-
-  return hasChanged
-}
-
-
-async function saveToCache(url, params, data) {
-  const key = generateCacheKey(url, params)
-  const existing = await db.collection('apiCache').doc(key).get()
-
-  const oldData = existing?.data
-  const hasChanged = JSON.stringify(oldData) !== JSON.stringify(data)
-
-  let history = existing?.history || []
-
-  if (hasChanged && oldData !== undefined) {
-    history.unshift({
-      data: oldData,
-      timestamp: existing.timestamp
-    })
-
-    history = history.slice(0, 3)
   }
 
   const updatedRecord = {
@@ -233,17 +181,7 @@ async function getData(url, params, expirySeconds = 0, staleSeconds = 3600) {
 	if (finalExpiry > 0 && data) {
 		const key = generateCacheKey(url, params)
 		const changed = await saveToCache(url, params, data)
-
-		if (changed) {
-			// console.log('🔔 cache mutated:', key)
-			console.log('🔔 cache mutated:', {
-				key,
-				previousVersions: (await db.collection('apiCache').doc(key).get())?.history?.length || 0
-			})
-			
-			// zzfoggy_emitCacheUpdate(key, data)
-			emitCacheUpdate({ url, params, key, data })
-		}
+		if (changed) emitCacheUpdate({ url, params, key, data })
 	}
 	
   return data
