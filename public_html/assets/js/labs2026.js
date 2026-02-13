@@ -39,6 +39,7 @@ function fetchProduct(productId) {
 
   const url = `https://tools.gomint.me/explore/NFT/?json&productId=${productId}`
   // console.log('fetchProduct URL:', url)
+	
 
   return fetch(url)
     .then(response => {
@@ -215,8 +216,11 @@ function splitProductId(productId) {
 	let [tokenId, serialRange] = tokenSerial.split('-')
 	serialRange ||= ''
 	
+	serialRange.replace('to', ':')  //normalise to colon
+	
 	let [serialFrom, serialTo] = serialRange.split('to')
 	serialTo ||= serialFrom
+	
 
 	const out = { network, tokenId, serialRange, serialFrom, serialTo, holder }
 	// if (serialRange) // offer back collection id for expanded searches
@@ -243,6 +247,7 @@ async function transformDealData({deal}) {
     console.log({deal})
 
     let out = {}
+		out.network = deal.network
 		// ubid.deal = deal // return the input ?
 		out.allTransfers = mergeAllTransfers(deal) // add this back into the input
     out.title       = deal.display.title ?? 'untitled RH45323'
@@ -351,10 +356,13 @@ function mergeAllTransfers(deal) {  // too long atm.. todo remove narrative and 
   }
 
   const normaliseNFT = xfer => {
+		const productId = `${deal.network};${xfer.tokenId}-${xfer.serial}`
     return {
       ...xfer,
       assetType: 'NFT',
       asset: xfer.tokenId,
+			serialRange: xfer.serial,
+			productId: productId,
       narrative:
         xfer.userInput ||
         `${xfer.sender} sends NFT ${xfer.tokenId}#${xfer.serial} to ${xfer.receiver}`
@@ -433,16 +441,36 @@ function renderProductPanel(data) {
 
 
 
-function renderTransfer(xfer, entityLabels) {
+function renderTransfer(xfer, dealdata) {
 	console.log(xfer)  // todo build narrative from primitives
+	const entityLabels = dealdata.aliasReversed || []
+	console.log({entityLabels})
 	
 	let debug = xfer.userInput || xfer.narrative || ''
 	
-	let narrative = (xfer.assetType == 'NFT')
-		? `${xfer.sender} sends ${xfer.asset}#${xfer.serial} to ${xfer.receiver}` // test9ng ony
-		: `${xfer.accountId} ${xfer.verb} ${xfer.absAmount} ${xfer.asset} ${xfer.assetType}` // test9ng ony
-
+	let narrative
+	if (xfer.assetType == 'NFT') {
+		console.log(xfer)
+		const nftProductId = `${dealdata.network};${xfer.asset}-${xfer.serialRange}`
+		const label = `${xfer.asset} #${xfer.serial}`
+		
+		const href = `?v=labs&productId=${nftProductId}`
+		const tooltip = `Product Id ${nftProductId}`
+		
+		const localLink = renderLocalLink({href, label, tooltip})
+		
+		const elNft = renderTooltip(localLink, tooltip)
+		
+		narrative = `${xfer.sender} sends ${elNft} to ${xfer.receiver}` // test9ng ony
+		
+	} else {
+		
+		narrative = `${xfer.accountId} ${xfer.verb} ${xfer.absAmount} ${xfer.asset} ${xfer.assetType}` // test9ng ony
+	}
+		
   
+	
+	
   narrative = narrative.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
 
 	// todo later depending on wallet connect state
@@ -457,8 +485,8 @@ function renderTransfer(xfer, entityLabels) {
     // text = text.replace(regex, link)
   // }
 		
-	// return  text
-	return  renderTooltip(narrative, `debug YU87457: ${debug}`)
+	return  narrative
+	// return  renderTooltip(narrative, `debug YU87457: ${debug}`)
 }
 
 
@@ -468,12 +496,9 @@ function renderDealPanel(data) {
 	  document.querySelector('#combo-container .ubid-media img').src = data.image || 'https://katomic.org/demo/defaultDealThumbnail.png'
 		
 		console.log(data)
-		const entityLabels = data.aliasReversed || []
-		console.log({entityLabels})
 		console.log(data.transfers)
 		document.querySelector('#deal-panel .ubid-transfers').innerHTML 
-			= data.allTransfers.map(x => renderTransfer(x, entityLabels)).join('<BR>')
-			// = data.allTransfers.map(x => renderTransfer(x, entityLabels)).join('<BR>')
+			= data.allTransfers.map(x => renderTransfer(x, data)).join('<BR>')
 
 		document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = (data.parameters || []).map(renderParameter).join('')
 		
@@ -628,6 +653,8 @@ function updateButtonNowLater() {
 function parseSearchParams(search) {
   const params = new URLSearchParams(search)
   productId = params.get('productId')
+	if (productId) productId = productId.replace('to',':') //normalise to colon
+	
   dealId = params.get('dealId')
 }
 
