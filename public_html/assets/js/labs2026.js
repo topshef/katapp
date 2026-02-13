@@ -547,9 +547,12 @@ function renderLocalLink({
     ? `${onNavigate}('${href}'); return false;`  // if a function name is provided run this function
     : `window.location.search='${href}'; return false;`  // else directly navigate to the link
 
+	const basePath = window.location.origin + window.location.pathname
+	const resolvedHref = basePath + href
+
   return `
     <a
-      href="${href}"
+      href="${resolvedHref}"
       onclick="${action}"
       class="utooltip"
       data-tooltip="${tooltip}"
