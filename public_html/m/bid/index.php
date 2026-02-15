@@ -169,7 +169,7 @@ let jsonConfig = `<?=$jsonConfig?>`
 </script>
 <script src="/vendor/hashconnect/dist/bundle.js"></script> 
 <script src="https://labs1.kpay.uk/patchOG/modal-ui-fix.js"></script> 
-
+<script type="module" src="/vendor/kbuild-monitor.js"></script>
 
 
 </body>
