@@ -4,6 +4,7 @@
 // └─┘┴ ┴└─┘┴ ┴└─┘  └  └─┘┘└┘└─┘ ┴ ┴└─┘┘└┘└─┘
 // cache functions
 
+//v0.13 REQUIRE glog.js .. todo convert all to module
 //v0.12 allow serve stale cache within window, and background update
 //v0.11 don't cache invalid data
 //v0.1 base version from 2025-ish at phpjabbers m/bid
@@ -84,17 +85,19 @@ async function saveToCache(url, params, data, maxSnapshots = 3) {
 		const isNewEntry = oldData === undefined
 
 		if (isNewEntry) {
-			console.group(`🆕 new cache entry: ${key}`)
-			console.log({ current: data })
-			console.groupEnd()
+			// console.group(`🆕 new cache entry: ${key}`)
+			glog('🆕 new cache entries', { key, current: data })
+			// console.log({ current: data })
+			// console.groupEnd()
 		}
 
 		else if (hasChanged) {
 			const diff = computeDiff(oldData, data)
 
-			console.group(`🔁 cache mutated: ${key}`)
-			console.log({ previous: oldData, current: data, diff })
-			console.groupEnd()
+			glog('🔁 cache mutated', { key, previous: oldData, current: data, diff })
+			// console.group(`🔁 cache mutated: ${key}`)
+			// console.log({ previous: oldData, current: data, diff })
+			// console.groupEnd()
 		}
 	}
 
@@ -116,18 +119,20 @@ async function getData(url, params, expirySeconds = 0, staleSeconds = 3600) {
 
 			// Fresh
 			if (expirySeconds === 'infinite' || ageSeconds <= expirySeconds) {
-				console.log('🟢 fresh cache')
+				// console.log('🟢 fresh cache')
+				glog('🟢 fresh cache',{url, params, expirySeconds, staleSeconds} )
 				return record.data
 			}
 
 			// Stale window
 			if (staleSeconds && ageSeconds <= staleSeconds) {
-				console.log('🟡 stale cache — serving + refreshing', {url, params, expirySeconds, staleSeconds})
+				glog('🟡 stale cache', {url, params, expirySeconds, staleSeconds}) //flushGlogs
+				// console.log('🟡 stale cache — serving + refreshing', {url, params, expirySeconds, staleSeconds})
 
 				const refreshKey = generateCacheKey(url, params)
 
 				if (!refreshQueue.has(refreshKey)) {
-					console.log('🟡 queued for background refresh:', refreshKey)
+					glog('🟡 stale cache', '🟡 queued for background refresh:', refreshKey)
 
 					refreshQueue.set(refreshKey, { url, params, expirySeconds })
 					setTimeout(processRefreshQueue, 0)
@@ -154,7 +159,8 @@ async function getData(url, params, expirySeconds = 0, staleSeconds = 3600) {
 	
 	const type = classifyResponse(response, data)
 
-	console.log(`⚡ live call to ${url}?${new URLSearchParams(params)}`, { type, data, expirySeconds })
+	// console.log(`⚡ live call to ${url}?${new URLSearchParams(params)}`, { type, data, expirySeconds })
+	glog('⚡ live call', `${url}?${new URLSearchParams(params)}`, { type, data, expirySeconds })
 
 	let finalExpiry = 0
 	
@@ -216,7 +222,8 @@ function classifyResponse(response, data) {
 async function processRefreshQueue() {
   if (isRefreshing) return
   isRefreshing = true
-	console.log('🔄 background refresh worker started')
+	// console.group('🔄 background refresh worker started')
+	glogStart('🔄 background refresh worker') // started')
 
   for (const [key, item] of refreshQueue) {
     refreshQueue.delete(key)
@@ -225,7 +232,8 @@ async function processRefreshQueue() {
 
     try {
       // force real refresh (no stale window)
-			console.log('🚀 refreshing:', key)
+			// console.log('🚀 refreshing:', key)
+			glog('🔄 background refresh worker', '🚀 refreshing:', key)
       await getData(url, params, expirySeconds, 0)
     } catch (e) {
       console.warn('Background refresh failed', url)
@@ -234,7 +242,10 @@ async function processRefreshQueue() {
 
   isRefreshing = false
 	console.log('✅ background refresh worker finished')
-
+	// console.groupEnd()
+	glogEnd('🔄 background refresh worker')
+	console.groupEnd()
+	
 }
 
 // ┌─┐┌┬┐┬┌┬┐  ╔═╗┌─┐┌─┐┬ ┬┌─┐  ╦ ╦┌─┐┌┬┐┌─┐┌┬┐┌─┐
@@ -302,4 +313,26 @@ function computeDiff(oldData, newData) {
   return Object.keys(diff).length ? diff : null
 }
 
+
+
+
+
+function channel(label, color) {
+  return (...args) => {
+    console.groupCollapsed(
+      `%c${label}`,
+      `color: white; background: ${color}; padding: 2px 6px; border-radius: 4px;`
+    )
+    console.log(...args)
+    console.groupEnd()
+  }
+}
+
+const logLive = channel('XLIVE', '#e74c3c')
+const logCache = channel('CACHE', '#3498db')
+
+
+console.debug('example debug')
+console.info('example debug')
+console.warn('example debug')
 
