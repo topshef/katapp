@@ -134,7 +134,7 @@
     <!-- <script src="https://unpkg.com/localbase/dist/localbase.min.js"></script> -->
     <script src="localbase.min.js"></script> <!-- beware spelling of Localbase -->
     <script src="glog.js"></script>
-    <script src="localCacheDB.js"></script>
+    <script type="module" src="localCacheDB.js"></script>
     <script src="localCacheIFPS.js"></script> 
     <script src="localCacheArweave.js"></script> 
     
