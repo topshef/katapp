@@ -133,8 +133,8 @@
     <script src="ubid2.js?v=<?php echo filemtime('ubid2.js');?>"></script>
     <!-- <script src="https://unpkg.com/localbase/dist/localbase.min.js"></script> -->
     <script src="localbase.min.js"></script> <!-- beware spelling of Localbase -->
-    <script src="glog.js"></script>
-    <script type="module" src="localCacheDB.js" data-global></script>
+    <script type="module" data-global src="glog.js" ></script>
+    <script type="module" data-global src="localCacheDB.js" ></script>
     <script src="localCacheIFPS.js"></script> 
     <script src="localCacheArweave.js"></script> 
     
