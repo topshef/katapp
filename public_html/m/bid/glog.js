@@ -12,11 +12,15 @@ const buckets = {}
 
 function glog(bucket, ...args) {
   if (!buckets[bucket]) buckets[bucket] = []
-  buckets[bucket].push(args)
+
+  const location = getCallerLocation()
+
+  buckets[bucket].push({ args, location })
 
   clearTimeout(idleTimer)
   idleTimer = setTimeout(flushGlogs, IDLE_TIMEOUT)
 }
+
 
 function glogStart(bucket, ...args) {
   flushGlogs()
@@ -28,14 +32,32 @@ function glogEnd(bucket, ...args) {
   flushGlogs()
 }
 
+
 function flushGlogs() {
   clearTimeout(idleTimer)
 
   Object.entries(buckets).forEach(([bucket, entries]) => {
     console.groupCollapsed(`${entries.length}x ${bucket}`)
-    entries.forEach(args => console.log(...args))
+
+    entries.forEach(({ args, location }) => {
+      console.log(...args, `\n📍 ${location}`)
+    })
+
     console.groupEnd()
   })
 
   for (const key in buckets) delete buckets[key]
 }
+
+function getCallerLocation() {
+  const stack = new Error().stack?.split('\n') || []
+
+  // find first stack entry NOT in glog.js
+  const caller = stack.find(line =>
+    line.includes('.js') &&
+    !line.includes('glog.js')
+  )
+
+  return caller?.trim() || ''
+}
+
