@@ -268,7 +268,8 @@ async function processNFT(NFT) {
             // console.log(`Unknown metadata source: ${metadata}`)
     }
     
-    console.log(`${metadataSource} metaData=${metadata} `, fileData)
+    // console.log(`${metadataSource} metaData=${metadata} `, fileData)
+    glog('ipfs metadata', `${metadataSource} metaData=${metadata} `, fileData)
 
     if (!fileData) return console.log(`RH87734 could not decode metadata for ${metadataSource}`) && false
     
@@ -279,7 +280,8 @@ async function processNFT(NFT) {
     
     
     const imageKey = fileData?.address || urlImage
-    console.log('imageKey=', imageKey)
+    // console.log('imageKey=', imageKey)
+    glog('ipfs metadata', 'imageKey=', imageKey)
 
 
     const isNftAlreadyDisplayed = displayedNFTs.includes(tokenSerial)

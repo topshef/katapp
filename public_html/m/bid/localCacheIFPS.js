@@ -102,7 +102,8 @@ window.IPFS_cache = (() => {
     async function getDataIPFS(key, responseType = 'text') {
         let cached = await dbIPFS.collection('cache').doc(key).get();
         if (cached && cached.data) {
-            console.log(`Using cached data for ${key}`);
+            glog(`Using cached data for`, ` ${key}`);
+            // console.log(`Using cached data for ${key}`);
             if (responseType === 'blob' && cached.isBlob) {
                 // Convert Base64 string back to Blob
                 let blob = base64ToBlob(cached.data, 'image/jpeg'); // Adjust MIME type if necessary
