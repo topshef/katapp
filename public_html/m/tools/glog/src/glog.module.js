@@ -3,6 +3,7 @@
 // └─┘┴└─└─┘└─┘┴    ┴─┘└─┘└─┘└─┘┴┘└┘└─┘
 // group logging
 
+//  dummy commit to test relase info
 //v0.14 dummy update to test release (use package.json to mark the version tho)
 //v0.13 convert to esm module
 //v0.12 fixed nested groups for chrome or edge
