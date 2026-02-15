@@ -9,6 +9,14 @@
 const IDLE_TIMEOUT = 3000
 let idleTimer
 
+
+const isChrome =
+  typeof window !== 'undefined' &&
+  !!window.chrome &&
+  navigator.userAgent.includes('Chrome') &&
+  !navigator.userAgent.includes('Edg')
+
+
 const buckets = {}
 
 function glogStart(bucket, ...args) {
@@ -66,13 +74,43 @@ function flushGlogs() {
     delete buckets[key]
 }
 
-function flushNode(node, label) {
-  const total = node.entries.length
 
-  // console.groupCollapsed(`${total}x ${label}`)
-	const script = node.entries[0]?.location || ''
-	const suffix = script ? ` (${script})` : ''
-	console.groupCollapsed(`${total}x ${label}${suffix}`)
+function countEntries(node) {
+  let count = node.entries.length
+
+  for (const childName in node.children)
+    count += countEntries(node.children[childName])
+
+  return count
+}
+
+function flushNode(node, label) {
+	const total = countEntries(node)
+
+	const script =
+		node.entries[0]?.location ||
+		Object.values(node.children)[0]?.entries[0]?.location ||
+		'unknown error TG39874'
+
+	const hasChildren = Object.keys(node.children).length > 0
+
+	// Chrome DevTools quirk: collapsing structural parents causes inert child headers.
+	// Only apply structural auto-open workaround in Chrome.
+	// Edge handles nested collapse correctly.
+	const shouldCollapse =
+		!hasChildren || !isChrome
+
+	const groupFn = shouldCollapse
+		? console.groupCollapsed
+		: console.group
+
+	groupFn(
+		`%c${script} %c${label} %c${total}x`,
+		'font-weight: normal; color: #888; opacity: 0.7;',
+		'font-weight: bold;',
+		'font-weight: normal; color: #888; opacity: 0.7;'
+	)
+
 
   node.entries.forEach(({ args, location }) => {
     console.log(...args, `\n📍 ${location}`)
@@ -81,7 +119,8 @@ function flushNode(node, label) {
   for (const childName in node.children)
     flushNode(node.children[childName], childName)
 
-  console.groupEnd()
+  // console.groupEnd()
+	safeGroupEnd()
 }
 
 function getCallerLocation() {
@@ -99,6 +138,12 @@ function getCallerLocation() {
 
   return match ? match[1] : ''
 }
+
+function safeGroupEnd() {  //probably redundant whilst chasing chrome bug
+  try { console.groupEnd() } catch (e) { console.warn('groupEnd failed', e) }
+}
+
+
 
 
 

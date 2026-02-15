@@ -37,7 +37,8 @@ window.IPFS_cache = (() => {
                 let response = await fetch(gateway + contentPath)
 
                 if (response.ok) {
-                    console.log('Live fetch from IPFS', cid);
+                    // console.log('Live fetch from IPFS', cid)
+										glog('Live fetch from IPFS',  ` ${cid}`)
                     return responseType === 'blob' ? await response.blob() : await response.text();
                 }
             } catch (error) {
@@ -102,7 +103,8 @@ window.IPFS_cache = (() => {
     async function getDataIPFS(key, responseType = 'text') {
         let cached = await dbIPFS.collection('cache').doc(key).get();
         if (cached && cached.data) {
-            glog(`Using cached data for`, ` ${key}`);
+						const cid = key.split('/')[0]
+            glog(`Using cached data for|${cid}`, ` ${key}`)
             // console.log(`Using cached data for ${key}`);
             if (responseType === 'blob' && cached.isBlob) {
                 // Convert Base64 string back to Blob
