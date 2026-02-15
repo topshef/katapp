@@ -1,6 +1,12 @@
 RewriteEngine On
 
-#RewriteRule ^working/glog.js$ src/glog.js [L]
+# Serve latest
+RewriteRule ^latest/(.*)$ dist/latest/$1 [L]
+
+# Serve versioned releases (e.g. 0.0.13)
+RewriteRule ^([0-9]+\.[0-9]+\.[0-9]+)/(.*)$ dist/$1/$2 [L]
+
+# Optional: keep working alias for dev
 RewriteRule ^working/(.*)$ src/$1 [L]
 
 
