@@ -3,6 +3,7 @@
 // └─┘┴└─└─┘└─┘┴    ┴─┘└─┘└─┘└─┘┴┘└┘└─┘
 // group logging
 
+//v0.12 fixed nested groups for chrome or edge
 //v0.11 nested groups
 //v0.1 initial version at m/bid
 
