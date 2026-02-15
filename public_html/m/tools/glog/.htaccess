@@ -1,0 +1,8 @@
+RewriteEngine On
+
+#RewriteRule ^working/glog.js$ src/glog.js [L]
+RewriteRule ^working/(.*)$ src/$1 [L]
+
+
+
+
