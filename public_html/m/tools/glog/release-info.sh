@@ -3,21 +3,31 @@
 set -e
 
 TAG_PREFIX="glog-v"
+CHANGELOG_FILE="CHANGELOG.md"
+INSERT_MARKER="<!-- INSERT_HERE -->"
 
-# Extract owner/repo from remote origin URL
+# Extract owner/repo (ignore domain)
 REPO_PATH=$(git config --get remote.origin.url | \
   sed -E 's#.*[:/]([^/]+/[^/]+)\.git#\1#')
 
 REPO_URL="https://github.com/${REPO_PATH}"
 
-REQUESTED_VERSION=$1
+REQUESTED_VERSION=""
+WRITE_FLAG=false
 
-# If version passed → show that release
+for arg in "$@"
+do
+  if [ "$arg" = "--write" ]; then
+    WRITE_FLAG=true
+  else
+    REQUESTED_VERSION="$arg"
+  fi
+done
+
 if [ -n "$REQUESTED_VERSION" ]; then
   CURRENT_TAG="${TAG_PREFIX}${REQUESTED_VERSION}"
   SHOW_UNRELEASED=false
 else
-  # Otherwise show unreleased (last tag → HEAD)
   CURRENT_TAG=$(git tag --list "${TAG_PREFIX}*" --sort=-creatordate | head -n 1)
   SHOW_UNRELEASED=true
 fi
@@ -27,47 +37,95 @@ if [ -z "$CURRENT_TAG" ]; then
   exit 1
 fi
 
-# ------------------------------
-# UNRELEASED MODE
-# ------------------------------
+TMP_FILE=$(mktemp)
+
 if [ "$SHOW_UNRELEASED" = true ]; then
-  echo "## Unreleased changes since ${CURRENT_TAG}"
-  echo
+  {
+    echo "## Unreleased"
+    echo
+    git log "${CURRENT_TAG}..HEAD" \
+      --pretty=format:"- [%h](${REPO_URL}/commit/%H) %s (%ad)" \
+      --date=short
+    echo
+  } > "$TMP_FILE"
+else
+  PREVIOUS_TAG=$(git tag --list "${TAG_PREFIX}*" --sort=-creatordate | \
+    grep -A1 "^${CURRENT_TAG}$" | tail -n 1)
 
-  git log "${CURRENT_TAG}..HEAD" \
-    --pretty=format:"- [%h](${REPO_URL}/commit/%H) %s (%ad)" \
-    --date=short
+  {
+    echo "## ${CURRENT_TAG}"
+    echo
 
-  echo
+    if [ -n "$PREVIOUS_TAG" ] && [ "$PREVIOUS_TAG" != "$CURRENT_TAG" ]; then
+      echo "_Changes since ${PREVIOUS_TAG}_"
+      echo
+      git log "${PREVIOUS_TAG}..${CURRENT_TAG}" \
+        --pretty=format:"- [%h](${REPO_URL}/commit/%H) %s (%ad)" \
+        --date=short
+    else
+      echo "_Initial release_"
+      echo
+      git log "${CURRENT_TAG}" \
+        --pretty=format:"- [%h](${REPO_URL}/commit/%H) %s (%ad)" \
+        --date=short
+    fi
+
+    echo
+  } > "$TMP_FILE"
+fi
+
+# If not writing, just print
+if [ "$WRITE_FLAG" != true ]; then
+  cat "$TMP_FILE"
+  rm "$TMP_FILE"
   exit 0
 fi
 
-# ------------------------------
-# SPECIFIC RELEASE MODE
-# ------------------------------
-
-echo "## ${CURRENT_TAG}"
-echo
-
-# Find previous tag
-PREVIOUS_TAG=$(git tag --list "${TAG_PREFIX}*" --sort=-creatordate | \
-  grep -A1 "^${CURRENT_TAG}$" | tail -n 1)
-
-if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" = "$CURRENT_TAG" ]; then
-  echo "_No previous release found._"
-  echo
-  git log "${CURRENT_TAG}" \
-    --pretty=format:"- [%h](${REPO_URL}/commit/%H) %s (%ad)" \
-    --date=short
-  echo
-  exit 0
+# Ensure changelog exists
+if [ ! -f "$CHANGELOG_FILE" ]; then
+  {
+    echo "# Changelog"
+    echo
+    echo "$INSERT_MARKER"
+    echo
+  } > "$CHANGELOG_FILE"
 fi
 
-echo "_Changes since ${PREVIOUS_TAG}_"
-echo
+# Ensure marker exists
+if ! grep -q "$INSERT_MARKER" "$CHANGELOG_FILE"; then
+  echo "Insert marker not found in $CHANGELOG_FILE"
+  rm "$TMP_FILE"
+  exit 1
+fi
 
-git log "${PREVIOUS_TAG}..${CURRENT_TAG}" \
-  --pretty=format:"- [%h](${REPO_URL}/commit/%H) %s (%ad)" \
-  --date=short
+# Insert content after marker (robust match)
+INSERTED_FLAG=$(mktemp)
+
+awk -v marker="$INSERT_MARKER" -v tmp="$TMP_FILE" -v flag="$INSERTED_FLAG" '
+{
+  print
+  if (index($0, marker)) {
+    while ((getline line < tmp) > 0)
+      print line
+    close(tmp)
+    print "yes" > flag
+    close(flag)
+  }
+}' "$CHANGELOG_FILE" > "${CHANGELOG_FILE}.new"
+
+# Ensure we actually inserted
+if [ ! -s "$INSERTED_FLAG" ]; then
+  rm -f "${CHANGELOG_FILE}.new" "$TMP_FILE" "$INSERTED_FLAG"
+  echo "Marker match failed; nothing written."
+  exit 1
+fi
+
+mv "${CHANGELOG_FILE}.new" "$CHANGELOG_FILE"
 
 echo
+echo "WROTE:"
+cat "$TMP_FILE"
+echo
+echo "CHANGELOG.md updated."
+
+rm -f "$TMP_FILE" "$INSERTED_FLAG"

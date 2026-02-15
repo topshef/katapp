@@ -11,4 +11,17 @@ RewriteRule ^working/(.*)$ src/$1 [L]
 
 
 
+#todo md.. somewhere i think we have this running generic so just at htaccess root and single resolver
+# 1) If request is for *.md AND has ?raw=1 → serve the real markdown
+RewriteCond %{REQUEST_URI} \.md$
+RewriteCond %{QUERY_STRING} (^|&)raw=1($|&)
+RewriteRule ^ - [L]
+
+# 2) If request is for *.md (and NOT raw=1) → show HTML viewer
+RewriteRule ^(.+)\.md$ mdViewer.html [L,QSA]
+
+
+
+
+
 
