@@ -130,7 +130,9 @@ function getCallerLocation() {
 
   const caller = stack.find(line =>
     line.includes('.js') &&
-    !line.includes('glog.js')
+    !line.includes('glog')
+    // !line.includes('glog.js') &&
+		// !line.includes('glog.module.js')
   )
 
   if (!caller) return ''
