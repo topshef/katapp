@@ -69,7 +69,10 @@ function flushGlogs() {
 function flushNode(node, label) {
   const total = node.entries.length
 
-  console.groupCollapsed(`${total}x ${label}`)
+  // console.groupCollapsed(`${total}x ${label}`)
+	const script = node.entries[0]?.location || ''
+	const suffix = script ? ` (${script})` : ''
+	console.groupCollapsed(`${total}x ${label}${suffix}`)
 
   node.entries.forEach(({ args, location }) => {
     console.log(...args, `\n📍 ${location}`)
@@ -81,18 +84,20 @@ function flushNode(node, label) {
   console.groupEnd()
 }
 
-
-
 function getCallerLocation() {
   const stack = new Error().stack?.split('\n') || []
 
-  // find first stack entry NOT in glog.js
   const caller = stack.find(line =>
     line.includes('.js') &&
     !line.includes('glog.js')
   )
 
-  return caller?.trim() || ''
+  if (!caller) return ''
+
+  // extract filename without line/column/query
+  const match = caller.match(/\/([^\/]+\.js)(?:\?|:)/)
+
+  return match ? match[1] : ''
 }
 
 
