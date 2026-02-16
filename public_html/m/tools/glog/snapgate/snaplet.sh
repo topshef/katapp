@@ -2,45 +2,45 @@
 
 set -e
 
-# snapshot.sh
-# ------------
-# Deterministic recursive snapshot tool.
+# snaplet.sh 
+# v0.0.1 Initial version 16 Feb 2026
+# ----------
+# Deterministic recursive snaplet tool.
+#
+# A Snaplet is a canonically produced .tar.gz snapshot of a directory,
+# named as: <name>-v<semver>-<8charhash>.tar.gz
+# The semver is read from package.json, and the hash reflects the exact
+# file names + contents of the archived tree.
 #
 # Intent:
-# Provides a quick, portable snapshot of a small codebase without requiring
-# package management or full version control. Designed for tiny widgets where
-# dropping this script into a folder and running it gives basic, standalone
-# version tracking via semver + content hash.
+# Provides a lightweight, portable snapshot for small codebases without
+# requiring package management or full version control. Drop this script
+# into any folder and generate simple, standalone versioned artifacts.
 #
 # Minimum requirement for versioning:
 # Include a package.json with "name" and "version" fields.
 #
-# Creates: <name>-v<semver>-<8charhash>.tar.gz
-#
-# - Reads name + version from package.json if present
-# - Defaults to snapshot v0.0.0 if missing
 # - Recursively archives target directory
 # - Excludes common build/system folders (.git, node_modules, dist, *.gz, etc.)
-# - Normalises metadata for stable hashing
-# - Hash reflects file names + contents only
-# - Aborts if identical snapshot already exists
+# - Normalises metadata for deterministic hashing
+# - Aborts if identical snaplet already exists
 #
 # Usage:
-#   ./snapshot.sh <target-directory>
+#   ./snaplet.sh <target-directory>
 #
 # Example:
-#   ./snapshot.sh ./
-#   ./snapshot.sh ../my-widget
+#   ./snaplet.sh ./
+#   ./snaplet.sh ../my-widget
 
 
 # ---- Usage ----
 usage() {
   echo "Usage:"
-  echo "  ./snapshot.sh [target-directory]"
+  echo "  ./snaplet.sh [target-directory]"
   echo ""
   echo "Example:"
-  echo "  ./snapshot.sh ./"
-  echo "  ./snapshot.sh ../my-widget"
+  echo "  ./snaplet.sh ./"
+  echo "  ./snaplet.sh ../my-widget"
 }
 
 # ---- Resolve target directory ----
@@ -67,7 +67,7 @@ echo "Target directory: $TARGET_DIR"
 
 cd "$TARGET_DIR"
 
-DEFAULT_NAME="snapshot"
+DEFAULT_NAME="snaplet"
 DEFAULT_VERSION="0.0.0"
 
 NAME="$DEFAULT_NAME"
@@ -91,6 +91,7 @@ echo "Package name: $NAME"
 echo "Version: v$VERSION"
 
 # ---- Default recursive excludes ----
+# note if you want different excludes atm you have to change this script its hardcoded
 EXCLUDES=(
   "*.gz"
   ".git"
@@ -124,13 +125,13 @@ tar -czf "$TMP_FILE" \
 
 HASH=$(sha1sum "$TMP_FILE" | awk '{print $1}' | cut -c1-8)
 
-FINAL_FILE="${TARGET_DIR}/${NAME}-v${VERSION}-${HASH}.tar.gz"
+FINAL_FILE="${TARGET_DIR}/${NAME}-v${VERSION}-snaplet-${HASH}.tar.gz"
 
 echo "Final archive: $FINAL_FILE"
 
 if [ -f "$FINAL_FILE" ]
 then
-  echo "Snapshot already exists. Nothing to do."
+  echo "snaplet already exists. Nothing to do."
   rm "$TMP_FILE"
   exit 0
 fi
