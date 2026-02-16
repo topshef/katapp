@@ -10,6 +10,12 @@ This project follows Semantic Versioning.
 
 <!-- INSERT_HERE -->
 
+## glog-v0.0.19 (snapgate only)
+
+- [82bcc27](https://github.com/topshef/phpjabbers/commit/82bcc27b7248512d668bcb4edf6e11b062cfae5e) refactor/fix: #46 snapgate - own folder - fix paths (untested) (2026-02-16)
+- [4317a23](https://github.com/topshef/phpjabbers/commit/4317a2308796f94d44481f278a7bf9b2e3a71065) refactor\!: #46 snapgate - move to own folder as a release widget (2026-02-16)
+- [a61031c](https://github.com/topshef/phpjabbers/commit/a61031c271e426a32cd16ddc2a71aa3236198070) #46 snapgate remove duplciate doc (2026-02-16)
+
 ## glog-v0.0.18 (snapgate only)
 
 - [76a7752](https://github.com/topshef/phpjabbers/commit/76a77524e89a3b0163ddba3224d1894a8e691281) #46 snapgate links in release notes.ghjk (2026-02-16)
