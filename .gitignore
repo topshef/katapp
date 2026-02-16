@@ -26,6 +26,9 @@ zz*
 #content
 scratchpad
 *.zip
+*.gz
+*.tar
+
 
 
 
