@@ -10,7 +10,7 @@ DEFAULT_VERSION="0.0.0"
 NAME="$DEFAULT_NAME"
 VERSION="$DEFAULT_VERSION"
 
-# ---- Read package.json if it exists ----
+# ---- Read package.json if present ----
 if [ -f "package.json" ]
 then
   echo "Found package.json"
@@ -27,26 +27,37 @@ fi
 echo "Package name: $NAME"
 echo "Version: v$VERSION"
 
+# ---- Default recursive excludes ----
 EXCLUDES=(
   "*.gz"
+  ".git"
+  "node_modules"
+  "dist"
+  ".env"
+  ".DS_Store"
 )
 
 TMP_FILE="/tmp/${NAME}.$$.$RANDOM.tmp.tar.gz"
 
-# ---- Build file list (files only, deterministic order) ----
-FILE_LIST=$(find . -maxdepth 1 -type f ! -name "*.gz" | sort)
+# ---- Build tar exclude args ----
+EXCLUDE_ARGS=()
+for pattern in "${EXCLUDES[@]}"
+do
+  EXCLUDE_ARGS+=(--exclude="$pattern")
+done
 
-echo "Files being archived:"
-echo "$FILE_LIST"
+echo "Excludes:"
+printf '  - %s\n' "${EXCLUDES[@]}"
 
-# ---- Create deterministic archive ----
+# ---- Create deterministic recursive archive ----
 tar -czf "$TMP_FILE" \
   --sort=name \
   --mtime='UTC 1970-01-01' \
   --owner=0 \
   --group=0 \
   --numeric-owner \
-  $FILE_LIST
+  "${EXCLUDE_ARGS[@]}" \
+  .
 
 HASH=$(sha1sum "$TMP_FILE" | awk '{print $1}' | cut -c1-8)
 
@@ -54,7 +65,6 @@ FINAL_FILE="${OUT_DIR}/${NAME}-v${VERSION}-${HASH}.tar.gz"
 
 echo "Final archive: $FINAL_FILE"
 
-# ---- Abort if identical snapshot already exists ----
 if [ -f "$FINAL_FILE" ]
 then
   echo "Snapshot already exists. Nothing to do."
