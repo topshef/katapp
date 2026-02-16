@@ -9,6 +9,13 @@ This project follows Semantic Versioning.
 ---
 
 <!-- INSERT_HERE -->
+## Unreleased
+
+- [4ca334e](https://github.com/topshef/phpjabbers/commit/4ca334e2cc085548d791a4d7531e717c2774b4f6) #46 snapgate ffs thats enough park it (2026-02-16)
+
+## glog-v0.0.xx (unreleased)
+
+- [4ca334e](https://github.com/topshef/phpjabbers/commit/4ca334e2cc085548d791a4d7531e717c2774b4f6) #46 snapgate ffs thats enough park it (2026-02-16)
 
 ## glog-v0.0.21 (snapgate only)
 
