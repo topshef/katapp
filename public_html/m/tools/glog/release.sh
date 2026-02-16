@@ -68,6 +68,14 @@ if [ "$DRY_RUN" = "--dry-run" ]; then
   exit 0
 fi
 
+# ---- UPDATE CHANGELOG ----
+./release-info.sh "$VERSION" --write
+git add CHANGELOG.md
+git commit -m "docs(changelog): update for $TAG"
+
+echo "Changelog updated and committed."
+
+
 # ---- TAG ----
 git tag -a "$TAG" -m "Release $TAG"
 git push origin "$TAG"

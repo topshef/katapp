@@ -40,14 +40,25 @@ fi
 TMP_FILE=$(mktemp)
 
 if [ "$SHOW_UNRELEASED" = true ]; then
+ 
+PKG_VERSION=$(grep '"version"' package.json | head -1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
+
+	if git diff --quiet package.json; then
+		# package.json not modified
+		HEADER="## Unreleased"
+	else
+		# package.json modified (likely version bumped)
+		HEADER="## ${TAG_PREFIX}${PKG_VERSION} (unreleased)"
+	fi
   {
-    echo "## Unreleased"
+    echo "$HEADER"
     echo
     git log "${CURRENT_TAG}..HEAD" \
       --pretty=format:"- [%h](${REPO_URL}/commit/%H) %s (%ad)" \
       --date=short
     echo
   } > "$TMP_FILE"
+
 else
   PREVIOUS_TAG=$(git tag --list "${TAG_PREFIX}*" --sort=-creatordate | \
     grep -A1 "^${CURRENT_TAG}$" | tail -n 1)
