@@ -33,6 +33,15 @@ if [ -z "$NAME" ] || [ -z "$VERSION" ]; then
   exit 1
 fi
 
+# Ensure version was actually changed in last commit
+PREV_VERSION=$(git show HEAD^:"$PACKAGE_PATH" 2>/dev/null | \
+  grep '"version"' | head -1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
+
+if [ -n "$PREV_VERSION" ] && [ "$VERSION" = "$PREV_VERSION" ]; then
+  echo "❌ Version number was not incremented in last commit."
+  exit 1
+fi
+
 TAG="${NAME}-v${VERSION}"
 DIST_DIR="dist/${VERSION}"
 
