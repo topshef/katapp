@@ -107,7 +107,7 @@ echo "✔ Build snapshot created."
 RELEASE_FILE="$DIST_DIR/RELEASE_INFO.md"
 RELEASE_DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
-PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+PREV_TAG=$(git tag --list "${NAME}-v*" --sort=-creatordate | head -n 1)
 
 {
   echo "# $NAME v$VERSION"
