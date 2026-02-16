@@ -10,11 +10,16 @@ This project follows Semantic Versioning.
 
 <!-- INSERT_HERE -->
 
-## glog-v0.0.20 (snapgate only)
+## glog-v0.0.21 (snapgate only)
 
+- [ca1f16c](https://github.com/topshef/phpjabbers/commit/ca1f16c251ef921696cfa23645576ff073c6869a) #46 snapgate release v0.0.20 (2026-02-16)
 - [80b111a](https://github.com/topshef/phpjabbers/commit/80b111a411346498242d37301f5dbf5cb37b4124) #46 snapgate - stick to simple flow - atomic update of version bump + CHANGELOG (2026-02-16)
 - [853c9d7](https://github.com/topshef/phpjabbers/commit/853c9d7fa53fceac61db4a283a047037d81bf987) #46 snapgate - require changelog before release (2026-02-16)
 - [8439ce5](https://github.com/topshef/phpjabbers/commit/8439ce50246c04da48660aab60b124a4313c3acd) #46 snapgate ai refactor untested - just use changelog.md (2026-02-16)
+
+## glog-v0.0.20 (skipped)
+
+- 
 
 ## glog-v0.0.19 (snapgate only)
 

@@ -80,7 +80,7 @@ if [ -e "$DIST_DIR" ]; then
 fi
 
 # Ensure changelog contains entry for this version
-if ! grep -q "^## ${TAG}$" CHANGELOG.md; then
+if ! grep -q "^## ${TAG}\b" CHANGELOG.md; then
   echo "CHANGELOG.md does not contain entry for ${TAG}."
   echo "You should:"
   echo "1. 🔢 Re-bump the version"
