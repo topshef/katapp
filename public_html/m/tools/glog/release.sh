@@ -55,6 +55,7 @@ fi
 
 mkdir -p "$DIST_DIR"
 cp -a "$SRC_DIR/." "$DIST_DIR/"
+cp package.json "$DIST_DIR/"
 
 rm -f dist/latest
 ln -s "$VERSION" dist/latest
