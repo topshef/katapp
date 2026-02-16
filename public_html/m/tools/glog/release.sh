@@ -69,7 +69,7 @@ if [ "$DRY_RUN" = "--dry-run" ]; then
 fi
 
 # ---- UPDATE CHANGELOG ----
-./release-info.sh "$VERSION" --write
+./release-info.sh --write
 git add CHANGELOG.md
 git commit -m "docs(changelog): update for $TAG"
 
