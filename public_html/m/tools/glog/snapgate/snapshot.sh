@@ -2,7 +2,70 @@
 
 set -e
 
-OUT_DIR="$(pwd)"
+# snapshot.sh
+# ------------
+# Deterministic recursive snapshot tool.
+#
+# Intent:
+# Provides a quick, portable snapshot of a small codebase without requiring
+# package management or full version control. Designed for tiny widgets where
+# dropping this script into a folder and running it gives basic, standalone
+# version tracking via semver + content hash.
+#
+# Minimum requirement for versioning:
+# Include a package.json with "name" and "version" fields.
+#
+# Creates: <name>-v<semver>-<8charhash>.tar.gz
+#
+# - Reads name + version from package.json if present
+# - Defaults to snapshot v0.0.0 if missing
+# - Recursively archives target directory
+# - Excludes common build/system folders (.git, node_modules, dist, *.gz, etc.)
+# - Normalises metadata for stable hashing
+# - Hash reflects file names + contents only
+# - Aborts if identical snapshot already exists
+#
+# Usage:
+#   ./snapshot.sh <target-directory>
+#
+# Example:
+#   ./snapshot.sh ./
+#   ./snapshot.sh ../my-widget
+
+
+# ---- Usage ----
+usage() {
+  echo "Usage:"
+  echo "  ./snapshot.sh [target-directory]"
+  echo ""
+  echo "Example:"
+  echo "  ./snapshot.sh ./"
+  echo "  ./snapshot.sh ../my-widget"
+}
+
+# ---- Resolve target directory ----
+if [ -z "$1" ]
+then
+  usage
+  exit 0
+fi
+
+TARGET_DIR="$1"
+
+if [ ! -d "$TARGET_DIR" ]
+then
+  echo "Error: '$TARGET_DIR' is not a directory."
+  usage
+  exit 1
+fi
+
+
+# Convert to absolute path
+TARGET_DIR="$(cd "$TARGET_DIR" && pwd)"
+
+echo "Target directory: $TARGET_DIR"
+
+cd "$TARGET_DIR"
 
 DEFAULT_NAME="snapshot"
 DEFAULT_VERSION="0.0.0"
@@ -61,7 +124,7 @@ tar -czf "$TMP_FILE" \
 
 HASH=$(sha1sum "$TMP_FILE" | awk '{print $1}' | cut -c1-8)
 
-FINAL_FILE="${OUT_DIR}/${NAME}-v${VERSION}-${HASH}.tar.gz"
+FINAL_FILE="${TARGET_DIR}/${NAME}-v${VERSION}-${HASH}.tar.gz"
 
 echo "Final archive: $FINAL_FILE"
 
