@@ -2,7 +2,9 @@
 
 set -e
 
-TAG_PREFIX="glog-v"
+NAME=$(grep '"name"' package.json | sed ...)
+TAG_PREFIX="${NAME}-v"
+
 CHANGELOG_FILE="CHANGELOG.md"
 INSERT_MARKER="<!-- INSERT_HERE -->"
 
