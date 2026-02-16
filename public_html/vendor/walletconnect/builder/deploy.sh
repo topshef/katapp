@@ -32,13 +32,23 @@ if [ -f "$SNAP_META" ]; then
   SNAP_VERSION=$(grep 'version:' "$SNAP_META" | sed -E 's/.*"([^"]+)".*/\1/')
   SNAP_COMMIT=$(grep 'commit:' "$SNAP_META" | sed -E 's/.*"([^"]+)".*/\1/')
 
-  HEAD_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+  #HEAD_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "")
+	HEAD_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || true)
+
 
   if git diff --quiet 2>/dev/null && [ "$SNAP_COMMIT" = "$HEAD_COMMIT" ]; then
     IS_RELEASE=true
   fi
 fi
 
+echo "----------------------------------------"
+echo "Snapgate detection:"
+echo "  SNAP_VERSION = $SNAP_VERSION"
+echo "  SNAP_COMMIT  = $SNAP_COMMIT"
+echo "  HEAD_COMMIT  = $HEAD_COMMIT"
+echo "  TREE CLEAN   = $(git diff --quiet 2>/dev/null && echo yes || echo no)"
+echo "  IS_RELEASE   = $IS_RELEASE"
+echo "----------------------------------------"
 
 
 # echo "GIT_REPO   = $GIT_REPO"

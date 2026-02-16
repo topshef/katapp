@@ -98,6 +98,7 @@ EXCLUDES=(
   ".git"
   "node_modules"
   "dist"
+  "releases"
   "archive"
   ".env"
   ".DS_Store"

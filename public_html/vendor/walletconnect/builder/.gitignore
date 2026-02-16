@@ -1,6 +1,7 @@
 
 archive/
 dist/
+releases/
 node_modules/
 snapgate/
 

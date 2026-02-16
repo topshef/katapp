@@ -6,6 +6,7 @@ export default defineConfig({
   },
   build: {
 		sourcemap: true,
+		emptyOutDir: false,
     lib: {
       entry: 'src/app.js',
       name: 'WalletConnectHedera',
