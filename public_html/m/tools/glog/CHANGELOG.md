@@ -10,9 +10,13 @@ This project follows Semantic Versioning.
 
 <!-- INSERT_HERE -->
 
-## glog-v0.0.17
+## glog-v0.0.18 (snapgate only)
 
-    These are only changes to the release process itself (working title _snapgate_ ) This version does not touch glog itself
+- [76a7752](https://github.com/topshef/phpjabbers/commit/76a77524e89a3b0163ddba3224d1894a8e691281) #46 snapgate links in release notes.ghjk (2026-02-16)
+
+## glog-v0.0.17 (snapgate only)
+
+    These are only changes to the release process itself (working title **snapgate**) This version does not touch glog itself
 
 - [35ec3f3](https://github.com/topshef/phpjabbers/commit/35ec3f3493a84e2e7f5265c616b42d97bed2d5a0) #46 release process - require that version bump is from package.json (2026-02-16)
 - [6fa5a58](https://github.com/topshef/phpjabbers/commit/6fa5a58e00348d2fb2ba5599776d630a0d125b4c) #46 only check git tags for this microservice (as we're in a monorepo) (2026-02-16)
@@ -27,7 +31,7 @@ This project follows Semantic Versioning.
 - [78fbb36](https://github.com/topshef/phpjabbers/commit/78fbb36e023d106974ca4ebfbc30e07512a6c983) #46 remove redundant changelog commit (done pre-release). make release generic (2026-02-16)
 - [415a53a](https://github.com/topshef/phpjabbers/commit/415a53ab3cee70498700ea847304533667928901) #46 release process (2026-02-16)
 
-## glog-v0.0.16
+## glog-v0.0.16 (snapgate only)
 
 - [2abc1a7](https://github.com/topshef/phpjabbers/commit/2abc1a72c6a23ebfaf2508166f3595c32dd7af70) #46 fghjkl remmeber to commit the version then release.sh (2026-02-16)
 - [d757aad](https://github.com/topshef/phpjabbers/commit/d757aad6838fbfb359d7d68545dba930bd8bf549) #46 write pre-release notes once version tag is incremented (2026-02-16)
@@ -39,7 +43,7 @@ This project follows Semantic Versioning.
 
 ---
 
-## ## glog-v0.0.14
+## ## glog-v0.0.14 (snapgate only)
 
 _Changes since glog-v0.0.13_
 
