@@ -1,58 +1,30 @@
 #!/bin/sh
 
-set -e
-
 MODE="$1"
+
+set -e
 
 PACKAGE_PATH="package.json"
 
-usage() {
-  echo "Usage:"
-  echo "  ./release.sh              # check release readiness"
-  echo "  ./release.sh --run        # perform release"
-  echo "  ./release.sh --dry-run    # simulate release"
-  echo "  ./release.sh --help       # show this help"
-  echo
-}
+# ============================================================
+# 1. VALIDATION
+# ============================================================
 
-# -----------------------------
-# HELP
-# -----------------------------
-if [ "$MODE" = "--help" ]; then
-  usage
-  exit 0
-fi
-
-echo "Release inspection..."
-
-# -----------------------------
-# CHECK WORKING TREE
-# -----------------------------
+# Ensure working tree is clean
 if [ -n "$(git status --porcelain)" ]; then
-  echo "❌ Working tree is NOT clean."
-  echo "   Commit or stash changes before releasing."
+  echo "❌ Working tree not clean. Commit or stash changes first."
   exit 1
-else
-  echo "✅ Working tree is clean."
 fi
 
-# -----------------------------
-# ENSURE LAST COMMIT TOUCHED package.json
-# -----------------------------
 PREFIX=$(git rev-parse --show-prefix)
 TARGET_PATH="${PREFIX}${PACKAGE_PATH}"
 
-if git diff-tree --no-commit-id --name-only -r HEAD | grep -q "^${TARGET_PATH}$"; then
-  echo "✅ Last commit modified package.json."
-else
-  echo "❌ Last commit did NOT modify package.json."
-  echo "   You must bump the version before releasing."
+if ! git diff-tree --no-commit-id --name-only -r HEAD | grep -q "^${TARGET_PATH}$"; then
+  echo "❌ Last commit did not modify package.json in this project."
   exit 1
 fi
 
-# -----------------------------
-# EXTRACT NAME + VERSION
-# -----------------------------
+# Extract name and version
 NAME=$(grep '"name"' "$PACKAGE_PATH" | head -1 | sed -E 's/.*"name": *"([^"]+)".*/\1/')
 VERSION=$(grep '"version"' "$PACKAGE_PATH" | head -1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
 
@@ -64,84 +36,107 @@ fi
 TAG="${NAME}-v${VERSION}"
 DIST_DIR="dist/${VERSION}"
 
-echo
-echo "Package: $NAME"
-echo "Version: $VERSION"
-echo "Tag:     $TAG"
-echo "Dist:    $DIST_DIR"
-echo
+# ============================================================
+# 2. DIAGNOSTICS (ALWAYS PRINTED)
+# ============================================================
 
-# -----------------------------
-# CHECK TAG EXISTS
-# -----------------------------
+HEAD_SHORT=$(git rev-parse --short HEAD)
+HEAD_FULL=$(git rev-parse HEAD)
+HEAD_DATE=$(git log -1 --format=%cd --date=short)
+
+echo "--------------------------------------------------"
+echo "Release diagnostics"
+echo "--------------------------------------------------"
+echo "Package:        $NAME"
+echo "Version:        $VERSION"
+echo "Tag:            $TAG"
+echo "HEAD commit:    $HEAD_SHORT ($HEAD_DATE)"
+echo "Full SHA:       $HEAD_FULL"
+echo "Dist target:    $DIST_DIR"
+echo "--------------------------------------------------"
+
 if git rev-parse "$TAG" >/dev/null 2>&1; then
   echo "❌ Tag $TAG already exists."
   exit 1
-else
-  echo "✅ Tag does not yet exist."
 fi
 
-# -----------------------------
-# CHECK DIST EXISTS
-# -----------------------------
 if [ -e "$DIST_DIR" ]; then
-  echo "❌ Dist directory already exists: $DIST_DIR"
+  echo "❌ Dist directory $DIST_DIR already exists."
   exit 1
-else
-  echo "✅ Dist directory will be created."
 fi
 
-echo
-
-# -----------------------------
-# DEFAULT MODE = INSPECTION ONLY
-# -----------------------------
+# Default mode = inspect only
 if [ -z "$MODE" ]; then
-  echo "Ready to release."
-  echo
-  echo "Run:"
-  echo "  ./release.sh --run"
-  echo
+  echo "✔ Validation passed."
+  echo "Run './release.sh --run' to execute release."
   exit 0
 fi
 
-# -----------------------------
-# DRY RUN MODE
-# -----------------------------
 if [ "$MODE" = "--dry-run" ]; then
-  echo "---- DRY RUN ----"
-  echo "Would create: $DIST_DIR"
-  echo "Would tag:    $TAG"
-  echo "Would push tag to origin"
+  echo "✔ Dry run complete. No changes made."
   exit 0
 fi
 
-# -----------------------------
-# EXECUTION MODE
-# -----------------------------
 if [ "$MODE" != "--run" ]; then
-  echo "Unknown option: $MODE"
-  usage
+  echo "Usage:"
+  echo "  ./release.sh          (inspect only)"
+  echo "  ./release.sh --dry-run"
+  echo "  ./release.sh --run"
   exit 1
 fi
 
-echo "Starting release..."
+# ============================================================
+# 3. BUILD (EXECUTION MODE ONLY)
+# ============================================================
 
-# ---- BUILD STEP ----
+echo "🚀 Executing release..."
+
 mkdir -p "$DIST_DIR"
 cp -a "src/." "$DIST_DIR/"
-cp package.json "$DIST_DIR/"
+cp "$PACKAGE_PATH" "$DIST_DIR/"
 
 rm -f dist/latest
 ln -s "$VERSION" dist/latest
 
-echo "Build complete."
-echo "Dist folder created and latest symlink updated."
+echo "✔ Build snapshot created."
 
-# ---- TAG ----
+# ============================================================
+# 4. RELEASE MANIFEST GENERATION
+# ============================================================
+
+RELEASE_FILE="$DIST_DIR/RELEASE_INFO.md"
+RELEASE_DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+
+{
+  echo "# $NAME v$VERSION"
+  echo
+  echo "Released: $RELEASE_DATE"
+  echo "Tag:      $TAG"
+  echo "Commit:   $HEAD_SHORT"
+  echo "Full SHA: $HEAD_FULL"
+  echo
+
+  if [ -n "$PREV_TAG" ]; then
+    echo "## Commits since $PREV_TAG"
+    git log "${PREV_TAG}..HEAD" --pretty=format:"- %h %s"
+  else
+    echo "## Initial release"
+    git log HEAD --pretty=format:"- %h %s"
+  fi
+
+  echo
+} > "$RELEASE_FILE"
+
+echo "✔ RELEASE_INFO.md generated."
+
+# ============================================================
+# 5. TAG + PUSH
+# ============================================================
+
 git tag -a "$TAG" -m "Release $TAG"
 git push origin "$TAG"
 
-echo
-echo "Release complete."
-echo "Released $NAME v$VERSION"
+echo "✔ Tag created and pushed."
+echo "🎉 Release complete."
