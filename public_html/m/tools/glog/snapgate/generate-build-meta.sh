@@ -1,6 +1,39 @@
 #!/bin/sh
 set -e
 
+
+# ------------------------------------------------------------------------------
+# Snapgate Build Metadata Generator
+#
+# This script creates src/__snapgate__.js during the "bump" phase.
+#
+# Purpose:
+#   - Embed release identity directly into the source tree.
+#   - Tie version + commit metadata to the same atomic commit.
+#   - Ensure any future build/bundle deterministically contains
+#     an immutable fingerprint of the release.
+#
+# Flow within Snapgate:
+#   1. snapgate.sh bump patch
+#        → updates version in package.json
+#        → updates CHANGELOG.md
+#        → calls this script
+#   2. Developer commits:
+#        package.json + CHANGELOG.md + __snapgate__.js
+#   3. snapgate.sh release
+#        → tags that exact commit
+#
+# Important:
+#   - This script does NOT mutate history.
+#   - It reflects the current HEAD state before the release commit.
+#   - The generated file is thin metadata only (safe to include in builds).
+#
+# The result:
+#   The tagged commit contains a self-identifying runtime fingerprint.
+# ------------------------------------------------------------------------------
+
+
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
