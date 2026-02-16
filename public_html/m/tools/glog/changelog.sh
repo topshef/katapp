@@ -2,7 +2,7 @@
 
 set -e
 
-NAME=$(grep '"name"' package.json | sed ...)
+NAME=$(sed -nE 's/.*"name": *"([^"]+)".*/\1/p' package.json | head -1)
 TAG_PREFIX="${NAME}-v"
 
 CHANGELOG_FILE="CHANGELOG.md"
