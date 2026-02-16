@@ -4,19 +4,19 @@ _Rapid release with ease_
 
 # 🚀 Release TL;DR
 
-- 🛠 **Build stuff** in `src/`, test via `/working/`, commit freely
+- 🛠 **Build** stuff in `src/`, test via `/working/`, commit freely
+  
+  *Preferably from a clean working tree:*
 
-- 🔢 **Bump patch*** `./snapgate.sh bump patch`
+- 🔢 **Bump** patch `./snapgate.sh bump patch`
   
   - 📝 this also automatically writes an update to `CHANGELOG.md` 
 
 - ✏️ **Tidy** `CHANGELOG.md` if needed
 
-- 💾 Commit `package.json` + `CHANGELOG.md` together
+- 💾 **Commit** patch info — `package.json` + `CHANGELOG.md`
 
-- 🚀 Run `./release.sh`
-
-- 🏷 Tag + `dist/<version>` created + `latest` updated
+- 🚀 **Run** `./snapgate.sh release`
 
 ****Golden rule:** 🧼 Release only from a clean tree where the *last commit is the version bump* — no extra commits after it.
 
@@ -98,7 +98,7 @@ This will:
 > - Increment the patch version in `package.json`
 > - Automatically generate the draft changelog
 > 
-> The underlying workflow remains the same. This is simply a convenience wrapper.4
+> The underlying workflow remains the same. This is simply a convenience wrapper.
 
 
 

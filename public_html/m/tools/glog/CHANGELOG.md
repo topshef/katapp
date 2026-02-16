@@ -10,6 +10,10 @@ This project follows Semantic Versioning.
 
 <!-- INSERT_HERE -->
 
+## glog-v0.0.23 (snapgate only)
+
+- [6bea794](https://github.com/topshef/phpjabbers/commit/6bea79410263455a6b77fee5a1f462ac23cabf13) #46 snapgate docs (2026-02-16)
+
 ## glog-v0.0.22 (snapgate only)
 
 - [b58a6e7](https://github.com/topshef/phpjabbers/commit/b58a6e74c3b04ddf67509674fee7801a74fa87d5) #46 snapgate helper to bump patch etc, and as main entry controller (2026-02-16)
