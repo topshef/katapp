@@ -79,6 +79,14 @@ if [ -e "$DIST_DIR" ]; then
   exit 1
 fi
 
+# Ensure changelog contains entry for this version
+if ! grep -q "^## ${TAG}$" CHANGELOG.md; then
+  echo "CHANGELOG.md does not contain entry for ${TAG}."
+  echo "Run ./snapgate/changelog.sh --write and commit before releasing. Currently you MUST bump AND update md in same commit. This might be about to change."
+  exit 1
+fi
+
+
 # ============================================================
 # 2. DIAGNOSTICS
 # ============================================================
