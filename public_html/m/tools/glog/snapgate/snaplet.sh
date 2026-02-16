@@ -3,6 +3,7 @@
 set -e
 
 # snaplet.sh 
+# v0.0.11 ignore archive folder
 # v0.0.1 Initial version 16 Feb 2026
 # ----------
 # Deterministic recursive snaplet tool.
@@ -97,6 +98,7 @@ EXCLUDES=(
   ".git"
   "node_modules"
   "dist"
+  "archive"
   ".env"
   ".DS_Store"
 )
