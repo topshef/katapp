@@ -12,7 +12,7 @@
 # See snapgate/SNAPGATE.md for full documentation.
 # ============================================================
 
-SNAPGATE_VERSION="0.1.11"
+SNAPGATE_VERSION="0.1.12"
 MODE="$1"
 
 set -e

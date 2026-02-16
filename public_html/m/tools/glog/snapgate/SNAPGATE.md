@@ -6,11 +6,11 @@ _Rapid release with ease_
 
 - 🛠 **Build stuff** in `src/`, test via `/working/`, commit freely
 
-- 🔢 **Bump version** in `package.json` when ready to release
+- 🔢 **Bump patch*** `./snapgate.sh bump patch`
+  
+  - 📝 this also automatically writes an update to `CHANGELOG.md` 
 
-- 📝 Run `./changelog.sh --write` to draft changelog
-
-- ✏️ Tidy `CHANGELOG.md` if needed
+- ✏️ **Tidy** `CHANGELOG.md` if needed
 
 - 💾 Commit `package.json` + `CHANGELOG.md` together
 
@@ -81,6 +81,26 @@ This will:
 - Collect all commits since the last release
 
 - Insert a draft section into `CHANGELOG.md`
+  
+  
+
+> 💡 **Shortcut (Snapgate helper)**
+> 
+> Instead of manually editing `package.json` and then running
+> `./changelog.sh --write`, you can run:
+> 
+> ```bash
+> ./snapgate.sh bump patch
+> ```
+> 
+> This will:
+> 
+> - Increment the patch version in `package.json`
+> - Automatically generate the draft changelog
+> 
+> The underlying workflow remains the same. This is simply a convenience wrapper.4
+
+
 
 ---
 
