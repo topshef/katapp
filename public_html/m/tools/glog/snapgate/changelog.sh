@@ -195,23 +195,14 @@ if [ "$WRITE_FLAG" != true ]; then
   exit 0
 fi
 
-# Create CHANGELOG.md if it does not exist
-# Adds the insertion marker automatically
 if [ ! -f "$CHANGELOG_FILE" ]; then
-  {
-    echo "# ${NAME}"
-    echo
-    echo "Repository: ${REPO_URL}"
-    echo
-    echo "<!--"
-    echo "  This file is partially managed by ./changelog.sh"
-    echo "  New releases are inserted below the marker."
-    echo "  Do NOT remove the marker line."
-    echo "-->"
-    echo
-    echo "$INSERT_MARKER"
-    echo
-  } > "$CHANGELOG_FILE"
+  echo "❌ CHANGELOG.md not found."
+  echo
+  echo "To create a new changelog run:"
+  echo "  ./snapgate.sh init changelog"
+  echo
+  rm "$TMP_FILE"
+  exit 1
 fi
 
 

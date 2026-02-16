@@ -38,6 +38,9 @@ usage() {
   echo "  ./snapgate.sh bump patch"
   echo "  ./snapgate.sh release"
   echo
+  echo "  For one-time use only: "
+	echo "  ./snapgate.sh init changelog"
+  echo
   exit 0
 }
 
@@ -111,6 +114,14 @@ EOF
   echo "  4. ./snapgate.sh release"
   echo
 
+  exit 0
+fi
+
+# --------------------------------------------------
+# INIT
+# --------------------------------------------------
+if [ "$COMMAND" = "init" ] && [ "$SUBCOMMAND" = "changelog" ]; then
+  "$SCRIPT_DIR/changelog_init.sh"
   exit 0
 fi
 
