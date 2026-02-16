@@ -10,6 +10,10 @@ Repository: https://github.com/topshef/phpjabbers
 
 <!-- INSERT_HERE -->
 
+## kwc-v0.0.16
+
+- [051dde5](https://github.com/topshef/phpjabbers/commit/051dde52543e8c633fb650b6a8a88384dfdb4931) #52 backpeddle ai (2026-02-16)
+
 ## kwc-v0.0.15
 
 - [d586b57](https://github.com/topshef/phpjabbers/commit/d586b57ab9244bfebe80cfe2389052f144d6f72e) #52 #46 todo make snapgate push to releases folder? deploy/vite is fighting for the dist folder (2026-02-16)
