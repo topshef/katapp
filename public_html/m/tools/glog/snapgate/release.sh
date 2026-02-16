@@ -1,8 +1,51 @@
 #!/bin/sh
 
+# ============================================================
+# Snapgate
+# Lightweight commit-locked release harness for microservices
+#
+# Snapgate philosophy:
+#   - Version bump = release intent
+#   - Release only from clean working tree
+#   - Last commit must contain version bump
+#   - Immutable dist snapshot + annotated git tag
+#
+# Basic Release Flow:
+#   1. Bump version in package.json
+#   2. Run ./snapgate/changelog.sh --write
+#   3. Commit package.json + CHANGELOG.md
+#   4. Run ./snapgate/release.sh --run
+#
+# Full documentation:
+#   See snapgate/SNAPGATE.md
+# ============================================================
+
+SNAPGATE_VERSION="0.1.0"
+
 MODE="$1"
 
 set -e
+
+
+# --------------------------------------------------
+# SNAPGATE ROOT RESOLUTION
+# --------------------------------------------------
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+cd "$PROJECT_ROOT" || exit 1
+
+if [ ! -f "package.json" ]; then
+  echo "❌ package.json not found in project root."
+  echo "Snapgate must be placed inside the project."
+  exit 1
+fi
+
+echo "Snapgate: release engine initialised."
+echo "Project root: $PROJECT_ROOT"
+echo
+
 
 PACKAGE_PATH="package.json"
 
@@ -62,6 +105,8 @@ echo "Tag:            $TAG"
 echo "HEAD commit:    $HEAD_SHORT ($HEAD_DATE)"
 echo "Full SHA:       $HEAD_FULL"
 echo "Dist target:    $DIST_DIR"
+echo ""
+echo "Released by Snapgate v$SNAPGATE_VERSION"
 echo "--------------------------------------------------"
 
 if git rev-parse "$TAG" >/dev/null 2>&1; then

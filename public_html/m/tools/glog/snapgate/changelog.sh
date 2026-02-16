@@ -1,8 +1,34 @@
 #!/bin/sh
 
+# Snapgate
+# Generates or previews changelog entries from commit history.
+# use this inconjucntion with release.sh
+# See snapgate/SNAPGATE.md for full release workflow.
+
+
 # Exit immediately if any command fails
 # This prevents partial writes or half-generated changelogs
 set -e
+
+# --------------------------------------------------
+# SNAPGATE ROOT RESOLUTION
+# --------------------------------------------------
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+cd "$PROJECT_ROOT" || exit 1
+
+if [ ! -f "package.json" ]; then
+  echo "❌ package.json not found in project root."
+  echo "Snapgate must be placed inside the project."
+  exit 1
+fi
+
+echo "Snapgate: release engine initialised."
+echo "Project root: $PROJECT_ROOT"
+echo
+
 
 # Print CLI usage instructions and exit
 # This makes --help and -h behave like a real CLI tool
