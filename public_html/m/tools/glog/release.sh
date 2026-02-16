@@ -116,7 +116,17 @@ echo "✔ Build snapshot created."
 RELEASE_FILE="$DIST_DIR/RELEASE_INFO.md"
 RELEASE_DATE=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
-PREV_TAG=$(git tag --list "${NAME}-v*" --sort=-creatordate | head -n 1)
+#PREV_TAG=$(git tag --list "${NAME}-v*" --sort=-creatordate | head -n 1)
+PREV_TAG=$(git tag --list "${NAME}-v*" --sort=-creatordate | \
+  grep -v "^${TAG}$" | head -n 1)
+
+
+# Extract GitHub repo URL (same logic as changelog.sh)
+REPO_PATH=$(git config --get remote.origin.url | \
+  sed -E 's#.*[:/]([^/]+/[^/]+)\.git#\1#')
+
+REPO_URL="https://github.com/${REPO_PATH}"
+
 
 {
   echo "# $NAME v$VERSION"
@@ -127,13 +137,19 @@ PREV_TAG=$(git tag --list "${NAME}-v*" --sort=-creatordate | head -n 1)
   echo "Full SHA: $HEAD_FULL"
   echo
 
-  if [ -n "$PREV_TAG" ]; then
-    echo "## Commits since $PREV_TAG"
-    git log "${PREV_TAG}..HEAD" --pretty=format:"- %h %s"
-  else
-    echo "## Initial release"
-    git log HEAD --pretty=format:"- %h %s"
-  fi
+	if [ -n "$PREV_TAG" ]; then
+		echo "## Commits since $PREV_TAG"
+		echo
+		git log "${PREV_TAG}..HEAD" \
+			--pretty=format:"- [%h](${REPO_URL}/commit/%H) %s (%ad)" \
+			--date=short
+	else
+		echo "## Initial release"
+		echo
+		git log HEAD \
+			--pretty=format:"- [%h](${REPO_URL}/commit/%H) %s (%ad)" \
+			--date=short
+	fi
 
   echo
 } > "$RELEASE_FILE"
