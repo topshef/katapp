@@ -9,15 +9,10 @@ This project follows Semantic Versioning.
 ---
 
 <!-- INSERT_HERE -->
-## Unreleased
 
-- [2abc1a7](https://github.com/topshef/phpjabbers/commit/2abc1a72c6a23ebfaf2508166f3595c32dd7af70) #46 fghjkl (2026-02-16)
-- [d757aad](https://github.com/topshef/phpjabbers/commit/d757aad6838fbfb359d7d68545dba930bd8bf549) #46 write pre-release notes once version tag is incremented (2026-02-16)
-- [5db970c](https://github.com/topshef/phpjabbers/commit/5db970cf57842eb54fe71face4ed0ce577b3af67) #46 option to write release notes to changelog (2026-02-15)
-- [fe2dd68](https://github.com/topshef/phpjabbers/commit/fe2dd687df176ea88882c4380b0f899f337f62bf) #46 generate draft release notes from commit history (2026-02-15)
-- [80c91c4](https://github.com/topshef/phpjabbers/commit/80c91c49961b867f2ce43741e50303ce29d9652a) #46 dummy commit (2026-02-15)
 ## glog-v0.0.16
 
+- [2abc1a7](https://github.com/topshef/phpjabbers/commit/2abc1a72c6a23ebfaf2508166f3595c32dd7af70) #46 fghjkl remmeber to commit the version then release.sh (2026-02-16)
 - [d757aad](https://github.com/topshef/phpjabbers/commit/d757aad6838fbfb359d7d68545dba930bd8bf549) #46 write pre-release notes once version tag is incremented (2026-02-16)
 - [5db970c](https://github.com/topshef/phpjabbers/commit/5db970cf57842eb54fe71face4ed0ce577b3af67) #46 option to write release notes to changelog (2026-02-15)
 - [fe2dd68](https://github.com/topshef/phpjabbers/commit/fe2dd687df176ea88882c4380b0f899f337f62bf) #46 generate draft release notes from commit history (2026-02-15)
