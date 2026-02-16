@@ -10,6 +10,18 @@ This project follows Semantic Versioning.
 
 <!-- INSERT_HERE -->
 
+## glog-v0.0.24 (snapgate only)
+
+- [dc162d0](https://github.com/topshef/phpjabbers/commit/dc162d064bad00b36da9cfb77b4db780a424915e) #46 snapgate docs update (2026-02-16)
+- [fcde226](https://github.com/topshef/phpjabbers/commit/fcde226bbf64a7230e30d62b99142f865c9d4ca8) #46 snapgate add snapgate js to src as part of bump patch (2026-02-16)
+- [f835d9b](https://github.com/topshef/phpjabbers/commit/f835d9b82a73c0c83174fdb1b5edd99e0ce0f381) #48 #46 point bid to glog to latest to test snapgate versioning (2026-02-16)
+- [3db3f38](https://github.com/topshef/phpjabbers/commit/3db3f38799f9706762e3c3f008040d07aeb82b9b) #46 snaplet v0.0.1 (2026-02-16)
+- [5bb62b5](https://github.com/topshef/phpjabbers/commit/5bb62b58fe4b11af0660a1ce94b8508c65bb9264) #46 snapshot self version (2026-02-16)
+- [9c0938a](https://github.com/topshef/phpjabbers/commit/9c0938aca800f01cc911a67b3050b987bd64475d) #46 snapshot self versioning standalone thingy - allow recursion (2026-02-16)
+- [173feef](https://github.com/topshef/phpjabbers/commit/173feefc56bbbc79e918a944abab7f99df6843b7) #46 snapshot self versioning standalone thingy (2026-02-16)
+- [672a764](https://github.com/topshef/phpjabbers/commit/672a76473d18f957db1bb7c931e1a1ed94dbb904) #46 snapgate self snapshot inner widget - gitignore tar gz (2026-02-16)
+- [d58334a](https://github.com/topshef/phpjabbers/commit/d58334a43155c9605bc98d45e8762d65cafae8ea) #46 snapgate self snapshot inner widget wip (2026-02-16)
+
 ## glog-v0.0.23 (snapgate only)
 
 - [6bea794](https://github.com/topshef/phpjabbers/commit/6bea79410263455a6b77fee5a1f462ac23cabf13) #46 snapgate docs (2026-02-16)
