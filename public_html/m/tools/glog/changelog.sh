@@ -25,6 +25,12 @@ usage() {
 # Used to build tag prefix like: my-app-v1.2.3
 NAME=$(sed -nE 's/.*"name": *"([^"]+)".*/\1/p' package.json | head -1)
 
+# If no name was found in package.json, use the git repo folder name instead.
+# This keeps the script working even outside Node-based projects.
+if [ -z "$NAME" ]; then
+  NAME=$(basename "$(git rev-parse --show-toplevel)")
+fi
+
 # All release tags are expected to follow this pattern:
 # <name>-v<version>
 TAG_PREFIX="${NAME}-v"
@@ -167,17 +173,32 @@ fi
 # Adds the insertion marker automatically
 if [ ! -f "$CHANGELOG_FILE" ]; then
   {
-    echo "# Changelog"
+    echo "# ${NAME}"
+    echo
+    echo "Repository: ${REPO_URL}"
+    echo
+    echo "<!--"
+    echo "  This file is partially managed by ./changelog.sh"
+    echo "  New releases are inserted below the marker."
+    echo "  Do NOT remove the marker line."
+    echo "-->"
     echo
     echo "$INSERT_MARKER"
     echo
   } > "$CHANGELOG_FILE"
 fi
 
+
 # Ensure insertion marker exists in file
 # Prevents corrupt or misplaced writes
 if ! grep -q "$INSERT_MARKER" "$CHANGELOG_FILE"; then
-  echo "Insert marker not found in $CHANGELOG_FILE"
+	echo "ERROR: insertion marker not found in $CHANGELOG_FILE"
+	echo
+	echo "Expected marker line:"
+	echo "  $INSERT_MARKER"
+	echo
+	echo "If the marker was removed, re-add it manually."
+	echo "The script inserts new releases immediately after that line."
   rm "$TMP_FILE"
   exit 1
 fi
@@ -203,7 +224,9 @@ awk -v marker="$INSERT_MARKER" -v tmp="$TMP_FILE" -v flag="$INSERTED_FLAG" '
 # If marker match failed, abort safely
 if [ ! -s "$INSERTED_FLAG" ]; then
   rm -f "${CHANGELOG_FILE}.new" "$TMP_FILE" "$INSERTED_FLAG"
-  echo "Marker match failed; nothing written."
+	echo "ERROR: marker match failed; nothing written."
+	echo "Expected marker:"
+	echo "  $INSERT_MARKER"
   exit 1
 fi
 
