@@ -10,6 +10,12 @@ Repository: https://github.com/topshef/phpjabbers
 
 <!-- INSERT_HERE -->
 
+## kwc-v0.0.17
+
+- [0b116dd](https://github.com/topshef/phpjabbers/commit/0b116dded75b78de67a30f4290a46db64de04007) #52 ghjkl new bundle (2026-02-16)
+- [cd6fe8c](https://github.com/topshef/phpjabbers/commit/cd6fe8c2fa99a222b87d3c7799ee7cd3bfeb91a9) #52 try again snapgate kwc (2026-02-16)
+- 
+
 ## kwc-v0.0.16
 
 - [051dde5](https://github.com/topshef/phpjabbers/commit/051dde52543e8c633fb650b6a8a88384dfdb4931) #52 backpeddle ai (2026-02-16)
