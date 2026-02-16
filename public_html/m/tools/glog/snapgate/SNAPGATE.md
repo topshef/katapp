@@ -1,3 +1,7 @@
+# SNAPGATE
+
+_Rapid release with ease_
+
 # 🚀 Release TL;DR
 
 - 🛠 **Build stuff** in `src/`, test via `/working/`, commit freely
@@ -15,14 +19,6 @@
 - 🏷 Tag + `dist/<version>` created + `latest` updated
 
 ****Golden rule:** 🧼 Release only from a clean tree where the *last commit is the version bump* — no extra commits after it.
-
----
-
-# I love reading release processes...
-
-**Last updated:** 16 February 2026
-
-This document describes the current release workflow for this microservice.
 
 ---
 
@@ -130,8 +126,6 @@ Run:
 This performs validation only and confirms whether the release is ready. Optionally you can simulate the release process also:
 
 `./release.sh -- dry-run`
-
-
 
 ### 7. 🚀Run Release Script
 
