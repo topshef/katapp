@@ -10,6 +10,23 @@ This project follows Semantic Versioning.
 
 <!-- INSERT_HERE -->
 
+## glog-v0.0.17
+
+    These are only changes to the release process itself (working title _snapgate_ ) This version does not touch glog itself
+
+- [35ec3f3](https://github.com/topshef/phpjabbers/commit/35ec3f3493a84e2e7f5265c616b42d97bed2d5a0) #46 release process - require that version bump is from package.json (2026-02-16)
+- [6fa5a58](https://github.com/topshef/phpjabbers/commit/6fa5a58e00348d2fb2ba5599776d630a0d125b4c) #46 only check git tags for this microservice (as we're in a monorepo) (2026-02-16)
+- [ccc8084](https://github.com/topshef/phpjabbers/commit/ccc808486b5f53b595fa0fe78439770a3a013559) #46 output release notes. tidy up (ai untested) (2026-02-16)
+- [65c940e](https://github.com/topshef/phpjabbers/commit/65c940ef5af475a9798940f7a61e999b25744b28) #46 release process is how to release. then todo release info per relase (2026-02-16)
+- [8c1d39b](https://github.com/topshef/phpjabbers/commit/8c1d39b55e5b086e9a6f49b6e7e2a6069fe8e486) #46 release dry run etc (2026-02-16)
+- [199456d](https://github.com/topshef/phpjabbers/commit/199456db0097980ddf75540eea3bcd7d516fb7f5) #46 dry-run default (ai updated release untested) (2026-02-16)
+- [0d3c40c](https://github.com/topshef/phpjabbers/commit/0d3c40c0c5dd09583c94bb247e26222b0a15131d) #46 jhgfd (2026-02-16)
+- [286c149](https://github.com/topshef/phpjabbers/commit/286c149e993c2c380a01040bf6dc6064f3681db6) #46 changelog process tweaks (2026-02-16)
+- [3ae3fce](https://github.com/topshef/phpjabbers/commit/3ae3fce08a1c8d14eb89aef7ceb3c7ec2df01a8f) #46 changelog process notes (2026-02-16)
+- [4adff22](https://github.com/topshef/phpjabbers/commit/4adff22e77d2fc9332459dfe1d05a7e6d14ac245) #46 rename and bugfix changelog update (2026-02-16)
+- [78fbb36](https://github.com/topshef/phpjabbers/commit/78fbb36e023d106974ca4ebfbc30e07512a6c983) #46 remove redundant changelog commit (done pre-release). make release generic (2026-02-16)
+- [415a53a](https://github.com/topshef/phpjabbers/commit/415a53ab3cee70498700ea847304533667928901) #46 release process (2026-02-16)
+
 ## glog-v0.0.16
 
 - [2abc1a7](https://github.com/topshef/phpjabbers/commit/2abc1a72c6a23ebfaf2508166f3595c32dd7af70) #46 fghjkl remmeber to commit the version then release.sh (2026-02-16)
@@ -47,9 +64,6 @@ _No previous release found._
 - [cc6e499](https://github.com/topshef/phpjabbers/commit/cc6e49969acd9d1e1e418e631fdf245bbe41f886) #46 #48 (#5) localCacheDB to module with wrapper (2026-02-15)
 - [caea16d](https://github.com/topshef/phpjabbers/commit/caea16d0bed8ecba2809fdbeacf81353ebcdeb2f) #46 #48 (#5) glog digest logging - show source (2026-02-15)
 - [73eeb91](https://github.com/topshef/phpjabbers/commit/73eeb918cbe923caf005867fa5142b35cb34208f) #46 #48 (#5) glog digest logging (2026-02-15)
-
-
-
 
 ```
 //legacy in-code commit notes
