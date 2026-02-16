@@ -19,36 +19,33 @@ BUILD_LOG="$(mktemp)"
 [ -f "$SCRIPT_DIR/git_info.sh" ] && . "$SCRIPT_DIR/git_info.sh"
 
 
+
 # --------------------------------------------------
-# Snapgate release detection
+# Release detection (based on Git tag)
 # --------------------------------------------------
 
-SNAP_META="src/__snapgate__.js"
-SNAP_VERSION=""
-SNAP_COMMIT=""
 IS_RELEASE=false
+RELEASE_TAG=""
+RELEASE_VERSION=""
 
-if [ -f "$SNAP_META" ]; then
-  SNAP_VERSION=$(grep 'version:' "$SNAP_META" | sed -E 's/.*"([^"]+)".*/\1/')
-  SNAP_COMMIT=$(grep 'commit:' "$SNAP_META" | sed -E 's/.*"([^"]+)".*/\1/')
-
-  #HEAD_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "")
-	HEAD_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || true)
-
-
-  if git diff --quiet 2>/dev/null && [ "$SNAP_COMMIT" = "$HEAD_COMMIT" ]; then
+# Working tree must be clean
+if git diff --quiet 2>/dev/null; then
+  # HEAD must be exactly at a tag
+  if RELEASE_TAG=$(git describe --tags --exact-match 2>/dev/null); then
     IS_RELEASE=true
+    RELEASE_VERSION=$(echo "$RELEASE_TAG" | sed -E 's/.*-v([0-9.]+)$/\1/')
   fi
 fi
 
 echo "----------------------------------------"
-echo "Snapgate detection:"
-echo "  SNAP_VERSION = $SNAP_VERSION"
-echo "  SNAP_COMMIT  = $SNAP_COMMIT"
-echo "  HEAD_COMMIT  = $HEAD_COMMIT"
-echo "  TREE CLEAN   = $(git diff --quiet 2>/dev/null && echo yes || echo no)"
-echo "  IS_RELEASE   = $IS_RELEASE"
+echo "Release detection:"
+echo "  RELEASE_TAG     = $RELEASE_TAG"
+echo "  RELEASE_VERSION = $RELEASE_VERSION"
+echo "  HEAD_COMMIT     = $(git rev-parse --short HEAD 2>/dev/null || true)"
+echo "  TREE CLEAN      = $(git diff --quiet 2>/dev/null && echo yes || echo no)"
+echo "  IS_RELEASE      = $IS_RELEASE"
 echo "----------------------------------------"
+
 
 
 # echo "GIT_REPO   = $GIT_REPO"
@@ -99,12 +96,12 @@ npm run build 2>&1 | tee "$BUILD_LOG"
 # Ensure archive directory exists
 mkdir -p "$ARCHIVE_DIR"
 
-# If Snapgate release state detected, prepare versioned dist folder
-if [ "$IS_RELEASE" = true ] && [ -n "$SNAP_VERSION" ]; then
-  VERSIONED_DIST_DIR="dist/${SNAP_VERSION}"
+# If this is a release build, prepare versioned output directory
+if [ "$IS_RELEASE" = true ] && [ -n "$RELEASE_VERSION" ]; then
+  VERSIONED_DIST_DIR="dist/$RELEASE_VERSION"
   mkdir -p "$VERSIONED_DIST_DIR"
-  echo "Snapgate release detected → deploying into $VERSIONED_DIST_DIR"
 fi
+
 
 
 # Deploy each built artifact
@@ -140,12 +137,10 @@ for file in "$DIST_DIR"/*; do
   cp -f "$file" "$archived"
 
 
-	#snapgate
-  # If release state, also copy into versioned dist folder
-  if [ "$IS_RELEASE" = true ] && [ -n "$SNAP_VERSION" ]; then
-    cp -f "$file" "$VERSIONED_DIST_DIR/$filename"
-  fi
-
+	# If release state, also copy into versioned dist folder
+	if [ "$IS_RELEASE" = true ]; then
+		cp -f "$file" "$VERSIONED_DIST_DIR/$filename"
+	fi
 
 
   # Deploy & archive sourcemap using bundle hash
