@@ -10,6 +10,11 @@ Repository: https://github.com/topshef/phpjabbers
 
 <!-- INSERT_HERE -->
 
+## kwc-v0.0.14
+
+- [5812fb4](https://github.com/topshef/phpjabbers/commit/5812fb4a77e7b2da6a15a059ad94d43f1c7d2b05) #52 test rebundle without snapgate version change - so this woudl be used as 'working' only (2026-02-16)
+- [6bdf059](https://github.com/topshef/phpjabbers/commit/6bdf05975e0ff12d9ae084f76f4821eac4692eb5) #52 todo review build info (snapgate) and deployment process (2026-02-16)
+
 ## kwc-v0.0.13
 
 _Initial release_
@@ -20,11 +25,11 @@ _Initial release_
 ## kwc-v0.0.12 (legacy change history)
 
 - [fbd62be](https://github.com/topshef/phpjabbers/commit/fbd62be93fe63993a8143ab29ee8bac53a470c54) #52 cleanup archive etc (2026-02-16)
+
 - [b427ed7](https://github.com/topshef/phpjabbers/commit/b427ed70f6c9de993ee80b427408cd79b61a7a36) #52 #46 prep version control for KWC bundle (kpay walletconnect) (2026-02-16)
   
   [bdee7de](https://github.com/topshef/phpjabbers/commit/bdee7de733e44bc5acbfe3c82a8d5575b3fd1a54) #52 #50 hide WC connect when connected etc (2026-02-11)
-  
-  
+
 - [37e0db9](https://github.com/topshef/phpjabbers/commit/37e0db9ab2c44ee7a7cc1bb556f4781e1a7aa9e2) #45 #52 fix dogshit ai and passthru starttime (2026-02-08)
 - [994f854](https://github.com/topshef/phpjabbers/commit/994f854f24fe7d8938738dce00e971753d015da1) #52 #50 revert OG page to hashconnect. only v=labs for walletconnect (2026-02-08)
 - [ef04569](https://github.com/topshef/phpjabbers/commit/ef0456996f011e6193c9c566b14547b38b1445dc) #52 tx submit does not mean tx success. todo port result info from hashconnect flow (2026-02-08)
