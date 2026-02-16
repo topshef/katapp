@@ -116,11 +116,6 @@ else
   SHOW_UNRELEASED=true
 fi
 
-# Abort if no matching release tags exist
-if [ -z "$CURRENT_TAG" ]; then
-  echo "No release tags found."
-  exit 1
-fi
 
 # Create temporary file to hold generated changelog section
 # This ensures we only write to the real file after validation
@@ -151,9 +146,19 @@ if [ "$SHOW_UNRELEASED" = true ]; then
 	{
 		echo "$HEADER"
 		echo
-		git log "${CURRENT_TAG}..HEAD" \
-			--pretty=format:"- [%h](${REPO_URL}/commit/%H) %s (%ad)" \
-			--date=short
+
+		if [ -n "$CURRENT_TAG" ]; then
+			git log "${CURRENT_TAG}..HEAD" \
+				--pretty=format:"- [%h](${REPO_URL}/commit/%H) %s (%ad)" \
+				--date=short
+		else
+			echo "_Initial release_"
+			echo
+			git log HEAD \
+				--pretty=format:"- [%h](${REPO_URL}/commit/%H) %s (%ad)" \
+				--date=short
+		fi
+
 		echo
 	} > "$TMP_FILE"
 
