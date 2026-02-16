@@ -82,9 +82,41 @@ fi
 # Ensure changelog contains entry for this version
 if ! grep -q "^## ${TAG}$" CHANGELOG.md; then
   echo "CHANGELOG.md does not contain entry for ${TAG}."
-  echo "Run ./snapgate/changelog.sh --write and commit before releasing. Currently you MUST bump AND update md in same commit. This might be about to change."
+  echo "You should:"
+  echo "1. 🔢 Re-bump the version"
+  echo "2. 📝 run ./snapgate/changelog.sh --write"
+  echo "3. ✏️ review/edit CHANGELOG.md"
+  echo "4. 💾 commit the above changes (so workign tree is clean)"
+	echo "5. 🚀 release.sh --run"
   exit 1
 fi
+
+# ------------------------------------------------------------------------------
+# SNAPGATE DESIGN NOTE — VERSION BUMP POLICY
+#
+# Snapgate intentionally requires the version bump and changelog update to be
+# committed together as one atomic change. The last commit must represent the
+# final release state.
+#
+# We deliberately avoid complex logic that allows partial bumps or post-bump
+# exceptions (e.g. permitting CHANGELOG-only commits after the bump). While
+# technically possible, that adds edge-case handling, more code, and more
+# ambiguity to the release rule.
+#
+# Current philosophy:
+#   - Bump version.
+#   - Update changelog.
+#   - Commit both together.
+#   - Release from that exact commit.
+#
+# If a version bump is committed prematurely, the fix is simple:
+# bump again. Losing a number is acceptable. Simplicity and robustness
+# are preferred over version-number perfection.
+#
+# Future evolution may move the "source of truth" for versioning away from
+# manual package.json edits toward a controlled bump command, but for now
+# Snapgate keeps the model explicit and atomic.
+# ------------------------------------------------------------------------------
 
 
 # ============================================================
