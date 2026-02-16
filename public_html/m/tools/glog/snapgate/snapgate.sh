@@ -86,6 +86,14 @@ EOF
 
   sed -i -E "s/\"version\": *\"${CURRENT}\"/\"version\": \"${NEW_VERSION}\"/" "$PACKAGE"
 
+	#generate a metadata file src/__snapgate__.js that can be used by the app for self-knowledge
+	if [ -f "$SCRIPT_DIR/generate-build-meta.sh" ]; then
+		"$SCRIPT_DIR/generate-build-meta.sh"
+	else
+		echo "generate-build-meta.sh not found."
+		exit 1
+	fi
+
   echo "package.json updated."
 
 	if [ -f "$SCRIPT_DIR/changelog.sh" ]; then
@@ -98,7 +106,7 @@ EOF
   echo
   echo "Next steps:"
   echo "  1. Review CHANGELOG.md"
-  echo "  2. git add package.json CHANGELOG.md"
+  echo "  2. git add package.json CHANGELOG.md src/__snapgate__.js"
   echo "  3. git commit -m \"chore(release): ${NEW_VERSION}\""
   echo "  4. ./snapgate.sh release"
   echo
