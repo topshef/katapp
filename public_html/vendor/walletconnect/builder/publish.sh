@@ -1,13 +1,15 @@
 #!/bin/sh
 set -e
 
+# --------------------------------------------------
 # publish.sh
-# Always outputs a uniquely named snapshot into dist/
-# If tagged release, also copies into releases/<version>/
+# Build → snapshot artifact → (optional) release promotion
+# --------------------------------------------------
 
 DIST_DIR="dist"
-ARCHIVE_DIR="archive"
+SNAP_DIR="snapshots"
 RELEASES_DIR="releases"
+ARCHIVE_DIR="archive"
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 BUILD_LOG="$(mktemp)"
@@ -15,7 +17,7 @@ BUILD_LOG="$(mktemp)"
 [ -f "$SCRIPT_DIR/git_info.sh" ] && . "$SCRIPT_DIR/git_info.sh"
 
 # --------------------------------------------------
-# Detect Git state
+# Detect Git State
 # --------------------------------------------------
 
 TREE_CLEAN=false
@@ -67,34 +69,32 @@ fi
 echo "BUILDID = $build_id"
 
 # --------------------------------------------------
-# Run build
+# Run Clean Build
 # --------------------------------------------------
 
+# Let Vite own dist completely
+rm -rf "$DIST_DIR"
 npm run build 2>&1 | tee "$BUILD_LOG"
 
-mkdir -p "$ARCHIVE_DIR"
+mkdir -p "$SNAP_DIR"
 mkdir -p "$RELEASES_DIR"
+mkdir -p "$ARCHIVE_DIR"
 
 # --------------------------------------------------
-# Process built artifacts
+# Process Fresh Build Outputs Only
 # --------------------------------------------------
 
-for file in "$DIST_DIR"/*; do
+for file in "$DIST_DIR"/*.js; do
   [ -f "$file" ] || continue
 
   filename=$(basename "$file")
-
-  case "$filename" in
-    *.map) continue ;;
-  esac
-
   name="${filename%.*}"
   ext="${filename##*.}"
 
   hash=$(sha1sum "$file" | cut -c1-6)
   ts=$(date -u +"%Y-%m-%d %a %H:%M:%S UTC")
 
-  # Determine suffix
+  # Determine snapshot suffix
   if [ "$MODE" = "dirty" ]; then
     suffix="dirty"
   else
@@ -102,39 +102,41 @@ for file in "$DIST_DIR"/*; do
   fi
 
   SNAP_NAME="${name}.${suffix}.${ext}"
-  SNAP_PATH="${DIST_DIR}/${SNAP_NAME}"
+  SNAP_PATH="${SNAP_DIR}/${SNAP_NAME}"
 
   # Always create snapshot artifact
   cp -f "$file" "$SNAP_PATH"
 
-  # Archive hashed copy
-  cp -f "$file" "${ARCHIVE_DIR}/${name}_${hash}.${ext}"
-
-  # Handle sourcemap
+  # Handle sourcemap if exists
   if [ -f "$DIST_DIR/$filename.map" ]; then
     cp -f "$DIST_DIR/$filename.map" \
-      "${ARCHIVE_DIR}/${name}_${hash}.${ext}.map"
-
-    cp -f "$DIST_DIR/$filename.map" \
-      "${DIST_DIR}/${name}.${suffix}.${ext}.map"
+      "${SNAP_DIR}/${name}.${suffix}.${ext}.map"
   fi
+
+  # Archive hashed copy (optional history)
+  cp -f "$file" "${ARCHIVE_DIR}/${name}_${hash}.${ext}"
 
   # Update snapshot.latest symlink if clean
   if [ "$MODE" != "dirty" ]; then
-    LATEST_LINK="${DIST_DIR}/${name}.snapshot.latest.${ext}"
+    LATEST_LINK="${SNAP_DIR}/${name}.snapshot.latest.${ext}"
     rm -f "$LATEST_LINK"
     ln -s "$SNAP_NAME" "$LATEST_LINK"
   fi
 
-  # If release, also copy raw bundle into releases/<version>/
+  # Release promotion
   if [ "$MODE" = "release" ] && [ -n "$RELEASE_VERSION" ]; then
     VERSION_DIR="${RELEASES_DIR}/${RELEASE_VERSION}"
     mkdir -p "$VERSION_DIR"
     cp -f "$file" "${VERSION_DIR}/${filename}"
+
+    if [ -f "$DIST_DIR/$filename.map" ]; then
+      cp -f "$DIST_DIR/$filename.map" \
+        "${VERSION_DIR}/${filename}.map"
+    fi
   fi
 
   # Metadata
-  INFO_PATH="${DIST_DIR}/${name}.${suffix}.md"
+  INFO_PATH="${SNAP_DIR}/${name}.${suffix}.md"
 
   cat > "$INFO_PATH" <<EOF
 # ${name}

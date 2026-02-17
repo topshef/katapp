@@ -3,6 +3,7 @@
 set -e
 
 # snaplet.sh 
+# v0.0.12 ignore snapshots folder
 # v0.0.11 ignore archive folder
 # v0.0.1 Initial version 16 Feb 2026
 # ----------
@@ -99,6 +100,7 @@ EXCLUDES=(
   "node_modules"
   "dist"
   "releases"
+  "snapshots"
   "archive"
   ".env"
   ".DS_Store"
