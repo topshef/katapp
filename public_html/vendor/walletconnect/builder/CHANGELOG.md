@@ -10,6 +10,18 @@ Repository: https://github.com/topshef/phpjabbers
 
 <!-- INSERT_HERE -->
 
+## kwc-v0.0.18
+
+regression testing - work on release process only
+
+- [5fccc1c](https://github.com/topshef/phpjabbers/commit/5fccc1ca0c465912a5ae718f4e05085a7e978b05) #46 #52 scrap legacy version of buildInfo (2026-02-17)
+- [03fc5db](https://github.com/topshef/phpjabbers/commit/03fc5dbf68a20922f27dc195256154b64f82c866) #46 #52 remove archive folder etc (2026-02-17)
+- [2d2c433](https://github.com/topshef/phpjabbers/commit/2d2c4330cca8b9b6d0c8ba9401df948631a0d01a) #46 #52 rework always to dist, then releases if tagged (2026-02-17)
+- [17fd6b0](https://github.com/topshef/phpjabbers/commit/17fd6b05fd3fbb4958afce410cb1541e4d5093f9) #46 #52 rework always to dist, then releases if tagged (2026-02-17)
+- [e94203c](https://github.com/topshef/phpjabbers/commit/e94203c74c7d9179fb691a582dd51f5107f32c49) #46 #52 wip remove prod ref. use released and snapshot (commit)... (2026-02-17)
+- [d49a7a9](https://github.com/topshef/phpjabbers/commit/d49a7a989b45f0e165988980011458553e07ba85) #46 #52 rename (2026-02-17)
+- [39c07bb](https://github.com/topshef/phpjabbers/commit/39c07bb6a9d95594d846834367bc6748b3ae1512) #52 pulling teeeth demo release version finally (2026-02-17)
+
 ## kwc-v0.0.17
 
 - [0b116dd](https://github.com/topshef/phpjabbers/commit/0b116dded75b78de67a30f4290a46db64de04007) #52 ghjkl new bundle (2026-02-16)
