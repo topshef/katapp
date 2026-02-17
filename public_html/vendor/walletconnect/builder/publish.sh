@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+# publish.sh --> build and deploy
+
 # Output directories
 DIST_DIR="dist"        # Build output from npm
 ARCHIVE_DIR="archive"  # Historical copies of deployed bundles
