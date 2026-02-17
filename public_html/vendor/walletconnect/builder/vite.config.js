@@ -47,7 +47,8 @@ const buildMeta = {
 
 export default defineConfig({
   define: {
-    __BUILD_META__: JSON.stringify(buildMeta)
+    __BUILD_META__: JSON.stringify(buildMeta),
+    'process.env': {}
   },
   build: {
     sourcemap: true,

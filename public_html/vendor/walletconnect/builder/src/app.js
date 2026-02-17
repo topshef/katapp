@@ -1,4 +1,4 @@
-// import "./buildInfo.js";    // legacy build info.. todo read from env injected by vite
-import "./__snapgate__.js"; // snapgate build info snapgate.xbar.live
+import "./buildInfo.js";    // 
+import "./__snapgate__.js"; // todo can drop this file as above Vite injection to env is cleaner more standard
 import "./transactionHandler.js";
 import "./dealPage.js";
