@@ -1,6 +1,6 @@
 # SNAPGATE
 
-_Rapid release with ease_
+Release tooling wip.. kinda dogshit probbaly but goofd leanring
 
 # 🚀 Release TL;DR
 
@@ -81,8 +81,6 @@ This will:
 - Collect all commits since the last release
 
 - Insert a draft section into `CHANGELOG.md`
-  
-  
 
 > 💡 **Shortcut (Snapgate helper)**
 > 
@@ -99,8 +97,6 @@ This will:
 > - Automatically generate the draft changelog
 > 
 > The underlying workflow remains the same. This is simply a convenience wrapper.
-
-
 
 ---
 

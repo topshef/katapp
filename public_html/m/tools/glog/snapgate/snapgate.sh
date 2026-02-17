@@ -87,7 +87,9 @@ EOF
   echo "  $CURRENT → $NEW_VERSION"
   echo
 
-  sed -i -E "s/\"version\": *\"${CURRENT}\"/\"version\": \"${NEW_VERSION}\"/" "$PACKAGE"
+  #sed -i -E "s/\"version\": *\"${CURRENT}\"/\"version\": \"${NEW_VERSION}\"/" "$PACKAGE"
+	npm version patch --no-git-tag-version
+
 
 	#generate a metadata file src/__snapgate__.js that can be used by the app for self-knowledge
 	if [ -f "$SCRIPT_DIR/generate-build-meta.sh" ]; then
