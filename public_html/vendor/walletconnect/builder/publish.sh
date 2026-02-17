@@ -98,24 +98,54 @@ for file in "$DIST_DIR"/*.js; do
     LATEST_LINK="${SNAP_DIR}/${name}.snapshot.latest.${ext}"
     rm -f "$LATEST_LINK"
     ln -s "$SNAP_NAME" "$LATEST_LINK"
+		
+		# snapshot.latest sourcemap symlink
+		if [ -f "${SNAP_DIR}/${name}.${suffix}.${ext}.map" ]; then
+			LATEST_MAP_LINK="${SNAP_DIR}/${name}.snapshot.latest.${ext}.map"
+			rm -f "$LATEST_MAP_LINK"
+			ln -s "${name}.${suffix}.${ext}.map" "$LATEST_MAP_LINK"
+		fi
+		
+    # snapshot.latest metadata symlink
+    LATEST_MD_LINK="${SNAP_DIR}/${name}.snapshot.latest.md"
+    rm -f "$LATEST_MD_LINK"
+    ln -s "${name}.${suffix}.md" "$LATEST_MD_LINK"
+		
   fi
 
 	# Always update hottest (bleeding edge)
 	HOTTEST_LINK="${SNAP_DIR}/${name}.hottest.${ext}"
 	rm -f "$HOTTEST_LINK"
 	ln -s "$SNAP_NAME" "$HOTTEST_LINK"
+  # hottest sourcemap symlink
+  if [ -f "${SNAP_DIR}/${name}.${suffix}.${ext}.map" ]; then
+    HOTTEST_MAP_LINK="${SNAP_DIR}/${name}.hottest.${ext}.map"
+    rm -f "$HOTTEST_MAP_LINK"
+    ln -s "${name}.${suffix}.${ext}.map" "$HOTTEST_MAP_LINK"
+  fi
+  # hottest metadata symlink
+  HOTTEST_MD_LINK="${SNAP_DIR}/${name}.hottest.md"
+  rm -f "$HOTTEST_MD_LINK"
+  ln -s "${name}.${suffix}.md" "$HOTTEST_MD_LINK"
 
   # Release promotion
   if [ "$MODE" = "release" ] && [ -n "$RELEASE_VERSION" ]; then
     VERSION_DIR="${RELEASES_DIR}/${RELEASE_VERSION}"
     mkdir -p "$VERSION_DIR"
+
     cp -f "$file" "${VERSION_DIR}/${filename}"
 
     if [ -f "$DIST_DIR/$filename.map" ]; then
       cp -f "$DIST_DIR/$filename.map" \
         "${VERSION_DIR}/${filename}.map"
     fi
+
+    # Update releases/latest symlink
+    RELEASES_LATEST_LINK="${RELEASES_DIR}/latest"
+    rm -f "$RELEASES_LATEST_LINK"
+    ln -s "$RELEASE_VERSION" "$RELEASES_LATEST_LINK"
   fi
+
 
 	# Write metadata to dist (always)
 	# DIST_INFO_PATH="${DIST_DIR}/${name}.${suffix}.md"
