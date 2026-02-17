@@ -10,6 +10,16 @@ Repository: https://github.com/topshef/phpjabbers
 
 <!-- INSERT_HERE -->
 
+## kwc-v0.0.21
+
+testing hotswap bundles etc
+
+- [ec15ded](https://github.com/topshef/phpjabbers/commit/ec15ded6c01a929d5590b5df578566880e0479d3) #46 #52 allow url kwc_version as semver or commit hex (2026-02-17)
+- [e75d952](https://github.com/topshef/phpjabbers/commit/e75d9523926dc43a1f964686ac7d8023b0ddf467) #46 #52 inject build info to bundle via env (2026-02-17)
+- [a6e5ca5](https://github.com/topshef/phpjabbers/commit/a6e5ca59dfa0ef634b4be2a7a44f82efd32c7e22) #46 #52 hotswap kwc bundle from url.. or choose commit snapshot (2026-02-17)
+- [0984c91](https://github.com/topshef/phpjabbers/commit/0984c91cbf06cc75704685db1944fb410acdc38b) #46 #52 hotswap kwc bundle from url (2026-02-17)
+- [89d4a61](https://github.com/topshef/phpjabbers/commit/89d4a61f7155e90bcceb0251b37a28fd3f436d89) #46 #52 use kwc latest on swap.kpay (2026-02-17)
+
 ## kwc-v0.0.20
 
 testing various deployment ideas
