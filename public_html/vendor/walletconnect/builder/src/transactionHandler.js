@@ -126,10 +126,19 @@ async function loadConfig() {
     let configUrl
 
 		const dataConfig = EL_LOADER.dataset?.config // 1️⃣ explicit data-config on script tag
-		if (dataConfig) 
-			configUrl = new URL(dataConfig, EL_LOADER.src).href
-		else // 2️⃣ fallback: config.json next to bundle
-			configUrl = `${EL_LOADER.src.slice(0, EL_LOADER.src.lastIndexOf("/") + 1)}config.json` 
+		// if (dataConfig) 
+			// configUrl = new URL(dataConfig, EL_LOADER.src).href
+		// else // 2️⃣ fallback: config.json next to bundle
+			// configUrl = `${EL_LOADER.src.slice(0, EL_LOADER.src.lastIndexOf("/") + 1)}config.json` 
+		if (dataConfig) {
+			if (dataConfig.startsWith("http://") || dataConfig.startsWith("https://")) {
+				configUrl = dataConfig
+			} else if (dataConfig.startsWith("/")) {
+				configUrl = window.location.origin + dataConfig
+			} else {
+				configUrl = new URL(dataConfig, EL_LOADER.src).href
+			}
+		}
 
 
     console.info("[WC] TG22874 Loading config from", configUrl)
