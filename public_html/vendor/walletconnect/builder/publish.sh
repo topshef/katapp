@@ -45,34 +45,16 @@ echo "HEAD_COMMIT     = $HEAD_COMMIT"
 echo "RELEASE_TAG     = $RELEASE_TAG"
 echo "----------------------------------------"
 
-# --------------------------------------------------
-# Inject Build ID
-# --------------------------------------------------
-
-PATH_BUILD_TAG="src/buildInfo.js"
-
-if [ -f "$PATH_BUILD_TAG" ]; then
-  build_ts=$(date -u +"%Y-%m-%d %a %H:%M:%S UTC")
-  build_id="$build_ts"
-
-  if [ -n "$GIT_REPO" ] && [ -n "$GIT_BRANCH" ]; then
-    build_id="$build_id  $GIT_REPO/tree/$GIT_BRANCH"
-    [ -n "$GIT_HASH" ] && build_id="$build_id#$GIT_HASH"
-  fi
-
-  sed -i \
-    "s|\(BUILDID *= *\"\)[^\"]*\(\".*\)|\1$build_id\2|" \
-    "$PATH_BUILD_TAG" || true
-fi
-
-echo "BUILDID = $build_id"
+# see __snapgate__.js for pre-release build info (needs work)
 
 # --------------------------------------------------
 # Run Clean Build
 # --------------------------------------------------
 
 # Let Vite own dist completely
-rm -rf "$DIST_DIR"
+# rm -rf "$DIST_DIR" 
+# delete is set this within vite config..  emptyOutDir: true (and its the default anyway)
+
 npm run build 2>&1 | tee "$BUILD_LOG"
 
 mkdir -p "$SNAP_DIR"
