@@ -10,6 +10,12 @@ Repository: https://github.com/topshef/phpjabbers
 
 <!-- INSERT_HERE -->
 
+## kwc-v0.0.19
+
+dev and test release process
+
+- [b746a1c](https://github.com/topshef/phpjabbers/commit/b746a1cb7b7336c3586e1b0a75a99eacda5dffda) #46 #52 route kwc bundles via htaccess (2026-02-17)
+
 ## kwc-v0.0.18
 
 regression testing - work on release process only

@@ -1,6 +1,6 @@
 {
   "name": "kwc",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "description": "js bundled services for kpay walletconnect (KWC)",
   "main": "app.js",
   "scripts": {
