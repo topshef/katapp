@@ -2,11 +2,11 @@
 set -e
 
 # publish.sh --> build and deploy
+# dist folder is used for 'snapshot' (HEAD) or 'dirty' (working dirty tree)
 
 # Output directories
 DIST_DIR="dist"        # Build output from npm
 ARCHIVE_DIR="archive"  # Historical copies of deployed bundles
-PROD_DIR=".."          # Live deployment target (parent dir)
 
 # Absolute path to the directory containing this script
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -26,18 +26,24 @@ BUILD_LOG="$(mktemp)"
 # Release detection (based on Git tag)
 # --------------------------------------------------
 
-IS_RELEASE=false
+MODE="dirty"
 RELEASE_TAG=""
 RELEASE_VERSION=""
 
-# Working tree must be clean
+TREE_CLEAN=false
 if git diff --quiet 2>/dev/null; then
-  # HEAD must be exactly at a tag
+  TREE_CLEAN=true
+fi
+
+if [ "$TREE_CLEAN" = true ]; then
   if RELEASE_TAG=$(git describe --tags --exact-match 2>/dev/null); then
-    IS_RELEASE=true
+    MODE="release"
     RELEASE_VERSION=$(echo "$RELEASE_TAG" | sed -E 's/.*-v([0-9.]+)$/\1/')
+  else
+    MODE="snapshot"
   fi
 fi
+
 
 echo "----------------------------------------"
 echo "Release detection:"
@@ -45,7 +51,7 @@ echo "  RELEASE_TAG     = $RELEASE_TAG"
 echo "  RELEASE_VERSION = $RELEASE_VERSION"
 echo "  HEAD_COMMIT     = $(git rev-parse --short HEAD 2>/dev/null || true)"
 echo "  TREE CLEAN      = $(git diff --quiet 2>/dev/null && echo yes || echo no)"
-echo "  IS_RELEASE      = $IS_RELEASE"
+echo "  MODE            = $MODE"  # dirty | snapshot | release
 echo "----------------------------------------"
 
 
@@ -98,9 +104,9 @@ npm run build 2>&1 | tee "$BUILD_LOG"
 # Ensure archive directory exists
 mkdir -p "$ARCHIVE_DIR"
 
-# If this is a release build, prepare versioned output directory
-if [ "$IS_RELEASE" = true ] && [ -n "$RELEASE_VERSION" ]; then
-  VERSIONED_DIST_DIR="dist/$RELEASE_VERSION"
+# If release build, prepare releases/<version> directory
+if [ "$MODE" = "release" ] && [ -n "$RELEASE_VERSION" ]; then
+  VERSIONED_DIST_DIR="releases/$RELEASE_VERSION"
   mkdir -p "$VERSIONED_DIST_DIR"
 fi
 
@@ -131,31 +137,60 @@ for file in "$DIST_DIR"/*; do
 
 	 # Target paths
   archived="${ARCHIVE_DIR}/${name}_${hash}.${ext}"
-  prod="${PROD_DIR}/${filename}"
-  info="${PROD_DIR}/${name}.md"
+	info="${DIST_DIR}/${name}.${MODE}.md"
 
-	# Deploy current build and archive a hashed copy
-  cp -f "$file" "$prod"
+	# archive a hashed copy
   cp -f "$file" "$archived"
 
-
-	# If release state, also copy into versioned dist folder
-	if [ "$IS_RELEASE" = true ]; then
+	# If release state, copy into releases/<version>
+	if [ "$MODE" = "release" ]; then
 		cp -f "$file" "$VERSIONED_DIST_DIR/$filename"
+	fi
+
+	DIRTY_ALIAS="${DIST_DIR}/${name}.dirty.${ext}"
+	SNAP_ALIAS="${DIST_DIR}/${name}.snapshot.${ext}"
+
+	if [ "$MODE" = "snapshot" ]; then
+		cp -f "$file" "$SNAP_ALIAS"
+
+		# Make dirty point to snapshot (clean tree means identical)
+		rm -f "$DIRTY_ALIAS"
+		ln -s "$(basename "$SNAP_ALIAS")" "$DIRTY_ALIAS"
+	fi
+
+	if [ "$MODE" = "dirty" ]; then
+		# Overwrite dirty directly (dirty tree)
+		rm -f "$DIRTY_ALIAS"
+		cp -f "$file" "$DIRTY_ALIAS"
+	fi
+
+	# Also handle sourcemap aliases
+	if [ -f "$DIST_DIR/$filename.map" ]; then
+		if [ "$MODE" = "snapshot" ]; then
+			cp -f "$DIST_DIR/$filename.map" \
+				"${DIST_DIR}/${name}.snapshot.${ext}.map"
+		fi
+
+		if [ "$MODE" = "dirty" ]; then
+			cp -f "$DIST_DIR/$filename.map" \
+				"${DIST_DIR}/${name}.dirty.${ext}.map"
+		fi
 	fi
 
 
   # Deploy & archive sourcemap using bundle hash
   if [ -f "$DIST_DIR/$filename.map" ]; then
-    cp -f "$DIST_DIR/$filename.map" "$PROD_DIR/$filename.map"
     cp -f "$DIST_DIR/$filename.map" \
       "$ARCHIVE_DIR/${name}_${hash}.${ext}.map"
   fi
 
 	# Write deployment metadata + full build output
-  cat > "$info" <<EOF
+	cat > "$info" <<EOF
 # ${name}
 
+- **Mode:** ${MODE}
+- **Release Tag:** ${RELEASE_TAG}
+- **Commit:** $(git rev-parse --short HEAD 2>/dev/null || true)
 - **Bundle:** ${filename}
 - **SHA-1:** ${hash}
 - **Build ID:** ${build_id}
@@ -168,6 +203,7 @@ for file in "$DIST_DIR"/*; do
 $(cat "$BUILD_LOG")
 \`\`\`
 EOF
+
 
 done
 
