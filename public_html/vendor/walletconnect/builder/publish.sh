@@ -9,7 +9,6 @@ set -e
 DIST_DIR="dist"
 SNAP_DIR="snapshots"
 RELEASES_DIR="releases"
-ARCHIVE_DIR="archive"
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 BUILD_LOG="$(mktemp)"
@@ -78,7 +77,6 @@ npm run build 2>&1 | tee "$BUILD_LOG"
 
 mkdir -p "$SNAP_DIR"
 mkdir -p "$RELEASES_DIR"
-mkdir -p "$ARCHIVE_DIR"
 
 # --------------------------------------------------
 # Process Fresh Build Outputs Only
@@ -113,15 +111,17 @@ for file in "$DIST_DIR"/*.js; do
       "${SNAP_DIR}/${name}.${suffix}.${ext}.map"
   fi
 
-  # Archive hashed copy (optional history)
-  cp -f "$file" "${ARCHIVE_DIR}/${name}_${hash}.${ext}"
-
   # Update snapshot.latest symlink if clean
   if [ "$MODE" != "dirty" ]; then
     LATEST_LINK="${SNAP_DIR}/${name}.snapshot.latest.${ext}"
     rm -f "$LATEST_LINK"
     ln -s "$SNAP_NAME" "$LATEST_LINK"
   fi
+
+	# Always update hottest (bleeding edge)
+	HOTTEST_LINK="${SNAP_DIR}/${name}.hottest.${ext}"
+	rm -f "$HOTTEST_LINK"
+	ln -s "$SNAP_NAME" "$HOTTEST_LINK"
 
   # Release promotion
   if [ "$MODE" = "release" ] && [ -n "$RELEASE_VERSION" ]; then
@@ -135,10 +135,11 @@ for file in "$DIST_DIR"/*.js; do
     fi
   fi
 
-  # Metadata
-  INFO_PATH="${SNAP_DIR}/${name}.${suffix}.md"
+	# Write metadata to dist (always)
+	# DIST_INFO_PATH="${DIST_DIR}/${name}.${suffix}.md"
+	DIST_INFO_PATH="${DIST_DIR}/${name}.md"
 
-  cat > "$INFO_PATH" <<EOF
+cat > "$DIST_INFO_PATH" <<EOF
 # ${name}
 
 - **Mode:** ${MODE}
@@ -155,6 +156,15 @@ for file in "$DIST_DIR"/*.js; do
 $(cat "$BUILD_LOG")
 \`\`\`
 EOF
+
+	# Copy metadata into snapshots
+	cp -f "$DIST_INFO_PATH" "${SNAP_DIR}/${name}.${suffix}.md"
+
+	# If release, copy metadata into release folder
+	if [ "$MODE" = "release" ] && [ -n "$RELEASE_VERSION" ]; then
+		cp -f "$DIST_INFO_PATH" "${VERSION_DIR}/${name}.md"
+	fi
+
 
 done
 
