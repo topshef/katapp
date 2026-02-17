@@ -10,6 +10,15 @@ Repository: https://github.com/topshef/phpjabbers
 
 <!-- INSERT_HERE -->
 
+## kwc-v0.0.20
+
+testing various deployment ideas
+
+- [443d849](https://github.com/topshef/phpjabbers/commit/443d8492c4dcf6470e1d6d704300db1d70c6697a) #46 #52 script tag for kwc.. todo cross oriign (2026-02-17)
+- [1f5d2d7](https://github.com/topshef/phpjabbers/commit/1f5d2d732bd8cadaa8f8a1f9d3a00162c3293861) #46 #52 #31 md htaccess, and snapgate ghjkl (2026-02-17)
+- [577e630](https://github.com/topshef/phpjabbers/commit/577e630b022ba548a6d9b6bf92539b63409ad4fc) #46 #52 rsync kwc releases (2026-02-17)
+- [f446031](https://github.com/topshef/phpjabbers/commit/f446031c2be98b19d81e1d7819d15fa31d6c2f6a) #46 #52 #31 htaccess cors cache etc serving kwc bundles (2026-02-17)
+
 ## kwc-v0.0.19
 
 dev and test release process
