@@ -9,6 +9,12 @@ Repository: https://github.com/topshef/phpjabbers
 -->
 
 <!-- INSERT_HERE -->
+## kwc-v0.0.23
+
+fix default location for config.json
+
+- [6bd6e71](https://github.com/topshef/phpjabbers/commit/6bd6e71ac6822b9a6c94d3f9d59b4e9f51be205c) #46 #52 fix default config location finding (2026-02-18)
+- [a02c13b](https://github.com/topshef/phpjabbers/commit/a02c13b19d3db7abc05626bc0e752c4236dfce35) #46 #52 todo fix issue with config location depending on where the calling page is (2026-02-18)
 ## kwc-v0.0.22
 
 testing HMR vite
