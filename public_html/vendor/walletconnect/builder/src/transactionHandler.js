@@ -14,17 +14,36 @@ let walletConfig
 // Script tag that loaded this bundle (used to resolve config + metadata)
 // ---- capture THIS script once (safe for async / base href / bundling)
 const EL_LOADER = (() => {
+
+  // 1️⃣ If classic script (IIFE build)
+  if (document.currentScript?.src)
+    return document.currentScript
+
+  // 2️⃣ If running as ES module (dev mode)
+	if (typeof import.meta !== "undefined" && import.meta.url) {
+		// In dev, the entry script is dev.js
+		const script = document.querySelector(
+			'script[src*="/vendor/walletconnect/dev.js"]'
+		)
+
+		if (script)
+			return script
+
+		return {
+			src: import.meta.url,
+			dataset: {}
+		}
+	}
+
+  // 3️⃣ Fallback filename match (legacy safety)
   const script =
-    document.currentScript ||
     document.querySelector('script[src*="walletconnect-hedera"]')
+	console.warn('UH73663 legacy fallback used - pls check and fix')
+	
+  if (script)
+    return script
 
-  if (!script)
-    throw new Error("[WC-001] WalletConnect script tag not found")
-
-  if (!script.src)
-    throw new Error("[WC-002] WalletConnect script has no src")
-
-  return script
+  throw new Error("[WC-001] WalletConnect script tag not found")
 })()
 
 
@@ -142,7 +161,7 @@ async function loadConfig() {
 
 
     console.info("[WC] TG22874 Loading config from", configUrl)
-
+		
     const response = await fetch(configUrl)
     if (!response.ok) {
       alert(

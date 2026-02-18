@@ -4,5 +4,10 @@
 // console.log("[WC] BUILD " + BUILDID); 
 
 
-console.log('YH83643 Build meta:', __BUILD_META__)
+// console.log('YH83643 Build meta:', __BUILD_META__)
 
+const buildMeta = typeof __BUILD_META__ !== 'undefined'
+  ? __BUILD_META__
+  : { mode: 'dev', commit: null, built: null }
+
+console.log('YH83643 Build meta:', buildMeta)

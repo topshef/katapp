@@ -45,19 +45,46 @@ const buildMeta = {
   built: new Date().toISOString()
 }
 
-export default defineConfig({
-  define: {
-    __BUILD_META__: JSON.stringify(buildMeta),
-    'process.env': {}
-  },
-  build: {
-    sourcemap: true,
-    emptyOutDir: true,
-    lib: {
-      entry: 'src/app.js',
-      name: 'WalletConnectHedera',
-      fileName: 'walletconnect-hedera',
-      formats: ['iife']
+
+export default defineConfig(({ command }) => {
+
+  // Shared config (both dev + build)
+  const baseConfig = {
+    define: {
+      __BUILD_META__: JSON.stringify(buildMeta),
+      'process.env': {}
+    }
+  }
+
+  // 🔥 DEV MODE (npx vite)
+	if (command === 'serve') {
+		return {
+			...baseConfig,
+			base: '/vendor/walletconnect/',
+			
+			server: {
+				host: '127.0.0.1',
+				port: 5173,
+				strictPort: true
+			}
+		}
+	}
+
+
+  // 📦 PRODUCTION BUILD (npm run build)
+  return {
+    ...baseConfig,
+
+    build: {
+      sourcemap: true,
+      emptyOutDir: true,
+
+      lib: {
+        entry: 'src/app.js',
+        name: 'WalletConnectHedera',
+        fileName: 'walletconnect-hedera',
+        formats: ['iife']
+      }
     }
   }
 })
