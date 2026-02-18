@@ -10,6 +10,32 @@ import { Transaction, LedgerId } from "@hashgraph/sdk";
 let dappConnector;
 let walletConfig
 
+/*============================================================
+	EL_LOADER – Script Resolution (Dev + Production Safe)
+	------------------------------------------------------------
+	Purpose:
+	Determine which <script> tag loaded this bundle so that we
+	can read:
+		- data-config
+		- data-mode
+		- other dataset attributes
+	
+	Why this exists:
+	- In production (IIFE build), document.currentScript works.
+	- In dev (ES module via Vite), document.currentScript is null.
+	- We must explicitly locate the dev entry script.
+	
+	Resolution order:
+	1. Classic script (production bundle)
+	2. Dev entry script (/vendor/walletconnect/dev.js)
+	3. Legacy fallback match (walletconnect-hedera filename)
+	4. Throw hard error if nothing found
+	
+	This allows:
+	- Same data-config path in dev + prod
+	- Same data-mode usage
+	- No environment branching elsewhere
+=============================================================*/
 
 // Script tag that loaded this bundle (used to resolve config + metadata)
 // ---- capture THIS script once (safe for async / base href / bundling)
