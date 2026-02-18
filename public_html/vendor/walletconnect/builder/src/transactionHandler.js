@@ -170,11 +170,29 @@ async function loadConfig() {
   try {
     let configUrl
 
-		const dataConfig = EL_LOADER.dataset?.config // 1️⃣ explicit data-config on script tag
-		// if (dataConfig) 
-			// configUrl = new URL(dataConfig, EL_LOADER.src).href
-		// else // 2️⃣ fallback: config.json next to bundle
-			// configUrl = `${EL_LOADER.src.slice(0, EL_LOADER.src.lastIndexOf("/") + 1)}config.json` 
+		// const dataConfig = EL_LOADER.dataset?.config // 1️⃣ explicit data-config on script tag
+		// if (dataConfig) {
+			// if (dataConfig.startsWith("http://") || dataConfig.startsWith("https://")) {
+				// configUrl = dataConfig
+			// } else if (dataConfig.startsWith("/")) {
+				// configUrl = window.location.origin + dataConfig
+			// } else {
+				// configUrl = new URL(dataConfig, EL_LOADER.src).href
+			// }
+		// }
+
+		const dataConfig = EL_LOADER.dataset?.config
+
+		// Deterministic fallback: config.json next to bundle
+		const fallbackUrl = new URL(
+			"config.json",
+			EL_LOADER.src
+		).href
+
+		console.info("[WC] TG22870 Loader src:", EL_LOADER.src)
+		console.info("[WC] TG22871 data-config attribute:", dataConfig)
+		console.info("[WC] TG22872 Fallback would resolve to:", fallbackUrl)
+
 		if (dataConfig) {
 			if (dataConfig.startsWith("http://") || dataConfig.startsWith("https://")) {
 				configUrl = dataConfig
@@ -183,8 +201,12 @@ async function loadConfig() {
 			} else {
 				configUrl = new URL(dataConfig, EL_LOADER.src).href
 			}
+		} else {
+			configUrl = fallbackUrl
 		}
 
+		if (!configUrl)
+			throw new Error("[WC-102] configUrl unresolved")
 
     console.info("[WC] TG22874 Loading config from", configUrl)
 		
