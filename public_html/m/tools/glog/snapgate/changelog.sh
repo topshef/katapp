@@ -34,11 +34,13 @@ echo
 # This makes --help and -h behave like a real CLI tool
 usage() {
   echo "Usage:"
-  echo "  ./changelog.sh [version] [--write]"
+  echo "  ./changelog.sh [version] [-m \"message\"] [--write]"
   echo
   echo "Options:"
+  echo "  -m         Optional release message under header"
   echo "  --write    Write output into CHANGELOG.md"
   echo "  --help     Show this help message"
+	
   echo
   echo "Examples:"
   echo "  ./changelog.sh            # Show unreleased changes"
@@ -81,23 +83,30 @@ REPO_URL="https://github.com/${REPO_PATH}"
 # - Do not write to file unless --write is passed
 REQUESTED_VERSION=""
 WRITE_FLAG=false
+MESSAGE=""
 
 # Parse CLI arguments
 # Supports:
 #   --write  → write into CHANGELOG.md
 #   --help   → show usage
 #   <version> → generate changelog for specific version
-for arg in "$@"
+while [ $# -gt 0 ]
 do
-  case "$arg" in
+  case "$1" in
     --write)
       WRITE_FLAG=true
+      shift
       ;;
     --help|-h)
       usage
       ;;
+    -m)
+      MESSAGE="$2"
+      shift 2
+      ;;
     *)
-      REQUESTED_VERSION="$arg"
+      REQUESTED_VERSION="$1"
+      shift
       ;;
   esac
 done
@@ -137,7 +146,7 @@ if [ "$SHOW_UNRELEASED" = true ]; then
 		HEADER="## Unreleased"
 	else
 		# package.json modified (likely version bumped)
-		HEADER="## ${TAG_PREFIX}${PKG_VERSION} (unreleased)"
+		HEADER="## ${TAG_PREFIX}${PKG_VERSION}"
 	fi
 
 
@@ -146,6 +155,11 @@ if [ "$SHOW_UNRELEASED" = true ]; then
 	{
 		echo "$HEADER"
 		echo
+
+		if [ -n "$MESSAGE" ]; then
+			echo "$MESSAGE"
+			echo
+		fi
 
 		if [ -n "$CURRENT_TAG" ]; then
 			git log "${CURRENT_TAG}..HEAD" \

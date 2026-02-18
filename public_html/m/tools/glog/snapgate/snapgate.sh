@@ -102,7 +102,10 @@ EOF
   echo "package.json updated."
 
 	if [ -f "$SCRIPT_DIR/changelog.sh" ]; then
-		"$SCRIPT_DIR/changelog.sh" --write
+		# "$SCRIPT_DIR/changelog.sh" --write
+		shift 2
+		"$SCRIPT_DIR/changelog.sh" "$@" --write
+		
   else
     echo "changelog.sh not found."
     exit 1

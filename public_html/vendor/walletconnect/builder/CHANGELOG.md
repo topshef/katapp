@@ -9,6 +9,12 @@ Repository: https://github.com/topshef/phpjabbers
 -->
 
 <!-- INSERT_HERE -->
+## kwc-v0.0.22
+
+testing HMR vite
+
+- [404cce4](https://github.com/topshef/phpjabbers/commit/404cce4161ecce3be7f6765d63bbcb07e09e179e) #46 #52 notes on how dev mode works (2026-02-18)
+- [7aa617b](https://github.com/topshef/phpjabbers/commit/7aa617b4fa0b8d46a9b1d1480a316b5e334affa2) #46 #52 support dev mode - Vite HMR (Hot Module Replacement) (2026-02-18)
 
 ## kwc-v0.0.21
 
