@@ -186,6 +186,9 @@ async function loadConfig() {
 		// Deterministic fallback: config.json next to bundle
 		const fallbackUrl = new URL(
 			"config.json",
+			// YH76543 note default is not consistent across dev snapshot releases due to path length
+			// "../config.json",  // this woudl go up one level  (relative to the htaccess public path, NOT the files themselves)
+			// "../../config.json",  // this woudl go up 2 levels
 			EL_LOADER.src
 		).href
 
