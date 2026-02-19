@@ -38,7 +38,7 @@ if ($appVersion) $basepath = "releases/$appVersion/$appName";
 if ($gitCommit)  $basepath = "snapshots/$appName.$gitCommit";
 // elog(__DIR__); // where we are
 
-
+//note this currently wont work for latest.js etc, but coudl be adapted to lookup remote latest.json and inspect
 
 $localDir = __DIR__;
 
@@ -58,7 +58,7 @@ foreach ($origins as $origin) {
 		$remotePath = "$origin/$basepath.$ext";
 		$localPath = "$localDir/$basepath.$ext";
 		// if (file_exists($localPath)) continue;  // 
-		if (file_exists($localPath)) jexit('unexpected error UJ83744 server local file already exists');
+		if (file_exists($localPath)) javascript_exit('unexpected error UJ83744 server local file already exists');
 		
 		// echo "pull: $localPath <= $remotePath\n";
 		$context = stream_context_create(['http' => ['ignore_errors' => true]]);
@@ -73,7 +73,7 @@ foreach ($origins as $origin) {
 
 		//fatal if js missing. others optional
 		if (!$isOk  && $ext == 'js') {
-			$debug[] = "error DW39244 failed to hydrate artifact $appName $appVersion $gitCommit";
+			$debug[] = "error DW39244 failed to hydrate artifact $appName $appVersion $gitCommit $remotePath";
 			break; // try next origin
 		}
 		// elog($raw);
@@ -81,10 +81,10 @@ foreach ($origins as $origin) {
 		
 		// $resput = file_put_contents($localPath, $raw);
 		if (!atomic_write($localPath, $raw) && $ext == 'js')
-			jexit("error RH23744 failed to save valid artifact $appName $appVersion $gitCommit");
+			javascript_exit("error RH23744 failed to save valid artifact $appName $appVersion $gitCommit");
 		
 		// elog("resput=$resput writing $localPath");
-		// if (!$resput && $ext == 'js') jexit("error RH23744 failed to save valid artifact $appName $appVersion $gitCommit");
+		// if (!$resput && $ext == 'js') javascript_exit("error RH23744 failed to save valid artifact $appName $appVersion $gitCommit");
 		
 		if ($ext == 'js') $isSuccess = true; // we're done, we have the artifact
 	}
@@ -93,17 +93,17 @@ foreach ($origins as $origin) {
 } //end foreach origins
 elog($debug, "x debug entries HJ87374");
 
-if (!$isSuccess) jexit($debug);
+if (!$isSuccess) javascript_exit(json_encode($debug));
 
 // serve js script "$localDir/$basepath.js"
 $jsPath = "$localDir/$basepath.js";
 
 if (!file_exists($jsPath))
-    jexit("error JS94833 hydrated js missing after success");
+    javascript_exit("error JS94833 hydrated js missing after success");
 
 $size = filesize($jsPath);
 if (!$size)
-    jexit("error JS94834 hydrated js empty after write");
+    javascript_exit("error JS94834 hydrated js empty after write");
 
 header('Content-Type: application/javascript');
 header('Content-Length: ' . $size);
@@ -113,7 +113,12 @@ readfile($jsPath);
 exit;
 
 
-// exit("GH82738 basefilepath = $basefilepath");
+//helpers
+
+function javascript_exit($msg) {
+	header('Content-Type: application/javascript');	
+	exit("console.log('$msg')");
+}
 
 function get_final_status(array $headers) {
     $status = null;

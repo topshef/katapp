@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import { execSync } from 'child_process'
+import pkg from './package.json'
 
 function safeExec(cmd) {
   try {
@@ -13,7 +14,8 @@ function safeExec(cmd) {
 
 function getGitState() {
   const commit = safeExec('git rev-parse --short HEAD') || 'unknown'
-  const tag = safeExec('git describe --tags --exact-match')
+  // const tag = safeExec('git describe --tags --exact-match')
+  const tag = safeExec('git describe --tags --always')
   
   // git diff --quiet exits 0 if clean, 1 if dirty
   let isDirty = false
@@ -42,7 +44,8 @@ const buildMeta = {
   commit: git.commit,
   mode: git.mode,
   release: git.tag,
-  built: new Date().toISOString()
+  built: new Date().toISOString(),
+  comment: 'todo GH64644 get app name from pkg.name=' + pkg.name + '  or pascal= ' + toPascalCase(pkg.name)
 }
 
 
@@ -88,3 +91,9 @@ export default defineConfig(({ command }) => {
     }
   }
 })
+
+
+function toPascalCase(name) {
+  return name
+    .replace(/(^\w|-\w)/g, s => s.replace('-', '').toUpperCase())
+}
