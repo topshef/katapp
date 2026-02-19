@@ -27,16 +27,16 @@ fi
 HEAD_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
 if [ "$TREE_CLEAN" = true ]; then
-  MODE="snapshot"
+  GITSTATUS="clean"
   SNAP_NAME="$HEAD_COMMIT"
 else
-  MODE="dirty"
+  GITSTATUS="dirty"
   SNAP_NAME="dirty"
 fi
 
 echo "----------------------------------------"
-echo "MODE   = $MODE"
-echo "COMMIT = $HEAD_COMMIT"
+echo "GIT STATUS = $GITSTATUS"
+echo "GIT COMMIT = $HEAD_COMMIT"
 echo "----------------------------------------"
 
 
@@ -101,7 +101,7 @@ ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 cat > "${SNAPSHOT_PATH}/build.md" <<EOF
 # Build ${SNAP_NAME} ${APP_NAME}
 
-- **Mode:** ${MODE}
+- **GITSTATUS:** ${GITSTATUS}
 - **Base Commit:** ${HEAD_COMMIT}
 - **Built:** ${ts}
 
@@ -120,7 +120,7 @@ cat > "${SNAPSHOT_PATH}/build.json" <<EOF
 {
   "appname": "${APP_NAME}",
   "snapshot": "${SNAP_NAME}",
-  "mode": "${MODE}",
+  "GITSTATUS": "${GITSTATUS}",
   "base_commit": "${HEAD_COMMIT}",
   "built_at": "${ts}"
 }
@@ -131,7 +131,7 @@ EOF
 # --------------------------------------------------
 
 #ARCHIVE_NAME="${APP_NAME}.tar.gz"
-ARCHIVE_NAME="${APP_NAME}.${HEAD_COMMIT}.${MODE}.tar.gz"
+ARCHIVE_NAME="${APP_NAME}.${HEAD_COMMIT}.${GITSTATUS}.tar.gz"
 
 ARCHIVE_PATH="${SNAPSHOT_PATH}/${ARCHIVE_NAME}"
 
@@ -142,7 +142,7 @@ tar -czf "$ARCHIVE_PATH" -C "$SNAPSHOT_PATH" .
 # Update Snapshot Pointers (directory-level symlinks)
 # --------------------------------------------------
 
-if [ "$MODE" = "snapshot" ]; then
+if [ "$GITSTATUS" = "snapshot" ]; then
   rm -f "${SNAP_DIR}/latest"
   ln -s "${HEAD_COMMIT}" "${SNAP_DIR}/latest"
 fi
