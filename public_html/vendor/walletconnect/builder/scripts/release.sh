@@ -9,6 +9,17 @@ COMMIT="$2"
 shift 2
 MESSAGE="$*"
 
+
+# Resolve project root (one level up from this script)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+SNAP_DIR_NAME="snapshots"
+SNAP_DIR="$PROJECT_ROOT/$SNAP_DIR_NAME"
+RELEASE_DIR="$PROJECT_ROOT/releases"
+
+
+
 if [ -z "$VERSION" ] || [ -z "$COMMIT" ]; then
   echo "Usage:"
   echo "  ./release.sh <version> <commit> [message]"
@@ -22,7 +33,7 @@ if ! git cat-file -e "$COMMIT^{commit}" 2>/dev/null; then
 fi
 
 # Ensure snapshot exists
-if [ ! -d "snapshots/$COMMIT" ]; then
+if [ ! -d "$SNAP_DIR/$COMMIT" ]; then
   echo "❌ Snapshot folder snapshots/$COMMIT not found. Build it with build.sh"
   exit 1
 fi
@@ -53,13 +64,14 @@ git tag -a "$VERSION" "$COMMIT" -m "$MESSAGE"
 git push origin "$VERSION"
 
 # Create release symlink
-mkdir -p releases
+mkdir -p "$RELEASE_DIR"
 
-rm -f "releases/$VERSION"
-ln -s "../snapshots/$COMMIT" "releases/$VERSION"
+
+rm -f "$RELEASE_DIR/$VERSION"
+ln -s "../$SNAP_DIR_NAME/$COMMIT" "$RELEASE_DIR/$VERSION"
 
 # Update latest
-rm -f "releases/latest"
-ln -s "$VERSION" "releases/latest"
+rm -f "$RELEASE_DIR/latest"
+ln -s "$VERSION" "$RELEASE_DIR/latest"
 
 echo "✔ Release $VERSION → $COMMIT complete."
