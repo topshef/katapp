@@ -11,3 +11,16 @@ const buildMeta = typeof __BUILD_META__ !== 'undefined'
   : { mode: 'dev', commit: null, built: null }
 
 console.log('YH83643 Build meta:', buildMeta)
+
+
+;(async () => {
+  try {
+    const res = await fetch('./release.json', { cache: 'no-store' })
+    if (!res.ok) return
+
+    const releaseMeta = await res.json()
+    console.log('TE93848 Release meta:', releaseMeta)
+  } catch {
+    // silent
+  }
+})()
