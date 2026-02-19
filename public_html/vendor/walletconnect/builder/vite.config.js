@@ -15,26 +15,19 @@ function safeExec(cmd) {
 function getGitState() {
   const commit = safeExec('git rev-parse --short HEAD') || 'unknown'
   // const tag = safeExec('git describe --tags --exact-match')
-  const tag = safeExec('git describe --tags --always')
+  // const tag = safeExec('git describe --tags --always')
   
   // git diff --quiet exits 0 if clean, 1 if dirty
   let isDirty = false
   try {
     execSync('git diff --quiet', { stdio: 'ignore' })
   } catch {
-    isDirty = true
-  }
-
-  let mode = 'dirty'
-  if (!isDirty) {
-    mode = tag ? 'release' : 'snapshot'
+		isDirty = true
   }
 
   return {
     commit,
-    tag: tag || null,
-    isDirty,
-    mode
+		status: isDirty ? 'dirty' : 'clean'
   }
 }
 
@@ -42,10 +35,8 @@ const git = getGitState()
 
 const buildMeta = {
   commit: git.commit,
-  mode: git.mode,
-  release: git.tag,
+  status: git.status,
   built: new Date().toISOString(),
-  // ok now i think comment: 'wip GH64644 get app name from pkg.name=' + pkg.name + '  or pascal= ' + toPascalCase(pkg.name)
 }
 
 

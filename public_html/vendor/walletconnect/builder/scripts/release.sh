@@ -70,6 +70,17 @@ mkdir -p "$RELEASE_DIR"
 rm -f "$RELEASE_DIR/$VERSION"
 ln -s "../$SNAP_DIR_NAME/$COMMIT" "$RELEASE_DIR/$VERSION"
 
+# Write release metadata (deployment truth)
+cat > "$RELEASE_DIR/$VERSION/release.json" <<EOF
+{
+  "version": "$VERSION",
+  "commit": "$COMMIT",
+  "message": "$MESSAGE",
+  "released_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+}
+EOF
+
+
 # Update latest
 rm -f "$RELEASE_DIR/latest"
 ln -s "$VERSION" "$RELEASE_DIR/latest"
