@@ -12,8 +12,6 @@ SNAP_DIR="snapshots"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 BUILD_LOG="$(mktemp)"
 
-[ -f "$SCRIPT_DIR/git_info.sh" ] && . "$SCRIPT_DIR/git_info.sh"
-
 # --------------------------------------------------
 # Detect Git State
 # --------------------------------------------------
@@ -25,21 +23,17 @@ fi
 
 HEAD_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-MODE="dirty"
-RELEASE_TAG=""
-
 if [ "$TREE_CLEAN" = true ]; then
-  if RELEASE_TAG=$(git describe --tags --exact-match 2>/dev/null); then
-    MODE="release"
-  else
-    MODE="snapshot"
-  fi
+  MODE="snapshot"
+  SNAP_NAME="$HEAD_COMMIT"
+else
+  MODE="dirty"
+  SNAP_NAME="dirty"
 fi
 
 echo "----------------------------------------"
-echo "MODE        = $MODE"
-echo "COMMIT      = $HEAD_COMMIT"
-echo "TAG         = $RELEASE_TAG"
+echo "MODE   = $MODE"
+echo "COMMIT = $HEAD_COMMIT"
 echo "----------------------------------------"
 
 # --------------------------------------------------
@@ -49,11 +43,12 @@ echo "----------------------------------------"
 npm run build 2>&1 | tee "$BUILD_LOG"
 
 # --------------------------------------------------
-# Create Snapshot Folder (per commit)
+# Create Snapshot Folder
 # --------------------------------------------------
 
-SNAPSHOT_PATH="${SNAP_DIR}/${HEAD_COMMIT}"
+SNAPSHOT_PATH="${SNAP_DIR}/${SNAP_NAME}"
 
+# Dirty builds overwrite the dirty folder
 mkdir -p "$SNAPSHOT_PATH"
 
 # --------------------------------------------------
@@ -81,12 +76,10 @@ done
 ts=$(date -u +"%Y-%m-%d %a %H:%M:%S UTC")
 
 cat > "${SNAPSHOT_PATH}/build.md" <<EOF
-# Snapshot ${HEAD_COMMIT}
+# Build ${SNAP_NAME}
 
 - **Mode:** ${MODE}
-- **Release Tag:** ${RELEASE_TAG}
-- **Commit:** ${HEAD_COMMIT}
-- **Build ID:** ${build_id}
+- **Base Commit:** ${HEAD_COMMIT}
 - **Built:** ${ts}
 
 ## Build Output
@@ -97,18 +90,18 @@ $(cat "$BUILD_LOG")
 EOF
 
 # --------------------------------------------------
-# Update snapshot pointers (directory-level)
+# Update Snapshot Pointers (directory-level symlinks)
 # --------------------------------------------------
 
-# latest (last clean commit)
-if [ "$MODE" != "dirty" ]; then
+# latest = most recent clean snapshot
+if [ "$MODE" = "snapshot" ]; then
   rm -f "${SNAP_DIR}/latest"
   ln -s "${HEAD_COMMIT}" "${SNAP_DIR}/latest"
 fi
 
-# hottest (always most recent build)
+# hottest = most recent build (clean or dirty)
 rm -f "${SNAP_DIR}/hottest"
-ln -s "${HEAD_COMMIT}" "${SNAP_DIR}/hottest"
+ln -s "${SNAP_NAME}" "${SNAP_DIR}/hottest"
 
 rm -f "$BUILD_LOG"
 
