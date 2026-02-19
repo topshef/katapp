@@ -58,4 +58,10 @@ git tag -a "$VERSION" -m "$MESSAGE"
 # Push tag
 git push origin "$VERSION"
 
+
+commit=$(git rev-parse --short HEAD)
+ln -s ../snapshots/$commit releases/$VERSION
+ln -s $VERSION releases/latest
+
+
 echo "✔ Release tag $VERSION created and pushed."
