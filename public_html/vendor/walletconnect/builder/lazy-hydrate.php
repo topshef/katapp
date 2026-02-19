@@ -28,14 +28,15 @@
 require_once "{$_SERVER['DOCUMENT_ROOT']}/assets/php/elog.php";
 
 $appName    = $_SERVER['REDIRECT_appName'] ?? false;
+$fileName   = $_SERVER['REDIRECT_fileName'] ?? null;
 $appVersion = $_SERVER['REDIRECT_appVersion'] ?? false;
 $gitCommit  = $_SERVER['REDIRECT_gitCommit'] ?? false;
 
 elog([$_GET, $_SERVER, $_ENV, getenv()]);
 
 
-if ($appVersion) $basepath = "releases/$appVersion/$appName";
-if ($gitCommit)  $basepath = "snapshots/$appName.$gitCommit";
+if ($appVersion) $basepath = "releases/$appVersion/$fileName";
+if ($gitCommit)  $basepath = "snapshots/$gitCommit/$fileName";
 // elog(__DIR__); // where we are
 
 //note this currently wont work for latest.js etc, but coudl be adapted to lookup remote latest.json and inspect
