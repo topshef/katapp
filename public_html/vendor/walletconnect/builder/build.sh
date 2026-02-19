@@ -142,7 +142,7 @@ tar -czf "$ARCHIVE_PATH" -C "$SNAPSHOT_PATH" .
 # Update Snapshot Pointers (directory-level symlinks)
 # --------------------------------------------------
 
-if [ "$GITSTATUS" = "snapshot" ]; then
+if [ "$GITSTATUS" = "clean" ]; then
   rm -f "${SNAP_DIR}/latest"
   ln -s "${HEAD_COMMIT}" "${SNAP_DIR}/latest"
 fi
