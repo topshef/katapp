@@ -35,8 +35,13 @@ else
 fi
 
 echo "----------------------------------------"
+echo "APP_NAME   = $APP_NAME"
 echo "GIT STATUS = $GITSTATUS"
 echo "GIT COMMIT = $HEAD_COMMIT"
+echo "SNAP_NAME  = $SNAP_NAME"
+echo "DIST_DIR   = $DIST_DIR"
+echo "SNAP_DIR   = $SNAP_DIR"
+echo "BUILD_LOG  = $BUILD_LOG"
 echo "----------------------------------------"
 
 echo "DEBUG: SNAP_DIR=$SNAP_DIR"
@@ -131,8 +136,9 @@ EOF
 # Create Compressed Artifact (.tar.gz)
 # --------------------------------------------------
 
-#ARCHIVE_NAME="${APP_NAME}.tar.gz"
-ARCHIVE_NAME="${APP_NAME}.${HEAD_COMMIT}.${GITSTATUS}.tar.gz"
+#keep archive name static to allow htaccess and symlinks to operate
+ARCHIVE_NAME="${APP_NAME}.tar.gz"
+# ARCHIVE_NAME="${APP_NAME}.${HEAD_COMMIT}.${GITSTATUS}.tar.gz"
 
 ARCHIVE_PATH="${SNAPSHOT_PATH}/${ARCHIVE_NAME}"
 
