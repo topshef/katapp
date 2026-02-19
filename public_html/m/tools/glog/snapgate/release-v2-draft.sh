@@ -1,67 +1,65 @@
 #!/bin/sh
-# ============================================================
-# Release v2 (Draft)
-# Lean Git-Tag-Based Release Script
-#
-# Philosophy:
-#   - The release is the tested commit.
-#   - No rebuild occurs at release time.
-#   - Git tag is the version source of truth.
-#   - Annotated tags are preferred.
-#
-# Usage:
-#   ./release-v2-draft.sh v1.2.3
-#   ./release-v2-draft.sh v1.2.3 "Optional release message"
-# ============================================================
-
 set -e
 
+# Usage:
+# ./release.sh v1.2.3 abc123 "Release notes"
+
 VERSION="$1"
-MESSAGE="$2"
+COMMIT="$2"
+shift 2
+MESSAGE="$*"
 
-if [ -z "$VERSION" ]; then
+if [ -z "$VERSION" ] || [ -z "$COMMIT" ]; then
   echo "Usage:"
-  echo "  ./release-v2-draft.sh v1.2.3"
-  echo "  ./release-v2-draft.sh v1.2.3 \"Release notes\""
+  echo "  ./release.sh <version> <commit> [message]"
   exit 1
 fi
 
-# Ensure working tree is clean
-if [ -n "$(git status --porcelain)" ]; then
-  echo "❌ Working tree not clean."
+# Ensure commit exists
+if ! git cat-file -e "$COMMIT^{commit}" 2>/dev/null; then
+  echo "❌ Commit $COMMIT does not exist."
   exit 1
 fi
 
-# Ensure tag does not already exist
+# Ensure snapshot exists
+if [ ! -d "snapshots/$COMMIT" ]; then
+  echo "❌ Snapshot folder snapshots/$COMMIT not found. Build it with build.sh"
+  exit 1
+fi
+
+# Ensure tag does not exist
 if git rev-parse "$VERSION" >/dev/null 2>&1; then
   echo "❌ Tag $VERSION already exists."
   exit 1
 fi
+# To delete a tag (but not recommended):
+# git tag -d v1.2.3
+# git push origin :refs/tags/v1.2.3
 
-COMMIT=$(git rev-parse --short HEAD)
-DATE=$(git log -1 --format=%cd --date=short)
 
-echo "--------------------------------------------------"
-echo "Preparing release:"
-echo "  Version: $VERSION"
-echo "  Commit:  $COMMIT ($DATE)"
-echo "--------------------------------------------------"
-
-# Default message if none provided
+# Default message
 if [ -z "$MESSAGE" ]; then
   MESSAGE="Release $VERSION"
 fi
 
-# Create annotated tag
-git tag -a "$VERSION" -m "$MESSAGE"
+echo "--------------------------------------------------"
+echo "Version: $VERSION"
+echo "Commit:  $COMMIT"
+echo "--------------------------------------------------"
 
-# Push tag
+# Create annotated tag for specific commit
+git tag -a "$VERSION" "$COMMIT" -m "$MESSAGE"
+
 git push origin "$VERSION"
 
+# Create release symlink
+mkdir -p releases
 
-commit=$(git rev-parse --short HEAD)
-ln -s ../snapshots/$commit releases/$VERSION
-ln -s $VERSION releases/latest
+rm -f "releases/$VERSION"
+ln -s "../snapshots/$COMMIT" "releases/$VERSION"
 
+# Update latest
+rm -f "releases/latest"
+ln -s "$VERSION" "releases/latest"
 
-echo "✔ Release tag $VERSION created and pushed."
+echo "✔ Release $VERSION → $COMMIT complete."
