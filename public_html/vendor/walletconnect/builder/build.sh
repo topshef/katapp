@@ -136,7 +136,8 @@ ARCHIVE_NAME="${APP_NAME}.${HEAD_COMMIT}.${GITSTATUS}.tar.gz"
 
 ARCHIVE_PATH="${SNAPSHOT_PATH}/${ARCHIVE_NAME}"
 
-tar -czf "$ARCHIVE_PATH" -C "$SNAPSHOT_PATH" .
+# tar -czf "$ARCHIVE_PATH" -C "$SNAPSHOT_PATH" .
+tar -czf "$ARCHIVE_PATH" -C "$SNAPSHOT_PATH" . || true
 
 
 # --------------------------------------------------
