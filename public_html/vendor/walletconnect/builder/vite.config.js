@@ -45,7 +45,7 @@ const buildMeta = {
   mode: git.mode,
   release: git.tag,
   built: new Date().toISOString(),
-  comment: 'wip GH64644 get app name from pkg.name=' + pkg.name + '  or pascal= ' + toPascalCase(pkg.name)
+  // ok now i think comment: 'wip GH64644 get app name from pkg.name=' + pkg.name + '  or pascal= ' + toPascalCase(pkg.name)
 }
 
 
