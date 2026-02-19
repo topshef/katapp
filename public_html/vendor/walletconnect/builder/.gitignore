@@ -1,10 +1,8 @@
 
 archive/
 dist/
-snapshots/
-releases/
 node_modules/
-snapgate/
+
 
 !package.json
 !package-lock.json
