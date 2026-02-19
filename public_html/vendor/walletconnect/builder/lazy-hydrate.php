@@ -39,6 +39,11 @@ if ($appVersion) $basepath = "releases/$appVersion/$fileName";
 if ($gitCommit)  $basepath = "snapshots/$gitCommit/$fileName";
 // elog(__DIR__); // where we are
 
+if (!$appVersion && !$gitCommit) {
+    javascript_exit('error UJ39848 invalid hydrate context');
+}
+
+
 //note this currently wont work for latest.js etc, but coudl be adapted to lookup remote latest.json and inspect
 
 $localDir = __DIR__;
