@@ -39,6 +39,7 @@ echo "GIT STATUS = $GITSTATUS"
 echo "GIT COMMIT = $HEAD_COMMIT"
 echo "----------------------------------------"
 
+echo "DEBUG: SNAP_DIR=$SNAP_DIR"
 
 # --------------------------------------------------
 # Pre-Build Sanity Check (dist should be empty)
