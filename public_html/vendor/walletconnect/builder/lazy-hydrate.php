@@ -109,6 +109,11 @@ if (!$size)
 header('Content-Type: application/javascript');
 header('Content-Length: ' . $size);
 header('Cache-Control: public, max-age=31536000, immutable');
+if ($gitCommit && $gitCommit !== 'latest' && $gitCommit !== 'hottest') {
+    header('Cache-Control: public, max-age=31536000, immutable');
+} else {
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+}
 
 readfile($jsPath);
 exit;
