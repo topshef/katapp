@@ -50,7 +50,7 @@ $localDir = __DIR__;
 
 // List of origin base URLs (no trailing slash)
 $origins = [
-    'https://swap.kpay.live/public_html/vendor/walletconnect/builder',
+    'https://swap.kpay.live/vendor/walletconnect/builder',
     // 'https://backup.example.com/builder'
 ];
 
@@ -59,10 +59,14 @@ $origins = [
 $isSuccess = false;
 $debug = [];
 
+// this must match the naming in build.sh  consider using tar.gz instead via shell
+$fileToCopy = ["$basepath.js", "$basepath.js.map", 'build.md', 'build.json', "$appName.tar.gz"];
+
 foreach ($origins as $origin) {
-	foreach (['js', 'js.map', 'md', 'json'] as $ext) {
-		$remotePath = "$origin/$basepath.$ext";
-		$localPath = "$localDir/$basepath.$ext";
+	// foreach (['js', 'js.map', 'md', 'json', 'tar.gz'] as $ext) {
+	foreach ($fileToCopy as $filename) {
+		$remotePath = "$origin/$filename";
+		$localPath = "$localDir/$filename";
 		// if (file_exists($localPath)) continue;  // 
 		if (file_exists($localPath)) javascript_exit('unexpected error UJ83744 server local file already exists');
 		
