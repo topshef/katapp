@@ -6,10 +6,13 @@ set -e
 # Build → snapshot artifact (per-commit folder)
 # --------------------------------------------------
 
+
+APP_NAME=$(node -p "require('./package.json').name")
+
+
 DIST_DIR="dist"
 SNAP_DIR="snapshots"
 
-SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 BUILD_LOG="$(mktemp)"
 
 # --------------------------------------------------
@@ -36,6 +39,18 @@ echo "MODE   = $MODE"
 echo "COMMIT = $HEAD_COMMIT"
 echo "----------------------------------------"
 
+
+# --------------------------------------------------
+# Pre-Build Sanity Check (dist should be empty)
+# --------------------------------------------------
+
+if [ -d "$DIST_DIR" ] && [ "$(ls -A "$DIST_DIR" 2>/dev/null)" ]; then
+  echo "⚠ WARNING: $DIST_DIR is not empty before build."
+  echo "⚠ Ensure Vite 'emptyOutDir: true' is working."
+fi
+
+
+
 # --------------------------------------------------
 # Run Clean Build
 # --------------------------------------------------
@@ -47,36 +62,44 @@ npm run build 2>&1 | tee "$BUILD_LOG"
 # --------------------------------------------------
 
 SNAPSHOT_PATH="${SNAP_DIR}/${SNAP_NAME}"
-
-# Dirty builds overwrite the dirty folder
 mkdir -p "$SNAPSHOT_PATH"
 
 # --------------------------------------------------
 # Copy Build Artifacts
 # --------------------------------------------------
 
-for file in "$DIST_DIR"/*.js; do
-  [ -f "$file" ] || continue
+# for file in "$DIST_DIR"/*; do
+  # [ -f "$file" ] || continue
 
-  filename=$(basename "$file")
+  # filename=$(basename "$file")
+  # cp -f "$file" "${SNAPSHOT_PATH}/${filename}"
 
-  cp -f "$file" "${SNAPSHOT_PATH}/${filename}"
+  # if [ -f "$DIST_DIR/$filename.map" ]; then
+    # cp -f "$DIST_DIR/$filename.map" \
+      # "${SNAPSHOT_PATH}/${filename}.map"
+  # fi
+# done
 
-  # Copy sourcemap if exists
-  if [ -f "$DIST_DIR/$filename.map" ]; then
-    cp -f "$DIST_DIR/$filename.map" \
-      "${SNAPSHOT_PATH}/${filename}.map"
-  fi
-done
 
 # --------------------------------------------------
-# Write Metadata
+# Copy Build Artifacts (assume dist was emptied beforehand)
 # --------------------------------------------------
 
-ts=$(date -u +"%Y-%m-%d %a %H:%M:%S UTC")
+#cp -R "$DIST_DIR"/. "$SNAPSHOT_PATH"/
+mv "$DIST_DIR"/* "$SNAPSHOT_PATH"/
+
+#empty dist folder (should be empty anyway)
+#rmdir "$DIST_DIR" 2>/dev/null || true
+
+
+# --------------------------------------------------
+# Write Metadata (Markdown)
+# --------------------------------------------------
+
+ts=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 cat > "${SNAPSHOT_PATH}/build.md" <<EOF
-# Build ${SNAP_NAME}
+# Build ${SNAP_NAME} ${APP_NAME}
 
 - **Mode:** ${MODE}
 - **Base Commit:** ${HEAD_COMMIT}
@@ -90,19 +113,44 @@ $(cat "$BUILD_LOG")
 EOF
 
 # --------------------------------------------------
+# Write Metadata (JSON)
+# --------------------------------------------------
+
+cat > "${SNAPSHOT_PATH}/build.json" <<EOF
+{
+  "appname": "${APP_NAME}",
+  "snapshot": "${SNAP_NAME}",
+  "mode": "${MODE}",
+  "base_commit": "${HEAD_COMMIT}",
+  "built_at": "${ts}"
+}
+EOF
+
+# --------------------------------------------------
+# Create Compressed Artifact (.tar.gz)
+# --------------------------------------------------
+
+#ARCHIVE_NAME="${APP_NAME}.tar.gz"
+ARCHIVE_NAME="${APP_NAME}.${HEAD_COMMIT}.${MODE}.tar.gz"
+
+ARCHIVE_PATH="${SNAPSHOT_PATH}/${ARCHIVE_NAME}"
+
+tar -czf "$ARCHIVE_PATH" -C "$SNAPSHOT_PATH" .
+
+
+# --------------------------------------------------
 # Update Snapshot Pointers (directory-level symlinks)
 # --------------------------------------------------
 
-# latest = most recent clean snapshot
 if [ "$MODE" = "snapshot" ]; then
   rm -f "${SNAP_DIR}/latest"
   ln -s "${HEAD_COMMIT}" "${SNAP_DIR}/latest"
 fi
 
-# hottest = most recent build (clean or dirty)
 rm -f "${SNAP_DIR}/hottest"
 ln -s "${SNAP_NAME}" "${SNAP_DIR}/hottest"
 
 rm -f "$BUILD_LOG"
 
 echo "✔ Snapshot created at ${SNAPSHOT_PATH}"
+echo "✔ Archive created at ${ARCHIVE_PATH}"

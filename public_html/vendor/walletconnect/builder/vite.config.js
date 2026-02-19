@@ -45,7 +45,7 @@ const buildMeta = {
   mode: git.mode,
   release: git.tag,
   built: new Date().toISOString(),
-  comment: 'todo GH64644 get app name from pkg.name=' + pkg.name + '  or pascal= ' + toPascalCase(pkg.name)
+  comment: 'wip GH64644 get app name from pkg.name=' + pkg.name + '  or pascal= ' + toPascalCase(pkg.name)
 }
 
 
@@ -84,8 +84,8 @@ export default defineConfig(({ command }) => {
 
       lib: {
         entry: 'src/app.js',
-        name: 'WalletConnectHedera',
-        fileName: 'walletconnect-hedera',
+        name: toPascalCase(pkg.name), //'WalletConnectHedera',
+        fileName: pkg.name, //'walletconnect-hedera',
         formats: ['iife']
       }
     }
