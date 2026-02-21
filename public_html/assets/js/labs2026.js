@@ -679,6 +679,13 @@ function parseSearchParams(search) {
 	if (productId) productId = productId.replace('to',':') //normalise to colon
 	
   dealId = params.get('dealId')
+	// console.log(location.pathname)
+	//todo other fixes eg KWC for flexible path
+	if (!dealId) {
+    const match = location.pathname.match(/^\/deal\/([a-fA-F0-9]+)/)
+    if (match)
+      dealId = match[1]
+  }
 }
 
 async function navigateLocal(search) {
