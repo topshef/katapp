@@ -12,6 +12,25 @@ const Utils = {
     return urlParams.get(param);
   },
 
+	getPathParam(param) {
+		const segments = window.location.pathname
+			.split("/")
+			.filter(Boolean)
+
+		for (let i = 0; i < segments.length - 1; i++)
+			if (segments[i] === param)
+				return segments[i + 1]
+
+		return null
+	},
+
+	getQueryorPathParam(param) {  // hack either or.. path is fallback.. but review
+		const queryValue = this.getQueryParam(param)
+		if (queryValue) return queryValue
+		console.log(`query param ${param} is missing.. trying path param instead`)
+		return this.getPathParam(param)
+	},
+
   updateURLParameter(param, value) {
     const urlParams = new URLSearchParams(window.location.search);
     value ? urlParams.set(param, value) : urlParams.delete(param);
@@ -25,7 +44,7 @@ const Utils = {
   validateEntity(value) {
     return /^\d+\.\d+\.\d+$/.test(value); // Matches format like 0.0.1234
   },
-};
+}
 
 // API calls
 const API = {
@@ -421,7 +440,7 @@ async function init() {
 		console.log("[KATOMIC] render deal widget")
 		UI.renderFullPage()
 
-		const dealId = Utils.getQueryParam("dealId")
+		const dealId = Utils.getQueryorPathParam("dealId")
 		if (dealId) {
 			const dealData = await API.fetchDealData(dealId)
 			UI.renderDealUI(dealData)
