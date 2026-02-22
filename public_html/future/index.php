@@ -107,6 +107,9 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
     <script src="assets/js/accordions.js"></script>
 
     <script>
+		
+		//legacy pre-kpool ... to remove once kpool established
+
         function getQueryParam(key) {
           const urlParams = new URLSearchParams(window.location.search)
           return urlParams.get(key)
@@ -131,6 +134,12 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
     </script>
 
 	<script>
+	
+// ┬  ┌─┐┌─┐┌─┐┌─┐┬ ┬  ┌┬┐┌─┐┌─┐┌─┐┬  ┌─┐
+// │  ├┤ │ ┬├─┤│  └┬┘   │ │ ││ ┬│ ┬│  ├┤ 
+// ┴─┘└─┘└─┘┴ ┴└─┘ ┴    ┴ └─┘└─┘└─┘┴─┘└─┘
+// legacy toggle
+	
 	;(function() {
 		const c = document.getElementById('kpool-container')
 		if (!c) return
@@ -174,33 +183,59 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
 
 
 <script>
+// ┬┌─┌─┐┌─┐┌─┐┬    ┌┬┐─┐ ┬  ╦  ┬┌─┐┌┬┐
+// ├┴┐├─┘│ ││ ││     │ ┌┴┬┘  ║  │└─┐ │ 
+// ┴ ┴┴  └─┘└─┘┴─┘   ┴ ┴ └─  ╩═╝┴└─┘ ┴ 
+// kpool tx List
+
+function formatRemaining(ts) {
+  const now = Math.floor(Date.now() / 1000)
+  const diff = ts - now
+
+  const abs = Math.abs(diff)
+  const h = Math.floor(abs / 3600)
+  const m = Math.floor((abs % 3600) / 60).toString().padStart(2,'0')
+  const s = Math.floor(abs % 60).toString().padStart(2,'0')
+
+  const sign = diff >= 0 ? '+' : '-'
+  return `${sign} ${h}:${m}:${s}`
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
 
   if (new URLSearchParams(location.search).get('kpool') === '0') return
 
   const el = document.getElementById('kpool-container')
   if (!el) return
-
-  const network =
+	
+	el.style.textAlign = 'left'
+	el.style.fontFamily = 'monospace'
+  
+	const network =
     new URLSearchParams(location.search).get('network')
     || '<?php echo $network ?>'
 
   const res = await fetch(`/future/?action=txList&network=${network}&since=600&until=600`)
   const txs = (await res.json())?.result?.tx || []
-
+	txs.sort((a, b) => a.txid.split('@')[1] - b.txid.split('@')[1])
+	
   el.insertAdjacentHTML('beforeend',
     txs.filter(t => t.type === 'tx').map(t => {
       const u = new URL(location)
       u.searchParams.set('network', t.network)
       u.searchParams.set('txid', t.txid)
 
-      const utc = new Date(t.txid.split('@')[1] * 1000)
-        .toISOString().slice(0,19).replace('T',' ') + ' UTC'
-
+			const ts = Number(t.txid.split('@')[1])
+			const remaining = formatRemaining(ts)
+			const utc = new Date(ts * 1000)
+				.toISOString().slice(0,19).replace('T',' ') + ' UTC'
+				
+				
       return `
         <div>
+				  <span>${remaining}</span>
           <b>${t.network}</b>
-          <a href="${u}">${t.txid}</a>
+          <a href="${u}" target="_blank" rel="noopener">${t.txid}</a>
           ${t.pch}
           ${utc}
         </div>
