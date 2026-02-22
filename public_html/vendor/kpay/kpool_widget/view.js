@@ -107,9 +107,9 @@
 			const empty = document.createElement('div')
 			empty.textContent = '—'
 			container.appendChild(empty)
-			return container
+			// return container
 		}
-
+		
 		sigs.forEach(s => {
 			const pubKey = s.pubKey || ''
 			const short = pubKey.slice(-4)
