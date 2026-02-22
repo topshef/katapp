@@ -8,6 +8,7 @@ if (isset($_GET['action'])) {
 	exit;
 }
 
+
 require_once "{$_SERVER['DOCUMENT_ROOT']}/readenv.php";
 require_once "{$_SERVER['DOCUMENT_ROOT']}/auth.php";
 require_once "{$_SERVER['DOCUMENT_ROOT']}/config.php";
@@ -25,41 +26,12 @@ $network = getNetwork() ?? $_GET['network'];
 // $network = $_GET['network'];
 $txid = $_GET['txid'] ?? null;
 
-$subfolder = $_GET['subfolder'] ?? 'current';
-if ($txid) $subfolder = '*';
-
-$format = $_GET['format'] ?? 'html_simpleNFT';
-
-$saas_domain = $_GET['saas_domain'] ?? $_SESSION['last_saas_domain'] ?? false; 
-
-if ($_SESSION['network_override'] && !$saas_domain) // default saas_domain if network switched
-    $saas_domain = ($network == 'testnet') ? 'dev.gomint.me' : 'gmws2.gomint.me';
-
-if ($saas_domain) $urlTxAppnet = "https://$saas_domain/api/hashconnect";
-else $urlTxAppnet = $env['url_api_tx_appnet'] ?? $env['url_api_gomint_hashconnect']; // tbc how to refactor this shite .. 1. create a wrapper to fetch data, 2. migrate to kpos
-
-$urlTxAppnet = rtrim($urlTxAppnet, '/');
-
-// $mempool = 'kpool';
-$mempool = 'kfund';
-$querystring = http_build_query(compact('network', 'format', 'mempool', 'subfolder'));
-
-$url .= "$urlTxAppnet/txList.php?base=future&$querystring";
-//network=$network&format=$format&base=future&subfolder=$subfolder
-// review... migrate to kpos and render json client side
-
-if ($txid) $url .= "&txid=$txid";
-if ($isDev) $url .= "&dev";
-if ($_GET['ksig']) $url .= "&ksig=1";
-
-elog("calling $url");
-$html_list = file_get_contents($url);
-
-// might not use this.. if we bypass kfund compeltely
-// if ($txid && $isAdmin) $html_list_v2 = file_get_contents("$url&v=v2");
-
+$useKpool = $_GET['kpool'] ?? 1;
+if (!$useKpool)
+    require_once('zindex_deprecating.php');
 
 $custom_style = '<link rel="stylesheet" type="text/css" href="future/future.css">';
+
 
 if ($txid) exit(include('tx_approval.php'));
 
@@ -101,9 +73,9 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
 
  									
 								</div>
-<BR><BR>
-
-<div class='bidtable'>
+<BR>
+<div id="kpool-container"></div>
+<div  class='bidtable'>
 <?php echo $html_list; ?>
 </div>
 
@@ -158,8 +130,86 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
         window.addEventListener('DOMContentLoaded', filterBids)
     </script>
 
+	<script>
+	;(function() {
+		const c = document.getElementById('kpool-container')
+		if (!c) return
+
+		if (!c.style.position) c.style.position = 'relative'
+
+		const label = document.createElement('label')
+		label.innerHTML = `<input type="checkbox"> kpool`
+
+		Object.assign(label.style, {
+			position: 'absolute',
+			top: '-25px',
+			left: '-10px',
+			display: 'inline-flex',
+			alignItems: 'center',
+			gap: '6px',
+			fontSize: '13px',
+			background: '#fff',
+			padding: '2px 6px',
+			borderRadius: '4px',
+			zIndex: 9999
+		})
+
+		const input = label.querySelector('input')
+
+		// reset any insane global CSS
+		input.style.all = 'revert'
+
+		const params = new URLSearchParams(location.search)
+		input.checked = params.get('kpool') !== '0'
+
+		input.onchange = () => {
+			const p = new URLSearchParams(location.search)
+			p.set('kpool', input.checked ? '1' : '0')
+			location.search = p.toString()
+		}
+
+		c.appendChild(label)
+	})()
+	</script>
 
 
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+
+  if (new URLSearchParams(location.search).get('kpool') === '0') return
+
+  const el = document.getElementById('kpool-container')
+  if (!el) return
+
+  const network =
+    new URLSearchParams(location.search).get('network')
+    || '<?php echo $network ?>'
+
+  const res = await fetch(`/future/?action=txList&network=${network}&since=600&until=600`)
+  const txs = (await res.json())?.result?.tx || []
+
+  el.insertAdjacentHTML('beforeend',
+    txs.filter(t => t.type === 'tx').map(t => {
+      const u = new URL(location)
+      u.searchParams.set('network', t.network)
+      u.searchParams.set('txid', t.txid)
+
+      const utc = new Date(t.txid.split('@')[1] * 1000)
+        .toISOString().slice(0,19).replace('T',' ') + ' UTC'
+
+      return `
+        <div>
+          <b>${t.network}</b>
+          <a href="${u}">${t.txid}</a>
+          ${t.pch}
+          ${utc}
+        </div>
+      `
+    }).join('')
+  )
+
+})
+</script>
   </body>
 </html>
 
