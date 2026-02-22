@@ -94,10 +94,10 @@
 	// 3rd section - signing status
 	export const buildSignatureList = rawTx => {
 		const container = document.createElement('div')
-		container.className = 'txread-sigs'
+		container.className = 'simple-mono-centres'
 
 		const title = document.createElement('div')
-		title.className = 'txread-sigs-title'
+		title.className = 'ksubtitle'
 		title.textContent = 'Signatures received'
 		container.appendChild(title)
 
@@ -115,7 +115,7 @@
 			const short = pubKey.slice(-4)
 
 			const el = document.createElement('div')
-			el.className = 'txread-sig'
+			el.className = 'simple-mono-centre'
 			el.textContent = short
 
 			container.appendChild(el)
@@ -190,7 +190,7 @@ export function renderAccountsInfo(accounts) {  //todo rename this it's about si
 	container.innerHTML = ''
 
 	const title = document.createElement('div')
-	title.className = 'txread-sigs-title'
+	title.className = 'ksubtitle'
 	title.textContent = 'Accounts to sign'
 	container.appendChild(title)
 
@@ -198,8 +198,8 @@ export function renderAccountsInfo(accounts) {  //todo rename this it's about si
 		.filter(([_, acc]) => acc.mustSign)
 		.forEach(([accountId]) => {
 			const el = document.createElement('div')
-			el.className = 'txread-sig'
-			el.textContent = accountId
+			el.className = 'simple-mono-centre'
+			el.textContent = accountId // XX1 todo merge acinfo
 			container.appendChild(el)
 		})
 
@@ -207,12 +207,12 @@ export function renderAccountsInfo(accounts) {  //todo rename this it's about si
 	// todo enrich and format the table to show the current status considering keys that have signed
 	// work out latest MWC minimum voting coalitions
 	const scoresTitle = document.createElement('div')
-	scoresTitle.className = 'txread-sigs-title'
+	scoresTitle.className = 'ksubtitle'
 	scoresTitle.textContent = 'Key control'
 	container.appendChild(scoresTitle)
 
 	const subtitle = document.createElement('div')
-	subtitle.className = 'txread-sig'
+	subtitle.className = 'simple-mono-centre'
 	subtitle.textContent = 'pubkey|banzhaf|redundancy|bucket'
 	container.appendChild(subtitle)
 
@@ -220,8 +220,8 @@ export function renderAccountsInfo(accounts) {  //todo rename this it's about si
 		const scores = acc.keyInfo?.banzhafScores?.scores
 		if (!scores) {
 			const el = document.createElement('div')
-			el.className = 'txread-sig'
-			el.textContent = `YH64664 no scores for ${accountId}`
+			el.className = 'simple-mono-centre'
+			el.textContent = `YH64664 no scores for ${accountId}` // XX1 todo merge acinfo
 			container.appendChild(el)
 			return
 		}
@@ -231,13 +231,14 @@ export function renderAccountsInfo(accounts) {  //todo rename this it's about si
 		if (!scores || !buckets) return
 
 		const accEl = document.createElement('div')
-		accEl.className = 'txread-sig'
-		accEl.textContent = accountId
+		accEl.className = 'simple-mono-centre'
+		// accEl.className = 'debug-banzhaf'
+		accEl.textContent = accountId // XX1 todo merge acinfo
 		container.appendChild(accEl)
 
 		Object.entries(scores).forEach(([pubkey, score]) => {
 			const row = document.createElement('div')
-			row.className = 'txread-sig'
+			row.className = 'simple-mono-centre'
 			row.style.paddingLeft = '16px'
 
 			const keySuffix = pubkey.slice(-4)
@@ -259,7 +260,8 @@ const isSingleKeyAccount = acc =>
 
 const renderSingleKeyCheckbox = ({ accountId, signed }) => {
 	const row = document.createElement('div')
-	row.textContent = `${signed ? '☑️' : '🔲'}\u00A0${accountId}`
+	row.className = 'simple-mono-centre'
+	row.textContent = `${signed ? '☑️' : '🔲'}\u00A0${accountId}` // XX1 todo merge acinfo
 	return row
 }
 
@@ -270,7 +272,7 @@ export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
 	if (!container) return
 
 	const title = document.createElement('div')
-	title.className = 'txread-sigs-title'
+	title.className = 'ksubtitle'
 	title.textContent = 'Signing progress'
 	container.appendChild(title)
 
@@ -278,6 +280,7 @@ export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
 	charts.style.display = 'flex'
 	charts.style.flexWrap = 'wrap'
 	charts.style.gap = '12px'
+	charts.style.justifyContent = 'center'
 	container.appendChild(charts)
 
 	const signed = (signedPubkeys || []).join(',')
@@ -299,13 +302,15 @@ export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
 		}		
 		
 		const wrapper = document.createElement('div')
+	  
 		wrapper.style.width = '200px'
-		wrapper.style.height = '230px'
+		wrapper.style.height = '110px'
 		wrapper.style.position = 'relative'
 		wrapper.style.overflow = 'hidden'
 		wrapper.style.fontFamily = 'monospace'
 		wrapper.style.fontSize = '12px'
 		wrapper.style.textAlign = 'center'
+
 
 		const iframe = document.createElement('iframe')
 		iframe.src =
@@ -317,16 +322,19 @@ export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
 
 		iframe.style.width = '450px'
 		iframe.style.height = '450px'
-		iframe.style.transform = 'scale(0.45)'
+		iframe.style.transform = 'scale(0.2)'
 		iframe.style.transformOrigin = 'top left'
 		iframe.style.border = 'none'
 		iframe.style.position = 'absolute'
 		iframe.style.top = '0'
-		iframe.style.left = '0'
+		// iframe.style.left = '0'
+		iframe.style.left = '50%'
+		iframe.style.transformOrigin = 'top center'
+		iframe.style.transform = 'translateX(-50%) scale(0.2)'
 		iframe.scrolling = 'no'
 
 		const label = document.createElement('div')
-		label.textContent = accountId
+		label.textContent = accountId // XX1 todo merge acinfo
 		label.style.position = 'absolute'
 		label.style.bottom = '4px'
 		label.style.left = '0'
@@ -415,16 +423,20 @@ export function injectTxReadCSS() {
 			margin-bottom: 4px;
 		}
 
-		.txread-sigs-title {
+		.ksubtitle {
 			font-weight: 600;
-			margin-bottom: 6px;
-			color: #444;
+			margin-top: 12px;
+			padding-bottom: 0px;
+			margin-bottom: 2px;
+			color:#999;
+ 			border-bottom:0.5px solid #ddd;width:100%;
 		}
 
-		.txread-sig {
+		.simple-mono-centre {
 			font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 			font-size: 13px;
 			padding: 2px 0;
+			color:#777;
 		}
 
 		.txread-timing {
@@ -436,6 +448,8 @@ export function injectTxReadCSS() {
 			font-weight: 600;
 			margin-bottom: 4px;
 		}
+				
+
 	`
 	document.head.appendChild(style)
 }
