@@ -23,12 +23,13 @@
 		col2.appendChild(transfersView)
 
 
-
 		const col3 = document.createElement('div')
 		col3.className = 'txread-col'
-		const sigs = buildSignatureList(rawTx)
-		col3.appendChild(sigs)
-		
+
+		const accounts = document.createElement('div')
+		accounts.id = 'txread-accounts'
+		accounts.style.marginTop = '8px'
+		col3.appendChild(accounts)		
 
 		const col4 = document.createElement('div')
 		col4.className = 'txread-col'
@@ -91,45 +92,8 @@
 		return container
 	}
 
-	// 3rd section - signing status
-	export const buildSignatureList = rawTx => {
-		const container = document.createElement('div')
-		container.className = 'simple-mono-centres'
+	// 3rd section - signing status - rolled into buildTxReadColumns
 
-		const title = document.createElement('div')
-		title.className = 'ksubtitle'
-		title.textContent = 'Signatures received'
-		container.appendChild(title)
-
-		const sigs = get(rawTx, 'result.sigs') || []
-
-		if (!sigs.length) {
-			const empty = document.createElement('div')
-			empty.textContent = '—'
-			container.appendChild(empty)
-			// return container
-		}
-		
-		sigs.forEach(s => {
-			const pubKey = s.pubKey || ''
-			const short = pubKey.slice(-4)
-
-			const el = document.createElement('div')
-			el.className = 'simple-mono-centre'
-			el.textContent = short
-
-			container.appendChild(el)
-		})
-
-		// accounts placeholder (for enrichment)
-		const accounts = document.createElement('div')
-		accounts.id = 'txread-accounts'
-		accounts.style.marginTop = '8px'
-		container.appendChild(accounts)
-
-
-		return container
-	}
 
 	//4th section - tx status
 	export const buildTimingBlock = (network, txid) => {
@@ -177,41 +141,43 @@ export function renderSigningInfo({ rawTx, network, accounts }) {
 		.map(s => s.pubKey)
 		.filter(Boolean)
 
-	renderAccountsInfo(accounts)
+	renderAccountsInfo(accounts, signedPubkeys)
 	renderKeyPieCharts({ network, accounts, signedPubkeys })
 }
 
-export function renderAccountsInfo(accounts) {
+// export function renderAccountsInfo(accounts) {
+export function renderAccountsInfo(accounts, signedPubkeys = [])	{
   const container = document.getElementById('txread-accounts')
   if (!container) return
 
   container.innerHTML = ''
 
   // ---- Accounts to sign ----
-  const signTitle = document.createElement('div')
-  signTitle.className = 'ksubtitle'
-  signTitle.textContent = 'Accounts to sign'
-  container.appendChild(signTitle)
+  // const signTitle = document.createElement('div')
+  // signTitle.className = 'ksubtitle'
+  // signTitle.textContent = 'Accounts to sign'
+  // container.appendChild(signTitle)
 
-  Object.entries(accounts)
-    .filter(([_, acc]) => acc.mustSign)
-    .forEach(([accountId]) => {
-      const el = document.createElement('div')
-      el.className = 'simple-mono-centre'
-      el.textContent = accountId
-      container.appendChild(el)
-    })
+  // Object.entries(accounts)
+    // .filter(([_, acc]) => acc.mustSign)
+    // .forEach(([accountId]) => {
+      // const el = document.createElement('div')
+      // el.className = 'simple-mono-centre'
+      // el.textContent = accountId
+      // container.appendChild(el)
+    // })
 
   // ---- Key control ----
   const keyTitle = document.createElement('div')
   keyTitle.className = 'ksubtitle'
-  keyTitle.textContent = 'Key control'
+  keyTitle.textContent = 'Signing status'
   container.appendChild(keyTitle)
 
   const table = document.createElement('div')
   table.className = 'simple-mono-centre'
   table.style.display = 'grid'
-  table.style.gridTemplateColumns = '1.3fr 0.8fr 0.6fr 0.6fr 1fr'
+  // table.style.gridTemplateColumns = '1.3fr 0.8fr 0.6fr 0.6fr 1fr'
+	table.style.gridTemplateColumns = '1.1fr 0.4fr 0.8fr 0.6fr 0.6fr 1fr'
   table.style.columnGap = '8px'
   table.style.rowGap = '2px'
   container.appendChild(table)
@@ -227,7 +193,7 @@ export function renderAccountsInfo(accounts) {
 
   // header
   addRow(
-    ['account', 'pubkey', 'banzhaf', 'redundancy', 'bucket'],
+    ['account', '✍️', '🔑', 'banzhaf', 'redundancy', 'bucket'],
     true
   )
 
@@ -238,6 +204,9 @@ export function renderAccountsInfo(accounts) {
     if (!scores || !buckets) return
 
     Object.entries(scores).forEach(([pubkey, score], index) => {
+			const signed = signedPubkeys.includes(pubkey)
+			const tick = signed ? '☑️' : '🔲'
+
       const keySuffix = pubkey.slice(-4)
       const pct = Math.round(score * 100)
       const red = redundancy?.[pubkey] != null
@@ -248,6 +217,7 @@ export function renderAccountsInfo(accounts) {
       addRow(
         [
           accountId,
+					tick,
           keySuffix,
           `${pct}%`,
           red === '-' ? '-' : `${red}%`,
