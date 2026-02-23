@@ -26,11 +26,6 @@
 		const col3 = document.createElement('div')
 		col3.className = 'txread-col'
 
-		const accounts = document.createElement('div')
-		accounts.id = 'txread-accounts'
-		accounts.style.marginTop = '8px'
-		col3.appendChild(accounts)		
-
 		const col4 = document.createElement('div')
 		col4.className = 'txread-col'
 		const timing = buildTimingBlock(network, txid)
@@ -47,10 +42,26 @@
 
 		grid.appendChild(col1)
 		grid.appendChild(col2)
-		grid.appendChild(col3)
+		// grid.appendChild(col3)
 		grid.appendChild(col4)
 
-		return grid
+		// Full-width signing section
+		const signingSection = document.createElement('div')
+		signingSection.id = 'txread-signing'
+		signingSection.style.marginTop = '16px'
+		signingSection.style.width = '100%'
+
+		const accounts = document.createElement('div')
+		accounts.id = 'txread-accounts'
+
+		signingSection.appendChild(accounts)
+
+		// return grid
+		const wrapper = document.createElement('div')
+		wrapper.appendChild(grid)
+		wrapper.appendChild(signingSection)
+		return wrapper
+
 	}
 
 
@@ -170,7 +181,7 @@ export function renderAccountsInfo(accounts, signedPubkeys = [])	{
   // ---- Key control ----
   const keyTitle = document.createElement('div')
   keyTitle.className = 'ksubtitle'
-  keyTitle.textContent = 'Signing status'
+  keyTitle.textContent = 'Keys to sign'
   container.appendChild(keyTitle)
 
   const table = document.createElement('div')
@@ -193,7 +204,7 @@ export function renderAccountsInfo(accounts, signedPubkeys = [])	{
 
   // header
   addRow(
-    ['account', '✍️', '🔑', 'banzhaf', 'redundancy', 'bucket'],
+    ['Account', '✍️', '🔑', 'Banzhaf ⚖️', 'Redundancy', 'Control'],
     true
   )
 
@@ -244,7 +255,7 @@ export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
 
 	const title = document.createElement('div')
 	title.className = 'ksubtitle'
-	title.textContent = 'Signing progress'
+	title.textContent = 'Threshold needed 🟠 / achieved 🟢'
 	container.appendChild(title)
 
 	const charts = document.createElement('div')
