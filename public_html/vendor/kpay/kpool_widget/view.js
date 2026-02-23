@@ -255,7 +255,7 @@ export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
 
 	const title = document.createElement('div')
 	title.className = 'ksubtitle'
-	title.textContent = 'Threshold needed 🟠 / achieved 🟢'
+	title.textContent = 'Per account, threshold needed 🟠 / achieved 🟢'
 	container.appendChild(title)
 
 	const charts = document.createElement('div')
