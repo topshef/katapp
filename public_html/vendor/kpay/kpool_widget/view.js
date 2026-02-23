@@ -372,8 +372,17 @@ export function injectTxReadCSS() {
 			min-width: 200px;
 		}
 
+		.txread-thumb {
+			display: flex;
+			justify-content: center;
+			align-items: flex-start;
+		}
+
+
 		.txread-thumb img {
-			max-width: 100%;
+			max-width: 140px;
+
+
 			height: auto;
 			display: block;
 			border-radius: 4px;
