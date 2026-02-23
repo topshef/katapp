@@ -66,7 +66,6 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 	iframe.style.height = '300px'
 	iframe.setAttribute('scrolling', 'no')
 	iframe.style.overflow = 'hidden'
-	iframe.style.border = '0'
 	
   iframe.setAttribute('allow', 'camera')
 	
@@ -110,7 +109,7 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 
 		container.appendChild(columns)
 		container.appendChild(details)
-		container.appendChild(jsonDetails)
+		// container.appendChild(jsonDetails)
 		
 		return { url, rawTx, transfers, accounts }
 	}
