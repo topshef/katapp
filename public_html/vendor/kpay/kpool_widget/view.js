@@ -181,96 +181,84 @@ export function renderSigningInfo({ rawTx, network, accounts }) {
 	renderKeyPieCharts({ network, accounts, signedPubkeys })
 }
 
-		
-export function renderAccountsInfo(accounts) {  //todo rename this it's about signing not jjst accoutns.. or extract to above
-// ..and then recycle this for pure ac info not signing
-	const container = document.getElementById('txread-accounts')
-	if (!container) return
+export function renderAccountsInfo(accounts) {
+  const container = document.getElementById('txread-accounts')
+  if (!container) return
 
-	container.innerHTML = ''
+  container.innerHTML = ''
 
-	const title = document.createElement('div')
-	title.className = 'ksubtitle'
-	title.textContent = 'Accounts to sign'
-	container.appendChild(title)
+  // ---- Accounts to sign ----
+  const signTitle = document.createElement('div')
+  signTitle.className = 'ksubtitle'
+  signTitle.textContent = 'Accounts to sign'
+  container.appendChild(signTitle)
 
-	Object.entries(accounts)
-		.filter(([_, acc]) => acc.mustSign)
-		.forEach(([accountId]) => {
-			const el = document.createElement('div')
-			el.className = 'simple-mono-centre'
-			el.textContent = accountId // XX1 todo merge acinfo
-			container.appendChild(el)
-		})
+  Object.entries(accounts)
+    .filter(([_, acc]) => acc.mustSign)
+    .forEach(([accountId]) => {
+      const el = document.createElement('div')
+      el.className = 'simple-mono-centre'
+      el.textContent = accountId
+      container.appendChild(el)
+    })
 
-	//note this is all keys score not beased on signed context so far
-	// todo enrich and format the table to show the current status considering keys that have signed
-	// work out latest MWC minimum voting coalitions
-	const scoresTitle = document.createElement('div')
-	scoresTitle.className = 'ksubtitle'
-	scoresTitle.textContent = 'Key control'
-	container.appendChild(scoresTitle)
+  // ---- Key control ----
+  const keyTitle = document.createElement('div')
+  keyTitle.className = 'ksubtitle'
+  keyTitle.textContent = 'Key control'
+  container.appendChild(keyTitle)
 
-	const subtitle = document.createElement('div')
-	subtitle.className = 'simple-mono-centre'
-	// subtitle.textContent = 'pubkey|banzhaf|redundancy|bucket'  //todo add acc as 5th col at start
-	subtitle.textContent = 'account | pubkey | banzhaf | redundancy | bucket'
-	container.appendChild(subtitle) 
+  const table = document.createElement('div')
+  table.className = 'simple-mono-centre'
+  table.style.display = 'grid'
+  table.style.gridTemplateColumns = '1.3fr 0.8fr 0.6fr 0.6fr 1fr'
+  table.style.columnGap = '8px'
+  table.style.rowGap = '2px'
+  container.appendChild(table)
 
-	Object.entries(accounts).forEach(([accountId, acc]) => {
-		const scores = acc.keyInfo?.banzhafScores?.scores
-		if (!scores) { // this should not happen
-			const el = document.createElement('div')
-			el.className = 'simple-mono-centre'
-			el.textContent = `YH64664 no scores for ${accountId}` // XX1 todo merge acinfo
-			container.appendChild(el)
-			return
-		}
+  const addRow = (cells, isFirstOfAccount) => {
+    cells.forEach(text => {
+      const cell = document.createElement('div')
+      cell.textContent = text
+      if (isFirstOfAccount) cell.style.marginTop = '6px'
+      table.appendChild(cell)
+    })
+  }
 
-		const redundancy = acc.keyInfo?.banzhafScores?.redundancy
-		const buckets = acc.keyInfo?.keyControlScoresAll
-		if (!scores || !buckets) return
+  // header
+  addRow(
+    ['account', 'pubkey', 'banzhaf', 'redundancy', 'bucket'],
+    true
+  )
 
-		// const accEl = document.createElement('div')
-		// accEl.className = 'simple-mono-centre'
-		// accEl.textContent = accountId // XX1 todo merge acinfo
-		// container.appendChild(accEl)
+  Object.entries(accounts).forEach(([accountId, acc]) => {
+    const scores = acc.keyInfo?.banzhafScores?.scores
+    const redundancy = acc.keyInfo?.banzhafScores?.redundancy
+    const buckets = acc.keyInfo?.keyControlScoresAll
+    if (!scores || !buckets) return
 
-		// Object.entries(scores).forEach(([pubkey, score]) => {
-		Object.entries(scores).forEach(([pubkey, score], index) => {
-			const row = document.createElement('div')
-			row.className = 'simple-mono-centre'
-			// row.style.paddingLeft = '16px'
-			row.style.display = 'grid'
-			row.style.gridTemplateColumns = '1.3fr 0.8fr 0.6fr 0.6fr 1fr'
-			row.style.columnGap = '8px'
-			row.style.padding = index === 0 ? '4px 0 2px 0' : '2px 0'			
+    Object.entries(scores).forEach(([pubkey, score], index) => {
+      const keySuffix = pubkey.slice(-4)
+      const pct = Math.round(score * 100)
+      const red = redundancy?.[pubkey] != null
+        ? Math.round(redundancy[pubkey] * 100)
+        : '-'
+      const bucket = buckets?.[pubkey]?.bucket ?? '-'
 
-			const keySuffix = pubkey.slice(-4)
-			const pct = Math.round(score * 100)
-			const red = redundancy?.[pubkey] != null
-				? Math.round(redundancy[pubkey] * 100)
-				: '-'
-			const bucket = buckets?.[pubkey]?.bucket ?? '-'
-
-			// row.textContent = `${keySuffix} | ${pct}% | ${red}% | ${bucket}`
-			row.innerHTML = `
-				<div>${accountId}</div>
-				<div>${keySuffix}</div>
-				<div>${pct}%</div>
-				<div>${red}%</div>
-				<div>${bucket}</div>
-			`
-			
-			container.appendChild(row)
-		})
-		
-		const spacer = document.createElement('div')
-		spacer.style.height = '4px'
-		container.appendChild(spacer)
-
-	})
+      addRow(
+        [
+          accountId,
+          keySuffix,
+          `${pct}%`,
+          red === '-' ? '-' : `${red}%`,
+          bucket
+        ],
+        index === 0
+      )
+    })
+  })
 }
+		
 
 const renderSingleKeyCheckbox = ({ accountId, signed }) => {
 	const row = document.createElement('div')
