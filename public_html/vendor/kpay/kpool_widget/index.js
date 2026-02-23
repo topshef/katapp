@@ -53,13 +53,21 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 
 
   const summary = document.createElement('summary')
-  summary.innerHTML = "Sign with <a href='https://ksig.uk/pwa' target='KPAYPWA'>KSIG</a>"
+  summary.innerHTML = "✍️ Sign offline with <a href='https://ksig.uk/pwa' target='KPAYPWA'>KSIG</a>"
+	summary.style.marginTop = '16px'
+	summary.style.display = 'block'
 
   const p = document.createElement('p')
   p.textContent = 'QR scan the transaction, sign, then return the signed transaction'
 
   const iframe = document.createElement('iframe')
   iframe.id = 'iframeKSIG'
+	iframe.style.width = '100%'
+	iframe.style.height = '300px'
+	iframe.setAttribute('scrolling', 'no')
+	iframe.style.overflow = 'hidden'
+	iframe.style.border = '0'
+	
   iframe.setAttribute('allow', 'camera')
 	
 	//kpos and kpay are the same atm, but the widget is hosted on kpos
@@ -81,14 +89,14 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 
 
 		// raw JSON dump (collapsible, with API link inside)
-		const jsonDetails = document.createElement('details')
-		jsonDetails.innerHTML = `
-			<summary>View raw JSON</summary>
-			<a href="${url}" target="_blank" rel="noopener" style="display:block;margin:4px 0">
-				⚙️ View txRead API response
-			</a>
-			<pre><code>${JSON.stringify(rawTx, null, 2)}</code></pre>
-		`
+		// const jsonDetails = document.createElement('details')
+		// jsonDetails.innerHTML = `
+			// <summary>View raw JSON</summary>
+			// <a href="${url}" target="_blank" rel="noopener" style="display:block;margin:4px 0">
+				// ⚙️ View txRead API response
+			// </a>
+			// <pre><code>${JSON.stringify(rawTx, null, 2)}</code></pre>
+		// `
 
 		injectTxReadCSS()
 
