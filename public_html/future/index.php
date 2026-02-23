@@ -287,7 +287,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 	async function getDealOfDay() {
 		try {
-			const response = await fetch('/m/bid/kmm/demo1')
+			
+			const userAccountId = localStorage.getItem('walletConnectAccountId') ?? false
+			if (!userAccountId) return window.alert('Please connect your wallet first\n wip ref KJ93843')
+			console.log(userAccountId)
+		
+			const response = await fetch(`/m/bid/kmm/demo1?userAccountId=${userAccountId}`)
 
 			if (!response.ok)
 				throw new Error('Network response was not ok')

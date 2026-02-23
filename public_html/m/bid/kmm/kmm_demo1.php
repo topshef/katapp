@@ -21,7 +21,7 @@ $parms = (object)[];
 $parms->saas_domain = 'gmws2.gomint.me';
 $parms->network = 'mainnet';
 $parms->dealId = '67b8e46dd2f77f9d1b41c60788b7ea2216a4524f63b8e94b52ef4f0ba2ec5042';
-$parms->userAccountId = '0.0.10177400';
+$parms->userAccountId = $_GET['userAccountId'] ?? '0.0.10177400';
 $parms->user_parameters = (object)[];
 $parms->user_parameters->starttime = '60secs';
 
