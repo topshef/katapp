@@ -213,12 +213,13 @@ export function renderAccountsInfo(accounts) {  //todo rename this it's about si
 
 	const subtitle = document.createElement('div')
 	subtitle.className = 'simple-mono-centre'
-	subtitle.textContent = 'pubkey|banzhaf|redundancy|bucket'
-	container.appendChild(subtitle)
+	// subtitle.textContent = 'pubkey|banzhaf|redundancy|bucket'  //todo add acc as 5th col at start
+	subtitle.textContent = 'account | pubkey | banzhaf | redundancy | bucket'
+	container.appendChild(subtitle) 
 
 	Object.entries(accounts).forEach(([accountId, acc]) => {
 		const scores = acc.keyInfo?.banzhafScores?.scores
-		if (!scores) {
+		if (!scores) { // this should not happen
 			const el = document.createElement('div')
 			el.className = 'simple-mono-centre'
 			el.textContent = `YH64664 no scores for ${accountId}` // XX1 todo merge acinfo
@@ -230,16 +231,20 @@ export function renderAccountsInfo(accounts) {  //todo rename this it's about si
 		const buckets = acc.keyInfo?.keyControlScoresAll
 		if (!scores || !buckets) return
 
-		const accEl = document.createElement('div')
-		accEl.className = 'simple-mono-centre'
-		// accEl.className = 'debug-banzhaf'
-		accEl.textContent = accountId // XX1 todo merge acinfo
-		container.appendChild(accEl)
+		// const accEl = document.createElement('div')
+		// accEl.className = 'simple-mono-centre'
+		// accEl.textContent = accountId // XX1 todo merge acinfo
+		// container.appendChild(accEl)
 
-		Object.entries(scores).forEach(([pubkey, score]) => {
+		// Object.entries(scores).forEach(([pubkey, score]) => {
+		Object.entries(scores).forEach(([pubkey, score], index) => {
 			const row = document.createElement('div')
 			row.className = 'simple-mono-centre'
-			row.style.paddingLeft = '16px'
+			// row.style.paddingLeft = '16px'
+			row.style.display = 'grid'
+			row.style.gridTemplateColumns = '1.3fr 0.8fr 0.6fr 0.6fr 1fr'
+			row.style.columnGap = '8px'
+			row.style.padding = index === 0 ? '4px 0 2px 0' : '2px 0'			
 
 			const keySuffix = pubkey.slice(-4)
 			const pct = Math.round(score * 100)
@@ -248,9 +253,22 @@ export function renderAccountsInfo(accounts) {  //todo rename this it's about si
 				: '-'
 			const bucket = buckets?.[pubkey]?.bucket ?? '-'
 
-			row.textContent = `${keySuffix} | ${pct}% | ${red}% | ${bucket}`
+			// row.textContent = `${keySuffix} | ${pct}% | ${red}% | ${bucket}`
+			row.innerHTML = `
+				<div>${accountId}</div>
+				<div>${keySuffix}</div>
+				<div>${pct}%</div>
+				<div>${red}%</div>
+				<div>${bucket}</div>
+			`
+			
 			container.appendChild(row)
 		})
+		
+		const spacer = document.createElement('div')
+		spacer.style.height = '4px'
+		container.appendChild(spacer)
+
 	})
 }
 
