@@ -254,17 +254,12 @@ export function renderAccountsInfo(accounts) {  //todo rename this it's about si
 	})
 }
 
-const isSingleKeyAccount = acc =>
-	typeof acc?.keyInfo === 'string'
-
-
 const renderSingleKeyCheckbox = ({ accountId, signed }) => {
 	const row = document.createElement('div')
 	row.className = 'simple-mono-centre'
 	row.textContent = `${signed ? '☑️' : '🔲'}\u00A0${accountId}` // XX1 todo merge acinfo
 	return row
 }
-
 
 export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
 	// later todo bring this widget in locally.. or package it as a dependency
@@ -290,16 +285,6 @@ export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
 		// handle single keys differently
 		const acc = accounts[accountId]
 		console.log(acc)
-		if (isSingleKeyAccount(acc)) {
-			const signed = signedPubkeys.includes(acc.keyInfo)
-			console.log("signed=", signed)
-			const checkbox = renderSingleKeyCheckbox({
-				accountId,
-				signed
-			})
-			charts.appendChild(checkbox)
-			return
-		}		
 		
 		const wrapper = document.createElement('div')
 	  

@@ -139,6 +139,26 @@ export async function enrichAccountsKeyInfo({ network, accounts }) {
 		try {
 			const keyInfo = await getKeyInfo(network, accountId)
 			acc.keyInfo = keyInfo
+			console.log('KEYINFO RAW', accountId, keyInfo)
+
+			// Normalize single-key shape
+			if (typeof acc.keyInfo === 'string') {
+				const pubkey = acc.keyInfo
+
+				acc.keyInfo = {
+					threshold: 1,
+					keys: [pubkey],
+					banzhafScores: {
+						scores: { [pubkey]: 1 },
+						redundancy: { [pubkey]: 0 }
+					},
+					keyControlScoresAll: {
+						[pubkey]: { bucket: 'full-exclusive' }
+					}
+				}
+			}			
+			
+			
 		} catch (err) {
 			acc.keyInfoError = err.message || String(err)
 		}
