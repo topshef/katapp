@@ -74,6 +74,8 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
  									
 								</div>
 <BR>
+<div id="kpool-banner" class="mb-4"></div>
+
 <div id="kpool-container"></div>
 <div  class='bidtable'>
 <?php echo $html_list; ?>
@@ -141,7 +143,7 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
 // legacy toggle
 	
 	;(function() {
-		const c = document.getElementById('kpool-container')
+		const c = document.getElementById('kpool-banner')
 		if (!c) return
 
 		if (!c.style.position) c.style.position = 'relative'
@@ -245,6 +247,86 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 })
 </script>
+
+<style>
+  #kpool-banner {
+    width: 100%;
+    display: block;
+    margin-bottom: 20px;
+  }
+
+  #kpool-banner > div {
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+  }
+
+	#kpool-banner > div > * {
+		margin: 8px 0;
+	}
+</style>
+<script>
+
+	// ┌┬┐┌─┐┌┬┐┌─┐  ┌┬┐┌─┐┌─┐┬    ┌─┐┌─┐  ┌┬┐┌─┐┬ ┬
+	//  ││├┤ ││││ │   ││├┤ ├─┤│    │ │├┤    ││├─┤└┬┘
+	// ─┴┘└─┘┴ ┴└─┘  ─┴┘└─┘┴ ┴┴─┘  └─┘└    ─┴┘┴ ┴ ┴ 
+	// demo deal of day
+
+	async function getDealOfDay() {
+		try {
+			const response = await fetch('/m/bid/kmm/demo1')
+
+			if (!response.ok)
+				throw new Error('Network response was not ok')
+
+			const data = await response.json()
+
+			if (!data.txid || !data.network)
+				throw new Error('txid or network missing in response')
+
+			const txid = String(data.txid).toLowerCase()
+			const network = data.network
+
+			const u = new URL(location)
+			u.searchParams.set('network', network)
+			u.searchParams.set('txid', txid)
+
+			const linkEl = document.getElementById('linkDealOfDay')
+			if (linkEl)
+				linkEl.innerHTML = `<a href="${u}" target="_blank" rel="noopener">${txid}</a>`
+
+			return txid
+
+		} catch (err) {
+			console.error('Error fetching TXID:', err)
+		}
+	}
+
+	document.addEventListener('DOMContentLoaded', () => {
+
+		const container = document.getElementById('kpool-banner')
+		if (!container) return
+
+		const wrapper = document.createElement('div')
+		wrapper.style.marginTop = '20px'
+
+		const btn = document.createElement('button')
+		btn.id = 'btnDealOfDay'
+		btn.textContent = 'Deal of the day!'
+		btn.style.marginRight = '10px'
+
+		const div = document.createElement('div')
+		div.id = 'linkDealOfDay'
+
+		btn.addEventListener('click', getDealOfDay)
+
+		wrapper.appendChild(btn)
+		wrapper.appendChild(div)
+		container.appendChild(wrapper)
+
+	})
+</script>
+
   </body>
 </html>
 
