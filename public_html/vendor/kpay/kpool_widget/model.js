@@ -32,9 +32,9 @@ export async function txRead({ network, txid }) {
 
 function getAllTransfers(rawTx) {
 	const raw = {
-		hbar: rawTx?.result?.deal?.addHbarTransfer || [],
-		token: rawTx?.result?.deal?.addTokenTransfer || [],
-		nft: rawTx?.result?.deal?.addNftTransfer || []
+		hbar: rawTx?.result?.deal?.addHbarTransfer || [],    //todo handle past tx via mirror
+		token: rawTx?.result?.deal?.addTokenTransfer || [],  //todo handle past tx via mirror
+		nft: rawTx?.result?.deal?.addNftTransfer || []       //todo handle past tx via mirror
 	}
 
 	const lineItems = []
