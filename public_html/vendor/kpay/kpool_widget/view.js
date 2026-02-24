@@ -185,10 +185,10 @@ function buildThresholdWidget({ accountId, network, signedPubkeys, mustSign }) {
 	iframe.style.height = '450px'
 	iframe.style.border = 'none'
 	iframe.style.position = 'absolute'
+	iframe.style.top = '50%'
 	iframe.style.left = '50%'
-	iframe.style.top = '10px'
-	iframe.style.transformOrigin = 'top center'
-	iframe.style.transform = 'translateX(-50%) scale(0.2)'
+	iframe.style.transformOrigin = 'center'
+	iframe.style.transform = 'translate(-50%, -50%) scale(0.2)'
 	iframe.scrolling = 'no'
 
   widget.style.position = 'relative'
