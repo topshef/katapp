@@ -31,10 +31,13 @@ export async function txRead({ network, txid }) {
 
 
 function getAllTransfers(rawTx) {
+	const mirrorTx = rawTx.result?.mirror?.transactions?.[0] || {}
+	const deal   = rawTx.result?.deal || {}
+
 	const raw = {
-		hbar: rawTx?.result?.deal?.addHbarTransfer || [],    //todo handle past tx via mirror
-		token: rawTx?.result?.deal?.addTokenTransfer || [],  //todo handle past tx via mirror
-		nft: rawTx?.result?.deal?.addNftTransfer || []       //todo handle past tx via mirror
+		hbar: mirrorTx.transfers || deal.addHbarTransfer || [],
+		token: mirrorTx.tokenTransfers || deal.addTokenTransfer || [],
+		nft: mirrorTx.nftTransfers || deal.addNftTransfer || []
 	}
 
 	const lineItems = []
@@ -43,42 +46,47 @@ function getAllTransfers(rawTx) {
 	raw.hbar.forEach(x => {
 		lineItems.push({
 			type: 'HBAR',
-			account: x.accountId,
+			account: x.accountId ?? x.account,
 			asset: 'HBAR',
-			amount: x.value
+			amount: x.value ?? x.amount
 		})
 	})
-
+	
 	// Fungible tokens
 	raw.token.forEach(x => {
 		lineItems.push({
 			type: 'FT',
-			account: x.accountId,
-			asset: x.tokenId,
-			amount: x.value
+			account: x.accountId ?? x.account,
+			asset: x.tokenId ?? x.token_id,
+			amount: x.value ?? x.amount
 		})
 	})
-
+	
 	// NFTs (explicit debit/credit)
 	raw.nft.forEach(x => {
-		const asset = `${x.tokenId} #${x.serial}`
+		const tokenId = x.tokenId ?? x.token_id
+		const serial  = x.serial ?? x.serial_number
+		const sender  = x.sender ?? x.sender_account_id
+		const receiver = x.receiver ?? x.receiver_account_id
+
+		const asset = `${tokenId} #${serial}`
 
 		lineItems.push({
 			type: 'NFT',
-			account: x.sender,
+			account: sender,
 			asset,
 			amount: -1,
-			serial: x.serial,
-			tokenId: x.tokenId
+			serial,
+			tokenId
 		})
 
 		lineItems.push({
 			type: 'NFT',
-			account: x.receiver,
+			account: receiver,
 			asset,
 			amount: +1,
-			serial: x.serial,
-			tokenId: x.tokenId
+			serial,
+			tokenId
 		})
 	})
 
