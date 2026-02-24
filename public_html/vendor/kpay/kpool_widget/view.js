@@ -181,15 +181,15 @@ function buildThresholdWidget({ accountId, network, signedPubkeys, mustSign }) {
     `&accountId=${accountId}` +
     `&signedPublicKeys=${signed}`
 
-  iframe.style.width = '450px'
-  iframe.style.height = '450px'
-  iframe.style.transform = 'translateX(-50%) scale(0.2)'
-  iframe.style.transformOrigin = 'top center'
-  iframe.style.border = 'none'
-  iframe.style.position = 'absolute'
-  iframe.style.top = '0'
-  iframe.style.left = '50%'
-  iframe.scrolling = 'no'
+	iframe.style.width = '450px'
+	iframe.style.height = '450px'
+	iframe.style.border = 'none'
+	iframe.style.position = 'absolute'
+	iframe.style.left = '50%'
+	iframe.style.top = '10px'
+	iframe.style.transformOrigin = 'top center'
+	iframe.style.transform = 'translateX(-50%) scale(0.2)'
+	iframe.scrolling = 'no'
 
   widget.style.position = 'relative'
   widget.style.width = '110px'
@@ -322,6 +322,12 @@ export function injectTxReadCSS() {
 	style.id = 'txread-css'
 	style.textContent = `
 
+			.acctkeys-piechart {
+				display: flex;
+				align-items: center;
+				justify-content: center;
+			}
+
 
 			#account-keys {
 				padding: 0 12px;
@@ -335,11 +341,12 @@ export function injectTxReadCSS() {
 				grid-template-columns: 0.5fr 0.5fr 3fr;
 				column-gap: 8px;
 				margin-top: 6px;
+				align-items: center;
 			}
 
 			.acctkeys-header { font-weight: 600; color: #666; }
 
-			.acctkeys-accountId {
+			.zzacctkeys-accountId {
 				align-self: start;
 			}
 	
@@ -348,6 +355,8 @@ export function injectTxReadCSS() {
 				grid-template-columns: 0.4fr 0.8fr 0.6fr 0.6fr 1fr;
 				column-gap: 8px;
 				row-gap: 2px;
+				align-content: center;
+
 			}
 
 
