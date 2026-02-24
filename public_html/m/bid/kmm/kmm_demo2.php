@@ -33,8 +33,7 @@ https://kpay.uk/tx/?network=mainnet&txid=0.0.5790831@1771888736.088349856
 
 
 cron every 30 mins
- */30 * * * * curl -s https://swap.kpay.live/m/bid/kmm/kmm_demo2.php > /dev/null 2>&1
-
+30 * * * * curl -s https://swap.kpay.live/m/bid/kmm/kmm_demo2.php > /dev/null 2>&1
 
 
 */
@@ -59,6 +58,7 @@ $parms->dealId = '8fa654dfd049aaf2103d7e389d1c2c861a709749713e77ebf8bbd710da7052
 $parms->userAccountId = $_GET['userAccountId'] ?? '0.0.5790831';  // will also be the operator here
 $parms->user_parameters = (object)[];
 $parms->user_parameters->starttime = '600secs'; // 10 mins.. even a 5min cron would pick it up
+$parms->operatorId = '0.0.4377622'; // target the taker so cant waste fees if not accepting
 
 
 $parms->keysafe = [];
