@@ -188,7 +188,7 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [])	{
   // ---- Key control ----
   const keyTitle = document.createElement('div')
   keyTitle.className = 'ksubtitle'
-  keyTitle.textContent = 'Keys to sign'
+  keyTitle.textContent = 'Account keys'
   container.appendChild(keyTitle)
 
   const table = document.createElement('div')
@@ -200,11 +200,12 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [])	{
   table.style.rowGap = '2px'
   container.appendChild(table)
 
-  const addRow = (cells, isFirstOfAccount) => {
+  const addRow = (cells, isFirstOfAccount, rowClass = '') => {
     cells.forEach(text => {
       const cell = document.createElement('div')
       cell.textContent = text
       if (isFirstOfAccount) cell.style.marginTop = '6px'
+			if (rowClass) cell.classList.add(rowClass)
       table.appendChild(cell)
     })
   }
@@ -224,7 +225,8 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [])	{
 
     Object.entries(scores).forEach(([pubkey, score], index) => {
 			const signed = signedPubkeys.includes(pubkey)
-			const tick = signed ? '☑️' : '🔲'
+			// const tick = signed ? '☑️' : '🔲'
+			const tick = acc.mustSign ? (signed ? '☑️' : '🔲') : 'N/A'
 
       const keySuffix = pubkey.slice(-4)
       const pct = Math.round(score * 100)
@@ -232,6 +234,8 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [])	{
         ? Math.round(redundancy[pubkey] * 100)
         : '-'
       const bucket = buckets?.[pubkey]?.bucket ?? '-'
+			const rowClass = acc.mustSign ? '' : 'no-sign-required'
+
 
       addRow(
         [
@@ -242,7 +246,8 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [])	{
           red === '-' ? '-' : `${red}%`,
           bucket
         ],
-        index === 0
+        index === 0,
+				rowClass
       )
     })
   })
@@ -275,11 +280,13 @@ export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
 
 	const signed = (signedPubkeys || []).join(',')
 
-	Object.keys(accounts).forEach(accountId => {
-		
+	Object.keys(accounts)
+		.filter(accountId => accounts[accountId]?.mustSign)
+		.forEach(accountId => {		
 		// handle single keys differently
+
 		const acc = accounts[accountId]
-		console.log(acc)
+		// console.log(acc)
 		
 		const wrapper = document.createElement('div')
 	  
@@ -336,17 +343,22 @@ export function injectTxReadCSS() {
 	const style = document.createElement('style')
 	style.id = 'txread-css'
 	style.textContent = `
-            
-        .tx-loading {
-          border-top: 3px solid #4aa3ff;
-          animation: pulseBorder 1s ease-in-out infinite;
-        }
 
-        @keyframes pulseBorder {
-          0%   { border-top-color: rgba(74,163,255,0.3); }
-          50%  { border-top-color: rgba(74,163,255,1); }
-          100% { border-top-color: rgba(74,163,255,0.3); }
-        }
+			.no-sign-required {
+				opacity: 0.6;
+				filter: grayscale(0.3);
+			}
+            
+			.tx-loading {
+				border-top: 3px solid #4aa3ff;
+				animation: pulseBorder 1s ease-in-out infinite;
+			}
+
+			@keyframes pulseBorder {
+				0%   { border-top-color: rgba(74,163,255,0.3); }
+				50%  { border-top-color: rgba(74,163,255,1); }
+				100% { border-top-color: rgba(74,163,255,0.3); }
+			}
 
 		.txread table {
 			border-collapse: collapse;
