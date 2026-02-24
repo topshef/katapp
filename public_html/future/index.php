@@ -215,11 +215,12 @@ async function loadTxList() {
   el.style.textAlign = 'left'
   el.style.fontFamily = 'monospace'
 
-  const network =
-    new URLSearchParams(location.search).get('network')
-    || '<?php echo $network ?>'
+	const parms = new URLSearchParams(location.search)
+  const network = parms.get('network') || '<?php echo $network ?>'
+	const since = parms.get('since') || 600
+	const until = parms.get('until') || 600
 
-  const res = await fetch(`/future/?action=txList&network=${network}&since=600&until=600`)
+  const res = await fetch(`/future/?action=txList&network=${network}&since=${since}&until=${until}`)
   const txs = (await res.json())?.result?.tx || []
 
   txs.sort((a, b) => a.txid.split('@')[1] - b.txid.split('@')[1])
