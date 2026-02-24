@@ -51,14 +51,12 @@
 		signingSection.style.marginTop = '16px'
 		signingSection.style.width = '100%'
 
-		// const accounts = document.createElement('div')
-		// accounts.id = 'txread-accounts'
-		// signingSection.appendChild(accounts)
+        // put key list and pie charts to different elements to avoid race stuff
         const keys = document.createElement('div')
-        keys.id = 'txread-keys'
+        keys.id = 'key-list'
 
         const pies = document.createElement('div')
-        pies.id = 'txread-pies'
+        pies.id = 'key-piecharts'
         pies.style.marginTop = '16px'
 
         signingSection.appendChild(keys)
@@ -161,13 +159,13 @@ export function renderSigningInfo({ rawTx, network, accounts }) {
 		.map(s => s.pubKey)
 		.filter(Boolean)
 
-	renderAccountsInfo(accounts, signedPubkeys)
+	renderAccountKeyInfo(accounts, signedPubkeys)
 	renderKeyPieCharts({ network, accounts, signedPubkeys })
 }
 
-// export function renderAccountsInfo(accounts) {
-export function renderAccountsInfo(accounts, signedPubkeys = [])	{
-  const container = document.getElementById('txread-keys')
+// export function renderAccountKeyInfo(accounts) {
+export function renderAccountKeyInfo(accounts, signedPubkeys = [])	{
+  const container = document.getElementById('key-list')
   if (!container) return
 
   container.innerHTML = ''
@@ -260,7 +258,7 @@ const renderSingleKeyCheckbox = ({ accountId, signed }) => {
 
 export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
 	// later todo bring this widget in locally.. or package it as a dependency
-	const container = document.getElementById('txread-pies')
+	const container = document.getElementById('key-piecharts')
 	if (!container) return
 
 	const title = document.createElement('div')

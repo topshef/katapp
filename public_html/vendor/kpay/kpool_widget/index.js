@@ -5,7 +5,6 @@ import { txRead, enrichAccountsInfo, enrichAccountsKeyInfo, calcAccountsThatSign
 import {
 	injectTxReadCSS,
 	buildTxReadColumns,
-	// renderAccountsInfo
 	renderSigningInfo
 } from './view.js'
 
@@ -116,7 +115,6 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 
 
 
-	// usage (inside DOMContentLoaded is perfect)
 	;(async () => {
 		try {
 			const tx = await renderTxReadDebug({ network, txid, details })
@@ -127,9 +125,7 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 			calcAccountsThatSign(tx.accounts)
 			console.log('accounts after enrichment (controller)', tx.accounts)
 
-		  // renderAccountsInfo(tx.accounts)  // later recycle.. maybe have an acs info section but related to signing 
 			renderSigningInfo({rawTx: tx.rawTx, network, accounts: tx.accounts})  //
-
 
 		} catch (e) {
 			console.warn('txRead fetch failed', e)
