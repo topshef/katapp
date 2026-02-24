@@ -50,22 +50,17 @@
 		signingSection.id = 'txread-signing'
 		signingSection.style.marginTop = '16px'
 		signingSection.style.width = '100%'
-        signingSection.classList.add('tx-loading')
+		signingSection.classList.add('tx-loading')
 
-        // put key list and pie charts to different elements to avoid race stuff
-        const keys = document.createElement('div')
-        keys.id = 'account-keys'
+		// put key list and pie charts to different elements to avoid race stuff
+		const keys = document.createElement('div')
+		keys.id = 'account-keys'
 
-        // const pies = document.createElement('div')
-        // pies.id = 'key-piecharts'
-        // pies.style.marginTop = '16px'
-
-        signingSection.appendChild(keys)
-        // signingSection.appendChild(pies)        
-        
+		signingSection.appendChild(keys)
 
 		// return grid
 		const wrapper = document.createElement('div')
+		wrapper.className = 'txread-wrapper'
 		wrapper.appendChild(grid)
 		wrapper.appendChild(signingSection)
 		return wrapper
@@ -276,6 +271,17 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
     const keysGrid = document.createElement('div')
     keysGrid.className = 'acctkeys-keysGrid'
 
+
+		const mobileHead = document.createElement('div')
+		mobileHead.className = 'acctkeys-mobile-head'
+		;['✍️', '🔑', '⚖️', 'Redundant', 'Ctrl'].forEach(text => {
+			const cell = document.createElement('div')
+			cell.textContent = text
+			mobileHead.appendChild(cell)
+		})
+		block.appendChild(mobileHead)
+		
+
     entries.forEach(([pubkey, score]) => {
       const signed = signedPubkeys.includes(pubkey)
       const tick = acc.mustSign ? (signed ? '☑️' : '🔲') : 'N/A'
@@ -322,12 +328,60 @@ export function injectTxReadCSS() {
 	style.id = 'txread-css'
 	style.textContent = `
 
-			.acctkeys-piechart {
-				display: flex;
-				align-items: center;
-				justify-content: center;
+			.acctkeys-mobile-head {display: none;}
+
+			@media (max-width: 768px) {
+
+				.acctkeys-mobile-head {
+					display: grid;
+					grid-template-columns: 0.4fr 0.8fr 0.6fr 0.6fr 1fr;
+					column-gap: 8px;
+					width: 100%;
+					font-weight: 600;
+					color: #666;
+				}
+
+
+				/* Hide the single global header row */
+				.acctkeys-header {
+					display: none !important;
+				}
+
+				/* Stack each account vertically */
+				.acctkeys-account {
+					display: flex !important;
+					flex-direction: column !important;
+					align-items: center !important;
+					gap: 10px !important;
+				}
+
+				/* Account number */
+				.acctkeys-accountId {
+					width: 100%;
+					text-align: center;
+				}
+
+				/* Pie */
+				.acctkeys-piechart {
+					width: 110px;
+				}
+
+				/* Keys block */
+				.acctkeys-keysGrid {
+					width: 100% !important;
+				}
+
 			}
 
+
+			.txread-wrapper {
+				max-width: 1200px;
+				margin: 0 auto;
+			}
+
+			.acctkeys-piechart {
+				justify-self: center;
+			}
 
 			#account-keys {
 				padding: 0 12px;
@@ -345,10 +399,6 @@ export function injectTxReadCSS() {
 			}
 
 			.acctkeys-header { font-weight: 600; color: #666; }
-
-			.zzacctkeys-accountId {
-				align-self: start;
-			}
 	
 			.acctkeys-keysGrid {
 				display: grid;
@@ -358,7 +408,6 @@ export function injectTxReadCSS() {
 				align-content: center;
 
 			}
-
 
 			.no-sign-required {
 				opacity: 0.6;
