@@ -183,13 +183,12 @@ function buildThresholdWidget({ accountId, network, signedPubkeys, mustSign }) {
 	iframe.style.top = '50%'
 	iframe.style.left = '50%'
 	iframe.style.transformOrigin = 'center'
-	iframe.style.transform = 'translate(-50%, -50%) scale(0.2)'
+	//0.2 is a fallback if missing css scale
+	iframe.style.transform = 'translate(-50%, -50%) scale(var(--acctkeys-pie-scale, 0.2))'  
 	iframe.scrolling = 'no'
 
   widget.style.position = 'relative'
-  widget.style.width = '110px'
-  widget.style.height = '110px'
-  widget.style.overflow = 'hidden'
+  // widget.style.overflow = 'hidden'
 
   widget.appendChild(iframe)
   return widget
@@ -316,7 +315,7 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
 const renderSingleKeyCheckbox = ({ accountId, signed }) => {
 	const row = document.createElement('div')
 	row.className = 'simple-mono-centre'
-	row.textContent = `${signed ? '☑️' : '🔲'}\u00A0${accountId}` // XX1 todo merge acinfo
+	row.textContent = `${signed ? '☑️' : '🔲'}\u00A0${accountId}`
 	return row
 }
 
@@ -330,7 +329,35 @@ export function injectTxReadCSS() {
 
 			.acctkeys-mobile-head {display: none;}
 
+
+			.acctkeys-piechart {
+				width: 110px;
+				height: 110px;
+				--acctkeys-pie-scale: 0.2;
+			}
+
 			@media (max-width: 768px) {
+				
+				/* Make each account id a divider block */
+				.acctkeys-accountId {
+					width: 100%;
+					text-align: center;
+					font-weight: 700;
+					font-size: 18px;
+					border-top: 1px solid #ddd;
+					padding-top: 8px;
+					margin-top: 8px;
+				}
+				
+				.ksubtitle {
+					display: none;
+				}
+
+				.acctkeys-piechart {
+					width: 150px;
+					height: 150px;
+					--acctkeys-pie-scale: 0.3;
+				}	
 
 				.acctkeys-mobile-head {
 					display: grid;
@@ -361,18 +388,12 @@ export function injectTxReadCSS() {
 					text-align: center;
 				}
 
-				/* Pie */
-				.acctkeys-piechart {
-					width: 110px;
-				}
-
 				/* Keys block */
 				.acctkeys-keysGrid {
 					width: 100% !important;
 				}
 
 			}
-
 
 			.txread-wrapper {
 				max-width: 1200px;
