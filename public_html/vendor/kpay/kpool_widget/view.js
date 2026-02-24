@@ -252,7 +252,10 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
     // left column: account id (and later you can add iframe under/over this)
     const acct = document.createElement('div')
     acct.className = 'acctkeys-accountId'
-    acct.textContent = accountId
+    // acct.textContent = accountId
+    // acct.innerHTML = `<a href='https://hashscan.io./mainnet/account/${accountId}' target='${accountId}'>${accountId}</a>`
+		//placeholder - todo swap with account dashboard - mayeb from the market page /m labs
+    acct.innerHTML = `<a href='https://xproof.live/api/?accountId=${accountId}' target='${accountId}'>${accountId}</a>`
     block.appendChild(acct)
 
 
@@ -294,12 +297,15 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
       ;[
         tick,
         keySuffix,
+				// rather than link maybe add a tooltip later
+				// `<a href='/m/tools/api/keys/query/${pubkey.slice(-64)}' target = '${pubkey}'>${keySuffix}</a>`,
         `${pct}%`,
         red === '-' ? '-' : `${red}%`,
         bucket
       ].forEach(text => {
         const cell = document.createElement('div')
-        cell.textContent = text
+        // cell.textContent = text
+        cell.innerHTML = text
         keysGrid.appendChild(cell)
       })
     })
