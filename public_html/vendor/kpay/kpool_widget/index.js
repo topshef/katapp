@@ -126,6 +126,7 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 			console.log('accounts after enrichment (controller)', tx.accounts)
 
 			renderSigningInfo({rawTx: tx.rawTx, network, accounts: tx.accounts})  //
+            document.getElementById('txread-signing')?.classList.remove('tx-loading')
 
 		} catch (e) {
 			console.warn('txRead fetch failed', e)

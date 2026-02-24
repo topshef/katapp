@@ -50,6 +50,7 @@
 		signingSection.id = 'txread-signing'
 		signingSection.style.marginTop = '16px'
 		signingSection.style.width = '100%'
+        signingSection.classList.add('tx-loading')
 
         // put key list and pie charts to different elements to avoid race stuff
         const keys = document.createElement('div')
@@ -163,7 +164,6 @@ export function renderSigningInfo({ rawTx, network, accounts }) {
 	renderKeyPieCharts({ network, accounts, signedPubkeys })
 }
 
-// export function renderAccountKeyInfo(accounts) {
 export function renderAccountKeyInfo(accounts, signedPubkeys = [])	{
   const container = document.getElementById('key-list')
   if (!container) return
@@ -336,6 +336,18 @@ export function injectTxReadCSS() {
 	const style = document.createElement('style')
 	style.id = 'txread-css'
 	style.textContent = `
+            
+        .tx-loading {
+          border-top: 3px solid #4aa3ff;
+          animation: pulseBorder 1s ease-in-out infinite;
+        }
+
+        @keyframes pulseBorder {
+          0%   { border-top-color: rgba(74,163,255,0.3); }
+          50%  { border-top-color: rgba(74,163,255,1); }
+          100% { border-top-color: rgba(74,163,255,0.3); }
+        }
+
 		.txread table {
 			border-collapse: collapse;
 			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
