@@ -253,9 +253,9 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
     const acct = document.createElement('div')
     acct.className = 'acctkeys-accountId'
     // acct.textContent = accountId
-    // acct.innerHTML = `<a href='https://hashscan.io./mainnet/account/${accountId}' target='${accountId}'>${accountId}</a>`
+	acct.innerHTML = `<a href='https://hashscan.io./${network}/account/${accountId}' target='${accountId}'>${accountId}</a>`
 		//placeholder - todo swap with account dashboard - mayeb from the market page /m labs
-    acct.innerHTML = `<a href='https://xproof.live/api/?accountId=${accountId}' target='${accountId}'>${accountId}</a>`
+    // acct.innerHTML = `<a href='https://xproof.live/api/?accountId=${accountId}' target='${accountId}'>${accountId}</a>`
     block.appendChild(acct)
 
 
@@ -296,9 +296,13 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
 
       ;[
         tick,
-        keySuffix,
+        // keySuffix,
 				// rather than link maybe add a tooltip later
 				// `<a href='/m/tools/api/keys/query/${pubkey.slice(-64)}' target = '${pubkey}'>${keySuffix}</a>`,
+				
+				//or link to hashscan key view for now
+				`<a href='https://hashscan.io/${network}/adminKey/${accountId}' target = '${pubkey}'>${keySuffix}</a>`,
+				
         `${pct}%`,
         red === '-' ? '-' : `${red}%`,
         bucket
