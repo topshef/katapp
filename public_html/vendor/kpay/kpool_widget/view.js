@@ -330,6 +330,17 @@ const renderSingleKeyCheckbox = ({ accountId, signed }) => {
 }
 
 
+export function zz_later_injectTxReadCSS() {
+  if (document.getElementById('txread-css')) return
+
+  const link = document.createElement('link')
+  link.id = 'txread-css'
+  link.rel = 'stylesheet'
+  link.href = new URL('./style.css', import.meta.url).href
+  document.head.appendChild(link)
+}
+ 
+ 
 export function injectTxReadCSS() {
 	if (document.getElementById('txread-css')) return
 
