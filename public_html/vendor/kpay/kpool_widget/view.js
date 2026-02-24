@@ -56,12 +56,12 @@
         const keys = document.createElement('div')
         keys.id = 'account-keys'
 
-        const pies = document.createElement('div')
-        pies.id = 'key-piecharts'
-        pies.style.marginTop = '16px'
+        // const pies = document.createElement('div')
+        // pies.id = 'key-piecharts'
+        // pies.style.marginTop = '16px'
 
         signingSection.appendChild(keys)
-        signingSection.appendChild(pies)        
+        // signingSection.appendChild(pies)        
         
 
 		// return grid
@@ -160,30 +160,53 @@ export function renderSigningInfo({ rawTx, network, accounts }) {
 		.map(s => s.pubKey)
 		.filter(Boolean)
 
-	renderAccountKeyInfo(accounts, signedPubkeys)
-	renderKeyPieCharts({ network, accounts, signedPubkeys })
+	renderAccountKeyInfo(accounts, signedPubkeys, network)
+	// renderKeyPieCharts({ network, accounts, signedPubkeys })
 }
 
-export function renderAccountKeyInfo(accounts, signedPubkeys = [])	{
+
+function buildThresholdWidget({ accountId, network, signedPubkeys, mustSign }) {
+  const widget = document.createElement('div')
+  widget.className = 'acctkeys-piechart'
+
+  if (!mustSign) return widget
+
+  const signed = (signedPubkeys || []).join(',')
+
+  const iframe = document.createElement('iframe')
+  iframe.src =
+    `https://kpay.uk/devtools/scratchpad/amcharts/ksig_pie_widget.php` +
+    `?showTooltips=0` +
+    `&network=${network}` +
+    `&accountId=${accountId}` +
+    `&signedPublicKeys=${signed}`
+
+  iframe.style.width = '450px'
+  iframe.style.height = '450px'
+  iframe.style.transform = 'translateX(-50%) scale(0.2)'
+  iframe.style.transformOrigin = 'top center'
+  iframe.style.border = 'none'
+  iframe.style.position = 'absolute'
+  iframe.style.top = '0'
+  iframe.style.left = '50%'
+  iframe.scrolling = 'no'
+
+  widget.style.position = 'relative'
+  widget.style.width = '110px'
+  widget.style.height = '110px'
+  widget.style.overflow = 'hidden'
+
+  widget.appendChild(iframe)
+  return widget
+}
+
+
+export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
   const container = document.getElementById('account-keys')
   if (!container) return
 
   container.innerHTML = ''
 
-  // ---- Accounts to sign ----
-  // const signTitle = document.createElement('div')
-  // signTitle.className = 'ksubtitle'
-  // signTitle.textContent = 'Accounts to sign'
-  // container.appendChild(signTitle)
-
-  // Object.entries(accounts)
-    // .filter(([_, acc]) => acc.mustSign)
-    // .forEach(([accountId]) => {
-      // const el = document.createElement('div')
-      // el.className = 'simple-mono-centre'
-      // el.textContent = accountId
-      // container.appendChild(el)
-    // })
 
   // ---- Key control ----
   const keyTitle = document.createElement('div')
@@ -238,11 +261,16 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [])	{
     acct.textContent = accountId
     block.appendChild(acct)
 
-		const widget = document.createElement('div')
-		widget.className = 'acctkeys-piechart'
-		widget.textContent = ' tbc '
+
+		const widget = buildThresholdWidget({
+			accountId,
+			network,
+			signedPubkeys,
+			mustSign: acc.mustSign
+		})
 		block.appendChild(widget)
-		
+
+
 
     // right: keys grid
     const keysGrid = document.createElement('div')
@@ -284,81 +312,6 @@ const renderSingleKeyCheckbox = ({ accountId, signed }) => {
 	row.className = 'simple-mono-centre'
 	row.textContent = `${signed ? '☑️' : '🔲'}\u00A0${accountId}` // XX1 todo merge acinfo
 	return row
-}
-
-export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
-	// later todo bring this widget in locally.. or package it as a dependency
-	const container = document.getElementById('key-piecharts')
-	if (!container) return
-
-	const title = document.createElement('div')
-	title.className = 'ksubtitle'
-	title.textContent = 'Per account, threshold needed 🟠 / achieved 🟢'
-	container.appendChild(title)
-
-	const charts = document.createElement('div')
-	charts.style.display = 'flex'
-	charts.style.flexWrap = 'wrap'
-	charts.style.gap = '12px'
-	charts.style.justifyContent = 'center'
-	container.appendChild(charts)
-
-	const signed = (signedPubkeys || []).join(',')
-
-	Object.keys(accounts)
-		.filter(accountId => accounts[accountId]?.mustSign)
-		.forEach(accountId => {		
-		// handle single keys differently
-
-		const acc = accounts[accountId]
-		// console.log(acc)
-		
-		const wrapper = document.createElement('div')
-	  
-		wrapper.style.width = '200px'
-		wrapper.style.height = '110px'
-		wrapper.style.position = 'relative'
-		wrapper.style.overflow = 'hidden'
-		wrapper.style.fontFamily = 'monospace'
-		wrapper.style.fontSize = '12px'
-		wrapper.style.textAlign = 'center'
-
-
-		const iframe = document.createElement('iframe')
-		iframe.src =
-			`https://kpay.uk/devtools/scratchpad/amcharts/ksig_pie_widget.php` +
-			`?showTooltips=0` +
-			`&network=${network}` +
-			`&accountId=${accountId}` +
-			`&signedPublicKeys=${signed}`
-
-		iframe.style.width = '450px'
-		iframe.style.height = '450px'
-		iframe.style.transform = 'scale(0.2)'
-		iframe.style.transformOrigin = 'top left'
-		iframe.style.border = 'none'
-		iframe.style.position = 'absolute'
-		iframe.style.top = '0'
-		// iframe.style.left = '0'
-		iframe.style.left = '50%'
-		iframe.style.transformOrigin = 'top center'
-		iframe.style.transform = 'translateX(-50%) scale(0.2)'
-		iframe.scrolling = 'no'
-
-		const label = document.createElement('div')
-		label.textContent = accountId // XX1 todo merge acinfo
-		label.style.position = 'absolute'
-		label.style.bottom = '4px'
-		label.style.left = '0'
-		label.style.right = '0'
-		label.style.whiteSpace = 'nowrap'
-		label.style.overflow = 'hidden'
-		label.style.textOverflow = 'ellipsis'
-
-		wrapper.appendChild(iframe)
-		wrapper.appendChild(label)
-		charts.appendChild(wrapper)
-	})
 }
 
 
