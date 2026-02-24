@@ -51,10 +51,19 @@
 		signingSection.style.marginTop = '16px'
 		signingSection.style.width = '100%'
 
-		const accounts = document.createElement('div')
-		accounts.id = 'txread-accounts'
+		// const accounts = document.createElement('div')
+		// accounts.id = 'txread-accounts'
+		// signingSection.appendChild(accounts)
+        const keys = document.createElement('div')
+        keys.id = 'txread-keys'
 
-		signingSection.appendChild(accounts)
+        const pies = document.createElement('div')
+        pies.id = 'txread-pies'
+        pies.style.marginTop = '16px'
+
+        signingSection.appendChild(keys)
+        signingSection.appendChild(pies)        
+        
 
 		// return grid
 		const wrapper = document.createElement('div')
@@ -158,7 +167,7 @@ export function renderSigningInfo({ rawTx, network, accounts }) {
 
 // export function renderAccountsInfo(accounts) {
 export function renderAccountsInfo(accounts, signedPubkeys = [])	{
-  const container = document.getElementById('txread-accounts')
+  const container = document.getElementById('txread-keys')
   if (!container) return
 
   container.innerHTML = ''
@@ -203,16 +212,17 @@ export function renderAccountsInfo(accounts, signedPubkeys = [])	{
   }
 
   // header
-  addRow(
-    ['Account', '✍️', '🔑', 'Banzhaf ⚖️', 'Redundancy', 'Control'],
-    true
-  )
+  addRow(['Account', '✍️', '🔑', 'Banzhaf ⚖️', 'Redundancy', 'Control'], true )
 
   Object.entries(accounts).forEach(([accountId, acc]) => {
     const scores = acc.keyInfo?.banzhafScores?.scores
     const redundancy = acc.keyInfo?.banzhafScores?.redundancy
     const buckets = acc.keyInfo?.keyControlScoresAll
-    if (!scores || !buckets) return
+    if (!scores || !buckets) {
+        console.warn('GH84743 Missing score data for', accountId, acc.keyInfo)
+        addRow(['debug GH84743', '✍️', '🔑', 'Banzhaf ⚖️', 'Redundancy', 'Control'], true )
+        return
+    }
 
     Object.entries(scores).forEach(([pubkey, score], index) => {
 			const signed = signedPubkeys.includes(pubkey)
@@ -250,7 +260,7 @@ const renderSingleKeyCheckbox = ({ accountId, signed }) => {
 
 export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
 	// later todo bring this widget in locally.. or package it as a dependency
-	const container = document.getElementById('txread-accounts')
+	const container = document.getElementById('txread-pies')
 	if (!container) return
 
 	const title = document.createElement('div')
