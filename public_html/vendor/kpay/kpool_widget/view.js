@@ -54,7 +54,7 @@
 
         // put key list and pie charts to different elements to avoid race stuff
         const keys = document.createElement('div')
-        keys.id = 'key-list'
+        keys.id = 'account-keys'
 
         const pies = document.createElement('div')
         pies.id = 'key-piecharts'
@@ -165,7 +165,7 @@ export function renderSigningInfo({ rawTx, network, accounts }) {
 }
 
 export function renderAccountKeyInfo(accounts, signedPubkeys = [])	{
-  const container = document.getElementById('key-list')
+  const container = document.getElementById('account-keys')
   if (!container) return
 
   container.innerHTML = ''
@@ -191,66 +191,91 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [])	{
   keyTitle.textContent = 'Account keys'
   container.appendChild(keyTitle)
 
-  const table = document.createElement('div')
-  table.className = 'simple-mono-centre'
-  table.style.display = 'grid'
-  // table.style.gridTemplateColumns = '1.3fr 0.8fr 0.6fr 0.6fr 1fr'
-	table.style.gridTemplateColumns = '1.1fr 0.4fr 0.8fr 0.6fr 0.6fr 1fr'
-  table.style.columnGap = '8px'
-  table.style.rowGap = '2px'
-  container.appendChild(table)
 
-  const addRow = (cells, isFirstOfAccount, rowClass = '') => {
-    cells.forEach(text => {
-      const cell = document.createElement('div')
-      cell.textContent = text
-      if (isFirstOfAccount) cell.style.marginTop = '6px'
-			if (rowClass) cell.classList.add(rowClass)
-      table.appendChild(cell)
-    })
-  }
+  // header row (one-time)
+  const header = document.createElement('div')
+  header.className = 'acctkeys-header simple-mono-centre'
 
-  // header
-  addRow(['Account', '✍️', '🔑', 'Banzhaf ⚖️', 'Redundancy', 'Control'], true )
+  const hAcct = document.createElement('div')
+  hAcct.className = 'acctkeys-accountId'
+  hAcct.textContent = 'Account'
+  header.appendChild(hAcct)
+
+	const hWidget = document.createElement('div')
+	hWidget.textContent = 'Threshold'
+	header.appendChild(hWidget)
+
+  const hGrid = document.createElement('div')
+  hGrid.className = 'acctkeys-keysGrid acctkeys-keysGrid-header'
+  ;['✍️', '🔑', 'Banzhaf ⚖️', 'Redundancy', 'Control'].forEach(text => {
+    const cell = document.createElement('div')
+    cell.textContent = text
+    hGrid.appendChild(cell)
+  })
+  header.appendChild(hGrid)
+
+  container.appendChild(header)
 
   Object.entries(accounts).forEach(([accountId, acc]) => {
     const scores = acc.keyInfo?.banzhafScores?.scores
     const redundancy = acc.keyInfo?.banzhafScores?.redundancy
     const buckets = acc.keyInfo?.keyControlScoresAll
+
     if (!scores || !buckets) {
-        console.warn('GH84743 Missing score data for', accountId, acc.keyInfo)
-        addRow(['debug GH84743', '✍️', '🔑', 'Banzhaf ⚖️', 'Redundancy', 'Control'], true )
-        return
+      console.warn('GH84743 Missing score data for', accountId, acc.keyInfo)
+      return
     }
 
-    Object.entries(scores).forEach(([pubkey, score], index) => {
-			const signed = signedPubkeys.includes(pubkey)
-			// const tick = signed ? '☑️' : '🔲'
-			const tick = acc.mustSign ? (signed ? '☑️' : '🔲') : 'N/A'
+    const entries = Object.entries(scores)
 
+    const block = document.createElement('div')
+		block.className = 'acctkeys-account simple-mono-centre'
+    if (!acc.mustSign) block.classList.add('no-sign-required')
+
+    // left column: account id (and later you can add iframe under/over this)
+    const acct = document.createElement('div')
+    acct.className = 'acctkeys-accountId'
+    acct.textContent = accountId
+    block.appendChild(acct)
+
+		const widget = document.createElement('div')
+		widget.className = 'acctkeys-piechart'
+		widget.textContent = ' tbc '
+		block.appendChild(widget)
+		
+
+    // right: keys grid
+    const keysGrid = document.createElement('div')
+    keysGrid.className = 'acctkeys-keysGrid'
+
+    entries.forEach(([pubkey, score]) => {
+      const signed = signedPubkeys.includes(pubkey)
+      const tick = acc.mustSign ? (signed ? '☑️' : '🔲') : 'N/A'
       const keySuffix = pubkey.slice(-4)
       const pct = Math.round(score * 100)
       const red = redundancy?.[pubkey] != null
         ? Math.round(redundancy[pubkey] * 100)
         : '-'
       const bucket = buckets?.[pubkey]?.bucket ?? '-'
-			const rowClass = acc.mustSign ? '' : 'no-sign-required'
 
-
-      addRow(
-        [
-          accountId,
-					tick,
-          keySuffix,
-          `${pct}%`,
-          red === '-' ? '-' : `${red}%`,
-          bucket
-        ],
-        index === 0,
-				rowClass
-      )
+      ;[
+        tick,
+        keySuffix,
+        `${pct}%`,
+        red === '-' ? '-' : `${red}%`,
+        bucket
+      ].forEach(text => {
+        const cell = document.createElement('div')
+        cell.textContent = text
+        keysGrid.appendChild(cell)
+      })
     })
+
+    block.appendChild(keysGrid)
+    container.appendChild(block)
   })
+
+
 }
 		
 
@@ -343,6 +368,35 @@ export function injectTxReadCSS() {
 	const style = document.createElement('style')
 	style.id = 'txread-css'
 	style.textContent = `
+
+
+			#account-keys {
+				padding: 0 12px;
+				box-sizing: border-box;
+			}
+
+				/* shared grid layout */
+			.acctkeys-header,
+			.acctkeys-account {
+				display: grid;
+				grid-template-columns: 0.5fr 0.5fr 3fr;
+				column-gap: 8px;
+				margin-top: 6px;
+			}
+
+			.acctkeys-header { font-weight: 600; color: #666; }
+
+			.acctkeys-accountId {
+				align-self: start;
+			}
+	
+			.acctkeys-keysGrid {
+				display: grid;
+				grid-template-columns: 0.4fr 0.8fr 0.6fr 0.6fr 1fr;
+				column-gap: 8px;
+				row-gap: 2px;
+			}
+
 
 			.no-sign-required {
 				opacity: 0.6;
