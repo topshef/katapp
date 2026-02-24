@@ -417,16 +417,21 @@ export function injectTxReadCSS() {
 			#account-keys {
 				padding: 0 12px;
 				box-sizing: border-box;
+				max-width: min(900px, 100%);
+				margin: 0 auto;
+
 			}
 
 				/* shared grid layout */
 			.acctkeys-header,
 			.acctkeys-account {
 				display: grid;
-				grid-template-columns: 0.5fr 0.5fr 3fr;
+				grid-template-columns: 0.5fr 0.5fr 1fr;
 				column-gap: 8px;
 				margin-top: 6px;
 				align-items: center;
+				width: 100%;
+
 			}
 
 			.acctkeys-header { font-weight: 600; color: #666; }
@@ -434,9 +439,11 @@ export function injectTxReadCSS() {
 			.acctkeys-keysGrid {
 				display: grid;
 				grid-template-columns: 0.4fr 0.8fr 0.6fr 0.6fr 1fr;
-				column-gap: 8px;
+				column-gap: 4px;
 				row-gap: 2px;
 				align-content: center;
+				zzmax-width: 60%;
+
 
 			}
 
