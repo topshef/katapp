@@ -29,29 +29,44 @@ export async function txRead({ network, txid }) {
 	}
 }
 
+function skipCouncilAccount(ac) {
+  if (!ac) return true
+  const num = Number(ac.split('.').pop())
+  return num < 98
+}
 
+
+// ┌─┐┌─┐┌┬┐  ╔═╗┬  ┬    ╔╦╗┬─┐┌─┐┌┐┌┌─┐┌─┐┌─┐┬─┐┌─┐
+// │ ┬├┤  │   ╠═╣│  │     ║ ├┬┘├─┤│││└─┐├┤ ├┤ ├┬┘└─┐
+// └─┘└─┘ ┴   ╩ ╩┴─┘┴─┘   ╩ ┴└─┴ ┴┘└┘└─┘└  └─┘┴└─└─┘
+// get All Transfers	
 function getAllTransfers(rawTx) {
 	const mirrorTx = rawTx.result?.mirror?.transactions?.[0] || {}
 	const deal   = rawTx.result?.deal || {}
 
 	const raw = {
-		hbar: mirrorTx.transfers || deal.addHbarTransfer || [],
-		token: mirrorTx.tokenTransfers || deal.addTokenTransfer || [],
-		nft: mirrorTx.nftTransfers || deal.addNftTransfer || []
+		hbar:  mirrorTx.transfers       || deal.addHbarTransfer  || [],
+		token: mirrorTx.token_transfers || deal.addTokenTransfer || [],
+		nft:   mirrorTx.nft_transfers   || deal.addNftTransfer   || []
 	}
 
 	const lineItems = []
 
 	// HBAR
 	raw.hbar.forEach(x => {
+		const ac = x.accountId ?? x.account
+		if (skipCouncilAccount(ac)) return
+
 		lineItems.push({
 			type: 'HBAR',
-			account: x.accountId ?? x.account,
+			account: ac,
 			asset: 'HBAR',
-			amount: x.value ?? x.amount
+			// amount: x.value ?? x.amount
+			amount: Number(BigInt(x.value ?? x.amount)) / 100000000
 		})
 	})
-	
+
+ 
 	// Fungible tokens
 	raw.token.forEach(x => {
 		lineItems.push({
@@ -89,7 +104,9 @@ function getAllTransfers(rawTx) {
 			tokenId
 		})
 	})
-
+	
+	console.log({mirrorTx, deal, raw, lineItems})
+	
 	return {
 		raw,        // original shapes, grouped
 		lineItems  // accounting-friendly flat list

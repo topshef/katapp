@@ -233,7 +233,15 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
 
   container.appendChild(header)
 
-  Object.entries(accounts).forEach(([accountId, acc]) => {
+	const sortedAccounts = Object.entries(accounts)
+		.sort(([idA, a], [idB, b]) => {
+			if (a.mustSign !== b.mustSign)
+				return a.mustSign ? -1 : 1
+			return idA.localeCompare(idB)
+		})
+		
+  // Object.entries(accounts).forEach(([accountId, acc]) => {
+	sortedAccounts.forEach(([accountId, acc]) => {	
     const scores = acc.keyInfo?.banzhafScores?.scores
     const redundancy = acc.keyInfo?.banzhafScores?.redundancy
     const buckets = acc.keyInfo?.keyControlScoresAll
