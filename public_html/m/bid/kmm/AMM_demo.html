@@ -175,6 +175,91 @@
     </div>
 
     <script>
+		
+					
+			/*
+			===============================================================================
+			CONSTANT PRODUCT AMM (Uniswap v2–Style) – HOW THIS WORKS
+			===============================================================================
+
+			This simulator models a two-asset liquidity pool using the constant product
+			formula:
+
+					x * y = k
+
+			Where:
+					x = USD reserve
+					y = HBAR reserve
+					k = invariant (product of reserves)
+
+			Without fees:
+					k remains constant during swaps.
+
+			With fees (as implemented here):
+					A fee (e.g. 0.3%) is taken from the input amount.
+					Only the remaining portion participates in the swap math.
+					The full input is still added to the pool reserves.
+					Therefore k increases slightly after every trade.
+					This increase represents LP (liquidity provider) earnings.
+
+			-------------------------------------------------------------------------------
+			BUY (USD → HBAR)
+			-------------------------------------------------------------------------------
+
+			User sends usdIn.
+
+			1. Fee is removed:
+						 usdEffective = usdIn * (1 - fee)
+
+			2. Swap math uses effective amount:
+						 newHbar = k / (oldUsd + usdEffective)
+
+			3. Full USD is added to pool:
+						 newUsd = oldUsd + usdIn
+
+			4. Output to trader:
+						 hbarOut = oldHbar - newHbar
+
+			The difference (usdIn - usdEffective) remains in the pool as fees.
+
+			-------------------------------------------------------------------------------
+			SELL (HBAR → USD)
+			-------------------------------------------------------------------------------
+
+			User sends hbarIn.
+
+			1. Fee is removed:
+						 hbarEffective = hbarIn * (1 - fee)
+
+			2. Swap math:
+						 newUsd = k / (oldHbar + hbarEffective)
+
+			3. Full HBAR added to pool:
+						 newHbar = oldHbar + hbarIn
+
+			4. Output to trader:
+						 usdOut = oldUsd - newUsd
+
+			Again, the fee portion stays in reserves.
+
+			-------------------------------------------------------------------------------
+			KEY PROPERTIES
+			-------------------------------------------------------------------------------
+
+			• Price is determined by reserve ratio:
+						spot price ≈ x / y
+
+			• Larger trades cause larger price impact (slippage).
+
+			• Arbitrage traders push pool price toward the external market price.
+
+			• With fees enabled:
+						k grows over time → LPs earn yield automatically.
+
+			This implementation matches the core mechanics of Uniswap v2-style AMMs.
+			===============================================================================
+			*/
+		
 			// ======= Model (with swap fee) =======
 			const FEE_RATE = 0.003 // 0.3% standard Uniswap-style fee
       const INITIAL = {
