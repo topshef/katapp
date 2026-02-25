@@ -175,7 +175,8 @@
     </div>
 
     <script>
-      // ======= Model (no fees) =======
+			// ======= Model (with swap fee) =======
+			const FEE_RATE = 0.003 // 0.3% standard Uniswap-style fee
       const INITIAL = {
         usd: 1000,
         hbar: 10000
@@ -228,64 +229,74 @@
       }
 
       // Trade: USD in, HBAR out
-      function buyHbar(usdIn) {
-        if (usdIn <= 0) return null
+			function buyHbar(usdIn) {
+				if (usdIn <= 0) return null
 
-        const k = kValue(pool)
-        const oldUsd = pool.usd
-        const oldHbar = pool.hbar
+				const k = kValue(pool)
+				const oldUsd = pool.usd
+				const oldHbar = pool.hbar
 
-        const newUsd = oldUsd + usdIn
-        const newHbar = k / newUsd
+				const usdEffective = usdIn * (1 - FEE_RATE)
 
-        const hbarOut = oldHbar - newHbar
+				const newUsd = oldUsd + usdIn
+				const newHbar = k / (oldUsd + usdEffective)
 
-        pool.usd = newUsd
-        pool.hbar = newHbar
+				const hbarOut = oldHbar - newHbar
+				const feeUsd = usdIn - usdEffective
 
-        const avgPriceUsdPerHbar = usdIn / hbarOut
+				pool.usd = newUsd
+				pool.hbar = newHbar
 
-        return {
-          type: "BUY",
-          usdIn,
-          hbarOut,
-          avgPriceUsdPerHbar,
-          oldUsd,
-          oldHbar,
-          newUsd,
-          newHbar
-        }
-      }
+				const avgPriceUsdPerHbar = usdIn / hbarOut
+
+				return {
+					type: "BUY",
+					usdIn,
+					usdEffective,
+					feeUsd,
+					hbarOut,
+					avgPriceUsdPerHbar,
+					oldUsd,
+					oldHbar,
+					newUsd,
+					newHbar
+				}
+			}
 
       // Trade: HBAR in, USD out
-      function sellHbar(hbarIn) {
-        if (hbarIn <= 0) return null
+			function sellHbar(hbarIn) {
+				if (hbarIn <= 0) return null
 
-        const k = kValue(pool)
-        const oldUsd = pool.usd
-        const oldHbar = pool.hbar
+				const k = kValue(pool)
+				const oldUsd = pool.usd
+				const oldHbar = pool.hbar
 
-        const newHbar = oldHbar + hbarIn
-        const newUsd = k / newHbar
+				const hbarEffective = hbarIn * (1 - FEE_RATE)
 
-        const usdOut = oldUsd - newUsd
+				const newHbar = oldHbar + hbarIn
+				const newUsd = k / (oldHbar + hbarEffective)
 
-        pool.hbar = newHbar
-        pool.usd = newUsd
+				const usdOut = oldUsd - newUsd
+				const feeHbar = hbarIn - hbarEffective
 
-        const avgPriceUsdPerHbar = usdOut / hbarIn
+				pool.hbar = newHbar
+				pool.usd = newUsd
 
-        return {
-          type: "SELL",
-          hbarIn,
-          usdOut,
-          avgPriceUsdPerHbar,
-          oldUsd,
-          oldHbar,
-          newUsd,
-          newHbar
-        }
-      }
+				const avgPriceUsdPerHbar = usdOut / hbarIn
+
+				return {
+					type: "SELL",
+					hbarIn,
+					hbarEffective,
+					feeHbar,
+					usdOut,
+					avgPriceUsdPerHbar,
+					oldUsd,
+					oldHbar,
+					newUsd,
+					newHbar
+				}
+			}
 
       // ======= UI wiring =======
       function init() {
@@ -304,6 +315,8 @@
 
           logLine(`TRADE: Buy HBAR with USD`)
           logLine(`  Input:  USD in = ${fmt(result.usdIn, 6)}`)
+					logLine(`  Fee taken (USD) = ${fmt(result.feeUsd, 6)}`)
+					logLine(`  USD used in swap = ${fmt(result.usdEffective, 6)}`)					
           logLine(`  Output: HBAR out = ${fmt(result.hbarOut, 6)}`)
           logLine(`  Avg execution: 1 HBAR = $${fmt(result.avgPriceUsdPerHbar, 6)}`)
           logLine(`  Pre-trade spot: 1 HBAR = $${fmt(preSpot, 6)}`)
@@ -319,6 +332,8 @@
 
           logLine(`TRADE: Sell HBAR for USD`)
           logLine(`  Input:  HBAR in = ${fmt(result.hbarIn, 6)}`)
+					logLine(`  Fee taken (HBAR) = ${fmt(result.feeHbar, 6)}`)
+					logLine(`  HBAR used in swap = ${fmt(result.hbarEffective, 6)}`)					
           logLine(`  Output: USD out = ${fmt(result.usdOut, 6)}`)
           logLine(`  Avg execution: 1 HBAR = $${fmt(result.avgPriceUsdPerHbar, 6)}`)
           logLine(`  Pre-trade spot: 1 HBAR = $${fmt(preSpot, 6)}`)
