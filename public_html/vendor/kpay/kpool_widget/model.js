@@ -44,12 +44,34 @@ function getAllTransfers(rawTx) {
 	const mirrorTx = rawTx.result?.mirror?.transactions?.[0] || {}
 	const deal   = rawTx.result?.deal || {}
 
+	const sources = {
+		hbar:  mirrorTx.transfers       ? 'mirror'
+					 : deal.addHbarTransfer   ? 'deal'
+					 : 'none',
+
+		token: mirrorTx.token_transfers ? 'mirror'
+					 : deal.addTokenTransfer  ? 'deal'
+					 : 'none',
+
+		nft:   mirrorTx.nft_transfers   ? 'mirror'
+					 : deal.addNftTransfer    ? 'deal'
+					 : 'none'
+	}
+
+	const uniqueSources = new Set(Object.values(sources))
+	if (uniqueSources.size > 1) {
+		throw new Error('YU83743 Mixed transfer sources detected')
+		window.alert('Error YU83743 Mixed transfer sources detected.')
+	}
+	
 	const raw = {
 		hbar:  mirrorTx.transfers       || deal.addHbarTransfer  || [],
 		token: mirrorTx.token_transfers || deal.addTokenTransfer || [],
 		nft:   mirrorTx.nft_transfers   || deal.addNftTransfer   || []
 	}
 
+
+	console.log({raw})
 	const lineItems = []
 
 	// HBAR
@@ -62,7 +84,12 @@ function getAllTransfers(rawTx) {
 			account: ac,
 			asset: 'HBAR',
 			// amount: x.value ?? x.amount
-			amount: Number(BigInt(x.value ?? x.amount)) / 100000000
+			amount:
+				x.value != null
+					? Number(x.value)
+					: Number(x.amount) / 100000000
+					
+			// amount: Number(BigInt(x.value ?? x.amount)) / 100000000
 		})
 	})
 
