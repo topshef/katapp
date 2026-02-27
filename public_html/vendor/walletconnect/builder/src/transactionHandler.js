@@ -257,11 +257,22 @@ async function loadConfig() {
   }
 }
 
+
+// initializeWalletConnect
+// Creates and initialises a WalletConnect DAppConnector using loaded config, handling reconnects.
+//
+// Suggestions:
+// - Doing config load + disconnect + init is a lot for one function
+// - Reads like a lifecycle step rather than a one-off init
+// const initializeWalletConnect = async (retryCount = 0) => {
+
 let wcInitPromise = null
 
-async function zzlater_initializeWalletConnect() {
-  if (wcInitPromise) return wcInitPromise
+// console.log("XXXXXXXXXXXXXXXXXXXXXX live test dev")
 
+async function initializeWalletConnect() {
+
+  if (wcInitPromise) return wcInitPromise
   wcInitPromise = (async () => {
     const config = await loadConfig()
 
@@ -277,66 +288,13 @@ async function zzlater_initializeWalletConnect() {
 
       await dappConnector.init()
     }
+
+    return dappConnector
   })()
 
   return wcInitPromise
 }
 
-
-// initializeWalletConnect
-// Creates and initialises a WalletConnect DAppConnector using loaded config, handling reconnects.
-//
-// Suggestions:
-// - Doing config load + disconnect + init is a lot for one function
-// - Reads like a lifecycle step rather than a one-off init
-// const initializeWalletConnect = async (retryCount = 0) => {
-async function initializeWalletConnect(retryCount = 0) {
-  try {
-    const config = await loadConfig();
-
-    if (dappConnector) {
-      try {
-        await dappConnector.disconnect();
-      } catch (e) {
-        console.warn("Error disconnecting existing session:", e);
-      }
-    }
-
-    // Get the current domain
-    const currentDomain = window.location.host;
-    console.log("Initializing WalletConnect for domain:", currentDomain);
-
-    // Initialize the WalletConnect DAppConnector with loaded config
-    dappConnector = new DAppConnector(
-      {
-        ...config.metadata,
-      },
-      LedgerId.fromString(config.hedera.network),
-      config.walletConnect.projectId,
-      Object.values(HederaJsonRpcMethod),
-      [HederaSessionEvent.ChainChanged, HederaSessionEvent.AccountsChanged],
-      [hederaChainIdFromNetwork(config.hedera.network)]
-    );
-
-    try {
-      await dappConnector.init();
-    } catch (error) {
-      console.error("Error initializing WalletConnect:", error);
-      walletUI.showAlert(
-        "Failed to initialize WalletConnect. Please try again.",
-        "danger"
-      );
-      throw error;
-    }
-  } catch (error) {
-    console.error("Error initializing WalletConnect:", error);
-    const errorMessage =
-      "Failed to initialize WalletConnect. Please check your project ID and try again.";
-
-    walletUI.showAlert(errorMessage, "danger");
-    throw error;
-  }
-};
 
 
 
@@ -936,7 +894,11 @@ async function executeDealFlowCore ({
   }
 
   const transactionBytes = new Uint8Array(data.bytes.data)
-  const signer = dappConnector.signers[0]
+  // const signer = dappConnector.signers[0]
+      
+    const signer = dappConnector?.signers?.[0]
+    if (!signer)
+      throw new Error("Wallet not initialised. Please reconnect.")  
 
   const { transaction, txId, txInfo } =
     await prepareTransaction(transactionBytes, signer)
@@ -983,6 +945,9 @@ export const executeDealFlow = async () => {
     )
     return
   }
+
+    await initializeWalletConnect()
+
 
   const dealIdInput =
     document.getElementById("dealId")?.value
@@ -1084,22 +1049,6 @@ const handleDisconnect = async () => {
 
 
 //what do we call this? where does it go?
-
-// Update the event listener section
-document.addEventListener("DOMContentLoaded", async () => {
-  const walletConnectButton = document.getElementById("pair-walletconnect-btn");
-
-  const sessionRestored = await restoreWalletSession();
-  if (sessionRestored) {
-    const storedAccountId = localStorage.getItem("walletConnectAccountId");
-    if (storedAccountId) {
-      updateWalletConnectionUI(storedAccountId);
-    }
-  }
-
-  walletConnectButton.addEventListener("click", openWalletConnectModal);
-});
-
 
 
 // ┬ ┬┌─┐┌─┐┌┬┐┬  ┌─┐┌─┐┌─┐  ┌─┐┌┬┐┌─┐┌─┐┌┬┐┌─┐┬─┐
