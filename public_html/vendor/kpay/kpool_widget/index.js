@@ -5,7 +5,6 @@ import { txRead, enrichAccountsInfo, enrichAccountsKeyInfo, calcAccountsThatSign
 import {
 	injectTxReadCSS,
 	buildTxReadColumns,
-	// renderAccountsInfo
 	renderSigningInfo
 } from './view.js'
 
@@ -53,13 +52,20 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 
 
   const summary = document.createElement('summary')
-  summary.innerHTML = "Sign with <a href='https://ksig.uk/pwa' target='KPAYPWA'>KSIG</a>"
+  summary.innerHTML = "✍️ Sign offline with <a href='https://ksig.uk/pwa' target='KPAYPWA'>KSIG</a>"
+	summary.style.marginTop = '16px'
+	summary.style.display = 'block'
 
   const p = document.createElement('p')
   p.textContent = 'QR scan the transaction, sign, then return the signed transaction'
 
   const iframe = document.createElement('iframe')
   iframe.id = 'iframeKSIG'
+	iframe.style.width = '100%'
+	iframe.style.height = '300px'
+	iframe.setAttribute('scrolling', 'no')
+	iframe.style.overflow = 'hidden'
+	
   iframe.setAttribute('allow', 'camera')
 	
 	//kpos and kpay are the same atm, but the widget is hosted on kpos
@@ -81,14 +87,14 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 
 
 		// raw JSON dump (collapsible, with API link inside)
-		const jsonDetails = document.createElement('details')
-		jsonDetails.innerHTML = `
-			<summary>View raw JSON</summary>
-			<a href="${url}" target="_blank" rel="noopener" style="display:block;margin:4px 0">
-				⚙️ View txRead API response
-			</a>
-			<pre><code>${JSON.stringify(rawTx, null, 2)}</code></pre>
-		`
+		// const jsonDetails = document.createElement('details')
+		// jsonDetails.innerHTML = `
+			// <summary>View raw JSON</summary>
+			// <a href="${url}" target="_blank" rel="noopener" style="display:block;margin:4px 0">
+				// ⚙️ View txRead API response
+			// </a>
+			// <pre><code>${JSON.stringify(rawTx, null, 2)}</code></pre>
+		// `
 
 		injectTxReadCSS()
 
@@ -102,14 +108,13 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 
 		container.appendChild(columns)
 		container.appendChild(details)
-		container.appendChild(jsonDetails)
+		// container.appendChild(jsonDetails)
 		
 		return { url, rawTx, transfers, accounts }
 	}
 
 
 
-	// usage (inside DOMContentLoaded is perfect)
 	;(async () => {
 		try {
 			const tx = await renderTxReadDebug({ network, txid, details })
@@ -120,9 +125,8 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 			calcAccountsThatSign(tx.accounts)
 			console.log('accounts after enrichment (controller)', tx.accounts)
 
-		  // renderAccountsInfo(tx.accounts)  // later recycle.. maybe have an acs info section but related to signing 
 			renderSigningInfo({rawTx: tx.rawTx, network, accounts: tx.accounts})  //
-
+            document.getElementById('txread-signing')?.classList.remove('tx-loading')
 
 		} catch (e) {
 			console.warn('txRead fetch failed', e)

@@ -23,12 +23,8 @@
 		col2.appendChild(transfersView)
 
 
-
 		const col3 = document.createElement('div')
 		col3.className = 'txread-col'
-		const sigs = buildSignatureList(rawTx)
-		col3.appendChild(sigs)
-		
 
 		const col4 = document.createElement('div')
 		col4.className = 'txread-col'
@@ -46,10 +42,29 @@
 
 		grid.appendChild(col1)
 		grid.appendChild(col2)
-		grid.appendChild(col3)
+		// grid.appendChild(col3)
 		grid.appendChild(col4)
 
-		return grid
+		// Full-width signing section
+		const signingSection = document.createElement('div')
+		signingSection.id = 'txread-signing'
+		signingSection.style.marginTop = '16px'
+		signingSection.style.width = '100%'
+		signingSection.classList.add('tx-loading')
+
+		// put key list and pie charts to different elements to avoid race stuff
+		const keys = document.createElement('div')
+		keys.id = 'account-keys'
+
+		signingSection.appendChild(keys)
+
+		// return grid
+		const wrapper = document.createElement('div')
+		wrapper.className = 'txread-wrapper'
+		wrapper.appendChild(grid)
+		wrapper.appendChild(signingSection)
+		return wrapper
+
 	}
 
 
@@ -91,45 +106,8 @@
 		return container
 	}
 
-	// 3rd section - signing status
-	export const buildSignatureList = rawTx => {
-		const container = document.createElement('div')
-		container.className = 'txread-sigs'
+	// 3rd section - signing status - rolled into buildTxReadColumns
 
-		const title = document.createElement('div')
-		title.className = 'txread-sigs-title'
-		title.textContent = 'Signatures received'
-		container.appendChild(title)
-
-		const sigs = get(rawTx, 'result.sigs') || []
-
-		if (!sigs.length) {
-			const empty = document.createElement('div')
-			empty.textContent = '—'
-			container.appendChild(empty)
-			return container
-		}
-
-		sigs.forEach(s => {
-			const pubKey = s.pubKey || ''
-			const short = pubKey.slice(-4)
-
-			const el = document.createElement('div')
-			el.className = 'txread-sig'
-			el.textContent = short
-
-			container.appendChild(el)
-		})
-
-		// accounts placeholder (for enrichment)
-		const accounts = document.createElement('div')
-		accounts.id = 'txread-accounts'
-		accounts.style.marginTop = '8px'
-		container.appendChild(accounts)
-
-
-		return container
-	}
 
 	//4th section - tx status
 	export const buildTimingBlock = (network, txid) => {
@@ -177,177 +155,333 @@ export function renderSigningInfo({ rawTx, network, accounts }) {
 		.map(s => s.pubKey)
 		.filter(Boolean)
 
-	renderAccountsInfo(accounts)
-	renderKeyPieCharts({ network, accounts, signedPubkeys })
+	renderAccountKeyInfo(accounts, signedPubkeys, network)
+	// renderKeyPieCharts({ network, accounts, signedPubkeys })
 }
 
+
+function buildThresholdWidget({ accountId, network, signedPubkeys, mustSign }) {
+  const widget = document.createElement('div')
+  widget.className = 'acctkeys-piechart'
+
+  if (!mustSign) return widget
+
+  const signed = (signedPubkeys || []).join(',')
+
+  const iframe = document.createElement('iframe')
+  iframe.src =
+    `https://kpay.uk/devtools/scratchpad/amcharts/ksig_pie_widget.php` +
+    `?showTooltips=0` +
+    `&network=${network}` +
+    `&accountId=${accountId}` +
+    `&signedPublicKeys=${signed}`
+
+	iframe.style.width = '450px'
+	iframe.style.height = '450px'
+	iframe.style.border = 'none'
+	iframe.style.position = 'absolute'
+	iframe.style.top = '50%'
+	iframe.style.left = '50%'
+	iframe.style.transformOrigin = 'center'
+	//0.2 is a fallback if missing css scale
+	iframe.style.transform = 'translate(-50%, -50%) scale(var(--acctkeys-pie-scale, 0.2))'  
+	iframe.scrolling = 'no'
+
+  widget.style.position = 'relative'
+  // widget.style.overflow = 'hidden'
+
+  widget.appendChild(iframe)
+  return widget
+}
+
+
+export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
+  const container = document.getElementById('account-keys')
+  if (!container) return
+
+  container.innerHTML = ''
+
+
+  // ---- Key control ----
+  const keyTitle = document.createElement('div')
+  keyTitle.className = 'ksubtitle'
+  keyTitle.textContent = 'Account keys'
+  container.appendChild(keyTitle)
+
+
+  // header row (one-time)
+  const header = document.createElement('div')
+  header.className = 'acctkeys-header simple-mono-centre'
+
+  const hAcct = document.createElement('div')
+  hAcct.className = 'acctkeys-accountId'
+  hAcct.textContent = 'Account'
+  header.appendChild(hAcct)
+
+	const hWidget = document.createElement('div')
+	hWidget.textContent = 'Threshold'
+	header.appendChild(hWidget)
+
+  const hGrid = document.createElement('div')
+  hGrid.className = 'acctkeys-keysGrid acctkeys-keysGrid-header'
+  ;['✍️', '🔑', 'Banzhaf ⚖️', 'Redundancy', 'Control'].forEach(text => {
+    const cell = document.createElement('div')
+    cell.textContent = text
+    hGrid.appendChild(cell)
+  })
+  header.appendChild(hGrid)
+
+  container.appendChild(header)
+
+	const sortedAccounts = Object.entries(accounts)
+		.sort(([idA, a], [idB, b]) => {
+			if (a.mustSign !== b.mustSign)
+				return a.mustSign ? -1 : 1
+			return idA.localeCompare(idB)
+		})
 		
-export function renderAccountsInfo(accounts) {  //todo rename this it's about signing not jjst accoutns.. or extract to above
-// ..and then recycle this for pure ac info not signing
-	const container = document.getElementById('txread-accounts')
-	if (!container) return
+  // Object.entries(accounts).forEach(([accountId, acc]) => {
+	sortedAccounts.forEach(([accountId, acc]) => {	
+    const scores = acc.keyInfo?.banzhafScores?.scores
+    const redundancy = acc.keyInfo?.banzhafScores?.redundancy
+    const buckets = acc.keyInfo?.keyControlScoresAll
 
-	container.innerHTML = ''
+    if (!scores || !buckets) {
+      console.warn('GH84743 Missing score data for', accountId, acc.keyInfo)
+      return
+    }
 
-	const title = document.createElement('div')
-	title.className = 'txread-sigs-title'
-	title.textContent = 'Accounts to sign'
-	container.appendChild(title)
+    const entries = Object.entries(scores)
 
-	Object.entries(accounts)
-		.filter(([_, acc]) => acc.mustSign)
-		.forEach(([accountId]) => {
-			const el = document.createElement('div')
-			el.className = 'txread-sig'
-			el.textContent = accountId
-			container.appendChild(el)
+    const block = document.createElement('div')
+		block.className = 'acctkeys-account simple-mono-centre'
+    if (!acc.mustSign) block.classList.add('no-sign-required')
+
+    // left column: account id (and later you can add iframe under/over this)
+    const acct = document.createElement('div')
+    acct.className = 'acctkeys-accountId'
+    // acct.textContent = accountId
+	acct.innerHTML = `<a href='https://hashscan.io./${network}/account/${accountId}' target='${accountId}'>${accountId}</a>`
+		//placeholder - todo swap with account dashboard - mayeb from the market page /m labs
+    // acct.innerHTML = `<a href='https://xproof.live/api/?accountId=${accountId}' target='${accountId}'>${accountId}</a>`
+    block.appendChild(acct)
+
+
+		const widget = buildThresholdWidget({
+			accountId,
+			network,
+			signedPubkeys,
+			mustSign: acc.mustSign
 		})
+		block.appendChild(widget)
 
-	//note this is all keys score not beased on signed context so far
-	// todo enrich and format the table to show the current status considering keys that have signed
-	// work out latest MWC minimum voting coalitions
-	const scoresTitle = document.createElement('div')
-	scoresTitle.className = 'txread-sigs-title'
-	scoresTitle.textContent = 'Key control'
-	container.appendChild(scoresTitle)
 
-	const subtitle = document.createElement('div')
-	subtitle.className = 'txread-sig'
-	subtitle.textContent = 'pubkey|banzhaf|redundancy|bucket'
-	container.appendChild(subtitle)
 
-	Object.entries(accounts).forEach(([accountId, acc]) => {
-		const scores = acc.keyInfo?.banzhafScores?.scores
-		if (!scores) {
-			const el = document.createElement('div')
-			el.className = 'txread-sig'
-			el.textContent = `YH64664 no scores for ${accountId}`
-			container.appendChild(el)
-			return
-		}
+    // right: keys grid
+    const keysGrid = document.createElement('div')
+    keysGrid.className = 'acctkeys-keysGrid'
 
-		const redundancy = acc.keyInfo?.banzhafScores?.redundancy
-		const buckets = acc.keyInfo?.keyControlScoresAll
-		if (!scores || !buckets) return
 
-		const accEl = document.createElement('div')
-		accEl.className = 'txread-sig'
-		accEl.textContent = accountId
-		container.appendChild(accEl)
-
-		Object.entries(scores).forEach(([pubkey, score]) => {
-			const row = document.createElement('div')
-			row.className = 'txread-sig'
-			row.style.paddingLeft = '16px'
-
-			const keySuffix = pubkey.slice(-4)
-			const pct = Math.round(score * 100)
-			const red = redundancy?.[pubkey] != null
-				? Math.round(redundancy[pubkey] * 100)
-				: '-'
-			const bucket = buckets?.[pubkey]?.bucket ?? '-'
-
-			row.textContent = `${keySuffix} | ${pct}% | ${red}% | ${bucket}`
-			container.appendChild(row)
+		const mobileHead = document.createElement('div')
+		mobileHead.className = 'acctkeys-mobile-head'
+		;['✍️', '🔑', '⚖️', 'Redundant', 'Ctrl'].forEach(text => {
+			const cell = document.createElement('div')
+			cell.textContent = text
+			mobileHead.appendChild(cell)
 		})
-	})
+		block.appendChild(mobileHead)
+		
+
+    entries.forEach(([pubkey, score]) => {
+      const signed = signedPubkeys.includes(pubkey)
+      const tick = acc.mustSign ? (signed ? '☑️' : '🔲') : 'N/A'
+      const keySuffix = pubkey.slice(-4)
+      const pct = Math.round(score * 100)
+      const red = redundancy?.[pubkey] != null
+        ? Math.round(redundancy[pubkey] * 100)
+        : '-'
+      const bucket = buckets?.[pubkey]?.bucket ?? '-'
+
+      ;[
+        tick,
+        // keySuffix,
+				// rather than link maybe add a tooltip later
+				// `<a href='/m/tools/api/keys/query/${pubkey.slice(-64)}' target = '${pubkey}'>${keySuffix}</a>`,
+				
+				//or link to hashscan key view for now
+				`<a href='https://hashscan.io/${network}/adminKey/${accountId}' target = '${pubkey}'>${keySuffix}</a>`,
+				
+        `${pct}%`,
+        red === '-' ? '-' : `${red}%`,
+        bucket
+      ].forEach(text => {
+        const cell = document.createElement('div')
+        // cell.textContent = text
+        cell.innerHTML = text
+        keysGrid.appendChild(cell)
+      })
+    })
+
+    block.appendChild(keysGrid)
+    container.appendChild(block)
+  })
+
+
 }
-
-const isSingleKeyAccount = acc =>
-	typeof acc?.keyInfo === 'string'
-
+		
 
 const renderSingleKeyCheckbox = ({ accountId, signed }) => {
 	const row = document.createElement('div')
+	row.className = 'simple-mono-centre'
 	row.textContent = `${signed ? '☑️' : '🔲'}\u00A0${accountId}`
 	return row
 }
 
 
-export function renderKeyPieCharts({ network, accounts, signedPubkeys }) { //
-	// later todo bring this widget in locally.. or package it as a dependency
-	const container = document.getElementById('txread-accounts')
-	if (!container) return
+export function zz_later_injectTxReadCSS() {
+  if (document.getElementById('txread-css')) return
 
-	const title = document.createElement('div')
-	title.className = 'txread-sigs-title'
-	title.textContent = 'Signing progress'
-	container.appendChild(title)
-
-	const charts = document.createElement('div')
-	charts.style.display = 'flex'
-	charts.style.flexWrap = 'wrap'
-	charts.style.gap = '12px'
-	container.appendChild(charts)
-
-	const signed = (signedPubkeys || []).join(',')
-
-	Object.keys(accounts).forEach(accountId => {
-		
-		// handle single keys differently
-		const acc = accounts[accountId]
-		console.log(acc)
-		if (isSingleKeyAccount(acc)) {
-			const signed = signedPubkeys.includes(acc.keyInfo)
-			console.log("signed=", signed)
-			const checkbox = renderSingleKeyCheckbox({
-				accountId,
-				signed
-			})
-			charts.appendChild(checkbox)
-			return
-		}		
-		
-		const wrapper = document.createElement('div')
-		wrapper.style.width = '200px'
-		wrapper.style.height = '230px'
-		wrapper.style.position = 'relative'
-		wrapper.style.overflow = 'hidden'
-		wrapper.style.fontFamily = 'monospace'
-		wrapper.style.fontSize = '12px'
-		wrapper.style.textAlign = 'center'
-
-		const iframe = document.createElement('iframe')
-		iframe.src =
-			`https://kpay.uk/devtools/scratchpad/amcharts/ksig_pie_widget.php` +
-			`?showTooltips=0` +
-			`&network=${network}` +
-			`&accountId=${accountId}` +
-			`&signedPublicKeys=${signed}`
-
-		iframe.style.width = '450px'
-		iframe.style.height = '450px'
-		iframe.style.transform = 'scale(0.45)'
-		iframe.style.transformOrigin = 'top left'
-		iframe.style.border = 'none'
-		iframe.style.position = 'absolute'
-		iframe.style.top = '0'
-		iframe.style.left = '0'
-		iframe.scrolling = 'no'
-
-		const label = document.createElement('div')
-		label.textContent = accountId
-		label.style.position = 'absolute'
-		label.style.bottom = '4px'
-		label.style.left = '0'
-		label.style.right = '0'
-		label.style.whiteSpace = 'nowrap'
-		label.style.overflow = 'hidden'
-		label.style.textOverflow = 'ellipsis'
-
-		wrapper.appendChild(iframe)
-		wrapper.appendChild(label)
-		charts.appendChild(wrapper)
-	})
+  const link = document.createElement('link')
+  link.id = 'txread-css'
+  link.rel = 'stylesheet'
+  link.href = new URL('./style.css', import.meta.url).href
+  document.head.appendChild(link)
 }
-
-
+ 
+ 
 export function injectTxReadCSS() {
 	if (document.getElementById('txread-css')) return
 
 	const style = document.createElement('style')
 	style.id = 'txread-css'
 	style.textContent = `
+
+			.acctkeys-mobile-head {display: none;}
+
+
+			.acctkeys-piechart {
+				width: 110px;
+				height: 110px;
+				--acctkeys-pie-scale: 0.2;
+			}
+
+			@media (max-width: 768px) {
+				
+				/* Make each account id a divider block */
+				.acctkeys-accountId {
+					width: 100%;
+					text-align: center;
+					font-weight: 700;
+					font-size: 18px;
+					border-top: 1px solid #ddd;
+					padding-top: 8px;
+					margin-top: 8px;
+				}
+				
+				.ksubtitle {
+					display: none;
+				}
+
+				.acctkeys-piechart {
+					width: 150px;
+					height: 150px;
+					--acctkeys-pie-scale: 0.3;
+				}	
+
+				.acctkeys-mobile-head {
+					display: grid;
+					grid-template-columns: 0.4fr 0.8fr 0.6fr 0.6fr 1fr;
+					column-gap: 8px;
+					width: 100%;
+					font-weight: 600;
+					color: #666;
+				}
+
+
+				/* Hide the single global header row */
+				.acctkeys-header {
+					display: none !important;
+				}
+
+				/* Stack each account vertically */
+				.acctkeys-account {
+					display: flex !important;
+					flex-direction: column !important;
+					align-items: center !important;
+					gap: 10px !important;
+				}
+
+				/* Account number */
+				.acctkeys-accountId {
+					width: 100%;
+					text-align: center;
+				}
+
+				/* Keys block */
+				.acctkeys-keysGrid {
+					width: 100% !important;
+				}
+
+			}
+
+			.txread-wrapper {
+				max-width: 1200px;
+				margin: 0 auto;
+			}
+
+			.acctkeys-piechart {
+				justify-self: center;
+			}
+
+			#account-keys {
+				padding: 0 12px;
+				box-sizing: border-box;
+				max-width: min(900px, 100%);
+				margin: 0 auto;
+
+			}
+
+				/* shared grid layout */
+			.acctkeys-header,
+			.acctkeys-account {
+				display: grid;
+				grid-template-columns: 0.5fr 0.5fr 1fr;
+				column-gap: 8px;
+				margin-top: 6px;
+				align-items: center;
+				width: 100%;
+
+			}
+
+			.acctkeys-header { font-weight: 600; color: #666; }
+	
+			.acctkeys-keysGrid {
+				display: grid;
+				grid-template-columns: 0.4fr 0.8fr 0.6fr 0.6fr 1fr;
+				column-gap: 4px;
+				row-gap: 2px;
+				align-content: center;
+				zzmax-width: 60%;
+
+
+			}
+
+			.no-sign-required {
+				opacity: 0.6;
+				filter: grayscale(0.3);
+			}
+            
+			.tx-loading {
+				border-top: 3px solid #4aa3ff;
+				animation: pulseBorder 1s ease-in-out infinite;
+			}
+
+			@keyframes pulseBorder {
+				0%   { border-top-color: rgba(74,163,255,0.3); }
+				50%  { border-top-color: rgba(74,163,255,1); }
+				100% { border-top-color: rgba(74,163,255,0.3); }
+			}
+
 		.txread table {
 			border-collapse: collapse;
 			font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -392,8 +526,17 @@ export function injectTxReadCSS() {
 			min-width: 200px;
 		}
 
+		.txread-thumb {
+			display: flex;
+			justify-content: center;
+			align-items: flex-start;
+		}
+
+
 		.txread-thumb img {
-			max-width: 100%;
+			max-width: 140px;
+
+
 			height: auto;
 			display: block;
 			border-radius: 4px;
@@ -415,16 +558,20 @@ export function injectTxReadCSS() {
 			margin-bottom: 4px;
 		}
 
-		.txread-sigs-title {
+		.ksubtitle {
 			font-weight: 600;
-			margin-bottom: 6px;
-			color: #444;
+			margin-top: 12px;
+			padding-bottom: 0px;
+			margin-bottom: 2px;
+			color:#999;
+ 			border-bottom:0.5px solid #ddd;width:100%;
 		}
 
-		.txread-sig {
+		.simple-mono-centre {
 			font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 			font-size: 13px;
 			padding: 2px 0;
+			color:#777;
 		}
 
 		.txread-timing {
@@ -436,6 +583,8 @@ export function injectTxReadCSS() {
 			font-weight: 600;
 			margin-bottom: 4px;
 		}
+				
+
 	`
 	document.head.appendChild(style)
 }

@@ -8,6 +8,7 @@ if (isset($_GET['action'])) {
 	exit;
 }
 
+
 require_once "{$_SERVER['DOCUMENT_ROOT']}/readenv.php";
 require_once "{$_SERVER['DOCUMENT_ROOT']}/auth.php";
 require_once "{$_SERVER['DOCUMENT_ROOT']}/config.php";
@@ -25,41 +26,12 @@ $network = getNetwork() ?? $_GET['network'];
 // $network = $_GET['network'];
 $txid = $_GET['txid'] ?? null;
 
-$subfolder = $_GET['subfolder'] ?? 'current';
-if ($txid) $subfolder = '*';
-
-$format = $_GET['format'] ?? 'html_simpleNFT';
-
-$saas_domain = $_GET['saas_domain'] ?? $_SESSION['last_saas_domain'] ?? false; 
-
-if ($_SESSION['network_override'] && !$saas_domain) // default saas_domain if network switched
-    $saas_domain = ($network == 'testnet') ? 'dev.gomint.me' : 'gmws2.gomint.me';
-
-if ($saas_domain) $urlTxAppnet = "https://$saas_domain/api/hashconnect";
-else $urlTxAppnet = $env['url_api_tx_appnet'] ?? $env['url_api_gomint_hashconnect']; // tbc how to refactor this shite .. 1. create a wrapper to fetch data, 2. migrate to kpos
-
-$urlTxAppnet = rtrim($urlTxAppnet, '/');
-
-// $mempool = 'kpool';
-$mempool = 'kfund';
-$querystring = http_build_query(compact('network', 'format', 'mempool', 'subfolder'));
-
-$url .= "$urlTxAppnet/txList.php?base=future&$querystring";
-//network=$network&format=$format&base=future&subfolder=$subfolder
-// review... migrate to kpos and render json client side
-
-if ($txid) $url .= "&txid=$txid";
-if ($isDev) $url .= "&dev";
-if ($_GET['ksig']) $url .= "&ksig=1";
-
-elog("calling $url");
-$html_list = file_get_contents($url);
-
-// might not use this.. if we bypass kfund compeltely
-// if ($txid && $isAdmin) $html_list_v2 = file_get_contents("$url&v=v2");
-
+$useKpool = $_GET['kpool'] ?? 1;
+if (!$useKpool)
+    require_once('zindex_deprecating.php');
 
 $custom_style = '<link rel="stylesheet" type="text/css" href="future/future.css">';
+
 
 if ($txid) exit(include('tx_approval.php'));
 
@@ -101,9 +73,11 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
 
  									
 								</div>
-<BR><BR>
+<BR>
+<div id="kpool-banner" class="mb-4"></div>
 
-<div class='bidtable'>
+<div id="kpool-container"></div>
+<div  class='bidtable'>
 <?php echo $html_list; ?>
 </div>
 
@@ -135,6 +109,9 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
     <script src="assets/js/accordions.js"></script>
 
     <script>
+		
+		//legacy pre-kpool ... to remove once kpool established
+
         function getQueryParam(key) {
           const urlParams = new URLSearchParams(window.location.search)
           return urlParams.get(key)
@@ -158,7 +135,218 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
         window.addEventListener('DOMContentLoaded', filterBids)
     </script>
 
+	<script>
+	
+// ┬  ┌─┐┌─┐┌─┐┌─┐┬ ┬  ┌┬┐┌─┐┌─┐┌─┐┬  ┌─┐
+// │  ├┤ │ ┬├─┤│  └┬┘   │ │ ││ ┬│ ┬│  ├┤ 
+// ┴─┘└─┘└─┘┴ ┴└─┘ ┴    ┴ └─┘└─┘└─┘┴─┘└─┘
+// legacy toggle
+	
+	;(function() {
+		const c = document.getElementById('kpool-banner')
+		if (!c) return
 
+		if (!c.style.position) c.style.position = 'relative'
+
+		const label = document.createElement('label')
+		label.innerHTML = `<input type="checkbox"> kpool`
+
+		Object.assign(label.style, {
+			position: 'absolute',
+			top: '-25px',
+			left: '-10px',
+			display: 'inline-flex',
+			alignItems: 'center',
+			gap: '6px',
+			fontSize: '13px',
+			background: '#fff',
+			padding: '2px 6px',
+			borderRadius: '4px',
+			zIndex: 9999
+		})
+
+		const input = label.querySelector('input')
+
+		// reset any insane global CSS
+		input.style.all = 'revert'
+
+		const params = new URLSearchParams(location.search)
+		input.checked = params.get('kpool') !== '0'
+
+		input.onchange = () => {
+			const p = new URLSearchParams(location.search)
+			p.set('kpool', input.checked ? '1' : '0')
+			location.search = p.toString()
+		}
+
+		c.appendChild(label)
+	})()
+	</script>
+
+
+<script>
+// ┬┌─┌─┐┌─┐┌─┐┬    ┌┬┐─┐ ┬  ╦  ┬┌─┐┌┬┐
+// ├┴┐├─┘│ ││ ││     │ ┌┴┬┘  ║  │└─┐ │ 
+// ┴ ┴┴  └─┘└─┘┴─┘   ┴ ┴ └─  ╩═╝┴└─┘ ┴ 
+// kpool tx List
+
+function formatRemaining(ts) {
+  const now = Math.floor(Date.now() / 1000)
+  const diff = ts - now
+
+  const abs = Math.abs(diff)
+  const h = Math.floor(abs / 3600)
+  const m = Math.floor((abs % 3600) / 60).toString().padStart(2,'0')
+  const s = Math.floor(abs % 60).toString().padStart(2,'0')
+
+  const sign = diff >= 0 ? '+' : '-'
+  return `${sign} ${h}:${m}:${s}`
+}
+
+
+async function loadTxList() {
+
+  if (new URLSearchParams(location.search).get('kpool') === '0')
+    return
+
+  const el = document.getElementById('kpool-container')
+  if (!el) return
+
+  el.style.textAlign = 'left'
+  el.style.fontFamily = 'monospace'
+
+	const parms = new URLSearchParams(location.search)
+  const network = parms.get('network') || '<?php echo $network ?>'
+	const since = parms.get('since') || 600
+	const until = parms.get('until') || 600
+
+  const res = await fetch(`/future/?action=txList&network=${network}&since=${since}&until=${until}`)
+  const txs = (await res.json())?.result?.tx || []
+
+  txs.sort((a, b) => a.txid.split('@')[1] - b.txid.split('@')[1])
+
+  // IMPORTANT: clear before re-rendering
+  el.innerHTML = ''
+
+  el.insertAdjacentHTML('beforeend',
+    txs.filter(t => t.type === 'tx').map(t => {
+
+      const u = new URL(location)
+      u.searchParams.set('network', t.network)
+      u.searchParams.set('txid', t.txid)
+
+      const ts = Number(t.txid.split('@')[1])
+      const remaining = formatRemaining(ts)
+      const utc = new Date(ts * 1000)
+        .toISOString().slice(0,19).replace('T',' ') + ' UTC'
+
+      return `
+        <div>
+          <span>${remaining}</span>
+          <b>${t.network}</b>
+          <a href="${u}" target="_blank" rel="noopener">${t.txid}</a>
+          ${t.pch}
+          ${utc}
+        </div>
+      `
+    }).join('')
+  )
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadTxList()
+  // setInterval(loadTxList, 5000)
+})
+
+
+</script>
+
+<style>
+  #kpool-banner {
+    width: 100%;
+    display: block;
+    margin-bottom: 20px;
+  }
+
+  #kpool-banner > div {
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 6px;
+  }
+
+	#kpool-banner > div > * {
+		margin: 8px 0;
+	}
+</style>
+<script>
+
+	// ┌┬┐┌─┐┌┬┐┌─┐  ┌┬┐┌─┐┌─┐┬    ┌─┐┌─┐  ┌┬┐┌─┐┬ ┬
+	//  ││├┤ ││││ │   ││├┤ ├─┤│    │ │├┤    ││├─┤└┬┘
+	// ─┴┘└─┘┴ ┴└─┘  ─┴┘└─┘┴ ┴┴─┘  └─┘└    ─┴┘┴ ┴ ┴ 
+	// demo deal of day
+
+	async function getDealOfDay() {
+		try {
+			const parms = new URLSearchParams(location.search)
+			const starttime = parms.get('starttime') || '40seconds'
+			const userAccountId = localStorage.getItem('walletConnectAccountId') ?? false
+			if (!userAccountId) return window.alert('Please connect your wallet first\n wip ref KJ93843')
+			console.log(userAccountId)
+		
+			const query = new URLSearchParams({ userAccountId, starttime })
+			const response = await fetch(`/m/bid/kmm/demo1?${query}`)
+
+			if (!response.ok)
+				throw new Error('Network response was not ok')
+
+			const data = await response.json()
+
+			if (!data.txid || !data.network)
+				throw new Error('txid or network missing in response')
+
+			const txid = String(data.txid).toLowerCase()
+			const network = data.network
+
+			const u = new URL(location)
+			u.searchParams.set('network', network)
+			u.searchParams.set('txid', txid)
+
+			const linkEl = document.getElementById('linkDealOfDay')
+			if (linkEl)
+				linkEl.innerHTML = `<a href="${u}" target="_blank" rel="noopener">${txid}</a>`
+
+			return txid
+
+		} catch (err) {
+			console.error('Error fetching TXID:', err)
+		}
+	}
+
+	document.addEventListener('DOMContentLoaded', () => {
+
+		const container = document.getElementById('kpool-banner')
+		if (!container) return
+
+		const wrapper = document.createElement('div')
+		wrapper.style.marginTop = '20px'
+
+		const btn = document.createElement('button')
+		btn.id = 'btnDealOfDay'
+		btn.textContent = 'Deal of the day!'
+		btn.style.marginRight = '10px'
+
+		const div = document.createElement('div')
+		div.id = 'linkDealOfDay'
+
+		btn.addEventListener('click', getDealOfDay)
+
+		wrapper.appendChild(btn)
+		wrapper.appendChild(div)
+		container.appendChild(wrapper)
+
+	})
+</script>
 
   </body>
 </html>

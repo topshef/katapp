@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AMM Constant Product Simulator (No Fees)</title>
+    <style>
+ 
+			:root {
+				--bg: #ffffff;
+				--text: #111111;
+				--card: #ffffff;
+				--border: #dddddd;
+				--muted: #666666;
+				--log-bg: #0b0b0b;
+				--log-text: #e8e8e8;
+				--button-bg: #111111;
+				--button-text: #ffffff;
+			}
+
+			@media (prefers-color-scheme: dark) {
+				:root {
+					--bg: #0e0e0e;
+					--text: #f2f2f2;
+					--card: #161616;
+					--border: #2a2a2a;
+					--muted: #aaaaaa;
+					--log-bg: #000000;
+					--log-text: #00cc44;
+					--button-bg: #f2f2f2;
+					--button-text: #111111;
+				}
+			}
+
+			html, body {
+				height: 100%;
+			}
+
+			body {
+				font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+				padding: 16px;
+				max-width: 900px;
+				margin: 0 auto;
+
+				background: var(--bg);
+				color: var(--text);
+
+				display: flex;
+				flex-direction: column;
+			}
+
+			.row {
+				display: flex;
+				gap: 12px;
+				flex-wrap: wrap;
+				align-items: end;
+			}
+
+			.card {
+				border: 1px solid var(--border);
+				border-radius: 12px;
+				padding: 12px;
+				margin-bottom: 12px;
+				background: var(--card);
+			}
+
+			.card:last-of-type {
+				flex: 1;
+				display: flex;
+				flex-direction: column;
+			}
+
+			label {
+				display: block;
+				font-size: 14px;
+				margin-bottom: 6px;
+			}
+
+			input {
+				padding: 8px;
+				border-radius: 10px;
+				border: 1px solid var(--border);
+				min-width: 180px;
+				font-size: 14px;
+				background: var(--card);
+				color: var(--text);
+			}
+
+			button {
+				padding: 10px 12px;
+				border-radius: 12px;
+				border: 1px solid var(--border);
+				background: var(--button-bg);
+				color: var(--button-text);
+				cursor: pointer;
+			}
+
+			button:disabled {
+				opacity: 0.5;
+				cursor: not-allowed;
+			}
+
+			.muted {
+				color: var(--muted);
+				font-size: 13px;
+			}
+
+
+			.log {
+				flex: 1;
+				overflow: auto;
+				background: var(--log-bg);
+				color: var(--log-text);
+				border-radius: 12px;
+				padding: 12px;
+				font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+				font-size: 13px;
+				line-height: 1.4;
+				white-space: pre-wrap;
+				zztext-shadow: 0 0 4px #00ff66;
+			}
+
+			.pill {
+				display: inline-block;
+				padding: 4px 8px;
+				border-radius: 999px;
+				background: var(--border);
+				font-size: 12px;
+			} 
+    </style>
+  </head>
+
+  <body>
+    <h1>Constant Product AMM Simulator</h1>
+    <p class="muted">
+      Pure x*y=k model. No fees. Two assets: USD and HBAR. Trades update reserves and implied spot price.
+    </p>
+
+    <div class="card">
+      <div class="row">
+        <div>
+          <div class="pill">Hard-coded initial pool</div>
+          <div class="muted" id="initialNote"></div>
+        </div>
+        <div style="flex: 1"></div>
+        <button id="btnReset">Reset Pool</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Trade</h3>
+      <div class="row">
+        <div>
+          <label for="usdIn">Buy HBAR with USD (USD in)</label>
+          <input id="usdIn" type="number" min="0" step="0.01" value="100" />
+        </div>
+        <button id="btnBuy">Buy HBAR</button>
+
+        <div style="width: 24px"></div>
+
+        <div>
+          <label for="hbarIn">Sell HBAR for USD (HBAR in)</label>
+          <input id="hbarIn" type="number" min="0" step="0.000001" value="1000" />
+        </div>
+        <button id="btnSell">Sell HBAR</button>
+      </div>
+      <p class="muted">
+        Note: “Buy” means USD is added to the pool and HBAR is removed. “Sell” means HBAR is added and USD is removed.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3>On-page Console</h3>
+      <div class="log" id="log"></div>
+    </div>
+
+    <script>
+		
+					
+			/*
+			===============================================================================
+			CONSTANT PRODUCT AMM (Uniswap v2–Style) – HOW THIS WORKS
+			===============================================================================
+
+			This simulator models a two-asset liquidity pool using the constant product
+			formula:
+
+					x * y = k
+
+			Where:
+					x = USD reserve
+					y = HBAR reserve
+					k = invariant (product of reserves)
+
+			Without fees:
+					k remains constant during swaps.
+
+			With fees (as implemented here):
+					A fee (e.g. 0.3%) is taken from the input amount.
+					Only the remaining portion participates in the swap math.
+					The full input is still added to the pool reserves.
+					Therefore k increases slightly after every trade.
+					This increase represents LP (liquidity provider) earnings.
+
+			-------------------------------------------------------------------------------
+			BUY (USD → HBAR)
+			-------------------------------------------------------------------------------
+
+			User sends usdIn.
+
+			1. Fee is removed:
+						 usdEffective = usdIn * (1 - fee)
+
+			2. Swap math uses effective amount:
+						 newHbar = k / (oldUsd + usdEffective)
+
+			3. Full USD is added to pool:
+						 newUsd = oldUsd + usdIn
+
+			4. Output to trader:
+						 hbarOut = oldHbar - newHbar
+
+			The difference (usdIn - usdEffective) remains in the pool as fees.
+
+			-------------------------------------------------------------------------------
+			SELL (HBAR → USD)
+			-------------------------------------------------------------------------------
+
+			User sends hbarIn.
+
+			1. Fee is removed:
+						 hbarEffective = hbarIn * (1 - fee)
+
+			2. Swap math:
+						 newUsd = k / (oldHbar + hbarEffective)
+
+			3. Full HBAR added to pool:
+						 newHbar = oldHbar + hbarIn
+
+			4. Output to trader:
+						 usdOut = oldUsd - newUsd
+
+			Again, the fee portion stays in reserves.
+
+			-------------------------------------------------------------------------------
+			KEY PROPERTIES
+			-------------------------------------------------------------------------------
+
+			• Price is determined by reserve ratio:
+						spot price ≈ x / y
+
+			• Larger trades cause larger price impact (slippage).
+
+			• Arbitrage traders push pool price toward the external market price.
+
+			• With fees enabled:
+						k grows over time → LPs earn yield automatically.
+
+			This implementation matches the core mechanics of Uniswap v2-style AMMs.
+			===============================================================================
+			*/
+		
+			// ======= Model (with swap fee) =======
+			const FEE_RATE = 0.003 // 0.3% standard Uniswap-style fee
+      const INITIAL = {
+        usd: 1000,
+        hbar: 10000
+      }
+
+      let pool = resetPool()
+
+      function resetPool() {
+        return {
+          usd: INITIAL.usd,
+          hbar: INITIAL.hbar
+        }
+      }
+
+      function kValue(state) {
+        return state.usd * state.hbar
+      }
+
+      function spotPriceUsdPerHbar(state) {
+        // Spot price in a constant product AMM is approximately x/y for small trades
+        // Here x is USD reserve, y is HBAR reserve
+        return state.usd / state.hbar
+      }
+
+      function spotPriceHbarPerUsd(state) {
+        return state.hbar / state.usd
+      }
+
+      function fmt(n, decimals = 6) {
+        if (!Number.isFinite(n)) return "NaN"
+        return n.toFixed(decimals)
+      }
+
+      function logLine(s = "") {
+        const el = document.getElementById("log")
+        el.textContent += s + "\n"
+        el.scrollTop = el.scrollHeight
+      }
+
+      function logState(label) {
+        const k = kValue(pool)
+        const pUsdPerHbar = spotPriceUsdPerHbar(pool)
+        const pHbarPerUsd = spotPriceHbarPerUsd(pool)
+
+        logLine(label)
+        logLine(`  Reserves: USD=${fmt(pool.usd, 6)} | HBAR=${fmt(pool.hbar, 6)}`)
+        logLine(`  k = USD*HBAR = ${fmt(k, 6)}`)
+        logLine(`  Spot: 1 HBAR = $${fmt(pUsdPerHbar, 6)} | $1 = ${fmt(pHbarPerUsd, 6)} HBAR`)
+        logLine("")
+      }
+
+      // Trade: USD in, HBAR out
+			function buyHbar(usdIn) {
+				if (usdIn <= 0) return null
+
+				const k = kValue(pool)
+				const oldUsd = pool.usd
+				const oldHbar = pool.hbar
+
+				const usdEffective = usdIn * (1 - FEE_RATE)
+
+				const newUsd = oldUsd + usdIn
+				const newHbar = k / (oldUsd + usdEffective)
+
+				const hbarOut = oldHbar - newHbar
+				const feeUsd = usdIn - usdEffective
+
+				pool.usd = newUsd
+				pool.hbar = newHbar
+
+				const avgPriceUsdPerHbar = usdIn / hbarOut
+
+				return {
+					type: "BUY",
+					usdIn,
+					usdEffective,
+					feeUsd,
+					hbarOut,
+					avgPriceUsdPerHbar,
+					oldUsd,
+					oldHbar,
+					newUsd,
+					newHbar
+				}
+			}
+
+      // Trade: HBAR in, USD out
+			function sellHbar(hbarIn) {
+				if (hbarIn <= 0) return null
+
+				const k = kValue(pool)
+				const oldUsd = pool.usd
+				const oldHbar = pool.hbar
+
+				const hbarEffective = hbarIn * (1 - FEE_RATE)
+
+				const newHbar = oldHbar + hbarIn
+				const newUsd = k / (oldHbar + hbarEffective)
+
+				const usdOut = oldUsd - newUsd
+				const feeHbar = hbarIn - hbarEffective
+
+				pool.hbar = newHbar
+				pool.usd = newUsd
+
+				const avgPriceUsdPerHbar = usdOut / hbarIn
+
+				return {
+					type: "SELL",
+					hbarIn,
+					hbarEffective,
+					feeHbar,
+					usdOut,
+					avgPriceUsdPerHbar,
+					oldUsd,
+					oldHbar,
+					newUsd,
+					newHbar
+				}
+			}
+
+      // ======= UI wiring =======
+      function init() {
+        document.getElementById("initialNote").textContent =
+          `USD=${INITIAL.usd}, HBAR=${INITIAL.hbar}`
+
+        logLine("AMM Simulator loaded.")
+        logState("Initial pool state:")
+
+        document.getElementById("btnBuy").addEventListener("click", () => {
+          const usdIn = Number(document.getElementById("usdIn").value)
+          const preSpot = spotPriceUsdPerHbar(pool)
+
+          const result = buyHbar(usdIn)
+          if (!result) return
+
+          logLine(`TRADE: Buy HBAR with USD`)
+          logLine(`  Input:  USD in = ${fmt(result.usdIn, 6)}`)
+					logLine(`  Fee taken (USD) = ${fmt(result.feeUsd, 6)}`)
+					logLine(`  USD used in swap = ${fmt(result.usdEffective, 6)}`)					
+          logLine(`  Output: HBAR out = ${fmt(result.hbarOut, 6)}`)
+          logLine(`  Avg execution: 1 HBAR = $${fmt(result.avgPriceUsdPerHbar, 6)}`)
+          logLine(`  Pre-trade spot: 1 HBAR = $${fmt(preSpot, 6)}`)
+          logState("  Post-trade state:")
+        })
+
+        document.getElementById("btnSell").addEventListener("click", () => {
+          const hbarIn = Number(document.getElementById("hbarIn").value)
+          const preSpot = spotPriceUsdPerHbar(pool)
+
+          const result = sellHbar(hbarIn)
+          if (!result) return
+
+          logLine(`TRADE: Sell HBAR for USD`)
+          logLine(`  Input:  HBAR in = ${fmt(result.hbarIn, 6)}`)
+					logLine(`  Fee taken (HBAR) = ${fmt(result.feeHbar, 6)}`)
+					logLine(`  HBAR used in swap = ${fmt(result.hbarEffective, 6)}`)					
+          logLine(`  Output: USD out = ${fmt(result.usdOut, 6)}`)
+          logLine(`  Avg execution: 1 HBAR = $${fmt(result.avgPriceUsdPerHbar, 6)}`)
+          logLine(`  Pre-trade spot: 1 HBAR = $${fmt(preSpot, 6)}`)
+          logState("  Post-trade state:")
+        })
+
+        document.getElementById("btnReset").addEventListener("click", () => {
+          pool = resetPool()
+          logLine("RESET pool to initial parameters.")
+          logState("After reset:")
+        })
+      }
+
+      init()
+    </script>
+  </body>
+</html>

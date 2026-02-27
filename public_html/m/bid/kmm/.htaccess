@@ -1,0 +1,11 @@
+Options +Indexes
+
+RewriteEngine On
+
+# demo issue reward offer xbar
+RewriteRule ^demo1$ kmm_demo1.php [L,QSA]
+
+
+
+
+
