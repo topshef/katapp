@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KFX LP (Piecewise) Demo — Greedy LP Solver</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; line-height: 1.35 }
+    h1 { margin: 0 0 12px }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start }
+    textarea { width: 100%; min-height: 360px; padding: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12.5px }
+    button { padding: 10px 12px; border-radius: 10px; border: 1px solid #ccc; background: #fff; cursor: pointer }
+    button:hover { background: #f7f7f7 }
+    .card { border: 1px solid #e5e5e5; border-radius: 14px; padding: 14px }
+    .muted { color: #555 }
+    pre { white-space: pre-wrap; word-break: break-word; margin: 0 }
+    .ok { color: #0a7a2a; font-weight: 600 }
+    .bad { color: #b00020; font-weight: 600 }
+    .tiny { font-size: 12px }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid #ddd; margin-right: 6px }
+  </style>
+</head>
+<body>
+  <h1>KFX LP (Piecewise Offers) — standalone demo</h1>
+  <p class="muted">
+    This models the LP as a <span class="pill">fractional knapsack</span> over piecewise segments.
+    Optional <span class="pill">maxParties</span> is handled with a simple heuristic pre-filter.
+  </p>
+
+  <div class="row">
+    <div class="card">
+      <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px">
+        <button id="solveBtn">Solve</button>
+        <button id="loadExampleBtn">Load example</button>
+        <span class="muted tiny">Edit the JSON in the textarea and click Solve</span>
+      </div>
+      <textarea id="input"></textarea>
+      <p class="tiny muted" style="margin-top:10px">
+        Offer segments are interpreted as: for each segment you may allocate up to <b>inMax</b> units of input asset,
+        producing <b>amountOut = amountIn * rate * (1 - feeBps/10000)</b>.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">Result</h3>
+      <div id="status" class="muted tiny" style="margin-bottom:10px"></div>
+      <pre id="output"></pre>
+      <hr style="border:none; border-top:1px solid #eee; margin:14px 0">
+      <details>
+        <summary class="tiny muted">LP formulation (what we’re solving)</summary>
+        <pre class="tiny muted" style="margin-top:10px">
+Decision variables
+  x_{i,k} ≥ 0   input allocated to party i, segment k
+
+Parameters
+  cap_{i,k}     segment capacity (max input allowed)
+  r_{i,k}       segment exchange rate (buy per 1 unit sell), net of fee if you want
+  Q             total input Bob wants to sell
+  K             max parties allowed (optional)
+
+Constraints
+  (1) Fill constraint:     Σ_i Σ_k x_{i,k} = Q
+  (2) Segment caps:        0 ≤ x_{i,k} ≤ cap_{i,k}
+  (3) Clearing is implicit in settlement object: Bob’s -Q equals others’ +Q on the sell asset
+
+Objective (best execution for Bob)
+  maximize:  Σ_i Σ_k (r_{i,k} * x_{i,k})
+
+Notes
+  - With only (1)(2), this LP is solved by taking highest r_{i,k} segments first (greedy)
+  - With a party limit K, add binary y_i and constraints x_{i,k} ≤ cap_{i,k} y_i, Σ_i y_i ≤ K
+    That becomes a small MILP; here we use a heuristic pre-filter to keep it MVP-simple
+        </pre>
+      </details>
+    </div>
+  </div>
+
+<script>
+const elInput = document.getElementById("input")
+const elOut = document.getElementById("output")
+const elStatus = document.getElementById("status")
+const solveBtn = document.getElementById("solveBtn")
+const loadExampleBtn = document.getElementById("loadExampleBtn")
+
+function fmt(n, d) {
+  return Number.isFinite(n) ? n.toFixed(d ?? 6) : String(n)
+}
+
+function clamp01(x) {
+  if (x < 0) return 0
+  if (x > 1) return 1
+  return x
+}
+
+function deepClone(obj) {
+  return JSON.parse(JSON.stringify(obj))
+}
+function normalizeProblem(raw) {
+  const p = deepClone(raw)
+
+  if (!p.request) throw new Error("Missing request")
+  if (!Array.isArray(p.offers)) throw new Error("Missing offers[]")
+
+  const sellAsset = p.request.sellAsset
+  const buyAsset = p.request.buyAsset
+  const amountIn = Number(p.request.amountIn)
+
+  if (!sellAsset || !buyAsset) throw new Error("request.sellAsset and request.buyAsset required")
+  if (!Number.isFinite(amountIn) || amountIn <= 0) throw new Error("request.amountIn must be > 0")
+
+  const maxParties = p.request.maxParties == null ? null : Number(p.request.maxParties)
+  const minAmountOut = p.request.minAmountOut == null ? null : Number(p.request.minAmountOut)
+
+  const offers = p.offers.map(o =>
+    ({
+      party: String(o.party ?? ""),
+      segments: Array.isArray(o.segments) ? o.segments.map(s =>
+        ({
+          inMax: Number(s.inMax),
+          rate: Number(s.rate),
+          feeBps: s.feeBps == null ? 0 : Number(s.feeBps)
+        })
+      ) : []
+    })
+  )
+
+  for (const o of offers)
+    if (!o.party) throw new Error("Each offer needs party")
+  for (const o of offers)
+    for (const s of o.segments)
+      if (!Number.isFinite(s.inMax) || s.inMax <= 0) throw new Error(`Invalid inMax for party ${o.party}`)
+  for (const o of offers)
+    for (const s of o.segments)
+      if (!Number.isFinite(s.rate) || s.rate <= 0) throw new Error(`Invalid rate for party ${o.party}`)
+  for (const o of offers)
+    for (const s of o.segments)
+      if (!Number.isFinite(s.feeBps) || s.feeBps < 0) throw new Error(`Invalid feeBps for party ${o.party}`)
+
+  return { sellAsset, buyAsset, amountIn, maxParties, minAmountOut, offers }
+}
+
+function flattenSegments(problem) {
+  const segs = []
+  for (const offer of problem.offers)
+    for (let k = 0; k < offer.segments.length; k++)
+      segs.push({
+        party: offer.party,
+        k,
+        capIn: offer.segments[k].inMax,
+        rate: offer.segments[k].rate,
+        feeBps: offer.segments[k].feeBps,
+        netRate: offer.segments[k].rate * (1 - clamp01(offer.segments[k].feeBps / 10000))
+      })
+  return segs
+}
+
+function partyScore(segs) {
+  const byParty = new Map()
+  for (const s of segs)
+    if (!byParty.has(s.party)) byParty.set(s.party, { bestNetRate: 0, totalCap: 0 })
+  for (const s of segs)
+    {
+      const rec = byParty.get(s.party)
+      if (s.netRate > rec.bestNetRate) rec.bestNetRate = s.netRate
+      rec.totalCap += s.capIn
+    }
+  return byParty
+}
+
+function pickPartiesHeuristic(segs, maxParties) {
+  if (maxParties == null) return null
+  if (!Number.isFinite(maxParties) || maxParties <= 0) return new Set()
+
+  const scores = partyScore(segs)
+  const rows = []
+  for (const [party, rec] of scores.entries())
+    rows.push({ party, bestNetRate: rec.bestNetRate, totalCap: rec.totalCap })
+
+  rows.sort((a, b) =>
+    b.bestNetRate - a.bestNetRate || b.totalCap - a.totalCap || a.party.localeCompare(b.party)
+  )
+
+  const chosen = new Set()
+  for (let i = 0; i < rows.length && chosen.size < maxParties; i++)
+    chosen.add(rows[i].party)
+
+  return chosen
+}
+
+function solveGreedyLP(problem) {
+  const allSegs = flattenSegments(problem)
+  if (allSegs.length === 0) throw new Error("No segments provided")
+
+  const chosenParties = pickPartiesHeuristic(allSegs, problem.maxParties)
+  const segs = chosenParties == null ? allSegs : allSegs.filter(s => chosenParties.has(s.party))
+
+  segs.sort((a, b) =>
+    b.netRate - a.netRate || b.capIn - a.capIn || a.party.localeCompare(b.party)
+  )
+
+  let remaining = problem.amountIn
+  const fills = []
+  for (const s of segs)
+    {
+      if (remaining <= 0) break
+      const x = Math.min(remaining, s.capIn)
+      if (x <= 0) continue
+      fills.push({
+        party: s.party,
+        segmentIndex: s.k,
+        amountIn: x,
+        netRate: s.netRate,
+        amountOut: x * s.netRate,
+        feeBps: s.feeBps
+      })
+      remaining -= x
+    }
+
+  const totalIn = fills.reduce((acc, f) => acc + f.amountIn, 0)
+  const totalOut = fills.reduce((acc, f) => acc + f.amountOut, 0)
+  const effectiveRate = totalIn > 0 ? totalOut / totalIn : 0
+
+  return {
+    chosenParties: chosenParties == null ? null : Array.from(chosenParties).sort(),
+    fills,
+    remainingUnfilled: remaining,
+    totalIn,
+    totalOut,
+    effectiveRate
+  }
+}
+
+function formatResult(problem, sol) {
+  const byParty = new Map()
+  for (const f of sol.fills)
+    {
+      if (!byParty.has(f.party)) byParty.set(f.party, { in: 0, out: 0, segments: [] })
+      const rec = byParty.get(f.party)
+      rec.in += f.amountIn
+      rec.out += f.amountOut
+      rec.segments.push(f)
+    }
+
+  const parties = Array.from(byParty.entries())
+    .map(([party, rec]) => ({ party, ...rec }))
+    .sort((a, b) => b.out - a.out || a.party.localeCompare(b.party))
+
+  const minOut = problem.minAmountOut
+  const okMin = minOut == null ? null : sol.totalOut >= minOut
+  const fillOk = sol.remainingUnfilled <= 1e-12
+
+  const lines = []
+  lines.push(`Request: sell ${fmt(problem.amountIn, 6)} ${problem.sellAsset} for ${problem.buyAsset}`)
+  if (problem.maxParties != null) lines.push(`maxParties: ${problem.maxParties}`)
+  if (minOut != null) lines.push(`minAmountOut: ${fmt(minOut, 6)} ${problem.buyAsset}`)
+
+  lines.push("")
+  lines.push(`Filled in:   ${fmt(sol.totalIn, 6)} ${problem.sellAsset}`)
+  lines.push(`Received:   ${fmt(sol.totalOut, 6)} ${problem.buyAsset}`)
+  lines.push(`Eff rate:   ${fmt(sol.effectiveRate, 10)} ${problem.buyAsset} per 1 ${problem.sellAsset}`)
+  lines.push(`Unfilled:   ${fmt(sol.remainingUnfilled, 6)} ${problem.sellAsset}`)
+
+  lines.push("")
+  lines.push(`Status: ${fillOk ? "FILLED" : "NOT FILLED"}` + (okMin == null ? "" : `, minOut ${okMin ? "PASS" : "FAIL"}`))
+
+  if (sol.chosenParties)
+    {
+      lines.push("")
+      lines.push(`Chosen parties (${sol.chosenParties.length}): ${sol.chosenParties.join(", ")}`)
+    }
+
+  lines.push("")
+  lines.push("Allocations by party:")
+  if (parties.length === 0) lines.push("  (none)")
+  for (const p of parties)
+    {
+      lines.push(`- ${p.party}: in=${fmt(p.in, 6)} ${problem.sellAsset}, out=${fmt(p.out, 6)} ${problem.buyAsset}`)
+      for (const s of p.segments)
+        lines.push(`    seg#${s.segmentIndex} in=${fmt(s.amountIn, 6)} netRate=${fmt(s.netRate, 10)} feeBps=${fmt(s.feeBps, 2)} out=${fmt(s.amountOut, 6)}`)
+    }
+
+  lines.push("")
+  lines.push("Settlement deltas (conceptual):")
+  lines.push(`- Initiator (Bob) Δ${problem.sellAsset} = -${fmt(problem.amountIn, 6)}, Δ${problem.buyAsset} = +${fmt(sol.totalOut, 6)}`)
+  lines.push(`- Others aggregate Δ${problem.sellAsset} = +${fmt(problem.amountIn, 6)}, Δ${problem.buyAsset} = -${fmt(sol.totalOut, 6)}`)
+  lines.push("  (Full multi-party atomic swap enforces Σ Δ = 0 per asset)")
+
+  return { text: lines.join("\n"), fillOk, okMin }
+}
+
+function setStatus(problem, sol, flags) {
+  const bits = []
+  if (sol.remainingUnfilled <= 1e-12) bits.push(`<span class="ok">FILLED</span>`)
+  else bits.push(`<span class="bad">NOT FILLED</span>`)
+  if (problem.minAmountOut != null)
+    bits.push(flags.okMin ? `<span class="ok">minOut PASS</span>` : `<span class="bad">minOut FAIL</span>`)
+  elStatus.innerHTML = bits.join(" · ")
+}
+
+function solveFromTextarea() {
+  elOut.textContent = ""
+  elStatus.textContent = ""
+
+  let raw
+  try
+    {
+      raw = JSON.parse(elInput.value)
+    }
+  catch (e)
+    {
+      elOut.textContent = "Input JSON parse error:\n" + String(e)
+      return
+    }
+
+  try
+    {
+      const problem = normalizeProblem(raw)
+      const sol = solveGreedyLP(problem)
+      const formatted = formatResult(problem, sol)
+      setStatus(problem, sol, formatted)
+      elOut.textContent = formatted.text
+    }
+  catch (e)
+    {
+      elOut.textContent = "Solve error:\n" + String(e.message ?? e)
+    }
+}
+
+function exampleProblem() {
+  return {
+    request: {
+      sellAsset: "USDC",
+      buyAsset: "HBAR",
+      amountIn: 100,
+      maxParties: 7,
+      minAmountOut: 970
+    },
+    offers: [
+      {
+        party: "Tim_A",
+        segments: [
+          { inMax: 30, rate: 10.2, feeBps: 20 },
+          { inMax: 40, rate: 10.05, feeBps: 20 }
+        ]
+      },
+      {
+        party: "Tim_B",
+        segments: [
+          { inMax: 50, rate: 10.12, feeBps: 10 }
+        ]
+      },
+      {
+        party: "Tim_C",
+        segments: [
+          { inMax: 25, rate: 10.25, feeBps: 35 },
+          { inMax: 25, rate: 10.08, feeBps: 35 }
+        ]
+      },
+      {
+        party: "SaucerSwap_like_pool",
+        segments: [
+          { inMax: 100, rate: 9.92, feeBps: 30 }
+        ]
+      },
+      {
+        party: "Tim_D",
+        segments: [
+          { inMax: 10, rate: 10.5, feeBps: 60 },
+          { inMax: 20, rate: 10.1, feeBps: 60 }
+        ]
+      }
+    ]
+  }
+}
+
+loadExampleBtn.addEventListener("click", () =>
+  {
+    elInput.value = JSON.stringify(exampleProblem(), null, 2)
+    solveFromTextarea()
+  }
+)
+
+solveBtn.addEventListener("click", solveFromTextarea)
+
+elInput.value = JSON.stringify(exampleProblem(), null, 2)
+solveFromTextarea()
+</script>
+</body>
+</html>
