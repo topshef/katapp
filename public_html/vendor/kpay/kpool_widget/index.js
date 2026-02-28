@@ -99,15 +99,17 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 		injectTxReadCSS()
 
 		container.classList.add('txread')
-		const columns = buildTxReadColumns({
+		const view = buildTxReadColumns({
+		// const columns = buildTxReadColumns({
 			rawTx,
 			data,
 			transfers,
 			network,
 			txid
 		})
-
-		container.appendChild(columns)
+		
+		container.appendChild(view.el)
+		// container.appendChild(columns)
 		container.appendChild(details)
 		// container.appendChild(jsonDetails)
 		

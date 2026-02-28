@@ -166,8 +166,11 @@
 		wrapper.className = 'txread-wrapper'
 		wrapper.appendChild(grid)
 		wrapper.appendChild(signingSection)
-		return wrapper
-
+		// return wrapper
+		return {
+			el: wrapper,
+			statusBlock
+		}
 	}
 
 
