@@ -17,6 +17,7 @@ import {
 
 import { getHederaMirrorData } from './hedera-mirror.js'
 
+import { createTxSocket } from './websocket.js'
 
 	console.log('injecting kpool widget')
 
@@ -108,6 +109,46 @@ async function renderSingleTx(network, txid) {
 			network,
 			accounts: tx.accounts
 		})
+
+
+
+
+		let currentData = tx.data
+		let currentAccounts = tx.accounts
+
+		const socket = createTxSocket({
+			baseUrl: 'https://hapi2.hbar.live/live',  //ip controlled (admin only).. todo wrap in local path
+			txid,
+			onTxUpdate: async update => {
+
+				console.log('[WS] update received', update)
+
+				// merge update into current data
+				currentData = {
+					...currentData,
+					...update
+				}
+
+				// update status block
+				view.statusBlock.update(currentData)
+
+				// if signature update, refresh signing
+				if (update.sigs) {
+					await refreshSigningSection({
+						network,
+						data: currentData,
+						accounts: currentAccounts
+					})
+				}
+			}
+		})
+
+
+
+
+
+
+
 
 		document.getElementById('txread-signing')?.classList.remove('tx-loading')
 
