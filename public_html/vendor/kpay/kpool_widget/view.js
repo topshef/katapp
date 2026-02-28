@@ -112,7 +112,7 @@
 		const col4 = document.createElement('div')
 		col4.className = 'txread-col'
 		
-		const statusBlock = buildStatusBlock({ data, txid, network })
+		const statusBlock = buildStatusBlock({ data })
 		col4.appendChild(statusBlock.el)
 
 
@@ -254,13 +254,14 @@
 	}
 		
 
-export function renderSigningInfo({ rawTx, network, accounts }) {
+export function renderSigningInfo({ data, accounts }) {
 	// derive signed keys ONCE
-	const signedPubkeys = (get(rawTx, 'result.sigs') || [])
+	const signedPubkeys = (data.sigs || [])
+	// const signedPubkeys = (get(rawTx, 'result.sigs') || [])
 		.map(s => s.pubKey)
 		.filter(Boolean)
 
-	renderAccountKeyInfo(accounts, signedPubkeys, network)
+	renderAccountKeyInfo(accounts, signedPubkeys, data.network)
 	// renderKeyPieCharts({ network, accounts, signedPubkeys })
 }
 

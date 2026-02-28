@@ -18,7 +18,22 @@ export async function txRead({ network, txid }) {
 	const rawTx = await res.json()
 	const data = rawTx.result
 	if (!data) return {url, rawTx, data}
-		
+			
+	// enforce canonical identity
+	if (data.network && data.network !== network) {
+		throw new Error(`Network mismatch: expected ${network}, got ${data.network}`)
+	}
+
+	if (data.txid && data.txid !== txid) {
+		throw new Error(`TxID mismatch: expected ${txid}, got ${data.txid}`)
+	}
+
+	//todo handle PCH pre-consensus hash
+
+	// ensure these fields always exist
+	data.network = network
+	data.txid = txid
+
 	const transfers = getAllTransfers(data)
 	const accounts = getAccountsWithRoles({ transfers, txid })
 			

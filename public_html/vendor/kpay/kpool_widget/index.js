@@ -104,7 +104,7 @@ async function renderSingleTx(network, txid) {
 		calcAccountsThatSign(tx.accounts)
 
 		renderSigningInfo({
-			rawTx: tx.rawTx,
+			data: tx.data,
 			network,
 			accounts: tx.accounts
 		})
@@ -142,6 +142,14 @@ async function renderSingleTx(network, txid) {
 
 					view.statusBlock.update(fresh.data)
 
+					// ----- refresh signing block -----
+					await refreshSigningSection({
+						network,
+						data: fresh.data,
+						accounts: fresh.accounts
+					})
+					// ----------------------------------
+
 					if (fresh.data?.mirrorStatus) {
 						clearInterval(pollTimer)
 					}
@@ -157,3 +165,18 @@ async function renderSingleTx(network, txid) {
 		console.warn('txRead fetch failed', e)
 	}
 }
+
+
+const refreshSigningSection = async ({ network, data, accounts }) => {
+
+	await enrichAccountsInfo({ network, accounts })
+	await enrichAccountsKeyInfo({ network, accounts })
+	calcAccountsThatSign(accounts)
+
+	renderSigningInfo({
+		data,
+		network,
+		accounts
+	})
+}
+
