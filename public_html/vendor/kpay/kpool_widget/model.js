@@ -16,18 +16,24 @@ export async function txRead({ network, txid }) {
 	}
 
 	const rawTx = await res.json()
-
-	const transfers = getAllTransfers(rawTx)
+	const data = rawTx.result
+	if (!data) return {url, rawTx, data}
+		
+	const transfers = getAllTransfers(data)
 	const accounts = getAccountsWithRoles({ transfers, txid })
 			
-	console.log({transfers, accounts, rawTx, url})
+	console.log("txRead data=",data)
+	console.log("txRead other=",{transfers, accounts, rawTx, url})
 	return {
 		url,
-		rawTx,
+		rawTx,  // for debug.. avoid using this downstream
+		data,
 		transfers,
 		accounts
 	}
 }
+
+// function getTxStatus.. nah put it in hapi upstream
 
 function skipCouncilAccount(ac) {
   if (!ac) return true
@@ -40,9 +46,9 @@ function skipCouncilAccount(ac) {
 // │ ┬├┤  │   ╠═╣│  │     ║ ├┬┘├─┤│││└─┐├┤ ├┤ ├┬┘└─┐
 // └─┘└─┘ ┴   ╩ ╩┴─┘┴─┘   ╩ ┴└─┴ ┴┘└┘└─┘└  └─┘┴└─└─┘
 // get All Transfers	
-function getAllTransfers(rawTx) {
-	const mirrorTx = rawTx.result?.mirror?.transactions?.[0] || {}
-	const deal   = rawTx.result?.deal || {}
+function getAllTransfers(data) {
+	const mirrorTx = data.mirror?.transactions?.[0] || {}
+	const deal     = data.deal || {}
 
 	const sources = {
 		hbar:  mirrorTx.transfers       ? 'mirror'
@@ -71,7 +77,7 @@ function getAllTransfers(rawTx) {
 	}
 
 
-	console.log({raw})
+	// console.log({raw})
 	const lineItems = []
 
 	// HBAR
@@ -132,7 +138,7 @@ function getAllTransfers(rawTx) {
 		})
 	})
 	
-	console.log({mirrorTx, deal, raw, lineItems})
+	// console.log({mirrorTx, deal, raw, lineItems})
 	
 	return {
 		raw,        // original shapes, grouped

@@ -83,7 +83,7 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 
 	const renderTxReadDebug = async ({ network, txid, details }) => {
 
-		const { url, rawTx, transfers, accounts } = await txRead({ network, txid })
+		const { url, rawTx, data, transfers, accounts } = await txRead({ network, txid })
 
 
 		// raw JSON dump (collapsible, with API link inside)
@@ -101,6 +101,7 @@ async function renderSingleTx(network, txid) {         // does hoist. old-skool 
 		container.classList.add('txread')
 		const columns = buildTxReadColumns({
 			rawTx,
+			data,
 			transfers,
 			network,
 			txid

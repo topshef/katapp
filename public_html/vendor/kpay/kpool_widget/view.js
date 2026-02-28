@@ -6,8 +6,30 @@
 		formatCountdown
 	} from './utils.js'
 
+	const deriveStatusFromTime = (txid, updatedAtMs) => {
+		const info = parseTxId(txid)
+		if (!info) return 'Unknown'
 
-	export const buildTxReadColumns = ({ rawTx, transfers, network, txid }) => {
+		const nowSec = Math.floor(Date.now() / 1000)
+		const scheduledSec = info.seconds
+		const diff = scheduledSec - nowSec
+
+		// still in future
+		if (diff > 0) return 'Waiting'
+
+		// within 3 min window after scheduled time
+		if (diff > -180) return 'Submitting'
+
+		// past 3 min — only expired if data is fresh enough
+		if (updatedAtMs) {
+			const freshnessSec = (Date.now() - updatedAtMs) / 1000
+			if (freshnessSec < 30) return 'Expired'
+		}
+
+		return 'Unknown'
+	}
+
+	export const buildTxReadColumns = ({ rawTx, data, transfers, network, txid }) => {
 
 
 		const grid = document.createElement('div')
@@ -28,11 +50,40 @@
 
 		const col4 = document.createElement('div')
 		col4.className = 'txread-col'
-		const timing = buildTimingBlock(network, txid)
-		col4.appendChild(timing)
+		
+		const status = document.createElement('div')
+		status.className = 'txread-timing' // todo change class names etc
+		
+		const derivedStatus = data.mirrorStatus || deriveStatusFromTime(txid, data.updatedAt)
+
+		status.textContent = derivedStatus
+		col4.appendChild(status)
+
+		if (derivedStatus === 'Waiting' || derivedStatus === 'Submitting') {
+			const timing = buildTimingBlock(network, txid)
+			col4.appendChild(timing)
+		}
+
+		// txid link (HashScan)
+		const txLink = document.createElement('a')
+		txLink.className = 'txread-timing'
+		txLink.href = `https://hashscan.io/${network}/transaction/${txid}`
+		txLink.target = '_blank'
+		txLink.rel = 'noopener'
+		txLink.textContent = txid
+		txLink.style.wordBreak = 'break-all'
+		col4.appendChild(txLink)
+
+		// network label
+		const net = document.createElement('div')
+		net.className = 'txread-timing'
+		net.textContent = `Hedera ${network}`
+		col4.appendChild(net)
+		
+		
 
 		// thumbnail (column 1)
-		const thumbUrl = get(rawTx, 'result.deal.display.thumbnail')
+		const thumbUrl = data.deal?.display?.thumbnail // get(rawTx, 'result.deal.display.thumbnail')
 		if (thumbUrl) {
 			const img = document.createElement('img')
 			img.src = thumbUrl
@@ -117,33 +168,32 @@
 		const txidInfo = parseTxId(txid)
 		if (!txidInfo) return container
 
-		const nowSec = Math.floor(Date.now() / 1000)
-		const diff = txidInfo.seconds - nowSec
+		const targetSec = txidInfo.seconds
 
-		// time until execution
 		const countdown = document.createElement('div')
 		countdown.className = 'txread-countdown'
-		countdown.textContent = `⏱ ${formatCountdown(diff)}`
 		container.appendChild(countdown)
+
+		const update = () => {
+			const nowSec = Math.floor(Date.now() / 1000)
+			const diff = targetSec - nowSec
+
+			if (diff <= -180) {
+				countdown.textContent = '⏱ Unknown'
+				clearInterval(timer)
+				return
+			}
+
+			countdown.textContent = `⏱ ${formatCountdown(diff)}`
+		}
+
+		const timer = setInterval(update, 1000)
+		update()
 
 		// formatted start time
 		const startTime = document.createElement('div')
 		startTime.textContent = formatUtcTime(txidInfo.seconds)
 		container.appendChild(startTime)
-
-		// txid link (HashScan)
-		const txLink = document.createElement('a')
-		txLink.href = `https://hashscan.io/${network}/transaction/${txid}`
-		txLink.target = '_blank'
-		txLink.rel = 'noopener'
-		txLink.textContent = txid
-		txLink.style.wordBreak = 'break-all'
-		container.appendChild(txLink)
-
-		// network label
-		const net = document.createElement('div')
-		net.textContent = `Hedera ${network}`
-		container.appendChild(net)
 
 		return container
 	}
