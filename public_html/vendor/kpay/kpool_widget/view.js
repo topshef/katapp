@@ -29,6 +29,67 @@
 		return 'Unknown'
 	}
 
+
+	/*
+		Status block component (self-contained, refreshable).
+
+		Usage:
+			const statusBlock = buildStatusBlock({ data })
+			col4.appendChild(statusBlock.el)
+
+		When polling:
+			statusBlock.update(newData)
+
+		The block derives its own display state from:
+		- mirror status (final state from API)
+		- scheduled execution time (txid)
+		- data.updatedAt (freshness)
+
+		Future enhancements:
+		- incorporate aggregated signing state (e.g. "Awaiting signatures")
+		- include balance checks (e.g. "Insufficient balance")
+		- unify timing + signing + execution into a single derived status
+		- visually differentiate Waiting / Submitting / Expired / Success / Failed
+		- optionally show progress indicators during submission
+
+		This block should remain purely data-driven:
+		it re-renders from provided data and holds no external state.
+	*/
+	export const buildStatusBlock = ({ data }) => {
+		const container = document.createElement('div')
+
+		const statusEl = document.createElement('div')
+		container.appendChild(statusEl)
+
+		let timingEl = null
+
+		const render = currentData => {
+			const derivedStatus =
+				currentData.mirrorStatus ||
+				deriveStatusFromTime(data.txid, currentData.updatedAt)
+
+			statusEl.textContent = derivedStatus
+
+			if (timingEl) {
+				timingEl.remove()
+				timingEl = null
+			}
+
+			if (derivedStatus === 'Waiting' || derivedStatus === 'Submitting') {
+				timingEl = buildTimingBlock(data.network, data.txid)
+				container.appendChild(timingEl)
+			}
+		}
+
+		render(data)
+
+		return {
+			el: container,
+			update: newData => render(newData)
+		}
+	}
+	
+	
 	export const buildTxReadColumns = ({ rawTx, data, transfers, network, txid }) => {
 
 
@@ -51,18 +112,9 @@
 		const col4 = document.createElement('div')
 		col4.className = 'txread-col'
 		
-		const status = document.createElement('div')
-		status.className = 'txread-timing' // todo change class names etc
-		
-		const derivedStatus = data.mirrorStatus || deriveStatusFromTime(txid, data.updatedAt)
+		const statusBlock = buildStatusBlock({ data, txid, network })
+		col4.appendChild(statusBlock.el)
 
-		status.textContent = derivedStatus
-		col4.appendChild(status)
-
-		if (derivedStatus === 'Waiting' || derivedStatus === 'Submitting') {
-			const timing = buildTimingBlock(network, txid)
-			col4.appendChild(timing)
-		}
 
 		// txid link (HashScan)
 		const txLink = document.createElement('a')
