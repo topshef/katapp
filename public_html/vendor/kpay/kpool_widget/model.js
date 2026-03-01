@@ -7,7 +7,9 @@
 import { getAccountInfo, getKeyInfo } from './hedera-mirror.js'
 
 
-export async function txRead({ network, txid }) {
+
+
+export async function txRead({ network, txid, pch = 'no_pch' }) { //todo pch
 	const url = `https://kpos.uk/pool/txRead?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}&detail=1`
 
 	const res = await fetch(url)
@@ -27,6 +29,9 @@ export async function txRead({ network, txid }) {
 	if (data.txid && data.txid !== txid) {
 		throw new Error(`TxID mismatch: expected ${txid}, got ${data.txid}`)
 	}
+
+	if (data.comboStatus)
+		localStorage.setItem(`tx_status:${network};${txid};${pch}`, data.comboStatus)
 
 	//todo handle PCH pre-consensus hash
 

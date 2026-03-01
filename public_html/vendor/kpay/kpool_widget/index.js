@@ -42,7 +42,7 @@ import { createTxSocket } from './websocket.js'
 	main()
 
 
-async function renderSingleTx(network, txid) {
+async function renderSingleTx(network, txid, pch = 'no_pch') {
 
 	const container = document.createElement('div')
 
@@ -97,7 +97,7 @@ async function renderSingleTx(network, txid) {
 
 	try {
 
-		const tx = await renderTxView({ network, txid, details })
+		const tx = await renderTxView({ network, txid, pch, details })  //todo pch
 
 		await enrichAccountsInfo({ network, accounts: tx.accounts })
 		await enrichAccountsKeyInfo({ network, accounts: tx.accounts })
@@ -111,17 +111,19 @@ async function renderSingleTx(network, txid) {
 		})
 
 
-
-
 		let currentData = tx.data
 		let currentAccounts = tx.accounts
-
+		let successAnimationFired = false
+		
 		const socket = createTxSocket({
 			baseUrl: 'https://hapi2.hbar.live/live',  //ip controlled (admin only).. todo wrap in local path
 			txid,
 			onTxUpdate: async update => {
 
 				console.log('[WS] update received', update)
+				console.log('[CONFETTI typeof]', typeof window.confetti)
+				
+				const prevStatus = localStorage.getItem(`tx_status:${network};${txid};${pch}`)
 
 				// merge update into current data
 				currentData = {
@@ -133,7 +135,16 @@ async function renderSingleTx(network, txid) {
 				if (update.type === 'tx_receipt' && update.receipt) {
 					currentData.receipt = update.receipt
 					currentData.receiptStatus = update.receipt.status?._code || update.receipt.status
+					if (currentData.receiptStatus === 'SUCCESS') currentData.comboStatus = 'SUCCESS'
 				}
+
+				const currentStatus = currentData.comboStatus
+				// console.log
+				if (!successAnimationFired && currentStatus === 'SUCCESS' && prevStatus !== 'SUCCESS') {
+					triggerSuccessAnimation()
+					successAnimationFired = true
+				}
+
 
 				// update status block
 				view.statusBlock.update(currentData)
@@ -148,10 +159,6 @@ async function renderSingleTx(network, txid) {
 				}
 			}
 		})
-
-
-
-
 
 
 
@@ -212,6 +219,28 @@ async function renderSingleTx(network, txid) {
 		console.warn('txRead fetch failed', e)
 	}
 }
+
+
+function triggerSuccessAnimation() {
+	console.log("window.confetti",typeof window.confetti)
+  if (!window.confetti) return
+
+  confetti({
+    particleCount: 120,
+    spread: 70,
+    origin: { y: 0.6 }
+  })
+
+  // optional second burst
+  setTimeout(() => {
+    confetti({
+      particleCount: 80,
+      spread: 100,
+      origin: { y: 0.4 }
+    })
+  }, 250)
+}
+
 
 
 const refreshSigningSection = async ({ network, data, accounts }) => {

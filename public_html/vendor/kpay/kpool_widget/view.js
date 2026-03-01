@@ -64,10 +64,11 @@
 		let timingEl = null
 
 		const render = currentData => {
+			
 			let derivedStatus 
 			if (currentData.receiptSuccess === true) derivedStatus = 'SUCCESS'
-			if (!derivedStatus)
-				derivedStatus =
+			derivedStatus ||=
+				currentData.comboStatus ||  //later to review.. but check labels vs below
 				currentData.mirrorStatus ||
 				currentData.receiptStatus ||
 				deriveStatusFromTime(data.txid, currentData.updatedAt)
