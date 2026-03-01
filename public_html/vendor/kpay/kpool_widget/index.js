@@ -129,6 +129,12 @@ async function renderSingleTx(network, txid) {
 					...update
 				}
 
+				// ----- RECEIPT PATCH -----
+				if (update.type === 'tx_receipt' && update.receipt) {
+					currentData.receipt = update.receipt
+					currentData.receiptStatus = update.receipt.status?._code || update.receipt.status
+				}
+
 				// update status block
 				view.statusBlock.update(currentData)
 

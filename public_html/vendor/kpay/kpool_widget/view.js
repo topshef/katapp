@@ -64,8 +64,12 @@
 		let timingEl = null
 
 		const render = currentData => {
-			const derivedStatus =
+			let derivedStatus 
+			if (currentData.receiptSuccess === true) derivedStatus = 'SUCCESS'
+			if (!derivedStatus)
+				derivedStatus =
 				currentData.mirrorStatus ||
+				currentData.receiptStatus ||
 				deriveStatusFromTime(data.txid, currentData.updatedAt)
 
 			statusEl.textContent = derivedStatus
