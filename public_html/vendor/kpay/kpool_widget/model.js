@@ -7,7 +7,9 @@
 import { getAccountInfo, getKeyInfo } from './hedera-mirror.js'
 
 
-export async function txRead({ network, txid }) {
+
+
+export async function txRead({ network, txid, pch = 'no_pch' }) { //todo pch
 	const url = `https://kpos.uk/pool/txRead?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}&detail=1`
 
 	const res = await fetch(url)
@@ -16,18 +18,42 @@ export async function txRead({ network, txid }) {
 	}
 
 	const rawTx = await res.json()
+	const data = rawTx.result
+	if (!data) return {url, rawTx, data}
+			
+	// enforce canonical identity
+	if (data.network && data.network !== network) {
+		throw new Error(`Network mismatch: expected ${network}, got ${data.network}`)
+	}
 
-	const transfers = getAllTransfers(rawTx)
+	if (data.txid && data.txid !== txid) {
+		throw new Error(`TxID mismatch: expected ${txid}, got ${data.txid}`)
+	}
+
+	if (data.comboStatus)
+		localStorage.setItem(`tx_status:${network};${txid};${pch}`, data.comboStatus)
+
+	//todo handle PCH pre-consensus hash
+
+	// ensure these fields always exist
+	data.network = network
+	data.txid = txid
+
+	const transfers = getAllTransfers(data)
 	const accounts = getAccountsWithRoles({ transfers, txid })
 			
-	console.log({transfers, accounts, rawTx, url})
+	console.log("txRead data=",data)
+	console.log("txRead other=",{transfers, accounts, rawTx, url})
 	return {
 		url,
-		rawTx,
+		rawTx,  // for debug.. avoid using this downstream
+		data,
 		transfers,
 		accounts
 	}
 }
+
+// function getTxStatus.. nah put it in hapi upstream
 
 function skipCouncilAccount(ac) {
   if (!ac) return true
@@ -40,9 +66,9 @@ function skipCouncilAccount(ac) {
 // │ ┬├┤  │   ╠═╣│  │     ║ ├┬┘├─┤│││└─┐├┤ ├┤ ├┬┘└─┐
 // └─┘└─┘ ┴   ╩ ╩┴─┘┴─┘   ╩ ┴└─┴ ┴┘└┘└─┘└  └─┘┴└─└─┘
 // get All Transfers	
-function getAllTransfers(rawTx) {
-	const mirrorTx = rawTx.result?.mirror?.transactions?.[0] || {}
-	const deal   = rawTx.result?.deal || {}
+function getAllTransfers(data) {
+	const mirrorTx = data.mirror?.transactions?.[0] || {}
+	const deal     = data.deal || {}
 
 	const sources = {
 		hbar:  mirrorTx.transfers       ? 'mirror'
@@ -71,7 +97,7 @@ function getAllTransfers(rawTx) {
 	}
 
 
-	console.log({raw})
+	// console.log({raw})
 	const lineItems = []
 
 	// HBAR
@@ -132,7 +158,7 @@ function getAllTransfers(rawTx) {
 		})
 	})
 	
-	console.log({mirrorTx, deal, raw, lineItems})
+	// console.log({mirrorTx, deal, raw, lineItems})
 	
 	return {
 		raw,        // original shapes, grouped

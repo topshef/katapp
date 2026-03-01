@@ -295,13 +295,14 @@ document.addEventListener('DOMContentLoaded', () => {
 			console.log(userAccountId)
 		
 			const query = new URLSearchParams({ userAccountId, starttime })
-			const response = await fetch(`/m/bid/kmm/demo1?${query}`)
+			const url = `/m/bid/kmm/demo1?${query}`
+			const response = await fetch(url)
 
 			if (!response.ok)
 				throw new Error('Network response was not ok')
 
 			const data = await response.json()
-
+			console.log(data, `result of ${url}`)
 			if (!data.txid || !data.network)
 				throw new Error('txid or network missing in response')
 

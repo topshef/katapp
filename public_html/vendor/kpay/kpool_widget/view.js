@@ -6,8 +6,96 @@
 		formatCountdown
 	} from './utils.js'
 
+	const deriveStatusFromTime = (txid, updatedAtMs) => {
+		const info = parseTxId(txid)
+		if (!info) return 'Unknown'
 
-	export const buildTxReadColumns = ({ rawTx, transfers, network, txid }) => {
+		const nowSec = Math.floor(Date.now() / 1000)
+		const scheduledSec = info.seconds
+		const diff = scheduledSec - nowSec
+
+		// still in future
+		if (diff > 0) return 'Waiting'
+
+		// within 3 min window after scheduled time
+		if (diff > -180) return 'Submitting'
+
+		// past 3 min — only expired if data is fresh enough
+		if (updatedAtMs) {
+			const freshnessSec = (Date.now() - updatedAtMs) / 1000
+			if (freshnessSec < 30) return 'Expired'
+		}
+
+		return 'Unknown'
+	}
+
+
+	/*
+		Status block component (self-contained, refreshable).
+
+		Usage:
+			const statusBlock = buildStatusBlock({ data })
+			col4.appendChild(statusBlock.el)
+
+		When polling:
+			statusBlock.update(newData)
+
+		The block derives its own display state from:
+		- mirror status (final state from API)
+		- scheduled execution time (txid)
+		- data.updatedAt (freshness)
+
+		Future enhancements:
+		- incorporate aggregated signing state (e.g. "Awaiting signatures")
+		- include balance checks (e.g. "Insufficient balance")
+		- unify timing + signing + execution into a single derived status
+		- visually differentiate Waiting / Submitting / Expired / Success / Failed
+		- optionally show progress indicators during submission
+
+		This block should remain purely data-driven:
+		it re-renders from provided data and holds no external state.
+	*/
+	export const buildStatusBlock = ({ data }) => {
+		const container = document.createElement('div')
+
+		const statusEl = document.createElement('div')
+		container.appendChild(statusEl)
+
+		let timingEl = null
+
+		const render = currentData => {
+			
+			let derivedStatus 
+			if (currentData.receiptSuccess === true) derivedStatus = 'SUCCESS'
+			derivedStatus ||=
+				currentData.comboStatus ||  //later to review.. but check labels vs below
+				currentData.mirrorStatus ||
+				currentData.receiptStatus ||
+				deriveStatusFromTime(data.txid, currentData.updatedAt)
+
+			statusEl.textContent = derivedStatus
+
+			if (timingEl) {
+				timingEl.remove()
+				timingEl = null
+			}
+
+			if (derivedStatus === 'Waiting' || derivedStatus === 'Submitting') {
+				timingEl = buildTimingBlock(data.network, data.txid)
+				container.appendChild(timingEl)
+			}
+		}
+
+		render(data)
+
+		return {
+			el: container,
+			update: newData => render(newData)
+		}
+	}
+	
+	
+	export const buildTxReadColumns = ({ rawTx, data, transfers, network, txid }) => {
 
 
 		const grid = document.createElement('div')
@@ -28,11 +116,31 @@
 
 		const col4 = document.createElement('div')
 		col4.className = 'txread-col'
-		const timing = buildTimingBlock(network, txid)
-		col4.appendChild(timing)
+		
+		const statusBlock = buildStatusBlock({ data })
+		col4.appendChild(statusBlock.el)
+
+
+		// txid link (HashScan)
+		const txLink = document.createElement('a')
+		txLink.className = 'txread-timing'
+		txLink.href = `https://hashscan.io/${network}/transaction/${txid}`
+		txLink.target = '_blank'
+		txLink.rel = 'noopener'
+		txLink.textContent = txid
+		txLink.style.wordBreak = 'break-all'
+		col4.appendChild(txLink)
+
+		// network label
+		const net = document.createElement('div')
+		net.className = 'txread-timing'
+		net.textContent = `Hedera ${network}`
+		col4.appendChild(net)
+		
+		
 
 		// thumbnail (column 1)
-		const thumbUrl = get(rawTx, 'result.deal.display.thumbnail')
+		const thumbUrl = data.deal?.display?.thumbnail // get(rawTx, 'result.deal.display.thumbnail')
 		if (thumbUrl) {
 			const img = document.createElement('img')
 			img.src = thumbUrl
@@ -63,8 +171,11 @@
 		wrapper.className = 'txread-wrapper'
 		wrapper.appendChild(grid)
 		wrapper.appendChild(signingSection)
-		return wrapper
-
+		// return wrapper
+		return {
+			el: wrapper,
+			statusBlock
+		}
 	}
 
 
@@ -117,45 +228,45 @@
 		const txidInfo = parseTxId(txid)
 		if (!txidInfo) return container
 
-		const nowSec = Math.floor(Date.now() / 1000)
-		const diff = txidInfo.seconds - nowSec
+		const targetSec = txidInfo.seconds
 
-		// time until execution
 		const countdown = document.createElement('div')
 		countdown.className = 'txread-countdown'
-		countdown.textContent = `⏱ ${formatCountdown(diff)}`
 		container.appendChild(countdown)
+
+		const update = () => {
+			const nowSec = Math.floor(Date.now() / 1000)
+			const diff = targetSec - nowSec
+
+			if (diff <= -180) {
+				countdown.textContent = '⏱ Unknown'
+				clearInterval(timer)
+				return
+			}
+
+			countdown.textContent = `⏱ ${formatCountdown(diff)}`
+		}
+
+		const timer = setInterval(update, 1000)
+		update()
 
 		// formatted start time
 		const startTime = document.createElement('div')
 		startTime.textContent = formatUtcTime(txidInfo.seconds)
 		container.appendChild(startTime)
 
-		// txid link (HashScan)
-		const txLink = document.createElement('a')
-		txLink.href = `https://hashscan.io/${network}/transaction/${txid}`
-		txLink.target = '_blank'
-		txLink.rel = 'noopener'
-		txLink.textContent = txid
-		txLink.style.wordBreak = 'break-all'
-		container.appendChild(txLink)
-
-		// network label
-		const net = document.createElement('div')
-		net.textContent = `Hedera ${network}`
-		container.appendChild(net)
-
 		return container
 	}
 		
 
-export function renderSigningInfo({ rawTx, network, accounts }) {
+export function renderSigningInfo({ data, accounts }) {
 	// derive signed keys ONCE
-	const signedPubkeys = (get(rawTx, 'result.sigs') || [])
+	const signedPubkeys = (data.sigs || [])
+	// const signedPubkeys = (get(rawTx, 'result.sigs') || [])
 		.map(s => s.pubKey)
 		.filter(Boolean)
 
-	renderAccountKeyInfo(accounts, signedPubkeys, network)
+	renderAccountKeyInfo(accounts, signedPubkeys, data.network)
 	// renderKeyPieCharts({ network, accounts, signedPubkeys })
 }
 
