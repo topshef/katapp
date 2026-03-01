@@ -194,7 +194,27 @@ async function renderSingleTx(network, txid, pch = 'no_pch') {
 
 					const fresh = await txRead({ network, txid })
 
-					view.statusBlock.update(fresh.data)
+
+					// currentData = {
+						// ...currentData,
+						// ...fresh.data
+					// }
+					currentData = {
+						...fresh.data,
+						// preserve terminal SUCCESS
+						comboStatus:
+							currentData.comboStatus === 'SUCCESS'
+								? 'SUCCESS'
+								: fresh.data.comboStatus
+					}
+
+					//fudge sink status until we sort the shot out of comboStatus webhook vs poll
+					const successKey = `tx_status:${network};${txid};no_pch`
+					if (localStorage.getItem(successKey) === 'SUCCESS') currentData.comboStatus = 'SUCCESS'
+			
+					view.statusBlock.update(currentData)
+					
+					// view.statusBlock.update(fresh.data)
 
 					// ----- refresh signing block -----
 					await refreshSigningSection({

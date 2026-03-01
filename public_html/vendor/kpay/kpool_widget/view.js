@@ -18,7 +18,7 @@
 		if (diff > 0) return 'Waiting'
 
 		// within 3 min window after scheduled time
-		if (diff > -180) return 'Submitting'
+		if (diff > -180) return 'Ready to submit..'
 
 		// past 3 min — only expired if data is fresh enough
 		if (updatedAtMs) {
@@ -64,14 +64,22 @@
 		let timingEl = null
 
 		const render = currentData => {
-			
-			let derivedStatus 
-			if (currentData.receiptSuccess === true) derivedStatus = 'SUCCESS'
-			derivedStatus ||=
-				currentData.comboStatus ||  //later to review.. but check labels vs below
+
+			if (currentData.receiptSuccess === true)
+				currentData.comboStatus = 'SUCCESS'
+
+			let derivedStatus =
+				currentData.comboStatus ||
 				currentData.mirrorStatus ||
-				currentData.receiptStatus ||
-				deriveStatusFromTime(data.txid, currentData.updatedAt)
+				currentData.receiptStatus
+
+			if (!derivedStatus)
+				derivedStatus = deriveStatusFromTime(currentData.txid, currentData.updatedAt)
+			
+			const pch = data.PCH  //later
+			// const successKey = `tx_status:${network};${txid};${pch}`
+			const successKey = `tx_status:${currentData.network};${currentData.txid};no_pch`
+			if (derivedStatus === 'SUCCESS') localStorage.setItem(successKey, 'SUCCESS') // fudge sink this fucker
 
 			statusEl.textContent = derivedStatus
 
@@ -80,7 +88,10 @@
 				timingEl = null
 			}
 
-			if (derivedStatus === 'Waiting' || derivedStatus === 'Submitting') {
+			if (
+				derivedStatus?.startsWith('Waiting') ||
+				derivedStatus?.startsWith('Ready')
+			) {
 				timingEl = buildTimingBlock(data.network, data.txid)
 				container.appendChild(timingEl)
 			}
