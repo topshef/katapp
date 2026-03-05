@@ -288,82 +288,7 @@
       return { v, known, unknown }
     }
 
-    // Swap observation -> if exactly one give and one get, infer pair rate
-    const impliedPairRateFromSwap = legs => {
-      const neg = legs.filter(x => x.amount < 0)
-      const pos = legs.filter(x => x.amount > 0)
 
-      if (neg.length !== 1 || pos.length !== 1) return null
-
-      const give = neg[0]
-      const get = pos[0]
-
-      const a = give.asset
-      const b = get.asset
-      const x = -give.amount
-      const y = get.amount
-
-      if (x <= 0 || y <= 0) return null
-
-      return { a, b, rateBperA: y / x }
-    }
-
-    // Multi-asset swap -> pick a pivot pair using current state (kept for now)
-    const reduceMultiSwapToPair = (state, legs) => {
-      const give = legs.filter(x => x.amount < 0)
-      const get = legs.filter(x => x.amount > 0)
-      if (!give.length || !get.length) return null
-
-      const scoreLeg = leg => {
-        const p = priceOf(state, leg.asset)
-        if (p === null) return { ok: false, leg, p: null, absNotional: 0 }
-        return { ok: true, leg, p, absNotional: Math.abs(leg.amount) * p }
-      }
-
-      const giveScored = give.map(scoreLeg).sort((a,b) => b.absNotional - a.absNotional)
-      const getScored  = get.map(scoreLeg).sort((a,b) => b.absNotional - a.absNotional)
-
-      const givePivot = giveScored.find(x => x.ok)
-      const getPivot  = getScored.find(x => x.ok)
-
-      if (!givePivot || !getPivot) return null
-
-      const giveValue = giveScored.filter(x => x.ok).reduce((acc, x) => acc + (-x.leg.amount) * x.p, 0)
-      const getValue  = getScored.filter(x => x.ok).reduce((acc, x) => acc + ( x.leg.amount) * x.p, 0)
-
-      if (giveValue <= 0 || getValue <= 0) return null
-
-      const givePivotUnits = giveValue / givePivot.p
-      const getPivotUnits  = getValue  / getPivot.p
-
-      const a = givePivot.leg.asset
-      const b = getPivot.leg.asset
-
-      const rateBperA = getPivotUnits / givePivotUnits
-      if (!Number.isFinite(rateBperA) || rateBperA <= 0) return null
-
-      return { a, b, rateBperA, note: "reduced multi-asset swap" }
-    }
-
-    // EWMA update on difference s[a] - s[b] towards log(rateBperA)
-    const updatePairConstraint = (state, a, b, rateBperA, alpha) => {
-      const s = state.prices
-
-      if (!(a in s)) s[a] = 0
-      if (!(b in s)) s[b] = 0
-
-      const current = s[a] - s[b]
-      const target = safeLog(rateBperA)
-      const delta = target - current
-
-      s[a] += alpha * delta
-      s[b] -= alpha * delta
-
-      state.prices = normalizeAnchor(s, state.anchor)
-      state.observations += 1
-
-      return { current, target, delta }
-    }
 
     const seedFromOracleIfPreferred = (state, event, preferOracleSeed) => {
       if (!preferOracleSeed) return
@@ -399,17 +324,51 @@
       return [...out.entries()].map(([account, legs]) => ({ account, legs }))
     }
 
-    // Apply one swap observation (legs) to the global market state
+
     const applySwapObservation = (state, legs, alpha) => {
-      const pair = impliedPairRateFromSwap(legs)
-      if (pair) return updatePairConstraint(state, pair.a, pair.b, pair.rateBperA, alpha)
+      const s = state.prices
 
-      const reduced = reduceMultiSwapToPair(state, legs)
-      if (reduced) return updatePairConstraint(state, reduced.a, reduced.b, reduced.rateBperA, alpha)
+      // ensure all assets exist
+      for (const leg of legs)
+        if (!(leg.asset in s))
+          s[leg.asset] = 0
 
+      // compute prices
+      const prices = {}
+      for (const leg of legs)
+        prices[leg.asset] = Math.exp(s[leg.asset])
+
+      // compute residual
+      let residual = 0
+      for (const leg of legs)
+        residual += leg.amount * prices[leg.asset]
+
+      // if residual very small, skip
+      if (!Number.isFinite(residual) || Math.abs(residual) < 1e-12) {
+        state.observations += 1
+        return { residual }
+      }
+
+        // compute trade scale
+        let scale = 0
+        for (const leg of legs)
+          scale += Math.abs(leg.amount) * prices[leg.asset]
+
+        if (scale <= 0) scale = 1
+
+        // gradient update (normalized)
+        for (const leg of legs) {
+          const p = prices[leg.asset]
+          const grad = leg.amount * p
+          s[leg.asset] -= alpha * (grad / scale) * residual
+        }
+
+      state.prices = normalizeAnchor(s, state.anchor)
       state.observations += 1
-      return { current: NaN, target: NaN, delta: NaN, note: "no update (insufficient info)" }
+
+      return { residual }
     }
+
 
     // Global apply: oracle is one observation, swap is many (one per account)
     const applyEvent = (state, event, baseAlpha, preferOracleSeed) => {
@@ -418,7 +377,22 @@
 
       if (event.type === "oracle") {
         seedFromOracleIfPreferred(state, event, preferOracleSeed)
-        return { kind: "oracle", updates: [ updatePairConstraint(state, event.base, event.quote, event.price, alpha) ] }
+        const s = state.prices
+
+        if (!(event.base in s)) s[event.base] = 0
+        if (!(event.quote in s)) s[event.quote] = 0
+
+        const current = s[event.base] - s[event.quote]
+        const target = safeLog(event.price)
+        const delta = target - current
+
+        s[event.base] += alpha * delta
+        s[event.quote] -= alpha * delta
+
+        state.prices = normalizeAnchor(s, state.anchor)
+        state.observations += 1
+
+        return { kind: "oracle", updates: [ { current, target, delta } ] }
       }
 
       if (event.type === "swap") {
@@ -431,9 +405,10 @@
         // Split alpha across accounts so one atomic swap doesn't triple its influence
         const per = alpha / parts.length
         const updates = []
-        for (const p of parts)
-          updates.push(applySwapObservation(state, p.legs, per))
-
+        for (const p of parts) {
+          const r = applySwapObservation(state, p.legs, per)
+          updates.push(r)
+        }
         return { kind: "swap", updates }
       }
 
@@ -562,7 +537,12 @@
       ev.textContent = row.eventText
       ev.className = "mono"
       const det = document.createElement("div")
-      det.textContent = row.score.details
+      
+        let extra = ""
+        if (row.residual !== undefined)
+          extra = ` residual=${fmt(row.residual,6)}`
+        det.textContent = row.score.details + extra
+      
       det.className = "muted small"
       tdEvent.appendChild(ev)
       tdEvent.appendChild(det)
@@ -718,17 +698,31 @@
 
       const score = scoreEventVsMarket(market, event, subjectAccount)
 
-      applyEvent(market, event, baseAlpha, preferOracleSeed)
+      const result = applyEvent(market, event, baseAlpha, preferOracleSeed)
 
       const stateAfter = normalizeAnchor(clone(market.prices), market.anchor)
 
-      renderRow({
-        timestamp: event.timestamp,
-        eventType: event.type,
-        eventText: describeEvent(event),
-        score,
-        stateAfter
-      })
+
+        let residual = undefined
+        if (result?.updates?.length) {
+          const rs = result.updates
+            .map(u => u?.residual)
+            .filter(x => Number.isFinite(x))
+
+          if (rs.length)
+            residual = rs.reduce((m, x) => Math.max(m, Math.abs(x)), 0)
+        }
+
+
+
+        renderRow({
+          timestamp: event.timestamp,
+          eventType: event.type,
+          eventText: describeEvent(event),
+          score,
+          residual,
+          stateAfter
+        })
 
       index += 1
       refreshHeader()
