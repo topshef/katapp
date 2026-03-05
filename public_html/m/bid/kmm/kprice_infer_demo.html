@@ -325,6 +325,86 @@
     }
 
 
+
+
+    // Split an atomic swap into connected basket components
+    // most atomic swaps would just output one basket but..
+    // you could construct swaps that include more than one,
+    // eg alice and bob will trade X if carole and dave also trade yellow
+    // this code then splits those into 2 baskets, trade X and trade Y
+    const extractSwapBaskets = (event) => {
+
+      const parts = splitSwapByAccount(event)
+      if (!parts.length) return []
+
+      // build account adjacency graph
+      const adj = new Map()
+
+      for (const p of parts)
+        adj.set(p.account, new Set())
+
+      const transfers = event?.transfers || []
+
+      // accounts are connected if they share an asset
+      const assetMap = new Map()
+
+      for (const t of transfers) {
+        if (!assetMap.has(t.asset))
+          assetMap.set(t.asset, [])
+
+        assetMap.get(t.asset).push(t.account)
+      }
+
+      for (const accounts of assetMap.values())
+        for (const a of accounts)
+          for (const b of accounts)
+            if (a !== b)
+              adj.get(a).add(b)
+
+      // find connected components
+      const visited = new Set()
+      const components = []
+
+      for (const acc of adj.keys()) {
+
+        if (visited.has(acc)) continue
+
+        const stack = [acc]
+        const comp = []
+
+        while (stack.length) {
+          const cur = stack.pop()
+          if (visited.has(cur)) continue
+
+          visited.add(cur)
+          comp.push(cur)
+
+          for (const nxt of adj.get(cur))
+            if (!visited.has(nxt))
+              stack.push(nxt)
+        }
+
+        components.push(comp)
+      }
+
+      // choose canonical basket for each component
+      const baskets = []
+
+      for (const comp of components) {
+
+        comp.sort()
+        const chosen = comp[0]
+
+        const part = parts.find(p => p.account === chosen)
+
+        if (part && part.legs?.length)
+          baskets.push(part.legs)
+      }
+
+      return baskets
+    }
+
+
     const applySwapObservation = (state, legs, alpha) => {
       const s = state.prices
 
@@ -395,22 +475,27 @@
         return { kind: "oracle", updates: [ { current, target, delta } ] }
       }
 
-      if (event.type === "swap") {
-        const parts = splitSwapByAccount(event).filter(x => x.legs && x.legs.length)
-        if (!parts.length) {
-          state.observations += 1
-          return { kind: "swap", updates: [ { current: NaN, target: NaN, delta: NaN, note: "no accounts" } ] }
+
+        if (event.type === "swap") {
+
+          const baskets = extractSwapBaskets(event)
+
+          if (!baskets.length) {
+            state.observations += 1
+            return { kind: "swap", updates: [] }
+          }
+
+          const updates = []
+
+          for (const legs of baskets) {
+            const r = applySwapObservation(state, legs, alpha)
+            updates.push(r)
+          }
+
+          return { kind: "swap", updates }
         }
 
-        // Split alpha across accounts so one atomic swap doesn't triple its influence
-        const per = alpha / parts.length
-        const updates = []
-        for (const p of parts) {
-          const r = applySwapObservation(state, p.legs, per)
-          updates.push(r)
-        }
-        return { kind: "swap", updates }
-      }
+
 
       state.observations += 1
       return { kind: "other", updates: [ { current: NaN, target: NaN, delta: NaN, note: "no update (unknown event)" } ] }
