@@ -348,20 +348,24 @@
 
       if (scale <= 0) return null
 
-      const deltas = []
 
-      for (const leg of legs) {
-        const p = prices[leg.asset]
-        const delta = -(residual / scale) * leg.amount
 
-        deltas.push({
-          asset: leg.asset,
-          delta
-        })
-      }
+        const k = (scale - residual) / scale
+
+        const deltas = []
+
+        for (const leg of legs) {
+          const delta = (k - 1) * leg.amount
+
+          deltas.push({
+            asset: leg.asset,
+            delta
+          })
+        }
 
       return {
         residualBefore: residual,
+        k: (scale - residual) / scale,
         deltas
       }
     }
