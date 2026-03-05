@@ -47,9 +47,6 @@
       padding: 10px;
       background: #f3f3f3;
       border-bottom: 1px solid #e6e6e6;
-      position: sticky;
-      top: 0;
-      z-index: 1;
     }
     tbody td {
       padding: 10px;
@@ -57,7 +54,10 @@
       vertical-align: top;
     }
     tbody tr:hover { background: #fcfcfc; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      white-space: pre;
+    }
     .pill {
       display: inline-flex;
       padding: 2px 8px;
@@ -152,7 +152,7 @@
 
   <div class="card" style="margin-top: 10px;">
     <h2>Event Timeline</h2>
-    <div style="max-height: 55vh; overflow: auto;">
+    <div>
       <table>
         <thead>
           <tr>
@@ -160,7 +160,7 @@
             <th style="width: 90px;">type</th>
             <th>event</th>
             <th style="width: 180px;">score vs market</th>
-            <th style="width: 320px;">state before / after</th>
+            <th style="width: 260px;">state after</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -495,9 +495,16 @@
       const tdState = document.createElement("td")
       if ($("showStateJson").checked) {
         const pre = document.createElement("div")
-        pre.className = "jsonbox mono"
-        pre.textContent =
-          `before:\n${JSON.stringify(row.stateBefore, null, 2)}\n\nafter:\n${JSON.stringify(row.stateAfter, null, 2)}`
+        pre.className = "mono"
+
+        const lines = Object.keys(row.stateAfter)
+          .sort()
+          .map(a => {
+            const v = Math.exp(row.stateAfter[a])
+            return `${a.padEnd(12)} ${v.toFixed(6)}`
+          })
+
+        pre.textContent = lines.join("\n")
         tdState.appendChild(pre)
       } else {
         tdState.textContent = "(hidden)"
@@ -510,7 +517,7 @@
       tr.appendChild(tdScore)
       tr.appendChild(tdState)
 
-      $("tbody").appendChild(tr)
+      $("tbody").prepend(tr)
     }
 
     let timeline = []
@@ -529,6 +536,15 @@
       market = initMarketState($("anchorSelect").value || null)
       $("tbody").innerHTML = ""
       refreshHeader()
+      
+        renderRow({
+          timestamp: "T0",
+          eventType: "init",
+          eventText: "initial state",
+          score: { label:"", score:0, details:"" },
+          stateAfter: normalizeAnchor(clone(market.prices), market.anchor)
+        })
+      
     }
 
     const enableControls = on => {
