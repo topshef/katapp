@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Atomic Swap Market Intel Demo</title>
+  <title>Atomic Swap Market Intel Demo (Global ingestion)</title>
   <style>
     :root {
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
@@ -79,7 +79,7 @@
   </style>
 </head>
 <body>
-  <h1>Atomic Swap “Market Intel” Demo (Oracle + Swap ingestion)</h1>
+  <h1>Atomic Swap “Market Intel” Demo (Oracle + Global Atomic Swap ingestion)</h1>
 
   <div class="grid">
     <div class="card">
@@ -88,6 +88,11 @@
         <label>
           Anchor
           <select id="anchorSelect"></select>
+        </label>
+
+        <label>
+          View account
+          <select id="accountSelect"></select>
         </label>
 
         <label>
@@ -130,7 +135,10 @@
       </div>
 
       <div class="footer">
-        This demo keeps a log-price state <span class="mono">s[asset]</span>. Oracle and pairwise swap rates update differences <span class="mono">s[a] - s[b]</span> via EWMA.
+        Global state keeps log-prices <span class="mono">s[asset]</span>.
+        Oracle and swap observations update constraints via EWMA.
+        Swap ingestion is <b>global</b>: each atomic swap contains per-account transfers, and the market learns from all accounts.
+        The score column is a <b>subjective</b> view for the selected account only.
       </div>
     </div>
 
@@ -139,6 +147,7 @@
       <div class="row">
         <div class="pill"><span class="muted">processed</span> <span id="processedCount">0</span> / <span id="eventCount">0</span></div>
         <div class="pill"><span class="muted">anchor</span> <span id="anchorLabel" class="mono">none</span></div>
+        <div class="pill"><span class="muted">view</span> <span id="accountLabel" class="mono">none</span></div>
       </div>
 
       <div class="row">
@@ -159,7 +168,7 @@
             <th style="width: 110px;">t</th>
             <th style="width: 90px;">type</th>
             <th>event</th>
-            <th style="width: 180px;">score vs market</th>
+            <th style="width: 220px;">score vs market (view account)</th>
             <th style="width: 260px;">state after</th>
           </tr>
         </thead>
@@ -173,30 +182,64 @@
 
     const defaultDataset = () => ({
       events: [
-        { type: "oracle", timestamp: 1, base: "HBAR", quote: "USDC", price: 0.08, weight: 1.0, source: "oracle" },
+        { type: "oracle", timestamp: 1, base: "HBAR", quote: "USDC", price: 0.08,  weight: 1.0, source: "oracle" },
         { type: "oracle", timestamp: 2, base: "APPLE", quote: "USDC", price: 0.45, weight: 0.8, source: "oracle" },
 
-        { type: "swap",   timestamp: 3, legs: [ { asset: "APPLE", amount: -5 }, { asset: "BANANA", amount: 10 } ], weight: 1.0, source: "swap" },
+        // Atomic swap (global): Alice gives 5 APPLE to Bob, Bob gives 10 BANANA to Alice
+        { type: "swap", timestamp: 3, weight: 1.0, source: "swap", transfers: [
+          { account: "Alice", asset: "APPLE",  amount: -5 },
+          { account: "Alice", asset: "BANANA", amount: 10 },
+          { account: "Bob",   asset: "APPLE",  amount: 5 },
+          { account: "Bob",   asset: "BANANA", amount: -10 }
+        ]},
 
-        { type: "swap",   timestamp: 4, legs: [ { asset: "BANANA", amount: -20 }, { asset: "HBAR", amount: 50 } ], weight: 1.0, source: "swap" },
+        // Atomic swap (global): Bob <-> Carol via HBAR/BANANA
+        { type: "swap", timestamp: 4, weight: 1.0, source: "swap", transfers: [
+          { account: "Bob",   asset: "BANANA", amount: -20 },
+          { account: "Bob",   asset: "HBAR",   amount: 50 },
+          { account: "Carol", asset: "BANANA", amount: 20 },
+          { account: "Carol", asset: "HBAR",   amount: -50 }
+        ]},
 
-        { type: "swap",   timestamp: 5, legs: [ { asset: "NFT_CAT", amount: -1 }, { asset: "HBAR", amount: 300 }, { asset: "BANANA", amount: 25 } ], weight: 0.6, source: "swap" },
+        // Atomic swap (global): multi-asset bundle for Alice; Bob is counterparty
+        // Alice gives 1 NFT_CAT, receives 300 HBAR + 25 BANANA
+        { type: "swap", timestamp: 5, weight: 0.6, source: "swap", transfers: [
+          { account: "Alice", asset: "NFT_CAT", amount: -1 },
+          { account: "Alice", asset: "HBAR",    amount: 300 },
+          { account: "Alice", asset: "BANANA",  amount: 25 },
+
+          { account: "Bob",   asset: "NFT_CAT", amount: 1 },
+          { account: "Bob",   asset: "HBAR",    amount: -300 },
+          { account: "Bob",   asset: "BANANA",  amount: -25 }
+        ]},
 
         { type: "oracle", timestamp: 6, base: "HBAR", quote: "USDC", price: 0.085, weight: 1.0, source: "oracle" },
 
-        { type: "swap",   timestamp: 7, legs: [ { asset: "APPLE", amount: -1 }, { asset: "HBAR", amount: 6 } ], weight: 0.9, source: "swap" },
+        // Atomic swap: Carol trades APPLE for HBAR with Alice
+        { type: "swap", timestamp: 7, weight: 0.9, source: "swap", transfers: [
+          { account: "Carol", asset: "APPLE", amount: -1 },
+          { account: "Carol", asset: "HBAR",  amount: 6 },
+          { account: "Alice", asset: "APPLE", amount: 1 },
+          { account: "Alice", asset: "HBAR",  amount: -6 }
+        ]},
 
         { type: "oracle", timestamp: 8, base: "BANANA", quote: "USDC", price: 0.22, weight: 0.5, source: "oracle" },
 
-        { type: "swap",   timestamp: 9, legs: [ { asset: "NFT_CAT", amount: -1 }, { asset: "APPLE", amount: 18 } ], weight: 0.6, source: "swap" }
+        // Atomic swap: Bob buys NFT_CAT from Carol with APPLE
+        { type: "swap", timestamp: 9, weight: 0.6, source: "swap", transfers: [
+          { account: "Bob",   asset: "NFT_CAT", amount: -1 },
+          { account: "Bob",   asset: "APPLE",   amount: 18 },
+          { account: "Carol", asset: "NFT_CAT", amount: 1 },
+          { account: "Carol", asset: "APPLE",   amount: -18 }
+        ]}
       ]
     })
 
     const clone = x => JSON.parse(JSON.stringify(x))
-
     const fmt = (n, d=6) => Number.isFinite(n) ? Number(n).toFixed(d) : "NaN"
-
     const safeLog = x => Math.log(Math.max(x, 1e-18))
+
+    // ---------- Global ingestion helpers ----------
 
     const normalizeAnchor = (s, anchor) => {
       if (!anchor) return s
@@ -209,20 +252,6 @@
       return out
     }
 
-    const listAssetsFromEvents = events => {
-      const set = new Set()
-      for (const e of events) {
-        if (e.type === "oracle") {
-          set.add(e.base)
-          set.add(e.quote)
-        }
-        if (e.type === "swap")
-          for (const leg of e.legs)
-            set.add(leg.asset)
-      }
-      return [...set].sort()
-    }
-
     const initMarketState = anchor => ({
       prices: anchor ? { [anchor]: 0 } : {},
       anchor,
@@ -233,25 +262,6 @@
       state.anchor = anchor || null
       state.prices = normalizeAnchor(state.prices, state.anchor)
       return state
-    }
-
-    const impliedPairRateFromSwap = (legs) => {
-      const neg = legs.filter(x => x.amount < 0)
-      const pos = legs.filter(x => x.amount > 0)
-
-      if (neg.length !== 1 || pos.length !== 1) return null
-
-      const give = neg[0]
-      const get = pos[0]
-
-      const a = give.asset
-      const b = get.asset
-      const x = -give.amount
-      const y = get.amount
-
-      if (x <= 0 || y <= 0) return null
-
-      return { a, b, rateBperA: y / x }
     }
 
     const priceOf = (state, asset) => {
@@ -278,11 +288,27 @@
       return { v, known, unknown }
     }
 
-    // Multi-asset swap -> pick a pivot pair using current state
-    // Strategy:
-    // - compute value of give side and get side in anchor terms (if possible)
-    // - choose a pivot asset from give (most known) and pivot from get (most known)
-    // - reduce to implied rate between pivots
+    // Swap observation -> if exactly one give and one get, infer pair rate
+    const impliedPairRateFromSwap = legs => {
+      const neg = legs.filter(x => x.amount < 0)
+      const pos = legs.filter(x => x.amount > 0)
+
+      if (neg.length !== 1 || pos.length !== 1) return null
+
+      const give = neg[0]
+      const get = pos[0]
+
+      const a = give.asset
+      const b = get.asset
+      const x = -give.amount
+      const y = get.amount
+
+      if (x <= 0 || y <= 0) return null
+
+      return { a, b, rateBperA: y / x }
+    }
+
+    // Multi-asset swap -> pick a pivot pair using current state (kept for now)
     const reduceMultiSwapToPair = (state, legs) => {
       const give = legs.filter(x => x.amount < 0)
       const get = legs.filter(x => x.amount > 0)
@@ -307,12 +333,9 @@
 
       if (giveValue <= 0 || getValue <= 0) return null
 
-      // implied exchange: givePivot.asset -> getPivot.asset
-      // We convert full give bundle value into units of givePivot, and full get bundle value into units of getPivot
       const givePivotUnits = giveValue / givePivot.p
       const getPivotUnits  = getValue  / getPivot.p
 
-      // trade says: givePivotUnits of givePivot buys getPivotUnits of getPivot
       const a = givePivot.leg.asset
       const b = getPivot.leg.asset
 
@@ -345,22 +368,91 @@
     const seedFromOracleIfPreferred = (state, event, preferOracleSeed) => {
       if (!preferOracleSeed) return
       if (event.type !== "oracle") return
+
       const s = state.prices
       if (!(event.quote in s) && state.anchor && event.quote === state.anchor)
         s[event.quote] = 0
       if (!(event.quote in s)) return
 
       if (!(event.base in s)) {
-        // if quote known and base unknown, set base from oracle directly
-        const base = event.base
-        const quote = event.quote
-        const target = safeLog(event.price) + s[quote]
-        s[base] = target
+        const target = safeLog(event.price) + s[event.quote]
+        s[event.base] = target
         state.prices = normalizeAnchor(s, state.anchor)
       }
     }
 
-    const scoreEventVsMarket = (state, event) => {
+    // Given a global swap event, produce per-account net legs
+    const splitSwapByAccount = (event) => {
+      const out = new Map()
+      const transfers = event?.transfers || []
+      for (const t of transfers) {
+        const account = String(t.account || "").trim()
+        const asset = String(t.asset || "").trim()
+        const amount = Number(t.amount || 0)
+
+        if (!account || !asset) continue
+        if (!Number.isFinite(amount) || amount === 0) continue
+
+        if (!out.has(account)) out.set(account, [])
+        out.get(account).push({ asset, amount })
+      }
+      return [...out.entries()].map(([account, legs]) => ({ account, legs }))
+    }
+
+    // Apply one swap observation (legs) to the global market state
+    const applySwapObservation = (state, legs, alpha) => {
+      const pair = impliedPairRateFromSwap(legs)
+      if (pair) return updatePairConstraint(state, pair.a, pair.b, pair.rateBperA, alpha)
+
+      const reduced = reduceMultiSwapToPair(state, legs)
+      if (reduced) return updatePairConstraint(state, reduced.a, reduced.b, reduced.rateBperA, alpha)
+
+      state.observations += 1
+      return { current: NaN, target: NaN, delta: NaN, note: "no update (insufficient info)" }
+    }
+
+    // Global apply: oracle is one observation, swap is many (one per account)
+    const applyEvent = (state, event, baseAlpha, preferOracleSeed) => {
+      const weight = Number.isFinite(event.weight) ? event.weight : 1
+      const alpha = Math.max(0, Math.min(1, baseAlpha * weight))
+
+      if (event.type === "oracle") {
+        seedFromOracleIfPreferred(state, event, preferOracleSeed)
+        return { kind: "oracle", updates: [ updatePairConstraint(state, event.base, event.quote, event.price, alpha) ] }
+      }
+
+      if (event.type === "swap") {
+        const parts = splitSwapByAccount(event).filter(x => x.legs && x.legs.length)
+        if (!parts.length) {
+          state.observations += 1
+          return { kind: "swap", updates: [ { current: NaN, target: NaN, delta: NaN, note: "no accounts" } ] }
+        }
+
+        // Split alpha across accounts so one atomic swap doesn't triple its influence
+        const per = alpha / parts.length
+        const updates = []
+        for (const p of parts)
+          updates.push(applySwapObservation(state, p.legs, per))
+
+        return { kind: "swap", updates }
+      }
+
+      state.observations += 1
+      return { kind: "other", updates: [ { current: NaN, target: NaN, delta: NaN, note: "no update (unknown event)" } ] }
+    }
+
+    // ---------- Scoring (subjective view) ----------
+
+    const subjectLegsFromSwap = (event, subjectAccount) => {
+      if (!subjectAccount) return []
+      const transfers = event?.transfers || []
+      return transfers
+        .filter(t => String(t.account) === subjectAccount)
+        .map(t => ({ asset: t.asset, amount: Number(t.amount || 0) }))
+        .filter(l => l.asset && Number.isFinite(l.amount) && l.amount !== 0)
+    }
+
+    const scoreEventVsMarket = (state, event, subjectAccount) => {
       if (event.type === "oracle") {
         const s = state.prices
         if (!(event.base in s) || !(event.quote in s))
@@ -378,12 +470,15 @@
       }
 
       if (event.type === "swap") {
-        const { v, known, unknown } = bundleValue(state, event.legs)
+        const legs = subjectLegsFromSwap(event, subjectAccount)
+        if (!legs.length)
+          return { score: 0, label: "n/a", details: `No legs for ${subjectAccount || "?"}` }
 
+        const { v, known, unknown } = bundleValue(state, legs)
         if (known === 0)
-          return { score: 0, label: "unknown", details: "No priced assets in this swap yet" }
+          return { score: 0, label: "unknown", details: "No priced assets in this subject view yet" }
 
-        const notional = event.legs.reduce((acc, leg) => {
+        const notional = legs.reduce((acc, leg) => {
           const p = priceOf(state, leg.asset)
           if (p === null) return acc
           return acc + Math.abs(leg.amount) * p
@@ -393,7 +488,7 @@
         const score = v / denom
 
         const label = score > 0.05 ? "good" : score < -0.05 ? "bad" : "fair"
-        const details = `value=${fmt(v, 6)} notional=${fmt(notional, 6)} known=${known} unknown=${unknown}`
+        const details = `acct=${subjectAccount} value=${fmt(v, 6)} notional=${fmt(notional, 6)} known=${known} unknown=${unknown}`
 
         return { score, label, details }
       }
@@ -401,41 +496,17 @@
       return { score: 0, label: "n/a", details: "Unsupported event" }
     }
 
-    const applyEvent = (state, event, baseAlpha, preferOracleSeed) => {
-      const weight = Number.isFinite(event.weight) ? event.weight : 1
-      const alpha = Math.max(0, Math.min(1, baseAlpha * weight))
-
-      if (event.type === "oracle") {
-        seedFromOracleIfPreferred(state, event, preferOracleSeed)
-        return updatePairConstraint(state, event.base, event.quote, event.price, alpha)
-      }
-
-      if (event.type === "swap") {
-        const pair = impliedPairRateFromSwap(event.legs)
-        if (pair) return updatePairConstraint(state, pair.a, pair.b, pair.rateBperA, alpha)
-
-        const reduced = reduceMultiSwapToPair(state, event.legs)
-        if (reduced) return updatePairConstraint(state, reduced.a, reduced.b, reduced.rateBperA, alpha)
-
-        state.observations += 1
-        return { current: NaN, target: NaN, delta: NaN, note: "no update (insufficient info)" }
-      }
-
-      state.observations += 1
-      return { current: NaN, target: NaN, delta: NaN, note: "no update (unknown event)" }
-    }
+    // ---------- Rendering ----------
 
     const renderPriceList = state => {
       const s = normalizeAnchor(clone(state.prices), state.anchor)
-      const anchor = state.anchor
-
       const rows = Object.keys(s).sort().map(asset => {
-        const rel = anchor ? Math.exp(s[asset]) : Math.exp(s[asset])
-        const base = fmt(rel, 8)
-        return `${asset.padEnd(12)}  ${base}`
+        const rel = Math.exp(s[asset])
+        return `${asset.padEnd(12)}  ${fmt(rel, 8)}`
       })
       $("priceList").textContent = rows.join("\n") || "(empty)"
-      $("anchorLabel").textContent = anchor || "none"
+      $("anchorLabel").textContent = state.anchor || "none"
+      $("accountLabel").textContent = $("accountSelect").value || "none"
     }
 
     const describeEvent = event => {
@@ -443,8 +514,15 @@
         return `oracle ${event.base}/${event.quote} = ${event.price}  (w=${event.weight ?? 1})`
 
       if (event.type === "swap") {
-        const parts = event.legs.map(l => `${l.amount > 0 ? "+" : ""}${l.amount} ${l.asset}`)
-        return `swap legs: ${parts.join(" , ")}  (w=${event.weight ?? 1})`
+        const parts = splitSwapByAccount(event)
+          .map(p => {
+            const legs = p.legs
+              .map(l => `${l.amount > 0 ? "+" : ""}${l.amount} ${l.asset}`)
+              .join(" , ")
+            return `${p.account}: ${legs}`
+          })
+          .join("   |   ")
+        return `atomic swap (global): ${parts}  (w=${event.weight ?? 1})`
       }
 
       return JSON.stringify(event)
@@ -520,6 +598,73 @@
       $("tbody").prepend(tr)
     }
 
+    // ---------- Dataset utilities ----------
+
+    const listAssetsFromEvents = events => {
+      const set = new Set()
+      for (const e of events) {
+        if (e.type === "oracle") {
+          set.add(e.base)
+          set.add(e.quote)
+        }
+        if (e.type === "swap") {
+          const transfers = e.transfers || []
+          for (const t of transfers)
+            if (t.asset) set.add(t.asset)
+        }
+      }
+      return [...set].sort()
+    }
+
+    const listAccountsFromEvents = events => {
+      const set = new Set()
+      for (const e of events) {
+        if (e.type !== "swap") continue
+        const transfers = e.transfers || []
+        for (const t of transfers)
+          if (t.account) set.add(String(t.account))
+      }
+      return [...set].sort()
+    }
+
+    const populateAnchors = assets => {
+      const sel = $("anchorSelect")
+      sel.innerHTML = ""
+
+      const optNone = document.createElement("option")
+      optNone.value = ""
+      optNone.textContent = "none"
+      sel.appendChild(optNone)
+
+      for (const a of assets) {
+        const opt = document.createElement("option")
+        opt.value = a
+        opt.textContent = a
+        sel.appendChild(opt)
+      }
+
+      if (assets.includes("USDC")) sel.value = "USDC"
+      else if (assets.includes("HBAR")) sel.value = "HBAR"
+      else sel.value = ""
+    }
+
+    const populateAccounts = accounts => {
+      const sel = $("accountSelect")
+      sel.innerHTML = ""
+
+      for (const a of accounts) {
+        const opt = document.createElement("option")
+        opt.value = a
+        opt.textContent = a
+        sel.appendChild(opt)
+      }
+
+      if (accounts.includes("Alice")) sel.value = "Alice"
+      else sel.value = accounts[0] || ""
+    }
+
+    // ---------- Runner ----------
+
     let timeline = []
     let index = 0
     let market = initMarketState(null)
@@ -536,15 +681,14 @@
       market = initMarketState($("anchorSelect").value || null)
       $("tbody").innerHTML = ""
       refreshHeader()
-      
-        renderRow({
-          timestamp: "T0",
-          eventType: "init",
-          eventText: "initial state",
-          score: { label:"", score:0, details:"" },
-          stateAfter: normalizeAnchor(clone(market.prices), market.anchor)
-        })
-      
+
+      renderRow({
+        timestamp: "T0",
+        eventType: "init",
+        eventText: "initial state",
+        score: { label:"", score:0, details:"" },
+        stateAfter: normalizeAnchor(clone(market.prices), market.anchor)
+      })
     }
 
     const enableControls = on => {
@@ -570,9 +714,9 @@
       const event = timeline[index]
       const baseAlpha = parseFloat($("alphaInput").value || "0.25")
       const preferOracleSeed = $("preferOracleSeed").checked
+      const subjectAccount = $("accountSelect").value
 
-      const stateBefore = normalizeAnchor(clone(market.prices), market.anchor)
-      const score = scoreEventVsMarket(market, event)
+      const score = scoreEventVsMarket(market, event, subjectAccount)
 
       applyEvent(market, event, baseAlpha, preferOracleSeed)
 
@@ -583,7 +727,6 @@
         eventType: event.type,
         eventText: describeEvent(event),
         score,
-        stateBefore,
         stateAfter
       })
 
@@ -605,34 +748,15 @@
       }, Math.max(50, speed))
     }
 
-    const populateAnchors = assets => {
-      const sel = $("anchorSelect")
-      sel.innerHTML = ""
-
-      const optNone = document.createElement("option")
-      optNone.value = ""
-      optNone.textContent = "none"
-      sel.appendChild(optNone)
-
-      for (const a of assets) {
-        const opt = document.createElement("option")
-        opt.value = a
-        opt.textContent = a
-        sel.appendChild(opt)
-      }
-
-      // default preference
-      if (assets.includes("USDC")) sel.value = "USDC"
-      else if (assets.includes("HBAR")) sel.value = "HBAR"
-      else sel.value = ""
-    }
-
     const loadDataset = data => {
       const events = (data?.events || []).slice().sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
       timeline = events
 
       const assets = listAssetsFromEvents(events)
       populateAnchors(assets)
+
+      const accounts = listAccountsFromEvents(events)
+      populateAccounts(accounts)
 
       resetRun()
       enableControls(true)
@@ -663,6 +787,10 @@
       refreshHeader()
     }
 
+    const onAccountChange = () => {
+      refreshHeader()
+    }
+
     $("loadBtn").addEventListener("click", () => {
       stopPlay()
       loadDemo()
@@ -682,9 +810,9 @@
     })
 
     $("anchorSelect").addEventListener("change", () => onAnchorChange())
+    $("accountSelect").addEventListener("change", () => onAccountChange())
     $("showStateJson").addEventListener("change", () => refreshHeader())
 
-    // initial load
     loadDemo()
   </script>
 </body>
