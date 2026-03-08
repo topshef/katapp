@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Atomic Swap Market Intel Demo (Global ingestion)</title>
+  <style>
+    :root {
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      color: #111;
+      background: #fafafa;
+    }
+    body { margin: 0; padding: 16px; }
+    h1 { margin: 0 0 10px 0; font-size: 18px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+    .card {
+      background: #fff;
+      border: 1px solid #e6e6e6;
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .card h2 { margin: 0 0 10px 0; font-size: 14px; }
+    label { font-size: 12px; color: #333; display: inline-flex; gap: 6px; align-items: center; }
+    select, input, button, textarea {
+      font: inherit;
+      padding: 6px 8px;
+      border: 1px solid #d9d9d9;
+      border-radius: 8px;
+      background: #fff;
+    }
+    button { cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      background: #fff;
+      border: 1px solid #e6e6e6;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    thead th {
+      text-align: left;
+      padding: 10px;
+      background: #f3f3f3;
+      border-bottom: 1px solid #e6e6e6;
+    }
+    tbody td {
+      padding: 10px;
+      border-bottom: 1px solid #f0f0f0;
+      vertical-align: top;
+    }
+    tbody tr:hover { background: #fcfcfc; }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      white-space: pre;
+    }
+    .pill {
+      display: inline-flex;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid #e6e6e6;
+      background: #fafafa;
+      font-size: 11px;
+      gap: 6px;
+      align-items: center;
+      white-space: nowrap;
+    }
+    .good { border-color: rgba(0,128,0,0.25); background: rgba(0,128,0,0.06); }
+    .bad  { border-color: rgba(180,0,0,0.25); background: rgba(180,0,0,0.06); }
+    .warn { border-color: rgba(160,120,0,0.25); background: rgba(160,120,0,0.06); }
+    .muted { color: #666; }
+    .small { font-size: 11px; }
+    .jsonbox { white-space: pre; max-height: 140px; overflow: auto; background: #fbfbfb; border: 1px solid #eee; padding: 8px; border-radius: 8px; }
+    .footer { margin-top: 10px; color: #666; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Atomic Swap “Market Intel” Demo (Oracle + Global Atomic Swap ingestion)</h1>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Controls</h2>
+      <div class="row">
+        <label>
+          Anchor
+          <select id="anchorSelect"></select>
+        </label>
+
+        <label>
+          View account
+          <select id="accountSelect"></select>
+        </label>
+
+        <label>
+          Step α (event learning rate)
+          <input id="alphaInput" type="number" min="0" max="1" step="0.01" value="0.25" />
+        </label>
+
+        <label>
+          Play speed (ms)
+          <input id="speedInput" type="number" min="50" step="50" value="350" />
+        </label>
+      </div>
+
+      <div class="row">
+        <button id="loadBtn">Load demo dataset</button>
+        <button id="stepBtn" disabled>Step</button>
+        <button id="playBtn" disabled>Play</button>
+        <button id="pauseBtn" disabled>Pause</button>
+        <button id="resetBtn" disabled>Reset</button>
+      </div>
+
+      <div class="row">
+        <label class="small">
+          <input id="showStateJson" type="checkbox" checked />
+          Show state JSON in table
+        </label>
+
+        <label class="small">
+          <input id="preferOracleSeed" type="checkbox" checked />
+          Prefer oracle to seed unknown assets
+        </label>
+      </div>
+
+      <div class="row">
+        <label style="flex:1; min-width: 240px;">
+          Data source (optional URL)
+          <input id="dataUrlInput" style="width: 100%;" placeholder="e.g. /demo-data.json" />
+        </label>
+        <button id="fetchBtn">Fetch</button>
+      </div>
+
+      <div class="footer">
+        Global state keeps log-prices <span class="mono">s[asset]</span>.
+        Oracle and swap observations update constraints via EWMA.
+        Swap ingestion is <b>global</b>: each atomic swap contains per-account transfers, and the market learns from all accounts.
+        The score column is a <b>subjective</b> view for the selected account only.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Current Market State</h2>
+      <div class="row">
+        <div class="pill"><span class="muted">processed</span> <span id="processedCount">0</span> / <span id="eventCount">0</span></div>
+        <div class="pill"><span class="muted">anchor</span> <span id="anchorLabel" class="mono">none</span></div>
+        <div class="pill"><span class="muted">view</span> <span id="accountLabel" class="mono">none</span></div>
+      </div>
+
+      <div class="row">
+        <div style="flex: 1; min-width: 260px;">
+          <div class="muted small">Prices (relative to anchor if set)</div>
+          <div id="priceList" class="jsonbox mono"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 10px;">
+    <h2>Event Timeline</h2>
+    <div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 110px;">t</th>
+            <th style="width: 90px;">type</th>
+            <th>event</th>
+            <th style="width: 220px;">score vs market (view account)</th>
+            <th style="width: 260px;">state after</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id)
+
+    const defaultDataset = () => ({
+      events: [
+        { type: "oracle", timestamp: 1, base: "HBAR", quote: "USDC", price: 0.08,  weight: 1.0, source: "oracle" },
+        { type: "oracle", timestamp: 2, base: "APPLE", quote: "USDC", price: 0.45, weight: 0.8, source: "oracle" },
+
+        // Atomic swap (global): Alice gives 5 APPLE to Bob, Bob gives 10 BANANA to Alice
+        { type: "swap", timestamp: 3, weight: 1.0, source: "swap", transfers: [
+          { account: "Alice", asset: "APPLE",  amount: -5 },
+          { account: "Alice", asset: "BANANA", amount: 10 },
+          { account: "Bob",   asset: "APPLE",  amount: 5 },
+          { account: "Bob",   asset: "BANANA", amount: -10 }
+        ]},
+
+        // Atomic swap (global): Bob <-> Carol via HBAR/BANANA
+        { type: "swap", timestamp: 4, weight: 1.0, source: "swap", transfers: [
+          { account: "Bob",   asset: "BANANA", amount: -20 },
+          { account: "Bob",   asset: "HBAR",   amount: 50 },
+          { account: "Carol", asset: "BANANA", amount: 20 },
+          { account: "Carol", asset: "HBAR",   amount: -50 }
+        ]},
+
+        // Atomic swap (global): multi-asset bundle for Alice; Bob is counterparty
+        // Alice gives 1 NFT_CAT, receives 300 HBAR + 25 BANANA
+        { type: "swap", timestamp: 5, weight: 0.6, source: "swap", transfers: [
+          { account: "Alice", asset: "NFT_CAT", amount: -1 },
+          { account: "Alice", asset: "HBAR",    amount: 300 },
+          { account: "Alice", asset: "BANANA",  amount: 25 },
+
+          { account: "Bob",   asset: "NFT_CAT", amount: 1 },
+          { account: "Bob",   asset: "HBAR",    amount: -300 },
+          { account: "Bob",   asset: "BANANA",  amount: -25 }
+        ]},
+
+        { type: "oracle", timestamp: 6, base: "HBAR", quote: "USDC", price: 0.085, weight: 1.0, source: "oracle" },
+
+        // Atomic swap: Carol trades APPLE for HBAR with Alice
+        { type: "swap", timestamp: 7, weight: 0.9, source: "swap", transfers: [
+          { account: "Carol", asset: "APPLE", amount: -1 },
+          { account: "Carol", asset: "HBAR",  amount: 6 },
+          { account: "Alice", asset: "APPLE", amount: 1 },
+          { account: "Alice", asset: "HBAR",  amount: -6 }
+        ]},
+
+        { type: "oracle", timestamp: 8, base: "BANANA", quote: "USDC", price: 0.22, weight: 0.5, source: "oracle" },
+
+        // Atomic swap: Bob buys NFT_CAT from Carol with APPLE
+        { type: "swap", timestamp: 9, weight: 0.6, source: "swap", transfers: [
+          { account: "Bob",   asset: "NFT_CAT", amount: -1 },
+          { account: "Bob",   asset: "APPLE",   amount: 18 },
+          { account: "Carol", asset: "NFT_CAT", amount: 1 },
+          { account: "Carol", asset: "APPLE",   amount: -18 }
+        ]}
+      ]
+    })
+
+    const clone = x => JSON.parse(JSON.stringify(x))
+    const fmt = (n, d=6) => Number.isFinite(n) ? Number(n).toFixed(d) : "NaN"
+    const safeLog = x => Math.log(Math.max(x, 1e-18))
+
+    // ---------- Global ingestion helpers ----------
+
+    const normalizeAnchor = (s, anchor) => {
+      if (!anchor) return s
+      if (!(anchor in s)) s[anchor] = 0
+      const shift = s[anchor]
+      const out = {}
+      for (const k of Object.keys(s))
+        out[k] = s[k] - shift
+      out[anchor] = 0
+      return out
+    }
+
+    const initMarketState = anchor => ({
+      prices: anchor ? { [anchor]: 0 } : {},
+      anchor,
+      observations: 0
+    })
+
+    const setAnchor = (state, anchor) => {
+      state.anchor = anchor || null
+      state.prices = normalizeAnchor(state.prices, state.anchor)
+      return state
+    }
+
+    const priceOf = (state, asset) => {
+      const s = state.prices
+      if (!(asset in s)) return null
+      const s0 = state.anchor && (state.anchor in s) ? s[state.anchor] : 0
+      return Math.exp(s[asset] - s0)
+    }
+
+    const bundleValue = (state, legs) => {
+      let v = 0
+      let known = 0
+      let unknown = 0
+
+      for (const leg of legs) {
+        const p = priceOf(state, leg.asset)
+        if (p === null) {
+          unknown += 1
+          continue
+        }
+        v += leg.amount * p
+        known += 1
+      }
+      return { v, known, unknown }
+    }
+
+    // Swap observation -> if exactly one give and one get, infer pair rate
+    const impliedPairRateFromSwap = legs => {
+      const neg = legs.filter(x => x.amount < 0)
+      const pos = legs.filter(x => x.amount > 0)
+
+      if (neg.length !== 1 || pos.length !== 1) return null
+
+      const give = neg[0]
+      const get = pos[0]
+
+      const a = give.asset
+      const b = get.asset
+      const x = -give.amount
+      const y = get.amount
+
+      if (x <= 0 || y <= 0) return null
+
+      return { a, b, rateBperA: y / x }
+    }
+
+    // Multi-asset swap -> pick a pivot pair using current state (kept for now)
+    const reduceMultiSwapToPair = (state, legs) => {
+      const give = legs.filter(x => x.amount < 0)
+      const get = legs.filter(x => x.amount > 0)
+      if (!give.length || !get.length) return null
+
+      const scoreLeg = leg => {
+        const p = priceOf(state, leg.asset)
+        if (p === null) return { ok: false, leg, p: null, absNotional: 0 }
+        return { ok: true, leg, p, absNotional: Math.abs(leg.amount) * p }
+      }
+
+      const giveScored = give.map(scoreLeg).sort((a,b) => b.absNotional - a.absNotional)
+      const getScored  = get.map(scoreLeg).sort((a,b) => b.absNotional - a.absNotional)
+
+      const givePivot = giveScored.find(x => x.ok)
+      const getPivot  = getScored.find(x => x.ok)
+
+      if (!givePivot || !getPivot) return null
+
+      const giveValue = giveScored.filter(x => x.ok).reduce((acc, x) => acc + (-x.leg.amount) * x.p, 0)
+      const getValue  = getScored.filter(x => x.ok).reduce((acc, x) => acc + ( x.leg.amount) * x.p, 0)
+
+      if (giveValue <= 0 || getValue <= 0) return null
+
+      const givePivotUnits = giveValue / givePivot.p
+      const getPivotUnits  = getValue  / getPivot.p
+
+      const a = givePivot.leg.asset
+      const b = getPivot.leg.asset
+
+      const rateBperA = getPivotUnits / givePivotUnits
+      if (!Number.isFinite(rateBperA) || rateBperA <= 0) return null
+
+      return { a, b, rateBperA, note: "reduced multi-asset swap" }
+    }
+
+    // EWMA update on difference s[a] - s[b] towards log(rateBperA)
+    const updatePairConstraint = (state, a, b, rateBperA, alpha) => {
+      const s = state.prices
+
+      if (!(a in s)) s[a] = 0
+      if (!(b in s)) s[b] = 0
+
+      const current = s[a] - s[b]
+      const target = safeLog(rateBperA)
+      const delta = target - current
+
+      s[a] += alpha * delta
+      s[b] -= alpha * delta
+
+      state.prices = normalizeAnchor(s, state.anchor)
+      state.observations += 1
+
+      return { current, target, delta }
+    }
+
+    const seedFromOracleIfPreferred = (state, event, preferOracleSeed) => {
+      if (!preferOracleSeed) return
+      if (event.type !== "oracle") return
+
+      const s = state.prices
+      if (!(event.quote in s) && state.anchor && event.quote === state.anchor)
+        s[event.quote] = 0
+      if (!(event.quote in s)) return
+
+      if (!(event.base in s)) {
+        const target = safeLog(event.price) + s[event.quote]
+        s[event.base] = target
+        state.prices = normalizeAnchor(s, state.anchor)
+      }
+    }
+
+    // Given a global swap event, produce per-account net legs
+    const splitSwapByAccount = (event) => {
+      const out = new Map()
+      const transfers = event?.transfers || []
+      for (const t of transfers) {
+        const account = String(t.account || "").trim()
+        const asset = String(t.asset || "").trim()
+        const amount = Number(t.amount || 0)
+
+        if (!account || !asset) continue
+        if (!Number.isFinite(amount) || amount === 0) continue
+
+        if (!out.has(account)) out.set(account, [])
+        out.get(account).push({ asset, amount })
+      }
+      return [...out.entries()].map(([account, legs]) => ({ account, legs }))
+    }
+
+    // Apply one swap observation (legs) to the global market state
+    const applySwapObservation = (state, legs, alpha) => {
+      const pair = impliedPairRateFromSwap(legs)
+      if (pair) return updatePairConstraint(state, pair.a, pair.b, pair.rateBperA, alpha)
+
+      const reduced = reduceMultiSwapToPair(state, legs)
+      if (reduced) return updatePairConstraint(state, reduced.a, reduced.b, reduced.rateBperA, alpha)
+
+      state.observations += 1
+      return { current: NaN, target: NaN, delta: NaN, note: "no update (insufficient info)" }
+    }
+
+    // Global apply: oracle is one observation, swap is many (one per account)
+    const applyEvent = (state, event, baseAlpha, preferOracleSeed) => {
+      const weight = Number.isFinite(event.weight) ? event.weight : 1
+      const alpha = Math.max(0, Math.min(1, baseAlpha * weight))
+
+      if (event.type === "oracle") {
+        seedFromOracleIfPreferred(state, event, preferOracleSeed)
+        return { kind: "oracle", updates: [ updatePairConstraint(state, event.base, event.quote, event.price, alpha) ] }
+      }
+
+      if (event.type === "swap") {
+        const parts = splitSwapByAccount(event).filter(x => x.legs && x.legs.length)
+        if (!parts.length) {
+          state.observations += 1
+          return { kind: "swap", updates: [ { current: NaN, target: NaN, delta: NaN, note: "no accounts" } ] }
+        }
+
+        // Split alpha across accounts so one atomic swap doesn't triple its influence
+        const per = alpha / parts.length
+        const updates = []
+        for (const p of parts)
+          updates.push(applySwapObservation(state, p.legs, per))
+
+        return { kind: "swap", updates }
+      }
+
+      state.observations += 1
+      return { kind: "other", updates: [ { current: NaN, target: NaN, delta: NaN, note: "no update (unknown event)" } ] }
+    }
+
+    // ---------- Scoring (subjective view) ----------
+
+    const subjectLegsFromSwap = (event, subjectAccount) => {
+      if (!subjectAccount) return []
+      const transfers = event?.transfers || []
+      return transfers
+        .filter(t => String(t.account) === subjectAccount)
+        .map(t => ({ asset: t.asset, amount: Number(t.amount || 0) }))
+        .filter(l => l.asset && Number.isFinite(l.amount) && l.amount !== 0)
+    }
+
+    const scoreEventVsMarket = (state, event, subjectAccount) => {
+      if (event.type === "oracle") {
+        const s = state.prices
+        if (!(event.base in s) || !(event.quote in s))
+          return { score: 0, label: "no baseline", details: "Missing one side of oracle pair in state" }
+
+        const current = s[event.base] - s[event.quote]
+        const target = safeLog(event.price)
+        const diff = target - current
+
+        const abs = Math.abs(diff)
+        const label = abs < 0.05 ? "close" : abs < 0.2 ? "off" : "far"
+        const score = -abs
+
+        return { score, label, details: `oracle log-diff = ${fmt(diff, 4)}` }
+      }
+
+      if (event.type === "swap") {
+        const legs = subjectLegsFromSwap(event, subjectAccount)
+        if (!legs.length)
+          return { score: 0, label: "n/a", details: `No legs for ${subjectAccount || "?"}` }
+
+        const { v, known, unknown } = bundleValue(state, legs)
+        if (known === 0)
+          return { score: 0, label: "unknown", details: "No priced assets in this subject view yet" }
+
+        const notional = legs.reduce((acc, leg) => {
+          const p = priceOf(state, leg.asset)
+          if (p === null) return acc
+          return acc + Math.abs(leg.amount) * p
+        }, 0)
+
+        const denom = notional > 0 ? notional : 1
+        const score = v / denom
+
+        const label = score > 0.05 ? "good" : score < -0.05 ? "bad" : "fair"
+        const details = `acct=${subjectAccount} value=${fmt(v, 6)} notional=${fmt(notional, 6)} known=${known} unknown=${unknown}`
+
+        return { score, label, details }
+      }
+
+      return { score: 0, label: "n/a", details: "Unsupported event" }
+    }
+
+    // ---------- Rendering ----------
+
+    const renderPriceList = state => {
+      const s = normalizeAnchor(clone(state.prices), state.anchor)
+      const rows = Object.keys(s).sort().map(asset => {
+        const rel = Math.exp(s[asset])
+        return `${asset.padEnd(12)}  ${fmt(rel, 8)}`
+      })
+      $("priceList").textContent = rows.join("\n") || "(empty)"
+      $("anchorLabel").textContent = state.anchor || "none"
+      $("accountLabel").textContent = $("accountSelect").value || "none"
+    }
+
+    const describeEvent = event => {
+      if (event.type === "oracle")
+        return `oracle ${event.base}/${event.quote} = ${event.price}  (w=${event.weight ?? 1})`
+
+      if (event.type === "swap") {
+        const parts = splitSwapByAccount(event)
+          .map(p => {
+            const legs = p.legs
+              .map(l => `${l.amount > 0 ? "+" : ""}${l.amount} ${l.asset}`)
+              .join(" , ")
+            return `${p.account}: ${legs}`
+          })
+          .join("   |   ")
+        return `atomic swap (global): ${parts}  (w=${event.weight ?? 1})`
+      }
+
+      return JSON.stringify(event)
+    }
+
+    const pillForScore = (label, score) => {
+      const cls = label === "good" ? "pill good"
+        : label === "bad" ? "pill bad"
+        : label === "fair" ? "pill warn"
+        : "pill"
+
+      const s = Number.isFinite(score) ? fmt(score, 4) : "n/a"
+      const text = label === "close" ? "oracle close"
+        : label === "off" ? "oracle off"
+        : label === "far" ? "oracle far"
+        : label
+
+      const el = document.createElement("div")
+      el.className = cls
+      el.innerHTML = `<span class="mono">${s}</span> <span class="muted">${text}</span>`
+      return el
+    }
+
+    const renderRow = (row) => {
+      const tr = document.createElement("tr")
+
+      const tdTime = document.createElement("td")
+      tdTime.textContent = String(row.timestamp)
+      tdTime.className = "mono"
+
+      const tdType = document.createElement("td")
+      tdType.textContent = row.eventType
+      tdType.className = "mono"
+
+      const tdEvent = document.createElement("td")
+      const ev = document.createElement("div")
+      ev.textContent = row.eventText
+      ev.className = "mono"
+      const det = document.createElement("div")
+      det.textContent = row.score.details
+      det.className = "muted small"
+      tdEvent.appendChild(ev)
+      tdEvent.appendChild(det)
+
+      const tdScore = document.createElement("td")
+      tdScore.appendChild(pillForScore(row.score.label, row.score.score))
+
+      const tdState = document.createElement("td")
+      if ($("showStateJson").checked) {
+        const pre = document.createElement("div")
+        pre.className = "mono"
+
+        const lines = Object.keys(row.stateAfter)
+          .sort()
+          .map(a => {
+            const v = Math.exp(row.stateAfter[a])
+            return `${a.padEnd(12)} ${v.toFixed(6)}`
+          })
+
+        pre.textContent = lines.join("\n")
+        tdState.appendChild(pre)
+      } else {
+        tdState.textContent = "(hidden)"
+        tdState.className = "muted"
+      }
+
+      tr.appendChild(tdTime)
+      tr.appendChild(tdType)
+      tr.appendChild(tdEvent)
+      tr.appendChild(tdScore)
+      tr.appendChild(tdState)
+
+      $("tbody").prepend(tr)
+    }
+
+    // ---------- Dataset utilities ----------
+
+    const listAssetsFromEvents = events => {
+      const set = new Set()
+      for (const e of events) {
+        if (e.type === "oracle") {
+          set.add(e.base)
+          set.add(e.quote)
+        }
+        if (e.type === "swap") {
+          const transfers = e.transfers || []
+          for (const t of transfers)
+            if (t.asset) set.add(t.asset)
+        }
+      }
+      return [...set].sort()
+    }
+
+    const listAccountsFromEvents = events => {
+      const set = new Set()
+      for (const e of events) {
+        if (e.type !== "swap") continue
+        const transfers = e.transfers || []
+        for (const t of transfers)
+          if (t.account) set.add(String(t.account))
+      }
+      return [...set].sort()
+    }
+
+    const populateAnchors = assets => {
+      const sel = $("anchorSelect")
+      sel.innerHTML = ""
+
+      const optNone = document.createElement("option")
+      optNone.value = ""
+      optNone.textContent = "none"
+      sel.appendChild(optNone)
+
+      for (const a of assets) {
+        const opt = document.createElement("option")
+        opt.value = a
+        opt.textContent = a
+        sel.appendChild(opt)
+      }
+
+      if (assets.includes("USDC")) sel.value = "USDC"
+      else if (assets.includes("HBAR")) sel.value = "HBAR"
+      else sel.value = ""
+    }
+
+    const populateAccounts = accounts => {
+      const sel = $("accountSelect")
+      sel.innerHTML = ""
+
+      for (const a of accounts) {
+        const opt = document.createElement("option")
+        opt.value = a
+        opt.textContent = a
+        sel.appendChild(opt)
+      }
+
+      if (accounts.includes("Alice")) sel.value = "Alice"
+      else sel.value = accounts[0] || ""
+    }
+
+    // ---------- Runner ----------
+
+    let timeline = []
+    let index = 0
+    let market = initMarketState(null)
+    let timer = null
+
+    const refreshHeader = () => {
+      $("processedCount").textContent = String(index)
+      $("eventCount").textContent = String(timeline.length)
+      renderPriceList(market)
+    }
+
+    const resetRun = () => {
+      index = 0
+      market = initMarketState($("anchorSelect").value || null)
+      $("tbody").innerHTML = ""
+      refreshHeader()
+
+      renderRow({
+        timestamp: "T0",
+        eventType: "init",
+        eventText: "initial state",
+        score: { label:"", score:0, details:"" },
+        stateAfter: normalizeAnchor(clone(market.prices), market.anchor)
+      })
+    }
+
+    const enableControls = on => {
+      $("stepBtn").disabled = !on
+      $("playBtn").disabled = !on
+      $("resetBtn").disabled = !on
+      $("pauseBtn").disabled = true
+    }
+
+    const stopPlay = () => {
+      if (timer) clearInterval(timer)
+      timer = null
+      $("pauseBtn").disabled = true
+      $("playBtn").disabled = false
+    }
+
+    const stepOnce = () => {
+      if (index >= timeline.length) {
+        stopPlay()
+        return
+      }
+
+      const event = timeline[index]
+      const baseAlpha = parseFloat($("alphaInput").value || "0.25")
+      const preferOracleSeed = $("preferOracleSeed").checked
+      const subjectAccount = $("accountSelect").value
+
+      const score = scoreEventVsMarket(market, event, subjectAccount)
+
+      applyEvent(market, event, baseAlpha, preferOracleSeed)
+
+      const stateAfter = normalizeAnchor(clone(market.prices), market.anchor)
+
+      renderRow({
+        timestamp: event.timestamp,
+        eventType: event.type,
+        eventText: describeEvent(event),
+        score,
+        stateAfter
+      })
+
+      index += 1
+      refreshHeader()
+    }
+
+    const play = () => {
+      if (timer) return
+      const speed = parseInt($("speedInput").value || "350", 10)
+      $("pauseBtn").disabled = false
+      $("playBtn").disabled = true
+      timer = setInterval(() => {
+        if (index >= timeline.length) {
+          stopPlay()
+          return
+        }
+        stepOnce()
+      }, Math.max(50, speed))
+    }
+
+    const loadDataset = data => {
+      const events = (data?.events || []).slice().sort((a, b) => (a.timestamp ?? 0) - (b.timestamp ?? 0))
+      timeline = events
+
+      const assets = listAssetsFromEvents(events)
+      populateAnchors(assets)
+
+      const accounts = listAccountsFromEvents(events)
+      populateAccounts(accounts)
+
+      resetRun()
+      enableControls(true)
+    }
+
+    const loadDemo = () => loadDataset(defaultDataset())
+
+    const fetchDataset = async () => {
+      const url = $("dataUrlInput").value.trim()
+      if (!url) {
+        alert("Enter a URL first (or use the demo dataset)")
+        return
+      }
+
+      try {
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const json = await res.json()
+        loadDataset(json)
+      } catch (e) {
+        alert(`Fetch failed: ${String(e.message || e)}`)
+      }
+    }
+
+    const onAnchorChange = () => {
+      const newAnchor = $("anchorSelect").value || null
+      market = setAnchor(market, newAnchor)
+      refreshHeader()
+    }
+
+    const onAccountChange = () => {
+      refreshHeader()
+    }
+
+    $("loadBtn").addEventListener("click", () => {
+      stopPlay()
+      loadDemo()
+    })
+
+    $("fetchBtn").addEventListener("click", async () => {
+      stopPlay()
+      await fetchDataset()
+    })
+
+    $("stepBtn").addEventListener("click", () => stepOnce())
+    $("playBtn").addEventListener("click", () => play())
+    $("pauseBtn").addEventListener("click", () => stopPlay())
+    $("resetBtn").addEventListener("click", () => {
+      stopPlay()
+      resetRun()
+    })
+
+    $("anchorSelect").addEventListener("change", () => onAnchorChange())
+    $("accountSelect").addEventListener("change", () => onAccountChange())
+    $("showStateJson").addEventListener("change", () => refreshHeader())
+
+    loadDemo()
+  </script>
+</body>
+</html>
