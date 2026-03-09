@@ -1,0 +1,170 @@
+
+    body{
+      font-family:sans-serif;
+      margin:16px;
+    }
+
+    h2{
+      margin-top:0;
+    }
+
+    .controls{
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+      align-items:center;
+      margin-bottom:12px;
+    }
+
+    .header{
+      display:grid;
+      grid-template-columns:1.4fr 0.8fr 3fr 3fr 3fr;
+      gap:10px;
+      font-weight:bold;
+      border-bottom:2px solid #000;
+      margin-bottom:6px;
+    }
+
+    .header > div{
+      padding:8px 10px;
+    }
+
+    .account-row{
+      border-top:1px solid #ddd;
+      padding:8px 0;
+      margin-bottom:6px;
+    }
+
+    .account-row.columns{
+      display:grid;
+      grid-template-columns:1.4fr 0.8fr 3fr 3fr 3fr;
+      gap:10px;
+      align-items:stretch;
+    }
+
+    .account-row.merged{
+      display:block;
+    }
+
+		.account-row[data-mine="true"]:has(+ .account-row[data-mine="false"]),
+		.account-row[data-mine="true"]:last-child{
+			border-bottom:3px solid #000;
+			margin-bottom:8px;
+			padding-bottom:12px;
+		}
+
+    .settings{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:center;
+      margin-bottom:8px;
+      font-weight:bold;
+    }
+
+    .name{
+      font-weight:bold;
+      cursor:pointer;
+    }
+
+    .mode{
+      font-weight:bold;
+    }
+
+    .mode.clickable{
+      cursor:pointer;
+    }
+
+    .column,
+    .assets{
+      min-height:68px;
+      padding:6px;
+      border:1px dashed #aaa;
+      background:#fff;
+    }
+
+    .drop-target.drag-over{
+      background:#f5f5f5;
+    }
+
+		.asset{
+			display:inline-block;
+			margin:3px;
+			padding:4px 8px;
+			background:#eee;
+			user-select:none;
+			vertical-align:top;
+			position:relative;
+			z-index:10;
+		}
+
+
+    .asset.clickable{
+      cursor:pointer;
+    }
+
+		
+    .asset.reserved{
+      opacity:0.4;
+    }
+
+    .asset.basket{
+      background:#dff6ff;
+    }
+
+    .asset.selected{
+      outline:2px solid #000;
+      outline-offset:1px;
+    }
+
+    .hint{
+      font-size:12px;
+      color:#555;
+      margin-bottom:10px;
+    }
+
+    .subtle{
+      color:#666;
+      font-weight:normal;
+      font-size:12px;
+      margin-left:6px;
+    }
+
+    .muted{
+      color:#666;
+    }
+
+    @media (max-width: 699px){
+      .header{
+        display:none !important;
+      }
+
+      .account-row.columns{
+        display:block;
+      }
+
+      .account-row.columns > .name,
+      .account-row.columns > .mode{
+        display:none;
+      }
+    }
+				
+				
+		#game{
+			position:relative;
+		}
+
+		.trade-line-layer{
+			position:absolute;
+			inset:0;
+			width:100%;
+			height:100%;
+			pointer-events:none;
+			z-index:5;
+		}
+
+		.trade-line-layer line{
+			stroke:#999;
+			stroke-width:1;
+			stroke-dasharray:4 4;
+		}
