@@ -82,10 +82,9 @@
       return item.fromAccountId || item.fromId || item.from || null
     }
 
-    function isMyAccount(account){
-      return account.playerId === currentPlayer
-    }
-		
+		function isMyAccount(account){
+			return account.playerId === getOrCreatePlayerToken()
+		}		
 
 		function buildReservedByAccount(accounts){
 			const reservedByAccount = {}

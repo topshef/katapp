@@ -6,7 +6,8 @@
     const gameId = "demo"
 
     let socket = null
-    let currentPlayer = null
+    // let currentPlayer = null
+		let currentPlayerToken = null
     let state = null
 
     let viewMode = window.innerWidth < 700 ? "merged" : "columns"
@@ -15,6 +16,20 @@
     let selectedAssetId = null
     let selectedFromAccountId = null
     let selectedFromBasketToAccountId = null
+
+
+		function getOrCreatePlayerToken(){
+
+			let token = localStorage.getItem("katomiaPlayerToken")
+
+			if(!token){
+				token = crypto.randomUUID()
+				localStorage.setItem("katomiaPlayerToken", token)
+			}
+
+			return token
+		}
+
 
     /* =========================
        DOM

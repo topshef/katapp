@@ -75,18 +75,28 @@
     function renderReservedColumnAsset(account, container, reservedItem){
       const mine = isMyAccount(account)
 
-      const assetEl = makeAssetEl({
-        text: reservedItem.assetId + " (to " + reservedItem.toAccountId + ")",
-        ownerAccountId: account.id,
-        ownerPlayerId: account.playerId,
-        reserved: true,
-        clickable: mine,
-        selected: isSelected(
-          reservedItem.assetId,
-          account.id,
-          reservedItem.toAccountId
-        )
-      })
+			let visibleTo = reservedItem.toAccountId
+
+			if(reservedItem.toAccountId){
+				const toAccount = state.accounts?.[reservedItem.toAccountId]
+				const player = toAccount ? state.players[toAccount.playerId] : null
+				const name = player?.name || reservedItem.toAccountId
+
+				visibleTo = reservedItem.toAccountId.replace(toAccount.playerId, name)
+			}
+
+			const assetEl = makeAssetEl({
+				text: reservedItem.assetId + " (to " + visibleTo + ")",
+				ownerAccountId: account.id,
+				ownerPlayerId: account.playerId,
+				reserved: true,
+				clickable: mine,
+				selected: isSelected(
+					reservedItem.assetId,
+					account.id,
+					reservedItem.toAccountId
+				)
+			})
 
 			//for css hover
 			assetEl.dataset.assetId = reservedItem.assetId
@@ -137,9 +147,18 @@
 
       const clickable = senderIsMine || receiverIsMine
 
-      const label = fromAccountId
-        ? item.assetId + " (from " + fromAccountId + ")"
-        : item.assetId
+
+			let label = item.assetId
+
+			if(fromAccountId){
+				const fromAccount = accountMap[fromAccountId]
+				const player = fromAccount ? state.players[fromAccount.playerId] : null
+				const name = player?.name || fromAccountId
+
+				const visibleId = fromAccountId.replace(fromAccount.playerId, name)
+
+				label = item.assetId + " (from " + visibleId + ")"
+			}
 
       const assetEl = makeAssetEl({
         text: label,
@@ -224,8 +243,12 @@
 
       const nameEl = document.createElement("div")
       nameEl.className = "name"
-      // nameEl.textContent = account.id + " (" + account.playerId + ")"
-			nameEl.textContent = account.id
+
+			const player = state.players[account.playerId]
+			const name = player?.name || account.playerId
+
+			nameEl.textContent = account.id.replace(account.playerId, name)
+
       applyOwnerSleeve(nameEl, account.playerId)
 
       nameEl.onmouseenter = () => {
@@ -296,7 +319,12 @@
       const nameEl = document.createElement("div")
       nameEl.className = "name"
       // nameEl.textContent = account.id + " (" + account.playerId + ")"
-			nameEl.textContent = account.id
+
+			const player = state.players[account.playerId]
+			const name = player?.name || account.playerId
+
+			nameEl.textContent = account.id.replace(account.playerId, name)
+
       applyOwnerSleeve(nameEl, account.playerId)
 
       nameEl.onmouseenter = () => {

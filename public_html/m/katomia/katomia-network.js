@@ -28,10 +28,12 @@ addAccountBtn.onclick = () => {
   const label = accountLabelInput.value.trim()
   if(!label) return
 
+  const playerToken = getOrCreatePlayerToken()
+
   socket.send(JSON.stringify({
     type: "game_addAccount",
     gameId,
-    playerId: currentPlayer,
+    playerToken,
     label
   }))
 
@@ -63,11 +65,16 @@ function connect(){
   socket = new WebSocket("wss://hapi2.hbar.live/live/ws")
 
   socket.onopen = () => {
-    socket.send(JSON.stringify({
-      type: "game_join",
-      gameId,
-      playerId: currentPlayer
-    }))
+
+		const playerToken = getOrCreatePlayerToken()
+
+		socket.send(JSON.stringify({
+			type: "game_join",
+			gameId,
+			playerToken,
+			playerName: currentPlayer
+		}))
+
   }
 
   socket.onmessage = msg => {
@@ -81,19 +88,22 @@ function connect(){
 }
 
 function exitGame(){
-  if(socket && currentPlayer){
-    socket.send(JSON.stringify({
-      type: "game_exit",
-      gameId,
-      playerId: currentPlayer
-    }))
-  }
 
-  if(socket) socket.close()
+	if(socket){
+		const playerToken = getOrCreatePlayerToken()
 
-  socket = null
-  currentPlayer = null
-  state = null
-  clearSelection()
-  gameEl.innerHTML = ""
+		socket.send(JSON.stringify({
+			type: "game_exit",
+			gameId,
+			playerToken
+		}))
+
+		socket.close()
+	}
+
+	socket = null
+	currentPlayer = null
+	state = null
+	clearSelection()
+	gameEl.innerHTML = ""
 }
