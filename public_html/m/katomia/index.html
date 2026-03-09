@@ -464,6 +464,14 @@
       })
     }
 
+		function highlightReservedFromAccount(accountId, on){
+			document.querySelectorAll(".asset.reserved").forEach(asset => {
+				if(asset.dataset.ownerAccount === accountId){
+					applyHoverHighlight(asset, on)
+				}
+			})
+		}
+
     function getVisibleAccounts(accounts){
       let visible = [...accounts]
 
@@ -748,6 +756,16 @@
         basket: true,
         clickable
       })
+						
+			if(fromAccountId){
+				assetEl.onmouseenter = () => {
+					highlightReservedFromAccount(fromAccountId, true)
+				}
+
+				assetEl.onmouseleave = () => {
+					highlightReservedFromAccount(fromAccountId, false)
+				}
+			}
 
       if(clickable){
         assetEl.onclick = () => {
