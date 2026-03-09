@@ -3,14 +3,13 @@
        HELPERS / ADAPTERS
     ========================= */
 
-    function getPlayerColour(playerId){
-      if(!playerColours[playerId]){
-        const used = Object.keys(playerColours).length
-        playerColours[playerId] = colourPalette[used % colourPalette.length]
-      }
+		function getPlayerColour(playerId){
+			if(!state || !state.players || !state.players[playerId]){
+				return "#999"
+			}
 
-      return playerColours[playerId]
-    }
+			return state.players[playerId].colour || "#999"
+		}
 
     function applyOwnerSleeve(el, playerId){
       const colour = getPlayerColour(playerId)

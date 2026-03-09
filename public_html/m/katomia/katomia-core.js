@@ -16,18 +16,6 @@
     let selectedFromAccountId = null
     let selectedFromBasketToAccountId = null
 
-    const playerColours = {}
-    const colourPalette = [
-      "#e63946",
-      "#1d3557",
-      "#2a9d8f",
-      "#f4a261",
-      "#6a4c93",
-      "#118ab2",
-      "#2b9348",
-      "#ef476f"
-    ]
-
     /* =========================
        DOM
     ========================= */
