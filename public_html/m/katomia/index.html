@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>kpool play</title>
+  <title>katomia</title>
 
   <style>
     body{
@@ -25,7 +25,7 @@
 
     .header{
       display:grid;
-      grid-template-columns:1fr 0.8fr 3fr 3fr 3fr;
+      grid-template-columns:1.4fr 0.8fr 3fr 3fr 3fr;
       gap:10px;
       font-weight:bold;
       border-bottom:2px solid #000;
@@ -36,24 +36,24 @@
       padding:8px 10px;
     }
 
-    .player{
+    .account-row{
       border-top:1px solid #ddd;
       padding:8px 0;
       margin-bottom:6px;
     }
 
-    .player.columns{
+    .account-row.columns{
       display:grid;
-      grid-template-columns:1fr 0.8fr 3fr 3fr 3fr;
+      grid-template-columns:1.4fr 0.8fr 3fr 3fr 3fr;
       gap:10px;
       align-items:stretch;
     }
 
-    .player.merged{
+    .account-row.merged{
       display:block;
     }
 
-    .self-divider{
+    .mine-divider{
       border-bottom:3px solid #000;
       margin-bottom:8px;
       padding-bottom:12px;
@@ -132,17 +132,21 @@
       margin-left:6px;
     }
 
+    .muted{
+      color:#666;
+    }
+
     @media (max-width: 699px){
       .header{
         display:none !important;
       }
 
-      .player.columns{
+      .account-row.columns{
         display:block;
       }
 
-      .player.columns > .name,
-      .player.columns > .mode{
+      .account-row.columns > .name,
+      .account-row.columns > .mode{
         display:none;
       }
     }
@@ -151,7 +155,7 @@
 
 <body>
 
-  <h2>Katomic Market - Swap Game Demo</h2>
+  <h2>Katomia Market Demo</h2>
 
   <div class="controls">
     <label>
@@ -162,25 +166,32 @@
     <button id="joinBtn">Join Game</button>
     <button id="exitBtn">Exit Game</button>
 
+    <label>
+      Account label:
+      <input id="accountLabelInput" placeholder="desk" />
+    </label>
+
+    <button id="addAccountBtn">Add Account</button>
+
     <label style="cursor:pointer">
-      <input type="checkbox" id="viewToggle">
+      <input type="checkbox" id="viewToggle" />
       🖥️
     </label>
-    
+
     <label>
-      <input type="checkbox" id="activeOnly">
-      Show active players only
+      <input type="checkbox" id="activeOnly" />
+      Show active accounts only
     </label>
-    
   </div>
 
   <div class="hint">
-    Tap/click your asset to select it, then tap/click another player's target area to offer it.
+    Tap/click your asset to select it, then tap/click another account target area to offer it.
     Drag also works on desktop. Click reserved to recall. Click basket items to reject/withdraw.
+    Your own other accounts are valid basket targets too.
   </div>
 
   <div id="header" class="header">
-    <div>Player</div>
+    <div>Account</div>
     <div>Swap / Lock</div>
     <div>Store (available)</div>
     <div>Reserved (to send)</div>
@@ -190,6 +201,10 @@
   <div id="game"></div>
 
   <script>
+    /* =========================
+       MODEL / APP STATE
+    ========================= */
+
     const gameId = "demo"
 
     let socket = null
@@ -200,8 +215,8 @@
     let showActiveOnly = false
 
     let selectedAssetId = null
-    let selectedOwnerId = null
-    let selectedFromBasketToId = null
+    let selectedFromAccountId = null
+    let selectedFromBasketToAccountId = null
 
     const playerColours = {}
     const colourPalette = [
@@ -215,22 +230,25 @@
       "#ef476f"
     ]
 
+    /* =========================
+       DOM
+    ========================= */
+
     const playerInput = document.getElementById("playerInput")
     const joinBtn = document.getElementById("joinBtn")
     const exitBtn = document.getElementById("exitBtn")
+    const accountLabelInput = document.getElementById("accountLabelInput")
+    const addAccountBtn = document.getElementById("addAccountBtn")
     const viewToggle = document.getElementById("viewToggle")
+    const activeOnlyCheckbox = document.getElementById("activeOnly")
     const headerEl = document.getElementById("header")
     const gameEl = document.getElementById("game")
 
-
-    const activeOnlyCheckbox = document.getElementById("activeOnly")
-
-    activeOnlyCheckbox.onchange = e => {
-      showActiveOnly = e.target.checked
-      render()
-    }
-
     viewToggle.checked = viewMode === "columns"
+
+    /* =========================
+       CONTROLS
+    ========================= */
 
     joinBtn.onclick = () => {
       const playerId = playerInput.value.trim()
@@ -244,53 +262,35 @@
       exitGame()
     }
 
+    addAccountBtn.onclick = () => {
+      if(!socket || !currentPlayer) return
+
+      const label = accountLabelInput.value.trim()
+      if(!label) return
+
+      socket.send(JSON.stringify({
+        type: "game_addAccount",
+        gameId,
+        playerId: currentPlayer,
+        label
+      }))
+
+      accountLabelInput.value = ""
+    }
 
     viewToggle.onchange = e => {
       viewMode = e.target.checked ? "columns" : "merged"
       render()
     }
 
-
-    function getPlayerColour(playerId){
-      if(!playerColours[playerId]){
-        const used = Object.keys(playerColours).length
-        playerColours[playerId] = colourPalette[used % colourPalette.length]
-      }
-
-      return playerColours[playerId]
-    }
-
-    function applyOwnerSleeve(el, ownerId){
-      const colour = getPlayerColour(ownerId)
-      el.style.borderLeft = "12px solid " + colour
-      el.style.paddingLeft = "6px"
-    }
-
-    function applyHoverHighlight(el, on){
-      el.style.outline = on ? "2px solid #000" : "none"
-    }
-
-    function clearSelection(){
-      selectedAssetId = null
-      selectedOwnerId = null
-      selectedFromBasketToId = null
-    }
-
-
-    function isSelected(assetId, ownerId, fromBasketToId){
-      return (
-        selectedAssetId === assetId &&
-        selectedOwnerId === ownerId &&
-        (selectedFromBasketToId || null) === (fromBasketToId || null)
-      )
-    }
-
-    function setSelectedAsset(assetId, ownerId, fromBasketToId){
-      selectedAssetId = assetId
-      selectedOwnerId = ownerId
-      selectedFromBasketToId = fromBasketToId
+    activeOnlyCheckbox.onchange = e => {
+      showActiveOnly = e.target.checked
       render()
     }
+
+    /* =========================
+       NETWORK
+    ========================= */
 
     function connect(){
       if(socket){
@@ -321,42 +321,7 @@
     }
 
     function exitGame(){
-      if(!state || !currentPlayer){
-        if(socket) socket.close()
-        socket = null
-        currentPlayer = null
-        state = null
-        clearSelection()
-        gameEl.innerHTML = ""
-        return
-      }
-
-      const myPlayer = state.players[currentPlayer]
-
-      if(myPlayer){
-        myPlayer.basket.forEach(item => {
-          socket.send(JSON.stringify({
-            type: "game_reject",
-            gameId,
-            playerId: currentPlayer,
-            assetId: item.assetId
-          }))
-        })
-
-        Object.values(state.players).forEach(player => {
-          player.basket.forEach(item => {
-            if(item.from === currentPlayer){
-              socket.send(JSON.stringify({
-                type: "game_withdraw",
-                gameId,
-                fromId: currentPlayer,
-                toId: player.id,
-                assetId: item.assetId
-              }))
-            }
-          })
-        })
-
+      if(socket && currentPlayer){
         socket.send(JSON.stringify({
           type: "game_exit",
           gameId,
@@ -373,48 +338,186 @@
       gameEl.innerHTML = ""
     }
 
-    function buildReservedByPlayer(){
-      const reservedByPlayer = {}
+    /* =========================
+       HELPERS / ADAPTERS
+    ========================= */
 
-      if(!state) return reservedByPlayer
+    function getPlayerColour(playerId){
+      if(!playerColours[playerId]){
+        const used = Object.keys(playerColours).length
+        playerColours[playerId] = colourPalette[used % colourPalette.length]
+      }
 
-      Object.values(state.players).forEach(player => {
-        player.basket.forEach(item => {
-          if(!reservedByPlayer[item.from]) reservedByPlayer[item.from] = []
+      return playerColours[playerId]
+    }
 
-          reservedByPlayer[item.from].push({
+    function applyOwnerSleeve(el, playerId){
+      const colour = getPlayerColour(playerId)
+      el.style.borderLeft = "12px solid " + colour
+      el.style.paddingLeft = "6px"
+    }
+
+    function applyHoverHighlight(el, on){
+      el.style.outline = on ? "2px solid #000" : "none"
+    }
+
+    function clearSelection(){
+      selectedAssetId = null
+      selectedFromAccountId = null
+      selectedFromBasketToAccountId = null
+    }
+
+    function isSelected(assetId, fromAccountId, fromBasketToAccountId){
+      return (
+        selectedAssetId === assetId &&
+        selectedFromAccountId === fromAccountId &&
+        (selectedFromBasketToAccountId || null) === (fromBasketToAccountId || null)
+      )
+    }
+
+    function setSelectedAsset(assetId, fromAccountId, fromBasketToAccountId){
+      selectedAssetId = assetId
+      selectedFromAccountId = fromAccountId
+      selectedFromBasketToAccountId = fromBasketToAccountId
+      render()
+    }
+
+    function getAccounts(){
+      if(!state) return []
+
+      if(state.accounts){
+        return Object.values(state.accounts).map(account => ({
+          id: account.id,
+          playerId: account.playerId,
+          assets: account.assets || [],
+          basket: account.basket || [],
+          mode: account.mode || "shop"
+        }))
+      }
+
+      if(state.players){
+        return Object.values(state.players).map(player => ({
+          id: player.id + ":default",
+          playerId: player.id,
+          assets: player.account || [],
+          basket: player.basket || [],
+          mode: player.mode || "shop"
+        }))
+      }
+
+      return []
+    }
+
+    function getAccountMap(){
+      const map = {}
+
+      getAccounts().forEach(account => {
+        map[account.id] = account
+      })
+
+      return map
+    }
+
+    function getFromAccountId(item){
+      return item.fromAccountId || item.fromId || item.from || null
+    }
+
+    function isMyAccount(account){
+      return account.playerId === currentPlayer
+    }
+
+    function buildReservedByAccount(accounts){
+      const reservedByAccount = {}
+
+      accounts.forEach(account => {
+        account.basket.forEach(item => {
+          const fromAccountId = getFromAccountId(item)
+          if(!fromAccountId) return
+
+          if(!reservedByAccount[fromAccountId]) reservedByAccount[fromAccountId] = []
+
+          reservedByAccount[fromAccountId].push({
             assetId: item.assetId,
-            toId: player.id
+            toAccountId: account.id
           })
         })
       })
 
-      return reservedByPlayer
+      return reservedByAccount
     }
 
-    function getReservedEntry(reservedByPlayer, playerId, assetId){
-      const list = reservedByPlayer[playerId] || []
+    function getReservedEntry(reservedByAccount, accountId, assetId){
+      const list = reservedByAccount[accountId] || []
       return list.find(entry => entry.assetId === assetId) || null
     }
 
-    function highlightAssetsForOwner(ownerId, on){
+    function highlightAssetsForAccount(accountId, on){
       document.querySelectorAll(".asset.basket").forEach(asset => {
-        if(asset.dataset.owner === ownerId){
+        if(asset.dataset.ownerAccount === accountId){
           applyHoverHighlight(asset, on)
         }
       })
     }
 
-    function offerSelectedToPlayer(targetPlayerId){
-      if(!selectedAssetId) return
-      if(targetPlayerId === currentPlayer) return
+    function getVisibleAccounts(accounts){
+      let visible = [...accounts]
 
-      if(selectedFromBasketToId){
+      if(showActiveOnly){
+        const activeSet = new Set()
+
+        accounts.forEach(account => {
+          account.basket.forEach(item => {
+            activeSet.add(account.id)
+
+            const fromAccountId = getFromAccountId(item)
+            if(fromAccountId) activeSet.add(fromAccountId)
+          })
+        })
+
+        visible = visible.filter(account => activeSet.has(account.id))
+      }
+
+      visible.sort((a, b) => {
+        const aMine = isMyAccount(a)
+        const bMine = isMyAccount(b)
+
+        if(aMine && !bMine) return -1
+        if(!aMine && bMine) return 1
+
+        return a.id.localeCompare(b.id)
+      })
+
+      return visible
+    }
+
+    /* =========================
+       ACTIONS
+    ========================= */
+
+    function offerSelectedToAccount(targetAccountId){
+      if(!selectedAssetId) return
+      if(!selectedFromAccountId) return
+
+      if(
+        targetAccountId === selectedFromAccountId &&
+        !selectedFromBasketToAccountId
+      ){
+        return
+      }
+
+      if(
+        selectedFromBasketToAccountId &&
+        targetAccountId === selectedFromBasketToAccountId
+      ){
+        return
+      }
+
+      if(selectedFromBasketToAccountId){
         socket.send(JSON.stringify({
           type: "game_withdraw",
           gameId,
-          fromId: selectedOwnerId,
-          toId: selectedFromBasketToId,
+          fromId: selectedFromAccountId,
+          toId: selectedFromBasketToAccountId,
           assetId: selectedAssetId
         }))
       }
@@ -422,8 +525,8 @@
       socket.send(JSON.stringify({
         type: "game_offer",
         gameId,
-        fromId: selectedOwnerId,
-        toId: targetPlayerId,
+        fromId: selectedFromAccountId,
+        toId: targetAccountId,
         assetId: selectedAssetId
       }))
 
@@ -431,7 +534,7 @@
       render()
     }
 
-    function setupDropTarget(el, targetPlayerId){
+    function setupDropTarget(el, targetAccount){
       el.classList.add("drop-target")
 
       el.ondragover = e => {
@@ -439,7 +542,8 @@
       }
 
       el.ondragenter = () => {
-        if(targetPlayerId !== currentPlayer){
+        if(!selectedFromAccountId) return
+        if(targetAccount.id !== selectedFromAccountId || selectedFromBasketToAccountId){
           el.classList.add("drag-over")
         }
       }
@@ -453,18 +557,31 @@
         el.classList.remove("drag-over")
 
         const assetId = e.dataTransfer.getData("assetId")
-        const ownerId = e.dataTransfer.getData("ownerId")
-        const fromBasketToId = e.dataTransfer.getData("fromBasketToId") || ""
+        const fromAccountId = e.dataTransfer.getData("fromAccountId")
+        const fromBasketToAccountId = e.dataTransfer.getData("fromBasketToAccountId") || ""
 
-        if(!assetId) return
-        if(targetPlayerId === currentPlayer) return
+        if(!assetId || !fromAccountId) return
 
-        if(fromBasketToId){
+        if(
+          targetAccount.id === fromAccountId &&
+          !fromBasketToAccountId
+        ){
+          return
+        }
+
+        if(
+          fromBasketToAccountId &&
+          targetAccount.id === fromBasketToAccountId
+        ){
+          return
+        }
+
+        if(fromBasketToAccountId){
           socket.send(JSON.stringify({
             type: "game_withdraw",
             gameId,
-            fromId: ownerId,
-            toId: fromBasketToId,
+            fromId: fromAccountId,
+            toId: fromBasketToAccountId,
             assetId
           }))
         }
@@ -472,8 +589,8 @@
         socket.send(JSON.stringify({
           type: "game_offer",
           gameId,
-          fromId: ownerId || currentPlayer,
-          toId: targetPlayerId,
+          fromId: fromAccountId,
+          toId: targetAccount.id,
           assetId
         }))
 
@@ -483,13 +600,18 @@
 
       el.onclick = e => {
         if(e.target !== el) return
-        offerSelectedToPlayer(targetPlayerId)
+        offerSelectedToAccount(targetAccount.id)
       }
     }
 
+    /* =========================
+       VIEW HELPERS
+    ========================= */
+
     function makeAssetEl({
       text,
-      ownerId,
+      ownerAccountId,
+      ownerPlayerId,
       reserved = false,
       basket = false,
       clickable = false,
@@ -498,92 +620,101 @@
       const el = document.createElement("div")
       el.className = "asset"
       el.textContent = text
-      el.dataset.owner = ownerId
+      el.dataset.ownerAccount = ownerAccountId || ""
+      el.dataset.ownerPlayer = ownerPlayerId || ""
 
       if(reserved) el.classList.add("reserved")
       if(basket) el.classList.add("basket")
       if(clickable) el.classList.add("clickable")
       if(selected) el.classList.add("selected")
 
-      applyOwnerSleeve(el, ownerId)
+      applyOwnerSleeve(el, ownerPlayerId)
 
       return el
     }
 
-    function renderStoreAsset(player, container, reservedByPlayer, assetId){
-      const reservedEntry = getReservedEntry(reservedByPlayer, player.id, assetId)
-      const isReserved = !!reservedEntry
-      const isMine = player.id === currentPlayer
+    function renderStoreAsset(account, container, reservedByAccount){
+      account.assets.forEach(assetId => {
+        const reservedEntry = getReservedEntry(reservedByAccount, account.id, assetId)
+        const isReserved = !!reservedEntry
+        const mine = isMyAccount(account)
 
-      const text = isReserved
-        ? assetId + " (to " + reservedEntry.toId + ")"
-        : assetId
+        const text = isReserved
+          ? assetId + " (to " + reservedEntry.toAccountId + ")"
+          : assetId
+
+        const assetEl = makeAssetEl({
+          text,
+          ownerAccountId: account.id,
+          ownerPlayerId: account.playerId,
+          reserved: isReserved,
+          clickable: mine,
+          selected: isSelected(
+            assetId,
+            account.id,
+            isReserved ? reservedEntry.toAccountId : null
+          )
+        })
+
+        if(mine){
+          assetEl.onclick = () => {
+            if(isReserved){
+              const ok = confirm("Recall " + assetId + " from " + reservedEntry.toAccountId + "?")
+              if(!ok) return
+
+              socket.send(JSON.stringify({
+                type: "game_withdraw",
+                gameId,
+                fromId: account.id,
+                toId: reservedEntry.toAccountId,
+                assetId
+              }))
+
+              clearSelection()
+              return
+            }
+
+            setSelectedAsset(assetId, account.id, null)
+          }
+
+          assetEl.draggable = true
+          assetEl.ondragstart = e => {
+            e.dataTransfer.setData("assetId", assetId)
+            e.dataTransfer.setData("fromAccountId", account.id)
+            e.dataTransfer.setData("fromBasketToAccountId", isReserved ? reservedEntry.toAccountId : "")
+          }
+        }
+
+        container.appendChild(assetEl)
+      })
+    }
+
+    function renderReservedColumnAsset(account, container, reservedItem){
+      const mine = isMyAccount(account)
 
       const assetEl = makeAssetEl({
-        text,
-        ownerId: player.id,
-        reserved: isReserved,
-        clickable: isMine,
+        text: reservedItem.assetId + " (to " + reservedItem.toAccountId + ")",
+        ownerAccountId: account.id,
+        ownerPlayerId: account.playerId,
+        reserved: true,
+        clickable: mine,
         selected: isSelected(
-          assetId,
-          player.id,
-          isReserved ? reservedEntry.toId : null
+          reservedItem.assetId,
+          account.id,
+          reservedItem.toAccountId
         )
       })
 
-      if(isMine){
+      if(mine){
         assetEl.onclick = () => {
-          if(isReserved){
-            const ok = confirm("Recall " + assetId + " from " + reservedEntry.toId + "?")
-            if(!ok) return
-
-            socket.send(JSON.stringify({
-              type: "game_withdraw",
-              gameId,
-              fromId: currentPlayer,
-              toId: reservedEntry.toId,
-              assetId
-            }))
-
-            clearSelection()
-            return
-          }
-
-          setSelectedAsset(assetId, currentPlayer, null)
-        }
-
-        assetEl.draggable = true
-        assetEl.ondragstart = e => {
-          e.dataTransfer.setData("assetId", assetId)
-          e.dataTransfer.setData("ownerId", currentPlayer)
-          e.dataTransfer.setData("fromBasketToId", isReserved ? reservedEntry.toId : "")
-        }
-      }
-
-      container.appendChild(assetEl)
-    }
-
-    function renderReservedColumnAsset(player, container, reservedItem){
-      const isMine = player.id === currentPlayer
-
-      const assetEl = makeAssetEl({
-        text: reservedItem.assetId + " (to " + reservedItem.toId + ")",
-        ownerId: player.id,
-        reserved: true,
-        clickable: isMine,
-        selected: isSelected(reservedItem.assetId, currentPlayer, reservedItem.toId)
-      })
-
-      if(isMine){
-        assetEl.onclick = () => {
-          const ok = confirm("Recall " + reservedItem.assetId + " from " + reservedItem.toId + "?")
+          const ok = confirm("Recall " + reservedItem.assetId + " from " + reservedItem.toAccountId + "?")
           if(!ok) return
 
           socket.send(JSON.stringify({
             type: "game_withdraw",
             gameId,
-            fromId: currentPlayer,
-            toId: reservedItem.toId,
+            fromId: account.id,
+            toId: reservedItem.toAccountId,
             assetId: reservedItem.assetId
           }))
 
@@ -593,36 +724,46 @@
         assetEl.draggable = true
         assetEl.ondragstart = e => {
           e.dataTransfer.setData("assetId", reservedItem.assetId)
-          e.dataTransfer.setData("ownerId", currentPlayer)
-          e.dataTransfer.setData("fromBasketToId", reservedItem.toId)
+          e.dataTransfer.setData("fromAccountId", account.id)
+          e.dataTransfer.setData("fromBasketToAccountId", reservedItem.toAccountId)
         }
       }
 
       container.appendChild(assetEl)
     }
 
-    function renderBasketAsset(viewingPlayer, container, item){
-      const isReceiverView = viewingPlayer.id === currentPlayer
-      const isSenderView = item.from === currentPlayer
-      const clickable = isReceiverView || isSenderView
+    function renderBasketAsset(viewingAccount, container, item, accountMap){
+      const fromAccountId = getFromAccountId(item)
+      const fromAccount = fromAccountId ? accountMap[fromAccountId] : null
+      const fromPlayerId = fromAccount ? fromAccount.playerId : ""
+      const senderIsMine = fromAccount ? isMyAccount(fromAccount) : false
+      const receiverIsMine = isMyAccount(viewingAccount)
+
+      const clickable = senderIsMine || receiverIsMine
+
+      const label = fromAccountId
+        ? item.assetId + " (from " + fromAccountId + ")"
+        : item.assetId
 
       const assetEl = makeAssetEl({
-        text: item.assetId + " (from " + item.from + ")",
-        ownerId: item.from,
+        text: label,
+        ownerAccountId: fromAccountId,
+        ownerPlayerId: fromPlayerId,
         basket: true,
         clickable
       })
 
       if(clickable){
         assetEl.onclick = () => {
-          if(isReceiverView){
-            const ok = confirm("Return " + item.assetId + " to " + item.from + "'s store?")
+          if(senderIsMine){
+            const ok = confirm("Withdraw " + item.assetId + " from " + viewingAccount.id + "'s basket?")
             if(!ok) return
 
             socket.send(JSON.stringify({
-              type: "game_reject",
+              type: "game_withdraw",
               gameId,
-              playerId: currentPlayer,
+              fromId: fromAccountId,
+              toId: viewingAccount.id,
               assetId: item.assetId
             }))
 
@@ -630,15 +771,14 @@
             return
           }
 
-          if(isSenderView){
-            const ok = confirm("Withdraw " + item.assetId + " from " + viewingPlayer.id + "'s basket?")
+          if(receiverIsMine){
+            const ok = confirm("Return " + item.assetId + " to " + fromAccountId + "'s store?")
             if(!ok) return
 
             socket.send(JSON.stringify({
-              type: "game_withdraw",
+              type: "game_reject",
               gameId,
-              fromId: currentPlayer,
-              toId: viewingPlayer.id,
+              playerId: viewingAccount.id,
               assetId: item.assetId
             }))
 
@@ -646,12 +786,12 @@
           }
         }
 
-        if(isSenderView){
+        if(senderIsMine && fromAccountId){
           assetEl.draggable = true
           assetEl.ondragstart = e => {
             e.dataTransfer.setData("assetId", item.assetId)
-            e.dataTransfer.setData("ownerId", currentPlayer)
-            e.dataTransfer.setData("fromBasketToId", viewingPlayer.id)
+            e.dataTransfer.setData("fromAccountId", fromAccountId)
+            e.dataTransfer.setData("fromBasketToAccountId", viewingAccount.id)
           }
         }
       }
@@ -659,38 +799,42 @@
       container.appendChild(assetEl)
     }
 
-    function renderColumnsPlayer(player, reservedByPlayer){
-      const playerEl = document.createElement("div")
-      playerEl.className = "player columns"
+    /* =========================
+       RENDERING
+    ========================= */
 
-      if(player.id === currentPlayer){
-        playerEl.classList.add("self-divider")
+    function renderColumnsAccount(account, reservedByAccount, accountMap){
+      const rowEl = document.createElement("div")
+      rowEl.className = "account-row columns"
+
+      if(isMyAccount(account)){
+        rowEl.classList.add("mine-divider")
       }
 
       const nameEl = document.createElement("div")
       nameEl.className = "name"
-      nameEl.textContent = player.id
-      applyOwnerSleeve(nameEl, player.id)
+      nameEl.textContent = account.id + " (" + account.playerId + ")"
+      applyOwnerSleeve(nameEl, account.playerId)
 
       nameEl.onmouseenter = () => {
-        highlightAssetsForOwner(player.id, true)
+        highlightAssetsForAccount(account.id, true)
       }
 
       nameEl.onmouseleave = () => {
-        highlightAssetsForOwner(player.id, false)
+        highlightAssetsForAccount(account.id, false)
       }
 
       const modeEl = document.createElement("div")
       modeEl.className = "mode"
-      modeEl.textContent = player.mode
+      modeEl.textContent = account.mode
 
-      if(player.id === currentPlayer){
+      if(isMyAccount(account)){
         modeEl.classList.add("clickable")
         modeEl.onclick = () => {
           socket.send(JSON.stringify({
             type: "game_toggleLock",
             gameId,
-            playerId: currentPlayer
+            playerId: account.id
           }))
         }
       }
@@ -704,35 +848,33 @@
       const basketCol = document.createElement("div")
       basketCol.className = "column"
 
-      setupDropTarget(basketCol, player.id)
+      setupDropTarget(basketCol, account)
 
-      player.account.forEach(assetId => {
-        renderStoreAsset(player, storeCol, reservedByPlayer, assetId)
+      renderStoreAsset(account, storeCol, reservedByAccount)
+
+      ;(reservedByAccount[account.id] || []).forEach(item => {
+        renderReservedColumnAsset(account, reservedCol, item)
       })
 
-      ;(reservedByPlayer[player.id] || []).forEach(item => {
-        renderReservedColumnAsset(player, reservedCol, item)
+      account.basket.forEach(item => {
+        renderBasketAsset(account, basketCol, item, accountMap)
       })
 
-      player.basket.forEach(item => {
-        renderBasketAsset(player, basketCol, item)
-      })
+      rowEl.appendChild(nameEl)
+      rowEl.appendChild(modeEl)
+      rowEl.appendChild(storeCol)
+      rowEl.appendChild(reservedCol)
+      rowEl.appendChild(basketCol)
 
-      playerEl.appendChild(nameEl)
-      playerEl.appendChild(modeEl)
-      playerEl.appendChild(storeCol)
-      playerEl.appendChild(reservedCol)
-      playerEl.appendChild(basketCol)
-
-      return playerEl
+      return rowEl
     }
 
-    function renderMergedPlayer(player, reservedByPlayer){
-      const playerEl = document.createElement("div")
-      playerEl.className = "player merged"
+    function renderMergedAccount(account, reservedByAccount, accountMap){
+      const rowEl = document.createElement("div")
+      rowEl.className = "account-row merged"
 
-      if(player.id === currentPlayer){
-        playerEl.classList.add("self-divider")
+      if(isMyAccount(account)){
+        rowEl.classList.add("mine-divider")
       }
 
       const settingsEl = document.createElement("div")
@@ -740,35 +882,37 @@
 
       const nameEl = document.createElement("div")
       nameEl.className = "name"
-      nameEl.textContent = player.id
-      applyOwnerSleeve(nameEl, player.id)
+      nameEl.textContent = account.id + " (" + account.playerId + ")"
+      applyOwnerSleeve(nameEl, account.playerId)
 
       nameEl.onmouseenter = () => {
-        highlightAssetsForOwner(player.id, true)
+        highlightAssetsForAccount(account.id, true)
       }
 
       nameEl.onmouseleave = () => {
-        highlightAssetsForOwner(player.id, false)
+        highlightAssetsForAccount(account.id, false)
       }
 
       const modeEl = document.createElement("div")
       modeEl.className = "mode"
-      modeEl.textContent = player.mode
+      modeEl.textContent = account.mode
 
-      if(player.id === currentPlayer){
+      if(isMyAccount(account)){
         modeEl.classList.add("clickable")
         modeEl.onclick = () => {
           socket.send(JSON.stringify({
             type: "game_toggleLock",
             gameId,
-            playerId: currentPlayer
+            playerId: account.id
           }))
         }
       }
 
       const hintEl = document.createElement("span")
       hintEl.className = "subtle"
-      hintEl.textContent = player.id === currentPlayer ? "your assets" : "tap empty area to offer selected"
+      hintEl.textContent = isMyAccount(account)
+        ? "your account"
+        : "tap empty area to offer selected"
 
       settingsEl.appendChild(nameEl)
       settingsEl.appendChild(modeEl)
@@ -777,68 +921,40 @@
       const assetsEl = document.createElement("div")
       assetsEl.className = "assets"
 
-      setupDropTarget(assetsEl, player.id)
+      setupDropTarget(assetsEl, account)
 
-      player.account.forEach(assetId => {
-        renderStoreAsset(player, assetsEl, reservedByPlayer, assetId)
+      renderStoreAsset(account, assetsEl, reservedByAccount)
+
+      account.basket.forEach(item => {
+        renderBasketAsset(account, assetsEl, item, accountMap)
       })
 
-      player.basket.forEach(item => {
-        renderBasketAsset(player, assetsEl, item)
-      })
+      rowEl.appendChild(settingsEl)
+      rowEl.appendChild(assetsEl)
 
-      playerEl.appendChild(settingsEl)
-      playerEl.appendChild(assetsEl)
-
-      return playerEl
+      return rowEl
     }
 
-
     function render(){
-
       gameEl.innerHTML = ""
 
       headerEl.style.display = viewMode === "columns" ? "grid" : "none"
 
       if(!state) return
 
-      const reservedByPlayer = buildReservedByPlayer()
+      const accounts = getAccounts()
+      const accountMap = getAccountMap()
+      const reservedByAccount = buildReservedByAccount(accounts)
+      const visibleAccounts = getVisibleAccounts(accounts)
 
-      let players = Object.values(state.players)
+      visibleAccounts.forEach(account => {
+        const rowEl = viewMode === "columns"
+          ? renderColumnsAccount(account, reservedByAccount, accountMap)
+          : renderMergedAccount(account, reservedByAccount, accountMap)
 
-      if(showActiveOnly){
-
-        const activeSet = new Set()
-
-        Object.values(state.players).forEach(p=>{
-          p.basket.forEach(item=>{
-            activeSet.add(p.id)       // receiving
-            activeSet.add(item.from)  // giving
-          })
-        })
-
-        players = players.filter(p => activeSet.has(p.id))
-      }
-
-      players = players.sort((a, b)=>{
-        if(a.id === currentPlayer) return -1
-        if(b.id === currentPlayer) return 1
-        return a.id.localeCompare(b.id)
+        gameEl.appendChild(rowEl)
       })
-
-      players.forEach(player => {
-
-        const playerEl =
-          viewMode === "columns"
-            ? renderColumnsPlayer(player, reservedByPlayer)
-            : renderMergedPlayer(player, reservedByPlayer)
-
-        gameEl.appendChild(playerEl)
-
-      })
-
     }
-
   </script>
 
 </body>
