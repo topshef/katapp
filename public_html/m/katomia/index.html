@@ -464,13 +464,34 @@
       })
     }
 
-		function highlightReservedFromAccount(accountId, on){
-			document.querySelectorAll(".asset.reserved").forEach(asset => {
-				if(asset.dataset.ownerAccount === accountId){
-					applyHoverHighlight(asset, on)
+
+		function highlightTradePair(assetId, fromAccountId, toAccountId, on){
+
+			document.querySelectorAll(".asset.reserved").forEach(el => {
+
+				if(
+					el.dataset.ownerAccount === fromAccountId &&
+					el.dataset.assetId === assetId &&
+					el.dataset.toAccount === toAccountId
+				){
+					applyHoverHighlight(el, on)
 				}
+
+			})
+
+			document.querySelectorAll(".asset.basket").forEach(el => {
+
+				if(
+					el.dataset.ownerAccount === fromAccountId &&
+					el.dataset.assetId === assetId &&
+					el.dataset.toAccount === toAccountId
+				){
+					applyHoverHighlight(el, on)
+				}
+
 			})
 		}
+
 
     function getVisibleAccounts(accounts){
       let visible = [...accounts]
@@ -709,6 +730,11 @@
         )
       })
 
+			//for css hover
+			assetEl.dataset.assetId = reservedItem.assetId
+			assetEl.dataset.toAccount = reservedItem.toAccountId
+
+
       if(mine){
         assetEl.onclick = () => {
           const ok = confirm("Recall " + reservedItem.assetId + " from " + reservedItem.toAccountId + "?")
@@ -733,6 +759,14 @@
         }
       }
 
+			assetEl.onmouseenter = () => {
+				highlightTradePair(reservedItem.assetId, account.id, reservedItem.toAccountId, true)
+			}
+
+			assetEl.onmouseleave = () => {
+				highlightTradePair(reservedItem.assetId, account.id, reservedItem.toAccountId, false)
+			}
+
       container.appendChild(assetEl)
     }
 
@@ -756,14 +790,18 @@
         basket: true,
         clickable
       })
-						
+
+			//for css hover
+			assetEl.dataset.assetId = item.assetId
+			assetEl.dataset.toAccount = viewingAccount.id
+			
 			if(fromAccountId){
 				assetEl.onmouseenter = () => {
-					highlightReservedFromAccount(fromAccountId, true)
+					highlightTradePair(item.assetId, fromAccountId, viewingAccount.id, true)
 				}
 
 				assetEl.onmouseleave = () => {
-					highlightReservedFromAccount(fromAccountId, false)
+					highlightTradePair(item.assetId, fromAccountId, viewingAccount.id, false)
 				}
 			}
 
