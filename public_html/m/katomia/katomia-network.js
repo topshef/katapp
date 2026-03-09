@@ -12,6 +12,13 @@ joinBtn.onclick = () => {
 }
 
 exitBtn.onclick = () => {
+
+  const ok = confirm(
+    "Leave the game?\n\nAll of your accounts and assets will be removed."
+  )
+
+  if(!ok) return
+
   exitGame()
 }
 
