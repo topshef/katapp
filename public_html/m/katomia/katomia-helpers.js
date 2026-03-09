@@ -82,9 +82,23 @@
       return item.fromAccountId || item.fromId || item.from || null
     }
 
+		// function isMyAccount(account){
+			// return account.playerId === getOrCreatePlayerToken()
+		// }		
+		
 		function isMyAccount(account){
-			return account.playerId === getOrCreatePlayerToken()
-		}		
+
+			const token = getOrCreatePlayerToken()
+
+			if(!state || !state.accounts) return false
+
+			const myAccountIds = Object.keys(state.accounts).filter(id =>
+				id.startsWith(token + ":")
+			)
+
+			return myAccountIds.includes(account.id)
+		}
+		
 
 		function buildReservedByAccount(accounts){
 			const reservedByAccount = {}

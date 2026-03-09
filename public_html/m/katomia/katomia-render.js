@@ -82,7 +82,8 @@
 				const player = toAccount ? state.players[toAccount.playerId] : null
 				const name = player?.name || reservedItem.toAccountId
 
-				visibleTo = reservedItem.toAccountId.replace(toAccount.playerId, name)
+				const labelPart = reservedItem.toAccountId.split(":")[1] || reservedItem.toAccountId
+				visibleTo = name + ":" + labelPart
 			}
 
 			const assetEl = makeAssetEl({
@@ -105,7 +106,8 @@
 
       if(mine){
         assetEl.onclick = () => {
-          const ok = confirm("Recall " + reservedItem.assetId + " from " + reservedItem.toAccountId + "?")
+          // const ok = confirm("Recall " + reservedItem.assetId + " from " + reservedItem.toAccountId + "?")
+					const ok = confirm("Recall " + reservedItem.assetId + "?")  // todo add from label
           if(!ok) return
 
           socket.send(JSON.stringify({
@@ -155,9 +157,8 @@
 				const player = fromAccount ? state.players[fromAccount.playerId] : null
 				const name = player?.name || fromAccountId
 
-				const visibleId = fromAccountId.replace(fromAccount.playerId, name)
-
-				label = item.assetId + " (from " + visibleId + ")"
+				const labelPart = fromAccountId.split(":")[1] || fromAccountId
+				label = item.assetId + " (from " + name + ":" + labelPart + ")"
 			}
 
       const assetEl = makeAssetEl({
@@ -185,7 +186,8 @@
       if(clickable){
         assetEl.onclick = () => {
           if(senderIsMine){
-            const ok = confirm("Withdraw " + item.assetId + " from " + viewingAccount.id + "'s basket?")
+            // const ok = confirm("Withdraw " + item.assetId + " from " + viewingAccount.id + "'s basket?")
+						const ok = confirm("Withdraw " + item.assetId + "?") // todo add back the fucking accoutn id ffs
             if(!ok) return
 
             socket.send(JSON.stringify({
@@ -201,7 +203,8 @@
           }
 
           if(receiverIsMine){
-            const ok = confirm("Return " + item.assetId + " to " + fromAccountId + "'s store?")
+            // const ok = confirm("Return " + item.assetId + " to " + fromAccountId + "'s store?")
+						const ok = confirm("Return " + item.assetId + " to " + fromAccountId) // arsfukcer
             if(!ok) return
 
             socket.send(JSON.stringify({
@@ -247,7 +250,8 @@
 			const player = state.players[account.playerId]
 			const name = player?.name || account.playerId
 
-			nameEl.textContent = account.id.replace(account.playerId, name)
+			const label = account.id.split(":")[1] || account.id
+			nameEl.textContent = name + ":" + label
 
       applyOwnerSleeve(nameEl, account.playerId)
 
@@ -323,7 +327,8 @@
 			const player = state.players[account.playerId]
 			const name = player?.name || account.playerId
 
-			nameEl.textContent = account.id.replace(account.playerId, name)
+			const label = account.id.split(":")[1] || account.id
+			nameEl.textContent = name + ":" + label
 
       applyOwnerSleeve(nameEl, account.playerId)
 
