@@ -21,19 +21,32 @@
       grid-template-columns:1.4fr 0.8fr 3fr 3fr 3fr;
       gap:10px;
       font-weight:bold;
-      border-bottom:2px solid #000;
-      margin-bottom:6px;
+			border-bottom:2px solid #bbb;
+      zzmargin-bottom:6px;
     }
 
     .header > div{
       padding:8px 10px;
+			color:#666;
+			font-weight:600;
     }
 
     .account-row{
       border-top:1px solid #ddd;
       padding:8px 0;
-      margin-bottom:6px;
+      zzmargin-bottom:6px;
     }
+
+		.account-row[data-mode="lock"]{
+			zzpink_background:#ffe9ec;
+			
+		}
+
+		.account-row[data-mode="lock"]{
+			zzbackground:#ffe9ec;   /* pale pink */
+			background:#fad098;   /* pale amber */
+			opacity:0.72;
+		}
 
     .account-row.columns{
       display:grid;
@@ -48,10 +61,14 @@
 
 		.account-row[data-mine="true"]:has(+ .account-row[data-mine="false"]),
 		.account-row[data-mine="true"]:last-child{
-			border-bottom:3px solid #000;
-			margin-bottom:8px;
+			zzborder-bottom:3px solid #000;
+			border-bottom:6px solid #bbb;
+			zzmargin-bottom:8px;
 			padding-bottom:12px;
 		}
+
+
+
 
     .settings{
       display:flex;
@@ -62,18 +79,26 @@
       font-weight:bold;
     }
 
-    .name{
-      font-weight:bold;
-      cursor:pointer;
-    }
+		.mode{
+			font-size:0.8em;
+			font-weight:300;
+			padding:2px 6px;
+			line-height:1;
+			opacity:0.8;
+		}
 
-    .mode{
-      font-weight:bold;
-    }
+		.mode.clickable{
+			cursor:pointer;
+		}
 
-    .mode.clickable{
-      cursor:pointer;
-    }
+		.account-lock{
+			font-size:0.8em;
+			font-weight:300;
+			padding:2px 6px;
+			line-height:1;
+			opacity:0.8;
+		}
+
 
     .column,
     .assets{

@@ -242,6 +242,7 @@
 			// data to help with css rendering
 			rowEl.dataset.playerId = account.playerId
 			rowEl.dataset.accountId = account.id
+			rowEl.dataset.mode = account.mode
 			rowEl.dataset.mine = isMyAccount(account) ? "true" : "false"
 
       const nameEl = document.createElement("div")
@@ -265,7 +266,7 @@
 
       const modeEl = document.createElement("div")
       modeEl.className = "mode"
-      modeEl.textContent = account.mode
+      modeEl.textContent = account.mode === "lock" ? "🔒 Locked" : "🔁 Trading"
 
       if(isMyAccount(account)){
         modeEl.classList.add("clickable")
@@ -342,7 +343,8 @@
 
       const modeEl = document.createElement("div")
       modeEl.className = "mode"
-      modeEl.textContent = account.mode
+      modeEl.textContent = account.mode === "lock" ? "🔒 Locked" : "🔁 Trading"
+			modeEl.className = "account-lock"
 
       if(isMyAccount(account)){
         modeEl.classList.add("clickable")
