@@ -432,24 +432,23 @@
 
 			accounts.forEach(account => {
 				account.basket.forEach(item => {
-
 					const fromAccountId = getFromAccountId(item)
 					if(!fromAccountId) return
 
-					if(!reservedByAccount[fromAccountId]) {
+					if(!reservedByAccount[fromAccountId]){
 						reservedByAccount[fromAccountId] = []
 					}
 
 					reservedByAccount[fromAccountId].push({
 						assetId: item.assetId,
-						toAccountId: account.id,
-						index: reservedByAccount[fromAccountId].length
+						toAccountId: account.id
 					})
 				})
 			})
 
 			return reservedByAccount
 		}
+
 
     function getReservedEntry(reservedByAccount, accountId, assetId){
       const list = reservedByAccount[accountId] || []
@@ -638,64 +637,49 @@
       return el
     }
 
-    function renderStoreAsset(account, container, reservedByAccount){
-      //account.assets.forEach(assetId => {   //does not support duplicates
-			account.assets.forEach((assetId, assetIndex) => { // supports duplicates
-        //const reservedEntry = getReservedEntry(reservedByAccount, account.id, assetId)
-				const reservedEntry = (reservedByAccount[account.id] || [])
-					.find(entry => entry.assetId === assetId && entry.index === assetIndex)
-        const isReserved = !!reservedEntry
-        const mine = isMyAccount(account)
 
-        const text = isReserved
-          ? assetId + " (to " + reservedEntry.toAccountId + ")"
-          : assetId
 
-        const assetEl = makeAssetEl({
-          text,
-          ownerAccountId: account.id,
-          ownerPlayerId: account.playerId,
-          reserved: isReserved,
-          clickable: mine,
-          selected: isSelected(
-            assetId,
-            account.id,
-            isReserved ? reservedEntry.toAccountId : null
-          )
-        })
+		/*
+		Rendering supports duplicate asset IDs by treating store, reserved, and basket
+		as independent sources of truth.
 
-        if(mine){
-          assetEl.onclick = () => {
-            if(isReserved){
-              const ok = confirm("Recall " + assetId + " from " + reservedEntry.toAccountId + "?")
-              if(!ok) return
+		- Store items come from account.assets (actual inventory).
+		- Reserved items are reconstructed from other accounts' baskets (items offered out).
+		- Basket items come from account.basket (items offered to this account).
 
-              socket.send(JSON.stringify({
-                type: "game_withdraw",
-                gameId,
-                fromId: account.id,
-                toId: reservedEntry.toAccountId,
-                assetId
-              }))
+		Because reserved assets are removed from account.assets by the backend, we never
+		try to match or mark store items as "reserved". This avoids index/position issues
+		and allows duplicate asset IDs (e.g. multiple "apple") to behave correctly.
+		*/
+		function renderStoreAsset(account, container){
+			const mine = isMyAccount(account)
 
-              clearSelection()
-              return
-            }
+			account.assets.forEach(assetId => {
+				const assetEl = makeAssetEl({
+					text: assetId,
+					ownerAccountId: account.id,
+					ownerPlayerId: account.playerId,
+					clickable: mine,
+					selected: isSelected(assetId, account.id, null)
+				})
 
-            setSelectedAsset(assetId, account.id, null)
-          }
+				if(mine){
+					assetEl.onclick = () => {
+						setSelectedAsset(assetId, account.id, null)
+					}
 
-          assetEl.draggable = true
-          assetEl.ondragstart = e => {
-            e.dataTransfer.setData("assetId", assetId)
-            e.dataTransfer.setData("fromAccountId", account.id)
-            e.dataTransfer.setData("fromBasketToAccountId", isReserved ? reservedEntry.toAccountId : "")
-          }
-        }
+					assetEl.draggable = true
+					assetEl.ondragstart = e => {
+						e.dataTransfer.setData("assetId", assetId)
+						e.dataTransfer.setData("fromAccountId", account.id)
+						e.dataTransfer.setData("fromBasketToAccountId", "")
+					}
+				}
 
-        container.appendChild(assetEl)
-      })
-    }
+				container.appendChild(assetEl)
+			})
+		}
+
 
     function renderReservedColumnAsset(account, container, reservedItem){
       const mine = isMyAccount(account)
@@ -786,7 +770,7 @@
             socket.send(JSON.stringify({
               type: "game_reject",
               gameId,
-              playerId: viewingAccount.id,
+              accountId: viewingAccount.id,
               assetId: item.assetId
             }))
 
@@ -858,7 +842,7 @@
 
       setupDropTarget(basketCol, account)
 
-      renderStoreAsset(account, storeCol, reservedByAccount)
+			renderStoreAsset(account, storeCol)
 
       ;(reservedByAccount[account.id] || []).forEach(item => {
         renderReservedColumnAsset(account, reservedCol, item)
@@ -931,7 +915,11 @@
 
       setupDropTarget(assetsEl, account)
 
-      renderStoreAsset(account, assetsEl, reservedByAccount)
+      renderStoreAsset(account, assetsEl)
+
+			;(reservedByAccount[account.id] || []).forEach(item => {
+				renderReservedColumnAsset(account, assetsEl, item)
+			})
 
       account.basket.forEach(item => {
         renderBasketAsset(account, assetsEl, item, accountMap)
