@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>kpool play</title>
+
+  <style>
+    body{
+      font-family:sans-serif;
+      margin:16px;
+    }
+
+    h2{
+      margin-top:0;
+    }
+
+    .controls{
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+      align-items:center;
+      margin-bottom:12px;
+    }
+
+    .header{
+      display:grid;
+      grid-template-columns:1fr 0.8fr 3fr 3fr 3fr;
+      gap:10px;
+      font-weight:bold;
+      border-bottom:2px solid #000;
+      margin-bottom:6px;
+    }
+
+    .header > div{
+      padding:8px 10px;
+    }
+
+    .player{
+      border-top:1px solid #ddd;
+      padding:8px 0;
+      margin-bottom:6px;
+    }
+
+    .player.columns{
+      display:grid;
+      grid-template-columns:1fr 0.8fr 3fr 3fr 3fr;
+      gap:10px;
+      align-items:stretch;
+    }
+
+    .player.merged{
+      display:block;
+    }
+
+    .self-divider{
+      border-bottom:3px solid #000;
+      margin-bottom:8px;
+      padding-bottom:12px;
+    }
+
+    .settings{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:center;
+      margin-bottom:8px;
+      font-weight:bold;
+    }
+
+    .name{
+      font-weight:bold;
+      cursor:pointer;
+    }
+
+    .mode{
+      font-weight:bold;
+    }
+
+    .mode.clickable{
+      cursor:pointer;
+    }
+
+    .column,
+    .assets{
+      min-height:68px;
+      padding:6px;
+      border:1px dashed #aaa;
+      background:#fff;
+    }
+
+    .drop-target.drag-over{
+      background:#f5f5f5;
+    }
+
+    .asset{
+      display:inline-block;
+      margin:3px;
+      padding:4px 8px;
+      background:#eee;
+      user-select:none;
+      vertical-align:top;
+    }
+
+    .asset.clickable{
+      cursor:pointer;
+    }
+
+    .asset.reserved{
+      opacity:0.4;
+    }
+
+    .asset.basket{
+      background:#dff6ff;
+    }
+
+    .asset.selected{
+      outline:2px solid #000;
+      outline-offset:1px;
+    }
+
+    .hint{
+      font-size:12px;
+      color:#555;
+      margin-bottom:10px;
+    }
+
+    .subtle{
+      color:#666;
+      font-weight:normal;
+      font-size:12px;
+      margin-left:6px;
+    }
+
+    @media (max-width: 699px){
+      .header{
+        display:none !important;
+      }
+
+      .player.columns{
+        display:block;
+      }
+
+      .player.columns > .name,
+      .player.columns > .mode{
+        display:none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>Katomic Market - Swap Game Demo</h2>
+
+  <div class="controls">
+    <label>
+      Player ID:
+      <input id="playerInput" />
+    </label>
+
+    <button id="joinBtn">Join Game</button>
+    <button id="exitBtn">Exit Game</button>
+
+    <label style="cursor:pointer">
+      <input type="checkbox" id="viewToggle">
+      🖥️
+    </label>
+    
+    <label>
+      <input type="checkbox" id="activeOnly">
+      Show active players only
+    </label>
+    
+  </div>
+
+  <div class="hint">
+    Tap/click your asset to select it, then tap/click another player's target area to offer it.
+    Drag also works on desktop. Click reserved to recall. Click basket items to reject/withdraw.
+  </div>
+
+  <div id="header" class="header">
+    <div>Player</div>
+    <div>Swap / Lock</div>
+    <div>Store (available)</div>
+    <div>Reserved (to send)</div>
+    <div>Basket (receive)</div>
+  </div>
+
+  <div id="game"></div>
+
+  <script>
+    const gameId = "demo"
+
+    let socket = null
+    let currentPlayer = null
+    let state = null
+
+    let viewMode = window.innerWidth < 700 ? "merged" : "columns"
+    let showActiveOnly = false
+
+    let selectedAssetId = null
+    let selectedOwnerId = null
+    let selectedFromBasketToId = null
+
+    const playerColours = {}
+    const colourPalette = [
+      "#e63946",
+      "#1d3557",
+      "#2a9d8f",
+      "#f4a261",
+      "#6a4c93",
+      "#118ab2",
+      "#2b9348",
+      "#ef476f"
+    ]
+
+    const playerInput = document.getElementById("playerInput")
+    const joinBtn = document.getElementById("joinBtn")
+    const exitBtn = document.getElementById("exitBtn")
+    const viewToggle = document.getElementById("viewToggle")
+    const headerEl = document.getElementById("header")
+    const gameEl = document.getElementById("game")
+
+
+    const activeOnlyCheckbox = document.getElementById("activeOnly")
+
+    activeOnlyCheckbox.onchange = e => {
+      showActiveOnly = e.target.checked
+      render()
+    }
+
+    viewToggle.checked = viewMode === "columns"
+
+    joinBtn.onclick = () => {
+      const playerId = playerInput.value.trim()
+      if(!playerId) return
+
+      currentPlayer = playerId
+      connect()
+    }
+
+    exitBtn.onclick = () => {
+      exitGame()
+    }
+
+
+    viewToggle.onchange = e => {
+      viewMode = e.target.checked ? "columns" : "merged"
+      render()
+    }
+
+
+    function getPlayerColour(playerId){
+      if(!playerColours[playerId]){
+        const used = Object.keys(playerColours).length
+        playerColours[playerId] = colourPalette[used % colourPalette.length]
+      }
+
+      return playerColours[playerId]
+    }
+
+    function applyOwnerSleeve(el, ownerId){
+      const colour = getPlayerColour(ownerId)
+      el.style.borderLeft = "12px solid " + colour
+      el.style.paddingLeft = "6px"
+    }
+
+    function applyHoverHighlight(el, on){
+      el.style.outline = on ? "2px solid #000" : "none"
+    }
+
+    function clearSelection(){
+      selectedAssetId = null
+      selectedOwnerId = null
+      selectedFromBasketToId = null
+    }
+
+
+    function isSelected(assetId, ownerId, fromBasketToId){
+      return (
+        selectedAssetId === assetId &&
+        selectedOwnerId === ownerId &&
+        (selectedFromBasketToId || null) === (fromBasketToId || null)
+      )
+    }
+
+    function setSelectedAsset(assetId, ownerId, fromBasketToId){
+      selectedAssetId = assetId
+      selectedOwnerId = ownerId
+      selectedFromBasketToId = fromBasketToId
+      render()
+    }
+
+    function connect(){
+      if(socket){
+        try{
+          socket.close()
+        }
+        catch(err){}
+      }
+
+      socket = new WebSocket("wss://hapi2.hbar.live/live/ws")
+
+      socket.onopen = () => {
+        socket.send(JSON.stringify({
+          type: "game_join",
+          gameId,
+          playerId: currentPlayer
+        }))
+      }
+
+      socket.onmessage = msg => {
+        const data = JSON.parse(msg.data)
+
+        if(data.type === "game_state"){
+          state = data.state
+          render()
+        }
+      }
+    }
+
+    function exitGame(){
+      if(!state || !currentPlayer){
+        if(socket) socket.close()
+        socket = null
+        currentPlayer = null
+        state = null
+        clearSelection()
+        gameEl.innerHTML = ""
+        return
+      }
+
+      const myPlayer = state.players[currentPlayer]
+
+      if(myPlayer){
+        myPlayer.basket.forEach(item => {
+          socket.send(JSON.stringify({
+            type: "game_reject",
+            gameId,
+            playerId: currentPlayer,
+            assetId: item.assetId
+          }))
+        })
+
+        Object.values(state.players).forEach(player => {
+          player.basket.forEach(item => {
+            if(item.from === currentPlayer){
+              socket.send(JSON.stringify({
+                type: "game_withdraw",
+                gameId,
+                fromId: currentPlayer,
+                toId: player.id,
+                assetId: item.assetId
+              }))
+            }
+          })
+        })
+
+        socket.send(JSON.stringify({
+          type: "game_exit",
+          gameId,
+          playerId: currentPlayer
+        }))
+      }
+
+      if(socket) socket.close()
+
+      socket = null
+      currentPlayer = null
+      state = null
+      clearSelection()
+      gameEl.innerHTML = ""
+    }
+
+    function buildReservedByPlayer(){
+      const reservedByPlayer = {}
+
+      if(!state) return reservedByPlayer
+
+      Object.values(state.players).forEach(player => {
+        player.basket.forEach(item => {
+          if(!reservedByPlayer[item.from]) reservedByPlayer[item.from] = []
+
+          reservedByPlayer[item.from].push({
+            assetId: item.assetId,
+            toId: player.id
+          })
+        })
+      })
+
+      return reservedByPlayer
+    }
+
+    function getReservedEntry(reservedByPlayer, playerId, assetId){
+      const list = reservedByPlayer[playerId] || []
+      return list.find(entry => entry.assetId === assetId) || null
+    }
+
+    function highlightAssetsForOwner(ownerId, on){
+      document.querySelectorAll(".asset.basket").forEach(asset => {
+        if(asset.dataset.owner === ownerId){
+          applyHoverHighlight(asset, on)
+        }
+      })
+    }
+
+    function offerSelectedToPlayer(targetPlayerId){
+      if(!selectedAssetId) return
+      if(targetPlayerId === currentPlayer) return
+
+      if(selectedFromBasketToId){
+        socket.send(JSON.stringify({
+          type: "game_withdraw",
+          gameId,
+          fromId: selectedOwnerId,
+          toId: selectedFromBasketToId,
+          assetId: selectedAssetId
+        }))
+      }
+
+      socket.send(JSON.stringify({
+        type: "game_offer",
+        gameId,
+        fromId: selectedOwnerId,
+        toId: targetPlayerId,
+        assetId: selectedAssetId
+      }))
+
+      clearSelection()
+      render()
+    }
+
+    function setupDropTarget(el, targetPlayerId){
+      el.classList.add("drop-target")
+
+      el.ondragover = e => {
+        e.preventDefault()
+      }
+
+      el.ondragenter = () => {
+        if(targetPlayerId !== currentPlayer){
+          el.classList.add("drag-over")
+        }
+      }
+
+      el.ondragleave = () => {
+        el.classList.remove("drag-over")
+      }
+
+      el.ondrop = e => {
+        e.preventDefault()
+        el.classList.remove("drag-over")
+
+        const assetId = e.dataTransfer.getData("assetId")
+        const ownerId = e.dataTransfer.getData("ownerId")
+        const fromBasketToId = e.dataTransfer.getData("fromBasketToId") || ""
+
+        if(!assetId) return
+        if(targetPlayerId === currentPlayer) return
+
+        if(fromBasketToId){
+          socket.send(JSON.stringify({
+            type: "game_withdraw",
+            gameId,
+            fromId: ownerId,
+            toId: fromBasketToId,
+            assetId
+          }))
+        }
+
+        socket.send(JSON.stringify({
+          type: "game_offer",
+          gameId,
+          fromId: ownerId || currentPlayer,
+          toId: targetPlayerId,
+          assetId
+        }))
+
+        clearSelection()
+        render()
+      }
+
+      el.onclick = e => {
+        if(e.target !== el) return
+        offerSelectedToPlayer(targetPlayerId)
+      }
+    }
+
+    function makeAssetEl({
+      text,
+      ownerId,
+      reserved = false,
+      basket = false,
+      clickable = false,
+      selected = false
+    }){
+      const el = document.createElement("div")
+      el.className = "asset"
+      el.textContent = text
+      el.dataset.owner = ownerId
+
+      if(reserved) el.classList.add("reserved")
+      if(basket) el.classList.add("basket")
+      if(clickable) el.classList.add("clickable")
+      if(selected) el.classList.add("selected")
+
+      applyOwnerSleeve(el, ownerId)
+
+      return el
+    }
+
+    function renderStoreAsset(player, container, reservedByPlayer, assetId){
+      const reservedEntry = getReservedEntry(reservedByPlayer, player.id, assetId)
+      const isReserved = !!reservedEntry
+      const isMine = player.id === currentPlayer
+
+      const text = isReserved
+        ? assetId + " (to " + reservedEntry.toId + ")"
+        : assetId
+
+      const assetEl = makeAssetEl({
+        text,
+        ownerId: player.id,
+        reserved: isReserved,
+        clickable: isMine,
+        selected: isSelected(
+          assetId,
+          player.id,
+          isReserved ? reservedEntry.toId : null
+        )
+      })
+
+      if(isMine){
+        assetEl.onclick = () => {
+          if(isReserved){
+            const ok = confirm("Recall " + assetId + " from " + reservedEntry.toId + "?")
+            if(!ok) return
+
+            socket.send(JSON.stringify({
+              type: "game_withdraw",
+              gameId,
+              fromId: currentPlayer,
+              toId: reservedEntry.toId,
+              assetId
+            }))
+
+            clearSelection()
+            return
+          }
+
+          setSelectedAsset(assetId, currentPlayer, null)
+        }
+
+        assetEl.draggable = true
+        assetEl.ondragstart = e => {
+          e.dataTransfer.setData("assetId", assetId)
+          e.dataTransfer.setData("ownerId", currentPlayer)
+          e.dataTransfer.setData("fromBasketToId", isReserved ? reservedEntry.toId : "")
+        }
+      }
+
+      container.appendChild(assetEl)
+    }
+
+    function renderReservedColumnAsset(player, container, reservedItem){
+      const isMine = player.id === currentPlayer
+
+      const assetEl = makeAssetEl({
+        text: reservedItem.assetId + " (to " + reservedItem.toId + ")",
+        ownerId: player.id,
+        reserved: true,
+        clickable: isMine,
+        selected: isSelected(reservedItem.assetId, currentPlayer, reservedItem.toId)
+      })
+
+      if(isMine){
+        assetEl.onclick = () => {
+          const ok = confirm("Recall " + reservedItem.assetId + " from " + reservedItem.toId + "?")
+          if(!ok) return
+
+          socket.send(JSON.stringify({
+            type: "game_withdraw",
+            gameId,
+            fromId: currentPlayer,
+            toId: reservedItem.toId,
+            assetId: reservedItem.assetId
+          }))
+
+          clearSelection()
+        }
+
+        assetEl.draggable = true
+        assetEl.ondragstart = e => {
+          e.dataTransfer.setData("assetId", reservedItem.assetId)
+          e.dataTransfer.setData("ownerId", currentPlayer)
+          e.dataTransfer.setData("fromBasketToId", reservedItem.toId)
+        }
+      }
+
+      container.appendChild(assetEl)
+    }
+
+    function renderBasketAsset(viewingPlayer, container, item){
+      const isReceiverView = viewingPlayer.id === currentPlayer
+      const isSenderView = item.from === currentPlayer
+      const clickable = isReceiverView || isSenderView
+
+      const assetEl = makeAssetEl({
+        text: item.assetId + " (from " + item.from + ")",
+        ownerId: item.from,
+        basket: true,
+        clickable
+      })
+
+      if(clickable){
+        assetEl.onclick = () => {
+          if(isReceiverView){
+            const ok = confirm("Return " + item.assetId + " to " + item.from + "'s store?")
+            if(!ok) return
+
+            socket.send(JSON.stringify({
+              type: "game_reject",
+              gameId,
+              playerId: currentPlayer,
+              assetId: item.assetId
+            }))
+
+            clearSelection()
+            return
+          }
+
+          if(isSenderView){
+            const ok = confirm("Withdraw " + item.assetId + " from " + viewingPlayer.id + "'s basket?")
+            if(!ok) return
+
+            socket.send(JSON.stringify({
+              type: "game_withdraw",
+              gameId,
+              fromId: currentPlayer,
+              toId: viewingPlayer.id,
+              assetId: item.assetId
+            }))
+
+            clearSelection()
+          }
+        }
+
+        if(isSenderView){
+          assetEl.draggable = true
+          assetEl.ondragstart = e => {
+            e.dataTransfer.setData("assetId", item.assetId)
+            e.dataTransfer.setData("ownerId", currentPlayer)
+            e.dataTransfer.setData("fromBasketToId", viewingPlayer.id)
+          }
+        }
+      }
+
+      container.appendChild(assetEl)
+    }
+
+    function renderColumnsPlayer(player, reservedByPlayer){
+      const playerEl = document.createElement("div")
+      playerEl.className = "player columns"
+
+      if(player.id === currentPlayer){
+        playerEl.classList.add("self-divider")
+      }
+
+      const nameEl = document.createElement("div")
+      nameEl.className = "name"
+      nameEl.textContent = player.id
+      applyOwnerSleeve(nameEl, player.id)
+
+      nameEl.onmouseenter = () => {
+        highlightAssetsForOwner(player.id, true)
+      }
+
+      nameEl.onmouseleave = () => {
+        highlightAssetsForOwner(player.id, false)
+      }
+
+      const modeEl = document.createElement("div")
+      modeEl.className = "mode"
+      modeEl.textContent = player.mode
+
+      if(player.id === currentPlayer){
+        modeEl.classList.add("clickable")
+        modeEl.onclick = () => {
+          socket.send(JSON.stringify({
+            type: "game_toggleLock",
+            gameId,
+            playerId: currentPlayer
+          }))
+        }
+      }
+
+      const storeCol = document.createElement("div")
+      storeCol.className = "column"
+
+      const reservedCol = document.createElement("div")
+      reservedCol.className = "column"
+
+      const basketCol = document.createElement("div")
+      basketCol.className = "column"
+
+      setupDropTarget(basketCol, player.id)
+
+      player.account.forEach(assetId => {
+        renderStoreAsset(player, storeCol, reservedByPlayer, assetId)
+      })
+
+      ;(reservedByPlayer[player.id] || []).forEach(item => {
+        renderReservedColumnAsset(player, reservedCol, item)
+      })
+
+      player.basket.forEach(item => {
+        renderBasketAsset(player, basketCol, item)
+      })
+
+      playerEl.appendChild(nameEl)
+      playerEl.appendChild(modeEl)
+      playerEl.appendChild(storeCol)
+      playerEl.appendChild(reservedCol)
+      playerEl.appendChild(basketCol)
+
+      return playerEl
+    }
+
+    function renderMergedPlayer(player, reservedByPlayer){
+      const playerEl = document.createElement("div")
+      playerEl.className = "player merged"
+
+      if(player.id === currentPlayer){
+        playerEl.classList.add("self-divider")
+      }
+
+      const settingsEl = document.createElement("div")
+      settingsEl.className = "settings"
+
+      const nameEl = document.createElement("div")
+      nameEl.className = "name"
+      nameEl.textContent = player.id
+      applyOwnerSleeve(nameEl, player.id)
+
+      nameEl.onmouseenter = () => {
+        highlightAssetsForOwner(player.id, true)
+      }
+
+      nameEl.onmouseleave = () => {
+        highlightAssetsForOwner(player.id, false)
+      }
+
+      const modeEl = document.createElement("div")
+      modeEl.className = "mode"
+      modeEl.textContent = player.mode
+
+      if(player.id === currentPlayer){
+        modeEl.classList.add("clickable")
+        modeEl.onclick = () => {
+          socket.send(JSON.stringify({
+            type: "game_toggleLock",
+            gameId,
+            playerId: currentPlayer
+          }))
+        }
+      }
+
+      const hintEl = document.createElement("span")
+      hintEl.className = "subtle"
+      hintEl.textContent = player.id === currentPlayer ? "your assets" : "tap empty area to offer selected"
+
+      settingsEl.appendChild(nameEl)
+      settingsEl.appendChild(modeEl)
+      settingsEl.appendChild(hintEl)
+
+      const assetsEl = document.createElement("div")
+      assetsEl.className = "assets"
+
+      setupDropTarget(assetsEl, player.id)
+
+      player.account.forEach(assetId => {
+        renderStoreAsset(player, assetsEl, reservedByPlayer, assetId)
+      })
+
+      player.basket.forEach(item => {
+        renderBasketAsset(player, assetsEl, item)
+      })
+
+      playerEl.appendChild(settingsEl)
+      playerEl.appendChild(assetsEl)
+
+      return playerEl
+    }
+
+
+    function render(){
+
+      gameEl.innerHTML = ""
+
+      headerEl.style.display = viewMode === "columns" ? "grid" : "none"
+
+      if(!state) return
+
+      const reservedByPlayer = buildReservedByPlayer()
+
+      let players = Object.values(state.players)
+
+      if(showActiveOnly){
+
+        const activeSet = new Set()
+
+        Object.values(state.players).forEach(p=>{
+          p.basket.forEach(item=>{
+            activeSet.add(p.id)       // receiving
+            activeSet.add(item.from)  // giving
+          })
+        })
+
+        players = players.filter(p => activeSet.has(p.id))
+      }
+
+      players = players.sort((a, b)=>{
+        if(a.id === currentPlayer) return -1
+        if(b.id === currentPlayer) return 1
+        return a.id.localeCompare(b.id)
+      })
+
+      players.forEach(player => {
+
+        const playerEl =
+          viewMode === "columns"
+            ? renderColumnsPlayer(player, reservedByPlayer)
+            : renderMergedPlayer(player, reservedByPlayer)
+
+        gameEl.appendChild(playerEl)
+
+      })
+
+    }
+
+  </script>
+
+</body>
+</html>
