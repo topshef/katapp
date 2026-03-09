@@ -82,23 +82,18 @@
       return item.fromAccountId || item.fromId || item.from || null
     }
 
-		// function isMyAccount(account){
-			// return account.playerId === getOrCreatePlayerToken()
-		// }		
-		
 		function isMyAccount(account){
-
-			const token = getOrCreatePlayerToken()
 
 			if(!state || !state.accounts) return false
 
-			const myAccountIds = Object.keys(state.accounts).filter(id =>
-				id.startsWith(token + ":")
-			)
+			const player = state.players?.[account.playerId]
+			if(!player) return false
 
-			return myAccountIds.includes(account.id)
+			const myName = currentPlayer
+			if(!myName) return false
+
+			return player.name === myName
 		}
-		
 
 		function buildReservedByAccount(accounts){
 			const reservedByAccount = {}
