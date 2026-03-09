@@ -425,26 +425,31 @@
     function isMyAccount(account){
       return account.playerId === currentPlayer
     }
+		
 
-    function buildReservedByAccount(accounts){
-      const reservedByAccount = {}
+		function buildReservedByAccount(accounts){
+			const reservedByAccount = {}
 
-      accounts.forEach(account => {
-        account.basket.forEach(item => {
-          const fromAccountId = getFromAccountId(item)
-          if(!fromAccountId) return
+			accounts.forEach(account => {
+				account.basket.forEach(item => {
 
-          if(!reservedByAccount[fromAccountId]) reservedByAccount[fromAccountId] = []
+					const fromAccountId = getFromAccountId(item)
+					if(!fromAccountId) return
 
-          reservedByAccount[fromAccountId].push({
-            assetId: item.assetId,
-            toAccountId: account.id
-          })
-        })
-      })
+					if(!reservedByAccount[fromAccountId]) {
+						reservedByAccount[fromAccountId] = []
+					}
 
-      return reservedByAccount
-    }
+					reservedByAccount[fromAccountId].push({
+						assetId: item.assetId,
+						toAccountId: account.id,
+						index: reservedByAccount[fromAccountId].length
+					})
+				})
+			})
+
+			return reservedByAccount
+		}
 
     function getReservedEntry(reservedByAccount, accountId, assetId){
       const list = reservedByAccount[accountId] || []
@@ -634,8 +639,11 @@
     }
 
     function renderStoreAsset(account, container, reservedByAccount){
-      account.assets.forEach(assetId => {
-        const reservedEntry = getReservedEntry(reservedByAccount, account.id, assetId)
+      //account.assets.forEach(assetId => {   //does not support duplicates
+			account.assets.forEach((assetId, assetIndex) => { // supports duplicates
+        //const reservedEntry = getReservedEntry(reservedByAccount, account.id, assetId)
+				const reservedEntry = (reservedByAccount[account.id] || [])
+					.find(entry => entry.assetId === assetId && entry.index === assetIndex)
         const isReserved = !!reservedEntry
         const mine = isMyAccount(account)
 
