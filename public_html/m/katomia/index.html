@@ -53,11 +53,12 @@
       display:block;
     }
 
-    .mine-divider{
-      border-bottom:3px solid #000;
-      margin-bottom:8px;
-      padding-bottom:12px;
-    }
+		.account-row[data-mine="true"]:has(+ .account-row[data-mine="false"]),
+		.account-row[data-mine="true"]:last-child{
+			border-bottom:3px solid #000;
+			margin-bottom:8px;
+			padding-bottom:12px;
+		}
 
     .settings{
       display:flex;
@@ -802,9 +803,10 @@
       const rowEl = document.createElement("div")
       rowEl.className = "account-row columns"
 
-      if(isMyAccount(account)){
-        rowEl.classList.add("mine-divider")
-      }
+			// data to help with css rendering
+			rowEl.dataset.playerId = account.playerId
+			rowEl.dataset.accountId = account.id
+			rowEl.dataset.mine = isMyAccount(account) ? "true" : "false"
 
       const nameEl = document.createElement("div")
       nameEl.className = "name"
@@ -868,9 +870,10 @@
       const rowEl = document.createElement("div")
       rowEl.className = "account-row merged"
 
-      if(isMyAccount(account)){
-        rowEl.classList.add("mine-divider")
-      }
+			// help with css
+			rowEl.dataset.playerId = account.playerId
+			rowEl.dataset.accountId = account.id
+			rowEl.dataset.mine = isMyAccount(account) ? "true" : "false"
 
       const settingsEl = document.createElement("div")
       settingsEl.className = "settings"
