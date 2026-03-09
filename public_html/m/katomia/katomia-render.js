@@ -1,0 +1,373 @@
+
+    /* =========================
+       VIEW HELPERS
+    ========================= */
+
+    function makeAssetEl({
+      text,
+      ownerAccountId,
+      ownerPlayerId,
+      reserved = false,
+      basket = false,
+      clickable = false,
+      selected = false
+    }){
+      const el = document.createElement("div")
+      el.className = "asset"
+      el.textContent = text
+      el.dataset.ownerAccount = ownerAccountId || ""
+      el.dataset.ownerPlayer = ownerPlayerId || ""
+
+      if(reserved) el.classList.add("reserved")
+      if(basket) el.classList.add("basket")
+      if(clickable) el.classList.add("clickable")
+      if(selected) el.classList.add("selected")
+
+      applyOwnerSleeve(el, ownerPlayerId)
+
+      return el
+    }
+
+
+
+		/*
+		Rendering supports duplicate asset IDs by treating store, reserved, and basket
+		as independent sources of truth.
+
+		- Store items come from account.assets (actual inventory).
+		- Reserved items are reconstructed from other accounts' baskets (items offered out).
+		- Basket items come from account.basket (items offered to this account).
+
+		Because reserved assets are removed from account.assets by the backend, we never
+		try to match or mark store items as "reserved". This avoids index/position issues
+		and allows duplicate asset IDs (e.g. multiple "apple") to behave correctly.
+		*/
+		function renderStoreAsset(account, container){
+			const mine = isMyAccount(account)
+
+			account.assets.forEach(assetId => {
+				const assetEl = makeAssetEl({
+					text: assetId,
+					ownerAccountId: account.id,
+					ownerPlayerId: account.playerId,
+					clickable: mine,
+					selected: isSelected(assetId, account.id, null)
+				})
+
+				if(mine){
+					assetEl.onclick = () => {
+						setSelectedAsset(assetId, account.id, null)
+					}
+
+					assetEl.draggable = true
+					assetEl.ondragstart = e => {
+						e.dataTransfer.setData("assetId", assetId)
+						e.dataTransfer.setData("fromAccountId", account.id)
+						e.dataTransfer.setData("fromBasketToAccountId", "")
+					}
+				}
+
+				container.appendChild(assetEl)
+			})
+		}
+
+
+    function renderReservedColumnAsset(account, container, reservedItem){
+      const mine = isMyAccount(account)
+
+      const assetEl = makeAssetEl({
+        text: reservedItem.assetId + " (to " + reservedItem.toAccountId + ")",
+        ownerAccountId: account.id,
+        ownerPlayerId: account.playerId,
+        reserved: true,
+        clickable: mine,
+        selected: isSelected(
+          reservedItem.assetId,
+          account.id,
+          reservedItem.toAccountId
+        )
+      })
+
+			//for css hover
+			assetEl.dataset.assetId = reservedItem.assetId
+			assetEl.dataset.toAccount = reservedItem.toAccountId
+
+
+      if(mine){
+        assetEl.onclick = () => {
+          const ok = confirm("Recall " + reservedItem.assetId + " from " + reservedItem.toAccountId + "?")
+          if(!ok) return
+
+          socket.send(JSON.stringify({
+            type: "game_withdraw",
+            gameId,
+            fromId: account.id,
+            toId: reservedItem.toAccountId,
+            assetId: reservedItem.assetId
+          }))
+
+          clearSelection()
+        }
+
+        assetEl.draggable = true
+        assetEl.ondragstart = e => {
+          e.dataTransfer.setData("assetId", reservedItem.assetId)
+          e.dataTransfer.setData("fromAccountId", account.id)
+          e.dataTransfer.setData("fromBasketToAccountId", reservedItem.toAccountId)
+        }
+      }
+
+			assetEl.onmouseenter = () => {
+				highlightTradePair(reservedItem.assetId, account.id, reservedItem.toAccountId, true)
+			}
+
+			assetEl.onmouseleave = () => {
+				highlightTradePair(reservedItem.assetId, account.id, reservedItem.toAccountId, false)
+			}
+
+      container.appendChild(assetEl)
+    }
+
+    function renderBasketAsset(viewingAccount, container, item, accountMap){
+      const fromAccountId = getFromAccountId(item)
+      const fromAccount = fromAccountId ? accountMap[fromAccountId] : null
+      const fromPlayerId = fromAccount ? fromAccount.playerId : ""
+      const senderIsMine = fromAccount ? isMyAccount(fromAccount) : false
+      const receiverIsMine = isMyAccount(viewingAccount)
+
+      const clickable = senderIsMine || receiverIsMine
+
+      const label = fromAccountId
+        ? item.assetId + " (from " + fromAccountId + ")"
+        : item.assetId
+
+      const assetEl = makeAssetEl({
+        text: label,
+        ownerAccountId: fromAccountId,
+        ownerPlayerId: fromPlayerId,
+        basket: true,
+        clickable
+      })
+
+			//for css hover
+			assetEl.dataset.assetId = item.assetId
+			assetEl.dataset.toAccount = viewingAccount.id
+			
+			if(fromAccountId){
+				assetEl.onmouseenter = () => {
+					highlightTradePair(item.assetId, fromAccountId, viewingAccount.id, true)
+				}
+
+				assetEl.onmouseleave = () => {
+					highlightTradePair(item.assetId, fromAccountId, viewingAccount.id, false)
+				}
+			}
+
+      if(clickable){
+        assetEl.onclick = () => {
+          if(senderIsMine){
+            const ok = confirm("Withdraw " + item.assetId + " from " + viewingAccount.id + "'s basket?")
+            if(!ok) return
+
+            socket.send(JSON.stringify({
+              type: "game_withdraw",
+              gameId,
+              fromId: fromAccountId,
+              toId: viewingAccount.id,
+              assetId: item.assetId
+            }))
+
+            clearSelection()
+            return
+          }
+
+          if(receiverIsMine){
+            const ok = confirm("Return " + item.assetId + " to " + fromAccountId + "'s store?")
+            if(!ok) return
+
+            socket.send(JSON.stringify({
+              type: "game_reject",
+              gameId,
+              accountId: viewingAccount.id,
+              assetId: item.assetId
+            }))
+
+            clearSelection()
+          }
+        }
+
+        if(senderIsMine && fromAccountId){
+          assetEl.draggable = true
+          assetEl.ondragstart = e => {
+            e.dataTransfer.setData("assetId", item.assetId)
+            e.dataTransfer.setData("fromAccountId", fromAccountId)
+            e.dataTransfer.setData("fromBasketToAccountId", viewingAccount.id)
+          }
+        }
+      }
+
+      container.appendChild(assetEl)
+    }
+
+    /* =========================
+       RENDERING
+    ========================= */
+
+    function renderColumnsAccount(account, reservedByAccount, accountMap){
+      const rowEl = document.createElement("div")
+      rowEl.className = "account-row columns"
+
+			// data to help with css rendering
+			rowEl.dataset.playerId = account.playerId
+			rowEl.dataset.accountId = account.id
+			rowEl.dataset.mine = isMyAccount(account) ? "true" : "false"
+
+      const nameEl = document.createElement("div")
+      nameEl.className = "name"
+      nameEl.textContent = account.id + " (" + account.playerId + ")"
+      applyOwnerSleeve(nameEl, account.playerId)
+
+      nameEl.onmouseenter = () => {
+        highlightAssetsForAccount(account.id, true)
+      }
+
+      nameEl.onmouseleave = () => {
+        highlightAssetsForAccount(account.id, false)
+      }
+
+      const modeEl = document.createElement("div")
+      modeEl.className = "mode"
+      modeEl.textContent = account.mode
+
+      if(isMyAccount(account)){
+        modeEl.classList.add("clickable")
+        modeEl.onclick = () => {
+          socket.send(JSON.stringify({
+            type: "game_toggleLock",
+            gameId,
+            accountId: account.id
+          }))
+        }
+      }
+
+      const storeCol = document.createElement("div")
+      storeCol.className = "column"
+
+      const reservedCol = document.createElement("div")
+      reservedCol.className = "column"
+
+      const basketCol = document.createElement("div")
+      basketCol.className = "column"
+
+      setupDropTarget(basketCol, account)
+
+			renderStoreAsset(account, storeCol)
+
+      ;(reservedByAccount[account.id] || []).forEach(item => {
+        renderReservedColumnAsset(account, reservedCol, item)
+      })
+
+      account.basket.forEach(item => {
+        renderBasketAsset(account, basketCol, item, accountMap)
+      })
+
+      rowEl.appendChild(nameEl)
+      rowEl.appendChild(modeEl)
+      rowEl.appendChild(storeCol)
+      rowEl.appendChild(reservedCol)
+      rowEl.appendChild(basketCol)
+
+      return rowEl
+    }
+
+    function renderMergedAccount(account, reservedByAccount, accountMap){
+      const rowEl = document.createElement("div")
+      rowEl.className = "account-row merged"
+
+			// help with css
+			rowEl.dataset.playerId = account.playerId
+			rowEl.dataset.accountId = account.id
+			rowEl.dataset.mine = isMyAccount(account) ? "true" : "false"
+
+      const settingsEl = document.createElement("div")
+      settingsEl.className = "settings"
+
+      const nameEl = document.createElement("div")
+      nameEl.className = "name"
+      nameEl.textContent = account.id + " (" + account.playerId + ")"
+      applyOwnerSleeve(nameEl, account.playerId)
+
+      nameEl.onmouseenter = () => {
+        highlightAssetsForAccount(account.id, true)
+      }
+
+      nameEl.onmouseleave = () => {
+        highlightAssetsForAccount(account.id, false)
+      }
+
+      const modeEl = document.createElement("div")
+      modeEl.className = "mode"
+      modeEl.textContent = account.mode
+
+      if(isMyAccount(account)){
+        modeEl.classList.add("clickable")
+        modeEl.onclick = () => {
+          socket.send(JSON.stringify({
+            type: "game_toggleLock",
+            gameId,
+            accountId: account.id
+          }))
+        }
+      }
+
+      const hintEl = document.createElement("span")
+      hintEl.className = "subtle"
+      hintEl.textContent = isMyAccount(account)
+        ? "your account"
+        : "tap empty area to offer selected"
+
+      settingsEl.appendChild(nameEl)
+      settingsEl.appendChild(modeEl)
+      settingsEl.appendChild(hintEl)
+
+      const assetsEl = document.createElement("div")
+      assetsEl.className = "assets"
+
+      setupDropTarget(assetsEl, account)
+
+      renderStoreAsset(account, assetsEl)
+
+			;(reservedByAccount[account.id] || []).forEach(item => {
+				renderReservedColumnAsset(account, assetsEl, item)
+			})
+
+      account.basket.forEach(item => {
+        renderBasketAsset(account, assetsEl, item, accountMap)
+      })
+
+      rowEl.appendChild(settingsEl)
+      rowEl.appendChild(assetsEl)
+
+      return rowEl
+    }
+
+    function render(){
+      gameEl.innerHTML = ""
+
+      headerEl.style.display = viewMode === "columns" ? "grid" : "none"
+
+      if(!state) return
+
+      const accounts = getAccounts()
+      const accountMap = getAccountMap()
+      const reservedByAccount = buildReservedByAccount(accounts)
+      const visibleAccounts = getVisibleAccounts(accounts)
+
+      visibleAccounts.forEach(account => {
+        const rowEl = viewMode === "columns"
+          ? renderColumnsAccount(account, reservedByAccount, accountMap)
+          : renderMergedAccount(account, reservedByAccount, accountMap)
+
+        gameEl.appendChild(rowEl)
+      })
+    }
