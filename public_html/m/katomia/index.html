@@ -478,7 +478,10 @@
           })
         })
 
-        visible = visible.filter(account => activeSet.has(account.id))
+				visible = visible.filter(account =>
+					isMyAccount(account) || activeSet.has(account.id)
+				)
+				
       }
 
       visible.sort((a, b) => {
