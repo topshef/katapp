@@ -224,7 +224,8 @@
 
       const nameEl = document.createElement("div")
       nameEl.className = "name"
-      nameEl.textContent = account.id + " (" + account.playerId + ")"
+      // nameEl.textContent = account.id + " (" + account.playerId + ")"
+			nameEl.textContent = account.id
       applyOwnerSleeve(nameEl, account.playerId)
 
       nameEl.onmouseenter = () => {
@@ -294,7 +295,8 @@
 
       const nameEl = document.createElement("div")
       nameEl.className = "name"
-      nameEl.textContent = account.id + " (" + account.playerId + ")"
+      // nameEl.textContent = account.id + " (" + account.playerId + ")"
+			nameEl.textContent = account.id
       applyOwnerSleeve(nameEl, account.playerId)
 
       nameEl.onmouseenter = () => {
