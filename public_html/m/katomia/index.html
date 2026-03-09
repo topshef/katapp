@@ -834,7 +834,7 @@
           socket.send(JSON.stringify({
             type: "game_toggleLock",
             gameId,
-            playerId: account.id
+            accountId: account.id
           }))
         }
       }
@@ -903,7 +903,7 @@
           socket.send(JSON.stringify({
             type: "game_toggleLock",
             gameId,
-            playerId: account.id
+            accountId: account.id
           }))
         }
       }
