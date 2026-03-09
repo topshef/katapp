@@ -111,11 +111,6 @@
 		}
 
 
-    function getReservedEntry(reservedByAccount, accountId, assetId){
-      const list = reservedByAccount[accountId] || []
-      return list.find(entry => entry.assetId === assetId) || null
-    }
-
     function highlightAssetsForAccount(accountId, on){
       document.querySelectorAll(".asset.basket").forEach(asset => {
         if(asset.dataset.ownerAccount === accountId){
