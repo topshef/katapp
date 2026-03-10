@@ -3,13 +3,15 @@
        MODEL / APP STATE
     ========================= */
 
-    const gameId = "demo"
+		const params = new URLSearchParams(window.location.search)
+		const gameId = params.get("game") || "playground"
 
     let socket = null
     // let currentPlayer = null
 		// let currentPlayerToken = null
-		let currentPlayerId = null
+		let currentPlayerId = null  //is this in use?
     let state = null
+		let game = null
 
     let viewMode = window.innerWidth < 700 ? "merged" : "columns"
     let showActiveOnly = false

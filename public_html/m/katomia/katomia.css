@@ -18,8 +18,17 @@
 
     h2{
       margin-top:0;
+      margin-bottom:10px;
     }
 
+
+    .game-meta{
+      margin:0 0 13px 0;
+      font-size:10px;
+      color:#555;
+    }
+		
+		
     .controls{
       display:flex;
       flex-wrap:wrap;

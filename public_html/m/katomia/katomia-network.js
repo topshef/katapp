@@ -78,6 +78,7 @@ function connect(onOpenAction){
 
     if(data.type !== "game_state") return
 
+		game = data.game || null
     state = data.state
     currentPlayerId = data.myPlayerId || null
 
@@ -150,7 +151,8 @@ function exitGame(){
 	}
 
 	socket = null
-	currentPlayer = null
+	// currentPlayer = null  //stale
+	game = null
 	state = null
 	clearSelection()
 	gameEl.innerHTML = ""

@@ -414,6 +414,21 @@
     function render(){
       gameEl.innerHTML = ""
 
+
+      const gameMetaEl = document.getElementById("gameMeta")
+      if(gameMetaEl){
+        if(game){
+          gameMetaEl.textContent =
+            "Game: " + game.id +
+            " | Network: " + game.network +
+            " | Lock rule: " + game.lockRule
+        }
+        else{
+          gameMetaEl.textContent = ""
+        }
+      }
+			
+			
       headerEl.style.display = viewMode === "columns" ? "grid" : "none"
 
       if(!state) return
