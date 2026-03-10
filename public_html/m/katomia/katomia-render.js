@@ -421,6 +421,8 @@
           gameMetaEl.textContent =
             "Game: " + game.id +
             " | Network: " + game.network +
+            " | Visibility: " + game.visibility +
+            " | Join rule: " + JSON.stringify(game.joinRule) +
             " | Lock rule: " + game.lockRule
         }
         else{

@@ -4,7 +4,7 @@
     ========================= */
 
 		const params = new URLSearchParams(window.location.search)
-		const gameId = params.get("game") || "playground"
+		const gameId = params.get("game") || "playnet"
 
     let socket = null
     // let currentPlayer = null
