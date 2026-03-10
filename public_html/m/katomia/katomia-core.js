@@ -7,7 +7,8 @@
 
     let socket = null
     // let currentPlayer = null
-		let currentPlayerToken = null
+		// let currentPlayerToken = null
+		let currentPlayerId = null
     let state = null
 
     let viewMode = window.innerWidth < 700 ? "merged" : "columns"
@@ -35,9 +36,6 @@
        DOM
     ========================= */
 
-    const playerInput = document.getElementById("playerInput")
-    const joinBtn = document.getElementById("joinBtn")
-    const exitBtn = document.getElementById("exitBtn")
     const accountLabelInput = document.getElementById("accountLabelInput")
     const addAccountBtn = document.getElementById("addAccountBtn")
     const viewToggle = document.getElementById("viewToggle")

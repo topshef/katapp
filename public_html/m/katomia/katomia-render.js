@@ -235,158 +235,181 @@
        RENDERING
     ========================= */
 
-    function renderColumnsAccount(account, reservedByAccount, accountMap){
-      const rowEl = document.createElement("div")
-      rowEl.className = "account-row columns"
 
-			// data to help with css rendering
+		function createAccountNameEl(account){
+
+			const nameEl = document.createElement("div")
+			nameEl.className = "name"
+
+			const player = state.players[account.playerId]
+			const name = player?.name || account.playerId
+			const label = account.id.split(":")[1] || account.id
+
+			const textEl = document.createElement("span")
+			textEl.textContent = name && name !== "anon"
+				? name + ":" + label
+				: label
+
+			nameEl.appendChild(textEl)
+
+			if(isMyAccount(account)){
+				const exitBtn = document.createElement("div")
+				exitBtn.className = "exit-btn"
+				exitBtn.textContent = "🗑️"
+
+				exitBtn.onclick = e => {
+					e.stopPropagation()
+
+					const ok = confirm(
+						`Remove account ${account.label}?\n\nAll assets and offers will be removed.`
+					)
+					if(!ok) return
+
+					socket.send(JSON.stringify({
+						type: "game_removeAccount",
+						gameId,
+						accountId: account.id
+					}))
+				}
+
+				nameEl.appendChild(exitBtn)
+			}
+
+			applyOwnerSleeve(nameEl, account.playerId)
+
+			nameEl.onmouseenter = () => {
+				highlightAssetsForAccount(account.id, true)
+			}
+
+			nameEl.onmouseleave = () => {
+				highlightAssetsForAccount(account.id, false)
+			}
+
+			return nameEl
+		}
+
+
+		function createAccountModeEl(account){
+
+			const modeEl = document.createElement("div")
+			modeEl.className = "mode"
+
+			modeEl.textContent =
+				account.mode === "lock"
+					? "🔒 Locked"
+					: "🔁 Trading"
+
+			if(isMyAccount(account)){
+				modeEl.classList.add("clickable")
+
+				modeEl.onclick = () => {
+					socket.send(JSON.stringify({
+						type: "game_toggleLock",
+						gameId,
+						accountId: account.id
+					}))
+				}
+			}
+
+			return modeEl
+		}
+
+
+		function renderAccountAssets(account, container, reservedByAccount, accountMap){
+
+			setupDropTarget(container, account)
+
+			renderStoreAsset(account, container)
+
+			;(reservedByAccount[account.id] || []).forEach(item => {
+				renderReservedColumnAsset(account, container, item)
+			})
+
+			account.basket.forEach(item => {
+				renderBasketAsset(account, container, item, accountMap)
+			})
+		}
+
+
+		function renderColumnsAccount(account, reservedByAccount, accountMap){
+
+			const rowEl = document.createElement("div")
+			rowEl.className = "account-row columns"
+
 			rowEl.dataset.playerId = account.playerId
 			rowEl.dataset.accountId = account.id
 			rowEl.dataset.mode = account.mode
 			rowEl.dataset.mine = isMyAccount(account) ? "true" : "false"
 
-      const nameEl = document.createElement("div")
-      nameEl.className = "name"
+			const nameEl = createAccountNameEl(account)
+			const modeEl = createAccountModeEl(account)
 
-			const player = state.players[account.playerId]
-			const name = player?.name || account.playerId
+			const storeCol = document.createElement("div")
+			storeCol.className = "column"
 
-			const label = account.id.split(":")[1] || account.id
-			nameEl.textContent = name + ":" + label
+			const reservedCol = document.createElement("div")
+			reservedCol.className = "column"
 
-      applyOwnerSleeve(nameEl, account.playerId)
+			const basketCol = document.createElement("div")
+			basketCol.className = "column"
 
-      nameEl.onmouseenter = () => {
-        highlightAssetsForAccount(account.id, true)
-      }
-
-      nameEl.onmouseleave = () => {
-        highlightAssetsForAccount(account.id, false)
-      }
-
-      const modeEl = document.createElement("div")
-      modeEl.className = "mode"
-      modeEl.textContent = account.mode === "lock" ? "🔒 Locked" : "🔁 Trading"
-
-      if(isMyAccount(account)){
-        modeEl.classList.add("clickable")
-        modeEl.onclick = () => {
-          socket.send(JSON.stringify({
-            type: "game_toggleLock",
-            gameId,
-            accountId: account.id
-          }))
-        }
-      }
-
-      const storeCol = document.createElement("div")
-      storeCol.className = "column"
-
-      const reservedCol = document.createElement("div")
-      reservedCol.className = "column"
-
-      const basketCol = document.createElement("div")
-      basketCol.className = "column"
-
-      setupDropTarget(basketCol, account)
+			setupDropTarget(basketCol, account)
 
 			renderStoreAsset(account, storeCol)
 
-      ;(reservedByAccount[account.id] || []).forEach(item => {
-        renderReservedColumnAsset(account, reservedCol, item)
-      })
+			;(reservedByAccount[account.id] || []).forEach(item => {
+				renderReservedColumnAsset(account, reservedCol, item)
+			})
 
-      account.basket.forEach(item => {
-        renderBasketAsset(account, basketCol, item, accountMap)
-      })
+			account.basket.forEach(item => {
+				renderBasketAsset(account, basketCol, item, accountMap)
+			})
 
-      rowEl.appendChild(nameEl)
-      rowEl.appendChild(modeEl)
-      rowEl.appendChild(storeCol)
-      rowEl.appendChild(reservedCol)
-      rowEl.appendChild(basketCol)
+			rowEl.appendChild(nameEl)
+			rowEl.appendChild(modeEl)
+			rowEl.appendChild(storeCol)
+			rowEl.appendChild(reservedCol)
+			rowEl.appendChild(basketCol)
 
-      return rowEl
-    }
+			return rowEl
+		}
 
-    function renderMergedAccount(account, reservedByAccount, accountMap){
-      const rowEl = document.createElement("div")
-      rowEl.className = "account-row merged"
+		function renderMergedAccount(account, reservedByAccount, accountMap){
 
-			// help with css
+			const rowEl = document.createElement("div")
+			rowEl.className = "account-row merged"
+
 			rowEl.dataset.playerId = account.playerId
 			rowEl.dataset.accountId = account.id
 			rowEl.dataset.mine = isMyAccount(account) ? "true" : "false"
 
-      const settingsEl = document.createElement("div")
-      settingsEl.className = "settings"
+			const settingsEl = document.createElement("div")
+			settingsEl.className = "settings"
 
-      const nameEl = document.createElement("div")
-      nameEl.className = "name"
-      // nameEl.textContent = account.id + " (" + account.playerId + ")"
+			const nameEl = createAccountNameEl(account)
+			const modeEl = createAccountModeEl(account)
 
-			const player = state.players[account.playerId]
-			const name = player?.name || account.playerId
+			const hintEl = document.createElement("span")
+			hintEl.className = "subtle"
+			hintEl.textContent = isMyAccount(account)
+				? "your account"
+				: "tap empty area to offer selected"
 
-			const label = account.id.split(":")[1] || account.id
-			nameEl.textContent = name + ":" + label
+			settingsEl.appendChild(nameEl)
+			settingsEl.appendChild(modeEl)
+			settingsEl.appendChild(hintEl)
 
-      applyOwnerSleeve(nameEl, account.playerId)
+			const assetsEl = document.createElement("div")
+			assetsEl.className = "assets"
 
-      nameEl.onmouseenter = () => {
-        highlightAssetsForAccount(account.id, true)
-      }
+			renderAccountAssets(account, assetsEl, reservedByAccount, accountMap)
 
-      nameEl.onmouseleave = () => {
-        highlightAssetsForAccount(account.id, false)
-      }
+			rowEl.appendChild(settingsEl)
+			rowEl.appendChild(assetsEl)
 
-      const modeEl = document.createElement("div")
-      modeEl.className = "mode"
-      modeEl.textContent = account.mode === "lock" ? "🔒 Locked" : "🔁 Trading"
-			modeEl.className = "account-lock"
+			return rowEl
+		}
 
-      if(isMyAccount(account)){
-        modeEl.classList.add("clickable")
-        modeEl.onclick = () => {
-          socket.send(JSON.stringify({
-            type: "game_toggleLock",
-            gameId,
-            accountId: account.id
-          }))
-        }
-      }
-
-      const hintEl = document.createElement("span")
-      hintEl.className = "subtle"
-      hintEl.textContent = isMyAccount(account)
-        ? "your account"
-        : "tap empty area to offer selected"
-
-      settingsEl.appendChild(nameEl)
-      settingsEl.appendChild(modeEl)
-      settingsEl.appendChild(hintEl)
-
-      const assetsEl = document.createElement("div")
-      assetsEl.className = "assets"
-
-      setupDropTarget(assetsEl, account)
-
-      renderStoreAsset(account, assetsEl)
-
-			;(reservedByAccount[account.id] || []).forEach(item => {
-				renderReservedColumnAsset(account, assetsEl, item)
-			})
-
-      account.basket.forEach(item => {
-        renderBasketAsset(account, assetsEl, item, accountMap)
-      })
-
-      rowEl.appendChild(settingsEl)
-      rowEl.appendChild(assetsEl)
-
-      return rowEl
-    }
 
     function render(){
       gameEl.innerHTML = ""

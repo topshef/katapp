@@ -3,39 +3,28 @@
    CONTROLS
 ========================= */
 
-joinBtn.onclick = () => {
-  const playerId = playerInput.value.trim()
-  if(!playerId) return
-
-  currentPlayer = playerId
-  connect()
-}
-
-exitBtn.onclick = () => {
-
-  const ok = confirm(
-    "Leave the game?\n\nAll of your accounts and assets will be removed."
-  )
-
-  if(!ok) return
-
-  exitGame()
-}
-
 addAccountBtn.onclick = () => {
-  if(!socket || !currentPlayer) return
 
   const label = accountLabelInput.value.trim()
   if(!label) return
 
   const playerToken = getOrCreatePlayerToken()
 
-  socket.send(JSON.stringify({
-    type: "game_addAccount",
-    gameId,
-    playerToken,
-    label
-  }))
+  const sendAdd = () => {
+    socket.send(JSON.stringify({
+      type: "game_addAccount",
+      gameId,
+      playerToken,
+      label
+    }))
+  }
+
+  if(!socket || socket.readyState !== WebSocket.OPEN){
+    connect(sendAdd)
+  }
+  else{
+    sendAdd()
+  }
 
   accountLabelInput.value = ""
 }
@@ -54,7 +43,63 @@ activeOnlyCheckbox.onchange = e => {
    NETWORK
 ========================= */
 
-function connect(){
+
+function connect(onOpenAction){
+
+  if(socket && socket.readyState === WebSocket.OPEN){
+    onOpenAction && onOpenAction()
+    return
+  }
+
+  if(socket && socket.readyState === WebSocket.CONNECTING){
+    onOpenAction && socket.addEventListener("open", onOpenAction, { once:true })
+    return
+  }
+
+  socket = new WebSocket("wss://hapi2.hbar.live/live/ws")
+
+  socket.onopen = () => {
+
+    const playerToken = getOrCreatePlayerToken()
+
+    socket.send(JSON.stringify({
+      type: "game_join",
+      gameId,
+      playerToken,
+      playerName: "anon"
+    }))
+
+    onOpenAction && onOpenAction()
+  }
+
+  socket.onmessage = msg => {
+
+    const data = JSON.parse(msg.data)
+
+    if(data.type !== "game_state") return
+
+    state = data.state
+    currentPlayerId = data.myPlayerId || null
+
+    render()
+  }
+}
+
+
+function zzconnect(onOpenAction){
+
+  if(socket && socket.readyState === WebSocket.OPEN){
+    if(onOpenAction) onOpenAction()
+    return
+  }
+
+  if(socket && socket.readyState === WebSocket.CONNECTING){
+    if(onOpenAction){
+      socket.addEventListener("open", onOpenAction, { once:true })
+    }
+    return
+  }
+
   if(socket){
     try{
       socket.close()
@@ -66,15 +111,16 @@ function connect(){
 
   socket.onopen = () => {
 
-		const playerToken = getOrCreatePlayerToken()
+    const playerToken = getOrCreatePlayerToken()
 
-		socket.send(JSON.stringify({
-			type: "game_join",
-			gameId,
-			playerToken,
-			playerName: currentPlayer
-		}))
+    socket.send(JSON.stringify({
+      type: "game_join",
+      gameId,
+      playerToken,
+      playerName: "anon"
+    }))
 
+    if(onOpenAction) onOpenAction()
   }
 
   socket.onmessage = msg => {
@@ -82,10 +128,12 @@ function connect(){
 
     if(data.type === "game_state"){
       state = data.state
+      currentPlayerId = data.myPlayerId || null
       render()
     }
   }
 }
+
 
 function exitGame(){
 
@@ -107,3 +155,5 @@ function exitGame(){
 	clearSelection()
 	gameEl.innerHTML = ""
 }
+
+

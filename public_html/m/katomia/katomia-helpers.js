@@ -42,12 +42,27 @@
       render()
     }
 
-    function getAccounts(){
+
+		function getAccounts(){
+			if(!state || !state.accounts) return []
+
+			return Object.values(state.accounts).map(account => ({
+				id: account.id,
+				label: account.label,
+				playerId: account.playerId,
+				assets: account.assets || [],
+				basket: account.basket || [],
+				mode: account.mode || "shop"
+			}))
+		}
+
+    function zzgetAccounts(){ //bronwout
       if(!state) return []
 
       if(state.accounts){
         return Object.values(state.accounts).map(account => ({
           id: account.id,
+					label: account.label,
           playerId: account.playerId,
           assets: account.assets || [],
           basket: account.basket || [],
@@ -55,9 +70,10 @@
         }))
       }
 
-      if(state.players){
+      if(state.players){  //legacy.. can brownout
         return Object.values(state.players).map(player => ({
           id: player.id + ":default",
+					label: 'default',
           playerId: player.id,
           assets: player.account || [],
           basket: player.basket || [],
@@ -82,17 +98,26 @@
       return item.fromAccountId || item.fromId || item.from || null
     }
 
+		// function isMyAccount(account){
+
+			// if(!state || !state.accounts) return false
+
+			// const player = state.players?.[account.playerId]
+			// if(!player) return false
+
+			// const myName = currentPlayer
+			// if(!myName) return false
+
+			// return player.name === myName
+		// }
+
+
 		function isMyAccount(account){
 
-			if(!state || !state.accounts) return false
+				if(!account) return false
+				if(!currentPlayerId) return false
 
-			const player = state.players?.[account.playerId]
-			if(!player) return false
-
-			const myName = currentPlayer
-			if(!myName) return false
-
-			return player.name === myName
+				return account.playerId === currentPlayerId
 		}
 
 		function buildReservedByAccount(accounts){

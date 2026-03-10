@@ -9,3 +9,15 @@ loadScript("katomia-core.js")
 loadScript("katomia-helpers.js")
 loadScript("katomia-render.js")
 loadScript("katomia-network.js")
+
+window.addEventListener("load", () => {
+
+  const token = localStorage.getItem("katomiaPlayerToken")
+  if(!token) return
+
+  if(typeof connect === "function"){
+    connect()
+  }
+
+})
+
