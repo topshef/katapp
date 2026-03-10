@@ -416,20 +416,14 @@
 
 
       const gameMetaEl = document.getElementById("gameMeta")
-      if(gameMetaEl){
-        if(game){
-          gameMetaEl.textContent =
+			// if(gameMetaEl && game) gameMetaEl.textContent = JSON.stringify(game)
+      if(gameMetaEl && game)
+				gameMetaEl.textContent =
             "Game: " + game.id +
             " | Network: " + game.network +
             " | Visibility: " + game.visibility +
             " | Join rule: " + JSON.stringify(game.joinRule) +
             " | Lock rule: " + game.lockRule
-        }
-        else{
-          gameMetaEl.textContent = ""
-        }
-      }
-			
 			
       headerEl.style.display = viewMode === "columns" ? "grid" : "none"
 
