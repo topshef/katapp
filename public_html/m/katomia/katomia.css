@@ -1,5 +1,6 @@
 
     body{
+			background:#f5f5f5;
       font-family:sans-serif;
       margin:16px;
     }
@@ -42,9 +43,15 @@
 			
 		}
 
+		.account-row[data-mode="shop"]{
+			background:#e6f2ff; 
+		}
+
+
 		.account-row[data-mode="lock"]{
 			zzbackground:#ffe9ec;   /* pale pink */
-			background:#fad098;   /* pale amber */
+			zzbackground:#fad098;   /* pale amber */
+			background:#fde9ce; 
 			opacity:0.72;
 		}
 
@@ -68,8 +75,6 @@
 		}
 
 
-
-
     .settings{
       display:flex;
       flex-wrap:wrap;
@@ -79,24 +84,22 @@
       font-weight:bold;
     }
 
+
+		.account-row.columns > .name {
+			cursor:pointer;
+		}
+
 		.mode{
 			font-size:0.8em;
 			font-weight:300;
 			padding:2px 6px;
-			line-height:1;
+			line-height:1.3;
+			text-align:center;
 			opacity:0.8;
 		}
 
 		.mode.clickable{
 			cursor:pointer;
-		}
-
-		.account-lock{
-			font-size:0.8em;
-			font-weight:300;
-			padding:2px 6px;
-			line-height:1;
-			opacity:0.8;
 		}
 
 
