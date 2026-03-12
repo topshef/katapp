@@ -3,8 +3,23 @@
        MODEL / APP STATE
     ========================= */
 
-		const params = new URLSearchParams(window.location.search)
-		const gameId = params.get("game") || "playnet"
+
+		function getGameId(){
+
+			const params = new URLSearchParams(location.search)
+			const game = params.get("game")
+			if(game) return game
+
+			const parts = location.pathname.split("/").filter(Boolean)
+
+			const i = parts.indexOf("game")
+			if(i >= 0 && parts[i+1])
+				return parts[i+1]
+
+			return null
+		}
+		
+		const gameId = getGameId() //|| "demo-playnet"
 
     let socket = null
     // let currentPlayer = null
