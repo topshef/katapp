@@ -75,7 +75,7 @@ function formatAssetDisplay(asset, meta){
 	if(decimals){
 		const value = asset.amount / (10 ** decimals)
 		const displayDecimals = getDisplayDecimals(tokenClass)
-		const rounded = Number(value.toFixed(displayDecimals))
+		const rounded = value.toFixed(displayDecimals)
 		return `${tokenLabel} ${rounded}`
 	}
 
