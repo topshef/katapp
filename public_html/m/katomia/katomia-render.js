@@ -65,8 +65,10 @@
 					}
 
 					assetEl.draggable = true
+
 					assetEl.ondragstart = e => {
 						e.dataTransfer.setData("assetId", assetId)
+						e.dataTransfer.setData("available", amount || 1)
 						e.dataTransfer.setData("fromAccountId", account.id)
 						e.dataTransfer.setData("fromBasketToAccountId", "")
 					}
@@ -91,7 +93,11 @@
 			}
 
 			const assetEl = makeAssetEl({
-				text: reservedItem.assetId + " (to " + visibleTo + ")",
+				// text: reservedItem.assetId + " (to " + visibleTo + ")",
+				text: reservedItem.amount > 1
+					? reservedItem.assetId + " ×" + reservedItem.amount
+					: reservedItem.assetId,
+				
 				ownerAccountId: account.id,
 				ownerPlayerId: account.playerId,
 				reserved: true,

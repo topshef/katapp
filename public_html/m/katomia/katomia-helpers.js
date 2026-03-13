@@ -42,6 +42,21 @@
       render()
     }
 
+		function getTransferAmount(assetId, available){
+
+			if(available <= 1) return 1
+
+			const input = prompt("Move how much?", "1")
+			if(input === null) return null
+
+			const n = parseInt(input,10)
+
+			if(!Number.isFinite(n)) return null
+			if(n <= 0) return null
+			if(n > available) return null
+
+			return n
+		}
 
 		function getAccounts(){
 			if(!state || !state.accounts) return []
