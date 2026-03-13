@@ -49,13 +49,22 @@
 			const input = prompt("Move how much?", "1")
 			if(input === null) return null
 
-			const n = parseInt(input,10)
+			const n = parseFloat(input)
+			if(!Number.isFinite(n) || n <= 0) return null
 
-			if(!Number.isFinite(n)) return null
-			if(n <= 0) return null
-			if(n > available) return null
+			// lookup decimals from metadata cache
+			const meta = window.assetDisplayCache?.[assetId]
+			const decimals = Number(meta?.token_class?.decimals || 0)
 
-			return n
+			let scaled = n
+
+			if(decimals){
+				scaled = Math.round(n * (10 ** decimals))
+			}
+
+			if(scaled > available) return null
+
+			return scaled
 		}
 
 		function getAccounts(){

@@ -43,6 +43,12 @@ async function enrichAsset(network, assetId, amount){
 	}
 }
 
+function getDisplayDecimals(tokenClass){
+
+	const tokenDecimals = Number(tokenClass.decimals || 0)
+
+	return Math.max(tokenDecimals - 4, 0)
+}
 
 function formatAssetDisplay(asset, meta){
 
@@ -57,7 +63,6 @@ function formatAssetDisplay(asset, meta){
 	}
 
 	// fungible
-	const decimals = Number(tokenClass.decimals || 0)
 	const symbol = tokenClass.symbol || asset.tokenId
 	const name   = tokenClass.name || asset.tokenId
 	let tokenLabel
@@ -65,9 +70,13 @@ function formatAssetDisplay(asset, meta){
 	
 	if(symbol && symbol.toLowerCase().startsWith("hedera://")) tokenLabel = name	
 	
+	const decimals = Number(tokenClass.decimals || 0)
+
 	if(decimals){
 		const value = asset.amount / (10 ** decimals)
-		return `${tokenLabel} ${value}`
+		const displayDecimals = getDisplayDecimals(tokenClass)
+		const rounded = Number(value.toFixed(displayDecimals))
+		return `${tokenLabel} ${rounded}`
 	}
 
 	return asset.amount > 1
