@@ -56,16 +56,20 @@ function formatAssetDisplay(asset, meta){
 
 	const tokenClass = meta.token_class || {}
 	const type = tokenClass.type
+	
+	let tokenLabel
+	let tokenClassLabel = meta.token_class?.name ?? asset.tokenId
 
 	// NFT
-	if(type === "NON_FUNGIBLE_UNIQUE"){
-		return meta.token_instance_name || `${asset.tokenId}#${meta.serial}`
+	if(type === "NON_FUNGIBLE_UNIQUE") {
+		tokenLabel =  meta.token_instance_name || `${tokenClassLabel} #${asset.serial}`
+		return tokenLabel
 	}
 
 	// fungible
 	const symbol = tokenClass.symbol || asset.tokenId
 	const name   = tokenClass.name || asset.tokenId
-	let tokenLabel
+	
 	tokenLabel = symbol ?? name
 	
 	if(symbol && symbol.toLowerCase().startsWith("hedera://")) tokenLabel = name	
@@ -93,11 +97,14 @@ function getAssetDisplay(assetId, amount){
 
 	const meta = window.assetDisplayCache[assetId]
 
+	const { tokenId, serial } = parseAssetId(assetId)
+
+
 	if(meta){
 		const asset = {
 			assetId,
-			tokenId: assetId,
-			serial: null,
+			tokenId,
+			serial,
 			amount
 		}
 
