@@ -10,16 +10,26 @@
 		}
 
 
-
-		.asset-thumb{
-			width:18px;
-			height:18px;
-			object-fit:cover;
-			margin-right:4px;
-			vertical-align:middle;
-			border-radius:2px;
+		.asset.thumb-only{
+			padding:0;
+			margin:3px;
+			background:none;
+			line-height:0;
 		}
 
+		.asset.thumb-only{
+			padding-left:0;
+		}
+
+		.asset.thumb-only .asset-thumb{
+			display:block;
+			width:48px;
+			height:48px;
+			object-fit:cover;
+			margin:0;
+		}
+		
+		
 		.asset:hover::after{
 			content: attr(data-asset-name);
 			position:absolute;
@@ -175,7 +185,7 @@
       background:#f5f5f5;
     }
 
-		.asset{
+		.zzasset{
 			display:inline-block;
 			margin:3px;
 			padding:4px 8px;
@@ -185,7 +195,16 @@
 			position:relative;
 			z-index:10;
 		}
-
+		
+		.asset{
+			display:inline-block;
+			margin:3px;
+			padding:4px 8px;
+			background:#eee;
+			user-select:none;
+			vertical-align:top;
+			position:relative;
+		}
 
     .asset.clickable{
       cursor:pointer;

@@ -14,7 +14,6 @@
     function applyOwnerSleeve(el, playerId){
       const colour = getPlayerColour(playerId)
       el.style.borderLeft = "12px solid " + colour
-      el.style.paddingLeft = "6px"
     }
 
     function applyHoverHighlight(el, on){

@@ -3,54 +3,57 @@
        VIEW HELPERS
     ========================= */
 
-    function makeAssetEl({
-      text,
+
+		function makeAssetEl({
+			text,
 			assetId,
-      ownerAccountId,
-      ownerPlayerId,
-      reserved = false,
-      basket = false,
-      clickable = false,
-      selected = false
-    }){
-      const el = document.createElement("div")
-      el.className = "asset"
-      el.textContent = text
-			
+			ownerAccountId,
+			ownerPlayerId,
+			reserved = false,
+			basket = false,
+			clickable = false,
+			selected = false
+		}){
+
 			const meta = getAssetMeta(assetId)
+			const thumb = meta && getAssetThumb(meta)
+			const useThumbnail = !!thumb
+
+			const el = document.createElement("div")
+			el.className = "asset"
+
+			if(!useThumbnail)
+				el.textContent = text
 
 			if(meta){
-
-				// tooltip
-				el.dataset.assetName = meta.token_instance_name || meta.token_class?.name || ""
+				el.dataset.assetName = text
 				el.dataset.assetId = assetId
 				el.dataset.assetSymbol = meta.token_class?.symbol || ""
 				el.dataset.assetDescription = meta.token_instance_description || ""
 
-				// thumbnail
-				const thumb = getAssetThumb(meta)
-
-				if(thumb){
+				if(useThumbnail){
+					el.classList.add("thumb-only")
+					
 					const img = document.createElement("img")
 					img.src = thumb
 					img.className = "asset-thumb"
 					el.prepend(img)
 				}
-			}			
-			
-      el.dataset.ownerAccount = ownerAccountId || ""
-      el.dataset.ownerPlayer = ownerPlayerId || ""
+			}
 
-      if(reserved) el.classList.add("reserved")
-      if(basket) el.classList.add("basket")
-      if(clickable) el.classList.add("clickable")
-      if(selected) el.classList.add("selected")
+			el.dataset.ownerAccount = ownerAccountId || ""
+			el.dataset.ownerPlayer = ownerPlayerId || ""
 
-      applyOwnerSleeve(el, ownerPlayerId)
+			if(reserved) el.classList.add("reserved")
+			if(basket) el.classList.add("basket")
+			if(clickable) el.classList.add("clickable")
+			if(selected) el.classList.add("selected")
 
-      return el
-    }
+			applyOwnerSleeve(el, ownerPlayerId)
+			if (useThumbnail) el.style.paddingLeft = "0"
 
+			return el
+		}
 
 
 		/*
