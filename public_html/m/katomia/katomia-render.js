@@ -40,14 +40,19 @@
 
 		Because reserved assets are removed from account.assets by the backend, we never
 		try to match or mark store items as "reserved". This avoids index/position issues
-		and allows duplicate asset IDs (e.g. multiple "apple") to behave correctly.
+		duplicate counts rendered from asset map
 		*/
 		function renderStoreAsset(account, container){
 			const mine = isMyAccount(account)
 
-			account.assets.forEach(assetId => {
+			Object.entries(account.assets || {}).forEach(([assetId, amount]) => {
+
+				const text = amount === 1
+					? assetId
+					: assetId + " ×" + amount
+
 				const assetEl = makeAssetEl({
-					text: assetId,
+					text,
 					ownerAccountId: account.id,
 					ownerPlayerId: account.playerId,
 					clickable: mine,
@@ -70,7 +75,6 @@
 				container.appendChild(assetEl)
 			})
 		}
-
 
     function renderReservedColumnAsset(account, container, reservedItem){
       const mine = isMyAccount(account)
