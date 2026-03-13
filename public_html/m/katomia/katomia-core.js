@@ -129,14 +129,13 @@
         el.classList.remove("drag-over")
 
         const assetId = e.dataTransfer.getData("assetId")
-				const amount = parseInt(e.dataTransfer.getData("amount") || "1",10)
-				
-				//todo in a sec..
-				// const available = parseInt(e.dataTransfer.getData("available") || "1",10)
-				// const amount = getTransferAmount(assetId, available)
-				// if(amount === null) return				
-				
+
         const fromAccountId = e.dataTransfer.getData("fromAccountId")
+				
+				const available = parseInt(e.dataTransfer.getData("available") || "1",10)
+				const amount = getTransferAmount(assetId, available)
+				if(amount === null) return				
+				
         const fromBasketToAccountId = e.dataTransfer.getData("fromBasketToAccountId") || ""
 
         if(!assetId || !fromAccountId) return
