@@ -117,6 +117,23 @@ function getAssetDisplay(assetId, amount){
 }
 
 
+function getAssetMeta(assetId){
+	return window.assetDisplayCache?.[assetId] || null
+}
+
+function getAssetThumb(meta){
+
+	if(!meta) return null
+
+	// NFT
+	if(meta.token_asset_image_URL)
+		return meta.token_asset_image_URL
+
+	// future: fungible icons etc
+	return null
+}
+
+
 async function enrichVisibleAssets(){
 
 	if(!game?.network) return

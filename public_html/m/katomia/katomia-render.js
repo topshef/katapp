@@ -5,6 +5,7 @@
 
     function makeAssetEl({
       text,
+			assetId,
       ownerAccountId,
       ownerPlayerId,
       reserved = false,
@@ -15,6 +16,28 @@
       const el = document.createElement("div")
       el.className = "asset"
       el.textContent = text
+			
+			const meta = getAssetMeta(assetId)
+
+			if(meta){
+
+				// tooltip
+				el.dataset.assetName = meta.token_instance_name || meta.token_class?.name || ""
+				el.dataset.assetId = meta.token_id || assetId
+				el.dataset.assetSymbol = meta.token_class?.symbol || ""
+				el.dataset.assetDescription = meta.token_instance_description || ""
+
+				// thumbnail
+				const thumb = getAssetThumb(meta)
+
+				if(thumb){
+					const img = document.createElement("img")
+					img.src = thumb
+					img.className = "asset-thumb"
+					el.prepend(img)
+				}
+			}			
+			
       el.dataset.ownerAccount = ownerAccountId || ""
       el.dataset.ownerPlayer = ownerPlayerId || ""
 
@@ -55,6 +78,7 @@
 
 				const assetEl = makeAssetEl({
 					text,
+					assetId,
 					ownerAccountId: account.id,
 					ownerPlayerId: account.playerId,
 					clickable: mine,
@@ -100,7 +124,7 @@
 				text: reservedItem.toAccountId
 					? `${baseText} (to ${visibleTo})`
 					: baseText,
-
+				assetId: reservedItem.assetId,
 				ownerAccountId: account.id,
 				ownerPlayerId: account.playerId,
 				reserved: true,
@@ -195,6 +219,7 @@
 
       const assetEl = makeAssetEl({
         text: label,
+				assetId: item.assetId,
         ownerAccountId: fromAccountId,
         ownerPlayerId: fromPlayerId,
         basket: true,
