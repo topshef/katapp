@@ -23,7 +23,7 @@
 
 				// tooltip
 				el.dataset.assetName = meta.token_instance_name || meta.token_class?.name || ""
-				el.dataset.assetId = meta.token_id || assetId
+				el.dataset.assetId = assetId
 				el.dataset.assetSymbol = meta.token_class?.symbol || ""
 				el.dataset.assetDescription = meta.token_instance_description || ""
 
