@@ -43,7 +43,6 @@ activeOnlyCheckbox.onchange = e => {
    NETWORK
 ========================= */
 
-
 function connect(onOpenAction){
 
   if(socket && socket.readyState === WebSocket.OPEN){
@@ -60,15 +59,16 @@ function connect(onOpenAction){
 
   socket.onopen = () => {
 
-    const playerToken = getOrCreatePlayerToken()
-
-    socket.send(JSON.stringify({
+		const payload = {
       type: "game_join",
       gameId,
-      playerToken,
+      playerToken: getOrCreatePlayerToken(),
       playerName: "anon"
-    }))
-
+    }
+	
+    socket.send(JSON.stringify(payload))
+		glog("game_join", payload)
+		
     onOpenAction && onOpenAction()
   }
 
@@ -76,7 +76,9 @@ function connect(onOpenAction){
 	socket.onmessage = async msg => {
 
 		const data = JSON.parse(msg.data)
-
+		console.log(data, "websocket data received")
+		glog("websocket data received", data)
+		
 		if(data.type !== "game_state") return
 
 		game = data.game || null

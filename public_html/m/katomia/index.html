@@ -51,16 +51,34 @@
 
   <div id="game"></div>
 
-  <script>
-		
-  </script>
-	
+
 <script src="/m/bid/localbase.min.js"></script> <!-- beware spelling of Localbase -->
 <script type="module" data-global src="/m/tools/glog/latest/glog.js" ></script>
 <script type="module" src="/m/bid/localCacheDB.js" ></script>
 <script src="/m/bid/localCacheIFPS.js"></script> 
 <script src="/m/bid/localCacheArweave.js"></script> 
-		
-<script src="katomia-app.js"></script>
+
+
+<script src="katomia-core.js"></script>
+<script src="katomia-helpers.js"></script>
+<script src="katomia-render.js"></script>
+<script src="katomia-network.js"></script>
+<script src="katomia-enrich.js"></script>
+
+<script>
+window.addEventListener("load", () => {
+// window.addEventListener("DOMContentLoaded", () => {
+
+
+  const token = localStorage.getItem("katomiaPlayerToken")
+  if(!token) return
+
+  if(typeof connect === "function"){
+    connect()
+  }
+
+})
+</script>
+
 </body>
 </html>
