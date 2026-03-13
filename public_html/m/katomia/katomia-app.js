@@ -9,6 +9,7 @@ loadScript("katomia-core.js")
 loadScript("katomia-helpers.js")
 loadScript("katomia-render.js")
 loadScript("katomia-network.js")
+loadScript("katomia-enrich.js")
 
 window.addEventListener("load", () => {
 

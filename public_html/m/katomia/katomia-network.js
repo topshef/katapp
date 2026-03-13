@@ -87,54 +87,6 @@ function connect(onOpenAction){
 }
 
 
-function zzconnect(onOpenAction){
-
-  if(socket && socket.readyState === WebSocket.OPEN){
-    if(onOpenAction) onOpenAction()
-    return
-  }
-
-  if(socket && socket.readyState === WebSocket.CONNECTING){
-    if(onOpenAction){
-      socket.addEventListener("open", onOpenAction, { once:true })
-    }
-    return
-  }
-
-  if(socket){
-    try{
-      socket.close()
-    }
-    catch(err){}
-  }
-
-  socket = new WebSocket("wss://hapi2.hbar.live/live/ws")
-
-  socket.onopen = () => {
-
-    const playerToken = getOrCreatePlayerToken()
-
-    socket.send(JSON.stringify({
-      type: "game_join",
-      gameId,
-      playerToken,
-      playerName: "anon"
-    }))
-
-    if(onOpenAction) onOpenAction()
-  }
-
-  socket.onmessage = msg => {
-    const data = JSON.parse(msg.data)
-
-    if(data.type === "game_state"){
-      state = data.state
-      currentPlayerId = data.myPlayerId || null
-      render()
-    }
-  }
-}
-
 
 function exitGame(){
 
