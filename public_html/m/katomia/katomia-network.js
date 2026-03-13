@@ -72,18 +72,22 @@ function connect(onOpenAction){
     onOpenAction && onOpenAction()
   }
 
-  socket.onmessage = msg => {
 
-    const data = JSON.parse(msg.data)
+	socket.onmessage = async msg => {
 
-    if(data.type !== "game_state") return
+		const data = JSON.parse(msg.data)
+
+		if(data.type !== "game_state") return
 
 		game = data.game || null
-    state = data.state
-    currentPlayerId = data.myPlayerId || null
+		state = data.state
+		currentPlayerId = data.myPlayerId || null
 
-    render()
-  }
+		glog(`state received for ${currentPlayerId}`, {game, state})
+		render()
+		await enrichVisibleAssets()
+	}
+	
 }
 
 

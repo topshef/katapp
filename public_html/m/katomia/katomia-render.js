@@ -47,9 +47,11 @@
 
 			Object.entries(account.assets || {}).forEach(([assetId, amount]) => {
 
-				const text = amount === 1
-					? assetId
-					: assetId + " ×" + amount
+				// const text = amount === 1
+					// ? assetId
+					// : assetId + " ×" + amount
+					
+				const text = getAssetDisplay(assetId, amount)	
 
 				const assetEl = makeAssetEl({
 					text,
@@ -92,13 +94,13 @@
 				visibleTo = name + ":" + labelPart
 			}
 
+			const baseText = getAssetDisplay(reservedItem.assetId, reservedItem.amount || 1)
+
 			const assetEl = makeAssetEl({
-				// text: reservedItem.assetId + " (to " + visibleTo + ")",
-				text: reservedItem.amount > 1
-					? reservedItem.assetId + " ×" + reservedItem.amount
-					: reservedItem.assetId
-					+ " (to " + visibleTo + ")",
-				
+				text: reservedItem.toAccountId
+					? `${baseText} (to ${visibleTo})`
+					: baseText,
+
 				ownerAccountId: account.id,
 				ownerPlayerId: account.playerId,
 				reserved: true,
@@ -163,10 +165,23 @@
 
 			const amount = item.amount || 1
 
-			let label = amount > 1
-				? item.assetId + " ×" + amount
-				: item.assetId
+			// let label = amount > 1
+				// ? item.assetId + " ×" + amount
+				// : item.assetId
 	
+
+			// if(fromAccountId){
+				// const fromAccount = accountMap[fromAccountId]
+				// const player = fromAccount ? state.players[fromAccount.playerId] : null
+				// const name = player?.name || fromAccountId
+
+				// const labelPart = fromAccountId.split(":")[1] || fromAccountId
+				// label = item.assetId + " (from " + name + ":" + labelPart + ")"
+				// label = (amount > 1 ? item.assetId + " ×" + amount : item.assetId) +
+									// " (from " + name + ":" + labelPart + ")"
+			// }
+
+			let label = getAssetDisplay(item.assetId, amount)
 
 			if(fromAccountId){
 				const fromAccount = accountMap[fromAccountId]
@@ -174,9 +189,8 @@
 				const name = player?.name || fromAccountId
 
 				const labelPart = fromAccountId.split(":")[1] || fromAccountId
-				label = item.assetId + " (from " + name + ":" + labelPart + ")"
-				label = (amount > 1 ? item.assetId + " ×" + amount : item.assetId) +
-									" (from " + name + ":" + labelPart + ")"
+
+				label = `${getAssetDisplay(item.assetId, amount)} (from ${name}:${labelPart})`
 			}
 
       const assetEl = makeAssetEl({
