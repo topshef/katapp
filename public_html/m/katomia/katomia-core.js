@@ -94,13 +94,22 @@
         }))
       }
 
-      socket.send(JSON.stringify({
-        type: "game_offer",
-        gameId,
-        fromId: selectedFromAccountId,
-        toId: targetAccountId,
-        assetId: selectedAssetId
-      }))
+			const accountMap = getAccountMap()
+			const fromAccount = accountMap[selectedFromAccountId]
+
+			const available = fromAccount?.assets?.[selectedAssetId] || 1
+
+			const amount = getTransferAmount(selectedAssetId, available)
+			if(amount === null) return
+
+			socket.send(JSON.stringify({
+				type: "game_offer",
+				gameId,
+				fromId: selectedFromAccountId,
+				toId: targetAccountId,
+				assetId: selectedAssetId,
+				amount
+			}))
 
       clearSelection()
       render()
