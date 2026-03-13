@@ -149,6 +149,7 @@
 
 					reservedByAccount[fromAccountId].push({
 						assetId: item.assetId,
+						amount: item.amount || 1,
 						toAccountId: account.id
 					})
 				})

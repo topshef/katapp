@@ -96,7 +96,8 @@
 				// text: reservedItem.assetId + " (to " + visibleTo + ")",
 				text: reservedItem.amount > 1
 					? reservedItem.assetId + " ×" + reservedItem.amount
-					: reservedItem.assetId,
+					: reservedItem.assetId
+					+ " (to " + visibleTo + ")",
 				
 				ownerAccountId: account.id,
 				ownerPlayerId: account.playerId,
@@ -160,7 +161,12 @@
       const clickable = senderIsMine || receiverIsMine
 
 
-			let label = item.assetId
+			const amount = item.amount || 1
+
+			let label = amount > 1
+				? item.assetId + " ×" + amount
+				: item.assetId
+	
 
 			if(fromAccountId){
 				const fromAccount = accountMap[fromAccountId]
@@ -169,6 +175,8 @@
 
 				const labelPart = fromAccountId.split(":")[1] || fromAccountId
 				label = item.assetId + " (from " + name + ":" + labelPart + ")"
+				label = (amount > 1 ? item.assetId + " ×" + amount : item.assetId) +
+									" (from " + name + ":" + labelPart + ")"
 			}
 
       const assetEl = makeAssetEl({
