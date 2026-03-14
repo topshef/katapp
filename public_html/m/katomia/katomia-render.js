@@ -104,12 +104,38 @@ async function saveThumbToLocal(url,thumb){
 }
 
 
+function isThumbableImage(url){
+
+  if(!url) return false
+
+  const u = String(url).toLowerCase()
+
+  // skip formats we should not thumbnail
+  if(
+    u.includes(".gif") ||
+    u.includes(".mp4") ||
+    u.includes(".webm") ||
+    u.includes(".mov") ||
+    u.includes(".avi") ||
+    u.includes(".mkv")
+  ){
+    return false
+  }
+
+  return true
+}
+
+
 // thumbnail cache
 window.thumbCache ||= {}
 window.thumbPending ||= {}
 
 function getFastThumb(url, imgEl){
 
+	// only thumbnail PNG/JPEG
+  if(!isThumbableImage(url))
+    return url
+	
   if(window.thumbCache[url])
     return window.thumbCache[url]
 
