@@ -202,6 +202,8 @@
 		}
 		
 		.asset{
+			border-radius:8px;
+      overflow:visible;
 			display:inline-block;
 			margin:3px;
 			padding:4px 8px;
@@ -209,6 +211,12 @@
 			user-select:none;
 			vertical-align:top;
 			position:relative;
+		}
+
+
+		.asset.basket{
+			border-top-left-radius:0;
+			border-bottom-left-radius:0;
 		}
 
     .asset.clickable{
