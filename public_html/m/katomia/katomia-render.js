@@ -2,11 +2,66 @@
     /* =========================
        VIEW HELPERS
     ========================= */
+		
+// simple IndexedDB fallback cache
+const ThumbDB = (()=>{
+
+  const DB = "thumbCache"
+  const STORE = "thumbs"
+  let dbPromise
+
+  function open(){
+    if(dbPromise) return dbPromise
+
+    dbPromise = new Promise((resolve,reject)=>{
+      const req = indexedDB.open(DB,1)
+
+      req.onupgradeneeded = ()=>{
+        req.result.createObjectStore(STORE)
+      }
+
+      req.onsuccess = ()=>resolve(req.result)
+      req.onerror = ()=>reject(req.error)
+    })
+
+    return dbPromise
+  }
+
+  async function get(key){
+    const db = await open()
+    return new Promise(res=>{
+      const tx = db.transaction(STORE)
+      const req = tx.objectStore(STORE).get(key)
+      req.onsuccess = ()=>res(req.result || null)
+      req.onerror = ()=>res(null)
+    })
+  }
+
+  async function set(key,val){
+    const db = await open()
+    const tx = db.transaction(STORE,"readwrite")
+    tx.objectStore(STORE).put(val,key)
+  }
+
+  return {get,set}
+
+})()
+
+
+
 async function loadThumbCache(){
 
-  const urls = Object.values(window.assetDisplayCache || {})
-    .map(m => m?.token_asset_image_URL)
-    .filter(Boolean)
+  // const urls = Object.values(window.assetDisplayCache || {})
+    // .map(m => m?.token_asset_image_URL)
+    // .filter(Boolean)
+
+
+	const urls = [...new Set(
+		Object.values(window.assetDisplayCache || {})
+			.map(m => m?.token_asset_image_URL)
+			.filter(Boolean)
+	)]
+
 
   glog("thumb preload scan", urls.length)
 
@@ -25,14 +80,27 @@ async function loadThumbCache(){
 }
 
 
-
 async function getThumbFromLocal(url){
-  const rec = await Kache.getFromCache("thumb",{url},"infinite")
-  return rec?.thumb || null
+
+  if(window.Kache?.getFromCache){
+    const rec = await Kache.getFromCache("thumb",{url},"infinite")
+    if(rec?.thumb) return rec.thumb
+  }
+
+  return await ThumbDB.get(url)
 }
 
+
 async function saveThumbToLocal(url,thumb){
-  await Kache.saveToCache("thumb",{url},{thumb})
+
+  if(window.Kache?.saveToCache){
+    try{
+      await Kache.saveToCache("thumb",{url},{thumb})
+      return
+    }catch{}
+  }
+
+  await ThumbDB.set(url,thumb)
 }
 
 
