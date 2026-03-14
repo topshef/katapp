@@ -2,6 +2,92 @@
     /* =========================
        VIEW HELPERS
     ========================= */
+async function loadThumbCache(){
+
+  const urls = Object.values(window.assetDisplayCache || {})
+    .map(m => m?.token_asset_image_URL)
+    .filter(Boolean)
+
+  glog("thumb preload scan", urls.length)
+
+  for(const url of urls){
+
+    const thumb = await getThumbFromLocal(url)
+
+    if(thumb){
+      window.thumbCache[url] = thumb
+      glog("thumb cache HIT", url)
+    }else{
+      glog("thumb cache MISS", url)
+    }
+  }
+
+}
+
+
+
+async function getThumbFromLocal(url){
+  const rec = await Kache.getFromCache("thumb",{url},"infinite")
+  return rec?.thumb || null
+}
+
+async function saveThumbToLocal(url,thumb){
+  await Kache.saveToCache("thumb",{url},{thumb})
+}
+
+
+// thumbnail cache
+window.thumbCache ||= {}
+window.thumbPending ||= {}
+
+function getFastThumb(url, imgEl){
+
+  if(window.thumbCache[url])
+    return window.thumbCache[url]
+
+  if(!window.thumbPending[url]){
+
+    window.thumbPending[url] = true
+    glog("generate thumb (new)", url)
+
+
+    const img = new Image()
+    img.crossOrigin = "anonymous"
+
+    img.onload = () => {
+
+      const canvas = document.createElement("canvas")
+      canvas.width = 96
+      canvas.height = 96
+
+      const ctx = canvas.getContext("2d")
+      ctx.drawImage(img,0,0,96,96)
+
+      try{
+
+        const thumb = canvas.toDataURL("image/webp",0.8)
+
+        window.thumbCache[url] = thumb
+
+        // update image already in DOM
+        if(imgEl)
+          imgEl.src = thumb
+
+        // store in Localbase
+        saveThumbToLocal(url, thumb)
+
+      }catch(e){
+        console.warn("thumb generation failed", url)
+      }
+    }
+
+    img.src = url
+  }
+
+  return url
+}
+
+
 
 
 		function makeAssetEl({
@@ -41,9 +127,11 @@
 					el.classList.add("thumb-only")
 					
 					const img = document.createElement("img")
-					img.src = thumb
 					img.className = "asset-thumb"
+					img.src = getFastThumb(thumb, img)
+					img.decoding = "async"
 					el.prepend(img)
+
 				}
 			}
 

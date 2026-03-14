@@ -93,8 +93,12 @@ function connect(onOpenAction){
 		currentPlayerId = data.myPlayerId || null
 
 		glog(`state received for ${currentPlayerId}`, {game, state})
+
 		render()
 		await enrichVisibleAssets()
+		await loadThumbCache()
+		render()
+
 	}
 	
 }
