@@ -2,13 +2,18 @@
 
 		:root{
 			--bg-color: #f5f5f5;
-			
+
+			--thumb-size: 48px;
+			--thumb-overlap-ratio: 0.85;
+			--asset-gap: 3px;
+
+			--thumb-collapse-left: calc(var(--asset-gap) - (var(--thumb-size) * var(--thumb-overlap-ratio)));
+
 			/* examples not in use */
 			--text-color: #222;
 			--accent: #4a90e2;
 			--gap: 12px;
 		}
-
 
 		.asset.thumb-only{
 			padding:0;
@@ -23,13 +28,12 @@
 
 		.asset.thumb-only .asset-thumb{
 			display:block;
-			width:48px;
-			height:48px;
+			width:var(--thumb-size);
+			height:var(--thumb-size);
 			object-fit:cover;
 			margin:0;
 		}
-		
-		
+				
 		.asset:hover::after{
 			content: attr(data-asset-name);
 			position:absolute;
@@ -344,7 +348,7 @@
 }
 
 .asset.thumb-stack-collapsed{
-  margin-left: -32px;
+  margin:3px 3px 3px var(--thumb-collapse-left);
 }
 
 .asset.thumb-stack-first{
