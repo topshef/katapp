@@ -33,20 +33,26 @@
 			object-fit:cover;
 			margin:0;
 		}
-				
+		
 		.asset:hover::after{
 			content: attr(data-asset-name);
 			position:absolute;
 			left:0;
 			bottom:100%;
+
+			display:block;
+
 			background:#222;
 			color:#fff;
+
 			padding:4px 6px;
 			font-size:11px;
+			line-height:1.2;
+
 			white-space:nowrap;
+
 			z-index:1000;
 		}
-
 
     body{
 			background: var(--bg-color);
