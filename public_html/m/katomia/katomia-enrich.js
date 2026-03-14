@@ -16,12 +16,18 @@ async function getTokenMeta(network, tokenId, serial){
 }
 
 
+
 function parseAssetId(assetId){
 
 	assetId = String(assetId)
 
 	if(assetId.includes("#")){
 		const [tokenId, serial] = assetId.split("#")
+		return { tokenId, serial }
+	}
+
+	if(assetId.includes("-")){
+		const [tokenId, serial] = assetId.split("-")
 		return { tokenId, serial }
 	}
 

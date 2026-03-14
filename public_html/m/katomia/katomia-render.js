@@ -27,6 +27,11 @@
 
 			if(meta){
 				el.dataset.assetName = text
+				
+				const { serial } = parseAssetId(assetId)
+				el.dataset.assetName = serial ? text + " #" + serial : text
+
+
 				el.dataset.assetId = assetId
 				el.dataset.assetSymbol = meta.token_class?.symbol || ""
 				el.dataset.assetDescription = meta.token_instance_description || ""
