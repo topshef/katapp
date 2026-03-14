@@ -325,31 +325,10 @@
   width:80px;
 }
 
-.asset-modal-slider{
-  width:100%;
-  margin-top:8px;
-}
-
-.asset-modal-stops{
-  display:flex;
-  justify-content:space-between;
-  margin-top:4px;
-  font-size:11px;
-}
-
-.asset-modal-stop{
-  cursor:pointer;
-  color:#666;
-}
-
 .asset-modal-stop:hover{
   color:#000;
 }
 
-.asset-modal-percent{
-  margin-left:8px;
-  font-size:12px;
-  color:#666;
 }
 
 @media (max-width:699px){

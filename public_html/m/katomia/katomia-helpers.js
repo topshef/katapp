@@ -285,11 +285,8 @@ function openAssetModal(assetId, fromAccountId, available){
   const preview = document.getElementById("assetModalPreview")
   const nameEl = document.getElementById("assetModalName")
   const amountInput = document.getElementById("assetModalAmount")
-  const percentEl = document.getElementById("assetModalPercent")
   const targetsEl = document.getElementById("assetModalTargets")
-
   const availableEl = document.getElementById("assetModalAvailable")
-  const slider = document.getElementById("assetModalSlider")
 
   const meta = getAssetMeta(assetId)
   const thumb = meta && getAssetThumb(meta)
@@ -308,41 +305,13 @@ function openAssetModal(assetId, fromAccountId, available){
 
   nameEl.textContent = getAssetDisplay(assetId, available)
 
-  availableEl.textContent = displayAvailable
+  if(availableEl)
+    availableEl.textContent = displayAvailable
 
   amountInput.value = 1
   amountInput.min = 0
   amountInput.max = displayAvailable || 1
   amountInput.step = decimals ? (1 / (10 ** decimals)) : 1
-
-  slider.min = 0
-  slider.max = 100
-  slider.step = 1
-  slider.value = Math.round((1 / displayAvailable) * 100)
-
-  percentEl.textContent = Math.round(slider.value) + "%"
-
-  slider.oninput = () => {
-
-    const pct = slider.value / 100
-    const amount = displayAvailable * pct
-
-    amountInput.value = +amount.toFixed(6)
-
-    percentEl.textContent = Math.round(slider.value) + "%"
-  }
-
-  amountInput.oninput = () => {
-
-    const v = parseFloat(amountInput.value)
-    if(!Number.isFinite(v)) return
-
-    const pct = (v / displayAvailable) * 100
-
-    slider.value = Math.min(Math.max(pct,0),100)
-
-    percentEl.textContent = Math.round(slider.value) + "%"
-  }
 
   targetsEl.innerHTML = ""
 
