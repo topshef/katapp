@@ -279,6 +279,25 @@
 
 let modalAmountOverride = null
 
+
+function getSliderStops(max){
+
+  if(max <= 1)
+    return [0, max]
+
+  if(max <= 10)
+    return [0, ...Array.from({length:Math.floor(max)},(_,i)=>i+1)]
+
+  return [
+    0,
+    Math.round(max * 0.1),
+    Math.round(max * 0.25),
+    Math.round(max * 0.5),
+    Math.round(max * 0.75),
+    Math.round(max)
+  ].filter((v,i,a) => a.indexOf(v) === i && v <= max)
+}
+
 function openAssetModal(assetId, fromAccountId, available){
 
   const modal = document.getElementById("assetModal")
@@ -287,8 +306,17 @@ function openAssetModal(assetId, fromAccountId, available){
   const amountInput = document.getElementById("assetModalAmount")
   const targetsEl = document.getElementById("assetModalTargets")
 
+  const availableEl = document.getElementById("assetModalAvailable")
+  const slider = document.getElementById("assetModalSlider")
+  const stopsEl = document.getElementById("assetModalStops")
+
   const meta = getAssetMeta(assetId)
   const thumb = meta && getAssetThumb(meta)
+
+  const decimals = Number(meta?.token_class?.decimals || 0)
+  const displayAvailable = decimals
+    ? available / (10 ** decimals)
+    : available
 
   preview.innerHTML = ""
   if(thumb){
@@ -299,8 +327,43 @@ function openAssetModal(assetId, fromAccountId, available){
 
   nameEl.textContent = getAssetDisplay(assetId, available)
 
+  availableEl.textContent = displayAvailable
+
   amountInput.value = 1
-  amountInput.max = available || 1
+  amountInput.min = 0
+  amountInput.max = displayAvailable || 1
+  amountInput.step = decimals ? (1 / (10 ** decimals)) : 1
+
+  slider.min = 0
+  slider.max = displayAvailable || 1
+  slider.step = amountInput.step
+  slider.value = 1
+
+  slider.oninput = () => {
+    amountInput.value = slider.value
+  }
+
+  amountInput.oninput = () => {
+    const v = parseFloat(amountInput.value)
+    if(!Number.isFinite(v)) return
+    slider.value = Math.min(Math.max(v, 0), displayAvailable)
+  }
+
+  stopsEl.innerHTML = ""
+
+  getSliderStops(displayAvailable).forEach(v => {
+
+    const s = document.createElement("span")
+    s.className = "asset-modal-stop"
+    s.textContent = v
+
+    s.onclick = () => {
+      amountInput.value = v
+      slider.value = v
+    }
+
+    stopsEl.appendChild(s)
+  })
 
   targetsEl.innerHTML = ""
 
@@ -341,6 +404,7 @@ function openAssetModal(assetId, fromAccountId, available){
 
   modal.classList.remove("hidden")
 }
+
 
 function closeAssetModal(){
   document.getElementById("assetModal").classList.add("hidden")

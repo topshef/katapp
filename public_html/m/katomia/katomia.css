@@ -148,6 +148,7 @@
 		.name{
 			display:flex;
 			flex-direction:column;
+			padding-left:8px;
 		}
 
 
@@ -310,6 +311,39 @@
   border-left-width:8px;
   margin-top:6px;
   cursor:pointer;
+}
+
+
+.asset-modal-amount-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-top:8px;
+}
+
+.asset-modal-input input{
+  width:80px;
+}
+
+.asset-modal-slider{
+  width:100%;
+  margin-top:8px;
+}
+
+.asset-modal-stops{
+  display:flex;
+  justify-content:space-between;
+  margin-top:4px;
+  font-size:11px;
+}
+
+.asset-modal-stop{
+  cursor:pointer;
+  color:#666;
+}
+
+.asset-modal-stop:hover{
+  color:#000;
 }
 
 
