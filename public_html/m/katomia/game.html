@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" href="katomia.css" />
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <title>katomia</title>
 
   <style>
@@ -80,5 +81,16 @@ window.addEventListener("load", () => {
 })
 </script>
 
+
+<script>
+	fetch("../footer.html")
+		.then(r => r.text())
+		.then(html => {
+			document.body.insertAdjacentHTML("beforeend", html)
+		})
+</script>
+
 </body>
+
+
 </html>

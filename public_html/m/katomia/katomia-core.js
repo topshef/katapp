@@ -24,7 +24,8 @@
 
 		// if(!gameId)  window.location.href = "contents.html"    // href    → adds history entry
 		// if(!gameId)  window.location.replace = "contents.php"    // replace → user can't press Back to the broken page
-		if(!gameId)  window.location.href = "https://hapi2.hbar.live/live/katomia/games"  
+		// if(!gameId)  window.location.href = "https://hapi2.hbar.live/live/katomia/games"  
+		// moved to php
 
     let socket = null
     // let currentPlayer = null

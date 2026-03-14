@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Katomia markets 🍎🥬🥕</title>
+
+<style>
+
+body{
+  font-family: sans-serif;
+  margin:20px;
+  background:#f5f5f5;
+}
+
+h2{
+  margin-top:0;
+}
+
+.grid{
+  display:grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap:10px;
+}
+
+.header{
+  font-weight:bold;
+  border-bottom:2px solid #999;
+  padding-bottom:6px;
+}
+
+.row{
+  display:contents;
+}
+
+.cell{
+  background:white;
+  padding:8px 10px;
+  border:1px solid #ddd;
+}
+
+.cell a{
+  text-decoration:none;
+  color:#0366d6;
+  font-weight:bold;
+}
+
+.cell a:hover{
+  text-decoration:underline;
+}
+
+@media (max-width:700px){
+
+  .grid{
+    grid-template-columns:1fr;
+  }
+
+  .header{
+    display:none;
+  }
+
+  .cell{
+    display:flex;
+    justify-content:space-between;
+  }
+
+  .cell::before{
+    font-weight:bold;
+    margin-right:8px;
+  }
+
+  .cell.id::before{content:"ID"}
+  .cell.network::before{content:"Network"}
+  .cell.visibility::before{content:"Visibility"}
+  .cell.join::before{content:"Join"}
+  .cell.lock::before{content:"Lock"}
+
+}
+
+</style>
+</head>
+
+<body>
+
+<h2>Choose a Katomia market... 🍎🥬🥕</h2>
+
+<div id="games" class="grid">
+
+  <div class="header">ID</div>
+  <div class="header">Network</div>
+  <div class="header">Visibility</div>
+  <div class="header">Join rule</div>
+  <div class="header">Lock rule</div>
+
+</div>
+
+<script>
+
+const API_URL = "https://hapi2.hbar.live/live/katomia/games" // change this
+
+function formatJoinRule(rule){
+
+  if(typeof rule === "string") return rule
+
+  if(rule && rule.rule){
+    return rule.rule + "(" + rule.params.join(",") + ")"
+  }
+
+  return ""
+}
+
+async function loadGames(){
+
+  const res = await fetch(API_URL)
+  const data = await res.json()
+
+  if(!data.ok) return
+
+  const container = document.getElementById("games")
+
+  Object.values(data.games).forEach(g => {
+
+    container.insertAdjacentHTML("beforeend", `
+      <div class="row">
+
+        <div class="cell id">
+          <a href="./game/${g.id}" target="${g.id}">${g.id}</a>
+        </div>
+
+        <div class="cell network">
+          ${g.network}
+        </div>
+
+        <div class="cell visibility">
+          ${g.visibility}
+        </div>
+
+        <div class="cell join">
+          ${formatJoinRule(g.joinRule)}
+        </div>
+
+        <div class="cell lock">
+          ${g.lockRule}
+        </div>
+
+      </div>
+    `)
+
+  })
+
+}
+
+loadGames()
+
+</script>
+
+</body>
+</html>
