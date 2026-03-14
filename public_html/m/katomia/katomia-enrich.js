@@ -91,7 +91,7 @@ function formatAssetDisplay(asset, meta){
 
 function getAssetDisplay(assetId, amount){
 
-	glog(`getAssetDisplay|${assetId}`, {amount})
+	glog(`getAssetDisplay`, {assetId, amount})
 
 	window.assetDisplayCache ||= {}
 
@@ -147,7 +147,6 @@ async function enrichVisibleAssets(){
 	Object.values(state.accounts).forEach(account => {
 
 		Object.entries(account.assets || {}).forEach(([assetId, amount]) => {
-			glog(`checking asset|${assetId}`, {amount})
 			if(window.assetDisplayCache[assetId]) return
 			if(window.assetMetaPending.has(assetId)) return
 
@@ -157,8 +156,7 @@ async function enrichVisibleAssets(){
 				(async () => {
 					try{
 						const enriched = await enrichAsset(game.network, assetId, amount)
-						glog(`enrichAsset ${game.network}|${assetId}|x${amount}`,enriched)
-						// glog(`formatDisplay|${assetId}`, enriched.meta)
+						glog(`enrichAsset ${game.network}`,{assetId, amount, enriched})
 						
 						window.assetDisplayCache[assetId] = enriched.meta
 					}

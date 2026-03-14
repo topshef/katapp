@@ -5,9 +5,15 @@
 
 addAccountBtn.onclick = () => {
 
-  const label = accountLabelInput.value.trim()
+  let label = accountLabelInput.value.trim()
   if(!label) return
 
+	// allow integer account shorthand
+	if(game?.network === "testnet" || game?.network === "mainnet"){
+		if(/^\d+$/.test(label)){
+			label = "0.0." + label
+		}
+	}
   const playerToken = getOrCreatePlayerToken()
 
   const sendAdd = () => {
@@ -67,7 +73,7 @@ function connect(onOpenAction){
     }
 	
     socket.send(JSON.stringify(payload))
-		glog("game_join", payload)
+		glog("payload for game_join", payload)
 		
     onOpenAction && onOpenAction()
   }
@@ -77,8 +83,9 @@ function connect(onOpenAction){
 
 		const data = JSON.parse(msg.data)
 		console.log(data, "websocket data received")
-		glog("websocket data received", data)
 		
+		
+		if(data.type !== "game_state") glog(`websocket data IGNORED for type=${data.type}`, data)
 		if(data.type !== "game_state") return
 
 		game = data.game || null
