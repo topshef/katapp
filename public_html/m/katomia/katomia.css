@@ -346,6 +346,11 @@
   color:#000;
 }
 
+.asset-modal-percent{
+  margin-left:8px;
+  font-size:12px;
+  color:#666;
+}
 
 @media (max-width:699px){
   label:has(#viewToggle){

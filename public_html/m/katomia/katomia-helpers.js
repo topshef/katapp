@@ -279,36 +279,17 @@
 
 let modalAmountOverride = null
 
-
-function getSliderStops(max){
-
-  if(max <= 1)
-    return [0, max]
-
-  if(max <= 10)
-    return [0, ...Array.from({length:Math.floor(max)},(_,i)=>i+1)]
-
-  return [
-    0,
-    Math.round(max * 0.1),
-    Math.round(max * 0.25),
-    Math.round(max * 0.5),
-    Math.round(max * 0.75),
-    Math.round(max)
-  ].filter((v,i,a) => a.indexOf(v) === i && v <= max)
-}
-
 function openAssetModal(assetId, fromAccountId, available){
 
   const modal = document.getElementById("assetModal")
   const preview = document.getElementById("assetModalPreview")
   const nameEl = document.getElementById("assetModalName")
   const amountInput = document.getElementById("assetModalAmount")
+  const percentEl = document.getElementById("assetModalPercent")
   const targetsEl = document.getElementById("assetModalTargets")
 
   const availableEl = document.getElementById("assetModalAvailable")
   const slider = document.getElementById("assetModalSlider")
-  const stopsEl = document.getElementById("assetModalStops")
 
   const meta = getAssetMeta(assetId)
   const thumb = meta && getAssetThumb(meta)
@@ -335,35 +316,33 @@ function openAssetModal(assetId, fromAccountId, available){
   amountInput.step = decimals ? (1 / (10 ** decimals)) : 1
 
   slider.min = 0
-  slider.max = displayAvailable || 1
-  slider.step = amountInput.step
-  slider.value = 1
+  slider.max = 100
+  slider.step = 1
+  slider.value = Math.round((1 / displayAvailable) * 100)
+
+  percentEl.textContent = Math.round(slider.value) + "%"
 
   slider.oninput = () => {
-    amountInput.value = slider.value
+
+    const pct = slider.value / 100
+    const amount = displayAvailable * pct
+
+    amountInput.value = +amount.toFixed(6)
+
+    percentEl.textContent = Math.round(slider.value) + "%"
   }
 
   amountInput.oninput = () => {
+
     const v = parseFloat(amountInput.value)
     if(!Number.isFinite(v)) return
-    slider.value = Math.min(Math.max(v, 0), displayAvailable)
+
+    const pct = (v / displayAvailable) * 100
+
+    slider.value = Math.min(Math.max(pct,0),100)
+
+    percentEl.textContent = Math.round(slider.value) + "%"
   }
-
-  stopsEl.innerHTML = ""
-
-  getSliderStops(displayAvailable).forEach(v => {
-
-    const s = document.createElement("span")
-    s.className = "asset-modal-stop"
-    s.textContent = v
-
-    s.onclick = () => {
-      amountInput.value = v
-      slider.value = v
-    }
-
-    stopsEl.appendChild(s)
-  })
 
   targetsEl.innerHTML = ""
 
