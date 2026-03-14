@@ -45,11 +45,15 @@
 			el.dataset.ownerPlayer = ownerPlayerId || ""
 
 			if(reserved) el.classList.add("reserved")
-			if(basket) el.classList.add("basket")
+			if(basket) {
+				el.classList.add("basket")
+				applyOwnerSleeve(el, ownerPlayerId)
+			}
+
 			if(clickable) el.classList.add("clickable")
 			if(selected) el.classList.add("selected")
 
-			applyOwnerSleeve(el, ownerPlayerId)
+			
 			if (useThumbnail) el.style.paddingLeft = "0"
 
 			return el
