@@ -45,7 +45,7 @@
 
 			if(available <= 1) return 1
 
-			const input = prompt("Move how much?", "1")
+			const input = modalAmountOverride ?? prompt("Move how much?", "1")
 			if(input === null) return null
 
 			const n = parseFloat(input)
@@ -275,3 +275,79 @@
 
       return visible
     }
+
+
+let modalAmountOverride = null
+
+function openAssetModal(assetId, fromAccountId, available){
+
+  const modal = document.getElementById("assetModal")
+  const preview = document.getElementById("assetModalPreview")
+  const nameEl = document.getElementById("assetModalName")
+  const amountInput = document.getElementById("assetModalAmount")
+  const targetsEl = document.getElementById("assetModalTargets")
+
+  const meta = getAssetMeta(assetId)
+  const thumb = meta && getAssetThumb(meta)
+
+  preview.innerHTML = ""
+  if(thumb){
+    const img = document.createElement("img")
+    img.src = thumb
+    preview.appendChild(img)
+  }
+
+  nameEl.textContent = getAssetDisplay(assetId, available)
+
+  amountInput.value = 1
+  amountInput.max = available || 1
+
+  targetsEl.innerHTML = ""
+
+  const accounts = getAccounts()
+
+  accounts.forEach(acc => {
+
+    if(acc.id === fromAccountId) return
+
+    const el = document.createElement("div")
+    el.className = "asset-modal-target"
+    el.textContent = acc.label || acc.id
+
+    const colour = getPlayerColour(acc.playerId)
+    el.style.borderLeftColor = colour
+
+    el.onclick = () => {
+
+      const n = parseFloat(amountInput.value)
+      if(!Number.isFinite(n) || n <= 0) return
+
+      modalAmountOverride = n
+
+      selectedAssetId = assetId
+      selectedFromAccountId = fromAccountId
+      selectedFromBasketToAccountId = null
+
+      offerSelectedToAccount(acc.id)
+
+      modalAmountOverride = null
+
+      closeAssetModal()
+    }
+
+    targetsEl.appendChild(el)
+
+  })
+
+  modal.classList.remove("hidden")
+}
+
+function closeAssetModal(){
+  document.getElementById("assetModal").classList.add("hidden")
+}
+
+document.addEventListener("click", e=>{
+  if(e.target.id === "assetModalClose"){
+    closeAssetModal()
+  }
+})

@@ -50,8 +50,26 @@
     <div>🧺🛒 Basket (receive)</div>
   </div>
 
-  <div id="game"></div>
+	<div id="game"></div>
 
+	<div id="assetModal" class="asset-modal hidden">
+		<div class="asset-modal-card">
+
+			<div id="assetModalPreview" class="asset-modal-preview"></div>
+
+			<div id="assetModalName" class="asset-modal-name"></div>
+
+			<div class="asset-modal-amount">
+				<label>Amount</label>
+				<input id="assetModalAmount" type="number" value="1" min="1">
+			</div>
+
+			<div id="assetModalTargets" class="asset-modal-targets"></div>
+
+			<button id="assetModalClose">Cancel</button>
+
+		</div>
+	</div>
 
 <script src="/m/bid/localbase.min.js"></script> <!-- beware spelling of Localbase -->
 <script type="module" data-global src="/m/tools/glog/latest/glog.js" ></script>

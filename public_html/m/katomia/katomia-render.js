@@ -90,6 +90,12 @@
 
 				if(mine){
 					assetEl.onclick = () => {
+
+						if(viewMode === "merged"){
+							openAssetModal(assetId, account.id, amount)
+							return
+						}
+
 						setSelectedAsset(assetId, account.id, null)
 					}
 
