@@ -311,3 +311,10 @@
   margin-top:6px;
   cursor:pointer;
 }
+
+
+@media (max-width:699px){
+  label:has(#viewToggle){
+    display:none;
+  }
+}
