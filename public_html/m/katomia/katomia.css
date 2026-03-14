@@ -374,9 +374,17 @@
   margin-right: 6px;
 }
 
-.asset.thumb-stack-item .asset-thumb{
-  border: 2px solid #fff;
-  border-radius: 6px;
-  box-sizing: border-box;
-  background: #fff;
+
+
+.asset-thumb{
+  border-radius:6px;
+  box-shadow:0 0 2px rgba(0,0,0,0.18);
 }
+
+.asset.thumb-stack-item .asset-thumb{
+  border:2px solid #fff;
+  box-sizing:border-box;
+  background:#fff;
+}
+
+
