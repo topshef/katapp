@@ -336,3 +336,28 @@
     display:none;
   }
 }
+
+
+
+.asset.thumb-stack-item{
+  position: relative;
+}
+
+.asset.thumb-stack-collapsed{
+  margin-left: -32px;
+}
+
+.asset.thumb-stack-first{
+  margin-left: 3px;
+}
+
+.asset.thumb-stack-last{
+  margin-right: 6px;
+}
+
+.asset.thumb-stack-item .asset-thumb{
+  border: 2px solid #fff;
+  border-radius: 6px;
+  box-sizing: border-box;
+  background: #fff;
+}

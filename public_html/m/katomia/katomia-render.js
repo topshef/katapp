@@ -32,6 +32,7 @@
 				el.dataset.assetDescription = meta.token_instance_description || ""
 
 				if(useThumbnail){
+					el.dataset.thumbKey = thumb // todo change to tokenId-thumb
 					el.classList.add("thumb-only")
 					
 					const img = document.createElement("img")
@@ -74,40 +75,73 @@
 		*/
 		function renderStoreAsset(account, container){
 			const mine = isMyAccount(account)
+			const rendered = []
 
 			Object.entries(account.assets || {}).forEach(([assetId, amount]) => {
+				const text = getAssetDisplay(assetId, amount)
+				const meta = getAssetMeta(assetId)
+				const thumb = meta && getAssetThumb(meta)
 
-				// const text = amount === 1
-					// ? assetId
-					// : assetId + " ×" + amount
-					
-				const text = getAssetDisplay(assetId, amount)	
-
-				const assetEl = makeAssetEl({
-					text,
+				rendered.push({
 					assetId,
+					amount,
+					text,
+					thumbKey: thumb || null
+				})
+			})
+
+			const thumbGroups = {}
+
+			rendered.forEach(item => {
+				if(!item.thumbKey) return
+
+				thumbGroups[item.thumbKey] ||= []
+				thumbGroups[item.thumbKey].push(item)
+			})
+
+			rendered.forEach(item => {
+				const assetEl = makeAssetEl({
+					text: item.text,
+					assetId: item.assetId,
 					ownerAccountId: account.id,
 					ownerPlayerId: account.playerId,
 					clickable: mine,
-					selected: isSelected(assetId, account.id, null)
+					selected: isSelected(item.assetId, account.id, null)
 				})
+
+				const group = item.thumbKey ? thumbGroups[item.thumbKey] : null
+
+				if(group && group.length > 1){
+					const index = group.findIndex(x => x.assetId === item.assetId)
+
+					assetEl.classList.add("thumb-stack-item")
+					assetEl.dataset.stackSize = group.length
+					assetEl.dataset.stackIndex = index
+
+					if(index === 0)
+						assetEl.classList.add("thumb-stack-first")
+					else
+						assetEl.classList.add("thumb-stack-collapsed")
+
+					if(index === group.length - 1)
+						assetEl.classList.add("thumb-stack-last")
+				}
 
 				if(mine){
 					assetEl.onclick = () => {
-
 						if(viewMode === "merged"){
-							openAssetModal(assetId, account.id, amount)
+							openAssetModal(item.assetId, account.id, item.amount)
 							return
 						}
 
-						setSelectedAsset(assetId, account.id, null)
+						setSelectedAsset(item.assetId, account.id, null)
 					}
 
 					assetEl.draggable = true
 
 					assetEl.ondragstart = e => {
-						e.dataTransfer.setData("assetId", assetId)
-						e.dataTransfer.setData("available", amount || 1)
+						e.dataTransfer.setData("assetId", item.assetId)
+						e.dataTransfer.setData("available", item.amount || 1)
 						e.dataTransfer.setData("fromAccountId", account.id)
 						e.dataTransfer.setData("fromBasketToAccountId", "")
 					}
@@ -116,7 +150,8 @@
 				container.appendChild(assetEl)
 			})
 		}
-
+		
+		
     function renderReservedColumnAsset(account, container, reservedItem){
       const mine = isMyAccount(account)
 
