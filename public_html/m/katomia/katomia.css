@@ -366,6 +366,22 @@ body[data-view-mode="merged"] .hint-desktop{
   display:none;
 }
 
+.asset-modal-card{
+  position:relative;
+}
+
+.asset-modal-close{
+  position:absolute;
+  top:8px;
+  right:10px;
+  font-size:18px;
+  cursor:pointer;
+  opacity:0.6;
+}
+
+.asset-modal-close:hover{
+  opacity:1;
+}
 
 .asset-modal-card{
   background:#fff;

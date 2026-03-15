@@ -320,19 +320,24 @@ function openAssetModal(assetId, fromAccountId, available){
 
 	accounts.forEach(acc => {
 
-		if(acc.id === fromAccountId) return
+		// if(acc.id === fromAccountId) return
 
 		const el = document.createElement("div")
 		el.className = "asset-modal-target"
 
 		const locked = acc.mode === "lock"
+		const self = acc.id === fromAccountId
 
-		el.textContent = (acc.label || acc.id) + (locked ? " 🔒" : "")
+		el.textContent =
+			(acc.label || acc.id) +
+			(self ? " (you)" : "") +
+			(locked ? " 🔒" : "")
+	
 
 		const colour = getPlayerColour(acc.playerId)
 		el.style.borderLeftColor = colour
 
-		if(locked){
+		if(locked || self){
 			el.style.opacity = 0.45
 			el.style.pointerEvents = "none"
 		}else{
@@ -367,7 +372,14 @@ function closeAssetModal(){
 }
 
 document.addEventListener("click", e=>{
+
   if(e.target.id === "assetModalClose"){
     closeAssetModal()
+    return
   }
+
+  if(e.target.id === "assetModal"){
+    closeAssetModal()
+  }
+
 })
