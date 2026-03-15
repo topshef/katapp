@@ -35,6 +35,10 @@ addAccountBtn.onclick = () => {
   accountLabelInput.value = ""
 }
 
+const tradedOnlyCheckbox = document.getElementById("tradedOnly")
+
+tradedOnlyCheckbox.disabled = !activeOnlyCheckbox.checked
+
 viewToggle.onchange = e => {
   viewMode = e.target.checked ? "columns" : "merged"
   render()
@@ -42,11 +46,16 @@ viewToggle.onchange = e => {
 
 activeOnlyCheckbox.onchange = e => {
   showActiveOnly = e.target.checked
+
+  tradedOnlyCheckbox.disabled = !showActiveOnly
+
+  if(!showActiveOnly){
+    showTradedOnly = false
+    tradedOnlyCheckbox.checked = false
+  }
+
   render()
 }
-
-
-const tradedOnlyCheckbox = document.getElementById("tradedOnly")
 
 tradedOnlyCheckbox.onchange = e => {
   showTradedOnly = e.target.checked

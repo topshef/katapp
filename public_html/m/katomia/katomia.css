@@ -361,8 +361,15 @@
   }
 }
 
+.desktop-toggle{
+  cursor:pointer;
+}
 
-
+@media (max-width:699px){
+  .desktop-toggle{
+    display:none;
+  }
+}
 .asset.thumb-stack-item{
   position: relative;
 }
