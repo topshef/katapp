@@ -343,14 +343,15 @@ function getFastThumb(url, imgEl){
       const mine = isMyAccount(account)
 
 			let visibleTo = reservedItem.toAccountId
+			let hac // hedera account
 
 			if(reservedItem.toAccountId){
 				const toAccount = state.accounts?.[reservedItem.toAccountId]
 				const player = toAccount ? state.players[toAccount.playerId] : null
 				const name = player?.name || reservedItem.toAccountId
-
-				const labelPart = reservedItem.toAccountId.split(":")[1] || reservedItem.toAccountId
-				visibleTo = name + ":" + labelPart
+				
+				hac = reservedItem.toAccountId.split(":")[1] || reservedItem.toAccountId
+				visibleTo = name + ":" + hac
 			}
 
 			const baseText = getAssetDisplay(reservedItem.assetId, reservedItem.amount || 1)
@@ -378,8 +379,7 @@ function getFastThumb(url, imgEl){
 
       if(mine){
         assetEl.onclick = () => {
-          // const ok = confirm("Recall " + reservedItem.assetId + " from " + reservedItem.toAccountId + "?")
-					const ok = confirm("Recall " + reservedItem.assetId + "?")  // todo add from label
+          const ok = confirm("Withdraw " + reservedItem.assetId + " from " + hac + "?")
           if(!ok) return
 
           socket.send(JSON.stringify({
@@ -421,24 +421,10 @@ function getFastThumb(url, imgEl){
 
       const clickable = senderIsMine || receiverIsMine
 
+			let hac // hedera account
+			hac = fromAccountId.split(":")[1] || fromAccountId
 
 			const amount = item.amount || 1
-
-			// let label = amount > 1
-				// ? item.assetId + " ×" + amount
-				// : item.assetId
-	
-
-			// if(fromAccountId){
-				// const fromAccount = accountMap[fromAccountId]
-				// const player = fromAccount ? state.players[fromAccount.playerId] : null
-				// const name = player?.name || fromAccountId
-
-				// const labelPart = fromAccountId.split(":")[1] || fromAccountId
-				// label = item.assetId + " (from " + name + ":" + labelPart + ")"
-				// label = (amount > 1 ? item.assetId + " ×" + amount : item.assetId) +
-									// " (from " + name + ":" + labelPart + ")"
-			// }
 
 			let label = getAssetDisplay(item.assetId, amount)
 
@@ -478,8 +464,9 @@ function getFastThumb(url, imgEl){
       if(clickable){
         assetEl.onclick = () => {
           if(senderIsMine){
-            // const ok = confirm("Withdraw " + item.assetId + " from " + viewingAccount.id + "'s basket?")
-						const ok = confirm("Withdraw " + item.assetId + "?") // todo add back the fucking accoutn id ffs
+						//players arent verified so maybe worth notign who is proposing (or claiming to )
+						// const ok = confirm("Withdraw " + item.assetId + " from " + hac + "?")             //ac only
+						const ok = confirm("Withdraw " + item.assetId + " from " + fromAccountId + "?")  //includes player
             if(!ok) return
 
             socket.send(JSON.stringify({
@@ -496,7 +483,7 @@ function getFastThumb(url, imgEl){
 
           if(receiverIsMine){
             // const ok = confirm("Return " + item.assetId + " to " + fromAccountId + "'s store?")
-						const ok = confirm("Return " + item.assetId + " to " + fromAccountId) // arsfukcer
+						const ok = confirm("Return " + item.assetId + " to " + fromAccountId) // eg to p2:0.0.1234  
             if(!ok) return
 
             socket.send(JSON.stringify({
