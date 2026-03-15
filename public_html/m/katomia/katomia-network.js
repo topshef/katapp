@@ -35,35 +35,35 @@ addAccountBtn.onclick = () => {
   accountLabelInput.value = ""
 }
 
-const tradedOnlyCheckbox = document.getElementById("tradedOnly")
+const showTradingAccounts = document.getElementById("showTradingAccounts")
+const showTradedAssets = document.getElementById("showTradedAssets")
 
 viewToggle.onchange = e => {
   viewMode = e.target.checked ? "columns" : "merged"
   render()
 }
 
-activeOnlyCheckbox.onchange = e => {
+showTradingAccounts.onchange = e => {
 
   showActiveOnly = e.target.checked
 
   // if user unticks trading accounts, traded-only cannot stay active
   if(!showActiveOnly){
     showTradedOnly = false
-    tradedOnlyCheckbox.checked = false
+    showTradedAssets.checked = false
   }
 
   render()
 }
 
-tradedOnlyCheckbox.onchange = e => {
+showTradedAssets.onchange = e => {
 
   showTradedOnly = e.target.checked
+  showTradingAccounts.checked = e.target.checked
 
-  // traded-only implies trading-accounts-only
-  if(showTradedOnly && !activeOnlyCheckbox.checked){
-    activeOnlyCheckbox.checked = true
-    showActiveOnly = true
-  }
+  // if the trading-accounts checkbox is hidden just sync the state
+  if(showTradingAccounts.offsetParent === null)
+    showActiveOnly = e.target.checked
 
   render()
 }

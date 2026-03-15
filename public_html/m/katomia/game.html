@@ -25,28 +25,43 @@
 
     <button id="addAccountBtn">Add</button>
     <label>
-      <input type="checkbox" id="activeOnly" />
+      <input type="checkbox" id="showTradingAccounts" />
       Show trading accounts only
     </label>
 		<label>
-			<input type="checkbox" id="tradedOnly"/>
+			<input type="checkbox" id="showTradedAssets"/>
 			Show traded assets only
 		</label>
 
 
-    <label class="desktop-toggle">
-      <input type="checkbox" id="viewToggle" />
-      🖥️
-    </label>
 
   </div>
 
 
-  <div class="hint">
-    Tap/click your asset to select it, then tap/click another account target area to offer it.
-    Drag also works on desktop. Click reserved to recall. Click basket items to reject/withdraw.
-    Your own other accounts are valid basket targets too.
-  </div>
+	<div class="hint">
+
+		<label class="desktop-toggle">
+			<input type="checkbox" id="viewToggle" />
+			🖥️
+		</label>
+
+		<span class="hint-desktop">
+			Desktop: Drag & drop to move assets.
+		</span>
+
+		<span class="hint-mobile">
+			Mobile: Tap an asset to see options.
+		</span>
+
+		<span class="hint-both">
+			Tap trading items to reject/withdraw.
+		</span>
+
+		<span class="hint-both">
+			When all required parties have "Locked", a transaction will be created ready for signing.
+		</span>
+
+	</div>
 
   <div id="header" class="header">
     <div>Account</div>

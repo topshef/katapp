@@ -60,6 +60,11 @@
       margin:16px;
     }
 
+label:has(#showTradingAccounts){
+  display:none;
+}
+
+
     h2{
       margin-top:0;
       margin-bottom:10px;
@@ -157,6 +162,13 @@ body[data-view-mode="columns"][data-show-traded-only="true"]
   --thumb-size: 24px;
 }
 
+body[data-view-mode="columns"] .hint-mobile{
+  display:none;
+}
+
+body[data-view-mode="merged"] .hint-desktop{
+  display:none;
+}
 
     .account-row.columns{
       display:grid;
