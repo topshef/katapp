@@ -152,9 +152,11 @@ body[data-view-mode="columns"][data-show-traded-only="true"]
   opacity:0.12;
 }
 
-body[data-view-mode="columns"][data-show-traded-only="true"]{
+body[data-view-mode="columns"][data-show-traded-only="true"] 
+.account-row > :nth-child(3){
   --thumb-size: 24px;
 }
+
 
     .account-row.columns{
       display:grid;

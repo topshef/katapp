@@ -37,18 +37,16 @@ addAccountBtn.onclick = () => {
 
 const tradedOnlyCheckbox = document.getElementById("tradedOnly")
 
-tradedOnlyCheckbox.disabled = !activeOnlyCheckbox.checked
-
 viewToggle.onchange = e => {
   viewMode = e.target.checked ? "columns" : "merged"
   render()
 }
 
 activeOnlyCheckbox.onchange = e => {
+
   showActiveOnly = e.target.checked
 
-  tradedOnlyCheckbox.disabled = !showActiveOnly
-
+  // if user unticks trading accounts, traded-only cannot stay active
   if(!showActiveOnly){
     showTradedOnly = false
     tradedOnlyCheckbox.checked = false
@@ -58,7 +56,15 @@ activeOnlyCheckbox.onchange = e => {
 }
 
 tradedOnlyCheckbox.onchange = e => {
+
   showTradedOnly = e.target.checked
+
+  // traded-only implies trading-accounts-only
+  if(showTradedOnly && !activeOnlyCheckbox.checked){
+    activeOnlyCheckbox.checked = true
+    showActiveOnly = true
+  }
+
   render()
 }
 
