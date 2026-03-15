@@ -681,15 +681,8 @@ function getFastThumb(url, imgEl){
 			const nameEl = createAccountNameEl(account)
 			const modeEl = createAccountModeEl(account)
 
-			const hintEl = document.createElement("span")
-			hintEl.className = "subtle"
-			hintEl.textContent = isMyAccount(account)
-				? "your account"
-				: "tap empty area to offer selected"
-
 			settingsEl.appendChild(nameEl)
 			settingsEl.appendChild(modeEl)
-			settingsEl.appendChild(hintEl)
 
 			const assetsEl = document.createElement("div")
 			assetsEl.className = "assets"

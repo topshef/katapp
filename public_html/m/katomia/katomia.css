@@ -149,6 +149,9 @@
       font-weight:bold;
     }
 
+		.settings .mode{
+			margin-left:auto;
+		}
 
 		.account-row.columns > .name {
 			cursor:pointer;
