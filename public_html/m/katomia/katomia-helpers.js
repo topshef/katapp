@@ -315,40 +315,48 @@ function openAssetModal(assetId, fromAccountId, available){
 
   targetsEl.innerHTML = ""
 
-  const accounts = getAccounts()
 
-  accounts.forEach(acc => {
+	const accounts = getVisibleAccounts(getAccounts())
 
-    if(acc.id === fromAccountId) return
+	accounts.forEach(acc => {
 
-    const el = document.createElement("div")
-    el.className = "asset-modal-target"
-    el.textContent = acc.label || acc.id
+		if(acc.id === fromAccountId) return
 
-    const colour = getPlayerColour(acc.playerId)
-    el.style.borderLeftColor = colour
+		const el = document.createElement("div")
+		el.className = "asset-modal-target"
 
-    el.onclick = () => {
+		const locked = acc.mode === "lock"
 
-      const n = parseFloat(amountInput.value)
-      if(!Number.isFinite(n) || n <= 0) return
+		el.textContent = (acc.label || acc.id) + (locked ? " 🔒" : "")
 
-      modalAmountOverride = n
+		const colour = getPlayerColour(acc.playerId)
+		el.style.borderLeftColor = colour
 
-      selectedAssetId = assetId
-      selectedFromAccountId = fromAccountId
-      selectedFromBasketToAccountId = null
+		if(locked){
+			el.style.opacity = 0.45
+			el.style.pointerEvents = "none"
+		}else{
+			el.onclick = () => {
 
-      offerSelectedToAccount(acc.id)
+				const n = parseFloat(amountInput.value)
+				if(!Number.isFinite(n) || n <= 0) return
 
-      modalAmountOverride = null
+				modalAmountOverride = n
 
-      closeAssetModal()
-    }
+				selectedAssetId = assetId
+				selectedFromAccountId = fromAccountId
+				selectedFromBasketToAccountId = null
 
-    targetsEl.appendChild(el)
+				offerSelectedToAccount(acc.id)
 
-  })
+				modalAmountOverride = null
+
+				closeAssetModal()
+			}
+		}
+
+		targetsEl.appendChild(el)
+	})
 
   modal.classList.remove("hidden")
 }
