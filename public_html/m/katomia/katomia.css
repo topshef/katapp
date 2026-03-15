@@ -141,6 +141,16 @@
 		}
 
 
+body[data-view-mode="columns"][data-show-traded-only="true"] 
+.account-row > :nth-child(3){
+  max-height:52px;
+  overflow:hidden;
+}
+
+body[data-view-mode="columns"][data-show-traded-only="true"] 
+.account-row > :nth-child(3) .asset{
+  opacity:0.12;
+}
 
     .account-row.columns{
       display:grid;

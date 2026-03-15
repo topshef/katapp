@@ -648,9 +648,8 @@ function getFastThumb(url, imgEl){
 
 			setupDropTarget(basketCol, account)
 
-			if(!showTradedOnly)
+			// if(!showTradedOnly || viewMode === "columns")
 				renderStoreAsset(account, storeCol)
-
 
 			;(reservedByAccount[account.id] || []).forEach(item => {
 				renderReservedColumnAsset(account, reservedCol, item)
@@ -702,6 +701,11 @@ function getFastThumb(url, imgEl){
 
 
     function render(){
+			
+			
+			document.body.dataset.viewMode = viewMode
+			document.body.dataset.showTradedOnly = showTradedOnly ? "true" : "false"
+
       gameEl.innerHTML = ""
 
 
