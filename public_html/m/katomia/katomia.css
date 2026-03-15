@@ -89,6 +89,12 @@
       font-weight:bold;
 			border-bottom:2px solid #bbb;
       zzmargin-bottom:6px;
+			
+			margin-left:-16px;
+			margin-right:-16px;
+			padding-left:16px;
+			padding-right:16px;
+	
     }
 
     .header > div{
@@ -103,6 +109,20 @@
 			zzborder-top:none;
 			zzmargin-bottom:3px;
     }
+
+		.account-row{
+			margin-left:-16px;
+			margin-right:-16px;
+			padding-left:16px;
+			padding-right:16px;
+		}
+
+		.account-row{
+			border-top:1px solid #ddd;
+			padding:8px 16px;
+			margin-left:-16px;
+			margin-right:-16px;
+		}
 
 		.account-row[data-mode="lock"]{
 			zzpink_background:#ffe9ec;
