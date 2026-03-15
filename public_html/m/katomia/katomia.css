@@ -152,6 +152,10 @@ body[data-view-mode="columns"][data-show-traded-only="true"]
   opacity:0.12;
 }
 
+body[data-view-mode="columns"][data-show-traded-only="true"]{
+  --thumb-size: 24px;
+}
+
     .account-row.columns{
       display:grid;
       grid-template-columns:1.4fr 0.8fr 3fr 3fr 3fr;
