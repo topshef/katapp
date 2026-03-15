@@ -611,7 +611,8 @@ function getFastThumb(url, imgEl){
 
 			setupDropTarget(container, account)
 
-			renderStoreAsset(account, container)
+			if(!showTradedOnly)
+					renderStoreAsset(account, container)
 
 			;(reservedByAccount[account.id] || []).forEach(item => {
 				renderReservedColumnAsset(account, container, item)
@@ -647,7 +648,9 @@ function getFastThumb(url, imgEl){
 
 			setupDropTarget(basketCol, account)
 
-			renderStoreAsset(account, storeCol)
+			if(!showTradedOnly)
+				renderStoreAsset(account, storeCol)
+
 
 			;(reservedByAccount[account.id] || []).forEach(item => {
 				renderReservedColumnAsset(account, reservedCol, item)
@@ -656,6 +659,7 @@ function getFastThumb(url, imgEl){
 			account.basket.forEach(item => {
 				renderBasketAsset(account, basketCol, item, accountMap)
 			})
+
 
 			rowEl.appendChild(nameEl)
 			rowEl.appendChild(modeEl)

@@ -45,6 +45,14 @@ activeOnlyCheckbox.onchange = e => {
   render()
 }
 
+
+const tradedOnlyCheckbox = document.getElementById("tradedOnly")
+
+tradedOnlyCheckbox.onchange = e => {
+  showTradedOnly = e.target.checked
+  render()
+}
+
 /* =========================
    NETWORK
 ========================= */

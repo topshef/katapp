@@ -35,7 +35,8 @@
 		let game = null
 
     let viewMode = window.innerWidth < 700 ? "merged" : "columns"
-    let showActiveOnly = false
+    let showActiveOnly = false  // show active accounts only - rows with traded assets
+		let showTradedOnly = false  // show traded assets only (reserved/basket)
 
     let selectedAssetId = null
     let selectedFromAccountId = null
