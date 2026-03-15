@@ -673,6 +673,7 @@ function getFastThumb(url, imgEl){
 
 			rowEl.dataset.playerId = account.playerId
 			rowEl.dataset.accountId = account.id
+			rowEl.dataset.mode = account.mode
 			rowEl.dataset.mine = isMyAccount(account) ? "true" : "false"
 
 			const settingsEl = document.createElement("div")

@@ -120,6 +120,8 @@
 			opacity:0.72;
 		}
 
+
+
     .account-row.columns{
       display:grid;
       grid-template-columns:1.4fr 0.8fr 3fr 3fr 3fr;
