@@ -122,112 +122,71 @@ h3{
 </head>
 
 <body>
-
 <div class="form">
 
-<h2>Create your own market in Katomia 🍎🥬🥕</h2>
+  <h2>Create your own market in Katomia 🍎🥬🥕</h2>
 
-<div class="field">
-<label>Game Name</label>
-<input id="gameName" placeholder="Example: demo-mainnet">
-</div>
+  <div class="field">
+    <label>Game Name</label>
+    <input id="gameName" placeholder="Example: demo-mainnet">
+  </div>
 
-<div class="field">
-<label>Network</label>
+  <div class="field">
+    <label>Network</label>
 
-<div class="options">
+    <div class="options">
+      <label class="option"><input type="radio" name="network" value="playnet" checked> Playnet</label>
+      <label class="option"><input type="radio" name="network" value="testnet">         Testnet</label>
+      <label class="option"><input type="radio" name="network" value="mainnet">         Mainnet</label>
+    </div>
 
-<label class="option">
-<input type="radio" name="network" value="playnet" checked>
-Playnet
-</label>
+    <div class="explain" id="networkExplain"></div>
+  </div>
+	
 
-<label class="option">
-<input type="radio" name="network" value="testnet">
-Testnet
-</label>
+	
+  <div class="field">
+    <label>🔁/🔒 Swap/Lock Rule</label>
+    <p class="explain">Initiate swaps once agreed between...</p>
 
-<label class="option">
-<input type="radio" name="network" value="mainnet">
-Mainnet
-</label>
+    <div class="options">
+      <label class="option"><input type="radio" name="lockRule" value="all">             All players</label>
+      <label class="option"><input type="radio" name="lockRule" value="active">          Active players</label>
+      <label class="option"><input type="radio" name="lockRule" value="cluster" checked> Any connected cluster</label>
+    </div>
 
-</div>
+    <div class="explain" id="lockExplain"></div>
+  </div>
 
-<div class="explain" id="networkExplain"></div>
-</div>
+  <div class="field">
+    <label>Visibility</label>
 
-<div class="field">
-<label>Visibility</label>
+    <div class="options">
+      <label class="option"><input type="radio" name="visibility" value="public" checked> Public   </label>
+      <label class="option"><input type="radio" name="visibility" value="unlisted"      > Unlisted </label>
+      <label class="option"><input type="radio" name="visibility" value="private"       > Private  </label>
+    </div>
 
-<div class="options">
+    <div class="explain" id="visibilityExplain"></div>
+  </div>
+	
 
-<label class="option">
-<input type="radio" name="visibility" value="public" checked>
-Public
-</label>
+	<div class="field">
+		<div class="explain">
+			Access control. Leave blank to allow anyone to join. Advanced rule formats may be supported.
+		</div>
+		<input id="joinRule" value="">
 
-<label class="option">
-<input type="radio" name="visibility" value="unlisted">
-Unlisted
-</label>
+	</div>
 
-<label class="option">
-<input type="radio" name="visibility" value="private">
-Private
-</label>
+	<div class="field">
+		<div class="explain">
+			Admin account (optional)
+		</div>
+		<input id="admin" placeholder="Hedera account / public key">
 
-</div>
+	</div>
 
-<div class="explain" id="visibilityExplain"></div>
-</div>
-
-<div class="field">
-<label>Lock Rule</label>
-
-<div class="options">
-
-<label class="option">
-<input type="radio" name="lockRule" value="cluster" checked>
-Cluster
-</label>
-
-<label class="option">
-<input type="radio" name="lockRule" value="active">
-Active
-</label>
-
-<label class="option">
-<input type="radio" name="lockRule" value="all">
-All
-</label>
-
-</div>
-
-<div class="explain" id="lockExplain"></div>
-</div>
-
-<div class="advanced">
-
-<h3>Advanced Options</h3>
-
-<div class="field">
-<label>Join Rule</label>
-<input id="joinRule" value="*">
-<div class="explain">
-Who can join the game. "*" means everyone. Advanced rule formats may be supported.
-</div>
-</div>
-
-<div class="field">
-<label>Administrator (optional)</label>
-<input id="admin" placeholder="Hedera account or public key">
-<div class="explain">
-Optional administrator account that can manage settings later.
-</div>
-</div>
-
-</div>
 
 <button class="create-btn" id="createBtn">Create Game</button>
 
@@ -237,27 +196,27 @@ Optional administrator account that can manage settings later.
 
 <script>
 
-const API_URL = "https://hapi2.hbar.live/live/katomia/create"
+const API_URL = "./hapi/create"
 
 const explain = {
 
-network:{
-playnet:"Playnet is a sandbox environment not connected to Hedera.",
-testnet:"Hedera testnet used for safe testing of transactions.",
-mainnet:"Hedera mainnet where real transactions and fees apply."
-},
+	network:{
+		playnet:"For fun.. no network connections.. swaps execute immediately as players agree",
+		testnet:"For learning.. pretend 'monopoly' assets but using real wallet tools - players must sign to complete swaps.",
+		mainnet:"For real.. Hedera mainnet where real transactions and fees apply."
+	},
 
-visibility:{
-public:"Public games appear in listings and anyone can join.",
-unlisted:"Unlisted games are hidden from listings but accessible via link.",
-private:"Private games require specific join rules or permissions."
-},
+	visibility:{
+		public:"Public games appear in listings.",
+		unlisted:"Unlisted games are hidden from listings but accessible via shared link.",
+		private:"Private games require specific join rules or permissions."
+	},
 
-lock:{
-cluster:"Cluster: connected groups of players who lock trades execute together.",
-active:"Active: all clusters currently active must lock before execution.",
-all:"All: every player in the entire game must lock before execution."
-}
+	lock:{
+		all:"Every player in the entire game must agree for a swap to proceed. eg for private games when all parties are expected to participate",
+		active:"All active players must agree for a swap to proceed. Disconnected clusters can be executed atomically. eg Alice to pay Bob if Carol pays Dave",
+		cluster:"Any connected group of accounts can swap independently.",
+	}
 
 }
 

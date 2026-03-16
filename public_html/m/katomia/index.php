@@ -6,8 +6,8 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/elog.php";
 // elog($_SERVER);
 
 
-$action = $_GET['action'] ?? false;
-if ($action == 'create') {
+$page = $_GET['page'] ?? false;
+if ($page == 'create') {
 	require_once("create-game.html");
 	exit;
 }
