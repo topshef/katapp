@@ -3,6 +3,49 @@
        HELPERS / ADAPTERS
     ========================= */
 
+
+
+
+		function notify(message, type="info", opts={}){
+
+			const { timeout=4000 } = opts
+
+			const icons = {
+				info:"ℹ️",
+				warning:"⚠️",
+				error:"🤔",
+				success:"✅",
+				failed:"❌"
+			}
+
+			const container = document.getElementById("notifications")
+
+			const el = document.createElement("div")
+			el.className = `notice ${type}`
+
+			const text = document.createElement("span")
+			text.textContent = `${icons[type] || ""} ${message}`
+
+			const close = document.createElement("button")
+			close.textContent = "×"
+
+			close.onclick = () => removeNotice(el)
+
+			el.append(text, close)
+			container.appendChild(el)
+
+			if(timeout){
+				setTimeout(()=>removeNotice(el), timeout)
+			}
+		}
+
+		function removeNotice(el){
+			el.classList.add("fade-out")
+			setTimeout(()=>el.remove(), 400)
+		}
+
+
+
 		function getPlayerColour(playerId){
 			if(!state || !state.players || !state.players[playerId]){
 				return "#999"

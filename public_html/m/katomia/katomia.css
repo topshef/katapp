@@ -470,3 +470,81 @@ body[data-view-mode="merged"] .hint-desktop{
 }
 
 
+
+#notifications{
+  position:fixed;
+  top:10px;
+  left:50%;
+  transform:translateX(-50%);
+  width:min(600px,90%);
+  z-index:9999;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.notice{
+  padding:10px 14px;
+  border-radius:6px;
+  font-family:sans-serif;
+  color:white;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  backdrop-filter:blur(4px);
+
+  zzopacity:0.95; /* slightly translucent */
+
+  box-shadow:0 4px 10px rgba(0,0,0,0.15); /* gentle lift */
+  border:1px solid rgba(0,0,0,0.08); /* subtle edge */
+
+  transition:opacity .4s ease;
+}
+
+.notice.fade-out{
+  opacity:0;
+}
+
+.notice.error{
+  background:#F8D7DA;
+  color:#842029;
+}
+
+.notice.warning{
+  background:#FFF3CD;
+  color:#664D03;
+}
+
+.notice.info,
+.notice.event{
+  background:#CFE2FF;
+  color:#084298;
+}
+
+
+.notice.success{
+  background:#D1E7DD;
+  color:#0F5132;
+}
+
+.notice.debug{
+  background:#E2E3E5;
+  color:#41464B;
+}
+.notice button{
+  background:none;
+  border:none;
+  color:inherit;
+  font-size:16px;
+  cursor:pointer;
+  margin-left:10px;
+}
+
+.notice{
+  animation:slideIn .2s ease;
+}
+
+@keyframes slideIn{
+  from{ transform:translateY(-8px); opacity:0 }
+  to{ transform:translateY(0); opacity:1 }
+}

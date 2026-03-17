@@ -101,12 +101,19 @@ function connect(onOpenAction){
     onOpenAction && onOpenAction()
   }
 
-
+	
+	const alertTimeouts = {warning: 3000, error: 0, info: 3000, success: 4000, event: 5000}
 	socket.onmessage = async msg => {
 
 		const data = JSON.parse(msg.data)
-		console.log(data, "websocket data received")
+		console.log("websocket data received", data)
 		
+			
+		if (data.messages)
+			for (const m of data.messages) 
+				notify(m.message,m.type, { timeout: alertTimeouts[m.type] ?? 0 }) // persistent
+		if(data.type === "game_error") return  // errors included in notify
+				
 		
 		if(data.type !== "game_state") glog(`websocket data IGNORED for type=${data.type}`, data)
 		if(data.type !== "game_state") return
