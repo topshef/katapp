@@ -517,23 +517,44 @@ function getFastThumb(url, imgEl){
 		function makeTxDot(tx){
 
 			const a = document.createElement("a")
-			a.textContent = "🟠"
+			a.textContent = getTxEmoji(tx)
 			a.style.fontSize = "12px"
 			a.style.textDecoration = "none"
 
-			// TODO replace with your real URL
 			a.href = `/m/sign/?network=${tx.network}&txid=${tx.txid}&pch=${tx.pch}`
 			a.target = "_blank"
 
 			return a
 		}
 
+
+		function getTxEmoji(tx){
+
+			// const status = tx.lifecycle?.status
+			const status = String(tx.lifecycle?.status || "").toUpperCase()
+			
+			const isFinal = tx.lifecycle?.isFinalStatus
+
+			if(status === "SUCCESS")
+				return "🟩"   // green square
+
+			if(status === "SIGNED")
+				return "🟢"   // green circle
+
+			if(isFinal && status !== "SUCCESS")
+				return "🟥"   // red square
+
+			return "🟠"     // default pending
+		}
+
+
 		function createTxTimelineEl(account){
 
 			const txMap = getPendingTxAccountMap()
 
 			const accId = account.id.split(":")[1] || account.id
-			const txs = txMap[accId]
+			const entry = txMap[accId]
+			const txs = entry?.txs
 
 			if(!txs || !txs.length) return null
 
@@ -546,8 +567,9 @@ function getFastThumb(url, imgEl){
 
 			return el
 		}
-
-		function createAccountNameEl(account){
+				
+				
+		function createAccountInfoEl(account){
 
 			const nameEl = document.createElement("div")
 			nameEl.className = "name"
@@ -563,28 +585,12 @@ function getFastThumb(url, imgEl){
 
 			nameEl.appendChild(textEl)
 
-			if(isMyAccount(account)){
-				const exitBtn = document.createElement("div")
-				exitBtn.className = "exit-btn"
-				exitBtn.textContent = "🗑️"
+			const txEl = createTxTimelineEl(account)
+			if(txEl)
+				nameEl.appendChild(txEl)
 
-				exitBtn.onclick = e => {
-					e.stopPropagation()
-
-					const ok = confirm(
-						`Remove account ${account.label}?\n\nAll assets and offers will be removed.`
-					)
-					if(!ok) return
-
-					socket.send(JSON.stringify({
-						type: "game_removeAccount",
-						gameId,
-						accountId: account.id
-					}))
-				}
-
-				nameEl.appendChild(exitBtn)
-			}
+			if(isMyAccount(account))
+				nameEl.appendChild(createExitBtn(account))
 
 			applyOwnerSleeve(nameEl, account.playerId)
 
@@ -599,6 +605,30 @@ function getFastThumb(url, imgEl){
 			return nameEl
 		}
 
+
+		function createExitBtn(account){
+
+			const exitBtn = document.createElement("div")
+			exitBtn.className = "exit-btn"
+			exitBtn.textContent = "🗑️"
+
+			exitBtn.onclick = e => {
+				e.stopPropagation()
+
+				const ok = confirm(
+					`Remove account ${account.label}?\n\nAll assets and offers will be removed.`
+				)
+				if(!ok) return
+
+				socket.send(JSON.stringify({
+					type: "game_removeAccount",
+					gameId,
+					accountId: account.id
+				}))
+			}
+
+			return exitBtn
+		}
 
 		function createAccountModeEl(account){
 
@@ -625,7 +655,6 @@ function getFastThumb(url, imgEl){
 			return modeEl
 		}
 
-
 		function renderAccountAssets(account, container, reservedByAccount, accountMap){
 
 			setupDropTarget(container, account)
@@ -642,7 +671,6 @@ function getFastThumb(url, imgEl){
 			})
 		}
 
-
 		function renderColumnsAccount(account, reservedByAccount, accountMap){
 
 			const rowEl = document.createElement("div")
@@ -653,7 +681,7 @@ function getFastThumb(url, imgEl){
 			rowEl.dataset.mode = account.mode
 			rowEl.dataset.mine = isMyAccount(account) ? "true" : "false"
 
-			const nameEl = createAccountNameEl(account)
+			const nameEl = createAccountInfoEl(account)
 			const modeEl = createAccountModeEl(account)
 
 			const storeCol = document.createElement("div")
@@ -667,8 +695,7 @@ function getFastThumb(url, imgEl){
 
 			setupDropTarget(basketCol, account)
 
-			// if(!showTradedOnly || viewMode === "columns")
-				renderStoreAsset(account, storeCol)
+			renderStoreAsset(account, storeCol)
 
 			;(reservedByAccount[account.id] || []).forEach(item => {
 				renderReservedColumnAsset(account, reservedCol, item)
@@ -679,13 +706,7 @@ function getFastThumb(url, imgEl){
 			})
 
 			rowEl.appendChild(nameEl)
-
-			// 🔴 attach INSIDE name column instead of grid
-			const txEl = createTxTimelineEl(account)
-			if(txEl) nameEl.appendChild(txEl)
-
 			rowEl.appendChild(modeEl)
-
 			rowEl.appendChild(storeCol)
 			rowEl.appendChild(reservedCol)
 			rowEl.appendChild(basketCol)
@@ -706,7 +727,7 @@ function getFastThumb(url, imgEl){
 			const settingsEl = document.createElement("div")
 			settingsEl.className = "settings"
 
-			const nameEl = createAccountNameEl(account)
+			const nameEl = createAccountInfoEl(account)
 			const modeEl = createAccountModeEl(account)
 
 			settingsEl.appendChild(nameEl)

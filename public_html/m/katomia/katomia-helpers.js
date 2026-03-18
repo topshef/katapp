@@ -428,7 +428,6 @@ document.addEventListener("click", e=>{
 })
 
 
-
 function getPendingTxAccountMap(){
 
 	if(!state?.tx?.pending) return {}
@@ -437,38 +436,54 @@ function getPendingTxAccountMap(){
 
 	state.tx.pending.forEach(tx => {
 
-		// 🔴 ensure network context is present
 		const enrichedTx = {
 			...tx,
 			network: tx.network || game?.network || null
 		}
-	
+
 		const txid = enrichedTx.txid
 		if(!txid) return
 
-		// 1️⃣ operator from txid
-		const operator = txid.split("@")[0]
+		// track accounts already added for THIS tx
+		const seen = new Set()
 
-		const add = (acc) => {
+		const add = (acc, asset = null) => {
 			if(!acc) return
-			map[acc] ||= []
-			map[acc].push(enrichedTx)
+			if(seen.has(acc)) return   // 🔴 prevent duplicate tx per account
+
+			seen.add(acc)
+
+			map[acc] ||= {
+				txs: [],
+				assets: new Set()
+			}
+
+			map[acc].txs.push(enrichedTx)
+
+			if(asset)
+				map[acc].assets.add(asset)
 		}
 
+		// 1️⃣ operator
+		const operator = txid.split("@")[0]
 		add(operator)
 
-		// 2️⃣ parse pchbasis
+		// 2️⃣ parse basis
 		try{
 			const basis = JSON.parse(enrichedTx.pchbasis || "{}")
 
-			const scan = arr => {
+			const scan = (arr, getAsset) => {
 				if(!Array.isArray(arr)) return
-				arr.forEach(x => add(x.accountId))
+
+				arr.forEach(x => {
+					const asset = getAsset ? getAsset(x) : null
+					add(x.accountId, asset)
+				})
 			}
 
-			scan(basis.addTokenTransfer)
-			scan(basis.addNftTransfer)
-			scan(basis.addHbarTransfer)
+			scan(basis.addTokenTransfer, x => x.tokenId)
+			scan(basis.addNftTransfer, x => `${x.tokenId}#${x.serial}`)
+			scan(basis.addHbarTransfer, () => "HBAR")
 
 		}catch(e){
 			console.warn("pchbasis parse failed", tx)
@@ -476,7 +491,11 @@ function getPendingTxAccountMap(){
 
 	})
 
+	// optional: convert Sets → arrays (cleaner for later use)
+	Object.values(map).forEach(v => {
+		v.assets = [...v.assets]
+	})
+
 	return map
 }
-
 
