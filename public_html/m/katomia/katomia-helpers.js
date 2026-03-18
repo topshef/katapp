@@ -426,3 +426,57 @@ document.addEventListener("click", e=>{
   }
 
 })
+
+
+
+function getPendingTxAccountMap(){
+
+	if(!state?.tx?.pending) return {}
+
+	const map = {}
+
+	state.tx.pending.forEach(tx => {
+
+		// 🔴 ensure network context is present
+		const enrichedTx = {
+			...tx,
+			network: tx.network || game?.network || null
+		}
+	
+		const txid = enrichedTx.txid
+		if(!txid) return
+
+		// 1️⃣ operator from txid
+		const operator = txid.split("@")[0]
+
+		const add = (acc) => {
+			if(!acc) return
+			map[acc] ||= []
+			map[acc].push(enrichedTx)
+		}
+
+		add(operator)
+
+		// 2️⃣ parse pchbasis
+		try{
+			const basis = JSON.parse(enrichedTx.pchbasis || "{}")
+
+			const scan = arr => {
+				if(!Array.isArray(arr)) return
+				arr.forEach(x => add(x.accountId))
+			}
+
+			scan(basis.addTokenTransfer)
+			scan(basis.addNftTransfer)
+			scan(basis.addHbarTransfer)
+
+		}catch(e){
+			console.warn("pchbasis parse failed", tx)
+		}
+
+	})
+
+	return map
+}
+
+

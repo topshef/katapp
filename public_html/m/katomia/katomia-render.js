@@ -514,6 +514,38 @@ function getFastThumb(url, imgEl){
        RENDERING
     ========================= */
 
+		function makeTxDot(tx){
+
+			const a = document.createElement("a")
+			a.textContent = "🟠"
+			a.style.fontSize = "12px"
+			a.style.textDecoration = "none"
+
+			// TODO replace with your real URL
+			a.href = `/m/sign/?network=${tx.network}&txid=${tx.txid}&pch=${tx.pch}`
+			a.target = "_blank"
+
+			return a
+		}
+
+		function createTxTimelineEl(account){
+
+			const txMap = getPendingTxAccountMap()
+
+			const accId = account.id.split(":")[1] || account.id
+			const txs = txMap[accId]
+
+			if(!txs || !txs.length) return null
+
+			const el = document.createElement("div")
+			el.className = "tx-pending"
+
+			txs.forEach(tx => {
+				el.appendChild(makeTxDot(tx))
+			})
+
+			return el
+		}
 
 		function createAccountNameEl(account){
 
@@ -646,9 +678,14 @@ function getFastThumb(url, imgEl){
 				renderBasketAsset(account, basketCol, item, accountMap)
 			})
 
-
 			rowEl.appendChild(nameEl)
+
+			// 🔴 attach INSIDE name column instead of grid
+			const txEl = createTxTimelineEl(account)
+			if(txEl) nameEl.appendChild(txEl)
+
 			rowEl.appendChild(modeEl)
+
 			rowEl.appendChild(storeCol)
 			rowEl.appendChild(reservedCol)
 			rowEl.appendChild(basketCol)

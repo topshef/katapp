@@ -15,6 +15,19 @@
 			--gap: 12px;
 		}
 
+
+.tx-pending{
+	display:flex;
+	gap:4px;
+	margin-top:2px;
+	align-items:center;
+}
+
+.tx-pending a{
+	font-size:12px;
+	line-height:1;
+}
+
 		.asset.thumb-only{
 			padding:0;
 			margin:3px;
