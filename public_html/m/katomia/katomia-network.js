@@ -3,37 +3,67 @@
    CONTROLS
 ========================= */
 
+
+function splitAccountLabels(input){
+  const parts = []
+  let start = 0
+  let depth = 0
+
+  for(let i = 0; i < input.length; i++){
+    const ch = input[i]
+
+    if(ch === "(") depth++
+    else if(ch === ")") depth = Math.max(0, depth - 1)
+    else if(ch === "," && depth === 0){
+      const part = input.slice(start, i).trim()
+      if(part) parts.push(part)
+      start = i + 1
+    }
+  }
+
+  const last = input.slice(start).trim()
+  if(last) parts.push(last)
+
+  return parts
+}
+
+
+
 addAccountBtn.onclick = () => {
+  const raw = accountLabelInput.value.trim()
+  if(!raw) return
 
-  let label = accountLabelInput.value.trim()
-  if(!label) return
-
-	// allow integer account shorthand
-	if(game?.network === "testnet" || game?.network === "mainnet"){
-		if(/^\d+$/.test(label)){
-			label = "0.0." + label
-		}
-	}
+  const labels = splitAccountLabels(raw)
   const playerToken = getOrCreatePlayerToken()
 
-  const sendAdd = () => {
-    socket.send(JSON.stringify({
-      type: "game_addAccount",
-      gameId,
-      playerToken,
-      label
-    }))
+  const sendAll = () => {
+    labels.forEach(label => {
+      let out = label
+
+      if(game?.network === "testnet" || game?.network === "mainnet"){
+        if(/^\d+$/.test(out)){
+          out = "0.0." + out
+        }
+      }
+
+      socket.send(JSON.stringify({
+        type: "game_addAccount",
+        gameId,
+        playerToken,
+        label: out
+      }))
+    })
   }
 
   if(!socket || socket.readyState !== WebSocket.OPEN){
-    connect(sendAdd)
-  }
-  else{
-    sendAdd()
+    connect(sendAll)
+  } else {
+    sendAll()
   }
 
   accountLabelInput.value = ""
 }
+
 
 const showTradingAccounts = document.getElementById("showTradingAccounts")
 const showTradedAssets = document.getElementById("showTradedAssets")
