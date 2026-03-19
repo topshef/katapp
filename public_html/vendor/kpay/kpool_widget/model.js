@@ -7,7 +7,10 @@
 import { getAccountInfo, getKeyInfo } from './hedera-mirror.js'
 
 
-export async function txRead({ network, txid }) {
+const glog = globalThis.glog ?? (() => {})
+
+
+export async function txRead({ network, txid, pch = 'no_pch' }) { //todo pch
 	const url = `https://kpos.uk/pool/txRead?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}&detail=1`
 
 	const res = await fetch(url)
@@ -16,72 +19,148 @@ export async function txRead({ network, txid }) {
 	}
 
 	const rawTx = await res.json()
+	const data = rawTx.result
+	if (!data) return {url, rawTx, data}
+			
+	// enforce canonical identity
+	if (data.network && data.network !== network) {
+		throw new Error(`Network mismatch: expected ${network}, got ${data.network}`)
+	}
 
-	const transfers = getAllTransfers(rawTx)
+	if (data.txid && data.txid !== txid) {
+		throw new Error(`TxID mismatch: expected ${txid}, got ${data.txid}`)
+	}
+
+	if (data.comboStatus)
+		localStorage.setItem(`tx_status:${network};${txid};${pch}`, data.comboStatus)
+
+	//todo handle PCH pre-consensus hash
+
+	// ensure these fields always exist
+	data.network = network
+	data.txid = txid
+
+	const transfers = getAllTransfers(data)
 	const accounts = getAccountsWithRoles({ transfers, txid })
 			
-	console.log({transfers, accounts, rawTx, url})
+	glog("txRead data=",data)
+	glog("txRead other=",{transfers, accounts, rawTx, url})
 	return {
 		url,
-		rawTx,
+		rawTx,  // for debug.. avoid using this downstream
+		data,
 		transfers,
 		accounts
 	}
 }
 
+// function getTxStatus.. nah put it in hapi upstream
 
-function getAllTransfers(rawTx) {
-	const raw = {
-		hbar: rawTx?.result?.deal?.addHbarTransfer || [],
-		token: rawTx?.result?.deal?.addTokenTransfer || [],
-		nft: rawTx?.result?.deal?.addNftTransfer || []
+function skipCouncilAccount(ac) {
+  if (!ac) return true
+  const num = Number(ac.split('.').pop())
+  return num < 98
+}
+
+
+// ┌─┐┌─┐┌┬┐  ╔═╗┬  ┬    ╔╦╗┬─┐┌─┐┌┐┌┌─┐┌─┐┌─┐┬─┐┌─┐
+// │ ┬├┤  │   ╠═╣│  │     ║ ├┬┘├─┤│││└─┐├┤ ├┤ ├┬┘└─┐
+// └─┘└─┘ ┴   ╩ ╩┴─┘┴─┘   ╩ ┴└─┴ ┴┘└┘└─┘└  └─┘┴└─└─┘
+// get All Transfers	
+function getAllTransfers(data) {
+	const mirrorTx = data.mirror?.transactions?.[0] || {}
+	const deal     = data.deal || {}
+
+	const sources = {
+		hbar:  mirrorTx.transfers       ? 'mirror'
+					 : deal.addHbarTransfer   ? 'deal'
+					 : 'none',
+
+		token: mirrorTx.token_transfers ? 'mirror'
+					 : deal.addTokenTransfer  ? 'deal'
+					 : 'none',
+
+		nft:   mirrorTx.nft_transfers   ? 'mirror'
+					 : deal.addNftTransfer    ? 'deal'
+					 : 'none'
 	}
 
+	const uniqueSources = new Set(Object.values(sources))
+	if (uniqueSources.size > 1) {
+		throw new Error('YU83743 Mixed transfer sources detected')
+		window.alert('Error YU83743 Mixed transfer sources detected.')
+	}
+	
+	const raw = {
+		hbar:  mirrorTx.transfers       || deal.addHbarTransfer  || [],
+		token: mirrorTx.token_transfers || deal.addTokenTransfer || [],
+		nft:   mirrorTx.nft_transfers   || deal.addNftTransfer   || []
+	}
+
+
+	// glog({raw})
 	const lineItems = []
 
 	// HBAR
 	raw.hbar.forEach(x => {
+		const ac = x.accountId ?? x.account
+		if (skipCouncilAccount(ac)) return
+
 		lineItems.push({
 			type: 'HBAR',
-			account: x.accountId,
+			account: ac,
 			asset: 'HBAR',
-			amount: x.value
+			// amount: x.value ?? x.amount
+			amount:
+				x.value != null
+					? Number(x.value)
+					: Number(x.amount) / 100000000
+					
+			// amount: Number(BigInt(x.value ?? x.amount)) / 100000000
 		})
 	})
 
+ 
 	// Fungible tokens
 	raw.token.forEach(x => {
 		lineItems.push({
 			type: 'FT',
-			account: x.accountId,
-			asset: x.tokenId,
-			amount: x.value
+			account: x.accountId ?? x.account,
+			asset: x.tokenId ?? x.token_id,
+			amount: x.value ?? x.amount
 		})
 	})
-
+	
 	// NFTs (explicit debit/credit)
 	raw.nft.forEach(x => {
-		const asset = `${x.tokenId} #${x.serial}`
+		const tokenId = x.tokenId ?? x.token_id
+		const serial  = x.serial ?? x.serial_number
+		const sender  = x.sender ?? x.sender_account_id
+		const receiver = x.receiver ?? x.receiver_account_id
+
+		const asset = `${tokenId} #${serial}`
 
 		lineItems.push({
 			type: 'NFT',
-			account: x.sender,
+			account: sender,
 			asset,
 			amount: -1,
-			serial: x.serial,
-			tokenId: x.tokenId
+			serial,
+			tokenId
 		})
 
 		lineItems.push({
 			type: 'NFT',
-			account: x.receiver,
+			account: receiver,
 			asset,
 			amount: +1,
-			serial: x.serial,
-			tokenId: x.tokenId
+			serial,
+			tokenId
 		})
 	})
-
+	
+	// glog({mirrorTx, deal, raw, lineItems})
+	
 	return {
 		raw,        // original shapes, grouped
 		lineItems  // accounting-friendly flat list
@@ -139,6 +218,26 @@ export async function enrichAccountsKeyInfo({ network, accounts }) {
 		try {
 			const keyInfo = await getKeyInfo(network, accountId)
 			acc.keyInfo = keyInfo
+			glog('KEYINFO RAW', accountId, keyInfo)
+
+			// Normalize single-key shape
+			if (typeof acc.keyInfo === 'string') {
+				const pubkey = acc.keyInfo
+
+				acc.keyInfo = {
+					threshold: 1,
+					keys: [pubkey],
+					banzhafScores: {
+						scores: { [pubkey]: 1 },
+						redundancy: { [pubkey]: 0 }
+					},
+					keyControlScoresAll: {
+						[pubkey]: { bucket: 'full-exclusive' }
+					}
+				}
+			}			
+			
+			
 		} catch (err) {
 			acc.keyInfoError = err.message || String(err)
 		}

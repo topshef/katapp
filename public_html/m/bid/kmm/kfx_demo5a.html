@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KFX — Clearing demo (LP, soft receiveMin)</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; line-height: 1.35 }
+    h1 { margin: 0 0 10px }
+    .muted { color: #555 }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start }
+    .card { border: 1px solid #e5e5e5; border-radius: 14px; padding: 14px }
+    textarea { width: 100%; min-height: 460px; padding: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12.5px }
+    button, select { padding: 10px 12px; border-radius: 10px; border: 1px solid #ccc; background: #fff }
+    button { cursor: pointer }
+    button:hover { background: #f7f7f7 }
+    pre { white-space: pre-wrap; word-break: break-word; margin: 0 }
+    .ok { color: #0a7a2a; font-weight: 600 }
+    .bad { color: #b00020; font-weight: 600 }
+    .tiny { font-size: 12px }
+    code { background: #f5f5f5; padding: 1px 5px; border-radius: 6px }
+  </style>
+</head>
+<body>
+  <h1>KFX — Clearing demo (LP, soft <code>receiveMin</code>)</h1>
+  <p class="muted">
+    Choose execution scales <code>x_e</code> for participant hyperEdges (recipes) such that global clearing holds
+    (Σ deltas per asset = 0) while minimizing total unmet <code>receiveMin</code> via slack variables.
+  </p>
+
+  <div class="row">
+    <div class="card">
+      <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap">
+        <button id="solveBtn">Solve</button>
+        <label class="tiny muted">Demo</label>
+        <select id="demoSelect">
+          <option value="simple2">Simple 2-edge clear</option>
+          <option value="triangle">Triangle / multi-hop</option>
+          <option value="bundle">Bundle recipe</option>
+        </select>
+        <button id="loadDemoBtn">Load Demo</button>
+        <span id="status" class="tiny muted"></span>
+      </div>
+
+      <textarea id="input"></textarea>
+
+      <details style="margin-top:10px">
+        <summary class="tiny muted">Input JSON schema</summary>
+        <pre class="tiny muted" style="margin-top:10px">{
+  "assets": [ { "id": "USDC", "decimals": 2 }, ... ],
+
+  "participants": [
+    {
+      "id": "Alice",
+      "weight": 1,
+
+      "wants": {
+        "receiveMin": { "assetId": "HBAR", "amount": 900 } // optional; soft
+      },
+
+      "hyperEdges": [
+        {
+          "inputs":  { "USDC": 1 },
+          "outputs": { "HBAR": 10 },
+          "minScale": 0,       // optional, default 0
+          "maxScale": 100      // required, >0
+        }
+      ]
+    }
+  ]
+}</pre>
+      </details>
+
+      <details style="margin-top:10px">
+        <summary class="tiny muted">Math spec</summary>
+        <pre class="tiny muted" style="margin-top:10px">Variables
+  - For each hyperEdge e: x_e
+  - For each participant i with wants.receiveMin: slack s_i >= 0
+
+Per-edge delta:
+  Δ_e(a) = x_e * (outputs_e[a] - inputs_e[a])
+
+Per-participant delta:
+  Δ_i(a) = Σ_{e in E_i} Δ_e(a)
+
+Clearing:
+  For each asset a: Σ_i Δ_i(a) = 0
+
+Bounds:
+  minScale_e <= x_e <= maxScale_e
+
+Soft receiveMin:
+  Δ_i(r) + s_i >= R_i
+
+Objective:
+  minimize Σ_i (weight_i * s_i)</pre>
+      </details>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">Result</h3>
+      <pre id="output"></pre>
+    </div>
+  </div>
+
+<script>
+const elInput = document.getElementById("input")
+const elOut = document.getElementById("output")
+const elStatus = document.getElementById("status")
+
+document.getElementById("solveBtn").addEventListener("click", solveFromTextarea)
+
+document.getElementById("loadDemoBtn").addEventListener("click", () =>
+  {
+    const sel = document.getElementById("demoSelect").value
+    if (sel === "simple2") elInput.value = JSON.stringify(exampleSimple2(), null, 2)
+    if (sel === "triangle") elInput.value = JSON.stringify(exampleTriangle(), null, 2)
+    if (sel === "bundle") elInput.value = JSON.stringify(exampleBundle(), null, 2)
+    solveFromTextarea()
+  }
+)
+
+function fmt(n, d) {
+  return Number.isFinite(n) ? n.toFixed(d ?? 6) : String(n)
+}
+
+function deepClone(obj) {
+  return JSON.parse(JSON.stringify(obj))
+}
+
+function isObj(x) {
+  return x && typeof x === "object" && !Array.isArray(x)
+}
+
+function keys(obj) {
+  return Object.keys(obj || {})
+}
+
+function asNum(v) {
+  return Number(v)
+}
+
+function normalizeProblem(raw) {
+  const p = deepClone(raw)
+  if (!Array.isArray(p.assets) || p.assets.length < 1) throw new Error("assets[] required")
+  if (!Array.isArray(p.participants) || p.participants.length < 1) throw new Error("participants[] required")
+
+  const assets = p.assets.map(a =>
+    ({
+      id: String(a.id ?? ""),
+      decimals: a.decimals == null ? 0 : Number(a.decimals)
+    })
+  )
+
+  for (const a of assets)
+    {
+      if (!a.id) throw new Error("asset id required")
+      if (!Number.isInteger(a.decimals) || a.decimals < 0 || a.decimals > 30) throw new Error(`Invalid decimals for ${a.id}`)
+    }
+
+  const assetSet = new Set(assets.map(a => a.id))
+
+  const participants = p.participants.map(pp =>
+    ({
+      id: String(pp.id ?? ""),
+      weight: pp.weight == null ? 1 : Number(pp.weight),
+      wants: pp.wants || null,
+      hyperEdges: Array.isArray(pp.hyperEdges) ? pp.hyperEdges.map(he =>
+        ({
+          inputs: isObj(he.inputs) ? he.inputs : {},
+          outputs: isObj(he.outputs) ? he.outputs : {},
+          minScale: he.minScale == null ? 0 : asNum(he.minScale),
+          maxScale: asNum(he.maxScale)
+        })
+      ) : []
+    })
+  )
+
+  for (const pp of participants)
+    {
+      if (!pp.id) throw new Error("participant id required")
+      if (!Number.isFinite(pp.weight) || pp.weight <= 0) throw new Error(`Invalid weight for ${pp.id}`)
+      if (!Array.isArray(pp.hyperEdges) || pp.hyperEdges.length === 0) throw new Error(`hyperEdges[] required: ${pp.id}`)
+
+      for (const he of pp.hyperEdges)
+        {
+          if (!Number.isFinite(he.maxScale) || he.maxScale <= 0) throw new Error(`Invalid maxScale for ${pp.id}`)
+          if (!Number.isFinite(he.minScale) || he.minScale < 0) throw new Error(`Invalid minScale for ${pp.id}`)
+          if (he.minScale > he.maxScale) throw new Error(`minScale > maxScale for ${pp.id}`)
+
+          const inKeys = keys(he.inputs)
+          const outKeys = keys(he.outputs)
+          if (inKeys.length === 0) throw new Error(`hyperEdge inputs empty: ${pp.id}`)
+          if (outKeys.length === 0) throw new Error(`hyperEdge outputs empty: ${pp.id}`)
+
+          for (const k of inKeys)
+            {
+              if (!assetSet.has(k)) throw new Error(`Unknown assetId in inputs: ${pp.id} ${k}`)
+              const v = asNum(he.inputs[k])
+              if (!Number.isFinite(v) || v <= 0) throw new Error(`Invalid inputs[${k}] for ${pp.id}`)
+              he.inputs[k] = v
+            }
+
+          for (const k of outKeys)
+            {
+              if (!assetSet.has(k)) throw new Error(`Unknown assetId in outputs: ${pp.id} ${k}`)
+              const v = asNum(he.outputs[k])
+              if (!Number.isFinite(v) || v <= 0) throw new Error(`Invalid outputs[${k}] for ${pp.id}`)
+              he.outputs[k] = v
+            }
+        }
+
+      if (pp.wants && pp.wants.receiveMin)
+        {
+          const w = pp.wants.receiveMin
+          const a = String(w.assetId ?? w.asset ?? "")
+          const amt = asNum(w.amount)
+          if (!assetSet.has(a)) throw new Error(`Unknown wants.receiveMin.assetId for ${pp.id}`)
+          if (!Number.isFinite(amt) || amt < 0) throw new Error(`Invalid wants.receiveMin.amount for ${pp.id}`)
+          pp.wants.receiveMin = { assetId: a, amount: amt }
+        }
+    }
+
+  return { assets, participants }
+}
+
+function flattenHyperEdges(problem) {
+  const edges = []
+  for (const p of problem.participants)
+    for (let k = 0; k < p.hyperEdges.length; k++)
+      {
+        const he = p.hyperEdges[k]
+        edges.push({
+          id: `${p.id}#${k}`,
+          party: p.id,
+          partyWeight: p.weight,
+          inputs: he.inputs,
+          outputs: he.outputs,
+          minScale: he.minScale,
+          maxScale: he.maxScale
+        })
+      }
+  return edges
+}
+
+// -----------------------------
+// Minimal two-phase simplex LP
+// -----------------------------
+
+function solveLP(constraints, c) {
+  const n = c.length
+  const m = constraints.length
+
+  let nSlack = 0
+  let nArt = 0
+  const rowKind = []
+  for (const con of constraints)
+    {
+      if (con.sense === "<=") { rowKind.push("le"); nSlack++ }
+      else if (con.sense === ">=") { rowKind.push("ge"); nSlack++; nArt++ }
+      else { rowKind.push("eq"); nArt++ }
+    }
+
+  const totalVars = n + nSlack + nArt
+  const slackIndex = []
+  const artIndex = []
+
+  let slackCursor = n
+  let artCursor = n + nSlack
+
+  for (let i = 0; i < m; i++)
+    {
+      slackIndex[i] = -1
+      artIndex[i] = -1
+      if (rowKind[i] === "le")
+        {
+          slackIndex[i] = slackCursor
+          slackCursor++
+        }
+      else if (rowKind[i] === "ge")
+        {
+          slackIndex[i] = slackCursor
+          slackCursor++
+          artIndex[i] = artCursor
+          artCursor++
+        }
+      else
+        {
+          artIndex[i] = artCursor
+          artCursor++
+        }
+    }
+
+  const T = Array.from({ length: m + 1 }, () => Array(totalVars + 1).fill(0))
+  const basis = Array(m).fill(-1)
+
+  for (let i = 0; i < m; i++)
+    {
+      const con = constraints[i]
+      const a = con.a
+      let b = con.b
+      let sense = con.sense
+
+      if (b < 0)
+        {
+          b = -b
+          sense = sense === "<=" ? ">=" : sense === ">=" ? "<=" : "="
+          for (let j = 0; j < n; j++) T[i + 1][j] = -a[j]
+        }
+      else
+        {
+          for (let j = 0; j < n; j++) T[i + 1][j] = a[j]
+        }
+
+      T[i + 1][totalVars] = b
+
+      if (sense === "<=")
+        {
+          const si = slackIndex[i]
+          T[i + 1][si] = 1
+          basis[i] = si
+        }
+      else if (sense === ">=")
+        {
+          const si = slackIndex[i]
+          const ai = artIndex[i]
+          T[i + 1][si] = -1
+          T[i + 1][ai] = 1
+          basis[i] = ai
+        }
+      else
+        {
+          const ai = artIndex[i]
+          T[i + 1][ai] = 1
+          basis[i] = ai
+        }
+    }
+
+  // Phase I: maximize -sum artificial
+  for (let j = 0; j < totalVars; j++) T[0][j] = 0
+  for (let i = 0; i < m; i++)
+    {
+      const ai = artIndex[i]
+      if (ai >= 0) T[0][ai] = -1
+    }
+  T[0][totalVars] = 0
+
+  for (let i = 0; i < m; i++)
+    {
+      const bi = basis[i]
+      if (bi >= 0 && T[0][bi] !== 0)
+        {
+          const coef = T[0][bi]
+          for (let j = 0; j <= totalVars; j++)
+            T[0][j] -= coef * T[i + 1][j]
+        }
+    }
+
+  const res1 = simplex(T, basis, totalVars)
+  if (!res1.ok) return { ok: false, reason: res1.reason }
+
+  if (Math.abs(T[0][totalVars]) > 1e-8)
+    return { ok: false, reason: "Infeasible (Phase I objective non-zero)" }
+
+  // Phase II: real objective
+  for (let j = 0; j < totalVars; j++) T[0][j] = 0
+  for (let j = 0; j < n; j++) T[0][j] = c[j]
+  T[0][totalVars] = 0
+
+  for (let i = 0; i < m; i++)
+    {
+      const bi = basis[i]
+      const coef = T[0][bi]
+      if (coef !== 0)
+        for (let j = 0; j <= totalVars; j++)
+          T[0][j] -= coef * T[i + 1][j]
+    }
+
+  const res2 = simplex(T, basis, totalVars)
+  if (!res2.ok) return { ok: false, reason: res2.reason }
+
+  const x = Array(n).fill(0)
+  for (let i = 0; i < m; i++)
+    {
+      const bi = basis[i]
+      if (bi >= 0 && bi < n)
+        x[bi] = T[i + 1][totalVars]
+    }
+
+  return { ok: true, x, obj: T[0][totalVars] }
+}
+
+function simplex(T, basis, totalVars) {
+  const m = basis.length
+  const maxIters = 4000
+
+  for (let iter = 0; iter < maxIters; iter++)
+    {
+      let enter = -1
+      for (let j = 0; j < totalVars; j++)
+        if (T[0][j] > 1e-12) { enter = j; break }
+
+      if (enter === -1) return { ok: true }
+
+      let leave = -1
+      let best = Infinity
+      for (let i = 0; i < m; i++)
+        {
+          const row = i + 1
+          const a = T[row][enter]
+          if (a > 1e-12)
+            {
+              const ratio = T[row][totalVars] / a
+              if (ratio < best - 1e-12)
+                {
+                  best = ratio
+                  leave = i
+                }
+            }
+        }
+
+      if (leave === -1) return { ok: false, reason: "Unbounded" }
+
+      pivot(T, basis, totalVars, leave, enter)
+    }
+
+  return { ok: false, reason: "Max iterations" }
+}
+
+function pivot(T, basis, totalVars, leaveRowIdx, enterCol) {
+  const row = leaveRowIdx + 1
+  const piv = T[row][enterCol]
+
+  for (let j = 0; j <= totalVars; j++)
+    T[row][j] /= piv
+
+  for (let r = 0; r < T.length; r++)
+    {
+      if (r === row) continue
+      const factor = T[r][enterCol]
+      if (Math.abs(factor) <= 1e-12) continue
+      for (let j = 0; j <= totalVars; j++)
+        T[r][j] -= factor * T[row][j]
+    }
+
+  basis[leaveRowIdx] = enterCol
+}
+
+// -----------------------------
+// Build LP: minimize unmet receiveMin
+// -----------------------------
+
+function buildAndSolve(problem) {
+  const edges = flattenHyperEdges(problem)
+  const edgeCount = edges.length
+
+  const wanters = []
+  for (const p of problem.participants)
+    if (p.wants && p.wants.receiveMin) wanters.push(p)
+
+  const slackCount = wanters.length
+  const nVars = edgeCount + slackCount
+
+  function edgeVarIndex(eIdx) { return eIdx }
+  function slackVarIndex(sIdx) { return edgeCount + sIdx }
+
+  const net = edges.map(e =>
+    {
+      const m = new Map()
+      for (const a of keys(e.outputs)) m.set(a, (m.get(a) || 0) + e.outputs[a])
+      for (const a of keys(e.inputs)) m.set(a, (m.get(a) || 0) - e.inputs[a])
+      return m
+    }
+  )
+
+  const constraints = []
+
+  // Clearing equalities per asset
+  for (const a of problem.assets)
+    {
+      const coeff = Array(nVars).fill(0)
+      let rhs = 0
+      for (let eIdx = 0; eIdx < edgeCount; eIdx++)
+        {
+          const e = edges[eIdx]
+          const c = net[eIdx].get(a.id) || 0
+          coeff[edgeVarIndex(eIdx)] = c
+          rhs -= c * (e.minScale || 0)
+        }
+      constraints.push({ a: coeff, b: rhs, sense: "=" })
+    }
+
+  // Upper bounds on x' where x = min + x'
+  for (let eIdx = 0; eIdx < edgeCount; eIdx++)
+    {
+      const e = edges[eIdx]
+      const ub = (e.maxScale || 0) - (e.minScale || 0)
+      const coeff = Array(nVars).fill(0)
+      coeff[edgeVarIndex(eIdx)] = 1
+      constraints.push({ a: coeff, b: ub, sense: "<=" })
+    }
+
+  const slackByParty = new Map()
+  for (let sIdx = 0; sIdx < slackCount; sIdx++) slackByParty.set(wanters[sIdx].id, sIdx)
+
+  // Soft receiveMin constraints
+  for (const p of wanters)
+    {
+      const aId = p.wants.receiveMin.assetId
+      const R = p.wants.receiveMin.amount
+
+      const coeff = Array(nVars).fill(0)
+      let constDelta = 0
+
+      for (let eIdx = 0; eIdx < edgeCount; eIdx++)
+        {
+          const e = edges[eIdx]
+          if (e.party !== p.id) continue
+          const c = net[eIdx].get(aId) || 0
+          coeff[edgeVarIndex(eIdx)] += c
+          constDelta += c * (e.minScale || 0)
+        }
+
+      const sIdx = slackByParty.get(p.id)
+      coeff[slackVarIndex(sIdx)] = 1
+
+      constraints.push({ a: coeff, b: R - constDelta, sense: ">=" })
+    }
+
+  // Objective: maximize -Σ(weight*s)
+  const c = Array(nVars).fill(0)
+  for (let sIdx = 0; sIdx < slackCount; sIdx++)
+    c[slackVarIndex(sIdx)] = -wanters[sIdx].weight
+
+  const res = solveLP(constraints, c)
+  if (!res.ok) return { ok: false, reason: res.reason }
+
+  const xPrime = res.x
+  const x = []
+  for (let eIdx = 0; eIdx < edgeCount; eIdx++)
+    x[eIdx] = (edges[eIdx].minScale || 0) + (xPrime[edgeVarIndex(eIdx)] || 0)
+
+  const s = []
+  for (let sIdx = 0; sIdx < slackCount; sIdx++)
+    s[sIdx] = xPrime[slackVarIndex(sIdx)] || 0
+
+  return { ok: true, edges, x, wanters, s }
+}
+
+function computeParticipantDeltas(problem, edges, x) {
+  const deltas = new Map()
+  for (const p of problem.participants) deltas.set(p.id, new Map())
+
+  for (let eIdx = 0; eIdx < edges.length; eIdx++)
+    {
+      const e = edges[eIdx]
+      const m = deltas.get(e.party)
+      const scale = x[eIdx] || 0
+
+      for (const a of keys(e.inputs))
+        m.set(a, (m.get(a) || 0) - e.inputs[a] * scale)
+
+      for (const a of keys(e.outputs))
+        m.set(a, (m.get(a) || 0) + e.outputs[a] * scale)
+    }
+
+  return deltas
+}
+
+function computeGlobalSums(problem, deltas) {
+  const sums = new Map()
+  for (const a of problem.assets) sums.set(a.id, 0)
+  for (const [, m] of deltas)
+    for (const a of problem.assets)
+      sums.set(a.id, (sums.get(a.id) || 0) + (m.get(a.id) || 0))
+  return sums
+}
+
+function fmtMap(m) {
+  const bits = []
+  for (const [k, v] of m.entries())
+    if (Math.abs(v) > 1e-10) bits.push(`${k}:${v >= 0 ? "+" : ""}${fmt(v, 6)}`)
+  return bits.length ? bits.join("  ") : "(none)"
+}
+
+function solveFromTextarea() {
+  elStatus.textContent = ""
+  elStatus.className = "tiny muted"
+
+  try
+    {
+      const raw = JSON.parse(elInput.value)
+      const problem = normalizeProblem(raw)
+
+      const res = buildAndSolve(problem)
+      if (!res.ok)
+        {
+          elOut.textContent = `LP error: ${res.reason}`
+          elStatus.textContent = "Error"
+          elStatus.className = "bad tiny"
+          return
+        }
+
+      const deltas = computeParticipantDeltas(problem, res.edges, res.x)
+      const sums = computeGlobalSums(problem, deltas)
+
+      let cleared = true
+      for (const a of problem.assets)
+        if (Math.abs(sums.get(a.id) || 0) > 1e-7) cleared = false
+
+      const lines = []
+      lines.push("Objective: minimize Σ(weight * unmet_receiveMin)")
+      lines.push(`Clearing: ${cleared ? "OK" : "NOT CLEARED"} (ΣΔ≈0 per asset)`)
+      lines.push("")
+
+      lines.push("Chosen executions (x_e):")
+      let any = false
+      for (let i = 0; i < res.edges.length; i++)
+        {
+          const e = res.edges[i]
+          const xv = res.x[i]
+          if (xv <= 1e-10) continue
+          any = true
+          lines.push(`- ${e.id}  party=${e.party}  x=${fmt(xv, 8)}  [min=${fmt(e.minScale, 6)}, max=${fmt(e.maxScale, 6)}]`)
+        }
+      if (!any) lines.push("(none)")
+
+      lines.push("")
+      lines.push("Per-participant deltas:")
+      for (const p of problem.participants)
+        {
+          const m = deltas.get(p.id) || new Map()
+          lines.push(`- ${p.id} (w=${p.weight}): ${fmtMap(m)}`)
+        }
+
+      lines.push("")
+      lines.push("Global clearing check (ΣΔ):")
+      for (const a of problem.assets)
+        lines.push(`  ${a.id}: ${fmt(sums.get(a.id) || 0, 9)}`)
+
+      lines.push("")
+      lines.push("receiveMin unmet (slack):")
+      for (let k = 0; k < res.wanters.length; k++)
+        {
+          const p = res.wanters[k]
+          const w = p.wants.receiveMin
+          const slack = res.s[k]
+          const got = (deltas.get(p.id) || new Map()).get(w.assetId) || 0
+          const unmet = Math.max(0, w.amount - got)
+          lines.push(`- ${p.id} wants >= ${w.amount} ${w.assetId}; got=${fmt(got, 6)}; slack=${fmt(slack, 6)}; unmet≈${fmt(unmet, 6)}`)
+        }
+
+      elOut.textContent = lines.join("\n")
+
+      elStatus.textContent = "OK"
+      elStatus.className = "ok tiny"
+    }
+  catch (err)
+    {
+      elOut.textContent = String(err && err.stack ? err.stack : err)
+      elStatus.textContent = "Error"
+      elStatus.className = "bad tiny"
+    }
+}
+
+// ---------------- demos ----------------
+
+function exampleSimple2() {
+  return {
+    assets: [
+      { id: "USDC", decimals: 2 },
+      { id: "HBAR", decimals: 0 }
+    ],
+    participants: [
+      {
+        id: "Alice",
+        weight: 1,
+        wants: { receiveMin: { assetId: "HBAR", amount: 1200 } },
+        hyperEdges: [
+          { inputs: { "USDC": 1 }, outputs: { "HBAR": 10 }, minScale: 0, maxScale: 200 }
+        ]
+      },
+      {
+        id: "Bob",
+        weight: 2,
+        hyperEdges: [
+          { inputs: { "HBAR": 10 }, outputs: { "USDC": 1.02 }, minScale: 0, maxScale: 200 }
+        ]
+      }
+    ]
+  }
+}
+
+function exampleTriangle() {
+  return {
+    assets: [
+      { id: "USDC", decimals: 2 },
+      { id: "HBAR", decimals: 0 },
+      { id: "EUR", decimals: 2 }
+    ],
+    participants: [
+      {
+        id: "P1",
+        weight: 1,
+        wants: { receiveMin: { assetId: "HBAR", amount: 2500 } },
+        hyperEdges: [
+          { inputs: { "USDC": 1 }, outputs: { "HBAR": 10 }, maxScale: 400 }
+        ]
+      },
+      {
+        id: "P2",
+        weight: 1.2,
+        hyperEdges: [
+          { inputs: { "HBAR": 100 }, outputs: { "EUR": 18 }, maxScale: 50 }
+        ]
+      },
+      {
+        id: "P3",
+        weight: 1.5,
+        hyperEdges: [
+          { inputs: { "EUR": 18 }, outputs: { "USDC": 20.4 }, maxScale: 50 }
+        ]
+      }
+    ]
+  }
+}
+
+function exampleBundle() {
+  return {
+    assets: [
+      { id: "USDC", decimals: 2 },
+      { id: "FLOUR", decimals: 0 },
+      { id: "SUGAR", decimals: 0 },
+      { id: "COCOA", decimals: 0 }
+    ],
+    participants: [
+      {
+        id: "Bakery",
+        weight: 3,
+        wants: { receiveMin: { assetId: "COCOA", amount: 5 } },
+        hyperEdges: [
+          { inputs: { "USDC": 10 }, outputs: { "FLOUR": 2, "SUGAR": 1, "COCOA": 1 }, maxScale: 10 }
+        ]
+      },
+      {
+        id: "Mill",
+        weight: 1,
+        hyperEdges: [
+          { inputs: { "FLOUR": 2 }, outputs: { "USDC": 9.5 }, maxScale: 10 }
+        ]
+      },
+      {
+        id: "SugarCo",
+        weight: 1,
+        hyperEdges: [
+          { inputs: { "SUGAR": 1 }, outputs: { "USDC": 0.6 }, maxScale: 10 }
+        ]
+      },
+      {
+        id: "CocoaCo",
+        weight: 1,
+        hyperEdges: [
+          { inputs: { "COCOA": 1 }, outputs: { "USDC": 0.7 }, maxScale: 10 }
+        ]
+      }
+    ]
+  }
+}
+
+elInput.value = JSON.stringify(exampleSimple2(), null, 2)
+solveFromTextarea()
+</script>
+</body>
+</html>

@@ -5,7 +5,6 @@ import { txRead, enrichAccountsInfo, enrichAccountsKeyInfo, calcAccountsThatSign
 import {
 	injectTxReadCSS,
 	buildTxReadColumns,
-	// renderAccountsInfo
 	renderSigningInfo
 } from './view.js'
 
@@ -18,6 +17,7 @@ import {
 
 import { getHederaMirrorData } from './hedera-mirror.js'
 
+import { createTxSocket } from './websocket.js'
 
 	console.log('injecting kpool widget')
 
@@ -41,92 +41,238 @@ import { getHederaMirrorData } from './hedera-mirror.js'
 
 	main()
 
-// const renderSingleTx = async (network, txid) => {   // does not hoist. enables this.shitshow
-async function renderSingleTx(network, txid) {         // does hoist. old-skool explicit
 
+async function renderSingleTx(network, txid, pch = 'no_pch') {
 
-	// main container
 	const container = document.createElement('div')
 
-	// inject KSIG QR widget
 	const details = document.createElement('details')
 
+	const summary = document.createElement('summary')
+	summary.innerHTML = "✍️ Sign offline with <a href='https://ksig.uk/pwa' target='KPAYPWA'>KSIG</a>"
+	summary.style.marginTop = '16px'
+	summary.style.display = 'block'
 
-  const summary = document.createElement('summary')
-  summary.innerHTML = "Sign with <a href='https://ksig.uk/pwa' target='KPAYPWA'>KSIG</a>"
+	const p = document.createElement('p')
+	p.textContent = 'QR scan the transaction, sign, then return the signed transaction'
 
-  const p = document.createElement('p')
-  p.textContent = 'QR scan the transaction, sign, then return the signed transaction'
+	const iframe = document.createElement('iframe')
+	iframe.id = 'iframeKSIG'
+	iframe.style.width = '100%'
+	iframe.style.height = '300px'
+	iframe.setAttribute('scrolling', 'no')
+	iframe.style.overflow = 'hidden'
+	iframe.setAttribute('allow', 'camera')
+	iframe.src = `https://kpos.uk/sign/offline/widget?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
 
-  const iframe = document.createElement('iframe')
-  iframe.id = 'iframeKSIG'
-  iframe.setAttribute('allow', 'camera')
-	
-	//kpos and kpay are the same atm, but the widget is hosted on kpos
-  // iframe.src = `https://kpay.uk/sign/offline/widget?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
-  iframe.src = `https://kpos.uk/sign/offline/widget?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
+	details.appendChild(summary)
+	details.appendChild(p)
+	details.appendChild(iframe)
 
-  details.appendChild(summary)
-  details.appendChild(p)
-  details.appendChild(iframe)
+	const kpool_widget = document.querySelector('#kpool_widget')
+	if (kpool_widget) kpool_widget.append(container)
 
-  const kpool_widget = document.querySelector('#kpool_widget')
-  if (kpool_widget) kpool_widget.append(container)
-		
+	let view = null
 
-
-	const renderTxReadDebug = async ({ network, txid, details }) => {
-
-		const { url, rawTx, transfers, accounts } = await txRead({ network, txid })
-
-
-		// raw JSON dump (collapsible, with API link inside)
-		const jsonDetails = document.createElement('details')
-		jsonDetails.innerHTML = `
-			<summary>View raw JSON</summary>
-			<a href="${url}" target="_blank" rel="noopener" style="display:block;margin:4px 0">
-				⚙️ View txRead API response
-			</a>
-			<pre><code>${JSON.stringify(rawTx, null, 2)}</code></pre>
-		`
+	const renderTxView  = async ({ network, txid, details }) => {
+		const { url, rawTx, data, transfers, accounts } = await txRead({ network, txid })
 
 		injectTxReadCSS()
 
 		container.classList.add('txread')
-		const columns = buildTxReadColumns({
+
+		view = buildTxReadColumns({
 			rawTx,
+			data,
 			transfers,
 			network,
 			txid
 		})
 
-		container.appendChild(columns)
+		container.appendChild(view.el)
 		container.appendChild(details)
-		container.appendChild(jsonDetails)
-		
-		return { url, rawTx, transfers, accounts }
+
+		return { url, rawTx, data, transfers, accounts }
 	}
 
+	try {
+
+		const tx = await renderTxView({ network, txid, pch, details })  //todo pch
+
+		await enrichAccountsInfo({ network, accounts: tx.accounts })
+		await enrichAccountsKeyInfo({ network, accounts: tx.accounts })
+
+		calcAccountsThatSign(tx.accounts)
+
+		renderSigningInfo({
+			data: tx.data,
+			network,
+			accounts: tx.accounts
+		})
 
 
-	// usage (inside DOMContentLoaded is perfect)
-	;(async () => {
-		try {
-			const tx = await renderTxReadDebug({ network, txid, details })
-						
-			await enrichAccountsInfo({ network, accounts: tx.accounts})			
-			await enrichAccountsKeyInfo({ network, accounts: tx.accounts})			
+		let currentData = tx.data
+		let currentAccounts = tx.accounts
+		let successAnimationFired = false
+		
+		const socket = createTxSocket({
+			baseUrl: 'https://hapi2.hbar.live/live',  //ip controlled (admin only).. todo wrap in local path
+			txid,
+			onTxUpdate: async update => {
 
-			calcAccountsThatSign(tx.accounts)
-			console.log('accounts after enrichment (controller)', tx.accounts)
+				console.log('[WS] update received', update)
+				console.log('[CONFETTI typeof]', typeof window.confetti)
+				
+				const prevStatus = localStorage.getItem(`tx_status:${network};${txid};${pch}`)
 
-		  // renderAccountsInfo(tx.accounts)  // later recycle.. maybe have an acs info section but related to signing 
-			renderSigningInfo({rawTx: tx.rawTx, network, accounts: tx.accounts})  //
+				// merge update into current data
+				currentData = {
+					...currentData,
+					...update
+				}
+
+				// ----- RECEIPT PATCH -----
+				if (update.type === 'tx_receipt' && update.receipt) {
+					currentData.receipt = update.receipt
+					currentData.receiptStatus = update.receipt.status?._code || update.receipt.status
+					if (currentData.receiptStatus === 'SUCCESS') currentData.comboStatus = 'SUCCESS'
+				}
+
+				const currentStatus = currentData.comboStatus
+				// console.log
+				if (!successAnimationFired && currentStatus === 'SUCCESS' && prevStatus !== 'SUCCESS') {
+					triggerSuccessAnimation()
+					successAnimationFired = true
+				}
 
 
-		} catch (e) {
-			console.warn('txRead fetch failed', e)
+				// update status block
+				view.statusBlock.update(currentData)
+
+				// if signature update, refresh signing
+				if (update.sigs) {
+					await refreshSigningSection({
+						network,
+						data: currentData,
+						accounts: currentAccounts
+					})
+				}
+			}
+		})
+
+
+
+
+		document.getElementById('txread-signing')?.classList.remove('tx-loading')
+
+		// --------------------
+		// POLLING
+		// --------------------
+
+		const parsed = parseTxId(txid)
+		const scheduledSec = parsed?.seconds || 0
+		const stopPollingAfterSec = scheduledSec + (5 * 60)
+
+		let pollTimer = null
+
+		if (!tx.data?.mirrorStatus) {
+
+			pollTimer = setInterval(async () => {
+
+				const nowSec = Math.floor(Date.now() / 1000)
+
+				// don't poll before scheduled time
+				if (nowSec < scheduledSec) return
+
+				// stop after 5 min window
+				if (nowSec > stopPollingAfterSec) {
+					clearInterval(pollTimer)
+					return
+				}
+
+				try {
+
+					const fresh = await txRead({ network, txid })
+
+
+					// currentData = {
+						// ...currentData,
+						// ...fresh.data
+					// }
+					currentData = {
+						...fresh.data,
+						// preserve terminal SUCCESS
+						comboStatus:
+							currentData.comboStatus === 'SUCCESS'
+								? 'SUCCESS'
+								: fresh.data.comboStatus
+					}
+
+					//fudge sink status until we sort the shot out of comboStatus webhook vs poll
+					const successKey = `tx_status:${network};${txid};no_pch`
+					if (localStorage.getItem(successKey) === 'SUCCESS') currentData.comboStatus = 'SUCCESS'
+			
+					view.statusBlock.update(currentData)
+					
+					// view.statusBlock.update(fresh.data)
+
+					// ----- refresh signing block -----
+					await refreshSigningSection({
+						network,
+						data: fresh.data,
+						accounts: fresh.accounts
+					})
+					// ----------------------------------
+
+					if (fresh.data?.mirrorStatus) {
+						clearInterval(pollTimer)
+					}
+
+				} catch (err) {
+					console.warn('Polling failed', err)
+				}
+
+			}, 5000)
 		}
-	})()
 
-}	
+	} catch (e) {
+		console.warn('txRead fetch failed', e)
+	}
+}
+
+
+function triggerSuccessAnimation() {
+	console.log("window.confetti",typeof window.confetti)
+  if (!window.confetti) return
+
+  confetti({
+    particleCount: 120,
+    spread: 70,
+    origin: { y: 0.6 }
+  })
+
+  // optional second burst
+  setTimeout(() => {
+    confetti({
+      particleCount: 80,
+      spread: 100,
+      origin: { y: 0.4 }
+    })
+  }, 250)
+}
+
+
+
+const refreshSigningSection = async ({ network, data, accounts }) => {
+
+	await enrichAccountsInfo({ network, accounts })
+	await enrichAccountsKeyInfo({ network, accounts })
+	calcAccountsThatSign(accounts)
+
+	renderSigningInfo({
+		data,
+		network,
+		accounts
+	})
+}
+

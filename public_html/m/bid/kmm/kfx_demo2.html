@@ -1,0 +1,184 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>KFX Generic Participant Clearing Demo</title>
+<style>
+body { font-family: system-ui; margin: 24px }
+textarea { width: 100%; height: 420px; font-family: monospace; font-size: 12px; padding: 10px }
+button { padding: 8px 12px; margin-right: 8px }
+pre { background: #f7f7f7; padding: 12px; white-space: pre-wrap }
+.ok { color: green; font-weight: bold }
+.bad { color: red; font-weight: bold }
+</style>
+</head>
+<body>
+
+<h2>KFX – Generic Participant Clearing Engine</h2>
+
+<div>
+<select id="objective">
+<option value="A">Objective A – Maximise Initiator Output</option>
+<option value="B">Objective B – Maximise Total Surplus</option>
+<option value="C">Objective C – Surplus + Inclusion Weights</option>
+</select>
+<button onclick="solve()">Solve</button>
+<button onclick="loadExample()">Load Example</button>
+</div>
+
+<textarea id="input"></textarea>
+
+<h3>Result</h3>
+<div id="status"></div>
+<pre id="output"></pre>
+
+<script>
+
+function loadExample()
+{
+document.getElementById("input").value = JSON.stringify({
+  sellAsset: "USDC",
+  buyAsset: "HBAR",
+  participants: [
+    {
+      id: "Bob",
+      initiator: true,
+      mustInclude: true,
+      weight: 1000,
+      exactSell: 100,
+      segments: []
+    },
+    {
+      id: "Tim_A",
+      weight: 5,
+      segments: [
+        { inMax: 40, rate: 10.2, feeBps: 20 },
+        { inMax: 40, rate: 10.05, feeBps: 20 }
+      ]
+    },
+    {
+      id: "Tim_B",
+      weight: 2,
+      segments: [
+        { inMax: 50, rate: 10.1, feeBps: 10 }
+      ]
+    },
+    {
+      id: "Tim_C",
+      weight: 1,
+      segments: [
+        { inMax: 100, rate: 9.95, feeBps: 30 }
+      ]
+    }
+  ]
+}, null, 2)
+}
+
+function netRate(seg)
+{
+return seg.rate * (1 - (seg.feeBps || 0) / 10000)
+}
+
+function solve()
+{
+const raw = JSON.parse(document.getElementById("input").value)
+const objective = document.getElementById("objective").value
+
+const sellAsset = raw.sellAsset
+const buyAsset = raw.buyAsset
+const participants = raw.participants
+
+const initiator = participants.find(p => p.initiator)
+if (!initiator) return alert("Need one initiator")
+
+const Q = initiator.exactSell
+let remaining = Q
+
+// Flatten segments
+let segments = []
+participants.forEach(p =>
+{
+  if (!p.segments) return
+  p.segments.forEach((s, k) =>
+  {
+    segments.push({
+      party: p.id,
+      cap: s.inMax,
+      netRate: netRate(s),
+      weight: p.weight || 0
+    })
+  })
+})
+
+// Objective sorting
+if (objective === "A")
+  segments.sort((a,b)=>b.netRate-a.netRate)
+
+if (objective === "B")
+  segments.sort((a,b)=>b.netRate-a.netRate)
+
+if (objective === "C")
+  segments.sort((a,b)=>(b.netRate + b.weight*0.0001) - (a.netRate + a.weight*0.0001))
+
+let fills = []
+
+for (let s of segments)
+{
+  if (remaining <= 0) break
+  let x = Math.min(remaining, s.cap)
+  if (x <= 0) continue
+  fills.push({
+    party: s.party,
+    in: x,
+    out: x * s.netRate,
+    rate: s.netRate
+  })
+  remaining -= x
+}
+
+let totalOut = fills.reduce((a,f)=>a+f.out,0)
+let totalIn = Q - remaining
+
+// Validate mustInclude
+let mustOK = true
+participants.forEach(p =>
+{
+  if (p.mustInclude)
+  {
+    if (p.id !== initiator.id)
+    {
+      const used = fills.some(f=>f.party===p.id)
+      if (!used) mustOK = false
+    }
+  }
+})
+
+let out = ""
+out += "Initiator sells: " + totalIn + " " + sellAsset + "\n"
+out += "Receives: " + totalOut.toFixed(6) + " " + buyAsset + "\n"
+out += "Effective rate: " + (totalOut/totalIn).toFixed(8) + "\n\n"
+
+out += "Allocations:\n"
+fills.forEach(f =>
+{
+  out += "- " + f.party + " in=" + f.in + " out=" + f.out.toFixed(6) + "\n"
+})
+
+out += "\nClearing Check:\n"
+out += "Sum sell = " + totalIn + "\n"
+out += "Sum buy  = " + totalOut.toFixed(6) + "\n"
+
+document.getElementById("output").textContent = out
+
+if (remaining <= 0 && mustOK)
+  document.getElementById("status").innerHTML = "<span class='ok'>CLUSTER FOUND</span>"
+else
+  document.getElementById("status").innerHTML = "<span class='bad'>NO VALID CLUSTER</span>"
+}
+
+loadExample()
+
+</script>
+</body>
+</html>

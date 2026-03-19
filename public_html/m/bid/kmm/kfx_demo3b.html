@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KFX — Generic multi-asset intent clearing (cycle-based demo)</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; line-height: 1.35 }
+    h1 { margin: 0 0 12px }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start }
+    textarea { width: 100%; min-height: 420px; padding: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12.5px }
+    button, select { padding: 10px 12px; border-radius: 10px; border: 1px solid #ccc; background: #fff }
+    button { cursor: pointer }
+    button:hover { background: #f7f7f7 }
+    .card { border: 1px solid #e5e5e5; border-radius: 14px; padding: 14px }
+    .muted { color: #555 }
+    pre { white-space: pre-wrap; word-break: break-word; margin: 0 }
+    .ok { color: #0a7a2a; font-weight: 600 }
+    .bad { color: #b00020; font-weight: 600 }
+    .tiny { font-size: 12px }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid #ddd; margin-right: 6px }
+  </style>
+</head>
+<body>
+  <h1>KFX — Generic multi-asset intent clearing (cycle-based demo)</h1>
+  <p class="muted">
+    Participants declare <span class="pill">swap intents</span> (directed edges between assets with piecewise segments).
+    The solver finds <span class="pill">clearing cycles</span> (length 2 or 3) and executes them greedily.
+  </p>
+
+  <div class="row">
+    <div class="card">
+      <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap">
+        <label class="tiny muted">Objective</label>
+        <select id="objective">
+          <option value="A">A — Maximise focus satisfaction</option>
+          <option value="B">B — Maximise total weighted flow</option>
+          <option value="C">C — Flow + reputation inclusion bias</option>
+        </select>
+        <button id="solveBtn">Solve</button>
+        <label class="tiny muted">Demo</label>
+        <select id="demoSelect">
+          <option value="triangle">Triangle FX (3-asset)</option>
+          <option value="simple2">Simple 2-asset cycle</option>
+          <option value="ABC">Apples bananas carrots</option>
+        </select>
+        <button id="loadDemoBtn">Load Demo</button>        
+        <span class="muted tiny">Edit JSON below and click Solve</span>
+      </div>
+
+      <textarea id="input"></textarea>
+
+      <p class="tiny muted" style="margin-top:10px">
+        Notes: this demo clears only through cycles, so every executed bundle is atomically balanced per-asset.
+        It’s a heuristic, but it demonstrates the fully generic <b>Δ per participant per asset</b> model without special Bob/Tim roles.
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">Result</h3>
+      <div id="status" class="muted tiny" style="margin-bottom:10px"></div>
+      <pre id="output"></pre>
+
+      <hr style="border:none; border-top:1px solid #eee; margin:14px 0">
+
+      <details>
+        <summary class="tiny muted">Model summary</summary>
+        <pre class="tiny muted" style="margin-top:10px">
+State
+  - Participants i
+  - Assets a
+  - Net deltas Δ[i][a]
+
+Clearing
+  For each asset a:  Σ_i Δ[i][a] = 0
+
+Intents
+  For each participant, intents are swap edges:
+    from asset X -> to asset Y
+    segments define (capIn, rate, feeBps)
+
+Execution primitive
+  Execute a cycle (length 2 or 3):
+    A->B, B->A   or   A->B, B->C, C->A
+  This guarantees Σ_i Δ[i][a] = 0 for every asset a
+
+Objective options
+  A: maximize satisfaction for participants flagged focus=true
+  B: maximize Σ (participantWeight * edgeFlowOut)
+  C: B + small bias for higher-reputation participants being included in the cycle
+        </pre>
+      </details>
+    </div>
+  </div>
+
+<script>
+const elInput = document.getElementById("input")
+const elOut = document.getElementById("output")
+const elStatus = document.getElementById("status")
+const elObj = document.getElementById("objective")
+
+document.getElementById("solveBtn").addEventListener("click", solveFromTextarea)
+
+document.getElementById("loadDemoBtn").addEventListener("click", () =>
+  {
+    const sel = document.getElementById("demoSelect").value
+    if (sel === "triangle")
+      elInput.value = JSON.stringify(exampleTriangle(), null, 2)
+    if (sel === "simple2")
+      elInput.value = JSON.stringify(exampleSimple2(), null, 2)
+    if (sel === "ABC")
+      elInput.value = JSON.stringify(exampleABC(), null, 2)
+    solveFromTextarea()
+  }
+)
+
+function fmt(n, d) {
+  return Number.isFinite(n) ? n.toFixed(d ?? 6) : String(n)
+}
+
+function clamp01(x) {
+  if (x < 0) return 0
+  if (x > 1) return 1
+  return x
+}
+
+function deepClone(obj) {
+  return JSON.parse(JSON.stringify(obj))
+}
+
+function netRate(seg) {
+  const fee = seg.feeBps == null ? 0 : Number(seg.feeBps)
+  const r = Number(seg.rate)
+  return r * (1 - clamp01(fee / 10000))
+}
+
+function normalizeProblem(raw) {
+  const p = deepClone(raw)
+  if (!Array.isArray(p.assets) || p.assets.length < 2) throw new Error("assets[] required (>=2)")
+  if (!Array.isArray(p.participants) || p.participants.length < 2) throw new Error("participants[] required (>=2)")
+
+  const assets = p.assets.map(String)
+  const assetSet = new Set(assets)
+
+  const participants = p.participants.map(pp =>
+    ({
+      id: String(pp.id ?? ""),
+      weight: pp.weight == null ? 1 : Number(pp.weight),
+      focus: !!pp.focus,
+      wants: pp.wants || null,
+      edges: Array.isArray(pp.edges) ? pp.edges.map(e =>
+        ({
+          from: String(e.from),
+          to: String(e.to),
+          segments: Array.isArray(e.segments) ? e.segments.map(s =>
+            ({
+              inMax: Number(s.inMax),
+              rate: Number(s.rate),
+              feeBps: s.feeBps == null ? 0 : Number(s.feeBps)
+            })
+          ) : []
+        })
+      ) : []
+    })
+  )
+
+  for (const pp of participants)
+    {
+      if (!pp.id) throw new Error("Every participant needs id")
+      if (!Number.isFinite(pp.weight) || pp.weight < 0) throw new Error(`Invalid weight for ${pp.id}`)
+      for (const e of pp.edges)
+        {
+          if (!assetSet.has(e.from)) throw new Error(`Unknown asset in edge.from: ${e.from}`)
+          if (!assetSet.has(e.to)) throw new Error(`Unknown asset in edge.to: ${e.to}`)
+          if (e.from === e.to) throw new Error(`Edge from==to not allowed (${pp.id})`)
+          for (const s of e.segments)
+            {
+              if (!Number.isFinite(s.inMax) || s.inMax <= 0) throw new Error(`Invalid inMax for ${pp.id} ${e.from}->${e.to}`)
+              if (!Number.isFinite(s.rate) || s.rate <= 0) throw new Error(`Invalid rate for ${pp.id} ${e.from}->${e.to}`)
+              if (!Number.isFinite(s.feeBps) || s.feeBps < 0) throw new Error(`Invalid feeBps for ${pp.id} ${e.from}->${e.to}`)
+            }
+        }
+    }
+
+  return { assets, participants }
+}
+
+function flattenSegments(problem) {
+  const edges = []
+  for (const p of problem.participants)
+    for (const e of p.edges)
+      for (let k = 0; k < e.segments.length; k++)
+        {
+          const s = e.segments[k]
+          edges.push({
+            id: `${p.id}:${e.from}->${e.to}#${k}`,
+            party: p.id,
+            partyWeight: p.weight,
+            partyFocus: p.focus,
+            from: e.from,
+            to: e.to,
+            capIn: s.inMax,
+            netRate: netRate(s),
+            feeBps: s.feeBps
+          })
+        }
+  return edges
+}
+
+function buildAdj(edges) {
+  const outMap = new Map()
+  for (const ed of edges)
+    {
+      const key = ed.from
+      if (!outMap.has(key)) outMap.set(key, [])
+      outMap.get(key).push(ed)
+    }
+  return outMap
+}
+
+function cycleMaxStart2(e1, e2) {
+  // e1: A->B, e2: B->A
+  // start amount x in A
+  // constraints: x <= cap1, x*r1 <= cap2
+  const r1 = e1.netRate
+  const cap = Math.min(e1.capIn, e2.capIn / r1)
+  return cap
+}
+
+function cycleMaxStart3(e1, e2, e3) {
+  // e1: A->B, e2: B->C, e3: C->A
+  // start x in A
+  // x <= cap1
+  // x*r1 <= cap2
+  // x*r1*r2 <= cap3
+  const r1 = e1.netRate
+  const r2 = e2.netRate
+  const cap = Math.min(e1.capIn, e2.capIn / r1, e3.capIn / (r1 * r2))
+  return cap
+}
+
+function cycleScore(problem, cycleEdges, xStart, objective) {
+  // Compute per-edge flows
+  const flows = []
+  let amt = xStart
+  for (const e of cycleEdges)
+    {
+      const out = amt * e.netRate
+      flows.push({ edge: e, inAmt: amt, outAmt: out })
+      amt = out
+    }
+
+  // Objective A: focus satisfaction proxy = total focus outAmt
+  // Objective B: total weighted outAmt
+  // Objective C: B + small inclusion bias from partyWeight (reputation)
+  let score = 0
+  let partySet = new Set()
+
+  for (const f of flows)
+    {
+      partySet.add(f.edge.party)
+      if (objective === "A")
+        score += (f.edge.partyFocus ? 1 : 0) * f.outAmt
+      else
+        score += f.edge.partyWeight * f.outAmt
+    }
+
+  if (objective === "C")
+    {
+      let bonus = 0
+      for (const p of partySet)
+        {
+          const w = findPartyWeight(problem.participants, p)
+          bonus += w
+        }
+      score += bonus * 0.0001
+    }
+
+  return { score, flows }
+}
+
+function findPartyWeight(participants, id) {
+  for (const p of participants)
+    if (p.id === id) return p.weight
+  return 0
+}
+
+function enumerateBestCycle(problem, edges, objective) {
+  const adj = buildAdj(edges)
+  let best = null
+
+  // 2-cycles
+  for (const e1 of edges)
+    {
+      const outs = adj.get(e1.to) || []
+      for (const e2 of outs)
+        {
+          if (e2.to !== e1.from) continue
+          const x = cycleMaxStart2(e1, e2)
+          if (!Number.isFinite(x) || x <= 0) continue
+          const scored = cycleScore(problem, [e1, e2], x, objective)
+          if (!best || scored.score > best.score)
+            best = { kind: "2", edges: [e1, e2], xStart: x, ...scored }
+        }
+    }
+
+  // 3-cycles
+  for (const e1 of edges)
+    {
+      const outs2 = adj.get(e1.to) || []
+      for (const e2 of outs2)
+        {
+          if (e2.to === e1.from) continue
+          const outs3 = adj.get(e2.to) || []
+          for (const e3 of outs3)
+            {
+              if (e3.to !== e1.from) continue
+              const x = cycleMaxStart3(e1, e2, e3)
+              if (!Number.isFinite(x) || x <= 0) continue
+              const scored = cycleScore(problem, [e1, e2, e3], x, objective)
+              if (!best || scored.score > best.score)
+                best = { kind: "3", edges: [e1, e2, e3], xStart: x, ...scored }
+            }
+        }
+    }
+
+  return best
+}
+
+function applyCycle(best, edgeIndexById, deltasByPartyByAsset) {
+  // Reduce caps and apply participant deltas for each edge in the cycle
+  for (const f of best.flows)
+    {
+      const e = f.edge
+      // update cap on the concrete segment edge
+      const idx = edgeIndexById.get(e.id)
+      idx.capIn -= f.inAmt
+      if (idx.capIn < 1e-12) idx.capIn = 0
+
+      // participant deltas
+      addDelta(deltasByPartyByAsset, e.party, e.from, -f.inAmt)
+      addDelta(deltasByPartyByAsset, e.party, e.to, +f.outAmt)
+    }
+}
+
+function addDelta(map, party, asset, delta) {
+  if (!map.has(party)) map.set(party, new Map())
+  const m = map.get(party)
+  m.set(asset, (m.get(asset) || 0) + delta)
+}
+
+function computeGlobalSums(assets, deltasByPartyByAsset) {
+  const sums = new Map()
+  for (const a of assets) sums.set(a, 0)
+  for (const [, m] of deltasByPartyByAsset.entries())
+    for (const [a, v] of m.entries())
+      sums.set(a, (sums.get(a) || 0) + v)
+  return sums
+}
+
+function solveCycles(problem, objective) {
+  // working copy of edges with mutable caps
+  const edges = flattenSegments(problem)
+  const edgeIndexById = new Map()
+  for (const e of edges) edgeIndexById.set(e.id, e)
+
+  const deltas = new Map()
+  const executed = []
+  const maxIters = 200
+
+  for (let iter = 0; iter < maxIters; iter++)
+    {
+      const feasibleEdges = edges.filter(e => e.capIn > 1e-12)
+      const best = enumerateBestCycle(problem, feasibleEdges, objective)
+      if (!best) break
+      if (!Number.isFinite(best.score) || best.score <= 0) break
+
+      applyCycle(best, edgeIndexById, deltas)
+      executed.push(best)
+    }
+
+  return { executed, deltas }
+}
+
+function satisfactionReport(problem, deltas) {
+  // Very simple "processing only" satisfaction:
+  // - If wants.receiveMin exists: satisfaction = min(received/min, 1)
+  // - Else satisfaction = 1 if participant had any non-zero delta, else 0
+  const report = []
+  for (const p of problem.participants)
+    {
+      const m = deltas.get(p.id) || new Map()
+      const wants = p.wants
+      let sat = 0
+
+      if (wants && wants.receiveMin)
+        {
+          const a = String(wants.receiveMin.asset)
+          const min = Number(wants.receiveMin.amount)
+          const got = m.get(a) || 0
+          sat = min > 0 ? Math.min(got / min, 1) : 0
+        }
+      else
+        {
+          let moved = 0
+          for (const v of m.values()) moved += Math.abs(v)
+          sat = moved > 1e-9 ? 1 : 0
+        }
+
+      report.push({ id: p.id, weight: p.weight, focus: p.focus, satisfaction: sat })
+    }
+  return report
+}
+
+function formatResult(problem, sol, objective) {
+  const lines = []
+  lines.push(`Objective: ${objective}`)
+  lines.push(`Executed cycles: ${sol.executed.length}`)
+  lines.push("")
+
+  let totalScore = 0
+  for (let i = 0; i < sol.executed.length; i++)
+    totalScore += sol.executed[i].score
+
+  lines.push(`Total heuristic score: ${fmt(totalScore, 6)}`)
+  lines.push("")
+
+  lines.push("Cycles (max-flow each, greedy):")
+  if (sol.executed.length === 0) lines.push("  (none)")
+
+  for (let i = 0; i < sol.executed.length; i++)
+    {
+      const c = sol.executed[i]
+      const path = c.edges.map(e => `${e.from}->${e.to}(${e.party})`).join(" | ")
+      lines.push(`- #${i+1} len=${c.kind} start=${fmt(c.xStart, 6)} score=${fmt(c.score, 6)}`)
+      lines.push(`  ${path}`)
+    }
+
+  lines.push("")
+  lines.push("Participant deltas (Δ per asset):")
+  for (const p of problem.participants)
+    {
+      const m = sol.deltas.get(p.id) || new Map()
+      const bits = []
+      for (const a of problem.assets)
+        {
+          const v = m.get(a) || 0
+          if (Math.abs(v) > 1e-9) bits.push(`${a}:${v >= 0 ? "+" : ""}${fmt(v, 6)}`)
+        }
+      lines.push(`- ${p.id} (w=${p.weight}${p.focus ? ", focus" : ""}): ${bits.length ? bits.join("  ") : "(no change)"}`)
+    }
+
+  lines.push("")
+  lines.push("Global clearing check (should be ~0 for every asset):")
+  const sums = computeGlobalSums(problem.assets, sol.deltas)
+  for (const a of problem.assets)
+    lines.push(`- ΣΔ[${a}] = ${fmt(sums.get(a) || 0, 10)}`)
+
+  lines.push("")
+  lines.push("Satisfaction (processed only; reputation weights are inputs):")
+  const sats = satisfactionReport(problem, sol.deltas)
+  for (const r of sats)
+    lines.push(`- ${r.id}: sat=${fmt(r.satisfaction, 6)} weight=${fmt(r.weight, 3)} focus=${r.focus ? "yes" : "no"}`)
+
+  return { text: lines.join("\n"), sums }
+}
+
+function solveFromTextarea() {
+  elOut.textContent = ""
+  elStatus.textContent = ""
+
+  let raw
+  try
+    {
+      raw = JSON.parse(elInput.value)
+    }
+  catch (e)
+    {
+      elOut.textContent = "Input JSON parse error:\n" + String(e)
+      return
+    }
+
+  let problem
+  try
+    {
+      problem = normalizeProblem(raw)
+    }
+  catch (e)
+    {
+      elOut.textContent = "Normalize error:\n" + String(e.message ?? e)
+      return
+    }
+
+  const objective = elObj.value
+  const sol = solveCycles(problem, objective)
+  const formatted = formatResult(problem, sol, objective)
+
+  // clearing OK if all sums are near 0
+  let ok = true
+  for (const a of problem.assets)
+    if (Math.abs(formatted.sums.get(a) || 0) > 1e-7) ok = false
+
+  elStatus.innerHTML = ok
+    ? `<span class="ok">CLEARED (ΣΔ≈0 for all assets)</span>`
+    : `<span class="bad">NOT CLEARED</span>`
+
+  elOut.textContent = formatted.text
+}
+
+function exampleABC() {
+return {
+      "assets": ["Apples", "Bananas", "Carrots"],
+      "participants": [
+        {
+          "id": "Alice",
+          "weight": 1,
+          "edges": [
+            {
+              "from": "Apples",
+              "to": "Bananas",
+              "segments": [
+                { "inMax": 20, "rate": 1, "feeBps": 0 }
+              ]
+            },
+            {
+              "from": "Apples",
+              "to": "Carrots",
+              "segments": [
+                { "inMax": 30, "rate": 1, "feeBps": 0 }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "Bob",
+          "weight": 1,
+          "edges": [
+            {
+              "from": "Bananas",
+              "to": "Carrots",
+              "segments": [
+                { "inMax": 30, "rate": 1, "feeBps": 0 }
+              ]
+            },
+            {
+              "from": "Bananas",
+              "to": "Apples",
+              "segments": [
+                { "inMax": 30, "rate": 1, "feeBps": 0 }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "Carol",
+          "weight": 1,
+          "edges": [
+            {
+              "from": "Carrots",
+              "to": "Apples",
+              "segments": [
+                { "inMax": 30, "rate": 1, "feeBps": 0 }
+              ]
+            },
+            {
+              "from": "Carrots",
+              "to": "Bananas",
+              "segments": [
+                { "inMax": 30, "rate": 1, "feeBps": 0 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+
+}
+
+function exampleSimple2()
+{
+  return {
+    assets: ["USDC", "HBAR"],
+    participants: [
+      {
+        id: "Alice",
+        weight: 3,
+        focus: true,
+        wants: { receiveMin: { asset: "HBAR", amount: 900 } },
+        edges: [
+          {
+            from: "USDC",
+            to: "HBAR",
+            segments: [
+              { inMax: 100, rate: 10, feeBps: 0 }
+            ]
+          }
+        ]
+      },
+      {
+        id: "Bob",
+        weight: 2,
+        edges: [
+          {
+            from: "HBAR",
+            to: "USDC",
+            segments: [
+              { inMax: 1000, rate: 0.1, feeBps: 0 }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+
+function exampleTriangle() {
+  return {
+    assets: ["USDC", "HBAR", "EUR"],
+    participants: [
+      {
+        id: "Bob",
+        weight: 3,
+        focus: true,
+        wants: { receiveMin: { asset: "HBAR", amount: 950 } },
+        edges: [
+          // Bob: willing to give USDC for HBAR (multiple segments)
+          { from: "USDC", to: "HBAR", segments: [
+            { inMax: 100, rate: 10.1, feeBps: 0 }
+          ]}
+        ]
+      },
+      {
+        id: "Tim_A",
+        weight: 5,
+        edges: [
+          // Tim_A: HBAR -> EUR
+          { from: "HBAR", to: "EUR", segments: [
+            { inMax: 1500, rate: 0.00018, feeBps: 20 }
+          ]}
+        ]
+      },
+      {
+        id: "Tim_B",
+        weight: 4,
+        edges: [
+          // Tim_B: EUR -> USDC (closing the triangle)
+          { from: "EUR", to: "USDC", segments: [
+            { inMax: 1, rate: 1.12, feeBps: 10 }
+          ]}
+        ]
+      },
+      {
+        id: "Tim_C",
+        weight: 1,
+        edges: [
+          // Direct 2-cycle option: USDC <-> EUR
+          { from: "USDC", to: "EUR", segments: [
+            { inMax: 50, rate: 0.89, feeBps: 15 }
+          ]},
+          { from: "EUR", to: "USDC", segments: [
+            { inMax: 0.8, rate: 1.10, feeBps: 15 }
+          ]}
+        ]
+      },
+      {
+        id: "LP_like_pool",
+        weight: 0.5,
+        edges: [
+          // A dull pool-like edge that might be used if nothing else fits
+          { from: "USDC", to: "HBAR", segments: [
+            { inMax: 500, rate: 9.9, feeBps: 30 }
+          ]},
+          { from: "HBAR", to: "USDC", segments: [
+            { inMax: 6000, rate: 0.098, feeBps: 30 }
+          ]}
+        ]
+      }
+    ]
+  }
+}
+
+elInput.value = JSON.stringify(exampleTriangle(), null, 2)
+solveFromTextarea()
+</script>
+</body>
+</html>

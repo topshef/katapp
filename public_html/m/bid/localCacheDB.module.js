@@ -341,7 +341,7 @@ console.warn('example debug')
 
 export {
   getData,  //only this is needed externally atm
-  // getFromCache,
-  // saveToCache
+  getFromCache,
+  saveToCache
 }
 

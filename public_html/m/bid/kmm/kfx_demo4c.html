@@ -1,0 +1,837 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KFX — Generic multi-asset intent clearing (cycle-based demo)</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; line-height: 1.35 }
+    h1 { margin: 0 0 12px }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start }
+    textarea { width: 100%; min-height: 420px; padding: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12.5px }
+    button, select { padding: 10px 12px; border-radius: 10px; border: 1px solid #ccc; background: #fff }
+    button { cursor: pointer }
+    button:hover { background: #f7f7f7 }
+    .card { border: 1px solid #e5e5e5; border-radius: 14px; padding: 14px }
+    .muted { color: #555 }
+    pre { white-space: pre-wrap; word-break: break-word; margin: 0 }
+    .ok { color: #0a7a2a; font-weight: 600 }
+    .bad { color: #b00020; font-weight: 600 }
+    .tiny { font-size: 12px }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid #ddd; margin-right: 6px }
+  </style>
+</head>
+<body>
+  <h1>KFX — Generic multi-asset intent clearing (cycle-based demo)</h1>
+  <p class="muted">
+    Participants declare <span class="pill">hyperedges</span> (multi-asset bundles with a scale).
+    The solver finds <span class="pill">clearing cycles</span> (length 2 or 3) and executes them greedily.
+  </p>
+
+  <div class="row">
+    <div class="card">
+      <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap"><button id="solveBtn">Solve</button>
+        <label class="tiny muted">Demo</label>
+        <select id="demoSelect">
+          <option value="triangle">Triangle FX (3-asset)</option>
+          <option value="simple2">Simple 2-step cycle</option>
+          <option value="ABC">Apples bananas carrots</option>
+        </select>
+        <button id="loadDemoBtn">Load Demo</button>
+        <span class="muted tiny">Edit JSON below and click Solve</span>
+      </div>
+
+      <textarea id="input"></textarea>
+
+      <p class="tiny muted" style="margin-top:10px">
+        Notes: this demo clears only through cycles, so every executed bundle is atomically balanced per-asset.
+        Wants do <b>not</b> affect solving (reporting only).
+        Objective: <b>B</b> — maximise total weighted output (native units).
+      </p>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">Result</h3>
+      <div id="status" class="muted tiny" style="margin-bottom:10px"></div>
+      <pre id="output"></pre>
+
+      <hr style="border:none; border-top:1px solid #eee; margin:14px 0">
+
+      <details>
+        <summary class="tiny muted">Model summary</summary>
+        <pre class="tiny muted" style="margin-top:10px">
+State
+  - Participants i
+  - Assets a (with decimals)
+  - Net deltas Δ[i][a]
+
+Clearing
+  For each asset a:  Σ_i Δ[i][a] = 0
+
+Intents
+  For each participant, intents are hyperEdges:
+    inputs  { assetId: amount, ... }
+    outputs { assetId: amount, ... }
+    scale x in [minScale, maxScale]
+
+Execution primitive
+  Execute a cycle (length 2 or 3) with a single common scale x.
+  Feasible only if each step’s inputs can be supplied by previous step’s outputs.
+
+Objective
+  Maximise total weighted output: Σ (participantWeight * sum(outputs) * x)
+        </pre>
+      </details>
+    </div>
+  </div>
+
+<script>
+const elInput = document.getElementById("input")
+const elOut = document.getElementById("output")
+const elStatus = document.getElementById("status")
+
+document.getElementById("solveBtn").addEventListener("click", solveFromTextarea)
+
+document.getElementById("loadDemoBtn").addEventListener("click", () =>
+  {
+    const sel = document.getElementById("demoSelect").value
+    if (sel === "triangle")
+      elInput.value = JSON.stringify(exampleTriangle(), null, 2)
+    if (sel === "simple2")
+      elInput.value = JSON.stringify(exampleSimple2(), null, 2)
+    if (sel === "ABC")
+      elInput.value = JSON.stringify(exampleABC(), null, 2)
+    solveFromTextarea()
+  }
+)
+
+function fmt(n, d) {
+  return Number.isFinite(n) ? n.toFixed(d ?? 6) : String(n)
+}
+
+function deepClone(obj) {
+  return JSON.parse(JSON.stringify(obj))
+}
+
+function asNum(v) {
+  return Number(v)
+}
+
+function isObj(x) {
+  return x && typeof x === "object" && !Array.isArray(x)
+}
+
+function normalizeProblem(raw) {
+  const p = deepClone(raw)
+  if (!Array.isArray(p.assets) || p.assets.length < 2) throw new Error("assets[] required (>=2)")
+  if (!Array.isArray(p.participants) || p.participants.length < 2) throw new Error("participants[] required (>=2)")
+
+  const assets = p.assets.map(a =>
+    ({
+      id: String(a.id ?? ""),
+      decimals: a.decimals == null ? 0 : Number(a.decimals)
+    })
+  )
+
+  for (const a of assets)
+    {
+      if (!a.id) throw new Error("asset id required")
+      if (!Number.isInteger(a.decimals) || a.decimals < 0 || a.decimals > 30) throw new Error(`Invalid decimals for asset ${a.id}`)
+    }
+
+  const assetSet = new Set(assets.map(a => a.id))
+  const decimalsByAsset = new Map(assets.map(a => [a.id, a.decimals]))
+
+  const participants = p.participants.map(pp =>
+    ({
+      id: String(pp.id ?? ""),
+      weight: pp.weight == null ? 1 : Number(pp.weight),
+      wants: pp.wants || null,
+      hyperEdges: Array.isArray(pp.hyperEdges) ? pp.hyperEdges.map(he =>
+        ({
+          inputs: isObj(he.inputs) ? he.inputs : {},
+          outputs: isObj(he.outputs) ? he.outputs : {},
+          maxScale: asNum(he.maxScale),
+          minScale: he.minScale == null ? 0 : asNum(he.minScale),
+          fee: he.fee || null
+        })
+      ) : []
+    })
+  )
+
+  for (const pp of participants)
+    {
+      if (!pp.id) throw new Error("participant id required")
+      if (!Number.isFinite(pp.weight) || pp.weight <= 0) throw new Error(`Invalid weight for ${pp.id}`)
+      if (!Array.isArray(pp.hyperEdges) || pp.hyperEdges.length === 0) throw new Error(`hyperEdges[] required: ${pp.id}`)
+
+      for (const he of pp.hyperEdges)
+        {
+          if (!Number.isFinite(he.maxScale) || he.maxScale <= 0) throw new Error(`Invalid maxScale for ${pp.id}`)
+          if (!Number.isFinite(he.minScale) || he.minScale < 0) throw new Error(`Invalid minScale for ${pp.id}`)
+          if (he.minScale > he.maxScale) throw new Error(`minScale > maxScale for ${pp.id}`)
+
+          // Optional fee hook: fee is applied to outputs via a named policy
+          if (he.fee != null)
+            {
+              if (!isObj(he.fee)) throw new Error(`Invalid fee object for ${pp.id}`)
+              if (typeof he.fee.policy !== "string" || !he.fee.policy) throw new Error(`Invalid fee.policy for ${pp.id}`)
+              if (he.fee.params != null && !isObj(he.fee.params)) throw new Error(`Invalid fee.params for ${pp.id}`)
+              he.fee = { policy: he.fee.policy, params: he.fee.params || {} }
+            }
+
+          const inKeys = Object.keys(he.inputs)
+          const outKeys = Object.keys(he.outputs)
+          if (inKeys.length === 0) throw new Error(`hyperEdge inputs empty: ${pp.id}`)
+          if (outKeys.length === 0) throw new Error(`hyperEdge outputs empty: ${pp.id}`)
+
+          for (const k of inKeys)
+            {
+              if (!assetSet.has(k)) throw new Error(`Unknown assetId in inputs: ${pp.id} ${k}`)
+              const v = asNum(he.inputs[k])
+              if (!Number.isFinite(v) || v <= 0) throw new Error(`Invalid inputs[${k}] for ${pp.id}`)
+              he.inputs[k] = v
+            }
+
+          for (const k of outKeys)
+            {
+              if (!assetSet.has(k)) throw new Error(`Unknown assetId in outputs: ${pp.id} ${k}`)
+              const v = asNum(he.outputs[k])
+              if (!Number.isFinite(v) || v <= 0) throw new Error(`Invalid outputs[${k}] for ${pp.id}`)
+              he.outputs[k] = v
+            }
+        }
+    }
+
+  return { assets, participants, decimalsByAsset }
+}
+
+function flattenHyperEdges(problem) {
+  const edges = []
+  for (const p of problem.participants)
+    for (let k = 0; k < p.hyperEdges.length; k++)
+      {
+        const he = p.hyperEdges[k]
+        edges.push({
+          id: `${p.id}#${k}`,
+          party: p.id,
+          partyWeight: p.weight,
+          inputs: he.inputs,
+          outputs: he.outputs,
+          maxScale: he.maxScale,
+          minScale: he.minScale,
+          fee: he.fee
+        })
+      }
+  return edges
+}
+
+function keys(obj) {
+  return Object.keys(obj || {})
+}
+
+function sumValues(obj) {
+  let s = 0
+  for (const k of keys(obj)) s += Number(obj[k] || 0)
+  return s
+}
+
+// Fee hook
+// To add a new fee policy: add an entry to feePolicies[name] = (params, context) => adjustedOutputsMap
+// The fee policy runs on outputs only and must preserve linear scaling in x.
+const feePolicies = new Map()
+
+feePolicies.set("bps_on_outputs", (params, ctx) =>
+  {
+    const bps = Number(params && params.bps != null ? params.bps : 0)
+    const f = 1 - (bps / 10000)
+    const out = {}
+    for (const a of keys(ctx.outputsRecipe))
+      out[a] = (ctx.outputsRecipe[a] || 0) * f
+    return out
+  }
+)
+
+function effectiveOutputsRecipe(edge, x, problem, cycleInfo) {
+  const ctx =
+    {
+      participantId: edge.party,
+      hyperEdgeId: edge.id,
+      inputsRecipe: edge.inputs,
+      outputsRecipe: edge.outputs,
+      scaleX: x,
+      assetsMeta: problem.assets,
+      cycleInfo: cycleInfo || null
+    }
+
+  let outRecipe = edge.outputs
+  if (edge.fee && edge.fee.policy)
+    {
+      const fn = feePolicies.get(edge.fee.policy)
+      if (!fn) throw new Error(`Unknown fee policy: ${edge.fee.policy}`)
+      outRecipe = fn(edge.fee.params || {}, ctx)
+    }
+
+  return scaleMap(outRecipe, x)
+}
+
+function effectiveOutputsUnit(edge, problem) {
+  const scaled = effectiveOutputsRecipe(edge, 1, problem, null)
+  return scaled
+}
+
+function canSupply(problem, prevEdge, nextEdge) {
+  // nextEdge.inputs must be covered by prevEdge.effectiveOutputs (per-unit, so scale cancels)
+  const prevOut = effectiveOutputsUnit(prevEdge, problem)
+  for (const a of keys(nextEdge.inputs))
+    {
+      const need = nextEdge.inputs[a] || 0
+      const have = prevOut[a] || 0
+      if (have + 1e-12 < need) return false
+    }
+  return true
+}
+
+function buildFollow(problem, edges) {
+  const follow = new Map()
+  for (const e of edges) follow.set(e.id, [])
+  for (const e1 of edges)
+    for (const e2 of edges)
+      if (e1.id !== e2.id && canSupply(problem, e1, e2))
+        follow.get(e1.id).push(e2)
+  return follow
+}
+
+function cycleHasIntegerConstraint(problem, cycleEdges) {
+  // Enforce integer x when any involved asset has decimals=0
+  for (const e of cycleEdges)
+    {
+      for (const a of keys(e.inputs))
+        if ((problem.decimalsByAsset.get(a) || 0) === 0) return true
+      for (const a of keys(e.outputs))
+        if ((problem.decimalsByAsset.get(a) || 0) === 0) return true
+    }
+  return false
+}
+
+function isIntegerish(x) {
+  return Math.abs(x - Math.round(x)) <= 1e-9
+}
+
+
+function cycleGranularityOk(problem, cycleEdges, x) {
+  for (const e of cycleEdges)
+    {
+      for (const a of keys(e.inputs))
+        {
+          if ((problem.decimalsByAsset.get(a) || 0) !== 0) continue
+          const v = (e.inputs[a] || 0) * x
+          if (!isIntegerish(v)) return false
+        }
+
+      const effOut = effectiveOutputsRecipe(e, x, problem, null)
+      for (const a of keys(effOut))
+        {
+          if ((problem.decimalsByAsset.get(a) || 0) !== 0) continue
+          const v = effOut[a] || 0
+          if (!isIntegerish(v)) return false
+        }
+    }
+  return true
+}
+
+function cycleNetVector(problem, cycleEdges, x) {
+  const net = new Map()
+
+  for (const e of cycleEdges)
+    {
+      // subtract inputs
+      for (const a of keys(e.inputs))
+        {
+          const v = (e.inputs[a] || 0) * x
+          net.set(a, (net.get(a) || 0) - v)
+        }
+
+      // add effective outputs (after fee policy)
+      const effOut = effectiveOutputsRecipe(e, x, problem, null)
+      for (const a of keys(effOut))
+        {
+          const v = effOut[a] || 0
+          net.set(a, (net.get(a) || 0) + v)
+        }
+    }
+
+  return net
+}
+
+function cycleClears(problem, cycleEdges, x) {
+  const net = cycleNetVector(problem, cycleEdges, x)
+
+  for (const a of problem.assets)
+    {
+      const d = net.get(a.id) || 0
+      const dec = problem.decimalsByAsset.get(a.id) || 0
+
+      // For NFTs / indivisible assets, require exact-ish zero and integrality
+      if (dec === 0)
+        {
+          if (!isIntegerish(d)) return false
+          if (Math.abs(d) > 1e-9) return false
+        }
+      else
+        {
+          if (Math.abs(d) > 1e-9) return false
+        }
+    }
+
+  return true
+}
+
+
+
+
+function pickScale(problem, cycleEdges) {
+  let xMax = Infinity
+  let minReq = 0
+
+  for (const e of cycleEdges)
+    {
+      xMax = Math.min(xMax, e.maxScale)
+      minReq = Math.max(minReq, e.minScale || 0)
+    }
+
+  if (!Number.isFinite(xMax) || xMax <= 0) return null
+  if (xMax + 1e-12 < minReq) return null
+
+  const needInt = cycleHasIntegerConstraint(problem, cycleEdges)
+
+  if (!needInt)
+    return xMax
+
+  const lo = Math.ceil(minReq - 1e-12)
+  const hi = Math.floor(xMax + 1e-12)
+  if (hi < lo) return null
+
+  for (let x = hi; x >= lo; x--)
+    if (cycleGranularityOk(problem, cycleEdges, x))
+      return x
+
+  return null
+}
+
+function cycleScore(problem, cycleEdges, x) {
+  const flows = []
+  let score = 0
+
+  for (const e of cycleEdges)
+    {
+      const effOut = effectiveOutputsRecipe(e, x, problem, null)
+      const outSum = sumValues(effOut)
+      score += e.partyWeight * outSum
+
+      flows.push({
+        edge: e,
+        x,
+        inputsScaled: scaleMap(e.inputs, x),
+        outputsScaled: effOut,
+        outSum
+      })
+    }
+
+  return { score, flows }
+}
+
+function scaleMap(m, x) {
+  const out = {}
+  for (const a of keys(m))
+    out[a] = (m[a] || 0) * x
+  return out
+}
+
+function enumerateBestCycle(problem, edges) {
+  const follow = buildFollow(problem, edges)
+  let best = null
+
+  // 2-cycles: e1 -> e2 -> e1
+  for (const e1 of edges)
+    {
+      const nexts = follow.get(e1.id) || []
+      for (const e2 of nexts)
+        {
+          if (!canSupply(problem, e2, e1)) continue
+
+          const x = pickScale(problem, [e1, e2])
+          if (x == null || x <= 0) continue
+          if (!cycleClears(problem, [e1, e2], x)) continue
+          const scored = cycleScore(problem, [e1, e2], x)
+
+          if (!best || scored.score > best.score)
+            best = { kind: "2", edges: [e1, e2], x, ...scored }
+        }
+    }
+
+  // 3-cycles: e1 -> e2 -> e3 -> e1
+  for (const e1 of edges)
+    {
+      const nexts2 = follow.get(e1.id) || []
+      for (const e2 of nexts2)
+        {
+          const nexts3 = follow.get(e2.id) || []
+          for (const e3 of nexts3)
+            {
+              if (e3.id === e1.id) continue
+              if (!canSupply(problem, e3, e1)) continue
+              const x = pickScale(problem, [e1, e2, e3])
+              if (x == null || x <= 0) continue
+              if (!cycleClears(problem, [e1, e2, e3], x)) continue
+              const scored = cycleScore(problem, [e1, e2, e3], x)
+              if (!best || scored.score > best.score)
+                best = { kind: "3", edges: [e1, e2, e3], x, ...scored }
+            }
+        }
+    }
+
+  return best
+}
+
+function applyCycle(problem, best, edgeIndexById, deltas) {
+  const x = best.x
+
+  for (const e of best.edges)
+    {
+      const live = edgeIndexById.get(e.id)
+      if (!live) continue
+      live.maxScale -= x
+      if (live.maxScale < 0) live.maxScale = 0
+    }
+
+  for (const e of best.edges)
+    {
+      if (!deltas.has(e.party)) deltas.set(e.party, new Map())
+      const m = deltas.get(e.party)
+
+      for (const a of keys(e.inputs))
+        m.set(a, (m.get(a) || 0) - e.inputs[a] * x)
+
+      const effOut = effectiveOutputsRecipe(e, x, problem, best)
+      for (const a of keys(effOut))
+        m.set(a, (m.get(a) || 0) + effOut[a])
+    }
+}
+
+function solveCycles(problem) {
+  const edges = flattenHyperEdges(problem)
+  const edgeIndexById = new Map()
+  for (const e of edges) edgeIndexById.set(e.id, e)
+
+  const executed = []
+  const deltas = new Map()
+
+  const maxIters = 200
+  for (let iter = 0; iter < maxIters; iter++)
+    {
+      const feasibleEdges = edges.filter(e => e.maxScale > 1e-12)
+      const best = enumerateBestCycle(problem, feasibleEdges)
+      if (!best) break
+      if (!Number.isFinite(best.score) || best.score <= 0) break
+
+      applyCycle(problem, best, edgeIndexById, deltas)
+      executed.push(best)
+    }
+
+  return { executed, deltas }
+}
+
+function computeGlobalSums(assets, deltas) {
+  const sums = new Map()
+  for (const a of assets) sums.set(a.id, 0)
+  for (const [, m] of deltas)
+    for (const a of assets)
+      sums.set(a.id, (sums.get(a.id) || 0) + (m.get(a.id) || 0))
+  return sums
+}
+
+function wantAssetId(x) {
+  if (!x) return null
+  return x.assetId || x.asset || null
+}
+
+function satisfactionReport(problem, deltas) {
+  const report = []
+  for (const p of problem.participants)
+    {
+      let sat = null
+      const m = deltas.get(p.id) || new Map()
+
+      if (p.wants && p.wants.receiveMin)
+        {
+          const w = p.wants.receiveMin
+          const a = wantAssetId(w)
+          const got = m.get(a) || 0
+          sat = got >= Number(w.amount) - 1e-9 ? 1 : 0
+        }
+      else if (p.wants && p.wants.giveMax)
+        {
+          const w = p.wants.giveMax
+          const a = wantAssetId(w)
+          const gave = -(m.get(a) || 0)
+          sat = gave <= Number(w.amount) + 1e-9 ? 1 : 0
+        }
+      else if (p.wants && p.wants.swap)
+        {
+          const w = p.wants.swap
+          const giveA = wantAssetId(w.give)
+          const recvA = wantAssetId(w.receive)
+          const out = -(m.get(giveA) || 0)
+          const got = (m.get(recvA) || 0)
+          const moved = Math.min(out, got)
+          sat = moved > 1e-9 ? 1 : 0
+        }
+
+      report.push({ id: p.id, weight: p.weight, satisfaction: sat })
+    }
+  return report
+}
+
+function fmtMap(m) {
+  const bits = []
+  for (const a of keys(m))
+    {
+      const v = m[a]
+      if (Math.abs(v) > 1e-12) bits.push(`${a}:${fmt(v, 6)}`)
+    }
+  return bits.length ? bits.join("  ") : "(none)"
+}
+
+function formatResult(problem, sol) {
+  const lines = []
+  lines.push("Objective: B — Maximise total weighted output")
+  lines.push(`Executed cycles: ${sol.executed.length}`)
+  lines.push("")
+
+  let totalScore = 0
+  for (let i = 0; i < sol.executed.length; i++)
+    {
+      const c = sol.executed[i]
+      totalScore += c.score
+      lines.push(`Cycle #${i + 1} (len=${c.kind}) score=${fmt(c.score, 6)} x=${fmt(c.x, 6)}`)
+      for (const f of c.flows)
+        {
+          const e = f.edge
+          lines.push(`  ${e.party}  edge=${e.id}  w=${fmt(e.partyWeight, 3)}  outputsSum=${fmt(f.outSum, 6)}`)
+          lines.push(`    inputs : ${fmtMap(f.inputsScaled)}`)
+          lines.push(`    outputs: ${fmtMap(f.outputsScaled)}`)
+        }
+      lines.push("")
+    }
+
+  lines.push(`Total score (sum of cycle scores): ${fmt(totalScore, 6)}`)
+  lines.push("")
+  lines.push("Per-participant deltas:")
+  for (const p of problem.participants)
+    {
+      const m = sol.deltas.get(p.id) || new Map()
+      const bits = []
+      for (const a of problem.assets)
+        {
+          const v = m.get(a.id) || 0
+          if (Math.abs(v) > 1e-9) bits.push(`${a.id}:${v >= 0 ? "+" : ""}${fmt(v, 6)}`)
+        }
+      lines.push(`- ${p.id} (w=${p.weight}): ${bits.length ? bits.join("  ") : "(no change)"}`)
+    }
+
+  lines.push("")
+  lines.push("Global clearing check (should be ~0 for every asset):")
+  const sums = computeGlobalSums(problem.assets, sol.deltas)
+  for (const a of problem.assets)
+    lines.push(`  ${a.id}: ${fmt(sums.get(a.id) || 0, 9)}`)
+
+  lines.push("")
+  lines.push("Satisfaction report (wants ignored in solving, used only for reporting):")
+  const rep = satisfactionReport(problem, sol.deltas)
+  for (const r of rep)
+    {
+      if (r.satisfaction == null) lines.push(`  ${r.id}: (no wants)`)
+      else lines.push(`  ${r.id}: ${r.satisfaction ? "satisfied" : "NOT satisfied"}`)
+    }
+
+  return lines.join("\n")
+}
+
+function solveFromTextarea() {
+  elStatus.textContent = ""
+  elStatus.className = "muted tiny"
+  try
+    {
+      const raw = JSON.parse(elInput.value)
+      const problem = normalizeProblem(raw)
+
+      const sol = solveCycles(problem)
+      elOut.textContent = formatResult(problem, sol)
+
+      const sums = computeGlobalSums(problem.assets, sol.deltas)
+      let ok = true
+      for (const a of problem.assets)
+        if (Math.abs(sums.get(a.id) || 0) > 1e-7) ok = false
+
+
+        if (sol.executed.length === 0)
+          {
+            elStatus.textContent = "NO CYCLES FOUND"
+            elStatus.className = "muted tiny"
+          }
+        else
+          {
+            elStatus.textContent = ok ? "CLEARED (ΣΔ≈0 for all assets)" : "NOT CLEARED"
+            elStatus.className = ok ? "ok tiny" : "bad tiny"
+          }
+
+    }
+  catch (err)
+    {
+      elOut.textContent = String(err && err.stack ? err.stack : err)
+      elStatus.textContent = "Error"
+      elStatus.className = "bad tiny"
+    }
+}
+
+// ---------------- demos (Phase 2 schema) ----------------
+
+function exampleTriangle() {
+  // A 3-step cycle with common scale x
+  // USDC -> HBAR -> EUR -> USDC
+  return {
+    assets: [
+      { id: "USDC", decimals: 2 },
+      { id: "HBAR", decimals: 0 },
+      { id: "EUR", decimals: 2 }
+    ],
+    participants: [
+      {
+        id: "Bob",
+        weight: 3,
+        wants: { receiveMin: { assetId: "HBAR", amount: 900 } },
+        hyperEdges: [
+          {
+            inputs: { "USDC": 100 },
+            outputs: { "HBAR": 1000 },
+            maxScale: 2,
+            fee: { policy: "bps_on_outputs", params: { bps: 30 } }
+          }
+        ]
+      },
+      {
+        id: "Tim_A",
+        weight: 5,
+        hyperEdges: [
+          {
+            inputs: { "HBAR": 1000 },
+            outputs: { "EUR": 180 },
+            maxScale: 2
+          }
+        ]
+      },
+      {
+        id: "Tim_B",
+        weight: 4,
+        hyperEdges: [
+          {
+            inputs: { "EUR": 180 },
+            outputs: { "USDC": 202 },
+            maxScale: 2
+          }
+        ]
+      }
+    ]
+  }
+}
+
+function exampleSimple2() {
+  // A 2-step cycle
+  // Alice produces HBAR from USDC, Bob produces USDC from HBAR
+  return {
+    assets: [
+      { id: "USDC", decimals: 2 },
+      { id: "HBAR", decimals: 0 }
+    ],
+    participants: [
+      {
+        id: "Alice",
+        weight: 1,
+        wants: { receiveMin: { assetId: "HBAR", amount: 900 } },
+        hyperEdges: [
+          {
+            inputs: { "USDC": 100 },
+            outputs: { "HBAR": 1000 },
+            maxScale: 3,
+            minScale: 1
+          }
+        ]
+      },
+      {
+        id: "Bob",
+        weight: 2,
+        hyperEdges: [
+          {
+            inputs: { "HBAR": 1000 },
+            outputs: { "USDC": 101 },
+            maxScale: 3
+          }
+        ]
+      }
+    ]
+  }
+}
+
+function exampleABC() {
+  // Fun example with integer-only assets
+  // A -> B -> C -> A
+  return {
+    assets: [
+      { id: "A", decimals: 0 },
+      { id: "B", decimals: 0 },
+      { id: "C", decimals: 0 }
+    ],
+    participants: [
+      {
+        id: "P1",
+        weight: 2,
+        hyperEdges: [
+          {
+            inputs: { "A": 10 },
+            outputs: { "B": 12 },
+            maxScale: 5
+          }
+        ]
+      },
+      {
+        id: "P2",
+        weight: 1,
+        hyperEdges: [
+          {
+            inputs: { "B": 12 },
+            outputs: { "C": 11 },
+            maxScale: 5
+          }
+        ]
+      },
+      {
+        id: "P3",
+        weight: 3,
+        hyperEdges: [
+          {
+            inputs: { "C": 11 },
+            outputs: { "A": 10 },
+            maxScale: 5
+          }
+        ]
+      }
+    ]
+  }
+}
+
+elInput.value = JSON.stringify(exampleTriangle(), null, 2)
+solveFromTextarea()
+</script>
+</body>
+</html>
