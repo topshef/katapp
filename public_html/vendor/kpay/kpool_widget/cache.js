@@ -4,6 +4,8 @@
 
 import { loadLocalbase } from './localbase-loader.js'
 
+const glog = globalThis.glog ?? (() => {})
+
 
 let db = null
 
@@ -45,7 +47,7 @@ export async function getFromCache(url, params = {}, expirySeconds = 'infinite')
     if (ageSeconds > expirySeconds) return null
   }
 
-  console.log('🗄️ cache hit', key)
+  glog('🗄️ cache hit', key)
   return record.data
 }
 
@@ -80,7 +82,7 @@ export async function getData(url, params = {}, expirySeconds = 0) {
   const response = await fetch(`${url}?${new URLSearchParams(params)}`)
   const data = await response.json()
 
-  console.log('⚡ live call', url, params)
+  glog('⚡ live call', url, params)
 
   if (data) await saveToCache(url, params, data)
   return data

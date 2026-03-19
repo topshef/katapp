@@ -7,6 +7,7 @@
 import { getAccountInfo, getKeyInfo } from './hedera-mirror.js'
 
 
+const glog = globalThis.glog ?? (() => {})
 
 
 export async function txRead({ network, txid, pch = 'no_pch' }) { //todo pch
@@ -42,8 +43,8 @@ export async function txRead({ network, txid, pch = 'no_pch' }) { //todo pch
 	const transfers = getAllTransfers(data)
 	const accounts = getAccountsWithRoles({ transfers, txid })
 			
-	console.log("txRead data=",data)
-	console.log("txRead other=",{transfers, accounts, rawTx, url})
+	glog("txRead data=",data)
+	glog("txRead other=",{transfers, accounts, rawTx, url})
 	return {
 		url,
 		rawTx,  // for debug.. avoid using this downstream
@@ -97,7 +98,7 @@ function getAllTransfers(data) {
 	}
 
 
-	// console.log({raw})
+	// glog({raw})
 	const lineItems = []
 
 	// HBAR
@@ -158,7 +159,7 @@ function getAllTransfers(data) {
 		})
 	})
 	
-	// console.log({mirrorTx, deal, raw, lineItems})
+	// glog({mirrorTx, deal, raw, lineItems})
 	
 	return {
 		raw,        // original shapes, grouped
@@ -217,7 +218,7 @@ export async function enrichAccountsKeyInfo({ network, accounts }) {
 		try {
 			const keyInfo = await getKeyInfo(network, accountId)
 			acc.keyInfo = keyInfo
-			console.log('KEYINFO RAW', accountId, keyInfo)
+			glog('KEYINFO RAW', accountId, keyInfo)
 
 			// Normalize single-key shape
 			if (typeof acc.keyInfo === 'string') {
