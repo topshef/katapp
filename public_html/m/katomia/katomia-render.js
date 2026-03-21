@@ -182,6 +182,24 @@ function getFastThumb(url, imgEl){
 }
 
 
+    function applyAssetClasses(assetEl, assetId, amount){
+
+      const meta = getAssetMeta(assetId)
+      if(!meta) return
+
+      const decimals = Number(meta?.token_class?.decimals || 0)
+
+      // LE = zero-decimal fungible with quantity
+      if(decimals === 0 && amount > 1){
+        assetEl.classList.add("asset-le")
+        assetEl.dataset.qty = amount
+        return
+      }
+
+      // future rules go here ↓
+      // e.g. rare, legendary, etc
+
+    }
 
 
 		function makeAssetEl({
@@ -296,14 +314,7 @@ function getFastThumb(url, imgEl){
 					selected: isSelected(item.assetId, account.id, null)
 				})
 
-        //OG nFT tokens = LE Limited Edition
-        const meta = getAssetMeta(item.assetId)
-        const decimals = Number(meta?.token_class?.decimals || 0)
-
-        if(item.thumbKey && decimals === 0 && item.amount > 1){
-          assetEl.classList.add("asset-le")
-          assetEl.dataset.qty = item.amount
-        }
+        applyAssetClasses(assetEl, item.assetId, item.amount)
 
 				const group = item.thumbKey ? thumbGroups[item.thumbKey] : null
 
@@ -382,14 +393,7 @@ function getFastThumb(url, imgEl){
 				)
 			})
       
-      const meta = getAssetMeta(reservedItem.assetId)
-      const decimals = Number(meta?.token_class?.decimals || 0)
-      const amount = reservedItem.amount || 1
-
-      if(decimals === 0 && amount > 1){
-        assetEl.classList.add("asset-le")
-        assetEl.dataset.qty = amount
-      }
+      applyAssetClasses(assetEl, reservedItem.assetId, reservedItem.amount || 1)
 
 			//for css hover
 			assetEl.dataset.assetId = reservedItem.assetId
@@ -467,13 +471,7 @@ function getFastThumb(url, imgEl){
         clickable
       })
 
-      const meta = getAssetMeta(item.assetId)
-      const decimals = Number(meta?.token_class?.decimals || 0)
-
-      if(decimals === 0 && amount > 1){
-        assetEl.classList.add("asset-le")
-        assetEl.dataset.qty = amount
-      }
+      applyAssetClasses(assetEl, item.assetId, amount)
 
 			//for css hover
 			assetEl.dataset.assetId = item.assetId
