@@ -351,7 +351,8 @@ function getFastThumb(url, imgEl){
 				const name = player?.name || reservedItem.toAccountId
 				
 				hac = reservedItem.toAccountId.split(":")[1] || reservedItem.toAccountId
-				visibleTo = name + ":" + hac
+				// visibleTo = name + ":" + hac
+				visibleTo = hac
 			}
 
 			const baseText = getAssetDisplay(reservedItem.assetId, reservedItem.amount || 1)

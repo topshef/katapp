@@ -300,7 +300,10 @@ body[data-view-mode="merged"] .hint-desktop{
 			position:relative;
 		}
 
-
+    .asset.thumb-only{
+      background:none;
+    }
+    
 		.asset.basket{
 			border-top-left-radius:0;
 			border-bottom-left-radius:0;
@@ -316,7 +319,7 @@ body[data-view-mode="merged"] .hint-desktop{
     }
 
     .asset.basket{
-      background:#dff6ff;
+      zzbackground:#dff6ff;
     }
 
     .asset.selected{
