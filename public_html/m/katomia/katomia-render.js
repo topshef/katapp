@@ -290,6 +290,9 @@ function getFastThumb(url, imgEl){
 		duplicate counts rendered from asset map
 		*/
 		function renderStoreAsset(account, container){
+      
+      const network = game?.network || ""
+
 			const mine = isMyAccount(account)
 			const rendered = []
 
@@ -307,6 +310,26 @@ function getFastThumb(url, imgEl){
 			})
 
 			const thumbGroups = {}
+
+
+      rendered.sort((a, b) => {
+
+        // 1. non-thumbnail first
+        if(!a.thumbKey && b.thumbKey) return -1
+        if(a.thumbKey && !b.thumbKey) return 1
+
+        // 2. both non-thumb → stable by assetId
+        if(!a.thumbKey && !b.thumbKey)
+          return a.assetId.localeCompare(b.assetId)
+
+        // 3. both have thumbs → group by thumb
+        const t = a.thumbKey.localeCompare(b.thumbKey)
+        if(t !== 0) return t
+
+        // 4. fallback stable order inside group
+        return a.assetId.localeCompare(b.assetId)
+      })
+
 
 			rendered.forEach(item => {
 				if(!item.thumbKey) return
@@ -346,7 +369,18 @@ function getFastThumb(url, imgEl){
 				}
 
 				if(mine){
-					assetEl.onclick = () => {
+          assetEl.onclick = (e) => {
+
+            // 🔥 modifier click → open asset page
+            if(e.ctrlKey || e.metaKey){
+              const tokenSerial = assetEl.dataset.assetId.replace("#", "-")
+              const url = `/m/?productId=${network};${tokenSerial}`
+              window.open(url, "_blank")
+              return
+            }            
+            
+            
+            
 						if(viewMode === "merged"){
 							openAssetModal(item.assetId, account.id, item.amount)
 							return
