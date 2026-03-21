@@ -237,11 +237,22 @@ function getFastThumb(url, imgEl){
 				if(useThumbnail){
 					el.dataset.thumbKey = thumb // todo change to tokenId-thumb
 					el.classList.add("thumb-only")
-					
-					const img = document.createElement("img")
-					img.className = "asset-thumb"
-					img.src = getFastThumb(thumb, img)
-					img.decoding = "async"
+                    
+          const img = document.createElement("img")
+          img.className = "asset-thumb"
+          img.src = getFastThumb(thumb, img)
+          img.decoding = "async"
+
+          img.onerror = () => {
+            img.onerror = null   // prevent loop
+            img.src = "data:image/svg+xml;utf8,\
+              <svg xmlns='http://www.w3.org/2000/svg' width='96' height='96'>\
+              <rect width='100%' height='100%' fill='%23eee'/>\
+              <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' \
+              font-size='42' font-family='Arial, sans-serif' fill='%23999'>?</text>\
+              </svg>"
+          }
+          
 					el.prepend(img)
 
 				}
