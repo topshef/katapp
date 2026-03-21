@@ -296,6 +296,15 @@ function getFastThumb(url, imgEl){
 					selected: isSelected(item.assetId, account.id, null)
 				})
 
+        //OG nFT tokens = LE Limited Edition
+        const meta = getAssetMeta(item.assetId)
+        const decimals = Number(meta?.token_class?.decimals || 0)
+
+        if(item.thumbKey && decimals === 0 && item.amount > 1){
+          assetEl.classList.add("asset-le")
+          assetEl.dataset.qty = item.amount
+        }
+
 				const group = item.thumbKey ? thumbGroups[item.thumbKey] : null
 
 				if(group && group.length > 1){

@@ -850,3 +850,57 @@ zz-distracting-body[data-network="playnet"]{
   border-color:#4CAF50;
   box-shadow:0 0 0 2px rgba(76,175,80,0.15);
 }
+
+
+/* LE = horizontal stack only */
+
+.asset.asset-le{
+  position: relative;
+}
+
+/* spacing grows with qty (simple perspective-ish cap) */
+.asset.asset-le[data-qty="2"]{ padding-left: 8px; }
+.asset.asset-le[data-qty="3"]{ padding-left: 12px; }
+.asset.asset-le[data-qty="4"]{ padding-left: 16px; }
+.asset.asset-le[data-qty="5"]{ padding-left: 18px; }
+
+/* 6+ → cap it */
+.asset.asset-le[data-qty]:not([data-qty="1"]):not([data-qty="2"]):not([data-qty="3"]):not([data-qty="4"]):not([data-qty="5"]){
+  padding-left: 20px;
+}
+
+
+/* base image */
+.asset.asset-le .asset-thumb{
+  position: relative;
+  z-index: 3;
+}
+
+/* 2 */
+.asset.asset-le[data-qty="2"] .asset-thumb{
+  box-shadow:
+    -6px 2px 0 rgba(0,0,0,0.15);
+}
+
+/* 3 */
+.asset.asset-le[data-qty="3"] .asset-thumb{
+  box-shadow:
+    -6px 2px 0 rgba(0,0,0,0.15),
+    -12px 4px 0 rgba(0,0,0,0.10);
+}
+
+/* 4 */
+.asset.asset-le[data-qty="4"] .asset-thumb{
+  box-shadow:
+    -6px 2px 0 rgba(0,0,0,0.15),
+    -12px 4px 0 rgba(0,0,0,0.10),
+    -18px 6px 0 rgba(0,0,0,0.06);
+}
+
+/* 5+ (cap visual depth) */
+.asset.asset-le[data-qty]:not([data-qty="1"]):not([data-qty="2"]):not([data-qty="3"]):not([data-qty="4"]) .asset-thumb{
+  box-shadow:
+    -6px 2px 0 rgba(0,0,0,0.15),
+    -12px 4px 0 rgba(0,0,0,0.10),
+    -18px 6px 0 rgba(0,0,0,0.06);
+}
