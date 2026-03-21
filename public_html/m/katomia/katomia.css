@@ -1,5 +1,16 @@
 
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap');
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap');
+
 		:root{
 			--bg-color: #f5f5f5;
 
@@ -9,6 +20,18 @@
 
 			--thumb-collapse-left: calc(var(--asset-gap) - (var(--thumb-size) * var(--thumb-overlap-ratio)));
 
+      --font-main: 'Inter', system-ui, sans-serif;
+      --zzfont-main: 'Work Sans', system-ui, sans-serif;
+      --zzfont-main: 'Nunito', system-ui, sans-serif;
+      --zzfont-main: 'Plus Jakarta Sans', system-ui, sans-serif;
+      --zz-font-main: 'Manrope', system-ui, sans-serif;
+      --zz-font-main: 'DM Sans', system-ui, sans-serif;
+      --zznope-font-main: 'Outfit', system-ui, sans-serif;
+      --zzfont-main: 'Source Sans 3', system-ui, sans-serif;
+
+      --font-mono: 'JetBrains Mono', monospace;
+
+  
 			/* examples not in use */
 			--text-color: #222;
 			--accent: #4a90e2;
@@ -81,8 +104,8 @@
 		}
 
     body{
-			background: var(--bg-color);
-      font-family:sans-serif;
+      background: var(--bg-color);
+      font-family: var(--font-main);
       margin:16px;
     }
 
@@ -712,6 +735,4 @@ body[data-network="playnet"]{
   color:#444;
 }
 
-.game-meta{
-  margin-top:6px;
-}
+
