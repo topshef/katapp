@@ -580,12 +580,26 @@ function getFastThumb(url, imgEl){
 			const name = player?.name || account.playerId
 			const label = account.id.split(":")[1] || account.id
 
-			const textEl = document.createElement("span")
+			const textEl = document.createElement("div")
+            textEl.className = "account-label"  // err but this is actually hedera account id
 			textEl.textContent = name && name !== "anon"
 				? name + ":" + label
 				: label
 
 			nameEl.appendChild(textEl)
+
+            // 👇 NEW XPROOF LABEL
+      const id = account.id.split(":")[1] || account.id
+      const xLabel = window.accountLabelCache?.[id]
+
+      if(xLabel){
+        const subEl = document.createElement("div")
+        subEl.className = "account-xproof-label"
+        subEl.textContent = xLabel
+
+        nameEl.appendChild(subEl)
+      }
+
 
 			const txEl = createTxTimelineEl(account)
 			if(txEl)

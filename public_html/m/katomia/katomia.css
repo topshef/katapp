@@ -40,6 +40,13 @@
 
 
 
+.account-xproof-label{
+  font-size:11px;
+  color:#666;
+  opacity:0.8;
+  margin-top:2px;
+}
+
     body[data-network="mainnet"]{
       --network-color: #7A1B80;
     }
