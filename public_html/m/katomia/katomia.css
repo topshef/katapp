@@ -623,3 +623,60 @@ body[data-view-mode="columns"] .exit-game-btn{
 .asset-modal-name{
   font-weight:bold;
 }
+
+
+.game-meta{
+  margin-bottom:14px;
+}
+
+.game-title-row{
+  display:flex;
+  align-items:baseline;
+  gap:8px;   /* space between title + pill */
+}
+
+.game-title{
+  font-size:20px;
+  font-weight:700;
+  color:#444;   /* softer than #000 */
+}
+
+/* network badge */
+.game-network{
+  font-size:14px;
+  font-weight:600;
+  opacity:0.8;
+}
+
+/* small meta row */
+.game-meta-row{
+  margin-top:4px;
+  font-size:11px;
+  color:#666;
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+
+/* default */
+body{
+  background:#f5f5f5;
+}
+
+
+body[data-network]{
+  position:relative;
+}
+
+body[data-network="playnet"]{
+  background-color:#f5f5f5;
+  background-image:
+    url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='160' height='120' text-rendering='geometricPrecision'>\
+<g transform='rotate(-30 80 60)' fill='rgba(0,0,0,0.06)' font-size='18' font-weight='700' font-family='Arial, Helvetica, sans-serif'>\
+<text x='10' y='40'>playnet</text>\
+<text x='90' y='80'>playnet</text>\
+</g>\
+</svg>");
+}
+

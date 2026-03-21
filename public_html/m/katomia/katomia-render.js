@@ -750,23 +750,35 @@ function getFastThumb(url, imgEl){
     function render(){
 			
 			
-			document.body.dataset.viewMode = viewMode
-			document.body.dataset.showTradedOnly = showTradedOnly ? "true" : "false"
+      document.body.dataset.viewMode = viewMode
+      document.body.dataset.showTradedOnly = showTradedOnly ? "true" : "false"
 
+      if(game?.network){
+        document.body.dataset.network = game.network.toLowerCase()
+      }
+      
       gameEl.innerHTML = ""
 
 
       const gameMetaEl = document.getElementById("gameMeta")
-			// if(gameMetaEl && game) gameMetaEl.textContent = JSON.stringify(game)
-      if(gameMetaEl && game)
-        gameMetaEl.textContent =
-          "Game ID: " + game.id +
-          " | Title: " + (game.profile?.name || "untitled") +
-          " | Network: " + game.network +
-          " | Visibility: " + game.visibility +
-          " | Join rule: " + JSON.stringify(game.joinRule) +
-          " | Lock rule: " + game.lockRule
-          
+      if(gameMetaEl && game){
+
+        const title = game.profile?.name || ""
+
+        gameMetaEl.innerHTML = `
+          <div class="game-title-row">
+            <div class="game-network">${game.network}</div>
+            <div class="game-title">${title}</div>
+          </div>
+
+          <div class="game-meta-row">
+            <span>ID: ${game.id}</span>
+            <span>Visibility: ${game.visibility}</span>
+            <span>Join: ${JSON.stringify(game.joinRule)}</span>
+            <span>Lock: ${game.lockRule}</span>
+          </div>
+        `
+      }
 			
       headerEl.style.display = viewMode === "columns" ? "grid" : "none"
 
