@@ -381,6 +381,15 @@ function getFastThumb(url, imgEl){
 					reservedItem.toAccountId
 				)
 			})
+      
+      const meta = getAssetMeta(reservedItem.assetId)
+      const decimals = Number(meta?.token_class?.decimals || 0)
+      const amount = reservedItem.amount || 1
+
+      if(decimals === 0 && amount > 1){
+        assetEl.classList.add("asset-le")
+        assetEl.dataset.qty = amount
+      }
 
 			//for css hover
 			assetEl.dataset.assetId = reservedItem.assetId
@@ -457,6 +466,14 @@ function getFastThumb(url, imgEl){
         basket: true,
         clickable
       })
+
+      const meta = getAssetMeta(item.assetId)
+      const decimals = Number(meta?.token_class?.decimals || 0)
+
+      if(decimals === 0 && amount > 1){
+        assetEl.classList.add("asset-le")
+        assetEl.dataset.qty = amount
+      }
 
 			//for css hover
 			assetEl.dataset.assetId = item.assetId
