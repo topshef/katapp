@@ -23,7 +23,7 @@ h2{
 
 .grid{
   display:grid;
-  grid-template-columns:repeat(5,1fr);
+  grid-template-columns:repeat(6,1fr);
   background:white;
   border-radius:8px;
   overflow:hidden;
@@ -133,6 +133,7 @@ h2{
 <div id="games" class="grid">
 
   <div class="header">ID</div>
+  <div class="header">Name</div>
   <div class="header">Network</div>
   <div class="header">Visibility</div>
   <div class="header">Join rule</div>
@@ -177,6 +178,10 @@ async function loadGames(){
 
         <div class="cell id">
           <a href="./game/${g.id}" target="${g.id}">${g.id}</a>
+        </div>
+
+        <div class="cell name">
+          ${g.profile?.name || ""}
         </div>
 
         <div class="cell network">

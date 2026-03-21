@@ -758,12 +758,14 @@ function getFastThumb(url, imgEl){
       const gameMetaEl = document.getElementById("gameMeta")
 			// if(gameMetaEl && game) gameMetaEl.textContent = JSON.stringify(game)
       if(gameMetaEl && game)
-				gameMetaEl.textContent =
-            "Game: " + game.id +
-            " | Network: " + game.network +
-            " | Visibility: " + game.visibility +
-            " | Join rule: " + JSON.stringify(game.joinRule) +
-            " | Lock rule: " + game.lockRule
+        gameMetaEl.textContent =
+          "Game ID: " + game.id +
+          " | Title: " + (game.profile?.name || "untitled") +
+          " | Network: " + game.network +
+          " | Visibility: " + game.visibility +
+          " | Join rule: " + JSON.stringify(game.joinRule) +
+          " | Lock rule: " + game.lockRule
+          
 			
       headerEl.style.display = viewMode === "columns" ? "grid" : "none"
 
