@@ -98,6 +98,8 @@
 		</div>
 	</div>
 
+<div id="exitGameBtn" class="exit-game-btn">🗑️</div>
+
 <script src="/m/bid/localbase.min.js"></script> <!-- beware spelling of Localbase -->
 <script type="module" data-global src="/m/tools/glog/latest/glog.js" ></script>
 <script type="module" src="/m/bid/localCacheDB.js" ></script>
@@ -133,6 +135,14 @@ window.addEventListener("load", () => {
 })
 </script>
 
+<script>
+
+  document.getElementById("exitGameBtn").onclick = () => {
+    const ok = confirm("Exit game?\n\nThis removes your accounts and any offers you placed.")
+    if(!ok) return
+    exitGame()
+  }
+</script>
 
 <script>
 	fetch("../footer.html")
