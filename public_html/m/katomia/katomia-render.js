@@ -247,11 +247,11 @@ function getFastThumb(url, imgEl){
             img.onerror = null   // prevent loop
             img.src = "data:image/svg+xml;utf8,\
               <svg xmlns='http://www.w3.org/2000/svg' width='96' height='96'>\
-              <rect width='100%' height='100%' fill='%23eee'/>\
+              <rect width='100%' height='100%' rx='12' fill='%23f2f2f2'/>\
               <text x='50%' y='50%' dominant-baseline='middle' text-anchor='middle' \
-              font-size='42' font-family='Arial, sans-serif' fill='%23999'>?</text>\
+              font-size='40' font-family='Arial, sans-serif' fill='%23bbb'>?</text>\
               </svg>"
-          }
+            }
           
 					el.prepend(img)
 
