@@ -16,6 +16,7 @@
 		}
 
 
+
 .tx-pending{
 	display:flex;
 	gap:4px;
@@ -27,6 +28,18 @@
 	font-size:12px;
 	line-height:1;
 }
+
+
+  .tx-pending{
+    margin-top:0;
+  }
+}
+
+  .tx-pending{
+    margin-top:0;
+  }
+}
+
 
 		.asset.thumb-only{
 			padding:0;
@@ -560,4 +573,16 @@ body[data-view-mode="merged"] .hint-desktop{
 @keyframes slideIn{
   from{ transform:translateY(-8px); opacity:0 }
   to{ transform:translateY(0); opacity:1 }
+}
+
+
+
+body[data-view-mode="merged"] .name{
+  flex-direction:row;
+  align-items:center;
+  gap:6px;
+}
+
+body[data-view-mode="merged"] .tx-pending{
+  margin-top:0;
 }
