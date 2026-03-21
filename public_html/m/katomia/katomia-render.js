@@ -435,7 +435,8 @@ function getFastThumb(url, imgEl){
 
 				const labelPart = fromAccountId.split(":")[1] || fromAccountId
 
-				label = `${getAssetDisplay(item.assetId, amount)} (from ${name}:${labelPart})`
+				// label = `${getAssetDisplay(item.assetId, amount)} (from ${name}:${labelPart})`
+				label = `${getAssetDisplay(item.assetId, amount)} (from ${labelPart})`
 			}
 
       const assetEl = makeAssetEl({
