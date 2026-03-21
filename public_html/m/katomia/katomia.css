@@ -616,3 +616,7 @@ body[data-view-mode="columns"] .exit-game-btn{
 .exit-game-btn:hover{
   background:#ddd;
 }
+
+.asset-modal-name{
+  font-weight:bold;
+}
