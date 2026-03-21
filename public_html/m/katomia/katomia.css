@@ -860,18 +860,11 @@ zz-distracting-body[data-network="playnet"]{
 }
 
 
-/* LE = horizontal stack only */
 
+/* LE = horizontal stack only */
 .asset.asset-le{
   position: relative;
 }
-
-/* spacing grows with qty (simple perspective-ish cap) */
-.asset.asset-le[data-qty="2"]{ padding-left: 8px; }
-.asset.asset-le[data-qty="3"]{ padding-left: 12px; }
-.asset.asset-le[data-qty="4"]{ padding-left: 16px; }
-.asset.asset-le[data-qty="5"]{ padding-left: 18px; }
-
 
 /* base image */
 .asset.asset-le .asset-thumb{
@@ -899,3 +892,27 @@ zz-distracting-body[data-network="playnet"]{
     -12px 4px 0 rgba(0,0,0,0.10),
     -18px 6px 0 rgba(0,0,0,0.06);
 }
+
+/* force LE assets to occupy more layout width */
+
+.asset.asset-le[data-qty="2"]{
+  width: calc(var(--thumb-size) + 8px);
+}
+
+.asset.asset-le[data-qty="3"]{
+  width: calc(var(--thumb-size) + 14px);
+}
+
+.asset.asset-le[data-qty="4"]{
+  width: calc(var(--thumb-size) + 20px);
+}
+
+.zzasset.asset-le{
+  outline: 2px solid red;
+  background: rgba(255,0,0,0.05);
+}
+
+.asset.asset-le{
+  margin-left: 20px !important;
+}
+
