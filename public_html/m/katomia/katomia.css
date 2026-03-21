@@ -680,3 +680,38 @@ body[data-network="playnet"]{
 </svg>");
 }
 
+
+/* banner wrapper */
+.app-banner{
+  background:#fafafa;              /* lighter than page */
+  border-bottom:1px solid #ddd;    /* subtle divider */
+  margin:-16px -16px 12px -16px;   /* stretch full width */
+  padding:10px 16px;
+}
+
+/* inner layout */
+.app-banner-inner{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+/* placeholder logo */
+.app-logo{
+  height:32px;
+  min-width:32px;
+  background:#ddd;
+  border-radius:4px;
+}
+
+/* tidy title */
+.app-banner h2{
+  margin:0;
+  font-size:18px;
+  font-weight:600;
+  color:#444;
+}
+
+.game-meta{
+  margin-top:6px;
+}
