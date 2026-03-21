@@ -735,4 +735,83 @@ body[data-network="playnet"]{
   color:#444;
 }
 
+#addAccountBtn{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
 
+  padding:6px 12px;
+  font-size:13px;
+  font-weight:600;
+
+  background:#fff;
+  color:#333;
+
+  border:1px solid #ccc;
+  border-radius:6px;
+
+  cursor:pointer;
+  transition:all .12s ease;
+}
+
+/* hover */
+#addAccountBtn:hover{
+  background:#f3f3f3;
+  border-color:#bbb;
+}
+
+/* active */
+#addAccountBtn:active{
+  transform:translateY(1px);
+}
+#addAccountBtn{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+
+  padding:7px 14px;
+  font-size:13px;
+  font-weight:600;
+
+  background:#4CAF50;          /* fresh green */
+  color:#fff;
+
+  border:none;
+  border-radius:8px;
+
+  cursor:pointer;
+  transition:all .12s ease;
+}
+
+/* hover */
+#addAccountBtn:hover{
+  background:#43a047;
+}
+
+/* active */
+#addAccountBtn:active{
+  transform:translateY(1px);
+}
+
+/* icon */
+#addAccountBtn i{
+  font-size:11px;
+  opacity:0.9;
+}
+
+#accountLabelInput{
+  padding:7px 10px;
+  font-size:13px;
+
+  border:1px solid #ccc;
+  border-radius:8px;
+
+  outline:none;
+  transition:border .12s ease, box-shadow .12s ease;
+}
+
+/* focus */
+#accountLabelInput:focus{
+  border-color:#4CAF50;
+  box-shadow:0 0 0 2px rgba(76,175,80,0.15);
+}
