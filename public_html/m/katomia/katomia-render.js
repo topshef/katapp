@@ -848,6 +848,8 @@ function getFastThumb(url, imgEl){
 
         const title = game.profile?.name || ""
 
+        const joinText = String(game.joinRule || "").trim()
+
         gameMetaEl.innerHTML = `
           <div class="game-title-row">
             <div class="game-network">${game.network}</div>
@@ -857,7 +859,7 @@ function getFastThumb(url, imgEl){
           <div class="game-meta-row">
             <span>ID: ${game.id}</span>
             <span>Visibility: ${game.visibility}</span>
-            <span>Join: ${JSON.stringify(game.joinRule)}</span>
+            ${joinText ? `<span>Join: ${joinText}</span>` : ""}
             <span>Lock: ${game.lockRule}</span>
           </div>
         `
