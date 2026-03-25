@@ -5,7 +5,7 @@ import {
   HederaChainId,
 } from "@hashgraph/hedera-wallet-connect";
 import { Transaction, LedgerId } from "@hashgraph/sdk";
-import { createTransactionAlert } from "./dealPage.js";
+// import { createTransactionAlert } from "./dealPage.js";
 
 let dappConnector;
 let walletConfig
