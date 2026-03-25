@@ -132,13 +132,15 @@ function getAssetThumb(meta){
 	if(!meta) return null
 
 	// NFT
-	if(meta.token_asset_image_URL)
-		return meta.token_asset_image_URL
-
+  if (meta.token_asset_image_URL) {
+    const tokenImageUrl = meta.token_thumbnail_cache || meta.token_asset_image_URL
+    if(tokenImageUrl)
+      return tokenImageUrl
+  }
+  
 	// future: fungible icons etc
 	return null
 }
-
 
 async function enrichVisibleAssets(){
 

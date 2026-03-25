@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Katomia Bot 🤖</title>
+</head>
+<body>
+
+<h3>Katomia Bot 🤖</h3>
+<div id="log"></div>
+
+<script>
+const log = (...args) => {
+  console.log(...args)
+  document.getElementById("log").innerHTML += args.join(" ") + "<br>"
+}
+
+// --- CONFIG
+const gameId = new URLSearchParams(location.search).get("game")
+const WS_URL = "wss://hapi2.hbar.live/live/ws"
+
+// --- BOT STATE
+const playerToken = "kbot-" + crypto.randomUUID()
+//const botAccount = "0.0.6029941"
+const botAccount = "0.0.3039988"
+
+const rewarded = new Set()
+
+let socket
+
+function connect(){
+
+  socket = new WebSocket(WS_URL)
+
+  socket.onopen = () => {
+    log("🟢 connected")
+
+    // ✅ FIX: match real client exactly
+    socket.send(JSON.stringify({
+      type: "game_join",
+      gameId,
+      playerToken,
+      playerName: "kbot"
+    }))
+
+    socket.send(JSON.stringify({
+      type: "game_addAccount",
+      gameId,
+      playerToken,
+      label: botAccount
+    }))
+  }
+
+  socket.onmessage = e => {
+    const msg = JSON.parse(e.data)
+
+    console.log("BOT RECEIVED:", msg)
+
+    // ✅ FIX: correct message type
+    if(msg.type !== "game_state") return
+
+    handleState(msg.state)
+  }
+
+  socket.onerror = err => {
+    console.error("WS ERROR", err)
+    log("❌ ws error")
+  }
+
+  socket.onclose = () => {
+    log("🔴 disconnected")
+  }
+}
+
+function handleState(state){
+
+  const accounts = Object.values(state.accounts || {})
+
+  accounts.forEach(acc => {
+
+    // skip bot itself
+    if(acc.id.includes(playerToken)) return
+
+    const hasBasket = acc.basket && acc.basket.length > 0
+
+    if(hasBasket && !rewarded.has(acc.id)){
+
+      log("🎁 rewarding", acc.label)
+
+      reward(acc.id)
+
+      rewarded.add(acc.id)
+    }
+
+  })
+}
+
+function reward(targetId){
+
+  socket.send(JSON.stringify({
+    type: "game_offer",
+    gameId,
+    playerToken,
+    fromId: playerToken + ":" + botAccount,
+    toId: targetId,
+    assetId: "reward",
+    amount: 1
+  }))
+}
+
+connect()
+</script>
+
+</body>
+</html>
