@@ -20,7 +20,21 @@ const gameId = new URLSearchParams(location.search).get("game")
 const WS_URL = "wss://hapi2.hbar.live/live/ws"
 
 // --- BOT STATE
-const playerToken = "kbot-" + crypto.randomUUID()
+function getOrCreateBotToken(){
+
+  let token = localStorage.getItem("katomiaBotToken")
+
+  if(!token){
+    token = crypto.randomUUID()
+    localStorage.setItem("katomiaBotToken", token)
+  }
+
+  return token
+}
+
+const playerToken = getOrCreateBotToken()
+
+
 //const botAccount = "0.0.6029941"
 const botAccount = "0.0.3039988"
 
@@ -40,7 +54,7 @@ function connect(){
       type: "game_join",
       gameId,
       playerToken,
-      playerName: "kbot"
+      playerName: "🤖"
     }))
 
     socket.send(JSON.stringify({
@@ -103,7 +117,7 @@ function reward(targetId){
     playerToken,
     fromId: playerToken + ":" + botAccount,
     toId: targetId,
-    assetId: "reward",
+    assetId: "0.0.456858",
     amount: 1
   }))
 }
