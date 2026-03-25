@@ -50,7 +50,7 @@ $localDir = __DIR__;
 
 // List of origin base URLs (no trailing slash)
 $origins = [
-    'https://swap.kpay.live/public_html/vendor/walletconnect/builder',
+    'https://swap.kpay.live/vendor/walletconnect/builder',
     // 'https://backup.example.com/builder'
 ];
 
