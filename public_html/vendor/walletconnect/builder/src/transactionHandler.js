@@ -29,7 +29,7 @@ function getAccountStorageKey() {
   console.log(`localstorage key = walletConnectAccountId:${network}`)
   // glog(`walletConnectAccountId:${network}`, {network,storageKey})
   return storageKey
-// }
+}
 
 
 /*============================================================
