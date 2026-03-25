@@ -72,6 +72,7 @@ function connect(){
 
     // ✅ FIX: correct message type
     if(msg.type !== "game_state") return
+    myPlayerId = msg.myPlayerId
 
     handleState(msg.state)
   }
@@ -92,34 +93,46 @@ function handleState(state){
 
   accounts.forEach(acc => {
 
-    // skip bot itself
-    if(acc.id.includes(playerToken)) return
+    if(acc.playerId === myPlayerId) return
 
-    const hasBasket = acc.basket && acc.basket.length > 0
+    const basket = acc.basket || []
+    if(!basket.length) return
 
-    if(hasBasket && !rewarded.has(acc.id)){
+    basket.forEach(item => {
 
-      log("🎁 rewarding", acc.label)
+      const fromId = item.fromAccountId || item.fromId || item.from
+      if(!fromId) return
 
-      reward(acc.id)
+      // prevent duplicates per sender
+      if(rewarded.has(fromId)) return
 
-      rewarded.add(acc.id)
-    }
+      const amount = item.amount || 0
+      if(amount <= 0){
+        console.log("skip zero basket item", item)
+        return
+      }
 
+      log("🎁 rewarding sender", { fromId, to: acc.id, item })
+
+      reward(fromId)
+
+      rewarded.add(fromId)
+    })
   })
 }
 
 function reward(targetId){
-
-  socket.send(JSON.stringify({
+  const payload = {
     type: "game_offer",
     gameId,
     playerToken,
-    fromId: playerToken + ":" + botAccount,
+    fromId: myPlayerId + ":" + botAccount,
     toId: targetId,
     assetId: "0.0.456858",
-    amount: 1
-  }))
+    amount: 50000
+  }
+  console.log({targetId, payload})
+  socket.send(JSON.stringify(payload))
 }
 
 connect()
