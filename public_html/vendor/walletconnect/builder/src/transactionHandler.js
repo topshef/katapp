@@ -24,7 +24,10 @@ function getNetwork() {
 }
 
 function getAccountStorageKey() {
-  return `walletConnectAccountId:${getNetwork()}`
+  const network = getNetwork()
+  const storageKey = `walletConnectAccountId:${network}`
+  glog(`walletConnectAccountId:${network}`, {network,storageKey})
+  return storageKey
 }
 
 
