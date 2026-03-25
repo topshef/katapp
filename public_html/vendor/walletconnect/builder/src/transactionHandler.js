@@ -5,7 +5,7 @@ import {
   HederaChainId,
 } from "@hashgraph/hedera-wallet-connect";
 import { Transaction, LedgerId } from "@hashgraph/sdk";
-// import { createTransactionAlert } from "./dealPage.js";
+import { createTransactionAlert } from "./dealPage.js";
 
 let dappConnector;
 let walletConfig
@@ -26,9 +26,10 @@ function getNetwork() {
 function getAccountStorageKey() {
   const network = getNetwork()
   const storageKey = `walletConnectAccountId:${network}`
-  glog(`walletConnectAccountId:${network}`, {network,storageKey})
+  console.log(`localstorage key = walletConnectAccountId:${network}`)
+  // glog(`walletConnectAccountId:${network}`, {network,storageKey})
   return storageKey
-}
+// }
 
 
 /*============================================================
