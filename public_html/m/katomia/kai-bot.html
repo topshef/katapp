@@ -98,6 +98,75 @@ function connect(){
   }
 }
 
+function getConnectedCluster(state, startAccountId){
+
+  const visited = new Set()
+  const stack = [startAccountId]
+
+  while(stack.length){
+    const id = stack.pop()
+    if(visited.has(id)) continue
+    visited.add(id)
+
+    const acc = state.accounts[id]
+    if(!acc) continue
+
+    // edges: basket links
+    acc.basket?.forEach(item => {
+      const fromId = item.fromAccountId || item.fromId || item.from
+      if(fromId && !visited.has(fromId))
+        stack.push(fromId)
+    })
+
+    // reverse edges (who points to this)
+    Object.values(state.accounts).forEach(other => {
+      other.basket?.forEach(item => {
+        const fromId = item.fromAccountId || item.fromId || item.from
+        if(fromId === id && !visited.has(other.id))
+          stack.push(other.id)
+      })
+    })
+  }
+
+  return [...visited]
+}
+
+function shouldBotLock(state){
+
+  const myAccountId = myPlayerId + ":" + botAccount
+  const myAcc = state.accounts[myAccountId]
+  if(!myAcc) return false
+
+  const cluster = getConnectedCluster(state, myAccountId)
+
+  // only consider cluster if there's actually a trade
+  if(cluster.length <= 1) return false
+
+  const others = cluster.filter(id => {
+    const acc = state.accounts[id]
+    return acc && acc.playerId !== myPlayerId
+  })
+
+  if(!others.length) return false
+
+  const allLocked = others.every(id => state.accounts[id].mode === "lock")
+
+  log("LOCK CHECK", { cluster, others, allLocked })
+
+  return allLocked && myAcc.mode !== "lock"
+}
+
+function sendLock(){
+  const payload = {
+    type: "game_toggleLock",
+    gameId,
+    accountId: myPlayerId + ":" + botAccount
+  }
+
+  log("🔒 BOT LOCKING", payload)
+  socket.send(JSON.stringify(payload))
+}
+
 function handleState(state){
 
   const accounts = Object.values(state.accounts || {})
@@ -138,7 +207,14 @@ function handleState(state){
       rewarded.add(key)
     })
   })
+
+
+  // --- AUTO LOCK LOGIC ---
+  if(shouldBotLock(state)){
+    sendLock()
+  }
 }
+
 
 function reward(targetId){
   if(!myPlayerId) return
