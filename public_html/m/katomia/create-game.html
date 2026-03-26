@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
+<link rel="stylesheet" href="katomia.css">
 <title>Create Katomia Game</title>
 
 <style>
+/* see above imported css todo organiase*/
 
 * {
   -webkit-tap-highlight-color: transparent;
@@ -14,7 +15,7 @@
 
 
 body{
-  font-family:sans-serif;
+  zzfont-family:sans-serif;
   background:#f5f5f5;
   margin:20px;
 }
@@ -127,8 +128,9 @@ h3{
   <h2>Create your own market in Katomia 🍎🥬🥕</h2>
 
   <div class="field">
-    <label>Game Name</label>
-    <input id="gameName" placeholder="Example: demo-mainnet">
+    <label>Game name <span class="explain">(optional)</span></label>
+    <input id="gameName" placeholder="ABC demo">
+    
   </div>
 
   <div class="field">
@@ -249,7 +251,10 @@ status.textContent = "Creating game..."
 
 const payload = {
 
-id: gameName.value.trim() || undefined,
+//id: gameName.value.trim() || undefined,
+profile: {
+  name: gameName.value.trim() || ""
+},
 network: getRadio("network"),
 visibility: getRadio("visibility"),
 joinRule: joinRule.value,

@@ -16,16 +16,24 @@
 
 	<div id="notifications"></div>
 
-  <h2>Katomia marketplace 🍎🥬🥕</h2>
+  <div class="app-banner">
+    <div class="app-banner-inner">
+      <div class="app-logo"></div>
+      <h2>Katomia marketplace 🍎🥬🥕</h2>
+    </div>
+  </div>
+
   <div id="gameMeta" class="game-meta"></div>
-	
+
   <div class="controls">
     <label>
-      Account:
-      <input id="accountLabelInput" placeholder="12345" />
+      <input id="accountLabelInput" placeholder="Account eg 12345" />
     </label>
 
-    <button id="addAccountBtn">Add</button>
+    <button id="addAccountBtn">
+      <i class="fa-solid fa-plus"></i> Add account
+    </button>
+
     <label>
       <input type="checkbox" id="showTradingAccounts" />
       Show trading accounts only
@@ -98,6 +106,8 @@
 		</div>
 	</div>
 
+<div id="exitGameBtn" class="exit-game-btn">🗑️</div>
+
 <script src="/m/bid/localbase.min.js"></script> <!-- beware spelling of Localbase -->
 <script type="module" data-global src="/m/tools/glog/latest/glog.js" ></script>
 <script type="module" src="/m/bid/localCacheDB.js" ></script>
@@ -109,8 +119,8 @@
 <script src="katomia-core.js"></script>
 <script src="katomia-helpers.js"></script>
 <script src="katomia-render.js"></script>
-<script src="katomia-network.js"></script>
 <script src="katomia-enrich.js"></script>
+<script src="katomia-network.js"></script>
 
 <script>
 window.addEventListener("load", () => {
@@ -133,6 +143,14 @@ window.addEventListener("load", () => {
 })
 </script>
 
+<script>
+
+  document.getElementById("exitGameBtn").onclick = () => {
+    const ok = confirm("Exit game?\n\nThis removes your accounts and any offers you placed.")
+    if(!ok) return
+    exitGame()
+  }
+</script>
 
 <script>
 	fetch("../footer.html")

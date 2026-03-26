@@ -1,5 +1,16 @@
 
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap');
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap');
+
 		:root{
 			--bg-color: #f5f5f5;
 
@@ -9,11 +20,44 @@
 
 			--thumb-collapse-left: calc(var(--asset-gap) - (var(--thumb-size) * var(--thumb-overlap-ratio)));
 
+      --font-main: 'Inter', system-ui, sans-serif;
+      --zzfont-main: 'Work Sans', system-ui, sans-serif;
+      --zzfont-main: 'Nunito', system-ui, sans-serif;
+      --zzfont-main: 'Plus Jakarta Sans', system-ui, sans-serif;
+      --zz-font-main: 'Manrope', system-ui, sans-serif;
+      --zz-font-main: 'DM Sans', system-ui, sans-serif;
+      --zznope-font-main: 'Outfit', system-ui, sans-serif;
+      --zzfont-main: 'Source Sans 3', system-ui, sans-serif;
+
+      --font-mono: 'JetBrains Mono', monospace;
+
+  
 			/* examples not in use */
 			--text-color: #222;
 			--accent: #4a90e2;
 			--gap: 12px;
 		}
+
+
+
+.account-xproof-label{
+  font-size:11px;
+  color:#666;
+  opacity:0.8;
+  margin-top:2px;
+}
+
+    body[data-network="mainnet"]{
+      --network-color: #7A1B80;
+    }
+
+    body[data-network="testnet"]{
+      --network-color: #FF4D00;
+    }
+
+    body[data-network="playnet"]{
+      --network-color: #F4B400;
+    }
 
 
 .tx-pending{
@@ -27,6 +71,18 @@
 	font-size:12px;
 	line-height:1;
 }
+
+
+  .tx-pending{
+    margin-top:0;
+  }
+}
+
+  .tx-pending{
+    margin-top:0;
+  }
+}
+
 
 		.asset.thumb-only{
 			padding:0;
@@ -47,29 +103,37 @@
 			margin:0;
 		}
 		
-		.asset:hover::after{
-			content: attr(data-asset-name);
-			position:absolute;
-			left:0;
-			bottom:100%;
+    .asset:hover::after{
+      content: attr(data-asset-name) " 🪙 " attr(data-asset-id);
 
-			display:block;
+      position:absolute;
+      left:0;
+      bottom:100%;
 
-			background:#222;
-			color:#fff;
+      display:block;
 
-			padding:4px 6px;
-			font-size:11px;
-			line-height:1.2;
+      background:#222;
+      color:#fff;
 
-			white-space:nowrap;
+      padding:6px 8px;
+      font-size:11px;
+      line-height:1.2;
 
-			z-index:1000;
-		}
+      white-space:nowrap;
+
+      border-radius:6px;                /* softer corners */
+      box-shadow:0 4px 10px rgba(0,0,0,0.18);  /* floating feel */
+
+      transform:translateY(-4px);       /* slight lift */
+
+      zzbackground:#2a2a2a;
+
+      z-index:1000;
+    }
 
     body{
-			background: var(--bg-color);
-      font-family:sans-serif;
+      background: var(--bg-color);
+      font-family: var(--font-main);
       margin:16px;
     }
 
@@ -287,7 +351,10 @@ body[data-view-mode="merged"] .hint-desktop{
 			position:relative;
 		}
 
-
+    .asset.thumb-only{
+      background:none;
+    }
+    
 		.asset.basket{
 			border-top-left-radius:0;
 			border-bottom-left-radius:0;
@@ -303,7 +370,7 @@ body[data-view-mode="merged"] .hint-desktop{
     }
 
     .asset.basket{
-      background:#dff6ff;
+      zzbackground:#dff6ff;
     }
 
     .asset.selected{
@@ -561,3 +628,291 @@ body[data-view-mode="merged"] .hint-desktop{
   from{ transform:translateY(-8px); opacity:0 }
   to{ transform:translateY(0); opacity:1 }
 }
+
+
+
+body[data-view-mode="merged"] .name{
+  flex-direction:row;
+  align-items:center;
+  gap:6px;
+}
+
+body[data-view-mode="merged"] .tx-pending{
+  margin-top:0;
+}
+
+
+body[data-view-mode="merged"] .exit-btn{
+  display:none;
+}
+
+.exit-game-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  margin:16px auto;
+
+  font-size:20px;
+  cursor:pointer;
+
+  width:40px;
+  height:40px;
+
+  border-radius:6px;
+  zzbackground:#eee;
+}
+
+body[data-view-mode="columns"] .exit-game-btn{
+  display:none;
+}
+
+.exit-game-btn:hover{
+  background:#ddd;
+}
+
+.asset-modal-name{
+  font-weight:bold;
+}
+
+
+.game-meta{
+  margin-bottom:14px;
+}
+
+.game-title-row{
+  display:flex;
+  align-items:baseline;
+  gap:8px;   /* space between title + pill */
+}
+
+.game-title{
+  font-size:20px;
+  font-weight:700;
+  color:#444;   /* softer than #000 */
+}
+
+/* network badge */
+.game-network{
+  font-size:16px;          /* bigger, closer to title */
+  font-weight:700;
+
+  padding:6px 10px;        /* more height */
+  border-radius:8px;
+
+  display:inline-flex;
+  align-items:center;
+
+  background: var(--network-color);
+  color:#fff;
+
+  line-height:1;           /* keeps it tight */
+  letter-spacing:0.2px;
+
+  box-shadow:0 1px 2px rgba(0,0,0,0.08);
+  opacity:0.8;
+}
+
+
+/* small meta row */
+.game-meta-row{
+  margin-top:4px;
+  font-size:11px;
+  color:#666;
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+
+/* default */
+body{
+  background:#f5f5f5;
+}
+
+
+body[data-network]{
+  position:relative;
+}
+
+zz-distracting-body[data-network="playnet"]{
+  background-color:#f5f5f5;
+  background-image:
+    url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='160' height='120' text-rendering='geometricPrecision'>\
+<g transform='rotate(-30 80 60)' fill='rgba(0,0,0,0.06)' font-size='18' font-weight='700' font-family='Arial, Helvetica, sans-serif'>\
+<text x='10' y='40'>playnet</text>\
+<text x='90' y='80'>playnet</text>\
+</g>\
+</svg>");
+}
+
+
+/* banner wrapper */
+.app-banner{
+  background:#fafafa;              /* lighter than page */
+  border-bottom:1px solid #ddd;    /* subtle divider */
+  margin:-16px -16px 12px -16px;   /* stretch full width */
+  padding:10px 16px;
+}
+
+/* inner layout */
+.app-banner-inner{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+/* placeholder logo */
+.app-logo{
+  height:32px;
+  min-width:32px;
+  background:#ddd;
+  border-radius:4px;
+}
+
+/* tidy title */
+.app-banner h2{
+  margin:0;
+  font-size:18px;
+  font-weight:600;
+  color:#444;
+}
+
+#addAccountBtn{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+
+  padding:6px 12px;
+  font-size:13px;
+  font-weight:600;
+
+  background:#fff;
+  color:#333;
+
+  border:1px solid #ccc;
+  border-radius:6px;
+
+  cursor:pointer;
+  transition:all .12s ease;
+}
+
+/* hover */
+#addAccountBtn:hover{
+  background:#f3f3f3;
+  border-color:#bbb;
+}
+
+/* active */
+#addAccountBtn:active{
+  transform:translateY(1px);
+}
+#addAccountBtn{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+
+  padding:7px 14px;
+  font-size:13px;
+  font-weight:600;
+
+  background:#4CAF50;          /* fresh green */
+  color:#fff;
+
+  border:none;
+  border-radius:8px;
+
+  cursor:pointer;
+  transition:all .12s ease;
+}
+
+/* hover */
+#addAccountBtn:hover{
+  background:#43a047;
+}
+
+/* active */
+#addAccountBtn:active{
+  transform:translateY(1px);
+}
+
+/* icon */
+#addAccountBtn i{
+  font-size:11px;
+  opacity:0.9;
+}
+
+#accountLabelInput{
+  padding:7px 10px;
+  font-size:13px;
+
+  border:1px solid #ccc;
+  border-radius:8px;
+
+  outline:none;
+  transition:border .12s ease, box-shadow .12s ease;
+}
+
+/* focus */
+#accountLabelInput:focus{
+  border-color:#4CAF50;
+  box-shadow:0 0 0 2px rgba(76,175,80,0.15);
+}
+
+
+
+/* LE = horizontal stack only */
+.asset.asset-le{
+  position: relative;
+}
+
+/* base image */
+.asset.asset-le .asset-thumb{
+  position: relative;
+  z-index: 3;
+}
+
+/* ≥2 (base layer always present) */
+.asset.asset-le[data-qty]:not([data-qty="1"]) .asset-thumb{
+  box-shadow:
+    -6px 2px 0 rgba(0,0,0,0.15);
+}
+
+/* ≥3 → add second layer */
+.asset.asset-le[data-qty]:not([data-qty="1"]):not([data-qty="2"]) .asset-thumb{
+  box-shadow:
+    -6px 2px 0 rgba(0,0,0,0.15),
+    -12px 4px 0 rgba(0,0,0,0.10);
+}
+
+/* ≥4 → add third layer (cap here) */
+.asset.asset-le[data-qty]:not([data-qty="1"]):not([data-qty="2"]):not([data-qty="3"]) .asset-thumb{
+  box-shadow:
+    -6px 2px 0 rgba(0,0,0,0.15),
+    -12px 4px 0 rgba(0,0,0,0.10),
+    -18px 6px 0 rgba(0,0,0,0.06);
+}
+
+/* force LE assets to occupy more layout width */
+
+.asset.asset-le[data-qty="2"]{
+  width: calc(var(--thumb-size) + 8px);
+}
+
+.asset.asset-le[data-qty="3"]{
+  width: calc(var(--thumb-size) + 14px);
+}
+
+.asset.asset-le[data-qty="4"]{
+  width: calc(var(--thumb-size) + 20px);
+}
+
+.zzasset.asset-le{
+  outline: 2px solid red;
+  background: rgba(255,0,0,0.05);
+}
+
+.asset.asset-le{
+  margin-left: 20px !important;
+}
+

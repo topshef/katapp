@@ -10,6 +10,24 @@ import { Transaction, LedgerId } from "@hashgraph/sdk";
 let dappConnector;
 let walletConfig
 
+
+
+function getNetwork() {
+  const urlNetwork =
+    new URLSearchParams(window.location.search)
+      .get("network")?.toLowerCase()
+
+  if (urlNetwork && ["mainnet", "testnet", "previewnet"].includes(urlNetwork))
+    return urlNetwork
+
+  return walletConfig?.hedera?.network || "mainnet"
+}
+
+function getAccountStorageKey() {
+  return `walletConnectAccountId:${getNetwork()}`
+}
+
+
 /*============================================================
 	EL_LOADER – Script Resolution (Dev + Production Safe)
 	------------------------------------------------------------
@@ -223,6 +241,12 @@ async function loadConfig() {
 
     const rawConfig = await response.json()
 
+
+    const urlNetwork =
+      new URLSearchParams(window.location.search)
+        .get("network")?.toLowerCase()
+        
+        
     // ---- hard validation ----
     if (!rawConfig.projectId)
       throw new Error("[WC-201] config.json missing projectId")
@@ -233,8 +257,13 @@ async function loadConfig() {
     if (!rawConfig.requiredNamespaces?.hedera)
       throw new Error("[WC-203] config.json missing requiredNamespaces.hedera")
 
-    const hederaNetwork =
+    let hederaNetwork =
       getHederaNetworkFromNamespaces(rawConfig.requiredNamespaces)
+
+    if (urlNetwork && ["mainnet","testnet","previewnet"].includes(urlNetwork)) {
+      console.log("[WC] URL override network =", urlNetwork)
+      hederaNetwork = urlNetwork
+    }
 
     const finalConfig = {
       metadata: rawConfig.metadata,
@@ -320,7 +349,8 @@ async function connectWalletCore() {
 // Headless intent: clear wallet session and disconnect active connector
 // const disconnectWalletCore = async () => {
 async function disconnectWalletCore() {
-  localStorage.removeItem("walletConnectAccountId")
+  // localStorage.removeItem("walletConnectAccountId")
+  localStorage.removeItem(getAccountStorageKey())
 
   if (dappConnector) {
     try {
@@ -337,7 +367,8 @@ async function disconnectWalletCore() {
 // Headless intent: attempt to restore a valid wallet session and return accountId
 // const restoreWalletSessionCore = async () => {
 async function restoreWalletSessionCore() {
-  const storedAccountId = localStorage.getItem("walletConnectAccountId")
+  // const storedAccountId = localStorage.getItem("walletConnectAccountId")
+  const storedAccountId = localStorage.getItem(getAccountStorageKey())
   if (!storedAccountId)
     return null
 
@@ -353,7 +384,8 @@ async function restoreWalletSessionCore() {
     }
 
     console.warn("Stored wallet session is not active. Please reconnect.")
-    localStorage.removeItem("walletConnectAccountId")
+    // localStorage.removeItem("walletConnectAccountId")
+    localStorage.removeItem(getAccountStorageKey())
     return null
   } catch (error) {
     console.error("Error restoring wallet session:", error)
@@ -638,7 +670,8 @@ const openWalletConnectModal = async () => {
   try {
     const accountId = await connectWalletCore()
 
-    localStorage.setItem("walletConnectAccountId", accountId)
+    // localStorage.setItem("walletConnectAccountId", accountId)
+    localStorage.setItem(getAccountStorageKey(), accountId)
     console.log("Account ID stored in localStorage:", accountId)
 
     updateWalletConnectionUI(accountId)
@@ -936,7 +969,8 @@ async function executeDealFlowCore ({
 // UI-triggered wrapper preserving existing behaviour and alerts
 export const executeDealFlow = async () => {
   const accountId =
-    localStorage.getItem("walletConnectAccountId")
+    // localStorage.getItem("walletConnectAccountId")
+    localStorage.getItem(getAccountStorageKey())
 
   if (!accountId) {
     walletUI.showAlert(
@@ -1082,7 +1116,7 @@ const exposeHeadlessAPI = () => {
 
     // helpers / state
     getAccount: () =>
-      localStorage.getItem("walletConnectAccountId") || null,
+      localStorage.getItem(getAccountStorageKey()) || null,
 
     mode: WALLETCONNECT_MODE
   }

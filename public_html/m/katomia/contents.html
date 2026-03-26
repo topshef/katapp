@@ -4,13 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="katomia.css">
+
 
 <title>Katomia markets 🍎🥬🥕</title>
 
 <style>
+* {
+  -webkit-tap-highlight-color: transparent;
+}
 
+
+/* see above imported css todo organiase*/
 body{
-  font-family:sans-serif;
+  zzfont-family:sans-serif;  
   margin:20px;
   background:#f5f5f5;
   color:#333;
@@ -23,13 +30,13 @@ h2{
 
 .grid{
   display:grid;
-  grid-template-columns:repeat(5,1fr);
+  grid-template-columns:repeat(6,1fr);
   background:white;
   border-radius:8px;
   overflow:hidden;
 }
 
-.header{
+.grid-header{
   font-weight:600;
   font-size:14px;
   padding:10px 12px;
@@ -86,7 +93,7 @@ h2{
     background:transparent;
   }
 
-  .header{
+  .grid-header{
     display:none;
   }
 
@@ -105,6 +112,8 @@ h2{
     border-bottom:1px solid #eee;
   }
 
+
+
   .cell:last-child{
     border-bottom:none;
   }
@@ -116,12 +125,24 @@ h2{
   }
 
   .cell.id::before{content:"ID"}
+  .cell.gamename::before{content:"Name"}
   .cell.network::before{content:"Network"}
   .cell.visibility::before{content:"Visibility"}
   .cell.join::before{content:"Join"}
   .cell.lock::before{content:"Lock"}
 
 }
+
+.grid-header{
+  font-weight:600;
+  font-size:14px;
+  padding:10px 12px;
+  background:#fafafa;
+  border-bottom:1px solid #e5e5e5;
+}
+
+
+
 
 </style>
 </head>
@@ -132,11 +153,12 @@ h2{
 
 <div id="games" class="grid">
 
-  <div class="header">ID</div>
-  <div class="header">Network</div>
-  <div class="header">Visibility</div>
-  <div class="header">Join rule</div>
-  <div class="header">Lock rule</div>
+  <div class="grid-header">ID</div>
+  <div class="grid-header">Name</div>
+  <div class="grid-header">Network</div>
+  <div class="grid-header">Visibility</div>
+  <div class="grid-header">Join rule</div>
+  <div class="grid-header">Lock rule</div>
 
 </div>
 
@@ -177,6 +199,10 @@ async function loadGames(){
 
         <div class="cell id">
           <a href="./game/${g.id}" target="${g.id}">${g.id}</a>
+        </div>
+
+        <div class="cell gamename">
+          ${g.profile?.name || ""}
         </div>
 
         <div class="cell network">
