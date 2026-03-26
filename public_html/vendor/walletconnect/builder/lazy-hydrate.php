@@ -28,23 +28,21 @@
 require_once "{$_SERVER['DOCUMENT_ROOT']}/assets/php/elog.php";
 
 $appName    = $_SERVER['REDIRECT_appName'] ?? false;
-$fileName   = $_SERVER['REDIRECT_fileName'] ?? null;
+$appFilename = $_SERVER['REDIRECT_fileName'] ?? null;
 $appVersion = $_SERVER['REDIRECT_appVersion'] ?? false;
 $gitCommit  = $_SERVER['REDIRECT_gitCommit'] ?? false;
 
 elog([$_GET, $_SERVER, $_ENV, getenv()]);
 
-
-if ($appVersion) $basepath = "releases/$appVersion/$fileName";
-if ($gitCommit)  $basepath = "snapshots/$gitCommit/$fileName";
+if ($appVersion) $buildDir = "releases/$appVersion";
+if ($gitCommit)  $buildDir = "snapshots/$gitCommit";
 // elog(__DIR__); // where we are
 
 if (!$appVersion && !$gitCommit) {
     javascript_exit('error UJ39848 invalid hydrate context');
 }
 
-
-//note this currently wont work for latest.js etc, but coudl be adapted to lookup remote latest.json and inspect
+// does this work for "latest" etc? if the remote is a symlink this will be copied local as actual files...zz
 
 $localDir = __DIR__;
 
@@ -59,10 +57,14 @@ $origins = [
 $isSuccess = false;
 $debug = [];
 
+// this must match the naming in build.sh  consider using tar.gz instead via shell
+$fileToCopy = ["$appFilename.js", "$appFilename.js.map", 'build.md', 'build.json', "$appName.tar.gz"];
+
 foreach ($origins as $origin) {
-	foreach (['js', 'js.map', 'md', 'json'] as $ext) {
-		$remotePath = "$origin/$basepath.$ext";
-		$localPath = "$localDir/$basepath.$ext";
+	// foreach (['js', 'js.map', 'md', 'json', 'tar.gz'] as $ext) {
+	foreach ($fileToCopy as $filename) {
+		$remotePath = "$origin/$buildDir/$filename";
+		$localPath = "$localDir/$buildDir/$filename";
 		// if (file_exists($localPath)) continue;  // 
 		if (file_exists($localPath)) javascript_exit('unexpected error UJ83744 server local file already exists');
 		

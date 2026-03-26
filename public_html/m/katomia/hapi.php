@@ -7,6 +7,8 @@ elog($_SERVER);
 $action = $_GET['action'] ?? 'create';
 
 $target = "https://hapi2.hbar.live/live/katomia/$action";
+if ($_SERVER['SERVER_ADDR'] == '82.118.227.86') //hardcode override sofia for now
+    $target = "https://hapi4.hbar.live/katomia/$action"; //sofia
 
 $ch = curl_init($target);
 
