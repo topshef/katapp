@@ -10,9 +10,17 @@
 <div id="log"></div>
 
 <script>
-const log = (...args) => {
+function  log(...args){
   console.log(...args)
-  document.getElementById("log").innerHTML += args.join(" ") + "<br>"
+
+  const html = args.map(a => {
+    if(typeof a === "object"){
+      return "<pre>" + JSON.stringify(a, null, 2) + "</pre>"
+    }
+    return String(a)
+  }).join(" ")
+
+  document.getElementById("log").innerHTML += html + "<br>"
 }
 
 // --- CONFIG
@@ -41,6 +49,7 @@ const botAccount = "0.0.3039988"
 const rewarded = new Set()
 
 let socket
+let myPlayerId = null
 
 function connect(){
 
@@ -71,7 +80,9 @@ function connect(){
     console.log("BOT RECEIVED:", msg)
 
     // ✅ FIX: correct message type
+    
     if(msg.type !== "game_state") return
+    if(!msg.myPlayerId) return
     myPlayerId = msg.myPlayerId
 
     handleState(msg.state)
@@ -103,8 +114,16 @@ function handleState(state){
       const fromId = item.fromAccountId || item.fromId || item.from
       if(!fromId) return
 
+      if(fromId.split(":")[0] === myPlayerId){
+        console.log("skip self-origin reward", { fromId, item })
+        return
+      }
+
       // prevent duplicates per sender
-      if(rewarded.has(fromId)) return
+      //if(rewarded.has(fromId)) return
+      const key = fromId + "|" + item.assetId + "|" + acc.id
+
+      if(rewarded.has(key)) return
 
       const amount = item.amount || 0
       if(amount <= 0){
@@ -116,16 +135,17 @@ function handleState(state){
 
       reward(fromId)
 
-      rewarded.add(fromId)
+      rewarded.add(key)
     })
   })
 }
 
 function reward(targetId){
+  if(!myPlayerId) return
+
   const payload = {
     type: "game_offer",
     gameId,
-    playerToken,
     fromId: myPlayerId + ":" + botAccount,
     toId: targetId,
     assetId: "0.0.456858",
