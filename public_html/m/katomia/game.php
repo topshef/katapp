@@ -108,11 +108,19 @@
 
 <div id="exitGameBtn" class="exit-game-btn">🗑️</div>
 
+
+<script><?php require_once('config.php');?>
+  window.CONFIG = {
+    HAPI_BASE: "<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>"
+  }
+</script>
+
 <script src="/m/bid/localbase.min.js"></script> <!-- beware spelling of Localbase -->
 <script type="module" data-global src="/m/tools/glog/latest/glog.js" ></script>
 <script type="module" src="/m/bid/localCacheDB.js" ></script>
 <script src="/m/bid/localCacheIFPS.js"></script> 
 <script src="/m/bid/localCacheArweave.js"></script> 
+
 
 
 <script type="module" src="katomia-init.js" data-glog="on"></script>

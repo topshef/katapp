@@ -15,7 +15,7 @@ if ($page == 'create') {
 
 $gameId = $_GET['game'] ?? false;
 if ($gameId) {
-	require_once("game.html");
+	require_once("game.php");
 	exit;
 }
 

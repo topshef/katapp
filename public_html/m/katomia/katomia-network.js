@@ -114,12 +114,8 @@ function connect(onOpenAction){
     return
   }
 
-  // socket = new WebSocket("wss://hapi2.hbar.live/live/ws")
-  let WS_URL = "wss://hapi2.hbar.live/live/ws"
-
-  if (location.host.includes("gomint"))
-     WS_URL = "wss://hapi4.hbar.live/ws"
-
+  const WS_URL = "wss://" + window.CONFIG.HAPI_BASE + "/ws"
+  console.log({WS_URL})
   socket = new WebSocket(WS_URL)
   
 

@@ -1,11 +1,24 @@
 // websocket.js
 
+
+function toWss(url) {  //defensive
+  if (!url) return ''
+
+  // strip any protocol
+  if (url.startsWith('https://')) url = url.slice(8)
+  else if (url.startsWith('http://')) url = url.slice(7)
+  else if (url.startsWith('wss://')) url = url.slice(6)
+  else if (url.startsWith('ws://')) url = url.slice(5)
+
+  return 'wss://' + url
+}
+
 export function createTxSocket({ baseUrl, txid, onTxUpdate }) {
 
-	const proto = baseUrl.startsWith('https') ? 'wss' : 'ws'
-	const host = baseUrl.replace(/^https?:\/\//, '')
-
-	const socket = new WebSocket(`${proto}://${host}/ws`)
+  const socket = new WebSocket(toWss(baseUrl) + '/ws')
+	// const proto = baseUrl.startsWith('https') ? 'wss' : 'ws'
+	// const host = baseUrl.replace(/^https?:\/\//, '')
+	// const socket = new WebSocket(`${proto}://${host}/ws`)
 
 
 	socket.addEventListener('open', () => {
@@ -87,7 +100,7 @@ SERVER SIDE
        /live/ws   -> ws://localhost:8030/ws
 
    Client connects to:
-       wss://hapi2.hbar.live/live/ws
+       wss://hapi_.hbar.live/live/ws
 
 
 CLIENT SIDE

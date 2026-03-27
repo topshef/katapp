@@ -1,5 +1,5 @@
 
-
+import { CONFIG } from './config.js'
 import { txRead, enrichAccountsInfo, enrichAccountsKeyInfo, calcAccountsThatSign  } from './model.js'
 
 import {
@@ -116,7 +116,8 @@ async function renderSingleTx(network, txid, pch = 'no_pch') {
 		let successAnimationFired = false
 		
 		const socket = createTxSocket({
-			baseUrl: 'https://hapi2.hbar.live/live',  //ip controlled (admin only).. todo wrap in local path
+      baseUrl: CONFIG.HAPI_BASE || 'hapi2.hbar.live/live',
+      // baseUrl: CONFIG.BASE_URL || 'https://hapi2.hbar.live/live',
 			txid,
 			onTxUpdate: async update => {
 

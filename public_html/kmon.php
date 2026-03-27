@@ -1,6 +1,10 @@
 <?php
 
-    require_once "{$_SERVER['DOCUMENT_ROOT']}/assets/php/helpers/sendPost.php";
+    $path = "{$_SERVER['DOCUMENT_ROOT']}/assets/php/helpers/sendPost.php";
+    if (!file_exists($path))
+      $path = "{$_SERVER['DOCUMENT_ROOT']}/assets/php/sendPost.php";
+      
+    require_once $path;
 
 		$GLOBALS['repo'] = getRepoName(); 
 

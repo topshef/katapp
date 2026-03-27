@@ -1,0 +1,2 @@
+RewriteEngine On
+RewriteRule ^config\.js$ config.js.php [L]
