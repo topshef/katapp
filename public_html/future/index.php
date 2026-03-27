@@ -3,8 +3,8 @@
 //list of scheduled transactions in queue for execution or approval
 
 //direct to api if action parameter is supplied
-if (isset($_GET['action'])) {
-	require_once('kpool.php');
+if (isset($_GET['action'])) {  // js async calls hit here
+	require_once('kpool.php');   // 
 	exit;
 }
 
