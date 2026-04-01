@@ -1098,7 +1098,8 @@ const handleDisconnect = async () => {
 // Explicitly expose wallet actions for non-DOM / gesture-driven integrations
 const exposeHeadlessAPI = () => {
   if (WALLETCONNECT_MODE !== "headless")
-    return
+    console.log('TG98374 for debug, exposing headless in non-headless mode')
+    // return
 
   if (window.WC) {
     console.warn("[WC] window.WC already exists, skipping overwrite")
