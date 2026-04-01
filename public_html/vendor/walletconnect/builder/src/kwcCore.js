@@ -328,7 +328,7 @@ function getSigner() {
 
 // connectWalletCore
 // Headless intent: initialise WalletConnect, open modal, return accountId
-async function connectWalletCore() {
+async function zzconnectWalletCore() {
   await initializeWalletConnect()
   await dappConnector.openModal()
 
@@ -349,7 +349,7 @@ async function connectWalletCore() {
 
 }
 
-async function zzcunted_connectWalletCore() {
+async function connectWalletCore() {
   await initializeWalletConnect()
   await dappConnector.openModal()
   const started = Date.now()
