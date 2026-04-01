@@ -335,7 +335,7 @@ async function initializeWalletConnect() {
 // Headless intent: initialise WalletConnect, open modal, return accountId
 // const connectWalletCore = async () => {
 async function connectWalletCore() {
-  await initializeWalletConnect()
+  await restoreWalletSessionCore()
 
   // Ensure connector is ready
   await new Promise(resolve => setTimeout(resolve, 500))
@@ -405,7 +405,14 @@ const restoreWalletSession = async () => {
 }
 
 
+async function ensureWalletSignerReady() {
+  await initializeWalletConnect()
 
+  if (!dappConnector?.signers?.length)
+    await restoreWalletSessionCore()
+
+  return dappConnector?.signers?.[0] || null
+}
 
 
 // ┬ ┬┌─┐┌┬┐┌─┐┬─┐┌─┐   ┌─┐┌─┐┬─┐┌─┐
@@ -761,7 +768,7 @@ async function signTxCore ({
   if (!(transactionBytes instanceof Uint8Array))
     throw new Error("transactionBytes must be Uint8Array")
 
-  const signer = dappConnector?.signers?.[0]
+  const signer = await ensureWalletSignerReady()
   if (!signer)
     throw new Error("No signer available. Please reconnect wallet.")
 
@@ -831,7 +838,7 @@ async function signTxCoreV2 ({
   if (!(transactionBytes instanceof Uint8Array))
     throw new Error("transactionBytes must be Uint8Array")
 
-  const signer = dappConnector?.signers?.[0]
+  const signer = await ensureWalletSignerReady()
   if (!signer)
     throw new Error("No signer available. Please reconnect wallet.")
 
@@ -933,7 +940,7 @@ async function executeDealFlowCore ({
   const transactionBytes = new Uint8Array(data.bytes.data)
   // const signer = dappConnector.signers[0]
       
-    const signer = dappConnector?.signers?.[0]
+    const signer = await ensureWalletSignerReady()
     if (!signer)
       throw new Error("Wallet not initialised. Please reconnect.")  
 
