@@ -1,4 +1,4 @@
-import { executeDealFlow, registerWalletUI} from "./transactionHandler.js";
+import { executeDealFlow, registerWalletUI} from "./kwcCore.js";
 
 registerWalletUI({
   showAlert: showBootstrapAlert,

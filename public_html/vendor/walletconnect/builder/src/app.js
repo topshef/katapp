@@ -12,5 +12,5 @@
 
 
 import "./buildInfo.js";    // 
-import "./transactionHandler.js";
-import "./dealPage.js";
+import "./kwcCore.js";
+import "./kwcUI.js";
