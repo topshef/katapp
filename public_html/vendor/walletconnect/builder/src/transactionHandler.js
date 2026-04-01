@@ -362,17 +362,11 @@ async function disconnectWalletCore() {
   return true
 }
 
-// restoreWalletSessionCore
-// Headless intent: attempt to restore a valid wallet session and return accountId
-// const restoreWalletSessionCore = async () => {
-async function restoreWalletSessionCore() {
-  return await getActiveWalletAccount()
-}
 
 // restoreWalletSession
 // Wrapper preserving boolean contract for existing call sites
 const restoreWalletSession = async () => {
-  const accountId = await restoreWalletSessionCore()
+  const accountId = await getActiveWalletAccount()
   return !!accountId
 }
 
@@ -381,7 +375,7 @@ async function ensureWalletSignerReady() {
   await initializeWalletConnect()
 
   if (!dappConnector?.signers?.length)
-    await restoreWalletSessionCore()
+    await getActiveWalletAccount()
 
   return dappConnector?.signers?.[0] || null
 }
@@ -1075,7 +1069,7 @@ const handleDisconnect = async () => {
 // Explicitly expose wallet actions for non-DOM / gesture-driven integrations
 const exposeHeadlessAPI = () => {
   if (WALLETCONNECT_MODE !== "headless")
-    console.log('TG98374 for debug, exposing headless in non-headless mode')
+    console.log('TG98374 for debug, always exposing headless regardless of mode')
     // return
 
   if (window.WC) {
@@ -1087,7 +1081,7 @@ const exposeHeadlessAPI = () => {
     // lifecycle
     connect: connectWalletCore,
     disconnect: disconnectWalletCore,
-    restoreSession: restoreWalletSessionCore,
+    restoreSession: getActiveWalletAccount,
 
     // deal execution
     executeDeal: executeDealFlowCore,
