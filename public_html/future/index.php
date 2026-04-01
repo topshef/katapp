@@ -286,11 +286,16 @@ document.addEventListener('DOMContentLoaded', () => {
 	// ─┴┘└─┘┴ ┴└─┘  ─┴┘└─┘┴ ┴┴─┘  └─┘└    ─┴┘┴ ┴ ┴ 
 	// demo deal of day
 
+
+
 	async function getDealOfDay() {
 		try {
+      
 			const parms = new URLSearchParams(location.search)
+      const network = parms.get('network') || '<?php echo $network ?>'
+
 			const starttime = parms.get('starttime') || '40seconds'
-			const userAccountId = localStorage.getItem('walletConnectAccountId') ?? false
+			const userAccountId = localStorage.getItem(`walletConnectAccountId:${network}`) ?? false
 			if (!userAccountId) return window.alert('Please connect your wallet first\n wip ref KJ93843')
 			console.log(userAccountId)
 		
@@ -307,10 +312,15 @@ document.addEventListener('DOMContentLoaded', () => {
 				throw new Error('txid or network missing in response')
 
 			const txid = String(data.txid).toLowerCase()
-			const network = data.network
+      if (network != data.network) {
+        const msg = `EW38984 network mismatch url (${network}) vs api (${data.network})`
+        console.warn(msg, data)
+        return
+			}
+      // const network = data.network
 
 			const u = new URL(location)
-			u.searchParams.set('network', network)
+			u.searchParams.set('network', data.network)
 			u.searchParams.set('txid', txid)
 
 			const linkEl = document.getElementById('linkDealOfDay')

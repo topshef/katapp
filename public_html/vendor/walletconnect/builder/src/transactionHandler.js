@@ -26,7 +26,7 @@ function getNetwork() {
 function getAccountStorageKey() {
   const network = getNetwork()
   const storageKey = `walletConnectAccountId:${network}`
-  console.log(`localstorage key = walletConnectAccountId:${network}`)
+  console.log(`UY83743 localstorage key = walletConnectAccountId:${network}`)
   // glog(`walletConnectAccountId:${network}`, {network,storageKey})
   return storageKey
 }
@@ -297,11 +297,10 @@ async function loadConfig() {
 // Suggestions:
 // - Doing config load + disconnect + init is a lot for one function
 // - Reads like a lifecycle step rather than a one-off init
-// const initializeWalletConnect = async (retryCount = 0) => {
 
 let wcInitPromise = null
 
-// console.log("XXXXXXXXXXXXXXXXXXXXXX live test dev")
+console.log("WIP HG38472")
 
 async function initializeWalletConnect() {
 
@@ -330,12 +329,11 @@ async function initializeWalletConnect() {
 
 
 
-
 // connectWalletCore
 // Headless intent: initialise WalletConnect, open modal, return accountId
 // const connectWalletCore = async () => {
 async function connectWalletCore() {
-  await restoreWalletSessionCore()
+  await initializeWalletConnect()
 
   // Ensure connector is ready
   await new Promise(resolve => setTimeout(resolve, 500))
@@ -353,7 +351,6 @@ async function connectWalletCore() {
 // Headless intent: clear wallet session and disconnect active connector
 // const disconnectWalletCore = async () => {
 async function disconnectWalletCore() {
-  // localStorage.removeItem("walletConnectAccountId")
   localStorage.removeItem(getAccountStorageKey())
 
   if (dappConnector) {
@@ -371,7 +368,6 @@ async function disconnectWalletCore() {
 // Headless intent: attempt to restore a valid wallet session and return accountId
 // const restoreWalletSessionCore = async () => {
 async function restoreWalletSessionCore() {
-  // const storedAccountId = localStorage.getItem("walletConnectAccountId")
   const storedAccountId = localStorage.getItem(getAccountStorageKey())
   if (!storedAccountId)
     return null
@@ -388,7 +384,6 @@ async function restoreWalletSessionCore() {
     }
 
     console.warn("Stored wallet session is not active. Please reconnect.")
-    // localStorage.removeItem("walletConnectAccountId")
     localStorage.removeItem(getAccountStorageKey())
     return null
   } catch (error) {
@@ -681,7 +676,6 @@ const openWalletConnectModal = async () => {
   try {
     const accountId = await connectWalletCore()
 
-    // localStorage.setItem("walletConnectAccountId", accountId)
     localStorage.setItem(getAccountStorageKey(), accountId)
     console.log("Account ID stored in localStorage:", accountId)
 
@@ -980,7 +974,6 @@ async function executeDealFlowCore ({
 // UI-triggered wrapper preserving existing behaviour and alerts
 export const executeDealFlow = async () => {
   const accountId =
-    // localStorage.getItem("walletConnectAccountId")
     localStorage.getItem(getAccountStorageKey())
 
   if (!accountId) {
