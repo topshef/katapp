@@ -8,16 +8,17 @@ if (isset($_GET['action'])) {  // js async calls hit here
 	exit;
 }
 
+$docroot = $_SERVER['DOCUMENT_ROOT'];
 
-require_once "{$_SERVER['DOCUMENT_ROOT']}/readenv.php";
-require_once "{$_SERVER['DOCUMENT_ROOT']}/auth.php";
-require_once "{$_SERVER['DOCUMENT_ROOT']}/config.php";
-require_once "{$_SERVER['DOCUMENT_ROOT']}/assets/php/elog.php";
+require_once "$docroot/readenv.php";
+require_once "$docroot/auth.php";
+require_once "$docroot/config.php";
+require_once "$docroot/assets/php/elog.php";
 
 
 session_start(); // not needed with configLoad
 
-require_once "{$_SERVER['DOCUMENT_ROOT']}/vendor/hashconnect/configLoad.php";
+require_once "$docroot/vendor/hashconnect/configLoad.php";
 // $config = getConfig();
 // elog([$config, $_SESSION], "hashconnect config and session");
 $network = getNetwork() ?? $_GET['network'];
@@ -44,7 +45,11 @@ $path_base = "https://{$_SERVER['SERVER_NAME']}";
 //'<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">';
 
 
-require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";	
+$docroot = $_SERVER['DOCUMENT_ROOT'];
+require_once "$docroot/elog.php";
+
+
+require_once "$docroot/headheader.php";	
 
 
 
@@ -107,6 +112,9 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/headheader.php";
     <script src="assets/js/owl.js"></script>
     <script src="assets/js/slick.js"></script>
     <script src="assets/js/accordions.js"></script>
+
+  <?php require_once("$docroot/vendor/walletconnect/kwcScriptTag.php"); ?>
+
 
     <script>
 		
