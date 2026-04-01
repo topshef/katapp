@@ -295,8 +295,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const network = parms.get('network') || '<?php echo $network ?>'
 
 			const starttime = parms.get('starttime') || '40seconds'
-			const userAccountId = localStorage.getItem(`walletConnectAccountId:${network}`) ?? false
-			if (!userAccountId) return window.alert('Please connect your wallet first\n wip ref KJ93843')
+
+      const userAccountId = await window.WC?.getAccount?.()
+      
+      // if (!userAccountId) userAccountId = 
+
+      if (!userAccountId)
+        return window.alert('Please connect your wallet first\n wip ref KJ93843')
+
 			console.log(userAccountId)
 		
 			const query = new URLSearchParams({ userAccountId, starttime })
