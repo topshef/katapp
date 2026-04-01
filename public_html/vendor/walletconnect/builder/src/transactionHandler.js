@@ -676,8 +676,6 @@ const openWalletConnectModal = async () => {
 
 
 
-
-
 const showTxSaveResult = saveResult => {
   const ok = saveResult?.success === true
   const result = saveResult?.result || {}
