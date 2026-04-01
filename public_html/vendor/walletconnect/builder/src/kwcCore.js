@@ -332,12 +332,20 @@ async function connectWalletCore() {
 
 }
 
-function getSigner(index = 'default') {
+function getSigner() {
   if (!dappConnector?.signers?.length) return null
 
-  // always use most recent signer
-  return dappConnector.signers[dappConnector.signers.length - 1]
+  // enforce single account
+  if (dappConnector.signers.length > 1) {
+    console.warn("[WC] Multiple signers detected — trimming to last")
+    dappConnector.signers = [
+      dappConnector.signers[dappConnector.signers.length - 1]
+    ]
+  }
+
+  return dappConnector.signers[0]
 }
+
 
 
 async function zzconnectWalletCore() {
