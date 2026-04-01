@@ -51,11 +51,10 @@ export async function initBuildBanner({
 		
 		showBootstrapStatus(serverState)
 
-		console.log("🛠 Build diagnostics", serverState)
+		console.log("🧱🛠 kbuild info", serverState)
 
-		workingHash = serverState.workingHash
-
-		console.info("Server workingHash:", workingHash)
+		// workingHash = serverState.workingHash
+		// console.info("Server workingHash:", workingHash)
 
 	} catch {
 		// Non-JSON or denied → silently skip diagnostics
