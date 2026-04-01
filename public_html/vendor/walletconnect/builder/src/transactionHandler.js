@@ -12,26 +12,6 @@ let walletConfig
 
 
 
-function getNetwork() {
-  const urlNetwork =
-    new URLSearchParams(window.location.search)
-      .get("network")?.toLowerCase()
-
-  if (urlNetwork && ["mainnet", "testnet", "previewnet"].includes(urlNetwork))
-    return urlNetwork
-
-  return walletConfig?.hedera?.network || "mainnet"
-}
-
-function getAccountStorageKey() {
-  const network = getNetwork()
-  const storageKey = `walletConnectAccountId:${network}`
-  console.log(`UY83743 localstorage key = walletConnectAccountId:${network}`)
-  // glog(`walletConnectAccountId:${network}`, {network,storageKey})
-  return storageKey
-}
-
-
 /*============================================================
 	EL_LOADER – Script Resolution (Dev + Production Safe)
 	------------------------------------------------------------
