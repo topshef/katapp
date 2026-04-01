@@ -311,8 +311,36 @@ async function initializeWalletConnect() {
 
 // connectWalletCore
 // Headless intent: initialise WalletConnect, open modal, return accountId
-// const connectWalletCore = async () => {
 async function connectWalletCore() {
+  await initializeWalletConnect()
+  await dappConnector.openModal()
+
+  const started = Date.now()
+
+  while (!dappConnector.signers?.length) {
+    if (Date.now() - started > 5000)
+      throw new Error("Wallet connection timeout")
+
+    await new Promise(r => setTimeout(r, 100))
+  }
+  // console.log(dappConnector.signers)
+  // console.log(dappConnector.LedgerId)
+  
+  // return dappConnector.signers[0].getAccountId().toString()
+  const signer = getSigner()
+  return signer.getAccountId().toString()
+
+}
+
+function getSigner(index = 'default') {
+  if (!dappConnector?.signers?.length) return null
+
+  // always use most recent signer
+  return dappConnector.signers[dappConnector.signers.length - 1]
+}
+
+
+async function zzconnectWalletCore() {
   await initializeWalletConnect()
 
   // Ensure connector is ready
@@ -320,7 +348,9 @@ async function connectWalletCore() {
 
   await dappConnector.openModal()
 
-  const accountId = dappConnector.signers[0]?.getAccountId()?.toString()
+  // const accountId = dappConnector.signers[0]?.getAccountId()?.toString()
+  const accountId = getSigner()?.getAccountId()?.toString()
+  
   if (!accountId)
     throw new Error("Wallet connection failed")
 
@@ -357,13 +387,16 @@ async function ensureWalletSignerReady() {
   if (!dappConnector?.signers?.length)
     await getActiveWalletAccount()
 
-  return dappConnector?.signers?.[0] || null
+  // return dappConnector?.signers?.[0] || null
+  return getSigner() || null
+  
+  
 }
 
 
 async function getActiveWalletAccount() {
   await initializeWalletConnect()
-  return dappConnector.signers[0]?.getAccountId()?.toString() || null
+  return getSigner()?.getAccountId()?.toString() || null
 }
 
 
