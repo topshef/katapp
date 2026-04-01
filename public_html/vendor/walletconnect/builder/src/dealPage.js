@@ -394,12 +394,10 @@ function attachWalletConnectHandlers() {
 		connectBtn.addEventListener("click", async () => {
 			if (window.WC?.connect) {
 				const accountId = await window.WC.connect()
-        if (accountId)
-          localStorage.setItem(
-            `walletConnectAccountId:${new URLSearchParams(window.location.search).get("network") || "mainnet"}`,
-            accountId
-          ) // what a aload of fucking shit
-          
+        console.log(`SW38843 window.WC.connect  accountId = ${accountId}`)
+        // this should now be redudant as no localstroage needed
+        
+        
 			} else
 				console.warn("[KATOMIC] WalletConnect modal handler not found")
 		})
@@ -408,18 +406,16 @@ function attachWalletConnectHandlers() {
 	const disconnectBtn = document.getElementById("wallet-disconnect")
 	if (disconnectBtn && !disconnectBtn.dataset.wcBound) {
 		disconnectBtn.dataset.wcBound = "1"
-		disconnectBtn.addEventListener("click", () => {
-			try {
-				if (window.WC?.disconnect)
-					window.WC.disconnect()
-			} catch (e) {
-				console.warn("Disconnect failed", e)
-			}
+    disconnectBtn.addEventListener("click", async () => {
+      try {
+        if (window.WC?.disconnect)
+          await window.WC.disconnect()
+      } catch (e) {
+        console.warn("Disconnect failed", e)
+      }
 
-			localStorage.removeItem("walletConnectAccountId:mainnet")
-			localStorage.removeItem("walletConnectAccountId:testnet")
-			location.reload()
-		})
+      location.reload()
+    })
 	}
 }
 

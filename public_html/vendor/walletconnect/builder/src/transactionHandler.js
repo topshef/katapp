@@ -351,11 +351,9 @@ async function connectWalletCore() {
 // Headless intent: clear wallet session and disconnect active connector
 // const disconnectWalletCore = async () => {
 async function disconnectWalletCore() {
-  localStorage.removeItem(getAccountStorageKey())
-
   if (dappConnector) {
     try {
-      await dappConnector.disconnect()
+      await dappConnector.disconnectAll()
     } catch (error) {
       console.warn("[WC] Error during wallet disconnect:", error)
     }
@@ -368,28 +366,7 @@ async function disconnectWalletCore() {
 // Headless intent: attempt to restore a valid wallet session and return accountId
 // const restoreWalletSessionCore = async () => {
 async function restoreWalletSessionCore() {
-  const storedAccountId = localStorage.getItem(getAccountStorageKey())
-  if (!storedAccountId)
-    return null
-
-  try {
-    await initializeWalletConnect()
-
-    const activeAccountId =
-      dappConnector.signers[0]?.getAccountId()?.toString()
-
-    if (activeAccountId === storedAccountId) {
-      console.log("Wallet session restored:", storedAccountId)
-      return storedAccountId
-    }
-
-    console.warn("Stored wallet session is not active. Please reconnect.")
-    localStorage.removeItem(getAccountStorageKey())
-    return null
-  } catch (error) {
-    console.error("Error restoring wallet session:", error)
-    return null
-  }
+  return await getActiveWalletAccount()
 }
 
 // restoreWalletSession
@@ -407,6 +384,12 @@ async function ensureWalletSignerReady() {
     await restoreWalletSessionCore()
 
   return dappConnector?.signers?.[0] || null
+}
+
+
+async function getActiveWalletAccount() {
+  await initializeWalletConnect()
+  return dappConnector.signers[0]?.getAccountId()?.toString() || null
 }
 
 
@@ -675,9 +658,6 @@ const updateWalletConnectionUI = (accountId) => {
 const openWalletConnectModal = async () => {
   try {
     const accountId = await connectWalletCore()
-
-    localStorage.setItem(getAccountStorageKey(), accountId)
-    console.log("Account ID stored in localStorage:", accountId)
 
     updateWalletConnectionUI(accountId)
   } catch (error) {
@@ -973,8 +953,7 @@ async function executeDealFlowCore ({
 // executeDealFlow
 // UI-triggered wrapper preserving existing behaviour and alerts
 export const executeDealFlow = async () => {
-  const accountId =
-    localStorage.getItem(getAccountStorageKey())
+  const accountId = await getActiveWalletAccount()
 
   if (!accountId) {
     walletUI.showAlert(
@@ -1120,8 +1099,7 @@ const exposeHeadlessAPI = () => {
     signTx: signTxCoreV2,
 
     // helpers / state
-    getAccount: () =>
-      localStorage.getItem(getAccountStorageKey()) || null,
+    getAccount: getActiveWalletAccount,
 
     mode: WALLETCONNECT_MODE
   }
