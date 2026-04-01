@@ -309,6 +309,23 @@ async function initializeWalletConnect() {
 
 
 
+function getSigner() {
+  if (!dappConnector?.signers?.length) return null
+
+  // enforce single account
+  if (dappConnector.signers.length > 1) {
+    console.warn("[WC] Multiple signers detected — trimming to last")
+    dappConnector.signers = [
+      dappConnector.signers[dappConnector.signers.length - 1]
+    ]
+  }
+
+  return dappConnector.signers[0]
+}
+
+
+
+
 // connectWalletCore
 // Headless intent: initialise WalletConnect, open modal, return accountId
 async function connectWalletCore() {
@@ -332,18 +349,31 @@ async function connectWalletCore() {
 
 }
 
-function getSigner() {
-  if (!dappConnector?.signers?.length) return null
+async function zzcunted_connectWalletCore() {
+  await initializeWalletConnect()
+  await dappConnector.openModal()
+  const started = Date.now()
+  let signer = null
 
-  // enforce single account
-  if (dappConnector.signers.length > 1) {
-    console.warn("[WC] Multiple signers detected — trimming to last")
-    dappConnector.signers = [
-      dappConnector.signers[dappConnector.signers.length - 1]
-    ]
+  while (!signer) {
+    signer = getSigner()
+
+    if (signer) break
+
+    if (Date.now() - started > 8000)
+      throw new Error("Wallet connection timeout")
+
+    await new Promise(r => setTimeout(r, 100))
   }
 
-  return dappConnector.signers[0]
+  const accountId = signer.getAccountId().toString()
+
+  console.log("[WC] Connected account:", accountId)
+
+  // 🔑 force UI consistency immediately
+  updateWalletConnectionUI(accountId)
+
+  return accountId
 }
 
 
