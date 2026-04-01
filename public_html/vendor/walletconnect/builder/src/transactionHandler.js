@@ -465,7 +465,7 @@ async function prepareTransaction(transactionBytes, signer) {
 // const processPreparedTransaction = async transaction => {
 async function processPreparedTransaction(transaction) {
   try {
-    const signer = dappConnector.signers[0]
+    const signer = await ensureWalletSignerReady()
     if (!signer)
       throw new Error("No signer available. Please reconnect your wallet.")
 
@@ -493,7 +493,7 @@ async function processPreparedTransaction(transaction) {
 // const signPreparedTransaction = async transaction => {
 async function signPreparedTransaction(transaction) {
   try {
-    const signer = dappConnector.signers[0]
+    const signer = await ensureWalletSignerReady()
     if (!signer)
       throw new Error("No signer available. Please reconnect your wallet.")
 
@@ -938,7 +938,7 @@ async function executeDealFlowCore ({
   }
 
   const transactionBytes = new Uint8Array(data.bytes.data)
-  // const signer = dappConnector.signers[0]
+  // const signer = await ensureWalletSignerReady()
       
     const signer = await ensureWalletSignerReady()
     if (!signer)
