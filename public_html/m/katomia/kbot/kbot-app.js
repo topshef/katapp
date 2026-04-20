@@ -30,7 +30,8 @@ const config = {
 
 const bot = createBot(config)
 
-const WS_URL = "wss://hapi2.hbar.live/live/ws"
+// const WS_URL = "wss://hapi2.hbar.live/live/ws"
+const WS_URL = "wss://hapi4.hbar.live/ws"
 const gameId = new URLSearchParams(location.search).get("game")
 
 log("BOOT", { gameId, WS_URL })
