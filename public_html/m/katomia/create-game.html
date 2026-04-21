@@ -189,6 +189,14 @@ h3{
 
 	</div>
 
+  <div class="field">
+    <div class="explain">
+      Transaction settings
+    </div>
+    <label>Delay transaction start (seconds)</label>
+    <input id="txDelaySeconds" type="text" value="60">
+  </div>
+
 
 <button class="create-btn" id="createBtn">Create Game</button>
 
@@ -251,14 +259,18 @@ status.textContent = "Creating game..."
 
 const payload = {
 
-//id: gameName.value.trim() || undefined,
-profile: {
-  name: gameName.value.trim() || ""
-},
-network: getRadio("network"),
-visibility: getRadio("visibility"),
-joinRule: joinRule.value,
-lockRule: getRadio("lockRule")
+  //id: gameName.value.trim() || undefined,
+  profile: {
+    name: gameName.value.trim() || ""
+  },
+  network: getRadio("network"),
+  visibility: getRadio("visibility"),
+  joinRule: joinRule.value,
+  lockRule: getRadio("lockRule"),
+    
+  config: {
+    txDelaySeconds: Number(txDelaySeconds.value) || 60
+  },  
 
 }
 
