@@ -861,6 +861,7 @@ function getFastThumb(url, imgEl){
             <span>Visibility: ${game.visibility}</span>
             ${joinText ? `<span>Join: ${joinText}</span>` : ""}
             <span>Lock: ${game.lockRule}</span>
+            |&nbsp Config: ${renderConfigMeta(game.config)}
           </div>
         `
       }
@@ -882,3 +883,23 @@ function getFastThumb(url, imgEl){
         gameEl.appendChild(rowEl)
       })
     }
+          
+          
+    function renderConfigMeta(config){
+      if(!config) return ""
+
+      const formats = {
+        txDelaySeconds: "Delay transaction start by {} seconds"
+      }
+
+      const entries = Object.entries(config)
+      if(!entries.length) return ""
+
+      return entries
+        .map(([k,v]) => {
+          if(formats[k]) return `<span>${formats[k].replace("{}", v)}</span>`
+          return `<span>${k}: ${v}</span>`
+        })
+        .join("")
+    }
+          
