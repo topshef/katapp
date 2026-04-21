@@ -269,7 +269,7 @@ const payload = {
   lockRule: getRadio("lockRule"),
     
   config: {
-    txDelaySeconds: Number(txDelaySeconds.value) || 60
+    txDelaySeconds: txDelaySeconds.value === "" ? 60 : Number(txDelaySeconds.value)
   },  
 
 }
