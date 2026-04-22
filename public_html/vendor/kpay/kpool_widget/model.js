@@ -12,8 +12,10 @@ const glog = globalThis.glog ?? (() => {})
 
 export async function txRead({ network, txid, pch = 'no_pch' }) { //todo pch
 
-  const hapiBase = window.__HAPI_BASE__ || 0
-	const url = `https://kpos.uk/pool/txRead?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}&detail=1&endpoint=${hapiBase}`
+  // const hapiBase = window.__HAPI_BASE__ || 0  //works but only needed for kpos
+	// const url = `https://kpos.uk/pool/txRead?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}&detail=1&endpoint=${hapiBase}`
+	// const url = `/m/bid/explore/kpool.php?action=txRead&network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}&detail=1`
+	const url = `/m/bid/explore/kpool?action=txRead&network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}&detail=1`
 
 	const res = await fetch(url)
 	if (!res.ok) {
