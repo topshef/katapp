@@ -34,6 +34,10 @@
       <i class="fa-solid fa-plus"></i> Add account
     </button>
 
+    <button id="createOrderBtn">
+      <i class="fa-solid fa-plus"></i> Create order
+    </button>
+
     <label>
       <input type="checkbox" id="showTradingAccounts" />
       Show trading accounts only

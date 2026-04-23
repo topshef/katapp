@@ -65,6 +65,27 @@ addAccountBtn.onclick = () => {
 }
 
 
+
+
+createOrderBtn.onclick = () => {
+  
+  const order = {comment: 'test GH23443'}
+  
+  socket.send(JSON.stringify({
+    type: "game_orderCreate",
+    gameId,
+    order
+  }))
+        
+  if(!socket || socket.readyState !== WebSocket.OPEN){
+    connect(sendAll)
+  } else {
+    sendAll()
+  }
+
+}
+
+
 const showTradingAccounts = document.getElementById("showTradingAccounts")
 const showTradedAssets = document.getElementById("showTradedAssets")
 
