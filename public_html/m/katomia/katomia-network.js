@@ -69,7 +69,10 @@ addAccountBtn.onclick = () => {
 
 createOrderBtn.onclick = () => {
   
-  const order = {comment: 'test GH23443'}
+  const userInput = prompt("Enter order data YH87323")
+  const bundle = normaliseOrder(userInput)
+  const order = {bundle, userInput, comment: 'test GH23443'}
+  
   
   socket.send(JSON.stringify({
     type: "game_orderCreate",
@@ -85,6 +88,36 @@ createOrderBtn.onclick = () => {
 
 }
 
+function normaliseOrder(input){
+  try {
+    const records = input.split('|').filter(Boolean)
+    const result = []
+
+    for (const record of records){
+      const [a,b,c] = record.split(';')
+
+      if(!a || !b || c === undefined){
+        throw new Error(`Bad record: ${record}`)
+      }
+
+      const norm = v => v.includes('.') ? v : `0.0.${v}`
+
+      result.push({
+        accountId: norm(a),
+        asset: norm(b),
+        amount: Number(c)
+      })
+    }
+
+    return result
+
+  } catch (err) {
+    return {
+      raw: input,
+      error: err.message
+    }
+  }
+}
 
 const showTradingAccounts = document.getElementById("showTradingAccounts")
 const showTradedAssets = document.getElementById("showTradedAssets")
