@@ -291,7 +291,7 @@ function getFastThumb(url, imgEl){
 		*/
 		function renderStoreAsset(account, container){
       
-      const network = gameMeta?.network || ""
+      const network = gameMeta.network || ""
 
 			const mine = isMyAccount(account)
 			const rendered = []
@@ -836,7 +836,7 @@ function getFastThumb(url, imgEl){
       document.body.dataset.viewMode = viewMode
       document.body.dataset.showTradedOnly = showTradedOnly ? "true" : "false"
 
-      if(gameMeta?.network){
+      if(gameMeta.network){
         document.body.dataset.network = gameMeta.network.toLowerCase()
       }
       

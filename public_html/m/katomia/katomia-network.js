@@ -40,7 +40,7 @@ addAccountBtn.onclick = () => {
     labels.forEach(label => {
       let out = label
 
-      if(gameMeta?.network === "testnet" || gameMeta?.network === "mainnet"){
+      if(gameMeta.network === "testnet" || gameMeta.network === "mainnet"){
         if(/^\d+$/.test(out)){
           out = "0.0." + out
         }
@@ -239,7 +239,7 @@ function exitGame(){
 
 	socket = null
 	// currentPlayer = null  //stale
-	gameMeta = null
+	gameMeta= null
 	state = null
 	clearSelection()
 	gameEl.innerHTML = ""

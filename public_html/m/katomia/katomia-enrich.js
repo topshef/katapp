@@ -144,7 +144,7 @@ function getAssetThumb(meta){
 
 async function enrichVisibleAssets(){
 
-	if(!gameMeta?.network) return
+	if(!gameMeta.network) return
 	if(!state?.accounts) return
 
 	window.assetDisplayCache ||= {}
@@ -246,7 +246,7 @@ async function enrichAccountLabel(network, accountId){
 
 async function enrichVisibleAccounts(){
 
-  if(!gameMeta?.network) return
+  if(!gameMeta.network) return
   if(!state?.accounts) return
 
   const jobs = []

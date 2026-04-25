@@ -349,7 +349,7 @@ function openAssetModal(assetId, fromAccountId, available){
  
   const displayTokenLabel = assetId.replace('#', ' #')
   const tokenSerial = assetId.replace('#', '-')
-  const network = gameMeta?.network || ""
+  const network = gameMeta.network || ""
   
   const url = `/m/?productId=${network};${tokenSerial}`
   
@@ -461,7 +461,7 @@ function getPendingTxAccountMap(){
 
 		const enrichedTx = {
 			...tx,
-			network: tx.network || gameMeta?.network || null
+			network: tx.network || gameMeta.network || null
 		}
 
 		const txid = enrichedTx.txid
