@@ -842,7 +842,6 @@ function getFastThumb(url, imgEl){
       
       gameEl.innerHTML = ""
 
-
       const gameMetaEl = document.getElementById("gameMeta")
       if(gameMetaEl && gameMeta){
 
@@ -867,6 +866,45 @@ function getFastThumb(url, imgEl){
       }
 			
       headerEl.style.display = viewMode === "columns" ? "grid" : "none"
+
+
+        // DEV: orders (current player)
+        document.querySelectorAll(".orders-dev").forEach(el => el.remove())
+
+        if(state?.players && currentPlayerId){
+          const orders = state.players[currentPlayerId]?.orders || {}
+
+          const el = document.createElement("div")
+          el.className = "orders-dev"
+          el.style.fontFamily = "monospace"
+          el.style.fontSize = "12px"
+          el.style.margin = "6px 0"
+
+          Object.entries(orders).forEach(([id, order]) => {
+
+            let text = ""
+
+            if(Array.isArray(order.bundle))
+              text = order.bundle.map(x => `${x.accountId};${x.asset};${x.amount}`).join("|")
+            else if(order.raw)
+              text = order.raw
+            else
+              text = JSON.stringify(order)
+
+            const row = document.createElement("div")
+            row.textContent = `${id} ${text}`
+            row.dataset.orderId = id
+
+            el.appendChild(row)
+          })
+
+          headerEl.parentNode.insertBefore(el, headerEl)
+        }
+
+
+
+
+
 
       if(!state) return
 
