@@ -890,7 +890,7 @@ function getFastThumb(url, imgEl){
                 text = JSON.stringify(order)
 
               const row = document.createElement("div")
-              row.textContent = `${id} ${text}`
+              row.textContent = `Order #${id}: ${text}`
               row.dataset.orderId = id
 
               listEl && listEl.appendChild(row)
