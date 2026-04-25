@@ -916,3 +916,7 @@ button i{
   margin-left: 20px !important;
 }
 
+#ordersSection .orders-list{
+  font-family: monospace;
+  font-size: 12px;
+}

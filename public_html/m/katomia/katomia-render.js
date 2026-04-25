@@ -868,42 +868,35 @@ function getFastThumb(url, imgEl){
       headerEl.style.display = viewMode === "columns" ? "grid" : "none"
 
 
-        // DEV: orders (current player)
-        document.querySelectorAll(".orders-dev").forEach(el => el.remove())
+        // DEV: orders (current player → fixed section)
+        const ordersEl = document.getElementById("ordersSection")
 
-        if(state?.players && currentPlayerId){
-          const orders = state.players[currentPlayerId]?.orders || {}
+        if(ordersEl){
+          const listEl = ordersEl.querySelector(".orders-list")
+            if(listEl) listEl.innerHTML = ""
 
-          const el = document.createElement("div")
-          el.className = "orders-dev"
-          el.style.fontFamily = "monospace"
-          el.style.fontSize = "12px"
-          el.style.margin = "6px 0"
+          if(state?.players && currentPlayerId){
+            const orders = state.players[currentPlayerId]?.orders || {}
 
-          Object.entries(orders).forEach(([id, order]) => {
+            Object.entries(orders).forEach(([id, order]) => {
 
-            let text = ""
+              let text = ""
 
-            if(Array.isArray(order.bundle))
-              text = order.bundle.map(x => `${x.accountId};${x.asset};${x.amount}`).join("|")
-            else if(order.raw)
-              text = order.raw
-            else
-              text = JSON.stringify(order)
+              if(Array.isArray(order.bundle))
+                text = order.bundle.map(x => `${x.accountId};${x.asset};${x.amount}`).join("|")
+              else if(order.raw)
+                text = order.raw
+              else
+                text = JSON.stringify(order)
 
-            const row = document.createElement("div")
-            row.textContent = `${id} ${text}`
-            row.dataset.orderId = id
+              const row = document.createElement("div")
+              row.textContent = `${id} ${text}`
+              row.dataset.orderId = id
 
-            el.appendChild(row)
-          })
-
-          headerEl.parentNode.insertBefore(el, headerEl)
+              listEl && listEl.appendChild(row)
+            })
+          }
         }
-
-
-
-
 
 
       if(!state) return
