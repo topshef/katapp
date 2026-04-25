@@ -38,6 +38,10 @@
       <i class="fa-solid fa-plus"></i> Create order
     </button>
 
+    <button id="cancelOrderBtn">
+      <i class="fa-solid fa-minus"></i> Cancel order
+    </button>
+    
     <label>
       <input type="checkbox" id="showTradingAccounts" />
       Show trading accounts only

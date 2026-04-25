@@ -67,11 +67,32 @@ addAccountBtn.onclick = () => {
 
 
 
+cancelOrderBtn.onclick = () => {
+  
+  const orderId = prompt("Enter order Id EY72633")
+  if (!orderId) return
+  
+  socket.send(JSON.stringify({
+    type: "game_orderCancel",
+    gameId,
+    orderId
+  }))
+        
+  if(!socket || socket.readyState !== WebSocket.OPEN){
+    connect(sendAll)
+  } else {
+    sendAll()
+  }
+
+}
+
+
 createOrderBtn.onclick = () => {
   
   const userInput = prompt("Enter order data YH87323")
   const bundle = normaliseOrder(userInput)
-  const order = {bundle, userInput, comment: 'test GH23443'}
+  // const order = {bundle, userInput, comment: 'test GH23443'}
+  const order = {bundle}
   
   
   socket.send(JSON.stringify({
