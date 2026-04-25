@@ -32,7 +32,7 @@
 		// let currentPlayerToken = null
 		let currentPlayerId = null  //is this in use?
     let state = null
-		let game = null
+    let gameMeta = null
 
     let viewMode = window.innerWidth < 700 ? "merged" : "columns"
     let showActiveOnly = false  // show active accounts only - rows with traded assets

@@ -144,7 +144,7 @@ function getAssetThumb(meta){
 
 async function enrichVisibleAssets(){
 
-	if(!game?.network) return
+	if(!gameMeta?.network) return
 	if(!state?.accounts) return
 
 	window.assetDisplayCache ||= {}
@@ -163,8 +163,8 @@ async function enrichVisibleAssets(){
 			jobs.push(
 				(async () => {
 					try{
-						const enriched = await enrichAsset(game.network, assetId, amount)
-						glog(`enrichAsset ${game.network}`,{assetId, amount, enriched})
+						const enriched = await enrichAsset(gameMeta.network, assetId, amount)
+						glog(`enrichAsset ${gameMeta.network}`,{assetId, amount, enriched})
 						
 						window.assetDisplayCache[assetId] = enriched.meta
 					}
@@ -190,7 +190,7 @@ async function enrichVisibleAssets(){
 			jobs.push(
 				(async () => {
 					try{
-						const enriched = await enrichAsset(game.network, assetId, amount)
+						const enriched = await enrichAsset(gameMeta.network, assetId, amount)
 						window.assetDisplayCache[assetId] = enriched.meta
 					}
 					catch(err){
@@ -246,7 +246,7 @@ async function enrichAccountLabel(network, accountId){
 
 async function enrichVisibleAccounts(){
 
-  if(!game?.network) return
+  if(!gameMeta?.network) return
   if(!state?.accounts) return
 
   const jobs = []
@@ -264,7 +264,7 @@ async function enrichVisibleAccounts(){
     jobs.push(
       (async () => {
         try{
-          const enriched = await enrichAccountLabel(game.network, id)
+          const enriched = await enrichAccountLabel(gameMeta.network, id)
 
           window.accountLabelCache[id] = enriched.label
         }

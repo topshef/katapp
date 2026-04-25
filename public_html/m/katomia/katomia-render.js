@@ -291,7 +291,7 @@ function getFastThumb(url, imgEl){
 		*/
 		function renderStoreAsset(account, container){
       
-      const network = game?.network || ""
+      const network = gameMeta?.network || ""
 
 			const mine = isMyAccount(account)
 			const rendered = []
@@ -836,32 +836,32 @@ function getFastThumb(url, imgEl){
       document.body.dataset.viewMode = viewMode
       document.body.dataset.showTradedOnly = showTradedOnly ? "true" : "false"
 
-      if(game?.network){
-        document.body.dataset.network = game.network.toLowerCase()
+      if(gameMeta?.network){
+        document.body.dataset.network = gameMeta.network.toLowerCase()
       }
       
       gameEl.innerHTML = ""
 
 
       const gameMetaEl = document.getElementById("gameMeta")
-      if(gameMetaEl && game){
+      if(gameMetaEl && gameMeta){
 
-        const title = game.profile?.name || ""
+        const title = gameMeta.profile?.name || ""
 
-        const joinText = String(game.joinRule || "").trim()
+        const joinText = String(gameMeta.joinRule || "").trim()
 
         gameMetaEl.innerHTML = `
           <div class="game-title-row">
-            <div class="game-network">${game.network}</div>
+            <div class="game-network">${gameMeta.network}</div>
             <div class="game-title">${title}</div>
           </div>
 
           <div class="game-meta-row">
-            <span>ID: ${game.id}</span>
-            <span>Visibility: ${game.visibility}</span>
+            <span>ID: ${gameMeta.id}</span>
+            <span>Visibility: ${gameMeta.visibility}</span>
             ${joinText ? `<span>Join: ${joinText}</span>` : ""}
-            <span>Lock: ${game.lockRule}</span>
-            |&nbsp Config: ${renderConfigMeta(game.config)}
+            <span>Lock: ${gameMeta.lockRule}</span>
+            |&nbsp Config: ${renderConfigMeta(gameMeta.config)}
           </div>
         `
       }

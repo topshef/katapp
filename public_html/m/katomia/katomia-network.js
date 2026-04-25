@@ -40,7 +40,7 @@ addAccountBtn.onclick = () => {
     labels.forEach(label => {
       let out = label
 
-      if(game?.network === "testnet" || game?.network === "mainnet"){
+      if(gameMeta?.network === "testnet" || gameMeta?.network === "mainnet"){
         if(/^\d+$/.test(out)){
           out = "0.0." + out
         }
@@ -205,11 +205,11 @@ function connect(onOpenAction){
 		if(data.type !== "game_state") glog(`websocket data IGNORED for type=${data.type}`, data)
 		if(data.type !== "game_state") return
 
-		game = data.game || null
+		gameMeta = data.meta || null
 		state = data.state
 		currentPlayerId = data.myPlayerId || null
 
-		glog(`state received for ${currentPlayerId}`, {game, state})
+		glog(`state received for ${currentPlayerId}`, {gameMeta, state})
 
 		render()
     await enrichVisibleAccounts()
@@ -239,7 +239,7 @@ function exitGame(){
 
 	socket = null
 	// currentPlayer = null  //stale
-	game = null
+	gameMeta = null
 	state = null
 	clearSelection()
 	gameEl.innerHTML = ""
