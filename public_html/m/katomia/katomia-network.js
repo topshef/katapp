@@ -67,6 +67,40 @@ addAccountBtn.onclick = () => {
 
 
 
+
+fillOrderBtn.onclick = () => {
+
+  const input = prompt("Enter: orderId,numerator/denominator  (e.g. 123,1/2)")
+  if (!input) return
+
+  const match = input.match(/^([^,]+)\s*,\s*(\d+)\s*\/\s*(\d+)$/)
+
+  if (!match){
+    alert("Bad format. Use: orderId,numerator/denominator")
+    return
+  }
+
+  const [, orderId, numerator, denominator] = match
+  
+  alert("Not yet implemented - sending message for testing only UJ92832")
+  
+  socket.send(JSON.stringify({
+    type: "game_orderFill",
+    gameId,
+    orderId,
+    numerator: Number(numerator),
+    denominator: Number(denominator)
+  }))
+
+  if(!socket || socket.readyState !== WebSocket.OPEN){
+    connect(sendAll)
+  } else {
+    sendAll()
+  }
+
+}
+
+
 cancelOrderBtn.onclick = () => {
   
   const orderId = prompt("Enter order Id EY72633")

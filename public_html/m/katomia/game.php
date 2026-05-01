@@ -41,6 +41,11 @@
     <button id="cancelOrderBtn">
       <i class="fa-solid fa-minus"></i> Cancel order
     </button>
+
+    <button id="fillOrderBtn">
+      <i class="fa-solid fa-right-left"></i> Fill order
+    </button>
+    
     
     <label>
       <input type="checkbox" id="showTradingAccounts" />
