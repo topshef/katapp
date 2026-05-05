@@ -122,33 +122,8 @@
 			}))
 		}
 
-    function zzgetAccounts(){ //bronwout
-      if(!state) return []
 
-      if(state.accounts){
-        return Object.values(state.accounts).map(account => ({
-          id: account.id,
-					label: account.label,
-          playerId: account.playerId,
-          assets: account.assets || [],
-          basket: account.basket || [],
-          mode: account.mode || "shop"
-        }))
-      }
 
-      if(state.players){  //legacy.. can brownout
-        return Object.values(state.players).map(player => ({
-          id: player.id + ":default",
-					label: 'default',
-          playerId: player.id,
-          assets: player.account || [],
-          basket: player.basket || [],
-          mode: player.mode || "shop"
-        }))
-      }
-
-      return []
-    }
 
     function getAccountMap(){
       const map = {}
