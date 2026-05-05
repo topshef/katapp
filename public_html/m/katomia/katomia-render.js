@@ -942,21 +942,38 @@ function getFastThumb(url, imgEl){
         listEl.appendChild(createOrderRow(orderRec))
       })
     }         
+    // TODO:
+    // Orders may reference assets not present in visible accounts,
+    // so current enrichment (account-driven) may miss them.
+    // Later: include orders in enrichment scan or run a separate pass.
+
          
     function createOrderSide(items, cls){
 
       const el = document.createElement("span")
       el.className = cls
 
-      el.textContent = items.map(x => {
+      items.forEach(x => {
+
         const amt = Math.abs(x.amount)
-        // return `${x.asset}×${amt}`
-        return getAssetDisplay(x.asset, amt)
-      }).join(" + ")
+        const text = getAssetDisplay(x.asset, amt)
+
+        const assetEl = makeAssetEl({
+          text,
+          assetId: x.asset,
+          ownerAccountId: "",        // not account-bound
+          ownerPlayerId: "",         // no sleeve here
+          clickable: false
+        })
+
+        applyAssetClasses(assetEl, x.asset, amt)
+
+        el.appendChild(assetEl)
+      })
 
       return el
-    }     
-          
+    } 
+              
           
     function createOrderRow({orderId, order, playerId}){
 

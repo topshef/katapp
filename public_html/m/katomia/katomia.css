@@ -929,7 +929,29 @@ button i{
   margin-left: 20px !important;
 }
 
+#ordersSection{
+  --thumb-size: 24px;
+}
+
 #ordersSection .orders-list{
   font-family: monospace;
   font-size: 12px;
 }
+
+#ordersSection .order-row{
+  margin-bottom: 4px;   /* 👈 row separation */
+}
+
+#ordersSection .order-row-inner{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+#ordersSection .order-offer,
+#ordersSection .order-request{
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+
