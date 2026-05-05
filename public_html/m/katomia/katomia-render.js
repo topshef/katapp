@@ -998,6 +998,34 @@ function getFastThumb(url, imgEl){
 // - Do NOT assume 1:1 pairs in core logic (multi-leg must still work)
 // - Later: use buildOrderBook() output for depth/cliff charts
 
+
+
+// TODO: Order fill progress (visual + data)
+//
+// - Source of truth:
+//   Basket entries already carry {orderId, fillId} → use these to track fills
+//
+// - Add helper:
+//   function getOrderFillRatio(orderId){
+//     // sum filled amounts from all baskets (by orderId)
+//     // compare vs original bundle amounts
+//     // return { filledRatio, remainingRatio }  // use numerator/denominator style
+//   }
+//
+// - Rendering:
+//   - Show progress per order row (e.g. "50%" or "1/2")
+//   - Optionally dim or strike-through filled portions
+//   - Later: per-line-item fill (not just whole order)
+//
+// - Important:
+//   - Must handle partial fills + multiple fills (aggregate)
+//   - Must respect indivisible / min-fill constraints (ratios, not floats)
+//
+// - Future:
+//   - Use same ratio in fill UI (pre-fill remaining)
+//   - Could drive sorting (e.g. show nearly-filled orders first)
+
+
           
     function createOrderRow({orderId, order, playerId}){
 
