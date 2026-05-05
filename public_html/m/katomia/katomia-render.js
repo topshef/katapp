@@ -963,6 +963,13 @@ function getFastThumb(url, imgEl){
       row.className = "order-row"
       row.dataset.orderId = orderId
 
+      // error case → just show raw + error
+      if(order?.bundle?.error){
+        row.textContent = `Order #${orderId} (${playerId}): ❌  ${order?.bundle?.error}`
+        applyOwnerSleeve(row, playerId)
+        return row
+      }
+
       const offer = []
       const request = []
 
