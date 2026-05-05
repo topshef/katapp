@@ -68,7 +68,7 @@ addAccountBtn.onclick = () => {
 
 
 
-fillOrderBtn.onclick = () => {
+if (0) fillOrderBtn.onclick = () => {
 
   const input = prompt("Enter: orderId,numerator/denominator  (e.g. 123,1/2)")
   if (!input) return
@@ -91,6 +91,68 @@ fillOrderBtn.onclick = () => {
     numerator: Number(numerator),
     denominator: Number(denominator)
   }))
+
+  if(!socket || socket.readyState !== WebSocket.OPEN){
+    connect(sendAll)
+  } else {
+    sendAll()
+  }
+
+}
+
+
+fillOrderBtn.onclick = () => {
+
+  const input = prompt("Enter: orderId[,numerator/denominator][,fillAccountId]")
+  if (!input) return
+
+  const [orderId, ratio, fillAccountInput, ...rest] =
+    input.split(',').map(s => s.trim())
+
+  if (!orderId || rest.length){
+    alert("Bad format. Use: orderId[,n/d][,fillAccountId]")
+    return
+  }
+
+  let numerator = 1
+  let denominator = 1
+
+  if (ratio){
+    const [n, d, ...extra] = ratio.split('/').map(s => s.trim())
+
+    if (!n || !d || extra.length){
+      alert("Bad fraction. Use n/d")
+      return
+    }
+
+    numerator = Number(n)
+    denominator = Number(d)
+
+    if (!numerator || !denominator){
+      alert("Invalid numerator/denominator")
+      return
+    }
+  }
+
+  let fillAccountId
+
+  if (fillAccountInput){
+    fillAccountId = fillAccountInput.includes('.')
+      ? fillAccountInput
+      : `0.0.${fillAccountInput}`
+  }
+
+  const payload = {
+    type: "game_orderFill",
+    gameId,
+    orderId,
+    numerator,
+    denominator
+  }
+
+  if (fillAccountId) payload.fillAccountId = fillAccountId
+
+  socket.send(JSON.stringify(payload))
 
   if(!socket || socket.readyState !== WebSocket.OPEN){
     connect(sendAll)
