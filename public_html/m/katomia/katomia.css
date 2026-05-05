@@ -293,6 +293,14 @@ body[data-view-mode="merged"] .hint-desktop{
 		}
 
 
+		.fill-btn{
+			cursor:pointer;
+			margin-left:6px;
+			margin-bottom:6px;
+			margin-top:auto;
+		}
+    
+    
 		.exit-btn{
 			cursor:pointer;
 			margin-left:6px;

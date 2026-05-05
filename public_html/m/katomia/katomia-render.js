@@ -696,22 +696,26 @@ function getFastThumb(url, imgEl){
 
 			const fillBtn = document.createElement("div")
 			fillBtn.className = "fill-btn"
-			fillBtn.textContent = "🚰"
+			fillBtn.textContent = "⛽🚰"
 
 			fillBtn.onclick = e => {
 				e.stopPropagation()
 
-        const input = prompt("Enter: orderId[,numerator/denominator]")
+        const input = prompt("Fill account with order.\n\nEnter orderId[,numerator/denominator]")
         if (!input) return
   
-        const match = input.match(/^([^,]+)\s*,\s*(\d+)\s*\/\s*(\d+)$/)
+        const [orderId, ratio, ...rest] = input.split(',').map(s => s.trim())
+        if (!orderId || rest.length) return alert("Bad format. Use: orderId[,n/d]")
 
-        if (!match){
-          alert("Bad format. Use: orderId,numerator/denominator")
-          return
+        let numerator = 1, denominator = 1
+
+        if (ratio){
+          const [n, d] = ratio.split('/')
+          if (!n || !d) return alert("Bad fraction. Use n/d")
+          numerator = +n
+          denominator = +d
+          if (!numerator || !denominator) return alert("Invalid numerator/denominator")
         }
-
-        const [, orderId, numerator, denominator] = match
   
         socket.send(JSON.stringify({
           type: "game_orderFill",
