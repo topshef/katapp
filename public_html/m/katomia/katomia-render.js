@@ -674,8 +674,10 @@ function getFastThumb(url, imgEl){
 			if(txEl)
 				nameEl.appendChild(txEl)
 
-			if(isMyAccount(account))
+			if(isMyAccount(account)) {
+				nameEl.appendChild(createFillBtn(account))
 				nameEl.appendChild(createExitBtn(account))
+      }
 
 			applyOwnerSleeve(nameEl, account.playerId)
 
@@ -690,6 +692,40 @@ function getFastThumb(url, imgEl){
 			return nameEl
 		}
 
+		function createFillBtn(account){
+
+			const fillBtn = document.createElement("div")
+			fillBtn.className = "fill-btn"
+			fillBtn.textContent = "🚰"
+
+			fillBtn.onclick = e => {
+				e.stopPropagation()
+
+        const input = prompt("Enter: orderId[,numerator/denominator]")
+        if (!input) return
+  
+        const match = input.match(/^([^,]+)\s*,\s*(\d+)\s*\/\s*(\d+)$/)
+
+        if (!match){
+          alert("Bad format. Use: orderId,numerator/denominator")
+          return
+        }
+
+        const [, orderId, numerator, denominator] = match
+  
+        socket.send(JSON.stringify({
+          type: "game_orderFill",
+          gameId,
+          orderId,
+          numerator: Number(numerator),
+          denominator: Number(denominator),
+          fillerAccountId: account.hac ?? account.label   // todo upstream rewire naming - deprecate confusing label and use hac or similar
+        }))
+
+			}
+
+			return fillBtn
+		}
 
 		function createExitBtn(account){
 
