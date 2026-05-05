@@ -926,7 +926,8 @@ function getFastThumb(url, imgEl){
         else  text = (order.raw) ? order.raw : JSON.stringify(order)
 
         const row = document.createElement("div")
-        row.textContent = `Order #${orderId} (${playerId}): ${text}`
+        const mine = playerId === currentPlayerId
+        row.textContent = `${mine ? "👉 " : ""}Order #${orderId} (${playerId}): ${text}`
         row.dataset.orderId = orderId
 
         if(listEl) listEl.appendChild(row)
