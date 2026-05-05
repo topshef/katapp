@@ -950,7 +950,8 @@ function getFastThumb(url, imgEl){
 
       el.textContent = items.map(x => {
         const amt = Math.abs(x.amount)
-        return `${x.asset}×${amt}`
+        // return `${x.asset}×${amt}`
+        return getAssetDisplay(x.asset, amt)
       }).join(" + ")
 
       return el
