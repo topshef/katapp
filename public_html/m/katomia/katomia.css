@@ -298,9 +298,14 @@ body[data-view-mode="merged"] .hint-desktop{
 			margin-left:6px;
 			margin-bottom:6px;
 			margin-top:auto;
+      font-size:1.4em;
+
 		}
-    
-    
+
+    .fill-btn::before{
+      content:"🚰";
+    }
+        
 		.exit-btn{
 			cursor:pointer;
 			margin-left:6px;

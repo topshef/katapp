@@ -696,7 +696,7 @@ function getFastThumb(url, imgEl){
 
 			const fillBtn = document.createElement("div")
 			fillBtn.className = "fill-btn"
-			fillBtn.textContent = "⛽🚰"
+			// fillBtn.textContent = "🚰"  // see css instead
 
 			fillBtn.onclick = e => {
 				e.stopPropagation()
