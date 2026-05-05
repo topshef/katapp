@@ -974,6 +974,30 @@ function getFastThumb(url, imgEl){
       return el
     } 
               
+// TODO: Orders → market / chart views
+// - Keep canonical model: bundle[] with signed amounts (do NOT change)
+// - Add derived helpers (no mutation of source):
+//
+//   function extractPairs(order){
+//     // project multi-asset bundle → pairwise edges
+//     // return [{base, quote, rate, size}]
+//   }
+//
+//   function groupByPair(orders){
+//     // group extractPairs() output by (base, quote)
+//   }
+//
+//   function buildOrderBook(pairGroup){
+//     // sort by rate (asc/desc), aggregate sizes → depth levels
+//   }
+//
+// - Keep rendering decoupled:
+//   renderOrders() = raw view (current)
+//   renderPairView(pair) = derived view (future)
+//
+// - Do NOT assume 1:1 pairs in core logic (multi-leg must still work)
+// - Later: use buildOrderBook() output for depth/cliff charts
+
           
     function createOrderRow({orderId, order, playerId}){
 
