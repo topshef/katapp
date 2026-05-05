@@ -872,6 +872,7 @@ function getFastThumb(url, imgEl){
 
     function render(){
 			
+      if(!state) return
 			
       document.body.dataset.viewMode = viewMode
       document.body.dataset.showTradedOnly = showTradedOnly ? "true" : "false"
@@ -908,38 +909,30 @@ function getFastThumb(url, imgEl){
       headerEl.style.display = viewMode === "columns" ? "grid" : "none"
 
 
-        // DEV: orders (current player → fixed section)
-        const ordersEl = document.getElementById("ordersSection")
+      // DEV: orders (current player → fixed section)
+      const ordersEl = document.getElementById("ordersSection")
 
-        if(ordersEl){
-          const listEl = ordersEl.querySelector(".orders-list")
-            if(listEl) listEl.innerHTML = ""
+      const listEl = ordersEl.querySelector(".orders-list")
+      if(listEl) listEl.innerHTML = ""
 
-          if(state?.players && currentPlayerId){
-            const orders = state.players[currentPlayerId]?.orders || {}
+      const orders = getAllOrders()
 
-            Object.entries(orders).forEach(([id, order]) => {
+      orders.forEach(({orderId, order, playerId}) => {
 
-              let text = ""
+        let text = ""
 
-              if(Array.isArray(order.bundle))
-                text = order.bundle.map(x => `${x.accountId};${x.asset};${x.amount}`).join("|")
-              else if(order.raw)
-                text = order.raw
-              else
-                text = JSON.stringify(order)
+        if(Array.isArray(order.bundle))
+          text = order.bundle.map(x => `${x.accountId};${x.asset};${x.amount}`).join("|")
+        else  text = (order.raw) ? order.raw : JSON.stringify(order)
 
-              const row = document.createElement("div")
-              row.textContent = `Order #${id}: ${text}`
-              row.dataset.orderId = id
+        const row = document.createElement("div")
+        row.textContent = `Order #${orderId} (${playerId}): ${text}`
+        row.dataset.orderId = orderId
 
-              listEl && listEl.appendChild(row)
-            })
-          }
-        }
+        if(listEl) listEl.appendChild(row)
+      })
 
 
-      if(!state) return
 
       const accounts = getAccounts()
       const accountMap = getAccountMap()

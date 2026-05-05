@@ -123,6 +123,22 @@
 		}
 
 
+    function getAllOrders(){
+
+      if(!state?.players) return []
+
+      const out = []
+
+      Object.entries(state.players).forEach(([playerId, player]) => {
+
+        Object.entries(player?.orders || {}).forEach(([orderId, order]) => {
+          out.push({ orderId, order, playerId })
+        })
+
+      })
+
+      return out
+    }
 
 
     function getAccountMap(){
@@ -134,6 +150,7 @@
 
       return map
     }
+
 
     function getFromAccountId(item){
       return item.fromAccountId || item.fromId || item.from || null
