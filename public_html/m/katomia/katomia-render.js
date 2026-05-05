@@ -869,7 +869,10 @@ function getFastThumb(url, imgEl){
 			return rowEl
 		}
 
-
+    // ┬─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐
+    // ├┬┘├┤ │││ ││├┤ ├┬┘
+    // ┴└─└─┘┘└┘─┴┘└─┘┴└─
+    // render
     function render(){
 			
       if(!state) return
@@ -908,31 +911,8 @@ function getFastThumb(url, imgEl){
 			
       headerEl.style.display = viewMode === "columns" ? "grid" : "none"
 
-
-      // DEV: orders (current player → fixed section)
-      const ordersEl = document.getElementById("ordersSection")
-
-      const listEl = ordersEl.querySelector(".orders-list")
-      if(listEl) listEl.innerHTML = ""
-
-      const orders = getAllOrders()
-
-      orders.forEach(({orderId, order, playerId}) => {
-
-        let text = ""
-
-        if(Array.isArray(order.bundle))
-          text = order.bundle.map(x => `${x.accountId};${x.asset};${x.amount}`).join("|")
-        else  text = (order.raw) ? order.raw : JSON.stringify(order)
-
-        const row = document.createElement("div")
-        const mine = playerId === currentPlayerId
-        row.textContent = `${mine ? "👉 " : ""}Order #${orderId} (${playerId}): ${text}`
-        row.dataset.orderId = orderId
-
-        if(listEl) listEl.appendChild(row)
-      })
-
+      //show orders
+      renderOrders()
 
 
       const accounts = getAccounts()
@@ -948,8 +928,78 @@ function getFastThumb(url, imgEl){
         gameEl.appendChild(rowEl)
       })
     }
+
+    // ┬─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐  ╔═╗┬─┐┌┬┐┌─┐┬─┐┌─┐
+    // ├┬┘├┤ │││ ││├┤ ├┬┘  ║ ║├┬┘ ││├┤ ├┬┘└─┐
+    // ┴└─└─┘┘└┘─┴┘└─┘┴└─  ╚═╝┴└──┴┘└─┘┴└─└─┘
+    // render Orders
+    function renderOrders(){
+
+      const listEl = document.querySelector("#ordersSection .orders-list")
+      listEl.innerHTML = ""
+
+      getAllOrders().forEach(orderRec => {
+        listEl.appendChild(createOrderRow(orderRec))
+      })
+    }         
+         
+    function createOrderSide(items, cls){
+
+      const el = document.createElement("span")
+      el.className = cls
+
+      el.textContent = items.map(x => {
+        const amt = Math.abs(x.amount)
+        return `${x.asset}×${amt}`
+      }).join(" + ")
+
+      return el
+    }     
           
           
+    function createOrderRow({orderId, order, playerId}){
+
+      const row = document.createElement("div")
+      row.className = "order-row"
+      row.dataset.orderId = orderId
+
+      const offer = []
+      const request = []
+
+      if(Array.isArray(order.bundle)){
+        order.bundle.forEach(x => {
+          if(x.amount < 0) offer.push(x)
+          else if(x.amount > 0) request.push(x)
+        })
+      }
+
+      const mine = playerId === currentPlayerId
+
+      const prefix = document.createElement("span")
+      prefix.textContent = `Order #${orderId} (${playerId}${mine ? "=you" : ""}): `
+
+      const arrow = document.createElement("span")
+      arrow.textContent = " → "
+
+      const inner = document.createElement("div")
+      inner.className = "order-row-inner"
+
+      inner.appendChild(prefix)
+      inner.appendChild(createOrderSide(offer, "order-offer"))
+      inner.appendChild(arrow)
+      inner.appendChild(createOrderSide(request, "order-request"))
+
+      row.appendChild(inner)
+      applyOwnerSleeve(row, playerId)
+
+      return row
+    }
+          
+              
+    // ┬─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐  ╔═╗┌─┐┌┐┌┌─┐┬┌─┐  ╔╦╗┌─┐┌┬┐┌─┐
+    // ├┬┘├┤ │││ ││├┤ ├┬┘  ║  │ ││││├┤ ││ ┬  ║║║├┤  │ ├─┤
+    // ┴└─└─┘┘└┘─┴┘└─┘┴└─  ╚═╝└─┘┘└┘└  ┴└─┘  ╩ ╩└─┘ ┴ ┴ ┴
+    // render Config Meta          
     function renderConfigMeta(config){
       if(!config) return ""
 
