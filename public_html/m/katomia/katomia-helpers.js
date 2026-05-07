@@ -672,12 +672,10 @@ function getAssetType(assetId, amount=1){
 // │ ┬├┤  │   ║ ║├┬┘ ││├┤ ├┬┘   ║ └┬┘├─┘├┤ 
 // └─┘└─┘ ┴   ╚═╝┴└──┴┘└─┘┴└─   ╩  ┴ ┴  └─┘
 // get Order Type
+
 function getOrderType(order){
 
   const bundle = order?.bundle || []
-
-  if(bundle.length !== 2)
-    return "exotic"
 
   const types = bundle.map(x =>
     getAssetType(x.asset, Math.abs(x.amount))
@@ -685,21 +683,20 @@ function getOrderType(order){
 
   const unique = [...new Set(types)]
 
-  // fungible ↔ fungible
+  if(bundle.length > 2 && unique.every(x => x === "FT"))
+    return "basket-fx"
+
+  if(bundle.length !== 2)
+    return "exotic"
+
   if(unique.every(x => x === "FT"))
     return "simple-fx"
 
-  // NFT ↔ fungible
-  if(
-    types.includes("FT") &&
-    types.includes("NFT")
-  ) return "simple-nft"
+  if(types.includes("FT") && types.includes("NFT"))
+    return "simple-nft"
 
-  // LE ↔ fungible
-  if(
-    types.includes("FT") &&
-    types.includes("LE")
-  ) return "simple-le"
+  if(types.includes("FT") && types.includes("LE"))
+    return "simple-le"
 
   return "exotic"
 }
