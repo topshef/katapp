@@ -706,3 +706,111 @@ function getOrderType(order){
 
   return "exotic"
 }
+
+// TODO order type taxonomy / UX strategy
+//
+// Order classification is currently DERIVED from:
+//
+//   1. directionality
+//      - offer      (all negative)
+//      - request    (all positive)
+//      - mixed      (contains both)
+//
+//   2. asset composition
+//      - FT   = fungible with decimals
+//      - LE   = limited-edition / zero-decimal collectible fungible
+//      - NFT  = non-fungible unique
+//
+//   3. structure
+//      - pairwise (2 line items)
+//      - basket   (2+ line items)
+//
+// ------------------------------------------------------------
+// CURRENT ORDER TYPES
+// ------------------------------------------------------------
+//
+// offer
+// request
+//
+// simple-fx
+// basket-fx
+//
+// simple-nft
+// simple-le
+//
+// simple-collectible
+// basket-collectible
+//
+// exotic
+//
+// ------------------------------------------------------------
+// IMPORTANT CONCEPTUAL DISTINCTIONS
+// ------------------------------------------------------------
+//
+// FX-like orders:
+//   - can imply prices/rates
+//   - support charts/orderbooks/depth
+//   - may derive synthetic pairs
+//   - may support routing/cycle matching
+//
+// Collectible orders:
+//   - negotiated/barter-like
+//   - usually subjective pricing
+//   - less suitable for charts/orderbooks
+//   - more card/trade style UX
+//
+// Therefore:
+//   simple-vs-basket matters MORE for FX
+//   than for collectibles.
+//
+// ------------------------------------------------------------
+// POSSIBLE FUTURE UX BY TYPE
+// ------------------------------------------------------------
+//
+// simple-fx
+//   - bid/ask style
+//   - orderbook
+//   - depth/cliff charts
+//   - spread/rate display
+//   - implied/synthetic markets
+//
+// basket-fx
+//   - graph/routing view
+//   - cycle detection
+//   - clearing optimisation
+//   - portfolio rebalance style UI
+//
+// collectible / nft / le
+//   - side-by-side card comparison
+//   - swipe/trade UX
+//   - marketplace style presentation
+//   - bundle negotiation
+//
+// offer / request
+//   - gifting
+//   - bounty
+//   - RFQ / inquiry
+//   - open listing
+//
+// exotic
+//   - fallback/raw bundle renderer
+//   - debugging/prototyping category
+//
+// ------------------------------------------------------------
+// IMPORTANT ARCHITECTURAL RULE
+// ------------------------------------------------------------
+//
+// Order type is DERIVED VIEW LOGIC only.
+//
+// Do NOT mutate/store canonical order.type.
+//
+// Classification rules will evolve over time.
+// Rendering should depend on helpers:
+//
+//   getAssetType()
+//   getOrderType()
+//
+// rather than persisted state.
+//
+
+
