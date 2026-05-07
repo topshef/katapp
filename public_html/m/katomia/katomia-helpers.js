@@ -622,3 +622,84 @@ function getOrderFillRatio(orderId){  //ref BASK1
     denominator: 1
   }
 }
+
+
+
+// ┌─┐┌─┐┌┬┐  ╔═╗┌─┐┌─┐┌─┐┌┬┐  ╔╦╗┬ ┬┌─┐┌─┐
+// │ ┬├┤  │   ╠═╣└─┐└─┐├┤  │    ║ └┬┘├─┘├┤ 
+// └─┘└─┘ ┴   ╩ ╩└─┘└─┘└─┘ ┴    ╩  ┴ ┴  └─┘
+// get Asset Type
+function getAssetType(assetId, amount=1){
+
+  const meta = getAssetMeta(assetId)
+
+  // fallback while metadata loading
+  if(!meta){
+
+    // serial heuristic fallback
+    if(String(assetId).includes("#"))
+      return "NFT"
+
+    return "UNKNOWN"
+  }
+
+  const tokenClass = meta.token_class || {}
+
+  // canonical Hedera NFT
+  if(tokenClass.type === "NON_FUNGIBLE_UNIQUE")
+    return "NFT"
+
+  const decimals = Number(tokenClass.decimals || 0)
+
+  // zero-decimal fungible
+  if(decimals === 0){
+
+    // future:
+    // inspect supply / treasury / metadata / whitelist
+    // to determine collectible semantics
+
+    if(amount <= 10000)
+      return "LE"
+
+    return "FT0"
+  }
+
+  return "FT"
+}
+
+
+// ┌─┐┌─┐┌┬┐  ╔═╗┬─┐┌┬┐┌─┐┬─┐  ╔╦╗┬ ┬┌─┐┌─┐
+// │ ┬├┤  │   ║ ║├┬┘ ││├┤ ├┬┘   ║ └┬┘├─┘├┤ 
+// └─┘└─┘ ┴   ╚═╝┴└──┴┘└─┘┴└─   ╩  ┴ ┴  └─┘
+// get Order Type
+function getOrderType(order){
+
+  const bundle = order?.bundle || []
+
+  if(bundle.length !== 2)
+    return "exotic"
+
+  const types = bundle.map(x =>
+    getAssetType(x.asset, Math.abs(x.amount))
+  )
+
+  const unique = [...new Set(types)]
+
+  // fungible ↔ fungible
+  if(unique.every(x => x === "FT"))
+    return "simple-fx"
+
+  // NFT ↔ fungible
+  if(
+    types.includes("FT") &&
+    types.includes("NFT")
+  ) return "simple-nft"
+
+  // LE ↔ fungible
+  if(
+    types.includes("FT") &&
+    types.includes("LE")
+  ) return "simple-le"
+
+  return "exotic"
+}

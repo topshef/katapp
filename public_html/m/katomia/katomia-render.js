@@ -1052,13 +1052,15 @@ function getFastThumb(url, imgEl){
       }
 
       const mine = playerId === currentPlayerId
-      const fill = getOrderFillRatio(orderId)
+      const fill = getOrderFillRatio(orderId)   //BASK1
+      const orderType = getOrderType(order)
 
       const prefix = document.createElement("span")
       // prefix.textContent = `Order #${orderId} (${playerId}${mine ? "=you" : ""}): `
       prefix.textContent =
         `Order #${orderId} (${playerId}${mine ? "=you" : ""}) ` +
-        `[filled ${fill.numerator}/${fill.denominator}]: `
+        // `[filled ${fill.numerator}/${fill.denominator}]: `   //BASK1
+        `[${orderType}] [filled ${fill.numerator}/${fill.denominator}]: `
   
 
       const arrow = document.createElement("span")
