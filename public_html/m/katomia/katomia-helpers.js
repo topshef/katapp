@@ -514,3 +514,111 @@ function getPendingTxAccountMap(){
 	return map
 }
 
+
+
+
+
+// ╔═╗╔═╗╔╦╗
+// ║ ╦║   ║║
+// ╚═╝╚═╝═╩╝
+// GCD
+function gcd(a, b){ // ref BASK1
+  a = Math.abs(a)
+  b = Math.abs(b)
+
+  while(b){
+    const t = b
+    b = a % b
+    a = t
+  }
+
+  return a || 1
+}
+
+// ┬─┐┌─┐┌┬┐┬ ┬┌─┐┌─┐  ╔═╗┬─┐┌─┐┌─┐┌┬┐┬┌─┐┌┐┌
+// ├┬┘├┤  │││ ││  ├┤   ╠╣ ├┬┘├─┤│   │ ││ ││││
+// ┴└─└─┘─┴┘└─┘└─┘└─┘  ╚  ┴└─┴ ┴└─┘ ┴ ┴└─┘┘└┘
+// reduce Fraction
+function reduceFraction(numerator, denominator){  // ref BASK1
+
+  if(!denominator)
+    return { numerator: 0, denominator: 1 }
+
+  const d = gcd(numerator, denominator)
+
+  return {
+    numerator: numerator / d,
+    denominator: denominator / d
+  }
+}
+
+// ┌┐ ┬ ┬┬┬  ┌┬┐  ╔═╗┬─┐┌┬┐┌─┐┬─┐  ╔═╗┬┬  ┬    ╔╦╗┌─┐┌─┐
+// ├┴┐│ │││   ││  ║ ║├┬┘ ││├┤ ├┬┘  ╠╣ ││  │    ║║║├─┤├─┘
+// └─┘└─┘┴┴─┘─┴┘  ╚═╝┴└──┴┘└─┘┴└─  ╚  ┴┴─┘┴─┘  ╩ ╩┴ ┴┴  
+// build Order Fill Map
+function buildOrderFillMap(){ // ref BASK1
+
+  const out = {}
+
+  if(!state?.accounts)
+    return out
+
+  const seen = new Set()
+
+  Object.values(state.accounts).forEach(account => {
+
+    ;(account.basket || []).forEach(item => {
+
+      if(!item.orderId) return
+      if(!item.fillId) return
+
+      const key = `${item.orderId}|${item.fillId}`
+
+      // same fill appears multiple times across baskets
+      if(seen.has(key)) return
+      seen.add(key)
+
+      const numerator = Number(item.numerator || 1)
+      const denominator = Number(item.denominator || 1)
+
+      if(!out[item.orderId]){
+        out[item.orderId] = {
+          numerator: 0,
+          denominator: 1
+        }
+      }
+
+      const current = out[item.orderId]
+
+      // a/b + c/d
+      const nextNumerator =
+        current.numerator * denominator +
+        numerator * current.denominator
+
+      const nextDenominator =
+        current.denominator * denominator
+
+      out[item.orderId] = reduceFraction(
+        nextNumerator,
+        nextDenominator
+      )
+    })
+
+  })
+
+  return out
+}
+
+// ┌─┐┌─┐┌┬┐  ╔═╗┬─┐┌┬┐┌─┐┬─┐  ╔═╗┬┬  ┬    ╦═╗┌─┐┌┬┐┬┌─┐
+// │ ┬├┤  │   ║ ║├┬┘ ││├┤ ├┬┘  ╠╣ ││  │    ╠╦╝├─┤ │ ││ │
+// └─┘└─┘ ┴   ╚═╝┴└──┴┘└─┘┴└─  ╚  ┴┴─┘┴─┘  ╩╚═┴ ┴ ┴ ┴└─┘
+// get Order Fill Ratio
+function getOrderFillRatio(orderId){  //ref BASK1
+
+  window.orderFillMap ||= buildOrderFillMap()
+
+  return window.orderFillMap[orderId] || {
+    numerator: 0,
+    denominator: 1
+  }
+}

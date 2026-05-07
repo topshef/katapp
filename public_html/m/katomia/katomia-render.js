@@ -912,6 +912,7 @@ function getFastThumb(url, imgEl){
       headerEl.style.display = viewMode === "columns" ? "grid" : "none"
 
       //show orders
+      window.orderFillMap = buildOrderFillMap()
       renderOrders()
 
 
@@ -1051,9 +1052,14 @@ function getFastThumb(url, imgEl){
       }
 
       const mine = playerId === currentPlayerId
+      const fill = getOrderFillRatio(orderId)
 
       const prefix = document.createElement("span")
-      prefix.textContent = `Order #${orderId} (${playerId}${mine ? "=you" : ""}): `
+      // prefix.textContent = `Order #${orderId} (${playerId}${mine ? "=you" : ""}): `
+      prefix.textContent =
+        `Order #${orderId} (${playerId}${mine ? "=you" : ""}) ` +
+        `[filled ${fill.numerator}/${fill.denominator}]: `
+  
 
       const arrow = document.createElement("span")
       arrow.textContent = " → "
