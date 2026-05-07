@@ -683,19 +683,25 @@ function getOrderType(order){
 
   const unique = [...new Set(types)]
 
-  if(bundle.length > 2 && unique.every(x => x === "FT"))
-    return "basket-fx"
+  const hasPositive = bundle.some(x => x.amount > 0)
+  const hasNegative = bundle.some(x => x.amount < 0)
 
-  if(bundle.length !== 2)
-    return "exotic"
+  if(hasNegative && !hasPositive)
+    return "offer"
+
+  if(hasPositive && !hasNegative)
+    return "request"
 
   if(unique.every(x => x === "FT"))
-    return "simple-fx"
+    return bundle.length === 2 ? "simple-fx" : "basket-fx"
 
-  if(types.includes("FT") && types.includes("NFT"))
+  if(unique.every(x => x === "NFT" || x === "LE"))
+    return bundle.length === 2 ? "simple-collectible" : "basket-collectible"
+
+  if(bundle.length === 2 && types.includes("FT") && types.includes("NFT"))
     return "simple-nft"
 
-  if(types.includes("FT") && types.includes("LE"))
+  if(bundle.length === 2 && types.includes("FT") && types.includes("LE"))
     return "simple-le"
 
   return "exotic"
