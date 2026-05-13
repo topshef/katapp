@@ -959,7 +959,23 @@ function getFastThumb(url, imgEl){
     // so current enrichment (account-driven) may miss them.
     // Later: include orders in enrichment scan or run a separate pass.
 
-    
+        
+    function getAllowedFxPair(base, quote){
+
+      const allowedPairs = [
+
+        ["XBAR", "USDC"],
+        ["KGBP", "USDC"],
+        //etc
+      ]
+
+      return allowedPairs.find(([a, b]) =>
+        (a === base && b === quote) ||
+        (a === quote && b === base)
+      ) || null
+    }
+
+
     function enrichSimpleFxOrder(order){
 
       const offer = []
@@ -976,25 +992,54 @@ function getFastThumb(url, imgEl){
       const offerLine = offer[0]
       const requestLine = request[0]
 
-      const baseAmount = Math.abs(offerLine.amount)
-      const quoteAmount = Math.abs(requestLine.amount)
+      const offerAmount = Math.abs(offerLine.amount)
+      const requestAmount = Math.abs(requestLine.amount)
 
-      if(!baseAmount)
+      if(!offerAmount)
         return {}
 
-      const rate = quoteAmount / baseAmount
-
-      const baseLabel =
-        getAssetDisplay(offerLine.asset, baseAmount)
+      const offerLabel =
+        getAssetDisplay(offerLine.asset, offerAmount)
           .split(" ")[0]
 
-      const quoteLabel =
-        getAssetDisplay(requestLine.asset, quoteAmount)
+      const requestLabel =
+        getAssetDisplay(requestLine.asset, requestAmount)
           .split(" ")[0]
+
+      const allowedPair =
+        getAllowedFxPair(offerLabel, requestLabel)
+
+      // default/raw direction
+      let pairLabel =
+        `${offerLabel}/${requestLabel}`
+
+      let rate =
+        requestAmount / offerAmount
+
+      let action = ""
+
+      if(allowedPair){
+
+        const [base, quote] = allowedPair
+
+        pairLabel = `${base}/${quote}`
+
+        // offer side matches canonical base
+        if(offerLabel === base){
+
+          rate = requestAmount / offerAmount
+          action = "sell"
+
+        }else{
+
+          rate = offerAmount / requestAmount
+          action = "buy"
+        }
+      }
 
       return {
         derivedLabel:
-          `[rate ${baseLabel}/${quoteLabel} ${rate}]`
+          `[${action} ${pairLabel} ${rate}]`
       }
     }
 
