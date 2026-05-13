@@ -966,6 +966,7 @@ function getFastThumb(url, imgEl){
 
         ["XBAR", "USDC"],
         ["KGBP", "USDC"],
+        ["XBAR", "KBRL"],
         //etc
       ]
 
@@ -1006,15 +1007,14 @@ function getFastThumb(url, imgEl){
         getAssetDisplay(requestLine.asset, requestAmount)
           .split(" ")[0]
 
-      const allowedPair =
-        getAllowedFxPair(offerLabel, requestLabel)
+      const allowedPair = getAllowedFxPair(offerLabel, requestLabel)
 
       // default/raw direction
-      let pairLabel =
-        `${offerLabel}/${requestLabel}`
+      let pairLabel = `${offerLabel}/${requestLabel}`
 
-      let rate =
-        requestAmount / offerAmount
+      let rate = requestAmount / offerAmount
+
+      let volume = offerAmount
 
       let action = ""
 
@@ -1028,18 +1028,20 @@ function getFastThumb(url, imgEl){
         if(offerLabel === base){
 
           rate = requestAmount / offerAmount
+          volume = offerAmount
           action = "sell"
 
         }else{
 
           rate = offerAmount / requestAmount
+          volume = requestAmount
           action = "buy"
         }
       }
 
       return {
         derivedLabel:
-          `[${action} ${pairLabel} ${rate}]`
+          `[${action} ${volume} ${pairLabel} @${rate}]`
       }
     }
 
