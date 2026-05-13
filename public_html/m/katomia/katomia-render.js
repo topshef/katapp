@@ -912,7 +912,9 @@ function getFastThumb(url, imgEl){
       headerEl.style.display = viewMode === "columns" ? "grid" : "none"
 
       //show orders
+      
       window.orderFillMap = buildOrderFillMap()
+      renderOrderMarketSummary()
       renderOrders()
 
 
@@ -1041,8 +1043,17 @@ function getFastThumb(url, imgEl){
 
       return {
         derivedLabel:
-          `[${action} ${volume} ${pairLabel} @${rate}]`
+          `[${action} ${volume} ${pairLabel} @${rate}]`,
+
+        market: {
+          type: "simple-fx",
+          pair: pairLabel,
+          action,
+          volume,
+          rate
+        }
       }
+
     }
 
 

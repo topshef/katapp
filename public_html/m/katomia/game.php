@@ -59,9 +59,10 @@
 
   </div>
   
-    <div id="ordersSection">
-        <div class="orders-list"></div>
-    </div>
+  <div id="ordersSection">
+    <div class="orders-market-summary"></div>
+    <div class="orders-list"></div>
+  </div>
 
 <BR>
 	<div class="hint">
@@ -141,6 +142,7 @@
 <script src="katomia-render.js"></script>
 <script src="katomia-enrich.js"></script>
 <script src="katomia-network.js"></script>
+<script src="katomia-orders.js"></script>
 
 <script>
 window.addEventListener("load", () => {
