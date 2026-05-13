@@ -934,19 +934,89 @@ function getFastThumb(url, imgEl){
     // ├┬┘├┤ │││ ││├┤ ├┬┘  ║ ║├┬┘ ││├┤ ├┬┘└─┐
     // ┴└─└─┘┘└┘─┴┘└─┘┴└─  ╚═╝┴└──┴┘└─┘┴└─└─┘
     // render Orders
+    
     function renderOrders(){
 
       const listEl = document.querySelector("#ordersSection .orders-list")
       listEl.innerHTML = ""
 
-      getAllOrders().forEach(orderRec => {
+      const orders = getAllOrders()
+
+      orders.sort((a, b) => {
+
+        const ta = getOrderType(a.order)
+        const tb = getOrderType(b.order)
+
+        return ta.localeCompare(tb)
+      })
+
+      orders.forEach(orderRec => {
         listEl.appendChild(createOrderRow(orderRec))
       })
-    }         
+    }       
     // TODO:
     // Orders may reference assets not present in visible accounts,
     // so current enrichment (account-driven) may miss them.
     // Later: include orders in enrichment scan or run a separate pass.
+
+    
+    function enrichSimpleFxOrder(order){
+
+      const offer = []
+      const request = []
+
+      ;(order.bundle || []).forEach(x => {
+        if(x.amount < 0) offer.push(x)
+        else if(x.amount > 0) request.push(x)
+      })
+
+      if(offer.length !== 1 || request.length !== 1)
+        return {}
+
+      const offerLine = offer[0]
+      const requestLine = request[0]
+
+      const baseAmount = Math.abs(offerLine.amount)
+      const quoteAmount = Math.abs(requestLine.amount)
+
+      if(!baseAmount)
+        return {}
+
+      const rate = quoteAmount / baseAmount
+
+      const baseLabel =
+        getAssetDisplay(offerLine.asset, baseAmount)
+          .split(" ")[0]
+
+      const quoteLabel =
+        getAssetDisplay(requestLine.asset, quoteAmount)
+          .split(" ")[0]
+
+      return {
+        derivedLabel:
+          `[rate ${baseLabel}/${quoteLabel} ${rate}]`
+      }
+    }
+
+
+    const orderTypeEnrichers = {
+      "simple-fx": enrichSimpleFxOrder
+    }
+
+
+    function enrichOrder(order){
+
+      const type = getOrderType(order)
+
+      const fn = orderTypeEnrichers[type]
+
+      if(!fn)
+        return {}
+
+      return fn(order)
+    }
+
+
 
          
     function createOrderSide(items, cls){
@@ -1054,13 +1124,15 @@ function getFastThumb(url, imgEl){
       const mine = playerId === currentPlayerId
       const fill = getOrderFillRatio(orderId)   //BASK1
       const orderType = getOrderType(order)
+      const enriched = enrichOrder(order)
 
       const prefix = document.createElement("span")
       // prefix.textContent = `Order #${orderId} (${playerId}${mine ? "=you" : ""}): `
       prefix.textContent =
         `Order #${orderId} (${playerId}${mine ? "=you" : ""}) ` +
         // `[filled ${fill.numerator}/${fill.denominator}]: `   //BASK1
-        `[${orderType}] [filled ${fill.numerator}/${fill.denominator}]: `
+        // `[${orderType}] [filled ${fill.numerator}/${fill.denominator}]: `
+        `[${orderType}]  ${enriched.derivedLabel || ""} [filled ${fill.numerator}/${fill.denominator}]: `
   
 
       const arrow = document.createElement("span")
