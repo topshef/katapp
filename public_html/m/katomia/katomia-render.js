@@ -969,6 +969,7 @@ function getFastThumb(url, imgEl){
         ["XBAR", "USDC"],
         ["KGBP", "USDC"],
         ["XBAR", "KBRL"],
+        ["KBRL", "KCOP"],
         //etc
       ]
 
@@ -1018,7 +1019,7 @@ function getFastThumb(url, imgEl){
 
       let volume = offerAmount
 
-      let action = ""
+      let side = ""
 
       if(allowedPair){
 
@@ -1031,27 +1032,52 @@ function getFastThumb(url, imgEl){
 
           rate = requestAmount / offerAmount
           volume = offerAmount
-          action = "sell"
+          side = "sell"
 
         }else{
 
           rate = offerAmount / requestAmount
           volume = requestAmount
-          action = "buy"
+          side = "buy"
         }
       }
 
       return {
         derivedLabel:
-          `[${action} ${volume} ${pairLabel} @${rate}]`,
+          `[${side} ${volume} ${pairLabel} @${rate}]`,
 
         market: {
           type: "simple-fx",
+
           pair: pairLabel,
-          action,
+
+          side,
+
+          rate,
           volume,
-          rate
+
+          baseAsset:
+            side === "sell"
+              ? offerLine.asset
+              : requestLine.asset,
+
+          quoteAsset:
+            side === "sell"
+              ? requestLine.asset
+              : offerLine.asset,
+
+          baseAmount:
+            side === "sell"
+              ? offerAmount
+              : requestAmount,
+
+          quoteAmount:
+            side === "sell"
+              ? requestAmount
+              : offerAmount
         }
+
+
       }
 
     }

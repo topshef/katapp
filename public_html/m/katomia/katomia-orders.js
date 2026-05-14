@@ -13,14 +13,62 @@ function getSimpleFxMarkets(){
 
     grouped[market.pair] ||= []
 
-    grouped[market.pair].push({
+    const enrichedRow = enrichSimpleFxMarketRow({
       orderId: orderRec.orderId,
       playerId: orderRec.playerId,
-      ...market
+      market
     })
+
+    grouped[market.pair].push(enrichedRow)
+
   })
 
   return grouped
+}
+
+function enrichSimpleFxMarketRow({ orderId, playerId, market }){
+
+  const baseMeta = getAssetMeta(market.baseAsset)
+  const quoteMeta = getAssetMeta(market.quoteAsset)
+
+  const baseDecimals =
+    Number(baseMeta?.token_class?.decimals || 0)
+
+  const quoteDecimals =
+    Number(quoteMeta?.token_class?.decimals || 0)
+
+  const displayBaseAmount =
+    market.baseAmount / (10 ** baseDecimals)
+
+  const displayQuoteAmount =
+    market.quoteAmount / (10 ** quoteDecimals)
+
+  const rawRate =
+    market.quoteAmount / market.baseAmount
+
+  // decimal-correct human rate
+  const displayRate =
+    displayQuoteAmount / displayBaseAmount
+
+  return {
+    orderId,
+    playerId,
+
+    pair: market.pair,
+    side: market.side,
+
+    baseAsset: market.baseAsset,
+    quoteAsset: market.quoteAsset,
+
+    rawBaseAmount: market.baseAmount,
+    rawQuoteAmount: market.quoteAmount,
+
+    displayBaseAmount,
+    displayQuoteAmount,
+
+    rawRate,
+    displayRate
+  }
 }
 
 
@@ -41,9 +89,26 @@ function renderOrderMarketSummary(){
     const row = document.createElement("div")
     row.className = "market-summary-row"
 
-    row.textContent =
-      `${pair} (${rows.length})`
+    const summary = rows
+      .map(row => {
 
+        const amount =
+          row.displayBaseAmount
+
+        const rate =
+          row.displayRate
+
+        return (
+          `${row.side} ` +
+          `${amount} ` +
+          `@ ${rate}`
+        )
+      })
+      .join(" | ")
+
+    row.textContent =
+      `${pair} (${rows.length}) ${summary}`
+      
     el.appendChild(row)
   })
 }
