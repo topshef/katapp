@@ -946,8 +946,8 @@ function getFastThumb(url, imgEl){
 
       orders.sort((a, b) => {
 
-        const ta = getOrderType(a.order)
-        const tb = getOrderType(b.order)
+        const ta = enrichOrder(a.order).market?.type || "invalid-UH83743"
+        const tb = enrichOrder(b.order).market?.type || "invalid-GY83744"
 
         return ta.localeCompare(tb)
       })
@@ -1090,16 +1090,27 @@ function getFastThumb(url, imgEl){
 
     function enrichOrder(order){
 
-      const type = getOrderType(order)
+      try {
 
-      const fn = orderTypeEnrichers[type]
+        const type = getOrderType(order)
 
-      if(!fn)
-        return {}
+        const fn = orderTypeEnrichers[type]
 
-      return fn(order)
-    }
+        if(!fn)
+          return {}
 
+        return fn(order)
+
+      } catch(err) {
+
+        console.warn("Bad order", order, err)
+
+        return {
+          error: err,
+          market: null
+        }
+      }
+}
 
 
          
@@ -1207,7 +1218,7 @@ function getFastThumb(url, imgEl){
 
       const mine = playerId === currentPlayerId
       const fill = getOrderFillRatio(orderId)   //BASK1
-      const orderType = getOrderType(order)
+      const orderType = getOrderType(order)  || "invalid-YE23998"
 
 
       const enriched = enrichOrder(order)
