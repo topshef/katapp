@@ -229,11 +229,12 @@ function renderOrderMarketSummary(){
     const summary = rows
       .map(row => {
 
-        return (
-          `${row.side} ` +
-          `${row.displayBaseAmount} ` +
-          `@ ${row.displayRate}`
-        )
+      return (
+        `#${row.orderId} ` +
+        `${row.side} ` +
+        `${row.displayBaseAmount} ` +
+        `@ ${row.displayRate}`
+      )
       })
       .join(" | ")
 
