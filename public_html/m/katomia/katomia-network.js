@@ -81,19 +81,47 @@ cancelOrderBtn.onclick = () => {
 
 
 createOrderBtn.onclick = () => {
-  
-  const userInput = prompt("Enter order data YH87323")
-  const bundle = normaliseOrder(userInput)
-  // const order = {bundle, userInput, comment: 'test GH23443'}
-  const order = {bundle}
-  
-  
-  socket.send(JSON.stringify({
-    type: "game_orderCreate",
-    gameId,
-    order
-  }))
 
+  const userInput =
+    prompt(
+      "Enter order data\n\n" +
+      "One order per line\n" +
+      "Use | for bundle items"
+    )
+
+  if(!userInput) return
+
+  // console.log("RAW userInput", userInput)
+  // console.log("JSON userInput", JSON.stringify(userInput))
+  // console.log(
+    // "split newline",
+    // userInput.split("\n")
+  // )
+  // console.log(
+    // "split CRLF",
+    // userInput.split("\r\n")
+  // )
+
+
+  const lines =
+    userInput
+      .split(/\r?\n/)
+      .map(x => x.trim())
+      .filter(Boolean)
+
+  lines.forEach(line => {
+
+    const bundle =
+      normaliseOrder(line)
+
+    const order = {bundle}
+
+    socket.send(JSON.stringify({
+      type: "game_orderCreate",
+      gameId,
+      order
+    }))
+  })
 }
 
 
