@@ -119,6 +119,9 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
       "svg"
     )
 
+
+
+
   svg.setAttribute("width", width)
   svg.setAttribute("height", height)
 
@@ -165,11 +168,21 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
         "rect"
       )
 
+    const rectData = {
+      row,
+      y,
+      w: barWidth,
+      h
+    }
+
     const jitterX =
       jitter
         ? (Math.random() - 0.5) * jitter
         : 0
 
+    rectData.x =
+      x - (barWidth / 2) + jitterX
+      
     rect.setAttribute(
       "x",
       x - (barWidth / 2) + jitterX
@@ -203,11 +216,96 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
     rect.dataset.volume = volume
     rect.dataset.orderId = row.orderId
 
+    rect.__heatmapData = rectData
+
     svg.appendChild(rect)
   })
 
   return svg
 }
+
+
+function ensureMarketTooltip(){
+
+  let el =
+    document.getElementById(
+      "marketHeatmapTooltip"
+    )
+
+  if(el) return el
+
+  el = document.createElement("div")
+
+  el.id = "marketHeatmapTooltip"
+
+  document.body.appendChild(el)
+
+  return el
+}
+
+
+document.addEventListener("mousemove", e => {
+
+  const tooltip =
+    ensureMarketTooltip()
+
+  const svg =
+    e.target.closest(".market-chart")
+
+  if(!svg){
+    tooltip.style.display = "none"
+    return
+  }
+
+  const rects =
+    [...svg.querySelectorAll("rect")]
+
+  const matches = []
+
+  rects.forEach(rect => {
+
+    const d = rect.__heatmapData
+
+    if(!d) return
+
+    const box =
+      rect.getBoundingClientRect()
+
+    const hit =
+      e.clientX >= box.left &&
+      e.clientX <= box.right &&
+      e.clientY >= box.top &&
+      e.clientY <= box.bottom
+
+    if(hit)
+      matches.push(d.row)
+  })
+
+  if(!matches.length){
+    tooltip.style.display = "none"
+    return
+  }
+
+  tooltip.innerHTML =
+    matches.map(row => {
+
+      return (
+        `#${row.orderId} ` +
+        `${row.side} ` +
+        `${row.displayBaseAmount} ` +
+        `@ ${row.displayRate}`
+      )
+    }).join("<br>")
+
+  tooltip.style.display = "block"
+
+  tooltip.style.left =
+    (e.pageX + 12) + "px"
+
+  tooltip.style.top =
+    (e.pageY + 12) + "px"
+})
+
 
 function renderOrderMarketSummary(){
 
