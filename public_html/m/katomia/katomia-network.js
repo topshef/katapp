@@ -67,16 +67,29 @@ addAccountBtn.onclick = () => {
 
 
 cancelOrderBtn.onclick = () => {
-  
-  const orderId = prompt("Enter order Id EY72633")
-  if (!orderId) return
-  
-  socket.send(JSON.stringify({
-    type: "game_orderCancel",
-    gameId,
-    orderId
-  }))
-        
+
+  const input =
+    prompt(
+      "Enter order Id(s)\n\n" +
+      "Comma separated"
+    )
+
+  if(!input) return
+
+  const orderIds =
+    input
+      .split(",")
+      .map(x => x.trim())
+      .filter(Boolean)
+
+  orderIds.forEach(orderId => {
+
+    socket.send(JSON.stringify({
+      type: "game_orderCancel",
+      gameId,
+      orderId
+    }))
+  })
 }
 
 
