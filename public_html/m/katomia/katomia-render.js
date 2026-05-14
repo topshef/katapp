@@ -1208,16 +1208,34 @@ function getFastThumb(url, imgEl){
       const mine = playerId === currentPlayerId
       const fill = getOrderFillRatio(orderId)   //BASK1
       const orderType = getOrderType(order)
+
+
       const enriched = enrichOrder(order)
 
+      let marketLabel = enriched.derivedLabel || ""
+
+      if(enriched.market?.type === "simple-fx"){
+
+        const row = enrichSimpleFxMarketRow({
+          orderId,
+          playerId,
+          market: enriched.market
+        })
+
+        marketLabel =
+          `[${row.side} ` +
+          `${row.displayBaseAmount} ` +
+          `${row.pair} @${row.displayRate}]`
+      }
+
       const prefix = document.createElement("span")
-      // prefix.textContent = `Order #${orderId} (${playerId}${mine ? "=you" : ""}): `
+
       prefix.textContent =
         `Order #${orderId} (${playerId}${mine ? "=you" : ""}) ` +
-        // `[filled ${fill.numerator}/${fill.denominator}]: `   //BASK1
-        // `[${orderType}] [filled ${fill.numerator}/${fill.denominator}]: `
-        `[${orderType}]  ${enriched.derivedLabel || ""} [filled ${fill.numerator}/${fill.denominator}]: `
-  
+        `[${orderType}] ${marketLabel} ` +
+        `[filled ${fill.numerator}/${fill.denominator}]: `
+        
+        
 
       const arrow = document.createElement("span")
       arrow.textContent = " → "
