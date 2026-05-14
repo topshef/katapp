@@ -72,87 +72,47 @@ function enrichSimpleFxMarketRow({ orderId, playerId, market }){
 }
 
 
-
-function buildOrderBook(rows, opts = {}){
-
-  const aggregate =
-    opts.aggregate ?? true
-
-  const bucketSize =
-    opts.bucketSize ?? 0.01
-
-  const buys = []
-  const sells = []
-
-  rows.forEach(row => {
-
-    const sideRows =
-      row.side === "buy"
-        ? buys
-        : sells
-
-    if(!aggregate){
-
-      sideRows.push({
-        rate: row.displayRate,
-        volume: row.displayBaseAmount,
-        side: row.side,
-        orders: [row]
-      })
-
-      return
-    }
-
-    const bucketRate =
-      Math.floor(row.displayRate / bucketSize)
-        * bucketSize
-
-    let bucket = sideRows.find(x =>
-      x.rate === bucketRate
-    )
-
-    if(!bucket){
-
-      bucket = {
-        rate: bucketRate,
-        volume: 0,
-        side: row.side,
-        orders: []
-      }
-
-      sideRows.push(bucket)
-    }
-
-    bucket.volume += row.displayBaseAmount
-    bucket.orders.push(row)
-  })
-
-  buys.sort((a,b) => a.rate - b.rate)
-  sells.sort((a,b) => a.rate - b.rate)
-
-  const all = [...buys, ...sells]
+function buildHeatmap(rows){
 
   return {
-    buys,
-    sells,
+
+    rows,
 
     stats: {
-      minRate: Math.min(...all.map(x => x.rate)),
-      maxRate: Math.max(...all.map(x => x.rate)),
-      maxVolume: Math.max(...all.map(x => x.volume))
+
+      minRate:
+        Math.min(...rows.map(x => x.displayRate)),
+
+      maxRate:
+        Math.max(...rows.map(x => x.displayRate)),
+
+      maxVolume:
+        Math.max(...rows.map(x => x.displayBaseAmount))
     }
   }
 }
 
 
-function renderMarketChart(pair, orderBook){
+function renderMarketHeatmap(pair, heatmap, opts = {}){
 
-  const width = 420
-  const height = 140
-  const pad = 12
+  const width =
+    opts.width ?? 420
 
-  const barWidth = 16
-  
+  const height =
+    opts.height ?? 140
+
+  const pad =
+    opts.pad ?? 12
+
+  const barWidth =
+    opts.barWidth ?? 16
+
+  const opacity =
+    opts.opacity ?? 0.14
+
+  const jitter =
+    opts.jitter ?? 0
+
   const svg =
     document.createElementNS(
       "http://www.w3.org/2000/svg",
@@ -161,34 +121,40 @@ function renderMarketChart(pair, orderBook){
 
   svg.setAttribute("width", width)
   svg.setAttribute("height", height)
-  svg.classList.add("market-chart")
 
-  const all = [
-    ...orderBook.buys,
-    ...orderBook.sells
-  ]
+  svg.classList.add("market-chart")
 
   const {
     minRate,
     maxRate,
     maxVolume
-  } = orderBook.stats
+  } = heatmap.stats
 
-  const chartW = width - pad * 2
-  const chartH = height - pad * 2
+  const chartW =
+    width - (pad * 2)
 
-  all.forEach((bucket, i) => {
+  const chartH =
+    height - (pad * 2)
+
+  heatmap.rows.forEach(row => {
+
+    const rate =
+      row.displayRate
+
+    const volume =
+      row.displayBaseAmount
 
     const x =
       pad +
       (
-        (bucket.rate - minRate)
+        (rate - minRate)
         / (maxRate - minRate || 1)
       ) * chartW
-      
+
     const h =
-      (bucket.volume / (maxVolume || 1))
-      * chartH
+      (
+        volume / (maxVolume || 1)
+      ) * chartH
 
     const y =
       height - pad - h
@@ -199,29 +165,49 @@ function renderMarketChart(pair, orderBook){
         "rect"
       )
 
-    
-    rect.setAttribute("x", x - (barWidth/2))
+    const jitterX =
+      jitter
+        ? (Math.random() - 0.5) * jitter
+        : 0
+
+    rect.setAttribute(
+      "x",
+      x - (barWidth / 2) + jitterX
+    )
+
     rect.setAttribute("y", y)
-    rect.setAttribute("width", barWidth)
-    rect.setAttribute("height", h)
+
+    rect.setAttribute(
+      "width",
+      barWidth
+    )
+
+    rect.setAttribute(
+      "height",
+      h
+    )
 
     rect.setAttribute(
       "fill",
-      bucket.side === "buy"
+      row.side === "buy"
         ? "#2ecc71"
         : "#e74c3c"
     )
 
-    rect.dataset.rate = bucket.rate
-    rect.dataset.volume = bucket.volume
-    rect.dataset.orders = bucket.orders.length
+    rect.setAttribute(
+      "fill-opacity",
+      opacity
+    )
+
+    rect.dataset.rate = rate
+    rect.dataset.volume = volume
+    rect.dataset.orderId = row.orderId
 
     svg.appendChild(rect)
   })
 
   return svg
 }
-
 
 function renderOrderMarketSummary(){
 
@@ -256,18 +242,23 @@ function renderOrderMarketSummary(){
 
     el.appendChild(row)
 
-    const orderBook = buildOrderBook(rows, {
-
-      // toggle later
-      aggregate: false,
-
-      // demo value for now
-      bucketSize: 0.05
-    })
+    const heatmap =
+      buildHeatmap(rows)
 
     const chart =
-      renderMarketChart(pair, orderBook)
+      renderMarketHeatmap(
+        pair,
+        heatmap,
+        {
 
+          opacity: 0.16,
+
+          // set 0 to disable
+          jitter: 10,
+
+          barWidth: 16
+        }
+      )
     el.appendChild(chart)
   })
 }
