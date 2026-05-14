@@ -151,6 +151,8 @@ function renderMarketChart(pair, orderBook){
   const height = 140
   const pad = 12
 
+  const barWidth = 16
+  
   const svg =
     document.createElementNS(
       "http://www.w3.org/2000/svg",
@@ -175,7 +177,7 @@ function renderMarketChart(pair, orderBook){
   const chartW = width - pad * 2
   const chartH = height - pad * 2
 
-  all.forEach(bucket => {
+  all.forEach((bucket, i) => {
 
     const x =
       pad +
@@ -183,7 +185,7 @@ function renderMarketChart(pair, orderBook){
         (bucket.rate - minRate)
         / (maxRate - minRate || 1)
       ) * chartW
-
+      
     const h =
       (bucket.volume / (maxVolume || 1))
       * chartH
@@ -197,9 +199,10 @@ function renderMarketChart(pair, orderBook){
         "rect"
       )
 
-    rect.setAttribute("x", x)
+    
+    rect.setAttribute("x", x - (barWidth/2))
     rect.setAttribute("y", y)
-    rect.setAttribute("width", 8)
+    rect.setAttribute("width", barWidth)
     rect.setAttribute("height", h)
 
     rect.setAttribute(
