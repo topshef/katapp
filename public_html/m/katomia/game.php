@@ -60,8 +60,13 @@
   </div>
   
   <div id="ordersSection">
-    <div class="orders-market-summary"></div>
-    <div class="orders-list"></div>
+    <div class="orders-market-summary subtle"></div>
+    
+    <details class="orders-details">
+      <summary class="subtle">All orders (debug view)</summary>
+      <div class="orders-list"></div>
+    </details>
+  
   </div>
 
 <BR>
