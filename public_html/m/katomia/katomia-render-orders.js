@@ -228,7 +228,7 @@ function createTradeBtn(pair){  //simple FX
   const btn = document.createElement("button")
 
   btn.className = "market-trade-btn"
-  btn.textContent = "Trade"
+  btn.textContent = "Take"
 
   btn.onclick = () => {
 
@@ -341,15 +341,11 @@ function renderOrderMarketSummary(){
       })
       .join(" | ")
 
-    // row.textContent =
-      // `${pair} (${rows.length}) ${summary}`
 
-    // el.appendChild(row)
     const text =
       document.createElement("span")
 
-    text.textContent =
-      `${pair} (${rows.length}) ${summary}`
+    text.innerHTML = `<span class="market-pair-label">${pair}</span> (${rows.length}) ${summary}`
 
     row.appendChild(createTradeBtn(pair))
     row.appendChild(text)

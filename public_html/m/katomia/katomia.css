@@ -986,4 +986,13 @@ button i{
 }
 
 
+.market-pair-label{
+  font-size: 1.1em;
+  font-weight: 700;
+}
 
+.market-trade-btn{
+  font-size: 0.9em;
+  padding: 2px 6px;
+  margin-right: 6px;
+}
