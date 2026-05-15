@@ -222,6 +222,96 @@ document.addEventListener("mousemove", e => {
 })
 
 
+
+function createTradeBtn(pair){  //simple FX
+
+  const btn = document.createElement("button")
+
+  btn.className = "market-trade-btn"
+  btn.textContent = "Trade"
+
+  btn.onclick = () => {
+
+    const input =
+      prompt(
+        "account,volume,limitRate\n\n" +
+        "Example:\n" +
+        "0.0.1234,100,0.12"
+      )
+
+    if(!input) return
+
+    const [fillerAccountId, volumeRaw, limitRateRaw] =
+      input.split(",").map(x => x.trim())
+
+    const volume = Number(volumeRaw)
+    const limitRate = Number(limitRateRaw)
+
+    if(
+      !fillerAccountId ||
+      !volume ||
+      !limitRate
+    ){
+      alert("Bad format")
+      return
+    }
+
+    const result =
+      estimateMarketTrade({
+        pair,
+        fillerAccountId,
+        volume,
+        limitRate
+      })
+
+    if(!result.fills.length){
+      alert("No matching liquidity found")
+      return
+    }
+
+    const summary =
+      result.fills.map(fill => {
+
+        return (
+          `#${fill.orderId} ` +
+          `${fill.side} ` +
+          `${fill.amount} ` +
+          `@ ${fill.rate} ` +
+          `🧩 ${fill.numerator}/${fill.denominator}`
+        )
+
+      }).join("\n")
+
+    const ok =
+      confirm(
+        `Requested: ${result.requestedVolume}\n` +
+        `Matched: ${result.matchedVolume}\n` +
+        `Remaining: ${result.remainingVolume}\n` +
+        `Effective rate: ${result.effectiveRate}\n\n` +
+        `Fills:\n\n` +
+        summary
+      )
+
+    if(!ok) return
+
+    result.fills.forEach(fill => {
+
+      socket.send(JSON.stringify({
+        type: "game_orderFill",
+        gameId,
+        orderId: fill.orderId,
+        numerator: fill.numerator,
+        denominator: fill.denominator,
+        fillerAccountId
+      }))
+    })
+  }
+
+  return btn
+}
+
+
+
 function renderOrderMarketSummary(){
 
   const el = document.querySelector(
@@ -251,10 +341,21 @@ function renderOrderMarketSummary(){
       })
       .join(" | ")
 
-    row.textContent =
+    // row.textContent =
+      // `${pair} (${rows.length}) ${summary}`
+
+    // el.appendChild(row)
+    const text =
+      document.createElement("span")
+
+    text.textContent =
       `${pair} (${rows.length}) ${summary}`
 
+    row.appendChild(createTradeBtn(pair))
+    row.appendChild(text)
+
     el.appendChild(row)
+
 
     const heatmap =
       buildMarketStats(rows)

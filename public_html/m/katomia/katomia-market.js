@@ -118,3 +118,114 @@ function buildMarketStats(rows){
 }
 
 
+// ┌┬┐┌─┐┬┌─┌─┐┬─┐       ┌─┐┬┌┬┐┌─┐┬  ┌─┐  ╔═╗═╗ ╦
+//  │ ├─┤├┴┐├┤ ├┬┘  ───  └─┐││││├─┘│  ├┤   ╠╣ ╔╩╦╝
+//  ┴ ┴ ┴┴ ┴└─┘┴└─       └─┘┴┴ ┴┴  ┴─┘└─┘  ╚  ╩ ╚═
+// taker - simple FX
+
+function estimateMarketTrade({
+  pair,
+  fillerAccountId,
+  volume,
+  limitRate
+}){
+
+  const markets = getSimpleFxMarkets()
+  const rows = [...(markets[pair] || [])]
+
+  const side =
+    volume > 0
+      ? "buy"
+      : "sell"
+
+  const targetVolume =
+    Math.abs(volume)
+
+  const compatible =
+    rows.filter(row => {
+
+      if(side === "buy"){
+
+        return (
+          row.side === "sell" &&
+          row.displayRate <= limitRate
+        )
+      }
+
+      return (
+        row.side === "buy" &&
+        row.displayRate >= limitRate
+      )
+    })
+
+  compatible.sort((a, b) => {
+
+    if(side === "buy")
+      return a.displayRate - b.displayRate
+
+    return b.displayRate - a.displayRate
+  })
+
+  let remaining = targetVolume
+
+  const fills = []
+
+  compatible.forEach(row => {
+
+    if(remaining <= 0) return
+
+    const fill =
+      getOrderFillRatio(row.orderId)
+
+    const available =
+      row.displayBaseAmount *
+      (
+        1 -
+        (fill.numerator / fill.denominator)
+      )
+
+    if(available <= 0) return
+
+    const used =
+      Math.min(available, remaining)
+
+    remaining -= used
+
+    const ratio =
+      used / row.displayBaseAmount
+
+    fills.push({
+      orderId: row.orderId,
+      side: row.side,
+      rate: row.displayRate,
+      amount: used,
+      numerator: Math.round(ratio * 1000000),
+      denominator: 1000000
+    })
+
+  })
+
+  const matchedVolume =
+    fills.reduce((a, x) => a + x.amount, 0)
+
+  const totalQuote =
+    fills.reduce((a, x) => {
+      return a + (x.amount * x.rate)
+    }, 0)
+
+  const effectiveRate =
+    matchedVolume
+      ? totalQuote / matchedVolume
+      : 0
+
+  return {
+    pair,
+    side,
+    requestedVolume: targetVolume,
+    matchedVolume,
+    remainingVolume: remaining,
+    effectiveRate,
+    fills
+  }
+}
+
