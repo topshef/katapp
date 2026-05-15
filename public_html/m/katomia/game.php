@@ -139,10 +139,11 @@
 <script type="module" src="katomia-init.js" data-glog="on"></script>
 <script src="katomia-core.js"></script>
 <script src="katomia-helpers.js"></script>
-<script src="katomia-render.js"></script>
 <script src="katomia-enrich.js"></script>
 <script src="katomia-network.js"></script>
-<script src="katomia-orders.js"></script>
+<script src="katomia-render.js"></script>
+<script src="katomia-render-orders.js"></script>
+<script src="katomia-market.js"></script>
 
 <script>
 window.addEventListener("load", () => {
