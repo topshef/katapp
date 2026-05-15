@@ -200,11 +200,15 @@ document.addEventListener("mousemove", e => {
   tooltip.innerHTML =
     matches.map(row => {
 
+      const fill =
+        getOrderFillRatio(row.orderId)
+
       return (
         `#${row.orderId} ` +
         `${row.side} ` +
         `${row.displayBaseAmount} ` +
-        `@ ${row.displayRate}`
+        `@ ${row.displayRate} ` +
+        `🧩 ${fill.numerator}/${fill.denominator}`
       )
     }).join("<br>")
 
