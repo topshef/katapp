@@ -21,59 +21,31 @@ Forbidden:
 */
 
 
+
 function renderMarketHeatmap(pair, heatmap, opts = {}){
 
-  const width =
-    opts.width ?? 420
+  const width = opts.width ?? 420
+  const height = opts.height ?? 140
+  const pad = opts.pad ?? 12
+  const barWidth = opts.barWidth ?? 16
+  const opacity = opts.opacity ?? 0.14
+  const jitter = opts.jitter ?? 0
 
-  const height =
-    opts.height ?? 140
-
-  const pad =
-    opts.pad ?? 12
-
-  const barWidth =
-    opts.barWidth ?? 16
-
-  const opacity =
-    opts.opacity ?? 0.14
-
-  const jitter =
-    opts.jitter ?? 0
-
-  const svg =
-    document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "svg"
-    )
-
-
-
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
 
   svg.setAttribute("width", width)
   svg.setAttribute("height", height)
-
   svg.classList.add("market-chart")
 
-  const {
-    minRate,
-    maxRate,
-    maxVolume
-  } = heatmap.stats
+  const { minRate, maxRate, maxVolume } = heatmap.stats
 
-  const chartW =
-    width - (pad * 2)
-
-  const chartH =
-    height - (pad * 2)
+  const chartW = width - (pad * 2)
+  const chartH = height - (pad * 2)
 
   heatmap.rows.forEach(row => {
 
-    const rate =
-      row.displayRate
-
-    const volume =
-      row.displayBaseAmount
+    const rate = row.displayRate
+    const volume = row.displayBaseAmount
 
     const x =
       pad +
@@ -87,46 +59,23 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
         volume / (maxVolume || 1)
       ) * chartH
 
-    const y =
-      height - pad - h
+    const y = height - pad - h
 
-    const rect =
-      document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "rect"
-      )
-
-    const rectData = {
-      row,
-      y,
-      w: barWidth,
-      h
-    }
+    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect")
 
     const jitterX =
       jitter
         ? (Math.random() - 0.5) * jitter
         : 0
 
-    rectData.x =
-      x - (barWidth / 2) + jitterX
-      
-    rect.setAttribute(
-      "x",
-      x - (barWidth / 2) + jitterX
-    )
+    const rectX = x - (barWidth / 2) + jitterX
 
+    const rectData = { row, x: rectX, y, w: barWidth, h }
+
+    rect.setAttribute("x", rectX)
     rect.setAttribute("y", y)
-
-    rect.setAttribute(
-      "width",
-      barWidth
-    )
-
-    rect.setAttribute(
-      "height",
-      h
-    )
+    rect.setAttribute("width", barWidth)
+    rect.setAttribute("height", h)
 
     rect.setAttribute(
       "fill",
@@ -135,10 +84,7 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
         : "#e74c3c"
     )
 
-    rect.setAttribute(
-      "fill-opacity",
-      opacity
-    )
+    rect.setAttribute("fill-opacity", opacity)
 
     rect.dataset.rate = rate
     rect.dataset.volume = volume
@@ -147,10 +93,41 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
     rect.__heatmapData = rectData
 
     svg.appendChild(rect)
+
+    const fill = getOrderFillRatio(row.orderId)
+
+    const fillRatio =
+      Math.min(
+        fill.numerator / fill.denominator,
+        1
+      )
+
+    const fillY =
+      y + h - (h * fillRatio)
+
+    const fillLine =
+      document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "line"
+      )
+
+    fillLine.setAttribute("x1", rectX)
+    fillLine.setAttribute("x2", rectX + barWidth)
+
+    fillLine.setAttribute("y1", fillY)
+    fillLine.setAttribute("y2", fillY)
+
+    fillLine.setAttribute("stroke", "#fff")
+    fillLine.setAttribute("stroke-width", "1.5")
+    fillLine.setAttribute("stroke-opacity", "0.9")
+
+    svg.appendChild(fillLine)
+
   })
 
   return svg
 }
+
 
 
 function ensureMarketTooltip(){
