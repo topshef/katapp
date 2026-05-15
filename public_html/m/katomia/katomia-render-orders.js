@@ -281,7 +281,8 @@ function renderOrderMarketSummary(){
           opacity: 0.16,
 
           // set 0 to disable
-          jitter: 10,
+          jitter: 0,
+          // jitter: 10,
 
           barWidth: 16
         }
