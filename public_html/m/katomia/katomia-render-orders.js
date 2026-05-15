@@ -90,7 +90,8 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
     const fill = getOrderFillRatio(row.orderId)
     const fillRatio = fill.numerator / fill.denominator
 
-    const fillY = y + h - (h * fillRatio)
+    // const fillY = y + h - (h * fillRatio)
+    const fillY = height - pad - (originalH * fillRatio)
 
     const fillLine = document.createElementNS("http://www.w3.org/2000/svg","line")
     fillLine.setAttribute("x1", rectX)
@@ -110,7 +111,8 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
       (fill.numerator / fill.denominator) +
       (pendingFill.numerator / pendingFill.denominator)
 
-    const pendingY = y + h - (h * totalFillRatio)
+    // const pendingY = y + h - (h * totalFillRatio)
+    const pendingY = height - pad - (originalH * totalFillRatio)
 
     const pendingLine = document.createElementNS("http://www.w3.org/2000/svg","line")
     pendingLine.setAttribute("x1", rectX)
