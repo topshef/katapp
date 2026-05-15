@@ -31,14 +31,13 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
   const opacity = opts.opacity ?? 0.14
   const jitter = opts.jitter ?? 0
 
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+  const svg = document.createElementNS("http://www.w3.org/2000/svg","svg")
 
   svg.setAttribute("width", width)
   svg.setAttribute("height", height)
   svg.classList.add("market-chart")
 
   const { minRate, maxRate, maxVolume } = heatmap.stats
-
   const chartW = width - (pad * 2)
   const chartH = height - (pad * 2)
 
@@ -46,134 +45,88 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
 
     const rate = row.displayRate
     const volume = row.displayBaseAmount
+    const originalVolume = row.originalDisplayBaseAmount || volume
 
-    const x =
-      pad +
-      (
-        (rate - minRate)
-        / (maxRate - minRate || 1)
-      ) * chartW
+    const x = pad + ((rate - minRate) / (maxRate - minRate || 1)) * chartW
 
-    const h =
-      (
-        volume / (maxVolume || 1)
-      ) * chartH
+    const h = (volume / (maxVolume || 1)) * chartH
+    const originalH = (originalVolume / (maxVolume || 1)) * chartH
 
     const y = height - pad - h
+    const originalY = height - pad - originalH
 
-    const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect")
-
-    const jitterX =
-      jitter
-        ? (Math.random() - 0.5) * jitter
-        : 0
-
+    const jitterX = jitter ? (Math.random() - 0.5) * jitter : 0
     const rectX = x - (barWidth / 2) + jitterX
 
-    const rectData = { row, x: rectX, y, w: barWidth, h }
+    const color = row.side === "buy" ? "#2ecc71" : "#e74c3c"
+    const lineColor = row.side === "buy" ? "#27ae60" : "#c0392b"
 
+    const edge = document.createElementNS("http://www.w3.org/2000/svg","line")
+    edge.setAttribute("x1", rectX)
+    edge.setAttribute("x2", rectX)
+    edge.setAttribute("y1", originalY)
+    edge.setAttribute("y2", height - pad)
+    edge.setAttribute("stroke", color)
+    edge.setAttribute("stroke-width","1")
+    edge.setAttribute("stroke-opacity", opacity + 0.05)
+    svg.appendChild(edge)
+
+    const rect = document.createElementNS("http://www.w3.org/2000/svg","rect")
     rect.setAttribute("x", rectX)
     rect.setAttribute("y", y)
     rect.setAttribute("width", barWidth)
     rect.setAttribute("height", h)
-
-    rect.setAttribute(
-      "fill",
-      row.side === "buy"
-        ? "#2ecc71"
-        : "#e74c3c"
-    )
-
+    rect.setAttribute("fill", color)
     rect.setAttribute("fill-opacity", opacity)
 
     rect.dataset.rate = rate
     rect.dataset.volume = volume
     rect.dataset.orderId = row.orderId
 
-    rect.__heatmapData = rectData
+    rect.__heatmapData = { row, x: rectX, y, w: barWidth, h }
 
     svg.appendChild(rect)
 
     const fill = getOrderFillRatio(row.orderId)
-
     const fillRatio = fill.numerator / fill.denominator
 
-    const fillY =
-      y + h - (h * fillRatio)
+    const fillY = y + h - (h * fillRatio)
 
-    const fillLine =
-      document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "line"
-      )
-
+    const fillLine = document.createElementNS("http://www.w3.org/2000/svg","line")
     fillLine.setAttribute("x1", rectX)
     fillLine.setAttribute("x2", rectX + barWidth)
-
     fillLine.setAttribute("y1", fillY)
     fillLine.setAttribute("y2", fillY)
-
-    fillLine.setAttribute(
-      "stroke",
-      row.side === "buy"
-        ? "#27ae60"
-        : "#c0392b"
-    )
-    
-    // fillLine.setAttribute("stroke-width", "1.5")
-    // fillLine.setAttribute("stroke-opacity", "0.9")
-    fillLine.setAttribute("stroke-width", "1")
-    fillLine.setAttribute("stroke-opacity", "0.5")
-    fillLine.setAttribute("stroke-dasharray", "1 1")
-
-
+    fillLine.setAttribute("stroke", lineColor)
+    fillLine.setAttribute("stroke-width","1")
+    fillLine.setAttribute("stroke-opacity","0.5")
+    fillLine.setAttribute("stroke-dasharray","1 1")
 
     svg.appendChild(fillLine)
 
-
-    // show total including any pending tx in kpool
     const pendingFill = getPendingOrderFillRatio(row.orderId)
 
     const totalFillRatio =
-        (
-          (fill.numerator / fill.denominator) +
-          (pendingFill.numerator / pendingFill.denominator)
-        )
+      (fill.numerator / fill.denominator) +
+      (pendingFill.numerator / pendingFill.denominator)
 
-    const pendingY =
-      y + h - (h * totalFillRatio)
+    const pendingY = y + h - (h * totalFillRatio)
 
-    const pendingLine =
-      document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "line"
-      )
-
+    const pendingLine = document.createElementNS("http://www.w3.org/2000/svg","line")
     pendingLine.setAttribute("x1", rectX)
     pendingLine.setAttribute("x2", rectX + barWidth)
-
     pendingLine.setAttribute("y1", pendingY)
     pendingLine.setAttribute("y2", pendingY)
-
-    pendingLine.setAttribute(
-      "stroke",
-      row.side === "buy"
-        ? "#27ae60"
-        : "#c0392b"
-    )
-
-    pendingLine.setAttribute("stroke-width", "2")
+    pendingLine.setAttribute("stroke", lineColor)
+    pendingLine.setAttribute("stroke-width","2")
     pendingLine.setAttribute("stroke-opacity","0.7")
 
     svg.appendChild(pendingLine)
-
-
 
   })
 
   return svg
 }
-
 
 
 function ensureMarketTooltip(){

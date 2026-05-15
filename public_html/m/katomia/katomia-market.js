@@ -63,8 +63,22 @@ function enrichSimpleFxMarketRow({ orderId, playerId, market }){
   const quoteDecimals =
     Number(quoteMeta?.token_class?.decimals || 0)
 
+  // const displayBaseAmount =
+    // market.baseAmount / (10 ** baseDecimals)
+
+  const settled =
+    getSettledOrderFillRatio(orderId)
+
+  const remainingRatio =
+    1 - (settled.numerator / settled.denominator)
+
   const displayBaseAmount =
-    market.baseAmount / (10 ** baseDecimals)
+    (market.baseAmount * remainingRatio)
+    / (10 ** baseDecimals)
+
+  const originalDisplayBaseAmount =
+    market.baseAmount
+    / (10 ** baseDecimals)
 
   const displayQuoteAmount =
     market.quoteAmount / (10 ** quoteDecimals)
@@ -73,8 +87,8 @@ function enrichSimpleFxMarketRow({ orderId, playerId, market }){
     market.quoteAmount / market.baseAmount
 
   // decimal-correct human rate
-  const displayRate =
-    displayQuoteAmount / displayBaseAmount
+  const displayRate = displayQuoteAmount / originalDisplayBaseAmount
+      
 
   return {
     orderId,
@@ -91,6 +105,7 @@ function enrichSimpleFxMarketRow({ orderId, playerId, market }){
 
     displayBaseAmount,
     displayQuoteAmount,
+    originalDisplayBaseAmount,
 
     rawRate,
     displayRate
