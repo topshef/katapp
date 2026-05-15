@@ -117,7 +117,13 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
     fillLine.setAttribute("y1", fillY)
     fillLine.setAttribute("y2", fillY)
 
-    fillLine.setAttribute("stroke", "#fff")
+    fillLine.setAttribute(
+      "stroke",
+      row.side === "buy"
+        ? "#27ae60"
+        : "#c0392b"
+    )
+    
     fillLine.setAttribute("stroke-width", "1.5")
     fillLine.setAttribute("stroke-opacity", "0.9")
 
