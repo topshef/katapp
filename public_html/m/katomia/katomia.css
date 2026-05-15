@@ -40,12 +40,13 @@
 
 
 
-.account-xproof-label{
-  font-size:11px;
-  color:#666;
-  opacity:0.8;
-  margin-top:2px;
-}
+    .account-xproof-label{
+      font-size:11px;
+      color:#666;
+      opacity:0.8;
+      margin-top:2px;
+    }
+
 
     body[data-network="mainnet"]{
       --network-color: #7A1B80;
@@ -60,33 +61,33 @@
     }
 
 
-.tx-pending{
-	display:flex;
-	gap:4px;
-	margin-top:2px;
-	align-items:center;
-}
+    .tx-pending{
+      display:flex;
+      gap:4px;
+      margin-top:2px;
+      align-items:center;
+    }
 
-.tx-pending a{
-	font-size:12px;
-	line-height:1;
-}
+    .tx-pending a{
+      font-size:12px;
+      line-height:1;
+    }
 
 
-  .tx-pending{
-    margin-top:0;
-  }
-}
+    .tx-pending{
+      margin-top:0;
+    }
 
-  .tx-pending{
-    margin-top:0;
-  }
-}
+
+    .tx-pending{
+      margin-top:0;
+    }
+
 
 
 		.asset.thumb-only{
 			padding:0;
-			margin:3px;
+			margin:2px;
 			background:none;
 			line-height:0;
 		}
@@ -137,9 +138,9 @@
       margin:16px;
     }
 
-label:has(#showTradingAccounts){
-  display:none;
-}
+    label:has(#showTradingAccounts){
+      display:none;
+    }
 
 
     h2{
@@ -223,30 +224,30 @@ label:has(#showTradingAccounts){
 		}
 
 
-body[data-view-mode="columns"][data-show-traded-only="true"] 
-.account-row > :nth-child(3){
-  max-height:52px;
-  overflow:hidden;
-}
+    body[data-view-mode="columns"][data-show-traded-only="true"] 
+    .account-row > :nth-child(3){
+      max-height:52px;
+      overflow:hidden;
+    }
 
-body[data-view-mode="columns"][data-show-traded-only="true"] 
-.account-row > :nth-child(3) .asset{
-  opacity:0.12;
-}
+    body[data-view-mode="columns"][data-show-traded-only="true"] 
+    .account-row > :nth-child(3) .asset{
+      opacity:0.12;
+    }
 
-body[data-view-mode="columns"][data-show-traded-only="true"] 
-.account-row > :nth-child(3){
-  --thumb-size: 24px;
-}
+    body[data-view-mode="columns"][data-show-traded-only="true"] 
+    .account-row > :nth-child(3){
+      --thumb-size: 24px;
+    }
 
 
-body[data-view-mode="columns"] .hint-mobile{
-  display:none;
-}
+    body[data-view-mode="columns"] .hint-mobile{
+      display:none;
+    }
 
-body[data-view-mode="merged"] .hint-desktop{
-  display:none;
-}
+    body[data-view-mode="merged"] .hint-desktop{
+      display:none;
+    }
 
     .account-row.columns{
       display:grid;
