@@ -96,11 +96,7 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
 
     const fill = getOrderFillRatio(row.orderId)
 
-    const fillRatio =
-      Math.min(
-        fill.numerator / fill.denominator,
-        1
-      )
+    const fillRatio = fill.numerator / fill.denominator
 
     const fillY =
       y + h - (h * fillRatio)
@@ -139,13 +135,10 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
     const pendingFill = getPendingOrderFillRatio(row.orderId)
 
     const totalFillRatio =
-      Math.min(
         (
           (fill.numerator / fill.denominator) +
           (pendingFill.numerator / pendingFill.denominator)
-        ),
-        1
-      )
+        )
 
     const pendingY =
       y + h - (h * totalFillRatio)
