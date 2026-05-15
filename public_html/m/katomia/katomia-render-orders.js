@@ -124,10 +124,57 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
         : "#c0392b"
     )
     
-    fillLine.setAttribute("stroke-width", "1.5")
-    fillLine.setAttribute("stroke-opacity", "0.9")
+    // fillLine.setAttribute("stroke-width", "1.5")
+    // fillLine.setAttribute("stroke-opacity", "0.9")
+    fillLine.setAttribute("stroke-width", "1")
+    fillLine.setAttribute("stroke-opacity", "0.5")
+    fillLine.setAttribute("stroke-dasharray", "1 1")
+
+
 
     svg.appendChild(fillLine)
+
+
+    // show total including any pending tx in kpool
+    const pendingFill = getPendingOrderFillRatio(row.orderId)
+
+    const totalFillRatio =
+      Math.min(
+        (
+          (fill.numerator / fill.denominator) +
+          (pendingFill.numerator / pendingFill.denominator)
+        ),
+        1
+      )
+
+    const pendingY =
+      y + h - (h * totalFillRatio)
+
+    const pendingLine =
+      document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "line"
+      )
+
+    pendingLine.setAttribute("x1", rectX)
+    pendingLine.setAttribute("x2", rectX + barWidth)
+
+    pendingLine.setAttribute("y1", pendingY)
+    pendingLine.setAttribute("y2", pendingY)
+
+    pendingLine.setAttribute(
+      "stroke",
+      row.side === "buy"
+        ? "#27ae60"
+        : "#c0392b"
+    )
+
+    pendingLine.setAttribute("stroke-width", "2")
+    pendingLine.setAttribute("stroke-opacity","0.7")
+
+    svg.appendChild(pendingLine)
+
+
 
   })
 
@@ -200,15 +247,18 @@ document.addEventListener("mousemove", e => {
   tooltip.innerHTML =
     matches.map(row => {
 
-      const fill =
-        getOrderFillRatio(row.orderId)
+      const fill = getOrderFillRatio(row.orderId)  // fill within baskets still in proposal phase
+      const pendingFill = getPendingOrderFillRatio(row.orderId)  // fill from tx now in kpool, pending submit to hedera
+      
+      const fillWithinKpool = (pendingFill.numerator=='0') ? '' : ` KPOOL ${pendingFill.numerator}/${pendingFill.denominator}`
 
       return (
         `#${row.orderId} ` +
         `${row.side} ` +
         `${row.displayBaseAmount} ` +
         `@ ${row.displayRate} ` +
-        `🧩 ${fill.numerator}/${fill.denominator}`
+        `🧩 ${fill.numerator}/${fill.denominator}` +
+        `${fillWithinKpool}`
       )
     }).join("<br>")
 

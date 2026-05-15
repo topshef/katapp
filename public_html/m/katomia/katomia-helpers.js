@@ -624,6 +624,39 @@ function getOrderFillRatio(orderId){  //ref BASK1
 }
 
 
+function getPendingOrderFillRatio(orderId){ // BASK1
+
+  let numerator = 0
+  let denominator = 1
+  const seen = new Set()
+
+  ;(state.tx?.pending || []).forEach(tx => {
+    ;(tx.sourceBaskets || []).forEach(item => {
+
+      if(String(item.orderId) !== String(orderId)) return
+      if(!item.fillId) return
+
+      const key = `${item.orderId}|${item.fillId}`
+      if(seen.has(key)) return
+      seen.add(key)
+
+      const n = Number(item.numerator || 0)
+      const d = Number(item.denominator || 1)
+
+      const reduced = reduceFraction(
+        numerator * d + n * denominator,
+        denominator * d
+      )
+
+      numerator = reduced.numerator
+      denominator = reduced.denominator
+    })
+  })
+
+  return { numerator, denominator }
+}
+
+
 
 // ┌─┐┌─┐┌┬┐  ╔═╗┌─┐┌─┐┌─┐┌┬┐  ╔╦╗┬ ┬┌─┐┌─┐
 // │ ┬├┤  │   ╠═╣└─┐└─┐├┤  │    ║ └┬┘├─┘├┤ 
