@@ -189,25 +189,25 @@ function estimateMarketTrade({
 
     if(remaining <= 0) return
 
-    const fill =
-      getOrderFillRatio(row.orderId)
 
     const available =
-      row.displayBaseAmount *
-      (
-        1 -
-        (fill.numerator / fill.denominator)
-      )
+      row.displayBaseAmount
 
     if(available <= 0) return
 
     const used =
-      Math.min(available, remaining)
+      Math.min(
+        available,
+        remaining
+      )
 
     remaining -= used
 
+    // fill ratio must be against ORIGINAL order size
     const ratio =
-      used / row.displayBaseAmount
+      used /
+      row.originalDisplayBaseAmount
+
 
     fills.push({
       orderId: row.orderId,
