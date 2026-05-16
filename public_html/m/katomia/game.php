@@ -156,18 +156,17 @@ window.addEventListener("load", () => {
 
   const params = new URLSearchParams(location.search)
   const autoload = params.get("autoload")
-  if(autoload && accountLabelInput && !accountLabelInput.value) {
-    accountLabelInput.value = autoload
-		addAccountBtn.click()	
-	}
-	
+    
+    
   const token = localStorage.getItem("katomiaPlayerToken")
-  if(!token) return
 
-  if(typeof connect === "function"){
+  if(autoload)
+    window.pendingAutoload = autoload
+
+  if(typeof connect === "function")
     connect()
-  }
-
+    
+  
 })
 </script>
 

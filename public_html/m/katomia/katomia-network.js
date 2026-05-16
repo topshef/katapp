@@ -255,9 +255,15 @@ function connect(onOpenAction){
 		if(data.type !== "game_state") glog(`websocket data IGNORED for type=${data.type}`, data)
 		if(data.type !== "game_state") return
 
-		gameMeta = data.meta || null
-		state = data.state
-		currentPlayerId = data.myPlayerId || null
+    gameMeta = data.meta || null
+    state = data.state
+    currentPlayerId = data.myPlayerId || null
+
+    if(window.pendingAutoload && accountLabelInput && !accountLabelInput.value){
+      accountLabelInput.value = window.pendingAutoload
+      window.pendingAutoload = null
+      addAccountBtn.click()
+    }
 
 		glog(`state received for ${currentPlayerId}`, {gameMeta, state})
 
