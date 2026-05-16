@@ -232,19 +232,26 @@ function createTradeBtn(pair){  //simple FX
 
     const input =
       prompt(
-        "account,volume,limitRate\n\n" +
+        "account,volume,limitRate,liquidityMode\n\n" +
+        "liquidityMode = ignoreKpool|includeKpool" +
         "Example:\n" +
-        "0.0.1234,100,0.12"
+        "0.0.1234,100,0.12,includeKpool"
       )
 
     if(!input) return
 
-    const [fillerAccountId, volumeRaw, limitRateRaw] =
+    const [fillerAccountId, volumeRaw, limitRateRaw, liquidityModeRaw] =
       input.split(",").map(x => x.trim())
+
 
     const volume = Number(volumeRaw)
     const limitRate = Number(limitRateRaw)
 
+    const liquidityMode =
+      liquidityModeRaw ||
+      "ignoreKpool"
+      
+      
     if(
       !fillerAccountId ||
       !volume ||
@@ -259,7 +266,8 @@ function createTradeBtn(pair){  //simple FX
         pair,
         fillerAccountId,
         volume,
-        limitRate
+        limitRate,
+        liquidityMode
       })
 
     if(!result.fills.length){

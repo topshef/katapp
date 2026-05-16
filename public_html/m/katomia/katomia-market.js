@@ -142,7 +142,10 @@ function estimateMarketTrade({
   pair,
   fillerAccountId,
   volume,
-  limitRate
+  limitRate,
+  liquidityMode = "ignoreKpool"
+  // "ignoreKpool"     // current behaviour
+  // "includeKpool"    // subtract pending liquidity too  
 }){
 
   const markets = getSimpleFxMarkets()
@@ -190,8 +193,34 @@ function estimateMarketTrade({
     if(remaining <= 0) return
 
 
-    const available =
+
+    let available =
       row.displayBaseAmount
+
+    if(liquidityMode === "includeKpool"){
+
+      const pending =
+        getPendingOrderFillRatio(
+          row.orderId
+        )
+
+      const pendingRatio =
+        pending.numerator /
+        pending.denominator
+
+      available -=
+        row.originalDisplayBaseAmount *
+        pendingRatio
+    }
+
+    available =
+      Math.max(
+        0,
+        available
+      )
+
+
+
 
     if(available <= 0) return
 
