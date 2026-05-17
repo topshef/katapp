@@ -27,12 +27,119 @@ Forbidden:
 // ├┬┘├┤ │││ ││├┤ ├┬┘   ║ ├┬┘├─┤│││└─┐├─┤│   │ ││ ││││└─┐
 // ┴└─└─┘┘└┘─┴┘└─┘┴└─   ╩ ┴└─┴ ┴┘└┘└─┘┴ ┴└─┘ ┴ ┴└─┘┘└┘└─┘
 // render Transactions
+function getTxSourceInfo(tx){
+
+  return (tx.sourceBaskets || [])
+    .map(x => {
+
+      if(!x.orderId)
+        return ""
+
+      const r = reduceFraction(
+        x.numerator,
+        x.denominator
+      )
+
+      return `#${x.orderId} ${r.numerator}/${r.denominator}`
+
+    })
+    .filter(Boolean)
+    .join(", ")
+
+}
+
+
+function getTxMeta(tx){
+
+  const network = tx.network || tx.pchbasis?.network || "?"
+  const txid = tx.txid || "?"
+  const pch = (tx.pch || "?").substring(0,8)
+  const status = tx.lifecycle?.status || "?"
+  const sourceInfo = getTxSourceInfo(tx)
+
+  return (
+    `[${network}] ` +
+    `${txid} ` +
+    `[PCH ${pch}] ` +
+    `[${status}] ` +
+    (sourceInfo ? `[${sourceInfo}]` : "")
+  )
+
+}
+
+
+function createTxAssets(transfers){
+
+  const el = document.createElement("span")
+  el.className = "tx-assets"
+
+  const send = transfers.filter(x => x.amount < 0)
+  const receive = transfers.filter(x => x.amount > 0)
+
+  send.forEach(x =>
+    el.appendChild(
+      makeAssetEl({
+        text:getAssetDisplay(
+          x.tokenId,
+          Math.abs(x.amount)
+        ),
+        assetId:x.tokenId
+      })
+    )
+  )
+
+  if(send.length && receive.length){
+
+    const arrow = document.createElement("span")
+    arrow.className = "tx-arrow"
+    arrow.textContent = "→"
+
+    el.appendChild(arrow)
+  }
+
+  receive.forEach(x =>
+    el.appendChild(
+      makeAssetEl({
+        text:getAssetDisplay(
+          x.tokenId,
+          x.amount
+        ),
+        assetId:x.tokenId
+      })
+    )
+  )
+
+  return el
+
+}
+
+
+function createTxRow(tx){
+
+  const row = document.createElement("div")
+  const meta = document.createElement("span")
+
+  row.className = "subtle tx-row"
+
+  meta.innerHTML = getTxMeta(tx)
+
+  const transfers =
+    tx.pchbasis?.transfers?.tokenTransfers || []
+
+  row.appendChild(meta)
+  row.appendChild(
+    createTxAssets(transfers)
+  )
+
+  return row
+
+}
+
+
 async function renderTransactions(){
 
   const listEl =
-    document.querySelector(
-      "#ordersSection .transactions-list"
-    )
+    document.querySelector("#ordersSection .transactions-list")
 
   if(!listEl) return
 
@@ -40,143 +147,18 @@ async function renderTransactions(){
 
   await cachePendingTxs()
 
-  const txs =
-    await getAllTx()
+  const txs = await getAllTx()
 
   txs.reverse()
 
-  txs.forEach(tx => {
+  txs.forEach(tx =>
+    listEl.appendChild(
+      createTxRow(tx)
+    )
+  )
 
-    const row =
-      document.createElement("div")
-
-    row.className = "order-row"
-
-    const network = tx.network || tx.pchbasis?.network || "?"
-    const txid = tx.txid || "?"
-    const pch = tx.pch || "?"
-    const status = tx.lifecycle?.status || "?"
-
-    const transfers = tx.pchbasis?.transfers?.tokenTransfers || []
-
-    const send = transfers
-      .filter(x => x.amount < 0)
-      .map(x => `${Math.abs(x.amount)} ${x.tokenId}`)
-      .join(", ")
-
-    const receive = transfers
-      .filter(x => x.amount > 0)
-      .map(x => `${x.amount} ${x.tokenId}`)
-      .join(", ")
-
-
-    const sourceInfo = (tx.sourceBaskets || [])
-      .map(x => {
-
-        if(!x.orderId)
-          return ""
-
-        const reduced =
-          reduceFraction(
-            x.numerator,
-            x.denominator
-          )
-
-        return (
-          `#${x.orderId} ` +
-          `${reduced.numerator}/${reduced.denominator}`
-        )
-
-      })
-      .filter(Boolean)
-      .join(", ")
-
-
-    const sendDisplay =
-      transfers
-        .filter(x => x.amount < 0)
-        .map(x =>
-          getAssetDisplay(
-            x.tokenId,
-            Math.abs(x.amount)
-          )
-        )
-        .join(", ")
-
-    const receiveDisplay =
-      transfers
-        .filter(x => x.amount > 0)
-        .map(x =>
-          getAssetDisplay(
-            x.tokenId,
-            x.amount
-          )
-        )
-        .join(", ")
-
-    row.className = "subtle"
-
-    row.innerHTML =
-      `[${network}] ` +
-      `${txid} ` +
-      `[PCH ${pch}] ` +
-      `[${status}] ` +
-      (sourceInfo
-        ? `[${sourceInfo}] `
-        : "")
-
-    const txAssets =
-      document.createElement("span")
-
-    transfers
-      .filter(x => x.amount < 0)
-      .forEach(x => {
-
-        txAssets.appendChild(
-          makeAssetEl({
-            text:getAssetDisplay(
-              x.tokenId,
-              Math.abs(x.amount)
-            ),
-            assetId:x.tokenId
-          })
-        )
-
-      })
-
-    if(send.length && receive.length){
-
-      const arrow =
-        document.createElement("span")
-
-      arrow.textContent = " → "
-
-      txAssets.appendChild(arrow)
-    }
-
-    transfers
-      .filter(x => x.amount > 0)
-      .forEach(x => {
-
-        txAssets.appendChild(
-          makeAssetEl({
-            text:getAssetDisplay(
-              x.tokenId,
-              x.amount
-            ),
-            assetId:x.tokenId
-          })
-        )
-
-      })
-
-    row.appendChild(txAssets)
-
-
-    listEl.appendChild(row)
-
-  })
 }
+
 
 
 
