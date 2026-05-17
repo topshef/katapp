@@ -1289,6 +1289,11 @@ function getFastThumb(url, imgEl){
 
       const mine = playerId === currentPlayerId
       const fill = getOrderFillRatio(orderId)   //BASK1
+
+      const pendingFill = getPendingOrderFillRatio(orderId)
+      const kpoolText = pendingFill.numerator == 0 ? "" : ` kpool ${pendingFill.numerator}/${pendingFill.denominator}`
+      
+      
       const orderType = getOrderType(order)  || "invalid-YE23998"
 
 
@@ -1315,8 +1320,8 @@ function getFastThumb(url, imgEl){
       prefix.textContent =
         `Order #${orderId} (${playerId}${mine ? "=you" : ""}) ` +
         `[${orderType}] ${marketLabel} ` +
-        `[filled ${fill.numerator}/${fill.denominator}]: `
-        
+        // `[filled ${fill.numerator}/${fill.denominator}]: `
+        `[filled ${fill.numerator}/${fill.denominator}${kpoolText}]: `
         
 
       const arrow = document.createElement("span")
