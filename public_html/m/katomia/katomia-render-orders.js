@@ -72,24 +72,33 @@ function getTxStatus(tx){
 
 }
 
+
+
 function getTxMeta(tx){
 
-  const network = tx.network || tx.pchbasis?.network || "?"
+  const network = tx.network || tx.pchbasis?.network || "mainnet"
   const txid = tx.txid || "?"
   const pch = (tx.pch || "?").substring(0,8)
-  // const status = tx.lifecycle?.status || "?"
   const status = getTxStatus(tx)
   const sourceInfo = getTxSourceInfo(tx)
 
+  const hashscan =
+    `https://hashscan.io/${network}/transaction/${txid}`
+
+  const statusText = status == "success" ? "✅" : "❓"
+
   return (
-    `[${network}] ` +
-    `${txid} ` +
-    `[PCH ${pch}] ` +
-    `[${status}] ` +
+    `${statusText} ` +
+    `<a href="${hashscan}" target="_blank">` +
+    `${txid}</a> ` +
+    ` [PCH ${pch}] ` +
+    
     (sourceInfo ? `[${sourceInfo}]` : "")
   )
 
 }
+
+
 
 
 function createTxAssets(transfers){
