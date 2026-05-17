@@ -52,14 +52,28 @@ async function renderTransactions(){
 
     row.className = "order-row"
 
-    const pch =
-      String(tx.pch || "")
-      .substring(0,8)
+    const network =
+      tx.network || "?"
 
-    row.textContent =
-      `${tx.network || ""} ` +
-      `${tx.txid || ""} ` +
-      `[${pch}]`
+    const txid =
+      tx.txid || "?"
+
+    const pch =
+      tx.pch || "?"
+
+    const status =
+      tx.status
+        ? ` [${tx.status}]`
+        : ""
+
+    row.className =
+      "subtle"
+
+    row.innerHTML =
+      `[${network}] ` +
+      `${txid} ` +
+      `[PCH ${pch}]` +
+      status
 
     listEl.appendChild(row)
 
