@@ -123,13 +123,54 @@ async function renderTransactions(){
       `[${status}] ` +
       (sourceInfo
         ? `[${sourceInfo}] `
-        : "") +
-      (sendDisplay
-        ? `${sendDisplay} → `
-        : "") +
-      receiveDisplay
+        : "")
 
+    const txAssets =
+      document.createElement("span")
 
+    transfers
+      .filter(x => x.amount < 0)
+      .forEach(x => {
+
+        txAssets.appendChild(
+          makeAssetEl({
+            text:getAssetDisplay(
+              x.tokenId,
+              Math.abs(x.amount)
+            ),
+            assetId:x.tokenId
+          })
+        )
+
+      })
+
+    if(send.length && receive.length){
+
+      const arrow =
+        document.createElement("span")
+
+      arrow.textContent = " → "
+
+      txAssets.appendChild(arrow)
+    }
+
+    transfers
+      .filter(x => x.amount > 0)
+      .forEach(x => {
+
+        txAssets.appendChild(
+          makeAssetEl({
+            text:getAssetDisplay(
+              x.tokenId,
+              x.amount
+            ),
+            assetId:x.tokenId
+          })
+        )
+
+      })
+
+    row.appendChild(txAssets)
 
 
     listEl.appendChild(row)
