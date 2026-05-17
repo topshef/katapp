@@ -595,6 +595,9 @@ function getFastThumb(url, imgEl){
 
       a.href = `/m/sign/?network=${tx.network}&txid=${tx.txid}&pch=${tx.pch}`
       a.target = "_blank"
+      
+      a.dataset.txid = tx.txid
+      a.__tx = tx
 
       const status =
         String(tx.lifecycle?.status || "PENDING")
