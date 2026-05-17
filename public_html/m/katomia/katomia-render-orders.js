@@ -418,6 +418,333 @@ function renderOrderMarketSummary(){
 
 
 
+    // ┬─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐  ╔═╗┬─┐┌┬┐┌─┐┬─┐┌─┐
+    // ├┬┘├┤ │││ ││├┤ ├┬┘  ║ ║├┬┘ ││├┤ ├┬┘└─┐
+    // ┴└─└─┘┘└┘─┴┘└─┘┴└─  ╚═╝┴└──┴┘└─┘┴└─└─┘
+    // render Orders
+    
+    function renderOrders(){
+
+      const listEl = document.querySelector("#ordersSection .orders-list")
+      listEl.innerHTML = ""
+
+      const orders = getAllOrders()
+
+      orders.sort((a, b) => {
+
+        const ta = enrichOrder(a.order).market?.type || "invalid-UH83743"
+        const tb = enrichOrder(b.order).market?.type || "invalid-GY83744"
+
+        return ta.localeCompare(tb)
+      })
+
+      orders.forEach(orderRec => {
+        listEl.appendChild(createOrderRow(orderRec))
+      })
+    }       
+    // TODO:
+    // Orders may reference assets not present in visible accounts,
+    // so current enrichment (account-driven) may miss them.
+    // Later: include orders in enrichment scan or run a separate pass.
+
+        
+    function getAllowedFxPair(base, quote){
+
+      const allowedPairs = [
+
+        ["XBAR", "USDC"],
+        ["KGBP", "USDC"],
+        ["XBAR", "KBRL"],
+        ["KBRL", "KCOP"],
+        //etc
+      ]
+
+      return allowedPairs.find(([a, b]) =>
+        (a === base && b === quote) ||
+        (a === quote && b === base)
+      ) || null
+    }
+
+
+    function enrichSimpleFxOrder(order){
+
+      const offer = []
+      const request = []
+
+      ;(order.bundle || []).forEach(x => {
+        if(x.amount < 0) offer.push(x)
+        else if(x.amount > 0) request.push(x)
+      })
+
+      if(offer.length !== 1 || request.length !== 1)
+        return {}
+
+      const offerLine = offer[0]
+      const requestLine = request[0]
+
+      const offerAmount = Math.abs(offerLine.amount)
+      const requestAmount = Math.abs(requestLine.amount)
+
+      if(!offerAmount)
+        return {}
+
+      const offerLabel = getAssetDisplay(offerLine.asset, offerAmount).split(" ")[0]
+      const requestLabel = getAssetDisplay(requestLine.asset, requestAmount).split(" ")[0]
+
+      const allowedPair = getAllowedFxPair(offerLabel, requestLabel)
+
+      // default/raw direction
+      let pairLabel = `${offerLabel}/${requestLabel}`
+      let rate = requestAmount / offerAmount
+      let volume = offerAmount
+      let side = ""
+
+      if(allowedPair){
+
+        const [base, quote] = allowedPair
+
+        pairLabel = `${base}/${quote}`
+
+        // offer side matches canonical base
+        if(offerLabel === base){
+
+          rate = requestAmount / offerAmount
+          volume = offerAmount
+          side = "sell"
+
+        }else{
+
+          rate = offerAmount / requestAmount
+          volume = requestAmount
+          side = "buy"
+        }
+      }
+
+      return {
+        derivedLabel: `[${side} ${volume} ${pairLabel} @${rate}]`,
+
+        market: {
+          type: "simple-fx",
+          pair: pairLabel,
+          side,
+          rate,
+          volume,
+
+          baseAsset: side === "sell" ? offerLine.asset : requestLine.asset,
+          quoteAsset: side === "sell" ? requestLine.asset : offerLine.asset,
+          baseAmount: side === "sell" ? offerAmount : requestAmount,
+          quoteAmount: side === "sell" ? requestAmount : offerAmount
+        }
+      }
+    }
+
+
+    const orderTypeEnrichers = {
+      "simple-fx": enrichSimpleFxOrder
+    }
+
+
+    function enrichOrder(order) {
+      try {
+        const type=getOrderType(order)
+        const fn=orderTypeEnrichers[type]
+
+        if (!fn) return {}
+
+        return fn(order)
+
+      } catch (err) {
+        console.warn("Bad order", order, err)
+
+        return {
+          error:err,
+          market:null
+        }
+      }
+    }
+
+
+         
+    function createOrderSide(items, cls){
+
+      const el = document.createElement("span")
+      el.className = cls
+
+      items.forEach(x => {
+
+        const amt = Math.abs(x.amount)
+        const text = getAssetDisplay(x.asset, amt)
+
+        const assetEl = makeAssetEl({
+          text,
+          assetId: x.asset,
+          ownerAccountId: "",        // not account-bound
+          ownerPlayerId: "",         // no sleeve here
+          clickable: false
+        })
+
+        applyAssetClasses(assetEl, x.asset, amt)
+
+        el.appendChild(assetEl)
+      })
+
+      return el
+    } 
+              
+// TODO: Orders → market / chart views
+// - Keep canonical model: bundle[] with signed amounts (do NOT change)
+// - Add derived helpers (no mutation of source):
+//
+//   function extractPairs(order){
+//     // project multi-asset bundle → pairwise edges
+//     // return [{base, quote, rate, size}]
+//   }
+//
+//   function groupByPair(orders){
+//     // group extractPairs() output by (base, quote)
+//   }
+//
+//   function buildOrderBook(pairGroup){
+//     // sort by rate (asc/desc), aggregate sizes → depth levels
+//   }
+//
+// - Keep rendering decoupled:
+//   renderOrders() = raw view (current)
+//   renderPairView(pair) = derived view (future)
+//
+// - Do NOT assume 1:1 pairs in core logic (multi-leg must still work)
+// - Later: use buildOrderBook() output for depth/cliff charts
+
+
+
+// TODO: Order fill progress (visual + data)
+//
+// - Source of truth:
+//   Basket entries already carry {orderId, fillId} → use these to track fills
+//
+// - Add helper:
+//   function getOrderFillRatio(orderId){
+//     // sum filled amounts from all baskets (by orderId)
+//     // compare vs original bundle amounts
+//     // return { filledRatio, remainingRatio }  // use numerator/denominator style
+//   }
+//
+// - Rendering:
+//   - Show progress per order row (e.g. "50%" or "1/2")
+//   - Optionally dim or strike-through filled portions
+//   - Later: per-line-item fill (not just whole order)
+//
+// - Important:
+//   - Must handle partial fills + multiple fills (aggregate)
+//   - Must respect indivisible / min-fill constraints (ratios, not floats)
+//
+// - Future:
+//   - Use same ratio in fill UI (pre-fill remaining)
+//   - Could drive sorting (e.g. show nearly-filled orders first)
+
+
+          
+    function createOrderRow({orderId, order, playerId}){
+
+      const row = document.createElement("div")
+      row.className = "order-row"
+      row.dataset.orderId = orderId
+
+      // error case → just show raw + error
+      if(order?.bundle?.error){
+        row.textContent = `Order #${orderId} (${playerId}): ❌  ${order?.bundle?.error}`
+        applyOwnerSleeve(row, playerId)
+        return row
+      }
+
+      const offer = []
+      const request = []
+
+      if(Array.isArray(order.bundle)){
+        order.bundle.forEach(x => {
+          if(x.amount < 0) offer.push(x)
+          else if(x.amount > 0) request.push(x)
+        })
+      }
+
+      const mine = playerId === currentPlayerId
+      const fill = getOrderFillRatio(orderId)   //BASK1
+
+      const pendingFill = getPendingOrderFillRatio(orderId)
+      const kpoolText = pendingFill.numerator == 0 ? "" : ` kpool ${pendingFill.numerator}/${pendingFill.denominator}`
+      
+      
+      const orderType = getOrderType(order)  || "invalid-YE23998"
+
+
+      const enriched = enrichOrder(order)
+
+      let marketLabel = enriched.derivedLabel || ""
+
+      if(enriched.market?.type === "simple-fx"){
+
+        const row = enrichSimpleFxMarketRow({
+          orderId,
+          playerId,
+          market: enriched.market
+        })
+
+        marketLabel =
+          `[${row.side} ` +
+          `${row.displayBaseAmount} ` +
+          `${row.pair} @${row.displayRate}]`
+      }
+
+      const prefix = document.createElement("span")
+
+      prefix.textContent =
+        `Order #${orderId} (${playerId}${mine ? "=you" : ""}) ` +
+        `[${orderType}] ${marketLabel} ` +
+        // `[filled ${fill.numerator}/${fill.denominator}]: `
+        `[filled ${fill.numerator}/${fill.denominator}${kpoolText}]: `
+        
+
+      const arrow = document.createElement("span")
+      arrow.textContent = " → "
+
+      const inner = document.createElement("div")
+      inner.className = "order-row-inner"
+
+      inner.appendChild(prefix)
+      inner.appendChild(createOrderSide(offer, "order-offer"))
+      inner.appendChild(arrow)
+      inner.appendChild(createOrderSide(request, "order-request"))
+
+      row.appendChild(inner)
+      applyOwnerSleeve(row, playerId)
+
+      return row
+    }
+          
+              
+    // ┬─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐  ╔═╗┌─┐┌┐┌┌─┐┬┌─┐  ╔╦╗┌─┐┌┬┐┌─┐
+    // ├┬┘├┤ │││ ││├┤ ├┬┘  ║  │ ││││├┤ ││ ┬  ║║║├┤  │ ├─┤
+    // ┴└─└─┘┘└┘─┴┘└─┘┴└─  ╚═╝└─┘┘└┘└  ┴└─┘  ╩ ╩└─┘ ┴ ┴ ┴
+    // render Config Meta          
+    function renderConfigMeta(config){
+      if(!config) return ""
+
+      const formats = {
+        txDelaySeconds: "Delay transaction start by {} seconds"
+      }
+
+      const entries = Object.entries(config)
+      if(!entries.length) return ""
+
+      return entries
+        .map(([k,v]) => {
+          if(formats[k]) return `<span>${formats[k].replace("{}", v)}</span>`
+          return `<span>${k}: ${v}</span>`
+        })
+        .join("")
+    }
+          
+
 
 /*
 orders
