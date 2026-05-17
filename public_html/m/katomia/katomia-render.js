@@ -1073,23 +1073,15 @@ function getFastThumb(url, imgEl){
       if(!offerAmount)
         return {}
 
-      const offerLabel =
-        getAssetDisplay(offerLine.asset, offerAmount)
-          .split(" ")[0]
-
-      const requestLabel =
-        getAssetDisplay(requestLine.asset, requestAmount)
-          .split(" ")[0]
+      const offerLabel = getAssetDisplay(offerLine.asset, offerAmount).split(" ")[0]
+      const requestLabel = getAssetDisplay(requestLine.asset, requestAmount).split(" ")[0]
 
       const allowedPair = getAllowedFxPair(offerLabel, requestLabel)
 
       // default/raw direction
       let pairLabel = `${offerLabel}/${requestLabel}`
-
       let rate = requestAmount / offerAmount
-
       let volume = offerAmount
-
       let side = ""
 
       if(allowedPair){
@@ -1114,43 +1106,21 @@ function getFastThumb(url, imgEl){
       }
 
       return {
-        derivedLabel:
-          `[${side} ${volume} ${pairLabel} @${rate}]`,
+        derivedLabel: `[${side} ${volume} ${pairLabel} @${rate}]`,
 
         market: {
           type: "simple-fx",
-
           pair: pairLabel,
-
           side,
-
           rate,
           volume,
 
-          baseAsset:
-            side === "sell"
-              ? offerLine.asset
-              : requestLine.asset,
-
-          quoteAsset:
-            side === "sell"
-              ? requestLine.asset
-              : offerLine.asset,
-
-          baseAmount:
-            side === "sell"
-              ? offerAmount
-              : requestAmount,
-
-          quoteAmount:
-            side === "sell"
-              ? requestAmount
-              : offerAmount
+          baseAsset: side === "sell" ? offerLine.asset : requestLine.asset,
+          quoteAsset: side === "sell" ? requestLine.asset : offerLine.asset,
+          baseAmount: side === "sell" ? offerAmount : requestAmount,
+          quoteAmount: side === "sell" ? requestAmount : offerAmount
         }
-
-
       }
-
     }
 
 
@@ -1159,29 +1129,24 @@ function getFastThumb(url, imgEl){
     }
 
 
-    function enrichOrder(order){
-
+    function enrichOrder(order) {
       try {
+        const type=getOrderType(order)
+        const fn=orderTypeEnrichers[type]
 
-        const type = getOrderType(order)
-
-        const fn = orderTypeEnrichers[type]
-
-        if(!fn)
-          return {}
+        if (!fn) return {}
 
         return fn(order)
 
-      } catch(err) {
-
+      } catch (err) {
         console.warn("Bad order", order, err)
 
         return {
-          error: err,
-          market: null
+          error:err,
+          market:null
         }
       }
-}
+    }
 
 
          
