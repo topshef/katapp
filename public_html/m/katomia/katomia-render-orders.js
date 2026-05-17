@@ -52,28 +52,41 @@ async function renderTransactions(){
 
     row.className = "order-row"
 
-    const network =
-      tx.network || "?"
+    const network = tx.network || tx.pchbasis?.network || "?"
+    const txid = tx.txid || "?"
+    const pch = tx.pch || "?"
+    const status = tx.lifecycle?.status || "?"
 
-    const txid =
-      tx.txid || "?"
+    const transfers = tx.pchbasis?.transfers?.tokenTransfers || []
 
-    const pch =
-      tx.pch || "?"
+    const send = transfers
+      .filter(x => x.amount < 0)
+      .map(x => `${Math.abs(x.amount)} ${x.tokenId}`)
+      .join(", ")
 
-    const status =
-      tx.status
-        ? ` [${tx.status}]`
-        : ""
+    const receive = transfers
+      .filter(x => x.amount > 0)
+      .map(x => `${x.amount} ${x.tokenId}`)
+      .join(", ")
 
-    row.className =
-      "subtle"
+    const sourceInfo = (tx.sourceBaskets || [])
+      .map(x => {
+        if(!x.orderId) return ""
+        return `#${x.orderId} ${x.numerator}/${x.denominator}`
+      })
+      .filter(Boolean)
+      .join(", ")
+
+    row.className = "subtle"
 
     row.innerHTML =
       `[${network}] ` +
       `${txid} ` +
-      `[PCH ${pch}]` +
-      status
+      `[PCH ${pch}] ` +
+      `[${status}] ` +
+      (sourceInfo ? `[${sourceInfo}] ` : "") +
+      (send ? `${send} → ` : "") +
+      receive
 
     listEl.appendChild(row)
 
