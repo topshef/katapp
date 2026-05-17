@@ -118,7 +118,9 @@
 				playerId: account.playerId,
 				assets: account.assets || [],
 				basket: account.basket || [],
-				mode: account.mode || "shop"
+				mode: account.mode || "shop",
+        autoLock: account.autoLock
+
 			}))
 		}
 
@@ -139,6 +141,58 @@
 
       return out
     }
+
+
+    function shouldAutoLock(accountId){
+
+      const account =
+        state?.accounts?.[accountId]
+
+      return !!account?.autoLock
+    }
+
+
+    function requestLock(accountId){
+
+      const account =
+        state?.accounts?.[accountId]
+
+      if(!account) return
+      if(account.mode === "lock") return
+
+      socket.send(JSON.stringify({
+        type: "game_toggleLock",
+        gameId,
+        accountId
+      }))
+    }
+
+
+    function getTradeAccountsForFills(fills){
+
+      const accounts = new Set()
+
+      fills.forEach(fill => {
+
+        const orderRec =
+          getAllOrders()
+          .find(x => x.orderId == fill.orderId)
+
+        if(!orderRec?.order?.bundle)
+          return
+
+        orderRec.order.bundle.forEach(line => {
+
+          const accountId =
+            `${orderRec.playerId}:${line.accountId}`
+
+          accounts.add(accountId)
+        })
+      })
+
+      return [...accounts]
+    }
+
 
 
     function getAccountMap(){

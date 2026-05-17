@@ -300,17 +300,30 @@ function createTradeBtn(pair){  //simple FX
 
     if(!ok) return
 
-    result.fills.forEach(fill => {
+    // result.fills.forEach(fill => {
 
-      socket.send(JSON.stringify({
-        type: "game_orderFill",
-        gameId,
+      // socket.send(JSON.stringify({
+        // type: "game_orderFill",
+        // gameId,
+        // orderId: fill.orderId,
+        // numerator: fill.numerator,
+        // denominator: fill.denominator,
+        // fillerAccountId
+      // }))
+    // })
+
+    //new websocket action for batch of fills
+    socket.send(JSON.stringify({
+      type: "game_orderFillBatch",
+      gameId,
+      fillerAccountId,
+      fills: result.fills.map(fill => ({
         orderId: fill.orderId,
         numerator: fill.numerator,
-        denominator: fill.denominator,
-        fillerAccountId
+        denominator: fill.denominator
       }))
-    })
+    }))
+    
   }
 
   return btn

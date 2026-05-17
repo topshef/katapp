@@ -755,30 +755,67 @@ function getFastThumb(url, imgEl){
 			return exitBtn
 		}
 
-		function createAccountModeEl(account){
 
-			const modeEl = document.createElement("div")
-			modeEl.className = "mode"
+    function createAccountModeEl(account){
 
-			modeEl.textContent =
-				account.mode === "lock"
-					? "🔒 Locked"
-					: "🔁 Trading"
+      const wrap = document.createElement("div")
 
-			if(isMyAccount(account)){
-				modeEl.classList.add("clickable")
+      const modeEl = document.createElement("div")
+      modeEl.className = "mode"
 
-				modeEl.onclick = () => {
-					socket.send(JSON.stringify({
-						type: "game_toggleLock",
-						gameId,
-						accountId: account.id
-					}))
-				}
-			}
+      modeEl.textContent =
+        account.mode === "lock"
+          ? "🔒 Locked"
+          : "🔁 Trading"
 
-			return modeEl
-		}
+      if(isMyAccount(account)){
+        modeEl.classList.add("clickable")
+
+        modeEl.onclick = () => {
+          socket.send(JSON.stringify({
+            type: "game_toggleLock",
+            gameId,
+            accountId: account.id
+          }))
+        }
+      }
+
+      wrap.appendChild(modeEl)
+
+      // only show if backend supports it
+      if(account.autoLock !== undefined){
+
+        const autoWrap = document.createElement("label")
+        autoWrap.className = "auto-lock"
+
+        const autoInput = document.createElement("input")
+        autoInput.type = "checkbox"
+        autoInput.checked = !!account.autoLock
+
+        if (isMyAccount(account)) {
+          autoInput.onchange = () => {
+
+            socket.send(JSON.stringify({
+              type: "game_toggleAutoLock",
+              gameId,
+              accountId: account.id,
+              autoLock: autoInput.checked
+            }))
+
+          }         
+        } else autoInput.disabled = true   //you cant change other players settings
+
+        autoWrap.append(
+          autoInput,
+          document.createTextNode(" auto-lock")
+        )
+
+        wrap.appendChild(autoWrap)
+      }
+
+      return wrap
+    }
+
 
 		function renderAccountAssets(account, container, reservedByAccount, accountMap){
 
