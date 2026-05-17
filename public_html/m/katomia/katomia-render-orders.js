@@ -22,6 +22,58 @@ Forbidden:
 
 
 
+
+// ┬─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐  ╔╦╗┬─┐┌─┐┌┐┌┌─┐┌─┐┌─┐┌┬┐┬┌─┐┌┐┌┌─┐
+// ├┬┘├┤ │││ ││├┤ ├┬┘   ║ ├┬┘├─┤│││└─┐├─┤│   │ ││ ││││└─┐
+// ┴└─└─┘┘└┘─┴┘└─┘┴└─   ╩ ┴└─┴ ┴┘└┘└─┘┴ ┴└─┘ ┴ ┴└─┘┘└┘└─┘
+// render Transactions
+async function renderTransactions(){
+
+  const listEl =
+    document.querySelector(
+      "#ordersSection .transactions-list"
+    )
+
+  if(!listEl) return
+
+  listEl.innerHTML = ""
+
+  await cachePendingTxs()
+
+  const txs =
+    await getAllTx()
+
+  txs.reverse()
+
+  txs.forEach(tx => {
+
+    const row =
+      document.createElement("div")
+
+    row.className = "order-row"
+
+    const pch =
+      String(tx.pch || "")
+      .substring(0,8)
+
+    row.textContent =
+      `${tx.network || ""} ` +
+      `${tx.txid || ""} ` +
+      `[${pch}]`
+
+    listEl.appendChild(row)
+
+  })
+}
+
+
+
+
+
+// ┬─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐  ╔╦╗┌─┐┬─┐┬┌─┌─┐┌┬┐  ╦ ╦┌─┐┌─┐┌┬┐┌┬┐┌─┐┌─┐
+// ├┬┘├┤ │││ ││├┤ ├┬┘  ║║║├─┤├┬┘├┴┐├┤  │   ╠═╣├┤ ├─┤ │ │││├─┤├─┘
+// ┴└─└─┘┘└┘─┴┘└─┘┴└─  ╩ ╩┴ ┴┴└─┴ ┴└─┘ ┴   ╩ ╩└─┘┴ ┴ ┴ ┴ ┴┴ ┴┴  
+// render Market Heatmap
 function renderMarketHeatmap(pair, heatmap, opts = {}){
 
   const width = opts.width ?? 420

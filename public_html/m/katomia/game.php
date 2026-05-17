@@ -66,6 +66,11 @@
       <summary class="subtle">All orders (debug view)</summary>
       <div class="orders-list"></div>
     </details>
+
+    <details class="orders-details">
+      <summary class="subtle">Transactions (debug view)</summary>
+      <div class="transactions-list"></div>
+    </details>
   
   </div>
 
@@ -143,6 +148,7 @@
 
 <script type="module" src="katomia-init.js" data-glog="on"></script>
 <script src="katomia-core.js"></script>
+<script src="katomia-localdb.js"></script>
 <script src="katomia-helpers.js"></script>
 <script src="katomia-enrich.js"></script>
 <script src="katomia-network.js"></script>

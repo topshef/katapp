@@ -987,7 +987,8 @@ function getFastThumb(url, imgEl){
       window.orderFillMap = buildOrderFillMap()
       renderOrderMarketSummary()
       renderOrders()
-
+      renderTransactions()
+      
 
       const accounts = getAccounts()
       const accountMap = getAccountMap()
