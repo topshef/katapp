@@ -49,12 +49,36 @@ function getTxSourceInfo(tx){
 }
 
 
+function getTxStatus(tx){
+
+  const txid = tx.txid
+
+  const settled =
+    Object.values(state.players || {})
+      .flatMap(player =>
+        Object.values(player.orders || {})
+      )
+      .some(order =>
+        (order.settled || [])
+          .some(x =>
+            x.txid == txid
+          )
+      )
+
+  if(settled)
+    return "success"
+
+  return tx.lifecycle?.status || "?"
+
+}
+
 function getTxMeta(tx){
 
   const network = tx.network || tx.pchbasis?.network || "?"
   const txid = tx.txid || "?"
   const pch = (tx.pch || "?").substring(0,8)
-  const status = tx.lifecycle?.status || "?"
+  // const status = tx.lifecycle?.status || "?"
+  const status = getTxStatus(tx)
   const sourceInfo = getTxSourceInfo(tx)
 
   return (
