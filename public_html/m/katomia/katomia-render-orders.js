@@ -69,13 +69,50 @@ async function renderTransactions(){
       .map(x => `${x.amount} ${x.tokenId}`)
       .join(", ")
 
+
     const sourceInfo = (tx.sourceBaskets || [])
       .map(x => {
-        if(!x.orderId) return ""
-        return `#${x.orderId} ${x.numerator}/${x.denominator}`
+
+        if(!x.orderId)
+          return ""
+
+        const reduced =
+          reduceFraction(
+            x.numerator,
+            x.denominator
+          )
+
+        return (
+          `#${x.orderId} ` +
+          `${reduced.numerator}/${reduced.denominator}`
+        )
+
       })
       .filter(Boolean)
       .join(", ")
+
+
+    const sendDisplay =
+      transfers
+        .filter(x => x.amount < 0)
+        .map(x =>
+          getAssetDisplay(
+            x.tokenId,
+            Math.abs(x.amount)
+          )
+        )
+        .join(", ")
+
+    const receiveDisplay =
+      transfers
+        .filter(x => x.amount > 0)
+        .map(x =>
+          getAssetDisplay(
+            x.tokenId,
+            x.amount
+          )
+        )
+        .join(", ")
 
     row.className = "subtle"
 
@@ -84,9 +121,16 @@ async function renderTransactions(){
       `${txid} ` +
       `[PCH ${pch}] ` +
       `[${status}] ` +
-      (sourceInfo ? `[${sourceInfo}] ` : "") +
-      (send ? `${send} → ` : "") +
-      receive
+      (sourceInfo
+        ? `[${sourceInfo}] `
+        : "") +
+      (sendDisplay
+        ? `${sendDisplay} → `
+        : "") +
+      receiveDisplay
+
+
+
 
     listEl.appendChild(row)
 
