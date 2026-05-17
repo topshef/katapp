@@ -672,9 +672,23 @@ function renderOrderMarketSummary(){
 
       const pendingFill = getPendingOrderFillRatio(orderId)
       const kpoolText = pendingFill.numerator == 0 ? "" : ` kpool ${pendingFill.numerator}/${pendingFill.denominator}`
-      
-      
-      const orderType = getOrderType(order)  || "invalid-YE23998"
+
+      const settled = order.settled || []
+
+      const settledNumerator =
+        settled.reduce((sum,x) =>
+          sum + (Number(x.numerator) || 0)
+        ,0)
+
+      const settledDenominator =
+        settled[0]?.denominator || 0
+
+      const settledText =
+        !settledNumerator
+          ? ""
+          : ` settled ${settledNumerator}/${settledDenominator}`
+
+      const orderType = getOrderType(order) || "invalid-YE23998"
 
 
       const enriched = enrichOrder(order)
@@ -701,7 +715,7 @@ function renderOrderMarketSummary(){
         `Order #${orderId} (${playerId}${mine ? "=you" : ""}) ` +
         `[${orderType}] ${marketLabel} ` +
         // `[filled ${fill.numerator}/${fill.denominator}]: `
-        `[filled ${fill.numerator}/${fill.denominator}${kpoolText}]: `
+        `[filled ${fill.numerator}/${fill.denominator}${kpoolText}${settledText}]: `
         
 
       const arrow = document.createElement("span")
