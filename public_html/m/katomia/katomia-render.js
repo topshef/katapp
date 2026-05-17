@@ -788,6 +788,16 @@ function getFastThumb(url, imgEl){
         const autoWrap = document.createElement("label")
         autoWrap.className = "auto-lock"
 
+        autoWrap.title =
+          "Auto-lock preference for this account\n\n" +
+          "✓ Applies when creating or taking market orders\n" +
+          "✓ Can immediately raise transactions if all parties also use auto-lock\n\n" +
+          "✗ Does not apply to manual fills\n" +
+          "✗ Does not apply to drag/drop asset moves\n" +
+          "✗ Does not apply to manual basket edits\n\n" +
+          "Debug feature: intended for simplified FX / reduced UI modes"
+          
+          
         const autoInput = document.createElement("input")
         autoInput.type = "checkbox"
         autoInput.checked = !!account.autoLock
