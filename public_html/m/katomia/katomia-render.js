@@ -585,18 +585,39 @@ function getFastThumb(url, imgEl){
        RENDERING
     ========================= */
 
-		function makeTxDot(tx){
+    function makeTxDot(tx){
 
-			const a = document.createElement("a")
-			a.textContent = getTxEmoji(tx)
-			a.style.fontSize = "12px"
-			a.style.textDecoration = "none"
+      const a = document.createElement("a")
 
-			a.href = `/m/sign/?network=${tx.network}&txid=${tx.txid}&pch=${tx.pch}`
-			a.target = "_blank"
+      a.textContent = getTxEmoji(tx)
+      a.style.fontSize = "12px"
+      a.style.textDecoration = "none"
 
-			return a
-		}
+      a.href = `/m/sign/?network=${tx.network}&txid=${tx.txid}&pch=${tx.pch}`
+      a.target = "_blank"
+
+      const status =
+        String(tx.lifecycle?.status || "PENDING")
+
+      const fills =
+        (tx.fills || [])
+          .map(fill =>
+            `#${fill.orderId} ${fill.numerator}/${fill.denominator}`
+          )
+          .join(", ")
+
+      const signers =
+        (tx.signatures || [])
+          .length
+
+      a.title = // padding with spaces as large cursor covering start
+        `.    TX ${tx.txid || ""}\n` +
+        `     Status: ${status}\n` +
+        `     Signatures: ${signers}\n` +
+        (fills ? `     Fills: ${fills}` : "")
+
+      return a
+    }
 
 
 		function getTxEmoji(tx){
