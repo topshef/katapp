@@ -123,6 +123,28 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
     pendingLine.setAttribute("stroke-width","2")
     pendingLine.setAttribute("stroke-opacity","0.7")
 
+    if (pendingFill.numerator !== "0") {
+      
+      const pendingHeight = fillY - pendingY
+      
+      const bubble=document.createElementNS("http://www.w3.org/2000/svg", "rect")
+
+      bubble.setAttribute("x", rectX)
+      bubble.setAttribute("y", pendingY)
+      bubble.setAttribute("width", barWidth)
+      bubble.setAttribute("height", pendingHeight)
+
+      bubble.setAttribute("rx", "7")
+      bubble.setAttribute("ry", "7")
+
+      bubble.setAttribute("fill", "none")
+      bubble.setAttribute("stroke", lineColor)
+      bubble.setAttribute("stroke-opacity", "0.6")
+      bubble.setAttribute("stroke-dasharray", "2 2")
+
+      svg.appendChild(bubble)
+    }
+
     svg.appendChild(pendingLine)
 
   })
