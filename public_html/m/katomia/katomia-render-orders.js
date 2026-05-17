@@ -173,7 +173,16 @@ async function renderTransactions(){
 
   const txs = await getAllTx()
 
-  txs.reverse()
+  txs.sort((a,b) => {
+
+    const ta =
+      a.txid?.split("@")[1] || "0"
+
+    const tb =
+      b.txid?.split("@")[1] || "0"
+
+    return tb.localeCompare(ta)
+  })
 
   txs.forEach(tx =>
     listEl.appendChild(
