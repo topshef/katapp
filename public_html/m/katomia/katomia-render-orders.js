@@ -673,20 +673,13 @@ function renderOrderMarketSummary(){
       const pendingFill = getPendingOrderFillRatio(orderId)
       const kpoolText = pendingFill.numerator == 0 ? "" : ` kpool ${pendingFill.numerator}/${pendingFill.denominator}`
 
-      const settled = order.settled || []
-
-      const settledNumerator =
-        settled.reduce((sum,x) =>
-          sum + (Number(x.numerator) || 0)
-        ,0)
-
-      const settledDenominator =
-        settled[0]?.denominator || 0
+      const settled =
+        getSettledOrderFillRatio(orderId)
 
       const settledText =
-        !settledNumerator
+        settled.numerator == 0
           ? ""
-          : ` settled ${settledNumerator}/${settledDenominator}`
+          : ` settled ${settled.numerator}/${settled.denominator}`
 
       const orderType = getOrderType(order) || "invalid-YE23998"
 
