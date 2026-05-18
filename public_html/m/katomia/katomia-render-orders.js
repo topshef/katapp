@@ -100,47 +100,40 @@ function getTxMeta(tx){
 
 
 
-
 function createTxAssets(transfers){
 
   const el = document.createElement("span")
   el.className = "tx-assets"
 
+  const addSide = items =>
+    items.forEach(x =>
+      el.appendChild(
+        makeAssetEl({
+          text:
+            `${x.accountId} ` +
+            getAssetDisplay(
+              x.tokenId,
+              Math.abs(x.amount)
+            ),
+          assetId:x.tokenId,
+          ownerAccountId:x.accountId
+        })
+      )
+    )
+
   const send = transfers.filter(x => x.amount < 0)
   const receive = transfers.filter(x => x.amount > 0)
 
-  send.forEach(x =>
-    el.appendChild(
-      makeAssetEl({
-        text:getAssetDisplay(
-          x.tokenId,
-          Math.abs(x.amount)
-        ),
-        assetId:x.tokenId
-      })
-    )
-  )
+  addSide(send)
 
   if(send.length && receive.length){
-
     const arrow = document.createElement("span")
     arrow.className = "tx-arrow"
-    arrow.textContent = "→"
-
+    arrow.textContent = " → "
     el.appendChild(arrow)
   }
 
-  receive.forEach(x =>
-    el.appendChild(
-      makeAssetEl({
-        text:getAssetDisplay(
-          x.tokenId,
-          x.amount
-        ),
-        assetId:x.tokenId
-      })
-    )
-  )
+  addSide(receive)
 
   return el
 
