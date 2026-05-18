@@ -1,6 +1,6 @@
 
 import { CONFIG } from './config.js'
-import { txRead, enrichAccountsInfo, enrichAccountsKeyInfo, calcAccountsThatSign  } from './model.js'
+import { txRead, enrichAccountsInfo, enrichAccountsKeyInfo, enrichTransfersInfo, calcAccountsThatSign  } from './model.js'
 
 import {
 	injectTxReadCSS,
@@ -76,7 +76,8 @@ async function renderSingleTx(network, txid, pch = 'no_pch') {
 
 	const renderTxView  = async ({ network, txid, details }) => {
 		const { url, rawTx, data, transfers, accounts } = await txRead({ network, txid })
-
+    await enrichTransfersInfo({ network, transfers })
+    
 		injectTxReadCSS()
 
 		container.classList.add('txread')

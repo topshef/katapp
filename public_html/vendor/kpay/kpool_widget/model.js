@@ -4,7 +4,7 @@
 		parseTxId,
 	} from './utils.js'
 
-import { getAccountInfo, getKeyInfo } from './hedera-mirror.js'
+import { getAccountInfo, getKeyInfo, getTokenInfo} from './hedera-mirror.js'
 
 
 const glog = globalThis.glog ?? (() => {})
@@ -264,3 +264,56 @@ export function calcAccountsThatSign(accounts) {
 	})
 }
 
+
+
+
+// ┌─┐┌┐┌┬─┐┬┌─┐┬ ┬  ╔╦╗┬─┐┌─┐┌┐┌┌─┐┌─┐┌─┐┬─┐┌─┐  ╦┌┐┌┌─┐┌─┐
+// ├┤ │││├┬┘││  ├─┤   ║ ├┬┘├─┤│││└─┐├┤ ├┤ ├┬┘└─┐  ║│││├┤ │ │
+// └─┘┘└┘┴└─┴└─┘┴ ┴   ╩ ┴└─┴ ┴┘└┘└─┘└  └─┘┴└─└─┘  ╩┘└┘└  └─┘
+// enrich Transfers Info
+
+export async function enrichTransfersInfo({ network, transfers }) {
+
+  const tokenIds = [
+    ...new Set(
+      transfers.lineItems
+        .filter(x => x.type == 'FT')
+        .map(x => x.asset)
+    )
+  ]
+
+  const tokenInfo = {}
+
+  await Promise.all(
+    tokenIds.map(async tokenId => {
+      tokenInfo[tokenId] =
+        await getTokenInfo(network, tokenId)
+    })
+  )
+
+  transfers.lineItems.forEach(item => {
+
+    if(item.type == 'HBAR') {
+      item.amountRaw = item.amount * 100000000
+      item.amountFormatted = item.amount
+      return
+    }
+
+    if(item.type != 'FT')
+      return
+
+    const info = tokenInfo[item.asset]
+
+    item.amountRaw = item.amount
+
+    const decimals =
+      info?.decimals ?? 0
+
+    item.amountFormatted =
+      Number(item.amount) /
+      (10 ** decimals)
+
+    item.symbol =
+      info?.symbol
+  })
+}

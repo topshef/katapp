@@ -221,7 +221,7 @@
 			addRow(
 				item.account,
 				item.asset,
-				item.amount
+				item.amountFormatted
 			)
 		})
 

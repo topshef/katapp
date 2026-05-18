@@ -34,6 +34,16 @@ export async function getAccountInfo(network, accountId, expirySeconds = 20) {
   )
 }
 
+export async function getTokenInfo(network, tokenId, expirySeconds = 'infinite') {
+  return await getHederaMirrorData(
+    network,
+    `tokens/${tokenId}`,
+    {},
+    expirySeconds
+  )
+}
+
+
 // get Hedera Mirror Data
 export async function getHederaMirrorData(network, endpoint, queryObject, expirySeconds = 20) {
   try {
