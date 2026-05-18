@@ -1062,3 +1062,42 @@ button i{
 #ordersSection .tx-row *{
   cursor:pointer;
 }
+
+.tx-highlight.tx-buy{
+  box-shadow: inset 4px 0 #2ecc71;
+}
+
+.tx-highlight.tx-sell{
+  box-shadow: inset 4px 0 #e74c3c;
+}
+
+.tx-fx-chip{
+  transition:all .12s ease;
+}
+
+.tx-chip-buy{
+  outline:2px solid #2ecc71;
+  background:rgba(46,204,113,.12);
+}
+
+.tx-chip-sell{
+  outline:2px solid #e74c3c;
+  background:rgba(231,76,60,.12);
+}
+
+svg .svg-buy{
+  filter:drop-shadow(0 0 3px rgba(46,204,113,.9));
+}
+
+svg .svg-sell{
+  filter:drop-shadow(0 0 3px rgba(231,76,60,.9));
+}
+
+.tx-row:has(.tx-highlight):has(a[href*="success"]) .tx-fx-chip,
+.tx-row.success .tx-fx-chip{
+  border-radius:1px;
+}
+
+.tx-row.success .tx-fx-chip{
+  border-radius:1px;
+}

@@ -102,24 +102,10 @@ function getTxMeta(tx){
 // │  ├┬┘├┤ ├─┤ │ ├┤    ║ ┌┴┬┘  ╠═╣└─┐└─┐├┤  │ └─┐
 // └─┘┴└─└─┘┴ ┴ ┴ └─┘   ╩ ┴ └─  ╩ ╩└─┘└─┘└─┘ ┴ └─┘
 // create Tx Assets
-function createTxAssets(tx){
+function createTxAssets(tx,orderType){
 
   const transfers =
     tx.pchbasis?.transfers?.tokenTransfers || []
-
-  const orderId =
-    tx.sourceBaskets?.find(x => x.orderId)
-      ?.orderId
-
-  const order =
-    getAllOrders()
-      .find(x => x.orderId == orderId)
-      ?.order
-
-  const orderType =
-    order
-      ? getOrderType(order)
-      : null
 
   if(orderType == "simple-fx")
     return createSimpleFxTxAssets(transfers)
@@ -127,7 +113,6 @@ function createTxAssets(tx){
   return createGenericTxAssets(transfers)
 
 }
-
 
 function createGenericTxAssets(transfers){
 
@@ -205,11 +190,13 @@ function createSimpleFxTxAssets(transfers){
         .map(x => getAssetDisplay(x.tokenId,x.amount))
         .join(", ")
 
-    el.appendChild(
-      makeAssetEl({
-        text:`${accountId} ${neg} → ${pos}`
-      })
-    )
+    const chip = makeAssetEl({
+      text:`${accountId} ${neg} → ${pos}`
+    })
+
+    chip.classList.add("tx-fx-chip")
+
+    el.appendChild(chip)
 
   })
 
@@ -225,17 +212,43 @@ function createTxRow(tx){
   const meta = document.createElement("span")
 
   row.className = "subtle tx-row"
-  
-  row.dataset.fills = (tx.sourceBaskets || []).map(x => x.fillId).filter(Boolean).join(",")
+  if(getTxStatus(tx)=="success")
+    row.classList.add("success")
 
-  meta.innerHTML = getTxMeta(tx)
 
-  const transfers =
-    tx.pchbasis?.transfers?.tokenTransfers || []
+  row.dataset.fills =
+    (tx.sourceBaskets || [])
+      .map(x => x.fillId)
+      .filter(Boolean)
+      .join(",")
+
+  const orderId =
+    tx.sourceBaskets?.find(x => x.orderId)
+      ?.orderId
+
+  const order =
+    getAllOrders()
+      .find(x => x.orderId == orderId)
+      ?.order
+
+  const orderType =
+    order
+      ? getOrderType(order)
+      : "generic"
+
+  row.dataset.orderSide =
+    enrichOrder(order)?.market?.side || ""
+
+  meta.innerHTML =
+    getTxMeta(tx) +
+    ` [${orderType}] `
 
   row.appendChild(meta)
   row.appendChild(
-    createTxAssets(tx)
+    createTxAssets(
+      tx,
+      orderType
+    )
   )
 
   return row
@@ -460,6 +473,7 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
       bubble.dataset.orderId = row.orderId
       bubble.dataset.fillId = item.fillId
       bubble.dataset.type = "bubble"
+      bubble.dataset.side = row.market?.side || ""
 
       svg.appendChild(bubble)
     })
@@ -490,6 +504,7 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
       settledBlock.dataset.orderId = row.orderId
       settledBlock.dataset.fillId = item.fillId
       settledBlock.dataset.type = "settled"
+      settledBlock.dataset.side = row.market?.side || ""
 
       svg.appendChild(settledBlock)
 
@@ -553,47 +568,85 @@ function ensureMarketTooltip(){
 
 function highlightHeatmapFill(fillId,on){
 
-  document.querySelectorAll(`[data-fill-id="${fillId}"]`).forEach(el => {
-
-    const t = el.dataset.type
-
-    el.classList.toggle(
-      "tx-highlight",
-      on
+  document
+    .querySelectorAll(
+      `[data-fill-id="${fillId}"]`
     )
+    .forEach(el => {
 
-    if(on){
+      const t = el.dataset.type
+      const side = el.dataset.side
 
-      if(t == "bubble"){
-        el.setAttribute("stroke-width","3")
-        el.setAttribute("stroke-opacity","1")
+      el.classList.toggle(
+        `svg-${side}`,
+        on
+      )
+
+      if(on){
+
+        if(t=="bubble"){
+          el.setAttribute("stroke-width","3")
+          el.setAttribute("stroke-opacity","1")
+        }
+
+        if(t=="settled")
+          el.setAttribute("fill-opacity","0.8")
+
+      }else{
+
+        el.classList.remove(
+          "svg-buy",
+          "svg-sell"
+        )
+
+        if(t=="bubble"){
+          el.setAttribute("stroke-width","1")
+          el.setAttribute("stroke-opacity","0.6")
+        }
+
+        if(t=="settled")
+          el.setAttribute("fill-opacity","0.35")
+
       }
 
-      if(t == "settled")
-        el.setAttribute("fill-opacity","0.8")
-
-    }else{
-
-      if(t == "bubble"){
-        el.setAttribute("stroke-width","1")
-        el.setAttribute("stroke-opacity","0.6")
-      }
-
-      if(t == "settled")
-        el.setAttribute("fill-opacity","0.35")
-    }
-
-  })
+    })
 
 }
 
 function highlightTxRows(fillId,on){
 
   document.querySelectorAll(".tx-row").forEach(row => {
-    const fills = (row.dataset.fills || "").split(",")
-    if(!fills.includes(String(fillId))) return
-    row.classList.toggle("tx-highlight", on)
+
+    const fills =
+      (row.dataset.fills || "")
+      .split(",")
+
+    if(!fills.includes(String(fillId)))
+      return
+
+    row.classList.toggle(
+      "tx-highlight",
+      on
+    )
+
+    const side =
+      row.dataset.orderSide
+
+    if(side)
+      row.classList.toggle(
+        `tx-${side}`,
+        on
+      )
+
+    row
+      .querySelector(".tx-fx-chip")
+      ?.classList.toggle(
+        `tx-chip-${side}`,
+        on
+      )
+
   })
+
 }
 
 
@@ -683,6 +736,18 @@ document.addEventListener("mouseover",e => { // xref hover tx -> svg
 
   row.classList.add("tx-highlight")
 
+  const side = row.dataset.orderSide
+
+  if(side){
+    row.classList.add(`tx-${side}`)
+
+    row
+      .querySelector(".tx-fx-chip")
+      ?.classList.add(
+        `tx-chip-${side}`
+      )
+  }
+
   row.dataset.fills
     ?.split(",")
     .filter(Boolean)
@@ -698,7 +763,16 @@ document.addEventListener("mouseout",e => {
   if(!row) return
 
   row.classList.remove("tx-highlight")
+  row.classList.remove("tx-buy")
+  row.classList.remove("tx-sell")
 
+  row
+    .querySelector(".tx-fx-chip")
+    ?.classList.remove(
+      "tx-chip-buy",
+      "tx-chip-sell"
+    )
+  
   row.dataset.fills
     ?.split(",")
     .filter(Boolean)
