@@ -260,12 +260,14 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
   const svg = document.createElementNS("http://www.w3.org/2000/svg","svg")
 
   svg.setAttribute("width", width)
-  svg.setAttribute("height", height)
   svg.classList.add("market-chart")
 
   const { minRate, maxRate, maxVolume } = heatmap.stats
   const chartW = width - (pad * 2)
   const chartH = height - (pad * 2)
+
+  svg.setAttribute("height", height + chartH + 4)
+
 
   heatmap.rows.forEach(row => {
 
@@ -367,12 +369,7 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
 
     getPendingFillItems(row.orderId).forEach(item => {
 
-      const fillRatio = getOrderFillRatio(row.orderId)
-
-      const totalFilled = fillRatio.numerator / fillRatio.denominator
-      const itemRatio = item.numerator / item.denominator
-
-      const itemH = totalFilled ? (originalH * itemRatio) / totalFilled : 0   
+      const itemH = getFillHeight(originalH,item)
       
       pendingStackY -= itemH
 
@@ -397,23 +394,27 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
 
     svg.appendChild(pendingLine)
 
+
     //show settled tx below baseline
     let settledY = height - pad + 2
 
     getSettledFillItems(row.orderId).forEach(item => {
 
-      const settled = getSettledOrderFillRatio(row.orderId)
-      const totalRatio = settled.numerator / settled.denominator
-      const itemRatio = item.numerator / item.denominator
-      const itemH = totalRatio ? (originalH * itemRatio) / totalRatio : 0
+      const itemH = getFillHeight(originalH,item)
 
-      const settledBlock = document.createElementNS("http://www.w3.org/2000/svg","rect")
+      const settledBlock =
+        document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "rect"
+        )
+
       settledBlock.setAttribute("x", rectX)
       settledBlock.setAttribute("y", settledY)
       settledBlock.setAttribute("width", barWidth)
       settledBlock.setAttribute("height", itemH)
       settledBlock.setAttribute("fill", color)
-      settledBlock.setAttribute("fill-opacity", "0.35")
+      settledBlock.setAttribute("fill-opacity","0.35")
+
       settledBlock.dataset.orderId = row.orderId
       settledBlock.dataset.fillId = item.fillId
       settledBlock.dataset.type = "settled"
@@ -421,12 +422,42 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
       svg.appendChild(settledBlock)
 
       settledY += itemH
+
     })
   
   })
 
   return svg
 }
+
+
+
+function getFillHeight(originalH,item){
+  const ratio = item.numerator / item.denominator
+  return originalH * ratio
+}
+
+function createHeatmapRect(x,y,w,h,attrs={}){
+
+  const el =
+    document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "rect"
+    )
+
+  el.setAttribute("x",x)
+  el.setAttribute("y",y)
+  el.setAttribute("width",w)
+  el.setAttribute("height",h)
+
+  Object.entries(attrs)
+    .forEach(([k,v]) =>
+      el.setAttribute(k,v)
+    )
+
+  return el
+}
+
 
 
 function ensureMarketTooltip(){
