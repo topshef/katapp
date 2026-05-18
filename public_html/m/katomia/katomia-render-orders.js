@@ -354,11 +354,39 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
       //tag to allow xref hover
       bubble.dataset.orderId = row.orderId
       bubble.dataset.type = "bubble"
+      bubble.dataset.numerator = pendingFill.numerator
+      bubble.dataset.denominator = pendingFill.denominator
 
       svg.appendChild(bubble)
     }
 
     svg.appendChild(pendingLine)
+
+    //show settled tx below baseline
+    const settledFill = getSettledOrderFillRatio(row.orderId)
+
+    if(settledFill.numerator > 0){
+
+      const settledRatio = settledFill.numerator / settledFill.denominator
+      const settledHeight = originalH * settledRatio
+
+      const settledBlock = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "rect"
+      )
+
+      settledBlock.setAttribute("x", rectX)
+      settledBlock.setAttribute("y", height - pad + 2)
+      settledBlock.setAttribute("width", barWidth)
+      settledBlock.setAttribute("height", settledHeight)
+      settledBlock.setAttribute("fill", color)
+      settledBlock.setAttribute("fill-opacity", "0.35")
+
+      settledBlock.dataset.orderId = row.orderId
+      settledBlock.dataset.type = "settled"
+
+      svg.appendChild(settledBlock)
+    }
 
   })
 
@@ -384,34 +412,26 @@ function ensureMarketTooltip(){
   return el
 }
 
-
 function highlightOrderInHeatmap(orderId, on){
 
   document
     .querySelectorAll(
-      `[data-order-id="${orderId}"][data-type="pending"],` +
-      `[data-order-id="${orderId}"][data-type="bubble"]`
+      `[data-order-id="${orderId}"][data-type="bubble"],` +
+      `[data-order-id="${orderId}"][data-type="settled"]`
     )
     .forEach(el => {
 
-      const type =
-        el.dataset.type
+      const t = el.dataset.type
 
-      if(on){
+      if (on) {
 
-        if(type == "pending")
-          el.setAttribute("stroke-width","5")
-
-        if(type == "bubble")
-          el.setAttribute("stroke-opacity","1")
+        if (t == "bubble") el.setAttribute("stroke-width", "3")
+        if (t == "settled") el.setAttribute("fill-opacity", "0.8")
 
       } else {
 
-        if(type == "pending")
-          el.setAttribute("stroke-width","2")
-
-        if(type == "bubble")
-          el.setAttribute("stroke-opacity","0.6")
+        if (t == "bubble") el.setAttribute("stroke-width", "1")
+        if (t == "settled") el.setAttribute("fill-opacity", "0.35")
 
       }
 
