@@ -227,6 +227,10 @@ function createTxRow(tx){
       .filter(Boolean)
       .join(",")
 
+
+  row.dataset.txkey =
+    `${tx.txid}|${tx.pch}`
+    
   const orderId =
     tx.sourceBaskets?.find(x => x.orderId)
       ?.orderId
@@ -479,6 +483,7 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
       bubble.setAttribute("stroke-dasharray", "2 2")
       bubble.dataset.orderId = row.orderId
       bubble.dataset.fillId = item.fillId
+      bubble.dataset.txkey = `${item.txid}|${item.pch}`
       bubble.dataset.type = "bubble"
       bubble.dataset.side = row.market?.side || ""
 
@@ -510,6 +515,7 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
 
       settledBlock.dataset.orderId = row.orderId
       settledBlock.dataset.fillId = item.fillId
+      settledBlock.dataset.txkey = `${item.txid}|${item.pch || ""}`
       settledBlock.dataset.type = "settled"
       settledBlock.dataset.side = row.market?.side || ""
 
@@ -619,6 +625,28 @@ function highlightHeatmapFill(fillId,on){
     })
 
 }
+
+
+function highlightHeatmapTx(txkey,on){
+
+  document
+    .querySelectorAll(
+      `[data-txkey="${txkey}"]`
+    )
+    .forEach(el => {
+
+      const fillId =
+        el.dataset.fillId
+
+      if(fillId)
+        highlightHeatmapFill(
+          fillId,
+          on
+        )
+    })
+
+}
+
 
 function highlightTxRows(fillId,on){
 
@@ -800,8 +828,8 @@ document.addEventListener("mouseover",e => { // xref hover svg -> tx
 
   if(!el) return
 
-  highlightHeatmapFill(
-    el.dataset.fillId,
+  highlightHeatmapTx(
+    el.dataset.txkey,
     true
   )
 
@@ -821,8 +849,8 @@ document.addEventListener("mouseout",e => {
 
   if(!el) return
 
-  highlightHeatmapFill(
-    el.dataset.fillId,
+  highlightHeatmapTx(
+    el.dataset.txkey,
     false
   )
 
