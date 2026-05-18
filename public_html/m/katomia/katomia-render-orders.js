@@ -153,6 +153,13 @@ function createTxRow(tx){
   const meta = document.createElement("span")
 
   row.className = "subtle tx-row"
+  
+  row.dataset.orders =
+    (tx.sourceBaskets || [])
+      .map(x => x.orderId)
+      .filter(Boolean)
+      .join(",")
+    
 
   meta.innerHTML = getTxMeta(tx)
 
@@ -272,6 +279,8 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
     rect.dataset.orderId = row.orderId
 
     rect.__heatmapData = { row, x: rectX, y, w: barWidth, h }
+    rect.dataset.orderId = row.orderId
+    rect.dataset.type = "bar"
 
     svg.appendChild(rect)
 
@@ -290,6 +299,12 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
     fillLine.setAttribute("stroke-width","1")
     fillLine.setAttribute("stroke-opacity","0.5")
     fillLine.setAttribute("stroke-dasharray","1 1")
+        
+    fillLine.dataset.orderId = row.orderId
+    fillLine.dataset.type = "fill"
+    fillLine.dataset.numerator = fill.numerator
+    fillLine.dataset.denominator = fill.denominator    
+
 
     svg.appendChild(fillLine)
 
@@ -311,6 +326,12 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
     pendingLine.setAttribute("stroke-width","2")
     pendingLine.setAttribute("stroke-opacity","0.7")
 
+    //tag to allow xref hover
+    pendingLine.dataset.orderId = row.orderId
+    pendingLine.dataset.type = "pending"
+    pendingLine.dataset.numerator = pendingFill.numerator
+    pendingLine.dataset.denominator = pendingFill.denominator
+
     if (pendingFill.numerator !== "0") {
       
       const pendingHeight = fillY - pendingY
@@ -329,6 +350,10 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
       bubble.setAttribute("stroke", lineColor)
       bubble.setAttribute("stroke-opacity", "0.6")
       bubble.setAttribute("stroke-dasharray", "2 2")
+
+      //tag to allow xref hover
+      bubble.dataset.orderId = row.orderId
+      bubble.dataset.type = "bubble"
 
       svg.appendChild(bubble)
     }
@@ -357,6 +382,41 @@ function ensureMarketTooltip(){
   document.body.appendChild(el)
 
   return el
+}
+
+
+function highlightOrderInHeatmap(orderId, on){
+
+  document
+    .querySelectorAll(
+      `[data-order-id="${orderId}"][data-type="pending"],` +
+      `[data-order-id="${orderId}"][data-type="bubble"]`
+    )
+    .forEach(el => {
+
+      const type =
+        el.dataset.type
+
+      if(on){
+
+        if(type == "pending")
+          el.setAttribute("stroke-width","5")
+
+        if(type == "bubble")
+          el.setAttribute("stroke-opacity","1")
+
+      } else {
+
+        if(type == "pending")
+          el.setAttribute("stroke-width","2")
+
+        if(type == "bubble")
+          el.setAttribute("stroke-opacity","0.6")
+
+      }
+
+    })
+
 }
 
 
@@ -427,6 +487,49 @@ document.addEventListener("mousemove", e => {
 
   tooltip.style.top =
     (e.pageY + 12) + "px"
+})
+
+
+
+
+// ─┐ ┬┬─┐┌─┐┌─┐  ┬ ┬┌─┐┬  ┬┌─┐┬─┐  ┌┬┐─┐ ┬  ┌─┐┬  ┬┌─┐
+// ┌┴┬┘├┬┘├┤ ├┤   ├─┤│ │└┐┌┘├┤ ├┬┘   │ ┌┴┬┘  └─┐└┐┌┘│ ┬
+// ┴ └─┴└─└─┘└    ┴ ┴└─┘ └┘ └─┘┴└─   ┴ ┴ └─  └─┘ └┘ └─┘
+// xref hover tx svg
+document.addEventListener("mouseover", e => {
+
+  const row =
+    e.target.closest(".tx-row")
+
+  if(!row) return
+
+  row.dataset.orders
+    ?.split(",")
+    .filter(Boolean)
+    .forEach(orderId =>
+      highlightOrderInHeatmap(
+        orderId,
+        true
+      )
+    )
+})
+
+document.addEventListener("mouseout", e => {
+
+  const row =
+    e.target.closest(".tx-row")
+
+  if(!row) return
+
+  row.dataset.orders
+    ?.split(",")
+    .filter(Boolean)
+    .forEach(orderId =>
+      highlightOrderInHeatmap(
+        orderId,
+        false
+      )
+    )
 })
 
 
