@@ -228,8 +228,7 @@ function createTxRow(tx){
       .join(",")
 
 
-  row.dataset.txkey =
-    `${tx.txid}|${tx.pch}`
+  row.dataset.txkey = getTxKey(tx)
     
   const orderId =
     tx.sourceBaskets?.find(x => x.orderId)
@@ -264,6 +263,11 @@ function createTxRow(tx){
 
   return row
 
+}
+
+
+function getTxKey(tx){
+  return `${tx.txid}|${tx.pch || ""}`
 }
 
 
@@ -483,7 +487,7 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
       bubble.setAttribute("stroke-dasharray", "2 2")
       bubble.dataset.orderId = row.orderId
       bubble.dataset.fillId = item.fillId
-      bubble.dataset.txkey = `${item.txid}|${item.pch}`
+      bubble.dataset.txkey = getTxKey(item)
       bubble.dataset.type = "bubble"
       bubble.dataset.side = row.market?.side || ""
 
@@ -515,7 +519,7 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
 
       settledBlock.dataset.orderId = row.orderId
       settledBlock.dataset.fillId = item.fillId
-      settledBlock.dataset.txkey = `${item.txid}|${item.pch || ""}`
+      settledBlock.dataset.txkey = getTxKey(item)
       settledBlock.dataset.type = "settled"
       settledBlock.dataset.side = row.market?.side || ""
 
