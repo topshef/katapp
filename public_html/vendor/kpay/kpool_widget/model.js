@@ -110,18 +110,13 @@ function getAllTransfers(data) {
 		const ac = x.accountId ?? x.account
 		if (skipCouncilAccount(ac)) return
 
-		lineItems.push({
-			type: 'HBAR',
-			account: ac,
-			asset: 'HBAR',
-			// amount: x.value ?? x.amount
-			amount:
-				x.value != null
-					? Number(x.value)
-					: Number(x.amount) / 100000000
-					
-			// amount: Number(BigInt(x.value ?? x.amount)) / 100000000
-		})
+    lineItems.push({
+      type:'HBAR',
+      account:ac,
+      asset:'tinybar',
+      amountRaw:x.value ?? x.amount,
+      amount:Number(x.value ?? x.amount)/100000000
+    })
 	})
 
  
@@ -296,7 +291,7 @@ export async function enrichTransfersInfo({ network, transfers }) {
     if(item.type == 'HBAR') {
       item.amountRaw = item.amount * 100000000
       item.amountFormatted = item.amount
-      item.assetMeta = {raw:'HBAR',name:'HBAR',symbol:'HBAR',decimals:8}
+      item.assetMeta = {raw:'tinybar',name:'HBAR',symbol:'HBAR',decimals:8}
       return
     }
     

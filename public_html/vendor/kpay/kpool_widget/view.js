@@ -207,7 +207,10 @@
       a.textContent = account.account ?? account
 
       const b = document.createElement('div')
-      b.textContent = asset?.name ? `${asset.name} (${asset.raw})` : asset?.raw ?? asset
+      let assetLabel = asset?.symbol ? `${asset.symbol} (${asset.raw})` : asset?.raw ?? asset
+      if(asset?.raw == 'tinybar') assetLabel = 'HBAR'
+      if(asset?.symbol?.startsWith('HEDERA://')) assetLabel = asset?.name ?? assetLabel
+      b.textContent = assetLabel
 
       const c = document.createElement('div')
       c.textContent = amount?.formatted ?? `[int:${amount?.raw}]`
