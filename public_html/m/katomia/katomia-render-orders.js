@@ -78,20 +78,25 @@ function getTxMeta(tx){
 
   const network = tx.network || tx.pchbasis?.network || "mainnet"
   const txid = tx.txid || "?"
-  const pch = (tx.pch || "?").substring(0,8)
+  const pch = (tx.pch || "?").substring(0,6)
   const status = getTxStatus(tx)
   const sourceInfo = getTxSourceInfo(tx)
 
-  const hashscan =
-    `https://hashscan.io/${network}/transaction/${txid}`
+  let statusText = status
+  let urltx = `https://hashscan.io/${network}/transaction/${txid}`
 
-  const statusText = status == "success" ? "✅" : "❓"
+  if (status == "success") {
+    statusText = "✅"
+  } else {
+    statusText = "❓"
+    urltx = `https://shop.gomint.me/future/?network=${network}&txid=${tx.txid}&pch=${tx.pch}`
+  }
 
   return (
     `${statusText} ` +
-    `<a href="${hashscan}" target="_blank">` +
+    `<a href="${urltx}" target="_blank">` +
     `${txid}</a> ` +
-    ` [PCH ${pch}] ` +
+    `&nbsp pch#${pch} ` +
     
     (sourceInfo ? `[${sourceInfo}]` : "")
   )
