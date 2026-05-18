@@ -159,6 +159,16 @@ function estimateMarketTrade({
   const targetVolume =
     Math.abs(volume)
 
+  const baseMeta =
+    getAssetMeta(
+      rows[0]?.baseAsset
+    )
+
+  const baseDecimals =
+    Number(
+      baseMeta?.token_class?.decimals || 0
+    )
+    
   const compatible =
     rows.filter(row => {
 
@@ -232,19 +242,25 @@ function estimateMarketTrade({
 
     remaining -= used
 
-    // fill ratio must be against ORIGINAL order size
-    const ratio =
-      used /
-      row.originalDisplayBaseAmount
+    const usedRaw =
+      Math.round(
+        used *
+        (10 ** baseDecimals)
+      )
 
+    const reduced =
+      reduceFraction(
+        usedRaw,
+        row.rawBaseAmount
+      )
 
     fills.push({
       orderId: row.orderId,
       side: row.side,
       rate: row.displayRate,
       amount: used,
-      numerator: Math.round(ratio * 1000000),
-      denominator: 1000000
+      numerator: reduced.numerator,
+      denominator: reduced.denominator
     })
 
   })
