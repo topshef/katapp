@@ -282,6 +282,36 @@ function getTxKey(tx){
 }
 
 
+
+function getTxStartSeconds(tx){
+
+  const fromTxid = String(tx.txid || "").split("@")[1]
+  if(fromTxid) return Number(fromTxid.split(".")[0])
+
+  const start = tx.pchbasis?.transactionValidStart || tx.pchbasis?.transactionID?.transactionValidStart
+  if(!start) return 0
+
+  if(typeof start == "object") return Number(start.seconds || 0)
+
+  return Number(String(start).split(".")[0])
+
+}
+
+function isTxExpired(tx){
+
+  if(getTxStatus(tx) == "success") return false
+
+  const seconds = getTxStartSeconds(tx)
+  if(!seconds) return false
+
+  const ageMs = Date.now() - (seconds * 1000)
+
+  return ageMs > (5 * 60 * 1000)
+
+}
+
+
+
 async function renderTransactions(){
 
   const listEl =
@@ -295,6 +325,10 @@ async function renderTransactions(){
 
   const txs = await getAllTx()
 
+  const hideExpired =
+    document.querySelector("#hideExpiredTx")
+      ?.checked
+      
   txs.sort((a,b) => {
 
     const ta =
@@ -306,11 +340,27 @@ async function renderTransactions(){
     return tb.localeCompare(ta)
   })
 
-  txs.forEach(tx =>
+
+  const selectedPair = getSelectedPair()
+
+  txs.forEach(tx => {
+    
+    if(hideExpired && isTxExpired(tx))
+      return
+
+    const orderId = tx.sourceBaskets?.find(x => x.orderId)?.orderId
+    const order = getAllOrders().find(x => x.orderId == orderId)?.order
+    const pair = enrichOrder(order)?.market?.pair
+
+    if(selectedPair && pair != selectedPair)
+      return
+
     listEl.appendChild(
       createTxRow(tx)
     )
-  )
+
+  })
+
 
 }
 
@@ -876,6 +926,9 @@ document.addEventListener("mouseout",e => {
 
 })
 
+function getSelectedPair(){
+  return new URLSearchParams(location.search).get("pair") || ""
+}
 
 
 function createTradeBtn(pair){  //simple FX
@@ -1000,7 +1053,12 @@ function renderOrderMarketSummary(){
 
   const markets = getSimpleFxMarkets()
 
+  const selectedPair = getSelectedPair()
+
   Object.entries(markets).forEach(([pair, rows]) => {
+
+    if(selectedPair && pair != selectedPair)
+      return
 
     const row = document.createElement("div")
     row.className = "market-summary-row"
@@ -1021,7 +1079,8 @@ function renderOrderMarketSummary(){
     const text =
       document.createElement("span")
 
-    text.innerHTML = `<span class="market-pair-label">${pair}</span> (${rows.length}) ${summary}`
+    // text.innerHTML = `<span class="market-pair-label">${pair}</span> (${rows.length}) ${summary}`
+    text.innerHTML = `<a class="market-pair-label" href="?pair=${encodeURIComponent(pair)}">${pair}</a> (${rows.length}) ${summary}`
 
     row.appendChild(createTradeBtn(pair))
     row.appendChild(text)
@@ -1073,7 +1132,15 @@ function renderOrderMarketSummary(){
         return ta.localeCompare(tb)
       })
 
+      const selectedPair = getSelectedPair()
+
       orders.forEach(orderRec => {
+
+        const pair = enrichOrder(orderRec.order)?.market?.pair
+
+        if(selectedPair && pair != selectedPair)
+          return
+  
         listEl.appendChild(createOrderRow(orderRec))
       })
     }       

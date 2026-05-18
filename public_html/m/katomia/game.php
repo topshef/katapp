@@ -67,8 +67,15 @@
       <div class="orders-list"></div>
     </details>
 
-    <details class="orders-details">
-      <summary class="subtle">Transactions (debug view)</summary>
+    <details class="orders-details" open>
+      <summary class="subtle">
+        Transactions
+        <label style="margin-left:8px">
+          <input id="hideExpiredTx" type="checkbox" checked>
+          Hide expired
+        </label>
+      </summary>
+
       <div class="transactions-list"></div>
     </details>
   
@@ -177,6 +184,14 @@ window.addEventListener("load", () => {
 </script>
 
 <script>
+
+  document.addEventListener("change",e => {
+
+    if(e.target.id == "hideExpiredTx")
+      renderTransactions()
+
+  })
+
 
   document.getElementById("exitGameBtn").onclick = () => {
     const ok = confirm("Exit game?\n\nThis removes your accounts and any offers you placed.")
