@@ -296,9 +296,10 @@ export async function enrichTransfersInfo({ network, transfers }) {
     if(item.type == 'HBAR') {
       item.amountRaw = item.amount * 100000000
       item.amountFormatted = item.amount
+      item.assetMeta = {raw:'HBAR',name:'HBAR',symbol:'HBAR',decimals:8}
       return
     }
-
+    
     if(item.type != 'FT')
       return
 
@@ -312,9 +313,13 @@ export async function enrichTransfersInfo({ network, transfers }) {
       Number(item.amount) /
       (10 ** decimals)
 
-    item.assetName = info?.name
-    item.assetSymbol = info?.symbol
-    item.assetId = item.asset
+    item.assetMeta = {
+      raw:item.asset,
+      name:info?.name,
+      symbol:info?.symbol,
+      decimals:info?.decimals
+    }
+
 
   })
 }

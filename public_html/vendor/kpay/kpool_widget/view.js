@@ -202,15 +202,15 @@
 			container.appendChild(el)
 		})
 
-		const addRow = (account, asset, amount) => {
-			const a = document.createElement('div')
-			a.textContent = account
+    const addRow = (account, asset, amount) => {
+      const a = document.createElement('div')
+      a.textContent = account.account ?? account
 
-			const b = document.createElement('div')
-			b.textContent = asset
+      const b = document.createElement('div')
+      b.textContent = asset?.name ? `${asset.name} (${asset.raw})` : asset?.raw ?? asset
 
-			const c = document.createElement('div')
-			c.textContent = amount
+      const c = document.createElement('div')
+      c.textContent = amount?.formatted ?? `[int:${amount?.raw}]`
 
 			container.appendChild(a)
 			container.appendChild(b)
@@ -218,12 +218,12 @@
 		}
 
 		lineItems.forEach(item => {
-			addRow(
-				item.account,
-				// item.asset,
-        item.assetName ? `${item.assetName} (${item.assetId})` : item.asset,
-				item.amountFormatted
-			)
+      addRow(
+        item,
+        item.assetMeta,
+        {raw:item.amountRaw,formatted:item.amountFormatted}
+      )
+      
 		})
 
 		return container
