@@ -409,7 +409,7 @@ function getSettledFillItems(orderId){
 // ├┬┘├┤ │││ ││├┤ ├┬┘  ║║║├─┤├┬┘├┴┐├┤  │   ╠═╣├┤ ├─┤ │ │││├─┤├─┘
 // ┴└─└─┘┘└┘─┴┘└─┘┴└─  ╩ ╩┴ ┴┴└─┴ ┴└─┘ ┴   ╩ ╩└─┘┴ ┴ ┴ ┴ ┴┴ ┴┴  
 // render Market Heatmap
-function renderMarketHeatmap(pair, heatmap, opts = {}){
+function renderMarketHeatmap(pair,heatmap,opts={}){
 
   const width = opts.width ?? 420
   const height = opts.height ?? 140
@@ -419,183 +419,137 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
   const jitter = opts.jitter ?? 0
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg","svg")
-
-  svg.setAttribute("width", width)
+  svg.setAttribute("width",width)
   svg.classList.add("market-chart")
 
-  const { minRate, maxRate, maxVolume } = heatmap.stats
+  const {minRate,maxRate,maxVolume} = heatmap.stats
   const chartW = width - (pad * 2)
   const chartH = height - (pad * 2)
 
-  svg.setAttribute("height", height + chartH + 4)
-
+  svg.setAttribute("height",height + chartH + 4)
   renderHeatmapGrid(svg,width,height,pad)
 
   heatmap.rows.forEach(row => {
-
-    const rate = row.displayRate
-    const volume = row.displayBaseAmount
-    const originalVolume = row.originalDisplayBaseAmount || volume
-
-    const x = pad + ((rate - minRate) / (maxRate - minRate || 1)) * chartW
-
-    const h = (volume / (maxVolume || 1)) * chartH
-    const originalH = (originalVolume / (maxVolume || 1)) * chartH
-
-    const y = height - pad - h
-    const originalY = height - pad - originalH
-
-    const jitterX = jitter ? (Math.random() - 0.5) * jitter : 0
-    const rectX = x - (barWidth / 2) + jitterX
-
-    const color = row.side === "buy" ? "#2ecc71" : "#e74c3c"
-    const lineColor = row.side === "buy" ? "#27ae60" : "#c0392b"
-
-    const edge = document.createElementNS("http://www.w3.org/2000/svg","line")
-    edge.setAttribute("x1", rectX)
-    edge.setAttribute("x2", rectX)
-    edge.setAttribute("y1", originalY)
-    edge.setAttribute("y2", height - pad)
-    edge.setAttribute("stroke", color)
-    edge.setAttribute("stroke-width","1")
-    edge.setAttribute("stroke-opacity", opacity + 0.05)
-    svg.appendChild(edge)
-
-    const rect = document.createElementNS("http://www.w3.org/2000/svg","rect")
-    rect.setAttribute("x", rectX)
-    rect.setAttribute("y", y)
-    rect.setAttribute("width", barWidth)
-    rect.setAttribute("height", h)
-    rect.setAttribute("fill", color)
-    rect.setAttribute("fill-opacity", opacity)
-
-    rect.dataset.rate = rate
-    rect.dataset.volume = volume
-    rect.dataset.orderId = row.orderId
-
-    rect.__heatmapData = { row, x: rectX, y, w: barWidth, h }
-    rect.dataset.orderId = row.orderId
-    rect.dataset.type = "bar"
-
-    svg.appendChild(rect)
-
-    const fill = getOrderFillRatio(row.orderId)
-    const fillRatio = fill.numerator / fill.denominator
-
-    // const fillY = y + h - (h * fillRatio)
-    const fillY = height - pad - (originalH * fillRatio)
-
-    const fillLine = document.createElementNS("http://www.w3.org/2000/svg","line")
-    fillLine.setAttribute("x1", rectX)
-    fillLine.setAttribute("x2", rectX + barWidth)
-    fillLine.setAttribute("y1", fillY)
-    fillLine.setAttribute("y2", fillY)
-    fillLine.setAttribute("stroke", lineColor)
-    fillLine.setAttribute("stroke-width","1")
-    fillLine.setAttribute("stroke-opacity","0.5")
-    fillLine.setAttribute("stroke-dasharray","1 1")
-        
-    fillLine.dataset.orderId = row.orderId
-    fillLine.dataset.type = "fill"
-    fillLine.dataset.numerator = fill.numerator
-    fillLine.dataset.denominator = fill.denominator    
-
-
-    svg.appendChild(fillLine)
-
-    const pendingFill = getPendingOrderFillRatio(row.orderId)
-
-    const totalFillRatio =
-      (fill.numerator / fill.denominator) +
-      (pendingFill.numerator / pendingFill.denominator)
-
-    // const pendingY = y + h - (h * totalFillRatio)
-    const pendingY = height - pad - (originalH * totalFillRatio)
-
-    const pendingLine = document.createElementNS("http://www.w3.org/2000/svg","line")
-    pendingLine.setAttribute("x1", rectX)
-    pendingLine.setAttribute("x2", rectX + barWidth)
-    pendingLine.setAttribute("y1", pendingY)
-    pendingLine.setAttribute("y2", pendingY)
-    pendingLine.setAttribute("stroke", lineColor)
-    pendingLine.setAttribute("stroke-width","2")
-    pendingLine.setAttribute("stroke-opacity","0.7")
-
-    //tag to allow xref hover
-    pendingLine.dataset.orderId = row.orderId
-    pendingLine.dataset.type = "pending"
-    pendingLine.dataset.numerator = pendingFill.numerator
-    pendingLine.dataset.denominator = pendingFill.denominator
-
-    let pendingStackY = fillY
-
-    getPendingFillItems(row.orderId).forEach(item => {
-
-      const itemH = getFillHeight(originalH,item)
-      
-      pendingStackY -= itemH
-
-      const bubble = document.createElementNS("http://www.w3.org/2000/svg","rect")
-      bubble.setAttribute("x", rectX)
-      bubble.setAttribute("y", pendingStackY)
-      bubble.setAttribute("width", barWidth)
-      bubble.setAttribute("height", itemH)
-      bubble.setAttribute("rx", "7")
-      bubble.setAttribute("ry", "7")
-      bubble.setAttribute("fill","transparent")
-      bubble.setAttribute("pointer-events","all")
-      bubble.setAttribute("stroke", lineColor)
-      bubble.setAttribute("stroke-opacity", "0.6")
-      bubble.setAttribute("stroke-dasharray", "2 2")
-      bubble.dataset.orderId = row.orderId
-      bubble.dataset.fillId = item.fillId
-      bubble.dataset.txkey = getTxKey(item)
-      bubble.dataset.type = "bubble"
-      bubble.dataset.side = row.market?.side || ""
-
-      svg.appendChild(bubble)
-    })
-
-    svg.appendChild(pendingLine)
-
-
-    //show settled tx below baseline
-    let settledY = height - pad + 2
-
-    getSettledFillItems(row.orderId).forEach(item => {
-
-      const itemH = getFillHeight(originalH,item)
-
-      const settledBlock =
-        document.createElementNS(
-          "http://www.w3.org/2000/svg",
-          "rect"
-        )
-
-      settledBlock.setAttribute("x", rectX)
-      settledBlock.setAttribute("y", settledY)
-      settledBlock.setAttribute("width", barWidth)
-      settledBlock.setAttribute("height", itemH)
-      settledBlock.setAttribute("fill", color)
-      settledBlock.setAttribute("fill-opacity","0.35")
-
-      settledBlock.dataset.orderId = row.orderId
-      settledBlock.dataset.fillId = item.fillId
-      settledBlock.dataset.txkey = getTxKey(item)
-      settledBlock.dataset.type = "settled"
-      settledBlock.dataset.side = row.market?.side || ""
-
-      svg.appendChild(settledBlock)
-
-      settledY += itemH
-
-    })
-  
+    const layout = getHeatmapLayout(row,{minRate,maxRate,maxVolume,chartW,chartH,height,pad,barWidth,jitter})
+    renderHeatmapBar(svg,row,layout,opacity)
+    renderHeatmapFillLines(svg,row,layout)
+    renderPendingFillStack(svg,row,layout)
+    renderSettledFillStack(svg,row,layout)
   })
 
   return svg
+
 }
 
+function getHeatmapLayout(row,cfg){
+
+  const rate = row.displayRate
+  const volume = row.displayBaseAmount
+  const originalVolume = row.originalDisplayBaseAmount || volume
+  const x = cfg.pad + ((rate - cfg.minRate) / (cfg.maxRate - cfg.minRate || 1)) * cfg.chartW
+  const h = (volume / (cfg.maxVolume || 1)) * cfg.chartH
+  const originalH = (originalVolume / (cfg.maxVolume || 1)) * cfg.chartH
+  const jitterX = cfg.jitter ? (Math.random() - 0.5) * cfg.jitter : 0
+  const rectX = x - (cfg.barWidth / 2) + jitterX
+
+  return {x:rectX,y:cfg.height-cfg.pad-h,h,originalH,originalY:cfg.height-cfg.pad-originalH,width:cfg.barWidth,height:cfg.height,pad:cfg.pad}
+
+}
+
+function getHeatmapColors(row){
+  return {
+    color:row.side=="buy" ? "#2ecc71" : "#e74c3c",
+    lineColor:row.side=="buy" ? "#27ae60" : "#c0392b"
+  }
+}
+
+function renderHeatmapBar(svg,row,l,opacity){
+
+  const {color} = getHeatmapColors(row)
+
+  svg.appendChild(createHeatmapLine(l.x,l.originalY,l.x,l.height-l.pad,{stroke:color,"stroke-width":"1","stroke-opacity":opacity+0.05}))
+
+  const rect = createHeatmapRect(l.x,l.y,l.width,l.h,{fill:color,"fill-opacity":opacity})
+
+  rect.dataset.rate = row.displayRate
+  rect.dataset.volume = row.displayBaseAmount
+  rect.dataset.orderId = row.orderId
+  rect.dataset.type = "bar"
+  rect.__heatmapData = {row,x:l.x,y:l.y,w:l.width,h:l.h}
+
+  svg.appendChild(rect)
+
+}
+
+function renderHeatmapFillLines(svg,row,l){
+
+  const {lineColor} = getHeatmapColors(row)
+  const fill = getOrderFillRatio(row.orderId)
+  const pendingFill = getPendingOrderFillRatio(row.orderId)
+  const fillRatio = fill.numerator / fill.denominator
+  const totalFillRatio = fillRatio + (pendingFill.numerator / pendingFill.denominator)
+  const fillY = l.height - l.pad - (l.originalH * fillRatio)
+  const pendingY = l.height - l.pad - (l.originalH * totalFillRatio)
+
+  const fillLine = createHeatmapLine(l.x,fillY,l.x+l.width,fillY,{stroke:lineColor,"stroke-width":"1","stroke-opacity":"0.5","stroke-dasharray":"1 1"})
+  fillLine.dataset.orderId = row.orderId
+  fillLine.dataset.type = "fill"
+  fillLine.dataset.numerator = fill.numerator
+  fillLine.dataset.denominator = fill.denominator
+  svg.appendChild(fillLine)
+
+  const pendingLine = createHeatmapLine(l.x,pendingY,l.x+l.width,pendingY,{stroke:lineColor,"stroke-width":"2","stroke-opacity":"0.7"})
+  pendingLine.dataset.orderId = row.orderId
+  pendingLine.dataset.type = "pending"
+  pendingLine.dataset.numerator = pendingFill.numerator
+  pendingLine.dataset.denominator = pendingFill.denominator
+  svg.appendChild(pendingLine)
+
+  l.fillY = fillY
+
+}
+
+function renderPendingFillStack(svg,row,l){
+
+  const {lineColor} = getHeatmapColors(row)
+  let y = l.fillY
+
+  getPendingFillItems(row.orderId).forEach(item => {
+    const itemH = getFillHeight(l.originalH,item)
+    y -= itemH
+
+    const bubble = createHeatmapRect(l.x,y,l.width,itemH,{rx:"7",ry:"7",fill:"transparent","pointer-events":"all",stroke:lineColor,"stroke-opacity":"0.6","stroke-dasharray":"2 2"})
+    bubble.dataset.orderId = row.orderId
+    bubble.dataset.fillId = item.fillId
+    bubble.dataset.txkey = getTxKey(item)
+    bubble.dataset.type = "bubble"
+    bubble.dataset.side = row.market?.side || ""
+
+    svg.appendChild(bubble)
+  })
+
+}
+
+function renderSettledFillStack(svg,row,l){
+
+  const {color} = getHeatmapColors(row)
+  let y = l.height - l.pad + 2
+
+  getSettledFillItems(row.orderId).forEach(item => {
+    const itemH = getFillHeight(l.originalH,item)
+
+    const settledBlock = createHeatmapRect(l.x,y,l.width,itemH,{fill:color,"fill-opacity":"0.35"})
+    settledBlock.dataset.orderId = row.orderId
+    settledBlock.dataset.fillId = item.fillId
+    settledBlock.dataset.txkey = getTxKey(item)
+    settledBlock.dataset.type = "settled"
+    settledBlock.dataset.side = row.market?.side || ""
+
+    svg.appendChild(settledBlock)
+    y += itemH
+  })
+
+}
 
 
 function getFillHeight(originalH,item){
