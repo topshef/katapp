@@ -1027,6 +1027,7 @@ button i{
   gap:6px;
   flex-wrap:wrap;
   margin-bottom:4px;
+  cursor:pointer;
 }
 
 #ordersSection .tx-row > *{
@@ -1056,4 +1057,8 @@ button i{
   outline:1px solid #ddd;
   border-radius:6px;
   box-shadow:0 1px 4px rgba(0,0,0,0.08);
+}
+
+#ordersSection .tx-row *{
+  cursor:pointer;
 }

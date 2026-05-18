@@ -367,7 +367,13 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
 
     getPendingFillItems(row.orderId).forEach(item => {
 
-      const itemH = originalH * (item.numerator / item.denominator)
+      const fillRatio = getOrderFillRatio(row.orderId)
+
+      const totalFilled = fillRatio.numerator / fillRatio.denominator
+      const itemRatio = item.numerator / item.denominator
+
+      const itemH = totalFilled ? (originalH * itemRatio) / totalFilled : 0   
+      
       pendingStackY -= itemH
 
       const bubble = document.createElementNS("http://www.w3.org/2000/svg","rect")
@@ -396,7 +402,10 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
 
     getSettledFillItems(row.orderId).forEach(item => {
 
-      const itemH = originalH * (item.numerator / item.denominator)
+      const settled = getSettledOrderFillRatio(row.orderId)
+      const totalRatio = settled.numerator / settled.denominator
+      const itemRatio = item.numerator / item.denominator
+      const itemH = totalRatio ? (originalH * itemRatio) / totalRatio : 0
 
       const settledBlock = document.createElementNS("http://www.w3.org/2000/svg","rect")
       settledBlock.setAttribute("x", rectX)
@@ -442,15 +451,37 @@ function ensureMarketTooltip(){
 function highlightHeatmapFill(fillId,on){
 
   document.querySelectorAll(`[data-fill-id="${fillId}"]`).forEach(el => {
+
     const t = el.dataset.type
+
+    el.classList.toggle(
+      "tx-highlight",
+      on
+    )
+
     if(on){
-      if(t == "bubble") el.setAttribute("stroke-width","3")
-      if(t == "settled") el.setAttribute("fill-opacity","0.8")
+
+      if(t == "bubble"){
+        el.setAttribute("stroke-width","3")
+        el.setAttribute("stroke-opacity","1")
+      }
+
+      if(t == "settled")
+        el.setAttribute("fill-opacity","0.8")
+
     }else{
-      if(t == "bubble") el.setAttribute("stroke-width","1")
-      if(t == "settled") el.setAttribute("fill-opacity","0.35")
+
+      if(t == "bubble"){
+        el.setAttribute("stroke-width","1")
+        el.setAttribute("stroke-opacity","0.6")
+      }
+
+      if(t == "settled")
+        el.setAttribute("fill-opacity","0.35")
     }
+
   })
+
 }
 
 function highlightTxRows(fillId,on){
@@ -541,11 +572,13 @@ document.addEventListener("mousemove", e => {
 // xref hover tx svg
 
 
-// xref hover tx -> svg
-document.addEventListener("mouseover",e => {
+
+document.addEventListener("mouseover",e => { // xref hover tx -> svg
 
   const row = e.target.closest(".tx-row")
   if(!row) return
+
+  row.classList.add("tx-highlight")
 
   row.dataset.fills
     ?.split(",")
@@ -561,6 +594,8 @@ document.addEventListener("mouseout",e => {
   const row = e.target.closest(".tx-row")
   if(!row) return
 
+  row.classList.remove("tx-highlight")
+
   row.dataset.fills
     ?.split(",")
     .filter(Boolean)
@@ -571,8 +606,8 @@ document.addEventListener("mouseout",e => {
 })
 
 
-// xref hover svg -> tx
-document.addEventListener("mouseover",e => {
+
+document.addEventListener("mouseover",e => { // xref hover svg -> tx
 
   const el =
     e.target.closest(
@@ -580,6 +615,11 @@ document.addEventListener("mouseover",e => {
     )
 
   if(!el) return
+
+  highlightHeatmapFill(
+    el.dataset.fillId,
+    true
+  )
 
   highlightTxRows(
     el.dataset.fillId,
@@ -596,6 +636,11 @@ document.addEventListener("mouseout",e => {
     )
 
   if(!el) return
+
+  highlightHeatmapFill(
+    el.dataset.fillId,
+    false
+  )
 
   highlightTxRows(
     el.dataset.fillId,
