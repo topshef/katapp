@@ -312,9 +312,23 @@ export async function enrichTransfersInfo({ network, transfers }) {
       raw:item.asset,
       name:info?.name,
       symbol:info?.symbol,
-      decimals:info?.decimals
+      decimals:info?.decimals,
+      assetClass:getAssetClass(info)
+
     }
 
 
   })
+}
+
+
+function getAssetClass(token){
+
+	if(token?.type == 'NON_FUNGIBLE_UNIQUE')
+		return 'NFT'
+
+	if(token?.type == 'FUNGIBLE_COMMON' && token?.decimals == 0 && Number(token?.total_supply) <= 10000)
+		return 'LE'
+
+	return 'FT'
 }

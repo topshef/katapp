@@ -210,6 +210,12 @@
       let assetLabel = asset?.symbol ? `${asset.symbol} (${asset.raw})` : asset?.raw ?? asset
       if(asset?.raw == 'tinybar') assetLabel = 'HBAR'
       if(asset?.symbol?.startsWith('HEDERA://')) assetLabel = asset?.name ?? assetLabel
+      
+      
+      if(asset?.assetClass == 'FT') assetLabel = `🪙 ${assetLabel}`
+      if(asset?.assetClass == 'LE') assetLabel = `🖼️ ${assetLabel}`
+      if(asset?.assetClass == 'NFT') assetLabel = `💎️ ${assetLabel}`
+
       b.textContent = assetLabel
 
       const c = document.createElement('div')
