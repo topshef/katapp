@@ -94,12 +94,31 @@ cancelOrderBtn.onclick = () => {
 
 
 createOrderBtn.onclick = () => {
-
+      
   const userInput =
     prompt(
       "Enter order data\n\n" +
-      "One order per line\n" +
-      "Use | for bundle items"
+
+      "Format:\n" +
+      "accountId;assetId;amount\n\n" +
+
+      "Rules:\n" +
+      "- negative = send/offer\n" +
+      "- positive = receive/request\n" +
+      "- use | for bundle items\n" +
+      "- one order per line\n" +
+      "- numeric ids auto become 0.0.x\n\n" +
+
+      "Examples:\n\n" +
+
+      "Simple FX:\n" +
+      "24739;3841995;-760000|24739;3842078;1000000\n\n" +
+
+      "Offer only:\n" +
+      "24739;456858;-10000\n\n" +
+
+      "Request only:\n" +
+      "24739;456858;10000"
     )
 
   if(!userInput) return
