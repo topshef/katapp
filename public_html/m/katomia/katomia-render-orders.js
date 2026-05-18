@@ -241,12 +241,14 @@ function createTxRow(tx){
       ? getOrderType(order)
       : "generic"
 
-  row.dataset.orderSide =
+  const side =
     enrichOrder(order)?.market?.side || ""
+    
+  row.dataset.orderSide = side
 
   meta.innerHTML =
     getTxMeta(tx) +
-    ` [${orderType}] `
+    ` [${orderType}${side ? " "+side : ""}] `
 
   row.appendChild(meta)
   row.appendChild(
