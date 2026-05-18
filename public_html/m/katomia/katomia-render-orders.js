@@ -154,12 +154,7 @@ function createTxRow(tx){
 
   row.className = "subtle tx-row"
   
-  row.dataset.orders =
-    (tx.sourceBaskets || [])
-      .map(x => x.orderId)
-      .filter(Boolean)
-      .join(",")
-    
+  row.dataset.fills = (tx.sourceBaskets || []).map(x => x.fillId).filter(Boolean).join(",")
 
   meta.innerHTML = getTxMeta(tx)
 
@@ -211,6 +206,42 @@ async function renderTransactions(){
 
 
 
+function getPendingFillItems(orderId){
+
+  const seen = new Set()
+
+  return (state?.tx?.pending || [])
+    .flatMap(tx =>
+      (tx.sourceBaskets || [])
+        .filter(x => x.orderId == orderId)
+        .map(x => ({...x,txid:tx.txid,pch:tx.pch}))
+    )
+    .filter(x => {
+
+      if(!x.fillId) return false
+      if(seen.has(x.fillId)) return false
+
+      seen.add(x.fillId)
+      return true
+    })
+
+}
+
+
+function getSettledFillItems(orderId){
+
+  const rec =
+    getAllOrders().find(
+      x => x.orderId == orderId
+    )
+
+  return (rec?.order?.settled || [])
+    .map(x => ({
+      ...x,
+      fillId:x.fillId || `tx:${x.txid}`
+    }))
+
+}
 
 
 // ┬─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐  ╔╦╗┌─┐┬─┐┬┌─┌─┐┌┬┐  ╦ ╦┌─┐┌─┐┌┬┐┌┬┐┌─┐┌─┐
@@ -332,62 +363,57 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
     pendingLine.dataset.numerator = pendingFill.numerator
     pendingLine.dataset.denominator = pendingFill.denominator
 
-    if (pendingFill.numerator !== "0") {
-      
-      const pendingHeight = fillY - pendingY
-      
-      const bubble=document.createElementNS("http://www.w3.org/2000/svg", "rect")
+    let pendingStackY = fillY
 
+    getPendingFillItems(row.orderId).forEach(item => {
+
+      const itemH = originalH * (item.numerator / item.denominator)
+      pendingStackY -= itemH
+
+      const bubble = document.createElementNS("http://www.w3.org/2000/svg","rect")
       bubble.setAttribute("x", rectX)
-      bubble.setAttribute("y", pendingY)
+      bubble.setAttribute("y", pendingStackY)
       bubble.setAttribute("width", barWidth)
-      bubble.setAttribute("height", pendingHeight)
-
+      bubble.setAttribute("height", itemH)
       bubble.setAttribute("rx", "7")
       bubble.setAttribute("ry", "7")
-
-      bubble.setAttribute("fill", "none")
+      bubble.setAttribute("fill","transparent")
+      bubble.setAttribute("pointer-events","all")
       bubble.setAttribute("stroke", lineColor)
       bubble.setAttribute("stroke-opacity", "0.6")
       bubble.setAttribute("stroke-dasharray", "2 2")
-
-      //tag to allow xref hover
       bubble.dataset.orderId = row.orderId
+      bubble.dataset.fillId = item.fillId
       bubble.dataset.type = "bubble"
-      bubble.dataset.numerator = pendingFill.numerator
-      bubble.dataset.denominator = pendingFill.denominator
 
       svg.appendChild(bubble)
-    }
+    })
 
     svg.appendChild(pendingLine)
 
     //show settled tx below baseline
-    const settledFill = getSettledOrderFillRatio(row.orderId)
+    let settledY = height - pad + 2
 
-    if(settledFill.numerator > 0){
+    getSettledFillItems(row.orderId).forEach(item => {
 
-      const settledRatio = settledFill.numerator / settledFill.denominator
-      const settledHeight = originalH * settledRatio
+      const itemH = originalH * (item.numerator / item.denominator)
 
-      const settledBlock = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "rect"
-      )
-
+      const settledBlock = document.createElementNS("http://www.w3.org/2000/svg","rect")
       settledBlock.setAttribute("x", rectX)
-      settledBlock.setAttribute("y", height - pad + 2)
+      settledBlock.setAttribute("y", settledY)
       settledBlock.setAttribute("width", barWidth)
-      settledBlock.setAttribute("height", settledHeight)
+      settledBlock.setAttribute("height", itemH)
       settledBlock.setAttribute("fill", color)
       settledBlock.setAttribute("fill-opacity", "0.35")
-
       settledBlock.dataset.orderId = row.orderId
+      settledBlock.dataset.fillId = item.fillId
       settledBlock.dataset.type = "settled"
 
       svg.appendChild(settledBlock)
-    }
 
+      settledY += itemH
+    })
+  
   })
 
   return svg
@@ -412,31 +438,28 @@ function ensureMarketTooltip(){
   return el
 }
 
-function highlightOrderInHeatmap(orderId, on){
 
-  document
-    .querySelectorAll(
-      `[data-order-id="${orderId}"][data-type="bubble"],` +
-      `[data-order-id="${orderId}"][data-type="settled"]`
-    )
-    .forEach(el => {
+function highlightHeatmapFill(fillId,on){
 
-      const t = el.dataset.type
+  document.querySelectorAll(`[data-fill-id="${fillId}"]`).forEach(el => {
+    const t = el.dataset.type
+    if(on){
+      if(t == "bubble") el.setAttribute("stroke-width","3")
+      if(t == "settled") el.setAttribute("fill-opacity","0.8")
+    }else{
+      if(t == "bubble") el.setAttribute("stroke-width","1")
+      if(t == "settled") el.setAttribute("fill-opacity","0.35")
+    }
+  })
+}
 
-      if (on) {
+function highlightTxRows(fillId,on){
 
-        if (t == "bubble") el.setAttribute("stroke-width", "3")
-        if (t == "settled") el.setAttribute("fill-opacity", "0.8")
-
-      } else {
-
-        if (t == "bubble") el.setAttribute("stroke-width", "1")
-        if (t == "settled") el.setAttribute("fill-opacity", "0.35")
-
-      }
-
-    })
-
+  document.querySelectorAll(".tx-row").forEach(row => {
+    const fills = (row.dataset.fills || "").split(",")
+    if(!fills.includes(String(fillId))) return
+    row.classList.toggle("tx-highlight", on)
+  })
 }
 
 
@@ -516,40 +539,69 @@ document.addEventListener("mousemove", e => {
 // ┌┴┬┘├┬┘├┤ ├┤   ├─┤│ │└┐┌┘├┤ ├┬┘   │ ┌┴┬┘  └─┐└┐┌┘│ ┬
 // ┴ └─┴└─└─┘└    ┴ ┴└─┘ └┘ └─┘┴└─   ┴ ┴ └─  └─┘ └┘ └─┘
 // xref hover tx svg
-document.addEventListener("mouseover", e => {
 
-  const row =
-    e.target.closest(".tx-row")
 
+// xref hover tx -> svg
+document.addEventListener("mouseover",e => {
+
+  const row = e.target.closest(".tx-row")
   if(!row) return
 
-  row.dataset.orders
+  row.dataset.fills
     ?.split(",")
     .filter(Boolean)
-    .forEach(orderId =>
-      highlightOrderInHeatmap(
-        orderId,
-        true
-      )
+    .forEach(fillId =>
+      highlightHeatmapFill(fillId,true)
     )
+
 })
 
-document.addEventListener("mouseout", e => {
+document.addEventListener("mouseout",e => {
 
-  const row =
-    e.target.closest(".tx-row")
-
+  const row = e.target.closest(".tx-row")
   if(!row) return
 
-  row.dataset.orders
+  row.dataset.fills
     ?.split(",")
     .filter(Boolean)
-    .forEach(orderId =>
-      highlightOrderInHeatmap(
-        orderId,
-        false
-      )
+    .forEach(fillId =>
+      highlightHeatmapFill(fillId,false)
     )
+
+})
+
+
+// xref hover svg -> tx
+document.addEventListener("mouseover",e => {
+
+  const el =
+    e.target.closest(
+      '[data-type="bubble"],[data-type="settled"]'
+    )
+
+  if(!el) return
+
+  highlightTxRows(
+    el.dataset.fillId,
+    true
+  )
+
+})
+
+document.addEventListener("mouseout",e => {
+
+  const el =
+    e.target.closest(
+      '[data-type="bubble"],[data-type="settled"]'
+    )
+
+  if(!el) return
+
+  highlightTxRows(
+    el.dataset.fillId,
+    false
+  )
+
 })
 
 
