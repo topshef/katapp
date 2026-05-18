@@ -429,6 +429,7 @@ function renderMarketHeatmap(pair, heatmap, opts = {}){
 
   svg.setAttribute("height", height + chartH + 4)
 
+  renderHeatmapGrid(svg,width,height,pad)
 
   heatmap.rows.forEach(row => {
 
@@ -601,6 +602,42 @@ function getFillHeight(originalH,item){
   const ratio = item.numerator / item.denominator
   return originalH * ratio
 }
+
+
+function createHeatmapLine(x1,y1,x2,y2,attrs={}){
+
+  const el = document.createElementNS("http://www.w3.org/2000/svg","line")
+
+  el.setAttribute("x1",x1)
+  el.setAttribute("y1",y1)
+  el.setAttribute("x2",x2)
+  el.setAttribute("y2",y2)
+
+  Object.entries(attrs).forEach(([k,v]) =>
+    el.setAttribute(k,v)
+  )
+
+  return el
+}
+
+function renderHeatmapGrid(svg,width,height,pad){
+
+  svg.appendChild(
+    createHeatmapLine(
+      pad,
+      height-pad+1,
+      width-pad,
+      height-pad+1,
+      {
+        stroke:"#999",
+        "stroke-width":"0.5",
+        "stroke-opacity":"0.35"
+      }
+    )
+  )
+
+}
+
 
 function createHeatmapRect(x,y,w,h,attrs={}){
 
