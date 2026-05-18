@@ -27,24 +27,26 @@ Forbidden:
 // ├┬┘├┤ │││ ││├┤ ├┬┘   ║ ├┬┘├─┤│││└─┐├─┤│   │ ││ ││││└─┐
 // ┴└─└─┘┘└┘─┴┘└─┘┴└─   ╩ ┴└─┴ ┴┘└┘└─┘┴ ┴└─┘ ┴ ┴└─┘┘└┘└─┘
 // render Transactions
-function getTxSourceInfo(tx){
+function renderTxSourceInfo(tx){  // renders too
 
-  return (tx.sourceBaskets || [])
-    .map(x => {
+  const seen = new Set()
 
-      if(!x.orderId)
-        return ""
+  return (tx.sourceBaskets || []).map(x => {
 
-      const r = reduceFraction(
-        x.numerator,
-        x.denominator
-      )
+    if(!x.orderId) return ""
 
-      return `#${x.orderId} ${r.numerator}/${r.denominator}`
+    const r = reduceFraction(x.numerator,x.denominator)
+    let fraction = `${r.numerator}/${r.denominator}`
+    if (fraction == '1/1') fraction = 'All'
+    const key = `${fraction} of #${x.orderId}`
 
-    })
-    .filter(Boolean)
-    .join(", ")
+    if(seen.has(key)) return ""
+
+    seen.add(key)
+
+    return key
+
+  }).filter(Boolean).join(", ")
 
 }
 
@@ -72,36 +74,41 @@ function getTxStatus(tx){
 
 }
 
-
-
 function getTxMeta(tx){
 
   const network = tx.network || tx.pchbasis?.network || "mainnet"
   const txid = tx.txid || "?"
   const pch = (tx.pch || "?").substring(0,6)
   const status = getTxStatus(tx)
-  const sourceInfo = getTxSourceInfo(tx)
+  const success = status == "success"
 
-  let statusText = status
-  let urltx = `https://hashscan.io/${network}/transaction/${txid}`
-
-  if (status == "success") {
-    statusText = "✅"
-  } else {
-    statusText = "❓"
-    urltx = `https://shop.gomint.me/future/?network=${network}&txid=${tx.txid}&pch=${tx.pch}`
+  return {
+    network,
+    txid,
+    pch,
+    status,
+    statusText: success ? "✅" : "❓",
+    url: success
+      ? `https://hashscan.io/${network}/transaction/${txid}`
+      : `https://shop.gomint.me/future/?network=${network}&txid=${tx.txid}&pch=${tx.pch}`
   }
 
+}
+
+function renderTxMeta(tx){
+  
+  const meta = getTxMeta(tx)
+
   return (
-    `${statusText} ` +
-    `<a href="${urltx}" target="_blank">` +
-    `${txid}</a> ` +
-    `&nbsp pch#${pch} ` +
-    
-    (sourceInfo ? `[${sourceInfo}]` : "")
+    `${meta.statusText} ` +
+    `<a href="${meta.url}" target="_blank">${meta.txid}</a> ` +
+    `&nbsp pch#${meta.pch}`
   )
 
 }
+
+
+
 
 // ┌─┐┬─┐┌─┐┌─┐┌┬┐┌─┐  ╔╦╗─┐ ┬  ╔═╗┌─┐┌─┐┌─┐┌┬┐┌─┐
 // │  ├┬┘├┤ ├─┤ │ ├┤    ║ ┌┴┬┘  ╠═╣└─┐└─┐├┤  │ └─┐
@@ -230,28 +237,17 @@ function createTxRow(tx){
 
   row.dataset.txkey = getTxKey(tx)
     
-  const orderId =
-    tx.sourceBaskets?.find(x => x.orderId)
-      ?.orderId
+  const orderId = tx.sourceBaskets?.find(x => x.orderId)?.orderId
+  const order = getAllOrders().find(x => x.orderId == orderId)?.order
+  const orderType = getOrderType(order) || "generic"
+  const market = enrichOrder(order)?.market
+  const side = market?.side ? ` ${market.side}` : ""
+  const sourceInfo = renderTxSourceInfo(tx)
+  const sourceText = sourceInfo ? ` ${sourceInfo}` : ""
 
-  const order =
-    getAllOrders()
-      .find(x => x.orderId == orderId)
-      ?.order
+  row.dataset.orderSide = market?.side || ""
 
-  const orderType =
-    order
-      ? getOrderType(order)
-      : "generic"
-
-  const side =
-    enrichOrder(order)?.market?.side || ""
-    
-  row.dataset.orderSide = side
-
-  meta.innerHTML =
-    getTxMeta(tx) +
-    ` [${orderType}${side ? " "+side : ""}] `
+  meta.innerHTML = renderTxMeta(tx) + ` [${orderType}${side}${sourceText}] `
 
   row.appendChild(meta)
   row.appendChild(
