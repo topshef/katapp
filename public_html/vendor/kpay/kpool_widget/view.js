@@ -220,7 +220,8 @@
 		lineItems.forEach(item => {
 			addRow(
 				item.account,
-				item.asset,
+				// item.asset,
+        item.assetName ? `${item.assetName} (${item.assetId})` : item.asset,
 				item.amountFormatted
 			)
 		})

@@ -306,14 +306,15 @@ export async function enrichTransfersInfo({ network, transfers }) {
 
     item.amountRaw = item.amount
 
-    const decimals =
-      info?.decimals ?? 0
+    const decimals = info?.decimals ?? 0
 
     item.amountFormatted =
       Number(item.amount) /
       (10 ** decimals)
 
-    item.symbol =
-      info?.symbol
+    item.assetName = info?.name
+    item.assetSymbol = info?.symbol
+    item.assetId = item.asset
+
   })
 }
