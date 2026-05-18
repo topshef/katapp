@@ -27,17 +27,27 @@ Forbidden:
 // ├┬┘├┤ │││ ││├┤ ├┬┘   ║ ├┬┘├─┤│││└─┐├─┤│   │ ││ ││││└─┐
 // ┴└─└─┘┘└┘─┴┘└─┘┴└─   ╩ ┴└─┴ ┴┘└┘└─┘┴ ┴└─┘ ┴ ┴└─┘┘└┘└─┘
 // render Transactions
+function getNumberBlock(n){   // go peepshow
+
+  const blocks = ["0️⃣","1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣"]
+
+  return String(n).split("").map(x => blocks[Number(x)] || x).join("")
+
+}
+
 function renderTxSourceInfo(tx){  // renders too
 
   const seen = new Set()
 
-  return (tx.sourceBaskets || []).map(x => {
+  const items = (tx.sourceBaskets || []).map(x => {
 
     if(!x.orderId) return ""
 
     const r = reduceFraction(x.numerator,x.denominator)
+
     let fraction = `${r.numerator}/${r.denominator}`
-    if (fraction == '1/1') fraction = 'All'
+    if(fraction == "1/1") fraction = "All"
+
     const key = `${fraction} of #${x.orderId}`
 
     if(seen.has(key)) return ""
@@ -46,7 +56,12 @@ function renderTxSourceInfo(tx){  // renders too
 
     return key
 
-  }).filter(Boolean).join(", ")
+  }).filter(Boolean)
+
+  const count = getNumberBlock(items.length)
+  const text = items.join(", ")
+
+  return `${count} ${text}`
 
 }
 
