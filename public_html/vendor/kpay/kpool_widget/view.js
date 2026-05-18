@@ -195,7 +195,7 @@
 		const container = document.createElement('div')
 		container.className = 'txread-xfers'
 
-		;['Account', 'Asset', 'Amount'].forEach(h => {
+		;['Account', 'Amount', 'Asset'].forEach(h => {
 			const el = document.createElement('div')
 			el.className = 'txread-xfer-head'
 			el.textContent = h
@@ -207,8 +207,10 @@
       
     const a = document.createElement('div')
       a.textContent = account.account ?? account
+      a.style.textAlign = 'right'
 
       const b = document.createElement('div')
+      b.style.textAlign = 'left'
       let assetLabel = asset.symbol ?? asset.name ?? ''
       
       const tokenId = asset.raw
@@ -234,11 +236,12 @@
       b.innerHTML = assetLabel
 
       const c = document.createElement('div')
+      c.style.textAlign = 'right'
       c.textContent = amount?.formatted ?? `[int:${amount?.raw}]`
 
 			container.appendChild(a)
-			container.appendChild(b)
 			container.appendChild(c)
+			container.appendChild(b)
 		}
 
 		lineItems.forEach(item => {
@@ -692,7 +695,7 @@ export function injectTxReadCSS() {
 
 		.txread-xfers {
 			display: grid;
-			grid-template-columns: 1.2fr 1.5fr 0.6fr;
+			grid-template-columns: 1.2fr 0.6fr 1.8fr;
 			gap: 4px 12px;
 			font-size: 13px;
 		}
