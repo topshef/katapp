@@ -98,9 +98,38 @@ function getTxMeta(tx){
 
 }
 
+// ┌─┐┬─┐┌─┐┌─┐┌┬┐┌─┐  ╔╦╗─┐ ┬  ╔═╗┌─┐┌─┐┌─┐┌┬┐┌─┐
+// │  ├┬┘├┤ ├─┤ │ ├┤    ║ ┌┴┬┘  ╠═╣└─┐└─┐├┤  │ └─┐
+// └─┘┴└─└─┘┴ ┴ ┴ └─┘   ╩ ┴ └─  ╩ ╩└─┘└─┘└─┘ ┴ └─┘
+// create Tx Assets
+function createTxAssets(tx){
+
+  const transfers =
+    tx.pchbasis?.transfers?.tokenTransfers || []
+
+  const orderId =
+    tx.sourceBaskets?.find(x => x.orderId)
+      ?.orderId
+
+  const order =
+    getAllOrders()
+      .find(x => x.orderId == orderId)
+      ?.order
+
+  const orderType =
+    order
+      ? getOrderType(order)
+      : null
+
+  if(orderType == "simple-fx")
+    return createSimpleFxTxAssets(transfers)
+
+  return createGenericTxAssets(transfers)
+
+}
 
 
-function createTxAssets(transfers){
+function createGenericTxAssets(transfers){
 
   const el = document.createElement("span")
   el.className = "tx-assets"
@@ -140,6 +169,56 @@ function createTxAssets(transfers){
 }
 
 
+function createSimpleFxTxAssets(transfers){
+
+  const el = document.createElement("span")
+  el.className = "tx-assets"
+
+  const byAccount = {}
+
+  transfers.forEach(x => {
+    const id = x.accountId
+
+    if(!byAccount[id])
+      byAccount[id] = {neg:[],pos:[]}
+
+    const side =
+      x.amount < 0
+        ? byAccount[id].neg
+        : byAccount[id].pos
+
+    side.push({
+      tokenId:x.tokenId,
+      amount:Math.abs(x.amount)
+    })
+  })
+
+  Object.entries(byAccount).forEach(([accountId,v]) => {
+
+    const neg =
+      v.neg
+        .map(x => getAssetDisplay(x.tokenId,x.amount))
+        .join(", ")
+
+    const pos =
+      v.pos
+        .map(x => getAssetDisplay(x.tokenId,x.amount))
+        .join(", ")
+
+    el.appendChild(
+      makeAssetEl({
+        text:`${accountId} ${neg} → ${pos}`
+      })
+    )
+
+  })
+
+  return el
+
+}
+
+
+
 function createTxRow(tx){
 
   const row = document.createElement("div")
@@ -156,7 +235,7 @@ function createTxRow(tx){
 
   row.appendChild(meta)
   row.appendChild(
-    createTxAssets(transfers)
+    createTxAssets(tx)
   )
 
   return row
