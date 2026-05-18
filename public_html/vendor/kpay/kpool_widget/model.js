@@ -272,8 +272,8 @@ export async function enrichTransfersInfo({ network, transfers }) {
   const tokenIds = [
     ...new Set(
       transfers.lineItems
-        .filter(x => x.type == 'FT')
-        .map(x => x.asset)
+        .filter(x => x.type == 'FT' || x.type == 'NFT')
+        .map(x => x.tokenId ?? x.asset)
     )
   ]
 
@@ -295,10 +295,16 @@ export async function enrichTransfersInfo({ network, transfers }) {
       return
     }
     
-    if(item.type != 'FT')
-      return
+    if(item.type != 'FT' && item.type != 'NFT') return
 
-    const info = tokenInfo[item.asset]
+    const info = tokenInfo[item.tokenId ?? item.asset]
+
+    if(item.type == 'NFT') {
+      item.amountRaw = item.amount
+      item.amountFormatted = item.amount
+      item.assetMeta = {raw:item.tokenId,name:info?.name,symbol:info?.symbol,serial:item.serial,assetClass:'NFT'}
+      return
+    }
 
     item.amountRaw = item.amount
 

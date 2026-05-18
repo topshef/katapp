@@ -118,7 +118,7 @@
 		const col2 = document.createElement('div')
 		col2.className = 'txread-col'
 
-		const transfersView = buildTransferList(transfers.lineItems)
+		const transfersView = buildTransferList(network, transfers.lineItems)
 		col2.appendChild(transfersView)
 
 
@@ -190,7 +190,7 @@
 	}
 
 
-	export const buildTransferList = lineItems => {
+  export function buildTransferList(network, lineItems) {
 
 		const container = document.createElement('div')
 		container.className = 'txread-xfers'
@@ -203,20 +203,35 @@
 		})
 
     const addRow = (account, asset, amount) => {
-      const a = document.createElement('div')
+      if(!asset) throw new Error('GX84752 Missing asset')
+      
+    const a = document.createElement('div')
       a.textContent = account.account ?? account
 
       const b = document.createElement('div')
-      let assetLabel = asset?.symbol ? `${asset.symbol} (${asset.raw})` : asset?.raw ?? asset
-      if(asset?.raw == 'tinybar') assetLabel = 'HBAR'
-      if(asset?.symbol?.startsWith('HEDERA://')) assetLabel = asset?.name ?? assetLabel
+      let assetLabel = asset.symbol ?? asset.name ?? ''
       
+      const tokenId = asset.raw
+      const serial = asset.serial ?? ''
+      // let assetUrl = `https://tools.gomint.me/explore/NFT/?productId=${network};${tokenId}-${serial}`
+      let assetUrl = `https://hashscan.io/${network}/token/${tokenId}`
+      if (serial) assetUrl += `/${serial}`
+      //https://hashscan.io/mainnet/token/0.0.2111380/2
       
-      if(asset?.assetClass == 'FT') assetLabel = `🪙 ${assetLabel}`
-      if(asset?.assetClass == 'LE') assetLabel = `🖼️ ${assetLabel}`
-      if(asset?.assetClass == 'NFT') assetLabel = `💎️ ${assetLabel}`
+      let assetLinkLabel = (serial) ? `${tokenId}#${serial}` : `${tokenId}`
+      let assetLink = `<a href='${assetUrl}' target='${assetLinkLabel}'>${assetLinkLabel}</a>`
+      
+      if(asset.symbol?.startsWith('HEDERA://')) assetLabel = asset.name ?? assetLabel
+      
+      if(asset.assetClass == 'FT') assetLabel = `🪙 ${assetLabel} (${assetLink})`
+      if(asset.assetClass == 'LE') assetLabel = `🖼️ ${assetLabel} (${assetLink})`
+      if(asset.assetClass == 'NFT') assetLabel = `💎 ${asset.symbol} (${assetLink})`
+      
 
-      b.textContent = assetLabel
+      if(asset.raw == 'tinybar') assetLabel = 'HBAR'
+      
+ 
+      b.innerHTML = assetLabel
 
       const c = document.createElement('div')
       c.textContent = amount?.formatted ?? `[int:${amount?.raw}]`
