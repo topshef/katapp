@@ -7,6 +7,7 @@
 import { getAccountInfo, getKeyInfo, getTokenInfo} from './hedera-mirror.js'
 
 import { getThresholdSummary } from './threshold.js'
+import { getAccountLabel } from './xproof.js'
 
 const glog = globalThis.glog ?? (() => {})
 
@@ -204,6 +205,7 @@ export async function enrichAccountsInfo({ network, accounts }) {
 		try {
 			const info = await getAccountInfo(network, accountId)
 			acc.info = info
+      acc.label=await getAccountLabel(network,accountId)
 		} catch (err) {
 			acc.infoError = err.message || String(err)
 		}

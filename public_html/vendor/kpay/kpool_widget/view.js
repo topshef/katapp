@@ -484,10 +484,22 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
       .map(r=>reasonMap[r]?`<span class='cursor-default signing-reason' title='${reasonMap[r].tip}'>${reasonMap[r].emoji}</span>`:'')
       .join(' ')
 
+    const domain=acc.label?.domain
+    const name=acc.label?.name
+
+    const labelHtml=
+      (domain || name)
+        ? `<div class='acctkeys-xproof'>
+          ${domain?`<div>${domain}</div>`:''}
+          ${name?`<div>${name}</div>`:''}
+        </div>`
+        : ''
+
     acct.innerHTML=
+      labelHtml +
       `<a href='https://hashscan.io/${network}/account/${accountId}' target='${accountId}'>${accountId}</a>` +
       (reasons ? `<div class='acctkeys-reasons'>${reasons}</div>` : '')
-
+      
     block.appendChild(acct)
 
 
@@ -869,6 +881,21 @@ export function injectTxReadCSS() {
 
     .signing-reason{
       cursor:default;
+    }
+
+
+    .acctkeys-xproof{
+      font-size:11px;
+      line-height:1.2;
+      margin-bottom:4px;
+      color:#666;
+      font-weight:600;
+    }
+
+    .acctkeys-xproof div{
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
     }
 
 
