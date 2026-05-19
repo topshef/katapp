@@ -133,13 +133,9 @@
 
 
     const ready = document.createElement('div')
-    ready.id = 'txread-readiness'
-    ready.className = 'txread-timing'
+    ready.id='txread-readiness'
+    ready.className='txread-timing'
     col4.appendChild(ready)
-
-    const bannerSlot = document.createElement('div')
-    bannerSlot.id = 'tx-banner-slot'
-    col4.appendChild(bannerSlot)
 
 
 		// txid link (HashScan)
@@ -156,9 +152,15 @@
 		const net = document.createElement('div')
 		net.className = 'txread-timing'
 		net.textContent = `Hedera ${network}`
-		col4.appendChild(net)
-		
-		
+    
+    col4.appendChild(net)
+
+    const bannerSlot=document.createElement('div')
+    bannerSlot.id='tx-banner-slot'
+    bannerSlot.style.position='relative'
+    bannerSlot.style.height='36px'
+    col4.appendChild(bannerSlot)
+
 
 		// thumbnail (column 1)
 		const thumbUrl = data.deal?.display?.thumbnail // get(rawTx, 'result.deal.display.thumbnail')
@@ -339,7 +341,7 @@ export function showBanner(message,type='info') {
 		el.id='tx-banner'
     ;(document.getElementById('tx-banner-slot') || document.body).appendChild(el)
 	}
-	el.className=`tx-banner tx-banner-${type}`
+	el.className=`notice ${type}`
 	el.textContent=message
 	el.style.opacity='1'
 	clearTimeout(el._timer)
@@ -776,24 +778,48 @@ export function injectTxReadCSS() {
 			font-weight: 600;
 			margin-bottom: 4px;
 		}
-			
-    .tx-banner{
-      margin-top:6px;
-      padding:8px 14px;
-      border-radius:6px;
-      font-size:13px;
-      z-index:99999;
-      transition:opacity .25s;
-      opacity:0;
-      color:#fff;
-      box-shadow:0 2px 10px rgba(0,0,0,.2);
+          
+    #tx-banner-slot{
+      position:relative;
     }
 
-    .tx-banner-info{background:#2196f3;}
-    .tx-banner-success{background:#4caf50;}
-    .tx-banner-warning{background:#ff9800;}
-    .tx-banner-error{background:#f44336;}
-      
+    .notice{
+      position:absolute;
+      top:0;
+      left:0;
+      right:0;
+
+      padding:8px 12px;
+      border-radius:6px;
+
+      font-size:12px;
+
+      border:1px solid rgba(0,0,0,.08);
+      box-shadow:0 2px 8px rgba(0,0,0,.08);
+
+      transition:opacity .3s ease;
+      opacity:0;
+    }
+
+    .notice.success{
+      background:#D1E7DD;
+      color:#0F5132;
+    }
+
+    .notice.info{
+      background:#CFE2FF;
+      color:#084298;
+    }
+
+    .notice.warning{
+      background:#FFF3CD;
+      color:#664D03;
+    }
+
+    .notice.error{
+      background:#F8D7DA;
+      color:#842029;
+    }
 
 	`
 	document.head.appendChild(style)
