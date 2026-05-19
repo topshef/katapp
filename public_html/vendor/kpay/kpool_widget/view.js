@@ -708,6 +708,10 @@ export function injectTxReadCSS() {
 			margin-bottom: 4px;
 		}
 
+    .txread-xfer-head:nth-child(1) {text-align:right;}
+    .txread-xfer-head:nth-child(2) {text-align:right;}
+    .txread-xfer-head:nth-child(3) {text-align:left;}
+
 		.ksubtitle {
 			font-weight: 600;
 			margin-top: 12px;
