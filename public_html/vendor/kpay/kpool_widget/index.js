@@ -6,7 +6,8 @@ import {
 	injectTxReadCSS,
 	buildTxReadColumns,
 	renderSigningInfo,
-  renderReadinessInfo
+  renderReadinessInfo,
+  showBanner
 } from './view.js'
 
 import {
@@ -157,6 +158,8 @@ async function renderSingleTx(network, txid, pch = 'no_pch') {
 
 				// if signature update, refresh signing
 				if (update.sigs) {
+          const sigCount = update.sigsNew?.length ?? 1
+          showBanner(`✍️ ${sigCount} new signature${sigCount==1?'':'s'}`,'success')
 					await refreshSigningSection({
 						network,
 						data: currentData,
@@ -274,6 +277,7 @@ const refreshSigningSection = async ({ network, data, accounts }) => {
 	await enrichAccountsInfo({ network, accounts })
 	await enrichAccountsKeyInfo({ network, accounts })
 	calcAccountsThatSign(accounts)
+  const readiness=evaluateTxReadiness({accounts,data})
   renderReadinessInfo({readiness})
 	renderSigningInfo({data,network,accounts})
 }

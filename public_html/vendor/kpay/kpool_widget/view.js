@@ -137,6 +137,10 @@
     ready.className = 'txread-timing'
     col4.appendChild(ready)
 
+    const bannerSlot = document.createElement('div')
+    bannerSlot.id = 'tx-banner-slot'
+    col4.appendChild(bannerSlot)
+
 
 		// txid link (HashScan)
 		const txLink = document.createElement('a')
@@ -325,6 +329,22 @@ export function renderReadinessInfo({readiness}) {
 		: readiness.fullyReady
 			? `🟢 Signing ready (${readiness.readyCount}/${readiness.requiredCount})`
 			: `✍️ ${readiness.readyCount}/${readiness.requiredCount} signers ready`
+}
+
+
+export function showBanner(message,type='info') {
+	let el=document.getElementById('tx-banner')
+	if(!el){
+		el=document.createElement('div')
+		el.id='tx-banner'
+    ;(document.getElementById('tx-banner-slot') || document.body).appendChild(el)
+	}
+	el.className=`tx-banner tx-banner-${type}`
+	el.textContent=message
+	el.style.opacity='1'
+	clearTimeout(el._timer)
+	// el._timer=setTimeout(()=>el.style.opacity='0',3000)
+  el._timer=setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.textContent='',250)},3000)
 }
 
 
@@ -756,7 +776,24 @@ export function injectTxReadCSS() {
 			font-weight: 600;
 			margin-bottom: 4px;
 		}
-				
+			
+    .tx-banner{
+      margin-top:6px;
+      padding:8px 14px;
+      border-radius:6px;
+      font-size:13px;
+      z-index:99999;
+      transition:opacity .25s;
+      opacity:0;
+      color:#fff;
+      box-shadow:0 2px 10px rgba(0,0,0,.2);
+    }
+
+    .tx-banner-info{background:#2196f3;}
+    .tx-banner-success{background:#4caf50;}
+    .tx-banner-warning{background:#ff9800;}
+    .tx-banner-error{background:#f44336;}
+      
 
 	`
 	document.head.appendChild(style)
