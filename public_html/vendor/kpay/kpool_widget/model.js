@@ -257,11 +257,15 @@ export function calcAccountsThatSign(accounts) {
 			acc.info.receiver_sig_required === true
 
 		acc.mustSign = isOperator || isSender || isReceiverNeedingSig
+    
+		acc.mustSignReason=[
+			isOperator && 'operator',
+			isSender && 'sender',
+			isReceiverNeedingSig && 'receiver_sig_required'
+		].filter(Boolean)
+    
 	})
 }
-
-
-
 
 // ┌─┐┌┐┌┬─┐┬┌─┐┬ ┬  ╔╦╗┬─┐┌─┐┌┐┌┌─┐┌─┐┌─┐┬─┐┌─┐  ╦┌┐┌┌─┐┌─┐
 // ├┤ │││├┬┘││  ├─┤   ║ ├┬┘├─┤│││└─┐├┤ ├┤ ├┬┘└─┐  ║│││├┤ │ │
