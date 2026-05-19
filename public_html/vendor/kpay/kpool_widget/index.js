@@ -157,15 +157,24 @@ async function renderSingleTx(network, txid, pch = 'no_pch') {
 				view.statusBlock.update(currentData)
 
 				// if signature update, refresh signing
-				if (update.sigs) {
+        if(update.sigs){
           const sigCount = update.sigsNew?.length ?? 1
           showBanner(`✍️ ${sigCount} new signature${sigCount==1?'':'s'}`,'success')
-					await refreshSigningSection({
-						network,
-						data: currentData,
-						accounts: currentAccounts
-					})
-				}
+
+          const fresh = await txRead({network,txid})
+
+          currentData = {
+            ...currentData,
+            ...fresh.data
+          }
+
+          await refreshSigningSection({
+            network,
+            data:currentData,
+            accounts:currentAccounts
+          })
+        }
+
 			}
 		})
 
