@@ -274,11 +274,7 @@ const refreshSigningSection = async ({ network, data, accounts }) => {
 	await enrichAccountsInfo({ network, accounts })
 	await enrichAccountsKeyInfo({ network, accounts })
 	calcAccountsThatSign(accounts)
-
-	renderSigningInfo({
-		data,
-		network,
-		accounts
-	})
+  renderReadinessInfo({readiness})
+	renderSigningInfo({data,network,accounts})
 }
 
