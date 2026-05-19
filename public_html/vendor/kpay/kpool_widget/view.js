@@ -312,6 +312,7 @@ export function renderSigningInfo({ data, accounts }) {
 
 function buildThresholdWidget({ accountId, network, signedPubkeys, mustSign }) {
   const widget = document.createElement('div')
+  if (!mustSign) return widget  // dont style if no widget to insert
   widget.className = 'acctkeys-piechart'
 
   if (!mustSign) return widget
