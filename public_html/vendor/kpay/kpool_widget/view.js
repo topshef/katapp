@@ -106,7 +106,7 @@
 	}
 	
 	
-	export const buildTxReadColumns = ({ rawTx, data, transfers, network, txid, readiness  }) => {
+	export const buildTxReadColumns = ({ rawTx, data, transfers, network, txid  }) => {
 
 
 		const grid = document.createElement('div')
@@ -121,9 +121,9 @@
 		const transfersView = buildTransferList(network, transfers.lineItems)
 		col2.appendChild(transfersView)
 
-
-		const col3 = document.createElement('div')
-		col3.className = 'txread-col'
+    // reserved for future column
+		// const col3 = document.createElement('div')
+		// col3.className = 'txread-col'
 
 		const col4 = document.createElement('div')
 		col4.className = 'txread-col'
@@ -133,22 +133,9 @@
 
 
     const ready = document.createElement('div')
+    ready.id = 'txread-readiness'
     ready.className = 'txread-timing'
     col4.appendChild(ready)
-
-    const updateReadiness = readiness => {
-      if(!readiness) {
-        ready.textContent = ''
-        return
-      }
-
-      ready.textContent =
-        readiness.fullyReady
-          ? `🟢 Signing ready (${readiness.readyCount}/${readiness.requiredCount})`
-          : `✍️ ${readiness.readyCount}/${readiness.requiredCount} signers ready`
-    }
-
-    updateReadiness(readiness)
 
 
 		// txid link (HashScan)
@@ -204,8 +191,7 @@
 		// return wrapper
 		return {
 			el: wrapper,
-			statusBlock,
-      updateReadiness
+			statusBlock
 		}
 	}
 
@@ -327,6 +313,18 @@ export function renderSigningInfo({ data, accounts }) {
 
 	renderAccountKeyInfo(accounts, signedPubkeys, data.network)
 	// renderKeyPieCharts({ network, accounts, signedPubkeys })
+}
+
+export function renderReadinessInfo({readiness}) {
+
+	const el = document.getElementById('txread-readiness')
+	if(!el) return
+
+	el.textContent = !readiness
+		? ''
+		: readiness.fullyReady
+			? `🟢 Signing ready (${readiness.readyCount}/${readiness.requiredCount})`
+			: `✍️ ${readiness.readyCount}/${readiness.requiredCount} signers ready`
 }
 
 

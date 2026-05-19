@@ -5,7 +5,8 @@ import { txRead, enrichAccountsInfo, enrichAccountsKeyInfo, enrichTransfersInfo,
 import {
 	injectTxReadCSS,
 	buildTxReadColumns,
-	renderSigningInfo
+	renderSigningInfo,
+  renderReadinessInfo
 } from './view.js'
 
 import {
@@ -105,9 +106,8 @@ async function renderSingleTx(network, txid, pch = 'no_pch') {
 
 		calcAccountsThatSign(tx.accounts)
     
-    
     tx.readiness = evaluateTxReadiness({accounts:tx.accounts, data:tx.data})
-    view.updateReadiness(tx.readiness)
+    renderReadinessInfo({readiness: tx.readiness})
 
     renderSigningInfo({
       data:tx.data,
