@@ -338,12 +338,21 @@ export function renderReadinessInfo({readiness}) {
 	const el = document.getElementById('txread-readiness')
 	if(!el) return
 
-  el.textContent=!readiness
-    ? ''
-    : readiness.thresholdSatisfied
+  let txt=''
+
+  if(readiness){
+
+    txt=readiness.thresholdSatisfied
       ? `🟢 Threshold satisfied`
-      : `✍️ ${readiness.signedKeyCount} keys signed • needs ${readiness.minRemaining}-${readiness.maxRemaining} more`
-      
+      : `✍️ ${readiness.signedRequiredKeyCount} keys signed • needs ${readiness.minMoreKeyCount} more`
+
+    if(readiness.signedWitnessKeyCount)
+      txt+=` • 👀 ${readiness.signedWitnessKeyCount} witness`
+  }
+
+  el.textContent=txt
+
+
 }
 
 

@@ -1,79 +1,100 @@
 // threshold.js
 
-function normalizeKeyTree(key){
+function normalizeNode(node){
 
-	if(typeof key=='string')
-		return {threshold:1,keys:[key]}
+	if(typeof node=='string')
+		return {threshold:1,keys:[node]}
 
-	return key
+	return node
 }
 
-function analyzeNode(node,signedPubkeys=[]){
+function collectLeafKeys(node,out=new Set()){
 
-	node=normalizeKeyTree(node)
-
-	let signedCount=0
-	let totalCount=0
-	let childSummaries=[]
+	node=normalizeNode(node)
 
 	node.keys.forEach(child=>{
 
 		if(typeof child=='string'){
+			out.add(child)
+			return
+		}
 
-			totalCount++
+		collectLeafKeys(child,out)
+	})
 
-			if(signedPubkeys.includes(child))
-				signedCount+=signedPubkeys.includes(child)?1:0
+	return out
+}
+
+function solveNode(node,signedSet){
+
+	node=normalizeNode(node)
+
+	let childResults=[]
+
+	node.keys.forEach(child=>{
+
+		// leaf key
+		if(typeof child=='string'){
+
+			childResults.push({
+				satisfied:signedSet.has(child),
+				requiredKeys:new Set([child]),
+				missingKeys:signedSet.has(child) ? new Set() : new Set([child])
+			})
 
 			return
 		}
 
-		const summary=analyzeNode(child,signedPubkeys)
-
-		childSummaries.push(summary)
-
-		totalCount+=summary.totalCount
-
-		if(summary.thresholdSatisfied)
-			signedCount++
+		childResults.push(
+			solveNode(child,signedSet)
+		)
 	})
 
-	const thresholdSatisfied=signedCount>=node.threshold
-	const minRemaining=Math.max(0,node.threshold-signedCount)
+	// already satisfied children first
+	childResults.sort((a,b)=>{
+		if(a.satisfied!=b.satisfied)
+			return a.satisfied ? -1 : 1
+
+		return a.missingKeys.size-b.missingKeys.size
+	})
+
+	const chosen=childResults.slice(0,node.threshold)
+
+	let requiredKeys=new Set()
+	let missingKeys=new Set()
+
+	chosen.forEach(x=>{
+		x.requiredKeys.forEach(k=>requiredKeys.add(k))
+		x.missingKeys.forEach(k=>missingKeys.add(k))
+	})
+
+	const satisfied=[...chosen].every(x=>x.satisfied)
 
 	return {
-		thresholdSatisfied,
-		signedCount,
-		totalCount,
-		minRemaining,
-		maxRemaining:totalCount-signedCount,
-		children:childSummaries
+		satisfied,
+		requiredKeys,
+		missingKeys
 	}
 }
 
-
-/*
-Walk this account's threshold tree recursively.
-
-At each node, signedCount means satisfied children at this level:
-plain key child = satisfied if that public key has signed
-nested threshold child = satisfied if that nested threshold has passed
-
-So a nested threshold counts as one satisfied branch in its parent, even if several keys signed inside it.
-
-thresholdSatisfied means signedCount >= node.threshold.
-minRemaining means the minimum extra satisfied children needed at this node.
-*/
-
-
 export function getThresholdSummary({keyTree,signedPubkeys=[]}){
 
-	const result=analyzeNode(keyTree,signedPubkeys)
+	const signedSet=new Set(signedPubkeys)
+
+	const allRequiredKeys=collectLeafKeys(keyTree)
+	const result=solveNode(keyTree,signedSet)
+
+	const signedRequiredKeys=[...signedSet]
+		.filter(k=>allRequiredKeys.has(k))
+
+	const witnessKeys=[...signedSet]
+		.filter(k=>!allRequiredKeys.has(k))
 
   return {
-    thresholdSatisfied:result.thresholdSatisfied,
-    signedKeyCount:result.signedCount,
-    minRemaining:result.minRemaining,
-    maxRemaining:result.maxRemaining
+    thresholdSatisfied:result.satisfied,
+    allRequiredKeys,
+    signedRequiredKeyCount:signedRequiredKeys.length,
+    signedWitnessKeyCount:witnessKeys.length,
+    minMoreKeyCount:result.missingKeys.size
   }
 }

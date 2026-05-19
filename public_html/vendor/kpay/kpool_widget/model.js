@@ -353,24 +353,27 @@ export function evaluateTxReadiness({accounts,data}){
 	Object.entries(accounts).forEach(([accountId,acc])=>{
 
 		if(!acc.mustSign) return
-
-		const keyTree=acc.keyInfo
-		if(!keyTree) return
+		if(!acc.keyInfo) return
 
 		summaries.push(
 			getThresholdSummary({
-				keyTree,
+				keyTree:acc.keyInfo,
 				signedPubkeys
 			})
 		)
 	})
 
-	const thresholdSatisfied=summaries.every(x=>x.thresholdSatisfied)
+  const requiredKeys=new Set()
+  summaries.forEach(x=>x.allRequiredKeys?.forEach(k=>requiredKeys.add(k)))
 
-	return {
-		thresholdSatisfied,
-		signedKeyCount:summaries.reduce((a,x)=>a+x.signedKeyCount,0),
-		minRemaining:summaries.reduce((a,x)=>a+x.minRemaining,0),
-		maxRemaining:summaries.reduce((a,x)=>a+x.maxRemaining,0)
-	}
+  const signedRequiredKeys=signedPubkeys.filter(k=>requiredKeys.has(k))
+  const signedWitnessKeys=signedPubkeys.filter(k=>!requiredKeys.has(k))
+
+  return {
+    thresholdSatisfied:summaries.every(x=>x.thresholdSatisfied),
+    signedRequiredKeyCount:signedRequiredKeys.length,
+    signedWitnessKeyCount:signedWitnessKeys.length,
+    minMoreKeyCount:summaries.reduce((a,x)=>a+x.minMoreKeyCount,0)
+  }
 }
+
