@@ -487,10 +487,12 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
     const domain=acc.label?.domain
     const name=acc.label?.name
 
+    const domainUrl=domain ? `https://${domain}` : ''
+
     const labelHtml=
       (domain || name)
         ? `<div class='acctkeys-xproof'>
-          ${domain?`<div>${domain}</div>`:''}
+          ${domain?`<div><a href='${domainUrl}' target='_blank'>${domain}</a></div>`:''}
           ${name?`<div>${name}</div>`:''}
         </div>`
         : ''
