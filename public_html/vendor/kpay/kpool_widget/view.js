@@ -237,9 +237,9 @@
       
       if(asset.symbol?.startsWith('HEDERA://')) assetLabel = asset.name ?? assetLabel
       
-      if(asset.assetClass == 'FT') assetLabel = `🪙 ${assetLabel} (${assetLink})`
-      if(asset.assetClass == 'LE') assetLabel = `🖼️ ${assetLabel} (${assetLink})`
-      if(asset.assetClass == 'NFT') assetLabel = `💎 ${asset.symbol} (${assetLink})`
+      if(asset.assetClass == 'FT') assetLabel = `[FT🪙] ${assetLabel} (${assetLink})`
+      if(asset.assetClass == 'LE') assetLabel = `[LE🖼️] ${assetLabel} (${assetLink})`
+      if(asset.assetClass == 'NFT') assetLabel = `[NFT] ${asset.symbol} (${assetLink})`
       
 
       if(asset.raw == 'tinybar') assetLabel = 'HBAR'
