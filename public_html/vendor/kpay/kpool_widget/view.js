@@ -473,11 +473,23 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
     // left column: account id (and later you can add iframe under/over this)
     const acct = document.createElement('div')
     acct.className = 'acctkeys-accountId'
-    // acct.textContent = accountId
-    acct.innerHTML = `<a href='https://hashscan.io/${network}/account/${accountId}' target='${accountId}'>${accountId}</a>`
-		//placeholder - todo swap with account dashboard - mayeb from the market page /m labs
-    // acct.innerHTML = `<a href='https://xproof.live/api/?accountId=${accountId}' target='${accountId}'>${accountId}</a>`
+
+    const reasonMap={
+      operator:{emoji:'⚙️',tip:'\u200B\u00A0\u00A0\u00A0\u00A0Operator account'},
+      sender:{emoji:'📤',tip:'\u200B\u00A0\u00A0\u00A0\u00A0Sending assets'},
+      receiver_sig_required:{emoji:'📥',tip:'\u200B\u00A0\u00A0\u00A0\u00A0Receiver signature required'}
+    }
+
+    const reasons=(acc.mustSignReason||[])
+      .map(r=>reasonMap[r]?`<span class='cursor-default signing-reason' title='${reasonMap[r].tip}'>${reasonMap[r].emoji}</span>`:'')
+      .join(' ')
+
+    acct.innerHTML=
+      `<a href='https://hashscan.io/${network}/account/${accountId}' target='${accountId}'>${accountId}</a>` +
+      (reasons ? `<div class='acctkeys-reasons'>${reasons}</div>` : '')
+
     block.appendChild(acct)
+
 
 
 		const widget = buildThresholdWidget({
@@ -845,6 +857,20 @@ export function injectTxReadCSS() {
 
 
     .cursor-default{cursor:default;}
+
+
+    .acctkeys-reasons{
+      margin-top:4px;
+      font-size:16px;
+      display:flex;
+      justify-content:center;
+      gap:6px;
+    }
+
+    .signing-reason{
+      cursor:default;
+    }
+
 
 	`
 	document.head.appendChild(style)
