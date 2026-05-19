@@ -236,11 +236,17 @@
       let assetLink = `<a href='${assetUrl}' target='${assetLinkLabel}'>${assetLinkLabel}</a>`
       
       if(asset.symbol?.startsWith('HEDERA://')) assetLabel = asset.name ?? assetLabel
-      
-      if(asset.assetClass == 'FT') assetLabel = `🪙 ${assetLabel} ${assetLink}`
-      if(asset.assetClass == 'LE') assetLabel = `🖼️ ${assetLabel} ${assetLink}`
-      if(asset.assetClass == 'NFT') assetLabel = `💎 ${asset.symbol} ${assetLink}`
-      
+            
+      let assetIcon=''
+      let assetTooltip=''
+
+      const pad='\u200B\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0'
+      if(asset.assetClass=='FT') assetIcon='🪙',assetTooltip=pad+'Fungible Token'
+      if(asset.assetClass=='LE') assetIcon='🖼️',assetTooltip=pad+'Limited Edition'
+      if(asset.assetClass=='NFT') assetIcon='💎',assetTooltip=pad+'NFT'
+
+      assetLabel=`<span class='cursor-default' title='${assetTooltip}'>${assetIcon}</span> ${asset.assetClass=='NFT'?asset.symbol:assetLabel} ${assetLink}`
+   
 
       if(asset.raw == 'tinybar') assetLabel = 'HBAR'
       
@@ -823,6 +829,9 @@ export function injectTxReadCSS() {
       background:#F8D7DA;
       color:#842029;
     }
+
+
+    .cursor-default{cursor:default;}
 
 	`
 	document.head.appendChild(style)
