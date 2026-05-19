@@ -106,15 +106,8 @@ async function renderSingleTx(network, txid, pch = 'no_pch') {
 		calcAccountsThatSign(tx.accounts)
     
     
-    tx.readiness = evaluateTxReadiness({
-      accounts:tx.accounts,
-      data:tx.data
-    })
-
-    view.readinessEl.textContent =
-      tx.readiness.fullyReady
-        ? `✅ Signing ready (${tx.readiness.readyCount}/${tx.readiness.requiredCount})`
-        : `✍️ ${tx.readiness.readyCount}/${tx.readiness.requiredCount} signers ready`
+    tx.readiness = evaluateTxReadiness({accounts:tx.accounts, data:tx.data})
+    view.updateReadiness(tx.readiness)
 
     renderSigningInfo({
       data:tx.data,

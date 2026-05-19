@@ -136,18 +136,20 @@
     ready.className = 'txread-timing'
     col4.appendChild(ready)
 
+    const updateReadiness = readiness => {
+      if(!readiness) {
+        ready.textContent = ''
+        return
+      }
 
-    if(readiness){
-      const ready = document.createElement('div')
-      ready.className = 'txread-timing'
-
-      if(readiness.fullyReady)
-        ready.textContent = `✅ Signing ready (${readiness.readyCount}/${readiness.requiredCount})`
-      else
-        ready.textContent = `✍️ ${readiness.readyCount}/${readiness.requiredCount} signers ready`
-
-      col4.appendChild(ready)
+      ready.textContent =
+        readiness.fullyReady
+          ? `🟢 Signing ready (${readiness.readyCount}/${readiness.requiredCount})`
+          : `✍️ ${readiness.readyCount}/${readiness.requiredCount} signers ready`
     }
+
+    updateReadiness(readiness)
+
 
 		// txid link (HashScan)
 		const txLink = document.createElement('a')
@@ -203,7 +205,7 @@
 		return {
 			el: wrapper,
 			statusBlock,
-      readinessEl: ready
+      updateReadiness
 		}
 	}
 
