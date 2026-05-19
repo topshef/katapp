@@ -217,9 +217,12 @@
     const addRow = (account, asset, amount) => {
       if(!asset) throw new Error('GX84752 Missing asset')
       
-    const a = document.createElement('div')
-      a.textContent = account.account ?? account
-      a.style.textAlign = 'right'
+      const a = document.createElement('div')
+      a.style.textAlign='right'
+
+      const accountId=account.account ?? account
+      const accountUrl=`https://hashscan.io/${network}/account/${accountId}`
+      a.innerHTML=`<a href='${accountUrl}' target='${accountId}'>${accountId}</a>`
 
       const b = document.createElement('div')
       b.style.textAlign = 'left'
@@ -339,7 +342,7 @@ export function renderReadinessInfo({readiness}) {
 		? ''
 		: readiness.fullyReady
 			? `🟢 Signing ready (${readiness.readyCount}/${readiness.requiredCount})`
-			: `✍️ ${readiness.readyCount}/${readiness.requiredCount} signers ready`
+			: `✍️ ${readiness.readyCount} of ${readiness.requiredCount} signatures received`
 }
 
 
@@ -461,7 +464,7 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
     const acct = document.createElement('div')
     acct.className = 'acctkeys-accountId'
     // acct.textContent = accountId
-	acct.innerHTML = `<a href='https://hashscan.io./${network}/account/${accountId}' target='${accountId}'>${accountId}</a>`
+    acct.innerHTML = `<a href='https://hashscan.io/${network}/account/${accountId}' target='${accountId}'>${accountId}</a>`
 		//placeholder - todo swap with account dashboard - mayeb from the market page /m labs
     // acct.innerHTML = `<a href='https://xproof.live/api/?accountId=${accountId}' target='${accountId}'>${accountId}</a>`
     block.appendChild(acct)
