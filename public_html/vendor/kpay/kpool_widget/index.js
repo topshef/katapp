@@ -1,6 +1,6 @@
 
 import { CONFIG } from './config.js'
-import { txRead, enrichAccountsInfo, enrichAccountsKeyInfo, enrichTransfersInfo, calcAccountsThatSign  } from './model.js'
+import { txRead, enrichAccountsInfo, enrichAccountsKeyInfo, enrichTransfersInfo, calcAccountsThatSign, evaluateTxReadiness  } from './model.js'
 
 import {
 	injectTxReadCSS,
@@ -82,16 +82,16 @@ async function renderSingleTx(network, txid, pch = 'no_pch') {
 
 		container.classList.add('txread')
 
-		view = buildTxReadColumns({
-			rawTx,
-			data,
-			transfers,
-			network,
-			txid
-		})
+    view = buildTxReadColumns({
+      rawTx,
+      data,
+      transfers,
+      network,
+      txid
+    })
 
-		container.appendChild(view.el)
-		container.appendChild(details)
+    container.appendChild(view.el)
+    container.appendChild(details)
 
 		return { url, rawTx, data, transfers, accounts }
 	}
@@ -104,12 +104,23 @@ async function renderSingleTx(network, txid, pch = 'no_pch') {
 		await enrichAccountsKeyInfo({ network, accounts: tx.accounts })
 
 		calcAccountsThatSign(tx.accounts)
+    
+    
+    tx.readiness = evaluateTxReadiness({
+      accounts:tx.accounts,
+      data:tx.data
+    })
 
-		renderSigningInfo({
-			data: tx.data,
-			network,
-			accounts: tx.accounts
-		})
+    view.readinessEl.textContent =
+      tx.readiness.fullyReady
+        ? `✅ Signing ready (${tx.readiness.readyCount}/${tx.readiness.requiredCount})`
+        : `✍️ ${tx.readiness.readyCount}/${tx.readiness.requiredCount} signers ready`
+
+    renderSigningInfo({
+      data:tx.data,
+      network,
+      accounts:tx.accounts
+    })
 
 
 		let currentData = tx.data

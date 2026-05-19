@@ -338,3 +338,45 @@ function getAssetClass(token){
 
 	return 'FT'
 }
+
+
+
+export function evaluateTxReadiness({accounts,data}) {  //different to v on hbarlive_hts
+
+	const signedPubkeys = new Set(
+		(data.sigs || [])
+			.map(x => x.pubKey)
+			.filter(Boolean)
+	)
+
+	const required = []
+	const ready = []
+
+	Object.entries(accounts).forEach(([accountId,acc]) => {
+
+		if(!acc.mustSign)
+			return
+
+		required.push(accountId)
+
+		const keys = Object.keys(
+			acc.keyInfo?.banzhafScores?.scores || {}
+		)
+
+		const hasSigned = keys.some(k => signedPubkeys.has(k))
+
+		if(hasSigned)
+			ready.push(accountId)
+
+	})
+
+	return {
+		requiredCount:required.length,
+		readyCount:ready.length,
+		waitingCount:required.length-ready.length,
+		fullyReady:required.length == ready.length,
+		required,
+		ready
+	}
+}
+
