@@ -6,6 +6,7 @@
 
 import { getAccountInfo, getKeyInfo, getTokenInfo} from './hedera-mirror.js'
 
+import { getThresholdSummary } from './threshold.js'
 
 const glog = globalThis.glog ?? (() => {})
 
@@ -341,42 +342,35 @@ function getAssetClass(token){
 
 
 
-export function evaluateTxReadiness({accounts,data}) {  //different to v on hbarlive_hts
+export function evaluateTxReadiness({accounts,data}){
 
-	const signedPubkeys = new Set(
-		(data.sigs || [])
-			.map(x => x.pubKey)
-			.filter(Boolean)
-	)
+	const signedPubkeys=(data.sigs||[])
+		.map(x=>x.pubKey)
+		.filter(Boolean)
 
-	const required = []
-	const ready = []
+	let summaries=[]
 
-	Object.entries(accounts).forEach(([accountId,acc]) => {
+	Object.entries(accounts).forEach(([accountId,acc])=>{
 
-		if(!acc.mustSign)
-			return
+		if(!acc.mustSign) return
 
-		required.push(accountId)
+		const keyTree=acc.keyInfo
+		if(!keyTree) return
 
-		const keys = Object.keys(
-			acc.keyInfo?.banzhafScores?.scores || {}
+		summaries.push(
+			getThresholdSummary({
+				keyTree,
+				signedPubkeys
+			})
 		)
-
-		const hasSigned = keys.some(k => signedPubkeys.has(k))
-
-		if(hasSigned)
-			ready.push(accountId)
-
 	})
 
+	const thresholdSatisfied=summaries.every(x=>x.thresholdSatisfied)
+
 	return {
-		requiredCount:required.length,
-		readyCount:ready.length,
-		waitingCount:required.length-ready.length,
-		fullyReady:required.length == ready.length,
-		required,
-		ready
+		thresholdSatisfied,
+		signedKeyCount:summaries.reduce((a,x)=>a+x.signedKeyCount,0),
+		minRemaining:summaries.reduce((a,x)=>a+x.minRemaining,0),
+		maxRemaining:summaries.reduce((a,x)=>a+x.maxRemaining,0)
 	}
 }
-
