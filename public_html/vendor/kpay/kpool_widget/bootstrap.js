@@ -15,9 +15,9 @@ import { initBuildBanner } from "/vendor/kbuild-monitor.js"
 
 const state = await initBuildBanner()
 
-let appRoot = "./index.js"
-if (state?.workingHash)
-  appRoot += `?v=${state.workingHash}`
+window.__BUILD_HASH__ = state?.workingHash || Date.now()
+
+let appRoot = `./index.js?v=${window.__BUILD_HASH__}`
 
 await import(appRoot)
 

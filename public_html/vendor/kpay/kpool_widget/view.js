@@ -237,9 +237,9 @@
       
       if(asset.symbol?.startsWith('HEDERA://')) assetLabel = asset.name ?? assetLabel
       
-      if(asset.assetClass == 'FT') assetLabel = `[FT🪙] ${assetLabel} (${assetLink})`
-      if(asset.assetClass == 'LE') assetLabel = `[LE🖼️] ${assetLabel} (${assetLink})`
-      if(asset.assetClass == 'NFT') assetLabel = `[NFT] ${asset.symbol} (${assetLink})`
+      if(asset.assetClass == 'FT') assetLabel = `🪙 ${assetLabel} ${assetLink}`
+      if(asset.assetClass == 'LE') assetLabel = `🖼️ ${assetLabel} ${assetLink}`
+      if(asset.assetClass == 'NFT') assetLabel = `💎 ${asset.symbol} ${assetLink}`
       
 
       if(asset.raw == 'tinybar') assetLabel = 'HBAR'
@@ -249,7 +249,10 @@
 
       const c = document.createElement('div')
       c.style.textAlign = 'right'
-      c.textContent = amount?.formatted ?? `[int:${amount?.raw}]`
+      let amountFormatted = amount?.formatted ?? `[int:${amount?.raw}]`
+      if (amount?.raw > 0) amountFormatted = '+' + amountFormatted
+      c.textContent = amountFormatted
+      
 
 			container.appendChild(a)
 			container.appendChild(c)

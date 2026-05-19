@@ -1,25 +1,36 @@
 
-import { CONFIG } from './config.js'
-import { txRead, enrichAccountsInfo, enrichAccountsKeyInfo, enrichTransfersInfo, calcAccountsThatSign, evaluateTxReadiness  } from './model.js'
+const V = window.__BUILD_HASH__
 
-import {
-	injectTxReadCSS,
-	buildTxReadColumns,
-	renderSigningInfo,
+const { CONFIG } = await import(`./config.js?v=${V}`)
+
+const {
+  txRead,
+  enrichAccountsInfo,
+  enrichAccountsKeyInfo,
+  enrichTransfersInfo,
+  calcAccountsThatSign,
+  evaluateTxReadiness
+} = await import(`./model.js?v=${V}`)
+
+const {
+  injectTxReadCSS,
+  buildTxReadColumns,
+  renderSigningInfo,
   renderReadinessInfo,
   showBanner
-} from './view.js'
+} = await import(`./view.js?v=${V}`)
 
-import {
-	get,
-	parseTxId,
-	formatUtcTime,
-	formatCountdown
-} from './utils.js'
+const {
+  get,
+  parseTxId,
+  formatUtcTime,
+  formatCountdown
+} = await import(`./utils.js?v=${V}`)
 
-import { getHederaMirrorData } from './hedera-mirror.js'
+const { getHederaMirrorData } = await import(`./hedera-mirror.js?v=${V}`)
 
-import { createTxSocket } from './websocket.js'
+const { createTxSocket } = await import(`./websocket.js?v=${V}`)
+
 
 	console.log('injecting kpool widget')
 
