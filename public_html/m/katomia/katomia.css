@@ -1234,7 +1234,7 @@ svg .svg-sell{
 }
 
 .order-row{
-  padding:0;
+  padding:1px 0;
   margin:0;
 }
 
@@ -1243,4 +1243,39 @@ svg .svg-sell{
   align-items:center;
   gap:4px;
   line-height:1;
+  min-height:22px;
 }
+
+#ordersSection .order-row{
+  cursor:pointer;
+  transition:all .12s ease;
+}
+
+#ordersSection .order-row:hover{
+  background:#fff;
+  outline:1px solid #ddd;
+  zzborder-radius:6px;
+  box-shadow:0 1px 4px rgba(0,0,0,0.08);
+}
+
+
+#ordersSection .order-row{
+  margin:0 !important;
+  padding:0 !important;
+
+  cursor:pointer;
+  transition:all .12s ease;
+}
+
+#ordersSection .order-row-inner{
+  min-height:22px;
+}
+
+#ordersSection .order-row:hover{
+  background:#fff;
+  outline:1px solid #ddd;
+  zzborder-radius:6px;
+  box-shadow:0 1px 4px rgba(0,0,0,0.08);
+}
+
+

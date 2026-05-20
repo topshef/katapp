@@ -1433,14 +1433,12 @@ function renderOrderMarketSummary(){
       action.className = "order-action"
       action.textContent = "⚙️"
 
-      action.onclick = e => {
-
-        e.stopPropagation()
+      row.onclick = () => {
 
         if(enriched.market?.type != "simple-fx")
           return
 
-        const row = enrichSimpleFxMarketRow({
+        const fxRow = enrichSimpleFxMarketRow({
           orderId,
           playerId,
           market: enriched.market
@@ -1450,10 +1448,10 @@ function renderOrderMarketSummary(){
           mode:"Clone order",
           orderId,
           type:"simple-fx",
-          pair:`${row.baseAsset}/${row.quoteAsset}`,
-          side:row.side,
-          volume:row.originalDisplayBaseAmount,
-          rate:row.displayRate
+          pair:`${fxRow.baseAsset}/${fxRow.quoteAsset}`,
+          side:fxRow.side,
+          volume:fxRow.originalDisplayBaseAmount,
+          rate:fxRow.displayRate
         })
 
       }
@@ -1473,7 +1471,6 @@ function renderOrderMarketSummary(){
       const inner = document.createElement("div")
       inner.className = "order-row-inner"
 
-      inner.appendChild(action)
       inner.appendChild(prefix)
       inner.appendChild(createOrderSide(offer, "order-offer"))
       inner.appendChild(arrow)
