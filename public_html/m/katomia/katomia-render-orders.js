@@ -479,14 +479,16 @@ function renderHeatmapBar(svg,row,l,opacity){
 
   rect.onclick = e => {
 
-    if(!e.ctrlKey) return
+    // if(!e.ctrlKey) return
 
     openCreateOrderModal({
+      mode:"Clone order",
+      orderId: row.orderId,
       type:"simple-fx",
-      pair: `${row.baseAsset}/${row.quoteAsset}`,
-      side: row.side,
-      volume: row.originalDisplayBaseAmount,
-      rate: row.displayRate
+      pair:`${row.baseAsset}/${row.quoteAsset}`,
+      side:row.side,
+      volume:row.originalDisplayBaseAmount,
+      rate:row.displayRate
     })
 
   }
@@ -1443,15 +1445,15 @@ function renderOrderMarketSummary(){
           playerId,
           market: enriched.market
         })
-
+                
         openCreateOrderModal({
           mode:"Clone order",
-          orderId,
+          orderId: row.orderId,
           type:"simple-fx",
-          pair:`${fxRow.baseAsset}/${fxRow.quoteAsset}`,
-          side:fxRow.side,
-          volume:fxRow.originalDisplayBaseAmount,
-          rate:fxRow.displayRate
+          pair:`${row.baseAsset}/${row.quoteAsset}`,
+          side:row.side,
+          volume:row.originalDisplayBaseAmount,
+          rate:row.displayRate
         })
 
       }
