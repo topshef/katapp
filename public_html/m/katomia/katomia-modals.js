@@ -73,17 +73,55 @@ function renderCreateOrderActions(defaults = {}){
   el.innerHTML = ""
 
   if(!defaults.orderId){
-    el.innerHTML = `<button id="createOrderSubmit">Create</button><button id="createOrderCancel">Cancel</button>`
+    el.innerHTML = `
+    <div class="order-actions">
+    <button id="createOrderSubmit" data-help="Create a new order">Create</button>
+    </div>
+    <div id="orderActionHelp" class="order-action-help"></div>
+    `
+    
     return
   }
 
-  el.innerHTML = `<button id="createOrderEdit">Edit</button><button id="createOrderSubmit">Clone</button><button id="createOrderDelete">Delete</button><button id="createOrderTruncate">Truncate</button><button id="createOrderCancel">Cancel</button>`
+  el.innerHTML = `
+  <div class="order-actions">
+  <button id="createOrderEdit" data-help="Replace existing order with edited version">Edit</button>
+  <button id="createOrderSubmit" data-help="Create a new copy of this order">Clone</button>
+  <button id="createOrderDelete" data-help="Cancel and remove this order">Delete</button>
+  <button id="createOrderTruncate" data-help="Reduce order to remaining unsettled amount (coming soon)">Truncate</button>
+  </div>
+  <div id="orderActionHelp" class="order-action-help"></div>
+  `
+  
+  
 }
 
 
 function closeCreateOrderModal(){
   document.getElementById("createOrderModal").classList.add("hidden")
 }
+
+
+document.addEventListener("mouseover",e => {
+
+  const btn = e.target.closest(".order-actions button")
+  if(!btn) return
+
+  const help = document.getElementById("orderActionHelp")
+  if(help) help.textContent = btn.dataset.help || ""
+
+})
+
+document.addEventListener("mouseout",e => {
+
+  const btn = e.target.closest(".order-actions button")
+  if(!btn) return
+
+  const help = document.getElementById("orderActionHelp")
+  if(help) help.textContent = ""
+
+})
+
 
 document.addEventListener("click", e => {
   if(e.target.id == "createOrderClose") closeCreateOrderModal()

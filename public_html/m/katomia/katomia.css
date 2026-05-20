@@ -1256,3 +1256,48 @@ svg .svg-sell{
   outline:1px solid #ddd;
   box-shadow:0 1px 4px rgba(0,0,0,0.08);
 }
+
+.order-actions{
+  display:flex;
+  gap:8px;
+  margin-top:14px;
+}
+
+.order-actions button{
+  flex:1;
+}
+
+#createOrderSubmit{
+  background:#4CAF50;
+}
+
+#createOrderEdit{
+  background:#1976D2;
+}
+
+#createOrderDelete{
+  background:#D9534F;
+}
+
+#createOrderTruncate{
+  background:#777;
+}
+
+#createOrderDelete:hover{
+  background:#C9302C;
+}
+
+#createOrderTruncate:hover{
+  background:#666;
+}
+
+.order-action-help{
+  margin-top:10px;
+  min-height:16px;
+
+  font-size:11px;
+  color:#777;
+
+  text-align:center;
+}
+
