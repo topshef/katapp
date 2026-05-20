@@ -720,6 +720,32 @@ function highlightHeatmapTx(txkey,on){
 }
 
 
+function highlightOrder(orderId,on){
+
+  document
+    .querySelectorAll(`.order-row[data-order-id="${orderId}"]`)
+    .forEach(el =>
+      el.classList.toggle("tx-highlight",on)
+    )
+
+  document
+    .querySelectorAll(`[data-order-id="${orderId}"][data-type="bar"]`)
+    .forEach(el => {
+
+      if(on){
+        el.setAttribute("stroke","#fff")
+        el.setAttribute("stroke-width","2")
+        el.setAttribute("fill-opacity","0.35")
+      }else{
+        el.removeAttribute("stroke")
+        el.removeAttribute("stroke-width")
+        el.setAttribute("fill-opacity","0.16")
+      }
+
+    })
+
+}
+
 function highlightTxRows(fillId,on){
 
   document.querySelectorAll(".tx-row").forEach(row => {
@@ -892,56 +918,41 @@ document.addEventListener("mouseout",e => {
 
 
 document.addEventListener("mouseover",e => { // xref hover svg -> tx
-
-  const el =
-    e.target.closest(
-      '[data-type="bubble"],[data-type="settled"]'
-    )
-
-  if(!el) return
-
-  highlightHeatmapTx(
-    el.dataset.txkey,
-    true
-  )
-
-  highlightTxRows(
-    el.dataset.fillId,
-    true
-  )
-
+  const el = e.target.closest('[data-type="bubble"],[data-type="settled"]')
+  if(el){
+    highlightHeatmapTx(el.dataset.txkey,true)
+    highlightTxRows(el.dataset.fillId,true)
+  }
 })
 
 document.addEventListener("mouseout",e => {
-
-  const el =
-    e.target.closest(
-      '[data-type="bubble"],[data-type="settled"]'
-    )
-
-  if(!el) return
-
-  highlightHeatmapTx(
-    el.dataset.txkey,
-    false
-  )
-
-  highlightTxRows(
-    el.dataset.fillId,
-    false
-  )
-
+  const el = e.target.closest('[data-type="bubble"],[data-type="settled"]')
+  if(el){
+    highlightHeatmapTx(el.dataset.txkey,false)
+    highlightTxRows(el.dataset.fillId,false)
+  }
 })
 
-
-document.addEventListener("change", e => {
-
-  if(e.target.id != "showMyOrdersOnly")
-    return
-
-  renderOrders()
-
+document.addEventListener("change",e => {
+  if(e.target.id == "showMyOrdersOnly") renderOrders()
 })
+
+document.addEventListener("mouseover",e => {
+  const row = e.target.closest(".order-row")
+  if(row) highlightOrder(row.dataset.orderId,true)
+
+  const bar = e.target.closest('[data-type="bar"]')
+  if(bar) highlightOrder(bar.dataset.orderId,true)
+})
+
+document.addEventListener("mouseout",e => {
+  const row = e.target.closest(".order-row")
+  if(row) highlightOrder(row.dataset.orderId,false)
+
+  const bar = e.target.closest('[data-type="bar"]')
+  if(bar) highlightOrder(bar.dataset.orderId,false)
+})
+
 
 
 function getSelectedPair(){

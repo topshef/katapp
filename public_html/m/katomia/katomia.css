@@ -1249,7 +1249,9 @@ svg .svg-sell{
   min-height:22px;
 }
 
-#ordersSection .order-row:hover{
+
+#ordersSection .order-row:hover,
+#ordersSection .order-row.tx-highlight{
   background:#fff;
   outline:1px solid #ddd;
   box-shadow:0 1px 4px rgba(0,0,0,0.08);
