@@ -70,6 +70,11 @@
           <input id="showMyOrdersOnly" type="checkbox" checked>
           Only my orders
         </label>
+
+        <label style="margin-left:8px">
+          <input id="sortOrdersByPrice" type="checkbox" checked>
+          Sort by price
+        </label>
       </summary>
       
       <div class="orders-list"></div>

@@ -934,7 +934,8 @@ document.addEventListener("mouseout",e => {
 })
 
 document.addEventListener("change",e => {
-  if(e.target.id == "showMyOrdersOnly") renderOrders()
+  if(["showMyOrdersOnly","sortOrdersByPrice"].includes(e.target.id))
+    renderOrders()
 })
 
 document.addEventListener("mouseover",e => {
@@ -1153,13 +1154,35 @@ function renderOrderMarketSummary(){
 
       const orders = getAllOrders()
 
-      orders.sort((a, b) => {
+      const sortByPrice =
+        document.getElementById("sortOrdersByPrice")?.checked
 
-        const ta = enrichOrder(a.order).market?.type || "invalid-UH83743"
-        const tb = enrichOrder(b.order).market?.type || "invalid-GY83744"
+      orders.sort((a,b) => {
 
-        return ta.localeCompare(tb)
+        const ea = enrichOrder(a.order)
+        const eb = enrichOrder(b.order)
+
+        const ta = ea.market?.type || "invalid"
+        const tb = eb.market?.type || "invalid"
+
+        const typeCmp = ta.localeCompare(tb)
+
+        if(typeCmp)
+          return typeCmp
+
+        if(sortByPrice){
+
+          const ra = ea.market?.rate ?? 0
+          const rb = eb.market?.rate ?? 0
+
+          if(ra != rb)
+            return ra - rb
+        }
+
+        return a.orderId - b.orderId
       })
+
+
 
       const selectedPair = getSelectedPair()
 
