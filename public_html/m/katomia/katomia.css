@@ -1330,3 +1330,15 @@ textarea:focus{
   box-shadow:none;
 }
 
+*{
+  -webkit-tap-highlight-color:transparent !important;
+}
+
+*:focus,
+*:focus-visible,
+*:active{
+  outline:none !important;
+  box-shadow:none !important;
+  -webkit-box-shadow:none !important;
+}
+
