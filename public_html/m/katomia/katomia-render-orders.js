@@ -1210,23 +1210,14 @@ function renderOrderMarketSummary(){
     // Later: include orders in enrichment scan or run a separate pass.
 
         
-    function getAllowedFxPair(base, quote){
+    function getAllowedFxPair(base,quote){
 
-      const allowedPairs = [
-
-        ["XBAR", "USDC"],
-        ["KGBP", "USDC"],
-        ["XBAR", "KBRL"],
-        ["KBRL", "KCOP"],
-        //etc
-      ]
-
-      return allowedPairs.find(([a, b]) =>
-        (a === base && b === quote) ||
-        (a === quote && b === base)
-      ) || null
+      return getAllowedPairLabels()
+        .find(([a,b]) =>
+          (a==base && b==quote) ||
+          (a==quote && b==base)
+        ) || null
     }
-
 
     function enrichSimpleFxOrder(order){
 
@@ -1250,56 +1241,39 @@ function renderOrderMarketSummary(){
       if(!offerAmount)
         return {}
 
-      const offerLabel = getAssetDisplay(offerLine.asset, offerAmount).split(" ")[0]
-      const requestLabel = getAssetDisplay(requestLine.asset, requestAmount).split(" ")[0]
+      const pair = getAcceptedPairs().find(pair =>
+        (pair.base == offerLine.asset && pair.quote == requestLine.asset) ||
+        (pair.quote == offerLine.asset && pair.base == requestLine.asset)
+      )
 
-      const allowedPair = getAllowedFxPair(offerLabel, requestLabel)
+      if(!pair)
+        return {}
 
-      // default/raw direction
-      let pairLabel = `${offerLabel}/${requestLabel}`
-      let rate = requestAmount / offerAmount
-      let volume = offerAmount
-      let side = ""
+      const [baseLabel,quoteLabel] = pair.label.split("/")
+      const offerIsBase = offerLine.asset == pair.base
 
-      if(allowedPair){
-
-        const [base, quote] = allowedPair
-
-        pairLabel = `${base}/${quote}`
-
-        // offer side matches canonical base
-        if(offerLabel === base){
-
-          rate = requestAmount / offerAmount
-          volume = offerAmount
-          side = "sell"
-
-        }else{
-
-          rate = offerAmount / requestAmount
-          volume = requestAmount
-          side = "buy"
-        }
-      }
+      const pairLabel = pair.label
+      const side = offerIsBase ? "sell" : "buy"
+      const rate = offerIsBase ? requestAmount / offerAmount : offerAmount / requestAmount
+      const volume = offerIsBase ? offerAmount : requestAmount
 
       return {
-        derivedLabel: `[${side} ${volume} ${pairLabel} @${rate}]`,
+        derivedLabel:`[${side} ${volume} ${pairLabel} @${rate}]`,
 
-        market: {
-          type: "simple-fx",
-          pair: pairLabel,
+        market:{
+          type:"simple-fx",
+          pair:pairLabel,
           side,
           rate,
           volume,
 
-          baseAsset: side === "sell" ? offerLine.asset : requestLine.asset,
-          quoteAsset: side === "sell" ? requestLine.asset : offerLine.asset,
-          baseAmount: side === "sell" ? offerAmount : requestAmount,
-          quoteAmount: side === "sell" ? requestAmount : offerAmount
+          baseAsset:pair.base,
+          quoteAsset:pair.quote,
+          baseAmount:offerIsBase ? offerAmount : requestAmount,
+          quoteAmount:offerIsBase ? requestAmount : offerAmount
         }
       }
     }
-
 
     const orderTypeEnrichers = {
       "simple-fx": enrichSimpleFxOrder

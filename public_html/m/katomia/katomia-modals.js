@@ -9,12 +9,7 @@ function openCreateOrderModal(defaults = {}){
   pairSelect.innerHTML = ""
   accountSelect.innerHTML = ""
 
-  ;[
-    {label:"KBRL/KCOP",value:"0.0.3842078/0.0.3841995",baseDecimals:6,quoteDecimals:3},
-    {label:"XBAR/USDC",value:"0.0.731861/0.0.456858",baseDecimals:6,quoteDecimals:6},
-    {label:"KGBP/USDC",value:"0.0.5850317/0.0.456858",baseDecimals:6,quoteDecimals:6},
-    {label:"XBAR/KBRL",value:"0.0.731861/0.0.3842078",baseDecimals:6,quoteDecimals:6},
-  ].forEach(pair => {
+  getAcceptedPairs().forEach(pair => {
 
     const option = document.createElement("option")
 

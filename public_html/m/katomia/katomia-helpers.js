@@ -125,6 +125,43 @@
 		}
 
 
+    window.KATOMIA_PAIRS = [
+
+      {label:"KBRL/KCOP",base:"0.0.3842078",quote:"0.0.3841995"},
+      {label:"XBAR/USDC",base:"0.0.731861",quote:"0.0.456858"},
+      {label:"KGBP/USDC",base:"0.0.5850317",quote:"0.0.456858"},
+      {label:"XBAR/KBRL",base:"0.0.731861",quote:"0.0.3842078"}
+
+    ]
+
+    function getAcceptedPairs(){
+
+      return window.KATOMIA_PAIRS.map(pair => {
+
+        const baseMeta = getAssetMeta(pair.base)
+        const quoteMeta = getAssetMeta(pair.quote)
+
+        return {
+          ...pair,
+
+          value:`${pair.base}/${pair.quote}`,
+
+          baseDecimals:Number(baseMeta?.token_class?.decimals || 0),  //!!!!! TODO remove unsafe fallback
+          quoteDecimals:Number(quoteMeta?.token_class?.decimals || 0) //!!!!! TODO remove unsafe fallback
+        }
+
+      })
+
+    }
+
+    function getAllowedPairLabels(){
+
+      return getAcceptedPairs()
+        .map(pair => pair.label.split("/"))
+    }
+
+
+
     function getAllOrders(){
 
       if(!state?.players) return []
@@ -758,9 +795,11 @@ function getAssetType(assetId, amount=1){
   // fallback while metadata loading
   if(!meta){
 
-    // serial heuristic fallback
     if(String(assetId).includes("#"))
       return "NFT"
+
+    if(getAcceptedPairs().some(pair => pair.base == assetId || pair.quote == assetId))
+      return "FT"
 
     return "UNKNOWN"
   }
