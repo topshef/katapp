@@ -931,6 +931,17 @@ document.addEventListener("mouseout",e => {
 
 })
 
+
+document.addEventListener("change", e => {
+
+  if(e.target.id != "showMyOrdersOnly")
+    return
+
+  renderOrders()
+
+})
+
+
 function getSelectedPair(){
   return new URLSearchParams(location.search).get("pair") || ""
 }

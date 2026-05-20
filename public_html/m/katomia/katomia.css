@@ -1225,3 +1225,22 @@ svg .svg-sell{
 }
 
 
+.asset{
+  border-radius:8px;
+  overflow:visible;
+  display:inline-block;
+  margin:0;
+  padding:1px 5px;
+}
+
+.order-row{
+  padding:0;
+  margin:0;
+}
+
+.order-row-inner{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  line-height:1;
+}
