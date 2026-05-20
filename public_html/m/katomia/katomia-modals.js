@@ -75,22 +75,22 @@ function renderCreateOrderActions(defaults = {}){
   if(!defaults.orderId){
     el.innerHTML = `
     <div class="order-actions">
-    <button id="createOrderSubmit" data-help="Create a new order">Create</button>
+    <button id="createOrderSubmit" data-help="Create a new order">Create new order</button>
     </div>
-    <div id="orderActionHelp" class="order-action-help"></div>
     `
     
     return
   }
 
   el.innerHTML = `
+  <div id="orderActionHelp" class="order-action-help"></div>
   <div class="order-actions">
   <button id="createOrderEdit" data-help="Replace existing order with edited version">Edit</button>
   <button id="createOrderSubmit" data-help="Create a new copy of this order">Clone</button>
   <button id="createOrderDelete" data-help="Cancel and remove this order">Delete</button>
   <button id="createOrderTruncate" data-help="Reduce order to remaining unsettled amount (coming soon)">Truncate</button>
+  
   </div>
-  <div id="orderActionHelp" class="order-action-help"></div>
   `
   
   

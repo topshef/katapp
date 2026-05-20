@@ -1256,43 +1256,52 @@ svg .svg-sell{
   outline:1px solid #ddd;
   box-shadow:0 1px 4px rgba(0,0,0,0.08);
 }
-
 .order-actions{
   display:flex;
   gap:8px;
-  margin-top:14px;
+  margin-top:4px;
 }
 
 .order-actions button{
   flex:1;
+  justify-content:center;
+  text-align:center;
 }
 
 #createOrderSubmit{
-  background:#4CAF50;
+  background:#6ea875;
 }
 
 #createOrderEdit{
-  background:#1976D2;
+  background:#6d8fb3;
 }
 
 #createOrderDelete{
-  background:#D9534F;
+  background:#b78383;
 }
 
 #createOrderTruncate{
-  background:#777;
+  background:#999;
+}
+
+#createOrderSubmit:hover{
+  background:#639a69;
+}
+
+#createOrderEdit:hover{
+  background:#6485a7;
 }
 
 #createOrderDelete:hover{
-  background:#C9302C;
+  background:#aa7676;
 }
 
 #createOrderTruncate:hover{
-  background:#666;
+  background:#8d8d8d;
 }
 
 .order-action-help{
-  margin-top:10px;
+  margin-bottom:10px;
   min-height:16px;
 
   font-size:11px;
@@ -1301,3 +1310,6 @@ svg .svg-sell{
   text-align:center;
 }
 
+.order-actions + .order-action-help{
+  order:-1;
+}
