@@ -1313,3 +1313,20 @@ svg .svg-sell{
 .order-actions + .order-action-help{
   order:-1;
 }
+
+button,
+input,
+select,
+textarea{
+  outline:none;
+  -webkit-tap-highlight-color:transparent;
+}
+
+button:focus,
+input:focus,
+select:focus,
+textarea:focus{
+  outline:none;
+  box-shadow:none;
+}
+

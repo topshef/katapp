@@ -483,7 +483,8 @@ function renderHeatmapBar(svg,row,l,opacity){
 
     openCreateOrderModal({
       mode:"order",
-      orderId: row.orderId,
+      orderId:row.orderId,
+      playerId:row.playerId,
       type:"simple-fx",
       pair:`${row.baseAsset}/${row.quoteAsset}`,
       side:row.side,
@@ -1484,6 +1485,7 @@ function renderOrderMarketSummary(){
         openCreateOrderModal({
           mode:"order",
           orderId,
+          playerId,
           type:"simple-fx",
           pair:`${fxRow.baseAsset}/${fxRow.quoteAsset}`,
           side:fxRow.side,

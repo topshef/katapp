@@ -44,7 +44,7 @@ function openCreateOrderModal(defaults = {}){
 
   document.getElementById("createOrderTitle").textContent = defaults.orderId ? "Order" : "Create order"
   document.getElementById("createOrderContext").textContent = defaults.orderId ? `#${defaults.orderId}` : ""
-        
+  document.getElementById("createOrderDev").style.display = defaults.orderId ? "none" : "" 
 
 
   document.getElementById("createOrderType").value = defaults.type || "simple-fx"
@@ -82,17 +82,18 @@ function renderCreateOrderActions(defaults = {}){
     return
   }
 
+  const mine = defaults.playerId == currentPlayerId
+
   el.innerHTML = `
   <div id="orderActionHelp" class="order-action-help"></div>
   <div class="order-actions">
-  <button id="createOrderEdit" data-help="Replace existing order with edited version">Edit</button>
+  ${mine ? `<button id="createOrderEdit" data-help="Replace existing order with edited version">Edit</button>` : ""}
   <button id="createOrderSubmit" data-help="Create a new copy of this order">Clone</button>
-  <button id="createOrderDelete" data-help="Cancel and remove this order">Delete</button>
-  <button id="createOrderTruncate" data-help="Reduce order to remaining unsettled amount (coming soon)">Truncate</button>
-  
+  ${mine ? `<button id="createOrderDelete" data-help="Cancel and remove this order">Delete</button>` : ""}
+  ${mine ? `<button id="createOrderTruncate" data-help="Reduce order to remaining unsettled amount (coming soon)">Truncate</button>` : ""}
   </div>
   `
-  
+    
   
 }
 
