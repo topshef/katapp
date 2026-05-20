@@ -65,51 +65,66 @@ addAccountBtn.onclick = () => {
 }
 
 
-
 cancelOrderBtn.onclick = () => {
 
-  const input =
-    prompt(
-      "Enter order Id(s)\n\n" +
-      "Comma separated"
-    )
-
+  const input = prompt("Enter order Id(s)\n\nComma separated")
   if(!input) return
 
-  const orderIds =
-    input
-      .split(",")
-      .map(x => x.trim())
-      .filter(Boolean)
-
-  orderIds.forEach(orderId => {
-
-    socket.send(JSON.stringify({
-      type: "game_orderCancel",
-      gameId,
-      orderId
-    }))
-  })
+  input.split(",").map(x => x.trim()).filter(Boolean).forEach(orderId => cancelOrder(orderId))
 }
-
 
 createOrderBtn.onclick = () => {
   openCreateOrderModal()
 }
 
-document.getElementById(
-  "createOrderSubmit"
-).onclick = () => {
+document.addEventListener("click", e => {
 
-  const lines =
-    getCreateOrderData()
+  if(e.target.id == "createOrderCancel"){
+    closeCreateOrderModal()
+    return
+  }
 
-  lines.forEach(line => {
+  if(e.target.id == "createOrderTruncate"){
+    alert("Truncate not yet available")
+    return
+  }
 
-    const bundle =
-      normaliseOrder(line)
+  if(e.target.id == "createOrderDelete"){
+    cancelOrder(window.createOrderContext?.orderId)
+    closeCreateOrderModal()
+    return
+  }
 
-    const order = { bundle }
+  if(e.target.id == "createOrderEdit"){
+    cancelOrder(window.createOrderContext?.orderId)
+    createOrderFromModal()
+    return
+  }
+
+  if(e.target.id == "createOrderSubmit"){
+    createOrderFromModal()
+    return
+  }
+
+})
+
+function cancelOrder(orderId){
+
+  if(!orderId) return
+
+  socket.send(JSON.stringify({
+    type:"game_orderCancel",
+    gameId,
+    orderId
+  }))
+}
+
+function createOrderFromModal(){
+
+  getCreateOrderData().forEach(line => {
+
+    const bundle = normaliseOrder(line)
+    const order = {bundle}
 
     socket.send(JSON.stringify({
       type:"game_orderCreate",

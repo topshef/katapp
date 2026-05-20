@@ -42,14 +42,9 @@ function openCreateOrderModal(defaults = {}){
 
   window.createOrderContext = defaults
 
-  document.getElementById("createOrderTitle").textContent =
-    defaults.mode || "Create order"
-
-  document.getElementById("createOrderContext").textContent =
-    defaults.orderId
-      ? `#${defaults.orderId}`
-      : ""
-      
+  document.getElementById("createOrderTitle").textContent = defaults.orderId ? "Order" : "Create order"
+  document.getElementById("createOrderContext").textContent = defaults.orderId ? `#${defaults.orderId}` : ""
+        
 
 
   document.getElementById("createOrderType").value = defaults.type || "simple-fx"
@@ -65,8 +60,26 @@ function openCreateOrderModal(defaults = {}){
   document.getElementById("createOrderRate").value = defaults.rate ?? ""
 
   document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
+  renderCreateOrderActions(defaults)
   document.getElementById("createOrderModal").classList.remove("hidden")
 }
+
+
+function renderCreateOrderActions(defaults = {}){
+
+  const el = document.getElementById("createOrderActions")
+  if(!el) return
+
+  el.innerHTML = ""
+
+  if(!defaults.orderId){
+    el.innerHTML = `<button id="createOrderSubmit">Create</button><button id="createOrderCancel">Cancel</button>`
+    return
+  }
+
+  el.innerHTML = `<button id="createOrderEdit">Edit</button><button id="createOrderSubmit">Clone</button><button id="createOrderDelete">Delete</button><button id="createOrderTruncate">Truncate</button><button id="createOrderCancel">Cancel</button>`
+}
+
 
 function closeCreateOrderModal(){
   document.getElementById("createOrderModal").classList.add("hidden")

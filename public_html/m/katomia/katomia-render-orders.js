@@ -482,7 +482,7 @@ function renderHeatmapBar(svg,row,l,opacity){
     // if(!e.ctrlKey) return
 
     openCreateOrderModal({
-      mode:"Clone order",
+      mode:"order",
       orderId: row.orderId,
       type:"simple-fx",
       pair:`${row.baseAsset}/${row.quoteAsset}`,
@@ -1480,8 +1480,9 @@ function renderOrderMarketSummary(){
           market: enriched.market
         })
 
+
         openCreateOrderModal({
-          mode:"Clone order",
+          mode:"order",
           orderId,
           type:"simple-fx",
           pair:`${fxRow.baseAsset}/${fxRow.quoteAsset}`,
@@ -1489,6 +1490,8 @@ function renderOrderMarketSummary(){
           volume:fxRow.originalDisplayBaseAmount,
           rate:fxRow.displayRate
         })
+
+
 
 }
 

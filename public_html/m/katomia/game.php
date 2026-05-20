@@ -202,8 +202,10 @@
 
 			<br><br>
 
-			<button id="createOrderSubmit">Create</button>
-      
+      <div id="createOrderActions">
+        <button id="createOrderSubmit">Create</button>
+      </div>
+ 
       <br><br>
 
       <details id="createOrderDev" open>
