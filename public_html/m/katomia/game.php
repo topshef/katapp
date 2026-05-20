@@ -146,10 +146,7 @@
 
 			<br>
 
-			<label>Dev mode</label>
-			<textarea id="createOrderRaw" rows="5" style="width:100%" placeholder="24739;3841995;-760000|24739;3842078;1000000"></textarea>
 
-      <br><br>
       
       <label>Order type</label>
       <select id="createOrderType">
@@ -166,10 +163,12 @@
 
       <br><br>
 
-      <label><input type="radio" name="createOrderSide" value="buy"> Buy</label>
-
-      <label><input type="radio" name="createOrderSide" value="sell" checked> Sell</label>
-
+      <div class="order-side">
+        <label><input type="radio" name="createOrderSide" value="buy"> Buy</label>
+        <label><input type="radio" name="createOrderSide" value="sell" checked> Sell</label>
+      </div>
+      
+      
       <br><br>
       <label>Account</label>
 
@@ -188,6 +187,26 @@
 			<br><br>
 
 			<button id="createOrderSubmit">Create</button>
+      
+      <br><br>
+
+      <details id="createOrderDev" open>
+        <summary>🛠 Dev mode</summary>
+
+        <textarea
+          id="createOrderRaw"
+          rows="5"
+          placeholder="24739;3841995;-760000|24739;3842078;1000000">
+        </textarea>
+
+        <div class="dev-help">
+          order = item | item | item etc...<br>
+           item = account;asset;amount(integer)<br>
+          one line = one order<br>
+          multiple lines = multiple orders
+        </div>
+
+      </details>
 		</div>
 	</div>
   

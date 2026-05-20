@@ -51,10 +51,7 @@ function closeCreateOrderModal(){
 }
 
 document.addEventListener("click", e => {
-
-  if(e.target.id == "createOrderModal" || e.target.id == "createOrderClose")
-    closeCreateOrderModal()
-
+  if(e.target.id == "createOrderClose") closeCreateOrderModal()
 })
 
 function getCreateOrderData(){
