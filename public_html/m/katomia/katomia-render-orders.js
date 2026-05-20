@@ -1139,15 +1139,22 @@ function renderOrderMarketSummary(){
 
       const selectedPair = getSelectedPair()
 
+
       orders.forEach(orderRec => {
 
         const pair = enrichOrder(orderRec.order)?.market?.pair
+        const myOnly = document.getElementById("showMyOrdersOnly")?.checked
 
         if(selectedPair && pair != selectedPair)
           return
-  
+
+        if(myOnly && orderRec.playerId != currentPlayerId)
+          return
+
         listEl.appendChild(createOrderRow(orderRec))
       })
+
+
     }       
     // TODO:
     // Orders may reference assets not present in visible accounts,
@@ -1409,6 +1416,37 @@ function renderOrderMarketSummary(){
           `${row.pair} @${row.displayRate}]`
       }
 
+
+      const action = document.createElement("span")
+
+      action.className = "order-action"
+      action.textContent = "⚙️"
+
+      action.onclick = e => {
+
+        e.stopPropagation()
+
+        if(enriched.market?.type != "simple-fx")
+          return
+
+        const row = enrichSimpleFxMarketRow({
+          orderId,
+          playerId,
+          market: enriched.market
+        })
+
+        openCreateOrderModal({
+          mode:"Clone order",
+          orderId,
+          type:"simple-fx",
+          pair:`${row.baseAsset}/${row.quoteAsset}`,
+          side:row.side,
+          volume:row.originalDisplayBaseAmount,
+          rate:row.displayRate
+        })
+
+      }
+
       const prefix = document.createElement("span")
 
       prefix.textContent =
@@ -1424,6 +1462,7 @@ function renderOrderMarketSummary(){
       const inner = document.createElement("div")
       inner.className = "order-row-inner"
 
+      inner.appendChild(action)
       inner.appendChild(prefix)
       inner.appendChild(createOrderSide(offer, "order-offer"))
       inner.appendChild(arrow)

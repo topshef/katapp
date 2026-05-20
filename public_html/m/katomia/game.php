@@ -63,7 +63,15 @@
     <div class="orders-market-summary subtle"></div>
     
     <details class="orders-details">
-      <summary class="subtle">All orders (debug view)</summary>
+            
+      <summary class="subtle">
+        Orders
+        <label style="margin-left:8px">
+          <input id="showMyOrdersOnly" type="checkbox" checked>
+          Only my orders
+        </label>
+      </summary>
+      
       <div class="orders-list"></div>
     </details>
 
@@ -142,8 +150,11 @@
 		<div class="asset-modal-card">
 			<div id="createOrderClose" class="asset-modal-close">✕</div>
 
-			<div class="asset-modal-name">Create order</div>
-
+      <div class="asset-modal-name">
+        <span id="createOrderTitle">Create order</span>
+        <span id="createOrderContext" class="order-context"></span>
+      </div>
+      
 			<br>
 
 

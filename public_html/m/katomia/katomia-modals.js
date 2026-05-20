@@ -40,6 +40,17 @@ function openCreateOrderModal(defaults = {}){
 
 
 
+  window.createOrderContext = defaults
+
+  document.getElementById("createOrderTitle").textContent =
+    defaults.mode || "Create order"
+
+  document.getElementById("createOrderContext").textContent =
+    defaults.orderId
+      ? `#${defaults.orderId}`
+      : ""
+      
+
 
   document.getElementById("createOrderType").value = defaults.type || "simple-fx"
 

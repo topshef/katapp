@@ -1205,3 +1205,23 @@ svg .svg-sell{
   line-height:1.5;
   font-family:var(--font-mono);
 }
+
+
+.order-context{
+  margin-left:8px;
+  font-size:11px;
+  color:#999;
+  font-weight:normal;
+}
+
+.order-action{
+  cursor:pointer;
+  margin-right:6px;
+  opacity:0.5;
+}
+
+.order-action:hover{
+  opacity:1;
+}
+
+
