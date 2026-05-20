@@ -191,7 +191,7 @@
       <br><br>
 
       <details id="createOrderDev" open>
-        <summary>🛠 Dev mode</summary>
+        <summary>🛠 Advanced mode</summary>
 
         <textarea
           id="createOrderRaw"
