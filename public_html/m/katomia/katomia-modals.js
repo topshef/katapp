@@ -1,5 +1,6 @@
-function openCreateOrderModal(){
-
+function openCreateOrderModal(defaults = {}){
+  
+  
   const pairSelect = document.getElementById("createOrderPair")
   const accountSelect = document.getElementById("createOrderAccount")
 
@@ -37,10 +38,20 @@ function openCreateOrderModal(){
 
   })
 
-  document.getElementById("createOrderType").value = "simple-fx"
-  document.querySelector('[name="createOrderSide"][value="sell"]').checked = true
-  document.getElementById("createOrderVolume").value = ""
-  document.getElementById("createOrderRate").value = ""
+
+
+
+  document.getElementById("createOrderType").value = defaults.type || "simple-fx"
+
+  document.querySelector(
+    `[name="createOrderSide"][value="${defaults.side || "sell"}"]`
+  ).checked = true
+
+  if(defaults.pair)
+    pairSelect.value = defaults.pair
+
+  document.getElementById("createOrderVolume").value = defaults.volume ?? ""
+  document.getElementById("createOrderRate").value = defaults.rate ?? ""
 
   document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
   document.getElementById("createOrderModal").classList.remove("hidden")

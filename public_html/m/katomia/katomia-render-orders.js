@@ -477,6 +477,20 @@ function renderHeatmapBar(svg,row,l,opacity){
   rect.dataset.type = "bar"
   rect.__heatmapData = {row,x:l.x,y:l.y,w:l.width,h:l.h}
 
+  rect.onclick = e => {
+
+    if(!e.ctrlKey) return
+
+    openCreateOrderModal({
+      type:"simple-fx",
+      pair: `${row.baseAsset}/${row.quoteAsset}`,
+      side: row.side,
+      volume: row.originalDisplayBaseAmount,
+      rate: row.displayRate
+    })
+
+  }
+
   svg.appendChild(rect)
 
 }
