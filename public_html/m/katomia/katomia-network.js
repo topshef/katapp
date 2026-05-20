@@ -94,68 +94,33 @@ cancelOrderBtn.onclick = () => {
 
 
 createOrderBtn.onclick = () => {
-      
-  const userInput =
-    prompt(
-      "Enter order data\n\n" +
+  openCreateOrderModal()
+}
 
-      "Format:\n" +
-      "accountId;assetId;amount\n\n" +
-
-      "Rules:\n" +
-      "- negative = send/offer\n" +
-      "- positive = receive/request\n" +
-      "- use | for bundle items\n" +
-      "- one order per line\n" +
-      "- numeric ids auto become 0.0.x\n\n" +
-
-      "Examples:\n\n" +
-
-      "Simple FX:\n" +
-      "24739;3841995;-760000|24739;3842078;1000000\n\n" +
-
-      "Offer only:\n" +
-      "24739;456858;-10000\n\n" +
-
-      "Request only:\n" +
-      "24739;456858;10000"
-    )
-
-  if(!userInput) return
-
-  // console.log("RAW userInput", userInput)
-  // console.log("JSON userInput", JSON.stringify(userInput))
-  // console.log(
-    // "split newline",
-    // userInput.split("\n")
-  // )
-  // console.log(
-    // "split CRLF",
-    // userInput.split("\r\n")
-  // )
-
+document.getElementById(
+  "createOrderSubmit"
+).onclick = () => {
 
   const lines =
-    userInput
-      .split(/\r?\n/)
-      .map(x => x.trim())
-      .filter(Boolean)
+    getCreateOrderData()
 
   lines.forEach(line => {
 
     const bundle =
       normaliseOrder(line)
 
-    const order = {bundle}
+    const order = { bundle }
 
     socket.send(JSON.stringify({
-      type: "game_orderCreate",
+      type:"game_orderCreate",
       gameId,
       order
     }))
-  })
-}
 
+  })
+
+  closeCreateOrderModal()
+}
 
 function normaliseOrder(input){
   try {

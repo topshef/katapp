@@ -136,7 +136,63 @@
 		</div>
 	</div>
 
-<div id="exitGameBtn" class="exit-game-btn">🗑️</div>
+
+
+	<div id="createOrderModal" class="asset-modal hidden">
+		<div class="asset-modal-card">
+			<div id="createOrderClose" class="asset-modal-close">✕</div>
+
+			<div class="asset-modal-name">Create order</div>
+
+			<br>
+
+			<label>Dev mode</label>
+			<textarea id="createOrderRaw" rows="5" style="width:100%" placeholder="24739;3841995;-760000|24739;3842078;1000000"></textarea>
+
+      <br><br>
+      
+      <label>Order type</label>
+      <select id="createOrderType">
+        <option value="simple-fx">Simple FX</option>
+        <option disabled>Collectible Swap (coming soon)</option>
+        <option disabled>Auction (coming soon)</option>
+        <option disabled>Generic Bundle (coming soon)</option>
+      </select>
+
+      <br><br>
+
+      <label>Pair</label>
+      <select id="createOrderPair"></select>
+
+      <br><br>
+
+      <label><input type="radio" name="createOrderSide" value="buy"> Buy</label>
+
+      <label><input type="radio" name="createOrderSide" value="sell" checked> Sell</label>
+
+      <br><br>
+      <label>Account</label>
+
+      <select id="createOrderAccount"></select>
+
+      <br><br>
+
+      <label>Volume</label>
+      <input id="createOrderVolume" type="number" step="any">
+
+      <br><br>
+
+      <label>Rate</label>
+      <input id="createOrderRate" type="number" step="any">
+
+			<br><br>
+
+			<button id="createOrderSubmit">Create</button>
+		</div>
+	</div>
+  
+  
+  <div id="exitGameBtn" class="exit-game-btn">🗑️</div>
 
 
 <script><?php require_once('config.php');?>
@@ -159,6 +215,7 @@
 <script src="katomia-helpers.js"></script>
 <script src="katomia-enrich.js"></script>
 <script src="katomia-network.js"></script>
+<script src="katomia-modals.js"></script>
 <script src="katomia-render.js"></script>
 <script src="katomia-render-orders.js"></script>
 <script src="katomia-market.js"></script>

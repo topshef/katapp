@@ -1,0 +1,104 @@
+function openCreateOrderModal(){
+
+  const pairSelect = document.getElementById("createOrderPair")
+  const accountSelect = document.getElementById("createOrderAccount")
+
+  document.getElementById("createOrderRaw").value = ""
+
+  pairSelect.innerHTML = ""
+  accountSelect.innerHTML = ""
+
+  ;[
+    {label:"KBRL/KCOP",value:"0.0.3842078/0.0.3841995",baseDecimals:6,quoteDecimals:3},
+    {label:"XBAR/USDC",value:"0.0.731861/0.0.456858",baseDecimals:6,quoteDecimals:6},
+    {label:"KGBP/USDC",value:"0.0.5850317/0.0.456858",baseDecimals:6,quoteDecimals:6},
+    {label:"XBAR/KBRL",value:"0.0.731861/0.0.3842078",baseDecimals:6,quoteDecimals:6},
+  ].forEach(pair => {
+
+    const option = document.createElement("option")
+
+    option.value = pair.value
+    option.textContent = pair.label
+    option.dataset.baseDecimals = pair.baseDecimals
+    option.dataset.quoteDecimals = pair.quoteDecimals
+
+    pairSelect.appendChild(option)
+
+  })
+
+  getAccounts().filter(account => isMyAccount(account)).forEach(account => {
+
+    const option = document.createElement("option")
+
+    option.value = account.id
+    option.textContent = account.label || account.id
+
+    accountSelect.appendChild(option)
+
+  })
+
+  document.getElementById("createOrderType").value = "simple-fx"
+  document.querySelector('[name="createOrderSide"][value="sell"]').checked = true
+  document.getElementById("createOrderVolume").value = ""
+  document.getElementById("createOrderRate").value = ""
+
+  document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
+  document.getElementById("createOrderModal").classList.remove("hidden")
+}
+
+function closeCreateOrderModal(){
+  document.getElementById("createOrderModal").classList.add("hidden")
+}
+
+document.addEventListener("click", e => {
+
+  if(e.target.id == "createOrderModal" || e.target.id == "createOrderClose")
+    closeCreateOrderModal()
+
+})
+
+function getCreateOrderData(){
+
+  const raw = document.getElementById("createOrderRaw").value.trim()
+
+  if(raw)
+    return raw.split(/\r?\n/).map(x => x.trim()).filter(Boolean)
+
+  const generated = buildSimpleFxRaw()
+
+  return generated ? [generated] : []
+}
+
+function buildSimpleFxRaw(){
+
+  const type = document.getElementById("createOrderType").value
+  const accountId = (document.getElementById("createOrderAccount").value || "").split(":")[1] || ""
+  const pairSelect = document.getElementById("createOrderPair")
+  const pair = pairSelect.value
+  const side = document.querySelector('[name="createOrderSide"]:checked')?.value
+  const volume = parseFloat(document.getElementById("createOrderVolume").value)
+  const rate = parseFloat(document.getElementById("createOrderRate").value)
+
+  if(type != "simple-fx" || !accountId || !pair || !side) return ""
+  if(!Number.isFinite(volume) || !Number.isFinite(rate)) return ""
+
+  const [base, quote] = pair.split("/")
+  const baseScale = 10 ** Number(pairSelect.selectedOptions[0]?.dataset.baseDecimals || 0)
+  const quoteScale = 10 ** Number(pairSelect.selectedOptions[0]?.dataset.quoteDecimals || 0)
+
+  const offerAsset = side == "sell" ? base : quote
+  const requestAsset = side == "sell" ? quote : base
+  const offerAmount = side == "sell" ? Math.round(volume * baseScale) : Math.round(volume * rate * quoteScale)
+  const requestAmount = side == "sell" ? Math.round(volume * rate * quoteScale) : Math.round(volume * baseScale)
+
+  return `${accountId};${offerAsset};${-offerAmount}|${accountId};${requestAsset};${requestAmount}`
+}
+
+document.addEventListener("change", e => {
+
+  if(!e.target.closest("#createOrderModal")) return
+  if(e.target.id == "createOrderRaw") return
+
+  document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
+
+})
