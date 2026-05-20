@@ -1479,18 +1479,18 @@ function renderOrderMarketSummary(){
           playerId,
           market: enriched.market
         })
-                
+
         openCreateOrderModal({
           mode:"Clone order",
-          orderId: row.orderId,
+          orderId,
           type:"simple-fx",
-          pair:`${row.baseAsset}/${row.quoteAsset}`,
-          side:row.side,
-          volume:row.originalDisplayBaseAmount,
-          rate:row.displayRate
+          pair:`${fxRow.baseAsset}/${fxRow.quoteAsset}`,
+          side:fxRow.side,
+          volume:fxRow.originalDisplayBaseAmount,
+          rate:fxRow.displayRate
         })
 
-      }
+}
 
       const prefix = document.createElement("span")
 
