@@ -1,3 +1,6 @@
+
+window.createOrderDirty = false
+
 function openCreateOrderModal(defaults = {}){
   
   
@@ -55,6 +58,7 @@ function openCreateOrderModal(defaults = {}){
   document.getElementById("createOrderRate").value = defaults.rate ?? ""
 
   document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
+  window.createOrderDirty = false
   renderCreateOrderActions(defaults)
   document.getElementById("createOrderModal").classList.remove("hidden")
 }
@@ -69,9 +73,12 @@ function renderCreateOrderActions(defaults = {}){
 
   if(!defaults.orderId){
     el.innerHTML = `
-    <div class="order-actions">
-    <button id="createOrderSubmit" data-help="Create a new order">Create new order</button>
-    </div>
+      <div class="order-actions">
+      <button id="createOrderSubmit" data-help="Create a new order">Create new order</button>
+      </div>
+      <div class="order-actions">
+      <button id="createOrderExit">Close</button>
+      </div>
     `
     
     return
@@ -85,10 +92,14 @@ function renderCreateOrderActions(defaults = {}){
   ${mine ? `<button id="createOrderEdit" data-help="Replace existing order with edited version">Edit</button>` : ""}
   <button id="createOrderSubmit" data-help="Create a new copy of this order">Clone</button>
   ${mine ? `<button id="createOrderDelete" data-help="Cancel and remove this order">Delete</button>` : ""}
-  ${mine ? `<button id="createOrderTruncate" data-help="Reduce order to remaining unsettled amount (coming soon)">Truncate</button>` : ""}
   </div>
+  </div>
+  <div class="order-actions">
+  <button id="createOrderExit">Close</button>
+  </div>  
   `
-    
+  //todo move truncate option next to volume ?    
+  //  ${mine ? `<button id="createOrderTruncate" data-help="Reduce order to remaining unsettled amount (coming soon)">Truncate</button>` : ""}
   
 }
 
@@ -119,9 +130,15 @@ document.addEventListener("mouseout",e => {
 })
 
 
-document.addEventListener("click", e => {
-  if(e.target.id == "createOrderClose") closeCreateOrderModal()
+document.addEventListener("click",e => {
+
+  const modal = document.getElementById("createOrderModal")
+
+  if(e.target.id == "createOrderClose" || e.target.id == "createOrderExit") return closeCreateOrderModal()
+  if(e.target == modal && !window.createOrderDirty) closeCreateOrderModal()
+
 })
+
 
 function getCreateOrderData(){
 
@@ -160,11 +177,19 @@ function buildSimpleFxRaw(){
   return `${accountId};${offerAsset};${-offerAmount}|${accountId};${requestAsset};${requestAmount}`
 }
 
-document.addEventListener("change", e => {
+document.addEventListener("input",e => {
 
   if(!e.target.closest("#createOrderModal")) return
-  if(e.target.id == "createOrderRaw") return
+  window.createOrderDirty = true
 
+})
+
+document.addEventListener("change",e => {
+
+  if(!e.target.closest("#createOrderModal")) return
+  if(e.target.id == "createOrderRaw") return window.createOrderDirty = true
+
+  window.createOrderDirty = true
   document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
 
 })
