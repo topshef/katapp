@@ -30,7 +30,7 @@ h2{
 
 .grid{
   display:grid;
-  grid-template-columns:repeat(6,1fr);
+  grid-template-columns:repeat(8,1fr);
   background:white;
   border-radius:8px;
   overflow:hidden;
@@ -128,9 +128,11 @@ h2{
   .cell.gamename::before{content:"Name"}
   .cell.network::before{content:"Network"}
   .cell.visibility::before{content:"Visibility"}
-  .cell.join::before{content:"Join"}
+  .cell.trading::before{content:"Trading"}
+  .cell.strike::before{content:"Strike seconds"}
+  .cell.join::before{content:"Join rule"}
   .cell.lock::before{content:"Lock"}
-
+  
 }
 
 .grid-header{
@@ -158,8 +160,9 @@ h2{
   <div class="grid-header">Network</div>
   <div class="grid-header">Visibility</div>
   <div class="grid-header">Join rule</div>
+  <div class="grid-header">Trading mode</div>
   <div class="grid-header">Lock rule</div>
-
+  <div class="grid-header">Strike seconds</div>
 </div>
 
 <div>
@@ -207,19 +210,27 @@ async function loadGames(){
         </div>
 
         <div class="cell network">
-          ${g.network}
+          ${g.config?.network || g.network || ""}
         </div>
 
         <div class="cell visibility">
-          ${g.visibility}
+          ${g.config?.visibility || g.visibility || ""}
         </div>
 
         <div class="cell join">
-          ${formatJoinRule(g.joinRule)}
+          ${formatJoinRule(g.config?.joinRule || g.joinRule)}
+        </div>
+
+        <div class="cell trading">
+          ${g.config?.tradingMode || ""}
         </div>
 
         <div class="cell lock">
-          ${g.lockRule}
+          ${g.config?.lockRule || g.lockRule || ""}
+        </div>
+
+        <div class="cell strike">
+          ${g.config?.txDelaySeconds ?? ""}
         </div>
 
       </div>
