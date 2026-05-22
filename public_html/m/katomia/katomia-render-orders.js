@@ -1106,8 +1106,7 @@ function renderOrderMarketSummary(){
       .join(" | ")
 
 
-    const text =
-      document.createElement("span")
+    const text = document.createElement("span")
 
     text.innerHTML =
       `<a class="market-pair-label" href="?pair=${encodeURIComponent(pair)}">${pair}</a> ` +

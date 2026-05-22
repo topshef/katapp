@@ -903,7 +903,7 @@ function getFastThumb(url, imgEl){
     // ├┬┘├┤ │││ ││├┤ ├┬┘
     // ┴└─└─┘┘└┘─┴┘└─┘┴└─
     // render
-    function render(){
+    async function render(){
 			
       if(!state) return
 			
@@ -946,8 +946,8 @@ function getFastThumb(url, imgEl){
       window.orderFillMap = buildOrderFillMap()
       renderOrderMarketSummary()
       renderOrders()
-      renderTransactions()
-      
+      await renderTransactions()
+            
 
       const accounts = getAccounts()
       const accountMap = getAccountMap()
