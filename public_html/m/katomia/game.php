@@ -40,41 +40,43 @@
   
 
 
+<div id="ordersSection" class="mode-order">
 
-<div class="mode-order">
+  <div class="orders-market-summary subtle"></div>
 
-  <div id="ordersSection">
+  <details class="orders-details" open>
 
-    <div class="orders-market-summary subtle"></div>
+    <summary class="subtle">
+      Orders
+    </summary>
 
-    <button id="createOrderBtn">
-      <i class="fa-solid fa-plus"></i> Create order
-    </button>
+    <div class="section-controls">
+      <button id="createOrderBtn">
+        <i class="fa-solid fa-plus"></i> Create order
+      </button>
 
-    <button id="cancelOrderBtn">
-      <i class="fa-solid fa-minus"></i> Cancel order
-    </button>
+      <button id="cancelOrderBtn">
+        <i class="fa-solid fa-minus"></i> Cancel order
+      </button>
 
-    <details class="orders-details" open>
+      <label>
+        <input id="showMyOrdersOnly" type="checkbox" checked>
+        Only my orders
+      </label>
 
-      <summary class="subtle">
-        Orders
-        <label style="margin-left:8px">
-          <input id="showMyOrdersOnly" type="checkbox" checked>
-          Only my orders
-        </label>
+      <label>
+        <input id="sortOrdersByPrice" type="checkbox" checked>
+        Sort by price
+      </label>
 
-        <label style="margin-left:8px">
-          <input id="sortOrdersByPrice" type="checkbox" checked>
-          Sort by price
-        </label>
-      </summary>
+    </div>
 
-      <div class="orders-list"></div>
-    </details>
+    <div class="orders-list"></div>
 
-  </div>
+  </details>
+
 </div>
+
 
 <BR>
 

@@ -428,6 +428,17 @@
       margin-left:6px;
     }
 
+
+    .orders-details > summary{
+      font-size:13px;
+      font-weight:600;
+      opacity:.7;
+      text-transform:uppercase;
+      letter-spacing:.4px;
+      cursor:pointer;
+      margin-bottom:8px;
+    }
+
     .muted{
       color:#666;
     }
