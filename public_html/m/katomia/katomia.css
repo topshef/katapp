@@ -51,6 +51,8 @@
     body[data-trading-mode="orderBook"] .mode-order{ display:block; }
 
 
+    .market-trade-btn{ display:none; }
+    body[data-trading-mode="debug"] .market-trade-btn{ display:inline-flex; }
 
     .account-xproof-label{
       font-size:11px;
