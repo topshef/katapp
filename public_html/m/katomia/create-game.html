@@ -161,6 +161,18 @@ h3{
   </div>
 
   <div class="field">
+    <label>Trading mode</label>
+
+    <div class="options">
+      <label class="option"><input type="radio" name="tradingMode" value="proposal" checked> Proposal</label>
+      <label class="option"><input type="radio" name="tradingMode" value="orderBook"> Order Book</label>
+      <label class="option"><input type="radio" name="tradingMode" value="debug"> Debug</label>
+    </div>
+
+    <div class="explain" id="tradingModeExplain"></div>
+  </div>
+
+  <div class="field">
     <label>Visibility</label>
 
     <div class="options">
@@ -223,6 +235,12 @@ const explain = {
 		private:"Private games require specific join rules or permissions."
 	},
 
+  tradingMode:{
+    proposal:"Negotiated intent. Use baskets and explicit lock.",
+    orderBook:"Pre-authorized intent. Orders match and auto-lock.",
+    debug:"OrderBook + expose intermediate stages for development."
+  },
+
 	lock:{
 		all:"Every player in the entire game must agree for a swap to proceed. eg for private games when all parties are expected to participate",
 		active:"All active players must agree for a swap to proceed. Disconnected clusters can be executed atomically. eg Alice to pay Bob if Carol pays Dave",
@@ -236,21 +254,16 @@ return document.querySelector(`input[name="${name}"]:checked`).value
 }
 
 function updateExplain(){
-
-networkExplain.textContent =
-explain.network[getRadio("network")]
-
-visibilityExplain.textContent =
-explain.visibility[getRadio("visibility")]
-
-lockExplain.textContent =
-explain.lock[getRadio("lockRule")]
-
+  networkExplain.textContent     = explain.network[getRadio("network")]
+  visibilityExplain.textContent  = explain.visibility[getRadio("visibility")]
+  lockExplain.textContent        = explain.lock[getRadio("lockRule")]
+  tradingModeExplain.textContent = explain.tradingMode[getRadio("tradingMode")]
 }
 
 document.querySelectorAll("input[name=network]").forEach(el => el.onchange = updateExplain)
 document.querySelectorAll("input[name=visibility]").forEach(el => el.onchange = updateExplain)
 document.querySelectorAll("input[name=lockRule]").forEach(el => el.onchange = updateExplain)
+document.querySelectorAll("input[name=tradingMode]").forEach(el => el.onchange = updateExplain)
 
 updateExplain()
 
@@ -270,6 +283,7 @@ const payload = {
   lockRule: getRadio("lockRule"),
     
   config: {
+    tradingMode:getRadio("tradingMode"),
     txDelaySeconds: txDelaySeconds.value === "" ? 60 : Number(txDelaySeconds.value)
   },  
 

@@ -180,12 +180,17 @@
     }
 
 
-    function shouldAutoLock(accountId){
+    function zzoldshouldAutoLock(accountId){
 
       const account =
         state?.accounts?.[accountId]
 
       return !!account?.autoLock
+    }
+
+    function shouldAutoLock(accountId){
+
+      return state?.config?.tradingMode == "orderBook"
     }
 
 
