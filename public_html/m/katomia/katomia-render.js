@@ -699,7 +699,8 @@ function getFastThumb(url, imgEl){
 				nameEl.appendChild(txEl)
 
 			if(isMyAccount(account)) {
-				nameEl.appendChild(createFillBtn(account))
+        console.log(gameMeta)
+				if(gameMeta?.config?.tradingMode == "debug") nameEl.appendChild(createFillBtn(account))
 				nameEl.appendChild(createExitBtn(account))
       }
 
