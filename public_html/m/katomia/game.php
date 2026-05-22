@@ -92,9 +92,9 @@
 
 
 
-  <div class="proposal-controls">
+  <div class="section-controls">
 
-    <div class="proposal-controls-title">
+    <div class="section-controls-title">
       Proposal mode
     </div>
 
