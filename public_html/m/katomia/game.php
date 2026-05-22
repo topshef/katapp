@@ -34,14 +34,7 @@
       <i class="fa-solid fa-plus"></i> Add account
     </button>
 
-    <button id="createOrderBtn">
-      <i class="fa-solid fa-plus"></i> Create order
-    </button>
 
-    <button id="cancelOrderBtn">
-      <i class="fa-solid fa-minus"></i> Cancel order
-    </button>
-  
     
     <label>
       <input type="checkbox" id="showTradingAccounts" />
@@ -59,10 +52,22 @@
 
   </div>
   
-  <div id="ordersSection">
+<div class="mode-order">
+
+  <div id="ordersSection" class='dogshit'>
+
+    
     <div class="orders-market-summary subtle"></div>
     
-    <details class="orders-details">
+    <button id="createOrderBtn">
+      <i class="fa-solid fa-plus"></i> Create order
+    </button>
+
+    <button id="cancelOrderBtn">
+      <i class="fa-solid fa-minus"></i> Cancel order
+    </button>
+    
+  <details class="orders-details">
             
       <summary class="subtle">
         Orders
@@ -93,8 +98,12 @@
     </details>
   
   </div>
+</div>
 
 <BR>
+
+<div class="mode-proposal">
+
 	<div class="hint">
 
 
@@ -148,7 +157,7 @@
 
 		</div>
 	</div>
-
+</div>
 
 
 	<div id="createOrderModal" class="asset-modal hidden">
