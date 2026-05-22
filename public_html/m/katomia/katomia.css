@@ -1355,3 +1355,14 @@ textarea:focus{
   box-shadow:none !important;
   -webkit-box-shadow:none !important;
 }
+
+
+/* account asset spacing only */
+/* account asset spacing only */
+
+.account-row.columns .asset,
+.account-row.columns .asset-thumb,
+.account-row.merged .asset,
+.account-row.merged .asset-thumb{
+  margin:2px 4px;
+}
