@@ -150,9 +150,42 @@
       margin:16px;
     }
 
-    label:has(#showTradingAccounts){
-      display:none;
+    label:has(#showTradingAccounts){ display:none; }
+    body[data-trading-mode="debug"] label:has(#showTradingAccounts){ display:flex; }
+
+
+    .proposal-controls{
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+      padding:8px 12px;
+
+      background:#fafafa;
+      border:1px solid #ddd;
+      border-radius:8px;
     }
+
+    .proposal-controls-title{
+      font-size:12px;
+      font-weight:700;
+      color:#666;
+      margin-right:8px;
+    }
+
+    .proposal-controls label{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      cursor:pointer;
+      font-size:13px;
+    }
+
+    .proposal-controls input{
+      margin:0;
+    }
+
 
 
     h2{

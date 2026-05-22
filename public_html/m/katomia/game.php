@@ -35,20 +35,6 @@
     </button>
 
 
-    
-    <label>
-      <input type="checkbox" id="showTradingAccounts" />
-      Show trading accounts only
-    </label>
-		<label>
-			<input type="checkbox" id="showTradedAssets"/>
-			Show traded assets only
-		</label>
-
-		<label class="desktop-toggle">
-			<input type="checkbox" id="viewToggle" />
-			🖥️
-		</label>
 
   </div>
   
@@ -104,6 +90,31 @@
 
 <div class="mode-proposal">
 
+
+
+  <div class="proposal-controls">
+
+    <div class="proposal-controls-title">
+      Proposal mode
+    </div>
+
+    <label>
+      <input type="checkbox" id="showTradingAccounts" />
+      Trading accounts only
+    </label>
+
+    <label>
+      <input type="checkbox" id="showTradedAssets"/>
+      Traded assets only
+    </label>
+
+    <label class="desktop-toggle">
+      <input type="checkbox" id="viewToggle" />
+      🖥️ Desktop view
+    </label>
+
+  </div>
+    
 	<div class="hint">
 
 
