@@ -1109,9 +1109,12 @@ function renderOrderMarketSummary(){
     const text =
       document.createElement("span")
 
-    // text.innerHTML = `<span class="market-pair-label">${pair}</span> (${rows.length}) ${summary}`
-    text.innerHTML = `<a class="market-pair-label" href="?pair=${encodeURIComponent(pair)}">${pair}</a> (${rows.length}) ${summary}`
-
+    text.innerHTML =
+      `<a class="market-pair-label" href="?pair=${encodeURIComponent(pair)}">${pair}</a> ` +
+      `(${rows.length}) ` +
+      `<span class="debug-only">${summary}</span>`
+      
+      
     row.appendChild(createTradeBtn(pair))
     row.appendChild(text)
 

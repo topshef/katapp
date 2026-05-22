@@ -83,15 +83,22 @@
 <div id="transactionsSection">
 
   <details class="orders-details" open>
+
     <summary class="subtle">
       Transactions
-      <label style="margin-left:8px">
+    </summary>
+
+    <div class="section-controls">
+
+      <label>
         <input id="hideExpiredTx" type="checkbox" checked>
         Hide expired
       </label>
-    </summary>
+
+    </div>
 
     <div class="transactions-list"></div>
+
   </details>
 
 </div>
