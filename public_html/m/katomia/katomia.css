@@ -51,8 +51,8 @@
     body[data-trading-mode="orderBook"] .mode-order{ display:block; }
 
 
-    .market-trade-btn{ display:none; }
-    body[data-trading-mode="debug"] .market-trade-btn{ display:inline-flex; }
+    .debug-only{ display:none; }
+    body[data-trading-mode="debug"] .debug-only{ display:inline-flex; }
 
     .account-xproof-label{
       font-size:11px;
@@ -1027,7 +1027,7 @@ button i{
   font-weight: 700;
 }
 
-.market-trade-btn{
+.multifill-btn{
   font-size: 0.9em;
   padding: 2px 6px;
   margin-right: 6px;

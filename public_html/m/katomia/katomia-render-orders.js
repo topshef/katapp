@@ -965,7 +965,7 @@ function createTradeBtn(pair){  //simple FX
 
   const btn = document.createElement("button")
 
-  btn.className = "market-trade-btn"
+  btn.className = "multifill-btn debug-only"
   btn.textContent = "Take"
 
   btn.onclick = () => {
