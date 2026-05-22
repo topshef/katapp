@@ -806,47 +806,6 @@ function getFastThumb(url, imgEl){
 
       wrap.appendChild(modeEl)
 
-      // only show if backend supports it
-      if(account.autoLock !== undefined){
-
-        const autoWrap = document.createElement("label")
-        autoWrap.className = "auto-lock"
-
-        autoWrap.title =
-          "Auto-lock preference for this account\n\n" +
-          "✓ Applies when creating or taking market orders\n" +
-          "✓ Can immediately raise transactions if all parties also use auto-lock\n\n" +
-          "✗ Does not apply to manual fills\n" +
-          "✗ Does not apply to drag/drop asset moves\n" +
-          "✗ Does not apply to manual basket edits\n\n" +
-          "Debug feature: intended for simplified FX / reduced UI modes"
-          
-          
-        const autoInput = document.createElement("input")
-        autoInput.type = "checkbox"
-        autoInput.checked = !!account.autoLock
-
-        if (isMyAccount(account)) {
-          autoInput.onchange = () => {
-
-            socket.send(JSON.stringify({
-              type: "game_toggleAutoLock",
-              gameId,
-              accountId: account.id,
-              autoLock: autoInput.checked
-            }))
-
-          }         
-        } else autoInput.disabled = true   //you cant change other players settings
-
-        autoWrap.append(
-          autoInput,
-          document.createTextNode(" auto-lock")
-        )
-
-        wrap.appendChild(autoWrap)
-      }
-
       return wrap
     }
 

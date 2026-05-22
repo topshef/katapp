@@ -119,8 +119,6 @@
 				assets: account.assets || [],
 				basket: account.basket || [],
 				mode: account.mode || "shop",
-        autoLock: account.autoLock
-
 			}))
 		}
 
@@ -180,13 +178,7 @@
     }
 
 
-    function zzoldshouldAutoLock(accountId){
 
-      const account =
-        state?.accounts?.[accountId]
-
-      return !!account?.autoLock
-    }
 
     function shouldAutoLock(accountId){
 

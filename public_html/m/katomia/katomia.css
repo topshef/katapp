@@ -332,26 +332,6 @@
 		}
 
 
-    .auto-lock{
-      cursor:pointer;
-      display:flex;
-      justify-content:center;
-      align-items:center;
-
-      font-size:10px;
-      color:#666;
-      opacity:0.75;
-
-      margin-top:20px;
-      line-height:1;
-    }
-
-    .auto-lock input{
-      transform:scale(0.85);
-      margin-right:2px;
-      vertical-align:middle;
-    }
-
 
     .column,
     .assets{
