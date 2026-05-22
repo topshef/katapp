@@ -124,14 +124,12 @@ h2{
     margin-right:10px;
   }
 
-  .cell.id::before{content:"ID"}
-  .cell.gamename::before{content:"Name"}
-  .cell.network::before{content:"Network"}
-  .cell.visibility::before{content:"Visibility"}
-  .cell.trading::before{content:"Trading"}
-  .cell.strike::before{content:"Strike seconds"}
-  .cell.join::before{content:"Join rule"}
-  .cell.lock::before{content:"Lock"}
+  .cell::before{
+    content:attr(data-label);
+    font-weight:600;
+    color:#666;
+    margin-right:10px;
+  }
   
 }
 
@@ -153,17 +151,7 @@ h2{
 
 <h2>Choose a Katomia market... 🍎🥬🥕</h2>
 
-<div id="games" class="grid">
-
-  <div class="grid-header">ID</div>
-  <div class="grid-header">Name</div>
-  <div class="grid-header">Network</div>
-  <div class="grid-header">Visibility</div>
-  <div class="grid-header">Join rule</div>
-  <div class="grid-header">Trading mode</div>
-  <div class="grid-header">Lock rule</div>
-  <div class="grid-header">Strike seconds</div>
-</div>
+<div id="games" class="grid"></div>
 
 <div>
   <a class="create-market" href="./create">
@@ -187,6 +175,59 @@ function formatJoinRule(rule){
   return ""
 }
 
+const columns = [
+
+  {
+    key:"id",
+    label:"ID",
+    render:g => `<a href="./game/${g.id}" target="${g.id}">${g.id}</a>`
+  },
+
+  {
+    key:"gamename",
+    label:"Name",
+    render:g => g.profile?.name || ""
+  },
+
+  {
+    key:"network",
+    label:"Network",
+    render:g => g.config?.network || g.network || ""
+  },
+
+  {
+    key:"visibility",
+    label:"Visibility",
+    render:g => g.config?.visibility || g.visibility || ""
+  },
+
+  {
+    key:"join",
+    label:"Join rule",
+    render:g => formatJoinRule(g.config?.joinRule || g.joinRule)
+  },
+
+  {
+    key:"trading",
+    label:"Trading mode",
+    render:g => g.config?.tradingMode || ""
+  },
+
+  {
+    key:"lock",
+    label:"Lock rule",
+    render:g => g.config?.lockRule || g.lockRule || ""
+  },
+
+  {
+    key:"strike",
+    label:"Strike seconds",
+    render:g => g.config?.txDelaySeconds ?? ""
+  }
+
+]
+
+
 async function loadGames(){
 
   const res = await fetch(API_URL)
@@ -196,45 +237,33 @@ async function loadGames(){
 
   const container = document.getElementById("games")
 
+  container.style.gridTemplateColumns = `repeat(${columns.length},1fr)`
+
+  container.insertAdjacentHTML(
+    "beforeend",
+    columns
+      .map(c => `<div class="grid-header">${c.label}</div>`)
+      .join("")
+  )
+
   Object.values(data.games).forEach(g => {
 
-    container.insertAdjacentHTML("beforeend",`
+    container.insertAdjacentHTML(
+      "beforeend",
+      `
       <div class="row">
-
-        <div class="cell id">
-          <a href="./game/${g.id}" target="${g.id}">${g.id}</a>
-        </div>
-
-        <div class="cell gamename">
-          ${g.profile?.name || ""}
-        </div>
-
-        <div class="cell network">
-          ${g.config?.network || g.network || ""}
-        </div>
-
-        <div class="cell visibility">
-          ${g.config?.visibility || g.visibility || ""}
-        </div>
-
-        <div class="cell join">
-          ${formatJoinRule(g.config?.joinRule || g.joinRule)}
-        </div>
-
-        <div class="cell trading">
-          ${g.config?.tradingMode || ""}
-        </div>
-
-        <div class="cell lock">
-          ${g.config?.lockRule || g.lockRule || ""}
-        </div>
-
-        <div class="cell strike">
-          ${g.config?.txDelaySeconds ?? ""}
-        </div>
-
+        ${
+          columns
+            .map(c=>`
+              <div class="cell ${c.key}" data-label="${c.label}">
+                ${c.render(g)}
+              </div>
+            `)
+            .join("")
+        }
       </div>
-    `)
+      `
+    )
 
   })
 
