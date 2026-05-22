@@ -256,6 +256,9 @@ function connect(onOpenAction){
 
     gameMeta = data.meta || null
     state = data.state
+    
+    document.body.dataset.tradingMode = gameMeta?.config?.tradingMode || ""
+  
     currentPlayerId = data.myPlayerId || null
 
     if(window.pendingAutoload && accountLabelInput && !accountLabelInput.value){

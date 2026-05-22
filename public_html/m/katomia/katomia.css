@@ -40,6 +40,16 @@
 
 
 
+
+    .mode-debug,
+    .mode-order,
+    .mode-proposal{
+      display:none;
+    }
+    body[data-trading-mode="debug"] .mode-debug{ display:inherit;}
+    body[data-trading-mode="order"] .mode-order{ display:inherit;}
+    body[data-trading-mode="proposal"] .mode-proposal{  display:inherit;}
+
     .account-xproof-label{
       font-size:11px;
       color:#666;

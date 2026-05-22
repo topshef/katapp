@@ -699,8 +699,7 @@ function getFastThumb(url, imgEl){
 				nameEl.appendChild(txEl)
 
 			if(isMyAccount(account)) {
-        console.log(gameMeta)
-				if(gameMeta?.config?.tradingMode == "debug") nameEl.appendChild(createFillBtn(account))
+			  nameEl.appendChild(createFillBtn(account))
 				nameEl.appendChild(createExitBtn(account))
       }
 
@@ -720,7 +719,7 @@ function getFastThumb(url, imgEl){
 		function createFillBtn(account){
 
 			const fillBtn = document.createElement("div")
-			fillBtn.className = "fill-btn"
+			fillBtn.className = "fill-btn mode-debug"
 			// fillBtn.textContent = "🚰"  // see css instead
 
 			fillBtn.onclick = e => {
