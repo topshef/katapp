@@ -269,7 +269,7 @@ function connect(onOpenAction){
 
 		glog(`state received for ${currentPlayerId}`, {gameMeta, state})
 
-		render()
+		await render()
     await enrichVisibleAccounts()
 		await enrichVisibleAssets()
 		await loadThumbCache()
