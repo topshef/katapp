@@ -1020,7 +1020,7 @@ button i{
   margin-right: 6px;
 }
 
-#ordersSection .tx-row{
+.tx-row{
   display:flex;
   align-items:center;
   gap:6px;
@@ -1029,36 +1029,36 @@ button i{
   cursor:pointer;
 }
 
-#ordersSection .tx-row > *{
+.tx-row > *{
   display:flex;
   align-items:center;
 }
 
-#ordersSection .tx-assets{
+.tx-assets{
   display:flex;
   align-items:center;
   gap:4px;
 }
 
-#ordersSection .tx-assets .asset{
+.tx-assets .asset{
   margin-top:0;
   margin-bottom:0;
 }
 
-#ordersSection .tx-arrow{
+.tx-arrow{
   display:flex;
   align-items:center;
   opacity:0.6;
 }
 
-#ordersSection .tx-row.tx-highlight{
+.tx-row.tx-highlight{
   background:#fff;
   outline:1px solid #ddd;
   border-radius:6px;
   box-shadow:0 1px 4px rgba(0,0,0,0.08);
 }
 
-#ordersSection .tx-row *{
+.tx-row *{
   cursor:pointer;
 }
 

@@ -38,13 +38,15 @@
 
   </div>
   
+
+
+
 <div class="mode-order">
 
-  <div id="ordersSection" class='dogshit'>
+  <div id="ordersSection">
 
-    
     <div class="orders-market-summary subtle"></div>
-    
+
     <button id="createOrderBtn">
       <i class="fa-solid fa-plus"></i> Create order
     </button>
@@ -52,9 +54,9 @@
     <button id="cancelOrderBtn">
       <i class="fa-solid fa-minus"></i> Cancel order
     </button>
-    
-  <details class="orders-details">
-            
+
+    <details class="orders-details" open>
+
       <summary class="subtle">
         Orders
         <label style="margin-left:8px">
@@ -67,25 +69,30 @@
           Sort by price
         </label>
       </summary>
-      
+
       <div class="orders-list"></div>
     </details>
 
-    <details class="orders-details" open>
-      <summary class="subtle">
-        Transactions
-        <label style="margin-left:8px">
-          <input id="hideExpiredTx" type="checkbox" checked>
-          Hide expired
-        </label>
-      </summary>
-
-      <div class="transactions-list"></div>
-    </details>
-  
   </div>
 </div>
 
+<BR>
+
+<div id="transactionsSection">
+
+  <details class="orders-details" open>
+    <summary class="subtle">
+      Transactions
+      <label style="margin-left:8px">
+        <input id="hideExpiredTx" type="checkbox" checked>
+        Hide expired
+      </label>
+    </summary>
+
+    <div class="transactions-list"></div>
+  </details>
+
+</div>
 <BR>
 
 <div class="mode-proposal">

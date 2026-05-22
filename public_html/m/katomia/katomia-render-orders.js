@@ -314,8 +314,7 @@ function isTxExpired(tx){
 
 async function renderTransactions(){
 
-  const listEl =
-    document.querySelector("#ordersSection .transactions-list")
+  const listEl = document.querySelector("#transactionsSection .transactions-list")
 
   if(!listEl) return
 
