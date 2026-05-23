@@ -96,6 +96,9 @@ function enrichSimpleFxMarketRow({ orderId, playerId, market }){
 
     pair: market.pair,
     side: market.side,
+    
+    accountId: market.accountId,
+
 
     baseAsset: market.baseAsset,
     quoteAsset: market.quoteAsset,

@@ -488,7 +488,9 @@ function renderHeatmapBar(svg,row,l,opacity){
       pair:`${row.baseAsset}/${row.quoteAsset}`,
       side:row.side,
       volume:row.originalDisplayBaseAmount,
-      rate:row.displayRate
+      rate:row.displayRate,
+      accountId:`${row.playerId}:${row.accountId}`
+
     })
 
   }
@@ -1267,6 +1269,8 @@ function renderOrderMarketSummary(){
           side,
           rate,
           volume,
+          
+          accountId: offerLine.accountId,
 
           baseAsset:pair.base,
           quoteAsset:pair.quote,
@@ -1465,7 +1469,9 @@ function renderOrderMarketSummary(){
           pair:`${fxRow.baseAsset}/${fxRow.quoteAsset}`,
           side:fxRow.side,
           volume:fxRow.originalDisplayBaseAmount,
-          rate:fxRow.displayRate
+          rate:fxRow.displayRate,
+          accountId:`${playerId}:${fxRow.accountId}`
+
         })
 
 
