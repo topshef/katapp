@@ -410,7 +410,7 @@ function getSettledFillItems(orderId){
 // render Market Heatmap
 function renderMarketHeatmap(pair,heatmap,opts={}){
 
-  const width = opts.width ?? 420
+  const width = opts.width ?? Math.min(window.innerWidth - 24,420)
   const height = opts.height ?? 140
   const pad = opts.pad ?? 12
   const barWidth = opts.barWidth ?? 16
