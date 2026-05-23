@@ -1499,28 +1499,7 @@ function renderOrderMarketSummary(){
     }
           
               
-    // ┬─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐  ╔═╗┌─┐┌┐┌┌─┐┬┌─┐  ╔╦╗┌─┐┌┬┐┌─┐
-    // ├┬┘├┤ │││ ││├┤ ├┬┘  ║  │ ││││├┤ ││ ┬  ║║║├┤  │ ├─┤
-    // ┴└─└─┘┘└┘─┴┘└─┘┴└─  ╚═╝└─┘┘└┘└  ┴└─┘  ╩ ╩└─┘ ┴ ┴ ┴
-    // render Config Meta          
-    function renderConfigMeta(config){
-      if(!config) return ""
 
-      const formats = {
-        txDelaySeconds: "Delay transaction start by {} seconds"
-      }
-
-      const entries = Object.entries(config)
-      if(!entries.length) return ""
-
-      return entries
-        .map(([k,v]) => {
-          if(formats[k]) return `<span>${formats[k].replace("{}", v)}</span>`
-          return `<span>${k}: ${v}</span>`
-        })
-        .join("")
-    }
-          
 
 
 

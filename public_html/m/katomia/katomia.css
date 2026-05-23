@@ -788,6 +788,8 @@ body[data-view-mode="columns"] .exit-game-btn{
   display:flex;
   flex-wrap:wrap;
   gap:10px;
+  row-gap:0;
+
 }
 
 /* default */

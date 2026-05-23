@@ -899,6 +899,30 @@ function getFastThumb(url, imgEl){
 			return rowEl
 		}
 
+    // ┬─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐  ╔═╗┌─┐┌┐┌┌─┐┬┌─┐  ╔╦╗┌─┐┌┬┐┌─┐
+    // ├┬┘├┤ │││ ││├┤ ├┬┘  ║  │ ││││├┤ ││ ┬  ║║║├┤  │ ├─┤
+    // ┴└─└─┘┘└┘─┴┘└─┘┴└─  ╚═╝└─┘┘└┘└  ┴└─┘  ╩ ╩└─┘ ┴ ┴ ┴
+    // render Config Meta          
+    function renderConfigMeta(config){
+      if(!config) return ""
+
+      const formats = {
+        txDelaySeconds: "Strike in {} seconds",
+        tradingMode: "Trading mode: {}"
+      }
+
+      const entries = Object.entries(config)
+      if(!entries.length) return ""
+
+      return entries
+        .map(([k,v]) => {
+          if(formats[k]) return `<span>${formats[k].replace("{}", v)}</span>`
+          return `<span>${k}: ${v}</span>`
+        })
+        .join("")
+    }
+          
+          
     // ┬─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐
     // ├┬┘├┤ │││ ││├┤ ├┬┘
     // ┴└─└─┘┘└┘─┴┘└─┘┴└─
@@ -934,7 +958,7 @@ function getFastThumb(url, imgEl){
             <span>Visibility: ${gameMeta.visibility}</span>
             ${joinText ? `<span>Join: ${joinText}</span>` : ""}
             <span>Lock: ${gameMeta.lockRule}</span>
-            |&nbsp Config: ${renderConfigMeta(gameMeta.config)}
+            ${renderConfigMeta(gameMeta.config)}
           </div>
         `
       }
