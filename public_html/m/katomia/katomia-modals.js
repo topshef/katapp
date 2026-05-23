@@ -89,7 +89,7 @@ function renderCreateOrderActions(defaults = {}){
   el.innerHTML = `
   <div id="orderActionHelp" class="order-action-help"></div>
   <div class="order-actions">
-  ${mine ? `<button id="createOrderEdit" data-help="Replace existing order with edited version">Edit</button>` : ""}
+  ${mine ? `<button id="createOrderEdit" data-help="Replace existing order with edited version">Replace</button>` : ""}
   <button id="createOrderSubmit" data-help="Create a new copy of this order">Clone</button>
   ${mine ? `<button id="createOrderDelete" data-help="Cancel and remove this order">Delete</button>` : ""}
   </div>
@@ -135,6 +135,7 @@ document.addEventListener("click",e => {
   const modal = document.getElementById("createOrderModal")
 
   if(e.target.id == "createOrderClose" || e.target.id == "createOrderExit") return closeCreateOrderModal()
+  // if(e.target.id == "createOrderExit") return closeCreateOrderModal()
   if(e.target == modal && !window.createOrderDirty) closeCreateOrderModal()
 
 })
