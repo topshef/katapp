@@ -249,21 +249,20 @@
  
       <br><br>
 
-      <details id="createOrderDev" open>
-        <summary>🛠 Advanced mode</summary>
-
+      <details id="createOrderDev">
+        <summary>🛠 Pro mode</summary>
+        <div class="dev-help">
+          one line per order<br>
+          order = item | item | item etc...<br>
+           item = account;asset;amount(integer)<br>
+        </div>
         <textarea
           id="createOrderRaw"
           rows="5"
           placeholder="24739;3841995;-760000|24739;3842078;1000000">
         </textarea>
 
-        <div class="dev-help">
-          order = item | item | item etc...<br>
-           item = account;asset;amount(integer)<br>
-          one line = one order<br>
-          multiple lines = multiple orders
-        </div>
+
 
       </details>
 		</div>

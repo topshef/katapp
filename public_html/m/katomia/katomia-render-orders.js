@@ -1314,13 +1314,15 @@ function renderOrderMarketSummary(){
       items.forEach(x => {
 
         const amt = Math.abs(x.amount)
-        const text = getAssetDisplay(x.asset, amt)
+        const assetLabel = getAssetDisplay(x.asset, amt)
+        const accountLabel = x.accountId ? (x.accountId.split(":")[1] || x.accountId) : ""
+        const text = accountLabel ? `${accountLabel} ${assetLabel}` : assetLabel
 
         const assetEl = makeAssetEl({
           text,
           assetId: x.asset,
-          ownerAccountId: "",        // not account-bound
-          ownerPlayerId: "",         // no sleeve here
+          ownerAccountId: "",
+          ownerPlayerId: "",
           clickable: false
         })
 
@@ -1330,7 +1332,7 @@ function renderOrderMarketSummary(){
       })
 
       return el
-    } 
+    }
               
 // TODO: Orders → market / chart views
 // - Keep canonical model: bundle[] with signed amounts (do NOT change)

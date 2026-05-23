@@ -127,7 +127,8 @@ function openCreateOrderModal(defaults = {}){
 
   document.getElementById("createOrderTitle").textContent = defaults.orderId ? "Order" : "Create order"
   document.getElementById("createOrderContext").textContent = defaults.orderId ? `#${defaults.orderId}` : ""
-  document.getElementById("createOrderDev").style.display = defaults.orderId ? "none" : "" 
+  // document.getElementById("createOrderDev").style.display = defaults.orderId ? "none" : "" 
+  document.getElementById("createOrderDev").style.display = ""
 
 
   document.getElementById("createOrderType").value = defaults.type || "simple-fx"
