@@ -1523,13 +1523,114 @@ function renderOrderMarketSummary(){
           
 
 
-/*
-orders
-  ↓
-simple fx rows
-  ↓
-orderbook buckets
-  ↓
-svg renderer
 
-*/
+
+// ┌─┐┬  ┬┌─┐┬┌─  ┬ ┬┌─┐┌┐┌┌┬┐┬  ┌─┐┬─┐┌─┐
+// │  │  ││  ├┴┐  ├─┤├─┤│││ │││  ├┤ ├┬┘└─┐
+// └─┘┴─┘┴└─┘┴ ┴  ┴ ┴┴ ┴┘└┘─┴┘┴─┘└─┘┴└─└─┘
+// click handlers
+
+cancelOrderBtn.onclick = () => {
+
+  const input = prompt("Delete order(s)\n\nEnter order Ids, comma separated")
+  if(!input) return
+
+  input.split(",").map(x => x.trim()).filter(Boolean).forEach(orderId => cancelOrder(orderId))
+}
+
+createOrderBtn.onclick = () => {
+  openCreateOrderModal()
+}
+
+document.addEventListener("click", e => {
+
+  if(e.target.id == "createOrderCancel"){
+    closeCreateOrderModal()
+    return
+  }
+
+  if(e.target.id == "createOrderTruncate"){
+    alert("Truncate not yet available")
+    return
+  }
+
+  if(e.target.id == "createOrderDelete"){
+    cancelOrder(window.createOrderContext?.orderId)
+    closeCreateOrderModal()
+    return
+  }
+
+  if(e.target.id == "createOrderEdit"){
+    cancelOrder(window.createOrderContext?.orderId)
+    createOrderFromModal()
+    return
+  }
+
+  if(e.target.id == "createOrderSubmit"){
+    createOrderFromModal()
+    return
+  }
+
+})
+
+function cancelOrder(orderId){
+
+  if(!orderId) return
+
+  socket.send(JSON.stringify({
+    type:"game_orderCancel",
+    gameId,
+    orderId
+  }))
+}
+
+function createOrderFromModal(){
+
+  getCreateOrderData().forEach(line => {
+
+    const bundle = normaliseOrder(line)
+    const order = {bundle}
+
+    socket.send(JSON.stringify({
+      type:"game_orderCreate",
+      gameId,
+      order
+    }))
+
+  })
+
+  closeCreateOrderModal()
+}
+
+function normaliseOrder(input){
+  try {
+    const records = input.split('|').filter(Boolean)
+    const result = []
+
+    for (const record of records){
+      const [a,b,c] = record.split(';')
+
+      if(!a || !b || c === undefined){
+        throw new Error(`Bad record: ${record}`)
+      }
+
+      const norm = v => v.includes('.') ? v : `0.0.${v}`
+
+      result.push({
+        accountId: norm(a),
+        asset: norm(b),
+        amount: Number(c)
+      })
+    }
+
+    return result
+
+  } catch (err) {
+    return {
+      raw: input,
+      error: err.message
+    }
+  }
+}
+
+
