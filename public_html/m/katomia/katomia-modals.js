@@ -91,14 +91,14 @@ function renderCreateOrderActions(defaults = {}){
   const mine = defaults.playerId == currentPlayerId
 
   el.innerHTML = `
-  <div id="orderActionHelp" class="order-action-help"></div>
-  <div class="order-actions">
-  ${mine ? `<button id="createOrderEdit" data-help="Replace existing order with edited version">Replace</button>` : ""}
-  <button id="createOrderSubmit" data-help="Create a new copy of this order">Clone</button>
-  ${mine ? `<button id="createOrderDelete" data-help="Cancel and remove this order">Delete</button>` : ""}
-  </div>
-  </div>
-  ${htmlActions}  
+    <div id="orderActionHelp" class="order-action-help"></div>
+    <div class="order-actions">
+    ${mine ? `<button id="createOrderEdit" data-help="Replace existing order with edited version">Replace</button>` : ""}
+    <button id="createOrderSubmit" data-help="Create a new copy of this order">Clone</button>
+    ${mine ? `<button id="createOrderDelete" data-help="Cancel and remove this order">Delete</button>` : ""}
+    </div>
+    </div>
+    ${htmlActions}  
   `
   //todo move truncate option next to volume ?    
   //  ${mine ? `<button id="createOrderTruncate" data-help="Reduce order to remaining unsettled amount (coming soon)">Truncate</button>` : ""}
@@ -109,6 +109,9 @@ function renderCreateOrderActions(defaults = {}){
 function closeCreateOrderModal(){
   document.getElementById("createOrderModal").classList.add("hidden")
 }
+
+
+
 
 
 document.addEventListener("mouseover",e => {
@@ -132,15 +135,39 @@ document.addEventListener("mouseout",e => {
 })
 
 
+
+function confirmOrderAction(action){
+
+  const ctx = window.createOrderContext || {}
+
+  const msg = {
+    createOrderSubmit:`Clone order #${ctx.orderId}?`,
+    createOrderEdit:`Replace order #${ctx.orderId} with edited values?`,
+    createOrderDelete:`Delete order #${ctx.orderId}?`
+  }
+
+  return confirm(msg[action] || "Continue?")
+}
+
 document.addEventListener("click",e => {
 
+  const id = e.target.id
   const modal = document.getElementById("createOrderModal")
+  const actions = ["createOrderSubmit","createOrderEdit","createOrderDelete"]
 
-  if(e.target.id == "createOrderClose" || e.target.id == "createOrderExit") return closeCreateOrderModal()
-  // if(e.target.id == "createOrderExit") return closeCreateOrderModal()
-  if(e.target == modal && !window.createOrderDirty) closeCreateOrderModal()
+  if(actions.includes(id) && window.createOrderContext?.orderId && !confirmOrderAction(id)){
+    e.preventDefault()
+    e.stopImmediatePropagation()
+    return false
+  }
 
-})
+  if(id == "createOrderClose" || id == "createOrderExit")
+    return closeCreateOrderModal()
+
+  if(e.target == modal && !window.createOrderDirty)
+    closeCreateOrderModal()
+
+},true)
 
 
 function getCreateOrderData(){
