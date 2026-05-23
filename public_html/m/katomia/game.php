@@ -241,14 +241,7 @@
       <label>Rate</label>
       <input id="createOrderRate" type="number" step="any">
 
-			<br><br>
-
-      <div id="createOrderActions">
-        <button id="createOrderSubmit">Create</button>
-      </div>
- 
-      <br><br>
-
+			<br>
       <details id="createOrderDev">
         <summary>🛠 Pro mode</summary>
         <div class="dev-help">
@@ -262,9 +255,15 @@
           placeholder="24739;3841995;-760000|24739;3842078;1000000">
         </textarea>
 
-
-
       </details>
+      
+      
+      <div id="createOrderActions">
+        <button id="createOrderSubmit">Create</button>
+      </div>
+ 
+
+
 		</div>
 	</div>
   

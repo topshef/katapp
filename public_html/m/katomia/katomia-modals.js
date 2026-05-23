@@ -274,18 +274,13 @@ function buildSimpleFxRaw(){
 }
 
 document.addEventListener("input",e => {
-
   if(!e.target.closest("#createOrderModal")) return
   window.createOrderDirty = true
-
+  if(e.target.id == "createOrderRaw") return
+  document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
 })
 
 document.addEventListener("change",e => {
-
   if(!e.target.closest("#createOrderModal")) return
-  if(e.target.id == "createOrderRaw") return window.createOrderDirty = true
-
   window.createOrderDirty = true
-  document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
-
 })
