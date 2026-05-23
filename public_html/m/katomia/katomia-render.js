@@ -916,9 +916,11 @@ function getFastThumb(url, imgEl){
 
       return entries
         .map(([k,v]) => {
+          if(Array.isArray(v) || (v && typeof v === 'object')) return null
           if(formats[k]) return `<span>${formats[k].replace("{}", v)}</span>`
           return `<span>${k}: ${v}</span>`
         })
+        .filter(Boolean)
         .join("")
     }
           

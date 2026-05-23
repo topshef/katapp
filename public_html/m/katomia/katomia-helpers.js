@@ -123,18 +123,12 @@
 		}
 
 
-    window.KATOMIA_PAIRS = [
-
-      {label:"KBRL/KCOP",base:"0.0.3842078",quote:"0.0.3841995"},
-      {label:"XBAR/USDC",base:"0.0.731861",quote:"0.0.456858"},
-      {label:"KGBP/USDC",base:"0.0.5850317",quote:"0.0.456858"},
-      {label:"XBAR/KBRL",base:"0.0.731861",quote:"0.0.3842078"}
-
-    ]
-
     function getAcceptedPairs(){
+      // const pairs = gameMeta?.config?.allowedPairs || []
+      const pairs = [...(gameMeta?.config?.allowedPairs || [])] //spread [...] avoids mutating the original array
+      pairs.sort((a, b) => a.label.localeCompare(b.label))
 
-      return window.KATOMIA_PAIRS.map(pair => {
+      return pairs.map(pair => {
 
         const baseMeta = getAssetMeta(pair.base)
         const quoteMeta = getAssetMeta(pair.quote)
@@ -151,6 +145,7 @@
       })
 
     }
+
 
     function getAllowedPairLabels(){
 
