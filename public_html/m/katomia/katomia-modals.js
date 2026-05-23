@@ -94,7 +94,7 @@ function renderCreateOrderActions(defaults = {}){
     <div id="orderActionHelp" class="order-action-help"></div>
     <div class="order-actions">
     ${mine ? `<button id="createOrderEdit" data-help="Replace existing order with edited version">Replace</button>` : ""}
-    <button id="createOrderSubmit" data-help="Create a new copy of this order">Clone</button>
+    <button id="createOrderSubmit" data-help="Create a new order">Create order</button>
     ${mine ? `<button id="createOrderDelete" data-help="Cancel and remove this order">Delete</button>` : ""}
     </div>
     </div>
@@ -141,7 +141,6 @@ function confirmOrderAction(action){
   const ctx = window.createOrderContext || {}
 
   const msg = {
-    createOrderSubmit:`Clone order #${ctx.orderId}?`,
     createOrderEdit:`Replace order #${ctx.orderId} with edited values?`,
     createOrderDelete:`Delete order #${ctx.orderId}?`
   }
@@ -153,7 +152,7 @@ document.addEventListener("click",e => {
 
   const id = e.target.id
   const modal = document.getElementById("createOrderModal")
-  const actions = ["createOrderSubmit","createOrderEdit","createOrderDelete"]
+  const actions = ["createOrderEdit","createOrderDelete"]
 
   if(actions.includes(id) && window.createOrderContext?.orderId && !confirmOrderAction(id)){
     e.preventDefault()
