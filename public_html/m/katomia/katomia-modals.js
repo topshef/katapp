@@ -60,10 +60,13 @@ document.addEventListener("click", e => {
     const input = prompt("Enter account ID")
     if(!input) return
     addAccounts(input)
-    const countBefore = getAccounts().filter(a => isMyAccount(a)).length
+    const idsBefore = new Set(getAccounts().filter(a => isMyAccount(a)).map(a => a.id))
     pollUntil(
-      () => getAccounts().filter(a => isMyAccount(a)).length > countBefore,
-      () => refreshCreateOrderAccounts()
+      () => getAccounts().filter(a => isMyAccount(a)).length > idsBefore.size,
+      () => {
+        const newAccount = getAccounts().find(a => isMyAccount(a) && !idsBefore.has(a.id))
+        refreshCreateOrderAccounts(newAccount?.id)
+      }
     )
     return
   }
