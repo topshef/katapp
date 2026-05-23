@@ -11,10 +11,11 @@ file_put_contents($logFile,date('Y-m-d H:i:s')."\n".json_encode($_SERVER,JSON_PR
 $domain = 'shop.gomint.me';
 
 $sources=[
-'backend'=>['/home/hbarlive_hts/kat*.js'],
-'frontend-js'=>["/var/www/$domain/public_html/m/katomia/*.js"],
-'frontend-css'=>["/var/www/$domain/public_html/m/katomia/*.css"],
-// 'frontend php'=>["/var/www/$domain/public_html/m/katomia/*.php"]
+// 'backend js'=>['/home/hbarlive_hts/web*.js'],
+'backend js'=>['/home/hbarlive_hts/{kat,websocket}*.js'],
+'frontend js'=>["/var/www/$domain/public_html/m/katomia/*.js"],
+'frontend css'=>["/var/www/$domain/public_html/m/katomia/*.css"],
+'frontend php'=>["/var/www/$domain/public_html/m/katomia/*.php"]
 ];
 
 $exclude=['*.min.js','*bundle*','*node_modules*','*context_*','*log*'];
@@ -33,7 +34,8 @@ function expandPatterns($patterns,$exclude){
 
   foreach($patterns as $pattern){
 
-    foreach(glob($pattern)?:[] as $file){
+    // foreach(glob($pattern)?:[] as $file){
+    foreach(glob($pattern,GLOB_BRACE)?:[] as $file){
 
       if(!is_file($file)) continue;
       if(isExcluded($file,$exclude)) continue;
@@ -126,7 +128,7 @@ foreach($all as $group=>$files){
 
 <meta charset="utf-8">
 
-<title>Context</title>
+<title>Kontext</title>
 
 <style>
 
@@ -146,7 +148,7 @@ button{margin-right:8px;}
 
 <body>
 
-<h1>Context</h1>
+<h1>Kontext</h1>
 
 
 <?php foreach($all as $group=>$files){ ?>
@@ -202,7 +204,16 @@ $id=base64_encode($file);
 
 <script>
 
-const files=<?=json_encode($fileData,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)?>;
+const files=<?=json_encode(
+  $fileData,
+  JSON_UNESCAPED_SLASHES|
+  JSON_UNESCAPED_UNICODE|
+  JSON_HEX_TAG|
+  JSON_HEX_AMP|
+  JSON_HEX_APOS|
+  JSON_HEX_QUOT
+)?>;
+
 let generated="";
 
 function selectAll(){document.querySelectorAll(".ctxFile").forEach(x=>x.checked=true);}
