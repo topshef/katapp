@@ -25,7 +25,7 @@
 
   <div id="gameMeta" class="game-meta"></div>
 
-  <div class="controls">
+  <div class="controls mode-proposal">
     <label>
       <input id="accountLabelInput" placeholder="Account eg 12345" />
     </label>

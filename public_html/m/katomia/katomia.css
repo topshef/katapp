@@ -40,7 +40,7 @@
 
 
 
-    .mode-debug,.mode-order,.mode-proposal{ display:none; }
+    body .mode-debug, body .mode-order, body .mode-proposal{ display:none; }
 
     body[data-trading-mode="proposal"] .mode-proposal,
     body[data-trading-mode="debug"] .mode-proposal{ display:block; }
