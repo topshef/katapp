@@ -141,6 +141,7 @@ function confirmOrderAction(action){
   const ctx = window.createOrderContext || {}
 
   const msg = {
+    createOrderSubmit:`Create new order?`,
     createOrderEdit:`Replace order #${ctx.orderId} with edited values?`,
     createOrderDelete:`Delete order #${ctx.orderId}?`
   }
@@ -152,7 +153,7 @@ document.addEventListener("click",e => {
 
   const id = e.target.id
   const modal = document.getElementById("createOrderModal")
-  const actions = ["createOrderEdit","createOrderDelete"]
+  const actions = ["createOrderSubmit","createOrderEdit","createOrderDelete"]
 
   if(actions.includes(id) && window.createOrderContext?.orderId && !confirmOrderAction(id)){
     e.preventDefault()
