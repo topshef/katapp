@@ -71,14 +71,18 @@ function renderCreateOrderActions(defaults = {}){
 
   el.innerHTML = ""
 
+  const htmlActions = `
+      <div class="order-actions">
+      <button id="createOrderExit">◀ Back</button>
+      </div>  
+  `
+
   if(!defaults.orderId){
     el.innerHTML = `
       <div class="order-actions">
       <button id="createOrderSubmit" data-help="Create a new order">Create new order</button>
       </div>
-      <div class="order-actions">
-      <button id="createOrderExit">Close</button>
-      </div>
+      ${htmlActions}
     `
     
     return
@@ -94,9 +98,7 @@ function renderCreateOrderActions(defaults = {}){
   ${mine ? `<button id="createOrderDelete" data-help="Cancel and remove this order">Delete</button>` : ""}
   </div>
   </div>
-  <div class="order-actions">
-  <button id="createOrderExit">Close</button>
-  </div>  
+  ${htmlActions}  
   `
   //todo move truncate option next to volume ?    
   //  ${mine ? `<button id="createOrderTruncate" data-help="Reduce order to remaining unsettled amount (coming soon)">Truncate</button>` : ""}
