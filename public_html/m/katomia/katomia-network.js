@@ -67,7 +67,7 @@ addAccountBtn.onclick = () => {
 
 cancelOrderBtn.onclick = () => {
 
-  const input = prompt("Enter order Id(s)\n\nComma separated")
+  const input = prompt("Delete order(s)\n\nEnter order Ids, comma separated")
   if(!input) return
 
   input.split(",").map(x => x.trim()).filter(Boolean).forEach(orderId => cancelOrder(orderId))

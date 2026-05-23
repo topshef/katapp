@@ -51,12 +51,12 @@
     </summary>
 
     <div class="section-controls">
-      <button id="createOrderBtn">
-        <i class="fa-solid fa-plus"></i> Create order
+      <button id="createOrderBtn" title=".     Create order" aria-label="Create order">
+        <i class="fa-solid fa-plus"></i>
       </button>
 
-      <button id="cancelOrderBtn">
-        <i class="fa-solid fa-minus"></i> Cancel order
+      <button id="cancelOrderBtn" title=".     Cancel order" aria-label="Cancel order">
+        <i class="fa-solid fa-minus"></i>
       </button>
 
       <label>
