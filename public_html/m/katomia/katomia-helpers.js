@@ -137,9 +137,10 @@
           ...pair,
 
           value:`${pair.base}/${pair.quote}`,
-
-          baseDecimals:Number(baseMeta?.token_class?.decimals || 0),  //!!!!! TODO remove unsafe fallback
-          quoteDecimals:Number(quoteMeta?.token_class?.decimals || 0) //!!!!! TODO remove unsafe fallback
+          
+          // hang on something wrong with decimals we need check
+          baseDecimals:Number(baseMeta?.token_class?.decimals || 0),  //!!!!! TODO remove unsafe fallback   
+          quoteDecimals:Number(quoteMeta?.token_class?.decimals || 0) //!!!!! TODO remove unsafe fallback   
         }
 
       })
