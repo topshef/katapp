@@ -1374,6 +1374,39 @@ svg .svg-sell{
 }
 
 
+#createOrderModal .account-picker{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+#createOrderModal .account-picker select{
+  flex:1;
+  min-width:0;
+}
+
+#createOrderModal .account-picker button{
+  min-width:26px;
+  min-height:26px;
+
+  padding:3px 7px;
+
+  background:#eee;
+  color:#555;
+
+  border:none;
+  border-radius:6px;
+
+  font-size:12px;
+
+  flex:none;
+}
+
+#createOrderModal .account-picker button:hover{
+  background:#ddd;
+}
+
+
 
 .order-action-help{
   margin-bottom:10px;
@@ -1426,4 +1459,7 @@ textarea:focus{
 .account-row.merged .asset-thumb{
   margin:2px 4px;
 }
+
+
+
 

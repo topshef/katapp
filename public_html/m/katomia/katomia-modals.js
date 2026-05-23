@@ -1,5 +1,98 @@
 
 window.createOrderDirty = false
+window.pendingCreateOrderAccount = null
+
+function accountMatchesInput(account, input){
+  return (
+    account.label == input ||
+    account.id == input ||
+    account.id.endsWith(":" + input)
+  )
+}
+
+function pollUntil(condition, callback, interval = 200, timeout = 10000){
+  const poll = setInterval(() => {
+    if(condition()){
+      clearInterval(poll)
+      callback()
+    }
+  }, interval)
+  setTimeout(() => clearInterval(poll), timeout)
+}
+
+function refreshCreateOrderAccounts(selectedId = null){
+
+  const accountSelect = document.getElementById("createOrderAccount")
+  if(!accountSelect) return
+
+  const currentSelected = selectedId || accountSelect.value
+  accountSelect.innerHTML = ""
+
+  getAccounts()
+    .filter(account => isMyAccount(account))
+    .forEach(account => {
+
+      const option = document.createElement("option")
+      option.value = account.id
+      option.textContent = account.label || account.id
+      accountSelect.appendChild(option)
+
+      if(
+        window.pendingCreateOrderAccount &&
+        accountMatchesInput(account, window.pendingCreateOrderAccount)
+      ){
+        selectedId = account.id
+        window.pendingCreateOrderAccount = null
+      }
+
+    })
+
+  accountSelect.value = selectedId || currentSelected || accountSelect.value
+}
+
+document.addEventListener("click", e => {
+
+  const id = e.target.id
+  const modal = document.getElementById("createOrderModal")
+  const actions = ["createOrderSubmit","createOrderEdit","createOrderDelete"]
+
+  if(id == "createOrderAccountAdd"){
+    const input = prompt("Enter account ID")
+    if(!input) return
+    addAccounts(input)
+    const countBefore = getAccounts().filter(a => isMyAccount(a)).length
+    pollUntil(
+      () => getAccounts().filter(a => isMyAccount(a)).length > countBefore,
+      () => refreshCreateOrderAccounts()
+    )
+    return
+  }
+
+  if(id == "createOrderAccountRemove"){
+    const accountId = document.getElementById("createOrderAccount").value
+    if(!accountId) return
+    removeAccount(accountId)
+    pollUntil(
+      () => !getAccounts().some(a => a.id == accountId),
+      () => refreshCreateOrderAccounts()
+    )
+    return
+  }
+
+  if(actions.includes(id) && window.createOrderContext?.orderId && !confirmOrderAction(id)){
+    e.preventDefault()
+    e.stopImmediatePropagation()
+    return false
+  }
+
+  if(id == "createOrderClose" || id == "createOrderExit")
+    return closeCreateOrderModal()
+
+  if(e.target == modal && !window.createOrderDirty)
+    closeCreateOrderModal()
+
+}, true)
+
 
 function openCreateOrderModal(defaults = {}){
   
@@ -25,18 +118,7 @@ function openCreateOrderModal(defaults = {}){
 
   })
 
-  getAccounts().filter(account => isMyAccount(account)).forEach(account => {
-
-    const option = document.createElement("option")
-
-    option.value = account.id
-    option.textContent = account.label || account.id
-
-    accountSelect.appendChild(option)
-
-  })
-
-
+  refreshCreateOrderAccounts(defaults.accountId)
 
   window.createOrderContext = defaults
 
@@ -148,26 +230,6 @@ function confirmOrderAction(action){
 
   return confirm(msg[action] || "Continue?")
 }
-
-document.addEventListener("click",e => {
-
-  const id = e.target.id
-  const modal = document.getElementById("createOrderModal")
-  const actions = ["createOrderSubmit","createOrderEdit","createOrderDelete"]
-
-  if(actions.includes(id) && window.createOrderContext?.orderId && !confirmOrderAction(id)){
-    e.preventDefault()
-    e.stopImmediatePropagation()
-    return false
-  }
-
-  if(id == "createOrderClose" || id == "createOrderExit")
-    return closeCreateOrderModal()
-
-  if(e.target == modal && !window.createOrderDirty)
-    closeCreateOrderModal()
-
-},true)
 
 
 function getCreateOrderData(){

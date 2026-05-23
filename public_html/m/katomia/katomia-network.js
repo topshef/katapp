@@ -29,40 +29,64 @@ function splitAccountLabels(input){
 
 
 
-addAccountBtn.onclick = () => {
-  const raw = accountLabelInput.value.trim()
+function addAccounts(raw){
+
+  raw = raw.trim()
   if(!raw) return
 
   const labels = splitAccountLabels(raw)
   const playerToken = getOrCreatePlayerToken()
 
   const sendAll = () => {
+
     labels.forEach(label => {
+
       let out = label
 
       if(gameMeta.network === "testnet" || gameMeta.network === "mainnet"){
-        if(/^\d+$/.test(out)){
+        if(/^\d+$/.test(out))
           out = "0.0." + out
-        }
       }
 
       socket.send(JSON.stringify({
-        type: "game_addAccount",
+        type:"game_addAccount",
         gameId,
         playerToken,
-        label: out
+        label:out
       }))
     })
+
   }
 
-  if(!socket || socket.readyState !== WebSocket.OPEN){
-    connect(sendAll)
-  } else {
-    sendAll()
-  }
+  if(!socket || socket.readyState !== WebSocket.OPEN) connect(sendAll)
+  else sendAll()
+}
 
+function removeAccount(accountId){
+
+  const account =
+    getAccounts().find(x => x.id == accountId)
+
+  if(!account) return
+
+  const ok = confirm(
+    `Remove account ${account.label}?\n\nAll assets and offers will be removed.`
+  )
+
+  if(!ok) return
+
+  socket.send(JSON.stringify({
+    type:"game_removeAccount",
+    gameId,
+    accountId
+  }))
+}
+
+addAccountBtn.onclick = () => {
+  addAccounts(accountLabelInput.value)
   accountLabelInput.value = ""
 }
+
 
 
 const showTradingAccounts = document.getElementById("showTradingAccounts")

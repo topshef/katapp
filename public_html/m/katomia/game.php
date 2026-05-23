@@ -224,7 +224,12 @@
       <br><br>
       <label>Account</label>
 
-      <select id="createOrderAccount"></select>
+
+      <div class="account-picker">
+        <select id="createOrderAccount"></select>
+        <button type="button" id="createOrderAccountAdd">➕</button>
+        <button type="button" id="createOrderAccountRemove">➖</button>
+      </div>
 
       <br><br>
 
