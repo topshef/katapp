@@ -97,6 +97,108 @@ document.addEventListener("click", e => {
 }, true)
 
 
+function computeAutoMinFill(offerRaw, requestRaw){
+  const d = gcd(Math.abs(offerRaw), Math.abs(requestRaw))
+  return d > 0 ? { numerator: 1, denominator: d } : null
+}
+
+function validateOrderMath(){
+  const pairSelect   = document.getElementById("createOrderPair")
+  const volumeEl     = document.getElementById("createOrderVolume")
+  const rateEl       = document.getElementById("createOrderRate")
+  const minFillEl    = document.getElementById("createOrderMinFill")
+  const hintEl       = document.getElementById("createOrderIntHint")
+  const submitEl     = document.getElementById("createOrderSubmit")
+  const side         = document.querySelector('[name="createOrderSide"]:checked')?.value
+
+  const volume = parseFloat(volumeEl?.value)
+  const rate   = parseFloat(rateEl?.value)
+
+  if(!Number.isFinite(volume) || !Number.isFinite(rate) || !side || !pairSelect?.value){
+    if(hintEl) hintEl.textContent = ""
+    if(submitEl) submitEl.disabled = false
+    return
+  }
+
+  const baseDecimalsRaw  = pairSelect.selectedOptions[0]?.dataset.baseDecimals
+  const quoteDecimalsRaw = pairSelect.selectedOptions[0]?.dataset.quoteDecimals
+  if(baseDecimalsRaw == null || quoteDecimalsRaw == null) return
+
+  const baseScale  = 10 ** Number(baseDecimalsRaw)
+  const quoteScale = 10 ** Number(quoteDecimalsRaw)
+
+  const offerRaw   = side === "sell"
+    ? Math.round(volume * baseScale)
+    : Math.round(volume * rate * quoteScale)
+
+  const requestRaw = side === "sell"
+    ? Math.round(volume * rate * quoteScale)
+    : Math.round(volume * baseScale)
+
+  // auto-fill minFill if empty or was previously auto-set
+  if(!minFillEl.value.trim() || window.minFillWasAutoSet){
+    const auto = computeAutoMinFill(offerRaw, requestRaw)
+    if(auto){
+      minFillEl.value = `${auto.numerator}/${auto.denominator}`
+      window.minFillWasAutoSet = true
+    }
+  }
+
+  // parse current minFill
+  const parts = minFillEl.value.trim().split("/")
+  const n = parseInt(parts[0], 10)
+  const d = parseInt(parts[1], 10)
+
+  if(parts.length !== 2 || !Number.isInteger(n) || !Number.isInteger(d) || d <= 0){
+    if(hintEl) hintEl.textContent = ""
+    return
+  }
+
+  const valid    = offerRaw % d === 0 && requestRaw % d === 0
+  const isDebug  = gameMeta?.config?.tradingMode === 'debug'
+  const blocked  = !valid && !isDebug
+
+  if(hintEl){
+    hintEl.innerHTML = ""
+    if(valid){
+      hintEl.style.color = "#2ecc71"
+      hintEl.textContent = "✅ integer math ok"
+    } else {
+      hintEl.style.color = "#e74c3c"
+
+      const nearestOfferRaw = Math.round(offerRaw / d) * d
+      const nearestVolume   = side === "sell"
+        ? nearestOfferRaw / baseScale
+        : nearestOfferRaw / quoteScale / rate
+
+      const msg = document.createTextNode(`⚠️ nearest valid volume: ${nearestVolume} `)
+      const btn = document.createElement("button")
+      btn.type      = "button"
+      btn.textContent = "use"
+      btn.style.cssText = "font-size:10px;padding:1px 6px;background:#eee;color:#333;border:1px solid #ccc;border-radius:4px;cursor:pointer;margin-left:4px;"
+      btn.onclick = () => {
+        volumeEl.value = nearestVolume
+        window.minFillWasAutoSet = false
+        validateOrderMath()
+        document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
+      }
+      hintEl.appendChild(msg)
+      hintEl.appendChild(btn)
+
+      if(isDebug){
+        const note = document.createTextNode(" [debug: submit allowed]")
+        hintEl.appendChild(note)
+      }
+    }
+  }
+
+  if(submitEl){
+    submitEl.disabled     = blocked
+    submitEl.style.opacity = blocked ? "0.4" : ""
+    submitEl.title        = blocked ? "Adjust volume or min fill — integer math check failed" : ""
+  }
+}
+
 function openCreateOrderModal(defaults = {}){
   
   
@@ -151,10 +253,16 @@ function openCreateOrderModal(defaults = {}){
 
   const tifEl = document.getElementById("createOrderTif")
   if(tifEl) tifEl.value = defaults.timeInForce || "GTC"
+
+  // if opening existing order with saved minFill, treat as manual; otherwise allow auto-fill
+  window.minFillWasAutoSet = !defaults.minFill
+
   document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
   window.createOrderDirty = false
   renderCreateOrderActions(defaults)
   document.getElementById("createOrderModal").classList.remove("hidden")
+  validateOrderMath()
+  
 }
 
 
@@ -290,14 +398,18 @@ function buildSimpleFxRaw(){
   return `${accountId};${offerAsset};${-offerAmount}|${accountId};${requestAsset};${requestAmount}`
 }
 
+
 document.addEventListener("input",e => {
   if(!e.target.closest("#createOrderModal")) return
   window.createOrderDirty = true
   if(e.target.id == "createOrderRaw") return
+  if(e.target.id == "createOrderMinFill") window.minFillWasAutoSet = false
   document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
+  validateOrderMath()
 })
 
 document.addEventListener("change",e => {
   if(!e.target.closest("#createOrderModal")) return
   window.createOrderDirty = true
+  validateOrderMath()
 })

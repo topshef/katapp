@@ -219,10 +219,11 @@
 
       <br><br>
 
-      <label>Minimum fill / granularity <span style="font-weight:normal;font-size:11px;color:#999">(fraction e.g. 1/3 or 2/6)</span></label>
-      <input id="createOrderMinFill" type="text" placeholder="e.g. 1/3">
+      <label>Minimum fill / granularity <span style="font-weight:normal;font-size:11px;color:#999">(auto-calculated, or override)</span></label>
+      <input id="createOrderMinFill" type="text" placeholder="auto">
+      <div id="createOrderIntHint" style="font-size:11px;min-height:18px;margin-top:4px;"></div>
 
-      <br><br>
+      <br>
 
       <label>Time in force</label>
       <select id="createOrderTif">
