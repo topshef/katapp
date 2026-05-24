@@ -118,6 +118,20 @@ function validateOrderMath(){
   const volume = parseFloat(volumeEl?.value)
   const rate   = parseFloat(rateEl?.value)
 
+  // unit labels — always update when pair is selected
+  const volumeUnitEl = document.getElementById("createOrderVolumeUnit")
+  const rateUnitEl   = document.getElementById("createOrderRateUnit")
+  if(pairSelect?.value){
+    const pairData = getAcceptedPairs().find(p => p.value === pairSelect.value)
+    if(pairData){
+      if(volumeUnitEl) volumeUnitEl.textContent = `${pairData.baseLabel} (${pairData.baseDecimals} dp)`
+      if(rateUnitEl)   rateUnitEl.textContent   = `${pairData.quoteLabel} (${pairData.quoteDecimals} dp)`
+    }
+  } else {
+    if(volumeUnitEl) volumeUnitEl.textContent = ""
+    if(rateUnitEl)   rateUnitEl.textContent   = ""
+  }
+
   // rate hint — always update regardless of other fields
   if(rateHintEl){
     if(Number.isFinite(rate) && rate > 0 && pairSelect?.value){
@@ -267,8 +281,10 @@ function openCreateOrderModal(defaults = {}){
     pairSelect.value = defaults.pair
 
   document.getElementById("createOrderVolume").value = defaults.volume ?? ""
-  document.getElementById("createOrderRate").value = defaults.rate ?? ""
-
+  document.getElementById("createOrderRate").value = defaults.rate != null
+    ? parseFloat(Number(defaults.rate).toPrecision(10))
+    : ""
+    
   const minFillEl = document.getElementById("createOrderMinFill")
   if(minFillEl)
     minFillEl.value = defaults.minFill

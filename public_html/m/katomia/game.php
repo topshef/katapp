@@ -209,13 +209,16 @@
 
       <br>
 
-      <label>Volume</label>
+      <label>Volume <span id="createOrderVolumeUnit" style="font-weight:normal;font-size:11px;color:#999;margin-left:4px;"></span></label>
       <input id="createOrderVolume" type="number" step="any">
-
+      
+      
       <br><br>
 
-      <label>Rate</label>
+      
+      <label>Rate <span id="createOrderRateUnit" style="font-weight:normal;font-size:11px;color:#999;margin-left:4px;"></span></label>
       <input id="createOrderRate" type="number" step="any">
+      
       <div id="createOrderRateHint" style="font-size:11px;color:#888;margin-top:4px;min-height:14px;"></div>
 
       <br>
