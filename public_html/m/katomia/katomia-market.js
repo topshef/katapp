@@ -43,7 +43,10 @@ function getSimpleFxMarkets(){
       playerId: orderRec.playerId,
       market
     })
-
+    if(!enrichedRow){
+      console.error('HJ39246 enrichedRow null — skipping', {orderId: orderRec.orderId, market})
+      return
+    }
     grouped[market.pair].push(enrichedRow)
 
   })
@@ -57,12 +60,24 @@ function enrichSimpleFxMarketRow({ orderId, playerId, market }){
   const baseMeta = getAssetMeta(market.baseAsset)
   const quoteMeta = getAssetMeta(market.quoteAsset)
 
-  const baseDecimals =
-    Number(baseMeta?.token_class?.decimals || 0)
+  const pair = getAcceptedPairs().find(p =>
+      p.base === market.baseAsset && p.quote === market.quoteAsset
+    )
 
-  const quoteDecimals =
-    Number(quoteMeta?.token_class?.decimals || 0)
+    const baseDecimals = baseMeta?.token_class?.decimals != null
+      ? Number(baseMeta.token_class.decimals)
+      : pair?.baseDecimals ?? (() => { console.error('HJ39246 baseDecimals unavailable', {orderId, market}); return null })()
 
+    const quoteDecimals = quoteMeta?.token_class?.decimals != null
+      ? Number(quoteMeta.token_class.decimals)
+      : pair?.quoteDecimals ?? (() => { console.error('HJ39246 quoteDecimals unavailable', {orderId, market}); return null })()
+
+    // if(baseDecimals === null || quoteDecimals === null) return null
+    if(baseDecimals === null || quoteDecimals === null){
+      alert(`HJ39246 decimals unavailable for pair ${market.pair} — order ${orderId}`)
+      return null
+    }    
+        
   // const displayBaseAmount =
     // market.baseAmount / (10 ** baseDecimals)
 
