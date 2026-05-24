@@ -479,7 +479,8 @@ function renderHeatmapBar(svg,row,l,opacity){
   rect.onclick = e => {
 
     // if(!e.ctrlKey) return
-
+    const fullOrder = getAllOrders().find(x => String(x.orderId) === String(row.orderId))?.order
+    
     openCreateOrderModal({
       mode:"order",
       orderId:row.orderId,
@@ -489,8 +490,9 @@ function renderHeatmapBar(svg,row,l,opacity){
       side:row.side,
       volume:row.originalDisplayBaseAmount,
       rate:row.displayRate,
-      accountId:`${row.playerId}:${row.accountId}`
-
+      accountId:`${row.playerId}:${row.accountId}`,
+      minFill:     fullOrder?.minFill     || null,
+      timeInForce: fullOrder?.timeInForce || "GTC",
     })
 
   }
@@ -1440,9 +1442,9 @@ function renderOrderMarketSummary(){
         })
 
         marketLabel =
-          `[${row.side} ` +
+          `${row.side} ` +
           `${row.displayBaseAmount} ` +
-          `${row.pair} @${row.displayRate}]`
+          `${row.pair} @${row.displayRate}`
       }
 
 
@@ -1476,17 +1478,17 @@ function renderOrderMarketSummary(){
 
         })
 
-
-
 }
 
       const prefix = document.createElement("span")
 
+      const tifText      = order.timeInForce
+      const minFillText  = order.minFill ? ` min ${order.minFill.numerator}/${order.minFill.denominator}` : ""
+
       prefix.textContent =
         `Order #${orderId} (${playerId}${mine ? "=you" : ""}) ` +
-        `[${orderType}] ${marketLabel} ` +
-        // `[filled ${fill.numerator}/${fill.denominator}]: `
-        `[filled ${fill.numerator}/${fill.denominator}${kpoolText}${settledText}]: `
+        `[${tifText}] [${orderType}] [${marketLabel} ${minFillText}]` +
+        ` [filled ${fill.numerator}/${fill.denominator}${kpoolText}${settledText}]: `
         
 
       const arrow = document.createElement("span")

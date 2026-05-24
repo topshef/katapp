@@ -143,6 +143,14 @@ function openCreateOrderModal(defaults = {}){
   document.getElementById("createOrderVolume").value = defaults.volume ?? ""
   document.getElementById("createOrderRate").value = defaults.rate ?? ""
 
+  const minFillEl = document.getElementById("createOrderMinFill")
+  if(minFillEl)
+    minFillEl.value = defaults.minFill
+      ? `${defaults.minFill.numerator}/${defaults.minFill.denominator}`
+      : ""
+
+  const tifEl = document.getElementById("createOrderTif")
+  if(tifEl) tifEl.value = defaults.timeInForce || "GTC"
   document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
   window.createOrderDirty = false
   renderCreateOrderActions(defaults)
