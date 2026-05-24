@@ -203,9 +203,14 @@
       <label>Order type</label>
       <select id="createOrderType">
         <option value="simple-fx">Simple FX</option>
-        <option disabled>Collectible Swap (coming soon)</option>
-        <option disabled>Auction (coming soon)</option>
-        <option disabled>Generic Bundle (coming soon)</option>
+        <option value="basket-fx" disabled>Basket FX</option>
+        <option value="simple-nft" disabled>Simple NFT</option>
+        <option value="simple-le" disabled>Simple LE (Limited Edition)</option>
+        <option value="simple-collectible" disabled>Simple Collectible</option>
+        <option value="basket-collectible" disabled>Basket Collectible</option>
+        <option value="offer" disabled>Offer / one-sided</option>
+        <option value="request" disabled>Request / one-sided</option>
+        <option value="exotic" disabled>Exotic / generic bundle</option>
       </select>
 
       <br><br>
