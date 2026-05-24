@@ -1401,14 +1401,21 @@ function getOrderFillStatus(orderId){
   return { fill, pendingText, settledText }
 }
 
+
+
+function formatRate(rate){
+  return parseFloat(Number(rate).toPrecision(12))
+}
+
 function getOrderMarketLabel(orderId, playerId, enriched){
   if(enriched.market?.type !== "simple-fx") return enriched.derivedLabel || ""
 
   const fxRow = enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market })
   if(!fxRow) return enriched.derivedLabel || ""
 
-  return `${fxRow.side} ${fxRow.displayBaseAmount} ${fxRow.pair} @${fxRow.displayRate}`
+  return `${fxRow.side} ${fxRow.displayBaseAmount} ${fxRow.pair} @${formatRate(fxRow.displayRate)}`
 }
+
 
 function makeOrderRowOnClick(orderId, playerId, enriched, order){
   return () => {

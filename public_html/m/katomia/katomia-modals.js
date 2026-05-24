@@ -201,10 +201,8 @@ function validateOrderMath(){
     } else {
       hintEl.style.color = "#e74c3c"
 
-      const nearestOfferRaw = Math.round(offerRaw / d) * d
-      const nearestVolume   = side === "sell"
-        ? nearestOfferRaw / baseScale
-        : nearestOfferRaw / quoteScale / rate
+      const nearestBaseRaw = Math.round(Math.round(volume * baseScale) / d) * d
+      const nearestVolume  = parseFloat((nearestBaseRaw / baseScale).toFixed(Number(baseDecimalsRaw)))
 
       const msg = document.createTextNode(`⚠️ nearest valid volume: ${nearestVolume} `)
       const btn = document.createElement("button")
