@@ -197,8 +197,6 @@
       </div>
       
 			<br>
-
-
       
       <label>Order type</label>
       <select id="createOrderType">
@@ -225,10 +223,8 @@
         <label><input type="radio" name="createOrderSide" value="sell" checked> Sell</label>
       </div>
       
-      
-      <br><br>
+      <br>
       <label>Account</label>
-
 
       <div class="account-picker">
         <select id="createOrderAccount"></select>
@@ -236,7 +232,7 @@
         <button type="button" id="createOrderAccountRemove">➖</button>
       </div>
 
-      <br><br>
+      <br>
 
       <label>Volume</label>
       <input id="createOrderVolume" type="number" step="any">
@@ -245,6 +241,17 @@
 
       <label>Rate</label>
       <input id="createOrderRate" type="number" step="any">
+
+      <br><br>
+
+      <label>Time in force</label>
+      <select id="createOrderTif">
+        <option value="GTC" selected>♾️ GTC — Good till cancelled</option>
+        <option value="IOC" disabled>⚡ IOC — Immediate or cancel</option>
+        <option value="FOK" disabled>🎯 FOK — Fill or kill</option>
+        <option value="GTD" disabled>📅 GTD — Good till date</option>
+              
+      </select>
 
 			<br>
       <details id="createOrderDev">

@@ -1573,13 +1573,31 @@ function cancelOrder(orderId){
 
 function createOrderFromModal(){
 
+  const timeInForce = document.getElementById("createOrderTif")?.value || "GTC"
+
   getCreateOrderData().forEach(line => {
 
     const bundle = normaliseOrder(line)
-    const order = {bundle}
+
+    const order = {
+
+      bundle,
+
+      timeInForce,  // GTC | IOC | FOK | GTD — execution policy (only GTC active)
+
+      // placeholder: conditions controlling which counterparties/orders this may match with
+      // e.g. { minRepScore: 0.8, allowedAccounts: ["0.0.xxx"], excludeAccounts: [] }
+      matchConditions: null,
+
+      // placeholder: intent signature — signs canonical order hash with a local hotkey
+      // purpose: reputation/credit scoring and order provenance, not Hedera execution
+      // format when implemented: { signer: "0.0.xxx", algorithm: "ed25519", signature: "hex..." }
+      intentSignature: null,
+
+    }
 
     socket.send(JSON.stringify({
-      type:"game_orderCreate",
+      type: "game_orderCreate",
       gameId,
       order
     }))
@@ -1588,6 +1606,7 @@ function createOrderFromModal(){
 
   closeCreateOrderModal()
 }
+
 
 function normaliseOrder(input){
   try {
