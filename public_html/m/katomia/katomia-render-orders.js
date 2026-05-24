@@ -1571,27 +1571,68 @@ function cancelOrder(orderId){
   }))
 }
 
+
 function createOrderFromModal(){
 
   const timeInForce = document.getElementById("createOrderTif")?.value || "GTC"
+
+  // parse minFill fraction from free-text input e.g. "1/3" or "2/6"
+  const minFillRaw = (document.getElementById("createOrderMinFill")?.value || "").trim()
+  let minFill = null
+
+  if(minFillRaw){
+    const parts = minFillRaw.split("/").map(x => x.trim())
+    const n = parseInt(parts[0], 10)
+    const d = parseInt(parts[1], 10)
+
+    if(parts.length !== 2 || !Number.isInteger(n) || !Number.isInteger(d) || n <= 0 || d <= 0 || n > d){
+      alert("Min fill must be a valid fraction e.g. 1/3 or 2/6\n\nnumerator and denominator must be positive integers, numerator ≤ denominator")
+      return
+    }
+
+    minFill = { numerator: n, denominator: d }
+  }
+
+  const clientOrderId = crypto.randomUUID()
 
   getCreateOrderData().forEach(line => {
 
     const bundle = normaliseOrder(line)
 
+    // integer math check: warn if D doesn't divide cleanly into any bundle amount
+    if(minFill && Array.isArray(bundle)){
+      const fractional = bundle.filter(item =>
+        typeof item.amount === 'number' &&
+        Math.abs(item.amount) % minFill.denominator !== 0
+      )
+      if(fractional.length){
+        const ok = confirm(
+          `Warning: minFill denominator ${minFill.denominator} doesn't divide evenly into ` +
+          `some bundle amounts — fills may be truncated.\n\nProceed anyway?`
+        )
+        if(!ok) return
+      }
+    }
+
     const order = {
 
       bundle,
 
-      timeInForce,  // GTC | IOC | FOK | GTD — execution policy (only GTC active)
+      // { numerator, denominator } — minimum fill fraction; step granularity = 1/denominator
+      // e.g. 2/6 means min fill is 1/3, but fills of 1/6 increments are valid (incl. exactly 1/2)
+      minFill,
 
-      // placeholder: conditions controlling which counterparties/orders this may match with
-      // e.g. { minRepScore: 0.8, allowedAccounts: ["0.0.xxx"], excludeAccounts: [] }
+      timeInForce,  // GTC | IOC | FOK | GTD — execution policy (only GTC active)
+      expiresAt: null,  // Unix ms — used with GTD; ignored until implemented
+
+      clientOrderId,    // client-generated UUID — idempotency key and nonce for intentSignature
+
+      // placeholder: conditions controlling counterparty matching
+      // e.g. { minRepScore: 0.8, allowedAccounts: [], excludeAccounts: [] }
       matchConditions: null,
 
-      // placeholder: intent signature — signs canonical order hash with a local hotkey
-      // purpose: reputation/credit scoring and order provenance, not Hedera execution
-      // format when implemented: { signer: "0.0.xxx", algorithm: "ed25519", signature: "hex..." }
+      // placeholder: ed25519 sign of canonical { gameId, network, accountId, bundle,
+      //   timeInForce, minFill, clientOrderId, issuedAt } — intent provenance, not Hedera execution
       intentSignature: null,
 
     }
@@ -1606,6 +1647,7 @@ function createOrderFromModal(){
 
   closeCreateOrderModal()
 }
+
 
 
 function normaliseOrder(input){

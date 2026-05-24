@@ -244,6 +244,11 @@
 
       <br><br>
 
+      <label>Minimum fill / granularity <span style="font-weight:normal;font-size:11px;color:#999">(fraction e.g. 1/3 or 2/6)</span></label>
+      <input id="createOrderMinFill" type="text" placeholder="e.g. 1/3">
+
+      <br><br>
+
       <label>Time in force</label>
       <select id="createOrderTif">
         <option value="GTC" selected>♾️ GTC — Good till cancelled</option>
