@@ -244,17 +244,21 @@ async function enrichAccountLabel(network, accountId){
   return {label}
 }
 
+
 async function enrichVisibleAccounts(){
 
   if(!gameMeta.network) return
   if(!state?.accounts) return
+
+  window.assetDisplayCache  ||= {}
+  window.assetMetaPending   ||= new Set()
 
   const jobs = []
 
   Object.values(state.accounts).forEach(account => {
 
     const id = account.id.split(":")[1] || null
-    if (!id) console.warn('PH93844 missing account id', account.id)
+    if(!id) console.warn('PH93844 missing account id', account.id)
 
     if(window.accountLabelCache[id]) return
     if(window.accountLabelPending.has(id)) return
@@ -265,21 +269,53 @@ async function enrichVisibleAccounts(){
       (async () => {
         try{
           const enriched = await enrichAccountLabel(gameMeta.network, id)
-
           window.accountLabelCache[id] = enriched.label
-        }
-        catch(err){
+        }catch(err){
           console.error("account label enrichment failed", id, err)
-        }
-        finally{
+        }finally{
           window.accountLabelPending.delete(id)
         }
       })()
     )
   })
 
+  enrichOrderBundleAssets(jobs)
+
   if(jobs.length){
     await Promise.all(jobs)
     render()
   }
 }
+
+
+function enrichOrderBundleAssets(jobs){
+
+  window.assetDisplayCache  ||= {}
+  window.assetMetaPending   ||= new Set()
+
+  getAllOrders().forEach(orderRec => {
+    ;(orderRec.order?.bundle || []).forEach(item => {
+      const assetId = item.asset
+      if(!assetId) return
+      if(window.assetDisplayCache[assetId]) return
+      if(window.assetMetaPending.has(assetId)) return
+
+      window.assetMetaPending.add(assetId)
+
+      jobs.push(
+        (async () => {
+          try{
+            const enriched = await enrichAsset(gameMeta.network, assetId, Math.abs(item.amount))
+            window.assetDisplayCache[assetId] = enriched.meta
+          }catch(err){
+            console.error("order bundle asset enrichment failed", assetId, err)
+          }finally{
+            window.assetMetaPending.delete(assetId)
+          }
+        })()
+      )
+    })
+  })
+}
+
+
