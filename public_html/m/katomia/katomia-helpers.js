@@ -124,27 +124,14 @@
 
 
     function getAcceptedPairs(){
-      // const pairs = gameMeta?.config?.allowedPairs || []
-      const pairs = [...(gameMeta?.config?.allowedPairs || [])] //spread [...] avoids mutating the original array
+      const pairs = [...(gameMeta?.config?.allowedPairs || [])]
       pairs.sort((a, b) => a.label.localeCompare(b.label))
-
-      return pairs.map(pair => {
-
-        const baseMeta = getAssetMeta(pair.base)
-        const quoteMeta = getAssetMeta(pair.quote)
-
-        return {
-          ...pair,
-
-          value:`${pair.base}/${pair.quote}`,
-          
-          baseDecimals:Number(baseMeta?.token_class?.decimals || 0),  //!!!!! TODO remove unsafe fallback
-          quoteDecimals:Number(quoteMeta?.token_class?.decimals || 0) //!!!!! TODO remove unsafe fallback
-        }
-
-      })
-
+      return pairs.map(pair => ({
+        ...pair,
+        value: `${pair.base}/${pair.quote}`
+      }))
     }
+
 
 
     function getAllowedPairLabels(){

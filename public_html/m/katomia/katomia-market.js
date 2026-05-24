@@ -61,22 +61,17 @@ function enrichSimpleFxMarketRow({ orderId, playerId, market }){
   const quoteMeta = getAssetMeta(market.quoteAsset)
 
   const pair = getAcceptedPairs().find(p =>
-      p.base === market.baseAsset && p.quote === market.quoteAsset
-    )
+    p.base === market.baseAsset && p.quote === market.quoteAsset
+  )
 
-    const baseDecimals = baseMeta?.token_class?.decimals != null
-      ? Number(baseMeta.token_class.decimals)
-      : pair?.baseDecimals ?? (() => { console.error('HJ39246 baseDecimals unavailable', {orderId, market}); return null })()
+  if(!pair){
+    console.error('HJ39246 pair not found in allowedPairs', {baseAsset: market.baseAsset, quoteAsset: market.quoteAsset, orderId})
+    alert(`HJ39246 pair not found for order ${orderId} — ${market.baseAsset}/${market.quoteAsset}`)
+    return null
+  }
 
-    const quoteDecimals = quoteMeta?.token_class?.decimals != null
-      ? Number(quoteMeta.token_class.decimals)
-      : pair?.quoteDecimals ?? (() => { console.error('HJ39246 quoteDecimals unavailable', {orderId, market}); return null })()
-
-    // if(baseDecimals === null || quoteDecimals === null) return null
-    if(baseDecimals === null || quoteDecimals === null){
-      alert(`HJ39246 decimals unavailable for pair ${market.pair} — order ${orderId}`)
-      return null
-    }    
+  const baseDecimals = pair.baseDecimals
+  const quoteDecimals = pair.quoteDecimals
         
   // const displayBaseAmount =
     // market.baseAmount / (10 ** baseDecimals)
@@ -177,15 +172,15 @@ function estimateMarketTrade({
   const targetVolume =
     Math.abs(volume)
 
-  const baseMeta =
-    getAssetMeta(
-      rows[0]?.baseAsset
-    )
+  const pairData = getAcceptedPairs().find(p => p.label === pair)
 
-  const baseDecimals =
-    Number(
-      baseMeta?.token_class?.decimals || 0
-    )
+  if(!pairData){
+    console.error('HJ39246 estimateMarketTrade pair not found', {pair})
+    alert(`HJ39246 estimateMarketTrade: pair not found — ${pair}`)
+    return { pair, side, requestedVolume: targetVolume, matchedVolume: 0, remainingVolume: targetVolume, effectiveRate: 0, fills: [] }
+  }
+
+  const baseDecimals = pairData.baseDecimals
     
   const compatible =
     rows.filter(row => {

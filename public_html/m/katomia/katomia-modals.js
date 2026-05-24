@@ -262,9 +262,18 @@ function buildSimpleFxRaw(){
   if(!Number.isFinite(volume) || !Number.isFinite(rate)) return ""
 
   const [base, quote] = pair.split("/")
-  const baseScale = 10 ** Number(pairSelect.selectedOptions[0]?.dataset.baseDecimals || 0)
-  const quoteScale = 10 ** Number(pairSelect.selectedOptions[0]?.dataset.quoteDecimals || 0)
+  const baseDecimalsRaw = pairSelect.selectedOptions[0]?.dataset.baseDecimals
+  const quoteDecimalsRaw = pairSelect.selectedOptions[0]?.dataset.quoteDecimals
 
+  if(baseDecimalsRaw == null || quoteDecimalsRaw == null){
+    alert(`HJ39246 ORDER CREATION: missing decimals for pair ${pair} — baseDecimals=${baseDecimalsRaw} quoteDecimals=${quoteDecimalsRaw}`)
+    return ""
+  }
+
+  const baseScale = 10 ** Number(baseDecimalsRaw)
+  const quoteScale = 10 ** Number(quoteDecimalsRaw)
+  
+  
   const offerAsset = side == "sell" ? base : quote
   const requestAsset = side == "sell" ? quote : base
   const offerAmount = side == "sell" ? Math.round(volume * baseScale) : Math.round(volume * rate * quoteScale)
