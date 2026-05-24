@@ -102,17 +102,34 @@ function computeAutoMinFill(offerRaw, requestRaw){
   return d > 0 ? { numerator: 1, denominator: d } : null
 }
 
+
+
+
 function validateOrderMath(){
   const pairSelect   = document.getElementById("createOrderPair")
   const volumeEl     = document.getElementById("createOrderVolume")
   const rateEl       = document.getElementById("createOrderRate")
   const minFillEl    = document.getElementById("createOrderMinFill")
   const hintEl       = document.getElementById("createOrderIntHint")
+  const rateHintEl   = document.getElementById("createOrderRateHint")
   const submitEl     = document.getElementById("createOrderSubmit")
   const side         = document.querySelector('[name="createOrderSide"]:checked')?.value
 
   const volume = parseFloat(volumeEl?.value)
   const rate   = parseFloat(rateEl?.value)
+
+  // rate hint — always update regardless of other fields
+  if(rateHintEl){
+    if(Number.isFinite(rate) && rate > 0 && pairSelect?.value){
+      const pairData   = getAcceptedPairs().find(p => p.value === pairSelect.value)
+      const baseLabel  = pairData?.baseLabel  || "base"
+      const quoteLabel = pairData?.quoteLabel || "quote"
+      rateHintEl.textContent =
+        `1 ${baseLabel} = ${rate} ${quoteLabel}  |  1 ${quoteLabel} = ${(1/rate).toPrecision(6)} ${baseLabel}`
+    } else {
+      rateHintEl.textContent = ""
+    }
+  }
 
   if(!Number.isFinite(volume) || !Number.isFinite(rate) || !side || !pairSelect?.value){
     if(hintEl) hintEl.textContent = ""
@@ -135,8 +152,9 @@ function validateOrderMath(){
     ? Math.round(volume * rate * quoteScale)
     : Math.round(volume * baseScale)
 
-  // auto-fill minFill if empty or was previously auto-set
-  if(!minFillEl.value.trim() || window.minFillWasAutoSet){
+  // auto-fill only when minFill field is NOT focused
+  const minFillFocused = document.activeElement === minFillEl
+  if((!minFillEl.value.trim() || window.minFillWasAutoSet) && !minFillFocused){
     const auto = computeAutoMinFill(offerRaw, requestRaw)
     if(auto){
       minFillEl.value = `${auto.numerator}/${auto.denominator}`
@@ -144,7 +162,6 @@ function validateOrderMath(){
     }
   }
 
-  // parse current minFill
   const parts = minFillEl.value.trim().split("/")
   const n = parseInt(parts[0], 10)
   const d = parseInt(parts[1], 10)
@@ -154,15 +171,19 @@ function validateOrderMath(){
     return
   }
 
-  const valid    = offerRaw % d === 0 && requestRaw % d === 0
-  const isDebug  = gameMeta?.config?.tradingMode === 'debug'
-  const blocked  = !valid && !isDebug
+  const valid   = offerRaw % d === 0 && requestRaw % d === 0
+  const isDebug = gameMeta?.config?.tradingMode === 'debug'
+  const blocked = !valid && !isDebug
 
   if(hintEl){
     hintEl.innerHTML = ""
+
     if(valid){
       hintEl.style.color = "#2ecc71"
       hintEl.textContent = "✅ integer math ok"
+      if(isDebug)
+        hintEl.textContent += `  |  offer: ${offerRaw}  req: ${requestRaw}  gcd: ${gcd(offerRaw, requestRaw)}`
+
     } else {
       hintEl.style.color = "#e74c3c"
 
@@ -173,7 +194,7 @@ function validateOrderMath(){
 
       const msg = document.createTextNode(`⚠️ nearest valid volume: ${nearestVolume} `)
       const btn = document.createElement("button")
-      btn.type      = "button"
+      btn.type = "button"
       btn.textContent = "use"
       btn.style.cssText = "font-size:10px;padding:1px 6px;background:#eee;color:#333;border:1px solid #ccc;border-radius:4px;cursor:pointer;margin-left:4px;"
       btn.onclick = () => {
@@ -186,18 +207,21 @@ function validateOrderMath(){
       hintEl.appendChild(btn)
 
       if(isDebug){
-        const note = document.createTextNode(" [debug: submit allowed]")
-        hintEl.appendChild(note)
+        hintEl.appendChild(document.createTextNode(
+          `  [debug: submit allowed]  |  offer: ${offerRaw}  req: ${requestRaw}  d: ${d}  offer%d: ${offerRaw%d}  req%d: ${requestRaw%d}`
+        ))
       }
     }
   }
 
   if(submitEl){
-    submitEl.disabled     = blocked
+    submitEl.disabled      = blocked
     submitEl.style.opacity = blocked ? "0.4" : ""
-    submitEl.title        = blocked ? "Adjust volume or min fill — integer math check failed" : ""
+    submitEl.title         = blocked ? "Adjust volume or min fill — integer math check failed" : ""
   }
 }
+
+
 
 function openCreateOrderModal(defaults = {}){
   
@@ -408,8 +432,17 @@ document.addEventListener("input",e => {
   validateOrderMath()
 })
 
+
 document.addEventListener("change",e => {
   if(!e.target.closest("#createOrderModal")) return
   window.createOrderDirty = true
   validateOrderMath()
 })
+
+// auto-fill minFill on blur if left empty
+document.getElementById("createOrderMinFill")?.addEventListener("blur", () => {
+  if(!document.getElementById("createOrderMinFill").value.trim())
+    window.minFillWasAutoSet = true
+  validateOrderMath()
+})
+

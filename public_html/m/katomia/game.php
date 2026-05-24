@@ -216,8 +216,10 @@
 
       <label>Rate</label>
       <input id="createOrderRate" type="number" step="any">
+      <div id="createOrderRateHint" style="font-size:11px;color:#888;margin-top:4px;min-height:14px;"></div>
 
-      <br><br>
+      <br>
+
 
       <label>Minimum fill / granularity <span style="font-weight:normal;font-size:11px;color:#999">(auto-calculated, or override)</span></label>
       <input id="createOrderMinFill" type="text" placeholder="auto">
