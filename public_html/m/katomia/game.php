@@ -105,87 +105,62 @@
 <BR>
 
 <div class="mode-proposal">
+  <details class="orders-details" open>
+    <summary class="subtle">
+      Proposals
+    </summary>
 
-
-
-  <div class="section-controls">
-
-    <div class="section-controls-title">
-      Proposal mode
+    <div class="section-controls">
+      <label>
+        <input type="checkbox" id="showTradingAccounts" />
+        Trading accounts only
+      </label>
+      <label>
+        <input type="checkbox" id="showTradedAssets"/>
+        Traded assets only
+      </label>
+      <label class="desktop-toggle">
+        <input type="checkbox" id="viewToggle" />
+        🖥️ Desktop view
+      </label>
     </div>
 
-    <label>
-      <input type="checkbox" id="showTradingAccounts" />
-      Trading accounts only
-    </label>
+    <div class="hint">
+      <span class="hint-desktop">Desktop: Drag & drop to move assets.</span>
+      <span class="hint-mobile">Mobile: Tap an asset to see options.</span>
+      <span class="hint-both">Tap trading items to reject/withdraw.</span>
+      <span class="hint-both">When all required parties have "Locked", a transaction will be created ready for signing.</span>
+    </div>
 
-    <label>
-      <input type="checkbox" id="showTradedAssets"/>
-      Traded assets only
-    </label>
+    <div id="header" class="header">
+      <div>Account</div>
+      <div>🔁/🔒</div>
+      <div>🏪 Store (available)</div>
+      <div>📌 Reserved (to send)</div>
+      <div>🧺🛒 Basket (receive)</div>
+    </div>
 
-    <label class="desktop-toggle">
-      <input type="checkbox" id="viewToggle" />
-      🖥️ Desktop view
-    </label>
+    <div id="game"></div>
 
-  </div>
-    
-	<div class="hint">
+    <div id="assetModal" class="asset-modal hidden">
+      <div class="asset-modal-card">
+        <div id="assetModalClose" class="asset-modal-close">✕</div>
+        <div id="assetModalPreview" class="asset-modal-preview"></div>
+        <div id="assetModalName" class="asset-modal-name"></div>
+        <div class="asset-modal-amount-row">
+          <span class="asset-modal-input">
+            <label>Send amount</label>
+            <input id="assetModalAmount" type="number" value="1" min="1">
+          </span>
+        </div>
+        <br>
+        <div>Choose a basket 🧺🛒</div>
+        <div id="assetModalTargets" class="asset-modal-targets"></div>
+      </div>
+    </div>
 
-
-		<span class="hint-desktop">
-			Desktop: Drag & drop to move assets.
-		</span>
-
-		<span class="hint-mobile">
-			Mobile: Tap an asset to see options.
-		</span>
-
-		<span class="hint-both">
-			Tap trading items to reject/withdraw.
-		</span>
-
-		<span class="hint-both">
-			When all required parties have "Locked", a transaction will be created ready for signing.
-		</span>
-
-	</div>
-
-  <div id="header" class="header">
-    <div>Account</div>
-    <div>🔁/🔒</div>
-    <div>🏪 Store (available)</div>
-    <div>📌 Reserved (to send)</div>
-    <div>🧺🛒 Basket (receive)</div>
-  </div>
-
-	<div id="game"></div>
-
-	<div id="assetModal" class="asset-modal hidden">
-		<div class="asset-modal-card">
-			<div id="assetModalClose" class="asset-modal-close">✕</div>
-
-			<div id="assetModalPreview" class="asset-modal-preview"></div>
-
-			<div id="assetModalName" class="asset-modal-name"></div>
-
-			<div class="asset-modal-amount-row">
-
-				<span class="asset-modal-input">
-					<label>Send amount</label>
-					<input id="assetModalAmount" type="number" value="1" min="1">
-				</span>
-			</div>
-
-			<br>
-			<div>Choose a basket 🧺🛒</div>
-			<div id="assetModalTargets" class="asset-modal-targets"></div>
-
-		</div>
-	</div>
+  </details>
 </div>
-
 
 	<div id="createOrderModal" class="asset-modal hidden">
 		<div class="asset-modal-card">

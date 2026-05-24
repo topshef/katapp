@@ -1387,128 +1387,109 @@ function renderOrderMarketSummary(){
 //   - Use same ratio in fill UI (pre-fill remaining)
 //   - Could drive sorting (e.g. show nearly-filled orders first)
 
-
-          
-    function createOrderRow({orderId, order, playerId}){
-
-      const row = document.createElement("div")
-      row.className = "order-row"
-      row.dataset.orderId = orderId
-
-      // error case → just show raw + error
-      if(order?.bundle?.error){
-        row.textContent = `Order #${orderId} (${playerId}): ❌  ${order?.bundle?.error}`
-        applyOwnerSleeve(row, playerId)
-        return row
-      }
-
-      const offer = []
-      const request = []
-
-      if(Array.isArray(order.bundle)){
-        order.bundle.forEach(x => {
-          if(x.amount < 0) offer.push(x)
-          else if(x.amount > 0) request.push(x)
-        })
-      }
-
-      const mine = playerId === currentPlayerId
-      const fill = getOrderFillRatio(orderId)   //BASK1
-
-      const pendingFill = getPendingOrderFillRatio(orderId)
-      const kpoolText = pendingFill.numerator == 0 ? "" : ` kpool ${pendingFill.numerator}/${pendingFill.denominator}`
-
-      const settled =
-        getSettledOrderFillRatio(orderId)
-
-      const settledText =
-        settled.numerator == 0
-          ? ""
-          : ` settled ${settled.numerator}/${settled.denominator}`
-
-      const orderType = getOrderType(order) || "invalid-YE23998"
+// ── helpers ──────────────────────────────────────────────────────────────────
 
 
-      const enriched = enrichOrder(order)
+function getOrderFillStatus(orderId){
+  const fill        = getOrderFillRatio(orderId)
+  const pending     = getPendingOrderFillRatio(orderId)
+  const settled     = getSettledOrderFillRatio(orderId)
 
-      let marketLabel = enriched.derivedLabel || ""
+  const pendingText = pending.numerator == 0  ? "" : ` kpool ${pending.numerator}/${pending.denominator}`
+  const settledText = settled.numerator == 0  ? "" : ` settled ${settled.numerator}/${settled.denominator}`
 
-      if(enriched.market?.type === "simple-fx"){
-
-        const row = enrichSimpleFxMarketRow({
-          orderId,
-          playerId,
-          market: enriched.market
-        })
-
-        marketLabel =
-          `${row.side} ` +
-          `${row.displayBaseAmount} ` +
-          `${row.pair} @${row.displayRate}`
-      }
-
-
-      const action = document.createElement("span")
-
-      action.className = "order-action"
-      action.textContent = "⚙️"
-
-      row.onclick = () => {
-
-        if(enriched.market?.type != "simple-fx")
-          return
-
-        const fxRow = enrichSimpleFxMarketRow({
-          orderId,
-          playerId,
-          market: enriched.market
-        })
-
-
-        openCreateOrderModal({
-          mode:"order",
-          orderId,
-          playerId,
-          type:"simple-fx",
-          pair:`${fxRow.baseAsset}/${fxRow.quoteAsset}`,
-          side:fxRow.side,
-          volume:fxRow.originalDisplayBaseAmount,
-          rate:fxRow.displayRate,
-          accountId:`${playerId}:${fxRow.accountId}`
-
-        })
-
+  return { fill, pendingText, settledText }
 }
 
-      const prefix = document.createElement("span")
+function getOrderMarketLabel(orderId, playerId, enriched){
+  if(enriched.market?.type !== "simple-fx") return enriched.derivedLabel || ""
 
-      const tifText      = order.timeInForce
-      const minFillText  = order.minFill ? ` min ${order.minFill.numerator}/${order.minFill.denominator}` : ""
+  const fxRow = enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market })
+  if(!fxRow) return enriched.derivedLabel || ""
 
-      prefix.textContent =
-        `Order #${orderId} (${playerId}${mine ? "=you" : ""}) ` +
-        `[${tifText}] [${orderType}] [${marketLabel} ${minFillText}]` +
-        ` [filled ${fill.numerator}/${fill.denominator}${kpoolText}${settledText}]: `
-        
+  return `${fxRow.side} ${fxRow.displayBaseAmount} ${fxRow.pair} @${fxRow.displayRate}`
+}
 
-      const arrow = document.createElement("span")
-      arrow.textContent = " → "
+function makeOrderRowOnClick(orderId, playerId, enriched, order){
+  return () => {
+    if(enriched.market?.type !== "simple-fx") return
 
-      const inner = document.createElement("div")
-      inner.className = "order-row-inner"
+    const fxRow = enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market })
+    if(!fxRow) return
 
-      inner.appendChild(prefix)
-      inner.appendChild(createOrderSide(offer, "order-offer"))
-      inner.appendChild(arrow)
-      inner.appendChild(createOrderSide(request, "order-request"))
+    const fullOrder = getAllOrders().find(x => String(x.orderId) === String(orderId))?.order
 
-      row.appendChild(inner)
-      applyOwnerSleeve(row, playerId)
+    openCreateOrderModal({
+      mode:        "order",
+      orderId,
+      playerId,
+      type:        "simple-fx",
+      pair:        `${fxRow.baseAsset}/${fxRow.quoteAsset}`,
+      side:        fxRow.side,
+      volume:      fxRow.originalDisplayBaseAmount,
+      rate:        fxRow.displayRate,
+      accountId:   `${playerId}:${fxRow.accountId}`,
+      minFill:     fullOrder?.minFill     || null,
+      timeInForce: fullOrder?.timeInForce || "GTC",
+    })
+  }
+}
 
-      return row
-    }
-          
-              
+function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel, fillStatus){
+  const { fill, pendingText, settledText } = fillStatus
+
+  const tif        = order.timeInForce ? `${order.timeInForce} ` : ""
+  const minFill    = order.minFill ? ` min ${order.minFill.numerator}/${order.minFill.denominator}` : ""
+  const fillText   = `filled ${fill.numerator}/${fill.denominator}${pendingText}${settledText}`
+  const who        = `${playerId}${mine ? "=you" : ""}`
+
+  const el = document.createElement("span")
+  el.textContent = `Order #${orderId} (${who}) [${tif}${orderType}] [${marketLabel}${minFill}] [${fillText}]: `
+  return el
+}
+
+// ── main ─────────────────────────────────────────────────────────────────────
+
+function createOrderRow({ orderId, order, playerId }){
+
+  const row = document.createElement("div")
+  row.className = "order-row"
+  row.dataset.orderId = orderId
+
+  if(order?.bundle?.error){
+    row.textContent = `Order #${orderId} (${playerId}): ❌  ${order?.bundle?.error}`
+    applyOwnerSleeve(row, playerId)
+    return row
+  }
+
+  const offer   = (order.bundle || []).filter(x => x.amount < 0)
+  const request = (order.bundle || []).filter(x => x.amount > 0)
+
+  const mine       = playerId === currentPlayerId
+  const enriched   = enrichOrder(order)
+  const orderType  = getOrderType(order) || "invalid-YE23998"
+  const marketLabel = getOrderMarketLabel(orderId, playerId, enriched)
+  const fillStatus  = getOrderFillStatus(orderId)
+
+  row.dataset.orderSide = enriched.market?.side || ""
+  row.onclick = makeOrderRowOnClick(orderId, playerId, enriched, order)
+
+  const prefix = buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel, fillStatus)
+  const arrow  = document.createElement("span")
+  arrow.textContent = " → "
+
+  const inner = document.createElement("div")
+  inner.className = "order-row-inner"
+  inner.appendChild(prefix)
+  inner.appendChild(createOrderSide(offer, "order-offer"))
+  inner.appendChild(arrow)
+  inner.appendChild(createOrderSide(request, "order-request"))
+
+  row.appendChild(inner)
+  applyOwnerSleeve(row, playerId)
+
+  return row
+}
 
 
 
