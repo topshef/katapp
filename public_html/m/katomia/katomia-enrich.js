@@ -142,7 +142,7 @@ function getAssetThumb(meta){
 	return null
 }
 
-async function enrichVisibleAssets(){
+async function enrichAccountAssets(){
 
 	if(!gameMeta.network) return
 	if(!state?.accounts) return
@@ -245,7 +245,7 @@ async function enrichAccountLabel(network, accountId){
 }
 
 
-async function enrichVisibleAccounts(){
+async function enrichAccountLabels(){
 
   if(!gameMeta.network) return
   if(!state?.accounts) return
