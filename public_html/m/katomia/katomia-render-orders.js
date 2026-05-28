@@ -1610,15 +1610,19 @@ function buildSigPayload({ specVersion, gameId, network, clientOrderId, issuedAt
   return { specVersion, gameId, network, clientOrderId, issuedAt, bundleHash, timeInForce, minFill }
 }
 
-async function signOrder(signingPayload, privateKey, publicKeyJwk) {
-  const sigBytes  = new TextEncoder().encode(JSON.stringify(signingPayload))
-  const sigRaw    = await crypto.subtle.sign("Ed25519", privateKey, sigBytes)
-  const sig       = btoa(String.fromCharCode(...new Uint8Array(sigRaw)))
-  const pubkeyHex = atob(publicKeyJwk.x.replace(/-/g, "+").replace(/_/g, "/"))
-    .split("").map(c => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+async function signOrder(signingPayload, privateKey, publicKeyJwk, includePubkey = true) {
+  const sigBytes = new TextEncoder().encode(JSON.stringify(signingPayload))
+  const sigRaw   = await crypto.subtle.sign("Ed25519", privateKey, sigBytes)
+  const sig      = btoa(String.fromCharCode(...new Uint8Array(sigRaw)))
 
-  return { alg: "Ed25519", spec: signingPayload.specVersion, pubkeyHex, sig }
+  const out = { alg: "Ed25519", spec: signingPayload.specVersion, sig }
 
+  if (includePubkey) {
+    out.pubkeyHex = atob(publicKeyJwk.x.replace(/-/g, "+").replace(/_/g, "/"))
+      .split("").map(c => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+  }
+
+  return out
 }
 
 async function buildSignedOrder(bundle, { minFill, timeInForce, privateKey, publicKeyJwk }) {
