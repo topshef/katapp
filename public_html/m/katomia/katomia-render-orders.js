@@ -1597,39 +1597,45 @@ function checkMinFillDivisibility(bundle, minFill) {
   )
 }
 
-
-async function signOrder(signingPayload, privateKey, publicKeyJwk) {
-  const sigBytes = new TextEncoder().encode(JSON.stringify(signingPayload))
-  const sigRaw   = await crypto.subtle.sign("Ed25519", privateKey, sigBytes)
-  const sig      = btoa(String.fromCharCode(...new Uint8Array(sigRaw)))
-
-  // decode the JWK x field (base64url) → hex, so verifiers have one canonical format
-  const pubkeyHex = atob(publicKeyJwk.x.replace(/-/g, '+').replace(/_/g, '/'))
-    .split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('')
-
-  return {
-    alg:       "Ed25519",
-    pubkeyJwk: publicKeyJwk,
-    pubkeyHex,
-    payload:   signingPayload,
-    sig,
-  }
+async function hashBundle(bundle) {
+  const bytes  = new TextEncoder().encode(JSON.stringify(bundle))
+  const digest = await crypto.subtle.digest("SHA-256", bytes)
+  return Array.from(new Uint8Array(digest))
+    .map(b => b.toString(16).padStart(2, "0")).join("")
 }
 
+const SIG_SPEC = "v1"
+
+function buildSigPayload({ specVersion, gameId, network, clientOrderId, issuedAt, bundleHash, timeInForce, minFill }) {
+  return { specVersion, gameId, network, clientOrderId, issuedAt, bundleHash, timeInForce, minFill }
+}
+
+async function signOrder(signingPayload, privateKey, publicKeyJwk) {
+  const sigBytes  = new TextEncoder().encode(JSON.stringify(signingPayload))
+  const sigRaw    = await crypto.subtle.sign("Ed25519", privateKey, sigBytes)
+  const sig       = btoa(String.fromCharCode(...new Uint8Array(sigRaw)))
+  const pubkeyHex = atob(publicKeyJwk.x.replace(/-/g, "+").replace(/_/g, "/"))
+    .split("").map(c => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+
+  return { alg: "Ed25519", spec: signingPayload.specVersion, pubkeyHex, sig }
+
+}
 
 async function buildSignedOrder(bundle, { minFill, timeInForce, privateKey, publicKeyJwk }) {
   const clientOrderId = crypto.randomUUID()
   const issuedAt      = Date.now()
+  const bundleHash    = await hashBundle(bundle)
 
-  const signingPayload = {
+  const signingPayload = buildSigPayload({
+    specVersion: SIG_SPEC,
     gameId,
-    network: gameMeta?.network ?? null,
+    network:     gameMeta?.network ?? null,
     clientOrderId,
     issuedAt,
-    bundle,
+    bundleHash,
     timeInForce,
     minFill,
-  }
+  })
 
   const intentSignature = await signOrder(signingPayload, privateKey, publicKeyJwk)
 
@@ -1637,13 +1643,13 @@ async function buildSignedOrder(bundle, { minFill, timeInForce, privateKey, publ
     bundle,
     minFill,
     timeInForce,
-    expiresAt:       null,   // Unix ms — used with GTD; ignored until implemented
+    expiresAt:       null,
     clientOrderId,
+    issuedAt,
     matchConditions: null,
-    intentSignature,
+    intentSignature,   // { alg, pubkeyHex, sig } — no payload, no JWK
   }
 }
-
 
 // ─── main ─────────────────────────────────────────────────────────────────────
 
