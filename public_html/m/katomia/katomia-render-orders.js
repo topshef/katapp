@@ -1603,10 +1603,15 @@ async function signOrder(signingPayload, privateKey, publicKeyJwk) {
   const sigRaw   = await crypto.subtle.sign("Ed25519", privateKey, sigBytes)
   const sig      = btoa(String.fromCharCode(...new Uint8Array(sigRaw)))
 
+  // decode the JWK x field (base64url) → hex, so verifiers have one canonical format
+  const pubkeyHex = atob(publicKeyJwk.x.replace(/-/g, '+').replace(/_/g, '/'))
+    .split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('')
+
   return {
-    alg:     "Ed25519",
-    pubkey:  publicKeyJwk,  // lets the server verify without a registry lookup
-    payload: signingPayload,
+    alg:       "Ed25519",
+    pubkeyJwk: publicKeyJwk,
+    pubkeyHex,
+    payload:   signingPayload,
     sig,
   }
 }
