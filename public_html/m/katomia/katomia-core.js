@@ -43,17 +43,57 @@
     let selectedFromBasketToAccountId = null
 
 
-		function getOrCreatePlayerToken(){
+    function getOrCreatePlayerToken(){
 
-			let token = localStorage.getItem("katomiaPlayerToken")
+        let token = localStorage.getItem("katomiaPlayerToken")
 
-			if(!token){
-				token = crypto.randomUUID()
-				localStorage.setItem("katomiaPlayerToken", token)
-			}
+        if(!token){
+            token = crypto.randomUUID()
+            localStorage.setItem("katomiaPlayerToken", token)
+        }
 
-			return token
-		}
+        return token
+    }
+
+
+    // Stored as JWK (JSON) in localStorage — same pattern as playerToken
+    const PLAYER_KEY_STORAGE = "katomiaPlayerKeypair"
+
+    async function getOrCreatePlayerKeypair() {
+
+      const stored = localStorage.getItem(PLAYER_KEY_STORAGE)
+
+      if (stored) {
+        try {
+          const { publicKeyJwk, privateKeyJwk } = JSON.parse(stored)
+          const privateKey = await crypto.subtle.importKey(
+            "jwk", privateKeyJwk,
+            { name: "Ed25519" }, false, ["sign"]
+          )
+          const publicKey = await crypto.subtle.importKey(
+            "jwk", publicKeyJwk,
+            { name: "Ed25519" }, true, ["verify"]
+          )
+          return { publicKey, privateKey, publicKeyJwk }
+        } catch (err) {
+          console.warn("Failed to restore keypair, regenerating", err)
+        }
+      }
+
+      const keypair = await crypto.subtle.generateKey(
+        { name: "Ed25519" }, true, ["sign", "verify"]
+      )
+
+      const publicKeyJwk  = await crypto.subtle.exportKey("jwk", keypair.publicKey)
+      const privateKeyJwk = await crypto.subtle.exportKey("jwk", keypair.privateKey)
+
+      localStorage.setItem(PLAYER_KEY_STORAGE, JSON.stringify({ publicKeyJwk, privateKeyJwk }))
+
+      return { publicKey: keypair.publicKey, privateKey: keypair.privateKey, publicKeyJwk }
+    }
+    
+
+
 
 
     /* =========================
