@@ -1374,4 +1374,336 @@ function renderOrderMarketSummary(){
 //     // return { filledRatio, remainingRatio }  // use numerator/denominator style
 //   }
 //
-// - 
+// - Rendering:
+//   - Show progress per order row (e.g. "50%" or "1/2")
+//   - Optionally dim or strike-through filled portions
+//   - Later: per-line-item fill (not just whole order)
+//
+// - Important:
+//   - Must handle partial fills + multiple fills (aggregate)
+//   - Must respect indivisible / min-fill constraints (ratios, not floats)
+//
+// - Future:
+//   - Use same ratio in fill UI (pre-fill remaining)
+//   - Could drive sorting (e.g. show nearly-filled orders first)
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+
+function getOrderFillStatus(orderId){
+  const fill        = getOrderFillRatio(orderId)
+  const pending     = getPendingOrderFillRatio(orderId)
+  const settled     = getSettledOrderFillRatio(orderId)
+
+  const pendingText = pending.numerator == 0  ? "" : ` kpool ${pending.numerator}/${pending.denominator}`
+  const settledText = settled.numerator == 0  ? "" : ` settled ${settled.numerator}/${settled.denominator}`
+
+  return { fill, pendingText, settledText }
+}
+
+
+
+function formatRate(rate){
+  return parseFloat(Number(rate).toPrecision(12))
+}
+
+function getOrderMarketLabel(orderId, playerId, enriched){
+  if(enriched.market?.type !== "simple-fx") return enriched.derivedLabel || ""
+
+  const fxRow = enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market })
+  if(!fxRow) return enriched.derivedLabel || ""
+
+  return `${fxRow.side} ${fxRow.displayBaseAmount} ${fxRow.pair} @${formatRate(fxRow.displayRate)}`
+}
+
+
+function makeOrderRowOnClick(orderId, playerId, enriched, order){
+  return () => {
+    if(enriched.market?.type !== "simple-fx") return
+
+    const fxRow = enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market })
+    if(!fxRow) return
+
+    const fullOrder = getAllOrders().find(x => String(x.orderId) === String(orderId))?.order
+
+    openCreateOrderModal({
+      mode:        "order",
+      orderId,
+      playerId,
+      type:        "simple-fx",
+      pair:        `${fxRow.baseAsset}/${fxRow.quoteAsset}`,
+      side:        fxRow.side,
+      volume:      fxRow.originalDisplayBaseAmount,
+      rate:        fxRow.displayRate,
+      accountId:   `${playerId}:${fxRow.accountId}`,
+      minFill:     fullOrder?.minFill     || null,
+      timeInForce: fullOrder?.timeInForce || "GTC",
+    })
+  }
+}
+
+function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel, fillStatus){
+  const { fill, pendingText, settledText } = fillStatus
+
+  const tif        = order.timeInForce ? `${order.timeInForce} ` : ""
+  const minFill    = order.minFill ? ` min ${order.minFill.numerator}/${order.minFill.denominator}` : ""
+  const fillText   = `filled ${fill.numerator}/${fill.denominator}${pendingText}${settledText}`
+  const who        = `${playerId}${mine ? "=you" : ""}`
+
+  const el = document.createElement("span")
+  el.textContent = `Order #${orderId} (${who}) [${tif}${orderType}] [${marketLabel}${minFill}] [${fillText}]: `
+  return el
+}
+
+// ── main ─────────────────────────────────────────────────────────────────────
+
+function createOrderRow({ orderId, order, playerId }){
+
+  const row = document.createElement("div")
+  row.className = "order-row"
+  row.dataset.orderId = orderId
+
+  if(order?.bundle?.error){
+    row.textContent = `Order #${orderId} (${playerId}): ❌  ${order?.bundle?.error}`
+    applyOwnerSleeve(row, playerId)
+    return row
+  }
+
+  const offer   = (order.bundle || []).filter(x => x.amount < 0)
+  const request = (order.bundle || []).filter(x => x.amount > 0)
+
+  const mine       = playerId === currentPlayerId
+  const enriched   = enrichOrder(order)
+  const orderType  = getOrderType(order) || "invalid-YE23998"
+  const marketLabel = getOrderMarketLabel(orderId, playerId, enriched)
+  const fillStatus  = getOrderFillStatus(orderId)
+
+  row.dataset.orderSide = enriched.market?.side || ""
+  row.onclick = makeOrderRowOnClick(orderId, playerId, enriched, order)
+
+  const prefix = buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel, fillStatus)
+  const arrow  = document.createElement("span")
+  arrow.textContent = " → "
+
+  const inner = document.createElement("div")
+  inner.className = "order-row-inner"
+  inner.appendChild(prefix)
+  inner.appendChild(createOrderSide(offer, "order-offer"))
+  inner.appendChild(arrow)
+  inner.appendChild(createOrderSide(request, "order-request"))
+
+  row.appendChild(inner)
+  applyOwnerSleeve(row, playerId)
+
+  return row
+}
+
+
+
+
+
+// ┌─┐┬  ┬┌─┐┬┌─  ┬ ┬┌─┐┌┐┌┌┬┐┬  ┌─┐┬─┐┌─┐
+// │  │  ││  ├┴┐  ├─┤├─┤│││ │││  ├┤ ├┬┘└─┐
+// └─┘┴─┘┴└─┘┴ ┴  ┴ ┴┴ ┴┘└┘─┴┘┴─┘└─┘┴└─└─┘
+// click handlers
+
+cancelOrderBtn.onclick = () => {
+
+  const input = prompt("Delete order(s)\n\nEnter order Ids, comma separated")
+  if(!input) return
+
+  input.split(",").map(x => x.trim()).filter(Boolean).forEach(orderId => cancelOrder(orderId))
+}
+
+createOrderBtn.onclick = () => {
+  openCreateOrderModal()
+}
+
+document.addEventListener("click", async e => {
+
+  if(e.target.id == "createOrderCancel"){
+    closeCreateOrderModal()
+    return
+  }
+
+  if(e.target.id == "createOrderTruncate"){
+    alert("Truncate not yet available")
+    return
+  }
+
+  if(e.target.id == "createOrderDelete"){
+    cancelOrder(window.createOrderContext?.orderId)
+    closeCreateOrderModal()
+    return
+  }
+
+  if(e.target.id == "createOrderEdit"){
+    cancelOrder(window.createOrderContext?.orderId)
+    await createOrderFromModal()
+    return
+  }
+
+  if(e.target.id == "createOrderSubmit"){
+    await createOrderFromModal()
+    return
+  }
+
+})
+
+function cancelOrder(orderId){
+
+  if(!orderId) return
+
+  socket.send(JSON.stringify({
+    type:"game_orderCancel",
+    gameId,
+    orderId
+  }))
+}
+
+
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+function parseMinFill(raw) {
+  raw = (raw || "").trim()
+  if (!raw) return { ok: true, minFill: null }
+
+  const parts = raw.split("/").map(x => x.trim())
+  const n = parseInt(parts[0], 10)
+  const d = parseInt(parts[1], 10)
+
+  if (parts.length !== 2 || !Number.isInteger(n) || !Number.isInteger(d) || n <= 0 || d <= 0 || n > d) {
+    return { ok: false, minFill: null }
+  }
+
+  return { ok: true, minFill: { numerator: n, denominator: d } }
+}
+
+
+function checkMinFillDivisibility(bundle, minFill) {
+  if (!minFill || !Array.isArray(bundle)) return true
+
+  const fractional = bundle.filter(item =>
+    typeof item.amount === "number" &&
+    Math.abs(item.amount) % minFill.denominator !== 0
+  )
+
+  if (!fractional.length) return true
+
+  return confirm(
+    `Warning: minFill denominator ${minFill.denominator} doesn't divide evenly into ` +
+    `some bundle amounts — fills may be truncated.\n\nProceed anyway?`
+  )
+}
+
+
+async function signOrder(signingPayload, privateKey, publicKeyJwk) {
+  const sigBytes = new TextEncoder().encode(JSON.stringify(signingPayload))
+  const sigRaw   = await crypto.subtle.sign("Ed25519", privateKey, sigBytes)
+  const sig      = btoa(String.fromCharCode(...new Uint8Array(sigRaw)))
+
+  return {
+    alg:     "Ed25519",
+    pubkey:  publicKeyJwk,  // lets the server verify without a registry lookup
+    payload: signingPayload,
+    sig,
+  }
+}
+
+
+async function buildSignedOrder(bundle, { minFill, timeInForce, privateKey, publicKeyJwk }) {
+  const clientOrderId = crypto.randomUUID()
+  const issuedAt      = Date.now()
+
+  const signingPayload = {
+    gameId,
+    network: gameMeta?.network ?? null,
+    clientOrderId,
+    issuedAt,
+    bundle,
+    timeInForce,
+    minFill,
+  }
+
+  const intentSignature = await signOrder(signingPayload, privateKey, publicKeyJwk)
+
+  return {
+    bundle,
+    minFill,
+    timeInForce,
+    expiresAt:       null,   // Unix ms — used with GTD; ignored until implemented
+    clientOrderId,
+    matchConditions: null,
+    intentSignature,
+  }
+}
+
+
+// ─── main ─────────────────────────────────────────────────────────────────────
+
+async function createOrderFromModal() {
+
+  const timeInForce = document.getElementById("createOrderTif")?.value || "GTC"
+
+  const { ok, minFill } = parseMinFill(document.getElementById("createOrderMinFill")?.value)
+  if (!ok) {
+    alert("Min fill must be a valid fraction e.g. 1/3 or 2/6\n\nnumerator and denominator must be positive integers, numerator ≤ denominator")
+    return
+  }
+
+  const { privateKey, publicKeyJwk } = await getOrCreatePlayerKeypair()
+
+  for (const line of getCreateOrderData()) {
+
+    const bundle = normaliseOrder(line)
+
+    if (!checkMinFillDivisibility(bundle, minFill)) return
+
+    const order = await buildSignedOrder(bundle, { minFill, timeInForce, privateKey, publicKeyJwk })
+
+    socket.send(JSON.stringify({
+      type: "game_orderCreate",
+      gameId,
+      order
+    }))
+  }
+
+  closeCreateOrderModal()
+}
+
+
+
+
+function normaliseOrder(input){
+  try {
+    const records = input.split('|').filter(Boolean)
+    const result = []
+
+    for (const record of records){
+      const [a,b,c] = record.split(';')
+
+      if(!a || !b || c === undefined){
+        throw new Error(`Bad record: ${record}`)
+      }
+
+      const norm = v => v.includes('.') ? v : `0.0.${v}`
+
+      result.push({
+        accountId: norm(a),
+        asset: norm(b),
+        amount: Number(c)
+      })
+    }
+
+    return result
+
+  } catch (err) {
+    return {
+      raw: input,
+      error: err.message
+    }
+  }
+}
+
+
