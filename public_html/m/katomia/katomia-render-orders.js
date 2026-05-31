@@ -1597,6 +1597,41 @@ function checkMinFillDivisibility(bundle, minFill) {
   )
 }
 
+// ┌─┐┬┌─┐┌┐┌  ┌─┐┬─┐┌┬┐┌─┐┬─┐  ┌─┐┌─┐┬ ┬┬  ┌─┐┌─┐┌┬┐
+// └─┐││ ┬│││  │ │├┬┘ ││├┤ ├┬┘  ├─┘├─┤└┬┘│  │ │├─┤ ││
+// └─┘┴└─┘┘└┘  └─┘┴└──┴┘└─┘┴└─  ┴  ┴ ┴ ┴ ┴─┘└─┘┴ ┴─┴┘
+// sign order payload
+
+const SIG_SPEC_FIELDS = ["specVersion","gameId","network","clientOrderId","issuedAt","bundleHash","timeInForce","minFill"]
+
+const SIG_SPEC = (async () => {
+  const bytes  = new TextEncoder().encode(JSON.stringify(SIG_SPEC_FIELDS))
+  const digest = await crypto.subtle.digest("SHA-256", bytes)
+  return Array.from(new Uint8Array(digest))
+    .map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 8)
+})()
+
+async function buildSigPayload(data) {
+  const specVersion = await SIG_SPEC
+  const full = { ...data, specVersion }
+  const missing = SIG_SPEC_FIELDS.filter(k => !(k in full))
+  if (missing.length) throw new Error(`UR84743 buildSigPayload missing fields: ${missing.join(", ")}`)
+  return Object.fromEntries(SIG_SPEC_FIELDS.map(k => [k, full[k]]))
+}
+
+
+async function signOrder(signingPayload, privateKey, publicKeyJwk, includePubkey = true) {
+  const sigBytes = new TextEncoder().encode(JSON.stringify(signingPayload))
+  const sigRaw   = await crypto.subtle.sign("Ed25519", privateKey, sigBytes)
+  const sig      = btoa(String.fromCharCode(...new Uint8Array(sigRaw)))
+  const out      = { alg: "Ed25519", spec: signingPayload.specVersion, sig }
+  if (includePubkey) {
+    out.pubkeyHex = atob(publicKeyJwk.x.replace(/-/g, "+").replace(/_/g, "/"))
+      .split("").map(c => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+  }
+  return out
+}
+
 async function hashBundle(bundle) {
   const bytes  = new TextEncoder().encode(JSON.stringify(bundle))
   const digest = await crypto.subtle.digest("SHA-256", bytes)
@@ -1604,34 +1639,11 @@ async function hashBundle(bundle) {
     .map(b => b.toString(16).padStart(2, "0")).join("")
 }
 
-const SIG_SPEC = "v1"
-
-function buildSigPayload({ specVersion, gameId, network, clientOrderId, issuedAt, bundleHash, timeInForce, minFill }) {
-  return { specVersion, gameId, network, clientOrderId, issuedAt, bundleHash, timeInForce, minFill }
-}
-
-async function signOrder(signingPayload, privateKey, publicKeyJwk, includePubkey = true) {
-  const sigBytes = new TextEncoder().encode(JSON.stringify(signingPayload))
-  const sigRaw   = await crypto.subtle.sign("Ed25519", privateKey, sigBytes)
-  const sig      = btoa(String.fromCharCode(...new Uint8Array(sigRaw)))
-
-  const out = { alg: "Ed25519", spec: signingPayload.specVersion, sig }
-
-  if (includePubkey) {
-    out.pubkeyHex = atob(publicKeyJwk.x.replace(/-/g, "+").replace(/_/g, "/"))
-      .split("").map(c => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
-  }
-
-  return out
-}
-
 async function buildSignedOrder(bundle, { minFill, timeInForce, privateKey, publicKeyJwk }) {
   const clientOrderId = crypto.randomUUID()
   const issuedAt      = Date.now()
   const bundleHash    = await hashBundle(bundle)
-
-  const signingPayload = buildSigPayload({
-    specVersion: SIG_SPEC,
+  const signingPayload = await buildSigPayload({
     gameId,
     network:     gameMeta?.network ?? null,
     clientOrderId,
@@ -1640,9 +1652,7 @@ async function buildSignedOrder(bundle, { minFill, timeInForce, privateKey, publ
     timeInForce,
     minFill,
   })
-
   const intentSignature = await signOrder(signingPayload, privateKey, publicKeyJwk)
-
   return {
     bundle,
     minFill,
@@ -1651,9 +1661,11 @@ async function buildSignedOrder(bundle, { minFill, timeInForce, privateKey, publ
     clientOrderId,
     issuedAt,
     matchConditions: null,
-    intentSignature,   // { alg, pubkeyHex, sig } — no payload, no JWK
+    intentSignature,
   }
 }
+
+
 
 // ─── main ─────────────────────────────────────────────────────────────────────
 
