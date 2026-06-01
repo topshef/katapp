@@ -39,9 +39,9 @@ function renderTxSourceInfo(tx){  // renders too
 
   const seen = new Set()
 
-  const items = (tx.sourceBaskets || []).map(x => {
+  const items = (tx.source?.fills || []).map(x => {
 
-    if(!x.orderId) return ""
+    if(!x.orderId) return ""  // should now be redundant as fills should always have an orderId
 
     const r = reduceFraction(x.numerator,x.denominator)
 
@@ -244,7 +244,7 @@ function createTxRow(tx){
 
 
   row.dataset.fills =
-    (tx.sourceBaskets || [])
+    (tx.source?.fills || [])
       .map(x => x.fillId)
       .filter(Boolean)
       .join(",")
@@ -252,7 +252,7 @@ function createTxRow(tx){
 
   row.dataset.txkey = getTxKey(tx)
     
-  const orderId = tx.sourceBaskets?.find(x => x.orderId)?.orderId
+  const orderId = tx.source?.fills?.[0]?.orderId
   const order = getAllOrders().find(x => x.orderId == orderId)?.order
   const orderType = getOrderType(order) || "generic"
   const market = enrichOrder(order)?.market
@@ -347,7 +347,7 @@ async function renderTransactions(){
     if(hideExpired && isTxExpired(tx))
       return
 
-    const orderId = tx.sourceBaskets?.find(x => x.orderId)?.orderId
+    const orderId = tx.source?.fills?.[0]?.orderId
     const order = getAllOrders().find(x => x.orderId == orderId)?.order
     const pair = enrichOrder(order)?.market?.pair
 
@@ -372,7 +372,7 @@ function getPendingFillItems(orderId){
 
   return (state?.tx?.pending || [])
     .flatMap(tx =>
-      (tx.sourceBaskets || [])
+      (tx.source?.fills || [])
         .filter(x => x.orderId == orderId)
         .map(x => ({...x,txid:tx.txid,pch:tx.pch}))
     )
