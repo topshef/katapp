@@ -12,7 +12,7 @@ $domain = 'shop.gomint.me';
 
 $sources=[
 // 'backend js'=>['/home/hbarlive_hts/web*.js'],
-'backend js'=>['/home/hbarlive_hts/{kat,websocket}*.js'],
+'backend js'=>['/home/hbarlive_hts/{kat,kpool,deal,websocket}*.js'],
 'frontend js'=>["/var/www/$domain/public_html/m/katomia/*.js"],
 'frontend css'=>["/var/www/$domain/public_html/m/katomia/*.css"],
 'frontend php'=>["/var/www/$domain/public_html/m/katomia/*.php"]
