@@ -1,64 +1,97 @@
-
 const V = window.__BUILD_HASH__
 
 const { CONFIG } = await import(`./config.js?v=${V}`)
 
 const {
-  txRead,
-  enrichAccountsInfo,
-  enrichAccountsKeyInfo,
-  enrichTransfersInfo,
-  calcAccountsThatSign,
-  evaluateTxReadiness
+	txRead,
+	enrichAccountsInfo,
+	enrichAccountsKeyInfo,
+	enrichTransfersInfo,
+	calcAccountsThatSign,
+	evaluateTxReadiness
 } = await import(`./model.js?v=${V}`)
 
 const {
-  injectTxReadCSS,
-  buildTxReadColumns,
-  renderSigningInfo,
-  renderReadinessInfo,
-  showBanner
+	injectTxReadCSS,
+	buildTxReadColumns,
+	renderSigningInfo,
+	renderReadinessInfo,
+	showBanner
 } = await import(`./view.js?v=${V}`)
 
 const {
-  get,
-  parseTxId,
-  formatUtcTime,
-  formatCountdown
+	get,
+	parseTxId,
+	formatUtcTime,
+	formatCountdown
 } = await import(`./utils.js?v=${V}`)
 
 const { getHederaMirrorData } = await import(`./hedera-mirror.js?v=${V}`)
-
 const { createTxSocket } = await import(`./websocket.js?v=${V}`)
 
+console.log('injecting kpool widget')
 
-	console.log('injecting kpool widget')
+const params = new URLSearchParams(window.location.search)
+const network = params.get('network')
+const txid = params.get('txid')
+const pch = params.get('pch') || 'no_pch'
 
-	const params = new URLSearchParams(window.location.search)
-	const network = params.get('network')
-	const txid = params.get('txid')
+main()
 
-	const main = async () => {
-		if (!network) {
-			renderError('FR67657 Missing network')
-			return
-		}
-
-		if (txid) {
-			await renderSingleTx(network, txid)
-		} else {
-			renderError('UH7688 Transaction list not yet implemented')
-		}
+async function main() {
+	if (!network) {
+		renderError('FR67657 Missing network')
+		return
 	}
 
+	if (txid) {
+		await renderSingleTx(network, txid, pch)
+		return
+	}
 
-	main()
+	renderError('UH7688 Transaction list not yet implemented')
+}
 
 
 async function renderSingleTx(network, txid, pch = 'no_pch') {
+	const txState = createTxState(network, txid, pch)
 
+	const kpool_widget = document.querySelector('#kpool_widget')
+	if (kpool_widget) kpool_widget.append(txState.container)
+
+	try {
+		const tx = await renderTxView(txState)
+
+		await loadSigningState(txState, tx)
+
+		startTxSocket(txState)
+		startTxPolling(txState, tx)
+	} catch (e) {
+		console.warn('txRead fetch failed', e)
+	}
+}
+
+
+function createTxState(network, txid, pch) {
 	const container = document.createElement('div')
+	const kpayLink = createKpayWhatsAppLink(network, txid, pch)
+	const details = createSigningDetails(network, txid)
 
+	return {
+		network,
+		txid,
+		pch,
+		container,
+		kpayLink,
+		details,
+		view: null,
+		data: null,
+		accounts: null,
+		successAnimationFired: false
+	}
+}
+
+function createSigningDetails(network, txid) {
 	const details = document.createElement('details')
 
 	const summary = document.createElement('summary')
@@ -69,7 +102,37 @@ async function renderSingleTx(network, txid, pch = 'no_pch') {
 	const p = document.createElement('p')
 	p.textContent = 'QR scan the transaction, sign, then return the signed transaction'
 
+	const iframe = createKsigIframe(network, txid)
+
+	details.appendChild(summary)
+	details.appendChild(p)
+	details.appendChild(iframe)
+
+	return details
+}
+
+
+function createKpayWhatsAppLink(network, txid, pch) {
+	const p = document.createElement('p')
+	const a = document.createElement('a')
+	const url = new URL('https://kpay.uk/message/')
+
+	url.searchParams.set('network', network)
+	url.searchParams.set('channel', 'WhatsApp')
+	url.searchParams.set('message', `sign ${txid} #${pch}`)
+
+	a.href = url.toString()
+	a.target = 'KPAYWHATSAPP'
+	a.textContent = 'Sign with WhatsApp'
+
+	p.appendChild(a)
+	return p
+}
+
+
+function createKsigIframe(network, txid) {
 	const iframe = document.createElement('iframe')
+
 	iframe.id = 'iframeKSIG'
 	iframe.style.width = '100%'
 	iframe.style.height = '300px'
@@ -78,227 +141,208 @@ async function renderSingleTx(network, txid, pch = 'no_pch') {
 	iframe.setAttribute('allow', 'camera')
 	iframe.src = `https://kpos.uk/sign/offline/widget?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
 
-	details.appendChild(summary)
-	details.appendChild(p)
-	details.appendChild(iframe)
+	return iframe
+}
 
-	const kpool_widget = document.querySelector('#kpool_widget')
-	if (kpool_widget) kpool_widget.append(container)
 
-	let view = null
+async function renderTxView(txState) {
+	const { network, txid, container, kpayLink, details } = txState
+	const { url, rawTx, data, transfers, accounts } = await txRead({ network, txid })
 
-	const renderTxView  = async ({ network, txid, details }) => {
-		const { url, rawTx, data, transfers, accounts } = await txRead({ network, txid })
-    await enrichTransfersInfo({ network, transfers })
-    
-		injectTxReadCSS()
+	await enrichTransfersInfo({ network, transfers })
 
-		container.classList.add('txread')
+	injectTxReadCSS()
 
-    view = buildTxReadColumns({
-      rawTx,
-      data,
-      transfers,
-      network,
-      txid
-    })
+	container.classList.add('txread')
 
-    container.appendChild(view.el)
-    container.appendChild(details)
+	txState.view = buildTxReadColumns({
+		rawTx,
+		data,
+		transfers,
+		network,
+		txid
+	})
 
-		return { url, rawTx, data, transfers, accounts }
+  container.appendChild(txState.view.el)
+  container.appendChild(kpayLink)
+  container.appendChild(details)
+  
+	return { url, rawTx, data, transfers, accounts }
+}
+
+
+async function loadSigningState(txState, tx) {
+	const { network } = txState
+
+	await enrichAccountsInfo({ network, accounts: tx.accounts })
+	await enrichAccountsKeyInfo({ network, accounts: tx.accounts })
+
+	calcAccountsThatSign(tx.accounts)
+
+	tx.readiness = evaluateTxReadiness({ accounts: tx.accounts, data: tx.data })
+	renderReadinessInfo({ readiness: tx.readiness })
+
+	renderSigningInfo({
+		data: tx.data,
+		network,
+		accounts: tx.accounts
+	})
+
+	txState.data = tx.data
+	txState.accounts = tx.accounts
+
+	document.getElementById('txread-signing')?.classList.remove('tx-loading')
+}
+
+
+function startTxSocket(txState) {
+	createTxSocket({
+		baseUrl: CONFIG.HAPI_BASE || 'hapi2.hbar.live/live',
+		txid: txState.txid,
+		onTxUpdate: async function onTxUpdate(update) {
+			await handleTxUpdate(txState, update)
+		}
+	})
+}
+
+
+async function handleTxUpdate(txState, update) {
+	const { network, txid, pch, view } = txState
+
+	console.log('[WS] update received', update)
+	console.log('[CONFETTI typeof]', typeof window.confetti)
+
+	const prevStatus = localStorage.getItem(`tx_status:${network};${txid};${pch}`)
+
+	txState.data = {
+		...txState.data,
+		...update
+	}
+
+	if (update.type === 'tx_receipt' && update.receipt) {
+		txState.data.receipt = update.receipt
+		txState.data.receiptStatus = update.receipt.status?._code || update.receipt.status
+		if (txState.data.receiptStatus === 'SUCCESS') txState.data.comboStatus = 'SUCCESS'
+	}
+
+	const currentStatus = txState.data.comboStatus
+
+	if (!txState.successAnimationFired && currentStatus === 'SUCCESS' && prevStatus !== 'SUCCESS') {
+		triggerSuccessAnimation()
+		txState.successAnimationFired = true
+	}
+
+	view.statusBlock.update(txState.data)
+
+	if (update.sigs) await handleSignatureUpdate(txState, update)
+}
+
+
+async function handleSignatureUpdate(txState, update) {
+	const { network, txid } = txState
+	const sigCount = update.sigsNew?.length ?? 1
+
+	showBanner(`✍️ ${sigCount} new signature${sigCount == 1 ? '' : 's'}`, 'success')
+
+	const fresh = await txRead({ network, txid })
+
+	txState.data = {
+		...txState.data,
+		...fresh.data
+	}
+
+	await refreshSigningSection({
+		network,
+		data: txState.data,
+		accounts: txState.accounts
+	})
+}
+
+
+function startTxPolling(txState, tx) {
+	if (tx.data?.mirrorStatus) return
+
+	const parsed = parseTxId(txState.txid)
+	const scheduledSec = parsed?.seconds || 0
+	const stopPollingAfterSec = scheduledSec + (5 * 60)
+
+	const pollTimer = setInterval(async function pollTimerTick() {
+		await pollTxStatus(txState, pollTimer, scheduledSec, stopPollingAfterSec)
+	}, 5000)
+}
+
+
+async function pollTxStatus(txState, pollTimer, scheduledSec, stopPollingAfterSec) {
+	const nowSec = Math.floor(Date.now() / 1000)
+
+	if (nowSec < scheduledSec) return
+
+	if (nowSec > stopPollingAfterSec) {
+		clearInterval(pollTimer)
+		return
 	}
 
 	try {
-
-		const tx = await renderTxView({ network, txid, pch, details })  //todo pch
-
-		await enrichAccountsInfo({ network, accounts: tx.accounts })
-		await enrichAccountsKeyInfo({ network, accounts: tx.accounts })
-
-		calcAccountsThatSign(tx.accounts)
-    
-    tx.readiness = evaluateTxReadiness({accounts:tx.accounts, data:tx.data})
-    renderReadinessInfo({readiness: tx.readiness})
-
-    renderSigningInfo({
-      data:tx.data,
-      network,
-      accounts:tx.accounts
-    })
-
-
-		let currentData = tx.data
-		let currentAccounts = tx.accounts
-		let successAnimationFired = false
-		
-		const socket = createTxSocket({
-      baseUrl: CONFIG.HAPI_BASE || 'hapi2.hbar.live/live',
-      // baseUrl: CONFIG.BASE_URL || 'https://hapi2.hbar.live/live',
-			txid,
-			onTxUpdate: async update => {
-
-				console.log('[WS] update received', update)
-				console.log('[CONFETTI typeof]', typeof window.confetti)
-				
-				const prevStatus = localStorage.getItem(`tx_status:${network};${txid};${pch}`)
-
-				// merge update into current data
-				currentData = {
-					...currentData,
-					...update
-				}
-
-				// ----- RECEIPT PATCH -----
-				if (update.type === 'tx_receipt' && update.receipt) {
-					currentData.receipt = update.receipt
-					currentData.receiptStatus = update.receipt.status?._code || update.receipt.status
-					if (currentData.receiptStatus === 'SUCCESS') currentData.comboStatus = 'SUCCESS'
-				}
-
-				const currentStatus = currentData.comboStatus
-				// console.log
-				if (!successAnimationFired && currentStatus === 'SUCCESS' && prevStatus !== 'SUCCESS') {
-					triggerSuccessAnimation()
-					successAnimationFired = true
-				}
-
-
-				// update status block
-				view.statusBlock.update(currentData)
-
-				// if signature update, refresh signing
-        if(update.sigs){
-          const sigCount = update.sigsNew?.length ?? 1
-          showBanner(`✍️ ${sigCount} new signature${sigCount==1?'':'s'}`,'success')
-
-          const fresh = await txRead({network,txid})
-
-          currentData = {
-            ...currentData,
-            ...fresh.data
-          }
-
-          await refreshSigningSection({
-            network,
-            data:currentData,
-            accounts:currentAccounts
-          })
-        }
-
-			}
-		})
-
-
-
-
-		document.getElementById('txread-signing')?.classList.remove('tx-loading')
-
-		// --------------------
-		// POLLING
-		// --------------------
-
-		const parsed = parseTxId(txid)
-		const scheduledSec = parsed?.seconds || 0
-		const stopPollingAfterSec = scheduledSec + (5 * 60)
-
-		let pollTimer = null
-
-		if (!tx.data?.mirrorStatus) {
-
-			pollTimer = setInterval(async () => {
-
-				const nowSec = Math.floor(Date.now() / 1000)
-
-				// don't poll before scheduled time
-				if (nowSec < scheduledSec) return
-
-				// stop after 5 min window
-				if (nowSec > stopPollingAfterSec) {
-					clearInterval(pollTimer)
-					return
-				}
-
-				try {
-
-					const fresh = await txRead({ network, txid })
-
-
-					// currentData = {
-						// ...currentData,
-						// ...fresh.data
-					// }
-					currentData = {
-						...fresh.data,
-						// preserve terminal SUCCESS
-						comboStatus:
-							currentData.comboStatus === 'SUCCESS'
-								? 'SUCCESS'
-								: fresh.data.comboStatus
-					}
-
-					//fudge sink status until we sort the shot out of comboStatus webhook vs poll
-					const successKey = `tx_status:${network};${txid};no_pch`
-					if (localStorage.getItem(successKey) === 'SUCCESS') currentData.comboStatus = 'SUCCESS'
-			
-					view.statusBlock.update(currentData)
-					
-					// view.statusBlock.update(fresh.data)
-
-					// ----- refresh signing block -----
-					await refreshSigningSection({
-						network,
-						data: fresh.data,
-						accounts: fresh.accounts
-					})
-					// ----------------------------------
-
-					if (fresh.data?.mirrorStatus) {
-						clearInterval(pollTimer)
-					}
-
-				} catch (err) {
-					console.warn('Polling failed', err)
-				}
-
-			}, 5000)
-		}
-
-	} catch (e) {
-		console.warn('txRead fetch failed', e)
+		await refreshPolledTx(txState, pollTimer)
+	} catch (err) {
+		console.warn('Polling failed', err)
 	}
+}
+
+
+async function refreshPolledTx(txState, pollTimer) {
+	const { network, txid, view } = txState
+	const fresh = await txRead({ network, txid })
+
+	txState.data = {
+		...fresh.data,
+		comboStatus: txState.data.comboStatus === 'SUCCESS' ? 'SUCCESS' : fresh.data.comboStatus
+	}
+
+	const successKey = `tx_status:${network};${txid};no_pch`
+	if (localStorage.getItem(successKey) === 'SUCCESS') txState.data.comboStatus = 'SUCCESS'
+
+	view.statusBlock.update(txState.data)
+
+	await refreshSigningSection({
+		network,
+		data: fresh.data,
+		accounts: fresh.accounts
+	})
+
+	if (fresh.data?.mirrorStatus) clearInterval(pollTimer)
 }
 
 
 function triggerSuccessAnimation() {
-	console.log("window.confetti",typeof window.confetti)
-  if (!window.confetti) return
+	console.log('window.confetti', typeof window.confetti)
 
-  confetti({
-    particleCount: 120,
-    spread: 70,
-    origin: { y: 0.6 }
-  })
+	if (!window.confetti) return
 
-  // optional second burst
-  setTimeout(() => {
-    confetti({
-      particleCount: 80,
-      spread: 100,
-      origin: { y: 0.4 }
-    })
-  }, 250)
+	confetti({
+		particleCount: 120,
+		spread: 70,
+		origin: { y: 0.6 }
+	})
+
+	setTimeout(function fireSecondConfettiBurst() {
+		confetti({
+			particleCount: 80,
+			spread: 100,
+			origin: { y: 0.4 }
+		})
+	}, 250)
 }
 
 
-
-const refreshSigningSection = async ({ network, data, accounts }) => {
-
+async function refreshSigningSection({ network, data, accounts }) {
 	await enrichAccountsInfo({ network, accounts })
 	await enrichAccountsKeyInfo({ network, accounts })
-	calcAccountsThatSign(accounts)
-  const readiness=evaluateTxReadiness({accounts,data})
-  renderReadinessInfo({readiness})
-	renderSigningInfo({data,network,accounts})
-}
 
+	calcAccountsThatSign(accounts)
+
+	const readiness = evaluateTxReadiness({ accounts, data })
+
+	renderReadinessInfo({ readiness })
+	renderSigningInfo({ data, network, accounts })
+}
