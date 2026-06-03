@@ -108,8 +108,10 @@
 
     const chart = root.container.children.push(am5percent.PieChart.new(root, {
       layout: root.verticalLayout,
-      centerX: am5.percent(0),
-      centerY: am5.percent(0),
+      x: am5.percent(50),
+      y: am5.percent(50),
+      centerX: am5.percent(50),
+      centerY: am5.percent(50),
       width: pieRadius * 2,
       height: pieRadius * 2,
       innerRadius: 0,
@@ -228,7 +230,7 @@
     const scale = Math.min(size / vw, size / vh)
     const offsetX = (size - vw * scale) / 2
     const offsetY = (size - vh * scale) / 2
-    const pieCssSize = Math.max(8, Math.round(pieRadius * 2 * scale))
+    const pieCssSize = Math.max(8, Math.min(44, Math.round(pieRadius * 2 * scale)))
 
     // Absolutely-positioned divs for amCharts — no SVG scaling involved
     const seq = ++_chartSeq
@@ -273,7 +275,8 @@
       div.id = divId
       div.style.cssText = 'width:100%;height:100%;margin:0;padding:0'
       container.appendChild(div)
-      renderNodePie(graph, divId, size / 2 - 2)
+      // renderNodePie(graph, divId, size * 0.38)
+      renderNodePie(graph, divId, 42)
     } else {
       drawTree(graph, container)
     }
