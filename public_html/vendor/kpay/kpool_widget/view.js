@@ -415,7 +415,7 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
   // ---- Key control ----
   const keyTitle = document.createElement('div')
   keyTitle.className = 'ksubtitle'
-  keyTitle.textContent = 'Keys 🔑'
+  keyTitle.textContent = '✍️ Required Approvals'
   container.appendChild(keyTitle)
 
 
@@ -425,7 +425,7 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
 
   const hAcct = document.createElement('div')
   hAcct.className = 'acctkeys-accountId'
-  hAcct.textContent = 'Authority'
+  hAcct.textContent = 'Signing Authority'
   header.appendChild(hAcct)
 
 	const hWidget = document.createElement('div')
