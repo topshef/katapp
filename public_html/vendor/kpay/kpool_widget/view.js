@@ -391,38 +391,16 @@ export function showBanner(message,type='info') {
 }
 
 
-function buildThresholdWidget({ accountId, network, signedPubkeys, mustSign }) {
+function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo }) {
   const widget = document.createElement('div')
-  if (!mustSign) return widget  // dont style if no widget to insert
+  if (!mustSign) return widget
   widget.className = 'acctkeys-piechart'
 
-  if (!mustSign) return widget
+  if (window.kpie && keyInfo) {
+    window.kpie.render(widget, { keyInfo, signedPubkeys: signedPubkeys || [] })
+      .catch(err => console.warn('[kpie] render failed', err))
+  }
 
-  const signed = (signedPubkeys || []).join(',')
-
-  const iframe = document.createElement('iframe')
-  iframe.src =
-    `https://kpay.uk/devtools/scratchpad/amcharts/ksig_pie_widget.php` +
-    `?showTooltips=0` +
-    `&network=${network}` +
-    `&accountId=${accountId}` +
-    `&signedPublicKeys=${signed}`
-
-	iframe.style.width = '450px'
-	iframe.style.height = '450px'
-	iframe.style.border = 'none'
-	iframe.style.position = 'absolute'
-	iframe.style.top = '50%'
-	iframe.style.left = '50%'
-	iframe.style.transformOrigin = 'center'
-	//0.2 is a fallback if missing css scale
-	iframe.style.transform = 'translate(-50%, -50%) scale(var(--acctkeys-pie-scale, 0.2))'  
-	iframe.scrolling = 'no'
-
-  widget.style.position = 'relative'
-  // widget.style.overflow = 'hidden'
-
-  widget.appendChild(iframe)
   return widget
 }
 
@@ -526,10 +504,9 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
 
 
 		const widget = buildThresholdWidget({
-			accountId,
-			network,
 			signedPubkeys,
-			mustSign: acc.mustSign
+			mustSign: acc.mustSign,
+			keyInfo: acc.keyInfo
 		})
 		block.appendChild(widget)
 
@@ -609,6 +586,12 @@ export function zz_later_injectTxReadCSS() {
  
 export function injectTxReadCSS() {
 	if (document.getElementById('txread-css')) return
+
+  //or add script tag <script src="/path/to/kpie.js"></script>
+  const s = document.createElement('script')
+  s.src = new URL('./kpie.js', import.meta.url).href
+  document.head.appendChild(s)
+
 
 	const style = document.createElement('style')
 	style.id = 'txread-css'
