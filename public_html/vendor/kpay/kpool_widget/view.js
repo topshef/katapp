@@ -333,27 +333,32 @@ export function renderSigningInfo({ data, accounts }) {
 	// renderKeyPieCharts({ network, accounts, signedPubkeys })
 }
 
-export function renderReadinessInfo({readiness}) {
 
+
+export function renderReadinessInfo({readiness}) {
 	const el = document.getElementById('txread-readiness')
 	if(!el) return
 
-  let txt=''
+	el.innerHTML = ''
 
-  if(readiness){
+	if(!readiness) return
 
-    txt=readiness.thresholdSatisfied
-      ? `🟢 Threshold satisfied`
-      : `✍️ ${readiness.signedRequiredKeyCount} keys signed • needs ${readiness.minMoreKeyCount} more`
+	const txt = readiness.thresholdSatisfied
+		? `🟢 Threshold satisfied`
+		: `✍️ ${readiness.signedRequiredKeyCount} keys signed • needs ${readiness.minMoreKeyCount} more`
 
-    if(readiness.signedWitnessKeyCount)
-      txt+=` • 👀 ${readiness.signedWitnessKeyCount} witness`
-  }
+	el.appendChild(document.createTextNode(txt))
 
-  el.textContent=txt
-
-
+	if(readiness.witnessKeys?.length) {
+		const tooltip = readiness.witnessKeys.map(k => '.    ...' + k.slice(-4)).join('\n')
+		const span = document.createElement('span')
+		span.style.cursor = 'default'
+		span.title = tooltip
+		span.textContent = ` • 👀 ${readiness.witnessKeys.length} witness`
+		el.appendChild(span)
+	}
 }
+
 
 
 export function showBanner(message,type='info') {

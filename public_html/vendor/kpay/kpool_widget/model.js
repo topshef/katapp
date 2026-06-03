@@ -378,7 +378,8 @@ export function evaluateTxReadiness({accounts,data}){
   return {
     thresholdSatisfied:summaries.every(x=>x.thresholdSatisfied),
     signedRequiredKeyCount:signedRequiredKeys.length,
-    signedWitnessKeyCount:signedWitnessKeys.length,
+    witnessKeys:signedWitnessKeys,
+    // signedWitnessKeyCount:signedWitnessKeys.length,
     minMoreKeyCount:summaries.reduce((a,x)=>a+x.minMoreKeyCount,0)
   }
 }
