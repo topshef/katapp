@@ -350,37 +350,72 @@ function getAssetClass(token){
 
 export function evaluateTxReadiness({accounts,data}){
 
-	const signedPubkeys=(data.sigs||[])
-		.map(x=>x.pubKey)
+  const KNOWN_PREFIXES = [
+      { prefix: '302a300506032b6570032100', label: 'ED25519 DER' },
+    ]
+
+	function normalizePublicKey(key) {
+		if (!key) return null
+		let k = key.toLowerCase()
+		for (const { prefix, label } of KNOWN_PREFIXES) {
+			if (k.startsWith(prefix)) {
+				const raw = k.slice(prefix.length)
+				console.warn('[readiness] stripped', label, 'prefix:', k.slice(0, 14), '→', raw.slice(0, 14))
+				k = raw
+				break
+			}
+		}
+		if (k.length !== 64) {
+			console.warn('[readiness] unexpected key length after normalisation:', k.length, 'key:', k.slice(0, 14))
+		}
+		return k
+	}
+
+	function normalizeKeyTree(node) {
+		if (typeof node === 'string') return normalizePublicKey(node)
+		return { ...node, keys: node.keys.map(normalizeKeyTree) }
+	}
+
+	const signedPubkeys = (data.sigs || [])
+		.map(x => x.pubKey)
+		.filter(Boolean)
+		.map(normalizePublicKey)
 		.filter(Boolean)
 
-	let summaries=[]
+	const summaries = []
 
-	Object.entries(accounts).forEach(([accountId,acc])=>{
-
-		if(!acc.mustSign) return
-		if(!acc.keyInfo) return
+	Object.entries(accounts).forEach(([accountId, acc]) => {
+		if (!acc.mustSign) return
+		if (!acc.keyInfo) return
 
 		summaries.push(
 			getThresholdSummary({
-				keyTree:acc.keyInfo,
+				keyTree: normalizeKeyTree(acc.keyInfo),
 				signedPubkeys
 			})
 		)
 	})
 
-  const requiredKeys=new Set()
-  summaries.forEach(x=>x.allRequiredKeys?.forEach(k=>requiredKeys.add(k)))
+	const allRequiredKeys = new Set()
+	summaries.forEach(x => x.allRequiredKeys?.forEach(k => allRequiredKeys.add(k)))
 
-  const signedRequiredKeys=signedPubkeys.filter(k=>requiredKeys.has(k))
-  const signedWitnessKeys=signedPubkeys.filter(k=>!requiredKeys.has(k))
+	const signedRequiredKeys = signedPubkeys.filter(k => allRequiredKeys.has(k))
+	const signedWitnessKeys  = signedPubkeys.filter(k => !allRequiredKeys.has(k))
 
-  return {
-    thresholdSatisfied:summaries.every(x=>x.thresholdSatisfied),
-    signedRequiredKeyCount:signedRequiredKeys.length,
-    witnessKeys:signedWitnessKeys,
-    // signedWitnessKeyCount:signedWitnessKeys.length,
-    minMoreKeyCount:summaries.reduce((a,x)=>a+x.minMoreKeyCount,0)
-  }
+	if (signedWitnessKeys.length) {
+		console.warn('[readiness] witness keys after normalisation — possible mismatch')
+		console.warn('[readiness] signed:', signedPubkeys)
+		console.warn('[readiness] required:', [...allRequiredKeys])
+		console.warn('[readiness] unmatched:', signedWitnessKeys)
+	}
+
+	return {
+		thresholdSatisfied: summaries.every(x => x.thresholdSatisfied),
+		signedRequiredKeyCount: signedRequiredKeys.length,
+		allRequiredKeys,
+		witnessKeys: signedWitnessKeys,
+		minMoreKeyCount: summaries.reduce((a, x) => a + x.minMoreKeyCount, 0)
+	}
 }
+
 

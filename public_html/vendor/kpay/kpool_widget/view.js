@@ -322,11 +322,25 @@
 	}
 		
 
+const VIEW_KEY_PREFIXES = [
+	'302a300506032b6570032100',
+]
+
+function normalizeViewKey(key) {
+	if (!key) return null
+	let k = key.toLowerCase()
+	for (const prefix of VIEW_KEY_PREFIXES) {
+		if (k.startsWith(prefix)) { k = k.slice(prefix.length); break }
+	}
+	return k
+}
+
 export function renderSigningInfo({ data, accounts }) {
 	// derive signed keys ONCE
 	const signedPubkeys = (data.sigs || [])
-	// const signedPubkeys = (get(rawTx, 'result.sigs') || [])
 		.map(s => s.pubKey)
+		.filter(Boolean)
+		.map(normalizeViewKey)
 		.filter(Boolean)
 
 	renderAccountKeyInfo(accounts, signedPubkeys, data.network)
@@ -537,7 +551,7 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
 		
 
     entries.forEach(([pubkey, score]) => {
-      const signed = signedPubkeys.includes(pubkey)
+      const signed = signedPubkeys.includes(normalizeViewKey(pubkey))
       const tick = acc.mustSign ? (signed ? '☑️' : '🔲') : 'N/A'
       const keySuffix = pubkey.slice(-4)
       const pct = Math.round(score * 100)
