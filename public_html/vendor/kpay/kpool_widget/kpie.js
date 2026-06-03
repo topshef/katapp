@@ -100,7 +100,8 @@
   function createThresholdPieChart(thresholdData, signedStatusData, divId, pieRadius) {
     const root = am5.Root.new(divId)
     root.setThemes([am5themes_Animated.new(root)])
-    root._renderer.resolution = 10
+    // root._renderer.resolution = 10
+    root._renderer.resolution = Math.ceil(window.devicePixelRatio || 2)
     //root.container.setAll({ paddingTop: 0, paddingBottom: 0, paddingLeft: 0, paddingRight: 0 })
 
     const bgColor = root.interfaceColors.get('background')
@@ -160,7 +161,7 @@
   function drawTree(jsonData, container) {
     container.innerHTML = ''
     container.style.position = 'relative'
-    container.style.overflow = 'hidden'
+    container.style.overflow = 'visible'
 
     const rect = container.getBoundingClientRect()
     const size = Math.min(rect.width || 110, rect.height || 110)
@@ -260,6 +261,7 @@
     if (!hasTreeChildren) {
       // Render amCharts directly — no SVG wrapper, no foreignObject, no scaling
       container.innerHTML = ''
+      container.style.overflow = 'visible'
       const rect = container.getBoundingClientRect()
       const size = Math.min(rect.width || 110, rect.height || 110)
       const divId = `kpie_direct_${++_chartSeq}`
