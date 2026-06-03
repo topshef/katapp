@@ -125,6 +125,8 @@
     }))
     seriesThreshold.data.setAll(thresholdData)
     seriesThreshold.slices.template.setAll({ stroke: bgColor, strokeWidth: 1, tooltip: null, tooltipText: '' })
+    seriesThreshold.slices.template.states.create('hover', { shiftRadius: 0, scale: 1 })
+    seriesThreshold.slices.template.states.create('active', { shiftRadius: 0, scale: 1 })
     seriesThreshold.events.on('datavalidated', () => {
       seriesThreshold.slices.each(slice => {
         const color = slice.dataItem.dataContext.category === 'Threshold needed' ? 0x000000 : 0xD9D9D9
@@ -142,6 +144,8 @@
     }))
     seriesSigned.data.setAll(signedStatusData)
     seriesSigned.slices.template.setAll({ stroke: bgColor, strokeWidth: 1, tooltip: null, tooltipText: '' })
+    seriesSigned.slices.template.states.create('hover', { shiftRadius: 0, scale: 1 })
+    seriesSigned.slices.template.states.create('active', { shiftRadius: 0, scale: 1 })
     seriesSigned.events.on('datavalidated', () => {
       seriesSigned.slices.each(slice => {
         const v = slice.dataItem.dataContext.isSigned
