@@ -2,6 +2,37 @@
 window.createOrderDirty = false
 window.pendingCreateOrderAccount = null
 
+function toDateTimeLocalValue(ts){
+  if(!ts) return ""
+  const d = new Date(ts)
+  if(Number.isNaN(d.getTime())) return ""
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,16)
+}
+
+function getCreateOrderExpiresAt(){
+  const tif = document.getElementById("createOrderTif")?.value || "GTC"
+  if(tif !== "GTD") return null
+
+  const raw = document.getElementById("createOrderExpiresAt")?.value || ""
+  if(!raw) return null
+
+  const ts = new Date(raw).getTime()
+  return Number.isFinite(ts) ? ts : null
+}
+
+function syncCreateOrderExpiryUI(){
+  const tif = document.getElementById("createOrderTif")?.value || "GTC"
+  const row = document.getElementById("createOrderExpiresAtRow")
+  const input = document.getElementById("createOrderExpiresAt")
+  if(!row || !input) return
+
+  const show = tif === "GTD"
+  row.style.display = show ? "" : "none"
+  input.required = show
+  if(!show) input.value = ""
+}
+
+
 function accountMatchesInput(account, input){
   return (
     account.label == input ||
@@ -292,6 +323,11 @@ function openCreateOrderModal(defaults = {}){
   const tifEl = document.getElementById("createOrderTif")
   if(tifEl) tifEl.value = defaults.timeInForce || "GTC"
 
+  const expiresAtEl = document.getElementById("createOrderExpiresAt")
+  if(expiresAtEl) expiresAtEl.value = toDateTimeLocalValue(defaults.expiresAt)
+
+  syncCreateOrderExpiryUI()
+
   // if opening existing order with saved minFill, treat as manual; otherwise allow auto-fill
   window.minFillWasAutoSet = !defaults.minFill
 
@@ -442,6 +478,7 @@ document.addEventListener("input",e => {
   window.createOrderDirty = true
   if(e.target.id == "createOrderRaw") return
   if(e.target.id == "createOrderMinFill") window.minFillWasAutoSet = false
+  if(e.target.id == "createOrderTif") syncCreateOrderExpiryUI()
   document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
   validateOrderMath()
 })
@@ -450,6 +487,7 @@ document.addEventListener("input",e => {
 document.addEventListener("change",e => {
   if(!e.target.closest("#createOrderModal")) return
   window.createOrderDirty = true
+  if(e.target.id == "createOrderTif") syncCreateOrderExpiryUI()
   validateOrderMath()
 })
 

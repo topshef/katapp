@@ -233,13 +233,18 @@
       <label>Time in force</label>
       <select id="createOrderTif">
         <option value="GTC" selected>♾️ GTC — Good till cancelled</option>
+        <option value="GTD">📅 GTD — Good till date</option>
         <option value="IOC" disabled>⚡ IOC — Immediate or cancel</option>
         <option value="FOK" disabled>🎯 FOK — Fill or kill</option>
-        <option value="GTD" disabled>📅 GTD — Good till date</option>
-              
       </select>
 
+      <div id="createOrderExpiresAtRow" style="display:none;margin-top:10px;">
+        <label>Expires at</label>
+        <input id="createOrderExpiresAt" type="datetime-local">
+      </div>
+
 			<br>
+      
       <details id="createOrderDev">
         <summary>🛠 Pro mode</summary>
         <div class="dev-help">

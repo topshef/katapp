@@ -493,6 +493,7 @@ function renderHeatmapBar(svg,row,l,opacity){
       accountId:`${row.playerId}:${row.accountId}`,
       minFill:     fullOrder?.minFill     || null,
       timeInForce: fullOrder?.timeInForce || "GTC",
+      expiresAt:   fullOrder?.expiresAt   || null,
     })
 
   }
@@ -1438,6 +1439,7 @@ function makeOrderRowOnClick(orderId, playerId, enriched, order){
       accountId:   `${playerId}:${fxRow.accountId}`,
       minFill:     fullOrder?.minFill     || null,
       timeInForce: fullOrder?.timeInForce || "GTC",
+      expiresAt:   fullOrder?.expiresAt   || null,
     })
   }
 }
@@ -1603,6 +1605,8 @@ function checkMinFillDivisibility(bundle, minFill) {
 // sign order payload
 
 const SIG_SPEC_FIELDS = ["specVersion","gameId","network","clientOrderId","issuedAt","bundleHash","timeInForce","minFill"]
+//todo update spec?..
+// const SIG_SPEC_FIELDS = ["specVersion","gameId","network","clientOrderId","issuedAt","bundleHash","timeInForce","expiresAt","minFill"]
 
 const SIG_SPEC = (async () => {
   const bytes  = new TextEncoder().encode(JSON.stringify(SIG_SPEC_FIELDS))
@@ -1639,7 +1643,7 @@ async function hashBundle(bundle) {
     .map(b => b.toString(16).padStart(2, "0")).join("")
 }
 
-async function buildSignedOrder(bundle, { minFill, timeInForce, privateKey, publicKeyJwk }) {
+async function buildSignedOrder(bundle, { minFill, timeInForce, expiresAt, privateKey, publicKeyJwk }) {
   const clientOrderId = crypto.randomUUID()
   const issuedAt      = Date.now()
   const bundleHash    = await hashBundle(bundle)
@@ -1650,6 +1654,7 @@ async function buildSignedOrder(bundle, { minFill, timeInForce, privateKey, publ
     issuedAt,
     bundleHash,
     timeInForce,
+    expiresAt,
     minFill,
   })
   const intentSignature = await signOrder(signingPayload, privateKey, publicKeyJwk)
@@ -1657,7 +1662,7 @@ async function buildSignedOrder(bundle, { minFill, timeInForce, privateKey, publ
     bundle,
     minFill,
     timeInForce,
-    expiresAt:       null,
+    expiresAt,
     clientOrderId,
     issuedAt,
     matchConditions: null,
@@ -1672,6 +1677,17 @@ async function buildSignedOrder(bundle, { minFill, timeInForce, privateKey, publ
 async function createOrderFromModal() {
 
   const timeInForce = document.getElementById("createOrderTif")?.value || "GTC"
+  const expiresAt = getCreateOrderExpiresAt()
+
+  if(timeInForce === "GTD" && !expiresAt){
+    alert("Please choose an expiry date/time for GTD")
+    return
+  }
+
+  if(timeInForce === "GTD" && expiresAt <= Date.now()){
+    alert("Expiry date/time must be in the future")
+    return
+  }
 
   const { ok, minFill } = parseMinFill(document.getElementById("createOrderMinFill")?.value)
   if (!ok) {
@@ -1687,7 +1703,7 @@ async function createOrderFromModal() {
 
     if (!checkMinFillDivisibility(bundle, minFill)) return
 
-    const order = await buildSignedOrder(bundle, { minFill, timeInForce, privateKey, publicKeyJwk })
+    const order = await buildSignedOrder(bundle, { minFill, timeInForce, expiresAt, privateKey, publicKeyJwk })
 
     socket.send(JSON.stringify({
       type: "game_orderCreate",
