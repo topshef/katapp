@@ -84,28 +84,44 @@ h2{
   background:#218838;
 }
 
-/* MOBILE */
 
+.row-header,
+.row-chips{
+  display:contents;
+}
+
+
+/* MOBILE */
 @media (max-width:700px){
 
   .grid{ display:block; background:transparent; }
   .grid-header{ display:none; }
 
   .row{
-    display:flex;
-    flex-wrap:wrap;
-    gap:6px;
+    display:block;
     background:#fff;
     margin-bottom:10px;
     padding:10px;
     border-radius:8px;
   }
 
+  .row-header{
+    display:flex;
+    align-items:baseline;
+    gap:8px;
+    margin-bottom:7px;
+  }
+
+  .row-chips{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+
   .cell{
     display:inline-flex;
     align-items:center;
     width:auto;
-    flex:0 0 auto;
     padding:4px 10px 4px 8px;
     border:none;
     background:#f3f3f3;
@@ -116,8 +132,7 @@ h2{
   .cell::before{ display:none; }
 
   .cell.gamename{
-    order:1;
-    flex:1 1 auto;
+    flex:1;
     padding:0;
     background:none;
     font-size:16px;
@@ -125,26 +140,10 @@ h2{
   }
 
   .cell.id{
-    order:2;
     padding:0;
     background:none;
     font-size:11px;
     color:#666;
-    margin-left:auto;
-  }
-
-  .cell.network{
-    order:3;
-    flex-basis:auto;
-    margin-right:100%;
-  }
-
-  .cell.visibility,
-  .cell.join,
-  .cell.trading,
-  .cell.lock,
-  .cell.strike{
-    order:4;
   }
 }
 
@@ -153,7 +152,7 @@ h2{
 
 <body>
 
-<h2>Choose a Katomia market... 🐫🍎🥬🥕📊</h2>
+<h2>Katomia markets 🐫🍎💱📊</h2>
 
 <div id="games" class="grid"></div>
 
@@ -301,19 +300,34 @@ async function loadGames(){
 
   Object.values(data.games).forEach(g => {
 
+    const idCol = columns.find(c => c.key === "id")
+    const nameCol = columns.find(c => c.key === "gamename")
+    const chipCols = columns.filter(c => !["id","gamename"].includes(c.key))
+
     container.insertAdjacentHTML(
       "beforeend",
       `
       <div class="row">
-        ${
-          columns
-            .map(c=>`
-              <div class="cell ${c.key}" data-label="${c.label}">
-                ${c.render(g)}
-              </div>
-            `)
-            .join("")
-        }
+        <div class="row-header">
+          <div class="cell gamename" data-label="${nameCol.label}">
+            ${nameCol.render(g)}
+          </div>
+          <div class="cell id" data-label="${idCol.label}">
+            ${idCol.render(g)}
+          </div>
+        </div>
+
+        <div class="row-chips">
+          ${
+            chipCols
+              .map(c=>`
+                <div class="cell ${c.key}" data-label="${c.label}">
+                  ${c.render(g)}
+                </div>
+              `)
+              .join("")
+          }
+        </div>
       </div>
       `
     )
