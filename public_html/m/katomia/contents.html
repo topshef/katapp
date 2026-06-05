@@ -88,63 +88,64 @@ h2{
 
 @media (max-width:700px){
 
-  .grid{
-    display:block;
-    background:transparent;
-  }
-
-  .grid-header{
-    display:none;
-  }
+  .grid{ display:block; background:transparent; }
+  .grid-header{ display:none; }
 
   .row{
-    display:block;
-    background:white;
-    margin-bottom:12px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    background:#fff;
+    margin-bottom:10px;
+    padding:10px;
     border-radius:8px;
-    overflow:hidden;
   }
 
   .cell{
-    display:flex;
-    justify-content:space-between;
-    padding:10px 12px;
-    border-bottom:1px solid #eee;
+    display:inline-flex;
+    align-items:center;
+    width:auto;
+    flex:0 0 auto;
+    padding:4px 10px 4px 8px;
+    border:none;
+    background:#f3f3f3;
+    border-radius:999px;
+    font-size:12px;
   }
 
+  .cell::before{ display:none; }
 
-
-  .cell:last-child{
-    border-bottom:none;
-  }
-
-  .cell::before{
+  .cell.gamename{
+    order:1;
+    flex:1 1 auto;
+    padding:0;
+    background:none;
+    font-size:16px;
     font-weight:600;
-    color:#666;
-    margin-right:10px;
   }
 
-  .cell::before{
-    content:attr(data-label);
-    font-weight:600;
+  .cell.id{
+    order:2;
+    padding:0;
+    background:none;
+    font-size:11px;
     color:#666;
-    margin-right:10px;
+    margin-left:auto;
   }
-  
-}
 
-.grid-header{
-  font-weight:600;
-  font-size:14px;
-  padding:10px 12px;
-  background:#fafafa;
-  border-bottom:1px solid #e5e5e5;
-}
+  .cell.network{
+    order:3;
+    flex-basis:auto;
+    margin-right:100%;
+  }
 
-
-.cell.gamename{
-  min-width: 24ch;
-  max-width: 48ch;
+  .cell.visibility,
+  .cell.join,
+  .cell.trading,
+  .cell.lock,
+  .cell.strike{
+    order:4;
+  }
 }
 
 </style>
@@ -152,7 +153,7 @@ h2{
 
 <body>
 
-<h2>Choose a Katomia market... 🍎🥬🥕</h2>
+<h2>Choose a Katomia market... 🐫🍎🥬🥕📊</h2>
 
 <div id="games" class="grid"></div>
 
