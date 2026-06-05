@@ -142,7 +142,10 @@ h2{
 }
 
 
-
+.cell.gamename{
+  min-width: 24ch;
+  max-width: 48ch;
+}
 
 </style>
 </head>
@@ -163,6 +166,40 @@ h2{
 
 const API_URL = "/m/katomia/hapi/games"
 //const API_URL = "https://hapi2.hbar.live/live/katomia/games"
+
+const displayLookup = {
+  tradingMode: {
+    proposal: "💡 Proposal",
+    orderBook: "📊 Order Book"
+  },
+
+  network: {
+    playnet: "🧸 Playnet",
+    testnet: "🟠 Testnet",
+    mainnet: "🟣 Mainnet"
+  },
+
+  visibility: {
+    public:   "🌍 Public",
+    unlisted: "🔗 Unlisted",
+    private:  "🔒 Private"
+  },
+  
+  lockRule: {
+    cluster: "☆ cluster",
+    active:  "☆☆ active",
+    all:     "🌍 all"
+  }, 
+  
+  joinRule: {
+    '*': "🙌 anyone",
+  },
+}
+
+function displayValue(group, value){
+  return displayLookup[group]?.[value] || value || ""
+}
+
 
 function formatJoinRule(rule){
 
@@ -192,41 +229,56 @@ const columns = [
   {
     key:"network",
     label:"Network",
-    render:g => g.config?.network || g.network || ""
+    render:g => displayValue("network", g.config?.network || g.network)
   },
 
   {
     key:"visibility",
     label:"Visibility",
-    render:g => g.config?.visibility || g.visibility || ""
+    render:g => displayValue("visibility", g.config?.visibility || g.visibility)
   },
 
   {
     key:"join",
     label:"Join rule",
-    render:g => formatJoinRule(g.config?.joinRule || g.joinRule)
+    render:g => displayValue("joinRule", g.config?.joinRule ?? g?.joinRule)
   },
 
   {
     key:"trading",
     label:"Trading mode",
-    render:g => g.config?.tradingMode || ""
+    render:g => displayValue("tradingMode", g.config?.tradingMode)
   },
 
   {
     key:"lock",
     label:"Lock rule",
-    render:g => g.config?.lockRule || g.lockRule || ""
+    render:g => displayValue("lockRule", g.config?.lockRule || g.lockRule)
   },
 
   {
     key:"strike",
-    label:"Strike seconds",
-    render:g => g.config?.txDelaySeconds ?? ""
+    label:"Strike delay",
+    render:g => formatStrike(g.config?.txDelaySeconds)
   }
 
 ]
 
+function formatStrike(seconds){
+  seconds = Number(seconds) || 0
+
+  if(seconds === 0) return "⚡ Instant"
+
+  const h = Math.floor(seconds / 3600)
+  const m = Math.floor(seconds % 3600 / 60)
+  const s = seconds % 60
+
+  if(h > 0) return `⏱️ ${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+
+  if(m > 0) return `⏱️ ${m}:${String(s).padStart(2,'0')}`
+
+  return `⏱️ ${s}s`
+}
 
 async function loadGames(){
 
