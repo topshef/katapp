@@ -46,6 +46,9 @@ h2{
 
 .row{
   display:contents;
+  color:inherit;
+  text-decoration:none;
+  cursor:pointer;
 }
 
 .cell{
@@ -58,15 +61,6 @@ h2{
   background:#fafafa;
 }
 
-.cell a{
-  text-decoration:none;
-  color:#0366d6;
-  font-weight:600;
-}
-
-.cell a:hover{
-  text-decoration:underline;
-}
 
 .create-market{
   display:inline-block;
@@ -132,6 +126,7 @@ h2{
   .cell::before{ display:none; }
 
   .cell.gamename{
+    order:1;
     flex:1;
     padding:0;
     background:none;
@@ -140,6 +135,7 @@ h2{
   }
 
   .cell.id{
+    order:2;
     padding:0;
     background:none;
     font-size:11px;
@@ -170,7 +166,8 @@ const API_URL = "/m/katomia/hapi/games"
 const displayLookup = {
   tradingMode: {
     proposal: "💡 Proposal",
-    orderBook: "📊 Order Book"
+    orderBook: "📊 Order Book",
+    debug: "🛠️ debug"
   },
 
   network: {
@@ -217,7 +214,7 @@ const columns = [
   {
     key:"id",
     label:"ID",
-    render:g => `<a href="./game/${g.id}" target="${g.id}">${g.id}</a>`
+    render:g => g.id
   },
 
   {
@@ -307,13 +304,13 @@ async function loadGames(){
     container.insertAdjacentHTML(
       "beforeend",
       `
-      <div class="row">
+       <a class="row" href="./game/${g.id}" target="${g.id}">
         <div class="row-header">
-          <div class="cell gamename" data-label="${nameCol.label}">
-            ${nameCol.render(g)}
-          </div>
           <div class="cell id" data-label="${idCol.label}">
             ${idCol.render(g)}
+          </div>
+          <div class="cell gamename" data-label="${nameCol.label}">
+            ${nameCol.render(g)}
           </div>
         </div>
 
@@ -328,7 +325,7 @@ async function loadGames(){
               .join("")
           }
         </div>
-      </div>
+      </a>
       `
     )
 
