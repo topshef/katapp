@@ -76,11 +76,15 @@ function enrichSimpleFxMarketRow({ orderId, playerId, market }){
   // const displayBaseAmount =
     // market.baseAmount / (10 ** baseDecimals)
 
-  const settled =
-    getSettledOrderFillRatio(orderId)
+  const settled = getSettledOrderFillRatio(orderId)
+  const pending = getPendingOrderFillRatio(orderId)
 
-  const remainingRatio =
-    1 - (settled.numerator / settled.denominator)
+  const remainingRatio = Math.max(
+    0,
+    1 -
+    (settled.numerator / settled.denominator) -
+    (pending.numerator / pending.denominator)
+  )
 
   const displayBaseAmount =
     (market.baseAmount * remainingRatio)

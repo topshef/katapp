@@ -35,35 +35,107 @@ function getNumberBlock(n){   // go peepshow
 
 }
 
+function formatTxSourceFraction(r){
+
+  if(r.unknown) return ""
+
+  const reduced = reduceFraction(r.numerator, r.denominator)
+  const fraction = `${reduced.numerator}/${reduced.denominator}`
+
+  return fraction == "1/1" ? "All" : fraction
+}
+
+function getTxFillTakerRatio(tx, fill){
+
+  if(fill.takerNumerator && fill.takerDenominator)
+    return {
+      numerator: fill.takerNumerator,
+      denominator: fill.takerDenominator
+    }
+
+  const makerOrder = tx.source?.orders?.[fill.orderId]
+  const takerOrder = tx.source?.orders?.[fill.takerOrderId]
+
+  const makerMarket = enrichOrder(makerOrder)?.market
+  const takerMarket = enrichOrder(takerOrder)?.market
+
+  if(!makerMarket || !takerMarket) return { unknown:true }
+  if(makerMarket.type !== "simple-fx" || takerMarket.type !== "simple-fx") return { unknown:true }
+
+  const makerFillRatio = Number(fill.numerator || 0) / Number(fill.denominator || 1)
+  const baseAmount = Math.trunc(makerMarket.baseAmount * makerFillRatio)
+
+  return reduceFraction(baseAmount, takerMarket.baseAmount)
+}
+
 function renderTxSourceInfo(tx){  // renders too
 
-  const seen = new Set()
+  const seenMakers = new Set()
+  const makerItems = []
+  const takers = {}
 
-  const items = (tx.source?.fills || []).map(x => {
+  function addTaker(orderId, ratio){
+    if(!orderId) return
 
-    if(!x.orderId) return ""  // should now be redundant as fills should always have an orderId
+    takers[orderId] ||= {
+      numerator: 0,
+      denominator: 1,
+      unknown: false
+    }
 
-    const r = reduceFraction(x.numerator,x.denominator)
+    if(ratio.unknown){
+      takers[orderId].unknown = true
+      return
+    }
 
-    let fraction = `${r.numerator}/${r.denominator}`
-    if(fraction == "1/1") fraction = "All"
+    const current = takers[orderId]
 
-    const key = `${fraction} of #${x.orderId}`
+    const reduced = reduceFraction(
+      current.numerator * ratio.denominator + ratio.numerator * current.denominator,
+      current.denominator * ratio.denominator
+    )
 
-    if(seen.has(key)) return ""
+    takers[orderId] = reduced
+  }
 
-    seen.add(key)
+  ;(tx.source?.fills || []).forEach(fill => {
 
-    return key
+    if(fill.orderId){
+      const r = reduceFraction(fill.numerator, fill.denominator)
+      let fraction = `${r.numerator}/${r.denominator}`
+      if(fraction == "1/1") fraction = "All"
 
-  }).filter(Boolean)
+      const key = `${fraction} of #${fill.orderId}`
+      if(!seenMakers.has(key)){
+        seenMakers.add(key)
+        makerItems.push(key)
+      }
+    }
 
-  const count = getNumberBlock(items.length)
-  const text = items.join(", ")
+    if(fill.takerOrderId)
+      addTaker(fill.takerOrderId, getTxFillTakerRatio(tx, fill))
+  })
 
-  return `${count} ${text}`
+  const takerItems = Object.entries(takers).map(([orderId, ratio]) => {
+    const fraction = formatTxSourceFraction(ratio)
+    return fraction ? `${fraction} of #${orderId}` : `#${orderId}`
+  })
 
+  const makerText = makerItems.join(", ")
+  const takerText = takerItems.join(", ")
+
+  if(makerText && takerText)
+    return `${getNumberBlock(makerItems.length)} ${makerText} by ${takerText}`
+
+  if(makerText)
+    return `${getNumberBlock(makerItems.length)} ${makerText}`
+
+  if(takerText)
+    return `by ${takerText}`
+
+  return ""
 }
+
 
 
 function getTxStatus(tx){

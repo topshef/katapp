@@ -635,49 +635,41 @@ function buildOrderFillMap(){ // ref BASK1
 
   const seen = new Set()
 
+  function addFill(orderId, fillId, numerator, denominator, role){
+    if(!orderId || !fillId) return
+
+    numerator = Number(numerator || 0)
+    denominator = Number(denominator || 0)
+
+    if(!numerator || !denominator) return
+
+    const key = `${role}:${orderId}|${fillId}`
+    if(seen.has(key)) return
+
+    seen.add(key)
+
+    if(!out[orderId])
+      out[orderId] = { numerator: 0, denominator: 1 }
+
+    const current = out[orderId]
+
+    out[orderId] = reduceFraction(
+      current.numerator * denominator + numerator * current.denominator,
+      current.denominator * denominator
+    )
+  }
+
   Object.values(state.accounts).forEach(account => {
-
     ;(account.basket || []).forEach(item => {
-
-      if(!item.orderId) return
-      if(!item.fillId) return
-
-      const key = `${item.orderId}|${item.fillId}`
-
-      // same fill appears multiple times across baskets
-      if(seen.has(key)) return
-      seen.add(key)
-
-      const numerator = Number(item.numerator || 1)
-      const denominator = Number(item.denominator || 1)
-
-      if(!out[item.orderId]){
-        out[item.orderId] = {
-          numerator: 0,
-          denominator: 1
-        }
-      }
-
-      const current = out[item.orderId]
-
-      // a/b + c/d
-      const nextNumerator =
-        current.numerator * denominator +
-        numerator * current.denominator
-
-      const nextDenominator =
-        current.denominator * denominator
-
-      out[item.orderId] = reduceFraction(
-        nextNumerator,
-        nextDenominator
-      )
+      addFill(item.orderId, item.fillId, item.numerator, item.denominator, "maker")
+      addFill(item.takerOrderId, item.fillId, item.takerNumerator, item.takerDenominator, "taker")
     })
-
   })
 
   return out
 }
+
+
 
 // ┌─┐┌─┐┌┬┐  ╔═╗┬─┐┌┬┐┌─┐┬─┐  ╔═╗┬┬  ┬    ╦═╗┌─┐┌┬┐┬┌─┐
 // │ ┬├┤  │   ║ ║├┬┘ ││├┤ ├┬┘  ╠╣ ││  │    ╠╦╝├─┤ │ ││ │
@@ -694,32 +686,44 @@ function getOrderFillRatio(orderId){  //ref BASK1
 }
 
 
+
+
 function getPendingOrderFillRatio(orderId){ // BASK1
 
+  const target = String(orderId)
+  const seen = new Set()
   let numerator = 0
   let denominator = 1
-  const seen = new Set()
+
+  function addFill(scope, fillId, n, d){
+    n = Number(n || 0)
+    d = Number(d || 0)
+
+    if(!fillId || !n || !d) return
+
+    const key = `${scope}:${fillId}`
+    if(seen.has(key)) return
+
+    seen.add(key)
+
+    const reduced = reduceFraction(
+      numerator * d + n * denominator,
+      denominator * d
+    )
+
+    numerator = reduced.numerator
+    denominator = reduced.denominator
+  }
 
   ;(state.tx?.pending || []).forEach(tx => {
-    ;(tx.sourceBaskets || []).forEach(item => {
+    const txKey = tx.pch || tx.txid || "pending"
 
-      if(String(item.orderId) !== String(orderId)) return
-      if(!item.fillId) return
+    ;(tx.source?.fills || []).forEach(fill => {
+      if(String(fill.orderId) === target)
+        addFill(`${txKey}:maker`, fill.fillId, fill.numerator, fill.denominator)
 
-      const key = `${item.orderId}|${item.fillId}`
-      if(seen.has(key)) return
-      seen.add(key)
-
-      const n = Number(item.numerator || 0)
-      const d = Number(item.denominator || 1)
-
-      const reduced = reduceFraction(
-        numerator * d + n * denominator,
-        denominator * d
-      )
-
-      numerator = reduced.numerator
-      denominator = reduced.denominator
+      if(String(fill.takerOrderId) === target)
+        addFill(`${txKey}:taker`, fill.fillId, fill.takerNumerator, fill.takerDenominator)
     })
   })
 
@@ -742,7 +746,7 @@ function getSettledOrderFillRatio(orderId){
 
   rec.order.settled.forEach(item => {
 
-    const key = `${item.fillId}`
+    const key = `${item.role || "maker"}|${item.fillId}|${item.txid || ""}`
     if(seen.has(key)) return
     seen.add(key)
 
