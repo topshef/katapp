@@ -65,7 +65,7 @@
       </label>
 
       <label>
-        <input id="sortOrdersByPrice" type="checkbox" checked>
+        <input id="sortOrdersByPrice" type="checkbox">
         Sort by price
       </label>
 
