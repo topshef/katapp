@@ -86,9 +86,11 @@ function enrichSimpleFxMarketRow({ orderId, playerId, market }){
     (pending.numerator / pending.denominator)
   )
 
+  const remainingRawBaseAmount =
+    Math.round(market.baseAmount * remainingRatio)
+
   const displayBaseAmount =
-    (market.baseAmount * remainingRatio)
-    / (10 ** baseDecimals)
+    remainingRawBaseAmount / (10 ** baseDecimals)
 
   const originalDisplayBaseAmount =
     market.baseAmount
@@ -118,6 +120,7 @@ function enrichSimpleFxMarketRow({ orderId, playerId, market }){
     quoteAsset: market.quoteAsset,
 
     rawBaseAmount: market.baseAmount,
+    rawRemainingBaseAmount: remainingRawBaseAmount,
     rawQuoteAmount: market.quoteAmount,
 
     displayBaseAmount,

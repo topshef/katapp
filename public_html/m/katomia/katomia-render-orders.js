@@ -303,7 +303,17 @@ function createSimpleFxTxAssets(transfers){
 
 }
 
+function getTxOrderIds(tx){
 
+  const ids = []
+
+  ;(tx.source?.fills || []).forEach(fill => {
+    if(fill.orderId) ids.push(String(fill.orderId))
+    if(fill.takerOrderId) ids.push(String(fill.takerOrderId))
+  })
+
+  return [...new Set(ids)]
+}
 
 function createTxRow(tx){
 
@@ -323,6 +333,7 @@ function createTxRow(tx){
 
 
   row.dataset.txkey = getTxKey(tx)
+  row.dataset.orderIds = getTxOrderIds(tx).join(",")
     
   const orderId = tx.source?.fills?.[0]?.orderId
   const order = getAllOrders().find(x => x.orderId == orderId)?.order
@@ -440,24 +451,54 @@ async function renderTransactions(){
 
 function getPendingFillItems(orderId){
 
+  const target = String(orderId)
   const seen = new Set()
 
   return (state?.tx?.pending || [])
     .flatMap(tx =>
       (tx.source?.fills || [])
-        .filter(x => x.orderId == orderId)
-        .map(x => ({...x,txid:tx.txid,pch:tx.pch}))
+        .flatMap(fill => {
+
+          const items = []
+
+          if(String(fill.orderId) === target)
+            items.push({
+              ...fill,
+              role:"maker",
+              txid:tx.txid,
+              pch:tx.pch
+            })
+
+          if(String(fill.takerOrderId) === target)
+            items.push({
+              ...fill,
+              role:"taker",
+              orderId:fill.takerOrderId,
+              makerOrderId:fill.orderId,
+              numerator:fill.takerNumerator,
+              denominator:fill.takerDenominator,
+              txid:tx.txid,
+              pch:tx.pch
+            })
+
+          return items
+        })
     )
     .filter(x => {
 
       if(!x.fillId) return false
-      if(seen.has(x.fillId)) return false
+      if(!x.numerator || !x.denominator) return false
 
-      seen.add(x.fillId)
+      const key = `${x.role}|${x.txid}|${x.pch}|${x.fillId}`
+
+      if(seen.has(key)) return false
+
+      seen.add(key)
       return true
     })
-
 }
+
+
 
 
 function getSettledFillItems(orderId){
@@ -727,75 +768,53 @@ function ensureMarketTooltip(){
   return el
 }
 
+function setHeatmapElementHighlight(el,on){
+
+  const t = el.dataset.type
+  const side = el.dataset.side
+
+  if(side)
+    el.classList.toggle(`svg-${side}`,on)
+
+  if(on){
+
+    if(t=="bubble"){
+      el.setAttribute("stroke-width","3")
+      el.setAttribute("stroke-opacity","1")
+    }
+
+    if(t=="settled")
+      el.setAttribute("fill-opacity","0.8")
+
+    return
+  }
+
+  el.classList.remove("svg-buy","svg-sell")
+
+  if(t=="bubble"){
+    el.setAttribute("stroke-width","1")
+    el.setAttribute("stroke-opacity","0.6")
+  }
+
+  if(t=="settled")
+    el.setAttribute("fill-opacity","0.35")
+}
 
 function highlightHeatmapFill(fillId,on){
 
   document
-    .querySelectorAll(
-      `[data-fill-id="${fillId}"]`
-    )
-    .forEach(el => {
-
-      const t = el.dataset.type
-      const side = el.dataset.side
-
-      el.classList.toggle(
-        `svg-${side}`,
-        on
-      )
-
-      if(on){
-
-        if(t=="bubble"){
-          el.setAttribute("stroke-width","3")
-          el.setAttribute("stroke-opacity","1")
-        }
-
-        if(t=="settled")
-          el.setAttribute("fill-opacity","0.8")
-
-      }else{
-
-        el.classList.remove(
-          "svg-buy",
-          "svg-sell"
-        )
-
-        if(t=="bubble"){
-          el.setAttribute("stroke-width","1")
-          el.setAttribute("stroke-opacity","0.6")
-        }
-
-        if(t=="settled")
-          el.setAttribute("fill-opacity","0.35")
-
-      }
-
-    })
-
+    .querySelectorAll(`[data-fill-id="${fillId}"]`)
+    .forEach(el => setHeatmapElementHighlight(el,on))
 }
-
 
 function highlightHeatmapTx(txkey,on){
 
+  if(!txkey) return
+
   document
-    .querySelectorAll(
-      `[data-txkey="${txkey}"]`
-    )
-    .forEach(el => {
-
-      const fillId =
-        el.dataset.fillId
-
-      if(fillId)
-        highlightHeatmapFill(
-          fillId,
-          on
-        )
-    })
-
+    .querySelectorAll(`[data-txkey="${txkey}"]`)
+    .forEach(el => setHeatmapElementHighlight(el,on))
 }
-
 
 function highlightOrder(orderId,on){
 
@@ -820,43 +839,77 @@ function highlightOrder(orderId,on){
       }
 
     })
+}
 
+function highlightTxRow(row,on){
+
+  row.classList.toggle("tx-highlight",on)
+
+  const side = row.dataset.orderSide
+
+  if(side)
+    row.classList.toggle(`tx-${side}`,on)
+
+  row
+    .querySelector(".tx-fx-chip")
+    ?.classList.toggle(`tx-chip-${side}`,on)
+}
+
+function getRowOrderIds(row){
+  return (row.dataset.orderIds || "")
+    .split(",")
+    .filter(Boolean)
+}
+
+function highlightTxOrders(row,on){
+  getRowOrderIds(row).forEach(orderId =>
+    highlightOrder(orderId,on)
+  )
 }
 
 function highlightTxRows(fillId,on){
 
   document.querySelectorAll(".tx-row").forEach(row => {
 
-    const fills =
-      (row.dataset.fills || "")
-      .split(",")
+    const fills = (row.dataset.fills || "").split(",")
 
     if(!fills.includes(String(fillId)))
       return
 
-    row.classList.toggle(
-      "tx-highlight",
-      on
-    )
-
-    const side =
-      row.dataset.orderSide
-
-    if(side)
-      row.classList.toggle(
-        `tx-${side}`,
-        on
-      )
-
-    row
-      .querySelector(".tx-fx-chip")
-      ?.classList.toggle(
-        `tx-chip-${side}`,
-        on
-      )
-
+    highlightTxRow(row,on)
   })
+}
 
+function highlightTxRowsByTxKey(txkey,on){
+
+  if(!txkey) return
+
+  document.querySelectorAll(".tx-row").forEach(row => {
+    if(row.dataset.txkey !== txkey) return
+
+    highlightTxRow(row,on)
+    highlightTxOrders(row,on)
+  })
+}
+
+function highlightTxRowsByOrder(orderId,on){
+
+  if(!orderId) return
+
+  document.querySelectorAll(".tx-row").forEach(row => {
+
+    if(!getRowOrderIds(row).includes(String(orderId)))
+      return
+
+    highlightTxRow(row,on)
+    highlightHeatmapTx(row.dataset.txkey,on)
+    highlightTxOrders(row,on)
+  })
+}
+
+function highlightOrderContext(orderId,on){
+  highlightOrder(orderId,on)
+  highlightTxRowsByOrder(orderId,on)
 }
 
 
@@ -939,31 +992,14 @@ document.addEventListener("mousemove", e => {
 
 
 
-document.addEventListener("mouseover",e => { // xref hover tx -> svg
+document.addEventListener("mouseover",e => { // xref hover tx -> svg/orders
 
   const row = e.target.closest(".tx-row")
   if(!row) return
 
-  row.classList.add("tx-highlight")
-
-  const side = row.dataset.orderSide
-
-  if(side){
-    row.classList.add(`tx-${side}`)
-
-    row
-      .querySelector(".tx-fx-chip")
-      ?.classList.add(
-        `tx-chip-${side}`
-      )
-  }
-
-  row.dataset.fills
-    ?.split(",")
-    .filter(Boolean)
-    .forEach(fillId =>
-      highlightHeatmapFill(fillId,true)
-    )
+  highlightTxRow(row,true)
+  highlightHeatmapTx(row.dataset.txkey,true)
+  highlightTxOrders(row,true)
 
 })
 
@@ -972,33 +1008,19 @@ document.addEventListener("mouseout",e => {
   const row = e.target.closest(".tx-row")
   if(!row) return
 
-  row.classList.remove("tx-highlight")
-  row.classList.remove("tx-buy")
-  row.classList.remove("tx-sell")
-
-  row
-    .querySelector(".tx-fx-chip")
-    ?.classList.remove(
-      "tx-chip-buy",
-      "tx-chip-sell"
-    )
-  
-  row.dataset.fills
-    ?.split(",")
-    .filter(Boolean)
-    .forEach(fillId =>
-      highlightHeatmapFill(fillId,false)
-    )
+  highlightTxRow(row,false)
+  highlightHeatmapTx(row.dataset.txkey,false)
+  highlightTxOrders(row,false)
 
 })
 
 
-
-document.addEventListener("mouseover",e => { // xref hover svg -> tx
+document.addEventListener("mouseover",e => { // xref hover svg -> tx/orders
   const el = e.target.closest('[data-type="bubble"],[data-type="settled"]')
   if(el){
     highlightHeatmapTx(el.dataset.txkey,true)
-    highlightTxRows(el.dataset.fillId,true)
+    highlightTxRowsByTxKey(el.dataset.txkey,true)
+    highlightOrder(el.dataset.orderId,true)
   }
 })
 
@@ -1006,7 +1028,8 @@ document.addEventListener("mouseout",e => {
   const el = e.target.closest('[data-type="bubble"],[data-type="settled"]')
   if(el){
     highlightHeatmapTx(el.dataset.txkey,false)
-    highlightTxRows(el.dataset.fillId,false)
+    highlightTxRowsByTxKey(el.dataset.txkey,false)
+    highlightOrder(el.dataset.orderId,false)
   }
 })
 
@@ -1017,20 +1040,19 @@ document.addEventListener("change",e => {
 
 document.addEventListener("mouseover",e => {
   const row = e.target.closest(".order-row")
-  if(row) highlightOrder(row.dataset.orderId,true)
+  if(row) highlightOrderContext(row.dataset.orderId,true)
 
   const bar = e.target.closest('[data-type="bar"]')
-  if(bar) highlightOrder(bar.dataset.orderId,true)
+  if(bar) highlightOrderContext(bar.dataset.orderId,true)
 })
 
 document.addEventListener("mouseout",e => {
   const row = e.target.closest(".order-row")
-  if(row) highlightOrder(row.dataset.orderId,false)
+  if(row) highlightOrderContext(row.dataset.orderId,false)
 
   const bar = e.target.closest('[data-type="bar"]')
-  if(bar) highlightOrder(bar.dataset.orderId,false)
+  if(bar) highlightOrderContext(bar.dataset.orderId,false)
 })
-
 
 
 function getSelectedPair(){
