@@ -18,8 +18,10 @@
 
   <div class="app-banner">
     <div class="app-banner-inner">
-      <div class="app-logo"></div>
-      <h2>Katomia marketplace 🍎🥬🥕</h2>
+      <h2>
+        <span class="app-title">KATOMIA</span>
+        <span class="app-icons">🐫🍎💱📊</span>
+      </h2>
     </div>
   </div>
 

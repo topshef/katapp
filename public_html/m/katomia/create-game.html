@@ -119,13 +119,66 @@ h3{
 
 }
 
+
+.app-banner{
+  background:#e8e8e8;
+  border-bottom:1px solid #d8d8d8;
+
+  margin:-26px -26px 20px -26px;
+  padding:10px 16px;
+}
+
+.app-banner h2{
+  margin:0;
+
+  display:flex;
+  align-items:center;
+  gap:10px;
+
+  line-height:1;
+}
+
+.app-title{
+  font-family:'Poppins', sans-serif;
+  font-size:42px;
+  font-weight:800;
+  letter-spacing:0.12em;
+  color:#888;
+}
+
+.app-icons{
+  font-size:24px;
+  line-height:1;
+
+  position:relative;
+  top:-1px;
+}
+
+.page-title{
+  margin:0 0 24px 0;
+
+  font-size:22px;
+  font-weight:600;
+  color:#666;
+}
+
+
+
 </style>
 </head>
 
 <body>
 <div class="form">
 
-  <h2>Create your own market in Katomia 🍎🥬🥕</h2>
+  <div class="app-banner">
+    <div class="app-banner-inner">
+      <h2>
+        <span class="app-title">KATOMIA</span>
+        <span class="app-icons">🐫🍎💱📊</span>
+      </h2>
+    </div>
+  </div>
+  <h3 class="page-title">Create your own market</h3>
 
   <div class="field">
     <label>Game name <span class="explain">(optional)</span></label>

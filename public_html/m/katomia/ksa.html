@@ -1,0 +1,274 @@
+/**
+ * kea-watcher.js
+ 
+ *
+ * KPool-side KEA watcher module.
+ *
+ * Responsibilities:
+ * - build clean KEA execution request
+ * - store it
+ * - send lightweight WS doorbell
+ * - serve request to KEA app
+ * - receive signed tx bytes
+ * - save to KPool
+
+**** MIGHT CHANGE NAME TO KSA - Kpay Signer Agent, since a sig isn't execution - hedera does that
+
+
+ */
+
+const express = require('express')
+const { WebSocketServer } = require('ws')
+const ed = require('@noble/ed25519')
+const { sha256 } = require('@noble/hashes/sha256')
+const { sha512 } = require('@noble/hashes/sha512')
+
+ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m))
+
+const text = s => new TextEncoder().encode(s)
+const bytesToHex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('')
+const hexToBytes = hex => Uint8Array.from(hex.match(/.{1,2}/g).map(x => parseInt(x, 16)))
+const b64url = bytes => Buffer.from(bytes).toString('base64url')
+const canonicalJson = obj => JSON.stringify(obj)
+
+function createKeaWatcher({ kpoolBase, watcherPrivateKeyHex }) {
+  if (!kpoolBase) throw new Error('createKeaWatcher missing kpoolBase')
+  if (!watcherPrivateKeyHex) throw new Error('createKeaWatcher missing watcherPrivateKeyHex')
+
+  const router = express.Router()
+  const requests = new Map()
+  const clients = new Map()
+
+  async function signJws(payload) {
+    const header = {
+      alg: 'EdDSA',
+      typ: 'KEA-EXEC',
+      kid: 'kea-watcher-v1'
+    }
+
+    const h = b64url(Buffer.from(canonicalJson(header)))
+    const p = b64url(Buffer.from(canonicalJson(payload)))
+    const signingInput = `${h}.${p}`
+    const sig = await ed.signAsync(text(signingInput), hexToBytes(watcherPrivateKeyHex))
+
+    return `${signingInput}.${b64url(sig)}`
+  }
+
+  function attachWs(server) {
+    const wss = new WebSocketServer({ server, path: '/ws' })
+
+    wss.on('connection', ws => {
+      ws.on('message', raw => {
+        let msg
+        try { msg = JSON.parse(raw) } catch { return }
+
+        if (msg.type !== 'kea_subscribe') return
+        const signPubkey = msg.signPubkey?.toLowerCase()
+        if (!signPubkey) return
+
+        clients.set(signPubkey, ws)
+        ws.send(JSON.stringify({ type: 'kea_subscribed', signPubkey }))
+      })
+
+      ws.on('close', () => {
+        for (const [k, v] of clients.entries())
+          if (v === ws) clients.delete(k)
+      })
+    })
+  }
+
+  function sendDoorbell(signPubkey, requestId) {
+    const ws = clients.get(signPubkey.toLowerCase())
+    if (!ws || ws.readyState !== ws.OPEN) return false
+
+    ws.send(JSON.stringify({
+      type: 'kea_request',
+      requestId
+    }))
+
+    return true
+  }
+
+  async function createRequest(clean) {
+    const jws = await signJws(clean)
+
+    const item = {
+      requestId: clean.requestId,
+      signPubkey: clean.authority.signPubkey.toLowerCase(),
+      status: 'pending',
+      clean,
+      jws,
+      createdAt: Date.now()
+    }
+
+    requests.set(clean.requestId, item)
+    sendDoorbell(item.signPubkey, clean.requestId)
+
+    return item
+  }
+
+  router.get('/kea/requests/:requestId', (req, res) => {
+    const item = requests.get(req.params.requestId)
+    if (!item) return res.status(404).json({ error: 'request not found' })
+
+    item.status = 'fetched'
+    res.json({ jws: item.jws })
+  })
+
+  router.post('/kea/requests/:requestId/result', express.json({ limit: '10mb' }), async (req, res) => {
+    const item = requests.get(req.params.requestId)
+    if (!item) return res.status(404).json({ error: 'request not found' })
+
+    const result = req.body
+    if (result.status !== 'signed') return res.status(400).json({ error: 'unsupported result status' })
+    if (result.signPubkey?.toLowerCase() !== item.signPubkey) return res.status(400).json({ error: 'wrong signer pubkey' })
+    if (result.txHash !== item.clean.transaction.txHash) return res.status(400).json({ error: 'txHash mismatch' })
+    if (!result.signedTxBytesHex) return res.status(400).json({ error: 'missing signedTxBytesHex' })
+
+    const saveRes = await fetch(`${kpoolBase}/kpool/txSave`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        network: item.clean.network,
+        signedTx: result.signedTxBytesHex
+      })
+    })
+
+    const saveData = await saveRes.json()
+
+    item.status = 'signed'
+    item.result = result
+    item.saveData = saveData
+
+    res.json({
+      ok: true,
+      saveData
+    })
+  })
+
+  async function handleKpoolTx(msg) {
+    const clean = await buildCleanKeaRequestFromKpoolTx({ msg, kpoolBase })
+    if (!clean) return null
+
+    return createRequest(clean)
+  }
+
+  return {
+    router,
+    attachWs,
+    handleKpoolTx,
+    createRequest,
+    requests
+  }
+}
+
+async function buildCleanKeaRequestFromKpoolTx({ msg, kpoolBase }) {
+  /*
+   * This is the adapter layer.
+   *
+   * Put your existing kbot-sign logic here:
+   * - find watched fill
+   * - verify/normalise order intent payload
+   * - validate pchBasis transfers
+   * - decide target signPubkey
+   *
+   * Output should be generic KEA shape.
+   */
+
+  const source = msg.source
+  if (!source) return null
+
+  const match = findSingleKeaFill(source)
+  if (!match) return null
+
+  const { orderId, order, fill, signPubkey } = match
+  const network = source?.context?.network ?? msg.network
+  const gameId = source?.context?.gameId
+
+  const readRes = await fetch(
+    `${kpoolBase}/kpool/txRead?network=${network}&txid=${encodeURIComponent(msg.txid)}&pch=${encodeURIComponent(msg.pch)}`
+  )
+
+  const readData = await readRes.json()
+  const txBytesHex = readData?.result?.hex2
+  if (!txBytesHex) throw new Error(`No tx bytes from txRead for ${msg.txid}`)
+
+  const txHash = bytesToHex(sha256(hexToBytes(txBytesHex)))
+
+  return {
+    version: 'kea.exec.v1',
+    requestId: `kea_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+
+    network,
+    authority: {
+      type: 'settlement-agent',
+      signPubkey,
+      accountId: match.accountId
+    },
+
+    mandate: {
+      type: 'katomia-order-fill',
+      intentPubkey: order.intentSignature.pubkeyHex,
+      intentSignature: order.intentSignature.sig,
+      intentPayload: order.intentPayloadForKea
+    },
+
+    execution: {
+      orderId,
+      fill,
+      transferCheck: {
+        status: 'pass',
+        basisHash: bytesToHex(sha256(text(canonicalJson(msg.deal?.pchbasis ?? {}))))
+      }
+    },
+
+    transaction: {
+      txid: msg.txid,
+      pch: msg.pch,
+      txBytesHex,
+      txHash
+    }
+  }
+}
+
+function findSingleKeaFill(source) {
+  /*
+   * Replace this with your real watch lookup.
+   *
+   * For the new architecture, this function should already know:
+   * - watched intent pubkey
+   * - target account
+   * - target KEA signPubkey
+   *
+   * Return null if not relevant.
+   */
+
+  const fills = source?.fills || []
+  if (fills.length !== 1) return null
+
+  const fill = fills[0]
+  const orderId = String(fill.orderId)
+  const order = source?.orders?.[orderId]
+  if (!order) return null
+
+  if (!order.intentPayloadForKea) {
+    /*
+     * Important:
+     * Build this on the server from your existing buildSigPayload().
+     * The browser should NOT reconstruct bundleHash/spec payload.
+     */
+    return null
+  }
+
+  return {
+    orderId,
+    order,
+    fill,
+    accountId: order.bundle?.[0]?.accountId,
+    signPubkey: order.keaSignPubkey
+  }
+}
+
+module.exports = { createKeaWatcher }
