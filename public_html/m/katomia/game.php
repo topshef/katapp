@@ -266,6 +266,17 @@
           placeholder="24739;3841995;-760000|24739;3842078;1000000">
         </textarea>
 
+        <div class="dev-help">
+          match conditions — one per line (or paste JSON)<br>
+          condition = type [key=value ...]<br>
+          eg: singleCounterparty<br>
+          eg: singleCounterparty maxCounterparties=2<br>
+        </div>
+        <textarea
+          id="createOrderConditions"
+          rows="2"
+          placeholder="singleCounterparty">singleCounterparty</textarea>
+
       </details>
       
       

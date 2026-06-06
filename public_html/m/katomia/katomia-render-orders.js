@@ -1780,7 +1780,49 @@ async function hashBundle(bundle) {
     .map(b => b.toString(16).padStart(2, "0")).join("")
 }
 
-async function buildSignedOrder(bundle, { minFill, timeInForce, expiresAt, privateKey, publicKeyJwk }) {
+
+function parseMatchConditions(raw){
+  const text = (raw || "").trim()
+  if(!text) return null
+
+  // JSON escape hatch: paste an object or array directly
+  if(text[0] === "{" || text[0] === "["){
+    try { return JSON.parse(text) }
+    catch(e){ alert("Conditions: invalid JSON\n\n" + e.message); throw e }
+  }
+
+  // friendly format: one condition per line
+  //   singleCounterparty
+  //   singleCounterparty maxCounterparties=2
+  // blank lines and #/// comments are ignored
+  const coerce = v =>
+    v === "true"  ? true  :
+    v === "false" ? false :
+    (v !== "" && !isNaN(v)) ? Number(v) : v
+
+  const conditions = []
+
+  for(const line of text.split(/\r?\n/)){
+    const s = line.trim()
+    if(!s || s.startsWith("#") || s.startsWith("//")) continue
+
+    const [type, ...rest] = s.split(/\s+/)
+    const cond = { type }
+
+    for(const token of rest){
+      const eq = token.indexOf("=")
+      if(eq === -1) continue
+      cond[token.slice(0, eq)] = coerce(token.slice(eq + 1))
+    }
+
+    conditions.push(cond)
+  }
+
+  return conditions.length ? conditions : null
+}
+
+
+async function buildSignedOrder(bundle, { minFill, timeInForce, expiresAt, matchConditions = null, privateKey, publicKeyJwk }) {
   const clientOrderId = crypto.randomUUID()
   const issuedAt      = Date.now()
   const bundleHash    = await hashBundle(bundle)
@@ -1802,7 +1844,7 @@ async function buildSignedOrder(bundle, { minFill, timeInForce, expiresAt, priva
     expiresAt,
     clientOrderId,
     issuedAt,
-    matchConditions: null,
+    matchConditions,
     intentSignature,
   }
 }
@@ -1832,6 +1874,13 @@ async function createOrderFromModal() {
     return
   }
 
+  let matchConditions = null
+  try {
+    matchConditions = parseMatchConditions(document.getElementById("createOrderConditions")?.value)
+  } catch(e){
+    return  // invalid conditions — alert already shown
+  }
+
   const { privateKey, publicKeyJwk } = await getOrCreatePlayerKeypair()
 
   for (const line of getCreateOrderData()) {
@@ -1840,8 +1889,8 @@ async function createOrderFromModal() {
 
     if (!checkMinFillDivisibility(bundle, minFill)) return
 
-    const order = await buildSignedOrder(bundle, { minFill, timeInForce, expiresAt, privateKey, publicKeyJwk })
-
+    const order = await buildSignedOrder(bundle, { minFill, timeInForce, expiresAt, matchConditions, privateKey, publicKeyJwk })
+    
     socket.send(JSON.stringify({
       type: "game_orderCreate",
       gameId,
