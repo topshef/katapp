@@ -1490,8 +1490,8 @@ function getOrderFillStatus(orderId){
   const pending     = getPendingOrderFillRatio(orderId)
   const settled     = getSettledOrderFillRatio(orderId)
 
-  const pendingText = pending.numerator == 0  ? "" : ` kpool ${pending.numerator}/${pending.denominator}`
-  const settledText = settled.numerator == 0  ? "" : ` settled ${settled.numerator}/${settled.denominator}`
+  const pendingText = pending.numerator == 0  ? "" : `kpool ${pending.numerator}/${pending.denominator}`
+  const settledText = settled.numerator == 0  ? "" : `settled ${settled.numerator}/${settled.denominator}`
 
   return { fill, pendingText, settledText }
 }
@@ -1508,7 +1508,7 @@ function getOrderMarketLabel(orderId, playerId, enriched){
   const fxRow = enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market })
   if(!fxRow) return enriched.derivedLabel || ""
 
-  return `${fxRow.side} ${fxRow.displayBaseAmount} ${fxRow.pair} @${formatRate(fxRow.displayRate)}`
+  return `@${formatRate(fxRow.displayRate)} ${fxRow.side} ${fxRow.displayBaseAmount} ${fxRow.pair}`
 }
 
 
@@ -1543,7 +1543,14 @@ function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel
 
   const tif        = order.timeInForce ? `${order.timeInForce} ` : ""
   const minFill    = order.minFill ? ` min ${order.minFill.numerator}/${order.minFill.denominator}` : ""
-  const fillText   = `filled ${fill.numerator}/${fill.denominator}${pendingText}${settledText}`
+  
+  const debugText =
+    document.body.dataset.tradingMode == "debug"
+      ? ` proposed ${fill.numerator}/${fill.denominator}`
+      : ""
+
+  const fillText = `${debugText} ${pendingText} ${settledText}`.trim()
+  
   const who        = `${playerId}${mine ? "=you" : ""}`
 
   const el = document.createElement("span")
