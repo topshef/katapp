@@ -1505,12 +1505,18 @@ function getOrderFillStatus(orderId){
   const pendingText =
     pending.numerator == 0
       ? ""
-      : `kpool ${pending.numerator}/${pending.denominator}`
+      : `kpool ${pending.numerator}/${pending.denominator} |`
+
+  const settledPercent =
+    Math.round(
+      (settled.numerator * 100) /
+      (settled.denominator || 1)
+    )
 
   const settledText =
     settled.numerator == 0
       ? ""
-      : `${fullySettled ? "✅ " : ""}settled ${settled.numerator}/${settled.denominator}`
+      : `${fullySettled ? "✅ " : ""}${settledPercent}% settled ${settled.numerator}/${settled.denominator}`
 
   return {
     fill,
