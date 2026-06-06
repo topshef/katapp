@@ -967,7 +967,7 @@ document.addEventListener("mousemove", e => {
         `#${row.orderId} ` +
         `${row.side} ` +
         `${row.displayBaseAmount} ` +
-        `@ ${row.displayRate} ` +
+        `@ ${formatRate(row.displayRate)} ` +
         `🧩 ${fill.numerator}/${fill.denominator}` +
         `${fillWithinKpool}`
       )
