@@ -242,8 +242,8 @@
       <select id="createOrderTif">
         <option value="GTC" selected>♾️ GTC — Good till cancelled</option>
         <option value="GTD">📅 GTD — Good till date</option>
-        <option value="IOC" disabled>⚡ IOC — Immediate or cancel</option>
-        <option value="FOK" disabled>🎯 FOK — Fill or kill</option>
+        <option value="IOC">⚡ IOC — Immediate or cancel</option>
+        <option value="FOK">🎯 FOK — Fill or kill</option>
       </select>
 
       <div id="createOrderExpiresAtRow" style="display:none;margin-top:10px;">
@@ -270,7 +270,7 @@
           match conditions — one per line (or paste JSON)<br>
           condition = type [key=value ...]<br>
           eg: singleCounterparty<br>
-          eg: singleCounterparty maxCounterparties=2<br>
+          eg: maxCounterparties n=2<br>
         </div>
         <textarea
           id="createOrderConditions"
