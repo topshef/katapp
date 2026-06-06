@@ -997,6 +997,12 @@ button i{
   margin-bottom: 4px;   /* 👈 row separation */
 }
 
+#ordersSection .order-row.order-fully-settled{
+  color:#999;
+  opacity:0.6;
+}
+
+
 #ordersSection .order-row-inner{
   display:flex;
   align-items:center;

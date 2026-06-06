@@ -1034,7 +1034,7 @@ document.addEventListener("mouseout",e => {
 })
 
 document.addEventListener("change",e => {
-  if(["showMyOrdersOnly","sortOrdersByPrice"].includes(e.target.id))
+  if(["showMyOrdersOnly","showPendingOrdersOnly","sortOrdersByPrice"].includes(e.target.id))
     renderOrders()
 })
 
@@ -1255,9 +1255,12 @@ function renderOrderMarketSummary(){
 
       const orders = getAllOrders()
 
+      const pendingOnly =
+        document.getElementById("showPendingOrdersOnly")?.checked
+
       const sortByPrice =
         document.getElementById("sortOrdersByPrice")?.checked
-
+        
       orders.sort((a,b) => {
 
         const ea = enrichOrder(a.order)
@@ -1299,6 +1302,11 @@ function renderOrderMarketSummary(){
         if(myOnly && orderRec.playerId != currentPlayerId)
           return
 
+        const fillStatus = getOrderFillStatus(orderRec.orderId)
+
+        if(pendingOnly && fillStatus.fullySettled)
+          return
+                
         listEl.appendChild(createOrderRow(orderRec))
       })
 
@@ -1490,12 +1498,28 @@ function getOrderFillStatus(orderId){
   const pending     = getPendingOrderFillRatio(orderId)
   const settled     = getSettledOrderFillRatio(orderId)
 
-  const pendingText = pending.numerator == 0  ? "" : `kpool ${pending.numerator}/${pending.denominator}`
-  const settledText = settled.numerator == 0  ? "" : `settled ${settled.numerator}/${settled.denominator}`
+  const fullySettled =
+    settled.numerator > 0 &&
+    settled.numerator == settled.denominator
 
-  return { fill, pendingText, settledText }
+  const pendingText =
+    pending.numerator == 0
+      ? ""
+      : `kpool ${pending.numerator}/${pending.denominator}`
+
+  const settledText =
+    settled.numerator == 0
+      ? ""
+      : `${fullySettled ? "✅ " : ""}settled ${settled.numerator}/${settled.denominator}`
+
+  return {
+    fill,
+    pendingText,
+    settledText,
+    settled,
+    fullySettled
+  }
 }
-
 
 
 function formatRate(rate){
@@ -1580,6 +1604,12 @@ function createOrderRow({ orderId, order, playerId }){
   const orderType  = getOrderType(order) || "invalid-YE23998"
   const marketLabel = getOrderMarketLabel(orderId, playerId, enriched)
   const fillStatus  = getOrderFillStatus(orderId)
+
+  row.classList.toggle(
+    "order-fully-settled",
+    fillStatus.fullySettled
+  )
+
 
   row.dataset.orderSide = enriched.market?.side || ""
   row.onclick = makeOrderRowOnClick(orderId, playerId, enriched, order)

@@ -65,10 +65,16 @@
       </label>
 
       <label>
+        <input id="showPendingOrdersOnly" type="checkbox">
+        Only pending
+      </label>
+
+      <label>
         <input id="sortOrdersByPrice" type="checkbox">
         Sort by price
       </label>
-
+      
+      
     </div>
 
     <div class="orders-list"></div>
