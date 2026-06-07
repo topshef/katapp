@@ -20,7 +20,7 @@
     <div class="app-banner-inner">
       <h2>
         <span class="app-title">KATOMIA</span>
-        <span class="app-icons">🐫🍎💱📊</span>
+        <span class="app-icons">🐫🍎💱</span>
       </h2>
     </div>
   </div>
