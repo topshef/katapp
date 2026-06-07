@@ -478,11 +478,11 @@ document.addEventListener("input",e => {
   window.createOrderDirty = true
   if(e.target.id == "createOrderRaw") return
   if(e.target.id == "createOrderMinFill") window.minFillWasAutoSet = false
+  if(e.target.id == "createOrderVolume" || e.target.id == "createOrderRate") window.minFillWasAutoSet = true
   if(e.target.id == "createOrderTif") syncCreateOrderExpiryUI()
   document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
   validateOrderMath()
 })
-
 
 document.addEventListener("change",e => {
   if(!e.target.closest("#createOrderModal")) return
