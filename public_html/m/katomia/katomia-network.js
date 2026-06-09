@@ -28,31 +28,63 @@ function splitAccountLabels(input){
 }
 
 
+const ACCOUNT_CACHE_KEY = `katomiaAccounts:${gameId}:${getOrCreatePlayerToken()}`
+
+function getCachedAccountLabels(){
+  try { return JSON.parse(localStorage.getItem(ACCOUNT_CACHE_KEY) || "[]") }
+  catch(e) { return [] }
+}
+
+function setCachedAccountLabels(labels){
+  localStorage.setItem(ACCOUNT_CACHE_KEY, JSON.stringify([...new Set(labels)].filter(Boolean)))
+}
+
+function rememberAccountLabels(labels){
+  setCachedAccountLabels([...getCachedAccountLabels(), ...labels])
+}
+
+function forgetAccountLabel(label){
+  setCachedAccountLabels(getCachedAccountLabels().filter(x => x !== label))
+}
+
+function restoreCachedAccounts(){
+  if(window.katomiaAccountsRestored) return
+  window.katomiaAccountsRestored = true
+
+  const mine = new Set(getAccounts().filter(a => isMyAccount(a)).map(a => a.label))
+  const missing = getCachedAccountLabels().filter(label => !mine.has(label))
+
+  if(missing.length) addAccounts(missing.join(","))
+}
 
 function addAccounts(raw){
 
   raw = raw.trim()
   if(!raw) return
 
-  const labels = splitAccountLabels(raw)
-  const playerToken = getOrCreatePlayerToken()
+  const labels = splitAccountLabels(raw).map(label => {
+    let out = label
 
+    if(gameMeta?.network === "testnet" || gameMeta?.network === "mainnet"){
+      if(/^\d+$/.test(out)) out = "0.0." + out
+    }
+
+    return out
+  })
+
+  rememberAccountLabels(labels)
+
+  const playerToken = getOrCreatePlayerToken()
+  
   const sendAll = () => {
 
     labels.forEach(label => {
-
-      let out = label
-
-      if(gameMeta.network === "testnet" || gameMeta.network === "mainnet"){
-        if(/^\d+$/.test(out))
-          out = "0.0." + out
-      }
 
       socket.send(JSON.stringify({
         type:"game_addAccount",
         gameId,
         playerToken,
-        label:out
+        label
       }))
     })
 
@@ -74,6 +106,8 @@ function removeAccount(accountId){
   )
 
   if(!ok) return
+  
+  forgetAccountLabel(account.label)
 
   socket.send(JSON.stringify({
     type:"game_removeAccount",
@@ -181,6 +215,7 @@ function connect(onOpenAction){
     document.body.dataset.tradingMode = gameMeta?.config?.tradingMode || ""
   
     currentPlayerId = data.myPlayerId || null
+    restoreCachedAccounts()
 
     if(window.pendingAutoload && accountLabelInput && !accountLabelInput.value){
       accountLabelInput.value = window.pendingAutoload
