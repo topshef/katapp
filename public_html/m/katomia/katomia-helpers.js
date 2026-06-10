@@ -857,7 +857,7 @@ function getOrderType(order){
     return "request"
 
   if(unique.every(x => x === "FT"))
-    return bundle.length === 2 ? "simple-fx" : "basket-fx"
+    return bundle.length === 2 ? "simple-ft" : "basket-ft"
 
   if(unique.every(x => x === "NFT" || x === "LE"))
     return bundle.length === 2 ? "simple-collectible" : "basket-collectible"
@@ -896,8 +896,8 @@ function getOrderType(order){
 // offer
 // request
 //
-// simple-fx
-// basket-fx
+// simple-ft
+// basket-ft
 //
 // simple-nft
 // simple-le
@@ -931,14 +931,14 @@ function getOrderType(order){
 // POSSIBLE FUTURE UX BY TYPE
 // ------------------------------------------------------------
 //
-// simple-fx
+// simple-ft
 //   - bid/ask style
 //   - orderbook
 //   - depth/cliff charts
 //   - spread/rate display
 //   - implied/synthetic markets
 //
-// basket-fx
+// basket-ft
 //   - graph/routing view
 //   - cycle detection
 //   - clearing optimisation

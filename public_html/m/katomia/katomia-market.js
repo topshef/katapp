@@ -34,7 +34,7 @@ function getSimpleFxMarkets(){
     const market = enriched.market
 
     if(!market) return
-    if(market.type !== "simple-fx") return
+    if(market.type !== "simple-ft") return
 
     grouped[market.pair] ||= []
 

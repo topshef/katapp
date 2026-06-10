@@ -60,7 +60,7 @@ function getTxFillTakerRatio(tx, fill){
   const takerMarket = enrichOrder(takerOrder)?.market
 
   if(!makerMarket || !takerMarket) return { unknown:true }
-  if(makerMarket.type !== "simple-fx" || takerMarket.type !== "simple-fx") return { unknown:true }
+  if(makerMarket.type !== "simple-ft" || takerMarket.type !== "simple-ft") return { unknown:true }
 
   const makerFillRatio = Number(fill.numerator || 0) / Number(fill.denominator || 1)
   const baseAmount = Math.trunc(makerMarket.baseAmount * makerFillRatio)
@@ -209,7 +209,7 @@ function createTxAssets(tx,orderType){
     ...(basis.hbarTransfers || []).map(x => ({...x, tokenId:"HBAR"}))
   ]
 
-  if(orderType == "simple-fx")
+  if(orderType == "simple-ft")
     return createSimpleFxTxAssets(transfers)
 
   return createGenericTxAssets(transfers)
@@ -601,7 +601,7 @@ function renderHeatmapBar(svg,row,l,opacity){
       mode:"order",
       orderId:row.orderId,
       playerId:row.playerId,
-      type:"simple-fx",
+      type:"simple-ft",
       pair:`${row.baseAsset}/${row.quoteAsset}`,
       side:row.side,
       volume:row.originalDisplayBaseAmount,
@@ -1372,7 +1372,7 @@ function renderOrderMarketSummary(){
         derivedLabel:`[${side} ${volume} ${pairLabel} @${rate}]`,
 
         market:{
-          type:"simple-fx",
+          type:"simple-ft",
           pair:pairLabel,
           side,
           rate,
@@ -1389,7 +1389,7 @@ function renderOrderMarketSummary(){
     }
 
     const orderTypeEnrichers = {
-      "simple-fx": enrichSimpleFxOrder
+      "simple-ft": enrichSimpleFxOrder
     }
 
 
@@ -1536,7 +1536,7 @@ function formatRate(rate){
 }
 
 function getOrderMarketLabel(orderId, playerId, enriched){
-  if(enriched.market?.type !== "simple-fx") return enriched.derivedLabel || ""
+  if(enriched.market?.type !== "simple-ft") return enriched.derivedLabel || ""
 
   const fxRow = enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market })
   if(!fxRow) return enriched.derivedLabel || ""
@@ -1547,7 +1547,7 @@ function getOrderMarketLabel(orderId, playerId, enriched){
 
 function makeOrderRowOnClick(orderId, playerId, enriched, order){
   return () => {
-    if(enriched.market?.type !== "simple-fx") return
+    if(enriched.market?.type !== "simple-ft") return
 
     const fxRow = enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market })
     if(!fxRow) return
@@ -1558,7 +1558,7 @@ function makeOrderRowOnClick(orderId, playerId, enriched, order){
       mode:        "order",
       orderId,
       playerId,
-      type:        "simple-fx",
+      type:        "simple-ft",
       pair:        `${fxRow.baseAsset}/${fxRow.quoteAsset}`,
       side:        fxRow.side,
       volume:      fxRow.originalDisplayBaseAmount,

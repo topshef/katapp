@@ -183,8 +183,8 @@
       
       <label>Order type</label>
       <select id="createOrderType">
-        <option value="simple-fx">Simple FX</option>
-        <option value="basket-fx" disabled>Basket FX</option>
+        <option value="simple-ft">Simple FT</option>
+        <option value="basket-ft" disabled>Basket FT</option>
         <option value="simple-nft" disabled>Simple NFT</option>
         <option value="simple-le" disabled>Simple LE (Limited Edition)</option>
         <option value="simple-collectible" disabled>Simple Collectible</option>

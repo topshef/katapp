@@ -300,7 +300,7 @@ function openCreateOrderModal(defaults = {}){
   document.getElementById("createOrderDev").style.display = ""
 
 
-  document.getElementById("createOrderType").value = defaults.type || "simple-fx"
+  document.getElementById("createOrderType").value = defaults.type || "simple-ft"
 
   document.querySelector(
     `[name="createOrderSide"][value="${defaults.side || "sell"}"]`
@@ -448,7 +448,7 @@ function buildSimpleFxRaw(){
   const volume = parseFloat(document.getElementById("createOrderVolume").value)
   const rate = parseFloat(document.getElementById("createOrderRate").value)
 
-  if(type != "simple-fx" || !accountId || !pair || !side) return ""
+  if(type != "simple-ft" || !accountId || !pair || !side) return ""
   if(!Number.isFinite(volume) || !Number.isFinite(rate)) return ""
 
   const [base, quote] = pair.split("/")
