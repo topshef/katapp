@@ -1571,6 +1571,14 @@ function makeOrderRowOnClick(orderId, playerId, enriched, order){
   }
 }
 
+function getOrderSignerSuffix(order){
+  const key = order?.intentSignature?.pubkeyHex || ""
+  if(!key) return ""
+
+  // return `:${key.slice(-6).toUpperCase()}`
+  return `:${key.slice(-6)}`
+}
+
 function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel, fillStatus){
   const { fill, pendingText, settledText } = fillStatus
 
@@ -1584,7 +1592,9 @@ function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel
 
   const fillText = `${debugText} ${pendingText} ${settledText}`.trim()
   
-  const who        = `${playerId}${mine ? "=you" : ""}`
+  // const who        = `${playerId}${mine ? "=you" : ""}`
+  const keySuffix  = getOrderSignerSuffix(order)
+  const who        = `${playerId}${keySuffix}${mine ? "=you" : ""}`
 
   const el = document.createElement("span")
   el.textContent = `Order #${orderId} (${who}) [${tif}${orderType}] [${marketLabel}${minFill}] [${fillText}]: `
