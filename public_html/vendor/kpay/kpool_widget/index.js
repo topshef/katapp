@@ -163,9 +163,15 @@ async function renderTxView(txState) {
 		txid
 	})
 
+  // container.appendChild(txState.view.el)
+  // container.appendChild(kpayLink)
+  // container.appendChild(details)
+
   container.appendChild(txState.view.el)
-  container.appendChild(kpayLink)
-  container.appendChild(details)
+
+  const signingSection = txState.view.el.querySelector('#txread-signing')
+  if (signingSection) signingSection.before(kpayLink, details)
+  if (!signingSection) container.append(kpayLink, details)
   
 	return { url, rawTx, data, transfers, accounts }
 }
