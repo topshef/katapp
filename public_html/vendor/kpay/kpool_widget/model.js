@@ -117,7 +117,8 @@ function getAllTransfers(data) {
       account:ac,
       asset:'tinybar',
       amountRaw:x.value ?? x.amount,
-      amount:Number(x.value ?? x.amount)/100000000
+      amount:x.value ?? x.amount
+      // amount:Number(x.value ?? x.amount)/100000000
     })
 	})
 
@@ -295,9 +296,16 @@ export async function enrichTransfersInfo({ network, transfers }) {
 
   transfers.lineItems.forEach(item => {
 
+    // if(item.type == 'HBAR') {
+      // item.amountRaw = item.amount * 100000000
+      // item.amountFormatted = item.amount
+      // item.assetMeta = {raw:'tinybar',name:'HBAR',symbol:'HBAR',decimals:8}
+      // return
+    // }
+    
     if(item.type == 'HBAR') {
-      item.amountRaw = item.amount * 100000000
-      item.amountFormatted = item.amount
+      item.amountRaw = Number(item.amountRaw ?? item.amount)
+      item.amountFormatted = Number(item.amountRaw) / 100000000
       item.assetMeta = {raw:'tinybar',name:'HBAR',symbol:'HBAR',decimals:8}
       return
     }
