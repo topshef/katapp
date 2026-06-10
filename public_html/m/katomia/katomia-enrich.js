@@ -1,9 +1,26 @@
 
 
 
+function isHbarAsset(assetId){
+  return String(assetId).toUpperCase() == "HBAR"
+}
+
+function getHbarMeta(){
+  return {
+    token_id:"HBAR",
+    decimals:8,
+    symbol:"HBAR",
+    name:"Hedera HBAR",
+    type:"FUNGIBLE_COMMON",
+    token_class:{token_id:"HBAR",decimals:8,symbol:"HBAR",name:"Hedera HBAR",type:"FUNGIBLE_COMMON"}
+  }
+}
+
 
 async function getTokenMeta(network, tokenId, serial){
 
+    if(isHbarAsset(tokenId)) return getHbarMeta()
+        
 	let productId = `${network};${tokenId}`
 	if(serial) productId += `-${serial}`
 
@@ -20,6 +37,8 @@ async function getTokenMeta(network, tokenId, serial){
 function parseAssetId(assetId){
 
 	assetId = String(assetId)
+    
+    if(isHbarAsset(assetId)) return { tokenId:"HBAR", serial:null }
 
 	if(assetId.includes("#")){
 		const [tokenId, serial] = assetId.split("#")

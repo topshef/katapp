@@ -203,8 +203,11 @@ function renderTxMeta(tx){
 // create Tx Assets
 function createTxAssets(tx,orderType){
 
-  const transfers =
-    tx.pchbasis?.transfers?.tokenTransfers || []
+  const basis = tx.pchbasis?.transfers || {}
+  const transfers = [
+    ...(basis.tokenTransfers || []),
+    ...(basis.hbarTransfers || []).map(x => ({...x, tokenId:"HBAR"}))
+  ]
 
   if(orderType == "simple-fx")
     return createSimpleFxTxAssets(transfers)
@@ -1916,7 +1919,8 @@ function normaliseOrder(input){
         throw new Error(`Bad record: ${record}`)
       }
 
-      const norm = v => v.includes('.') ? v : `0.0.${v}`
+      // const norm = v => v.includes('.') ? v : `0.0.${v}`
+      const norm = v => (String(v).toUpperCase() === 'HBAR') ? 'HBAR' : (v.includes('.') ? v : `0.0.${v}`)
 
       result.push({
         accountId: norm(a),

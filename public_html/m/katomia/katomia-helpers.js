@@ -96,7 +96,8 @@
 
 			// lookup decimals from metadata cache
 			const meta = window.assetDisplayCache?.[assetId]
-			const decimals = Number(meta?.token_class?.decimals || 0)
+			// const decimals = Number(meta?.token_class?.decimals || 0)
+            const decimals = String(assetId).toUpperCase() == "HBAR" ? 8 : Number(meta?.token_class?.decimals || 0)
 
 			let scaled = n
 
@@ -396,7 +397,8 @@ function openAssetModal(assetId, fromAccountId, available){
   const meta = getAssetMeta(assetId)
   const thumb = meta && getAssetThumb(meta)
 
-  const decimals = Number(meta?.token_class?.decimals || 0)
+  // const decimals = Number(meta?.token_class?.decimals || 0)
+  const decimals = String(assetId).toUpperCase() == "HBAR" ? 8 : Number(meta?.token_class?.decimals || 0)
   const displayAvailable = decimals
     ? available / (10 ** decimals)
     : available
@@ -412,14 +414,30 @@ function openAssetModal(assetId, fromAccountId, available){
   const displayTokenLabel = assetId.replace('#', ' #')
   const tokenSerial = assetId.replace('#', '-')
   const network = gameMeta.network || ""
+
+  if(String(assetId).toUpperCase() == "HBAR"){
+    nameEl.textContent = `${getAssetDisplay(assetId, available)} 🪙 HBAR`
+  } else {
+    // const url = `/m/?productId=${network};${tokenSerial}`
+    // nameEl.innerHTML = `
+      // <a href="${url}" target="_blank" style="text-decoration:none;color:inherit;">
+        // ${getAssetDisplay(assetId, available)} 🪙 ${displayTokenLabel}
+      // </a>
+    // `
+    //HBAR1
+    
+    if(String(assetId).toUpperCase() == "HBAR"){
+      nameEl.textContent = `${getAssetDisplay(assetId, available)} 🪙 HBAR`
+    } else {
+      const url = `/m/?productId=${network};${tokenSerial}`
+      nameEl.innerHTML = `
+        <a href="${url}" target="_blank" style="text-decoration:none;color:inherit;">
+          ${getAssetDisplay(assetId, available)} 🪙 ${displayTokenLabel}
+        </a>
+      `
+    }
   
-  const url = `/m/?productId=${network};${tokenSerial}`
-  
-  nameEl.innerHTML = `
-    <a href="${url}" target="_blank" style="text-decoration:none;color:inherit;">
-      ${getAssetDisplay(assetId, available)} 🪙 ${displayTokenLabel}
-    </a>
-  `
+  }
 
   if(availableEl)
     availableEl.textContent = displayAvailable
@@ -772,6 +790,8 @@ function getSettledOrderFillRatio(orderId){
 // └─┘└─┘ ┴   ╩ ╩└─┘└─┘└─┘ ┴    ╩  ┴ ┴  └─┘
 // get Asset Type
 function getAssetType(assetId, amount=1){
+    
+  if(String(assetId).toUpperCase() == "HBAR") return "FT"
 
   const meta = getAssetMeta(assetId)
 
