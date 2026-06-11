@@ -8,11 +8,11 @@ $logFile=__DIR__.'/context_'.$ip.'.log';
 file_put_contents($logFile,date('Y-m-d H:i:s')."\n".json_encode($_SERVER,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)."\n\n----------------------\n\n",FILE_APPEND);
 
 
-$domain = 'shop.gomint.me';
+$domain = 'swap.kpay.live';
 
 $sources=[
 // 'backend js'=>['/home/hbarlive_hts/web*.js'],
-'backend js'=>['/home/hbarlive_hts/{kat,kpool,deal,websocket}*.js'],
+// 'backend js'=>['/home/hbarlive_hts/{kat,kpool,deal,websocket}*.js'],
 'frontend js'=>["/var/www/$domain/public_html/m/katomia/*.js"],
 'KEA app'=>["/var/www/$domain/public_html/m/katomia/KEA/*.{html,js}"],
 'frontend css'=>["/var/www/$domain/public_html/m/katomia/*.css"],
