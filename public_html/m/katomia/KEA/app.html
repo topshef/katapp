@@ -30,7 +30,7 @@
   <input id="network" value="mainnet">
 
   <label>Order intent public key to watch</label>
-  <input id="orderPubkey" placeholder="trader/order intent pubkey hex">
+  <input id="orderPubkey" value="777efe5d8f02b77d5b658e89a0ce660cb2abecc4a563dcfc70874c2224424fc5">
 
   <h2>Doorbell</h2>
   <button id="connectBtn">Connect doorbell</button>
@@ -177,14 +177,18 @@ async function fetchTxDetail(e) {
   const res = await fetch(url)
   const data = await res.json()
 
-  $('detail').textContent = JSON.stringify(data.kea || data, null, 2)
+  // txRead is wrapped in a { success, comment, result } envelope — unwrap it
+  const out = data.result || data
 
-  if (!data.kea) {
-    log(`Fetched tx but no data.kea: ${data.keaError || 'no kea detail'}`)
+  $('detail').textContent = JSON.stringify(out.kea || out, null, 2)
+
+  if (!out.kea) {
+    log(`Fetched tx but no kea: ${out.keaError || 'no kea detail'}`)
     return
   }
 
-  log(`Fetched KEA detail: transferCheck=${data.kea.execution?.transferCheck?.status}`)
+  log(`Fetched KEA detail: transferCheck=${out.kea.execution?.transferCheck?.status}`)
+  
 }
 
 async function verifyDisplayedKea() {
