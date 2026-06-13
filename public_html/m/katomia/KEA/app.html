@@ -12,9 +12,8 @@
     .ok { color: green; }
     .bad { color: crimson; }
   </style>
-  
-  <script src="https://kpay.uk/assets/js/darkmode.js?v=0.2"></script>
 
+  <script src="https://kpay.uk/assets/js/darkmode.js?v=0.2"></script>
 
 </head>
 <body>
@@ -22,21 +21,27 @@
   <p>Browser execution agent. WebSocket doorbell now; FCM later.</p>
 
   <label>KPool base URL</label>
-  <input id="baseUrl" value="https://hapi4.hbar.live">
+  <input id="baseUrl" value="https://hapi5.katomia.com">
 
   <label>WebSocket URL</label>
-  <input id="wsUrl" value="wss://hapi4.hbar.live/ws">
+  <input id="wsUrl" value="wss://hapi5.katomia.com/ws">
 
-  <label>Watcher public key hex</label>
-  <input id="watcherPubkey" placeholder="raw Ed25519 public key hex">
+  <label>Network</label>
+  <input id="network" value="mainnet">
 
-  <h2>Local authority</h2>
-  <button id="genKeyBtn">Generate local KEA key</button>
+  <label>Order intent public key to watch</label>
+  <input id="orderPubkey" placeholder="trader/order intent pubkey hex">
+
+  <h2>Doorbell</h2>
   <button id="connectBtn">Connect doorbell</button>
-  <button id="testBtn">Fetch test request</button>
+  <button id="testBtn">Manual fetch: network;txid;pch</button>
+  <button id="verifyBtn">Verify displayed KEA detail</button>
 
-  <p>KEA public key:</p>
-  <pre id="pubkeyOut"></pre>
+  <h2>Events</h2>
+  <div id="events"></div>
+
+  <h2>Fetched detail</h2>
+  <pre id="detail"></pre>
 
   <h2>Status</h2>
   <pre id="log"></pre>
@@ -45,21 +50,13 @@
 import * as ed from "https://esm.sh/@noble/ed25519@2.1.0"
 import { sha512 } from "https://esm.sh/@noble/hashes@1.4.0/sha512"
 import { sha256 } from "https://esm.sh/@noble/hashes@1.4.0/sha256"
-import { Transaction, PrivateKey } from "https://esm.sh/@hashgraph/sdk@2.67.0"
 
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m))
 
 const $ = id => document.getElementById(id)
 const log = x => $('log').textContent = `[${new Date().toLocaleTimeString()}] ${x}\n` + $('log').textContent
 
-const hexToBytes = hex => Uint8Array.from(hex.match(/.{1,2}/g).map(x => parseInt(x, 16)))
-const bytesToHex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('')
-const b64urlToBytes = s => {
-  const b64 = s.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(s.length / 4) * 4, '=')
-  return Uint8Array.from(atob(b64), c => c.charCodeAt(0))
-}
-const bytesToB64url = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')
-const canonicalJson = obj => JSON.stringify(obj)
+const events = []
 
 function getBaseUrl() {
   return $('baseUrl').value.replace(/\/$/, '')
@@ -68,59 +65,122 @@ function getBaseUrl() {
 function saveConfig() {
   localStorage.keaBaseUrl = $('baseUrl').value
   localStorage.keaWsUrl = $('wsUrl').value
-  localStorage.keaWatcherPubkey = $('watcherPubkey').value
+  localStorage.keaOrderPubkey = $('orderPubkey')?.value || ''
 }
 
 function loadConfig() {
   if (localStorage.keaBaseUrl) $('baseUrl').value = localStorage.keaBaseUrl
   if (localStorage.keaWsUrl) $('wsUrl').value = localStorage.keaWsUrl
-  if (localStorage.keaWatcherPubkey) $('watcherPubkey').value = localStorage.keaWatcherPubkey
+  if (localStorage.keaOrderPubkey && $('orderPubkey')) $('orderPubkey').value = localStorage.keaOrderPubkey
 }
 
-async function generateKey() {
-  const priv = ed.utils.randomPrivateKey()
-  const pub = await ed.getPublicKeyAsync(priv)
+const hexToBytes = hex => Uint8Array.from(hex.match(/.{1,2}/g).map(x => parseInt(x, 16)))
+const bytesToHex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('')
+const canonicalJson = obj => JSON.stringify(obj)
 
-  localStorage.keaPrivkeyHex = bytesToHex(priv)
-  localStorage.keaPubkeyHex = bytesToHex(pub)
+function addEvent(msg) {
+  const key = `${msg.network};${msg.txid};${msg.pch}`
 
-  renderKey()
-  log('Generated KEA local key')
+  if (!events.some(e => e.key === key))
+    events.unshift({ key, ...msg })
+
+  renderEvents()
+  log(`Doorbell ${key}`)
 }
 
-function getLocalKey() {
-  const privHex = localStorage.keaPrivkeyHex
-  const pubHex = localStorage.keaPubkeyHex
-  if (!privHex || !pubHex) throw new Error('No KEA key. Generate one first.')
-  return { privHex, pubHex }
+function renderEvents() {
+  const el = $('events')
+  if (!el) return
+
+  el.innerHTML = ''
+
+  for (const e of events) {
+    const btn = document.createElement('button')
+    btn.textContent = `Fetch ${e.network}; ${e.txid}; ${e.pch}`
+    btn.onclick = () => fetchTxDetail(e).catch(err => log(`ERROR ${err.message}`))
+    el.appendChild(btn)
+    el.appendChild(document.createElement('br'))
+  }
 }
 
-function renderKey() {
-  $('pubkeyOut').textContent = localStorage.keaPubkeyHex || '(none)'
+function connectDoorbell() {
+  saveConfig()
+
+  const orderPubkey = $('orderPubkey').value.trim().toLowerCase()
+  if (!orderPubkey) {
+    log('ERROR missing order intent pubkey')
+    return
+  }
+
+  const ws = new WebSocket($('wsUrl').value)
+
+  ws.onopen = () => {
+    log('Doorbell connected')
+
+    ws.send(JSON.stringify({
+      type: 'kpool_watch',
+      filter: {
+        mode: 'kea',
+        network: $('network').value,
+        orderPubkey
+      }
+    }))
+
+    log(`Subscribed for orderPubkey ${orderPubkey.slice(0, 8)}...`)
+  }
+
+  ws.onmessage = ev => {
+    let msg
+    try { msg = JSON.parse(ev.data) } catch { return }
+
+    if (msg.type === 'kea_request') {
+      addEvent(msg)
+      return
+    }
+
+    log(`WS ${JSON.stringify(msg)}`)
+  }
+
+  ws.onclose = () => log('Doorbell disconnected')
+  ws.onerror = () => log('Doorbell error')
 }
 
-async function verifyJws(jws) {
-  const watcherPubkey = $('watcherPubkey').value.trim()
-  if (!watcherPubkey) throw new Error('Missing watcher public key')
+async function fetchTxDetail(e) {
+  const url = `${getBaseUrl()}/kpool/txRead?network=${encodeURIComponent(e.network)}&txid=${encodeURIComponent(e.txid)}&checksum=${encodeURIComponent(e.pch)}&detail=1&mirror=0`
 
-  const [h, p, s] = jws.split('.')
-  if (!h || !p || !s) throw new Error('Invalid JWS format')
+  log(`Fetching ${url}`)
 
-  const header = JSON.parse(new TextDecoder().decode(b64urlToBytes(h)))
-  if (header.alg !== 'EdDSA') throw new Error(`Unsupported JWS alg: ${header.alg}`)
-  if (header.typ !== 'KEA-EXEC') throw new Error(`Unsupported JWS typ: ${header.typ}`)
+  const res = await fetch(url)
+  const data = await res.json()
 
-  const signingInput = new TextEncoder().encode(`${h}.${p}`)
-  const sig = b64urlToBytes(s)
-  const ok = await ed.verifyAsync(sig, signingInput, hexToBytes(watcherPubkey))
-  if (!ok) throw new Error('Watcher JWS signature invalid')
+  $('detail').textContent = JSON.stringify(data.kea || data, null, 2)
 
-  return JSON.parse(new TextDecoder().decode(b64urlToBytes(p)))
+  if (!data.kea) {
+    log(`Fetched tx but no data.kea: ${data.keaError || 'no kea detail'}`)
+    return
+  }
+
+  log(`Fetched KEA detail: transferCheck=${data.kea.execution?.transferCheck?.status}`)
 }
 
-async function verifyIntent(req) {
-  const m = req.mandate
-  if (!m?.intentPubkey || !m?.intentSignature || !m?.intentPayload) throw new Error('Missing mandate intent fields')
+async function verifyDisplayedKea() {
+  const raw = $('detail').textContent
+  if (!raw) {
+    log('No detail loaded')
+    return
+  }
+
+  const kea = JSON.parse(raw)
+  await verifyIntent(kea)
+  verifyTxHash(kea)
+
+  log('KEA detail verified: intent sig + tx hash OK')
+}
+
+async function verifyIntent(kea) {
+  const m = kea.mandate
+  if (!m?.intentPubkey || !m?.intentSignature || !m?.intentPayload)
+    throw new Error('Missing mandate intent fields')
 
   const msg = new TextEncoder().encode(canonicalJson(m.intentPayload))
   const sig = Uint8Array.from(atob(m.intentSignature), c => c.charCodeAt(0))
@@ -129,108 +189,33 @@ async function verifyIntent(req) {
   if (!ok) throw new Error('Trader intent signature invalid')
 }
 
-function checkPolicy(req) {
-  const { pubHex } = getLocalKey()
-
-  if (req.version !== 'kea.exec.v1') throw new Error(`Unsupported request version: ${req.version}`)
-  if (new Date(req.expiresAt).getTime() < Date.now()) throw new Error('Request expired')
-  if (req.authority?.signPubkey?.toLowerCase() !== pubHex.toLowerCase()) throw new Error('Request not for this KEA key')
-  if (req.mandate?.type !== 'katomia-order-fill') throw new Error(`Unsupported mandate type: ${req.mandate?.type}`)
-  if (req.execution?.transferCheck?.status !== 'pass') throw new Error('Transfer check did not pass')
-
-  const txBytes = hexToBytes(req.transaction.txBytesHex)
+function verifyTxHash(kea) {
+  const txBytes = hexToBytes(kea.transaction.txBytesHex)
   const txHash = bytesToHex(sha256(txBytes))
-  if (txHash !== req.transaction.txHash) throw new Error('txBytes hash mismatch')
+
+  if (txHash !== kea.transaction.txHash)
+    throw new Error('txBytes hash mismatch')
 }
 
-async function signHederaTxBytes(txBytesHex) {
-  const { privHex } = getLocalKey()
+async function manualFetch() {
+  const raw = prompt('Paste: network;txid;pch')
+  if (!raw) return
 
-  // Prototype route 1: use Hedera SDK to sign the transaction bytes locally.
-  // This assumes the tx bytes are compatible with Transaction.fromBytes().
-  const priv = PrivateKey.fromStringED25519(privHex)
-  const tx = Transaction.fromBytes(hexToBytes(txBytesHex))
-  const signed = await tx.sign(priv)
-
-  return bytesToHex(signed.toBytes())
-}
-
-async function processRequestId(requestId) {
-  saveConfig()
-  log(`Fetching request ${requestId}`)
-
-  const res = await fetch(`${getBaseUrl()}/kea/requests/${encodeURIComponent(requestId)}`)
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error || `Fetch failed ${res.status}`)
-
-  const req = await verifyJws(data.jws)
-
-  checkPolicy(req)
-  await verifyIntent(req)
-
-  log(`Verified request ${requestId}, signing...`)
-
-  const signedTxBytesHex = await signHederaTxBytes(req.transaction.txBytesHex)
-
-  const result = {
-    requestId,
-    status: 'signed',
-    signPubkey: localStorage.keaPubkeyHex,
-    txHash: req.transaction.txHash,
-    signedTxBytesHex,
-    signedAt: new Date().toISOString()
+  const [network, txid, pch] = raw.split(';').map(x => x.trim())
+  if (!network || !txid || !pch) {
+    log('ERROR expected network;txid;pch')
+    return
   }
 
-  const post = await fetch(`${getBaseUrl()}/kea/requests/${encodeURIComponent(requestId)}/result`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(result)
-  })
-
-  const postData = await post.json()
-  if (!post.ok) throw new Error(postData.error || `Result POST failed ${post.status}`)
-
-  log(`Signed and posted ${requestId}`)
+  await fetchTxDetail({ network, txid, pch })
 }
 
-function connectDoorbell() {
-  saveConfig()
-
-  const ws = new WebSocket($('wsUrl').value)
-  ws.onopen = () => {
-    log('Doorbell connected')
-    ws.send(JSON.stringify({
-      type: 'kea_subscribe',
-      signPubkey: localStorage.keaPubkeyHex
-    }))
-  }
-
-  ws.onmessage = async ev => {
-    let msg
-    try { msg = JSON.parse(ev.data) } catch { return }
-
-    if (msg.type !== 'kea_request') return
-
-    try {
-      await processRequestId(msg.requestId)
-    } catch (e) {
-      log(`ERROR ${e.message}`)
-    }
-  }
-
-  ws.onclose = () => log('Doorbell disconnected')
-  ws.onerror = () => log('Doorbell error')
-}
-
-$('genKeyBtn').onclick = () => generateKey().catch(e => log(`ERROR ${e.message}`))
 $('connectBtn').onclick = () => connectDoorbell()
-$('testBtn').onclick = () => {
-  const requestId = prompt('Request ID?')
-  if (requestId) processRequestId(requestId).catch(e => log(`ERROR ${e.message}`))
-}
+$('testBtn').onclick = () => manualFetch().catch(e => log(`ERROR ${e.message}`))
+$('verifyBtn').onclick = () => verifyDisplayedKea().catch(e => log(`ERROR ${e.message}`))
 
 loadConfig()
-renderKey()
 </script>
+
 </body>
 </html>

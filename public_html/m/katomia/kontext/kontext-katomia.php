@@ -12,7 +12,7 @@ $domain = 'swap.kpay.live';
 
 $sources=[
 // 'backend js'=>['/home/hbarlive_hts/web*.js'],
-// 'backend js'=>['/home/hbarlive_hts/{kat,kpool,deal,websocket}*.js'],
+'backend js'=>['/home/hbarlive_hts/{kat,kpool,deal,websocket}*.js'],
 'frontend js'=>["/var/www/$domain/public_html/m/katomia/*.js"],
 'KEA app'=>["/var/www/$domain/public_html/m/katomia/KEA/*.{html,js}"],
 'frontend css'=>["/var/www/$domain/public_html/m/katomia/*.css"],

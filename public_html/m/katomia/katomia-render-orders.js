@@ -177,7 +177,7 @@ function getTxMeta(tx){
     statusText: success ? "✅" : "❓",
     url: success
       ? `https://hashscan.io/${network}/transaction/${txid}`
-      : `https://shop.gomint.me/future/?network=${network}&txid=${tx.txid}&pch=${tx.pch}`
+      : `https://swap.kpay.live/future/?network=${network}&txid=${tx.txid}&pch=${tx.pch}`
   }
 
 }
