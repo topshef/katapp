@@ -8,7 +8,9 @@
     body { font-family: system-ui, sans-serif; max-width: 760px; margin: 30px auto; padding: 0 16px; }
     button { padding: 8px 12px; margin: 4px 0; }
     input { width: 100%; box-sizing: border-box; padding: 8px; margin: 4px 0 12px; }
-    pre { background: #111; color: #ddd; padding: 12px; overflow: auto; white-space: pre-wrap; }
+    pre { background: #111; color: #ddd; padding: 12px; overflow: auto; white-space: pre-wrap; resize: vertical; }
+    #log { max-height: 200px; }
+    #detail { max-height: 320px; }
     .ok { color: green; }
     .bad { color: crimson; }
   </style>
@@ -41,11 +43,11 @@
   <h2>Events</h2>
   <div id="events"></div>
 
-  <h2>Fetched detail</h2>
-  <pre id="detail"></pre>
-
   <h2>Status</h2>
   <pre id="log"></pre>
+
+  <h2>Fetched detail</h2>
+  <pre id="detail"></pre>
 
 <script type="module">
 import * as ed from "https://esm.sh/@noble/ed25519@2.1.0"
