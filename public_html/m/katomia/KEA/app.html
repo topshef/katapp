@@ -34,9 +34,10 @@
 
   <h2>Doorbell</h2>
   <button id="connectBtn">Connect doorbell</button>
-  <button id="testBtn">Manual fetch: network;txid;pch</button>
+  <button id="testBtn">Manual fetch (URL or network;txid;pch)</button>
   <button id="verifyBtn">Verify displayed KEA detail</button>
-
+  <button id="resetBtn">Reset config</button>
+  
   <h2>Events</h2>
   <div id="events"></div>
 
@@ -58,20 +59,41 @@ const log = x => $('log').textContent = `[${new Date().toLocaleTimeString()}] ${
 
 const events = []
 
+const CONFIG_FIELDS = [
+  ['baseUrl', 'keaBaseUrl'],
+  ['wsUrl', 'keaWsUrl'],
+  ['network', 'keaNetwork'],
+  ['orderPubkey', 'keaOrderPubkey']
+]
+
 function getBaseUrl() {
   return $('baseUrl').value.replace(/\/$/, '')
 }
 
 function saveConfig() {
-  localStorage.keaBaseUrl = $('baseUrl').value
-  localStorage.keaWsUrl = $('wsUrl').value
-  localStorage.keaOrderPubkey = $('orderPubkey')?.value || ''
+  for (const [id, key] of CONFIG_FIELDS) {
+    const el = $(id)
+    if (el) localStorage[key] = el.value
+  }
 }
 
 function loadConfig() {
-  if (localStorage.keaBaseUrl) $('baseUrl').value = localStorage.keaBaseUrl
-  if (localStorage.keaWsUrl) $('wsUrl').value = localStorage.keaWsUrl
-  if (localStorage.keaOrderPubkey && $('orderPubkey')) $('orderPubkey').value = localStorage.keaOrderPubkey
+  for (const [id, key] of CONFIG_FIELDS) {
+    const el = $(id)
+    if (!el) continue
+    const saved = localStorage[key]
+    if (saved == null) continue
+    const pageDefault = el.value          // read before we overwrite it
+    if (saved !== pageDefault)
+      log(`config: using SAVED ${id}="${saved}" (page default was "${pageDefault}") — click "Reset config" to use page defaults`)
+    el.value = saved
+  }
+}
+
+function resetConfig() {
+  for (const [, key] of CONFIG_FIELDS) delete localStorage[key]
+  delete localStorage.keaLastManual
+  location.reload()
 }
 
 const hexToBytes = hex => Uint8Array.from(hex.match(/.{1,2}/g).map(x => parseInt(x, 16)))
@@ -146,7 +168,9 @@ function connectDoorbell() {
 }
 
 async function fetchTxDetail(e) {
-  const url = `${getBaseUrl()}/kpool/txRead?network=${encodeURIComponent(e.network)}&txid=${encodeURIComponent(e.txid)}&checksum=${encodeURIComponent(e.pch)}&detail=1&mirror=0`
+  //const url = `${getBaseUrl()}/kpool/txRead?network=${encodeURIComponent(e.network)}&txid=${encodeURIComponent(e.txid)}&checksum=${encodeURIComponent(e.pch)}&detail=1&mirror=0`
+
+  const url = `${getBaseUrl()}/kpool/txRead?network=${encodeURIComponent(e.network)}&txid=${e.txid}&pch=${encodeURIComponent(e.pch)}&detail=1&mirror=0`
 
   log(`Fetching ${url}`)
 
@@ -197,22 +221,46 @@ function verifyTxHash(kea) {
     throw new Error('txBytes hash mismatch')
 }
 
+function parseManualInput(raw) {
+  raw = (raw || '').trim()
+  if (!raw) return null
+
+  // full URL or bare query string — anything containing '='
+  if (raw.includes('=')) {
+    const qs = raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : raw
+    const p = new URLSearchParams(qs)
+    const network = p.get('network')
+    const txid = p.get('txid')
+    const pch = p.get('pch') || p.get('checksum')
+    return (network && txid && pch) ? { network, txid, pch } : null
+  }
+
+  // legacy: network;txid;pch
+  const [network, txid, pch] = raw.split(';').map(x => x.trim())
+  return (network && txid && pch) ? { network, txid, pch } : null
+}
+
 async function manualFetch() {
-  const raw = prompt('Paste: network;txid;pch')
+  const raw = prompt('Paste a full URL, a query string, or network;txid;pch', localStorage.keaLastManual || '')
   if (!raw) return
 
-  const [network, txid, pch] = raw.split(';').map(x => x.trim())
-  if (!network || !txid || !pch) {
-    log('ERROR expected network;txid;pch')
+  const parsed = parseManualInput(raw)
+  if (!parsed) {
+    log('ERROR could not parse network/txid/pch from input')
     return
   }
 
-  await fetchTxDetail({ network, txid, pch })
+  localStorage.keaLastManual = raw
+  saveConfig()
+  await fetchTxDetail(parsed)
 }
+
 
 $('connectBtn').onclick = () => connectDoorbell()
 $('testBtn').onclick = () => manualFetch().catch(e => log(`ERROR ${e.message}`))
+
 $('verifyBtn').onclick = () => verifyDisplayedKea().catch(e => log(`ERROR ${e.message}`))
+$('resetBtn').onclick = () => resetConfig()
 
 loadConfig()
 </script>
