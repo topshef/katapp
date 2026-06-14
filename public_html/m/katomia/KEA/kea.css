@@ -336,3 +336,48 @@
         justify-content: flex-end;
       }
     }
+
+/* Small watch-header controls */
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin: 26px 0 10px;
+}
+
+.section-head h2 {
+  margin: 0;
+}
+
+.watch-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.icon-btn, .icon-action {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-action {
+  font-size: 15px;
+}
+
+@media (max-width: 720px) {
+  .section-head {
+    align-items: flex-start;
+  }
+
+  .watch-actions {
+    justify-content: flex-end;
+  }
+}

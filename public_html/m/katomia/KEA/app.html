@@ -16,12 +16,6 @@
       <h1>🦜 KEA</h1>
       <p class="subtitle">Approval agent. Watch trader intent keys, fetch approval packages, check the promise matches the action.</p>
     </div>
-
-    <div class="toolbar">
-      <button id="scanQrBtn" class="primary">📷 Scan QR</button>
-      <button id="toolsBtn" title="Debug tools">⚙️ Tools</button>
-      <button id="stopQrBtn" class="quiet" style="display:none">Stop camera</button>
-    </div>
   </header>
 
   <div id="status" class="status-line">Ready.</div>
@@ -29,7 +23,14 @@
   <video id="qrVideo" playsinline></video>
 
   <section>
-    <h2>Watches</h2>
+    <div class="section-head">
+      <h2>Watches</h2>
+      <div class="watch-actions">
+        <button id="scanQrBtn" class="primary">📷 Scan QR</button>
+        <button id="toolsBtn" class="icon-btn" title="Debug tools" aria-label="Debug tools">🛠️</button>
+        <button id="stopQrBtn" class="quiet" style="display:none">Stop camera</button>
+      </div>
+    </div>
     <div id="watches" class="panel table-wrap"></div>
   </section>
 
@@ -938,7 +939,7 @@
 
         const controls = document.createElement('td')
         controls.dataset.label = 'Controls'
-        controls.appendChild(actionButton(w.paused ? 'Resume' : 'Pause', function() { toggleWatchPaused(w.id) }))
+        controls.appendChild(actionButton(w.paused ? '▶️' : '⏸️', function() { toggleWatchPaused(w.id) }, 'icon-action', w.paused ? 'Resume watch' : 'Pause watch'))
         controls.appendChild(actionButton('Edit', function() { openWatchModal(w) }))
         controls.appendChild(actionButton('Remove', function() { removeWatch(w.id) }, 'danger'))
         controls.className = 'controls'
@@ -1151,10 +1152,12 @@
       return td
     }
 
-    function actionButton(text, fn, cls) {
+    function actionButton(text, fn, cls, title) {
       const btn = document.createElement('button')
       btn.textContent = text
       if (cls) btn.className = cls
+      if (title) btn.title = title
+      if (title) btn.setAttribute('aria-label', title)
       btn.onclick = function(ev) {
         ev.stopPropagation()
         fn()
