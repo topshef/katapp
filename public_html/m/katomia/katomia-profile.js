@@ -57,7 +57,7 @@ function getKatomiaKpoolDomain(){
 }
 
 function buildKatomiaProfileLink(pubkey){
-  const url = new URL("/kea-bind.html", location.origin)
+  const url = new URL("/m/katomia/keakonnect", location.origin)
 
   url.searchParams.set("v", "1")
   url.searchParams.set("type", "katomia-order-intent")
