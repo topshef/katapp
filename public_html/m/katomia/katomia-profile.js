@@ -101,7 +101,7 @@ function getKatomiaProfileTitle(){
   const id = currentPlayerId || "Player"
 
   if(label) return `${id}: ${label}`
-  return id
+  return `👤 ${id}`
 }
 
 function setText(id, value){

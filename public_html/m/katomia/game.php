@@ -34,8 +34,12 @@
       <div id="profileModalClose" class="profile-close">✕</div>
 
       <h2 id="profileTitle">Player</h2>
-      <p class="subtle">Share this QR with KEA to watch this trader intent key.</p>
 
+
+
+      <div id="profileQr" class="profile-qr"></div>
+      <p class="subtle">Scan with KEA to approve your orders</p>
+      
       <div class="profile-list">
         <div class="profile-label">Order public key</div>
         <div id="profilePubkey" class="profile-mono"></div>
@@ -43,8 +47,7 @@
         <div class="profile-label">Scope</div>
         <div id="profileScope" class="profile-scope"></div>
       </div>
-
-      <div id="profileQr" class="profile-qr"></div>
+      
       <div id="profileQrLink" class="profile-link"></div>
 
       <button id="profileCopyLinkBtn">Copy KEA link</button>

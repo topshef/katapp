@@ -1533,6 +1533,10 @@ textarea:focus{
   box-shadow:0 18px 50px rgba(0,0,0,0.32);
 }
 
+.profile-card .subtle {
+  text-align: center;
+}
+
 .profile-close{
   position:absolute;
   top:12px;
