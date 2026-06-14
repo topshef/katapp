@@ -133,6 +133,8 @@ function setProfileLink(link){
   el.textContent = link
   el.href = link
   el.title = "Open KEA link"
+  el.target = "KEA"
+  el.rel = "noopener"
 }
 
 window.addEventListener("load", initKatomiaProfile)
