@@ -39,6 +39,11 @@
   <h1>KEA Prototype</h1>
   <p class="muted">Browser execution agent. Watches persist locally. Each watch owns its own doorbell socket.</p>
 
+
+  <h2>Watches</h2>
+  <div id="watches"></div>
+  
+
   <div class="row">
     <button id="scanQrBtn">Scan QR</button>
     <button id="pasteQrBtn">Paste QR link</button>
@@ -47,6 +52,7 @@
 
   <input id="qrFile" type="file" accept="image/*" capture="environment" style="display:none">
   <video id="qrVideo" playsinline></video>
+
 
   <details id="watchEditor">
     <summary>Add / debug watch</summary>
@@ -80,9 +86,6 @@
       <button id="resetBtn">Reset local KEA data</button>
     </div>
   </details>
-
-  <h2>Watches</h2>
-  <div id="watches"></div>
 
   <h2>Events</h2>
   <div id="events"></div>
