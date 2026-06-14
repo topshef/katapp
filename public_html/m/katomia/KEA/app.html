@@ -944,7 +944,7 @@
         tr.className = 'clickable card-row'
         tr.onclick = function() { showWatchDetail(w) }
 
-        cell(tr, watchMainText(w), 'Watch')
+        cell(tr, watchMainText(w), 'Watch', 'mono')
         cell(tr, w.network, 'Network')
         cell(tr, w.gameId || '-', 'Game')
         pillCell(tr, modeLabel(w.mode), 'Mode')
@@ -992,7 +992,7 @@
 
         cell(tr, new Date(e.createdAt).toLocaleTimeString(), 'Time')
         cell(tr, e.watchLabel || e.watchId || '-', 'Watch')
-        cell(tr, shortHash(e.txid, 16), 'Tx ID', 'mono')
+        cell(tr, e.txid || '', 'Tx ID', 'mono')
         cell(tr, shortHash(e.pch), 'PCH', 'mono')
         cell(tr, e.status || '', 'Fetch')
         cell(tr, e.check || '', 'Check', checkClass(e.check))
@@ -1191,15 +1191,17 @@
     // -------------------------------------------------------------------------
 
     function watchLabel(w) {
-      if (w.name) return w.name
-      return `${w.network}/${w.gameId || '-'} ${shortKey(w.orderPubkey)}`
+      const base = `${w.network} | ${w.gameId || '-'} | ${watchKeyTail(w)}`
+      return w.name ? `${w.name} | ${base}` : base
     }
 
     function watchMainText(w) {
-      const host = formatHost(w.baseUrl)
-      const key = shortKey(w.orderPubkey)
-      if (w.name) return `${w.name} · ${key} · ${host}`
-      return `${key} · ${host}`
+      const base = `${w.network} | ${w.gameId || '-'} | ${watchKeyTail(w)}`
+      return w.name ? `${w.name} | ${base}` : base
+    }
+
+    function watchKeyTail(w) {
+      return String(w.orderPubkey || '').slice(-6) || '-'
     }
 
     function modeLabel(mode) {
