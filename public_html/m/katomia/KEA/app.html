@@ -5,270 +5,640 @@
   <title>KEA Prototype</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 30px auto; padding: 0 16px; }
-    button { padding: 8px 12px; margin: 4px 0; }
-    input { width: 100%; box-sizing: border-box; padding: 8px; margin: 4px 0 12px; }
-    pre { background: #111; color: #ddd; padding: 12px; overflow: auto; white-space: pre-wrap; resize: vertical; }
-    #log { max-height: 200px; }
-    #detail { max-height: 320px; }
-
-
-    .ok { color: green; }
-    .bad { color: crimson; }
+    body { font-family: system-ui, sans-serif; max-width: 980px; margin: 28px auto; padding: 0 16px; }
+    h1 { margin-bottom: 4px; }
+    h2 { margin: 22px 0 8px; }
+    button, select { padding: 7px 10px; margin: 2px 0; }
+    input { width: 100%; box-sizing: border-box; padding: 8px; margin: 4px 0 10px; }
+    label { font-size: 13px; font-weight: 700; display: block; margin-top: 8px; }
+    pre { background: #111; color: #ddd; padding: 12px; overflow: auto; white-space: pre-wrap; resize: vertical; border-radius: 8px; }
     table { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-size: 13px; }
     th, td { text-align: left; border-bottom: 1px solid #333; padding: 6px 4px; vertical-align: top; }
+    tr.clickable { cursor: pointer; }
+    tr.clickable:hover { background: rgba(128,128,128,.10); }
+    details { border: 1px solid #333; border-radius: 10px; padding: 10px 12px; margin: 10px 0 16px; }
+    summary { cursor: pointer; font-weight: 700; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .muted { opacity: .65; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    
+    .ok { color: green; font-weight: 700; }
+    .bad { color: crimson; font-weight: 700; }
+    .warn { color: darkorange; font-weight: 700; }
+    .pill { display: inline-block; padding: 2px 7px; border-radius: 999px; background: rgba(128,128,128,.18); }
+    #log { max-height: 210px; }
+    #detail { max-height: 320px; }
+    #qrVideo { display:none; width:100%; max-height:260px; background:#111; border-radius: 8px; }
+    dialog { max-width: 860px; width: calc(100% - 32px); border: 1px solid #555; border-radius: 12px; padding: 14px; }
+    dialog::backdrop { background: rgba(0,0,0,.55); }
+    #modalBody { max-height: 70vh; }
   </style>
 
   <script src="https://kpay.uk/assets/js/darkmode.js?v=0.2"></script>
-
 </head>
 <body>
   <h1>KEA Prototype</h1>
-  <p>Browser execution agent. WebSocket doorbell now; FCM later.</p>
+  <p class="muted">Browser execution agent. Watches persist locally. Each watch owns its own doorbell socket.</p>
 
-  <button id="scanQrBtn">Scan Katomia QR</button>
-  <button id="pasteQrBtn">Paste QR link</button>
-  <button id="stopQrBtn" style="display:none">Stop camera</button>
+  <div class="row">
+    <button id="scanQrBtn">Scan QR</button>
+    <button id="pasteQrBtn">Paste QR link</button>
+    <button id="stopQrBtn" style="display:none">Stop camera</button>
+  </div>
+
   <input id="qrFile" type="file" accept="image/*" capture="environment" style="display:none">
-  <video id="qrVideo" playsinline style="display:none; width:100%; max-height:260px; background:#111"></video>
+  <video id="qrVideo" playsinline></video>
 
-  <label>KPool base URL</label>
-  <input id="baseUrl" value="https://hapi5.katomia.com">
+  <details id="watchEditor">
+    <summary>Add / debug watch</summary>
 
+    <label>KPool base URL</label>
+    <input id="baseUrl" value="https://hapi5.katomia.com">
 
-  <label>WebSocket URL</label>
-  <input id="wsUrl" value="wss://hapi5.katomia.com/ws">
+    <label>WebSocket URL</label>
+    <input id="wsUrl" value="wss://hapi5.katomia.com/ws">
 
-  <label>Network</label>
-  <input id="network" value="mainnet">
+    <label>Network</label>
+    <input id="network" value="mainnet">
 
-  <label>Game ID</label>
-  <input id="scopeGameId" value="">
+    <label>Game ID</label>
+    <input id="scopeGameId" value="m-order">
 
-  <label>Order intent public key to watch</label>
-  <input id="orderPubkey" value="777efe5d8f02b77d5b658e89a0ce660cb2abecc4a563dcfc70874c2224424fc5">
+    <label>Order intent public key to watch</label>
+    <input id="orderPubkey" value="">
 
-  <h2>Doorbell</h2>
-  <button id="connectBtn">Connect doorbell</button>
-  <button id="testBtn">Manual fetch (URL or network;txid;pch)</button>
-  <button id="verifyBtn">Verify displayed KEA detail</button>
-  <button id="resetBtn">Reset config</button>
-  
+    <label>Mode</label>
+    <select id="watchMode">
+      <option value="doorbell">Doorbell only</option>
+      <option value="fetch" selected>Doorbell + fetch/check</option>
+      <option value="sign">Doorbell + fetch/check + sign later</option>
+    </select>
+
+    <div class="row">
+      <button id="addWatchBtn">Add watch</button>
+      <button id="manualFetchBtn">Manual fetch</button>
+      <button id="verifyBtn">Verify displayed detail</button>
+      <button id="resetBtn">Reset local KEA data</button>
+    </div>
+  </details>
+
+  <h2>Watches</h2>
+  <div id="watches"></div>
+
   <h2>Events</h2>
   <div id="events"></div>
 
-  <h2>Status</h2>
+  <h2>Debug log</h2>
   <pre id="log"></pre>
 
   <h2>Fetched detail</h2>
   <pre id="detail"></pre>
 
+  <dialog id="modal">
+    <div class="row" style="justify-content:space-between">
+      <strong id="modalTitle">Detail</strong>
+      <button id="modalCloseBtn">Close</button>
+    </div>
+    <pre id="modalBody"></pre>
+  </dialog>
+
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
-
 <script type="module">
-
-
 import * as ed from "https://esm.sh/@noble/ed25519@2.1.0"
 import { sha512 } from "https://esm.sh/@noble/hashes@1.4.0/sha512"
 import { sha256 } from "https://esm.sh/@noble/hashes@1.4.0/sha256"
 
-ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m))
+ed.etc.sha512Sync = function(...m) { return sha512(ed.etc.concatBytes(...m)) }
 
-const $ = id => document.getElementById(id)
-const log = x => $('log').textContent = `[${new Date().toLocaleTimeString()}] ${x}\n` + $('log').textContent
-
-
+const WATCHES_KEY = 'keaWatches.v1'
 const events = []
-
-function eventKey(e) {
-  return `${e.network};${e.txid};${e.pch}`
-}
-
-function shortHash(x, n = 6) {
-  x = String(x || '')
-  return x.length > n ? x.slice(0, n) : x
-}
-
-function eventCell(tr, text, cls = '') {
-  const td = document.createElement('td')
-  td.textContent = text || ''
-  if (cls) td.className = cls
-  tr.appendChild(td)
-}
-
-
-const CONFIG_FIELDS = [  // ?? wtf why mapping nerdshit here?  can't we simplify and just map the names as is? nerdfuckers need this shit
-  ['baseUrl', 'keaBaseUrl'],
-  ['wsUrl', 'keaWsUrl'],
-  ['network', 'keaNetwork'],   // todo cleanup confusion - this is NOT KEA network, it is Hedera network
-  ['scopeGameId', 'keaScopeGameId'],  // the game is Katomia scope
-  ['orderPubkey', 'keaOrderPubkey']
-]
-
-function getBaseUrl() {
-  return $('baseUrl').value.replace(/\/$/, '')
-}
-
-function saveConfig() {
-  for (const [id, key] of CONFIG_FIELDS) {
-    const el = $(id)
-    if (el) localStorage[key] = el.value
-  }
-}
-
-function loadConfig() {
-  for (const [id, key] of CONFIG_FIELDS) {
-    const el = $(id)
-    if (!el) continue
-    const saved = localStorage[key]
-    if (saved == null) continue
-    const pageDefault = el.value          // read before we overwrite it
-    if (saved !== pageDefault)
-      log(`config: using SAVED ${id}="${saved}" (page default was "${pageDefault}") — click "Reset config" to use page defaults`)
-    el.value = saved
-  }
-}
-
-function resetConfig() {
-  for (const [, key] of CONFIG_FIELDS) delete localStorage[key]
-  delete localStorage.keaLastManual
-  location.reload()
-}
-
-
-
-
-
-// ╔═╗ ╦═╗
-// ║═╬╗╠╦╝
-// ╚═╝╚╩╚═
-// QR
-
+const sockets = {}
+let watches = []
 let qrStream = null
 let qrScanning = false
 
-async function scanQr() {
-  if (!window.BarcodeDetector) {
-    log('Native QR scanner unavailable — opening camera/photo picker')
-    $('qrFile').click()
-    return
+function $(id) { return document.getElementById(id) }
+function nowTime() { return new Date().toLocaleTimeString() }
+function log(x) { $('log').textContent = `[${nowTime()}] ${x}\n` + $('log').textContent }
+function makeId() { return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}` }
+function cleanUrl(x) { return String(x || '').trim().replace(/\/$/, '') }
+function shortHash(x, n = 8) { x = String(x || ''); return x.length > n ? x.slice(0, n) : x }
+function shortKey(x) { x = String(x || ''); return x.length > 12 ? `${x.slice(0, 8)}…${x.slice(-4)}` : x }
+function eventKey(e) { return `${e.watchId || 'manual'};${e.network};${e.txid};${e.pch}` }
+function hexToBytes(hex) { return Uint8Array.from(String(hex || '').match(/.{1,2}/g).map(x => parseInt(x, 16))) }
+function bytesToHex(bytes) { return [...bytes].map(b => b.toString(16).padStart(2, '0')).join('') }
+function canonicalJson(obj) { return JSON.stringify(obj) }
+
+function cell(tr, text, cls = '') {
+  const td = document.createElement('td')
+  td.textContent = text == null ? '' : String(text)
+  if (cls) td.className = cls
+  tr.appendChild(td)
+  return td
+}
+
+function actionButton(text, fn) {
+  const btn = document.createElement('button')
+  btn.textContent = text
+  btn.onclick = ev => {
+    ev.stopPropagation()
+    fn()
+  }
+  return btn
+}
+
+function loadWatches() {
+  try { watches = JSON.parse(localStorage[WATCHES_KEY] || '[]') } catch { watches = [] }
+  watches = watches.map(normaliseWatch)
+}
+
+function saveWatches() {
+  localStorage[WATCHES_KEY] = JSON.stringify(watches.map(stripWatchRuntime))
+}
+
+function normaliseWatch(w) {
+  return {
+    id: w.id || makeId(),
+    baseUrl: cleanUrl(w.baseUrl || 'https://hapi5.katomia.com'),
+    wsUrl: cleanUrl(w.wsUrl || 'wss://hapi5.katomia.com/ws'),
+    network: String(w.network || 'mainnet').trim(),
+    gameId: String(w.gameId || '').trim(),
+    orderPubkey: String(w.orderPubkey || '').trim().toLowerCase(),
+    mode: w.mode || 'fetch',
+    paused: !!w.paused,
+    status: w.paused ? 'paused' : (w.status || 'idle'),
+    note: w.note || '',
+    createdAt: w.createdAt || Date.now(),
+    lastSeenAt: w.lastSeenAt || null
+  }
+}
+
+function stripWatchRuntime(w) {
+  return {
+    id: w.id,
+    baseUrl: w.baseUrl,
+    wsUrl: w.wsUrl,
+    network: w.network,
+    gameId: w.gameId,
+    orderPubkey: w.orderPubkey,
+    mode: w.mode,
+    paused: w.paused,
+    note: w.note,
+    createdAt: w.createdAt,
+    lastSeenAt: w.lastSeenAt
+  }
+}
+
+function getWatch(id) {
+  return watches.find(w => w.id === id)
+}
+
+function watchLabel(w) {
+  return `${w.network}/${w.gameId || '-'} ${shortKey(w.orderPubkey)}`
+}
+
+function watchFromForm() {
+  return normaliseWatch({
+    baseUrl: $('baseUrl').value,
+    wsUrl: $('wsUrl').value,
+    network: $('network').value,
+    gameId: $('scopeGameId').value,
+    orderPubkey: $('orderPubkey').value,
+    mode: $('watchMode').value
+  })
+}
+
+function fillWatchForm(w) {
+  $('baseUrl').value = w.baseUrl || ''
+  $('wsUrl').value = w.wsUrl || ''
+  $('network').value = w.network || ''
+  $('scopeGameId').value = w.gameId || ''
+  $('orderPubkey').value = w.orderPubkey || ''
+  $('watchMode').value = w.mode || 'fetch'
+}
+
+function addWatchFromForm() {
+  addWatch(watchFromForm())
+}
+
+function addWatch(watch) {
+  watch = normaliseWatch(watch)
+
+  if (!watch.wsUrl) throw new Error('Missing WebSocket URL')
+  if (!watch.baseUrl) throw new Error('Missing KPool base URL')
+  if (!watch.network) throw new Error('Missing network')
+  if (!watch.orderPubkey) throw new Error('Missing order pubkey')
+
+  const existing = watches.find(w =>
+    w.wsUrl === watch.wsUrl &&
+    w.network === watch.network &&
+    w.gameId === watch.gameId &&
+    w.orderPubkey === watch.orderPubkey
+  )
+
+  if (existing) {
+    Object.assign(existing, watch, { id: existing.id, paused: false, status: 'idle' })
+    watch = existing
+  } else {
+    watches.unshift(watch)
   }
 
-  qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+  saveWatches()
+  renderWatches()
+  connectWatch(watch)
+  log(`Watch added ${watchLabel(watch)}`)
+}
 
-  const video = $('qrVideo')
-  video.srcObject = qrStream
-  video.style.display = 'block'
-  $('stopQrBtn').style.display = 'inline-block'
+function removeWatch(id) {
+  disconnectWatch(id)
+  watches = watches.filter(w => w.id !== id)
+  saveWatches()
+  renderWatches()
+}
 
-  await video.play()
+function setWatchMode(id, mode) {
+  const w = getWatch(id)
+  if (!w) return
+  w.mode = mode
+  saveWatches()
+  renderWatches()
+}
 
-  qrScanning = true
-  const detector = new BarcodeDetector({ formats: ['qr_code'] })
+function toggleWatchPaused(id) {
+  const w = getWatch(id)
+  if (!w) return
 
-  const tick = async () => {
-    if (!qrScanning) return
+  w.paused = !w.paused
+  w.status = w.paused ? 'paused' : 'idle'
 
-    try {
-      const codes = await detector.detect(video)
-      if (codes.length) {
-        stopQr()
-        applyKatomiaQr(codes[0].rawValue)
-        return
+  if (w.paused) disconnectWatch(id)
+  else connectWatch(w)
+
+  saveWatches()
+  renderWatches()
+}
+
+function updateWatch(id, changes) {
+  const w = getWatch(id)
+  if (!w) return
+  Object.assign(w, changes)
+  saveWatches()
+  renderWatches()
+}
+
+function connectAllWatches() {
+  for (const w of watches)
+    if (!w.paused) connectWatch(w)
+}
+
+function connectWatch(w) {
+  if (!w || w.paused) return
+
+  const existing = sockets[w.id]
+  if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) return
+
+  updateWatch(w.id, { status: 'connecting', note: '' })
+
+  const ws = new WebSocket(w.wsUrl)
+  sockets[w.id] = ws
+
+  ws.onopen = function() {
+    updateWatch(w.id, { status: 'connected', note: '' })
+
+    ws.send(JSON.stringify({
+      type: 'kpool_watch',
+      filter: {
+        mode: 'kea',
+        network: w.network,
+        orderPubkey: w.orderPubkey
       }
-    } catch (err) {
-      log(`QR scan error ${err.message}`)
-    }
+    }))
 
-    requestAnimationFrame(tick)
+    log(`Watch connected ${watchLabel(w)}`)
   }
 
-  tick()
-}
+  ws.onmessage = function(ev) {
+    let msg
+    try { msg = JSON.parse(ev.data) } catch { return }
 
-function stopQr() {
-  qrScanning = false
-
-  if (qrStream)
-    qrStream.getTracks().forEach(t => t.stop())
-
-  qrStream = null
-  $('qrVideo').style.display = 'none'
-  $('stopQrBtn').style.display = 'none'
-}
-
-function pasteQr() {
-  const raw = prompt('Paste Katomia QR/link')
-  if (raw) applyKatomiaQr(raw)
-}
-
-function readQrFile(file) {
-  const img = new Image()
-
-  img.onload = () => {
-    const canvas = document.createElement('canvas')
-    canvas.width = img.naturalWidth
-    canvas.height = img.naturalHeight
-
-    const ctx = canvas.getContext('2d')
-    ctx.drawImage(img, 0, 0)
-
-    const data = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    const code = jsQR(data.data, data.width, data.height)
-
-    if (!code) {
-      log('No QR found in image')
+    if (msg.type === 'kea_request') {
+      handleDoorbell(w, msg)
       return
     }
 
-    applyKatomiaQr(code.data)
+    log(`WS ${watchLabel(w)} ${JSON.stringify(msg)}`)
   }
 
-  img.src = URL.createObjectURL(file)
+  ws.onclose = function() {
+    if (sockets[w.id] === ws) delete sockets[w.id]
+    const current = getWatch(w.id)
+    if (!current) return
+    if (!current.paused) updateWatch(w.id, { status: 'disconnected' })
+  }
+
+  ws.onerror = function() {
+    updateWatch(w.id, { status: 'error', note: 'doorbell socket error' })
+  }
 }
 
-function applyKatomiaQr(raw) {
-  const parsed = parseKatomiaQr(raw)
-
-  $('baseUrl').value = parsed.baseUrl
-  $('wsUrl').value = parsed.wsUrl
-  $('network').value = parsed.network
-  $('scopeGameId').value = parsed.gameId
-  $('orderPubkey').value = parsed.orderPubkey
-
-  saveConfig()
-  log(`Loaded Katomia watch ${parsed.network}/${parsed.gameId} ${parsed.orderPubkey.slice(0, 8)}...`)
+function disconnectWatch(id) {
+  const ws = sockets[id]
+  if (!ws) return
+  delete sockets[id]
+  try { ws.close() } catch {}
 }
 
-function parseKatomiaQr(raw) {
-  const url = new URL(raw)
-  const p = url.searchParams
+function renderWatches() {
+  const el = $('watches')
+  el.innerHTML = ''
 
-  const domain = p.get('domain')
-  const network = p.get('network')
-  const gameId = p.get('gameId') || ''
-  const orderPubkey = (p.get('orderPubkey') || '').trim().toLowerCase()
+  if (!watches.length) {
+    el.innerHTML = '<p class="muted">No watches yet. Scan/paste a QR or add one from debug details.</p>'
+    return
+  }
 
-  if (!domain) throw new Error('QR missing domain')
-  if (!network) throw new Error('QR missing network')
-  if (!orderPubkey) throw new Error('QR missing orderPubkey')
+  const table = document.createElement('table')
+  const head = document.createElement('tr')
 
+  for (const h of ['Domain', 'Network', 'Game', 'Order key', 'Mode', 'Status', 'Controls']) {
+    const th = document.createElement('th')
+    th.textContent = h
+    head.appendChild(th)
+  }
+
+  table.appendChild(head)
+
+  for (const w of watches) {
+    const tr = document.createElement('tr')
+    tr.className = 'clickable'
+    tr.onclick = function() { showDetail('Watch', stripWatchRuntime(w)) }
+
+    cell(tr, new URL(w.baseUrl).host)
+    cell(tr, w.network)
+    cell(tr, w.gameId || '-')
+    cell(tr, shortKey(w.orderPubkey), 'mono')
+
+    const modeTd = document.createElement('td')
+    const select = document.createElement('select')
+    for (const [value, label] of [['doorbell', 'Doorbell'], ['fetch', 'Fetch/check'], ['sign', 'Sign later']]) {
+      const opt = document.createElement('option')
+      opt.value = value
+      opt.textContent = label
+      opt.selected = w.mode === value
+      select.appendChild(opt)
+    }
+    select.onchange = ev => setWatchMode(w.id, ev.target.value)
+    select.onclick = ev => ev.stopPropagation()
+    modeTd.appendChild(select)
+    tr.appendChild(modeTd)
+
+    cell(tr, w.paused ? 'paused' : w.status, w.status === 'connected' ? 'ok' : w.status === 'error' ? 'bad' : '')
+
+    const controls = document.createElement('td')
+    controls.appendChild(actionButton(w.paused ? 'Resume' : 'Pause', function() { toggleWatchPaused(w.id) }))
+    controls.appendChild(document.createTextNode(' '))
+    controls.appendChild(actionButton('Edit', function() {
+      fillWatchForm(w)
+      $('watchEditor').open = true
+    }))
+    controls.appendChild(document.createTextNode(' '))
+    controls.appendChild(actionButton('Remove', function() { removeWatch(w.id) }))
+    tr.appendChild(controls)
+
+    table.appendChild(tr)
+  }
+
+  el.appendChild(table)
+}
+
+function handleDoorbell(w, msg) {
+  w.lastSeenAt = Date.now()
+  saveWatches()
+
+  const e = addEvent(w, msg)
+  log(`Doorbell ${e.key}`)
+
+  if (w.mode === 'doorbell') {
+    e.summary = 'doorbell only'
+    renderEvents()
+    return
+  }
+
+  fetchTxDetail(e).catch(err => {
+    e.status = 'fetch error'
+    e.check = 'fail'
+    e.summary = err.message
+    renderEvents()
+    log(`ERROR ${err.message}`)
+  })
+}
+
+function addEvent(w, msg) {
+  const base = {
+    watchId: w.id,
+    watchLabel: watchLabel(w),
+    network: msg.network || w.network,
+    txid: msg.txid,
+    pch: msg.pch,
+    mode: w.mode,
+    status: 'doorbell',
+    check: 'pending',
+    summary: '',
+    createdAt: Date.now()
+  }
+
+  const key = eventKey(base)
+  let e = events.find(x => x.key === key)
+
+  if (!e) {
+    e = { key, ...base }
+    events.unshift(e)
+  } else {
+    Object.assign(e, base, { key })
+  }
+
+  renderEvents()
+  return e
+}
+
+function renderEvents() {
+  const el = $('events')
+  el.innerHTML = ''
+
+  if (!events.length) {
+    el.innerHTML = '<p class="muted">No events yet.</p>'
+    return
+  }
+
+  const table = document.createElement('table')
+  const head = document.createElement('tr')
+
+  for (const h of ['Time', 'Watch', 'Tx ID', 'PCH', 'Fetch', 'Check', 'Debug']) {
+    const th = document.createElement('th')
+    th.textContent = h
+    head.appendChild(th)
+  }
+
+  table.appendChild(head)
+
+  for (const e of events) {
+    const tr = document.createElement('tr')
+    tr.className = 'clickable'
+    tr.onclick = function() { showDetail('Event', eventDetail(e)) }
+
+    cell(tr, new Date(e.createdAt).toLocaleTimeString())
+    cell(tr, e.watchLabel || e.watchId || 'manual')
+    cell(tr, e.txid, 'mono')
+    cell(tr, shortHash(e.pch), 'mono')
+    cell(tr, e.status || '')
+    cell(tr, e.check || '', e.check === 'pass' ? 'ok' : e.check === 'fail' ? 'bad' : e.check === 'pending' ? 'warn' : '')
+    cell(tr, e.summary || '')
+
+    table.appendChild(tr)
+  }
+
+  el.appendChild(table)
+}
+
+function eventDetail(e) {
   return {
-    baseUrl: `https://${domain}`,
-    wsUrl: `wss://${domain}/ws`,
-    network,
-    gameId,
-    orderPubkey
+    key: e.key,
+    watchId: e.watchId,
+    watchLabel: e.watchLabel,
+    network: e.network,
+    txid: e.txid,
+    pch: e.pch,
+    mode: e.mode,
+    status: e.status,
+    check: e.check,
+    summary: e.summary,
+    verification: e.verification || null,
+    kea: e.kea || null,
+    raw: e.raw || null
   }
 }
 
+async function fetchTxDetail(e) {
+  const w = getWatch(e.watchId) || watchFromForm()
+  const url = `${cleanUrl(w.baseUrl)}/kpool/txRead?network=${encodeURIComponent(e.network)}&txid=${e.txid}&pch=${encodeURIComponent(e.pch)}&detail=1&mirror=0`
 
+  e.status = 'fetching'
+  e.check = 'pending'
+  e.summary = ''
+  renderEvents()
 
+  log(`Fetching ${url}`)
 
+  const res = await fetch(url)
+  const data = await res.json()
+  const out = data.result || data
 
+  e.status = 'fetched'
+  e.raw = out
+  e.kea = out.kea || null
+
+  $('detail').textContent = JSON.stringify(out.kea || out, null, 2)
+
+  if (!out.kea) {
+    e.check = 'fail'
+    e.summary = out.keaError || 'no kea detail'
+    renderEvents()
+    log(`Fetched tx but no kea: ${e.summary}`)
+    return
+  }
+
+  const result = await verifyKeaForWatch(out.kea, w)
+  e.check = result.ok ? 'pass' : 'fail'
+  e.summary = result.msg
+  e.verification = result
+
+  if (result.ok && w.mode === 'sign')
+    e.summary = `${e.summary}; signing not wired yet`
+
+  renderEvents()
+}
+
+async function verifyKeaForWatch(kea, w) {
+  try {
+    await verifyKeaDetail(kea, {
+      network: w.network,
+      gameId: w.gameId,
+      orderPubkey: w.orderPubkey
+    })
+
+    const msg = getKeaSummary(kea)
+    log(`✅ KEA VERIFY PASS: ${msg}`)
+    return { ok: true, msg }
+  } catch (err) {
+    log(`❌ KEA VERIFY FAIL: ${err.message}`)
+    return { ok: false, msg: err.message }
+  }
+}
+
+function getKeaSummary(kea) {
+  const fills = getExecutionFills(kea).length
+  const mandates = (kea.watchedMandates || []).map(x => x.orderId).join(',')
+  return `${fills} fill(s), watched order(s): ${mandates || '-'}`
+}
+
+async function verifyDisplayedKea() {
+  const raw = $('detail').textContent
+  if (!raw) {
+    log('No detail loaded')
+    return
+  }
+
+  const kea = JSON.parse(raw)
+  const result = await verifyKeaForWatch(kea, watchFromForm())
+  log(result.ok ? 'Displayed KEA verified' : `Displayed KEA failed: ${result.msg}`)
+}
+
+async function manualFetch() {
+  const raw = prompt('Paste a full URL, query string, or network;txid;pch', localStorage.keaLastManual || '')
+  if (!raw) return
+
+  const parsed = parseManualInput(raw)
+  if (!parsed) {
+    log('ERROR could not parse network/txid/pch from input')
+    return
+  }
+
+  localStorage.keaLastManual = raw
+
+  const w = watchFromForm()
+  const e = {
+    key: eventKey({ watchId: 'manual', ...parsed }),
+    watchId: 'manual',
+    watchLabel: 'manual/debug',
+    mode: w.mode,
+    status: 'manual',
+    check: 'pending',
+    summary: '',
+    createdAt: Date.now(),
+    ...parsed
+  }
+
+  events.unshift(e)
+  renderEvents()
+  await fetchTxDetail(e)
+}
+
+function parseManualInput(raw) {
+  raw = String(raw || '').trim()
+  if (!raw) return null
+
+  if (raw.includes('=')) {
+    const qs = raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : raw
+    const p = new URLSearchParams(qs)
+    const network = p.get('network')
+    const txid = p.get('txid')
+    const pch = p.get('pch') || p.get('checksum')
+    return network && txid && pch ? { network, txid, pch } : null
+  }
+
+  const [network, txid, pch] = raw.split(';').map(x => x.trim())
+  return network && txid && pch ? { network, txid, pch } : null
+}
 
 async function verifyKeaDetail(kea, expected) {
   kea.watchedMandates = getWatchedMandates(kea, expected)
@@ -284,13 +654,12 @@ async function verifyKeaDetail(kea, expected) {
   verifyFillAgainstTransfers(kea)
 }
 
-
 function getExecutionFills(kea) {
   return kea.execution?.fills || (kea.execution?.fill ? [kea.execution.fill] : [])
 }
 
 function getWatchedMandates(kea, expected) {
-  const watched = (expected.orderPubkey || '').toLowerCase()
+  const watched = String(expected.orderPubkey || '').toLowerCase()
   const mandates = kea.mandates || (kea.mandate ? [kea.mandate] : [])
 
   if (watched) {
@@ -303,7 +672,21 @@ function getWatchedMandates(kea, expected) {
   throw new Error('No matching mandate for watched intent pubkey')
 }
 
+async function verifyIntents(kea) {
+  for (const mandate of kea.watchedMandates || [])
+    await verifyIntentMandate(mandate)
+}
 
+async function verifyIntentMandate(m) {
+  if (!m?.intentPubkey || !m?.intentSignature || !m?.intentPayload)
+    throw new Error('Missing mandate intent fields')
+
+  const msg = new TextEncoder().encode(canonicalJson(m.intentPayload))
+  const sig = Uint8Array.from(atob(m.intentSignature), c => c.charCodeAt(0))
+  const ok = await ed.verifyAsync(sig, msg, hexToBytes(m.intentPubkey))
+
+  if (!ok) throw new Error(`Trader intent signature invalid for order ${m.orderId}`)
+}
 
 function verifyMandatesMatchExecution(kea) {
   const fills = getExecutionFills(kea)
@@ -323,14 +706,10 @@ function verifyMandatesMatchExecution(kea) {
   }
 }
 
-
-
 function sha256Json(obj) {
   const bytes = new TextEncoder().encode(JSON.stringify(obj))
   return bytesToHex(sha256(bytes))
 }
-
-
 
 function verifyBundleHash(kea) {
   for (const mandate of kea.watchedMandates || []) {
@@ -346,8 +725,6 @@ function verifyBundleHash(kea) {
       throw new Error(`Bundle hash does not match signed intent for order ${mandate.orderId}`)
   }
 }
-
-
 
 function verifyScope(kea, expected) {
   const pchBasis = kea.execution?.pchBasis
@@ -375,31 +752,19 @@ function verifyScope(kea, expected) {
   }
 }
 
-
-
-
 function getFillRatioForMandate(mandate, fill) {
   const mandateOrderId = String(mandate.orderId || '')
   const makerOrderId = String(fill.orderId || '')
   const takerOrderId = String(fill.takerOrderId || '')
 
   if (mandateOrderId === makerOrderId)
-    return {
-      numerator: fill.numerator,
-      denominator: fill.denominator
-    }
+    return { numerator: fill.numerator, denominator: fill.denominator }
 
   if (mandateOrderId === takerOrderId)
-    return {
-      numerator: fill.takerNumerator,
-      denominator: fill.takerDenominator
-    }
+    return { numerator: fill.takerNumerator, denominator: fill.takerDenominator }
 
   return null
 }
-
-
-
 
 function verifyFillAgainstTransfers(kea) {
   const fills = getExecutionFills(kea)
@@ -464,240 +829,9 @@ function verifyFillAgainstTransfers(kea) {
     throw new Error(`Transfers worse than signed bundle/fill: ${JSON.stringify(Object.fromEntries(negative))}`)
 }
 
-
-
-
-
 function normaliseAssetId(asset) {
   return String(asset).toUpperCase() === 'HBAR' ? 'HBAR' : String(asset)
 }
-
-// ┌─┐┌─┐┬─┐┬  ┬┌─┐┬─┐  ┌─┐┬ ┬┬┌┬┐
-// ├┤ ├─┤├┬┘│  │├┤ ├┬┘  └─┐├─┤│ │ 
-// └─┘┴ ┴┴└─┴─┘┴└─┘┴└─  └─┘┴ ┴┴ ┴ 
-// earlier shit
-
-// TODO lets label up the code sections
-
-const hexToBytes = hex => Uint8Array.from(hex.match(/.{1,2}/g).map(x => parseInt(x, 16)))
-const bytesToHex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('')
-const canonicalJson = obj => JSON.stringify(obj)
-
-
-function addEvent(msg) {
-  const key = eventKey(msg)
-  let e = events.find(x => x.key === key)
-
-  if (!e) {
-    e = { key, ...msg, status: 'doorbell', check: 'pending', summary: '' }
-    events.unshift(e)
-  } else {
-    Object.assign(e, msg)
-    e.status = 'doorbell'
-    e.check = 'pending'
-  }
-
-  renderEvents()
-  log(`Doorbell ${key}`)
-
-  fetchTxDetail(e).catch(err => {
-    e.status = 'fetch error'
-    e.check = 'fail'
-    e.summary = err.message
-    renderEvents()
-    log(`ERROR ${err.message}`)
-  })
-}
-
-function renderEvents() {
-  const el = $('events')
-  if (!el) return
-
-  el.innerHTML = ''
-
-  if (!events.length) {
-    el.textContent = 'No events yet'
-    return
-  }
-
-  const table = document.createElement('table')
-  const head = document.createElement('tr')
-
-  for (const h of ['Network', 'Tx ID', 'PCH', 'Fetch', 'Check', 'Debug']) {
-    const th = document.createElement('th')
-    th.textContent = h
-    head.appendChild(th)
-  }
-
-  table.appendChild(head)
-
-  for (const e of events) {
-    const tr = document.createElement('tr')
-
-    eventCell(tr, e.network)
-    eventCell(tr, e.txid, 'mono')
-    eventCell(tr, shortHash(e.pch), 'mono')
-    eventCell(tr, e.status || '')
-    eventCell(tr, e.check || '', e.check === 'pass' ? 'ok' : e.check === 'fail' ? 'bad' : '')
-    eventCell(tr, e.summary || '')
-
-    table.appendChild(tr)
-  }
-
-  el.appendChild(table)
-}
-
-
-
-
-function connectDoorbell() {
-  saveConfig()
-
-  const orderPubkey = $('orderPubkey').value.trim().toLowerCase()
-  if (!orderPubkey) {
-    log('ERROR missing order intent pubkey')
-    return
-  }
-
-  const ws = new WebSocket($('wsUrl').value)
-
-  ws.onopen = () => {
-    log('Doorbell connected')
-
-    ws.send(JSON.stringify({
-      type: 'kpool_watch',
-      filter: {
-        mode: 'kea',
-        network: $('network').value,
-        orderPubkey
-      }
-    }))
-
-    log(`Subscribed for orderPubkey ${orderPubkey.slice(0, 8)}...`)
-  }
-
-  ws.onmessage = ev => {
-    let msg
-    try { msg = JSON.parse(ev.data) } catch { return }
-
-    if (msg.type === 'kea_request') {
-      addEvent(msg)
-      return
-    }
-
-    log(`WS ${JSON.stringify(msg)}`)
-  }
-
-  ws.onclose = () => log('Doorbell disconnected')
-  ws.onerror = () => log('Doorbell error')
-}
-
-
-
-async function fetchTxDetail(e) {
-  const url = `${getBaseUrl()}/kpool/txRead?network=${encodeURIComponent(e.network)}&txid=${e.txid}&pch=${encodeURIComponent(e.pch)}&detail=1&mirror=0`
-
-  e.status = 'fetching'
-  e.check = 'pending'
-  e.summary = ''
-  renderEvents()
-
-  log(`Fetching ${url}`)
-
-  const res = await fetch(url)
-  const data = await res.json()
-
-  const out = data.result || data
-
-  e.status = 'fetched'
-  e.raw = out
-  e.kea = out.kea || null
-
-  $('detail').textContent = JSON.stringify(out.kea || out, null, 2)
-
-  if (!out.kea) {
-    e.check = 'fail'
-    e.summary = out.keaError || 'no kea detail'
-    renderEvents()
-    log(`Fetched tx but no kea: ${e.summary}`)
-    return
-  }
-
-  log('Fetched KEA detail')
-
-  const result = await verifyFetchedKea(out.kea)
-  e.check = result.ok ? 'pass' : 'fail'
-  e.summary = result.msg
-
-  renderEvents()
-}
-
-
-
-
-
-
-async function verifyFetchedKea(kea) {
-  try {
-    await verifyKeaDetail(kea, {
-      network: $('network').value.trim(),
-      gameId: $('scopeGameId').value.trim(),
-      orderPubkey: $('orderPubkey').value.trim().toLowerCase()
-    })
-
-    log('✅ KEA VERIFY PASS: local checks passed')
-    return { ok: true, msg: getKeaSummary(kea) }
-  } catch (err) {
-    log(`❌ KEA VERIFY FAIL: ${err.message}`)
-    return { ok: false, msg: err.message }
-  }
-}
-
-function getKeaSummary(kea) {
-  const fills = getExecutionFills(kea).length
-  const mandates = (kea.watchedMandates || []).map(x => x.orderId).join(',')
-  return `${fills} fill(s), watched order(s): ${mandates || '-'}`
-}
-
-
-
-async function verifyDisplayedKea() {
-  const raw = $('detail').textContent
-  if (!raw) {
-    log('No detail loaded')
-    return
-  }
-
-  const kea = JSON.parse(raw)
-
-  await verifyKeaDetail(kea, {
-    network: $('network').value.trim(),
-    gameId: $('scopeGameId').value.trim(),
-    orderPubkey: $('orderPubkey').value.trim().toLowerCase()
-  })
-
-  log('KEA detail verified locally: safe-to-sign checks passed')
-}
-
-
-
-async function verifyIntents(kea) {
-  for (const mandate of kea.watchedMandates || [])
-    await verifyIntentMandate(mandate)
-}
-
-async function verifyIntentMandate(m) {
-  if (!m?.intentPubkey || !m?.intentSignature || !m?.intentPayload)
-    throw new Error('Missing mandate intent fields')
-
-  const msg = new TextEncoder().encode(canonicalJson(m.intentPayload))
-  const sig = Uint8Array.from(atob(m.intentSignature), c => c.charCodeAt(0))
-  const ok = await ed.verifyAsync(sig, msg, hexToBytes(m.intentPubkey))
-
-  if (!ok) throw new Error(`Trader intent signature invalid for order ${m.orderId}`)
-}
-
-
 
 function verifyTxHash(kea) {
   const txBytes = hexToBytes(kea.transaction.txBytesHex)
@@ -723,60 +857,151 @@ function verifyPch(kea) {
     throw new Error('PCH hash mismatch')
 }
 
-
-function parseManualInput(raw) {
-  raw = (raw || '').trim()
-  if (!raw) return null
-
-  // full URL or bare query string — anything containing '='
-  if (raw.includes('=')) {
-    const qs = raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : raw
-    const p = new URLSearchParams(qs)
-    const network = p.get('network')
-    const txid = p.get('txid')
-    const pch = p.get('pch') || p.get('checksum')
-    return (network && txid && pch) ? { network, txid, pch } : null
-  }
-
-  // legacy: network;txid;pch
-  const [network, txid, pch] = raw.split(';').map(x => x.trim())
-  return (network && txid && pch) ? { network, txid, pch } : null
-}
-
-async function manualFetch() {
-  const raw = prompt('Paste a full URL, a query string, or network;txid;pch', localStorage.keaLastManual || '')
-  if (!raw) return
-
-  const parsed = parseManualInput(raw)
-  if (!parsed) {
-    log('ERROR could not parse network/txid/pch from input')
+async function scanQr() {
+  if (!window.BarcodeDetector) {
+    log('Native QR scanner unavailable — opening camera/photo picker')
+    $('qrFile').click()
     return
   }
 
-  localStorage.keaLastManual = raw
-  saveConfig()
-  await fetchTxDetail(parsed)
+  qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+
+  const video = $('qrVideo')
+  video.srcObject = qrStream
+  video.style.display = 'block'
+  $('stopQrBtn').style.display = 'inline-block'
+
+  await video.play()
+
+  qrScanning = true
+  const detector = new BarcodeDetector({ formats: ['qr_code'] })
+
+  const tick = async function() {
+    if (!qrScanning) return
+
+    try {
+      const codes = await detector.detect(video)
+      if (codes.length) {
+        stopQr()
+        addWatchFromQr(codes[0].rawValue)
+        return
+      }
+    } catch (err) {
+      log(`QR scan error ${err.message}`)
+    }
+
+    requestAnimationFrame(tick)
+  }
+
+  tick()
 }
 
-//QR - can we put this next thre fucking QR code, do we need to nerd split the shit?
-$('scanQrBtn').onclick = () => scanQr().catch(e => log(`ERROR ${e.message}`))
-$('pasteQrBtn').onclick = () => pasteQr()
-$('stopQrBtn').onclick = () => stopQr()
-$('qrFile').onchange = e => {
+function stopQr() {
+  qrScanning = false
+
+  if (qrStream)
+    qrStream.getTracks().forEach(t => t.stop())
+
+  qrStream = null
+  $('qrVideo').style.display = 'none'
+  $('stopQrBtn').style.display = 'none'
+}
+
+function pasteQr() {
+  const raw = prompt('Paste Katomia QR/link')
+  if (raw) addWatchFromQr(raw)
+}
+
+function readQrFile(file) {
+  const img = new Image()
+
+  img.onload = function() {
+    const canvas = document.createElement('canvas')
+    canvas.width = img.naturalWidth
+    canvas.height = img.naturalHeight
+
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(img, 0, 0)
+
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const code = jsQR(data.data, data.width, data.height)
+
+    if (!code) {
+      log('No QR found in image')
+      return
+    }
+
+    addWatchFromQr(code.data)
+  }
+
+  img.src = URL.createObjectURL(file)
+}
+
+function addWatchFromQr(raw) {
+  const watch = parseKatomiaQr(raw)
+  fillWatchForm(watch)
+  addWatch(watch)
+}
+
+function parseKatomiaQr(raw) {
+  const url = new URL(raw)
+  const p = url.searchParams
+
+  const domain = p.get('domain')
+  const network = p.get('network')
+  const gameId = p.get('gameId') || ''
+  const orderPubkey = String(p.get('orderPubkey') || '').trim().toLowerCase()
+  const mode = p.get('mode') || $('watchMode').value || 'fetch'
+
+  if (!domain) throw new Error('QR missing domain')
+  if (!network) throw new Error('QR missing network')
+  if (!orderPubkey) throw new Error('QR missing orderPubkey')
+
+  return normaliseWatch({
+    baseUrl: `https://${domain}`,
+    wsUrl: `wss://${domain}/ws`,
+    network,
+    gameId,
+    orderPubkey,
+    mode
+  })
+}
+
+function showDetail(title, data) {
+  $('modalTitle').textContent = title
+  $('modalBody').textContent = JSON.stringify(data, null, 2)
+  $('modal').showModal()
+}
+
+function resetAll() {
+  for (const id of Object.keys(sockets)) disconnectWatch(id)
+  delete localStorage[WATCHES_KEY]
+  delete localStorage.keaLastManual
+  watches = []
+  events.length = 0
+  renderWatches()
+  renderEvents()
+  $('detail').textContent = ''
+  log('Reset local KEA data')
+}
+
+$('scanQrBtn').onclick = function() { scanQr().catch(e => log(`ERROR ${e.message}`)) }
+$('pasteQrBtn').onclick = function() { try { pasteQr() } catch (e) { log(`ERROR ${e.message}`) } }
+$('stopQrBtn').onclick = function() { stopQr() }
+$('qrFile').onchange = function(e) {
   const file = e.target.files?.[0]
   if (file) readQrFile(file)
 }
+$('addWatchBtn').onclick = function() { try { addWatchFromForm() } catch (e) { log(`ERROR ${e.message}`) } }
+$('manualFetchBtn').onclick = function() { manualFetch().catch(e => log(`ERROR ${e.message}`)) }
+$('verifyBtn').onclick = function() { verifyDisplayedKea().catch(e => log(`ERROR ${e.message}`)) }
+$('resetBtn').onclick = function() { resetAll() }
+$('modalCloseBtn').onclick = function() { $('modal').close() }
 
-//earlier shit
-
-$('connectBtn').onclick = () => connectDoorbell()
-$('testBtn').onclick = () => manualFetch().catch(e => log(`ERROR ${e.message}`))
-
-$('verifyBtn').onclick = () => verifyDisplayedKea().catch(e => log(`ERROR ${e.message}`))
-$('resetBtn').onclick = () => resetConfig()
-
-loadConfig()
+loadWatches()
+renderWatches()
+renderEvents()
+connectAllWatches()
 </script>
-
 </body>
 </html>
