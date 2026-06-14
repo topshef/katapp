@@ -550,8 +550,8 @@ function buildEventDebug(e, w, kea) {
     },
     execution: fills.map(fill => ({
       fillId: fill.fillId,
-      makerOrderId: String(fill.orderId || ''),
-      takerOrderId: String(fill.takerOrderId || '')
+      legs: (fill.legs || []).map(l => String(l.orderId || '')),
+      trigger: fill.trigger != null ? String(fill.trigger) : null
     })),
     mandates: mandates.map(m => ({
       orderId: String(m.orderId || ''),
@@ -566,15 +566,21 @@ function buildEventDebug(e, w, kea) {
   }
 }
 
+// Display-only. There is no maker/taker in a general (N-party) match — an order
+// is simply a participant in a clearing event. The only soft label that survives
+// generalisation is whether it was the advisory trigger.
 function getMandateRole(mandate, fills) {
   const orderId = String(mandate?.orderId || '')
+  let participates = false
 
   for (const fill of fills) {
-    if (String(fill.orderId || '') === orderId) return 'maker'
-    if (String(fill.takerOrderId || '') === orderId) return 'taker'
+    const inFill = (fill.legs || []).some(l => String(l.orderId || '') === orderId)
+    if (!inFill) continue
+    if (String(fill.trigger || '') === orderId) return 'trigger'
+    participates = true
   }
 
-  return ''
+  return participates ? 'resting' : ''
 }
 
 
@@ -641,9 +647,11 @@ async function verifyKeaForWatch(kea, w) {
 function getKeaSummary(kea) {
   const fills = getExecutionFills(kea)
   const watched = (kea.watchedMandates || []).map(x => x.orderId).join(',')
-  const orderPairs = fills.map(x => `${x.orderId || '-'}→${x.takerOrderId || '-'}`).join(', ')
+  const fillText = fills
+    .map(f => (f.legs || []).map(l => `#${l.orderId}`).join('+'))
+    .join(', ')
 
-  return `${fills.length} fill(s), orders: ${orderPairs || '-'}, watched: ${watched || '-'}`
+  return `${fills.length} fill(s), ${fillText || '-'}, watched: ${watched || '-'}`
 }
 
 async function verifyDisplayedKea() {
@@ -718,8 +726,30 @@ async function verifyKeaDetail(kea, expected) {
   verifyFillAgainstTransfers(kea)
 }
 
+// KEA is leg-native. A fill is an N-party clearing event:
+//   { fillId, legs:[{orderId,numerator,denominator}], trigger }
+// normaliseFillShape() is a safety net: if an older kpool ever serves the
+// legacy pairwise shape, fold it into legs here so nothing downstream in KEA
+// needs to know maker/taker ever existed. (kpoolKea normally does this server-side.)
+function normaliseFillShape(fill) {
+  if (Array.isArray(fill?.legs)) return fill
+
+  const legs = []
+  if (fill?.orderId != null)
+    legs.push({ orderId: String(fill.orderId), numerator: fill.numerator ?? 1, denominator: fill.denominator ?? 1 })
+  if (fill?.takerOrderId != null)
+    legs.push({ orderId: String(fill.takerOrderId), numerator: fill.takerNumerator ?? 1, denominator: fill.takerDenominator ?? 1 })
+
+  return {
+    fillId: fill?.fillId ?? null,
+    legs,
+    trigger: fill?.takerOrderId != null ? String(fill.takerOrderId) : null
+  }
+}
+
 function getExecutionFills(kea) {
-  return kea.execution?.fills || (kea.execution?.fill ? [kea.execution.fill] : [])
+  const raw = kea.execution?.fills || (kea.execution?.fill ? [kea.execution.fill] : [])
+  return raw.map(normaliseFillShape)
 }
 
 function getWatchedMandates(kea, expected) {
@@ -759,10 +789,9 @@ function verifyMandatesMatchExecution(kea) {
 
   const fillOrderIds = new Set()
 
-  for (const fill of fills) {
-    if (fill.orderId) fillOrderIds.add(String(fill.orderId))
-    if (fill.takerOrderId) fillOrderIds.add(String(fill.takerOrderId))
-  }
+  for (const fill of fills)
+    for (const leg of fill.legs || [])
+      if (leg.orderId != null) fillOrderIds.add(String(leg.orderId))
 
   for (const mandate of kea.watchedMandates || []) {
     if (!fillOrderIds.has(String(mandate.orderId)))
@@ -817,17 +846,10 @@ function verifyScope(kea, expected) {
 }
 
 function getFillRatioForMandate(mandate, fill) {
-  const mandateOrderId = String(mandate.orderId || '')
-  const makerOrderId = String(fill.orderId || '')
-  const takerOrderId = String(fill.takerOrderId || '')
-
-  if (mandateOrderId === makerOrderId)
-    return { numerator: fill.numerator, denominator: fill.denominator }
-
-  if (mandateOrderId === takerOrderId)
-    return { numerator: fill.takerNumerator, denominator: fill.takerDenominator }
-
-  return null
+  const orderId = String(mandate.orderId || '')
+  const leg = (fill.legs || []).find(l => String(l.orderId || '') === orderId)
+  if (!leg) return null
+  return { numerator: leg.numerator, denominator: leg.denominator }
 }
 
 function verifyFillAgainstTransfers(kea) {
