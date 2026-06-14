@@ -105,8 +105,9 @@ function zzzgetKatomiaProfileTitle(){
 }
 
 function getKatomiaProfileTitle(){
+  // let label = `🔗 bind`
   let label = currentPlayerId || "Player"
-  label = `👤 ${label}`
+  label = `🔗 ${label}`
   return label
 }
 

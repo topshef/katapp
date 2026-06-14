@@ -15,7 +15,7 @@
 <body>
 
 	<div id="notifications"></div>
-  <button id="profileBtn" class="profile-btn" title="Profile" aria-label="Profile">👤</button>
+  <button id="profileBtn" class="profile-btn" title="Profile" aria-label="Profile">🔗</button>
 
 
   <div class="app-banner">
