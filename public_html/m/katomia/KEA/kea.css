@@ -335,6 +335,13 @@
       .controls {
         justify-content: flex-end;
       }
+      
+      
+            
+      .controls::before {
+        content: none;
+      }
+      
     }
 
 /* Small watch-header controls */

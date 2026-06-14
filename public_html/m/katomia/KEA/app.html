@@ -42,7 +42,7 @@
   <dialog id="watchModal">
     <div class="modal-head">
       <div id="watchModalTitle" class="modal-title">⚙️ Add debug watch</div>
-      <button id="watchModalCloseBtn">Close</button>
+      <button id="watchModalCloseBtn" class="icon-btn" title="Close" aria-label="Close">✕</button>
     </div>
 
     <div class="modal-body">
@@ -78,8 +78,7 @@
       </select>
 
       <div class="modal-actions">
-        <button id="resetBtn" class="danger">Reset local KEA data</button>
-        <button id="cancelWatchBtn">Cancel</button>
+        <button id="deleteWatchBtn" class="danger" style="display:none">Delete watch</button>
         <button id="saveWatchBtn" class="primary">Add watch</button>
       </div>
     </div>
@@ -88,7 +87,7 @@
   <dialog id="detailModal">
     <div class="modal-head">
       <div id="detailModalTitle" class="modal-title">Detail</div>
-      <button id="detailModalCloseBtn">Close</button>
+      <button id="detailModalCloseBtn" class="icon-btn" title="Close" aria-label="Close">✕</button>
     </div>
     <div id="detailModalBody" class="modal-body"></div>
   </dialog>
@@ -931,7 +930,7 @@
       const table = document.createElement('table')
       const head = document.createElement('tr')
 
-      for (const h of ['Watch', 'Network', 'Game', 'Mode', 'Status', 'Last ping', 'Controls']) {
+      for (const h of ['Network', 'Game', 'Intent key', 'Mode', 'Status', 'Last ping', '']) {
         const th = document.createElement('th')
         th.textContent = h
         head.appendChild(th)
@@ -944,17 +943,19 @@
         tr.className = 'clickable card-row'
         tr.onclick = function() { showWatchDetail(w) }
 
-        cell(tr, watchMainText(w), 'Watch', 'mono')
         cell(tr, w.network, 'Network')
         cell(tr, w.gameId || '-', 'Game')
+        cell(tr, watchKeyTail(w), 'Intent key', 'mono')
         pillCell(tr, modeLabel(w.mode), 'Mode')
         cell(tr, w.paused ? 'paused' : w.status, 'Status', statusClass(w))
         cell(tr, w.lastSeenAt ? new Date(w.lastSeenAt).toLocaleTimeString() : '-', 'Last ping')
 
+
         const controls = document.createElement('td')
-        controls.dataset.label = 'Controls'
+        controls.dataset.label = ''
+
         controls.appendChild(actionButton(w.paused ? '▶️' : '⏸️', function() { toggleWatchPaused(w.id) }, 'icon-action', w.paused ? 'Resume watch' : 'Pause watch'))
-        controls.appendChild(actionButton('Edit', function() { openWatchModal(w) }))
+        controls.appendChild(actionButton('🛠️', function() { openWatchModal(w) }, 'icon-action', 'Edit watch'))
         controls.appendChild(actionButton('Remove', function() { removeWatch(w.id) }, 'danger'))
         controls.className = 'controls'
         tr.appendChild(controls)
@@ -1008,6 +1009,7 @@
       editingWatchId = w ? w.id : null
       $('watchModalTitle').textContent = w ? '⚙️ Edit debug watch' : '⚙️ Add debug watch'
       $('saveWatchBtn').textContent = w ? 'Save watch' : 'Add watch'
+      $('deleteWatchBtn').style.display = w ? 'inline-block' : 'none'
       fillWatchForm(w || defaultWatch())
       $('watchModal').showModal()
     }
@@ -1195,11 +1197,6 @@
       return w.name ? `${w.name} | ${base}` : base
     }
 
-    function watchMainText(w) {
-      const base = `${w.network} | ${w.gameId || '-'} | ${watchKeyTail(w)}`
-      return w.name ? `${w.name} | ${base}` : base
-    }
-
     function watchKeyTail(w) {
       return String(w.orderPubkey || '').slice(-6) || '-'
     }
@@ -1229,15 +1226,11 @@
       return bytesToHex(sha256(bytes))
     }
 
-    function resetAll() {
-      for (const id of Object.keys(sockets)) disconnectWatch(id)
-      delete localStorage[WATCHES_KEY]
-      watches = []
-      events.length = 0
-      renderWatches()
-      renderEvents()
+    function deleteEditingWatch() {
+      if (!editingWatchId) return
+      const id = editingWatchId
       closeWatchModal()
-      setStatus('Reset local KEA data')
+      removeWatch(id)
     }
 
     // -------------------------------------------------------------------------
@@ -1261,8 +1254,7 @@
     $('saveWatchBtn').onclick = function() {
       try { saveWatchFromForm() } catch (e) { setStatus(`ERROR ${e.message}`, 'bad') }
     }
-    $('resetBtn').onclick = function() { resetAll() }
-    $('cancelWatchBtn').onclick = function() { closeWatchModal() }
+    $('deleteWatchBtn').onclick = function() { deleteEditingWatch() }
     $('watchModalCloseBtn').onclick = function() { closeWatchModal() }
     $('detailModalCloseBtn').onclick = function() { $('detailModal').close() }
 
