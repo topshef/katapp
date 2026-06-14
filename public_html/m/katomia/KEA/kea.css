@@ -1,0 +1,338 @@
+
+    /*
+      KEA one-file prototype CSS.
+      Later split target: kea.css
+    */
+
+    :root {
+      --bg-soft: rgba(128,128,128,.08);
+      --bg-softer: rgba(128,128,128,.05);
+      --border: rgba(128,128,128,.28);
+      --text-muted: rgba(128,128,128,.86);
+      --shadow: 0 14px 44px rgba(0,0,0,.16);
+      --radius: 16px;
+      --radius-small: 10px;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 1040px;
+      margin: 26px auto 44px;
+      padding: 0 16px;
+      line-height: 1.38;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 4px; letter-spacing: -.03em; }
+    h2 { margin: 26px 0 10px; font-size: 20px; }
+    h3 { margin-bottom: 8px; font-size: 16px; }
+
+    button, select, input {
+      font: inherit;
+    }
+
+    button, select {
+      padding: 8px 11px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg-soft);
+      color: inherit;
+    }
+
+    button { cursor: pointer; }
+    button:hover { background: rgba(128,128,128,.14); }
+    button.primary { font-weight: 800; }
+    button.danger { color: crimson; }
+    button.quiet { opacity: .78; }
+
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 9px 10px;
+      margin: 4px 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: transparent;
+      color: inherit;
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      padding: 8px 6px;
+      vertical-align: middle;
+    }
+
+    th {
+      font-size: 12px;
+      opacity: .72;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    tr.clickable { cursor: pointer; }
+    tr.clickable:hover { background: var(--bg-softer); }
+
+    pre {
+      background: #111;
+      color: #ddd;
+      padding: 12px;
+      overflow: auto;
+      white-space: pre-wrap;
+      border-radius: 12px;
+      max-height: 360px;
+      font-size: 12px;
+    }
+
+    details {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px 12px;
+      margin: 10px 0;
+      background: var(--bg-softer);
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .app-header {
+      display: flex;
+      gap: 16px;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    .subtitle {
+      margin: 0;
+      max-width: 700px;
+      color: var(--text-muted);
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      align-items: center;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      margin-top: 14px;
+    }
+
+    .muted { color: var(--text-muted); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .ok { color: green; font-weight: 800; }
+    .bad { color: crimson; font-weight: 800; }
+    .warn { color: darkorange; font-weight: 800; }
+
+    .pill {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(128,128,128,.16);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .status-line {
+      min-height: 20px;
+      margin: 12px 0 6px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-softer);
+      overflow: hidden;
+    }
+
+    .empty {
+      padding: 16px;
+      color: var(--text-muted);
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    .controls {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    #qrVideo {
+      display: none;
+      width: 100%;
+      max-height: 290px;
+      margin: 10px 0 14px;
+      background: #111;
+      border-radius: var(--radius);
+    }
+
+    dialog {
+      width: min(900px, calc(100% - 28px));
+      max-height: 88vh;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0;
+      color: inherit;
+      background: Canvas;
+      box-shadow: var(--shadow);
+    }
+
+    dialog::backdrop { background: rgba(0,0,0,.55); }
+
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-title {
+      font-weight: 900;
+      font-size: 17px;
+    }
+
+    .modal-body {
+      padding: 14px 16px 16px;
+      overflow: auto;
+      max-height: calc(88vh - 58px);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 8px 0 14px;
+    }
+
+    .kv {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 9px 10px;
+      background: var(--bg-softer);
+      min-width: 0;
+    }
+
+    .kv-label {
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      opacity: .7;
+      margin-bottom: 3px;
+    }
+
+    .kv-value {
+      overflow-wrap: anywhere;
+    }
+
+    .check-list {
+      display: grid;
+      gap: 6px;
+      margin: 8px 0 14px;
+    }
+
+    .check-item {
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: var(--bg-soft);
+    }
+
+    .debug-note {
+      margin: 0 0 12px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 720px) {
+      body {
+        margin-top: 18px;
+        padding: 0 12px;
+      }
+
+      .app-header {
+        display: block;
+      }
+
+      .toolbar {
+        justify-content: flex-start;
+        margin-top: 12px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      table, thead, tbody, tr, th, td {
+        display: block;
+      }
+
+      table { border-collapse: separate; }
+      tr:first-child { display: none; }
+
+      tr.clickable, tr.card-row {
+        margin: 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-small);
+        background: var(--bg-softer);
+        overflow: hidden;
+      }
+
+      td {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        border-bottom: 1px solid rgba(128,128,128,.16);
+        padding: 9px 10px;
+      }
+
+      td:last-child { border-bottom: 0; }
+
+      td::before {
+        content: attr(data-label);
+        font-size: 12px;
+        font-weight: 800;
+        opacity: .66;
+        flex: 0 0 auto;
+      }
+
+      .controls {
+        justify-content: flex-end;
+      }
+    }
