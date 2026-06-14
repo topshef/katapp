@@ -48,7 +48,7 @@
         <div id="profileScope" class="profile-scope"></div>
       </div>
       
-      <div id="profileQrLink" class="profile-link"></div>
+      <a id="profileQrLink" class="profile-link" href="#"></a>
 
       <button id="profileCopyLinkBtn">Copy KEA link</button>
     </div>

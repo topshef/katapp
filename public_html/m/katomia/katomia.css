@@ -1602,6 +1602,33 @@ textarea:focus{
   font-size:12px;
 }
 
+.profile-link{
+  display:block;
+  color:#777;
+  text-decoration:none;
+  cursor:pointer;
+  padding:6px 8px;
+  border-radius:8px;
+  transition:background .12s ease, color .12s ease;
+}
+
+.profile-link:hover{
+  color:#222;
+  background:#f1f1f1;
+}
+
+.profile-qr-link{
+  display:inline-block;
+  line-height:0;
+  border-radius:10px;
+  transition:transform .12s ease, box-shadow .12s ease;
+}
+
+.profile-qr-link:hover{
+  transform:translateY(-1px);
+  box-shadow:0 4px 14px rgba(0,0,0,0.12);
+}
+
 .profile-qr{
   display:flex;
   justify-content:center;

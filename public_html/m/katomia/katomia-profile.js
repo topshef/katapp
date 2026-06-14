@@ -35,7 +35,7 @@ async function renderKatomiaProfile(){
   setText("profileScope", [domain, network, gid].filter(Boolean).join(" | "))
 
   const link = buildKatomiaProfileLink(pubkey)
-  setText("profileQrLink", link)
+  setProfileLink(link)
 
   await renderKatomiaQr(link)
 }
@@ -75,8 +75,16 @@ async function renderKatomiaQr(link){
 
   box.innerHTML = ""
 
+  const a = document.createElement("a")
+  a.href = link
+  a.className = "profile-qr-link"
+  a.title = "Open KEA link"
+  a.target = "KEA"
+  a.rel = "noopener"
+
   const canvas = document.createElement("canvas")
-  box.appendChild(canvas)
+  a.appendChild(canvas)
+  box.appendChild(a)
 
   if(!window.QRCode){
     box.textContent = "QR library missing"
@@ -116,6 +124,15 @@ function getKatomiaProfileTitle(){
 function setText(id, value){
   const el = document.getElementById(id)
   if(el) el.textContent = value
+}
+
+function setProfileLink(link){
+  const el = document.getElementById("profileQrLink")
+  if(!el) return
+
+  el.textContent = link
+  el.href = link
+  el.title = "Open KEA link"
 }
 
 window.addEventListener("load", initKatomiaProfile)

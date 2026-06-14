@@ -800,7 +800,7 @@
     // CONTROLLER: QR scan/paste/photo import
     // -------------------------------------------------------------------------
 
-    async function scanQr() {
+    async function zz_mobonly_scanQr() {
       if (!window.BarcodeDetector) {
         setStatus('Native QR scanner unavailable — opening photo picker')
         $('qrFile').click()
@@ -838,6 +838,80 @@
 
       tick()
     }
+
+
+    async function scanQr() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setStatus('Camera unavailable — opening photo picker')
+        $('qrFile').click()
+        return
+      }
+
+      qrStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      })
+
+      const video = $('qrVideo')
+      video.srcObject = qrStream
+      video.style.display = 'block'
+      $('stopQrBtn').style.display = 'inline-block'
+
+      await video.play()
+
+      qrScanning = true
+
+      if (window.BarcodeDetector) {
+        const detector = new BarcodeDetector({ formats: ['qr_code'] })
+
+        async function tick() {
+          if (!qrScanning) return
+
+          try {
+            const codes = await detector.detect(video)
+            if (codes.length) {
+              stopQr()
+              addWatchFromQr(codes[0].rawValue)
+              return
+            }
+          } catch (err) {
+            setStatus(`QR scan error: ${err.message}`, 'bad')
+          }
+
+          requestAnimationFrame(tick)
+        }
+
+        tick()
+        return
+      }
+
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
+
+      function tickJsQr() {
+        if (!qrScanning) return
+
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          canvas.width = video.videoWidth
+          canvas.height = video.videoHeight
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+          const code = jsQR(imageData.data, imageData.width, imageData.height)
+
+          if (code) {
+            stopQr()
+            addWatchFromQr(code.data)
+            return
+          }
+        }
+
+        requestAnimationFrame(tickJsQr)
+      }
+
+      setStatus('Scanning QR with camera')
+      tickJsQr()
+    }
+
 
     function stopQr() {
       qrScanning = false
@@ -1233,6 +1307,35 @@
       removeWatch(id)
     }
 
+   
+    function addWatchFromUrlParams() {   // todo review user security re watch injection
+      const p = new URLSearchParams(location.search)
+
+      const hasWatch =
+        p.has('orderPubkey') ||
+        p.has('intentPubkey') ||
+        p.has('watchPubkey')
+
+      if (!hasWatch) return
+
+      try {
+        p.set('mode', 'doorbell')
+
+        const url = new URL(location.href)
+        url.search = p.toString()
+
+        const watch = parseKatomiaQr(url.toString())
+        watch.mode = 'doorbell'
+
+        addWatch(watch)
+        setStatus(`Added doorbell watch ${watchLabel(watch)}`)
+
+        history.replaceState({}, '', location.pathname)
+      } catch (e) {
+        setStatus(`ERROR ${e.message}`, 'bad')
+      }
+    }
+
     // -------------------------------------------------------------------------
     // APP BOOTSTRAP
     // -------------------------------------------------------------------------
@@ -1261,6 +1364,7 @@
     loadWatches()
     renderWatches()
     renderEvents()
+    addWatchFromUrlParams()
     connectAllWatches()
   </script>
 </body>
