@@ -1494,7 +1494,7 @@ textarea:focus{
 
 .profile-btn{
   position:fixed;
-  top:12px;
+  top:20px;
   right:14px;
   z-index:1200;
 
@@ -1614,9 +1614,8 @@ textarea:focus{
 
 @media (max-width:640px){
   .profile-btn{
-    top:10px;
-    right:10px;
-    font-size:24px;
+    top:90px;
+    right:30px;
   }
 
   .profile-modal{
@@ -1643,7 +1642,7 @@ textarea:focus{
   .profile-close{
     position:fixed;
     top:12px;
-    right:14px;
+    right:30px;
     font-size:28px;
   }
 
