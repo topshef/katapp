@@ -30,11 +30,9 @@ async function renderKatomiaProfile(){
   const network = gameMeta?.network || ""
   const gid = gameId || gameMeta?.id || ""
 
-  setText("profilePlayerId", currentPlayerId || "not connected")
-  setText("profileGameId", gid || "unknown")
-  setText("profileNetwork", network || "unknown")
-  setText("profileDomain", domain || "unknown")
+  setText("profileTitle", getKatomiaProfileTitle())
   setText("profilePubkey", pubkey || "not ready")
+  setText("profileScope", [domain, network, gid].filter(Boolean).join(" | "))
 
   const link = buildKatomiaProfileLink(pubkey)
   setText("profileQrLink", link)
@@ -66,7 +64,6 @@ function buildKatomiaProfileLink(pubkey){
   url.searchParams.set("domain", getKatomiaKpoolDomain())
   url.searchParams.set("network", gameMeta?.network || "")
   url.searchParams.set("gameId", gameId || gameMeta?.id || "")
-  url.searchParams.set("playerId", currentPlayerId || "")
   url.searchParams.set("orderPubkey", pubkey || "")
 
   return url.toString()
@@ -97,6 +94,14 @@ async function copyKatomiaProfileLink(){
 
   await navigator.clipboard.writeText(link)
   notify?.("Profile link copied", "success", { timeout: 2000 })
+}
+
+function getKatomiaProfileTitle(){
+  const label = localStorage.getItem("katomiaPlayerName") || ""
+  const id = currentPlayerId || "Player"
+
+  if(label) return `${id}: ${label}`
+  return id
 }
 
 function setText(id, value){

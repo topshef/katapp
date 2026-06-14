@@ -29,35 +29,27 @@
 
   <div id="gameMeta" class="game-meta"></div>
   <div id="profileModal" class="profile-modal hidden">
+        
     <div class="profile-card">
       <div id="profileModalClose" class="profile-close">✕</div>
 
-      <h2>👤 Profile</h2>
+      <h2 id="profileTitle">Player</h2>
       <p class="subtle">Share this QR with KEA to watch this trader intent key.</p>
 
-      <div class="profile-grid">
-        <div>Player</div>
-        <div id="profilePlayerId"></div>
-
-        <div>Game</div>
-        <div id="profileGameId"></div>
-
-        <div>Network</div>
-        <div id="profileNetwork"></div>
-
-        <div>KPool domain</div>
-        <div id="profileDomain"></div>
-
-        <div>Order public key</div>
+      <div class="profile-list">
+        <div class="profile-label">Order public key</div>
         <div id="profilePubkey" class="profile-mono"></div>
+
+        <div class="profile-label">Scope</div>
+        <div id="profileScope" class="profile-scope"></div>
       </div>
 
       <div id="profileQr" class="profile-qr"></div>
-
       <div id="profileQrLink" class="profile-link"></div>
 
-      <button id="profileCopyLinkBtn">Copy profile link</button>
+      <button id="profileCopyLinkBtn">Copy KEA link</button>
     </div>
+    
   </div>
 
 

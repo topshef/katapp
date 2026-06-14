@@ -1542,17 +1542,22 @@ textarea:focus{
   opacity:0.65;
 }
 
-.profile-grid{
-  display:grid;
-  grid-template-columns:130px 1fr;
-  gap:8px 12px;
+.profile-list{
   margin:14px 0;
-  font-size:14px;
 }
 
-.profile-grid > div:nth-child(odd){
+.profile-label{
+  margin-top:12px;
   font-weight:700;
-  opacity:0.7;
+  font-size:13px;
+  opacity:0.75;
+}
+
+.profile-scope{
+  margin-top:3px;
+  color:#777;
+  font-size:12px;
+  word-break:break-word;
 }
 
 .profile-mono,
@@ -1572,3 +1577,23 @@ textarea:focus{
   margin-top:12px;
 }
 
+@media (max-width: 640px){
+  .profile-modal{
+    align-items:stretch;
+    justify-content:stretch;
+    padding:0;
+  }
+
+  .profile-card{
+    width:100%;
+    max-height:none;
+    height:100vh;
+    border-radius:0;
+    box-sizing:border-box;
+  }
+
+  .profile-btn{
+    top:10px;
+    right:10px;
+  }
+}
