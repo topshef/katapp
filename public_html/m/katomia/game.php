@@ -15,6 +15,8 @@
 <body>
 
 	<div id="notifications"></div>
+  <button id="profileBtn" class="profile-btn" title="Profile" aria-label="Profile">👤</button>
+
 
   <div class="app-banner">
     <div class="app-banner-inner">
@@ -26,6 +28,38 @@
   </div>
 
   <div id="gameMeta" class="game-meta"></div>
+  <div id="profileModal" class="profile-modal hidden">
+    <div class="profile-card">
+      <div id="profileModalClose" class="profile-close">✕</div>
+
+      <h2>👤 Profile</h2>
+      <p class="subtle">Share this QR with KEA to watch this trader intent key.</p>
+
+      <div class="profile-grid">
+        <div>Player</div>
+        <div id="profilePlayerId"></div>
+
+        <div>Game</div>
+        <div id="profileGameId"></div>
+
+        <div>Network</div>
+        <div id="profileNetwork"></div>
+
+        <div>KPool domain</div>
+        <div id="profileDomain"></div>
+
+        <div>Order public key</div>
+        <div id="profilePubkey" class="profile-mono"></div>
+      </div>
+
+      <div id="profileQr" class="profile-qr"></div>
+
+      <div id="profileQrLink" class="profile-link"></div>
+
+      <button id="profileCopyLinkBtn">Copy profile link</button>
+    </div>
+  </div>
+
 
   <div class="controls mode-proposal">
     <label>
@@ -317,6 +351,8 @@
 <script src="katomia-render.js"></script>
 <script src="katomia-render-orders.js"></script>
 <script src="katomia-market.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<script src="katomia-profile.js"></script>
 
 <script>
 window.addEventListener("load", () => {

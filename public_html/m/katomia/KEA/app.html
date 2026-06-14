@@ -22,14 +22,24 @@
   <h1>KEA Prototype</h1>
   <p>Browser execution agent. WebSocket doorbell now; FCM later.</p>
 
+  <button id="scanQrBtn">Scan Katomia QR</button>
+  <button id="pasteQrBtn">Paste QR link</button>
+  <button id="stopQrBtn" style="display:none">Stop camera</button>
+  <input id="qrFile" type="file" accept="image/*" capture="environment" style="display:none">
+  <video id="qrVideo" playsinline style="display:none; width:100%; max-height:260px; background:#111"></video>
+
   <label>KPool base URL</label>
   <input id="baseUrl" value="https://hapi5.katomia.com">
+
 
   <label>WebSocket URL</label>
   <input id="wsUrl" value="wss://hapi5.katomia.com/ws">
 
   <label>Network</label>
   <input id="network" value="mainnet">
+
+  <label>Game ID</label>
+  <input id="scopeGameId" value="">
 
   <label>Order intent public key to watch</label>
   <input id="orderPubkey" value="777efe5d8f02b77d5b658e89a0ce660cb2abecc4a563dcfc70874c2224424fc5">
@@ -49,6 +59,9 @@
   <h2>Fetched detail</h2>
   <pre id="detail"></pre>
 
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+
+
 <script type="module">
 import * as ed from "https://esm.sh/@noble/ed25519@2.1.0"
 import { sha512 } from "https://esm.sh/@noble/hashes@1.4.0/sha512"
@@ -61,10 +74,11 @@ const log = x => $('log').textContent = `[${new Date().toLocaleTimeString()}] ${
 
 const events = []
 
-const CONFIG_FIELDS = [
+const CONFIG_FIELDS = [  // ?? wtf why mapping nerdshit here?  can't we simplify and just map the names as is? nerdfuckers need this shit
   ['baseUrl', 'keaBaseUrl'],
   ['wsUrl', 'keaWsUrl'],
-  ['network', 'keaNetwork'],
+  ['network', 'keaNetwork'],   // todo cleanup confusion - this is NOT KEA network, it is Hedera network
+  ['scopeGameId', 'keaScopeGameId'],  // the game is Katomia scope
   ['orderPubkey', 'keaOrderPubkey']
 ]
 
@@ -97,6 +111,149 @@ function resetConfig() {
   delete localStorage.keaLastManual
   location.reload()
 }
+
+
+
+
+
+// ╔═╗ ╦═╗
+// ║═╬╗╠╦╝
+// ╚═╝╚╩╚═
+// QR
+
+let qrStream = null
+let qrScanning = false
+
+async function scanQr() {
+  if (!window.BarcodeDetector) {
+    log('Native QR scanner unavailable — opening camera/photo picker')
+    $('qrFile').click()
+    return
+  }
+
+  qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+
+  const video = $('qrVideo')
+  video.srcObject = qrStream
+  video.style.display = 'block'
+  $('stopQrBtn').style.display = 'inline-block'
+
+  await video.play()
+
+  qrScanning = true
+  const detector = new BarcodeDetector({ formats: ['qr_code'] })
+
+  const tick = async () => {
+    if (!qrScanning) return
+
+    try {
+      const codes = await detector.detect(video)
+      if (codes.length) {
+        stopQr()
+        applyKatomiaQr(codes[0].rawValue)
+        return
+      }
+    } catch (err) {
+      log(`QR scan error ${err.message}`)
+    }
+
+    requestAnimationFrame(tick)
+  }
+
+  tick()
+}
+
+function stopQr() {
+  qrScanning = false
+
+  if (qrStream)
+    qrStream.getTracks().forEach(t => t.stop())
+
+  qrStream = null
+  $('qrVideo').style.display = 'none'
+  $('stopQrBtn').style.display = 'none'
+}
+
+function pasteQr() {
+  const raw = prompt('Paste Katomia QR/link')
+  if (raw) applyKatomiaQr(raw)
+}
+
+function readQrFile(file) {
+  const img = new Image()
+
+  img.onload = () => {
+    const canvas = document.createElement('canvas')
+    canvas.width = img.naturalWidth
+    canvas.height = img.naturalHeight
+
+    const ctx = canvas.getContext('2d')
+    ctx.drawImage(img, 0, 0)
+
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const code = jsQR(data.data, data.width, data.height)
+
+    if (!code) {
+      log('No QR found in image')
+      return
+    }
+
+    applyKatomiaQr(code.data)
+  }
+
+  img.src = URL.createObjectURL(file)
+}
+
+function applyKatomiaQr(raw) {
+  const parsed = parseKatomiaQr(raw)
+
+  $('baseUrl').value = parsed.baseUrl
+  $('wsUrl').value = parsed.wsUrl
+  $('network').value = parsed.network
+  $('scopeGameId').value = parsed.gameId
+  $('orderPubkey').value = parsed.orderPubkey
+
+  saveConfig()
+  log(`Loaded Katomia watch ${parsed.network}/${parsed.gameId} ${parsed.orderPubkey.slice(0, 8)}...`)
+}
+
+function parseKatomiaQr(raw) {
+  const url = new URL(raw)
+  const p = url.searchParams
+
+  const domain = p.get('domain')
+  const network = p.get('network')
+  const gameId = p.get('gameId') || ''
+  const orderPubkey = (p.get('orderPubkey') || '').trim().toLowerCase()
+
+  if (!domain) throw new Error('QR missing domain')
+  if (!network) throw new Error('QR missing network')
+  if (!orderPubkey) throw new Error('QR missing orderPubkey')
+
+  return {
+    baseUrl: `https://${domain}`,
+    wsUrl: `wss://${domain}/ws`,
+    network,
+    gameId,
+    orderPubkey
+  }
+}
+
+
+
+
+
+
+
+
+
+
+// ┌─┐┌─┐┬─┐┬  ┬┌─┐┬─┐  ┌─┐┬ ┬┬┌┬┐
+// ├┤ ├─┤├┬┘│  │├┤ ├┬┘  └─┐├─┤│ │ 
+// └─┘┴ ┴┴└─┴─┘┴└─┘┴└─  └─┘┴ ┴┴ ┴ 
+// earlier shit
+
+// TODO lets label up the code sections
 
 const hexToBytes = hex => Uint8Array.from(hex.match(/.{1,2}/g).map(x => parseInt(x, 16)))
 const bytesToHex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('')
@@ -261,6 +418,16 @@ async function manualFetch() {
   await fetchTxDetail(parsed)
 }
 
+//QR - can we put this next thre fucking QR code, do we need to nerd split the shit?
+$('scanQrBtn').onclick = () => scanQr().catch(e => log(`ERROR ${e.message}`))
+$('pasteQrBtn').onclick = () => pasteQr()
+$('stopQrBtn').onclick = () => stopQr()
+$('qrFile').onchange = e => {
+  const file = e.target.files?.[0]
+  if (file) readQrFile(file)
+}
+
+//earlier shit
 
 $('connectBtn').onclick = () => connectDoorbell()
 $('testBtn').onclick = () => manualFetch().catch(e => log(`ERROR ${e.message}`))
