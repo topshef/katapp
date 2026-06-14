@@ -96,13 +96,21 @@ async function copyKatomiaProfileLink(){
   notify?.("Profile link copied", "success", { timeout: 2000 })
 }
 
-function getKatomiaProfileTitle(){
+function zzzgetKatomiaProfileTitle(){
   const label = localStorage.getItem("katomiaPlayerName") || ""
   const id = currentPlayerId || "Player"
 
   if(label) return `${id}: ${label}`
   return `👤 ${id}`
 }
+
+function getKatomiaProfileTitle(){
+  let label = currentPlayerId || "Player"
+  label = `👤 ${label}`
+  return label
+}
+
+
 
 function setText(id, value){
   const el = document.getElementById(id)

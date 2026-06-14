@@ -1491,28 +1491,51 @@ textarea:focus{
   margin:2px 4px;
 }
 
+
 .profile-btn{
   position:fixed;
-  top:14px;
+  top:12px;
   right:14px;
   z-index:1200;
-  width:42px;
-  height:42px;
-  border-radius:50%;
-  border:1px solid rgba(0,0,0,0.15);
-  background:white;
-  box-shadow:0 4px 14px rgba(0,0,0,0.18);
-  font-size:20px;
+
+  display:block;
+  width:auto;
+  height:auto;
+  min-width:0;
+  min-height:0;
+
+  padding:0;
+  margin:0;
+
+  background:transparent;
+  color:#555;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+
+  font-size:24px;
+  line-height:1;
   cursor:pointer;
+}
+
+.profile-btn:hover{
+  background:transparent;
+  color:#222;
+}
+
+.profile-btn:active{
+  transform:none;
 }
 
 .profile-modal{
   position:fixed;
   inset:0;
   z-index:2000;
+
   display:flex;
   align-items:center;
   justify-content:center;
+
   background:rgba(0,0,0,0.42);
   padding:18px;
 }
@@ -1523,26 +1546,34 @@ textarea:focus{
 
 .profile-card{
   position:relative;
+
   width:min(520px, 100%);
   max-height:88vh;
   overflow:auto;
+
   background:white;
   color:#222;
+
   border-radius:16px;
   padding:20px;
+
   box-shadow:0 18px 50px rgba(0,0,0,0.32);
 }
 
-.profile-card .subtle {
-  text-align: center;
+.profile-card .subtle{
+  text-align:center;
+  margin-left:0;
 }
 
 .profile-close{
   position:absolute;
-  top:12px;
-  right:14px;
+  top:14px;
+  right:16px;
+  z-index:2;
+
   cursor:pointer;
-  font-size:20px;
+  font-size:24px;
+  line-height:1;
   opacity:0.65;
 }
 
@@ -1581,23 +1612,44 @@ textarea:focus{
   margin-top:12px;
 }
 
-@media (max-width: 640px){
-  .profile-modal{
-    align-items:stretch;
-    justify-content:stretch;
-    padding:0;
-  }
-
-  .profile-card{
-    width:100%;
-    max-height:none;
-    height:100vh;
-    border-radius:0;
-    box-sizing:border-box;
-  }
-
+@media (max-width:640px){
   .profile-btn{
     top:10px;
     right:10px;
+    font-size:24px;
+  }
+
+  .profile-modal{
+    display:block;
+    padding:0;
+    background:white;
+  }
+
+  .profile-card{
+    width:100vw;
+    height:100vh;
+    max-width:none;
+    max-height:none;
+
+    margin:0;
+    padding:18px;
+    box-sizing:border-box;
+
+    border-radius:0;
+    box-shadow:none;
+    overflow:auto;
+  }
+
+  .profile-close{
+    position:fixed;
+    top:12px;
+    right:14px;
+    font-size:28px;
+  }
+
+  .profile-card h2{
+    padding-right:34px;
   }
 }
+
+
