@@ -63,6 +63,8 @@
 
 
 <script type="module">
+
+
 import * as ed from "https://esm.sh/@noble/ed25519@2.1.0"
 import { sha512 } from "https://esm.sh/@noble/hashes@1.4.0/sha512"
 import { sha256 } from "https://esm.sh/@noble/hashes@1.4.0/sha256"
@@ -244,9 +246,207 @@ function parseKatomiaQr(raw) {
 
 
 
+async function verifyKeaDetail(kea, expected) {
+  kea.watchedMandates = getWatchedMandates(kea, expected)
+  kea.mandate = kea.watchedMandates[0]
+
+  await verifyIntents(kea)
+
+  verifyMandatesMatchExecution(kea)
+  verifyBundleHash(kea)
+  verifyScope(kea, expected)
+  verifyTxHash(kea)
+  verifyPch(kea)
+  verifyFillAgainstTransfers(kea)
+}
+
+
+function getExecutionFills(kea) {
+  return kea.execution?.fills || (kea.execution?.fill ? [kea.execution.fill] : [])
+}
+
+function getWatchedMandates(kea, expected) {
+  const watched = (expected.orderPubkey || '').toLowerCase()
+  const mandates = kea.mandates || (kea.mandate ? [kea.mandate] : [])
+
+  if (watched) {
+    const matched = mandates.filter(x => String(x.intentPubkey || '').toLowerCase() === watched)
+    if (matched.length) return matched
+  }
+
+  if (mandates.length) return mandates
+
+  throw new Error('No matching mandate for watched intent pubkey')
+}
 
 
 
+function verifyMandatesMatchExecution(kea) {
+  const fills = getExecutionFills(kea)
+  if (!fills.length)
+    throw new Error('Missing execution fills')
+
+  const fillOrderIds = new Set()
+
+  for (const fill of fills) {
+    if (fill.orderId) fillOrderIds.add(String(fill.orderId))
+    if (fill.takerOrderId) fillOrderIds.add(String(fill.takerOrderId))
+  }
+
+  for (const mandate of kea.watchedMandates || []) {
+    if (!fillOrderIds.has(String(mandate.orderId)))
+      throw new Error(`Watched mandate ${mandate.orderId} is not in execution fills`)
+  }
+}
+
+
+
+function sha256Json(obj) {
+  const bytes = new TextEncoder().encode(JSON.stringify(obj))
+  return bytesToHex(sha256(bytes))
+}
+
+
+
+function verifyBundleHash(kea) {
+  for (const mandate of kea.watchedMandates || []) {
+    if (!mandate.bundle)
+      throw new Error('Missing mandate bundle')
+
+    if (!mandate.intentPayload?.bundleHash)
+      throw new Error('Missing signed bundleHash')
+
+    const expected = sha256Json(mandate.bundle)
+
+    if (expected !== mandate.intentPayload.bundleHash)
+      throw new Error(`Bundle hash does not match signed intent for order ${mandate.orderId}`)
+  }
+}
+
+
+
+function verifyScope(kea, expected) {
+  const pchBasis = kea.execution?.pchBasis
+
+  if (expected.network && kea.network !== expected.network)
+    throw new Error('KEA network mismatch')
+
+  if (expected.network && kea.transaction?.network && kea.transaction.network !== expected.network)
+    throw new Error('Transaction network mismatch')
+
+  if (expected.network && pchBasis?.network && pchBasis.network !== expected.network)
+    throw new Error('PCH network mismatch')
+
+  for (const mandate of kea.watchedMandates || []) {
+    const payload = mandate.intentPayload
+
+    if (expected.orderPubkey && mandate.intentPubkey.toLowerCase() !== expected.orderPubkey)
+      throw new Error('Intent pubkey does not match watched key')
+
+    if (expected.network && payload.network !== expected.network)
+      throw new Error(`Intent network mismatch for order ${mandate.orderId}`)
+
+    if (expected.gameId && payload.gameId !== expected.gameId)
+      throw new Error(`Game ID mismatch for order ${mandate.orderId}`)
+  }
+}
+
+
+
+
+function getFillRatioForMandate(mandate, fill) {
+  const mandateOrderId = String(mandate.orderId || '')
+  const makerOrderId = String(fill.orderId || '')
+  const takerOrderId = String(fill.takerOrderId || '')
+
+  if (mandateOrderId === makerOrderId)
+    return {
+      numerator: fill.numerator,
+      denominator: fill.denominator
+    }
+
+  if (mandateOrderId === takerOrderId)
+    return {
+      numerator: fill.takerNumerator,
+      denominator: fill.takerDenominator
+    }
+
+  return null
+}
+
+
+
+
+function verifyFillAgainstTransfers(kea) {
+  const fills = getExecutionFills(kea)
+  const mandates = kea.watchedMandates || []
+  const pchBasis = kea.execution?.pchBasis
+
+  if (!fills.length) throw new Error('Missing fills')
+  if (!mandates.length) throw new Error('Missing watched mandates')
+  if (!pchBasis) throw new Error('Missing pchBasis')
+
+  const watchedAccounts = new Set()
+  const residual = {}
+
+  for (const mandate of mandates)
+    for (const line of mandate.bundle || [])
+      if (line.accountId) watchedAccounts.add(line.accountId)
+
+  function add(accountId, asset, amount) {
+    if (!watchedAccounts.has(accountId)) return
+    const k = `${accountId}:${normaliseAssetId(asset)}`
+    residual[k] = (residual[k] || 0) + Number(amount)
+  }
+
+  const t = pchBasis.transfers || {}
+
+  for (const x of t.hbarTransfers || [])
+    add(x.accountId, 'HBAR', x.amount)
+
+  for (const x of t.tokenTransfers || [])
+    add(x.accountId, x.tokenId, x.amount)
+
+  for (const x of t.nftTransfers || []) {
+    const asset = `${x.tokenId}#${x.serialNumber}`
+    add(x.senderAccountId, asset, -1)
+    add(x.receiverAccountId, asset, +1)
+  }
+
+  for (const fill of fills) {
+    for (const mandate of mandates) {
+      const ratio = getFillRatioForMandate(mandate, fill)
+      if (!ratio) continue
+
+      const numerator = Number(ratio.numerator)
+      const denominator = Number(ratio.denominator)
+
+      if (!numerator || !denominator || numerator < 1 || denominator < 1)
+        throw new Error(`Invalid fill ratio for order ${mandate.orderId}`)
+
+      if (numerator > denominator)
+        throw new Error(`Fill ratio exceeds 1 for order ${mandate.orderId}`)
+
+      for (const line of mandate.bundle || []) {
+        const scaled = Math.trunc(Number(line.amount) * numerator / denominator)
+        add(line.accountId, line.asset, -scaled)
+      }
+    }
+  }
+
+  const negative = Object.entries(residual).filter(([, v]) => v < 0)
+
+  if (negative.length)
+    throw new Error(`Transfers worse than signed bundle/fill: ${JSON.stringify(Object.fromEntries(negative))}`)
+}
+
+
+
+
+
+function normaliseAssetId(asset) {
+  return String(asset).toUpperCase() === 'HBAR' ? 'HBAR' : String(asset)
+}
 
 // ┌─┐┌─┐┬─┐┬  ┬┌─┐┬─┐  ┌─┐┬ ┬┬┌┬┐
 // ├┤ ├─┤├┬┘│  │├┤ ├┬┘  └─┐├─┤│ │ 
@@ -346,8 +546,26 @@ async function fetchTxDetail(e) {
     return
   }
 
-  log(`Fetched KEA detail: transferCheck=${out.kea.execution?.transferCheck?.status}`)
+  //log(`Fetched KEA detail: transferCheck=${out.kea.execution?.transferCheck?.status}`)
+  log('Fetched KEA detail')
+  await verifyFetchedKea(out.kea)
+
   
+}
+
+
+async function verifyFetchedKea(kea) {
+  try {
+    await verifyKeaDetail(kea, {
+      network: $('network').value.trim(),
+      gameId: $('scopeGameId').value.trim(),
+      orderPubkey: $('orderPubkey').value.trim().toLowerCase()
+    })
+
+    log('✅ KEA VERIFY PASS: local checks passed')
+  } catch (err) {
+    log(`❌ KEA VERIFY FAIL: ${err.message}`)
+  }
 }
 
 async function verifyDisplayedKea() {
@@ -358,14 +576,24 @@ async function verifyDisplayedKea() {
   }
 
   const kea = JSON.parse(raw)
-  await verifyIntent(kea)
-  verifyTxHash(kea)
 
-  log('KEA detail verified: intent sig + tx hash OK')
+  await verifyKeaDetail(kea, {
+    network: $('network').value.trim(),
+    gameId: $('scopeGameId').value.trim(),
+    orderPubkey: $('orderPubkey').value.trim().toLowerCase()
+  })
+
+  log('KEA detail verified locally: safe-to-sign checks passed')
 }
 
-async function verifyIntent(kea) {
-  const m = kea.mandate
+
+
+async function verifyIntents(kea) {
+  for (const mandate of kea.watchedMandates || [])
+    await verifyIntentMandate(mandate)
+}
+
+async function verifyIntentMandate(m) {
   if (!m?.intentPubkey || !m?.intentSignature || !m?.intentPayload)
     throw new Error('Missing mandate intent fields')
 
@@ -373,8 +601,10 @@ async function verifyIntent(kea) {
   const sig = Uint8Array.from(atob(m.intentSignature), c => c.charCodeAt(0))
   const ok = await ed.verifyAsync(sig, msg, hexToBytes(m.intentPubkey))
 
-  if (!ok) throw new Error('Trader intent signature invalid')
+  if (!ok) throw new Error(`Trader intent signature invalid for order ${m.orderId}`)
 }
+
+
 
 function verifyTxHash(kea) {
   const txBytes = hexToBytes(kea.transaction.txBytesHex)
@@ -383,6 +613,23 @@ function verifyTxHash(kea) {
   if (txHash !== kea.transaction.txHash)
     throw new Error('txBytes hash mismatch')
 }
+
+function verifyPch(kea) {
+  const pchBasis = kea.execution?.pchBasis
+  const pch = kea.transaction?.pch
+
+  if (!pchBasis)
+    throw new Error('Missing pchBasis')
+
+  if (!pch)
+    throw new Error('Missing transaction PCH')
+
+  const computed = sha256Json(pchBasis)
+
+  if (computed !== pch)
+    throw new Error('PCH hash mismatch')
+}
+
 
 function parseManualInput(raw) {
   raw = (raw || '').trim()
