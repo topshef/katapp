@@ -11,8 +11,14 @@
     pre { background: #111; color: #ddd; padding: 12px; overflow: auto; white-space: pre-wrap; resize: vertical; }
     #log { max-height: 200px; }
     #detail { max-height: 320px; }
+
+
     .ok { color: green; }
     .bad { color: crimson; }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-size: 13px; }
+    th, td { text-align: left; border-bottom: 1px solid #333; padding: 6px 4px; vertical-align: top; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    
   </style>
 
   <script src="https://kpay.uk/assets/js/darkmode.js?v=0.2"></script>
@@ -74,7 +80,25 @@ ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m))
 const $ = id => document.getElementById(id)
 const log = x => $('log').textContent = `[${new Date().toLocaleTimeString()}] ${x}\n` + $('log').textContent
 
+
 const events = []
+
+function eventKey(e) {
+  return `${e.network};${e.txid};${e.pch}`
+}
+
+function shortHash(x, n = 6) {
+  x = String(x || '')
+  return x.length > n ? x.slice(0, n) : x
+}
+
+function eventCell(tr, text, cls = '') {
+  const td = document.createElement('td')
+  td.textContent = text || ''
+  if (cls) td.className = cls
+  tr.appendChild(td)
+}
+
 
 const CONFIG_FIELDS = [  // ?? wtf why mapping nerdshit here?  can't we simplify and just map the names as is? nerdfuckers need this shit
   ['baseUrl', 'keaBaseUrl'],
@@ -459,14 +483,30 @@ const hexToBytes = hex => Uint8Array.from(hex.match(/.{1,2}/g).map(x => parseInt
 const bytesToHex = bytes => [...bytes].map(b => b.toString(16).padStart(2, '0')).join('')
 const canonicalJson = obj => JSON.stringify(obj)
 
-function addEvent(msg) {
-  const key = `${msg.network};${msg.txid};${msg.pch}`
 
-  if (!events.some(e => e.key === key))
-    events.unshift({ key, ...msg })
+function addEvent(msg) {
+  const key = eventKey(msg)
+  let e = events.find(x => x.key === key)
+
+  if (!e) {
+    e = { key, ...msg, status: 'doorbell', check: 'pending', summary: '' }
+    events.unshift(e)
+  } else {
+    Object.assign(e, msg)
+    e.status = 'doorbell'
+    e.check = 'pending'
+  }
 
   renderEvents()
   log(`Doorbell ${key}`)
+
+  fetchTxDetail(e).catch(err => {
+    e.status = 'fetch error'
+    e.check = 'fail'
+    e.summary = err.message
+    renderEvents()
+    log(`ERROR ${err.message}`)
+  })
 }
 
 function renderEvents() {
@@ -475,14 +515,40 @@ function renderEvents() {
 
   el.innerHTML = ''
 
-  for (const e of events) {
-    const btn = document.createElement('button')
-    btn.textContent = `Fetch ${e.network}; ${e.txid}; ${e.pch}`
-    btn.onclick = () => fetchTxDetail(e).catch(err => log(`ERROR ${err.message}`))
-    el.appendChild(btn)
-    el.appendChild(document.createElement('br'))
+  if (!events.length) {
+    el.textContent = 'No events yet'
+    return
   }
+
+  const table = document.createElement('table')
+  const head = document.createElement('tr')
+
+  for (const h of ['Network', 'Tx ID', 'PCH', 'Fetch', 'Check', 'Debug']) {
+    const th = document.createElement('th')
+    th.textContent = h
+    head.appendChild(th)
+  }
+
+  table.appendChild(head)
+
+  for (const e of events) {
+    const tr = document.createElement('tr')
+
+    eventCell(tr, e.network)
+    eventCell(tr, e.txid, 'mono')
+    eventCell(tr, shortHash(e.pch), 'mono')
+    eventCell(tr, e.status || '')
+    eventCell(tr, e.check || '', e.check === 'pass' ? 'ok' : e.check === 'fail' ? 'bad' : '')
+    eventCell(tr, e.summary || '')
+
+    table.appendChild(tr)
+  }
+
+  el.appendChild(table)
 }
+
+
+
 
 function connectDoorbell() {
   saveConfig()
@@ -526,32 +592,49 @@ function connectDoorbell() {
   ws.onerror = () => log('Doorbell error')
 }
 
-async function fetchTxDetail(e) {
-  //const url = `${getBaseUrl()}/kpool/txRead?network=${encodeURIComponent(e.network)}&txid=${encodeURIComponent(e.txid)}&checksum=${encodeURIComponent(e.pch)}&detail=1&mirror=0`
 
+
+async function fetchTxDetail(e) {
   const url = `${getBaseUrl()}/kpool/txRead?network=${encodeURIComponent(e.network)}&txid=${e.txid}&pch=${encodeURIComponent(e.pch)}&detail=1&mirror=0`
+
+  e.status = 'fetching'
+  e.check = 'pending'
+  e.summary = ''
+  renderEvents()
 
   log(`Fetching ${url}`)
 
   const res = await fetch(url)
   const data = await res.json()
 
-  // txRead is wrapped in a { success, comment, result } envelope — unwrap it
   const out = data.result || data
+
+  e.status = 'fetched'
+  e.raw = out
+  e.kea = out.kea || null
 
   $('detail').textContent = JSON.stringify(out.kea || out, null, 2)
 
   if (!out.kea) {
-    log(`Fetched tx but no kea: ${out.keaError || 'no kea detail'}`)
+    e.check = 'fail'
+    e.summary = out.keaError || 'no kea detail'
+    renderEvents()
+    log(`Fetched tx but no kea: ${e.summary}`)
     return
   }
 
-  //log(`Fetched KEA detail: transferCheck=${out.kea.execution?.transferCheck?.status}`)
   log('Fetched KEA detail')
-  await verifyFetchedKea(out.kea)
 
-  
+  const result = await verifyFetchedKea(out.kea)
+  e.check = result.ok ? 'pass' : 'fail'
+  e.summary = result.msg
+
+  renderEvents()
 }
+
+
+
+
 
 
 async function verifyFetchedKea(kea) {
@@ -563,10 +646,20 @@ async function verifyFetchedKea(kea) {
     })
 
     log('✅ KEA VERIFY PASS: local checks passed')
+    return { ok: true, msg: getKeaSummary(kea) }
   } catch (err) {
     log(`❌ KEA VERIFY FAIL: ${err.message}`)
+    return { ok: false, msg: err.message }
   }
 }
+
+function getKeaSummary(kea) {
+  const fills = getExecutionFills(kea).length
+  const mandates = (kea.watchedMandates || []).map(x => x.orderId).join(',')
+  return `${fills} fill(s), watched order(s): ${mandates || '-'}`
+}
+
+
 
 async function verifyDisplayedKea() {
   const raw = $('detail').textContent
