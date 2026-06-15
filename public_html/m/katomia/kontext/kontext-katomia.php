@@ -13,8 +13,9 @@ $domain = 'swap.kpay.live';
 $sources=[
 // 'backend js'=>['/home/hbarlive_hts/web*.js'],
 'backend js'=>['/home/hbarlive_hts/{kat,kpool,deal,websocket}*.js'],
+// 'kbot'=>['/home/hbarlive_hts/kbot/swarms/*.js'],  //nope - just zip it
 'frontend js'=>["/var/www/$domain/public_html/m/katomia/*.js"],
-'KEA app'=>["/var/www/$domain/public_html/m/katomia/KEA/*.{html,js}"],
+'KEA app'=>["/var/www/$domain/public_html/m/katomia/KEA/*.{html,js,css}"],
 'frontend css'=>["/var/www/$domain/public_html/m/katomia/*.css"],
 'frontend php'=>["/var/www/$domain/public_html/m/katomia/*.php"]
 ];
