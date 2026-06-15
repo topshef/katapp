@@ -48,11 +48,11 @@
     const gameId = params.get("gameId") || params.get("game") || ""
     const orderPubkey = params.get("orderPubkey") || params.get("intentPubkey") || params.get("watchPubkey") || ""
 
-    const message = `kea watch ${domain} ${network} ${gameId} ${orderPubkey}`
 
     const kpayUrl = new URL("https://kpay.uk/message/")
     kpayUrl.searchParams.set("network", network)
     kpayUrl.searchParams.set("channel", "WhatsApp")
+    const message = `kea watch ${domain} ${gameId} ${orderPubkey}`  // network is set separately
     kpayUrl.searchParams.set("message", message)
 
     const keaUrl = new URL("/m/katomia/kea/", location.origin)
