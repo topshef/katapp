@@ -1,5 +1,3 @@
-
-
 /*
 ========================================
 KATOMIA ORDER RENDERING
@@ -1313,8 +1311,41 @@ function renderOrderMarketSummary(){
         listEl.appendChild(createOrderRow(orderRec))
       })
 
+      // Ghost rows. An order can be purged (expiry / IOC / FOK) while a fill for
+      // it is still pending on kpool, so it disappears from the live list before
+      // its transaction settles — losing the context behind that pending tx. Each
+      // pending tx is self-contained (source.orders carries the full order), so we
+      // re-spawn any referenced order that is no longer live as a read-only ghost,
+      // for display only. No local storage: the ghost self-heals, dropping out as
+      // soon as the tx finalises and leaves state.tx.pending. Shown regardless of
+      // the "my orders" toggle (it's context for an in-flight tx) but still scoped
+      // to the selected pair.
+      const liveOrderIds = new Set(orders.map(o => String(o.orderId)))
+      const ghostSeen = new Set()
 
-    }       
+      ;(state?.tx?.pending || []).forEach(tx => {
+        const srcOrders = tx?.source?.orders || {}
+
+        Object.keys(srcOrders).forEach(orderId => {
+          const id = String(orderId)
+
+          if(liveOrderIds.has(id) || ghostSeen.has(id))
+            return
+
+          const order = srcOrders[id]
+          if(!order)
+            return
+
+          const pair = enrichOrder(order)?.market?.pair
+          if(selectedPair && pair != selectedPair)
+            return
+
+          ghostSeen.add(id)
+          listEl.appendChild(createOrderRow({ orderId: id, order, playerId: null, ghost: true }))
+        })
+      })
+
+    }
     // TODO:
     // Orders may reference assets not present in visible accounts,
     // so current enrichment (account-driven) may miss them.
@@ -1603,11 +1634,18 @@ function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel
 
 // ── main ─────────────────────────────────────────────────────────────────────
 
-function createOrderRow({ orderId, order, playerId }){
+function createOrderRow({ orderId, order, playerId, ghost = false }){
 
   const row = document.createElement("div")
   row.className = "order-row"
   row.dataset.orderId = orderId
+
+  // Ghost = order no longer live (purged on expiry/IOC/FOK) but still referenced
+  // by a pending tx; rendered read-only from tx source.orders for context only.
+  if(ghost){
+    row.classList.add("order-ghost")
+    row.title = "Order cleared while a transaction is still pending — shown from transaction source for context"
+  }
 
   if(order?.bundle?.error){
     row.textContent = `Order #${orderId} (${playerId}): ❌  ${order?.bundle?.error}`
@@ -1631,7 +1669,9 @@ function createOrderRow({ orderId, order, playerId }){
 
 
   row.dataset.orderSide = enriched.market?.side || ""
-  row.onclick = makeOrderRowOnClick(orderId, playerId, enriched, order)
+  // ghosts are display-only: no row interactions
+  if(!ghost)
+    row.onclick = makeOrderRowOnClick(orderId, playerId, enriched, order)
 
   const prefix = buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel, fillStatus)
   const arrow  = document.createElement("span")
@@ -1948,5 +1988,3 @@ function normaliseOrder(input){
     }
   }
 }
-
-
