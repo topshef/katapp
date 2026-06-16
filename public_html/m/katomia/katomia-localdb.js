@@ -8,7 +8,16 @@ Temporary localStorage backend.
 Later replace internals with Localbase.
 */
 
-async function txKey(network, txid, pch){
+function txGameId(tx){
+  return String(
+    tx?.source?.context?.gameId ||
+    tx?.gameId ||
+    ""
+  )
+}
+
+
+async function txKey(network, gameId, txid, pch){
 
   const shortPch =
     String(pch || "")
@@ -17,6 +26,7 @@ async function txKey(network, txid, pch){
   return [
     "katomiaTx",
     network || "unknown",
+    gameId || "unknown",
     txid || "unknown",
     shortPch
   ].join("|")
@@ -26,8 +36,11 @@ async function saveTx(tx){
 
   if(!tx) return
 
+  const gid = txGameId(tx) || gameMeta?.id || gameId
+
   const key = await txKey(
     tx.network || gameMeta?.network,
+    gid,
     tx.txid,
     tx.pch
   )
@@ -38,9 +51,13 @@ async function saveTx(tx){
   )
 }
 
+
+
+
 async function getAllTx(){
 
   const out = []
+  const currentGameId = gameMeta?.id || gameId
 
   Object.keys(localStorage).forEach(key => {
 
@@ -48,11 +65,9 @@ async function getAllTx(){
       return
 
     try{
-      out.push(
-        JSON.parse(
-          localStorage.getItem(key)
-        )
-      )
+      const tx = JSON.parse(localStorage.getItem(key))
+      if(currentGameId && txGameId(tx) !== currentGameId) return
+      out.push(tx)
     }
     catch(err){
       console.warn("Bad tx cache", key)
@@ -62,6 +77,7 @@ async function getAllTx(){
 
   return out
 }
+
 
 async function cachePendingTxs(){
 
