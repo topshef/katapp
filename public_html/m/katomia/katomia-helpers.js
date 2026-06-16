@@ -1,5 +1,4 @@
-
-    /* =========================
+/* =========================
        HELPERS / ADAPTERS
     ========================= */
 
@@ -640,6 +639,27 @@ function reduceFraction(numerator, denominator){  // ref BASK1
   }
 }
 
+// Normalise any fill-shaped object to legs: [{orderId, numerator, denominator}].
+// Mirror of the backend helper — accepts the leg-native shape (`.legs`), the
+// legacy pairwise maker/taker shape, and single-leg records. The fill-ratio
+// accounting below has no maker/taker concept; legs are the only notion.
+function fillLegs(f){
+  if(!f) return []
+
+  if(Array.isArray(f.legs))
+    return f.legs
+      .filter(l => l && l.orderId != null)
+      .map(l => ({ orderId:String(l.orderId), numerator:Number(l.numerator || 0), denominator:Number(l.denominator || 0) }))
+
+  const legs = []
+  if(f.orderId != null)
+    legs.push({ orderId:String(f.orderId), numerator:Number(f.numerator || 0), denominator:Number(f.denominator || 0) })
+  if(f.takerOrderId != null)
+    legs.push({ orderId:String(f.takerOrderId), numerator:Number(f.takerNumerator || 0), denominator:Number(f.takerDenominator || 0) })
+
+  return legs
+}
+
 // ┌┐ ┬ ┬┬┬  ┌┬┐  ╔═╗┬─┐┌┬┐┌─┐┬─┐  ╔═╗┬┬  ┬    ╔╦╗┌─┐┌─┐
 // ├┴┐│ │││   ││  ║ ║├┬┘ ││├┤ ├┬┘  ╠╣ ││  │    ║║║├─┤├─┘
 // └─┘└─┘┴┴─┘─┴┘  ╚═╝┴└──┴┘└─┘┴└─  ╚  ┴┴─┘┴─┘  ╩ ╩┴ ┴┴  
@@ -653,7 +673,7 @@ function buildOrderFillMap(){ // ref BASK1
 
   const seen = new Set()
 
-  function addFill(orderId, fillId, numerator, denominator, role){
+  function addFill(orderId, fillId, numerator, denominator){
     if(!orderId || !fillId) return
 
     numerator = Number(numerator || 0)
@@ -661,7 +681,7 @@ function buildOrderFillMap(){ // ref BASK1
 
     if(!numerator || !denominator) return
 
-    const key = `${role}:${orderId}|${fillId}`
+    const key = `${orderId}|${fillId}`
     if(seen.has(key)) return
 
     seen.add(key)
@@ -679,8 +699,8 @@ function buildOrderFillMap(){ // ref BASK1
 
   Object.values(state.accounts).forEach(account => {
     ;(account.basket || []).forEach(item => {
-      addFill(item.orderId, item.fillId, item.numerator, item.denominator, "maker")
-      addFill(item.takerOrderId, item.fillId, item.takerNumerator, item.takerDenominator, "taker")
+      for(const leg of fillLegs(item))
+        addFill(leg.orderId, item.fillId, leg.numerator, leg.denominator)
     })
   })
 
@@ -737,11 +757,9 @@ function getPendingOrderFillRatio(orderId){ // BASK1
     const txKey = tx.pch || tx.txid || "pending"
 
     ;(tx.source?.fills || []).forEach(fill => {
-      if(String(fill.orderId) === target)
-        addFill(`${txKey}:maker`, fill.fillId, fill.numerator, fill.denominator)
-
-      if(String(fill.takerOrderId) === target)
-        addFill(`${txKey}:taker`, fill.fillId, fill.takerNumerator, fill.takerDenominator)
+      for(const leg of fillLegs(fill))
+        if(leg.orderId === target)
+          addFill(txKey, fill.fillId, leg.numerator, leg.denominator)
     })
   })
 
@@ -764,20 +782,24 @@ function getSettledOrderFillRatio(orderId){
 
   rec.order.settled.forEach(item => {
 
-    const key = `${item.role || "maker"}|${item.fillId}|${item.txid || ""}`
-    if(seen.has(key)) return
-    seen.add(key)
+    for(const leg of fillLegs(item)){
+      if(leg.orderId !== String(orderId)) continue
 
-    const n = Number(item.numerator || 0)
-    const d = Number(item.denominator || 1)
+      const key = `${item.fillId}|${item.txid || ""}`
+      if(seen.has(key)) continue
+      seen.add(key)
 
-    const reduced = reduceFraction(
-      numerator * d + n * denominator,
-      denominator * d
-    )
+      const n = leg.numerator
+      const d = leg.denominator || 1
 
-    numerator = reduced.numerator
-    denominator = reduced.denominator
+      const reduced = reduceFraction(
+        numerator * d + n * denominator,
+        denominator * d
+      )
+
+      numerator = reduced.numerator
+      denominator = reduced.denominator
+    }
   })
 
   return { numerator, denominator }
@@ -976,5 +998,3 @@ function getOrderType(order){
 //
 // rather than persisted state.
 //
-
-
