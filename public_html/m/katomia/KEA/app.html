@@ -14,7 +14,7 @@
   <header class="app-header">
     <div>
       <h1>🦜 KEA</h1>
-      <p class="subtitle">Approval agent. Watch trader intent keys, fetch approval packages, check the promise matches the action.</p>
+      <p class="subtitle">Watch trader intent keys. Check the promise matches the action. Sign only when the package is safe.</p>
     </div>
   </header>
 
@@ -27,7 +27,7 @@
       <h2>Watches</h2>
       <div class="watch-actions">
         <button id="scanQrBtn" class="primary">📷 Scan QR</button>
-        <button id="toolsBtn" class="icon-btn" title="Debug tools" aria-label="Debug tools">🛠️</button>
+        <button id="toolsBtn" class="icon-btn" title="Tools" aria-label="Tools">🛠️</button>
         <button id="stopQrBtn" class="quiet" style="display:none">Stop camera</button>
       </div>
     </div>
@@ -35,13 +35,13 @@
   </section>
 
   <section>
-    <h2>Events</h2>
+    <h2>Transactions</h2>
     <div id="events" class="panel table-wrap"></div>
   </section>
 
   <dialog id="watchModal">
     <div class="modal-head">
-      <div id="watchModalTitle" class="modal-title">⚙️ Add debug watch</div>
+      <div id="watchModalTitle" class="modal-title">⚙️ Add watch</div>
       <button id="watchModalCloseBtn" class="icon-btn" title="Close" aria-label="Close">✕</button>
     </div>
 
@@ -72,9 +72,9 @@
 
       <label>Mode</label>
       <select id="watchMode">
-        <option value="doorbell">Doorbell only</option>
-        <option value="fetch" selected>Doorbell + fetch/check</option>
-        <option value="sign">Doorbell + fetch/check + sign later</option>
+        <option value="doorbell">Watch only</option>
+        <option value="fetch" selected>Check only</option>
+        <option value="sign">Check + sign</option>
       </select>
 
       <div class="modal-actions">
@@ -94,38 +94,22 @@
 
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
-
   <script type="module">
-    /*
-      KEA one-file prototype JS.
-
-      Later split target:
-      - kea-model.js       state, storage, normalisation
-      - kea-view.js        rendering, modals, DOM helpers
-      - kea-watch.js       watch CRUD and WebSocket doorbells
-      - kea-qr.js          QR scan/paste/photo import
-      - kea-verify.js      KEA package verification
-      - kea-app.js         bootstrap and event wiring
-    */
-
     import {
       $,
       makeId,
       cleanUrl,
-      canonicalJson,
-      hexToBytes,
-      bytesToHex,
-      normaliseAssetId,
       shortHash,
       shortKey,
-      formatHost
-    } from "./kea-utils.js"
+      shortText,
+      parseTxStrikeAt,
+      formatShortTime
+    } from './kea-utils.js'
 
-    import * as ed from "https://esm.sh/@noble/ed25519@2.1.0"
-    import { sha512 } from "https://esm.sh/@noble/hashes@1.4.0/sha512"
-    import { sha256 } from "https://esm.sh/@noble/hashes@1.4.0/sha256"
-
-    ed.etc.sha512Sync = function(...m) { return sha512(ed.etc.concatBytes(...m)) }
+    import {
+      buildEventDebug,
+      verifyKeaForWatch
+    } from './kea-verify.js'
 
     // -------------------------------------------------------------------------
     // MODEL: app state, local persistence, normalisation
@@ -143,6 +127,8 @@
     function loadWatches() {
       try { watches = JSON.parse(localStorage[WATCHES_KEY] || '[]') } catch { watches = [] }
       watches = watches.map(normaliseWatch)
+      assignMissingWatchRefs()
+      saveWatches()
     }
 
     function saveWatches() {
@@ -152,6 +138,7 @@
     function normaliseWatch(w) {
       return {
         id: w.id || makeId(),
+        ref: normaliseWatchRef(w.ref),
         name: String(w.name || '').trim(),
         baseUrl: cleanUrl(w.baseUrl || 'https://hapi5.katomia.com'),
         wsUrl: cleanUrl(w.wsUrl || 'wss://hapi5.katomia.com/ws'),
@@ -167,9 +154,15 @@
       }
     }
 
+    function normaliseWatchRef(ref) {
+      const n = Number(ref)
+      return Number.isFinite(n) && n > 0 ? Math.floor(n) : null
+    }
+
     function stripWatchRuntime(w) {
       return {
         id: w.id,
+        ref: w.ref,
         name: w.name,
         baseUrl: w.baseUrl,
         wsUrl: w.wsUrl,
@@ -182,6 +175,23 @@
         createdAt: w.createdAt,
         lastSeenAt: w.lastSeenAt
       }
+    }
+
+    function assignMissingWatchRefs() {
+      const used = new Set(watches.map(function(w) { return w.ref }).filter(Boolean))
+      let next = 1
+
+      for (const w of watches) {
+        if (w.ref) continue
+        while (used.has(next)) next++
+        w.ref = next
+        used.add(next)
+      }
+    }
+
+    function nextWatchRef() {
+      const nums = watches.map(function(w) { return Number(w.ref) || 0 })
+      return Math.max(0, ...nums) + 1
     }
 
     function getWatch(id) {
@@ -208,6 +218,7 @@
     function addEvent(w, msg) {
       const base = {
         watchId: w.id,
+        watchRef: watchRef(w),
         watchLabel: watchLabel(w),
         network: msg.network || w.network,
         txid: msg.txid,
@@ -217,6 +228,7 @@
         check: 'pending',
         summary: 'Doorbell received',
         createdAt: Date.now(),
+        strikeAt: parseTxStrikeAt(msg.txid),
         rawDoorbell: msg
       }
 
@@ -225,34 +237,22 @@
 
       if (!e) {
         e = { key, ...base }
-        events.unshift(e)
+        events.push(e)
       } else {
-        Object.assign(e, base, { key })
+        Object.assign(e, base, { key, createdAt: e.createdAt || base.createdAt })
       }
 
+      sortEvents()
       renderEvents()
       return e
     }
 
-    function eventDetail(e) {
-      return {
-        key: e.key,
-        watchId: e.watchId,
-        watchLabel: e.watchLabel,
-        network: e.network,
-        txid: e.txid,
-        pch: e.pch,
-        mode: e.mode,
-        status: e.status,
-        check: e.check,
-        summary: e.summary,
-        fetch: e.fetch || null,
-        verification: e.verification || null,
-        debug: e.debug || null,
-        kea: e.kea || null,
-        raw: e.raw || null,
-        rawDoorbell: e.rawDoorbell || null
-      }
+    function sortEvents() {
+      events.sort(function(a, b) {
+        const av = a.strikeAt || a.createdAt || 0
+        const bv = b.strikeAt || b.createdAt || 0
+        return bv - av
+      })
     }
 
     // -------------------------------------------------------------------------
@@ -264,9 +264,9 @@
       validateWatch(watch)
 
       if (editingWatchId) {
-        updateExistingWatch(watch)
+        const saved = updateExistingWatch(watch)
         closeWatchModal()
-        setStatus(`Saved watch ${watchLabel(watch)}`)
+        setStatus(`Saved ${watchLabel(saved)}`)
         return
       }
 
@@ -293,16 +293,18 @@
       })
 
       if (existing) {
-        Object.assign(existing, watch, { id: existing.id, paused: false, status: 'idle' })
+        const ref = existing.ref
+        Object.assign(existing, watch, { id: existing.id, ref, paused: false, status: 'idle' })
         watch = existing
       } else {
-        watches.unshift(watch)
+        watch.ref = watch.ref || nextWatchRef()
+        watches.push(watch)
       }
 
       saveWatches()
       renderWatches()
       connectWatch(watch)
-      setStatus(`Added watch ${watchLabel(watch)}`)
+      setStatus(`Added ${watchLabel(watch)}`)
     }
 
     function updateExistingWatch(next) {
@@ -311,10 +313,12 @@
 
       const wasPaused = old.paused
       const createdAt = old.createdAt
+      const ref = old.ref
 
       disconnectWatch(old.id)
       Object.assign(old, next, {
         id: old.id,
+        ref,
         paused: wasPaused,
         createdAt,
         status: wasPaused ? 'paused' : 'idle',
@@ -323,7 +327,9 @@
 
       saveWatches()
       renderWatches()
+      renderEvents()
       if (!old.paused) connectWatch(old)
+      return old
     }
 
     function removeWatch(id) {
@@ -331,6 +337,7 @@
       watches = watches.filter(function(w) { return w.id !== id })
       saveWatches()
       renderWatches()
+      renderEvents()
       setStatus('Watch removed')
     }
 
@@ -423,12 +430,13 @@
     function handleDoorbell(w, msg) {
       w.lastSeenAt = Date.now()
       saveWatches()
+      renderWatches()
 
       const e = addEvent(w, msg)
       setStatus(`Doorbell ${shortHash(e.pch)}`)
 
       if (w.mode === 'doorbell') {
-        e.summary = 'Doorbell only'
+        e.summary = 'Watch only'
         e.check = 'not checked'
         renderEvents()
         return
@@ -473,6 +481,7 @@
       e.status = 'fetched'
       e.raw = out
       e.kea = out.kea || null
+      e.strikeAt = parseTxStrikeAt(out.kea?.transaction?.txid || e.txid) || e.strikeAt
       e.debug = buildEventDebug(e, w, out.kea || null)
 
       if (!out.kea) {
@@ -491,354 +500,14 @@
       if (result.ok && w.mode === 'sign')
         e.summary = `${e.summary}; signing not wired yet`
 
+      sortEvents()
       renderEvents()
       setStatus(result.ok ? `Checked ${shortHash(e.pch)} OK` : `Check failed: ${result.msg}`, result.ok ? 'ok' : 'bad')
-    }
-
-    function buildEventDebug(e, w, kea) {
-      const mandates = kea?.mandates || []
-      const fills = getExecutionFills(kea || {})
-      const watchedKey = String(w?.orderPubkey || '').toLowerCase()
-
-      return {
-        watch: {
-          watchId: e.watchId,
-          label: e.watchLabel,
-          network: w?.network || e.network,
-          gameId: w?.gameId || '',
-          orderPubkey: shortKey(watchedKey)
-        },
-        event: {
-          txid: e.txid,
-          pch: e.pch,
-          pchShort: shortHash(e.pch)
-        },
-        fetched: {
-          txid: kea?.transaction?.txid || null,
-          pch: kea?.transaction?.pch || null,
-          pchShort: shortHash(kea?.transaction?.pch),
-          pchMatchesEvent: !!e.pch && !!kea?.transaction?.pch && String(kea.transaction.pch).startsWith(String(e.pch))
-        },
-        execution: fills.map(function(fill) {
-          return {
-            fillId: fill.fillId,
-            legs: (fill.legs || []).map(function(l) { return String(l.orderId || '') }),
-            trigger: fill.trigger != null ? String(fill.trigger) : null
-          }
-        }),
-        mandates: mandates.map(function(m) {
-          return {
-            orderId: String(m.orderId || ''),
-            role: getMandateRole(m, fills),
-            intentPubkey: shortKey(m.intentPubkey),
-            matchesWatch: String(m.intentPubkey || '').toLowerCase() === watchedKey,
-            accountIds: [...new Set((m.bundle || []).map(function(x) { return x.accountId }).filter(Boolean))]
-          }
-        }),
-        watchedOrderIds: mandates
-          .filter(function(m) { return String(m.intentPubkey || '').toLowerCase() === watchedKey })
-          .map(function(m) { return String(m.orderId || '') })
-      }
-    }
-
-    // Display-only. There is no maker/taker in a general N-party match.
-    // An order is a participant in a clearing event. The only soft label kept
-    // here is whether it was the advisory trigger.
-    function getMandateRole(mandate, fills) {
-      const orderId = String(mandate?.orderId || '')
-      let participates = false
-
-      for (const fill of fills) {
-        const inFill = (fill.legs || []).some(function(l) { return String(l.orderId || '') === orderId })
-        if (!inFill) continue
-        if (String(fill.trigger || '') === orderId) return 'trigger'
-        participates = true
-      }
-
-      return participates ? 'resting' : ''
-    }
-
-    async function verifyKeaForWatch(kea, w) {
-      try {
-        await verifyKeaDetail(kea, {
-          network: w.network,
-          gameId: w.gameId,
-          orderPubkey: w.orderPubkey
-        })
-
-        const msg = getKeaSummary(kea)
-        return { ok: true, msg }
-      } catch (err) {
-        return { ok: false, msg: err.message }
-      }
-    }
-
-    function getKeaSummary(kea) {
-      const fills = getExecutionFills(kea)
-      const watched = (kea.watchedMandates || []).map(function(x) { return x.orderId }).join(',')
-      const fillText = fills
-        .map(function(f) {
-          return (f.legs || []).map(function(l) { return `#${l.orderId}` }).join('+')
-        })
-        .join(', ')
-
-      return `${fills.length} fill(s), ${fillText || '-'}, watched: ${watched || '-'}`
-    }
-
-    async function verifyKeaDetail(kea, expected) {
-      kea.watchedMandates = getWatchedMandates(kea, expected)
-
-      await verifyIntents(kea)
-
-      verifyMandatesMatchExecution(kea)
-      verifyBundleHash(kea)
-      verifyScope(kea, expected)
-      verifyTxHash(kea)
-      verifyPch(kea)
-      verifyFillAgainstTransfers(kea)
-    }
-
-    // KEA is leg-native. A fill is an N-party clearing event:
-    // { fillId, legs:[{orderId,numerator,denominator}], trigger }
-    // This safety net folds old pairwise shapes into legs if needed.
-    function normaliseFillShape(fill) {
-      if (Array.isArray(fill?.legs)) return fill
-
-      const legs = []
-      if (fill?.orderId != null)
-        legs.push({ orderId: String(fill.orderId), numerator: fill.numerator ?? 1, denominator: fill.denominator ?? 1 })
-      if (fill?.takerOrderId != null)
-        legs.push({ orderId: String(fill.takerOrderId), numerator: fill.takerNumerator ?? 1, denominator: fill.takerDenominator ?? 1 })
-
-      return {
-        fillId: fill?.fillId ?? null,
-        legs,
-        trigger: fill?.takerOrderId != null ? String(fill.takerOrderId) : null
-      }
-    }
-
-    function getExecutionFills(kea) {
-      const raw = kea.execution?.fills || (kea.execution?.fill ? [kea.execution.fill] : [])
-      return raw.map(normaliseFillShape)
-    }
-
-    function getWatchedMandates(kea, expected) {
-      const watched = String(expected.orderPubkey || '').toLowerCase()
-      const mandates = kea.mandates || []
-
-      if (watched) {
-        const matched = mandates.filter(function(x) { return String(x.intentPubkey || '').toLowerCase() === watched })
-        if (matched.length) return matched
-      }
-
-      if (mandates.length) return mandates
-
-      throw new Error('No matching mandate for watched intent pubkey')
-    }
-
-    async function verifyIntents(kea) {
-      for (const mandate of kea.watchedMandates || [])
-        await verifyIntentMandate(mandate)
-    }
-
-    async function verifyIntentMandate(m) {
-      if (!m?.intentPubkey || !m?.intentSignature || !m?.intentPayload)
-        throw new Error('Missing mandate intent fields')
-
-      const msg = new TextEncoder().encode(canonicalJson(m.intentPayload))
-      const sig = Uint8Array.from(atob(m.intentSignature), function(c) { return c.charCodeAt(0) })
-      const ok = await ed.verifyAsync(sig, msg, hexToBytes(m.intentPubkey))
-
-      if (!ok) throw new Error(`Trader intent signature invalid for order ${m.orderId}`)
-    }
-
-    function verifyMandatesMatchExecution(kea) {
-      const fills = getExecutionFills(kea)
-      if (!fills.length) throw new Error('Missing execution fills')
-
-      const fillOrderIds = new Set()
-
-      for (const fill of fills)
-        for (const leg of fill.legs || [])
-          if (leg.orderId != null) fillOrderIds.add(String(leg.orderId))
-
-      for (const mandate of kea.watchedMandates || [])
-        if (!fillOrderIds.has(String(mandate.orderId)))
-          throw new Error(`Watched mandate ${mandate.orderId} is not in execution fills`)
-    }
-
-    function verifyBundleHash(kea) {
-      for (const mandate of kea.watchedMandates || []) {
-        if (!mandate.bundle) throw new Error('Missing mandate bundle')
-        if (!mandate.intentPayload?.bundleHash) throw new Error('Missing signed bundleHash')
-
-        const expected = sha256Json(mandate.bundle)
-
-        if (expected !== mandate.intentPayload.bundleHash)
-          throw new Error(`Bundle hash does not match signed intent for order ${mandate.orderId}`)
-      }
-    }
-
-    function verifyScope(kea, expected) {
-      const pchBasis = kea.execution?.pchBasis
-
-      if (expected.network && kea.network !== expected.network)
-        throw new Error('KEA network mismatch')
-
-      if (expected.network && kea.transaction?.network && kea.transaction.network !== expected.network)
-        throw new Error('Transaction network mismatch')
-
-      if (expected.network && pchBasis?.network && pchBasis.network !== expected.network)
-        throw new Error('PCH network mismatch')
-
-      for (const mandate of kea.watchedMandates || []) {
-        const payload = mandate.intentPayload
-
-        if (expected.orderPubkey && mandate.intentPubkey.toLowerCase() !== expected.orderPubkey)
-          throw new Error('Intent pubkey does not match watched key')
-
-        if (expected.network && payload.network !== expected.network)
-          throw new Error(`Intent network mismatch for order ${mandate.orderId}`)
-
-        if (expected.gameId && payload.gameId !== expected.gameId)
-          throw new Error(`Game ID mismatch for order ${mandate.orderId}`)
-      }
-    }
-
-    function getFillRatioForMandate(mandate, fill) {
-      const orderId = String(mandate.orderId || '')
-      const leg = (fill.legs || []).find(function(l) { return String(l.orderId || '') === orderId })
-      if (!leg) return null
-      return { numerator: leg.numerator, denominator: leg.denominator }
-    }
-
-    function verifyFillAgainstTransfers(kea) {
-      const fills = getExecutionFills(kea)
-      const mandates = kea.watchedMandates || []
-      const pchBasis = kea.execution?.pchBasis
-
-      if (!fills.length) throw new Error('Missing fills')
-      if (!mandates.length) throw new Error('Missing watched mandates')
-      if (!pchBasis) throw new Error('Missing pchBasis')
-
-      const watchedAccounts = new Set()
-      const residual = {}
-
-      for (const mandate of mandates)
-        for (const line of mandate.bundle || [])
-          if (line.accountId) watchedAccounts.add(line.accountId)
-
-      function add(accountId, asset, amount) {
-        if (!watchedAccounts.has(accountId)) return
-        const k = `${accountId}:${normaliseAssetId(asset)}`
-        residual[k] = (residual[k] || 0) + Number(amount)
-      }
-
-      const t = pchBasis.transfers || {}
-
-      for (const x of t.hbarTransfers || [])
-        add(x.accountId, 'HBAR', x.amount)
-
-      for (const x of t.tokenTransfers || [])
-        add(x.accountId, x.tokenId, x.amount)
-
-      for (const x of t.nftTransfers || []) {
-        const asset = `${x.tokenId}#${x.serialNumber}`
-        add(x.senderAccountId, asset, -1)
-        add(x.receiverAccountId, asset, +1)
-      }
-
-      for (const fill of fills) {
-        for (const mandate of mandates) {
-          const ratio = getFillRatioForMandate(mandate, fill)
-          if (!ratio) continue
-
-          const numerator = Number(ratio.numerator)
-          const denominator = Number(ratio.denominator)
-
-          if (!numerator || !denominator || numerator < 1 || denominator < 1)
-            throw new Error(`Invalid fill ratio for order ${mandate.orderId}`)
-
-          if (numerator > denominator)
-            throw new Error(`Fill ratio exceeds 1 for order ${mandate.orderId}`)
-
-          for (const line of mandate.bundle || []) {
-            const scaled = Math.trunc(Number(line.amount) * numerator / denominator)
-            add(line.accountId, line.asset, -scaled)
-          }
-        }
-      }
-
-      const negative = Object.entries(residual).filter(function(pair) { return pair[1] < 0 })
-
-      if (negative.length)
-        throw new Error(`Transfers worse than signed bundle/fill: ${JSON.stringify(Object.fromEntries(negative))}`)
-    }
-
-    function verifyTxHash(kea) {
-      const txBytes = hexToBytes(kea.transaction.txBytesHex)
-      const txHash = bytesToHex(sha256(txBytes))
-
-      if (txHash !== kea.transaction.txHash)
-        throw new Error('txBytes hash mismatch')
-    }
-
-    function verifyPch(kea) {
-      const pchBasis = kea.execution?.pchBasis
-      const pch = kea.transaction?.pch
-
-      if (!pchBasis) throw new Error('Missing pchBasis')
-      if (!pch) throw new Error('Missing transaction PCH')
-
-      const computed = sha256Json(pchBasis)
-
-      if (computed !== pch)
-        throw new Error('PCH hash mismatch')
     }
 
     // -------------------------------------------------------------------------
     // CONTROLLER: QR scan/paste/photo import
     // -------------------------------------------------------------------------
-
-    async function zz_mobonly_scanQr() {
-      if (!window.BarcodeDetector) {
-        setStatus('Native QR scanner unavailable — opening photo picker')
-        $('qrFile').click()
-        return
-      }
-
-      qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-
-      const video = $('qrVideo')
-      video.srcObject = qrStream
-      video.style.display = 'block'
-      $('stopQrBtn').style.display = 'inline-block'
-
-      await video.play()
-
-      qrScanning = true
-      const detector = new BarcodeDetector({ formats: ['qr_code'] })
-
-      async function tick() {
-        if (!qrScanning) return
-
-        try {
-          const codes = await detector.detect(video)
-          if (codes.length) {
-            stopQr()
-            addWatchFromQr(codes[0].rawValue)
-            return
-          }
-        } catch (err) {
-          setStatus(`QR scan error: ${err.message}`, 'bad')
-        }
-
-        requestAnimationFrame(tick)
-      }
-
-      tick()
-    }
-
 
     async function scanQr() {
       if (!navigator.mediaDevices?.getUserMedia) {
@@ -857,7 +526,6 @@
       $('stopQrBtn').style.display = 'inline-block'
 
       await video.play()
-
       qrScanning = true
 
       if (window.BarcodeDetector) {
@@ -911,7 +579,6 @@
       setStatus('Scanning QR with camera')
       tickJsQr()
     }
-
 
     function stopQr() {
       qrScanning = false
@@ -989,7 +656,7 @@
     }
 
     // -------------------------------------------------------------------------
-    // VIEW: render watches, events, modals
+    // VIEW: main page, modals, display helpers
     // -------------------------------------------------------------------------
 
     function renderWatches() {
@@ -997,14 +664,14 @@
       el.innerHTML = ''
 
       if (!watches.length) {
-        el.innerHTML = '<div class="empty">No watches yet. Scan a QR to add one, or use ⚙️ Tools for debug entry.</div>'
+        el.innerHTML = '<div class="empty">No watches yet. Scan a QR to add one, or use 🛠️ Tools for debug entry.</div>'
         return
       }
 
       const table = document.createElement('table')
       const head = document.createElement('tr')
 
-      for (const h of ['Network', 'Game', 'Intent key', 'Mode', 'Status', 'Last ping', '']) {
+      for (const h of ['#', 'Watch', 'Key', 'Mode', 'State', 'Last', '']) {
         const th = document.createElement('th')
         th.textContent = h
         head.appendChild(th)
@@ -1012,26 +679,24 @@
 
       table.appendChild(head)
 
-      for (const w of watches) {
+      for (const w of sortedWatches()) {
         const tr = document.createElement('tr')
-        tr.className = 'clickable card-row'
+        tr.className = 'clickable card-row watch-row'
         tr.onclick = function() { showWatchDetail(w) }
 
-        cell(tr, w.network, 'Network')
-        cell(tr, w.gameId || '-', 'Game')
-        cell(tr, watchKeyTail(w), 'Intent key', 'mono')
+        cell(tr, watchRef(w), '#', 'watch-ref-cell')
+        cell(tr, watchTitle(w), 'Watch', 'strong-cell')
+        cell(tr, shortKey(w.orderPubkey), 'Key', 'mono key-cell')
         pillCell(tr, modeLabel(w.mode), 'Mode')
-        cell(tr, w.paused ? 'paused' : w.status, 'Status', statusClass(w))
-        cell(tr, w.lastSeenAt ? new Date(w.lastSeenAt).toLocaleTimeString() : '-', 'Last ping')
-
+        cell(tr, watchStateText(w), 'State', statusClass(w))
+        cell(tr, w.lastSeenAt ? formatShortTime(w.lastSeenAt) : '-', 'Last', 'time-cell')
 
         const controls = document.createElement('td')
         controls.dataset.label = ''
-
+        controls.className = 'controls'
         controls.appendChild(actionButton(w.paused ? '▶️' : '⏸️', function() { toggleWatchPaused(w.id) }, 'icon-action', w.paused ? 'Resume watch' : 'Pause watch'))
         controls.appendChild(actionButton('🛠️', function() { openWatchModal(w) }, 'icon-action', 'Edit watch'))
-        controls.appendChild(actionButton('Remove', function() { removeWatch(w.id) }, 'danger'))
-        controls.className = 'controls'
+        controls.appendChild(actionButton('✕', function() { removeWatch(w.id) }, 'icon-action danger', 'Delete watch'))
         tr.appendChild(controls)
 
         table.appendChild(tr)
@@ -1045,14 +710,16 @@
       el.innerHTML = ''
 
       if (!events.length) {
-        el.innerHTML = '<div class="empty">No events yet. KEA will list doorbells and checked approval packages here.</div>'
+        el.innerHTML = '<div class="empty">No transactions yet. KEA will list doorbells and checked approval packages here.</div>'
         return
       }
 
+      const showWatch = shouldShowTransactionWatch()
       const table = document.createElement('table')
       const head = document.createElement('tr')
+      const headers = ['', 'Strike', showWatch ? 'Watch' : null, 'Tx', 'Status', 'Notes'].filter(function(x) { return x !== null })
 
-      for (const h of ['Time', 'Watch', 'Tx ID', 'PCH', 'Fetch', 'Check', 'Summary']) {
+      for (const h of headers) {
         const th = document.createElement('th')
         th.textContent = h
         head.appendChild(th)
@@ -1062,16 +729,16 @@
 
       for (const e of events) {
         const tr = document.createElement('tr')
-        tr.className = 'clickable card-row'
+        const status = transactionStatus(e)
+        tr.className = `clickable card-row tx-row ${status.tone || ''}`
         tr.onclick = function() { showEventDetail(e) }
 
-        cell(tr, new Date(e.createdAt).toLocaleTimeString(), 'Time')
-        cell(tr, e.watchLabel || e.watchId || '-', 'Watch')
-        cell(tr, e.txid || '', 'Tx ID', 'mono')
-        cell(tr, shortHash(e.pch), 'PCH', 'mono')
-        cell(tr, e.status || '', 'Fetch')
-        cell(tr, e.check || '', 'Check', checkClass(e.check))
-        cell(tr, e.summary || '', 'Summary')
+        cell(tr, chainGlyph(e), '', `tx-chain ${status.tone || ''}`, chainTitle(e))
+        cell(tr, strikeDisplay(e), 'Strike', 'time-cell')
+        if (showWatch) cell(tr, e.watchRef || '-', 'Watch', 'watch-ref-cell')
+        cell(tr, txLabel(e), 'Tx', 'mono tx-cell', e.txid || e.pch || '')
+        cell(tr, status.text, 'Status', status.tone || '', e.summary || '')
+        cell(tr, transactionNotes(e), 'Notes', 'notes-cell', e.summary || '')
 
         table.appendChild(tr)
       }
@@ -1079,9 +746,19 @@
       el.appendChild(table)
     }
 
+    function sortedWatches() {
+      return [...watches].sort(function(a, b) { return (a.ref || 0) - (b.ref || 0) })
+    }
+
+    function shouldShowTransactionWatch() {
+      if (watches.length > 1) return true
+      const refs = new Set(events.map(function(e) { return e.watchRef }).filter(Boolean))
+      return refs.size > 1
+    }
+
     function openWatchModal(w) {
       editingWatchId = w ? w.id : null
-      $('watchModalTitle').textContent = w ? '⚙️ Edit debug watch' : '⚙️ Add debug watch'
+      $('watchModalTitle').textContent = w ? `⚙️ Edit ${watchRef(w)}` : '⚙️ Add watch'
       $('saveWatchBtn').textContent = w ? 'Save watch' : 'Add watch'
       $('deleteWatchBtn').style.display = w ? 'inline-block' : 'none'
       fillWatchForm(w || defaultWatch())
@@ -1108,24 +785,25 @@
     }
 
     function showWatchDetail(w) {
-      showJsonDetail('Watch detail', stripWatchRuntime(w))
+      showJsonDetail(`${watchRef(w)} detail`, stripWatchRuntime(w))
     }
 
     function showEventDetail(e) {
-      $('detailModalTitle').textContent = 'Event detail'
+      $('detailModalTitle').textContent = 'Transaction detail'
 
       const body = $('detailModalBody')
       body.innerHTML = ''
 
       body.appendChild(sectionTitle('Approval package'))
       body.appendChild(kvGrid([
-        ['Watch', e.watchLabel || e.watchId || '-'],
+        ['Watch', `${e.watchRef || '-'} ${e.watchLabel || ''}`.trim()],
         ['Network', e.network || '-'],
+        ['Strike', strikeDisplay(e)],
         ['Tx ID', e.txid || '-'],
         ['PCH', e.pch || '-'],
-        ['Fetch', e.status || '-'],
+        ['Internal state', e.status || '-'],
         ['Check', e.check || '-'],
-        ['Summary', e.summary || '-'],
+        ['Notes', e.summary || '-'],
         ['Mode', modeLabel(e.mode)]
       ]))
 
@@ -1222,11 +900,12 @@
       return pre
     }
 
-    function cell(tr, text, label, cls) {
+    function cell(tr, text, label, cls, title) {
       const td = document.createElement('td')
       td.dataset.label = label || ''
       td.textContent = text == null ? '' : String(text)
       if (cls) td.className = cls
+      if (title) td.title = title
       tr.appendChild(td)
       return td
     }
@@ -1262,23 +941,36 @@
       console.debug('[KEA]', msg)
     }
 
-    // -------------------------------------------------------------------------
-    // VIEW: display helpers
-    // -------------------------------------------------------------------------
+    function watchRef(w) {
+      return w?.ref ? `W${w.ref}` : 'W?'
+    }
+
+    function watchTitle(w) {
+      if (w.name) return w.name
+      return `${w.network || '-'} · ${w.gameId || '-'}`
+    }
 
     function watchLabel(w) {
-      const base = `${w.network} | ${w.gameId || '-'} | ${watchKeyTail(w)}`
-      return w.name ? `${w.name} | ${base}` : base
+      return `${watchRef(w)} · ${watchTitle(w)} · ${watchKeyTail(w)}`
     }
 
     function watchKeyTail(w) {
       return String(w.orderPubkey || '').slice(-6) || '-'
     }
 
+    function watchStateText(w) {
+      if (w.paused) return 'Paused'
+      if (w.status === 'connected') return 'Live'
+      if (w.status === 'connecting') return 'Connecting'
+      if (w.status === 'disconnected') return 'Offline'
+      if (w.status === 'error') return 'Error'
+      return w.status || 'Idle'
+    }
+
     function modeLabel(mode) {
-      if (mode === 'doorbell') return 'Doorbell'
-      if (mode === 'sign') return 'Sign later'
-      return 'Fetch/check'
+      if (mode === 'doorbell') return 'Watch'
+      if (mode === 'sign') return 'Sign'
+      return 'Check'
     }
 
     function statusClass(w) {
@@ -1288,16 +980,40 @@
       return ''
     }
 
-    function checkClass(check) {
-      if (check === 'pass') return 'ok'
-      if (check === 'fail') return 'bad'
-      if (check === 'pending') return 'warn'
-      return ''
+    function transactionStatus(e) {
+      if (e.status === 'fetch error') return { text: 'Fetch failed', tone: 'bad' }
+      if (e.check === 'fail') return { text: 'Check failed', tone: 'bad' }
+      if (e.check === 'pass' && e.mode === 'sign') return { text: 'Sign pending', tone: 'warn' }
+      if (e.check === 'pass') return { text: 'Ready', tone: 'ok' }
+      if (e.status === 'fetching' || e.status === 'fetched') return { text: 'Checking…', tone: 'warn' }
+      if (e.check === 'not checked') return { text: 'Watch only', tone: '' }
+      if (e.status === 'doorbell') return { text: 'Doorbell', tone: 'warn' }
+      return { text: e.status || 'Pending', tone: '' }
     }
 
-    function sha256Json(obj) {
-      const bytes = new TextEncoder().encode(JSON.stringify(obj))
-      return bytesToHex(sha256(bytes))
+    function transactionNotes(e) {
+      const note = e.summary || ''
+      if (!note) return '-'
+      if (note === 'Doorbell received') return ''
+      return shortText(note, 72)
+    }
+
+    function txLabel(e) {
+      const ids = e.debug?.watchedOrderIds?.filter(Boolean) || []
+      if (ids.length) return ids.map(function(x) { return `#${x}` }).join(',')
+      return shortHash(e.pch, 10) || shortHash(e.txid, 12) || '-'
+    }
+
+    function strikeDisplay(e) {
+      return formatShortTime(e.strikeAt || e.createdAt)
+    }
+
+    function chainGlyph(e) {
+      return e.consensusAt || e.consensusStatus || e.receipt ? '■' : '○'
+    }
+
+    function chainTitle(e) {
+      return chainGlyph(e) === '■' ? 'Through Hedera consensus' : 'Not through Hedera consensus yet'
     }
 
     function deleteEditingWatch() {
@@ -1307,7 +1023,6 @@
       removeWatch(id)
     }
 
-   
     function addWatchFromUrlParams() {   // todo review user security re watch injection
       const p = new URLSearchParams(location.search)
 
@@ -1328,7 +1043,7 @@
         watch.mode = 'doorbell'
 
         addWatch(watch)
-        setStatus(`Added doorbell watch ${watchLabel(watch)}`)
+        setStatus(`Added ${watchLabel(watch)}`)
 
         history.replaceState({}, '', location.pathname)
       } catch (e) {
