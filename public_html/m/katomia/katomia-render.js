@@ -945,26 +945,31 @@ function getFastThumb(url, imgEl){
       const gameMetaEl = document.getElementById("gameMeta")
       if(gameMetaEl && gameMeta){
 
-        const title = gameMeta.profile?.name || ""
+      const title = gameMeta.profile?.name || ""
+      const adminTools = await renderGameAdminTools()
 
-        const joinText = String(gameMeta.joinRule || "").trim()
+      const joinText = String(gameMeta.joinRule || "").trim()
 
-        gameMetaEl.innerHTML = `
-          <div class="game-title-row">
-            <div class="game-network">${gameMeta.network}</div>
-            <div class="game-title">${title}</div>
-          </div>
+      gameMetaEl.innerHTML = `
+        <div class="game-title-row">
+          <div class="game-network">${gameMeta.network}</div>
+          <div class="game-title">${title}</div>
+        </div>
 
-          <div class="game-meta-row">
-            <span>ID: ${gameMeta.id}</span>
-            <span>Visibility: ${gameMeta.visibility}</span>
-            ${joinText ? `<span>Join: ${joinText}</span>` : ""}
-            <span>Lock: ${gameMeta.lockRule}</span>
-            ${renderConfigMeta(gameMeta.config)}
-          </div>
-        `
+        <div class="game-meta-row">
+          <span>ID: ${gameMeta.id} ${adminTools}</span>
+          <span>Visibility: ${gameMeta.visibility}</span>
+          ${joinText ? `<span>Join: ${joinText}</span>` : ""}
+          <span>Lock: ${gameMeta.lockRule}</span>
+          ${renderConfigMeta(gameMeta.config)}
+        </div>
+      `
+
+          document.getElementById("deleteGameBtn")?.addEventListener("click", deleteCurrentGame)
+
       }
-			
+      
+      
       headerEl.style.display = viewMode === "columns" ? "grid" : "none"
 
       //show orders

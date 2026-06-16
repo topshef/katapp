@@ -137,4 +137,77 @@ function setProfileLink(link){
   el.rel = "noopener"
 }
 
+
+async function renderGameAdminTools(){
+  if(gameMeta?.admin?.type !== "ed25519PublicKeyHex") return ""
+
+  const myPubkey = await getKatomiaOrderPubkeyHex()
+  if(myPubkey !== gameMeta.admin.value) return ""
+
+  return `<span title="You are game admin">👑</span><span id="deleteGameBtn" title="Delete game" style="cursor:pointer">🗑️</span>`
+}
+
+async function deleteCurrentGame(){
+  if(!gameId) return
+  if(!confirm("Delete the whole game?\n\nAll players and orders will be removed. But any transactions already posted to Kpool will remain there and may still be signed and sent to Hedera for consensus.")) return
+
+  const body = await buildDeleteGameRequest(gameId)
+
+  let res, text, json
+  try{
+    res = await fetch("../hapi.php?action=delete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body)
+    })
+
+    text = await res.text()
+    try{ json = JSON.parse(text) }catch{}
+  }catch(err){
+    console.error("delete request failed", { err, body })
+    alert("Delete request failed\n\n" + (err?.message || err))
+    return
+  }
+
+  if(!res.ok || !json?.ok){
+    const debug = {
+      httpStatus: res.status,
+      httpOk: res.ok,
+      responseJson: json || null,
+      responseText: text,
+      requestBody: body,
+      gameMeta
+    }
+
+    console.error("delete failed", debug)
+    alert("Delete failed\n\n" + JSON.stringify(debug, null, 2).slice(0, 4000))
+    return
+  }
+
+  alert("Game deleted")
+  location.href = "../"
+}
+
+async function buildDeleteGameRequest(gameId){
+  const { privateKey, publicKeyJwk } = await getOrCreatePlayerKeypair()
+  const payload = { type:"katomia_deleteGame", gameId, issuedAt:Date.now() }
+  const bytes = new TextEncoder().encode(JSON.stringify(payload))
+  const sigRaw = await crypto.subtle.sign("Ed25519", privateKey, bytes)
+
+  return {
+    payload,
+    signature: {
+      alg: "Ed25519",
+      pubkeyHex: jwkXToHex(publicKeyJwk.x),
+      sig: bytesToBase64(new Uint8Array(sigRaw))
+    }
+  }
+}
+
+function bytesToBase64(bytes){
+  let s = ""
+  for(const b of bytes) s += String.fromCharCode(b)
+  return btoa(s)
+}
+
 window.addEventListener("load", initKatomiaProfile)
