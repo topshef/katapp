@@ -80,8 +80,23 @@ th {
   letter-spacing: .04em;
 }
 
+
 tr.clickable { cursor: pointer; }
 tr.clickable:hover { background: var(--bg-softer); }
+
+tr.watch-row.watch-linked {
+  background: var(--bg-softer);
+  outline: 1px solid rgba(128,128,128,.22);
+  outline-offset: -1px;
+}
+
+tr.tx-row.watch-linked {
+  box-shadow: inset 3px 0 0 rgba(128,128,128,.35);
+}
+
+tr.tx-row.watch-linked:hover {
+  background: var(--bg-softer);
+}
 
 pre {
   background: #111;

@@ -745,6 +745,9 @@ import {
       for (const w of sortedWatches()) {
         const tr = document.createElement('tr')
         tr.className = 'clickable card-row watch-row'
+        tr.dataset.watchId = w.id
+        tr.onmouseenter = function() { setWatchHover(w.id) }
+        tr.onmouseleave = function() { setWatchHover(null) }
         tr.onclick = function() { showWatchDetail(w) }
 
         cell(tr, watchRef(w), '#', `watch-ref-cell ${isAuto(w) ? 'ok' : ''}`)
@@ -794,7 +797,10 @@ import {
       for (const e of events) {
         const tr = document.createElement('tr')
         const status = transactionStatus(e)
-        tr.className = `clickable card-row tx-row ${status.tone || ''}`
+        tr.className = `clickable card-row tx-row ${status.tone || ''} ${e.decision?.auto ? 'auto' : ''}`
+        tr.dataset.watchId = e.watchId || ''
+        tr.onmouseenter = function() { setWatchHover(e.watchId) }
+        tr.onmouseleave = function() { setWatchHover(null) }
         tr.onclick = function() { showEventDetail(e) }
 
         cell(tr, chainGlyph(e), '', `tx-chain ${status.tone || ''}`, chainTitle(e))
@@ -821,6 +827,12 @@ import {
       if (watches.length > 1) return true
       const refs = new Set(events.map(function(e) { return e.watchRef }).filter(Boolean))
       return refs.size > 1
+    }
+
+    function setWatchHover(watchId) {
+      document.querySelectorAll('.watch-linked').forEach(function(row) { row.classList.remove('watch-linked') })
+      if (!watchId) return
+      document.querySelectorAll(`[data-watch-id="${watchId}"]`).forEach(function(row) { row.classList.add('watch-linked') })
     }
 
     // ---- watch modal -------------------------------------------------------
@@ -1365,7 +1377,7 @@ import {
     }
 
     function transactionStatus(e) {
-      if (e.decision?.decision === 'approved') return { text: 'Approved', tone: 'ok' }
+      if (e.decision?.decision === 'approved') return { text: e.decision.auto ? 'Approved (auto)' : 'Approved', tone: 'ok' }
       if (e.decision?.decision === 'rejected') return { text: 'Rejected', tone: 'bad' }
       if (e.status === 'fetch error') return { text: 'Fetch failed', tone: 'bad' }
       if (e.check === 'fail') return { text: 'Check failed', tone: 'bad' }
