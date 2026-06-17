@@ -17,10 +17,9 @@
       <p class="subtitle">Watch trader intent keys. Check the promise matches the action. Sign only when the package is safe.</p>
     </div>
     <div class="header-controls">
-      <label class="pro-toggle" title="Show advanced controls: edit, clone, keys, manual entry and debug">
+      <label class="pro-toggle" title="Show advanced controls: edit, clone, manual entry and debug">
         <input type="checkbox" id="proToggle"> 🧰 Pro mode
       </label>
-      <button id="keysBtn" class="pro-only" title="Manage action keys">🔑 Keys</button>
     </div>
   </header>
 
@@ -34,6 +33,7 @@
       <div class="watch-actions">
         <button id="scanQrBtn" class="primary">📷 Scan QR</button>
         <button id="toolsBtn" class="icon-btn pro-only" title="Add watch manually" aria-label="Add watch manually">🛠️</button>
+        <button id="keysBtn" title="Manage action keys">🔑 Keys</button>
         <button id="stopQrBtn" class="quiet" style="display:none">Stop camera</button>
       </div>
     </div>
@@ -67,10 +67,10 @@
 
         <label>WebSocket URL</label>
         <input id="wsUrl" value="wss://hapi5.katomia.com/ws">
-
-        <label>Network</label>
-        <input id="network" value="mainnet">
       </div>
+
+      <label>Network</label>
+      <input id="network" value="mainnet">
 
       <label>Game ID <span class="muted">(blank = watch all games)</span></label>
       <input id="scopeGameId" value="m-order">
@@ -80,7 +80,12 @@
 
       <label>Auto-approval key <span class="muted">(leave on “Manual approval” to be asked each time)</span></label>
       <select id="signPubkey"></select>
-      <p class="debug-note">With a key set, KEA auto-signs anything that passes this watch (an <strong>Action</strong>). Leave it on manual to review and approve each transaction yourself. Manage keys in Pro mode → 🔑 Keys.</p>
+      <p class="debug-note">With a key set, KEA auto-signs anything that passes this watch (an <strong>Action</strong>). Leave it on manual to review and approve each transaction yourself. Manage keys with 🔑 Keys.</p>
+
+      <details id="watchDebug" class="pro-only" style="display:none">
+        <summary>Debug</summary>
+        <pre id="watchDebugPre"></pre>
+      </details>
 
       <div class="modal-actions">
         <button id="deleteWatchBtn" class="danger" style="display:none">Delete watch</button>
@@ -89,15 +94,19 @@
     </div>
   </dialog>
 
-  <dialog id="keysModal">
+  <dialog id="keysModal" data-net="mainnet">
     <div class="modal-head">
       <div class="modal-title">🔑 Action keys</div>
       <button id="keysModalCloseBtn" class="icon-btn" title="Close" aria-label="Close">✕</button>
     </div>
     <div class="modal-body">
-      <p class="debug-note">DEMO ONLY — private keys are stored in this browser's localStorage. In production these move to secure device storage. An action key is what KEA uses to <strong>sign</strong> a transaction after you approve it.</p>
+      <div class="net-toggle" id="keysNetToggle">
+        <button type="button" data-net="testnet">Testnet</button>
+        <button type="button" data-net="mainnet">Mainnet</button>
+      </div>
+      <p class="debug-note">DEMO ONLY — private keys live in this browser's localStorage; in production they move to secure device storage. Keys are scoped per network — you're managing <strong id="keysNetName">mainnet</strong> keys. We don't reuse keys across networks.</p>
       <div id="keysList"></div>
-      <div class="modal-actions" style="justify-content:flex-start">
+      <div class="modal-actions keys-create">
         <button id="genKeyBtn" class="primary">➕ Generate new key</button>
         <button id="importKeyBtn">📥 Import seed</button>
       </div>

@@ -20,6 +20,8 @@ import {
       generateKey,
       importKey,
       deleteKey,
+      renameKey,
+      markKeyUsed,
       ensureDummyKey,
       signApprovalPackage,
       buildSignedPayload,
@@ -34,6 +36,7 @@ import {
     const WATCHES_KEY = 'keaWatches.v1'
     const DECISIONS_KEY = 'keaDecisions.v1'   // approve/reject decisions, keyed by event key
     const PRO_KEY = 'keaPro.v1'
+    const KEYS_NET_KEY = 'keaKeysNet.v1'    // which network the Keys modal is managing
 
     const events = []
     const sockets = {}
@@ -41,6 +44,7 @@ import {
     let watches = []
     let decisions = {}
     let isPro = false
+    let keysNet = 'mainnet'   // network scope shown in the Keys modal
     let qrStream = null
     let qrScanning = false
     let editingWatchId = null
@@ -467,7 +471,7 @@ import {
       // Auto-approval: if this watch is an Action (has a usable auto-approval
       // key) and the check passed, sign automatically — no prompt. If the key
       // is missing/deleted we fall through to the manual ready bar instead.
-      const autoKey = isAuto(w) ? getKey(w.signPubkey) : null
+      const autoKey = isAuto(w) ? getKey(w.signPubkey, w.network) : null
       if (result.ok && autoKey && !e.decision) {
         approveEvent(e, { auto: true }).catch(function(err) {
           setStatus(`Auto-approve failed: ${err.message}`, 'bad')
@@ -494,9 +498,9 @@ import {
       //   - auto run        -> the watch's own auto-approval key
       //   - manual approve  -> the key the user chose in the ready bar
       let key = null
-      if (opts.pubkeyHex) key = getKey(opts.pubkeyHex)
-      else if (opts.auto && w.signPubkey) key = getKey(w.signPubkey)
-      if (!key) throw new Error('Choose an action key to sign with (Pro mode → 🔑 Keys to add one).')
+      if (opts.pubkeyHex) key = getKey(opts.pubkeyHex, w.network)
+      else if (opts.auto && w.signPubkey) key = getKey(w.signPubkey, w.network)
+      if (!key) throw new Error('Choose an action key to sign with (🔑 Keys to add one).')
 
       // Manual approvals confirm. When the user also ticked "always approve",
       // the confirmation doubles as the warning about the standing rule.
@@ -517,6 +521,7 @@ import {
       setStatus(`Signing ${shortHash(e.pch)}…`)
 
       const sign = await signApprovalPackage(e.kea, key)
+      markKeyUsed(key.id)
       const payload = buildSignedPayload(e, sign)
       const submit = await submitSignedResult(w.baseUrl, payload)
 
@@ -748,7 +753,7 @@ import {
         tr.dataset.watchId = w.id
         tr.onmouseenter = function() { setWatchHover(w.id) }
         tr.onmouseleave = function() { setWatchHover(null) }
-        tr.onclick = function() { showWatchDetail(w) }
+        tr.onclick = function() { openWatchModal(w) }
 
         cell(tr, watchRef(w), '#', `watch-ref-cell ${isAuto(w) ? 'ok' : ''}`)
         cell(tr, watchTitle(w), 'Watch', 'strong-cell')
@@ -760,10 +765,10 @@ import {
         const controls = document.createElement('td')
         controls.dataset.label = ''
         controls.className = 'controls'
+        // Row click now opens the edit modal (where delete also lives), so the
+        // row keeps only quick actions: pause/play, and clone in Pro mode.
         controls.appendChild(actionButton(w.paused ? '▶️' : '⏸️', function() { toggleWatchPaused(w.id) }, 'icon-action', w.paused ? 'Resume watch' : 'Pause watch'))
-        controls.appendChild(actionButton('🛠️', function() { openWatchModal(w) }, 'icon-action pro-only', 'Edit watch'))
         controls.appendChild(actionButton('📋', function() { openWatchModal(w, { clone: true }) }, 'icon-action pro-only', 'Clone watch'))
-        controls.appendChild(actionButton('✕', function() { removeWatch(w.id) }, 'icon-action danger', 'Delete watch'))
         tr.appendChild(controls)
 
         table.appendChild(tr)
@@ -860,7 +865,29 @@ import {
         fillWatchForm(defaultWatch())
       }
 
+      applyWatchModalMode(w && !clone ? w : null)
       $('watchModal').showModal()
+    }
+
+    // In basic mode the modal's job is just to pick the auto-approval key, so
+    // the subscription-defining fields are shown read-only; Pro mode unlocks
+    // them. The debug expander (existing watch only) is Pro-only via its class.
+    function applyWatchModalMode(existing) {
+      const locked = !isPro
+      for (const id of ['network', 'scopeGameId', 'orderPubkey']) {
+        $(id).readOnly = locked
+        $(id).classList.toggle('readonly', locked)
+      }
+
+      const dbg = $('watchDebug')
+      if (existing) {
+        $('watchDebugPre').textContent = JSON.stringify(stripWatchRuntime(existing), null, 2)
+        dbg.style.display = ''
+        dbg.open = false
+      } else {
+        dbg.style.display = 'none'
+        $('watchDebugPre').textContent = ''
+      }
     }
 
     function closeWatchModal() {
@@ -876,10 +903,12 @@ import {
       $('network').value = w.network || ''
       $('scopeGameId').value = w.gameId || ''
       $('orderPubkey').value = w.orderPubkey || ''
-      refreshSignKeyOptions(w.signPubkey || '')
+      refreshSignKeyOptions(w.signPubkey || '', w.network || '')
     }
 
-    function refreshSignKeyOptions(selected) {
+    // The auto-approval key list is scoped to the watch's network, so you can
+    // only pick a key that belongs to the network this watch runs on.
+    function refreshSignKeyOptions(selected, network) {
       const sel = $('signPubkey')
       sel.innerHTML = ''
 
@@ -888,7 +917,7 @@ import {
       none.textContent = 'Manual approval — ask me each time'
       sel.appendChild(none)
 
-      for (const k of loadKeys()) {
+      for (const k of loadKeys(network || $('network').value)) {
         const opt = document.createElement('option')
         opt.value = k.pubkeyHex
         opt.textContent = `${k.name} · ${shortKey(k.pubkeyHex)}`
@@ -902,30 +931,55 @@ import {
       return normaliseWatch({})
     }
 
-    function showWatchDetail(w) {
-      showJsonDetail(`${watchRef(w)} detail`, stripWatchRuntime(w))
-    }
-
     // ---- keys modal --------------------------------------------------------
 
+    function loadKeysNet() {
+      try { keysNet = localStorage[KEYS_NET_KEY] === 'testnet' ? 'testnet' : 'mainnet' } catch { keysNet = 'mainnet' }
+    }
+
+    function setKeysNet(net) {
+      keysNet = net === 'testnet' ? 'testnet' : 'mainnet'
+      try { localStorage[KEYS_NET_KEY] = keysNet } catch {}
+      applyKeysNet()
+      renderKeys()
+    }
+
+    // Scope + theme the Keys modal to the selected network (mainnet purple,
+    // testnet orange — matching hashscan.io). Edits apply to this network only.
+    function applyKeysNet() {
+      const modal = $('keysModal')
+      modal.dataset.net = keysNet
+      $('keysNetName').textContent = keysNet
+      document.querySelectorAll('#keysNetToggle button').forEach(function(b) {
+        b.classList.toggle('active', b.dataset.net === keysNet)
+      })
+    }
+
     function openKeysModal() {
+      applyKeysNet()
       renderKeys()
       $('keysModal').showModal()
+    }
+
+    // Keep the watch modal's key dropdown in sync after key changes, but only
+    // when that modal is actually open.
+    function refreshOpenWatchKeyOptions() {
+      if ($('watchModal').open) refreshSignKeyOptions($('signPubkey') ? $('signPubkey').value : '')
     }
 
     function renderKeys() {
       const el = $('keysList')
       el.innerHTML = ''
 
-      const keys = loadKeys()
+      const keys = loadKeys(keysNet)
       if (!keys.length) {
-        el.innerHTML = '<div class="empty">No action keys yet. Generate or import one below.</div>'
+        el.innerHTML = `<div class="empty">No ${keysNet} keys yet. Generate or import one below.</div>`
         return
       }
 
       const table = document.createElement('table')
       const head = document.createElement('tr')
-      for (const h of ['Name', 'Public key', 'Added', '']) {
+      for (const h of ['Name', 'Public key', 'Added', 'Last used', '']) {
         const th = document.createElement('th')
         th.textContent = h
         head.appendChild(th)
@@ -934,17 +988,45 @@ import {
 
       for (const k of keys) {
         const tr = document.createElement('tr')
-        cell(tr, k.name, 'Name', 'strong-cell')
-        cell(tr, shortKey(k.pubkeyHex), 'Public key', 'mono', k.pubkeyHex)
-        cell(tr, formatShortTime(k.createdAt), 'Added', 'time-cell')
+
+        // Inline-editable name: click to edit, commit on blur/Enter. No dialog.
+        const nameTd = document.createElement('td')
+        nameTd.dataset.label = 'Name'
+        nameTd.className = 'strong-cell key-name'
+        nameTd.contentEditable = 'true'
+        nameTd.spellcheck = false
+        nameTd.title = 'Click to rename'
+        nameTd.textContent = k.name
+        nameTd.onclick = function(ev) { ev.stopPropagation() }
+        nameTd.onkeydown = function(ev) {
+          if (ev.key === 'Enter') { ev.preventDefault(); nameTd.blur() }
+        }
+        nameTd.onblur = function() {
+          const next = nameTd.textContent.trim()
+          if (next && next !== k.name) {
+            renameKey(k.id, next)
+            k.name = next
+            refreshOpenWatchKeyOptions()
+            setStatus(`Renamed key to ${next}`)
+          } else {
+            nameTd.textContent = k.name
+          }
+        }
+        tr.appendChild(nameTd)
+
+        // Full public key, not abbreviated.
+        cell(tr, k.pubkeyHex, 'Public key', 'mono key-full', k.pubkeyHex)
+        cell(tr, formatDateTime(k.createdAt), 'Added', 'time-cell')
+        cell(tr, k.lastUsedAt ? formatDateTime(k.lastUsedAt) : 'Never', 'Last used', 'time-cell muted')
 
         const controls = document.createElement('td')
         controls.dataset.label = ''
         controls.className = 'controls'
         controls.appendChild(actionButton('✕', function() {
+          if (!confirm(`Delete key “${k.name}”?\n\nThis cannot be undone. Any watch using it will fall back to manual approval.`)) return
           deleteKey(k.id)
           renderKeys()
-          refreshSignKeyOptions($('signPubkey') ? $('signPubkey').value : '')
+          refreshOpenWatchKeyOptions()
           setStatus(`Deleted key ${k.name}`)
         }, 'icon-action danger', 'Delete key'))
         tr.appendChild(controls)
@@ -956,23 +1038,23 @@ import {
     }
 
     async function genKey() {
-      const name = prompt('Name this action key', `Action key ${loadKeys().length + 1}`)
+      const name = prompt(`Name this ${keysNet} action key`, `Action key ${loadKeys(keysNet).length + 1}`)
       if (name === null) return
-      const k = await generateKey(name || undefined)
+      const k = await generateKey(name || undefined, keysNet)
       renderKeys()
-      refreshSignKeyOptions($('signPubkey') ? $('signPubkey').value : '')
-      setStatus(`Generated ${k.name}`)
+      refreshOpenWatchKeyOptions()
+      setStatus(`Generated ${k.name} (${keysNet})`)
     }
 
     async function importKeyFlow() {
       const seed = prompt('Paste a 32-byte ed25519 seed (64 hex chars)')
       if (!seed) return
-      const name = prompt('Name this imported key', 'Imported key')
+      const name = prompt(`Name this imported ${keysNet} key`, 'Imported key')
       if (name === null) return
-      const k = await importKey(name || undefined, seed)
+      const k = await importKey(name || undefined, seed, keysNet)
       renderKeys()
-      refreshSignKeyOptions($('signPubkey') ? $('signPubkey').value : '')
-      setStatus(`Imported ${k.name}`)
+      refreshOpenWatchKeyOptions()
+      setStatus(`Imported ${k.name} (${keysNet})`)
     }
 
     // ---- event detail ------------------------------------------------------
@@ -1044,7 +1126,7 @@ import {
         bar.appendChild(textNode('🔔 Ready to approve', 'decision-headline'))
         bar.appendChild(textNode('KEA checked the package and the promise matches the action. Choose a key to sign with.', 'decision-sub'))
 
-        const keys = loadKeys()
+        const keys = loadKeys(e.network)
 
         // Explicit key selection — never auto-pick. If no keys exist the user
         // is pointed at the Keys manager and approve is disabled.
@@ -1059,7 +1141,7 @@ import {
         if (!keys.length) {
           const opt = document.createElement('option')
           opt.value = ''
-          opt.textContent = 'No action key — add one in Pro mode → 🔑 Keys'
+          opt.textContent = `No ${e.network} key — add one with 🔑 Keys`
           keySel.appendChild(opt)
           keySel.disabled = true
         } else {
@@ -1149,15 +1231,6 @@ import {
       return wrap
     }
 
-    function showJsonDetail(title, data) {
-      openEvent = null
-      $('detailModalTitle').textContent = title
-      const body = $('detailModalBody')
-      body.innerHTML = ''
-      body.appendChild(jsonBlock(data))
-      $('detailModal').showModal()
-    }
-
     function renderChecks(e) {
       const box = document.createElement('div')
       box.className = 'check-list'
@@ -1224,7 +1297,7 @@ import {
     function watchInfoRows(e) {
       const w = getWatch(e.watchId)
       const auto = isAuto(w)
-      const keyName = auto ? (getKey(w.signPubkey)?.name || 'auto-approval key') : ''
+      const keyName = auto ? (getKey(w.signPubkey, w.network)?.name || 'auto-approval key') : ''
 
       return [
         ['Watch at time', e.watchRef || (w ? watchRef(w) : '-')],
@@ -1331,6 +1404,13 @@ import {
       console.debug('[KEA]', msg, callerLine(3))
     }
 
+
+    // Date + time, for the keys list (createdAt / lastUsedAt diagnostics).
+    function formatDateTime(ms) {
+      if (!ms) return '-'
+      const d = new Date(ms)
+      return `${d.toLocaleDateString([], { day: '2-digit', month: 'short', year: '2-digit' })} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+    }
 
     // A watch keeps a stable W-number. Auto-approval is shown as a suffix:
     // W12 = manual watch, W12A = same watch with auto-approval enabled.
@@ -1496,11 +1576,23 @@ import {
     $('genKeyBtn').onclick = function() { genKey().catch(function(e) { setStatus(`ERROR ${e.message}`, 'bad') }) }
     $('importKeyBtn').onclick = function() { importKeyFlow().catch(function(e) { setStatus(`ERROR ${e.message}`, 'bad') }) }
 
+    // Keys modal network toggle (testnet / mainnet scope).
+    $('keysNetToggle').onclick = function(ev) {
+      const btn = ev.target.closest('button[data-net]')
+      if (btn) setKeysNet(btn.dataset.net)
+    }
+
+    // When Pro mode unlocks the network field, re-scope the auto-approval key
+    // list to keys for the newly chosen network.
+    $('network').oninput = function() { refreshSignKeyOptions($('signPubkey').value) }
+
     loadPro()
     applyProMode(isPro)
+    loadKeysNet()
+    applyKeysNet()
     loadDecisions()
     loadWatches()
-    ensureDummyKey().catch(function(e) { console.warn('key seed failed', e.message) })
+    ensureDummyKey('mainnet').catch(function(e) { console.warn('key seed failed', e.message) })
     renderWatches()
     renderEvents()
     addWatchFromUrlParams()

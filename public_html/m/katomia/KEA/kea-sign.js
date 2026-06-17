@@ -31,10 +31,13 @@ const KEYS_KEY = 'keaActionKeys.v1'
 // KEY STORE
 // -------------------------------------------------------------------------
 
-export function loadKeys() {
+export function loadKeys(network) {
   let keys
   try { keys = JSON.parse(localStorage[KEYS_KEY] || '[]') } catch { keys = [] }
-  return Array.isArray(keys) ? keys.map(normaliseKey).filter(Boolean) : []
+  const all = Array.isArray(keys) ? keys.map(normaliseKey).filter(Boolean) : []
+  if (!network) return all
+  const want = String(network).trim().toLowerCase()
+  return all.filter(function(k) { return k.network === want })
 }
 
 function saveKeys(keys) {
@@ -48,7 +51,12 @@ function normaliseKey(k) {
     name: String(k.name || '').trim(),
     pubkeyHex: String(k.pubkeyHex).toLowerCase(),
     privHex: String(k.privHex).toLowerCase(),
-    createdAt: k.createdAt || Date.now()
+    // Keys are scoped to a network. As a general principle we don't encourage
+    // reusing the same key across testnet and mainnet, so the store keeps them
+    // separate. Legacy keys (no network) migrate to mainnet, the app default.
+    network: String(k.network || 'mainnet').trim().toLowerCase(),
+    createdAt: k.createdAt || Date.now(),
+    lastUsedAt: k.lastUsedAt || null
   }
 }
 
@@ -56,23 +64,44 @@ function makeKeyId() {
   return `k_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`
 }
 
-export function getKey(pubkeyHex) {
+export function getKey(pubkeyHex, network) {
   const want = String(pubkeyHex || '').toLowerCase()
-  return loadKeys().find(function(k) { return k.pubkeyHex === want }) || null
+  return loadKeys(network).find(function(k) { return k.pubkeyHex === want }) || null
 }
 
 export function getKeyById(id) {
   return loadKeys().find(function(k) { return k.id === id }) || null
 }
 
-// Generate a fresh ed25519 action key and persist it.
-export async function generateKey(name) {
+// Rename a key in place (inline edit from the keys list). No-op if missing.
+export function renameKey(id, name) {
+  const keys = loadKeys()
+  const k = keys.find(function(x) { return x.id === id })
+  if (!k) return null
+  k.name = String(name || '').trim()
+  saveKeys(keys)
+  return k
+}
+
+// Record that a key was used to sign (diagnostics: "last used" column).
+export function markKeyUsed(id) {
+  const keys = loadKeys()
+  const k = keys.find(function(x) { return x.id === id })
+  if (!k) return null
+  k.lastUsedAt = Date.now()
+  saveKeys(keys)
+  return k
+}
+
+// Generate a fresh ed25519 action key for a network and persist it.
+export async function generateKey(name, network) {
   const seed = ed.utils.randomPrivateKey()              // 32-byte seed
   const pub = await ed.getPublicKeyAsync(seed)
   const key = normaliseKey({
     name: name || `Action key ${shortPub(bytesToHex(pub))}`,
     pubkeyHex: bytesToHex(pub),
-    privHex: bytesToHex(seed)
+    privHex: bytesToHex(seed),
+    network: network || 'mainnet'
   })
   const keys = loadKeys()
   keys.push(key)
@@ -80,8 +109,9 @@ export async function generateKey(name) {
   return key
 }
 
-// Import a key from a 32-byte (64 hex char) ed25519 seed.
-export async function importKey(name, seedHex) {
+// Import a key from a 32-byte (64 hex char) ed25519 seed into a network.
+export async function importKey(name, seedHex, network) {
+  const net = String(network || 'mainnet').trim().toLowerCase()
   const clean = String(seedHex || '').trim().toLowerCase().replace(/^0x/, '')
   if (!/^[0-9a-f]{64}$/.test(clean))
     throw new Error('Action key must be a 32-byte ed25519 seed (64 hex chars)')
@@ -90,12 +120,13 @@ export async function importKey(name, seedHex) {
   const pub = await ed.getPublicKeyAsync(seed)
   const pubHex = bytesToHex(pub)
 
-  if (getKey(pubHex)) throw new Error('That key is already in the store')
+  if (getKey(pubHex, net)) throw new Error(`That key is already in the ${net} store`)
 
   const key = normaliseKey({
     name: name || `Imported ${shortPub(pubHex)}`,
     pubkeyHex: pubHex,
-    privHex: clean
+    privHex: clean,
+    network: net
   })
   const keys = loadKeys()
   keys.push(key)
@@ -107,10 +138,12 @@ export function deleteKey(id) {
   saveKeys(loadKeys().filter(function(k) { return k.id !== id }))
 }
 
-// First-run convenience so the demo can sign out of the box.
-export async function ensureDummyKey() {
-  if (loadKeys().length) return loadKeys()[0]
-  return generateKey('Demo action key')
+// First-run convenience so the demo can sign out of the box on the given
+// network (defaults to mainnet, matching the default watch network).
+export async function ensureDummyKey(network) {
+  const net = String(network || 'mainnet').trim().toLowerCase()
+  if (loadKeys(net).length) return loadKeys(net)[0]
+  return generateKey('Demo action key', net)
 }
 
 function shortPub(hex) {
