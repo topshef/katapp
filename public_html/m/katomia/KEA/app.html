@@ -30,7 +30,7 @@
 
   <section>
     <div class="section-head">
-      <h2>Watches</h2>
+      <h2>Watches &amp; Actions</h2>
       <div class="watch-actions">
         <button id="scanQrBtn" class="primary">📷 Scan QR</button>
         <button id="toolsBtn" class="icon-btn pro-only" title="Add watch manually" aria-label="Add watch manually">🛠️</button>
@@ -78,18 +78,9 @@
       <label>Trader intent public key to watch</label>
       <input id="orderPubkey" value="" class="mono">
 
-      <label>Action key <span class="muted">(used to sign on approval)</span></label>
+      <label>Auto-approval key <span class="muted">(leave on “Manual approval” to be asked each time)</span></label>
       <select id="signPubkey"></select>
-      <p class="debug-note">No key? Turn on Pro mode and open 🔑 Keys to generate or import one.</p>
-
-      <div class="pro-only">
-        <label>Mode</label>
-        <select id="watchMode">
-          <option value="doorbell">Watch only</option>
-          <option value="fetch" selected>Check only</option>
-          <option value="sign">Check + sign</option>
-        </select>
-      </div>
+      <p class="debug-note">With a key set, KEA auto-signs anything that passes this watch (an <strong>Action</strong>). Leave it on manual to review and approve each transaction yourself. Manage keys in Pro mode → 🔑 Keys.</p>
 
       <div class="modal-actions">
         <button id="deleteWatchBtn" class="danger" style="display:none">Delete watch</button>

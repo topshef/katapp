@@ -1,5 +1,4 @@
-
-    import {
+import {
       $,
       makeId,
       cleanUrl,
@@ -70,7 +69,11 @@
         gameId: String(w.gameId || '').trim(),
         orderPubkey: String(w.orderPubkey || '').trim().toLowerCase(),
         signPubkey: String(w.signPubkey || '').trim().toLowerCase(),
-        mode: w.mode || 'fetch',
+        // Mode is no longer a user choice — it's inferred from whether an
+        // auto-approval key is set. Kept on the record for backwards compat.
+        //   key set  -> 'sign'  (Action: watch + check + auto-sign)
+        //   no key   -> 'fetch' (Watch: watch + check + manual approval)
+        mode: String(w.signPubkey || '').trim() ? 'sign' : 'fetch',
         paused: !!w.paused,
         status: w.paused ? 'paused' : (w.status || 'idle'),
         note: w.note || '',
@@ -133,8 +136,7 @@
         network: $('network').value,
         gameId: $('scopeGameId').value,
         orderPubkey: $('orderPubkey').value,
-        signPubkey: $('signPubkey').value,
-        mode: $('watchMode').value
+        signPubkey: $('signPubkey').value
       })
     }
 
@@ -399,13 +401,9 @@
       const e = addEvent(w, msg)
       setStatus(`Doorbell ${shortHash(e.pch)}`)
 
-      if (w.mode === 'doorbell') {
-        e.summary = 'Watch only'
-        e.check = 'not checked'
-        renderEvents()
-        return
-      }
-
+      // A doorbell with no check is pointless ("like the door ringing and not
+      // answering it"), so KEA always fetches and checks. Whether it then
+      // auto-signs depends on the watch having an auto-approval key.
       fetchTxDetail(e).catch(function(err) {
         e.status = 'fetch error'
         e.check = 'fail'
@@ -465,6 +463,16 @@
       renderEvents()
       refreshOpenEventDetail(e)
       setStatus(result.ok ? `Checked ${shortHash(e.pch)} OK — ready to approve` : `Check failed: ${result.msg}`, result.ok ? 'ok' : 'bad')
+
+      // Auto-approval: if this watch is an Action (has a usable auto-approval
+      // key) and the check passed, sign automatically — no prompt. If the key
+      // is missing/deleted we fall through to the manual ready bar instead.
+      const autoKey = isAuto(w) ? getKey(w.signPubkey) : null
+      if (result.ok && autoKey && !e.decision) {
+        approveEvent(e, { auto: true }).catch(function(err) {
+          setStatus(`Auto-approve failed: ${err.message}`, 'bad')
+        })
+      }
     }
 
     // -------------------------------------------------------------------------
@@ -475,31 +483,36 @@
       return e.check === 'pass' && !e.decision
     }
 
-    async function approveEvent(e) {
+    async function approveEvent(e, opts = {}) {
       if (e.check !== 'pass') throw new Error('Cannot approve — checks have not passed')
       if (!e.kea) throw new Error('No approval package to sign')
 
       const w = getWatch(e.watchId)
       if (!w) throw new Error('Watch no longer exists')
 
+      // Key resolution is always explicit. Never auto-pick a random key:
+      //   - auto run        -> the watch's own auto-approval key
+      //   - manual approve  -> the key the user chose in the ready bar
+      let key = null
+      if (opts.pubkeyHex) key = getKey(opts.pubkeyHex)
+      else if (opts.auto && w.signPubkey) key = getKey(w.signPubkey)
+      if (!key) throw new Error('Choose an action key to sign with (Pro mode → 🔑 Keys to add one).')
 
-      const ok = confirm(
-        'Approve this transaction?\n\n' +
-        'KEA will send your signature to K-pool.\n\n' +
-        'This cannot be undone. The transaction may still fail if other signatures or balances are missing.'
-        // + '\n\nAction or inaction can affect reputational metrics, if you have opted into these.'
-      )
-
-      if (!ok) return
-
-      // Prefer the watch's chosen action key; fall back to the only/first key
-      // so the demo can sign out of the box.
-      let key = w.signPubkey ? getKey(w.signPubkey) : null
-      if (!key) {
-        const all = loadKeys()
-        key = all[0] || null
+      // Manual approvals confirm. When the user also ticked "always approve",
+      // the confirmation doubles as the warning about the standing rule.
+      if (!opts.auto) {
+        let msg =
+          'Approve this transaction?\n\n' +
+          'KEA will sign it with “' + key.name + '” and send the signature to K-pool.\n\n' +
+          'This cannot be undone. The transaction may still fail if other signatures or balances are missing.'
+        if (opts.makeAuto && !w.signPubkey) {
+          msg += '\n\n— ALWAYS APPROVE —\n' +
+            'You also chose to automatically approve future transactions that pass this watch. ' +
+            `It becomes an Action (A${w.ref}) that auto-signs with this key. ` +
+            'Undo any time by editing the watch and setting the auto-approval key back to “Manual approval”.'
+        }
+        if (!confirm(msg)) return
       }
-      if (!key) throw new Error('No action key available. Turn on Pro mode and open 🔑 Keys to add one.')
 
       setStatus(`Signing ${shortHash(e.pch)}…`)
 
@@ -507,15 +520,32 @@
       const payload = buildSignedPayload(e, sign)
       const submit = await submitSignedResult(w.baseUrl, payload)
 
-      const dec = { decision: 'approved', at: Date.now(), sign, payload, submit }
+      const dec = { decision: 'approved', at: Date.now(), auto: !!opts.auto, sign, payload, submit }
       setDecision(e.key, dec)
       e.decision = dec
+
+      // "Always approve" upgrade: store the chosen key on the watch so it
+      // becomes an auto-approving Action (W -> A) from here on.
+      let upgraded = false
+      if (opts.makeAuto && !w.signPubkey) {
+        w.signPubkey = key.pubkeyHex
+        w.mode = 'sign'
+        saveWatches()
+        renderWatches()
+        upgraded = true
+      }
 
       renderEvents()
       refreshOpenEventDetail(e)
 
-      if (submit.ok) setStatus(`Approved & sent ${shortHash(e.pch)} (signed with ${key.name})`, 'ok')
-      else setStatus(`Approved & signed ${shortHash(e.pch)}; send back to KPool: ${submit.error || submit.status || 'TBC'}`, 'warn')
+      const how = opts.auto ? 'Auto-approved' : 'Approved'
+      if (upgraded) {
+        setStatus(`${how} & sent ${shortHash(e.pch)}. Watch upgraded to Action A${w.ref} — auto-signs with ${key.name}.`, 'ok')
+      } else if (submit.ok) {
+        setStatus(`${how} & sent ${shortHash(e.pch)} (signed with ${key.name})`, 'ok')
+      } else {
+        setStatus(`${how} & signed ${shortHash(e.pch)}; send back to KPool: ${submit.error || submit.status || 'TBC'}`, 'warn')
+      }
     }
 
     function rejectEvent(e) {
@@ -673,13 +703,12 @@
       const gameId = p.get('gameId') || p.get('game') || ''
       const name = p.get('name') || p.get('displayName') || p.get('trader') || ''
       const orderPubkey = String(p.get('orderPubkey') || p.get('intentPubkey') || p.get('watchPubkey') || '').trim().toLowerCase()
-      const mode = p.get('mode') || ($('watchMode') ? $('watchMode').value : '') || 'fetch'
 
       if (!domain) throw new Error('QR missing domain')
       if (!network) throw new Error('QR missing network')
       if (!orderPubkey) throw new Error('QR missing trader intent public key')
 
-      return normaliseWatch({ baseUrl, wsUrl, network, gameId, orderPubkey, mode, name })
+      return normaliseWatch({ baseUrl, wsUrl, network, gameId, orderPubkey, name })
     }
 
     function parseLooseUrl(raw) {
@@ -705,7 +734,7 @@
       const table = document.createElement('table')
       const head = document.createElement('tr')
 
-      for (const h of ['#', 'Watch', 'Key', 'Mode', 'State', 'Last', '']) {
+      for (const h of ['#', 'Watch', 'Key', 'Approval', 'State', 'Last', '']) {
         const th = document.createElement('th')
         th.textContent = h
         head.appendChild(th)
@@ -718,10 +747,10 @@
         tr.className = 'clickable card-row watch-row'
         tr.onclick = function() { showWatchDetail(w) }
 
-        cell(tr, watchRef(w), '#', 'watch-ref-cell')
+        cell(tr, watchRef(w), '#', `watch-ref-cell ${isAuto(w) ? 'ok' : ''}`)
         cell(tr, watchTitle(w), 'Watch', 'strong-cell')
         cell(tr, shortKey(w.orderPubkey), 'Key', 'mono key-cell')
-        pillCell(tr, modeLabel(w.mode), 'Mode')
+        pillCell(tr, approvalLabel(w), 'Approval')
         cell(tr, watchStateText(w), 'State', statusClass(w))
         cell(tr, w.lastSeenAt ? formatShortTime(w.lastSeenAt) : '-', 'Last', 'time-cell')
 
@@ -770,7 +799,10 @@
 
         cell(tr, chainGlyph(e), '', `tx-chain ${status.tone || ''}`, chainTitle(e))
         cell(tr, strikeDisplay(e), 'Strike', 'time-cell')
-        if (showWatch) cell(tr, e.watchRef || '-', 'Watch', 'watch-ref-cell')
+        if (showWatch) {
+          const lw = getWatch(e.watchId)
+          cell(tr, lw ? watchRef(lw) : (e.watchRef || '-'), 'Watch', 'watch-ref-cell')
+        }
         cell(tr, txLabel(e), 'Tx', 'mono tx-cell', txTitle(e))
         cell(tr, status.text, 'Status', status.tone || '', e.summary || '')
         cell(tr, transactionNotes(e), 'Notes', 'notes-cell', e.summary || '')
@@ -832,7 +864,6 @@
       $('network').value = w.network || ''
       $('scopeGameId').value = w.gameId || ''
       $('orderPubkey').value = w.orderPubkey || ''
-      $('watchMode').value = w.mode || 'fetch'
       refreshSignKeyOptions(w.signPubkey || '')
     }
 
@@ -842,7 +873,7 @@
 
       const none = document.createElement('option')
       none.value = ''
-      none.textContent = loadKeys().length ? '(use any available key)' : '(no keys yet)'
+      none.textContent = 'Manual approval — ask me each time'
       sel.appendChild(none)
 
       for (const k of loadKeys()) {
@@ -948,18 +979,11 @@
 
       body.appendChild(renderDecisionBar(e))
 
-      body.appendChild(sectionTitle('Approval package'))
-      body.appendChild(kvGrid([
-        ['Watch', `${e.watchRef || '-'} ${e.watchLabel || ''}`.trim()],
-        ['Network', e.network || '-'],
-        ['Strike', strikeDisplay(e)],
-        ['Tx ID', e.txid || '-'],
-        ['PCH', e.pch || '-'],
-        ['Internal state', e.status || '-'],
-        ['Check', e.check || '-'],
-        ['Notes', e.summary || '-'],
-        ['Mode', modeLabel(e.mode)]
-      ]))
+      body.appendChild(sectionTitle('Watch / trigger'))
+      body.appendChild(infoCard(watchInfoRows(e)))
+
+      body.appendChild(sectionTitle('Transaction'))
+      body.appendChild(infoCard(txInfoRows(e)))
 
       body.appendChild(sectionTitle('Checks'))
       body.appendChild(renderChecks(e))
@@ -968,6 +992,7 @@
 
       const dbg = document.createElement('div')
       dbg.className = 'pro-only'
+      dbg.appendChild(sectionTitle('Details'))
       dbg.appendChild(jsonDetails('Debug summary', e.debug || null))
       dbg.appendChild(jsonDetails('Fetch information', e.fetch || null))
       dbg.appendChild(jsonDetails('KEA detail', e.kea || null))
@@ -986,9 +1011,10 @@
       if (e.decision?.decision === 'approved') {
         bar.classList.add('ok-bg')
         const s = e.decision.submit || {}
+        const how = e.decision.auto ? 'Auto-approved' : 'Approved'
         const line = s.ok
-          ? '✅ Approved and sent to KPool'
-          : `✅ Approved and signed — send back ${s.error ? `failed (${s.error})` : `returned ${s.status || 'TBC'}`}`
+          ? `✅ ${how} and sent to KPool`
+          : `✅ ${how} and signed — send back ${s.error ? `failed (${s.error})` : `returned ${s.status || 'TBC'}`}`
         bar.appendChild(textNode(line, 'decision-headline'))
         bar.appendChild(textNode(`Signed with ${e.decision.sign?.keyName || 'action key'} · ${shortKey(e.decision.sign?.pubkeyHex)}`, 'decision-sub'))
         return bar
@@ -1004,13 +1030,54 @@
       if (eventIsReady(e)) {
         bar.classList.add('ready-bg')
         bar.appendChild(textNode('🔔 Ready to approve', 'decision-headline'))
-        bar.appendChild(textNode('KEA checked the package and the promise matches the action.', 'decision-sub'))
+        bar.appendChild(textNode('KEA checked the package and the promise matches the action. Choose a key to sign with.', 'decision-sub'))
+
+        const keys = loadKeys()
+
+        // Explicit key selection — never auto-pick. If no keys exist the user
+        // is pointed at the Keys manager and approve is disabled.
+        const keyWrap = document.createElement('div')
+        keyWrap.className = 'approve-key-row'
+
+        const keyLabel = document.createElement('label')
+        keyLabel.textContent = 'Sign with'
+        keyWrap.appendChild(keyLabel)
+
+        const keySel = document.createElement('select')
+        if (!keys.length) {
+          const opt = document.createElement('option')
+          opt.value = ''
+          opt.textContent = 'No action key — add one in Pro mode → 🔑 Keys'
+          keySel.appendChild(opt)
+          keySel.disabled = true
+        } else {
+          for (const k of keys) {
+            const opt = document.createElement('option')
+            opt.value = k.pubkeyHex
+            opt.textContent = `${k.name} · ${shortKey(k.pubkeyHex)}`
+            keySel.appendChild(opt)
+          }
+        }
+        keyWrap.appendChild(keySel)
+        bar.appendChild(keyWrap)
+
+        // "Always approve" upgrade path — converts this watch into an Action.
+        const alwaysWrap = document.createElement('label')
+        alwaysWrap.className = 'always-row'
+        const always = document.createElement('input')
+        always.type = 'checkbox'
+        alwaysWrap.appendChild(always)
+        alwaysWrap.appendChild(document.createTextNode('Automatically approve future transactions that pass this watch.'))
+        bar.appendChild(alwaysWrap)
 
         const actions = document.createElement('div')
         actions.className = 'approve-actions'
-        actions.appendChild(actionButton('✅ Approve', function() {
-          approveEvent(e).catch(function(err) { setStatus(`ERROR ${err.message}`, 'bad') })
-        }, 'approve primary'))
+        const approveBtn = actionButton('✅ Approve once', function() {
+          approveEvent(e, { pubkeyHex: keySel.value, makeAuto: always.checked })
+            .catch(function(err) { setStatus(`ERROR ${err.message}`, 'bad') })
+        }, 'approve primary')
+        if (!keys.length) approveBtn.disabled = true
+        actions.appendChild(approveBtn)
         actions.appendChild(actionButton('🚫 Reject', function() { rejectEvent(e) }, 'reject'))
         actions.appendChild(actionButton('Not now', function() { openEvent = null; $('detailModal').close() }, 'quiet'))
         bar.appendChild(actions)
@@ -1032,17 +1099,17 @@
 
       if (e.decision.decision === 'approved') {
         const s = e.decision.submit || {}
-        wrap.appendChild(kvGrid([
-          ['Decision', 'Approved'],
+        wrap.appendChild(infoCard([
+          ['Decision', e.decision.auto ? 'Approved (auto)' : 'Approved'],
           ['Signed at', e.decision.sign?.signedAt || '-'],
-          ['Action key', e.decision.sign?.keyName || '-'],
-          ['Key pubkey', shortKey(e.decision.sign?.pubkeyHex)],
+          ['Approval key', e.decision.sign?.keyName || '-'],
+          ['Key pubkey', shortKey(e.decision.sign?.pubkeyHex), true],
           ['Signed over', e.decision.sign?.signedOver || '-'],
-          ['Sent to', s.url || '-'],
+          ['Sent to', s.url || '-', true],
           ['Send status', s.sent ? `${s.ok ? 'OK' : 'error'} ${s.status || ''}`.trim() : (s.error || 'not sent')]
         ]))
       } else {
-        wrap.appendChild(kvGrid([
+        wrap.appendChild(infoCard([
           ['Decision', 'Rejected'],
           ['Reason', e.decision.payload?.reason || '-'],
           ['Sent', 'No — reject endpoint TBC'],
@@ -1096,35 +1163,79 @@
       return h
     }
 
+    // One clean card per section with simple label/value rows — replaces the
+    // old per-field bordered pills, which got noisy as sections multiplied.
+    function infoCard(rows) {
+      const card = document.createElement('div')
+      card.className = 'info-card'
+
+      for (const row of rows) {
+        if (!row) continue
+        const [label, value, mono] = row
+        const r = document.createElement('div')
+        r.className = 'info-row'
+
+        const l = document.createElement('div')
+        l.className = 'info-label'
+        l.textContent = label
+
+        const v = document.createElement('div')
+        v.className = 'info-value' + (mono ? ' mono' : '')
+        v.textContent = (value == null || value === '') ? '-' : String(value)
+
+        r.appendChild(l)
+        r.appendChild(v)
+        card.appendChild(r)
+      }
+
+      return card
+    }
+
+    // Block A — why this transaction appeared (the watch/trigger).
+    function watchInfoRows(e) {
+      const w = getWatch(e.watchId)
+      const auto = isAuto(w)
+      const keyName = auto ? (getKey(w.signPubkey)?.name || 'auto-approval key') : ''
+
+      return [
+        ['Watch / Action', w ? watchRef(w) : (e.watchRef || '-')],
+        ['Name', w ? watchTitle(w) : (e.watchLabel || '-')],
+        ['Network', (w && w.network) || e.network || '-'],
+        ['Game ID', (w && w.gameId) || 'all games'],
+        ['Trader intent key', shortKey((w && w.orderPubkey) || ''), true],
+        ['Approval mode', auto ? 'Auto-approve' : 'Manual approval'],
+        auto ? ['Auto-approval key', `${keyName} · ${shortKey(w.signPubkey)}`, true] : null
+      ]
+    }
+
+    // Block B — the actual incoming transaction.
+    function txInfoRows(e) {
+      const fills = (e.debug && e.debug.execution) || []
+      const mandates = (e.debug && e.debug.mandates) || []
+      const orderIds = mandates.map(function(m) { return m.orderId }).filter(Boolean)
+      const accounts = [...new Set(mandates.flatMap(function(m) { return m.accountIds || [] }).filter(Boolean))]
+
+      const fillsText = fills.length
+        ? fills.map(function(f) { return f.fillId || '(fill)' }).join(', ')
+        : '-'
+
+      return [
+        ['Tx ID', e.txid || '-', true],
+        ['Strike', strikeDisplay(e)],
+        ['PCH', e.pch || '-', true],
+        ['Network', e.network || '-'],
+        ['Source / fills', fillsText],
+        orderIds.length ? ['Orders', orderIds.join(', '), true] : null,
+        accounts.length ? ['Accounts', accounts.join(', '), true] : null,
+        ['Notes', e.summary || '-']
+      ]
+    }
+
     function textNode(text, cls) {
       const div = document.createElement('div')
       if (cls) div.className = cls
       div.textContent = text
       return div
-    }
-
-    function kvGrid(items) {
-      const grid = document.createElement('div')
-      grid.className = 'grid'
-
-      for (const item of items) {
-        const div = document.createElement('div')
-        div.className = 'kv'
-
-        const label = document.createElement('div')
-        label.className = 'kv-label'
-        label.textContent = item[0]
-
-        const value = document.createElement('div')
-        value.className = 'kv-value'
-        value.textContent = item[1]
-
-        div.appendChild(label)
-        div.appendChild(value)
-        grid.appendChild(div)
-      }
-
-      return grid
     }
 
     function jsonDetails(title, data) {
@@ -1191,8 +1302,20 @@
     }
 
 
+    // A watch with an auto-approval key is an Action (auto-signs); without one
+    // it's a passive Watch (manual approval). The list prefix reflects this:
+    // W = manual watch, A = auto-approving action.
+    function isAuto(w) {
+      return !!(w && String(w.signPubkey || '').trim())
+    }
+
     function watchRef(w) {
-      return w?.ref ? `W${w.ref}` : 'W?'
+      if (!w?.ref) return isAuto(w) ? 'A?' : 'W?'
+      return `${isAuto(w) ? 'A' : 'W'}${w.ref}`
+    }
+
+    function approvalLabel(w) {
+      return isAuto(w) ? `Auto · ${String(w.signPubkey).slice(-6)}` : 'Manual'
     }
 
     function watchTitle(w) {
@@ -1215,12 +1338,6 @@
       if (w.status === 'disconnected') return 'Offline'
       if (w.status === 'error') return 'Error'
       return w.status || 'Idle'
-    }
-
-    function modeLabel(mode) {
-      if (mode === 'doorbell') return 'Watch'
-      if (mode === 'sign') return 'Sign'
-      return 'Check'
     }
 
     function statusClass(w) {
@@ -1292,13 +1409,10 @@
       if (!hasWatch) return
 
       try {
-        p.set('mode', 'doorbell')
-
         const url = new URL(location.href)
         url.search = p.toString()
 
         const watch = parseKatomiaQr(url.toString())
-        watch.mode = 'doorbell'
 
         addWatch(watch)
         setStatus(`Added ${watchLabel(watch)}`)
@@ -1362,5 +1476,3 @@
     renderEvents()
     addWatchFromUrlParams()
     connectAllWatches()
-    
-    
