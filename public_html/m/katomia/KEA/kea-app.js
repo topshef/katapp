@@ -482,6 +482,16 @@
       const w = getWatch(e.watchId)
       if (!w) throw new Error('Watch no longer exists')
 
+
+      const ok = confirm(
+        'Approve this transaction?\n\n' +
+        'KEA will send your signature to K-pool.\n\n' +
+        'This cannot be undone. The transaction may still fail if other signatures or balances are missing.'
+        // + '\n\nAction or inaction can affect reputational metrics, if you have opted into these.'
+      )
+
+      if (!ok) return
+
       // Prefer the watch's chosen action key; fall back to the only/first key
       // so the demo can sign out of the box.
       let key = w.signPubkey ? getKey(w.signPubkey) : null
@@ -527,15 +537,6 @@
       renderEvents()
       refreshOpenEventDetail(e)
       setStatus(`Rejected ${shortHash(e.pch)} (stub — not sent)`, 'warn')
-    }
-
-    function reopenDecision(e) {
-      delete decisions[e.key]
-      saveDecisions()
-      e.decision = null
-      renderEvents()
-      refreshOpenEventDetail(e)
-      setStatus(`Reopened ${shortHash(e.pch)}`)
     }
 
     // -------------------------------------------------------------------------
@@ -990,7 +991,6 @@
           : `✅ Approved and signed — send back ${s.error ? `failed (${s.error})` : `returned ${s.status || 'TBC'}`}`
         bar.appendChild(textNode(line, 'decision-headline'))
         bar.appendChild(textNode(`Signed with ${e.decision.sign?.keyName || 'action key'} · ${shortKey(e.decision.sign?.pubkeyHex)}`, 'decision-sub'))
-        bar.appendChild(decisionReopen(e))
         return bar
       }
 
@@ -998,7 +998,6 @@
         bar.classList.add('bad-bg')
         bar.appendChild(textNode('🚫 Rejected', 'decision-headline'))
         bar.appendChild(textNode(e.decision.payload?.reason || 'Stored locally, not sent to KPool', 'decision-sub'))
-        bar.appendChild(decisionReopen(e))
         return bar
       }
 
@@ -1026,12 +1025,6 @@
       return bar
     }
 
-    function decisionReopen(e) {
-      const wrap = document.createElement('div')
-      wrap.className = 'approve-actions pro-only'
-      wrap.appendChild(actionButton('↩︎ Reopen', function() { reopenDecision(e) }, 'quiet'))
-      return wrap
-    }
 
     function renderDecisionDetail(e) {
       const wrap = document.createElement('div')
