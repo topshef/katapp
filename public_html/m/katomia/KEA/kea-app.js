@@ -1061,26 +1061,43 @@ import {
         keyWrap.appendChild(keySel)
         bar.appendChild(keyWrap)
 
+
         // "Always approve" upgrade path — converts this watch into an Action.
         const alwaysWrap = document.createElement('label')
         alwaysWrap.className = 'always-row'
         const always = document.createElement('input')
         always.type = 'checkbox'
         alwaysWrap.appendChild(always)
-        alwaysWrap.appendChild(document.createTextNode('Automatically approve future transactions that pass this watch.'))
-        bar.appendChild(alwaysWrap)
+        alwaysWrap.appendChild(document.createTextNode('Automatically approve future transactions that pass this watch. You can turn this off from the watch settings.'))
 
         const actions = document.createElement('div')
         actions.className = 'approve-actions'
-        const approveBtn = actionButton('✅ Approve once', function() {
+
+        const approveBtn = actionButton('Approve Once', function() {
           approveEvent(e, { pubkeyHex: keySel.value, makeAuto: always.checked })
             .catch(function(err) { setStatus(`ERROR ${err.message}`, 'bad') })
-        }, 'approve primary')
+        }, 'approve')
+
+        function updateApproveLabel() {
+          // approveBtn.textContent = always.checked ? 'Approve' : 'Approve Once'
+          // approveBtn.textContent = always.checked ? 'Approve until cancelled' : 'Approve Once'
+          // approveBtn.textContent = always.checked ? 'Approve ongoing' : 'Approve Once'
+          // approveBtn.textContent = always.checked ? 'Approve ongoing' : 'Approve'
+          // approveBtn.textContent = always.checked ? 'Pre-approve until cancelled' : 'Approve'
+          approveBtn.textContent = always.checked ? 'Approve ongoing' : 'Approve'
+        }
+
+        always.onchange = updateApproveLabel
+        updateApproveLabel()
+
         if (!keys.length) approveBtn.disabled = true
-        actions.appendChild(approveBtn)
-        actions.appendChild(actionButton('🚫 Reject', function() { rejectEvent(e) }, 'reject'))
         actions.appendChild(actionButton('Not now', function() { openEvent = null; $('detailModal').close() }, 'quiet'))
+        actions.appendChild(actionButton('Reject', function() { rejectEvent(e) }, 'reject'))
+        actions.appendChild(approveBtn)
         bar.appendChild(actions)
+        bar.appendChild(alwaysWrap)
+
+
         return bar
       }
 

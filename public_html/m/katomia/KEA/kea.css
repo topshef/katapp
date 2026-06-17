@@ -38,7 +38,7 @@ button, select {
 }
 button { cursor: pointer; }
 button:hover { background: rgba(128,128,128,.14); }
-button.primary { font-weight: 800; }
+button.primary { font-weight: 700; }
 button.danger, .danger { color: crimson; }
 button.quiet { opacity: .78; }
 
@@ -57,7 +57,7 @@ label {
   display: block;
   margin-top: 10px;
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 table {
@@ -102,7 +102,7 @@ details {
   background: var(--bg-softer);
 }
 
-summary { cursor: pointer; font-weight: 800; }
+summary { cursor: pointer; font-weight: 700; }
 
 .app-header {
   display: flex;
@@ -138,7 +138,7 @@ summary { cursor: pointer; font-weight: 800; }
   border-radius: 999px;
   background: var(--bg-soft);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
@@ -179,10 +179,10 @@ body:not(.pro) .pro-only { display: none !important; }
 
 .muted { color: var(--text-muted); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-.ok { color: green; font-weight: 800; }
-.bad { color: crimson; font-weight: 800; }
-.warn { color: darkorange; font-weight: 800; }
-.strong-cell { font-weight: 800; }
+.ok { color: green; font-weight: 700; }
+.bad { color: crimson; font-weight: 700; }
+.warn { color: darkorange; font-weight: 700; }
+.strong-cell { font-weight: 700; }
 .time-cell { white-space: nowrap; }
 .key-cell, .tx-cell { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
 .notes-cell { max-width: 440px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -198,7 +198,7 @@ body:not(.pro) .pro-only { display: none !important; }
   border-radius: 999px;
   background: rgba(128,128,128,.16);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -280,7 +280,7 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 
 .kv-label {
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .04em;
   opacity: .7;
@@ -288,8 +288,26 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 }
 
 .kv-value { overflow-wrap: anywhere; }
-.check-list { display: grid; gap: 6px; margin: 8px 0 14px; }
-.check-item { padding: 8px 10px; border-radius: 10px; background: var(--bg-soft); }
+
+.check-list {
+  display: grid;
+  gap: 0;
+  margin: 8px 0 14px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-softer);
+}
+
+.check-item {
+  padding: 6px 0;
+  background: transparent;
+}
+
+.check-item + .check-item {
+  border-top: 1px solid rgba(128,128,128,.14);
+}
+
 .debug-note { margin: 0 0 12px; color: var(--text-muted); font-size: 13px; }
 
 /* ---- decision bar (approve / reject) ---------------------------------- */
@@ -323,7 +341,7 @@ button.approve {
   background: var(--ok);
   border-color: var(--ok);
   color: #fff;
-  font-weight: 800;
+  font-weight: 700;
 }
 button.approve:hover { filter: brightness(1.08); background: var(--ok); }
 
@@ -331,7 +349,7 @@ button.reject {
   background: transparent;
   border-color: rgba(220,20,60,.5);
   color: var(--bad);
-  font-weight: 800;
+  font-weight: 700;
 }
 button.reject:hover { background: var(--bad-tint); }
 
@@ -386,7 +404,7 @@ button.reject:hover { background: var(--bad-tint); }
 .info-label {
   flex: 0 0 auto;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .03em;
   opacity: .66;
@@ -440,7 +458,7 @@ button.reject:hover { background: var(--bad-tint); }
   td::before {
     content: attr(data-label);
     font-size: 11px;
-    font-weight: 800;
+    font-weight: 700;
     opacity: .62;
     flex: 0 0 auto;
   }
