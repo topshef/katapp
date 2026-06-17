@@ -80,7 +80,6 @@ async function renderKatomiaQr(link){
   a.className = "profile-qr-link"
   a.title = "Open KEA link"
   a.target = "KEA"
-  a.rel = "noopener"
 
   const canvas = document.createElement("canvas")
   a.appendChild(canvas)
@@ -134,7 +133,6 @@ function setProfileLink(link){
   el.href = link
   el.title = "Open KEA link"
   el.target = "KEA"
-  el.rel = "noopener"
 }
 
 

@@ -157,20 +157,23 @@ export async function signApprovalPackage(kea, key) {
 // Shape the payload KEA posts back to KPool after an approval.
 // The server's txSave KEA-signature route is still TBC, so this is a clean,
 // self-describing envelope rather than a reconstructed Hedera signedTx.
+//edit: backend endpoint for addSig wip
 export function buildSignedPayload(e, signResult) {
   return {
-    type: 'kea_signed',
     network: e.network,
     txid: e.txid,
     pch: e.pch,
-    orderIds: (e.debug?.watchedOrderIds || []).filter(Boolean),
-    signature: {
-      pubkeyHex: signResult.pubkeyHex,
-      sig: signResult.signatureBase64,
-      signedOver: signResult.signedOver
-    },
+    pubKey: signResult.pubkeyHex,
+    signature: signResult.signatureBase64,
+    signedOver: signResult.signedOver,
     txHash: signResult.txHash,
-    signedAt: signResult.signedAt
+    orderIds: (e.debug?.watchedOrderIds || []).filter(Boolean),
+    source: {
+      type: 'kea_signed',
+      signedAt: signResult.signedAt,
+      keyId: signResult.keyId,
+      keyName: signResult.keyName
+    }
   }
 }
 
@@ -197,24 +200,40 @@ export function buildRejectPayload(e, reason) {
 // Returns a structured result; never throws for HTTP errors so the UI can
 // still record the local approval and show the server response.
 
+
 export async function submitSignedResult(baseUrl, payload) {
-  const url = `${cleanUrl(baseUrl)}/kpool/txSave`
+  const url = `${cleanUrl(baseUrl)}/kpool/addSig`
+  const bodyJson = JSON.stringify(payload)
+
+  console.log('[KEA addSig request]', {
+    url,
+    method: 'POST',
+    headers: { 'content-type': 'application/json' }
+  })
+
+  console.log('[KEA addSig body]\n' + JSON.stringify(payload, null, 2))
 
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: bodyJson
     })
 
     let body
     try { body = await res.json() } catch { body = await res.text().catch(function() { return null }) }
 
-    return { url, sent: true, ok: res.ok, status: res.status, statusText: res.statusText, response: body }
+    const out = { url, sent: true, ok: res.ok, status: res.status, statusText: res.statusText, response: body }
+    console.log('[KEA addSig response]\n' + JSON.stringify(out, null, 2))
+    return out
   } catch (err) {
-    return { url, sent: false, ok: false, error: err.message }
+    const out = { url, sent: false, ok: false, error: err.message }
+    console.log('[KEA addSig response]\n' + JSON.stringify(out, null, 2))
+    return out
   }
 }
+
+
 
 function bytesToBase64(bytes) {
   let bin = ''
