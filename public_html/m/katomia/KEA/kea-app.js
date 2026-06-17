@@ -190,7 +190,7 @@ import {
         e = { key, ...base, decision: getDecision(key) }
         events.push(e)
       } else {
-        Object.assign(e, base, { key, createdAt: e.createdAt || base.createdAt })
+        Object.assign(e, base, { key, createdAt: e.createdAt || base.createdAt, watchRef: e.watchRef || base.watchRef })
         e.decision = getDecision(key)
       }
 
@@ -508,7 +508,7 @@ import {
         if (opts.makeAuto && !w.signPubkey) {
           msg += '\n\n— ALWAYS APPROVE —\n' +
             'You also chose to automatically approve future transactions that pass this watch. ' +
-            `It becomes an Action (A${w.ref}) that auto-signs with this key. ` +
+                        `It becomes ${watchRef({ ...w, signPubkey: key.pubkeyHex })} and auto-signs with this key. ` +
             'Undo any time by editing the watch and setting the auto-approval key back to “Manual approval”.'
         }
         if (!confirm(msg)) return
@@ -524,8 +524,8 @@ import {
       setDecision(e.key, dec)
       e.decision = dec
 
-      // "Always approve" upgrade: store the chosen key on the watch so it
-      // becomes an auto-approving Action (W -> A) from here on.
+      // Auto-approval upgrade: store the chosen key on the watch so the same
+      // stable W-number gains an A suffix from here on.
       let upgraded = false
       if (opts.makeAuto && !w.signPubkey) {
         w.signPubkey = key.pubkeyHex
@@ -540,7 +540,7 @@ import {
 
       const how = opts.auto ? 'Auto-approved' : 'Approved'
       if (upgraded) {
-        setStatus(`${how} & sent ${shortHash(e.pch)}. Watch upgraded to Action A${w.ref} — auto-signs with ${key.name}.`, 'ok')
+                setStatus(`${how} & sent ${shortHash(e.pch)}. ${watchRef(w)} now auto-signs with ${key.name}.`, 'ok')
       } else if (submit.ok) {
         setStatus(`${how} & sent ${shortHash(e.pch)} (signed with ${key.name})`, 'ok')
       } else {
@@ -801,7 +801,7 @@ import {
         cell(tr, strikeDisplay(e), 'Strike', 'time-cell')
         if (showWatch) {
           const lw = getWatch(e.watchId)
-          cell(tr, lw ? watchRef(lw) : (e.watchRef || '-'), 'Watch', 'watch-ref-cell')
+          cell(tr, e.watchRef || (lw ? watchRef(lw) : '-'), 'Watch', 'watch-ref-cell')
         }
         cell(tr, txLabel(e), 'Tx', 'mono tx-cell', txTitle(e))
         cell(tr, status.text, 'Status', status.tone || '', e.summary || '')
@@ -1215,7 +1215,8 @@ import {
       const keyName = auto ? (getKey(w.signPubkey)?.name || 'auto-approval key') : ''
 
       return [
-        ['Watch / Action', w ? watchRef(w) : (e.watchRef || '-')],
+        ['Watch at time', e.watchRef || (w ? watchRef(w) : '-')],
+        w && e.watchRef && e.watchRef !== watchRef(w) ? ['Current watch', watchRef(w)] : null,
         ['Name', w ? watchTitle(w) : (e.watchLabel || '-')],
         ['Network', (w && w.network) || e.network || '-'],
         ['Game ID', (w && w.gameId) || 'all games'],
@@ -1319,16 +1320,15 @@ import {
     }
 
 
-    // A watch with an auto-approval key is an Action (auto-signs); without one
-    // it's a passive Watch (manual approval). The list prefix reflects this:
-    // W = manual watch, A = auto-approving action.
+    // A watch keeps a stable W-number. Auto-approval is shown as a suffix:
+    // W12 = manual watch, W12A = same watch with auto-approval enabled.
     function isAuto(w) {
       return !!(w && String(w.signPubkey || '').trim())
     }
 
     function watchRef(w) {
-      if (!w?.ref) return isAuto(w) ? 'A?' : 'W?'
-      return `${isAuto(w) ? 'A' : 'W'}${w.ref}`
+      if (!w?.ref) return isAuto(w) ? 'W?A' : 'W?'
+      return `W${w.ref}${isAuto(w) ? 'A' : ''}`
     }
 
     function approvalLabel(w) {
