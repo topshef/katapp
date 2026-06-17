@@ -1183,12 +1183,20 @@
       return btn
     }
 
+    function callerLine(skip = 2) {
+      const stack = new Error().stack || ''
+      const lines = stack.split('\n').map(function(x) { return x.trim() })
+      return lines[skip] || ''
+    }
+
     function setStatus(msg, cls) {
       const el = $('status')
       el.textContent = msg || 'Ready.'
       el.className = `status-line ${cls || ''}`
-      console.debug('[KEA]', msg)
+
+      console.debug('[KEA]', msg, callerLine(3))
     }
+
 
     function watchRef(w) {
       return w?.ref ? `W${w.ref}` : 'W?'
