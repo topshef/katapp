@@ -6,6 +6,13 @@
   --shadow: 0 14px 44px rgba(0,0,0,.16);
   --radius: 14px;
   --radius-small: 9px;
+
+  --ok: #1a9c4f;
+  --ok-tint: rgba(26,156,79,.12);
+  --bad: crimson;
+  --bad-tint: rgba(220,20,60,.12);
+  --ready-tint: rgba(255,176,32,.16);
+  --ready-border: rgba(255,176,32,.5);
 }
 
 body {
@@ -110,6 +117,43 @@ summary { cursor: pointer; font-weight: 800; }
   max-width: 680px;
   color: var(--text-muted);
 }
+
+/* ---- header controls + pro mode toggle -------------------------------- */
+.header-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.pro-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  margin-right: 50px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.pro-toggle input {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--ok);
+  cursor: pointer;
+}
+
+/* Pro-only chrome is hidden unless <body class="pro"> is set. */
+body:not(.pro) .pro-only { display: none !important; }
 
 .section-head {
   display: flex;
@@ -248,14 +292,65 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 .check-item { padding: 8px 10px; border-radius: 10px; background: var(--bg-soft); }
 .debug-note { margin: 0 0 12px; color: var(--text-muted); font-size: 13px; }
 
+/* ---- decision bar (approve / reject) ---------------------------------- */
+.decision-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  margin: 4px 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+}
+
+.decision-bar.ok-bg    { background: var(--ok-tint);    border-color: rgba(26,156,79,.45); }
+.decision-bar.bad-bg   { background: var(--bad-tint);   border-color: rgba(220,20,60,.4); }
+.decision-bar.ready-bg { background: var(--ready-tint); border-color: var(--ready-border); }
+.decision-bar.muted-bg { background: var(--bg-softer); }
+
+.decision-headline { font-weight: 900; font-size: 16px; }
+.decision-sub { font-size: 13px; color: var(--text-muted); overflow-wrap: anywhere; }
+
+.approve-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+button.approve {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #fff;
+  font-weight: 800;
+}
+button.approve:hover { filter: brightness(1.08); background: var(--ok); }
+
+button.reject {
+  background: transparent;
+  border-color: rgba(220,20,60,.5);
+  color: var(--bad);
+  font-weight: 800;
+}
+button.reject:hover { background: var(--bad-tint); }
+
 @media (max-width: 720px) {
   body { margin-top: 14px; padding: 0 10px; }
   h1 { font-size: 27px; }
   h2 { font-size: 17px; }
   .app-header { display: block; }
+  .header-controls {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    margin-top: 10px;
+  }
   .section-head { align-items: flex-start; }
   .watch-actions { justify-content: flex-end; }
   .grid { grid-template-columns: 1fr; }
+  .approve-actions { flex-direction: column; align-items: stretch; }
+  .approve-actions button { width: 100%; }
 
   table, thead, tbody, tr, th, td { display: block; }
   table { border-collapse: separate; }

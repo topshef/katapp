@@ -16,6 +16,12 @@
       <h1>🦜 KEA</h1>
       <p class="subtitle">Watch trader intent keys. Check the promise matches the action. Sign only when the package is safe.</p>
     </div>
+    <div class="header-controls">
+      <label class="pro-toggle" title="Show advanced controls: edit, clone, keys, manual entry and debug">
+        <input type="checkbox" id="proToggle"> 🧰 Pro mode
+      </label>
+      <button id="keysBtn" class="pro-only" title="Manage action keys">🔑 Keys</button>
+    </div>
   </header>
 
   <div id="status" class="status-line">Ready.</div>
@@ -27,7 +33,7 @@
       <h2>Watches</h2>
       <div class="watch-actions">
         <button id="scanQrBtn" class="primary">📷 Scan QR</button>
-        <button id="toolsBtn" class="icon-btn" title="Tools" aria-label="Tools">🛠️</button>
+        <button id="toolsBtn" class="icon-btn pro-only" title="Add watch manually" aria-label="Add watch manually">🛠️</button>
         <button id="stopQrBtn" class="quiet" style="display:none">Stop camera</button>
       </div>
     </div>
@@ -46,40 +52,63 @@
     </div>
 
     <div class="modal-body">
-      <p class="debug-note">Normal flow is scan QR. These fields are for local testing, editing a watch, or pasting a QR/link manually.</p>
+      <p class="debug-note pro-only">Normal flow is scan QR. These fields are for local testing, editing/cloning a watch, or pasting a QR/link manually.</p>
 
-      <div class="row">
+      <div class="row pro-only">
         <button id="pasteQrBtn">Paste QR link</button>
       </div>
 
       <label>Display name</label>
       <input id="watchName" placeholder="Optional, e.g. Tim the Trader">
 
-      <label>KPool base URL</label>
-      <input id="baseUrl" value="https://hapi5.katomia.com">
+      <div class="pro-only">
+        <label>KPool base URL</label>
+        <input id="baseUrl" value="https://hapi5.katomia.com">
 
-      <label>WebSocket URL</label>
-      <input id="wsUrl" value="wss://hapi5.katomia.com/ws">
+        <label>WebSocket URL</label>
+        <input id="wsUrl" value="wss://hapi5.katomia.com/ws">
 
-      <label>Network</label>
-      <input id="network" value="mainnet">
+        <label>Network</label>
+        <input id="network" value="mainnet">
+      </div>
 
-      <label>Game ID</label>
+      <label>Game ID <span class="muted">(blank = watch all games)</span></label>
       <input id="scopeGameId" value="m-order">
 
       <label>Trader intent public key to watch</label>
       <input id="orderPubkey" value="" class="mono">
 
-      <label>Mode</label>
-      <select id="watchMode">
-        <option value="doorbell">Watch only</option>
-        <option value="fetch" selected>Check only</option>
-        <option value="sign">Check + sign</option>
-      </select>
+      <label>Action key <span class="muted">(used to sign on approval)</span></label>
+      <select id="signPubkey"></select>
+      <p class="debug-note">No key? Turn on Pro mode and open 🔑 Keys to generate or import one.</p>
+
+      <div class="pro-only">
+        <label>Mode</label>
+        <select id="watchMode">
+          <option value="doorbell">Watch only</option>
+          <option value="fetch" selected>Check only</option>
+          <option value="sign">Check + sign</option>
+        </select>
+      </div>
 
       <div class="modal-actions">
         <button id="deleteWatchBtn" class="danger" style="display:none">Delete watch</button>
         <button id="saveWatchBtn" class="primary">Add watch</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="keysModal">
+    <div class="modal-head">
+      <div class="modal-title">🔑 Action keys</div>
+      <button id="keysModalCloseBtn" class="icon-btn" title="Close" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="debug-note">DEMO ONLY — private keys are stored in this browser's localStorage. In production these move to secure device storage. An action key is what KEA uses to <strong>sign</strong> a transaction after you approve it.</p>
+      <div id="keysList"></div>
+      <div class="modal-actions" style="justify-content:flex-start">
+        <button id="genKeyBtn" class="primary">➕ Generate new key</button>
+        <button id="importKeyBtn">📥 Import seed</button>
       </div>
     </div>
   </dialog>
@@ -111,18 +140,38 @@
       verifyKeaForWatch
     } from './kea-verify.js'
 
+    import {
+      loadKeys,
+      getKey,
+      generateKey,
+      importKey,
+      deleteKey,
+      ensureDummyKey,
+      signApprovalPackage,
+      buildSignedPayload,
+      buildRejectPayload,
+      submitSignedResult
+    } from './kea-sign.js'
+
     // -------------------------------------------------------------------------
     // MODEL: app state, local persistence, normalisation
     // -------------------------------------------------------------------------
 
     const WATCHES_KEY = 'keaWatches.v1'
+    const DECISIONS_KEY = 'keaDecisions.v1'   // approve/reject decisions, keyed by event key
+    const PRO_KEY = 'keaPro.v1'
+
     const events = []
     const sockets = {}
 
     let watches = []
+    let decisions = {}
+    let isPro = false
     let qrStream = null
     let qrScanning = false
     let editingWatchId = null
+    let cloningFromId = null
+    let openEvent = null   // event currently shown in the detail modal
 
     function loadWatches() {
       try { watches = JSON.parse(localStorage[WATCHES_KEY] || '[]') } catch { watches = [] }
@@ -145,6 +194,7 @@
         network: String(w.network || 'mainnet').trim(),
         gameId: String(w.gameId || '').trim(),
         orderPubkey: String(w.orderPubkey || '').trim().toLowerCase(),
+        signPubkey: String(w.signPubkey || '').trim().toLowerCase(),
         mode: w.mode || 'fetch',
         paused: !!w.paused,
         status: w.paused ? 'paused' : (w.status || 'idle'),
@@ -169,6 +219,7 @@
         network: w.network,
         gameId: w.gameId,
         orderPubkey: w.orderPubkey,
+        signPubkey: w.signPubkey,
         mode: w.mode,
         paused: w.paused,
         note: w.note,
@@ -207,9 +258,32 @@
         network: $('network').value,
         gameId: $('scopeGameId').value,
         orderPubkey: $('orderPubkey').value,
+        signPubkey: $('signPubkey').value,
         mode: $('watchMode').value
       })
     }
+
+    // ---- decisions (approve / reject) --------------------------------------
+
+    function loadDecisions() {
+      try { decisions = JSON.parse(localStorage[DECISIONS_KEY] || '{}') } catch { decisions = {} }
+      if (!decisions || typeof decisions !== 'object') decisions = {}
+    }
+
+    function saveDecisions() {
+      localStorage[DECISIONS_KEY] = JSON.stringify(decisions)
+    }
+
+    function getDecision(key) {
+      return decisions[key] || null
+    }
+
+    function setDecision(key, dec) {
+      decisions[key] = dec
+      saveDecisions()
+    }
+
+    // ---- events ------------------------------------------------------------
 
     function eventKey(e) {
       return `${e.watchId || 'manual'};${e.network};${e.txid};${e.pch}`
@@ -236,10 +310,11 @@
       let e = events.find(function(x) { return x.key === key })
 
       if (!e) {
-        e = { key, ...base }
+        e = { key, ...base, decision: getDecision(key) }
         events.push(e)
       } else {
         Object.assign(e, base, { key, createdAt: e.createdAt || base.createdAt })
+        e.decision = getDecision(key)
       }
 
       sortEvents()
@@ -263,7 +338,8 @@
       const watch = watchFromForm()
       validateWatch(watch)
 
-      if (editingWatchId) {
+      // Edit (only when not cloning) updates in place and refreshes the socket.
+      if (editingWatchId && !cloningFromId) {
         const saved = updateExistingWatch(watch)
         closeWatchModal()
         setStatus(`Saved ${watchLabel(saved)}`)
@@ -315,6 +391,8 @@
       const createdAt = old.createdAt
       const ref = old.ref
 
+      // Edited details (network / orderPubkey / gameId) change the subscription
+      // filter, so always tear the socket down and reconnect with the new filter.
       disconnectWatch(old.id)
       Object.assign(old, next, {
         id: old.id,
@@ -383,14 +461,17 @@
       ws.onopen = function() {
         updateWatch(w.id, { status: 'connected', note: '' })
 
-        ws.send(JSON.stringify({
-          type: 'kpool_watch',
-          filter: {
-            mode: 'kea',
-            network: w.network,
-            orderPubkey: w.orderPubkey
-          }
-        }))
+        // Subscription filter. gameId is only included when set: blank means
+        // "watch all games", a value means the server (notifyKpoolWatchers)
+        // only rings the doorbell for that game's transactions.
+        const filter = {
+          mode: 'kea',
+          network: w.network,
+          orderPubkey: w.orderPubkey
+        }
+        if (w.gameId) filter.gameId = w.gameId
+
+        ws.send(JSON.stringify({ type: 'kpool_watch', filter }))
 
         setStatus(`Connected ${watchLabel(w)}`)
       }
@@ -428,6 +509,14 @@
     }
 
     function handleDoorbell(w, msg) {
+      // Defensive client-side game gate. The server already filters by gameId
+      // when the watch sets one; this only matters if a future doorbell payload
+      // starts carrying a gameId that disagrees with the watch.
+      if (w.gameId && msg.gameId && msg.gameId !== w.gameId) {
+        console.debug('KEA doorbell skipped: gameId mismatch', msg.gameId, '!=', w.gameId)
+        return
+      }
+
       w.lastSeenAt = Date.now()
       saveWatches()
       renderWatches()
@@ -497,12 +586,81 @@
       e.verification = result
       e.debug = buildEventDebug(e, w, out.kea || null)
 
-      if (result.ok && w.mode === 'sign')
-        e.summary = `${e.summary}; signing not wired yet`
-
       sortEvents()
       renderEvents()
-      setStatus(result.ok ? `Checked ${shortHash(e.pch)} OK` : `Check failed: ${result.msg}`, result.ok ? 'ok' : 'bad')
+      refreshOpenEventDetail(e)
+      setStatus(result.ok ? `Checked ${shortHash(e.pch)} OK — ready to approve` : `Check failed: ${result.msg}`, result.ok ? 'ok' : 'bad')
+    }
+
+    // -------------------------------------------------------------------------
+    // CONTROLLER: approve / reject / sign
+    // -------------------------------------------------------------------------
+
+    function eventIsReady(e) {
+      return e.check === 'pass' && !e.decision
+    }
+
+    async function approveEvent(e) {
+      if (e.check !== 'pass') throw new Error('Cannot approve — checks have not passed')
+      if (!e.kea) throw new Error('No approval package to sign')
+
+      const w = getWatch(e.watchId)
+      if (!w) throw new Error('Watch no longer exists')
+
+      // Prefer the watch's chosen action key; fall back to the only/first key
+      // so the demo can sign out of the box.
+      let key = w.signPubkey ? getKey(w.signPubkey) : null
+      if (!key) {
+        const all = loadKeys()
+        key = all[0] || null
+      }
+      if (!key) throw new Error('No action key available. Turn on Pro mode and open 🔑 Keys to add one.')
+
+      setStatus(`Signing ${shortHash(e.pch)}…`)
+
+      const sign = await signApprovalPackage(e.kea, key)
+      const payload = buildSignedPayload(e, sign)
+      const submit = await submitSignedResult(w.baseUrl, payload)
+
+      const dec = { decision: 'approved', at: Date.now(), sign, payload, submit }
+      setDecision(e.key, dec)
+      e.decision = dec
+
+      renderEvents()
+      refreshOpenEventDetail(e)
+
+      if (submit.ok) setStatus(`Approved & sent ${shortHash(e.pch)} (signed with ${key.name})`, 'ok')
+      else setStatus(`Approved & signed ${shortHash(e.pch)}; send back to KPool: ${submit.error || submit.status || 'TBC'}`, 'warn')
+    }
+
+    function rejectEvent(e) {
+      const reason = isPro ? (prompt('Reason for rejection (optional)') || '') : ''
+      const payload = buildRejectPayload(e, reason)
+
+      // No reject endpoint exists yet, so this is stored locally and logged only.
+      const dec = {
+        decision: 'rejected',
+        at: Date.now(),
+        payload,
+        sent: false,
+        note: 'No reject endpoint yet — stored locally, not sent to KPool'
+      }
+      setDecision(e.key, dec)
+      e.decision = dec
+
+      console.debug('[KEA] reject stub (not sent):', payload)
+      renderEvents()
+      refreshOpenEventDetail(e)
+      setStatus(`Rejected ${shortHash(e.pch)} (stub — not sent)`, 'warn')
+    }
+
+    function reopenDecision(e) {
+      delete decisions[e.key]
+      saveDecisions()
+      e.decision = null
+      renderEvents()
+      refreshOpenEventDetail(e)
+      setStatus(`Reopened ${shortHash(e.pch)}`)
     }
 
     // -------------------------------------------------------------------------
@@ -639,7 +797,7 @@
       const gameId = p.get('gameId') || p.get('game') || ''
       const name = p.get('name') || p.get('displayName') || p.get('trader') || ''
       const orderPubkey = String(p.get('orderPubkey') || p.get('intentPubkey') || p.get('watchPubkey') || '').trim().toLowerCase()
-      const mode = p.get('mode') || $('watchMode').value || 'fetch'
+      const mode = p.get('mode') || ($('watchMode') ? $('watchMode').value : '') || 'fetch'
 
       if (!domain) throw new Error('QR missing domain')
       if (!network) throw new Error('QR missing network')
@@ -664,7 +822,7 @@
       el.innerHTML = ''
 
       if (!watches.length) {
-        el.innerHTML = '<div class="empty">No watches yet. Scan a QR to add one, or use 🛠️ Tools for debug entry.</div>'
+        el.innerHTML = '<div class="empty">No watches yet. Scan a QR to add one. Turn on Pro mode for 🛠️ manual entry.</div>'
         return
       }
 
@@ -695,7 +853,8 @@
         controls.dataset.label = ''
         controls.className = 'controls'
         controls.appendChild(actionButton(w.paused ? '▶️' : '⏸️', function() { toggleWatchPaused(w.id) }, 'icon-action', w.paused ? 'Resume watch' : 'Pause watch'))
-        controls.appendChild(actionButton('🛠️', function() { openWatchModal(w) }, 'icon-action', 'Edit watch'))
+        controls.appendChild(actionButton('🛠️', function() { openWatchModal(w) }, 'icon-action pro-only', 'Edit watch'))
+        controls.appendChild(actionButton('📋', function() { openWatchModal(w, { clone: true }) }, 'icon-action pro-only', 'Clone watch'))
         controls.appendChild(actionButton('✕', function() { removeWatch(w.id) }, 'icon-action danger', 'Delete watch'))
         tr.appendChild(controls)
 
@@ -736,7 +895,7 @@
         cell(tr, chainGlyph(e), '', `tx-chain ${status.tone || ''}`, chainTitle(e))
         cell(tr, strikeDisplay(e), 'Strike', 'time-cell')
         if (showWatch) cell(tr, e.watchRef || '-', 'Watch', 'watch-ref-cell')
-        cell(tr, txLabel(e), 'Tx', 'mono tx-cell', e.txid || e.pch || '')
+        cell(tr, txLabel(e), 'Tx', 'mono tx-cell', txTitle(e))
         cell(tr, status.text, 'Status', status.tone || '', e.summary || '')
         cell(tr, transactionNotes(e), 'Notes', 'notes-cell', e.summary || '')
 
@@ -756,17 +915,37 @@
       return refs.size > 1
     }
 
-    function openWatchModal(w) {
-      editingWatchId = w ? w.id : null
-      $('watchModalTitle').textContent = w ? `⚙️ Edit ${watchRef(w)}` : '⚙️ Add watch'
-      $('saveWatchBtn').textContent = w ? 'Save watch' : 'Add watch'
-      $('deleteWatchBtn').style.display = w ? 'inline-block' : 'none'
-      fillWatchForm(w || defaultWatch())
+    // ---- watch modal -------------------------------------------------------
+
+    function openWatchModal(w, opts) {
+      const clone = !!(opts && opts.clone)
+      cloningFromId = clone ? (w ? w.id : null) : null
+      editingWatchId = (w && !clone) ? w.id : null
+
+      if (clone) {
+        $('watchModalTitle').textContent = `⚙️ Clone ${watchRef(w)}`
+        $('saveWatchBtn').textContent = 'Add watch'
+        $('deleteWatchBtn').style.display = 'none'
+        const seed = Object.assign({}, w, { name: w.name ? `${w.name} (copy)` : '' })
+        fillWatchForm(seed)
+      } else if (w) {
+        $('watchModalTitle').textContent = `⚙️ Edit ${watchRef(w)}`
+        $('saveWatchBtn').textContent = 'Save watch'
+        $('deleteWatchBtn').style.display = 'inline-block'
+        fillWatchForm(w)
+      } else {
+        $('watchModalTitle').textContent = '⚙️ Add watch'
+        $('saveWatchBtn').textContent = 'Add watch'
+        $('deleteWatchBtn').style.display = 'none'
+        fillWatchForm(defaultWatch())
+      }
+
       $('watchModal').showModal()
     }
 
     function closeWatchModal() {
       editingWatchId = null
+      cloningFromId = null
       $('watchModal').close()
     }
 
@@ -778,6 +957,26 @@
       $('scopeGameId').value = w.gameId || ''
       $('orderPubkey').value = w.orderPubkey || ''
       $('watchMode').value = w.mode || 'fetch'
+      refreshSignKeyOptions(w.signPubkey || '')
+    }
+
+    function refreshSignKeyOptions(selected) {
+      const sel = $('signPubkey')
+      sel.innerHTML = ''
+
+      const none = document.createElement('option')
+      none.value = ''
+      none.textContent = loadKeys().length ? '(use any available key)' : '(no keys yet)'
+      sel.appendChild(none)
+
+      for (const k of loadKeys()) {
+        const opt = document.createElement('option')
+        opt.value = k.pubkeyHex
+        opt.textContent = `${k.name} · ${shortKey(k.pubkeyHex)}`
+        sel.appendChild(opt)
+      }
+
+      sel.value = selected || ''
     }
 
     function defaultWatch() {
@@ -788,11 +987,90 @@
       showJsonDetail(`${watchRef(w)} detail`, stripWatchRuntime(w))
     }
 
+    // ---- keys modal --------------------------------------------------------
+
+    function openKeysModal() {
+      renderKeys()
+      $('keysModal').showModal()
+    }
+
+    function renderKeys() {
+      const el = $('keysList')
+      el.innerHTML = ''
+
+      const keys = loadKeys()
+      if (!keys.length) {
+        el.innerHTML = '<div class="empty">No action keys yet. Generate or import one below.</div>'
+        return
+      }
+
+      const table = document.createElement('table')
+      const head = document.createElement('tr')
+      for (const h of ['Name', 'Public key', 'Added', '']) {
+        const th = document.createElement('th')
+        th.textContent = h
+        head.appendChild(th)
+      }
+      table.appendChild(head)
+
+      for (const k of keys) {
+        const tr = document.createElement('tr')
+        cell(tr, k.name, 'Name', 'strong-cell')
+        cell(tr, shortKey(k.pubkeyHex), 'Public key', 'mono', k.pubkeyHex)
+        cell(tr, formatShortTime(k.createdAt), 'Added', 'time-cell')
+
+        const controls = document.createElement('td')
+        controls.dataset.label = ''
+        controls.className = 'controls'
+        controls.appendChild(actionButton('✕', function() {
+          deleteKey(k.id)
+          renderKeys()
+          refreshSignKeyOptions($('signPubkey') ? $('signPubkey').value : '')
+          setStatus(`Deleted key ${k.name}`)
+        }, 'icon-action danger', 'Delete key'))
+        tr.appendChild(controls)
+
+        table.appendChild(tr)
+      }
+
+      el.appendChild(table)
+    }
+
+    async function genKey() {
+      const name = prompt('Name this action key', `Action key ${loadKeys().length + 1}`)
+      if (name === null) return
+      const k = await generateKey(name || undefined)
+      renderKeys()
+      refreshSignKeyOptions($('signPubkey') ? $('signPubkey').value : '')
+      setStatus(`Generated ${k.name}`)
+    }
+
+    async function importKeyFlow() {
+      const seed = prompt('Paste a 32-byte ed25519 seed (64 hex chars)')
+      if (!seed) return
+      const name = prompt('Name this imported key', 'Imported key')
+      if (name === null) return
+      const k = await importKey(name || undefined, seed)
+      renderKeys()
+      refreshSignKeyOptions($('signPubkey') ? $('signPubkey').value : '')
+      setStatus(`Imported ${k.name}`)
+    }
+
+    // ---- event detail ------------------------------------------------------
+
+    function refreshOpenEventDetail(e) {
+      if (openEvent && openEvent.key === e.key && $('detailModal').open)
+        showEventDetail(e)
+    }
+
     function showEventDetail(e) {
+      openEvent = e
       $('detailModalTitle').textContent = 'Transaction detail'
 
       const body = $('detailModalBody')
       body.innerHTML = ''
+
+      body.appendChild(renderDecisionBar(e))
 
       body.appendChild(sectionTitle('Approval package'))
       body.appendChild(kvGrid([
@@ -810,16 +1088,105 @@
       body.appendChild(sectionTitle('Checks'))
       body.appendChild(renderChecks(e))
 
-      body.appendChild(jsonDetails('Debug summary', e.debug || null))
-      body.appendChild(jsonDetails('Fetch information', e.fetch || null))
-      body.appendChild(jsonDetails('KEA detail', e.kea || null))
-      body.appendChild(jsonDetails('Raw fetched package', e.raw || null))
-      body.appendChild(jsonDetails('Raw doorbell', e.rawDoorbell || null))
+      if (e.decision) body.appendChild(renderDecisionDetail(e))
+
+      const dbg = document.createElement('div')
+      dbg.className = 'pro-only'
+      dbg.appendChild(jsonDetails('Debug summary', e.debug || null))
+      dbg.appendChild(jsonDetails('Fetch information', e.fetch || null))
+      dbg.appendChild(jsonDetails('KEA detail', e.kea || null))
+      dbg.appendChild(jsonDetails('Raw fetched package', e.raw || null))
+      dbg.appendChild(jsonDetails('Raw doorbell', e.rawDoorbell || null))
+      if (e.decision) dbg.appendChild(jsonDetails('Decision record', e.decision))
+      body.appendChild(dbg)
 
       $('detailModal').showModal()
     }
 
+    function renderDecisionBar(e) {
+      const bar = document.createElement('div')
+      bar.className = 'decision-bar'
+
+      if (e.decision?.decision === 'approved') {
+        bar.classList.add('ok-bg')
+        const s = e.decision.submit || {}
+        const line = s.ok
+          ? '✅ Approved and sent to KPool'
+          : `✅ Approved and signed — send back ${s.error ? `failed (${s.error})` : `returned ${s.status || 'TBC'}`}`
+        bar.appendChild(textNode(line, 'decision-headline'))
+        bar.appendChild(textNode(`Signed with ${e.decision.sign?.keyName || 'action key'} · ${shortKey(e.decision.sign?.pubkeyHex)}`, 'decision-sub'))
+        bar.appendChild(decisionReopen(e))
+        return bar
+      }
+
+      if (e.decision?.decision === 'rejected') {
+        bar.classList.add('bad-bg')
+        bar.appendChild(textNode('🚫 Rejected', 'decision-headline'))
+        bar.appendChild(textNode(e.decision.payload?.reason || 'Stored locally, not sent to KPool', 'decision-sub'))
+        bar.appendChild(decisionReopen(e))
+        return bar
+      }
+
+      if (eventIsReady(e)) {
+        bar.classList.add('ready-bg')
+        bar.appendChild(textNode('🔔 Ready to approve', 'decision-headline'))
+        bar.appendChild(textNode('KEA checked the package and the promise matches the action.', 'decision-sub'))
+
+        const actions = document.createElement('div')
+        actions.className = 'approve-actions'
+        actions.appendChild(actionButton('✅ Approve', function() {
+          approveEvent(e).catch(function(err) { setStatus(`ERROR ${err.message}`, 'bad') })
+        }, 'approve primary'))
+        actions.appendChild(actionButton('🚫 Reject', function() { rejectEvent(e) }, 'reject'))
+        actions.appendChild(actionButton('Not now', function() { openEvent = null; $('detailModal').close() }, 'quiet'))
+        bar.appendChild(actions)
+        return bar
+      }
+
+      bar.classList.add('muted-bg')
+      const text = e.check === 'fail'
+        ? `Not approvable — check failed: ${e.summary || 'unknown'}`
+        : (e.check === 'not checked' ? 'Watch-only — no check performed' : 'Not ready to approve yet')
+      bar.appendChild(textNode(text, 'decision-sub'))
+      return bar
+    }
+
+    function decisionReopen(e) {
+      const wrap = document.createElement('div')
+      wrap.className = 'approve-actions pro-only'
+      wrap.appendChild(actionButton('↩︎ Reopen', function() { reopenDecision(e) }, 'quiet'))
+      return wrap
+    }
+
+    function renderDecisionDetail(e) {
+      const wrap = document.createElement('div')
+      wrap.appendChild(sectionTitle('Approval result'))
+
+      if (e.decision.decision === 'approved') {
+        const s = e.decision.submit || {}
+        wrap.appendChild(kvGrid([
+          ['Decision', 'Approved'],
+          ['Signed at', e.decision.sign?.signedAt || '-'],
+          ['Action key', e.decision.sign?.keyName || '-'],
+          ['Key pubkey', shortKey(e.decision.sign?.pubkeyHex)],
+          ['Signed over', e.decision.sign?.signedOver || '-'],
+          ['Sent to', s.url || '-'],
+          ['Send status', s.sent ? `${s.ok ? 'OK' : 'error'} ${s.status || ''}`.trim() : (s.error || 'not sent')]
+        ]))
+      } else {
+        wrap.appendChild(kvGrid([
+          ['Decision', 'Rejected'],
+          ['Reason', e.decision.payload?.reason || '-'],
+          ['Sent', 'No — reject endpoint TBC'],
+          ['Recorded', formatShortTime(e.decision.at)]
+        ]))
+      }
+
+      return wrap
+    }
+
     function showJsonDetail(title, data) {
+      openEvent = null
       $('detailModalTitle').textContent = title
       const body = $('detailModalBody')
       body.innerHTML = ''
@@ -859,6 +1226,13 @@
       const h = document.createElement('h3')
       h.textContent = text
       return h
+    }
+
+    function textNode(text, cls) {
+      const div = document.createElement('div')
+      if (cls) div.className = cls
+      div.textContent = text
+      return div
     }
 
     function kvGrid(items) {
@@ -947,7 +1321,7 @@
 
     function watchTitle(w) {
       if (w.name) return w.name
-      return `${w.network || '-'} · ${w.gameId || '-'}`
+      return `${w.network || '-'} · ${w.gameId || 'all games'}`
     }
 
     function watchLabel(w) {
@@ -981,9 +1355,10 @@
     }
 
     function transactionStatus(e) {
+      if (e.decision?.decision === 'approved') return { text: 'Approved', tone: 'ok' }
+      if (e.decision?.decision === 'rejected') return { text: 'Rejected', tone: 'bad' }
       if (e.status === 'fetch error') return { text: 'Fetch failed', tone: 'bad' }
       if (e.check === 'fail') return { text: 'Check failed', tone: 'bad' }
-      if (e.check === 'pass' && e.mode === 'sign') return { text: 'Sign pending', tone: 'warn' }
       if (e.check === 'pass') return { text: 'Ready', tone: 'ok' }
       if (e.status === 'fetching' || e.status === 'fetched') return { text: 'Checking…', tone: 'warn' }
       if (e.check === 'not checked') return { text: 'Watch only', tone: '' }
@@ -998,10 +1373,17 @@
       return shortText(note, 72)
     }
 
+    // TX column now shows the transaction id + short PCH, e.g.
+    // 0.0.3039988@1781643138.272000000#71f904 — not the matched order ids.
     function txLabel(e) {
-      const ids = e.debug?.watchedOrderIds?.filter(Boolean) || []
-      if (ids.length) return ids.map(function(x) { return `#${x}` }).join(',')
-      return shortHash(e.pch, 10) || shortHash(e.txid, 12) || '-'
+      const pch6 = e.pch ? `#${shortHash(e.pch, 6)}` : ''
+      if (e.txid) return `${e.txid}${pch6}`
+      return e.pch ? shortHash(e.pch, 14) : '-'
+    }
+
+    function txTitle(e) {
+      if (e.txid) return `${e.txid}${e.pch ? `#${e.pch}` : ''}`
+      return e.pch || ''
     }
 
     function strikeDisplay(e) {
@@ -1051,6 +1433,19 @@
       }
     }
 
+    // ---- pro mode ----------------------------------------------------------
+
+    function loadPro() {
+      try { isPro = localStorage[PRO_KEY] === '1' } catch { isPro = false }
+    }
+
+    function applyProMode(on) {
+      isPro = !!on
+      try { localStorage[PRO_KEY] = isPro ? '1' : '0' } catch {}
+      document.body.classList.toggle('pro', isPro)
+      $('proToggle').checked = isPro
+    }
+
     // -------------------------------------------------------------------------
     // APP BOOTSTRAP
     // -------------------------------------------------------------------------
@@ -1074,9 +1469,19 @@
     }
     $('deleteWatchBtn').onclick = function() { deleteEditingWatch() }
     $('watchModalCloseBtn').onclick = function() { closeWatchModal() }
-    $('detailModalCloseBtn').onclick = function() { $('detailModal').close() }
+    $('detailModalCloseBtn').onclick = function() { openEvent = null; $('detailModal').close() }
 
+    $('proToggle').onchange = function(e) { applyProMode(e.target.checked) }
+    $('keysBtn').onclick = function() { openKeysModal() }
+    $('keysModalCloseBtn').onclick = function() { $('keysModal').close() }
+    $('genKeyBtn').onclick = function() { genKey().catch(function(e) { setStatus(`ERROR ${e.message}`, 'bad') }) }
+    $('importKeyBtn').onclick = function() { importKeyFlow().catch(function(e) { setStatus(`ERROR ${e.message}`, 'bad') }) }
+
+    loadPro()
+    applyProMode(isPro)
+    loadDecisions()
     loadWatches()
+    ensureDummyKey().catch(function(e) { console.warn('key seed failed', e.message) })
     renderWatches()
     renderEvents()
     addWatchFromUrlParams()
