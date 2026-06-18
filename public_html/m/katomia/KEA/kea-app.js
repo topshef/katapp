@@ -37,6 +37,7 @@ import {
     const DECISIONS_KEY = 'keaDecisions.v1'   // approve/reject decisions, keyed by event key
     const PRO_KEY = 'keaPro.v1'
     const KEYS_NET_KEY = 'keaKeysNet.v1'    // which network the Keys modal is managing
+    const MAIN_NET_KEY = 'keaMainNet.v1'    // which network the main page is showing
 
     const events = []
     const sockets = {}
@@ -45,6 +46,7 @@ import {
     let decisions = {}
     let isPro = false
     let keysNet = 'mainnet'   // network scope shown in the Keys modal
+    let mainNet = 'mainnet'   // network scope shown on the main page (watches + transactions)
     let qrStream = null
     let qrScanning = false
     let editingWatchId = null
@@ -731,8 +733,12 @@ import {
       const el = $('watches')
       el.innerHTML = ''
 
-      if (!watches.length) {
-        el.innerHTML = '<div class="empty">No watches yet. Scan a QR to add one. Turn on Pro mode for 🛠️ manual entry.</div>'
+      const shown = sortedWatches().filter(function(w) { return w.network === mainNet })
+
+      if (!shown.length) {
+        el.innerHTML = watches.length
+          ? `<div class="empty">No ${mainNet} watches. Switch network above, or add one for this network.</div>`
+          : '<div class="empty">No watches yet. Scan a QR to add one. Turn on Pro mode for 🛠️ manual entry.</div>'
         return
       }
 
@@ -747,7 +753,7 @@ import {
 
       table.appendChild(head)
 
-      for (const w of sortedWatches()) {
+      for (const w of shown) {
         const tr = document.createElement('tr')
         tr.className = 'clickable card-row watch-row'
         tr.dataset.watchId = w.id
@@ -781,8 +787,12 @@ import {
       const el = $('events')
       el.innerHTML = ''
 
-      if (!events.length) {
-        el.innerHTML = '<div class="empty">No transactions yet. KEA will list doorbells and checked approval packages here.</div>'
+      const shown = events.filter(function(e) { return e.network === mainNet })
+
+      if (!shown.length) {
+        el.innerHTML = events.length
+          ? `<div class="empty">No ${mainNet} transactions. Switch network above to see others.</div>`
+          : '<div class="empty">No transactions yet. KEA will list doorbells and checked approval packages here.</div>'
         return
       }
 
@@ -799,7 +809,7 @@ import {
 
       table.appendChild(head)
 
-      for (const e of events) {
+      for (const e of shown) {
         const tr = document.createElement('tr')
         const status = transactionStatus(e)
         tr.className = `clickable card-row tx-row ${status.tone || ''} ${e.decision?.auto ? 'auto' : ''}`
@@ -937,6 +947,30 @@ import {
       try { keysNet = localStorage[KEYS_NET_KEY] === 'testnet' ? 'testnet' : 'mainnet' } catch { keysNet = 'mainnet' }
     }
 
+    // The main page shows ONE network at a time (watches + transactions are
+    // filtered to it). Persisted so it survives reloads.
+    function loadMainNet() {
+      try { mainNet = localStorage[MAIN_NET_KEY] === 'testnet' ? 'testnet' : 'mainnet' } catch { mainNet = 'mainnet' }
+    }
+
+    function setMainNet(net) {
+      mainNet = net === 'testnet' ? 'testnet' : 'mainnet'
+      try { localStorage[MAIN_NET_KEY] = mainNet } catch {}
+      applyMainNet()
+      renderWatches()
+      renderEvents()
+    }
+
+    function applyMainNet() {
+      const toggle = $('mainNetToggle')
+      if (toggle) {
+        toggle.dataset.net = mainNet
+        toggle.querySelectorAll('button[data-net]').forEach(function(b) {
+          b.classList.toggle('active', b.dataset.net === mainNet)
+        })
+      }
+    }
+
     function setKeysNet(net) {
       keysNet = net === 'testnet' ? 'testnet' : 'mainnet'
       try { localStorage[KEYS_NET_KEY] = keysNet } catch {}
@@ -956,8 +990,9 @@ import {
     }
 
     function openKeysModal() {
-      applyKeysNet()
-      renderKeys()
+      // Open scoped to whatever the main page is showing; the modal's own
+      // toggle can still switch network from there.
+      setKeysNet(mainNet)
       $('keysModal').showModal()
     }
 
@@ -1582,6 +1617,12 @@ import {
       if (btn) setKeysNet(btn.dataset.net)
     }
 
+    // Main-page network toggle: filters watches + transactions to one network.
+    $('mainNetToggle').onclick = function(ev) {
+      const btn = ev.target.closest('button[data-net]')
+      if (btn) setMainNet(btn.dataset.net)
+    }
+
     // When Pro mode unlocks the network field, re-scope the auto-approval key
     // list to keys for the newly chosen network.
     $('network').oninput = function() { refreshSignKeyOptions($('signPubkey').value) }
@@ -1590,6 +1631,8 @@ import {
     applyProMode(isPro)
     loadKeysNet()
     applyKeysNet()
+    loadMainNet()
+    applyMainNet()
     loadDecisions()
     loadWatches()
     ensureDummyKey('mainnet').catch(function(e) { console.warn('key seed failed', e.message) })

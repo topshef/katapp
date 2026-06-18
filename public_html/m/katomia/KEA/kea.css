@@ -528,6 +528,13 @@ button.reject:hover { background: var(--bad-tint); }
   overflow: hidden;
   margin: 2px 0 12px;
 }
+
+/* Main-page network toggle: reuses .net-toggle, but lives in the header so it
+   needs its own --net-color scope (the keys-modal one is scoped to #keysModal)
+   and no bottom margin. Kept deliberately plain — only the active pill is
+   tinted, no page-wide accenting. */
+#mainNetToggle { --net-color: #7b5cff; --net-tint: rgba(123,92,255,.14); margin: 0; }
+#mainNetToggle[data-net="testnet"] { --net-color: #f5841f; --net-tint: rgba(245,132,31,.16); }
 .net-toggle button {
   border: 0;
   border-radius: 0;
