@@ -396,22 +396,33 @@ function isTxExpired(tx){
 
 
 
+let _txRenderToken = 0
+
 async function renderTransactions(){
 
   const listEl = document.querySelector("#transactionsSection .transactions-list")
 
   if(!listEl) return
 
-  listEl.innerHTML = ""
+  // render() runs on every state update and is not serialised, so this can be
+  // re-entered many times in quick succession. It now does real async I/O
+  // (IndexedDB via Localbase), so overlapping calls would each clear-then-append
+  // the same rows AFTER all had cleared — producing N duplicate copies and the
+  // flashing. Tag each run; only the most recent one is allowed to commit.
+  const token = ++_txRenderToken
 
-  await cachePendingTxs()
+  // Persist pending txs for post-settlement history, but OFF the render path —
+  // getAllTx() already unions live pending, so display never waits on a write.
+  cachePendingTxs()
 
   const txs = await getAllTx()
+
+  if(token !== _txRenderToken) return   // a newer render superseded this one
 
   const hideExpired =
     document.querySelector("#hideExpiredTx")
       ?.checked
-      
+
   txs.sort((a,b) => {
 
     const ta =
@@ -426,8 +437,13 @@ async function renderTransactions(){
 
   const selectedPair = getSelectedPair()
 
+  // Build off-DOM, then swap the whole list in one synchronous step. This both
+  // avoids an empty intermediate frame (the flash) and means an overlapping
+  // render can only ever REPLACE the list wholesale — never stack onto it.
+  const frag = document.createDocumentFragment()
+
   txs.forEach(tx => {
-    
+
     if(hideExpired && isTxExpired(tx))
       return
 
@@ -438,11 +454,13 @@ async function renderTransactions(){
     if(selectedPair && pair != selectedPair)
       return
 
-    listEl.appendChild(
+    frag.appendChild(
       createTxRow(tx)
     )
 
   })
+
+  listEl.replaceChildren(frag)
 
 
 }
