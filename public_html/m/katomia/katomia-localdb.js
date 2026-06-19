@@ -225,6 +225,16 @@ function settledTxStubs(){
 
     const fills = []
     const orders = {}
+    const tokenTransfers = []
+
+    const scaledLegs = ({ s, bundle }) => {
+      const frac = (s.numerator && s.denominator) ? s.numerator / s.denominator : 1
+      return (bundle || []).map(leg => ({
+        accountId: leg.accountId,
+        tokenId:   leg.asset,
+        amount:    Math.trunc(leg.amount * frac)
+      }))
+    }
 
     for(const [fillId, { makers, takers }] of byFill.entries()){
       const maker = makers[0]
@@ -243,9 +253,12 @@ function settledTxStubs(){
 
       orders[maker.s.orderId] = { bundle: maker.bundle }
       if(taker) orders[taker.s.orderId] = { bundle: taker.bundle }
+
+      tokenTransfers.push(...scaledLegs(maker), ...(taker ? scaledLegs(taker) : []))
     }
 
     tx.source = { fills, orders }
+    tx.pchbasis = { transfers: { tokenTransfers, hbarTransfers: [], nftTransfers: [] } }
     delete tx._legs
   }
 
