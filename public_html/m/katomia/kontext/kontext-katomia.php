@@ -14,10 +14,9 @@ $sources=[
 // 'backend js'=>['/home/hbarlive_hts/web*.js'],
 'backend js'=>['/home/hbarlive_hts/{kat,kpool,deal,websocket}*.js'],
 // 'kbot'=>['/home/hbarlive_hts/kbot/swarms/*.js'],  //nope - just zip it
-'frontend js'=>["/var/www/$domain/public_html/m/katomia/*.js"],
-'KEA app'=>["/var/www/$domain/public_html/m/katomia/KEA/*.{html,js,css}"],
-'frontend css'=>["/var/www/$domain/public_html/m/katomia/*.css"],
-'frontend php'=>["/var/www/$domain/public_html/m/katomia/*.php"]
+'KEA webapp'=>["/var/www/$domain/public_html/m/katomia/KEA/*.{html,js,css}"],
+'frontend katomia'=>["/var/www/$domain/public_html/m/katomia/*.{html,js,css,php}"],
+'frontend kpay widget'=>["/var/www/$domain/public_html/vendor/kpay/kpool_widget/*.{html,js,css,php}"]
 ];
 
 $exclude=['zz*', '*.min.js','*bundle*','*node_modules*','*context_*','*log*'];
