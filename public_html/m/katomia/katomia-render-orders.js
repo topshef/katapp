@@ -135,6 +135,9 @@ function renderTxSourceInfo(tx){  // renders too
 }
 
 
+function isTxSuccessStatus(status){
+  return String(status || "").toUpperCase() == "SUCCESS"
+}
 
 function getTxStatus(tx){
 
@@ -153,11 +156,11 @@ function getTxStatus(tx){
       )
 
   if(settled)
-    return "success"
+    return "SUCCESS"
 
   return tx.lifecycle?.status || "?"
-
 }
+
 
 function getTxMeta(tx){
 
@@ -165,7 +168,7 @@ function getTxMeta(tx){
   const txid = tx.txid || "?"
   const pch = (tx.pch || "?").substring(0,6)
   const status = getTxStatus(tx)
-  const success = status == "success"
+  const success = isTxSuccessStatus(status)
 
   return {
     network,
@@ -316,13 +319,41 @@ function getTxOrderIds(tx){
   return [...new Set(ids)]
 }
 
+function getTxSourceOrder(tx, orderId){
+  if(!orderId) return null
+
+  const key = String(orderId)
+
+  return (
+    getAllOrders().find(x => String(x.orderId) == key)?.order ||
+    tx.source?.orders?.[key] ||
+    tx.source?.orders?.[orderId] ||
+    null
+  )
+}
+
+function getTxMainOrder(tx){
+  const fill = tx.source?.fills?.[0] || {}
+
+  return (
+    getTxSourceOrder(tx, fill.orderId) ||
+    getTxSourceOrder(tx, fill.takerOrderId)
+  )
+}
+
+function getTxPair(tx){
+  return enrichOrder(getTxMainOrder(tx))?.market?.pair || ""
+}
+
+
+
 function createTxRow(tx){
 
   const row = document.createElement("div")
   const meta = document.createElement("span")
 
   row.className = "subtle tx-row"
-  if(getTxStatus(tx)=="success")
+  if(isTxSuccessStatus(getTxStatus(tx)))
     row.classList.add("success")
 
 
@@ -336,8 +367,7 @@ function createTxRow(tx){
   row.dataset.txkey = getTxKey(tx)
   row.dataset.orderIds = getTxOrderIds(tx).join(",")
     
-  const orderId = tx.source?.fills?.[0]?.orderId
-  const order = getAllOrders().find(x => x.orderId == orderId)?.order
+  const order = getTxMainOrder(tx)
   const orderType = getOrderType(order) || "generic"
   const market = enrichOrder(order)?.market
   const side = market?.side ? ` ${market.side}` : ""
@@ -381,18 +411,21 @@ function getTxStartSeconds(tx){
 
 }
 
+
+
 function isTxExpired(tx){
 
-  if(getTxStatus(tx) == "success") return false
+  if(isTxSuccessStatus(getTxStatus(tx))) return false
 
   const seconds = getTxStartSeconds(tx)
   if(!seconds) return false
 
   const ageMs = Date.now() - (seconds * 1000)
 
-  return ageMs > (5 * 60 * 1000)
+  return ageMs > ((2 * 60 + 30) * 1000)
 
 }
+
 
 
 
@@ -447,9 +480,7 @@ async function renderTransactions(){
     if(hideExpired && isTxExpired(tx))
       return
 
-    const orderId = tx.source?.fills?.[0]?.orderId
-    const order = getAllOrders().find(x => x.orderId == orderId)?.order
-    const pair = enrichOrder(order)?.market?.pair
+    const pair = getTxPair(tx)
 
     if(selectedPair && pair != selectedPair)
       return

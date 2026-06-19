@@ -174,6 +174,12 @@ async function migrateLegacyTxs(){
 // game. Reading live state.tx.pending directly is the core fix: a pending tx
 // shows in the list the instant it exists, regardless of whether (or when) it
 // is persisted.
+function txArray(v){
+  if(Array.isArray(v)) return v
+  if(v && typeof v == "object") return Object.values(v)
+  return []
+}
+
 async function getAllTx(){
 
   await migrateLegacyTxs()
@@ -181,13 +187,19 @@ async function getAllTx(){
   const currentGameId = gameMeta?.id || gameId
   const byKey = new Map()
 
-  for(const tx of await getStoredTxs()){
+  for(const tx of txArray(await getStoredTxs())){
     if(currentGameId && txGameScope(tx) !== currentGameId) continue
     byKey.set(txKey(tx), tx)
   }
 
-  // Live pending overrides any stale stored copy of the same tx.
-  for(const tx of (state?.tx?.pending || [])){
+  // Display txs are the server's "keep visible" list.
+  for(const tx of txArray(state?.tx?.display)){
+    if(currentGameId && txGameScope(tx) !== currentGameId) continue
+    byKey.set(txKey(tx), tx)
+  }
+
+  // Live pending overrides any stale stored/display copy of the same tx.
+  for(const tx of txArray(state?.tx?.pending)){
     if(currentGameId && txGameScope(tx) !== currentGameId) continue
     byKey.set(txKey(tx), tx)
   }
@@ -198,7 +210,12 @@ async function getAllTx(){
 
 async function cachePendingTxs(){
 
+  const txs = [
+    ...txArray(state?.tx?.display),
+    ...txArray(state?.tx?.pending)
+  ]
+
   await Promise.all(
-    (state?.tx?.pending || []).map(tx => saveTx(tx))
+    txs.map(tx => saveTx(tx))
   )
 }

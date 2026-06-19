@@ -253,16 +253,22 @@ async function getAccountLabelXProof(network, accountId){
 
 async function enrichAccountLabel(network, accountId){
 
+  if(network != "mainnet") return {label:null}
+
   const data = await getAccountLabelXProof(network, accountId)
   const latest = data?.links?.[0]
-  
-  // console.log("getAccountLabelXProof",data)
-  const label = latest.domain + ' | ' + latest.name || null
-  glog(`getAccountLabelXProof|${latest.domain}`,{label, data})
+
+  if(!latest) return {label:null}
+
+  const label =
+    [latest.domain, latest.name]
+      .filter(Boolean)
+      .join(" | ") || null
+
+  if(label) glog(`getAccountLabelXProof|${latest.domain || accountId}`, {label, data})
 
   return {label}
 }
-
 
 async function enrichAccountLabels(){
 
@@ -279,7 +285,7 @@ async function enrichAccountLabels(){
     const id = account.id.split(":")[1] || null
     if(!id) console.warn('PH93844 missing account id', account.id)
 
-    if(window.accountLabelCache[id]) return
+    if(Object.prototype.hasOwnProperty.call(window.accountLabelCache, id)) return
     if(window.accountLabelPending.has(id)) return
 
     window.accountLabelPending.add(id)
