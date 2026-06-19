@@ -862,6 +862,7 @@ function getAssetType(assetId, amount=1){
 function getOrderType(order){
 
   const bundle = order?.bundle || []
+  if(!bundle.length) return null
 
   const types = bundle.map(x =>
     getAssetType(x.asset, Math.abs(x.amount))

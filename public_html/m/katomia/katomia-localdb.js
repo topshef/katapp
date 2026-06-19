@@ -180,15 +180,15 @@ function txArray(v){
   return []
 }
 
-// Minimal tx records reconstructed from order.settled across all players,
-// collapsed to one stub per (txid,pch). No source/deal payload, so these rows
-// render without the fill description M-bM-^@M-^T graceful degradation for a confirmed tx
-// this client never observed pending. getTxStatus() resolves them to SUCCESS
-// from the same settled data. Derived live, never persisted (self-heals like
-// the order ghost rows).
+// Tx records reconstructed from order.settled across all players, for txs this
+// client never observed as pending. Cross-references maker+taker settled records
+// by fillId to rebuild source.fills and source.orders — enough for full display.
+// Derived live, never persisted (self-heals like the order ghost rows).
 function settledTxStubs(){
 
   const currentGameId = gameMeta?.id || gameId
+
+  // Pass 1: collect every settled record across all players, keyed by txid|pch
   const byTx = new Map()
 
   for(const player of Object.values(state?.players || {}))
@@ -198,16 +198,56 @@ function settledTxStubs(){
         if(!s?.txid) continue
 
         const key = `${s.txid}|${s.pch || ""}`
-        if(byTx.has(key)) continue
 
-        byTx.set(key, {
-          txid: s.txid,
-          pch: s.pch || "",
-          network: gameMeta?.network,
-          gameId: currentGameId,
-          lifecycle: { status: "SUCCESS", isFinalStatus: true }
-        })
+        if(!byTx.has(key))
+          byTx.set(key, {
+            txid: s.txid,
+            pch: s.pch || "",
+            network: gameMeta?.network,
+            gameId: currentGameId,
+            lifecycle: { status: "SUCCESS", isFinalStatus: true },
+            _legs: []
+          })
+
+        byTx.get(key)._legs.push({ s, bundle: order.bundle })
       }
+
+  // Pass 2: build source.fills + source.orders by grouping legs by fillId
+  for(const tx of byTx.values()){
+
+    const byFill = new Map()
+
+    for(const { s, bundle } of tx._legs){
+      if(!byFill.has(s.fillId)) byFill.set(s.fillId, { makers: [], takers: [] })
+      const g = byFill.get(s.fillId)
+      ;(s.role === "taker" ? g.takers : g.makers).push({ s, bundle })
+    }
+
+    const fills = []
+    const orders = {}
+
+    for(const [fillId, { makers, takers }] of byFill.entries()){
+      const maker = makers[0]
+      const taker = takers[0]
+      if(!maker) continue
+
+      fills.push({
+        fillId,
+        orderId:          maker.s.orderId,
+        takerOrderId:     taker?.s.orderId,
+        numerator:        maker.s.numerator,
+        denominator:      maker.s.denominator,
+        takerNumerator:   taker?.s.numerator,
+        takerDenominator: taker?.s.denominator,
+      })
+
+      orders[maker.s.orderId] = { bundle: maker.bundle }
+      if(taker) orders[taker.s.orderId] = { bundle: taker.bundle }
+    }
+
+    tx.source = { fills, orders }
+    delete tx._legs
+  }
 
   return [...byTx.values()]
 }

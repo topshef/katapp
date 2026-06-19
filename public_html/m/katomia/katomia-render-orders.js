@@ -211,11 +211,11 @@ function createTxAssets(tx,orderType){
     ...(basis.hbarTransfers || []).map(x => ({...x, tokenId:"HBAR"}))
   ]
 
-  // NOTE: mirror node data includes Hedera fee line items (e.g. transfers to 0.0.98)
-  // which inflate the transfer count and cause simple-ft txs to render as basket/generic
-  // after consensus. Fix: filter out fee account transfers before passing to createSimpleFxTxAssets.
-  if(orderType == "simple-ft")
-    return createSimpleFxTxAssets(transfers)
+  if(orderType == "simple-ft"){
+    const HEDERA_FEE_ACCOUNTS = new Set(["0.0.98","0.0.800","0.0.801","0.0.802"])
+    const tradeTransfers = transfers.filter(x => !HEDERA_FEE_ACCOUNTS.has(x.accountId))
+    return createSimpleFxTxAssets(tradeTransfers)
+  }
 
   return createGenericTxAssets(transfers)
 
@@ -345,6 +345,19 @@ function getTxMainOrder(tx){
   )
 }
 
+function getOrderTypeFromPchbasis(tx){
+  const basis = tx.pchbasis?.transfers
+  if(!basis) return null
+  const HEDERA_FEE_ACCOUNTS = new Set(["0.0.98","0.0.800","0.0.801","0.0.802"])
+  const transfers = [
+    ...(basis.tokenTransfers || []),
+    ...(basis.hbarTransfers  || [])
+  ].filter(x => !HEDERA_FEE_ACCOUNTS.has(x.accountId))
+  if(!transfers.length) return null
+  const accounts = new Set(transfers.map(x => x.accountId))
+  return accounts.size <= 2 ? "simple-ft" : "basket-ft"
+}
+
 function getTxPair(tx){
   return enrichOrder(getTxMainOrder(tx))?.market?.pair || ""
 }
@@ -372,7 +385,7 @@ function createTxRow(tx){
   row.dataset.orderIds = getTxOrderIds(tx).join(",")
     
   const order = getTxMainOrder(tx)
-  const orderType = getOrderType(order) || "generic"
+  const orderType = getOrderType(order) || getOrderTypeFromPchbasis(tx) || "generic"
   const market = enrichOrder(order)?.market
   const side = market?.side ? ` ${market.side}` : ""
   const sourceInfo = renderTxSourceInfo(tx)
