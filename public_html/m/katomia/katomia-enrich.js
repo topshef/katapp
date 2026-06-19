@@ -68,12 +68,21 @@ async function enrichAsset(network, assetId, amount){
 	}
 }
 
-function getDisplayDecimals(tokenClass){
+function zzgetDisplayDecimals(tokenClass){
 
 	const tokenDecimals = Number(tokenClass.decimals || 0)
 
 	return Math.max(tokenDecimals - 4, 0)
 }
+
+
+function getDisplayDecimals(tokenClass){
+
+	const tokenDecimals = Number(tokenClass.decimals || 0)
+
+	return Math.min(tokenDecimals, 8)
+}
+
 
 function formatAssetDisplay(asset, meta){
 
@@ -104,8 +113,8 @@ function formatAssetDisplay(asset, meta){
 	if(decimals){
 		const value = asset.amount / (10 ** decimals)
 		const displayDecimals = getDisplayDecimals(tokenClass)
-		const rounded = value.toFixed(displayDecimals)
-		return `${tokenLabel} ${rounded}`
+		const rounded = value.toFixed(displayDecimals).replace(/\.?0+$/, "")
+		return `${tokenLabel} ${rounded || "0"}`
 	}
 
 	return asset.amount > 1

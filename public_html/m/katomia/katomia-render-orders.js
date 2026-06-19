@@ -1016,7 +1016,7 @@ document.addEventListener("mousemove", e => {
       return (
         `#${row.orderId} ` +
         `${row.side} ` +
-        `${row.displayBaseAmount} ` +
+        `${row.originalDisplayBaseAmount} ` +
         `@ ${formatRate(row.displayRate)} ` +
         `🧩 ${fill.numerator}/${fill.denominator}` +
         `${fillWithinKpool}`
@@ -1248,7 +1248,7 @@ function renderOrderMarketSummary(){
       return (
         `#${row.orderId} ` +
         `${row.side} ` +
-        `${row.displayBaseAmount} ` +
+        `${row.originalDisplayBaseAmount} ` +
         `@ ${row.displayRate}`
       )
       })
@@ -1621,7 +1621,8 @@ function getOrderMarketLabel(orderId, playerId, enriched){
   const fxRow = enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market })
   if(!fxRow) return enriched.derivedLabel || ""
 
-  return `@${formatRate(fxRow.displayRate)} ${fxRow.side} ${fxRow.displayBaseAmount} ${fxRow.pair}`
+  // return `@${formatRate(fxRow.displayRate)} ${fxRow.side} ${fxRow.displayBaseAmount} ${fxRow.pair}`   // volume here is what remaining to fill, not original
+    return `@${formatRate(fxRow.displayRate)} ${fxRow.side} ${fxRow.originalDisplayBaseAmount} ${fxRow.pair}`
 }
 
 
