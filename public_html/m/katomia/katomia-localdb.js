@@ -180,6 +180,39 @@ function txArray(v){
   return []
 }
 
+// Minimal tx records reconstructed from order.settled across all players,
+// collapsed to one stub per (txid,pch). No source/deal payload, so these rows
+// render without the fill description M-bM-^@M-^T graceful degradation for a confirmed tx
+// this client never observed pending. getTxStatus() resolves them to SUCCESS
+// from the same settled data. Derived live, never persisted (self-heals like
+// the order ghost rows).
+function settledTxStubs(){
+
+  const currentGameId = gameMeta?.id || gameId
+  const byTx = new Map()
+
+  for(const player of Object.values(state?.players || {}))
+    for(const order of Object.values(player?.orders || {}))
+      for(const s of (order?.settled || [])){
+
+        if(!s?.txid) continue
+
+        const key = `${s.txid}|${s.pch || ""}`
+        if(byTx.has(key)) continue
+
+        byTx.set(key, {
+          txid: s.txid,
+          pch: s.pch || "",
+          network: gameMeta?.network,
+          gameId: currentGameId,
+          lifecycle: { status: "SUCCESS", isFinalStatus: true }
+        })
+      }
+
+  return [...byTx.values()]
+}
+
+
 async function getAllTx(){
 
   await migrateLegacyTxs()
@@ -192,13 +225,20 @@ async function getAllTx(){
     byKey.set(txKey(tx), tx)
   }
 
-  // Display txs are the server's "keep visible" list.
-  for(const tx of txArray(state?.tx?.display)){
-    if(currentGameId && txGameScope(tx) !== currentGameId) continue
-    byKey.set(txKey(tx), tx)
+  // Confirmed txs rebuilt from durable order state. A tx can settle and leave
+  // state.tx.pending before this client ever cached it (playnet resolves
+  // synchronously, so the tx is never broadcast as pending; a slow first render
+  // can also miss a fast mainnet tx). order.settled is logic state the server
+  // always sends, so any settled (txid,pch) we do not already hold is surfaced
+  // here as a minimal record. The server no longer keeps a recently-confirmed
+  // list M-bM-^@M-^T that job now lives entirely on the front end.
+  for(const tx of settledTxStubs()){
+    const k = txKey(tx)
+    if(byKey.has(k)) continue   // a stored/pending copy already carries full detail
+    byKey.set(k, tx)
   }
 
-  // Live pending overrides any stale stored/display copy of the same tx.
+  // Live pending overrides any stale stored copy of the same tx.
   for(const tx of txArray(state?.tx?.pending)){
     if(currentGameId && txGameScope(tx) !== currentGameId) continue
     byKey.set(txKey(tx), tx)
@@ -210,10 +250,7 @@ async function getAllTx(){
 
 async function cachePendingTxs(){
 
-  const txs = [
-    ...txArray(state?.tx?.display),
-    ...txArray(state?.tx?.pending)
-  ]
+  const txs = txArray(state?.tx?.pending)
 
   await Promise.all(
     txs.map(tx => saveTx(tx))

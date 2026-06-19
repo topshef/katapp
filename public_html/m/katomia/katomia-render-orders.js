@@ -431,6 +431,11 @@ function isTxExpired(tx){
 
 let _txRenderToken = 0
 
+// Cap the rendered transactions list. The store is unbounded (IndexedDB) and the
+// list unions stored history + live pending + settled stubs, so without a cap it
+// grows without limit. Show the most-recent TX_LIST_MAX after filtering.
+const TX_LIST_MAX = 50
+
 async function renderTransactions(){
 
   const listEl = document.querySelector("#transactionsSection .transactions-list")
@@ -475,21 +480,24 @@ async function renderTransactions(){
   // render can only ever REPLACE the list wholesale — never stack onto it.
   const frag = document.createDocumentFragment()
 
-  txs.forEach(tx => {
+  // Filter first, then cap to the most-recent TX_LIST_MAX (txs is already sorted
+  // newest-first), so the cap counts visible rows rather than pre-filter records.
+  const visible = txs.filter(tx => {
 
     if(hideExpired && isTxExpired(tx))
-      return
+      return false
 
     const pair = getTxPair(tx)
 
     if(selectedPair && pair != selectedPair)
-      return
+      return false
 
-    frag.appendChild(
-      createTxRow(tx)
-    )
+    return true
 
-  })
+  }).slice(0, TX_LIST_MAX)
+
+  for(const tx of visible)
+    frag.appendChild(createTxRow(tx))
 
   listEl.replaceChildren(frag)
 
