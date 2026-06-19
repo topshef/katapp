@@ -929,26 +929,51 @@ function getFastThumb(url, imgEl){
     // ├┬┘├┤ │││ ││├┤ ├┬┘
     // ┴└─└─┘┘└┘─┴┘└─┘┴└─
     // render
+
+    let _mainRenderToken = 0
+
     async function render(){
-			
       if(!state) return
-			
+      const token = ++_mainRenderToken
+
       document.body.dataset.viewMode = viewMode
       document.body.dataset.showTradedOnly = showTradedOnly ? "true" : "false"
 
-      if(gameMeta.network){
+      if(gameMeta.network)
         document.body.dataset.network = gameMeta.network.toLowerCase()
-      }
-      
-      gameEl.innerHTML = ""
+
+      headerEl.style.display = viewMode === "columns" ? "grid" : "none"
+
+      window.orderFillMap = buildOrderFillMap()
+      renderOrderMarketSummary()
+      renderOrders()
+      renderTransactions()
+
+      const accounts = getAccounts()
+      const accountMap = getAccountMap()
+      const reservedByAccount = buildReservedByAccount(accounts)
+      const visibleAccounts = getVisibleAccounts(accounts)
+      const frag = document.createDocumentFragment()
+
+      visibleAccounts.forEach(account => {
+        const rowEl = viewMode === "columns"
+          ? renderColumnsAccount(account, reservedByAccount, accountMap)
+          : renderMergedAccount(account, reservedByAccount, accountMap)
+
+        frag.appendChild(rowEl)
+      })
+
+      if(token !== _mainRenderToken) return
+      gameEl.replaceChildren(frag)
 
       const gameMetaEl = document.getElementById("gameMeta")
-      if(gameMetaEl && gameMeta){
+      if(!gameMetaEl || !gameMeta) return
 
       const title = gameMeta.profile?.name || ""
+      const joinText = String(gameMeta.joinRule || "").trim()
       const adminTools = await renderGameAdminTools()
 
-      const joinText = String(gameMeta.joinRule || "").trim()
+      if(token !== _mainRenderToken) return
 
       gameMetaEl.innerHTML = `
         <div class="game-title-row">
@@ -965,31 +990,6 @@ function getFastThumb(url, imgEl){
         </div>
       `
 
-          document.getElementById("deleteGameBtn")?.addEventListener("click", deleteCurrentGame)
-
-      }
-      
-      
-      headerEl.style.display = viewMode === "columns" ? "grid" : "none"
-
-      //show orders
-      
-      window.orderFillMap = buildOrderFillMap()
-      renderOrderMarketSummary()
-      renderOrders()
-      await renderTransactions()
-            
-
-      const accounts = getAccounts()
-      const accountMap = getAccountMap()
-      const reservedByAccount = buildReservedByAccount(accounts)
-      const visibleAccounts = getVisibleAccounts(accounts)
-
-      visibleAccounts.forEach(account => {
-        const rowEl = viewMode === "columns"
-          ? renderColumnsAccount(account, reservedByAccount, accountMap)
-          : renderMergedAccount(account, reservedByAccount, accountMap)
-
-        gameEl.appendChild(rowEl)
-      })
+      document.getElementById("deleteGameBtn")?.addEventListener("click", deleteCurrentGame)
     }
+
