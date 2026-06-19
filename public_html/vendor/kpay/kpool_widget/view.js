@@ -1,5 +1,4 @@
-
-	import {
+import {
 		get,
 		parseTxId,
 		formatUtcTime,
@@ -136,6 +135,13 @@
     ready.id='txread-readiness'
     ready.className='txread-timing'
     col4.appendChild(ready)
+
+    // precheck status sits directly under signing readiness (Alex: append to
+    // signing status with green/orange circles). Populated by renderPrecheckInfo.
+    const precheck = document.createElement('div')
+    precheck.id='txread-precheck'
+    precheck.className='txread-timing'
+    col4.appendChild(precheck)
 
 
 		// txid link (HashScan)
@@ -371,6 +377,84 @@ export function renderReadinessInfo({readiness}) {
 		span.textContent = ` • 👀 ${readiness.witnessKeys.length} witness`
 		el.appendChild(span)
 	}
+}
+
+
+// ┌─┐┬─┐┌─┐┌─┐┬ ┬┌─┐┌─┐┬┌─  ┬┌┐┌┌─┐┌─┐
+// ├─┘├┬┘├┤ │  ├─┤├┤ │  ├┴┐  ││││├┤ │ │
+// ┴  ┴└─└─┘└─┘┴ ┴└─┘└─┘┴ ┴  ┴┘└┘└  └─┘
+// precheck status — appended under signing readiness. 🟢 pass / 🟠 unknown or
+// incomplete / 🔴 hard fail. Headline is short; the full breakdown (balance
+// forecasts + every check line) lives in the hover tooltip.
+export function renderPrecheckInfo({ precheck }) {
+	const el = document.getElementById('txread-precheck')
+	if (!el) return
+
+	el.innerHTML = ''
+	if (!precheck) return   // non-transfer tx, or not yet computed
+
+	const fails = precheck.tests?.fail || []
+	const warns = precheck.tests?.untested || []
+
+	let emoji, headline
+	if (precheck.status === 'fail') {
+		emoji = '🔴'
+		headline = 'Precheck: ' + shortenCheck(fails[0] || 'would not execute')
+	} else if (precheck.complete === false) {
+		emoji = '🟠'
+		headline = 'Precheck incomplete'
+	} else {
+		emoji = '🟢'
+		headline = 'Precheck OK'
+	}
+
+	const line = document.createElement('span')
+	line.style.cursor = 'default'
+	line.title = buildPrecheckTooltip(precheck)
+	line.textContent = `${emoji} ${headline}`
+	el.appendChild(line)
+
+	if (warns.length) {
+		const w = document.createElement('span')
+		w.style.cursor = 'default'
+		w.title = warns.join('\n')
+		w.textContent = ` • ⚠️ ${warns.length}`
+		el.appendChild(w)
+	}
+}
+
+function shortenCheck(s) {
+	// trim the trailing "(forecast)" detail and the leading emoji for the headline
+	return String(s).replace(/^[⚠️\s]+/, '').replace(/\s*\(.*\)\s*$/, '').trim()
+}
+
+function tinybarToHbar(t) {
+	const n = Number(t)
+	if (!Number.isFinite(n)) return t
+	return (n / 1e8).toLocaleString(undefined, { maximumFractionDigits: 8 }) + ' ℏ'
+}
+
+function buildPrecheckTooltip(precheck) {
+	const lines = []
+
+	const bal = precheck.balances || {}
+	for (const account of Object.keys(bal)) {
+		for (const asset of Object.keys(bal[account])) {
+			const f = bal[account][asset]
+			const forecast = asset === 'hbar' ? tinybarToHbar(f.forecast) : f.forecast
+			lines.push(`${account} ${asset}: → ${forecast}`)
+		}
+	}
+
+	const tests = precheck.tests || {}
+	for (const t of tests.fail || [])     lines.push('✗ ' + t)
+	for (const t of tests.untested || []) lines.push('? ' + t)
+	for (const t of tests.pass || [])     lines.push('✓ ' + t)
+
+	if (precheck.checkedAt)
+		lines.push('checked ' + new Date(precheck.checkedAt).toLocaleTimeString())
+
+	return lines.join('\n') || 'no details'
 }
 
 
@@ -906,4 +990,3 @@ export function injectTxReadCSS() {
 	`
 	document.head.appendChild(style)
 }
-
