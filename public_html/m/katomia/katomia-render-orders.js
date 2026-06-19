@@ -142,6 +142,7 @@ function isTxSuccessStatus(status){
 function getTxStatus(tx){
 
   const txid = tx.txid
+  if(!txid) return tx.lifecycle?.status || "?"
 
   const settled =
     Object.values(state.players || {})
@@ -210,6 +211,9 @@ function createTxAssets(tx,orderType){
     ...(basis.hbarTransfers || []).map(x => ({...x, tokenId:"HBAR"}))
   ]
 
+  // NOTE: mirror node data includes Hedera fee line items (e.g. transfers to 0.0.98)
+  // which inflate the transfer count and cause simple-ft txs to render as basket/generic
+  // after consensus. Fix: filter out fee account transfers before passing to createSimpleFxTxAssets.
   if(orderType == "simple-ft")
     return createSimpleFxTxAssets(transfers)
 
