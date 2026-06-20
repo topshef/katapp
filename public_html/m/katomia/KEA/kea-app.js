@@ -70,19 +70,25 @@ import {
     function normaliseWatch(w) {
       w = w || {}
 
-      // Canonical rule shape: a structured query + optional policyId/expiresAt.
-      //   query.intentPublicKey  <- trader (Tim's) Ed25519 key  (was orderPubkey)
-      //   query.network          <- network value as used by the app + QR scan
-      //   query.scope            <- gameId scope from the QR scan
-      // Legacy watches stored these flat (orderPubkey / network / gameId). We
-      // read either shape here and rebuild query. The network/scope values are
-      // kept verbatim (e.g. 'mainnet', 'm-order') — NOT rewritten — so the WS
-      // subscription filter, kea-verify scope checks and the main-net toggle all
-      // keep matching exactly as before.
-      const q = w.query || {}
-      const intentPublicKey = String(q.intentPublicKey != null ? q.intentPublicKey : (w.orderPubkey || '')).trim().toLowerCase()
-      const network = String(q.network != null ? q.network : (w.network || 'mainnet')).trim()
-      const scope = String(q.scope != null ? q.scope : (w.gameId || '')).trim()
+      // The watch's `query` is the filter we send to the KPool backend. Its keys
+      // are whatever the backend supports — we don't hard-code them — but three
+      // are always present and drive the app's own routing. They keep their
+      // backend names so the query can be forwarded verbatim:
+      //   query.orderPubkey <- trader (Tim's) Ed25519 intent key
+      //   query.gameId      <- game scope (blank = all games)
+      //   query.network     <- network, always inherited from the testnet/
+      //                        mainnet context (never independently edited)
+      // Legacy watches stored these three flat at the root. We migrate them into
+      // query here, preserve any extra backend filter keys verbatim, and keep
+      // flat runtime mirrors (w.network/gameId/orderPubkey) so the existing WS
+      // filter, kea-verify and render code keep working unchanged. The mirrors
+      // are runtime-only — stripWatchRuntime persists `query` alone.
+      const lq = w.query || {}
+      const orderPubkey = String(lq.orderPubkey != null ? lq.orderPubkey : (w.orderPubkey || '')).trim().toLowerCase()
+      const gameId      = String(lq.gameId      != null ? lq.gameId      : (w.gameId    || '')).trim()
+      const network     = String(lq.network     != null ? lq.network     : (w.network   || 'mainnet')).trim()
+      const query = { orderPubkey, gameId, network }
+      for (const k in lq) if (!(k in query)) query[k] = lq[k]
 
       return {
         id: w.id || makeId(),
@@ -91,17 +97,18 @@ import {
         baseUrl: cleanUrl(w.baseUrl || 'https://hapi5.katomia.com'),
         wsUrl: cleanUrl(w.wsUrl || 'wss://hapi5.katomia.com/ws'),
 
-        // New canonical rule fields.
-        query: { intentPublicKey, network, scope },
+        // New canonical rule fields. `query` is the single persisted source of
+        // truth for the backend filter (see stripWatchRuntime).
+        query: query,
         policyId: String(w.policyId || '').trim(),
         expiresAt: normaliseExpiry(w.expiresAt),
 
-        // Flat mirrors of query.* — derived, kept for backward compatibility
-        // with the WS filter, kea-verify and the existing render code. Do not
-        // write these directly; set query and re-normalise instead.
+        // Flat mirrors of the three known query fields — derived, runtime-only,
+        // kept so the WS filter, kea-verify and render code read them as before.
+        // Do not write these directly; set query and re-normalise instead.
         network: network,
-        gameId: scope,
-        orderPubkey: intentPublicKey,
+        gameId: gameId,
+        orderPubkey: orderPubkey,
 
         signPubkey: String(w.signPubkey || '').trim().toLowerCase(),
         // Mode is no longer a user choice — it's inferred from whether an
@@ -138,16 +145,12 @@ import {
         name: w.name,
         baseUrl: w.baseUrl,
         wsUrl: w.wsUrl,
-        // New canonical rule shape.
+        // `query` is the single source of truth for the backend filter; the
+        // flat network/gameId/orderPubkey mirrors are runtime-only and are NOT
+        // persisted (normaliseWatch still migrates them in from older records).
         query: w.query,
         policyId: w.policyId,
         expiresAt: w.expiresAt,
-        // Legacy flat mirrors — kept in storage for backward compatibility with
-        // any reader still expecting them. normaliseWatch rebuilds query from
-        // these if query is ever absent. Safe to drop in a later migration.
-        network: w.network,
-        gameId: w.gameId,
-        orderPubkey: w.orderPubkey,
         signPubkey: w.signPubkey,
         mode: w.mode,
         paused: w.paused,
@@ -184,7 +187,8 @@ import {
         name: $('watchName').value,
         baseUrl: $('baseUrl').value,
         wsUrl: $('wsUrl').value,
-        network: $('network').value,
+        // Network is never edited in the form — it's the network we're viewing.
+        network: mainNet,
         gameId: $('scopeGameId').value,
         orderPubkey: $('orderPubkey').value,
         signPubkey: $('signPubkey').value,
@@ -752,6 +756,9 @@ import {
 
     function addWatchFromQr(raw) {
       const watch = parseKatomiaQr(raw)
+      // A deep link carries its own network — switch the page to it so the new
+      // watch (and its transactions) are actually visible after landing.
+      if (watch.network && watch.network !== mainNet) setMainNet(watch.network)
       fillWatchForm(watch)
       addWatch(watch)
       closeWatchModal()
@@ -942,7 +949,9 @@ import {
     // them. The debug expander (existing watch only) is Pro-only via its class.
     function applyWatchModalMode(existing) {
       const locked = !isPro
-      for (const id of ['network', 'scopeGameId', 'orderPubkey']) {
+      // Network is shown as a read-only badge (inherited from the page's
+      // testnet/mainnet context), so only these two unlock in Pro mode.
+      for (const id of ['scopeGameId', 'orderPubkey']) {
         $(id).readOnly = locked
         $(id).classList.toggle('readonly', locked)
       }
@@ -965,16 +974,26 @@ import {
       $('watchModal').close()
     }
 
+    // Network isn't an editable field — it's inherited from the page's
+    // testnet/mainnet context. Show it as a labelled badge (themed via data-net
+    // so testnet reads orange, mainnet purple, matching the Keys modal).
+    function setWatchNetworkBadge(net) {
+      const el = $('watchNetwork')
+      if (!el) return
+      el.textContent = net
+      el.dataset.net = net
+    }
+
     function fillWatchForm(w) {
       $('watchName').value = w.name || ''
       $('baseUrl').value = w.baseUrl || ''
       $('wsUrl').value = w.wsUrl || ''
-      $('network').value = w.network || ''
+      setWatchNetworkBadge(w.network || mainNet)
       $('scopeGameId').value = w.gameId || ''
       $('orderPubkey').value = w.orderPubkey || ''
       $('policyId').value = w.policyId || ''
       $('expiresAt').value = w.expiresAt || ''
-      refreshSignKeyOptions(w.signPubkey || '', w.network || '')
+      refreshSignKeyOptions(w.signPubkey || '', w.network || mainNet)
       // Clear any commitment rendered for a previously opened watch.
       hideCommitmentOutput()
     }
@@ -985,7 +1004,7 @@ import {
     // rule, using the executor (Sally's) action key, and render the envelope.
     function raiseCommitment() {
       const rule = watchFromForm()
-      if (!rule.query.intentPublicKey)
+      if (!rule.query.orderPubkey)
         throw new Error('Add a trader intent public key before raising a commitment')
 
       const net = rule.query.network
@@ -1044,7 +1063,7 @@ import {
       none.textContent = 'Manual approval — ask me each time'
       sel.appendChild(none)
 
-      for (const k of loadKeys(network || $('network').value)) {
+      for (const k of loadKeys(network || mainNet)) {
         const opt = document.createElement('option')
         opt.value = k.pubkeyHex
         opt.textContent = `${k.name} · ${shortKey(k.pubkeyHex)}`
@@ -1055,7 +1074,8 @@ import {
     }
 
     function defaultWatch() {
-      return normaliseWatch({})
+      // A fresh watch belongs to the network we're currently viewing.
+      return normaliseWatch({ network: mainNet })
     }
 
     // ---- keys modal --------------------------------------------------------
@@ -1079,6 +1099,9 @@ import {
     }
 
     function applyMainNet() {
+      // Theme the whole page for the current network (subtle accenting on the
+      // header, matching the Keys modal): testnet orange, mainnet purple.
+      document.body.dataset.net = mainNet
       const toggle = $('mainNetToggle')
       if (toggle) {
         toggle.dataset.net = mainNet
@@ -1097,18 +1120,19 @@ import {
 
     // Scope + theme the Keys modal to the selected network (mainnet purple,
     // testnet orange — matching hashscan.io). Edits apply to this network only.
+    // The Keys modal is scoped to the network the page is showing (it no longer
+    // has its own toggle) — it just labels and themes itself for that network.
     function applyKeysNet() {
       const modal = $('keysModal')
       modal.dataset.net = keysNet
-      $('keysNetName').textContent = keysNet
-      document.querySelectorAll('#keysNetToggle button').forEach(function(b) {
-        b.classList.toggle('active', b.dataset.net === keysNet)
-      })
+      const nm = $('keysNetName')
+      nm.textContent = keysNet
+      nm.dataset.net = keysNet
     }
 
     function openKeysModal() {
-      // Open scoped to whatever the main page is showing; the modal's own
-      // toggle can still switch network from there.
+      // Always scoped to the network the page is showing. To manage the other
+      // network's keys, switch the page toggle first, then reopen.
       setKeysNet(mainNet)
       $('keysModal').showModal()
     }
@@ -1675,6 +1699,8 @@ import {
 
         const watch = parseKatomiaQr(url.toString())
 
+        // Land on the watch's own network, not whatever was last shown.
+        if (watch.network && watch.network !== mainNet) setMainNet(watch.network)
         addWatch(watch)
         setStatus(`Added ${watchLabel(watch)}`)
 
@@ -1732,21 +1758,11 @@ import {
     $('genKeyBtn').onclick = function() { genKey().catch(function(e) { setStatus(`ERROR ${e.message}`, 'bad') }) }
     $('importKeyBtn').onclick = function() { importKeyFlow().catch(function(e) { setStatus(`ERROR ${e.message}`, 'bad') }) }
 
-    // Keys modal network toggle (testnet / mainnet scope).
-    $('keysNetToggle').onclick = function(ev) {
-      const btn = ev.target.closest('button[data-net]')
-      if (btn) setKeysNet(btn.dataset.net)
-    }
-
     // Main-page network toggle: filters watches + transactions to one network.
     $('mainNetToggle').onclick = function(ev) {
       const btn = ev.target.closest('button[data-net]')
       if (btn) setMainNet(btn.dataset.net)
     }
-
-    // When Pro mode unlocks the network field, re-scope the auto-approval key
-    // list to keys for the newly chosen network.
-    $('network').oninput = function() { refreshSignKeyOptions($('signPubkey').value) }
 
     loadPro()
     applyProMode(isPro)

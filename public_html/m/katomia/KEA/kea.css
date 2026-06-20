@@ -567,3 +567,44 @@ input.readonly { opacity: .7; cursor: default; background: var(--bg-softer); }
 .commitment-hint { font-size: 12px; }
 .commitment-out { margin-top: 10px; }
 .commitment-out pre { max-height: 300px; }
+/* ---- watch modal: section headers + network badge --------------------- */
+/* Group the modal into three parts: Query, Rule, Auto-approval. */
+.modal-section {
+  margin: 18px 0 8px;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-section .muted { text-transform: none; letter-spacing: 0; font-weight: 600; }
+.modal-body .modal-section:first-child { margin-top: 4px; }
+
+/* Network is inherited, not edited — render it as a themed read-only badge
+   (mainnet purple, testnet orange) rather than an input. */
+.net-badge, .net-badge-inline {
+  --net-color: #7b5cff; --net-tint: rgba(123,92,255,.14);
+}
+.net-badge[data-net="testnet"], .net-badge-inline[data-net="testnet"] {
+  --net-color: #f5841f; --net-tint: rgba(245,132,31,.16);
+}
+.net-badge {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-weight: 800;
+  color: var(--net-color);
+  background: var(--net-tint);
+  border: 1px solid var(--net-color);
+}
+.net-badge-inline { color: var(--net-color); font-weight: 800; }
+.net-scope-line { margin: 2px 0 10px; }
+
+/* ---- main page: subtle network accenting ------------------------------ */
+/* Make it clear at a glance which network you're on. Deliberately light —
+   only the H1 accent + a thin header rule pick up the network colour. */
+body { --net-color: #7b5cff; }
+body[data-net="testnet"] { --net-color: #f5841f; }
+.app-header { border-bottom: 2px solid var(--net-color); padding-bottom: 8px; }
+.app-header h1 { color: var(--net-color); }

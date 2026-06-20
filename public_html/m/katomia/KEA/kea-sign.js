@@ -256,7 +256,9 @@ export async function buildExecutionCommitmentEnvelope(rule, key) {
     },
     subject: {
       role: 'trader',
-      intentPublicKey: String(query.intentPublicKey || '')
+      // Spec field stays `intentPublicKey`; it's sourced from the query's
+      // backend-named `orderPubkey`.
+      intentPublicKey: String(query.orderPubkey || '')
     },
     dealPolicy: {
       type: 'kpay.dealPolicyRef',
