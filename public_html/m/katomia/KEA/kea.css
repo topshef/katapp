@@ -561,3 +561,9 @@ td.key-name:focus { outline: 2px solid var(--net-color); outline-offset: -2px; b
 
 /* Read-only watch fields (locked outside Pro mode) read as display, not input. */
 input.readonly { opacity: .7; cursor: default; background: var(--bg-softer); }
+
+/* ---- rule policy + execution commitment (watch modal) ----------------- */
+.commitment-block { margin-top: 14px; }
+.commitment-hint { font-size: 12px; }
+.commitment-out { margin-top: 10px; }
+.commitment-out pre { max-height: 300px; }
