@@ -182,15 +182,17 @@ import {
     }
 
     function watchFromForm() {
+      // The query comes straight from the inline editor (populated in both
+      // modes). A fresh/just-scanned rule carries its network in the query
+      // already; if a manual edit clears it, normaliseWatch falls back sensibly.
+      const query = queryFromEditor()
+      if (!query.network) query.network = mainNet
       return normaliseWatch({
         id: editingWatchId || undefined,
         name: $('watchName').value,
         baseUrl: $('baseUrl').value,
         wsUrl: $('wsUrl').value,
-        // Network is never edited in the form — it's the network we're viewing.
-        network: mainNet,
-        gameId: $('scopeGameId').value,
-        orderPubkey: $('orderPubkey').value,
+        query: query,
         signPubkey: $('signPubkey').value,
         policyId: $('policyId').value,
         expiresAt: $('expiresAt').value
@@ -802,15 +804,15 @@ import {
 
       if (!shown.length) {
         el.innerHTML = watches.length
-          ? `<div class="empty">No ${mainNet} watches. Switch network above, or add one for this network.</div>`
-          : '<div class="empty">No watches yet. Scan a QR to add one. Turn on Pro mode for 🛠️ manual entry.</div>'
+          ? `<div class="empty">No ${mainNet} rules. Switch network above, or add one for this network.</div>`
+          : '<div class="empty">No rules yet. Scan a QR to add one. Turn on Pro mode for 🛠️ manual entry.</div>'
         return
       }
 
       const table = document.createElement('table')
       const head = document.createElement('tr')
 
-      for (const h of ['#', 'Watch', 'Key', 'Approval', 'State', 'Last', '']) {
+      for (const h of ['#', 'Rule', 'Key', 'Approval', 'State', 'Last', '']) {
         const th = document.createElement('th')
         th.textContent = h
         head.appendChild(th)
@@ -827,10 +829,10 @@ import {
         tr.onclick = function() { openWatchModal(w) }
 
         cell(tr, watchRef(w), '#', `watch-ref-cell ${isAuto(w) ? 'ok' : ''}`)
-        cell(tr, watchTitle(w), 'Watch', 'strong-cell')
+        cell(tr, watchTitle(w), 'Rule', 'strong-cell')
         cell(tr, shortKey(w.orderPubkey), 'Key', 'mono key-cell')
         pillCell(tr, approvalLabel(w), 'Approval')
-        cell(tr, watchStateText(w), 'State', statusClass(w))
+        cell(tr, watchStateText(w), 'State', (statusClass(w) + ' state-cell').trim())
         cell(tr, w.lastSeenAt ? formatShortTime(w.lastSeenAt) : '-', 'Last', 'time-cell')
 
         const controls = document.createElement('td')
@@ -864,7 +866,7 @@ import {
       const showWatch = shouldShowTransactionWatch()
       const table = document.createElement('table')
       const head = document.createElement('tr')
-      const headers = ['', 'Strike', showWatch ? 'Watch' : null, 'Tx', 'Status', 'Notes'].filter(function(x) { return x !== null })
+      const headers = ['', 'Strike', showWatch ? 'Rule' : null, 'Tx', 'Status', 'Notes'].filter(function(x) { return x !== null })
 
       for (const h of headers) {
         const th = document.createElement('th')
@@ -887,7 +889,7 @@ import {
         cell(tr, strikeDisplay(e), 'Strike', 'time-cell')
         if (showWatch) {
           const lw = getWatch(e.watchId)
-          cell(tr, e.watchRef || (lw ? watchRef(lw) : '-'), 'Watch', 'watch-ref-cell')
+          cell(tr, e.watchRef || (lw ? watchRef(lw) : '-'), 'Rule', 'watch-ref-cell')
         }
         cell(tr, txLabel(e), 'Tx', 'mono tx-cell', txTitle(e))
         cell(tr, status.text, 'Status', status.tone || '', e.summary || '')
@@ -924,18 +926,18 @@ import {
 
       if (clone) {
         $('watchModalTitle').textContent = `⚙️ Clone ${watchRef(w)}`
-        $('saveWatchBtn').textContent = 'Add watch'
+        $('saveWatchBtn').textContent = 'Add rule'
         $('deleteWatchBtn').style.display = 'none'
         const seed = Object.assign({}, w, { name: w.name ? `${w.name} (copy)` : '' })
         fillWatchForm(seed)
       } else if (w) {
         $('watchModalTitle').textContent = `⚙️ Edit ${watchRef(w)}`
-        $('saveWatchBtn').textContent = 'Save watch'
+        $('saveWatchBtn').textContent = 'Save rule'
         $('deleteWatchBtn').style.display = 'inline-block'
         fillWatchForm(w)
       } else {
-        $('watchModalTitle').textContent = '⚙️ Add watch'
-        $('saveWatchBtn').textContent = 'Add watch'
+        $('watchModalTitle').textContent = '⚙️ Add rule'
+        $('saveWatchBtn').textContent = 'Add rule'
         $('deleteWatchBtn').style.display = 'none'
         fillWatchForm(defaultWatch())
       }
@@ -968,13 +970,14 @@ import {
       $('watchModal').close()
     }
 
-    // Friendly labels for the well-known query keys. Anything else in the query
-    // (e.g. accountId, tokenId) falls back to its raw key name — query fields
-    // are query parameters, not a fixed set of form fields.
+    // A small library of friendly labels for known query keys. Any key NOT in
+    // the library falls back to its raw name from the query JSON — query fields
+    // are query parameters, not a fixed set of form fields, so we never require
+    // a key to be known.
     const QUERY_LABELS = { orderPubkey: 'trader key', gameId: 'game', network: 'network' }
+    function queryLabel(k) { return QUERY_LABELS[k] || k }
 
-    // Normal-mode query display: a plain, borderless key/value list. Read-only;
-    // Pro mode is where the query is edited.
+    // Normal mode: a plain, borderless label/value list. Read-only.
     function renderQueryView(w) {
       const el = $('queryView')
       if (!el) return
@@ -986,7 +989,7 @@ import {
         row.className = 'q-row'
         const key = document.createElement('span')
         key.className = 'q-key'
-        key.textContent = QUERY_LABELS[k] || k
+        key.textContent = queryLabel(k)
         const val = document.createElement('span')
         val.className = 'q-val mono'
         val.textContent = raw ? (k === 'orderPubkey' ? shortKey(raw) : raw) : 'any'
@@ -997,17 +1000,73 @@ import {
       }
     }
 
+    // Pro mode: a little inline key/value editor in the same list style (raw key
+    // names, both fields editable, ✕ to remove, + to add). The query is just a
+    // bag of backend filter params, so the editor is generic — nothing is a
+    // hard-coded form field.
+    function renderQueryEdit(w) {
+      const el = $('queryEdit')
+      if (!el) return
+      el.innerHTML = ''
+      const q = (w && w.query) || {}
+      const keys = Object.keys(q)
+      if (!keys.length) { addQueryRow('', ''); return }
+      for (const k of keys) addQueryRow(k, q[k] == null ? '' : String(q[k]))
+    }
+
+    function addQueryRow(key, value) {
+      const el = $('queryEdit')
+      if (!el) return
+      const row = document.createElement('div')
+      row.className = 'qe-row'
+
+      const k = document.createElement('input')
+      k.className = 'qe-key mono'
+      k.placeholder = 'key'
+      k.value = key || ''
+
+      const v = document.createElement('input')
+      v.className = 'qe-val mono'
+      v.placeholder = 'value'
+      v.value = value || ''
+
+      const x = document.createElement('button')
+      x.type = 'button'
+      x.className = 'qe-del'
+      x.title = 'Remove field'
+      x.setAttribute('aria-label', 'Remove field')
+      x.textContent = '\u2715'
+      x.onclick = function() { row.remove() }
+
+      row.appendChild(k)
+      row.appendChild(v)
+      row.appendChild(x)
+      el.appendChild(row)
+    }
+
+    // Read the editor back into a plain query object, skipping rows with a blank
+    // key. Last write wins if a key is duplicated.
+    function queryFromEditor() {
+      const el = $('queryEdit')
+      const out = {}
+      if (!el) return out
+      el.querySelectorAll('.qe-row').forEach(function(row) {
+        const k = row.querySelector('.qe-key').value.trim()
+        if (!k) return
+        out[k] = row.querySelector('.qe-val').value.trim()
+      })
+      return out
+    }
+
     function fillWatchForm(w) {
       $('watchName').value = w.name || ''
       $('baseUrl').value = w.baseUrl || ''
       $('wsUrl').value = w.wsUrl || ''
-      // Normal mode reads the query list; Pro mode edits the inputs. Populate
-      // both so saving from either mode round-trips the same values.
+      // Normal mode reads the label/value list; Pro mode edits the same query
+      // via the inline editor. Populate both so saving from either mode
+      // round-trips identically.
       renderQueryView(w)
-      const netLine = $('watchNetLine')
-      if (netLine) netLine.textContent = `network · ${w.network || mainNet}`
-      $('scopeGameId').value = w.gameId || ''
-      $('orderPubkey').value = w.orderPubkey || ''
+      renderQueryEdit(w)
       $('policyId').value = w.policyId || ''
       $('expiresAt').value = w.expiresAt || ''
       refreshSignKeyOptions(w.signPubkey || '', w.network || mainNet)
@@ -1605,15 +1664,15 @@ import {
       return `${d.toLocaleDateString([], { day: '2-digit', month: 'short', year: '2-digit' })} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
     }
 
-    // A watch keeps a stable W-number. Auto-approval is shown as a suffix:
-    // W12 = manual watch, W12A = same watch with auto-approval enabled.
+    // A rule keeps a stable R-number. Auto-approval is shown as a suffix:
+    // R12 = manual rule, R12A = same rule with auto-approval enabled.
     function isAuto(w) {
       return !!(w && String(w.signPubkey || '').trim())
     }
 
     function watchRef(w) {
-      if (!w?.ref) return isAuto(w) ? 'W?A' : 'W?'
-      return `W${w.ref}${isAuto(w) ? 'A' : ''}`
+      if (!w?.ref) return isAuto(w) ? 'R?A' : 'R?'
+      return `R${w.ref}${isAuto(w) ? 'A' : ''}`
     }
 
     function approvalLabel(w) {
@@ -1766,6 +1825,7 @@ import {
       try { raiseCommitment() } catch (e) { setStatus(`ERROR ${e.message}`, 'bad') }
     }
     $('copyCommitmentBtn').onclick = function() { copyCommitment() }
+    $('addQueryRowBtn').onclick = function() { addQueryRow('', '') }
     $('watchModalCloseBtn').onclick = function() { closeWatchModal() }
     $('detailModalCloseBtn').onclick = function() { openEvent = null; $('detailModal').close() }
 

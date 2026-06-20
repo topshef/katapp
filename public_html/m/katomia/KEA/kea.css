@@ -145,10 +145,11 @@ summary { cursor: pointer; font-weight: 700; }
 .pro-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin: 0;
-  margin-right: 50px;
-  padding: 5px 9px;
+  padding: 0 12px;
+  height: 33px;
+  box-sizing: border-box;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--bg-soft);
@@ -159,13 +160,29 @@ summary { cursor: pointer; font-weight: 700; }
   user-select: none;
 }
 
-.pro-toggle input {
-  width: auto;
-  margin: 0;
-  padding: 0;
-  accent-color: var(--ok);
-  cursor: pointer;
+/* Native checkbox hidden; the .switch span is the visible control. */
+.pro-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.pro-toggle .switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background .15s ease;
 }
+.pro-toggle .switch::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform .15s ease;
+}
+.pro-toggle input:checked ~ .switch { background: var(--ok); }
+.pro-toggle input:checked ~ .switch::after { transform: translateX(16px); }
+.pro-toggle input:focus-visible ~ .switch { outline: 2px solid var(--ok); outline-offset: 2px; }
 
 /* Pro-only chrome is hidden unless <body class="pro"> is set. */
 body:not(.pro) .pro-only { display: none !important; }
@@ -612,3 +629,87 @@ body { --net-color: #7b5cff; }
 body[data-net="testnet"] { --net-color: #f5841f; }
 .app-header { border-bottom: 2px solid var(--net-color); padding-bottom: 8px; }
 .app-header h1 { color: var(--net-color); }
+
+/* ---- pro-mode inline query editor ------------------------------------- */
+/* Same flat list feel as the read-only view, but each field is an underline-
+   only input (no boxed form). Edit key + value, ✕ to remove, + to add. */
+.query-edit { margin: 2px 0 4px; }
+.qe-row { display: flex; gap: 8px; align-items: center; padding: 2px 0; }
+.qe-key, .qe-val {
+  width: auto;
+  margin: 0;
+  padding: 5px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  font-size: 13px;
+}
+.qe-key { flex: 0 0 116px; }
+.qe-val { flex: 1 1 auto; min-width: 0; }
+.qe-key:focus, .qe-val:focus {
+  outline: none;
+  border-bottom-color: var(--net-color, #7b5cff);
+  background: var(--bg-softer);
+}
+.qe-del {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+  line-height: 1;
+}
+.qe-del:hover { color: var(--bad); }
+.link-btn {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 2px;
+  margin-top: 2px;
+}
+.link-btn:hover { color: inherit; text-decoration: underline; }
+
+/* ---- mobile: cull the rules list + tidy the toggles ------------------- */
+@media (max-width: 720px) {
+  /* Rules list: two lines — [ref  name], then chips (no labels, no key). */
+  tr.watch-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    padding: 8px 10px;
+  }
+  tr.watch-row td {
+    display: inline-flex;
+    align-items: center;
+    border: 0;
+    padding: 0;
+  }
+  tr.watch-row td::before { content: none !important; }
+  tr.watch-row .key-cell { display: none; }
+  tr.watch-row .watch-ref-cell { flex: 0 0 auto; font-weight: 800; }
+  tr.watch-row .strong-cell { flex: 1 1 0; min-width: 0; font-weight: 600; }
+  tr.watch-row .pill { font-size: 12px; }
+  tr.watch-row .time-cell { font-size: 12px; color: var(--text-muted); }
+  tr.watch-row .state-cell {
+    font-size: 12px;
+    padding: 1px 9px;
+    border-radius: 999px;
+    background: var(--bg-soft);
+  }
+  tr.watch-row .controls { flex: 0 0 auto; margin-left: auto; }
+
+  /* Transactions: drop labels too, just show the values. */
+  tr.tx-row td::before { content: none !important; }
+
+  /* Keep the net label off the container edge, and let the action buttons
+     sit on one line with the (now shorter) "Rules" heading. */
+  .net-toggle button { padding: 6px 18px; }
+  .header-controls { gap: 8px; flex-wrap: wrap; }
+  .watch-actions { flex-wrap: nowrap; }
+}

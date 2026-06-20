@@ -17,12 +17,14 @@
       <p class="subtitle">Watch trader intent keys. Check the promise matches the action. Sign only when the package is safe.</p>
     </div>
     <div class="header-controls">
-      <div class="net-toggle main-net-toggle" id="mainNetToggle" data-net="mainnet" title="Show only this network's watches and transactions">
+      <div class="net-toggle main-net-toggle" id="mainNetToggle" data-net="mainnet" title="Show only this network's rules and transactions">
         <button type="button" data-net="testnet">Testnet</button>
         <button type="button" data-net="mainnet">Mainnet</button>
       </div>
       <label class="pro-toggle" title="Show advanced controls: edit, clone, manual entry and debug">
-        <input type="checkbox" id="proToggle"> 🧰 Pro mode
+        <span class="pro-label">🧰 Pro</span>
+        <input type="checkbox" id="proToggle">
+        <span class="switch" aria-hidden="true"></span>
       </label>
     </div>
   </header>
@@ -33,10 +35,10 @@
 
   <section>
     <div class="section-head">
-      <h2>Watches &amp; Actions</h2>
+      <h2>Rules</h2>
       <div class="watch-actions">
         <button id="scanQrBtn" class="primary">📷 Scan QR</button>
-        <button id="toolsBtn" class="icon-btn pro-only" title="Add watch manually" aria-label="Add watch manually">🛠️</button>
+        <button id="toolsBtn" class="icon-btn pro-only" title="Add rule manually" aria-label="Add rule manually">🛠️</button>
         <button id="keysBtn" title="Manage action keys">🔑 Keys</button>
         <button id="stopQrBtn" class="quiet" style="display:none">Stop camera</button>
       </div>
@@ -56,7 +58,7 @@
     </div>
 
     <div class="modal-body">
-      <p class="debug-note pro-only">Normal flow is scan QR. These fields are for local testing, editing/cloning a watch, or pasting a QR/link manually.</p>
+      <p class="debug-note pro-only">Normal flow is scan QR. These fields are for local testing, editing/cloning a rule, or pasting a QR/link manually.</p>
 
       <div class="row pro-only">
         <button id="pasteQrBtn">Paste QR link</button>
@@ -80,13 +82,8 @@
       <div id="queryView" class="query-view basic-only"></div>
 
       <div class="pro-only">
-        <label>Trader intent public key</label>
-        <input id="orderPubkey" value="" class="mono">
-
-        <label>Game ID</label>
-        <input id="scopeGameId" value="m-order">
-
-        <div id="watchNetLine" class="field-hint"></div>
+        <div id="queryEdit" class="query-edit"></div>
+        <button id="addQueryRowBtn" type="button" class="link-btn">+ Add field</button>
 
         <h3 class="modal-section">Rule</h3>
         <label>Policy ID <span class="muted">(blank = built-in intent-signature check)</span></label>
@@ -120,8 +117,8 @@
       </details>
 
       <div class="modal-actions">
-        <button id="deleteWatchBtn" class="danger" style="display:none">Delete watch</button>
-        <button id="saveWatchBtn" class="primary">Add watch</button>
+        <button id="deleteWatchBtn" class="danger" style="display:none">Delete rule</button>
+        <button id="saveWatchBtn" class="primary">Add rule</button>
       </div>
     </div>
   </dialog>
