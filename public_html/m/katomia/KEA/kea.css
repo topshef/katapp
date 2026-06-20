@@ -567,39 +567,43 @@ input.readonly { opacity: .7; cursor: default; background: var(--bg-softer); }
 .commitment-hint { font-size: 12px; }
 .commitment-out { margin-top: 10px; }
 .commitment-out pre { max-height: 300px; }
-/* ---- watch modal: section headers + network badge --------------------- */
-/* Group the modal into three parts: Query, Rule, Auto-approval. */
+/* ---- watch modal: quiet section headers + read-only query list -------- */
+/* Light section labels — no rules, no all-caps shouting, just enough to
+   separate Query / Rule / Auto-approval. */
 .modal-section {
-  margin: 18px 0 8px;
-  font-size: 13px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--border);
+  margin: 20px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
 }
-.modal-section .muted { text-transform: none; letter-spacing: 0; font-weight: 600; }
-.modal-body .modal-section:first-child { margin-top: 4px; }
+.modal-body .modal-section:first-child { margin-top: 6px; }
 
-/* Network is inherited, not edited — render it as a themed read-only badge
-   (mainnet purple, testnet orange) rather than an input. */
-.net-badge, .net-badge-inline {
-  --net-color: #7b5cff; --net-tint: rgba(123,92,255,.14);
+/* Normal-mode query: a plain, borderless key/value list, slightly indented.
+   No boxes, no input chrome — it reads as data, not a form. */
+.query-view { margin: 2px 0 4px; padding-left: 10px; }
+.q-row {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 3px 0;
 }
-.net-badge[data-net="testnet"], .net-badge-inline[data-net="testnet"] {
-  --net-color: #f5841f; --net-tint: rgba(245,132,31,.16);
+.q-key {
+  flex: 0 0 88px;
+  color: var(--text-muted);
+  font-size: 12px;
 }
-.net-badge {
-  display: inline-block;
-  padding: 5px 12px;
-  border-radius: 999px;
-  font-weight: 800;
-  color: var(--net-color);
-  background: var(--net-tint);
-  border: 1px solid var(--net-color);
-}
-.net-badge-inline { color: var(--net-color); font-weight: 800; }
+.q-val { overflow-wrap: anywhere; word-break: break-all; }
+
+/* One-line gray hints (replaces bulky labels + debug paragraphs). */
+.field-hint { margin: 4px 0 8px; color: var(--text-muted); font-size: 12px; }
+
+/* Keys-modal inline network label (testnet orange / mainnet purple). */
+.net-badge-inline { --net-color: #7b5cff; color: var(--net-color); font-weight: 800; }
+.net-badge-inline[data-net="testnet"] { --net-color: #f5841f; }
 .net-scope-line { margin: 2px 0 10px; }
+
+/* Hide normal-mode-only blocks when Pro mode is on. */
+body.pro .basic-only { display: none !important; }
 
 /* ---- main page: subtle network accenting ------------------------------ */
 /* Make it clear at a glance which network you're on. Deliberately light —

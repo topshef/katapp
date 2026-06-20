@@ -73,38 +73,32 @@
         <input id="wsUrl" value="wss://hapi5.katomia.com/ws">
       </div>
 
-      <!-- 1) Query: what we watch for. Sent to the KPool backend, so its fields
-           keep the backend's own names. Network is inherited from the page's
-           testnet/mainnet context and shown read-only. -->
-      <h3 class="modal-section">Query <span class="muted">— what we watch for</span></h3>
+      <!-- Query = the backend filter. Normal mode shows it as a plain read-only
+           list (keys are query parameters, not hard-coded form fields); Pro mode
+           is where it's edited. -->
+      <h3 class="modal-section">Query</h3>
+      <div id="queryView" class="query-view basic-only"></div>
 
-      <label>Trader intent public key to watch</label>
-      <input id="orderPubkey" value="" class="mono">
-
-      <label>Game ID <span class="muted">(blank = watch all games)</span></label>
-      <input id="scopeGameId" value="m-order">
-
-      <label>Network <span class="muted">(set by the page — switch it above)</span></label>
-      <div id="watchNetwork" class="net-badge mono" data-net="mainnet">mainnet</div>
-
-      <!-- 2) Rule: how incoming records are checked, and when the rule lapses.
-           Blank policy = the built-in intent-signature check. -->
       <div class="pro-only">
-        <h3 class="modal-section">Rule <span class="muted">— policy &amp; expiry</span></h3>
+        <label>Trader intent public key</label>
+        <input id="orderPubkey" value="" class="mono">
 
-        <label>Rule policy ID <span class="muted">(blank = built-in intent-signature check)</span></label>
+        <label>Game ID</label>
+        <input id="scopeGameId" value="m-order">
+
+        <div id="watchNetLine" class="field-hint"></div>
+
+        <h3 class="modal-section">Rule</h3>
+        <label>Policy ID <span class="muted">(blank = built-in intent-signature check)</span></label>
         <input id="policyId" placeholder="kpay.policy.intentSig.v1" class="mono">
 
-        <label>Rule expires at <span class="muted">(optional, ISO 8601 — blank = no expiry)</span></label>
+        <label>Expires at <span class="muted">(ISO 8601, optional)</span></label>
         <input id="expiresAt" placeholder="2026-12-31T23:59:59Z" class="mono">
       </div>
 
-      <!-- 3) Auto-approval: if the rule passes, sign with this key. -->
-      <h3 class="modal-section">Auto-approval <span class="muted">— sign on pass</span></h3>
-
-      <label>Auto-approval key <span class="muted">(leave on “Manual approval” to be asked each time)</span></label>
+      <h3 class="modal-section">Auto-approval</h3>
       <select id="signPubkey"></select>
-      <p class="debug-note">With a key set, KEA auto-signs anything that passes this watch (an <strong>Action</strong>). Leave it on manual to review and approve each transaction yourself. Manage keys with 🔑 Keys.</p>
+      <p class="field-hint">If the rule passes, sign with this key. Leave on manual to approve each time.</p>
 
       <div class="commitment-block">
         <div class="row">

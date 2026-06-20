@@ -948,14 +948,8 @@ import {
     // the subscription-defining fields are shown read-only; Pro mode unlocks
     // them. The debug expander (existing watch only) is Pro-only via its class.
     function applyWatchModalMode(existing) {
-      const locked = !isPro
-      // Network is shown as a read-only badge (inherited from the page's
-      // testnet/mainnet context), so only these two unlock in Pro mode.
-      for (const id of ['scopeGameId', 'orderPubkey']) {
-        $(id).readOnly = locked
-        $(id).classList.toggle('readonly', locked)
-      }
-
+      // The query is read-only in normal mode (rendered as a list) and editable
+      // in Pro mode (the inputs are Pro-only), so there's no per-field lock.
       const dbg = $('watchDebug')
       if (existing) {
         $('watchDebugPre').textContent = JSON.stringify(stripWatchRuntime(existing), null, 2)
@@ -974,21 +968,44 @@ import {
       $('watchModal').close()
     }
 
-    // Network isn't an editable field — it's inherited from the page's
-    // testnet/mainnet context. Show it as a labelled badge (themed via data-net
-    // so testnet reads orange, mainnet purple, matching the Keys modal).
-    function setWatchNetworkBadge(net) {
-      const el = $('watchNetwork')
+    // Friendly labels for the well-known query keys. Anything else in the query
+    // (e.g. accountId, tokenId) falls back to its raw key name — query fields
+    // are query parameters, not a fixed set of form fields.
+    const QUERY_LABELS = { orderPubkey: 'trader key', gameId: 'game', network: 'network' }
+
+    // Normal-mode query display: a plain, borderless key/value list. Read-only;
+    // Pro mode is where the query is edited.
+    function renderQueryView(w) {
+      const el = $('queryView')
       if (!el) return
-      el.textContent = net
-      el.dataset.net = net
+      el.innerHTML = ''
+      const q = (w && w.query) || {}
+      for (const k of Object.keys(q)) {
+        const raw = q[k] == null ? '' : String(q[k])
+        const row = document.createElement('div')
+        row.className = 'q-row'
+        const key = document.createElement('span')
+        key.className = 'q-key'
+        key.textContent = QUERY_LABELS[k] || k
+        const val = document.createElement('span')
+        val.className = 'q-val mono'
+        val.textContent = raw ? (k === 'orderPubkey' ? shortKey(raw) : raw) : 'any'
+        if (!raw) val.classList.add('muted')
+        row.appendChild(key)
+        row.appendChild(val)
+        el.appendChild(row)
+      }
     }
 
     function fillWatchForm(w) {
       $('watchName').value = w.name || ''
       $('baseUrl').value = w.baseUrl || ''
       $('wsUrl').value = w.wsUrl || ''
-      setWatchNetworkBadge(w.network || mainNet)
+      // Normal mode reads the query list; Pro mode edits the inputs. Populate
+      // both so saving from either mode round-trips the same values.
+      renderQueryView(w)
+      const netLine = $('watchNetLine')
+      if (netLine) netLine.textContent = `network · ${w.network || mainNet}`
       $('scopeGameId').value = w.gameId || ''
       $('orderPubkey').value = w.orderPubkey || ''
       $('policyId').value = w.policyId || ''
