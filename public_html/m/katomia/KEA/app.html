@@ -86,6 +86,28 @@
       <select id="signPubkey"></select>
       <p class="debug-note">With a key set, KEA auto-signs anything that passes this watch (an <strong>Action</strong>). Leave it on manual to review and approve each transaction yourself. Manage keys with 🔑 Keys.</p>
 
+      <div class="pro-only">
+        <label>Rule policy ID <span class="muted">(blank = built-in intent-signature check)</span></label>
+        <input id="policyId" placeholder="kpay.policy.intentSig.v1" class="mono">
+
+        <label>Rule expires at <span class="muted">(optional, ISO 8601 — blank = no expiry)</span></label>
+        <input id="expiresAt" placeholder="2026-12-31T23:59:59Z" class="mono">
+      </div>
+
+      <div class="commitment-block">
+        <div class="row">
+          <button id="raiseCommitmentBtn" type="button">🪶 Raise commitment</button>
+          <span class="muted commitment-hint">Sign an execution commitment binding this rule to the key above.</span>
+        </div>
+        <div id="commitmentOut" class="commitment-out" style="display:none">
+          <label>Signed execution commitment</label>
+          <pre id="commitmentPre" class="mono"></pre>
+          <div class="row">
+            <button id="copyCommitmentBtn" type="button">📋 Copy JSON</button>
+          </div>
+        </div>
+      </div>
+
       <details id="watchDebug" class="pro-only" style="display:none">
         <summary>Debug</summary>
         <pre id="watchDebugPre"></pre>

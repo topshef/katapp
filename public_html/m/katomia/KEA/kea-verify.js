@@ -79,6 +79,87 @@ export async function verifyKeaForWatch(kea, w) {
   }
 }
 
+// -----------------------------------------------------------------------------
+// POLICY EVALUATION
+//
+// A watch rule may carry a policyId that selects HOW a noticed transaction is
+// checked before signing. Today only the built-in intent-signature policy is
+// evaluated; everything else is stubbed and fails closed. The branch shape is
+// deliberately the one we grow into when external deal policies arrive (see
+// dealEngine.js / dealPorts.browser.js): a sha256:<dealId> policy will fetch the
+// deal template, confirm sha256(template) === dealId, then run the dealEngine
+// checks and pass only on verdict 'pass'.
+// -----------------------------------------------------------------------------
+
+export const POLICY_INTENT_SIG = 'kpay.policy.intentSig.v1'
+
+export function rulePolicyId(w) {
+  return String((w && w.policyId) || '').trim()
+}
+
+function ruleExpiryMs(w) {
+  const v = w && w.expiresAt
+  if (!v) return null
+  const t = Date.parse(v)
+  return Number.isFinite(t) ? t : null
+}
+
+export function isRuleExpired(w, now) {
+  const exp = ruleExpiryMs(w)
+  return exp != null && (now || Date.now()) > exp
+}
+
+// Evaluate the watch's policy against a fetched KEA package. Returns the same
+// { ok, msg } shape as verifyKeaForWatch, plus policy metadata. NEVER silently
+// passes: stub / unknown / expired all fail closed so nothing auto-signs.
+export async function evaluatePolicyForWatch(kea, w) {
+  // Expiry gate first: an expired rule is refused regardless of policy.
+  if (isRuleExpired(w)) {
+    console.debug('[KEA] rule expired — refusing to sign', rulePolicyId(w) || POLICY_INTENT_SIG)
+    return { ok: false, msg: 'Watch rule has expired — refusing to sign', policyId: rulePolicyId(w), policyKind: 'expired', expired: true }
+  }
+
+  const policyId = rulePolicyId(w)
+
+  // Built-in intent-signature policy. This IS the current default behaviour,
+  // now expressed as a named policy. An absent/empty policyId defaults to it so
+  // existing watches keep verifying-then-signing exactly as before (backward
+  // compatible: auto-sign of passing transactions is unchanged).
+  //
+  // NOTE: the spec also described an "absent policyId -> no check, sign
+  // everything" branch. That would change today's safe behaviour and drop the
+  // signature check, so it is intentionally NOT enabled. An unchecked mode, if
+  // ever wanted, should be its own named policy (e.g. kpay.policy.signAll.v1),
+  // never the silent default.
+  if (!policyId || policyId === POLICY_INTENT_SIG) {
+    const res = await verifyKeaForWatch(kea, w)
+    return Object.assign({ policyId: policyId || POLICY_INTENT_SIG, policyKind: 'intentSig' }, res)
+  }
+
+  // External deal policy, addressed by content hash (policyId === sha256:<dealId>).
+  if (policyId.startsWith('sha256:')) {
+    return evaluateExternalDealPolicy(kea, w, policyId)
+  }
+
+  // Unrecognised policy id: fail closed rather than signing on an unknown rule.
+  return { ok: false, msg: `Unknown policyId: ${policyId}`, policyId, policyKind: 'unknown' }
+}
+
+// STUB. External deal-policy evaluation is not implemented yet. When the deal
+// policy schema + delivery are defined this will:
+//   1. fetch the external deal policy document (the deal template),
+//   2. verify sha256(template) === policyId           (dealPorts.browser hashJson),
+//   3. createDealEngine(browserPorts) + runChecks(input, policy),
+//   4. pass only when verdict === 'pass'.
+// Until then it fails closed so a sha256: rule never auto-signs.
+async function evaluateExternalDealPolicy(kea, w, policyId) {
+  try {
+    throw new Error('STUB: external policy evaluation not yet implemented')
+  } catch (err) {
+    return { ok: false, msg: err.message, policyId, policyKind: 'sha256', stub: true }
+  }
+}
+
 export function getExecutionFills(kea) {
   const raw = kea.execution?.fills || (kea.execution?.fill ? [kea.execution.fill] : [])
   return raw.map(normaliseFillShape)

@@ -225,6 +225,75 @@ export function buildRejectPayload(e, reason) {
 }
 
 // -------------------------------------------------------------------------
+// EXECUTION COMMITMENTS  (kpay.executionCommitment)
+// -------------------------------------------------------------------------
+//
+// A commitment is the executor's (Sally's) signed promise to execute against a
+// trader's (Tim's) intent key under a named deal policy. It is the standing
+// counterpart to a per-transaction signature: signApprovalPackage signs ONE
+// transaction, a commitment binds the watch rule itself.
+//
+// Built from a watch rule (rule.query.* + rule.policyId + rule.expiresAt) and
+// the executor's action key. Canonicalisation is plain JSON.stringify over the
+// commitment in field order (matches kea-utils canonicalJson and the dealEngine
+// hashJson convention), signed with ed25519, signature encoded base64url.
+
+export async function buildExecutionCommitmentEnvelope(rule, key) {
+  if (!key?.privHex) throw new Error('No action key selected to sign the commitment')
+
+  const query = (rule && rule.query) || {}
+  const nowIso = new Date().toISOString()
+  const expiresAt = rule && rule.expiresAt ? rule.expiresAt : null
+
+  const commitment = {
+    type: 'kpay.executionCommitment',
+    version: 1,
+    id: randomUuid(),
+    network: String(query.network || ''),
+    issuer: {
+      role: 'executor',
+      executionPublicKey: key.pubkeyHex
+    },
+    subject: {
+      role: 'trader',
+      intentPublicKey: String(query.intentPublicKey || '')
+    },
+    dealPolicy: {
+      type: 'kpay.dealPolicyRef',
+      id: String((rule && rule.policyId) || '')
+    },
+    validity: {
+      issuedAt: nowIso,
+      notBefore: nowIso,
+      expiresAt: expiresAt
+    },
+    revocation: {
+      mode: expiresAt ? 'irrevocableUntilExpiry' : 'replaceOrRevoke'
+    }
+  }
+
+  // revocationNote only applies to open-ended (no-expiry) commitments.
+  if (!expiresAt) {
+    commitment.revocationNote = 'STUB: revocable by signed replacement or cancellation notice published to [path TBD]'
+  }
+
+  // Canonicalise -> UTF-8 -> ed25519 sign -> base64url.
+  const bytes = new TextEncoder().encode(JSON.stringify(commitment))
+  const sig = await ed.signAsync(bytes, hexToBytes(key.privHex))
+
+  // STUB: POST envelope to commitment registry endpoint (path TBD). Not sent yet.
+  return {
+    type: 'kpay.executionCommitmentEnvelope',
+    commitment,
+    signature: {
+      alg: 'EdDSA',
+      value: bytesToBase64Url(sig)
+    },
+    attachments: {}
+  }
+}
+
+// -------------------------------------------------------------------------
 // SEND-BACK
 // -------------------------------------------------------------------------
 //
@@ -272,4 +341,20 @@ function bytesToBase64(bytes) {
   let bin = ''
   for (const b of bytes) bin += String.fromCharCode(b)
   return btoa(bin)
+}
+
+function bytesToBase64Url(bytes) {
+  return bytesToBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function randomUuid() {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  } catch {}
+  // Fallback for non-secure contexts without crypto.randomUUID.
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0
+    const v = c === 'x' ? r : (r & 0x3 | 0x8)
+    return v.toString(16)
+  })
 }

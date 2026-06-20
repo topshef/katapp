@@ -11,7 +11,9 @@ import {
 
     import {
       buildEventDebug,
-      verifyKeaForWatch
+      verifyKeaForWatch,
+      evaluatePolicyForWatch,
+      isRuleExpired
     } from './kea-verify.js'
 
     import {
@@ -26,7 +28,8 @@ import {
       signApprovalPackage,
       buildSignedPayload,
       buildRejectPayload,
-      submitSignedResult
+      submitSignedResult,
+      buildExecutionCommitmentEnvelope
     } from './kea-sign.js'
 
     // -------------------------------------------------------------------------
@@ -65,15 +68,41 @@ import {
     }
 
     function normaliseWatch(w) {
+      w = w || {}
+
+      // Canonical rule shape: a structured query + optional policyId/expiresAt.
+      //   query.intentPublicKey  <- trader (Tim's) Ed25519 key  (was orderPubkey)
+      //   query.network          <- network value as used by the app + QR scan
+      //   query.scope            <- gameId scope from the QR scan
+      // Legacy watches stored these flat (orderPubkey / network / gameId). We
+      // read either shape here and rebuild query. The network/scope values are
+      // kept verbatim (e.g. 'mainnet', 'm-order') — NOT rewritten — so the WS
+      // subscription filter, kea-verify scope checks and the main-net toggle all
+      // keep matching exactly as before.
+      const q = w.query || {}
+      const intentPublicKey = String(q.intentPublicKey != null ? q.intentPublicKey : (w.orderPubkey || '')).trim().toLowerCase()
+      const network = String(q.network != null ? q.network : (w.network || 'mainnet')).trim()
+      const scope = String(q.scope != null ? q.scope : (w.gameId || '')).trim()
+
       return {
         id: w.id || makeId(),
         ref: normaliseWatchRef(w.ref),
         name: String(w.name || '').trim(),
         baseUrl: cleanUrl(w.baseUrl || 'https://hapi5.katomia.com'),
         wsUrl: cleanUrl(w.wsUrl || 'wss://hapi5.katomia.com/ws'),
-        network: String(w.network || 'mainnet').trim(),
-        gameId: String(w.gameId || '').trim(),
-        orderPubkey: String(w.orderPubkey || '').trim().toLowerCase(),
+
+        // New canonical rule fields.
+        query: { intentPublicKey, network, scope },
+        policyId: String(w.policyId || '').trim(),
+        expiresAt: normaliseExpiry(w.expiresAt),
+
+        // Flat mirrors of query.* — derived, kept for backward compatibility
+        // with the WS filter, kea-verify and the existing render code. Do not
+        // write these directly; set query and re-normalise instead.
+        network: network,
+        gameId: scope,
+        orderPubkey: intentPublicKey,
+
         signPubkey: String(w.signPubkey || '').trim().toLowerCase(),
         // Mode is no longer a user choice — it's inferred from whether an
         // auto-approval key is set. Kept on the record for backwards compat.
@@ -88,6 +117,15 @@ import {
       }
     }
 
+    // Keep expiresAt as a trimmed ISO 8601 string, or null. The value isn't
+    // reformatted; an unparseable date is dropped so a broken value can't
+    // silently expire (and disable) a rule.
+    function normaliseExpiry(v) {
+      const s = String(v || '').trim()
+      if (!s) return null
+      return Number.isFinite(Date.parse(s)) ? s : null
+    }
+
     function normaliseWatchRef(ref) {
       const n = Number(ref)
       return Number.isFinite(n) && n > 0 ? Math.floor(n) : null
@@ -100,6 +138,13 @@ import {
         name: w.name,
         baseUrl: w.baseUrl,
         wsUrl: w.wsUrl,
+        // New canonical rule shape.
+        query: w.query,
+        policyId: w.policyId,
+        expiresAt: w.expiresAt,
+        // Legacy flat mirrors — kept in storage for backward compatibility with
+        // any reader still expecting them. normaliseWatch rebuilds query from
+        // these if query is ever absent. Safe to drop in a later migration.
         network: w.network,
         gameId: w.gameId,
         orderPubkey: w.orderPubkey,
@@ -142,7 +187,9 @@ import {
         network: $('network').value,
         gameId: $('scopeGameId').value,
         orderPubkey: $('orderPubkey').value,
-        signPubkey: $('signPubkey').value
+        signPubkey: $('signPubkey').value,
+        policyId: $('policyId').value,
+        expiresAt: $('expiresAt').value
       })
     }
 
@@ -459,7 +506,11 @@ import {
         return
       }
 
-      const result = await verifyKeaForWatch(out.kea, w)
+      // Verification now runs through the policy layer. For a watch with no
+      // policyId this is identical to the previous verifyKeaForWatch call (the
+      // built-in intent-signature policy); a sha256: policy is stubbed and an
+      // expired rule fails closed, so neither auto-signs.
+      const result = await evaluatePolicyForWatch(out.kea, w)
       e.check = result.ok ? 'pass' : 'fail'
       e.summary = result.msg
       e.verification = result
@@ -495,6 +546,13 @@ import {
 
       const w = getWatch(e.watchId)
       if (!w) throw new Error('Watch no longer exists')
+
+      // An expired rule is refused before any signing, manual or auto.
+      if (isRuleExpired(w)) {
+        console.debug('[KEA] approve refused — rule expired', watchRef(w))
+        setStatus(`Refused — watch rule ${watchRef(w)} has expired`, 'bad')
+        throw new Error('Watch rule has expired')
+      }
 
       // Key resolution is always explicit. Never auto-pick a random key:
       //   - auto run        -> the watch's own auto-approval key
@@ -903,6 +961,7 @@ import {
     function closeWatchModal() {
       editingWatchId = null
       cloningFromId = null
+      hideCommitmentOutput()
       $('watchModal').close()
     }
 
@@ -913,7 +972,65 @@ import {
       $('network').value = w.network || ''
       $('scopeGameId').value = w.gameId || ''
       $('orderPubkey').value = w.orderPubkey || ''
+      $('policyId').value = w.policyId || ''
+      $('expiresAt').value = w.expiresAt || ''
       refreshSignKeyOptions(w.signPubkey || '', w.network || '')
+      // Clear any commitment rendered for a previously opened watch.
+      hideCommitmentOutput()
+    }
+
+    // ---- execution commitment (Raise commitment button) -------------------
+
+    // Build + sign a kpay.executionCommitment from the watch form's current
+    // rule, using the executor (Sally's) action key, and render the envelope.
+    function raiseCommitment() {
+      const rule = watchFromForm()
+      if (!rule.query.intentPublicKey)
+        throw new Error('Add a trader intent public key before raising a commitment')
+
+      const net = rule.query.network
+
+      // Executor key = the chosen auto-approval key, else the sole key on this
+      // network if there is exactly one, else ask the user to pick one.
+      let key = $('signPubkey').value ? getKey($('signPubkey').value, net) : null
+      if (!key) {
+        const avail = loadKeys(net)
+        if (avail.length === 1) key = avail[0]
+      }
+      if (!key) throw new Error(`Choose an action key on ${net} (use 🔑 Keys, then pick it above) to sign the commitment`)
+
+      buildExecutionCommitmentEnvelope(rule, key)
+        .then(function(envelope) {
+          markKeyUsed(key.id)
+          showCommitmentOutput(envelope)
+          setStatus(`Raised commitment ${shortHash(envelope.commitment.id, 8)} (signed with ${key.name})`, 'ok')
+        })
+        .catch(function(err) { setStatus(`ERROR ${err.message}`, 'bad') })
+    }
+
+    function showCommitmentOutput(envelope) {
+      $('commitmentPre').textContent = JSON.stringify(envelope, null, 2)
+      $('commitmentOut').style.display = ''
+    }
+
+    function hideCommitmentOutput() {
+      const out = $('commitmentOut')
+      if (!out) return
+      out.style.display = 'none'
+      const pre = $('commitmentPre')
+      if (pre) pre.textContent = ''
+    }
+
+    function copyCommitment() {
+      const pre = $('commitmentPre')
+      const text = pre ? pre.textContent : ''
+      if (!text) return
+      const ok = function() { setStatus('Commitment JSON copied') }
+      const no = function() { setStatus('Copy failed — select the JSON and copy manually', 'warn') }
+      try {
+        if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(ok).catch(no)
+        else no()
+      } catch { no() }
     }
 
     // The auto-approval key list is scoped to the watch's network, so you can
@@ -1602,6 +1719,10 @@ import {
       try { saveWatchFromForm() } catch (e) { setStatus(`ERROR ${e.message}`, 'bad') }
     }
     $('deleteWatchBtn').onclick = function() { deleteEditingWatch() }
+    $('raiseCommitmentBtn').onclick = function() {
+      try { raiseCommitment() } catch (e) { setStatus(`ERROR ${e.message}`, 'bad') }
+    }
+    $('copyCommitmentBtn').onclick = function() { copyCommitment() }
     $('watchModalCloseBtn').onclick = function() { closeWatchModal() }
     $('detailModalCloseBtn').onclick = function() { openEvent = null; $('detailModal').close() }
 
