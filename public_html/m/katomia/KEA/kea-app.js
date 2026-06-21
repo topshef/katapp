@@ -1104,7 +1104,8 @@ import {
       }
       setStatus('Fetching deal template ' + dealId.slice(0, 12) + '\u2026', 'warn')
       try {
-        await fetchAndVerifyDeal(dealId, watch.baseUrl)
+        
+        await fetchAndVerifyDeal(dealId, watch.baseUrl) //  todo kpos review
         setStatus('Deal template verified \u2713', 'ok')
       } catch (err) {
         setStatus('Deal fetch failed: ' + err.message, 'bad')

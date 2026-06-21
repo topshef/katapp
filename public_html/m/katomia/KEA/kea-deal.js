@@ -67,7 +67,8 @@ export async function fetchAndVerifyDeal(dealId, baseUrl) {
   if (!dealId) throw new Error('No dealId to fetch')
 
   // STUB: endpoint path — adjust when confirmed.
-  const url = `${baseUrl}/kpool/deal?dealId=${encodeURIComponent(dealId)}`
+  // const url = `${baseUrl}/kpool/deal?dealId=${encodeURIComponent(dealId)}`  // todo add wrapper to backend ahead of migrating deals
+  const url = `https://kpos.uk/deal/query/?dealId=${encodeURIComponent(dealId)}`
   console.debug('[kea-deal] fetching deal template', { dealId, url })
 
   const res = await fetch(url)
@@ -76,7 +77,8 @@ export async function fetchAndVerifyDeal(dealId, baseUrl) {
   const template = await res.json()
 
   // Content-address verification: sha256(canonical(template)) must === dealId.
-  const computed = browserPorts.hashJson(template)
+  const basis = template.deal
+  const computed = browserPorts.hashJson(basis)
   if (computed !== dealId) {
     throw new Error(`Deal hash mismatch: expected ${dealId}, got ${computed}`)
   }

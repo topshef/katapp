@@ -31,12 +31,57 @@ function bytesToHex(bytes) {
   return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
-// MUST match the dealId producer (dealWrite.php: sha256(json_encode(deal))).
-// KEA's canonicalJson is JSON.stringify, which agrees with PHP json_encode.
-function hashJson(obj) {
-  const bytes = new TextEncoder().encode(canonicalJson(obj))
+// Deal hash basis selection.
+//
+// Current / legacy deal IDs were produced by PHP:
+//
+//   dealWrite.php: hash('sha256', json_encode($deal))
+//
+// That is NOT the same byte string as browser JSON.stringify for deals containing
+// URLs, regexes, or non-ASCII text. PHP json_encode escapes forward slashes and
+// non-ASCII by default.
+//
+// Default is therefore the PHP compatibility shim.
+// Future preferred route: fetch `?basis=1`, hash the response text directly,
+// then JSON.parse only after the hash passes.
+//
+// Switch locally for testing:
+//   localStorage.keaDealHashBasis = 'php-legacy'
+//   localStorage.keaDealHashBasis = 'json-stringify'
+//   localStorage.keaDealHashBasis = 'canonical'
+//
+const DEAL_HASH_BASIS_DEFAULT = 'php-legacy'
+
+function getDealHashBasisMode() {
+  return localStorage.keaDealHashBasis || DEAL_HASH_BASIS_DEFAULT
+}
+
+function phpLegacyJsonEncode(obj) {
+  return JSON.stringify(obj)
+    .replace(/\//g, '\\/')
+    .replace(/[\u007f-\uffff]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'))
+}
+
+function dealHashBasis(obj, mode = getDealHashBasisMode()) {
+  if (mode === 'php-legacy') return phpLegacyJsonEncode(obj)
+  if (mode === 'json-stringify') return JSON.stringify(obj)
+  if (mode === 'canonical') return canonicalJson(obj)
+
+  console.warn('[dealPorts] unknown deal hash basis mode, using php-legacy', { mode })
+  return phpLegacyJsonEncode(obj)
+}
+
+function hashJson(obj, mode = getDealHashBasisMode()) {
+  const basis = dealHashBasis(obj, mode)
+  const bytes = new TextEncoder().encode(basis)
   return bytesToHex(sha256(bytes))
 }
+
+function hashText(text) {
+  const bytes = new TextEncoder().encode(text)
+  return bytesToHex(sha256(bytes))
+}
+
 
 async function verifyEd25519(sigBytes, msgBytes, pubBytes) {
   try { return await ed.verifyAsync(sigBytes, msgBytes, pubBytes) }
