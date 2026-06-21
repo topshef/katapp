@@ -603,9 +603,9 @@ import {
           'This cannot be undone. The transaction may still fail if other signatures or balances are missing.'
         if (opts.makeAuto && !w.signPubkey) {
           msg += '\n\n— ALWAYS APPROVE —\n' +
-            'You also chose to automatically approve future transactions that pass this watch. ' +
-                        `It becomes ${watchRef({ ...w, signPubkey: key.pubkeyHex })} and auto-signs with this key. ` +
-            'Undo any time by editing the watch and setting the auto-approval key back to “Manual approval”.'
+            'You also chose to automatically approve future transactions that pass this rule. ' +
+            `${watchRef(w)} will auto-sign with this key from now on. ` +
+            'Undo any time by editing the rule and setting the auto-approval key back to “Manual approval”.'
         }
         if (!confirm(msg)) return
       }
@@ -621,8 +621,7 @@ import {
       setDecision(e.key, dec)
       e.decision = dec
 
-      // Auto-approval upgrade: store the chosen key on the watch so the same
-      // stable W-number gains an A suffix from here on.
+      // Auto-approval upgrade: store the chosen key on the rule.
       let upgraded = false
       if (opts.makeAuto && !w.signPubkey) {
         w.signPubkey = key.pubkeyHex
@@ -854,7 +853,7 @@ import {
         tr.onmouseleave = function() { setWatchHover(null) }
         tr.onclick = function() { openWatchModal(w) }
 
-        cell(tr, watchRef(w), '#', `watch-ref-cell ${isAuto(w) ? 'ok' : ''}`)
+        cell(tr, watchRef(w) + (isAuto(w) && w.status === 'connected' ? ' \u26A1' : ''), '#', 'watch-ref-cell')
         cell(tr, watchTitle(w), 'Rule', 'strong-cell')
         policyChipCell(tr, w)
         pillCell(tr, approvalLabel(w), 'Approval')
@@ -1509,7 +1508,7 @@ import {
         const always = document.createElement('input')
         always.type = 'checkbox'
         alwaysWrap.appendChild(always)
-        alwaysWrap.appendChild(document.createTextNode('Automatically approve future transactions that pass this watch. You can turn this off from the watch settings.'))
+        alwaysWrap.appendChild(document.createTextNode('Automatically approve future transactions that pass this rule. You can turn this off from the rule settings.'))
 
         const actions = document.createElement('div')
         actions.className = 'approve-actions'
@@ -1647,8 +1646,7 @@ import {
       const keyName = auto ? (getKey(w.signPubkey, w.network)?.name || 'auto-approval key') : ''
 
       const rows = [
-        ['Rule at time', e.watchRef || (w ? watchRef(w) : '-')],
-        w && e.watchRef && e.watchRef !== watchRef(w) ? ['Current rule', watchRef(w)] : null,
+        ['Rule', e.watchRef || (w ? watchRef(w) : '-')],
         ['Name', w ? watchTitle(w) : (e.watchLabel || '-')]
       ]
 
@@ -1801,9 +1799,10 @@ import {
       return !!(w && String(w.signPubkey || '').trim())
     }
 
+    // Stable R-number — auto/live status is shown visually (lightning bolt),
+    // not baked into the ref string.
     function watchRef(w) {
-      if (!w?.ref) return isAuto(w) ? 'R?A' : 'R?'
-      return `R${w.ref}${isAuto(w) ? 'A' : ''}`
+      return w?.ref ? 'R' + w.ref : 'R?'
     }
 
     function approvalLabel(w) {
