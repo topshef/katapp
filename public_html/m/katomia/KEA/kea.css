@@ -212,6 +212,9 @@ body:not(.pro) .pro-only { display: none !important; }
 .muted { color: var(--text-muted); }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .ok { color: green; font-weight: 700; }
+/* "Ready" = checks passed, go ahead and sign (not yet approved). Kept visually
+   distinct from .ok/Approved (green) — tweak this class to taste. */
+.ready { color: #1a73e8; font-weight: 700; }
 .bad { color: crimson; font-weight: 700; }
 .warn { color: darkorange; font-weight: 700; }
 .strong-cell { font-weight: 700; }
@@ -681,7 +684,7 @@ body[data-net="testnet"] { --net-color: #f5841f; }
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px 8px;
+    gap: 5px 8px;
     padding: 8px 10px;
   }
   tr.watch-row td {
@@ -691,7 +694,15 @@ body[data-net="testnet"] { --net-color: #f5841f; }
     padding: 0;
   }
   tr.watch-row td::before { content: none !important; }
-  tr.watch-row .key-cell { display: none; }
+  /* The key cell becomes an invisible full-width break: it forces the chips
+     (approval / state / last / pause) onto their own line below ref + name. */
+  tr.watch-row .key-cell {
+    flex: 0 0 100%;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
   tr.watch-row .watch-ref-cell { flex: 0 0 auto; font-weight: 800; }
   tr.watch-row .strong-cell { flex: 1 1 0; min-width: 0; font-weight: 600; }
   tr.watch-row .pill { font-size: 12px; }
@@ -713,3 +724,6 @@ body[data-net="testnet"] { --net-color: #f5841f; }
   .header-controls { gap: 8px; flex-wrap: wrap; }
   .watch-actions { flex-wrap: nowrap; }
 }
+
+/* Kill the grey tap-highlight flash on mobile across every control. */
+* { -webkit-tap-highlight-color: transparent; }

@@ -282,7 +282,9 @@ import {
         return
       }
 
-      addWatch(watch)
+      // Clone is an explicit duplicate, so bypass the de-dup that would
+      // otherwise merge an identical query back onto the original rule.
+      addWatch(watch, { allowDuplicate: !!cloningFromId })
       closeWatchModal()
     }
 
@@ -293,11 +295,11 @@ import {
       if (!watch.orderPubkey) throw new Error('Missing trader intent public key')
     }
 
-    function addWatch(watch) {
+    function addWatch(watch, opts) {
       watch = normaliseWatch(watch)
       validateWatch(watch)
 
-      const existing = watches.find(function(w) {
+      const existing = (opts && opts.allowDuplicate) ? null : watches.find(function(w) {
         return w.wsUrl === watch.wsUrl &&
           w.network === watch.network &&
           w.gameId === watch.gameId &&
@@ -1325,7 +1327,7 @@ import {
 
       body.appendChild(renderDecisionBar(e))
 
-      body.appendChild(sectionTitle('Watch / trigger'))
+      body.appendChild(sectionTitle('Rule'))
       body.appendChild(infoCard(watchInfoRows(e)))
 
       body.appendChild(sectionTitle('Transaction'))
@@ -1545,22 +1547,30 @@ import {
       return card
     }
 
-    // Block A — why this transaction appeared (the watch/trigger).
+    // Block A — why this transaction appeared (the rule that matched).
     function watchInfoRows(e) {
       const w = getWatch(e.watchId)
       const auto = isAuto(w)
       const keyName = auto ? (getKey(w.signPubkey, w.network)?.name || 'auto-approval key') : ''
 
-      return [
-        ['Watch at time', e.watchRef || (w ? watchRef(w) : '-')],
-        w && e.watchRef && e.watchRef !== watchRef(w) ? ['Current watch', watchRef(w)] : null,
-        ['Name', w ? watchTitle(w) : (e.watchLabel || '-')],
-        ['Network', (w && w.network) || e.network || '-'],
-        ['Game ID', (w && w.gameId) || 'all games'],
-        ['Trader intent key', shortKey((w && w.orderPubkey) || ''), true],
-        ['Approval mode', auto ? 'Auto-approve' : 'Manual approval'],
-        auto ? ['Auto-approval key', `${keyName} · ${shortKey(w.signPubkey)}`, true] : null
+      const rows = [
+        ['Rule at time', e.watchRef || (w ? watchRef(w) : '-')],
+        w && e.watchRef && e.watchRef !== watchRef(w) ? ['Current rule', watchRef(w)] : null,
+        ['Name', w ? watchTitle(w) : (e.watchLabel || '-')]
       ]
+
+      // Show every query field (not a hard-coded set), using the label library
+      // with a raw-key fallback. If the rule was deleted, fall back to the
+      // network recorded on the event itself.
+      const q = (w && w.query) || (e.network ? { network: e.network } : {})
+      for (const k of Object.keys(q)) {
+        const raw = q[k] == null ? '' : String(q[k])
+        rows.push([queryLabel(k), k === 'orderPubkey' ? shortKey(raw) : (raw || '-'), k === 'orderPubkey'])
+      }
+
+      rows.push(['Approval mode', auto ? 'Auto-approve' : 'Manual approval'])
+      rows.push(auto ? ['Auto-approval key', `${keyName} · ${shortKey(w.signPubkey)}`, true] : null)
+      return rows
     }
 
     // Block B — the actual incoming transaction.
@@ -1713,7 +1723,7 @@ import {
       if (e.decision?.decision === 'rejected') return { text: 'Rejected', tone: 'bad' }
       if (e.status === 'fetch error') return { text: 'Fetch failed', tone: 'bad' }
       if (e.check === 'fail') return { text: 'Check failed', tone: 'bad' }
-      if (e.check === 'pass') return { text: 'Ready', tone: 'ok' }
+      if (e.check === 'pass') return { text: 'Ready', tone: 'ready' }
       if (e.status === 'fetching' || e.status === 'fetched') return { text: 'Checking…', tone: 'warn' }
       if (e.check === 'not checked') return { text: 'Watch only', tone: '' }
       if (e.status === 'doorbell') return { text: 'Doorbell', tone: 'warn' }
