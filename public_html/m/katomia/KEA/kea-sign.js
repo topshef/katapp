@@ -233,7 +233,7 @@ export function buildRejectPayload(e, reason) {
 // counterpart to a per-transaction signature: signApprovalPackage signs ONE
 // transaction, a commitment binds the watch rule itself.
 //
-// Built from a watch rule (rule.query.* + rule.policyId + rule.expiresAt) and
+// Built from a watch rule (rule.query.* + rule.expiresAt) and
 // the executor's action key. Canonicalisation is plain JSON.stringify over the
 // commitment in field order (matches kea-utils canonicalJson and the dealEngine
 // hashJson convention), signed with ed25519, signature encoded base64url.
@@ -260,9 +260,12 @@ export async function buildExecutionCommitmentEnvelope(rule, key) {
       // backend-named `orderPubkey`.
       intentPublicKey: String(query.orderPubkey || '')
     },
-    dealPolicy: {
-      type: 'kpay.dealPolicyRef',
-      id: String((rule && rule.policyId) || '')
+    scope: {
+      // Reflects the checks implied by the query at commitment time.
+      // intentPublicKey means intent-sig checks; dealId means deal-template checks.
+      intentPublicKey: String(query.orderPubkey || '') || null,
+      dealId: String(query.dealId || '') || null,
+      gameId: String(query.gameId || '') || null
     },
     validity: {
       issuedAt: nowIso,

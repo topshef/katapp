@@ -80,22 +80,29 @@ export async function verifyKeaForWatch(kea, w) {
 }
 
 // -----------------------------------------------------------------------------
-// POLICY EVALUATION
+// RULE EVALUATION
 //
-// A watch rule may carry a policyId that selects HOW a noticed transaction is
-// checked before signing. Today only the built-in intent-signature policy is
-// evaluated; everything else is stubbed and fails closed. The branch shape is
-// deliberately the one we grow into when external deal policies arrive (see
-// dealEngine.js / dealPorts.browser.js): a sha256:<dealId> policy will fetch the
-// deal template, confirm sha256(template) === dealId, then run the dealEngine
-// checks and pass only on verdict 'pass'.
+// A rule's `query` is the specification. Every known field in the query that
+// implies a check is verified automatically — the user doesn't select a policy
+// mode, they just put the values in the query and KEA checks them all (AND).
+//
+//   query.orderPubkey  → intent-signature check (verifyKeaForWatch, existing)
+//   query.dealId       → deal-template check (kea-deal.js / dealEngine pipeline)
+//   both present       → both run; the rule passes only if BOTH pass
+//
+// The deal engine is the portable dealEngine.js, loaded via dealEngine.esm.js
+// and wired through dealPorts.browser.js / kea-deal.js. It runs the full
+// pipeline (claimed-deal, hash, replay, transfers, conditions, oracles, scope)
+// and returns a structured verdict. For simple deals (no oracles, no API
+// bindings), the condition + transfer checks are the ones that fire.
+//
+// STUB: backend deal-template endpoint + dealId filtering on the WebSocket are
+// not wired yet. KEA works in "noisy" mode (receives all matching transactions
+// and filters client-side). Comments mark where a quiet-mode toggle + backend
+// filter index would plug in.
 // -----------------------------------------------------------------------------
 
-export const POLICY_INTENT_SIG = 'kpay.policy.intentSig.v1'
-
-export function rulePolicyId(w) {
-  return String((w && w.policyId) || '').trim()
-}
+import { getCachedDeal, runDealChecks } from './kea-deal.js'
 
 function ruleExpiryMs(w) {
   const v = w && w.expiresAt
@@ -109,54 +116,65 @@ export function isRuleExpired(w, now) {
   return exp != null && (now || Date.now()) > exp
 }
 
-// Evaluate the watch's policy against a fetched KEA package. Returns the same
-// { ok, msg } shape as verifyKeaForWatch, plus policy metadata. NEVER silently
-// passes: stub / unknown / expired all fail closed so nothing auto-signs.
-export async function evaluatePolicyForWatch(kea, w) {
-  // Expiry gate first: an expired rule is refused regardless of policy.
+// Evaluate the rule against a fetched KEA package. Returns { ok, msg, checks }
+// where `checks` is an array of individual check results. NEVER silently passes:
+// a check it cannot perform is reported, and missing/failed checks mean ok=false.
+export async function evaluateRuleForWatch(kea, w) {
+  // Expiry gate first: an expired rule is refused regardless of query contents.
   if (isRuleExpired(w)) {
-    console.debug('[KEA] rule expired — refusing to sign', rulePolicyId(w) || POLICY_INTENT_SIG)
-    return { ok: false, msg: 'Watch rule has expired — refusing to sign', policyId: rulePolicyId(w), policyKind: 'expired', expired: true }
+    console.debug('[KEA] rule expired — refusing to sign')
+    return { ok: false, msg: 'Rule has expired — refusing to sign', expired: true, checks: [] }
   }
 
-  const policyId = rulePolicyId(w)
+  const q = (w && w.query) || {}
+  const hasIntentKey = !!String(q.orderPubkey || '').trim()
+  const dealId       = String(q.dealId || '').trim() || null
 
-  // Built-in intent-signature policy. This IS the current default behaviour,
-  // now expressed as a named policy. An absent/empty policyId defaults to it so
-  // existing watches keep verifying-then-signing exactly as before (backward
-  // compatible: auto-sign of passing transactions is unchanged).
-  //
-  // NOTE: the spec also described an "absent policyId -> no check, sign
-  // everything" branch. That would change today's safe behaviour and drop the
-  // signature check, so it is intentionally NOT enabled. An unchecked mode, if
-  // ever wanted, should be its own named policy (e.g. kpay.policy.signAll.v1),
-  // never the silent default.
-  if (!policyId || policyId === POLICY_INTENT_SIG) {
-    const res = await verifyKeaForWatch(kea, w)
-    return Object.assign({ policyId: policyId || POLICY_INTENT_SIG, policyKind: 'intentSig' }, res)
+  const checks = []
+
+  // Intent-signature check: runs the existing verifyKeaForWatch pipeline.
+  if (hasIntentKey) {
+    try {
+      const res = await verifyKeaForWatch(kea, w)
+      checks.push({ id: 'intentSig', ok: res.ok, msg: res.msg, detail: res })
+    } catch (err) {
+      checks.push({ id: 'intentSig', ok: false, msg: err.message })
+    }
   }
 
-  // External deal policy, addressed by content hash (policyId === sha256:<dealId>).
-  if (policyId.startsWith('sha256:')) {
-    return evaluateExternalDealPolicy(kea, w, policyId)
+  // Deal-template check: runs the deal engine pipeline against pchBasis.
+  if (dealId) {
+    const cached = getCachedDeal(dealId)
+    if (!cached) {
+      checks.push({ id: 'deal', ok: false, msg: `Deal template not cached — fetch it first (dealId: ${dealId.slice(0, 12)}…)` })
+    } else {
+      try {
+        const result = await runDealChecks(kea, cached)
+        const ok = result.verdict === 'pass'
+        const msg = ok
+          ? `Deal check passed (${result.summary.pass}/${result.checks.length} checks)`
+          : `Deal check ${result.verdict}: ${result.summary.unmetRequired?.join(', ') || result.verdict}`
+        checks.push({ id: 'deal', ok, msg, verdict: result.verdict, detail: result })
+      } catch (err) {
+        checks.push({ id: 'deal', ok: false, msg: `Deal engine error: ${err.message}` })
+      }
+    }
   }
 
-  // Unrecognised policy id: fail closed rather than signing on an unknown rule.
-  return { ok: false, msg: `Unknown policyId: ${policyId}`, policyId, policyKind: 'unknown' }
-}
+  // If no check was triggered (empty query, or query has neither orderPubkey
+  // nor dealId), fail closed — don't auto-sign something we haven't verified.
+  if (!checks.length) {
+    return { ok: false, msg: 'No verifiable fields in query — nothing to check', checks }
+  }
 
-// STUB. External deal-policy evaluation is not implemented yet. When the deal
-// policy schema + delivery are defined this will:
-//   1. fetch the external deal policy document (the deal template),
-//   2. verify sha256(template) === policyId           (dealPorts.browser hashJson),
-//   3. createDealEngine(browserPorts) + runChecks(input, policy),
-//   4. pass only when verdict === 'pass'.
-// Until then it fails closed so a sha256: rule never auto-signs.
-async function evaluateExternalDealPolicy(kea, w, policyId) {
-  try {
-    throw new Error('STUB: external policy evaluation not yet implemented')
-  } catch (err) {
-    return { ok: false, msg: err.message, policyId, policyKind: 'sha256', stub: true }
+  // AND: all checks must pass.
+  const allOk = checks.every(function(c) { return c.ok })
+  const msgs = checks.map(function(c) { return `[${c.id}] ${c.msg}` })
+
+  return {
+    ok: allOk,
+    msg: allOk ? msgs.join('; ') : checks.filter(function(c) { return !c.ok }).map(function(c) { return c.msg }).join('; '),
+    checks
   }
 }
 

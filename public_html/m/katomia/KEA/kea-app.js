@@ -12,9 +12,11 @@ import {
     import {
       buildEventDebug,
       verifyKeaForWatch,
-      evaluatePolicyForWatch,
+      evaluateRuleForWatch,
       isRuleExpired
     } from './kea-verify.js'
+
+    import { fetchAndVerifyDeal, getCachedDeal } from './kea-deal.js'
 
     import {
       loadKeys,
@@ -100,7 +102,6 @@ import {
         // New canonical rule fields. `query` is the single persisted source of
         // truth for the backend filter (see stripWatchRuntime).
         query: query,
-        policyId: String(w.policyId || '').trim(),
         expiresAt: normaliseExpiry(w.expiresAt),
 
         // Flat mirrors of the three known query fields — derived, runtime-only,
@@ -149,7 +150,6 @@ import {
         // flat network/gameId/orderPubkey mirrors are runtime-only and are NOT
         // persisted (normaliseWatch still migrates them in from older records).
         query: w.query,
-        policyId: w.policyId,
         expiresAt: w.expiresAt,
         signPubkey: w.signPubkey,
         mode: w.mode,
@@ -194,7 +194,6 @@ import {
         wsUrl: $('wsUrl').value,
         query: query,
         signPubkey: $('signPubkey').value,
-        policyId: $('policyId').value,
         expiresAt: $('expiresAt').value
       })
     }
@@ -277,6 +276,7 @@ import {
       // Edit (only when not cloning) updates in place and refreshes the socket.
       if (editingWatchId && !cloningFromId) {
         const saved = updateExistingWatch(watch)
+        fetchDealIfNeeded(saved)
         closeWatchModal()
         setStatus(`Saved ${watchLabel(saved)}`)
         return
@@ -285,6 +285,7 @@ import {
       // Clone is an explicit duplicate, so bypass the de-dup that would
       // otherwise merge an identical query back onto the original rule.
       addWatch(watch, { allowDuplicate: !!cloningFromId })
+      fetchDealIfNeeded(watch)
       closeWatchModal()
     }
 
@@ -514,11 +515,10 @@ import {
         return
       }
 
-      // Verification now runs through the policy layer. For a watch with no
-      // policyId this is identical to the previous verifyKeaForWatch call (the
-      // built-in intent-signature policy); a sha256: policy is stubbed and an
-      // expired rule fails closed, so neither auto-signs.
-      const result = await evaluatePolicyForWatch(out.kea, w)
+      // Verification runs each check implied by the query: intent-signature
+      // if orderPubkey is present, deal-template if dealId is present, both if
+      // both. An expired rule fails closed, so nothing auto-signs.
+      const result = await evaluateRuleForWatch(out.kea, w)
       e.check = result.ok ? 'pass' : 'fail'
       e.summary = result.msg
       e.verification = result
@@ -976,7 +976,7 @@ import {
     // the library falls back to its raw name from the query JSON — query fields
     // are query parameters, not a fixed set of form fields, so we never require
     // a key to be known.
-    const QUERY_LABELS = { orderPubkey: 'trader key', gameId: 'game', network: 'network' }
+    const QUERY_LABELS = { orderPubkey: 'trader key', gameId: 'game', network: 'network', dealId: 'deal' }
     function queryLabel(k) { return QUERY_LABELS[k] || k }
 
     // Normal mode: a plain, borderless label/value list. Read-only.
@@ -1046,6 +1046,72 @@ import {
       el.appendChild(row)
     }
 
+    // Dynamic check indicators: show the user which verifications will run,
+    // based on what's in the query. If a dealId is present, show whether the
+    // template is cached and verified.
+    function renderCheckIndicators(w) {
+      const el = $('checkIndicators')
+      if (!el) return
+      el.innerHTML = ''
+      const q = (w && w.query) || {}
+      const items = []
+      if (String(q.orderPubkey || '').trim()) {
+        items.push({ id: 'intentSig', label: 'Intent signature', ok: true })
+      }
+      const dealId = String(q.dealId || '').trim()
+      if (dealId) {
+        const cached = getCachedDeal(dealId)
+        items.push({
+          id: 'deal',
+          label: 'Deal ' + shortHash(dealId),
+          ok: !!cached,
+          note: cached ? 'verified' : 'not fetched yet'
+        })
+      }
+      if (!items.length) {
+        el.innerHTML = '<span class="muted">No checks — add orderPubkey or dealId to the query</span>'
+        return
+      }
+      for (var i = 0; i < items.length; i++) {
+        var item = items[i]
+        var row = document.createElement('div')
+        row.className = 'check-indicator'
+        var icon = document.createElement('span')
+        icon.className = item.ok ? 'ok' : 'warn'
+        icon.textContent = item.ok ? '\u2705' : '\u23F3'
+        var lbl = document.createTextNode(' ' + item.label + ' ')
+        row.appendChild(icon)
+        row.appendChild(lbl)
+        if (item.note) {
+          var note = document.createElement('span')
+          note.className = 'muted'
+          note.textContent = item.note
+          row.appendChild(note)
+        }
+        el.appendChild(row)
+      }
+    }
+
+    // On rule save, if the query includes a dealId, fetch + verify the deal
+    // template so it's cached before any transactions arrive.
+    async function fetchDealIfNeeded(watch) {
+      var dealId = String((watch.query && watch.query.dealId) || '').trim()
+      if (!dealId) return
+      var cached = getCachedDeal(dealId)
+      if (cached) {
+        console.debug('[KEA] deal template already cached', dealId.slice(0, 12))
+        return
+      }
+      setStatus('Fetching deal template ' + dealId.slice(0, 12) + '\u2026', 'warn')
+      try {
+        await fetchAndVerifyDeal(dealId, watch.baseUrl)
+        setStatus('Deal template verified \u2713', 'ok')
+      } catch (err) {
+        setStatus('Deal fetch failed: ' + err.message, 'bad')
+        console.warn('[KEA] deal fetch failed on save', err)
+      }
+    }
+
     // Read the editor back into a plain query object, skipping rows with a blank
     // key. Last write wins if a key is duplicated.
     function queryFromEditor() {
@@ -1069,7 +1135,7 @@ import {
       // round-trips identically.
       renderQueryView(w)
       renderQueryEdit(w)
-      $('policyId').value = w.policyId || ''
+      renderCheckIndicators(w)
       $('expiresAt').value = w.expiresAt || ''
       refreshSignKeyOptions(w.signPubkey || '', w.network || mainNet)
       // Clear any commitment rendered for a previously opened watch.
@@ -1082,8 +1148,8 @@ import {
     // rule, using the executor (Sally's) action key, and render the envelope.
     function raiseCommitment() {
       const rule = watchFromForm()
-      if (!rule.query.orderPubkey)
-        throw new Error('Add a trader intent public key before raising a commitment')
+      if (!rule.query.orderPubkey && !rule.query.dealId)
+        throw new Error('Add a trader intent public key or deal ID before raising a commitment')
 
       const net = rule.query.network
 

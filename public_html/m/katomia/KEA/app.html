@@ -85,13 +85,14 @@
         <div id="queryEdit" class="query-edit"></div>
         <button id="addQueryRowBtn" type="button" class="link-btn">+ Add field</button>
 
-        <h3 class="modal-section">Rule</h3>
-        <label>Policy ID <span class="muted">(blank = built-in intent-signature check)</span></label>
-        <input id="policyId" placeholder="kpay.policy.intentSig.v1" class="mono">
-
         <label>Expires at <span class="muted">(ISO 8601, optional)</span></label>
         <input id="expiresAt" placeholder="2026-12-31T23:59:59Z" class="mono">
       </div>
+
+      <!-- Check indicators: dynamically populated from the query contents.
+           Shows which verifications will run (intent-sig, deal, both). -->
+      <h3 class="modal-section">Checks</h3>
+      <div id="checkIndicators" class="check-indicators"></div>
 
       <h3 class="modal-section">Auto-approval</h3>
       <select id="signPubkey"></select>

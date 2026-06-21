@@ -742,3 +742,8 @@ body[data-net="testnet"] { --net-color: #f5841f; }
 
 /* Kill the grey tap-highlight flash on mobile across every control. */
 * { -webkit-tap-highlight-color: transparent; }
+/* ---- rule check indicators -------------------------------------------- */
+.check-indicators { margin: 4px 0 8px; padding-left: 10px; }
+.check-indicator { padding: 3px 0; font-size: 13px; }
+.check-indicator .ok { margin-right: 4px; }
+.check-indicator .warn { margin-right: 4px; }
