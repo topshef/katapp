@@ -1433,6 +1433,29 @@ import {
       const dbg = document.createElement('div')
       dbg.className = 'pro-only'
       dbg.appendChild(sectionTitle('Details'))
+
+      // One-click copy of all diagnostic data for sharing / debugging.
+      var copyBtn = document.createElement('button')
+      copyBtn.textContent = '\uD83D\uDCCB Copy all diagnostics'
+      copyBtn.className = 'link-btn'
+      copyBtn.onclick = function() {
+        var diag = {
+          summary: e.debug || null,
+          verification: e.verification || null,
+          fetch: e.fetch || null,
+          kea: e.kea || null,
+          raw: e.raw || null,
+          doorbell: e.rawDoorbell || null,
+          decision: e.decision || null
+        }
+        navigator.clipboard.writeText(JSON.stringify(diag, null, 2))
+          .then(function() { copyBtn.textContent = '\u2713 Copied' })
+          .catch(function() { copyBtn.textContent = 'Copy failed' })
+        setTimeout(function() { copyBtn.textContent = '\uD83D\uDCCB Copy all diagnostics' }, 2000)
+      }
+      dbg.appendChild(copyBtn)
+
+      if (e.verification) dbg.appendChild(jsonDetails('Verification result', e.verification))
       dbg.appendChild(jsonDetails('Debug summary', e.debug || null))
       dbg.appendChild(jsonDetails('Fetch information', e.fetch || null))
       dbg.appendChild(jsonDetails('KEA detail', e.kea || null))

@@ -108,8 +108,13 @@ export async function runDealChecks(kea, dealEntry) {
   // the deal shape (addHbarTransfer etc.) and the KEA pchBasis shape
   // (transfers.hbarTransfers etc.).
 
+  // dealEntry.template is the full API response ({ dealId, domain, deal, ... }).
+  // The engine needs the INNER deal object — the same thing we hashed at save
+  // time (template.deal). Passing the wrapper would hash the wrong object.
+  const dealTemplate = dealEntry.template?.deal || dealEntry.template
+
   const input = {
-    dealTemplate:   dealEntry.template,
+    dealTemplate:   dealTemplate,
     claimedDealId:  dealEntry.dealId,
     pchBasis:       pchBasis || null,
     // Bindings: the backend may supply these in the approval package. If not,
