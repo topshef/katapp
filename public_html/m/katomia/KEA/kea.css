@@ -703,8 +703,23 @@ body[data-net="testnet"] { --net-color: #f5841f; }
     padding: 0;
     overflow: hidden;
   }
-  tr.watch-row .watch-ref-cell { flex: 0 0 auto; font-weight: 800; }
-  tr.watch-row .strong-cell { flex: 1 1 0; min-width: 0; font-weight: 600; }
+
+  tr.watch-row .watch-ref-cell {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 28px;
+    font-weight: 800;
+  }
+  tr.watch-row .strong-cell {
+    flex: 1 1 0;
+    min-width: 0;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+
   tr.watch-row .pill { font-size: 12px; }
   tr.watch-row .time-cell { font-size: 12px; color: var(--text-muted); }
   tr.watch-row .state-cell {
