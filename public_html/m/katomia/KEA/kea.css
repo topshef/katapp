@@ -219,7 +219,7 @@ body:not(.pro) .pro-only { display: none !important; }
 .warn { color: darkorange; font-weight: 700; }
 .strong-cell { font-weight: 700; }
 .time-cell { white-space: nowrap; }
-.key-cell { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.policy-cell { white-space: nowrap; }
 .tx-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
 .notes-cell { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .watch-ref-cell { width: 1%; white-space: nowrap; font-weight: 900; }
@@ -503,7 +503,7 @@ button.reject:hover { background: var(--bad-tint); }
   .controls::before, .tx-chain::before { content: none; }
   .tx-chain { width: auto; text-align: left; padding-bottom: 2px; }
   .notes-cell { white-space: normal; max-width: none; }
-  .key-cell, .tx-cell { max-width: none; }
+  .policy-cell, .tx-cell { max-width: none; }
 
   dialog:not([open]) { display: none !important; }
   dialog[open] {
@@ -694,15 +694,6 @@ body[data-net="testnet"] { --net-color: #f5841f; }
     padding: 0;
   }
   tr.watch-row td::before { content: none !important; }
-  /* The key cell becomes an invisible full-width break: it forces the chips
-     (approval / state / last / pause) onto their own line below ref + name. */
-  tr.watch-row .key-cell {
-    flex: 0 0 100%;
-    height: 0;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-  }
 
   tr.watch-row .watch-ref-cell {
     flex: 0 0 auto;
@@ -710,8 +701,10 @@ body[data-net="testnet"] { --net-color: #f5841f; }
     min-width: 28px;
     font-weight: 800;
   }
+  /* Ref + name fill line 1. The name cell grabs enough width that everything
+     after it (policy chips, approval, state, last, controls) wraps to line 2. */
   tr.watch-row .strong-cell {
-    flex: 1 1 0;
+    flex: 1 1 calc(100% - 60px);
     min-width: 0;
     font-weight: 600;
     overflow: hidden;
@@ -760,7 +753,6 @@ body[data-net="testnet"] { --net-color: #f5841f; }
 }
 
 /* ---- policy chips (rules list + mobile) ------------------------------- */
-.policy-cell { white-space: nowrap; }
 .policy-chip {
   display: inline-block;
   font-size: 12px;
@@ -774,9 +766,6 @@ body[data-net="testnet"] { --net-color: #f5841f; }
 .deal-chip { border: 1px solid rgba(26,156,79,.3); }
 
 @media (max-width: 720px) {
-  /* Show policy chips on the second row alongside manual/live/etc. */
-  tr.watch-row .policy-cell {
-    flex: 0 0 auto;
-    order: -1;
-  }
+  /* Policy chips sit on the second line alongside manual/live/etc. */
+  tr.watch-row .policy-cell { flex: 0 0 auto; }
 }
