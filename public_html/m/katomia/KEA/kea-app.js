@@ -269,9 +269,32 @@ import {
     // CONTROLLER: watch CRUD and WebSocket doorbells
     // -------------------------------------------------------------------------
 
+    function showModalError(msg) {
+      const el = $('modalError')
+      if (!el) return
+      el.textContent = msg
+      el.style.display = 'block'
+    }
+
+    function hideModalError() {
+      const el = $('modalError')
+      if (el) el.style.display = 'none'
+    }
+
     function saveWatchFromForm() {
+      hideModalError()
       const watch = watchFromForm()
       validateWatch(watch)
+
+      // Auto-approval guard: you can only auto-sign if there is at least one
+      // verifiable field in the query (orderPubkey or dealId). Without either,
+      // strip auto-approval and alert the user.
+      const hasCheck = !!(watch.orderPubkey || (watch.query && watch.query.dealId))
+      if (!hasCheck && isAuto(watch)) {
+        watch.signPubkey = ''
+        watch.mode = 'fetch'
+        alert('Auto-approval removed: a rule needs at least an intent public key or a deal ID to verify transactions before signing. The rule has been set to manual approval.')
+      }
 
       // Edit (only when not cloning) updates in place and refreshes the socket.
       if (editingWatchId && !cloningFromId) {
@@ -293,7 +316,8 @@ import {
       if (!watch.wsUrl) throw new Error('Missing WebSocket URL')
       if (!watch.baseUrl) throw new Error('Missing KPool base URL')
       if (!watch.network) throw new Error('Missing network')
-      if (!watch.orderPubkey) throw new Error('Missing trader intent public key')
+      // orderPubkey and dealId are both optional — a rule with neither is a
+      // manual-only watch (auto-approval is stripped on save).
     }
 
     function addWatch(watch, opts) {
@@ -814,7 +838,7 @@ import {
       const table = document.createElement('table')
       const head = document.createElement('tr')
 
-      for (const h of ['#', 'Rule', 'Key', 'Approval', 'State', 'Last', '']) {
+      for (const h of ['#', 'Rule', 'Policy', 'Approval', 'State', 'Last', '']) {
         const th = document.createElement('th')
         th.textContent = h
         head.appendChild(th)
@@ -832,7 +856,7 @@ import {
 
         cell(tr, watchRef(w), '#', `watch-ref-cell ${isAuto(w) ? 'ok' : ''}`)
         cell(tr, watchTitle(w), 'Rule', 'strong-cell')
-        cell(tr, shortKey(w.orderPubkey), 'Key', 'mono key-cell')
+        policyChipCell(tr, w)
         pillCell(tr, approvalLabel(w), 'Approval')
         cell(tr, watchStateText(w), 'State', (statusClass(w) + ' state-cell').trim())
         cell(tr, w.lastSeenAt ? formatShortTime(w.lastSeenAt) : '-', 'Last', 'time-cell')
@@ -922,6 +946,7 @@ import {
     // ---- watch modal -------------------------------------------------------
 
     function openWatchModal(w, opts) {
+      hideModalError()
       const clone = !!(opts && opts.clone)
       cloningFromId = clone ? (w ? w.id : null) : null
       editingWatchId = (w && !clone) ? w.id : null
@@ -968,6 +993,7 @@ import {
     function closeWatchModal() {
       editingWatchId = null
       cloningFromId = null
+      hideModalError()
       hideCommitmentOutput()
       $('watchModal').close()
     }
@@ -1706,6 +1732,34 @@ import {
       return td
     }
 
+    // Policy chips cell: up to two small chips showing which verifiable fields
+    // are in the query (intent key snippet + deal ID snippet). Shows in the
+    // Policy column on both desktop and mobile.
+    function policyChipCell(tr, w) {
+      var td = document.createElement('td')
+      td.dataset.label = 'Policy'
+      td.className = 'policy-cell'
+      var q = (w && w.query) || {}
+      var key = String(q.orderPubkey || '').trim()
+      var deal = String(q.dealId || '').trim()
+      if (key) {
+        var c1 = document.createElement('span')
+        c1.className = 'policy-chip intent-chip'
+        c1.textContent = '\uD83D\uDD11 ' + key.slice(-4)
+        c1.title = 'Intent key: ' + key
+        td.appendChild(c1)
+      }
+      if (deal) {
+        var c2 = document.createElement('span')
+        c2.className = 'policy-chip deal-chip'
+        c2.textContent = '\uD83D\uDCDC ' + deal.slice(0, 6)
+        c2.title = 'Deal: ' + deal
+        td.appendChild(c2)
+      }
+      tr.appendChild(td)
+      return td
+    }
+
     function actionButton(text, fn, cls, title) {
       const btn = document.createElement('button')
       btn.textContent = text
@@ -1895,7 +1949,7 @@ import {
     }
 
     $('saveWatchBtn').onclick = function() {
-      try { saveWatchFromForm() } catch (e) { setStatus(`ERROR ${e.message}`, 'bad') }
+      try { saveWatchFromForm() } catch (e) { showModalError(e.message) }
     }
     $('deleteWatchBtn').onclick = function() { deleteEditingWatch() }
     $('raiseCommitmentBtn').onclick = function() {

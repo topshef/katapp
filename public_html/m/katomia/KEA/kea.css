@@ -747,3 +747,36 @@ body[data-net="testnet"] { --net-color: #f5841f; }
 .check-indicator { padding: 3px 0; font-size: 13px; }
 .check-indicator .ok { margin-right: 4px; }
 .check-indicator .warn { margin-right: 4px; }
+
+/* ---- modal error display ---------------------------------------------- */
+.modal-error {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-small);
+  background: var(--bad-tint);
+  color: var(--bad);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ---- policy chips (rules list + mobile) ------------------------------- */
+.policy-cell { white-space: nowrap; }
+.policy-chip {
+  display: inline-block;
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+.intent-chip { border: 1px solid rgba(123,92,255,.3); }
+.deal-chip { border: 1px solid rgba(26,156,79,.3); }
+
+@media (max-width: 720px) {
+  /* Show policy chips on the second row alongside manual/live/etc. */
+  tr.watch-row .policy-cell {
+    flex: 0 0 auto;
+    order: -1;
+  }
+}
