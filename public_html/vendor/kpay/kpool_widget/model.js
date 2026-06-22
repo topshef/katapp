@@ -76,20 +76,24 @@ function skipCouncilAccount(ac) {
 function getAllTransfers(data) {
 	const mirrorTx = data.mirror?.transactions?.[0] || {}
 	const deal     = data.deal || {}
+  const basis    = data.PCH_basis?.transfers || deal.pchbasis?.transfers || {}
 
 	const sources = {
-		hbar:  mirrorTx.transfers       ? 'mirror'
-					 : deal.addHbarTransfer   ? 'deal'
-					 : 'none',
+    hbar:  mirrorTx.transfers        ? 'mirror'
+         : basis.hbarTransfers     ? 'basis'
+         : deal.addHbarTransfer    ? 'deal'
+         : 'none',
 
-		token: mirrorTx.token_transfers ? 'mirror'
-					 : deal.addTokenTransfer  ? 'deal'
-					 : 'none',
+    token: mirrorTx.token_transfers  ? 'mirror'
+         : basis.tokenTransfers    ? 'basis'
+         : deal.addTokenTransfer   ? 'deal'
+         : 'none',
 
-		nft:   mirrorTx.nft_transfers   ? 'mirror'
-					 : deal.addNftTransfer    ? 'deal'
-					 : 'none'
-	}
+    nft:   mirrorTx.nft_transfers    ? 'mirror'
+         : basis.nftTransfers      ? 'basis'
+         : deal.addNftTransfer     ? 'deal'
+         : 'none'
+  }
 
 	const uniqueSources = new Set(Object.values(sources))
 	if (uniqueSources.size > 1) {
@@ -98,10 +102,10 @@ function getAllTransfers(data) {
 	}
 	
 	const raw = {
-		hbar:  mirrorTx.transfers       || deal.addHbarTransfer  || [],
-		token: mirrorTx.token_transfers || deal.addTokenTransfer || [],
-		nft:   mirrorTx.nft_transfers   || deal.addNftTransfer   || []
-	}
+    hbar:  mirrorTx.transfers       || basis.hbarTransfers  || deal.addHbarTransfer  || [],
+    token: mirrorTx.token_transfers || basis.tokenTransfers || deal.addTokenTransfer || [],
+    nft:   mirrorTx.nft_transfers   || basis.nftTransfers   || deal.addNftTransfer   || []
+  }
 
 
 	// glog({raw})

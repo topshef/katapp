@@ -1,5 +1,3 @@
-
-
 /*
 ========================================
 KATOMIA ORDER RENDERING
@@ -137,10 +135,14 @@ function renderTxSourceInfo(tx){  // renders too
 }
 
 
+function isTxSuccessStatus(status){
+  return String(status || "").toUpperCase() == "SUCCESS"
+}
 
 function getTxStatus(tx){
 
   const txid = tx.txid
+  if(!txid) return tx.lifecycle?.status || "?"
 
   const settled =
     Object.values(state.players || {})
@@ -155,11 +157,11 @@ function getTxStatus(tx){
       )
 
   if(settled)
-    return "success"
+    return "SUCCESS"
 
   return tx.lifecycle?.status || "?"
-
 }
+
 
 function getTxMeta(tx){
 
@@ -167,7 +169,7 @@ function getTxMeta(tx){
   const txid = tx.txid || "?"
   const pch = (tx.pch || "?").substring(0,6)
   const status = getTxStatus(tx)
-  const success = status == "success"
+  const success = isTxSuccessStatus(status)
 
   return {
     network,
@@ -177,7 +179,7 @@ function getTxMeta(tx){
     statusText: success ? "✅" : "❓",
     url: success
       ? `https://hashscan.io/${network}/transaction/${txid}`
-      : `https://shop.gomint.me/future/?network=${network}&txid=${tx.txid}&pch=${tx.pch}`
+      : `https://swap.kpay.live/future/?network=${network}&txid=${tx.txid}&pch=${tx.pch}`
   }
 
 }
@@ -209,8 +211,11 @@ function createTxAssets(tx,orderType){
     ...(basis.hbarTransfers || []).map(x => ({...x, tokenId:"HBAR"}))
   ]
 
-  if(orderType == "simple-ft")
-    return createSimpleFxTxAssets(transfers)
+  if(orderType == "simple-ft"){
+    const HEDERA_FEE_ACCOUNTS = new Set(["0.0.98","0.0.800","0.0.801","0.0.802"])
+    const tradeTransfers = transfers.filter(x => !HEDERA_FEE_ACCOUNTS.has(x.accountId))
+    return createSimpleFxTxAssets(tradeTransfers)
+  }
 
   return createGenericTxAssets(transfers)
 
@@ -318,13 +323,54 @@ function getTxOrderIds(tx){
   return [...new Set(ids)]
 }
 
+function getTxSourceOrder(tx, orderId){
+  if(!orderId) return null
+
+  const key = String(orderId)
+
+  return (
+    getAllOrders().find(x => String(x.orderId) == key)?.order ||
+    tx.source?.orders?.[key] ||
+    tx.source?.orders?.[orderId] ||
+    null
+  )
+}
+
+function getTxMainOrder(tx){
+  const fill = tx.source?.fills?.[0] || {}
+
+  return (
+    getTxSourceOrder(tx, fill.orderId) ||
+    getTxSourceOrder(tx, fill.takerOrderId)
+  )
+}
+
+function getOrderTypeFromPchbasis(tx){
+  const basis = tx.pchbasis?.transfers
+  if(!basis) return null
+  const HEDERA_FEE_ACCOUNTS = new Set(["0.0.98","0.0.800","0.0.801","0.0.802"])
+  const transfers = [
+    ...(basis.tokenTransfers || []),
+    ...(basis.hbarTransfers  || [])
+  ].filter(x => !HEDERA_FEE_ACCOUNTS.has(x.accountId))
+  if(!transfers.length) return null
+  const accounts = new Set(transfers.map(x => x.accountId))
+  return accounts.size <= 2 ? "simple-ft" : "basket-ft"
+}
+
+function getTxPair(tx){
+  return enrichOrder(getTxMainOrder(tx))?.market?.pair || ""
+}
+
+
+
 function createTxRow(tx){
 
   const row = document.createElement("div")
   const meta = document.createElement("span")
 
   row.className = "subtle tx-row"
-  if(getTxStatus(tx)=="success")
+  if(isTxSuccessStatus(getTxStatus(tx)))
     row.classList.add("success")
 
 
@@ -338,9 +384,8 @@ function createTxRow(tx){
   row.dataset.txkey = getTxKey(tx)
   row.dataset.orderIds = getTxOrderIds(tx).join(",")
     
-  const orderId = tx.source?.fills?.[0]?.orderId
-  const order = getAllOrders().find(x => x.orderId == orderId)?.order
-  const orderType = getOrderType(order) || "generic"
+  const order = getTxMainOrder(tx)
+  const orderType = getOrderType(order) || getOrderTypeFromPchbasis(tx) || "generic"
   const market = enrichOrder(order)?.market
   const side = market?.side ? ` ${market.side}` : ""
   const sourceInfo = renderTxSourceInfo(tx)
@@ -383,20 +428,30 @@ function getTxStartSeconds(tx){
 
 }
 
+
+
 function isTxExpired(tx){
 
-  if(getTxStatus(tx) == "success") return false
+  if(isTxSuccessStatus(getTxStatus(tx))) return false
 
   const seconds = getTxStartSeconds(tx)
   if(!seconds) return false
 
   const ageMs = Date.now() - (seconds * 1000)
 
-  return ageMs > (5 * 60 * 1000)
+  return ageMs > ((2 * 60 + 30) * 1000)
 
 }
 
 
+
+
+let _txRenderToken = 0
+
+// Cap the rendered transactions list. The store is unbounded (IndexedDB) and the
+// list unions stored history + live pending + settled stubs, so without a cap it
+// grows without limit. Show the most-recent TX_LIST_MAX after filtering.
+const TX_LIST_MAX = 50
 
 async function renderTransactions(){
 
@@ -404,16 +459,25 @@ async function renderTransactions(){
 
   if(!listEl) return
 
-  listEl.innerHTML = ""
+  // render() runs on every state update and is not serialised, so this can be
+  // re-entered many times in quick succession. It now does real async I/O
+  // (IndexedDB via Localbase), so overlapping calls would each clear-then-append
+  // the same rows AFTER all had cleared — producing N duplicate copies and the
+  // flashing. Tag each run; only the most recent one is allowed to commit.
+  const token = ++_txRenderToken
 
-  await cachePendingTxs()
+  // Persist pending txs for post-settlement history, but OFF the render path —
+  // getAllTx() already unions live pending, so display never waits on a write.
+  cachePendingTxs()
 
   const txs = await getAllTx()
+
+  if(token !== _txRenderToken) return   // a newer render superseded this one
 
   const hideExpired =
     document.querySelector("#hideExpiredTx")
       ?.checked
-      
+
   txs.sort((a,b) => {
 
     const ta =
@@ -428,23 +492,31 @@ async function renderTransactions(){
 
   const selectedPair = getSelectedPair()
 
-  txs.forEach(tx => {
-    
-    if(hideExpired && isTxExpired(tx))
-      return
+  // Build off-DOM, then swap the whole list in one synchronous step. This both
+  // avoids an empty intermediate frame (the flash) and means an overlapping
+  // render can only ever REPLACE the list wholesale — never stack onto it.
+  const frag = document.createDocumentFragment()
 
-    const orderId = tx.source?.fills?.[0]?.orderId
-    const order = getAllOrders().find(x => x.orderId == orderId)?.order
-    const pair = enrichOrder(order)?.market?.pair
+  // Filter first, then cap to the most-recent TX_LIST_MAX (txs is already sorted
+  // newest-first), so the cap counts visible rows rather than pre-filter records.
+  const visible = txs.filter(tx => {
+
+    if(hideExpired && isTxExpired(tx))
+      return false
+
+    const pair = getTxPair(tx)
 
     if(selectedPair && pair != selectedPair)
-      return
+      return false
 
-    listEl.appendChild(
-      createTxRow(tx)
-    )
+    return true
 
-  })
+  }).slice(0, TX_LIST_MAX)
+
+  for(const tx of visible)
+    frag.appendChild(createTxRow(tx))
+
+  listEl.replaceChildren(frag)
 
 
 }
@@ -969,7 +1041,7 @@ document.addEventListener("mousemove", e => {
       return (
         `#${row.orderId} ` +
         `${row.side} ` +
-        `${row.displayBaseAmount} ` +
+        `${row.originalDisplayBaseAmount} ` +
         `@ ${formatRate(row.displayRate)} ` +
         `🧩 ${fill.numerator}/${fill.denominator}` +
         `${fillWithinKpool}`
@@ -1201,7 +1273,7 @@ function renderOrderMarketSummary(){
       return (
         `#${row.orderId} ` +
         `${row.side} ` +
-        `${row.displayBaseAmount} ` +
+        `${row.originalDisplayBaseAmount} ` +
         `@ ${row.displayRate}`
       )
       })
@@ -1313,8 +1385,41 @@ function renderOrderMarketSummary(){
         listEl.appendChild(createOrderRow(orderRec))
       })
 
+      // Ghost rows. An order can be purged (expiry / IOC / FOK) while a fill for
+      // it is still pending on kpool, so it disappears from the live list before
+      // its transaction settles — losing the context behind that pending tx. Each
+      // pending tx is self-contained (source.orders carries the full order), so we
+      // re-spawn any referenced order that is no longer live as a read-only ghost,
+      // for display only. No local storage: the ghost self-heals, dropping out as
+      // soon as the tx finalises and leaves state.tx.pending. Shown regardless of
+      // the "my orders" toggle (it's context for an in-flight tx) but still scoped
+      // to the selected pair.
+      const liveOrderIds = new Set(orders.map(o => String(o.orderId)))
+      const ghostSeen = new Set()
 
-    }       
+      ;(state?.tx?.pending || []).forEach(tx => {
+        const srcOrders = tx?.source?.orders || {}
+
+        Object.keys(srcOrders).forEach(orderId => {
+          const id = String(orderId)
+
+          if(liveOrderIds.has(id) || ghostSeen.has(id))
+            return
+
+          const order = srcOrders[id]
+          if(!order)
+            return
+
+          const pair = enrichOrder(order)?.market?.pair
+          if(selectedPair && pair != selectedPair)
+            return
+
+          ghostSeen.add(id)
+          listEl.appendChild(createOrderRow({ orderId: id, order, playerId: null, ghost: true }))
+        })
+      })
+
+    }
     // TODO:
     // Orders may reference assets not present in visible accounts,
     // so current enrichment (account-driven) may miss them.
@@ -1541,7 +1646,8 @@ function getOrderMarketLabel(orderId, playerId, enriched){
   const fxRow = enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market })
   if(!fxRow) return enriched.derivedLabel || ""
 
-  return `@${formatRate(fxRow.displayRate)} ${fxRow.side} ${fxRow.displayBaseAmount} ${fxRow.pair}`
+  // return `@${formatRate(fxRow.displayRate)} ${fxRow.side} ${fxRow.displayBaseAmount} ${fxRow.pair}`   // volume here is what remaining to fill, not original
+    return `@${formatRate(fxRow.displayRate)} ${fxRow.side} ${fxRow.originalDisplayBaseAmount} ${fxRow.pair}`
 }
 
 
@@ -1603,11 +1709,18 @@ function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel
 
 // ── main ─────────────────────────────────────────────────────────────────────
 
-function createOrderRow({ orderId, order, playerId }){
+function createOrderRow({ orderId, order, playerId, ghost = false }){
 
   const row = document.createElement("div")
   row.className = "order-row"
   row.dataset.orderId = orderId
+
+  // Ghost = order no longer live (purged on expiry/IOC/FOK) but still referenced
+  // by a pending tx; rendered read-only from tx source.orders for context only.
+  if(ghost){
+    row.classList.add("order-ghost")
+    row.title = "Order cleared while a transaction is still pending — shown from transaction source for context"
+  }
 
   if(order?.bundle?.error){
     row.textContent = `Order #${orderId} (${playerId}): ❌  ${order?.bundle?.error}`
@@ -1631,7 +1744,9 @@ function createOrderRow({ orderId, order, playerId }){
 
 
   row.dataset.orderSide = enriched.market?.side || ""
-  row.onclick = makeOrderRowOnClick(orderId, playerId, enriched, order)
+  // ghosts are display-only: no row interactions
+  if(!ghost)
+    row.onclick = makeOrderRowOnClick(orderId, playerId, enriched, order)
 
   const prefix = buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel, fillStatus)
   const arrow  = document.createElement("span")
@@ -1948,5 +2063,3 @@ function normaliseOrder(input){
     }
   }
 }
-
-

@@ -929,62 +929,67 @@ function getFastThumb(url, imgEl){
     // ├┬┘├┤ │││ ││├┤ ├┬┘
     // ┴└─└─┘┘└┘─┴┘└─┘┴└─
     // render
+
+    let _mainRenderToken = 0
+
     async function render(){
-			
       if(!state) return
-			
+      const token = ++_mainRenderToken
+
       document.body.dataset.viewMode = viewMode
       document.body.dataset.showTradedOnly = showTradedOnly ? "true" : "false"
 
-      if(gameMeta.network){
+      if(gameMeta.network)
         document.body.dataset.network = gameMeta.network.toLowerCase()
-      }
-      
-      gameEl.innerHTML = ""
 
-      const gameMetaEl = document.getElementById("gameMeta")
-      if(gameMetaEl && gameMeta){
-
-        const title = gameMeta.profile?.name || ""
-
-        const joinText = String(gameMeta.joinRule || "").trim()
-
-        gameMetaEl.innerHTML = `
-          <div class="game-title-row">
-            <div class="game-network">${gameMeta.network}</div>
-            <div class="game-title">${title}</div>
-          </div>
-
-          <div class="game-meta-row">
-            <span>ID: ${gameMeta.id}</span>
-            <span>Visibility: ${gameMeta.visibility}</span>
-            ${joinText ? `<span>Join: ${joinText}</span>` : ""}
-            <span>Lock: ${gameMeta.lockRule}</span>
-            ${renderConfigMeta(gameMeta.config)}
-          </div>
-        `
-      }
-			
       headerEl.style.display = viewMode === "columns" ? "grid" : "none"
 
-      //show orders
-      
       window.orderFillMap = buildOrderFillMap()
       renderOrderMarketSummary()
       renderOrders()
-      await renderTransactions()
-            
+      renderTransactions()
 
       const accounts = getAccounts()
       const accountMap = getAccountMap()
       const reservedByAccount = buildReservedByAccount(accounts)
       const visibleAccounts = getVisibleAccounts(accounts)
+      const frag = document.createDocumentFragment()
 
       visibleAccounts.forEach(account => {
         const rowEl = viewMode === "columns"
           ? renderColumnsAccount(account, reservedByAccount, accountMap)
           : renderMergedAccount(account, reservedByAccount, accountMap)
 
-        gameEl.appendChild(rowEl)
+        frag.appendChild(rowEl)
       })
+
+      if(token !== _mainRenderToken) return
+      gameEl.replaceChildren(frag)
+
+      const gameMetaEl = document.getElementById("gameMeta")
+      if(!gameMetaEl || !gameMeta) return
+
+      const title = gameMeta.profile?.name || ""
+      const joinText = String(gameMeta.joinRule || "").trim()
+      const adminTools = await renderGameAdminTools()
+
+      if(token !== _mainRenderToken) return
+
+      gameMetaEl.innerHTML = `
+        <div class="game-title-row">
+          <div class="game-network">${gameMeta.network}</div>
+          <div class="game-title">${title}</div>
+        </div>
+
+        <div class="game-meta-row">
+          <span>ID: ${gameMeta.id} ${adminTools}</span>
+          <span>Visibility: ${gameMeta.visibility}</span>
+          ${joinText ? `<span>Join: ${joinText}</span>` : ""}
+          <span>Lock: ${gameMeta.lockRule}</span>
+          ${renderConfigMeta(gameMeta.config)}
+        </div>
+      `
+
+      document.getElementById("deleteGameBtn")?.addEventListener("click", deleteCurrentGame)
     }
+

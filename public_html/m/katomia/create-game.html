@@ -248,9 +248,12 @@ h3{
 
 	<div class="field">
 		<div class="explain">
-			Admin account (optional)
+			Admin ID (optional)
 		</div>
 		<input id="admin" placeholder="Hedera account / public key">
+		<div class="explain">
+			Hedera account or public key. Leave blank to prevent game edit or deletion.
+		</div>    
 
 	</div>
 
@@ -343,7 +346,8 @@ const payload = {
 }
 
 const adminValue = admin.value.trim()
-if(adminValue) payload.admin = adminValue
+if(adminValue) payload.adminAccount = adminValue
+
 
 try{
 
@@ -377,6 +381,34 @@ status.textContent = "Error creating game"
 }
 
 }
+
+
+
+function defaultAdminAccount(){
+  const el = document.getElementById("admin")
+  if(!el || el.value.trim()) return
+
+  const pubkey = getLocalOrderPubkeyHex()
+  if(pubkey) el.value = pubkey
+}
+
+function getLocalOrderPubkeyHex(){
+  try{
+    const kp = JSON.parse(localStorage.getItem("katomiaPlayerKeypair") || "{}")
+    return jwkXToHex(kp.publicKeyJwk?.x)
+  }catch{
+    return ""
+  }
+}
+
+function jwkXToHex(x){
+  if(!x) return ""
+  const bin = atob(x.replace(/-/g, "+").replace(/_/g, "/"))
+  return [...bin].map(c => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+}
+
+defaultAdminAccount()
+
 
 </script>
 

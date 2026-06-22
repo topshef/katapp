@@ -68,12 +68,21 @@ async function enrichAsset(network, assetId, amount){
 	}
 }
 
-function getDisplayDecimals(tokenClass){
+function zzgetDisplayDecimals(tokenClass){
 
 	const tokenDecimals = Number(tokenClass.decimals || 0)
 
 	return Math.max(tokenDecimals - 4, 0)
 }
+
+
+function getDisplayDecimals(tokenClass){
+
+	const tokenDecimals = Number(tokenClass.decimals || 0)
+
+	return Math.min(tokenDecimals, 8)
+}
+
 
 function formatAssetDisplay(asset, meta){
 
@@ -104,8 +113,8 @@ function formatAssetDisplay(asset, meta){
 	if(decimals){
 		const value = asset.amount / (10 ** decimals)
 		const displayDecimals = getDisplayDecimals(tokenClass)
-		const rounded = value.toFixed(displayDecimals)
-		return `${tokenLabel} ${rounded}`
+		const rounded = value.toFixed(displayDecimals).replace(/\.?0+$/, "")
+		return `${tokenLabel} ${rounded || "0"}`
 	}
 
 	return asset.amount > 1
@@ -253,16 +262,22 @@ async function getAccountLabelXProof(network, accountId){
 
 async function enrichAccountLabel(network, accountId){
 
+  if(network != "mainnet") return {label:null}
+
   const data = await getAccountLabelXProof(network, accountId)
   const latest = data?.links?.[0]
-  
-  // console.log("getAccountLabelXProof",data)
-  const label = latest.domain + ' | ' + latest.name || null
-  glog(`getAccountLabelXProof|${latest.domain}`,{label, data})
+
+  if(!latest) return {label:null}
+
+  const label =
+    [latest.domain, latest.name]
+      .filter(Boolean)
+      .join(" | ") || null
+
+  if(label) glog(`getAccountLabelXProof|${latest.domain || accountId}`, {label, data})
 
   return {label}
 }
-
 
 async function enrichAccountLabels(){
 
@@ -279,7 +294,7 @@ async function enrichAccountLabels(){
     const id = account.id.split(":")[1] || null
     if(!id) console.warn('PH93844 missing account id', account.id)
 
-    if(window.accountLabelCache[id]) return
+    if(Object.prototype.hasOwnProperty.call(window.accountLabelCache, id)) return
     if(window.accountLabelPending.has(id)) return
 
     window.accountLabelPending.add(id)

@@ -15,17 +15,46 @@
 <body>
 
 	<div id="notifications"></div>
+  <button id="profileBtn" class="profile-btn" title="Profile" aria-label="Profile">🔗</button>
+
 
   <div class="app-banner">
     <div class="app-banner-inner">
       <h2>
         <span class="app-title">KATOMIA</span>
-        <span class="app-icons">🐫🍎💱</span>
+        <span class="app-icons">💱 🐫</span>
       </h2>
     </div>
   </div>
 
   <div id="gameMeta" class="game-meta"></div>
+  <div id="profileModal" class="profile-modal hidden">
+        
+    <div class="profile-card">
+      <div id="profileModalClose" class="profile-close">✕</div>
+
+      <h2 id="profileTitle">Player</h2>
+
+
+
+      <div id="profileQr" class="profile-qr"></div>
+      <p class="subtle">Scan with KEA to approve your orders</p>
+      
+      <div class="profile-list">
+        <div class="profile-label">Order public key</div>
+        <div id="profilePubkey" class="profile-mono"></div>
+
+        <div class="profile-label">Scope</div>
+        <div id="profileScope" class="profile-scope"></div>
+      </div>
+      
+      <a id="profileQrLink" class="profile-link" href="#"></a>
+
+      <button id="profileCopyLinkBtn">Copy KEA link</button>
+    </div>
+    
+  </div>
+
 
   <div class="controls mode-proposal">
     <label>
@@ -317,6 +346,8 @@
 <script src="katomia-render.js"></script>
 <script src="katomia-render-orders.js"></script>
 <script src="katomia-market.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<script src="katomia-profile.js"></script>
 
 <script>
 window.addEventListener("load", () => {

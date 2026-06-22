@@ -10,6 +10,10 @@ RewriteRule ^create/?$ ?page=create [L,QSA,E=TRACE:RJ23394]
 RewriteRule ^kea/?$ KEA [L,QSA]
 
 
+RewriteRule ^keakonnect/?$ kea-bind.html [L,QSA]
+
+
+
 #hapi api router
 RewriteRule ^hapi/([a-z]+)/?$ hapi.php?action=$1 [L,QSA,E=TRACE:DE73672]
 

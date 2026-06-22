@@ -16,6 +16,7 @@ const {
 	buildTxReadColumns,
 	renderSigningInfo,
 	renderReadinessInfo,
+	renderPrecheckInfo,
 	showBanner
 } = await import(`./view.js?v=${V}`)
 
@@ -194,6 +195,8 @@ async function loadSigningState(txState, tx) {
 		accounts: tx.accounts
 	})
 
+	renderPrecheckInfo({ precheck: tx.data?.precheck })
+
 	txState.data = tx.data
 	txState.accounts = tx.accounts
 
@@ -239,6 +242,9 @@ async function handleTxUpdate(txState, update) {
 	}
 
 	view.statusBlock.update(txState.data)
+
+	if (update.precheck || update.type === 'tx_precheck')
+		renderPrecheckInfo({ precheck: txState.data.precheck })
 
 	if (update.sigs) await handleSignatureUpdate(txState, update)
 }
@@ -351,4 +357,5 @@ async function refreshSigningSection({ network, data, accounts }) {
 
 	renderReadinessInfo({ readiness })
 	renderSigningInfo({ data, network, accounts })
+	renderPrecheckInfo({ precheck: data?.precheck })
 }
