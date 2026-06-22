@@ -88,7 +88,7 @@ $menu = $content['general'][1]['menu'] ?? 'm=Gallery';
 	
 	<link rel="shortcut icon" href="<?=$url_icon?>">
 	<?php echo $custom_style; ?>
-  </head>
+</head>
 
   <body>
 
@@ -188,3 +188,4 @@ EOMENU;
         </div>
       </nav>
     </header>
+      </nav>
