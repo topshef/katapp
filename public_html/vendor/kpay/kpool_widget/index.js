@@ -275,7 +275,7 @@ function buildWhatsAppPane(network, txid, pch) {
 }
 
 function buildKsigPane(txState) {
-	const { network, txid, readUrl } = txState
+	const { network, txid, pch, readUrl } = txState
 	const pane = document.createElement('div')
 	pane.appendChild(makeDesc(
 		`Sign offline on another device. Scan this QR with the KSIG app. ` +
@@ -294,6 +294,7 @@ function buildKsigPane(txState) {
 		renderKsig(mount, {
 			network,
 			txid,
+			pch,
 			readUrl,   // absolute endpoint matters off-origin (Katomia) — see comment above
 			onSigned: () => notify(txState, '✍️ Signature submitted', 'success')
 		})

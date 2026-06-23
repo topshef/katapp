@@ -37,7 +37,7 @@ const V = window.__BUILD_HASH__ || ''
 // recorded. txAddSignature takes the raw {publicKey, sigHex, bodyBytesHex} and
 // merges the signature into the pooled transaction server-side.
 // const DEFAULT_SUBMIT_URL = 'https://kpos.uk/sign/offline/widget'
-const DEFAULT_SUBMIT_URL = location.pathname + '?action=txAddSignature'
+const DEFAULT_SUBMIT_URL = location.pathname + '?action=addSig'
 
 function hexToBytes(hex) {
 	const clean = String(hex || '').replace(/^0x/, '')
@@ -102,6 +102,7 @@ async function fetchTx(readUrl, network, txid) {
 export async function renderKsig(container, {
 	network,
 	txid,
+	pch = 'no_pch',
 	readUrl = defaultReadUrl,
 	submitSigUrl = DEFAULT_SUBMIT_URL,
 	onSigned = null
@@ -157,8 +158,8 @@ export async function renderKsig(container, {
 		status.className = 'kpsign-scan-status'
 		container.appendChild(status)
 
-		scanBtn.addEventListener('click', () =>
-			startScanBack({ network, txid, bodyBytesHex, submitSigUrl, onSigned, statusEl: status, btnEl: scanBtn })
+    scanBtn.addEventListener('click', () =>
+			startScanBack({ network, txid, pch, bodyBytesHex, submitSigUrl, onSigned, statusEl: status, btnEl: scanBtn })
 		)
 
 		kdiag('ksig:qr-rendered', { bytes: bodyBytesHex.length / 2, checksum })
@@ -241,48 +242,44 @@ async function startScanBack(ctx) {
 
 
 
-async function submitSignature({ publicKey, sigHex }, { network, txid, bodyBytesHex, submitSigUrl, onSigned, statusEl }) {
+
+async function submitSignature({ publicKey, sigHex }, { network, txid, pch, bodyBytesHex, submitSigUrl, onSigned, statusEl }) {
 	statusEl.classList.remove('err')
 	statusEl.textContent = `Submitting signature …${publicKey.slice(-4)}`
 
+	// addSig (server) reads pubKey / signature / pch — NOT publicKey / sigHex. Send the
+	// names it expects, and include pch or it rejects with "AS10003 missing pch".
+	const body = new URLSearchParams({
+		network, txid, pch,
+		pubKey: publicKey,
+		signature: sigHex,
+		bodyBytesHex
+	})
 
-const body = new URLSearchParams({ network, txid, publicKey, sigHex, bodyBytesHex })
-
-	// kpool.php reads `network` from $_GET OR a JSON body — NOT from a form-encoded
-	// body. We send form-encoded, so put network+txid in the query string too, or
-	// the server throws "ZR73642 / HE93843 missing network" and drops the sig.
+	// kpool.php reads `network` from $_GET or a JSON body, not a form body — keep
+	// network+txid in the query string too (else "ZR73642 missing network").
 	const sep = submitSigUrl.includes('?') ? '&' : '?'
 	const postUrl = submitSigUrl + sep +
 		`network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
 
 	kdiag('ksig:submit:start', {
-		url: postUrl,
-		network, txid,
+		url: postUrl, network, txid, pch,
 		pubTail: publicKey.slice(-4),
 		sigLen: sigHex.length / 2,
 		bodyBytesLen: (bodyBytesHex || '').length / 2
 	})
 
 	try {
-		// no-cors removed: it made the response opaque, so a 404/error/empty write
-		// from the endpoint still looked like success here. Read the response so we
-		// can actually see whether the signature was recorded.
 		const res = await fetch(postUrl, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 			body: body.toString()
 		})
-
-
 		const text = await res.text().catch(() => '')
 		kdiag('ksig:submit:response', {
-			ok: res.ok,
-			status: res.status,
-			type: res.type,
-			len: text.length,
-			snippet: text.slice(0, 300)
+			ok: res.ok, status: res.status, type: res.type,
+			len: text.length, snippet: text.slice(0, 300)
 		})
-
 		statusEl.textContent = `✍️ Signature …${publicKey.slice(-4)} submitted — the approvals list will update shortly.`
 		if (typeof onSigned === 'function') onSigned({ publicKey, sigHex })
 	} catch (e) {
@@ -291,6 +288,8 @@ const body = new URLSearchParams({ network, txid, publicKey, sigHex, bodyBytesHe
 		kdiag('ksig:submit:error', { error: String(e), url: submitSigUrl })
 	}
 }
+
+
 
 
 
