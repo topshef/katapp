@@ -40,7 +40,8 @@ function injectModalCSS() {
 			transition: background .3s ease;
 		}
 		.kpm-status { display: flex; align-items: center; gap: 8px; min-width: 0; }
-		.kpm-dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; background: #9aa0a6; }
+		.kpm-dot { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; background: #9aa0a6; }
+		.kpm-dot.square { border-radius: 2px; }
 		.kpm-status-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 		.kpm-head-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 
@@ -160,10 +161,11 @@ export function buildModal({ onClose } = {}) {
 	}
 
 	const TONES = ['info', 'success', 'warn', 'error']
-	function setStatus(label, tone = 'info') {
+	function setStatus(label, tone = 'info', shape = 'circle') {
 		statusLabel.textContent = label ?? ''
 		const t = TONES.includes(tone) ? tone : 'info'
 		head.className = 'kpm-head kpm-tone-' + t
+		dot.classList.toggle('square', shape === 'square')
 	}
 
 	document.body.appendChild(overlay)

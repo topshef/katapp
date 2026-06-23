@@ -52,7 +52,7 @@ export async function open({ network, txid, pch = 'no_pch', brand = {}, signer =
 		showHeader: brand.showHeader !== false,
 		onClose:    brand.onClose
 	})
-	await mount(modal.body, { network, txid, pch, signer, ...opts, onStatus: s => modal.setStatus(s.label, s.tone) })
+	await mount(modal.body, { network, txid, pch, signer, ...opts, onStatus: s => modal.setStatus(s.label, s.tone, s.shape) })
 	return modal
 }
 
@@ -94,6 +94,7 @@ async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) 
 	txState.onStatus = opts.onStatus
 
 	hostEl.append(txState.container)
+	txState.container.innerHTML = '<div class="kpsign-msg" style="padding:28px;text-align:center">Loading transaction…</div>'
 
 	try {
 		const tx = await renderTxView(txState)
@@ -106,6 +107,8 @@ async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) 
 		startTxPolling(txState, tx)
 	} catch (e) {
 		console.warn('txRead fetch failed', e)
+		window.kdiag?.('tx:load-error', { error: String(e) })
+		txState.container.innerHTML = '<div class="kpsign-msg" style="padding:28px;text-align:center;color:#b00020">Couldn\'t load this transaction. Check your connection and try again.</div>'
 	}
 }
 
@@ -237,12 +240,9 @@ function buildWhatsAppPane(network, txid, pch) {
 
 function buildKsigPane(network, txid) {
 	const pane = document.createElement('div')
-	const url = ksigWidgetUrl(network, txid)
 	pane.appendChild(makeDesc(
 		`Sign offline on another device. Scan this QR with the KSIG app. ` +
-		`Don't have it? <a href="https://ksig.uk/pwa" target="KPAYPWA">Get KSIG</a>. ` +
-		`To return the signature, use the full tool (open in new tab).`,
-		url
+		`Don't have it? <a href="https://ksig.uk/pwa" target="KPAYPWA">Get KSIG</a>.`
 	))
 
 	const mount = document.createElement('div')
@@ -343,7 +343,7 @@ function buildSigningPanel(txState) {
 		{ id: 'status',        label: 'Status',          svg:  INFO_SVG,                            build: () => buildStatusPane(txState) },
 		{ id: 'walletconnect', label: 'WalletConnect',   icon: 'WalletConnect-Logo.png',           build: () => buildWcPane(txState) },
 		{ id: 'whatsapp',      label: 'WhatsApp',        icon: 'WhatsApp.svg.png',                 build: () => buildWhatsAppPane(network, txid, pch) },
-		{ id: 'ksig',          label: 'Offline (KSIG)',  icon: 'kpay_logo_square_transparent.png', build: () => buildKsigPane(network, txid) }
+		{ id: 'ksig',          label: 'Offline',         icon: 'kpay_logo_square_transparent.png', build: () => buildKsigPane(network, txid) }
 	]
 
 	const DEFAULT = 'status'
@@ -517,13 +517,15 @@ async function renderTxView(txState) {
 		data,
 		transfers,
 		network,
-		txid
+		txid,
+		pch: txState.pch
 	})
 
   // container.appendChild(txState.view.el)
   // container.appendChild(kpayLink)
   // container.appendChild(details)
 
+  container.textContent = ''
   container.appendChild(txState.view.el)
 
   // signing panel: a clean method picker (WhatsApp · Wallet · KSIG). Choosing a

@@ -64,6 +64,39 @@ function dom(el, label = 'dom') {
 
 function clear() { BUFFER.length = 0 }
 
+// capture uncaught errors and console.error/warn into the buffer so the
+// diagnostics copy includes them (install once).
+function installCapture() {
+	if (typeof window === 'undefined' || window.__kdiagCapture) return
+	window.__kdiagCapture = true
+
+	window.addEventListener('error', e => {
+		kdiag('window:error', {
+			message: e.message,
+			src: String(e.filename || '').split('/').pop(),
+			line: e.lineno, col: e.colno
+		})
+	})
+	window.addEventListener('unhandledrejection', e => {
+		kdiag('window:unhandledrejection', { reason: String(e.reason) })
+	})
+
+	;['error', 'warn'].forEach(level => {
+		const orig = console[level] ? console[level].bind(console) : () => {}
+		console[level] = (...args) => {
+			try {
+				kdiag(`console:${level}`, {
+					args: args.map(a =>
+						a instanceof Error ? (a.stack || a.message)
+						: typeof a === 'object' ? safe(a)
+						: String(a))
+				})
+			} catch {}
+			orig(...args)
+		}
+	})
+}
+
 // expose for console use: callable AND with helpers attached
 if (typeof window !== 'undefined') {
 	window.kdiag = Object.assign(
@@ -71,3 +104,5 @@ if (typeof window !== 'undefined') {
 		{ dump, copy, clear, dom, buffer: BUFFER }
 	)
 }
+
+installCapture()

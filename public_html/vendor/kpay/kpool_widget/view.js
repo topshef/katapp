@@ -105,7 +105,17 @@ import {
 	}
 	
 	
-	export const buildTxReadColumns = ({ rawTx, data, transfers, network, txid }) => {
+	function decodeB64(b){ try { return b ? decodeURIComponent(escape(atob(b))) : null } catch { return null } }
+	function extractMemo(data){
+		return data?.memo
+			?? data?.deal?.memo
+			?? decodeB64(data?.mirror?.transactions?.[0]?.memo_base64)
+			?? null
+	}
+
+	export const buildTxReadColumns = ({ rawTx, data, transfers, network, txid, pch }) => {
+
+		const sep = () => { const x = document.createElement('span'); x.className = 'txread-sep'; x.textContent = '·'; return x }
 
 		const wrapper = document.createElement('div')
 		wrapper.className = 'txread-wrapper'
@@ -132,6 +142,19 @@ import {
 
 		intent.appendChild(intentRow)
 
+		// public memo (if present) on its own line
+		const memo = extractMemo(data)
+		if (memo) {
+			const memoEl = document.createElement('div')
+			memoEl.className = 'txread-memo'
+			const mlbl = document.createElement('span')
+			mlbl.className = 'txread-memo-label'
+			mlbl.textContent = 'Public memo: '
+			memoEl.append(mlbl, document.createTextNode(memo))
+			intent.appendChild(memoEl)
+		}
+
+		// scope line: Hedera <network> · <txid> · #<pch6>
 		const scope = document.createElement('div')
 		scope.className = 'txread-scope'
 		const net = document.createElement('span')
@@ -143,7 +166,13 @@ import {
 		txLink.target = '_blank'
 		txLink.rel = 'noopener'
 		txLink.textContent = txid
-		scope.append(net, txLink)
+		scope.append(net, sep(), txLink)
+		if (pch && pch !== 'no_pch') {
+			const pchEl = document.createElement('span')
+			pchEl.className = 'txread-scope-pch'
+			pchEl.textContent = `#${String(pch).slice(0, 6)}`
+			scope.append(sep(), pchEl)
+		}
 		intent.appendChild(scope)
 
 		wrapper.appendChild(intent)
@@ -175,6 +204,26 @@ import {
 		const accountKeysEl = document.createElement('div')
 		accountKeysEl.id = 'account-keys'
 
+		// hover any element tagged with an account → highlight every related element
+		// (transfer cells + that account's signing-authority row).
+		let hlAcct = null
+		const clearHl = () => {
+			if (!hlAcct) return
+			wrapper.querySelectorAll('.acct-hl').forEach(n => n.classList.remove('acct-hl'))
+			hlAcct = null
+		}
+		wrapper.addEventListener('mouseover', e => {
+			const el = e.target.closest('[data-acct]')
+			const acct = el?.dataset.acct || null
+			if (acct === hlAcct) return
+			clearHl()
+			if (acct) {
+				wrapper.querySelectorAll(`[data-acct="${CSS.escape(acct)}"]`).forEach(n => n.classList.add('acct-hl'))
+				hlAcct = acct
+			}
+		})
+		wrapper.addEventListener('mouseleave', clearHl)
+
 		return {
 			el: wrapper,
 			statusBlock,
@@ -191,21 +240,25 @@ import {
 		const raw = data.comboStatus || data.mirrorStatus || data.receiptStatus || ''
 		const up = String(raw).toUpperCase()
 
+		// shape convention: square = on-chain result, circle = off-chain state
 		if (up === 'SUCCESS')
-			return { label: '✅ Success', tone: 'success' }
+			return { label: 'Success', tone: 'success', shape: 'square' }
 
-		if (/FAIL|EXPIR|INVALID|ERROR|REJECT/.test(up))
-			return { label: `⚠️ ${prettyStatus(raw)}`, tone: 'error' }
+		if (up.includes('EXPIR'))
+			return { label: prettyStatus(raw), tone: 'error', shape: 'circle' }
+
+		if (/FAIL|INVALID|ERROR|REJECT|DUPLICATE/.test(up))
+			return { label: prettyStatus(raw), tone: 'error', shape: 'square' }
 
 		if (readiness && !readiness.thresholdSatisfied) {
 			const n = readiness.minMoreKeyCount
-			return { label: `✍️ Awaiting approvals${n ? ` · ${n} more` : ''}`, tone: 'warn' }
+			return { label: `Awaiting approvals${n ? ` · ${n} more` : ''}`, tone: 'warn', shape: 'circle' }
 		}
 
 		if (readiness && readiness.thresholdSatisfied)
-			return { label: '🟢 Ready to submit', tone: 'info' }
+			return { label: 'Ready to submit', tone: 'info', shape: 'circle' }
 
-		return { label: raw ? prettyStatus(raw) : 'Pending…', tone: 'info' }
+		return { label: raw ? prettyStatus(raw) : 'Pending…', tone: 'info', shape: 'circle' }
 	}
 
 	function prettyStatus(s) {
@@ -277,6 +330,8 @@ import {
       else if (amount?.raw < 0) { c.classList.add('xfer-out') }
       c.textContent = amountFormatted
       
+
+			;[a, b, c].forEach(el => { el.dataset.acct = accountId; el.classList.add('txread-xfer-cell') })
 
 			container.appendChild(a)
 			container.appendChild(c)
@@ -558,6 +613,7 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
 
     const block = document.createElement('div')
 		block.className = 'acctkeys-account simple-mono-centre'
+		block.dataset.acct = accountId
     if (!acc.mustSign) block.classList.add('no-sign-required')
 
     // left column: account id (and later you can add iframe under/over this)
@@ -622,7 +678,7 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
 
     entries.forEach(([pubkey, score]) => {
       const signed = signedPubkeys.includes(normalizeViewKey(pubkey))
-      const tick = acc.mustSign ? (signed ? '☑️' : '🔲') : 'N/A'
+      const tick = acc.mustSign ? (signed ? '✅' : '⬜') : 'N/A'
       const keySuffix = pubkey.slice(-4)
       const pct = Math.round(score * 100)
       const red = redundancy?.[pubkey] != null
@@ -661,7 +717,7 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
 const renderSingleKeyCheckbox = ({ accountId, signed }) => {
 	const row = document.createElement('div')
 	row.className = 'simple-mono-centre'
-	row.textContent = `${signed ? '☑️' : '🔲'}\u00A0${accountId}`
+	row.textContent = `${signed ? '✅' : '⬜'}\u00A0${accountId}`
 	return row
 }
 
@@ -999,10 +1055,16 @@ export function injectTxReadCSS() {
 		.txread-block { margin: 14px auto; max-width: min(900px, 100%); }
 		.txread-intent .txread-xfers { max-width: 580px; margin: 0 auto; }
 		.txread-scope {
-			display: flex; flex-direction: column; align-items: center; gap: 2px;
-			margin-top: 10px; font-size: 12px; color: #888;
+			display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
+			gap: 4px 8px; margin-top: 10px; font-size: 12px; color: #888;
 		}
 		.txread-scope-txid { word-break: break-all; }
+		.txread-sep { color: #ccc; }
+		.txread-memo { text-align: center; font-size: 12px; color: #888; margin-top: 10px; word-break: break-word; }
+		.txread-memo-label { font-weight: 600; color: #777; }
+		.txread-xfer-cell { transition: background .12s ease; }
+		[data-acct].acct-hl { background: #fff5e0; }
+		.acctkeys-account.acct-hl { background: #fff5e0; border-radius: 6px; }
 		.txread-status { text-align: center; }
 		.txread-status-main { font-weight: 600; font-size: 15px; }
 		.txread-approvals-toggle {
@@ -1025,7 +1087,7 @@ export function injectTxReadCSS() {
 		.acctkeys-header, .acctkeys-account { text-align: center; }
 
 		/* intent: line items + optional narrative side by side */
-		.txread-intent-row { display:flex; flex-wrap:wrap; gap:16px; justify-content:center; align-items:flex-start; }
+		.txread-intent-row { display:flex; flex-wrap:wrap; gap:24px; justify-content:space-evenly; align-items:flex-start; }
 		.txread-intent-row .txread-xfers { max-width:none; margin:0; }
 		.txread-narrative {
 			flex:0 1 240px; background:#f7f7f9; border:1px solid #eee; border-radius:8px;
