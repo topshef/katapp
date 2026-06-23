@@ -4,15 +4,14 @@
 // │││││ ││├┤ ┌┴┬┘  └┐┌┘├─┤
 // ┴┘└┘─┴┘└─┘┴ └─   └┘ ┴ ┴
 //
-// v2 signing index — list + controls + full-screen modal.
+// v2 signing index — list + controls + modular widget modal.
 //
 // Reached only via ?v=v2 (gated in index.php), so v1 is untouched.
 //
-// This pass deliberately hosts the EXISTING detail page (tx_approval.php) inside
-// an iframe modal. Zero widget changes, WalletConnect signing works as-is, and
-// it previews exactly the modal UX we'll want when the widget is injected into
-// Katomia directly (Step 2). The legacy "open in new tab" link is kept on every
-// row so you can compare modal vs full-page side by side.
+// The list lives HERE (the OG page), not in the widget — the widget is a
+// single-transaction signing widget only. Clicking a row calls KPOOL.open(),
+// which mounts the kpay widget directly inside a brandable modal (no iframe).
+// The legacy "↗ tab" link is kept per row for side-by-side comparison.
 
 $docroot = $_SERVER['DOCUMENT_ROOT'];
 
@@ -96,22 +95,18 @@ require_once "$docroot/headheader.php";
       </div>
     </div>
 
-    <!-- full-screen signing modal (iframe host for now) -->
-    <div id="kp-modal" class="kp-modal hidden" role="dialog" aria-modal="true">
-      <div class="kp-modal-backdrop" data-kp-close></div>
-      <div class="kp-modal-card">
-        <button class="kp-modal-close" type="button" data-kp-close aria-label="Close">&times;</button>
-        <div class="kp-modal-meta" id="kp-modal-meta"></div>
-        <iframe id="kp-modal-frame" class="kp-modal-frame" allow="camera"></iframe>
-      </div>
-    </div>
-
 <?php include "$docroot/footer.php"; ?>
 
     <!-- Bootstrap core JavaScript (kept for site chrome) -->
     <script src="vendor/jquery/jquery.min.js"></script>
     <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
     <script src="assets/js/custom.js"></script>
+
+    <!-- WalletConnect bundle: exposes window.WC for the widget's signer -->
+    <?php require_once("$docroot/vendor/walletconnect/kwcScriptTag.php"); ?>
+
+    <!-- kpay signing widget: exposes window.KPOOL (no #kpool_widget here, so no auto-boot) -->
+    <script type="module" src="/vendor/kpay/kpool_widget/bootstrap.js"></script>
 
 <style>
   .kp-controls {
@@ -200,58 +195,6 @@ require_once "$docroot/headheader.php";
   }
   .kp-error { color: #b00020; }
 
-  /* modal */
-  .kp-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 100000;
-    display: flex;
-  }
-  .kp-modal.hidden { display: none; }
-  .kp-modal-backdrop {
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.55);
-  }
-  .kp-modal-card {
-    position: relative;
-    margin: auto;
-    width: min(1100px, 96vw);
-    height: 92vh;
-    background: #fff;
-    border-radius: 10px;
-    box-shadow: 0 12px 48px rgba(0,0,0,0.35);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  .kp-modal-close {
-    position: absolute;
-    top: 8px;
-    right: 12px;
-    z-index: 2;
-    border: none;
-    background: transparent;
-    font-size: 26px;
-    line-height: 1;
-    color: #666;
-    cursor: pointer;
-  }
-  .kp-modal-close:hover { color: #000; }
-  .kp-modal-meta {
-    padding: 10px 44px 8px 16px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 12px;
-    color: #888;
-    border-bottom: 1px solid #eee;
-    word-break: break-all;
-  }
-  .kp-modal-frame {
-    flex: 1 1 auto;
-    width: 100%;
-    border: 0;
-  }
-
   @media (max-width: 768px) {
     .kp-row {
       grid-template-columns: 1fr;
@@ -259,7 +202,6 @@ require_once "$docroot/headheader.php";
       row-gap: 2px;
     }
     .kp-head { display: none; }
-    .kp-modal-card { width: 100vw; height: 100vh; border-radius: 0; }
   }
 </style>
 
@@ -267,8 +209,8 @@ require_once "$docroot/headheader.php";
 // ┬┌─┌─┐  ┬  ┬┌─┐┌┬┐  ┌─┐  ┌┬┐┌─┐┌┬┐┌─┐┬
 // ├┴┐├─┘  │  │└─┐ │   ┌─┘  ││││ │ ││├─┤│
 // ┴ ┴┴    ┴─┘┴└─┘ ┴   └─┘  ┴ ┴└─┘─┴┘┴ ┴┴─┘
-// v2 list + modal. Reuses existing ?action=txList endpoint and the existing
-// detail page (tx_approval.php) inside the modal iframe.
+// v2 list + modular widget modal. List reuses the existing ?action=txList
+// endpoint. The modal is the kpay widget mounted via window.KPOOL.open().
 
 ;(() => {
 
@@ -286,10 +228,7 @@ require_once "$docroot/headheader.php";
     refresh:     document.getElementById('kp-refresh'),
     autorefresh: document.getElementById('kp-autorefresh'),
     count:       document.getElementById('kp-count'),
-    list:        document.getElementById('kp-list'),
-    modal:       document.getElementById('kp-modal'),
-    frame:       document.getElementById('kp-modal-frame'),
-    modalMeta:   document.getElementById('kp-modal-meta')
+    list:        document.getElementById('kp-list')
   }
 
   els.network.value = DEEP.network || 'mainnet'
@@ -297,7 +236,7 @@ require_once "$docroot/headheader.php";
   let lastTxs = []
   let autoTimer = null
 
-  // ── formatting ────────────────────────────────────────────────────────────
+  // ── helpers ───────────────────────────────────────────────────────────────
 
   const txStartSec = txid => Number(txid.split('@')[1])
 
@@ -313,6 +252,14 @@ require_once "$docroot/headheader.php";
 
   const formatUtc = ts =>
     new Date(ts * 1000).toISOString().slice(0, 19).replace('T', ' ') + ' UTC'
+
+  // wait until the widget module has set window.KPOOL (bootstrap is async)
+  const whenReady = (cond, ms = 50, tries = 100) => new Promise((res, rej) => {
+    const t = setInterval(() => {
+      if (cond()) { clearInterval(t); res() }
+      else if (--tries < 0) { clearInterval(t); rej(new Error('KPOOL not ready')) }
+    }, ms)
+  })
 
   // ── data ──────────────────────────────────────────────────────────────────
 
@@ -376,7 +323,7 @@ require_once "$docroot/headheader.php";
       const ts = txStartSec(t.txid)
       const rem = formatRemaining(ts)
 
-      // legacy full-page detail link (v1, opens in new tab) for side-by-side compare
+      // legacy full-page detail link (v1, new tab) for side-by-side compare
       const ext = new URL(location)
       ext.searchParams.delete('v')
       ext.searchParams.set('network', t.network)
@@ -403,39 +350,44 @@ require_once "$docroot/headheader.php";
     els.list.innerHTML = head + body
   }
 
-  // ── modal ─────────────────────────────────────────────────────────────────
+  // ── modal (modular widget load) ───────────────────────────────────────────
 
-  const openModal = ({ txid, network, pch }) => {
-    // iframe loads the EXISTING detail page. Force v unset so it renders
-    // tx_approval (not the v2 index) — avoids index-inside-iframe recursion.
-    const u = new URL(location.pathname, location.origin)
-    u.searchParams.set('network', network)
-    u.searchParams.set('txid', txid)
-    if (pch) u.searchParams.set('pch', pch)
+  let activeModal = null
 
-    els.frame.src = u.toString()
-    els.modalMeta.textContent = `${network}  ·  ${txid}${pch ? '  ·  #' + pch : ''}`
-    els.modal.classList.remove('hidden')
-    document.body.style.overflow = 'hidden'
-
-    // reflect in the address bar so the modal is itself deep-linkable / shareable
+  const openModal = async ({ txid, network, pch }) => {
+    // reflect in the address bar so the open modal is itself shareable
     const addr = new URL(location)
     addr.searchParams.set('v', 'v2')
     addr.searchParams.set('network', network)
     addr.searchParams.set('txid', txid)
     if (pch) addr.searchParams.set('pch', pch)
     history.replaceState(null, '', addr)
+
+    try {
+      await whenReady(() => window.KPOOL?.open)
+    } catch (err) {
+      els.list.insertAdjacentHTML('afterbegin',
+        `<div class="kp-error">Signing widget failed to load</div>`)
+      return
+    }
+
+    activeModal = await window.KPOOL.open({
+      network,
+      txid,
+      pch: pch || 'no_pch',
+      brand: {
+        title: `Sign · ${network}`,
+        // showHeader: true, logo: '/path/to/logo.svg'   // customise here
+        onClose: clearDeepLink
+      }
+    })
   }
 
-  const closeModal = () => {
-    els.modal.classList.add('hidden')
-    els.frame.src = 'about:blank'
-    document.body.style.overflow = ''
-
-    const addr = new URL(location)
-    addr.searchParams.delete('txid')
-    addr.searchParams.delete('pch')
-    history.replaceState(null, '', addr)
+  const clearDeepLink = () => {
+    const a = new URL(location)
+    a.searchParams.delete('txid')
+    a.searchParams.delete('pch')
+    history.replaceState(null, '', a)
   }
 
   // ── wiring ────────────────────────────────────────────────────────────────
@@ -448,14 +400,6 @@ require_once "$docroot/headheader.php";
       network: btn.dataset.network,
       pch:     btn.dataset.pch || null
     })
-  })
-
-  els.modal.addEventListener('click', e => {
-    if (e.target.hasAttribute('data-kp-close')) closeModal()
-  })
-
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && !els.modal.classList.contains('hidden')) closeModal()
   })
 
   els.refresh.addEventListener('click', loadTxList)

@@ -32,44 +32,117 @@ const { createTxSocket } = await import(`./websocket.js?v=${V}`)
 
 console.log('injecting kpool widget')
 
-const params = new URLSearchParams(window.location.search)
-const network = params.get('network')
-const txid = params.get('txid')
-const pch = params.get('pch') || 'no_pch'
+// ── public API ──────────────────────────────────────────────────
+// Single-transaction signing widget. mount() renders into any element; open()
+// wraps that in a brandable modal. Listing stays in the host page, not here.
 
-main()
+export async function mount(hostEl, { network, txid, pch = 'no_pch', ...opts } = {}) {
+	if (!hostEl)  throw new Error('KPOOL.mount: missing host element')
+	if (!network) return renderError(hostEl, 'FR67657 Missing network')
+	if (!txid)    return renderError(hostEl, 'FR67658 Missing txid (single-tx widget)')
+	return renderSingleTx(hostEl, network, txid, pch, opts)
+}
 
-async function main() {
-	if (!network) {
-		renderError('FR67657 Missing network')
-		return
+export async function open({ network, txid, pch = 'no_pch', brand = {}, signer = 'walletconnect', ...opts } = {}) {
+	const { buildModal } = await import(`./modal.js?v=${V}`)
+	const modal = buildModal({
+		title:      brand.title ?? 'Sign transaction',
+		logo:       brand.logo ?? null,
+		showHeader: brand.showHeader !== false,
+		onClose:    brand.onClose
+	})
+	await mount(modal.body, { network, txid, pch, signer, ...opts })
+	return modal
+}
+
+window.KPOOL = { mount, open }
+
+function renderError(hostEl, msg) {
+	console.warn('[kpool]', msg)
+	if (hostEl) {
+		const el = document.createElement('div')
+		el.textContent = msg
+		el.style.cssText = 'padding:16px;color:#b00020;font:13px system-ui'
+		hostEl.append(el)
 	}
+}
 
-	if (txid) {
-		await renderSingleTx(network, txid, pch)
-		return
-	}
-
-	renderError('UH7688 Transaction list not yet implemented')
+// ── backward-compatible auto-boot ───────────────────────────────────
+// tx_approval.php drops #kpool_widget and relies on URL params. signer:null
+// because tx_approval renders its OWN WalletConnect buttons — don't double up.
+const legacyHost = document.querySelector('#kpool_widget')
+if (legacyHost) {
+	const params = new URLSearchParams(window.location.search)
+	mount(legacyHost, {
+		network: params.get('network'),
+		txid:    params.get('txid'),
+		pch:     params.get('pch') || 'no_pch',
+		signer:  null
+	})
 }
 
 
-async function renderSingleTx(network, txid, pch = 'no_pch') {
+async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) {
 	const txState = createTxState(network, txid, pch)
 
-	const kpool_widget = document.querySelector('#kpool_widget')
-	if (kpool_widget) kpool_widget.append(txState.container)
+	hostEl.append(txState.container)
 
 	try {
 		const tx = await renderTxView(txState)
 
 		await loadSigningState(txState, tx)
 
+		if (opts.signer === 'walletconnect') await renderSigner(txState, opts)
+
 		startTxSocket(txState)
 		startTxPolling(txState, tx)
 	} catch (e) {
 		console.warn('txRead fetch failed', e)
 	}
+}
+
+// Fills the #txread-signer slot (the WalletConnect item on the methods bar).
+// When signer is disabled the slot stays empty and is hidden via :empty.
+async function renderSigner(txState, opts) {
+	const slot = txState.container.querySelector('#txread-signer')
+	if (!slot) return
+
+	const { renderWalletConnectSigner } = await import(`./signer-walletconnect.js?v=${V}`)
+
+	renderWalletConnectSigner(slot, {
+		network:  txState.network,
+		txid:     txState.txid,
+		readUrl:  opts.readUrl,
+		saveUrl:  opts.saveUrl,
+		onSigned: () => showBanner('✍️ Signature submitted', 'success')
+	})
+}
+
+let methodsCss = false
+function injectMethodsCSS() {
+	if (methodsCss) return
+	methodsCss = true
+
+	const s = document.createElement('style')
+	s.id = 'kp-methods-css'
+	s.textContent = `
+		.kp-methods{
+			display:flex; flex-wrap:wrap; align-items:center; justify-content:center;
+			gap:10px 22px; margin:16px auto; padding:10px 14px;
+			max-width:min(900px,100%);
+			border:1px solid #eee; border-radius:8px; background:#fafafa;
+		}
+		.kp-methods > *{ margin:0 !important; }
+		.kp-methods > *:empty{ display:none; }
+		.kp-methods .kpsign{ margin:0; }
+		.kp-methods summary{ margin-top:0 !important; }
+		.kp-methods > details{ flex:0 1 auto; }
+		.kp-methods > details[open]{ flex:1 1 100%; }
+		@media (max-width:600px){
+			.kp-methods{ flex-direction:column; align-items:stretch; gap:10px; }
+		}
+	`
+	document.head.appendChild(s)
 }
 
 
@@ -171,8 +244,31 @@ async function renderTxView(txState) {
   container.appendChild(txState.view.el)
 
   const signingSection = txState.view.el.querySelector('#txread-signing')
-  if (signingSection) signingSection.before(kpayLink, details)
-  if (!signingSection) container.append(kpayLink, details)
+
+  // signing-method bar: WhatsApp · WalletConnect · KSIG (offline), side by side.
+  // data-method tags leave a seam for a later "labs" show/hide toggle. KSIG is
+  // left exactly as-is (its QR bug is out of scope) — just placed on the bar.
+  injectMethodsCSS()
+
+  const methods = document.createElement('div')
+  methods.id = 'txread-methods'
+  methods.className = 'kp-methods'
+
+  kpayLink.classList.add('kp-method')
+  kpayLink.dataset.method = 'whatsapp'
+
+  const wcSlot = document.createElement('div')
+  wcSlot.id = 'txread-signer'
+  wcSlot.className = 'kp-method'
+  wcSlot.dataset.method = 'walletconnect'
+
+  details.classList.add('kp-method', 'kp-method-ksig')
+  details.dataset.method = 'ksig'
+
+  methods.append(kpayLink, wcSlot, details)
+
+  if (signingSection) signingSection.before(methods)
+  else container.append(methods)
   
 	return { url, rawTx, data, transfers, accounts }
 }
