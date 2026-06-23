@@ -77,17 +77,17 @@ require_once "$docroot/headheader.php";
                   <input id="kp-until" type="number" min="0" step="60" value="600">
                 </label>
 
-                <label>Filter
+                <label class="kp-filter">Filter
                   <input id="kp-filter" type="text" placeholder="txid / pch / account">
                 </label>
 
-                <button id="kp-refresh" type="button">Refresh</button>
-
-                <label class="kp-auto">
-                  <input id="kp-autorefresh" type="checkbox"> auto
-                </label>
-
-                <span id="kp-count" class="kp-count"></span>
+                <div class="kp-actions">
+                  <button id="kp-refresh" type="button">Refresh</button>
+                  <label class="kp-auto">
+                    <input id="kp-autorefresh" type="checkbox"> auto
+                  </label>
+                  <span id="kp-count" class="kp-count"></span>
+                </div>
 
               </div>
 
@@ -125,7 +125,7 @@ require_once "$docroot/headheader.php";
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
-    gap: 12px;
+    gap: 12px 14px;
     margin: 8px 0 20px;
     text-align: left;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -134,24 +134,29 @@ require_once "$docroot/headheader.php";
   .kp-controls label {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
     color: #555;
     margin: 0;
   }
   .kp-controls input,
   .kp-controls select {
     all: revert;
-    padding: 4px 6px;
+    padding: 5px 8px;
     border: 1px solid #ccc;
     border-radius: 4px;
     font-size: 13px;
   }
   .kp-controls input[type="number"] { width: 90px; }
-  .kp-controls input[type="text"]   { width: 220px; }
-  .kp-controls .kp-auto { flex-direction: row; align-items: center; gap: 6px; }
+  /* filter grows to take up the slack between the fields and the actions */
+  .kp-controls .kp-filter { flex: 1 1 200px; min-width: 160px; }
+  .kp-controls .kp-filter input { width: 100%; box-sizing: border-box; }
+  /* Refresh + auto + count travel together, bottom-aligned with the fields and
+     pushed to the right; on narrow widths the whole cluster wraps as one unit. */
+  .kp-actions { display: flex; align-items: center; gap: 14px; margin-left: auto; }
+  .kp-controls .kp-auto { flex-direction: row; align-items: center; gap: 6px; white-space: nowrap; }
   .kp-controls button {
     all: revert;
-    padding: 6px 14px;
+    padding: 6px 16px;
     border: 1px solid #888;
     border-radius: 4px;
     background: #f5f5f5;
@@ -159,7 +164,7 @@ require_once "$docroot/headheader.php";
     font-size: 13px;
   }
   .kp-controls button:hover { background: #ececec; }
-  .kp-count   { color: #999; margin-left: auto; }
+  .kp-count { color: #999; white-space: nowrap; }
 
   .kp-list {
     text-align: left;

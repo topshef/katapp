@@ -7,6 +7,17 @@
 // Endpoints default to page-relative ?action=txRead / ?action=txSave, which is
 // exactly what tx_approval.php used, so behaviour on the OG origin is identical.
 // A different host (e.g. Katomia) can override readUrl / saveUrl via opts.
+//
+// ── TODO(wc-review): tidy up the WalletConnect integration ──────────────────
+// Known quirks to revisit when the WC flow gets its proper pass:
+//   1. window.WC exposes no connected-network getter, so we can't reliably tell
+//      whether the wallet is on the SAME Hedera network as the transaction. The
+//      mismatch guard below only fires once kwcCore surfaces getNetwork().
+//   2. The WC connect modal can open BELOW our widget modal (z-index handled in
+//      modal.js, but builds vary — verify against the live AppKit/Reown bundle).
+//   3. Our modal can disappear after a successful connect (a stray click/redirect
+//      from the WC flow bubbling to the backdrop). Park until the WC cleanup.
+// Keep diagnostics rich here (kdiag(...)) so any of the above is debuggable.
 
 import { kdiag } from './diag.js'
 
@@ -125,6 +136,22 @@ export function renderWalletConnectSigner(container, {
 
 		let account = null
 		try { account = await wc.getAccount() } catch {}
+
+		// Network guard: you can't be connected to mainnet and testnet at once, so
+		// if the wallet is on a different network than THIS transaction, signing
+		// would fail anyway. Auto-disconnect so the user gets a clean Connect button
+		// rather than a confusing failed sign. window.WC has no network getter yet,
+		// so this is a no-op until kwcCore exposes getNetwork() — see TODO above.
+		try {
+			const wcNet = await wc.getNetwork?.()
+			if (account && wcNet && wcNet !== network) {
+				kdiag('signer:network-mismatch', { wcNet, txNetwork: network, action: 'auto-disconnect' })
+				await wc.disconnect()
+				account = null
+			}
+		} catch (err) {
+			kdiag('signer:network-check:error', { error: String(err) })
+		}
 
 		wrap.innerHTML = ''
 		kdiag('signer:render', { hasWC: true, account })

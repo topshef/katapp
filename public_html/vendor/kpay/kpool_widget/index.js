@@ -52,7 +52,11 @@ export async function open({ network, txid, pch = 'no_pch', brand = {}, signer =
 		showHeader: brand.showHeader !== false,
 		onClose:    brand.onClose
 	})
-	await mount(modal.body, { network, txid, pch, signer, ...opts, onStatus: s => modal.setStatus(s.label, s.tone, s.shape) })
+	await mount(modal.body, {
+		network, txid, pch, signer, ...opts,
+		onStatus: s => modal.setStatus(s.label, s.tone, s.shape),
+		onFlash:  (msg, tone) => modal.flash(msg, tone)
+	})
 	return modal
 }
 
@@ -89,9 +93,17 @@ function pushStatus(txState) {
 	txState.onStatus(summariseStatus({ data: txState.data, readiness: txState.readiness }))
 }
 
+// Live cue helper. In the modal we flash a transient pill in the header; for a
+// bare (non-modal) mount there's no header, so fall back to the inline banner.
+function notify(txState, msg, tone = 'success') {
+	if (txState.onFlash) txState.onFlash(msg, tone)
+	else showBanner(msg, tone)
+}
+
 async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) {
 	const txState = createTxState(network, txid, pch)
 	txState.onStatus = opts.onStatus
+	txState.onFlash  = opts.onFlash
 
 	hostEl.append(txState.container)
 	txState.container.innerHTML = '<div class="kpsign-msg" style="padding:28px;text-align:center">Loading transaction…</div>'
@@ -125,7 +137,7 @@ async function renderSigner(txState, opts) {
 		txid:     txState.txid,
 		readUrl:  opts.readUrl,
 		saveUrl:  opts.saveUrl,
-		onSigned: () => showBanner('✍️ Signature submitted', 'success'),
+		onSigned: () => notify(txState, '✍️ Signature submitted', 'success'),
 		onAccount: acct => updateNarrative(txState, acct)
 	})
 }
@@ -158,7 +170,9 @@ function injectMethodsCSS() {
 			text-align:center; margin-bottom:10px; line-height:1.5; }
 		.kpsign-desc a{ color:#084298; }
 		.kpsign-newtab{ font-size:12px; }
-		.kpsign-frame{ width:100%; height:420px; border:0; border-radius:8px; background:#fafafa; }
+		/* Tall enough that the embedded WhatsApp QR page (loaded with &embed=1, so
+		   it returns a lean layout) isn't cropped on desktop. Mobile gets 80vh. */
+		.kpsign-frame{ width:100%; height:min(72vh,560px); border:0; border-radius:8px; background:#fafafa; }
 		.kpsign-pane .kpsign{ margin:6px 0 0; }
 		@media (max-width:600px){ .kpsign-frame{ height:80vh; } }
 	`
@@ -628,7 +642,7 @@ async function handleSignatureUpdate(txState, update) {
 	const { network, txid } = txState
 	const sigCount = update.sigsNew?.length ?? 1
 
-	showBanner(`✍️ ${sigCount} new signature${sigCount == 1 ? '' : 's'}`, 'success')
+	notify(txState, `✍️ ${sigCount} new signature${sigCount == 1 ? '' : 's'} received`, 'success')
 
 	const fresh = await txRead({ network, txid })
 

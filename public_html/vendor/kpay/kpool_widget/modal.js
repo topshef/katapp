@@ -20,8 +20,12 @@ function injectModalCSS() {
 	const style = document.createElement('style')
 	style.id = 'kpool-modal-css'
 	style.textContent = `
+		/* overlay does NOT scroll — the card is capped at max-height and the body
+		   scrolls internally when needed. An overlay scrollbar here was spurious:
+		   5vh+5vh padding + 90vh card = 100vh exactly, so sub-pixel rounding
+		   produced a phantom scrollbar even when everything fit. */
 		.kpm-overlay { position: fixed; inset: 0; z-index: 100000; display: flex;
-			align-items: flex-start; justify-content: center; padding: 5vh 8px; overflow: auto; }
+			align-items: flex-start; justify-content: center; padding: 5vh 8px; overflow: hidden; }
 		.kpm-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); }
 		.kpm-card {
 			position: relative; margin: 0 auto;
@@ -33,12 +37,36 @@ function injectModalCSS() {
 
 		/* status-coloured header */
 		.kpm-head {
+			position: relative;
 			display: flex; align-items: center; justify-content: space-between;
 			gap: 12px; padding: 10px 14px;
 			border-bottom: 1px solid rgba(0,0,0,.08);
 			font: 600 14px system-ui, -apple-system, "Segoe UI", sans-serif;
 			transition: background .3s ease;
 		}
+
+		/* transient pill centred in the header — used for live cues like
+		   "Signature received" that used to render as a banner falling off the
+		   bottom of the modal. Auto-fades after a couple of seconds. */
+		.kpm-flash {
+			position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1);
+			max-width: 48%; display: inline-flex; align-items: center; gap: 6px;
+			padding: 3px 12px; border-radius: 999px;
+			font: 600 12px system-ui, -apple-system, "Segoe UI", sans-serif;
+			white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+			opacity: 0; pointer-events: none; transition: opacity .25s ease;
+		}
+		.kpm-flash.show { opacity: 1; animation: kpm-flash-pop .9s ease; }
+		.kpm-flash-success { background: rgba(25,135,84,.16);  color: #0f5132; }
+		.kpm-flash-info    { background: rgba(13,110,253,.14);  color: #084298; }
+		.kpm-flash-warn    { background: rgba(255,193,7,.20);   color: #664d03; }
+		.kpm-flash-error   { background: rgba(220,53,69,.16);   color: #842029; }
+		@keyframes kpm-flash-pop {
+			0%   { transform: translate(-50%, -50%) scale(.9); }
+			55%  { transform: translate(-50%, -50%) scale(1.05); }
+			100% { transform: translate(-50%, -50%) scale(1); }
+		}
+		@media (max-width: 480px) { .kpm-flash { display: none; } }
 		.kpm-status { display: flex; align-items: center; gap: 8px; min-width: 0; }
 		.kpm-dot { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; background: #9aa0a6; }
 		.kpm-dot.square { border-radius: 2px; }
@@ -62,7 +90,9 @@ function injectModalCSS() {
 		.kpm-tone-error   { background: #f8d7da; color: #842029; }
 		.kpm-tone-error   .kpm-dot { background: #dc3545; }
 
-		.kpm-body { flex: 1 1 auto; overflow: auto; padding: 16px; }
+		/* only the body scrolls, and only when content actually exceeds the card
+		   height (e.g. a transaction with many transfers / signing rows). */
+		.kpm-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 16px; }
 
 		@media (max-width: 768px) {
 			.kpm-overlay { padding: 0; }
@@ -135,8 +165,11 @@ export function buildModal({ onClose } = {}) {
 	closeBtn.innerHTML = '&times;'
 	closeBtn.addEventListener('click', () => close())
 
+	const flashEl = document.createElement('div')
+	flashEl.className = 'kpm-flash'
+
 	actions.append(diagBtn, closeBtn)
-	head.append(status, actions)
+	head.append(status, flashEl, actions)
 	card.appendChild(head)
 
 	const body = document.createElement('div')
@@ -168,8 +201,23 @@ export function buildModal({ onClose } = {}) {
 		dot.classList.toggle('square', shape === 'square')
 	}
 
+	// Transient cue in the centre of the header (e.g. "✍️ Signature received").
+	// Does NOT touch the persistent status on the left — it just fades in over
+	// the top for ~2.5s. Replaces the old bottom banner inside the modal.
+	let flashTimer
+	function flash(label, tone = 'success') {
+		flashEl.textContent = label ?? ''
+		const t = TONES.includes(tone) ? tone : 'info'
+		flashEl.className = 'kpm-flash kpm-flash-' + t
+		// restart the pop animation even on repeat calls
+		void flashEl.offsetWidth
+		flashEl.classList.add('show')
+		clearTimeout(flashTimer)
+		flashTimer = setTimeout(() => flashEl.classList.remove('show'), 2500)
+	}
+
 	document.body.appendChild(overlay)
 	document.body.style.overflow = 'hidden'
 
-	return { overlay, card, body, head, close, setStatus }
+	return { overlay, card, body, head, close, setStatus, flash }
 }
