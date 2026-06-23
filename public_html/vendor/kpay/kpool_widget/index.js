@@ -160,7 +160,7 @@ function injectMethodsCSS() {
 		.kpsign-newtab{ font-size:12px; }
 		.kpsign-frame{ width:100%; height:420px; border:0; border-radius:8px; background:#fafafa; }
 		.kpsign-pane .kpsign{ margin:6px 0 0; }
-		@media (max-width:600px){ .kpsign-frame{ height:360px; } }
+		@media (max-width:600px){ .kpsign-frame{ height:80vh; } }
 	`
 	document.head.appendChild(s)
 }
@@ -231,10 +231,10 @@ function buildWhatsAppPane(network, txid, pch) {
 	const pane = document.createElement('div')
 	const url = whatsAppUrl(network, txid, pch)
 	pane.appendChild(makeDesc('Sign from your phone via KPAY on WhatsApp.', url))
-	// REFINEMENT (later): the target page (kpay.uk/message) could accept options
-	// to render in a more iframe-friendly / embedded mode. For now we iframe it
-	// as-is and offer the "open in new tab" link as the fallback.
-	pane.appendChild(lazyFrame(url))
+	// iframe carries embed=1 so the target page can later detect it's framed and
+	// render an embedded layout, without changing this widget. The "open in new
+	// tab" link above stays plain (full page).
+	pane.appendChild(lazyFrame(url + '&embed=1'))
 	return pane
 }
 
@@ -299,7 +299,7 @@ function updateNarrative(txState, account) {
 	if (!box) return
 
 	const items = txState.transfers?.lineItems || []
-	if (!account || !items.length) { box.hidden = true; box.innerHTML = ''; return }
+	if (!account || !items.length) { box.hidden = true; box.innerHTML = ''; box.removeAttribute('data-acct'); return }
 
 	const fmt = li => {
 		const meta = li.assetMeta || {}
@@ -312,7 +312,7 @@ function updateNarrative(txState, account) {
 	const sends = mine.filter(li => Number(li.amountRaw ?? li.amount) < 0)
 	const recvs = mine.filter(li => Number(li.amountRaw ?? li.amount) > 0)
 
-	if (!sends.length && !recvs.length) { box.hidden = true; box.innerHTML = ''; return }
+	if (!sends.length && !recvs.length) { box.hidden = true; box.innerHTML = ''; box.removeAttribute('data-acct'); return }
 
 	const row = (label, li, cls) =>
 		`<div class="nrow"><span class="nlabel">${label}</span><span class="${cls}">${fmt(li)}</span></div>`
@@ -322,6 +322,7 @@ function updateNarrative(txState, account) {
 	html += recvs.map(li => row('receive', li, 'nin')).join('')
 
 	box.innerHTML = html
+	box.dataset.acct = account
 	box.hidden = false
 }
 
@@ -388,6 +389,9 @@ function buildSigningPanel(txState) {
 	const underline = document.createElement('div')
 	underline.className = 'kpsign-underline'
 	tabs.appendChild(underline)
+
+	// preload the offline QR (fetch + lib + render) so the Offline tab is instant
+	if (paneEls.ksig?._lazyInit) { const fn = paneEls.ksig._lazyInit; paneEls.ksig._lazyInit = null; fn() }
 
 	function positionUnderline() {
 		const a = tabs.querySelector('.kpsign-tab.active')

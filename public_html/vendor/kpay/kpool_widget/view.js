@@ -1063,8 +1063,9 @@ export function injectTxReadCSS() {
 		.txread-memo { text-align: center; font-size: 12px; color: #888; margin-top: 10px; word-break: break-word; }
 		.txread-memo-label { font-weight: 600; color: #777; }
 		.txread-xfer-cell { transition: background .12s ease; }
-		[data-acct].acct-hl { background: #fff5e0; }
-		.acctkeys-account.acct-hl { background: #fff5e0; border-radius: 6px; }
+		[data-acct].acct-hl { background: #eef0f3; }
+		.acctkeys-account.acct-hl { background: #eef0f3; border-radius: 6px; }
+		.txread-narrative.acct-hl { background: #eef0f3; }
 		.txread-status { text-align: center; }
 		.txread-status-main { font-weight: 600; font-size: 15px; }
 		.txread-approvals-toggle {
@@ -1090,11 +1091,14 @@ export function injectTxReadCSS() {
 		.txread-intent-row { display:flex; flex-wrap:wrap; gap:24px; justify-content:space-evenly; align-items:flex-start; }
 		.txread-intent-row .txread-xfers { max-width:none; margin:0; }
 		.txread-narrative {
-			flex:0 1 240px; background:#f7f7f9; border:1px solid #eee; border-radius:8px;
-			padding:10px 14px; text-align:left;
+			flex:0 1 220px; padding:2px 6px; text-align:left; border-radius:6px;
 			font:13px system-ui,-apple-system,"Segoe UI",sans-serif; color:#444;
+			transition:background .12s ease;
 		}
-		.txread-narrative h4 { margin:0 0 6px; font-size:12px; color:#888; font-weight:600; }
+		.txread-narrative h4 {
+			margin:0 0 6px; font-size:13px; color:#444; font-weight:600;
+			border-bottom:1px solid #ddd; padding-bottom:4px;
+		}
 		.txread-narrative .nrow { display:flex; justify-content:space-between; gap:12px; padding:2px 0; }
 		.txread-narrative .nlabel { color:#888; }
 		.txread-narrative .nout { color:#b00020; }
