@@ -17,7 +17,8 @@ $sources=[
 'KEA webapp'=>["/var/www/$domain/public_html/m/katomia/KEA/*.{html,js,css}"],
 'frontend katomia'=>["/var/www/$domain/public_html/m/katomia/*.{html,js,css,php}"],
 'frontend kpay widget'=>["/var/www/$domain/public_html/vendor/kpay/kpool_widget/*.{html,js,css,php}"],
-'og signing page'=>["/var/www/$domain/public_html/future/*.{html,js,css,php}"]
+'og signing page'=>["/var/www/$domain/public_html/future/*.{html,js,css,php}"],
+'walletconnect'=>["/var/www/$domain/public_html/vendor/walletconnect/builder/src/*.{html,js,css,php}"]
 ];
 
 $exclude=['zz*', '*.min.js','*bundle*','*node_modules*','*context_*','*log*'];
