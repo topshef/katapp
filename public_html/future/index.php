@@ -26,6 +26,22 @@ $network = getNetwork() ?? $_GET['network'];
 
 // $network = $_GET['network'];
 $txid = $_GET['txid'] ?? null;
+$pch  = $_GET['pch'] ?? null;
+
+// ┬  ┬┌─┐  ┌┬┐┌─┐┌─┐┌─┐┬  ┌─┐
+// └┐┌┘┌─┘   │ │ ││ ┬│ ┬│  ├┤
+//  └┘ └─┘   ┴ └─┘└─┘└─┘┴─┘└─┘
+// New modal-based index. Opt-in via ?v=v2 only, so v1 below is unchanged.
+// In v2 we do NOT short-circuit to tx_approval on ?txid= — the v2 page renders
+// the list and auto-opens the txid in a modal instead (the modal iframes the
+// detail page, which is still served by the v1 path below when v is unset).
+$v = $_GET['v'] ?? 'v1';
+if ($v === 'v2') {
+    require_once __DIR__ . '/index_v2.php';
+    exit;
+}
+
+// ── legacy v1 (unchanged) ──────────────────────────────────────────────────
 
 $useKpool = $_GET['kpool'] ?? 1;
 if (!$useKpool)
@@ -96,7 +112,6 @@ require_once "$docroot/headheader.php";
     
       </div>
     </div>
-
 
 
 
@@ -375,5 +390,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
   </body>
 </html>
-
-
