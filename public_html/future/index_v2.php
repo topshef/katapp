@@ -74,9 +74,9 @@ require_once "$docroot/headheader.php";
                   <span class="kp-cap">Since</span>
                   <select id="kp-since" class="kp-input">
                     <option value="120">2 min</option>
-                    <option value="600">10 min</option>
+                    <option value="600" selected>10 min</option>
                     <option value="1800">30 min</option>
-                    <option value="3600" selected>1 hour</option>
+                    <option value="3600">1 hour</option>
                     <option value="14400">4 hours</option>
                     <option value="86400">24 hours</option>
                   </select>
@@ -85,11 +85,11 @@ require_once "$docroot/headheader.php";
                 <label class="kp-field">
                   <span class="kp-cap">Until</span>
                   <select id="kp-until" class="kp-input">
-                    <option value="120">2 min</option>
+                    <option value="120" selected>2 min</option>
                     <option value="600">10 min</option>
                     <option value="1800">30 min</option>
                     <option value="3600">1 hour</option>
-                    <option value="14400" selected>4 hours</option>
+                    <option value="14400">4 hours</option>
                     <option value="86400">24 hours</option>
                     <option value="259200">72 hours</option>
                   </select>
@@ -558,7 +558,7 @@ require_once "$docroot/headheader.php";
 
     // reflect in the address bar so the open modal is itself shareable
     const addr = new URL(location)
-    addr.searchParams.set('v', 'v2')
+    // addr.searchParams.set('v', 'v2')
     addr.searchParams.set('network', network)
     addr.searchParams.set('txid', txid)
     if (pch) addr.searchParams.set('pch', pch)

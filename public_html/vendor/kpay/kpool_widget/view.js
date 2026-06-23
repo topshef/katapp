@@ -1110,7 +1110,12 @@ export function injectTxReadCSS() {
 		.txread-narrative .nlabel { color:#888; }
 		.txread-narrative .nout { color:#b00020; }
 		.txread-narrative .nin { color:#198754; }
-		@media (max-width:600px){ .txread-narrative{ flex-basis:100%; } }
+		@media (max-width:600px){
+			/* full-width flex row, but cap the content so "send/receive" don't get
+			   flung to the screen edges by space-between — line it up with the
+			   transfer table above instead. */
+			.txread-narrative{ flex-basis:100%; max-width:340px; margin:8px auto 0; }
+		}
 
 		/* green/red on the accounting amount column */
 		.txread-xfers .xfer-in { color:#198754; }

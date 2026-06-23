@@ -115,6 +115,8 @@ async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) 
 	const txState = createTxState(network, txid, pch)
 	txState.onStatus = opts.onStatus
 	txState.onFlash  = opts.onFlash
+	txState.readUrl  = opts.readUrl   // absolute endpoint when embedded off-origin
+	txState.saveUrl  = opts.saveUrl
 
 	hostEl.append(txState.container)
 	txState.container.innerHTML = '<div class="kpsign-msg" style="padding:28px;text-align:center">Loading transaction…</div>'
@@ -171,6 +173,15 @@ function injectMethodsCSS() {
 		.kpsign-tab:hover{ color:#374151; }
 		.kpsign-tab:focus, .kpsign-tab:focus-visible{ outline:none; }
 		.kpsign-tab.active{ color:#084298; }
+		/* Host pages (e.g. Katomia) can have a global button:hover background that
+		   bleeds onto these tabs (the dark-green flash). Pin the background across
+		   all states, scoped under the panel id so we win on specificity. The OG
+		   page has no hover background, which is the look we want everywhere. */
+		#txread-methods .kpsign-tab,
+		#txread-methods .kpsign-tab:hover,
+		#txread-methods .kpsign-tab:focus,
+		#txread-methods .kpsign-tab:active,
+		#txread-methods .kpsign-tab.active{ background:transparent; box-shadow:none; }
 		.kpsign-tabicon{ width:16px; height:16px; object-fit:contain; flex:0 0 auto; }
 		.kpsign-underline{ position:absolute; bottom:0; left:0; height:2px; width:0;
 			background:#4aa3ff; transition:transform .25s ease, width .25s ease; }
@@ -263,7 +274,8 @@ function buildWhatsAppPane(network, txid, pch) {
 	return pane
 }
 
-function buildKsigPane(network, txid) {
+function buildKsigPane(txState) {
+	const { network, txid, readUrl } = txState
 	const pane = document.createElement('div')
 	pane.appendChild(makeDesc(
 		`Sign offline on another device. Scan this QR with the KSIG app. ` +
@@ -274,10 +286,17 @@ function buildKsigPane(network, txid) {
 	mount.className = 'kpsign-ksig'
 	pane.appendChild(mount)
 
-	// rendered in-house (local QR) on first activation, not via an iframe
+	// rendered in-house (local QR) on first activation, not via an iframe.
+	// readUrl matters off-origin (e.g. Katomia): without it the QR fetch hits the
+	// host page and gets HTML back, which is the "Unexpected token '<'" failure.
 	pane._lazyInit = async () => {
 		const { renderKsig } = await import(`./ksig.js?v=${V}`)
-		renderKsig(mount, { network, txid })
+		renderKsig(mount, {
+			network,
+			txid,
+			readUrl,   // absolute endpoint matters off-origin (Katomia) — see comment above
+			onSigned: () => notify(txState, '✍️ Signature submitted', 'success')
+		})
 	}
 
 	return pane
@@ -369,7 +388,7 @@ function buildSigningPanel(txState) {
 		{ id: 'status',        label: 'Status',          svg:  INFO_SVG,                            build: () => buildStatusPane(txState) },
 		{ id: 'walletconnect', label: 'WalletConnect',   icon: 'WalletConnect-Logo.png',           build: () => buildWcPane(txState) },
 		{ id: 'whatsapp',      label: 'WhatsApp',        icon: 'WhatsApp.svg.png',                 build: () => buildWhatsAppPane(network, txid, pch) },
-		{ id: 'ksig',          label: 'Offline',         icon: 'kpay_logo_square_transparent.png', build: () => buildKsigPane(network, txid) }
+		{ id: 'ksig',          label: 'Offline',         icon: 'kpay_logo_square_transparent.png', build: () => buildKsigPane(txState) }
 	]
 
 	const DEFAULT = 'status'
