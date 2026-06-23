@@ -89,6 +89,7 @@ require_once "$docroot/headheader.php";
 
                 <span id="kp-count" class="kp-count"></span>
 
+                <button id="kp-diag" type="button" title="Copy diagnostics to clipboard">⧉ diagnostics</button>
                 <a class="kp-v1link" href="?v=v1">legacy view</a>
               </div>
 
@@ -423,6 +424,15 @@ require_once "$docroot/headheader.php";
   els.refresh.addEventListener('click', loadTxList)
   els.network.addEventListener('change', loadTxList)
   els.filter.addEventListener('input', renderList)
+
+  // bulk-copy diagnostics (dev) — pastes the whole kdiag buffer to clipboard
+  document.getElementById('kp-diag')?.addEventListener('click', async e => {
+    const btn = e.currentTarget
+    const orig = btn.textContent
+    try { await (window.kdiag?.copy?.() ?? Promise.resolve()); btn.textContent = '✓ copied' }
+    catch { btn.textContent = 'see console' }
+    setTimeout(() => { btn.textContent = orig }, 1500)
+  })
 
   els.autorefresh.addEventListener('change', () => {
     clearInterval(autoTimer)

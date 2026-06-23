@@ -17,7 +17,8 @@ const {
 	renderSigningInfo,
 	renderReadinessInfo,
 	renderPrecheckInfo,
-	showBanner
+	showBanner,
+	summariseStatus
 } = await import(`./view.js?v=${V}`)
 
 const {
@@ -51,7 +52,7 @@ export async function open({ network, txid, pch = 'no_pch', brand = {}, signer =
 		showHeader: brand.showHeader !== false,
 		onClose:    brand.onClose
 	})
-	await mount(modal.body, { network, txid, pch, signer, ...opts })
+	await mount(modal.body, { network, txid, pch, signer, ...opts, onStatus: s => modal.setStatus(s.label, s.tone) })
 	return modal
 }
 
@@ -82,8 +83,15 @@ if (legacyHost) {
 }
 
 
+// Compute a one-line status summary and hand it to the host (modal header).
+function pushStatus(txState) {
+	if (!txState.onStatus) return
+	txState.onStatus(summariseStatus({ data: txState.data, readiness: txState.readiness }))
+}
+
 async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) {
 	const txState = createTxState(network, txid, pch)
+	txState.onStatus = opts.onStatus
 
 	hostEl.append(txState.container)
 
@@ -243,9 +251,8 @@ async function renderTxView(txState) {
 
   container.appendChild(txState.view.el)
 
-  const signingSection = txState.view.el.querySelector('#txread-signing')
-
   // signing-method bar: WhatsApp · WalletConnect · KSIG (offline), side by side.
+  // Goes in the dedicated #txread-sign-slot (between Intent and Status).
   // data-method tags leave a seam for a later "labs" show/hide toggle. KSIG is
   // left exactly as-is (its QR bug is out of scope) — just placed on the bar.
   injectMethodsCSS()
@@ -267,7 +274,8 @@ async function renderTxView(txState) {
 
   methods.append(kpayLink, wcSlot, details)
 
-  if (signingSection) signingSection.before(methods)
+  const signSlot = txState.view.el.querySelector('#txread-sign-slot')
+  if (signSlot) signSlot.append(methods)
   else container.append(methods)
   
 	return { url, rawTx, data, transfers, accounts }
@@ -295,8 +303,19 @@ async function loadSigningState(txState, tx) {
 
 	txState.data = tx.data
 	txState.accounts = tx.accounts
+	txState.readiness = tx.readiness
 
-	document.getElementById('txread-signing')?.classList.remove('tx-loading')
+	// label the approvals disclosure with the count of signing authorities
+	const signerCount = Object.values(tx.accounts || {}).filter(a => a.mustSign).length
+	const toggle = txState.view?.approvalsToggle
+	if (toggle) {
+		const cap = toggle.querySelector('.cap')?.textContent || '▸'
+		toggle.innerHTML = `<span class="cap">${cap}</span> Required approvals${signerCount ? ` (${signerCount})` : ''}`
+	}
+
+	txState.container.querySelector('#txread-status')?.classList.remove('tx-loading')
+
+	pushStatus(txState)
 }
 
 
@@ -338,6 +357,7 @@ async function handleTxUpdate(txState, update) {
 	}
 
 	view.statusBlock.update(txState.data)
+	pushStatus(txState)
 
 	if (update.precheck || update.type === 'tx_precheck')
 		renderPrecheckInfo({ precheck: txState.data.precheck })
@@ -359,8 +379,7 @@ async function handleSignatureUpdate(txState, update) {
 		...fresh.data
 	}
 
-	await refreshSigningSection({
-		network,
+	await refreshSigningSection(txState, {
 		data: txState.data,
 		accounts: txState.accounts
 	})
@@ -412,8 +431,7 @@ async function refreshPolledTx(txState, pollTimer) {
 
 	view.statusBlock.update(txState.data)
 
-	await refreshSigningSection({
-		network,
+	await refreshSigningSection(txState, {
 		data: fresh.data,
 		accounts: fresh.accounts
 	})
@@ -443,15 +461,20 @@ function triggerSuccessAnimation() {
 }
 
 
-async function refreshSigningSection({ network, data, accounts }) {
+async function refreshSigningSection(txState, { data, accounts }) {
+	const { network } = txState
+
 	await enrichAccountsInfo({ network, accounts })
 	await enrichAccountsKeyInfo({ network, accounts })
 
 	calcAccountsThatSign(accounts)
 
 	const readiness = evaluateTxReadiness({ accounts, data })
+	txState.readiness = readiness
 
 	renderReadinessInfo({ readiness })
 	renderSigningInfo({ data, network, accounts })
 	renderPrecheckInfo({ precheck: data?.precheck })
+
+	pushStatus(txState)
 }

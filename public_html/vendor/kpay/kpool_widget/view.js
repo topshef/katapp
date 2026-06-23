@@ -105,106 +105,134 @@ import {
 	}
 	
 	
-	export const buildTxReadColumns = ({ rawTx, data, transfers, network, txid  }) => {
+	export const buildTxReadColumns = ({ rawTx, data, transfers, network, txid }) => {
 
+		const wrapper = document.createElement('div')
+		wrapper.className = 'txread-wrapper'
 
-		const grid = document.createElement('div')
-		grid.className = 'txread-grid'
+		// ── 1. INTENT — what you're approving + scope ──────────────────
+		const intent = document.createElement('div')
+		intent.id = 'txread-intent'
+		intent.className = 'txread-block txread-intent'
 
-		const col1 = document.createElement('div')
-		col1.className = 'txread-col txread-thumb'
+		intent.appendChild(buildTransferList(network, transfers.lineItems))
 
-		const col2 = document.createElement('div')
-		col2.className = 'txread-col'
+		const scope = document.createElement('div')
+		scope.className = 'txread-scope'
 
-		const transfersView = buildTransferList(network, transfers.lineItems)
-		col2.appendChild(transfersView)
+		const net = document.createElement('span')
+		net.className = 'txread-scope-net'
+		net.textContent = `Hedera ${network}`
 
-    // reserved for future column
-		// const col3 = document.createElement('div')
-		// col3.className = 'txread-col'
-
-		const col4 = document.createElement('div')
-		col4.className = 'txread-col'
-		
-		const statusBlock = buildStatusBlock({ data })
-		col4.appendChild(statusBlock.el)
-
-
-    const ready = document.createElement('div')
-    ready.id='txread-readiness'
-    ready.className='txread-timing'
-    col4.appendChild(ready)
-
-    // precheck status sits directly under signing readiness (Alex: append to
-    // signing status with green/orange circles). Populated by renderPrecheckInfo.
-    const precheck = document.createElement('div')
-    precheck.id='txread-precheck'
-    precheck.className='txread-timing'
-    col4.appendChild(precheck)
-
-
-		// txid link (HashScan)
 		const txLink = document.createElement('a')
-		txLink.className = 'txread-timing'
+		txLink.className = 'txread-scope-txid'
 		txLink.href = `https://hashscan.io/${network}/transaction/${txid}`
 		txLink.target = '_blank'
 		txLink.rel = 'noopener'
 		txLink.textContent = txid
-		txLink.style.wordBreak = 'break-all'
-		col4.appendChild(txLink)
 
-		// network label
-		const net = document.createElement('div')
-		net.className = 'txread-timing'
-		net.textContent = `Hedera ${network}`
-    
-    col4.appendChild(net)
+		scope.append(net, txLink)
+		intent.appendChild(scope)
 
-    const bannerSlot=document.createElement('div')
-    bannerSlot.id='tx-banner-slot'
-    bannerSlot.style.position='relative'
-    bannerSlot.style.height='36px'
-    col4.appendChild(bannerSlot)
+		wrapper.appendChild(intent)
 
+		// ── 2. SIGN — slot filled by index.js with the methods bar ────────
+		const signSlot = document.createElement('div')
+		signSlot.id = 'txread-sign-slot'
+		wrapper.appendChild(signSlot)
 
-		// thumbnail (column 1)
-		const thumbUrl = data.deal?.display?.thumbnail // get(rawTx, 'result.deal.display.thumbnail')
-		if (thumbUrl) {
-			const img = document.createElement('img')
-			img.src = thumbUrl
-			img.alt = 'deal thumbnail'
-			col1.appendChild(img)
-		}
+		// ── 3. STATUS / RESULT (+ collapsible approvals detail) ───────
+		const statusWrap = document.createElement('div')
+		statusWrap.id = 'txread-status'
+		statusWrap.className = 'txread-block txread-status tx-loading'
 
-		grid.appendChild(col1)
-		grid.appendChild(col2)
-		// grid.appendChild(col3)
-		grid.appendChild(col4)
+		const statusBlock = buildStatusBlock({ data })
+		statusBlock.el.classList.add('txread-status-main')
+		statusWrap.appendChild(statusBlock.el)
 
-		// Full-width signing section
-		const signingSection = document.createElement('div')
-		signingSection.id = 'txread-signing'
-		signingSection.style.marginTop = '16px'
-		signingSection.style.width = '100%'
-		signingSection.classList.add('tx-loading')
+		const ready = document.createElement('div')
+		ready.id = 'txread-readiness'
+		ready.className = 'txread-timing'
+		statusWrap.appendChild(ready)
 
-		// put key list and pie charts to different elements to avoid race stuff
+		const precheck = document.createElement('div')
+		precheck.id = 'txread-precheck'
+		precheck.className = 'txread-timing'
+		statusWrap.appendChild(precheck)
+
+		const bannerSlot = document.createElement('div')
+		bannerSlot.id = 'tx-banner-slot'
+		bannerSlot.style.position = 'relative'
+		bannerSlot.style.height = '36px'
+		statusWrap.appendChild(bannerSlot)
+
+		// approvals disclosure — hidden by default, expands the key table below
+		const toggle = document.createElement('button')
+		toggle.id = 'txread-approvals-toggle'
+		toggle.type = 'button'
+		toggle.className = 'txread-approvals-toggle'
+		toggle.setAttribute('aria-expanded', 'false')
+		toggle.innerHTML = `<span class="cap">▸</span> Required approvals`
+
+		const approvals = document.createElement('div')
+		approvals.id = 'txread-approvals'
+		approvals.className = 'txread-approvals'
+		approvals.hidden = true
+
 		const keys = document.createElement('div')
 		keys.id = 'account-keys'
+		approvals.appendChild(keys)
 
-		signingSection.appendChild(keys)
+		toggle.addEventListener('click', () => {
+			const opening = approvals.hidden
+			approvals.hidden = !opening
+			toggle.setAttribute('aria-expanded', String(opening))
+			const cap = toggle.querySelector('.cap')
+			if (cap) cap.textContent = opening ? '▾' : '▸'
+		})
 
-		// return grid
-		const wrapper = document.createElement('div')
-		wrapper.className = 'txread-wrapper'
-		wrapper.appendChild(grid)
-		wrapper.appendChild(signingSection)
-		// return wrapper
+		statusWrap.appendChild(toggle)
+		statusWrap.appendChild(approvals)
+
+		wrapper.appendChild(statusWrap)
+
 		return {
 			el: wrapper,
-			statusBlock
+			statusBlock,
+			approvalsToggle: toggle,
+			approvalsBox: approvals
 		}
+	}
+
+
+	// One-line status summary for the modal header (label + tone).
+	// Combines lifecycle status with signing readiness.
+	export const summariseStatus = ({ data = {}, readiness } = {}) => {
+		const raw = data.comboStatus || data.mirrorStatus || data.receiptStatus || ''
+		const up = String(raw).toUpperCase()
+
+		if (up === 'SUCCESS')
+			return { label: '✅ Success', tone: 'success' }
+
+		if (/FAIL|EXPIR|INVALID|ERROR|REJECT/.test(up))
+			return { label: `⚠️ ${prettyStatus(raw)}`, tone: 'error' }
+
+		if (readiness && !readiness.thresholdSatisfied) {
+			const n = readiness.minMoreKeyCount
+			return { label: `✍️ Awaiting approvals${n ? ` · ${n} more` : ''}`, tone: 'warn' }
+		}
+
+		if (readiness && readiness.thresholdSatisfied)
+			return { label: '🟢 Ready to submit', tone: 'info' }
+
+		return { label: raw ? prettyStatus(raw) : 'Pending…', tone: 'info' }
+	}
+
+	function prettyStatus(s) {
+		return String(s)
+			.replace(/_/g, ' ')
+			.toLowerCase()
+			.replace(/^\w/, c => c.toUpperCase())
 	}
 
 
@@ -985,6 +1013,28 @@ export function injectTxReadCSS() {
       text-overflow:ellipsis;
       white-space:nowrap;
     }
+
+		/* ── v2 modal reflow: Intent → Sign → Status ──────────────────── */
+		.txread-block { margin: 14px auto; max-width: min(900px, 100%); }
+		.txread-intent .txread-xfers { max-width: 580px; margin: 0 auto; }
+		.txread-scope {
+			display: flex; flex-direction: column; align-items: center; gap: 2px;
+			margin-top: 10px; font-size: 12px; color: #888;
+		}
+		.txread-scope-txid { word-break: break-all; }
+		.txread-status { text-align: center; }
+		.txread-status-main { font-weight: 600; font-size: 15px; }
+		.txread-approvals-toggle {
+			all: revert; cursor: pointer; margin: 12px auto 0; display: inline-block;
+			border: 1px solid #ddd; border-radius: 6px; background: #fafafa;
+			padding: 6px 14px;
+			font: 13px system-ui, -apple-system, "Segoe UI", sans-serif; color: #555;
+		}
+		.txread-approvals-toggle:hover { background: #f0f0f0; }
+		.txread-approvals-toggle .cap { display: inline-block; width: 1em; }
+		.txread-approvals { margin-top: 10px; }
+		.txread-approvals .ksubtitle { display: none; }
+		.acctkeys-header, .acctkeys-account { text-align: center; }
 
 
 	`
