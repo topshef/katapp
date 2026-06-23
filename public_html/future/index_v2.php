@@ -126,6 +126,9 @@ require_once "$docroot/headheader.php";
     <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
     <script src="assets/js/custom.js"></script>
 
+    <!-- Localbase (IndexedDB): persists terminal tx statuses across reloads -->
+    <script src="/m/bid/localbase.min.js"></script>
+
     <!-- WalletConnect bundle: exposes window.WC for the widget's signer -->
     <?php require_once("$docroot/vendor/walletconnect/kwcScriptTag.php"); ?>
 
@@ -140,63 +143,75 @@ require_once "$docroot/headheader.php";
     <script type="module" src="/vendor/kpay/kpool_widget/bootstrap.js"></script>
 
 <style>
-  .kp-controls {
+  #kp-controls.kp-controls {
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
-    gap: 12px 16px;
-    margin: 6px 0 22px;
+    gap: 10px 14px;
+    margin: 6px 0 20px;
     text-align: left;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
-  .kp-field { display: flex; flex-direction: column; gap: 5px; margin: 0; }
+  #kp-controls .kp-field { display: flex; flex-direction: column; gap: 4px; margin: 0; }
   /* subtle, quiet captions */
-  .kp-cap {
-    font-size: 11px;
+  #kp-controls .kp-cap {
+    font-size: 10.5px;
     font-weight: 500;
     letter-spacing: .04em;
     text-transform: uppercase;
     color: #8a8f98;
   }
-  /* clean, semi-rounded fields — class + all:revert so global theme styling
-     (which was rounding these into pills) doesn't bleed through */
-  .kp-input {
+  /* compact, lightly-rounded fields. Scoped under the #id so the site theme's
+     own input/select rules (which were rounding these into tall pills) lose on
+     specificity; all:revert clears inherited theme styling too. */
+  #kp-controls .kp-input {
     all: revert;
-    height: 34px;
+    height: 30px;
     box-sizing: border-box;
-    padding: 0 10px;
+    padding: 0 8px;
     border: 1px solid #d9dce1;
-    border-radius: 6px;
+    border-radius: 5px;
     background: #fff;
     color: #222;
     font-size: 13px;
     font-family: inherit;
+    line-height: normal;
     outline: none;
   }
-  .kp-input:focus { border-color: #4aa3ff; box-shadow: 0 0 0 2px rgba(74,163,255,.15); }
-  select.kp-input { padding-right: 6px; }
+  #kp-controls .kp-input:focus { border-color: #4aa3ff; box-shadow: 0 0 0 2px rgba(74,163,255,.15); }
+  #kp-controls select.kp-input { padding-right: 4px; }
   /* filter takes up the slack between the fields and the actions */
-  .kp-filter { flex: 1 1 220px; min-width: 170px; }
-  .kp-filter .kp-input { width: 100%; }
+  #kp-controls .kp-filter { flex: 1 1 220px; min-width: 160px; }
+  #kp-controls .kp-filter .kp-input { width: 100%; }
 
-  /* Refresh + auto + count travel together, the same 34px tall as the fields
-     so everything sits on one clean baseline (this was the skew). */
-  .kp-actions { display: flex; align-items: center; gap: 16px; margin-left: auto; height: 34px; }
-  .kp-btn {
+  /* Refresh + auto + count: one nowrap row, the same 30px height as the fields,
+     pinned to the bottom edge so everything sits on a single clean baseline. */
+  #kp-controls .kp-actions {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 14px;
+    margin-left: auto;
+    align-self: flex-end;
+    height: 30px;
+  }
+  #kp-controls .kp-btn {
     all: revert;
-    height: 34px;
+    height: 30px;
     box-sizing: border-box;
-    padding: 0 16px;
+    padding: 0 14px;
     border: 1px solid #d9dce1;
-    border-radius: 6px;
+    border-radius: 5px;
     background: #f6f7f9;
     color: #222;
     font-size: 13px;
     font-family: inherit;
+    line-height: normal;
     cursor: pointer;
+    vertical-align: middle;
   }
-  .kp-btn:hover { background: #eceef1; }
-  .kp-auto {
+  #kp-controls .kp-btn:hover { background: #eceef1; }
+  #kp-controls .kp-auto {
     display: inline-flex;
     align-items: center;
     gap: 6px;
@@ -205,8 +220,8 @@ require_once "$docroot/headheader.php";
     color: #8a8f98;
     white-space: nowrap;
   }
-  .kp-auto input { all: revert; margin: 0; }
-  .kp-count { font-size: 13px; color: #b0b4bb; white-space: nowrap; }
+  #kp-controls .kp-auto input { all: revert; width: auto; height: auto; margin: 0; }
+  #kp-controls .kp-count { font-size: 13px; color: #b0b4bb; white-space: nowrap; }
 
   .kp-list {
     text-align: left;
@@ -354,7 +369,11 @@ require_once "$docroot/headheader.php";
       lastTxs = (json?.result?.tx || []).filter(t => t.type === 'tx')
       lastTxs.sort((a, b) => txStartSec(a.txid) - txStartSec(b.txid))
 
-      statusCache.clear()   // fresh list → re-probe statuses (sigs may have changed)
+      // fresh list → drop in-memory cache so non-terminal statuses (pending /
+      // awaiting) get re-probed, then re-seed the terminal ones from Localbase.
+      statusCache.clear()
+      await preloadStoredStatuses(lastTxs)
+
       window.kdiag?.('list:loaded', { count: lastTxs.length, network })
       renderList()
     } catch (err) {
@@ -438,19 +457,67 @@ require_once "$docroot/headheader.php";
 
   // ── status hydration ──────────────────────────────────────────────────────
   // Fill the Status column asynchronously using the widget's read-only probe
-  // (window.KPOOL.readStatus). Cached per tx so filter re-renders don't refetch,
-  // cancellable via a generation token, and capped so a huge list won't hammer
-  // the backend. If the widget predates readStatus, the pending dots just stay.
+  // (window.KPOOL.readStatus). Two layers of cache:
+  //   • statusCache (in-memory) — survives filter re-renders this session.
+  //   • Localbase (IndexedDB)   — persists TERMINAL statuses (success / expired /
+  //     failed) across reloads, exactly like katomia-localdb caches settled txs.
+  //     A terminal status can never change, so once stored we never re-probe it.
+  // Probing order expands outward from "now": nearest-to-present first, then
+  // alternating forward/back, so the rows a signer actually cares about resolve
+  // first. Cancellable via a generation token and capped so a huge list won't
+  // hammer the backend. If the widget predates readStatus, pending dots remain.
   const statusKey = t => `${t.network};${t.txid};${t.pch ?? 'no_pch'}`
   const statusCache = new Map()
   let statusGen = 0
   const STATUS_MAX = 40   // don't auto-probe more than this many rows
 
+  // A status is "terminal" (won't change) when it's on-chain (square dot) or
+  // expired — safe to persist and trust on the next reload.
+  const isTerminal = s => !!s && (s.shape === 'square' || /expir/i.test(s.label || ''))
+
+  // Localbase store for terminal statuses. Soft dependency: if Localbase isn't
+  // present we just skip persistence and probe live every time.
+  const STATUS_DB = (() => {
+    try { return (typeof Localbase !== 'undefined') ? new Localbase('kpoolStatus') : null }
+    catch { return null }
+  })()
+  const STATUS_COLL = 'status'
+
+  const loadStored = async key => {
+    if (!STATUS_DB) return null
+    try { return await STATUS_DB.collection(STATUS_COLL).doc(key).get() } catch { return null }
+  }
+  const storeTerminal = async (key, s) => {
+    if (!STATUS_DB || !isTerminal(s)) return
+    try {
+      if (await STATUS_DB.collection(STATUS_COLL).doc(key).get()) return  // already stored
+      await STATUS_DB.collection(STATUS_COLL).add({ key, tone: s.tone, label: s.label, shape: s.shape }, key)
+    } catch (err) { window.kdiag?.('list:status:store-fail', { key, error: String(err) }) }
+  }
+
+  // Seed statusCache from Localbase so terminal statuses paint instantly on load
+  // (no pending flash, no network call). Only terminal entries are ever stored.
+  const preloadStoredStatuses = async txs => {
+    if (!STATUS_DB) return
+    await Promise.all(txs.map(async t => {
+      const key = statusKey(t)
+      const stored = await loadStored(key)
+      if (isTerminal(stored)) statusCache.set(key, stored)
+    }))
+  }
+
   const hydrateStatuses = async () => {
     if (!window.KPOOL?.readStatus) return
     const gen = ++statusGen
+    const now = Math.floor(Date.now() / 1000)
+
+    // pending cells only, ordered by distance from now (nearest first → expands
+    // outward, naturally alternating future/past as the gaps interleave)
     const cells = [...els.list.querySelectorAll('.kp-status')]
       .filter(c => c.querySelector('.kp-status-dot')?.dataset.tone === 'pending')
+      .map(c => ({ c, d: Math.abs((Number(c.dataset.txid.split('@')[1]) || now) - now) }))
+      .sort((a, b) => a.d - b.d)
+      .map(x => x.c)
       .slice(0, STATUS_MAX)
     if (!cells.length) return
 
@@ -460,10 +527,12 @@ require_once "$docroot/headheader.php";
         if (gen !== statusGen) return            // a newer render superseded us
         const cell = cells[i++]
         const { txid, network, pch } = cell.dataset
+        const key = statusKey({ network, txid, pch })
         try {
           const s = await window.KPOOL.readStatus({ network, txid, pch: pch || 'no_pch' })
           if (gen !== statusGen) return
-          statusCache.set(statusKey({ network, txid, pch }), s)
+          statusCache.set(key, s)
+          await storeTerminal(key, s)            // persist if it can never change
           const dot = cell.querySelector('.kp-status-dot')
           const lab = cell.querySelector('.kp-status-label')
           dot.dataset.tone = s.tone || 'info'

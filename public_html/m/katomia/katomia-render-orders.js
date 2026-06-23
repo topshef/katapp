@@ -383,6 +383,15 @@ function createTxRow(tx){
 
   row.dataset.txkey = getTxKey(tx)
   row.dataset.orderIds = getTxOrderIds(tx).join(",")
+
+  // kpay widget hook: clicking anywhere on the row (except the inner tx link,
+  // which the embed leaves alone) opens the signing modal. Wired entirely by the
+  // CDN-style kpay-embed.js script tag in game.php — no direct coupling here.
+  if(tx.txid){
+    row.dataset.kpayTxid    = tx.txid
+    row.dataset.kpayNetwork = tx.network || tx.pchbasis?.network || "mainnet"
+    if(tx.pch) row.dataset.kpayPch = tx.pch
+  }
     
   const order = getTxMainOrder(tx)
   const orderType = getOrderType(order) || getOrderTypeFromPchbasis(tx) || "generic"

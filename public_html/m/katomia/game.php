@@ -334,6 +334,13 @@
 <script src="/m/bid/localCacheIFPS.js"></script> 
 <script src="/m/bid/localCacheArweave.js"></script> 
 
+<!-- WalletConnect (exposes window.WC) + KPAY signing widget embed (CDN-style).
+     Clicking a tx row opens the same modal used on the kpay signing page; the
+     widget is dropped in purely via a script tag to prove it's host-agnostic.
+     Both are same-origin here; adjust paths via window.KPAY_FUTURE_BASE etc. -->
+<?php require_once($_SERVER['DOCUMENT_ROOT'] . "/vendor/walletconnect/kwcScriptTag.php"); ?>
+<script src="/vendor/kpay/kpool_widget/kpay-embed.js" defer></script>
+
 
 
 <script type="module" src="katomia-init.js" data-glog="on"></script>
