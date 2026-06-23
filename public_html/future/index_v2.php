@@ -89,7 +89,6 @@ require_once "$docroot/headheader.php";
 
                 <span id="kp-count" class="kp-count"></span>
 
-                <a class="kp-v1link" href="?v=v1">legacy view</a>
               </div>
 
               <!-- list -->
@@ -161,7 +160,6 @@ require_once "$docroot/headheader.php";
   }
   .kp-controls button:hover { background: #ececec; }
   .kp-count   { color: #999; margin-left: auto; }
-  .kp-v1link  { font-size: 12px; color: #999; }
 
   .kp-list {
     text-align: left;

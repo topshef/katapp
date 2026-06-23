@@ -35,7 +35,7 @@ $pch  = $_GET['pch'] ?? null;
 // In v2 we do NOT short-circuit to tx_approval on ?txid= — the v2 page renders
 // the list and auto-opens the txid in a modal instead (the modal iframes the
 // detail page, which is still served by the v1 path below when v is unset).
-$v = $_GET['v'] ?? 'v1';
+$v = $_GET['v'] ?? 'v2';
 if ($v === 'v2') {
     require_once __DIR__ . '/index_v2.php';
     exit;
