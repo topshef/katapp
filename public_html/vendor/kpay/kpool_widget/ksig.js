@@ -115,7 +115,8 @@ function injectKsigCSS() {
 	const s = document.createElement('style')
 	s.textContent = `
 		.kpsign-qr { display:flex; justify-content:center; padding:8px; }
-		.kpsign-qr img, .kpsign-qr canvas { display:block; }
+		/* override any theme border-radius so the QR finder squares aren't clipped */
+		.kpsign-qr img, .kpsign-qr canvas, .kpsign-qr table, .kpsign-qr td { display:block; border-radius:0 !important; }
 		.kpsign-qr-cap { text-align:center; font:12px ui-monospace,Menlo,Consolas,monospace; color:#888; margin-top:6px; }
 	`
 	document.head.appendChild(s)

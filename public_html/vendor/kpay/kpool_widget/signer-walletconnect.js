@@ -99,7 +99,8 @@ export function renderWalletConnectSigner(container, {
 	txid,
 	readUrl = defaultReadUrl,
 	saveUrl = defaultSaveUrl,
-	onSigned
+	onSigned,
+	onAccount
 } = {}) {
 	injectSignerCSS()
 
@@ -114,6 +115,7 @@ export function renderWalletConnectSigner(container, {
 		if (!wc) {
 			kdiag('signer:render', { hasWC: false })
 			wrap.innerHTML = `<div class="kpsign-msg">Wallet unavailable</div>`
+			onAccount?.(null)
 			return
 		}
 
@@ -126,6 +128,7 @@ export function renderWalletConnectSigner(container, {
 
 		wrap.innerHTML = ''
 		kdiag('signer:render', { hasWC: true, account })
+		onAccount?.(account || null)
 
 		// not connected → single Connect button
 		if (!account) {

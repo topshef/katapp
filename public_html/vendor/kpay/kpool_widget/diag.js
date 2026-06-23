@@ -36,9 +36,10 @@ function safe(v) {
 }
 
 function dump() {
-	const text = BUFFER.map(e =>
-		`${e.t}  ${e.msg}${e.data !== undefined ? '  ' + JSON.stringify(e.data) : ''}`
-	).join('\n')
+	const text = BUFFER.map(e => {
+		if (e.dom) return `${e.t}  ${e.msg}\n<dom>\n${e.dom}\n</dom>`
+		return `${e.t}  ${e.msg}${e.data !== undefined ? '  ' + JSON.stringify(e.data) : ''}`
+	}).join('\n')
 	console.log(text)
 	return text
 }
@@ -54,12 +55,19 @@ async function copy() {
 	return text
 }
 
+// capture a DOM snapshot (outerHTML) for UI debugging
+function dom(el, label = 'dom') {
+	if (!el) return
+	BUFFER.push({ t: new Date().toISOString(), msg: `DOM:${label}`, dom: el.outerHTML })
+	if (BUFFER.length > MAX) BUFFER.shift()
+}
+
 function clear() { BUFFER.length = 0 }
 
 // expose for console use: callable AND with helpers attached
 if (typeof window !== 'undefined') {
 	window.kdiag = Object.assign(
 		(msg, data) => kdiag(msg, data),
-		{ dump, copy, clear, buffer: BUFFER }
+		{ dump, copy, clear, dom, buffer: BUFFER }
 	)
 }

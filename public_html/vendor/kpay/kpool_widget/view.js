@@ -110,99 +110,77 @@ import {
 		const wrapper = document.createElement('div')
 		wrapper.className = 'txread-wrapper'
 
-		// ── 1. INTENT — what you're approving + scope ──────────────────
+		// ── 1. INTENT — what you're approving (+ optional you send/receive) ──
 		const intent = document.createElement('div')
 		intent.id = 'txread-intent'
 		intent.className = 'txread-block txread-intent'
 
-		intent.appendChild(buildTransferList(network, transfers.lineItems))
+		const intentRow = document.createElement('div')
+		intentRow.className = 'txread-intent-row'
+
+		const xfers = buildTransferList(network, transfers.lineItems)
+		xfers.classList.add('txread-intent-xfers')
+		intentRow.appendChild(xfers)
+
+		// You send / You receive narrative — populated by index.js once a wallet
+		// account is known (experimental); hidden otherwise.
+		const narrative = document.createElement('div')
+		narrative.id = 'txread-narrative'
+		narrative.className = 'txread-narrative'
+		narrative.hidden = true
+		intentRow.appendChild(narrative)
+
+		intent.appendChild(intentRow)
 
 		const scope = document.createElement('div')
 		scope.className = 'txread-scope'
-
 		const net = document.createElement('span')
 		net.className = 'txread-scope-net'
 		net.textContent = `Hedera ${network}`
-
 		const txLink = document.createElement('a')
 		txLink.className = 'txread-scope-txid'
 		txLink.href = `https://hashscan.io/${network}/transaction/${txid}`
 		txLink.target = '_blank'
 		txLink.rel = 'noopener'
 		txLink.textContent = txid
-
 		scope.append(net, txLink)
 		intent.appendChild(scope)
 
 		wrapper.appendChild(intent)
 
-		// ── 2. SIGN — slot filled by index.js with the methods bar ────────
+		// ── 2. SIGN — slot filled by index.js with the tabbed panel ───────
 		const signSlot = document.createElement('div')
 		signSlot.id = 'txread-sign-slot'
 		wrapper.appendChild(signSlot)
 
-		// ── 3. STATUS / RESULT (+ collapsible approvals detail) ───────
-		const statusWrap = document.createElement('div')
-		statusWrap.id = 'txread-status'
-		statusWrap.className = 'txread-block txread-status tx-loading'
-
-		const statusBlock = buildStatusBlock({ data })
-		statusBlock.el.classList.add('txread-status-main')
-		statusWrap.appendChild(statusBlock.el)
-
-		const ready = document.createElement('div')
-		ready.id = 'txread-readiness'
-		ready.className = 'txread-timing'
-		statusWrap.appendChild(ready)
-
-		const precheck = document.createElement('div')
-		precheck.id = 'txread-precheck'
-		precheck.className = 'txread-timing'
-		statusWrap.appendChild(precheck)
-
+		// ── 3. banner (always visible; transient signature notices) ──────
 		const bannerSlot = document.createElement('div')
 		bannerSlot.id = 'tx-banner-slot'
 		bannerSlot.style.position = 'relative'
-		bannerSlot.style.height = '36px'
-		statusWrap.appendChild(bannerSlot)
+		wrapper.appendChild(bannerSlot)
 
-		// approvals disclosure — full-width bar; expands the key table with a
-		// height animation (grid-rows 0fr→1fr) so the modal slides instead of jolting.
-		const toggle = document.createElement('button')
-		toggle.id = 'txread-approvals-toggle'
-		toggle.type = 'button'
-		toggle.className = 'txread-approvals-toggle'
-		toggle.setAttribute('aria-expanded', 'false')
-		toggle.innerHTML = `<span class="cap">▸</span> <span class="lbl">Required approvals</span>`
+		// Status detail + approvals table are CREATED here but PLACED by index.js
+		// into the Status tab pane, so the render-by-id functions keep working.
+		const statusBlock = buildStatusBlock({ data })
+		statusBlock.el.classList.add('txread-status-main')
 
-		const approvals = document.createElement('div')
-		approvals.id = 'txread-approvals'
-		approvals.className = 'txread-approvals'
+		const readinessEl = document.createElement('div')
+		readinessEl.id = 'txread-readiness'
+		readinessEl.className = 'txread-timing'
 
-		const approvalsInner = document.createElement('div')
-		approvalsInner.className = 'txread-approvals-inner'
+		const precheckEl = document.createElement('div')
+		precheckEl.id = 'txread-precheck'
+		precheckEl.className = 'txread-timing'
 
-		const keys = document.createElement('div')
-		keys.id = 'account-keys'
-		approvalsInner.appendChild(keys)
-		approvals.appendChild(approvalsInner)
-
-		toggle.addEventListener('click', () => {
-			const opening = !approvals.classList.contains('open')
-			approvals.classList.toggle('open', opening)
-			toggle.setAttribute('aria-expanded', String(opening))
-		})
-
-		statusWrap.appendChild(toggle)
-		statusWrap.appendChild(approvals)
-
-		wrapper.appendChild(statusWrap)
+		const accountKeysEl = document.createElement('div')
+		accountKeysEl.id = 'account-keys'
 
 		return {
 			el: wrapper,
 			statusBlock,
-			approvalsToggle: toggle,
-			approvalsBox: approvals
+			readinessEl,
+			precheckEl,
+			accountKeysEl
 		}
 	}
 
@@ -295,7 +273,8 @@ import {
       const c = document.createElement('div')
       c.style.textAlign = 'right'
       let amountFormatted = amount?.formatted ?? `[int:${amount?.raw}]`
-      if (amount?.raw > 0) amountFormatted = '+' + amountFormatted
+      if (amount?.raw > 0) { amountFormatted = '+' + amountFormatted; c.classList.add('xfer-in') }
+      else if (amount?.raw < 0) { c.classList.add('xfer-out') }
       c.textContent = amountFormatted
       
 
@@ -1044,6 +1023,29 @@ export function injectTxReadCSS() {
 		.txread-approvals-inner { overflow: hidden; min-height: 0; }
 		.txread-approvals .ksubtitle { display: none; }
 		.acctkeys-header, .acctkeys-account { text-align: center; }
+
+		/* intent: line items + optional narrative side by side */
+		.txread-intent-row { display:flex; flex-wrap:wrap; gap:16px; justify-content:center; align-items:flex-start; }
+		.txread-intent-row .txread-xfers { max-width:none; margin:0; }
+		.txread-narrative {
+			flex:0 1 240px; background:#f7f7f9; border:1px solid #eee; border-radius:8px;
+			padding:10px 14px; text-align:left;
+			font:13px system-ui,-apple-system,"Segoe UI",sans-serif; color:#444;
+		}
+		.txread-narrative h4 { margin:0 0 6px; font-size:12px; color:#888; font-weight:600; }
+		.txread-narrative .nrow { display:flex; justify-content:space-between; gap:12px; padding:2px 0; }
+		.txread-narrative .nlabel { color:#888; }
+		.txread-narrative .nout { color:#b00020; }
+		.txread-narrative .nin { color:#198754; }
+		@media (max-width:600px){ .txread-narrative{ flex-basis:100%; } }
+
+		/* green/red on the accounting amount column */
+		.txread-xfers .xfer-in { color:#198754; }
+		.txread-xfers .xfer-out { color:#b00020; }
+
+		/* status tab pane */
+		.txread-approvals-desc { margin:10px auto 8px; max-width:560px; }
+		#account-keys .ksubtitle { display:none; }   /* Status tab + description replace this heading */
 
 
 	`

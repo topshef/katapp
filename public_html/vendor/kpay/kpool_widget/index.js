@@ -122,7 +122,8 @@ async function renderSigner(txState, opts) {
 		txid:     txState.txid,
 		readUrl:  opts.readUrl,
 		saveUrl:  opts.saveUrl,
-		onSigned: () => showBanner('✍️ Signature submitted', 'success')
+		onSigned: () => showBanner('✍️ Signature submitted', 'success'),
+		onAccount: acct => updateNarrative(txState, acct)
 	})
 }
 
@@ -142,6 +143,7 @@ function injectMethodsCSS() {
 			padding:10px 8px; font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;
 			color:#777; transition:color .2s ease; }
 		.kpsign-tab:hover{ color:#374151; }
+		.kpsign-tab:focus, .kpsign-tab:focus-visible{ outline:none; }
 		.kpsign-tab.active{ color:#084298; }
 		.kpsign-tabicon{ width:16px; height:16px; object-fit:contain; flex:0 0 auto; }
 		.kpsign-underline{ position:absolute; bottom:0; left:0; height:2px; width:0;
@@ -261,6 +263,68 @@ function buildKsigPane(network, txid) {
 // page (e.g. /future/) instead of /vendor/kpay/kpool_widget/.
 const assetUrl = name => new URL(`./assets/${name}`, import.meta.url).href
 
+// info (i-in-circle) icon for the Status tab
+const INFO_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor" stroke="none"/></svg>`
+
+// Status tab pane: status detail + a one-line explainer + the approvals table.
+// The status/approval elements were created in view.js (buildTxReadColumns) and
+// are placed here so the render-by-id functions keep targeting them.
+function buildStatusPane(txState) {
+	const pane = document.createElement('div')
+
+	const inner = document.createElement('div')
+	inner.id = 'txread-status'
+	inner.className = 'txread-status tx-loading'
+
+	inner.appendChild(txState.view.statusBlock.el)
+	inner.appendChild(txState.view.readinessEl)
+	inner.appendChild(txState.view.precheckEl)
+
+	const desc = document.createElement('div')
+	desc.className = 'kpsign-desc txread-approvals-desc'
+	desc.innerHTML = `These keys must approve before the transaction can execute. ` +
+		`<b>Banzhaf</b> is each key's voting power; <b>redundancy</b> is how replaceable it is.`
+	inner.appendChild(desc)
+
+	inner.appendChild(txState.view.accountKeysEl)
+
+	pane.appendChild(inner)
+	return pane
+}
+
+// Experimental "You send / You receive" narrative, derived from the connected
+// wallet account and the transfer line items. Hidden when no account is known.
+function updateNarrative(txState, account) {
+	const box = txState.container.querySelector('#txread-narrative')
+	if (!box) return
+
+	const items = txState.transfers?.lineItems || []
+	if (!account || !items.length) { box.hidden = true; box.innerHTML = ''; return }
+
+	const fmt = li => {
+		const meta = li.assetMeta || {}
+		const sym = meta.symbol || meta.name || meta.raw || ''
+		const amt = Math.abs(Number(li.amountFormatted ?? li.amount))
+		return `${amt} ${sym}`.trim()
+	}
+
+	const mine = items.filter(li => li.account === account)
+	const sends = mine.filter(li => Number(li.amountRaw ?? li.amount) < 0)
+	const recvs = mine.filter(li => Number(li.amountRaw ?? li.amount) > 0)
+
+	if (!sends.length && !recvs.length) { box.hidden = true; box.innerHTML = ''; return }
+
+	const row = (label, li, cls) =>
+		`<div class="nrow"><span class="nlabel">${label}</span><span class="${cls}">${fmt(li)}</span></div>`
+
+	let html = `<h4>You (${account})</h4>`
+	html += sends.map(li => row('send', li, 'nout')).join('')
+	html += recvs.map(li => row('receive', li, 'nin')).join('')
+
+	box.innerHTML = html
+	box.hidden = false
+}
+
 function buildSigningPanel(txState) {
 	const { network, txid, pch } = txState
 
@@ -271,19 +335,18 @@ function buildSigningPanel(txState) {
 	const tabs = document.createElement('div')
 	tabs.className = 'kpsign-tabs'
 
-	const hint = document.createElement('div')
-	hint.className = 'kpsign-hint'
-	hint.textContent = 'Choose a signing method'
-
 	const panes = document.createElement('div')
 	panes.className = 'kpsign-panes'
 
+	// Status is first and shown by default; the rest are signing actions.
 	const METHODS = [
+		{ id: 'status',        label: 'Status',          svg:  INFO_SVG,                            build: () => buildStatusPane(txState) },
 		{ id: 'walletconnect', label: 'WalletConnect',   icon: 'WalletConnect-Logo.png',           build: () => buildWcPane(txState) },
 		{ id: 'whatsapp',      label: 'WhatsApp',        icon: 'WhatsApp.svg.png',                 build: () => buildWhatsAppPane(network, txid, pch) },
 		{ id: 'ksig',          label: 'Offline (KSIG)',  icon: 'kpay_logo_square_transparent.png', build: () => buildKsigPane(network, txid) }
 	]
 
+	const DEFAULT = 'status'
 	const paneEls = {}
 
 	METHODS.forEach(m => {
@@ -292,21 +355,31 @@ function buildSigningPanel(txState) {
 		tab.className = 'kpsign-tab'
 		tab.dataset.method = m.id
 
-		const icon = document.createElement('img')
-		icon.className = 'kpsign-tabicon'
-		icon.src = assetUrl(m.icon)
-		icon.alt = ''
+		if (m.svg) {
+			const span = document.createElement('span')
+			span.className = 'kpsign-tabicon'
+			span.innerHTML = m.svg
+			tab.appendChild(span)
+		} else {
+			const icon = document.createElement('img')
+			icon.className = 'kpsign-tabicon'
+			icon.src = assetUrl(m.icon)
+			icon.alt = ''
+			tab.appendChild(icon)
+		}
 
 		const lbl = document.createElement('span')
 		lbl.textContent = m.label
+		tab.appendChild(lbl)
 
-		tab.append(icon, lbl)
 		tab.addEventListener('click', () => select(m.id))
+		if (m.id === DEFAULT) tab.classList.add('active')
 		tabs.appendChild(tab)
 
 		const pane = m.build()
 		pane.classList.add('kpsign-pane')
 		pane.dataset.method = m.id
+		if (m.id === DEFAULT) { pane.classList.add('active'); activatePane(pane) }
 		paneEls[m.id] = pane
 		panes.appendChild(pane)
 	})
@@ -316,8 +389,16 @@ function buildSigningPanel(txState) {
 	underline.className = 'kpsign-underline'
 	tabs.appendChild(underline)
 
+	function positionUnderline() {
+		const a = tabs.querySelector('.kpsign-tab.active')
+		if (!a) return
+		underline.style.width = a.offsetWidth + 'px'
+		underline.style.transform = `translateX(${a.offsetLeft}px)`
+	}
+
 	function select(id) {
-		hint.style.display = 'none'
+		const startH = panes.offsetHeight
+
 		tabs.querySelectorAll('.kpsign-tab').forEach(t =>
 			t.classList.toggle('active', t.dataset.method === id))
 		Object.entries(paneEls).forEach(([k, el]) => {
@@ -325,15 +406,28 @@ function buildSigningPanel(txState) {
 			el.classList.toggle('active', on)
 			if (on) activatePane(el)
 		})
-		const activeTab = tabs.querySelector('.kpsign-tab.active')
-		if (activeTab) {
-			underline.style.width = activeTab.offsetWidth + 'px'
-			underline.style.transform = `translateX(${activeTab.offsetLeft}px)`
+
+		positionUnderline()
+
+		// animate the pane area height between tabs (no jolt)
+		panes.style.height = 'auto'
+		const endH = panes.offsetHeight
+		if (startH && endH && startH !== endH) {
+			panes.style.height = startH + 'px'
+			void panes.offsetHeight
+			panes.style.transition = 'height .25s ease'
+			panes.style.height = endH + 'px'
+			panes.addEventListener('transitionend', function te() {
+				panes.style.transition = ''
+				panes.style.height = 'auto'
+				panes.removeEventListener('transitionend', te)
+			}, { once: true })
 		}
 	}
 
-	panel.append(tabs, hint, panes)
+	panel.append(tabs, panes)
 	txState.selectSignMethod = select
+	txState.positionUnderline = positionUnderline
 	return panel
 }
 
@@ -412,6 +506,7 @@ async function renderTxView(txState) {
 	const { url, rawTx, data, transfers, accounts } = await txRead({ network, txid })
 
 	await enrichTransfersInfo({ network, transfers })
+	txState.transfers = transfers
 
 	injectTxReadCSS()
 
@@ -439,6 +534,9 @@ async function renderTxView(txState) {
   const signSlot = txState.view.el.querySelector('#txread-sign-slot')
   if (signSlot) signSlot.append(panel)
   else container.append(panel)
+
+  // position the tab underline once the panel is laid out
+  requestAnimationFrame(() => txState.positionUnderline?.())
   
 	return { url, rawTx, data, transfers, accounts }
 }
@@ -466,11 +564,6 @@ async function loadSigningState(txState, tx) {
 	txState.data = tx.data
 	txState.accounts = tx.accounts
 	txState.readiness = tx.readiness
-
-	// label the approvals disclosure with the count of signing authorities
-	const signerCount = Object.values(tx.accounts || {}).filter(a => a.mustSign).length
-	const lbl = txState.view?.approvalsToggle?.querySelector('.lbl')
-	if (lbl) lbl.textContent = `Required approvals${signerCount ? ` (${signerCount})` : ''}`
 
 	txState.container.querySelector('#txread-status')?.classList.remove('tx-loading')
 

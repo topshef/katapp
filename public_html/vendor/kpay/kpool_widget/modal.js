@@ -117,6 +117,8 @@ export function buildModal({ onClose } = {}) {
 	diagBtn.addEventListener('click', async () => {
 		const original = diagBtn.textContent
 		try {
+			// include a DOM snapshot of the modal so UI issues can be debugged from the copy
+			window.kdiag?.dom?.(card, 'modal')
 			await (window.kdiag?.copy?.() ?? Promise.resolve())
 			diagBtn.textContent = '✓ copied'
 		} catch {
