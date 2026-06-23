@@ -16,7 +16,8 @@ $sources=[
 // 'kbot'=>['/home/hbarlive_hts/kbot/swarms/*.js'],  //nope - just zip it
 'KEA webapp'=>["/var/www/$domain/public_html/m/katomia/KEA/*.{html,js,css}"],
 'frontend katomia'=>["/var/www/$domain/public_html/m/katomia/*.{html,js,css,php}"],
-'frontend kpay widget'=>["/var/www/$domain/public_html/vendor/kpay/kpool_widget/*.{html,js,css,php}"]
+'frontend kpay widget'=>["/var/www/$domain/public_html/vendor/kpay/kpool_widget/*.{html,js,css,php}"],
+'og signing page'=>["/var/www/$domain/public_html/future/*.{html,js,css,php}"]
 ];
 
 $exclude=['zz*', '*.min.js','*bundle*','*node_modules*','*context_*','*log*'];
@@ -161,6 +162,11 @@ button{margin-right:8px;}
 .status{margin-left:10px;color:#666;font-size:12px;}
 #preview{width:100%;height:500px;margin-top:20px;font-family:monospace;display:none;}
 
+.zipOption{
+  font-size:13px;
+  margin-right:8px;
+  white-space:nowrap;
+}
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -176,7 +182,10 @@ button{margin-right:8px;}
 <button onclick="buildContext()">Copy to clipboard as text</button>
 <button onclick="buildContextZIPbase64()">Copy to clipboard as base64 zip data</button>
 <button onclick="buildContextZIP()">Save zip file</button>
-
+<label class="zipOption">
+  <input type="checkbox" id="zipBySource">
+  group by source
+</label>
 
 
 <span id="status" class="status"></span>
@@ -208,7 +217,7 @@ $id=base64_encode($file);
 
 <label>
 
-<input type="checkbox" class="ctxFile" data-group="<?=htmlspecialchars($group)?>" value="<?=htmlspecialchars($name)?>" checked>
+<input type="checkbox" class="ctxFile" data-group="<?=htmlspecialchars($group)?>" data-path="<?=htmlspecialchars($file)?>" value="<?=htmlspecialchars($name)?>" checked>
 
 <a href="?file=<?=urlencode($id)?>" target="_blank"><?=$name?></a>
 
@@ -291,11 +300,14 @@ document.addEventListener("DOMContentLoaded",updateGroupChecks)
 
 function getSelectedFiles(){
 
-  const selected=[...document.querySelectorAll(".ctxFile:checked")]
-    .map(x=>x.value)
+  const selected=new Set(
+    [...document.querySelectorAll(".ctxFile:checked")]
+      .map(x=>x.dataset.path)
+  )
 
-  return files.filter(f=>selected.includes(f.name))
+  return files.filter(f=>selected.has(f.path))
 }
+
 
 function updateStatus(msg){
   document.getElementById("status").innerText=msg
@@ -348,7 +360,21 @@ ${f.content}
 
 
 
+function zipSafeName(s){
+  return String(s)
+    .replace(/[<>:"\\|?*\x00-\x1F]/g,"_")
+    .replace(/\.\.+/g,".")
+    .replace(/^\/+|\/+$/g,"")
+    .trim() || "source"
+}
 
+function getZipPath(f){
+  const bySource=document.getElementById("zipBySource")?.checked
+
+  if(!bySource) return zipSafeName(f.name)
+
+  return `${zipSafeName(f.group)}/${zipSafeName(f.name)}`
+}
 
 async function buildContextZIPbase64(){
 
@@ -360,7 +386,7 @@ async function buildContextZIPbase64(){
 
     selectedFiles.forEach(f => {
 
-      zip.file(f.name,f.content)
+      zip.file(getZipPath(f),f.content)
 
     })
 
@@ -379,7 +405,7 @@ ${zipBase64}
     const preview=document.getElementById("preview")
 
     preview.value=selectedFiles
-      .map(f=>f.name)
+      .map(f=>getZipPath(f))
       .join('\n')
 
     preview.style.display="block"
@@ -415,7 +441,7 @@ async function buildContextZIP(){
 
     selectedFiles.forEach(f=>{
 
-      zip.file(f.name,f.content)
+      zip.file(getZipPath(f),f.content)
 
     })
 
@@ -428,7 +454,7 @@ async function buildContextZIP(){
 
     preview.value=
       selectedFiles
-      .map(f=>f.name)
+      .map(f=>getZipPath(f))
       .join('\n')
 
     preview.style.display="block"
