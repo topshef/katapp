@@ -183,7 +183,7 @@ button{margin-right:8px;}
 <button onclick="buildContextZIPbase64()">Copy to clipboard as base64 zip data</button>
 <button onclick="buildContextZIP()">Save zip file</button>
 <label class="zipOption">
-  <input type="checkbox" id="zipBySource">
+  <input type="checkbox" id="zipBySource" checked>
   group by source
 </label>
 
