@@ -20,11 +20,12 @@ function injectModalCSS() {
 	const style = document.createElement('style')
 	style.id = 'kpool-modal-css'
 	style.textContent = `
-		.kpm-overlay { position: fixed; inset: 0; z-index: 100000; display: flex; }
-		.kpm-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.55); }
+		.kpm-overlay { position: fixed; inset: 0; z-index: 100000; display: flex;
+			align-items: flex-start; justify-content: center; padding: 5vh 8px; overflow: auto; }
+		.kpm-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); }
 		.kpm-card {
-			position: relative; margin: auto;
-			width: min(900px, 96vw); max-height: 92vh;
+			position: relative; margin: 0 auto;
+			width: min(900px, 96vw); max-height: 90vh;
 			background: #fff; border-radius: 10px;
 			box-shadow: 0 12px 48px rgba(0,0,0,.35);
 			display: flex; flex-direction: column; overflow: hidden;
@@ -63,6 +64,7 @@ function injectModalCSS() {
 		.kpm-body { flex: 1 1 auto; overflow: auto; padding: 16px; }
 
 		@media (max-width: 768px) {
+			.kpm-overlay { padding: 0; }
 			.kpm-card { width: 100vw; height: 100vh; max-height: 100vh; border-radius: 0; }
 		}
 
@@ -111,7 +113,7 @@ export function buildModal({ onClose } = {}) {
 	diagBtn.className = 'kpm-diag'
 	diagBtn.type = 'button'
 	diagBtn.title = 'Copy diagnostics to clipboard'
-	diagBtn.textContent = '⧉ logs'
+	diagBtn.textContent = '⧉ diagnostics'
 	diagBtn.addEventListener('click', async () => {
 		const original = diagBtn.textContent
 		try {

@@ -134,14 +134,18 @@ function injectMethodsCSS() {
 	const s = document.createElement('style')
 	s.id = 'kp-methods-css'
 	s.textContent = `
-		.kpsign-panel{ max-width:min(900px,100%); margin:16px auto; border:1px solid #eee; border-radius:8px; overflow:hidden; }
-		.kpsign-tabs{ display:flex; }
-		.kpsign-tab{ all:revert; flex:1 1 0; cursor:pointer; border:none; background:#fafafa;
+		.kpsign-panel{ max-width:min(900px,100%); margin:16px auto; }
+		.kpsign-tabs{ position:relative; display:flex; }
+		.kpsign-tabs::after{ content:''; position:absolute; left:0; right:0; bottom:0; height:1px; background:#eee; }
+		.kpsign-tab{ all:revert; flex:1 1 0; cursor:pointer; border:none; background:transparent;
+			display:flex; align-items:center; justify-content:center; gap:8px;
 			padding:10px 8px; font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;
-			color:#666; border-bottom:2px solid transparent; }
-		.kpsign-tab:hover{ background:#f0f4f8; }
-		.kpsign-tab.active{ color:#084298; border-bottom-color:#4aa3ff; background:#fff; }
-		.kpsign-tab + .kpsign-tab{ border-left:1px solid #eee; }
+			color:#777; transition:color .2s ease; }
+		.kpsign-tab:hover{ color:#374151; }
+		.kpsign-tab.active{ color:#084298; }
+		.kpsign-tabicon{ width:16px; height:16px; object-fit:contain; flex:0 0 auto; }
+		.kpsign-underline{ position:absolute; bottom:0; left:0; height:2px; width:0;
+			background:#4aa3ff; transition:transform .25s ease, width .25s ease; }
 		.kpsign-hint{ text-align:center; color:#999; font:13px system-ui; padding:14px; }
 		.kpsign-pane{ display:none; padding:14px; }
 		.kpsign-pane.active{ display:block; }
@@ -202,6 +206,7 @@ function activatePane(el) {
 	el.querySelectorAll('iframe[data-src]').forEach(f => {
 		if (!f.getAttribute('src')) f.src = f.dataset.src
 	})
+	if (el._lazyInit) { const fn = el._lazyInit; el._lazyInit = null; fn() }
 }
 
 function buildWcPane(txState) {
@@ -221,6 +226,9 @@ function buildWhatsAppPane(network, txid, pch) {
 	const pane = document.createElement('div')
 	const url = whatsAppUrl(network, txid, pch)
 	pane.appendChild(makeDesc('Sign from your phone via KPAY on WhatsApp.', url))
+	// REFINEMENT (later): the target page (kpay.uk/message) could accept options
+	// to render in a more iframe-friendly / embedded mode. For now we iframe it
+	// as-is and offer the "open in new tab" link as the fallback.
 	pane.appendChild(lazyFrame(url))
 	return pane
 }
@@ -229,14 +237,29 @@ function buildKsigPane(network, txid) {
 	const pane = document.createElement('div')
 	const url = ksigWidgetUrl(network, txid)
 	pane.appendChild(makeDesc(
-		`Sign offline on another device. Scan the QR with the KSIG app, sign, then ` +
-		`return the signed transaction. Don't have it? ` +
-		`<a href="https://ksig.uk/pwa" target="KPAYPWA">Get KSIG</a>.`,
+		`Sign offline on another device. Scan this QR with the KSIG app. ` +
+		`Don't have it? <a href="https://ksig.uk/pwa" target="KPAYPWA">Get KSIG</a>. ` +
+		`To return the signature, use the full tool (open in new tab).`,
 		url
 	))
-	pane.appendChild(lazyFrame(url))
+
+	const mount = document.createElement('div')
+	mount.className = 'kpsign-ksig'
+	pane.appendChild(mount)
+
+	// rendered in-house (local QR) on first activation, not via an iframe
+	pane._lazyInit = async () => {
+		const { renderKsig } = await import(`./ksig.js?v=${V}`)
+		renderKsig(mount, { network, txid })
+	}
+
 	return pane
 }
+
+// brand icons live alongside the widget (./assets), so resolve them relative to
+// this module's URL — a page-relative './assets' would resolve against the host
+// page (e.g. /future/) instead of /vendor/kpay/kpool_widget/.
+const assetUrl = name => new URL(`./assets/${name}`, import.meta.url).href
 
 function buildSigningPanel(txState) {
 	const { network, txid, pch } = txState
@@ -256,9 +279,9 @@ function buildSigningPanel(txState) {
 	panes.className = 'kpsign-panes'
 
 	const METHODS = [
-		{ id: 'walletconnect', label: 'Wallet',        build: () => buildWcPane(txState) },
-		{ id: 'whatsapp',      label: 'WhatsApp',      build: () => buildWhatsAppPane(network, txid, pch) },
-		{ id: 'ksig',          label: 'Offline (KSIG)', build: () => buildKsigPane(network, txid) }
+		{ id: 'walletconnect', label: 'WalletConnect',   icon: 'WalletConnect-Logo.png',           build: () => buildWcPane(txState) },
+		{ id: 'whatsapp',      label: 'WhatsApp',        icon: 'WhatsApp.svg.png',                 build: () => buildWhatsAppPane(network, txid, pch) },
+		{ id: 'ksig',          label: 'Offline (KSIG)',  icon: 'kpay_logo_square_transparent.png', build: () => buildKsigPane(network, txid) }
 	]
 
 	const paneEls = {}
@@ -268,7 +291,16 @@ function buildSigningPanel(txState) {
 		tab.type = 'button'
 		tab.className = 'kpsign-tab'
 		tab.dataset.method = m.id
-		tab.textContent = m.label
+
+		const icon = document.createElement('img')
+		icon.className = 'kpsign-tabicon'
+		icon.src = assetUrl(m.icon)
+		icon.alt = ''
+
+		const lbl = document.createElement('span')
+		lbl.textContent = m.label
+
+		tab.append(icon, lbl)
 		tab.addEventListener('click', () => select(m.id))
 		tabs.appendChild(tab)
 
@@ -279,6 +311,11 @@ function buildSigningPanel(txState) {
 		panes.appendChild(pane)
 	})
 
+	// sliding underline that smoothly tracks the active tab
+	const underline = document.createElement('div')
+	underline.className = 'kpsign-underline'
+	tabs.appendChild(underline)
+
 	function select(id) {
 		hint.style.display = 'none'
 		tabs.querySelectorAll('.kpsign-tab').forEach(t =>
@@ -288,6 +325,11 @@ function buildSigningPanel(txState) {
 			el.classList.toggle('active', on)
 			if (on) activatePane(el)
 		})
+		const activeTab = tabs.querySelector('.kpsign-tab.active')
+		if (activeTab) {
+			underline.style.width = activeTab.offsetWidth + 'px'
+			underline.style.transform = `translateX(${activeTab.offsetLeft}px)`
+		}
 	}
 
 	panel.append(tabs, hint, panes)

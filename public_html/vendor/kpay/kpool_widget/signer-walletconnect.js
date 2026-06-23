@@ -110,7 +110,6 @@ export function renderWalletConnectSigner(container, {
 
 	const render = async () => {
 		const wc = window.WC
-		wrap.innerHTML = ''
 
 		if (!wc) {
 			kdiag('signer:render', { hasWC: false })
@@ -118,9 +117,14 @@ export function renderWalletConnectSigner(container, {
 			return
 		}
 
+		// show a placeholder immediately — getAccount() can take a moment, and an
+		// empty pane looked like nothing was happening
+		wrap.innerHTML = `<div class="kpsign-msg">Checking wallet…</div>`
+
 		let account = null
 		try { account = await wc.getAccount() } catch {}
 
+		wrap.innerHTML = ''
 		kdiag('signer:render', { hasWC: true, account })
 
 		// not connected → single Connect button

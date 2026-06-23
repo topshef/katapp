@@ -1029,7 +1029,7 @@ export function injectTxReadCSS() {
 		.txread-approvals-toggle {
 			all: revert; cursor: pointer; width: 100%; margin: 12px 0 0;
 			display: flex; align-items: center; justify-content: center; gap: 8px;
-			border: none; border-top: 1px solid #eee; background: transparent;
+			border: none; background: transparent;
 			padding: 12px; color: #666;
 			font: 13px system-ui, -apple-system, "Segoe UI", sans-serif;
 		}
