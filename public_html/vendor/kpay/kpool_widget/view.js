@@ -166,29 +166,31 @@ import {
 		bannerSlot.style.height = '36px'
 		statusWrap.appendChild(bannerSlot)
 
-		// approvals disclosure — hidden by default, expands the key table below
+		// approvals disclosure — full-width bar; expands the key table with a
+		// height animation (grid-rows 0fr→1fr) so the modal slides instead of jolting.
 		const toggle = document.createElement('button')
 		toggle.id = 'txread-approvals-toggle'
 		toggle.type = 'button'
 		toggle.className = 'txread-approvals-toggle'
 		toggle.setAttribute('aria-expanded', 'false')
-		toggle.innerHTML = `<span class="cap">▸</span> Required approvals`
+		toggle.innerHTML = `<span class="cap">▸</span> <span class="lbl">Required approvals</span>`
 
 		const approvals = document.createElement('div')
 		approvals.id = 'txread-approvals'
 		approvals.className = 'txread-approvals'
-		approvals.hidden = true
+
+		const approvalsInner = document.createElement('div')
+		approvalsInner.className = 'txread-approvals-inner'
 
 		const keys = document.createElement('div')
 		keys.id = 'account-keys'
-		approvals.appendChild(keys)
+		approvalsInner.appendChild(keys)
+		approvals.appendChild(approvalsInner)
 
 		toggle.addEventListener('click', () => {
-			const opening = approvals.hidden
-			approvals.hidden = !opening
+			const opening = !approvals.classList.contains('open')
+			approvals.classList.toggle('open', opening)
 			toggle.setAttribute('aria-expanded', String(opening))
-			const cap = toggle.querySelector('.cap')
-			if (cap) cap.textContent = opening ? '▾' : '▸'
 		})
 
 		statusWrap.appendChild(toggle)
@@ -1025,14 +1027,21 @@ export function injectTxReadCSS() {
 		.txread-status { text-align: center; }
 		.txread-status-main { font-weight: 600; font-size: 15px; }
 		.txread-approvals-toggle {
-			all: revert; cursor: pointer; margin: 12px auto 0; display: inline-block;
-			border: 1px solid #ddd; border-radius: 6px; background: #fafafa;
-			padding: 6px 14px;
-			font: 13px system-ui, -apple-system, "Segoe UI", sans-serif; color: #555;
+			all: revert; cursor: pointer; width: 100%; margin: 12px 0 0;
+			display: flex; align-items: center; justify-content: center; gap: 8px;
+			border: none; border-top: 1px solid #eee; background: transparent;
+			padding: 12px; color: #666;
+			font: 13px system-ui, -apple-system, "Segoe UI", sans-serif;
 		}
-		.txread-approvals-toggle:hover { background: #f0f0f0; }
-		.txread-approvals-toggle .cap { display: inline-block; width: 1em; }
-		.txread-approvals { margin-top: 10px; }
+		.txread-approvals-toggle:hover { background: #fafafa; }
+		.txread-approvals-toggle .cap { display: inline-block; transition: transform .2s ease; }
+		.txread-approvals-toggle[aria-expanded="true"] .cap { transform: rotate(90deg); }
+		.txread-approvals {
+			display: grid; grid-template-rows: 0fr;
+			transition: grid-template-rows .28s ease;
+		}
+		.txread-approvals.open { grid-template-rows: 1fr; }
+		.txread-approvals-inner { overflow: hidden; min-height: 0; }
 		.txread-approvals .ksubtitle { display: none; }
 		.acctkeys-header, .acctkeys-account { text-align: center; }
 

@@ -134,38 +134,176 @@ function injectMethodsCSS() {
 	const s = document.createElement('style')
 	s.id = 'kp-methods-css'
 	s.textContent = `
-		.kp-methods{
-			display:flex; flex-wrap:wrap; align-items:center; justify-content:center;
-			gap:10px 22px; margin:16px auto; padding:10px 14px;
-			max-width:min(900px,100%);
-			border:1px solid #eee; border-radius:8px; background:#fafafa;
-		}
-		.kp-methods > *{ margin:0 !important; }
-		.kp-methods > *:empty{ display:none; }
-		.kp-methods .kpsign{ margin:0; }
-		.kp-methods summary{ margin-top:0 !important; }
-		.kp-methods > details{ flex:0 1 auto; }
-		.kp-methods > details[open]{ flex:1 1 100%; }
-		@media (max-width:600px){
-			.kp-methods{ flex-direction:column; align-items:stretch; gap:10px; }
-		}
+		.kpsign-panel{ max-width:min(900px,100%); margin:16px auto; border:1px solid #eee; border-radius:8px; overflow:hidden; }
+		.kpsign-tabs{ display:flex; }
+		.kpsign-tab{ all:revert; flex:1 1 0; cursor:pointer; border:none; background:#fafafa;
+			padding:10px 8px; font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;
+			color:#666; border-bottom:2px solid transparent; }
+		.kpsign-tab:hover{ background:#f0f4f8; }
+		.kpsign-tab.active{ color:#084298; border-bottom-color:#4aa3ff; background:#fff; }
+		.kpsign-tab + .kpsign-tab{ border-left:1px solid #eee; }
+		.kpsign-hint{ text-align:center; color:#999; font:13px system-ui; padding:14px; }
+		.kpsign-pane{ display:none; padding:14px; }
+		.kpsign-pane.active{ display:block; }
+		.kpsign-desc{ font:13px system-ui,-apple-system,"Segoe UI",sans-serif; color:#555;
+			text-align:center; margin-bottom:10px; line-height:1.5; }
+		.kpsign-desc a{ color:#084298; }
+		.kpsign-newtab{ font-size:12px; }
+		.kpsign-frame{ width:100%; height:420px; border:0; border-radius:8px; background:#fafafa; }
+		.kpsign-pane .kpsign{ margin:6px 0 0; }
+		@media (max-width:600px){ .kpsign-frame{ height:360px; } }
 	`
 	document.head.appendChild(s)
 }
 
 
+// ── signing panel ────────────────────────────────────────────────────────────
+// Clean method picker. Tabs: WhatsApp · Wallet · KSIG. Selecting one reveals its
+// pane (description + controls). iframes are lazy — loaded only when first shown.
+
+function whatsAppUrl(network, txid, pch) {
+	const url = new URL('https://kpay.uk/message/')
+	url.searchParams.set('network', network)
+	url.searchParams.set('channel', 'WhatsApp')
+	url.searchParams.set('message', `sign ${txid} #${pch}`)
+	return url.toString()
+}
+
+function ksigWidgetUrl(network, txid) {
+	return `https://kpos.uk/sign/offline/widget?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
+}
+
+function makeDesc(html, newTabUrl) {
+	const d = document.createElement('div')
+	d.className = 'kpsign-desc'
+	d.innerHTML = html
+	if (newTabUrl) {
+		const a = document.createElement('a')
+		a.className = 'kpsign-newtab'
+		a.href = newTabUrl
+		a.target = '_blank'
+		a.rel = 'noopener'
+		a.textContent = '↗ open in new tab'
+		d.append(document.createElement('br'), a)
+	}
+	return d
+}
+
+function lazyFrame(src) {
+	const f = document.createElement('iframe')
+	f.className = 'kpsign-frame'
+	f.dataset.src = src
+	f.setAttribute('allow', 'camera')
+	f.setAttribute('scrolling', 'no')
+	return f
+}
+
+function activatePane(el) {
+	el.querySelectorAll('iframe[data-src]').forEach(f => {
+		if (!f.getAttribute('src')) f.src = f.dataset.src
+	})
+}
+
+function buildWcPane(txState) {
+	const pane = document.createElement('div')
+	pane.appendChild(makeDesc(
+		`Connect a Hedera wallet to sign in your browser. We recommend ` +
+		`<a href="https://www.hashpack.app/" target="_blank" rel="noopener">HashPack</a> or ` +
+		`<a href="https://www.kabila.app/" target="_blank" rel="noopener">Kabila</a>.`
+	))
+	const slot = document.createElement('div')
+	slot.id = 'txread-signer'   // filled by renderSigner()
+	pane.appendChild(slot)
+	return pane
+}
+
+function buildWhatsAppPane(network, txid, pch) {
+	const pane = document.createElement('div')
+	const url = whatsAppUrl(network, txid, pch)
+	pane.appendChild(makeDesc('Sign from your phone via KPAY on WhatsApp.', url))
+	pane.appendChild(lazyFrame(url))
+	return pane
+}
+
+function buildKsigPane(network, txid) {
+	const pane = document.createElement('div')
+	const url = ksigWidgetUrl(network, txid)
+	pane.appendChild(makeDesc(
+		`Sign offline on another device. Scan the QR with the KSIG app, sign, then ` +
+		`return the signed transaction. Don't have it? ` +
+		`<a href="https://ksig.uk/pwa" target="KPAYPWA">Get KSIG</a>.`,
+		url
+	))
+	pane.appendChild(lazyFrame(url))
+	return pane
+}
+
+function buildSigningPanel(txState) {
+	const { network, txid, pch } = txState
+
+	const panel = document.createElement('div')
+	panel.id = 'txread-methods'
+	panel.className = 'kpsign-panel'
+
+	const tabs = document.createElement('div')
+	tabs.className = 'kpsign-tabs'
+
+	const hint = document.createElement('div')
+	hint.className = 'kpsign-hint'
+	hint.textContent = 'Choose a signing method'
+
+	const panes = document.createElement('div')
+	panes.className = 'kpsign-panes'
+
+	const METHODS = [
+		{ id: 'walletconnect', label: 'Wallet',        build: () => buildWcPane(txState) },
+		{ id: 'whatsapp',      label: 'WhatsApp',      build: () => buildWhatsAppPane(network, txid, pch) },
+		{ id: 'ksig',          label: 'Offline (KSIG)', build: () => buildKsigPane(network, txid) }
+	]
+
+	const paneEls = {}
+
+	METHODS.forEach(m => {
+		const tab = document.createElement('button')
+		tab.type = 'button'
+		tab.className = 'kpsign-tab'
+		tab.dataset.method = m.id
+		tab.textContent = m.label
+		tab.addEventListener('click', () => select(m.id))
+		tabs.appendChild(tab)
+
+		const pane = m.build()
+		pane.classList.add('kpsign-pane')
+		pane.dataset.method = m.id
+		paneEls[m.id] = pane
+		panes.appendChild(pane)
+	})
+
+	function select(id) {
+		hint.style.display = 'none'
+		tabs.querySelectorAll('.kpsign-tab').forEach(t =>
+			t.classList.toggle('active', t.dataset.method === id))
+		Object.entries(paneEls).forEach(([k, el]) => {
+			const on = k === id
+			el.classList.toggle('active', on)
+			if (on) activatePane(el)
+		})
+	}
+
+	panel.append(tabs, hint, panes)
+	txState.selectSignMethod = select
+	return panel
+}
+
+
 function createTxState(network, txid, pch) {
 	const container = document.createElement('div')
-	const kpayLink = createKpayWhatsAppLink(network, txid, pch)
-	const details = createSigningDetails(network, txid)
 
 	return {
 		network,
 		txid,
 		pch,
 		container,
-		kpayLink,
-		details,
 		view: null,
 		data: null,
 		accounts: null,
@@ -228,7 +366,7 @@ function createKsigIframe(network, txid) {
 
 
 async function renderTxView(txState) {
-	const { network, txid, container, kpayLink, details } = txState
+	const { network, txid, container } = txState
 	const { url, rawTx, data, transfers, accounts } = await txRead({ network, txid })
 
 	await enrichTransfersInfo({ network, transfers })
@@ -251,32 +389,14 @@ async function renderTxView(txState) {
 
   container.appendChild(txState.view.el)
 
-  // signing-method bar: WhatsApp · WalletConnect · KSIG (offline), side by side.
-  // Goes in the dedicated #txread-sign-slot (between Intent and Status).
-  // data-method tags leave a seam for a later "labs" show/hide toggle. KSIG is
-  // left exactly as-is (its QR bug is out of scope) — just placed on the bar.
+  // signing panel: a clean method picker (WhatsApp · Wallet · KSIG). Choosing a
+  // method reveals its short description + controls/QR/iframe in the pane below.
+  // Sits in the dedicated #txread-sign-slot, between Intent and Status.
   injectMethodsCSS()
-
-  const methods = document.createElement('div')
-  methods.id = 'txread-methods'
-  methods.className = 'kp-methods'
-
-  kpayLink.classList.add('kp-method')
-  kpayLink.dataset.method = 'whatsapp'
-
-  const wcSlot = document.createElement('div')
-  wcSlot.id = 'txread-signer'
-  wcSlot.className = 'kp-method'
-  wcSlot.dataset.method = 'walletconnect'
-
-  details.classList.add('kp-method', 'kp-method-ksig')
-  details.dataset.method = 'ksig'
-
-  methods.append(kpayLink, wcSlot, details)
-
+  const panel = buildSigningPanel(txState)
   const signSlot = txState.view.el.querySelector('#txread-sign-slot')
-  if (signSlot) signSlot.append(methods)
-  else container.append(methods)
+  if (signSlot) signSlot.append(panel)
+  else container.append(panel)
   
 	return { url, rawTx, data, transfers, accounts }
 }
@@ -307,11 +427,8 @@ async function loadSigningState(txState, tx) {
 
 	// label the approvals disclosure with the count of signing authorities
 	const signerCount = Object.values(tx.accounts || {}).filter(a => a.mustSign).length
-	const toggle = txState.view?.approvalsToggle
-	if (toggle) {
-		const cap = toggle.querySelector('.cap')?.textContent || '▸'
-		toggle.innerHTML = `<span class="cap">${cap}</span> Required approvals${signerCount ? ` (${signerCount})` : ''}`
-	}
+	const lbl = txState.view?.approvalsToggle?.querySelector('.lbl')
+	if (lbl) lbl.textContent = `Required approvals${signerCount ? ` (${signerCount})` : ''}`
 
 	txState.container.querySelector('#txread-status')?.classList.remove('tx-loading')
 

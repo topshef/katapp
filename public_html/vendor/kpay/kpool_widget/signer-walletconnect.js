@@ -67,7 +67,21 @@ async function saveSignedTransaction({ network, signedTransactionHex, saveUrl })
 	if (!res.ok) throw new Error(`Failed to save signed transaction (${res.status})`)
 
 	glog('saveSignedTransaction', { network, url, payload })
-	return res.json()
+
+	// txSave sometimes returns 200 with an empty (or non-JSON) body. A 200 means
+	// the signature was saved, so don't treat an unparseable body as an error —
+	// that was surfacing as a sporadic "Unexpected end of JSON input".
+	const text = await res.text()
+	if (!text) {
+		kdiag('signer:save:empty-body', { status: res.status })
+		return { success: true, result: {} }
+	}
+	try {
+		return JSON.parse(text)
+	} catch (e) {
+		kdiag('signer:save:bad-json', { status: res.status, snippet: text.slice(0, 120) })
+		return { success: true, result: {}, raw: text }
+	}
 }
 
 async function ensureAccountId() {
