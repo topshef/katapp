@@ -8,6 +8,8 @@
 // exactly what tx_approval.php used, so behaviour on the OG origin is identical.
 // A different host (e.g. Katomia) can override readUrl / saveUrl via opts.
 
+import { kdiag } from './diag.js'
+
 const glog = globalThis.glog ?? (() => {})
 
 function hexToBytes(hex) {
@@ -29,7 +31,7 @@ const defaultSaveUrl = () => location.pathname + '?action=txSave'
 
 async function fetchTransactionBytes({ network, txid, readUrl }) {
 	const url = readUrl({ network, txid })
-	console.log('[signer] fetching bytes:', url)
+	kdiag('signer:bytes:fetch', { url })
 
 	const res = await fetch(url)
 	if (!res.ok) throw new Error('Failed to fetch transaction')
@@ -38,10 +40,12 @@ async function fetchTransactionBytes({ network, txid, readUrl }) {
 	const hex2 = data?.result?.hex2
 
 	if (!hex2) {
+		kdiag('signer:bytes:missing', { errors: data?.result?.errors })
 		alert(`error DQ63632 / ${data?.result?.errors?.join?.() || ''}`)
 		return null
 	}
 
+	kdiag('signer:bytes:ok', { bytes: hex2.length / 2 })
 	return hexToBytes(hex2)
 }
 
@@ -95,6 +99,7 @@ export function renderWalletConnectSigner(container, {
 		wrap.innerHTML = ''
 
 		if (!wc) {
+			kdiag('signer:render', { hasWC: false })
 			wrap.innerHTML = `<div class="kpsign-msg">Wallet unavailable</div>`
 			return
 		}
@@ -102,14 +107,17 @@ export function renderWalletConnectSigner(container, {
 		let account = null
 		try { account = await wc.getAccount() } catch {}
 
+		kdiag('signer:render', { hasWC: true, account })
+
 		// not connected → single Connect button
 		if (!account) {
 			const btn = document.createElement('button')
 			btn.className = 'kpsign-btn'
 			btn.textContent = 'Connect'
 			btn.onclick = async () => {
-				try { await wc.connect(); await render() }
-				catch (err) { console.error(err); alert(err.message) }
+				kdiag('signer:connect:click')
+				try { await wc.connect(); kdiag('signer:connect:done'); await render() }
+				catch (err) { kdiag('signer:connect:error', { error: String(err) }); console.error(err); alert(err.message) }
 			}
 			wrap.appendChild(btn)
 			return
@@ -128,14 +136,16 @@ export function renderWalletConnectSigner(container, {
 		disc.textContent = '✕'
 		disc.title = 'Disconnect'
 		disc.onclick = async () => {
-			try { await wc.disconnect(); await render() }
-			catch (err) { console.error(err); alert(err.message) }
+			kdiag('signer:disconnect:click')
+			try { await wc.disconnect(); kdiag('signer:disconnect:done'); await render() }
+			catch (err) { kdiag('signer:disconnect:error', { error: String(err) }); console.error(err); alert(err.message) }
 		}
 
 		const sign = document.createElement('button')
 		sign.className = 'kpsign-btn'
 		sign.textContent = 'Sign now'
 		sign.onclick = async () => {
+			kdiag('signer:sign:click', { network, txid })
 			try {
 				if (!wc.signTx) throw new Error('signTx missing (wrong bundle cached)')
 
@@ -144,16 +154,25 @@ export function renderWalletConnectSigner(container, {
 				if (!transactionBytes) return
 
 				const result = await wc.signTx({ accountId, transactionBytes, submitNow: false })
+				kdiag('signer:sign:signed', { accountId })
+
 				const saveResult = await saveSignedTransaction({
 					network,
 					signedTransactionHex: result.signedTransactionHex,
 					saveUrl
 				})
 
+				kdiag('signer:sign:saved', {
+					success: saveResult?.success,
+					sigs: saveResult?.result?.sigs?.length ?? null,
+					sigsNew: saveResult?.result?.sigsNew?.length ?? null
+				})
+
 				if (saveResult?.success) onSigned?.(saveResult)
 				else alert(`Sorry, failed to save tx ${network} ${txid}`)
 
 			} catch (err) {
+				kdiag('signer:sign:error', { error: String(err) })
 				console.error('[signTx] error:', err)
 				alert(err.message)
 			}

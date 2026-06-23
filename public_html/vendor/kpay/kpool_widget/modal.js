@@ -44,6 +44,16 @@ function injectModalCSS() {
 		@media (max-width: 768px) {
 			.kpm-card { width: 100vw; height: 100vh; max-height: 100vh; border-radius: 0; }
 		}
+
+		/* WalletConnect's own modal must sit ABOVE this one, otherwise its QR /
+		   reconnect dialog opens underneath and can't be seen. --wcm-z-index is
+		   @walletconnect/modal's documented knob; the selectors below cover the
+		   other WC modal builds belt-and-braces. Our overlay is 100000, well below. */
+		:root { --wcm-z-index: 2147483000; --w3m-z-index: 2147483000; }
+		wcm-modal, w3m-modal, w3m-container,
+		.walletconnect-modal__base, #walletconnect-qrcode-modal, #wcm-modal {
+			z-index: 2147483000 !important;
+		}
 	`
 	document.head.appendChild(style)
 }

@@ -20,7 +20,8 @@ require_once "$docroot/auth.php";
 require_once "$docroot/config.php";
 require_once "$docroot/assets/php/elog.php";
 
-session_start();
+// index.php may already have started the session before requiring this file
+if (session_status() === PHP_SESSION_NONE) session_start();
 
 require_once "$docroot/vendor/hashconnect/configLoad.php";
 $network = getNetwork() ?? ($_GET['network'] ?? 'mainnet');
@@ -29,6 +30,11 @@ $network = getNetwork() ?? ($_GET['network'] ?? 'mainnet');
 $txid = $_GET['txid'] ?? null;
 $pch  = $_GET['pch']  ?? null;
 
+// IMPORTANT: headheader.php builds the site's CSS/base tags from these. v1 sets
+// them before the header include; v2 must too, or the page chrome loads unstyled
+// (serif fonts, no theme). Mirror v1 exactly.
+$custom_style  = '<link rel="stylesheet" type="text/css" href="future/future.css">';
+$path_base     = "https://{$_SERVER['SERVER_NAME']}";
 $html_viewport = '<meta name="viewport" content="width=device-width, initial-scale=1.0">';
 
 require_once "$docroot/elog.php";
@@ -104,6 +110,13 @@ require_once "$docroot/headheader.php";
 
     <!-- WalletConnect bundle: exposes window.WC for the widget's signer -->
     <?php require_once("$docroot/vendor/walletconnect/kwcScriptTag.php"); ?>
+
+    <!-- glog: global logger (writes to localbase). kdiag forwards into it. -->
+    <script type="module" data-global src="/m/tools/glog/latest/glog.js"></script>
+    <script>const glog = globalThis.glog ?? (() => {})</script>
+
+    <!-- kdiag diagnostics buffer: in console use kdiag.dump() / kdiag.copy() -->
+    <script type="module">import('/vendor/kpay/kpool_widget/diag.js')</script>
 
     <!-- kpay signing widget: exposes window.KPOOL (no #kpool_widget here, so no auto-boot) -->
     <script type="module" src="/vendor/kpay/kpool_widget/bootstrap.js"></script>
@@ -284,8 +297,10 @@ require_once "$docroot/headheader.php";
       lastTxs = (json?.result?.tx || []).filter(t => t.type === 'tx')
       lastTxs.sort((a, b) => txStartSec(a.txid) - txStartSec(b.txid))
 
+      window.kdiag?.('list:loaded', { count: lastTxs.length, network })
       renderList()
     } catch (err) {
+      window.kdiag?.('list:error', { error: String(err) })
       console.error(err)
       els.list.innerHTML = `<div class="kp-error">${err.message}</div>`
     }
@@ -355,6 +370,8 @@ require_once "$docroot/headheader.php";
   let activeModal = null
 
   const openModal = async ({ txid, network, pch }) => {
+    window.kdiag?.('modal:open', { network, txid, pch })
+
     // reflect in the address bar so the open modal is itself shareable
     const addr = new URL(location)
     addr.searchParams.set('v', 'v2')
@@ -366,6 +383,7 @@ require_once "$docroot/headheader.php";
     try {
       await whenReady(() => window.KPOOL?.open)
     } catch (err) {
+      window.kdiag?.('modal:kpool-not-ready')
       els.list.insertAdjacentHTML('afterbegin',
         `<div class="kp-error">Signing widget failed to load</div>`)
       return
