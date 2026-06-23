@@ -62,27 +62,46 @@ require_once "$docroot/headheader.php";
 
               <!-- controls -->
               <div id="kp-controls" class="kp-controls">
-                <label>Network
-                  <select id="kp-network">
+                <label class="kp-field">
+                  <span class="kp-cap">Network</span>
+                  <select id="kp-network" class="kp-input">
                     <option value="mainnet">mainnet</option>
                     <option value="testnet">testnet</option>
                   </select>
                 </label>
 
-                <label>Since (s)
-                  <input id="kp-since" type="number" min="0" step="60" value="600">
+                <label class="kp-field">
+                  <span class="kp-cap">Since</span>
+                  <select id="kp-since" class="kp-input">
+                    <option value="120">2 min</option>
+                    <option value="600">10 min</option>
+                    <option value="1800">30 min</option>
+                    <option value="3600" selected>1 hour</option>
+                    <option value="14400">4 hours</option>
+                    <option value="86400">24 hours</option>
+                  </select>
                 </label>
 
-                <label>Until (s)
-                  <input id="kp-until" type="number" min="0" step="60" value="600">
+                <label class="kp-field">
+                  <span class="kp-cap">Until</span>
+                  <select id="kp-until" class="kp-input">
+                    <option value="120">2 min</option>
+                    <option value="600">10 min</option>
+                    <option value="1800">30 min</option>
+                    <option value="3600">1 hour</option>
+                    <option value="14400" selected>4 hours</option>
+                    <option value="86400">24 hours</option>
+                    <option value="259200">72 hours</option>
+                  </select>
                 </label>
 
-                <label class="kp-filter">Filter
-                  <input id="kp-filter" type="text" placeholder="txid / pch / account">
+                <label class="kp-field kp-filter">
+                  <span class="kp-cap">Filter</span>
+                  <input id="kp-filter" class="kp-input" type="text" placeholder="txid / pch / account">
                 </label>
 
                 <div class="kp-actions">
-                  <button id="kp-refresh" type="button">Refresh</button>
+                  <button id="kp-refresh" type="button" class="kp-btn">Refresh</button>
                   <label class="kp-auto">
                     <input id="kp-autorefresh" type="checkbox"> auto
                   </label>
@@ -125,46 +144,69 @@ require_once "$docroot/headheader.php";
     display: flex;
     flex-wrap: wrap;
     align-items: flex-end;
-    gap: 12px 14px;
-    margin: 8px 0 20px;
+    gap: 12px 16px;
+    margin: 6px 0 22px;
     text-align: left;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    font-size: 13px;
   }
-  .kp-controls label {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    color: #555;
-    margin: 0;
+  .kp-field { display: flex; flex-direction: column; gap: 5px; margin: 0; }
+  /* subtle, quiet captions */
+  .kp-cap {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #8a8f98;
   }
-  .kp-controls input,
-  .kp-controls select {
+  /* clean, semi-rounded fields — class + all:revert so global theme styling
+     (which was rounding these into pills) doesn't bleed through */
+  .kp-input {
     all: revert;
-    padding: 5px 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    height: 34px;
+    box-sizing: border-box;
+    padding: 0 10px;
+    border: 1px solid #d9dce1;
+    border-radius: 6px;
+    background: #fff;
+    color: #222;
     font-size: 13px;
+    font-family: inherit;
+    outline: none;
   }
-  .kp-controls input[type="number"] { width: 90px; }
-  /* filter grows to take up the slack between the fields and the actions */
-  .kp-controls .kp-filter { flex: 1 1 200px; min-width: 160px; }
-  .kp-controls .kp-filter input { width: 100%; box-sizing: border-box; }
-  /* Refresh + auto + count travel together, bottom-aligned with the fields and
-     pushed to the right; on narrow widths the whole cluster wraps as one unit. */
-  .kp-actions { display: flex; align-items: center; gap: 14px; margin-left: auto; }
-  .kp-controls .kp-auto { flex-direction: row; align-items: center; gap: 6px; white-space: nowrap; }
-  .kp-controls button {
+  .kp-input:focus { border-color: #4aa3ff; box-shadow: 0 0 0 2px rgba(74,163,255,.15); }
+  select.kp-input { padding-right: 6px; }
+  /* filter takes up the slack between the fields and the actions */
+  .kp-filter { flex: 1 1 220px; min-width: 170px; }
+  .kp-filter .kp-input { width: 100%; }
+
+  /* Refresh + auto + count travel together, the same 34px tall as the fields
+     so everything sits on one clean baseline (this was the skew). */
+  .kp-actions { display: flex; align-items: center; gap: 16px; margin-left: auto; height: 34px; }
+  .kp-btn {
     all: revert;
-    padding: 6px 16px;
-    border: 1px solid #888;
-    border-radius: 4px;
-    background: #f5f5f5;
+    height: 34px;
+    box-sizing: border-box;
+    padding: 0 16px;
+    border: 1px solid #d9dce1;
+    border-radius: 6px;
+    background: #f6f7f9;
+    color: #222;
+    font-size: 13px;
+    font-family: inherit;
     cursor: pointer;
-    font-size: 13px;
   }
-  .kp-controls button:hover { background: #ececec; }
-  .kp-count { color: #999; white-space: nowrap; }
+  .kp-btn:hover { background: #eceef1; }
+  .kp-auto {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 13px;
+    color: #8a8f98;
+    white-space: nowrap;
+  }
+  .kp-auto input { all: revert; margin: 0; }
+  .kp-count { font-size: 13px; color: #b0b4bb; white-space: nowrap; }
 
   .kp-list {
     text-align: left;
@@ -173,7 +215,7 @@ require_once "$docroot/headheader.php";
   }
   .kp-row {
     display: grid;
-    grid-template-columns: 90px 80px 1fr 70px 170px 120px;
+    grid-template-columns: 90px 80px 1fr 70px 170px 140px 120px;
     gap: 12px;
     align-items: center;
     padding: 8px 10px;
@@ -191,11 +233,23 @@ require_once "$docroot/headheader.php";
   .kp-remaining.future { color: #2e7d32; }
   .kp-remaining.past   { color: #b26a00; }
 
+  /* per-tx status — mirrors the modal header tones (filled async via
+     window.KPOOL.readStatus). square dot = on-chain result, round = off-chain. */
+  .kp-status { display: flex; align-items: center; gap: 7px; color: #555; font-size: 12px; min-width: 0; }
+  .kp-status-dot { width: 9px; height: 9px; border-radius: 50%; background: #cdd1d7; flex: none; }
+  .kp-status-dot.square { border-radius: 2px; }
+  .kp-status-dot[data-tone="success"] { background: #2e9e57; }
+  .kp-status-dot[data-tone="warn"]    { background: #e0a008; }
+  .kp-status-dot[data-tone="info"]    { background: #4aa3ff; }
+  .kp-status-dot[data-tone="error"]   { background: #d64550; }
+  .kp-status-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kp-status-dot[data-tone="pending"] ~ .kp-status-label { color: #b0b4bb; }
+
   .kp-open {
     all: revert;
-    padding: 4px 12px;
+    padding: 5px 14px;
     border: 1px solid #4aa3ff;
-    border-radius: 4px;
+    border-radius: 6px;
     background: #eaf4ff;
     color: #084298;
     cursor: pointer;
@@ -300,6 +354,7 @@ require_once "$docroot/headheader.php";
       lastTxs = (json?.result?.tx || []).filter(t => t.type === 'tx')
       lastTxs.sort((a, b) => txStartSec(a.txid) - txStartSec(b.txid))
 
+      statusCache.clear()   // fresh list → re-probe statuses (sigs may have changed)
       window.kdiag?.('list:loaded', { count: lastTxs.length, network })
       renderList()
     } catch (err) {
@@ -334,6 +389,7 @@ require_once "$docroot/headheader.php";
         <div>Transaction</div>
         <div>pch</div>
         <div>Scheduled (UTC)</div>
+        <div>Status</div>
         <div></div>
       </div>`
 
@@ -348,6 +404,13 @@ require_once "$docroot/headheader.php";
       ext.searchParams.set('txid', t.txid)
       if (t.pch) ext.searchParams.set('pch', t.pch)
 
+      // reuse a cached status if we already probed this tx (e.g. on filter
+      // re-render); otherwise show a neutral pending dot for hydrateStatuses().
+      const cached = statusCache.get(statusKey(t))
+      const tone   = cached?.tone ?? 'pending'
+      const sq     = cached?.shape === 'square' ? ' square' : ''
+      const slab   = cached?.label ?? '—'
+
       return `
         <div class="kp-row">
           <div class="kp-remaining ${rem.future ? 'future' : 'past'}">${rem.text}</div>
@@ -355,6 +418,10 @@ require_once "$docroot/headheader.php";
           <div class="kp-txid">${t.txid}</div>
           <div>${t.pch ?? ''}</div>
           <div>${formatUtc(ts)}</div>
+          <div class="kp-status" data-txid="${t.txid}" data-network="${t.network}" data-pch="${t.pch ?? ''}">
+            <span class="kp-status-dot${sq}" data-tone="${tone}"></span>
+            <span class="kp-status-label">${slab}</span>
+          </div>
           <div>
             <button class="kp-open"
               data-txid="${t.txid}"
@@ -366,6 +433,51 @@ require_once "$docroot/headheader.php";
     }).join('')
 
     els.list.innerHTML = head + body
+    hydrateStatuses()
+  }
+
+  // ── status hydration ──────────────────────────────────────────────────────
+  // Fill the Status column asynchronously using the widget's read-only probe
+  // (window.KPOOL.readStatus). Cached per tx so filter re-renders don't refetch,
+  // cancellable via a generation token, and capped so a huge list won't hammer
+  // the backend. If the widget predates readStatus, the pending dots just stay.
+  const statusKey = t => `${t.network};${t.txid};${t.pch ?? 'no_pch'}`
+  const statusCache = new Map()
+  let statusGen = 0
+  const STATUS_MAX = 40   // don't auto-probe more than this many rows
+
+  const hydrateStatuses = async () => {
+    if (!window.KPOOL?.readStatus) return
+    const gen = ++statusGen
+    const cells = [...els.list.querySelectorAll('.kp-status')]
+      .filter(c => c.querySelector('.kp-status-dot')?.dataset.tone === 'pending')
+      .slice(0, STATUS_MAX)
+    if (!cells.length) return
+
+    let i = 0
+    const worker = async () => {
+      while (i < cells.length) {
+        if (gen !== statusGen) return            // a newer render superseded us
+        const cell = cells[i++]
+        const { txid, network, pch } = cell.dataset
+        try {
+          const s = await window.KPOOL.readStatus({ network, txid, pch: pch || 'no_pch' })
+          if (gen !== statusGen) return
+          statusCache.set(statusKey({ network, txid, pch }), s)
+          const dot = cell.querySelector('.kp-status-dot')
+          const lab = cell.querySelector('.kp-status-label')
+          dot.dataset.tone = s.tone || 'info'
+          dot.classList.toggle('square', s.shape === 'square')
+          lab.textContent = s.label || ''
+        } catch (err) {
+          const lab = cell.querySelector('.kp-status-label')
+          if (lab) lab.textContent = '—'
+          window.kdiag?.('list:status:error', { txid, error: String(err) })
+        }
+      }
+    }
+    // gentle 4-way concurrency
+    await Promise.all([worker(), worker(), worker(), worker()])
   }
 
   // ── modal (modular widget load) ───────────────────────────────────────────

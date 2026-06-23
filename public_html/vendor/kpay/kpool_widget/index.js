@@ -60,7 +60,18 @@ export async function open({ network, txid, pch = 'no_pch', brand = {}, signer =
 	return modal
 }
 
-window.KPOOL = { mount, open }
+// Lightweight, read-only status probe for a single tx — no DOM, no signing.
+// Lets a host (e.g. the index list) show the same status pill as the modal
+// header without mounting the whole widget per row. Returns the summariseStatus
+// shape { label, tone, shape } plus the raw readiness for callers that want it.
+export async function readStatus({ network, txid, pch = 'no_pch' } = {}) {
+	if (!network || !txid) throw new Error('KPOOL.readStatus: network and txid required')
+	const { data, accounts } = await txRead({ network, txid, pch })
+	const readiness = evaluateTxReadiness({ accounts, data })
+	return { ...summariseStatus({ data, readiness }), readiness }
+}
+
+window.KPOOL = { mount, open, readStatus }
 
 function renderError(hostEl, msg) {
 	console.warn('[kpool]', msg)

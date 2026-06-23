@@ -45,26 +45,21 @@ function injectModalCSS() {
 			transition: background .3s ease;
 		}
 
-		/* transient pill centred in the header — used for live cues like
-		   "Signature received" that used to render as a banner falling off the
-		   bottom of the modal. Auto-fades after a couple of seconds. */
+		/* Transient centred cue (e.g. "✍️ Signature received"). Same typography
+		   as the rest of the header — it inherits the head's font and tone colour,
+		   no pill, just clean text that fades in over the top for a moment. */
 		.kpm-flash {
-			position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(1);
-			max-width: 48%; display: inline-flex; align-items: center; gap: 6px;
-			padding: 3px 12px; border-radius: 999px;
-			font: 600 12px system-ui, -apple-system, "Segoe UI", sans-serif;
+			position: absolute; left: 50%; top: 50%;
+			transform: translate(-50%, -50%);
+			max-width: 55%;
+			font: inherit; color: inherit;
 			white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-			opacity: 0; pointer-events: none; transition: opacity .25s ease;
+			opacity: 0; pointer-events: none; transition: opacity .2s ease;
 		}
-		.kpm-flash.show { opacity: 1; animation: kpm-flash-pop .9s ease; }
-		.kpm-flash-success { background: rgba(25,135,84,.16);  color: #0f5132; }
-		.kpm-flash-info    { background: rgba(13,110,253,.14);  color: #084298; }
-		.kpm-flash-warn    { background: rgba(255,193,7,.20);   color: #664d03; }
-		.kpm-flash-error   { background: rgba(220,53,69,.16);   color: #842029; }
+		.kpm-flash.show { opacity: 1; animation: kpm-flash-pop .45s ease; }
 		@keyframes kpm-flash-pop {
-			0%   { transform: translate(-50%, -50%) scale(.9); }
-			55%  { transform: translate(-50%, -50%) scale(1.05); }
-			100% { transform: translate(-50%, -50%) scale(1); }
+			0%   { transform: translate(-50%, -50%) translateY(-3px); }
+			100% { transform: translate(-50%, -50%) translateY(0); }
 		}
 		@media (max-width: 480px) { .kpm-flash { display: none; } }
 		.kpm-status { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -207,8 +202,7 @@ export function buildModal({ onClose } = {}) {
 	let flashTimer
 	function flash(label, tone = 'success') {
 		flashEl.textContent = label ?? ''
-		const t = TONES.includes(tone) ? tone : 'info'
-		flashEl.className = 'kpm-flash kpm-flash-' + t
+		// colour/typography now inherit from the header — no tone class needed.
 		// restart the pop animation even on repeat calls
 		void flashEl.offsetWidth
 		flashEl.classList.add('show')

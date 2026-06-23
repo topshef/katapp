@@ -255,8 +255,15 @@ import {
 			return { label: `Awaiting approvals${n ? ` · ${n} more` : ''}`, tone: 'warn', shape: 'circle' }
 		}
 
-		if (readiness && readiness.thresholdSatisfied)
-			return { label: 'Ready to submit', tone: 'info', shape: 'circle' }
+		if (readiness && readiness.thresholdSatisfied) {
+			// All required keys are in. If the precheck is also clean (or N/A for a
+			// non-transfer tx), it's all-systems-go — show green even though it's
+			// not on chain yet (circle = off-chain). A failing/incomplete precheck
+			// keeps it neutral so we don't flash green over a problem.
+			const pc = data.precheck
+			const precheckOK = !pc || (pc.status !== 'fail' && pc.complete !== false)
+			return { label: 'Ready to submit', tone: precheckOK ? 'success' : 'info', shape: 'circle' }
+		}
 
 		return { label: raw ? prettyStatus(raw) : 'Pending…', tone: 'info', shape: 'circle' }
 	}
