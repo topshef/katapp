@@ -372,7 +372,7 @@ export function evaluateTxReadiness({accounts,data}){
 		for (const { prefix, label } of KNOWN_PREFIXES) {
 			if (k.startsWith(prefix)) {
 				const raw = k.slice(prefix.length)
-				console.warn('[readiness] stripped', label, 'prefix:', k.slice(0, 14), '→', raw.slice(0, 14))
+				console.debug('[readiness] stripped', label, 'prefix:', k.slice(0, 14), '→', raw.slice(0, 14))
 				k = raw
 				break
 			}

@@ -572,7 +572,8 @@ function getPendingTxAccountMap(){
 
 		// 2️⃣ parse basis
 		try{
-			const basis = JSON.parse(enrichedTx.pchbasis || "{}")
+			const raw = enrichedTx.pchbasis
+			const basis = !raw ? {} : typeof raw === 'object' ? raw : JSON.parse(raw)
 
 			const scan = (arr, getAsset) => {
 				if(!Array.isArray(arr)) return
