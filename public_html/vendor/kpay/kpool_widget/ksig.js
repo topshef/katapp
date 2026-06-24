@@ -28,6 +28,8 @@
 //   Override `submitSigUrl` if/when a same-origin `?action=txAddSignature` exists.
 
 import { kdiag } from './diag.js'
+import { decodeTransaction } from './protobuf.js'
+
 
 const V = window.__BUILD_HASH__ || ''
 
@@ -162,7 +164,27 @@ export async function renderKsig(container, {
 			startScanBack({ network, txid, pch, bodyBytesHex, submitSigUrl, onSigned, statusEl: status, btnEl: scanBtn })
 		)
 
-		kdiag('ksig:qr-rendered', { bytes: bodyBytesHex.length / 2, checksum })
+    kdiag('ksig:qr-rendered', { bytes: bodyBytesHex.length / 2, checksum })
+
+		// Decode the transaction client-side so we can verify what's being signed.
+		// Prefer hex2 (full envelope — includes any sigs already attached); fall back
+		// to the body bytes we put in the QR (transfers/memo decode either way).
+		try {
+			const decodeHex = data?.result?.hex2 || bodyBytesHex
+			const decoded = decodeTransaction(decodeHex)
+			kdiag('ksig:decoded', {
+				txid: decoded.transactionId,
+				node: decoded.nodeAccountId,
+				memo: decoded.memo,
+				tokenTransfers: decoded.transfers.tokens,
+				hbarTransfers: decoded.transfers.hbar,
+				signers: decoded.signers.length
+			})
+		} catch (e) {
+			kdiag('ksig:decode:error', { error: String(e) })
+		} 
+    
+    
 	} catch (err) {
 		kdiag('ksig:error', { error: String(err) })
 		container.innerHTML = `<div class="kpsign-msg">QR failed: ${err.message}</div>`

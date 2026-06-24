@@ -377,6 +377,24 @@ function getZipPath(f){
   return `${zipSafeName(f.group)}/${zipSafeName(f.name)}`
 }
 
+function getZipDownloadName(selectedFiles){
+  const groups=[...new Set(selectedFiles.map(f=>f.group))]
+  const groupPart=groups.map(zipSafeName).join(", ") || "katomia-context"
+
+  const d=new Date()
+  const pad=n=>String(n).padStart(2,"0")
+  const stamp=
+    d.getFullYear()+
+    pad(d.getMonth()+1)+
+    pad(d.getDate())+
+    "-"+
+    pad(d.getHours())+
+    pad(d.getMinutes())
+
+  return `${groupPart} ${stamp}.zip`
+}
+
+
 async function buildContextZIPbase64(){
 
   try{
@@ -479,7 +497,7 @@ async function buildContextZIP(){
       const a=document.createElement("a")
 
       a.href=URL.createObjectURL(blob)
-      a.download="katomia-context.zip"
+      a.download=getZipDownloadName(selectedFiles)
       a.click()
 
       updateStatus(
