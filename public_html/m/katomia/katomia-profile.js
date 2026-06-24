@@ -21,6 +21,13 @@ async function openKatomiaProfile(){
   if(!modal) return
 
   modal.classList.remove("hidden")
+
+  const diagToggle = document.getElementById("kdiagRemoteToggle")
+  if(diagToggle){
+    diagToggle.checked = localStorage.getItem("kdiag_remote") === "1"
+    diagToggle.onchange = () => window.kdiag?.setRemote(diagToggle.checked)
+  }
+
   await renderKatomiaProfile()
 }
 

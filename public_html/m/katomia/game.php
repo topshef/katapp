@@ -51,6 +51,13 @@
       <a id="profileQrLink" class="profile-link" href="#"></a>
 
       <button id="profileCopyLinkBtn">Copy KEA link</button>
+
+      <div class="profile-debug">
+        <label class="profile-debug-label">
+          <input type="checkbox" id="kdiagRemoteToggle">
+          Remote diagnostic logging
+        </label>
+      </div>
     </div>
     
   </div>

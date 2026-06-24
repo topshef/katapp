@@ -14,6 +14,67 @@
 const BUFFER = []
 const MAX = 500
 
+// ── remote flushing ───────────────────────────────────────────────────────────
+// Persisted opt-in via localStorage key 'kdiag_remote' = '1'.
+// Override precedence (highest first):
+//   ?kdiag=1 / ?kdiag=0  URL param (sets localStorage, survives navigation)
+//   localStorage 'kdiag_remote'
+//   window.__KDIAG_REMOTE  (page-level flag, legacy)
+//
+// Toggle at runtime: kdiag.setRemote(true/false)
+// From the Katomia profile modal: checkbox wired to kdiag.setRemote()
+// From any browser console on any page: kdiag.setRemote(true)
+
+const LS_KEY = 'kdiag_remote'
+
+const UNSENT = []
+let _remoteUrl     = null
+let _flushTimer    = false
+let _flushInterval = null
+
+function enableRemote(urlOrFlag) {
+	_remoteUrl = (typeof urlOrFlag === 'string') ? urlOrFlag : '/diag'
+	if (!_flushInterval) {
+		_flushInterval = setInterval(flushRemote, 60_000)
+		window.addEventListener('pagehide', flushRemote)
+	}
+}
+
+function disableRemote() {
+	_remoteUrl = null
+	if (_flushInterval) { clearInterval(_flushInterval); _flushInterval = null }
+	if (_flushTimer)    { clearTimeout(_flushTimer);     _flushTimer = false }
+}
+
+function setRemote(on, url) {
+	if (on) {
+		try { localStorage.setItem(LS_KEY, '1') } catch {}
+		enableRemote(url || '/diag')
+	} else {
+		try { localStorage.removeItem(LS_KEY) } catch {}
+		disableRemote()
+	}
+}
+
+function scheduleFlush(delayMs = 1000) {
+	if (_flushTimer || !_remoteUrl) return
+	_flushTimer = setTimeout(() => { _flushTimer = false; flushRemote() }, delayMs)
+}
+
+function flushRemote() {
+	if (!_remoteUrl || !UNSENT.length) return
+	const batch   = UNSENT.splice(0, 200)
+	const payload = JSON.stringify({
+		events: batch,
+		page:   location.pathname,
+		ua:     navigator.userAgent.slice(0, 200)
+	})
+	const blob = new Blob([payload], { type: 'application/json' })
+	if (navigator.sendBeacon?.(_remoteUrl, blob)) return
+	// sendBeacon unavailable or returned false — fall back to fetch
+	fetch(_remoteUrl, { method: 'POST', body: blob, keepalive: true }).catch(() => {})
+}
+
 export function kdiag(msg, data) {
 	const entry = {
 		t: new Date().toISOString(),
@@ -23,6 +84,12 @@ export function kdiag(msg, data) {
 
 	BUFFER.push(entry)
 	if (BUFFER.length > MAX) BUFFER.shift()
+
+	if (_remoteUrl) {
+		UNSENT.push(entry)
+		// flush promptly on any error-class event
+		if (/error|Error|rejection/.test(msg)) scheduleFlush(1000)
+	}
 
 	// mirror out — console for live debugging, glog for the host's own log store
 	try { console.debug('[kdiag]', msg, data ?? '') } catch {}
@@ -101,8 +168,18 @@ function installCapture() {
 if (typeof window !== 'undefined') {
 	window.kdiag = Object.assign(
 		(msg, data) => kdiag(msg, data),
-		{ dump, copy, clear, dom, buffer: BUFFER }
+		{ dump, copy, clear, dom, buffer: BUFFER,
+		  enableRemote, disableRemote, setRemote, flush: flushRemote }
 	)
 }
 
 installCapture()
+
+// Auto-init: URL param > localStorage > window.__KDIAG_REMOTE
+if (typeof window !== 'undefined') {
+	const urlParam = new URLSearchParams(location.search).get('kdiag')
+	if      (urlParam === '1')                              setRemote(true)
+	else if (urlParam === '0')                              setRemote(false)
+	else if (localStorage.getItem(LS_KEY) === '1')         enableRemote('/diag')
+	else if (globalThis.__KDIAG_REMOTE)                    enableRemote(globalThis.__KDIAG_REMOTE)
+}

@@ -1646,6 +1646,20 @@ textarea:focus{
 .profile-card button{
   margin-top:12px;
 }
+.profile-debug{
+  margin-top:16px;
+  padding-top:12px;
+  border-top:1px solid #eee;
+}
+.profile-debug-label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:12px;
+  color:#888;
+  cursor:pointer;
+  user-select:none;
+}
 
 @media (max-width:640px){
   .profile-btn{
