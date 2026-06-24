@@ -111,7 +111,9 @@ export function renderWalletConnectSigner(container, {
 	readUrl = defaultReadUrl,
 	saveUrl = defaultSaveUrl,
 	onSigned,
-	onAccount
+	onAccount,
+	onLock,    // called before wc.connect() opens its modal — prevents backdrop-close
+	onUnlock   // called after wc.connect() resolves (success or error)
 } = {}) {
 	injectSignerCSS()
 
@@ -137,14 +139,14 @@ export function renderWalletConnectSigner(container, {
 		let account = null
 		try { account = await wc.getAccount() } catch {}
 
-		// Network guard: you can't be connected to mainnet and testnet at once, so
-		// if the wallet is on a different network than THIS transaction, signing
-		// would fail anyway. Auto-disconnect so the user gets a clean Connect button
-		// rather than a confusing failed sign. window.WC has no network getter yet,
-		// so this is a no-op until kwcCore exposes getNetwork() — see TODO above.
+		// Network guard: auto-disconnect if the wallet is on a different network.
+		// window.WC doesn't expose getNetwork() yet — guard is a no-op until
+		// kwcCore adds it (see TODO at top of file).
 		try {
 			const wcNet = await wc.getNetwork?.()
-			if (account && wcNet && wcNet !== network) {
+			if (!wcNet) {
+				kdiag('signer:network-check:skipped', { network, reason: 'getNetwork not available' })
+			} else if (account && wcNet !== network) {
 				kdiag('signer:network-mismatch', { wcNet, txNetwork: network, action: 'auto-disconnect' })
 				await wc.disconnect()
 				account = null
@@ -154,7 +156,7 @@ export function renderWalletConnectSigner(container, {
 		}
 
 		wrap.innerHTML = ''
-		kdiag('signer:render', { hasWC: true, account })
+		kdiag('signer:render', { hasWC: true, account, network })
 		onAccount?.(account || null)
 
 		// not connected → single Connect button
@@ -163,9 +165,23 @@ export function renderWalletConnectSigner(container, {
 			btn.className = 'kpsign-btn'
 			btn.textContent = 'Connect'
 			btn.onclick = async () => {
-				kdiag('signer:connect:click')
-				try { await wc.connect(); kdiag('signer:connect:done'); await render() }
-				catch (err) { kdiag('signer:connect:error', { error: String(err) }); console.error(err); alert(err.message) }
+				kdiag('signer:connect:click', { network })
+				// WC's ThemeUtil.setTheme() applies --wcm-z-index: "89" as an inline
+				// style on <html> during init, which overrides any stylesheet rule.
+				// Set our value just before openModal() so the WC modal renders above ours.
+				document.documentElement.style.setProperty('--wcm-z-index', '2147483000')
+				onLock?.()
+				try {
+					await wc.connect()
+					kdiag('signer:connect:done', { network })
+					await render()
+				} catch (err) {
+					kdiag('signer:connect:error', { error: String(err), network })
+					console.error(err)
+					alert(err.message)
+				} finally {
+					onUnlock?.()
+				}
 			}
 			wrap.appendChild(btn)
 			return

@@ -94,12 +94,13 @@ function injectModalCSS() {
 			.kpm-card { width: 100vw; height: 100vh; max-height: 100vh; border-radius: 0; }
 		}
 
-		/* WalletConnect's own modal must sit ABOVE this one, otherwise its QR /
-		   reconnect dialog opens underneath and can't be seen. --wcm-z-index is
-		   @walletconnect/modal's documented knob; the selectors cover other WC
-		   modal builds belt-and-braces. Our overlay is 100000, well below. */
+		/* WalletConnect's own modal must sit ABOVE this one. The live wcm bundle
+		   applies --wcm-z-index as an inline style on <html> (ThemeUtil.setTheme),
+		   which beats stylesheet rules. signer-walletconnect.js therefore overrides
+		   it programmatically just before wc.connect(). These rules act as fallbacks
+		   for other builds (w3m / AppKit) that don't override the inline style. */
 		:root { --wcm-z-index: 2147483000; --w3m-z-index: 2147483000; }
-		wcm-modal, w3m-modal, w3m-container,
+		wcm-modal, wcm-container, w3m-modal, w3m-container,
 		.walletconnect-modal__base, #walletconnect-qrcode-modal, #wcm-modal {
 			z-index: 2147483000 !important;
 		}
@@ -174,9 +175,15 @@ export function buildModal({ onClose } = {}) {
 	overlay.appendChild(backdrop)
 	overlay.appendChild(card)
 
-	const onKey = e => { if (e.key === 'Escape') close() }
-	backdrop.addEventListener('click', () => close())
+	const onKey = e => { if (e.key === 'Escape' && !_locks) close() }
+	backdrop.addEventListener('click', () => { if (!_locks) close() })
 	document.addEventListener('keydown', onKey)
+
+	// Lock the backdrop so external flows (e.g. WalletConnect modal) can't
+	// accidentally close this modal while they're open.
+	let _locks = 0
+	function lock()   { _locks++ }
+	function unlock() { _locks = Math.max(0, _locks - 1) }
 
 	let closed = false
 	function close() {
@@ -213,5 +220,5 @@ export function buildModal({ onClose } = {}) {
 	document.body.appendChild(overlay)
 	document.body.style.overflow = 'hidden'
 
-	return { overlay, card, body, head, close, setStatus, flash }
+	return { overlay, card, body, head, close, setStatus, flash, lock, unlock }
 }

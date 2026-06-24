@@ -54,8 +54,10 @@ export async function open({ network, txid, pch = 'no_pch', brand = {}, signer =
 	})
 	await mount(modal.body, {
 		network, txid, pch, signer, ...opts,
-		onStatus: s => modal.setStatus(s.label, s.tone, s.shape),
-		onFlash:  (msg, tone) => modal.flash(msg, tone)
+		onStatus:      s => modal.setStatus(s.label, s.tone, s.shape),
+		onFlash:       (msg, tone) => modal.flash(msg, tone),
+		onLockModal:   () => modal.lock(),
+		onUnlockModal: () => modal.unlock()
 	})
 	return modal
 }
@@ -150,8 +152,10 @@ async function renderSigner(txState, opts) {
 		txid:     txState.txid,
 		readUrl:  opts.readUrl,
 		saveUrl:  opts.saveUrl,
-		onSigned: () => notify(txState, '✍️ Signature submitted', 'success'),
-		onAccount: acct => updateNarrative(txState, acct)
+		onSigned:  () => notify(txState, '✍️ Signature submitted', 'success'),
+		onAccount: acct => updateNarrative(txState, acct),
+		onLock:    opts.onLockModal,
+		onUnlock:  opts.onUnlockModal
 	})
 }
 
