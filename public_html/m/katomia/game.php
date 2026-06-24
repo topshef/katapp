@@ -353,7 +353,11 @@
 <script src="katomia-render.js"></script>
 <script src="katomia-render-orders.js"></script>
 <script src="katomia-market.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<!-- QR: davidshimjs build already bundled with kpool_widget — same file the offline
+     signing widget uses. CDN removed to keep all assets in-house.
+     TODO(bundling): when kpool_widget is rolled into a proper JS bundle, fold
+     qrcode.min.js in and remove this script tag entirely. -->
+<script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
 <script src="katomia-profile.js"></script>
 
 <script>

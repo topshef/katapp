@@ -65,11 +65,41 @@ async function sha4(text) {
 // load regardless of the host page's path or any <base href> — the same fix that
 // made the QR *display* reliable when it was brought in-house.
 
+// Module-local ref to the davidshimjs QRCode (the one with CorrectLevel).
+// We capture it privately so that if the page already has a different QRCode
+// library loaded (e.g. the soldair/npm build used by katomia-profile.js which
+// has QRCode.toCanvas but no CorrectLevel), we neither mistake it for ours nor
+// clobber it permanently.
+let _QRCode = null
 let qrLibPromise = null
 function loadQRCode() {
-	if (window.QRCode) return Promise.resolve()
+	// Already have the davidshimjs build captured — nothing to do.
+	if (_QRCode) return Promise.resolve()
+	// window.QRCode exists but check it's the right build (davidshimjs has CorrectLevel).
+	if (window.QRCode?.CorrectLevel?.M !== undefined) {
+		_QRCode = window.QRCode
+		return Promise.resolve()
+	}
 	if (qrLibPromise) return qrLibPromise
-	qrLibPromise = loadScript('./qrcode.min.js', () => !!window.QRCode, 'qrcode.min.js')
+	qrLibPromise = new Promise((resolve, reject) => {
+		// Save whatever QRCode was here before (e.g. soldair) so we can restore it.
+		const prev = window.QRCode
+		const s = document.createElement('script')
+		s.src = new URL('./qrcode.min.js', import.meta.url).href + (V ? `?v=${V}` : '')
+		s.onload = () => {
+			if (window.QRCode?.CorrectLevel?.M !== undefined) {
+				_QRCode = window.QRCode
+				// Restore the previous QRCode so other page code (e.g. QRCode.toCanvas)
+				// keeps working after we've captured our ref.
+				window.QRCode = prev
+				resolve()
+			} else {
+				reject(new Error('qrcode.min.js loaded but QRCode.CorrectLevel.M missing'))
+			}
+		}
+		s.onerror = () => reject(new Error('failed to load qrcode.min.js'))
+		document.head.appendChild(s)
+	})
 	return qrLibPromise
 }
 
@@ -134,14 +164,13 @@ export async function renderKsig(container, {
 		qr.className = 'kpsign-qr'
 		container.appendChild(qr)
 
-		// eslint-disable-next-line no-undef
-		new QRCode(qr, {
+		new _QRCode(qr, {
 			text: b64,
 			width: 200,
 			height: 200,
 			colorDark: '#000000',
 			colorLight: '#ffffff',
-			correctLevel: QRCode.CorrectLevel.M
+			correctLevel: _QRCode.CorrectLevel.M
 		})
 
 		const cap = document.createElement('div')

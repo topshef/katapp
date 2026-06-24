@@ -81,18 +81,17 @@ async function renderKatomiaQr(link){
   a.title = "Open KEA link"
   a.target = "KEA"
 
-  const canvas = document.createElement("canvas")
-  a.appendChild(canvas)
+  // davidshimjs creates a canvas *inside* the container — needs a div, not canvas.
+  const qrDiv = document.createElement("div")
+  a.appendChild(qrDiv)
   box.appendChild(a)
 
-  if(!window.QRCode){
+  if(!window.QRCode?.CorrectLevel){
     box.textContent = "QR library missing"
     return
   }
 
-  QRCode.toCanvas(canvas, link, { width: 220, margin: 2 }, err => {
-    if(err) box.textContent = "QR error"
-  })
+  new QRCode(qrDiv, { text: link, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M })
 }
 
 async function copyKatomiaProfileLink(){
