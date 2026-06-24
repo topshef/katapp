@@ -641,7 +641,6 @@ async function handleTxUpdate(txState, update) {
 	const { network, txid, pch, view } = txState
 
 	console.log('[WS] update received', update)
-	console.log('[CONFETTI typeof]', typeof window.confetti)
 
 	const prevStatus = localStorage.getItem(`tx_status:${network};${txid};${pch}`)
 
@@ -747,23 +746,33 @@ async function refreshPolledTx(txState, pollTimer) {
 }
 
 
-function triggerSuccessAnimation() {
-	console.log('window.confetti', typeof window.confetti)
-
-	if (!window.confetti) return
-
-	confetti({
-		particleCount: 120,
-		spread: 70,
-		origin: { y: 0.6 }
+let _confettiLoad = null
+function loadConfetti() {
+	if (window.confetti) return Promise.resolve(window.confetti)
+	if (_confettiLoad)   return _confettiLoad
+	_confettiLoad = new Promise(resolve => {
+		const s = document.createElement('script')
+		s.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js'
+		s.onload  = () => resolve(window.confetti || null)
+		s.onerror = () => resolve(null)
+		document.head.appendChild(s)
 	})
+	return _confettiLoad
+}
 
-	setTimeout(function fireSecondConfettiBurst() {
-		confetti({
-			particleCount: 80,
-			spread: 100,
-			origin: { y: 0.4 }
-		})
+async function triggerSuccessAnimation() {
+	const confetti = await loadConfetti()
+	if (!confetti?.create) return
+
+	const canvas = document.createElement('canvas')
+	canvas.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:2147483647;pointer-events:none'
+	document.body.appendChild(canvas)
+
+	const fire = confetti.create(canvas, { resize: true, useWorker: true })
+	fire({ particleCount: 120, spread: 70,  origin: { y: 0.6 } })
+	setTimeout(() => {
+		fire({ particleCount: 80, spread: 100, origin: { y: 0.4 } })
+		setTimeout(() => canvas.remove(), 4000)
 	}, 250)
 }
 
