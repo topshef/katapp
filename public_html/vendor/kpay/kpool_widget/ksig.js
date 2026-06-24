@@ -28,7 +28,7 @@
 //   Override `submitSigUrl` if/when a same-origin `?action=txAddSignature` exists.
 
 import { kdiag } from './diag.js'
-import { decodeTransaction } from './protobuf.js'
+import { decodeTransaction, appendSignature } from './protobuf.js'
 
 
 const V = window.__BUILD_HASH__ || ''
@@ -161,7 +161,7 @@ export async function renderKsig(container, {
 		container.appendChild(status)
 
     scanBtn.addEventListener('click', () =>
-			startScanBack({ network, txid, pch, bodyBytesHex, submitSigUrl, onSigned, statusEl: status, btnEl: scanBtn })
+			startScanBack({ network, txid, pch, bodyBytesHex, readUrl, submitSigUrl, onSigned, statusEl: status, btnEl: scanBtn })
 		)
 
     kdiag('ksig:qr-rendered', { bytes: bodyBytesHex.length / 2, checksum })
@@ -265,52 +265,64 @@ async function startScanBack(ctx) {
 
 
 
-async function submitSignature({ publicKey, sigHex }, { network, txid, pch, bodyBytesHex, submitSigUrl, onSigned, statusEl }) {
+async function submitSignature({ publicKey, sigHex }, { network, txid, pch, readUrl, onSigned, statusEl }) {
 	statusEl.classList.remove('err')
 	statusEl.textContent = `Submitting signature …${publicKey.slice(-4)}`
 
-	// addSig (server) reads pubKey / signature / pch — NOT publicKey / sigHex. Send the
-	// names it expects, and include pch or it rejects with "AS10003 missing pch".
-	const body = new URLSearchParams({
-		network, txid, pch,
-		pubKey: publicKey,
-		signature: sigHex,
-		bodyBytesHex
-	})
-
-	// kpool.php reads `network` from $_GET or a JSON body, not a form body — keep
-	// network+txid in the query string too (else "ZR73642 missing network").
-	const sep = submitSigUrl.includes('?') ? '&' : '?'
-	const postUrl = submitSigUrl + sep +
-		`network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
-
-	kdiag('ksig:submit:start', {
-		url: postUrl, network, txid, pch,
-		pubTail: publicKey.slice(-4),
-		sigLen: sigHex.length / 2,
-		bodyBytesLen: (bodyBytesHex || '').length / 2
-	})
-
 	try {
+		// Pull the current pooled transaction (full envelope — includes any signatures
+		// already collected) so we MERGE this one in rather than replacing what's there.
+		const data = await fetchTx(readUrl, network, txid)
+		const hex2 = data?.result?.hex2
+		if (!hex2) throw new Error('txRead returned no hex2 to merge into')
+
+		// Splice the scanned signature into the sigMap — producing a full signed tx in
+		// the exact shape the WalletConnect signer hands to txSave (which is known to work).
+		const signedHex = appendSignature(hex2, publicKey, sigHex)
+
+		const postUrl = location.pathname + '?action=txSave'
+		const payload = {
+			network,
+			comment: 'KSIG offline',
+			response: { signedTransaction: Array.from(hexToBytes(signedHex)) }
+		}
+
+		kdiag('ksig:submit:start', {
+			url: postUrl, network, txid, pch,
+			pubTail: publicKey.slice(-4),
+			sigLen: sigHex.length / 2,
+			mergedBytes: signedHex.length / 2
+		})
+
 		const res = await fetch(postUrl, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-			body: body.toString()
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload)
 		})
+
+		// txSave can return 200 with an empty / non-JSON body — a 200 means saved, so
+		// don't treat an unparseable body as failure (same tolerance as the WC signer).
 		const text = await res.text().catch(() => '')
+		let result = null
+		try { result = text ? JSON.parse(text) : null } catch (_) {}
+
 		kdiag('ksig:submit:response', {
-			ok: res.ok, status: res.status, type: res.type,
-			len: text.length, snippet: text.slice(0, 300)
+			ok: res.ok, status: res.status,
+			sigs: result?.result?.sigs?.length ?? null,
+			sigsNew: result?.result?.sigsNew?.length ?? null,
+			len: text.length, snippet: text.slice(0, 200)
 		})
+
+		if (!res.ok) throw new Error(`txSave failed (${res.status})`)
+
 		statusEl.textContent = `✍️ Signature …${publicKey.slice(-4)} submitted — the approvals list will update shortly.`
 		if (typeof onSigned === 'function') onSigned({ publicKey, sigHex })
 	} catch (e) {
 		statusEl.classList.add('err')
-		statusEl.textContent = 'Submit failed — try “open in new tab”, or scan again.'
-		kdiag('ksig:submit:error', { error: String(e), url: submitSigUrl })
+		statusEl.textContent = 'Submit failed — scan again, or use “open in new tab”.'
+		kdiag('ksig:submit:error', { error: String(e) })
 	}
 }
-
 
 
 

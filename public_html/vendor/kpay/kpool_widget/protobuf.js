@@ -252,6 +252,58 @@ function unwrap(buf) {
 	return { bodyBytes: buf, sigMapBytes: undefined }
 }
 
+
+// ── encode primitives (re-attach a signature, client side) ───────────────────
+function encodeVarint(value) {
+	let v = BigInt(value)
+	const out = []
+	do {
+		let b = Number(v & 0x7fn)
+		v >>= 7n
+		if (v > 0n) b |= 0x80
+		out.push(b)
+	} while (v > 0n)
+	return Uint8Array.from(out)
+}
+
+function concatBytes(...chunks) {
+	const len = chunks.reduce((s, c) => s + c.length, 0)
+	const out = new Uint8Array(len)
+	let o = 0
+	for (const c of chunks) { out.set(c, o); o += c.length }
+	return out
+}
+
+// length-delimited field: tag (fieldNum<<3 | 2) + length + bytes
+function encodeLenField(fieldNum, bytes) {
+	return concatBytes(encodeVarint((fieldNum << 3) | 2), encodeVarint(bytes.length), bytes)
+}
+
+// raw 32-byte ed25519 key (strip 12-byte DER SPKI prefix if present)
+function rawEd25519PubKey(input) {
+	const b = toBytes(input)
+	if (b.length === 44) return b.slice(12)
+	return b
+}
+
+// appendSignature(envelope, pubKey, sig) -> hex of a full TransactionList with the
+// new ed25519 sigPair ADDED to the SignedTransaction sigMap (existing pairs kept).
+export function appendSignature(envelope, pubKey, sig) {
+	const { bodyBytes, sigMapBytes } = unwrap(toBytes(envelope))
+	if (!bodyBytes) throw new Error('protobuf: no bodyBytes to sign over')
+
+	const pk = rawEd25519PubKey(pubKey)
+	const sg = toBytes(sig)
+
+	const sigPair = concatBytes(encodeLenField(1, pk), encodeLenField(3, sg))      // SignaturePair {1 pubKeyPrefix, 3 ed25519}
+	const existing = sigMapBytes || new Uint8Array(0)
+	const sigMap = concatBytes(existing, encodeLenField(1, sigPair))               // SignatureMap {1 sigPair[]}
+	const signedTx = concatBytes(encodeLenField(1, bodyBytes), encodeLenField(2, sigMap)) // SignedTransaction {1 body, 2 sigMap}
+	const transaction = encodeLenField(5, signedTx)                               // Transaction {5 signedTransactionBytes}
+	const txList = encodeLenField(1, transaction)                                 // TransactionList {1 transaction}
+	return bytesToHex(txList)
+}
+
 // ── public API ───────────────────────────────────────────────────────────────
 
 // decodeTransaction(hex2) → friendly object describing the transaction.
