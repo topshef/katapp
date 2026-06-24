@@ -34,6 +34,21 @@ export const formatUtcTime = seconds => {
 	)
 }
 
+// Singleton script loader — dedupes concurrent loads and retries after CDN errors.
+const _scriptPromises = {}
+export function loadScript(src, globalKey) {
+	if (window[globalKey]) return Promise.resolve(window[globalKey])
+	if (_scriptPromises[src]) return _scriptPromises[src]
+	_scriptPromises[src] = new Promise(resolve => {
+		const s = document.createElement('script')
+		s.src = src
+		s.onload  = () => resolve(window[globalKey] || null)
+		s.onerror = () => { delete _scriptPromises[src]; resolve(null) }
+		document.head.appendChild(s)
+	})
+	return _scriptPromises[src]
+}
+
 export const formatCountdown = diffSeconds => {
 	const sign = diffSeconds < 0 ? '-' : ''
 	let s = Math.abs(diffSeconds)

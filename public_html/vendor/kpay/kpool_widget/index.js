@@ -25,7 +25,8 @@ const {
 	get,
 	parseTxId,
 	formatUtcTime,
-	formatCountdown
+	formatCountdown,
+	loadScript
 } = await import(`./utils.js?v=${V}`)
 
 const { getHederaMirrorData } = await import(`./hedera-mirror.js?v=${V}`)
@@ -56,8 +57,8 @@ export async function open({ network, txid, pch = 'no_pch', brand = {}, signer =
 		network, txid, pch, signer, ...opts,
 		onStatus:      s => modal.setStatus(s.label, s.tone, s.shape),
 		onFlash:       (msg, tone) => modal.flash(msg, tone),
-		onLockModal:   () => modal.lock(),
-		onUnlockModal: () => modal.unlock()
+		onLockModal:   modal.lock,
+		onUnlockModal: modal.unlock
 	})
 	return modal
 }
@@ -117,6 +118,8 @@ async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) 
 	const txState = createTxState(network, txid, pch)
 	txState.onStatus = opts.onStatus
 	txState.onFlash  = opts.onFlash
+	txState.onLock   = opts.onLockModal
+	txState.onUnlock = opts.onUnlockModal
 	txState.readUrl  = opts.readUrl   // absolute endpoint when embedded off-origin
 	txState.saveUrl  = opts.saveUrl
 
@@ -154,8 +157,8 @@ async function renderSigner(txState, opts) {
 		saveUrl:  opts.saveUrl,
 		onSigned:  () => notify(txState, '✍️ Signature submitted', 'success'),
 		onAccount: acct => updateNarrative(txState, acct),
-		onLock:    opts.onLockModal,
-		onUnlock:  opts.onUnlockModal
+		onLock:    txState.onLock,
+		onUnlock:  txState.onUnlock
 	})
 }
 
@@ -746,22 +749,10 @@ async function refreshPolledTx(txState, pollTimer) {
 }
 
 
-let _confettiLoad = null
-function loadConfetti() {
-	if (window.confetti) return Promise.resolve(window.confetti)
-	if (_confettiLoad)   return _confettiLoad
-	_confettiLoad = new Promise(resolve => {
-		const s = document.createElement('script')
-		s.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js'
-		s.onload  = () => resolve(window.confetti || null)
-		s.onerror = () => resolve(null)
-		document.head.appendChild(s)
-	})
-	return _confettiLoad
-}
+const CONFETTI_CDN = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js'
 
 async function triggerSuccessAnimation() {
-	const confetti = await loadConfetti()
+	const confetti = await loadScript(CONFETTI_CDN, 'confetti')
 	if (!confetti?.create) return
 
 	const canvas = document.createElement('canvas')
@@ -770,10 +761,8 @@ async function triggerSuccessAnimation() {
 
 	const fire = confetti.create(canvas, { resize: true, useWorker: true })
 	fire({ particleCount: 120, spread: 70,  origin: { y: 0.6 } })
-	setTimeout(() => {
-		fire({ particleCount: 80, spread: 100, origin: { y: 0.4 } })
-		setTimeout(() => canvas.remove(), 4000)
-	}, 250)
+	setTimeout(() => fire({ particleCount: 80, spread: 100, origin: { y: 0.4 } }), 250)
+	setTimeout(() => { fire.reset(); canvas.remove() }, 4250)
 }
 
 

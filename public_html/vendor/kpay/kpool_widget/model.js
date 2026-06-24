@@ -385,6 +385,11 @@ export function evaluateTxReadiness({accounts,data}){
 
 	function normalizeKeyTree(node) {
 		if (typeof node === 'string') return normalizePublicKey(node)
+		if (!Array.isArray(node.keys)) {
+			// Leaf node without sub-keys — e.g. { _type: 'ED25519', key: '...' }
+			const raw = node.key ?? node.ed25519 ?? node.ECDSASecp256k1 ?? null
+			return raw != null ? normalizePublicKey(String(raw)) : null
+		}
 		return { ...node, keys: node.keys.map(normalizeKeyTree) }
 	}
 
@@ -400,12 +405,9 @@ export function evaluateTxReadiness({accounts,data}){
 		if (!acc.mustSign) return
 		if (!acc.keyInfo) return
 
-		summaries.push(
-			getThresholdSummary({
-				keyTree: normalizeKeyTree(acc.keyInfo),
-				signedPubkeys
-			})
-		)
+		const keyTree = normalizeKeyTree(acc.keyInfo)
+		if (!keyTree) return
+		summaries.push(getThresholdSummary({ keyTree, signedPubkeys }))
 	})
 
 	const allRequiredKeys = new Set()
