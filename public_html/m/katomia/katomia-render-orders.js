@@ -33,6 +33,25 @@ function getNumberBlock(n){   // go peepshow
 
 }
 
+function makeSpan(cls, text){
+  const el = document.createElement("span")
+  el.className = cls
+  el.textContent = text
+  return el
+}
+
+function formatRelativeTime(ms){
+  const diff = Date.now() - ms
+  if(diff < 60000) return "just now"
+  if(diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
+  if(diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
+  return `${Math.floor(diff / 86400000)}d ago`
+}
+
+function getTifIcon(tif){
+  return { GTC:"♾️", GTD:"📅", IOC:"⚡", FOK:"🎯" }[tif] || tif || "GTC"
+}
+
 function formatTxSourceFraction(r){
 
   if(r.unknown) return ""
@@ -367,19 +386,15 @@ function getTxPair(tx){
 function createTxRow(tx){
 
   const row = document.createElement("div")
-  const meta = document.createElement("span")
-
   row.className = "subtle tx-row"
   if(isTxSuccessStatus(getTxStatus(tx)))
     row.classList.add("success")
-
 
   row.dataset.fills =
     (tx.source?.fills || [])
       .map(x => x.fillId)
       .filter(Boolean)
       .join(",")
-
 
   row.dataset.txkey = getTxKey(tx)
   row.dataset.orderIds = getTxOrderIds(tx).join(",")
@@ -392,7 +407,7 @@ function createTxRow(tx){
     row.dataset.kpayNetwork = tx.network || tx.pchbasis?.network || "mainnet"
     if(tx.pch) row.dataset.kpayPch = tx.pch
   }
-    
+
   const order = getTxMainOrder(tx)
   const orderType = getOrderType(order) || getOrderTypeFromPchbasis(tx) || "generic"
   const market = enrichOrder(order)?.market
@@ -402,15 +417,29 @@ function createTxRow(tx){
 
   row.dataset.orderSide = market?.side || ""
 
-  meta.innerHTML = renderTxMeta(tx) + ` [${orderType}${side}${sourceText}] `
+  const txMeta = getTxMeta(tx)
 
-  row.appendChild(meta)
-  row.appendChild(
-    createTxAssets(
-      tx,
-      orderType
-    )
-  )
+  // Status emoji — always visible
+  const statusEl = makeSpan("tx-status", txMeta.statusText + " ")
+
+  // Nerd: txid link + pch + type bracket
+  const nerdEl = makeSpan("nerd-only tx-nerd-meta", "")
+  nerdEl.innerHTML =
+    `<a href="${txMeta.url}" target="_blank">${txMeta.txid}</a>` +
+    ` &nbsp;pch#${txMeta.pch} [${orderType}${side}${sourceText}] `
+
+  // Relative time — always visible, subtle
+  const txSeconds = getTxStartSeconds(tx)
+  const timeEl = makeSpan("tx-time", "")
+  if(txSeconds){
+    timeEl.textContent = formatRelativeTime(txSeconds * 1000)
+    timeEl.title = new Date(txSeconds * 1000).toISOString()
+  }
+
+  row.appendChild(statusEl)
+  row.appendChild(nerdEl)
+  row.appendChild(timeEl)
+  row.appendChild(createTxAssets(tx, orderType))
 
   return row
 
@@ -1367,7 +1396,7 @@ function renderOrderMarketSummary(){
             return ra - rb
         }
 
-        return a.orderId - b.orderId
+        return b.orderId - a.orderId   // newest first
       })
 
 
@@ -1697,22 +1726,50 @@ function getOrderSignerSuffix(order){
 function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel, fillStatus){
   const { fill, pendingText, settledText } = fillStatus
 
-  const tif        = order.timeInForce ? `${order.timeInForce} ` : ""
-  const minFill    = order.minFill ? ` min ${order.minFill.numerator}/${order.minFill.denominator}` : ""
-  
-  const debugText =
-    document.body.dataset.tradingMode == "debug"
-      ? ` proposed ${fill.numerator}/${fill.denominator}`
-      : ""
-
-  const fillText = `${debugText} ${pendingText} ${settledText}`.trim()
-  
-  // const who        = `${playerId}${mine ? "=you" : ""}`
-  const keySuffix  = getOrderSignerSuffix(order)
-  const who        = `${playerId}${keySuffix}${mine ? "=you" : ""}`
-
   const el = document.createElement("span")
-  el.textContent = `Order #${orderId} (${who}) [${tif}${orderType}] [${marketLabel}${minFill}] [${fillText}]: `
+  el.className = "order-prefix"
+
+  // Nerd: #id (who)
+  const keySuffix = getOrderSignerSuffix(order)
+  const who = `${playerId}${keySuffix}${mine ? "=you" : ""}`
+  el.appendChild(makeSpan("nerd-only order-nerd-id", `#${orderId} (${who}) `))
+
+  // TIF icon — always visible
+  const tif = order.timeInForce || "GTC"
+  const tifEl = makeSpan("order-tif", getTifIcon(tif))
+  tifEl.title = tif
+  el.appendChild(tifEl)
+
+  // Nerd: full order type bracket
+  el.appendChild(makeSpan("nerd-only order-nerd-type", ` [${orderType}]`))
+
+  // Market label — always visible (rate, side, volume, pair)
+  el.appendChild(makeSpan("order-market", ` ${marketLabel}`))
+
+  // Nerd: minFill fraction
+  if(order.minFill)
+    el.appendChild(makeSpan("nerd-only order-nerd-minfill", ` min ${order.minFill.numerator}/${order.minFill.denominator}`))
+
+  // Nerd: proposed fill (debug trading mode only)
+  if(document.body.dataset.tradingMode == "debug")
+    el.appendChild(makeSpan("nerd-only order-fill-debug", ` proposed ${fill.numerator}/${fill.denominator}`))
+
+  // Nerd: kpool in-flight pending
+  if(pendingText)
+    el.appendChild(makeSpan("nerd-only order-fill-pending", ` ${pendingText.replace(/ \|$/, "")}`))
+
+  // Settled status — always visible (shows ✅ when complete)
+  if(settledText)
+    el.appendChild(makeSpan("order-fill-settled", ` ${settledText}`))
+
+  // Relative time — always visible, subtle
+  if(order.issuedAt){
+    const timeEl = makeSpan("order-time", ` ${formatRelativeTime(order.issuedAt)}`)
+    timeEl.title = new Date(order.issuedAt).toISOString()
+    el.appendChild(timeEl)
+  }
+
+  el.appendChild(document.createTextNode(": "))
   return el
 }
 

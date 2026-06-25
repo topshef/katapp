@@ -1,3 +1,16 @@
+const NERD_KEY = "katomia.nerd.v1"
+
+function loadNerdMode(){
+  applyNerdMode(localStorage.getItem(NERD_KEY) === "1")
+}
+
+function applyNerdMode(on){
+  document.body.classList.toggle("nerd", on)
+  const toggle = document.getElementById("katomia-nerd-toggle")
+  if(toggle) toggle.checked = on
+  try{ localStorage.setItem(NERD_KEY, on ? "1" : "0") }catch{}
+}
+
 function initKatomiaProfile(){
   const btn = document.getElementById("profileBtn")
   const modal = document.getElementById("profileModal")
@@ -14,6 +27,12 @@ function initKatomiaProfile(){
 
   if(copyBtn)
     copyBtn.onclick = () => copyKatomiaProfileLink()
+
+  const nerdToggle = document.getElementById("katomia-nerd-toggle")
+  if(nerdToggle)
+    nerdToggle.onchange = () => applyNerdMode(nerdToggle.checked)
+
+  loadNerdMode()
 }
 
 async function openKatomiaProfile(){

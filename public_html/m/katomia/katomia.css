@@ -57,6 +57,11 @@
     .debug-only{ display:none; }
     body[data-trading-mode="debug"] .debug-only{ display:inline-flex; }
 
+    /* Nerd mode — user-facing detail toggle (mirrors KEA pro mode) */
+    .nerd-only{ display:none !important; }
+    body.nerd .nerd-only{ display:inline !important; }
+    body.nerd .nerd-hide{ display:none !important; }
+
     .account-xproof-label{
       font-size:11px;
       color:#666;
@@ -1015,6 +1020,12 @@ button i{
   font-family: monospace;
   font-size: 12px;
 }
+
+.order-tif{ opacity:0.6; font-size:0.9em; }
+.order-market{ font-weight:500; }
+.order-time{ font-size:0.82em; color:#aaa; margin-left:2px; }
+.order-fill-settled{ font-size:0.9em; color:#888; }
+.tx-time{ font-size:0.82em; color:#aaa; }
 
 #ordersSection .order-row{
   margin-bottom: 4px;   /* 👈 row separation */

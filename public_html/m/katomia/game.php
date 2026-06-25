@@ -54,6 +54,10 @@
 
       <div class="profile-debug">
         <label class="profile-debug-label">
+          <input type="checkbox" id="katomia-nerd-toggle">
+          🤓 Nerd mode
+        </label>
+        <label class="profile-debug-label">
           <input type="checkbox" id="kdiagRemoteToggle">
           Remote diagnostic logging
         </label>
