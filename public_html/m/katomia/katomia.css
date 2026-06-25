@@ -1686,45 +1686,43 @@ textarea:focus{
 /* ── two-column game layout: trading left, chat right ───────────────────── */
 
 .game-layout{
-  display:flex;
-  gap:16px;
-  align-items:flex-start;
+  /* padding-right reserves space for the fixed chat panel (260px + 16px gap) */
+  padding-right:276px;
 }
 
 .game-left{
-  flex:1;
   min-width:0;
 }
 
+/* fixed panel: out of flow entirely so it can never cause page overflow.
+   top/height are set by positionChatPanel() in JS after first render. */
 #chatSection{
-  width:260px;
-  flex-shrink:0;
-  position:sticky;
+  position:fixed;
   top:0;
+  right:16px;
+  width:260px;
   height:100vh;
-  display:flex;
-  flex-direction:column;
   overflow:hidden;
+  visibility:hidden; /* hidden until JS positions it */
+}
+
+#chatSection.chat-ready{
+  visibility:visible;
 }
 
 #chatSection .orders-details{
-  flex:1;
-  min-height:0;
-  display:flex;
-  flex-direction:column;
+  height:100%;
   overflow:hidden;
 }
 
 #chatSection .chat-list{
-  flex:1;
-  min-height:0;
   overflow-y:auto;
   padding:2px 0;
 }
 
 @media (max-width:899px){
   .game-layout{
-    display:block;
+    padding-right:0;
   }
   #chatSection{
     position:static;
@@ -1733,6 +1731,7 @@ textarea:focus{
     margin-top:8px;
   }
   #chatSection .chat-list{
+    height:auto;
     max-height:300px;
   }
 }

@@ -567,11 +567,43 @@ async function renderTransactions(){
 }
 
 
+let _chatPositioned = false
+
+function positionChatPanel(){
+  if(window.innerWidth <= 899){ _chatPositioned = false; return }
+  const panel = document.getElementById("chatSection")
+  const anchor = document.querySelector(".game-layout")
+  if(!panel || !anchor) return
+
+  // measure where .game-layout naturally sits in the page at current scroll
+  const top = Math.round(anchor.getBoundingClientRect().top + window.scrollY)
+  if(top <= 0) return  // not laid out yet
+
+  const bodyMarginBottom = 16
+  const h = window.innerHeight - top - bodyMarginBottom
+  if(h < 80) return  // layout not ready
+
+  panel.style.top = top + "px"
+  panel.style.height = h + "px"
+
+  const summary = panel.querySelector("summary")
+  const list = panel.querySelector(".chat-list")
+  if(list) list.style.height = (h - (summary?.offsetHeight || 36)) + "px"
+
+  panel.classList.add("chat-ready")
+  _chatPositioned = true
+}
+
+window.addEventListener("resize", () => { _chatPositioned = false; positionChatPanel() })
+
 function renderChat(){
   const listEl = document.querySelector("#chatSection .chat-list")
   if(!listEl) return
 
-  const msgs = state?.chat || []
+  if(!_chatPositioned) positionChatPanel()
+
+  const CHAT_DISPLAY_MAX = 50
+  const msgs = (state?.chat || []).slice(-CHAT_DISPLAY_MAX)
   const frag = document.createDocumentFragment()
 
   msgs.forEach(msg => {
