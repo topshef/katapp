@@ -578,9 +578,6 @@ function renderChat(){
     const row = document.createElement("div")
     row.className = "chat-msg"
 
-    const colour = getPlayerColour(msg.playerId)
-    row.style.borderLeft = "3px solid " + colour
-
     if(typeof kemojiEl === "function")
       row.appendChild(kemojiEl(msg.playerId, { size: 20, isSelf: msg.playerId === currentPlayerId }))
 
