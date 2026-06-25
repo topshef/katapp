@@ -35,7 +35,7 @@
 
       <h2 id="profileTitle">Player</h2>
 
-
+      <div id="profileAvatar" class="profile-avatar"></div>
 
       <div id="profileQr" class="profile-qr"></div>
       <p class="subtle">Scan with KEA to approve your orders</p>
@@ -357,6 +357,7 @@
 <script type="module" src="katomia-init.js" data-glog="on"></script>
 <script src="katomia-core.js"></script>
 <script src="katomia-localdb.js"></script>
+<script src="kemoji.js"></script>
 <script src="katomia-helpers.js"></script>
 <script src="katomia-enrich.js"></script>
 <script src="katomia-network.js"></script>

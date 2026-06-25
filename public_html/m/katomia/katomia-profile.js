@@ -60,10 +60,19 @@ async function renderKatomiaProfile(){
   setText("profilePubkey", pubkey || "not ready")
   setText("profileScope", [domain, network, gid].filter(Boolean).join(" | "))
 
+  renderKatomiaAvatar(pubkey)
+
   const link = buildKatomiaProfileLink(pubkey)
   setProfileLink(link)
 
   await renderKatomiaQr(link)
+}
+
+function renderKatomiaAvatar(pubkeyHex){
+  const box = document.getElementById("profileAvatar")
+  if(!box || typeof kemojiEl !== "function") return
+  box.innerHTML = ""
+  box.appendChild(kemojiEl(pubkeyHex || "unknown", { size: 80, shape: "square", isSelf: true }))
 }
 
 async function getKatomiaOrderPubkeyHex(){

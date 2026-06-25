@@ -418,6 +418,13 @@ function createTxRow(tx){
   row.dataset.orderSide = market?.side || ""
 
   const txMeta = getTxMeta(tx)
+  const makerPubkey = order?.intentSignature?.pubkeyHex || null
+
+  if(makerPubkey) row.dataset.kemojiKey = makerPubkey.slice(-12)
+
+  // Avatar — always visible (maker identity)
+  if(typeof kemojiEl === "function" && makerPubkey)
+    row.appendChild(kemojiEl(makerPubkey, { size: 24 }))
 
   // Status emoji — always visible
   const statusEl = makeSpan("tx-status", txMeta.statusText + " ")
@@ -1788,9 +1795,11 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
     row.title = "Order cleared while a transaction is still pending — shown from transaction source for context"
   }
 
+  const pubkeyHex = order?.intentSignature?.pubkeyHex || null
+
   if(order?.bundle?.error){
     row.textContent = `Order #${orderId} (${playerId}): ❌  ${order?.bundle?.error}`
-    applyOwnerSleeve(row, playerId)
+    applyOwnerSleeve(row, playerId, pubkeyHex)
     return row
   }
 
@@ -1808,6 +1817,7 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
     fillStatus.fullySettled
   )
 
+  if(pubkeyHex) row.dataset.kemojiKey = pubkeyHex.slice(-12)
 
   row.dataset.orderSide = enriched.market?.side || ""
   // ghosts are display-only: no row interactions
@@ -1820,13 +1830,19 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
 
   const inner = document.createElement("div")
   inner.className = "order-row-inner"
+
+  if(typeof kemojiEl === "function"){
+    const avatarKey = pubkeyHex || playerId || "unknown"
+    inner.appendChild(kemojiEl(avatarKey, { size: 24, isSelf: mine }))
+  }
+
   inner.appendChild(prefix)
   inner.appendChild(createOrderSide(offer, "order-offer"))
   inner.appendChild(arrow)
   inner.appendChild(createOrderSide(request, "order-request"))
 
   row.appendChild(inner)
-  applyOwnerSleeve(row, playerId)
+  applyOwnerSleeve(row, playerId, pubkeyHex)
 
   return row
 }

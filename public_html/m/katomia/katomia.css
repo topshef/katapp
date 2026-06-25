@@ -1657,6 +1657,32 @@ textarea:focus{
 .profile-card button{
   margin-top:12px;
 }
+/* ── kemoji face avatars ─────────────────────────────────────────────────── */
+
+.kemoji{
+  display:inline-flex;
+  flex-shrink:0;
+  vertical-align:middle;
+}
+
+.kemoji svg{
+  display:block;
+}
+
+/* Own avatar in profile modal — square SVG shape + accent ring via CSS */
+.kemoji-self{
+  border-radius:8px;
+  box-shadow:0 0 0 3px #4a90e2, 0 3px 10px rgba(0,0,0,0.14);
+}
+
+.profile-avatar{
+  display:flex;
+  justify-content:center;
+  margin:10px 0 4px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 .profile-debug{
   margin-top:16px;
   padding-top:12px;

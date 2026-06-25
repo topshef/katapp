@@ -53,9 +53,11 @@
 			return state.players[playerId].colour || "#999"
 		}
 
-    function applyOwnerSleeve(el, playerId){
-      const colour = getPlayerColour(playerId)
-      el.style.borderLeft = "12px solid " + colour
+    function applyOwnerSleeve(el, playerId, pubkeyHex){
+      const colour = (pubkeyHex && typeof kemojiSleeveColor === "function")
+        ? kemojiSleeveColor(pubkeyHex)
+        : getPlayerColour(playerId)
+      el.style.borderLeft = "4px solid " + colour
     }
 
     function applyHoverHighlight(el, on){
