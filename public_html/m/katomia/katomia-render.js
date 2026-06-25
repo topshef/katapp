@@ -948,6 +948,7 @@ function getFastThumb(url, imgEl){
       renderOrderMarketSummary()
       renderOrders()
       renderTransactions()
+      renderChat()
 
       const accounts = getAccounts()
       const accountMap = getAccountMap()

@@ -1683,6 +1683,88 @@ textarea:focus{
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 
+/* ── two-column game layout: trading left, chat right ───────────────────── */
+
+.game-layout{
+  display:flex;
+  gap:16px;
+  align-items:flex-start;
+}
+
+.game-left{
+  flex:1;
+  min-width:0;
+}
+
+#chatSection{
+  width:260px;
+  flex-shrink:0;
+}
+
+@media (max-width:899px){
+  .game-layout{
+    display:block;
+  }
+  #chatSection{
+    width:100%;
+    margin-top:8px;
+  }
+}
+
+/* ── chat messages ─────────────────────────────────────────────────────────── */
+
+#chatSection .chat-list{
+  max-height:360px;
+  overflow-y:auto;
+  padding:2px 0;
+}
+
+.chat-msg{
+  display:flex;
+  gap:7px;
+  align-items:flex-start;
+  padding:5px 6px 5px 8px;
+  margin-bottom:2px;
+  border-radius:4px;
+}
+
+.chat-msg:hover{
+  background:#f0f0f0;
+}
+
+.chat-body{
+  flex:1;
+  min-width:0;
+}
+
+.chat-meta{
+  display:flex;
+  gap:6px;
+  align-items:baseline;
+  margin-bottom:1px;
+}
+
+.chat-who{
+  font-size:11px;
+  font-weight:600;
+  color:#444;
+}
+
+.chat-time{
+  font-size:10px;
+  color:#aaa;
+  white-space:nowrap;
+}
+
+.chat-text{
+  font-size:12px;
+  color:#333;
+  word-break:break-word;
+  line-height:1.4;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+
 .profile-debug{
   margin-top:16px;
   padding-top:12px;

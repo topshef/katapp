@@ -82,6 +82,10 @@
   
 
 
+<div class="game-layout">
+
+<div class="game-left">
+
 <div id="ordersSection" class="mode-order">
 
   <div class="orders-market-summary subtle"></div>
@@ -115,8 +119,8 @@
         <input id="sortOrdersByPrice" type="checkbox">
         Sort by price
       </label>
-      
-      
+
+
     </div>
 
     <div class="orders-list"></div>
@@ -150,7 +154,17 @@
   </details>
 
 </div>
-<BR>
+
+</div><!-- .game-left -->
+
+<div id="chatSection">
+  <details class="orders-details" open>
+    <summary class="subtle">💬 Messages</summary>
+    <div class="chat-list"></div>
+  </details>
+</div>
+
+</div><!-- .game-layout -->
 
 <div class="mode-proposal">
   <details class="orders-details" open>

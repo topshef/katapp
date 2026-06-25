@@ -567,6 +567,48 @@ async function renderTransactions(){
 }
 
 
+function renderChat(){
+  const listEl = document.querySelector("#chatSection .chat-list")
+  if(!listEl) return
+
+  const msgs = state?.chat || []
+  const frag = document.createDocumentFragment()
+
+  msgs.forEach(msg => {
+    const row = document.createElement("div")
+    row.className = "chat-msg"
+
+    const colour = getPlayerColour(msg.playerId)
+    row.style.borderLeft = "3px solid " + colour
+
+    if(typeof kemojiEl === "function")
+      row.appendChild(kemojiEl(msg.playerId, { size: 20, isSelf: msg.playerId === currentPlayerId }))
+
+    const body = document.createElement("div")
+    body.className = "chat-body"
+
+    const meta = document.createElement("div")
+    meta.className = "chat-meta"
+    meta.innerHTML =
+      `<span class="chat-who">${msg.playerName || msg.playerId}</span>` +
+      `<span class="chat-time" title="${new Date(msg.ts).toLocaleTimeString()}">${formatRelativeTime(msg.ts)}</span>`
+
+    const text = document.createElement("div")
+    text.className = "chat-text"
+    text.textContent = msg.text
+
+    body.appendChild(meta)
+    body.appendChild(text)
+    row.appendChild(body)
+    frag.appendChild(row)
+  })
+
+  const atBottom = listEl.scrollTop + listEl.clientHeight >= listEl.scrollHeight - 40
+  listEl.replaceChildren(frag)
+  if(atBottom) listEl.scrollTop = listEl.scrollHeight
+}
+
+
 
 
 function getPendingFillItems(orderId){
