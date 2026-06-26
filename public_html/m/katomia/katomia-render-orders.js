@@ -40,6 +40,44 @@ function makeSpan(cls, text){
   return el
 }
 
+// ── Order type icons ──────────────────────────────────────────────────────────
+// Inline SVG lookup keyed by order type. Swap these out for polished icons later
+// (e.g. custom SVG sprite). All are stroke-only / currentColor so they inherit
+// surrounding text colour without conveying status meaning via colour.
+const ORDER_TYPE_ICONS = {
+  'simple-ft': `<svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="FT swap">
+    <path d="M1 4h10M8.5 2 13 4 8.5 6"/><path d="M13 10H3M5.5 8 1 10l4.5 2"/>
+  </svg>`,
+  'basket-ft': `<svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="Basket FT">
+    <rect x="1.5" y="1.5" width="4" height="4" rx="0.5"/><rect x="8.5" y="1.5" width="4" height="4" rx="0.5"/>
+    <rect x="1.5" y="8.5" width="4" height="4" rx="0.5"/><rect x="8.5" y="8.5" width="4" height="4" rx="0.5"/>
+  </svg>`,
+  'simple-nft': `<svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="NFT">
+    <polygon points="7,1 13,5 7,13 1,5"/>
+    <polyline points="1,5 7,7 13,5"/><line x1="7" y1="7" x2="7" y2="13"/>
+  </svg>`,
+  'simple-collectible': `<svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="Collectible">
+    <polygon points="7,1 13,5 7,13 1,5"/>
+    <polyline points="1,5 7,7 13,5"/><line x1="7" y1="7" x2="7" y2="13"/>
+  </svg>`,
+  'simple-le': `<svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="Limited Edition">
+    <path d="M1.5 3.5 L7 1.5 L12.5 3.5 L12.5 10.5 L7 12.5 L1.5 10.5 Z"/>
+    <circle cx="9.5" cy="4.5" r="1" fill="currentColor" stroke="none"/>
+  </svg>`,
+  'generic': `<svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-label="Generic bundle">
+    <line x1="2" y1="4" x2="12" y2="4"/><line x1="2" y1="7" x2="10" y2="7"/><line x1="2" y1="10" x2="8" y2="10"/>
+  </svg>`,
+}
+
+function orderTypeIconEl(type){
+  const svg = ORDER_TYPE_ICONS[type] || ORDER_TYPE_ICONS['generic']
+  const span = document.createElement('span')
+  span.className = 'order-type-icon'
+  span.title = type || 'generic'
+  span.innerHTML = svg
+  return span
+}
+
 function formatRelativeTime(ms){
   const diff = Date.now() - ms
   if(diff < 60000) return "just now"
@@ -222,22 +260,27 @@ function renderTxMeta(tx){
 // │  ├┬┘├┤ ├─┤ │ ├┤    ║ ┌┴┬┘  ╠═╣└─┐└─┐├┤  │ └─┐
 // └─┘┴└─└─┘┴ ┴ ┴ └─┘   ╩ ┴ └─  ╩ ╩└─┘└─┘└─┘ ┴ └─┘
 // create Tx Assets
-function createTxAssets(tx,orderType){
+const HEDERA_FEE_ACCOUNTS = new Set(["0.0.98","0.0.800","0.0.801","0.0.802"])
 
+function createTxAssets(tx, orderType){
   const basis = tx.pchbasis?.transfers || {}
-  const transfers = [
+  const nftTransfers  = basis.nftTransfers || []
+  const ftTransfers   = [
     ...(basis.tokenTransfers || []),
-    ...(basis.hbarTransfers || []).map(x => ({...x, tokenId:"HBAR"}))
+    ...(basis.hbarTransfers  || []).map(x => ({...x, tokenId:"HBAR"}))
   ]
 
-  if(orderType == "simple-ft"){
-    const HEDERA_FEE_ACCOUNTS = new Set(["0.0.98","0.0.800","0.0.801","0.0.802"])
-    const tradeTransfers = transfers.filter(x => !HEDERA_FEE_ACCOUNTS.has(x.accountId))
-    return createSimpleFxTxAssets(tradeTransfers)
+  if(nftTransfers.length){
+    const tradeFt = ftTransfers.filter(x => !HEDERA_FEE_ACCOUNTS.has(x.accountId))
+    return createNftTxAssets(nftTransfers, tradeFt)
   }
 
-  return createGenericTxAssets(transfers)
+  if(orderType === "simple-ft" || orderType === "simple-le"){
+    const tradeFt = ftTransfers.filter(x => !HEDERA_FEE_ACCOUNTS.has(x.accountId))
+    return createSimpleFxTxAssets(tradeFt)
+  }
 
+  return createGenericTxAssets(ftTransfers)
 }
 
 function createGenericTxAssets(transfers){
@@ -277,6 +320,52 @@ function createGenericTxAssets(transfers){
 
   return el
 
+}
+
+
+// NFT transaction: one NFT transfer (tokenId#serial) + currency side (FT/HBAR)
+function createNftTxAssets(nftTransfers, ftTransfers){
+  const el = document.createElement("span")
+  el.className = "tx-assets"
+
+  for(const nft of nftTransfers){
+    const sender   = nft.sender   || nft.senderAccountId   || "?"
+    const receiver = nft.receiver || nft.receiverAccountId || "?"
+    const serial   = nft.serialNumber ?? nft.serial ?? "?"
+    const tokenId  = nft.tokenId || ""
+    const assetId  = `${tokenId}#${serial}`
+
+    const nftChip = makeAssetEl({
+      text: `${sender} #${serial} ${getAssetDisplay(assetId, 1)}`,
+      assetId,
+      ownerAccountId: sender,
+      clickable: false
+    })
+    nftChip.classList.add("tx-nft-chip")
+    el.appendChild(nftChip)
+  }
+
+  // Currency side: show positive transfers (what the buyer pays to the seller)
+  const received = ftTransfers.filter(x => x.amount > 0)
+  if(received.length){
+    const arrow = document.createElement("span")
+    arrow.className = "tx-arrow"
+    arrow.textContent = " → "
+    el.appendChild(arrow)
+
+    received.forEach(x => {
+      const chip = makeAssetEl({
+        text: `${x.accountId} ${getAssetDisplay(x.tokenId, Math.abs(x.amount))}`,
+        assetId: x.tokenId,
+        ownerAccountId: x.accountId,
+        clickable: false
+      })
+      chip.classList.add("tx-fx-chip")
+      el.appendChild(chip)
+    })
+  }
+
+  return el
 }
 
 
@@ -367,7 +456,6 @@ function getTxMainOrder(tx){
 function getOrderTypeFromPchbasis(tx){
   const basis = tx.pchbasis?.transfers
   if(!basis) return null
-  const HEDERA_FEE_ACCOUNTS = new Set(["0.0.98","0.0.800","0.0.801","0.0.802"])
   const transfers = [
     ...(basis.tokenTransfers || []),
     ...(basis.hbarTransfers  || [])
@@ -409,7 +497,9 @@ function createTxRow(tx){
   }
 
   const order = getTxMainOrder(tx)
-  const orderType = getOrderType(order) || getOrderTypeFromPchbasis(tx) || "generic"
+  // Use stored orderType if available (set at creation for simple-nft/simple-le),
+  // fall back to bundle-derived type then pchbasis heuristic.
+  const orderType = order?.orderType || getOrderType(order) || getOrderTypeFromPchbasis(tx) || "generic"
   const market = enrichOrder(order)?.market
   const side = market?.side ? ` ${market.side}` : ""
   const sourceInfo = renderTxSourceInfo(tx)
@@ -425,6 +515,9 @@ function createTxRow(tx){
   // Avatar — always visible (maker identity)
   if(typeof kemojiEl === "function" && makerPubkey)
     row.appendChild(kemojiEl(makerPubkey, { size: 24 }))
+
+  // Type icon — always visible
+  row.appendChild(orderTypeIconEl(orderType))
 
   // Status emoji — always visible
   const statusEl = makeSpan("tx-status", txMeta.statusText + " ")
@@ -1848,9 +1941,12 @@ function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel
   const who = `${playerId}${keySuffix}${mine ? "=you" : ""}`
   el.appendChild(makeSpan("nerd-only order-nerd-id", `#${orderId} (${who}) `))
 
+  // Type icon — always visible
+  el.appendChild(orderTypeIconEl(orderType))
+
   // TIF icon — always visible
   const tif = order.timeInForce || "GTC"
-  const tifEl = makeSpan("order-tif", getTifIcon(tif))
+  const tifEl = makeSpan("order-tif", " " + getTifIcon(tif))
   tifEl.title = tif
   el.appendChild(tifEl)
 
@@ -1868,9 +1964,13 @@ function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel
   if(document.body.dataset.tradingMode == "debug")
     el.appendChild(makeSpan("nerd-only order-fill-debug", ` proposed ${fill.numerator}/${fill.denominator}`))
 
-  // Nerd: kpool in-flight pending
-  if(pendingText)
-    el.appendChild(makeSpan("nerd-only order-fill-pending", ` ${pendingText.replace(/ \|$/, "")}`))
+  // Pending kpool indicator — always visible (amber icon); detail nerd-only
+  if(pendingText){
+    const pEl = makeSpan("order-fill-pending", " ⏳")
+    pEl.title = `Matching in progress: ${pendingText.replace(/ \|$/, "")}`
+    el.appendChild(pEl)
+    el.appendChild(makeSpan("nerd-only order-fill-pending-detail", ` ${pendingText.replace(/ \|$/, "")}`))
+  }
 
   // Settled status — always visible (shows ✅ when complete)
   if(settledText)
@@ -1949,6 +2049,26 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
   inner.appendChild(createOrderSide(request, "order-request"))
 
   row.appendChild(inner)
+
+  // Fill bar — 3px track at the bottom of the row; hidden when 0% filled
+  const settledRatio = fillStatus.settled.numerator / (fillStatus.settled.denominator || 1)
+  const pendingRatio = fillStatus.fill.numerator   / (fillStatus.fill.denominator   || 1)
+  const barPending   = Math.max(pendingRatio - settledRatio, 0)
+  if(settledRatio > 0 || barPending > 0){
+    const bar = document.createElement("div")
+    bar.className = "order-fill-bar"
+    const s = document.createElement("div")
+    s.className = "order-fill-bar-settled"
+    s.style.width = `${Math.round(settledRatio * 100)}%`
+    const p = document.createElement("div")
+    p.className = "order-fill-bar-pending"
+    p.style.left  = `${Math.round(settledRatio * 100)}%`
+    p.style.width = `${Math.round(barPending  * 100)}%`
+    bar.appendChild(s)
+    bar.appendChild(p)
+    row.appendChild(bar)
+  }
+
   applyOwnerSleeve(row, playerId, pubkeyHex)
 
   return row

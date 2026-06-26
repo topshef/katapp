@@ -1025,7 +1025,52 @@ button i{
 .order-market{ font-weight:500; }
 .order-time{ font-size:0.82em; color:#aaa; margin-left:2px; }
 .order-fill-settled{ font-size:0.9em; color:#888; }
+.order-fill-pending{ font-size:0.9em; }
 .tx-time{ font-size:0.82em; color:#aaa; }
+
+/* Order type icon — inline SVG, inherits text colour, no status meaning */
+.order-type-icon{
+  display:inline-flex;
+  align-items:center;
+  vertical-align:middle;
+  opacity:0.55;
+  margin-right:2px;
+  flex-shrink:0;
+}
+.order-type-icon svg{ display:block; }
+
+/* Fill bar — 3px track beneath each order row */
+.order-fill-bar{
+  position:relative;
+  height:3px;
+  margin:2px 0 0;
+  border-radius:2px;
+  overflow:hidden;
+  background:transparent;
+}
+.order-fill-bar-settled{
+  position:absolute;
+  left:0; top:0; height:100%;
+  background:#4caf50;
+  transition:width 0.4s;
+}
+.order-fill-bar-pending{
+  position:absolute;
+  top:0; height:100%;
+  background:#ff9800;
+  opacity:0.55;
+  transition:width 0.4s, left 0.4s;
+}
+
+/* NFT chip in transaction rows */
+.tx-nft-chip{
+  font-variant-numeric:tabular-nums;
+}
+.tx-nft-chip::before{
+  content:"#";
+  opacity:0.5;
+  font-size:0.85em;
+}
 
 #ordersSection .order-row{
   margin-bottom: 4px;   /* 👈 row separation */
