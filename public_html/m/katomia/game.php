@@ -239,8 +239,8 @@
       <select id="createOrderType">
         <option value="simple-ft">Simple FT</option>
         <option value="basket-ft" disabled>Basket FT</option>
-        <option value="simple-nft" disabled>Simple NFT</option>
-        <option value="simple-le" disabled>Simple LE (Limited Edition)</option>
+        <option value="simple-nft">Simple NFT</option>
+        <option value="simple-le">Simple LE (Limited Edition)</option>
         <option value="simple-collectible" disabled>Simple Collectible</option>
         <option value="basket-collectible" disabled>Basket Collectible</option>
         <option value="offer" disabled>Offer / one-sided</option>
@@ -250,10 +250,11 @@
 
       <br><br>
 
-      <label>Pair</label>
-      <select id="createOrderPair"></select>
-
-      <br><br>
+      <div id="simpleOrderPairRow">
+        <label>Pair</label>
+        <select id="createOrderPair"></select>
+        <br><br>
+      </div>
 
       <div class="order-side">
         <label><input type="radio" name="createOrderSide" value="buy"> Buy</label>
@@ -271,6 +272,7 @@
 
       <br>
 
+      <div id="simpleFtRateFields">
       <label>Volume <span id="createOrderVolumeUnit" style="font-weight:normal;font-size:11px;color:#999;margin-left:4px;"></span></label>
       <input id="createOrderVolume" type="number" step="any">
       
@@ -291,6 +293,36 @@
       <div id="createOrderIntHint" style="font-size:11px;min-height:18px;margin-top:4px;"></div>
 
       <br>
+      </div><!-- #simpleFtRateFields -->
+
+      <div id="simpleCollectibleFields" style="display:none">
+        <label>Token ID</label>
+        <input id="createCollectibleToken" type="text" placeholder="e.g. 0.0.12345">
+
+        <br><br>
+
+        <div id="createCollectibleSerialRow">
+          <label>Serial #</label>
+          <input id="createCollectibleSerial" type="number" min="1" step="1" placeholder="e.g. 42">
+          <br><br>
+        </div>
+
+        <div id="createCollectibleQtyRow" style="display:none">
+          <label>Quantity</label>
+          <input id="createCollectibleQty" type="number" min="1" step="1" placeholder="whole number">
+          <br><br>
+        </div>
+
+        <label>Currency</label>
+        <select id="createCollectibleCurrency"></select>
+
+        <br><br>
+
+        <label>Price <span style="font-weight:normal;font-size:11px;color:#999">(total)</span></label>
+        <input id="createCollectiblePrice" type="number" step="any" min="0" placeholder="e.g. 10.50">
+
+        <br><br>
+      </div><!-- #simpleCollectibleFields -->
 
       <label>Time in force</label>
       <select id="createOrderTif">

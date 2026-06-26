@@ -2149,7 +2149,9 @@ async function createOrderFromModal() {
     return
   }
 
-  const { ok, minFill } = parseMinFill(document.getElementById("createOrderMinFill")?.value)
+  const _orderType = document.getElementById("createOrderType")?.value
+  const _isCollectible = _orderType === "simple-nft" || _orderType === "simple-le"
+  const { ok, minFill } = parseMinFill(_isCollectible ? "" : document.getElementById("createOrderMinFill")?.value)
   if (!ok) {
     alert("Min fill must be a valid fraction e.g. 1/3 or 2/6\n\nnumerator and denominator must be positive integers, numerator ≤ denominator")
     return

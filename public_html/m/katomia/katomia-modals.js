@@ -301,6 +301,7 @@ function openCreateOrderModal(defaults = {}){
 
 
   document.getElementById("createOrderType").value = defaults.type || "simple-ft"
+  syncOrderTypeUI()
 
   document.querySelector(
     `[name="createOrderSide"][value="${defaults.side || "sell"}"]`
@@ -433,9 +434,71 @@ function getCreateOrderData(){
   if(raw)
     return raw.split(/\r?\n/).map(x => x.trim()).filter(Boolean)
 
-  const generated = buildSimpleFxRaw()
-
+  const type = document.getElementById("createOrderType")?.value
+  const generated = (type === "simple-nft" || type === "simple-le") ? buildCollectibleBundle() : buildSimpleFxRaw()
   return generated ? [generated] : []
+}
+
+function syncOrderTypeUI(){
+  const type = document.getElementById("createOrderType")?.value
+  const isC = type === "simple-nft" || type === "simple-le"
+  document.getElementById("simpleOrderPairRow").style.display = isC ? "none" : ""
+  document.getElementById("simpleFtRateFields").style.display = isC ? "none" : ""
+  document.getElementById("simpleCollectibleFields").style.display = isC ? "" : "none"
+  if(!isC) return
+  // clear stale FT pair value so validateOrderMath() early-returns and doesn't disable the button
+  const pairEl = document.getElementById("createOrderPair")
+  if(pairEl) pairEl.value = ""
+  const submitEl = document.getElementById("createOrderSubmit")
+  if(submitEl){ submitEl.disabled = false; submitEl.style.opacity = "" }
+  const isNft = type === "simple-nft"
+  document.getElementById("createCollectibleSerialRow").style.display = isNft ? "" : "none"
+  document.getElementById("createCollectibleQtyRow").style.display = isNft ? "none" : ""
+  populateCollectibleCurrencies()
+  document.getElementById("createOrderRaw").value = buildCollectibleBundle()
+}
+
+function populateCollectibleCurrencies(){
+  const sel = document.getElementById("createCollectibleCurrency")
+  if(!sel) return
+  const seen = new Set(["HBAR"])
+  const opts = [{ id:"HBAR", label:"HBAR", decimals:8 }]
+  getAcceptedPairs().forEach(p => {
+    if(!seen.has(p.base)){ seen.add(p.base); opts.push({ id:p.base, label:p.baseLabel||p.base, decimals:p.baseDecimals??0 }) }
+    if(!seen.has(p.quote)){ seen.add(p.quote); opts.push({ id:p.quote, label:p.quoteLabel||p.quote, decimals:p.quoteDecimals??0 }) }
+  })
+  sel.innerHTML = opts.map(o => `<option value="${o.id}" data-decimals="${o.decimals}">${o.label}</option>`).join("")
+}
+
+function buildCollectibleBundle(){
+  const type = document.getElementById("createOrderType")?.value
+  const accountId = (document.getElementById("createOrderAccount")?.value || "").split(":")[1] || ""
+  const tokenRaw = (document.getElementById("createCollectibleToken")?.value || "").trim()
+  const side = document.querySelector('[name="createOrderSide"]:checked')?.value
+  const currSel = document.getElementById("createCollectibleCurrency")
+  const currency = currSel?.value
+  const price = parseFloat(document.getElementById("createCollectiblePrice")?.value)
+  if(!accountId || !tokenRaw || !side || !currency || !Number.isFinite(price) || price <= 0) return ""
+  const norm = id => id.includes(".") ? id : `0.0.${id}`
+  const token = norm(tokenRaw)
+  const decimals = Number(currSel?.selectedOptions[0]?.dataset.decimals || 0)
+  const priceRaw = Math.round(price * (10 ** decimals))
+  if(type === "simple-nft"){
+    const serial = (document.getElementById("createCollectibleSerial")?.value || "").trim()
+    if(!serial) return ""
+    const nft = `${token}#${serial}`
+    return side === "sell"
+      ? `${accountId};${nft};-1|${accountId};${currency};${priceRaw}`
+      : `${accountId};${currency};-${priceRaw}|${accountId};${nft};1`
+  }
+  if(type === "simple-le"){
+    const qty = parseInt(document.getElementById("createCollectibleQty")?.value || "0", 10)
+    if(qty <= 0) return ""
+    return side === "sell"
+      ? `${accountId};${token};-${qty}|${accountId};${currency};${priceRaw}`
+      : `${accountId};${currency};-${priceRaw}|${accountId};${token};${qty}`
+  }
+  return ""
 }
 
 function buildSimpleFxRaw(){
@@ -480,7 +543,9 @@ document.addEventListener("input",e => {
   if(e.target.id == "createOrderMinFill") window.minFillWasAutoSet = false
   if(e.target.id == "createOrderVolume" || e.target.id == "createOrderRate") window.minFillWasAutoSet = true
   if(e.target.id == "createOrderTif") syncCreateOrderExpiryUI()
-  document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
+  const _type = document.getElementById("createOrderType")?.value
+  if(_type === "simple-ft") document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
+  else if(_type === "simple-nft" || _type === "simple-le") document.getElementById("createOrderRaw").value = buildCollectibleBundle()
   validateOrderMath()
 })
 
@@ -488,6 +553,7 @@ document.addEventListener("change",e => {
   if(!e.target.closest("#createOrderModal")) return
   window.createOrderDirty = true
   if(e.target.id == "createOrderTif") syncCreateOrderExpiryUI()
+  if(e.target.id == "createOrderType") syncOrderTypeUI()
   validateOrderMath()
 })
 
