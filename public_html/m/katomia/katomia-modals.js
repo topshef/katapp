@@ -2,6 +2,169 @@
 window.createOrderDirty = false
 window.pendingCreateOrderAccount = null
 
+// ── build markers + modal diagnostics ─────────────────────────────────────────
+// Bump KATOMIA_JS_BUILD on every JS edit. The CSS build marker lives in
+// katomia.css (:root --katomia-css-build). Both are surfaced in the diagnostics
+// so we can tell, from the server-side kdiag logs, exactly which version of the
+// code a given browser is running — and whether a cached (stale) asset is in play.
+const KATOMIA_JS_BUILD = "20260626-modalfix-3"
+
+// Self-contained diagnostics sender. window.kdiag (from the kpool widget) is
+// lazy-loaded only when the signing widget mounts, so it is NOT available when
+// the create-order modal opens. We therefore POST straight to /diag ourselves,
+// using the exact payload shape diag.php expects. Remote is gated by the same
+// convention as kdiag: ?kdiag=1 URL param OR localStorage kdiag_remote === '1'.
+function katomiaDiagRemoteOn(){
+  try {
+    const p = new URLSearchParams(location.search).get("kdiag")
+    if(p === "1"){ try { localStorage.setItem("kdiag_remote","1") } catch {} ; return true }
+    if(p === "0"){ try { localStorage.removeItem("kdiag_remote") } catch {} ; return false }
+    return localStorage.getItem("kdiag_remote") === "1"
+  } catch { return false }
+}
+
+function katomiaDiagSend(msg, data){
+  // always mirror locally for live debugging
+  try { console.debug("[katomiaDiag]", msg, data ?? "") } catch {}
+  try { window.glog?.(msg, data) } catch {}
+  try { window.kdiag?.(msg, data) } catch {}   // also feed widget buffer if present
+
+  if(!katomiaDiagRemoteOn()) return
+
+  const payload = JSON.stringify({
+    events: [{ t: new Date().toISOString(), msg, data }],
+    page:   location.pathname,
+    ua:     navigator.userAgent.slice(0, 200)
+  })
+  try {
+    const blob = new Blob([payload], { type: "application/json" })
+    if(navigator.sendBeacon?.("/diag", blob)) return
+    fetch("/diag", { method: "POST", body: blob, keepalive: true }).catch(() => {})
+  } catch {}
+}
+
+// Pull the build string the browser ACTUALLY applied from the loaded stylesheet.
+function readAppliedCssBuild(){
+  try {
+    const v = getComputedStyle(document.documentElement)
+      .getPropertyValue("--katomia-css-build")
+    return (v || "").trim().replace(/^["']|["']$/g, "") || null
+  } catch { return null }
+}
+
+// Fetch an asset bypassing the HTTP cache and pull a marker out of its text, so
+// we can compare "what the server has now" against "what this browser applied".
+// If they differ → the browser is running a cached/stale copy.
+async function fetchFreshMarker(url, regex){
+  try {
+    const res = await fetch(url, { cache: "reload" })
+    const txt = await res.text()
+    const m = txt.match(regex)
+    return {
+      ok: res.ok,
+      status: res.status,
+      marker: m ? m[1] : null,
+      lastModified: res.headers.get("last-modified"),
+      etag: res.headers.get("etag")
+    }
+  } catch (e) {
+    return { ok: false, error: String(e) }
+  }
+}
+
+// Snapshot of the create-order modal's real geometry + the styles that the
+// mobile full-screen fix touches. Pushed to kdiag (→ /diag on the server when
+// remote logging is on). Pass a short label for context (e.g. "open:simple-le").
+function katomiaModalDiag(label = "manual"){
+  const card = document.querySelector("#createOrderModal .asset-modal-card")
+  const vv = window.visualViewport
+
+  const base = {
+    label,
+    jsBuild: KATOMIA_JS_BUILD,
+    cssBuildApplied: readAppliedCssBuild(),
+    href: location.href,
+    viewport: {
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      dpr: window.devicePixelRatio,
+      visualW: vv ? Math.round(vv.width) : null,
+      visualH: vv ? Math.round(vv.height) : null
+    },
+    media: {
+      "max768": window.matchMedia("(max-width:768px)").matches,
+      "max699": window.matchMedia("(max-width:699px)").matches,
+      "max899": window.matchMedia("(max-width:899px)").matches
+    },
+    docOverflowX: document.scrollingElement
+      ? (document.scrollingElement.scrollWidth - document.scrollingElement.clientWidth)
+      : null
+  }
+
+  if(card){
+    const cs = getComputedStyle(card)
+    const r  = card.getBoundingClientRect()
+    base.card = {
+      // computed styles the mobile fix controls
+      width: cs.width, maxWidth: cs.maxWidth,
+      height: cs.height, maxHeight: cs.maxHeight,
+      borderRadius: cs.borderRadius,
+      overflow: cs.overflow, overflowX: cs.overflowX, overflowY: cs.overflowY,
+      boxSizing: cs.boxSizing, padding: cs.padding,
+      // actual rendered box
+      rect: { w: Math.round(r.width), h: Math.round(r.height),
+              left: Math.round(r.left), right: Math.round(r.right),
+              top: Math.round(r.top) },
+      // overflow detection
+      scrollW: card.scrollWidth, clientW: card.clientWidth,
+      overflowsViewport: Math.round(r.right) > window.innerWidth + 1,
+      horizScrolls: card.scrollWidth > card.clientWidth + 1
+    }
+    // verdict: at <=768 we expect full-screen (maxWidth:none, width≈innerWidth,
+    // radius 0) and no horizontal overflow
+    if(base.media.max768){
+      base.verdict = {
+        fullWidthOk: Math.abs(base.card.rect.w - window.innerWidth) <= 1,
+        maxWidthNone: cs.maxWidth === "none",
+        radiusZero: parseFloat(cs.borderRadius) === 0,
+        noHorizOverflow: !base.card.overflowsViewport && !base.card.horizScrolls
+      }
+    }
+  } else {
+    base.card = null
+  }
+
+  katomiaDiagSend("modal:snapshot", base)
+
+  // async caching check — compare applied markers vs fresh server copies
+  ;(async () => {
+    const [css, js] = await Promise.all([
+      fetchFreshMarker("/m/katomia/katomia.css", /--katomia-css-build:\s*["']([^"']+)["']/),
+      fetchFreshMarker("/m/katomia/katomia-modals.js", /KATOMIA_JS_BUILD\s*=\s*["']([^"']+)["']/)
+    ])
+    const report = {
+      label,
+      css: { applied: base.cssBuildApplied, fresh: css.marker,
+             lastModified: css.lastModified, etag: css.etag,
+             stale: !!(css.marker && base.cssBuildApplied && css.marker !== base.cssBuildApplied) },
+      js:  { running: KATOMIA_JS_BUILD, fresh: js.marker,
+             lastModified: js.lastModified, etag: js.etag,
+             stale: !!(js.marker && js.marker !== KATOMIA_JS_BUILD) }
+    }
+    report.cachingSuspected = report.css.stale || report.js.stale
+    katomiaDiagSend("modal:cachecheck", report)
+  })()
+
+  return base
+}
+
+// expose for manual runs from a phone/desktop console: katomiaDiag()
+window.katomiaDiag = katomiaModalDiag
+
+// log the running build once at load so every session records its version,
+// even if the modal is never opened
+katomiaDiagSend("katomia:build", { jsBuild: KATOMIA_JS_BUILD, cssBuildApplied: readAppliedCssBuild(), href: location.href })
+
 function toDateTimeLocalValue(ts){
   if(!ts) return ""
   const d = new Date(ts)
@@ -349,7 +512,12 @@ function openCreateOrderModal(defaults = {}){
   renderCreateOrderActions(defaults)
   document.getElementById("createOrderModal").classList.remove("hidden")
   validateOrderMath()
-  
+
+  // capture modal geometry + build/caching diagnostics once layout has settled
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    try { katomiaModalDiag(`open:${_openType || "?"}`) } catch {}
+  }))
+
 }
 
 
