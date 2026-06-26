@@ -296,33 +296,36 @@
       </div><!-- #simpleFtRateFields -->
 
       <div id="simpleCollectibleFields" style="display:none">
-        <label>Token ID</label>
-        <input id="createCollectibleToken" type="text" placeholder="e.g. 0.0.12345">
-        <div id="createCollectibleTokenHint" style="font-size:11px;min-height:14px;margin-top:3px;"></div>
 
-        <br>
-
-        <div id="createCollectibleSerialRow">
-          <label>Serial #</label>
-          <input id="createCollectibleSerial" type="number" min="1" step="1" placeholder="e.g. 42">
-          <br><br>
+        <!-- Token ID + Serial/Qty on one line -->
+        <div class="collectible-token-row">
+          <div class="collectible-token-id">
+            <label>Token ID</label>
+            <input id="createCollectibleToken" type="text" placeholder="e.g. 0.0.12345">
+            <div id="createCollectibleTokenHint" class="collectible-hint"></div>
+          </div>
+          <div id="createCollectibleSerialRow" class="collectible-serial">
+            <label>Serial #</label>
+            <input id="createCollectibleSerial" type="number" min="1" step="1" placeholder="e.g. 42">
+          </div>
+          <div id="createCollectibleQtyRow" class="collectible-serial" style="display:none">
+            <label>Qty</label>
+            <input id="createCollectibleQty" type="number" min="1" step="1" placeholder="1">
+          </div>
         </div>
 
-        <div id="createCollectibleQtyRow" style="display:none">
-          <label>Quantity</label>
-          <input id="createCollectibleQty" type="number" min="1" step="1" placeholder="whole number">
-          <br><br>
+        <!-- Price + Currency on one line -->
+        <div class="collectible-price-row">
+          <div class="collectible-price">
+            <label>Price <span class="collectible-label-note">(total)</span></label>
+            <input id="createCollectiblePrice" type="number" step="any" min="0" placeholder="e.g. 10.50">
+          </div>
+          <div class="collectible-currency">
+            <label>Currency</label>
+            <select id="createCollectibleCurrency"></select>
+          </div>
         </div>
 
-        <label>Currency</label>
-        <select id="createCollectibleCurrency"></select>
-
-        <br><br>
-
-        <label>Price <span style="font-weight:normal;font-size:11px;color:#999">(total)</span></label>
-        <input id="createCollectiblePrice" type="number" step="any" min="0" placeholder="e.g. 10.50">
-
-        <br><br>
       </div><!-- #simpleCollectibleFields -->
 
       <label>Time in force</label>

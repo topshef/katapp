@@ -1052,13 +1052,14 @@ button i{
   position:absolute;
   left:0; top:0; height:100%;
   background:#4caf50;
+  opacity:0.35;
   transition:width 0.4s;
 }
 .order-fill-bar-pending{
   position:absolute;
   top:0; height:100%;
   background:#ff9800;
-  opacity:0.55;
+  opacity:0.25;
   transition:width 0.4s, left 0.4s;
 }
 
@@ -1397,6 +1398,49 @@ svg .svg-sell{
   width:auto;
   margin:0;
   flex:none;
+}
+
+/* Collectible modal inline pairs */
+.collectible-token-row,
+.collectible-price-row{
+  display:flex;
+  gap:8px;
+  align-items:flex-start;
+  margin-bottom:10px;
+}
+.collectible-token-id{
+  flex:2;
+  min-width:0;
+}
+.collectible-serial{
+  flex:1;
+  min-width:0;
+}
+.collectible-price{
+  flex:3;
+  min-width:0;
+}
+.collectible-currency{
+  flex:2;
+  min-width:0;
+}
+.collectible-token-row input,
+.collectible-token-row select,
+.collectible-price-row input,
+.collectible-price-row select{
+  width:100%;
+  box-sizing:border-box;
+  margin:0;
+}
+.collectible-hint{
+  font-size:11px;
+  min-height:14px;
+  margin-top:3px;
+}
+.collectible-label-note{
+  font-weight:normal;
+  font-size:11px;
+  color:#999;
 }
 
 #createOrderExit{
