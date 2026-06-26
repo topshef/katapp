@@ -18,7 +18,7 @@
 			/* Build marker — bump on every CSS edit. Read at runtime via
 			   getComputedStyle(documentElement).getPropertyValue('--katomia-css-build')
 			   to detect whether the browser applied a stale (cached) stylesheet. */
-			--katomia-css-build: "20260626-modalfix-6";
+			--katomia-css-build: "20260626-modalfix-7";
 
 			--bg-color: #f5f5f5;
 

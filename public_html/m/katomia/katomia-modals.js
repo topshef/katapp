@@ -7,7 +7,7 @@ window.pendingCreateOrderAccount = null
 // katomia.css (:root --katomia-css-build). Both are surfaced in the diagnostics
 // so we can tell, from the server-side kdiag logs, exactly which version of the
 // code a given browser is running — and whether a cached (stale) asset is in play.
-const KATOMIA_JS_BUILD = "20260626-modalfix-6"
+const KATOMIA_JS_BUILD = "20260626-modalfix-7"
 
 // Self-contained diagnostics sender. window.kdiag (from the kpool widget) is
 // lazy-loaded only when the signing widget mounts, so it is NOT available when
@@ -300,14 +300,19 @@ function accountMatchesInput(account, input){
   )
 }
 
-function pollUntil(condition, callback, interval = 200, timeout = 10000){
+function pollUntil(condition, callback, interval = 200, timeout = 10000, onTimeout = null){
+  let settled = false
   const poll = setInterval(() => {
     if(condition()){
+      settled = true
       clearInterval(poll)
       callback()
     }
   }, interval)
-  setTimeout(() => clearInterval(poll), timeout)
+  setTimeout(() => {
+    clearInterval(poll)
+    if(!settled && onTimeout) onTimeout()
+  }, timeout)
 }
 
 function refreshCreateOrderAccounts(selectedId = null){
@@ -351,12 +356,16 @@ document.addEventListener("click", e => {
     if(!input) return
     const idsBefore = new Set(getAccounts().filter(a => isMyAccount(a)).map(a => a.id))
     addAccounts(input)
+    try { notify?.(`Adding account ${input}…`, "info", { timeout: 2500 }) } catch {}
     pollUntil(
       () => getAccounts().filter(a => isMyAccount(a)).length > idsBefore.size,
       () => {
         const newAccount = getAccounts().find(a => isMyAccount(a) && !idsBefore.has(a.id))
         refreshCreateOrderAccounts(newAccount?.id)
-      }
+      },
+      200,
+      10000,
+      () => { try { notify?.(`Couldn't add account ${input} — check the ID and connection, then try again`, "error", { timeout: 0 }) } catch {} }
     )
     return
   }
