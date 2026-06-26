@@ -319,6 +319,7 @@ header .navbar {
 	color: #fff;
 	transition: all 0.5s;
 	margin-top: 5px;
+	border-bottom: 3px solid transparent;
 }
 .navbar .navbar-nav .nav-link:hover,
 .navbar .navbar-nav .active>.nav-link,
