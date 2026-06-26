@@ -7,20 +7,28 @@ window.pendingCreateOrderAccount = null
 // katomia.css (:root --katomia-css-build). Both are surfaced in the diagnostics
 // so we can tell, from the server-side kdiag logs, exactly which version of the
 // code a given browser is running — and whether a cached (stale) asset is in play.
-const KATOMIA_JS_BUILD = "20260626-modalfix-3"
+const KATOMIA_JS_BUILD = "20260626-modalfix-6"
 
 // Self-contained diagnostics sender. window.kdiag (from the kpool widget) is
 // lazy-loaded only when the signing widget mounts, so it is NOT available when
 // the create-order modal opens. We therefore POST straight to /diag ourselves,
-// using the exact payload shape diag.php expects. Remote is gated by the same
-// convention as kdiag: ?kdiag=1 URL param OR localStorage kdiag_remote === '1'.
+// using the exact payload shape diag.php expects.
+//
+// DEFAULT-ON for rapid iteration (2026-06-26). Remote logging is on for everyone
+// unless explicitly disabled. To turn OFF: ?kdiag=0 in the URL, or localStorage
+// kdiag_remote="0". When we leave rapid-iteration mode, flip DIAG_DEFAULT_ON back
+// to false so it reverts to opt-in.
+const DIAG_DEFAULT_ON = true
 function katomiaDiagRemoteOn(){
   try {
     const p = new URLSearchParams(location.search).get("kdiag")
     if(p === "1"){ try { localStorage.setItem("kdiag_remote","1") } catch {} ; return true }
-    if(p === "0"){ try { localStorage.removeItem("kdiag_remote") } catch {} ; return false }
-    return localStorage.getItem("kdiag_remote") === "1"
-  } catch { return false }
+    if(p === "0"){ try { localStorage.setItem("kdiag_remote","0") } catch {} ; return false }
+    const ls = localStorage.getItem("kdiag_remote")
+    if(ls === "1") return true
+    if(ls === "0") return false
+    return DIAG_DEFAULT_ON
+  } catch { return DIAG_DEFAULT_ON }
 }
 
 function katomiaDiagSend(msg, data){
@@ -72,10 +80,60 @@ async function fetchFreshMarker(url, regex){
   }
 }
 
+// short locating path for an element: tag#id.firstclass > … (max 4 levels up)
+function elPath(el){
+  const parts = []
+  let n = el, depth = 0
+  while(n && n.nodeType === 1 && depth < 5){
+    let s = n.tagName.toLowerCase()
+    if(n.id) s += "#" + n.id
+    else if(typeof n.className === "string" && n.className.trim())
+      s += "." + n.className.trim().split(/\s+/)[0]
+    parts.unshift(s)
+    n = n.parentElement; depth++
+  }
+  return parts.join(" > ")
+}
+
+// Walk descendants of `root` and find any element whose right edge pokes past
+// `limitRight` (the VISIBLE width), or that itself scrolls horizontally — the
+// actual cause of "page/modal too wide". Returns the worst few, described enough
+// to locate them in the DOM.
+function findOverflowCulprits(root, limitRight){
+  const out = []
+  if(!root) return out
+  const els = root.querySelectorAll("*")
+  for(const el of els){
+    // skip the modal's own subtree — it's fixed/full-screen and just mirrors the
+    // (possibly inflated) layout viewport, masking the real page-level culprit
+    if(el.closest && el.closest("#createOrderModal")) continue
+    const r = el.getBoundingClientRect()
+    const over = Math.round(r.right - limitRight)
+    if(over > 1 || el.scrollWidth > el.clientWidth + 1){
+      const cs = getComputedStyle(el)
+      out.push({
+        path: elPath(el),
+        right: Math.round(r.right),
+        width: Math.round(r.width),
+        overBy: over,
+        scrollW: el.scrollWidth,
+        clientW: el.clientWidth,
+        cssWidth: cs.width, minWidth: cs.minWidth,
+        whiteSpace: cs.whiteSpace, position: cs.position
+      })
+    }
+  }
+  // worst offenders first
+  out.sort((a,b) => (b.overBy - a.overBy) || ((b.scrollW-b.clientW) - (a.scrollW-a.clientW)))
+  return out.slice(0, 10)
+}
+
 // Snapshot of the create-order modal's real geometry + the styles that the
 // mobile full-screen fix touches. Pushed to kdiag (→ /diag on the server when
 // remote logging is on). Pass a short label for context (e.g. "open:simple-le").
-function katomiaModalDiag(label = "manual"){
+// withCacheCheck: only the first snapshot of a sequence needs to do the (costly)
+// fresh-fetch caching comparison.
+function katomiaModalDiag(label = "manual", withCacheCheck = true){
   const card = document.querySelector("#createOrderModal .asset-modal-card")
   const vv = window.visualViewport
 
@@ -130,11 +188,23 @@ function katomiaModalDiag(label = "manual"){
         noHorizOverflow: !base.card.overflowsViewport && !base.card.horizScrolls
       }
     }
+    // The real bug: the layout viewport (window.innerWidth) gets stretched
+    // wider than the VISIBLE area (visualViewport.width) by some element on the
+    // PAGE behind the modal — the fixed full-screen modal then sizes to that
+    // inflated layout viewport. So when layout > visual, scan the WHOLE document
+    // against the visible width to name the page element forcing the overflow.
+    const visualW = vv ? vv.width : window.innerWidth
+    base.layoutOverflow = Math.round(window.innerWidth - visualW)
+    if(base.layoutOverflow > 2 || base.card.horizScrolls || base.docOverflowX){
+      base.culprits = findOverflowCulprits(document.body, visualW)
+    }
   } else {
     base.card = null
   }
 
   katomiaDiagSend("modal:snapshot", base)
+
+  if(!withCacheCheck) return base
 
   // async caching check — compare applied markers vs fresh server copies
   ;(async () => {
@@ -160,6 +230,32 @@ function katomiaModalDiag(label = "manual"){
 
 // expose for manual runs from a phone/desktop console: katomiaDiag()
 window.katomiaDiag = katomiaModalDiag
+
+// Fire a sequence of snapshots after the modal opens to catch transient layout
+// — "too wide then jumps back". Phases: 0 (first paint), then 60ms / 250ms /
+// 800ms / 1600ms to catch async reflows (e.g. currency dropdown populating).
+// Only the first snapshot runs the caching check; the rest just measure geometry.
+function katomiaModalDiagSequence(type){
+  const delays = [0, 60, 250, 800, 1600]
+  delays.forEach((ms, i) => {
+    setTimeout(() => {
+      try { katomiaModalDiag(`open:${type || "?"}@${ms}ms`, i === 0) } catch {}
+    }, ms)
+  })
+  // also catch viewport/resize changes while the modal is open
+  const onResize = () => { try { katomiaModalDiag(`resize:${type || "?"}`, false) } catch {} }
+  window.addEventListener("resize", onResize)
+  window.visualViewport?.addEventListener("resize", onResize)
+  // detach when the modal closes (poll for the hidden class)
+  const stop = setInterval(() => {
+    const m = document.getElementById("createOrderModal")
+    if(!m || m.classList.contains("hidden")){
+      window.removeEventListener("resize", onResize)
+      window.visualViewport?.removeEventListener("resize", onResize)
+      clearInterval(stop)
+    }
+  }, 500)
+}
 
 // log the running build once at load so every session records its version,
 // even if the modal is never opened
@@ -513,10 +609,9 @@ function openCreateOrderModal(defaults = {}){
   document.getElementById("createOrderModal").classList.remove("hidden")
   validateOrderMath()
 
-  // capture modal geometry + build/caching diagnostics once layout has settled
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    try { katomiaModalDiag(`open:${_openType || "?"}`) } catch {}
-  }))
+  // capture modal geometry across several frames to catch transient "too wide
+  // then jumps back" layout, plus build/caching diagnostics
+  try { katomiaModalDiagSequence(_openType) } catch {}
 
 }
 
