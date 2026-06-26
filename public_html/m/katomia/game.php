@@ -310,7 +310,7 @@
           </div>
           <div id="createCollectibleQtyRow" class="collectible-serial" style="display:none">
             <label>Qty</label>
-            <input id="createCollectibleQty" type="number" min="1" step="1" placeholder="1">
+            <input id="createCollectibleQty" type="number" min="1" step="1" value="1" placeholder="qty">
           </div>
         </div>
 

@@ -319,7 +319,7 @@ function openCreateOrderModal(defaults = {}){
     const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.value = v ?? "" }
     setVal("createCollectibleToken", defaults.token)
     setVal("createCollectibleSerial", defaults.serial)
-    setVal("createCollectibleQty", defaults.qty)
+    setVal("createCollectibleQty", defaults.qty ?? 1)
     const currSel = document.getElementById("createCollectibleCurrency")
     if(currSel && defaults.currency) currSel.value = defaults.currency
     setVal("createCollectiblePrice", defaults.price)
@@ -592,6 +592,8 @@ document.addEventListener("change",e => {
   window.createOrderDirty = true
   if(e.target.id == "createOrderTif") syncCreateOrderExpiryUI()
   if(e.target.id == "createOrderType") syncOrderTypeUI()
+  const _type = document.getElementById("createOrderType")?.value
+  if(_type === "simple-nft" || _type === "simple-le") document.getElementById("createOrderRaw").value = buildCollectibleBundle()
   validateOrderMath()
 })
 
