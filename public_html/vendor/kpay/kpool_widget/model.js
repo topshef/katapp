@@ -139,10 +139,10 @@ function getAllTransfers(data) {
 	
 	// NFTs (explicit debit/credit)
 	raw.nft.forEach(x => {
-		const tokenId = x.tokenId ?? x.token_id
-		const serial  = x.serial ?? x.serial_number
-		const sender  = x.sender ?? x.sender_account_id
-		const receiver = x.receiver ?? x.receiver_account_id
+		const tokenId  = x.tokenId  ?? x.token_id
+		const serial   = x.serial   ?? x.serialNumber   ?? x.serial_number
+		const sender   = x.sender   ?? x.senderAccountId   ?? x.sender_account_id
+		const receiver = x.receiver ?? x.receiverAccountId ?? x.receiver_account_id
 
 		const asset = `${tokenId} #${serial}`
 

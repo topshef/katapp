@@ -1066,11 +1066,6 @@ button i{
 .tx-nft-chip{
   font-variant-numeric:tabular-nums;
 }
-.tx-nft-chip::before{
-  content:"#";
-  opacity:0.5;
-  font-size:0.85em;
-}
 
 #ordersSection .order-row{
   margin-bottom: 4px;   /* 👈 row separation */

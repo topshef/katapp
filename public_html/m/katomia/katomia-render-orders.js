@@ -336,7 +336,7 @@ function createNftTxAssets(nftTransfers, ftTransfers){
     const assetId  = `${tokenId}#${serial}`
 
     const nftChip = makeAssetEl({
-      text: `${sender} #${serial} ${getAssetDisplay(assetId, 1)}`,
+      text: `${sender} ${getAssetDisplay(assetId, 1)}`,
       assetId,
       ownerAccountId: sender,
       clickable: false
@@ -456,6 +456,7 @@ function getTxMainOrder(tx){
 function getOrderTypeFromPchbasis(tx){
   const basis = tx.pchbasis?.transfers
   if(!basis) return null
+  if((basis.nftTransfers || []).length) return "simple-nft"
   const transfers = [
     ...(basis.tokenTransfers || []),
     ...(basis.hbarTransfers  || [])
