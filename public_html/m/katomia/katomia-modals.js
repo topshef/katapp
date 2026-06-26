@@ -314,6 +314,16 @@ function openCreateOrderModal(defaults = {}){
   document.getElementById("createOrderRate").value = defaults.rate != null
     ? parseFloat(Number(defaults.rate).toPrecision(10))
     : ""
+
+  if(defaults.type === "simple-nft" || defaults.type === "simple-le"){
+    const setVal = (id, v) => { const el = document.getElementById(id); if(el) el.value = v ?? "" }
+    setVal("createCollectibleToken", defaults.token)
+    setVal("createCollectibleSerial", defaults.serial)
+    setVal("createCollectibleQty", defaults.qty)
+    const currSel = document.getElementById("createCollectibleCurrency")
+    if(currSel && defaults.currency) currSel.value = defaults.currency
+    setVal("createCollectiblePrice", defaults.price)
+  }
     
   const minFillEl = document.getElementById("createOrderMinFill")
   if(minFillEl)
@@ -332,7 +342,9 @@ function openCreateOrderModal(defaults = {}){
   // if opening existing order with saved minFill, treat as manual; otherwise allow auto-fill
   window.minFillWasAutoSet = !defaults.minFill
 
-  document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
+  const _openType = document.getElementById("createOrderType")?.value
+  document.getElementById("createOrderRaw").value =
+    (_openType === "simple-nft" || _openType === "simple-le") ? buildCollectibleBundle() : buildSimpleFxRaw()
   window.createOrderDirty = false
   renderCreateOrderActions(defaults)
   document.getElementById("createOrderModal").classList.remove("hidden")
@@ -470,7 +482,32 @@ function populateCollectibleCurrencies(){
   sel.innerHTML = opts.map(o => `<option value="${o.id}" data-decimals="${o.decimals}">${o.label}</option>`).join("")
 }
 
+function detectCollectibleTokenType(tokenId){
+  const hint = document.getElementById("createCollectibleTokenHint")
+  if(!tokenId){ if(hint) hint.textContent = ""; return }
+  const norm = id => id.includes(".") ? id : `0.0.${id}`
+  const assetType = getAssetType(norm(tokenId))
+  if(assetType === "UNKNOWN"){ if(hint) hint.textContent = ""; return }  // metadata not loaded yet
+  const targetType = assetType === "NFT" ? "simple-nft" : assetType === "LE" ? "simple-le" : null
+  if(!targetType){
+    if(hint) hint.style.color = "#e74c3c", hint.textContent = `⚠️ Token is type ${assetType} — not a collectible`
+    return
+  }
+  if(hint) hint.style.color = ""
+  const typeEl = document.getElementById("createOrderType")
+  if(typeEl?.value !== targetType){
+    typeEl.value = targetType
+    syncOrderTypeUI()
+    const label = targetType === "simple-nft" ? "Simple NFT" : "Simple LE"
+    if(hint) hint.textContent = `ℹ️ Type updated to ${label}`
+  } else {
+    if(hint) hint.textContent = ""
+  }
+}
+
 function buildCollectibleBundle(){
+  // TODO: before submit, verify getAssetType(token) matches the selected order type
+  // e.g. reject an NFT token ID if type is simple-le (auto-correction was offered on input but user may have overridden)
   const type = document.getElementById("createOrderType")?.value
   const accountId = (document.getElementById("createOrderAccount")?.value || "").split(":")[1] || ""
   const tokenRaw = (document.getElementById("createCollectibleToken")?.value || "").trim()
@@ -543,6 +580,7 @@ document.addEventListener("input",e => {
   if(e.target.id == "createOrderMinFill") window.minFillWasAutoSet = false
   if(e.target.id == "createOrderVolume" || e.target.id == "createOrderRate") window.minFillWasAutoSet = true
   if(e.target.id == "createOrderTif") syncCreateOrderExpiryUI()
+  if(e.target.id === "createCollectibleToken") detectCollectibleTokenType(e.target.value)
   const _type = document.getElementById("createOrderType")?.value
   if(_type === "simple-ft") document.getElementById("createOrderRaw").value = buildSimpleFxRaw()
   else if(_type === "simple-nft" || _type === "simple-le") document.getElementById("createOrderRaw").value = buildCollectibleBundle()

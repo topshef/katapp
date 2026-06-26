@@ -1769,27 +1769,63 @@ function getOrderMarketLabel(orderId, playerId, enriched){
 
 function makeOrderRowOnClick(orderId, playerId, enriched, order){
   return () => {
-    if(enriched.market?.type !== "simple-ft") return
-
-    const fxRow = enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market })
-    if(!fxRow) return
-
+    const type = enriched.market?.type || getOrderType(order) || ""
     const fullOrder = getAllOrders().find(x => String(x.orderId) === String(orderId))?.order
+    const tifDefaults = { timeInForce: fullOrder?.timeInForce || "GTC", expiresAt: fullOrder?.expiresAt || null }
 
-    openCreateOrderModal({
-      mode:        "order",
-      orderId,
-      playerId,
-      type:        "simple-ft",
-      pair:        `${fxRow.baseAsset}/${fxRow.quoteAsset}`,
-      side:        fxRow.side,
-      volume:      fxRow.originalDisplayBaseAmount,
-      rate:        fxRow.displayRate,
-      accountId:   `${playerId}:${fxRow.accountId}`,
-      minFill:     fullOrder?.minFill     || null,
-      timeInForce: fullOrder?.timeInForce || "GTC",
-      expiresAt:   fullOrder?.expiresAt   || null,
-    })
+    if(type === "simple-ft"){
+      const fxRow = enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market })
+      if(!fxRow) return
+      openCreateOrderModal({
+        mode: "order", orderId, playerId, type: "simple-ft",
+        pair:        `${fxRow.baseAsset}/${fxRow.quoteAsset}`,
+        side:        fxRow.side,
+        volume:      fxRow.originalDisplayBaseAmount,
+        rate:        fxRow.displayRate,
+        accountId:   `${playerId}:${fxRow.accountId}`,
+        minFill:     fullOrder?.minFill || null,
+        ...tifDefaults,
+      })
+      return
+    }
+
+    if(type === "simple-nft" || type === "simple-le"){
+      const bundle = order?.bundle || []
+      const collectibleLeg = bundle.find(x => { const t = getAssetType(x.asset, Math.abs(x.amount)); return t === "NFT" || t === "LE" })
+      const currencyLeg = bundle.find(x => x !== collectibleLeg)
+      if(!collectibleLeg || !currencyLeg) return
+
+      const orderSide = collectibleLeg.amount < 0 ? "sell" : "buy"
+      const asset = collectibleLeg.asset
+      let token = asset, serial = ""
+      if(asset.includes("#")){ [token, serial] = asset.split("#") }
+
+      const currencyAsset = currencyLeg.asset
+      const allPairs = getAcceptedPairs()
+      const matchPair = allPairs.find(p => p.base === currencyAsset) || allPairs.find(p => p.quote === currencyAsset)
+      const currDecimals = currencyAsset === "HBAR" ? 8
+        : matchPair ? (matchPair.base === currencyAsset ? (matchPair.baseDecimals ?? 0) : (matchPair.quoteDecimals ?? 0))
+        : Number(getAssetMeta?.(currencyAsset)?.token_class?.decimals || 0)
+      const priceDisplay = Math.abs(currencyLeg.amount) / (10 ** currDecimals)
+
+      const isOther = playerId !== currentPlayerId
+      openCreateOrderModal({
+        // Viewing another player's order: "Take" — flip side, no orderId context
+        // Viewing own order: edit/replicate — keep same side
+        mode:      isOther ? undefined  : "order",
+        orderId:   isOther ? undefined  : orderId,
+        playerId:  isOther ? undefined  : playerId,
+        side:      isOther ? (orderSide === "sell" ? "buy" : "sell") : orderSide,
+        accountId: isOther ? undefined  : `${playerId}:${collectibleLeg.accountId}`,
+        type, token,
+        serial: serial || undefined,
+        qty: type === "simple-le" ? Math.abs(collectibleLeg.amount) : undefined,
+        currency: currencyAsset,
+        price: priceDisplay,
+        ...tifDefaults,
+      })
+      return
+    }
   }
 }
 
@@ -2177,7 +2213,7 @@ async function createOrderFromModal() {
     socket.send(JSON.stringify({
       type: "game_orderCreate",
       gameId,
-      order
+      order: { ...order, orderType: _orderType }
     }))
   }
 

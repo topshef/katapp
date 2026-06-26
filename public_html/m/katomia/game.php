@@ -298,8 +298,9 @@
       <div id="simpleCollectibleFields" style="display:none">
         <label>Token ID</label>
         <input id="createCollectibleToken" type="text" placeholder="e.g. 0.0.12345">
+        <div id="createCollectibleTokenHint" style="font-size:11px;min-height:14px;margin-top:3px;"></div>
 
-        <br><br>
+        <br>
 
         <div id="createCollectibleSerialRow">
           <label>Serial #</label>
