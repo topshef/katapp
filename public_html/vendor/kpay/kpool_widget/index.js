@@ -740,9 +740,20 @@ async function refreshPolledTx(txState, pollTimer) {
 
 	view.statusBlock.update(txState.data)
 
+	// Reuse the already-enriched accounts (keeps keyInfo) instead of fresh.accounts,
+	// whose keyInfo would be re-fetched from scratch each tick — a transient miss
+	// dropped a required signer and flapped it to "witness". Merge in any genuinely
+	// new account from the fresh read without clobbering existing enrichment.
+	if (txState.accounts) {
+		for (const [id, acc] of Object.entries(fresh.accounts || {}))
+			if (!txState.accounts[id]) txState.accounts[id] = acc
+	} else {
+		txState.accounts = fresh.accounts
+	}
+
 	await refreshSigningSection(txState, {
 		data: txState.data,   // use merged data so precheck/sigs match what pushStatus sees
-		accounts: fresh.accounts
+		accounts: txState.accounts
 	})
 
 	if (fresh.data?.mirrorStatus) clearInterval(pollTimer)

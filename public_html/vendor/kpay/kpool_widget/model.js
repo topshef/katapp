@@ -401,6 +401,14 @@ export function evaluateTxReadiness({accounts,data}){
 
 	const summaries = []
 
+	// Is the required-key picture actually complete? Every account that must sign
+	// needs its keyInfo loaded; otherwise allRequiredKeys is partial and any signed
+	// key for a not-yet-loaded account looks like a "witness". keyInfo is fetched
+	// async and the poll path rebuilds accounts from scratch, so this flaps between
+	// refreshes — which is the "1 witness / threshold reached" toggling we saw.
+	const mustSignAccounts = Object.values(accounts).filter(a => a.mustSign)
+	const keyInfoComplete  = mustSignAccounts.length > 0 && mustSignAccounts.every(a => a.keyInfo)
+
 	Object.entries(accounts).forEach(([accountId, acc]) => {
 		if (!acc.mustSign) return
 		if (!acc.keyInfo) return
@@ -414,20 +422,31 @@ export function evaluateTxReadiness({accounts,data}){
 	summaries.forEach(x => x.allRequiredKeys?.forEach(k => allRequiredKeys.add(k)))
 
 	const signedRequiredKeys = signedPubkeys.filter(k => allRequiredKeys.has(k))
-	const signedWitnessKeys  = signedPubkeys.filter(k => !allRequiredKeys.has(k))
+
+	// Only call something a witness once the required set is fully known — otherwise
+	// a legitimately-required signature for an account still loading gets mislabelled.
+	const signedWitnessKeys = keyInfoComplete
+		? signedPubkeys.filter(k => !allRequiredKeys.has(k))
+		: []
 
 	if (signedWitnessKeys.length) {
 		console.warn('[readiness] witness keys after normalisation — possible mismatch')
 		console.warn('[readiness] signed:', signedPubkeys)
 		console.warn('[readiness] required:', [...allRequiredKeys])
 		console.warn('[readiness] unmatched:', signedWitnessKeys)
+	} else if (!keyInfoComplete) {
+		console.warn('[readiness] keyInfo incomplete — deferring witness/threshold verdict',
+			{ mustSign: mustSignAccounts.length, withKeyInfo: mustSignAccounts.filter(a => a.keyInfo).length })
 	}
 
 	return {
-		thresholdSatisfied: summaries.every(x => x.thresholdSatisfied),
+		// can't claim the threshold is met while the required set is still partial —
+		// note [].every() is true, which is how the empty case showed "threshold reached".
+		thresholdSatisfied: keyInfoComplete && summaries.every(x => x.thresholdSatisfied),
 		signedRequiredKeyCount: signedRequiredKeys.length,
 		allRequiredKeys,
 		witnessKeys: signedWitnessKeys,
+		keyInfoComplete,
 		minMoreKeyCount: summaries.reduce((a, x) => a + x.minMoreKeyCount, 0)
 	}
 }
