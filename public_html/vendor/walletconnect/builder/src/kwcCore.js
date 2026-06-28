@@ -378,22 +378,8 @@ async function connectWalletCore() {
 
 
 
-async function zzconnectWalletCore() {
-  await initializeWalletConnect()
-
-  // Ensure connector is ready
-  await new Promise(resolve => setTimeout(resolve, 500))
-
-  await dappConnector.openModal()
-
-  // const accountId = dappConnector.signers[0]?.getAccountId()?.toString()
-  const accountId = getSigner()?.getAccountId()?.toString()
-  
-  if (!accountId)
-    throw new Error("Wallet connection failed")
-
-  return accountId
-}
+// (removed duplicate dead `zzconnectWalletCore` — see the earlier zz variant above;
+//  it broke the Vite/Rollup build with "Identifier already declared")
 
 // disconnectWalletCore
 // Headless intent: clear wallet session and disconnect active connector
@@ -435,6 +421,28 @@ async function ensureWalletSignerReady() {
 async function getActiveWalletAccount() {
   await initializeWalletConnect()
   return getSigner()?.getAccountId()?.toString() || null
+}
+
+
+// getWalletNetwork
+// The Hedera network this bundle was initialised for (mainnet/testnet/previewnet).
+// Currently fixed at load from config + ?network= URL override. Exposed so callers
+// (e.g. the kpool signer's mismatch guard) can compare the wallet network against
+// the transaction network — previously that guard was a no-op because window.WC
+// had no getNetwork. Sync return; safe to await.
+function getWalletNetwork() {
+  return walletConfig?.hedera?.network || null
+}
+
+
+// getWalletAccounts
+// All connected account IDs (a wallet session can pair multiple). Reads the
+// connector's signers directly (NOT via getSigner(), which trims to one) so the
+// full list survives. Additive — getAccount() still returns a single active one.
+async function getWalletAccounts() {
+  await initializeWalletConnect()
+  if (!dappConnector?.signers?.length) return []
+  return dappConnector.signers.map(s => s.getAccountId().toString())
 }
 
 
@@ -1143,6 +1151,8 @@ const exposeHeadlessAPI = () => {
 
     // helpers / state
     getAccount: getActiveWalletAccount,
+    getAccounts: getWalletAccounts,   // step 1: full connected-account list (additive)
+    getNetwork: getWalletNetwork,     // step 0: enables the kpool signer mismatch guard
 
     mode: WALLETCONNECT_MODE
   }
