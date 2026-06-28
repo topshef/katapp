@@ -27,7 +27,7 @@
 //   loop surface the new signer — same contract the WalletConnect signer uses.
 //   Override `submitSigUrl` if/when a same-origin `?action=txAddSignature` exists.
 
-import { kdiag } from './diag.js'
+import { kdiag } from './diag.js?v=20260628c'  // shared version tag — keep in sync with signer-walletconnect.js so both share one diag instance
 import { decodeTransaction, appendSignature } from './protobuf.js'
 
 

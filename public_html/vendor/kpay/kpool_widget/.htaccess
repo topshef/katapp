@@ -1,2 +1,14 @@
 RewriteEngine On
 RewriteRule ^config\.js$ config.js.php [L]
+
+# Rapid-iteration: force revalidation of widget JS so edits land immediately.
+# Entry modules are cache-busted via ?v=, but bare static imports (e.g. diag.js
+# imported by signer-walletconnect.js) carry no query and were served stale from
+# heuristic cache — which silently kept old code on mobile. ETag is present, so
+# "no-cache" just means revalidate (cheap 304 when unchanged).
+# TODO: revert to versioned/immutable caching when leaving rapid-iteration.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|mjs)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>

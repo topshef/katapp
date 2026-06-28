@@ -19,7 +19,7 @@
 //      from the WC flow bubbling to the backdrop). Park until the WC cleanup.
 // Keep diagnostics rich here (kdiag(...)) so any of the above is debuggable.
 
-import { kdiag } from './diag.js'
+import { kdiag } from './diag.js?v=20260628c'  // shared version tag — keep in sync with ksig.js so both share one diag instance
 
 const glog = globalThis.glog ?? (() => {})
 
