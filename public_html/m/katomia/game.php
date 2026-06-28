@@ -1,9 +1,20 @@
+<?php
+// kasset(): cache-bust a same-dir asset with its file mtime, so an edited JS/CSS
+// file is refetched immediately — no manual version bump, no hard refresh needed
+// (important for mobile testing where hard-refresh is awkward). Falls back to the
+// bare path if the file is missing. Local assets only; vendor/CDN keep their own.
+function kasset($file) {
+  $p = __DIR__ . '/' . $file;
+  $v = is_file($p) ? filemtime($p) : false;
+  return htmlspecialchars($v ? "$file?v=$v" : $file, ENT_QUOTES, 'UTF-8');
+}
+?>
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-	<link rel="stylesheet" href="katomia.css" />
+	<link rel="stylesheet" href="<?= kasset('katomia.css') ?>" />
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <title>katomia</title>
 
@@ -404,23 +415,23 @@
 
 
 
-<script type="module" src="katomia-init.js" data-glog="on"></script>
-<script src="katomia-core.js"></script>
-<script src="katomia-localdb.js"></script>
-<script src="kemoji.js"></script>
-<script src="katomia-helpers.js"></script>
-<script src="katomia-enrich.js"></script>
-<script src="katomia-network.js"></script>
-<script src="katomia-modals.js"></script>
-<script src="katomia-render.js"></script>
-<script src="katomia-render-orders.js"></script>
-<script src="katomia-market.js"></script>
+<script type="module" src="<?= kasset('katomia-init.js') ?>" data-glog="on"></script>
+<script src="<?= kasset('katomia-core.js') ?>"></script>
+<script src="<?= kasset('katomia-localdb.js') ?>"></script>
+<script src="<?= kasset('kemoji.js') ?>"></script>
+<script src="<?= kasset('katomia-helpers.js') ?>"></script>
+<script src="<?= kasset('katomia-enrich.js') ?>"></script>
+<script src="<?= kasset('katomia-network.js') ?>"></script>
+<script src="<?= kasset('katomia-modals.js') ?>"></script>
+<script src="<?= kasset('katomia-render.js') ?>"></script>
+<script src="<?= kasset('katomia-render-orders.js') ?>"></script>
+<script src="<?= kasset('katomia-market.js') ?>"></script>
 <!-- QR: davidshimjs build already bundled with kpool_widget — same file the offline
      signing widget uses. CDN removed to keep all assets in-house.
      TODO(bundling): when kpool_widget is rolled into a proper JS bundle, fold
      qrcode.min.js in and remove this script tag entirely. -->
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
-<script src="katomia-profile.js"></script>
+<script src="<?= kasset('katomia-profile.js') ?>"></script>
 
 <script>
 window.addEventListener("load", () => {
