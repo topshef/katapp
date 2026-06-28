@@ -87,8 +87,9 @@ export function kdiag(msg, data) {
 
 	if (_remoteUrl) {
 		UNSENT.push(entry)
-		// flush promptly on any error-class event
-		if (/error|Error|rejection/.test(msg)) scheduleFlush(1000)
+		// flush promptly so events show up within a short (mobile) session: errors
+		// almost immediately, everything else on a short debounce.
+		scheduleFlush(/error|Error|rejection/.test(msg) ? 1000 : 3000)
 	}
 
 	// mirror out — console for live debugging, glog for the host's own log store
@@ -175,11 +176,22 @@ if (typeof window !== 'undefined') {
 
 installCapture()
 
-// Auto-init: URL param > localStorage > window.__KDIAG_REMOTE
+// Rapid-iteration: default remote flushing ON so widget-side events (signer:*,
+// window:error, etc.) reach /diag without an explicit opt-in — mirrors the katomia
+// frontend's DIAG_DEFAULT_ON. Opt out with ?kdiag=0 or localStorage kdiag_remote=0.
+// TODO: flip back to false alongside the katomia DIAG_DEFAULT_ON when leaving
+// rapid-iteration (see katomia TODO).
+const DIAG_DEFAULT_ON = true
+
+// Auto-init precedence: URL param > localStorage > page flag > default.
 if (typeof window !== 'undefined') {
 	const urlParam = new URLSearchParams(location.search).get('kdiag')
-	if      (urlParam === '1')                              setRemote(true)
-	else if (urlParam === '0')                              setRemote(false)
-	else if (localStorage.getItem(LS_KEY) === '1')         enableRemote('/diag')
-	else if (globalThis.__KDIAG_REMOTE)                    enableRemote(globalThis.__KDIAG_REMOTE)
+	let ls = null
+	try { ls = localStorage.getItem(LS_KEY) } catch {}
+	if      (urlParam === '1')             setRemote(true)
+	else if (urlParam === '0')             setRemote(false)
+	else if (ls === '1')                   enableRemote('/diag')
+	else if (ls === '0')                   disableRemote()
+	else if (globalThis.__KDIAG_REMOTE)    enableRemote(globalThis.__KDIAG_REMOTE)
+	else if (DIAG_DEFAULT_ON)              enableRemote('/diag')
 }
