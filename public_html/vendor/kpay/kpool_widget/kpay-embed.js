@@ -72,6 +72,19 @@
   }
   function futureSaveUrl() { return FUTURE_BASE + '?action=txSave' }
 
+  // ── singleton modal tracking ─────────────────────────────────────────────────
+  // Only one modal can be open at a time. The view layer uses document.getElementById
+  // with fixed IDs (txread-precheck, txread-status, etc.) so two concurrent modals
+  // would cause getElementById to target the wrong DOM element, showing stale data
+  // from a previous transaction until the older modal's DOM is removed.
+  var _currentModal = null
+
+  function closeCurrentModal() {
+    if (!_currentModal) return
+    try { _currentModal.close() } catch (e) {}
+    _currentModal = null
+  }
+
   // ── public entry ─────────────────────────────────────────────────────────────
   window.KPaySign = function (opts) {
     opts = opts || {}
@@ -79,6 +92,14 @@
       console.warn('[kpay-embed] KPaySign needs { network, txid }')
       return Promise.resolve(null)
     }
+
+    closeCurrentModal()
+
+    var callerOnClose = opts.brand && opts.brand.onClose
+    var brand = Object.assign({}, opts.brand || {}, {
+      onClose: function () { _currentModal = null; if (callerOnClose) callerOnClose() }
+    })
+
     return ensureWidget().then(function () {
       return window.KPOOL.open({
         network: opts.network,
@@ -86,7 +107,10 @@
         pch:     opts.pch || 'no_pch',
         readUrl: opts.readUrl || futureReadUrl,   // signer byte fetch
         saveUrl: opts.saveUrl || futureSaveUrl,   // signer write-back
-        brand:   opts.brand || {}
+        brand:   brand
+      }).then(function (modal) {
+        _currentModal = modal
+        return modal
       })
     })
   }

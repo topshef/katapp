@@ -741,7 +741,7 @@ async function refreshPolledTx(txState, pollTimer) {
 	view.statusBlock.update(txState.data)
 
 	await refreshSigningSection(txState, {
-		data: fresh.data,
+		data: txState.data,   // use merged data so precheck/sigs match what pushStatus sees
 		accounts: fresh.accounts
 	})
 
