@@ -133,6 +133,11 @@ export function renderWalletConnectSigner(container, {
 		btn.className = 'kpsign-btn'
 		btn.textContent = 'Connect'
 		btn.onclick = async () => {
+			// read window.WC at click time — makeConnectBtn lives outside render()'s
+			// scope, so it must NOT reference render()'s local `wc` (that was the
+			// "wc is not defined" ReferenceError on reconnect).
+			const wc = window.WC
+			if (!wc) { alert('Wallet not ready yet — please try again in a moment.'); return }
 			kdiag('signer:connect:click', { network })
 			// WC's ThemeUtil.setTheme() applies --wcm-z-index: "89" as an inline
 			// style on <html> during init, which overrides any stylesheet rule.
