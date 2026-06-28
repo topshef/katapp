@@ -461,6 +461,48 @@ async function getActiveWalletAccount() {
 }
 
 
+// authenticateCore (step 4)
+// Off-ledger authentication: the wallet signs a plain-text challenge with the
+// selected account's key (HIP-820 hedera_signMessage). No transaction, nothing
+// submitted. The backend verifies the returned signature against the account's
+// (or an explicitly-supplied) public key.
+//
+// accountId : Hedera account to sign with (defaults to the active account).
+// message   : the challenge string the backend issued (nonce, etc.).
+//
+// Returns { accountId, network, message, signatureMap, raw } — signatureMap is
+// the HIP-820 base64 proto SignatureMap; raw is the untouched wallet response so
+// the verifier can adapt if a wallet returns a different shape. A Hedera account
+// can be multisig, so the verifier may match against a specific public key rather
+// than assume one — the signatureMap carries the signing pubkey(s).
+async function authenticateCore({ accountId, message } = {}) {
+  if (!message) throw new Error("Missing challenge message")
+
+  await initializeWalletConnect()
+
+  const signer = accountId ? findSigner(accountId) : getSigner()
+  if (!signer) throw new Error(accountId
+    ? `Account ${accountId} is not connected`
+    : "No signer available. Please connect a wallet.")
+
+  const resolvedId = signer.getAccountId().toString()
+  const network = walletConfig?.hedera?.network || "mainnet"
+
+  // HIP-30 signer id form: hedera:<network>:<account>
+  const signerAccountId = `hedera:${network}:${resolvedId}`
+
+  const result = await dappConnector.signMessage({ signerAccountId, message })
+
+  return {
+    accountId: resolvedId,
+    network,
+    message,
+    signatureMap: result?.signatureMap ?? result?.signedMessages ?? null,
+    raw: result
+  }
+}
+
+
 // getWalletNetwork
 // The Hedera network this bundle was initialised for (mainnet/testnet/previewnet).
 // Currently fixed at load from config + ?network= URL override. Exposed so callers
@@ -1191,6 +1233,7 @@ const exposeHeadlessAPI = () => {
     getAccounts: getWalletAccounts,   // step 1: full connected-account list (additive)
     getActiveAccount: getActiveWalletAccount,   // step 2: alias of getAccount
     setActiveAccount: setActiveWalletAccount,   // step 2: pick which account signs
+    authenticate: authenticateCore,   // step 4: sign a challenge (HIP-820 signMessage)
     getNetwork: getWalletNetwork,     // step 0: enables the kpool signer mismatch guard
 
     // build provenance — so host pages (kdiag) can record which bundle is live.
