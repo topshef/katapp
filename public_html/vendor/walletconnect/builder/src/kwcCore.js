@@ -10,6 +10,11 @@ import { Transaction, LedgerId } from "@hashgraph/sdk";
 let dappConnector;
 let walletConfig
 
+// Step 2: the currently-selected account when multiple are connected. null = use
+// the first available signer (preserves single-account behaviour). Set on connect
+// (newest wins, mirroring the old trim-to-last intent) and via setActiveAccount().
+let activeAccountId = null
+
 
 
 /*============================================================
@@ -309,18 +314,44 @@ async function initializeWalletConnect() {
 
 
 
-function getSigner() {
-  if (!dappConnector?.signers?.length) return null
+function getSignersList() {
+  return dappConnector?.signers || []
+}
 
-  // enforce single account
-  if (dappConnector.signers.length > 1) {
-    console.warn("[WC] Multiple signers detected — trimming to last")
-    dappConnector.signers = [
-      dappConnector.signers[dappConnector.signers.length - 1]
-    ]
+function findSigner(accountId) {
+  return getSignersList().find(s => s.getAccountId().toString() === accountId) || null
+}
+
+// getSigner — the signer for the active account, else the first available.
+//
+// Step 2: previously this TRIMMED dappConnector.signers down to a single entry
+// ("enforce single account"), which made multi-account impossible. The trim is
+// gone; account selection is now explicit via activeAccountId. With one account
+// (or no selection) behaviour is identical to before — returns signers[0].
+function getSigner() {
+  const signers = getSignersList()
+  if (!signers.length) return null
+
+  if (activeAccountId) {
+    const match = findSigner(activeAccountId)
+    if (match) return match
+    // selected account is no longer connected — clear and fall back
+    console.warn("[WC] active account", activeAccountId, "no longer connected; falling back")
+    activeAccountId = null
   }
 
-  return dappConnector.signers[0]
+  return signers[0]
+}
+
+// setActiveWalletAccount — choose which connected account signs. Throws if the
+// account isn't currently connected. (UI picklist wiring lands in step 3.)
+function setActiveWalletAccount(accountId) {
+  if (!findSigner(accountId))
+    throw new Error(`No connected signer for account ${accountId}`)
+  activeAccountId = accountId
+  console.log("[WC] active account set to", accountId)
+  updateWalletConnectionUI(accountId)
+  return accountId
 }
 
 
@@ -366,14 +397,18 @@ async function connectWalletCore() {
     await new Promise(r => setTimeout(r, 100))
   }
 
-  const accountId = signer.getAccountId().toString()
+  // Step 2: select the newest signer as active (mirrors the old trim-to-last
+  // intent) without discarding the others — getAccounts() still sees them all.
+  const signers = getSignersList()
+  const newest = signers[signers.length - 1] || signer
+  activeAccountId = newest.getAccountId().toString()
 
-  console.log("[WC] Connected account:", accountId)
+  console.log("[WC] Connected account:", activeAccountId)
 
   // 🔑 force UI consistency immediately
-  updateWalletConnectionUI(accountId)
+  updateWalletConnectionUI(activeAccountId)
 
-  return accountId
+  return activeAccountId
 }
 
 
@@ -392,6 +427,8 @@ async function disconnectWalletCore() {
       console.warn("[WC] Error during wallet disconnect:", error)
     }
   }
+
+  activeAccountId = null   // step 2: drop the selection so it can't go stale
 
   return true
 }
@@ -1152,6 +1189,8 @@ const exposeHeadlessAPI = () => {
     // helpers / state
     getAccount: getActiveWalletAccount,
     getAccounts: getWalletAccounts,   // step 1: full connected-account list (additive)
+    getActiveAccount: getActiveWalletAccount,   // step 2: alias of getAccount
+    setActiveAccount: setActiveWalletAccount,   // step 2: pick which account signs
     getNetwork: getWalletNetwork,     // step 0: enables the kpool signer mismatch guard
 
     // build provenance — so host pages (kdiag) can record which bundle is live.
