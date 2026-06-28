@@ -23,6 +23,11 @@ import { kdiag } from './diag.js'
 
 const glog = globalThis.glog ?? (() => {})
 
+// Persisted active-account selection (step 3). Also the baseline for detecting a
+// stale session: if it's set but the bundle reports no connected accounts, the
+// session has gone away and we prompt to reconnect.
+const LS_ACTIVE = 'kpay.wc.activeAccount'
+
 function hexToBytes(hex) {
 	if (typeof hex !== 'string' || hex.length % 2 !== 0)
 		throw new Error('Invalid hex string')
@@ -122,6 +127,33 @@ export function renderWalletConnectSigner(container, {
 	wrap.className = 'kpsign'
 	container.appendChild(wrap)
 
+	// Connect button factory — shared by the not-connected and stale-session paths.
+	const makeConnectBtn = () => {
+		const btn = document.createElement('button')
+		btn.className = 'kpsign-btn'
+		btn.textContent = 'Connect'
+		btn.onclick = async () => {
+			kdiag('signer:connect:click', { network })
+			// WC's ThemeUtil.setTheme() applies --wcm-z-index: "89" as an inline
+			// style on <html> during init, which overrides any stylesheet rule.
+			// Set our value just before openModal() so the WC modal renders above ours.
+			document.documentElement.style.setProperty('--wcm-z-index', '2147483000')
+			onLock?.()
+			try {
+				await wc.connect()
+				kdiag('signer:connect:done', { network })
+				await render()
+			} catch (err) {
+				kdiag('signer:connect:error', { error: String(err), network })
+				console.error(err)
+				alert(err.message)
+			} finally {
+				onUnlock?.()
+			}
+		}
+		return btn
+	}
+
 	const render = async () => {
 		const wc = window.WC
 
@@ -132,16 +164,54 @@ export function renderWalletConnectSigner(container, {
 			return
 		}
 
-		// show a placeholder immediately — getAccount() can take a moment, and an
+		// step 2/3: prefer the multi-account API when the live bundle provides it.
+		// Falls back to the single-account path on older bundles (A/B via
+		// ?kwc_version=…), so nothing breaks during comparison testing.
+		const hasMulti =
+			typeof wc.getAccounts === 'function' &&
+			typeof wc.setActiveAccount === 'function' &&
+			typeof wc.getActiveAccount === 'function'
+
+		// show a placeholder immediately — the lookups can take a moment, and an
 		// empty pane looked like nothing was happening
 		wrap.innerHTML = `<div class="kpsign-msg">Checking wallet…</div>`
 
+		let accounts = []
 		let account = null
-		try { account = await wc.getAccount() } catch {}
+		try {
+			if (hasMulti) {
+				accounts = (await wc.getAccounts()) || []
+			} else {
+				account = await wc.getAccount()
+				if (account) accounts = [account]
+			}
+		} catch (err) {
+			kdiag('signer:accounts:error', { error: String(err) })
+		}
 
-		// Network guard: auto-disconnect if the wallet is on a different network.
-		// window.WC doesn't expose getNetwork() yet — guard is a no-op until
-		// kwcCore adds it (see TODO at top of file).
+		// Session-staleness: a session was believed live (we persisted the active
+		// account) but no accounts come back now — e.g. after a bundle swap or an
+		// expired/dropped WC session. Surface it instead of a silent dead state.
+		let savedActive = null
+		try { savedActive = localStorage.getItem(LS_ACTIVE) } catch {}
+		let stale = false
+		if (hasMulti && accounts.length === 0 && savedActive) {
+			stale = true
+			try { localStorage.removeItem(LS_ACTIVE) } catch {}
+			kdiag('signer:session-stale', { savedActive })
+		}
+
+		// restore a previously-chosen account (multi only), then read the active one
+		if (hasMulti && accounts.length) {
+			if (savedActive && accounts.includes(savedActive)) {
+				try { await wc.setActiveAccount(savedActive) } catch {}
+			}
+			try { account = await wc.getActiveAccount() } catch {}
+			if (!account) account = accounts[0]
+		}
+
+		// Network guard: auto-disconnect if the wallet is on a different network
+		// than the transaction. Now live — kwcCore exposes getNetwork() (step 0).
 		try {
 			const wcNet = await wc.getNetwork?.()
 			if (!wcNet) {
@@ -149,51 +219,67 @@ export function renderWalletConnectSigner(container, {
 			} else if (account && wcNet !== network) {
 				kdiag('signer:network-mismatch', { wcNet, txNetwork: network, action: 'auto-disconnect' })
 				await wc.disconnect()
-				account = null
+				account = null; accounts = []
+				try { localStorage.removeItem(LS_ACTIVE) } catch {}
 			}
 		} catch (err) {
 			kdiag('signer:network-check:error', { error: String(err) })
 		}
 
 		wrap.innerHTML = ''
-		kdiag('signer:render', { hasWC: true, account, network })
+		kdiag('signer:render', { hasWC: true, hasMulti, account, accounts: accounts.length, stale, network })
 		onAccount?.(account || null)
 
-		// not connected → single Connect button
+		// not connected → (stale note +) Connect button
 		if (!account) {
-			const btn = document.createElement('button')
-			btn.className = 'kpsign-btn'
-			btn.textContent = 'Connect'
-			btn.onclick = async () => {
-				kdiag('signer:connect:click', { network })
-				// WC's ThemeUtil.setTheme() applies --wcm-z-index: "89" as an inline
-				// style on <html> during init, which overrides any stylesheet rule.
-				// Set our value just before openModal() so the WC modal renders above ours.
-				document.documentElement.style.setProperty('--wcm-z-index', '2147483000')
-				onLock?.()
-				try {
-					await wc.connect()
-					kdiag('signer:connect:done', { network })
-					await render()
-				} catch (err) {
-					kdiag('signer:connect:error', { error: String(err), network })
-					console.error(err)
-					alert(err.message)
-				} finally {
-					onUnlock?.()
-				}
+			if (stale) {
+				const note = document.createElement('div')
+				note.className = 'kpsign-msg kpsign-stale'
+				note.textContent = 'Wallet session expired — please reconnect.'
+				wrap.appendChild(note)
 			}
-			wrap.appendChild(btn)
+			wrap.appendChild(makeConnectBtn())
 			return
 		}
 
-		// connected → account + disconnect + sign
+		// remember the active account so staleness has a baseline next time
+		try { localStorage.setItem(LS_ACTIVE, account) } catch {}
+
+		// connected → [account picker | account] + disconnect + sign
 		const row = document.createElement('div')
 		row.className = 'kpsign-row'
 
-		const acct = document.createElement('span')
-		acct.className = 'kpsign-acct'
-		acct.textContent = account
+		let acct
+		if (hasMulti && accounts.length > 1) {
+			// multiple connected accounts → dropdown; switching sets the active signer
+			acct = document.createElement('select')
+			acct.className = 'kpsign-acct kpsign-select'
+			acct.title = 'Signing account'
+			accounts.forEach(id => {
+				const opt = document.createElement('option')
+				opt.value = id
+				opt.textContent = id
+				if (id === account) opt.selected = true
+				acct.appendChild(opt)
+			})
+			acct.onchange = async () => {
+				const id = acct.value
+				kdiag('signer:account:switch', { to: id })
+				try {
+					await wc.setActiveAccount(id)
+					try { localStorage.setItem(LS_ACTIVE, id) } catch {}
+					onAccount?.(id)
+				} catch (err) {
+					kdiag('signer:account:switch:error', { error: String(err) })
+					alert(err.message)
+					await render()
+				}
+			}
+		} else {
+			acct = document.createElement('span')
+			acct.className = 'kpsign-acct'
+			acct.textContent = account
+		}
 
 		const disc = document.createElement('button')
 		disc.className = 'kpsign-btn kpsign-ghost'
@@ -201,6 +287,7 @@ export function renderWalletConnectSigner(container, {
 		disc.title = 'Disconnect'
 		disc.onclick = async () => {
 			kdiag('signer:disconnect:click')
+			try { localStorage.removeItem(LS_ACTIVE) } catch {}
 			try { await wc.disconnect(); kdiag('signer:disconnect:done'); await render() }
 			catch (err) { kdiag('signer:disconnect:error', { error: String(err) }); console.error(err); alert(err.message) }
 		}
@@ -265,6 +352,9 @@ function injectSignerCSS() {
 		.kpsign-btn:hover { background:#d6eaff; }
 		.kpsign-ghost { border-color:#ccc; background:#f5f5f5; color:#666; padding:6px 10px; }
 		.kpsign-msg { color:#999; font-size:13px; }
+		.kpsign-select { all:revert; font:13px ui-monospace,Menlo,Consolas,monospace; color:#555;
+			padding:5px 8px; border:1px solid #ccc; border-radius:6px; background:#fff; max-width:200px; }
+		.kpsign-stale { color:#b54708; margin-bottom:8px; }
 	`
 	document.head.appendChild(s)
 }
