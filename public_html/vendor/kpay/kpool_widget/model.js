@@ -439,7 +439,7 @@ export function evaluateTxReadiness({accounts,data}){
 			{ mustSign: mustSignAccounts.length, withKeyInfo: mustSignAccounts.filter(a => a.keyInfo).length })
 	}
 
-	return {
+	const result = {
 		// can't claim the threshold is met while the required set is still partial —
 		// note [].every() is true, which is how the empty case showed "threshold reached".
 		thresholdSatisfied: keyInfoComplete && summaries.every(x => x.thresholdSatisfied),
@@ -449,6 +449,35 @@ export function evaluateTxReadiness({accounts,data}){
 		keyInfoComplete,
 		minMoreKeyCount: summaries.reduce((a, x) => a + x.minMoreKeyCount, 0)
 	}
+
+	// Structured snapshot of the WHOLE readiness picture, emitted on EVERY eval (not
+	// only when a witness appears). One line per eval in /diag so a future flap or
+	// stray-signature episode is fully reviewable after the fact. Keys shown by last
+	// 6 chars to stay legible. accounts: who must sign, whether keyInfo loaded, signed.
+	try {
+		const k6 = k => '…' + String(k).slice(-6)
+		globalThis.kdiag?.('readiness:eval', {
+			txid: data.txid,
+			network: data.network,
+			comboStatus: data.comboStatus ?? null,
+			thresholdSatisfied: result.thresholdSatisfied,
+			keyInfoComplete,
+			signedRequiredKeyCount: result.signedRequiredKeyCount,
+			minMoreKeyCount: result.minMoreKeyCount,
+			signed: signedPubkeys.map(k6),
+			required: [...allRequiredKeys].map(k6),
+			witness: signedWitnessKeys.map(k6),
+			accounts: Object.entries(accounts).map(([id, a]) => ({
+				id,
+				mustSign: !!a.mustSign,
+				roles: a.roles || [],
+				hasKeyInfo: !!a.keyInfo,
+				keyInfoError: a.keyInfoError || null
+			}))
+		})
+	} catch {}
+
+	return result
 }
 
 
