@@ -7,7 +7,7 @@ window.pendingCreateOrderAccount = null
 // katomia.css (:root --katomia-css-build). Both are surfaced in the diagnostics
 // so we can tell, from the server-side kdiag logs, exactly which version of the
 // code a given browser is running — and whether a cached (stale) asset is in play.
-const KATOMIA_JS_BUILD = "20260626-modalfix-7"
+const KATOMIA_JS_BUILD = "20260628-wcdiag-1"
 
 // Self-contained diagnostics sender. window.kdiag (from the kpool widget) is
 // lazy-loaded only when the signing widget mounts, so it is NOT available when
@@ -260,6 +260,38 @@ function katomiaModalDiagSequence(type){
 // log the running build once at load so every session records its version,
 // even if the modal is never opened
 katomiaDiagSend("katomia:build", { jsBuild: KATOMIA_JS_BUILD, cssBuildApplied: readAppliedCssBuild(), href: location.href })
+
+// Record which WalletConnect bundle is live, so a smoke test can be confirmed
+// from the server-side kdiag logs. Two signals:
+//  • scriptSrc — the kwc.iife.js URL, which carries the snapshot/version segment
+//    (e.g. .../snapshots/eb6ac8a/...). Available immediately; works for the
+//    ?kwc_version=… A/B override too.
+//  • api/buildMeta — read off window.WC once the (deferred, lazy) bundle is ready;
+//    apiNew confirms the step-0/1 surface (getNetwork + getAccounts) is present.
+function katomiaDiagWcVersion(){
+  const scriptEl = document.querySelector('script[src*="/walletconnect/"][src*="kwc"], script[src*="walletconnect-hedera"]')
+  const scriptSrc = scriptEl?.getAttribute("src") || null
+  const m = scriptSrc && scriptSrc.match(/\/(?:snapshots|releases)\/([^/]+)\//)
+  const fromSrc = m ? m[1] : null
+
+  let tries = 0
+  const stop = setInterval(() => {
+    const wc = window.WC
+    if(wc || ++tries > 40){   // ~10s cap (250ms × 40)
+      clearInterval(stop)
+      katomiaDiagSend("wc:version", {
+        scriptSrc,
+        fromSrc,                                   // version/commit parsed from URL
+        wcReady:   !!wc,
+        version:   wc?.version ?? null,            // __BUILD_META__.commit (new bundles only)
+        buildMeta: wc?.buildMeta ?? null,
+        apiNew:    !!(wc && typeof wc.getNetwork === "function" && typeof wc.getAccounts === "function"),
+        api: wc ? Object.keys(wc) : null
+      })
+    }
+  }, 250)
+}
+katomiaDiagWcVersion()
 
 function toDateTimeLocalValue(ts){
   if(!ts) return ""

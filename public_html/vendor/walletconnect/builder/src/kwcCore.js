@@ -1154,6 +1154,11 @@ const exposeHeadlessAPI = () => {
     getAccounts: getWalletAccounts,   // step 1: full connected-account list (additive)
     getNetwork: getWalletNetwork,     // step 0: enables the kpool signer mismatch guard
 
+    // build provenance — so host pages (kdiag) can record which bundle is live.
+    // __BUILD_META__ is injected by vite at build time ({commit,status,built}).
+    buildMeta: (typeof __BUILD_META__ !== 'undefined') ? __BUILD_META__ : null,
+    version: (typeof __BUILD_META__ !== 'undefined') ? __BUILD_META__.commit : null,
+
     mode: WALLETCONNECT_MODE
   }
 
