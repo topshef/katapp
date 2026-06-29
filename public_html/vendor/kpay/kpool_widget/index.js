@@ -181,19 +181,30 @@ async function renderSigner(txState, opts) {
 		txid:     txState.txid,
 		readUrl:  opts.readUrl,
 		saveUrl:  opts.saveUrl,
-		onSigned:  async () => {
+		onSigned:  async (saveResult) => {
 			notify(txState, '✍️ Signature submitted', 'success')
-			// Reflect the new signature immediately instead of waiting up to 5s for the
-			// next poll (the WS sig-push can lag). Re-read authoritative tx data and
-			// re-render the signing section. Skip if the widget was torn down.
 			if (!txStateLive(txState)) return
-			try {
-				const fresh = await txRead({ network: txState.network, txid: txState.txid })
-				txState.data = { ...txState.data, ...fresh.data,
-					comboStatus: txState.data.comboStatus === 'SUCCESS' ? 'SUCCESS' : fresh.data.comboStatus,
-					_trigger: 'sign' }
-				await refreshSigningSection(txState, { data: txState.data, accounts: txState.accounts })
-			} catch (e) { console.warn('post-sign refresh failed', e) }
+
+			// INSTANT update (FRONT-POSTSIGN1): the previous version did a ~5s txRead
+			// before re-rendering, so the modal lagged behind the toast. txSave already
+			// returns the full authoritative sig set ({pubKey,signature}) — fold it into
+			// txState.data and re-render with NO network call (accounts are already
+			// enriched from load). Polling/WS still reconcile afterwards.
+			const sigs = saveResult?.result?.sigs
+			if (Array.isArray(sigs) && sigs.length) {
+				txState.data = { ...txState.data, sigs, _trigger: 'sign' }
+				try { renderSigningSection(txState, { data: txState.data, accounts: txState.accounts }) }
+				catch (e) { console.warn('instant post-sign render failed', e) }
+			} else {
+				// fallback: no sigs in the save response — re-read authoritatively.
+				try {
+					const fresh = await txRead({ network: txState.network, txid: txState.txid })
+					txState.data = { ...txState.data, ...fresh.data,
+						comboStatus: txState.data.comboStatus === 'SUCCESS' ? 'SUCCESS' : fresh.data.comboStatus,
+						_trigger: 'sign' }
+					await refreshSigningSection(txState, { data: txState.data, accounts: txState.accounts })
+				} catch (e) { console.warn('post-sign refresh failed', e) }
+			}
 		},
 		onAccount: acct => updateNarrative(txState, acct),
 		onLock:    txState.onLock,
@@ -853,6 +864,15 @@ async function refreshSigningSection(txState, { data, accounts }) {
 
 	await enrichAccountsInfo({ network, accounts })
 	await enrichAccountsKeyInfo({ network, accounts })
+
+	renderSigningSection(txState, { data, accounts })
+}
+
+// The render half of refreshSigningSection — recomputes readiness and repaints
+// from data already in hand, NO network (no enrich, no txRead). Used for the
+// instant post-sign update (accounts are already enriched from load).
+function renderSigningSection(txState, { data, accounts }) {
+	const { network } = txState
 
 	calcAccountsThatSign(accounts)
 
