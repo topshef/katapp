@@ -109,7 +109,7 @@ export async function saveToCache(url, params = {}, data) {
 // │ ┬├┤  │    ║║├─┤ │ ├─┤
 // └─┘└─┘ ┴   ═╩╝┴ ┴ ┴ ┴ ┴
 // get Data
-export async function getData(url, params = {}, expirySeconds = 0) {
+export async function getData(url, params = {}, expirySeconds = 0, timeoutMs = 0) {
   if (expirySeconds) {
     const cached = await getFromCache(url, params, expirySeconds)
     if (cached) return cached
@@ -117,7 +117,17 @@ export async function getData(url, params = {}, expirySeconds = 0) {
 
   mirrorCallTick(url)   // OBSERV-MIRROR1: detection — count live (uncached) calls
 
-  const response = await fetch(`${url}?${new URLSearchParams(params)}`)
+  // optional per-call timeout (default 0 = off, so existing callers are unchanged).
+  // Used to cap the slow COLD kpos getAccountInfo.php so the signer fails fast (the
+  // caller's catch returns null) instead of hanging ~25s. On abort, fetch throws.
+  const ctrl = timeoutMs ? new AbortController() : null
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), timeoutMs) : null
+  let response
+  try {
+    response = await fetch(`${url}?${new URLSearchParams(params)}`, ctrl ? { signal: ctrl.signal } : undefined)
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
   // OBSERV-MIRROR1: surface non-OK (esp. 429 rate-limit) on the shared mirror/kpos
   // layer so a flood/regression is visible in /diag. No control-flow change.
   if (!response.ok) {

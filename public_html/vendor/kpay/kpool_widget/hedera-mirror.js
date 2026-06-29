@@ -21,7 +21,10 @@ async function getKeyInfoKpos(network, accountId) {
 			// every cycle, and a 30s TTL meant repeated kpos getAccountInfo.php hits (5-7.5s
 			// on a cold kpos cache for testnet). Signatures come from txRead separately, so
 			// this never staleness-affects who-has-signed. (WC-SLOW1 / FRONT-ENRICH1)
-			const data = await getData(url, params,  300) // note kpos has its own cache so BEWARE
+			// 5s timeout so a cold kpos call fails fast instead of hanging the signer ~25s;
+			// on timeout fetch throws → the catch below returns null → render proceeds
+			// without keyInfo (no pie/Banzhaf) rather than blocking.
+			const data = await getData(url, params,  300, 5000) // note kpos has its own cache so BEWARE
 
 			return data
 		} catch (error) {
