@@ -472,7 +472,86 @@ function getTxPair(tx){
 
 
 
+// ── KAT-TXLIST1: mirror-enrich bare settled rows ──────────────────────────────
+// Some settled txs (esp. fast testnet/swarm ones never cached while pending) reach
+// the list with no local transfer data → bare row. The transfers ARE on-chain (the
+// signing modal fetches them on click), so we pull them from the Hedera mirror,
+// cache by txid, and trigger one debounced re-render to fill the chips. In-memory
+// cache only (re-fetched on refresh); runs only for displayed bare settled rows.
+window.__txTransfersCache ||= {}   // txid -> transfers | "pending" | "error"
+let _txEnrichRerenderTimer = null
+
+function mirrorBaseForNet(net){
+  return net === "testnet"    ? "https://testnet.mirrornode.hedera.com/api/v1/"
+       : net === "previewnet" ? "https://previewnet.mirrornode.hedera.com/api/v1/"
+       :                        "https://mainnet-public.mirrornode.hedera.com/api/v1/"
+}
+
+async function fetchTxTransfersFromMirror(tx){
+  const txid = tx.txid
+  if(!txid || !txid.includes("@")) return null
+  const net = tx.network || tx.pchbasis?.network || gameMeta?.network || "mainnet"
+  const [op, ts] = txid.split("@")
+  const [sec, nanos] = (ts || "").split(".")
+  if(!op || !sec) return null
+  const url = `${mirrorBaseForNet(net)}transactions/${op}-${sec}-${nanos || "0"}`
+
+  const res = await fetch(url)
+  if(!res.ok) return null
+  const data = await res.json()
+  const mtx = (data?.transactions || [])[0]
+  if(!mtx) return null
+
+  const tokenTransfers = (mtx.token_transfers || [])
+    .map(x => ({ accountId: x.account, tokenId: x.token_id, amount: x.amount }))
+  // hbar: drop Hedera fee accounts so only genuine trade legs show
+  const hbarTransfers = (mtx.transfers || [])
+    .filter(x => typeof HEDERA_FEE_ACCOUNTS === "undefined" || !HEDERA_FEE_ACCOUNTS.has(x.account))
+    .map(x => ({ accountId: x.account, amount: x.amount }))
+  const nftTransfers = (mtx.nft_transfers || [])
+    .map(x => ({ senderAccountId: x.sender_account_id, receiverAccountId: x.receiver_account_id,
+                 tokenId: x.token_id, serialNumber: x.serial_number }))
+
+  if(!tokenTransfers.length && !hbarTransfers.length && !nftTransfers.length) return null
+  return { tokenTransfers, hbarTransfers, nftTransfers }
+}
+
+function enrichBareTxRow(tx){
+  if(!tx?.txid) return
+  if(window.__txTransfersCache[tx.txid]) return   // have it / pending / errored
+  window.__txTransfersCache[tx.txid] = "pending"
+  fetchTxTransfersFromMirror(tx)
+    .then(transfers => {
+      window.__txTransfersCache[tx.txid] = transfers || "error"
+      if(transfers){
+        // one debounced re-render so createTxRow picks up the cache (the render
+        // path supersedes via _txRenderToken, so this can't stack rows)
+        clearTimeout(_txEnrichRerenderTimer)
+        _txEnrichRerenderTimer = setTimeout(() => { try { renderTransactions() } catch {} }, 200)
+      }
+    })
+    .catch(() => { window.__txTransfersCache[tx.txid] = "error" })
+}
+
+// Inject mirror-enriched transfers into a bare settled tx (or kick off the fetch).
+function ensureTxTransfers(tx){
+  if(!tx?.txid) return
+  if(!isTxSuccessStatus(getTxStatus(tx))) return
+  const b = tx.pchbasis?.transfers
+  const hasLocal = b && ((b.tokenTransfers?.length) || (b.hbarTransfers?.length) || (b.nftTransfers?.length))
+  if(hasLocal) return
+  const cached = window.__txTransfersCache[tx.txid]
+  if(cached && cached !== "pending" && cached !== "error"){
+    tx.pchbasis = tx.pchbasis || {}
+    tx.pchbasis.transfers = cached
+  } else if(!cached){
+    enrichBareTxRow(tx)
+  }
+}
+
 function createTxRow(tx){
+
+  ensureTxTransfers(tx)   // KAT-TXLIST1: fill bare settled rows from the mirror
 
   const row = document.createElement("div")
   row.className = "subtle tx-row"
