@@ -114,8 +114,34 @@ function notify(txState, msg, tone = 'success') {
 	else showBanner(msg, tone)
 }
 
+// Only one tx widget should be live at a time. Opening a new modal must tear down
+// the previous tx's poll timer + socket — otherwise the old tx keeps polling for
+// up to 5 min and writes into the shared by-id status/readiness DOM, which looks
+// like status "flapping" between two transactions. See teardownTxState.
+let _activeTxState = null
+
+function teardownTxState(txState) {
+	if (!txState || txState.destroyed) return
+	txState.destroyed = true
+	try { if (txState.pollTimer) clearInterval(txState.pollTimer) } catch {}
+	try { txState.socket?.close?.() } catch {}
+	txState.pollTimer = null
+	txState.socket = null
+	try { globalThis.kdiag?.('tx:teardown', { txid: txState.txid }) } catch {}
+}
+
+// True once the widget's DOM has been removed (modal closed) — used by the poll /
+// socket handlers to stop updating a tx whose UI is gone.
+function txStateLive(txState) {
+	return !!txState && !txState.destroyed && txState.container?.isConnected !== false
+}
+
 async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) {
+	// supersede any previous tx widget so two don't poll/render concurrently
+	if (_activeTxState && _activeTxState.txid !== txid) teardownTxState(_activeTxState)
+
 	const txState = createTxState(network, txid, pch)
+	_activeTxState = txState
 	txState.onStatus = opts.onStatus
 	txState.onFlash  = opts.onFlash
 	txState.onLock   = opts.onLockModal
@@ -630,7 +656,7 @@ async function loadSigningState(txState, tx) {
 
 
 function startTxSocket(txState) {
-	createTxSocket({
+	txState.socket = createTxSocket({
 		baseUrl: CONFIG.HAPI_BASE || 'hapi2.hbar.live/live',
 		txid: txState.txid,
 		onTxUpdate: async function onTxUpdate(update) {
@@ -642,6 +668,10 @@ function startTxSocket(txState) {
 
 async function handleTxUpdate(txState, update) {
 	const { network, txid, pch, view } = txState
+
+	// ignore (and tear down) updates for a tx whose modal has closed — otherwise it
+	// writes into the shared by-id DOM now owned by a different tx (status flapping).
+	if (!txStateLive(txState)) { teardownTxState(txState); return }
 
 	console.log('[WS] update received', update)
 
@@ -705,10 +735,15 @@ function startTxPolling(txState, tx) {
 	const pollTimer = setInterval(async function pollTimerTick() {
 		await pollTxStatus(txState, pollTimer, scheduledSec, stopPollingAfterSec)
 	}, 5000)
+	txState.pollTimer = pollTimer
 }
 
 
 async function pollTxStatus(txState, pollTimer, scheduledSec, stopPollingAfterSec) {
+	// stop polling once the modal is gone (or this tx was superseded) — leaving it
+	// running writes into a different tx's DOM and looks like status flapping.
+	if (!txStateLive(txState)) { teardownTxState(txState); clearInterval(pollTimer); return }
+
 	const nowSec = Math.floor(Date.now() / 1000)
 
 	if (nowSec < scheduledSec) return
