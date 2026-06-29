@@ -417,6 +417,22 @@ function normalizeViewKey(key) {
 	return k
 }
 
+// Mirror model.js normalizeKeyTree: the raw mirror keyInfo has leaves shaped like
+// { _type:'ED25519', key:'…' } (or ed25519 / ECDSASecp256k1 fields), but kpie expects
+// each leaf to be a plain pubkey STRING. Without this, kpie can't match leaves against
+// signedPubkeys and every slice renders orange even when the threshold is satisfied.
+// (SIGN-NORM1 tracks unifying the three normalizers — this keeps the pie wiring correct
+// meanwhile.)
+function normalizeViewKeyTree(node) {
+	if (!node) return null
+	if (typeof node === 'string') return normalizeViewKey(node)
+	if (!Array.isArray(node.keys)) {
+		const raw = node.key ?? node.ed25519 ?? node.ECDSASecp256k1 ?? null
+		return raw != null ? normalizeViewKey(String(raw)) : null
+	}
+	return { ...node, keys: node.keys.map(normalizeViewKeyTree) }
+}
+
 export function renderSigningInfo({ data, accounts }) {
 	// derive signed keys ONCE
 	const signedPubkeys = (data.sigs || [])
@@ -557,7 +573,10 @@ function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo }) {
   widget.className = 'acctkeys-piechart'
 
   if (window.kpie && keyInfo) {
-    window.kpie.render(widget, { keyInfo, signedPubkeys: signedPubkeys || [] })
+    // Feed kpie a normalized tree (leaf objects → pubkey strings) so its leaves match
+    // the already-normalized signedPubkeys — otherwise every slice renders orange.
+    const normTree = normalizeViewKeyTree(keyInfo)
+    window.kpie.render(widget, { keyInfo: normTree, signedPubkeys: signedPubkeys || [] })
       .catch(err => console.warn('[kpie] render failed', err))
   }
 
