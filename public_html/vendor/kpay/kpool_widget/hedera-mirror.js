@@ -16,7 +16,12 @@ async function getKeyInfoKpos(network, accountId) {
 			const url = 'https://kpos.uk/sign/pop/getAccountInfo.php'
 			const detail = 1
 			const params = { network, accountId, detail }
-			const data = await getData(url, params,  30) // note kpos has its own cache so BEWARE
+			// Account key STRUCTURE (threshold/pubkeys/Banzhaf) is stable, so cache it
+			// client-side for 5 min instead of 30s — the readiness poll re-enriches keyInfo
+			// every cycle, and a 30s TTL meant repeated kpos getAccountInfo.php hits (5-7.5s
+			// on a cold kpos cache for testnet). Signatures come from txRead separately, so
+			// this never staleness-affects who-has-signed. (WC-SLOW1 / FRONT-ENRICH1)
+			const data = await getData(url, params,  300) // note kpos has its own cache so BEWARE
 
 			return data
 		} catch (error) {
