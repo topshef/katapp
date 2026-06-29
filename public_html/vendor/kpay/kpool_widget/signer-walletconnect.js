@@ -138,20 +138,26 @@ export function renderWalletConnectSigner(container, {
 			// "wc is not defined" ReferenceError on reconnect).
 			const wc = window.WC
 			if (!wc) { alert('Wallet not ready yet — please try again in a moment.'); return }
+			// progress feedback — the WC relay handshake/modal can take a couple of
+			// seconds; without this the button looks dead (WC1).
+			const orig = btn.textContent
+			btn.textContent = 'Connecting…'; btn.disabled = true
 			kdiag('signer:connect:click', { network })
 			// WC's ThemeUtil.setTheme() applies --wcm-z-index: "89" as an inline
 			// style on <html> during init, which overrides any stylesheet rule.
 			// Set our value just before openModal() so the WC modal renders above ours.
 			document.documentElement.style.setProperty('--wcm-z-index', '2147483000')
 			onLock?.()
+			const _t = (performance || Date).now()
 			try {
 				await wc.connect()
-				kdiag('signer:connect:done', { network })
-				await render()
+				kdiag('signer:connect:done', { network, ms: Math.round((performance || Date).now() - _t) })
+				await render()   // replaces the button on success
 			} catch (err) {
-				kdiag('signer:connect:error', { error: String(err), network })
+				kdiag('signer:connect:error', { error: String(err), network, ms: Math.round((performance || Date).now() - _t) })
 				console.error(err)
 				alert(err.message)
+				btn.textContent = orig; btn.disabled = false
 			} finally {
 				onUnlock?.()
 			}
@@ -180,8 +186,13 @@ export function renderWalletConnectSigner(container, {
 		// step 5: scope the WC connector to THIS tx's network BEFORE listing/connecting,
 		// so a mainnet-loaded bundle doesn't show/connect mainnet accounts for a testnet
 		// tx (and vice versa). ensureNetwork rebuilds the connector if the network differs.
-		try { if (typeof wc.ensureNetwork === 'function') await wc.ensureNetwork(network) }
-		catch (err) { kdiag('signer:ensure-network:error', { network, error: String(err) }) }
+		try {
+			if (typeof wc.ensureNetwork === 'function') {
+				const _t = (performance || Date).now()
+				await wc.ensureNetwork(network)   // builds/relays the connector for this tx's network
+				kdiag('signer:ensure-network', { network, ms: Math.round((performance || Date).now() - _t) })
+			}
+		} catch (err) { kdiag('signer:ensure-network:error', { network, error: String(err) }) }
 
 		// active-account memory is per-network (mainnet/testnet are different account sets)
 		const lsActive = `${LS_ACTIVE}.${network || 'mainnet'}`
