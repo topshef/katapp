@@ -597,9 +597,16 @@ function createKsigIframe(network, txid) {
 
 async function renderTxView(txState) {
 	const { network, txid, container } = txState
+
+	// phase timing — splits backend txRead from the frontend mirror-node enrich so
+	// the load latency can be attributed (emitted as tx:load-timing in loadSigningState).
+	const _t0 = performance.now()
 	const { url, rawTx, data, transfers, accounts } = await txRead({ network, txid })
+	const _t1 = performance.now()
 
 	await enrichTransfersInfo({ network, transfers })
+	const _t2 = performance.now()
+	txState._timing = { txRead: Math.round(_t1 - _t0), enrichTransfers: Math.round(_t2 - _t1) }
 	txState.transfers = transfers
 
 	injectTxReadCSS()
@@ -641,8 +648,21 @@ async function renderTxView(txState) {
 async function loadSigningState(txState, tx) {
 	const { network } = txState
 
+	const _t0 = performance.now()
 	await enrichAccountsInfo({ network, accounts: tx.accounts })
+	const _t1 = performance.now()
 	await enrichAccountsKeyInfo({ network, accounts: tx.accounts })
+	const _t2 = performance.now()
+
+	// one structured timing line per load so the slow tx-detail load is attributable:
+	// txRead (backend) vs the three mirror-node enrich phases (frontend).
+	try {
+		const tm = txState._timing || {}
+		tm.enrichAccountsInfo = Math.round(_t1 - _t0)
+		tm.enrichAccountsKeyInfo = Math.round(_t2 - _t1)
+		tm.total = (tm.txRead || 0) + (tm.enrichTransfers || 0) + tm.enrichAccountsInfo + tm.enrichAccountsKeyInfo
+		globalThis.kdiag?.('tx:load-timing', { txid: txState.txid, accounts: Object.keys(tx.accounts || {}).length, ...tm })
+	} catch {}
 
 	calcAccountsThatSign(tx.accounts)
 
