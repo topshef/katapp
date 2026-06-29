@@ -460,6 +460,10 @@ export function evaluateTxReadiness({accounts,data}){
 		globalThis.kdiag?.('readiness:eval', {
 			txid: data.txid,
 			network: data.network,
+			// what drove this evaluation: initial load / WS push / WS sig / poll / sign.
+			// lets us confirm WS is primary and polling is only the fallback (not the
+			// other way round, which is the suspected post-sign-update regression).
+			trigger: data._trigger || 'initial',
 			comboStatus: data.comboStatus ?? null,
 			// precheck snapshot — to diagnose the OK↔insufficient-balance flap. null
 			// when no precheck present (which itself is a flap signal vs a populated one).

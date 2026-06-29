@@ -190,7 +190,8 @@ async function renderSigner(txState, opts) {
 			try {
 				const fresh = await txRead({ network: txState.network, txid: txState.txid })
 				txState.data = { ...txState.data, ...fresh.data,
-					comboStatus: txState.data.comboStatus === 'SUCCESS' ? 'SUCCESS' : fresh.data.comboStatus }
+					comboStatus: txState.data.comboStatus === 'SUCCESS' ? 'SUCCESS' : fresh.data.comboStatus,
+					_trigger: 'sign' }
 				await refreshSigningSection(txState, { data: txState.data, accounts: txState.accounts })
 			} catch (e) { console.warn('post-sign refresh failed', e) }
 		},
@@ -711,7 +712,8 @@ async function handleTxUpdate(txState, update) {
 
 	txState.data = {
 		...txState.data,
-		...update
+		...update,
+		_trigger: update.sigs ? 'ws-sig' : 'ws'   // diagnostic: what drove this eval
 	}
 
 	if (update.type === 'tx_receipt' && update.receipt) {
@@ -747,7 +749,8 @@ async function handleSignatureUpdate(txState, update) {
 
 	txState.data = {
 		...txState.data,
-		...fresh.data
+		...fresh.data,
+		_trigger: 'ws-sig'
 	}
 
 	await refreshSigningSection(txState, {
@@ -799,7 +802,8 @@ async function refreshPolledTx(txState, pollTimer) {
 
 	txState.data = {
 		...fresh.data,
-		comboStatus: txState.data.comboStatus === 'SUCCESS' ? 'SUCCESS' : fresh.data.comboStatus
+		comboStatus: txState.data.comboStatus === 'SUCCESS' ? 'SUCCESS' : fresh.data.comboStatus,
+		_trigger: 'poll'
 	}
 
 	const successKey = `tx_status:${network};${txid};no_pch`
