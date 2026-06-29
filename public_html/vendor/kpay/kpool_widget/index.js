@@ -155,9 +155,14 @@ async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) 
 	try {
 		const tx = await renderTxView(txState)
 
-		await loadSigningState(txState, tx)
-
+		// Render the WalletConnect signer BEFORE the account enrich. renderSigner is
+		// independent of loadSigningState's output, and loadSigningState's fetches have
+		// no timeout — on mobile it was hanging and blocking the WC pane entirely
+		// (logs: ksig:qr-rendered fired but tx:load-timing/signer:render never did).
+		// Drawing the signer first means the Connect button always shows.
 		if (opts.signer === 'walletconnect') await renderSigner(txState, opts)
+
+		await loadSigningState(txState, tx)
 
 		startTxSocket(txState)
 		startTxPolling(txState, tx)

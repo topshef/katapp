@@ -1,6 +1,9 @@
 
 
-import { getData } from './cache.js'
+// Cache-bust cache.js like every other widget module (it was the ONE bare import,
+// so changes to it — e.g. the kpos timeout, OBSERV-MIRROR1 — never reached browsers).
+// Top-level await is fine: this module is itself loaded via dynamic import().
+const { getData } = await import(`./cache.js?v=${(typeof window !== 'undefined' && window.__BUILD_HASH__) || ''}`)
 
 
 
