@@ -362,8 +362,15 @@ function getAssetClass(token){
 
 export function evaluateTxReadiness({accounts,data}){
 
+  // DER SPKI prefixes stripped so a key compares equal regardless of whether it
+  // arrives raw (from a signature pubKey) or DER-wrapped (from getKeyInfo/kpos).
+  // ED25519 → 32-byte (64 hex) raw; ECDSA secp256k1 → 33-byte compressed (66 hex) raw.
+  // Missing the ECDSA prefix made every ECDSA account's required key stay DER-wrapped
+  // and never match its raw signature → a legit signature showed as a "witness".
   const KNOWN_PREFIXES = [
-      { prefix: '302a300506032b6570032100', label: 'ED25519 DER' },
+      { prefix: '302a300506032b6570032100',                 label: 'ED25519 DER' },
+      { prefix: '302d300706052b8104000a032200',             label: 'ECDSA secp256k1 DER' },
+      { prefix: '3036301006072a8648ce3d020106052b8104000a032200', label: 'ECDSA secp256k1 SPKI' },
     ]
 
 	function normalizePublicKey(key) {
@@ -377,7 +384,9 @@ export function evaluateTxReadiness({accounts,data}){
 				break
 			}
 		}
-		if (k.length !== 64) {
+		// 64 = ED25519 (32B), 66 = ECDSA secp256k1 compressed (33B). Anything else
+		// means an unrecognised wrapping (would cause a signed≠required mismatch).
+		if (k.length !== 64 && k.length !== 66) {
 			console.warn('[readiness] unexpected key length after normalisation:', k.length, 'key:', k.slice(0, 14))
 		}
 		return k
