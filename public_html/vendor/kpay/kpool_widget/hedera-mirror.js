@@ -1,9 +1,6 @@
 
 
-// Cache-bust cache.js like every other widget module (it was the ONE bare import,
-// so changes to it — e.g. the kpos timeout, OBSERV-MIRROR1 — never reached browsers).
-// Top-level await is fine: this module is itself loaded via dynamic import().
-const { getData } = await import(`./cache.js?v=${(typeof window !== 'undefined' && window.__BUILD_HASH__) || ''}`)
+import { getData } from './cache.js'
 
 
 
@@ -19,18 +16,7 @@ async function getKeyInfoKpos(network, accountId) {
 			const url = 'https://kpos.uk/sign/pop/getAccountInfo.php'
 			const detail = 1
 			const params = { network, accountId, detail }
-			// Account key STRUCTURE (threshold/pubkeys/Banzhaf) is stable, so cache it
-			// client-side for 5 min instead of 30s — the readiness poll re-enriches keyInfo
-			// every cycle, and a 30s TTL meant repeated kpos getAccountInfo.php hits (5-7.5s
-			// on a cold kpos cache for testnet). Signatures come from txRead separately, so
-			// this never staleness-affects who-has-signed. (WC-SLOW1 / FRONT-ENRICH1)
-			// Timeout to cap a genuine kpos hang WITHOUT killing a normal COLD call.
-			// Measured cold kpos = 5-7.5s; a 5s cap fired right as kpos answered →
-			// keyInfo=null → orange pie / empty key rows / "not satisfied", then a flap
-			// to green once kpos warmed (diag: enrichWall≈5004ms). 12s clears cold
-			// latency yet still aborts a real hang (parallel enrich made the worst case
-			// ~max(calls), not the old ~25s). On abort the catch below returns null.
-			const data = await getData(url, params,  300, 12000) // note kpos has its own cache so BEWARE
+			const data = await getData(url, params,  30) // note kpos has its own cache so BEWARE
 
 			return data
 		} catch (error) {
