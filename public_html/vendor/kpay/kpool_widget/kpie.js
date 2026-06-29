@@ -8,12 +8,20 @@
 ;(function(global) {
   'use strict'
 
-  const ED25519_DER_PREFIX = '302a300506032b6570032100'
+  // Must match the readiness/view normalizers (model.js, view.js) — see SIGN-NORM1
+  // to unify these. ECDSA accounts stayed orange in the pie because only ED25519 was
+  // stripped here.
+  const KEY_DER_PREFIXES = [
+    '302a300506032b6570032100',                          // ED25519
+    '302d300706052b8104000a032200',                      // ECDSA secp256k1 DER
+    '3036301006072a8648ce3d020106052b8104000a032200',    // ECDSA secp256k1 SPKI
+  ]
 
   function normalizeKey(key) {
     if (!key) return key
-    const k = key.toLowerCase()
-    return k.startsWith(ED25519_DER_PREFIX) ? k.slice(ED25519_DER_PREFIX.length) : k
+    let k = key.toLowerCase()
+    for (const p of KEY_DER_PREFIXES) if (k.startsWith(p)) { k = k.slice(p.length); break }
+    return k
   }
 
   // ── Dependency loading ──────────────────────────────────────────────────────
