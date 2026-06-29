@@ -155,9 +155,14 @@ async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) 
 	try {
 		const tx = await renderTxView(txState)
 
-		await loadSigningState(txState, tx)
-
+		// Render the WalletConnect signer BEFORE the account enrich. renderSigner is
+		// independent of loadSigningState's output, and loadSigningState's fetches have
+		// no timeout — on mobile it was hanging and blocking the WC pane entirely
+		// (logs: ksig:qr-rendered fired but tx:load-timing/signer:render never did).
+		// Drawing the signer first means the Connect button always shows.
 		if (opts.signer === 'walletconnect') await renderSigner(txState, opts)
+
+		await loadSigningState(txState, tx)
 
 		startTxSocket(txState)
 		startTxPolling(txState, tx)
@@ -660,19 +665,25 @@ async function renderTxView(txState) {
 async function loadSigningState(txState, tx) {
 	const { network } = txState
 
+	// Run the two enriches CONCURRENTLY. They're independent (acc.info via the Hedera
+	// mirror vs acc.keyInfo via the slow kpos getAccountInfo.php — 5-7.5s/account on
+	// testnet) but were awaited in series, blocking render for the SUM. Now the render
+	// waits for the slower of the two, not both. (WC-SLOW1 / FRONT-ENRICH1)
 	const _t0 = performance.now()
-	await enrichAccountsInfo({ network, accounts: tx.accounts })
-	const _t1 = performance.now()
-	await enrichAccountsKeyInfo({ network, accounts: tx.accounts })
-	const _t2 = performance.now()
+	let _t1 = _t0, _t2 = _t0
+	await Promise.all([
+		enrichAccountsInfo({ network, accounts: tx.accounts }).then(() => { _t1 = performance.now() }),
+		enrichAccountsKeyInfo({ network, accounts: tx.accounts }).then(() => { _t2 = performance.now() }),
+	])
 
 	// one structured timing line per load so the slow tx-detail load is attributable:
-	// txRead (backend) vs the three mirror-node enrich phases (frontend).
+	// txRead (backend) vs the mirror-node enrich phases (frontend, now concurrent).
 	try {
 		const tm = txState._timing || {}
 		tm.enrichAccountsInfo = Math.round(_t1 - _t0)
-		tm.enrichAccountsKeyInfo = Math.round(_t2 - _t1)
-		tm.total = (tm.txRead || 0) + (tm.enrichTransfers || 0) + tm.enrichAccountsInfo + tm.enrichAccountsKeyInfo
+		tm.enrichAccountsKeyInfo = Math.round(_t2 - _t0)
+		tm.enrichWall = Math.round(performance.now() - _t0)   // wall time (max of the two)
+		tm.total = (tm.txRead || 0) + (tm.enrichTransfers || 0) + tm.enrichWall
 		globalThis.kdiag?.('tx:load-timing', { txid: txState.txid, accounts: Object.keys(tx.accounts || {}).length, ...tm })
 	} catch {}
 
@@ -862,8 +873,12 @@ async function triggerSuccessAnimation() {
 async function refreshSigningSection(txState, { data, accounts }) {
 	const { network } = txState
 
-	await enrichAccountsInfo({ network, accounts })
-	await enrichAccountsKeyInfo({ network, accounts })
+	// concurrent — independent calls, the slow one (kpos keyInfo) no longer stacks
+	// on top of the mirror call before render (WC-SLOW1 / FRONT-ENRICH1)
+	await Promise.all([
+		enrichAccountsInfo({ network, accounts }),
+		enrichAccountsKeyInfo({ network, accounts }),
+	])
 
 	renderSigningSection(txState, { data, accounts })
 }
