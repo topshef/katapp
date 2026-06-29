@@ -290,7 +290,12 @@ console.log("WIP HG38472")
 
 // Build (and init) a DAppConnector for a specific Hedera network.
 async function buildConnectorForNetwork(net) {
+  // WC-SLOW1 timing: c.init() does SignClient.init() = the relay (wss) handshake +
+  // session restore, the usual suspect for the slow first open. Emit phase timings
+  // via window.kdiag (kpool widget buffer + /diag) so the ~30s is attributable.
+  const _t0 = (typeof performance !== 'undefined' ? performance : Date).now()
   const config = await loadConfig()
+  const _t1 = (typeof performance !== 'undefined' ? performance : Date).now()
   const c = new DAppConnector(
     { ...config.metadata },
     LedgerId.fromString(net),
@@ -300,6 +305,8 @@ async function buildConnectorForNetwork(net) {
     [hederaChainIdFromNetwork(net)]
   )
   await c.init()
+  const _t2 = (typeof performance !== 'undefined' ? performance : Date).now()
+  try { window.kdiag?.('wc:build', { net, loadConfigMs: Math.round(_t1 - _t0), initMs: Math.round(_t2 - _t1) }) } catch {}
   // keep walletConfig.hedera.network in sync with the connector we actually built,
   // so getNetwork() reports the live network (not just the load-time config).
   walletConfig = { ...config, hedera: { ...config.hedera, network: net } }
@@ -420,8 +427,13 @@ async function zzconnectWalletCore() {
 }
 
 async function connectWalletCore() {
+  // WC-SLOW1 timing: split init (connector ready) vs openModal (pairing URI + WC
+  // modal render — what the user waits ~30s for) vs the signer-approval wait.
+  const _c0 = Date.now()
   await initializeWalletConnect()
+  const _c1 = Date.now()
   await dappConnector.openModal()
+  const _c2 = Date.now()
   const started = Date.now()
   let signer = null
 
@@ -435,6 +447,7 @@ async function connectWalletCore() {
 
     await new Promise(r => setTimeout(r, 100))
   }
+  try { window.kdiag?.('wc:connect-phases', { ensureInitMs: _c1 - _c0, openModalMs: _c2 - _c1, approvalWaitMs: Date.now() - _c2 }) } catch {}
 
   // Step 2: select the newest signer as active (mirrors the old trim-to-last
   // intent) without discarding the others — getAccounts() still sees them all.
