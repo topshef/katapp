@@ -540,7 +540,34 @@ function createTxRow(tx){
   row.appendChild(statusEl)
   row.appendChild(nerdEl)
   row.appendChild(timeEl)
-  row.appendChild(createTxAssets(tx, orderType))
+  const assetsEl = createTxAssets(tx, orderType)
+  row.appendChild(assetsEl)
+
+  // KAT-TXLIST1 diagnostic: settled txs sometimes render bare (no transfer chips),
+  // reportedly only on testnet. Log WHY — once per txid — so we can see whether
+  // pchbasis/transfers/order/bundles are missing in the data vs a render issue.
+  try {
+    const settled = isTxSuccessStatus(getTxStatus(tx))
+    const bare = !assetsEl || !assetsEl.childElementCount
+    window.__bareTxLogged ||= new Set()
+    if (settled && bare && tx.txid && !window.__bareTxLogged.has(tx.txid)) {
+      window.__bareTxLogged.add(tx.txid)
+      const b = tx.pchbasis?.transfers || {}
+      const send = (typeof katomiaDiagSend === "function") ? katomiaDiagSend : window.kdiag
+      send?.("txrow:bare", {
+        txid: tx.txid,
+        network: tx.network || tx.pchbasis?.network || null,
+        hasPchbasis: !!tx.pchbasis,
+        tokenTransfers: (b.tokenTransfers || []).length,
+        hbarTransfers: (b.hbarTransfers || []).length,
+        nftTransfers: (b.nftTransfers || []).length,
+        orderType,
+        hasOrder: !!order,
+        fills: (tx.source?.fills || []).length,
+        bundleOrders: Object.keys(tx.source?.orders || {}).length
+      })
+    }
+  } catch {}
 
   return row
 
