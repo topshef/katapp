@@ -177,6 +177,15 @@ export function renderWalletConnectSigner(container, {
 			typeof wc.setActiveAccount === 'function' &&
 			typeof wc.getActiveAccount === 'function'
 
+		// step 5: scope the WC connector to THIS tx's network BEFORE listing/connecting,
+		// so a mainnet-loaded bundle doesn't show/connect mainnet accounts for a testnet
+		// tx (and vice versa). ensureNetwork rebuilds the connector if the network differs.
+		try { if (typeof wc.ensureNetwork === 'function') await wc.ensureNetwork(network) }
+		catch (err) { kdiag('signer:ensure-network:error', { network, error: String(err) }) }
+
+		// active-account memory is per-network (mainnet/testnet are different account sets)
+		const lsActive = `${LS_ACTIVE}.${network || 'mainnet'}`
+
 		// show a placeholder immediately — the lookups can take a moment, and an
 		// empty pane looked like nothing was happening
 		wrap.innerHTML = `<div class="kpsign-msg">Checking wallet…</div>`
@@ -185,7 +194,7 @@ export function renderWalletConnectSigner(container, {
 		let account = null
 		try {
 			if (hasMulti) {
-				accounts = (await wc.getAccounts()) || []
+				accounts = (await wc.getAccounts()) || []   // already network-filtered in the bundle
 			} else {
 				account = await wc.getAccount()
 				if (account) accounts = [account]
@@ -198,11 +207,11 @@ export function renderWalletConnectSigner(container, {
 		// account) but no accounts come back now — e.g. after a bundle swap or an
 		// expired/dropped WC session. Surface it instead of a silent dead state.
 		let savedActive = null
-		try { savedActive = localStorage.getItem(LS_ACTIVE) } catch {}
+		try { savedActive = localStorage.getItem(lsActive) } catch {}
 		let stale = false
 		if (hasMulti && accounts.length === 0 && savedActive) {
 			stale = true
-			try { localStorage.removeItem(LS_ACTIVE) } catch {}
+			try { localStorage.removeItem(lsActive) } catch {}
 			kdiag('signer:session-stale', { savedActive })
 		}
 
@@ -215,17 +224,14 @@ export function renderWalletConnectSigner(container, {
 			if (!account) account = accounts[0]
 		}
 
-		// Network guard: auto-disconnect if the wallet is on a different network
-		// than the transaction. Now live — kwcCore exposes getNetwork() (step 0).
+		// Network safety belt (mainly for OLD bundles without ensureNetwork): if the
+		// connector still reports a different network than the tx, drop the accounts so
+		// we never show/sign a wrong-network account.
 		try {
 			const wcNet = await wc.getNetwork?.()
-			if (!wcNet) {
-				kdiag('signer:network-check:skipped', { network, reason: 'getNetwork not available' })
-			} else if (account && wcNet !== network) {
-				kdiag('signer:network-mismatch', { wcNet, txNetwork: network, action: 'auto-disconnect' })
-				await wc.disconnect()
+			if (wcNet && account && wcNet !== network) {
+				kdiag('signer:network-mismatch', { wcNet, txNetwork: network, action: 'hide-accounts' })
 				account = null; accounts = []
-				try { localStorage.removeItem(LS_ACTIVE) } catch {}
 			}
 		} catch (err) {
 			kdiag('signer:network-check:error', { error: String(err) })
@@ -248,7 +254,7 @@ export function renderWalletConnectSigner(container, {
 		}
 
 		// remember the active account so staleness has a baseline next time
-		try { localStorage.setItem(LS_ACTIVE, account) } catch {}
+		try { localStorage.setItem(lsActive, account) } catch {}
 
 		// connected → [account dropdown (+ "connect another")] [✕ selected] [Sign now]
 		const row = document.createElement('div')
@@ -294,7 +300,7 @@ export function renderWalletConnectSigner(container, {
 				kdiag('signer:account:switch', { to: id })
 				try {
 					await wc.setActiveAccount(id)
-					try { localStorage.setItem(LS_ACTIVE, id) } catch {}
+					try { localStorage.setItem(lsActive, id) } catch {}
 					onAccount?.(id)
 				} catch (err) {
 					kdiag('signer:account:switch:error', { error: String(err) })
@@ -327,7 +333,7 @@ export function renderWalletConnectSigner(container, {
 				// clear the persisted selection if it was the one we just removed, so a
 				// deliberate "disconnect all" lands on the plain Connect button (not the
 				// stale-session prompt)
-				try { if (localStorage.getItem(LS_ACTIVE) === selected) localStorage.removeItem(LS_ACTIVE) } catch {}
+				try { if (localStorage.getItem(lsActive) === selected) localStorage.removeItem(lsActive) } catch {}
 				kdiag('signer:disconnect:done', { account: selected })
 				await render()
 			} catch (err) {
