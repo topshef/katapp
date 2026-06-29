@@ -329,12 +329,25 @@ async function initializeWalletConnect() {
 // (each network is a separate account set on Hedera). Switching networks therefore
 // re-pairs — correct, since mainnet and testnet are different wallets/accounts.
 async function ensureNetwork(network) {
-  await initializeWalletConnect()
-  if (!network || currentNetwork === network) return currentNetwork
-  console.log("[WC] ensureNetwork: switching connector", currentNetwork, "->", network)
+  // No target → just ensure SOMETHING is initialised (legacy/default path).
+  if (!network) { await initializeWalletConnect(); return currentNetwork }
+
+  // Already on the right network → nothing to do.
+  if (dappConnector && currentNetwork === network) return currentNetwork
+
+  // WC1/double-init fix: build DIRECTLY for the requested network. The old code did
+  // `await initializeWalletConnect()` first, which builds the config-default network
+  // (mainnet) and THEN we rebuilt for testnet — two SignClient.init()s (the "Init()
+  // called 2 times" warning) = two slow relay handshakes on the first connect. Since
+  // the signer calls ensureNetwork() before any other WC call, building straight for
+  // the tx network means a single init.
+  if (dappConnector) console.log("[WC] ensureNetwork: switching connector", currentNetwork, "->", network)
   dappConnector = await buildConnectorForNetwork(network)
   currentNetwork = network
   activeAccountId = null   // active selection is network-specific
+  // Make initializeWalletConnect() resolve to THIS connector so later callers don't
+  // rebuild or get a stale one.
+  wcInitPromise = Promise.resolve(dappConnector)
   return currentNetwork
 }
 
