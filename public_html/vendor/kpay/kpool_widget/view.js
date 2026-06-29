@@ -399,8 +399,13 @@ import {
 	}
 		
 
+// Must mirror evaluateTxReadiness.KNOWN_PREFIXES (model.js) — the per-account ✅/pie
+// here and the header threshold there must normalise keys identically, else (as for
+// ECDSA accounts) the header says "satisfied" while the row still shows unsigned.
 const VIEW_KEY_PREFIXES = [
-	'302a300506032b6570032100',
+	'302a300506032b6570032100',                          // ED25519 DER
+	'302d300706052b8104000a032200',                      // ECDSA secp256k1 DER
+	'3036301006072a8648ce3d020106052b8104000a032200',    // ECDSA secp256k1 SPKI
 ]
 
 function normalizeViewKey(key) {
