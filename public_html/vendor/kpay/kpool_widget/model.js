@@ -456,10 +456,15 @@ export function evaluateTxReadiness({accounts,data}){
 	// 6 chars to stay legible. accounts: who must sign, whether keyInfo loaded, signed.
 	try {
 		const k6 = k => '…' + String(k).slice(-6)
+		const pc = data.precheck
 		globalThis.kdiag?.('readiness:eval', {
 			txid: data.txid,
 			network: data.network,
 			comboStatus: data.comboStatus ?? null,
+			// precheck snapshot — to diagnose the OK↔insufficient-balance flap. null
+			// when no precheck present (which itself is a flap signal vs a populated one).
+			precheck: pc ? { status: pc.status ?? null, complete: pc.complete ?? null,
+				fails: (pc.tests?.fail || []).length, untested: (pc.tests?.untested || []).length } : null,
 			thresholdSatisfied: result.thresholdSatisfied,
 			keyInfoComplete,
 			signedRequiredKeyCount: result.signedRequiredKeyCount,
