@@ -637,6 +637,19 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
 
     if (!scores || !buckets) {
       console.warn('GH84743 Missing score data for', accountId, acc.keyInfo)
+      // LOUD feedback — don't silently drop a must-sign account. Show a red row so the
+      // user immediately knows the keys failed to load (kpos timeout) instead of waiting.
+      const errBlock = document.createElement('div')
+      errBlock.className = 'acctkeys-account acctkeys-keyerror'
+      errBlock.dataset.acct = accountId
+      const reason = acc.keyInfoError ? ' (kpos timeout)' : ''
+      errBlock.innerHTML =
+        `<div class="acctkeys-accountId">` +
+        `<a href='https://hashscan.io/${network}/account/${accountId}' target='${accountId}'>${accountId}</a></div>` +
+        `<div class="acctkeys-keyerror-msg">⚠️ Couldn't load signing keys${reason} — tap to retry</div>`
+      errBlock.style.cursor = 'pointer'
+      errBlock.onclick = () => location.reload()
+      container.appendChild(errBlock)
       return
     }
 
@@ -776,6 +789,13 @@ export function injectTxReadCSS() {
 	const style = document.createElement('style')
 	style.id = 'txread-css'
 	style.textContent = `
+
+			.acctkeys-keyerror {
+				display: flex; flex-direction: column; gap: 4px;
+				padding: 10px 14px; margin: 6px 0;
+				background: #fdecea; border: 1px solid #f5a6a0; border-radius: 6px;
+			}
+			.acctkeys-keyerror-msg { color: #b3261e; font-weight: 700; font-size: 14px; }
 
 			.acctkeys-mobile-head {display: none;}
 

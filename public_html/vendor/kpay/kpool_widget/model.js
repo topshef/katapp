@@ -246,6 +246,7 @@ export async function enrichAccountsKeyInfo({ network, accounts }) {
 			
 			
 		} catch (err) {
+			acc.keyInfo = null
 			acc.keyInfoError = err.message || String(err)
 		}
 	}))

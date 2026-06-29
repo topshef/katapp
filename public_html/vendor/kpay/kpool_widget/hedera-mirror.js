@@ -30,12 +30,16 @@ async function getKeyInfoKpos(network, accountId) {
 			// to green once kpos warmed (diag: enrichWall≈5004ms). 12s clears cold
 			// latency yet still aborts a real hang (parallel enrich made the worst case
 			// ~max(calls), not the old ~25s). On abort the catch below returns null.
-			const data = await getData(url, params,  300, 12000) // note kpos has its own cache so BEWARE
+			// 3s hard cap. kpos has its own cache; a cold call that can't answer in 3s is
+			// treated as a failure — we surface it LOUDLY in the UI rather than spin.
+			const data = await getData(url, params,  300, 3000) // note kpos has its own cache so BEWARE
 
 			return data
 		} catch (error) {
-			console.error('HY83643 Error fetching data:', error)
-			return null // Return null or handle the error as needed
+			console.error('HY83643 kpos getKeyInfo failed/timed out:', error)
+			// Do NOT swallow — rethrow so enrichAccountsKeyInfo records keyInfoError and
+			// the UI can show a loud "couldn't load keys" instead of a silent orange pie.
+			throw error
 		}
 }
 
