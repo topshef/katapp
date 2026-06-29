@@ -181,7 +181,19 @@ async function renderSigner(txState, opts) {
 		txid:     txState.txid,
 		readUrl:  opts.readUrl,
 		saveUrl:  opts.saveUrl,
-		onSigned:  () => notify(txState, '✍️ Signature submitted', 'success'),
+		onSigned:  async () => {
+			notify(txState, '✍️ Signature submitted', 'success')
+			// Reflect the new signature immediately instead of waiting up to 5s for the
+			// next poll (the WS sig-push can lag). Re-read authoritative tx data and
+			// re-render the signing section. Skip if the widget was torn down.
+			if (!txStateLive(txState)) return
+			try {
+				const fresh = await txRead({ network: txState.network, txid: txState.txid })
+				txState.data = { ...txState.data, ...fresh.data,
+					comboStatus: txState.data.comboStatus === 'SUCCESS' ? 'SUCCESS' : fresh.data.comboStatus }
+				await refreshSigningSection(txState, { data: txState.data, accounts: txState.accounts })
+			} catch (e) { console.warn('post-sign refresh failed', e) }
+		},
 		onAccount: acct => updateNarrative(txState, acct),
 		onLock:    txState.onLock,
 		onUnlock:  txState.onUnlock
