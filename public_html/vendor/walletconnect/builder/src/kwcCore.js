@@ -284,32 +284,58 @@ async function loadConfig() {
 // - Reads like a lifecycle step rather than a one-off init
 
 let wcInitPromise = null
+let currentNetwork = null   // the Hedera network the live dappConnector is built for
 
 console.log("WIP HG38472")
+
+// Build (and init) a DAppConnector for a specific Hedera network.
+async function buildConnectorForNetwork(net) {
+  const config = await loadConfig()
+  const c = new DAppConnector(
+    { ...config.metadata },
+    LedgerId.fromString(net),
+    config.walletConnect.projectId,
+    Object.values(HederaJsonRpcMethod),
+    [HederaSessionEvent.ChainChanged, HederaSessionEvent.AccountsChanged],
+    [hederaChainIdFromNetwork(net)]
+  )
+  await c.init()
+  // keep walletConfig.hedera.network in sync with the connector we actually built,
+  // so getNetwork() reports the live network (not just the load-time config).
+  walletConfig = { ...config, hedera: { ...config.hedera, network: net } }
+  return c
+}
 
 async function initializeWalletConnect() {
 
   if (wcInitPromise) return wcInitPromise
   wcInitPromise = (async () => {
     const config = await loadConfig()
-
+    const net = config.hedera.network
     if (!dappConnector) {
-      dappConnector = new DAppConnector(
-        { ...config.metadata },
-        LedgerId.fromString(config.hedera.network),
-        config.walletConnect.projectId,
-        Object.values(HederaJsonRpcMethod),
-        [HederaSessionEvent.ChainChanged, HederaSessionEvent.AccountsChanged],
-        [hederaChainIdFromNetwork(config.hedera.network)]
-      )
-
-      await dappConnector.init()
+      dappConnector = await buildConnectorForNetwork(net)
+      currentNetwork = net
     }
-
     return dappConnector
   })()
 
   return wcInitPromise
+}
+
+// ensureNetwork (step 5) — scope the connector to the transaction's network.
+// The bundle is single-connector; on the katomia page it loads as mainnet. When a
+// signer opens for a testnet tx it must NOT show/connect mainnet accounts. If the
+// requested network differs from the live connector's, rebuild the connector for it
+// (each network is a separate account set on Hedera). Switching networks therefore
+// re-pairs — correct, since mainnet and testnet are different wallets/accounts.
+async function ensureNetwork(network) {
+  await initializeWalletConnect()
+  if (!network || currentNetwork === network) return currentNetwork
+  console.log("[WC] ensureNetwork: switching connector", currentNetwork, "->", network)
+  dappConnector = await buildConnectorForNetwork(network)
+  currentNetwork = network
+  activeAccountId = null   // active selection is network-specific
+  return currentNetwork
 }
 
 
@@ -547,7 +573,16 @@ function getWalletNetwork() {
 async function getWalletAccounts() {
   await initializeWalletConnect()
   if (!dappConnector?.signers?.length) return []
-  return dappConnector.signers.map(s => s.getAccountId().toString())
+  // Safety belt: only return accounts whose signer is actually on the connector's
+  // current network. A persisted session from the other network could otherwise be
+  // restored and leak a wrong-network account into the picklist. Each DAppSigner
+  // exposes its real ledger via getLedgerId().
+  return dappConnector.signers
+    .filter(s => {
+      if (!currentNetwork) return true
+      try { return s.getLedgerId?.()?.toString?.() === currentNetwork } catch { return true }
+    })
+    .map(s => s.getAccountId().toString())
 }
 
 
@@ -1262,6 +1297,7 @@ const exposeHeadlessAPI = () => {
     disconnectAccount: disconnectAccountCore,   // step 3: disconnect one account, keep others
     authenticate: authenticateCore,   // step 4: sign a challenge (HIP-820 signMessage)
     getNetwork: getWalletNetwork,     // step 0: enables the kpool signer mismatch guard
+    ensureNetwork: ensureNetwork,     // step 5: scope the connector to a tx's network
 
     // build provenance — so host pages (kdiag) can record which bundle is live.
     // __BUILD_META__ is injected by vite at build time ({commit,status,built}).
