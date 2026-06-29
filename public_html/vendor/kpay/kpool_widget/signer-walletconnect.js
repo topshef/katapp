@@ -250,25 +250,47 @@ export function renderWalletConnectSigner(container, {
 		// remember the active account so staleness has a baseline next time
 		try { localStorage.setItem(LS_ACTIVE, account) } catch {}
 
-		// connected → [account picker | account] + disconnect + sign
+		// connected → [account dropdown (+ "connect another")] [✕ selected] [Sign now]
 		const row = document.createElement('div')
 		row.className = 'kpsign-row'
 
+		// Network prefix for clarity (we offer both networks). Mainnet = no prefix
+		// (the default); testnet/previewnet are prefixed so it's obvious which network
+		// the account/tx is on. The accounts shown are for this tx's network.
+		const label = id => (network && network !== 'mainnet') ? `${network}:${id}` : id
+		const ADD_NEW = '__wc_add_account__'
+
 		let acct
-		if (hasMulti && accounts.length > 1) {
-			// multiple connected accounts → dropdown; switching sets the active signer
+		if (hasMulti) {
+			// dropdown of connected accounts + a final "connect another" option. Built-in
+			// <select> works well on mobile. Switching sets the active signer.
 			acct = document.createElement('select')
 			acct.className = 'kpsign-acct kpsign-select'
 			acct.title = 'Signing account'
 			accounts.forEach(id => {
 				const opt = document.createElement('option')
 				opt.value = id
-				opt.textContent = id
+				opt.textContent = label(id)
 				if (id === account) opt.selected = true
 				acct.appendChild(opt)
 			})
+			const addOpt = document.createElement('option')
+			addOpt.value = ADD_NEW
+			addOpt.textContent = '➕ Connect another account…'
+			acct.appendChild(addOpt)
+
 			acct.onchange = async () => {
 				const id = acct.value
+				if (id === ADD_NEW) {
+					acct.value = account   // revert the visible selection; connect re-renders
+					kdiag('signer:connect:add', { network })
+					document.documentElement.style.setProperty('--wcm-z-index', '2147483000')
+					onLock?.()
+					try { await wc.connect(); kdiag('signer:connect:add:done'); await render() }
+					catch (err) { kdiag('signer:connect:add:error', { error: String(err) }); console.error(err); if (err?.message) alert(err.message) }
+					finally { onUnlock?.() }
+					return
+				}
 				kdiag('signer:account:switch', { to: id })
 				try {
 					await wc.setActiveAccount(id)
@@ -281,20 +303,36 @@ export function renderWalletConnectSigner(container, {
 				}
 			}
 		} else {
+			// older bundle (A/B via ?kwc_version) without the multi API → plain label
 			acct = document.createElement('span')
 			acct.className = 'kpsign-acct'
-			acct.textContent = account
+			acct.textContent = label(account)
 		}
 
+		// ✕ disconnects the SELECTED account, leaving the others. On older bundles
+		// without disconnectAccount it falls back to disconnect-all.
 		const disc = document.createElement('button')
 		disc.className = 'kpsign-btn kpsign-ghost'
 		disc.textContent = '✕'
-		disc.title = 'Disconnect'
+		disc.title = 'Disconnect this account'
 		disc.onclick = async () => {
-			kdiag('signer:disconnect:click')
-			try { localStorage.removeItem(LS_ACTIVE) } catch {}
-			try { await wc.disconnect(); kdiag('signer:disconnect:done'); await render() }
-			catch (err) { kdiag('signer:disconnect:error', { error: String(err) }); console.error(err); alert(err.message) }
+			const selected = (hasMulti && acct.value && acct.value !== ADD_NEW) ? acct.value : account
+			kdiag('signer:disconnect:click', { account: selected })
+			try {
+				if (hasMulti && typeof wc.disconnectAccount === 'function') {
+					await wc.disconnectAccount(selected)
+				} else {
+					await wc.disconnect()
+				}
+				// clear the persisted selection if it was the one we just removed, so a
+				// deliberate "disconnect all" lands on the plain Connect button (not the
+				// stale-session prompt)
+				try { if (localStorage.getItem(LS_ACTIVE) === selected) localStorage.removeItem(LS_ACTIVE) } catch {}
+				kdiag('signer:disconnect:done', { account: selected })
+				await render()
+			} catch (err) {
+				kdiag('signer:disconnect:error', { error: String(err) }); console.error(err); alert(err.message)
+			}
 		}
 
 		const sign = document.createElement('button')
@@ -358,7 +396,7 @@ function injectSignerCSS() {
 		.kpsign-ghost { border-color:#ccc; background:#f5f5f5; color:#666; padding:6px 10px; }
 		.kpsign-msg { color:#999; font-size:13px; }
 		.kpsign-select { all:revert; font:13px ui-monospace,Menlo,Consolas,monospace; color:#555;
-			padding:5px 8px; border:1px solid #ccc; border-radius:6px; background:#fff; max-width:200px; }
+			padding:5px 8px; border:1px solid #ccc; border-radius:6px; background:#fff; max-width:260px; }
 		.kpsign-stale { color:#b54708; margin-bottom:8px; }
 	`
 	document.head.appendChild(s)
