@@ -434,6 +434,32 @@ async function disconnectWalletCore() {
 }
 
 
+// disconnectAccountCore (step 3)
+// Disconnect a SINGLE account, leaving any others connected. Each DAppSigner
+// carries its session `topic`; dappConnector.disconnect(topic) drops just that
+// session. (If a wallet exposed several accounts on one topic they'd go together,
+// but the common case is one account per pairing.) Clears the active selection
+// only if the removed account was the active one.
+async function disconnectAccountCore(accountId) {
+  if (!accountId) return false
+  await initializeWalletConnect()
+
+  const signer = findSigner(accountId)
+  if (!signer) return false
+
+  try {
+    if (signer.topic) await dappConnector.disconnect(signer.topic)
+    else await dappConnector.disconnectAll()
+  } catch (error) {
+    console.warn("[WC] Error disconnecting account", accountId, error)
+  }
+
+  if (activeAccountId === accountId) activeAccountId = null
+  console.log("[WC] disconnected account", accountId)
+  return true
+}
+
+
 // restoreWalletSession
 // Wrapper preserving boolean contract for existing call sites
 const restoreWalletSession = async () => {
@@ -1233,6 +1259,7 @@ const exposeHeadlessAPI = () => {
     getAccounts: getWalletAccounts,   // step 1: full connected-account list (additive)
     getActiveAccount: getActiveWalletAccount,   // step 2: alias of getAccount
     setActiveAccount: setActiveWalletAccount,   // step 2: pick which account signs
+    disconnectAccount: disconnectAccountCore,   // step 3: disconnect one account, keep others
     authenticate: authenticateCore,   // step 4: sign a challenge (HIP-820 signMessage)
     getNetwork: getWalletNetwork,     // step 0: enables the kpool signer mismatch guard
 
