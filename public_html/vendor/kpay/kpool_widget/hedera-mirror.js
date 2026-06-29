@@ -24,10 +24,13 @@ async function getKeyInfoKpos(network, accountId) {
 			// every cycle, and a 30s TTL meant repeated kpos getAccountInfo.php hits (5-7.5s
 			// on a cold kpos cache for testnet). Signatures come from txRead separately, so
 			// this never staleness-affects who-has-signed. (WC-SLOW1 / FRONT-ENRICH1)
-			// 5s timeout so a cold kpos call fails fast instead of hanging the signer ~25s;
-			// on timeout fetch throws → the catch below returns null → render proceeds
-			// without keyInfo (no pie/Banzhaf) rather than blocking.
-			const data = await getData(url, params,  300, 5000) // note kpos has its own cache so BEWARE
+			// Timeout to cap a genuine kpos hang WITHOUT killing a normal COLD call.
+			// Measured cold kpos = 5-7.5s; a 5s cap fired right as kpos answered →
+			// keyInfo=null → orange pie / empty key rows / "not satisfied", then a flap
+			// to green once kpos warmed (diag: enrichWall≈5004ms). 12s clears cold
+			// latency yet still aborts a real hang (parallel enrich made the worst case
+			// ~max(calls), not the old ~25s). On abort the catch below returns null.
+			const data = await getData(url, params,  300, 12000) // note kpos has its own cache so BEWARE
 
 			return data
 		} catch (error) {
