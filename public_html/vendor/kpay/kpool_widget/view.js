@@ -168,13 +168,28 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 	// ┌─┐┌─┐┬─┐┌┬┐┌─┐  ┬  ┬┬┌─┐┬ ┬
 	// │  ├─┤├┬┘ ││└─┐  └┐┌┘│├┤ │││
 	// └─┘┴ ┴┴└──┴┘└─┘   └┘ ┴└─┘└┴┘
-	// Cards view (TX-CARDS3). One thick row per account: neutral identity strip +
-	// SEND half (rose, solid chips for what they give) + RECEIVE half (green, GHOST
-	// dashed/faded chips for where it lands). Renders from flow.accounts (send/receive
-	// already split by sign). Pre-consensus styling only; the consensus invert+move
-	// animation is TX-CARDS5, hover→destination lines TX-CARDS4. Identity is kept
-	// neutral/grayscale on purpose — colour is reserved for state (TX-CARDS6).
+	// Cards view (TX-CARDS3). One thick row per account: a light account-header row
+	// (id + optional xproof label) over two equal columns — LEFT = send (rose),
+	// RIGHT = receive (green). Direction is conveyed by side+colour, so no edge
+	// labels. Renders from flow.accounts (send/receive already split by sign).
+	// Ghost (dashed/faded) chips on the receive side show where assets land.
+	// Pre-consensus styling only; invert+move animation is TX-CARDS5, hover→destination
+	// lines TX-CARDS4, identity glyph + operator marker TX-CARDS6.
 	const _fmtAmt = n => { const v = Number(n); return Number.isFinite(v) ? v.toLocaleString(undefined, { maximumFractionDigits: 8 }) : String(n) }
+
+	// pickAssetLabel — shared short-label rule. Mirrors the HEDERA:// → name fallback
+	// that was duplicated in buildTransferList and katomia formatAssetDisplay, and adds
+	// a length cap: a hedera:// URI symbol OR a symbol longer than the cap defers to the
+	// (shorter) name. CSS still ellipsis-clips whatever survives. (TX-CARDS3 review)
+	const ASSET_LABEL_MAX = 20
+	function pickAssetLabel(meta = {}) {
+		const symbol = meta.symbol || ''
+		const name = meta.name || ''
+		const fallback = meta.raw || ''
+		const looksUri = /^hedera:\/\//i.test(symbol)
+		if ((looksUri || symbol.length > ASSET_LABEL_MAX) && name && name.length < (symbol.length || Infinity)) return name
+		return symbol || name || fallback
+	}
 
 	function buildCardChip(network, item, side) {
 		const m = item.assetMeta || {}
@@ -195,7 +210,7 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 
 		const txt = document.createElement('span')
 		txt.className = 'txcard-chip-text'
-		const sym = isHbar ? 'HBAR' : (m.symbol || m.name || m.raw || item.asset || '?')
+		const sym = isHbar ? 'HBAR' : pickAssetLabel(m)
 		if (m.assetClass === 'NFT' || item.type === 'NFT') {
 			const serial = m.serial ?? item.serial
 			txt.textContent = serial != null ? `${sym} #${serial}` : sym
@@ -203,6 +218,7 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 			const amt = Math.abs(Number(item.amountFormatted ?? item.amount ?? 0))
 			txt.textContent = `${_fmtAmt(amt)} ${sym}`
 		}
+		txt.title = txt.textContent   // full label on hover (chip is ellipsis-clipped)
 
 		chip.append(iconEl, txt)
 		return chip
@@ -213,12 +229,11 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 		card.className = 'txcard'
 		card.dataset.acct = acc.id
 
-		// identity strip — neutral on purpose (TX-CARDS6 will fill the glyph slot)
-		const ident = document.createElement('div')
-		ident.className = 'txcard-identity'
-
-		const glyph = document.createElement('div')   // reserved slot for a future profile icon
-		glyph.className = 'txcard-glyph'
+		// account-header row — light text: id + optional xproof label. (operator marker
+		// + identity glyph deferred to TX-CARDS6; roles intentionally not shown — the
+		// send/receive sides convey direction.)
+		const head = document.createElement('div')
+		head.className = 'txcard-head'
 
 		const idLink = document.createElement('a')
 		idLink.className = 'txcard-acct'
@@ -226,41 +241,28 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 		idLink.target = '_blank'
 		idLink.rel = 'noopener'
 		idLink.textContent = acc.id
-		ident.append(glyph, idLink)
+		head.appendChild(idLink)
 
 		if (acc.label) {
-			const lbl = document.createElement('div')
+			const lbl = document.createElement('span')
 			lbl.className = 'txcard-acct-label'
 			lbl.textContent = acc.label
-			ident.appendChild(lbl)
+			head.appendChild(lbl)
 		}
 
-		if (acc.roles?.length) {
-			const roles = document.createElement('div')
-			roles.className = 'txcard-roles'
-			roles.textContent = acc.roles.join(' · ')
-			ident.appendChild(roles)
-		}
+		const cols = document.createElement('div')
+		cols.className = 'txcard-cols'
 
-		// reserved slot for the per-account signing arc (mustSign/readiness arrive after
-		// this render via loadSigningState; live wiring is a later refinement)
-		const signSlot = document.createElement('div')
-		signSlot.className = 'txcard-sign'
-		ident.appendChild(signSlot)
-
-		const mkSide = (name, label, items) => {
+		const mkCol = (name, items) => {
 			const col = document.createElement('div')
-			col.className = `txcard-side txcard-${name}`
-			const lbl = document.createElement('div')
-			lbl.className = 'txcard-side-label'
-			lbl.textContent = label
-			col.appendChild(lbl)
+			col.className = `txcard-col txcard-${name}`
 			if (items.length) items.forEach(it => col.appendChild(buildCardChip(network, it, name)))
 			else { const e = document.createElement('div'); e.className = 'txcard-empty'; e.textContent = '—'; col.appendChild(e) }
 			return col
 		}
 
-		card.append(ident, mkSide('send', 'Sends', acc.send || []), mkSide('receive', 'Receives', acc.receive || []))
+		cols.append(mkCol('send', acc.send || []), mkCol('receive', acc.receive || []))
+		card.append(head, cols)
 		return card
 	}
 
@@ -466,7 +468,7 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 
       const b = document.createElement('div')
       b.style.textAlign = 'left'
-      let assetLabel = asset.symbol ?? asset.name ?? ''
+      let assetLabel = pickAssetLabel(asset)   // shared HEDERA:// → name + length-cap rule (TX-CARDS3)
       
       const tokenId = asset.raw
       const serial = asset.serial ?? ''
@@ -478,8 +480,8 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
       let assetLinkLabel = (serial) ? `${tokenId}#${serial}` : `${tokenId}`
       let assetLink = `<a href='${assetUrl}' target='${assetLinkLabel}'>${assetLinkLabel}</a>`
       
-      if(asset.symbol?.startsWith('HEDERA://')) assetLabel = asset.name ?? assetLabel
-            
+      // (HEDERA:// → name now handled inside pickAssetLabel)
+
       let assetIcon=''
       let assetTooltip=''
 
@@ -488,7 +490,7 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
       if(asset.assetClass=='LE') assetIcon='🖼️',assetTooltip=pad+'Limited Edition'
       if(asset.assetClass=='NFT') assetIcon='💎',assetTooltip=pad+'NFT'
 
-      assetLabel=`<span class='cursor-default' title='${assetTooltip}'>${assetIcon}</span> ${asset.assetClass=='NFT'?asset.symbol:assetLabel} ${assetLink}`
+      assetLabel=`<span class='cursor-default' title='${assetTooltip}'>${assetIcon}</span> ${asset.assetClass=='NFT'?pickAssetLabel(asset):assetLabel} ${assetLink}`
    
 
       if(asset.raw == 'tinybar') assetLabel = 'HBAR'
@@ -1314,35 +1316,34 @@ export function injectTxReadCSS() {
 		/* ── cards view (TX-CARDS3) ──────────────────────────────────────────── */
 		.txcards { display:flex; flex-direction:column; gap:10px; max-width:640px; margin:0 auto; }
 		.txcard {
-			display:grid; grid-template-columns: minmax(118px, 0.7fr) 1fr 1fr;
+			display:flex; flex-direction:column;
 			border:1px solid #e4e4e7; border-radius:10px; overflow:hidden;
 			background:#fff;
 		}
-		.txcard-identity {
-			display:flex; flex-direction:column; gap:3px;
-			padding:10px 12px; border-right:1px solid #ececec;
-			background:#fafafa; min-width:0;
-			/* neutral identity — colour is reserved for state, not who */
-			color:#52525b;
+		/* account-header row — light text (id + optional xproof label) */
+		.txcard-head {
+			display:flex; flex-wrap:wrap; align-items:baseline; gap:8px;
+			padding:7px 12px; background:#fafafa; border-bottom:1px solid #ececec;
 		}
-		.txcard-glyph { width:0; height:0; }   /* reserved for a future profile icon (TX-CARDS6) */
-		.txcard-acct { font-weight:600; font-size:13px; color:#3f3f46; text-decoration:none; word-break:break-all; }
+		.txcard-acct { font-size:13px; font-weight:500; color:#52525b; text-decoration:none; word-break:break-all; }
 		.txcard-acct:hover { text-decoration:underline; }
-		.txcard-acct-label { font-size:12px; color:#71717a; }
-		.txcard-roles { font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:#a1a1aa; }
-		.txcard-sign { margin-top:auto; }
+		.txcard-acct-label { font-size:12px; color:#a1a1aa; }
 
-		.txcard-side { padding:10px 12px; display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
-		.txcard-side-label { font-size:10px; text-transform:uppercase; letter-spacing:.05em; opacity:.55; }
+		/* two equal, symmetric columns — left send (rose), right receive (green).
+		   stays side-by-side on mobile (screen split in half), no edge labels */
+		.txcard-cols { display:grid; grid-template-columns:1fr 1fr; }
+		.txcard-col { padding:10px 12px; display:flex; flex-direction:column; gap:6px; align-items:flex-start; min-width:0; }
 		.txcard-send    { background:#fdf2f2; }   /* warm rose — giving */
 		.txcard-receive { background:#eff7f1; }   /* green — receiving */
 
 		.txcard-chip {
 			display:inline-flex; align-items:center; gap:6px;
 			padding:4px 9px; border-radius:14px; font-size:13px; line-height:1.3;
-			background:#fff; border:1px solid rgba(0,0,0,.14); max-width:100%;
+			background:#fff; border:1px solid rgba(0,0,0,.14);
+			max-width:100%; box-sizing:border-box;
 		}
-		.txcard-chip-text { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+		.txcard-chip-icon { flex:0 0 auto; }
+		.txcard-chip-text { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 		.txcard-chip-ghost {
 			/* dashed + faded: where the asset WILL land (pre-consensus) */
 			background:transparent; border-style:dashed; opacity:.45;
@@ -1352,12 +1353,6 @@ export function injectTxReadCSS() {
 		/* reuse the wrapper's data-acct hover highlight (view.js) */
 		.txcard-chip.acct-hl { outline:2px solid #ffb74d; outline-offset:1px; }
 		.txcard.acct-hl { box-shadow:0 0 0 2px #ffb74d inset; }
-
-		@media (max-width: 520px) {
-			.txcard { grid-template-columns: 1fr; }
-			.txcard-identity { border-right:none; border-bottom:1px solid #ececec; flex-direction:row; flex-wrap:wrap; align-items:baseline; gap:6px; }
-			.txcard-sign { margin:0; }
-		}
 
 
 	`
