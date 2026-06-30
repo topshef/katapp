@@ -53,8 +53,13 @@ export async function initBuildBanner({
 
 		console.log("🧱🛠 kbuild info", serverState)
 
-		// workingHash = serverState.workingHash
-		// console.info("Server workingHash:", workingHash)
+		// WIDGET-CACHEBUST1: must assign the local workingHash here, otherwise the
+		// `if (workingHash)` guard below stays false, the 5s /build.php poll never
+		// starts, and a long-open tab is never told a new build is live (it silently
+		// keeps running old widget JS until a manual hard-refresh). __BUILD_HASH__ is
+		// unaffected — bootstrap reads it from this fn's return value (window.__BUILD__).
+		workingHash = serverState.workingHash
+		console.info("Server workingHash:", workingHash)
 
 	} catch {
 		// Non-JSON or denied → silently skip diagnostics
