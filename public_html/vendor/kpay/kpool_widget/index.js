@@ -20,7 +20,9 @@ const {
 	renderPrecheckInfo,
 	showBanner,
 	summariseStatus,
-	pickAssetLabel
+	pickAssetLabel,
+	resolveTxView,
+	buildTransferViews
 } = await import(`./view.js?v=${V}`)
 
 const {
@@ -401,14 +403,56 @@ function buildStatusPane(txState) {
 	return pane
 }
 
+// Nerd-view toggle (TX-CARDS3). Mirrors katomia's nerd flag (localStorage
+// katomia.nerd.v1 + body.nerd) so it stays in sync with the profile panel toggle.
+// nerd ON → line-item table; OFF → cards. Flipping re-renders the transfer block
+// (+ narrative) from cached data — no refetch.
+function setNerd(on) {
+	try { localStorage.setItem('katomia.nerd.v1', on ? '1' : '0') } catch {}
+	document.body.classList.toggle('nerd', on)
+	const profileToggle = document.getElementById('katomia-nerd-toggle')
+	if (profileToggle) profileToggle.checked = on
+}
+
+function buildNerdToggle(txState) {
+	const label = document.createElement('label')
+	label.className = 'txread-nerd-toggle'
+	label.title = 'Nerd view — show the line-item table instead of the account cards (dev)'
+	const cb = document.createElement('input')
+	cb.type = 'checkbox'
+	cb.checked = resolveTxView() === 'table'
+	cb.onchange = () => { setNerd(cb.checked); rerenderTransferView(txState) }
+	const txt = document.createElement('span')
+	txt.textContent = '🤓'
+	label.append(cb, txt)
+	return label
+}
+
+// Swap just the transfer block (cards ↔ table) in place from cached flow/transfers,
+// then re-apply the narrative for the new mode. No network.
+function rerenderTransferView(txState) {
+	const root = txState.view?.el
+	if (!root) return
+	const old = root.querySelector('.txread-intent-xfers')
+	if (!old) return
+	const fresh = buildTransferViews({ network: txState.network, flow: txState.flow, transfers: txState.transfers })
+	fresh.classList.add('txread-intent-xfers')
+	old.replaceWith(fresh)
+	updateNarrative(txState, txState.viewerAccount)
+}
+
 // Experimental "You send / You receive" narrative, derived from the connected
 // wallet account and the transfer line items. Hidden when no account is known.
 function updateNarrative(txState, account) {
+	txState.viewerAccount = account   // remembered so a view re-render can re-apply it
 	const box = txState.container.querySelector('#txread-narrative')
 	if (!box) return
 
+	// The You-send/receive narrative only complements the nerd/table view. In cards
+	// (normal) mode it's redundant — the account card already shows send (left/rose) vs
+	// receive (right/green) — so we hide it there.
 	const items = txState.transfers?.lineItems || []
-	if (!account || !items.length) { box.hidden = true; box.innerHTML = ''; box.removeAttribute('data-acct'); return }
+	if (resolveTxView() !== 'table' || !account || !items.length) { box.hidden = true; box.innerHTML = ''; box.removeAttribute('data-acct'); return }
 
 	const fmt = li => {
 		const meta = li.assetMeta || {}
@@ -635,11 +679,6 @@ async function renderTxView(txState) {
 	const flow = buildFlowModel(transfers, accounts)
 	txState.flow = flow
 
-	// TX-CARDS2: optional host-set default view (?txview= URL param overrides this in
-	// view.js). Backend can opt a deployment into 'cards'/'nerd' by adding CONFIG.TX_VIEW
-	// without a code change; absent → view.js defaults to 'table'. No-op today.
-	if (CONFIG.TX_VIEW) document.body.dataset.txView = CONFIG.TX_VIEW
-
 	injectTxReadCSS()
 
 	container.classList.add('txread')
@@ -660,6 +699,9 @@ async function renderTxView(txState) {
 
   container.textContent = ''
   container.appendChild(txState.view.el)
+
+  // nerd-view toggle, top-right of the widget (TX-CARDS3)
+  txState.view.el.appendChild(buildNerdToggle(txState))
 
   // signing panel: a clean method picker (WhatsApp · Wallet · KSIG). Choosing a
   // method reveals its short description + controls/QR/iframe in the pane below.

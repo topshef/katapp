@@ -126,19 +126,20 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 		cards: ({ network, flow, transfers }) => buildCardsView({ network, flow, transfers })
 	}
 
-	// resolution order: ?txview= URL param → document.body.dataset.txView (set by
-	// index.js from host CONFIG) → default 'table'. 'nerd' stacks every view.
-	function resolveTxView() {
-		let v
-		try { v = new URLSearchParams(location.search).get('txview') } catch {}
-		v = v || (typeof document !== 'undefined' && document.body?.dataset?.txView) || 'table'
-		return v
+	// Resolution: ?txview= URL param (explicit dev override; 'nerd' stacks all views) →
+	// otherwise mirror katomia's NERD MODE (localStorage katomia.nerd.v1 / body.nerd):
+	// nerd ON = the old line-item 'table' (regular accounting view), nerd OFF = the new
+	// 'cards' (T-account view, the normal default). Same flag the profile/header toggle flips.
+	export function resolveTxView() {
+		try { const u = new URLSearchParams(location.search).get('txview'); if (u) return u } catch {}
+		let nerd = false
+		try { nerd = document.body.classList.contains('nerd') || localStorage.getItem('katomia.nerd.v1') === '1' } catch {}
+		return nerd ? 'table' : 'cards'
 	}
 
-	// Returns the transfer block element. For a single known view this is the bare
-	// view element (so the default 'table' DOM is byte-identical to pre-TX-CARDS2).
-	// 'nerd' wraps every registered view in a labelled section for side-by-side dev.
-	function buildTransferViews({ network, flow, transfers }) {
+	// Returns the transfer block element. For a single known view this is the bare view
+	// element. 'nerd' (explicit ?txview=nerd) wraps every registered view side by side.
+	export function buildTransferViews({ network, flow, transfers }) {
 		const mode = resolveTxView()
 		const make = name => (TX_VIEWS[name] || TX_VIEWS.table)({ network, flow, transfers })
 
@@ -1389,6 +1390,17 @@ export function injectTxReadCSS() {
 		   a highlighted ghost de-fades so you can see where it lands. */
 		.txcard-chip.asset-hl { outline:2px solid #ffb74d; outline-offset:1px; }
 		.txcard-chip-ghost.asset-hl { opacity:1; }
+
+		/* nerd-view toggle — top-right of the widget, out of the way of the modal close/toast.
+		   dev affordance to flip cards (normal) ↔ line-item table (nerd) without the profile panel. */
+		.txread-wrapper { position:relative; }
+		.txread-nerd-toggle {
+			position:absolute; top:0; right:0; z-index:5;
+			display:inline-flex; align-items:center; gap:4px;
+			font-size:12px; color:#9ca3af; cursor:pointer; user-select:none;
+			background:rgba(255,255,255,.85); padding:1px 5px; border-radius:6px;
+		}
+		.txread-nerd-toggle input { cursor:pointer; margin:0; }
 
 
 	`
