@@ -182,7 +182,7 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 	// a length cap: a hedera:// URI symbol OR a symbol longer than the cap defers to the
 	// (shorter) name. CSS still ellipsis-clips whatever survives. (TX-CARDS3 review)
 	const ASSET_LABEL_MAX = 20
-	function pickAssetLabel(meta = {}) {
+	export function pickAssetLabel(meta = {}) {
 		const symbol = meta.symbol || ''
 		const name = meta.name || ''
 		const fallback = meta.raw || ''
@@ -195,14 +195,17 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 		const m = item.assetMeta || {}
 		const chip = document.createElement('div')
 		chip.className = 'txcard-chip' + (side === 'receive' ? ' txcard-chip-ghost' : '')
-		chip.dataset.acct = item.account || ''
-		chip.dataset.assetId = m.raw ?? item.asset ?? ''
 		chip.dataset.side = side
+		// NO data-acct on chips: the account cross-ref hover fires from the card HEADER
+		// only. Chips get their own asset-pool hover keyed by data-asset-key — fungible
+		// keyed by token (all HBAR/all KGBP link), NFT keyed by token+serial (#32 in↔out).
+		const isNft = m.assetClass === 'NFT' || item.type === 'NFT'
+		chip.dataset.assetKey = isNft ? `${m.raw ?? item.tokenId}#${m.serial ?? item.serial}` : (m.raw ?? item.asset ?? '')
 
 		const isHbar = (m.raw === 'tinybar') || item.type === 'HBAR'
 		let icon = '🪙'
 		if (m.assetClass === 'LE') icon = '🖼️'
-		else if (m.assetClass === 'NFT' || item.type === 'NFT') icon = '💎'
+		else if (isNft) icon = '💎'
 
 		const iconEl = document.createElement('span')
 		iconEl.className = 'txcard-chip-icon'
@@ -211,7 +214,7 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 		const txt = document.createElement('span')
 		txt.className = 'txcard-chip-text'
 		const sym = isHbar ? 'HBAR' : pickAssetLabel(m)
-		if (m.assetClass === 'NFT' || item.type === 'NFT') {
+		if (isNft) {
 			const serial = m.serial ?? item.serial
 			txt.textContent = serial != null ? `${sym} #${serial}` : sym
 		} else {
@@ -227,13 +230,15 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 	function buildAccountCard(network, acc) {
 		const card = document.createElement('div')
 		card.className = 'txcard'
-		card.dataset.acct = acc.id
 
 		// account-header row — light text: id + optional xproof label. (operator marker
 		// + identity glyph deferred to TX-CARDS6; roles intentionally not shown — the
-		// send/receive sides convey direction.)
+		// send/receive sides convey direction.) data-acct lives on the HEADER only, so the
+		// account cross-ref hover triggers from here (not the chips) and CSS :has lifts the
+		// whole card; it also links to this account's narrative + signing-authority row.
 		const head = document.createElement('div')
 		head.className = 'txcard-head'
+		head.dataset.acct = acc.id
 
 		const idLink = document.createElement('a')
 		idLink.className = 'txcard-acct'
@@ -274,6 +279,26 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 		const container = document.createElement('div')
 		container.className = 'txcards'
 		accounts.forEach(acc => container.appendChild(buildAccountCard(network, acc)))
+
+		// asset-pool hover: hovering a chip highlights every chip of the same asset across
+		// all cards (the in/out pool) — distinct from the account hover on the header.
+		let hlKey = null
+		const clearAssetHl = () => {
+			if (!hlKey) return
+			container.querySelectorAll('.txcard-chip.asset-hl').forEach(n => n.classList.remove('asset-hl'))
+			hlKey = null
+		}
+		container.addEventListener('mouseover', e => {
+			const chip = e.target.closest('.txcard-chip')
+			const key = chip?.dataset.assetKey || null
+			if (key === hlKey) return
+			clearAssetHl()
+			if (key) {
+				container.querySelectorAll(`.txcard-chip[data-asset-key="${CSS.escape(key)}"]`).forEach(n => n.classList.add('asset-hl'))
+				hlKey = key
+			}
+		})
+		container.addEventListener('mouseleave', clearAssetHl)
 		return container
 	}
 
@@ -1285,6 +1310,10 @@ export function injectTxReadCSS() {
 		/* intent: line items + optional narrative side by side */
 		.txread-intent-row { display:flex; flex-wrap:wrap; gap:24px; justify-content:space-evenly; align-items:flex-start; }
 		.txread-intent-row .txread-xfers { max-width:none; margin:0; }
+		/* cards sit BESIDE the You-send/receive narrative on desktop (don't self-centre,
+		   grow to fill the spare width); they wrap to full width on narrow screens. Once
+		   the narrative's symbol is short (pickAssetLabel) it's narrow enough to fit. */
+		.txread-intent-row .txcards { max-width:none; margin:0; flex:1 1 380px; }
 		.txread-narrative {
 			flex:0 1 220px; padding:2px 6px; text-align:left; border-radius:6px;
 			font:13px system-ui,-apple-system,"Segoe UI",sans-serif; color:#444;
@@ -1350,9 +1379,16 @@ export function injectTxReadCSS() {
 		}
 		.txcard-empty { opacity:.35; font-size:13px; }
 
-		/* reuse the wrapper's data-acct hover highlight (view.js) */
-		.txcard-chip.acct-hl { outline:2px solid #ffb74d; outline-offset:1px; }
-		.txcard.acct-hl { box-shadow:0 0 0 2px #ffb74d inset; }
+		/* account hover (fires from the HEADER via data-acct + the shared wrapper handler):
+		   darken the header + lift the whole card border. :has() extends the header's
+		   .acct-hl to its card. Also cross-highlights the matching narrative/signing row. */
+		.txcard-head.acct-hl { background:#e4e4e7; }
+		.txcard:has(> .txcard-head.acct-hl) { border-color:#9ca3af; box-shadow:0 0 0 1px #9ca3af; }
+
+		/* asset-pool hover (fires from a chip): highlight every chip of the same asset.
+		   a highlighted ghost de-fades so you can see where it lands. */
+		.txcard-chip.asset-hl { outline:2px solid #ffb74d; outline-offset:1px; }
+		.txcard-chip-ghost.asset-hl { opacity:1; }
 
 
 	`

@@ -19,7 +19,8 @@ const {
 	renderReadinessInfo,
 	renderPrecheckInfo,
 	showBanner,
-	summariseStatus
+	summariseStatus,
+	pickAssetLabel
 } = await import(`./view.js?v=${V}`)
 
 const {
@@ -411,7 +412,8 @@ function updateNarrative(txState, account) {
 
 	const fmt = li => {
 		const meta = li.assetMeta || {}
-		const sym = meta.symbol || meta.name || meta.raw || ''
+		// same short-label rule as the cards/table (fixes long HEDERA:// symbols here too)
+		const sym = (meta.raw === 'tinybar') ? 'HBAR' : pickAssetLabel(meta)
 		const amt = Math.abs(Number(li.amountFormatted ?? li.amount))
 		return `${amt} ${sym}`.trim()
 	}
