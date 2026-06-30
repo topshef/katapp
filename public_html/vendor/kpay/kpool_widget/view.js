@@ -115,7 +115,7 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 			?? null
 	}
 
-	export const buildTxReadColumns = ({ rawTx, data, transfers, network, txid, pch }) => {
+	export const buildTxReadColumns = ({ rawTx, data, transfers, flow, network, txid, pch }) => {
 
 		const sep = () => { const x = document.createElement('span'); x.className = 'txread-sep'; x.textContent = '·'; return x }
 
@@ -130,7 +130,10 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 		const intentRow = document.createElement('div')
 		intentRow.className = 'txread-intent-row'
 
-		const xfers = buildTransferList(network, transfers.lineItems)
+		// TX-CARDS1: table now renders from the normalized flow model. flow.lineItems is
+		// the same array/order as transfers.lineItems, so output is unchanged; the fallback
+		// keeps it working if flow is ever absent.
+		const xfers = buildTransferList(network, (flow?.lineItems) || transfers.lineItems)
 		xfers.classList.add('txread-intent-xfers')
 		intentRow.appendChild(xfers)
 

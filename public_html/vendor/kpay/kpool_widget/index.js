@@ -7,6 +7,7 @@ const {
 	enrichAccountsInfo,
 	enrichAccountsKeyInfo,
 	enrichTransfersInfo,
+	buildFlowModel,
 	calcAccountsThatSign,
 	evaluateTxReadiness
 } = await import(`./model.js?v=${V}`)
@@ -626,6 +627,12 @@ async function renderTxView(txState) {
 	txState._timing = { txRead: Math.round(_t1 - _t0), enrichTransfers: Math.round(_t2 - _t1) }
 	txState.transfers = transfers
 
+	// normalized, view-agnostic flow model (TX-CARDS1) — built once from the enriched
+	// transfers + accounts. The table reads flow.lineItems (identical to transfers.lineItems);
+	// later card/flow/ring views consume flow.accounts/pools/edges.
+	const flow = buildFlowModel(transfers, accounts)
+	txState.flow = flow
+
 	injectTxReadCSS()
 
 	container.classList.add('txread')
@@ -634,6 +641,7 @@ async function renderTxView(txState) {
 		rawTx,
 		data,
 		transfers,
+		flow,
 		network,
 		txid,
 		pch: txState.pch

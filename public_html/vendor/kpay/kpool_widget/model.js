@@ -205,6 +205,72 @@ function getAccountsWithRoles({ transfers, txid }) {
 }
 
 
+// ┌┐ ┬ ┬┬┬  ┌┬┐  ╔═╗┬  ┌─┐┬ ┬  ╔╦╗┌─┐┌┬┐┌─┐┬
+// ├┴┐│ │││   ││  ╠╣ │  │ ││││  ║║║│ │ ││├┤ │
+// └─┘└─┘┴┴─┘─┴┘  ╚  ┴─┘└─┘└┴┘  ╩ ╩└─┘─┴┘└─┘┴─┘
+// buildFlowModel — normalized, view-agnostic shape derived from the (enriched)
+// transfer lineItems + accounts map. The ONE seam every tx view consumes: the
+// flat table today, cards/flow/rings later (TX-CARDS) — and the seam PROTO1
+// feeds once lineItems come from the decoded protobuf instead of the backend.
+//
+//   lineItems : passthrough — the SAME array/order the table renders from
+//   accounts  : [{ id, label, mustSign, roles, send:[item], receive:[item] }]
+//   pools     : [{ asset, assetMeta, senders:[id], receivers:[id] }]  fungible netting (HBAR/FT)
+//   edges     : [{ asset, assetMeta, tokenId, serial, from, to }]     NFT exact sender→receiver
+//
+// Fungible flow is NET per-account deltas — there are no real per-pair edges,
+// so it's modelled as a pool (all senders → pool → all receivers), never an
+// invented A→B pairing (per PROJECT_RULES: that would be debug-only). NFTs carry
+// explicit sender/receiver, so those become exact edges. (TX-CARDS1)
+export function buildFlowModel(transfers, accounts = {}) {
+	const lineItems = transfers?.lineItems || []
+
+	// per-account send/receive split by sign of amount
+	const byAccount = {}
+	const acct = id => (byAccount[id] ||= {
+		id,
+		label: accounts[id]?.label,
+		mustSign: accounts[id]?.mustSign,
+		roles: accounts[id]?.roles || [],
+		send: [], receive: []
+	})
+	lineItems.forEach(item => {
+		if (!item.account) return
+		const a = acct(item.account)
+		;(item.amount < 0 ? a.send : a.receive).push(item)
+	})
+
+	// fungible pools (HBAR + FT; LE is an FT subtype) — group by asset, dedupe accounts by side
+	const poolMap = {}
+	lineItems.filter(x => x.type === 'HBAR' || x.type === 'FT').forEach(item => {
+		const p = (poolMap[item.asset] ||= { asset: item.asset, assetMeta: item.assetMeta, senders: [], receivers: [] })
+		const side = item.amount < 0 ? p.senders : p.receivers
+		if (item.account && !side.includes(item.account)) side.push(item.account)
+	})
+
+	// NFT edges — pair the −1 (sender) and +1 (receiver) rows by tokenId+serial
+	const edgeMap = {}
+	lineItems.filter(x => x.type === 'NFT').forEach(item => {
+		const key = `${item.tokenId}#${item.serial}`
+		const e = (edgeMap[key] ||= { asset: item.asset, assetMeta: item.assetMeta, tokenId: item.tokenId, serial: item.serial, from: null, to: null })
+		if (item.amount < 0) e.from = item.account
+		else e.to = item.account
+	})
+
+	const result = { lineItems, accounts: Object.values(byAccount), pools: Object.values(poolMap), edges: Object.values(edgeMap) }
+
+	// fail-loud visibility: a tx with transfers that produced no accounts means the
+	// shape changed under us (e.g. post-PROTO1) — surface it rather than render blank.
+	// kdiag (not just glog) so the remote sink proves which build is actually running
+	// and that this seam executed at all (TX-CARDS1 version fingerprint).
+	const summary = { items: lineItems.length, accounts: result.accounts.length, pools: result.pools.length, edges: result.edges.length }
+	glog('buildFlowModel', summary)
+	try { globalThis.kdiag?.(result.accounts.length ? 'flowmodel:built' : 'flowmodel:empty', summary) } catch {}
+
+	return result
+}
+
+
 export async function enrichAccountsInfo({ network, accounts }) {
 	const entries = Object.entries(accounts)
 
