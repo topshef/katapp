@@ -62,8 +62,22 @@ async function openKatomiaProfile(){
 
   const diagToggle = document.getElementById("kdiagRemoteToggle")
   if(diagToggle){
-    diagToggle.checked = localStorage.getItem("kdiag_remote") === "1"
-    diagToggle.onchange = () => window.kdiag?.setRemote(diagToggle.checked)
+    // Reflect the EFFECTIVE remote-logging state, not the raw key. While DIAG_DEFAULT_ON
+    // is true (rapid-iteration) the key is ABSENT on a fresh/incognito load yet logging IS
+    // on — a raw `=== "1"` check showed the box unchecked while it was actually logging.
+    // Use the same predicate the sender uses (katomiaDiagRemoteOn) so the box can't lie.
+    diagToggle.checked = (typeof katomiaDiagRemoteOn === "function")
+      ? katomiaDiagRemoteOn()
+      : localStorage.getItem("kdiag_remote") === "1"
+    diagToggle.onchange = () => {
+      const on = diagToggle.checked
+      window.kdiag?.setRemote(on)   // drive the widget buffer's remote flush on/off
+      // Persist an EXPLICIT 0/1. window.kdiag.setRemote(false) does removeItem, and with
+      // DIAG_DEFAULT_ON=true an absent key falls back to ON — so unchecking would NOT
+      // actually disable. Re-assert the explicit value here so the toggle is authoritative.
+      try { localStorage.setItem("kdiag_remote", on ? "1" : "0") } catch {}
+      katomiaDiagSend?.("diag:remote-toggle", { on })
+    }
   }
 
   await renderKatomiaProfile()
