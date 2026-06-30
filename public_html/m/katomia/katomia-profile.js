@@ -99,6 +99,10 @@ async function renderKatomiaProfile(){
   setProfileLink(link)
 
   await renderKatomiaQr(link)
+
+  // PROFILE-AUTH1: populate the Authenticate account row (no forced connect).
+  if(typeof katomiaAuthOnProfileOpen === "function")
+    katomiaAuthOnProfileOpen().catch(e => console.error("[auth] account refresh failed", e))
 }
 
 function renderKatomiaAvatar(pubkeyHex){

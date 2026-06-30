@@ -63,6 +63,20 @@ function kasset($file) {
 
       <button id="profileCopyLinkBtn">Copy KEA link</button>
 
+      <!-- PROFILE-AUTH1: wallet signs a kpay.authChallenge naming the intent key,
+           producing a kpay.authEnvelope (display + copy; nothing sent in v1). -->
+      <div class="profile-auth">
+        <button id="authBtn" type="button">🔐 Authenticate with wallet</button>
+        <div id="authAccountRow" class="profile-auth-account hidden">
+          <span class="profile-label">Sign with</span>
+          <span id="authAccountSingle" class="profile-mono hidden"></span>
+          <select id="authAccount" class="hidden"></select>
+        </div>
+        <div id="authStatus" class="profile-auth-status subtle"></div>
+        <pre id="authOutput" class="profile-auth-output hidden"></pre>
+        <button id="authCopyBtn" type="button" class="hidden">⧉ Copy auth envelope</button>
+      </div>
+
       <div class="profile-debug">
         <label class="profile-debug-label">
           <input type="checkbox" id="katomia-nerd-toggle">
@@ -433,6 +447,7 @@ function kasset($file) {
      qrcode.min.js in and remove this script tag entirely. -->
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
 <script src="<?= kasset('katomia-profile.js') ?>"></script>
+<script src="<?= kasset('katomia-auth.js') ?>"></script>
 
 <script>
 window.addEventListener("load", () => {
