@@ -60,3 +60,13 @@ export const formatCountdown = diffSeconds => {
 	const pad = v => (v < 10 ? '0' + v : v)
 	return `${sign}${pad(h)}:${pad(m)}:${pad(sec)}`
 }
+
+// Hedera reserves accounts 0.0.1–0.0.1000 for the system (treasury, fee/reward
+// collectors like 0.0.800 / 0.0.802, address-book nodes, etc.). They have no
+// user-style account key the mirror exposes and never sign user transactions —
+// they only appear as parties to fee/reward transfers. Callers use this to skip
+// key enrichment and the "couldn't load signing keys" row for them. (KEYINFO-LOCAL1)
+export const isHederaSystemAccount = accountId => {
+	const n = parseInt(String(accountId).split('.')[2], 10)
+	return Number.isFinite(n) && n < 1000
+}

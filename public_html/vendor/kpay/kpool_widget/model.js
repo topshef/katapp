@@ -2,6 +2,7 @@
 
 	import {
 		parseTxId,
+		isHederaSystemAccount,
 	} from './utils.js'
 
 import { getAccountInfo, getKeyInfo, getTokenInfo} from './hedera-mirror.js'
@@ -222,6 +223,13 @@ export async function enrichAccountsKeyInfo({ network, accounts }) {
 	const entries = Object.entries(accounts)
 
 	await Promise.all(entries.map(async ([accountId, acc]) => {
+		// Hedera system accounts (e.g. 0.0.802 fee/reward collector) have no retrievable
+		// account key and never sign — skip enrichment so we don't fire a doomed mirror
+		// lookup or flag a false keyInfoError. The view skips their row too. (KEYINFO-LOCAL1)
+		if (isHederaSystemAccount(accountId)) {
+			acc.isSystemAccount = true
+			return
+		}
 		try {
 			const keyInfo = await getKeyInfo(network, accountId)
 			acc.keyInfo = keyInfo
@@ -248,6 +256,9 @@ export async function enrichAccountsKeyInfo({ network, accounts }) {
 		} catch (err) {
 			acc.keyInfo = null
 			acc.keyInfoError = err.message || String(err)
+			// KEYINFO-LOCAL1: surface the REAL reason in /diag (no longer a kpos timeout —
+			// key structure now comes from the mirror node + local protobuf decode).
+			try { globalThis.kdiag?.('keyinfo:error', { accountId, error: acc.keyInfoError }) } catch {}
 		}
 	}))
 }

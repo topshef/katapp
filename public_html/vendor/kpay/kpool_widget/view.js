@@ -2,7 +2,8 @@ import {
 		get,
 		parseTxId,
 		formatUtcTime,
-		formatCountdown
+		formatCountdown,
+		isHederaSystemAccount
 	} from './utils.js'
 
 	const deriveStatusFromTime = (txid, updatedAtMs) => {
@@ -636,13 +637,20 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
     const buckets = acc.keyInfo?.keyControlScoresAll
 
     if (!scores || !buckets) {
+      // Hedera system accounts (e.g. 0.0.802 fee/reward collector) have no account key
+      // and never sign — they're only here as a party to the fee transfer. Skip the row
+      // entirely rather than showing a scary "couldn't load keys" error. (KEYINFO-LOCAL1)
+      if (acc.isSystemAccount || isHederaSystemAccount(accountId)) return
+
       console.warn('GH84743 Missing score data for', accountId, acc.keyInfo)
       // LOUD feedback — don't silently drop a must-sign account. Show a red row so the
-      // user immediately knows the keys failed to load (kpos timeout) instead of waiting.
+      // user immediately knows the keys failed to load instead of waiting. Key structure
+      // comes from the mirror node + local protobuf decode now (no kpos), so surface the
+      // real error message rather than the old hardcoded "(kpos timeout)". (KEYINFO-LOCAL1)
       const errBlock = document.createElement('div')
       errBlock.className = 'acctkeys-account acctkeys-keyerror'
       errBlock.dataset.acct = accountId
-      const reason = acc.keyInfoError ? ' (kpos timeout)' : ''
+      const reason = acc.keyInfoError ? ` (${acc.keyInfoError})` : ''
       errBlock.innerHTML =
         `<div class="acctkeys-accountId">` +
         `<a href='https://hashscan.io/${network}/account/${accountId}' target='${accountId}'>${accountId}</a></div>` +
