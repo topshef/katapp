@@ -28,6 +28,25 @@ function initKatomiaProfile(){
   if(copyBtn)
     copyBtn.onclick = () => copyKatomiaProfileLink()
 
+  // Copy local diagnostics (the window.kdiag ring buffer) — moved here from the kpool
+  // widget modal (DIAG-MOVE1) so all diagnostics controls live together in the profile.
+  const copyDiagBtn = document.getElementById("profileCopyDiagBtn")
+  if(copyDiagBtn)
+    copyDiagBtn.onclick = async () => {
+      const original = copyDiagBtn.textContent
+      try{
+        window.kdiag?.dom?.(modal, "profile-modal")   // snapshot the modal so UI issues survive in the copy
+        await (window.kdiag?.copy?.() ?? Promise.reject(new Error("kdiag.copy unavailable")))
+        copyDiagBtn.textContent = "✓ copied"
+        katomiaDiagSend?.("diag:copy-local", { ok: true })
+      }catch(err){
+        copyDiagBtn.textContent = "see console"
+        console.error("[diag] copy local failed", err)
+        katomiaDiagSend?.("diag:copy-local", { ok: false, error: String(err) })
+      }
+      setTimeout(() => { copyDiagBtn.textContent = original }, 1500)
+    }
+
   const nerdToggle = document.getElementById("katomia-nerd-toggle")
   if(nerdToggle)
     nerdToggle.onchange = () => applyNerdMode(nerdToggle.checked)

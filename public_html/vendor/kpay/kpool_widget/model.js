@@ -8,6 +8,7 @@
 import { getAccountInfo, getKeyInfo, getTokenInfo} from './hedera-mirror.js'
 
 import { getThresholdSummary } from './threshold.js'
+import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 import { getAccountLabel } from './xproof.js'
 
 const glog = globalThis.glog ?? (() => {})
@@ -374,46 +375,9 @@ function getAssetClass(token){
 
 export function evaluateTxReadiness({accounts,data}){
 
-  // DER SPKI prefixes stripped so a key compares equal regardless of whether it
-  // arrives raw (from a signature pubKey) or DER-wrapped (from getKeyInfo/kpos).
-  // ED25519 → 32-byte (64 hex) raw; ECDSA secp256k1 → 33-byte compressed (66 hex) raw.
-  // Missing the ECDSA prefix made every ECDSA account's required key stay DER-wrapped
-  // and never match its raw signature → a legit signature showed as a "witness".
-  const KNOWN_PREFIXES = [
-      { prefix: '302a300506032b6570032100',                 label: 'ED25519 DER' },
-      { prefix: '302d300706052b8104000a032200',             label: 'ECDSA secp256k1 DER' },
-      { prefix: '3036301006072a8648ce3d020106052b8104000a032200', label: 'ECDSA secp256k1 SPKI' },
-    ]
-
-	function normalizePublicKey(key) {
-		if (!key) return null
-		let k = key.toLowerCase()
-		for (const { prefix, label } of KNOWN_PREFIXES) {
-			if (k.startsWith(prefix)) {
-				const raw = k.slice(prefix.length)
-				console.debug('[readiness] stripped', label, 'prefix:', k.slice(0, 14), '→', raw.slice(0, 14))
-				k = raw
-				break
-			}
-		}
-		// 64 = ED25519 (32B), 66 = ECDSA secp256k1 compressed (33B). Anything else
-		// means an unrecognised wrapping (would cause a signed≠required mismatch).
-		if (k.length !== 64 && k.length !== 66) {
-			console.warn('[readiness] unexpected key length after normalisation:', k.length, 'key:', k.slice(0, 14))
-		}
-		return k
-	}
-
-	function normalizeKeyTree(node) {
-		if (typeof node === 'string') return normalizePublicKey(node)
-		if (!Array.isArray(node.keys)) {
-			// Leaf node without sub-keys — e.g. { _type: 'ED25519', key: '...' }
-			const raw = node.key ?? node.ed25519 ?? node.ECDSASecp256k1 ?? null
-			return raw != null ? normalizePublicKey(String(raw)) : null
-		}
-		return { ...node, keys: node.keys.map(normalizeKeyTree) }
-	}
-
+	// Key normalisation (prefix stripping + tree flattening) lives in keynorm.js —
+	// the ONE copy shared with view.js so readiness and the per-account pie can never
+	// diverge again (was WC-ECDSA1 pt2 / SIGN-NORM1).
 	const signedPubkeys = (data.sigs || [])
 		.map(x => x.pubKey)
 		.filter(Boolean)

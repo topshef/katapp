@@ -72,6 +72,7 @@ function kasset($file) {
           <input type="checkbox" id="kdiagRemoteToggle">
           Remote diagnostic logging
         </label>
+        <button id="profileCopyDiagBtn" type="button" title="Copy local diagnostics to clipboard">⧉ Copy local diagnostics</button>
       </div>
     </div>
     

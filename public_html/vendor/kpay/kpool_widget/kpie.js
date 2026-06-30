@@ -8,9 +8,12 @@
 ;(function(global) {
   'use strict'
 
-  // Must match the readiness/view normalizers (model.js, view.js) — see SIGN-NORM1
-  // to unify these. ECDSA accounts stayed orange in the pie because only ED25519 was
-  // stripped here.
+  // keynorm.js is the canonical normalizer shared by model.js + view.js (SIGN-NORM1).
+  // kpie is a STANDALONE, dependency-free widget (classic <script>, not an ES module),
+  // so it can't import keynorm.js without losing that drop-in property — it keeps this
+  // local copy by design. In practice view.js feeds kpie an already-normalized tree +
+  // signedPubkeys (see view.js renderAccountKeyInfo), so this is only a defensive
+  // idempotent second pass. Keep these prefixes in sync with keynorm.KEY_PREFIXES.
   const KEY_DER_PREFIXES = [
     '302a300506032b6570032100',                          // ED25519
     '302d300706052b8104000a032200',                      // ECDSA secp256k1 DER

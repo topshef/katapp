@@ -499,15 +499,27 @@ async function disconnectAccountCore(accountId) {
   const signer = findSigner(accountId)
   if (!signer) return false
 
+  const topic = signer.topic
   try {
-    if (signer.topic) await dappConnector.disconnect(signer.topic)
+    if (topic) await dappConnector.disconnect(topic)
     else await dappConnector.disconnectAll()
   } catch (error) {
     console.warn("[WC] Error disconnecting account", accountId, error)
   }
 
+  // WC-PICKDEL1: dappConnector.disconnect(topic) deletes the session on the relay but
+  // does NOT prune dappConnector.signers — that array is only filtered by the library's
+  // session_delete handler, which fires for PEER-initiated deletes, not our own. Without
+  // pruning here getWalletAccounts() still returns the removed account and the picklist
+  // re-renders unchanged (button looks dead). Prune locally by topic (the unit a single
+  // disconnect drops); fall back to accountId so a missing topic can't strand the signer.
+  const before = getSignersList().length
+  if (Array.isArray(dappConnector?.signers))
+    dappConnector.signers = dappConnector.signers.filter(s =>
+      topic ? s.topic !== topic : s.getAccountId().toString() !== accountId)
+  console.log("[WC] disconnected account", accountId, "signers", before, "→", getSignersList().length)
+
   if (activeAccountId === accountId) activeAccountId = null
-  console.log("[WC] disconnected account", accountId)
   return true
 }
 

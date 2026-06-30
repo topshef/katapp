@@ -5,6 +5,7 @@ import {
 		formatCountdown,
 		isHederaSystemAccount
 	} from './utils.js'
+import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 
 	const deriveStatusFromTime = (txid, updatedAtMs) => {
 		const info = parseTxId(txid)
@@ -400,46 +401,15 @@ import {
 	}
 		
 
-// Must mirror evaluateTxReadiness.KNOWN_PREFIXES (model.js) — the per-account ✅/pie
-// here and the header threshold there must normalise keys identically, else (as for
-// ECDSA accounts) the header says "satisfied" while the row still shows unsigned.
-const VIEW_KEY_PREFIXES = [
-	'302a300506032b6570032100',                          // ED25519 DER
-	'302d300706052b8104000a032200',                      // ECDSA secp256k1 DER
-	'3036301006072a8648ce3d020106052b8104000a032200',    // ECDSA secp256k1 SPKI
-]
-
-function normalizeViewKey(key) {
-	if (!key) return null
-	let k = key.toLowerCase()
-	for (const prefix of VIEW_KEY_PREFIXES) {
-		if (k.startsWith(prefix)) { k = k.slice(prefix.length); break }
-	}
-	return k
-}
-
-// Mirror model.js normalizeKeyTree: the raw mirror keyInfo has leaves shaped like
-// { _type:'ED25519', key:'…' } (or ed25519 / ECDSASecp256k1 fields), but kpie expects
-// each leaf to be a plain pubkey STRING. Without this, kpie can't match leaves against
-// signedPubkeys and every slice renders orange even when the threshold is satisfied.
-// (SIGN-NORM1 tracks unifying the three normalizers — this keeps the pie wiring correct
-// meanwhile.)
-function normalizeViewKeyTree(node) {
-	if (!node) return null
-	if (typeof node === 'string') return normalizeViewKey(node)
-	if (!Array.isArray(node.keys)) {
-		const raw = node.key ?? node.ed25519 ?? node.ECDSASecp256k1 ?? null
-		return raw != null ? normalizeViewKey(String(raw)) : null
-	}
-	return { ...node, keys: node.keys.map(normalizeViewKeyTree) }
-}
+// Key normalisation lives in keynorm.js — shared with model.js so the per-account
+// ✅/pie here and the header threshold there normalise keys identically (SIGN-NORM1).
 
 export function renderSigningInfo({ data, accounts }) {
 	// derive signed keys ONCE
 	const signedPubkeys = (data.sigs || [])
 		.map(s => s.pubKey)
 		.filter(Boolean)
-		.map(normalizeViewKey)
+		.map(normalizePublicKey)
 		.filter(Boolean)
 
 	renderAccountKeyInfo(accounts, signedPubkeys, data.network)
@@ -576,7 +546,7 @@ function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo }) {
   if (window.kpie && keyInfo) {
     // Feed kpie a normalized tree (leaf objects → pubkey strings) so its leaves match
     // the already-normalized signedPubkeys — otherwise every slice renders orange.
-    const normTree = normalizeViewKeyTree(keyInfo)
+    const normTree = normalizeKeyTree(keyInfo)
     window.kpie.render(widget, { keyInfo: normTree, signedPubkeys: signedPubkeys || [] })
       .catch(err => console.warn('[kpie] render failed', err))
   }
@@ -729,7 +699,7 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
 		
 
     entries.forEach(([pubkey, score]) => {
-      const signed = signedPubkeys.includes(normalizeViewKey(pubkey))
+      const signed = signedPubkeys.includes(normalizePublicKey(pubkey))
       const tick = acc.mustSign ? (signed ? '✅' : '⬜') : 'N/A'
       const keySuffix = pubkey.slice(-4)
       const pct = Math.round(score * 100)

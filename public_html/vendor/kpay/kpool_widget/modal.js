@@ -136,23 +136,10 @@ export function buildModal({ onClose } = {}) {
 	const actions = document.createElement('div')
 	actions.className = 'kpm-head-actions'
 
-	const diagBtn = document.createElement('button')
-	diagBtn.className = 'kpm-diag'
-	diagBtn.type = 'button'
-	diagBtn.title = 'Copy diagnostics to clipboard'
-	diagBtn.textContent = '⧉ diagnostics'
-	diagBtn.addEventListener('click', async () => {
-		const original = diagBtn.textContent
-		try {
-			// include a DOM snapshot of the modal so UI issues can be debugged from the copy
-			window.kdiag?.dom?.(card, 'modal')
-			await (window.kdiag?.copy?.() ?? Promise.resolve())
-			diagBtn.textContent = '✓ copied'
-		} catch {
-			diagBtn.textContent = 'see console'
-		}
-		setTimeout(() => { diagBtn.textContent = original }, 1500)
-	})
+	// Diagnostics-copy button removed from the widget (DIAG-MOVE1) — the host app's
+	// profile modal now owns "Copy local diagnostics" (katomia-profile.js), keeping all
+	// diagnostics controls in one place. window.kdiag itself is unchanged and still
+	// installed by diag.js; only this in-widget button is gone.
 
 	const closeBtn = document.createElement('button')
 	closeBtn.className = 'kpm-close'
@@ -164,7 +151,7 @@ export function buildModal({ onClose } = {}) {
 	const flashEl = document.createElement('div')
 	flashEl.className = 'kpm-flash'
 
-	actions.append(diagBtn, closeBtn)
+	actions.append(closeBtn)
 	head.append(status, flashEl, actions)
 	card.appendChild(head)
 
