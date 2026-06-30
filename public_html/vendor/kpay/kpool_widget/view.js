@@ -115,6 +115,55 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 			?? null
 	}
 
+	// ┌┬┐─┐ ┬  ┬  ┬┬┌─┐┬ ┬  ┬─┐┌─┐┌─┐┬┌─┐┌┬┐┬─┐┬ ┬
+	//  │ ┌┴┬┘  └┐┌┘│├┤ │││  ├┬┘├┤ │ ┬│└─┐ │ ├┬┘└┬┘
+	//  ┴ ┴ └─   └┘ ┴└─┘└┴┘  ┴└─└─┘└─┘┴└─┘ ┴ ┴└─ ┴
+	// View registry (TX-CARDS2). Each entry renders the transfer block from the
+	// normalized flow model. 'table' is the current flat list (the always-present
+	// fallback); 'cards' lands in TX-CARDS3. Mirrors proposal mode's viewMode.
+	const TX_VIEWS = {
+		table: ({ network, flow, transfers }) => buildTransferList(network, (flow?.lineItems) || transfers?.lineItems || [])
+	}
+
+	// resolution order: ?txview= URL param → document.body.dataset.txView (set by
+	// index.js from host CONFIG) → default 'table'. 'nerd' stacks every view.
+	function resolveTxView() {
+		let v
+		try { v = new URLSearchParams(location.search).get('txview') } catch {}
+		v = v || (typeof document !== 'undefined' && document.body?.dataset?.txView) || 'table'
+		return v
+	}
+
+	// Returns the transfer block element. For a single known view this is the bare
+	// view element (so the default 'table' DOM is byte-identical to pre-TX-CARDS2).
+	// 'nerd' wraps every registered view in a labelled section for side-by-side dev.
+	function buildTransferViews({ network, flow, transfers }) {
+		const mode = resolveTxView()
+		const make = name => (TX_VIEWS[name] || TX_VIEWS.table)({ network, flow, transfers })
+
+		if (mode !== 'nerd') {
+			const name = TX_VIEWS[mode] ? mode : 'table'
+			try { globalThis.kdiag?.('txview:render', { mode, rendered: [name] }) } catch {}
+			return make(name)
+		}
+
+		const wrap = document.createElement('div')
+		wrap.className = 'txread-views-nerd'
+		const rendered = Object.keys(TX_VIEWS)
+		rendered.forEach(name => {
+			const sec = document.createElement('div')
+			sec.className = 'txread-view-section'
+			sec.dataset.viewName = name
+			const lbl = document.createElement('div')
+			lbl.className = 'txread-view-label'
+			lbl.textContent = name
+			sec.append(lbl, make(name))
+			wrap.appendChild(sec)
+		})
+		try { globalThis.kdiag?.('txview:render', { mode, rendered }) } catch {}
+		return wrap
+	}
+
 	export const buildTxReadColumns = ({ rawTx, data, transfers, flow, network, txid, pch }) => {
 
 		const sep = () => { const x = document.createElement('span'); x.className = 'txread-sep'; x.textContent = '·'; return x }
@@ -130,10 +179,11 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 		const intentRow = document.createElement('div')
 		intentRow.className = 'txread-intent-row'
 
-		// TX-CARDS1: table now renders from the normalized flow model. flow.lineItems is
-		// the same array/order as transfers.lineItems, so output is unchanged; the fallback
-		// keeps it working if flow is ever absent.
-		const xfers = buildTransferList(network, (flow?.lineItems) || transfers.lineItems)
+		// TX-CARDS2: the transfer block is now produced by the view registry. Default
+		// 'table' returns the same buildTransferList element as before (byte-identical);
+		// ?txview=nerd stacks every registered view. (TX-CARDS1 routed it through the
+		// normalized flow model; flow.lineItems == transfers.lineItems in order.)
+		const xfers = buildTransferViews({ network, flow, transfers })
 		xfers.classList.add('txread-intent-xfers')
 		intentRow.appendChild(xfers)
 

@@ -633,6 +633,11 @@ async function renderTxView(txState) {
 	const flow = buildFlowModel(transfers, accounts)
 	txState.flow = flow
 
+	// TX-CARDS2: optional host-set default view (?txview= URL param overrides this in
+	// view.js). Backend can opt a deployment into 'cards'/'nerd' by adding CONFIG.TX_VIEW
+	// without a code change; absent → view.js defaults to 'table'. No-op today.
+	if (CONFIG.TX_VIEW) document.body.dataset.txView = CONFIG.TX_VIEW
+
 	injectTxReadCSS()
 
 	container.classList.add('txread')
