@@ -122,7 +122,8 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 	// normalized flow model. 'table' is the current flat list (the always-present
 	// fallback); 'cards' lands in TX-CARDS3. Mirrors proposal mode's viewMode.
 	const TX_VIEWS = {
-		table: ({ network, flow, transfers }) => buildTransferList(network, (flow?.lineItems) || transfers?.lineItems || [])
+		table: ({ network, flow, transfers }) => buildTransferList(network, (flow?.lineItems) || transfers?.lineItems || []),
+		cards: ({ network, flow, transfers }) => buildCardsView({ network, flow, transfers })
 	}
 
 	// resolution order: ?txview= URL param → document.body.dataset.txView (set by
@@ -162,6 +163,116 @@ import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 		})
 		try { globalThis.kdiag?.('txview:render', { mode, rendered }) } catch {}
 		return wrap
+	}
+
+	// ┌─┐┌─┐┬─┐┌┬┐┌─┐  ┬  ┬┬┌─┐┬ ┬
+	// │  ├─┤├┬┘ ││└─┐  └┐┌┘│├┤ │││
+	// └─┘┴ ┴┴└──┴┘└─┘   └┘ ┴└─┘└┴┘
+	// Cards view (TX-CARDS3). One thick row per account: neutral identity strip +
+	// SEND half (rose, solid chips for what they give) + RECEIVE half (green, GHOST
+	// dashed/faded chips for where it lands). Renders from flow.accounts (send/receive
+	// already split by sign). Pre-consensus styling only; the consensus invert+move
+	// animation is TX-CARDS5, hover→destination lines TX-CARDS4. Identity is kept
+	// neutral/grayscale on purpose — colour is reserved for state (TX-CARDS6).
+	const _fmtAmt = n => { const v = Number(n); return Number.isFinite(v) ? v.toLocaleString(undefined, { maximumFractionDigits: 8 }) : String(n) }
+
+	function buildCardChip(network, item, side) {
+		const m = item.assetMeta || {}
+		const chip = document.createElement('div')
+		chip.className = 'txcard-chip' + (side === 'receive' ? ' txcard-chip-ghost' : '')
+		chip.dataset.acct = item.account || ''
+		chip.dataset.assetId = m.raw ?? item.asset ?? ''
+		chip.dataset.side = side
+
+		const isHbar = (m.raw === 'tinybar') || item.type === 'HBAR'
+		let icon = '🪙'
+		if (m.assetClass === 'LE') icon = '🖼️'
+		else if (m.assetClass === 'NFT' || item.type === 'NFT') icon = '💎'
+
+		const iconEl = document.createElement('span')
+		iconEl.className = 'txcard-chip-icon'
+		iconEl.textContent = icon
+
+		const txt = document.createElement('span')
+		txt.className = 'txcard-chip-text'
+		const sym = isHbar ? 'HBAR' : (m.symbol || m.name || m.raw || item.asset || '?')
+		if (m.assetClass === 'NFT' || item.type === 'NFT') {
+			const serial = m.serial ?? item.serial
+			txt.textContent = serial != null ? `${sym} #${serial}` : sym
+		} else {
+			const amt = Math.abs(Number(item.amountFormatted ?? item.amount ?? 0))
+			txt.textContent = `${_fmtAmt(amt)} ${sym}`
+		}
+
+		chip.append(iconEl, txt)
+		return chip
+	}
+
+	function buildAccountCard(network, acc) {
+		const card = document.createElement('div')
+		card.className = 'txcard'
+		card.dataset.acct = acc.id
+
+		// identity strip — neutral on purpose (TX-CARDS6 will fill the glyph slot)
+		const ident = document.createElement('div')
+		ident.className = 'txcard-identity'
+
+		const glyph = document.createElement('div')   // reserved slot for a future profile icon
+		glyph.className = 'txcard-glyph'
+
+		const idLink = document.createElement('a')
+		idLink.className = 'txcard-acct'
+		idLink.href = `https://hashscan.io/${network}/account/${acc.id}`
+		idLink.target = '_blank'
+		idLink.rel = 'noopener'
+		idLink.textContent = acc.id
+		ident.append(glyph, idLink)
+
+		if (acc.label) {
+			const lbl = document.createElement('div')
+			lbl.className = 'txcard-acct-label'
+			lbl.textContent = acc.label
+			ident.appendChild(lbl)
+		}
+
+		if (acc.roles?.length) {
+			const roles = document.createElement('div')
+			roles.className = 'txcard-roles'
+			roles.textContent = acc.roles.join(' · ')
+			ident.appendChild(roles)
+		}
+
+		// reserved slot for the per-account signing arc (mustSign/readiness arrive after
+		// this render via loadSigningState; live wiring is a later refinement)
+		const signSlot = document.createElement('div')
+		signSlot.className = 'txcard-sign'
+		ident.appendChild(signSlot)
+
+		const mkSide = (name, label, items) => {
+			const col = document.createElement('div')
+			col.className = `txcard-side txcard-${name}`
+			const lbl = document.createElement('div')
+			lbl.className = 'txcard-side-label'
+			lbl.textContent = label
+			col.appendChild(lbl)
+			if (items.length) items.forEach(it => col.appendChild(buildCardChip(network, it, name)))
+			else { const e = document.createElement('div'); e.className = 'txcard-empty'; e.textContent = '—'; col.appendChild(e) }
+			return col
+		}
+
+		card.append(ident, mkSide('send', 'Sends', acc.send || []), mkSide('receive', 'Receives', acc.receive || []))
+		return card
+	}
+
+	function buildCardsView({ network, flow, transfers }) {
+		const accounts = flow?.accounts || []
+		// no model accounts (e.g. enrich/shape issue) → fall back to the table, never blank
+		if (!accounts.length) return buildTransferList(network, (flow?.lineItems) || transfers?.lineItems || [])
+
+		const container = document.createElement('div')
+		container.className = 'txcards'
+		accounts.forEach(acc => container.appendChild(buildAccountCard(network, acc)))
+		return container
 	}
 
 	export const buildTxReadColumns = ({ rawTx, data, transfers, flow, network, txid, pch }) => {
@@ -1199,6 +1310,54 @@ export function injectTxReadCSS() {
 		/* status tab pane */
 		.txread-approvals-desc { margin:10px auto 8px; max-width:560px; }
 		#account-keys .ksubtitle { display:none; }   /* Status tab + description replace this heading */
+
+		/* ── cards view (TX-CARDS3) ──────────────────────────────────────────── */
+		.txcards { display:flex; flex-direction:column; gap:10px; max-width:640px; margin:0 auto; }
+		.txcard {
+			display:grid; grid-template-columns: minmax(118px, 0.7fr) 1fr 1fr;
+			border:1px solid #e4e4e7; border-radius:10px; overflow:hidden;
+			background:#fff;
+		}
+		.txcard-identity {
+			display:flex; flex-direction:column; gap:3px;
+			padding:10px 12px; border-right:1px solid #ececec;
+			background:#fafafa; min-width:0;
+			/* neutral identity — colour is reserved for state, not who */
+			color:#52525b;
+		}
+		.txcard-glyph { width:0; height:0; }   /* reserved for a future profile icon (TX-CARDS6) */
+		.txcard-acct { font-weight:600; font-size:13px; color:#3f3f46; text-decoration:none; word-break:break-all; }
+		.txcard-acct:hover { text-decoration:underline; }
+		.txcard-acct-label { font-size:12px; color:#71717a; }
+		.txcard-roles { font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:#a1a1aa; }
+		.txcard-sign { margin-top:auto; }
+
+		.txcard-side { padding:10px 12px; display:flex; flex-direction:column; gap:6px; align-items:flex-start; }
+		.txcard-side-label { font-size:10px; text-transform:uppercase; letter-spacing:.05em; opacity:.55; }
+		.txcard-send    { background:#fdf2f2; }   /* warm rose — giving */
+		.txcard-receive { background:#eff7f1; }   /* green — receiving */
+
+		.txcard-chip {
+			display:inline-flex; align-items:center; gap:6px;
+			padding:4px 9px; border-radius:14px; font-size:13px; line-height:1.3;
+			background:#fff; border:1px solid rgba(0,0,0,.14); max-width:100%;
+		}
+		.txcard-chip-text { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+		.txcard-chip-ghost {
+			/* dashed + faded: where the asset WILL land (pre-consensus) */
+			background:transparent; border-style:dashed; opacity:.45;
+		}
+		.txcard-empty { opacity:.35; font-size:13px; }
+
+		/* reuse the wrapper's data-acct hover highlight (view.js) */
+		.txcard-chip.acct-hl { outline:2px solid #ffb74d; outline-offset:1px; }
+		.txcard.acct-hl { box-shadow:0 0 0 2px #ffb74d inset; }
+
+		@media (max-width: 520px) {
+			.txcard { grid-template-columns: 1fr; }
+			.txcard-identity { border-right:none; border-bottom:1px solid #ececec; flex-direction:row; flex-wrap:wrap; align-items:baseline; gap:6px; }
+			.txcard-sign { margin:0; }
+		}
 
 
 	`
