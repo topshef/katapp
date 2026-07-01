@@ -839,13 +839,13 @@ zz-distracting-body[data-network="playnet"]{
   background:#e8e8e8;
   border-bottom:1px solid #d8d8d8;
 
-  /* Full-bleed to the top/left/right edges, immune to the body margin and the
-     html/body overflow-x:hidden clamp (added in 03ed98d) that was cropping the
-     old negative-margin approach. box-sizing:border-box so padding stays inside
-     the 100vw width; overflow:visible so the 42px title is never clipped. */
+  /* Full-bleed to top/left/right. box-sizing:border-box + negative margins that
+     exactly match the body's 16px margin: the banner's border-box width resolves
+     to the viewport width (no vw/scrollbar guesswork), so it reaches all 3 edges
+     while the 16px padding keeps the title off the edge. overflow:visible so the
+     42px caps are never clipped. */
   box-sizing:border-box;
-  width:100vw;
-  margin:-16px 0 12px calc(50% - 50vw);
+  margin:-16px -16px 12px -16px;
   padding:12px 16px;
   overflow:visible;
 }
@@ -883,7 +883,22 @@ zz-distracting-body[data-network="playnet"]{
   display:flex;
   align-items:center;
   gap:10px;
+  width:100%;   /* so the nerd toggle can sit hard-right via margin-left:auto */
 }
+
+/* nerd toggle mirrored into the header (ORDERS-UI1) */
+.banner-nerd{
+  margin-left:auto;
+  margin-right:36px;   /* clear the fixed 🔗 profile button (right:14px) */
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  font-size:16px;
+  color:#888;
+  cursor:pointer;
+  user-select:none;
+}
+.banner-nerd input{ cursor:pointer; margin:0; }
 
 /* placeholder logo */
 .app-logo{

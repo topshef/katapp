@@ -6,8 +6,8 @@ function loadNerdMode(){
 
 function applyNerdMode(on){
   document.body.classList.toggle("nerd", on)
-  const toggle = document.getElementById("katomia-nerd-toggle")
-  if(toggle) toggle.checked = on
+  // Keep every nerd toggle in sync (profile panel + main header + any future ones).
+  document.querySelectorAll(".nerd-toggle-input").forEach(t => { t.checked = on })
   try{ localStorage.setItem(NERD_KEY, on ? "1" : "0") }catch{}
 }
 
@@ -47,9 +47,9 @@ function initKatomiaProfile(){
       setTimeout(() => { copyDiagBtn.textContent = original }, 1500)
     }
 
-  const nerdToggle = document.getElementById("katomia-nerd-toggle")
-  if(nerdToggle)
-    nerdToggle.onchange = () => applyNerdMode(nerdToggle.checked)
+  document.querySelectorAll(".nerd-toggle-input").forEach(t =>
+    t.onchange = () => applyNerdMode(t.checked)
+  )
 
   loadNerdMode()
 }

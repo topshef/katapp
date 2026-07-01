@@ -35,6 +35,13 @@ function kasset($file) {
         <span class="app-title">KATOMIA</span>
         <span class="app-icons">💱 🐫</span>
       </h2>
+      <!-- ORDERS-UI1: nerd toggle mirrored into the main header. .nerd-control
+           class-tags every nerd affordance so they can be hidden wholesale for
+           non-dev users later. Syncs with the profile-panel toggle via .nerd-toggle-input. -->
+      <label class="banner-nerd nerd-control" title="Nerd mode — show developer detail">
+        <input type="checkbox" class="nerd-toggle-input">
+        <span>🤓</span>
+      </label>
     </div>
   </div>
 
@@ -78,8 +85,8 @@ function kasset($file) {
       </div>
 
       <div class="profile-debug">
-        <label class="profile-debug-label">
-          <input type="checkbox" id="katomia-nerd-toggle">
+        <label class="profile-debug-label nerd-control">
+          <input type="checkbox" id="katomia-nerd-toggle" class="nerd-toggle-input">
           🤓 Nerd mode
         </label>
         <label class="profile-debug-label">
@@ -430,6 +437,9 @@ function kasset($file) {
      widget is dropped in purely via a script tag to prove it's host-agnostic.
      Both are same-origin here; adjust paths via window.KPAY_FUTURE_BASE etc. -->
 <?php require_once($_SERVER['DOCUMENT_ROOT'] . "/vendor/walletconnect/kwcScriptTag.php"); ?>
+<!-- MODAL-URL1: opt in to URL-hash persistence so a signing modal survives reload
+     / is bookmarkable (#sign=network:txid:pch). Set before the deferred embed runs. -->
+<script>window.KPAY_SIGN_HASH = true</script>
 <script src="/vendor/kpay/kpool_widget/kpay-embed.js" defer></script>
 
 
