@@ -35,6 +35,7 @@ const {
 
 const { getHederaMirrorData } = await import(`./hedera-mirror.js?v=${V}`)
 const { createTxSocket } = await import(`./websocket.js?v=${V}`)
+const { normalizePublicKey } = await import(`./keynorm.js?v=${V}`)
 
 console.log('injecting kpool widget')
 
@@ -769,6 +770,8 @@ async function loadSigningState(txState, tx) {
 
 	calcAccountsThatSign(tx.accounts)
 
+	tx.data.sigs = reconcileSigs(txState, tx.data.sigs)   // seed the monotonic set (SIGN-OSCILLATE1)
+
 	tx.readiness = evaluateTxReadiness({ accounts: tx.accounts, data: tx.data })
 	renderReadinessInfo({ readiness: tx.readiness })
 
@@ -963,11 +966,24 @@ async function refreshSigningSection(txState, { data, accounts }) {
 	renderSigningSection(txState, { data, accounts })
 }
 
+// Monotonic per-session signature set (SIGN-OSCILLATE1): once a signature is seen
+// (keyed by normalized pubkey) it is never dropped, so a transient txRead that returns
+// a smaller set can't shrink signedPubkeys and flap the threshold/pie between the poll /
+// ws-sig / optimistic-sign paths. Last-wins on the object (freshest), monotonic on keys
+// (dedupes multiple signs). Lives on txState so it resets naturally per tx session.
+function reconcileSigs(txState, sigs) {
+	const seen = txState.seenSigs || (txState.seenSigs = new Map())
+	for (const s of sigs || []) { const k = normalizePublicKey(s?.pubKey); if (k) seen.set(k, s) }
+	return [...seen.values()]
+}
+
 // The render half of refreshSigningSection — recomputes readiness and repaints
 // from data already in hand, NO network (no enrich, no txRead). Used for the
 // instant post-sign update (accounts are already enriched from load).
 function renderSigningSection(txState, { data, accounts }) {
 	const { network } = txState
+
+	data.sigs = reconcileSigs(txState, data.sigs)   // never let a transient read shrink the set (SIGN-OSCILLATE1)
 
 	calcAccountsThatSign(accounts)
 
