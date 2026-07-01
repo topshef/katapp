@@ -779,27 +779,50 @@ function paintCardRing(card) {
 	else if (signState === 'pending' || signState === 'loading') card.classList.add('txcard--sign-pending')
 }
 
-// Per-asset balance cue on the account cards (TX-CARDS9 step d): ring a SEND chip red
-// when that account is short of that asset (overdraft), and flag the account as
-// balance-short for the aggregate ring. Account-keyed aggregate is reliable; the
-// per-chip match is best-effort (fungible/HBAR; NFTs skipped). No-op without cards.
+// Per-asset balance cue on the account cards (TX-CARDS9 step d): ring a SEND chip red when
+// that account is short of that asset (overdraft), and flag the account balance-short for
+// the aggregate ring. Chip asset-key === precheck key (both the tokenId; HBAR is 'tinybar'
+// on the chip → 'hbar' in the precheck). NFTs skipped. No-op without cards.
+//
+// Short is gathered from TWO sources so it's robust:
+//   1. precheck.balances[acct][asset].forecast < 0  (structured, when present)
+//   2. the authoritative precheck.tests.fail strings (these always reach the frontend — the
+//      user sees them in nerd — and they fold in the HBAR fee-buffer that forecast<0 misses):
+//        "has sender <acct> enough <tokenId> <label> ? (<forecast>)"
+//        "has <acct> sufficient hbar balance ? (<forecast> tℏ)"
+//   (association failures — "…associated…" — are a different problem, not an overdraft; not
+//    ringed here. Could add a distinct cue later.)
+// Emits a `cards:balances` kdiag line so a "no red ring" report is diagnosable from evidence.
 export function updateCardBalances(precheck) {
 	const cards = document.querySelector('.txcards')
 	if (!cards) return
-	const bal = precheck?.balances || {}
+
+	const short = {}   // accountId -> Set(short asset keys)
+	const add = (acct, key) => { (short[acct] ||= new Set()).add(key) }
+	for (const [acct, assets] of Object.entries(precheck?.balances || {}))
+		for (const [asset, f] of Object.entries(assets || {}))
+			if (f && Number(f.forecast) < 0) add(acct, asset)
+	for (const line of precheck?.tests?.fail || []) {
+		let m
+		if ((m = /has sender (\S+) enough (\S+)/.exec(line))) add(m[1], m[2])
+		else if ((m = /has (\S+) sufficient hbar balance/.exec(line))) add(m[1], 'hbar')
+	}
+
+	const diag = { hasPrecheck: !!precheck, balanceKeys: Object.keys(precheck?.balances || {}), fails: (precheck?.tests?.fail || []).length, cards: [] }
 	cards.querySelectorAll('.txcard').forEach(card => {
 		const id = card.querySelector('.txcard-head[data-acct]')?.dataset.acct
-		const acctBal = id ? bal[id] : null
-		const shortAssets = new Set()
-		if (acctBal) for (const [asset, f] of Object.entries(acctBal))
-			if (f && Number(f.forecast) < 0) shortAssets.add(asset)   // token: <0; hbar: <0 (misses fee-buffer edge)
+		const shortAssets = short[id] || new Set()
 		card.dataset.balanceShort = shortAssets.size ? '1' : '0'
+		const chipKeys = []
 		card.querySelectorAll('.txcard-send .txcard-chip').forEach(chip => {
 			const key = chip.dataset.assetKey === 'tinybar' ? 'hbar' : chip.dataset.assetKey
+			chipKeys.push(key)
 			chip.classList.toggle('txcard-chip--short', shortAssets.has(key))
 		})
 		paintCardRing(card)
+		diag.cards.push({ id, short: [...shortAssets], chipKeys })
 	})
+	try { globalThis.kdiag?.('cards:balances', diag) } catch {}
 }
 
 // Lazily-rendered account detail for the expanded card (TX-CARDS9 step c): the threshold
@@ -904,7 +927,7 @@ export function markConnectedAccounts(ids = []) {
 		if (on && !u) {
 			u = document.createElement('span')
 			u.className = 'txcard-you'
-			u.textContent = '(u)'
+			u.textContent = '(you)'
 			u.title = 'One of your connected accounts'
 			head.querySelector('.txcard-acct').after(u)
 		} else if (!on && u) u.remove()
@@ -1704,7 +1727,7 @@ export function injectTxReadCSS() {
 		/* xproof next to the account id — domain reuses .txcard-acct so it matches (plain
 		   text, underline on hover) and can be group-restyled with the account id later. */
 		.txcard-xproof-head { display:inline-flex; align-items:baseline; gap:6px; }
-		.txcard-you { font-size:12px; font-weight:600; color:#0891b2; }   /* "(u)" — a connected account of yours */
+		.txcard-you { font-size:12px; font-weight:600; color:#0891b2; }   /* "(you)" — a connected account of yours */
 
 		/* per-account signing state (TX-CARDS7): border matches the pie — orange = signature
 		   pending, green = threshold met; header summary shows reason glyphs + m-of-n signed */
