@@ -471,6 +471,11 @@ function rerenderTransferView(txState) {
 	fresh.classList.add('txread-intent-xfers')
 	old.replaceWith(fresh)
 	updateNarrative(txState, txState.viewerAccount)
+
+	// The fresh cards render blank of signing/balance state — re-apply it from cached data
+	// so toggling nerd↔normal fully repaints (previously this needed a page refresh). No
+	// network: renderSigningSection recomputes from txState.data + txState.accounts.
+	if (txState.accounts && txState.data) renderSigningSection(txState, { data: txState.data, accounts: txState.accounts })
 }
 
 // Experimental "You send / You receive" narrative, derived from the connected
