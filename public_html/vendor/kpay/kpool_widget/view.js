@@ -6,6 +6,15 @@ import {
 		isHederaSystemAccount
 	} from './utils.js'
 import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
+import { getThresholdSummary } from './threshold.js'
+
+// Why an account must sign — one glyph map shared by the Signing Authority rows AND
+// the account-card header so they never drift (TX-CARDS7 / TX-CARDS9).
+const SIGN_REASON = {
+	operator:              { emoji:'⚙️', tip:'​    Operator account' },
+	sender:                { emoji:'📤', tip:'​    Sending assets' },
+	receiver_sig_required: { emoji:'📥', tip:'​    Receiver signature required' }
+}
 
 	const deriveStatusFromTime = (txid, updatedAtMs) => {
 		const info = parseTxId(txid)
@@ -605,7 +614,46 @@ export function renderSigningInfo({ data, accounts }) {
 		.filter(Boolean)
 
 	renderAccountKeyInfo(accounts, signedPubkeys, data.network)
+	updateCardSigning(accounts, signedPubkeys)   // fold the same signing state onto the account cards (TX-CARDS7)
 	// renderKeyPieCharts({ network, accounts, signedPubkeys })
+}
+
+// Per-account signing verdict for the card border/summary. Uses the SAME threshold
+// solver as evaluateTxReadiness + the pie (SIGN-NORM1) so border/pie/table agree.
+// state: none (no signature required) | loading (must sign, keyInfo not in yet) |
+// pending (required, threshold not met) | ready (threshold met). need = threshold m.
+function accountSigningStatus(acc, signedPubkeys) {
+	if (!acc.mustSign) return { state:'none' }
+	const keyTree = acc.keyInfo && normalizeKeyTree(acc.keyInfo)
+	if (!keyTree) return { state:'loading' }
+	const s = getThresholdSummary({ keyTree, signedPubkeys })
+	return { state: s.thresholdSatisfied ? 'ready' : 'pending',
+		signed: s.signedRequiredKeyCount, need: s.signedRequiredKeyCount + s.minMoreKeyCount }
+}
+
+// In-place repaint of the account cards' signing state (border colour + header
+// summary: reason glyphs + m-of-n signed). Keyed by data-acct so an update never
+// rebuilds the card DOM (TX-CARDS9 step a). No-ops in table/nerd mode (no .txcards).
+export function updateCardSigning(accounts, signedPubkeys = []) {
+	const cards = document.querySelector('.txcards')
+	if (!cards) return
+	Object.entries(accounts || {}).forEach(([id, acc]) => {
+		const head = cards.querySelector(`.txcard-head[data-acct="${CSS.escape(id)}"]`)
+		const card = head?.closest('.txcard')
+		if (!card) return
+		const st = accountSigningStatus(acc, signedPubkeys)
+		card.classList.remove('txcard--sign-ready','txcard--sign-pending')
+		if (st.state === 'ready') card.classList.add('txcard--sign-ready')
+		else if (st.state === 'pending' || st.state === 'loading') card.classList.add('txcard--sign-pending')
+
+		let sign = head.querySelector('.txcard-sign')
+		if (st.state === 'none') { if (sign) sign.remove(); return }
+		if (!sign) { sign = document.createElement('span'); sign.className = 'txcard-sign'; head.appendChild(sign) }
+		const glyphs = (acc.mustSignReason || []).map(r => SIGN_REASON[r]?.emoji || '').join('')
+		if (st.state === 'loading') { sign.textContent = `${glyphs} …`.trim(); sign.title = 'Loading signing keys…' }
+		else if (st.state === 'ready') { sign.textContent = `${glyphs} 🟢`.trim(); sign.title = 'Threshold satisfied' }
+		else { sign.textContent = `${glyphs} ✍️ ${st.signed}/${st.need}`.trim(); sign.title = `${st.signed} of ${st.need} required signatures` }
+	})
 }
 
 
@@ -1349,6 +1397,7 @@ export function injectTxReadCSS() {
 			display:flex; flex-direction:column;
 			border:1px solid #e4e4e7; border-radius:10px; overflow:hidden;
 			background:#fff;
+			transition:border-color .18s ease, box-shadow .18s ease;
 		}
 		/* account-header row — light text (id + optional xproof label) */
 		.txcard-head {
@@ -1358,6 +1407,12 @@ export function injectTxReadCSS() {
 		.txcard-acct { font-size:13px; font-weight:500; color:#52525b; text-decoration:none; word-break:break-all; }
 		.txcard-acct:hover { text-decoration:underline; }
 		.txcard-acct-label { font-size:12px; color:#a1a1aa; }
+
+		/* per-account signing state (TX-CARDS7): border matches the pie — orange = signature
+		   pending, green = threshold met; header summary shows reason glyphs + m-of-n signed */
+		.txcard--sign-pending { border-color:#f5a623; box-shadow:0 0 0 1px #f5a623; }
+		.txcard--sign-ready   { border-color:#56c857; box-shadow:0 0 0 1px #56c857; }
+		.txcard-sign { margin-left:auto; font-size:12px; color:#71717a; white-space:nowrap; font-weight:500; }
 
 		/* two equal, symmetric columns — left send (rose), right receive (green).
 		   stays side-by-side on mobile (screen split in half), no edge labels */
