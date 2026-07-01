@@ -5,24 +5,27 @@
 //   ctrl = 2·G − (S+D)/2   ⟹   B(0.5) = G exactly,
 // so the curve passes THROUGH the pool centroid G at its midpoint. For 1→1, G is the midpoint
 // of S,D so ctrl becomes that midpoint and the quadratic collapses to a perfectly straight,
-// uniform line (clean glide, no arc, no pop). For N→M every ghost bows through the SHARED
-// centroid, so they converge/diverge at the same instant without ever stopping.
+// uniform line (clean glide). For N→M every ghost bows through the SHARED centroid, so they
+// converge/diverge at the same instant without ever stopping.
 //
-// Two overlays: a TRAIL layer (above the cards, below the ghosts) holds the fading dotted
-// trajectory; a FRONT layer (topmost) holds the travelling ghosts and the subtle parallel
-// pool puff. (Ideal would be between the card body and its chips, but chips live inside the
-// cards, so the trail sits on top of the cards per user.)
-// FUTURE TWEAK (parked, no task): make the chips opaque and put the trail BEHIND the chips so
-// the dots don't overlap the chips. Needs per-card layering (chips are card children), so it's
-// left for later.
-// Asset flows are STAGGERED so each asset reads separately. No invented per-pair routing —
-// ghosts are round-robined source↔dest; identity is scrambled at the pool (fungibility).
+// Layering (fixes dots-over-chips): the TRAIL layer sits ABOVE the card bodies but BELOW the
+// chips (chips get z-index:2, trail z-index:1) and the chips are OPAQUE — so the dotted trail
+// reads across the card body yet is cleanly obscured by any chip it passes under. Travelling
+// ghosts + the pool puff are on a FRONT layer (z-index:3), topmost.
+//
+// Source→ghost / dest→solid: as an asset departs, its SOURCE chips turn to ghosts and each
+// DESTINATION solidifies on landing — so the preview ends swapped (which is also how a real
+// consensus should end). The swap is held briefly then reverted so the preview is replayable.
+//
+// Per-asset trail COLOUR: a stable hue derived from the asset key (HBAR stays blue) so each
+// asset's trajectory is distinguishable. Swap for a lookup table later if brand colours wanted.
 
 // ── ONE speed knob for the MOTION (hard-coded for dev; drop toward 1 for production) ──
 const SLOW = 1
 const TRAVEL_MS  = 540 * SLOW    // per-asset glide
 const FRIZZ_MS   = 160 * SLOW    // pool puff
 const STAGGER_MS = 220 * SLOW    // gap between asset flows
+const HOLD_MS    = 800 * SLOW    // how long the swapped end-state holds before reverting (replayable preview)
 // Trail lifetime is DECOUPLED from SLOW on purpose (per user): the dotted trajectory lingers
 // well past the glide so you see the whole path. Exaggerated for now — dial back later.
 const TRAIL_MS   = 5000
@@ -36,6 +39,14 @@ const centerOf = (el, base) => {
 }
 const centroid = pts => pts.reduce((a, p) => ({ x: a.x + p.x / pts.length, y: a.y + p.y / pts.length }), { x: 0, y: 0 })
 
+// Stable hue per asset (HBAR keeps the familiar blue). Simple + zero-maintenance.
+function assetHue(key) {
+	if (key === 'tinybar') return 217
+	let h = 0
+	for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0
+	return h % 360
+}
+
 function mkLayer(container, cls) {
 	let layer = [...container.children].find(c => c.classList?.contains(cls))
 	if (!layer) { layer = document.createElement('div'); layer.className = cls; container.appendChild(layer) }
@@ -43,14 +54,15 @@ function mkLayer(container, cls) {
 	return layer
 }
 
-// A barely-blurred glow dropped at the ghost's current position — the dotted trajectory. Held
-// at full opacity for a while (so the whole line reads) then fades + shrinks slowly.
-function trailMark(back, base, ghost) {
+// A tiny, barely-blurred, per-asset-coloured dot dropped at the ghost's current position — the
+// dotted trajectory. Held at full opacity a while (so the whole line reads) then fades slowly.
+function trailMark(back, base, ghost, hue) {
 	const r = ghost.getBoundingClientRect()
 	const mark = document.createElement('div')
 	mark.className = 'txflow-trail'
 	mark.style.left = (r.left + r.width / 2 - base.left) + 'px'
 	mark.style.top = (r.top + r.height / 2 - base.top) + 'px'
+	mark.style.background = `radial-gradient(circle, hsl(${hue} 80% 62% / .6) 0%, hsl(${hue} 80% 62% / 0) 70%)`
 	back.appendChild(mark)
 	mark.animate([
 		{ transform: 'translate(-50%,-50%) scale(1)', opacity: 0.45 },
@@ -59,9 +71,9 @@ function trailMark(back, base, ghost) {
 	], { duration: TRAIL_MS, easing: 'ease-out' }).onfinish = () => mark.remove()
 }
 
-// One continuous ghost (front layer) gliding A→B along quadratic A,ctrl,B, dropping a trail
-// (back layer) as it goes. ease-in-out ⇒ fastest through the middle (centroid never pauses).
-function travel(front, back, base, chip, A, B, ctrl, onDone) {
+// One continuous ghost (front layer) gliding A→B along quadratic A,ctrl,B, dropping a coloured
+// trail (trail layer) as it goes. ease-in-out ⇒ fastest through the middle (centroid never pauses).
+function travel(front, back, base, chip, A, B, ctrl, hue, onDone) {
 	return new Promise(res => {
 		const ghost = chip.cloneNode(true)
 		ghost.className = 'txcard-chip txflow-ghost'
@@ -78,7 +90,7 @@ function travel(front, back, base, chip, A, B, ctrl, onDone) {
 			const op = t < 0.12 ? t / 0.12 : t > 0.88 ? (1 - t) / 0.12 : 1
 			frames.push({ transform: `translate(${x}px,${y}px) translate(-50%,-50%) scale(${s.toFixed(3)})`, opacity: op, offset: t })
 		}
-		const trail = setInterval(() => trailMark(back, base, ghost), TRAIL_EVERY)
+		const trail = setInterval(() => trailMark(back, base, ghost, hue), TRAIL_EVERY)
 		const anim = ghost.animate(frames, { duration: TRAVEL_MS, easing: 'ease-in-out', fill: 'forwards' })
 		anim.onfinish = () => { clearInterval(trail); try { onDone?.() } finally { ghost.remove(); res() } }
 	})
@@ -99,13 +111,16 @@ function frizz(front, G, count) {
 	a.onfinish = () => el.remove()
 }
 
-function solidify(chip) {
+// landing: the destination chip stops being a ghost (solidifies) + a brief flash.
+function land(chip) {
+	chip.classList.remove('txcard-chip-ghost')
 	chip.classList.add('txflow-landed')
 	setTimeout(() => chip.classList.remove('txflow-landed'), 700)
 }
 
-async function animateAsset(front, back, base, send, receive) {
+async function animateAsset(front, back, base, send, receive, hue) {
 	if (!send.length || !receive.length) return   // one-sided (e.g. operator HBAR fee) — nothing to travel to
+	send.forEach(c => c.classList.add('txcard-chip-ghost'))   // sources empty out as their asset departs
 	const src = send.map(c => centerOf(c, base))
 	const dst = receive.map(c => centerOf(c, base))
 	const G = centroid([...src, ...dst])
@@ -120,7 +135,7 @@ async function animateAsset(front, back, base, send, receive) {
 	await Promise.all(Array.from({ length: k }, (_, j) => {
 		const S = src[j % src.length], D = dst[j % dst.length]
 		const ctrl = { x: 2 * G.x - (S.x + D.x) / 2, y: 2 * G.y - (S.y + D.y) / 2 }
-		return travel(front, back, base, send[j % send.length], S, D, ctrl, () => solidify(receive[j % receive.length]))
+		return travel(front, back, base, send[j % send.length], S, D, ctrl, hue, () => land(receive[j % receive.length]))
 	}))
 }
 
@@ -129,9 +144,14 @@ export async function flowTravel(container) {
 	if (container._flowRunning || typeof container.querySelectorAll !== 'function') return
 	container._flowRunning = true
 	try {
-		const back = mkLayer(container, 'txflow-layer-trail')   // trail — above the cards, below the ghosts
+		const back = mkLayer(container, 'txflow-layer-trail')   // trail — above card bodies, below chips
 		const front = mkLayer(container, 'txflow-layer')        // ghosts + puff — topmost
 		const base = container.getBoundingClientRect()
+
+		// snapshot ghost state so we can restore after the preview (it ends source↔dest swapped)
+		const chips = [...container.querySelectorAll('.txcard-chip')].filter(c => !c.classList.contains('txflow-ghost'))
+		const wasGhost = new Map(chips.map(c => [c, c.classList.contains('txcard-chip-ghost')]))
+
 		const byAsset = new Map()
 		container.querySelectorAll('.txcard-chip[data-asset-key]').forEach(chip => {
 			if (chip.classList.contains('txflow-ghost')) return
@@ -142,12 +162,15 @@ export async function flowTravel(container) {
 			g[side].push(chip)
 			byAsset.set(key, g)
 		})
-		const assets = [...byAsset.values()]
-		await Promise.all(assets.map((g, i) =>
-			new Promise(res => setTimeout(() => animateAsset(front, back, base, g.send, g.receive).then(res), i * STAGGER_MS))
+		const entries = [...byAsset.entries()]
+		await Promise.all(entries.map(([key, g], i) =>
+			new Promise(res => setTimeout(() => animateAsset(front, back, base, g.send, g.receive, assetHue(key)).then(res), i * STAGGER_MS))
 		))
-		// NB: leave the layers — trail marks outlive the glide (TRAIL_MS) and self-remove; the
-		// (then-empty) layers are reused and cleared on the next preview.
+
+		// hold the swapped end-state (source ghost / dest solid) briefly — that's how consensus
+		// will end — then revert so the preview is replayable. Trail marks self-expire (TRAIL_MS).
+		await new Promise(r => setTimeout(r, HOLD_MS))
+		chips.forEach(c => { c.classList.toggle('txcard-chip-ghost', !!wasGhost.get(c)); c.classList.remove('txflow-landed') })
 	} finally {
 		container._flowRunning = false
 	}

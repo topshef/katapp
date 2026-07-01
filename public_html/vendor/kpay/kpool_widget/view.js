@@ -1830,12 +1830,14 @@ export function injectTxReadCSS() {
 			padding:4px 9px; border-radius:14px; font-size:13px; line-height:1.3;
 			background:#fff; border:1px solid rgba(0,0,0,.14);
 			max-width:100%; box-sizing:border-box;
+			position:relative; z-index:2;   /* above the trail overlay (z-index:1) so dots pass behind chips */
 		}
 		.txcard-chip-icon { flex:0 0 auto; }
 		.txcard-chip-text { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 		.txcard-chip-ghost {
-			/* dashed + faded: where the asset WILL land (pre-consensus) */
-			background:transparent; border-style:dashed; opacity:.45;
+			/* dashed + muted, but OPAQUE (solid bg + full opacity) so the dotted trail behind it
+			   is cleanly obscured — the chip sits on top of the trail (per user). */
+			background:#fff; border-style:dashed; opacity:1; color:#9ca3af;
 		}
 		.txcard-empty { opacity:.35; font-size:13px; }
 
@@ -1864,8 +1866,8 @@ export function injectTxReadCSS() {
 		}
 		/* v1 ghost-travel engine (txflow.js): a FRONT overlay (ghosts + pool puff, topmost) and
 		   a TRAIL overlay (the dotted trajectory) — both above the cards; trail below ghosts. */
-		.txflow-layer { position:absolute; inset:0; overflow:visible; pointer-events:none; z-index:5; }
-		.txflow-layer-trail { position:absolute; inset:0; overflow:visible; pointer-events:none; z-index:4; }
+		.txflow-layer { position:absolute; inset:0; overflow:visible; pointer-events:none; z-index:3; }
+		.txflow-layer-trail { position:absolute; inset:0; overflow:visible; pointer-events:none; z-index:1; }
 		.txflow-ghost { position:absolute; left:0; top:0; margin:0; background:#fff; box-shadow:0 5px 14px rgba(0,0,0,.18); will-change:transform,opacity; }
 		.txflow-frizz { position:absolute; width:16px; height:16px; border-radius:50%; pointer-events:none;
 			background:radial-gradient(circle, #fff 0%, #ffd27f 45%, rgba(255,167,38,0) 70%); }
