@@ -395,6 +395,14 @@ const SIGN_REASON = {
 			intent.appendChild(memoEl)
 		}
 
+		// witnesses — keys that signed but belong to no account here. Rendered by
+		// renderWitnessList once readiness is known; sits just above the network line.
+		const witnesses = document.createElement('div')
+		witnesses.id = 'txread-witnesses'
+		witnesses.className = 'txread-witnesses'
+		witnesses.hidden = true
+		intent.appendChild(witnesses)
+
 		// scope line: Hedera <network> · <txid> · #<pch6>
 		const scope = document.createElement('div')
 		scope.className = 'txread-scope'
@@ -833,7 +841,35 @@ function renderCardDetail(card) {
 
 
 
+// Witnesses = signed keys that belong to NO account in this tx (outside every required
+// set), so they can't sit on an account card — list them on their own, above the network
+// line. Chips = last-4 + full-key tooltip; later they may double as votes. TODO: link a
+// chip to a key lookup (e.g. explore.hbar.live?network=&key=) once such a route exists.
+export function renderWitnessList(readiness) {
+	const el = document.getElementById('txread-witnesses')
+	if (!el) return
+	const keys = readiness?.witnessKeys || []
+	el.innerHTML = ''
+	el.hidden = !keys.length
+	if (!keys.length) return
+	const lbl = document.createElement('div')
+	lbl.className = 'txread-witnesses-label'
+	lbl.textContent = 'Witnesses'
+	const list = document.createElement('div')
+	list.className = 'txread-witnesses-list'
+	keys.forEach(k => {
+		const chip = document.createElement('span')
+		chip.className = 'txwitness-chip'
+		chip.textContent = '…' + String(k).slice(-4)
+		chip.title = k
+		list.appendChild(chip)
+	})
+	el.append(lbl, list)
+}
+
 export function renderReadinessInfo({readiness}) {
+	renderWitnessList(readiness)   // witnesses live below the cards, not in the status block
+
 	const el = document.getElementById('txread-readiness')
 	if(!el) return
 
@@ -1612,6 +1648,13 @@ export function injectTxReadCSS() {
 		.txcard-xproof { margin-top:8px; font-size:12px; color:#71717a; }
 		.txcard-xproof a { color:#3b82f6; }
 		.txcard-detail-note { font-size:12px; color:#3f3f46; background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:6px 8px; margin-bottom:8px; }
+
+		/* witnesses — signed keys not tied to any account; listed under the cards as chips
+		   (may later read as votes). Sits just above the Hedera <network> scope line. */
+		.txread-witnesses { max-width:640px; margin:10px auto 0; }
+		.txread-witnesses-label { font-size:11px; color:#a1a1aa; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+		.txread-witnesses-list { display:flex; flex-wrap:wrap; gap:6px; }
+		.txwitness-chip { display:inline-flex; padding:3px 9px; border-radius:14px; font-size:12px; background:#f4f4f5; border:1px solid #e4e4e7; color:#52525b; cursor:default; }
 
 		/* two equal, symmetric columns — left send (rose), right receive (green).
 		   stays side-by-side on mobile (screen split in half), no edge labels */
