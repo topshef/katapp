@@ -2328,6 +2328,22 @@ async function buildSignedOrder(bundle, { minFill, timeInForce, expiresAt, match
 
 async function createOrderFromModal() {
 
+  // RELIABLE GATE: if the chosen account is a WalletConnect account not yet in this game
+  // (merge-on-form __wcadd__ sentinel — including the auto-selected case where no change
+  // event fired), add + asset-seed it before building the order. Otherwise the order
+  // bundle references an accountId the game doesn't know and can never match. (Root cause
+  // of the "order won't match" report — the account was never actually added to the game.)
+  const _acctSel = document.getElementById("createOrderAccount")
+  const _acctVal = _acctSel?.value || ""
+  if(typeof WC_ORDER_ADD_PREFIX === "string" && _acctVal.startsWith(WC_ORDER_ADD_PREFIX)){
+    const _accountId = _acctVal.slice(WC_ORDER_ADD_PREFIX.length)
+    const _ok = await ensureAccountInGame(_accountId)
+    if(!_ok){ alert(`Couldn't add account ${_accountId} to the game — try the ➕ Add account button, then submit again.`); return }
+    // re-select the now-real game account so the order value is a clean publicId:accountId
+    const _real = getAccounts().find(a => isMyAccount(a) && a.label === _accountId)
+    if(_real) refreshCreateOrderAccounts(_real.id)
+  }
+
   const timeInForce = document.getElementById("createOrderTif")?.value || "GTC"
   const expiresAt = getCreateOrderExpiresAt()
 

@@ -7,7 +7,7 @@ window.pendingCreateOrderAccount = null
 // katomia.css (:root --katomia-css-build). Both are surfaced in the diagnostics
 // so we can tell, from the server-side kdiag logs, exactly which version of the
 // code a given browser is running — and whether a cached (stale) asset is in play.
-const KATOMIA_JS_BUILD = "20260701-wcmerge-1"
+const KATOMIA_JS_BUILD = "20260701-wcpromote-2"
 
 // Self-contained diagnostics sender. window.kdiag (from the kpool widget) is
 // lazy-loaded only when the signing widget mounts, so it is NOT available when
@@ -395,6 +395,26 @@ function refreshCreateOrderAccounts(selectedId = null){
 // So WC-only options carry a __wcadd__: sentinel; selecting one promotes it via
 // addAccounts() (the same path as the ➕ button) so it becomes a real game account.
 const WC_ORDER_ADD_PREFIX = "__wcadd__:"
+
+// Ensure a WC account is a real game account (added + asset-seeded) before an order
+// references it. Idempotent: resolves true immediately if already present. Returns a
+// promise<boolean> so the order-submit gate can await it. addAccounts() seeds assets
+// on the backend before the account appears in state, so once it lands it's orderable.
+function ensureAccountInGame(accountId){
+  return new Promise(resolve => {
+    const mine = () => getAccounts().filter(a => isMyAccount(a))
+    if(mine().some(a => a.label === accountId)) return resolve(true)
+    const before = mine().length
+    addAccounts(accountId)
+    pollUntil(
+      () => mine().length > before || mine().some(a => a.label === accountId),
+      () => resolve(true),
+      200,
+      10000,
+      () => resolve(false)
+    )
+  })
+}
 
 async function mergeWcAccountsIntoOrderPicklist(accountSelect){
   if(!accountSelect || typeof kauthWCAccounts !== "function" || !window.WC) return
@@ -933,21 +953,20 @@ document.addEventListener("change",e => {
 
   // Selecting a WC-only account (merge-on-form sentinel) promotes it into the game via
   // the same addAccounts() path as the ➕ button, then re-selects it once it lands.
+  // NOTE: this fires only on a user-initiated change — an auto-selected sentinel (e.g.
+  // it's the only option) does NOT fire change, so the submit gate in createOrderFromModal
+  // is the reliable backstop that guarantees the account exists before the order is built.
   if(e.target.id == "createOrderAccount" && String(e.target.value).startsWith(WC_ORDER_ADD_PREFIX)){
     const accountId = e.target.value.slice(WC_ORDER_ADD_PREFIX.length)
-    const idsBefore = new Set(getAccounts().filter(a => isMyAccount(a)).map(a => a.id))
-    addAccounts(accountId)
     try { notify?.(`Adding account ${accountId}…`, "info", { timeout: 2500 }) } catch {}
-    pollUntil(
-      () => getAccounts().filter(a => isMyAccount(a)).length > idsBefore.size,
-      () => {
-        const newAccount = getAccounts().find(a => isMyAccount(a) && !idsBefore.has(a.id))
-        refreshCreateOrderAccounts(newAccount?.id)
-      },
-      200,
-      10000,
-      () => { try { notify?.(`Couldn't add account ${accountId} — check the connection and try again`, "error", { timeout: 0 }) } catch {} }
-    )
+    ensureAccountInGame(accountId).then(ok => {
+      if(ok){
+        const real = getAccounts().find(a => isMyAccount(a) && a.label === accountId)
+        refreshCreateOrderAccounts(real?.id)
+      } else {
+        try { notify?.(`Couldn't add account ${accountId} — check the connection and try again`, "error", { timeout: 0 }) } catch {}
+      }
+    })
     return
   }
 
