@@ -171,7 +171,7 @@ export function renderWalletConnectSigner(container, {
 		if (!wc) {
 			kdiag('signer:render', { hasWC: false })
 			wrap.innerHTML = `<div class="kpsign-msg">Wallet unavailable</div>`
-			onAccount?.(null)
+			onAccount?.(null, [])
 			return
 		}
 
@@ -250,7 +250,7 @@ export function renderWalletConnectSigner(container, {
 
 		wrap.innerHTML = ''
 		kdiag('signer:render', { hasWC: true, hasMulti, account, accounts: accounts.length, stale, network })
-		onAccount?.(account || null)
+		onAccount?.(account || null, accounts)   // pass the full connected list for the (u) marker
 
 		// not connected → (stale note +) Connect button
 		if (!account) {

@@ -892,6 +892,25 @@ function updateCardXproof(head, label) {
 	}
 }
 
+// Mark cards whose account you've connected via WalletConnect with a "(u)" after the id —
+// a light "this is you" cue. The full you-send/you-receive narrative is deferred (too many
+// edge cases). Multiple connected accounts → multiple (u), which is correct. It's a pure
+// self-assertion (no proof needed — the user connected it). Re-applied after card rebuilds.
+export function markConnectedAccounts(ids = []) {
+	const set = new Set(ids)
+	document.querySelectorAll('.txcard-head[data-acct]').forEach(head => {
+		const on = set.has(head.dataset.acct)
+		let u = head.querySelector('.txcard-you')
+		if (on && !u) {
+			u = document.createElement('span')
+			u.className = 'txcard-you'
+			u.textContent = '(u)'
+			u.title = 'One of your connected accounts'
+			head.querySelector('.txcard-acct').after(u)
+		} else if (!on && u) u.remove()
+	})
+}
+
 // (Re)render an open card's detail from the data stashed on it by updateCardSigning.
 function renderCardDetail(card) {
 	const inner = card.querySelector('.txcard-detail-inner')
@@ -1685,6 +1704,7 @@ export function injectTxReadCSS() {
 		/* xproof next to the account id — domain reuses .txcard-acct so it matches (plain
 		   text, underline on hover) and can be group-restyled with the account id later. */
 		.txcard-xproof-head { display:inline-flex; align-items:baseline; gap:6px; }
+		.txcard-you { font-size:12px; font-weight:600; color:#0891b2; }   /* "(u)" — a connected account of yours */
 
 		/* per-account signing state (TX-CARDS7): border matches the pie — orange = signature
 		   pending, green = threshold met; header summary shows reason glyphs + m-of-n signed */

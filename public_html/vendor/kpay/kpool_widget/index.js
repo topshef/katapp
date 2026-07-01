@@ -21,6 +21,7 @@ const {
 	showBanner,
 	summariseStatus,
 	updateFinalState,
+	markConnectedAccounts,
 	pickAssetLabel,
 	resolveTxView,
 	buildTransferViews
@@ -218,7 +219,11 @@ async function renderSigner(txState, opts) {
 				} catch (e) { console.warn('post-sign refresh failed', e) }
 			}
 		},
-		onAccount: acct => updateNarrative(txState, acct),
+		onAccount: (acct, accts) => {
+			if (accts) txState.connectedAccounts = accts   // full list on (dis)connect; undefined on a plain switch → keep set
+			updateNarrative(txState, acct)
+			markConnectedAccounts(txState.connectedAccounts || [])
+		},
 		onLock:    txState.onLock,
 		onUnlock:  txState.onUnlock
 	})
@@ -476,6 +481,7 @@ function rerenderTransferView(txState) {
 	// so toggling nerd↔normal fully repaints (previously this needed a page refresh). No
 	// network: renderSigningSection recomputes from txState.data + txState.accounts.
 	if (txState.accounts && txState.data) renderSigningSection(txState, { data: txState.data, accounts: txState.accounts })
+	markConnectedAccounts(txState.connectedAccounts || [])   // fresh cards lose the (u) marker — re-apply
 }
 
 // Experimental "You send / You receive" narrative, derived from the connected
