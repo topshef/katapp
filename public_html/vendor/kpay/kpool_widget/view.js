@@ -265,6 +265,18 @@ const SIGN_REASON = {
 			head.appendChild(lbl)
 		}
 
+		// right-side header cluster: signing summary (added later by updateCardSigning)
+		// then a chevron affordance. Tapping the header expands the account detail
+		// (pie + keys + xproof) — custom chevron, not native <details> (TX-CARDS9 step c).
+		head.classList.add('txcard-head--toggle')
+		const right = document.createElement('div')
+		right.className = 'txcard-head-right'
+		const chevron = document.createElement('span')
+		chevron.className = 'txcard-chevron'
+		chevron.textContent = '▸'
+		right.appendChild(chevron)
+		head.appendChild(right)
+
 		const cols = document.createElement('div')
 		cols.className = 'txcard-cols'
 
@@ -277,7 +289,15 @@ const SIGN_REASON = {
 		}
 
 		cols.append(mkCol('send', acc.send || []), mkCol('receive', acc.receive || []))
-		card.append(head, cols)
+
+		// collapsible detail region — populated lazily on first open (TX-CARDS9 step c)
+		const detail = document.createElement('div')
+		detail.className = 'txcard-detail'
+		const inner = document.createElement('div')
+		inner.className = 'txcard-detail-inner'
+		detail.appendChild(inner)
+
+		card.append(head, cols, detail)
 		return card
 	}
 
@@ -309,6 +329,18 @@ const SIGN_REASON = {
 			}
 		})
 		container.addEventListener('mouseleave', clearAssetHl)
+
+		// tap a card header (not the account link) to expand its detail. Multiple cards
+		// may be open at once (comparing accounts is a real task here). Lazy render on open.
+		container.addEventListener('click', e => {
+			if (e.target.closest('a')) return
+			const head = e.target.closest('.txcard-head')
+			const card = head?.closest('.txcard')
+			if (!card) return
+			const open = card.classList.toggle('txcard--open')
+			card.querySelector('.txcard-chevron').textContent = open ? '▾' : '▸'
+			if (open) renderCardDetail(card)
+		})
 		return container
 	}
 
@@ -645,9 +677,12 @@ export function updateCardSigning(accounts, signedPubkeys = []) {
 		card.dataset.signState = st.state   // one axis of the aggregate ring (balance is the other)
 		paintCardRing(card)
 
+		card._detail = { acc, signedPubkeys }   // for the lazy expand; refresh if already open
+		if (card.classList.contains('txcard--open')) renderCardDetail(card)
+
 		let sign = head.querySelector('.txcard-sign')
 		if (st.state === 'none') { if (sign) sign.remove(); return }
-		if (!sign) { sign = document.createElement('span'); sign.className = 'txcard-sign'; head.appendChild(sign) }
+		if (!sign) { sign = document.createElement('span'); sign.className = 'txcard-sign'; const right = head.querySelector('.txcard-head-right'); right.insertBefore(sign, right.firstChild) }
 		const glyphs = (acc.mustSignReason || []).map(r => SIGN_REASON[r]?.emoji || '').join('')
 		if (st.state === 'loading') { sign.textContent = `${glyphs} …`.trim(); sign.title = 'Loading signing keys…' }
 		else if (st.state === 'ready') { sign.textContent = `${glyphs} ✅`.trim(); sign.title = 'Threshold satisfied' }
@@ -690,6 +725,55 @@ export function updateCardBalances(precheck) {
 		})
 		paintCardRing(card)
 	})
+}
+
+// Lazily-rendered account detail for the expanded card (TX-CARDS9 step c): the threshold
+// pie + the per-key table (signed / suffix / Banzhaf / redundancy / control) + the xproof
+// label. Mirrors the Signing Authority row content, co-located on the account's own card.
+function buildAccountDetail(acc, signedPubkeys = []) {
+	const wrap = document.createElement('div')
+	wrap.appendChild(buildThresholdWidget({ signedPubkeys, mustSign: acc.mustSign, keyInfo: acc.keyInfo }))
+
+	const scores = acc.keyInfo?.banzhafScores?.scores
+	const redundancy = acc.keyInfo?.banzhafScores?.redundancy
+	const buckets = acc.keyInfo?.keyControlScoresAll
+	if (scores) {
+		const grid = document.createElement('div')
+		grid.className = 'txcard-keys'
+		const head = document.createElement('div')
+		head.className = 'txcard-keys-row txcard-keys-head'
+		;['✍️', '🔑', '⚖️', 'Redund', 'Ctrl'].forEach(t => { const c = document.createElement('div'); c.textContent = t; head.appendChild(c) })
+		grid.appendChild(head)
+		Object.entries(scores).forEach(([pubkey, score]) => {
+			const signed = signedPubkeys.includes(normalizePublicKey(pubkey))
+			const red = redundancy?.[pubkey] != null ? Math.round(redundancy[pubkey] * 100) + '%' : '-'
+			const bucket = buckets?.[pubkey]?.bucket ?? '-'
+			const row = document.createElement('div')
+			row.className = 'txcard-keys-row'
+			;[acc.mustSign ? (signed ? '✅' : '⬜') : 'N/A', '…' + pubkey.slice(-4), Math.round(score * 100) + '%', red, bucket]
+				.forEach(v => { const c = document.createElement('div'); c.textContent = v; row.appendChild(c) })
+			grid.appendChild(row)
+		})
+		wrap.appendChild(grid)
+	}
+
+	const domain = acc.label?.domain, name = acc.label?.name
+	if (domain || name) {
+		const x = document.createElement('div')
+		x.className = 'txcard-xproof'
+		x.innerHTML = (domain ? `<a href='https://${domain}' target='_blank' rel='noopener'>${domain}</a> ` : '') + (name ? `<span>${name}</span>` : '')
+		wrap.appendChild(x)
+	}
+	return wrap
+}
+
+// (Re)render an open card's detail from the data stashed on it by updateCardSigning.
+function renderCardDetail(card) {
+	const inner = card.querySelector('.txcard-detail-inner')
+	const d = card._detail
+	if (!inner || !d) return
+	inner.innerHTML = ''
+	inner.appendChild(buildAccountDetail(d.acc, d.signedPubkeys))
 }
 
 
@@ -1451,9 +1535,23 @@ export function injectTxReadCSS() {
 		.txcard--sign-pending   { border-color:#f5a623; box-shadow:0 0 0 1px #f5a623; }
 		.txcard--sign-ready     { border-color:#56c857; box-shadow:0 0 0 1px #56c857; }
 		.txcard--balance-short  { border-color:#e5484d; box-shadow:0 0 0 1px #e5484d; }   /* overdraft — hard blocker, wins the ring */
-		.txcard-sign { margin-left:auto; font-size:12px; color:#71717a; white-space:nowrap; font-weight:500; }
+		.txcard-head-right { margin-left:auto; display:flex; align-items:center; gap:8px; }
+		.txcard-sign { font-size:12px; color:#71717a; white-space:nowrap; font-weight:500; }
 		/* per-asset overdraft: red ring on the specific SEND chip that's short */
 		.txcard-chip--short { border-color:#e5484d; box-shadow:0 0 0 1px #e5484d; }
+
+		/* expandable account detail (TX-CARDS9 step c) — grid-rows trick, no native arrow */
+		.txcard-head--toggle { cursor:pointer; user-select:none; }
+		.txcard-chevron { color:#a1a1aa; font-size:11px; transition:transform .2s ease; }
+		.txcard-detail { display:grid; grid-template-rows:0fr; transition:grid-template-rows .22s ease; }
+		.txcard--open .txcard-detail { grid-template-rows:1fr; }
+		.txcard-detail-inner { overflow:hidden; min-height:0; }
+		.txcard--open .txcard-detail-inner { padding:10px 12px; border-top:1px solid #ececec; }
+		.txcard-keys { display:flex; flex-direction:column; gap:3px; font-size:12px; margin-top:8px; }
+		.txcard-keys-row { display:grid; grid-template-columns:26px 1fr 44px 52px 60px; gap:8px; align-items:center; }
+		.txcard-keys-head { color:#a1a1aa; font-size:11px; }
+		.txcard-xproof { margin-top:8px; font-size:12px; color:#71717a; }
+		.txcard-xproof a { color:#3b82f6; }
 
 		/* two equal, symmetric columns — left send (rose), right receive (green).
 		   stays side-by-side on mobile (screen split in half), no edge labels */
