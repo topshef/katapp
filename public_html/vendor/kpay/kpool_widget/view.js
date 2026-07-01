@@ -683,6 +683,8 @@ export function updateCardSigning(accounts, signedPubkeys = [], network) {
 		card.dataset.signState = st.state   // one axis of the aggregate ring (balance is the other)
 		paintCardRing(card)
 
+		ensureOperatorFeeChip(card, (acc.mustSignReason || []).includes('operator'))
+
 		card._detail = { acc, signedPubkeys, network, id }   // for the lazy expand; refresh if already open
 		if (card.classList.contains('txcard--open')) renderCardDetail(card)
 
@@ -697,6 +699,27 @@ export function updateCardSigning(accounts, signedPubkeys = [], network) {
 		else if (st.state === 'ready') { sign.textContent = `${glyphs} ✅`.trim(); sign.title = 'Threshold satisfied' }
 		else { sign.textContent = `${glyphs} ✍️ ${st.signed}/${st.need}`.trim(); sign.title = `${st.signed} of ${st.need} required signatures` }
 	})
+}
+
+// The operator pays the network fee in HBAR even when HBAR isn't part of the transfer.
+// Show it as a distinct "HBAR fee" chip on the operator's SEND side — no amount yet
+// (TODO: wire a fee estimate when the backend provides one; for now it's words). This also
+// marks WHO the operator is (replacing the ⚙️ glyph). data-asset-key=tinybar so
+// updateCardBalances red-rings it if the operator is short on HBAR for fees.
+function ensureOperatorFeeChip(card, isOperator) {
+	const sendCol = card.querySelector('.txcard-send')
+	if (!sendCol) return
+	let chip = sendCol.querySelector('.txcard-chip--fee')
+	if (!isOperator) { chip?.remove(); return }
+	if (chip) return
+	sendCol.querySelector('.txcard-empty')?.remove()
+	chip = document.createElement('div')
+	chip.className = 'txcard-chip txcard-chip--fee'
+	chip.dataset.side = 'send'
+	chip.dataset.assetKey = 'tinybar'
+	chip.title = 'Network fee — paid by the operator (estimated)'
+	chip.innerHTML = `<span class="txcard-chip-icon">ℏ</span><span class="txcard-chip-text">HBAR fee</span>`
+	sendCol.appendChild(chip)
 }
 
 // The card ring is the AGGREGATE account verdict (per user, TX-CARDS9 step d): a green
@@ -1571,6 +1594,8 @@ export function injectTxReadCSS() {
 		.txcard-sign { font-size:12px; color:#71717a; white-space:nowrap; font-weight:500; }
 		/* per-asset overdraft: red ring on the specific SEND chip that's short */
 		.txcard-chip--short { border-color:#e5484d; box-shadow:0 0 0 1px #e5484d; }
+		/* operator fee chip: no amount, distinct dotted/italic so it reads as an estimate */
+		.txcard-chip--fee { border-style:dotted; font-style:italic; color:#71717a; }
 
 		/* expandable account detail (TX-CARDS9 step c) — grid-rows trick, no native arrow */
 		.txcard-head--toggle { cursor:pointer; user-select:none; }
