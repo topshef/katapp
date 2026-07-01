@@ -28,8 +28,18 @@ async function kauthWCAccounts(network, ensure){
     try { if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network) }
     catch(e){ kauthDiag("ensureNetwork-fail", { network, error: String(e) }) }
   } else {
-    try { const cur = await window.WC.getNetwork?.(); if(network && cur && cur !== network) return [] }
-    catch(e){ kauthDiag("getNetwork-fail", { error: String(e) }) }
+    // Network scoping (IMPORTANT): getAccounts() returns accounts for the connector's
+    // LIVE network, which can be stale after a switch (e.g. still mainnet after a mainnet
+    // test) — so on a testnet game it would leak mainnet accounts. window.WC.getNetwork()
+    // is NO help here: it returns the static CONFIG network, not the live one. But
+    // ensureNetwork() with NO argument returns the live currentNetwork WITHOUT rebuilding
+    // the connector. Only list if that matches the game's network; be conservative (bail)
+    // when it doesn't or can't be determined, so wrong-network accounts never leak.
+    try {
+      const cur = await window.WC.ensureNetwork?.()
+      if(network && cur !== network){ kauthDiag("network-scope-skip", { game: network, live: cur }); return [] }
+    }
+    catch(e){ kauthDiag("network-check-fail", { error: String(e) }); return [] }
   }
   try { return (await window.WC.getAccounts?.()) || [] }
   catch(e){ kauthDiag("getAccounts-fail", { error: String(e) }); return [] }
