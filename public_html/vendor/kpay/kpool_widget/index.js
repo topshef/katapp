@@ -233,6 +233,9 @@ function injectMethodsCSS() {
 		.kpsign-panel{ max-width:min(900px,100%); margin:16px auto; }
 		.kpsign-tabs{ position:relative; display:flex; }
 		.kpsign-tabs::after{ content:''; position:absolute; left:0; right:0; bottom:0; height:1px; background:#eee; }
+		/* Status tab is now nerd/debug-only — per-account status lives on the cards. The
+		   pane is still built (render-by-id keeps working); it's just hidden in normal mode. */
+		body:not(.nerd) .kpsign-tab[data-method="status"]{ display:none; }
 		.kpsign-tab{ all:revert; flex:1 1 0; cursor:pointer; border:none; background:transparent;
 			display:flex; align-items:center; justify-content:center; gap:8px;
 			padding:10px 8px; font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -413,6 +416,13 @@ function setNerd(on) {
 	document.body.classList.toggle('nerd', on)
 	const profileToggle = document.getElementById('katomia-nerd-toggle')
 	if (profileToggle) profileToggle.checked = on
+
+	// Status tab is nerd-only; if we just left nerd mode while it was the active tab, fall
+	// back to the default method so a hidden tab can't leave an orphaned active pane.
+	if (!on && _activeTxState?.selectSignMethod) {
+		const active = _activeTxState.container.querySelector('.kpsign-tab.active')
+		if (active?.dataset.method === 'status') _activeTxState.selectSignMethod('walletconnect')
+	}
 }
 
 // Nerd-only "open in new tab" affordance (MODAL-URL1 item 3): opens the same tx in
@@ -517,7 +527,9 @@ function buildSigningPanel(txState) {
 		{ id: 'ksig',          label: 'Offline',         icon: 'kpay_logo_square_transparent.png', build: () => buildKsigPane(txState) }
 	]
 
-	const DEFAULT = 'status'
+	// Status tab is nerd-only now; in normal mode default to the first signing method so a
+	// hidden Status pane is never the active one. (Toggling nerd later just reveals the tab.)
+	const DEFAULT = document.body.classList.contains('nerd') ? 'status' : 'walletconnect'
 	const paneEls = {}
 
 	METHODS.forEach(m => {
