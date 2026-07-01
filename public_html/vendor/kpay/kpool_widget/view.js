@@ -237,6 +237,12 @@ const SIGN_REASON = {
 		return chip
 	}
 
+	// NOTE (scope): this whole account-card layout is designed for Hedera TRANSFER
+	// transactions (crypto/token) — send/receive columns, per-account signing, operator
+	// fee. It does NOT model other tx types (account update, token mint/burn, freeze,
+	// contract calls…) which involve different keys/authority. Supporting those will need a
+	// refactor into swappable per-tx-type components (the legacy "authority" column hinted
+	// at this). Keep that intent — it's a near-future feature, not a never.
 	function buildAccountCard(network, acc) {
 		const card = document.createElement('div')
 		card.className = 'txcard'
@@ -646,7 +652,7 @@ export function renderSigningInfo({ data, accounts }) {
 		.filter(Boolean)
 
 	renderAccountKeyInfo(accounts, signedPubkeys, data.network)
-	updateCardSigning(accounts, signedPubkeys)   // fold the same signing state onto the account cards (TX-CARDS7)
+	updateCardSigning(accounts, signedPubkeys, data.network)   // fold the same signing state onto the account cards (TX-CARDS7)
 	// renderKeyPieCharts({ network, accounts, signedPubkeys })
 }
 
@@ -666,7 +672,7 @@ function accountSigningStatus(acc, signedPubkeys) {
 // In-place repaint of the account cards' signing state (border colour + header
 // summary: reason glyphs + m-of-n signed). Keyed by data-acct so an update never
 // rebuilds the card DOM (TX-CARDS9 step a). No-ops in table/nerd mode (no .txcards).
-export function updateCardSigning(accounts, signedPubkeys = []) {
+export function updateCardSigning(accounts, signedPubkeys = [], network) {
 	const cards = document.querySelector('.txcards')
 	if (!cards) return
 	Object.entries(accounts || {}).forEach(([id, acc]) => {
@@ -677,13 +683,16 @@ export function updateCardSigning(accounts, signedPubkeys = []) {
 		card.dataset.signState = st.state   // one axis of the aggregate ring (balance is the other)
 		paintCardRing(card)
 
-		card._detail = { acc, signedPubkeys }   // for the lazy expand; refresh if already open
+		card._detail = { acc, signedPubkeys, network, id }   // for the lazy expand; refresh if already open
 		if (card.classList.contains('txcard--open')) renderCardDetail(card)
 
 		let sign = head.querySelector('.txcard-sign')
 		if (st.state === 'none') { if (sign) sign.remove(); return }
 		if (!sign) { sign = document.createElement('span'); sign.className = 'txcard-sign'; const right = head.querySelector('.txcard-head-right'); right.insertBefore(sign, right.firstChild) }
-		const glyphs = (acc.mustSignReason || []).map(r => SIGN_REASON[r]?.emoji || '').join('')
+		// Only surface the NON-obvious reason: receiver_sig_required. Sending (📤) is
+		// evident from the send column, and the operator (⚙️) is now shown by its HBAR
+		// fee chip — so those glyphs are dropped from the header (per user).
+		const glyphs = (acc.mustSignReason || []).includes('receiver_sig_required') ? SIGN_REASON.receiver_sig_required.emoji : ''
 		if (st.state === 'loading') { sign.textContent = `${glyphs} …`.trim(); sign.title = 'Loading signing keys…' }
 		else if (st.state === 'ready') { sign.textContent = `${glyphs} ✅`.trim(); sign.title = 'Threshold satisfied' }
 		else { sign.textContent = `${glyphs} ✍️ ${st.signed}/${st.need}`.trim(); sign.title = `${st.signed} of ${st.need} required signatures` }
@@ -730,8 +739,18 @@ export function updateCardBalances(precheck) {
 // Lazily-rendered account detail for the expanded card (TX-CARDS9 step c): the threshold
 // pie + the per-key table (signed / suffix / Banzhaf / redundancy / control) + the xproof
 // label. Mirrors the Signing Authority row content, co-located on the account's own card.
-function buildAccountDetail(acc, signedPubkeys = []) {
+function buildAccountDetail(acc, signedPubkeys = [], network, accountId) {
 	const wrap = document.createElement('div')
+
+	// The one non-obvious reason for signing — spell it out so nobody wonders why a
+	// receiving account needs to sign (receiver_sig_required is set on the account key).
+	if ((acc.mustSignReason || []).includes('receiver_sig_required')) {
+		const note = document.createElement('div')
+		note.className = 'txcard-detail-note'
+		note.textContent = 'Receiver signature required: this account must sign even though it is receiving.'
+		wrap.appendChild(note)
+	}
+
 	wrap.appendChild(buildThresholdWidget({ signedPubkeys, mustSign: acc.mustSign, keyInfo: acc.keyInfo }))
 
 	const scores = acc.keyInfo?.banzhafScores?.scores
@@ -750,8 +769,21 @@ function buildAccountDetail(acc, signedPubkeys = []) {
 			const bucket = buckets?.[pubkey]?.bucket ?? '-'
 			const row = document.createElement('div')
 			row.className = 'txcard-keys-row'
-			;[acc.mustSign ? (signed ? '✅' : '⬜') : 'N/A', '…' + pubkey.slice(-4), Math.round(score * 100) + '%', red, bucket]
-				.forEach(v => { const c = document.createElement('div'); c.textContent = v; row.appendChild(c) })
+			const tick = document.createElement('div'); tick.textContent = acc.mustSign ? (signed ? '✅' : '⬜') : 'N/A'
+			// key suffix links to the account's keys (hashscan account page for now — a
+			// per-key lookup could later point at explore.hbar.live?network=&key=). Clicking
+			// it won't collapse the card: the header toggle ignores <a> targets.
+			const keyCell = document.createElement('div')
+			const keyLink = document.createElement('a')
+			keyLink.textContent = '…' + pubkey.slice(-4)
+			keyLink.title = pubkey
+			keyLink.href = (network && accountId) ? `https://hashscan.io/${network}/account/${accountId}` : '#'
+			keyLink.target = '_blank'; keyLink.rel = 'noopener'
+			keyCell.appendChild(keyLink)
+			const banz = document.createElement('div'); banz.textContent = Math.round(score * 100) + '%'
+			const redC = document.createElement('div'); redC.textContent = red
+			const ctrl = document.createElement('div'); ctrl.textContent = bucket
+			row.append(tick, keyCell, banz, redC, ctrl)
 			grid.appendChild(row)
 		})
 		wrap.appendChild(grid)
@@ -773,7 +805,7 @@ function renderCardDetail(card) {
 	const d = card._detail
 	if (!inner || !d) return
 	inner.innerHTML = ''
-	inner.appendChild(buildAccountDetail(d.acc, d.signedPubkeys))
+	inner.appendChild(buildAccountDetail(d.acc, d.signedPubkeys, d.network, d.id))
 }
 
 
@@ -1550,8 +1582,11 @@ export function injectTxReadCSS() {
 		.txcard-keys { display:flex; flex-direction:column; gap:3px; font-size:12px; margin-top:8px; }
 		.txcard-keys-row { display:grid; grid-template-columns:26px 1fr 44px 52px 60px; gap:8px; align-items:center; }
 		.txcard-keys-head { color:#a1a1aa; font-size:11px; }
+		.txcard-keys-row a { color:#3b82f6; text-decoration:none; }
+		.txcard-keys-row a:hover { text-decoration:underline; }
 		.txcard-xproof { margin-top:8px; font-size:12px; color:#71717a; }
 		.txcard-xproof a { color:#3b82f6; }
+		.txcard-detail-note { font-size:12px; color:#3f3f46; background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:6px 8px; margin-bottom:8px; }
 
 		/* two equal, symmetric columns — left send (rose), right receive (green).
 		   stays side-by-side on mobile (screen split in half), no edge labels */
@@ -1574,11 +1609,10 @@ export function injectTxReadCSS() {
 		}
 		.txcard-empty { opacity:.35; font-size:13px; }
 
-		/* account hover (fires from the HEADER via data-acct + the shared wrapper handler):
-		   darken the header + lift the whole card border. :has() extends the header's
-		   .acct-hl to its card. Also cross-highlights the matching narrative/signing row. */
+		/* account hover/select (fires from the HEADER via data-acct): darken the header
+		   ONLY. The card BORDER is reserved for signing/balance status — selecting must not
+		   overwrite it (per user), so no border/box-shadow change here. */
 		.txcard-head.acct-hl { background:#e4e4e7; }
-		.txcard:has(> .txcard-head.acct-hl) { border-color:#9ca3af; box-shadow:0 0 0 1px #9ca3af; }
 
 		/* asset-pool hover (fires from a chip): highlight every chip of the same asset.
 		   a highlighted ghost de-fades so you can see where it lands. */
