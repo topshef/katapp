@@ -83,6 +83,15 @@ function injectModalCSS() {
 			position: static; background: transparent; padding: 4px 6px; color: inherit;
 		}
 
+		/* Open-in-new-tab (MODAL-URL1) — nerd mode only. Matches the close button's
+		   ghost-icon treatment; hidden unless the host page is in nerd mode. */
+		.kpm-open-tab {
+			display: none; text-decoration: none; color: inherit; font: inherit;
+			line-height: 1; padding: 4px 6px; border-radius: 6px; opacity: .75; font-size: 16px;
+		}
+		.kpm-open-tab:hover { background: rgba(0,0,0,.08); opacity: 1; }
+		body.nerd .kpm-open-tab { display: inline-flex; align-items: center; }
+
 		.kpm-tone-info    { background: #f3f4f6; color: #374151; }
 		.kpm-tone-info    .kpm-dot { background: #9aa0a6; }
 		.kpm-tone-success { background: #d1e7dd; color: #0f5132; }

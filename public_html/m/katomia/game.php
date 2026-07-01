@@ -133,31 +133,14 @@ function kasset($file) {
       Orders
     </summary>
 
+    <!-- Controls live under the Orders expansion (they filter the ORDER list, not the
+         chart above). mine/pending also feed the tx list; sort is orders-only. -->
     <div class="section-controls">
-      <button id="createOrderBtn" title=".     Create order" aria-label="Create order">
-        <i class="fa-solid fa-plus"></i>
-      </button>
-
-      <button id="cancelOrderBtn" title=".     Cancel order" aria-label="Cancel order">
-        <i class="fa-solid fa-minus"></i>
-      </button>
-
-      <label>
-        <input id="showMyOrdersOnly" type="checkbox" checked>
-        Only my orders
-      </label>
-
-      <label>
-        <input id="showPendingOrdersOnly" type="checkbox">
-        Only pending
-      </label>
-
-      <label>
-        <input id="sortOrdersByPrice" type="checkbox">
-        Sort by price
-      </label>
-
-
+      <button id="createOrderBtn" title="Create order" aria-label="Create order"><i class="fa-solid fa-plus"></i></button>
+      <button id="cancelOrderBtn" title="Cancel order" aria-label="Cancel order"><i class="fa-solid fa-minus"></i></button>
+      <label><input id="showMyOrdersOnly" type="checkbox" checked> Only mine</label>
+      <label><input id="showPendingOrdersOnly" type="checkbox"> Only pending</label>
+      <label><input id="sortOrdersByPrice" type="checkbox"> Sort by price</label>
     </div>
 
     <div class="orders-list"></div>
@@ -175,13 +158,9 @@ function kasset($file) {
       Transactions
     </summary>
 
+    <!-- Hide expired stays with tx: an expired transaction ≠ an expired order. -->
     <div class="section-controls">
-
-      <label>
-        <input id="hideExpiredTx" type="checkbox" checked>
-        Hide expired
-      </label>
-
+      <label><input id="hideExpiredTx" type="checkbox" checked> Hide expired</label>
     </div>
 
     <div class="transactions-list"></div>

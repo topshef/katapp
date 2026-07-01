@@ -51,6 +51,15 @@ function initKatomiaProfile(){
     t.onchange = () => applyNerdMode(t.checked)
   )
 
+  // Cache my order pubkey so the tx list's "Only mine" filter (ORDERS-UI1) can match
+  // it without an async call per render. Re-render once resolved so the filter applies.
+  getKatomiaOrderPubkeyHex()
+    .then(h => {
+      window.__myOrderPubkeyHex = (h || "").toLowerCase()
+      if(typeof renderTransactions === "function") renderTransactions()
+    })
+    .catch(() => {})
+
   loadNerdMode()
 }
 

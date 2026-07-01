@@ -5,6 +5,11 @@
 
 
 
+		// Cap on how many toasts can be on screen at once. Bursts (e.g. a big
+		// multi-fill firing many "order filled" events, or a run of errors) used to
+		// stack unbounded and cover the page — now the oldest are flushed past the cap.
+		const NOTICE_MAX = 4
+
 		function notify(message, type="info", opts={}){
 
 			const { timeout=4000 } = opts
@@ -18,9 +23,21 @@
 			}
 
 			const container = document.getElementById("notifications")
+			if(!container) return
+
+			// Dedupe: if the same message is already showing, just refresh its timer
+			// instead of stacking an identical copy (kills repeat-spam).
+			const key = `${type}:${message}`
+			const dupe = [...container.children].find(n => !n.classList.contains("fade-out") && n.dataset.key === key)
+			if(dupe){
+				clearTimeout(dupe._timer)
+				if(timeout) dupe._timer = setTimeout(()=>removeNotice(dupe), timeout)
+				return
+			}
 
 			const el = document.createElement("div")
 			el.className = `notice ${type}`
+			el.dataset.key = key
 
 			const text = document.createElement("span")
 			text.textContent = `${icons[type] || ""} ${message}`
@@ -34,11 +51,19 @@
 			container.appendChild(el)
 
 			if(timeout){
-				setTimeout(()=>removeNotice(el), timeout)
+				el._timer = setTimeout(()=>removeNotice(el), timeout)
 			}
+
+			// Flush the oldest once we exceed the cap, so a burst can never bury the UI
+			// (persistent timeout:0 notices are evicted this way too).
+			const live = [...container.children].filter(n => !n.classList.contains("fade-out"))
+			if(live.length > NOTICE_MAX)
+				live.slice(0, live.length - NOTICE_MAX).forEach(removeNotice)
 		}
 
 		function removeNotice(el){
+			if(!el || el.classList.contains("fade-out")) return
+			clearTimeout(el._timer)
 			el.classList.add("fade-out")
 			setTimeout(()=>el.remove(), 400)
 		}

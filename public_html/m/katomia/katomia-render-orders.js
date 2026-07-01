@@ -538,10 +538,12 @@ function createTxRow(tx){
   }
 
   row.appendChild(statusEl)
-  row.appendChild(nerdEl)
   row.appendChild(timeEl)
   const assetsEl = createTxAssets(tx, orderType)
   row.appendChild(assetsEl)
+  // Nerd meta (txid/pch) trails the row on its own wrapped line in nerd mode, so the
+  // primary card flow is identical in both modes (ORDERS-UI1).
+  row.appendChild(nerdEl)
 
   // KAT-TXLIST1 diagnostic: settled txs sometimes render bare (no transfer chips),
   // reportedly only on testnet. Log WHY — once per txid — so we can see whether
@@ -576,6 +578,19 @@ function createTxRow(tx){
 
 function getTxKey(tx){
   return `${tx.txid}|${tx.pch || ""}`
+}
+
+// "mine" for the tx list (ORDERS-UI1 shared filter). Matches the tx maker — or any
+// resolvable taker order — against my intent pubkey (cached at profile init). Pubkey
+// (not playerId) so it still resolves for settled txs whose maker order was purged.
+// If my key isn't resolved yet, don't hide anything.
+function isTxMine(tx){
+  const my = (window.__myOrderPubkeyHex || "").toLowerCase()
+  if(!my) return true
+  const main = getTxMainOrder(tx)
+  if((main?.intentSignature?.pubkeyHex || "").toLowerCase() === my) return true
+  return getTxOrderIds(tx).some(id =>
+    (getTxSourceOrder(tx, id)?.intentSignature?.pubkeyHex || "").toLowerCase() === my)
 }
 
 
@@ -644,6 +659,12 @@ async function renderTransactions(){
     document.querySelector("#hideExpiredTx")
       ?.checked
 
+  // Shared filters (ORDERS-UI1): the same "Only mine" / "Only pending" controls that
+  // filter the orders list also apply here. "mine" = I'm the maker or a resolvable
+  // taker on the tx; "pending" = not yet settled.
+  const myOnly      = document.getElementById("showMyOrdersOnly")?.checked
+  const pendingOnly = document.getElementById("showPendingOrdersOnly")?.checked
+
   txs.sort((a,b) => {
 
     const ta =
@@ -673,6 +694,12 @@ async function renderTransactions(){
     const pair = getTxPair(tx)
 
     if(selectedPair && pair != selectedPair)
+      return false
+
+    if(myOnly && !isTxMine(tx))
+      return false
+
+    if(pendingOnly && isTxSuccessStatus(getTxStatus(tx)))
       return false
 
     return true
@@ -1346,8 +1373,14 @@ document.addEventListener("mouseout",e => {
 })
 
 document.addEventListener("change",e => {
-  if(["showMyOrdersOnly","showPendingOrdersOnly","sortOrdersByPrice"].includes(e.target.id))
+  // Order controls live under the Orders list. mine/pending are shared with the tx
+  // list, so those re-render both; sort is orders-only. (hideExpiredTx has its own
+  // handler in game.php and stays tx-only.)
+  const id = e.target.id
+  if(["showMyOrdersOnly","showPendingOrdersOnly","sortOrdersByPrice"].includes(id)){
     renderOrders()
+    if(id !== "sortOrdersByPrice") renderTransactions()
+  }
 })
 
 document.addEventListener("mouseover",e => {
@@ -1964,11 +1997,6 @@ function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel
   const el = document.createElement("span")
   el.className = "order-prefix"
 
-  // Nerd: #id (who)
-  const keySuffix = getOrderSignerSuffix(order)
-  const who = `${playerId}${keySuffix}${mine ? "=you" : ""}`
-  el.appendChild(makeSpan("nerd-only order-nerd-id", `#${orderId} (${who}) `))
-
   // Type icon — always visible
   el.appendChild(orderTypeIconEl(orderType))
 
@@ -2012,6 +2040,12 @@ function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel
   if(settledText)
     el.appendChild(makeSpan("order-fill-settled", ` ${settledText}`))
 
+  // Nerd: #id (who) — trailing so the primary line is identical in normal mode;
+  // in nerd mode it reads as a muted annotation at the end (ORDERS-UI1).
+  const keySuffix = getOrderSignerSuffix(order)
+  const who = `${playerId}${keySuffix}${mine ? "=you" : ""}`
+  el.appendChild(makeSpan("nerd-only order-nerd-id", ` #${orderId} (${who})`))
+
   el.appendChild(document.createTextNode(": "))
   return el
 }
@@ -2035,7 +2069,6 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
 
   if(order?.bundle?.error){
     row.textContent = `Order #${orderId} (${playerId}): ❌  ${order?.bundle?.error}`
-    applyOwnerSleeve(row, playerId, pubkeyHex)
     return row
   }
 
@@ -2098,7 +2131,8 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
     row.appendChild(bar)
   }
 
-  applyOwnerSleeve(row, playerId, pubkeyHex)
+  // Left stripe is now coloured by buy/sell side via CSS (data-order-side) — the
+  // avatar already conveys player identity, so the old owner-colour sleeve is gone.
 
   return row
 }

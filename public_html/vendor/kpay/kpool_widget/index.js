@@ -414,6 +414,21 @@ function setNerd(on) {
 	if (profileToggle) profileToggle.checked = on
 }
 
+// Nerd-only "open in new tab" affordance (MODAL-URL1 item 3): opens the same tx in
+// the standalone /future signing page, so the modal can be viewed outside katomia.
+// Gated to nerd mode via .kpm-open-tab (see modal.js CSS: shown only when body.nerd).
+function buildOpenInNewTab(txState) {
+	const a = document.createElement('a')
+	a.className = 'kpm-open-tab'
+	a.title = 'Open this signing view in a new tab (standalone)'
+	a.target = '_blank'
+	a.rel = 'noopener'
+	const pchPart = (txState.pch && txState.pch !== 'no_pch') ? '&pch=' + encodeURIComponent(txState.pch) : ''
+	a.href = '/future/?network=' + encodeURIComponent(txState.network) + '&txid=' + encodeURIComponent(txState.txid) + pchPart
+	a.textContent = '↗'
+	return a
+}
+
 function buildNerdToggle(txState) {
 	const label = document.createElement('label')
 	label.className = 'txread-nerd-toggle'
@@ -705,8 +720,11 @@ async function renderTxView(txState) {
   // widget is embedded inline (no .kpm-card ancestor). (ORDERS-UI1)
   const nerdToggle = buildNerdToggle(txState)
   const headActions = container.closest?.('.kpm-card')?.querySelector('.kpm-head-actions')
-  if(headActions) headActions.insertBefore(nerdToggle, headActions.firstChild)
-  else txState.view.el.appendChild(nerdToggle)
+  if(headActions){
+    // header order (left→right): nerd toggle · open-in-new-tab (nerd) · close ✕
+    headActions.insertBefore(buildOpenInNewTab(txState), headActions.firstChild)
+    headActions.insertBefore(nerdToggle, headActions.firstChild)
+  } else txState.view.el.appendChild(nerdToggle)
 
   // signing panel: a clean method picker (WhatsApp · Wallet · KSIG). Choosing a
   // method reveals its short description + controls/QR/iframe in the pane below.

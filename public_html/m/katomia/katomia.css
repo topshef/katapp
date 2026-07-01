@@ -1071,12 +1071,40 @@ button i{
 #ordersSection .order-row,
 #transactionsSection .tx-row{
   border:1px solid #e6e6e6;
-  border-left:3px solid #e0e0e0;   /* neutral stripe; owner sleeve overrides for orders */
+  border-left:4px solid #d8d8d8;   /* neutral by default; buy/sell colour it below */
   border-radius:7px;
   background:#fff;
   padding:7px 10px;
   transition:box-shadow .12s ease, border-color .12s ease, background .12s ease;
 }
+
+/* Left stripe = buy/sell side (green/red). Replaces the old per-player identity
+   colour — the avatar already carries identity. Rows with no side (bare/settled
+   txs, invalid orders) keep the neutral grey stripe. */
+#ordersSection .order-row[data-order-side="buy"],
+#transactionsSection .tx-row[data-order-side="buy"]{ border-left-color:#2ecc71; }
+#ordersSection .order-row[data-order-side="sell"],
+#transactionsSection .tx-row[data-order-side="sell"]{ border-left-color:#e74c3c; }
+
+/* Nerd mode (ORDERS-UI1): the extra detail is revealed in-flow as a muted
+   annotation — same card layout as normal mode, just more information. */
+body.nerd .order-nerd-id,
+body.nerd .order-nerd-type,
+body.nerd .order-nerd-minfill,
+body.nerd .order-fill-pending-detail,
+body.nerd .order-fill-debug{ color:#9aa0a6; font-size:0.92em; }
+
+/* The tx txid/pch link is a direct flex child of the row, so drop it onto its own
+   wrapped line beneath the transfer chips — a long link never breaks the flow. */
+body.nerd #transactionsSection .tx-row .tx-nerd-meta{
+  display:block !important;
+  flex-basis:100%;
+  margin-top:3px;
+  color:#9aa0a6;
+  font-size:0.92em;
+  word-break:break-all;
+}
+body.nerd .tx-nerd-meta a{ color:inherit; }
 
 .order-tif{ opacity:0.6; font-size:0.9em; }
 .order-market{ font-weight:500; }
