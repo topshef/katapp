@@ -418,6 +418,19 @@ const SIGN_REASON = {
 			pchEl.textContent = `#${String(pch).slice(0, 6)}`
 			scope.append(sep(), pchEl)
 		}
+		// strike time (valid-start — fixed, decoded from the txid) + valid duration. The
+		// duration isn't in the current API, so it's stubbed at 120s (Hedera default) with a
+		// note: PROTO1 (protobuf decode) will yield the real transactionValidDuration —
+		// replace validSecs then. Countdown itself lives in the status block above.
+		const strikeInfo = parseTxId(txid)
+		if (strikeInfo?.seconds) {
+			const validSecs = 120   // TODO PROTO1: real transactionValidDuration
+			const due = document.createElement('span')
+			due.className = 'txread-scope-due'
+			due.textContent = `due ${new Date(strikeInfo.seconds * 1000).toLocaleString()} (valid ${Math.round(validSecs / 60)}m)`
+			due.title = 'Transaction valid-start (strike time) and valid duration'
+			scope.append(sep(), due)
+		}
 		intent.appendChild(scope)
 
 		wrapper.appendChild(intent)
@@ -437,6 +450,11 @@ const SIGN_REASON = {
 		// into the Status tab pane, so the render-by-id functions keep working.
 		const statusBlock = buildStatusBlock({ data })
 		statusBlock.el.classList.add('txread-status-main')
+		// Show overall status + countdown in the header (normal-visible), not only in the
+		// nerd Status tab — "Waiting hh:mm:ss" belongs where users can see it (per user).
+		// (buildStatusPane no longer mounts this; it lives here at the top of the intent.)
+		statusBlock.el.classList.add('txread-status-header')
+		intent.insertBefore(statusBlock.el, intent.firstChild)
 
 		const readinessEl = document.createElement('div')
 		readinessEl.id = 'txread-readiness'
@@ -1707,6 +1725,10 @@ export function injectTxReadCSS() {
 		.txread-witnesses-label { color:#a1a1aa; text-transform:uppercase; letter-spacing:.04em; font-size:11px; }
 		.txread-witnesses-list { display:inline-flex; flex-wrap:wrap; gap:6px; }
 		.txwitness-chip { display:inline-flex; padding:3px 9px; border-radius:14px; font-size:12px; background:#f4f4f5; border:1px solid #e4e4e7; color:#52525b; cursor:default; }
+
+		/* overall status + countdown at the top of the modal (normal-visible header) */
+		.txread-status-header { font-weight:600; font-size:14px; margin:0 0 8px; }
+		.txread-scope-due { color:#71717a; }
 
 		/* two equal, symmetric columns — left send (rose), right receive (green).
 		   stays side-by-side on mobile (screen split in half), no edge labels */

@@ -397,7 +397,7 @@ function buildStatusPane(txState) {
 	inner.id = 'txread-status'
 	inner.className = 'txread-status tx-loading'
 
-	inner.appendChild(txState.view.statusBlock.el)
+	// statusBlock now lives in the header (normal-visible) — see buildTxReadColumns.
 	inner.appendChild(txState.view.readinessEl)
 	inner.appendChild(txState.view.precheckEl)
 
