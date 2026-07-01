@@ -383,6 +383,14 @@ const SIGN_REASON = {
 
 		intent.appendChild(intentRow)
 
+		// witnesses — signed keys tied to no account here; grouped just below the cards and
+		// ABOVE the public memo. Rendered inline (label + chips) by renderWitnessList.
+		const witnesses = document.createElement('div')
+		witnesses.id = 'txread-witnesses'
+		witnesses.className = 'txread-witnesses'
+		witnesses.hidden = true
+		intent.appendChild(witnesses)
+
 		// public memo (if present) on its own line
 		const memo = extractMemo(data)
 		if (memo) {
@@ -394,14 +402,6 @@ const SIGN_REASON = {
 			memoEl.append(mlbl, document.createTextNode(memo))
 			intent.appendChild(memoEl)
 		}
-
-		// witnesses — keys that signed but belong to no account here. Rendered by
-		// renderWitnessList once readiness is known; sits just above the network line.
-		const witnesses = document.createElement('div')
-		witnesses.id = 'txread-witnesses'
-		witnesses.className = 'txread-witnesses'
-		witnesses.hidden = true
-		intent.appendChild(witnesses)
 
 		// scope line: Hedera <network> · <txid> · #<pch6>
 		const scope = document.createElement('div')
@@ -704,7 +704,9 @@ export function updateCardSigning(accounts, signedPubkeys = [], network) {
 		// fee chip — so those glyphs are dropped from the header (per user).
 		const glyphs = (acc.mustSignReason || []).includes('receiver_sig_required') ? SIGN_REASON.receiver_sig_required.emoji : ''
 		if (st.state === 'loading') { sign.textContent = `${glyphs} …`.trim(); sign.title = 'Loading signing keys…' }
-		else if (st.state === 'ready') { sign.textContent = `${glyphs} ✅`.trim(); sign.title = 'Threshold satisfied' }
+		// keep the ratio always; add a PLAIN tick (not the ✅ box — it read as a clickable
+		// control) once the threshold is met. The green border already signals "go".
+		else if (st.state === 'ready') { sign.textContent = `${glyphs} ✍️ ${st.signed}/${st.need} ✓`.trim(); sign.title = 'Threshold satisfied' }
 		else { sign.textContent = `${glyphs} ✍️ ${st.signed}/${st.need}`.trim(); sign.title = `${st.signed} of ${st.need} required signatures` }
 	})
 }
@@ -781,6 +783,15 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId) {
 		note.textContent = 'Receiver signature required: this account must sign even though it is receiving.'
 		wrap.appendChild(note)
 	}
+	// Make "no signature needed" explicit (it's implied by the thin grey border). Keep the
+	// keys/pie visible anyway — useful reference. NB: not phrased as "receiver-sig not
+	// required" since receivers sometimes DO sign (see the receiver note above).
+	else if (!acc.mustSign) {
+		const note = document.createElement('div')
+		note.className = 'txcard-detail-note txcard-detail-note--muted'
+		note.textContent = 'No signature required from this account (shown for reference).'
+		wrap.appendChild(note)
+	}
 
 	wrap.appendChild(buildThresholdWidget({ signedPubkeys, mustSign: acc.mustSign, keyInfo: acc.keyInfo }))
 
@@ -800,7 +811,7 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId) {
 			const bucket = buckets?.[pubkey]?.bucket ?? '-'
 			const row = document.createElement('div')
 			row.className = 'txcard-keys-row'
-			const tick = document.createElement('div'); tick.textContent = acc.mustSign ? (signed ? '✅' : '⬜') : 'N/A'
+			const tick = document.createElement('div'); tick.textContent = acc.mustSign ? (signed ? '☑' : '☐') : '–'   // plain ballot box (not the control-like ✅/⬜)
 			// key suffix links to the account's keys (hashscan account page for now — a
 			// per-key lookup could later point at explore.hbar.live?network=&key=). Clicking
 			// it won't collapse the card: the header toggle ignores <a> targets.
@@ -1153,7 +1164,7 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
 
     entries.forEach(([pubkey, score]) => {
       const signed = signedPubkeys.includes(normalizePublicKey(pubkey))
-      const tick = acc.mustSign ? (signed ? '✅' : '⬜') : 'N/A'
+      const tick = acc.mustSign ? (signed ? '☑' : '☐') : 'N/A'
       const keySuffix = pubkey.slice(-4)
       const pct = Math.round(score * 100)
       const red = redundancy?.[pubkey] != null
@@ -1640,20 +1651,25 @@ export function injectTxReadCSS() {
 		.txcard--open .txcard-detail { grid-template-rows:1fr; }
 		.txcard-detail-inner { overflow:hidden; min-height:0; }
 		.txcard--open .txcard-detail-inner { padding:10px 12px; border-top:1px solid #ececec; }
+		/* pie sits on its own line ABOVE the key list (it encapsulates all the keys); the
+		   list is compact + left-aligned — fixed columns (no 1fr) so it doesn't spread out
+		   with a big gap on wide desktop cards. */
+		.txcard-detail .acctkeys-piechart { display:block; margin:0 auto 8px; }
 		.txcard-keys { display:flex; flex-direction:column; gap:3px; font-size:12px; margin-top:8px; }
-		.txcard-keys-row { display:grid; grid-template-columns:26px 1fr 44px 52px 60px; gap:8px; align-items:center; }
+		.txcard-keys-row { display:grid; grid-template-columns:22px 74px 48px 60px 56px; gap:10px; align-items:center; }
 		.txcard-keys-head { color:#a1a1aa; font-size:11px; }
 		.txcard-keys-row a { color:#3b82f6; text-decoration:none; }
 		.txcard-keys-row a:hover { text-decoration:underline; }
 		.txcard-xproof { margin-top:8px; font-size:12px; color:#71717a; }
 		.txcard-xproof a { color:#3b82f6; }
 		.txcard-detail-note { font-size:12px; color:#3f3f46; background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:6px 8px; margin-bottom:8px; }
+		.txcard-detail-note--muted { background:#f4f4f5; border-color:#e4e4e7; color:#71717a; }
 
 		/* witnesses — signed keys not tied to any account; listed under the cards as chips
 		   (may later read as votes). Sits just above the Hedera <network> scope line. */
-		.txread-witnesses { max-width:640px; margin:10px auto 0; }
-		.txread-witnesses-label { font-size:11px; color:#a1a1aa; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
-		.txread-witnesses-list { display:flex; flex-wrap:wrap; gap:6px; }
+		.txread-witnesses { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px; font-size:12px; }
+		.txread-witnesses-label { color:#a1a1aa; text-transform:uppercase; letter-spacing:.04em; font-size:11px; }
+		.txread-witnesses-list { display:inline-flex; flex-wrap:wrap; gap:6px; }
 		.txwitness-chip { display:inline-flex; padding:3px 9px; border-radius:14px; font-size:12px; background:#f4f4f5; border:1px solid #e4e4e7; color:#52525b; cursor:default; }
 
 		/* two equal, symmetric columns — left send (rose), right receive (green).
