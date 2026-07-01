@@ -1,30 +1,33 @@
-// txflow.js — asset-movement "gather → merge → scatter" animation (TX-FLOW-ANIM1 v1).
+// txflow.js — asset-movement animation (TX-FLOW-ANIM1 v1).
 //
-// ONE generic engine per asset flow. For each asset (data-asset-key) we take its SEND chips
-// (sources) and RECEIVE chips (destinations), compute a pool point G (centroid), then:
-//   A. gather  — a ghost clone of each source rises off its card and travels S→G
-//   B. merge   — the gathered ghosts fade into G with a small "frizz" burst
-//   C. scatter — a ghost is born at G for each destination and travels G→D, landing (the
-//                real receive chip briefly solidifies = "arrived")
-// Incoming ghosts DIE at G and outgoing are BORN at G — the merge is symmetric, so no ghost
-// is followed through the bend (no angle-kink) and none is singled out to vanish.
+// One CONTINUOUS ghost per travelling asset: it clones a source chip, rises slightly and
+// glides all the way to a destination along a single smooth quadratic Bézier — no stop, no
+// pause. The curve is built so it passes THROUGH the pool centroid G at its midpoint:
+//   ctrl = 2·G − (S+D)/2   ⟹   B(0.5) = G exactly.
+// For a 1→1 transfer G is just the midpoint of S,D, so ctrl becomes that midpoint and the
+// quadratic collapses to a perfectly straight, uniform line S→D (smooth glide, no arc, no
+// pop). For N→M every ghost's curve bows through the SHARED centroid, so they visually
+// converge and diverge at the same instant — the "merge" reads without ever stopping.
 //
-// DEFLECTION scales the effect for free: the spatial arc + frizz are driven by the chips'
-// PERPENDICULAR spread around the flow axis. A 1→1 transfer has zero perpendicular spread,
-// so S/G/D are collinear and it renders as a plain straight glide (with a gentle rise/land
-// scale) — same code, no conditionals. No invented per-pair routing (PROJECT_RULES): it
-// shows conservation + fungibility (identity scrambled at the pool).
+// The pool "puff" (a car's exhaust cloud, not a wall it hits) is a SEPARATE, very subtle,
+// parallel effect fired at the midpoint time — it never holds up the chips. Skipped entirely
+// for true 1→1. No invented per-pair routing: ghosts are round-robined source↔dest purely to
+// have something to carry; identity is meant to be scrambled at the pool (fungibility).
 //
-// Positions are computed relative to the cards container; a .txflow-layer overlay hosts the
-// ghosts (absolute). Motion via WAAPI keyframes sampling a quadratic Bézier — robust and
-// GPU-friendly, no offset-path quirks, no rAF loop.
+// Motion via WAAPI keyframes sampling the Bézier (no offset-path quirks), over a .txflow-layer
+// overlay; ports drawTradeLine's coordinate approach.
+
+// ── tuning (slowed ~3× for development — tighten once the feel is agreed) ──
+const TRAVEL_MS = 1600
+const FRIZZ_MS = 700
+const LIFT = 0.06        // subtle scale bump at midpoint ("rise toward viewer"); NOT a shrink
+const FRIZZ_OPACITY = 0.14   // very soft puff
 
 const centerOf = (el, base) => {
 	const r = el.getBoundingClientRect()
 	return { x: r.left + r.width / 2 - base.left, y: r.top + r.height / 2 - base.top }
 }
 const centroid = pts => pts.reduce((a, p) => ({ x: a.x + p.x / pts.length, y: a.y + p.y / pts.length }), { x: 0, y: 0 })
-const avg = xs => xs.reduce((a, b) => a + b, 0) / (xs.length || 1)
 
 function ensureLayer(container) {
 	let layer = [...container.children].find(c => c.classList?.contains('txflow-layer'))
@@ -33,9 +36,10 @@ function ensureLayer(container) {
 	return layer
 }
 
-// Sample a quadratic Bézier A→ctrl→B into WAAPI keyframes. Scale pulses up at the midpoint
-// (rise toward viewer, then land). Opacity: gather fades OUT at G; scatter fades IN from G.
-function travel(layer, chip, A, B, ctrl, phase, onDone) {
+// One continuous ghost gliding A→B along quadratic A,ctrl,B. Fades in at the start, out at the
+// end (as the destination solidifies); a tiny scale lift at the midpoint. ease-in-out keeps it
+// fastest through the middle, so the centroid is never a pause.
+function travel(layer, chip, A, B, ctrl, onDone) {
 	return new Promise(res => {
 		const ghost = chip.cloneNode(true)
 		ghost.className = 'txcard-chip txflow-ghost'
@@ -43,35 +47,33 @@ function travel(layer, chip, A, B, ctrl, phase, onDone) {
 		ghost.style.width = chip.getBoundingClientRect().width + 'px'
 		layer.appendChild(ghost)
 
-		const steps = 16, frames = []
+		const steps = 24, frames = []
 		for (let i = 0; i <= steps; i++) {
 			const t = i / steps, mt = 1 - t
 			const x = mt * mt * A.x + 2 * mt * t * ctrl.x + t * t * B.x
 			const y = mt * mt * A.y + 2 * mt * t * ctrl.y + t * t * B.y
-			const s = 0.9 + 0.28 * Math.sin(Math.PI * t)
-			const op = phase === 'gather' ? (t < 0.82 ? 1 : 1 - (t - 0.82) / 0.18)
-				: (t > 0.18 ? 1 : t / 0.18)
+			const s = 1 + LIFT * Math.sin(Math.PI * t)
+			const op = t < 0.12 ? t / 0.12 : t > 0.88 ? (1 - t) / 0.12 : 1
 			frames.push({ transform: `translate(${x}px,${y}px) translate(-50%,-50%) scale(${s.toFixed(3)})`, opacity: op, offset: t })
 		}
-		const anim = ghost.animate(frames, { duration: 540, easing: 'ease-in-out', fill: 'forwards' })
+		const anim = ghost.animate(frames, { duration: TRAVEL_MS, easing: 'ease-in-out', fill: 'forwards' })
 		anim.onfinish = () => { try { onDone?.() } finally { ghost.remove(); res() } }
 	})
 }
 
-function frizz(layer, G, count, spread) {
-	return new Promise(res => {
-		const el = document.createElement('div')
-		el.className = 'txflow-frizz'
-		el.style.left = G.x + 'px'; el.style.top = G.y + 'px'
-		layer.appendChild(el)
-		const mag = Math.min(2.2, 0.8 + count * 0.12 + spread * 0.01)
-		const a = el.animate([
-			{ transform: 'translate(-50%,-50%) scale(0.2)', opacity: 0.9 },
-			{ transform: `translate(-50%,-50%) scale(${mag})`, opacity: 0.45, offset: 0.6 },
-			{ transform: `translate(-50%,-50%) scale(${(mag * 1.4).toFixed(2)})`, opacity: 0 }
-		], { duration: 320, easing: 'ease-out' })
-		a.onfinish = () => { el.remove(); res() }
-	})
+// The parallel "exhaust" puff at G — soft, low-opacity, non-blocking. Never awaited.
+function frizz(layer, G, count) {
+	const el = document.createElement('div')
+	el.className = 'txflow-frizz'
+	el.style.left = G.x + 'px'; el.style.top = G.y + 'px'
+	layer.appendChild(el)
+	const mag = Math.min(2, 0.8 + count * 0.1)
+	const a = el.animate([
+		{ transform: 'translate(-50%,-50%) scale(0.3)', opacity: FRIZZ_OPACITY },
+		{ transform: `translate(-50%,-50%) scale(${mag})`, opacity: FRIZZ_OPACITY * 0.45, offset: 0.6 },
+		{ transform: `translate(-50%,-50%) scale(${(mag * 1.4).toFixed(2)})`, opacity: 0 }
+	], { duration: FRIZZ_MS, easing: 'ease-out' })
+	a.onfinish = () => el.remove()
 }
 
 function solidify(chip) {
@@ -85,20 +87,21 @@ async function animateAsset(layer, base, send, receive) {
 	const dst = receive.map(c => centerOf(c, base))
 	const G = centroid([...src, ...dst])
 
-	// perpendicular spread around the flow axis = deflection. 0 for 1→1 (collinear) → no arc.
-	const cs = centroid(src), cd = centroid(dst)
-	const ax = cd.x - cs.x, ay = cd.y - cs.y, al = Math.hypot(ax, ay) || 1
-	const ux = ax / al, uy = ay / al
-	const perp = avg([...src, ...dst].map(p => Math.abs((p.x - G.x) * -uy + (p.y - G.y) * ux)))
-	const arc = Math.min(70, perp * 0.8)   // upward bow, scaled by deflection (→0 for 1→1)
-	const ctrl = (A, B) => ({ x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 - arc })
+	// only a real many-to-* flow gets a (subtle, parallel) pool puff — 1→1 stays a clean glide
+	if (send.length > 1 || receive.length > 1)
+		setTimeout(() => frizz(layer, G, send.length + receive.length), TRAVEL_MS * 0.5)
 
-	await Promise.all(send.map((c, i) => travel(layer, c, src[i], G, ctrl(src[i], G), 'gather')))
-	await frizz(layer, G, send.length + receive.length, perp)
-	await Promise.all(receive.map((c, i) => travel(layer, c, G, dst[i], ctrl(G, dst[i]), 'scatter', () => solidify(c))))
+	// one continuous ghost per max(sources, dests), round-robined so every source AND every
+	// destination is touched; each glides its own S→D curve through the shared centroid.
+	const k = Math.max(send.length, receive.length)
+	await Promise.all(Array.from({ length: k }, (_, j) => {
+		const S = src[j % src.length], D = dst[j % dst.length]
+		const ctrl = { x: 2 * G.x - (S.x + D.x) / 2, y: 2 * G.y - (S.y + D.y) / 2 }
+		return travel(layer, send[j % send.length], S, D, ctrl, () => solidify(receive[j % receive.length]))
+	}))
 }
 
-// Run the animation across every asset flow concurrently. Guarded against re-entry.
+// Run across every asset flow concurrently. Guarded against re-entry.
 export async function flowTravel(container) {
 	if (container._flowRunning || typeof container.querySelectorAll !== 'function') return
 	container._flowRunning = true
