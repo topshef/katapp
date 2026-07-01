@@ -1862,13 +1862,16 @@ export function injectTxReadCSS() {
 			.txflow-pulse-out { animation:none; outline:2px solid #f5a623; outline-offset:2px; }
 			.txflow-pulse-in  { animation:none; outline:2px solid #56c857; outline-offset:2px; opacity:1; }
 		}
-		/* v1 ghost-travel engine (txflow.js): overlay + travelling ghost clones + pool frizz */
+		/* v1 ghost-travel engine (txflow.js): a FRONT overlay (ghosts + pool puff, above the
+		   cards) and a BACK overlay (the dotted trail, behind the cards so it reads as the
+		   connection line in the gaps and never bleeds through the opaque chips). */
 		.txflow-layer { position:absolute; inset:0; overflow:visible; pointer-events:none; z-index:5; }
+		.txflow-layer-back { position:absolute; inset:0; overflow:visible; pointer-events:none; z-index:-1; }
 		.txflow-ghost { position:absolute; left:0; top:0; margin:0; background:#fff; box-shadow:0 5px 14px rgba(0,0,0,.18); will-change:transform,opacity; }
 		.txflow-frizz { position:absolute; width:16px; height:16px; border-radius:50%; pointer-events:none;
 			background:radial-gradient(circle, #fff 0%, #ffd27f 45%, rgba(255,167,38,0) 70%); }
-		.txflow-trail { position:absolute; width:22px; height:22px; border-radius:50%; pointer-events:none; filter:blur(3px);
-			background:radial-gradient(circle, rgba(96,165,250,.5) 0%, rgba(96,165,250,0) 70%); }
+		.txflow-trail { position:absolute; width:14px; height:14px; border-radius:50%; pointer-events:none; filter:blur(0.6px);
+			background:radial-gradient(circle, rgba(96,165,250,.55) 0%, rgba(96,165,250,0) 70%); }
 		.txcard-chip.txflow-landed { opacity:1; outline:2px solid #56c857; outline-offset:2px; }
 
 		/* nerd-view toggle — top-right of the widget, out of the way of the modal close/toast.
