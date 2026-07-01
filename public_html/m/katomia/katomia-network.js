@@ -238,7 +238,7 @@ function connect(onOpenAction){
   socket.onerror = (e) => { glog("ws onerror", { msg: String(e?.message || "") }); try { socket.close() } catch {} }
 
 	
-	const alertTimeouts = {warning: 3000, error: 0, info: 3000, success: 4000, event: 5000}
+	const alertTimeouts = {warning: 3000, error: 0, info: 3000, success: 4000, event: 3000}
 	socket.onmessage = async msg => {
 
 		const data = JSON.parse(msg.data)

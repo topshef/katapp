@@ -25,11 +25,18 @@
 			const container = document.getElementById("notifications")
 			if(!container) return
 
-			// Dedupe: if the same message is already showing, just refresh its timer
-			// instead of stacking an identical copy (kills repeat-spam).
-			const key = `${type}:${message}`
+			const icon = icons[type] || ""
+
+			// Coalesce: repeated fills of the SAME order ("183/5000" → "4817/5000" → …)
+			// collapse into ONE toast that updates in place, instead of stacking dozens.
+			// A caller can force grouping via opts.key; otherwise identical text dedupes.
+			const om = /Order #(\d+)/.exec(message)
+			const key = opts.key || (om ? `${type}:order#${om[1]}` : `${type}:${message}`)
+
 			const dupe = [...container.children].find(n => !n.classList.contains("fade-out") && n.dataset.key === key)
 			if(dupe){
+				const t = dupe.querySelector("span")
+				if(t) t.textContent = `${icon} ${message}`   // show the latest state
 				clearTimeout(dupe._timer)
 				if(timeout) dupe._timer = setTimeout(()=>removeNotice(dupe), timeout)
 				return
@@ -40,7 +47,7 @@
 			el.dataset.key = key
 
 			const text = document.createElement("span")
-			text.textContent = `${icons[type] || ""} ${message}`
+			text.textContent = `${icon} ${message}`
 
 			const close = document.createElement("button")
 			close.textContent = "×"

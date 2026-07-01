@@ -580,19 +580,6 @@ function getTxKey(tx){
   return `${tx.txid}|${tx.pch || ""}`
 }
 
-// "mine" for the tx list (ORDERS-UI1 shared filter). Matches the tx maker — or any
-// resolvable taker order — against my intent pubkey (cached at profile init). Pubkey
-// (not playerId) so it still resolves for settled txs whose maker order was purged.
-// If my key isn't resolved yet, don't hide anything.
-function isTxMine(tx){
-  const my = (window.__myOrderPubkeyHex || "").toLowerCase()
-  if(!my) return true
-  const main = getTxMainOrder(tx)
-  if((main?.intentSignature?.pubkeyHex || "").toLowerCase() === my) return true
-  return getTxOrderIds(tx).some(id =>
-    (getTxSourceOrder(tx, id)?.intentSignature?.pubkeyHex || "").toLowerCase() === my)
-}
-
 
 
 function getTxStartSeconds(tx){
@@ -659,12 +646,6 @@ async function renderTransactions(){
     document.querySelector("#hideExpiredTx")
       ?.checked
 
-  // Shared filters (ORDERS-UI1): the same "Only mine" / "Only pending" controls that
-  // filter the orders list also apply here. "mine" = I'm the maker or a resolvable
-  // taker on the tx; "pending" = not yet settled.
-  const myOnly      = document.getElementById("showMyOrdersOnly")?.checked
-  const pendingOnly = document.getElementById("showPendingOrdersOnly")?.checked
-
   txs.sort((a,b) => {
 
     const ta =
@@ -694,12 +675,6 @@ async function renderTransactions(){
     const pair = getTxPair(tx)
 
     if(selectedPair && pair != selectedPair)
-      return false
-
-    if(myOnly && !isTxMine(tx))
-      return false
-
-    if(pendingOnly && isTxSuccessStatus(getTxStatus(tx)))
       return false
 
     return true
@@ -1373,14 +1348,12 @@ document.addEventListener("mouseout",e => {
 })
 
 document.addEventListener("change",e => {
-  // Order controls live under the Orders list. mine/pending are shared with the tx
-  // list, so those re-render both; sort is orders-only. (hideExpiredTx has its own
-  // handler in game.php and stays tx-only.)
-  const id = e.target.id
-  if(["showMyOrdersOnly","showPendingOrdersOnly","sortOrdersByPrice"].includes(id)){
+  // Order controls only filter the ORDERS list (hideExpiredTx has its own handler
+  // in game.php). The tx list is intentionally NOT filtered by "Only mine" — a
+  // filled order is purged, so its settled tx can't be proven "mine" and would
+  // wrongly disappear.
+  if(["showMyOrdersOnly","showPendingOrdersOnly","sortOrdersByPrice"].includes(e.target.id))
     renderOrders()
-    if(id !== "sortOrdersByPrice") renderTransactions()
-  }
 })
 
 document.addEventListener("mouseover",e => {
