@@ -19,7 +19,14 @@ function kasset($file) {
   <title>katomia</title>
 
   <style>
-
+    /* KATLAB fix (game page): .app-banner reaches the sides via width:100vw, but
+       its -16px top margin gets clipped — overflow-x:hidden on <body> forces
+       overflow-y to compute to auto, so <body> becomes a vertical scroll box that
+       clips the negative top margin, leaving the 16px body top-margin as a grey
+       strip above the header. Zero the top margin on this (game) page so the bar
+       sits flush to the very top with no negative margin left to clip. */
+    body { margin-top: 0; }
+    .app-banner { margin-top: 0; }
   </style>
 </head>
 
