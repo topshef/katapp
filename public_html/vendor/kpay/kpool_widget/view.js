@@ -1867,6 +1867,8 @@ export function injectTxReadCSS() {
 		.txflow-ghost { position:absolute; left:0; top:0; margin:0; background:#fff; box-shadow:0 5px 14px rgba(0,0,0,.18); will-change:transform,opacity; }
 		.txflow-frizz { position:absolute; width:16px; height:16px; border-radius:50%; pointer-events:none;
 			background:radial-gradient(circle, #fff 0%, #ffd27f 45%, rgba(255,167,38,0) 70%); }
+		.txflow-trail { position:absolute; width:22px; height:22px; border-radius:50%; pointer-events:none; filter:blur(3px);
+			background:radial-gradient(circle, rgba(96,165,250,.5) 0%, rgba(96,165,250,0) 70%); }
 		.txcard-chip.txflow-landed { opacity:1; outline:2px solid #56c857; outline-offset:2px; }
 
 		/* nerd-view toggle — top-right of the widget, out of the way of the modal close/toast.
