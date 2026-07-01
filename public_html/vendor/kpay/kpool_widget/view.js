@@ -481,6 +481,24 @@ const SIGN_REASON = {
 
 	// One-line status summary for the modal header (label + tone).
 	// Combines lifecycle status with signing readiness.
+	// A tx is FINAL (unchangeable) once it's resolved on-chain: SUCCESS, or any terminal
+	// mirror/receipt status (EXPIRED, EXPIRED?, INVALID_SIGNATURE, other Hedera errors —
+	// mirrorStatus is only present once consensus/expiry is reached). No explicit isFinal
+	// flag in the payload yet, so we derive it (PROTO1 / backend could add one). We do NOT
+	// treat a merely time-expired-but-not-yet-on-mirror tx as final — a late sig may still
+	// land in the buffer window.
+	const isFinalStatus = (data = {}) =>
+		data.comboStatus === 'SUCCESS' || data.receiptSuccess === true || !!data.mirrorStatus
+
+	// Hide the whole signing section once the tx is final — there's no action to take (the
+	// record stays visible). KEPT in nerd mode as a debug affordance: wallets will still
+	// sign an expired/consensus'd tx, and there may later be a "sign to endorse after the
+	// fact" use case, so we don't remove the option — just hide it from normal users.
+	export const updateFinalState = (data) => {
+		const panel = document.getElementById('txread-methods')
+		if (panel) panel.classList.toggle('tx-final', isFinalStatus(data))
+	}
+
 	export const summariseStatus = ({ data = {}, readiness } = {}) => {
 		const raw = data.comboStatus || data.mirrorStatus || data.receiptStatus || ''
 		const up = String(raw).toUpperCase()

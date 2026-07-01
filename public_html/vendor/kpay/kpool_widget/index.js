@@ -20,6 +20,7 @@ const {
 	renderPrecheckInfo,
 	showBanner,
 	summariseStatus,
+	updateFinalState,
 	pickAssetLabel,
 	resolveTxView,
 	buildTransferViews
@@ -108,6 +109,7 @@ if (legacyHost) {
 
 // Compute a one-line status summary and hand it to the host (modal header).
 function pushStatus(txState) {
+	updateFinalState(txState.data)   // hide signing section once the tx is final (normal mode)
 	if (!txState.onStatus) return
 	txState.onStatus(summariseStatus({ data: txState.data, readiness: txState.readiness }))
 }
@@ -236,6 +238,10 @@ function injectMethodsCSS() {
 		/* Status tab is now nerd/debug-only — per-account status lives on the cards. The
 		   pane is still built (render-by-id keeps working); it's just hidden in normal mode. */
 		body:not(.nerd) .kpsign-tab[data-method="status"]{ display:none; }
+		/* final tx (SUCCESS / expired / error): no action possible — hide the signing
+		   section in normal mode; keep it in nerd (wallets can still sign; possible future
+		   "sign to endorse after consensus" use case). */
+		body:not(.nerd) #txread-methods.tx-final{ display:none; }
 		.kpsign-tab{ all:revert; flex:1 1 0; cursor:pointer; border:none; background:transparent;
 			display:flex; align-items:center; justify-content:center; gap:8px;
 			padding:10px 8px; font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;
