@@ -95,6 +95,8 @@ async function renderKatomiaProfile(){
 
   renderKatomiaAvatar(pubkey)
 
+  renderKatomiaKvac()   // public prepaid-access handle (nerd only, stubbed)
+
   const link = buildKatomiaProfileLink(pubkey)
   setProfileLink(link)
 
@@ -103,6 +105,23 @@ async function renderKatomiaProfile(){
   // PROFILE-AUTH1: populate the Authenticate account row (no forced connect).
   if(typeof katomiaAuthOnProfileOpen === "function")
     katomiaAuthOnProfileOpen().catch(e => console.error("[auth] account refresh failed", e))
+}
+
+// KVAC / KSAT (prepaid fee model — see kpay.uk/kvac). HKSAT = SHA256(player token) is the
+// PUBLIC handle; the player token (KSAT) itself stays private in localStorage. This is the
+// same ephemeral token already used on the WebSocket and now as the x-player-token API auth.
+// STUB: we display the handle only. Balance lookup + top-up (deposit to a Hedera account
+// with HKSAT in the memo, backend credits the HKSAT balance) are FEE1 — not wired yet.
+// Consider salting/derivation before this is anything more than a display experiment.
+async function renderKatomiaKvac(){
+  const el = document.getElementById("profileKvac")
+  if(!el) return
+  try {
+    const token = getOrCreatePlayerToken()
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))
+    el.textContent = "0x" + [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("")
+    // STUB: fetch balance by HKSAT here later, e.g. GET /katomia/kvac/:hksat/balance.
+  } catch(e){ el.textContent = "unavailable" }
 }
 
 function renderKatomiaAvatar(pubkeyHex){

@@ -18,7 +18,7 @@
 			/* Build marker — bump on every CSS edit. Read at runtime via
 			   getComputedStyle(documentElement).getPropertyValue('--katomia-css-build')
 			   to detect whether the browser applied a stale (cached) stylesheet. */
-			--katomia-css-build: "20260701-authpanel-1";
+			--katomia-css-build: "20260701-profilesections-2";
 
 			--bg-color: #f5f5f5;
 
@@ -1972,9 +1972,8 @@ textarea:focus{
 
 /* PROFILE-AUTH1 — wallet Authenticate panel */
 .profile-auth{
-  margin-top:16px;
-  padding-top:12px;
-  border-top:1px solid #eee;
+  /* now nested inside .profile-section (.profile-repute), which owns the divider */
+  margin-top:8px;
 }
 .profile-auth-account{
   margin-top:10px;
@@ -1992,16 +1991,19 @@ textarea:focus{
   font-family:var(--font-mono);
   font-size:12px;
 }
+/* "Disconnect" account button — a clear labelled ghost button (was a cryptic ✕). */
 .profile-auth-x{
   flex:0 0 auto;
-  padding:4px 8px;
+  padding:5px 10px;
   border:1px solid #e3e6ea;
   border-radius:6px;
   background:#fff;
   cursor:pointer;
   line-height:1;
+  font-size:11px;
+  color:#b00020;
 }
-.profile-auth-x:hover{ background:#f6f7f9; }
+.profile-auth-x:hover{ background:#fbe9ec; border-color:#f2c2cc; }
 /* Commitment options (expiry / scope / publish) — PROFILE-AUTH wireframe */
 .profile-auth-options{
   margin-top:10px;
@@ -2027,6 +2029,66 @@ textarea:focus{
   line-height:1.4;
   color:#333;
 }
+
+/* ── Profile sections (PROFILE-AUTH-PURPOSE1 reshuffle) ───────────────────────
+   Identity / Reputation binding are always shown; KEA + Preferences collapse via
+   native <details>. Keeps the WalletConnect flow visually primary. */
+.profile-section{
+  margin-top:16px;
+  padding-top:12px;
+  border-top:1px solid #eee;
+}
+.profile-section-head{ display:flex; align-items:center; gap:8px; }
+.profile-section-title{
+  font-weight:600;
+  font-size:13px;
+  color:#222;
+}
+.profile-section-sub{ margin:4px 0 8px; }
+
+/* collapsible sections */
+details.profile-section > summary{
+  cursor:pointer;
+  list-style:none;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:2px 0;
+}
+details.profile-section > summary::-webkit-details-marker{ display:none; }
+details.profile-section > summary::before{
+  content:"▸"; color:#9aa0a6; font-size:11px; transition:transform .12s;
+}
+details.profile-section[open] > summary::before{ content:"▾"; }
+details.profile-section > *:not(summary){ margin-top:10px; }
+
+/* public / private / optional pills — make it clear what others can see */
+.profile-tag{
+  display:inline-block;
+  font-size:10px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  padding:1px 6px;
+  border-radius:10px;
+  background:#eef0f3;
+  color:#5f6368;
+  vertical-align:middle;
+  cursor:help;
+}
+.profile-tag-public{ background:#e6f4ea; color:#137333; }
+.profile-tag-private{ background:#fce8e6; color:#a50e0e; }
+.profile-tag-optional{ background:#e8f0fe; color:#1a56c4; }
+
+/* nerd-only profile rows (KVAC etc.) — hidden unless body.nerd */
+.profile-nerd-only{ display:none; margin-top:6px; }
+body.nerd .profile-nerd-only{ display:block; }
+.profile-kvac-balance{ margin-top:4px; display:flex; align-items:center; gap:8px; }
+.profile-ghost{
+  padding:3px 8px; font-size:11px; border:1px solid #e3e6ea; border-radius:6px;
+  background:#fff; cursor:pointer;
+}
+.profile-ghost:disabled{ opacity:.5; cursor:not-allowed; }
 .profile-auth-status{
   margin-top:8px;
   min-height:1em;
@@ -2047,9 +2109,8 @@ textarea:focus{
 }
 
 .profile-debug{
-  margin-top:16px;
-  padding-top:12px;
-  border-top:1px solid #eee;
+  /* now nested inside <details class="profile-section">, which owns the divider */
+  margin-top:6px;
 }
 .profile-debug-label{
   display:flex;
