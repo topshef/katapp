@@ -839,17 +839,13 @@ zz-distracting-body[data-network="playnet"]{
   background:#e8e8e8;
   border-bottom:1px solid #d8d8d8;
 
-  /* Full-bleed to top/left/right. The plain -16px-sides approach does NOT work:
-     `overflow-x:hidden` on html+body (the create-order-modal overflow clamp)
-     makes the body a clipping box, so negative side margins get clipped at the
-     body content edge and the 16px body margin shows as a gap on every side
-     (regression 802b339). Instead pin width to the viewport and centre it with a
-     calc margin that resolves to -bodyMargin regardless of the body's margin —
-     immune to both the body margin and the overflow clamp. overflow:visible so
-     the 42px caps are never clipped. (restored from db3914a) */
+  /* Full-bleed to top/left/right. box-sizing:border-box + negative margins that
+     exactly match the body's 16px margin: the banner's border-box width resolves
+     to the viewport width (no vw/scrollbar guesswork), so it reaches all 3 edges
+     while the 16px padding keeps the title off the edge. overflow:visible so the
+     42px caps are never clipped. */
   box-sizing:border-box;
-  width:100vw;
-  margin:-16px 0 12px calc(50% - 50vw);
+  margin:-16px -16px 12px -16px;
   padding:12px 16px;
   overflow:visible;
 }
