@@ -19,14 +19,17 @@ function kasset($file) {
   <title>katomia</title>
 
   <style>
-    /* KATLAB fix (game page): .app-banner reaches the sides via width:100vw, but
-       its -16px top margin gets clipped — overflow-x:hidden on <body> forces
-       overflow-y to compute to auto, so <body> becomes a vertical scroll box that
-       clips the negative top margin, leaving the 16px body top-margin as a grey
-       strip above the header. Zero the top margin on this (game) page so the bar
-       sits flush to the very top with no negative margin left to clip. */
-    body { margin-top: 0; }
-    .app-banner { margin-top: 0; }
+    /* KATLAB fix (game page). Root cause: .app-banner's layout box is full-width
+       (width:100vw), but it overflows the body content box by 16px each side and
+       overflow-x:hidden on <body> CLIPS the paint back to the content box — so the
+       grey bar showed inset 16px per side. (getBoundingClientRect reports the
+       unclipped layout box, which misled earlier checks; confirmed by measuring
+       painted pixels.) Fix: inset the body via PADDING instead of margin, so the
+       clip box == the viewport, then let the banner bleed into that padding with
+       negative margins. Content stays inset via the padding; the banner reaches
+       all three edges, clip-safe. Verified painted gaps 0/0/0 at 360/412/430px. */
+    body { margin: 0; padding: 16px; box-sizing: border-box; }
+    .app-banner { width: auto; margin: -16px -16px 12px -16px; }
   </style>
 </head>
 
