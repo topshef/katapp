@@ -8,9 +8,10 @@
 // uniform line (clean glide, no arc, no pop). For N→M every ghost bows through the SHARED
 // centroid, so they converge/diverge at the same instant without ever stopping.
 //
-// Two overlays: a BACK layer (behind the cards, z-index:-1) holds the fading dotted TRAIL, so
-// it reads as the connection line in the gaps and never bleeds through the (opaque) cards; a
-// FRONT layer (above the cards) holds the travelling ghosts and the subtle parallel pool puff.
+// Two overlays: a TRAIL layer (above the cards, below the ghosts) holds the fading dotted
+// trajectory; a FRONT layer (topmost) holds the travelling ghosts and the subtle parallel
+// pool puff. (Ideal would be between the card body and its chips, but chips live inside the
+// cards, so the trail sits on top of the cards per user.)
 // Asset flows are STAGGERED so each asset reads separately. No invented per-pair routing —
 // ghosts are round-robined source↔dest; identity is scrambled at the pool (fungibility).
 
@@ -125,8 +126,8 @@ export async function flowTravel(container) {
 	if (container._flowRunning || typeof container.querySelectorAll !== 'function') return
 	container._flowRunning = true
 	try {
-		const back = mkLayer(container, 'txflow-layer-back')    // behind the cards
-		const front = mkLayer(container, 'txflow-layer')        // above the cards
+		const back = mkLayer(container, 'txflow-layer-trail')   // trail — above the cards, below the ghosts
+		const front = mkLayer(container, 'txflow-layer')        // ghosts + puff — topmost
 		const base = container.getBoundingClientRect()
 		const byAsset = new Map()
 		container.querySelectorAll('.txcard-chip[data-asset-key]').forEach(chip => {

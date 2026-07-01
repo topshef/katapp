@@ -1862,11 +1862,10 @@ export function injectTxReadCSS() {
 			.txflow-pulse-out { animation:none; outline:2px solid #f5a623; outline-offset:2px; }
 			.txflow-pulse-in  { animation:none; outline:2px solid #56c857; outline-offset:2px; opacity:1; }
 		}
-		/* v1 ghost-travel engine (txflow.js): a FRONT overlay (ghosts + pool puff, above the
-		   cards) and a BACK overlay (the dotted trail, behind the cards so it reads as the
-		   connection line in the gaps and never bleeds through the opaque chips). */
+		/* v1 ghost-travel engine (txflow.js): a FRONT overlay (ghosts + pool puff, topmost) and
+		   a TRAIL overlay (the dotted trajectory) — both above the cards; trail below ghosts. */
 		.txflow-layer { position:absolute; inset:0; overflow:visible; pointer-events:none; z-index:5; }
-		.txflow-layer-back { position:absolute; inset:0; overflow:visible; pointer-events:none; z-index:-1; }
+		.txflow-layer-trail { position:absolute; inset:0; overflow:visible; pointer-events:none; z-index:4; }
 		.txflow-ghost { position:absolute; left:0; top:0; margin:0; background:#fff; box-shadow:0 5px 14px rgba(0,0,0,.18); will-change:transform,opacity; }
 		.txflow-frizz { position:absolute; width:16px; height:16px; border-radius:50%; pointer-events:none;
 			background:radial-gradient(circle, #fff 0%, #ffd27f 45%, rgba(255,167,38,0) 70%); }
