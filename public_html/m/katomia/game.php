@@ -21,19 +21,6 @@ function kasset($file) {
   <style>
 
   </style>
-
-  <!-- KATLAB DEBUG (lab1 only) — game-header crop investigation. Delete this block to restore.
-       Outlines are used deliberately: they are never clipped by overflow, so each box's TRUE
-       extent shows even where content is visually cut. Where a coloured outline pokes past the
-       grey bander / viewport edge = the crop. -->
-  <style id="katlab-debug-outline">
-    .app-banner              { outline: 2px solid #e00; background: rgba(238,0,0,.06); }
-    .app-banner-inner        { outline: 2px solid #f80; background: rgba(255,136,0,.10); }
-    .app-banner h2           { outline: 2px solid #06c; background: rgba(0,102,204,.12); }
-    .app-banner .app-title   { outline: 2px solid #0aa; background: rgba(0,170,170,.22); }
-    .app-banner .app-icons   { outline: 2px solid #c0c; background: rgba(204,0,204,.22); }
-    .app-banner .banner-nerd { outline: 2px solid #0a0; background: rgba(0,170,0,.22); }
-  </style>
 </head>
 
 <body>
