@@ -166,9 +166,11 @@ function kauthReadExpiry(){
 function kauthRenderEnvelope(envelope){
   const out = document.getElementById("authOutput")
   const copy = document.getElementById("authCopyBtn")
+  const publish = document.getElementById("authPublishBtn")
   window.__lastAuthEnvelope = envelope
   if(out){ out.textContent = JSON.stringify(envelope, null, 2); out.classList.remove("hidden") }
   if(copy) copy.classList.remove("hidden")
+  if(publish){ publish.classList.remove("hidden"); publish.disabled = false }
 }
 
 // Populate the account row when the profile modal opens, without forcing a connect.
@@ -261,6 +263,44 @@ async function copyKatomiaAuthEnvelope(){
   if(btn) setTimeout(() => { btn.textContent = original }, 1500)
 }
 
+// PROFILE-AUTH3: POST the envelope to the Katomia backend to be stored.
+// Goes through the hapi.php proxy (../hapi.php?action=authenticate -> /katomia/authenticate),
+// which forwards headers — so the x-player-token header reaches the backend. That token
+// is the same ephemeral WS player token; the backend uses it to authenticate the request.
+// v1 UX: publishing == making the binding public (privacy is hard-coded server-side).
+async function publishKatomiaAuthEnvelope(){
+  const env = window.__lastAuthEnvelope
+  if(!env){ notify?.("Nothing to publish yet", "info", { timeout: 2000 }); return }
+  const btn = document.getElementById("authPublishBtn")
+  const original = btn?.textContent
+  if(btn){ btn.disabled = true; btn.textContent = "Publishing…" }
+  try {
+    const res = await fetch("../hapi.php?action=authenticate", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-player-token": getOrCreatePlayerToken() },
+      body: JSON.stringify({ envelope: env })
+    })
+    const text = await res.text()
+    let json; try { json = JSON.parse(text) } catch {}
+    if(!res.ok || !json?.ok){
+      kauthDiag("publish", { ok: false, httpStatus: res.status, response: json || text })
+      if(btn) btn.textContent = "see console"
+      console.error("[auth] publish failed", { status: res.status, json, text })
+      notify?.("Publish failed", "error", { timeout: 4000 })
+    } else {
+      kauthDiag("publish", { ok: true, network: json.network, accountId: json.accountId, authed: json.authed, weight: json.weight })
+      if(btn) btn.textContent = "✓ published"
+      notify?.("Binding published", "success", { timeout: 2500 })
+    }
+  } catch(e){
+    if(btn) btn.textContent = "see console"
+    console.error("[auth] publish request failed", e)
+    kauthDiag("publish", { ok: false, error: String(e) })
+    notify?.("Publish request failed", "error", { timeout: 4000 })
+  }
+  if(btn) setTimeout(() => { btn.textContent = original; btn.disabled = false }, 2000)
+}
+
 function initKatomiaAuth(){
   const btn = document.getElementById("authBtn")
   if(!btn) return
@@ -268,6 +308,9 @@ function initKatomiaAuth(){
 
   const copy = document.getElementById("authCopyBtn")
   if(copy) copy.onclick = () => copyKatomiaAuthEnvelope()
+
+  const publish = document.getElementById("authPublishBtn")
+  if(publish) publish.onclick = () => publishKatomiaAuthEnvelope()
 
   const select = document.getElementById("authAccount")
   if(select) select.onchange = () => {

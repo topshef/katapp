@@ -82,6 +82,9 @@ function kasset($file) {
         <div id="authStatus" class="profile-auth-status subtle"></div>
         <pre id="authOutput" class="profile-auth-output hidden"></pre>
         <button id="authCopyBtn" type="button" class="hidden">⧉ Copy auth envelope</button>
+        <!-- PROFILE-AUTH3: POST the envelope to Katomia (../hapi.php?action=authenticate).
+             "Publish" = the binding is stored and (hard-coded) public. -->
+        <button id="authPublishBtn" type="button" class="hidden">📡 Publish this binding</button>
       </div>
 
       <div class="profile-debug">
