@@ -12,6 +12,9 @@
 // trajectory; a FRONT layer (topmost) holds the travelling ghosts and the subtle parallel
 // pool puff. (Ideal would be between the card body and its chips, but chips live inside the
 // cards, so the trail sits on top of the cards per user.)
+// FUTURE TWEAK (parked, no task): make the chips opaque and put the trail BEHIND the chips so
+// the dots don't overlap the chips. Needs per-card layering (chips are card children), so it's
+// left for later.
 // Asset flows are STAGGERED so each asset reads separately. No invented per-pair routing —
 // ghosts are round-robined source↔dest; identity is scrambled at the pool (fungibility).
 
@@ -23,7 +26,7 @@ const STAGGER_MS = 220 * SLOW    // gap between asset flows
 // Trail lifetime is DECOUPLED from SLOW on purpose (per user): the dotted trajectory lingers
 // well past the glide so you see the whole path. Exaggerated for now — dial back later.
 const TRAIL_MS   = 5000
-const TRAIL_EVERY = 30           // ms between trail samples (smaller → denser, more distinct dotted line)
+const TRAIL_EVERY = 3            // ms between trail samples — very dense (~10× denser). NB density × TRAIL_MS = many live nodes; fine for a preview.
 const LIFT = 0.06                // subtle midpoint scale lift (NOT a shrink)
 const FRIZZ_OPACITY = 0.14       // very soft puff
 
