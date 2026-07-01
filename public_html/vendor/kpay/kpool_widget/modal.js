@@ -76,6 +76,13 @@ function injectModalCSS() {
 		.kpm-diag:hover, .kpm-close:hover { background: rgba(0,0,0,.08); opacity: 1; }
 		.kpm-close { font-size: 22px; }
 
+		/* Nerd toggle relocated into the header (ORDERS-UI1) — the widget styles it
+		   position:absolute for its inline top-right corner; neutralise that here so
+		   it flows in the header action row, sitting just left of the close ✕. */
+		.kpm-head-actions .txread-nerd-toggle {
+			position: static; background: transparent; padding: 4px 6px; color: inherit;
+		}
+
 		.kpm-tone-info    { background: #f3f4f6; color: #374151; }
 		.kpm-tone-info    .kpm-dot { background: #9aa0a6; }
 		.kpm-tone-success { background: #d1e7dd; color: #0f5132; }

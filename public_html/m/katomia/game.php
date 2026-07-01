@@ -112,6 +112,10 @@ function kasset($file) {
 
 <div class="game-left">
 
+<!-- ORDERS-UI1: orders | tx sit side-by-side on desktop (auto-fit grid), and
+     wrap to a single column on narrower viewports. -->
+<div class="trade-cols">
+
 <div id="ordersSection" class="mode-order">
 
   <div class="orders-market-summary subtle"></div>
@@ -156,8 +160,6 @@ function kasset($file) {
 </div>
 
 
-<BR>
-
 <div id="transactionsSection">
 
   <details class="orders-details" open>
@@ -180,6 +182,8 @@ function kasset($file) {
   </details>
 
 </div>
+
+</div><!-- .trade-cols -->
 
 </div><!-- .game-left -->
 

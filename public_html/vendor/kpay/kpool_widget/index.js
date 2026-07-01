@@ -700,8 +700,13 @@ async function renderTxView(txState) {
   container.textContent = ''
   container.appendChild(txState.view.el)
 
-  // nerd-view toggle, top-right of the widget (TX-CARDS3)
-  txState.view.el.appendChild(buildNerdToggle(txState))
+  // nerd-view toggle — prefer the modal header (left of the close ✕) when mounted
+  // in the signing modal; fall back to the widget's own top-right corner when the
+  // widget is embedded inline (no .kpm-card ancestor). (ORDERS-UI1)
+  const nerdToggle = buildNerdToggle(txState)
+  const headActions = container.closest?.('.kpm-card')?.querySelector('.kpm-head-actions')
+  if(headActions) headActions.insertBefore(nerdToggle, headActions.firstChild)
+  else txState.view.el.appendChild(nerdToggle)
 
   // signing panel: a clean method picker (WhatsApp · Wallet · KSIG). Choosing a
   // method reveals its short description + controls/QR/iframe in the pane below.

@@ -1978,6 +1978,14 @@ function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel
   tifEl.title = tif
   el.appendChild(tifEl)
 
+  // Relative time — sits right after the icons (mirrors the tx list, where time
+  // follows the status icon rather than trailing the whole descriptive line).
+  if(order.issuedAt){
+    const timeEl = makeSpan("order-time", ` ${formatRelativeTime(order.issuedAt)}`)
+    timeEl.title = new Date(order.issuedAt).toISOString()
+    el.appendChild(timeEl)
+  }
+
   // Nerd: full order type bracket
   el.appendChild(makeSpan("nerd-only order-nerd-type", ` [${orderType}]`))
 
@@ -2003,13 +2011,6 @@ function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel
   // Settled status — always visible (shows ✅ when complete)
   if(settledText)
     el.appendChild(makeSpan("order-fill-settled", ` ${settledText}`))
-
-  // Relative time — always visible, subtle
-  if(order.issuedAt){
-    const timeEl = makeSpan("order-time", ` ${formatRelativeTime(order.issuedAt)}`)
-    timeEl.title = new Date(order.issuedAt).toISOString()
-    el.appendChild(timeEl)
-  }
 
   el.appendChild(document.createTextNode(": "))
   return el

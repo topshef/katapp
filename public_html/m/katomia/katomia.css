@@ -839,8 +839,15 @@ zz-distracting-body[data-network="playnet"]{
   background:#e8e8e8;
   border-bottom:1px solid #d8d8d8;
 
-  margin:-16px -16px 12px -16px;
-  padding:10px 16px;
+  /* Full-bleed to the top/left/right edges, immune to the body margin and the
+     html/body overflow-x:hidden clamp (added in 03ed98d) that was cropping the
+     old negative-margin approach. box-sizing:border-box so padding stays inside
+     the 100vw width; overflow:visible so the 42px title is never clipped. */
+  box-sizing:border-box;
+  width:100vw;
+  margin:-16px 0 12px calc(50% - 50vw);
+  padding:12px 16px;
+  overflow:visible;
 }
 
 
@@ -859,6 +866,7 @@ zz-distracting-body[data-network="playnet"]{
   font-size:42px;
   font-weight:800;
   letter-spacing:0.12em;
+  line-height:1.1;      /* was clipping the caps top/bottom at line-height:1 */
   color:#888;
 }
 
@@ -1029,9 +1037,30 @@ button i{
   --thumb-size: 24px;
 }
 
-#ordersSection .orders-list{
+#ordersSection .orders-list,
+#transactionsSection .transactions-list{
   font-family: monospace;
   font-size: 12px;
+
+  /* ORDERS-UI1: soft-card lists — vertical stack with consistent gap so each row
+     reads as its own card rather than a dense table line. */
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+/* ── soft cards: order + tx rows (ORDERS-UI1 Phase B) ────────────────────────
+   Hairline border + subtle radius + white fill. The per-row identity colour is
+   applied inline as a 4px left border (applyOwnerSleeve for orders), which wins
+   over the hairline on the left edge and reads as an accent stripe. */
+#ordersSection .order-row,
+#transactionsSection .tx-row{
+  border:1px solid #e6e6e6;
+  border-left:3px solid #e0e0e0;   /* neutral stripe; owner sleeve overrides for orders */
+  border-radius:7px;
+  background:#fff;
+  padding:7px 10px;
+  transition:box-shadow .12s ease, border-color .12s ease, background .12s ease;
 }
 
 .order-tif{ opacity:0.6; font-size:0.9em; }
@@ -1082,7 +1111,7 @@ button i{
 }
 
 #ordersSection .order-row{
-  margin-bottom: 4px;   /* 👈 row separation */
+  margin-bottom: 0;   /* row separation now via the list's flex gap */
 }
 
 #ordersSection .order-row.order-fully-settled{
@@ -1166,7 +1195,7 @@ button i{
   align-items:center;
   gap:6px;
   flex-wrap:wrap;
-  margin-bottom:4px;
+  margin-bottom:0;   /* spacing via the list's flex gap */
   cursor:pointer;
 }
 
@@ -1192,11 +1221,10 @@ button i{
   opacity:0.6;
 }
 
+.tx-row:hover,
 .tx-row.tx-highlight{
-  background:#fff;
-  outline:1px solid #ddd;
-  border-radius:6px;
-  box-shadow:0 1px 4px rgba(0,0,0,0.08);
+  border-color:#cfcfcf;
+  box-shadow:0 2px 8px rgba(0,0,0,0.10);
 }
 
 .tx-row *{
@@ -1337,10 +1365,8 @@ svg .svg-sell{
 }
 
 .order-row{
-  margin:0 !important;
-  padding:0 !important;
-
-  cursor:pointer;
+  margin:0 !important;   /* spacing handled by the list's flex gap */
+  cursor:pointer;        /* padding now comes from the soft-card rule */
 }
 
 
@@ -1348,6 +1374,7 @@ svg .svg-sell{
   display:flex;
   align-items:center;
   gap:4px;
+  flex-wrap:wrap;      /* let the asset chips wrap below the icon/time header */
   line-height:1;
   min-height:22px;
 }
@@ -1355,9 +1382,8 @@ svg .svg-sell{
 
 #ordersSection .order-row:hover,
 #ordersSection .order-row.tx-highlight{
-  background:#fff;
-  outline:1px solid #ddd;
-  box-shadow:0 1px 4px rgba(0,0,0,0.08);
+  border-color:#cfcfcf;
+  box-shadow:0 2px 8px rgba(0,0,0,0.10);
 }
 .order-actions{
   display:flex;
@@ -1766,10 +1792,18 @@ textarea:focus{
   display:block;
 }
 
-/* Own avatar in profile modal — square SVG shape + accent ring via CSS */
+/* Own avatar — square SVG shape + a clean hairline ring. The heavy 3px blue
+   halo read as clunky and duplicated the per-row identity sleeve; a 1.5px ring
+   + soft shadow is enough to say "this is you". */
 .kemoji-self{
-  border-radius:8px;
-  box-shadow:0 0 0 3px #4a90e2, 0 3px 10px rgba(0,0,0,0.14);
+  border-radius:7px;
+  box-shadow:0 0 0 1.5px rgba(74,144,226,0.9), 0 1px 4px rgba(0,0,0,0.12);
+}
+
+/* In the profile modal the avatar is the hero element, so give it a touch more
+   presence than the inline list version. */
+.profile-avatar .kemoji-self{
+  box-shadow:0 0 0 2px rgba(74,144,226,0.9), 0 2px 8px rgba(0,0,0,0.14);
 }
 
 .profile-avatar{
@@ -1790,6 +1824,18 @@ textarea:focus{
 .game-left{
   min-width:0;
 }
+
+/* ORDERS-UI1: orders | transactions side-by-side on desktop, auto-wrapping to a
+   single column when there isn't room for two ~360px tracks. align-items:start so
+   the two columns don't stretch each other's height. */
+.trade-cols{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));
+  gap:16px;
+  align-items:start;
+}
+.trade-cols > div{ min-width:0; }
+.trade-cols #transactionsSection{ margin-top:0; }
 
 /* fixed panel: out of flow entirely so it can never cause page overflow.
    top/height are set by positionChatPanel() in JS after first render. */
