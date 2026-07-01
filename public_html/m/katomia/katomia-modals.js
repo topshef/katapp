@@ -7,7 +7,7 @@ window.pendingCreateOrderAccount = null
 // katomia.css (:root --katomia-css-build). Both are surfaced in the diagnostics
 // so we can tell, from the server-side kdiag logs, exactly which version of the
 // code a given browser is running — and whether a cached (stale) asset is in play.
-const KATOMIA_JS_BUILD = "20260628-wcdiag-1"
+const KATOMIA_JS_BUILD = "20260701-wcmerge-1"
 
 // Self-contained diagnostics sender. window.kdiag (from the kpool widget) is
 // lazy-loaded only when the signing widget mounts, so it is NOT available when
@@ -375,6 +375,43 @@ function refreshCreateOrderAccounts(selectedId = null){
     })
 
   accountSelect.value = selectedId || currentSelected || accountSelect.value
+
+  // Append any WalletConnect-connected accounts not already in the game (async).
+  mergeWcAccountsIntoOrderPicklist(accountSelect)
+}
+
+// PROFILE-AUTH / ORDER-ASSETS: make a freshly WalletConnect-connected account orderable
+// without re-typing it, by merging live WC accounts into this pick list.
+//
+// IMPLEMENTATION CHOICE — merge-on-form: we union live WC accounts here at build time
+// rather than persisting them, so a WC-only account naturally DROPS from the list when
+// the wallet is disconnected (nothing to clean up).
+// ALTERNATIVE (not taken): remember connected accounts in localStorage (or auto-add
+// them to the game on connect) so they persist across disconnects — cleaner if we want
+// them to stick, but then removing an account from WalletConnect wouldn't clear it here.
+//
+// A WC-only account isn't a game account yet (no publicId, no seeded assets), and the
+// order builder derives the id via value.split(":")[1] on a "publicId:accountId" value.
+// So WC-only options carry a __wcadd__: sentinel; selecting one promotes it via
+// addAccounts() (the same path as the ➕ button) so it becomes a real game account.
+const WC_ORDER_ADD_PREFIX = "__wcadd__:"
+
+async function mergeWcAccountsIntoOrderPicklist(accountSelect){
+  if(!accountSelect || typeof kauthWCAccounts !== "function" || !window.WC) return
+  const network = gameMeta?.network || ""
+  let wc = []
+  try { wc = await kauthWCAccounts(network, false) } catch { return }   // false = don't rebuild the shared connector
+  if(!wc.length) return
+  // account ids already offered as game accounts (option value "publicId:accountId")
+  const present = new Set(Array.from(accountSelect.options).map(o => (o.value || "").split(":").pop()))
+  for(const id of wc){
+    if(present.has(id)) continue
+    const opt = document.createElement("option")
+    opt.value = WC_ORDER_ADD_PREFIX + id
+    opt.textContent = `${id} — add to game`
+    opt.dataset.wcOnly = "1"
+    accountSelect.appendChild(opt)
+  }
 }
 
 document.addEventListener("click", e => {
@@ -893,6 +930,27 @@ document.addEventListener("input",e => {
 
 document.addEventListener("change",e => {
   if(!e.target.closest("#createOrderModal")) return
+
+  // Selecting a WC-only account (merge-on-form sentinel) promotes it into the game via
+  // the same addAccounts() path as the ➕ button, then re-selects it once it lands.
+  if(e.target.id == "createOrderAccount" && String(e.target.value).startsWith(WC_ORDER_ADD_PREFIX)){
+    const accountId = e.target.value.slice(WC_ORDER_ADD_PREFIX.length)
+    const idsBefore = new Set(getAccounts().filter(a => isMyAccount(a)).map(a => a.id))
+    addAccounts(accountId)
+    try { notify?.(`Adding account ${accountId}…`, "info", { timeout: 2500 }) } catch {}
+    pollUntil(
+      () => getAccounts().filter(a => isMyAccount(a)).length > idsBefore.size,
+      () => {
+        const newAccount = getAccounts().find(a => isMyAccount(a) && !idsBefore.has(a.id))
+        refreshCreateOrderAccounts(newAccount?.id)
+      },
+      200,
+      10000,
+      () => { try { notify?.(`Couldn't add account ${accountId} — check the connection and try again`, "error", { timeout: 0 }) } catch {} }
+    )
+    return
+  }
+
   window.createOrderDirty = true
   if(e.target.id == "createOrderTif") syncCreateOrderExpiryUI()
   if(e.target.id == "createOrderType") syncOrderTypeUI()

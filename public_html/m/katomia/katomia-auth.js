@@ -232,6 +232,10 @@ async function kauthOnAccountChange(){
     if(!window.WC){ notify?.("WalletConnect not loaded yet", "error", { timeout: 3000 }); kauthRenderAccounts(await kauthWCAccounts(network, false)); return }
     kauthSetStatus("Connecting wallet…")
     try {
+      // WC's ThemeUtil.setTheme() sets --wcm-z-index:"89" inline on <html>, which would
+      // render the WalletConnect modal UNDERNEATH the profile modal (invisible to the
+      // user). Bump it just before connect — mirrors signer-walletconnect.js.
+      document.documentElement.style.setProperty("--wcm-z-index", "2147483000")
       if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network)
       await window.WC.connect?.()
       kauthDiag("connect:add:done", { network })
