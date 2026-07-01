@@ -264,12 +264,8 @@ const SIGN_REASON = {
 		idLink.textContent = acc.id
 		head.appendChild(idLink)
 
-		if (acc.label) {
-			const lbl = document.createElement('span')
-			lbl.className = 'txcard-acct-label'
-			lbl.textContent = acc.label
-			head.appendChild(lbl)
-		}
+		// xproof label (domain/name) is added next to the account id by updateCardXproof
+		// once signing accounts are enriched — always visible, no expand needed.
 
 		// right-side header cluster: signing summary (added later by updateCardSigning)
 		// then a chevron affordance. Tapping the header expands the account detail
@@ -687,6 +683,7 @@ export function updateCardSigning(accounts, signedPubkeys = [], network) {
 		const head = cards.querySelector(`.txcard-head[data-acct="${CSS.escape(id)}"]`)
 		const card = head?.closest('.txcard')
 		if (!card) return
+		updateCardXproof(head, acc.label)
 		const st = accountSigningStatus(acc, signedPubkeys)
 		card.dataset.signState = st.state   // one axis of the aggregate ring (balance is the other)
 		paintCardRing(card)
@@ -831,14 +828,32 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId) {
 		wrap.appendChild(grid)
 	}
 
-	const domain = acc.label?.domain, name = acc.label?.name
-	if (domain || name) {
-		const x = document.createElement('div')
-		x.className = 'txcard-xproof'
-		x.innerHTML = (domain ? `<a href='https://${domain}' target='_blank' rel='noopener'>${domain}</a> ` : '') + (name ? `<span>${name}</span>` : '')
-		wrap.appendChild(x)
-	}
+	// (xproof label now lives in the card header via updateCardXproof, not here)
 	return wrap
+}
+
+// xproof label (domain / name) shown INLINE next to the account id in the card header —
+// always visible, no expand needed (per user). The domain reuses the .txcard-acct class so
+// it matches the account-id styling (plain text, underline on hover) and can be
+// group-restyled with it. Populated from the enriched signing account's label {domain,name}.
+function updateCardXproof(head, label) {
+	let x = head.querySelector('.txcard-xproof-head')
+	if (!label || (!label.domain && !label.name)) { x?.remove(); return }
+	if (!x) { x = document.createElement('span'); x.className = 'txcard-xproof-head'; head.querySelector('.txcard-acct').after(x) }
+	x.innerHTML = ''
+	if (label.domain) {
+		const a = document.createElement('a')
+		a.className = 'txcard-acct txcard-acct-domain'
+		a.href = `https://${label.domain}`; a.target = '_blank'; a.rel = 'noopener'
+		a.textContent = label.domain
+		x.appendChild(a)
+	}
+	if (label.name) {
+		const n = document.createElement('span')
+		n.className = 'txcard-acct-label'
+		n.textContent = label.name
+		x.appendChild(n)
+	}
 }
 
 // (Re)render an open card's detail from the data stashed on it by updateCardSigning.
@@ -1631,6 +1646,9 @@ export function injectTxReadCSS() {
 		.txcard-acct { font-size:13px; font-weight:500; color:#52525b; text-decoration:none; word-break:break-all; }
 		.txcard-acct:hover { text-decoration:underline; }
 		.txcard-acct-label { font-size:12px; color:#a1a1aa; }
+		/* xproof next to the account id — domain reuses .txcard-acct so it matches (plain
+		   text, underline on hover) and can be group-restyled with the account id later. */
+		.txcard-xproof-head { display:inline-flex; align-items:baseline; gap:6px; }
 
 		/* per-account signing state (TX-CARDS7): border matches the pie — orange = signature
 		   pending, green = threshold met; header summary shows reason glyphs + m-of-n signed */
