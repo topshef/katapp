@@ -29,7 +29,7 @@ const HOLD_MS    = 800 * SLOW    // how long the swapped end-state holds before 
 // Trail lifetime is DECOUPLED from SLOW on purpose (per user): the dotted trajectory lingers
 // well past the glide so you see the whole path. Exaggerated for now — dial back later.
 const TRAIL_MS   = 5000
-const TRAIL_EVERY = 3            // ms between trail samples — very dense (~10× denser). NB density × TRAIL_MS = many live nodes; fine for a preview.
+const DOT_SPACING = 3            // px between trail dots ALONG the path (spatial, so spacing stays even at any speed; smaller = denser). NB density × TRAIL_MS = many live nodes; fine for a preview.
 const LIFT = 0.06                // subtle midpoint scale lift (NOT a shrink)
 const FRIZZ_OPACITY = 0.14       // very soft puff
 
@@ -38,6 +38,8 @@ const centerOf = (el, base) => {
 	return { x: r.left + r.width / 2 - base.left, y: r.top + r.height / 2 - base.top }
 }
 const centroid = pts => pts.reduce((a, p) => ({ x: a.x + p.x / pts.length, y: a.y + p.y / pts.length }), { x: 0, y: 0 })
+// ease-in-out-cubic: slow start → fastest at the middle → soft landing.
+const easeInOut = u => u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2
 
 // Stable hue per asset (HBAR keeps the familiar blue). Simple + zero-maintenance.
 function assetHue(key) {
@@ -54,14 +56,12 @@ function mkLayer(container, cls) {
 	return layer
 }
 
-// A tiny, barely-blurred, per-asset-coloured dot dropped at the ghost's current position — the
-// dotted trajectory. Held at full opacity a while (so the whole line reads) then fades slowly.
-function trailMark(back, base, ghost, hue) {
-	const r = ghost.getBoundingClientRect()
+// A tiny, barely-blurred, per-asset-coloured dot at (x,y) (layer-relative) — the dotted
+// trajectory. Held at full opacity a while (so the whole line reads) then fades slowly.
+function trailMark(back, x, y, hue) {
 	const mark = document.createElement('div')
 	mark.className = 'txflow-trail'
-	mark.style.left = (r.left + r.width / 2 - base.left) + 'px'
-	mark.style.top = (r.top + r.height / 2 - base.top) + 'px'
+	mark.style.left = x + 'px'; mark.style.top = y + 'px'
 	mark.style.background = `radial-gradient(circle, hsl(${hue} 80% 62% / .6) 0%, hsl(${hue} 80% 62% / 0) 70%)`
 	back.appendChild(mark)
 	mark.animate([
@@ -71,8 +71,10 @@ function trailMark(back, base, ghost, hue) {
 	], { duration: TRAIL_MS, easing: 'ease-out' }).onfinish = () => mark.remove()
 }
 
-// One continuous ghost (front layer) gliding A→B along quadratic A,ctrl,B, dropping a coloured
-// trail (trail layer) as it goes. ease-in-out ⇒ fastest through the middle (centroid never pauses).
+// One continuous ghost (front layer) gliding A→B along quadratic A,ctrl,B. Positions are
+// sampled at the EASED curve parameter with LINEAR playback, so the WHOLE glide accelerates to
+// the middle and decelerates to land. A dense, even (DOT_SPACING px) coloured trail is laid on
+// the trail layer by sampling the ghost each frame and interpolating between frames.
 function travel(front, back, base, chip, A, B, ctrl, hue, onDone) {
 	return new Promise(res => {
 		const ghost = chip.cloneNode(true)
@@ -81,18 +83,35 @@ function travel(front, back, base, chip, A, B, ctrl, hue, onDone) {
 		ghost.style.width = chip.getBoundingClientRect().width + 'px'
 		front.appendChild(ghost)
 
-		const steps = 24, frames = []
+		const steps = 30, frames = []
 		for (let i = 0; i <= steps; i++) {
-			const t = i / steps, mt = 1 - t
-			const x = mt * mt * A.x + 2 * mt * t * ctrl.x + t * t * B.x
-			const y = mt * mt * A.y + 2 * mt * t * ctrl.y + t * t * B.y
-			const s = 1 + LIFT * Math.sin(Math.PI * t)
-			const op = t < 0.12 ? t / 0.12 : t > 0.88 ? (1 - t) / 0.12 : 1
-			frames.push({ transform: `translate(${x}px,${y}px) translate(-50%,-50%) scale(${s.toFixed(3)})`, opacity: op, offset: t })
+			const tau = i / steps, p = easeInOut(tau), mp = 1 - p
+			const x = mp * mp * A.x + 2 * mp * p * ctrl.x + p * p * B.x
+			const y = mp * mp * A.y + 2 * mp * p * ctrl.y + p * p * B.y
+			const s = 1 + LIFT * Math.sin(Math.PI * tau)
+			const op = tau < 0.12 ? tau / 0.12 : tau > 0.88 ? (1 - tau) / 0.12 : 1
+			frames.push({ transform: `translate(${x}px,${y}px) translate(-50%,-50%) scale(${s.toFixed(3)})`, opacity: op, offset: tau })
 		}
-		const trail = setInterval(() => trailMark(back, base, ghost, hue), TRAIL_EVERY)
-		const anim = ghost.animate(frames, { duration: TRAVEL_MS, easing: 'ease-in-out', fill: 'forwards' })
-		anim.onfinish = () => { clearInterval(trail); try { onDone?.() } finally { ghost.remove(); res() } }
+		const anim = ghost.animate(frames, { duration: TRAVEL_MS, easing: 'linear', fill: 'forwards' })
+
+		// even-spaced trail: each frame, drop dots every DOT_SPACING px between the last and
+		// current ghost centre (so density stays even however fast the eased motion is going).
+		let last = null, raf = 0
+		const tick = () => {
+			const r = ghost.getBoundingClientRect()
+			const cur = { x: r.left + r.width / 2 - base.left, y: r.top + r.height / 2 - base.top }
+			if (!last) { trailMark(back, cur.x, cur.y, hue); last = cur }
+			else {
+				const dx = cur.x - last.x, dy = cur.y - last.y, dist = Math.hypot(dx, dy)
+				const n = Math.floor(dist / DOT_SPACING)
+				for (let i = 1; i <= n; i++) trailMark(back, last.x + dx * (i / n), last.y + dy * (i / n), hue)
+				if (n >= 1) last = cur
+			}
+			raf = requestAnimationFrame(tick)
+		}
+		raf = requestAnimationFrame(tick)
+
+		anim.onfinish = () => { cancelAnimationFrame(raf); try { onDone?.() } finally { ghost.remove(); res() } }
 	})
 }
 
