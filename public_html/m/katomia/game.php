@@ -70,21 +70,48 @@ function kasset($file) {
 
       <button id="profileCopyLinkBtn">Copy KEA link</button>
 
-      <!-- PROFILE-AUTH1: wallet signs a kpay.authChallenge naming the intent key,
-           producing a kpay.authEnvelope (display + copy; nothing sent in v1). -->
+      <!-- PROFILE-AUTH cluster: wallet signs a kpay.authChallenge that binds this
+           session's intent (order) key to a wallet account, producing a
+           kpay.authEnvelope. WIREFRAME — exposing the options (expiry/scope/publish)
+           so we can feel the UX before deciding what to hide behind nerd mode. -->
       <div class="profile-auth">
-        <button id="authBtn" type="button">🔐 Authenticate with wallet</button>
-        <div id="authAccountRow" class="profile-auth-account hidden">
-          <span class="profile-label">Sign with</span>
-          <span id="authAccountSingle" class="profile-mono hidden"></span>
-          <select id="authAccount" class="hidden"></select>
+
+        <!-- Account picker — WalletConnect-connected accounts + connect-another + ✕
+             disconnect, mirroring the tx-signer picklist (window.WC add/disconnect). -->
+        <div id="authAccountRow" class="profile-auth-account">
+          <span class="profile-label">Account</span>
+          <select id="authAccount" class="profile-auth-select"></select>
+          <button id="authAccountRemove" type="button" class="profile-auth-x hidden" title="Disconnect this account">✕</button>
         </div>
+
+        <!-- Commitment options — shown once an account is chosen. -->
+        <div id="authOptions" class="profile-auth-options hidden">
+          <label class="profile-label">Expiry
+            <select id="authExpiry">
+              <option value="86400000">24 hours</option>
+              <option value="604800000">7 days</option>
+              <option value="2592000000">30 days</option>
+              <option value="">No expiry</option>
+            </select>
+          </label>
+          <label class="profile-label">Scope
+            <select id="authScope">
+              <option value="global">Global — all games</option>
+              <option value="game">This game only</option>
+            </select>
+          </label>
+          <label class="profile-auth-publish">
+            <input type="checkbox" id="authPublish" checked> Publish this binding (public)
+          </label>
+        </div>
+
+        <!-- Plain-English statement of what the user is committing to. -->
+        <p id="authStatement" class="profile-auth-statement hidden"></p>
+
+        <button id="authBtn" type="button">🔗 Raise commitment</button>
         <div id="authStatus" class="profile-auth-status subtle"></div>
         <pre id="authOutput" class="profile-auth-output hidden"></pre>
-        <button id="authCopyBtn" type="button" class="hidden">⧉ Copy auth envelope</button>
-        <!-- PROFILE-AUTH3: POST the envelope to Katomia (../hapi.php?action=authenticate).
-             "Publish" = the binding is stored and (hard-coded) public. -->
-        <button id="authPublishBtn" type="button" class="hidden">📡 Publish this binding</button>
+        <button id="authCopyBtn" type="button" class="hidden">⧉ Copy envelope</button>
       </div>
 
       <div class="profile-debug">

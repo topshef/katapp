@@ -18,7 +18,7 @@
 			/* Build marker — bump on every CSS edit. Read at runtime via
 			   getComputedStyle(documentElement).getPropertyValue('--katomia-css-build')
 			   to detect whether the browser applied a stale (cached) stylesheet. */
-			--katomia-css-build: "20260626-modalfix-7";
+			--katomia-css-build: "20260701-authpanel-1";
 
 			--bg-color: #f5f5f5;
 
@@ -1978,13 +1978,54 @@ textarea:focus{
 }
 .profile-auth-account{
   margin-top:10px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
 }
-.profile-auth-account select{
-  width:100%;
-  margin-top:4px;
+.profile-auth-account > .profile-label{ flex:0 0 auto; }
+.profile-auth-account select,
+.profile-auth-select{
+  flex:1 1 140px;
+  min-width:0;
   padding:6px 8px;
   font-family:var(--font-mono);
   font-size:12px;
+}
+.profile-auth-x{
+  flex:0 0 auto;
+  padding:4px 8px;
+  border:1px solid #e3e6ea;
+  border-radius:6px;
+  background:#fff;
+  cursor:pointer;
+  line-height:1;
+}
+.profile-auth-x:hover{ background:#f6f7f9; }
+/* Commitment options (expiry / scope / publish) — PROFILE-AUTH wireframe */
+.profile-auth-options{
+  margin-top:10px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px 14px;
+  align-items:center;
+  font-size:12px;
+}
+.profile-auth-options select{
+  margin-left:4px;
+  padding:4px 6px;
+  font-size:12px;
+}
+.profile-auth-publish{ display:flex; align-items:center; gap:6px; }
+.profile-auth-statement{
+  margin-top:10px;
+  padding:8px 10px;
+  background:#f6f7f9;
+  border:1px solid #e3e6ea;
+  border-radius:8px;
+  font-size:12px;
+  line-height:1.4;
+  color:#333;
 }
 .profile-auth-status{
   margin-top:8px;
