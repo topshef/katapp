@@ -7,6 +7,7 @@ import {
 	} from './utils.js'
 import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 import { getThresholdSummary } from './threshold.js'
+import { flowTravel } from './txflow.js'
 
 // Why an account must sign — one glyph map shared by the Signing Authority rows AND
 // the account-card header so they never drift (TX-CARDS7 / TX-CARDS9).
@@ -303,11 +304,17 @@ const SIGN_REASON = {
 		return card
 	}
 
-	// v0 asset-movement preview (TX-FLOW-ANIM1): no geometry — for each asset, pulse its
-	// SEND chips then its RECEIVE chips in sequence, asset-by-asset. Also the intended
-	// prefers-reduced-motion fallback for the future ghost-travel engine (txflow.js). The
-	// receive pulse briefly solidifies the ghost chips ("landing").
-	async function previewFlow(container) {
+	// Preview dispatcher: reduced-motion → the cheap v0 pulse; otherwise the v1 ghost-travel
+	// engine (txflow.js — gather→merge→scatter).
+	function previewFlow(container) {
+		const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+		return reduce ? previewFlowPulse(container) : flowTravel(container)
+	}
+
+	// v0 asset-movement pulse (fallback): no geometry — for each asset, pulse its SEND chips
+	// then its RECEIVE chips in sequence, asset-by-asset. The receive pulse briefly solidifies
+	// the ghost chips ("landing").
+	async function previewFlowPulse(container) {
 		if (container._flowRunning) return
 		container._flowRunning = true
 		const keys = []
@@ -1747,7 +1754,7 @@ export function injectTxReadCSS() {
 		#account-keys .ksubtitle { display:none; }   /* Status tab + description replace this heading */
 
 		/* ── cards view (TX-CARDS3) ──────────────────────────────────────────── */
-		.txcards { display:flex; flex-direction:column; gap:10px; max-width:640px; margin:0 auto; }
+		.txcards { display:flex; flex-direction:column; gap:10px; max-width:640px; margin:0 auto; position:relative; }
 		.txcard {
 			display:flex; flex-direction:column;
 			border:1px solid #e4e4e7; border-radius:10px; overflow:hidden;
@@ -1855,6 +1862,12 @@ export function injectTxReadCSS() {
 			.txflow-pulse-out { animation:none; outline:2px solid #f5a623; outline-offset:2px; }
 			.txflow-pulse-in  { animation:none; outline:2px solid #56c857; outline-offset:2px; opacity:1; }
 		}
+		/* v1 ghost-travel engine (txflow.js): overlay + travelling ghost clones + pool frizz */
+		.txflow-layer { position:absolute; inset:0; overflow:visible; pointer-events:none; z-index:5; }
+		.txflow-ghost { position:absolute; left:0; top:0; margin:0; background:#fff; box-shadow:0 5px 14px rgba(0,0,0,.18); will-change:transform,opacity; }
+		.txflow-frizz { position:absolute; width:16px; height:16px; border-radius:50%; pointer-events:none;
+			background:radial-gradient(circle, #fff 0%, #ffd27f 45%, rgba(255,167,38,0) 70%); }
+		.txcard-chip.txflow-landed { opacity:1; outline:2px solid #56c857; outline-offset:2px; }
 
 		/* nerd-view toggle — top-right of the widget, out of the way of the modal close/toast.
 		   dev affordance to flip cards (normal) ↔ line-item table (nerd) without the profile panel. */
