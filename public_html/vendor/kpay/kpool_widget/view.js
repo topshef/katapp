@@ -303,6 +303,30 @@ const SIGN_REASON = {
 		return card
 	}
 
+	// v0 asset-movement preview (TX-FLOW-ANIM1): no geometry — for each asset, pulse its
+	// SEND chips then its RECEIVE chips in sequence, asset-by-asset. Also the intended
+	// prefers-reduced-motion fallback for the future ghost-travel engine (txflow.js). The
+	// receive pulse briefly solidifies the ghost chips ("landing").
+	async function previewFlow(container) {
+		if (container._flowRunning) return
+		container._flowRunning = true
+		const keys = []
+		container.querySelectorAll('.txcard-chip[data-asset-key]').forEach(c => {
+			const k = c.dataset.assetKey
+			if (k && !keys.includes(k)) keys.push(k)
+		})
+		const pulse = (els, cls, ms) => new Promise(res => {
+			els.forEach(n => n.classList.add(cls))
+			setTimeout(() => { els.forEach(n => n.classList.remove(cls)); res() }, ms)
+		})
+		for (const key of keys) {
+			const sel = `.txcard-chip[data-asset-key="${CSS.escape(key)}"]`
+			await pulse([...container.querySelectorAll(`.txcard-send ${sel}`)], 'txflow-pulse-out', 420)
+			await pulse([...container.querySelectorAll(`.txcard-receive ${sel}`)], 'txflow-pulse-in', 420)
+		}
+		container._flowRunning = false
+	}
+
 	function buildCardsView({ network, flow, transfers }) {
 		const accounts = flow?.accounts || []
 		// no model accounts (e.g. enrich/shape issue) → fall back to the table, never blank
@@ -310,6 +334,20 @@ const SIGN_REASON = {
 
 		const container = document.createElement('div')
 		container.className = 'txcards'
+
+		// ▶ preview control (TX-FLOW-ANIM1 v0): animate the asset movement. Not inside a
+		// .txcard-head, so the card-expand click handler ignores it.
+		const bar = document.createElement('div')
+		bar.className = 'txcards-bar'
+		const previewBtn = document.createElement('button')
+		previewBtn.type = 'button'
+		previewBtn.className = 'txcards-preview'
+		previewBtn.textContent = '▶ preview'
+		previewBtn.title = 'Preview the asset movement'
+		previewBtn.addEventListener('click', () => previewFlow(container))
+		bar.appendChild(previewBtn)
+		container.appendChild(bar)
+
 		accounts.forEach(acc => container.appendChild(buildAccountCard(network, acc)))
 
 		// asset-pool hover: hovering a chip highlights every chip of the same asset across
@@ -1803,6 +1841,20 @@ export function injectTxReadCSS() {
 		   a highlighted ghost de-fades so you can see where it lands. */
 		.txcard-chip.asset-hl { outline:2px solid #ffb74d; outline-offset:1px; }
 		.txcard-chip-ghost.asset-hl { opacity:1; }
+
+		/* ▶ preview control + v0 pulse (TX-FLOW-ANIM1): send chips pulse out (amber), then
+		   receive chips pulse in (green, de-fading the ghost = "landing"). */
+		.txcards-bar { display:flex; justify-content:flex-end; }
+		.txcards-preview { all:revert; cursor:pointer; border:1px solid #e4e4e7; background:#fff; border-radius:14px; padding:3px 10px; font:500 12px system-ui,-apple-system,"Segoe UI",sans-serif; color:#52525b; }
+		.txcards-preview:hover { background:#f4f4f5; }
+		.txflow-pulse-out { animation: txflowPulseOut .42s ease; }
+		.txflow-pulse-in  { animation: txflowPulseIn  .42s ease; }
+		@keyframes txflowPulseOut { 50% { outline:2px solid #f5a623; outline-offset:2px; transform:translateY(-3px) scale(1.06); } }
+		@keyframes txflowPulseIn  { 50% { outline:2px solid #56c857; outline-offset:2px; opacity:1; transform:scale(1.08); } }
+		@media (prefers-reduced-motion: reduce) {
+			.txflow-pulse-out { animation:none; outline:2px solid #f5a623; outline-offset:2px; }
+			.txflow-pulse-in  { animation:none; outline:2px solid #56c857; outline-offset:2px; opacity:1; }
+		}
 
 		/* nerd-view toggle — top-right of the widget, out of the way of the modal close/toast.
 		   dev affordance to flip cards (normal) ↔ line-item table (nerd) without the profile panel. */
