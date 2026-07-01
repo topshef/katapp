@@ -16,13 +16,16 @@
 // Motion via WAAPI keyframes sampling the Bézier; trail via getBoundingClientRect sampling
 // of the in-flight ghost. Over a .txflow-layer overlay; ports drawTradeLine's coordinates.
 
-// ── ONE speed knob (hard-coded for development; drop toward 1 for production) ──
-const SLOW = 4.5
-const TRAVEL_MS  = 540 * SLOW    // per-asset glide (~2.4s in dev)
+// ── ONE speed knob for the MOTION (hard-coded for development; drop toward 1 for production) ──
+const SLOW = 2.25
+const TRAVEL_MS  = 540 * SLOW    // per-asset glide (~1.2s in dev)
 const FRIZZ_MS   = 160 * SLOW    // pool puff
-const STAGGER_MS = 220 * SLOW    // gap between asset flows (~1s in dev)
-const TRAIL_MS   = 150 * SLOW    // how long a trail mark lingers
-const TRAIL_EVERY = 55           // ms between trail samples (constant → denser trail when slow)
+const STAGGER_MS = 220 * SLOW    // gap between asset flows (~0.5s in dev)
+// Trail lifetime is DECOUPLED from SLOW on purpose (per user): we want the dotted trajectory
+// to linger well past the glide so you see the whole path as a fading dotted line. Exaggerated
+// for now — dial back later. Bump for an even longer-lived line.
+const TRAIL_MS   = 5000
+const TRAIL_EVERY = 55           // ms between trail samples (constant → denser trail)
 const LIFT = 0.06                // subtle midpoint scale lift (NOT a shrink)
 const FRIZZ_OPACITY = 0.14       // very soft puff
 
@@ -48,9 +51,12 @@ function trailMark(layer, base, ghost) {
 	mark.style.left = (r.left + r.width / 2 - base.left) + 'px'
 	mark.style.top = (r.top + r.height / 2 - base.top) + 'px'
 	layer.appendChild(mark)
+	// hold the mark at full opacity for a while so the whole trajectory reads as a solid dotted
+	// line, THEN fade + shrink slowly — the line lingers and dissipates rather than fading fast.
 	mark.animate([
 		{ transform: 'translate(-50%,-50%) scale(1)', opacity: 0.4 },
-		{ transform: 'translate(-50%,-50%) scale(0.35)', opacity: 0 }
+		{ transform: 'translate(-50%,-50%) scale(1)', opacity: 0.4, offset: 0.4 },
+		{ transform: 'translate(-50%,-50%) scale(0.4)', opacity: 0 }
 	], { duration: TRAIL_MS, easing: 'ease-out' }).onfinish = () => mark.remove()
 }
 
@@ -141,7 +147,8 @@ export async function flowTravel(container) {
 		await Promise.all(assets.map((g, i) =>
 			new Promise(res => setTimeout(() => animateAsset(layer, base, g.send, g.receive).then(res), i * STAGGER_MS))
 		))
-		layer.remove()
+		// NB: do NOT remove the layer here — the trail marks outlive the glide (TRAIL_MS) and
+		// self-remove; the (then-empty) layer is reused and cleared on the next preview.
 	} finally {
 		container._flowRunning = false
 	}
