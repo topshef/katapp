@@ -642,17 +642,53 @@ export function updateCardSigning(accounts, signedPubkeys = []) {
 		const card = head?.closest('.txcard')
 		if (!card) return
 		const st = accountSigningStatus(acc, signedPubkeys)
-		card.classList.remove('txcard--sign-ready','txcard--sign-pending')
-		if (st.state === 'ready') card.classList.add('txcard--sign-ready')
-		else if (st.state === 'pending' || st.state === 'loading') card.classList.add('txcard--sign-pending')
+		card.dataset.signState = st.state   // one axis of the aggregate ring (balance is the other)
+		paintCardRing(card)
 
 		let sign = head.querySelector('.txcard-sign')
 		if (st.state === 'none') { if (sign) sign.remove(); return }
 		if (!sign) { sign = document.createElement('span'); sign.className = 'txcard-sign'; head.appendChild(sign) }
 		const glyphs = (acc.mustSignReason || []).map(r => SIGN_REASON[r]?.emoji || '').join('')
 		if (st.state === 'loading') { sign.textContent = `${glyphs} …`.trim(); sign.title = 'Loading signing keys…' }
-		else if (st.state === 'ready') { sign.textContent = `${glyphs} 🟢`.trim(); sign.title = 'Threshold satisfied' }
+		else if (st.state === 'ready') { sign.textContent = `${glyphs} ✅`.trim(); sign.title = 'Threshold satisfied' }
 		else { sign.textContent = `${glyphs} ✍️ ${st.signed}/${st.need}`.trim(); sign.title = `${st.signed} of ${st.need} required signatures` }
+	})
+}
+
+// The card ring is the AGGREGATE account verdict (per user, TX-CARDS9 step d): a green
+// ring reads as a full "go", so it's green only when signing is satisfied AND no asset
+// is short. Balance shortfall is a hard blocker → red wins. Signing detail stays in the
+// header; per-asset detail is the red chip ring. Two axes are stashed on the card
+// (data-sign-state, data-balance-short) so either update path repaints consistently.
+function paintCardRing(card) {
+	const signState = card.dataset.signState || 'none'
+	const short = card.dataset.balanceShort === '1'
+	card.classList.remove('txcard--sign-ready','txcard--sign-pending','txcard--balance-short')
+	if (short) card.classList.add('txcard--balance-short')
+	else if (signState === 'ready') card.classList.add('txcard--sign-ready')
+	else if (signState === 'pending' || signState === 'loading') card.classList.add('txcard--sign-pending')
+}
+
+// Per-asset balance cue on the account cards (TX-CARDS9 step d): ring a SEND chip red
+// when that account is short of that asset (overdraft), and flag the account as
+// balance-short for the aggregate ring. Account-keyed aggregate is reliable; the
+// per-chip match is best-effort (fungible/HBAR; NFTs skipped). No-op without cards.
+export function updateCardBalances(precheck) {
+	const cards = document.querySelector('.txcards')
+	if (!cards) return
+	const bal = precheck?.balances || {}
+	cards.querySelectorAll('.txcard').forEach(card => {
+		const id = card.querySelector('.txcard-head[data-acct]')?.dataset.acct
+		const acctBal = id ? bal[id] : null
+		const shortAssets = new Set()
+		if (acctBal) for (const [asset, f] of Object.entries(acctBal))
+			if (f && Number(f.forecast) < 0) shortAssets.add(asset)   // token: <0; hbar: <0 (misses fee-buffer edge)
+		card.dataset.balanceShort = shortAssets.size ? '1' : '0'
+		card.querySelectorAll('.txcard-send .txcard-chip').forEach(chip => {
+			const key = chip.dataset.assetKey === 'tinybar' ? 'hbar' : chip.dataset.assetKey
+			chip.classList.toggle('txcard-chip--short', shortAssets.has(key))
+		})
+		paintCardRing(card)
 	})
 }
 
@@ -690,6 +726,8 @@ export function renderReadinessInfo({readiness}) {
 // incomplete / 🔴 hard fail. Headline is short; the full breakdown (balance
 // forecasts + every check line) lives in the hover tooltip.
 export function renderPrecheckInfo({ precheck }) {
+	updateCardBalances(precheck)   // per-asset chip rings + aggregate card ring (runs even if the status line is gone)
+
 	const el = document.getElementById('txread-precheck')
 	if (!el) return
 
@@ -1410,9 +1448,12 @@ export function injectTxReadCSS() {
 
 		/* per-account signing state (TX-CARDS7): border matches the pie — orange = signature
 		   pending, green = threshold met; header summary shows reason glyphs + m-of-n signed */
-		.txcard--sign-pending { border-color:#f5a623; box-shadow:0 0 0 1px #f5a623; }
-		.txcard--sign-ready   { border-color:#56c857; box-shadow:0 0 0 1px #56c857; }
+		.txcard--sign-pending   { border-color:#f5a623; box-shadow:0 0 0 1px #f5a623; }
+		.txcard--sign-ready     { border-color:#56c857; box-shadow:0 0 0 1px #56c857; }
+		.txcard--balance-short  { border-color:#e5484d; box-shadow:0 0 0 1px #e5484d; }   /* overdraft — hard blocker, wins the ring */
 		.txcard-sign { margin-left:auto; font-size:12px; color:#71717a; white-space:nowrap; font-weight:500; }
+		/* per-asset overdraft: red ring on the specific SEND chip that's short */
+		.txcard-chip--short { border-color:#e5484d; box-shadow:0 0 0 1px #e5484d; }
 
 		/* two equal, symmetric columns — left send (rose), right receive (green).
 		   stays side-by-side on mobile (screen split in half), no edge labels */
