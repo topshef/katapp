@@ -65,6 +65,7 @@ export async function open({ network, txid, pch = 'no_pch', brand = {}, signer =
 	await mount(modal.body, {
 		network, txid, pch, signer, ...opts,
 		onStatus:      s => modal.setStatus(s.label, s.tone, s.shape),
+		onCountdown:   t => modal.setCountdown(t),
 		onFlash:       (msg, tone) => modal.flash(msg, tone),
 		onLockModal:   modal.lock,
 		onUnlockModal: modal.unlock
@@ -134,8 +135,10 @@ function teardownTxState(txState) {
 	if (!txState || txState.destroyed) return
 	txState.destroyed = true
 	try { if (txState.pollTimer) clearInterval(txState.pollTimer) } catch {}
+	try { if (txState.countdownTimer) clearInterval(txState.countdownTimer) } catch {}
 	try { txState.socket?.close?.() } catch {}
 	txState.pollTimer = null
+	txState.countdownTimer = null
 	txState.socket = null
 	try { globalThis.kdiag?.('tx:teardown', { txid: txState.txid }) } catch {}
 }
@@ -146,6 +149,26 @@ function txStateLive(txState) {
 	return !!txState && !txState.destroyed && txState.container?.isConnected !== false
 }
 
+// Drive the modal-header countdown (⏱ hh:mm:ss) from the txid's scheduled time. Shows while the
+// tx is pending and within the meaningful window; goes blank (space reserved in the header) once
+// final. No-op without an onCountdown host hook (e.g. bare mount).
+function startHeaderCountdown(txState) {
+	if (!txState.onCountdown) return
+	const target = parseTxId(txState.txid)?.seconds
+	if (!target) return
+	const tick = () => {
+		if (!txStateLive(txState)) { clearInterval(txState.countdownTimer); txState.countdownTimer = null; return }
+		const d = txState.data || {}
+		if (d.comboStatus === 'SUCCESS' || d.mirrorStatus || d.receiptSuccess === true) {
+			txState.onCountdown(''); clearInterval(txState.countdownTimer); txState.countdownTimer = null; return
+		}
+		const diff = target - Math.floor(Date.now() / 1000)
+		txState.onCountdown(diff > -180 ? `⏱ ${formatCountdown(diff)}` : '')
+	}
+	tick()
+	txState.countdownTimer = setInterval(tick, 1000)
+}
+
 async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) {
 	// supersede any previous tx widget so two don't poll/render concurrently
 	if (_activeTxState && _activeTxState.txid !== txid) teardownTxState(_activeTxState)
@@ -153,11 +176,14 @@ async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) 
 	const txState = createTxState(network, txid, pch)
 	_activeTxState = txState
 	txState.onStatus = opts.onStatus
+	txState.onCountdown = opts.onCountdown
 	txState.onFlash  = opts.onFlash
 	txState.onLock   = opts.onLockModal
 	txState.onUnlock = opts.onUnlockModal
 	txState.readUrl  = opts.readUrl   // absolute endpoint when embedded off-origin
 	txState.saveUrl  = opts.saveUrl
+
+	startHeaderCountdown(txState)   // ⏱ countdown in the modal header
 
 	hostEl.append(txState.container)
 	txState.container.innerHTML = '<div class="kpsign-msg" style="padding:28px;text-align:center">Loading transaction…</div>'

@@ -518,11 +518,12 @@ const SIGN_REASON = {
 		// into the Status tab pane, so the render-by-id functions keep working.
 		const statusBlock = buildStatusBlock({ data })
 		statusBlock.el.classList.add('txread-status-main')
-		// Show overall status + countdown in the header (normal-visible), not only in the
-		// nerd Status tab — "Waiting hh:mm:ss" belongs where users can see it (per user).
-		// (buildStatusPane no longer mounts this; it lives here at the top of the intent.)
-		statusBlock.el.classList.add('txread-status-header')
-		intent.insertBefore(statusBlock.el, intent.firstChild)
+		// The content status line is GONE (per user): the status LABEL lives in the modal header
+		// (kpm-head) and the COUNTDOWN now lives there too (⏱, index.js startHeaderCountdown →
+		// modal.setCountdown). statusBlock is still built for its .update() side effects
+		// (handleTxUpdate/refreshPolledTx call it — it writes the SUCCESS localStorage flag), but
+		// it's no longer inserted into the modal body, so there's no duplicate time/countdown and
+		// no layout jolt when the status flips to Success.
 
 		const readinessEl = document.createElement('div')
 		readinessEl.id = 'txread-readiness'
@@ -1732,7 +1733,7 @@ export function injectTxReadCSS() {
 		.txread-intent .txread-xfers { max-width: 580px; margin: 0 auto; }
 		.txread-scope {
 			display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline;
-			gap: 2px 10px; margin: 4px 0 2px; font-size: 12px; color: #888;
+			gap: 2px 10px; margin: 4px 0 12px; font-size: 12px; color: #888;   /* bottom gap so it isn't butted against the preview card */
 		}
 		.txread-scope-ids { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 		.txread-scope-txid { word-break: break-all; }
@@ -1911,9 +1912,13 @@ export function injectTxReadCSS() {
 		.txcards-preview { display:flex; border:1px solid #e4e4e7; border-radius:10px; overflow:hidden; }
 		.txpreview-half { all:revert; flex:1 1 0; cursor:pointer; border:none; padding:13px 10px;
 			font:800 18px/1 system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.08em; transition:filter .15s ease; }
-		.txpreview-half:hover { filter:brightness(0.97); }
-		.txpreview-before { background:#fdf2f2; color:#b91c1c; }   /* pink send side, darker-red caps */
-		.txpreview-after  { background:#eff7f1; color:#15803d; }   /* green receive side, darker-green caps */
+		.txpreview-before { background:#fdf2f2; color:rgba(185,28,28,.38); }   /* pink send side, FAINT red caps */
+		.txpreview-after  { background:#eff7f1; color:rgba(21,128,61,.4); }    /* green receive side, FAINT green caps */
+		/* hover: keep the tint (re-assert to beat host button:hover) + a subtle grey inset border
+		   so it still reads as a button; no colour change. */
+		.txpreview-before:hover { background:#fdf2f2; }
+		.txpreview-after:hover  { background:#eff7f1; }
+		.txpreview-half:hover   { box-shadow: inset 0 0 0 2px rgba(0,0,0,.14); }
 		.txcards-preview[data-state="before"] .txpreview-after,
 		.txcards-preview[data-state="after"]  .txpreview-before { opacity:.45; }
 		.txflow-pulse-out { animation: txflowPulseOut .42s ease; }

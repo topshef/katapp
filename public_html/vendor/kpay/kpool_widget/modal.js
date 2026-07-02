@@ -62,7 +62,10 @@ function injectModalCSS() {
 			100% { transform: translate(-50%, -50%) translateY(0); }
 		}
 		@media (max-width: 480px) { .kpm-flash { display: none; } }
-		.kpm-status { display: flex; align-items: center; gap: 8px; min-width: 0; }
+		.kpm-status { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
+		/* countdown beside the label; min-width reserves its space so it never jolts the modal
+		   when it clears on final status. Wraps below the label on narrow screens. */
+		.kpm-countdown { font-size: 12px; opacity: .8; white-space: nowrap; font-variant-numeric: tabular-nums; min-width: 5.5em; }
 		.kpm-dot { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; background: #9aa0a6; }
 		.kpm-dot.square { border-radius: 2px; }
 		.kpm-status-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -147,7 +150,9 @@ export function buildModal({ onClose } = {}) {
 	const statusLabel = document.createElement('span')
 	statusLabel.className = 'kpm-status-label'
 	statusLabel.textContent = 'Loading…'
-	status.append(dot, statusLabel)
+	const countdown = document.createElement('span')
+	countdown.className = 'kpm-countdown'
+	status.append(dot, statusLabel, countdown)
 
 	const actions = document.createElement('div')
 	actions.className = 'kpm-head-actions'
@@ -206,6 +211,10 @@ export function buildModal({ onClose } = {}) {
 		dot.classList.toggle('square', shape === 'square')
 	}
 
+	// Countdown sits beside the status label (desktop) / wraps below it (mobile). Its space is
+	// reserved in CSS (min-width) so clearing it on final status doesn't jolt the modal.
+	function setCountdown(text) { countdown.textContent = text ?? '' }
+
 	// Transient cue in the centre of the header (e.g. "✍️ Signature received").
 	// Does NOT touch the persistent status on the left — it just fades in over
 	// the top for ~2.5s. Replaces the old bottom banner inside the modal.
@@ -223,5 +232,5 @@ export function buildModal({ onClose } = {}) {
 	document.body.appendChild(overlay)
 	document.body.style.overflow = 'hidden'
 
-	return { overlay, card, body, head, close, setStatus, flash, lock, unlock }
+	return { overlay, card, body, head, close, setStatus, setCountdown, flash, lock, unlock }
 }
