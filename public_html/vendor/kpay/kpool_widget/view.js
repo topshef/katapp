@@ -1031,6 +1031,13 @@ export function playSuccessFlow() {
 	return c ? flowTravel(c) : Promise.resolve()
 }
 
+// A tx that already reached consensus opens directly in the settled 'after' state (sources
+// ghosted / dests solid) — no animation, just the end position. Preview can still replay it.
+export function markSettledIfSuccess(data) {
+	const c = document.querySelector('.txcards')
+	if (c && (data?.comboStatus === 'SUCCESS' || data?.receiptSuccess === true)) setFlowState(c, true)
+}
+
 export function renderReadinessInfo({readiness}) {
 	renderWitnessList(readiness)   // witnesses live below the cards, not in the status block
 

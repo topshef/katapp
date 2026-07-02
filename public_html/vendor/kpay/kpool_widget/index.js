@@ -23,6 +23,7 @@ const {
 	updateFinalState,
 	markConnectedAccounts,
 	playSuccessFlow,
+	markSettledIfSuccess,
 	pickAssetLabel,
 	resolveTxView,
 	buildTransferViews
@@ -820,6 +821,7 @@ async function loadSigningState(txState, tx) {
 	txState.container.querySelector('#txread-status')?.classList.remove('tx-loading')
 
 	pushStatus(txState)
+	markSettledIfSuccess(tx.data)   // already-succeeded tx opens in the settled 'after' state
 }
 
 
@@ -859,16 +861,19 @@ async function handleTxUpdate(txState, update) {
 
 	const currentStatus = txState.data.comboStatus
 
-	if (!txState.successAnimationFired && currentStatus === 'SUCCESS' && prevStatus !== 'SUCCESS') {
-		triggerSuccessAnimation()
-		txState.successAnimationFired = true
-	}
-
 	view.statusBlock.update(txState.data)
 	pushStatus(txState)
 
 	if (update.precheck || update.type === 'tx_precheck')
 		renderPrecheckInfo({ precheck: txState.data.precheck })
+
+	// fire success only AFTER the status write + hidden signing section have repainted (above) —
+	// they shift the modal up, and the flow animation must measure chip positions in their final
+	// place. triggerSuccessAnimation defers the flow a couple of frames; confetti runs freely.
+	if (!txState.successAnimationFired && currentStatus === 'SUCCESS' && prevStatus !== 'SUCCESS') {
+		txState.successAnimationFired = true
+		triggerSuccessAnimation()
+	}
 
 	if (update.sigs) await handleSignatureUpdate(txState, update)
 }
@@ -969,9 +974,13 @@ async function refreshPolledTx(txState, pollTimer) {
 const CONFETTI_CDN = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js'
 
 async function triggerSuccessAnimation() {
-	// play the asset-movement animation on the cards first (it sticks at the settled state:
-	// sources ghosted / dests solid), then celebrate. No-op in table/nerd mode. (TX-CARDS5)
-	try { await playSuccessFlow() } catch (e) { console.warn('success flow failed', e) }
+	// Defer the movement animation two frames so the SUCCESS status + hidden signing section have
+	// laid out (they move the cards up) before we measure chip positions — otherwise the
+	// trajectories land in the wrong place. It sticks at the settled state (sources ghosted).
+	// Confetti runs independently and doesn't wait on it. (TX-CARDS5)
+	requestAnimationFrame(() => requestAnimationFrame(() => {
+		playSuccessFlow().catch(e => console.warn('success flow failed', e))
+	}))
 	const confetti = await loadScript(CONFETTI_CDN, 'confetti')
 	if (!confetti?.create) return
 
