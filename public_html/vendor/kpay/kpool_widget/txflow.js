@@ -25,7 +25,6 @@ const SLOW = 1
 const TRAVEL_MS  = 540 * SLOW    // per-asset glide
 const FRIZZ_MS   = 160 * SLOW    // pool puff
 const STAGGER_MS = 220 * SLOW    // gap between asset flows
-const HOLD_MS    = 800 * SLOW    // how long the swapped end-state holds before reverting (replayable preview)
 // Trail lifetime is DECOUPLED from SLOW on purpose (per user): the dotted trajectory lingers
 // well past the glide so you see the whole path. Exaggerated for now — dial back later.
 const TRAIL_MS   = 5000
@@ -158,7 +157,44 @@ async function animateAsset(front, back, base, send, receive, hue) {
 	}))
 }
 
-// Run across every asset flow, STAGGERED (asset-by-asset). Guarded against re-entry.
+// Group animatable chips by asset + side. Excludes the operator HBAR fee chip (not part of the
+// transfer) and any in-flight ghost clones.
+function groupChips(container) {
+	const byAsset = new Map()
+	container.querySelectorAll('.txcard-chip[data-asset-key]').forEach(chip => {
+		if (chip.classList.contains('txflow-ghost') || chip.classList.contains('txcard-chip--fee')) return
+		const key = chip.dataset.assetKey
+		const side = chip.closest('.txcard-send') ? 'send' : chip.closest('.txcard-receive') ? 'receive' : null
+		if (!key || !side) return
+		const g = byAsset.get(key) || { send: [], receive: [] }
+		g[side].push(chip)
+		byAsset.set(key, g)
+	})
+	return byAsset
+}
+
+// Set the swap state WITHOUT animating. after=true → sources ghosted / dests solid (the settled
+// "after consensus" state); after=false → the original resting state (send solid / receive
+// ghost). Only two-sided flows swap (fee excluded). Also syncs the preview toggle label.
+export function setFlowState(container, after) {
+	for (const g of groupChips(container).values()) {
+		if (!g.send.length || !g.receive.length) continue
+		g.send.forEach(c => c.classList.toggle('txcard-chip-ghost', after))
+		g.receive.forEach(c => c.classList.toggle('txcard-chip-ghost', !after))
+		;[...g.send, ...g.receive].forEach(c => c.classList.remove('txflow-landed'))
+	}
+	container.dataset.flowState = after ? 'after' : 'before'
+	container.querySelector('.txcards-preview')?.setAttribute('data-state', after ? 'after' : 'before')
+}
+
+// Revert to "before" and clear the overlays (the preview toggle's off press).
+export function revertFlow(container) {
+	setFlowState(container, false)
+	container.querySelectorAll('.txflow-layer, .txflow-layer-trail').forEach(l => l.innerHTML = '')
+}
+
+// Play the animation and STICK at the "after" state (sources left as ghosts on the left). Used
+// by the preview toggle (on) and by consensus. Guarded against re-entry / re-entry while running.
 export async function flowTravel(container) {
 	if (container._flowRunning || typeof container.querySelectorAll !== 'function') return
 	container._flowRunning = true
@@ -166,30 +202,12 @@ export async function flowTravel(container) {
 		const back = mkLayer(container, 'txflow-layer-trail')   // trail — above card bodies, below chips
 		const front = mkLayer(container, 'txflow-layer')        // ghosts + puff — topmost
 		const base = container.getBoundingClientRect()
-
-		// snapshot ghost state so we can restore after the preview (it ends source↔dest swapped)
-		const chips = [...container.querySelectorAll('.txcard-chip')].filter(c => !c.classList.contains('txflow-ghost'))
-		const wasGhost = new Map(chips.map(c => [c, c.classList.contains('txcard-chip-ghost')]))
-
-		const byAsset = new Map()
-		container.querySelectorAll('.txcard-chip[data-asset-key]').forEach(chip => {
-			if (chip.classList.contains('txflow-ghost')) return
-			const key = chip.dataset.assetKey
-			const side = chip.closest('.txcard-send') ? 'send' : chip.closest('.txcard-receive') ? 'receive' : null
-			if (!key || !side) return
-			const g = byAsset.get(key) || { send: [], receive: [] }
-			g[side].push(chip)
-			byAsset.set(key, g)
-		})
-		const entries = [...byAsset.entries()]
+		const entries = [...groupChips(container).entries()]
 		await Promise.all(entries.map(([key, g], i) =>
 			new Promise(res => setTimeout(() => animateAsset(front, back, base, g.send, g.receive, assetHue(key)).then(res), i * STAGGER_MS))
 		))
-
-		// hold the swapped end-state (source ghost / dest solid) briefly — that's how consensus
-		// will end — then revert so the preview is replayable. Trail marks self-expire (TRAIL_MS).
-		await new Promise(r => setTimeout(r, HOLD_MS))
-		chips.forEach(c => { c.classList.toggle('txcard-chip-ghost', !!wasGhost.get(c)); c.classList.remove('txflow-landed') })
+		setFlowState(container, true)   // STICK: leave sources ghosted / dests solid (no auto-revert)
+		front.innerHTML = ''            // ghosts done; the trail lingers on the back layer and self-expires
 	} finally {
 		container._flowRunning = false
 	}

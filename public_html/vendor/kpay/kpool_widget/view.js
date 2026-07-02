@@ -7,7 +7,7 @@ import {
 	} from './utils.js'
 import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 import { getThresholdSummary } from './threshold.js'
-import { flowTravel } from './txflow.js'
+import { flowTravel, setFlowState, revertFlow } from './txflow.js'
 
 // Why an account must sign — one glyph map shared by the Signing Authority rows AND
 // the account-card header so they never drift (TX-CARDS7 / TX-CARDS9).
@@ -304,11 +304,11 @@ const SIGN_REASON = {
 		return card
 	}
 
-	// Preview dispatcher: reduced-motion → the cheap v0 pulse; otherwise the v1 ghost-travel
-	// engine (txflow.js — gather→merge→scatter).
+	// Preview dispatcher: reduced-motion → the cheap v0 pulse then snap to the settled state;
+	// otherwise the v1 ghost-travel engine, which plays AND sticks at 'after'.
 	function previewFlow(container) {
 		const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
-		return reduce ? previewFlowPulse(container) : flowTravel(container)
+		return reduce ? previewFlowPulse(container).then(() => setFlowState(container, true)) : flowTravel(container)
 	}
 
 	// v0 asset-movement pulse (fallback): no geometry — for each asset, pulse its SEND chips
@@ -342,16 +342,24 @@ const SIGN_REASON = {
 		const container = document.createElement('div')
 		container.className = 'txcards'
 
-		// ▶ preview control (TX-FLOW-ANIM1 v0): animate the asset movement. Not inside a
-		// .txcard-head, so the card-expand click handler ignores it.
+		// ▶ preview control (TX-FLOW-ANIM1): before/after TOGGLE. Press → animate + stick at the
+		// settled "after" state (sources left as ghosts); press again → revert to "before". Not
+		// inside a .txcard-head, so the card-expand click handler ignores it.
 		const bar = document.createElement('div')
 		bar.className = 'txcards-bar'
 		const previewBtn = document.createElement('button')
 		previewBtn.type = 'button'
 		previewBtn.className = 'txcards-preview'
-		previewBtn.textContent = '▶ preview'
-		previewBtn.title = 'Preview the asset movement'
-		previewBtn.addEventListener('click', () => previewFlow(container))
+		previewBtn.dataset.state = 'before'
+		previewBtn.title = 'Preview the asset movement — toggle before / after'
+		previewBtn.innerHTML = '<span class="txcards-preview-cap">▶ Preview</span>' +
+			'<span class="txcards-seg txcards-seg-before">before</span>' +
+			'<span class="txcards-seg txcards-seg-after">after</span>'
+		previewBtn.addEventListener('click', async () => {
+			if (container._flowRunning) return
+			if (previewBtn.dataset.state === 'after') revertFlow(container)   // → 'before' + syncs label
+			else { previewBtn.dataset.state = 'after'; await previewFlow(container) }   // play + stick at 'after'
+		})
 		bar.appendChild(previewBtn)
 		container.appendChild(bar)
 
@@ -1014,6 +1022,13 @@ export function renderWitnessList(readiness) {
 		list.appendChild(chip)
 	})
 	el.append(lbl, list)
+}
+
+// Play the movement animation on the cards when a tx reaches consensus (called before the
+// confetti); sticks at the settled state (sources left as ghosts). No-op in table/nerd mode.
+export function playSuccessFlow() {
+	const c = document.querySelector('.txcards')
+	return c ? flowTravel(c) : Promise.resolve()
 }
 
 export function renderReadinessInfo({readiness}) {
@@ -1854,8 +1869,12 @@ export function injectTxReadCSS() {
 		/* ▶ preview control + v0 pulse (TX-FLOW-ANIM1): send chips pulse out (amber), then
 		   receive chips pulse in (green, de-fading the ghost = "landing"). */
 		.txcards-bar { display:flex; justify-content:flex-end; }
-		.txcards-preview { all:revert; cursor:pointer; border:1px solid #e4e4e7; background:#fff; border-radius:14px; padding:3px 10px; font:500 12px system-ui,-apple-system,"Segoe UI",sans-serif; color:#52525b; }
+		/* preview = before/after toggle: the active side is highlighted per data-state */
+		.txcards-preview { all:revert; cursor:pointer; display:inline-flex; align-items:center; gap:6px; border:1px solid #e4e4e7; background:#fff; border-radius:14px; padding:2px 5px 2px 10px; font:500 12px system-ui,-apple-system,"Segoe UI",sans-serif; color:#52525b; }
 		.txcards-preview:hover { background:#f4f4f5; }
+		.txcards-seg { padding:1px 7px; border-radius:10px; color:#a1a1aa; }
+		.txcards-preview[data-state="before"] .txcards-seg-before,
+		.txcards-preview[data-state="after"]  .txcards-seg-after { background:#e0edff; color:#1d4ed8; font-weight:600; }
 		.txflow-pulse-out { animation: txflowPulseOut .42s ease; }
 		.txflow-pulse-in  { animation: txflowPulseIn  .42s ease; }
 		@keyframes txflowPulseOut { 50% { outline:2px solid #f5a623; outline-offset:2px; transform:translateY(-3px) scale(1.06); } }
