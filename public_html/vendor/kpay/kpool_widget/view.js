@@ -344,26 +344,31 @@ const SIGN_REASON = {
 		const container = document.createElement('div')
 		container.className = 'txcards'
 
-		// ▶ preview control (TX-FLOW-ANIM1): before/after TOGGLE. Press → animate + stick at the
-		// settled "after" state (sources left as ghosts); press again → revert to "before". Not
-		// inside a .txcard-head, so the card-expand click handler ignores it.
-		const bar = document.createElement('div')
-		bar.className = 'txcards-bar'
-		const previewBtn = document.createElement('button')
-		previewBtn.type = 'button'
-		previewBtn.className = 'txcards-preview'
-		previewBtn.dataset.state = 'before'
-		previewBtn.title = 'Preview the asset movement — toggle before / after'
-		previewBtn.innerHTML = '<span class="txcards-preview-cap">▶ Preview</span>' +
-			'<span class="txcards-seg txcards-seg-before">before</span>' +
-			'<span class="txcards-seg txcards-seg-after">after</span>'
-		previewBtn.addEventListener('click', async () => {
-			if (container._flowRunning) return
-			if (previewBtn.dataset.state === 'after') revertFlow(container)   // → 'before' + syncs label
-			else { previewBtn.dataset.state = 'after'; await previewFlow(container) }   // play + stick at 'after'
+		// PREVIEW as a full-width before/after card — same shape as an account card, split into a
+		// pink BEFORE (send side) and green AFTER (receive side). It doubles as (a) a legend for
+		// what left/right mean on the account cards and (b) the animation toggle: tap AFTER →
+		// play + stick at the settled state; tap BEFORE → revert. EXPLORATORY (kicking tyres) — a
+		// bold way to make left/right obvious; may well revert to a small compact preview button.
+		// data-state drives the highlight and is kept in sync by setFlowState(). (TX-FLOW-ANIM1)
+		const preview = document.createElement('div')
+		preview.className = 'txcards-preview'
+		preview.dataset.state = 'before'
+		const beforeHalf = document.createElement('button')
+		beforeHalf.type = 'button'
+		beforeHalf.className = 'txpreview-half txpreview-before'
+		beforeHalf.textContent = 'BEFORE'
+		const afterHalf = document.createElement('button')
+		afterHalf.type = 'button'
+		afterHalf.className = 'txpreview-half txpreview-after'
+		afterHalf.textContent = 'AFTER'
+		beforeHalf.addEventListener('click', () => {
+			if (!container._flowRunning && preview.dataset.state === 'after') revertFlow(container)
 		})
-		bar.appendChild(previewBtn)
-		container.appendChild(bar)
+		afterHalf.addEventListener('click', async () => {
+			if (!container._flowRunning && preview.dataset.state !== 'after') { preview.dataset.state = 'after'; await previewFlow(container) }
+		})
+		preview.append(beforeHalf, afterHalf)
+		container.appendChild(preview)
 
 		accounts.forEach(acc => container.appendChild(buildAccountCard(network, acc)))
 
@@ -1886,13 +1891,17 @@ export function injectTxReadCSS() {
 
 		/* ▶ preview control + v0 pulse (TX-FLOW-ANIM1): send chips pulse out (amber), then
 		   receive chips pulse in (green, de-fading the ghost = "landing"). */
-		.txcards-bar { display:flex; justify-content:flex-end; }
-		/* preview = before/after toggle: the active side is highlighted per data-state */
-		.txcards-preview { all:revert; cursor:pointer; display:inline-flex; align-items:center; gap:6px; border:1px solid #e4e4e7; background:#fff; border-radius:14px; padding:2px 5px 2px 10px; font:500 12px system-ui,-apple-system,"Segoe UI",sans-serif; color:#52525b; }
-		.txcards-preview:hover { background:#f4f4f5; }
-		.txcards-seg { padding:1px 7px; border-radius:10px; color:#a1a1aa; }
-		.txcards-preview[data-state="before"] .txcards-seg-before,
-		.txcards-preview[data-state="after"]  .txcards-seg-after { background:#e0edff; color:#1d4ed8; font-weight:600; }
+		/* preview = full-width before/after card (same rounded shape as an account card). Left
+		   pink BEFORE / right green AFTER = a legend for the account cards AND the toggle; the
+		   non-active side dims. EXPLORATORY styling — may revert to a compact button. */
+		.txcards-preview { display:flex; border:1px solid #e4e4e7; border-radius:10px; overflow:hidden; }
+		.txpreview-half { all:revert; flex:1 1 0; cursor:pointer; border:none; padding:13px 10px;
+			font:800 18px/1 system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.08em; transition:filter .15s ease; }
+		.txpreview-half:hover { filter:brightness(0.97); }
+		.txpreview-before { background:#fdf2f2; color:#b91c1c; }   /* pink send side, darker-red caps */
+		.txpreview-after  { background:#eff7f1; color:#15803d; }   /* green receive side, darker-green caps */
+		.txcards-preview[data-state="before"] .txpreview-after,
+		.txcards-preview[data-state="after"]  .txpreview-before { opacity:.45; }
 		.txflow-pulse-out { animation: txflowPulseOut .42s ease; }
 		.txflow-pulse-in  { animation: txflowPulseIn  .42s ease; }
 		@keyframes txflowPulseOut { 50% { outline:2px solid #f5a623; outline-offset:2px; transform:translateY(-3px) scale(1.06); } }
