@@ -134,7 +134,7 @@ function kasset($file) {
           <!-- Plain-English statement of what the user is committing to. -->
           <p id="authStatement" class="profile-auth-statement hidden"></p>
 
-          <button id="authBtn" type="button">🔗 Raise commitment</button>
+          <button id="authBtn" type="button">💠 Raise commitment</button>
           <div id="authStatus" class="profile-auth-status subtle"></div>
           <pre id="authOutput" class="profile-auth-output hidden"></pre>
           <button id="authCopyBtn" type="button" class="hidden">⧉ Copy envelope</button>

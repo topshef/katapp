@@ -517,6 +517,11 @@ function createTxRow(tx){
   if(typeof kemojiEl === "function" && makerPubkey)
     row.appendChild(kemojiEl(makerPubkey, { size: 24 }))
 
+  // ORDER-AUTHBADGE3: aggregate reputation marker — 💠 when ≥1 contributing account to
+  // this tx placed a verified-bound order. Tooltip gives the N/M + list.
+  const txAuth = getTxContributorAuth(tx)
+  if(txAuth.verifiedCount > 0) row.appendChild(makeTxAuthBadge(txAuth))
+
   // Type icon — always visible
   row.appendChild(orderTypeIconEl(orderType))
 
@@ -540,6 +545,21 @@ function createTxRow(tx){
   row.appendChild(statusEl)
   row.appendChild(timeEl)
   const assetsEl = createTxAssets(tx, orderType)
+  // ORDER-AUTHBADGE3: per-account overlay on transfer chips (chips carry data-owner-account).
+  // Contributor accounts (placed an offer-side order in this tx) get 💠 verified / △ not;
+  // pure counterparties (received assets, no signed order) get neither. Scoped to .tx-row.
+  if(txAuth.contributorCount > 0){
+    assetsEl.querySelectorAll?.(".asset[data-owner-account]")?.forEach(chip => {
+      const a = chip.dataset.ownerAccount
+      if(txAuth.verifiedAccts.has(a)){
+        chip.classList.add("tx-asset-verified")
+        chip.title = (chip.title ? chip.title + " · " : "") + "reputation-verified account"
+      } else if(txAuth.contributorAccts.has(a)){
+        chip.classList.add("tx-asset-unverified")
+        chip.title = (chip.title ? chip.title + " · " : "") + "contributor — not reputation-verified"
+      }
+    })
+  }
   row.appendChild(assetsEl)
   // Nerd meta (txid/pch) trails the row on its own wrapped line in nerd mode, so the
   // primary card flow is identical in both modes (ORDERS-UI1).
@@ -2049,26 +2069,80 @@ function getAccountAuthState(publicAccountId){
 // ORDER-AUTHBADGE2: keyMatch confirms the order was SIGNED by the key the binding covers
 // (intentSignature.pubkeyHex ∈ the account's bound intent keys) — not merely placed by a
 // bound account. An account that bound one key but now signs with another → keyMatch false.
-function getOrderAuthState(order, playerId){
-  const bundle = order?.bundle
-  if(!Array.isArray(bundle)) return null
-  const acctId = (bundle.find(x => x.amount < 0) || bundle[0])?.accountId
-  if(!acctId || !playerId) return null
-  const acc = getAccountAuthState(playerId + ":" + acctId)
-  if(!acc) return null
-  const signingKey = katomiaNormKey(order?.intentSignature?.pubkeyHex)
-  const bound = (acc.intentKeys || []).map(katomiaNormKey)
-  const keyMatch = !!(signingKey && bound.includes(signingKey))
-  return { ...acc, keyMatch }
+// Is a given (bare) account verified-bound for THIS order's signing key? An account is
+// verified if some game account with that label published a verified binding whose bound
+// intent key == the order's signing key. Scans by label so it works for any player's order.
+function isAccountVerifiedForKey(accountId, signingKey){
+  if(!accountId || !signingKey) return false
+  return !!Object.values(state?.accounts || {}).find(a =>
+    (a.accountId === accountId || a.label === accountId) &&
+    a.authenticated &&
+    (a.authIntentKeys || []).map(katomiaNormKey).includes(signingKey))
 }
 
-function makeOrderAuthBadge(auth){
+// Per-account auth for an order. An order's bundle can have MULTIPLE offer-side accounts
+// (complex/pro orders), and the binding is per-account — so we return one entry per
+// distinct account whose assets LEAVE (amount<0; those are the ones needing authorisation).
+// Each is checked against the order's single signing key. Falls back to all bundle accounts
+// if nothing is on the offer side. (Design: lets a complex trade show a mix of 💠/△.)
+function getOrderAccountAuthList(order){
+  const bundle = order?.bundle
+  if(!Array.isArray(bundle)) return []
+  const signingKey = katomiaNormKey(order?.intentSignature?.pubkeyHex)
+  let accts = [...new Set(bundle.filter(x => x.amount < 0).map(x => x.accountId).filter(Boolean))]
+  if(!accts.length) accts = [...new Set(bundle.map(x => x.accountId).filter(Boolean))]
+  return accts.map(accountId => ({ accountId, verified: isAccountVerifiedForKey(accountId, signingKey) }))
+}
+
+// One marker per account: 💠 verified (bound & backend-verified) / △ not verified.
+// Binary — the backend rejects unverified bindings, so 💠 always means verified. △ = this
+// account has NOT authorised the order's key (no binding, expired, or a different key).
+function makeAccountAuthMarker(entry){
+  const nerd = document.body.classList.contains("nerd")
+  const el = document.createElement("span")
+  el.className = "order-auth-badge " + (entry.verified ? "auth-verified" : "auth-unverified")
+  el.textContent = entry.verified ? "💠" : "△"
+  el.title = entry.verified
+    ? (nerd
+        ? `${entry.accountId}: reputation-bound & verified — this account published a wallet binding for the order's signing key, verified on the backend.`
+        : `${entry.accountId}: reputation-bound & verified`)
+    : (nerd
+        ? `${entry.accountId}: NOT verified — this account has not authorised the order's signing key (no binding, expired, or a different key).`
+        : `${entry.accountId}: not reputation-bound`)
+  return el
+}
+
+// ── ORDER-AUTHBADGE3: verification on transactions ───────────────────────────
+// A tx collapses many fills → a set of CONTRIBUTING orders (tx.source.orders), each
+// with a signing key + placing account. Verification is per-contributing-order (one-to-
+// many), so we derive the set of verified contributor accounts for the tx: an order whose
+// signing key matches that account's verified binding (same keyMatch rule as orders).
+// Accounts that only received assets (counterparties with no signed order here) get no
+// 💠 — correct. All derived from existing state (authIntentKeys); no backend change.
+function getTxContributorAuth(tx){
+  const orders = tx?.source?.orders || {}
+  const verifiedAccts = new Set()
+  const contributorAccts = new Set()   // every offer-side account across the tx's orders
+  for(const oid of getTxOrderIds(tx)){
+    const order = orders[oid]
+    // reuse the per-account order logic so orders + tx agree on what "verified" means
+    for(const entry of getOrderAccountAuthList(order)){
+      contributorAccts.add(entry.accountId)
+      if(entry.verified) verifiedAccts.add(entry.accountId)
+    }
+  }
+  return { verifiedAccts, contributorAccts, verifiedCount: verifiedAccts.size, contributorCount: contributorAccts.size }
+}
+
+function makeTxAuthBadge(txAuth){
+  const nerd = document.body.classList.contains("nerd")
   const badge = document.createElement("span")
-  badge.className = "order-auth-badge" + (auth.full ? "" : " order-auth-badge-partial")
-  badge.textContent = auth.full ? "🔗 bound" : "🔗 partial"
-  badge.title = auth.full
-    ? "Reputation-bound: the placing account has published a wallet binding for its order key (optional; see Profile → Reputation binding)."
-    : `Partially bound (multisig): ${auth.weight} of ${auth.threshold} signing weight published.`
+  badge.className = "order-auth-badge tx-auth-badge"
+  badge.textContent = "💠"
+  const list = [...txAuth.verifiedAccts].join(", ")
+  badge.title = nerd
+    ? `${txAuth.verifiedCount} of ${txAuth.contributorCount} contributing account(s) reputation-verified: ${list}. Each contributed an order signed by a wallet-bound & verified key.`
+    : `${txAuth.verifiedCount}/${txAuth.contributorCount} contributors reputation-verified`
   return badge
 }
 
@@ -2125,10 +2199,10 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
     inner.appendChild(kemojiEl(avatarKey, { size: 24, isSelf: mine }))
   }
 
-  // ORDER-AUTHBADGE1/2: reputation-bound badge next to the trader identity — only when
-  // the order was actually signed by the bound key (keyMatch), so the badge can't overclaim.
-  const auth = getOrderAuthState(order, playerId)
-  if(auth && auth.keyMatch) inner.appendChild(makeOrderAuthBadge(auth))
+  // ORDER-AUTHBADGE1/2/3: one reputation marker per offer-side account (💠 verified / △
+  // not) — a complex/pro order with several offering accounts shows several markers, each
+  // per its own binding. Simple single-account order → a single 💠 or △.
+  getOrderAccountAuthList(order).forEach(entry => inner.appendChild(makeAccountAuthMarker(entry)))
 
   inner.appendChild(prefix)
   inner.appendChild(createOrderSide(offer, "order-offer"))
