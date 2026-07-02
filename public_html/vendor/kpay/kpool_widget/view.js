@@ -931,7 +931,11 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId) {
 		wrap.appendChild(note)
 	}
 
-	wrap.appendChild(buildThresholdWidget({ signedPubkeys, mustSign: acc.mustSign, keyInfo: acc.keyInfo }))
+	// pie + key list as two centred flex cells that reflow (side-by-side on desktop, stacked on
+	// mobile) — chart first, keys second (see .txcard-detail-grid).
+	const layout = document.createElement('div')
+	layout.className = 'txcard-detail-grid'
+	layout.appendChild(buildThresholdWidget({ signedPubkeys, mustSign: acc.mustSign, keyInfo: acc.keyInfo }))
 
 	const scores = acc.keyInfo?.banzhafScores?.scores
 	const redundancy = acc.keyInfo?.banzhafScores?.redundancy
@@ -966,8 +970,9 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId) {
 			row.append(tick, keyCell, banz, redC, ctrl)
 			grid.appendChild(row)
 		})
-		wrap.appendChild(grid)
+		layout.appendChild(grid)
 	}
+	wrap.appendChild(layout)
 
 	// (xproof label now lives in the card header via updateCardXproof, not here)
 	return wrap
@@ -1747,7 +1752,7 @@ export function injectTxReadCSS() {
 		.txread-scope-ids { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 		.txread-scope-txid { word-break: break-all; }
 		.txread-sep { color: #ccc; }
-		.txread-memo { text-align: center; font-size: 12px; color: #888; margin-top: 10px; word-break: break-word; }
+		.txread-memo { text-align: center; font-size: 12px; color: #888; margin: 10px 0 12px; word-break: break-word; }   /* bottom gap like the scope line, so it isn't butted against the card */
 		.txread-memo-label { font-weight: 600; color: #777; }
 		.txread-xfer-cell { transition: background .12s ease; }
 		[data-acct].acct-hl { background: #eef0f3; }
@@ -1855,11 +1860,12 @@ export function injectTxReadCSS() {
 		.txcard--open .txcard-detail { grid-template-rows:1fr; }
 		.txcard-detail-inner { overflow:hidden; min-height:0; }
 		.txcard--open .txcard-detail-inner { padding:10px 12px; border-top:1px solid #ececec; }
-		/* pie sits on its own line ABOVE the key list (it encapsulates all the keys); the
-		   list is compact + left-aligned — fixed columns (no 1fr) so it doesn't spread out
-		   with a big gap on wide desktop cards. */
-		.txcard-detail .acctkeys-piechart { display:block; margin:0 auto 8px; }
-		.txcard-keys { display:flex; flex-direction:column; gap:3px; font-size:12px; margin-top:8px; }
+		/* pie + key list are two flex cells that reflow (side-by-side on desktop, stacked on
+		   mobile), clustered in the centre with the slack on the outside; vertically centred.
+		   Chart first, keys second. The list keeps fixed columns (no 1fr) so it stays compact. */
+		.txcard-detail-grid { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:12px 28px; }
+		.txcard-detail .acctkeys-piechart { margin:0; flex:0 0 auto; }
+		.txcard-keys { display:flex; flex-direction:column; gap:3px; font-size:12px; }
 		.txcard-keys-row { display:grid; grid-template-columns:22px 74px 48px 60px 56px; gap:10px; align-items:center; }
 		.txcard-keys-head { color:#a1a1aa; font-size:11px; }
 		.txcard-keys-row a { color:#3b82f6; text-decoration:none; }
