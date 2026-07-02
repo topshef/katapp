@@ -2062,13 +2062,17 @@ function getOrderAuthState(order, playerId){
   return { ...acc, keyMatch }
 }
 
+// Binary badge: bound == verified (the backend rejects any binding whose signature
+// doesn't verify, so there is no unverified state). Icon only; the label lives in the
+// tooltip, long in nerd mode / short otherwise.
 function makeOrderAuthBadge(auth){
+  const nerd = document.body.classList.contains("nerd")
   const badge = document.createElement("span")
-  badge.className = "order-auth-badge" + (auth.full ? "" : " order-auth-badge-partial")
-  badge.textContent = auth.full ? "🔗 bound" : "🔗 partial"
-  badge.title = auth.full
-    ? "Reputation-bound: the placing account has published a wallet binding for its order key (optional; see Profile → Reputation binding)."
-    : `Partially bound (multisig): ${auth.weight} of ${auth.threshold} signing weight published.`
+  badge.className = "order-auth-badge"
+  badge.textContent = "💠"
+  badge.title = nerd
+    ? `Reputation-bound & verified — the placing account published a wallet binding for this order key, and the backend verified the wallet signature against the account's on-chain key(s). Signed weight ${auth.weight}/${auth.threshold}.`
+    : "Reputation-bound & verified"
   return badge
 }
 

@@ -7,7 +7,7 @@ window.pendingCreateOrderAccount = null
 // katomia.css (:root --katomia-css-build). Both are surfaced in the diagnostics
 // so we can tell, from the server-side kdiag logs, exactly which version of the
 // code a given browser is running — and whether a cached (stale) asset is in play.
-const KATOMIA_JS_BUILD = "20260702-authbadge-2"
+const KATOMIA_JS_BUILD = "20260702-verified-3"
 
 // Self-contained diagnostics sender. window.kdiag (from the kpool widget) is
 // lazy-loaded only when the signing widget mounts, so it is NOT available when
@@ -391,14 +391,17 @@ async function updateCreateOrderAuthHint(){
   if(!el) return
   const val = document.getElementById("createOrderAccount")?.value || ""
   if(!val || val.startsWith(WC_ORDER_ADD_PREFIX)){ el.textContent = ""; el.className = "create-order-auth-hint"; return }
+  const nerd = document.body.classList.contains("nerd")
   const auth = (typeof getAccountAuthState === "function") ? getAccountAuthState(val) : null
   if(!auth){
-    el.textContent = "Not reputation-bound — bind your key in Profile → Reputation binding to back your orders (optional)"
+    el.textContent = nerd
+      ? "Not reputation-bound — optionally bind your order key to a wallet in Profile → Reputation binding to back your orders."
+      : "Not reputation-bound (optional)"
     el.className = "create-order-auth-hint unbound"
     return
   }
   // ORDER-AUTHBADGE2: your orders are signed by the session order key — confirm the
-  // account's binding actually covers THAT key, else the binding won't back these orders.
+  // account's (verified) binding actually covers THAT key, else it won't back these orders.
   let sessionKey = ""
   try { sessionKey = (typeof getKatomiaOrderPubkeyHex === "function") ? await getKatomiaOrderPubkeyHex() : "" } catch {}
   const norm = h => String(h || "").replace(/^0x/, "").toLowerCase()
@@ -406,12 +409,14 @@ async function updateCreateOrderAuthHint(){
   // guard against a stale async result if the selection changed while we awaited
   if((document.getElementById("createOrderAccount")?.value || "") !== val) return
   if(keyMatch){
-    el.textContent = auth.full
-      ? "🔗 Reputation-bound order — this account+key has a published wallet binding"
-      : `🔗 Partially bound (multisig) — ${auth.weight}/${auth.threshold} signing weight`
+    el.textContent = nerd
+      ? `💠 Reputation-bound & verified — this account published a wallet binding for your order key (verified on the backend). Signed weight ${auth.weight}/${auth.threshold}.`
+      : "💠 Reputation-bound & verified"
     el.className = "create-order-auth-hint bound"
   } else {
-    el.textContent = "Account is bound, but this session's order key isn't the bound key — re-raise the commitment (Profile → Reputation binding) to back these orders"
+    el.textContent = nerd
+      ? "This account has a verified binding, but for a DIFFERENT order key than this session's — re-raise the commitment (Profile → Reputation binding) so these orders are bound."
+      : "Account bound to a different key — re-raise in Profile to back these orders"
     el.className = "create-order-auth-hint warn"
   }
 }
