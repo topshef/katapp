@@ -20,15 +20,16 @@
 // Per-asset trail COLOUR: a stable hue derived from the asset key (HBAR stays blue) so each
 // asset's trajectory is distinguishable. Swap for a lookup table later if brand colours wanted.
 
-// ── ONE speed knob for the MOTION (hard-coded for dev; drop toward 1 for production) ──
-const SLOW = 1
-const TRAVEL_MS  = 540 * SLOW    // per-asset glide
-const FRIZZ_MS   = 160 * SLOW    // pool puff
-const STAGGER_MS = 220 * SLOW    // gap between asset flows
-// Trail lifetime is DECOUPLED from SLOW on purpose (per user): the dotted trajectory lingers
-// well past the glide so you see the whole path. Exaggerated for now — dial back later.
+// ── MOTION timings — these ARE the production values (the animation runs at this speed, which
+// the user signed off as right). For slow-mo DEBUGGING only, temporarily raise TIME_SCALE; 1 = normal. ──
+const TIME_SCALE = 1
+const TRAVEL_MS  = 540 * TIME_SCALE    // per-asset glide
+const FRIZZ_MS   = 160 * TIME_SCALE    // pool puff
+const STAGGER_MS = 220 * TIME_SCALE    // gap between asset flows
+// TRAIL_MS is only used by the (currently disabled) trail fade in trailMark — the lines are kept
+// drawn now, so it has no effect unless that fade is re-enabled.
 const TRAIL_MS   = 5000
-const DOT_SPACING = 3            // px between trail dots ALONG the path (spatial, so spacing stays even at any speed; smaller = denser). NB density × TRAIL_MS = many live nodes; fine for a preview.
+const DOT_SPACING = 3            // px between trail dots ALONG the path (spatial, even spacing; smaller = denser)
 const LIFT = 0.06                // subtle midpoint scale lift (NOT a shrink)
 const FRIZZ_OPACITY = 0.14       // very soft puff
 

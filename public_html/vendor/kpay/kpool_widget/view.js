@@ -365,7 +365,9 @@ const SIGN_REASON = {
 			if (!container._flowRunning && preview.dataset.state === 'after') revertFlow(container)
 		})
 		afterHalf.addEventListener('click', async () => {
-			if (!container._flowRunning && preview.dataset.state !== 'after') { preview.dataset.state = 'after'; await previewFlow(container) }
+			// always (re)play — redraws the trajectory lines even when already in 'after' (e.g.
+			// after expanding a card wiped them).
+			if (!container._flowRunning) { preview.dataset.state = 'after'; await previewFlow(container) }
 		})
 		preview.append(beforeHalf, afterHalf)
 		container.appendChild(preview)
@@ -402,6 +404,9 @@ const SIGN_REASON = {
 			const open = card.classList.toggle('txcard--open')
 			card.querySelector('.txcard-chevron').textContent = open ? '▾' : '▸'
 			if (open) renderCardDetail(card)
+			// expanding/collapsing reflows the cards, so the drawn trajectory lines no longer line
+			// up — wipe them. Re-click AFTER to redraw. (per user)
+			container.querySelector('.txflow-layer-trail')?.replaceChildren()
 		})
 		return container
 	}
