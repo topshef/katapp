@@ -22,6 +22,7 @@ const {
 	summariseStatus,
 	updateFinalState,
 	markConnectedAccounts,
+	playSuccessFlow,
 	pickAssetLabel,
 	resolveTxView,
 	buildTransferViews
@@ -968,6 +969,9 @@ async function refreshPolledTx(txState, pollTimer) {
 const CONFETTI_CDN = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js'
 
 async function triggerSuccessAnimation() {
+	// play the asset-movement animation on the cards first (it sticks at the settled state:
+	// sources ghosted / dests solid), then celebrate. No-op in table/nerd mode. (TX-CARDS5)
+	try { await playSuccessFlow() } catch (e) { console.warn('success flow failed', e) }
 	const confetti = await loadScript(CONFETTI_CDN, 'confetti')
 	if (!confetti?.create) return
 
