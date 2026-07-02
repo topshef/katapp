@@ -865,30 +865,38 @@ export function updateCardBalances(precheck) {
 	const cards = document.querySelector('.txcards')
 	if (!cards) return
 
-	const short = {}   // accountId -> Set(short asset keys)
-	const add = (acct, key) => { (short[acct] ||= new Set()).add(key) }
+	const short = {}     // accountId -> Set(asset) : insufficient BALANCE (send side, solid red)
+	const unassoc = {}   // accountId -> Set(asset) : token NOT ASSOCIATED (receive side, dashed red)
+	const add = (map, acct, key) => { (map[acct] ||= new Set()).add(key) }
 	for (const [acct, assets] of Object.entries(precheck?.balances || {}))
 		for (const [asset, f] of Object.entries(assets || {}))
-			if (f && Number(f.forecast) < 0) add(acct, asset)
+			if (f && Number(f.forecast) < 0) add(short, acct, asset)
+	// authoritative fail strings: balance ("… enough …" / "… sufficient hbar …") vs association
+	// ("… associated …"). Association is a DIFFERENT class of fault from a shortfall — it's the
+	// receiving account's responsibility, and a receiver with an auto-association slot would
+	// actually succeed. The precheck only knows the existing relationship (not auto-assoc), so
+	// we can't be sure → dashed (uncertain). TODO: solid vs dashed from the account's
+	// max_automatic_token_associations (0 = definite fail → solid; >0/-1 = auto → dashed).
 	for (const line of precheck?.tests?.fail || []) {
 		let m
-		if ((m = /has sender (\S+) enough (\S+)/.exec(line))) add(m[1], m[2])
-		else if ((m = /has (\S+) sufficient hbar balance/.exec(line))) add(m[1], 'hbar')
+		if ((m = /has sender (\S+) enough (\S+)/.exec(line))) add(short, m[1], m[2])
+		else if ((m = /has (\S+) sufficient hbar balance/.exec(line))) add(short, m[1], 'hbar')
+		else if ((m = /has (?:sender|receiver) (\S+) associated (\S+)/.exec(line))) add(unassoc, m[1], m[2])
 	}
 
+	const key = chip => chip.dataset.assetKey === 'tinybar' ? 'hbar' : chip.dataset.assetKey
 	const diag = { hasPrecheck: !!precheck, balanceKeys: Object.keys(precheck?.balances || {}), fails: (precheck?.tests?.fail || []).length, cards: [] }
 	cards.querySelectorAll('.txcard').forEach(card => {
 		const id = card.querySelector('.txcard-head[data-acct]')?.dataset.acct
 		const shortAssets = short[id] || new Set()
-		card.dataset.balanceShort = shortAssets.size ? '1' : '0'
-		const chipKeys = []
-		card.querySelectorAll('.txcard-send .txcard-chip').forEach(chip => {
-			const key = chip.dataset.assetKey === 'tinybar' ? 'hbar' : chip.dataset.assetKey
-			chipKeys.push(key)
-			chip.classList.toggle('txcard-chip--short', shortAssets.has(key))
-		})
+		const unassocAssets = unassoc[id] || new Set()
+		card.dataset.balanceShort = (shortAssets.size || unassocAssets.size) ? '1' : '0'   // either blocks → red ring
+		card.querySelectorAll('.txcard-send .txcard-chip').forEach(chip =>
+			chip.classList.toggle('txcard-chip--short', shortAssets.has(key(chip))))
+		card.querySelectorAll('.txcard-receive .txcard-chip').forEach(chip =>
+			chip.classList.toggle('txcard-chip--unassoc', unassocAssets.has(key(chip))))
 		paintCardRing(card)
-		diag.cards.push({ id, short: [...shortAssets], chipKeys })
+		diag.cards.push({ id, short: [...shortAssets], unassoc: [...unassocAssets] })
 	})
 	try { globalThis.kdiag?.('cards:balances', diag) } catch {}
 }
@@ -1819,8 +1827,11 @@ export function injectTxReadCSS() {
 		.txcard--balance-short  { border-color:#e5484d; box-shadow:0 0 0 1px #e5484d; }   /* overdraft — hard blocker, wins the ring */
 		.txcard-head-right { margin-left:auto; display:flex; align-items:center; gap:8px; }
 		.txcard-sign { font-size:12px; color:#71717a; white-space:nowrap; font-weight:500; }
-		/* per-asset overdraft: red ring on the specific SEND chip that's short */
+		/* per-asset overdraft: solid red ring on the specific SEND chip that's short */
 		.txcard-chip--short { border-color:#e5484d; box-shadow:0 0 0 1px #e5484d; }
+		/* token NOT associated on the RECEIVING side: dashed red (uncertain — a receiver with an
+		   auto-association slot would still succeed). Different fault class from a balance shortfall. */
+		.txcard-chip--unassoc { border-color:#e5484d; border-style:dashed; box-shadow:0 0 0 1px #e5484d; }
 		/* operator fee chip: no amount, distinct dotted/italic so it reads as an estimate */
 		.txcard-chip--fee { border-style:dotted; font-style:italic; color:#71717a; }
 
