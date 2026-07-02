@@ -20,15 +20,16 @@
 // Per-asset trail COLOUR: a stable hue derived from the asset key (HBAR stays blue) so each
 // asset's trajectory is distinguishable. Swap for a lookup table later if brand colours wanted.
 
-// ── ONE speed knob for the MOTION (hard-coded for dev; drop toward 1 for production) ──
-const SLOW = 1
-const TRAVEL_MS  = 540 * SLOW    // per-asset glide
-const FRIZZ_MS   = 160 * SLOW    // pool puff
-const STAGGER_MS = 220 * SLOW    // gap between asset flows
-// Trail lifetime is DECOUPLED from SLOW on purpose (per user): the dotted trajectory lingers
-// well past the glide so you see the whole path. Exaggerated for now — dial back later.
+// ── MOTION timings — these ARE the production values (the animation runs at this speed, which
+// the user signed off as right). For slow-mo DEBUGGING only, temporarily raise TIME_SCALE; 1 = normal. ──
+const TIME_SCALE = 1
+const TRAVEL_MS  = 540 * TIME_SCALE    // per-asset glide
+const FRIZZ_MS   = 160 * TIME_SCALE    // pool puff
+const STAGGER_MS = 220 * TIME_SCALE    // gap between asset flows
+// TRAIL_MS is only used by the (currently disabled) trail fade in trailMark — the lines are kept
+// drawn now, so it has no effect unless that fade is re-enabled.
 const TRAIL_MS   = 5000
-const DOT_SPACING = 3            // px between trail dots ALONG the path (spatial, so spacing stays even at any speed; smaller = denser). NB density × TRAIL_MS = many live nodes; fine for a preview.
+const DOT_SPACING = 3            // px between trail dots ALONG the path (spatial, even spacing; smaller = denser)
 const LIFT = 0.06                // subtle midpoint scale lift (NOT a shrink)
 const FRIZZ_OPACITY = 0.14       // very soft puff
 
@@ -63,11 +64,12 @@ function trailMark(back, x, y, hue) {
 	mark.style.left = x + 'px'; mark.style.top = y + 'px'
 	mark.style.background = `radial-gradient(circle, hsl(${hue} 80% 62% / .6) 0%, hsl(${hue} 80% 62% / 0) 70%)`
 	back.appendChild(mark)
-	mark.animate([
-		{ transform: 'translate(-50%,-50%) scale(1)', opacity: 0.45 },
-		{ transform: 'translate(-50%,-50%) scale(1)', opacity: 0.45, offset: 0.4 },
-		{ transform: 'translate(-50%,-50%) scale(0.4)', opacity: 0 }
-	], { duration: TRAIL_MS, easing: 'ease-out' }).onfinish = () => mark.remove()
+	// NO fade-out (per user): the dotted trajectory is a genuinely useful record of where each
+	// asset came from / went to, so we LEAVE the lines drawn. They persist until the state is
+	// reverted to 'before' (revertFlow clears the trail layer) or a new preview redraws them.
+	// (Previously each mark faded + self-removed over TRAIL_MS — kept commented in case we ever
+	// want them to dissipate again. The dot is centred via CSS transform now.)
+	// mark.animate([{opacity:.45},{opacity:.45,offset:.4},{transform:'scale(.4)',opacity:0}], { duration: TRAIL_MS, easing:'ease-out' }).onfinish = () => mark.remove()
 }
 
 // One continuous ghost (front layer) gliding A→B along quadratic A,ctrl,B. Positions are
@@ -183,6 +185,9 @@ export function setFlowState(container, after) {
 		g.receive.forEach(c => c.classList.toggle('txcard-chip-ghost', !after))
 		;[...g.send, ...g.receive].forEach(c => c.classList.remove('txflow-landed'))
 	}
+	// the operator HBAR fee chip isn't animated, but gray it in the 'after' state too so it
+	// matches the other (ghosted) send chips stylistically (per user).
+	container.querySelectorAll('.txcard-chip--fee').forEach(c => c.classList.toggle('txcard-chip-ghost', after))
 	container.dataset.flowState = after ? 'after' : 'before'
 	container.querySelector('.txcards-preview')?.setAttribute('data-state', after ? 'after' : 'before')
 }

@@ -344,26 +344,33 @@ const SIGN_REASON = {
 		const container = document.createElement('div')
 		container.className = 'txcards'
 
-		// ▶ preview control (TX-FLOW-ANIM1): before/after TOGGLE. Press → animate + stick at the
-		// settled "after" state (sources left as ghosts); press again → revert to "before". Not
-		// inside a .txcard-head, so the card-expand click handler ignores it.
-		const bar = document.createElement('div')
-		bar.className = 'txcards-bar'
-		const previewBtn = document.createElement('button')
-		previewBtn.type = 'button'
-		previewBtn.className = 'txcards-preview'
-		previewBtn.dataset.state = 'before'
-		previewBtn.title = 'Preview the asset movement — toggle before / after'
-		previewBtn.innerHTML = '<span class="txcards-preview-cap">▶ Preview</span>' +
-			'<span class="txcards-seg txcards-seg-before">before</span>' +
-			'<span class="txcards-seg txcards-seg-after">after</span>'
-		previewBtn.addEventListener('click', async () => {
-			if (container._flowRunning) return
-			if (previewBtn.dataset.state === 'after') revertFlow(container)   // → 'before' + syncs label
-			else { previewBtn.dataset.state = 'after'; await previewFlow(container) }   // play + stick at 'after'
+		// PREVIEW as a full-width before/after card — same shape as an account card, split into a
+		// pink BEFORE (send side) and green AFTER (receive side). It doubles as (a) a legend for
+		// what left/right mean on the account cards and (b) the animation toggle: tap AFTER →
+		// play + stick at the settled state; tap BEFORE → revert. EXPLORATORY (kicking tyres) — a
+		// bold way to make left/right obvious; may well revert to a small compact preview button.
+		// data-state drives the highlight and is kept in sync by setFlowState(). (TX-FLOW-ANIM1)
+		const preview = document.createElement('div')
+		preview.className = 'txcards-preview'
+		preview.dataset.state = 'before'
+		const beforeHalf = document.createElement('button')
+		beforeHalf.type = 'button'
+		beforeHalf.className = 'txpreview-half txpreview-before'
+		beforeHalf.textContent = 'BEFORE'
+		const afterHalf = document.createElement('button')
+		afterHalf.type = 'button'
+		afterHalf.className = 'txpreview-half txpreview-after'
+		afterHalf.textContent = 'AFTER'
+		beforeHalf.addEventListener('click', () => {
+			if (!container._flowRunning && preview.dataset.state === 'after') revertFlow(container)
 		})
-		bar.appendChild(previewBtn)
-		container.appendChild(bar)
+		afterHalf.addEventListener('click', async () => {
+			// always (re)play — redraws the trajectory lines even when already in 'after' (e.g.
+			// after expanding a card wiped them).
+			if (!container._flowRunning) { preview.dataset.state = 'after'; await previewFlow(container) }
+		})
+		preview.append(beforeHalf, afterHalf)
+		container.appendChild(preview)
 
 		accounts.forEach(acc => container.appendChild(buildAccountCard(network, acc)))
 
@@ -397,6 +404,9 @@ const SIGN_REASON = {
 			const open = card.classList.toggle('txcard--open')
 			card.querySelector('.txcard-chevron').textContent = open ? '▾' : '▸'
 			if (open) renderCardDetail(card)
+			// expanding/collapsing reflows the cards, so the drawn trajectory lines no longer line
+			// up — wipe them. Re-click AFTER to redraw. (per user)
+			container.querySelector('.txflow-layer-trail')?.replaceChildren()
 		})
 		return container
 	}
@@ -513,11 +523,12 @@ const SIGN_REASON = {
 		// into the Status tab pane, so the render-by-id functions keep working.
 		const statusBlock = buildStatusBlock({ data })
 		statusBlock.el.classList.add('txread-status-main')
-		// Show overall status + countdown in the header (normal-visible), not only in the
-		// nerd Status tab — "Waiting hh:mm:ss" belongs where users can see it (per user).
-		// (buildStatusPane no longer mounts this; it lives here at the top of the intent.)
-		statusBlock.el.classList.add('txread-status-header')
-		intent.insertBefore(statusBlock.el, intent.firstChild)
+		// The content status line is GONE (per user): the status LABEL lives in the modal header
+		// (kpm-head) and the COUNTDOWN now lives there too (⏱, index.js startHeaderCountdown →
+		// modal.setCountdown). statusBlock is still built for its .update() side effects
+		// (handleTxUpdate/refreshPolledTx call it — it writes the SUCCESS localStorage flag), but
+		// it's no longer inserted into the modal body, so there's no duplicate time/countdown and
+		// no layout jolt when the status flips to Success.
 
 		const readinessEl = document.createElement('div')
 		readinessEl.id = 'txread-readiness'
@@ -860,30 +871,38 @@ export function updateCardBalances(precheck) {
 	const cards = document.querySelector('.txcards')
 	if (!cards) return
 
-	const short = {}   // accountId -> Set(short asset keys)
-	const add = (acct, key) => { (short[acct] ||= new Set()).add(key) }
+	const short = {}     // accountId -> Set(asset) : insufficient BALANCE (send side, solid red)
+	const unassoc = {}   // accountId -> Set(asset) : token NOT ASSOCIATED (receive side, dashed red)
+	const add = (map, acct, key) => { (map[acct] ||= new Set()).add(key) }
 	for (const [acct, assets] of Object.entries(precheck?.balances || {}))
 		for (const [asset, f] of Object.entries(assets || {}))
-			if (f && Number(f.forecast) < 0) add(acct, asset)
+			if (f && Number(f.forecast) < 0) add(short, acct, asset)
+	// authoritative fail strings: balance ("… enough …" / "… sufficient hbar …") vs association
+	// ("… associated …"). Association is a DIFFERENT class of fault from a shortfall — it's the
+	// receiving account's responsibility, and a receiver with an auto-association slot would
+	// actually succeed. The precheck only knows the existing relationship (not auto-assoc), so
+	// we can't be sure → dashed (uncertain). TODO: solid vs dashed from the account's
+	// max_automatic_token_associations (0 = definite fail → solid; >0/-1 = auto → dashed).
 	for (const line of precheck?.tests?.fail || []) {
 		let m
-		if ((m = /has sender (\S+) enough (\S+)/.exec(line))) add(m[1], m[2])
-		else if ((m = /has (\S+) sufficient hbar balance/.exec(line))) add(m[1], 'hbar')
+		if ((m = /has sender (\S+) enough (\S+)/.exec(line))) add(short, m[1], m[2])
+		else if ((m = /has (\S+) sufficient hbar balance/.exec(line))) add(short, m[1], 'hbar')
+		else if ((m = /has (?:sender|receiver) (\S+) associated (\S+)/.exec(line))) add(unassoc, m[1], m[2])
 	}
 
+	const key = chip => chip.dataset.assetKey === 'tinybar' ? 'hbar' : chip.dataset.assetKey
 	const diag = { hasPrecheck: !!precheck, balanceKeys: Object.keys(precheck?.balances || {}), fails: (precheck?.tests?.fail || []).length, cards: [] }
 	cards.querySelectorAll('.txcard').forEach(card => {
 		const id = card.querySelector('.txcard-head[data-acct]')?.dataset.acct
 		const shortAssets = short[id] || new Set()
-		card.dataset.balanceShort = shortAssets.size ? '1' : '0'
-		const chipKeys = []
-		card.querySelectorAll('.txcard-send .txcard-chip').forEach(chip => {
-			const key = chip.dataset.assetKey === 'tinybar' ? 'hbar' : chip.dataset.assetKey
-			chipKeys.push(key)
-			chip.classList.toggle('txcard-chip--short', shortAssets.has(key))
-		})
+		const unassocAssets = unassoc[id] || new Set()
+		card.dataset.balanceShort = (shortAssets.size || unassocAssets.size) ? '1' : '0'   // either blocks → red ring
+		card.querySelectorAll('.txcard-send .txcard-chip').forEach(chip =>
+			chip.classList.toggle('txcard-chip--short', shortAssets.has(key(chip))))
+		card.querySelectorAll('.txcard-receive .txcard-chip').forEach(chip =>
+			chip.classList.toggle('txcard-chip--unassoc', unassocAssets.has(key(chip))))
 		paintCardRing(card)
-		diag.cards.push({ id, short: [...shortAssets], chipKeys })
+		diag.cards.push({ id, short: [...shortAssets], unassoc: [...unassocAssets] })
 	})
 	try { globalThis.kdiag?.('cards:balances', diag) } catch {}
 }
@@ -912,7 +931,11 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId) {
 		wrap.appendChild(note)
 	}
 
-	wrap.appendChild(buildThresholdWidget({ signedPubkeys, mustSign: acc.mustSign, keyInfo: acc.keyInfo }))
+	// pie + key list as two centred flex cells that reflow (side-by-side on desktop, stacked on
+	// mobile) — chart first, keys second (see .txcard-detail-grid).
+	const layout = document.createElement('div')
+	layout.className = 'txcard-detail-grid'
+	layout.appendChild(buildThresholdWidget({ signedPubkeys, mustSign: acc.mustSign, keyInfo: acc.keyInfo }))
 
 	const scores = acc.keyInfo?.banzhafScores?.scores
 	const redundancy = acc.keyInfo?.banzhafScores?.redundancy
@@ -947,8 +970,9 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId) {
 			row.append(tick, keyCell, banz, redC, ctrl)
 			grid.appendChild(row)
 		})
-		wrap.appendChild(grid)
+		layout.appendChild(grid)
 	}
+	wrap.appendChild(layout)
 
 	// (xproof label now lives in the card header via updateCardXproof, not here)
 	return wrap
@@ -1041,11 +1065,15 @@ export function playSuccessFlow() {
 	return c ? flowTravel(c) : Promise.resolve()
 }
 
-// A tx that already reached consensus opens directly in the settled 'after' state (sources
-// ghosted / dests solid) — no animation, just the end position. Preview can still replay it.
+// Opening a tx that already reached consensus: PLAY the flow once so the trajectory lines get
+// drawn (running the animation IS how the before→after connections are rendered) — it sticks at
+// 'after' with the lines left in place. Deferred a couple of frames so the cards have laid out.
+// CONSIDER (future, not now): also drawing these lines BEFORE consensus would show where assets
+// are heading — but it may clutter, so we're holding off.
 export function markSettledIfSuccess(data) {
 	const c = document.querySelector('.txcards')
-	if (c && (data?.comboStatus === 'SUCCESS' || data?.receiptSuccess === true)) setFlowState(c, true)
+	if (!c || !(data?.comboStatus === 'SUCCESS' || data?.receiptSuccess === true)) return
+	requestAnimationFrame(() => requestAnimationFrame(() => { flowTravel(c) }))
 }
 
 export function renderReadinessInfo({readiness}) {
@@ -1719,12 +1747,12 @@ export function injectTxReadCSS() {
 		.txread-intent .txread-xfers { max-width: 580px; margin: 0 auto; }
 		.txread-scope {
 			display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline;
-			gap: 2px 10px; margin: 4px 0 2px; font-size: 12px; color: #888;
+			gap: 2px 10px; margin: 4px 0 12px; font-size: 12px; color: #888;   /* bottom gap so it isn't butted against the preview card */
 		}
 		.txread-scope-ids { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 		.txread-scope-txid { word-break: break-all; }
 		.txread-sep { color: #ccc; }
-		.txread-memo { text-align: center; font-size: 12px; color: #888; margin-top: 10px; word-break: break-word; }
+		.txread-memo { text-align: center; font-size: 12px; color: #888; margin: 10px 0 12px; word-break: break-word; }   /* bottom gap like the scope line, so it isn't butted against the card */
 		.txread-memo-label { font-weight: 600; color: #777; }
 		.txread-xfer-cell { transition: background .12s ease; }
 		[data-acct].acct-hl { background: #eef0f3; }
@@ -1814,23 +1842,30 @@ export function injectTxReadCSS() {
 		.txcard--balance-short  { border-color:#e5484d; box-shadow:0 0 0 1px #e5484d; }   /* overdraft — hard blocker, wins the ring */
 		.txcard-head-right { margin-left:auto; display:flex; align-items:center; gap:8px; }
 		.txcard-sign { font-size:12px; color:#71717a; white-space:nowrap; font-weight:500; }
-		/* per-asset overdraft: red ring on the specific SEND chip that's short */
+		/* per-asset overdraft: solid red ring on the specific SEND chip that's short */
 		.txcard-chip--short { border-color:#e5484d; box-shadow:0 0 0 1px #e5484d; }
+		/* token NOT associated on the RECEIVING side: dashed red (uncertain — a receiver with an
+		   auto-association slot would still succeed). Different fault class from a balance shortfall. */
+		.txcard-chip--unassoc { border-color:#e5484d; border-style:dashed; box-shadow:0 0 0 1px #e5484d; }
 		/* operator fee chip: no amount, distinct dotted/italic so it reads as an estimate */
 		.txcard-chip--fee { border-style:dotted; font-style:italic; color:#71717a; }
 
 		/* expandable account detail (TX-CARDS9 step c) — grid-rows trick, no native arrow */
 		.txcard-head--toggle { cursor:pointer; user-select:none; }
-		.txcard-chevron { color:#a1a1aa; font-size:11px; transition:transform .2s ease; }
+		/* A11Y NOTE (whole app): these expand/collapse chevrons — and lots of mobile text — are
+		   too small for low-vision users. We need a "low-vision" theme/skin (larger fonts, bigger
+		   hit targets, stronger contrast) as a future themeing pass. See task A11Y-LOWVISION1. */
+		.txcard-chevron { color:#71717a; font-size:16px; line-height:1; transition:transform .2s ease; }
 		.txcard-detail { display:grid; grid-template-rows:0fr; transition:grid-template-rows .22s ease; }
 		.txcard--open .txcard-detail { grid-template-rows:1fr; }
 		.txcard-detail-inner { overflow:hidden; min-height:0; }
 		.txcard--open .txcard-detail-inner { padding:10px 12px; border-top:1px solid #ececec; }
-		/* pie sits on its own line ABOVE the key list (it encapsulates all the keys); the
-		   list is compact + left-aligned — fixed columns (no 1fr) so it doesn't spread out
-		   with a big gap on wide desktop cards. */
-		.txcard-detail .acctkeys-piechart { display:block; margin:0 auto 8px; }
-		.txcard-keys { display:flex; flex-direction:column; gap:3px; font-size:12px; margin-top:8px; }
+		/* pie + key list are two flex cells that reflow (side-by-side on desktop, stacked on
+		   mobile), clustered in the centre with the slack on the outside; vertically centred.
+		   Chart first, keys second. The list keeps fixed columns (no 1fr) so it stays compact. */
+		.txcard-detail-grid { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:12px 28px; }
+		.txcard-detail .acctkeys-piechart { margin:0; flex:0 0 auto; }
+		.txcard-keys { display:flex; flex-direction:column; gap:3px; font-size:12px; }
 		.txcard-keys-row { display:grid; grid-template-columns:22px 74px 48px 60px 56px; gap:10px; align-items:center; }
 		.txcard-keys-head { color:#a1a1aa; font-size:11px; }
 		.txcard-keys-row a { color:#3b82f6; text-decoration:none; }
@@ -1886,13 +1921,21 @@ export function injectTxReadCSS() {
 
 		/* ▶ preview control + v0 pulse (TX-FLOW-ANIM1): send chips pulse out (amber), then
 		   receive chips pulse in (green, de-fading the ghost = "landing"). */
-		.txcards-bar { display:flex; justify-content:flex-end; }
-		/* preview = before/after toggle: the active side is highlighted per data-state */
-		.txcards-preview { all:revert; cursor:pointer; display:inline-flex; align-items:center; gap:6px; border:1px solid #e4e4e7; background:#fff; border-radius:14px; padding:2px 5px 2px 10px; font:500 12px system-ui,-apple-system,"Segoe UI",sans-serif; color:#52525b; }
-		.txcards-preview:hover { background:#f4f4f5; }
-		.txcards-seg { padding:1px 7px; border-radius:10px; color:#a1a1aa; }
-		.txcards-preview[data-state="before"] .txcards-seg-before,
-		.txcards-preview[data-state="after"]  .txcards-seg-after { background:#e0edff; color:#1d4ed8; font-weight:600; }
+		/* preview = full-width before/after card (same rounded shape as an account card). Left
+		   pink BEFORE / right green AFTER = a legend for the account cards AND the toggle; the
+		   non-active side dims. EXPLORATORY styling — may revert to a compact button. */
+		.txcards-preview { display:flex; border:1px solid #e4e4e7; border-radius:10px; overflow:hidden; }
+		.txpreview-half { all:revert; flex:1 1 0; cursor:pointer; border:none; padding:13px 10px;
+			font:800 18px/1 system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.08em; transition:filter .15s ease; }
+		.txpreview-before { background:#fdf2f2; color:rgba(185,28,28,.38); }   /* pink send side, FAINT red caps */
+		.txpreview-after  { background:#eff7f1; color:rgba(21,128,61,.4); }    /* green receive side, FAINT green caps */
+		/* hover: keep the tint (re-assert to beat host button:hover) + a subtle grey inset border
+		   so it still reads as a button; no colour change. */
+		.txpreview-before:hover { background:#fdf2f2; }
+		.txpreview-after:hover  { background:#eff7f1; }
+		.txpreview-half:hover   { box-shadow: inset 0 0 0 2px rgba(0,0,0,.14); }
+		.txcards-preview[data-state="before"] .txpreview-after,
+		.txcards-preview[data-state="after"]  .txpreview-before { opacity:.45; }
 		.txflow-pulse-out { animation: txflowPulseOut .42s ease; }
 		.txflow-pulse-in  { animation: txflowPulseIn  .42s ease; }
 		@keyframes txflowPulseOut { 50% { outline:2px solid #f5a623; outline-offset:2px; transform:translateY(-3px) scale(1.06); } }
@@ -1909,6 +1952,7 @@ export function injectTxReadCSS() {
 		.txflow-frizz { position:absolute; width:16px; height:16px; border-radius:50%; pointer-events:none;
 			background:radial-gradient(circle, #fff 0%, #ffd27f 45%, rgba(255,167,38,0) 70%); }
 		.txflow-trail { position:absolute; width:7px; height:7px; border-radius:50%; pointer-events:none; filter:blur(0.15px);
+			transform:translate(-50%,-50%);   /* centre the dot on its (x,y) — was provided by the (now-removed) fade animation */
 			background:radial-gradient(circle, rgba(96,165,250,.55) 0%, rgba(96,165,250,0) 70%); }
 		.txcard-chip.txflow-landed { opacity:1; outline:2px solid #56c857; outline-offset:2px; }
 
