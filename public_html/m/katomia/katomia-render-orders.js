@@ -517,6 +517,11 @@ function createTxRow(tx){
   if(typeof kemojiEl === "function" && makerPubkey)
     row.appendChild(kemojiEl(makerPubkey, { size: 24 }))
 
+  // ORDER-AUTHBADGE3: aggregate reputation marker — 💠 when ≥1 contributing account to
+  // this tx placed a verified-bound order. Tooltip gives the N/M + list.
+  const txAuth = getTxContributorAuth(tx)
+  if(txAuth.verifiedCount > 0) row.appendChild(makeTxAuthBadge(txAuth))
+
   // Type icon — always visible
   row.appendChild(orderTypeIconEl(orderType))
 
@@ -540,6 +545,17 @@ function createTxRow(tx){
   row.appendChild(statusEl)
   row.appendChild(timeEl)
   const assetsEl = createTxAssets(tx, orderType)
+  // ORDER-AUTHBADGE3: per-account overlay — mark transfer chips whose owner account
+  // placed a verified-bound order in this tx (chips carry data-owner-account). Scoped
+  // to tx rows in CSS so the shared .asset chip is untouched elsewhere.
+  if(txAuth.verifiedCount > 0){
+    assetsEl.querySelectorAll?.(".asset[data-owner-account]")?.forEach(chip => {
+      if(txAuth.verifiedAccts.has(chip.dataset.ownerAccount)){
+        chip.classList.add("tx-asset-verified")
+        chip.title = (chip.title ? chip.title + " · " : "") + "reputation-verified account"
+      }
+    })
+  }
   row.appendChild(assetsEl)
   // Nerd meta (txid/pch) trails the row on its own wrapped line in nerd mode, so the
   // primary card flow is identical in both modes (ORDERS-UI1).
@@ -2073,6 +2089,48 @@ function makeOrderAuthBadge(auth){
   badge.title = nerd
     ? `Reputation-bound & verified — the placing account published a wallet binding for this order key, and the backend verified the wallet signature against the account's on-chain key(s). Signed weight ${auth.weight}/${auth.threshold}.`
     : "Reputation-bound & verified"
+  return badge
+}
+
+// ── ORDER-AUTHBADGE3: verification on transactions ───────────────────────────
+// A tx collapses many fills → a set of CONTRIBUTING orders (tx.source.orders), each
+// with a signing key + placing account. Verification is per-contributing-order (one-to-
+// many), so we derive the set of verified contributor accounts for the tx: an order whose
+// signing key matches that account's verified binding (same keyMatch rule as orders).
+// Accounts that only received assets (counterparties with no signed order here) get no
+// 💠 — correct. All derived from existing state (authIntentKeys); no backend change.
+function getTxContributorAuth(tx){
+  const orders = tx?.source?.orders || {}
+  const verifiedAccts = new Set()
+  const contributorAccts = new Set()
+  for(const oid of getTxOrderIds(tx)){
+    const order = orders[oid]
+    const bundle = order?.bundle
+    if(!Array.isArray(bundle)) continue
+    const acctId = (bundle.find(x => x.amount < 0) || bundle[0])?.accountId
+    if(!acctId) continue
+    contributorAccts.add(acctId)
+    const signingKey = katomiaNormKey(order?.intentSignature?.pubkeyHex)
+    if(!signingKey) continue
+    // the account whose verified binding actually covers this order's signing key
+    const acc = Object.values(state?.accounts || {}).find(a =>
+      (a.accountId === acctId || a.label === acctId) &&
+      a.authenticated &&
+      (a.authIntentKeys || []).map(katomiaNormKey).includes(signingKey))
+    if(acc) verifiedAccts.add(acctId)
+  }
+  return { verifiedAccts, verifiedCount: verifiedAccts.size, contributorCount: contributorAccts.size }
+}
+
+function makeTxAuthBadge(txAuth){
+  const nerd = document.body.classList.contains("nerd")
+  const badge = document.createElement("span")
+  badge.className = "order-auth-badge tx-auth-badge"
+  badge.textContent = "💠"
+  const list = [...txAuth.verifiedAccts].join(", ")
+  badge.title = nerd
+    ? `${txAuth.verifiedCount} of ${txAuth.contributorCount} contributing account(s) reputation-verified: ${list}. Each contributed an order signed by a wallet-bound & verified key.`
+    : `${txAuth.verifiedCount}/${txAuth.contributorCount} contributors reputation-verified`
   return badge
 }
 
