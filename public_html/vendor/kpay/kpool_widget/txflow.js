@@ -63,11 +63,12 @@ function trailMark(back, x, y, hue) {
 	mark.style.left = x + 'px'; mark.style.top = y + 'px'
 	mark.style.background = `radial-gradient(circle, hsl(${hue} 80% 62% / .6) 0%, hsl(${hue} 80% 62% / 0) 70%)`
 	back.appendChild(mark)
-	mark.animate([
-		{ transform: 'translate(-50%,-50%) scale(1)', opacity: 0.45 },
-		{ transform: 'translate(-50%,-50%) scale(1)', opacity: 0.45, offset: 0.4 },
-		{ transform: 'translate(-50%,-50%) scale(0.4)', opacity: 0 }
-	], { duration: TRAIL_MS, easing: 'ease-out' }).onfinish = () => mark.remove()
+	// NO fade-out (per user): the dotted trajectory is a genuinely useful record of where each
+	// asset came from / went to, so we LEAVE the lines drawn. They persist until the state is
+	// reverted to 'before' (revertFlow clears the trail layer) or a new preview redraws them.
+	// (Previously each mark faded + self-removed over TRAIL_MS — kept commented in case we ever
+	// want them to dissipate again. The dot is centred via CSS transform now.)
+	// mark.animate([{opacity:.45},{opacity:.45,offset:.4},{transform:'scale(.4)',opacity:0}], { duration: TRAIL_MS, easing:'ease-out' }).onfinish = () => mark.remove()
 }
 
 // One continuous ghost (front layer) gliding A→B along quadratic A,ctrl,B. Positions are

@@ -65,7 +65,7 @@ function injectModalCSS() {
 		.kpm-status { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
 		/* countdown beside the label; min-width reserves its space so it never jolts the modal
 		   when it clears on final status. Wraps below the label on narrow screens. */
-		.kpm-countdown { font-size: 12px; opacity: .8; white-space: nowrap; font-variant-numeric: tabular-nums; min-width: 5.5em; }
+		.kpm-countdown { display: inline-flex; align-items: center; line-height: 1; font-size: 12px; opacity: .8; white-space: nowrap; font-variant-numeric: tabular-nums; min-width: 5.5em; }
 		.kpm-dot { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; background: #9aa0a6; }
 		.kpm-dot.square { border-radius: 2px; }
 		.kpm-status-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

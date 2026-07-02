@@ -1055,11 +1055,15 @@ export function playSuccessFlow() {
 	return c ? flowTravel(c) : Promise.resolve()
 }
 
-// A tx that already reached consensus opens directly in the settled 'after' state (sources
-// ghosted / dests solid) — no animation, just the end position. Preview can still replay it.
+// Opening a tx that already reached consensus: PLAY the flow once so the trajectory lines get
+// drawn (running the animation IS how the before→after connections are rendered) — it sticks at
+// 'after' with the lines left in place. Deferred a couple of frames so the cards have laid out.
+// CONSIDER (future, not now): also drawing these lines BEFORE consensus would show where assets
+// are heading — but it may clutter, so we're holding off.
 export function markSettledIfSuccess(data) {
 	const c = document.querySelector('.txcards')
-	if (c && (data?.comboStatus === 'SUCCESS' || data?.receiptSuccess === true)) setFlowState(c, true)
+	if (!c || !(data?.comboStatus === 'SUCCESS' || data?.receiptSuccess === true)) return
+	requestAnimationFrame(() => requestAnimationFrame(() => { flowTravel(c) }))
 }
 
 export function renderReadinessInfo({readiness}) {
@@ -1937,6 +1941,7 @@ export function injectTxReadCSS() {
 		.txflow-frizz { position:absolute; width:16px; height:16px; border-radius:50%; pointer-events:none;
 			background:radial-gradient(circle, #fff 0%, #ffd27f 45%, rgba(255,167,38,0) 70%); }
 		.txflow-trail { position:absolute; width:7px; height:7px; border-radius:50%; pointer-events:none; filter:blur(0.15px);
+			transform:translate(-50%,-50%);   /* centre the dot on its (x,y) — was provided by the (now-removed) fade animation */
 			background:radial-gradient(circle, rgba(96,165,250,.55) 0%, rgba(96,165,250,0) 70%); }
 		.txcard-chip.txflow-landed { opacity:1; outline:2px solid #56c857; outline-offset:2px; }
 
