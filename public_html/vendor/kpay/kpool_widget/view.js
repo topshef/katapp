@@ -70,7 +70,9 @@ const SIGN_REASON = {
 		const container = document.createElement('div')
 
 		const statusEl = document.createElement('div')
-		container.appendChild(statusEl)
+		statusEl.hidden = true   // the status LABEL is shown in the modal header (kpm-head); the content
+		container.appendChild(statusEl)   // line shows ONLY the countdown (simplified, per user). FUTURE: fold
+		// the countdown into the modal header too (awaiting-approvals + timer) and drop this line entirely.
 
 		let timingEl = null
 
@@ -430,15 +432,48 @@ const SIGN_REASON = {
 		narrative.hidden = true
 		intentRow.appendChild(narrative)
 
-		intent.appendChild(intentRow)
+		// ── DOM ORDER (per user, top→bottom): status (countdown, inserted at intent top later)
+		// → scope (network·txid·pch + due) → memo → cards (+preview) → witnesses → signing.
 
-		// witnesses — signed keys tied to no account here; grouped just below the cards and
-		// ABOVE the public memo. Rendered inline (label + chips) by renderWitnessList.
-		const witnesses = document.createElement('div')
-		witnesses.id = 'txread-witnesses'
-		witnesses.className = 'txread-witnesses'
-		witnesses.hidden = true
-		intent.appendChild(witnesses)
+		// scope line: Hedera <network> · <txid> · #<pch6> on one row; the due date on the same
+		// line on desktop, wrapping to its own line on mobile (flex-wrap).
+		const scope = document.createElement('div')
+		scope.className = 'txread-scope'
+		const ids = document.createElement('div')
+		ids.className = 'txread-scope-ids'
+		const net = document.createElement('span')
+		net.className = 'txread-scope-net'
+		net.textContent = `Hedera ${network}`
+		const txLink = document.createElement('a')
+		txLink.className = 'txread-scope-txid'
+		txLink.href = `https://hashscan.io/${network}/transaction/${txid}`
+		txLink.target = '_blank'
+		txLink.rel = 'noopener'
+		txLink.textContent = txid
+		ids.append(net, sep(), txLink)
+		if (pch && pch !== 'no_pch') {
+			const pchEl = document.createElement('span')
+			pchEl.className = 'txread-scope-pch'
+			pchEl.textContent = `#${String(pch).slice(0, 6)}`
+			ids.append(sep(), pchEl)
+		}
+		scope.appendChild(ids)
+		// strike time (valid-start — fixed, from the txid) + valid duration. Wordy, locale-neutral
+		// date (en-GB "2 Jul 2026") so British/American reading is unambiguous. Duration stubbed
+		// 120s (Hedera default) — PROTO1 (protobuf decode) will supply the real value.
+		const strikeInfo = parseTxId(txid)
+		if (strikeInfo?.seconds) {
+			const validSecs = 120   // TODO PROTO1: real transactionValidDuration
+			const d = new Date(strikeInfo.seconds * 1000)
+			const datePart = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+			const timePart = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+			const due = document.createElement('div')
+			due.className = 'txread-scope-due'
+			due.textContent = `due ${datePart}, ${timePart} · valid ${Math.round(validSecs / 60)}m`
+			due.title = 'Transaction valid-start (strike time) and valid duration'
+			scope.appendChild(due)
+		}
+		intent.appendChild(scope)
 
 		// public memo (if present) on its own line
 		const memo = extractMemo(data)
@@ -452,39 +487,14 @@ const SIGN_REASON = {
 			intent.appendChild(memoEl)
 		}
 
-		// scope line: Hedera <network> · <txid> · #<pch6>
-		const scope = document.createElement('div')
-		scope.className = 'txread-scope'
-		const net = document.createElement('span')
-		net.className = 'txread-scope-net'
-		net.textContent = `Hedera ${network}`
-		const txLink = document.createElement('a')
-		txLink.className = 'txread-scope-txid'
-		txLink.href = `https://hashscan.io/${network}/transaction/${txid}`
-		txLink.target = '_blank'
-		txLink.rel = 'noopener'
-		txLink.textContent = txid
-		scope.append(net, sep(), txLink)
-		if (pch && pch !== 'no_pch') {
-			const pchEl = document.createElement('span')
-			pchEl.className = 'txread-scope-pch'
-			pchEl.textContent = `#${String(pch).slice(0, 6)}`
-			scope.append(sep(), pchEl)
-		}
-		// strike time (valid-start — fixed, decoded from the txid) + valid duration. The
-		// duration isn't in the current API, so it's stubbed at 120s (Hedera default) with a
-		// note: PROTO1 (protobuf decode) will yield the real transactionValidDuration —
-		// replace validSecs then. Countdown itself lives in the status block above.
-		const strikeInfo = parseTxId(txid)
-		if (strikeInfo?.seconds) {
-			const validSecs = 120   // TODO PROTO1: real transactionValidDuration
-			const due = document.createElement('span')
-			due.className = 'txread-scope-due'
-			due.textContent = `due ${new Date(strikeInfo.seconds * 1000).toLocaleString()} (valid ${Math.round(validSecs / 60)}m)`
-			due.title = 'Transaction valid-start (strike time) and valid duration'
-			scope.append(sep(), due)
-		}
-		intent.appendChild(scope)
+		// cards (+ preview bar at their top), then witnesses below them
+		intent.appendChild(intentRow)
+
+		const witnesses = document.createElement('div')
+		witnesses.id = 'txread-witnesses'
+		witnesses.className = 'txread-witnesses'
+		witnesses.hidden = true
+		intent.appendChild(witnesses)
 
 		wrapper.appendChild(intent)
 
@@ -1708,9 +1718,10 @@ export function injectTxReadCSS() {
 		.txread-block { margin: 14px auto; max-width: min(900px, 100%); }
 		.txread-intent .txread-xfers { max-width: 580px; margin: 0 auto; }
 		.txread-scope {
-			display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
-			gap: 4px 8px; margin-top: 10px; font-size: 12px; color: #888;
+			display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline;
+			gap: 2px 10px; margin: 4px 0 2px; font-size: 12px; color: #888;
 		}
+		.txread-scope-ids { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 		.txread-scope-txid { word-break: break-all; }
 		.txread-sep { color: #ccc; }
 		.txread-memo { text-align: center; font-size: 12px; color: #888; margin-top: 10px; word-break: break-word; }
