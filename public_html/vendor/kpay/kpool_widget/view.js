@@ -1826,7 +1826,10 @@ export function injectTxReadCSS() {
 
 		/* expandable account detail (TX-CARDS9 step c) — grid-rows trick, no native arrow */
 		.txcard-head--toggle { cursor:pointer; user-select:none; }
-		.txcard-chevron { color:#a1a1aa; font-size:11px; transition:transform .2s ease; }
+		/* A11Y NOTE (whole app): these expand/collapse chevrons — and lots of mobile text — are
+		   too small for low-vision users. We need a "low-vision" theme/skin (larger fonts, bigger
+		   hit targets, stronger contrast) as a future themeing pass. See task A11Y-LOWVISION1. */
+		.txcard-chevron { color:#71717a; font-size:16px; line-height:1; transition:transform .2s ease; }
 		.txcard-detail { display:grid; grid-template-rows:0fr; transition:grid-template-rows .22s ease; }
 		.txcard--open .txcard-detail { grid-template-rows:1fr; }
 		.txcard-detail-inner { overflow:hidden; min-height:0; }

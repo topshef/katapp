@@ -183,6 +183,9 @@ export function setFlowState(container, after) {
 		g.receive.forEach(c => c.classList.toggle('txcard-chip-ghost', !after))
 		;[...g.send, ...g.receive].forEach(c => c.classList.remove('txflow-landed'))
 	}
+	// the operator HBAR fee chip isn't animated, but gray it in the 'after' state too so it
+	// matches the other (ghosted) send chips stylistically (per user).
+	container.querySelectorAll('.txcard-chip--fee').forEach(c => c.classList.toggle('txcard-chip-ghost', after))
 	container.dataset.flowState = after ? 'after' : 'before'
 	container.querySelector('.txcards-preview')?.setAttribute('data-state', after ? 'after' : 'before')
 }
