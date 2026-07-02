@@ -2032,24 +2032,34 @@ function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel
 // gate). Refinements deferred: (a) match the order's signing key to the binding's bound
 // intent key rather than just "account has a binding"; (b) a 'verified' state once the
 // backend actually verifies the signatureMap (PROFILE-AUTH3 stores unverified for now).
+function katomiaNormKey(h){ return String(h || "").replace(/^0x/, "").toLowerCase() }
+
 function getAccountAuthState(publicAccountId){
   const acc = state?.accounts?.[publicAccountId]
   if(!acc || !acc.authenticated) return null
   const weight = acc.authWeight || 0
   if(weight <= 0) return null
   const threshold = acc.authThreshold || 1
-  return { weight, threshold, full: weight >= threshold }
+  return { weight, threshold, full: weight >= threshold, intentKeys: acc.authIntentKeys || [] }
 }
 
 // Placing account of an order = the account on the offer (amount<0) side of the bundle
 // (falls back to the first entry). Order playerId is the public id; the account view is
 // keyed publicId:accountId.
+// ORDER-AUTHBADGE2: keyMatch confirms the order was SIGNED by the key the binding covers
+// (intentSignature.pubkeyHex ∈ the account's bound intent keys) — not merely placed by a
+// bound account. An account that bound one key but now signs with another → keyMatch false.
 function getOrderAuthState(order, playerId){
   const bundle = order?.bundle
   if(!Array.isArray(bundle)) return null
   const acctId = (bundle.find(x => x.amount < 0) || bundle[0])?.accountId
   if(!acctId || !playerId) return null
-  return getAccountAuthState(playerId + ":" + acctId)
+  const acc = getAccountAuthState(playerId + ":" + acctId)
+  if(!acc) return null
+  const signingKey = katomiaNormKey(order?.intentSignature?.pubkeyHex)
+  const bound = (acc.intentKeys || []).map(katomiaNormKey)
+  const keyMatch = !!(signingKey && bound.includes(signingKey))
+  return { ...acc, keyMatch }
 }
 
 function makeOrderAuthBadge(auth){
@@ -2115,9 +2125,10 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
     inner.appendChild(kemojiEl(avatarKey, { size: 24, isSelf: mine }))
   }
 
-  // ORDER-AUTHBADGE1: reputation-bound badge next to the trader identity.
+  // ORDER-AUTHBADGE1/2: reputation-bound badge next to the trader identity — only when
+  // the order was actually signed by the bound key (keyMatch), so the badge can't overclaim.
   const auth = getOrderAuthState(order, playerId)
-  if(auth) inner.appendChild(makeOrderAuthBadge(auth))
+  if(auth && auth.keyMatch) inner.appendChild(makeOrderAuthBadge(auth))
 
   inner.appendChild(prefix)
   inner.appendChild(createOrderSide(offer, "order-offer"))
