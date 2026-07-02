@@ -356,6 +356,8 @@ function kasset($file) {
         <button type="button" id="createOrderAccountAdd">➕</button>
         <button type="button" id="createOrderAccountRemove">➖</button>
       </div>
+      <!-- ORDER-AUTHBADGE1: pre-submit reputation-binding hint for the selected account. -->
+      <div id="createOrderAuthHint" class="create-order-auth-hint"></div>
 
       <br>
 

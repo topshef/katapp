@@ -2025,6 +2025,43 @@ function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel
 
 // ── main ─────────────────────────────────────────────────────────────────────
 
+// ORDER-AUTHBADGE1: reputation binding on an account, read from the getState-stamped
+// authenticated/authWeight/authThreshold on the broadcast account view (PROFILE-AUTH3).
+// Returns null when unknown/unbound. Spectrum: weight>0 = bound; weight>=threshold = full.
+// This is the WIREFRAME account-level view (per PROFILE-AUTH-PURPOSE1: reputation, not a
+// gate). Refinements deferred: (a) match the order's signing key to the binding's bound
+// intent key rather than just "account has a binding"; (b) a 'verified' state once the
+// backend actually verifies the signatureMap (PROFILE-AUTH3 stores unverified for now).
+function getAccountAuthState(publicAccountId){
+  const acc = state?.accounts?.[publicAccountId]
+  if(!acc || !acc.authenticated) return null
+  const weight = acc.authWeight || 0
+  if(weight <= 0) return null
+  const threshold = acc.authThreshold || 1
+  return { weight, threshold, full: weight >= threshold }
+}
+
+// Placing account of an order = the account on the offer (amount<0) side of the bundle
+// (falls back to the first entry). Order playerId is the public id; the account view is
+// keyed publicId:accountId.
+function getOrderAuthState(order, playerId){
+  const bundle = order?.bundle
+  if(!Array.isArray(bundle)) return null
+  const acctId = (bundle.find(x => x.amount < 0) || bundle[0])?.accountId
+  if(!acctId || !playerId) return null
+  return getAccountAuthState(playerId + ":" + acctId)
+}
+
+function makeOrderAuthBadge(auth){
+  const badge = document.createElement("span")
+  badge.className = "order-auth-badge" + (auth.full ? "" : " order-auth-badge-partial")
+  badge.textContent = auth.full ? "🔗 bound" : "🔗 partial"
+  badge.title = auth.full
+    ? "Reputation-bound: the placing account has published a wallet binding for its order key (optional; see Profile → Reputation binding)."
+    : `Partially bound (multisig): ${auth.weight} of ${auth.threshold} signing weight published.`
+  return badge
+}
+
 function createOrderRow({ orderId, order, playerId, ghost = false }){
 
   const row = document.createElement("div")
@@ -2077,6 +2114,10 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
     const avatarKey = pubkeyHex || playerId || "unknown"
     inner.appendChild(kemojiEl(avatarKey, { size: 24, isSelf: mine }))
   }
+
+  // ORDER-AUTHBADGE1: reputation-bound badge next to the trader identity.
+  const auth = getOrderAuthState(order, playerId)
+  if(auth) inner.appendChild(makeOrderAuthBadge(auth))
 
   inner.appendChild(prefix)
   inner.appendChild(createOrderSide(offer, "order-offer"))
