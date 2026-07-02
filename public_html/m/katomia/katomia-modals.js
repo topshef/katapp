@@ -7,7 +7,7 @@ window.pendingCreateOrderAccount = null
 // katomia.css (:root --katomia-css-build). Both are surfaced in the diagnostics
 // so we can tell, from the server-side kdiag logs, exactly which version of the
 // code a given browser is running — and whether a cached (stale) asset is in play.
-const KATOMIA_JS_BUILD = "20260701-profilesections-4"
+const KATOMIA_JS_BUILD = "20260702-authbadge-2"
 
 // Self-contained diagnostics sender. window.kdiag (from the kpool widget) is
 // lazy-loaded only when the signing widget mounts, so it is NOT available when
@@ -378,6 +378,42 @@ function refreshCreateOrderAccounts(selectedId = null){
 
   // Append any WalletConnect-connected accounts not already in the game (async).
   mergeWcAccountsIntoOrderPicklist(accountSelect)
+
+  updateCreateOrderAuthHint()
+}
+
+// ORDER-AUTHBADGE1: pre-submit hint showing whether the selected account is reputation-
+// bound (a published wallet binding). Purely informational (PROFILE-AUTH-PURPOSE1:
+// reputation, not a gate). Reuses getAccountAuthState() from katomia-render-orders.js;
+// the account select value is already the publicId:accountId the account view is keyed by.
+async function updateCreateOrderAuthHint(){
+  const el = document.getElementById("createOrderAuthHint")
+  if(!el) return
+  const val = document.getElementById("createOrderAccount")?.value || ""
+  if(!val || val.startsWith(WC_ORDER_ADD_PREFIX)){ el.textContent = ""; el.className = "create-order-auth-hint"; return }
+  const auth = (typeof getAccountAuthState === "function") ? getAccountAuthState(val) : null
+  if(!auth){
+    el.textContent = "Not reputation-bound — bind your key in Profile → Reputation binding to back your orders (optional)"
+    el.className = "create-order-auth-hint unbound"
+    return
+  }
+  // ORDER-AUTHBADGE2: your orders are signed by the session order key — confirm the
+  // account's binding actually covers THAT key, else the binding won't back these orders.
+  let sessionKey = ""
+  try { sessionKey = (typeof getKatomiaOrderPubkeyHex === "function") ? await getKatomiaOrderPubkeyHex() : "" } catch {}
+  const norm = h => String(h || "").replace(/^0x/, "").toLowerCase()
+  const keyMatch = !!(sessionKey && (auth.intentKeys || []).map(norm).includes(norm(sessionKey)))
+  // guard against a stale async result if the selection changed while we awaited
+  if((document.getElementById("createOrderAccount")?.value || "") !== val) return
+  if(keyMatch){
+    el.textContent = auth.full
+      ? "🔗 Reputation-bound order — this account+key has a published wallet binding"
+      : `🔗 Partially bound (multisig) — ${auth.weight}/${auth.threshold} signing weight`
+    el.className = "create-order-auth-hint bound"
+  } else {
+    el.textContent = "Account is bound, but this session's order key isn't the bound key — re-raise the commitment (Profile → Reputation binding) to back these orders"
+    el.className = "create-order-auth-hint warn"
+  }
 }
 
 // PROFILE-AUTH / ORDER-ASSETS: make a freshly WalletConnect-connected account orderable
@@ -971,6 +1007,7 @@ document.addEventListener("change",e => {
   }
 
   window.createOrderDirty = true
+  if(e.target.id == "createOrderAccount") updateCreateOrderAuthHint()   // ORDER-AUTHBADGE1
   if(e.target.id == "createOrderTif") syncCreateOrderExpiryUI()
   if(e.target.id == "createOrderType") syncOrderTypeUI()
   const _type = document.getElementById("createOrderType")?.value
