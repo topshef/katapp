@@ -180,8 +180,13 @@
     container.style.position = 'relative'
     container.style.overflow = 'visible'
 
+    // KPIE-SCALE1: fit by WIDTH and let the height follow the tree's real aspect ratio
+    // (set below once the viewBox is known). The old min(w,h) square forced landscape
+    // trees into whatever height the container happened to have, shrinking every node
+    // pie; the caller (view.js buildThresholdWidget) now budgets the width by tree
+    // complexity and leaves height:auto for us to fill in.
     const rect = container.getBoundingClientRect()
-    const size = Math.min(rect.width || 110, rect.height || 110)
+    const size = rect.width || Math.min(rect.width || 110, rect.height || 110)
     const clusterRadius = size / 2
     const maxDepth = d3.hierarchy(jsonData).height || 1
     const edgeLength = clusterRadius / (maxDepth + 1)
@@ -237,11 +242,18 @@
       .attr('stroke', '#ccc')
       .attr('stroke-width', 2)
 
-    // CSS scale matching xMidYMid meet
-    const scale = Math.min(size / vw, size / vh)
-    const offsetX = (size - vw * scale) / 2
-    const offsetY = (size - vh * scale) / 2
-    const pieCssSize = Math.max(8, Math.min(44, Math.round(pieRadius * 2 * scale)))
+    // KPIE-SCALE1: width is the budget; height = width scaled by the viewBox aspect, so
+    // the container hugs the tree (landscape or portrait) instead of squaring it off.
+    // With the container matching the viewBox aspect exactly, xMidYMid meet fills it
+    // edge-to-edge and the CSS maths needs no centring offsets.
+    const scale = size / vw
+    const cssH = Math.round(vh * scale)
+    container.style.height = cssH + 'px'
+    const offsetX = 0
+    const offsetY = 0
+    // node-pie cap scales with the budget (was a flat 44px — pointlessly small once the
+    // container is allowed to grow), floor stays for legibility on tiny cells.
+    const pieCssSize = Math.max(8, Math.min(Math.max(44, Math.round(size / 5)), Math.round(pieRadius * 2 * scale)))
 
     // Absolutely-positioned divs for amCharts — no SVG scaling involved
     const seq = ++_chartSeq

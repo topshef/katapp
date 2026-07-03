@@ -287,10 +287,13 @@ function injectMethodsCSS() {
 		   all states, scoped under the panel id so we win on specificity. The OG
 		   page has no hover background, which is the look we want everywhere. */
 		#txread-methods .kpsign-tab,
-		#txread-methods .kpsign-tab:hover,
 		#txread-methods .kpsign-tab:focus,
 		#txread-methods .kpsign-tab:active,
 		#txread-methods .kpsign-tab.active{ background:transparent; box-shadow:none; }
+		/* WALLET-TABS1: hover gets a light-gray wash like the account-card header hover
+		   (.txcard-head.acct-hl) — the font-colour-only cue was too subtle. Scoped here
+		   so it also beats any host-page button hover background. */
+		#txread-methods .kpsign-tab:hover{ background:#e4e4e7; box-shadow:none; border-radius:6px 6px 0 0; }
 		.kpsign-tabicon{ width:16px; height:16px; object-fit:contain; flex:0 0 auto; }
 		.kpsign-underline{ position:absolute; bottom:0; left:0; height:2px; width:0;
 			background:#4aa3ff; transition:transform .25s ease, width .25s ease; }
@@ -564,17 +567,36 @@ function buildSigningPanel(txState) {
 	const panes = document.createElement('div')
 	panes.className = 'kpsign-panes'
 
+	// WALLET-TABS1: which signing methods are offered. Hard-coded to all three for now,
+	// but the app is heading for a functionality prune (fewer, better-supported signing
+	// paths) — this list is the seam where that pruning will land, whether or not it ends
+	// up being the mechanism. Until then, a ?signtabs= URL param on the host page filters
+	// the set at runtime (e.g. ?signtabs=walletconnect or ?signtabs=whatsapp,offline) so
+	// the pruned UI can be previewed without a code change. Unknown/empty selections fall
+	// back to the full set; the Status tab is nerd plumbing, not a signing method, and is
+	// never pruned.
+	const ENABLED_SIGN_METHODS = ['walletconnect', 'whatsapp', 'ksig']
+	const TAB_ALIASES = { offline: 'ksig', wallet: 'walletconnect', wc: 'walletconnect' }
+	const requested = (new URLSearchParams(location.search).get('signtabs') || '')
+		.split(',').map(s => s.trim().toLowerCase()).map(s => TAB_ALIASES[s] || s).filter(Boolean)
+	const enabledTabs = requested.some(id => ENABLED_SIGN_METHODS.includes(id))
+		? ENABLED_SIGN_METHODS.filter(id => requested.includes(id))
+		: ENABLED_SIGN_METHODS
+
 	// Status is first and shown by default; the rest are signing actions.
 	const METHODS = [
 		{ id: 'status',        label: 'Status',          svg:  INFO_SVG,                            build: () => buildStatusPane(txState) },
 		{ id: 'walletconnect', label: 'WalletConnect',   icon: 'WalletConnect-Logo.png',           build: () => buildWcPane(txState) },
 		{ id: 'whatsapp',      label: 'WhatsApp',        icon: 'WhatsApp.svg.png',                 build: () => buildWhatsAppPane(network, txid, pch) },
 		{ id: 'ksig',          label: 'Offline',         icon: 'kpay_logo_square_transparent.png', build: () => buildKsigPane(txState) }
-	]
+	].filter(m => m.id === 'status' || enabledTabs.includes(m.id))
 
-	// Status tab is nerd-only now; in normal mode default to the first signing method so a
-	// hidden Status pane is never the active one. (Toggling nerd later just reveals the tab.)
-	const DEFAULT = document.body.classList.contains('nerd') ? 'status' : 'walletconnect'
+	// Status tab is nerd-only now; in normal mode default to the first ENABLED signing
+	// method so a hidden Status pane is never the active one. (Toggling nerd later just
+	// reveals the tab.)
+	const DEFAULT = document.body.classList.contains('nerd')
+		? 'status'
+		: (METHODS.find(m => m.id !== 'status')?.id || 'status')
 	const paneEls = {}
 
 	METHODS.forEach(m => {

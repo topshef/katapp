@@ -198,6 +198,31 @@ export function revertFlow(container) {
 	container.querySelectorAll('.txflow-layer, .txflow-layer-trail').forEach(l => l.innerHTML = '')
 }
 
+// TX-FLOW-HOVER1: replay the glide for ONE asset — an ephemeral preview, not a state
+// change. Chip ghost/solid classes are snapshotted and restored (animateAsset empties
+// sources and lands destinations as it goes), and the trail is drawn on throwaway layers
+// removed at the end, so the persistent provenance trail never fattens from hovering.
+// Fresh layers (not mkLayer, which wipes) so a replay can't erase the sticky trail.
+// Guarded per-asset and against a full flowTravel run.
+export async function flowAssetOnce(container, assetKey) {
+	if (typeof container?.querySelectorAll !== 'function' || container._flowRunning) return
+	container._assetFlows ||= new Set()
+	if (container._assetFlows.has(assetKey)) return
+	const g = groupChips(container).get(assetKey)
+	if (!g?.send.length || !g?.receive.length) return
+	container._assetFlows.add(assetKey)
+	const layer = cls => { const l = document.createElement('div'); l.className = cls; container.appendChild(l); return l }
+	const front = layer('txflow-layer'), back = layer('txflow-layer-trail')
+	const prior = [...g.send, ...g.receive].map(c => [c, c.classList.contains('txcard-chip-ghost')])
+	try {
+		await animateAsset(front, back, container.getBoundingClientRect(), g.send, g.receive, assetHue(assetKey))
+	} finally {
+		prior.forEach(([c, was]) => { c.classList.toggle('txcard-chip-ghost', was); c.classList.remove('txflow-landed') })
+		front.remove(); back.remove()
+		container._assetFlows.delete(assetKey)
+	}
+}
+
 // Play the animation and STICK at the "after" state (sources left as ghosts on the left). Used
 // by the preview toggle (on) and by consensus. Guarded against re-entry / re-entry while running.
 export async function flowTravel(container) {

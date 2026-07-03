@@ -7,7 +7,7 @@ import {
 	} from './utils.js'
 import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 import { getThresholdSummary } from './threshold.js'
-import { flowTravel, setFlowState, revertFlow } from './txflow.js'
+import { flowTravel, setFlowState, revertFlow, flowAssetOnce } from './txflow.js'
 
 // Why an account must sign — one glyph map shared by the Signing Authority rows AND
 // the account-card header so they never drift (TX-CARDS7 / TX-CARDS9).
@@ -376,8 +376,12 @@ const SIGN_REASON = {
 
 		// asset-pool hover: hovering a chip highlights every chip of the same asset across
 		// all cards (the in/out pool) — distinct from the account hover on the header.
-		let hlKey = null
+		// TX-FLOW-HOVER1: dwelling on a chip also replays the movement glide for THAT asset
+		// only (ephemeral — no state flip, no persistent trail). Armed on a short timer so a
+		// casual mouse-pass across the cards doesn't fire animations.
+		let hlKey = null, hoverFlowTimer = 0
 		const clearAssetHl = () => {
+			clearTimeout(hoverFlowTimer)
 			if (!hlKey) return
 			container.querySelectorAll('.txcard-chip.asset-hl').forEach(n => n.classList.remove('asset-hl'))
 			hlKey = null
@@ -390,6 +394,7 @@ const SIGN_REASON = {
 			if (key) {
 				container.querySelectorAll(`.txcard-chip[data-asset-key="${CSS.escape(key)}"]`).forEach(n => n.classList.add('asset-hl'))
 				hlKey = key
+				hoverFlowTimer = setTimeout(() => flowAssetOnce(container, key), 150)
 			}
 		})
 		container.addEventListener('mouseleave', clearAssetHl)
@@ -902,6 +907,10 @@ export function updateCardBalances(precheck) {
 		card.querySelectorAll('.txcard-receive .txcard-chip').forEach(chip =>
 			chip.classList.toggle('txcard-chip--unassoc', unassocAssets.has(key(chip))))
 		paintCardRing(card)
+		// SIGN-EXPLAIN1: stash the issue sets for the expanded detail's plain-words list,
+		// and refresh an already-open detail so the lines track live precheck updates.
+		card._balanceIssues = { short: [...shortAssets], unassoc: [...unassocAssets] }
+		if (card.classList.contains('txcard--open')) renderCardDetail(card)
 		diag.cards.push({ id, short: [...shortAssets], unassoc: [...unassocAssets] })
 	})
 	try { globalThis.kdiag?.('cards:balances', diag) } catch {}
@@ -910,7 +919,7 @@ export function updateCardBalances(precheck) {
 // Lazily-rendered account detail for the expanded card (TX-CARDS9 step c): the threshold
 // pie + the per-key table (signed / suffix / Banzhaf / redundancy / control) + the xproof
 // label. Mirrors the Signing Authority row content, co-located on the account's own card.
-function buildAccountDetail(acc, signedPubkeys = [], network, accountId) {
+function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 	const wrap = document.createElement('div')
 
 	// The one non-obvious reason for signing — spell it out so nobody wonders why a
@@ -929,6 +938,32 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId) {
 		note.className = 'txcard-detail-note txcard-detail-note--muted'
 		note.textContent = 'No signature required from this account (shown for reference).'
 		wrap.appendChild(note)
+	}
+
+	// SIGN-EXPLAIN1: the rings and glyphs CUE the state; these lines SAY it. One muted
+	// line per outstanding item for this account (signatures still needed, overdrafts,
+	// missing associations) so expanding the card reads as a to-do list, not a puzzle.
+	// Nothing renders when the account is all clear. Asset names come off the chips so
+	// the wording matches what the user sees (precheck keys 'hbar' ↔ chip 'tinybar').
+	{
+		const labelFor = k => {
+			const sel = `.txcard-chip[data-asset-key="${CSS.escape(k === 'hbar' ? 'tinybar' : k)}"] .txcard-chip-text`
+			return card?.querySelector(sel)?.textContent?.trim() || (k === 'hbar' ? 'HBAR' : `token ${k}`)
+		}
+		const issues = []
+		const st = accountSigningStatus(acc, signedPubkeys)
+		if (st.state === 'pending' && st.need)
+			issues.push(`✍️ ${st.need - st.signed} more signature${st.need - st.signed === 1 ? '' : 's'} needed (${st.signed} of ${st.need} signed).`)
+		for (const a of card?._balanceIssues?.short || [])
+			issues.push(`🔴 Not enough ${labelFor(a)} — the balance won't cover what this account sends.`)
+		for (const a of card?._balanceIssues?.unassoc || [])
+			issues.push(`◌ ${labelFor(a)} is not associated with this account — the transfer can't land unless an auto-association slot is free.`)
+		if (issues.length) {
+			const list = document.createElement('div')
+			list.className = 'txcard-detail-issues'
+			issues.forEach(t => { const li = document.createElement('div'); li.textContent = t; list.appendChild(li) })
+			wrap.appendChild(list)
+		}
 	}
 
 	// pie + key list as two centred flex cells that reflow (side-by-side on desktop, stacked on
@@ -1027,7 +1062,7 @@ function renderCardDetail(card) {
 	const d = card._detail
 	if (!inner || !d) return
 	inner.innerHTML = ''
-	inner.appendChild(buildAccountDetail(d.acc, d.signedPubkeys, d.network, d.id))
+	inner.appendChild(buildAccountDetail(d.acc, d.signedPubkeys, d.network, d.id, card))
 }
 
 
@@ -1200,6 +1235,22 @@ export function showBanner(message,type='info') {
 }
 
 
+// KPIE-SCALE1: how many nested threshold GROUPS (each renders a pie) and how deep the
+// nesting goes — the two drivers of how much room the radial tree needs. Plain keys in
+// a group don't add pies, so only threshold-objects count.
+function keyTreeStats(node, depth = 0) {
+  if (!node || typeof node !== 'object' || !node.threshold) return { groups: 0, depth }
+  let groups = 1, maxDepth = depth
+  for (const k of node.keys || []) {
+    if (k && typeof k === 'object' && k.threshold) {
+      const s = keyTreeStats(k, depth + 1)
+      groups += s.groups
+      maxDepth = Math.max(maxDepth, s.depth)
+    }
+  }
+  return { groups, depth: maxDepth }
+}
+
 function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo }) {
   const widget = document.createElement('div')
   if (!mustSign) return widget
@@ -1209,6 +1260,20 @@ function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo }) {
     // Feed kpie a normalized tree (leaf objects → pubkey strings) so its leaves match
     // the already-normalized signedPubkeys — otherwise every slice renders orange.
     const normTree = normalizeKeyTree(keyInfo)
+    // KPIE-SCALE1: the fixed 110px square is fine for a single pie but starves a
+    // multi-level key tree — every node pie shrinks towards the 8px floor. Budget the
+    // container width by tree complexity (depth + group count), capped so it never
+    // overwhelms the detail cell; kpie then trims the height to the tree's real aspect
+    // (landscape/portrait both fine — desktop has the width to breathe). Numbers are a
+    // first heuristic, tune on sight.
+    const stats = keyTreeStats(normTree)
+    if (stats.groups > 1) {
+      const px = Math.min(320, 110 + 70 * stats.depth + 16 * stats.groups)
+      widget.style.width = px + 'px'
+      widget.style.maxWidth = '100%'
+      widget.style.height = 'auto'
+      widget.style.minHeight = '110px'
+    }
     window.kpie.render(widget, { keyInfo: normTree, signedPubkeys: signedPubkeys || [] })
       .catch(err => console.warn('[kpie] render failed', err))
   }
@@ -1874,6 +1939,9 @@ export function injectTxReadCSS() {
 		.txcard-xproof a { color:#3b82f6; }
 		.txcard-detail-note { font-size:12px; color:#3f3f46; background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:6px 8px; margin-bottom:8px; }
 		.txcard-detail-note--muted { background:#f4f4f5; border-color:#e4e4e7; color:#71717a; }
+		/* SIGN-EXPLAIN1: plain-words outstanding-items list — light gray, one line per
+		   issue, sits above the pie/keys so it reads first on expand. */
+		.txcard-detail-issues { font-size:12px; color:#9ca3af; margin:0 0 10px; display:flex; flex-direction:column; gap:3px; }
 
 		/* witnesses — signed keys not tied to any account; listed under the cards as chips
 		   (may later read as votes). Sits just above the Hedera <network> scope line. */
