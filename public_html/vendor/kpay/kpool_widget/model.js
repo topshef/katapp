@@ -351,6 +351,14 @@ export async function enrichAccountsKeyInfo({ network, accounts }) {
 			
 		} catch (err) {
 			acc.keyInfo = null
+			// mirror reports NO key at all → genuinely keyless (system reward collectors
+			// etc.) — treat like the static KEYLESS_SYSTEM_ACCOUNTS skip, not an error.
+			// Data-driven twin of isHederaSystemAccount's small hardcoded set.
+			if (/no key field/.test(err.message || '')) {
+				acc.isSystemAccount = true
+				try { globalThis.kdiag?.('keyinfo:keyless', { accountId }) } catch {}
+				return
+			}
 			acc.keyInfoError = err.message || String(err)
 			// KEYINFO-LOCAL1: surface the REAL reason in /diag (no longer a kpos timeout —
 			// key structure now comes from the mirror node + local protobuf decode).
