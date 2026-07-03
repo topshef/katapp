@@ -276,8 +276,17 @@
 		   scoped by the game's lockRule. Echoes the trading-blue / locked-orange
 		   semantics; plain classes so themes (THEME1) can restyle. */
 		.lockbar{ display:flex; gap:2px; margin-top:3px; height:3px; width:100%; max-width:76px; }
-		.lockbar-seg{ flex:1 1 0; background:#a9c9ec; border-radius:2px; }
+		.lockbar-seg{ flex:1 1 0; background:#a9c9ec; border-radius:2px; transition:background .15s ease; }
 		.lockbar-seg--locked{ background:#f5a623; }
+
+		/* Hovering a mode toggle cross-highlights its whole lock group (.lockgroup-hl is
+		   applied by JS to every member sharing the data-lockgroup): the bars deepen a
+		   shade (same hues, just darker — subtle by intent) and the mode word thickens
+		   via sub-pixel text-shadow, which unlike bold cannot widen the text and shove
+		   the DOM around. */
+		.lockgroup-hl .lockbar-seg{ background:#84aedd; }
+		.lockgroup-hl .lockbar-seg--locked{ background:#dd8f0e; }
+		.lockgroup-hl .mode{ text-shadow:0 0 .45px currentColor; }
 
 		.account-row[data-mode="shop"]{
 			background:#e6f2ff;

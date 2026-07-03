@@ -923,7 +923,7 @@ function getFastThumb(url, imgEl){
       if(rule === "active"){
         const ids = [...active]
         if(ids.length < 2) return map   // no bar until there's real participation
-        const entry = { total: ids.length, locked: lockedOf(ids), scope: "all active traders" }
+        const entry = { total: ids.length, locked: lockedOf(ids), scope: "all active traders", groupId: "active" }
         ids.forEach(id => map.set(id, entry))
         return map
       }
@@ -950,7 +950,8 @@ function getFastThumb(url, imgEl){
         }
         const members = comp.filter(cid => active.has(cid))
         if(members.length < 2) continue   // singleton / not participating — no bar
-        const entry = { total: members.length, locked: lockedOf(members), scope: "this cluster" }
+        // groupId keys the hover cross-highlight (stable per broadcast: the lowest member id)
+        const entry = { total: members.length, locked: lockedOf(members), scope: "this cluster", groupId: "c:" + members.slice().sort()[0] }
         members.forEach(cid => map.set(cid, entry))
       }
       return map
@@ -1010,6 +1011,21 @@ function getFastThumb(url, imgEl){
           bar.appendChild(seg)
         }
         wrap.appendChild(bar)
+
+        // Hovering any member's toggle cross-highlights the WHOLE lock group (which
+        // rows share your consensus count — otherwise indistinguishable when several
+        // clusters coexist). Markup carries the intent (data-lockgroup + .lockgroup-hl);
+        // the look lives in CSS. Skipped for lockRule "all" — highlighting every row
+        // says nothing (per user).
+        if(lp.groupId){
+          wrap.dataset.lockgroup = lp.groupId
+          modeEl.addEventListener("mouseenter", () =>
+            document.querySelectorAll(`[data-lockgroup="${CSS.escape(lp.groupId)}"]`)
+              .forEach(el => el.classList.add("lockgroup-hl")))
+          modeEl.addEventListener("mouseleave", () =>
+            document.querySelectorAll(".lockgroup-hl")
+              .forEach(el => el.classList.remove("lockgroup-hl")))
+        }
       }
 
       return wrap
