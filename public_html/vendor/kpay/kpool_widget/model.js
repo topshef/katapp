@@ -64,10 +64,38 @@ export async function txRead({ network, txid, pch = 'no_pch' }) { //todo pch
 
 // function getTxStatus.. nah put it in hapi upstream
 
-function skipCouncilAccount(ac) {
+// Fee-noise suppression, intent-aware (per user 2026-07-03). Low-numbered accounts
+// (<98: node accounts etc.) show up in SETTLED mirror transfers because Hedera pays
+// them fees on every tx — pure clutter, so they're suppressed BY DEFAULT. But if the
+// INTENT (the deal / PCH-basis transfer lists, which never contain fee entries — fees
+// only materialise at execution) explicitly moves value in or out of such an account,
+// that's a real transfer the user asked for → show it. Pre-consensus sources are
+// intent by definition, so nothing is ever suppressed there. Known blind spot: a
+// settled tx viewed WITHOUT its basis/deal in the payload can't tell an intended
+// low-account transfer from fee noise and falls back to suppressing — fine for now.
+function skipFeeNoiseAccount(ac, intentAccounts) {
   if (!ac) return true
-  const num = Number(ac.split('.').pop())
-  return num < 98
+  const num = Number(String(ac).split('.').pop())
+  return num < 98 && !intentAccounts.has(String(ac))
+}
+
+// every account named by the intent's own transfer lists (hbar/token/nft, deal + basis
+// shapes), so skipFeeNoiseAccount can whitelist them
+function getIntentAccounts(basis, deal) {
+  const set = new Set()
+  const lists = [
+    basis.hbarTransfers, deal.addHbarTransfer,
+    basis.tokenTransfers, deal.addTokenTransfer,
+    basis.nftTransfers, deal.addNftTransfer
+  ]
+  for (const list of lists) (list || []).forEach(x => {
+    for (const a of [
+      x.accountId ?? x.account,
+      x.sender ?? x.senderAccountId ?? x.sender_account_id,
+      x.receiver ?? x.receiverAccountId ?? x.receiver_account_id
+    ]) if (a != null) set.add(String(a))
+  })
+  return set
 }
 
 
@@ -112,11 +140,12 @@ function getAllTransfers(data) {
 
 	// glog({raw})
 	const lineItems = []
+	const intentAccounts = getIntentAccounts(basis, deal)
 
 	// HBAR
 	raw.hbar.forEach(x => {
 		const ac = x.accountId ?? x.account
-		if (skipCouncilAccount(ac)) return
+		if (skipFeeNoiseAccount(ac, intentAccounts)) return
 
     lineItems.push({
       type:'HBAR',
