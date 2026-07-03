@@ -679,6 +679,12 @@ function getFastThumb(url, imgEl){
 				? name + ":" + label
 				: label
 
+			// 💠/△ control marker sits IMMEDIATELY after the account id, no padding (per
+			// user 2026-07-03 — it was previously over in the mode column, crowding the
+			// Trading/Lock control). The △ negative marker may be dropped later so only
+			// the positive 💠 shows — both kept for now for debugging.
+			textEl.appendChild(createAccountAuthMarker(account))
+
 			nameEl.appendChild(textEl)
 
             // 👇 NEW XPROOF LABEL
@@ -879,8 +885,8 @@ function getFastThumb(url, imgEl){
 
       const wrap = document.createElement("div")
 
-      // PROP-LOCKSIGN1: account-control marker beside the mode control
-      wrap.appendChild(createAccountAuthMarker(account))
+      // (the 💠/△ control marker moved to sit right after the account id in
+      // createAccountInfoEl — it crowded the Trading/Lock control here)
 
       const modeEl = document.createElement("div")
       modeEl.className = "mode"

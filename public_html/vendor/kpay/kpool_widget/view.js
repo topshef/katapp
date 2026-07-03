@@ -1948,7 +1948,10 @@ export function injectTxReadCSS() {
 		.txcard-xproof { margin-top:8px; font-size:12px; color:#71717a; }
 		.txcard-xproof a { color:#3b82f6; }
 		.txcard-detail-note { font-size:12px; color:#3f3f46; background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:6px 8px; margin-bottom:8px; }
-		.txcard-detail-note--muted { background:#f4f4f5; border-color:#e4e4e7; color:#71717a; }
+		/* muted informational note ("no signature required") reads as plain gray text like
+		   the outstanding-items lines below — the boxed/button look was noise (per user
+		   2026-07-03); only the amber receiver-sig warning keeps its box. */
+		.txcard-detail-note--muted { background:none; border:none; padding:0; color:#9ca3af; }
 		/* SIGN-EXPLAIN1: plain-words outstanding-items list — light gray, one line per
 		   issue, sits above the pie/keys so it reads first on expand. */
 		.txcard-detail-issues { font-size:12px; color:#9ca3af; margin:0 0 10px; display:flex; flex-direction:column; gap:3px; }
@@ -1977,6 +1980,10 @@ export function injectTxReadCSS() {
 			background:#fff; border:1px solid rgba(0,0,0,.14);
 			max-width:100%; box-sizing:border-box;
 			position:relative; z-index:2;   /* above the trail overlay (z-index:1) so dots pass behind chips */
+			/* hover triggers highlight + replay but there's no CLICK action (yet), so the
+			   text I-beam read wrong — default arrow is the hover-only convention. Switch
+			   to pointer if chips ever gain a click. */
+			cursor:default; user-select:none;
 		}
 		.txcard-chip-icon { flex:0 0 auto; }
 		.txcard-chip-text { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
