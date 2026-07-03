@@ -217,15 +217,24 @@ function connect(onOpenAction){
   socket = new WebSocket(WS_URL)
 
 
-  socket.onopen = () => {
+  socket.onopen = async () => {
 
     wsReconnectDelay = 1000   // healthy connection — reset backoff
+
+		// PROP-LOCKSIGN1: register the intent public key at join — the playerToken WS
+		// channel is the secure association. In order mode the backend learns the key from
+		// order signatures; proposal mode needs it up front so account rows can show the
+		// player-aware 💠/△ control marker before anything is signed.
+		let intentPublicKey = null
+		try { if(typeof getKatomiaOrderPubkeyHex === "function") intentPublicKey = await getKatomiaOrderPubkeyHex() }
+		catch(e){ console.error("[join] intent key unavailable", e) }
 
 		const payload = {
       type: "game_join",
       gameId,
       playerToken: getOrCreatePlayerToken(),
-      playerName: "anon"
+      playerName: "anon",
+      ...(intentPublicKey ? { intentPublicKey } : {})
     }
 
     socket.send(JSON.stringify(payload))
@@ -269,6 +278,12 @@ function connect(onOpenAction){
     }
 
 		glog(`state received for ${currentPlayerId}`, {gameMeta, state})
+
+		// PROP-LOCKSIGN1: while any of my accounts is locked, re-sign the (possibly
+		// changed) board basis so my lock commitment never goes stale — a board change
+		// does not unlock me. Fire-and-forget; hash-guarded inside.
+		if(typeof maybeRefreshLockCommitment === "function")
+			maybeRefreshLockCommitment().catch(e => console.error("[lock] re-sign failed", e))
 
 		await render()
     await enrichAccountLabels()

@@ -2131,6 +2131,18 @@ function getTxContributorAuth(tx){
       if(entry.verified) verifiedAccts.add(entry.accountId)
     }
   }
+  // PROP-LOCKSIGN1: proposal-mode txs carry source.proposal — a settlement-time
+  // SNAPSHOT of signed lock commitments with per-account bound flags (backend-derived;
+  // TRUST: katomia-trusted, chain-verifiable later via PROP-MEMO-BIND1). An account is
+  // verified here iff its player's commitment was signed AND the account's binding
+  // covered that intent key at settlement. Unsigned lockers appear as contributors
+  // (△) — full visibility of who was party to the tx and who signed.
+  for(const c of tx?.source?.proposal?.commitments || []){
+    for(const a of c.accounts || []){
+      contributorAccts.add(a.accountId)
+      if(c.signature && a.bound) verifiedAccts.add(a.accountId)
+    }
+  }
   return { verifiedAccts, contributorAccts, verifiedCount: verifiedAccts.size, contributorCount: contributorAccts.size }
 }
 

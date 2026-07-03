@@ -7,7 +7,7 @@ window.pendingCreateOrderAccount = null
 // katomia.css (:root --katomia-css-build). Both are surfaced in the diagnostics
 // so we can tell, from the server-side kdiag logs, exactly which version of the
 // code a given browser is running — and whether a cached (stale) asset is in play.
-const KATOMIA_JS_BUILD = "20260702-multiacct-5"
+const KATOMIA_JS_BUILD = "20260703-proplocksign-1"
 
 // Self-contained diagnostics sender. window.kdiag (from the kpool widget) is
 // lazy-loaded only when the signing widget mounts, so it is NOT available when

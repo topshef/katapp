@@ -780,9 +780,107 @@ function getFastThumb(url, imgEl){
 		}
 
 
+    // ── PROP-LOCKSIGN1: signed lock commitments (proposal mode) ─────────────────
+    // Locking now signs a commitment over the CANONICAL BOARD BASIS with the intent
+    // key — the proposal-mode twin of order intentSignature, giving reputation bindings
+    // something to attach to. Canonical rule (must match backend computeProposalBasis
+    // exactly): every basket line item on the board as {amount, assetId, from, to}
+    // (public ids), each JSON-encoded, lexicographically sorted, joined into an array
+    // string; basisHash = sha256 hex. Signed payload mirrors the order sig convention:
+    // {specVersion, gameId, network, basisHash}, ed25519 via signOrder().
+    const PROP_SIG_SPEC_FIELDS = ["specVersion","gameId","network","basisHash"]
+    const PROP_SIG_SPEC = (async () => {
+      const bytes  = new TextEncoder().encode(JSON.stringify(PROP_SIG_SPEC_FIELDS))
+      const digest = await crypto.subtle.digest("SHA-256", bytes)
+      return Array.from(new Uint8Array(digest))
+        .map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 8)
+    })()
+
+    async function sha256Hex(str){
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str))
+      return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("")
+    }
+
+    async function computeProposalBasisHash(){
+      const lines = []
+      for(const account of Object.values(state?.accounts || {})){
+        for(const item of account.basket || []){
+          // key order matters (JSON.stringify preserves it) — amount, assetId, from, to
+          lines.push({ amount: item.amount ?? 1, assetId: item.assetId, from: item.fromId, to: account.id })
+        }
+      }
+      const enc = lines.map(l => JSON.stringify(l)).sort()
+      return sha256Hex("[" + enc.join(",") + "]")
+    }
+
+    // Build {payload, signature} or null (no key / helpers unavailable → unsigned lock,
+    // the pre-PROP-LOCKSIGN1 status quo — visibility, never gating).
+    async function buildLockCommitment(basisHash){
+      try {
+        if(typeof signOrder !== "function" || typeof getOrCreatePlayerKeypair !== "function") return null
+        const { privateKey, publicKeyJwk } = await getOrCreatePlayerKeypair()
+        const payload = {
+          specVersion: await PROP_SIG_SPEC,
+          gameId,
+          network: gameMeta?.network ?? null,
+          basisHash: basisHash || await computeProposalBasisHash()
+        }
+        const signature = await signOrder(payload, privateKey, publicKeyJwk)
+        return { payload, signature }
+      } catch(e){
+        console.error("[lock] commitment build failed", e)
+        try { window.kdiag?.("lock:commitment-build-fail", { error: String(e) }) } catch {}
+        return null
+      }
+    }
+
+    // Auto-re-sign while locked: the board can change WITHOUT unlocking you (someone
+    // offers elsewhere), which would silently stale your signature by settlement. Since
+    // a persisting lock is already the game's consent model and the intent key signs
+    // silently (local key, no wallet prompt), we re-sign the new basis on every state
+    // update while any of my accounts is locked. Hash-guard prevents re-send loops.
+    let _lockResignBusy = false
+    async function maybeRefreshLockCommitment(){
+      if(_lockResignBusy) return
+      _lockResignBusy = true
+      try {
+        const mine = Object.values(state?.accounts || {}).filter(a => isMyAccount(a))
+        if(!mine.some(a => a.mode === "lock")){ window.__lastLockBasisSent = null; return }
+        const basisHash = await computeProposalBasisHash()
+        if(basisHash === window.__lastLockBasisSent) return
+        const commitment = await buildLockCommitment(basisHash)
+        if(!commitment) return
+        window.__lastLockBasisSent = basisHash
+        socket.send(JSON.stringify({ type: "game_lockCommitment", gameId, commitment }))
+        try { window.kdiag?.("lock:commitment-refresh", { basisHash: basisHash.slice(0,12) }) } catch {}
+      } finally { _lockResignBusy = false }
+    }
+
+    // 💠/△ account-control marker. authBound is PLAYER-aware (backend: the account's
+    // verified binding covers THIS player's registered intent key) — so the same account
+    // added by two players marks 💠 only for the one who could actually sign the binding.
+    // Before any reputation exists this alone proves account control.
+    function createAccountAuthMarker(account){
+      const nerd = document.body.classList.contains("nerd")
+      const el = document.createElement("span")
+      el.className = "order-auth-badge" + (account.authBound ? "" : " auth-unverified")
+      el.textContent = account.authBound ? "💠" : "△"
+      const frac = (account.authThreshold && account.authThreshold > 1)
+        ? ` (${account.authWeight}/${account.authThreshold} multisig weight)` : ""
+      el.title = account.authBound
+        ? (nerd ? `Account control verified — ${account.accountId || account.label} has a published wallet binding for this player's intent key${frac}.`
+                : `Verified${frac}`)
+        : (nerd ? `Not verified — no published binding ties ${account.accountId || account.label} to this player's intent key.`
+                : "Not verified")
+      return el
+    }
+
     function createAccountModeEl(account){
 
       const wrap = document.createElement("div")
+
+      // PROP-LOCKSIGN1: account-control marker beside the mode control
+      wrap.appendChild(createAccountAuthMarker(account))
 
       const modeEl = document.createElement("div")
       modeEl.className = "mode"
@@ -795,12 +893,19 @@ function getFastThumb(url, imgEl){
       if(isMyAccount(account)){
         modeEl.classList.add("clickable")
 
-        modeEl.onclick = () => {
+        modeEl.onclick = async () => {
+          // PROP-LOCKSIGN1: locking signs the board basis; unlocking sends plain (the
+          // backend discards the stored commitment on unlock).
+          const locking = account.mode !== "lock"
+          let commitment = null
+          if(locking) commitment = await buildLockCommitment()
           socket.send(JSON.stringify({
             type: "game_toggleLock",
             gameId,
-            accountId: account.id
+            accountId: account.id,
+            ...(commitment ? { commitment } : {})
           }))
+          window.__lastLockBasisSent = locking ? (commitment?.payload?.basisHash ?? null) : null
         }
       }
 
