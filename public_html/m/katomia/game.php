@@ -515,6 +515,11 @@ function kasset($file) {
 <script src="<?= kasset('katomia-profile.js') ?>"></script>
 <script src="<?= kasset('katomia-auth.js') ?>"></script>
 
+<!-- KAT-FEEDBACK1 dogfooding: long-press anywhere on the game page (2s) opens
+     a "Send Feedback" modal. Signs with the intent keypair above if present. -->
+<script src="/vendor/feedback-widget/feedback-widget.js?v=<?= @filemtime($_SERVER['DOCUMENT_ROOT'] . '/vendor/feedback-widget/feedback-widget.js') ?>"
+        data-product="katomia"></script>
+
 <script>
 window.addEventListener("load", () => {
 // window.addEventListener("DOMContentLoaded", () => {
