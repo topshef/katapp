@@ -244,13 +244,18 @@
 
     // KPIE-SCALE1: width is the budget; height = width scaled by the viewBox aspect, so
     // the container hugs the tree (landscape or portrait) instead of squaring it off.
-    // With the container matching the viewBox aspect exactly, xMidYMid meet fills it
-    // edge-to-edge and the CSS maths needs no centring offsets.
-    const scale = size / vw
-    const cssH = Math.round(vh * scale)
-    container.style.height = cssH + 'px'
-    const offsetX = 0
-    const offsetY = 0
+    container.style.height = Math.round(vh * (size / vw)) + 'px'
+    // Then RE-MEASURE and centre exactly like the SVG's xMidYMid meet does: CSS can
+    // override the height we just set (e.g. the caller's min-height floor), and if the
+    // real box is taller/wider than the viewBox aspect the SVG recentres its frame —
+    // the node divs must follow the same maths or they detach from the lines/rings
+    // (the lifted-pies bug). This is the original centring, now against the real box.
+    const box = container.getBoundingClientRect()
+    const boxW = box.width || size
+    const boxH = box.height || (vh * (size / vw))
+    const scale = Math.min(boxW / vw, boxH / vh)
+    const offsetX = (boxW - vw * scale) / 2
+    const offsetY = (boxH - vh * scale) / 2
     // node-pie cap scales with the budget (was a flat 44px — pointlessly small once the
     // container is allowed to grow), floor stays for legibility on tiny cells.
     const pieCssSize = Math.max(8, Math.min(Math.max(44, Math.round(size / 5)), Math.round(pieRadius * 2 * scale)))

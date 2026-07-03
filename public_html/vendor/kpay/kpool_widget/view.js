@@ -7,7 +7,7 @@ import {
 	} from './utils.js'
 import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 import { getThresholdSummary } from './threshold.js'
-import { flowTravel, setFlowState, revertFlow, flowAssetOnce } from './txflow.js'
+import { flowTravel, setFlowState, revertFlow, flowAssetOnce, fadeHoverTrail } from './txflow.js'
 
 // Why an account must sign — one glyph map shared by the Signing Authority rows AND
 // the account-card header so they never drift (TX-CARDS7 / TX-CARDS9).
@@ -383,6 +383,7 @@ const SIGN_REASON = {
 		const clearAssetHl = () => {
 			clearTimeout(hoverFlowTimer)
 			if (!hlKey) return
+			fadeHoverTrail(container, hlKey)   // hover over → its replay trail fades away
 			container.querySelectorAll('.txcard-chip.asset-hl').forEach(n => n.classList.remove('asset-hl'))
 			hlKey = null
 		}

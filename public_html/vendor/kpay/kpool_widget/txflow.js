@@ -50,7 +50,9 @@ function assetHue(key) {
 }
 
 function mkLayer(container, cls) {
-	let layer = [...container.children].find(c => c.classList?.contains(cls))
+	// skip .txflow-hover layers — those are the hover-replay's own throwaway/fading
+	// overlays (TX-FLOW-HOVER1); grabbing one here would wipe or orphan it mid-fade.
+	let layer = [...container.children].find(c => c.classList?.contains(cls) && !c.classList.contains('txflow-hover'))
 	if (!layer) { layer = document.createElement('div'); layer.className = cls; container.appendChild(layer) }
 	layer.innerHTML = ''
 	return layer
@@ -200,9 +202,12 @@ export function revertFlow(container) {
 
 // TX-FLOW-HOVER1: replay the glide for ONE asset — an ephemeral preview, not a state
 // change. Chip ghost/solid classes are snapshotted and restored (animateAsset empties
-// sources and lands destinations as it goes), and the trail is drawn on throwaway layers
-// removed at the end, so the persistent provenance trail never fattens from hovering.
-// Fresh layers (not mkLayer, which wipes) so a replay can't erase the sticky trail.
+// sources and lands destinations as it goes). The trail draws on its OWN layer (tagged
+// .txflow-hover so mkLayer never grabs it), stacked over whatever trail is already
+// there — an existing sticky 'after' line is untouched, the hover line just paints on
+// top. The layer PERSISTS while the hover holds; fadeHoverTrail() (hover-out) fades and
+// removes it — echoing the old trailMark fade (see the commented animate() above),
+// which we dropped for the sticky before/after record but want back for hover.
 // Guarded per-asset and against a full flowTravel run.
 export async function flowAssetOnce(container, assetKey) {
 	if (typeof container?.querySelectorAll !== 'function' || container._flowRunning) return
@@ -212,14 +217,32 @@ export async function flowAssetOnce(container, assetKey) {
 	if (!g?.send.length || !g?.receive.length) return
 	container._assetFlows.add(assetKey)
 	const layer = cls => { const l = document.createElement('div'); l.className = cls; container.appendChild(l); return l }
-	const front = layer('txflow-layer'), back = layer('txflow-layer-trail')
+	const front = layer('txflow-layer txflow-hover'), back = layer('txflow-layer-trail txflow-hover')
+	// registered UP FRONT so a hover-out mid-flight still finds the layer to fade
+	;(container._hoverTrails ||= new Map()).set(assetKey, back)
 	const prior = [...g.send, ...g.receive].map(c => [c, c.classList.contains('txcard-chip-ghost')])
 	try {
 		await animateAsset(front, back, container.getBoundingClientRect(), g.send, g.receive, assetHue(assetKey))
 	} finally {
 		prior.forEach(([c, was]) => { c.classList.toggle('txcard-chip-ghost', was); c.classList.remove('txflow-landed') })
-		front.remove(); back.remove()
+		front.remove()
 		container._assetFlows.delete(assetKey)
+	}
+}
+
+// Hover ended: fade the hover trail(s) away — quick but soft (per user), then remove.
+// No assetKey = fade them all (e.g. pointer left the whole card area).
+export function fadeHoverTrail(container, assetKey) {
+	const trails = container?._hoverTrails
+	if (!trails) return
+	const keys = assetKey != null ? [assetKey] : [...trails.keys()]
+	for (const k of keys) {
+		const l = trails.get(k)
+		trails.delete(k)
+		if (!l) continue
+		l.style.transition = 'opacity .45s ease'
+		l.style.opacity = '0'
+		setTimeout(() => l.remove(), 500)
 	}
 }
 
