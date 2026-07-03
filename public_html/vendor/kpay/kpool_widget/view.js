@@ -976,7 +976,8 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 	const scores = acc.keyInfo?.banzhafScores?.scores
 	const redundancy = acc.keyInfo?.banzhafScores?.redundancy
 	const buckets = acc.keyInfo?.keyControlScoresAll
-	if (scores) {
+	// key list gated with the pie (SHOW_AUTHORITY_WHEN_NOT_SIGNING): both or neither
+	if (scores && (acc.mustSign || SHOW_AUTHORITY_WHEN_NOT_SIGNING)) {
 		const grid = document.createElement('div')
 		grid.className = 'txcard-keys'
 		const head = document.createElement('div')
@@ -1236,44 +1237,52 @@ export function showBanner(message,type='info') {
 }
 
 
-// KPIE-SCALE1: how many nested threshold GROUPS (each renders a pie) and how deep the
-// nesting goes — the two drivers of how much room the radial tree needs. Plain keys in
-// a group don't add pies, so only threshold-objects count.
+// KPIE-SCALE1: shape stats for the key tree — nested threshold GROUPS (each renders a
+// pie), nesting depth, and the widest single generation (the width driver of the
+// family-tree layout). Plain keys in a group don't add pies, so only threshold-objects
+// count.
 function keyTreeStats(node, depth = 0) {
-  if (!node || typeof node !== 'object' || !node.threshold) return { groups: 0, depth }
+  if (!node || typeof node !== 'object' || !node.threshold) return { groups: 0, depth, rows: [] }
   let groups = 1, maxDepth = depth
+  const rows = []
+  rows[depth] = (rows[depth] || 0) + 1
   for (const k of node.keys || []) {
     if (k && typeof k === 'object' && k.threshold) {
       const s = keyTreeStats(k, depth + 1)
       groups += s.groups
       maxDepth = Math.max(maxDepth, s.depth)
+      s.rows.forEach((n, i) => { rows[i] = (rows[i] || 0) + n })
     }
   }
-  return { groups, depth: maxDepth }
+  return { groups, depth: maxDepth, rows, maxRow: Math.max(...rows.filter(Boolean), 1) }
 }
+
+// SIGN-EXPLAIN1 follow-up (per user 2026-07-03): render the signing-authority detail
+// (pie chart + key list — always BOTH or NEITHER, half the picture is worse than none)
+// even for accounts that don't need to sign. Hard-coded ON for now — it's useful
+// information and makes multisig layouts testable with any account. May later be turned
+// off or gated behind nerd mode; flip it here.
+const SHOW_AUTHORITY_WHEN_NOT_SIGNING = true
 
 function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo }) {
   const widget = document.createElement('div')
-  if (!mustSign) return widget
+  if (!mustSign && !SHOW_AUTHORITY_WHEN_NOT_SIGNING) return widget
   widget.className = 'acctkeys-piechart'
 
   if (window.kpie && keyInfo) {
     // Feed kpie a normalized tree (leaf objects → pubkey strings) so its leaves match
     // the already-normalized signedPubkeys — otherwise every slice renders orange.
     const normTree = normalizeKeyTree(keyInfo)
-    // KPIE-SCALE1: the fixed 110px square is fine for a single pie but starves a
-    // multi-level key tree — every node pie shrinks towards the 8px floor. Budget the
-    // container width by tree complexity (depth + group count), capped so it never
-    // overwhelms the detail cell; kpie then trims the height to the tree's real aspect
-    // (landscape/portrait both fine — desktop has the width to breathe). Numbers are a
-    // first heuristic, tune on sight.
+    // KPIE-SCALE1: budget the WIDTH by the widest generation of the family-tree layout
+    // (kpie owns the height — it hugs the generations). Wide councils (30 children) get
+    // up to the full detail width; the 560 cap plus max-width:100% keeps it sane.
+    // Numbers are a first heuristic, tune on sight.
     const stats = keyTreeStats(normTree)
     if (stats.groups > 1) {
-      const px = Math.min(320, 110 + 70 * stats.depth + 16 * stats.groups)
+      const px = Math.min(640, Math.max(160, 40 * stats.maxRow + 40))
       widget.style.width = px + 'px'
       widget.style.maxWidth = '100%'
       widget.style.height = 'auto'
-      widget.style.minHeight = '110px'
     }
     window.kpie.render(widget, { keyInfo: normTree, signedPubkeys: signedPubkeys || [] })
       .catch(err => console.warn('[kpie] render failed', err))
