@@ -271,8 +271,16 @@
 			zzpink_background:#ffe9ec;
 		}
 
+		/* LOCK-PROGRESS1: consensus progress line under the Trading/Locked mode — one
+		   segment per required locker (blue = still trading, orange = locked), count
+		   scoped by the game's lockRule. Echoes the trading-blue / locked-orange
+		   semantics; plain classes so themes (THEME1) can restyle. */
+		.lockbar{ display:flex; gap:2px; margin-top:3px; height:3px; width:100%; max-width:76px; }
+		.lockbar-seg{ flex:1 1 0; background:#a9c9ec; border-radius:2px; }
+		.lockbar-seg--locked{ background:#f5a623; }
+
 		.account-row[data-mode="shop"]{
-			background:#e6f2ff; 
+			background:#e6f2ff;
 		}
 
 

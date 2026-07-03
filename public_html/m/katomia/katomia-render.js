@@ -881,6 +881,81 @@ function getFastThumb(url, imgEl){
       return el
     }
 
+    // ── LOCK-PROGRESS1: cluster lock-progress ─────────────────────────────────
+    // Frontend mirror of the backend's grouping (hbarlive katomia.js:
+    // getTradeClusters / getActiveAccounts / attemptSettlement) — the graph isn't
+    // broadcast, so it's re-derived from the same inputs: each basket item edges
+    // the basket owner to item.fromId; connected components are clusters; active =
+    // anyone giving or receiving. Who must lock follows gameMeta.lockRule:
+    //   cluster → the ACTIVE members of your component (each component counts
+    //             independently — disconnected clusters don't relate)
+    //   active  → all active accounts game-wide
+    //   all     → every account, from the get-go (everyone is required)
+    // Keep in sync with the backend if its settlement rules change. Memoized per
+    // state broadcast (recomputed once per game_state, not per account row).
+    let _lpState = null, _lpMap = null
+    function getLockProgress(accountId){
+      if(_lpState !== state){ _lpState = state; _lpMap = computeLockProgressMap() }
+      return _lpMap.get(accountId) || null
+    }
+
+    function computeLockProgressMap(){
+      const map = new Map()
+      const accounts = Object.values(state?.accounts || {})
+      if(!accounts.length) return map
+      const lockedOf = ids => ids.filter(id => state.accounts[id]?.mode === "lock").length
+
+      const active = new Set()
+      for(const a of accounts){
+        if((a.basket || []).length) active.add(a.id)
+        for(const item of a.basket || []) if(item.fromId) active.add(item.fromId)
+      }
+
+      const rule = gameMeta?.lockRule || "cluster"
+
+      if(rule === "all"){
+        const ids = accounts.map(a => a.id)
+        const entry = { total: ids.length, locked: lockedOf(ids), scope: "whole game" }
+        ids.forEach(id => map.set(id, entry))
+        return map
+      }
+
+      if(rule === "active"){
+        const ids = [...active]
+        if(ids.length < 2) return map   // no bar until there's real participation
+        const entry = { total: ids.length, locked: lockedOf(ids), scope: "all active traders" }
+        ids.forEach(id => map.set(id, entry))
+        return map
+      }
+
+      // cluster: connected components over basket edges
+      const graph = {}
+      accounts.forEach(a => graph[a.id] = new Set())
+      for(const a of accounts)
+        for(const item of a.basket || []){
+          if(!item.fromId) continue
+          graph[a.id].add(item.fromId)
+          graph[item.fromId]?.add(a.id)
+        }
+      const seen = new Set()
+      for(const id of Object.keys(graph)){
+        if(seen.has(id)) continue
+        const stack = [id], comp = []
+        while(stack.length){
+          const n = stack.pop()
+          if(seen.has(n)) continue
+          seen.add(n)
+          comp.push(n)
+          for(const m of graph[n]) if(!seen.has(m)) stack.push(m)
+        }
+        const members = comp.filter(cid => active.has(cid))
+        if(members.length < 2) continue   // singleton / not participating — no bar
+        const entry = { total: members.length, locked: lockedOf(members), scope: "this cluster" }
+        members.forEach(cid => map.set(cid, entry))
+      }
+      return map
+    }
+
     function createAccountModeEl(account){
 
       const wrap = document.createElement("div")
@@ -916,6 +991,26 @@ function getFastThumb(url, imgEl){
       }
 
       wrap.appendChild(modeEl)
+
+      // LOCK-PROGRESS1: ruler-style consensus line under the mode — one segment per
+      // required locker, trading-blue flipping to locked-orange as members lock.
+      // Segments are anonymous and in stable (cluster-traversal) order for v1; a
+      // subtle own-segment highlight is a possible refinement. Tooltip carries the
+      // count; nerd mode adds the remainder.
+      const lp = getLockProgress(account.id)
+      if(lp){
+        const bar = document.createElement("div")
+        bar.className = "lockbar"
+        const nerd = document.body.classList.contains("nerd")
+        bar.title = `${lp.locked} of ${lp.total} locked (${lp.scope})`
+          + (nerd && lp.locked < lp.total ? ` — ${lp.total - lp.locked} more needed to strike` : "")
+        for(let i = 0; i < lp.total; i++){
+          const seg = document.createElement("span")
+          seg.className = "lockbar-seg" + (i < lp.locked ? " lockbar-seg--locked" : "")
+          bar.appendChild(seg)
+        }
+        wrap.appendChild(bar)
+      }
 
       return wrap
     }
