@@ -136,6 +136,7 @@ export async function renderKsig(container, {
 	txid,
 	pch = 'no_pch',
 	readUrl = defaultReadUrl,
+	saveUrl = null,   // SIGN-KSIG-SAVEURL1: host's kpool txSave endpoint; null = same-origin page-relative
 	submitSigUrl = DEFAULT_SUBMIT_URL,
 	onSigned = null
 } = {}) {
@@ -190,7 +191,7 @@ export async function renderKsig(container, {
 		container.appendChild(status)
 
     scanBtn.addEventListener('click', () =>
-			startScanBack({ network, txid, pch, bodyBytesHex, readUrl, submitSigUrl, onSigned, statusEl: status, btnEl: scanBtn })
+			startScanBack({ network, txid, pch, bodyBytesHex, readUrl, saveUrl, submitSigUrl, onSigned, statusEl: status, btnEl: scanBtn })
 		)
 
     kdiag('ksig:qr-rendered', { bytes: bodyBytesHex.length / 2, checksum })
@@ -294,7 +295,7 @@ async function startScanBack(ctx) {
 
 
 
-async function submitSignature({ publicKey, sigHex }, { network, txid, pch, readUrl, onSigned, statusEl }) {
+async function submitSignature({ publicKey, sigHex }, { network, txid, pch, readUrl, saveUrl, onSigned, statusEl }) {
 	statusEl.classList.remove('err')
 	statusEl.textContent = `Submitting signature …${publicKey.slice(-4)}`
 
@@ -309,7 +310,13 @@ async function submitSignature({ publicKey, sigHex }, { network, txid, pch, read
 		// the exact shape the WalletConnect signer hands to txSave (which is known to work).
 		const signedHex = appendSignature(hex2, publicKey, sigHex)
 
-		const postUrl = location.pathname + '?action=txSave'
+		// SIGN-KSIG-SAVEURL1: use the host-provided saveUrl (kpool txSave endpoint), the
+		// same override readUrl already uses. Off-origin (Katomia embed) the page-relative
+		// fallback resolves to the game HTML page, so the POST returned 200 text/html and
+		// the signature was silently dropped. saveUrl may be a function (kpay-embed passes
+		// futureSaveUrl) or a string; fall back to page-relative for same-origin hosts.
+		const resolvedSaveUrl = (typeof saveUrl === 'function') ? saveUrl() : saveUrl
+		const postUrl = resolvedSaveUrl || (location.pathname + '?action=txSave')
 		const payload = {
 			network,
 			comment: 'KSIG offline',
@@ -343,6 +350,15 @@ async function submitSignature({ publicKey, sigHex }, { network, txid, pch, read
 		})
 
 		if (!res.ok) throw new Error(`txSave failed (${res.status})`)
+
+		// SIGN-KSIG-SAVEURL1 guard: a mis-routed POST (e.g. the old page-relative default
+		// hitting the Katomia game page) returns 200 text/html. The tolerant "any 200 =
+		// saved" rule above then reported a false success and the signature vanished with
+		// no error — the exact symptom that made this so hard to diagnose. An HTML body is
+		// never a valid txSave response, so treat it as a failure.
+		const ct = res.headers.get('content-type') || ''
+		if (ct.includes('text/html') || text.trimStart().startsWith('<'))
+			throw new Error('txSave returned HTML — wrong endpoint (saveUrl not routed to kpool)')
 
 		statusEl.textContent = `✍️ Signature …${publicKey.slice(-4)} submitted — the approvals list will update shortly.`
 		if (typeof onSigned === 'function') onSigned({ publicKey, sigHex })

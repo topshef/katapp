@@ -387,7 +387,7 @@ function buildWhatsAppPane(network, txid, pch) {
 }
 
 function buildKsigPane(txState) {
-	const { network, txid, pch, readUrl } = txState
+	const { network, txid, pch, readUrl, saveUrl } = txState
 	const pane = document.createElement('div')
 	pane.appendChild(makeDesc(
 		`Sign offline on another device. Scan this QR with the KSIG app. ` +
@@ -408,6 +408,9 @@ function buildKsigPane(txState) {
 			txid,
 			pch,
 			readUrl,   // absolute endpoint matters off-origin (Katomia) — see comment above
+			saveUrl,   // SIGN-KSIG-SAVEURL1: same reason — the scan-back POST must hit the
+			           // host's kpool txSave endpoint, NOT the page-relative default (which
+			           // is the Katomia game HTML page → the sig silently vanished).
 			onSigned: () => notify(txState, '✍️ Signature submitted', 'success')
 		})
 	}
