@@ -160,6 +160,46 @@ showTradedAssets.onchange = e => {
    NETWORK
 ========================= */
 
+// ── WebSocket resilience ──────────────────────────────────────────────────────
+// The socket historically had no auto-reconnect: once it dropped (mobile tab
+// backgrounding, wifi↔cellular switch, idle timeout) it stayed dead until the
+// next action that happened to call connect() — and the only such action was
+// addAccounts(). That made "add account" pay a full cold connect+game_join
+// handshake and feel slow/flaky ("took ages, finally went through"). We now
+// reconnect on close and when the tab/network comes back, so the socket stays
+// warm and actions fire instantly.
+let wsShouldRun = true
+let wsReconnectDelay = 1000
+const WS_RECONNECT_MAX = 15000
+let wsReconnectTimer = null
+
+function scheduleWsReconnect(){
+  if(!wsShouldRun || wsReconnectTimer) return
+  if(socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) return
+  glog(`ws closed — reconnecting in ${wsReconnectDelay}ms`)
+  wsReconnectTimer = setTimeout(() => {
+    wsReconnectTimer = null
+    connect()
+    wsReconnectDelay = Math.min(wsReconnectDelay * 2, WS_RECONNECT_MAX)
+  }, wsReconnectDelay)
+}
+
+// reconnect promptly when the user returns to the tab or the network is restored
+if(!window.__katomiaWsLifecycle){
+  window.__katomiaWsLifecycle = true
+  const wake = () => {
+    if(!wsShouldRun) return
+    // readyState > OPEN means CLOSING(2)/CLOSED(3); also covers no socket
+    if(!socket || socket.readyState > WebSocket.OPEN){
+      wsReconnectDelay = 1000
+      if(wsReconnectTimer){ clearTimeout(wsReconnectTimer); wsReconnectTimer = null }
+      connect()
+    }
+  }
+  document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") wake() })
+  window.addEventListener("online", wake)
+}
+
 function connect(onOpenAction){
 
   if(socket && socket.readyState === WebSocket.OPEN){
@@ -175,25 +215,39 @@ function connect(onOpenAction){
   const WS_URL = "wss://" + window.CONFIG.HAPI_BASE + "/ws"
   console.log({WS_URL})
   socket = new WebSocket(WS_URL)
-  
 
-  socket.onopen = () => {
+
+  socket.onopen = async () => {
+
+    wsReconnectDelay = 1000   // healthy connection — reset backoff
+
+		// PROP-LOCKSIGN1: register the intent public key at join — the playerToken WS
+		// channel is the secure association. In order mode the backend learns the key from
+		// order signatures; proposal mode needs it up front so account rows can show the
+		// player-aware 💠/△ control marker before anything is signed.
+		let intentPublicKey = null
+		try { if(typeof getKatomiaOrderPubkeyHex === "function") intentPublicKey = await getKatomiaOrderPubkeyHex() }
+		catch(e){ console.error("[join] intent key unavailable", e) }
 
 		const payload = {
       type: "game_join",
       gameId,
       playerToken: getOrCreatePlayerToken(),
-      playerName: "anon"
+      playerName: "anon",
+      ...(intentPublicKey ? { intentPublicKey } : {})
     }
-	
+
     socket.send(JSON.stringify(payload))
 		glog("payload for game_join", payload)
-		
+
     onOpenAction && onOpenAction()
   }
 
+  socket.onclose = () => { glog("ws onclose"); scheduleWsReconnect() }
+  socket.onerror = (e) => { glog("ws onerror", { msg: String(e?.message || "") }); try { socket.close() } catch {} }
+
 	
-	const alertTimeouts = {warning: 3000, error: 0, info: 3000, success: 4000, event: 5000}
+	const alertTimeouts = {warning: 3000, error: 0, info: 3000, success: 4000, event: 3000}
 	socket.onmessage = async msg => {
 
 		const data = JSON.parse(msg.data)
@@ -225,6 +279,12 @@ function connect(onOpenAction){
 
 		glog(`state received for ${currentPlayerId}`, {gameMeta, state})
 
+		// PROP-LOCKSIGN1: while any of my accounts is locked, re-sign the (possibly
+		// changed) board basis so my lock commitment never goes stale — a board change
+		// does not unlock me. Fire-and-forget; hash-guarded inside.
+		if(typeof maybeRefreshLockCommitment === "function")
+			maybeRefreshLockCommitment().catch(e => console.error("[lock] re-sign failed", e))
+
 		await render()
     await enrichAccountLabels()
 		await enrichAccountAssets()
@@ -238,6 +298,10 @@ function connect(onOpenAction){
 
 
 function exitGame(){
+
+	// intentional exit — stop the resilience layer from reconnecting
+	wsShouldRun = false
+	if(wsReconnectTimer){ clearTimeout(wsReconnectTimer); wsReconnectTimer = null }
 
 	if(socket){
 		const playerToken = getOrCreatePlayerToken()

@@ -2,10 +2,25 @@ import {
 		get,
 		parseTxId,
 		formatUtcTime,
-		formatCountdown
+		formatCountdown,
+		isHederaSystemAccount
 	} from './utils.js'
+import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
+import { getThresholdSummary } from './threshold.js'
+import { flowTravel, setFlowState, revertFlow, flowAssetOnce, fadeHoverTrail } from './txflow.js'
 
-	const deriveStatusFromTime = (txid, updatedAtMs) => {
+// Why an account must sign — one glyph map shared by the Signing Authority rows AND
+// the account-card header so they never drift (TX-CARDS7 / TX-CARDS9).
+const SIGN_REASON = {
+	operator:              { emoji:'⚙️', tip:'​    Operator account' },
+	sender:                { emoji:'📤', tip:'​    Sending assets' },
+	receiver_sig_required: { emoji:'📥', tip:'​    Receiver signature required' }
+}
+
+	// validSecs: the tx's REAL valid duration, decoded from the signed bytes
+	// (VALIDD1, data.validDurationSeconds). 180 stays as the fallback when the
+	// bytes aren't available — the old hardcoded assumption, now only a default.
+	const deriveStatusFromTime = (txid, updatedAtMs, validSecs = 180) => {
 		const info = parseTxId(txid)
 		if (!info) return 'Unknown'
 
@@ -16,8 +31,8 @@ import {
 		// still in future
 		if (diff > 0) return 'Waiting'
 
-		// within 3 min window after scheduled time
-		if (diff > -180) return 'Ready to submit..'
+		// within the valid window after scheduled time
+		if (diff > -validSecs) return 'Ready to submit..'
 
 		// past 3 min — only expired if data is fresh enough
 		if (updatedAtMs) {
@@ -58,7 +73,9 @@ import {
 		const container = document.createElement('div')
 
 		const statusEl = document.createElement('div')
-		container.appendChild(statusEl)
+		statusEl.hidden = true   // the status LABEL is shown in the modal header (kpm-head); the content
+		container.appendChild(statusEl)   // line shows ONLY the countdown (simplified, per user). FUTURE: fold
+		// the countdown into the modal header too (awaiting-approvals + timer) and drop this line entirely.
 
 		let timingEl = null
 
@@ -73,7 +90,7 @@ import {
 				currentData.receiptStatus
 
 			if (!derivedStatus)
-				derivedStatus = deriveStatusFromTime(currentData.txid, currentData.updatedAt)
+				derivedStatus = deriveStatusFromTime(currentData.txid, currentData.updatedAt, currentData.validDurationSeconds || 180)
 			
 			const pch = data.PCH  //later
 			// const successKey = `tx_status:${network};${txid};${pch}`
@@ -91,7 +108,7 @@ import {
 				derivedStatus?.startsWith('Waiting') ||
 				derivedStatus?.startsWith('Ready')
 			) {
-				timingEl = buildTimingBlock(data.network, data.txid)
+				timingEl = buildTimingBlock(data.network, data.txid, data.validDurationSeconds || 180)
 				container.appendChild(timingEl)
 			}
 		}
@@ -113,7 +130,335 @@ import {
 			?? null
 	}
 
-	export const buildTxReadColumns = ({ rawTx, data, transfers, network, txid, pch }) => {
+	// ┌┬┐─┐ ┬  ┬  ┬┬┌─┐┬ ┬  ┬─┐┌─┐┌─┐┬┌─┐┌┬┐┬─┐┬ ┬
+	//  │ ┌┴┬┘  └┐┌┘│├┤ │││  ├┬┘├┤ │ ┬│└─┐ │ ├┬┘└┬┘
+	//  ┴ ┴ └─   └┘ ┴└─┘└┴┘  ┴└─└─┘└─┘┴└─┘ ┴ ┴└─ ┴
+	// View registry (TX-CARDS2). Each entry renders the transfer block from the
+	// normalized flow model. 'table' is the current flat list (the always-present
+	// fallback); 'cards' lands in TX-CARDS3. Mirrors proposal mode's viewMode.
+	const TX_VIEWS = {
+		table: ({ network, flow, transfers }) => buildTransferList(network, (flow?.lineItems) || transfers?.lineItems || []),
+		cards: ({ network, flow, transfers }) => buildCardsView({ network, flow, transfers })
+	}
+
+	// Resolution: ?txview= URL param (explicit dev override; 'nerd' stacks all views) →
+	// otherwise mirror katomia's NERD MODE (localStorage katomia.nerd.v1 / body.nerd):
+	// nerd ON = the old line-item 'table' (regular accounting view), nerd OFF = the new
+	// 'cards' (T-account view, the normal default). Same flag the profile/header toggle flips.
+	export function resolveTxView() {
+		try { const u = new URLSearchParams(location.search).get('txview'); if (u) return u } catch {}
+		let nerd = false
+		try { nerd = document.body.classList.contains('nerd') || localStorage.getItem('katomia.nerd.v1') === '1' } catch {}
+		return nerd ? 'table' : 'cards'
+	}
+
+	// PROTO1/SECURITY: verdict line for the bytes-vs-display check (model.js
+	// verifyTransfersAgainstBytes). Mismatch = loud red banner — the user must not
+	// trust what's rendered. Match = quiet ✓ reassurance. unavailable/error = shown
+	// in nerd mode only (a settled view without bytes is normal, don't cry wolf).
+	function buildBytesVerifyNote(bytesVerify) {
+		if (!bytesVerify) return null
+		const el = document.createElement('div')
+		el.className = 'txread-bytes-verify'
+		el.dataset.status = bytesVerify.status
+
+		if (bytesVerify.status === 'mismatch') {
+			el.innerHTML =
+				`<strong>⚠️ WARNING — the transfers shown do NOT match the transaction bytes being signed.</strong>` +
+				`<br>Do not sign. ` +
+				`<span class="subtle">bytes-only: ${bytesVerify.missingFromDisplay.length}, display-only: ${bytesVerify.extraInDisplay.length} — details in diagnostics (tx:bytes-verify).</span>`
+			el.style.cssText = 'color:#b00020;background:#fde7ea;border:1px solid #f3b5c0;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13px;'
+			return el
+		}
+		if (bytesVerify.status === 'match') {
+			el.textContent = `✔ display verified against signed bytes (${bytesVerify.counts.bytes} transfer legs, ${bytesVerify.mode})`
+			el.style.cssText = 'color:#2e7d32;font-size:11px;margin:4px 0;'
+			return el
+		}
+		// unavailable / error — informational, nerd-only
+		el.textContent = `bytes-verify: ${bytesVerify.status} — ${bytesVerify.reason || ''}`
+		el.style.cssText = 'color:#999;font-size:11px;margin:4px 0;'
+		if (!document.body.classList.contains('nerd')) el.style.display = 'none'
+		return el
+	}
+
+	// Returns the transfer block element. For a single known view this is the bare view
+	// element. 'nerd' (explicit ?txview=nerd) wraps every registered view side by side.
+	export function buildTransferViews({ network, flow, transfers }) {
+		const mode = resolveTxView()
+		const make = name => {
+			const el = (TX_VIEWS[name] || TX_VIEWS.table)({ network, flow, transfers })
+			// bytes-vs-display verdict rides above EVERY transfer view (table + cards)
+			const note = buildBytesVerifyNote(transfers?.bytesVerify)
+			if (!note) return el
+			const wrap = document.createElement('div')
+			wrap.append(note, el)
+			return wrap
+		}
+
+		if (mode !== 'nerd') {
+			const name = TX_VIEWS[mode] ? mode : 'table'
+			try { globalThis.kdiag?.('txview:render', { mode, rendered: [name] }) } catch {}
+			return make(name)
+		}
+
+		const wrap = document.createElement('div')
+		wrap.className = 'txread-views-nerd'
+		const rendered = Object.keys(TX_VIEWS)
+		rendered.forEach(name => {
+			const sec = document.createElement('div')
+			sec.className = 'txread-view-section'
+			sec.dataset.viewName = name
+			const lbl = document.createElement('div')
+			lbl.className = 'txread-view-label'
+			lbl.textContent = name
+			sec.append(lbl, make(name))
+			wrap.appendChild(sec)
+		})
+		try { globalThis.kdiag?.('txview:render', { mode, rendered }) } catch {}
+		return wrap
+	}
+
+	// ┌─┐┌─┐┬─┐┌┬┐┌─┐  ┬  ┬┬┌─┐┬ ┬
+	// │  ├─┤├┬┘ ││└─┐  └┐┌┘│├┤ │││
+	// └─┘┴ ┴┴└──┴┘└─┘   └┘ ┴└─┘└┴┘
+	// Cards view (TX-CARDS3). One thick row per account: a light account-header row
+	// (id + optional xproof label) over two equal columns — LEFT = send (rose),
+	// RIGHT = receive (green). Direction is conveyed by side+colour, so no edge
+	// labels. Renders from flow.accounts (send/receive already split by sign).
+	// Ghost (dashed/faded) chips on the receive side show where assets land.
+	// Pre-consensus styling only; invert+move animation is TX-CARDS5, hover→destination
+	// lines TX-CARDS4, identity glyph + operator marker TX-CARDS6.
+	const _fmtAmt = n => { const v = Number(n); return Number.isFinite(v) ? v.toLocaleString(undefined, { maximumFractionDigits: 8 }) : String(n) }
+
+	// pickAssetLabel — shared short-label rule. Mirrors the HEDERA:// → name fallback
+	// that was duplicated in buildTransferList and katomia formatAssetDisplay, and adds
+	// a length cap: a hedera:// URI symbol OR a symbol longer than the cap defers to the
+	// (shorter) name. CSS still ellipsis-clips whatever survives. (TX-CARDS3 review)
+	const ASSET_LABEL_MAX = 20
+	export function pickAssetLabel(meta = {}) {
+		const symbol = meta.symbol || ''
+		const name = meta.name || ''
+		const fallback = meta.raw || ''
+		const looksUri = /^hedera:\/\//i.test(symbol)
+		if ((looksUri || symbol.length > ASSET_LABEL_MAX) && name && name.length < (symbol.length || Infinity)) return name
+		return symbol || name || fallback
+	}
+
+	function buildCardChip(network, item, side) {
+		const m = item.assetMeta || {}
+		const chip = document.createElement('div')
+		chip.className = 'txcard-chip' + (side === 'receive' ? ' txcard-chip-ghost' : '')
+		chip.dataset.side = side
+		// NO data-acct on chips: the account cross-ref hover fires from the card HEADER
+		// only. Chips get their own asset-pool hover keyed by data-asset-key — fungible
+		// keyed by token (all HBAR/all KGBP link), NFT keyed by token+serial (#32 in↔out).
+		const isNft = m.assetClass === 'NFT' || item.type === 'NFT'
+		chip.dataset.assetKey = isNft ? `${m.raw ?? item.tokenId}#${m.serial ?? item.serial}` : (m.raw ?? item.asset ?? '')
+
+		const isHbar = (m.raw === 'tinybar') || item.type === 'HBAR'
+		let icon = '🪙'
+		if (m.assetClass === 'LE') icon = '🖼️'
+		else if (isNft) icon = '💎'
+
+		const iconEl = document.createElement('span')
+		iconEl.className = 'txcard-chip-icon'
+		iconEl.textContent = icon
+
+		const txt = document.createElement('span')
+		txt.className = 'txcard-chip-text'
+		const sym = isHbar ? 'HBAR' : pickAssetLabel(m)
+		if (isNft) {
+			const serial = m.serial ?? item.serial
+			txt.textContent = serial != null ? `${sym} #${serial}` : sym
+		} else {
+			const amt = Math.abs(Number(item.amountFormatted ?? item.amount ?? 0))
+			txt.textContent = `${_fmtAmt(amt)} ${sym}`
+		}
+		txt.title = txt.textContent   // full label on hover (chip is ellipsis-clipped)
+
+		chip.append(iconEl, txt)
+		return chip
+	}
+
+	// NOTE (scope): this whole account-card layout is designed for Hedera TRANSFER
+	// transactions (crypto/token) — send/receive columns, per-account signing, operator
+	// fee. It does NOT model other tx types (account update, token mint/burn, freeze,
+	// contract calls…) which involve different keys/authority. Supporting those will need a
+	// refactor into swappable per-tx-type components (the legacy "authority" column hinted
+	// at this). Keep that intent — it's a near-future feature, not a never.
+	function buildAccountCard(network, acc) {
+		const card = document.createElement('div')
+		card.className = 'txcard'
+
+		// account-header row — light text: id + optional xproof label. (operator marker
+		// + identity glyph deferred to TX-CARDS6; roles intentionally not shown — the
+		// send/receive sides convey direction.) data-acct lives on the HEADER only and keys
+		// the card updates (updateCardXproof / signing summary). The account cross-ref hover
+		// highlight that used to fire from it was removed (TX-CARDS-HOVER1).
+		const head = document.createElement('div')
+		head.className = 'txcard-head'
+		head.dataset.acct = acc.id
+
+		const idLink = document.createElement('a')
+		idLink.className = 'txcard-acct'
+		idLink.href = `https://hashscan.io/${network}/account/${acc.id}`
+		idLink.target = '_blank'
+		idLink.rel = 'noopener'
+		idLink.textContent = acc.id
+		head.appendChild(idLink)
+
+		// xproof label (domain/name) is added next to the account id by updateCardXproof
+		// once signing accounts are enriched — always visible, no expand needed.
+
+		// right-side header cluster: signing summary (added later by updateCardSigning)
+		// then a chevron affordance. Tapping the header expands the account detail
+		// (pie + keys + xproof) — custom chevron, not native <details> (TX-CARDS9 step c).
+		head.classList.add('txcard-head--toggle')
+		const right = document.createElement('div')
+		right.className = 'txcard-head-right'
+		const chevron = document.createElement('span')
+		chevron.className = 'txcard-chevron'
+		chevron.textContent = '▸'
+		right.appendChild(chevron)
+		head.appendChild(right)
+
+		const cols = document.createElement('div')
+		cols.className = 'txcard-cols'
+
+		const mkCol = (name, items) => {
+			const col = document.createElement('div')
+			col.className = `txcard-col txcard-${name}`
+			if (items.length) items.forEach(it => col.appendChild(buildCardChip(network, it, name)))
+			else { const e = document.createElement('div'); e.className = 'txcard-empty'; e.textContent = '—'; col.appendChild(e) }
+			return col
+		}
+
+		cols.append(mkCol('send', acc.send || []), mkCol('receive', acc.receive || []))
+
+		// collapsible detail region — populated lazily on first open (TX-CARDS9 step c)
+		const detail = document.createElement('div')
+		detail.className = 'txcard-detail'
+		const inner = document.createElement('div')
+		inner.className = 'txcard-detail-inner'
+		detail.appendChild(inner)
+
+		card.append(head, cols, detail)
+		return card
+	}
+
+	// Preview dispatcher: reduced-motion → the cheap v0 pulse then snap to the settled state;
+	// otherwise the v1 ghost-travel engine, which plays AND sticks at 'after'.
+	function previewFlow(container) {
+		const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+		return reduce ? previewFlowPulse(container).then(() => setFlowState(container, true)) : flowTravel(container)
+	}
+
+	// v0 asset-movement pulse (fallback): no geometry — for each asset, pulse its SEND chips
+	// then its RECEIVE chips in sequence, asset-by-asset. The receive pulse briefly solidifies
+	// the ghost chips ("landing").
+	async function previewFlowPulse(container) {
+		if (container._flowRunning) return
+		container._flowRunning = true
+		const keys = []
+		container.querySelectorAll('.txcard-chip[data-asset-key]').forEach(c => {
+			const k = c.dataset.assetKey
+			if (k && !keys.includes(k)) keys.push(k)
+		})
+		const pulse = (els, cls, ms) => new Promise(res => {
+			els.forEach(n => n.classList.add(cls))
+			setTimeout(() => { els.forEach(n => n.classList.remove(cls)); res() }, ms)
+		})
+		for (const key of keys) {
+			const sel = `.txcard-chip[data-asset-key="${CSS.escape(key)}"]`
+			await pulse([...container.querySelectorAll(`.txcard-send ${sel}`)], 'txflow-pulse-out', 420)
+			await pulse([...container.querySelectorAll(`.txcard-receive ${sel}`)], 'txflow-pulse-in', 420)
+		}
+		container._flowRunning = false
+	}
+
+	function buildCardsView({ network, flow, transfers }) {
+		const accounts = flow?.accounts || []
+		// no model accounts (e.g. enrich/shape issue) → fall back to the table, never blank
+		if (!accounts.length) return buildTransferList(network, (flow?.lineItems) || transfers?.lineItems || [])
+
+		const container = document.createElement('div')
+		container.className = 'txcards'
+
+		// PREVIEW as a full-width before/after card — same shape as an account card, split into a
+		// pink BEFORE (send side) and green AFTER (receive side). It doubles as (a) a legend for
+		// what left/right mean on the account cards and (b) the animation toggle: tap AFTER →
+		// play + stick at the settled state; tap BEFORE → revert. EXPLORATORY (kicking tyres) — a
+		// bold way to make left/right obvious; may well revert to a small compact preview button.
+		// data-state drives the highlight and is kept in sync by setFlowState(). (TX-FLOW-ANIM1)
+		const preview = document.createElement('div')
+		preview.className = 'txcards-preview'
+		preview.dataset.state = 'before'
+		const beforeHalf = document.createElement('button')
+		beforeHalf.type = 'button'
+		beforeHalf.className = 'txpreview-half txpreview-before'
+		beforeHalf.textContent = 'BEFORE'
+		const afterHalf = document.createElement('button')
+		afterHalf.type = 'button'
+		afterHalf.className = 'txpreview-half txpreview-after'
+		afterHalf.textContent = 'AFTER'
+		beforeHalf.addEventListener('click', () => {
+			if (!container._flowRunning && preview.dataset.state === 'after') revertFlow(container)
+		})
+		afterHalf.addEventListener('click', async () => {
+			// always (re)play — redraws the trajectory lines even when already in 'after' (e.g.
+			// after expanding a card wiped them).
+			if (!container._flowRunning) { preview.dataset.state = 'after'; await previewFlow(container) }
+		})
+		preview.append(beforeHalf, afterHalf)
+		container.appendChild(preview)
+
+		accounts.forEach(acc => container.appendChild(buildAccountCard(network, acc)))
+
+		// asset-pool hover: hovering a chip highlights every chip of the same asset across
+		// all cards (the in/out pool) — distinct from the account hover on the header.
+		// TX-FLOW-HOVER1: dwelling on a chip also replays the movement glide for THAT asset
+		// only (ephemeral — no state flip, no persistent trail). Armed on a short timer so a
+		// casual mouse-pass across the cards doesn't fire animations.
+		let hlKey = null, hoverFlowTimer = 0
+		const clearAssetHl = () => {
+			clearTimeout(hoverFlowTimer)
+			if (!hlKey) return
+			fadeHoverTrail(container, hlKey)   // hover over → its replay trail fades away
+			container.querySelectorAll('.txcard-chip.asset-hl').forEach(n => n.classList.remove('asset-hl'))
+			hlKey = null
+		}
+		container.addEventListener('mouseover', e => {
+			const chip = e.target.closest('.txcard-chip')
+			const key = chip?.dataset.assetKey || null
+			if (key === hlKey) return
+			clearAssetHl()
+			if (key) {
+				container.querySelectorAll(`.txcard-chip[data-asset-key="${CSS.escape(key)}"]`).forEach(n => n.classList.add('asset-hl'))
+				hlKey = key
+				hoverFlowTimer = setTimeout(() => flowAssetOnce(container, key), 150)
+			}
+		})
+		container.addEventListener('mouseleave', clearAssetHl)
+
+		// tap a card header (not the account link) to expand its detail. Multiple cards
+		// may be open at once (comparing accounts is a real task here). Lazy render on open.
+		container.addEventListener('click', e => {
+			if (e.target.closest('a')) return
+			const head = e.target.closest('.txcard-head')
+			const card = head?.closest('.txcard')
+			if (!card) return
+			const open = card.classList.toggle('txcard--open')
+			card.querySelector('.txcard-chevron').textContent = open ? '▾' : '▸'
+			if (open) renderCardDetail(card)
+			// expanding/collapsing reflows the cards, so the drawn trajectory lines no longer line
+			// up — wipe them. Re-click AFTER to redraw. (per user)
+			container.querySelector('.txflow-layer-trail')?.replaceChildren()
+		})
+		return container
+	}
+
+	export const buildTxReadColumns = ({ rawTx, data, transfers, flow, network, txid, pch }) => {
 
 		const sep = () => { const x = document.createElement('span'); x.className = 'txread-sep'; x.textContent = '·'; return x }
 
@@ -128,7 +473,11 @@ import {
 		const intentRow = document.createElement('div')
 		intentRow.className = 'txread-intent-row'
 
-		const xfers = buildTransferList(network, transfers.lineItems)
+		// TX-CARDS2: the transfer block is now produced by the view registry. Default
+		// 'table' returns the same buildTransferList element as before (byte-identical);
+		// ?txview=nerd stacks every registered view. (TX-CARDS1 routed it through the
+		// normalized flow model; flow.lineItems == transfers.lineItems in order.)
+		const xfers = buildTransferViews({ network, flow, transfers })
 		xfers.classList.add('txread-intent-xfers')
 		intentRow.appendChild(xfers)
 
@@ -140,7 +489,48 @@ import {
 		narrative.hidden = true
 		intentRow.appendChild(narrative)
 
-		intent.appendChild(intentRow)
+		// ── DOM ORDER (per user, top→bottom): status (countdown, inserted at intent top later)
+		// → scope (network·txid·pch + due) → memo → cards (+preview) → witnesses → signing.
+
+		// scope line: Hedera <network> · <txid> · #<pch6> on one row; the due date on the same
+		// line on desktop, wrapping to its own line on mobile (flex-wrap).
+		const scope = document.createElement('div')
+		scope.className = 'txread-scope'
+		const ids = document.createElement('div')
+		ids.className = 'txread-scope-ids'
+		const net = document.createElement('span')
+		net.className = 'txread-scope-net'
+		net.textContent = `Hedera ${network}`
+		const txLink = document.createElement('a')
+		txLink.className = 'txread-scope-txid'
+		txLink.href = `https://hashscan.io/${network}/transaction/${txid}`
+		txLink.target = '_blank'
+		txLink.rel = 'noopener'
+		txLink.textContent = txid
+		ids.append(net, sep(), txLink)
+		if (pch && pch !== 'no_pch') {
+			const pchEl = document.createElement('span')
+			pchEl.className = 'txread-scope-pch'
+			pchEl.textContent = `#${String(pch).slice(0, 6)}`
+			ids.append(sep(), pchEl)
+		}
+		scope.appendChild(ids)
+		// strike time (valid-start — fixed, from the txid) + valid duration. Wordy, locale-neutral
+		// date (en-GB "2 Jul 2026") so British/American reading is unambiguous. Duration stubbed
+		// 120s (Hedera default) — PROTO1 (protobuf decode) will supply the real value.
+		const strikeInfo = parseTxId(txid)
+		if (strikeInfo?.seconds) {
+			const validSecs = 120   // TODO PROTO1: real transactionValidDuration
+			const d = new Date(strikeInfo.seconds * 1000)
+			const datePart = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+			const timePart = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+			const due = document.createElement('div')
+			due.className = 'txread-scope-due'
+			due.textContent = `due ${datePart}, ${timePart} · valid ${Math.round(validSecs / 60)}m`
+			due.title = 'Transaction valid-start (strike time) and valid duration'
+			scope.appendChild(due)
+		}
+		intent.appendChild(scope)
 
 		// public memo (if present) on its own line
 		const memo = extractMemo(data)
@@ -154,26 +544,14 @@ import {
 			intent.appendChild(memoEl)
 		}
 
-		// scope line: Hedera <network> · <txid> · #<pch6>
-		const scope = document.createElement('div')
-		scope.className = 'txread-scope'
-		const net = document.createElement('span')
-		net.className = 'txread-scope-net'
-		net.textContent = `Hedera ${network}`
-		const txLink = document.createElement('a')
-		txLink.className = 'txread-scope-txid'
-		txLink.href = `https://hashscan.io/${network}/transaction/${txid}`
-		txLink.target = '_blank'
-		txLink.rel = 'noopener'
-		txLink.textContent = txid
-		scope.append(net, sep(), txLink)
-		if (pch && pch !== 'no_pch') {
-			const pchEl = document.createElement('span')
-			pchEl.className = 'txread-scope-pch'
-			pchEl.textContent = `#${String(pch).slice(0, 6)}`
-			scope.append(sep(), pchEl)
-		}
-		intent.appendChild(scope)
+		// cards (+ preview bar at their top), then witnesses below them
+		intent.appendChild(intentRow)
+
+		const witnesses = document.createElement('div')
+		witnesses.id = 'txread-witnesses'
+		witnesses.className = 'txread-witnesses'
+		witnesses.hidden = true
+		intent.appendChild(witnesses)
 
 		wrapper.appendChild(intent)
 
@@ -192,6 +570,12 @@ import {
 		// into the Status tab pane, so the render-by-id functions keep working.
 		const statusBlock = buildStatusBlock({ data })
 		statusBlock.el.classList.add('txread-status-main')
+		// The content status line is GONE (per user): the status LABEL lives in the modal header
+		// (kpm-head) and the COUNTDOWN now lives there too (⏱, index.js startHeaderCountdown →
+		// modal.setCountdown). statusBlock is still built for its .update() side effects
+		// (handleTxUpdate/refreshPolledTx call it — it writes the SUCCESS localStorage flag), but
+		// it's no longer inserted into the modal body, so there's no duplicate time/countdown and
+		// no layout jolt when the status flips to Success.
 
 		const readinessEl = document.createElement('div')
 		readinessEl.id = 'txread-readiness'
@@ -204,25 +588,8 @@ import {
 		const accountKeysEl = document.createElement('div')
 		accountKeysEl.id = 'account-keys'
 
-		// hover any element tagged with an account → highlight every related element
-		// (transfer cells + that account's signing-authority row).
-		let hlAcct = null
-		const clearHl = () => {
-			if (!hlAcct) return
-			wrapper.querySelectorAll('.acct-hl').forEach(n => n.classList.remove('acct-hl'))
-			hlAcct = null
-		}
-		wrapper.addEventListener('mouseover', e => {
-			const el = e.target.closest('[data-acct]')
-			const acct = el?.dataset.acct || null
-			if (acct === hlAcct) return
-			clearHl()
-			if (acct) {
-				wrapper.querySelectorAll(`[data-acct="${CSS.escape(acct)}"]`).forEach(n => n.classList.add('acct-hl'))
-				hlAcct = acct
-			}
-		})
-		wrapper.addEventListener('mouseleave', clearHl)
+		// (TX-CARDS-HOVER1: the account cross-ref hover cross-highlight that lived here
+		// is gone — data-acct tags remain for keyed card updates, not hover.)
 
 		return {
 			el: wrapper,
@@ -236,6 +603,24 @@ import {
 
 	// One-line status summary for the modal header (label + tone).
 	// Combines lifecycle status with signing readiness.
+	// A tx is FINAL (unchangeable) once it's resolved on-chain: SUCCESS, or any terminal
+	// mirror/receipt status (EXPIRED, EXPIRED?, INVALID_SIGNATURE, other Hedera errors —
+	// mirrorStatus is only present once consensus/expiry is reached). No explicit isFinal
+	// flag in the payload yet, so we derive it (PROTO1 / backend could add one). We do NOT
+	// treat a merely time-expired-but-not-yet-on-mirror tx as final — a late sig may still
+	// land in the buffer window.
+	const isFinalStatus = (data = {}) =>
+		data.comboStatus === 'SUCCESS' || data.receiptSuccess === true || !!data.mirrorStatus
+
+	// Hide the whole signing section once the tx is final — there's no action to take (the
+	// record stays visible). KEPT in nerd mode as a debug affordance: wallets will still
+	// sign an expired/consensus'd tx, and there may later be a "sign to endorse after the
+	// fact" use case, so we don't remove the option — just hide it from normal users.
+	export const updateFinalState = (data) => {
+		const panel = document.getElementById('txread-methods')
+		if (panel) panel.classList.toggle('tx-final', isFinalStatus(data))
+	}
+
 	export const summariseStatus = ({ data = {}, readiness } = {}) => {
 		const raw = data.comboStatus || data.mirrorStatus || data.receiptStatus || ''
 		const up = String(raw).toUpperCase()
@@ -300,7 +685,7 @@ import {
 
       const b = document.createElement('div')
       b.style.textAlign = 'left'
-      let assetLabel = asset.symbol ?? asset.name ?? ''
+      let assetLabel = pickAssetLabel(asset)   // shared HEDERA:// → name + length-cap rule (TX-CARDS3)
       
       const tokenId = asset.raw
       const serial = asset.serial ?? ''
@@ -312,8 +697,8 @@ import {
       let assetLinkLabel = (serial) ? `${tokenId}#${serial}` : `${tokenId}`
       let assetLink = `<a href='${assetUrl}' target='${assetLinkLabel}'>${assetLinkLabel}</a>`
       
-      if(asset.symbol?.startsWith('HEDERA://')) assetLabel = asset.name ?? assetLabel
-            
+      // (HEDERA:// → name now handled inside pickAssetLabel)
+
       let assetIcon=''
       let assetTooltip=''
 
@@ -322,7 +707,7 @@ import {
       if(asset.assetClass=='LE') assetIcon='🖼️',assetTooltip=pad+'Limited Edition'
       if(asset.assetClass=='NFT') assetIcon='💎',assetTooltip=pad+'NFT'
 
-      assetLabel=`<span class='cursor-default' title='${assetTooltip}'>${assetIcon}</span> ${asset.assetClass=='NFT'?asset.symbol:assetLabel} ${assetLink}`
+      assetLabel=`<span class='cursor-default' title='${assetTooltip}'>${assetIcon}</span> ${asset.assetClass=='NFT'?pickAssetLabel(asset):assetLabel} ${assetLink}`
    
 
       if(asset.raw == 'tinybar') assetLabel = 'HBAR'
@@ -361,7 +746,8 @@ import {
 
 
 	//4th section - tx status
-	export const buildTimingBlock = (network, txid) => {
+	// validSecs: real valid duration from the signed bytes (VALIDD1); 180 = legacy fallback
+	export const buildTimingBlock = (network, txid, validSecs = 180) => {
 		const container = document.createElement('div')
 		container.className = 'txread-timing'
 
@@ -378,7 +764,7 @@ import {
 			const nowSec = Math.floor(Date.now() / 1000)
 			const diff = targetSec - nowSec
 
-			if (diff <= -180) {
+			if (diff <= -validSecs) {
 				countdown.textContent = '⏱ Unknown'
 				clearInterval(timer)
 				return
@@ -399,34 +785,362 @@ import {
 	}
 		
 
-const VIEW_KEY_PREFIXES = [
-	'302a300506032b6570032100',
-]
-
-function normalizeViewKey(key) {
-	if (!key) return null
-	let k = key.toLowerCase()
-	for (const prefix of VIEW_KEY_PREFIXES) {
-		if (k.startsWith(prefix)) { k = k.slice(prefix.length); break }
-	}
-	return k
-}
+// Key normalisation lives in keynorm.js — shared with model.js so the per-account
+// ✅/pie here and the header threshold there normalise keys identically (SIGN-NORM1).
 
 export function renderSigningInfo({ data, accounts }) {
 	// derive signed keys ONCE
 	const signedPubkeys = (data.sigs || [])
 		.map(s => s.pubKey)
 		.filter(Boolean)
-		.map(normalizeViewKey)
+		.map(normalizePublicKey)
 		.filter(Boolean)
 
 	renderAccountKeyInfo(accounts, signedPubkeys, data.network)
+	updateCardSigning(accounts, signedPubkeys, data.network)   // fold the same signing state onto the account cards (TX-CARDS7)
 	// renderKeyPieCharts({ network, accounts, signedPubkeys })
+}
+
+// Per-account signing verdict for the card border/summary. Uses the SAME threshold
+// solver as evaluateTxReadiness + the pie (SIGN-NORM1) so border/pie/table agree.
+// state: none (no signature required) | loading (must sign, keyInfo not in yet) |
+// pending (required, threshold not met) | ready (threshold met). need = threshold m.
+function accountSigningStatus(acc, signedPubkeys) {
+	if (!acc.mustSign) return { state:'none' }
+	const keyTree = acc.keyInfo && normalizeKeyTree(acc.keyInfo)
+	if (!keyTree) return { state:'loading' }
+	const s = getThresholdSummary({ keyTree, signedPubkeys })
+	return { state: s.thresholdSatisfied ? 'ready' : 'pending',
+		signed: s.signedRequiredKeyCount, need: s.signedRequiredKeyCount + s.minMoreKeyCount }
+}
+
+// In-place repaint of the account cards' signing state (border colour + header
+// summary: reason glyphs + m-of-n signed). Keyed by data-acct so an update never
+// rebuilds the card DOM (TX-CARDS9 step a). No-ops in table/nerd mode (no .txcards).
+export function updateCardSigning(accounts, signedPubkeys = [], network) {
+	const cards = document.querySelector('.txcards')
+	if (!cards) return
+	Object.entries(accounts || {}).forEach(([id, acc]) => {
+		const head = cards.querySelector(`.txcard-head[data-acct="${CSS.escape(id)}"]`)
+		const card = head?.closest('.txcard')
+		if (!card) return
+		updateCardXproof(head, acc.label)
+		const st = accountSigningStatus(acc, signedPubkeys)
+		card.dataset.signState = st.state   // one axis of the aggregate ring (balance is the other)
+		paintCardRing(card)
+
+		ensureOperatorFeeChip(card, (acc.mustSignReason || []).includes('operator'))
+
+		card._detail = { acc, signedPubkeys, network, id }   // for the lazy expand; refresh if already open
+		if (card.classList.contains('txcard--open')) renderCardDetail(card)
+
+		let sign = head.querySelector('.txcard-sign')
+		if (st.state === 'none') { if (sign) sign.remove(); return }
+		if (!sign) { sign = document.createElement('span'); sign.className = 'txcard-sign'; const right = head.querySelector('.txcard-head-right'); right.insertBefore(sign, right.firstChild) }
+		// Only surface the NON-obvious reason: receiver_sig_required. Sending (📤) is
+		// evident from the send column, and the operator (⚙️) is now shown by its HBAR
+		// fee chip — so those glyphs are dropped from the header (per user).
+		const glyphs = (acc.mustSignReason || []).includes('receiver_sig_required') ? SIGN_REASON.receiver_sig_required.emoji : ''
+		if (st.state === 'loading') { sign.textContent = `${glyphs} …`.trim(); sign.title = 'Loading signing keys…' }
+		// keep the ratio always; add a PLAIN tick (not the ✅ box — it read as a clickable
+		// control) once the threshold is met. The green border already signals "go".
+		else if (st.state === 'ready') { sign.textContent = `${glyphs} ✍️ ${st.signed}/${st.need} ✓`.trim(); sign.title = 'Threshold satisfied' }
+		else { sign.textContent = `${glyphs} ✍️ ${st.signed}/${st.need}`.trim(); sign.title = `${st.signed} of ${st.need} required signatures` }
+	})
+}
+
+// The operator pays the network fee in HBAR even when HBAR isn't part of the transfer.
+// Show it as a distinct "HBAR fee" chip on the operator's SEND side — no amount yet
+// (TODO: wire a fee estimate when the backend provides one; for now it's words). This also
+// marks WHO the operator is (replacing the ⚙️ glyph). data-asset-key=tinybar so
+// updateCardBalances red-rings it if the operator is short on HBAR for fees.
+function ensureOperatorFeeChip(card, isOperator) {
+	const sendCol = card.querySelector('.txcard-send')
+	if (!sendCol) return
+	let chip = sendCol.querySelector('.txcard-chip--fee')
+	if (!isOperator) { chip?.remove(); return }
+	if (chip) return
+	sendCol.querySelector('.txcard-empty')?.remove()
+	chip = document.createElement('div')
+	chip.className = 'txcard-chip txcard-chip--fee'
+	chip.dataset.side = 'send'
+	chip.dataset.assetKey = 'tinybar'
+	chip.title = 'Network fee — paid by the operator (estimated)'
+	chip.innerHTML = `<span class="txcard-chip-icon">ℏ</span><span class="txcard-chip-text">HBAR fee</span>`
+	sendCol.appendChild(chip)
+}
+
+// The card ring is the AGGREGATE account verdict (per user, TX-CARDS9 step d): a green
+// ring reads as a full "go", so it's green only when signing is satisfied AND no asset
+// is short. Balance shortfall is a hard blocker → red wins. Signing detail stays in the
+// header; per-asset detail is the red chip ring. Two axes are stashed on the card
+// (data-sign-state, data-balance-short) so either update path repaints consistently.
+function paintCardRing(card) {
+	const signState = card.dataset.signState || 'none'
+	const short = card.dataset.balanceShort === '1'
+	card.classList.remove('txcard--sign-ready','txcard--sign-pending','txcard--balance-short')
+	if (short) card.classList.add('txcard--balance-short')
+	else if (signState === 'ready') card.classList.add('txcard--sign-ready')
+	else if (signState === 'pending' || signState === 'loading') card.classList.add('txcard--sign-pending')
+}
+
+// Per-asset balance cue on the account cards (TX-CARDS9 step d): ring a SEND chip red when
+// that account is short of that asset (overdraft), and flag the account balance-short for
+// the aggregate ring. Chip asset-key === precheck key (both the tokenId; HBAR is 'tinybar'
+// on the chip → 'hbar' in the precheck). NFTs skipped. No-op without cards.
+//
+// Short is gathered from TWO sources so it's robust:
+//   1. precheck.balances[acct][asset].forecast < 0  (structured, when present)
+//   2. the authoritative precheck.tests.fail strings (these always reach the frontend — the
+//      user sees them in nerd — and they fold in the HBAR fee-buffer that forecast<0 misses):
+//        "has sender <acct> enough <tokenId> <label> ? (<forecast>)"
+//        "has <acct> sufficient hbar balance ? (<forecast> tℏ)"
+//   (association failures — "…associated…" — are a different problem, not an overdraft; not
+//    ringed here. Could add a distinct cue later.)
+// Emits a `cards:balances` kdiag line so a "no red ring" report is diagnosable from evidence.
+export function updateCardBalances(precheck) {
+	const cards = document.querySelector('.txcards')
+	if (!cards) return
+
+	const short = {}     // accountId -> Set(asset) : insufficient BALANCE (send side, solid red)
+	const unassoc = {}   // accountId -> Set(asset) : token NOT ASSOCIATED (receive side, dashed red)
+	const add = (map, acct, key) => { (map[acct] ||= new Set()).add(key) }
+	for (const [acct, assets] of Object.entries(precheck?.balances || {}))
+		for (const [asset, f] of Object.entries(assets || {}))
+			if (f && Number(f.forecast) < 0) add(short, acct, asset)
+	// authoritative fail strings: balance ("… enough …" / "… sufficient hbar …") vs association
+	// ("… associated …"). Association is a DIFFERENT class of fault from a shortfall — it's the
+	// receiving account's responsibility, and a receiver with an auto-association slot would
+	// actually succeed. The precheck only knows the existing relationship (not auto-assoc), so
+	// we can't be sure → dashed (uncertain). TODO: solid vs dashed from the account's
+	// max_automatic_token_associations (0 = definite fail → solid; >0/-1 = auto → dashed).
+	for (const line of precheck?.tests?.fail || []) {
+		let m
+		if ((m = /has sender (\S+) enough (\S+)/.exec(line))) add(short, m[1], m[2])
+		else if ((m = /has (\S+) sufficient hbar balance/.exec(line))) add(short, m[1], 'hbar')
+		else if ((m = /has (?:sender|receiver) (\S+) associated (\S+)/.exec(line))) add(unassoc, m[1], m[2])
+	}
+
+	const key = chip => chip.dataset.assetKey === 'tinybar' ? 'hbar' : chip.dataset.assetKey
+	const diag = { hasPrecheck: !!precheck, balanceKeys: Object.keys(precheck?.balances || {}), fails: (precheck?.tests?.fail || []).length, cards: [] }
+	cards.querySelectorAll('.txcard').forEach(card => {
+		const id = card.querySelector('.txcard-head[data-acct]')?.dataset.acct
+		const shortAssets = short[id] || new Set()
+		const unassocAssets = unassoc[id] || new Set()
+		card.dataset.balanceShort = (shortAssets.size || unassocAssets.size) ? '1' : '0'   // either blocks → red ring
+		card.querySelectorAll('.txcard-send .txcard-chip').forEach(chip =>
+			chip.classList.toggle('txcard-chip--short', shortAssets.has(key(chip))))
+		card.querySelectorAll('.txcard-receive .txcard-chip').forEach(chip =>
+			chip.classList.toggle('txcard-chip--unassoc', unassocAssets.has(key(chip))))
+		paintCardRing(card)
+		// SIGN-EXPLAIN1: stash the issue sets for the expanded detail's plain-words list,
+		// and refresh an already-open detail so the lines track live precheck updates.
+		card._balanceIssues = { short: [...shortAssets], unassoc: [...unassocAssets] }
+		if (card.classList.contains('txcard--open')) renderCardDetail(card)
+		diag.cards.push({ id, short: [...shortAssets], unassoc: [...unassocAssets] })
+	})
+	try { globalThis.kdiag?.('cards:balances', diag) } catch {}
+}
+
+// Lazily-rendered account detail for the expanded card (TX-CARDS9 step c): the threshold
+// pie + the per-key table (signed / suffix / Banzhaf / redundancy / control) + the xproof
+// label. Mirrors the Signing Authority row content, co-located on the account's own card.
+function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
+	const wrap = document.createElement('div')
+
+	// The one non-obvious reason for signing — spell it out so nobody wonders why a
+	// receiving account needs to sign (receiver_sig_required is set on the account key).
+	if ((acc.mustSignReason || []).includes('receiver_sig_required')) {
+		const note = document.createElement('div')
+		note.className = 'txcard-detail-note'
+		note.textContent = 'Receiver signature required: this account must sign even though it is receiving.'
+		wrap.appendChild(note)
+	}
+	// Make "no signature needed" explicit (it's implied by the thin grey border). Keep the
+	// keys/pie visible anyway — useful reference. NB: not phrased as "receiver-sig not
+	// required" since receivers sometimes DO sign (see the receiver note above).
+	else if (!acc.mustSign) {
+		const note = document.createElement('div')
+		note.className = 'txcard-detail-note txcard-detail-note--muted'
+		note.textContent = 'No signature required from this account (shown for reference).'
+		wrap.appendChild(note)
+	}
+
+	// SIGN-EXPLAIN1: the rings and glyphs CUE the state; these lines SAY it. One muted
+	// line per outstanding item for this account (signatures still needed, overdrafts,
+	// missing associations) so expanding the card reads as a to-do list, not a puzzle.
+	// Nothing renders when the account is all clear. Asset names come off the chips so
+	// the wording matches what the user sees (precheck keys 'hbar' ↔ chip 'tinybar').
+	{
+		const labelFor = k => {
+			const sel = `.txcard-chip[data-asset-key="${CSS.escape(k === 'hbar' ? 'tinybar' : k)}"] .txcard-chip-text`
+			return card?.querySelector(sel)?.textContent?.trim() || (k === 'hbar' ? 'HBAR' : `token ${k}`)
+		}
+		const issues = []
+		const st = accountSigningStatus(acc, signedPubkeys)
+		if (st.state === 'pending' && st.need)
+			issues.push(`✍️ ${st.need - st.signed} more signature${st.need - st.signed === 1 ? '' : 's'} needed (${st.signed} of ${st.need} signed).`)
+		for (const a of card?._balanceIssues?.short || [])
+			issues.push(`🔴 Not enough ${labelFor(a)} — the balance won't cover what this account sends.`)
+		for (const a of card?._balanceIssues?.unassoc || [])
+			issues.push(`◌ ${labelFor(a)} is not associated with this account — the transfer can't land unless an auto-association slot is free.`)
+		if (issues.length) {
+			const list = document.createElement('div')
+			list.className = 'txcard-detail-issues'
+			issues.forEach(t => { const li = document.createElement('div'); li.textContent = t; list.appendChild(li) })
+			wrap.appendChild(list)
+		}
+	}
+
+	// pie + key list as two centred flex cells that reflow (side-by-side on desktop, stacked on
+	// mobile) — chart first, keys second (see .txcard-detail-grid).
+	const layout = document.createElement('div')
+	layout.className = 'txcard-detail-grid'
+	layout.appendChild(buildThresholdWidget({ signedPubkeys, mustSign: acc.mustSign, keyInfo: acc.keyInfo }))
+
+	const scores = acc.keyInfo?.banzhafScores?.scores
+	const redundancy = acc.keyInfo?.banzhafScores?.redundancy
+	const buckets = acc.keyInfo?.keyControlScoresAll
+	// key list gated with the pie (SHOW_AUTHORITY_WHEN_NOT_SIGNING): both or neither
+	if (scores && (acc.mustSign || SHOW_AUTHORITY_WHEN_NOT_SIGNING)) {
+		const grid = document.createElement('div')
+		grid.className = 'txcard-keys'
+		const head = document.createElement('div')
+		head.className = 'txcard-keys-row txcard-keys-head'
+		;['✍️', '🔑', '⚖️', 'Redund', 'Ctrl'].forEach(t => { const c = document.createElement('div'); c.textContent = t; head.appendChild(c) })
+		grid.appendChild(head)
+		Object.entries(scores).forEach(([pubkey, score]) => {
+			const signed = signedPubkeys.includes(normalizePublicKey(pubkey))
+			const red = redundancy?.[pubkey] != null ? Math.round(redundancy[pubkey] * 100) + '%' : '-'
+			const bucket = buckets?.[pubkey]?.bucket ?? '-'
+			const row = document.createElement('div')
+			row.className = 'txcard-keys-row'
+			const tick = document.createElement('div'); tick.textContent = acc.mustSign ? (signed ? '☑' : '☐') : '–'   // plain ballot box (not the control-like ✅/⬜)
+			// key suffix links to the account's keys (hashscan account page for now — a
+			// per-key lookup could later point at explore.hbar.live?network=&key=). Clicking
+			// it won't collapse the card: the header toggle ignores <a> targets.
+			const keyCell = document.createElement('div')
+			const keyLink = document.createElement('a')
+			keyLink.textContent = '…' + pubkey.slice(-4)
+			keyLink.title = pubkey
+			keyLink.href = (network && accountId) ? `https://hashscan.io/${network}/account/${accountId}` : '#'
+			keyLink.target = '_blank'; keyLink.rel = 'noopener'
+			keyCell.appendChild(keyLink)
+			const banz = document.createElement('div'); banz.textContent = Math.round(score * 100) + '%'
+			const redC = document.createElement('div'); redC.textContent = red
+			const ctrl = document.createElement('div'); ctrl.textContent = bucket
+			row.append(tick, keyCell, banz, redC, ctrl)
+			grid.appendChild(row)
+		})
+		layout.appendChild(grid)
+	}
+	wrap.appendChild(layout)
+
+	// (xproof label now lives in the card header via updateCardXproof, not here)
+	return wrap
+}
+
+// xproof label (domain / name) shown INLINE next to the account id in the card header —
+// always visible, no expand needed (per user). The domain reuses the .txcard-acct class so
+// it matches the account-id styling (plain text, underline on hover) and can be
+// group-restyled with it. Populated from the enriched signing account's label {domain,name}.
+function updateCardXproof(head, label) {
+	let x = head.querySelector('.txcard-xproof-head')
+	if (!label || (!label.domain && !label.name)) { x?.remove(); return }
+	if (!x) { x = document.createElement('span'); x.className = 'txcard-xproof-head'; head.querySelector('.txcard-acct').after(x) }
+	x.innerHTML = ''
+	if (label.domain) {
+		const a = document.createElement('a')
+		a.className = 'txcard-acct txcard-acct-domain'
+		a.href = `https://${label.domain}`; a.target = '_blank'; a.rel = 'noopener'
+		a.textContent = label.domain
+		x.appendChild(a)
+	}
+	if (label.name) {
+		const n = document.createElement('span')
+		n.className = 'txcard-acct-label'
+		n.textContent = label.name
+		x.appendChild(n)
+	}
+}
+
+// Mark cards whose account you've connected via WalletConnect with a "(u)" after the id —
+// a light "this is you" cue. The full you-send/you-receive narrative is deferred (too many
+// edge cases). Multiple connected accounts → multiple (u), which is correct. It's a pure
+// self-assertion (no proof needed — the user connected it). Re-applied after card rebuilds.
+export function markConnectedAccounts(ids = []) {
+	const set = new Set(ids)
+	document.querySelectorAll('.txcard-head[data-acct]').forEach(head => {
+		const on = set.has(head.dataset.acct)
+		let u = head.querySelector('.txcard-you')
+		if (on && !u) {
+			u = document.createElement('span')
+			u.className = 'txcard-you'
+			u.textContent = '(you)'
+			u.title = 'One of your connected accounts'
+			head.querySelector('.txcard-acct').after(u)
+		} else if (!on && u) u.remove()
+	})
+}
+
+// (Re)render an open card's detail from the data stashed on it by updateCardSigning.
+function renderCardDetail(card) {
+	const inner = card.querySelector('.txcard-detail-inner')
+	const d = card._detail
+	if (!inner || !d) return
+	inner.innerHTML = ''
+	inner.appendChild(buildAccountDetail(d.acc, d.signedPubkeys, d.network, d.id, card))
 }
 
 
 
+// Witnesses = signed keys that belong to NO account in this tx (outside every required
+// set), so they can't sit on an account card — list them on their own, above the network
+// line. Chips = last-4 + full-key tooltip; later they may double as votes. TODO: link a
+// chip to a key lookup (e.g. explore.hbar.live?network=&key=) once such a route exists.
+export function renderWitnessList(readiness) {
+	const el = document.getElementById('txread-witnesses')
+	if (!el) return
+	const keys = readiness?.witnessKeys || []
+	el.innerHTML = ''
+	el.hidden = !keys.length
+	if (!keys.length) return
+	const lbl = document.createElement('div')
+	lbl.className = 'txread-witnesses-label'
+	lbl.textContent = 'Witnesses'
+	const list = document.createElement('div')
+	list.className = 'txread-witnesses-list'
+	keys.forEach(k => {
+		const chip = document.createElement('span')
+		chip.className = 'txwitness-chip'
+		chip.textContent = '…' + String(k).slice(-4)
+		chip.title = k
+		list.appendChild(chip)
+	})
+	el.append(lbl, list)
+}
+
+// Play the movement animation on the cards when a tx reaches consensus (called before the
+// confetti); sticks at the settled state (sources left as ghosts). No-op in table/nerd mode.
+export function playSuccessFlow() {
+	const c = document.querySelector('.txcards')
+	return c ? flowTravel(c) : Promise.resolve()
+}
+
+// Opening a tx that already reached consensus: PLAY the flow once so the trajectory lines get
+// drawn (running the animation IS how the before→after connections are rendered) — it sticks at
+// 'after' with the lines left in place. Deferred a couple of frames so the cards have laid out.
+// CONSIDER (future, not now): also drawing these lines BEFORE consensus would show where assets
+// are heading — but it may clutter, so we're holding off.
+export function markSettledIfSuccess(data) {
+	const c = document.querySelector('.txcards')
+	if (!c || !(data?.comboStatus === 'SUCCESS' || data?.receiptSuccess === true)) return
+	requestAnimationFrame(() => requestAnimationFrame(() => { flowTravel(c) }))
+}
+
 export function renderReadinessInfo({readiness}) {
+	renderWitnessList(readiness)   // witnesses live below the cards, not in the status block
+
 	const el = document.getElementById('txread-readiness')
 	if(!el) return
 
@@ -458,6 +1172,8 @@ export function renderReadinessInfo({readiness}) {
 // incomplete / 🔴 hard fail. Headline is short; the full breakdown (balance
 // forecasts + every check line) lives in the hover tooltip.
 export function renderPrecheckInfo({ precheck }) {
+	updateCardBalances(precheck)   // per-asset chip rings + aggregate card ring (runs even if the status line is gone)
+
 	const el = document.getElementById('txread-precheck')
 	if (!el) return
 
@@ -546,13 +1262,54 @@ export function showBanner(message,type='info') {
 }
 
 
+// KPIE-SCALE1: shape stats for the key tree — nested threshold GROUPS (each renders a
+// pie), nesting depth, and the widest single generation (the width driver of the
+// family-tree layout). Plain keys in a group don't add pies, so only threshold-objects
+// count.
+function keyTreeStats(node, depth = 0) {
+  if (!node || typeof node !== 'object' || !node.threshold) return { groups: 0, depth, rows: [] }
+  let groups = 1, maxDepth = depth
+  const rows = []
+  rows[depth] = (rows[depth] || 0) + 1
+  for (const k of node.keys || []) {
+    if (k && typeof k === 'object' && k.threshold) {
+      const s = keyTreeStats(k, depth + 1)
+      groups += s.groups
+      maxDepth = Math.max(maxDepth, s.depth)
+      s.rows.forEach((n, i) => { rows[i] = (rows[i] || 0) + n })
+    }
+  }
+  return { groups, depth: maxDepth, rows, maxRow: Math.max(...rows.filter(Boolean), 1) }
+}
+
+// SIGN-EXPLAIN1 follow-up (per user 2026-07-03): render the signing-authority detail
+// (pie chart + key list — always BOTH or NEITHER, half the picture is worse than none)
+// even for accounts that don't need to sign. Hard-coded ON for now — it's useful
+// information and makes multisig layouts testable with any account. May later be turned
+// off or gated behind nerd mode; flip it here.
+const SHOW_AUTHORITY_WHEN_NOT_SIGNING = true
+
 function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo }) {
   const widget = document.createElement('div')
-  if (!mustSign) return widget
+  if (!mustSign && !SHOW_AUTHORITY_WHEN_NOT_SIGNING) return widget
   widget.className = 'acctkeys-piechart'
 
   if (window.kpie && keyInfo) {
-    window.kpie.render(widget, { keyInfo, signedPubkeys: signedPubkeys || [] })
+    // Feed kpie a normalized tree (leaf objects → pubkey strings) so its leaves match
+    // the already-normalized signedPubkeys — otherwise every slice renders orange.
+    const normTree = normalizeKeyTree(keyInfo)
+    // KPIE-SCALE1: budget the WIDTH by the widest generation of the family-tree layout
+    // (kpie owns the height — it hugs the generations). Wide councils (30 children) get
+    // up to the full detail width; the 560 cap plus max-width:100% keeps it sane.
+    // Numbers are a first heuristic, tune on sight.
+    const stats = keyTreeStats(normTree)
+    if (stats.groups > 1) {
+      const px = Math.min(640, Math.max(160, 40 * stats.maxRow + 40))
+      widget.style.width = px + 'px'
+      widget.style.maxWidth = '100%'
+      widget.style.height = 'auto'
+    }
+    window.kpie.render(widget, { keyInfo: normTree, signedPubkeys: signedPubkeys || [] })
       .catch(err => console.warn('[kpie] render failed', err))
   }
 
@@ -612,7 +1369,27 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
     const buckets = acc.keyInfo?.keyControlScoresAll
 
     if (!scores || !buckets) {
+      // Hedera system accounts (e.g. 0.0.802 fee/reward collector) have no account key
+      // and never sign — they're only here as a party to the fee transfer. Skip the row
+      // entirely rather than showing a scary "couldn't load keys" error. (KEYINFO-LOCAL1)
+      if (acc.isSystemAccount || isHederaSystemAccount(accountId)) return
+
       console.warn('GH84743 Missing score data for', accountId, acc.keyInfo)
+      // LOUD feedback — don't silently drop a must-sign account. Show a red row so the
+      // user immediately knows the keys failed to load instead of waiting. Key structure
+      // comes from the mirror node + local protobuf decode now (no kpos), so surface the
+      // real error message rather than the old hardcoded "(kpos timeout)". (KEYINFO-LOCAL1)
+      const errBlock = document.createElement('div')
+      errBlock.className = 'acctkeys-account acctkeys-keyerror'
+      errBlock.dataset.acct = accountId
+      const reason = acc.keyInfoError ? ` (${acc.keyInfoError})` : ''
+      errBlock.innerHTML =
+        `<div class="acctkeys-accountId">` +
+        `<a href='https://hashscan.io/${network}/account/${accountId}' target='${accountId}'>${accountId}</a></div>` +
+        `<div class="acctkeys-keyerror-msg">⚠️ Couldn't load signing keys${reason} — tap to retry</div>`
+      errBlock.style.cursor = 'pointer'
+      errBlock.onclick = () => location.reload()
+      container.appendChild(errBlock)
       return
     }
 
@@ -684,8 +1461,8 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
 		
 
     entries.forEach(([pubkey, score]) => {
-      const signed = signedPubkeys.includes(normalizeViewKey(pubkey))
-      const tick = acc.mustSign ? (signed ? '✅' : '⬜') : 'N/A'
+      const signed = signedPubkeys.includes(normalizePublicKey(pubkey))
+      const tick = acc.mustSign ? (signed ? '☑' : '☐') : 'N/A'
       const keySuffix = pubkey.slice(-4)
       const pct = Math.round(score * 100)
       const red = redundancy?.[pubkey] != null
@@ -752,6 +1529,13 @@ export function injectTxReadCSS() {
 	const style = document.createElement('style')
 	style.id = 'txread-css'
 	style.textContent = `
+
+			.acctkeys-keyerror {
+				display: flex; flex-direction: column; gap: 4px;
+				padding: 10px 14px; margin: 6px 0;
+				background: #fdecea; border: 1px solid #f5a6a0; border-radius: 6px;
+			}
+			.acctkeys-keyerror-msg { color: #b3261e; font-weight: 700; font-size: 14px; }
 
 			.acctkeys-mobile-head {display: none;}
 
@@ -1062,17 +1846,15 @@ export function injectTxReadCSS() {
 		.txread-block { margin: 14px auto; max-width: min(900px, 100%); }
 		.txread-intent .txread-xfers { max-width: 580px; margin: 0 auto; }
 		.txread-scope {
-			display: flex; flex-wrap: wrap; justify-content: center; align-items: center;
-			gap: 4px 8px; margin-top: 10px; font-size: 12px; color: #888;
+			display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline;
+			gap: 2px 10px; margin: 4px 0 12px; font-size: 12px; color: #888;   /* bottom gap so it isn't butted against the preview card */
 		}
+		.txread-scope-ids { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
 		.txread-scope-txid { word-break: break-all; }
 		.txread-sep { color: #ccc; }
-		.txread-memo { text-align: center; font-size: 12px; color: #888; margin-top: 10px; word-break: break-word; }
+		.txread-memo { text-align: center; font-size: 12px; color: #888; margin: 10px 0 12px; word-break: break-word; }   /* bottom gap like the scope line, so it isn't butted against the card */
 		.txread-memo-label { font-weight: 600; color: #777; }
 		.txread-xfer-cell { transition: background .12s ease; }
-		[data-acct].acct-hl { background: #eef0f3; }
-		.acctkeys-account.acct-hl { background: #eef0f3; border-radius: 6px; }
-		.txread-narrative.acct-hl { background: #eef0f3; }
 		.txread-status { text-align: center; }
 		.txread-status-main { font-weight: 600; font-size: 15px; }
 		.txread-approvals-toggle {
@@ -1097,6 +1879,10 @@ export function injectTxReadCSS() {
 		/* intent: line items + optional narrative side by side */
 		.txread-intent-row { display:flex; flex-wrap:wrap; gap:24px; justify-content:space-evenly; align-items:flex-start; }
 		.txread-intent-row .txread-xfers { max-width:none; margin:0; }
+		/* cards sit BESIDE the You-send/receive narrative on desktop (don't self-centre,
+		   grow to fill the spare width); they wrap to full width on narrow screens. Once
+		   the narrative's symbol is short (pickAssetLabel) it's narrow enough to fit. */
+		.txread-intent-row .txcards { max-width:none; margin:0; flex:1 1 380px; }
 		.txread-narrative {
 			flex:0 1 220px; padding:2px 6px; text-align:left; border-radius:6px;
 			font:13px system-ui,-apple-system,"Segoe UI",sans-serif; color:#444;
@@ -1124,6 +1910,164 @@ export function injectTxReadCSS() {
 		/* status tab pane */
 		.txread-approvals-desc { margin:10px auto 8px; max-width:560px; }
 		#account-keys .ksubtitle { display:none; }   /* Status tab + description replace this heading */
+
+		/* ── cards view (TX-CARDS3) ──────────────────────────────────────────── */
+		.txcards { display:flex; flex-direction:column; gap:10px; max-width:640px; margin:0 auto; position:relative; }
+		.txcard {
+			display:flex; flex-direction:column;
+			border:1px solid #e4e4e7; border-radius:10px; overflow:hidden;
+			background:#fff;
+			transition:border-color .18s ease, box-shadow .18s ease;
+		}
+		/* account-header row — light text (id + optional xproof label) */
+		.txcard-head {
+			display:flex; flex-wrap:wrap; align-items:baseline; gap:8px;
+			padding:7px 12px; background:#fafafa; border-bottom:1px solid #ececec;
+		}
+		.txcard-acct { font-size:13px; font-weight:500; color:#52525b; text-decoration:none; word-break:break-all; }
+		.txcard-acct:hover { text-decoration:underline; }
+		.txcard-acct-label { font-size:12px; color:#a1a1aa; }
+		/* xproof next to the account id — domain reuses .txcard-acct so it matches (plain
+		   text, underline on hover) and can be group-restyled with the account id later. */
+		.txcard-xproof-head { display:inline-flex; align-items:baseline; gap:6px; }
+		.txcard-you { font-size:12px; font-weight:600; color:#0891b2; }   /* "(you)" — a connected account of yours */
+
+		/* per-account signing state (TX-CARDS7): border matches the pie — orange = signature
+		   pending, green = threshold met; header summary shows reason glyphs + m-of-n signed */
+		.txcard--sign-pending   { border-color:#f5a623; box-shadow:0 0 0 1px #f5a623; }
+		.txcard--sign-ready     { border-color:#56c857; box-shadow:0 0 0 1px #56c857; }
+		.txcard--balance-short  { border-color:#e5484d; box-shadow:0 0 0 1px #e5484d; }   /* overdraft — hard blocker, wins the ring */
+		.txcard-head-right { margin-left:auto; display:flex; align-items:center; gap:8px; }
+		.txcard-sign { font-size:12px; color:#71717a; white-space:nowrap; font-weight:500; }
+		/* per-asset overdraft: solid red ring on the specific SEND chip that's short */
+		.txcard-chip--short { border-color:#e5484d; box-shadow:0 0 0 1px #e5484d; }
+		/* token NOT associated on the RECEIVING side: dashed red (uncertain — a receiver with an
+		   auto-association slot would still succeed). Different fault class from a balance shortfall. */
+		.txcard-chip--unassoc { border-color:#e5484d; border-style:dashed; box-shadow:0 0 0 1px #e5484d; }
+		/* operator fee chip: no amount, distinct dotted/italic so it reads as an estimate */
+		.txcard-chip--fee { border-style:dotted; font-style:italic; color:#71717a; }
+
+		/* expandable account detail (TX-CARDS9 step c) — grid-rows trick, no native arrow */
+		.txcard-head--toggle { cursor:pointer; user-select:none; }
+		/* A11Y NOTE (whole app): these expand/collapse chevrons — and lots of mobile text — are
+		   too small for low-vision users. We need a "low-vision" theme/skin (larger fonts, bigger
+		   hit targets, stronger contrast) as a future themeing pass. See task A11Y-LOWVISION1. */
+		.txcard-chevron { color:#71717a; font-size:16px; line-height:1; transition:transform .2s ease; }
+		.txcard-detail { display:grid; grid-template-rows:0fr; transition:grid-template-rows .22s ease; }
+		.txcard--open .txcard-detail { grid-template-rows:1fr; }
+		.txcard-detail-inner { overflow:hidden; min-height:0; }
+		.txcard--open .txcard-detail-inner { padding:10px 12px; border-top:1px solid #ececec; }
+		/* pie + key list are two flex cells that reflow (side-by-side on desktop, stacked on
+		   mobile), clustered in the centre with the slack on the outside; vertically centred.
+		   Chart first, keys second. The list keeps fixed columns (no 1fr) so it stays compact. */
+		.txcard-detail-grid { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:12px 28px; }
+		.txcard-detail .acctkeys-piechart { margin:0; flex:0 0 auto; }
+		.txcard-keys { display:flex; flex-direction:column; gap:3px; font-size:12px; }
+		.txcard-keys-row { display:grid; grid-template-columns:22px 74px 48px 60px 56px; gap:10px; align-items:center; }
+		.txcard-keys-head { color:#a1a1aa; font-size:11px; }
+		.txcard-keys-row a { color:#3b82f6; text-decoration:none; }
+		.txcard-keys-row a:hover { text-decoration:underline; }
+		.txcard-xproof { margin-top:8px; font-size:12px; color:#71717a; }
+		.txcard-xproof a { color:#3b82f6; }
+		.txcard-detail-note { font-size:12px; color:#3f3f46; background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:6px 8px; margin-bottom:8px; }
+		/* muted informational note ("no signature required") reads as plain gray text like
+		   the outstanding-items lines below — the boxed/button look was noise (per user
+		   2026-07-03); only the amber receiver-sig warning keeps its box. */
+		.txcard-detail-note--muted { background:none; border:none; padding:0; color:#9ca3af; }
+		/* SIGN-EXPLAIN1: plain-words outstanding-items list — light gray, one line per
+		   issue, sits above the pie/keys so it reads first on expand. */
+		.txcard-detail-issues { font-size:12px; color:#9ca3af; margin:0 0 10px; display:flex; flex-direction:column; gap:3px; }
+
+		/* witnesses — signed keys not tied to any account; listed under the cards as chips
+		   (may later read as votes). Sits just above the Hedera <network> scope line. */
+		.txread-witnesses { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:8px; font-size:12px; }
+		.txread-witnesses-label { color:#a1a1aa; text-transform:uppercase; letter-spacing:.04em; font-size:11px; }
+		.txread-witnesses-list { display:inline-flex; flex-wrap:wrap; gap:6px; }
+		.txwitness-chip { display:inline-flex; padding:3px 9px; border-radius:14px; font-size:12px; background:#f4f4f5; border:1px solid #e4e4e7; color:#52525b; cursor:default; }
+
+		/* overall status + countdown at the top of the modal (normal-visible header) */
+		.txread-status-header { font-weight:600; font-size:14px; margin:0 0 8px; }
+		.txread-scope-due { color:#71717a; }
+
+		/* two equal, symmetric columns — left send (rose), right receive (green).
+		   stays side-by-side on mobile (screen split in half), no edge labels */
+		.txcard-cols { display:grid; grid-template-columns:1fr 1fr; }
+		.txcard-col { padding:10px 12px; display:flex; flex-direction:column; gap:6px; align-items:flex-start; min-width:0; }
+		.txcard-send    { background:#fdf2f2; }   /* warm rose — giving */
+		.txcard-receive { background:#eff7f1; }   /* green — receiving */
+
+		.txcard-chip {
+			display:inline-flex; align-items:center; gap:6px;
+			padding:4px 9px; border-radius:14px; font-size:13px; line-height:1.3;
+			background:#fff; border:1px solid rgba(0,0,0,.14);
+			max-width:100%; box-sizing:border-box;
+			position:relative; z-index:2;   /* above the trail overlay (z-index:1) so dots pass behind chips */
+			/* hover triggers highlight + replay but there's no CLICK action (yet), so the
+			   text I-beam read wrong — default arrow is the hover-only convention. Switch
+			   to pointer if chips ever gain a click. */
+			cursor:default; user-select:none;
+		}
+		.txcard-chip-icon { flex:0 0 auto; }
+		.txcard-chip-text { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+		.txcard-chip-ghost {
+			/* dashed + muted, but OPAQUE (solid bg + full opacity) so the dotted trail behind it
+			   is cleanly obscured — the chip sits on top of the trail (per user). */
+			background:#fff; border-style:dashed; opacity:1; color:#9ca3af;
+		}
+		.txcard-empty { opacity:.35; font-size:13px; }
+
+		/* asset-pool hover (fires from a chip): highlight every chip of the same asset.
+		   a highlighted ghost de-fades so you can see where it lands. */
+		.txcard-chip.asset-hl { outline:2px solid #ffb74d; outline-offset:1px; }
+		.txcard-chip-ghost.asset-hl { opacity:1; }
+
+		/* ▶ preview control + v0 pulse (TX-FLOW-ANIM1): send chips pulse out (amber), then
+		   receive chips pulse in (green, de-fading the ghost = "landing"). */
+		/* preview = full-width before/after card (same rounded shape as an account card). Left
+		   pink BEFORE / right green AFTER = a legend for the account cards AND the toggle; the
+		   non-active side dims. EXPLORATORY styling — may revert to a compact button. */
+		.txcards-preview { display:flex; border:1px solid #e4e4e7; border-radius:10px; overflow:hidden; }
+		.txpreview-half { all:revert; flex:1 1 0; cursor:pointer; border:none; padding:13px 10px;
+			font:800 18px/1 system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.08em; transition:filter .15s ease; }
+		.txpreview-before { background:#fdf2f2; color:rgba(185,28,28,.38); }   /* pink send side, FAINT red caps */
+		.txpreview-after  { background:#eff7f1; color:rgba(21,128,61,.4); }    /* green receive side, FAINT green caps */
+		/* hover: keep the tint (re-assert to beat host button:hover) + a subtle grey inset border
+		   so it still reads as a button; no colour change. */
+		.txpreview-before:hover { background:#fdf2f2; }
+		.txpreview-after:hover  { background:#eff7f1; }
+		.txpreview-half:hover   { box-shadow: inset 0 0 0 2px rgba(0,0,0,.14); }
+		.txcards-preview[data-state="before"] .txpreview-after,
+		.txcards-preview[data-state="after"]  .txpreview-before { opacity:.45; }
+		.txflow-pulse-out { animation: txflowPulseOut .42s ease; }
+		.txflow-pulse-in  { animation: txflowPulseIn  .42s ease; }
+		@keyframes txflowPulseOut { 50% { outline:2px solid #f5a623; outline-offset:2px; transform:translateY(-3px) scale(1.06); } }
+		@keyframes txflowPulseIn  { 50% { outline:2px solid #56c857; outline-offset:2px; opacity:1; transform:scale(1.08); } }
+		@media (prefers-reduced-motion: reduce) {
+			.txflow-pulse-out { animation:none; outline:2px solid #f5a623; outline-offset:2px; }
+			.txflow-pulse-in  { animation:none; outline:2px solid #56c857; outline-offset:2px; opacity:1; }
+		}
+		/* v1 ghost-travel engine (txflow.js): a FRONT overlay (ghosts + pool puff, topmost) and
+		   a TRAIL overlay (the dotted trajectory) — both above the cards; trail below ghosts. */
+		.txflow-layer { position:absolute; inset:0; overflow:visible; pointer-events:none; z-index:3; }
+		.txflow-layer-trail { position:absolute; inset:0; overflow:visible; pointer-events:none; z-index:1; }
+		.txflow-ghost { position:absolute; left:0; top:0; margin:0; background:#fff; box-shadow:0 5px 14px rgba(0,0,0,.18); will-change:transform,opacity; }
+		.txflow-frizz { position:absolute; width:16px; height:16px; border-radius:50%; pointer-events:none;
+			background:radial-gradient(circle, #fff 0%, #ffd27f 45%, rgba(255,167,38,0) 70%); }
+		.txflow-trail { position:absolute; width:7px; height:7px; border-radius:50%; pointer-events:none; filter:blur(0.15px);
+			transform:translate(-50%,-50%);   /* centre the dot on its (x,y) — was provided by the (now-removed) fade animation */
+			background:radial-gradient(circle, rgba(96,165,250,.55) 0%, rgba(96,165,250,0) 70%); }
+		.txcard-chip.txflow-landed { opacity:1; outline:2px solid #56c857; outline-offset:2px; }
+
+		/* nerd-view toggle — top-right of the widget, out of the way of the modal close/toast.
+		   dev affordance to flip cards (normal) ↔ line-item table (nerd) without the profile panel. */
+		.txread-wrapper { position:relative; }
+		.txread-nerd-toggle {
+			position:absolute; top:0; right:0; z-index:5;
+			display:inline-flex; align-items:center; gap:4px;
+			font-size:12px; color:#9ca3af; cursor:pointer; user-select:none;
+			background:rgba(255,255,255,.85); padding:1px 5px; border-radius:6px;
+		}
+		.txread-nerd-toggle input { cursor:pointer; margin:0; }
 
 
 	`

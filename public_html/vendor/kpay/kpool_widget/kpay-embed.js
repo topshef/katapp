@@ -35,6 +35,34 @@
 
   var FUTURE_BASE = window.KPAY_FUTURE_BASE || '/future/'
 
+  // ── URL-hash persistence (MODAL-URL1) ────────────────────────────────────────
+  // When the host opts in (window.KPAY_SIGN_HASH = true), the open signing modal is
+  // reflected in location.hash as  #sign=network:txid:pch  so a page refresh or a
+  // bookmark reopens the same tx. Purely additive: off unless the flag is set, and
+  // uses replaceState so it never litters browser history.
+  var HASH_PREFIX = '#sign='
+  function hashEnabled() { return !!window.KPAY_SIGN_HASH }
+  function setHash(h) {
+    try { history.replaceState(null, '', location.pathname + location.search + (h || '')) }
+    catch (e) { location.hash = h || '' }
+  }
+  function writeSignHash(o) {
+    if (!hashEnabled()) return
+    var h = HASH_PREFIX + [o.network, o.txid, o.pch || 'no_pch'].join(':')
+    if (location.hash !== h) setHash(h)
+  }
+  function clearSignHash() {
+    if (!hashEnabled()) return
+    if (location.hash.indexOf(HASH_PREFIX) === 0) setHash('')
+  }
+  function parseSignHash() {
+    var h = location.hash || ''
+    if (h.indexOf(HASH_PREFIX) !== 0) return null
+    var p = h.slice(HASH_PREFIX.length).split(':')
+    if (p.length < 2 || !p[0] || !p[1]) return null
+    return { network: p[0], txid: p[1], pch: p[2] || undefined }
+  }
+
   // ── lazy widget load ──────────────────────────────────────────────────────
   // index.js is an ES module that assigns window.KPOOL = { mount, open, readStatus }.
   // We import it directly (rather than via bootstrap.js) so there's no build-banner
@@ -72,6 +100,19 @@
   }
   function futureSaveUrl() { return FUTURE_BASE + '?action=txSave' }
 
+  // ── singleton modal tracking ─────────────────────────────────────────────────
+  // Only one modal can be open at a time. The view layer uses document.getElementById
+  // with fixed IDs (txread-precheck, txread-status, etc.) so two concurrent modals
+  // would cause getElementById to target the wrong DOM element, showing stale data
+  // from a previous transaction until the older modal's DOM is removed.
+  var _currentModal = null
+
+  function closeCurrentModal() {
+    if (!_currentModal) return
+    try { _currentModal.close() } catch (e) {}
+    _currentModal = null
+  }
+
   // ── public entry ─────────────────────────────────────────────────────────────
   window.KPaySign = function (opts) {
     opts = opts || {}
@@ -79,6 +120,15 @@
       console.warn('[kpay-embed] KPaySign needs { network, txid }')
       return Promise.resolve(null)
     }
+
+    closeCurrentModal()
+    writeSignHash(opts)   // reflect the open tx in the URL (MODAL-URL1)
+
+    var callerOnClose = opts.brand && opts.brand.onClose
+    var brand = Object.assign({}, opts.brand || {}, {
+      onClose: function () { _currentModal = null; clearSignHash(); if (callerOnClose) callerOnClose() }
+    })
+
     return ensureWidget().then(function () {
       return window.KPOOL.open({
         network: opts.network,
@@ -86,7 +136,10 @@
         pch:     opts.pch || 'no_pch',
         readUrl: opts.readUrl || futureReadUrl,   // signer byte fetch
         saveUrl: opts.saveUrl || futureSaveUrl,   // signer write-back
-        brand:   opts.brand || {}
+        brand:   brand
+      }).then(function (modal) {
+        _currentModal = modal
+        return modal
       })
     })
   }
@@ -105,5 +158,24 @@
       txid:    el.getAttribute('data-kpay-txid'),
       pch:     el.getAttribute('data-kpay-pch') || undefined
     })
+  })
+
+  // ── reopen from URL hash on load (MODAL-URL1) ────────────────────────────────
+  // If the page loaded with a #sign=… hash (refresh/bookmark) and the host opted
+  // in, auto-open that tx. This script is deferred, so the DOM is already parsed.
+  function autoOpenFromHash() {
+    var o = parseSignHash()
+    if (o && hashEnabled()) window.KPaySign(o)
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', autoOpenFromHash)
+  else autoOpenFromHash()
+
+  // Back/forward or manual hash edits: open when a #sign hash appears, close when
+  // it's cleared. Keeps the modal and the URL in step without polluting history.
+  window.addEventListener('hashchange', function () {
+    if (!hashEnabled()) return
+    var o = parseSignHash()
+    if (o) window.KPaySign(o)
+    else closeCurrentModal()
   })
 })()

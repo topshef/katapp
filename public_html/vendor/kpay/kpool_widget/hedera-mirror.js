@@ -1,6 +1,9 @@
 
 
-import { getData } from './cache.js'
+// Cache-bust cache.js like every other widget module (it was the ONE bare import,
+// so changes to it — e.g. the kpos timeout, OBSERV-MIRROR1 — never reached browsers).
+// Top-level await is fine: this module is itself loaded via dynamic import().
+const { getData } = await import(`./cache.js?v=${(typeof window !== 'undefined' && window.__BUILD_HASH__) || ''}`)
 
 
 
@@ -8,6 +11,9 @@ export async function getKeyInfo(network, accountId) {
 	return getKeyInfoFromMirror(network, accountId)
 }
 
+// Read key structure from the Hedera mirror node account data we already fetch.
+// Replaces the kpos.uk → papi → AccountInfoQuery chain (papi broken, AccountInfoQuery deprecated).
+// Mirror caches at 300s (key structure is stable); same IndexedDB cache as getAccountInfo(20).
 async function getKeyInfoFromMirror(network, accountId) {
 	try {
 		const accountData = await getAccountInfo(network, accountId, 300)
@@ -17,7 +23,11 @@ async function getKeyInfoFromMirror(network, accountId) {
 		if (_type === 'ProtobufEncoded') {
 			const decoded = _kpbDecodeKey(key)
 			if (decoded == null) throw new Error(`_kpbDecodeKey returned null for ${accountId} HM83721`)
+			// Single top-level key (rare for protobuf) — return string, model.js wraps it.
 			if (typeof decoded === 'string') return decoded
+			// Threshold/keyList — attach Banzhaf + control scores the view needs (kpos used to
+			// compute these in PHP; calcBanzhafScores/keyControlScoresAll ported here). Without
+			// them view.js:638 drops the row as "Couldn't load signing keys". (KEYINFO-LOCAL1)
 			const banzhafScores = _kpbBanzhaf(decoded)
 			const keyControlScoresAll = _kpbControlAll(decoded)
 			return { ...decoded, banzhafScores, keyControlScoresAll }
@@ -28,6 +38,11 @@ async function getKeyInfoFromMirror(network, accountId) {
 		throw error
 	}
 }
+
+// ── Hedera Key protobuf decoder ───────────────────────────────────────────────
+// Decodes the ProtobufEncoded hex string from the mirror node accounts API.
+// Hedera Key proto fields: 2=ed25519, 5=thresholdKey, 6=keyList, 7=ECDSASecp256k1
+// Returns: pubkey hex string (single key) | {threshold:N, keys:[...]} (threshold/list)
 
 function _kpbDecodeKey(hex) {
 	const buf = new Uint8Array(hex.length >> 1)
@@ -48,8 +63,8 @@ function _kpbKey(buf, start, end) {
 		if (wire === 0) { const r = _kpbVarint(buf, pos); pos = r.pos; continue }
 		if (wire !== 2) break
 		const { val: len, pos: p } = _kpbVarint(buf, pos); pos = p; const from = pos; pos += len
-		if (field === 2 || field === 7) return _kpbHex(buf, from, from + len)
-		if (field === 5) return _kpbThreshold(buf, from, from + len)
+		if (field === 2 || field === 7) return _kpbHex(buf, from, from + len)    // ED25519 / ECDSA
+		if (field === 5) return _kpbThreshold(buf, from, from + len)             // ThresholdKey
 		if (field === 6) { const ks = _kpbKeyList(buf, from, from + len); return { threshold: ks.length, keys: ks } }
 	}
 	return null
@@ -87,6 +102,8 @@ function _kpbHex(buf, from, to) {
 }
 
 // ── Voting-power scoring (JS port of kpos getKeyVotingInfo.php) ────────────────
+// node = pubkey string | { threshold, keys: [...] }
+
 function _kpbFlatten(node) {
 	if (typeof node === 'string') return { threshold: 1, weights: { [node]: 1 } }
 	const weights = {}
@@ -107,6 +124,7 @@ function _kpbAuthorized(node, subset) {
 	return yes >= (node.threshold ?? 1)
 }
 
+// Banzhaf voting power + redundancy (KRS). Brute-forces 2^n subsets — capped at maxKeys.
 function _kpbBanzhaf(tree, maxKeys = 15) {
 	const { weights } = _kpbFlatten(tree)
 	const keys = Object.keys(weights)
@@ -136,6 +154,7 @@ function _kpbBanzhaf(tree, maxKeys = 15) {
 	return { scores, redundancy }
 }
 
+// Per-key control bucket: none | partial | full | full-exclusive
 function _kpbControlAll(tree) {
 	const { threshold: T, weights } = _kpbFlatten(tree)
 	const totalWeight = Object.keys(weights).length

@@ -8,12 +8,23 @@
 ;(function(global) {
   'use strict'
 
-  const ED25519_DER_PREFIX = '302a300506032b6570032100'
+  // keynorm.js is the canonical normalizer shared by model.js + view.js (SIGN-NORM1).
+  // kpie is a STANDALONE, dependency-free widget (classic <script>, not an ES module),
+  // so it can't import keynorm.js without losing that drop-in property — it keeps this
+  // local copy by design. In practice view.js feeds kpie an already-normalized tree +
+  // signedPubkeys (see view.js renderAccountKeyInfo), so this is only a defensive
+  // idempotent second pass. Keep these prefixes in sync with keynorm.KEY_PREFIXES.
+  const KEY_DER_PREFIXES = [
+    '302a300506032b6570032100',                          // ED25519
+    '302d300706052b8104000a032200',                      // ECDSA secp256k1 DER
+    '3036301006072a8648ce3d020106052b8104000a032200',    // ECDSA secp256k1 SPKI
+  ]
 
   function normalizeKey(key) {
     if (!key) return key
-    const k = key.toLowerCase()
-    return k.startsWith(ED25519_DER_PREFIX) ? k.slice(ED25519_DER_PREFIX.length) : k
+    let k = String(key).toLowerCase()
+    for (const p of KEY_DER_PREFIXES) if (k.startsWith(p)) { k = k.slice(p.length); break }
+    return k
   }
 
   // ── Dependency loading ──────────────────────────────────────────────────────
@@ -58,7 +69,8 @@
 
     const result = {
       name: path,
-      threshold: keyNode.threshold ?? 1,
+      // a Hedera KeyList has threshold null/absent = ALL must sign, not 1-of-n
+      threshold: keyNode.threshold ?? (keyNode.keys?.length || 1),
       keyCount: keyNode.keys?.length ?? 0,
       keyLeaves: [],
       children: []
@@ -66,9 +78,15 @@
 
     ;(keyNode.keys || []).forEach((child, i) => {
       const childPath = `${path}_${i + 1}`
-      if (typeof child === 'object' && child.threshold)
+      // any node with a keys[] array is a GROUP (threshold OR keyList — a keyList's
+      // threshold is null, the old `child.threshold` truthy check dropped those into
+      // keyLeaves as objects and crashed normalizeKey downstream)
+      if (child && typeof child === 'object' && Array.isArray(child.keys))
         result.children.push(convertKeyTreeToGraph(child, childPath))
-      else
+      else if (child && typeof child === 'object')
+        // raw leaf shapes ({ _type, key } / { ed25519 } / { ECDSASecp256k1 }) → string
+        result.keyLeaves.push(String(child.key ?? child.ed25519 ?? child.ECDSASecp256k1 ?? ''))
+      else if (child)
         result.keyLeaves.push(child)
     })
 
@@ -164,93 +182,102 @@
 
   // ── D3 tree layout ──────────────────────────────────────────────────────────
 
+  // KPIE-SCALE1 v2: FAMILY-TREE layout replacing the old radial cluster. The radial
+  // form needed a parent ring to say who the parent was and its connectors overcut the
+  // circle; a top-down tidy tree (d3.tree = Reingold–Tilford — deterministic, compact,
+  // no physics jitter) makes hierarchy positional: the parent sits ABOVE, children hang
+  // below, so the ring is gone entirely. Connector lines are trimmed to each pie's rim
+  // (no overcut). Everything is computed in real CSS pixels and the SVG gets explicit
+  // px width/height (no viewBox/meet scaling), so the lines and the amCharts divs can
+  // never disagree again (the lifted-pies bug class is structurally gone). The root pie
+  // renders slightly larger than its children — another "this is the parent" cue.
+  // Sizing: width is the budget (set by the caller from tree complexity, up to full
+  // detail width on desktop); pies shrink as the widest generation grows, floored for
+  // legibility; height follows generation count and is set here.
   function drawTree(jsonData, container) {
     container.innerHTML = ''
     container.style.position = 'relative'
     container.style.overflow = 'visible'
 
     const rect = container.getBoundingClientRect()
-    const size = Math.min(rect.width || 110, rect.height || 110)
-    const clusterRadius = size / 2
-    const maxDepth = d3.hierarchy(jsonData).height || 1
-    const edgeLength = clusterRadius / (maxDepth + 1)
-    const pieRadius = edgeLength * 0.18
+    const budget = rect.width || 220
 
-    // Build D3 layout
+    // tidy tree in unit coordinates: 1 unit sibling gap, wider gap between subtrees
     const root = d3.hierarchy(jsonData)
-    const cluster = d3.cluster().size([2 * Math.PI, clusterRadius])
-    cluster(root)
-    root.descendants().forEach(d => { d.y = d.depth * (edgeLength * 0.5) })
+    d3.tree().nodeSize([1, 1]).separation((a, b) => a.parent === b.parent ? 1 : 1.3)(root)
 
-    // Compute SVG-space positions for every node
-    const nodePositions = root.descendants().map(d => ({
-      data: d.data,
-      svgX: d.y * Math.cos(d.x - Math.PI / 2),
-      svgY: d.y * Math.sin(d.x - Math.PI / 2)
-    }))
+    const nodes = root.descendants()
+    const xs = nodes.map(d => d.x)
+    const minX = Math.min(...xs)
+    const unitsW = (Math.max(...xs) - minX) || 1
 
-    // Compute viewBox tightly around all nodes
-    const allX = nodePositions.map(n => n.svgX)
-    const allY = nodePositions.map(n => n.svgY)
-    const margin = pieRadius + 2
-    const vx = Math.min(...allX) - margin
-    const vy = Math.min(...allY) - margin
-    const vw = Math.max(...allX) - Math.min(...allX) + margin * 2
-    const vh = Math.max(...allY) - Math.min(...allY) + margin * 2
+    // px per sibling-unit from the width budget; pie ~72% of a unit so neighbours never
+    // touch. Floor 14px (below that the m-of-n wedges are unreadable anyway), cap 56px.
+    const pxPerUnit = budget / (unitsW + 1)
+    const pieCssSize = Math.max(14, Math.min(56, Math.round(pxPerUnit * 0.72)))
+    // parent cue: bigger than its children, and never below 28px — the root's m-of-n is
+    // the single most important wedge on the chart, it stays readable even when a wide
+    // council squeezes the children to the floor.
+    const rootPieSize = Math.min(64, Math.max(28, Math.round(pieCssSize * 1.25)))
+    const levelGap = Math.round(pieCssSize * 1.9)
+    const pad = Math.round(rootPieSize / 2) + 4
 
-    // SVG for lines and node border circles only — no foreignObjects
+    const sizeOf = d => d.depth === 0 ? rootPieSize : pieCssSize
+    const boxW = Math.max(budget, Math.round(unitsW * pxPerUnit) + pad * 2)
+    // top pad clears the root's radius; bottom needs the deepest generation's radius
+    const boxH = (root.height * levelGap) + pad + pieCssSize / 2 + 4
+    const cx = d => Math.round((d.x - minX) * pxPerUnit) + pad
+    const cy = d => d.depth * levelGap + pad
+
+    container.style.height = Math.round(boxH) + 'px'
+
+    // SVG in the same pixel space as the divs — connector lines only, trimmed to rims
     const svg = d3.select(container)
       .append('svg')
-      .attr('viewBox', `${vx} ${vy} ${vw} ${vh}`)
-      .attr('preserveAspectRatio', 'xMidYMid meet')
+      .attr('width', boxW).attr('height', Math.round(boxH))
       .style('position', 'absolute')
       .style('top', '0').style('left', '0')
-      .style('width', '100%').style('height', '100%')
-      .style('overflow', 'hidden')
+      .style('overflow', 'visible')
 
+    // Org-chart ELBOW connectors: parent bottom → down to a rail midway between the
+    // generations → along the rail → down into the child's top. Straight point-to-point
+    // lines went nearly horizontal on wide fans and cut THROUGH sibling pies; elbows
+    // only ever travel in clear lanes, and they read as a family tree (per user). Ends
+    // stop at the pies' rims (no overcut).
     svg.selectAll('.kpie-link')
       .data(root.links())
-      .join('line')
+      .join('path')
       .attr('class', 'kpie-link')
-      .attr('x1', d => d.source.y * Math.cos(d.source.x - Math.PI / 2))
-      .attr('y1', d => d.source.y * Math.sin(d.source.x - Math.PI / 2))
-      .attr('x2', d => d.target.y * Math.cos(d.target.x - Math.PI / 2))
-      .attr('y2', d => d.target.y * Math.sin(d.target.x - Math.PI / 2))
-      .attr('stroke', '#ccc')
-
-    svg.append('circle')
-      .attr('cx', nodePositions[0].svgX)
-      .attr('cy', nodePositions[0].svgY)
-      .attr('r', pieRadius)
+      .attr('d', d => {
+        const x1 = cx(d.source), y1 = cy(d.source) + sizeOf(d.source) / 2 + 1
+        const x2 = cx(d.target), y2 = cy(d.target) - sizeOf(d.target) / 2 - 1
+        const rail = cy(d.source) + levelGap / 2
+        return `M${x1},${y1} V${rail} H${x2} V${y2}`
+      })
       .attr('fill', 'none')
       .attr('stroke', '#ccc')
-      .attr('stroke-width', 2)
+      .attr('stroke-width', 1.5)
 
-    // CSS scale matching xMidYMid meet
-    const scale = Math.min(size / vw, size / vh)
-    const offsetX = (size - vw * scale) / 2
-    const offsetY = (size - vh * scale) / 2
-    const pieCssSize = Math.max(8, Math.min(44, Math.round(pieRadius * 2 * scale)))
+    // (the old parent ring is deliberately gone — position now carries the hierarchy;
+    // if a cue is ever wanted back, a THIN circle at r=sizeOf(root)/2+3 here would do)
 
-    // Absolutely-positioned divs for amCharts — no SVG scaling involved
+    // Absolutely-positioned divs for amCharts — same pixel space as the SVG
     const seq = ++_chartSeq
-    nodePositions.forEach(({ data: nodeData, svgX, svgY }) => {
-      const cssX = (svgX - vx) * scale + offsetX
-      const cssY = (svgY - vy) * scale + offsetY
-
-      const divId = `kpie_c_${nodeData.name}_${seq}`
+    nodes.forEach(d => {
+      const s = sizeOf(d)
+      const divId = `kpie_c_${d.data.name}_${seq}`
       const div = document.createElement('div')
       div.id = divId
       div.style.cssText = [
         'position:absolute',
-        `width:${pieCssSize}px`,
-        `height:${pieCssSize}px`,
-        `left:${Math.round(cssX - pieCssSize / 2)}px`,
-        `top:${Math.round(cssY - pieCssSize / 2)}px`,
+        `width:${s}px`,
+        `height:${s}px`,
+        `left:${Math.round(cx(d) - s / 2)}px`,
+        `top:${Math.round(cy(d) - s / 2)}px`,
         'margin:0', 'padding:0'
       ].join(';')
       container.appendChild(div)
-      renderNodePie(nodeData, divId, pieCssSize / 2)
+      renderNodePie(d.data, divId, s / 2)
     })
   }
   
@@ -268,7 +295,9 @@
       // Render amCharts directly — no SVG wrapper, no foreignObject, no scaling
       container.innerHTML = ''
       container.style.overflow = 'visible'
-      const rect = container.getBoundingClientRect()
+      let rect = container.getBoundingClientRect()
+      // a width-only container (height:auto) collapses to 0 → invisible pie; square it
+      if (!rect.height && rect.width) { container.style.height = Math.round(rect.width) + 'px'; rect = container.getBoundingClientRect() }
       const size = Math.min(rect.width || 110, rect.height || 110)
       const divId = `kpie_direct_${++_chartSeq}`
       const div = document.createElement('div')

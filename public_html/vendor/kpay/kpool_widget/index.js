@@ -7,6 +7,7 @@ const {
 	enrichAccountsInfo,
 	enrichAccountsKeyInfo,
 	enrichTransfersInfo,
+	buildFlowModel,
 	calcAccountsThatSign,
 	evaluateTxReadiness
 } = await import(`./model.js?v=${V}`)
@@ -18,7 +19,14 @@ const {
 	renderReadinessInfo,
 	renderPrecheckInfo,
 	showBanner,
-	summariseStatus
+	summariseStatus,
+	updateFinalState,
+	markConnectedAccounts,
+	playSuccessFlow,
+	markSettledIfSuccess,
+	pickAssetLabel,
+	resolveTxView,
+	buildTransferViews
 } = await import(`./view.js?v=${V}`)
 
 const {
@@ -31,6 +39,7 @@ const {
 
 const { getHederaMirrorData } = await import(`./hedera-mirror.js?v=${V}`)
 const { createTxSocket } = await import(`./websocket.js?v=${V}`)
+const { normalizePublicKey } = await import(`./keynorm.js?v=${V}`)
 
 console.log('injecting kpool widget')
 
@@ -56,6 +65,7 @@ export async function open({ network, txid, pch = 'no_pch', brand = {}, signer =
 	await mount(modal.body, {
 		network, txid, pch, signer, ...opts,
 		onStatus:      s => modal.setStatus(s.label, s.tone, s.shape),
+		onCountdown:   t => modal.setCountdown(t),
 		onFlash:       (msg, tone) => modal.flash(msg, tone),
 		onLockModal:   modal.lock,
 		onUnlockModal: modal.unlock
@@ -103,6 +113,7 @@ if (legacyHost) {
 
 // Compute a one-line status summary and hand it to the host (modal header).
 function pushStatus(txState) {
+	updateFinalState(txState.data)   // hide signing section once the tx is final (normal mode)
 	if (!txState.onStatus) return
 	txState.onStatus(summariseStatus({ data: txState.data, readiness: txState.readiness }))
 }
@@ -114,14 +125,68 @@ function notify(txState, msg, tone = 'success') {
 	else showBanner(msg, tone)
 }
 
+// Only one tx widget should be live at a time. Opening a new modal must tear down
+// the previous tx's poll timer + socket — otherwise the old tx keeps polling for
+// up to 5 min and writes into the shared by-id status/readiness DOM, which looks
+// like status "flapping" between two transactions. See teardownTxState.
+let _activeTxState = null
+
+function teardownTxState(txState) {
+	if (!txState || txState.destroyed) return
+	txState.destroyed = true
+	try { if (txState.pollTimer) clearInterval(txState.pollTimer) } catch {}
+	try { if (txState.countdownTimer) clearInterval(txState.countdownTimer) } catch {}
+	try { txState.socket?.close?.() } catch {}
+	txState.pollTimer = null
+	txState.countdownTimer = null
+	txState.socket = null
+	try { globalThis.kdiag?.('tx:teardown', { txid: txState.txid }) } catch {}
+}
+
+// True once the widget's DOM has been removed (modal closed) — used by the poll /
+// socket handlers to stop updating a tx whose UI is gone.
+function txStateLive(txState) {
+	return !!txState && !txState.destroyed && txState.container?.isConnected !== false
+}
+
+// Drive the modal-header countdown (⏱ hh:mm:ss) from the txid's scheduled time. Shows while the
+// tx is pending and within the meaningful window; goes blank (space reserved in the header) once
+// final. No-op without an onCountdown host hook (e.g. bare mount).
+function startHeaderCountdown(txState) {
+	if (!txState.onCountdown) return
+	const target = parseTxId(txState.txid)?.seconds
+	if (!target) return
+	const tick = () => {
+		if (!txStateLive(txState)) { clearInterval(txState.countdownTimer); txState.countdownTimer = null; return }
+		const d = txState.data || {}
+		if (d.comboStatus === 'SUCCESS' || d.mirrorStatus || d.receiptSuccess === true) {
+			txState.onCountdown(''); clearInterval(txState.countdownTimer); txState.countdownTimer = null; return
+		}
+		const diff = target - Math.floor(Date.now() / 1000)
+		// window = real validDuration decoded from the signed bytes (VALIDD1);
+		// 180 remains only as the fallback when bytes aren't available.
+		const validSecs = d.validDurationSeconds || 180
+		txState.onCountdown(diff > -validSecs ? `⏱ ${formatCountdown(diff)}` : '')
+	}
+	tick()
+	txState.countdownTimer = setInterval(tick, 1000)
+}
+
 async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) {
+	// supersede any previous tx widget so two don't poll/render concurrently
+	if (_activeTxState && _activeTxState.txid !== txid) teardownTxState(_activeTxState)
+
 	const txState = createTxState(network, txid, pch)
+	_activeTxState = txState
 	txState.onStatus = opts.onStatus
+	txState.onCountdown = opts.onCountdown
 	txState.onFlash  = opts.onFlash
 	txState.onLock   = opts.onLockModal
 	txState.onUnlock = opts.onUnlockModal
 	txState.readUrl  = opts.readUrl   // absolute endpoint when embedded off-origin
 	txState.saveUrl  = opts.saveUrl
+
+	startHeaderCountdown(txState)   // ⏱ countdown in the modal header
 
 	hostEl.append(txState.container)
 	txState.container.innerHTML = '<div class="kpsign-msg" style="padding:28px;text-align:center">Loading transaction…</div>'
@@ -129,9 +194,14 @@ async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) 
 	try {
 		const tx = await renderTxView(txState)
 
-		await loadSigningState(txState, tx)
-
+		// Render the WalletConnect signer BEFORE the account enrich. renderSigner is
+		// independent of loadSigningState's output, and loadSigningState's fetches have
+		// no timeout — on mobile it was hanging and blocking the WC pane entirely
+		// (logs: ksig:qr-rendered fired but tx:load-timing/signer:render never did).
+		// Drawing the signer first means the Connect button always shows.
 		if (opts.signer === 'walletconnect') await renderSigner(txState, opts)
+
+		await loadSigningState(txState, tx)
 
 		startTxSocket(txState)
 		startTxPolling(txState, tx)
@@ -155,8 +225,36 @@ async function renderSigner(txState, opts) {
 		txid:     txState.txid,
 		readUrl:  opts.readUrl,
 		saveUrl:  opts.saveUrl,
-		onSigned:  () => notify(txState, '✍️ Signature submitted', 'success'),
-		onAccount: acct => updateNarrative(txState, acct),
+		onSigned:  async (saveResult) => {
+			notify(txState, '✍️ Signature submitted', 'success')
+			if (!txStateLive(txState)) return
+
+			// INSTANT update (FRONT-POSTSIGN1): the previous version did a ~5s txRead
+			// before re-rendering, so the modal lagged behind the toast. txSave already
+			// returns the full authoritative sig set ({pubKey,signature}) — fold it into
+			// txState.data and re-render with NO network call (accounts are already
+			// enriched from load). Polling/WS still reconcile afterwards.
+			const sigs = saveResult?.result?.sigs
+			if (Array.isArray(sigs) && sigs.length) {
+				txState.data = { ...txState.data, sigs, _trigger: 'sign' }
+				try { renderSigningSection(txState, { data: txState.data, accounts: txState.accounts }) }
+				catch (e) { console.warn('instant post-sign render failed', e) }
+			} else {
+				// fallback: no sigs in the save response — re-read authoritatively.
+				try {
+					const fresh = await txRead({ network: txState.network, txid: txState.txid })
+					txState.data = { ...txState.data, ...fresh.data,
+						comboStatus: txState.data.comboStatus === 'SUCCESS' ? 'SUCCESS' : fresh.data.comboStatus,
+						_trigger: 'sign' }
+					await refreshSigningSection(txState, { data: txState.data, accounts: txState.accounts })
+				} catch (e) { console.warn('post-sign refresh failed', e) }
+			}
+		},
+		onAccount: (acct, accts) => {
+			if (accts) txState.connectedAccounts = accts   // full list on (dis)connect; undefined on a plain switch → keep set
+			updateNarrative(txState, acct)
+			markConnectedAccounts(txState.connectedAccounts || [])
+		},
 		onLock:    txState.onLock,
 		onUnlock:  txState.onUnlock
 	})
@@ -173,6 +271,13 @@ function injectMethodsCSS() {
 		.kpsign-panel{ max-width:min(900px,100%); margin:16px auto; }
 		.kpsign-tabs{ position:relative; display:flex; }
 		.kpsign-tabs::after{ content:''; position:absolute; left:0; right:0; bottom:0; height:1px; background:#eee; }
+		/* Status tab is now nerd/debug-only — per-account status lives on the cards. The
+		   pane is still built (render-by-id keeps working); it's just hidden in normal mode. */
+		body:not(.nerd) .kpsign-tab[data-method="status"]{ display:none; }
+		/* final tx (SUCCESS / expired / error): no action possible — hide the signing
+		   section in normal mode; keep it in nerd (wallets can still sign; possible future
+		   "sign to endorse after consensus" use case). */
+		body:not(.nerd) #txread-methods.tx-final{ display:none; }
 		.kpsign-tab{ all:revert; flex:1 1 0; cursor:pointer; border:none; background:transparent;
 			display:flex; align-items:center; justify-content:center; gap:8px;
 			padding:10px 8px; font:600 13px system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -185,10 +290,13 @@ function injectMethodsCSS() {
 		   all states, scoped under the panel id so we win on specificity. The OG
 		   page has no hover background, which is the look we want everywhere. */
 		#txread-methods .kpsign-tab,
-		#txread-methods .kpsign-tab:hover,
 		#txread-methods .kpsign-tab:focus,
 		#txread-methods .kpsign-tab:active,
 		#txread-methods .kpsign-tab.active{ background:transparent; box-shadow:none; }
+		/* WALLET-TABS1: hover gets a light-gray wash like the account-card header hover
+		   (.txcard-head.acct-hl) — the font-colour-only cue was too subtle. Scoped here
+		   so it also beats any host-page button hover background. */
+		#txread-methods .kpsign-tab:hover{ background:#e4e4e7; box-shadow:none; border-radius:6px 6px 0 0; }
 		.kpsign-tabicon{ width:16px; height:16px; object-fit:contain; flex:0 0 auto; }
 		.kpsign-underline{ position:absolute; bottom:0; left:0; height:2px; width:0;
 			background:#4aa3ff; transition:transform .25s ease, width .25s ease; }
@@ -282,7 +390,7 @@ function buildWhatsAppPane(network, txid, pch) {
 }
 
 function buildKsigPane(txState) {
-	const { network, txid, pch, readUrl } = txState
+	const { network, txid, pch, readUrl, saveUrl } = txState
 	const pane = document.createElement('div')
 	pane.appendChild(makeDesc(
 		`Sign offline on another device. Scan this QR with the KSIG app. ` +
@@ -303,6 +411,9 @@ function buildKsigPane(txState) {
 			txid,
 			pch,
 			readUrl,   // absolute endpoint matters off-origin (Katomia) — see comment above
+			saveUrl,   // SIGN-KSIG-SAVEURL1: same reason — the scan-back POST must hit the
+			           // host's kpool txSave endpoint, NOT the page-relative default (which
+			           // is the Katomia game HTML page → the sig silently vanished).
 			onSigned: () => notify(txState, '✍️ Signature submitted', 'success')
 		})
 	}
@@ -328,7 +439,7 @@ function buildStatusPane(txState) {
 	inner.id = 'txread-status'
 	inner.className = 'txread-status tx-loading'
 
-	inner.appendChild(txState.view.statusBlock.el)
+	// statusBlock now lives in the header (normal-visible) — see buildTxReadColumns.
 	inner.appendChild(txState.view.readinessEl)
 	inner.appendChild(txState.view.precheckEl)
 
@@ -344,18 +455,89 @@ function buildStatusPane(txState) {
 	return pane
 }
 
+// Nerd-view toggle (TX-CARDS3). Mirrors katomia's nerd flag (localStorage
+// katomia.nerd.v1 + body.nerd) so it stays in sync with the profile panel toggle.
+// nerd ON → line-item table; OFF → cards. Flipping re-renders the transfer block
+// (+ narrative) from cached data — no refetch.
+function setNerd(on) {
+	try { localStorage.setItem('katomia.nerd.v1', on ? '1' : '0') } catch {}
+	document.body.classList.toggle('nerd', on)
+	const profileToggle = document.getElementById('katomia-nerd-toggle')
+	if (profileToggle) profileToggle.checked = on
+
+	// Status tab is nerd-only; if we just left nerd mode while it was the active tab, fall
+	// back to the default method so a hidden tab can't leave an orphaned active pane.
+	if (!on && _activeTxState?.selectSignMethod) {
+		const active = _activeTxState.container.querySelector('.kpsign-tab.active')
+		if (active?.dataset.method === 'status') _activeTxState.selectSignMethod('walletconnect')
+	}
+}
+
+// Nerd-only "open in new tab" affordance (MODAL-URL1 item 3): opens the same tx in
+// the standalone /future signing page, so the modal can be viewed outside katomia.
+// Gated to nerd mode via .kpm-open-tab (see modal.js CSS: shown only when body.nerd).
+function buildOpenInNewTab(txState) {
+	const a = document.createElement('a')
+	a.className = 'kpm-open-tab'
+	a.title = 'Open this signing view in a new tab (standalone)'
+	a.target = '_blank'
+	a.rel = 'noopener'
+	const pchPart = (txState.pch && txState.pch !== 'no_pch') ? '&pch=' + encodeURIComponent(txState.pch) : ''
+	a.href = '/future/?network=' + encodeURIComponent(txState.network) + '&txid=' + encodeURIComponent(txState.txid) + pchPart
+	a.textContent = '↗'
+	return a
+}
+
+function buildNerdToggle(txState) {
+	const label = document.createElement('label')
+	label.className = 'txread-nerd-toggle'
+	label.title = 'Nerd view — show the line-item table instead of the account cards (dev)'
+	const cb = document.createElement('input')
+	cb.type = 'checkbox'
+	cb.checked = resolveTxView() === 'table'
+	cb.onchange = () => { setNerd(cb.checked); rerenderTransferView(txState) }
+	const txt = document.createElement('span')
+	txt.textContent = '🤓'
+	label.append(cb, txt)
+	return label
+}
+
+// Swap just the transfer block (cards ↔ table) in place from cached flow/transfers,
+// then re-apply the narrative for the new mode. No network.
+function rerenderTransferView(txState) {
+	const root = txState.view?.el
+	if (!root) return
+	const old = root.querySelector('.txread-intent-xfers')
+	if (!old) return
+	const fresh = buildTransferViews({ network: txState.network, flow: txState.flow, transfers: txState.transfers })
+	fresh.classList.add('txread-intent-xfers')
+	old.replaceWith(fresh)
+	updateNarrative(txState, txState.viewerAccount)
+
+	// The fresh cards render blank of signing/balance state — re-apply it from cached data
+	// so toggling nerd↔normal fully repaints (previously this needed a page refresh). No
+	// network: renderSigningSection recomputes from txState.data + txState.accounts.
+	if (txState.accounts && txState.data) renderSigningSection(txState, { data: txState.data, accounts: txState.accounts })
+	markConnectedAccounts(txState.connectedAccounts || [])   // fresh cards lose the (u) marker — re-apply
+}
+
 // Experimental "You send / You receive" narrative, derived from the connected
 // wallet account and the transfer line items. Hidden when no account is known.
 function updateNarrative(txState, account) {
+	txState.viewerAccount = account   // remembered so a view re-render can re-apply it
 	const box = txState.container.querySelector('#txread-narrative')
 	if (!box) return
 
+	// The You-send/receive narrative only complements the nerd/table view. In cards
+	// (normal) mode it's redundant — the account card already shows send (left/rose) vs
+	// receive (right/green) — so we hide it there.
 	const items = txState.transfers?.lineItems || []
-	if (!account || !items.length) { box.hidden = true; box.innerHTML = ''; box.removeAttribute('data-acct'); return }
+	if (resolveTxView() !== 'table' || !account || !items.length) { box.hidden = true; box.innerHTML = ''; box.removeAttribute('data-acct'); return }
 
 	const fmt = li => {
 		const meta = li.assetMeta || {}
-		const sym = meta.symbol || meta.name || meta.raw || ''
+		// same short-label rule as the cards/table (fixes long HEDERA:// symbols here too)
+		const sym = (meta.raw === 'tinybar') ? 'HBAR' : pickAssetLabel(meta)
 		const amt = Math.abs(Number(li.amountFormatted ?? li.amount))
 		return `${amt} ${sym}`.trim()
 	}
@@ -391,15 +573,36 @@ function buildSigningPanel(txState) {
 	const panes = document.createElement('div')
 	panes.className = 'kpsign-panes'
 
+	// WALLET-TABS1: which signing methods are offered. Hard-coded to all three for now,
+	// but the app is heading for a functionality prune (fewer, better-supported signing
+	// paths) — this list is the seam where that pruning will land, whether or not it ends
+	// up being the mechanism. Until then, a ?signtabs= URL param on the host page filters
+	// the set at runtime (e.g. ?signtabs=walletconnect or ?signtabs=whatsapp,offline) so
+	// the pruned UI can be previewed without a code change. Unknown/empty selections fall
+	// back to the full set; the Status tab is nerd plumbing, not a signing method, and is
+	// never pruned.
+	const ENABLED_SIGN_METHODS = ['walletconnect', 'whatsapp', 'ksig']
+	const TAB_ALIASES = { offline: 'ksig', wallet: 'walletconnect', wc: 'walletconnect' }
+	const requested = (new URLSearchParams(location.search).get('signtabs') || '')
+		.split(',').map(s => s.trim().toLowerCase()).map(s => TAB_ALIASES[s] || s).filter(Boolean)
+	const enabledTabs = requested.some(id => ENABLED_SIGN_METHODS.includes(id))
+		? ENABLED_SIGN_METHODS.filter(id => requested.includes(id))
+		: ENABLED_SIGN_METHODS
+
 	// Status is first and shown by default; the rest are signing actions.
 	const METHODS = [
 		{ id: 'status',        label: 'Status',          svg:  INFO_SVG,                            build: () => buildStatusPane(txState) },
 		{ id: 'walletconnect', label: 'WalletConnect',   icon: 'WalletConnect-Logo.png',           build: () => buildWcPane(txState) },
 		{ id: 'whatsapp',      label: 'WhatsApp',        icon: 'WhatsApp.svg.png',                 build: () => buildWhatsAppPane(network, txid, pch) },
 		{ id: 'ksig',          label: 'Offline',         icon: 'kpay_logo_square_transparent.png', build: () => buildKsigPane(txState) }
-	]
+	].filter(m => m.id === 'status' || enabledTabs.includes(m.id))
 
-	const DEFAULT = 'status'
+	// Status tab is nerd-only now; in normal mode default to the first ENABLED signing
+	// method so a hidden Status pane is never the active one. (Toggling nerd later just
+	// reveals the tab.)
+	const DEFAULT = document.body.classList.contains('nerd')
+		? 'status'
+		: (METHODS.find(m => m.id !== 'status')?.id || 'status')
 	const paneEls = {}
 
 	METHODS.forEach(m => {
@@ -559,10 +762,23 @@ function createKsigIframe(network, txid) {
 
 async function renderTxView(txState) {
 	const { network, txid, container } = txState
+
+	// phase timing — splits backend txRead from the frontend mirror-node enrich so
+	// the load latency can be attributed (emitted as tx:load-timing in loadSigningState).
+	const _t0 = performance.now()
 	const { url, rawTx, data, transfers, accounts } = await txRead({ network, txid })
+	const _t1 = performance.now()
 
 	await enrichTransfersInfo({ network, transfers })
+	const _t2 = performance.now()
+	txState._timing = { txRead: Math.round(_t1 - _t0), enrichTransfers: Math.round(_t2 - _t1) }
 	txState.transfers = transfers
+
+	// normalized, view-agnostic flow model (TX-CARDS1) — built once from the enriched
+	// transfers + accounts. The table reads flow.lineItems (identical to transfers.lineItems);
+	// later card/flow/ring views consume flow.accounts/pools/edges.
+	const flow = buildFlowModel(transfers, accounts)
+	txState.flow = flow
 
 	injectTxReadCSS()
 
@@ -572,6 +788,7 @@ async function renderTxView(txState) {
 		rawTx,
 		data,
 		transfers,
+		flow,
 		network,
 		txid,
 		pch: txState.pch
@@ -583,6 +800,17 @@ async function renderTxView(txState) {
 
   container.textContent = ''
   container.appendChild(txState.view.el)
+
+  // nerd-view toggle — prefer the modal header (left of the close ✕) when mounted
+  // in the signing modal; fall back to the widget's own top-right corner when the
+  // widget is embedded inline (no .kpm-card ancestor). (ORDERS-UI1)
+  const nerdToggle = buildNerdToggle(txState)
+  const headActions = container.closest?.('.kpm-card')?.querySelector('.kpm-head-actions')
+  if(headActions){
+    // header order (left→right): nerd toggle · open-in-new-tab (nerd) · close ✕
+    headActions.insertBefore(buildOpenInNewTab(txState), headActions.firstChild)
+    headActions.insertBefore(nerdToggle, headActions.firstChild)
+  } else txState.view.el.appendChild(nerdToggle)
 
   // signing panel: a clean method picker (WhatsApp · Wallet · KSIG). Choosing a
   // method reveals its short description + controls/QR/iframe in the pane below.
@@ -603,10 +831,31 @@ async function renderTxView(txState) {
 async function loadSigningState(txState, tx) {
 	const { network } = txState
 
-	await enrichAccountsInfo({ network, accounts: tx.accounts })
-	await enrichAccountsKeyInfo({ network, accounts: tx.accounts })
+	// Run the two enriches CONCURRENTLY. They're independent (acc.info via the Hedera
+	// mirror vs acc.keyInfo via the slow kpos getAccountInfo.php — 5-7.5s/account on
+	// testnet) but were awaited in series, blocking render for the SUM. Now the render
+	// waits for the slower of the two, not both. (WC-SLOW1 / FRONT-ENRICH1)
+	const _t0 = performance.now()
+	let _t1 = _t0, _t2 = _t0
+	await Promise.all([
+		enrichAccountsInfo({ network, accounts: tx.accounts }).then(() => { _t1 = performance.now() }),
+		enrichAccountsKeyInfo({ network, accounts: tx.accounts }).then(() => { _t2 = performance.now() }),
+	])
+
+	// one structured timing line per load so the slow tx-detail load is attributable:
+	// txRead (backend) vs the mirror-node enrich phases (frontend, now concurrent).
+	try {
+		const tm = txState._timing || {}
+		tm.enrichAccountsInfo = Math.round(_t1 - _t0)
+		tm.enrichAccountsKeyInfo = Math.round(_t2 - _t0)
+		tm.enrichWall = Math.round(performance.now() - _t0)   // wall time (max of the two)
+		tm.total = (tm.txRead || 0) + (tm.enrichTransfers || 0) + tm.enrichWall
+		globalThis.kdiag?.('tx:load-timing', { txid: txState.txid, accounts: Object.keys(tx.accounts || {}).length, ...tm })
+	} catch {}
 
 	calcAccountsThatSign(tx.accounts)
+
+	tx.data.sigs = reconcileSigs(txState, tx.data.sigs)   // seed the monotonic set (SIGN-OSCILLATE1)
 
 	tx.readiness = evaluateTxReadiness({ accounts: tx.accounts, data: tx.data })
 	renderReadinessInfo({ readiness: tx.readiness })
@@ -626,11 +875,12 @@ async function loadSigningState(txState, tx) {
 	txState.container.querySelector('#txread-status')?.classList.remove('tx-loading')
 
 	pushStatus(txState)
+	markSettledIfSuccess(tx.data)   // already-succeeded tx opens in the settled 'after' state
 }
 
 
 function startTxSocket(txState) {
-	createTxSocket({
+	txState.socket = createTxSocket({
 		baseUrl: CONFIG.HAPI_BASE || 'hapi2.hbar.live/live',
 		txid: txState.txid,
 		onTxUpdate: async function onTxUpdate(update) {
@@ -643,13 +893,18 @@ function startTxSocket(txState) {
 async function handleTxUpdate(txState, update) {
 	const { network, txid, pch, view } = txState
 
+	// ignore (and tear down) updates for a tx whose modal has closed — otherwise it
+	// writes into the shared by-id DOM now owned by a different tx (status flapping).
+	if (!txStateLive(txState)) { teardownTxState(txState); return }
+
 	console.log('[WS] update received', update)
 
 	const prevStatus = localStorage.getItem(`tx_status:${network};${txid};${pch}`)
 
 	txState.data = {
 		...txState.data,
-		...update
+		...update,
+		_trigger: update.sigs ? 'ws-sig' : 'ws'   // diagnostic: what drove this eval
 	}
 
 	if (update.type === 'tx_receipt' && update.receipt) {
@@ -660,16 +915,19 @@ async function handleTxUpdate(txState, update) {
 
 	const currentStatus = txState.data.comboStatus
 
-	if (!txState.successAnimationFired && currentStatus === 'SUCCESS' && prevStatus !== 'SUCCESS') {
-		triggerSuccessAnimation()
-		txState.successAnimationFired = true
-	}
-
 	view.statusBlock.update(txState.data)
 	pushStatus(txState)
 
 	if (update.precheck || update.type === 'tx_precheck')
 		renderPrecheckInfo({ precheck: txState.data.precheck })
+
+	// fire success only AFTER the status write + hidden signing section have repainted (above) —
+	// they shift the modal up, and the flow animation must measure chip positions in their final
+	// place. triggerSuccessAnimation defers the flow a couple of frames; confetti runs freely.
+	if (!txState.successAnimationFired && currentStatus === 'SUCCESS' && prevStatus !== 'SUCCESS') {
+		txState.successAnimationFired = true
+		triggerSuccessAnimation()
+	}
 
 	if (update.sigs) await handleSignatureUpdate(txState, update)
 }
@@ -685,7 +943,8 @@ async function handleSignatureUpdate(txState, update) {
 
 	txState.data = {
 		...txState.data,
-		...fresh.data
+		...fresh.data,
+		_trigger: 'ws-sig'
 	}
 
 	await refreshSigningSection(txState, {
@@ -705,10 +964,15 @@ function startTxPolling(txState, tx) {
 	const pollTimer = setInterval(async function pollTimerTick() {
 		await pollTxStatus(txState, pollTimer, scheduledSec, stopPollingAfterSec)
 	}, 5000)
+	txState.pollTimer = pollTimer
 }
 
 
 async function pollTxStatus(txState, pollTimer, scheduledSec, stopPollingAfterSec) {
+	// stop polling once the modal is gone (or this tx was superseded) — leaving it
+	// running writes into a different tx's DOM and looks like status flapping.
+	if (!txStateLive(txState)) { teardownTxState(txState); clearInterval(pollTimer); return }
+
 	const nowSec = Math.floor(Date.now() / 1000)
 
 	if (nowSec < scheduledSec) return
@@ -732,7 +996,8 @@ async function refreshPolledTx(txState, pollTimer) {
 
 	txState.data = {
 		...fresh.data,
-		comboStatus: txState.data.comboStatus === 'SUCCESS' ? 'SUCCESS' : fresh.data.comboStatus
+		comboStatus: txState.data.comboStatus === 'SUCCESS' ? 'SUCCESS' : fresh.data.comboStatus,
+		_trigger: 'poll'
 	}
 
 	const successKey = `tx_status:${network};${txid};no_pch`
@@ -740,9 +1005,20 @@ async function refreshPolledTx(txState, pollTimer) {
 
 	view.statusBlock.update(txState.data)
 
+	// Reuse the already-enriched accounts (keeps keyInfo) instead of fresh.accounts,
+	// whose keyInfo would be re-fetched from scratch each tick — a transient miss
+	// dropped a required signer and flapped it to "witness". Merge in any genuinely
+	// new account from the fresh read without clobbering existing enrichment.
+	if (txState.accounts) {
+		for (const [id, acc] of Object.entries(fresh.accounts || {}))
+			if (!txState.accounts[id]) txState.accounts[id] = acc
+	} else {
+		txState.accounts = fresh.accounts
+	}
+
 	await refreshSigningSection(txState, {
-		data: fresh.data,
-		accounts: fresh.accounts
+		data: txState.data,   // use merged data so precheck/sigs match what pushStatus sees
+		accounts: txState.accounts
 	})
 
 	if (fresh.data?.mirrorStatus) clearInterval(pollTimer)
@@ -752,6 +1028,13 @@ async function refreshPolledTx(txState, pollTimer) {
 const CONFETTI_CDN = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js'
 
 async function triggerSuccessAnimation() {
+	// Defer the movement animation two frames so the SUCCESS status + hidden signing section have
+	// laid out (they move the cards up) before we measure chip positions — otherwise the
+	// trajectories land in the wrong place. It sticks at the settled state (sources ghosted).
+	// Confetti runs independently and doesn't wait on it. (TX-CARDS5)
+	requestAnimationFrame(() => requestAnimationFrame(() => {
+		playSuccessFlow().catch(e => console.warn('success flow failed', e))
+	}))
 	const confetti = await loadScript(CONFETTI_CDN, 'confetti')
 	if (!confetti?.create) return
 
@@ -769,8 +1052,34 @@ async function triggerSuccessAnimation() {
 async function refreshSigningSection(txState, { data, accounts }) {
 	const { network } = txState
 
-	await enrichAccountsInfo({ network, accounts })
-	await enrichAccountsKeyInfo({ network, accounts })
+	// concurrent — independent calls, the slow one (kpos keyInfo) no longer stacks
+	// on top of the mirror call before render (WC-SLOW1 / FRONT-ENRICH1)
+	await Promise.all([
+		enrichAccountsInfo({ network, accounts }),
+		enrichAccountsKeyInfo({ network, accounts }),
+	])
+
+	renderSigningSection(txState, { data, accounts })
+}
+
+// Monotonic per-session signature set (SIGN-OSCILLATE1): once a signature is seen
+// (keyed by normalized pubkey) it is never dropped, so a transient txRead that returns
+// a smaller set can't shrink signedPubkeys and flap the threshold/pie between the poll /
+// ws-sig / optimistic-sign paths. Last-wins on the object (freshest), monotonic on keys
+// (dedupes multiple signs). Lives on txState so it resets naturally per tx session.
+function reconcileSigs(txState, sigs) {
+	const seen = txState.seenSigs || (txState.seenSigs = new Map())
+	for (const s of sigs || []) { const k = normalizePublicKey(s?.pubKey); if (k) seen.set(k, s) }
+	return [...seen.values()]
+}
+
+// The render half of refreshSigningSection — recomputes readiness and repaints
+// from data already in hand, NO network (no enrich, no txRead). Used for the
+// instant post-sign update (accounts are already enriched from load).
+function renderSigningSection(txState, { data, accounts }) {
+	const { network } = txState
+
+	data.sigs = reconcileSigs(txState, data.sigs)   // never let a transient read shrink the set (SIGN-OSCILLATE1)
 
 	calcAccountsThatSign(accounts)
 

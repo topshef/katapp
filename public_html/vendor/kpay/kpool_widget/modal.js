@@ -62,7 +62,10 @@ function injectModalCSS() {
 			100% { transform: translate(-50%, -50%) translateY(0); }
 		}
 		@media (max-width: 480px) { .kpm-flash { display: none; } }
-		.kpm-status { display: flex; align-items: center; gap: 8px; min-width: 0; }
+		.kpm-status { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
+		/* countdown beside the label; min-width reserves its space so it never jolts the modal
+		   when it clears on final status. Wraps below the label on narrow screens. */
+		.kpm-countdown { display: inline-flex; align-items: center; line-height: 1; position: relative; top: 1.5px; font-size: 12px; opacity: .8; white-space: nowrap; font-variant-numeric: tabular-nums; min-width: 5.5em; }
 		.kpm-dot { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; background: #9aa0a6; }
 		.kpm-dot.square { border-radius: 2px; }
 		.kpm-status-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -75,6 +78,22 @@ function injectModalCSS() {
 		.kpm-diag { font-size: 12px; opacity: .75; }
 		.kpm-diag:hover, .kpm-close:hover { background: rgba(0,0,0,.08); opacity: 1; }
 		.kpm-close { font-size: 22px; }
+
+		/* Nerd toggle relocated into the header (ORDERS-UI1) — the widget styles it
+		   position:absolute for its inline top-right corner; neutralise that here so
+		   it flows in the header action row, sitting just left of the close ✕. */
+		.kpm-head-actions .txread-nerd-toggle {
+			position: static; background: transparent; padding: 4px 6px; color: inherit;
+		}
+
+		/* Open-in-new-tab (MODAL-URL1) — nerd mode only. Matches the close button's
+		   ghost-icon treatment; hidden unless the host page is in nerd mode. */
+		.kpm-open-tab {
+			display: none; text-decoration: none; color: inherit; font: inherit;
+			line-height: 1; padding: 4px 6px; border-radius: 6px; opacity: .75; font-size: 16px;
+		}
+		.kpm-open-tab:hover { background: rgba(0,0,0,.08); opacity: 1; }
+		body.nerd .kpm-open-tab { display: inline-flex; align-items: center; }
 
 		.kpm-tone-info    { background: #f3f4f6; color: #374151; }
 		.kpm-tone-info    .kpm-dot { background: #9aa0a6; }
@@ -131,28 +150,17 @@ export function buildModal({ onClose } = {}) {
 	const statusLabel = document.createElement('span')
 	statusLabel.className = 'kpm-status-label'
 	statusLabel.textContent = 'Loading…'
-	status.append(dot, statusLabel)
+	const countdown = document.createElement('span')
+	countdown.className = 'kpm-countdown'
+	status.append(dot, statusLabel, countdown)
 
 	const actions = document.createElement('div')
 	actions.className = 'kpm-head-actions'
 
-	const diagBtn = document.createElement('button')
-	diagBtn.className = 'kpm-diag'
-	diagBtn.type = 'button'
-	diagBtn.title = 'Copy diagnostics to clipboard'
-	diagBtn.textContent = '⧉ diagnostics'
-	diagBtn.addEventListener('click', async () => {
-		const original = diagBtn.textContent
-		try {
-			// include a DOM snapshot of the modal so UI issues can be debugged from the copy
-			window.kdiag?.dom?.(card, 'modal')
-			await (window.kdiag?.copy?.() ?? Promise.resolve())
-			diagBtn.textContent = '✓ copied'
-		} catch {
-			diagBtn.textContent = 'see console'
-		}
-		setTimeout(() => { diagBtn.textContent = original }, 1500)
-	})
+	// Diagnostics-copy button removed from the widget (DIAG-MOVE1) — the host app's
+	// profile modal now owns "Copy local diagnostics" (katomia-profile.js), keeping all
+	// diagnostics controls in one place. window.kdiag itself is unchanged and still
+	// installed by diag.js; only this in-widget button is gone.
 
 	const closeBtn = document.createElement('button')
 	closeBtn.className = 'kpm-close'
@@ -164,7 +172,7 @@ export function buildModal({ onClose } = {}) {
 	const flashEl = document.createElement('div')
 	flashEl.className = 'kpm-flash'
 
-	actions.append(diagBtn, closeBtn)
+	actions.append(closeBtn)
 	head.append(status, flashEl, actions)
 	card.appendChild(head)
 
@@ -203,6 +211,10 @@ export function buildModal({ onClose } = {}) {
 		dot.classList.toggle('square', shape === 'square')
 	}
 
+	// Countdown sits beside the status label (desktop) / wraps below it (mobile). Its space is
+	// reserved in CSS (min-width) so clearing it on final status doesn't jolt the modal.
+	function setCountdown(text) { countdown.textContent = text ?? '' }
+
 	// Transient cue in the centre of the header (e.g. "✍️ Signature received").
 	// Does NOT touch the persistent status on the left — it just fades in over
 	// the top for ~2.5s. Replaces the old bottom banner inside the modal.
@@ -220,5 +232,5 @@ export function buildModal({ onClose } = {}) {
 	document.body.appendChild(overlay)
 	document.body.style.overflow = 'hidden'
 
-	return { overlay, card, body, head, close, setStatus, flash, lock, unlock }
+	return { overlay, card, body, head, close, setStatus, setCountdown, flash, lock, unlock }
 }

@@ -2,11 +2,14 @@
 
 	import {
 		parseTxId,
+		isHederaSystemAccount,
 	} from './utils.js'
 
 import { getAccountInfo, getKeyInfo, getTokenInfo} from './hedera-mirror.js'
+import { decodeTransaction } from './protobuf.js'
 
 import { getThresholdSummary } from './threshold.js'
+import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 import { getAccountLabel } from './xproof.js'
 
 const glog = globalThis.glog ?? (() => {})
@@ -48,7 +51,16 @@ export async function txRead({ network, txid, pch = 'no_pch' }) { //todo pch
 
 	const transfers = getAllTransfers(data)
 	const accounts = getAccountsWithRoles({ transfers, txid })
-			
+
+	// PROTO1/SECURITY: verify the DISPLAYED transfers against the ACTUAL bytes the
+	// user will sign (data.hex2). The backend's pre-decoded lists are convenience
+	// copies — the bytes are the truth. Result rides on transfers.bytesVerify and is
+	// surfaced by the view (fail-loud on mismatch). Also lifts the real
+	// validDurationSeconds out of the bytes onto data (VALIDD1) for status/countdown.
+	transfers.bytesVerify = verifyTransfersAgainstBytes(data, transfers)
+	if (transfers.bytesVerify.validDurationSeconds != null)
+		data.validDurationSeconds = transfers.bytesVerify.validDurationSeconds
+
 	glog("txRead data=",data)
 	glog("txRead other=",{transfers, accounts, rawTx, url})
 	return {
@@ -62,17 +74,54 @@ export async function txRead({ network, txid, pch = 'no_pch' }) { //todo pch
 
 // function getTxStatus.. nah put it in hapi upstream
 
-function skipCouncilAccount(ac) {
+// Fee-noise suppression, intent-aware (per user 2026-07-03). Low-numbered accounts
+// (<98: node accounts etc.) show up in SETTLED mirror transfers because Hedera pays
+// them fees on every tx — pure clutter, so they're suppressed BY DEFAULT. But if the
+// INTENT (the deal / PCH-basis transfer lists, which never contain fee entries — fees
+// only materialise at execution) explicitly moves value in or out of such an account,
+// that's a real transfer the user asked for → show it. Pre-consensus sources are
+// intent by definition, so nothing is ever suppressed there. Known blind spot: a
+// settled tx viewed WITHOUT its basis/deal in the payload can't tell an intended
+// low-account transfer from fee noise and falls back to suppressing — fine for now.
+function skipFeeNoiseAccount(ac, intentAccounts) {
   if (!ac) return true
-  const num = Number(ac.split('.').pop())
-  return num < 98
+  const num = Number(String(ac).split('.').pop())
+  return num < 98 && !intentAccounts.has(String(ac))
+}
+
+// every account named by the intent's own transfer lists (hbar/token/nft, deal + basis
+// shapes), so skipFeeNoiseAccount can whitelist them
+function getIntentAccounts(basis, deal) {
+  const set = new Set()
+  const lists = [
+    basis.hbarTransfers, deal.addHbarTransfer,
+    basis.tokenTransfers, deal.addTokenTransfer,
+    basis.nftTransfers, deal.addNftTransfer
+  ]
+  for (const list of lists) (list || []).forEach(x => {
+    for (const a of [
+      x.accountId ?? x.account,
+      x.sender ?? x.senderAccountId ?? x.sender_account_id,
+      x.receiver ?? x.receiverAccountId ?? x.receiver_account_id
+    ]) if (a != null) set.add(String(a))
+  })
+  return set
 }
 
 
 // ┌─┐┌─┐┌┬┐  ╔═╗┬  ┬    ╔╦╗┬─┐┌─┐┌┐┌┌─┐┌─┐┌─┐┬─┐┌─┐
 // │ ┬├┤  │   ╠═╣│  │     ║ ├┬┘├─┤│││└─┐├┤ ├┤ ├┬┘└─┐
 // └─┘└─┘ ┴   ╩ ╩┴─┘┴─┘   ╩ ┴└─┴ ┴┘└┘└─┘└  └─┘┴└─└─┘
-// get All Transfers	
+// get All Transfers
+//
+// ⚠️ DEPRECATED AS A DISPLAY SOURCE (2026-07-06, PROTO1 security decision): the
+// basis/deal/mirror lists consumed here are pre-decoded convenience copies from the
+// backend. The signable truth is data.hex2 — decodeTransaction() reads it and
+// verifyTransfersAgainstBytes() now cross-checks every render (fail-loud). NEXT
+// STEP: flip display to build lineItems FROM the decoded bytes and demote these
+// lists to the cross-check side. They must stay in the payload for backward compat
+// (other consumers) and for intent/source verification (order signatures verify
+// against the basis, which is a different act from rendering the tx).
 function getAllTransfers(data) {
 	const mirrorTx = data.mirror?.transactions?.[0] || {}
 	const deal     = data.deal || {}
@@ -110,11 +159,12 @@ function getAllTransfers(data) {
 
 	// glog({raw})
 	const lineItems = []
+	const intentAccounts = getIntentAccounts(basis, deal)
 
 	// HBAR
 	raw.hbar.forEach(x => {
 		const ac = x.accountId ?? x.account
-		if (skipCouncilAccount(ac)) return
+		if (skipFeeNoiseAccount(ac, intentAccounts)) return
 
     lineItems.push({
       type:'HBAR',
@@ -139,10 +189,10 @@ function getAllTransfers(data) {
 	
 	// NFTs (explicit debit/credit)
 	raw.nft.forEach(x => {
-		const tokenId = x.tokenId ?? x.token_id
-		const serial  = x.serial ?? x.serial_number
-		const sender  = x.sender ?? x.sender_account_id
-		const receiver = x.receiver ?? x.receiver_account_id
+		const tokenId  = x.tokenId  ?? x.token_id
+		const serial   = x.serial   ?? x.serialNumber   ?? x.serial_number
+		const sender   = x.sender   ?? x.senderAccountId   ?? x.sender_account_id
+		const receiver = x.receiver ?? x.receiverAccountId ?? x.receiver_account_id
 
 		const asset = `${tokenId} #${serial}`
 
@@ -169,8 +219,113 @@ function getAllTransfers(data) {
 	
 	return {
 		raw,        // original shapes, grouped
-		lineItems  // accounting-friendly flat list
+		lineItems,  // accounting-friendly flat list
+		// Where the displayed lists came from: 'mirror' (settled truth) | 'basis'/'deal'
+		// (pre-consensus intent — i.e. the SIGNING moment) | 'none'. bytesVerify keys
+		// its comparison mode off this.
+		source: [...uniqueSources][0] || 'none'
 	}
+}
+
+// ┌┐ ┬ ┬┌┬┐┌─┐┌─┐  ┬  ┬┌─┐┬─┐┬┌─┐┬ ┬
+// ├┴┐└┬┘ │ ├┤ └─┐  └┐┌┘├┤ ├┬┘│├┤ └┬┘
+// └─┘ ┴  ┴ └─┘└─┘   └┘ └─┘┴└─┴└   ┴
+// verifyTransfersAgainstBytes (PROTO1 → security hardening, 2026-07-06).
+//
+// The signing modal must present WHAT THE USER IS ACTUALLY SIGNING. Today the
+// displayed lineItems are built from backend-provided pre-decoded lists
+// (basis/deal/mirror). This function decodes data.hex2 — the literal envelope the
+// signer signs — and checks the two agree, so a compromised/buggy backend copy
+// can't show one thing while the bytes say another.
+//
+// DEPRECATION PATH (user decision 2026-07-06): the pre-decoded transfer lists in
+// the txRead payload are DEPRECATED as a display source. They stay for backward
+// compatibility (other consumers) and for intent/source checks (order signatures
+// verify against the basis, not the bytes), but display should move to the decoded
+// bytes as the single source, with this verification inverted (bytes render;
+// backend copy cross-checked). This first step keeps the display unchanged and
+// adds the fail-loud comparison.
+//
+// Comparison modes by display source:
+//   basis/deal (pre-consensus, the signing decision) → STRICT multiset equality.
+//     The backend builds the tx from these same lists, so any drift is a red flag.
+//   mirror (settled) → SUBSET: every transfer in the signed bytes must appear in
+//     the mirror record (mirror adds node/fee rows the body never contains).
+//   no hex2 / decode error → 'unavailable' / 'error' (reported, never blocks render).
+function verifyTransfersAgainstBytes(data, transfers) {
+	const kdiag = (ev, d) => { try { globalThis.kdiag?.(ev, d) } catch {} }
+
+	const hex2 = data?.hex2
+	if (!hex2) {
+		kdiag('tx:bytes-verify', { status: 'unavailable', reason: 'no hex2 in txRead payload', txid: data?.txid })
+		return { status: 'unavailable', reason: 'no hex2 in txRead payload' }
+	}
+
+	let decoded
+	try { decoded = decodeTransaction(hex2) }
+	catch (e) {
+		console.error('BV10001 tx bytes decode failed', e)
+		kdiag('tx:bytes-verify', { status: 'error', error: String(e), txid: data?.txid })
+		return { status: 'error', reason: 'decode failed: ' + String(e) }
+	}
+
+	// Canonical row: one string per transfer leg, same shape from either side.
+	const canon = []
+	decoded.transfers.hbar.forEach(x => canon.push(`HBAR|${x.account}|tinybar|${x.amount}`))
+	decoded.transfers.tokens.forEach(x => canon.push(`FT|${x.account}|${x.token}|${x.amount}`))
+	decoded.transfers.nfts.forEach(x => {
+		canon.push(`NFT|${x.sender}|${x.token}#${x.serial}|-1`)
+		canon.push(`NFT|${x.receiver}|${x.token}#${x.serial}|1`)
+	})
+
+	// Same canonicalisation from the backend lists — via the UNFILTERED raw shapes,
+	// not lineItems (fee-noise suppression must not hide a mismatch).
+	const shown = []
+	;(transfers.raw.hbar || []).forEach(x => {
+		const ac = x.accountId ?? x.account
+		shown.push(`HBAR|${ac}|tinybar|${Number(x.value ?? x.amount)}`)
+	})
+	;(transfers.raw.token || []).forEach(x => {
+		shown.push(`FT|${x.accountId ?? x.account}|${x.tokenId ?? x.token_id}|${Number(x.value ?? x.amount)}`)
+	})
+	;(transfers.raw.nft || []).forEach(x => {
+		const token = x.tokenId ?? x.token_id
+		const serial = x.serial ?? x.serialNumber ?? x.serial_number
+		shown.push(`NFT|${x.sender ?? x.senderAccountId ?? x.sender_account_id}|${token}#${serial}|-1`)
+		shown.push(`NFT|${x.receiver ?? x.receiverAccountId ?? x.receiver_account_id}|${token}#${serial}|1`)
+	})
+
+	// multiset difference: every element of a not matched 1:1 in b
+	const count = list => list.reduce((m, k) => (m[k] = (m[k] || 0) + 1, m), {})
+	const diff = (a, b) => {
+		const bc = count(b), out = []
+		for (const k of a) { if (bc[k] > 0) bc[k]-- ; else out.push(k) }
+		return out
+	}
+	const missingFromDisplay = diff(canon, shown)   // in the signed bytes, not shown
+	const extraInDisplay = diff(shown, canon)       // shown, but NOT in the signed bytes
+
+	const source = transfers.source
+	const settled = source === 'mirror'
+	// settled view: mirror legitimately adds fee/node rows → only bytes⊆mirror matters
+	const mismatch = settled ? missingFromDisplay.length > 0
+	                         : (missingFromDisplay.length > 0 || extraInDisplay.length > 0)
+
+	const result = {
+		status: mismatch ? 'mismatch' : 'match',
+		mode: settled ? 'subset (settled/mirror)' : 'strict (pre-consensus)',
+		source,
+		bytesTxId: decoded.transactionId,
+		validDurationSeconds: decoded.validDurationSeconds,
+		memo: decoded.memo,
+		counts: { bytes: canon.length, displayed: shown.length },
+		missingFromDisplay,
+		extraInDisplay
+	}
+
+	kdiag('tx:bytes-verify', { txid: data?.txid, ...result })
+	if (mismatch) console.error('BV10002 DISPLAYED TRANSFERS DO NOT MATCH SIGNED BYTES', result)
+	return result
 }
 
 
@@ -203,6 +358,72 @@ function getAccountsWithRoles({ transfers, txid }) {
 }
 
 
+// ┌┐ ┬ ┬┬┬  ┌┬┐  ╔═╗┬  ┌─┐┬ ┬  ╔╦╗┌─┐┌┬┐┌─┐┬
+// ├┴┐│ │││   ││  ╠╣ │  │ ││││  ║║║│ │ ││├┤ │
+// └─┘└─┘┴┴─┘─┴┘  ╚  ┴─┘└─┘└┴┘  ╩ ╩└─┘─┴┘└─┘┴─┘
+// buildFlowModel — normalized, view-agnostic shape derived from the (enriched)
+// transfer lineItems + accounts map. The ONE seam every tx view consumes: the
+// flat table today, cards/flow/rings later (TX-CARDS) — and the seam PROTO1
+// feeds once lineItems come from the decoded protobuf instead of the backend.
+//
+//   lineItems : passthrough — the SAME array/order the table renders from
+//   accounts  : [{ id, label, mustSign, roles, send:[item], receive:[item] }]
+//   pools     : [{ asset, assetMeta, senders:[id], receivers:[id] }]  fungible netting (HBAR/FT)
+//   edges     : [{ asset, assetMeta, tokenId, serial, from, to }]     NFT exact sender→receiver
+//
+// Fungible flow is NET per-account deltas — there are no real per-pair edges,
+// so it's modelled as a pool (all senders → pool → all receivers), never an
+// invented A→B pairing (per PROJECT_RULES: that would be debug-only). NFTs carry
+// explicit sender/receiver, so those become exact edges. (TX-CARDS1)
+export function buildFlowModel(transfers, accounts = {}) {
+	const lineItems = transfers?.lineItems || []
+
+	// per-account send/receive split by sign of amount
+	const byAccount = {}
+	const acct = id => (byAccount[id] ||= {
+		id,
+		label: accounts[id]?.label,
+		mustSign: accounts[id]?.mustSign,
+		roles: accounts[id]?.roles || [],
+		send: [], receive: []
+	})
+	lineItems.forEach(item => {
+		if (!item.account) return
+		const a = acct(item.account)
+		;(item.amount < 0 ? a.send : a.receive).push(item)
+	})
+
+	// fungible pools (HBAR + FT; LE is an FT subtype) — group by asset, dedupe accounts by side
+	const poolMap = {}
+	lineItems.filter(x => x.type === 'HBAR' || x.type === 'FT').forEach(item => {
+		const p = (poolMap[item.asset] ||= { asset: item.asset, assetMeta: item.assetMeta, senders: [], receivers: [] })
+		const side = item.amount < 0 ? p.senders : p.receivers
+		if (item.account && !side.includes(item.account)) side.push(item.account)
+	})
+
+	// NFT edges — pair the −1 (sender) and +1 (receiver) rows by tokenId+serial
+	const edgeMap = {}
+	lineItems.filter(x => x.type === 'NFT').forEach(item => {
+		const key = `${item.tokenId}#${item.serial}`
+		const e = (edgeMap[key] ||= { asset: item.asset, assetMeta: item.assetMeta, tokenId: item.tokenId, serial: item.serial, from: null, to: null })
+		if (item.amount < 0) e.from = item.account
+		else e.to = item.account
+	})
+
+	const result = { lineItems, accounts: Object.values(byAccount), pools: Object.values(poolMap), edges: Object.values(edgeMap) }
+
+	// fail-loud visibility: a tx with transfers that produced no accounts means the
+	// shape changed under us (e.g. post-PROTO1) — surface it rather than render blank.
+	// kdiag (not just glog) so the remote sink proves which build is actually running
+	// and that this seam executed at all (TX-CARDS1 version fingerprint).
+	const summary = { items: lineItems.length, accounts: result.accounts.length, pools: result.pools.length, edges: result.edges.length }
+	glog('buildFlowModel', summary)
+	try { globalThis.kdiag?.(result.accounts.length ? 'flowmodel:built' : 'flowmodel:empty', summary) } catch {}
+
+	return result
+}
+
+
 export async function enrichAccountsInfo({ network, accounts }) {
 	const entries = Object.entries(accounts)
 
@@ -222,6 +443,13 @@ export async function enrichAccountsKeyInfo({ network, accounts }) {
 	const entries = Object.entries(accounts)
 
 	await Promise.all(entries.map(async ([accountId, acc]) => {
+		// Hedera system accounts (e.g. 0.0.802 fee/reward collector) have no retrievable
+		// account key and never sign — skip enrichment so we don't fire a doomed mirror
+		// lookup or flag a false keyInfoError. The view skips their row too. (KEYINFO-LOCAL1)
+		if (isHederaSystemAccount(accountId)) {
+			acc.isSystemAccount = true
+			return
+		}
 		try {
 			const keyInfo = await getKeyInfo(network, accountId)
 			acc.keyInfo = keyInfo
@@ -246,9 +474,18 @@ export async function enrichAccountsKeyInfo({ network, accounts }) {
 			
 			
 		} catch (err) {
+			acc.keyInfo = null
+			// mirror reports NO key at all → genuinely keyless (system reward collectors
+			// etc.) — treat like the static KEYLESS_SYSTEM_ACCOUNTS skip, not an error.
+			// Data-driven twin of isHederaSystemAccount's small hardcoded set.
+			if (/no key field/.test(err.message || '')) {
+				acc.isSystemAccount = true
+				try { globalThis.kdiag?.('keyinfo:keyless', { accountId }) } catch {}
+				return
+			}
 			acc.keyInfoError = err.message || String(err)
-			// KEYINFO-LOCAL1: key structure now comes from the mirror node + local protobuf
-			// decode (no kpos). Surface the real reason in /diag.
+			// KEYINFO-LOCAL1: surface the REAL reason in /diag (no longer a kpos timeout —
+			// key structure now comes from the mirror node + local protobuf decode).
 			try { globalThis.kdiag?.('keyinfo:error', { accountId, error: acc.keyInfoError }) } catch {}
 		}
 	}))
@@ -365,37 +602,9 @@ function getAssetClass(token){
 
 export function evaluateTxReadiness({accounts,data}){
 
-  const KNOWN_PREFIXES = [
-      { prefix: '302a300506032b6570032100', label: 'ED25519 DER' },
-    ]
-
-	function normalizePublicKey(key) {
-		if (!key) return null
-		let k = key.toLowerCase()
-		for (const { prefix, label } of KNOWN_PREFIXES) {
-			if (k.startsWith(prefix)) {
-				const raw = k.slice(prefix.length)
-				console.debug('[readiness] stripped', label, 'prefix:', k.slice(0, 14), '→', raw.slice(0, 14))
-				k = raw
-				break
-			}
-		}
-		if (k.length !== 64) {
-			console.warn('[readiness] unexpected key length after normalisation:', k.length, 'key:', k.slice(0, 14))
-		}
-		return k
-	}
-
-	function normalizeKeyTree(node) {
-		if (typeof node === 'string') return normalizePublicKey(node)
-		if (!Array.isArray(node.keys)) {
-			// Leaf node without sub-keys — e.g. { _type: 'ED25519', key: '...' }
-			const raw = node.key ?? node.ed25519 ?? node.ECDSASecp256k1 ?? null
-			return raw != null ? normalizePublicKey(String(raw)) : null
-		}
-		return { ...node, keys: node.keys.map(normalizeKeyTree) }
-	}
-
+	// Key normalisation (prefix stripping + tree flattening) lives in keynorm.js —
+	// the ONE copy shared with view.js so readiness and the per-account pie can never
+	// diverge again (was WC-ECDSA1 pt2 / SIGN-NORM1).
 	const signedPubkeys = (data.sigs || [])
 		.map(x => x.pubKey)
 		.filter(Boolean)
@@ -403,6 +612,14 @@ export function evaluateTxReadiness({accounts,data}){
 		.filter(Boolean)
 
 	const summaries = []
+
+	// Is the required-key picture actually complete? Every account that must sign
+	// needs its keyInfo loaded; otherwise allRequiredKeys is partial and any signed
+	// key for a not-yet-loaded account looks like a "witness". keyInfo is fetched
+	// async and the poll path rebuilds accounts from scratch, so this flaps between
+	// refreshes — which is the "1 witness / threshold reached" toggling we saw.
+	const mustSignAccounts = Object.values(accounts).filter(a => a.mustSign)
+	const keyInfoComplete  = mustSignAccounts.length > 0 && mustSignAccounts.every(a => a.keyInfo)
 
 	Object.entries(accounts).forEach(([accountId, acc]) => {
 		if (!acc.mustSign) return
@@ -417,22 +634,71 @@ export function evaluateTxReadiness({accounts,data}){
 	summaries.forEach(x => x.allRequiredKeys?.forEach(k => allRequiredKeys.add(k)))
 
 	const signedRequiredKeys = signedPubkeys.filter(k => allRequiredKeys.has(k))
-	const signedWitnessKeys  = signedPubkeys.filter(k => !allRequiredKeys.has(k))
+
+	// Only call something a witness once the required set is fully known — otherwise
+	// a legitimately-required signature for an account still loading gets mislabelled.
+	const signedWitnessKeys = keyInfoComplete
+		? signedPubkeys.filter(k => !allRequiredKeys.has(k))
+		: []
 
 	if (signedWitnessKeys.length) {
 		console.warn('[readiness] witness keys after normalisation — possible mismatch')
 		console.warn('[readiness] signed:', signedPubkeys)
 		console.warn('[readiness] required:', [...allRequiredKeys])
 		console.warn('[readiness] unmatched:', signedWitnessKeys)
+	} else if (!keyInfoComplete) {
+		console.warn('[readiness] keyInfo incomplete — deferring witness/threshold verdict',
+			{ mustSign: mustSignAccounts.length, withKeyInfo: mustSignAccounts.filter(a => a.keyInfo).length })
 	}
 
-	return {
-		thresholdSatisfied: summaries.every(x => x.thresholdSatisfied),
+	const result = {
+		// can't claim the threshold is met while the required set is still partial —
+		// note [].every() is true, which is how the empty case showed "threshold reached".
+		thresholdSatisfied: keyInfoComplete && summaries.every(x => x.thresholdSatisfied),
 		signedRequiredKeyCount: signedRequiredKeys.length,
 		allRequiredKeys,
 		witnessKeys: signedWitnessKeys,
+		keyInfoComplete,
 		minMoreKeyCount: summaries.reduce((a, x) => a + x.minMoreKeyCount, 0)
 	}
+
+	// Structured snapshot of the WHOLE readiness picture, emitted on EVERY eval (not
+	// only when a witness appears). One line per eval in /diag so a future flap or
+	// stray-signature episode is fully reviewable after the fact. Keys shown by last
+	// 6 chars to stay legible. accounts: who must sign, whether keyInfo loaded, signed.
+	try {
+		const k6 = k => '…' + String(k).slice(-6)
+		const pc = data.precheck
+		globalThis.kdiag?.('readiness:eval', {
+			txid: data.txid,
+			network: data.network,
+			// what drove this evaluation: initial load / WS push / WS sig / poll / sign.
+			// lets us confirm WS is primary and polling is only the fallback (not the
+			// other way round, which is the suspected post-sign-update regression).
+			trigger: data._trigger || 'initial',
+			comboStatus: data.comboStatus ?? null,
+			// precheck snapshot — to diagnose the OK↔insufficient-balance flap. null
+			// when no precheck present (which itself is a flap signal vs a populated one).
+			precheck: pc ? { status: pc.status ?? null, complete: pc.complete ?? null,
+				fails: (pc.tests?.fail || []).length, untested: (pc.tests?.untested || []).length } : null,
+			thresholdSatisfied: result.thresholdSatisfied,
+			keyInfoComplete,
+			signedRequiredKeyCount: result.signedRequiredKeyCount,
+			minMoreKeyCount: result.minMoreKeyCount,
+			signed: signedPubkeys.map(k6),
+			required: [...allRequiredKeys].map(k6),
+			witness: signedWitnessKeys.map(k6),
+			accounts: Object.entries(accounts).map(([id, a]) => ({
+				id,
+				mustSign: !!a.mustSign,
+				roles: a.roles || [],
+				hasKeyInfo: !!a.keyInfo,
+				keyInfoError: a.keyInfoError || null
+			}))
+		})
+	} catch {}
+
+	return result
 }
 
 

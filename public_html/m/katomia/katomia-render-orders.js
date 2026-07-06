@@ -40,6 +40,44 @@ function makeSpan(cls, text){
   return el
 }
 
+// ── Order type icons ──────────────────────────────────────────────────────────
+// Inline SVG lookup keyed by order type. Swap these out for polished icons later
+// (e.g. custom SVG sprite). All are stroke-only / currentColor so they inherit
+// surrounding text colour without conveying status meaning via colour.
+const ORDER_TYPE_ICONS = {
+  'simple-ft': `<svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="FT swap">
+    <path d="M1 4h10M8.5 2 13 4 8.5 6"/><path d="M13 10H3M5.5 8 1 10l4.5 2"/>
+  </svg>`,
+  'basket-ft': `<svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="Basket FT">
+    <rect x="1.5" y="1.5" width="4" height="4" rx="0.5"/><rect x="8.5" y="1.5" width="4" height="4" rx="0.5"/>
+    <rect x="1.5" y="8.5" width="4" height="4" rx="0.5"/><rect x="8.5" y="8.5" width="4" height="4" rx="0.5"/>
+  </svg>`,
+  'simple-nft': `<svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="NFT">
+    <polygon points="7,1 13,5 7,13 1,5"/>
+    <polyline points="1,5 7,7 13,5"/><line x1="7" y1="7" x2="7" y2="13"/>
+  </svg>`,
+  'simple-collectible': `<svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="Collectible">
+    <polygon points="7,1 13,5 7,13 1,5"/>
+    <polyline points="1,5 7,7 13,5"/><line x1="7" y1="7" x2="7" y2="13"/>
+  </svg>`,
+  'simple-le': `<svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-label="Limited Edition">
+    <path d="M1.5 3.5 L7 1.5 L12.5 3.5 L12.5 10.5 L7 12.5 L1.5 10.5 Z"/>
+    <circle cx="9.5" cy="4.5" r="1" fill="currentColor" stroke="none"/>
+  </svg>`,
+  'generic': `<svg viewBox="0 0 14 14" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-label="Generic bundle">
+    <line x1="2" y1="4" x2="12" y2="4"/><line x1="2" y1="7" x2="10" y2="7"/><line x1="2" y1="10" x2="8" y2="10"/>
+  </svg>`,
+}
+
+function orderTypeIconEl(type){
+  const svg = ORDER_TYPE_ICONS[type] || ORDER_TYPE_ICONS['generic']
+  const span = document.createElement('span')
+  span.className = 'order-type-icon'
+  span.title = type || 'generic'
+  span.innerHTML = svg
+  return span
+}
+
 function formatRelativeTime(ms){
   const diff = Date.now() - ms
   if(diff < 60000) return "just now"
@@ -222,22 +260,27 @@ function renderTxMeta(tx){
 // │  ├┬┘├┤ ├─┤ │ ├┤    ║ ┌┴┬┘  ╠═╣└─┐└─┐├┤  │ └─┐
 // └─┘┴└─└─┘┴ ┴ ┴ └─┘   ╩ ┴ └─  ╩ ╩└─┘└─┘└─┘ ┴ └─┘
 // create Tx Assets
-function createTxAssets(tx,orderType){
+const HEDERA_FEE_ACCOUNTS = new Set(["0.0.98","0.0.800","0.0.801","0.0.802"])
 
+function createTxAssets(tx, orderType){
   const basis = tx.pchbasis?.transfers || {}
-  const transfers = [
+  const nftTransfers  = basis.nftTransfers || []
+  const ftTransfers   = [
     ...(basis.tokenTransfers || []),
-    ...(basis.hbarTransfers || []).map(x => ({...x, tokenId:"HBAR"}))
+    ...(basis.hbarTransfers  || []).map(x => ({...x, tokenId:"HBAR"}))
   ]
 
-  if(orderType == "simple-ft"){
-    const HEDERA_FEE_ACCOUNTS = new Set(["0.0.98","0.0.800","0.0.801","0.0.802"])
-    const tradeTransfers = transfers.filter(x => !HEDERA_FEE_ACCOUNTS.has(x.accountId))
-    return createSimpleFxTxAssets(tradeTransfers)
+  if(nftTransfers.length){
+    const tradeFt = ftTransfers.filter(x => !HEDERA_FEE_ACCOUNTS.has(x.accountId))
+    return createNftTxAssets(nftTransfers, tradeFt)
   }
 
-  return createGenericTxAssets(transfers)
+  if(orderType === "simple-ft" || orderType === "simple-le"){
+    const tradeFt = ftTransfers.filter(x => !HEDERA_FEE_ACCOUNTS.has(x.accountId))
+    return createSimpleFxTxAssets(tradeFt)
+  }
 
+  return createGenericTxAssets(ftTransfers)
 }
 
 function createGenericTxAssets(transfers){
@@ -277,6 +320,52 @@ function createGenericTxAssets(transfers){
 
   return el
 
+}
+
+
+// NFT transaction: one NFT transfer (tokenId#serial) + currency side (FT/HBAR)
+function createNftTxAssets(nftTransfers, ftTransfers){
+  const el = document.createElement("span")
+  el.className = "tx-assets"
+
+  for(const nft of nftTransfers){
+    const sender   = nft.sender   || nft.senderAccountId   || "?"
+    const receiver = nft.receiver || nft.receiverAccountId || "?"
+    const serial   = nft.serialNumber ?? nft.serial ?? "?"
+    const tokenId  = nft.tokenId || ""
+    const assetId  = `${tokenId}#${serial}`
+
+    const nftChip = makeAssetEl({
+      text: `${sender} ${getAssetDisplay(assetId, 1)}`,
+      assetId,
+      ownerAccountId: sender,
+      clickable: false
+    })
+    nftChip.classList.add("tx-nft-chip")
+    el.appendChild(nftChip)
+  }
+
+  // Currency side: show positive transfers (what the buyer pays to the seller)
+  const received = ftTransfers.filter(x => x.amount > 0)
+  if(received.length){
+    const arrow = document.createElement("span")
+    arrow.className = "tx-arrow"
+    arrow.textContent = " → "
+    el.appendChild(arrow)
+
+    received.forEach(x => {
+      const chip = makeAssetEl({
+        text: `${x.accountId} ${getAssetDisplay(x.tokenId, Math.abs(x.amount))}`,
+        assetId: x.tokenId,
+        ownerAccountId: x.accountId,
+        clickable: false
+      })
+      chip.classList.add("tx-fx-chip")
+      el.appendChild(chip)
+    })
+  }
+
+  return el
 }
 
 
@@ -367,7 +456,7 @@ function getTxMainOrder(tx){
 function getOrderTypeFromPchbasis(tx){
   const basis = tx.pchbasis?.transfers
   if(!basis) return null
-  const HEDERA_FEE_ACCOUNTS = new Set(["0.0.98","0.0.800","0.0.801","0.0.802"])
+  if((basis.nftTransfers || []).length) return "simple-nft"
   const transfers = [
     ...(basis.tokenTransfers || []),
     ...(basis.hbarTransfers  || [])
@@ -409,7 +498,9 @@ function createTxRow(tx){
   }
 
   const order = getTxMainOrder(tx)
-  const orderType = getOrderType(order) || getOrderTypeFromPchbasis(tx) || "generic"
+  // Use stored orderType if available (set at creation for simple-nft/simple-le),
+  // fall back to bundle-derived type then pchbasis heuristic.
+  const orderType = order?.orderType || getOrderType(order) || getOrderTypeFromPchbasis(tx) || "generic"
   const market = enrichOrder(order)?.market
   const side = market?.side ? ` ${market.side}` : ""
   const sourceInfo = renderTxSourceInfo(tx)
@@ -425,6 +516,14 @@ function createTxRow(tx){
   // Avatar — always visible (maker identity)
   if(typeof kemojiEl === "function" && makerPubkey)
     row.appendChild(kemojiEl(makerPubkey, { size: 24 }))
+
+  // ORDER-AUTHBADGE3: aggregate reputation marker — 💠 when ≥1 contributing account to
+  // this tx placed a verified-bound order. Tooltip gives the N/M + list.
+  const txAuth = getTxContributorAuth(tx)
+  if(txAuth.verifiedCount > 0) row.appendChild(makeTxAuthBadge(txAuth))
+
+  // Type icon — always visible
+  row.appendChild(orderTypeIconEl(orderType))
 
   // Status emoji — always visible
   const statusEl = makeSpan("tx-status", txMeta.statusText + " ")
@@ -444,9 +543,53 @@ function createTxRow(tx){
   }
 
   row.appendChild(statusEl)
-  row.appendChild(nerdEl)
   row.appendChild(timeEl)
-  row.appendChild(createTxAssets(tx, orderType))
+  const assetsEl = createTxAssets(tx, orderType)
+  // ORDER-AUTHBADGE3: per-account overlay on transfer chips (chips carry data-owner-account).
+  // Contributor accounts (placed an offer-side order in this tx) get 💠 verified / △ not;
+  // pure counterparties (received assets, no signed order) get neither. Scoped to .tx-row.
+  if(txAuth.contributorCount > 0){
+    assetsEl.querySelectorAll?.(".asset[data-owner-account]")?.forEach(chip => {
+      const a = chip.dataset.ownerAccount
+      if(txAuth.verifiedAccts.has(a)){
+        chip.classList.add("tx-asset-verified")
+        chip.title = (chip.title ? chip.title + " · " : "") + "reputation-verified account"
+      } else if(txAuth.contributorAccts.has(a)){
+        chip.classList.add("tx-asset-unverified")
+        chip.title = (chip.title ? chip.title + " · " : "") + "contributor — not reputation-verified"
+      }
+    })
+  }
+  row.appendChild(assetsEl)
+  // Nerd meta (txid/pch) trails the row on its own wrapped line in nerd mode, so the
+  // primary card flow is identical in both modes (ORDERS-UI1).
+  row.appendChild(nerdEl)
+
+  // KAT-TXLIST1 diagnostic: settled txs sometimes render bare (no transfer chips),
+  // reportedly only on testnet. Log WHY — once per txid — so we can see whether
+  // pchbasis/transfers/order/bundles are missing in the data vs a render issue.
+  try {
+    const settled = isTxSuccessStatus(getTxStatus(tx))
+    const bare = !assetsEl || !assetsEl.childElementCount
+    window.__bareTxLogged ||= new Set()
+    if (settled && bare && tx.txid && !window.__bareTxLogged.has(tx.txid)) {
+      window.__bareTxLogged.add(tx.txid)
+      const b = tx.pchbasis?.transfers || {}
+      const send = (typeof katomiaDiagSend === "function") ? katomiaDiagSend : window.kdiag
+      send?.("txrow:bare", {
+        txid: tx.txid,
+        network: tx.network || tx.pchbasis?.network || null,
+        hasPchbasis: !!tx.pchbasis,
+        tokenTransfers: (b.tokenTransfers || []).length,
+        hbarTransfers: (b.hbarTransfers || []).length,
+        nftTransfers: (b.nftTransfers || []).length,
+        orderType,
+        hasOrder: !!order,
+        fills: (tx.source?.fills || []).length,
+        bundleOrders: Object.keys(tx.source?.orders || {}).length
+      })
+    }
+  } catch {}
 
   return row
 
@@ -1225,6 +1368,10 @@ document.addEventListener("mouseout",e => {
 })
 
 document.addEventListener("change",e => {
+  // Order controls only filter the ORDERS list (hideExpiredTx has its own handler
+  // in game.php). The tx list is intentionally NOT filtered by "Only mine" — a
+  // filled order is purged, so its settled tx can't be proven "mine" and would
+  // wrongly disappear.
   if(["showMyOrdersOnly","showPendingOrdersOnly","sortOrdersByPrice"].includes(e.target.id))
     renderOrders()
 })
@@ -1769,27 +1916,63 @@ function getOrderMarketLabel(orderId, playerId, enriched){
 
 function makeOrderRowOnClick(orderId, playerId, enriched, order){
   return () => {
-    if(enriched.market?.type !== "simple-ft") return
-
-    const fxRow = enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market })
-    if(!fxRow) return
-
+    const type = enriched.market?.type || getOrderType(order) || ""
     const fullOrder = getAllOrders().find(x => String(x.orderId) === String(orderId))?.order
+    const tifDefaults = { timeInForce: fullOrder?.timeInForce || "GTC", expiresAt: fullOrder?.expiresAt || null }
 
-    openCreateOrderModal({
-      mode:        "order",
-      orderId,
-      playerId,
-      type:        "simple-ft",
-      pair:        `${fxRow.baseAsset}/${fxRow.quoteAsset}`,
-      side:        fxRow.side,
-      volume:      fxRow.originalDisplayBaseAmount,
-      rate:        fxRow.displayRate,
-      accountId:   `${playerId}:${fxRow.accountId}`,
-      minFill:     fullOrder?.minFill     || null,
-      timeInForce: fullOrder?.timeInForce || "GTC",
-      expiresAt:   fullOrder?.expiresAt   || null,
-    })
+    if(type === "simple-ft"){
+      const fxRow = enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market })
+      if(!fxRow) return
+      openCreateOrderModal({
+        mode: "order", orderId, playerId, type: "simple-ft",
+        pair:        `${fxRow.baseAsset}/${fxRow.quoteAsset}`,
+        side:        fxRow.side,
+        volume:      fxRow.originalDisplayBaseAmount,
+        rate:        fxRow.displayRate,
+        accountId:   `${playerId}:${fxRow.accountId}`,
+        minFill:     fullOrder?.minFill || null,
+        ...tifDefaults,
+      })
+      return
+    }
+
+    if(type === "simple-nft" || type === "simple-le"){
+      const bundle = order?.bundle || []
+      const collectibleLeg = bundle.find(x => { const t = getAssetType(x.asset, Math.abs(x.amount)); return t === "NFT" || t === "LE" })
+      const currencyLeg = bundle.find(x => x !== collectibleLeg)
+      if(!collectibleLeg || !currencyLeg) return
+
+      const orderSide = collectibleLeg.amount < 0 ? "sell" : "buy"
+      const asset = collectibleLeg.asset
+      let token = asset, serial = ""
+      if(asset.includes("#")){ [token, serial] = asset.split("#") }
+
+      const currencyAsset = currencyLeg.asset
+      const allPairs = getAcceptedPairs()
+      const matchPair = allPairs.find(p => p.base === currencyAsset) || allPairs.find(p => p.quote === currencyAsset)
+      const currDecimals = currencyAsset === "HBAR" ? 8
+        : matchPair ? (matchPair.base === currencyAsset ? (matchPair.baseDecimals ?? 0) : (matchPair.quoteDecimals ?? 0))
+        : Number(getAssetMeta?.(currencyAsset)?.token_class?.decimals || 0)
+      const priceDisplay = Math.abs(currencyLeg.amount) / (10 ** currDecimals)
+
+      const isOther = playerId !== currentPlayerId
+      openCreateOrderModal({
+        // Viewing another player's order: "Take" — flip side, no orderId context
+        // Viewing own order: edit/replicate — keep same side
+        mode:      isOther ? undefined  : "order",
+        orderId:   isOther ? undefined  : orderId,
+        playerId:  isOther ? undefined  : playerId,
+        side:      isOther ? (orderSide === "sell" ? "buy" : "sell") : orderSide,
+        accountId: isOther ? undefined  : `${playerId}:${collectibleLeg.accountId}`,
+        type, token,
+        serial: serial || undefined,
+        qty: type === "simple-le" ? Math.abs(collectibleLeg.amount) : undefined,
+        currency: currencyAsset,
+        price: priceDisplay,
+        ...tifDefaults,
+      })
+      return
+    }
   }
 }
 
@@ -1807,16 +1990,22 @@ function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel
   const el = document.createElement("span")
   el.className = "order-prefix"
 
-  // Nerd: #id (who)
-  const keySuffix = getOrderSignerSuffix(order)
-  const who = `${playerId}${keySuffix}${mine ? "=you" : ""}`
-  el.appendChild(makeSpan("nerd-only order-nerd-id", `#${orderId} (${who}) `))
+  // Type icon — always visible
+  el.appendChild(orderTypeIconEl(orderType))
 
   // TIF icon — always visible
   const tif = order.timeInForce || "GTC"
-  const tifEl = makeSpan("order-tif", getTifIcon(tif))
+  const tifEl = makeSpan("order-tif", " " + getTifIcon(tif))
   tifEl.title = tif
   el.appendChild(tifEl)
+
+  // Relative time — sits right after the icons (mirrors the tx list, where time
+  // follows the status icon rather than trailing the whole descriptive line).
+  if(order.issuedAt){
+    const timeEl = makeSpan("order-time", ` ${formatRelativeTime(order.issuedAt)}`)
+    timeEl.title = new Date(order.issuedAt).toISOString()
+    el.appendChild(timeEl)
+  }
 
   // Nerd: full order type bracket
   el.appendChild(makeSpan("nerd-only order-nerd-type", ` [${orderType}]`))
@@ -1832,26 +2021,142 @@ function buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel
   if(document.body.dataset.tradingMode == "debug")
     el.appendChild(makeSpan("nerd-only order-fill-debug", ` proposed ${fill.numerator}/${fill.denominator}`))
 
-  // Nerd: kpool in-flight pending
-  if(pendingText)
-    el.appendChild(makeSpan("nerd-only order-fill-pending", ` ${pendingText.replace(/ \|$/, "")}`))
+  // Pending kpool indicator — always visible (amber icon); detail nerd-only
+  if(pendingText){
+    const pEl = makeSpan("order-fill-pending", " ⏳")
+    pEl.title = `Matching in progress: ${pendingText.replace(/ \|$/, "")}`
+    el.appendChild(pEl)
+    el.appendChild(makeSpan("nerd-only order-fill-pending-detail", ` ${pendingText.replace(/ \|$/, "")}`))
+  }
 
   // Settled status — always visible (shows ✅ when complete)
   if(settledText)
     el.appendChild(makeSpan("order-fill-settled", ` ${settledText}`))
 
-  // Relative time — always visible, subtle
-  if(order.issuedAt){
-    const timeEl = makeSpan("order-time", ` ${formatRelativeTime(order.issuedAt)}`)
-    timeEl.title = new Date(order.issuedAt).toISOString()
-    el.appendChild(timeEl)
-  }
+  // Nerd: #id (who) — trailing so the primary line is identical in normal mode;
+  // in nerd mode it reads as a muted annotation at the end (ORDERS-UI1).
+  const keySuffix = getOrderSignerSuffix(order)
+  const who = `${playerId}${keySuffix}${mine ? "=you" : ""}`
+  el.appendChild(makeSpan("nerd-only order-nerd-id", ` #${orderId} (${who})`))
 
   el.appendChild(document.createTextNode(": "))
   return el
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────
+
+// ORDER-AUTHBADGE1: reputation binding on an account, read from the getState-stamped
+// authenticated/authWeight/authThreshold on the broadcast account view (PROFILE-AUTH3).
+// Returns null when unknown/unbound. Spectrum: weight>0 = bound; weight>=threshold = full.
+// This is the WIREFRAME account-level view (per PROFILE-AUTH-PURPOSE1: reputation, not a
+// gate). Refinements deferred: (a) match the order's signing key to the binding's bound
+// intent key rather than just "account has a binding"; (b) a 'verified' state once the
+// backend actually verifies the signatureMap (PROFILE-AUTH3 stores unverified for now).
+function katomiaNormKey(h){ return String(h || "").replace(/^0x/, "").toLowerCase() }
+
+function getAccountAuthState(publicAccountId){
+  const acc = state?.accounts?.[publicAccountId]
+  if(!acc || !acc.authenticated) return null
+  const weight = acc.authWeight || 0
+  if(weight <= 0) return null
+  const threshold = acc.authThreshold || 1
+  return { weight, threshold, full: weight >= threshold, intentKeys: acc.authIntentKeys || [] }
+}
+
+// Placing account of an order = the account on the offer (amount<0) side of the bundle
+// (falls back to the first entry). Order playerId is the public id; the account view is
+// keyed publicId:accountId.
+// ORDER-AUTHBADGE2: keyMatch confirms the order was SIGNED by the key the binding covers
+// (intentSignature.pubkeyHex ∈ the account's bound intent keys) — not merely placed by a
+// bound account. An account that bound one key but now signs with another → keyMatch false.
+// Is a given (bare) account verified-bound for THIS order's signing key? An account is
+// verified if some game account with that label published a verified binding whose bound
+// intent key == the order's signing key. Scans by label so it works for any player's order.
+function isAccountVerifiedForKey(accountId, signingKey){
+  if(!accountId || !signingKey) return false
+  return !!Object.values(state?.accounts || {}).find(a =>
+    (a.accountId === accountId || a.label === accountId) &&
+    a.authenticated &&
+    (a.authIntentKeys || []).map(katomiaNormKey).includes(signingKey))
+}
+
+// Per-account auth for an order. An order's bundle can have MULTIPLE offer-side accounts
+// (complex/pro orders), and the binding is per-account — so we return one entry per
+// distinct account whose assets LEAVE (amount<0; those are the ones needing authorisation).
+// Each is checked against the order's single signing key. Falls back to all bundle accounts
+// if nothing is on the offer side. (Design: lets a complex trade show a mix of 💠/△.)
+function getOrderAccountAuthList(order){
+  const bundle = order?.bundle
+  if(!Array.isArray(bundle)) return []
+  const signingKey = katomiaNormKey(order?.intentSignature?.pubkeyHex)
+  let accts = [...new Set(bundle.filter(x => x.amount < 0).map(x => x.accountId).filter(Boolean))]
+  if(!accts.length) accts = [...new Set(bundle.map(x => x.accountId).filter(Boolean))]
+  return accts.map(accountId => ({ accountId, verified: isAccountVerifiedForKey(accountId, signingKey) }))
+}
+
+// One marker per account: 💠 verified (bound & backend-verified) / △ not verified.
+// Binary — the backend rejects unverified bindings, so 💠 always means verified. △ = this
+// account has NOT authorised the order's key (no binding, expired, or a different key).
+function makeAccountAuthMarker(entry){
+  const nerd = document.body.classList.contains("nerd")
+  const el = document.createElement("span")
+  el.className = "order-auth-badge " + (entry.verified ? "auth-verified" : "auth-unverified")
+  el.textContent = entry.verified ? "💠" : "△"
+  el.title = entry.verified
+    ? (nerd
+        ? `${entry.accountId}: reputation-bound & verified — this account published a wallet binding for the order's signing key, verified on the backend.`
+        : `${entry.accountId}: reputation-bound & verified`)
+    : (nerd
+        ? `${entry.accountId}: NOT verified — this account has not authorised the order's signing key (no binding, expired, or a different key).`
+        : `${entry.accountId}: not reputation-bound`)
+  return el
+}
+
+// ── ORDER-AUTHBADGE3: verification on transactions ───────────────────────────
+// A tx collapses many fills → a set of CONTRIBUTING orders (tx.source.orders), each
+// with a signing key + placing account. Verification is per-contributing-order (one-to-
+// many), so we derive the set of verified contributor accounts for the tx: an order whose
+// signing key matches that account's verified binding (same keyMatch rule as orders).
+// Accounts that only received assets (counterparties with no signed order here) get no
+// 💠 — correct. All derived from existing state (authIntentKeys); no backend change.
+function getTxContributorAuth(tx){
+  const orders = tx?.source?.orders || {}
+  const verifiedAccts = new Set()
+  const contributorAccts = new Set()   // every offer-side account across the tx's orders
+  for(const oid of getTxOrderIds(tx)){
+    const order = orders[oid]
+    // reuse the per-account order logic so orders + tx agree on what "verified" means
+    for(const entry of getOrderAccountAuthList(order)){
+      contributorAccts.add(entry.accountId)
+      if(entry.verified) verifiedAccts.add(entry.accountId)
+    }
+  }
+  // PROP-LOCKSIGN1: proposal-mode txs carry source.proposal — a settlement-time
+  // SNAPSHOT of signed lock commitments with per-account bound flags (backend-derived;
+  // TRUST: katomia-trusted, chain-verifiable later via PROP-MEMO-BIND1). An account is
+  // verified here iff its player's commitment was signed AND the account's binding
+  // covered that intent key at settlement. Unsigned lockers appear as contributors
+  // (△) — full visibility of who was party to the tx and who signed.
+  for(const c of tx?.source?.proposal?.commitments || []){
+    for(const a of c.accounts || []){
+      contributorAccts.add(a.accountId)
+      if(c.signature && a.bound) verifiedAccts.add(a.accountId)
+    }
+  }
+  return { verifiedAccts, contributorAccts, verifiedCount: verifiedAccts.size, contributorCount: contributorAccts.size }
+}
+
+function makeTxAuthBadge(txAuth){
+  const nerd = document.body.classList.contains("nerd")
+  const badge = document.createElement("span")
+  badge.className = "order-auth-badge tx-auth-badge"
+  badge.textContent = "💠"
+  const list = [...txAuth.verifiedAccts].join(", ")
+  badge.title = nerd
+    ? `${txAuth.verifiedCount} of ${txAuth.contributorCount} contributing account(s) reputation-verified: ${list}. Each contributed an order signed by a wallet-bound & verified key.`
+    : `${txAuth.verifiedCount}/${txAuth.contributorCount} contributors reputation-verified`
+  return badge
+}
 
 function createOrderRow({ orderId, order, playerId, ghost = false }){
 
@@ -1870,7 +2175,6 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
 
   if(order?.bundle?.error){
     row.textContent = `Order #${orderId} (${playerId}): ❌  ${order?.bundle?.error}`
-    applyOwnerSleeve(row, playerId, pubkeyHex)
     return row
   }
 
@@ -1907,13 +2211,39 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
     inner.appendChild(kemojiEl(avatarKey, { size: 24, isSelf: mine }))
   }
 
+  // ORDER-AUTHBADGE1/2/3: one reputation marker per offer-side account (💠 verified / △
+  // not) — a complex/pro order with several offering accounts shows several markers, each
+  // per its own binding. Simple single-account order → a single 💠 or △.
+  getOrderAccountAuthList(order).forEach(entry => inner.appendChild(makeAccountAuthMarker(entry)))
+
   inner.appendChild(prefix)
   inner.appendChild(createOrderSide(offer, "order-offer"))
   inner.appendChild(arrow)
   inner.appendChild(createOrderSide(request, "order-request"))
 
   row.appendChild(inner)
-  applyOwnerSleeve(row, playerId, pubkeyHex)
+
+  // Fill bar — 3px track at the bottom of the row; hidden when 0% filled
+  const settledRatio = fillStatus.settled.numerator / (fillStatus.settled.denominator || 1)
+  const pendingRatio = fillStatus.fill.numerator   / (fillStatus.fill.denominator   || 1)
+  const barPending   = Math.max(pendingRatio - settledRatio, 0)
+  if(settledRatio > 0 || barPending > 0){
+    const bar = document.createElement("div")
+    bar.className = "order-fill-bar"
+    const s = document.createElement("div")
+    s.className = "order-fill-bar-settled"
+    s.style.width = `${Math.round(settledRatio * 100)}%`
+    const p = document.createElement("div")
+    p.className = "order-fill-bar-pending"
+    p.style.left  = `${Math.round(settledRatio * 100)}%`
+    p.style.width = `${Math.round(barPending  * 100)}%`
+    bar.appendChild(s)
+    bar.appendChild(p)
+    row.appendChild(bar)
+  }
+
+  // Left stripe is now coloured by buy/sell side via CSS (data-order-side) — the
+  // avatar already conveys player identity, so the old owner-colour sleeve is gone.
 
   return row
 }
@@ -2136,6 +2466,22 @@ async function buildSignedOrder(bundle, { minFill, timeInForce, expiresAt, match
 
 async function createOrderFromModal() {
 
+  // RELIABLE GATE: if the chosen account is a WalletConnect account not yet in this game
+  // (merge-on-form __wcadd__ sentinel — including the auto-selected case where no change
+  // event fired), add + asset-seed it before building the order. Otherwise the order
+  // bundle references an accountId the game doesn't know and can never match. (Root cause
+  // of the "order won't match" report — the account was never actually added to the game.)
+  const _acctSel = document.getElementById("createOrderAccount")
+  const _acctVal = _acctSel?.value || ""
+  if(typeof WC_ORDER_ADD_PREFIX === "string" && _acctVal.startsWith(WC_ORDER_ADD_PREFIX)){
+    const _accountId = _acctVal.slice(WC_ORDER_ADD_PREFIX.length)
+    const _ok = await ensureAccountInGame(_accountId)
+    if(!_ok){ alert(`Couldn't add account ${_accountId} to the game — try the ➕ Add account button, then submit again.`); return }
+    // re-select the now-real game account so the order value is a clean publicId:accountId
+    const _real = getAccounts().find(a => isMyAccount(a) && a.label === _accountId)
+    if(_real) refreshCreateOrderAccounts(_real.id)
+  }
+
   const timeInForce = document.getElementById("createOrderTif")?.value || "GTC"
   const expiresAt = getCreateOrderExpiresAt()
 
@@ -2177,7 +2523,7 @@ async function createOrderFromModal() {
     socket.send(JSON.stringify({
       type: "game_orderCreate",
       gameId,
-      order
+      order: { ...order, orderType: _orderType }
     }))
   }
 

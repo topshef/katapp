@@ -10,6 +10,11 @@ import { Transaction, LedgerId } from "@hashgraph/sdk";
 let dappConnector;
 let walletConfig
 
+// Step 2: the currently-selected account when multiple are connected. null = use
+// the first available signer (preserves single-account behaviour). Set on connect
+// (newest wins, mirroring the old trim-to-last intent) and via setActiveAccount().
+let activeAccountId = null
+
 
 
 /*============================================================
@@ -279,48 +284,120 @@ async function loadConfig() {
 // - Reads like a lifecycle step rather than a one-off init
 
 let wcInitPromise = null
+let currentNetwork = null   // the Hedera network the live dappConnector is built for
 
 console.log("WIP HG38472")
+
+// Build (and init) a DAppConnector for a specific Hedera network.
+async function buildConnectorForNetwork(net) {
+  // WC-SLOW1 timing: c.init() does SignClient.init() = the relay (wss) handshake +
+  // session restore, the usual suspect for the slow first open. Emit phase timings
+  // via window.kdiag (kpool widget buffer + /diag) so the ~30s is attributable.
+  const _t0 = (typeof performance !== 'undefined' ? performance : Date).now()
+  const config = await loadConfig()
+  const _t1 = (typeof performance !== 'undefined' ? performance : Date).now()
+  const c = new DAppConnector(
+    { ...config.metadata },
+    LedgerId.fromString(net),
+    config.walletConnect.projectId,
+    Object.values(HederaJsonRpcMethod),
+    [HederaSessionEvent.ChainChanged, HederaSessionEvent.AccountsChanged],
+    [hederaChainIdFromNetwork(net)]
+  )
+  await c.init()
+  const _t2 = (typeof performance !== 'undefined' ? performance : Date).now()
+  try { window.kdiag?.('wc:build', { net, loadConfigMs: Math.round(_t1 - _t0), initMs: Math.round(_t2 - _t1) }) } catch {}
+  // keep walletConfig.hedera.network in sync with the connector we actually built,
+  // so getNetwork() reports the live network (not just the load-time config).
+  walletConfig = { ...config, hedera: { ...config.hedera, network: net } }
+  return c
+}
 
 async function initializeWalletConnect() {
 
   if (wcInitPromise) return wcInitPromise
   wcInitPromise = (async () => {
     const config = await loadConfig()
-
+    const net = config.hedera.network
     if (!dappConnector) {
-      dappConnector = new DAppConnector(
-        { ...config.metadata },
-        LedgerId.fromString(config.hedera.network),
-        config.walletConnect.projectId,
-        Object.values(HederaJsonRpcMethod),
-        [HederaSessionEvent.ChainChanged, HederaSessionEvent.AccountsChanged],
-        [hederaChainIdFromNetwork(config.hedera.network)]
-      )
-
-      await dappConnector.init()
+      dappConnector = await buildConnectorForNetwork(net)
+      currentNetwork = net
     }
-
     return dappConnector
   })()
 
   return wcInitPromise
 }
 
+// ensureNetwork (step 5) — scope the connector to the transaction's network.
+// The bundle is single-connector; on the katomia page it loads as mainnet. When a
+// signer opens for a testnet tx it must NOT show/connect mainnet accounts. If the
+// requested network differs from the live connector's, rebuild the connector for it
+// (each network is a separate account set on Hedera). Switching networks therefore
+// re-pairs — correct, since mainnet and testnet are different wallets/accounts.
+async function ensureNetwork(network) {
+  // No target → just ensure SOMETHING is initialised (legacy/default path).
+  if (!network) { await initializeWalletConnect(); return currentNetwork }
+
+  // Already on the right network → nothing to do.
+  if (dappConnector && currentNetwork === network) return currentNetwork
+
+  // WC1/double-init fix: build DIRECTLY for the requested network. The old code did
+  // `await initializeWalletConnect()` first, which builds the config-default network
+  // (mainnet) and THEN we rebuilt for testnet — two SignClient.init()s (the "Init()
+  // called 2 times" warning) = two slow relay handshakes on the first connect. Since
+  // the signer calls ensureNetwork() before any other WC call, building straight for
+  // the tx network means a single init.
+  if (dappConnector) console.log("[WC] ensureNetwork: switching connector", currentNetwork, "->", network)
+  dappConnector = await buildConnectorForNetwork(network)
+  currentNetwork = network
+  activeAccountId = null   // active selection is network-specific
+  // Make initializeWalletConnect() resolve to THIS connector so later callers don't
+  // rebuild or get a stale one.
+  wcInitPromise = Promise.resolve(dappConnector)
+  return currentNetwork
+}
 
 
+
+function getSignersList() {
+  return dappConnector?.signers || []
+}
+
+function findSigner(accountId) {
+  return getSignersList().find(s => s.getAccountId().toString() === accountId) || null
+}
+
+// getSigner — the signer for the active account, else the first available.
+//
+// Step 2: previously this TRIMMED dappConnector.signers down to a single entry
+// ("enforce single account"), which made multi-account impossible. The trim is
+// gone; account selection is now explicit via activeAccountId. With one account
+// (or no selection) behaviour is identical to before — returns signers[0].
 function getSigner() {
-  if (!dappConnector?.signers?.length) return null
+  const signers = getSignersList()
+  if (!signers.length) return null
 
-  // enforce single account
-  if (dappConnector.signers.length > 1) {
-    console.warn("[WC] Multiple signers detected — trimming to last")
-    dappConnector.signers = [
-      dappConnector.signers[dappConnector.signers.length - 1]
-    ]
+  if (activeAccountId) {
+    const match = findSigner(activeAccountId)
+    if (match) return match
+    // selected account is no longer connected — clear and fall back
+    console.warn("[WC] active account", activeAccountId, "no longer connected; falling back")
+    activeAccountId = null
   }
 
-  return dappConnector.signers[0]
+  return signers[0]
+}
+
+// setActiveWalletAccount — choose which connected account signs. Throws if the
+// account isn't currently connected. (UI picklist wiring lands in step 3.)
+function setActiveWalletAccount(accountId) {
+  if (!findSigner(accountId))
+    throw new Error(`No connected signer for account ${accountId}`)
+  activeAccountId = accountId
+  console.log("[WC] active account set to", accountId)
+  updateWalletConnectionUI(accountId)
+  return accountId
 }
 
 
@@ -350,8 +427,13 @@ async function zzconnectWalletCore() {
 }
 
 async function connectWalletCore() {
+  // WC-SLOW1 timing: split init (connector ready) vs openModal (pairing URI + WC
+  // modal render — what the user waits ~30s for) vs the signer-approval wait.
+  const _c0 = Date.now()
   await initializeWalletConnect()
+  const _c1 = Date.now()
   await dappConnector.openModal()
+  const _c2 = Date.now()
   const started = Date.now()
   let signer = null
 
@@ -365,35 +447,26 @@ async function connectWalletCore() {
 
     await new Promise(r => setTimeout(r, 100))
   }
+  try { window.kdiag?.('wc:connect-phases', { ensureInitMs: _c1 - _c0, openModalMs: _c2 - _c1, approvalWaitMs: Date.now() - _c2 }) } catch {}
 
-  const accountId = signer.getAccountId().toString()
+  // Step 2: select the newest signer as active (mirrors the old trim-to-last
+  // intent) without discarding the others — getAccounts() still sees them all.
+  const signers = getSignersList()
+  const newest = signers[signers.length - 1] || signer
+  activeAccountId = newest.getAccountId().toString()
 
-  console.log("[WC] Connected account:", accountId)
+  console.log("[WC] Connected account:", activeAccountId)
 
   // 🔑 force UI consistency immediately
-  updateWalletConnectionUI(accountId)
+  updateWalletConnectionUI(activeAccountId)
 
-  return accountId
+  return activeAccountId
 }
 
 
 
-async function zzconnectWalletCore() {
-  await initializeWalletConnect()
-
-  // Ensure connector is ready
-  await new Promise(resolve => setTimeout(resolve, 500))
-
-  await dappConnector.openModal()
-
-  // const accountId = dappConnector.signers[0]?.getAccountId()?.toString()
-  const accountId = getSigner()?.getAccountId()?.toString()
-  
-  if (!accountId)
-    throw new Error("Wallet connection failed")
-
-  return accountId
-}
+// (removed duplicate dead `zzconnectWalletCore` — see the earlier zz variant above;
+//  it broke the Vite/Rollup build with "Identifier already declared")
 
 // disconnectWalletCore
 // Headless intent: clear wallet session and disconnect active connector
@@ -407,6 +480,46 @@ async function disconnectWalletCore() {
     }
   }
 
+  activeAccountId = null   // step 2: drop the selection so it can't go stale
+
+  return true
+}
+
+
+// disconnectAccountCore (step 3)
+// Disconnect a SINGLE account, leaving any others connected. Each DAppSigner
+// carries its session `topic`; dappConnector.disconnect(topic) drops just that
+// session. (If a wallet exposed several accounts on one topic they'd go together,
+// but the common case is one account per pairing.) Clears the active selection
+// only if the removed account was the active one.
+async function disconnectAccountCore(accountId) {
+  if (!accountId) return false
+  await initializeWalletConnect()
+
+  const signer = findSigner(accountId)
+  if (!signer) return false
+
+  const topic = signer.topic
+  try {
+    if (topic) await dappConnector.disconnect(topic)
+    else await dappConnector.disconnectAll()
+  } catch (error) {
+    console.warn("[WC] Error disconnecting account", accountId, error)
+  }
+
+  // WC-PICKDEL1: dappConnector.disconnect(topic) deletes the session on the relay but
+  // does NOT prune dappConnector.signers — that array is only filtered by the library's
+  // session_delete handler, which fires for PEER-initiated deletes, not our own. Without
+  // pruning here getWalletAccounts() still returns the removed account and the picklist
+  // re-renders unchanged (button looks dead). Prune locally by topic (the unit a single
+  // disconnect drops); fall back to accountId so a missing topic can't strand the signer.
+  const before = getSignersList().length
+  if (Array.isArray(dappConnector?.signers))
+    dappConnector.signers = dappConnector.signers.filter(s =>
+      topic ? s.topic !== topic : s.getAccountId().toString() !== accountId)
+  console.log("[WC] disconnected account", accountId, "signers", before, "→", getSignersList().length)
+
+  if (activeAccountId === accountId) activeAccountId = null
   return true
 }
 
@@ -435,6 +548,79 @@ async function ensureWalletSignerReady() {
 async function getActiveWalletAccount() {
   await initializeWalletConnect()
   return getSigner()?.getAccountId()?.toString() || null
+}
+
+
+// authenticateCore (step 4)
+// Off-ledger authentication: the wallet signs a plain-text challenge with the
+// selected account's key (HIP-820 hedera_signMessage). No transaction, nothing
+// submitted. The backend verifies the returned signature against the account's
+// (or an explicitly-supplied) public key.
+//
+// accountId : Hedera account to sign with (defaults to the active account).
+// message   : the challenge string the backend issued (nonce, etc.).
+//
+// Returns { accountId, network, message, signatureMap, raw } — signatureMap is
+// the HIP-820 base64 proto SignatureMap; raw is the untouched wallet response so
+// the verifier can adapt if a wallet returns a different shape. A Hedera account
+// can be multisig, so the verifier may match against a specific public key rather
+// than assume one — the signatureMap carries the signing pubkey(s).
+async function authenticateCore({ accountId, message } = {}) {
+  if (!message) throw new Error("Missing challenge message")
+
+  await initializeWalletConnect()
+
+  const signer = accountId ? findSigner(accountId) : getSigner()
+  if (!signer) throw new Error(accountId
+    ? `Account ${accountId} is not connected`
+    : "No signer available. Please connect a wallet.")
+
+  const resolvedId = signer.getAccountId().toString()
+  const network = walletConfig?.hedera?.network || "mainnet"
+
+  // HIP-30 signer id form: hedera:<network>:<account>
+  const signerAccountId = `hedera:${network}:${resolvedId}`
+
+  const result = await dappConnector.signMessage({ signerAccountId, message })
+
+  return {
+    accountId: resolvedId,
+    network,
+    message,
+    signatureMap: result?.signatureMap ?? result?.signedMessages ?? null,
+    raw: result
+  }
+}
+
+
+// getWalletNetwork
+// The Hedera network this bundle was initialised for (mainnet/testnet/previewnet).
+// Currently fixed at load from config + ?network= URL override. Exposed so callers
+// (e.g. the kpool signer's mismatch guard) can compare the wallet network against
+// the transaction network — previously that guard was a no-op because window.WC
+// had no getNetwork. Sync return; safe to await.
+function getWalletNetwork() {
+  return walletConfig?.hedera?.network || null
+}
+
+
+// getWalletAccounts
+// All connected account IDs (a wallet session can pair multiple). Reads the
+// connector's signers directly (NOT via getSigner(), which trims to one) so the
+// full list survives. Additive — getAccount() still returns a single active one.
+async function getWalletAccounts() {
+  await initializeWalletConnect()
+  if (!dappConnector?.signers?.length) return []
+  // Safety belt: only return accounts whose signer is actually on the connector's
+  // current network. A persisted session from the other network could otherwise be
+  // restored and leak a wrong-network account into the picklist. Each DAppSigner
+  // exposes its real ledger via getLedgerId().
+  return dappConnector.signers
+    .filter(s => {
+      if (!currentNetwork) return true
+      try { return s.getLedgerId?.()?.toString?.() === currentNetwork } catch { return true }
+    })
+    .map(s => s.getAccountId().toString())
 }
 
 
@@ -1143,6 +1329,18 @@ const exposeHeadlessAPI = () => {
 
     // helpers / state
     getAccount: getActiveWalletAccount,
+    getAccounts: getWalletAccounts,   // step 1: full connected-account list (additive)
+    getActiveAccount: getActiveWalletAccount,   // step 2: alias of getAccount
+    setActiveAccount: setActiveWalletAccount,   // step 2: pick which account signs
+    disconnectAccount: disconnectAccountCore,   // step 3: disconnect one account, keep others
+    authenticate: authenticateCore,   // step 4: sign a challenge (HIP-820 signMessage)
+    getNetwork: getWalletNetwork,     // step 0: enables the kpool signer mismatch guard
+    ensureNetwork: ensureNetwork,     // step 5: scope the connector to a tx's network
+
+    // build provenance — so host pages (kdiag) can record which bundle is live.
+    // __BUILD_META__ is injected by vite at build time ({commit,status,built}).
+    buildMeta: (typeof __BUILD_META__ !== 'undefined') ? __BUILD_META__ : null,
+    version: (typeof __BUILD_META__ !== 'undefined') ? __BUILD_META__.commit : null,
 
     mode: WALLETCONNECT_MODE
   }

@@ -21,7 +21,9 @@
 //   import { decodeTransaction } from './protobuf.js'
 //   const tx = decodeTransaction(hex2)        // hex string OR Uint8Array
 //   tx.transfers.tokens   // [{ token, account, amount }]   amount is signed
+//   tx.transfers.nfts     // [{ token, sender, receiver, serial }]
 //   tx.memo, tx.transactionId, tx.nodeAccountId, tx.transactionFee
+//   tx.validDurationSeconds                                  (VALIDD1)
 //   tx.signers            // [{ pubKeyPrefix, sig, type }]  already-attached sigs
 //
 // Generic primitives are exported too (readVarint, scanFields, decodeMessage)
@@ -157,14 +159,31 @@ function decodeHbarTransfers(buf) {
 	return all(f, 1).map(decodeAccountAmount)
 }
 
+// NftTransfer { senderAccountID=1, receiverAccountID=2, serialNumber=3 (int64), isApproval=4 }
+function decodeNftTransfer(buf, token) {
+	const f = scanFields(buf)
+	return {
+		token,
+		sender: decodeAccountId(first(f, 1)),
+		receiver: decodeAccountId(first(f, 2)),
+		serial: Number(first(f, 3) ?? 0n),
+		isApproval: !!Number(first(f, 4) ?? 0n)
+	}
+}
+
 // TokenTransferList { token=1, transfers=2 (AccountAmount), nftTransfers=3, expectedDecimals=4 }
+// Returns BOTH fungible rows and NFT rows (PROTO1: nftTransfers were previously
+// ignored, which would have made a bytes-vs-display verification blind to NFTs —
+// the main collectible flow).
 function decodeTokenTransferList(buf) {
 	const f = scanFields(buf)
 	const token = decodeAccountId(first(f, 1))
-	return all(f, 2).map(aa => {
+	const tokens = all(f, 2).map(aa => {
 		const t = decodeAccountAmount(aa)
 		return { token, account: t.account, amount: t.amount, amountRaw: t.amountRaw }
 	})
+	const nfts = all(f, 3).map(nt => decodeNftTransfer(nt, token))
+	return { tokens, nfts }
 }
 
 // CryptoTransferTransactionBody { transfers=1 (TransferList), tokenTransfers=2 (TokenTransferList[]) }
@@ -172,8 +191,13 @@ function decodeCryptoTransfer(buf) {
 	const f = scanFields(buf)
 	const hbar = decodeHbarTransfers(first(f, 1))
 	const tokens = []
-	for (const tl of all(f, 2)) tokens.push(...decodeTokenTransferList(tl))
-	return { hbar, tokens }
+	const nfts = []
+	for (const tl of all(f, 2)) {
+		const d = decodeTokenTransferList(tl)
+		tokens.push(...d.tokens)
+		nfts.push(...d.nfts)
+	}
+	return { hbar, tokens, nfts }
 }
 
 // SignaturePair { pubKeyPrefix=1, ed25519=3, ECDSASecp256k1=6, ... }
@@ -197,6 +221,13 @@ function decodeSigMap(buf) {
 	return all(f, 1).map(decodeSignaturePair)
 }
 
+// Duration { seconds=1 (int64) }
+function decodeDuration(buf) {
+	if (!buf) return null
+	const f = scanFields(buf)
+	return Number(first(f, 1) ?? 0n)
+}
+
 // TransactionBody — only the fields we need to verify a transfer.
 //   transactionID=1, nodeAccountID=2, transactionFee=3, validDuration=4,
 //   memo=6, cryptoTransfer=14
@@ -208,9 +239,9 @@ function decodeTransactionBody(buf) {
 		transactionId: decodeTransactionId(first(f, 1)),
 		nodeAccountId: decodeAccountId(first(f, 2)),
 		transactionFee: (first(f, 3) ?? 0n).toString(),   // tinybars, as string (can be large)
-		validDurationSeconds: ctBytes === undefined ? null : null,  // (rarely needed; left out)
+		validDurationSeconds: decodeDuration(first(f, 4)),   // VALIDD1: the real window, from the signed bytes
 		memo: memoBytes ? new TextDecoder().decode(memoBytes) : '',
-		transfers: ctBytes ? decodeCryptoTransfer(ctBytes) : { hbar: [], tokens: [] },
+		transfers: ctBytes ? decodeCryptoTransfer(ctBytes) : { hbar: [], tokens: [], nfts: [] },
 		_hasCryptoTransfer: ctBytes !== undefined
 	}
 }
@@ -320,8 +351,9 @@ export function decodeTransaction(input) {
 		payerAccount: body.transactionId?.account || null,
 		nodeAccountId: body.nodeAccountId,
 		transactionFee: body.transactionFee,
+		validDurationSeconds: body.validDurationSeconds,   // VALIDD1 (null when absent)
 		memo: body.memo,
-		transfers: body.transfers,           // { hbar:[{account,amount}], tokens:[{token,account,amount}] }
+		transfers: body.transfers,           // { hbar:[{account,amount}], tokens:[{token,account,amount}], nfts:[{token,sender,receiver,serial}] }
 		signers,                              // [{ pubKeyPrefix, sig, type }]
 		isTransfer: body._hasCryptoTransfer,
 		bodyBytesHex: bytesToHex(bodyBytes)

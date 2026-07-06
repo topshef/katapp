@@ -108,7 +108,9 @@
     const headerEl = document.getElementById("header")
     const gameEl = document.getElementById("game")
 
-    viewToggle.checked = viewMode === "columns"
+    // Guarded: core is also loaded on non-game pages (index/create — PROFILE-INDEX1)
+    // where the game controls don't exist.
+    if(viewToggle) viewToggle.checked = viewMode === "columns"
 
     /* =========================
        ACTIONS

@@ -1,71 +1,26 @@
+<?php require_once __DIR__ . '/kasset.php'; ?>
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-	<link rel="stylesheet" href="katomia.css" />
+	<link rel="stylesheet" href="<?= kasset('katomia.css') ?>" />
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <title>katomia</title>
 
-  <style>
-		
-  </style>
 </head>
 
 <body>
 
-	<div id="notifications"></div>
-  <button id="profileBtn" class="profile-btn" title="Profile" aria-label="Profile">🔗</button>
-
-
-  <div class="app-banner">
-    <div class="app-banner-inner">
-      <h2>
-        <span class="app-title">KATOMIA</span>
-        <span class="app-icons">💱 🐫</span>
-      </h2>
-    </div>
-  </div>
+  <?php
+    // HEADER-UNIFY: shared banner + hamburger (profile, markets, create, nerd) and
+    // the shared profile modal — same partials on every page. The old KATLAB
+    // body-padding/banner-bleed fix lives inside header.php now.
+    require __DIR__ . '/header.php';
+    require __DIR__ . '/profile-modal.php';
+  ?>
 
   <div id="gameMeta" class="game-meta"></div>
-  <div id="profileModal" class="profile-modal hidden">
-        
-    <div class="profile-card">
-      <div id="profileModalClose" class="profile-close">✕</div>
-
-      <h2 id="profileTitle">Player</h2>
-
-      <div id="profileAvatar" class="profile-avatar"></div>
-
-      <div id="profileQr" class="profile-qr"></div>
-      <p class="subtle">Scan with KEA to approve your orders</p>
-      
-      <div class="profile-list">
-        <div class="profile-label">Order public key</div>
-        <div id="profilePubkey" class="profile-mono"></div>
-
-        <div class="profile-label">Scope</div>
-        <div id="profileScope" class="profile-scope"></div>
-      </div>
-      
-      <a id="profileQrLink" class="profile-link" href="#"></a>
-
-      <button id="profileCopyLinkBtn">Copy KEA link</button>
-
-      <div class="profile-debug">
-        <label class="profile-debug-label">
-          <input type="checkbox" id="katomia-nerd-toggle">
-          🤓 Nerd mode
-        </label>
-        <label class="profile-debug-label">
-          <input type="checkbox" id="kdiagRemoteToggle">
-          Remote diagnostic logging
-        </label>
-      </div>
-    </div>
-    
-  </div>
-
 
   <div class="controls mode-proposal">
     <label>
@@ -86,6 +41,10 @@
 
 <div class="game-left">
 
+<!-- ORDERS-UI1: orders | tx sit side-by-side on desktop (auto-fit grid), and
+     wrap to a single column on narrower viewports. -->
+<div class="trade-cols">
+
 <div id="ordersSection" class="mode-order">
 
   <div class="orders-market-summary subtle"></div>
@@ -96,31 +55,14 @@
       Orders
     </summary>
 
+    <!-- Controls live under the Orders expansion (they filter the ORDER list, not the
+         chart above). mine/pending also feed the tx list; sort is orders-only. -->
     <div class="section-controls">
-      <button id="createOrderBtn" title=".     Create order" aria-label="Create order">
-        <i class="fa-solid fa-plus"></i>
-      </button>
-
-      <button id="cancelOrderBtn" title=".     Cancel order" aria-label="Cancel order">
-        <i class="fa-solid fa-minus"></i>
-      </button>
-
-      <label>
-        <input id="showMyOrdersOnly" type="checkbox" checked>
-        Only my orders
-      </label>
-
-      <label>
-        <input id="showPendingOrdersOnly" type="checkbox">
-        Only pending
-      </label>
-
-      <label>
-        <input id="sortOrdersByPrice" type="checkbox">
-        Sort by price
-      </label>
-
-
+      <button id="createOrderBtn" title="Create order" aria-label="Create order"><i class="fa-solid fa-plus"></i></button>
+      <button id="cancelOrderBtn" title="Cancel order" aria-label="Cancel order"><i class="fa-solid fa-minus"></i></button>
+      <label><input id="showMyOrdersOnly" type="checkbox" checked> Only mine</label>
+      <label><input id="showPendingOrdersOnly" type="checkbox"> Only pending</label>
+      <label><input id="sortOrdersByPrice" type="checkbox"> Sort by price</label>
     </div>
 
     <div class="orders-list"></div>
@@ -130,8 +72,6 @@
 </div>
 
 
-<BR>
-
 <div id="transactionsSection">
 
   <details class="orders-details" open>
@@ -140,13 +80,9 @@
       Transactions
     </summary>
 
+    <!-- Hide expired stays with tx: an expired transaction ≠ an expired order. -->
     <div class="section-controls">
-
-      <label>
-        <input id="hideExpiredTx" type="checkbox" checked>
-        Hide expired
-      </label>
-
+      <label><input id="hideExpiredTx" type="checkbox" checked> Hide expired</label>
     </div>
 
     <div class="transactions-list"></div>
@@ -154,6 +90,8 @@
   </details>
 
 </div>
+
+</div><!-- .trade-cols -->
 
 </div><!-- .game-left -->
 
@@ -269,6 +207,8 @@
         <button type="button" id="createOrderAccountAdd">➕</button>
         <button type="button" id="createOrderAccountRemove">➖</button>
       </div>
+      <!-- ORDER-AUTHBADGE1: pre-submit reputation-binding hint for the selected account. -->
+      <div id="createOrderAuthHint" class="create-order-auth-hint"></div>
 
       <br>
 
@@ -296,32 +236,36 @@
       </div><!-- #simpleFtRateFields -->
 
       <div id="simpleCollectibleFields" style="display:none">
-        <label>Token ID</label>
-        <input id="createCollectibleToken" type="text" placeholder="e.g. 0.0.12345">
 
-        <br><br>
-
-        <div id="createCollectibleSerialRow">
-          <label>Serial #</label>
-          <input id="createCollectibleSerial" type="number" min="1" step="1" placeholder="e.g. 42">
-          <br><br>
+        <!-- Token ID + Serial/Qty on one line -->
+        <div class="collectible-token-row">
+          <div class="collectible-token-id">
+            <label>Token ID</label>
+            <input id="createCollectibleToken" type="text" placeholder="e.g. 0.0.12345">
+            <div id="createCollectibleTokenHint" class="collectible-hint"></div>
+          </div>
+          <div id="createCollectibleSerialRow" class="collectible-serial">
+            <label>Serial #</label>
+            <input id="createCollectibleSerial" type="number" min="1" step="1" placeholder="e.g. 42">
+          </div>
+          <div id="createCollectibleQtyRow" class="collectible-serial" style="display:none">
+            <label>Qty</label>
+            <input id="createCollectibleQty" type="number" min="1" step="1" value="1" placeholder="qty">
+          </div>
         </div>
 
-        <div id="createCollectibleQtyRow" style="display:none">
-          <label>Quantity</label>
-          <input id="createCollectibleQty" type="number" min="1" step="1" placeholder="whole number">
-          <br><br>
+        <!-- Price + Currency on one line -->
+        <div class="collectible-price-row">
+          <div class="collectible-price">
+            <label>Price <span class="collectible-label-note">(total)</span></label>
+            <input id="createCollectiblePrice" type="number" step="any" min="0" placeholder="e.g. 10.50">
+          </div>
+          <div class="collectible-currency">
+            <label>Currency</label>
+            <select id="createCollectibleCurrency"></select>
+          </div>
         </div>
 
-        <label>Currency</label>
-        <select id="createCollectibleCurrency"></select>
-
-        <br><br>
-
-        <label>Price <span style="font-weight:normal;font-size:11px;color:#999">(total)</span></label>
-        <input id="createCollectiblePrice" type="number" step="any" min="0" placeholder="e.g. 10.50">
-
-        <br><br>
       </div><!-- #simpleCollectibleFields -->
 
       <label>Time in force</label>
@@ -396,27 +340,36 @@
      widget is dropped in purely via a script tag to prove it's host-agnostic.
      Both are same-origin here; adjust paths via window.KPAY_FUTURE_BASE etc. -->
 <?php require_once($_SERVER['DOCUMENT_ROOT'] . "/vendor/walletconnect/kwcScriptTag.php"); ?>
+<!-- MODAL-URL1: opt in to URL-hash persistence so a signing modal survives reload
+     / is bookmarkable (#sign=network:txid:pch). Set before the deferred embed runs. -->
+<script>window.KPAY_SIGN_HASH = true</script>
 <script src="/vendor/kpay/kpool_widget/kpay-embed.js" defer></script>
 
 
 
-<script type="module" src="katomia-init.js" data-glog="on"></script>
-<script src="katomia-core.js"></script>
-<script src="katomia-localdb.js"></script>
-<script src="kemoji.js"></script>
-<script src="katomia-helpers.js"></script>
-<script src="katomia-enrich.js"></script>
-<script src="katomia-network.js"></script>
-<script src="katomia-modals.js"></script>
-<script src="katomia-render.js"></script>
-<script src="katomia-render-orders.js"></script>
-<script src="katomia-market.js"></script>
+<script type="module" src="<?= kasset('katomia-init.js') ?>" data-glog="on"></script>
+<script src="<?= kasset('katomia-core.js') ?>"></script>
+<script src="<?= kasset('katomia-localdb.js') ?>"></script>
+<script src="<?= kasset('kemoji.js') ?>"></script>
+<script src="<?= kasset('katomia-helpers.js') ?>"></script>
+<script src="<?= kasset('katomia-enrich.js') ?>"></script>
+<script src="<?= kasset('katomia-network.js') ?>"></script>
+<script src="<?= kasset('katomia-modals.js') ?>"></script>
+<script src="<?= kasset('katomia-render.js') ?>"></script>
+<script src="<?= kasset('katomia-render-orders.js') ?>"></script>
+<script src="<?= kasset('katomia-market.js') ?>"></script>
 <!-- QR: davidshimjs build already bundled with kpool_widget — same file the offline
      signing widget uses. CDN removed to keep all assets in-house.
      TODO(bundling): when kpool_widget is rolled into a proper JS bundle, fold
      qrcode.min.js in and remove this script tag entirely. -->
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
-<script src="katomia-profile.js"></script>
+<script src="<?= kasset('katomia-profile.js') ?>"></script>
+<script src="<?= kasset('katomia-auth.js') ?>"></script>
+
+<!-- KAT-FEEDBACK1 dogfooding: long-press anywhere on the game page (2s) opens
+     a "Send Feedback" modal. Signs with the intent keypair above if present. -->
+<script src="/vendor/feedback-widget/feedback-widget.js?v=<?= @filemtime($_SERVER['DOCUMENT_ROOT'] . '/vendor/feedback-widget/feedback-widget.js') ?>"
+        data-product="katomia"></script>
 
 <script>
 window.addEventListener("load", () => {
@@ -433,9 +386,23 @@ window.addEventListener("load", () => {
 
   if(typeof connect === "function")
     connect()
-    
-  
+
+
 })
+
+// GAME-JOINRULE1: a gated game rejects the WS join until a commitment exists. When
+// the user raises one from the (now always-reachable) profile modal, retry the join
+// so the game appears without a manual refresh. connect() re-sends game_join when
+// the socket was closed; when it's already open we send the join explicitly.
+window.onKatomiaBindingPublished = () => {
+  try {
+    if(typeof connect !== "function") return
+    const rejoin = () => socket?.send(JSON.stringify({
+      type: "game_join", gameId, playerToken: getOrCreatePlayerToken(), playerName: "anon"
+    }))
+    connect(rejoin)
+  } catch(e){ console.error("[auth] rejoin after publish failed", e) }
+}
 </script>
 
 <script>

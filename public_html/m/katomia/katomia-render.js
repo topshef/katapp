@@ -679,6 +679,12 @@ function getFastThumb(url, imgEl){
 				? name + ":" + label
 				: label
 
+			// 💠/△ control marker sits IMMEDIATELY after the account id, no padding (per
+			// user 2026-07-03 — it was previously over in the mode column, crowding the
+			// Trading/Lock control). The △ negative marker may be dropped later so only
+			// the positive 💠 shows — both kept for now for debugging.
+			textEl.appendChild(createAccountAuthMarker(account))
+
 			nameEl.appendChild(textEl)
 
             // 👇 NEW XPROOF LABEL
@@ -780,9 +786,183 @@ function getFastThumb(url, imgEl){
 		}
 
 
+    // ── PROP-LOCKSIGN1: signed lock commitments (proposal mode) ─────────────────
+    // Locking now signs a commitment over the CANONICAL BOARD BASIS with the intent
+    // key — the proposal-mode twin of order intentSignature, giving reputation bindings
+    // something to attach to. Canonical rule (must match backend computeProposalBasis
+    // exactly): every basket line item on the board as {amount, assetId, from, to}
+    // (public ids), each JSON-encoded, lexicographically sorted, joined into an array
+    // string; basisHash = sha256 hex. Signed payload mirrors the order sig convention:
+    // {specVersion, gameId, network, basisHash}, ed25519 via signOrder().
+    const PROP_SIG_SPEC_FIELDS = ["specVersion","gameId","network","basisHash"]
+    const PROP_SIG_SPEC = (async () => {
+      const bytes  = new TextEncoder().encode(JSON.stringify(PROP_SIG_SPEC_FIELDS))
+      const digest = await crypto.subtle.digest("SHA-256", bytes)
+      return Array.from(new Uint8Array(digest))
+        .map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 8)
+    })()
+
+    async function sha256Hex(str){
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str))
+      return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("")
+    }
+
+    async function computeProposalBasisHash(){
+      const lines = []
+      for(const account of Object.values(state?.accounts || {})){
+        for(const item of account.basket || []){
+          // key order matters (JSON.stringify preserves it) — amount, assetId, from, to
+          lines.push({ amount: item.amount ?? 1, assetId: item.assetId, from: item.fromId, to: account.id })
+        }
+      }
+      const enc = lines.map(l => JSON.stringify(l)).sort()
+      return sha256Hex("[" + enc.join(",") + "]")
+    }
+
+    // Build {payload, signature} or null (no key / helpers unavailable → unsigned lock,
+    // the pre-PROP-LOCKSIGN1 status quo — visibility, never gating).
+    async function buildLockCommitment(basisHash){
+      try {
+        if(typeof signOrder !== "function" || typeof getOrCreatePlayerKeypair !== "function") return null
+        const { privateKey, publicKeyJwk } = await getOrCreatePlayerKeypair()
+        const payload = {
+          specVersion: await PROP_SIG_SPEC,
+          gameId,
+          network: gameMeta?.network ?? null,
+          basisHash: basisHash || await computeProposalBasisHash()
+        }
+        const signature = await signOrder(payload, privateKey, publicKeyJwk)
+        return { payload, signature }
+      } catch(e){
+        console.error("[lock] commitment build failed", e)
+        try { window.kdiag?.("lock:commitment-build-fail", { error: String(e) }) } catch {}
+        return null
+      }
+    }
+
+    // Auto-re-sign while locked: the board can change WITHOUT unlocking you (someone
+    // offers elsewhere), which would silently stale your signature by settlement. Since
+    // a persisting lock is already the game's consent model and the intent key signs
+    // silently (local key, no wallet prompt), we re-sign the new basis on every state
+    // update while any of my accounts is locked. Hash-guard prevents re-send loops.
+    let _lockResignBusy = false
+    async function maybeRefreshLockCommitment(){
+      if(_lockResignBusy) return
+      _lockResignBusy = true
+      try {
+        const mine = Object.values(state?.accounts || {}).filter(a => isMyAccount(a))
+        if(!mine.some(a => a.mode === "lock")){ window.__lastLockBasisSent = null; return }
+        const basisHash = await computeProposalBasisHash()
+        if(basisHash === window.__lastLockBasisSent) return
+        const commitment = await buildLockCommitment(basisHash)
+        if(!commitment) return
+        window.__lastLockBasisSent = basisHash
+        socket.send(JSON.stringify({ type: "game_lockCommitment", gameId, commitment }))
+        try { window.kdiag?.("lock:commitment-refresh", { basisHash: basisHash.slice(0,12) }) } catch {}
+      } finally { _lockResignBusy = false }
+    }
+
+    // 💠/△ account-control marker. authBound is PLAYER-aware (backend: the account's
+    // verified binding covers THIS player's registered intent key) — so the same account
+    // added by two players marks 💠 only for the one who could actually sign the binding.
+    // Before any reputation exists this alone proves account control.
+    function createAccountAuthMarker(account){
+      const nerd = document.body.classList.contains("nerd")
+      const el = document.createElement("span")
+      el.className = "order-auth-badge" + (account.authBound ? "" : " auth-unverified")
+      el.textContent = account.authBound ? "💠" : "△"
+      const frac = (account.authThreshold && account.authThreshold > 1)
+        ? ` (${account.authWeight}/${account.authThreshold} multisig weight)` : ""
+      el.title = account.authBound
+        ? (nerd ? `Account control verified — ${account.accountId || account.label} has a published wallet binding for this player's intent key${frac}.`
+                : `Verified${frac}`)
+        : (nerd ? `Not verified — no published binding ties ${account.accountId || account.label} to this player's intent key.`
+                : "Not verified")
+      return el
+    }
+
+    // ── LOCK-PROGRESS1: cluster lock-progress ─────────────────────────────────
+    // Frontend mirror of the backend's grouping (hbarlive katomia.js:
+    // getTradeClusters / getActiveAccounts / attemptSettlement) — the graph isn't
+    // broadcast, so it's re-derived from the same inputs: each basket item edges
+    // the basket owner to item.fromId; connected components are clusters; active =
+    // anyone giving or receiving. Who must lock follows gameMeta.lockRule:
+    //   cluster → the ACTIVE members of your component (each component counts
+    //             independently — disconnected clusters don't relate)
+    //   active  → all active accounts game-wide
+    //   all     → every account, from the get-go (everyone is required)
+    // Keep in sync with the backend if its settlement rules change. Memoized per
+    // state broadcast (recomputed once per game_state, not per account row).
+    let _lpState = null, _lpMap = null
+    function getLockProgress(accountId){
+      if(_lpState !== state){ _lpState = state; _lpMap = computeLockProgressMap() }
+      return _lpMap.get(accountId) || null
+    }
+
+    function computeLockProgressMap(){
+      const map = new Map()
+      const accounts = Object.values(state?.accounts || {})
+      if(!accounts.length) return map
+      const lockedOf = ids => ids.filter(id => state.accounts[id]?.mode === "lock").length
+
+      const active = new Set()
+      for(const a of accounts){
+        if((a.basket || []).length) active.add(a.id)
+        for(const item of a.basket || []) if(item.fromId) active.add(item.fromId)
+      }
+
+      const rule = gameMeta?.lockRule || "cluster"
+
+      if(rule === "all"){
+        const ids = accounts.map(a => a.id)
+        const entry = { total: ids.length, locked: lockedOf(ids), scope: "whole game" }
+        ids.forEach(id => map.set(id, entry))
+        return map
+      }
+
+      if(rule === "active"){
+        const ids = [...active]
+        if(ids.length < 2) return map   // no bar until there's real participation
+        const entry = { total: ids.length, locked: lockedOf(ids), scope: "all active traders", groupId: "active" }
+        ids.forEach(id => map.set(id, entry))
+        return map
+      }
+
+      // cluster: connected components over basket edges
+      const graph = {}
+      accounts.forEach(a => graph[a.id] = new Set())
+      for(const a of accounts)
+        for(const item of a.basket || []){
+          if(!item.fromId) continue
+          graph[a.id].add(item.fromId)
+          graph[item.fromId]?.add(a.id)
+        }
+      const seen = new Set()
+      for(const id of Object.keys(graph)){
+        if(seen.has(id)) continue
+        const stack = [id], comp = []
+        while(stack.length){
+          const n = stack.pop()
+          if(seen.has(n)) continue
+          seen.add(n)
+          comp.push(n)
+          for(const m of graph[n]) if(!seen.has(m)) stack.push(m)
+        }
+        const members = comp.filter(cid => active.has(cid))
+        if(members.length < 2) continue   // singleton / not participating — no bar
+        // groupId keys the hover cross-highlight (stable per broadcast: the lowest member id)
+        const entry = { total: members.length, locked: lockedOf(members), scope: "this cluster", groupId: "c:" + members.slice().sort()[0] }
+        members.forEach(cid => map.set(cid, entry))
+      }
+      return map
+    }
+
     function createAccountModeEl(account){
 
       const wrap = document.createElement("div")
+
+      // (the 💠/△ control marker moved to sit right after the account id in
+      // createAccountInfoEl — it crowded the Trading/Lock control here)
 
       const modeEl = document.createElement("div")
       modeEl.className = "mode"
@@ -795,16 +975,58 @@ function getFastThumb(url, imgEl){
       if(isMyAccount(account)){
         modeEl.classList.add("clickable")
 
-        modeEl.onclick = () => {
+        modeEl.onclick = async () => {
+          // PROP-LOCKSIGN1: locking signs the board basis; unlocking sends plain (the
+          // backend discards the stored commitment on unlock).
+          const locking = account.mode !== "lock"
+          let commitment = null
+          if(locking) commitment = await buildLockCommitment()
           socket.send(JSON.stringify({
             type: "game_toggleLock",
             gameId,
-            accountId: account.id
+            accountId: account.id,
+            ...(commitment ? { commitment } : {})
           }))
+          window.__lastLockBasisSent = locking ? (commitment?.payload?.basisHash ?? null) : null
         }
       }
 
       wrap.appendChild(modeEl)
+
+      // LOCK-PROGRESS1: ruler-style consensus line under the mode — one segment per
+      // required locker, trading-blue flipping to locked-orange as members lock.
+      // Segments are anonymous and in stable (cluster-traversal) order for v1; a
+      // subtle own-segment highlight is a possible refinement. Tooltip carries the
+      // count; nerd mode adds the remainder.
+      const lp = getLockProgress(account.id)
+      if(lp){
+        const bar = document.createElement("div")
+        bar.className = "lockbar"
+        const nerd = document.body.classList.contains("nerd")
+        bar.title = `${lp.locked} of ${lp.total} locked (${lp.scope})`
+          + (nerd && lp.locked < lp.total ? ` — ${lp.total - lp.locked} more needed to strike` : "")
+        for(let i = 0; i < lp.total; i++){
+          const seg = document.createElement("span")
+          seg.className = "lockbar-seg" + (i < lp.locked ? " lockbar-seg--locked" : "")
+          bar.appendChild(seg)
+        }
+        wrap.appendChild(bar)
+
+        // Hovering any member's toggle cross-highlights the WHOLE lock group (which
+        // rows share your consensus count — otherwise indistinguishable when several
+        // clusters coexist). Markup carries the intent (data-lockgroup + .lockgroup-hl);
+        // the look lives in CSS. Skipped for lockRule "all" — highlighting every row
+        // says nothing (per user).
+        if(lp.groupId){
+          wrap.dataset.lockgroup = lp.groupId
+          modeEl.addEventListener("mouseenter", () =>
+            document.querySelectorAll(`[data-lockgroup="${CSS.escape(lp.groupId)}"]`)
+              .forEach(el => el.classList.add("lockgroup-hl")))
+          modeEl.addEventListener("mouseleave", () =>
+            document.querySelectorAll(".lockgroup-hl")
+              .forEach(el => el.classList.remove("lockgroup-hl")))
+        }
+      }
 
       return wrap
     }

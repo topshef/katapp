@@ -6,20 +6,37 @@ function loadNerdMode(){
 
 function applyNerdMode(on){
   document.body.classList.toggle("nerd", on)
-  const toggle = document.getElementById("katomia-nerd-toggle")
-  if(toggle) toggle.checked = on
+  // Keep every nerd toggle in sync (profile panel + main header + any future ones).
+  document.querySelectorAll(".nerd-toggle-input").forEach(t => { t.checked = on })
   try{ localStorage.setItem(NERD_KEY, on ? "1" : "0") }catch{}
 }
 
 function initKatomiaProfile(){
-  const btn = document.getElementById("profileBtn")
   const modal = document.getElementById("profileModal")
   const close = document.getElementById("profileModalClose")
   const copyBtn = document.getElementById("profileCopyLinkBtn")
 
-  if(!btn || !modal) return
+  if(!modal) return
 
-  btn.onclick = () => openKatomiaProfile()
+  // Open triggers: the shared header's menu item ([data-menu-profile]) on every page,
+  // plus the legacy floating #profileBtn wherever it still exists.
+  document.querySelectorAll("#profileBtn, [data-menu-profile]").forEach(el =>
+    el.addEventListener("click", () => openKatomiaProfile())
+  )
+
+  // AUTH-LANG1: the menu's 🤖 Execution agent item is a second door to the SAME
+  // modal, landed on the KEA section (expanded + scrolled). One home, two doors —
+  // when KEA graduates to its own page/app this handler just repoints.
+  document.querySelectorAll("[data-menu-kea]").forEach(el =>
+    el.addEventListener("click", async () => {
+      await openKatomiaProfile()
+      const kea = document.getElementById("profileKeaSection")
+      if(!kea) return
+      kea.open = true
+      kea.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+  )
+
   close.onclick = () => modal.classList.add("hidden")
   modal.onclick = e => {
     if(e.target === modal) modal.classList.add("hidden")
@@ -28,9 +45,28 @@ function initKatomiaProfile(){
   if(copyBtn)
     copyBtn.onclick = () => copyKatomiaProfileLink()
 
-  const nerdToggle = document.getElementById("katomia-nerd-toggle")
-  if(nerdToggle)
-    nerdToggle.onchange = () => applyNerdMode(nerdToggle.checked)
+  // Copy local diagnostics (the window.kdiag ring buffer) — moved here from the kpool
+  // widget modal (DIAG-MOVE1) so all diagnostics controls live together in the profile.
+  const copyDiagBtn = document.getElementById("profileCopyDiagBtn")
+  if(copyDiagBtn)
+    copyDiagBtn.onclick = async () => {
+      const original = copyDiagBtn.textContent
+      try{
+        window.kdiag?.dom?.(modal, "profile-modal")   // snapshot the modal so UI issues survive in the copy
+        await (window.kdiag?.copy?.() ?? Promise.reject(new Error("kdiag.copy unavailable")))
+        copyDiagBtn.textContent = "✓ copied"
+        katomiaDiagSend?.("diag:copy-local", { ok: true })
+      }catch(err){
+        copyDiagBtn.textContent = "see console"
+        console.error("[diag] copy local failed", err)
+        katomiaDiagSend?.("diag:copy-local", { ok: false, error: String(err) })
+      }
+      setTimeout(() => { copyDiagBtn.textContent = original }, 1500)
+    }
+
+  document.querySelectorAll(".nerd-toggle-input").forEach(t =>
+    t.onchange = () => applyNerdMode(t.checked)
+  )
 
   loadNerdMode()
 }
@@ -43,8 +79,22 @@ async function openKatomiaProfile(){
 
   const diagToggle = document.getElementById("kdiagRemoteToggle")
   if(diagToggle){
-    diagToggle.checked = localStorage.getItem("kdiag_remote") === "1"
-    diagToggle.onchange = () => window.kdiag?.setRemote(diagToggle.checked)
+    // Reflect the EFFECTIVE remote-logging state, not the raw key. While DIAG_DEFAULT_ON
+    // is true (rapid-iteration) the key is ABSENT on a fresh/incognito load yet logging IS
+    // on — a raw `=== "1"` check showed the box unchecked while it was actually logging.
+    // Use the same predicate the sender uses (katomiaDiagRemoteOn) so the box can't lie.
+    diagToggle.checked = (typeof katomiaDiagRemoteOn === "function")
+      ? katomiaDiagRemoteOn()
+      : localStorage.getItem("kdiag_remote") === "1"
+    diagToggle.onchange = () => {
+      const on = diagToggle.checked
+      window.kdiag?.setRemote(on)   // drive the widget buffer's remote flush on/off
+      // Persist an EXPLICIT 0/1. window.kdiag.setRemote(false) does removeItem, and with
+      // DIAG_DEFAULT_ON=true an absent key falls back to ON — so unchecking would NOT
+      // actually disable. Re-assert the explicit value here so the toggle is authoritative.
+      try { localStorage.setItem("kdiag_remote", on ? "1" : "0") } catch {}
+      katomiaDiagSend?.("diag:remote-toggle", { on })
+    }
   }
 
   await renderKatomiaProfile()
@@ -62,10 +112,33 @@ async function renderKatomiaProfile(){
 
   renderKatomiaAvatar(pubkey)
 
+  renderKatomiaKvac()   // public prepaid-access handle (nerd only, stubbed)
+
   const link = buildKatomiaProfileLink(pubkey)
   setProfileLink(link)
 
   await renderKatomiaQr(link)
+
+  // PROFILE-AUTH1: populate the Authenticate account row (no forced connect).
+  if(typeof katomiaAuthOnProfileOpen === "function")
+    katomiaAuthOnProfileOpen().catch(e => console.error("[auth] account refresh failed", e))
+}
+
+// KVAC / KSAT (prepaid fee model — see kpay.uk/kvac). HKSAT = SHA256(player token) is the
+// PUBLIC handle; the player token (KSAT) itself stays private in localStorage. This is the
+// same ephemeral token already used on the WebSocket and now as the x-player-token API auth.
+// STUB: we display the handle only. Balance lookup + top-up (deposit to a Hedera account
+// with HKSAT in the memo, backend credits the HKSAT balance) are FEE1 — not wired yet.
+// Consider salting/derivation before this is anything more than a display experiment.
+async function renderKatomiaKvac(){
+  const el = document.getElementById("profileKvac")
+  if(!el) return
+  try {
+    const token = getOrCreatePlayerToken()
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token))
+    el.textContent = "0x" + [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("")
+    // STUB: fetch balance by HKSAT here later, e.g. GET /katomia/kvac/:hksat/balance.
+  } catch(e){ el.textContent = "unavailable" }
 }
 
 function renderKatomiaAvatar(pubkeyHex){
