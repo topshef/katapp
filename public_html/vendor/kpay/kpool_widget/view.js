@@ -153,9 +153,11 @@ const SIGN_REASON = {
 	}
 
 	// PROTO1/SECURITY: verdict line for the bytes-vs-display check (model.js
-	// verifyTransfersAgainstBytes). Mismatch = loud red banner — the user must not
-	// trust what's rendered. Match = quiet ✓ reassurance. unavailable/error = shown
-	// in nerd mode only (a settled view without bytes is normal, don't cry wolf).
+	// verifyTransfersAgainstBytes). Mismatch = loud red banner, ALWAYS shown — the
+	// user must not trust what's rendered. Everything else (match tick, unavailable,
+	// error) is NERD-ONLY (user 2026-07-06: "it's a given that we're verifying — we
+	// don't need a dev note like that on a normal view"). Visibility is CSS-driven
+	// off body.nerd (injectTxReadCSS) so the nerd toggle applies live, no re-render.
 	function buildBytesVerifyNote(bytesVerify) {
 		if (!bytesVerify) return null
 		const el = document.createElement('div')
@@ -167,18 +169,14 @@ const SIGN_REASON = {
 				`<strong>⚠️ WARNING — the transfers shown do NOT match the transaction bytes being signed.</strong>` +
 				`<br>Do not sign. ` +
 				`<span class="subtle">bytes-only: ${bytesVerify.missingFromDisplay.length}, display-only: ${bytesVerify.extraInDisplay.length} — details in diagnostics (tx:bytes-verify).</span>`
-			el.style.cssText = 'color:#b00020;background:#fde7ea;border:1px solid #f3b5c0;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13px;'
 			return el
 		}
 		if (bytesVerify.status === 'match') {
 			el.textContent = `✔ display verified against signed bytes (${bytesVerify.counts.bytes} transfer legs, ${bytesVerify.mode})`
-			el.style.cssText = 'color:#2e7d32;font-size:11px;margin:4px 0;'
 			return el
 		}
-		// unavailable / error — informational, nerd-only
+		// unavailable / error — informational
 		el.textContent = `bytes-verify: ${bytesVerify.status} — ${bytesVerify.reason || ''}`
-		el.style.cssText = 'color:#999;font-size:11px;margin:4px 0;'
-		if (!document.body.classList.contains('nerd')) el.style.display = 'none'
 		return el
 	}
 
@@ -192,6 +190,10 @@ const SIGN_REASON = {
 			const note = buildBytesVerifyNote(transfers?.bytesVerify)
 			if (!note) return el
 			const wrap = document.createElement('div')
+			// The wrapper takes the view's place as the flex item of .txread-intent-row,
+			// so it must carry the cards' flex sizing — without this .txcards shrinks to
+			// content width (the "narrow account cards" regression, 2026-07-06).
+			if (el.classList?.contains('txcards')) wrap.style.flex = '1 1 380px'
 			wrap.append(note, el)
 			return wrap
 		}
@@ -307,6 +309,18 @@ const SIGN_REASON = {
 		idLink.rel = 'noopener'
 		idLink.textContent = acc.id
 		head.appendChild(idLink)
+
+		// Fee-payer cue in NORMAL mode (feedback 3c28f05d, 2026-07-06): knowing who pays
+		// the Hedera fee is more than nerd detail — badge the operator's header with its
+		// own tooltip. The dotted "HBAR fee" chip on its send side still shows the fee
+		// itself; the expanded detail spells it out in a sentence.
+		if ((acc.roles || []).includes('operator')) {
+			const payer = document.createElement('span')
+			payer.className = 'txcard-payer'
+			payer.textContent = '💳'
+			payer.title = 'Fee payer — this account pays the Hedera network fee for this transaction'
+			head.appendChild(payer)
+		}
 
 		// xproof label (domain/name) is added next to the account id by updateCardXproof
 		// once signing accounts are enriched — always visible, no expand needed.
@@ -947,6 +961,15 @@ export function updateCardBalances(precheck) {
 // label. Mirrors the Signing Authority row content, co-located on the account's own card.
 function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 	const wrap = document.createElement('div')
+
+	// Fee-payer sentence on expand (feedback 3c28f05d): the header badge cues it, this
+	// line SAYS it. Fee estimate (amount, updated post-consensus) is TX-CARDS-FEEEST1.
+	if ((acc.mustSignReason || []).includes('operator')) {
+		const note = document.createElement('div')
+		note.className = 'txcard-detail-note'
+		note.textContent = '💳 This account is the operator: it pays the Hedera network fee for this transaction.'
+		wrap.appendChild(note)
+	}
 
 	// The one non-obvious reason for signing — spell it out so nobody wonders why a
 	// receiving account needs to sign (receiver_sig_required is set on the account key).
@@ -1876,6 +1899,15 @@ export function injectTxReadCSS() {
 		.txread-approvals .ksubtitle { display: none; }
 		.acctkeys-header, .acctkeys-account { text-align: center; }
 
+		/* PROTO1 bytes-vs-display verdict (buildBytesVerifyNote). Only the mismatch
+		   warning is for everyone; match/unavailable/error are nerd-mode detail —
+		   in normal mode the bytes ARE the display's provenance, nothing to announce. */
+		.txread-bytes-verify[data-status="mismatch"] { color:#b00020; background:#fde7ea; border:1px solid #f3b5c0; border-radius:8px; padding:8px 10px; margin:6px 0; font-size:13px; }
+		.txread-bytes-verify[data-status="match"] { color:#2e7d32; font-size:11px; margin:4px 0; }
+		.txread-bytes-verify[data-status="unavailable"], .txread-bytes-verify[data-status="error"] { color:#999; font-size:11px; margin:4px 0; }
+		.txread-bytes-verify:not([data-status="mismatch"]) { display:none; }
+		body.nerd .txread-bytes-verify:not([data-status="mismatch"]) { display:block; }
+
 		/* intent: line items + optional narrative side by side */
 		.txread-intent-row { display:flex; flex-wrap:wrap; gap:24px; justify-content:space-evenly; align-items:flex-start; }
 		.txread-intent-row .txread-xfers { max-width:none; margin:0; }
@@ -1926,6 +1958,8 @@ export function injectTxReadCSS() {
 		}
 		.txcard-acct { font-size:13px; font-weight:500; color:#52525b; text-decoration:none; word-break:break-all; }
 		.txcard-acct:hover { text-decoration:underline; }
+		/* fee-payer badge on the operator's header (feedback 3c28f05d) */
+		.txcard-payer { font-size:12px; margin-left:4px; cursor:default; line-height:1; }
 		.txcard-acct-label { font-size:12px; color:#a1a1aa; }
 		/* xproof next to the account id — domain reuses .txcard-acct so it matches (plain
 		   text, underline on hover) and can be group-restyled with the account id later. */
