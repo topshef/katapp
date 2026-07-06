@@ -41,4 +41,5 @@ scratchpad
 
 
 
-ops/ops.jsonl
+**/ops/ops.jsonl
+**/ops/ops.jsonl.pre-untrack-bak
