@@ -1,5 +1,3 @@
-
-
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
@@ -11,7 +9,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap');
 
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap');
+
+
+
+
 		:root{
+			/* Build marker — bump on every CSS edit. Read at runtime via
+			   getComputedStyle(documentElement).getPropertyValue('--katomia-css-build')
+			   to detect whether the browser applied a stale (cached) stylesheet. */
+			--katomia-css-build: "20260702-multiacct-5";
+
 			--bg-color: #f5f5f5;
 
 			--thumb-size: 48px;
@@ -39,7 +47,7 @@
 		}
 
 
-
+    
     body .mode-debug, body .mode-order, body .mode-proposal{ display:none; }
 
     body[data-trading-mode="proposal"] .mode-proposal,
@@ -53,6 +61,11 @@
 
     .debug-only{ display:none; }
     body[data-trading-mode="debug"] .debug-only{ display:inline-flex; }
+
+    /* Nerd mode — user-facing detail toggle (mirrors KEA pro mode) */
+    .nerd-only{ display:none !important; }
+    body.nerd .nerd-only{ display:inline !important; }
+    body.nerd .nerd-hide{ display:none !important; }
 
     .account-xproof-label{
       font-size:11px;
@@ -146,10 +159,20 @@
       z-index:1000;
     }
 
+    /* Clamp horizontal overflow at the document level. Diagnostics proved the
+       page sometimes overflows horizontally (docOverflowX up to ~180px), which
+       inflates the layout viewport; the fixed full-screen create-order modal
+       then sizes to that inflated width and looks "too wide" before snapping
+       back. Clipping page-level x-overflow keeps the layout viewport == visible
+       width so the modal is always correct. (overflow-x:hidden, not clip, for
+       widest mobile support.) */
+    html{ overflow-x:hidden; }
+
     body{
       background: var(--bg-color);
       font-family: var(--font-main);
       margin:16px;
+      overflow-x:hidden;
     }
 
     label:has(#showTradingAccounts){ display:none; }
@@ -248,8 +271,25 @@
 			zzpink_background:#ffe9ec;
 		}
 
+		/* LOCK-PROGRESS1: consensus progress line under the Trading/Locked mode — one
+		   segment per required locker (blue = still trading, orange = locked), count
+		   scoped by the game's lockRule. Echoes the trading-blue / locked-orange
+		   semantics; plain classes so themes (THEME1) can restyle. */
+		.lockbar{ display:flex; gap:2px; margin-top:3px; height:3px; width:100%; max-width:76px; }
+		.lockbar-seg{ flex:1 1 0; background:#a9c9ec; border-radius:2px; transition:background .15s ease; }
+		.lockbar-seg--locked{ background:#f5a623; }
+
+		/* Hovering a mode toggle cross-highlights its whole lock group (.lockgroup-hl is
+		   applied by JS to every member sharing the data-lockgroup): the bars deepen a
+		   shade (same hues, just darker — subtle by intent) and the mode word thickens
+		   via sub-pixel text-shadow, which unlike bold cannot widen the text and shove
+		   the DOM around. */
+		.lockgroup-hl .lockbar-seg{ background:#84aedd; }
+		.lockgroup-hl .lockbar-seg--locked{ background:#dd8f0e; }
+		.lockgroup-hl .mode{ text-shadow:0 0 .45px currentColor; }
+
 		.account-row[data-mode="shop"]{
-			background:#e6f2ff; 
+			background:#e6f2ff;
 		}
 
 
@@ -569,8 +609,6 @@
   color:#000;
 }
 
-}
-
 @media (max-width:699px){
   label:has(#viewToggle){
     display:none;
@@ -814,13 +852,47 @@ zz-distracting-body[data-network="playnet"]{
 </svg>");
 }
 
-
-/* banner wrapper */
 .app-banner{
-  background:#fafafa;              /* lighter than page */
-  border-bottom:1px solid #ddd;    /* subtle divider */
-  margin:-16px -16px 12px -16px;   /* stretch full width */
-  padding:10px 16px;
+  background:#e8e8e8;
+  border-bottom:1px solid #d8d8d8;
+
+  /* Full-bleed to top/left/right. box-sizing:border-box + negative margins that
+     exactly match the body's 16px margin: the banner's border-box width resolves
+     to the viewport width (no vw/scrollbar guesswork), so it reaches all 3 edges
+     while the 16px padding keeps the title off the edge. overflow:visible so the
+     42px caps are never clipped. */
+  box-sizing:border-box;
+  margin:-16px -16px 12px -16px;
+  padding:12px 16px;
+  overflow:visible;
+}
+
+
+.app-banner h2{
+  margin:0;
+
+  display:flex;
+  align-items:center;
+  gap:10px;
+
+  line-height:1;
+}
+
+.app-title{
+  font-family:'Poppins', sans-serif;
+  font-size:42px;
+  font-weight:800;
+  letter-spacing:0.12em;
+  line-height:1.1;      /* was clipping the caps top/bottom at line-height:1 */
+  color:#888;
+}
+
+.app-icons{
+  font-size:24px;
+  line-height:1;
+
+  position:relative;
+  top:-1px;
 }
 
 /* inner layout */
@@ -828,7 +900,92 @@ zz-distracting-body[data-network="playnet"]{
   display:flex;
   align-items:center;
   gap:10px;
+  width:100%;   /* so the nerd toggle can sit hard-right via margin-left:auto */
 }
+
+/* nerd toggle mirrored into the header (ORDERS-UI1) */
+.banner-nerd{
+  margin-left:auto;
+  margin-right:36px;   /* clear the fixed 🔗 profile button (right:14px) */
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  font-size:16px;
+  color:#888;
+  cursor:pointer;
+  user-select:none;
+}
+.banner-nerd input{ cursor:pointer; margin:0; }
+
+/* ── shared header (HEADER-UNIFY): home link + hamburger menu ─────────────── */
+.app-home-link{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  color:inherit;
+  text-decoration:none;
+}
+
+.app-menu-btn{
+  margin-left:auto;
+
+  /* neutralise the global button chrome — this is a bare glyph */
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  padding:2px 8px;
+
+  font-size:26px;
+  line-height:1;
+  color:#666;
+  cursor:pointer;
+}
+.app-menu-btn:hover{ background:transparent; color:#222; transform:none; }
+.app-menu-btn:active{ transform:none; }
+
+.app-menu{
+  position:absolute;
+  top:100%;
+  right:8px;
+  z-index:1500;
+
+  min-width:230px;
+  padding:6px;
+
+  display:flex;
+  flex-direction:column;
+
+  background:#fff;
+  border:1px solid #ddd;
+  border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,0.18);
+}
+.app-menu.hidden{ display:none; }
+
+.app-menu-item{
+  display:flex;
+  align-items:center;
+  gap:8px;
+
+  padding:10px 12px;
+  border-radius:8px;
+
+  font-size:15px;
+  color:#333;
+  text-decoration:none;
+  text-align:left;
+  cursor:pointer;
+  user-select:none;
+
+  /* neutralise global button/label chrome for button-based items */
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  width:100%;
+  box-sizing:border-box;
+}
+.app-menu-item:hover{ background:#f3f3f3; transform:none; box-shadow:none; }
+.app-menu-item input{ cursor:pointer; margin:0; }
 
 /* placeholder logo */
 .app-logo{
@@ -838,13 +995,7 @@ zz-distracting-body[data-network="playnet"]{
   border-radius:4px;
 }
 
-/* tidy title */
-.app-banner h2{
-  margin:0;
-  font-size:18px;
-  font-weight:600;
-  color:#444;
-}
+
 
 button{
   display:inline-flex;
@@ -875,34 +1026,10 @@ button:hover{
 button:active{
   transform:translateY(1px);
 }
-button{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-
-  padding:7px 14px;
-  font-size:13px;
-  font-weight:600;
-
-  background:#4CAF50;          /* fresh green */
-  color:#fff;
-
-  border:none;
-  border-radius:8px;
-
-  cursor:pointer;
-  transition:all .12s ease;
-}
-
-/* hover */
-button:hover{
-  background:#43a047;
-}
-
-/* active */
-button:active{
-  transform:translateY(1px);
-}
+/* UI-HOVERCOLOR1: the duplicate "fresh green" (#4CAF50) button block that used to sit
+   here overrode the subtle white/gray default above — removed so katomia's default
+   button + hover stays neutral (border/gray). Action-specific colors live on the
+   per-button rules (#createOrderSubmit etc.). */
 
 /* icon */
 button i{
@@ -988,14 +1115,126 @@ button i{
   --thumb-size: 24px;
 }
 
-#ordersSection .orders-list{
+#ordersSection .orders-list,
+#transactionsSection .transactions-list{
   font-family: monospace;
   font-size: 12px;
+
+  /* ORDERS-UI1: soft-card lists — vertical stack with consistent gap so each row
+     reads as its own card rather than a dense table line. */
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+/* ── soft cards: order + tx rows (ORDERS-UI1 Phase B) ────────────────────────
+   Hairline border + subtle radius + white fill. The per-row identity colour is
+   applied inline as a 4px left border (applyOwnerSleeve for orders), which wins
+   over the hairline on the left edge and reads as an accent stripe. */
+#ordersSection .order-row,
+#transactionsSection .tx-row{
+  border:1px solid #e6e6e6;
+  border-left:4px solid #d8d8d8;   /* neutral by default; buy/sell colour it below */
+  border-radius:7px;
+  background:#fff;
+  padding:7px 10px;
+  transition:box-shadow .12s ease, border-color .12s ease, background .12s ease;
+}
+
+/* Left stripe = buy/sell side (green/red). Replaces the old per-player identity
+   colour — the avatar already carries identity. Rows with no side (bare/settled
+   txs, invalid orders) keep the neutral grey stripe. */
+#ordersSection .order-row[data-order-side="buy"],
+#transactionsSection .tx-row[data-order-side="buy"]{ border-left-color:#2ecc71; }
+#ordersSection .order-row[data-order-side="sell"],
+#transactionsSection .tx-row[data-order-side="sell"]{ border-left-color:#e74c3c; }
+
+/* Nerd mode (ORDERS-UI1): the extra detail is revealed in-flow as a muted
+   annotation — same card layout as normal mode, just more information. */
+body.nerd .order-nerd-id,
+body.nerd .order-nerd-type,
+body.nerd .order-nerd-minfill,
+body.nerd .order-fill-pending-detail,
+body.nerd .order-fill-debug{ color:#9aa0a6; font-size:0.92em; }
+
+/* The tx txid/pch link is a direct flex child of the row, so drop it onto its own
+   wrapped line beneath the transfer chips — a long link never breaks the flow. */
+body.nerd #transactionsSection .tx-row .tx-nerd-meta{
+  display:block !important;
+  flex-basis:100%;
+  margin-top:3px;
+  color:#9aa0a6;
+  font-size:0.92em;
+  word-break:break-all;
+}
+body.nerd .tx-nerd-meta a{ color:inherit; }
+
+.order-tif{ opacity:0.6; font-size:0.9em; }
+.order-market{ font-weight:500; }
+.order-time{ font-size:0.82em; color:#aaa; margin-left:2px; }
+.order-fill-settled{ font-size:0.9em; color:#888; }
+.order-fill-pending{ font-size:0.9em; }
+.tx-time{ font-size:0.82em; color:#aaa; }
+
+/* Order type icon — inline SVG, inherits text colour, no status meaning */
+.order-type-icon{
+  display:inline-flex;
+  align-items:center;
+  vertical-align:middle;
+  opacity:0.55;
+  margin-right:2px;
+  flex-shrink:0;
+}
+.order-type-icon svg{ display:block; }
+
+/* Fill bar — 3px track beneath each order row */
+.order-fill-bar{
+  position:relative;
+  height:3px;
+  margin:2px 0 0;
+  border-radius:2px;
+  overflow:hidden;
+  background:transparent;
+}
+.order-fill-bar-settled{
+  position:absolute;
+  left:0; top:0; height:100%;
+  background:#4caf50;
+  opacity:0.35;
+  transition:width 0.4s;
+}
+.order-fill-bar-pending{
+  position:absolute;
+  top:0; height:100%;
+  background:#ff9800;
+  opacity:0.25;
+  transition:width 0.4s, left 0.4s;
+}
+
+/* NFT chip in transaction rows */
+.tx-nft-chip{
+  font-variant-numeric:tabular-nums;
 }
 
 #ordersSection .order-row{
-  margin-bottom: 4px;   /* 👈 row separation */
+  margin-bottom: 0;   /* row separation now via the list's flex gap */
 }
+
+#ordersSection .order-row.order-fully-settled{
+  color:#999;
+  opacity:0.6;
+}
+
+/* Ghost: order cleared while its transaction is still pending; shown read-only
+   from tx source for context. Dashed + dimmed to distinguish from live orders. */
+#ordersSection .order-row.order-ghost{
+  opacity:0.55;
+  border:1px dashed #b0b0b0;
+  border-radius:4px;
+  cursor:default;
+  font-style:italic;
+}
+
 
 #ordersSection .order-row-inner{
   display:flex;
@@ -1062,7 +1301,7 @@ button i{
   align-items:center;
   gap:6px;
   flex-wrap:wrap;
-  margin-bottom:4px;
+  margin-bottom:0;   /* spacing via the list's flex gap */
   cursor:pointer;
 }
 
@@ -1088,11 +1327,10 @@ button i{
   opacity:0.6;
 }
 
+.tx-row:hover,
 .tx-row.tx-highlight{
-  background:#fff;
-  outline:1px solid #ddd;
-  border-radius:6px;
-  box-shadow:0 1px 4px rgba(0,0,0,0.08);
+  border-color:#cfcfcf;
+  box-shadow:0 2px 8px rgba(0,0,0,0.10);
 }
 
 .tx-row *{
@@ -1233,10 +1471,8 @@ svg .svg-sell{
 }
 
 .order-row{
-  margin:0 !important;
-  padding:0 !important;
-
-  cursor:pointer;
+  margin:0 !important;   /* spacing handled by the list's flex gap */
+  cursor:pointer;        /* padding now comes from the soft-card rule */
 }
 
 
@@ -1244,6 +1480,7 @@ svg .svg-sell{
   display:flex;
   align-items:center;
   gap:4px;
+  flex-wrap:wrap;      /* let the asset chips wrap below the icon/time header */
   line-height:1;
   min-height:22px;
 }
@@ -1251,9 +1488,8 @@ svg .svg-sell{
 
 #ordersSection .order-row:hover,
 #ordersSection .order-row.tx-highlight{
-  background:#fff;
-  outline:1px solid #ddd;
-  box-shadow:0 1px 4px rgba(0,0,0,0.08);
+  border-color:#cfcfcf;
+  box-shadow:0 2px 8px rgba(0,0,0,0.10);
 }
 .order-actions{
   display:flex;
@@ -1307,6 +1543,49 @@ svg .svg-sell{
   width:auto;
   margin:0;
   flex:none;
+}
+
+/* Collectible modal inline pairs */
+.collectible-token-row,
+.collectible-price-row{
+  display:flex;
+  gap:8px;
+  align-items:flex-start;
+  margin-bottom:10px;
+}
+.collectible-token-id{
+  flex:2;
+  min-width:0;
+}
+.collectible-serial{
+  flex:1;
+  min-width:0;
+}
+.collectible-price{
+  flex:3;
+  min-width:0;
+}
+.collectible-currency{
+  flex:2;
+  min-width:0;
+}
+.collectible-token-row input,
+.collectible-token-row select,
+.collectible-price-row input,
+.collectible-price-row select{
+  width:100%;
+  box-sizing:border-box;
+  margin:0;
+}
+.collectible-hint{
+  font-size:11px;
+  min-height:14px;
+  margin-top:3px;
+}
+.collectible-label-note{
+  font-weight:normal;
+  font-size:11px;
+  color:#999;
 }
 
 #createOrderExit{
@@ -1461,5 +1740,519 @@ textarea:focus{
 }
 
 
+.profile-btn{
+  position:fixed;
+  top:20px;
+  right:14px;
+  z-index:1200;
 
+  display:block;
+  width:auto;
+  height:auto;
+  min-width:0;
+  min-height:0;
 
+  padding:0;
+  margin:0;
+
+  background:transparent;
+  color:#555;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+
+  font-size:24px;
+  line-height:1;
+  cursor:pointer;
+}
+
+.profile-btn:hover{
+  background:transparent;
+  color:#222;
+}
+
+.profile-btn:active{
+  transform:none;
+}
+
+.profile-modal{
+  position:fixed;
+  inset:0;
+  z-index:2000;
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  background:rgba(0,0,0,0.42);
+  padding:18px;
+}
+
+.profile-modal.hidden{
+  display:none;
+}
+
+.profile-card{
+  position:relative;
+
+  width:min(520px, 100%);
+  max-height:88vh;
+  overflow:auto;
+
+  background:white;
+  color:#222;
+
+  border-radius:16px;
+  padding:20px;
+
+  box-shadow:0 18px 50px rgba(0,0,0,0.32);
+}
+
+.profile-card .subtle{
+  text-align:center;
+  margin-left:0;
+}
+
+.profile-close{
+  position:absolute;
+  top:14px;
+  right:16px;
+  z-index:2;
+
+  cursor:pointer;
+  font-size:24px;
+  line-height:1;
+  opacity:0.65;
+}
+
+.profile-list{
+  margin:14px 0;
+}
+
+.profile-label{
+  margin-top:12px;
+  font-weight:700;
+  font-size:13px;
+  opacity:0.75;
+}
+
+.profile-scope{
+  margin-top:3px;
+  color:#777;
+  font-size:12px;
+  word-break:break-word;
+}
+
+.profile-mono,
+.profile-link{
+  font-family:var(--font-mono);
+  word-break:break-all;
+  font-size:12px;
+}
+
+.profile-link{
+  display:block;
+  color:#777;
+  text-decoration:none;
+  cursor:pointer;
+  padding:6px 8px;
+  border-radius:8px;
+  transition:background .12s ease, color .12s ease;
+}
+
+.profile-link:hover{
+  color:#222;
+  background:#f1f1f1;
+}
+
+.profile-qr-link{
+  display:inline-block;
+  line-height:0;
+  border-radius:10px;
+  transition:transform .12s ease, box-shadow .12s ease;
+}
+
+.profile-qr-link:hover{
+  transform:translateY(-1px);
+  box-shadow:0 4px 14px rgba(0,0,0,0.12);
+}
+
+.profile-qr{
+  display:flex;
+  justify-content:center;
+  margin:18px 0 10px;
+}
+
+.profile-card button{
+  margin-top:12px;
+}
+/* ── kemoji face avatars ─────────────────────────────────────────────────── */
+
+.kemoji{
+  display:inline-flex;
+  flex-shrink:0;
+  vertical-align:middle;
+}
+
+.kemoji svg{
+  display:block;
+}
+
+/* Own avatar — square SVG shape + a clean hairline ring. The heavy 3px blue
+   halo read as clunky and duplicated the per-row identity sleeve; a 1.5px ring
+   + soft shadow is enough to say "this is you". */
+.kemoji-self{
+  border-radius:7px;
+  box-shadow:0 0 0 1.5px rgba(74,144,226,0.9), 0 1px 4px rgba(0,0,0,0.12);
+}
+
+/* In the profile modal the avatar is the hero element, so give it a touch more
+   presence than the inline list version. */
+.profile-avatar .kemoji-self{
+  box-shadow:0 0 0 2px rgba(74,144,226,0.9), 0 2px 8px rgba(0,0,0,0.14);
+}
+
+.profile-avatar{
+  display:flex;
+  justify-content:center;
+  margin:10px 0 4px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── two-column game layout: trading left, chat right ───────────────────── */
+
+.game-layout{
+  /* padding-right reserves space for the fixed chat panel (260px + 16px gap) */
+  padding-right:276px;
+}
+
+.game-left{
+  min-width:0;
+}
+
+/* ORDERS-UI1: orders | transactions side-by-side on desktop, auto-wrapping to a
+   single column when there isn't room for two ~360px tracks. align-items:start so
+   the two columns don't stretch each other's height. */
+.trade-cols{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));
+  gap:16px;
+  align-items:start;
+}
+.trade-cols > div{ min-width:0; }
+.trade-cols #transactionsSection{ margin-top:0; }
+
+/* fixed panel: out of flow entirely so it can never cause page overflow.
+   top/height are set by positionChatPanel() in JS after first render. */
+#chatSection{
+  position:fixed;
+  top:0;
+  right:16px;
+  width:260px;
+  height:100vh;
+  overflow:hidden;
+  visibility:hidden; /* hidden until JS positions it */
+}
+
+#chatSection.chat-ready{
+  visibility:visible;
+}
+
+#chatSection .orders-details{
+  height:100%;
+  overflow:hidden;
+}
+
+#chatSection .chat-list{
+  overflow-y:auto;
+  padding:2px 0;
+}
+
+@media (max-width:899px){
+  .game-layout{
+    padding-right:0;
+  }
+  #chatSection{
+    position:static;
+    width:100%;
+    height:auto;
+    margin-top:8px;
+  }
+  #chatSection .chat-list{
+    height:auto;
+    max-height:300px;
+  }
+}
+
+/* ── chat messages ─────────────────────────────────────────────────────────── */
+
+.chat-msg{
+  display:flex;
+  gap:7px;
+  align-items:flex-start;
+  padding:5px 6px 5px 8px;
+  margin-bottom:2px;
+  border-radius:4px;
+}
+
+.chat-msg:hover{
+  background:#f0f0f0;
+}
+
+.chat-body{
+  flex:1;
+  min-width:0;
+}
+
+.chat-meta{
+  display:flex;
+  gap:6px;
+  align-items:baseline;
+  margin-bottom:1px;
+}
+
+.chat-who{
+  font-size:11px;
+  font-weight:600;
+  color:#444;
+}
+
+.chat-time{
+  font-size:10px;
+  color:#aaa;
+  white-space:nowrap;
+}
+
+.chat-text{
+  font-size:12px;
+  color:#333;
+  word-break:break-word;
+  line-height:1.4;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/* PROFILE-AUTH1 — wallet Authenticate panel */
+.profile-auth{
+  /* now nested inside .profile-section (.profile-repute), which owns the divider */
+  margin-top:8px;
+}
+.profile-auth-account{
+  margin-top:10px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.profile-auth-account > .profile-label{ flex:0 0 auto; }
+.profile-auth-account select,
+.profile-auth-select{
+  flex:1 1 140px;
+  min-width:0;
+  padding:6px 8px;
+  font-family:var(--font-mono);
+  font-size:12px;
+}
+/* "Disconnect" account button — a clear labelled ghost button (was a cryptic ✕). */
+.profile-auth-x{
+  flex:0 0 auto;
+  padding:5px 10px;
+  border:1px solid #e3e6ea;
+  border-radius:6px;
+  background:#fff;
+  cursor:pointer;
+  line-height:1;
+  font-size:11px;
+  color:#b00020;
+}
+.profile-auth-x:hover{ background:#fbe9ec; border-color:#f2c2cc; }
+/* Commitment options (expiry / scope / publish) — PROFILE-AUTH wireframe */
+.profile-auth-options{
+  margin-top:10px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px 14px;
+  align-items:center;
+  font-size:12px;
+}
+.profile-auth-options select{
+  margin-left:4px;
+  padding:4px 6px;
+  font-size:12px;
+}
+.profile-auth-publish{ display:flex; align-items:center; gap:6px; }
+.profile-auth-statement{
+  margin-top:10px;
+  padding:8px 10px;
+  background:#f6f7f9;
+  border:1px solid #e3e6ea;
+  border-radius:8px;
+  font-size:12px;
+  line-height:1.4;
+  color:#333;
+}
+
+/* ── Profile sections (PROFILE-AUTH-PURPOSE1 reshuffle) ───────────────────────
+   Identity / Reputation binding are always shown; KEA + Preferences collapse via
+   native <details>. Keeps the WalletConnect flow visually primary. */
+.profile-section{
+  margin-top:16px;
+  padding-top:12px;
+  border-top:1px solid #eee;
+}
+.profile-section-head{ display:flex; align-items:center; gap:8px; }
+.profile-section-title{
+  font-weight:600;
+  font-size:13px;
+  color:#222;
+}
+.profile-section-sub{ margin:4px 0 8px; }
+
+/* collapsible sections */
+details.profile-section > summary{
+  cursor:pointer;
+  list-style:none;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:2px 0;
+}
+details.profile-section > summary::-webkit-details-marker{ display:none; }
+details.profile-section > summary::before{
+  content:"▸"; color:#9aa0a6; font-size:11px; transition:transform .12s;
+}
+details.profile-section[open] > summary::before{ content:"▾"; }
+details.profile-section > *:not(summary){ margin-top:10px; }
+
+/* public / private / optional pills — make it clear what others can see */
+.profile-tag{
+  display:inline-block;
+  font-size:10px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  padding:1px 6px;
+  border-radius:10px;
+  background:#eef0f3;
+  color:#5f6368;
+  vertical-align:middle;
+  cursor:help;
+}
+.profile-tag-public{ background:#e6f4ea; color:#137333; }
+.profile-tag-private{ background:#fce8e6; color:#a50e0e; }
+.profile-tag-optional{ background:#e8f0fe; color:#1a56c4; }
+
+/* nerd-only profile rows (KVAC etc.) — hidden unless body.nerd */
+.profile-nerd-only{ display:none; margin-top:6px; }
+body.nerd .profile-nerd-only{ display:block; }
+.profile-kvac-balance{ margin-top:4px; display:flex; align-items:center; gap:8px; }
+.profile-ghost{
+  padding:3px 8px; font-size:11px; border:1px solid #e3e6ea; border-radius:6px;
+  background:#fff; cursor:pointer;
+}
+.profile-ghost:disabled{ opacity:.5; cursor:not-allowed; }
+
+/* ── ORDER-AUTHBADGE1/2: reputation-verified indicator ───────────────────────────
+   Just the 💠 glyph — no chip. The element stays inline (tiny padding) purely as a
+   convenient hover target for the tooltip; background transparent so nothing is drawn. */
+.order-auth-badge{
+  display:inline-flex; align-items:center;
+  font-size:12px;
+  padding:0 2px;
+  background:transparent;
+  white-space:nowrap; cursor:help;
+}
+/* unverified marker: a small, muted hollow triangle (△) — one per un-bound account */
+.order-auth-badge.auth-unverified{ color:#b0b4b8; font-size:11px; }
+/* ORDER-AUTHBADGE3: per-account verification overlay on tx transfer chips. Scoped to
+   .tx-row so the shared .asset chip is unaffected elsewhere. ::before (not ::after — the
+   asset hover tooltip owns ::after). */
+.tx-row .asset.tx-asset-verified::before{
+  content:"💠";
+  font-size:9px;
+  margin-right:2px;
+  vertical-align:top;
+}
+.tx-row .asset.tx-asset-unverified::before{
+  content:"△";
+  color:#b0b4b8;
+  font-size:9px;
+  margin-right:2px;
+  vertical-align:top;
+}
+.create-order-auth-hint{ margin-top:6px; font-size:12px; line-height:1.3; }
+.create-order-auth-hint.bound{ color:#137333; }
+.create-order-auth-hint.unbound{ color:#9aa0a6; }
+.create-order-auth-hint.warn{ color:#8a6d00; }
+.profile-auth-status{
+  margin-top:8px;
+  min-height:1em;
+  font-size:12px;
+}
+.profile-auth-output{
+  margin-top:10px;
+  max-height:240px;
+  overflow:auto;
+  padding:10px;
+  background:#f6f7f9;
+  border:1px solid #e3e6ea;
+  border-radius:8px;
+  font-family:var(--font-mono);
+  font-size:11px;
+  white-space:pre-wrap;
+  word-break:break-all;
+}
+
+.profile-debug{
+  /* now nested inside <details class="profile-section">, which owns the divider */
+  margin-top:6px;
+}
+.profile-debug-label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:12px;
+  color:#888;
+  cursor:pointer;
+  user-select:none;
+}
+
+@media (max-width:640px){
+  .profile-btn{
+    top:90px;
+    right:30px;
+  }
+
+  .profile-modal{
+    display:block;
+    padding:0;
+    background:white;
+  }
+
+  .profile-card{
+    width:100vw;
+    height:100vh;
+    max-width:none;
+    max-height:none;
+
+    margin:0;
+    padding:18px;
+    box-sizing:border-box;
+
+    border-radius:0;
+    box-shadow:none;
+    overflow:auto;
+  }
+
+  .profile-close{
+    position:fixed;
+    top:12px;
+    right:30px;
+    font-size:28px;
+  }
+
+  .profile-card h2{
+    padding-right:34px;
+  }
+}

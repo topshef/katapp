@@ -12,7 +12,7 @@ elog($kwc, "loading script type $kwc->script_type from $kwc->url");
 function getKwc($in) {
 
   $kwc_root = $in['kwc_root'] ?? '/vendor/walletconnect';
-  $kwc_version = $in['kwc_version'] ?? '3800c5c';  //'latest';
+  $kwc_version = $in['kwc_version'] ?? '4f74b48';  //'latest'; prev 53216ab / 70c2c9b / c2fb550 / 79efefc / eb6ac8a — override via ?kwc_version=… for A/B comparison
 
   if (preg_match('/^[0-9a-fA-F]+$/', $kwc_version)) { // hex.. it's a commit snapshot
     $commit = $kwc_version;

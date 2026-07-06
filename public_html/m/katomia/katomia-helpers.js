@@ -1,10 +1,14 @@
-
-    /* =========================
+/* =========================
        HELPERS / ADAPTERS
     ========================= */
 
 
 
+
+		// Cap on how many toasts can be on screen at once. Bursts (e.g. a big
+		// multi-fill firing many "order filled" events, or a run of errors) used to
+		// stack unbounded and cover the page — now the oldest are flushed past the cap.
+		const NOTICE_MAX = 4
 
 		function notify(message, type="info", opts={}){
 
@@ -19,12 +23,31 @@
 			}
 
 			const container = document.getElementById("notifications")
+			if(!container) return
+
+			const icon = icons[type] || ""
+
+			// Coalesce: repeated fills of the SAME order ("183/5000" → "4817/5000" → …)
+			// collapse into ONE toast that updates in place, instead of stacking dozens.
+			// A caller can force grouping via opts.key; otherwise identical text dedupes.
+			const om = /Order #(\d+)/.exec(message)
+			const key = opts.key || (om ? `${type}:order#${om[1]}` : `${type}:${message}`)
+
+			const dupe = [...container.children].find(n => !n.classList.contains("fade-out") && n.dataset.key === key)
+			if(dupe){
+				const t = dupe.querySelector("span")
+				if(t) t.textContent = `${icon} ${message}`   // show the latest state
+				clearTimeout(dupe._timer)
+				if(timeout) dupe._timer = setTimeout(()=>removeNotice(dupe), timeout)
+				return
+			}
 
 			const el = document.createElement("div")
 			el.className = `notice ${type}`
+			el.dataset.key = key
 
 			const text = document.createElement("span")
-			text.textContent = `${icons[type] || ""} ${message}`
+			text.textContent = `${icon} ${message}`
 
 			const close = document.createElement("button")
 			close.textContent = "×"
@@ -35,11 +58,19 @@
 			container.appendChild(el)
 
 			if(timeout){
-				setTimeout(()=>removeNotice(el), timeout)
+				el._timer = setTimeout(()=>removeNotice(el), timeout)
 			}
+
+			// Flush the oldest once we exceed the cap, so a burst can never bury the UI
+			// (persistent timeout:0 notices are evicted this way too).
+			const live = [...container.children].filter(n => !n.classList.contains("fade-out"))
+			if(live.length > NOTICE_MAX)
+				live.slice(0, live.length - NOTICE_MAX).forEach(removeNotice)
 		}
 
 		function removeNotice(el){
+			if(!el || el.classList.contains("fade-out")) return
+			clearTimeout(el._timer)
 			el.classList.add("fade-out")
 			setTimeout(()=>el.remove(), 400)
 		}
@@ -54,9 +85,11 @@
 			return state.players[playerId].colour || "#999"
 		}
 
-    function applyOwnerSleeve(el, playerId){
-      const colour = getPlayerColour(playerId)
-      el.style.borderLeft = "12px solid " + colour
+    function applyOwnerSleeve(el, playerId, pubkeyHex){
+      const colour = (pubkeyHex && typeof kemojiSleeveColor === "function")
+        ? kemojiSleeveColor(pubkeyHex)
+        : getPlayerColour(playerId)
+      el.style.borderLeft = "4px solid " + colour
     }
 
     function applyHoverHighlight(el, on){
@@ -96,7 +129,8 @@
 
 			// lookup decimals from metadata cache
 			const meta = window.assetDisplayCache?.[assetId]
-			const decimals = Number(meta?.token_class?.decimals || 0)
+			// const decimals = Number(meta?.token_class?.decimals || 0)
+            const decimals = String(assetId).toUpperCase() == "HBAR" ? 8 : Number(meta?.token_class?.decimals || 0)
 
 			let scaled = n
 
@@ -396,7 +430,8 @@ function openAssetModal(assetId, fromAccountId, available){
   const meta = getAssetMeta(assetId)
   const thumb = meta && getAssetThumb(meta)
 
-  const decimals = Number(meta?.token_class?.decimals || 0)
+  // const decimals = Number(meta?.token_class?.decimals || 0)
+  const decimals = String(assetId).toUpperCase() == "HBAR" ? 8 : Number(meta?.token_class?.decimals || 0)
   const displayAvailable = decimals
     ? available / (10 ** decimals)
     : available
@@ -412,14 +447,30 @@ function openAssetModal(assetId, fromAccountId, available){
   const displayTokenLabel = assetId.replace('#', ' #')
   const tokenSerial = assetId.replace('#', '-')
   const network = gameMeta.network || ""
+
+  if(String(assetId).toUpperCase() == "HBAR"){
+    nameEl.textContent = `${getAssetDisplay(assetId, available)} 🪙 HBAR`
+  } else {
+    // const url = `/m/?productId=${network};${tokenSerial}`
+    // nameEl.innerHTML = `
+      // <a href="${url}" target="_blank" style="text-decoration:none;color:inherit;">
+        // ${getAssetDisplay(assetId, available)} 🪙 ${displayTokenLabel}
+      // </a>
+    // `
+    //HBAR1
+    
+    if(String(assetId).toUpperCase() == "HBAR"){
+      nameEl.textContent = `${getAssetDisplay(assetId, available)} 🪙 HBAR`
+    } else {
+      const url = `/m/?productId=${network};${tokenSerial}`
+      nameEl.innerHTML = `
+        <a href="${url}" target="_blank" style="text-decoration:none;color:inherit;">
+          ${getAssetDisplay(assetId, available)} 🪙 ${displayTokenLabel}
+        </a>
+      `
+    }
   
-  const url = `/m/?productId=${network};${tokenSerial}`
-  
-  nameEl.innerHTML = `
-    <a href="${url}" target="_blank" style="text-decoration:none;color:inherit;">
-      ${getAssetDisplay(assetId, available)} 🪙 ${displayTokenLabel}
-    </a>
-  `
+  }
 
   if(availableEl)
     availableEl.textContent = displayAvailable
@@ -555,7 +606,8 @@ function getPendingTxAccountMap(){
 
 		// 2️⃣ parse basis
 		try{
-			const basis = JSON.parse(enrichedTx.pchbasis || "{}")
+			const raw = enrichedTx.pchbasis
+			const basis = !raw ? {} : typeof raw === 'object' ? raw : JSON.parse(raw)
 
 			const scan = (arr, getAsset) => {
 				if(!Array.isArray(arr)) return
@@ -622,6 +674,27 @@ function reduceFraction(numerator, denominator){  // ref BASK1
   }
 }
 
+// Normalise any fill-shaped object to legs: [{orderId, numerator, denominator}].
+// Mirror of the backend helper — accepts the leg-native shape (`.legs`), the
+// legacy pairwise maker/taker shape, and single-leg records. The fill-ratio
+// accounting below has no maker/taker concept; legs are the only notion.
+function fillLegs(f){
+  if(!f) return []
+
+  if(Array.isArray(f.legs))
+    return f.legs
+      .filter(l => l && l.orderId != null)
+      .map(l => ({ orderId:String(l.orderId), numerator:Number(l.numerator || 0), denominator:Number(l.denominator || 0) }))
+
+  const legs = []
+  if(f.orderId != null)
+    legs.push({ orderId:String(f.orderId), numerator:Number(f.numerator || 0), denominator:Number(f.denominator || 0) })
+  if(f.takerOrderId != null)
+    legs.push({ orderId:String(f.takerOrderId), numerator:Number(f.takerNumerator || 0), denominator:Number(f.takerDenominator || 0) })
+
+  return legs
+}
+
 // ┌┐ ┬ ┬┬┬  ┌┬┐  ╔═╗┬─┐┌┬┐┌─┐┬─┐  ╔═╗┬┬  ┬    ╔╦╗┌─┐┌─┐
 // ├┴┐│ │││   ││  ║ ║├┬┘ ││├┤ ├┬┘  ╠╣ ││  │    ║║║├─┤├─┘
 // └─┘└─┘┴┴─┘─┴┘  ╚═╝┴└──┴┘└─┘┴└─  ╚  ┴┴─┘┴─┘  ╩ ╩┴ ┴┴  
@@ -635,49 +708,41 @@ function buildOrderFillMap(){ // ref BASK1
 
   const seen = new Set()
 
+  function addFill(orderId, fillId, numerator, denominator){
+    if(!orderId || !fillId) return
+
+    numerator = Number(numerator || 0)
+    denominator = Number(denominator || 0)
+
+    if(!numerator || !denominator) return
+
+    const key = `${orderId}|${fillId}`
+    if(seen.has(key)) return
+
+    seen.add(key)
+
+    if(!out[orderId])
+      out[orderId] = { numerator: 0, denominator: 1 }
+
+    const current = out[orderId]
+
+    out[orderId] = reduceFraction(
+      current.numerator * denominator + numerator * current.denominator,
+      current.denominator * denominator
+    )
+  }
+
   Object.values(state.accounts).forEach(account => {
-
     ;(account.basket || []).forEach(item => {
-
-      if(!item.orderId) return
-      if(!item.fillId) return
-
-      const key = `${item.orderId}|${item.fillId}`
-
-      // same fill appears multiple times across baskets
-      if(seen.has(key)) return
-      seen.add(key)
-
-      const numerator = Number(item.numerator || 1)
-      const denominator = Number(item.denominator || 1)
-
-      if(!out[item.orderId]){
-        out[item.orderId] = {
-          numerator: 0,
-          denominator: 1
-        }
-      }
-
-      const current = out[item.orderId]
-
-      // a/b + c/d
-      const nextNumerator =
-        current.numerator * denominator +
-        numerator * current.denominator
-
-      const nextDenominator =
-        current.denominator * denominator
-
-      out[item.orderId] = reduceFraction(
-        nextNumerator,
-        nextDenominator
-      )
+      for(const leg of fillLegs(item))
+        addFill(leg.orderId, item.fillId, leg.numerator, leg.denominator)
     })
-
   })
 
   return out
 }
+
+
 
 // ┌─┐┌─┐┌┬┐  ╔═╗┬─┐┌┬┐┌─┐┬─┐  ╔═╗┬┬  ┬    ╦═╗┌─┐┌┬┐┬┌─┐
 // │ ┬├┤  │   ║ ║├┬┘ ││├┤ ├┬┘  ╠╣ ││  │    ╠╦╝├─┤ │ ││ │
@@ -694,32 +759,42 @@ function getOrderFillRatio(orderId){  //ref BASK1
 }
 
 
+
+
 function getPendingOrderFillRatio(orderId){ // BASK1
 
+  const target = String(orderId)
+  const seen = new Set()
   let numerator = 0
   let denominator = 1
-  const seen = new Set()
+
+  function addFill(scope, fillId, n, d){
+    n = Number(n || 0)
+    d = Number(d || 0)
+
+    if(!fillId || !n || !d) return
+
+    const key = `${scope}:${fillId}`
+    if(seen.has(key)) return
+
+    seen.add(key)
+
+    const reduced = reduceFraction(
+      numerator * d + n * denominator,
+      denominator * d
+    )
+
+    numerator = reduced.numerator
+    denominator = reduced.denominator
+  }
 
   ;(state.tx?.pending || []).forEach(tx => {
-    ;(tx.sourceBaskets || []).forEach(item => {
+    const txKey = tx.pch || tx.txid || "pending"
 
-      if(String(item.orderId) !== String(orderId)) return
-      if(!item.fillId) return
-
-      const key = `${item.orderId}|${item.fillId}`
-      if(seen.has(key)) return
-      seen.add(key)
-
-      const n = Number(item.numerator || 0)
-      const d = Number(item.denominator || 1)
-
-      const reduced = reduceFraction(
-        numerator * d + n * denominator,
-        denominator * d
-      )
-
-      numerator = reduced.numerator
-      denominator = reduced.denominator
+    ;(tx.source?.fills || []).forEach(fill => {
+      for(const leg of fillLegs(fill))
+        if(leg.orderId === target)
+          addFill(txKey, fill.fillId, leg.numerator, leg.denominator)
     })
   })
 
@@ -742,20 +817,24 @@ function getSettledOrderFillRatio(orderId){
 
   rec.order.settled.forEach(item => {
 
-    const key = `${item.fillId}`
-    if(seen.has(key)) return
-    seen.add(key)
+    for(const leg of fillLegs(item)){
+      if(leg.orderId !== String(orderId)) continue
 
-    const n = Number(item.numerator || 0)
-    const d = Number(item.denominator || 1)
+      const key = `${item.fillId}|${item.txid || ""}`
+      if(seen.has(key)) continue
+      seen.add(key)
 
-    const reduced = reduceFraction(
-      numerator * d + n * denominator,
-      denominator * d
-    )
+      const n = leg.numerator
+      const d = leg.denominator || 1
 
-    numerator = reduced.numerator
-    denominator = reduced.denominator
+      const reduced = reduceFraction(
+        numerator * d + n * denominator,
+        denominator * d
+      )
+
+      numerator = reduced.numerator
+      denominator = reduced.denominator
+    }
   })
 
   return { numerator, denominator }
@@ -768,6 +847,8 @@ function getSettledOrderFillRatio(orderId){
 // └─┘└─┘ ┴   ╩ ╩└─┘└─┘└─┘ ┴    ╩  ┴ ┴  └─┘
 // get Asset Type
 function getAssetType(assetId, amount=1){
+    
+  if(String(assetId).toUpperCase() == "HBAR") return "FT"
 
   const meta = getAssetMeta(assetId)
 
@@ -816,6 +897,7 @@ function getAssetType(assetId, amount=1){
 function getOrderType(order){
 
   const bundle = order?.bundle || []
+  if(!bundle.length) return null
 
   const types = bundle.map(x =>
     getAssetType(x.asset, Math.abs(x.amount))
@@ -833,7 +915,7 @@ function getOrderType(order){
     return "request"
 
   if(unique.every(x => x === "FT"))
-    return bundle.length === 2 ? "simple-fx" : "basket-fx"
+    return bundle.length === 2 ? "simple-ft" : "basket-ft"
 
   if(unique.every(x => x === "NFT" || x === "LE"))
     return bundle.length === 2 ? "simple-collectible" : "basket-collectible"
@@ -872,8 +954,8 @@ function getOrderType(order){
 // offer
 // request
 //
-// simple-fx
-// basket-fx
+// simple-ft
+// basket-ft
 //
 // simple-nft
 // simple-le
@@ -907,14 +989,14 @@ function getOrderType(order){
 // POSSIBLE FUTURE UX BY TYPE
 // ------------------------------------------------------------
 //
-// simple-fx
+// simple-ft
 //   - bid/ask style
 //   - orderbook
 //   - depth/cliff charts
 //   - spread/rate display
 //   - implied/synthetic markets
 //
-// basket-fx
+// basket-ft
 //   - graph/routing view
 //   - cycle detection
 //   - clearing optimisation
@@ -952,5 +1034,3 @@ function getOrderType(order){
 //
 // rather than persisted state.
 //
-
-

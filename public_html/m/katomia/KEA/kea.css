@@ -1,0 +1,771 @@
+:root {
+  --bg-soft: rgba(128,128,128,.08);
+  --bg-softer: rgba(128,128,128,.05);
+  --border: rgba(128,128,128,.25);
+  --text-muted: rgba(128,128,128,.86);
+  --shadow: 0 14px 44px rgba(0,0,0,.16);
+  --radius: 14px;
+  --radius-small: 9px;
+
+  --ok: #1a9c4f;
+  --ok-tint: rgba(26,156,79,.12);
+  --bad: crimson;
+  --bad-tint: rgba(220,20,60,.12);
+  --ready-tint: rgba(255,176,32,.16);
+  --ready-border: rgba(255,176,32,.5);
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  max-width: 980px;
+  margin: 18px auto 34px;
+  padding: 0 14px;
+  line-height: 1.34;
+}
+
+h1, h2, h3, p { margin-top: 0; }
+h1 { margin-bottom: 3px; letter-spacing: -.03em; font-size: 30px; }
+h2 { margin: 18px 0 7px; font-size: 18px; }
+h3 { margin-bottom: 8px; font-size: 16px; }
+
+button, select, input { font: inherit; }
+button, select {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-soft);
+  color: inherit;
+}
+button { cursor: pointer; }
+button:hover { background: rgba(128,128,128,.14); }
+button.primary { font-weight: 700; }
+button.danger, .danger { color: crimson; }
+button.quiet { opacity: .78; }
+
+input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  margin: 4px 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+}
+
+label {
+  display: block;
+  margin-top: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+th, td {
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  padding: 5px 6px;
+  vertical-align: middle;
+}
+
+th {
+  font-size: 11px;
+  opacity: .68;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+
+tr.clickable { cursor: pointer; }
+tr.clickable:hover { background: var(--bg-softer); }
+
+tr.watch-row.watch-linked {
+  background: var(--bg-softer);
+  outline: 1px solid rgba(128,128,128,.22);
+  outline-offset: -1px;
+}
+
+tr.tx-row.watch-linked {
+  box-shadow: inset 3px 0 0 rgba(128,128,128,.35);
+}
+
+tr.tx-row.watch-linked:hover {
+  background: var(--bg-softer);
+}
+
+pre {
+  background: #111;
+  color: #ddd;
+  padding: 12px;
+  overflow: auto;
+  white-space: pre-wrap;
+  border-radius: 12px;
+  max-height: 360px;
+  font-size: 12px;
+}
+
+details {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 10px 0;
+  background: var(--bg-softer);
+}
+
+summary { cursor: pointer; font-weight: 700; }
+
+.app-header {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 680px;
+  color: var(--text-muted);
+}
+
+/* ---- header controls + pro mode toggle -------------------------------- */
+.header-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.pro-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 12px;
+  height: 33px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Native checkbox hidden; the .switch span is the visible control. */
+.pro-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.pro-toggle .switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--border);
+  transition: background .15s ease;
+}
+.pro-toggle .switch::after {
+  content: '';
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform .15s ease;
+}
+.pro-toggle input:checked ~ .switch { background: var(--ok); }
+.pro-toggle input:checked ~ .switch::after { transform: translateX(16px); }
+.pro-toggle input:focus-visible ~ .switch { outline: 2px solid var(--ok); outline-offset: 2px; }
+
+/* Pro-only chrome is hidden unless <body class="pro"> is set. */
+body:not(.pro) .pro-only { display: none !important; }
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 7px;
+}
+
+.section-head h2 { margin: 0; }
+.watch-actions, .row, .modal-actions, .controls {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.watch-actions, .modal-actions { justify-content: flex-end; }
+.panel { border: 0; border-radius: 0; background: transparent; overflow: visible; }
+.table-wrap { overflow-x: auto; }
+.empty { padding: 10px 4px; color: var(--text-muted); font-size: 13px; }
+.status-line { min-height: 19px; margin: 8px 0 4px; font-size: 13px; color: var(--text-muted); }
+
+.muted { color: var(--text-muted); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.ok { color: green; font-weight: 700; }
+/* "Ready" = checks passed, go ahead and sign (not yet approved). Kept visually
+   distinct from .ok/Approved (green) — tweak this class to taste. */
+.ready { color: #1a73e8; font-weight: 700; }
+.bad { color: crimson; font-weight: 700; }
+.warn { color: darkorange; font-weight: 700; }
+.strong-cell { font-weight: 700; }
+.time-cell { white-space: nowrap; }
+.policy-cell { white-space: nowrap; }
+.tx-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+.notes-cell { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.watch-ref-cell { width: 1%; white-space: nowrap; font-weight: 900; }
+
+.watch-ref-cell, .pill {
+  letter-spacing: .02em;
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(128,128,128,.16);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tx-chain {
+  width: 18px;
+  text-align: center;
+  font-size: 17px;
+  line-height: 1;
+  opacity: .85;
+}
+
+.icon-btn, .icon-action {
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-action { font-size: 14px; }
+#qrVideo {
+  display: none;
+  width: 100%;
+  max-height: 290px;
+  margin: 10px 0 14px;
+  background: #111;
+  border-radius: var(--radius);
+}
+
+dialog {
+  width: min(980px, calc(100vw - 28px));
+  max-height: calc(100dvh - 28px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0;
+  color: inherit;
+  background: Canvas;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  z-index: 9999;
+}
+
+dialog:not([open]) { display: none !important; }
+dialog::backdrop { background: rgba(0,0,0,.55); }
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title { font-weight: 900; font-size: 17px; }
+.modal-body {
+  padding: 14px 16px 16px;
+  overflow: auto;
+  max-height: calc(100dvh - 86px);
+  box-sizing: border-box;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 8px 0 14px;
+}
+
+.kv {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: var(--bg-softer);
+  min-width: 0;
+}
+
+.kv-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  opacity: .7;
+  margin-bottom: 3px;
+}
+
+.kv-value { overflow-wrap: anywhere; }
+
+.check-list {
+  display: grid;
+  gap: 0;
+  margin: 8px 0 14px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-softer);
+}
+
+.check-item {
+  padding: 6px 0;
+  background: transparent;
+}
+
+.check-item + .check-item {
+  border-top: 1px solid rgba(128,128,128,.14);
+}
+
+.debug-note { margin: 0 0 12px; color: var(--text-muted); font-size: 13px; }
+
+/* ---- decision bar (approve / reject) ---------------------------------- */
+.decision-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  margin: 4px 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+}
+
+.decision-bar.ok-bg    { background: var(--ok-tint);    border-color: rgba(26,156,79,.45); }
+.decision-bar.bad-bg   { background: var(--bad-tint);   border-color: rgba(220,20,60,.4); }
+.decision-bar.ready-bg { background: var(--ready-tint); border-color: var(--ready-border); }
+.decision-bar.muted-bg { background: var(--bg-softer); }
+
+.decision-headline { font-weight: 900; font-size: 16px; }
+.decision-sub { font-size: 13px; color: var(--text-muted); overflow-wrap: anywhere; }
+
+.approve-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+button.approve {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #fff;
+  font-weight: 700;
+}
+button.approve:hover { filter: brightness(1.08); background: var(--ok); }
+
+button.reject {
+  background: transparent;
+  border-color: rgba(220,20,60,.5);
+  color: var(--bad);
+  font-weight: 700;
+}
+button.reject:hover { background: var(--bad-tint); }
+
+/* In-bar key picker + "always approve" upgrade checkbox. */
+.approve-key-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+}
+.approve-key-row label { margin: 0; }
+.approve-key-row select { width: 100%; }
+
+.always-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 10px 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.always-row input {
+  width: auto;
+  margin: 2px 0 0;
+  padding: 0;
+  accent-color: var(--ok);
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+/* ---- info cards (approval package sections) --------------------------- */
+/* One clean card per section with simple label/value rows — replaces the
+   old per-field bordered pills so stacking sections stays calm. */
+.info-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-softer);
+  padding: 4px 14px;
+  margin: 6px 0 16px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(128,128,128,.14);
+}
+.info-row:last-child { border-bottom: 0; }
+
+.info-label {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  opacity: .66;
+}
+.info-value {
+  text-align: right;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  body { margin-top: 14px; padding: 0 10px; }
+  h1 { font-size: 27px; }
+  h2 { font-size: 17px; }
+  .app-header { display: block; }
+  .header-controls {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    margin-top: 10px;
+  }
+  .section-head { align-items: flex-start; }
+  .watch-actions { justify-content: flex-end; }
+  .grid { grid-template-columns: 1fr; }
+  .approve-actions { flex-direction: column; align-items: stretch; }
+  .approve-actions button { width: 100%; }
+  .info-row { flex-direction: column; gap: 2px; }
+  .info-value { text-align: left; }
+
+  table, thead, tbody, tr, th, td { display: block; }
+  table { border-collapse: separate; }
+  tr:first-child { display: none; }
+
+  tr.clickable, tr.card-row {
+    margin: 6px 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-small);
+    background: var(--bg-softer);
+    overflow: hidden;
+  }
+
+  td {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: 1px solid rgba(128,128,128,.14);
+    padding: 6px 8px;
+  }
+
+  td:last-child { border-bottom: 0; }
+  td::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 700;
+    opacity: .62;
+    flex: 0 0 auto;
+  }
+
+  .controls { justify-content: flex-end; }
+  .controls::before, .tx-chain::before { content: none; }
+  .tx-chain { width: auto; text-align: left; padding-bottom: 2px; }
+  .notes-cell { white-space: normal; max-width: none; }
+  .policy-cell, .tx-cell { max-width: none; }
+
+  dialog:not([open]) { display: none !important; }
+  dialog[open] {
+    width: 100vw;
+    max-width: none;
+    height: 100svh;
+    height: 100dvh;
+    max-height: 100svh;
+    max-height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-head { flex: 0 0 auto; background: Canvas; }
+  .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
+    max-height: none;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+}
+/* ---- keys modal: network scope + theming ------------------------------ */
+/* Mainnet = purple, Testnet = orange, mirroring hashscan.io. These are
+   approximate accents — swap for the exact brand references if needed. */
+#keysModal { --net-color: #7b5cff; --net-tint: rgba(123,92,255,.14); }
+#keysModal[data-net="testnet"] { --net-color: #f5841f; --net-tint: rgba(245,132,31,.16); }
+
+#keysModal .modal-head {
+  background: var(--net-tint);
+  border-bottom: 2px solid var(--net-color);
+}
+#keysModal .modal-title { color: var(--net-color); }
+
+.net-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 2px 0 12px;
+}
+
+/* Main-page network toggle: reuses .net-toggle, but lives in the header so it
+   needs its own --net-color scope (the keys-modal one is scoped to #keysModal)
+   and no bottom margin. Kept deliberately plain — only the active pill is
+   tinted, no page-wide accenting. */
+#mainNetToggle { --net-color: #7b5cff; --net-tint: rgba(123,92,255,.14); margin: 0; }
+#mainNetToggle[data-net="testnet"] { --net-color: #f5841f; --net-tint: rgba(245,132,31,.16); }
+.net-toggle button {
+  border: 0;
+  border-radius: 0;
+  padding: 6px 16px;
+  background: transparent;
+  font-weight: 800;
+  opacity: .7;
+}
+.net-toggle button:hover { background: var(--bg-soft); }
+.net-toggle button.active {
+  background: var(--net-color);
+  color: #fff;
+  opacity: 1;
+}
+
+.keys-create { justify-content: flex-start; margin-top: 16px; }
+#keysModal .keys-create button.primary { border-color: var(--net-color); color: var(--net-color); }
+
+/* Inline-editable key name + full (un-abbreviated) public key. */
+td.key-name { cursor: text; }
+td.key-name:hover { background: var(--bg-soft); }
+td.key-name:focus { outline: 2px solid var(--net-color); outline-offset: -2px; background: var(--bg-soft); }
+.key-full { font-size: 11px; overflow-wrap: anywhere; word-break: break-all; max-width: 320px; }
+
+/* Read-only watch fields (locked outside Pro mode) read as display, not input. */
+input.readonly { opacity: .7; cursor: default; background: var(--bg-softer); }
+
+/* ---- rule policy + execution commitment (watch modal) ----------------- */
+.commitment-block { margin-top: 14px; }
+.commitment-hint { font-size: 12px; }
+.commitment-out { margin-top: 10px; }
+.commitment-out pre { max-height: 300px; }
+/* ---- watch modal: quiet section headers + read-only query list -------- */
+/* Light section labels — no rules, no all-caps shouting, just enough to
+   separate Query / Rule / Auto-approval. */
+.modal-section {
+  margin: 20px 0 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.modal-body .modal-section:first-child { margin-top: 6px; }
+
+/* Normal-mode query: a plain, borderless key/value list, slightly indented.
+   No boxes, no input chrome — it reads as data, not a form. */
+.query-view { margin: 2px 0 4px; padding-left: 10px; }
+.q-row {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 3px 0;
+}
+.q-key {
+  flex: 0 0 88px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.q-val { overflow-wrap: anywhere; word-break: break-all; }
+
+/* One-line gray hints (replaces bulky labels + debug paragraphs). */
+.field-hint { margin: 4px 0 8px; color: var(--text-muted); font-size: 12px; }
+
+/* Keys-modal inline network label (testnet orange / mainnet purple). */
+.net-badge-inline { --net-color: #7b5cff; color: var(--net-color); font-weight: 800; }
+.net-badge-inline[data-net="testnet"] { --net-color: #f5841f; }
+.net-scope-line { margin: 2px 0 10px; }
+
+/* Hide normal-mode-only blocks when Pro mode is on. */
+body.pro .basic-only { display: none !important; }
+
+/* ---- main page: subtle network accenting ------------------------------ */
+/* Make it clear at a glance which network you're on. Deliberately light —
+   only the H1 accent + a thin header rule pick up the network colour. */
+body { --net-color: #7b5cff; }
+body[data-net="testnet"] { --net-color: #f5841f; }
+.app-header { border-bottom: 2px solid var(--net-color); padding-bottom: 8px; }
+.app-header h1 { color: var(--net-color); }
+
+/* ---- pro-mode inline query editor ------------------------------------- */
+/* Same flat list feel as the read-only view, but each field is an underline-
+   only input (no boxed form). Edit key + value, ✕ to remove, + to add. */
+.query-edit { margin: 2px 0 4px; }
+.qe-row { display: flex; gap: 8px; align-items: center; padding: 2px 0; }
+.qe-key, .qe-val {
+  width: auto;
+  margin: 0;
+  padding: 5px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  font-size: 13px;
+}
+.qe-key { flex: 0 0 116px; }
+.qe-val { flex: 1 1 auto; min-width: 0; }
+.qe-key:focus, .qe-val:focus {
+  outline: none;
+  border-bottom-color: var(--net-color, #7b5cff);
+  background: var(--bg-softer);
+}
+.qe-del {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+  line-height: 1;
+}
+.qe-del:hover { color: var(--bad); }
+.link-btn {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 2px;
+  margin-top: 2px;
+}
+.link-btn:hover { color: inherit; text-decoration: underline; }
+
+/* ---- mobile: cull the rules list + tidy the toggles ------------------- */
+@media (max-width: 720px) {
+  /* Rules list: two lines — [ref  name], then chips (no labels, no key). */
+  tr.watch-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px 8px;
+    padding: 8px 10px;
+  }
+  tr.watch-row td {
+    display: inline-flex;
+    align-items: center;
+    border: 0;
+    padding: 0;
+  }
+  tr.watch-row td::before { content: none !important; }
+
+  tr.watch-row .watch-ref-cell {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 28px;
+    font-weight: 800;
+  }
+  /* Ref + name fill line 1. The name cell grabs enough width that everything
+     after it (policy chips, approval, state, last, controls) wraps to line 2. */
+  tr.watch-row .strong-cell {
+    flex: 1 1 calc(100% - 60px);
+    min-width: 0;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+
+  tr.watch-row .pill { font-size: 12px; }
+  tr.watch-row .time-cell { font-size: 12px; color: var(--text-muted); }
+  tr.watch-row .state-cell {
+    font-size: 12px;
+    padding: 1px 9px;
+    border-radius: 999px;
+    background: var(--bg-soft);
+  }
+  tr.watch-row .controls { flex: 0 0 auto; margin-left: auto; }
+
+  /* Transactions: drop labels too, just show the values. */
+  tr.tx-row td::before { content: none !important; }
+
+  /* Keep the net label off the container edge, and let the action buttons
+     sit on one line with the (now shorter) "Rules" heading. */
+  .net-toggle button { padding: 6px 18px; }
+  .header-controls { gap: 8px; flex-wrap: wrap; }
+  .watch-actions { flex-wrap: nowrap; }
+}
+
+/* Kill the grey tap-highlight flash on mobile across every control. */
+* { -webkit-tap-highlight-color: transparent; }
+/* ---- rule check indicators -------------------------------------------- */
+.check-indicators { margin: 4px 0 8px; padding-left: 10px; }
+.check-indicator { padding: 3px 0; font-size: 13px; }
+.check-indicator .ok { margin-right: 4px; }
+.check-indicator .warn { margin-right: 4px; }
+
+/* ---- modal error display ---------------------------------------------- */
+.modal-error {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-small);
+  background: var(--bad-tint);
+  color: var(--bad);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* ---- policy chips (rules list + mobile) ------------------------------- */
+.policy-chip {
+  display: inline-block;
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  margin-right: 4px;
+  white-space: nowrap;
+}
+.intent-chip { border: 1px solid rgba(123,92,255,.3); }
+.deal-chip { border: 1px solid rgba(26,156,79,.3); }
+
+@media (max-width: 720px) {
+  /* Policy chips sit on the second line alongside manual/live/etc. */
+  tr.watch-row .policy-cell { flex: 0 0 auto; }
+}

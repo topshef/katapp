@@ -8,7 +8,7 @@ require_once "{$_SERVER['DOCUMENT_ROOT']}/elog.php";
 
 $page = $_GET['page'] ?? false;
 if ($page == 'create') {
-	require_once("create-game.html");
+	require_once("create-game.php");
 	exit;
 }
 
@@ -19,4 +19,5 @@ if ($gameId) {
 	exit;
 }
 
-require_once("contents.html");
+// games-list index — .php since HEADER-UNIFY (shared header/profile partials inside)
+require_once("contents.php");

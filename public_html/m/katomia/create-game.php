@@ -1,9 +1,11 @@
+<?php require_once __DIR__ . '/kasset.php'; ?>
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="katomia.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="<?= kasset('katomia.css') ?>">
 <title>Create Katomia Game</title>
 
 <style>
@@ -17,7 +19,6 @@
 body{
   zzfont-family:sans-serif;
   background:#f5f5f5;
-  margin:20px;
 }
 
 h2{
@@ -119,13 +120,31 @@ h3{
 
 }
 
+
+.page-title{
+  margin:0 0 24px 0;
+
+  font-size:22px;
+  font-weight:600;
+  color:#666;
+}
+
+
+
 </style>
 </head>
 
 <body>
+
+<?php
+  // HEADER-UNIFY: shared banner/hamburger + profile modal, same as every page.
+  require __DIR__ . '/header.php';
+  require __DIR__ . '/profile-modal.php';
+?>
+
 <div class="form">
 
-  <h2>Create your own market in Katomia 🍎🥬🥕</h2>
+  <h3 class="page-title">Create your own market</h3>
 
   <div class="field">
     <label>Game name <span class="explain">(optional)</span></label>
@@ -187,17 +206,23 @@ h3{
 
 	<div class="field">
 		<div class="explain">
-			Access control. Leave blank to allow anyone to join. Advanced rule formats may be supported.
+			Access control (GAME-JOINRULE1). Leave blank to allow anyone. Or restrict entry to
+			committed accounts: a comma-separated allowlist (<code>0.0.123, 0.0.456</code>),
+			a group (<code>group:admin</code>), or a rule (<code>accountIdRange(0,500000)</code>).
+			Players need a verified profile commitment from a matching account to see and enter the game.
 		</div>
-		<input id="joinRule" value="">
+		<input id="joinRule" value="" placeholder="e.g. 0.0.123, 0.0.456 · group:admin · accountIdRange(0,500000)">
 
 	</div>
 
 	<div class="field">
 		<div class="explain">
-			Admin account (optional)
+			Admin ID (optional)
 		</div>
 		<input id="admin" placeholder="Hedera account / public key">
+		<div class="explain">
+			Hedera account or public key. Leave blank to prevent game edit or deletion.
+		</div>    
 
 	</div>
 
@@ -253,6 +278,28 @@ function getRadio(name){
 return document.querySelector(`input[name="${name}"]:checked`).value
 }
 
+// GAME-JOINRULE1: turn the free-text join-rule input into the backend shapes that
+// checkJoinRule understands: "*" | [accountId,...] | {rule,params}. Bare digits are
+// normalised to 0.0.x like the in-game account input.
+function parseJoinRule(raw){
+  raw = raw.trim()
+  if(!raw || raw === "*") return "*"
+
+  if(raw.startsWith("{")){ try { return JSON.parse(raw) } catch { return raw } }
+
+  const grp = raw.match(/^group:(.+)$/)
+  if(grp) return { rule:"accountGroup", params: grp[1].split(",").map(s=>s.trim()).filter(Boolean) }
+
+  const fn = raw.match(/^([a-zA-Z]+)\(([^)]*)\)$/)
+  if(fn) return { rule:fn[1], params: fn[2].split(",").map(s=>s.trim()).filter(Boolean).map(p => /^\d+$/.test(p) ? Number(p) : p) }
+
+  // comma-separated allowlist of account ids
+  return raw.split(",")
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(a => /^\d+$/.test(a) ? "0.0." + a : a)
+}
+
 function updateExplain(){
   networkExplain.textContent     = explain.network[getRadio("network")]
   visibilityExplain.textContent  = explain.visibility[getRadio("visibility")]
@@ -279,7 +326,7 @@ const payload = {
   },
   network: getRadio("network"),
   visibility: getRadio("visibility"),
-  joinRule: joinRule.value,
+  joinRule: parseJoinRule(joinRule.value),
   lockRule: getRadio("lockRule"),
     
   config: {
@@ -290,7 +337,8 @@ const payload = {
 }
 
 const adminValue = admin.value.trim()
-if(adminValue) payload.admin = adminValue
+if(adminValue) payload.adminAccount = adminValue
+
 
 try{
 
@@ -325,7 +373,56 @@ status.textContent = "Error creating game"
 
 }
 
+
+
+function defaultAdminAccount(){
+  const el = document.getElementById("admin")
+  if(!el || el.value.trim()) return
+
+  const pubkey = getLocalOrderPubkeyHex()
+  if(pubkey) el.value = pubkey
+}
+
+function getLocalOrderPubkeyHex(){
+  try{
+    const kp = JSON.parse(localStorage.getItem("katomiaPlayerKeypair") || "{}")
+    return jwkXToHex(kp.publicKeyJwk?.x)
+  }catch{
+    return ""
+  }
+}
+
+function jwkXToHex(x){
+  if(!x) return ""
+  const bin = atob(x.replace(/-/g, "+").replace(/_/g, "/"))
+  return [...bin].map(c => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+}
+
+defaultAdminAccount()
+
+
 </script>
+
+<script><?php require_once('config.php');?>
+  window.CONFIG = {
+    HAPI_BASE: "<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>"
+  }
+</script>
+
+<!-- Profile modal stack (PROFILE-INDEX1) — same modal as in-game; core is load-safe
+     off the game page (game controls guarded). -->
+<?php require_once($_SERVER['DOCUMENT_ROOT'] . "/vendor/walletconnect/kwcScriptTag.php"); ?>
+<script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
+<script src="<?= kasset('katomia-core.js') ?>"></script>
+<script src="<?= kasset('katomia-helpers.js') ?>"></script>
+<script src="<?= kasset('kemoji.js') ?>"></script>
+<script>
+  // katomia-modals.js (the diag sender) isn't loaded here — shim so profile/auth
+  // scripts' katomiaDiagSend?.() calls resolve instead of ReferenceError.
+  window.katomiaDiagSend = window.katomiaDiagSend || function(){}
+</script>
+<script src="<?= kasset('katomia-profile.js') ?>"></script>
+<script src="<?= kasset('katomia-auth.js') ?>"></script>
 
 <script>
 	fetch("./footer.html")

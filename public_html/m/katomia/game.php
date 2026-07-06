@@ -1,27 +1,24 @@
+<?php require_once __DIR__ . '/kasset.php'; ?>
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-	<link rel="stylesheet" href="katomia.css" />
+	<link rel="stylesheet" href="<?= kasset('katomia.css') ?>" />
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <title>katomia</title>
 
-  <style>
-		
-  </style>
 </head>
 
 <body>
 
-	<div id="notifications"></div>
-
-  <div class="app-banner">
-    <div class="app-banner-inner">
-      <div class="app-logo"></div>
-      <h2>Katomia marketplace 🍎🥬🥕</h2>
-    </div>
-  </div>
+  <?php
+    // HEADER-UNIFY: shared banner + hamburger (profile, markets, create, nerd) and
+    // the shared profile modal — same partials on every page. The old KATLAB
+    // body-padding/banner-bleed fix lives inside header.php now.
+    require __DIR__ . '/header.php';
+    require __DIR__ . '/profile-modal.php';
+  ?>
 
   <div id="gameMeta" class="game-meta"></div>
 
@@ -40,6 +37,14 @@
   
 
 
+<div class="game-layout">
+
+<div class="game-left">
+
+<!-- ORDERS-UI1: orders | tx sit side-by-side on desktop (auto-fit grid), and
+     wrap to a single column on narrower viewports. -->
+<div class="trade-cols">
+
 <div id="ordersSection" class="mode-order">
 
   <div class="orders-market-summary subtle"></div>
@@ -50,25 +55,14 @@
       Orders
     </summary>
 
+    <!-- Controls live under the Orders expansion (they filter the ORDER list, not the
+         chart above). mine/pending also feed the tx list; sort is orders-only. -->
     <div class="section-controls">
-      <button id="createOrderBtn" title=".     Create order" aria-label="Create order">
-        <i class="fa-solid fa-plus"></i>
-      </button>
-
-      <button id="cancelOrderBtn" title=".     Cancel order" aria-label="Cancel order">
-        <i class="fa-solid fa-minus"></i>
-      </button>
-
-      <label>
-        <input id="showMyOrdersOnly" type="checkbox" checked>
-        Only my orders
-      </label>
-
-      <label>
-        <input id="sortOrdersByPrice" type="checkbox" checked>
-        Sort by price
-      </label>
-
+      <button id="createOrderBtn" title="Create order" aria-label="Create order"><i class="fa-solid fa-plus"></i></button>
+      <button id="cancelOrderBtn" title="Cancel order" aria-label="Cancel order"><i class="fa-solid fa-minus"></i></button>
+      <label><input id="showMyOrdersOnly" type="checkbox" checked> Only mine</label>
+      <label><input id="showPendingOrdersOnly" type="checkbox"> Only pending</label>
+      <label><input id="sortOrdersByPrice" type="checkbox"> Sort by price</label>
     </div>
 
     <div class="orders-list"></div>
@@ -78,8 +72,6 @@
 </div>
 
 
-<BR>
-
 <div id="transactionsSection">
 
   <details class="orders-details" open>
@@ -88,13 +80,9 @@
       Transactions
     </summary>
 
+    <!-- Hide expired stays with tx: an expired transaction ≠ an expired order. -->
     <div class="section-controls">
-
-      <label>
-        <input id="hideExpiredTx" type="checkbox" checked>
-        Hide expired
-      </label>
-
+      <label><input id="hideExpiredTx" type="checkbox" checked> Hide expired</label>
     </div>
 
     <div class="transactions-list"></div>
@@ -102,7 +90,19 @@
   </details>
 
 </div>
-<BR>
+
+</div><!-- .trade-cols -->
+
+</div><!-- .game-left -->
+
+<div id="chatSection">
+  <details class="orders-details" open>
+    <summary class="subtle">💬 Messages</summary>
+    <div class="chat-list"></div>
+  </details>
+</div>
+
+</div><!-- .game-layout -->
 
 <div class="mode-proposal">
   <details class="orders-details" open>
@@ -175,10 +175,10 @@
       
       <label>Order type</label>
       <select id="createOrderType">
-        <option value="simple-fx">Simple FX</option>
-        <option value="basket-fx" disabled>Basket FX</option>
-        <option value="simple-nft" disabled>Simple NFT</option>
-        <option value="simple-le" disabled>Simple LE (Limited Edition)</option>
+        <option value="simple-ft">Simple FT</option>
+        <option value="basket-ft" disabled>Basket FT</option>
+        <option value="simple-nft">Simple NFT</option>
+        <option value="simple-le">Simple LE (Limited Edition)</option>
         <option value="simple-collectible" disabled>Simple Collectible</option>
         <option value="basket-collectible" disabled>Basket Collectible</option>
         <option value="offer" disabled>Offer / one-sided</option>
@@ -188,10 +188,11 @@
 
       <br><br>
 
-      <label>Pair</label>
-      <select id="createOrderPair"></select>
-
-      <br><br>
+      <div id="simpleOrderPairRow">
+        <label>Pair</label>
+        <select id="createOrderPair"></select>
+        <br><br>
+      </div>
 
       <div class="order-side">
         <label><input type="radio" name="createOrderSide" value="buy"> Buy</label>
@@ -206,9 +207,12 @@
         <button type="button" id="createOrderAccountAdd">➕</button>
         <button type="button" id="createOrderAccountRemove">➖</button>
       </div>
+      <!-- ORDER-AUTHBADGE1: pre-submit reputation-binding hint for the selected account. -->
+      <div id="createOrderAuthHint" class="create-order-auth-hint"></div>
 
       <br>
 
+      <div id="simpleFtRateFields">
       <label>Volume <span id="createOrderVolumeUnit" style="font-weight:normal;font-size:11px;color:#999;margin-left:4px;"></span></label>
       <input id="createOrderVolume" type="number" step="any">
       
@@ -229,17 +233,56 @@
       <div id="createOrderIntHint" style="font-size:11px;min-height:18px;margin-top:4px;"></div>
 
       <br>
+      </div><!-- #simpleFtRateFields -->
+
+      <div id="simpleCollectibleFields" style="display:none">
+
+        <!-- Token ID + Serial/Qty on one line -->
+        <div class="collectible-token-row">
+          <div class="collectible-token-id">
+            <label>Token ID</label>
+            <input id="createCollectibleToken" type="text" placeholder="e.g. 0.0.12345">
+            <div id="createCollectibleTokenHint" class="collectible-hint"></div>
+          </div>
+          <div id="createCollectibleSerialRow" class="collectible-serial">
+            <label>Serial #</label>
+            <input id="createCollectibleSerial" type="number" min="1" step="1" placeholder="e.g. 42">
+          </div>
+          <div id="createCollectibleQtyRow" class="collectible-serial" style="display:none">
+            <label>Qty</label>
+            <input id="createCollectibleQty" type="number" min="1" step="1" value="1" placeholder="qty">
+          </div>
+        </div>
+
+        <!-- Price + Currency on one line -->
+        <div class="collectible-price-row">
+          <div class="collectible-price">
+            <label>Price <span class="collectible-label-note">(total)</span></label>
+            <input id="createCollectiblePrice" type="number" step="any" min="0" placeholder="e.g. 10.50">
+          </div>
+          <div class="collectible-currency">
+            <label>Currency</label>
+            <select id="createCollectibleCurrency"></select>
+          </div>
+        </div>
+
+      </div><!-- #simpleCollectibleFields -->
 
       <label>Time in force</label>
       <select id="createOrderTif">
         <option value="GTC" selected>♾️ GTC — Good till cancelled</option>
-        <option value="IOC" disabled>⚡ IOC — Immediate or cancel</option>
-        <option value="FOK" disabled>🎯 FOK — Fill or kill</option>
-        <option value="GTD" disabled>📅 GTD — Good till date</option>
-              
+        <option value="GTD">📅 GTD — Good till date</option>
+        <option value="IOC">⚡ IOC — Immediate or cancel</option>
+        <option value="FOK">🎯 FOK — Fill or kill</option>
       </select>
 
+      <div id="createOrderExpiresAtRow" style="display:none;margin-top:10px;">
+        <label>Expires at</label>
+        <input id="createOrderExpiresAt" type="datetime-local">
+      </div>
+
 			<br>
+      
       <details id="createOrderDev">
         <summary>🛠 Pro mode</summary>
         <div class="dev-help">
@@ -252,6 +295,17 @@
           rows="5"
           placeholder="24739;3841995;-760000|24739;3842078;1000000">
         </textarea>
+
+        <div class="dev-help">
+          match conditions — one per line (or paste JSON)<br>
+          condition = type [key=value ...]<br>
+          eg: singleCounterparty<br>
+          eg: maxCounterparties n=2<br>
+        </div>
+        <textarea
+          id="createOrderConditions"
+          rows="2"
+          placeholder="singleCounterparty">singleCounterparty</textarea>
 
       </details>
       
@@ -281,18 +335,41 @@
 <script src="/m/bid/localCacheIFPS.js"></script> 
 <script src="/m/bid/localCacheArweave.js"></script> 
 
+<!-- WalletConnect (exposes window.WC) + KPAY signing widget embed (CDN-style).
+     Clicking a tx row opens the same modal used on the kpay signing page; the
+     widget is dropped in purely via a script tag to prove it's host-agnostic.
+     Both are same-origin here; adjust paths via window.KPAY_FUTURE_BASE etc. -->
+<?php require_once($_SERVER['DOCUMENT_ROOT'] . "/vendor/walletconnect/kwcScriptTag.php"); ?>
+<!-- MODAL-URL1: opt in to URL-hash persistence so a signing modal survives reload
+     / is bookmarkable (#sign=network:txid:pch). Set before the deferred embed runs. -->
+<script>window.KPAY_SIGN_HASH = true</script>
+<script src="/vendor/kpay/kpool_widget/kpay-embed.js" defer></script>
 
 
-<script type="module" src="katomia-init.js" data-glog="on"></script>
-<script src="katomia-core.js"></script>
-<script src="katomia-localdb.js"></script>
-<script src="katomia-helpers.js"></script>
-<script src="katomia-enrich.js"></script>
-<script src="katomia-network.js"></script>
-<script src="katomia-modals.js"></script>
-<script src="katomia-render.js"></script>
-<script src="katomia-render-orders.js"></script>
-<script src="katomia-market.js"></script>
+
+<script type="module" src="<?= kasset('katomia-init.js') ?>" data-glog="on"></script>
+<script src="<?= kasset('katomia-core.js') ?>"></script>
+<script src="<?= kasset('katomia-localdb.js') ?>"></script>
+<script src="<?= kasset('kemoji.js') ?>"></script>
+<script src="<?= kasset('katomia-helpers.js') ?>"></script>
+<script src="<?= kasset('katomia-enrich.js') ?>"></script>
+<script src="<?= kasset('katomia-network.js') ?>"></script>
+<script src="<?= kasset('katomia-modals.js') ?>"></script>
+<script src="<?= kasset('katomia-render.js') ?>"></script>
+<script src="<?= kasset('katomia-render-orders.js') ?>"></script>
+<script src="<?= kasset('katomia-market.js') ?>"></script>
+<!-- QR: davidshimjs build already bundled with kpool_widget — same file the offline
+     signing widget uses. CDN removed to keep all assets in-house.
+     TODO(bundling): when kpool_widget is rolled into a proper JS bundle, fold
+     qrcode.min.js in and remove this script tag entirely. -->
+<script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
+<script src="<?= kasset('katomia-profile.js') ?>"></script>
+<script src="<?= kasset('katomia-auth.js') ?>"></script>
+
+<!-- KAT-FEEDBACK1 dogfooding: long-press anywhere on the game page (2s) opens
+     a "Send Feedback" modal. Signs with the intent keypair above if present. -->
+<script src="/vendor/feedback-widget/feedback-widget.js?v=<?= @filemtime($_SERVER['DOCUMENT_ROOT'] . '/vendor/feedback-widget/feedback-widget.js') ?>"
+        data-product="katomia"></script>
 
 <script>
 window.addEventListener("load", () => {
@@ -309,9 +386,23 @@ window.addEventListener("load", () => {
 
   if(typeof connect === "function")
     connect()
-    
-  
+
+
 })
+
+// GAME-JOINRULE1: a gated game rejects the WS join until a commitment exists. When
+// the user raises one from the (now always-reachable) profile modal, retry the join
+// so the game appears without a manual refresh. connect() re-sends game_join when
+// the socket was closed; when it's already open we send the join explicitly.
+window.onKatomiaBindingPublished = () => {
+  try {
+    if(typeof connect !== "function") return
+    const rejoin = () => socket?.send(JSON.stringify({
+      type: "game_join", gameId, playerToken: getOrCreatePlayerToken(), playerName: "anon"
+    }))
+    connect(rejoin)
+  } catch(e){ console.error("[auth] rejoin after publish failed", e) }
+}
 </script>
 
 <script>

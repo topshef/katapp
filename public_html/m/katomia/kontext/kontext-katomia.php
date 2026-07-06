@@ -8,17 +8,20 @@ $logFile=__DIR__.'/context_'.$ip.'.log';
 file_put_contents($logFile,date('Y-m-d H:i:s')."\n".json_encode($_SERVER,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)."\n\n----------------------\n\n",FILE_APPEND);
 
 
-$domain = 'shop.gomint.me';
+$domain = 'swap.kpay.live';
 
 $sources=[
 // 'backend js'=>['/home/hbarlive_hts/web*.js'],
 'backend js'=>['/home/hbarlive_hts/{kat,kpool,deal,websocket}*.js'],
-'frontend js'=>["/var/www/$domain/public_html/m/katomia/*.js"],
-'frontend css'=>["/var/www/$domain/public_html/m/katomia/*.css"],
-'frontend php'=>["/var/www/$domain/public_html/m/katomia/*.php"]
+// 'kbot'=>['/home/hbarlive_hts/kbot/swarms/*.js'],  //nope - just zip it
+'KEA webapp'=>["/var/www/$domain/public_html/m/katomia/KEA/*.{html,js,css}"],
+'frontend katomia'=>["/var/www/$domain/public_html/m/katomia/*.{html,js,css,php}"],
+'frontend kpay widget'=>["/var/www/$domain/public_html/vendor/kpay/kpool_widget/*.{html,js,css,php}"],
+'og signing page'=>["/var/www/$domain/public_html/future/*.{html,js,css,php}"],
+'walletconnect'=>["/var/www/$domain/public_html/vendor/walletconnect/builder/src/*.{html,js,css,php}"]
 ];
 
-$exclude=['*.min.js','*bundle*','*node_modules*','*context_*','*log*'];
+$exclude=['zz*', '*.min.js','*bundle*','*node_modules*','*context_*','*log*'];
 
 function isExcluded($file,$exclude){
 
@@ -132,15 +135,39 @@ foreach($all as $group=>$files){
 
 <style>
 
-body{font-family:arial;margin:20px;}
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+body{
+  font-family:'Inter',sans-serif;
+  margin:20px;
+}
+
 .toolbar{margin-bottom:20px;}
-.group{margin-bottom:30px;}
+
+.group{margin-bottom:18px;}
+
+.group h3{
+  margin:0 0 6px 0;
+  font-size:16px;
+  font-weight:600;
+}
+
+.group h3 label{
+  cursor:pointer;
+}
+
 .file{padding:4px 0;}
+
 .hash{font-size:12px;color:#666;}
 button{margin-right:8px;}
 .status{margin-left:10px;color:#666;font-size:12px;}
 #preview{width:100%;height:500px;margin-top:20px;font-family:monospace;display:none;}
 
+.zipOption{
+  font-size:13px;
+  margin-right:8px;
+  white-space:nowrap;
+}
 </style>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -148,14 +175,33 @@ button{margin-right:8px;}
 
 <body>
 
-<h1>Kontext</h1>
+<h2>Kontext</h2>
 
+<div class="toolbar">
+<button onclick="selectAll()">Select all</button>
+<button onclick="selectNone()">Select none</button>
+<button onclick="buildContext()">Copy to clipboard as text</button>
+<button onclick="buildContextZIPbase64()">Copy to clipboard as base64 zip data</button>
+<button onclick="buildContextZIP()">Save zip file</button>
+<label class="zipOption">
+  <input type="checkbox" id="zipBySource" checked>
+  group by source
+</label>
+
+
+<span id="status" class="status"></span>
+</div>
 
 <?php foreach($all as $group=>$files){ ?>
 
 <div class="group">
 
-<h2><?=$group?></h2>
+<h3>
+  <label>
+    <input type="checkbox" class="ctxGroup" data-group="<?=htmlspecialchars($group)?>">
+    <?=$group?>
+  </label>
+</h3>
 
 <?php foreach($files as $file){
 
@@ -172,7 +218,7 @@ $id=base64_encode($file);
 
 <label>
 
-<input type="checkbox" class="ctxFile" value="<?=htmlspecialchars($name)?>" checked>
+<input type="checkbox" class="ctxFile" data-group="<?=htmlspecialchars($group)?>" data-path="<?=htmlspecialchars($file)?>" value="<?=htmlspecialchars($name)?>" checked>
 
 <a href="?file=<?=urlencode($id)?>" target="_blank"><?=$name?></a>
 
@@ -188,17 +234,7 @@ $id=base64_encode($file);
 
 <?php } ?>
 
-<div class="toolbar">
-<button onclick="selectAll()">Select all</button>
-<button onclick="selectNone()">Select none</button>
-<button onclick="buildContext()">Copy to clipboard as text</button>
-<button onclick="buildContextZIPbase64()">Copy to clipboard as base64 zip data</button>
-<button onclick="buildContextZIP()">Save zip file</button>
 
-
-
-<span id="status" class="status"></span>
-</div>
 
 <textarea id="preview"></textarea>
 
@@ -216,17 +252,63 @@ const files=<?=json_encode(
 
 let generated="";
 
-function selectAll(){document.querySelectorAll(".ctxFile").forEach(x=>x.checked=true);}
-function selectNone(){document.querySelectorAll(".ctxFile").forEach(x=>x.checked=false);}
+function selectAll(){
+  document.querySelectorAll(".ctxFile").forEach(x=>x.checked=true)
+  updateGroupChecks()
+}
+
+function selectNone(){
+  document.querySelectorAll(".ctxFile").forEach(x=>x.checked=false)
+  updateGroupChecks()
+}
+
+function getGroupFiles(group){
+  return [...document.querySelectorAll(`.ctxFile[data-group="${CSS.escape(group)}"]`)]
+}
+
+function updateGroupChecks(){
+  document.querySelectorAll(".ctxGroup").forEach(groupBox=>{
+    const group=groupBox.dataset.group
+    const boxes=getGroupFiles(group)
+    const checked=boxes.filter(x=>x.checked).length
+
+    groupBox.checked=checked===boxes.length
+    groupBox.indeterminate=checked>0 && checked<boxes.length
+  })
+}
+
+document.addEventListener("change",e=>{
+  if(e.target.classList.contains("ctxFile")) updateGroupChecks()
+
+
+  if(e.target.classList.contains("ctxGroup")){
+    const group=e.target.dataset.group
+    const boxes=getGroupFiles(group)
+
+    const makeChecked=
+      e.target.indeterminate ||
+      e.target.checked
+
+    boxes.forEach(x=>x.checked=makeChecked)
+
+    updateGroupChecks()
+  }
+
+})
+
+document.addEventListener("DOMContentLoaded",updateGroupChecks)
 
 
 function getSelectedFiles(){
 
-  const selected=[...document.querySelectorAll(".ctxFile:checked")]
-    .map(x=>x.value)
+  const selected=new Set(
+    [...document.querySelectorAll(".ctxFile:checked")]
+      .map(x=>x.dataset.path)
+  )
 
-  return files.filter(f=>selected.includes(f.name))
+  return files.filter(f=>selected.has(f.path))
 }
+
 
 function updateStatus(msg){
   document.getElementById("status").innerText=msg
@@ -279,6 +361,38 @@ ${f.content}
 
 
 
+function zipSafeName(s){
+  return String(s)
+    .replace(/[<>:"\\|?*\x00-\x1F]/g,"_")
+    .replace(/\.\.+/g,".")
+    .replace(/^\/+|\/+$/g,"")
+    .trim() || "source"
+}
+
+function getZipPath(f){
+  const bySource=document.getElementById("zipBySource")?.checked
+
+  if(!bySource) return zipSafeName(f.name)
+
+  return `${zipSafeName(f.group)}/${zipSafeName(f.name)}`
+}
+
+function getZipDownloadName(selectedFiles){
+  const groups=[...new Set(selectedFiles.map(f=>f.group))]
+  const groupPart=groups.map(zipSafeName).join(", ") || "katomia-context"
+
+  const d=new Date()
+  const pad=n=>String(n).padStart(2,"0")
+  const stamp=
+    d.getFullYear()+
+    pad(d.getMonth()+1)+
+    pad(d.getDate())+
+    "-"+
+    pad(d.getHours())+
+    pad(d.getMinutes())
+
+  return `${groupPart} ${stamp}.zip`
+}
 
 
 async function buildContextZIPbase64(){
@@ -291,7 +405,7 @@ async function buildContextZIPbase64(){
 
     selectedFiles.forEach(f => {
 
-      zip.file(f.name,f.content)
+      zip.file(getZipPath(f),f.content)
 
     })
 
@@ -310,7 +424,7 @@ ${zipBase64}
     const preview=document.getElementById("preview")
 
     preview.value=selectedFiles
-      .map(f=>f.name)
+      .map(f=>getZipPath(f))
       .join('\n')
 
     preview.style.display="block"
@@ -346,7 +460,7 @@ async function buildContextZIP(){
 
     selectedFiles.forEach(f=>{
 
-      zip.file(f.name,f.content)
+      zip.file(getZipPath(f),f.content)
 
     })
 
@@ -359,7 +473,7 @@ async function buildContextZIP(){
 
     preview.value=
       selectedFiles
-      .map(f=>f.name)
+      .map(f=>getZipPath(f))
       .join('\n')
 
     preview.style.display="block"
@@ -383,7 +497,7 @@ async function buildContextZIP(){
       const a=document.createElement("a")
 
       a.href=URL.createObjectURL(blob)
-      a.download="katomia-context.zip"
+      a.download=getZipDownloadName(selectedFiles)
       a.click()
 
       updateStatus(

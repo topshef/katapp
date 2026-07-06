@@ -34,7 +34,7 @@ function getSimpleFxMarkets(){
     const market = enriched.market
 
     if(!market) return
-    if(market.type !== "simple-fx") return
+    if(market.type !== "simple-ft") return
 
     grouped[market.pair] ||= []
 
@@ -76,15 +76,21 @@ function enrichSimpleFxMarketRow({ orderId, playerId, market }){
   // const displayBaseAmount =
     // market.baseAmount / (10 ** baseDecimals)
 
-  const settled =
-    getSettledOrderFillRatio(orderId)
+  const settled = getSettledOrderFillRatio(orderId)
+  const pending = getPendingOrderFillRatio(orderId)
 
-  const remainingRatio =
-    1 - (settled.numerator / settled.denominator)
+  const remainingRatio = Math.max(
+    0,
+    1 -
+    (settled.numerator / settled.denominator) -
+    (pending.numerator / pending.denominator)
+  )
+
+  const remainingRawBaseAmount =
+    Math.round(market.baseAmount * remainingRatio)
 
   const displayBaseAmount =
-    (market.baseAmount * remainingRatio)
-    / (10 ** baseDecimals)
+    remainingRawBaseAmount / (10 ** baseDecimals)
 
   const originalDisplayBaseAmount =
     market.baseAmount
@@ -114,6 +120,7 @@ function enrichSimpleFxMarketRow({ orderId, playerId, market }){
     quoteAsset: market.quoteAsset,
 
     rawBaseAmount: market.baseAmount,
+    rawRemainingBaseAmount: remainingRawBaseAmount,
     rawQuoteAmount: market.quoteAmount,
 
     displayBaseAmount,

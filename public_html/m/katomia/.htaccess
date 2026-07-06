@@ -6,6 +6,14 @@ RewriteRule ^game/(.+\.(js|css))$ $1 [L,QSA]
 RewriteRule ^game/([^/]+)/?$ ?game=$1 [L,QSA,E=TRACE:TY63433]
 RewriteRule ^create/?$ ?page=create [L,QSA,E=TRACE:RJ23394]
 
+
+RewriteRule ^kea/?$ KEA [L,QSA]
+
+
+RewriteRule ^keakonnect/?$ kea-bind.html [L,QSA]
+
+
+
 #hapi api router
 RewriteRule ^hapi/([a-z]+)/?$ hapi.php?action=$1 [L,QSA,E=TRACE:DE73672]
 
