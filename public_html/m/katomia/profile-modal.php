@@ -23,7 +23,7 @@
     <div class="profile-section profile-identity">
       <div class="profile-list">
         <div class="profile-label">Intent public key <span class="profile-tag profile-tag-public" title="Public. Your intent key — every order or proposal you place is signed by it, so others can recognise your intents across games.">public</span></div>
-        <div id="profilePubkey" class="profile-mono" title="Your session's Ed25519 intent key. Signs your orders and proposal commitments. Reputation can be bound to it via a wallet (see Reputation binding)."></div>
+        <div id="profilePubkey" class="profile-mono" title="Your session's Ed25519 intent key. Signs your orders and proposal commitments — it says WHAT you want. A wallet can stand behind it (see Wallet binding below)."></div>
 
         <!-- KVAC / prepaid access id — NERD ONLY, STUBBED. HKSAT = SHA256(player token):
              the PUBLIC handle for prepaid fees (KSAT/KVAC model — see kpay.uk/kvac). The
@@ -43,15 +43,18 @@
       </div>
     </div>
 
-    <!-- ═══ REPUTATION BINDING (WalletConnect) — priority section. Optional: sign with a
-         wallet to bind your intent key to a real account so orders can carry reputation.
+    <!-- ═══ WALLET BINDING (WalletConnect) — priority section. Optional: sign with a
+         wallet to bind your intent key to a real account. AUTH-LANG1: this is the
+         IDENTITY act ("who stands behind this key") — one signed commitment, two
+         consumers: reputation on your orders AND members-only market access
+         (GAME-JOINRULE1). "Reputation binding" was under-scoped once gating went live.
          WIREFRAME — options (expiry/scope/publish) are exposed to feel the UX. ═══ -->
     <div class="profile-section profile-repute">
       <div class="profile-section-head">
-        <span class="profile-section-title">Reputation binding</span>
-        <span class="profile-tag profile-tag-optional" title="Optional. Bind your intent key to a wallet account so your orders can carry reputation and be recognised in the marketplace. Nobody has to do this.">optional</span>
+        <span class="profile-section-title" title="One signed commitment, two uses: your orders can carry reputation, and members-only markets unlock for your accounts. Your intent key says WHAT you want; a binding says WHO you are.">🔗 Wallet binding</span>
+        <span class="profile-tag profile-tag-optional" title="Optional. Bind your intent key to a wallet account so your orders carry reputation and members-only markets open up. Nobody has to do this.">optional</span>
       </div>
-      <p class="subtle profile-section-sub">Sign with a wallet to bind your intent key to a real account. Publishing makes the binding public.</p>
+      <p class="subtle profile-section-sub">Prove who you are: sign once with a wallet to put a real account behind your intent key — your orders can carry reputation, and members-only markets unlock. Publishing makes the binding public.</p>
 
       <div class="profile-auth">
 
@@ -104,12 +107,18 @@
       </div>
     </div>
 
-    <!-- ═══ KEA / external signer — KEA-specific (QR → link → copy). Collapsed by
-         default so the WalletConnect flow gets priority. ═══ -->
-    <details class="profile-section profile-kea">
-      <summary class="profile-section-title">Approve orders with KEA <span class="profile-tag" title="Optional external signer. Scan with the KEA app to approve/execute your orders from another device.">app</span></summary>
+    <!-- ═══ EXECUTION AGENT — KEA (QR → link → copy). Collapsed by default so the
+         wallet-binding flow gets priority. AUTH-LANG1: this is the DELEGATION act —
+         approval happens BEFORE the transaction (a standing policy), not after (a
+         signing prompt) — which is why KEA never appears on the signing modal.
+         data-feature="kea": hidden wholesale when KATOMIA_FEATURES.kea is off — the
+         first release ships without KEA visible; later this whole section should be
+         excludable from the bundle (BUNDLE1). ═══ -->
+    <details class="profile-section profile-kea" id="profileKeaSection" data-feature="kea">
+      <summary class="profile-section-title" title="KEA flips approval around: instead of approving each transaction after it appears (WalletConnect / WhatsApp / offline signing), you approve a policy up front. KEA watches for transactions that match orders your intent key has already signed, verifies them, and signs automatically — so it never needs to prompt you. Fastest way to settle; still self-custody.">🤖 Execution agent — KEA <span class="profile-tag" title="Pre-approve, then let KEA settle automatically. The opposite of a signing prompt: you authorise the policy before the transaction exists.">auto</span></summary>
+      <p class="subtle">Pair the KEA app to watch and auto-settle orders your intent key has already signed — approve the policy once, no per-transaction prompts.</p>
       <div id="profileQr" class="profile-qr"></div>
-      <p class="subtle">Scan with KEA to approve your orders</p>
+      <p class="subtle">Scan with KEA to start watching this intent key</p>
       <a id="profileQrLink" class="profile-link" href="#"></a>
       <button id="profileCopyLinkBtn">Copy KEA link</button>
     </details>

@@ -24,6 +24,19 @@ function initKatomiaProfile(){
     el.addEventListener("click", () => openKatomiaProfile())
   )
 
+  // AUTH-LANG1: the menu's 🤖 Execution agent item is a second door to the SAME
+  // modal, landed on the KEA section (expanded + scrolled). One home, two doors —
+  // when KEA graduates to its own page/app this handler just repoints.
+  document.querySelectorAll("[data-menu-kea]").forEach(el =>
+    el.addEventListener("click", async () => {
+      await openKatomiaProfile()
+      const kea = document.getElementById("profileKeaSection")
+      if(!kea) return
+      kea.open = true
+      kea.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+  )
+
   close.onclick = () => modal.classList.add("hidden")
   modal.onclick = e => {
     if(e.target === modal) modal.classList.add("hidden")

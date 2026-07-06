@@ -28,6 +28,11 @@
 
   <nav id="appMenu" class="app-menu hidden">
     <button type="button" class="app-menu-item" data-menu-profile>🔗 Profile &amp; connect</button>
+    <!-- AUTH-LANG1: second door to the SAME modal, landing on the KEA section — the
+         execution agent is a different act (pre-approved auto-settle) so it gets its
+         own entry, but one home. Wired in katomia-profile.js ([data-menu-kea]). -->
+    <button type="button" class="app-menu-item" data-menu-kea data-feature="kea"
+            title="Pre-approve a policy and let KEA auto-settle orders your intent key has signed — no per-transaction prompts.">🤖 Execution agent</button>
     <a class="app-menu-item" href="/m/katomia/">🏛️ Markets</a>
     <a class="app-menu-item" href="/m/katomia/create">➕ Create market</a>
     <label class="app-menu-item nerd-control">
@@ -35,6 +40,20 @@
     </label>
   </nav>
 </div>
+
+<script>
+// Feature flags (AUTH-LANG1 note, 2026-07-06): KEA will NOT be user-visible in the
+// first release — every KEA affordance is tagged data-feature="kea" and hidden
+// wholesale when the flag is off. Flip here (or pre-set window.KATOMIA_FEATURES
+// before this script) — no other code changes needed. Longer term the KEA code
+// should also be excludable from the bundle (BUNDLE1).
+window.KATOMIA_FEATURES = Object.assign({ kea: true }, window.KATOMIA_FEATURES || {})
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("[data-feature]").forEach(el => {
+    if(window.KATOMIA_FEATURES[el.dataset.feature] === false) el.style.display = "none"
+  })
+})
+</script>
 
 <script>
 // Menu behaviour — self-contained, no dependencies on the page's other scripts.
