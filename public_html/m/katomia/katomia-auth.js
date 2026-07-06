@@ -207,9 +207,10 @@ function updateAuthStatement(){
   opts?.classList.remove("hidden")
   el.classList.remove("hidden")
   // Statement wording will vary once we branch binding vs. plain authenticate (nerd
-  // mode). For now it reflects the key-binding intent.
+  // mode). For now it reflects the key-binding intent. Display copy only — the SIGNED
+  // challenge JSON is untouched (INTENT-RENAME1 keeps wire names for compat).
   el.textContent =
-    `I control account ${account} and I authorise my order key ${kauthShortKey(window.__kauthIntentKey)} ` +
+    `I control account ${account} and I authorise my intent key ${kauthShortKey(window.__kauthIntentKey)} ` +
     `to place and sign orders on my behalf. Scope: ${kauthScopeLabel()}; ${kauthExpiryLabel()}.`
 }
 
