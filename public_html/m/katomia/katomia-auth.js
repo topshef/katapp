@@ -412,9 +412,13 @@ async function copyKatomiaAuthEnvelope(){
 }
 
 // PROFILE-AUTH3: POST the envelope to the Katomia backend to be stored.
-// Goes through the hapi.php proxy (../hapi.php?action=authenticate -> /katomia/authenticate),
+// Goes through the hapi.php proxy (hapi.php?action=authenticate -> /katomia/authenticate),
 // which forwards headers — so the x-player-token header reaches the backend. That token
 // is the same ephemeral WS player token; the backend uses it to authenticate the request.
+// ABSOLUTE path (PROFILE-INDEX1 regression fix): the modal now opens on EVERY page, and
+// the old game-page-relative "../hapi.php" resolved to /m/hapi.php (404) from the index —
+// "Publish failed" with the request never reaching any backend. Same absolute-path
+// convention as the games fetch (/m/katomia/hapi/games) and the keakonnect link.
 // v1 UX: publishing == making the binding public (privacy is hard-coded server-side).
 // Called by the single "Raise commitment" action when Publish is ticked (no separate
 // button). Returns true on success. Takes an explicit envelope; falls back to the last.
@@ -422,7 +426,7 @@ async function publishKatomiaAuthEnvelope(envelope){
   const env = envelope || window.__lastAuthEnvelope
   if(!env){ notify?.("Nothing to publish yet", "info", { timeout: 2000 }); return false }
   try {
-    const res = await fetch("../hapi.php?action=authenticate", {
+    const res = await fetch("/m/katomia/hapi.php?action=authenticate", {
       method: "POST",
       headers: { "content-type": "application/json", "x-player-token": getOrCreatePlayerToken() },
       body: JSON.stringify({ envelope: env })
