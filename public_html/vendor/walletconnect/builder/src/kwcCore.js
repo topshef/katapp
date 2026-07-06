@@ -1137,7 +1137,9 @@ async function executeDealFlowCore ({
   const data = await response.json()
   if (!data.bytes?.data) {
     console.warn("Deal bytes not ready yet", data)
-    return { status: "not_ready" }
+    // kpos explains WHY in data.error (e.g. an unmet deal condition like
+    // ct_lock_modified after a successful claim) — pass it up for the UI
+    return { status: "not_ready", message: data.error || null }
   }
 
   const transactionBytes = new Uint8Array(data.bytes.data)
@@ -1268,6 +1270,17 @@ export const executeDealFlow = async () => {
 
     if (result.status === "signed_only") {
       showTxSaveResult(result.saveResult)
+      return
+    }
+
+    if (result.status === "not_ready") {
+      // was a silent console.warn — surface the server's reason (GMWALLET2)
+      walletUI.showTxAlert(
+        result.message ||
+          "This deal cannot be executed right now (no transaction bytes from server).",
+        "warning",
+        "last_tx"
+      )
       return
     }
 
