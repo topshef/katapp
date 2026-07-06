@@ -1,14 +1,4 @@
-<?php
-// kasset(): cache-bust a same-dir asset with its file mtime, so an edited JS/CSS
-// file is refetched immediately — no manual version bump, no hard refresh needed
-// (important for mobile testing where hard-refresh is awkward). Falls back to the
-// bare path if the file is missing. Local assets only; vendor/CDN keep their own.
-function kasset($file) {
-  $p = __DIR__ . '/' . $file;
-  $v = is_file($p) ? filemtime($p) : false;
-  return htmlspecialchars($v ? "$file?v=$v" : $file, ENT_QUOTES, 'UTF-8');
-}
-?>
+<?php require_once __DIR__ . '/kasset.php'; ?>
 <!DOCTYPE html>
 <html>
 <head>
@@ -18,158 +8,19 @@ function kasset($file) {
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <title>katomia</title>
 
-  <style>
-    /* KATLAB fix (game page). Root cause: .app-banner's layout box is full-width
-       (width:100vw), but it overflows the body content box by 16px each side and
-       overflow-x:hidden on <body> CLIPS the paint back to the content box — so the
-       grey bar showed inset 16px per side. (getBoundingClientRect reports the
-       unclipped layout box, which misled earlier checks; confirmed by measuring
-       painted pixels.) Fix: inset the body via PADDING instead of margin, so the
-       clip box == the viewport, then let the banner bleed into that padding with
-       negative margins. Content stays inset via the padding; the banner reaches
-       all three edges, clip-safe. Verified painted gaps 0/0/0 at 360/412/430px. */
-    body { margin: 0; padding: 16px; box-sizing: border-box; }
-    .app-banner { width: auto; margin: -16px -16px 12px -16px; }
-  </style>
 </head>
 
 <body>
 
-	<div id="notifications"></div>
-  <button id="profileBtn" class="profile-btn" title="Profile" aria-label="Profile">🔗</button>
-
-
-  <div class="app-banner">
-    <div class="app-banner-inner">
-      <h2>
-        <span class="app-title">KATOMIA</span>
-        <span class="app-icons">💱 🐫</span>
-      </h2>
-      <!-- ORDERS-UI1: nerd toggle mirrored into the main header. .nerd-control
-           class-tags every nerd affordance so they can be hidden wholesale for
-           non-dev users later. Syncs with the profile-panel toggle via .nerd-toggle-input. -->
-      <label class="banner-nerd nerd-control" title="Nerd mode — show developer detail">
-        <input type="checkbox" class="nerd-toggle-input">
-        <span>🤓</span>
-      </label>
-    </div>
-  </div>
+  <?php
+    // HEADER-UNIFY: shared banner + hamburger (profile, markets, create, nerd) and
+    // the shared profile modal — same partials on every page. The old KATLAB
+    // body-padding/banner-bleed fix lives inside header.php now.
+    require __DIR__ . '/header.php';
+    require __DIR__ . '/profile-modal.php';
+  ?>
 
   <div id="gameMeta" class="game-meta"></div>
-  <div id="profileModal" class="profile-modal hidden">
-        
-    <div class="profile-card">
-      <div id="profileModalClose" class="profile-close">✕</div>
-
-      <h2 id="profileTitle">Player</h2>
-
-      <div id="profileAvatar" class="profile-avatar"></div>
-
-      <!-- ═══ IDENTITY — your public/private identifiers. The order public key is NOT
-           KEA-specific; it's your core profile identity, so it lives at the top. ═══ -->
-      <div class="profile-section profile-identity">
-        <div class="profile-list">
-          <div class="profile-label">Order public key <span class="profile-tag profile-tag-public" title="Public. Your trader/intent key — every order you place is signed by it, so others can recognise your orders across games.">public</span></div>
-          <div id="profilePubkey" class="profile-mono" title="Your session's Ed25519 order/intent key. Signs your orders. Reputation can be bound to it via a wallet (see Reputation binding)."></div>
-
-          <!-- KVAC / prepaid access id — NERD ONLY, STUBBED. HKSAT = SHA256(player token):
-               the PUBLIC handle for prepaid fees (KSAT/KVAC model — see kpay.uk/kvac). The
-               player token (KSAT) itself stays private in the browser. Balance + top-up are
-               display-only stubs for now; wiring is FEE1 / a backend HKSAT balance lookup. -->
-          <div class="profile-nerd-only">
-            <div class="profile-label">Access token · KVAC <span class="profile-tag profile-tag-public" title="Public hash (HKSAT = SHA256 of your player token). The handle you'd top up to prepay fees. Your player token itself stays private in this browser.">public</span></div>
-            <div id="profileKvac" class="profile-mono" title="HKSAT — public hash of your player token (KSAT). Used as a prepaid balance handle (KSAT/KVAC fee model). STUB: balance + top-up not wired yet."></div>
-            <div class="profile-kvac-balance subtle">
-              Balance: <span id="profileKvacBalance">— (stub)</span>
-              <button id="profileKvacTopupBtn" type="button" class="profile-ghost" disabled title="Prepaid top-up — not wired yet (KSAT/KVAC, FEE1)">Top up…</button>
-            </div>
-          </div>
-
-          <div class="profile-label">Scope</div>
-          <div id="profileScope" class="profile-scope" title="Where this order key operates: domain | network | game."></div>
-        </div>
-      </div>
-
-      <!-- ═══ REPUTATION BINDING (WalletConnect) — priority section. Optional: sign with a
-           wallet to bind your order key to a real account so orders can carry reputation.
-           WIREFRAME — options (expiry/scope/publish) are exposed to feel the UX. ═══ -->
-      <div class="profile-section profile-repute">
-        <div class="profile-section-head">
-          <span class="profile-section-title">Reputation binding</span>
-          <span class="profile-tag profile-tag-optional" title="Optional. Bind your order key to a wallet account so your orders can carry reputation and be recognised in the marketplace. Nobody has to do this.">optional</span>
-        </div>
-        <p class="subtle profile-section-sub">Sign with a wallet to bind your order key to a real account. Publishing makes the binding public.</p>
-
-        <div class="profile-auth">
-
-          <!-- Account picker — WalletConnect-connected accounts + connect-another +
-               disconnect, mirroring the tx-signer picklist (window.WC add/disconnect). -->
-          <div id="authAccountRow" class="profile-auth-account">
-            <span class="profile-label">Account</span>
-            <select id="authAccount" class="profile-auth-select"></select>
-            <button id="authAccountRemove" type="button" class="profile-auth-x hidden" title="Disconnect this wallet account">Disconnect</button>
-          </div>
-
-          <!-- Commitment options — shown once an account is chosen. -->
-          <div id="authOptions" class="profile-auth-options hidden">
-            <label class="profile-label">Expiry
-              <select id="authExpiry">
-                <option value="86400000">24 hours</option>
-                <option value="604800000">7 days</option>
-                <option value="2592000000">30 days</option>
-                <option value="">No expiry</option>
-              </select>
-            </label>
-            <label class="profile-label">Scope
-              <select id="authScope">
-                <option value="global">Global — all games</option>
-                <option value="game">This game only</option>
-              </select>
-            </label>
-            <label class="profile-auth-publish">
-              <input type="checkbox" id="authPublish" checked> Publish this binding (public)
-            </label>
-          </div>
-
-          <!-- Plain-English statement of what the user is committing to. -->
-          <p id="authStatement" class="profile-auth-statement hidden"></p>
-
-          <button id="authBtn" type="button">💠 Raise commitment</button>
-          <div id="authStatus" class="profile-auth-status subtle"></div>
-          <pre id="authOutput" class="profile-auth-output hidden"></pre>
-          <button id="authCopyBtn" type="button" class="hidden">⧉ Copy envelope</button>
-        </div>
-      </div>
-
-      <!-- ═══ KEA / external signer — KEA-specific (QR → link → copy). Collapsed by
-           default so the WalletConnect flow gets priority. ═══ -->
-      <details class="profile-section profile-kea">
-        <summary class="profile-section-title">Approve orders with KEA <span class="profile-tag" title="Optional external signer. Scan with the KEA app to approve/execute your orders from another device.">app</span></summary>
-        <div id="profileQr" class="profile-qr"></div>
-        <p class="subtle">Scan with KEA to approve your orders</p>
-        <a id="profileQrLink" class="profile-link" href="#"></a>
-        <button id="profileCopyLinkBtn">Copy KEA link</button>
-      </details>
-
-      <!-- ═══ PREFERENCES & DIAGNOSTICS — dev controls. Collapsed by default. ═══ -->
-      <details class="profile-section profile-debug-section">
-        <summary class="profile-section-title">Preferences &amp; diagnostics</summary>
-        <div class="profile-debug">
-          <label class="profile-debug-label nerd-control">
-            <input type="checkbox" id="katomia-nerd-toggle" class="nerd-toggle-input">
-            🤓 Nerd mode
-          </label>
-          <label class="profile-debug-label">
-            <input type="checkbox" id="kdiagRemoteToggle">
-            Remote diagnostic logging
-          </label>
-          <button id="profileCopyDiagBtn" type="button" title="Copy local diagnostics to clipboard">⧉ Copy local diagnostics</button>
-        </div>
-      </details>
-    </div>
-    
-  </div>
-
 
   <div class="controls mode-proposal">
     <label>
@@ -535,9 +386,23 @@ window.addEventListener("load", () => {
 
   if(typeof connect === "function")
     connect()
-    
-  
+
+
 })
+
+// GAME-JOINRULE1: a gated game rejects the WS join until a commitment exists. When
+// the user raises one from the (now always-reachable) profile modal, retry the join
+// so the game appears without a manual refresh. connect() re-sends game_join when
+// the socket was closed; when it's already open we send the join explicitly.
+window.onKatomiaBindingPublished = () => {
+  try {
+    if(typeof connect !== "function") return
+    const rejoin = () => socket?.send(JSON.stringify({
+      type: "game_join", gameId, playerToken: getOrCreatePlayerToken(), playerName: "anon"
+    }))
+    connect(rejoin)
+  } catch(e){ console.error("[auth] rejoin after publish failed", e) }
+}
 </script>
 
 <script>

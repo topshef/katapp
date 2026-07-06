@@ -12,14 +12,18 @@ function applyNerdMode(on){
 }
 
 function initKatomiaProfile(){
-  const btn = document.getElementById("profileBtn")
   const modal = document.getElementById("profileModal")
   const close = document.getElementById("profileModalClose")
   const copyBtn = document.getElementById("profileCopyLinkBtn")
 
-  if(!btn || !modal) return
+  if(!modal) return
 
-  btn.onclick = () => openKatomiaProfile()
+  // Open triggers: the shared header's menu item ([data-menu-profile]) on every page,
+  // plus the legacy floating #profileBtn wherever it still exists.
+  document.querySelectorAll("#profileBtn, [data-menu-profile]").forEach(el =>
+    el.addEventListener("click", () => openKatomiaProfile())
+  )
+
   close.onclick = () => modal.classList.add("hidden")
   modal.onclick = e => {
     if(e.target === modal) modal.classList.add("hidden")

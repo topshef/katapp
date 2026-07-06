@@ -15,6 +15,13 @@ function kauthDiag(event, data){ try { window.kdiag?.("auth:" + event, data) } c
 
 function kauthSetStatus(msg){ const el = document.getElementById("authStatus"); if(el) el.textContent = msg || "" }
 
+// Effective network for the binding flow. In a game the game's network wins (row
+// hidden); outside one (index page — PROFILE-INDEX1) the modal's #authNetwork picker
+// decides, defaulting to its first option (mainnet).
+function kauthNetwork(){
+  return gameMeta?.network || document.getElementById("authNetwork")?.value || ""
+}
+
 // ── WalletConnect adapter ────────────────────────────────────────────────────
 
 // Connected accounts for the game's network. `ensure` scopes the connector to the
@@ -216,7 +223,7 @@ function kauthRenderAccounts(accounts){
   const remove = document.getElementById("authAccountRemove")
   if(!select) return
 
-  const net = gameMeta?.network || ""
+  const net = kauthNetwork()
   const label = id => (net && !/mainnet/.test(net)) ? `${net}:${id}` : id
   const active = kauthActiveAccount()
 
@@ -235,7 +242,7 @@ function kauthRenderAccounts(accounts){
 // Dropdown change: "connect another" opens WC and re-lists; otherwise set active signer.
 async function kauthOnAccountChange(){
   const select = document.getElementById("authAccount")
-  const network = gameMeta?.network || ""
+  const network = kauthNetwork()
   const val = select?.value || ""
 
   if(val === KAUTH_ADD_NEW){
@@ -272,7 +279,7 @@ async function kauthOnAccountChange(){
 // ✕ disconnects the selected account, keeping the others (falls back to disconnect-all).
 async function kauthRemoveAccount(){
   const account = kauthActiveAccount()
-  const network = gameMeta?.network || ""
+  const network = kauthNetwork()
   if(!account) return
   kauthDiag("disconnect:click", { account })
   try {
@@ -306,7 +313,16 @@ function kauthRenderEnvelope(envelope){
 // Also caches the intent (order) key so the live statement can name it.
 async function katomiaAuthOnProfileOpen(){
   if(!document.getElementById("authBtn")) return
-  const network = gameMeta?.network || ""
+
+  // PROFILE-INDEX1: outside a game there's no gameMeta to inherit a network from —
+  // show the network picker; inside a game it stays hidden and the game wins.
+  // Likewise "This game only" scope makes no sense with no game to point at.
+  const inGame = !!(gameMeta?.network)
+  document.getElementById("authNetworkRow")?.classList.toggle("hidden", inGame)
+  const gameScopeOpt = document.querySelector('#authScope option[value="game"]')
+  if(gameScopeOpt) gameScopeOpt.hidden = !inGame && !gameId
+
+  const network = kauthNetwork()
   try { window.__kauthIntentKey = await getKatomiaOrderPubkeyHex() }
   catch(e){ kauthDiag("intentkey-fail", { error: String(e) }) }
   const accounts = await kauthWCAccounts(network, false)
@@ -319,7 +335,7 @@ async function katomiaAuthOnProfileOpen(){
 // The account is chosen up front in the picker — no connect-then-guess here.
 async function runKatomiaRaiseCommitment(){
   const btn = document.getElementById("authBtn")
-  const network = gameMeta?.network || ""
+  const network = kauthNetwork()
   if(!network){ notify?.("No network on this game", "error", { timeout: 3000 }); return }
   if(!window.WC){ notify?.("WalletConnect not loaded yet — try again in a moment", "error", { timeout: 3000 }); return }
 
@@ -420,6 +436,9 @@ async function publishKatomiaAuthEnvelope(envelope){
     }
     kauthDiag("publish", { ok: true, network: json.network, accountId: json.accountId, authed: json.authed, weight: json.weight })
     notify?.("Binding published", "success", { timeout: 2500 })
+    // GAME-JOINRULE1: pages can react to a fresh commitment (index refreshes the now-
+    // larger games list; a gated game page retries its rejected join).
+    try { window.onKatomiaBindingPublished?.() } catch(e){ console.error("[auth] publish hook failed", e) }
     return true
   } catch(e){
     console.error("[auth] publish request failed", e)
@@ -447,6 +466,14 @@ function initKatomiaAuth(){
   for(const id of ["authExpiry", "authScope"]){
     const el = document.getElementById(id)
     if(el) el.onchange = () => updateAuthStatement()
+  }
+
+  // Network picker (standalone/index use): switching networks re-lists the
+  // connected accounts for that network and refreshes the statement.
+  const netSel = document.getElementById("authNetwork")
+  if(netSel) netSel.onchange = async () => {
+    window.__kauthActive = null
+    kauthRenderAccounts(await kauthWCAccounts(kauthNetwork(), false))
   }
 }
 
