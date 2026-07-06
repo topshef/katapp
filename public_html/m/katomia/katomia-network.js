@@ -116,9 +116,11 @@ function removeAccount(accountId){
   }))
 }
 
+// PROP-ADDACCT1: the button opens the add-account modal (katomia-addaccount.js);
+// prompt() fallback keeps the game usable if the modal script ever fails to load.
 addAccountBtn.onclick = () => {
-  addAccounts(accountLabelInput.value)
-  accountLabelInput.value = ""
+  if(typeof openAddAccountModal === "function") openAddAccountModal()
+  else { const v = prompt("Enter account ID"); if(v) addAccounts(v) }
 }
 
 
@@ -271,10 +273,11 @@ function connect(onOpenAction){
     currentPlayerId = data.myPlayerId || null
     restoreCachedAccounts()
 
-    if(window.pendingAutoload && accountLabelInput && !accountLabelInput.value){
-      accountLabelInput.value = window.pendingAutoload
+    if(window.pendingAutoload){
+      // PROP-ADDACCT1: autoload adds directly — the old path staged it via the
+      // (now removed) inline account input before clicking Add.
+      addAccounts(window.pendingAutoload)
       window.pendingAutoload = null
-      addAccountBtn.click()
     }
 
 		glog(`state received for ${currentPlayerId}`, {gameMeta, state})
