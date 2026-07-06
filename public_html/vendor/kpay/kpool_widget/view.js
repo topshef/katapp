@@ -252,9 +252,9 @@ const SIGN_REASON = {
 
 		// account-header row — light text: id + optional xproof label. (operator marker
 		// + identity glyph deferred to TX-CARDS6; roles intentionally not shown — the
-		// send/receive sides convey direction.) data-acct lives on the HEADER only, so the
-		// account cross-ref hover triggers from here (not the chips) and CSS :has lifts the
-		// whole card; it also links to this account's narrative + signing-authority row.
+		// send/receive sides convey direction.) data-acct lives on the HEADER only and keys
+		// the card updates (updateCardXproof / signing summary). The account cross-ref hover
+		// highlight that used to fire from it was removed (TX-CARDS-HOVER1).
 		const head = document.createElement('div')
 		head.className = 'txcard-head'
 		head.dataset.acct = acc.id
@@ -547,25 +547,8 @@ const SIGN_REASON = {
 		const accountKeysEl = document.createElement('div')
 		accountKeysEl.id = 'account-keys'
 
-		// hover any element tagged with an account → highlight every related element
-		// (transfer cells + that account's signing-authority row).
-		let hlAcct = null
-		const clearHl = () => {
-			if (!hlAcct) return
-			wrapper.querySelectorAll('.acct-hl').forEach(n => n.classList.remove('acct-hl'))
-			hlAcct = null
-		}
-		wrapper.addEventListener('mouseover', e => {
-			const el = e.target.closest('[data-acct]')
-			const acct = el?.dataset.acct || null
-			if (acct === hlAcct) return
-			clearHl()
-			if (acct) {
-				wrapper.querySelectorAll(`[data-acct="${CSS.escape(acct)}"]`).forEach(n => n.classList.add('acct-hl'))
-				hlAcct = acct
-			}
-		})
-		wrapper.addEventListener('mouseleave', clearHl)
+		// (TX-CARDS-HOVER1: the account cross-ref hover cross-highlight that lived here
+		// is gone — data-acct tags remain for keyed card updates, not hover.)
 
 		return {
 			el: wrapper,
@@ -1830,9 +1813,6 @@ export function injectTxReadCSS() {
 		.txread-memo { text-align: center; font-size: 12px; color: #888; margin: 10px 0 12px; word-break: break-word; }   /* bottom gap like the scope line, so it isn't butted against the card */
 		.txread-memo-label { font-weight: 600; color: #777; }
 		.txread-xfer-cell { transition: background .12s ease; }
-		[data-acct].acct-hl { background: #eef0f3; }
-		.acctkeys-account.acct-hl { background: #eef0f3; border-radius: 6px; }
-		.txread-narrative.acct-hl { background: #eef0f3; }
 		.txread-status { text-align: center; }
 		.txread-status-main { font-weight: 600; font-size: 15px; }
 		.txread-approvals-toggle {
@@ -1993,11 +1973,6 @@ export function injectTxReadCSS() {
 			background:#fff; border-style:dashed; opacity:1; color:#9ca3af;
 		}
 		.txcard-empty { opacity:.35; font-size:13px; }
-
-		/* account hover/select (fires from the HEADER via data-acct): darken the header
-		   ONLY. The card BORDER is reserved for signing/balance status — selecting must not
-		   overwrite it (per user), so no border/box-shadow change here. */
-		.txcard-head.acct-hl { background:#e4e4e7; }
 
 		/* asset-pool hover (fires from a chip): highlight every chip of the same asset.
 		   a highlighted ghost de-fades so you can see where it lands. */

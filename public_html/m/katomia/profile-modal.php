@@ -16,12 +16,14 @@
 
     <div id="profileAvatar" class="profile-avatar"></div>
 
-    <!-- ═══ IDENTITY — your public/private identifiers. The order public key is NOT
-         KEA-specific; it's your core profile identity, so it lives at the top. ═══ -->
+    <!-- ═══ IDENTITY — your public/private identifiers. The intent public key is NOT
+         KEA-specific; it's your core profile identity, so it lives at the top.
+         (INTENT-RENAME1: display copy says "intent" — the key signs orders AND proposal
+         commitments; wire params/JS names still say orderPubkey pending the compat pass.) ═══ -->
     <div class="profile-section profile-identity">
       <div class="profile-list">
-        <div class="profile-label">Order public key <span class="profile-tag profile-tag-public" title="Public. Your trader/intent key — every order you place is signed by it, so others can recognise your orders across games.">public</span></div>
-        <div id="profilePubkey" class="profile-mono" title="Your session's Ed25519 order/intent key. Signs your orders. Reputation can be bound to it via a wallet (see Reputation binding)."></div>
+        <div class="profile-label">Intent public key <span class="profile-tag profile-tag-public" title="Public. Your intent key — every order or proposal you place is signed by it, so others can recognise your intents across games.">public</span></div>
+        <div id="profilePubkey" class="profile-mono" title="Your session's Ed25519 intent key. Signs your orders and proposal commitments. Reputation can be bound to it via a wallet (see Reputation binding)."></div>
 
         <!-- KVAC / prepaid access id — NERD ONLY, STUBBED. HKSAT = SHA256(player token):
              the PUBLIC handle for prepaid fees (KSAT/KVAC model — see kpay.uk/kvac). The
@@ -37,19 +39,19 @@
         </div>
 
         <div class="profile-label">Scope</div>
-        <div id="profileScope" class="profile-scope" title="Where this order key operates: domain | network | game."></div>
+        <div id="profileScope" class="profile-scope" title="Where this intent key operates: domain | network | game."></div>
       </div>
     </div>
 
     <!-- ═══ REPUTATION BINDING (WalletConnect) — priority section. Optional: sign with a
-         wallet to bind your order key to a real account so orders can carry reputation.
+         wallet to bind your intent key to a real account so orders can carry reputation.
          WIREFRAME — options (expiry/scope/publish) are exposed to feel the UX. ═══ -->
     <div class="profile-section profile-repute">
       <div class="profile-section-head">
         <span class="profile-section-title">Reputation binding</span>
-        <span class="profile-tag profile-tag-optional" title="Optional. Bind your order key to a wallet account so your orders can carry reputation and be recognised in the marketplace. Nobody has to do this.">optional</span>
+        <span class="profile-tag profile-tag-optional" title="Optional. Bind your intent key to a wallet account so your orders can carry reputation and be recognised in the marketplace. Nobody has to do this.">optional</span>
       </div>
-      <p class="subtle profile-section-sub">Sign with a wallet to bind your order key to a real account. Publishing makes the binding public.</p>
+      <p class="subtle profile-section-sub">Sign with a wallet to bind your intent key to a real account. Publishing makes the binding public.</p>
 
       <div class="profile-auth">
 

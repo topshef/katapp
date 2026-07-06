@@ -1026,34 +1026,10 @@ button:hover{
 button:active{
   transform:translateY(1px);
 }
-button{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-
-  padding:7px 14px;
-  font-size:13px;
-  font-weight:600;
-
-  background:#4CAF50;          /* fresh green */
-  color:#fff;
-
-  border:none;
-  border-radius:8px;
-
-  cursor:pointer;
-  transition:all .12s ease;
-}
-
-/* hover */
-button:hover{
-  background:#43a047;
-}
-
-/* active */
-button:active{
-  transform:translateY(1px);
-}
+/* UI-HOVERCOLOR1: the duplicate "fresh green" (#4CAF50) button block that used to sit
+   here overrode the subtle white/gray default above — removed so katomia's default
+   button + hover stays neutral (border/gray). Action-specific colors live on the
+   per-button rules (#createOrderSubmit etc.). */
 
 /* icon */
 button i{
