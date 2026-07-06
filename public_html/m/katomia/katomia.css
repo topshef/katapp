@@ -1037,22 +1037,80 @@ button i{
   opacity:0.9;
 }
 
-#accountLabelInput{
+/* ── PROP-ADDACCT1: add-account modal (replaces the old inline #accountLabelInput,
+     whose green focus ring went with it — UI-HOVERCOLOR1) ── */
+.addacct-card{ max-width:420px; }
+
+/* there is NO global .hidden rule in this sheet (only per-component ones), and the
+   .asset-modal-card label/input rules outrank bare classes — both scoped here. */
+#addAccountModal .hidden{ display:none; }
+.asset-modal-card .addacct-asset-row{ display:flex; margin-bottom:0; font-size:13px; color:#222; font-weight:400; }
+.asset-modal-card .addacct-asset-row input{ width:auto; margin:0; }
+.asset-modal-card .addacct-manual input{ width:auto; }
+
+.addacct-wc-list{ display:flex; flex-direction:column; gap:6px; margin:6px 0 10px; }
+.addacct-wc-row{
+  justify-content:flex-start;
+  font-family:monospace;
+  font-weight:500;
+}
+.addacct-wc-row:disabled{ opacity:.5; cursor:default; }
+
+.addacct-manual-label{ display:block; margin-top:14px; }
+.addacct-manual{ display:flex; gap:6px; margin-top:4px; }
+.addacct-manual input{
+  flex:1;
   padding:7px 10px;
   font-size:13px;
-
   border:1px solid #ccc;
   border-radius:8px;
-
   outline:none;
   transition:border .12s ease, box-shadow .12s ease;
 }
-
-/* focus */
-#accountLabelInput:focus{
-  border-color:#4CAF50;
-  box-shadow:0 0 0 2px rgba(76,175,80,0.15);
+.addacct-manual input:focus{
+  border-color:#888;
+  box-shadow:0 0 0 2px rgba(0,0,0,.06);
 }
+
+.addacct-chosen{ margin-bottom:8px; }
+.addacct-chosen-id{ font-family:monospace; font-weight:600; }
+
+.addacct-assets-head{ display:flex; justify-content:space-between; align-items:baseline; }
+.addacct-assets{
+  max-height:40vh;
+  overflow-y:auto;
+  margin:6px 0;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.addacct-asset-row{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:4px 6px;
+  border-radius:6px;
+  cursor:pointer;
+}
+.addacct-asset-row:hover{ background:#f3f3f3; }
+.addacct-asset-id{ font-family:monospace; flex:1; word-break:break-all; }
+.addacct-asset-amt{ font-size:12px; }
+
+.addacct-link{
+  background:none; border:none; padding:0;
+  color:#4a7dbd; cursor:pointer;
+  font-size:inherit; font-weight:500;
+}
+.addacct-link:hover{ background:none; text-decoration:underline; }
+
+.addacct-hint{ font-size:12px; margin:8px 0 0; }
+.addacct-status{ min-height:18px; margin-top:8px; }
+.addacct-error{ color:#b0413e; }
+
+.addacct-actions{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+#addAcctJoinAll{ background:#6ea875; color:#fff; border:none; }
+#addAcctJoinAll:hover{ background:#639a69; }
+#addAcctJoin:disabled{ opacity:.5; cursor:default; }
 
 
 

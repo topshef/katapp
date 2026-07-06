@@ -100,7 +100,6 @@
        DOM
     ========================= */
 
-    const accountLabelInput = document.getElementById("accountLabelInput")
     const addAccountBtn  = document.getElementById("addAccountBtn")
     const createOrderBtn = document.getElementById("createOrderBtn")
     const viewToggle = document.getElementById("viewToggle")
