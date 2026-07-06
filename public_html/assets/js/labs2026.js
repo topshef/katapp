@@ -746,6 +746,7 @@ async function renderPage() {
 
   if (entityType === 'deal') {
     raw.deal = await fetchDeal(dealId)
+    window.__dealNetwork = raw.deal?.network || null // wallet bar reads this for ensureNetwork
     const processed = await transformDealData(raw)
     renderDealPanel(processed)
   }
