@@ -247,6 +247,9 @@ export async function enrichAccountsKeyInfo({ network, accounts }) {
 			
 		} catch (err) {
 			acc.keyInfoError = err.message || String(err)
+			// KEYINFO-LOCAL1: key structure now comes from the mirror node + local protobuf
+			// decode (no kpos). Surface the real reason in /diag.
+			try { globalThis.kdiag?.('keyinfo:error', { accountId, error: acc.keyInfoError }) } catch {}
 		}
 	}))
 }
