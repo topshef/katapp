@@ -317,7 +317,7 @@ const SIGN_REASON = {
 		if ((acc.roles || []).includes('operator')) {
 			const payer = document.createElement('span')
 			payer.className = 'txcard-payer'
-			payer.textContent = '💳'
+			payer.textContent = '⬡'   // neutral shape (per user — nothing payment-branded)
 			payer.title = 'Fee payer — this account pays the Hedera network fee for this transaction'
 			head.appendChild(payer)
 		}
@@ -963,11 +963,13 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 	const wrap = document.createElement('div')
 
 	// Fee-payer sentence on expand (feedback 3c28f05d): the header badge cues it, this
-	// line SAYS it. Fee estimate (amount, updated post-consensus) is TX-CARDS-FEEEST1.
+	// line SAYS it. Plain gray --muted like every other in-card note (per user — ONE
+	// note style, no bubbles; only the amber receiver-sig warning keeps its box).
+	// Fee estimate (amount, updated post-consensus) is TX-CARDS-FEEEST1.
 	if ((acc.mustSignReason || []).includes('operator')) {
 		const note = document.createElement('div')
-		note.className = 'txcard-detail-note'
-		note.textContent = '💳 This account is the operator: it pays the Hedera network fee for this transaction.'
+		note.className = 'txcard-detail-note txcard-detail-note--muted'
+		note.textContent = '⬡ This account is the operator: it pays the Hedera network fee for this transaction.'
 		wrap.appendChild(note)
 	}
 
@@ -1958,8 +1960,9 @@ export function injectTxReadCSS() {
 		}
 		.txcard-acct { font-size:13px; font-weight:500; color:#52525b; text-decoration:none; word-break:break-all; }
 		.txcard-acct:hover { text-decoration:underline; }
-		/* fee-payer badge on the operator's header (feedback 3c28f05d) */
-		.txcard-payer { font-size:12px; margin-left:4px; cursor:default; line-height:1; }
+		/* fee-payer badge on the operator's header (feedback 3c28f05d) — neutral shape,
+		   same gray family as the id text */
+		.txcard-payer { font-size:12px; margin-left:4px; cursor:default; line-height:1; color:#a1a1aa; }
 		.txcard-acct-label { font-size:12px; color:#a1a1aa; }
 		/* xproof next to the account id — domain reuses .txcard-acct so it matches (plain
 		   text, underline on hover) and can be group-restyled with the account id later. */
