@@ -17,7 +17,10 @@ const SIGN_REASON = {
 	receiver_sig_required: { emoji:'📥', tip:'​    Receiver signature required' }
 }
 
-	const deriveStatusFromTime = (txid, updatedAtMs) => {
+	// validSecs: the tx's REAL valid duration, decoded from the signed bytes
+	// (VALIDD1, data.validDurationSeconds). 180 stays as the fallback when the
+	// bytes aren't available — the old hardcoded assumption, now only a default.
+	const deriveStatusFromTime = (txid, updatedAtMs, validSecs = 180) => {
 		const info = parseTxId(txid)
 		if (!info) return 'Unknown'
 
@@ -28,8 +31,8 @@ const SIGN_REASON = {
 		// still in future
 		if (diff > 0) return 'Waiting'
 
-		// within 3 min window after scheduled time
-		if (diff > -180) return 'Ready to submit..'
+		// within the valid window after scheduled time
+		if (diff > -validSecs) return 'Ready to submit..'
 
 		// past 3 min — only expired if data is fresh enough
 		if (updatedAtMs) {
@@ -87,7 +90,7 @@ const SIGN_REASON = {
 				currentData.receiptStatus
 
 			if (!derivedStatus)
-				derivedStatus = deriveStatusFromTime(currentData.txid, currentData.updatedAt)
+				derivedStatus = deriveStatusFromTime(currentData.txid, currentData.updatedAt, currentData.validDurationSeconds || 180)
 			
 			const pch = data.PCH  //later
 			// const successKey = `tx_status:${network};${txid};${pch}`
@@ -105,7 +108,7 @@ const SIGN_REASON = {
 				derivedStatus?.startsWith('Waiting') ||
 				derivedStatus?.startsWith('Ready')
 			) {
-				timingEl = buildTimingBlock(data.network, data.txid)
+				timingEl = buildTimingBlock(data.network, data.txid, data.validDurationSeconds || 180)
 				container.appendChild(timingEl)
 			}
 		}
@@ -149,11 +152,49 @@ const SIGN_REASON = {
 		return nerd ? 'table' : 'cards'
 	}
 
+	// PROTO1/SECURITY: verdict line for the bytes-vs-display check (model.js
+	// verifyTransfersAgainstBytes). Mismatch = loud red banner — the user must not
+	// trust what's rendered. Match = quiet ✓ reassurance. unavailable/error = shown
+	// in nerd mode only (a settled view without bytes is normal, don't cry wolf).
+	function buildBytesVerifyNote(bytesVerify) {
+		if (!bytesVerify) return null
+		const el = document.createElement('div')
+		el.className = 'txread-bytes-verify'
+		el.dataset.status = bytesVerify.status
+
+		if (bytesVerify.status === 'mismatch') {
+			el.innerHTML =
+				`<strong>⚠️ WARNING — the transfers shown do NOT match the transaction bytes being signed.</strong>` +
+				`<br>Do not sign. ` +
+				`<span class="subtle">bytes-only: ${bytesVerify.missingFromDisplay.length}, display-only: ${bytesVerify.extraInDisplay.length} — details in diagnostics (tx:bytes-verify).</span>`
+			el.style.cssText = 'color:#b00020;background:#fde7ea;border:1px solid #f3b5c0;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13px;'
+			return el
+		}
+		if (bytesVerify.status === 'match') {
+			el.textContent = `✔ display verified against signed bytes (${bytesVerify.counts.bytes} transfer legs, ${bytesVerify.mode})`
+			el.style.cssText = 'color:#2e7d32;font-size:11px;margin:4px 0;'
+			return el
+		}
+		// unavailable / error — informational, nerd-only
+		el.textContent = `bytes-verify: ${bytesVerify.status} — ${bytesVerify.reason || ''}`
+		el.style.cssText = 'color:#999;font-size:11px;margin:4px 0;'
+		if (!document.body.classList.contains('nerd')) el.style.display = 'none'
+		return el
+	}
+
 	// Returns the transfer block element. For a single known view this is the bare view
 	// element. 'nerd' (explicit ?txview=nerd) wraps every registered view side by side.
 	export function buildTransferViews({ network, flow, transfers }) {
 		const mode = resolveTxView()
-		const make = name => (TX_VIEWS[name] || TX_VIEWS.table)({ network, flow, transfers })
+		const make = name => {
+			const el = (TX_VIEWS[name] || TX_VIEWS.table)({ network, flow, transfers })
+			// bytes-vs-display verdict rides above EVERY transfer view (table + cards)
+			const note = buildBytesVerifyNote(transfers?.bytesVerify)
+			if (!note) return el
+			const wrap = document.createElement('div')
+			wrap.append(note, el)
+			return wrap
+		}
 
 		if (mode !== 'nerd') {
 			const name = TX_VIEWS[mode] ? mode : 'table'
@@ -705,7 +746,8 @@ const SIGN_REASON = {
 
 
 	//4th section - tx status
-	export const buildTimingBlock = (network, txid) => {
+	// validSecs: real valid duration from the signed bytes (VALIDD1); 180 = legacy fallback
+	export const buildTimingBlock = (network, txid, validSecs = 180) => {
 		const container = document.createElement('div')
 		container.className = 'txread-timing'
 
@@ -722,7 +764,7 @@ const SIGN_REASON = {
 			const nowSec = Math.floor(Date.now() / 1000)
 			const diff = targetSec - nowSec
 
-			if (diff <= -180) {
+			if (diff <= -validSecs) {
 				countdown.textContent = '⏱ Unknown'
 				clearInterval(timer)
 				return

@@ -163,7 +163,10 @@ function startHeaderCountdown(txState) {
 			txState.onCountdown(''); clearInterval(txState.countdownTimer); txState.countdownTimer = null; return
 		}
 		const diff = target - Math.floor(Date.now() / 1000)
-		txState.onCountdown(diff > -180 ? `⏱ ${formatCountdown(diff)}` : '')
+		// window = real validDuration decoded from the signed bytes (VALIDD1);
+		// 180 remains only as the fallback when bytes aren't available.
+		const validSecs = d.validDurationSeconds || 180
+		txState.onCountdown(diff > -validSecs ? `⏱ ${formatCountdown(diff)}` : '')
 	}
 	tick()
 	txState.countdownTimer = setInterval(tick, 1000)

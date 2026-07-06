@@ -6,6 +6,7 @@
 	} from './utils.js'
 
 import { getAccountInfo, getKeyInfo, getTokenInfo} from './hedera-mirror.js'
+import { decodeTransaction } from './protobuf.js'
 
 import { getThresholdSummary } from './threshold.js'
 import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
@@ -50,7 +51,16 @@ export async function txRead({ network, txid, pch = 'no_pch' }) { //todo pch
 
 	const transfers = getAllTransfers(data)
 	const accounts = getAccountsWithRoles({ transfers, txid })
-			
+
+	// PROTO1/SECURITY: verify the DISPLAYED transfers against the ACTUAL bytes the
+	// user will sign (data.hex2). The backend's pre-decoded lists are convenience
+	// copies — the bytes are the truth. Result rides on transfers.bytesVerify and is
+	// surfaced by the view (fail-loud on mismatch). Also lifts the real
+	// validDurationSeconds out of the bytes onto data (VALIDD1) for status/countdown.
+	transfers.bytesVerify = verifyTransfersAgainstBytes(data, transfers)
+	if (transfers.bytesVerify.validDurationSeconds != null)
+		data.validDurationSeconds = transfers.bytesVerify.validDurationSeconds
+
 	glog("txRead data=",data)
 	glog("txRead other=",{transfers, accounts, rawTx, url})
 	return {
@@ -102,7 +112,16 @@ function getIntentAccounts(basis, deal) {
 // ┌─┐┌─┐┌┬┐  ╔═╗┬  ┬    ╔╦╗┬─┐┌─┐┌┐┌┌─┐┌─┐┌─┐┬─┐┌─┐
 // │ ┬├┤  │   ╠═╣│  │     ║ ├┬┘├─┤│││└─┐├┤ ├┤ ├┬┘└─┐
 // └─┘└─┘ ┴   ╩ ╩┴─┘┴─┘   ╩ ┴└─┴ ┴┘└┘└─┘└  └─┘┴└─└─┘
-// get All Transfers	
+// get All Transfers
+//
+// ⚠️ DEPRECATED AS A DISPLAY SOURCE (2026-07-06, PROTO1 security decision): the
+// basis/deal/mirror lists consumed here are pre-decoded convenience copies from the
+// backend. The signable truth is data.hex2 — decodeTransaction() reads it and
+// verifyTransfersAgainstBytes() now cross-checks every render (fail-loud). NEXT
+// STEP: flip display to build lineItems FROM the decoded bytes and demote these
+// lists to the cross-check side. They must stay in the payload for backward compat
+// (other consumers) and for intent/source verification (order signatures verify
+// against the basis, which is a different act from rendering the tx).
 function getAllTransfers(data) {
 	const mirrorTx = data.mirror?.transactions?.[0] || {}
 	const deal     = data.deal || {}
@@ -200,8 +219,113 @@ function getAllTransfers(data) {
 	
 	return {
 		raw,        // original shapes, grouped
-		lineItems  // accounting-friendly flat list
+		lineItems,  // accounting-friendly flat list
+		// Where the displayed lists came from: 'mirror' (settled truth) | 'basis'/'deal'
+		// (pre-consensus intent — i.e. the SIGNING moment) | 'none'. bytesVerify keys
+		// its comparison mode off this.
+		source: [...uniqueSources][0] || 'none'
 	}
+}
+
+// ┌┐ ┬ ┬┌┬┐┌─┐┌─┐  ┬  ┬┌─┐┬─┐┬┌─┐┬ ┬
+// ├┴┐└┬┘ │ ├┤ └─┐  └┐┌┘├┤ ├┬┘│├┤ └┬┘
+// └─┘ ┴  ┴ └─┘└─┘   └┘ └─┘┴└─┴└   ┴
+// verifyTransfersAgainstBytes (PROTO1 → security hardening, 2026-07-06).
+//
+// The signing modal must present WHAT THE USER IS ACTUALLY SIGNING. Today the
+// displayed lineItems are built from backend-provided pre-decoded lists
+// (basis/deal/mirror). This function decodes data.hex2 — the literal envelope the
+// signer signs — and checks the two agree, so a compromised/buggy backend copy
+// can't show one thing while the bytes say another.
+//
+// DEPRECATION PATH (user decision 2026-07-06): the pre-decoded transfer lists in
+// the txRead payload are DEPRECATED as a display source. They stay for backward
+// compatibility (other consumers) and for intent/source checks (order signatures
+// verify against the basis, not the bytes), but display should move to the decoded
+// bytes as the single source, with this verification inverted (bytes render;
+// backend copy cross-checked). This first step keeps the display unchanged and
+// adds the fail-loud comparison.
+//
+// Comparison modes by display source:
+//   basis/deal (pre-consensus, the signing decision) → STRICT multiset equality.
+//     The backend builds the tx from these same lists, so any drift is a red flag.
+//   mirror (settled) → SUBSET: every transfer in the signed bytes must appear in
+//     the mirror record (mirror adds node/fee rows the body never contains).
+//   no hex2 / decode error → 'unavailable' / 'error' (reported, never blocks render).
+function verifyTransfersAgainstBytes(data, transfers) {
+	const kdiag = (ev, d) => { try { globalThis.kdiag?.(ev, d) } catch {} }
+
+	const hex2 = data?.hex2
+	if (!hex2) {
+		kdiag('tx:bytes-verify', { status: 'unavailable', reason: 'no hex2 in txRead payload', txid: data?.txid })
+		return { status: 'unavailable', reason: 'no hex2 in txRead payload' }
+	}
+
+	let decoded
+	try { decoded = decodeTransaction(hex2) }
+	catch (e) {
+		console.error('BV10001 tx bytes decode failed', e)
+		kdiag('tx:bytes-verify', { status: 'error', error: String(e), txid: data?.txid })
+		return { status: 'error', reason: 'decode failed: ' + String(e) }
+	}
+
+	// Canonical row: one string per transfer leg, same shape from either side.
+	const canon = []
+	decoded.transfers.hbar.forEach(x => canon.push(`HBAR|${x.account}|tinybar|${x.amount}`))
+	decoded.transfers.tokens.forEach(x => canon.push(`FT|${x.account}|${x.token}|${x.amount}`))
+	decoded.transfers.nfts.forEach(x => {
+		canon.push(`NFT|${x.sender}|${x.token}#${x.serial}|-1`)
+		canon.push(`NFT|${x.receiver}|${x.token}#${x.serial}|1`)
+	})
+
+	// Same canonicalisation from the backend lists — via the UNFILTERED raw shapes,
+	// not lineItems (fee-noise suppression must not hide a mismatch).
+	const shown = []
+	;(transfers.raw.hbar || []).forEach(x => {
+		const ac = x.accountId ?? x.account
+		shown.push(`HBAR|${ac}|tinybar|${Number(x.value ?? x.amount)}`)
+	})
+	;(transfers.raw.token || []).forEach(x => {
+		shown.push(`FT|${x.accountId ?? x.account}|${x.tokenId ?? x.token_id}|${Number(x.value ?? x.amount)}`)
+	})
+	;(transfers.raw.nft || []).forEach(x => {
+		const token = x.tokenId ?? x.token_id
+		const serial = x.serial ?? x.serialNumber ?? x.serial_number
+		shown.push(`NFT|${x.sender ?? x.senderAccountId ?? x.sender_account_id}|${token}#${serial}|-1`)
+		shown.push(`NFT|${x.receiver ?? x.receiverAccountId ?? x.receiver_account_id}|${token}#${serial}|1`)
+	})
+
+	// multiset difference: every element of a not matched 1:1 in b
+	const count = list => list.reduce((m, k) => (m[k] = (m[k] || 0) + 1, m), {})
+	const diff = (a, b) => {
+		const bc = count(b), out = []
+		for (const k of a) { if (bc[k] > 0) bc[k]-- ; else out.push(k) }
+		return out
+	}
+	const missingFromDisplay = diff(canon, shown)   // in the signed bytes, not shown
+	const extraInDisplay = diff(shown, canon)       // shown, but NOT in the signed bytes
+
+	const source = transfers.source
+	const settled = source === 'mirror'
+	// settled view: mirror legitimately adds fee/node rows → only bytes⊆mirror matters
+	const mismatch = settled ? missingFromDisplay.length > 0
+	                         : (missingFromDisplay.length > 0 || extraInDisplay.length > 0)
+
+	const result = {
+		status: mismatch ? 'mismatch' : 'match',
+		mode: settled ? 'subset (settled/mirror)' : 'strict (pre-consensus)',
+		source,
+		bytesTxId: decoded.transactionId,
+		validDurationSeconds: decoded.validDurationSeconds,
+		memo: decoded.memo,
+		counts: { bytes: canon.length, displayed: shown.length },
+		missingFromDisplay,
+		extraInDisplay
+	}
+
+	kdiag('tx:bytes-verify', { txid: data?.txid, ...result })
+	if (mismatch) console.error('BV10002 DISPLAYED TRANSFERS DO NOT MATCH SIGNED BYTES', result)
+	return result
 }
 
 
