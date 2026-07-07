@@ -182,8 +182,13 @@ const SIGN_REASON = {
 
 	// Returns the transfer block element. For a single known view this is the bare view
 	// element. 'nerd' (explicit ?txview=nerd) wraps every registered view side by side.
+	// STATUS-TAB-RETIRE1: the main block is ALWAYS cards now — nerd mode no longer swaps
+	// it for the line-item table (that moved to the bottom nerd panel); ?txview= remains
+	// as an explicit dev override.
 	export function buildTransferViews({ network, flow, transfers }) {
-		const mode = resolveTxView()
+		let urlView = null
+		try { urlView = new URLSearchParams(location.search).get('txview') } catch {}
+		const mode = urlView || 'cards'
 		const make = name => {
 			const el = (TX_VIEWS[name] || TX_VIEWS.table)({ network, flow, transfers })
 			// bytes-vs-display verdict rides above EVERY transfer view (table + cards)
@@ -495,13 +500,8 @@ const SIGN_REASON = {
 		xfers.classList.add('txread-intent-xfers')
 		intentRow.appendChild(xfers)
 
-		// You send / You receive narrative — populated by index.js once a wallet
-		// account is known (experimental); hidden otherwise.
-		const narrative = document.createElement('div')
-		narrative.id = 'txread-narrative'
-		narrative.className = 'txread-narrative'
-		narrative.hidden = true
-		intentRow.appendChild(narrative)
+		// (STATUS-TAB-RETIRE1: the you-send/receive narrative moved into the bottom nerd
+		// panel — see the .txread-nerd-panel block near the end of this builder.)
 
 		// ── DOM ORDER (per user, top→bottom): status (countdown, inserted at intent top later)
 		// → scope (network·txid·pch + due) → memo → cards (+preview) → witnesses → signing.
@@ -580,8 +580,37 @@ const SIGN_REASON = {
 		bannerSlot.style.position = 'relative'
 		wrapper.appendChild(bannerSlot)
 
-		// Status detail + approvals table are CREATED here but PLACED by index.js
-		// into the Status tab pane, so the render-by-id functions keep working.
+		// ── 4. NERD PANEL (STATUS-TAB-RETIRE1, user 2026-07-07): nerd mode ADDS this
+		// collapsible section at the bottom instead of replacing the cards — the legacy
+		// line-item table + the you-send/receive narrative, plus room for future debug
+		// output. Visibility is CSS-gated on body.nerd; expand animation matches the
+		// account cards (grid-template-rows 0fr→1fr).
+		const nerdPanel = document.createElement('div')
+		nerdPanel.className = 'txread-nerd-panel'
+		const nerdHead = document.createElement('div')
+		nerdHead.className = 'txread-nerd-head'
+		nerdHead.innerHTML = `<span>🤓 Line items</span><span class="txread-nerd-caret">▸</span>`
+		nerdHead.onclick = () => nerdPanel.classList.toggle('txread-nerd-panel--open')
+		const nerdDetail = document.createElement('div')
+		nerdDetail.className = 'txread-nerd-detail'
+		const nerdInner = document.createElement('div')
+		nerdInner.className = 'txread-nerd-inner'
+		nerdInner.appendChild(buildTransferList(network, (flow?.lineItems) || transfers?.lineItems || []))
+		// You send / You receive narrative — populated by index.js updateNarrative once a
+		// wallet account is known (nerd-only); keeps its #txread-narrative id.
+		const narrative = document.createElement('div')
+		narrative.id = 'txread-narrative'
+		narrative.className = 'txread-narrative'
+		narrative.hidden = true
+		nerdInner.appendChild(narrative)
+		nerdDetail.appendChild(nerdInner)
+		nerdPanel.append(nerdHead, nerdDetail)
+		wrapper.appendChild(nerdPanel)
+
+		// STATUS-TAB-RETIRE1: readinessEl/precheckEl/accountKeysEl are still CREATED (the
+		// render-by-id functions null-guard, and renderPrecheckInfo must keep running for
+		// the chip rings) but no longer PLACED anywhere — the Status tab that displayed
+		// them is retired. Delete these + renderAccountKeyInfo in the next cleanup pass.
 		const statusBlock = buildStatusBlock({ data })
 		statusBlock.el.classList.add('txread-status-main')
 		// The content status line is GONE (per user): the status LABEL lives in the modal header
@@ -1054,7 +1083,15 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 		grid.className = 'txcard-keys'
 		const head = document.createElement('div')
 		head.className = 'txcard-keys-row txcard-keys-head'
-		;['✍️', '🔑', '⚖️', 'Redund', 'Ctrl'].forEach(t => { const c = document.createElement('div'); c.textContent = t; head.appendChild(c) })
+		// tooltips carry the old Status-tab explainer (STATUS-TAB-RETIRE1): Banzhaf =
+		// voting power, redundancy = how replaceable a key is.
+		;[
+			['✍️',     'Signed yet? ☑ = this key has signed'],
+			['🔑',     'Key — the last 4 characters of the public key'],
+			['⚖️',     "Banzhaf — this key's voting power: its share of all the ways the signing threshold can be met"],
+			['Redund', 'Redundancy — how replaceable the key is: how often the threshold could still be met without it'],
+			['Ctrl',   'Control — full-exclusive: this key alone can decide; shared: control is split across keys']
+		].forEach(([t, tip]) => { const c = document.createElement('div'); c.textContent = t; c.title = tip; head.appendChild(c) })
 		grid.appendChild(head)
 		Object.entries(scores).forEach(([pubkey, score]) => {
 			const signed = signedPubkeys.includes(normalizePublicKey(pubkey))
@@ -1370,6 +1407,11 @@ function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo }) {
 }
 
 
+// STATUS-TAB-RETIRE1: ORPHANED — this big approvals table only ever rendered into the
+// retired Status tab's #account-keys element (now never attached, so the guard below
+// returns immediately). The per-card detail (buildAccountDetail) carries the same info
+// with tooltips. Delete in the next cleanup pass together with the call site at
+// renderSigningSection and index.js buildStatusPane/INFO_SVG.
 export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
   const container = document.getElementById('account-keys')
   if (!container) return
@@ -2022,6 +2064,18 @@ export function injectTxReadCSS() {
 		   too small for low-vision users. We need a "low-vision" theme/skin (larger fonts, bigger
 		   hit targets, stronger contrast) as a future themeing pass. See task A11Y-LOWVISION1. */
 		.txcard-chevron { color:#71717a; font-size:16px; line-height:1; transition:transform .2s ease; }
+		/* nerd bottom panel (STATUS-TAB-RETIRE1): collapsible line-items/debug section,
+		   nerd-only, same expand mechanics as the account cards */
+		body:not(.nerd) .txread-nerd-panel { display:none; }
+		.txread-nerd-panel { border:1px solid #e4e4e7; border-radius:10px; margin-top:14px; background:#fafafa; }
+		.txread-nerd-head { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; cursor:pointer; user-select:none; font-size:12px; font-weight:600; color:#52525b; }
+		.txread-nerd-caret { transition:transform .22s ease; }
+		.txread-nerd-panel--open .txread-nerd-caret { transform:rotate(90deg); }
+		.txread-nerd-detail { display:grid; grid-template-rows:0fr; transition:grid-template-rows .22s ease; }
+		.txread-nerd-panel--open .txread-nerd-detail { grid-template-rows:1fr; }
+		.txread-nerd-inner { overflow:hidden; }
+		.txread-nerd-panel--open .txread-nerd-inner { padding:0 12px 10px; }
+
 		.txcard-detail { display:grid; grid-template-rows:0fr; transition:grid-template-rows .22s ease; }
 		.txcard--open .txcard-detail { grid-template-rows:1fr; }
 		.txcard-detail-inner { overflow:hidden; min-height:0; }

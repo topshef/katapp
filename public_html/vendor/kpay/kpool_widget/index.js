@@ -271,9 +271,8 @@ function injectMethodsCSS() {
 		.kpsign-panel{ max-width:min(900px,100%); margin:16px auto; }
 		.kpsign-tabs{ position:relative; display:flex; }
 		.kpsign-tabs::after{ content:''; position:absolute; left:0; right:0; bottom:0; height:1px; background:#eee; }
-		/* Status tab is now nerd/debug-only — per-account status lives on the cards. The
-		   pane is still built (render-by-id keeps working); it's just hidden in normal mode. */
-		body:not(.nerd) .kpsign-tab[data-method="status"]{ display:none; }
+		/* (Status tab retired 2026-07-07 — STATUS-TAB-RETIRE1: per-account status lives on
+		   the cards; line items moved to the bottom nerd panel.) */
 		/* final tx (SUCCESS / expired / error): no action possible — hide the signing
 		   section in normal mode; keep it in nerd (wallets can still sign; possible future
 		   "sign to endorse after consensus" use case). */
@@ -426,7 +425,10 @@ function buildKsigPane(txState) {
 // page (e.g. /future/) instead of /vendor/kpay/kpool_widget/.
 const assetUrl = name => new URL(`./assets/${name}`, import.meta.url).href
 
-// info (i-in-circle) icon for the Status tab
+// STATUS-TAB-RETIRE1: INFO_SVG + buildStatusPane below are ORPHANED (tab removed
+// 2026-07-07) — kept commented-in-place for one release in case anything external
+// deep-linked the pane; delete in the next cleanup pass along with
+// view.js renderAccountKeyInfo (the approvals table that only this pane displayed).
 const INFO_SVG = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.5" r="0.6" fill="currentColor" stroke="none"/></svg>`
 
 // Status tab pane: status detail + a one-line explainer + the approvals table.
@@ -465,12 +467,8 @@ function setNerd(on) {
 	const profileToggle = document.getElementById('katomia-nerd-toggle')
 	if (profileToggle) profileToggle.checked = on
 
-	// Status tab is nerd-only; if we just left nerd mode while it was the active tab, fall
-	// back to the default method so a hidden tab can't leave an orphaned active pane.
-	if (!on && _activeTxState?.selectSignMethod) {
-		const active = _activeTxState.container.querySelector('.kpsign-tab.active')
-		if (active?.dataset.method === 'status') _activeTxState.selectSignMethod('walletconnect')
-	}
+	// (STATUS-TAB-RETIRE1: the old "fall off the hidden Status tab" fixup is gone with
+	// the tab itself.)
 }
 
 // Nerd-only "open in new tab" affordance (MODAL-URL1 item 3): opens the same tx in
@@ -579,8 +577,8 @@ function buildSigningPanel(txState) {
 	// up being the mechanism. Until then, a ?signtabs= URL param on the host page filters
 	// the set at runtime (e.g. ?signtabs=walletconnect or ?signtabs=whatsapp,offline) so
 	// the pruned UI can be previewed without a code change. Unknown/empty selections fall
-	// back to the full set; the Status tab is nerd plumbing, not a signing method, and is
-	// never pruned.
+	// back to the full set. (The legacy Status tab was retired 2026-07-07 —
+	// STATUS-TAB-RETIRE1.)
 	const ENABLED_SIGN_METHODS = ['walletconnect', 'whatsapp', 'ksig']
 	const TAB_ALIASES = { offline: 'ksig', wallet: 'walletconnect', wc: 'walletconnect' }
 	const requested = (new URLSearchParams(location.search).get('signtabs') || '')
@@ -589,20 +587,17 @@ function buildSigningPanel(txState) {
 		? ENABLED_SIGN_METHODS.filter(id => requested.includes(id))
 		: ENABLED_SIGN_METHODS
 
-	// Status is first and shown by default; the rest are signing actions.
+	// STATUS-TAB-RETIRE1 (user 2026-07-07): the legacy Status tab is gone — its content
+	// is covered by the normal view (per-card signing state, precheck chips/rings,
+	// expanded-card key tables with Banzhaf/redundancy tooltips) and the nerd bottom
+	// panel (line items + narrative, built in view.js buildTxReadColumns).
 	const METHODS = [
-		{ id: 'status',        label: 'Status',          svg:  INFO_SVG,                            build: () => buildStatusPane(txState) },
 		{ id: 'walletconnect', label: 'WalletConnect',   icon: 'WalletConnect-Logo.png',           build: () => buildWcPane(txState) },
 		{ id: 'whatsapp',      label: 'WhatsApp',        icon: 'WhatsApp.svg.png',                 build: () => buildWhatsAppPane(network, txid, pch) },
 		{ id: 'ksig',          label: 'Offline',         icon: 'kpay_logo_square_transparent.png', build: () => buildKsigPane(txState) }
-	].filter(m => m.id === 'status' || enabledTabs.includes(m.id))
+	].filter(m => enabledTabs.includes(m.id))
 
-	// Status tab is nerd-only now; in normal mode default to the first ENABLED signing
-	// method so a hidden Status pane is never the active one. (Toggling nerd later just
-	// reveals the tab.)
-	const DEFAULT = document.body.classList.contains('nerd')
-		? 'status'
-		: (METHODS.find(m => m.id !== 'status')?.id || 'status')
+	const DEFAULT = METHODS[0]?.id || 'walletconnect'
 	const paneEls = {}
 
 	METHODS.forEach(m => {
