@@ -24,6 +24,14 @@
       <div class="profile-list">
         <div class="profile-label">Intent public key <span class="profile-tag profile-tag-public" title="Public. Your intent key — every order or proposal you place is signed by it, so others can recognise your intents across games.">public</span></div>
         <div id="profilePubkey" class="profile-mono" title="Your session's Ed25519 intent key. Signs your orders and proposal commitments — it says WHAT you want. A wallet can stand behind it (see Wallet binding below)."></div>
+        <!-- One-line visible explainer (user 2026-07-07) — the tooltips carry the depth,
+             this anchors the storyline language: intent key = WHAT you want.
+             KEY ROTATION — deliberately NOT a feature (user talked themselves out,
+             2026-07-07): the key lives in this browser's localStorage
+             (katomiaPlayerKeypair, see katomia-core.js getOrCreatePlayerKeypair);
+             clearing site data rotates it naturally — a fresh key is minted on next
+             load. Anonymous identity churn is self-serve; bound users wouldn't want it. -->
+        <p class="subtle profile-section-sub">This browser's signing identity: every order or proposal you place is signed with it, so others can recognise your intents. It says <em>what</em> you want — the wallet binding below says <em>who</em> you are.</p>
 
         <!-- KVAC / prepaid access id — NERD ONLY, STUBBED. HKSAT = SHA256(player token):
              the PUBLIC handle for prepaid fees (KSAT/KVAC model — see kpay.uk/kvac). The
@@ -77,22 +85,22 @@
           <button id="authAccountRemove" type="button" class="profile-auth-x hidden" title="Disconnect this wallet account">Disconnect</button>
         </div>
 
-        <!-- Commitment options — shown once an account is chosen. -->
+        <!-- Commitment options — shown once an account is chosen. Flat grid items (not
+             wrapping <label>s) so Expiry sits in the same 64px label column as
+             Network/Account, with Scope beside it getting the wider share. -->
         <div id="authOptions" class="profile-auth-options hidden">
-          <label class="profile-label">Expiry
-            <select id="authExpiry">
-              <option value="86400000">24 hours</option>
-              <option value="604800000">7 days</option>
-              <option value="2592000000">30 days</option>
-              <option value="">No expiry</option>
-            </select>
-          </label>
-          <label class="profile-label">Scope
-            <select id="authScope">
-              <option value="global">Global — all games</option>
-              <option value="game">This game only</option>
-            </select>
-          </label>
+          <span class="profile-label">Expiry</span>
+          <select id="authExpiry">
+            <option value="86400000">24 hours</option>
+            <option value="604800000">7 days</option>
+            <option value="2592000000">30 days</option>
+            <option value="">No expiry</option>
+          </select>
+          <span class="profile-label">Scope</span>
+          <select id="authScope">
+            <option value="global">Global — all games</option>
+            <option value="game">This game only</option>
+          </select>
           <label class="profile-auth-publish">
             <input type="checkbox" id="authPublish" checked> Publish this binding (public)
           </label>
