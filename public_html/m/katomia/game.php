@@ -359,11 +359,26 @@
   <div id="exitGameBtn" class="exit-game-btn">🗑️</div>
 
 
-<script><?php require_once('config.php');?>
+<script><?php require_once('config.php');
+  // KFLOW1: frontend commit stamp for flow fingerprints — resolve HEAD without
+  // exec (worktree-safe: .git may be a "gitdir:" pointer file; refs live in commondir).
+  $kg = dirname($_SERVER['DOCUMENT_ROOT']) . '/.git';
+  if (is_file($kg) && preg_match('/^gitdir:\s*(.+)$/m', (string)@file_get_contents($kg), $km)) $kg = trim($km[1]);
+  $khead = trim((string)@file_get_contents("$kg/HEAD"));
+  if (preg_match('#^ref:\s*(.+)#', $khead, $km)) {
+      $kcommon = trim((string)@file_get_contents("$kg/commondir"));
+      $kroot = $kcommon ? ($kcommon[0] === '/' ? $kcommon : "$kg/$kcommon") : $kg;
+      $khead = trim((string)@file_get_contents($kroot . '/' . trim($km[1])));
+  }
+  $kflowCommit = preg_match('/^[0-9a-f]{40}$/', $khead) ? substr($khead, 0, 7) : '';
+?>
   window.CONFIG = {
     HAPI_BASE: "<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>"
   }
+  window.KFLOW_COMMIT = "<?= htmlspecialchars($kflowCommit, ENT_QUOTES, 'UTF-8') ?>"
 </script>
+<!-- KFLOW1: flow-fingerprint checkpoints — loads first so every later script can call window.kflow -->
+<script src="<?= kasset('kflow.js') ?>"></script>
 
 <script src="/m/bid/localbase.min.js"></script> <!-- beware spelling of Localbase -->
 <script type="module" data-global src="/m/tools/glog/latest/glog.js" ></script>

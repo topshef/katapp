@@ -257,9 +257,13 @@ function connect(onOpenAction){
       gameId,
       playerToken: getOrCreatePlayerToken(),
       playerName: "anon",
+      // KFLOW1: thread the frontend run id so backend checkpoints on this socket
+      // join the same flow fingerprint (stored as socket.kflowRun server-side)
+      ...(window.kflow ? { kflowRun: window.kflow.run } : {}),
       ...(intentPublicKey ? { intentPublicKey } : {})
     }
 
+    window.kflow?.("game:join", intentPublicKey ? "keyed" : "plain", { gameId })
     socket.send(JSON.stringify(payload))
 		glog("payload for game_join", payload)
 
@@ -289,6 +293,10 @@ function connect(onOpenAction){
 		
 		if(data.type !== "game_state") glog(`websocket data IGNORED for type=${data.type}`, data)
 		if(data.type !== "game_state") return
+
+    // KFLOW1: first-state marker — the moment the game is actually usable. Once
+    // per pageload (kflow collapses consecutive dups anyway; this keeps it clean).
+    if(!window.__kflowStateSeen){ window.__kflowStateSeen = true; window.kflow?.("game:state", "first", { gameId }) }
 
     gameMeta = data.meta || null
     state = data.state
@@ -344,6 +352,7 @@ function exitGame(){
 	if(socket){
 		const playerToken = getOrCreatePlayerToken()
 
+		window.kflow?.("game:exit", "", { gameId })
 		socket.send(JSON.stringify({
 			type: "game_exit",
 			gameId,

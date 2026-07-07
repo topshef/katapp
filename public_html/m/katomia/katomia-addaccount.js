@@ -24,6 +24,7 @@ function addAcctStatus(msg, isError){
 }
 
 function openAddAccountModal(){
+  window.kflow?.("acct:add:open", addAcctNet() === "playnet" ? "playnet" : "chain")
   addAcctLabel = null
   addAcctList = []
   addAcctSel = new Set()
@@ -69,16 +70,17 @@ async function renderAddAcctWcList(){
     row.className = "addacct-wc-row"
     row.textContent = mine.has(id) ? `${id} — already in game` : id
     if(mine.has(id)) row.disabled = true
-    else row.onclick = () => chooseAddAcct(id)
+    else row.onclick = () => chooseAddAcct(id, "wc")
     list.appendChild(row)
   })
 }
 
-async function chooseAddAcct(raw){
+async function chooseAddAcct(raw, src){
   const net = addAcctNet()
   let label = String(raw).trim()
   if(!label) return
   if(!net){ addAcctStatus("Game not loaded yet — wait a moment and try again", true); return }
+  window.kflow?.("acct:add:pick", src || "typed", { label })
   if((net === "testnet" || net === "mainnet") && /^\d+$/.test(label)) label = "0.0." + label
 
   addAcctLabel = label
@@ -106,7 +108,9 @@ async function chooseAddAcct(raw){
     addAcctList = Object.keys(data.assets || {})
     addAcctSel = new Set(addAcctList)   // everything ticked by default
     renderAddAcctAssets(data.assets || {})
+    window.kflow?.("acct:add:assets", addAcctList.length ? "ok" : "empty", { count: addAcctList.length })
   } catch(e) {
+    window.kflow?.("acct:add:assets", "fail", { error: String(e?.message || e) })
     // Loud, retriable — and "Join with all assets" still works without the preview.
     box.innerHTML = ""
     const msg = document.createElement("span")
@@ -116,7 +120,7 @@ async function chooseAddAcct(raw){
     retry.type = "button"
     retry.className = "addacct-link"
     retry.textContent = "retry"
-    retry.onclick = () => chooseAddAcct(addAcctLabel)
+    retry.onclick = () => chooseAddAcct(addAcctLabel, "retry")
     box.appendChild(msg)
     box.appendChild(retry)
   }
@@ -191,17 +195,20 @@ function addAcctJoinGame(all){
   document.getElementById("addAcctJoinAll").disabled = true
   document.getElementById("addAcctJoin").disabled = true
 
+  window.kflow?.("acct:add:join", all ? "all" : "sel", { label })
   addAccounts(label)
 
   pollUntil(
     () => getAccounts().some(a => isMyAccount(a) && a.label === addAcctLabel),
     () => {
+      window.kflow?.("acct:add:done", "ok", { label: addAcctLabel })
       closeAddAccountModal()
       document.getElementById("addAcctJoinAll").disabled = false
       try { notify?.(`Account ${addAcctLabel} joined the game`, "success", { timeout: 2500 }) } catch {}
     },
     200, 12000,
     () => {
+      window.kflow?.("acct:add:done", "timeout", { label: addAcctLabel })
       document.getElementById("addAcctJoinAll").disabled = false
       updateAddAcctJoinCount()
       addAcctStatus("Account didn't land — check the id and your connection, then try again. (A join rule on this game can also reject it.)", true)
@@ -220,7 +227,7 @@ document.addEventListener("click", e => {
       break
     case "addAcctSelAll": addAcctSelectAll(true); break
     case "addAcctSelNone": addAcctSelectAll(false); break
-    case "addAcctManualUse": chooseAddAcct(document.getElementById("addAcctManual").value); break
+    case "addAcctManualUse": chooseAddAcct(document.getElementById("addAcctManual").value, "typed"); break
     case "addAcctJoinAll": addAcctJoinGame(true); break
     case "addAcctJoin": addAcctJoinGame(false); break
     case "addAcctProfileLink":
@@ -234,7 +241,7 @@ document.addEventListener("click", e => {
 document.addEventListener("keydown", e => {
   if(e.key === "Enter" && e.target.id === "addAcctManual"){
     e.preventDefault()
-    chooseAddAcct(e.target.value)
+    chooseAddAcct(e.target.value, "typed")
   }
 })
 
@@ -248,7 +255,9 @@ async function addAcctConnect(){
     document.documentElement.style.setProperty("--wcm-z-index", "2147483000")
     if(window.WC.ensureNetwork) await window.WC.ensureNetwork(net)
     await window.WC.connect?.()
+    window.kflow?.("acct:add:connect", "ok")
   } catch(e) {
+    window.kflow?.("acct:add:connect", "fail", { error: String(e?.message || e) })
     try { notify?.("Wallet connect failed", "error", { timeout: 4000 }) } catch {}
   }
   addAcctStatus("")
