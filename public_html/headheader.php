@@ -111,9 +111,7 @@ $menu = $content['general'][1]['menu'] ?? 'm=Gallery';
           <a class="navbar-brand" href="./"><h2>
 		  <?php echo $html_logo; ?>
 		  </h2></a>
-<?php if (!empty($gm_profile_enabled)) { // GM-AUTH1: always-visible worded Connect button (outside the collapse, so it works on mobile without the menu); opens the profile modal. Label mirrors the active account once a wallet is connected (gm-profile-modal.php). ?>
-          <button class="gm-connect-header" type="button" id="gm-header-connect" data-menu-profile title="Connect a wallet and authenticate">Connect</button>
-<?php } ?>
+<?php // GM-AUTH1 r4: header Connect pill REMOVED (it collided with the theme's absolutely-positioned hamburger — user 2026-07-07). Connect lives in the page's gm-wallet-bar; the profile modal opens from the Profile menu item below. ?>
           <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
           </button>
