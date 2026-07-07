@@ -834,6 +834,10 @@ function accountSigningStatus(acc, signedPubkeys) {
 export function updateCardSigning(accounts, signedPubkeys = [], network) {
 	const cards = document.querySelector('.txcards')
 	if (!cards) return
+	// HIP-1259: once a tx has consensus, the ACTUAL fee appears as a real transfer to
+	// the fee collection account (0.0.802) with its own card — the synthetic estimated
+	// "HBAR fee" chip would then duplicate it, so it's suppressed (user 2026-07-07).
+	const realFeePresent = ['0.0.802', '0.0.98', '0.0.800', '0.0.801'].some(id => accounts?.[id])
 	Object.entries(accounts || {}).forEach(([id, acc]) => {
 		const head = cards.querySelector(`.txcard-head[data-acct="${CSS.escape(id)}"]`)
 		const card = head?.closest('.txcard')
@@ -846,7 +850,7 @@ export function updateCardSigning(accounts, signedPubkeys = [], network) {
 		card.dataset.signState = st.state   // one axis of the aggregate ring (balance is the other)
 		paintCardRing(card)
 
-		ensureOperatorFeeChip(card, (acc.mustSignReason || []).includes('operator'))
+		ensureOperatorFeeChip(card, (acc.mustSignReason || []).includes('operator') && !realFeePresent)
 
 		card._detail = { acc, signedPubkeys, network, id }   // for the lazy expand; refresh if already open
 		if (card.classList.contains('txcard--open')) renderCardDetail(card)
