@@ -1013,7 +1013,15 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 			const list = document.createElement('div')
 			list.className = 'txcard-detail-issues'
 			items.sort((a, b) => (b.warn ? 1 : 0) - (a.warn ? 1 : 0))   // stable sort: warnings first
-			items.forEach(i => { const li = document.createElement('div'); li.textContent = `${i.warn ? '⚠️' : 'ℹ️'} ${i.text}`; list.appendChild(li) })
+			// class-based so warning presentation can evolve without touching this code:
+			// warnings render full-strength (same color as the account id in the header),
+			// information stays muted (user 2026-07-07).
+			items.forEach(i => {
+				const li = document.createElement('div')
+				li.className = 'txcard-issue ' + (i.warn ? 'txcard-issue--warn' : 'txcard-issue--info')
+				li.textContent = `${i.warn ? '⚠️' : 'ℹ️'} ${i.text}`
+				list.appendChild(li)
+			})
 			wrap.appendChild(list)
 		}
 	}
@@ -1335,7 +1343,10 @@ function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo }) {
       widget.style.maxWidth = '100%'
       widget.style.height = 'auto'
     }
-    window.kpie.render(widget, { keyInfo: normTree, signedPubkeys: signedPubkeys || [] })
+    // neutral: account is shown for reference only (no signature needed) — the pie keeps
+    // the key structure but drops green/orange signing colors for two-tone gray, so an
+    // unsigned-but-irrelevant account doesn't read as "pending" (user 2026-07-07).
+    window.kpie.render(widget, { keyInfo: normTree, signedPubkeys: signedPubkeys || [], neutral: !mustSign })
       .catch(err => console.warn('[kpie] render failed', err))
   }
 
@@ -2019,6 +2030,8 @@ export function injectTxReadCSS() {
 		/* SIGN-EXPLAIN1: plain-words outstanding-items list — light gray, one line per
 		   issue, sits above the pie/keys so it reads first on expand. */
 		.txcard-detail-issues { font-size:12px; color:#9ca3af; margin:0 0 10px; display:flex; flex-direction:column; gap:3px; }
+		/* warnings full-strength (matches .txcard-acct), info stays muted — same size/style otherwise */
+		.txcard-issue--warn { color:#52525b; }
 
 		/* witnesses — signed keys not tied to any account; listed under the cards as chips
 		   (may later read as votes). Sits just above the Hedera <network> scope line. */

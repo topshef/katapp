@@ -115,7 +115,7 @@
   // unique id counter to avoid amcharts div collisions across multiple widgets
   let _chartSeq = 0
 
-  function createThresholdPieChart(thresholdData, signedStatusData, divId, pieRadius) {
+  function createThresholdPieChart(thresholdData, signedStatusData, divId, pieRadius, neutral = false) {
     const root = am5.Root.new(divId)
     root.setThemes([am5themes_Animated.new(root)])
     // root._renderer.resolution = 10
@@ -169,7 +169,12 @@
     seriesSigned.events.on('datavalidated', () => {
       seriesSigned.slices.each(slice => {
         const v = slice.dataItem.dataContext.isSigned
-        const color = v === 1 ? 0x56c857 : v === 0 ? 0xf5a623 : 0xF0F0F0
+        // neutral (account shown for reference, no signature needed): drop the
+        // green/orange signing semantics — two-tone gray keeps the key structure
+        // readable without implying anything is pending.
+        const color = neutral
+          ? (v === 1 ? 0xa1a1aa : v === 0 ? 0xdadade : 0xF0F0F0)
+          : (v === 1 ? 0x56c857 : v === 0 ? 0xf5a623 : 0xF0F0F0)
         slice.set('fill', am5.color(color))
       })
     })
@@ -194,7 +199,7 @@
   // Sizing: width is the budget (set by the caller from tree complexity, up to full
   // detail width on desktop); pies shrink as the widest generation grows, floored for
   // legibility; height follows generation count and is set here.
-  function drawTree(jsonData, container) {
+  function drawTree(jsonData, container, neutral = false) {
     container.innerHTML = ''
     container.style.position = 'relative'
     container.style.overflow = 'visible'
@@ -277,13 +282,13 @@
         'margin:0', 'padding:0'
       ].join(';')
       container.appendChild(div)
-      renderNodePie(d.data, divId, s / 2)
+      renderNodePie(d.data, divId, s / 2, neutral)
     })
   }
   
   // ── Public API ──────────────────────────────────────────────────────────────
 
-  async function render(container, { keyInfo, signedPubkeys = [] }) {
+  async function render(container, { keyInfo, signedPubkeys = [], neutral = false }) {
     if (!keyInfo) return
     await loadDeps()
     const graph = convertKeyTreeToGraph(keyInfo)
@@ -305,13 +310,13 @@
       div.style.cssText = 'width:100%;height:100%;margin:0;padding:0'
       container.appendChild(div)
       // renderNodePie(graph, divId, size * 0.38)
-      renderNodePie(graph, divId, 42)
+      renderNodePie(graph, divId, 42, neutral)
     } else {
-      drawTree(graph, container)
+      drawTree(graph, container, neutral)
     }
   }
 
-  function renderNodePie(nodeData, divId, pieRadius) {
+  function renderNodePie(nodeData, divId, pieRadius, neutral = false) {
     const numerator = nodeData.threshold ?? 1
     const denominator = nodeData.keyCount || 1
     const thresholdData = [
@@ -323,7 +328,7 @@
       const isSigned = i <= nodeData.keyCountSigned ? 1 : i > nodeData.threshold ? null : 0
       signedStatusData.push({ weight: 1, isSigned })
     }
-    createThresholdPieChart(thresholdData, signedStatusData, divId, pieRadius)
+    createThresholdPieChart(thresholdData, signedStatusData, divId, pieRadius, neutral)
   }
   
 
