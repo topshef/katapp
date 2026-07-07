@@ -129,14 +129,37 @@
 
 			// lookup decimals from metadata cache
 			const meta = window.assetDisplayCache?.[assetId]
-			// const decimals = Number(meta?.token_class?.decimals || 0)
-            const decimals = String(assetId).toUpperCase() == "HBAR" ? 8 : Number(meta?.token_class?.decimals || 0)
+			const isHbar = String(assetId).toUpperCase() == "HBAR"
+			const isNft = String(assetId).includes("#")
+
+			// AMOUNT-SCALE1 (2026-07-07 incident): without meta the old code fell back to
+			// decimals 0 and let a DISPLAY amount (0.01 USDC) into game state as raw units
+			// — the store went fractional and the strike tx truncated the leg to 0. Never
+			// scale a token with UNKNOWN decimals: kick the enrichment and ask to retry.
+			if(!isHbar && !isNft && !meta){
+				try { if(typeof enrichAsset === "function" && gameMeta?.network) enrichAsset(gameMeta.network, assetId, available).then(e => { (window.assetDisplayCache ||= {})[assetId] = e.meta }).catch(() => {}) } catch(e){}
+				notify?.("Still loading this asset's details — try again in a second", "warning", { timeout: 4000 })
+				return null
+			}
+
+			const decimals = isHbar ? 8 : Number(meta?.token_class?.decimals || 0)
 
 			let scaled = n
 
 			if(decimals){
 				scaled = Math.round(n * (10 ** decimals))
 			}
+
+			// raw units are integers by definition — a fractional result here means the
+			// input was finer than the token's decimals (e.g. 0.5 of a 0-decimal LE token)
+			if(!Number.isInteger(scaled)){
+				notify?.(`Amount too fine — this asset has ${decimals} decimal places`, "warning", { timeout: 4000 })
+				return null
+			}
+
+			// input-side audit trail (user 2026-07-07: log the input so mis-scaling is
+			// traceable): what was typed, what meta said, what raw amount goes to the game.
+			try { window.kdiag?.("offer:amount", { assetId, input: String(input), decimals, scaled, available }) } catch(e){}
 
 			if(scaled > available) return null
 
