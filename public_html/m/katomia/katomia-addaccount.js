@@ -61,6 +61,10 @@ async function renderAddAcctWcList(){
   try { wc = (typeof kauthWCAccounts === "function") ? await kauthWCAccounts(net, false) : [] } catch {}
 
   const mine = new Set(getAccounts().filter(a => isMyAccount(a)).map(a => a.label))
+  // KFLOW1 start-state snapshot: how many WC accounts are connected / how many of
+  // my accounts are already in the game — the PRECONDITION fingerprint for any
+  // add-account window (state:* tokens are ordinary checkpoints in the sequence)
+  window.kflow?.("state:addacct", window.kflow.fpCounts({ wc: wc.length, g: mine.size }))
   list.innerHTML = ""
   if(!wc.length){ list.textContent = "No wallet connected for this network yet"; return }
 
@@ -195,6 +199,9 @@ function addAcctJoinGame(all){
   document.getElementById("addAcctJoinAll").disabled = true
   document.getElementById("addAcctJoin").disabled = true
 
+  // KFLOW1 heuristic data-fingerprint: the SET of assets joined becomes the variant
+  // (order-free; hashes when long) — 'just USDC' vs 'USDC+HBAR' are distinct paths
+  window.kflow?.("acct:add:sel", window.kflow.fpSet(all ? addAcctList : [...addAcctSel]))
   window.kflow?.("acct:add:join", all ? "all" : "sel", { label })
   addAccounts(label)
 

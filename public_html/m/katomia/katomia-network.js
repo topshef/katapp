@@ -257,9 +257,9 @@ function connect(onOpenAction){
       gameId,
       playerToken: getOrCreatePlayerToken(),
       playerName: "anon",
-      // KFLOW1: thread the frontend run id so backend checkpoints on this socket
-      // join the same flow fingerprint (stored as socket.kflowRun server-side)
-      ...(window.kflow ? { kflowRun: window.kflow.run } : {}),
+      // KFLOW1: thread the frontend run + visit ids so backend checkpoints on this
+      // socket join the same flow fingerprint (stored on the socket server-side)
+      ...(window.kflow ? { kflowRun: window.kflow.run, kflowVisit: window.kflow.visit } : {}),
       ...(intentPublicKey ? { intentPublicKey } : {})
     }
 

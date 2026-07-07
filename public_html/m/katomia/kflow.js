@@ -16,8 +16,13 @@
 (() => {
 	if(window.kflow) return
 
-	const RUN = Array.from(crypto.getRandomValues(new Uint8Array(5)), b => b.toString(16).padStart(2, "0")).join("")
+	const rand = () => Array.from(crypto.getRandomValues(new Uint8Array(5)), b => b.toString(16).padStart(2, "0")).join("")
+	const RUN = rand()
+	// visit id: stable across reloads in THIS tab (sessionStorage) — runs die at
+	// reload but real tests legitimately span reloads (exit → refresh → assert).
+	const VISIT = (() => { try { let v = sessionStorage.getItem("kflow_visit"); if(!v){ v = rand(); sessionStorage.setItem("kflow_visit", v) } return v } catch { return "" } })()
 	const COMMIT = window.KFLOW_COMMIT || ""
+	const gameOf = () => { try { return (location.pathname.match(/\/game\/([\w-]+)/) || [])[1] || "" } catch { return "" } }
 	let seq = 0
 	const Q = []
 	let timer = null
@@ -48,8 +53,18 @@
 
 	function safe(v){ try { return JSON.parse(JSON.stringify(v)) } catch { return String(v) } }
 
+	// ── state-fingerprint helpers ──────────────────────────────────────────────
+	// Variants must stay ENUM/BUCKET shaped; these build canonical variants FROM
+	// state so call sites never invent ad-hoc encodings. Used for both start-state
+	// snapshots (state:* checkpoints) and data-derived variants (set of assets picked).
+	const fnv = s => { let h = 0x811c9dc5; for(const c of s){ h ^= c.charCodeAt(0); h = Math.imul(h, 0x01000193) } return (h >>> 0).toString(16).padStart(8, "0").slice(0, 6) }
+	// fpSet(['0.0.9','0.0.5']) -> '0.0.5+0.0.9' (order-free); hashes when long -> 'n7~a1b2c3'
+	function fpSet(arr){ const a = [...new Set((arr || []).map(String))].sort(); const s = a.join("+"); return !a.length ? "none" : s.length <= 40 ? s : `n${a.length}~${fnv(s)}` }
+	// fpCounts({wc:2, g:1}) -> 'g1·wc2' (key-sorted counts crosstab)
+	function fpCounts(obj){ return Object.keys(obj || {}).sort().map(k => `${k}${obj[k]}`).join("·") || "none" }
+
 	function kflow(checkpoint, v, detail){
-		const ev = { t: new Date().toISOString(), run: RUN, seq: ++seq, tier: "fe", checkpoint, v: v || "", commit: COMMIT, page: location.pathname }
+		const ev = { t: new Date().toISOString(), run: RUN, visit: VISIT, seq: ++seq, tier: "fe", checkpoint, v: v || "", commit: COMMIT, game: gameOf(), page: location.pathname }
 		if(detailOn && detail !== undefined) ev.detail = safe(detail)
 		Q.push(ev)
 		if(!timer) timer = setTimeout(flush, 2000)
@@ -70,6 +85,6 @@
 
 	window.addEventListener("pagehide", flush)
 
-	window.kflow = Object.assign(kflow, { run: RUN, flush })
+	window.kflow = Object.assign(kflow, { run: RUN, visit: VISIT, flush, fpSet, fpCounts })
 	kflow("page:load")
 })()
