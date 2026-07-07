@@ -261,6 +261,7 @@ async function addAcctConnect(){
   try {
     document.documentElement.style.setProperty("--wcm-z-index", "2147483000")
     if(window.WC.ensureNetwork) await window.WC.ensureNetwork(net)
+    window.kauthPruneWcModals?.()   // WC-NETSWITCH1: drop the stale modal a rebuild left
     await window.WC.connect?.()
     window.kflow?.("acct:add:connect", "ok")
   } catch(e) {

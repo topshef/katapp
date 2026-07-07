@@ -13,6 +13,22 @@
 
 function kauthDiag(event, data){ try { window.kdiag?.("auth:" + event, data) } catch {} }
 
+// WC-NETSWITCH1 mitigation (2026-07-07): switching the WC connector to a game's network
+// (mainnet default → testnet) rebuilds it and spawns a SECOND <wcm-modal> without
+// disposing the first — two stacked modals, the dead one on top, so the pairing popup
+// looked like it never opened (reported on the testnet profile connect). The real fix is
+// in the KWC connector (kwcCore.js ensureNetwork disposes the old modal) but that needs a
+// bundle rebuild+snapshot; until that ships, drop all but the newest modal here. Only acts
+// when duplicates exist, so the single-modal (mainnet, no rebuild) path is untouched.
+// Exposed on window so the add-account modal can reuse it.
+window.kauthPruneWcModals = function kauthPruneWcModals(){
+  try {
+    const modals = document.querySelectorAll("wcm-modal")
+    for(let i = 0; i < modals.length - 1; i++) modals[i].remove()
+    if(modals.length > 1) kauthDiag("wc-modal-prune", { removed: modals.length - 1 })
+  } catch(e){}
+}
+
 function kauthSetStatus(msg){ const el = document.getElementById("authStatus"); if(el) el.textContent = msg || "" }
 
 // Effective network for the binding flow. In a game the game's network wins (row
@@ -255,6 +271,7 @@ async function kauthOnAccountChange(){
       // user). Bump it just before connect — mirrors signer-walletconnect.js.
       document.documentElement.style.setProperty("--wcm-z-index", "2147483000")
       if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network)
+      window.kauthPruneWcModals()   // drop the stale modal a network-switch rebuild left
       await window.WC.connect?.()
       kauthDiag("connect:add:done", { network })
     } catch(e){
