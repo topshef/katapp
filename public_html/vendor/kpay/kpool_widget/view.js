@@ -983,8 +983,11 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 		}
 		const items = []
 		const st = accountSigningStatus(acc, signedPubkeys)
+		// signatures pending are the NORMAL flow of this modal, not a fault — bullet is the
+		// header's signing glyph (visually ties summary ✍️ 0/1 to this line), but it keeps
+		// warn strength/position because it's still the thing to act on (user 2026-07-07).
 		if (st.state === 'pending' && st.need)
-			items.push({ warn: true, text: `${st.need - st.signed} more signature${st.need - st.signed === 1 ? '' : 's'} needed (${st.signed} of ${st.need} signed).` })
+			items.push({ warn: true, bullet: '✍️', text: `${st.need - st.signed} more signature${st.need - st.signed === 1 ? '' : 's'} needed (${st.signed} of ${st.need} signed).` })
 		for (const a of card?._balanceIssues?.short || [])
 			items.push({ warn: true, text: `Not enough ${labelFor(a)} — the balance won't cover what this account sends.` })
 		// SIGN-ASSETASSOC1: association wording branches on the account's auto-association
@@ -993,10 +996,16 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 		// it may land via a free slot (dashed chip). Counting USED auto slots (mirror
 		// /tokens automatic_association flags) is a future refinement — optimistic for now.
 		const maxAuto = card?.dataset.maxAutoAssoc
+		// association is about the ASSET, not an amount — name only, token id in brackets
+		// ("KUSD (token 0.0.2341021)"); falls back to the bare token id pre-enrichment.
+		const assocLabel = k => {
+			const sym = labelFor(k).replace(/^[\d.,\s]+/, '').trim()
+			return sym && sym !== `token ${k}` ? `${sym} (token ${k})` : `token ${k}`
+		}
 		for (const a of card?._balanceIssues?.unassoc || [])
 			items.push({ warn: true, text: maxAuto === '0'
-				? `${labelFor(a)} is not associated with this account and it has no auto-association slots — this transfer will fail until the account associates the token.`
-				: `${labelFor(a)} is not associated with this account — it may still land if a free auto-association slot picks it up.` })
+				? `${assocLabel(a)} is not associated with this account and it has no auto-association slots — this transfer will fail until the account associates the token.`
+				: `${assocLabel(a)} is not associated with this account — it may still land if a free auto-association slot picks it up.` })
 
 		// info lines (previously standalone notes above the list — folded in so ordering
 		// is uniform: warnings first, information below)
@@ -1019,7 +1028,7 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 			items.forEach(i => {
 				const li = document.createElement('div')
 				li.className = 'txcard-issue ' + (i.warn ? 'txcard-issue--warn' : 'txcard-issue--info')
-				li.textContent = `${i.warn ? '⚠️' : 'ℹ️'} ${i.text}`
+				li.textContent = `${i.bullet || (i.warn ? '⚠️' : 'ℹ️')} ${i.text}`
 				list.appendChild(li)
 			})
 			wrap.appendChild(list)
@@ -1066,6 +1075,9 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 			row.append(tick, keyCell, banz, redC, ctrl)
 			grid.appendChild(row)
 		})
+		// reference-only account (no signature needed): soften the key table like the
+		// neutral pie — one opacity layer, content untouched (user 2026-07-07).
+		if (!acc.mustSign) grid.classList.add('txcard-detail--refonly')
 		layout.appendChild(grid)
 	}
 	wrap.appendChild(layout)
@@ -2032,6 +2044,9 @@ export function injectTxReadCSS() {
 		.txcard-detail-issues { font-size:12px; color:#9ca3af; margin:0 0 10px; display:flex; flex-direction:column; gap:3px; }
 		/* warnings full-strength (matches .txcard-acct), info stays muted — same size/style otherwise */
 		.txcard-issue--warn { color:#52525b; }
+		/* reference-only detail (no signature needed): one opacity layer mutes the key table
+		   to match the neutral gray pie — it's there for reference, not focus */
+		.txcard-detail--refonly { opacity:.55; }
 
 		/* witnesses — signed keys not tied to any account; listed under the cards as chips
 		   (may later read as votes). Sits just above the Hedera <network> scope line. */
