@@ -839,6 +839,9 @@ export function updateCardSigning(accounts, signedPubkeys = [], network) {
 		const card = head?.closest('.txcard')
 		if (!card) return
 		updateCardXproof(head, acc.label)
+		// SIGN-ASSETASSOC1: expose auto-association capacity (mirror account info) for the
+		// balance pass + detail wording; '' when info hasn't enriched yet (treated as unknown).
+		if (acc.info) card.dataset.maxAutoAssoc = String(acc.info.max_automatic_token_associations ?? '')
 		const st = accountSigningStatus(acc, signedPubkeys)
 		card.dataset.signState = st.state   // one axis of the aggregate ring (balance is the other)
 		paintCardRing(card)
@@ -924,10 +927,11 @@ export function updateCardBalances(precheck) {
 			if (f && Number(f.forecast) < 0) add(short, acct, asset)
 	// authoritative fail strings: balance ("… enough …" / "… sufficient hbar …") vs association
 	// ("… associated …"). Association is a DIFFERENT class of fault from a shortfall — it's the
-	// receiving account's responsibility, and a receiver with an auto-association slot would
-	// actually succeed. The precheck only knows the existing relationship (not auto-assoc), so
-	// we can't be sure → dashed (uncertain). TODO: solid vs dashed from the account's
-	// max_automatic_token_associations (0 = definite fail → solid; >0/-1 = auto → dashed).
+	// receiving account's responsibility. SIGN-ASSETASSOC1: solid vs dashed now branches on the
+	// account's max_automatic_token_associations (stashed on the card by updateCardSigning):
+	// 0 = no auto-assoc slots, definite fail → SOLID red; >0 or -1 (unlimited, HIP-904) → the
+	// transfer may still land via a free slot → DASHED red. Used-slot counting (mirror /tokens
+	// automatic_association flags) is a future refinement — optimistic meanwhile.
 	for (const line of precheck?.tests?.fail || []) {
 		let m
 		if ((m = /has sender (\S+) enough (\S+)/.exec(line))) add(short, m[1], m[2])
@@ -944,8 +948,12 @@ export function updateCardBalances(precheck) {
 		card.dataset.balanceShort = (shortAssets.size || unassocAssets.size) ? '1' : '0'   // either blocks → red ring
 		card.querySelectorAll('.txcard-send .txcard-chip').forEach(chip =>
 			chip.classList.toggle('txcard-chip--short', shortAssets.has(key(chip))))
-		card.querySelectorAll('.txcard-receive .txcard-chip').forEach(chip =>
-			chip.classList.toggle('txcard-chip--unassoc', unassocAssets.has(key(chip))))
+		const assocHard = card.dataset.maxAutoAssoc === '0'   // no auto-assoc slots → definite fail
+		card.querySelectorAll('.txcard-receive .txcard-chip').forEach(chip => {
+			const is = unassocAssets.has(key(chip))
+			chip.classList.toggle('txcard-chip--unassoc', is && !assocHard)
+			chip.classList.toggle('txcard-chip--unassoc-hard', is && assocHard)
+		})
 		paintCardRing(card)
 		// SIGN-EXPLAIN1: stash the issue sets for the expanded detail's plain-words list,
 		// and refresh an already-open detail so the lines track live precheck updates.
@@ -962,57 +970,50 @@ export function updateCardBalances(precheck) {
 function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 	const wrap = document.createElement('div')
 
-	// Fee-payer sentence on expand (feedback 3c28f05d): the header badge cues it, this
-	// line SAYS it. Plain gray --muted like every other in-card note (per user — ONE
-	// note style, no bubbles; only the amber receiver-sig warning keeps its box).
-	// Fee estimate (amount, updated post-consensus) is TX-CARDS-FEEEST1.
-	if ((acc.mustSignReason || []).includes('operator')) {
-		const note = document.createElement('div')
-		note.className = 'txcard-detail-note txcard-detail-note--muted'
-		note.textContent = '⬡ This account is the operator: it pays the Hedera network fee for this transaction.'
-		wrap.appendChild(note)
-	}
-
-	// The one non-obvious reason for signing — spell it out so nobody wonders why a
-	// receiving account needs to sign (receiver_sig_required is set on the account key).
-	if ((acc.mustSignReason || []).includes('receiver_sig_required')) {
-		const note = document.createElement('div')
-		note.className = 'txcard-detail-note'
-		note.textContent = 'Receiver signature required: this account must sign even though it is receiving.'
-		wrap.appendChild(note)
-	}
-	// Make "no signature needed" explicit (it's implied by the thin grey border). Keep the
-	// keys/pie visible anyway — useful reference. NB: not phrased as "receiver-sig not
-	// required" since receivers sometimes DO sign (see the receiver note above).
-	else if (!acc.mustSign) {
-		const note = document.createElement('div')
-		note.className = 'txcard-detail-note txcard-detail-note--muted'
-		note.textContent = 'No signature required from this account (shown for reference).'
-		wrap.appendChild(note)
-	}
-
-	// SIGN-EXPLAIN1: the rings and glyphs CUE the state; these lines SAY it. One muted
-	// line per outstanding item for this account (signatures still needed, overdrafts,
-	// missing associations) so expanding the card reads as a to-do list, not a puzzle.
-	// Nothing renders when the account is all clear. Asset names come off the chips so
-	// the wording matches what the user sees (precheck keys 'hbar' ↔ chip 'tinybar').
+	// SIGN-EXPLAIN1 (+ standard bullets, user 2026-07-07): ONE unified message list —
+	// ⚠️ = a problem blocking this account, ℹ️ = plain information (operator fee-payer,
+	// receiver-sig-required, no-sig-needed reference). Warnings float to the top; every
+	// line keeps the same muted style — no per-type CSS, the bullet carries the class.
+	// Asset names come off the chips so wording matches what the user sees (precheck
+	// keys 'hbar' ↔ chip 'tinybar'). Fee estimate (amount) is TX-CARDS-FEEEST1.
 	{
 		const labelFor = k => {
 			const sel = `.txcard-chip[data-asset-key="${CSS.escape(k === 'hbar' ? 'tinybar' : k)}"] .txcard-chip-text`
 			return card?.querySelector(sel)?.textContent?.trim() || (k === 'hbar' ? 'HBAR' : `token ${k}`)
 		}
-		const issues = []
+		const items = []
 		const st = accountSigningStatus(acc, signedPubkeys)
 		if (st.state === 'pending' && st.need)
-			issues.push(`✍️ ${st.need - st.signed} more signature${st.need - st.signed === 1 ? '' : 's'} needed (${st.signed} of ${st.need} signed).`)
+			items.push({ warn: true, text: `${st.need - st.signed} more signature${st.need - st.signed === 1 ? '' : 's'} needed (${st.signed} of ${st.need} signed).` })
 		for (const a of card?._balanceIssues?.short || [])
-			issues.push(`🔴 Not enough ${labelFor(a)} — the balance won't cover what this account sends.`)
+			items.push({ warn: true, text: `Not enough ${labelFor(a)} — the balance won't cover what this account sends.` })
+		// SIGN-ASSETASSOC1: association wording branches on the account's auto-association
+		// capacity (mirror max_automatic_token_associations, stashed on the card by
+		// updateCardSigning): 0 slots = the transfer WILL fail (solid red chip); otherwise
+		// it may land via a free slot (dashed chip). Counting USED auto slots (mirror
+		// /tokens automatic_association flags) is a future refinement — optimistic for now.
+		const maxAuto = card?.dataset.maxAutoAssoc
 		for (const a of card?._balanceIssues?.unassoc || [])
-			issues.push(`◌ ${labelFor(a)} is not associated with this account — the transfer can't land unless an auto-association slot is free.`)
-		if (issues.length) {
+			items.push({ warn: true, text: maxAuto === '0'
+				? `${labelFor(a)} is not associated with this account and it has no auto-association slots — this transfer will fail until the account associates the token.`
+				: `${labelFor(a)} is not associated with this account — it may still land if a free auto-association slot picks it up.` })
+
+		// info lines (previously standalone notes above the list — folded in so ordering
+		// is uniform: warnings first, information below)
+		if ((acc.mustSignReason || []).includes('operator'))
+			items.push({ warn: false, text: 'This account is the operator: it pays the Hedera network fee for this transaction.' })
+		// receiver_sig_required is the one non-obvious reason for signing; when the account
+		// doesn't sign at all, say so (implied by the thin grey border, but make it explicit).
+		if ((acc.mustSignReason || []).includes('receiver_sig_required'))
+			items.push({ warn: false, text: 'Receiver signature required: this account must sign even though it is receiving.' })
+		else if (!acc.mustSign)
+			items.push({ warn: false, text: 'No signature required from this account (shown for reference).' })
+
+		if (items.length) {
 			const list = document.createElement('div')
 			list.className = 'txcard-detail-issues'
-			issues.forEach(t => { const li = document.createElement('div'); li.textContent = t; list.appendChild(li) })
+			items.sort((a, b) => (b.warn ? 1 : 0) - (a.warn ? 1 : 0))   // stable sort: warnings first
+			items.forEach(i => { const li = document.createElement('div'); li.textContent = `${i.warn ? '⚠️' : 'ℹ️'} ${i.text}`; list.appendChild(li) })
 			wrap.appendChild(list)
 		}
 	}
@@ -1981,6 +1982,10 @@ export function injectTxReadCSS() {
 		/* token NOT associated on the RECEIVING side: dashed red (uncertain — a receiver with an
 		   auto-association slot would still succeed). Different fault class from a balance shortfall. */
 		.txcard-chip--unassoc { border-color:#e5484d; border-style:dashed; box-shadow:0 0 0 1px #e5484d; }
+		/* SIGN-ASSETASSOC1: receiver has NO auto-association slots — failure is definite, ring solid.
+		   Compound selector so it outranks the later .txcard-chip-ghost dashed border (receive
+		   chips are ghosts by design). */
+		.txcard-chip--unassoc-hard, .txcard-chip-ghost.txcard-chip--unassoc-hard { border-color:#e5484d; border-style:solid; box-shadow:0 0 0 1px #e5484d; }
 		/* operator fee chip: no amount, distinct dotted/italic so it reads as an estimate */
 		.txcard-chip--fee { border-style:dotted; font-style:italic; color:#71717a; }
 
