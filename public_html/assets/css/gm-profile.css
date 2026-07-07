@@ -7,7 +7,7 @@
 .profile-modal{
   position:fixed;
   inset:0;
-  z-index:2000;
+  z-index:100001; /* site header (and its expanded menu) sits at 99999 — the modal must cover it */
   display:flex;
   align-items:center;
   justify-content:center;
@@ -203,6 +203,26 @@
   word-break:break-all;
 }
 
+/* ── header Connect button (headheader.php, $gm_profile_enabled pages) ────── */
+
+.gm-connect-header{
+  padding:6px 14px;
+  border:1px solid rgba(255,255,255,0.7);
+  border-radius:20px;
+  background:rgba(0,0,0,0.15);
+  color:#fff;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  margin-left:auto;
+  margin-right:10px;
+  max-width:40vw;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.gm-connect-header:hover{ background:rgba(0,0,0,0.3); }
+
 /* ── notify() toasts (katomia-helpers.js) ─────────────────────────────────── */
 
 #notifications{
@@ -211,7 +231,7 @@
   left:50%;
   transform:translateX(-50%);
   width:min(600px,90%);
-  z-index:9999;
+  z-index:100002; /* above the modal (100001) and the site header (99999) */
   display:flex;
   flex-direction:column;
   gap:8px;
