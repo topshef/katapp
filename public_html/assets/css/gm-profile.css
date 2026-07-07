@@ -203,13 +203,38 @@
   word-break:break-all;
 }
 
+/* ── inline wallet bar (gm-wallet-bar.php) — page-side connect options ────── */
+
+.gm-wallet-bar{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:8px 0;
+}
+/* base look for pages without wallet.css (e.g. the gallery); wallet.css refines it
+   on the deal page where .wallet-button is already themed */
+.gm-wallet-bar .gm-wb-btn,
+.gm-wallet-bar .gm-wb-select{
+  padding:6px 14px;
+  border:1px solid #cfd6dd;
+  border-radius:20px;
+  background:#fff;
+  color:#333;
+  font-size:13px;
+  cursor:pointer;
+  max-width:70vw;
+}
+.gm-wallet-bar .gm-wb-btn img{ vertical-align:middle; }
+.gm-wallet-bar .hide{ display:none; }
+
 /* ── header Connect button (headheader.php, $gm_profile_enabled pages) ────── */
 
 .gm-connect-header{
   padding:6px 14px;
-  border:1px solid rgba(255,255,255,0.7);
+  border:none;
   border-radius:20px;
-  background:rgba(0,0,0,0.15);
+  background:#4a90e2; /* solid — must read on both the white gallery header and banner images */
   color:#fff;
   font-size:13px;
   font-weight:600;
@@ -221,7 +246,22 @@
   text-overflow:ellipsis;
   white-space:nowrap;
 }
-.gm-connect-header:hover{ background:rgba(0,0,0,0.3); }
+.gm-connect-header:hover{ background:#3a7bc8; }
+/* the theme's hamburger is position:absolute at right:30px — clear it while it shows */
+@media (max-width: 991px){
+  .gm-connect-header{ margin-right:64px; }
+}
+
+/* gallery row that hosts the inline wallet bar: on mobile the banner above it
+   collapses (height:0), so clear the absolute 80px header explicitly */
+.gm-wallet-bar-row{
+  display:flex;
+  justify-content:flex-end;
+  padding-top:8px;
+}
+@media (max-width: 768px){
+  .gm-wallet-bar-row{ margin-top:84px; }
+}
 
 /* ── notify() toasts (katomia-helpers.js) ─────────────────────────────────── */
 
