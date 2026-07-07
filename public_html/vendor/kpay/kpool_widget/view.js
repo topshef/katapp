@@ -866,7 +866,13 @@ export function updateCardSigning(accounts, signedPubkeys = [], network) {
 	// HIP-1259: once a tx has consensus, the ACTUAL fee appears as a real transfer to
 	// the fee collection account (0.0.802) with its own card — the synthetic estimated
 	// "HBAR fee" chip would then duplicate it, so it's suppressed (user 2026-07-07).
-	const realFeePresent = ['0.0.802', '0.0.98', '0.0.800', '0.0.801'].some(id => accounts?.[id])
+	// The check is against the RENDERED CARDS, not the accounts data: on a LIVE success
+	// the poll adds 802 to the data but no card is built mid-session — suppressing then
+	// yanked the chip out from under the success animation (jolt + trajectory lines out
+	// of step, user 2026-07-07). The chip only gives way when the 802 card is actually
+	// on screen to replace it, i.e. after a reload of the settled tx.
+	const realFeePresent = ['0.0.802', '0.0.98', '0.0.800', '0.0.801']
+		.some(id => cards.querySelector(`.txcard-head[data-acct="${id}"]`))
 	Object.entries(accounts || {}).forEach(([id, acc]) => {
 		const head = cards.querySelector(`.txcard-head[data-acct="${CSS.escape(id)}"]`)
 		const card = head?.closest('.txcard')
