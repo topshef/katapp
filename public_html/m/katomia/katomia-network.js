@@ -334,6 +334,13 @@ function exitGame(){
 	wsShouldRun = false
 	if(wsReconnectTimer){ clearTimeout(wsReconnectTimer); wsReconnectTimer = null }
 
+	// Exit is the explicit "I'm done" signal: wipe this game's account cache so a
+	// refresh does NOT auto-restore the accounts (user 2026-07-07). The cache and
+	// restoreCachedAccounts() stay for their real job — re-seating you when the
+	// memory-only backend restarts MID-game. Deep links (?autoload=) are a separate
+	// path (window.pendingAutoload) and still work after an exit.
+	setCachedAccountLabels([])
+
 	if(socket){
 		const playerToken = getOrCreatePlayerToken()
 
@@ -343,7 +350,11 @@ function exitGame(){
 			playerToken
 		}))
 
-		socket.close()
+		// Deferred close: close() right after send can lose the exit frame when the
+		// page is torn down (fast refresh/navigation) — then the server keeps the
+		// accounts and they're back on reload despite the cache wipe above.
+		const s = socket
+		setTimeout(() => { try { s.close() } catch(e){} }, 300)
 	}
 
 	socket = null
