@@ -111,7 +111,6 @@ $menu = $content['general'][1]['menu'] ?? 'm=Gallery';
           <a class="navbar-brand" href="./"><h2>
 		  <?php echo $html_logo; ?>
 		  </h2></a>
-<?php // GM-AUTH1 r4: header Connect pill REMOVED (it collided with the theme's absolutely-positioned hamburger — user 2026-07-07). Connect lives in the page's gm-wallet-bar; the profile modal opens from the Profile menu item below. ?>
           <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
           </button>
@@ -148,16 +147,10 @@ echo <<<EOMENU
               <li class="nav-item $active">
                 <a class="nav-link" href="$filename">$label</a>
               </li>
-EOMENU;
+EOMENU;			  
 }
 
 ?>
-
-<?php if (!empty($gm_profile_enabled)) { // GM-AUTH1: pages that include gm-profile-modal.php set this before requiring headheader; katomia-profile.js wires [data-menu-profile] clicks to open the modal ?>
-              <li class="nav-item">
-                <a class="nav-link" href="javascript:void(0)" data-menu-profile>Profile</a>
-              </li>
-<?php } ?>
 
 <?php if (isset($content['about'])) {  ?>
               <li class="nav-item dropdown">
