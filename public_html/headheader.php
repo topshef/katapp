@@ -147,10 +147,16 @@ echo <<<EOMENU
               <li class="nav-item $active">
                 <a class="nav-link" href="$filename">$label</a>
               </li>
-EOMENU;			  
+EOMENU;
 }
 
 ?>
+
+<?php if (!empty($gm_profile_enabled)) { // GM-AUTH1: pages that include gm-profile-modal.php set this before requiring headheader; katomia-profile.js wires [data-menu-profile] clicks to open the modal ?>
+              <li class="nav-item">
+                <a class="nav-link" href="javascript:void(0)" data-menu-profile>Profile</a>
+              </li>
+<?php } ?>
 
 <?php if (isset($content['about'])) {  ?>
               <li class="nav-item dropdown">
