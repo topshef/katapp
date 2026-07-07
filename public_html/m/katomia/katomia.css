@@ -2124,33 +2124,36 @@ textarea:focus{
   min-width:0;
   font-family:var(--font-mono);
 }
-/* "Disconnect" account button — a clear labelled ghost button (was a cryptic ✕). */
-.profile-auth-x{
-  padding:6px 10px;
+/* "Disconnect" account button — a clear labelled ghost button (was a cryptic ✕).
+   Padding matches the selects (7px block) so it centres level with the account id.
+   button.-prefixed to outrank ".profile-card button"'s margin-top:12px (same
+   specificity, later in the sheet wins). */
+button.profile-auth-x{
+  padding:7px 10px;
+  margin:0;
+  align-self:center;
   border:1px solid #e3e6ea;
   border-radius:8px;
   background:#fff;
   cursor:pointer;
-  line-height:1;
+  line-height:1.3;
   font-size:11px;
   color:#b00020;
 }
 .profile-auth-x:hover{ background:#fbe9ec; border-color:#f2c2cc; }
-/* Commitment options (expiry / scope / publish) — aligned grid, publish spans the row */
+/* Commitment options (expiry / scope / publish) — one row aligned with the account
+   rows: Expiry label shares the 64px label column, Scope's select gets the wider
+   share (its option text is the longest); publish spans the full row below. */
 .profile-auth-options{
-  margin-top:10px;
+  margin-top:8px;
   display:grid;
-  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
-  gap:8px 12px;
+  grid-template-columns:64px minmax(0, 0.8fr) auto minmax(0, 1.2fr);
+  gap:8px;
+  align-items:center;
   font-size:12px;
 }
-.profile-auth-options > label{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  margin:0;
-}
-.profile-auth-options select{ flex:1; min-width:0; }
+.profile-auth-options > .profile-label{ margin:0; }
+.profile-auth-options select{ min-width:0; }
 .profile-auth-publish{ grid-column:1 / -1; display:flex; align-items:center; gap:6px; }
 .profile-auth-statement{
   margin-top:10px;
