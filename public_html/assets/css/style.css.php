@@ -1530,3 +1530,28 @@ h5 a:hover { color: inherit; }
 }
 
 
+
+/* GM-TOAST-X (feedback 859f6683, 2026-07-07): the shared kwc bundle emits
+   Bootstrap-5 dismissible-alert markup (.btn-close, an empty button styled by a
+   background SVG in BS5), but this site loads Bootstrap 4.1.3 — so the close
+   button rendered as a bare unstyled rectangle. Shim it to a visible ✕. */
+.btn-close {
+    box-sizing: content-box;
+    background: transparent;
+    border: 0;
+    padding: 0.25em;
+    font-size: 1.1em;
+    line-height: 1;
+    color: inherit;
+    opacity: 0.5;
+    cursor: pointer;
+}
+.btn-close::before { content: "✕"; }
+.btn-close:hover { opacity: 0.9; }
+.alert-dismissible .btn-close {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 2;
+    padding: 0.75rem 1rem;
+}
