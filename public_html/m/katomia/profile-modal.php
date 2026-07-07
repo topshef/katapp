@@ -49,11 +49,12 @@
          consumers: reputation on your orders AND members-only market access
          (GAME-JOINRULE1). "Reputation binding" was under-scoped once gating went live.
          WIREFRAME — options (expiry/scope/publish) are exposed to feel the UX. ═══ -->
-    <div class="profile-section profile-repute">
-      <div class="profile-section-head">
-        <span class="profile-section-title" title="One signed commitment, two uses: your orders can carry reputation, and members-only markets unlock for your accounts. Your intent key says WHAT you want; a binding says WHO you are.">🔗 Wallet binding</span>
-        <span class="profile-tag profile-tag-optional" title="Optional. Bind your intent key to a wallet account so your orders carry reputation and members-only markets open up. Nobody has to do this.">optional</span>
-      </div>
+    <!-- PROFILE-TIDY1: now a collapsible <details> like KEA/Preferences (open by
+         default — it stays the priority section) so the modal's organisation can be
+         played with. Kept the name "Wallet binding": the binding IS the authorisation
+         (one signed commitment covers both), and AUTH-LANG1 pinned this word. -->
+    <details class="profile-section profile-repute" id="profileBindSection" open>
+      <summary class="profile-section-title" title="One signed commitment, two uses: your orders can carry reputation, and members-only markets unlock for your accounts. Your intent key says WHAT you want; a binding says WHO you are.">🔗 Wallet binding <span class="profile-tag profile-tag-optional" title="Optional. Bind your intent key to a wallet account so your orders carry reputation and members-only markets open up. Nobody has to do this.">optional</span></summary>
       <p class="subtle profile-section-sub">Prove who you are: sign once with a wallet to put a real account behind your intent key — your orders can carry reputation, and members-only markets unlock. Publishing makes the binding public.</p>
 
       <div class="profile-auth">
@@ -102,10 +103,15 @@
 
         <button id="authBtn" type="button">💠 Raise commitment</button>
         <div id="authStatus" class="profile-auth-status subtle"></div>
-        <pre id="authOutput" class="profile-auth-output hidden"></pre>
-        <button id="authCopyBtn" type="button" class="hidden">⧉ Copy envelope</button>
+        <!-- PROFILE-TIDY1: the signed envelope + copy button are tech detail — nerd-only,
+             and collapsed even then. Normal mode just gets the status line above. -->
+        <details id="authResultDetails" class="profile-nerd-only profile-auth-result hidden">
+          <summary>Signed envelope (technical detail)</summary>
+          <pre id="authOutput" class="profile-auth-output"></pre>
+          <button id="authCopyBtn" type="button">⧉ Copy envelope</button>
+        </details>
       </div>
-    </div>
+    </details>
 
     <!-- ═══ EXECUTION AGENT — KEA (QR → link → copy). Collapsed by default so the
          wallet-binding flow gets priority. AUTH-LANG1: this is the DELEGATION act —

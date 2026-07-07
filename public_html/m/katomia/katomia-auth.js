@@ -304,10 +304,11 @@ function kauthReadExpiry(){
 
 function kauthRenderEnvelope(envelope){
   const out = document.getElementById("authOutput")
-  const copy = document.getElementById("authCopyBtn")
   window.__lastAuthEnvelope = envelope
-  if(out){ out.textContent = JSON.stringify(envelope, null, 2); out.classList.remove("hidden") }
-  if(copy) copy.classList.remove("hidden")
+  if(out) out.textContent = JSON.stringify(envelope, null, 2)
+  // PROFILE-TIDY1: the envelope + copy button live in a nerd-only collapsed <details>
+  // now — unhide the wrapper; normal mode keeps just the status line.
+  document.getElementById("authResultDetails")?.classList.remove("hidden")
 }
 
 // Populate the account picker when the profile modal opens, without forcing a connect.
