@@ -11,6 +11,12 @@ let addAcctLabel = null      // chosen account label (normalised)
 let addAcctList = []         // [assetId,...] from preview (assetId may be "token#serial")
 let addAcctSel = new Set()   // ticked assetIds
 
+// gameMeta is nulled by exitGame(), but re-adding after a 🗑️ exit is a legit flow —
+// fall back to the last network seen on a broadcast (set in katomia-network.js).
+function addAcctNet(){
+  return gameMeta?.network || window.__katomiaNetwork || ""
+}
+
 function addAcctStatus(msg, isError){
   const el = document.getElementById("addAcctStatus")
   el.textContent = msg || ""
@@ -37,7 +43,7 @@ function closeAddAccountModal(){
 async function renderAddAcctWcList(){
   const list = document.getElementById("addAcctWcList")
   const connectBtn = document.getElementById("addAcctConnect")
-  const net = gameMeta?.network || ""
+  const net = addAcctNet()
 
   const wcLabel = document.getElementById("addAcctWcLabel")
   if(net === "playnet"){
@@ -69,9 +75,10 @@ async function renderAddAcctWcList(){
 }
 
 async function chooseAddAcct(raw){
-  const net = gameMeta?.network || ""
+  const net = addAcctNet()
   let label = String(raw).trim()
   if(!label) return
+  if(!net){ addAcctStatus("Game not loaded yet — wait a moment and try again", true); return }
   if((net === "testnet" || net === "mainnet") && /^\d+$/.test(label)) label = "0.0." + label
 
   addAcctLabel = label
@@ -116,31 +123,44 @@ async function chooseAddAcct(raw){
   updateAddAcctJoinCount()
 }
 
+// Chips rendered like the game's asset chips (same .asset base class + hover
+// tooltip attrs); tap toggles ghosted-out = excluded. Labels upgrade in place as
+// the shared enrichment cache fills (symbol for FTs, collection #serial for NFTs)
+// — token id is the instant fallback so the list never waits on the mirror.
+// Thumbnails deliberately NOT yet (user 2026-07-07: keep it simple/fast first).
 function renderAddAcctAssets(assets){
   const box = document.getElementById("addAcctAssets")
   box.innerHTML = ""
   if(!addAcctList.length){ box.textContent = "No assets found on this account"; return }
+  const net = addAcctNet()
 
   addAcctList.forEach(id => {
-    const row = document.createElement("label")
-    row.className = "addacct-asset-row"
-    const cb = document.createElement("input")
-    cb.type = "checkbox"
-    cb.checked = true
-    cb.onchange = () => {
-      cb.checked ? addAcctSel.add(id) : addAcctSel.delete(id)
+    const chip = document.createElement("div")
+    chip.className = "asset addacct-chip"
+    chip.dataset.assetId = id
+    chip.title = "Tap to exclude / include"
+    const labelEl = document.createElement("span")
+    labelEl.textContent = (typeof getAssetDisplay === "function") ? getAssetDisplay(id, assets[id]) : id
+    chip.appendChild(labelEl)
+    chip.onclick = () => {
+      const on = !addAcctSel.has(id)
+      on ? addAcctSel.add(id) : addAcctSel.delete(id)
+      chip.classList.toggle("addacct-ghost", !on)
       updateAddAcctJoinCount()
     }
-    const name = document.createElement("span")
-    name.className = "addacct-asset-id"
-    name.textContent = id.includes("#") ? id.replace("#", " #") : id     // "0.0.x #7" reads as NFT serial
-    const amt = document.createElement("span")
-    amt.className = "addacct-asset-amt subtle"
-    amt.textContent = id.includes("#") ? "NFT" : String(assets[id])
-    row.appendChild(cb)
-    row.appendChild(name)
-    row.appendChild(amt)
-    box.appendChild(row)
+    box.appendChild(chip)
+
+    // async symbol/name — same cache the game fills, so repeat visits are instant
+    if(net && typeof enrichAsset === "function" && typeof getAssetMeta === "function" && !getAssetMeta(id)){
+      enrichAsset(net, id, assets[id]).then(e => {
+        window.assetDisplayCache ||= {}
+        window.assetDisplayCache[id] = e.meta
+        labelEl.textContent = getAssetDisplay(id, assets[id])
+        chip.dataset.assetName = e.meta?.token_class?.name || ""
+      }).catch(() => {})
+    } else if(typeof getAssetMeta === "function" && getAssetMeta(id)){
+      chip.dataset.assetName = getAssetMeta(id)?.token_class?.name || ""
+    }
   })
 }
 
@@ -154,7 +174,7 @@ function updateAddAcctJoinCount(){
 
 function addAcctSelectAll(on){
   addAcctSel = on ? new Set(addAcctList) : new Set()
-  document.querySelectorAll("#addAcctAssets input[type=checkbox]").forEach(cb => cb.checked = on)
+  document.querySelectorAll("#addAcctAssets .addacct-chip").forEach(c => c.classList.toggle("addacct-ghost", !on))
   updateAddAcctJoinCount()
 }
 
@@ -221,7 +241,7 @@ document.addEventListener("keydown", e => {
 // Same connect dance as the profile modal (katomia-auth.js kauthOnAccountChange):
 // z-index bump so the WC modal isn't buried, ensureNetwork, connect, re-list.
 async function addAcctConnect(){
-  const net = gameMeta?.network || ""
+  const net = addAcctNet()
   if(!window.WC){ try { notify?.("WalletConnect not loaded yet", "error", { timeout: 3000 }) } catch {}; return }
   addAcctStatus("Connecting wallet…")
   try {

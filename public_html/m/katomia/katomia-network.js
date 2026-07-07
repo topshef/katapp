@@ -204,6 +204,10 @@ if(!window.__katomiaWsLifecycle){
 
 function connect(onOpenAction){
 
+  // An explicit connect (e.g. adding an account again after a 🗑️ exit) re-arms the
+  // resilience layer that exitGame() switched off.
+  wsShouldRun = true
+
   if(socket && socket.readyState === WebSocket.OPEN){
     onOpenAction && onOpenAction()
     return
@@ -267,6 +271,9 @@ function connect(onOpenAction){
 
     gameMeta = data.meta || null
     state = data.state
+    // PROP-ADDACCT1: survives exitGame() (which nulls gameMeta) so the add-account
+    // modal still knows the game's network when re-adding after a 🗑️ exit.
+    if(gameMeta?.network) window.__katomiaNetwork = gameMeta.network
     
     document.body.dataset.tradingMode = gameMeta?.config?.tradingMode || ""
   

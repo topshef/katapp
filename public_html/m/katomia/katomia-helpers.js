@@ -149,10 +149,20 @@
 			return Object.values(state.accounts).map(account => ({
 				id: account.id,
 				label: account.label,
+				accountId: account.accountId || account.label,
 				playerId: account.playerId,
 				assets: account.assets || [],
 				basket: account.basket || [],
 				mode: account.mode || "shop",
+				// PROFILE-AUTH3/PROP-LOCKSIGN1: this whitelist silently DROPPED the auth
+				// fields the backend stamps on broadcast, so the 💠/△ row marker always
+				// saw undefined and showed △ even with a valid verified binding (order
+				// badges read state.accounts directly, which is why THEY showed 💠).
+				authenticated: !!account.authenticated,
+				authBound: !!account.authBound,
+				authWeight: account.authWeight || 0,
+				authThreshold: account.authThreshold ?? null,
+				authIntentKeys: account.authIntentKeys || [],
 			}))
 		}
 
