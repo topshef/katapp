@@ -368,7 +368,13 @@ async function katomiaAuthOnProfileOpen(){
   const network = kauthNetwork()
   try { window.__kauthIntentKey = await getKatomiaOrderPubkeyHex() }
   catch(e){ kauthDiag("intentkey-fail", { error: String(e) }) }
-  const accounts = await kauthWCAccounts(network, false)
+  // PROFILE-NETLIST1 (2026-07-08): ensure=true so the picker/game network is made LIVE
+  // before listing — the connector holds only one network's accounts at a time, and the
+  // old ensure=false path scope-skipped to [] ("no wallet connected") whenever the live
+  // connector was on a DIFFERENT network than this profile's, even though the session
+  // existed in storage (why signing still worked). ensureNetwork is a no-op when already
+  // on `network`, so this only switches (cheap now, WC-SESSIONDISPOSE1) when it must.
+  const accounts = await kauthWCAccounts(network, true)
   if(accounts.length && !window.__kauthActive) window.__kauthActive = accounts[0]
   kauthRenderAccounts(accounts)
 }
@@ -516,12 +522,15 @@ function initKatomiaAuth(){
     if(el) el.onchange = () => updateAuthStatement()
   }
 
-  // Network picker (standalone/index use): switching networks re-lists the
-  // connected accounts for that network and refreshes the statement.
+  // Network picker (standalone/index use): switching networks SWITCHES the connector to
+  // that network (ensure=true, PROFILE-NETLIST1) and lists its connected accounts —
+  // otherwise picking testnet while the connector is on mainnet showed an empty list.
   const netSel = document.getElementById("authNetwork")
   if(netSel) netSel.onchange = async () => {
     window.__kauthActive = null
-    kauthRenderAccounts(await kauthWCAccounts(kauthNetwork(), false))
+    kauthSetStatus("Switching network…")
+    kauthRenderAccounts(await kauthWCAccounts(kauthNetwork(), true))
+    kauthSetStatus("")
   }
 }
 
