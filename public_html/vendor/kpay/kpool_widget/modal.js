@@ -125,6 +125,34 @@ function injectModalCSS() {
 		}
 	`
 	document.head.appendChild(style)
+	installWcmZIndexGuard()
+}
+
+// WCM-ZINDEX1 (2026-07-08): WalletConnect's ThemeUtil.setTheme() writes
+// --wcm-z-index:"89" INLINE on <html>, which beats both the :root rule above and the
+// per-connect programmatic bump — and it re-applies ASYNC during the modal lifecycle
+// (theme re-render / session restore), so a bump set just before wc.connect() can be
+// clobbered a beat later, dropping the WC modal UNDER our signing/profile modals
+// (z 2000–9999). Reported intermittently 2026-07-08. This self-healing guard re-asserts
+// our high value whenever WC lowers it — a MutationObserver on <html>'s style attribute,
+// installed once. Only ever RAISES the z-index, so it can't harm anything.
+const WCM_Z = '2147483000'
+// window-level flag (not module-level): katomia-auth.js installs the SAME guard on page
+// load so the profile/add-account connect flows are covered even when the signing modal
+// (this module) never opens. Whichever runs first wins; the other no-ops.
+function installWcmZIndexGuard() {
+	if (typeof window === 'undefined' || window.__wcmZGuardInstalled || typeof MutationObserver === 'undefined') return
+	window.__wcmZGuardInstalled = true
+	const html = document.documentElement
+	const assert = () => {
+		if (html.style.getPropertyValue('--wcm-z-index') === WCM_Z) return
+		const was = html.style.getPropertyValue('--wcm-z-index') || '(unset)'
+		html.style.setProperty('--wcm-z-index', WCM_Z)
+		html.style.setProperty('--w3m-z-index', WCM_Z)
+		try { globalThis.kdiag?.('wc:zindex-corrected', { was, to: WCM_Z }) } catch {}
+	}
+	assert()
+	new MutationObserver(assert).observe(html, { attributes: true, attributeFilter: ['style'] })
 }
 
 export function buildModal({ onClose } = {}) {

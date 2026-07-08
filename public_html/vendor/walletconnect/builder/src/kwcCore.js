@@ -348,6 +348,7 @@ async function ensureNetwork(network) {
   // called 2 times" warning) = two slow relay handshakes on the first connect. Since
   // the signer calls ensureNetwork() before any other WC call, building straight for
   // the tx network means a single init.
+  const _outgoing = dappConnector
   if (dappConnector) {
     console.log("[WC] ensureNetwork: switching connector", currentNetwork, "->", network)
     // WC-NETSWITCH1 (2026-07-07): dispose the OUTGOING connector's modal before building
@@ -361,6 +362,26 @@ async function ensureNetwork(network) {
   }
   dappConnector = await buildConnectorForNetwork(network)
   currentNetwork = network
+
+  // WC-SESSIONDISPOSE1 (2026-07-08): the outgoing connector's SignClient/relay was never
+  // torn down, so its websocket kept receiving inbound messages for the old network that
+  // it could no longer route — the "No matching key" / "onRelayMessage failed to process"
+  // / "Pending session not found" spam, and a stale pairing that could make a later Sign
+  // do nothing until the user disconnected+reconnected. Close ONLY the old relay transport
+  // (sessions persist in Core storage and are restored when that network is rebuilt).
+  // Done AFTER the new connector is up. If the two share one Core, closing here would also
+  // break the new relay — verified in the isolated lab1 build that they do NOT (signing
+  // still works across a switch). Guard against closing the same relayer object the new
+  // connector uses, just in case.
+  if (_outgoing && _outgoing !== dappConnector) {
+    const oldRelayer = _outgoing.walletConnectClient?.core?.relayer
+    const newRelayer = dappConnector.walletConnectClient?.core?.relayer
+    if (oldRelayer && oldRelayer !== newRelayer) {
+      Promise.resolve().then(() => oldRelayer.transportClose?.())
+        .then(() => { try { window.kdiag?.("wc:old-relay-closed", { from: currentNetwork }) } catch (e) {} })
+        .catch((e) => { try { window.kdiag?.("wc:old-relay-close-fail", { error: String(e?.message || e) }) } catch (_) {} })
+    }
+  }
   activeAccountId = null   // active selection is network-specific
   // Make initializeWalletConnect() resolve to THIS connector so later callers don't
   // rebuild or get a stale one.

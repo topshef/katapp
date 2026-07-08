@@ -13,6 +13,30 @@
 
 function kauthDiag(event, data){ try { window.kdiag?.("auth:" + event, data) } catch {} }
 
+// WCM-ZINDEX1 (2026-07-08): WalletConnect's ThemeUtil.setTheme() writes --wcm-z-index:"89"
+// INLINE on <html> and re-applies it ASYNC through the modal lifecycle, clobbering our
+// one-shot bump and dropping the WC modal UNDER our profile/signing modals (reported
+// intermittently). Self-healing guard re-asserts our high value whenever WC lowers it.
+// The kpool widget (modal.js) installs an identical guard for the signing modal / the
+// standalone /future signer; both share window.__wcmZGuardInstalled so only one runs —
+// this copy covers the profile + add-account connect flows, which never open that modal.
+// Installed once at load (initKatomiaAuth). Only ever RAISES z-index → can't harm.
+function kauthInstallWcmZGuard(){
+  if(window.__wcmZGuardInstalled || typeof MutationObserver === "undefined") return
+  window.__wcmZGuardInstalled = true
+  const html = document.documentElement
+  const Z = "2147483000"
+  const assert = () => {
+    if(html.style.getPropertyValue("--wcm-z-index") === Z) return
+    const was = html.style.getPropertyValue("--wcm-z-index") || "(unset)"
+    html.style.setProperty("--wcm-z-index", Z)
+    html.style.setProperty("--w3m-z-index", Z)
+    kauthDiag("wc-zindex-corrected", { was, to: Z })
+  }
+  assert()
+  new MutationObserver(assert).observe(html, { attributes: true, attributeFilter: ["style"] })
+}
+
 // WC-NETSWITCH1 mitigation (2026-07-07): switching the WC connector to a game's network
 // (mainnet default → testnet) rebuilds it and spawns a SECOND <wcm-modal> without
 // disposing the first — two stacked modals, the dead one on top, so the pairing popup
@@ -344,7 +368,13 @@ async function katomiaAuthOnProfileOpen(){
   const network = kauthNetwork()
   try { window.__kauthIntentKey = await getKatomiaOrderPubkeyHex() }
   catch(e){ kauthDiag("intentkey-fail", { error: String(e) }) }
-  const accounts = await kauthWCAccounts(network, false)
+  // PROFILE-NETLIST1 (2026-07-08): ensure=true so the picker/game network is made LIVE
+  // before listing — the connector holds only one network's accounts at a time, and the
+  // old ensure=false path scope-skipped to [] ("no wallet connected") whenever the live
+  // connector was on a DIFFERENT network than this profile's, even though the session
+  // existed in storage (why signing still worked). ensureNetwork is a no-op when already
+  // on `network`, so this only switches (cheap now, WC-SESSIONDISPOSE1) when it must.
+  const accounts = await kauthWCAccounts(network, true)
   if(accounts.length && !window.__kauthActive) window.__kauthActive = accounts[0]
   kauthRenderAccounts(accounts)
 }
@@ -472,6 +502,7 @@ async function publishKatomiaAuthEnvelope(envelope){
 }
 
 function initKatomiaAuth(){
+  kauthInstallWcmZGuard()   // document-level; install even if this page has no profile modal
   const btn = document.getElementById("authBtn")
   if(!btn) return
   btn.onclick = () => runKatomiaRaiseCommitment()
@@ -491,12 +522,15 @@ function initKatomiaAuth(){
     if(el) el.onchange = () => updateAuthStatement()
   }
 
-  // Network picker (standalone/index use): switching networks re-lists the
-  // connected accounts for that network and refreshes the statement.
+  // Network picker (standalone/index use): switching networks SWITCHES the connector to
+  // that network (ensure=true, PROFILE-NETLIST1) and lists its connected accounts —
+  // otherwise picking testnet while the connector is on mainnet showed an empty list.
   const netSel = document.getElementById("authNetwork")
   if(netSel) netSel.onchange = async () => {
     window.__kauthActive = null
-    kauthRenderAccounts(await kauthWCAccounts(kauthNetwork(), false))
+    kauthSetStatus("Switching network…")
+    kauthRenderAccounts(await kauthWCAccounts(kauthNetwork(), true))
+    kauthSetStatus("")
   }
 }
 

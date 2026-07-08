@@ -12,7 +12,12 @@ elog($kwc, "loading script type $kwc->script_type from $kwc->url");
 function getKwc($in) {
 
   $kwc_root = $in['kwc_root'] ?? '/vendor/walletconnect';
-  $kwc_version = $in['kwc_version'] ?? '4f74b48';  //'latest'; prev 53216ab / 70c2c9b / c2fb550 / 79efefc / eb6ac8a — override via ?kwc_version=… for A/B comparison
+  // ⚠ LAB1 TEST POINTER (WC-NETSWITCH1 + WC-SESSIONDISPOSE1, 2026-07-08): 17f774f is built
+  // LOCALLY in this worktree's builder/snapshots/ (network-switch double-modal fix +
+  // old-relay dispose). It does NOT exist on main — DO NOT promote this pointer to kswap
+  // until that snapshot is built/deployed on main, or WC will 404→hydrate-miss there.
+  // Revert to 4f74b48 to promote the rest without the local bundle. (superseded 4c7696e)
+  $kwc_version = $in['kwc_version'] ?? '17f774f';  //prev 4c7696e / 4f74b48 / 53216ab / 70c2c9b — override via ?kwc_version=… for A/B comparison
 
   if (preg_match('/^[0-9a-fA-F]+$/', $kwc_version)) { // hex.. it's a commit snapshot
     $commit = $kwc_version;
