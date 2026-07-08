@@ -2083,55 +2083,78 @@ textarea:focus{
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-/* PROFILE-AUTH1 — wallet Authenticate panel */
+/* PROFILE-AUTH1 — wallet Authenticate panel.
+   PROFILE-TIDY1 (2026-07-07): modernised — one control style (rounded, consistent
+   heights, custom chevron), label column so Network/Account rows line up, options as
+   an aligned grid. ALSO the load-bearing fix: there was NO .hidden rule on these
+   pages at all (lost when the modal left game.php for the shared partial), so the
+   network row / options / statement showed unconditionally — the "clutter". */
+#profileModal .hidden{ display:none; }
+
 .profile-auth{
   /* now nested inside .profile-section (.profile-repute), which owns the divider */
   margin-top:8px;
 }
-.profile-auth-account{
-  margin-top:10px;
-  display:flex;
-  align-items:center;
-  gap:6px;
-  flex-wrap:wrap;
+.profile-auth select{
+  appearance:none;
+  -webkit-appearance:none;
+  background:#fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239aa0a6' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  border:1px solid #dcdfe4;
+  border-radius:8px;
+  padding:7px 28px 7px 10px;
+  font-size:12px;
+  color:#222;
+  line-height:1.3;
 }
-.profile-auth-account > .profile-label{ flex:0 0 auto; }
+.profile-auth select:focus{
+  outline:none;
+  border-color:#9aa6b2;
+  box-shadow:0 0 0 2px rgba(0,0,0,.05);
+}
+.profile-auth-account{
+  margin-top:8px;
+  display:grid;
+  grid-template-columns:64px minmax(0,1fr) auto;
+  gap:8px;
+  align-items:center;
+}
+.profile-auth-account > .profile-label{ margin:0; }
 .profile-auth-account select,
 .profile-auth-select{
-  flex:1 1 140px;
   min-width:0;
-  padding:6px 8px;
   font-family:var(--font-mono);
-  font-size:12px;
 }
-/* "Disconnect" account button — a clear labelled ghost button (was a cryptic ✕). */
-.profile-auth-x{
-  flex:0 0 auto;
-  padding:5px 10px;
+/* "Disconnect" account button — a clear labelled ghost button (was a cryptic ✕).
+   Padding matches the selects (7px block) so it centres level with the account id.
+   button.-prefixed to outrank ".profile-card button"'s margin-top:12px (same
+   specificity, later in the sheet wins). */
+button.profile-auth-x{
+  padding:7px 10px;
+  margin:0;
+  align-self:center;
   border:1px solid #e3e6ea;
-  border-radius:6px;
+  border-radius:8px;
   background:#fff;
   cursor:pointer;
-  line-height:1;
+  line-height:1.3;
   font-size:11px;
   color:#b00020;
 }
 .profile-auth-x:hover{ background:#fbe9ec; border-color:#f2c2cc; }
-/* Commitment options (expiry / scope / publish) — PROFILE-AUTH wireframe */
+/* Commitment options (expiry / scope / publish) — one row aligned with the account
+   rows: Expiry label shares the 64px label column, Scope's select gets the wider
+   share (its option text is the longest); publish spans the full row below. */
 .profile-auth-options{
-  margin-top:10px;
-  display:flex;
-  flex-wrap:wrap;
-  gap:10px 14px;
+  margin-top:8px;
+  display:grid;
+  grid-template-columns:64px minmax(0, 0.8fr) auto minmax(0, 1.2fr);
+  gap:8px;
   align-items:center;
   font-size:12px;
 }
-.profile-auth-options select{
-  margin-left:4px;
-  padding:4px 6px;
-  font-size:12px;
-}
-.profile-auth-publish{ display:flex; align-items:center; gap:6px; }
+.profile-auth-options > .profile-label{ margin:0; }
+.profile-auth-options select{ min-width:0; }
+.profile-auth-publish{ grid-column:1 / -1; display:flex; align-items:center; gap:6px; }
 .profile-auth-statement{
   margin-top:10px;
   padding:8px 10px;
@@ -2240,6 +2263,22 @@ body.nerd .profile-nerd-only{ display:block; }
   min-height:1em;
   font-size:12px;
 }
+/* PROFILE-TIDY1: primary action styling for Raise commitment (generic buttons went
+   neutral in UI-HOVERCOLOR1 — this one deserves emphasis) */
+#authBtn{
+  margin-top:12px;
+  background:#4a7dbd;
+  color:#fff;
+  border:none;
+  border-radius:8px;
+  padding:8px 16px;
+  font-size:13px;
+}
+#authBtn:hover{ background:#426fa8; }
+/* nerd-only collapsed envelope after a raise */
+.profile-auth-result{ margin-top:8px; font-size:12px; }
+.profile-auth-result > summary{ cursor:pointer; color:#5f6368; }
+.profile-auth-result button{ margin-top:8px; }
 .profile-auth-output{
   margin-top:10px;
   max-height:240px;

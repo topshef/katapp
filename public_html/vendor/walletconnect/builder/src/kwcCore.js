@@ -348,7 +348,17 @@ async function ensureNetwork(network) {
   // called 2 times" warning) = two slow relay handshakes on the first connect. Since
   // the signer calls ensureNetwork() before any other WC call, building straight for
   // the tx network means a single init.
-  if (dappConnector) console.log("[WC] ensureNetwork: switching connector", currentNetwork, "->", network)
+  if (dappConnector) {
+    console.log("[WC] ensureNetwork: switching connector", currentNetwork, "->", network)
+    // WC-NETSWITCH1 (2026-07-07): dispose the OUTGOING connector's modal before building
+    // the replacement. Each buildConnectorForNetwork() constructs a fresh DAppConnector
+    // whose WalletConnectModal appends its own <wcm-modal> web component; the old one was
+    // never removed, so a network switch (e.g. mainnet→testnet on the katomia profile /
+    // the standalone signer) left TWO stacked modals — the dead one on top meant the
+    // pairing popup appeared to never open. Close + remove the stale modal element(s).
+    try { dappConnector.walletConnectModal?.closeModal?.() } catch (e) {}
+    try { document.querySelectorAll("wcm-modal").forEach((el) => el.remove()) } catch (e) {}
+  }
   dappConnector = await buildConnectorForNetwork(network)
   currentNetwork = network
   activeAccountId = null   // active selection is network-specific

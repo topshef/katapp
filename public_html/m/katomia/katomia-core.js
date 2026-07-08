@@ -56,7 +56,11 @@
     }
 
 
-    // Stored as JWK (JSON) in localStorage — same pattern as playerToken
+    // Stored as JWK (JSON) in localStorage — same pattern as playerToken.
+    // KEY ROTATION is deliberately NOT a feature (user decision 2026-07-07): clearing
+    // the browser's site data deletes this key and a fresh one is minted on next load —
+    // that IS the rotation path. Anonymous users churn identity that way for free;
+    // wallet-bound users have no reason to (they'd just re-raise a binding anyway).
     const PLAYER_KEY_STORAGE = "katomiaPlayerKeypair"
 
     async function getOrCreatePlayerKeypair() {
