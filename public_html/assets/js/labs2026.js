@@ -263,7 +263,17 @@ async function transformDealData({deal}) {
 		out.allTransfers = await mergeAllTransfers(deal) // add this back into the input
     out.title       = deal.display.title ?? 'untitled RH45323'
     out.description = deal.display.description ?? 'no desc WK83843'
-    out.image       = deal.display.thumbnail ?? ''
+
+		// fall back to the traded NFT's own image rather than a generic stock
+		// thumbnail when the deal author didn't set one - only handles the
+		// common single-NFT case; multiple NFTs in one deal falls through to
+		// the generic thumbnail for now (todo: image carousel/click-through)
+		const nftImages = out.allTransfers
+			.filter(x => x.assetType === 'NFT' && x.imageURL)
+			.map(x => x.imageURL)
+		const singleNftImage = (nftImages.length === 1) ? nftImages[0] : null
+
+		out.image = deal.display.thumbnail || singleNftImage || ''
 		out.button      = deal.display.button || 'Buy now'
 
     if (hasParm('operatorId'))
@@ -461,6 +471,7 @@ async function mergeAllTransfers(deal) {
 			sender: xfer.sender,
 			receiver: xfer.receiver,
 			tokenLabel: meta?.token_instance_name || `${xfer.tokenId} #${xfer.serial}`,
+			imageURL: meta?.token_asset_image_URL || null,
 			userInput: xfer.userInput,
     }
   }
@@ -841,6 +852,11 @@ async function renderPage() {
   document.querySelector('#product-panel .ubid-related-by-collection').innerHTML = ''
   document.querySelector('#deal-panel .ubid-transfers').innerHTML = ''
   document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = ''
+
+  // reset the shared image so the shimmer placeholder shows again on SPA
+  // navigation between products/deals, not just the very first page load
+  const img = document.querySelector('#combo-container .ubid-media img')
+  if (img) { img.classList.remove('loaded'); img.removeAttribute('src') }
 
   const entityType = resolveEntityType(productId, dealId)
 	showPanel(entityType)
