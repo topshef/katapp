@@ -13,6 +13,30 @@
 
 function kauthDiag(event, data){ try { window.kdiag?.("auth:" + event, data) } catch {} }
 
+// WCM-ZINDEX1 (2026-07-08): WalletConnect's ThemeUtil.setTheme() writes --wcm-z-index:"89"
+// INLINE on <html> and re-applies it ASYNC through the modal lifecycle, clobbering our
+// one-shot bump and dropping the WC modal UNDER our profile/signing modals (reported
+// intermittently). Self-healing guard re-asserts our high value whenever WC lowers it.
+// The kpool widget (modal.js) installs an identical guard for the signing modal / the
+// standalone /future signer; both share window.__wcmZGuardInstalled so only one runs —
+// this copy covers the profile + add-account connect flows, which never open that modal.
+// Installed once at load (initKatomiaAuth). Only ever RAISES z-index → can't harm.
+function kauthInstallWcmZGuard(){
+  if(window.__wcmZGuardInstalled || typeof MutationObserver === "undefined") return
+  window.__wcmZGuardInstalled = true
+  const html = document.documentElement
+  const Z = "2147483000"
+  const assert = () => {
+    if(html.style.getPropertyValue("--wcm-z-index") === Z) return
+    const was = html.style.getPropertyValue("--wcm-z-index") || "(unset)"
+    html.style.setProperty("--wcm-z-index", Z)
+    html.style.setProperty("--w3m-z-index", Z)
+    kauthDiag("wc-zindex-corrected", { was, to: Z })
+  }
+  assert()
+  new MutationObserver(assert).observe(html, { attributes: true, attributeFilter: ["style"] })
+}
+
 // WC-NETSWITCH1 mitigation (2026-07-07): switching the WC connector to a game's network
 // (mainnet default → testnet) rebuilds it and spawns a SECOND <wcm-modal> without
 // disposing the first — two stacked modals, the dead one on top, so the pairing popup
@@ -472,6 +496,7 @@ async function publishKatomiaAuthEnvelope(envelope){
 }
 
 function initKatomiaAuth(){
+  kauthInstallWcmZGuard()   // document-level; install even if this page has no profile modal
   const btn = document.getElementById("authBtn")
   if(!btn) return
   btn.onclick = () => runKatomiaRaiseCommitment()
