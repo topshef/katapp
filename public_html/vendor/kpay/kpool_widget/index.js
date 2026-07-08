@@ -227,6 +227,12 @@ async function renderSigner(txState, opts) {
 		saveUrl:  opts.saveUrl,
 		onSigned:  async (saveResult) => {
 			notify(txState, '✍️ Signature submitted', 'success')
+			// KFLOW-MARKERS1 G2: fe-tier signing checkpoint, correlated to the katomia run
+			// (window.kflow carries run/visit/user on the game page). Proves THIS participant
+			// signed — a triangle needs all ring members to sign, so per-user sign events let
+			// the challenge confirm each did (SUCCESS alone only proves the threshold was met).
+			// saveResult.result.sigs is the authoritative sig set; count is the fingerprint.
+			try { globalThis.kflow?.('sign:done', 'ok', { txid: txState?.txid, sigs: saveResult?.result?.sigs?.length ?? null }) } catch (e) {}
 			if (!txStateLive(txState)) return
 
 			// INSTANT update (FRONT-POSTSIGN1): the previous version did a ~5s txRead
