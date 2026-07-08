@@ -536,7 +536,33 @@ function renderProductPanel(data) {
 
 
 
+// An alias (deal.alias, eg {"treasury":"0.0.196823"}) is just the deal
+// author's own convenience label for an account - not a trusted/reserved
+// name like "buyer", so it's plain parenthetical text, not a code chip.
+// Rendered as "<link to hashscan>0.0.196823</link> (treasury)".
+function renderAccountId(accountId, network, dealdata) {
+	if (accountId === 'buyer') return 'buyer'  // chipify() wraps this below
+	if (String(accountId).includes('{')) return accountId  // unresolved {var} - chipify() wraps below
+
+	const alias = dealdata?.aliasReversed?.[accountId]
+	const linked = `<a href='https://hashscan.io/${network}/account/${accountId}' target='hashscan'>${accountId}</a>`
+	return alias ? `${linked} (${alias})` : linked
+}
+
 function renderTransfer(xfer, dealdata) {
+	const network = dealdata.network
+
+	// legacy fallback: transfers with no structured accountId/sender-receiver
+	// (rare/old records that only ever had a freeform narrative) can't build
+	// the enriched line below - fall back to showing that text alone rather
+	// than a blank/broken auto line
+	const hasStructuredData = xfer.assetType === 'NFT'
+		? (xfer.sender != null && xfer.receiver != null)
+		: (xfer.accountId != null)
+
+	if (!hasStructuredData)
+		return chipify(xfer.userInput || xfer.txt || '')
+
 	let primary
 
 	if (xfer.assetType === 'NFT') {
@@ -546,7 +572,10 @@ function renderTransfer(xfer, dealdata) {
 		const localLink = renderLocalLink({href, label: xfer.tokenLabel, tooltip})
 		const elNft = renderTooltip(localLink, tooltip)
 
-		primary = `${xfer.sender} sends ${elNft} to ${xfer.receiver}`
+		const sender = renderAccountId(xfer.sender, network, dealdata)
+		const receiver = renderAccountId(xfer.receiver, network, dealdata)
+
+		primary = `${sender} sends ${elNft} to ${receiver}`
 
 	} else {
 		// LE/FT0 (zero-decimal fungible - eg limited editions) read better without
@@ -563,14 +592,17 @@ function renderTransfer(xfer, dealdata) {
 			? `<a href='${xfer.tokenLink}' target='hashscan'>${xfer.tokenLabel}</a>`
 			: xfer.tokenLabel
 
-		primary = `${xfer.accountId} ${xfer.verb} ${amountPart}${tokenLinkHtml}`
+		const account = renderAccountId(xfer.accountId, network, dealdata)
+
+		primary = `${account} ${xfer.verb} ${amountPart}${tokenLinkHtml}`
 	}
 
-	let html = chipify(primary)
-
-	if (xfer.userInput) html += `<BR><I>${chipify(xfer.userInput)}</I>`
-
-	return html
+	// the authored userInput sentence is no longer shown alongside this line -
+	// once we have structured data, it was purely restating the same transfer
+	// (often via an alias name, which now renders inline above via
+	// renderAccountId instead of as a separate line). Kept on the xfer object
+	// though, in case a future "view raw script" toggle wants it.
+	return chipify(primary)
 }
 
 
