@@ -260,7 +260,7 @@ async function transformDealData({deal}) {
     let out = {}
 		out.network = deal.network
 		// ubid.deal = deal // return the input ?
-		out.allTransfers = mergeAllTransfers(deal) // add this back into the input
+		out.allTransfers = await mergeAllTransfers(deal) // add this back into the input
     out.title       = deal.display.title ?? 'untitled RH45323'
     out.description = deal.display.description ?? 'no desc WK83843'
     out.image       = deal.display.thumbnail ?? ''
@@ -323,60 +323,145 @@ function parseAmount(value) {
 
   return {
     sign: isNegative ? '-' : '+',
-		verb: isNegative ? 'receives' : 'sends',
+		verb: isNegative ? 'sends' : 'receives',  // GMDEALDISPLAY1: was inverted - a negative
+		                                           // transfer value means the account is SENDING
+		                                           // that asset, not receiving it (confirmed
+		                                           // against authored userInput text, eg
+		                                           // {"value":"-0.3","userInput":"buyer sends 0.3 hbar"})
     absAmount
   }
 }
 
-function mergeAllTransfers(deal) {  // too long atm.. todo remove narrative and handle in render
- 
-	
+// ─── Asset type + decimal-aware display ──────────────────────────────────
+// Ported from swap.kpay.live/public_html/m/katomia/katomia-helpers.js
+// (getAssetType) and katomia-enrich.js (getDisplayDecimals / formatAssetDisplay)
+// as of 2026-07-08. Deliberately duplicated rather than shared, for GoMint
+// stability while it's mid-sync with Katomia - see GMDEALDISPLAY1. If
+// Katomia's asset classification/formatting changes, check whether this copy
+// needs the same update. Longer term this should become a shared library
+// both projects import instead of each keeping its own copy.
+
+function getAssetType(tokenClass, amount = 1) {
+	if (!tokenClass) return 'UNKNOWN'
+	if (tokenClass.type === 'NON_FUNGIBLE_UNIQUE') return 'NFT'
+
+	const decimals = Number(tokenClass.decimals || 0)
+	if (decimals === 0) return (Math.abs(amount) <= 10000) ? 'LE' : 'FT0'  // LE = limited-edition / zero-decimal collectible fungible
+	return 'FT'
+}
+
+function getDisplayDecimals(tokenClass) {
+	const decimals = Number(tokenClass?.decimals || 0)
+	return Math.min(decimals, 8)
+}
+
+function getTokenLabel(tokenClass, fallbackId) {
+	if (!tokenClass) return fallbackId
+
+	const symbol = tokenClass.symbol || fallbackId
+	const name = tokenClass.name || fallbackId
+
+	// some legacy tokens (eg KT1) carry a hedera://...roothash=... URI as their
+	// "symbol" - fall back to name in that case, same special-case as Katomia's
+	// formatAssetDisplay
+	let label = (symbol && String(symbol).toLowerCase().startsWith('hedera://')) ? name : symbol
+
+	if (name && label !== name) label += ` (${name})`
+	return label || fallbackId
+}
+
+function formatFungibleAmount(rawValue, tokenClass) {
+	const decimals = Number(tokenClass?.decimals || 0)
+	if (!decimals) return String(Math.abs(Number(rawValue)))
+
+	const value = Math.abs(Number(rawValue)) / (10 ** decimals)
+	const displayDecimals = getDisplayDecimals(tokenClass)
+	const rounded = value.toFixed(displayDecimals).replace(/\.?0+$/, '')
+	return rounded || '0'
+}
+
+// {var} tokens and the bare "buyer" placeholder both render as mono chips -
+// "buyer" is a reserved word substituted server-side at signing time (see
+// hbarlive_hts/dealEngine.js injectString()), so it's not a real account id
+// yet at display time; showing it as a chip like any other unresolved
+// variable is clearer than a "You send/receive" guess this early.
+function chipify(text) {
+	if (text == null) return text
+	return String(text)
+		.replace(/\{([^}]*)\}/g, "<span class='code'>$1</span>")
+		.replace(/\bbuyer\b/g, "<span class='code'>buyer</span>")
+}
+
+// ─── Merge + enrich all transfers ─────────────────────────────────────────
+// Fetches token/NFT metadata (name, symbol, decimals) for everything
+// referenced in the deal so amounts and labels render properly instead of
+// raw token ids and unscaled integers (GMDEALDISPLAY1).
+async function mergeAllTransfers(deal) {
+
+	const network = deal.network
+
+	window.gmAssetMetaCache ||= {}
+	const cache = window.gmAssetMetaCache
+
+	const metaKeys = new Set()
+	;(deal.addTokenTransfer || []).forEach(x => metaKeys.add(`${network};${x.tokenId}`))
+	;(deal.addNftTransfer || []).forEach(x => {
+		if (/^\d+$/.test(String(x.serial))) metaKeys.add(`${network};${x.tokenId}-${x.serial}`)
+	})
+
+	const jobs = [...metaKeys]
+		.filter(key => cache[key] === undefined)
+		.map(key => fetchProduct(key).then(meta => { cache[key] = meta }).catch(() => { cache[key] = null }))
+
+	if (jobs.length) await Promise.all(jobs)
+
   const normaliseHbar = xfer => {
-    const {sign, verb, absAmount} = parseAmount(xfer.value) 
-		console.log({xfer,sign, verb,absAmount})
-    // const verb = amount < 0 ? 'sends' : 'receives'
-		const asset = 'HBAR'
-		
+    const {verb, absAmount} = parseAmount(xfer.value)
+
     return {
-      // ...xfer,
-			asset,
-			sign, verb, absAmount, 
-      assetType: 'FT',
+			assetType: 'FT',
 			accountId: xfer.accountId,
 			amount: xfer.value,
-      // narrative: xfer.userInput || `${xfer.accountId} ${verb} ${absAmount} HBAR`
-      narrative: `${xfer.accountId} ${verb} ${absAmount} ${asset}`
+			displayAmount: absAmount,  // deal hbar values are already decimal hbar, not tinybar
+			tokenLabel: 'hbar',
+			tokenLink: 'https://hedera.com/hbar',
+			verb,
+			userInput: xfer.userInput,
     }
   }
 
   const normaliseFT = xfer => {
-		const {sign, verb, absAmount} = parseAmount(xfer.value) 
-		const asset = xfer.tokenId
-		
+		const {verb, absAmount} = parseAmount(xfer.value)
+		const isVar = String(xfer.value).includes('{')
+		const meta = cache[`${network};${xfer.tokenId}`]
+		const tokenClass = meta?.token_class
+
     return {
-      // ...xfer,
-			asset, needsHydration: true,
-			sign, verb, absAmount,
-      assetType: 'FT',
+			asset: xfer.tokenId,
+			assetType: getAssetType(tokenClass, Number(absAmount) || 1),
 			accountId: xfer.accountId,
       amount: xfer.value,
-      // narrative: xfer.userInput || `${xfer.accountId} ${verb} ${abs} ${xfer.tokenId}`,
-			narrative: `${xfer.accountId} ${verb} ${absAmount} ${asset}`,
-      
+			displayAmount: isVar ? absAmount : formatFungibleAmount(absAmount, tokenClass),
+			tokenLabel: getTokenLabel(tokenClass, xfer.tokenId),
+			tokenLink: `https://hashscan.io/${network}/token/${xfer.tokenId}`,
+			verb,
+			userInput: xfer.userInput,
     }
   }
 
   const normaliseNFT = xfer => {
-		const productId = `${deal.network};${xfer.tokenId}-${xfer.serial}`
+		const productId = `${network};${xfer.tokenId}-${xfer.serial}`
+		const meta = cache[productId]
+
     return {
-      ...xfer,
       assetType: 'NFT',
       asset: xfer.tokenId,
 			serialRange: xfer.serial,
 			productId: productId,
-      narrative:
-        xfer.userInput ||
-        `${xfer.sender} sends NFT ${xfer.tokenId}#${xfer.serial} to ${xfer.receiver}`
+			sender: xfer.sender,
+			receiver: xfer.receiver,
+			tokenLabel: meta?.token_instance_name || `${xfer.tokenId} #${xfer.serial}`,
+			userInput: xfer.userInput,
     }
   }
 
@@ -386,7 +471,6 @@ function mergeAllTransfers(deal) {  // too long atm.. todo remove narrative and 
     ...(deal.addNftTransfer || []).map(normaliseNFT)
   ]
 
-	console.log(allTransfers)
   return allTransfers
 }
 
@@ -453,51 +537,40 @@ function renderProductPanel(data) {
 
 
 function renderTransfer(xfer, dealdata) {
-	console.log(xfer)  // todo build narrative from primitives
-	const entityLabels = dealdata.aliasReversed || []
-	console.log({entityLabels})
-	
-	let debug = xfer.userInput || xfer.narrative || ''
-	
-	let narrative
-	if (xfer.assetType == 'NFT') {
-		console.log(xfer)
-		const nftProductId = `${dealdata.network};${xfer.asset}-${xfer.serialRange}`
-		const label = `${xfer.asset} #${xfer.serial}`
-		
-		const href = `?v=labs&productId=${nftProductId}`
-		const tooltip = `Product Id ${nftProductId}`
-		
-		const localLink = renderLocalLink({href, label, tooltip})
-		
+	let primary
+
+	if (xfer.assetType === 'NFT') {
+		const href = `?v=labs&productId=${xfer.productId}`
+		const tooltip = `Product Id ${xfer.productId}`
+
+		const localLink = renderLocalLink({href, label: xfer.tokenLabel, tooltip})
 		const elNft = renderTooltip(localLink, tooltip)
-		
-		narrative = `${xfer.sender} sends ${elNft} to ${xfer.receiver}` // test9ng ony
-		
+
+		primary = `${xfer.sender} sends ${elNft} to ${xfer.receiver}`
+
 	} else {
-		
-		narrative = `${xfer.accountId} ${xfer.verb} ${xfer.absAmount} ${xfer.asset} ${xfer.assetType}` // test9ng ony
+		// LE/FT0 (zero-decimal fungible - eg limited editions) read better without
+		// a redundant "1" when only a single unit is changing hands
+		let amountPart
+		if (xfer.assetType === 'LE' || xfer.assetType === 'FT0') {
+			const n = Number(xfer.displayAmount)
+			amountPart = (!isNaN(n) && n > 1) ? `×${xfer.displayAmount} ` : ''
+		} else {
+			amountPart = `${xfer.displayAmount} `
+		}
+
+		const tokenLinkHtml = xfer.tokenLink
+			? `<a href='${xfer.tokenLink}' target='hashscan'>${xfer.tokenLabel}</a>`
+			: xfer.tokenLabel
+
+		primary = `${xfer.accountId} ${xfer.verb} ${amountPart}${tokenLinkHtml}`
 	}
-		
-  
-	
-	
-  narrative = narrative.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
 
-	// todo later depending on wallet connect state
-	// narrative = narrative
-		// .replace(/\bbuyer receives\b/g, 'You receive')
-		// .replace(/\bbuyer sends\b/g, 'You send')
+	let html = chipify(primary)
 
+	if (xfer.userInput) html += `<BR><I>${chipify(xfer.userInput)}</I>`
 
-  // for (const [key, value] of Object.entries(entityLabels)) {
-    // const link = `<a href='https://kpay.uk/${value}' target='${value}'>${key}</a>`
-    // const regex = new RegExp(`\\b${key}\\b`, 'g')
-    // text = text.replace(regex, link)
-  // }
-		
-	return  narrative
-	// return  renderTooltip(narrative, `debug YU87457: ${debug}`)
+	return html
 }
 
 
@@ -506,9 +579,7 @@ function renderDealPanel(data) {
 	  document.querySelector('#deal-panel .ubid-description').innerHTML = data.description
 	  document.querySelector('#combo-container .ubid-media img').src = data.image || 'https://katomic.org/demo/defaultDealThumbnail.png'
 		
-		console.log(data)
-		console.log(data.transfers)
-		document.querySelector('#deal-panel .ubid-transfers').innerHTML 
+		document.querySelector('#deal-panel .ubid-transfers').innerHTML
 			= data.allTransfers.map(x => renderTransfer(x, data)).join('<BR>')
 
 		document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = (data.parameters || []).map(renderParameter).join('')
