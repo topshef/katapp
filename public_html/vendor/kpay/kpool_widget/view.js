@@ -171,12 +171,14 @@ const SIGN_REASON = {
 				`<span class="subtle">bytes-only: ${bytesVerify.missingFromDisplay.length}, display-only: ${bytesVerify.extraInDisplay.length} — details in diagnostics (tx:bytes-verify).</span>`
 			return el
 		}
+		// SIGN-BYTESNOTE1: plainer wording, no nested brackets, and this note now sits at
+		// the BOTTOM near the line items (see make() below) rather than crowding the top.
 		if (bytesVerify.status === 'match') {
-			el.textContent = `✔ display verified against signed bytes (${bytesVerify.counts.bytes} transfer legs, ${bytesVerify.mode})`
+			el.textContent = `✔ Checked — the ${bytesVerify.counts.bytes} transfers shown here match the actual transaction you are signing, so what you see is what you approve.`
 			return el
 		}
-		// unavailable / error — informational
-		el.textContent = `bytes-verify: ${bytesVerify.status} — ${bytesVerify.reason || ''}`
+		// unavailable / error — informational (nerd-only)
+		el.textContent = `Transfer check ${bytesVerify.status}${bytesVerify.reason ? ' — ' + bytesVerify.reason : ''} (couldn't compare the shown transfers to the signed bytes).`
 		return el
 	}
 
@@ -191,7 +193,6 @@ const SIGN_REASON = {
 		const mode = urlView || 'cards'
 		const make = name => {
 			const el = (TX_VIEWS[name] || TX_VIEWS.table)({ network, flow, transfers })
-			// bytes-vs-display verdict rides above EVERY transfer view (table + cards)
 			const note = buildBytesVerifyNote(transfers?.bytesVerify)
 			if (!note) return el
 			const wrap = document.createElement('div')
@@ -199,7 +200,11 @@ const SIGN_REASON = {
 			// so it must carry the cards' flex sizing — without this .txcards shrinks to
 			// content width (the "narrow account cards" regression, 2026-07-06).
 			if (el.classList?.contains('txcards')) wrap.style.flex = '1 1 380px'
-			wrap.append(note, el)
+			// SIGN-BYTESNOTE1: a MISMATCH is a danger — keep it ABOVE the transfers, loud.
+			// The reassuring "✔ Checked" (and unavailable) note is nerd-only reference, so
+			// it goes at the BOTTOM, under the line items, as a quiet footnote.
+			if (transfers?.bytesVerify?.status === 'mismatch') { note.classList.add('txread-bytes-verify--top'); wrap.append(note, el) }
+			else { note.classList.add('txread-bytes-verify--foot'); wrap.append(el, note) }
 			return wrap
 		}
 
@@ -1009,6 +1014,19 @@ export function updateCardBalances(precheck) {
 function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 	const wrap = document.createElement('div')
 
+	// TX-CARDS-XPROOFLINK1: the xproof domain/name (moved out of the tappable card header)
+	// with its clickable verification link + a one-line explainer, shown here in the detail.
+	if (acc.label && (acc.label.domain || acc.label.name)) {
+		const xp = document.createElement('div')
+		xp.className = 'txcard-detail-xproof'
+		const parts = []
+		if (acc.label.name) parts.push(`<span class="txcard-acct-label">${acc.label.name}</span>`)
+		if (acc.label.domain) parts.push(`<a href="https://${acc.label.domain}" target="_blank" rel="noopener">${acc.label.domain} ↗</a>`)
+		xp.innerHTML = parts.join(' · ') +
+			`<div class="txcard-detail-note txcard-detail-note--muted">Domain identity claimed for this account (xproof). Open the link to verify who published it.</div>`
+		wrap.appendChild(xp)
+	}
+
 	// SIGN-EXPLAIN1 (+ standard bullets, user 2026-07-07): ONE unified message list —
 	// ⚠️ = a problem blocking this account, ℹ️ = plain information (operator fee-payer,
 	// receiver-sig-required, no-sig-needed reference). Warnings float to the top; every
@@ -1054,8 +1072,15 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 		// doesn't sign at all, say so (implied by the thin grey border, but make it explicit).
 		if ((acc.mustSignReason || []).includes('receiver_sig_required'))
 			items.push({ warn: false, text: 'Receiver signature required: this account must sign even though it is receiving.' })
-		else if (!acc.mustSign)
-			items.push({ warn: false, text: 'No signature required from this account (shown for reference).' })
+		else if (!acc.mustSign) {
+			// SIGN-NOSIGREASON1: say WHY no signature is needed. An account that only
+			// RECEIVES doesn't sign unless its key has receiver_sig_required set — which
+			// this one doesn't. Normal mode phrases it plainly; nerd names the flag.
+			const nerd = document.body.classList.contains('nerd')
+			items.push({ warn: false, text: nerd
+				? 'No signature required — this account only receives here and its key does not set receiver_sig_required.'
+				: "No signature required — this account is only receiving, and it hasn't asked to approve incoming transfers." })
+		}
 
 		if (items.length) {
 			const list = document.createElement('div')
@@ -1142,12 +1167,14 @@ function updateCardXproof(head, label) {
 	if (!label || (!label.domain && !label.name)) { x?.remove(); return }
 	if (!x) { x = document.createElement('span'); x.className = 'txcard-xproof-head'; head.querySelector('.txcard-acct').after(x) }
 	x.innerHTML = ''
+	// TX-CARDS-XPROOFLINK1: header xproof is PLAIN TEXT — a hyperlink here intercepted the
+	// tap meant to expand the card. The clickable domain link now lives in the expanded
+	// detail (buildAccountDetail → xproof row). Header just shows the domain/name.
 	if (label.domain) {
-		const a = document.createElement('a')
-		a.className = 'txcard-acct txcard-acct-domain'
-		a.href = `https://${label.domain}`; a.target = '_blank'; a.rel = 'noopener'
-		a.textContent = label.domain
-		x.appendChild(a)
+		const d = document.createElement('span')
+		d.className = 'txcard-acct txcard-acct-domain'
+		d.textContent = label.domain
+		x.appendChild(d)
 	}
 	if (label.name) {
 		const n = document.createElement('span')
@@ -1981,8 +2008,10 @@ export function injectTxReadCSS() {
 		   warning is for everyone; match/unavailable/error are nerd-mode detail —
 		   in normal mode the bytes ARE the display's provenance, nothing to announce. */
 		.txread-bytes-verify[data-status="mismatch"] { color:#b00020; background:#fde7ea; border:1px solid #f3b5c0; border-radius:8px; padding:8px 10px; margin:6px 0; font-size:13px; }
-		.txread-bytes-verify[data-status="match"] { color:#2e7d32; font-size:11px; margin:4px 0; }
+		.txread-bytes-verify[data-status="match"] { color:#2e7d32; font-size:11px; margin:4px 0; line-height:1.35; }
 		.txread-bytes-verify[data-status="unavailable"], .txread-bytes-verify[data-status="error"] { color:#999; font-size:11px; margin:4px 0; }
+		/* SIGN-BYTESNOTE1: footnote placement — a little top separation from the line items */
+		.txread-bytes-verify--foot { margin-top:8px; padding-top:6px; border-top:1px solid #f0f0f0; }
 		.txread-bytes-verify:not([data-status="mismatch"]) { display:none; }
 		body.nerd .txread-bytes-verify:not([data-status="mismatch"]) { display:block; }
 
