@@ -1342,10 +1342,14 @@ footer .contact-form button.filled-button:hover {
 @media (max-width: 768px) {
 
     .page-heading.header-text {
-       /* display: none;  */
-       height: 0px;
+       /* GMSEARCH-MOBILE1: header is position:absolute; height:80px and overlays
+          the top of the page. This banner (collapsed/hidden on mobile) is the
+          first element in flow, so give it enough height to act as a spacer and
+          push the gallery content clear of the header instead of under it.
+          Was height:0 - which is exactly why the first card sat under the logo. */
+       height: 90px;
        visibility: hidden;
-       padding: 10px 0px 10px 0px ;
+       padding: 0px;
     }
 
     .contact-us {

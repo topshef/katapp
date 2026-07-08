@@ -221,14 +221,28 @@
         margin-bottom: 0px;
         max-width: none;
     }
-    .product-filters,
+    /* Keep the search bar visible on mobile. It used to be display:none here,
+       revealed only by a filter icon - but style.css.php also hid that icon
+       (height:0/visibility:hidden), so there was no way to reach search on
+       mobile at all. Show the bar directly instead. (GMSEARCH-MOBILE1) */
+    .product-filters {
+        display: block;
+        position: static;
+        padding-top: 10px;
+    }
     .product-filters-placeholder {
         display: none;
     }
     .form-group {
         display: flex;
     }
+    /* sort is deprioritised on mobile (search is the priority) - hide just the
+       sort control, keep the search box */
+    .product-filters .col-md-4 {
+        display: none;
+    }
+    /* the filter-icon toggle is now redundant (search shows directly) */
     .product-filters-icon {
-        display: block;
+        display: none;
     }
 }
