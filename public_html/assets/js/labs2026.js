@@ -264,16 +264,19 @@ async function transformDealData({deal}) {
     out.title       = deal.display.title ?? 'untitled RH45323'
     out.description = deal.display.description ?? 'no desc WK83843'
 
-		// fall back to the traded NFT's own image rather than a generic stock
-		// thumbnail when the deal author didn't set one - only handles the
-		// common single-NFT case; multiple NFTs in one deal falls through to
-		// the generic thumbnail for now (todo: image carousel/click-through)
+		// Prefer the traded NFT's own image over the deal's stored thumbnail.
+		// Rule is deliberately NFT-image-first (per user 2026-07-08): many
+		// GoMint deals either have no thumbnail or have a stale hardcoded
+		// katomic.org placeholder baked in, and the real product art is more
+		// useful than either. Only the common single-NFT case is handled;
+		// multiple NFTs in one deal falls through to the thumbnail/default for
+		// now (todo: image carousel/click-through).
 		const nftImages = out.allTransfers
 			.filter(x => x.assetType === 'NFT' && x.imageURL)
 			.map(x => x.imageURL)
 		const singleNftImage = (nftImages.length === 1) ? nftImages[0] : null
 
-		out.image = deal.display.thumbnail || singleNftImage || ''
+		out.image = singleNftImage || deal.display.thumbnail || ''
 		out.button      = deal.display.button || 'Buy now'
 
     if (hasParm('operatorId'))
@@ -402,6 +405,17 @@ function chipify(text) {
 		.replace(/\bbuyer\b/g, "<span class='code'>buyer</span>")
 }
 
+// Resolve an NFT serial or serial-range to the product id of its FIRST
+// concrete serial - the explore API only returns a real image/name for a
+// single serial, not a range. Handles "213" (single), "1to70" (db range
+// form) and "1:70" (colon form); returns null for "any"/non-numeric so we
+// don't chase an image that doesn't resolve.
+function nftMetaProductId(network, tokenId, serial) {
+	const first = String(serial).split(/to|:/)[0].trim()
+	if (!/^\d+$/.test(first)) return null
+	return `${network};${tokenId}-${first}`
+}
+
 // ─── Merge + enrich all transfers ─────────────────────────────────────────
 // Fetches token/NFT metadata (name, symbol, decimals) for everything
 // referenced in the deal so amounts and labels render properly instead of
@@ -416,7 +430,8 @@ async function mergeAllTransfers(deal) {
 	const metaKeys = new Set()
 	;(deal.addTokenTransfer || []).forEach(x => metaKeys.add(`${network};${x.tokenId}`))
 	;(deal.addNftTransfer || []).forEach(x => {
-		if (/^\d+$/.test(String(x.serial))) metaKeys.add(`${network};${x.tokenId}-${x.serial}`)
+		const key = nftMetaProductId(network, x.tokenId, x.serial)
+		if (key) metaKeys.add(key)
 	})
 
 	const jobs = [...metaKeys]
@@ -460,8 +475,13 @@ async function mergeAllTransfers(deal) {
   }
 
   const normaliseNFT = xfer => {
+		// display/link productId keeps the original serial (range or single),
+		// same form the product page accepts. But metadata (name + image) is
+		// looked up under the FIRST concrete serial - the explore API only
+		// resolves a real image for a single serial, not a "1to70" range.
 		const productId = `${network};${xfer.tokenId}-${xfer.serial}`
-		const meta = cache[productId]
+		const metaKey = nftMetaProductId(network, xfer.tokenId, xfer.serial)
+		const meta = metaKey ? cache[metaKey] : null
 
     return {
       assetType: 'NFT',
