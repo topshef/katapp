@@ -48,9 +48,15 @@ function fetchProduct(productId) {
     return Promise.resolve(null)
   }
 
-  const url = `https://tools.gomint.me/explore/NFT/?json&productId=${productId}`
+  // GMKFUND-WRAP1: was a direct call to https://tools.gomint.me/explore/NFT -
+  // that kfund host is IP-allowlisted (server yes, end-user devices no), so
+  // mobile visitors got 403/"Failed to fetch" and the page hung. Now goes
+  // through a same-origin server-side wrapper (m/api/nft.php) that makes the
+  // upstream call from the server and can be repointed via env with no client
+  // change.
+  const url = `/m/api/nft.php?productId=${productId}`
   // console.log('fetchProduct URL:', url)
-	
+
 
   return fetch(url)
     .then(response => {
