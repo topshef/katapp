@@ -1595,6 +1595,33 @@ svg .svg-sell{
   flex:none;
 }
 
+.rate-stepper-row{
+  display:flex;
+  align-items:stretch;
+  gap:6px;
+}
+.rate-stepper-row #createOrderRate{
+  flex:1;
+  width:auto;
+  text-align:center;
+}
+.rate-step-btn{
+  flex:none;
+  width:40px;
+  padding:0;
+  font-size:20px;
+  line-height:1;
+  font-weight:600;
+  color:#333;
+  background:#f0f0f0;
+  border:1px solid #ddd;
+  border-radius:8px;
+  cursor:pointer;
+  user-select:none;
+}
+.rate-step-btn:hover{ background:#e6e6e6; }
+.rate-step-btn:active{ background:#dcdcdc; }
+
 /* Collectible modal inline pairs */
 .collectible-token-row,
 .collectible-price-row{

@@ -263,7 +263,11 @@
 
       
       <label>Rate <span id="createOrderRateUnit" style="font-weight:normal;font-size:11px;color:#999;margin-left:4px;"></span></label>
-      <input id="createOrderRate" type="number" step="any">
+      <div class="rate-stepper-row">
+        <button type="button" id="createOrderRateDown" class="rate-step-btn" tabindex="-1" aria-label="Decrease rate">−</button>
+        <input id="createOrderRate" type="number" step="any">
+        <button type="button" id="createOrderRateUp" class="rate-step-btn" tabindex="-1" aria-label="Increase rate">+</button>
+      </div>
       
       <div id="createOrderRateHint" style="font-size:11px;color:#888;margin-top:4px;min-height:14px;"></div>
 
