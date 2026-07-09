@@ -1,0 +1,237 @@
+/* katomia-board.css — BOARD-UI1 board-skin styles (board.php only).
+   Chips keep the .asset base look from katomia.css; this file is the felt:
+   wedge washes, seat cards, center table, dock. */
+
+body.board-page{
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #f5f1e8;               /* the felt */
+  font-family: system-ui, sans-serif;
+}
+
+#boardRoot{
+  position: fixed;
+  inset: 0;
+}
+
+/* ── chrome: skin picker + exit ─────────────────────────────────────────── */
+
+.board-chrome{
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 50;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.board-chrome select{
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid #ddd6c6;
+  border-radius: 8px;
+  background: #fffdf7;
+}
+
+.board-exit{
+  text-decoration: none;
+  color: #666;
+  background: #fffdf7;
+  border: 1px solid #ddd6c6;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+.board-exit:hover{ color: #000; }
+
+/* ── wedges: the Ludo wash + fat drop targets ───────────────────────────── */
+
+.board-wedge{
+  position: absolute;
+  inset: 0;
+  opacity: .12;
+  transition: opacity .15s ease;
+}
+.board-wedge.drag-over{ opacity: .30; }
+
+/* ── seat cards (other players) ─────────────────────────────────────────── */
+
+.board-seat{
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 180px;
+  max-width: 28vw;
+  background: #fff;
+  border-radius: 12px;
+  border-top: 4px solid #999;        /* player colour, set inline */
+  box-shadow: 0 2px 10px rgba(0,0,0,.12);
+  padding: 6px 8px 7px;
+  z-index: 5;
+}
+.board-seat--slim{ width: 138px; }
+
+.board-seat.drag-over{
+  outline: 2px solid #4a90d9;
+  outline-offset: 2px;
+}
+
+.board-seat-head{
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.board-seat-badge{
+  font-size: 11px;
+  color: #877;
+  margin-top: 3px;
+}
+
+/* ── chip bands ─────────────────────────────────────────────────────────── */
+
+.board-band{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-items: center;
+  min-height: 18px;
+}
+
+/* inner ring: their basket — separated by the table edge */
+.board-band-basket{
+  border-top: 1px dashed #e0d9c8;
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.board-chip{
+  font-size: 11px;
+  margin: 1px;
+  padding: 3px 6px;
+}
+
+.board-chip.thumb-only{ padding: 0; }
+.board-chip .asset-thumb{ width: 34px; height: 34px; border-radius: 8px; }
+
+/* reserved-as-ghost: stays in the available band, faded + dashed */
+.board-ghost{
+  opacity: .40;
+  outline: 1px dashed #b9b09c;
+  outline-offset: -1px;
+}
+
+/* ── center oval ────────────────────────────────────────────────────────── */
+
+.board-center{
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.board-lockring{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.board-lockring-base{
+  fill: #fffdf7;
+  stroke: #a9c9ec;                    /* lockbar trading blue */
+  stroke-width: 5;
+}
+.board-lockring-locked{
+  fill: none;
+  stroke: #f5a623;                    /* lockbar locked orange */
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.board-center-inner{
+  position: relative;
+  text-align: center;
+  padding: 10px 18px;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden auto;
+}
+
+.board-center-title{
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.board-center-sub{
+  font-size: 11px;
+  color: #998;
+}
+
+.board-center-basket{
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.board-center-empty{
+  font-size: 11px;
+  color: #b3ab99;
+  font-style: italic;
+  padding: 4px 0;
+}
+
+/* ── my dock ────────────────────────────────────────────────────────────── */
+
+.board-dock{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  background: #fffef9;
+  border-top: 1px solid #e5e0d4;
+  box-shadow: 0 -3px 12px rgba(0,0,0,.07);
+  padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
+  max-height: 38vh;
+  overflow: auto;
+}
+
+.board-dock-row{
+  padding: 3px 8px;
+  border-radius: 8px;
+  margin-bottom: 2px;
+}
+
+.board-dock-head{
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* the reused mode toggle renders its usual .mode + .lockbar — compact them */
+.board-dock-head .mode{ font-size: 12px; cursor: pointer; }
+.board-dock-head .lockbar{ width: 70px; }
+
+.board-dock-chips{ margin-top: 2px; }
+
+.board-dock-empty, .board-dock-label{ font-size: 12px; }
+.board-dock-empty{ color: #998; font-style: italic; }
+
+/* phones: slimmer seats, tighter dock */
+@media (max-width: 520px){
+  .board-seat{ width: 138px; padding: 5px 6px; }
+  .board-seat--slim{ width: 116px; }
+  .board-chip{ font-size: 10px; }
+  .board-dock{ max-height: 34vh; }
+}

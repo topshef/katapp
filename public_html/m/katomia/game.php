@@ -120,9 +120,17 @@
         <input type="checkbox" id="showTradedAssets"/>
         Traded assets only
       </label>
+      <!-- BOARD-UI1: the desktop checkbox grew into a view/skin dropdown. grid/list
+           re-render in place (the old viewMode toggle); board-* skins navigate to the
+           standalone full-screen board page (board.php) — the legacy page stays as-is. -->
       <label class="desktop-toggle">
-        <input type="checkbox" id="viewToggle" />
-        🖥️ Desktop view
+        View
+        <select id="viewSelect">
+          <option value="columns">🖥️ Grid (desktop)</option>
+          <option value="merged">📱 List (mobile)</option>
+          <option value="board-table">🎲 Board — round table</option>
+          <option value="board-market">🏪 Board — market square</option>
+        </select>
       </label>
     </div>
 

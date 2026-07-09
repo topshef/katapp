@@ -119,7 +119,8 @@ function removeAccount(accountId){
 
 // PROP-ADDACCT1: the button opens the add-account modal (katomia-addaccount.js);
 // prompt() fallback keeps the game usable if the modal script ever fails to load.
-addAccountBtn.onclick = () => {
+// Guarded: absent on board.php (BOARD-UI1).
+if(addAccountBtn) addAccountBtn.onclick = () => {
   if(typeof openAddAccountModal === "function") openAddAccountModal()
   else { const v = prompt("Enter account ID"); if(v) addAccounts(v) }
 }
@@ -129,12 +130,31 @@ addAccountBtn.onclick = () => {
 const showTradingAccounts = document.getElementById("showTradingAccounts")
 const showTradedAssets = document.getElementById("showTradedAssets")
 
-viewToggle.onchange = e => {
+// Guarded like core's viewToggle init: this file is also loaded on pages without
+// the proposal filter controls (board.php — BOARD-UI1).
+if(viewToggle) viewToggle.onchange = e => {
   viewMode = e.target.checked ? "columns" : "merged"
   render()
 }
 
-showTradingAccounts.onchange = e => {
+// BOARD-UI1: view SELECT (game.php replaced the desktop checkbox with a dropdown —
+// grid/list stay on-page, board skins navigate to the standalone board page).
+const viewSelect = document.getElementById("viewSelect")
+if(viewSelect){
+  viewSelect.value = viewMode
+  viewSelect.onchange = e => {
+    const v = e.target.value
+    if(v.startsWith("board-")){
+      location.href = "/m/katomia/board.php?game=" + encodeURIComponent(gameId || "")
+        + "&skin=" + encodeURIComponent(v.slice(6))
+      return
+    }
+    viewMode = v
+    render()
+  }
+}
+
+if(showTradingAccounts) showTradingAccounts.onchange = e => {
 
   showActiveOnly = e.target.checked
 
@@ -147,7 +167,7 @@ showTradingAccounts.onchange = e => {
   render()
 }
 
-showTradedAssets.onchange = e => {
+if(showTradedAssets) showTradedAssets.onchange = e => {
 
   showTradedOnly = e.target.checked
   showTradingAccounts.checked = e.target.checked

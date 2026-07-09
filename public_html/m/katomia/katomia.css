@@ -609,20 +609,11 @@
   color:#000;
 }
 
-@media (max-width:699px){
-  label:has(#viewToggle){
-    display:none;
-  }
-}
-
+/* BOARD-UI1: was display:none under 700px when this only held the desktop-view
+   checkbox — the view dropdown now carries the board skins, which are FOR mobile,
+   so it stays visible at every width. */
 .desktop-toggle{
   cursor:pointer;
-}
-
-@media (max-width:699px){
-  .desktop-toggle{
-    display:none;
-  }
 }
 .asset.thumb-stack-item{
   position: relative;
