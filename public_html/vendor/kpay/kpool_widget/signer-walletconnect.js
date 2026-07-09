@@ -117,6 +117,7 @@ export function renderWalletConnectSigner(container, {
 	saveUrl = defaultSaveUrl,
 	onSigned,
 	onAccount,
+	signerPreview,   // TX-CARDS-WCPREVIEW1: (accountId) → { state, text } threshold preview
 	onLock,    // called before wc.connect() opens its modal — prevents backdrop-close
 	onUnlock   // called after wc.connect() resolves (success or error)
 } = {}) {
@@ -391,6 +392,22 @@ export function renderWalletConnectSigner(container, {
 
 		row.append(acct, disc, sign)
 		wrap.appendChild(row)
+
+		// TX-CARDS-WCPREVIEW1: banner under the picker saying what signing the SELECTED
+		// account does for this tx (needed / not needed / completes the threshold).
+		const preview = document.createElement('div')
+		preview.className = 'kpsign-preview'
+		wrap.appendChild(preview)
+		const updatePreview = (id) => {
+			if (typeof signerPreview !== 'function') { preview.style.display = 'none'; return }
+			const p = signerPreview(id) || {}
+			if (!p.text || p.state === 'loading') { preview.style.display = 'none'; return }
+			preview.dataset.state = p.state
+			preview.textContent = (p.state === 'completes' ? '✅ ' : p.state === 'not-needed' ? 'ℹ️ ' : '✍️ ') + p.text
+			preview.style.display = ''
+		}
+		updatePreview(hasMulti ? acct.value : account)
+		if (hasMulti) acct.addEventListener('change', () => { if (acct.value !== ADD_NEW) updatePreview(acct.value) })
 	}
 
 	render()
@@ -407,6 +424,12 @@ function injectSignerCSS() {
 		.kpsign { display:flex; justify-content:center; margin:16px 0; }
 		.kpsign-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center; }
 		.kpsign-acct { font:13px ui-monospace,Menlo,Consolas,monospace; color:#555; }
+		/* TX-CARDS-WCPREVIEW1: threshold preview under the account picker */
+		.kpsign-preview { text-align:center; font-size:12px; margin:8px auto 0; max-width:340px; line-height:1.4; }
+		.kpsign-preview[data-state="completes"] { color:#137333; font-weight:600; }
+		.kpsign-preview[data-state="needed"] { color:#52525b; }
+		.kpsign-preview[data-state="already"] { color:#52525b; }
+		.kpsign-preview[data-state="not-needed"] { color:#9aa0a6; }
 		.kpsign-btn { all:revert; padding:6px 16px; border:1px solid #4aa3ff; border-radius:6px;
 			background:#eaf4ff; color:#084298; cursor:pointer; font:inherit; }
 		.kpsign-btn:hover { background:#d6eaff; }
