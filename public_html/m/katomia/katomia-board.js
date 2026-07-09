@@ -17,7 +17,7 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "table", "market"]
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
 // ids etched into the felt instead of label rows, oval faded+thickened (future
@@ -56,15 +56,42 @@ const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7
 //   practical ceiling) — the lots-of-players story (start wide, whittle to a
 //   cluster, flip between clusters; Active-only is the seed of it) is THE
 //   open challenge for this view
-const ringEtched = () => /^ring[2-7]$/.test(boardSkin)
-const ringSleeved = () => /^ring[4-7]$/.test(boardSkin)
-const ringArcs = () => /^ring[5-7]$/.test(boardSkin)
-const ringNoOval = () => boardSkin === "ring6" || boardSkin === "ring7"
+// ring8 (review 6, 2026-07-09 — default; v7 frozen): the snag+structure pass.
+// - lock 🔒 no longer SHIFTS the etched id (own text node, anchored before it)
+// - locked store dim now sits ABOVE the chips (felt split into base/top SVG
+//   layers) — only the account id + 🔒 + xproof label stay bright
+// - chip faces WHITE (one player's grey chips vanished against the shading)
+// - boundary marking INVERTED: your own arc has NO line (your space flows
+//   into the baskets); other players' arcs are solid light grey, and the two
+//   mine/other boundaries extend to the screen edge — one continuous divider
+//   splitting the board into "where you can drop" vs everyone else's stores.
+//   Your arc stays TAPPABLE (transparent stroke) and lights orange on lock.
+// - xproof label (accountLabelCache) etched under the id, smaller
+// - hub wears a faint Montserrat K (KPAY brand) behind the count
+// - chips + etched ids scale with viewport (~⅔ … ~1.3× of the old fixed size)
+// - pair/trail lines route UNDER the chips (host z-index below the boxes;
+//   the "flips above at rest" glitch was the host sitting over everything)
+// - footer rework: account dropdown (pick → Lock/Unlock + 🗑 Delete, ➕ Add
+//   at the bottom; the SIGN button will occupy the Lock slot once all-locked
+//   — same checkpoint, later phase), Net view toggle (viewer-local netting),
+//   "You at bottom" orientation toggle (off = shared/screen-share layout)
+// - offers from OTHER PLAYERS (player level, not account — your own second
+//   account shouldn't animate at you) fly in with a trail when they land
+const ringEtched = () => /^ring[2-8]$/.test(boardSkin)
+const ringSleeved = () => /^ring[4-8]$/.test(boardSkin)
+const ringArcs = () => /^ring[5-8]$/.test(boardSkin)
+const ringNoOval = () => /^ring[6-8]$/.test(boardSkin)
+const ring8 = () => boardSkin === "ring8"
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
-  return BOARD_SKINS.includes(s) ? s : "ring7"
+  return BOARD_SKINS.includes(s) ? s : "ring8"
 })()
+
+// ring8 footer state (viewer-local, session-only)
+let boardSelfBottom = true        // me at 6 o'clock; off = shared layout
+let boardNetView = false          // net same-giver same-asset FT basket lines
+let boardSelectedAccount = null   // footer dropdown selection (account id)
 
 // dev control (footer): the layout's start angle — segments begin here and run
 // clockwise. 180 = the first account's segment straddles 9 o'clock. Editable
@@ -176,6 +203,15 @@ function renderRingBoard(root){
     const vis = new Set(getVisibleAccounts(all).map(a => a.id))
     accounts = all.filter(a => vis.has(a.id))
   }
+
+  // ring8 net view (viewer-local): merge same-giver same-asset FT basket
+  // lines so a 10-then-10 drop reads as 20 — the tx will net them anyway, so
+  // net-on previews the after and removes the strike "jolt". NFTs untouched.
+  // Dev caveat: withdrawing a merged chip withdraws the underlying first
+  // matching line only.
+  if(ring8() && boardNetView)
+    accounts = accounts.map(a => ({ ...a, basket: boardNetBasket(a.basket) }))
+
   const accountMap = getAccountMap()
   const reservedByAccount = buildReservedByAccount(accounts)
   const etched = ringEtched()
@@ -202,9 +238,23 @@ function renderRingBoard(root){
   const bottomPad = etched ? 76 : 48        // keep boxes clear of the footer bar
   const segs = []                           // geometry handed to the felt layer
 
+  // ring8 "you at bottom": rotate the shared layout so the middle of my first
+  // run of accounts points due south (90° screen). Toggle off = everyone sees
+  // the identical board (screen-share / spectator mode).
+  let start = boardStartAngle
+  if(ring8() && boardSelfBottom){
+    const mineIdx = accounts.map((a, i) => isMyAccount(a) ? i : -1).filter(i => i >= 0)
+    if(mineIdx.length){
+      let runEnd = 0
+      while(runEnd < mineIdx.length - 1 && mineIdx[runEnd + 1] === mineIdx[runEnd] + 1) runEnd++
+      const center = boardStartAngle + (mineIdx[0] + (runEnd + 1) / 2) * step
+      start = boardStartAngle + (90 - center)
+    }
+  }
+
   accounts.forEach((account, i) => {
 
-    const a0 = boardStartAngle + i * step, a1 = a0 + step
+    const a0 = start + i * step, a1 = a0 + step
     const am = rad((a0 + a1) / 2)
     const mine = isMyAccount(account)
     segs.push({ account, a0, a1, am, mine })
@@ -213,6 +263,8 @@ function renderRingBoard(root){
     // accept drops too — acct → acct moves, and drag-home = withdraw)
     const wedge = makeWedge(account, a0, a1, geo, mine)
     if(mine) wedge.classList.add("board-wedge--mine")
+    if(ring8() && account.id === boardSelectedAccount)
+      wedge.classList.add("board-wedge--selected")   // footer dropdown highlight
     boardDropTarget(wedge, account)
     frag.appendChild(wedge)
 
@@ -279,6 +331,14 @@ function renderRingBoard(root){
   hub.style.top = cy + "px"
   hub.style.width = hub.style.height = rc * 2 + "px"
   const lp = boardLockSummary(accounts.filter(a => isMyAccount(a)), accounts)
+  if(ring8()){
+    // faint brand K behind the count (KPAY face — Montserrat where loaded,
+    // graceful fallback otherwise); the hub doubles as a circular logo
+    const k = document.createElement("span")
+    k.className = "ring-hub-k"
+    k.textContent = "K"
+    hub.appendChild(k)
+  }
   const hubText = document.createElement("span")
   hubText.textContent = lp ? `${lp.locked}/${lp.total}` : ""
   hub.appendChild(hubText)
@@ -292,6 +352,54 @@ function renderRingBoard(root){
   if(etched) frag.appendChild(ringFooter(accounts.filter(a => isMyAccount(a))))
 
   root.replaceChildren(frag)
+
+  // ring8: offers from OTHER PLAYERS fly in as they land (one leg of the ▶
+  // animation). Player-level guard: your own drops — from ANY of your
+  // accounts — don't animate at you; you did the motion. Skipped on the
+  // first paint (everything would fly).
+  if(ring8()) boardAnimateNewOffers()
+}
+
+// ── ring8 helpers ─────────────────────────────────────────────────────────
+
+// FT lines in one basket from the same giver merge; NFTs (serial ids) never do
+function boardNetBasket(basket){
+  const out = [], idx = {}
+  ;(basket || []).forEach(item => {
+    const id = String(item.assetId)
+    if(id.includes("#")){ out.push(item); return }
+    const key = (item.fromId || "") + "|" + id
+    if(idx[key] != null) out[idx[key]] = { ...out[idx[key]], amount: (out[idx[key]].amount || 1) + (item.amount || 1) }
+    else { idx[key] = out.length; out.push({ ...item }) }
+  })
+  return out
+}
+
+let _prevOfferKeys = null
+function boardAnimateNewOffers(){
+  const keys = new Map()
+  Object.values(state?.accounts || {}).forEach(acc => {
+    (acc.basket || []).forEach(item => {
+      const k = `${acc.id}|${item.fromId}|${item.assetId}`
+      keys.set(k, (keys.get(k) || 0) + (item.amount || 1))
+    })
+  })
+  const prev = _prevOfferKeys
+  _prevOfferKeys = keys
+  if(!prev) return   // first paint
+
+  keys.forEach((amt, k) => {
+    if((prev.get(k) || 0) >= amt) return
+    const [toId, fromId, assetId] = k.split("|")
+    const fromAccount = state.accounts?.[fromId]
+    if(!fromAccount || fromAccount.playerId === currentPlayerId) return  // player-level guard
+    const sel = `[data-owner-account="${CSS.escape(fromId)}"]`
+      + `[data-asset-id="${CSS.escape(assetId)}"]`
+      + `[data-to-account="${CSS.escape(toId)}"]`
+    const ghost = document.querySelector(`.asset.reserved${sel}`)
+    const basketEl = document.querySelector(`.asset.basket${sel}`)
+    if(ghost && basketEl) boardFlyLeg(ghost, basketEl, getPlayerColour(fromAccount.playerId), 0)
+  })
 }
 
 // bottom control bar (etched variants) — thumb-reach controls that never
@@ -303,24 +411,92 @@ function ringFooter(mine){
   const bar = document.createElement("div")
   bar.className = "ring-footer"
 
-  const filt = document.createElement("label")
-  filt.className = "ring-footer-filter"
-  const cb = document.createElement("input")
-  cb.type = "checkbox"
-  cb.checked = showActiveOnly
-  cb.onchange = () => { showActiveOnly = cb.checked; render() }
-  filt.appendChild(cb)
-  filt.appendChild(document.createTextNode(" Active only"))
-  bar.appendChild(filt)
+  const check = (label, checked, onchange, title) => {
+    const el = document.createElement("label")
+    el.className = "ring-footer-filter"
+    if(title) el.title = title
+    const cb = document.createElement("input")
+    cb.type = "checkbox"
+    cb.checked = checked
+    cb.onchange = () => onchange(cb.checked)
+    el.appendChild(cb)
+    el.appendChild(document.createTextNode(" " + label))
+    return el
+  }
 
-  mine.forEach(account => {
-    const b = document.createElement("button")
-    b.className = "ring-footer-lock" + (account.mode === "lock" ? " locked" : "")
-    b.textContent = (account.mode === "lock" ? "🔒 " : "🔁 ") + (account.id.split(":")[1] || account.id)
-    b.title = account.mode === "lock" ? "Locked — tap to unlock" : "Trading — tap to lock"
-    b.onclick = () => boardToggleLock(account)
-    bar.appendChild(b)
-  })
+  bar.appendChild(check("Active only", showActiveOnly, v => { showActiveOnly = v; render() }))
+
+  if(ring8()){
+    bar.appendChild(check("Net", boardNetView,
+      v => { boardNetView = v; render() },
+      "View baskets netted: same giver + same asset merge into one line (the transaction nets them anyway — net-on previews the after and avoids the strike jolt)"))
+    bar.appendChild(check("You at bottom", boardSelfBottom,
+      v => { boardSelfBottom = v; render() },
+      "On: the board rotates so your accounts face you. Off: everyone sees the identical layout (screen-share / spectator)"))
+
+    // account dropdown: pick → Lock/Unlock + 🗑 Delete act on it; ➕ Add last.
+    // When all-locked, the Lock slot becomes the SIGN button (same checkpoint,
+    // next phase) — see the scene/tx notes at the bottom of this file.
+    if(!boardSelectedAccount || !mine.some(a => a.id === boardSelectedAccount))
+      boardSelectedAccount = mine[0]?.id || null
+
+    const sel = document.createElement("select")
+    sel.className = "ring-footer-accsel"
+    mine.forEach(a => {
+      const o = document.createElement("option")
+      o.value = a.id
+      o.textContent = (a.mode === "lock" ? "🔒 " : "") + (a.id.split(":")[1] || a.id)
+      sel.appendChild(o)
+    })
+    const add = document.createElement("option")
+    add.value = "__add"
+    add.textContent = "➕ Add account…"
+    sel.appendChild(add)
+    if(boardSelectedAccount) sel.value = boardSelectedAccount
+    sel.onchange = () => {
+      if(sel.value === "__add"){
+        sel.value = boardSelectedAccount || ""
+        // add-account MODAL lives on game.php (katomia-addaccount.js + markup)
+        // — port it to board.php later; prompt is the stopgap composer
+        const v = prompt("Add account (e.g. 12345 or 0.0.12345):")
+        if(v) addAccounts(v)
+        return
+      }
+      boardSelectedAccount = sel.value
+      render()   // re-highlights the selected wedge
+    }
+    bar.appendChild(sel)
+
+    const selected = () => mine.find(a => a.id === boardSelectedAccount)
+
+    const lockBtn = document.createElement("button")
+    const cur = selected()
+    lockBtn.className = "ring-footer-lock" + (cur?.mode === "lock" ? " locked" : "")
+    lockBtn.textContent = cur?.mode === "lock" ? "🔓 Unlock" : "🔒 Lock"
+    lockBtn.disabled = !cur
+    lockBtn.onclick = () => { const a = selected(); if(a) boardToggleLock(a) }
+    bar.appendChild(lockBtn)
+
+    const delBtn = document.createElement("button")
+    delBtn.className = "ring-footer-del"
+    delBtn.textContent = "🗑"
+    delBtn.title = "Remove the selected account from the game"
+    delBtn.disabled = !cur
+    delBtn.onclick = () => {
+      const a = selected()
+      if(a && typeof removeAccount === "function") removeAccount(a.id)  // KAT-AUTOLOAD2-safe path
+    }
+    bar.appendChild(delBtn)
+  } else {
+    mine.forEach(account => {
+      const b = document.createElement("button")
+      b.className = "ring-footer-lock" + (account.mode === "lock" ? " locked" : "")
+      b.textContent = (account.mode === "lock" ? "🔒 " : "🔁 ") + (account.id.split(":")[1] || account.id)
+      b.title = account.mode === "lock" ? "Locked — tap to unlock" : "Trading — tap to lock"
+      b.onclick = () => boardToggleLock(account)
+      bar.appendChild(b)
+    })
+  }
 
   if(ringArcs()){
     const play = document.createElement("button")
@@ -331,7 +507,9 @@ function ringFooter(mine){
     bar.appendChild(play)
   }
 
-  // dev: start-angle spinner — explore how rotations render (user 2026-07-09 #2)
+  // dev: start-angle spinner — explore how rotations render (user 2026-07-09
+  // #2; review 6: keep for now, nerd-mode candidate at release. With "You at
+  // bottom" ON this is the SHARED base the self-rotation derives from.)
   const rot = document.createElement("label")
   rot.className = "ring-footer-rot"
   rot.title = "Dev: board start angle (degrees, segments run clockwise from here)"
@@ -384,19 +562,24 @@ function playTransfers(){
       + `[data-to-account="${CSS.escape(toAccount)}"]`
     const ghost = document.querySelector(`.asset.reserved${sel}`)
     if(!ghost) return
-    const a = ghost.getBoundingClientRect(), b = basketEl.getBoundingClientRect()
-    const fly = basketEl.cloneNode(true)
-    fly.className = basketEl.className + " board-fly"
-    fly.style.left = a.left + "px"
-    fly.style.top = a.top + "px"
-    document.body.appendChild(fly)
-    const delay = i++ * 220
-    setTimeout(() => {
-      fly.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px)`
-      boardTrail(a, b, getPlayerColour(ownerPlayer))
-    }, delay + 30)
-    setTimeout(() => fly.remove(), delay + 1000)
+    boardFlyLeg(ghost, basketEl, getPlayerColour(ownerPlayer), i++ * 220)
   })
+}
+
+// one leg of the transfer animation: clone flies ghost → basket, trail line
+// in the giver's colour draws with it and fades
+function boardFlyLeg(ghost, basketEl, colour, delay){
+  const a = ghost.getBoundingClientRect(), b = basketEl.getBoundingClientRect()
+  const fly = basketEl.cloneNode(true)
+  fly.className = basketEl.className + " board-fly"
+  fly.style.left = a.left + "px"
+  fly.style.top = a.top + "px"
+  document.body.appendChild(fly)
+  setTimeout(() => {
+    fly.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px)`
+    boardTrail(a, b, colour)
+  }, delay + 30)
+  setTimeout(() => fly.remove(), delay + 1000)
 }
 
 // trailing line: draws in with the flight, lingers, fades out over ~2.5s
@@ -526,16 +709,44 @@ function ringFelt(segs, g){
   svg.setAttribute("class", "ring-felt")
   svg.setAttribute("viewBox", `0 0 ${g.W} ${g.H}`)
 
-  segs.forEach(seg => {
+  // ring8 splits the felt in two: this base svg (z below the chip boxes) and
+  // a TOP svg (z above them) carrying the locked-store dim + etched labels —
+  // so the dim shades the chips but never the account id / 🔒 / xproof label
+  const top = ring8() ? document.createElementNS(NS, "svg") : null
+  if(top){
+    top.setAttribute("class", "ring-felt ring-felt--top")
+    top.setAttribute("viewBox", `0 0 ${g.W} ${g.H}`)
+  }
+  const labelLayer = top || svg
+  const dimLayer = top || svg
+
+  const mkLine = (a, r0, r1, cls) => {
+    const line = document.createElementNS(NS, "line")
+    line.setAttribute("x1", g.cx + r0 * Math.cos(a))
+    line.setAttribute("y1", g.cy + r0 * Math.sin(a))
+    line.setAttribute("x2", g.cx + r1 * Math.cos(a))
+    line.setAttribute("y2", g.cy + r1 * Math.sin(a))
+    line.setAttribute("class", cls)
+    svg.appendChild(line)
+  }
+
+  segs.forEach((seg, i) => {
     const a = g.rad(seg.a0)
     const rE = g.edgeR(a)
-    const line = document.createElementNS(NS, "line")
-    line.setAttribute("x1", g.cx + g.rc * Math.cos(a))
-    line.setAttribute("y1", g.cy + g.rc * Math.sin(a))
-    line.setAttribute("x2", g.cx + rE * Math.cos(a))
-    line.setAttribute("y2", g.cy + rE * Math.sin(a))
-    line.setAttribute("class", "ring-boundary")
-    svg.appendChild(line)
+    // ring8: a boundary BETWEEN me and another player becomes a solid divider
+    // from the basket circle OUT to the screen edge — with the other players'
+    // solid arcs it draws ONE continuous line splitting the board into my
+    // droppable space (my store + everyone's baskets) vs everyone else's
+    // stores. Inside the circle it stays a light boundary (all baskets are
+    // droppable — no wall through them).
+    const prev = segs[(i + segs.length - 1) % segs.length]
+    if(ring8() && segs.length > 1 && (seg.mine !== prev.mine)){
+      const rOvalHere = (g.rx * g.ry) / Math.hypot(g.ry * Math.cos(a), g.rx * Math.sin(a))
+      mkLine(a, g.rc, rOvalHere, "ring-boundary")
+      mkLine(a, rOvalHere, rE, "ring-divider")
+    } else {
+      mkLine(a, g.rc, rE, "ring-boundary")
+    }
   })
 
   if(ringArcs()){
@@ -556,21 +767,27 @@ function ringFelt(segs, g){
     }
     segs.forEach(seg => {
       const locked = seg.account.mode === "lock"
-      // ring7: a locked account's store goes dark — offers withdrawn from
-      // play, the basket spotlight stays lit (drawn before labels so the
-      // etched id stays readable)
-      if(boardSkin === "ring7" && locked){
+      // ring7/8: a locked account's store goes dark — offers withdrawn from
+      // play, the basket spotlight stays lit. On ring8 the dim lives in the
+      // TOP layer so the chips darken too; labels are appended after, staying
+      // bright.
+      if((boardSkin === "ring7" || ring8()) && locked){
         const dim = document.createElementNS(NS, "path")
         dim.setAttribute("d", ringStoreZonePath(seg, g))
         dim.setAttribute("class", "ring-storedim")
-        svg.appendChild(dim)
+        dimLayer.appendChild(dim)
       }
-      if(ringNoOval() && !locked && !seg.mine) return
+      // arc visibility matrix — ring8 INVERTS the ownership marking: other
+      // players' arcs are solid grey (the divider continues through them);
+      // YOUR arc has no line at all — but stays tappable (transparent
+      // stroke) and lights orange when you lock
+      if(!ring8() && ringNoOval() && !locked && !seg.mine) return
       const arc = document.createElementNS(NS, "path")
       arc.setAttribute("d", ringArcPath(seg, g))
       arc.setAttribute("class", "ring-lockarc"
         + (locked ? " ring-lockarc--locked" : "")
-        + (seg.mine ? " ring-lockarc--mine" : ""))
+        + (seg.mine ? " ring-lockarc--mine" : "")
+        + (ring8() ? (seg.mine ? " ring-lockarc--open" : " ring-lockarc--wall") : ""))
       if(seg.mine){
         arc.onclick = () => boardToggleLock(seg.account)
         const t = document.createElementNS(NS, "title")
@@ -589,8 +806,14 @@ function ringFelt(segs, g){
     svg.appendChild(oval)
   }
 
-  if(g.etched) segs.forEach(seg => svg.appendChild(ringEtchLabel(seg, g, NS)))
+  if(g.etched) segs.forEach(seg => labelLayer.appendChild(ringEtchLabel(seg, g, NS)))
 
+  if(top){
+    const both = document.createDocumentFragment()
+    both.appendChild(svg)
+    both.appendChild(top)
+    return both
+  }
   return svg
 }
 
@@ -637,12 +860,14 @@ function ringEtchLabel(seg, g, NS){
   const text = document.createElementNS(NS, "text")
   text.setAttribute("class", "ring-etchlabel")
   text.setAttribute("fill", getPlayerColour(seg.account.playerId))
-  // ring7: 🔒 prefix marks a locked account right on its etched id (the
-  // corner badge is dropped — the darkened store + arc + prefix carry it)
+  // ring7: 🔒 prefix inline (shifts the id — ring8 fixes that with its own
+  // anchored node so the account number never moves on lock)
   const lockPrefix = (boardSkin === "ring7" && seg.account.mode === "lock") ? "🔒 " : ""
   text.textContent = lockPrefix + (seg.account.id.split(":")[1] || seg.account.id) + (seg.mine ? " ·you" : "")
 
-  const fs = Math.min(28, Math.max(16, g.step * 0.24))
+  // ring8: etched ids scale with the viewport (~⅔ … ~1.3× of the fixed size)
+  const vScale = ring8() ? Math.min(1.3, Math.max(0.67, Math.min(g.W, g.H) / 800)) : 1
+  const fs = Math.min(28, Math.max(16, g.step * 0.24)) * vScale
   text.setAttribute("font-size", fs)
   const halfLen = fs * 0.31 * text.textContent.length   // rough glyph budget
 
@@ -678,8 +903,45 @@ function ringEtchLabel(seg, g, NS){
   text.setAttribute("x", x)
   text.setAttribute("y", y)
   text.setAttribute("text-anchor", "middle")
-  text.setAttribute("transform", `rotate(${rot} ${x} ${y})`)
-  return text
+
+  if(!ring8()){
+    text.setAttribute("transform", `rotate(${rot} ${x} ${y})`)
+    return text
+  }
+
+  // ring8: a <g> carries the rotation; the id text NEVER moves — the 🔒 is
+  // its own node anchored to end just before the id (overflow is fine), and
+  // an xproof label (accountLabelCache) etches smaller underneath
+  const grp = document.createElementNS(NS, "g")
+  grp.setAttribute("transform", `rotate(${rot} ${x} ${y})`)
+  grp.appendChild(text)
+
+  if(seg.account.mode === "lock"){
+    const lock = document.createElementNS(NS, "text")
+    lock.setAttribute("class", "ring-etchlabel ring-etchlock")
+    lock.setAttribute("x", x - halfLen - 6)
+    lock.setAttribute("y", y)
+    lock.setAttribute("text-anchor", "end")
+    lock.setAttribute("font-size", fs * 0.8)
+    lock.textContent = "🔒"
+    grp.appendChild(lock)
+  }
+
+  const hac = seg.account.id.split(":")[1] || seg.account.id
+  const xLabel = window.accountLabelCache?.[hac]
+  if(xLabel){
+    const sub = document.createElementNS(NS, "text")
+    sub.setAttribute("class", "ring-etchlabel ring-etchsub")
+    sub.setAttribute("fill", getPlayerColour(seg.account.playerId))
+    sub.setAttribute("x", x)
+    sub.setAttribute("y", y + fs * 0.78)
+    sub.setAttribute("text-anchor", "middle")
+    sub.setAttribute("font-size", fs * 0.52)
+    sub.textContent = xLabel
+    grp.appendChild(sub)
+  }
+
+  return grp
 }
 
 /* ── layout pieces ──────────────────────────────────────────────────────── */
@@ -1130,6 +1392,8 @@ function boardDemoInit(){
         assets: { "HBAR": 1234500000, "0.0.456": 250000000, "0.0.555": 3 },
         basket: [
           { assetId: "HBAR", amount: 500000000, fromId: "p2:0.0.2002" },
+          // second drop from the same giver — exercises the Net toggle (5+2=7ℏ)
+          { assetId: "HBAR", amount: 200000000, fromId: "p2:0.0.2002" },
           { assetId: "0.0.789#31", amount: 1, fromId: "p3:0.0.3003" }
         ]
       },
@@ -1167,6 +1431,9 @@ function boardDemoInit(){
 
   currentPlayerId = "p1"
   socket = { readyState: 1, send: m => boardDemoApply(JSON.parse(m)) }
+
+  // fake xproof label so the etched sublabel (ring8) can be previewed
+  window.accountLabelCache = { ...(window.accountLabelCache || {}), "0.0.2002": "ada.kpay.id" }
 
   render()
 }
@@ -1212,3 +1479,41 @@ function boardDemoApply(msg){
 
   if(!msg.__seed) render()
 }
+
+/* ── SHAPING NOTES: the scene viewmodel (Phase 1.5) ─────────────────────────
+   Full discussion: BOARD-UI1-RENDERPATH-20260709.md §3-§5 (workspace tasks).
+
+   Today renderRingBoard() reads proposal state directly (getAccounts,
+   buildReservedByAccount). The signing phase paints THE SAME PICTURE from a
+   pending TRANSACTION, so the split to make before wireframing it:
+
+     buildSceneFromProposal(state)  ─┐
+                                     ├─▶ scene ─▶ renderRingBoard(scene)
+     buildSceneFromTx(tx, state)    ─┘
+
+   scene = {
+     segments: [{ accountId, playerId, mine, locked,           // arc/wash/dim
+                  signStatus?,          // tx phase: null | pending|signed|problem
+                  store: [chip], ghosts: [chip], basket: [chip] }],
+     hub: { locked, total, scope }     // tx phase: + expiresAt (countdown)
+   }
+   chip = { assetId, amount, fromAccountId?, fromPlayerId?, handlers-by-phase }
+
+   Phase differences the scene absorbs, so painters never fork:
+   - proposal = the BEFORE+AFTER view (store + ghosts + baskets, all mutable);
+     tx = the AFTER only (basket legs frozen from tx data; ghosts stay as the
+     ghosted "before" — nothing visually leaves the table at strike)
+   - NETTING: a tx is inherently netted; the Net toggle above previews that
+     during proposal. Net-ON means zero jolt at strike; net-OFF accepts a
+     merge jump (or a future merge animation — parked). Likely endgame: net
+     always on, toggle demoted to nerd/dev.
+   - arcs: locked(orange) → signStatus green/red per account (SIGN-STATUSLANG1
+     colours, same language as the signing modal — never diverge)
+   - hub: count → countdown (SIGN-COUNTDOWN1 hourglass)
+   - footer: the Lock button slot BECOMES the Sign button when all-locked
+     (same dropdown picks the signing account); wallet/sign roll-up docks here
+   - after execution: success = basket chips animate into their new owners'
+     stores, brighter than the (still dimmed) existing store chips — 3 layers:
+     old store chips < dim sheet < new arrivals; failure = chips animate back
+     to their givers (deal torn down). Both are boardFlyLeg choreography.
+──────────────────────────────────────────────────────────────────────────── */

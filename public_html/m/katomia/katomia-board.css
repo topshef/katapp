@@ -223,7 +223,7 @@ body.board-page{
   width: 100%;
   height: 100%;
   pointer-events: none;
-  z-index: 55;
+  z-index: 4;   /* under the chips too — the fly clone (z60) stays above while moving */
 }
 .board-trailline{
   stroke-width: 2.5;
@@ -305,6 +305,105 @@ body.board-page{
   border-color: #f5a623;
 }
 
+/* ── ring8 (review 6) ───────────────────────────────────────────────────── */
+
+/* felt split: top layer (locked-store dim + etched labels) sits ABOVE the
+   chip boxes (z5) so the dim shades chips; labels append after the dim */
+.ring-felt--top{ z-index: 6; }
+
+/* chip faces WHITE — grey faces vanished against the shading washes; OG
+   square-cornered sleeve + lift shadow carried over from v5-7 */
+[data-board-skin="ring8"] .board-chip{
+  background: #fff;
+  border-radius: 0 9px 9px 0;
+  box-shadow: 0 1px 1.5px rgba(0,0,0,.20), 0 2px 6px rgba(0,0,0,.09);
+}
+[data-board-skin="ring8"] .board-ghost{ box-shadow: none; }
+[data-board-skin="ring8"] .board-chip.thumb-only{
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* viewport-responsive sizing: ~⅔ … ~1.3× of the old fixed size
+   (12.5px/40px at ~800 vmin). Resize-jank smoothing = BOARD-POLISH1. */
+[data-board-skin="ring8"] .board-chip{
+  font-size: clamp(8.5px, 1.05vmin + 4.1px, 16.5px);
+  padding: 3px 7px;
+}
+[data-board-skin="ring8"] .board-chip .asset-thumb{
+  width: clamp(26px, 3.4vmin + 13px, 52px);
+  height: clamp(26px, 3.4vmin + 13px, 52px);
+}
+
+/* inverted boundary language: your own arc has NO line (your space flows
+   into the baskets — but it stays tappable: transparent stroke = the lock
+   toggle); other players' arcs are DOTTED, not solid (user refinement:
+   others may cross this line, mindfully); the mine/other radial boundaries
+   extend outward as the solid divider */
+.ring-lockarc--wall{
+  stroke: #c9c2b3;
+  opacity: .8;
+  stroke-width: 2.5;
+  stroke-dasharray: 3 7;
+  stroke-linecap: round;
+}
+.ring-lockarc--open:not(.ring-lockarc--locked){
+  stroke: transparent;
+  stroke-width: 14;              /* fat invisible tap target */
+  opacity: 1;
+}
+[data-board-skin="ring8"] .ring-lockarc--locked{
+  stroke: #f5a623;
+  stroke-width: 8;
+  opacity: .85;
+  stroke-dasharray: none;   /* locked = solid, even where the wall is dotted */
+}
+.ring-divider{
+  stroke: #c9c2b3;
+  stroke-width: 3;
+}
+
+/* selected account (footer dropdown) — wedge brightens */
+.board-wedge--selected{ opacity: .26; }
+
+/* hub brand K — Montserrat where available (KPAY face), faint, behind count */
+.ring-hub-k{
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Montserrat, system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 170%;
+  color: rgba(0, 0, 0, .08);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.ring-etchsub{ opacity: .55; font-weight: 600; }
+.ring-etchlock{ opacity: .9; }
+
+.ring-footer-accsel{
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid #ddd6c6;
+  border-radius: 8px;
+  background: #fff;
+  max-width: 40vw;
+}
+.ring-footer-del{
+  border: 1px solid #ddd6c6;
+  border-radius: 16px;
+  background: #fff;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ring-footer-lock:disabled, .ring-footer-del:disabled{ opacity: .4; cursor: default; }
+
 /* dev rotation spinner */
 .ring-footer-rot{
   margin-left: auto;
@@ -349,7 +448,7 @@ body.board-page{
   inset: 0;
   height: auto;
   pointer-events: none;
-  z-index: 40;
+  z-index: 4;   /* UNDER the chip boxes (z5): lines run beneath chips (review 6) */
 }
 
 @media (max-width: 520px){

@@ -128,7 +128,7 @@
         <select id="viewSelect">
           <option value="columns">🖥️ Grid (desktop)</option>
           <option value="merged">📱 List (mobile)</option>
-          <option value="board-ring7">⭕ Board — ring</option>
+          <option value="board-ring8">⭕ Board — ring</option>
           <option value="board-table">🎲 Board — round table</option>
           <option value="board-market">🏪 Board — market square</option>
         </select>
