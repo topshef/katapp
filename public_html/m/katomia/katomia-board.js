@@ -17,20 +17,29 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["ring", "ring2", "ring3", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "table", "market"]
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
-// ids etched into the felt instead of label rows, ALL chips tinted by owner,
-// oval faded+thickened (future tap-to-lock arc), footer control bar. They
-// differ only in where the etched id sits: ring2 along the most-horizontal
-// segment boundary, ring3 horizontal at the segment centroid. ring stays as
-// the v1 for side-by-side comparison until one wins.
-const ringEtched = () => boardSkin === "ring2" || boardSkin === "ring3"
+// ids etched into the felt instead of label rows, oval faded+thickened (future
+// tap-to-lock arc), footer control bar. ring2 etches along the most-horizontal
+// segment boundary, ring3 at the segment centroid, and both tint chip FACES by
+// owner. ring4 = the feedback pass on ring2 (2026-07-09 #2, now the default):
+// boundary etching won (centroid ids get buried under assets), but face tint
+// lost — an NFT's own artwork colour must never read as ownership, so EVERY
+// chip instead wears the v1 basket treatment: the owner's thick left sleeve,
+// clean face. Chips a smidge bigger everywhere. One frozen variant per
+// iteration, on purpose — new feedback = new skin, so oddities stay comparable.
+const ringEtched = () => boardSkin === "ring2" || boardSkin === "ring3" || boardSkin === "ring4"
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
-  return BOARD_SKINS.includes(s) ? s : "ring"
+  return BOARD_SKINS.includes(s) ? s : "ring4"
 })()
+
+// dev control (footer): the layout's start angle — segments begin here and run
+// clockwise. 180 = the first account's segment straddles 9 o'clock. Editable
+// to explore how different rotations render; not a user-facing feature.
+let boardStartAngle = 180
 
 {
   const sel = document.getElementById("boardSkinSelect")
@@ -165,7 +174,7 @@ function renderRingBoard(root){
 
   accounts.forEach((account, i) => {
 
-    const a0 = 180 + i * step, a1 = a0 + step
+    const a0 = boardStartAngle + i * step, a1 = a0 + step
     const am = rad((a0 + a1) / 2)
     const mine = isMyAccount(account)
     segs.push({ account, a0, a1, am, mine })
@@ -274,6 +283,19 @@ function ringFooter(mine){
     b.onclick = () => boardToggleLock(account)
     bar.appendChild(b)
   })
+
+  // dev: start-angle spinner — explore how rotations render (user 2026-07-09 #2)
+  const rot = document.createElement("label")
+  rot.className = "ring-footer-rot"
+  rot.title = "Dev: board start angle (degrees, segments run clockwise from here)"
+  rot.appendChild(document.createTextNode("↻"))
+  const ri = document.createElement("input")
+  ri.type = "number"
+  ri.step = 15
+  ri.value = boardStartAngle
+  ri.onchange = () => { boardStartAngle = Number(ri.value) || 0; render() }
+  rot.appendChild(ri)
+  bar.appendChild(rot)
 
   return bar
 }
@@ -695,11 +717,17 @@ function boardAssetText(assetId, amount){
   return `${boardNum(amount / 10 ** decimals)} ${sym}`
 }
 
-// etched variants: EVERY chip wears its owner's colour, wherever it sits —
-// ownership reads directly off the board with no cross-referencing (and the
-// oval can fade back). The basket sleeve stays as reinforcement.
+// etched variants: EVERY chip declares its owner, wherever it sits — no
+// cross-referencing. ring2/ring3 tint the chip FACE (kept as a demo of that
+// idea); ring4 uses the v1 basket treatment instead — the owner's thick left
+// sleeve only, face untouched, because a coloured face collides with NFT
+// artwork: the art's colour must never read as ownership.
 function ringTint(el, playerId){
   if(!ringEtched() || !playerId) return
+  if(boardSkin === "ring4"){
+    applyOwnerSleeve(el, playerId)
+    return
+  }
   el.classList.add("chip-owned")
   el.style.background = `color-mix(in srgb, ${getPlayerColour(playerId)} 24%, #fff)`
 }

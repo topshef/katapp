@@ -23,9 +23,10 @@
 
 <div class="board-chrome">
   <select id="boardSkinSelect" title="Board skin">
-    <option value="ring">⭕ Ring v1 (label rows)</option>
-    <option value="ring2">🎲 Ring — etched ids on boundary</option>
-    <option value="ring3">🎯 Ring — etched ids at centroid</option>
+    <option value="ring4">⭕ Ring v4 — sleeves, etched boundary (default)</option>
+    <option value="ring2">🎲 Ring v2 — etched boundary, tinted faces</option>
+    <option value="ring3">🎯 Ring v3 — etched centroid, tinted faces</option>
+    <option value="ring">📇 Ring v1 (label rows)</option>
     <option value="table">🎲 Round table (ref)</option>
     <option value="market">🏪 Market square (ref)</option>
   </select>

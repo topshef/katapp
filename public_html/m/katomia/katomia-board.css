@@ -134,15 +134,28 @@ body.board-page{
   opacity: .22;
 }
 
-/* chips sit ON the board: subtle lift, owner-coloured face */
+/* chips sit ON the board: subtle lift (ring2/3 also tint the face; ring4
+   keeps faces clean — owner lives in the left sleeve only) */
 [data-board-skin="ring2"] .board-chip,
-[data-board-skin="ring3"] .board-chip{
+[data-board-skin="ring3"] .board-chip,
+[data-board-skin="ring4"] .board-chip{
   box-shadow: 0 1px 1.5px rgba(0,0,0,.22), 0 2px 6px rgba(0,0,0,.10);
   border-radius: 9px;
 }
 [data-board-skin="ring2"] .board-ghost,
-[data-board-skin="ring3"] .board-ghost{
+[data-board-skin="ring3"] .board-ghost,
+[data-board-skin="ring4"] .board-ghost{
   box-shadow: none;            /* ghosts lie flat — they've left the table */
+}
+
+/* ring4: everything a smidge bigger (review #2) — desktop and mobile */
+[data-board-skin="ring4"] .board-chip{
+  font-size: 12.5px;
+  padding: 4px 8px;
+}
+[data-board-skin="ring4"] .board-chip .asset-thumb{
+  width: 40px;
+  height: 40px;
 }
 
 .ring-lockbadge{
@@ -186,6 +199,23 @@ body.board-page{
   border-color: #f5a623;
 }
 
+/* dev rotation spinner */
+.ring-footer-rot{
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: #998;
+}
+.ring-footer-rot input{
+  width: 54px;
+  font-size: 12px;
+  padding: 2px 4px;
+  border: 1px solid #ddd6c6;
+  border-radius: 6px;
+  background: #fff;
+}
+
 .board-wedge--mine{ opacity: .19; }
 
 .ring-hub{
@@ -223,6 +253,10 @@ body.board-page{
   [data-board-skin="ring3"] .ring-box .board-chip{ font-size: 11.5px; padding: 3px 7px; }
   [data-board-skin="ring2"] .ring-box .board-chip .asset-thumb,
   [data-board-skin="ring3"] .ring-box .board-chip .asset-thumb{ width: 32px; height: 32px; }
+
+  /* ring4 portrait: the requested smidge up from ring2 */
+  [data-board-skin="ring4"] .ring-box .board-chip{ font-size: 12px; padding: 3px 8px; }
+  [data-board-skin="ring4"] .ring-box .board-chip .asset-thumb{ width: 36px; height: 36px; }
 }
 
 /* ── seat cards (other players) ─────────────────────────────────────────── */
