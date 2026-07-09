@@ -874,7 +874,8 @@ export function computeSignerPreview({ data, accounts, accountId }) {
 	if (!data || !accounts || !accountId) return { state: 'loading', text: '' }
 	const signedPubkeys = (data.sigs || []).map(s => s.pubKey).filter(Boolean).map(normalizePublicKey).filter(Boolean)
 	const list = Object.values(accounts)
-	const acc = list.find(a => a.accountId === accountId || a.label === accountId)
+	// accounts is keyed BY account id — the acc objects don't carry an accountId field
+	const acc = accounts[accountId] || list.find(a => a.label === accountId)
 	if (!acc || !acc.mustSign) return { state: 'not-needed', text: "This account isn't required to sign this transaction — it's shown for reference." }
 	const st = accountSigningStatus(acc, signedPubkeys)
 	if (st.state === 'loading') return { state: 'loading', text: '' }
