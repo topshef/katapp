@@ -116,6 +116,76 @@ body.board-page{
 .ring-lock{ font-size: 12px; }
 .ring-lock.clickable{ cursor: pointer; }
 
+/* ── etched variants (ring2/ring3) ──────────────────────────────────────── */
+
+/* account ids written into the felt — big, bold, faded, owner-coloured */
+.ring-etchlabel{
+  font-weight: 800;
+  letter-spacing: .06em;
+  opacity: .30;
+  user-select: none;
+}
+
+/* the oval fades back to felt and thickens — its width is the future
+   tap-to-lock arc target (stage 2) */
+.ring-ovalline--faded{
+  stroke: #9db4cf;
+  stroke-width: 12;
+  opacity: .22;
+}
+
+/* chips sit ON the board: subtle lift, owner-coloured face */
+[data-board-skin="ring2"] .board-chip,
+[data-board-skin="ring3"] .board-chip{
+  box-shadow: 0 1px 1.5px rgba(0,0,0,.22), 0 2px 6px rgba(0,0,0,.10);
+  border-radius: 9px;
+}
+[data-board-skin="ring2"] .board-ghost,
+[data-board-skin="ring3"] .board-ghost{
+  box-shadow: none;            /* ghosts lie flat — they've left the table */
+}
+
+.ring-lockbadge{
+  position: absolute;
+  top: -9px;
+  right: -6px;
+  font-size: 13px;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.25));
+}
+
+/* footer control bar — thumb-reach: filters + my lock toggles; the signing
+   roll-up docks here later */
+.ring-footer{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px calc(7px + env(safe-area-inset-bottom));
+  background: rgba(255,254,249,.92);
+  border-top: 1px solid #e5e0d4;
+  box-shadow: 0 -3px 12px rgba(0,0,0,.07);
+  font-size: 12px;
+  overflow-x: auto;
+}
+.ring-footer-filter{ display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.ring-footer-lock{
+  border: 1px solid #ddd6c6;
+  border-radius: 16px;
+  background: #fff;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ring-footer-lock.locked{
+  background: #fdf1dc;
+  border-color: #f5a623;
+}
+
 .board-wedge--mine{ opacity: .19; }
 
 .ring-hub{
@@ -146,6 +216,13 @@ body.board-page{
   .ring-head{ font-size: 11px; }
   .ring-box .board-chip{ font-size: 10px; padding: 2px 5px; }
   .ring-box .board-chip .asset-thumb{ width: 26px; height: 26px; }
+
+  /* etched variants reclaim the label rows' space — chips get it back
+     (review 2026-07-09: chips too small to read on mobile) */
+  [data-board-skin="ring2"] .ring-box .board-chip,
+  [data-board-skin="ring3"] .ring-box .board-chip{ font-size: 11.5px; padding: 3px 7px; }
+  [data-board-skin="ring2"] .ring-box .board-chip .asset-thumb,
+  [data-board-skin="ring3"] .ring-box .board-chip .asset-thumb{ width: 32px; height: 32px; }
 }
 
 /* ── seat cards (other players) ─────────────────────────────────────────── */

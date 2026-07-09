@@ -17,7 +17,15 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["ring", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "table", "market"]
+
+// ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
+// ids etched into the felt instead of label rows, ALL chips tinted by owner,
+// oval faded+thickened (future tap-to-lock arc), footer control bar. They
+// differ only in where the etched id sits: ring2 along the most-horizontal
+// segment boundary, ring3 horizontal at the segment centroid. ring stays as
+// the v1 for side-by-side comparison until one wins.
+const ringEtched = () => boardSkin === "ring2" || boardSkin === "ring3"
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
@@ -62,7 +70,7 @@ function renderBoard(){
   const root = document.getElementById("boardRoot")
   if(!root) return
 
-  if(boardSkin === "ring"){
+  if(boardSkin.startsWith("ring")){
     renderRingBoard(root)
     return
   }
@@ -120,9 +128,18 @@ function renderBoard(){
 
 function renderRingBoard(root){
 
-  const accounts = getAccounts()          // join order — shared board for all
+  // join order — shared board for all; the active-only filter (footer) reuses
+  // the legacy visibility logic but keeps join order (getVisibleAccounts
+  // sorts mine-first, which would reseat the shared board)
+  const all = getAccounts()
+  let accounts = all
+  if(showActiveOnly){
+    const vis = new Set(getVisibleAccounts(all).map(a => a.id))
+    accounts = all.filter(a => vis.has(a.id))
+  }
   const accountMap = getAccountMap()
   const reservedByAccount = buildReservedByAccount(accounts)
+  const etched = ringEtched()
 
   const W = root.clientWidth, H = root.clientHeight
   const cx = W / 2, cy = H / 2
@@ -143,19 +160,21 @@ function renderRingBoard(root){
   const N = accounts.length
   const step = N ? 360 / N : 360
   const geo = { W, H, cx, cy }
+  const bottomPad = etched ? 76 : 48        // keep boxes clear of the footer bar
+  const segs = []                           // geometry handed to the felt layer
 
   accounts.forEach((account, i) => {
 
     const a0 = 180 + i * step, a1 = a0 + step
     const am = rad((a0 + a1) / 2)
     const mine = isMyAccount(account)
+    segs.push({ account, a0, a1, am, mine })
 
-    // wash + fat drop target: the whole slice IS the account
+    // wash + fat drop target: the whole slice IS the account (own segments
+    // accept drops too — acct → acct moves, and drag-home = withdraw)
     const wedge = makeWedge(account, a0, a1, geo, mine)
-    if(mine){
-      wedge.classList.add("board-wedge--mine")
-      setupDropTarget(wedge, account)   // own segments accept drops too (acct → acct)
-    }
+    if(mine) wedge.classList.add("board-wedge--mine")
+    boardDropTarget(wedge, account)
     frag.appendChild(wedge)
 
     const chord = fr => Math.max(0.001, 2 * fr * Math.sin(rad(step / 2)))
@@ -178,30 +197,38 @@ function renderRingBoard(root){
     inner.style.left = Math.min(Math.max(cx + ri * Math.cos(am), innerW / 2 + 6), W - innerW / 2 - 6) + "px"
     inner.style.top = Math.min(Math.max(cy + ri * Math.sin(am), 40), H - 40) + "px"
     boardBasketChips(account, inner, accountMap)
-    setupDropTarget(inner, account)
+    boardDropTarget(inner, account)
     frag.appendChild(inner)
 
-    // outer box — label + available (ghosts in place), outside the oval
+    // outer box — available (ghosts in place), outside the oval. v1 carries a
+    // label row; etched variants write the id into the felt instead so the
+    // chips get the room (and the board reads like a board, not a form)
     const ro = rOval + (rEdge - rOval) * 0.62
     const outerW = boxW((rEdge - rOval) * 0.92, chord(ro) * 0.75)
     const outer = document.createElement("div")
     outer.className = "ring-box ring-avail" + (mine ? " ring-avail--mine" : "")
     outer.style.maxWidth = outerW + "px"
     outer.style.left = Math.min(Math.max(cx + ro * Math.cos(am), outerW / 2 + 6), W - outerW / 2 - 6) + "px"
-    outer.style.top = Math.min(Math.max(cy + ro * Math.sin(am), 48), H - 48) + "px"
+    outer.style.top = Math.min(Math.max(cy + ro * Math.sin(am), 48), H - bottomPad) + "px"
 
-    outer.appendChild(ringHead(account, mine))
+    if(!etched) outer.appendChild(ringHead(account, mine))
+    else if(account.mode === "lock"){
+      const badge = document.createElement("div")
+      badge.className = "ring-lockbadge"
+      badge.textContent = "🔒"
+      outer.appendChild(badge)
+    }
     const chips = document.createElement("div")
     chips.className = "board-band"
     boardStoreChips(account, chips)
     boardReservedChips(account, chips, reservedByAccount)
     outer.appendChild(chips)
-    setupDropTarget(outer, account)
+    boardDropTarget(outer, account)
     frag.appendChild(outer)
   })
 
-  // felt linework: basket oval, segment boundaries, hub ring
-  frag.appendChild(ringFelt(accounts, { W, H, cx, cy, rc, rx, ry, step, edgeR, rad }))
+  // felt linework: basket oval, segment boundaries, hub ring, etched ids
+  frag.appendChild(ringFelt(segs, { W, H, cx, cy, rc, rx, ry, step, edgeR, ovalR, rad, etched }))
 
   // center pivot — future strike timer / signing hourglass
   const hub = document.createElement("div")
@@ -215,7 +242,108 @@ function renderRingBoard(root){
     (lp ? ` — ${lp.locked} of ${lp.total} locked (${lp.scope})` : "")
   frag.appendChild(hub)
 
+  if(etched) frag.appendChild(ringFooter(accounts.filter(a => isMyAccount(a))))
+
   root.replaceChildren(frag)
+}
+
+// bottom control bar (etched variants) — thumb-reach controls that never
+// obscure the board: active-only filter + my lock toggles. Later this bar
+// hosts the signing roll-up (wallet pick, sign status) per the 2026-07-09
+// review — a footer twin of the signing modal's expanding header.
+function ringFooter(mine){
+
+  const bar = document.createElement("div")
+  bar.className = "ring-footer"
+
+  const filt = document.createElement("label")
+  filt.className = "ring-footer-filter"
+  const cb = document.createElement("input")
+  cb.type = "checkbox"
+  cb.checked = showActiveOnly
+  cb.onchange = () => { showActiveOnly = cb.checked; render() }
+  filt.appendChild(cb)
+  filt.appendChild(document.createTextNode(" Active only"))
+  bar.appendChild(filt)
+
+  mine.forEach(account => {
+    const b = document.createElement("button")
+    b.className = "ring-footer-lock" + (account.mode === "lock" ? " locked" : "")
+    b.textContent = (account.mode === "lock" ? "🔒 " : "🔁 ") + (account.id.split(":")[1] || account.id)
+    b.title = account.mode === "lock" ? "Locked — tap to unlock" : "Trading — tap to lock"
+    b.onclick = () => boardToggleLock(account)
+    bar.appendChild(b)
+  })
+
+  return bar
+}
+
+// PROP-LOCKSIGN1 commitment flow, shared by the v1 label glyph + footer buttons
+async function boardToggleLock(account){
+  const locking = account.mode !== "lock"
+  let commitment = null
+  if(locking && typeof buildLockCommitment === "function")
+    commitment = await buildLockCommitment()
+  socket.send(JSON.stringify({
+    type: "game_toggleLock", gameId, accountId: account.id,
+    ...(commitment ? { commitment } : {})
+  }))
+  window.__lastLockBasisSent = locking ? (commitment?.payload?.basisHash ?? null) : null
+}
+
+// ring drop targets wrap the shared setupDropTarget with the two drag-back
+// gestures from the 2026-07-09 review (tap fallbacks all still work):
+//  · drag your offered item back HOME (its owner's segment) = plain withdraw
+//    (core would withdraw + re-offer to self, which reads as a self-basket)
+//  · drag an item YOU received back to its giver's segment = reject; dropped
+//    anywhere else it just snaps back (re-render restores it — no-op)
+function boardDropTarget(el, account){
+
+  setupDropTarget(el, account)
+  const coreDrop = el.ondrop
+
+  el.ondrop = e => {
+
+    const rejectFrom = e.dataTransfer.getData("rejectFrom")
+    if(rejectFrom){
+      e.preventDefault()
+      el.classList.remove("drag-over")
+      if(account.id === rejectFrom){
+        socket.send(JSON.stringify({
+          type: "game_reject", gameId,
+          accountId: e.dataTransfer.getData("rejectAccount"),
+          assetId: e.dataTransfer.getData("assetId")
+        }))
+        clearSelection()
+        render()
+      }
+      return
+    }
+
+    const fromId = e.dataTransfer.getData("fromAccountId")
+    const fromBasketTo = e.dataTransfer.getData("fromBasketToAccountId")
+    if(fromId && fromBasketTo && account.id === fromId){
+      e.preventDefault()
+      el.classList.remove("drag-over")
+      socket.send(JSON.stringify({
+        type: "game_withdraw", gameId,
+        fromId, toId: fromBasketTo,
+        assetId: e.dataTransfer.getData("assetId")
+      }))
+      clearSelection()
+      render()
+      return
+    }
+
+    coreDrop(e)
+  }
+}
+
+// touch has no hover: tapping a chip that has no action of yours flashes the
+// dotted pair line instead
+function flashTradePair(assetId, fromId, toId){
+  highlightTradePair(assetId, fromId, toId, true)
+  setTimeout(() => highlightTradePair(assetId, fromId, toId, false), 1600)
 }
 
 // account label + lock glyph (mine = clickable toggle; the oval-arc lock
@@ -237,32 +365,23 @@ function ringHead(account, mine){
   glyph.title = account.mode === "lock" ? "Locked" : "Trading"
 
   if(mine){
-    glyph.onclick = async e => {
+    glyph.onclick = e => {
       e.stopPropagation()
-      // same commitment flow as createAccountModeEl (PROP-LOCKSIGN1)
-      const locking = account.mode !== "lock"
-      let commitment = null
-      if(locking && typeof buildLockCommitment === "function")
-        commitment = await buildLockCommitment()
-      socket.send(JSON.stringify({
-        type: "game_toggleLock", gameId, accountId: account.id,
-        ...(commitment ? { commitment } : {})
-      }))
-      window.__lastLockBasisSent = locking ? (commitment?.payload?.basisHash ?? null) : null
+      boardToggleLock(account)
     }
   }
   head.appendChild(glyph)
   return head
 }
 
-function ringFelt(accounts, g){
+function ringFelt(segs, g){
   const NS = "http://www.w3.org/2000/svg"
   const svg = document.createElementNS(NS, "svg")
   svg.setAttribute("class", "ring-felt")
   svg.setAttribute("viewBox", `0 0 ${g.W} ${g.H}`)
 
-  accounts.forEach((_, i) => {
-    const a = g.rad(180 + i * g.step)
+  segs.forEach(seg => {
+    const a = g.rad(seg.a0)
     const rE = g.edgeR(a)
     const line = document.createElementNS(NS, "line")
     line.setAttribute("x1", g.cx + g.rc * Math.cos(a))
@@ -276,10 +395,64 @@ function ringFelt(accounts, g){
   const oval = document.createElementNS(NS, "ellipse")
   oval.setAttribute("cx", g.cx); oval.setAttribute("cy", g.cy)
   oval.setAttribute("rx", g.rx); oval.setAttribute("ry", g.ry)
-  oval.setAttribute("class", "ring-ovalline")   // stage 2: per-segment lock arcs
+  // faded + thick in etched variants: reads as felt, and the width is the
+  // stage-2 tap-to-lock arc target
+  oval.setAttribute("class", "ring-ovalline" + (g.etched ? " ring-ovalline--faded" : ""))
   svg.appendChild(oval)
 
+  if(g.etched) segs.forEach(seg => svg.appendChild(ringEtchLabel(seg, g, NS)))
+
   return svg
+}
+
+// the account id etched into the felt — big, bold, faded, in the owner's
+// colour. ring2: written along the segment's most-horizontal boundary line
+// (nudged into the segment); ring3: horizontal at the outer zone's centroid.
+function ringEtchLabel(seg, g, NS){
+
+  const text = document.createElementNS(NS, "text")
+  text.setAttribute("class", "ring-etchlabel")
+  text.setAttribute("fill", getPlayerColour(seg.account.playerId))
+  text.textContent = (seg.account.id.split(":")[1] || seg.account.id) + (seg.mine ? " ·you" : "")
+
+  const fs = Math.min(28, Math.max(16, g.step * 0.24))
+  text.setAttribute("font-size", fs)
+  const halfLen = fs * 0.31 * text.textContent.length   // rough glyph budget
+
+  if(boardSkin === "ring3"){
+    // nearer the oval than the chip box (box sits at 0.62) so they layer
+    // rather than hide each other; x clamped so long ids stay on screen
+    const rl = g.ovalR(seg.am) + (g.edgeR(seg.am) - g.ovalR(seg.am)) * 0.30
+    const x = Math.min(Math.max(g.cx + rl * Math.cos(seg.am), halfLen + 6), g.W - halfLen - 6)
+    text.setAttribute("x", x)
+    text.setAttribute("y", g.cy + rl * Math.sin(seg.am))
+    text.setAttribute("text-anchor", "middle")
+    return text
+  }
+
+  // ring2: pick the boundary that lies most east-west, write along it
+  const c0 = Math.abs(Math.cos(g.rad(seg.a0))), c1 = Math.abs(Math.cos(g.rad(seg.a1)))
+  const abDeg = c0 >= c1 ? seg.a0 : seg.a1
+  const ab = g.rad(abDeg)
+  // pulled in from the screen edge so the text never clips
+  const rt = Math.max(g.ovalR(ab) + halfLen * 0.4,
+    Math.min((g.ovalR(ab) + g.edgeR(ab)) / 2, g.edgeR(ab) - halfLen - 10))
+
+  // perpendicular nudge INTO the segment (interior sits at larger angle than
+  // a0, smaller than a1), plus keep the glyphs upright
+  const inward = (abDeg === seg.a0 ? 1 : -1) * 18
+  const perp = ab + Math.PI / 2
+  const x = g.cx + rt * Math.cos(ab) + inward * Math.cos(perp)
+  const y = g.cy + rt * Math.sin(ab) + inward * Math.sin(perp)
+
+  let rot = ((abDeg % 360) + 360) % 360
+  if(rot > 90 && rot < 270) rot -= 180
+
+  text.setAttribute("x", x)
+  text.setAttribute("y", y)
+  text.setAttribute("text-anchor", "middle")
+  text.setAttribute("transform", `rotate(${rot} ${x} ${y})`)
+  return text
 }
 
 /* ── layout pieces ──────────────────────────────────────────────────────── */
@@ -522,6 +695,15 @@ function boardAssetText(assetId, amount){
   return `${boardNum(amount / 10 ** decimals)} ${sym}`
 }
 
+// etched variants: EVERY chip wears its owner's colour, wherever it sits —
+// ownership reads directly off the board with no cross-referencing (and the
+// oval can fade back). The basket sleeve stays as reinforcement.
+function ringTint(el, playerId){
+  if(!ringEtched() || !playerId) return
+  el.classList.add("chip-owned")
+  el.style.background = `color-mix(in srgb, ${getPlayerColour(playerId)} 24%, #fff)`
+}
+
 function boardStoreChips(account, container){
   const mine = isMyAccount(account)
 
@@ -535,6 +717,7 @@ function boardStoreChips(account, container){
     })
     applyAssetClasses(el, assetId, amount)
     el.classList.add("board-chip")
+    ringTint(el, account.playerId)
 
     if(mine){
       el.onclick = () => openAssetModal(assetId, account.id, amount)
@@ -565,6 +748,7 @@ function boardReservedChips(account, container, reservedByAccount){
     applyAssetClasses(el, item.assetId, item.amount || 1)
     el.classList.add("board-chip", "board-ghost")
     el.title = "Reserved — already offered out"
+    ringTint(el, account.playerId)
 
     // hover shows the dotted line to where it landed (legacy pair rules)
     el.dataset.assetId = item.assetId
@@ -582,6 +766,18 @@ function boardReservedChips(account, container, reservedByAccount){
         }))
         clearSelection()
       }
+      // drag the ghost home = withdraw; onto another segment = redirect
+      // (boardDropTarget routes the home case to a plain withdraw)
+      el.draggable = true
+      el.ondragstart = e => {
+        e.dataTransfer.setData("assetId", item.assetId)
+        e.dataTransfer.setData("available", item.amount || 1)
+        e.dataTransfer.setData("fromAccountId", account.id)
+        e.dataTransfer.setData("fromBasketToAccountId", item.toAccountId)
+      }
+    } else {
+      // not yours: tap = flash where it went (touch has no hover)
+      el.onclick = () => flashTradePair(item.assetId, account.id, item.toAccountId)
     }
     container.appendChild(el)
   })
@@ -605,6 +801,7 @@ function boardBasketChips(account, container, accountMap){
     })
     applyAssetClasses(el, item.assetId, item.amount || 1)
     el.classList.add("board-chip")
+    ringTint(el, fromAccount?.playerId)
 
     // hover shows the dotted line back to the giver's ghost (legacy pair rules)
     el.dataset.assetId = item.assetId
@@ -633,7 +830,7 @@ function boardBasketChips(account, container, accountMap){
         e.dataTransfer.setData("fromBasketToAccountId", account.id)
       }
     } else if(receiverIsMine){
-      el.title = "Offered to you — tap to return it"
+      el.title = "Offered to you — tap to return it, or drag it back to its giver"
       el.onclick = () => {
         const ok = confirm("Return " + boardAssetText(item.assetId, item.amount || 1) + " to " + fromAccountId + "?")
         if(!ok) return
@@ -643,6 +840,18 @@ function boardBasketChips(account, container, accountMap){
         }))
         clearSelection()
       }
+      // drag-back-to-giver = reject; any other landing snaps back (re-render)
+      if(fromAccountId){
+        el.draggable = true
+        el.ondragstart = e => {
+          e.dataTransfer.setData("assetId", item.assetId)
+          e.dataTransfer.setData("rejectFrom", fromAccountId)
+          e.dataTransfer.setData("rejectAccount", account.id)
+        }
+      }
+    } else if(fromAccountId){
+      // not your trade: tap = flash the pair line (touch has no hover)
+      el.onclick = () => flashTradePair(item.assetId, fromAccountId, account.id)
     }
     container.appendChild(el)
   })

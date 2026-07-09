@@ -23,9 +23,11 @@
 
 <div class="board-chrome">
   <select id="boardSkinSelect" title="Board skin">
-    <option value="ring">⭕ Ring (per account)</option>
-    <option value="table">🎲 Round table</option>
-    <option value="market">🏪 Market square</option>
+    <option value="ring">⭕ Ring v1 (label rows)</option>
+    <option value="ring2">🎲 Ring — etched ids on boundary</option>
+    <option value="ring3">🎯 Ring — etched ids at centroid</option>
+    <option value="table">🎲 Round table (ref)</option>
+    <option value="market">🏪 Market square (ref)</option>
   </select>
   <a class="board-exit" href="/m/katomia/" title="Exit to games">✕</a>
 </div>
