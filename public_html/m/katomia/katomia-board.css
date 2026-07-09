@@ -149,11 +149,11 @@ body.board-page{
 }
 
 /* ring4+: everything a smidge bigger (review #2) — desktop and mobile */
-:is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"]) .board-chip{
+:is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"], [data-board-skin="ring7"]) .board-chip{
   font-size: 12.5px;
   padding: 4px 8px;
 }
-:is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"]) .board-chip .asset-thumb{
+:is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"], [data-board-skin="ring7"]) .board-chip .asset-thumb{
   width: 40px;
   height: 40px;
 }
@@ -161,14 +161,14 @@ body.board-page{
 /* ring5/6: the sleeve is the OG SOLID BAR (review #3) — square left corners
    so the border reads as a rectangle butted against the chip, not a rounded
    wrap (same shape rule as .asset.basket in the legacy view) */
-:is([data-board-skin="ring5"], [data-board-skin="ring6"]) .board-chip{
+:is([data-board-skin="ring5"], [data-board-skin="ring6"], [data-board-skin="ring7"]) .board-chip{
   border-radius: 0 9px 9px 0;
 }
 
 /* …and NFTs identically (user clarification): bare thumb + square bar beside
    it, exactly the OG mobile basket look — the chip-level shadow/radius was
    wrapping the image in a second bubble */
-:is([data-board-skin="ring5"], [data-board-skin="ring6"]) .board-chip.thumb-only{
+:is([data-board-skin="ring5"], [data-board-skin="ring6"], [data-board-skin="ring7"]) .board-chip.thumb-only{
   box-shadow: none;
   border-radius: 0;
   padding: 0;
@@ -199,13 +199,37 @@ body.board-page{
   stroke: #f5a623;
   opacity: .75;
 }
-[data-board-skin="ring6"] .ring-lockarc--mine:not(.ring-lockarc--locked){
+:is([data-board-skin="ring6"], [data-board-skin="ring7"]) .ring-lockarc--mine:not(.ring-lockarc--locked){
   stroke-dasharray: 4 8;       /* faint affordance where your arc would be */
   opacity: .30;
 }
 .ring-basketzone{               /* ring6: shading instead of a line */
   fill: rgba(90, 70, 20, .05);
   stroke: none;
+}
+.ring-basketzone--lit{          /* ring7: the basket is the SPOTLIGHT */
+  fill: rgba(255, 255, 253, .5);
+}
+.ring-storedim{                 /* ring7: a locked account's store goes dark */
+  fill: rgba(55, 42, 18, .17);
+  stroke: none;
+  pointer-events: none;
+}
+
+/* ▶ trailing line — drawn in the giver's colour, fades slowly */
+.board-traillayer{
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 55;
+}
+.board-trailline{
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  opacity: .75;
+  transition: stroke-dashoffset .85s cubic-bezier(.35,.9,.35,1), opacity 2.4s ease;
 }
 
 /* hub rim as cluster progress ring */
@@ -341,8 +365,8 @@ body.board-page{
   [data-board-skin="ring3"] .ring-box .board-chip .asset-thumb{ width: 32px; height: 32px; }
 
   /* ring4+ portrait: the requested smidge up from ring2 */
-  :is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"]) .ring-box .board-chip{ font-size: 12px; padding: 3px 8px; }
-  :is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"]) .ring-box .board-chip .asset-thumb{ width: 36px; height: 36px; }
+  :is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"], [data-board-skin="ring7"]) .ring-box .board-chip{ font-size: 12px; padding: 3px 8px; }
+  :is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"], [data-board-skin="ring7"]) .ring-box .board-chip .asset-thumb{ width: 36px; height: 36px; }
 }
 
 /* ── seat cards (other players) ─────────────────────────────────────────── */

@@ -17,7 +17,7 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "table", "market"]
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
 // ids etched into the felt instead of label rows, oval faded+thickened (future
@@ -37,13 +37,33 @@ const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "table
 // inclined to drop it; inner zone reads from a soft shading + sleeves alone,
 // and lock arcs materialise only where a lock exists (plus a faint dashed
 // affordance on your own segments).
-const ringEtched = () => /^ring[2-6]$/.test(boardSkin)
-const ringSleeved = () => /^ring[4-6]$/.test(boardSkin)
-const ringArcs = () => boardSkin === "ring5" || boardSkin === "ring6"
+// ring7 (review 4, 2026-07-09 — v6 confirmed as the base, default): the
+// shading INVERTS — the basket zone is a permanent light SPOTLIGHT, and when
+// an account locks their STORE zone darkens (spotlight stays lit, orange arc
+// stays); locked accounts get a 🔒 prefix on the etched id (badge dropped);
+// ▶ preview leaves a trailing line in the giver's colour that fades slowly.
+//
+// Naming (user): the inner spotlight area = BASKET, the outer holding area =
+// STORE (matches the grid view's store/reserved language).
+//
+// Review-4 observations, noted not tasked (still exploratory):
+// - shared god view confirmed working: same rotation value on two screens
+//   aligns the boards; chip FLOW inside a box still varies with viewport
+//   size — acceptable, the segment geometry is what's shared
+// - Firefox sometimes renders some players' chips as images and not others —
+//   pre-existing enrichment/thumb-cache glitch, not a board issue
+// - 8 accounts: fine on desktop, too crowded on portrait mobile (~4 is the
+//   practical ceiling) — the lots-of-players story (start wide, whittle to a
+//   cluster, flip between clusters; Active-only is the seed of it) is THE
+//   open challenge for this view
+const ringEtched = () => /^ring[2-7]$/.test(boardSkin)
+const ringSleeved = () => /^ring[4-7]$/.test(boardSkin)
+const ringArcs = () => /^ring[5-7]$/.test(boardSkin)
+const ringNoOval = () => boardSkin === "ring6" || boardSkin === "ring7"
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
-  return BOARD_SKINS.includes(s) ? s : "ring5"
+  return BOARD_SKINS.includes(s) ? s : "ring7"
 })()
 
 // dev control (footer): the layout's start angle — segments begin here and run
@@ -231,7 +251,8 @@ function renderRingBoard(root){
     outer.style.top = Math.min(Math.max(cy + ro * Math.sin(am), 48), H - bottomPad) + "px"
 
     if(!etched) outer.appendChild(ringHead(account, mine))
-    else if(account.mode === "lock"){
+    else if(account.mode === "lock" && boardSkin !== "ring7"){
+      // ring7 carries lock state on the etched id + darkened store instead
       const badge = document.createElement("div")
       badge.className = "ring-lockbadge"
       badge.textContent = "🔒"
@@ -262,8 +283,10 @@ function renderRingBoard(root){
   hubText.textContent = lp ? `${lp.locked}/${lp.total}` : ""
   hub.appendChild(hubText)
   if(ringArcs() && lp) hub.appendChild(hubProgressRing(lp, rc))
+  // "accounts" spelled out (user 2026-07-09): locking counts ACCOUNTS —
+  // segments are accounts, a multi-account player locks each separately
   hub.title = (gameMeta?.profile?.name || gameMeta?.id || "") +
-    (lp ? ` — ${lp.locked} of ${lp.total} locked (${lp.scope})` : "")
+    (lp ? ` — ${lp.locked} of ${lp.total} accounts locked (${lp.scope})` : "")
   frag.appendChild(hub)
 
   if(etched) frag.appendChild(ringFooter(accounts.filter(a => isMyAccount(a))))
@@ -348,11 +371,13 @@ function hubProgressRing(lp, rc){
 
 // ▶ preview: replay every standing offer as a chip flying from its ghost to
 // where it landed (pure eye-candy over getBoundingClientRect — no state
-// change; the signing-modal preview idea transplanted to the board)
+// change; the signing-modal preview idea transplanted to the board). Each
+// flight leaves a TRAILING LINE in the giver's colour that fades slowly
+// (review 4 — like the signing-modal animation).
 function playTransfers(){
   let i = 0
   document.querySelectorAll(".asset.basket").forEach(basketEl => {
-    const { ownerAccount, assetId, toAccount } = basketEl.dataset
+    const { ownerAccount, assetId, toAccount, ownerPlayer } = basketEl.dataset
     if(!ownerAccount || !assetId) return
     const sel = `[data-owner-account="${CSS.escape(ownerAccount)}"]`
       + `[data-asset-id="${CSS.escape(assetId)}"]`
@@ -368,9 +393,35 @@ function playTransfers(){
     const delay = i++ * 220
     setTimeout(() => {
       fly.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px)`
+      boardTrail(a, b, getPlayerColour(ownerPlayer))
     }, delay + 30)
     setTimeout(() => fly.remove(), delay + 1000)
   })
+}
+
+// trailing line: draws in with the flight, lingers, fades out over ~2.5s
+function boardTrail(a, b, colour){
+  let svg = document.querySelector(".board-traillayer")
+  if(!svg){
+    svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+    svg.setAttribute("class", "board-traillayer")
+    document.body.appendChild(svg)
+  }
+  svg.setAttribute("viewBox", `0 0 ${innerWidth} ${innerHeight}`)
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "line")
+  line.setAttribute("x1", a.left + a.width / 2); line.setAttribute("y1", a.top + a.height / 2)
+  line.setAttribute("x2", b.left + b.width / 2); line.setAttribute("y2", b.top + b.height / 2)
+  line.setAttribute("class", "board-trailline")
+  line.style.stroke = colour || "#999"
+  const len = Math.hypot(b.left - a.left, b.top - a.top) || 1
+  line.style.strokeDasharray = len
+  line.style.strokeDashoffset = len
+  svg.appendChild(line)
+  requestAnimationFrame(() => {
+    line.style.strokeDashoffset = 0          // draw in with the flight
+    setTimeout(() => { line.style.opacity = 0 }, 1200)   // then fade away
+  })
+  setTimeout(() => line.remove(), 4000)
 }
 
 // PROP-LOCKSIGN1 commitment flow, shared by the v1 label glyph + footer buttons
@@ -490,19 +541,31 @@ function ringFelt(segs, g){
   if(ringArcs()){
     // stage 2 arrives: the oval is split into per-account arcs — an account's
     // arc lights lock-orange when THEY lock, and your own arcs are tappable
-    // lock toggles (pointer-events on the stroke only). ring6 drops the base
+    // lock toggles (pointer-events on the stroke only). ring6/7 drop the base
     // line entirely: a soft filled shading marks the basket zone instead, and
     // arcs exist only as lock state (yours get a faint dashed affordance).
-    if(boardSkin === "ring6"){
+    // ring6 shades the basket DARKER; ring7 inverts — the basket is a lit
+    // SPOTLIGHT and locking darkens that account's STORE zone instead.
+    if(ringNoOval()){
       const zone = document.createElementNS(NS, "ellipse")
       zone.setAttribute("cx", g.cx); zone.setAttribute("cy", g.cy)
       zone.setAttribute("rx", g.rx); zone.setAttribute("ry", g.ry)
-      zone.setAttribute("class", "ring-basketzone")
+      zone.setAttribute("class", "ring-basketzone"
+        + (boardSkin === "ring7" ? " ring-basketzone--lit" : ""))
       svg.appendChild(zone)
     }
     segs.forEach(seg => {
       const locked = seg.account.mode === "lock"
-      if(boardSkin === "ring6" && !locked && !seg.mine) return
+      // ring7: a locked account's store goes dark — offers withdrawn from
+      // play, the basket spotlight stays lit (drawn before labels so the
+      // etched id stays readable)
+      if(boardSkin === "ring7" && locked){
+        const dim = document.createElementNS(NS, "path")
+        dim.setAttribute("d", ringStoreZonePath(seg, g))
+        dim.setAttribute("class", "ring-storedim")
+        svg.appendChild(dim)
+      }
+      if(ringNoOval() && !locked && !seg.mine) return
       const arc = document.createElementNS(NS, "path")
       arc.setAttribute("d", ringArcPath(seg, g))
       arc.setAttribute("class", "ring-lockarc"
@@ -534,17 +597,36 @@ function ringFelt(segs, g){
 // the ellipse arc across one segment. Segment boundaries are TRUE directions
 // from center; ellipse points need the PARAMETRIC angle (t: cos t scaled by
 // rx, sin t by ry), so convert first or arcs won't meet the boundary lines.
+function ringEllipseParam(g, deg){
+  const a = g.rad(deg)
+  return Math.atan2(Math.sin(a) / g.ry, Math.cos(a) / g.rx)
+}
+
 function ringArcPath(seg, g){
-  const param = deg => {
-    const a = g.rad(deg)
-    return Math.atan2(Math.sin(a) / g.ry, Math.cos(a) / g.rx)
-  }
-  let t0 = param(seg.a0), t1 = param(seg.a1)
+  let t0 = ringEllipseParam(g, seg.a0), t1 = ringEllipseParam(g, seg.a1)
   while(t1 <= t0) t1 += 2 * Math.PI
   const p = t => [g.cx + g.rx * Math.cos(t), g.cy + g.ry * Math.sin(t)]
   const [x0, y0] = p(t0), [x1, y1] = p(t1)
   const large = (t1 - t0) > Math.PI ? 1 : 0
   return `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${g.rx} ${g.ry} 0 ${large} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`
+}
+
+// the STORE zone of one segment: the annular region between the basket
+// ellipse and the screen edge — outer boundary sampled far past the viewport
+// (the svg clips), inner edge follows the ellipse back
+function ringStoreZonePath(seg, g){
+  const R = Math.max(g.W, g.H) * 1.6
+  const pts = []
+  const steps = 6
+  for(let s = 0; s <= steps; s++){
+    const a = g.rad(seg.a0 + (seg.a1 - seg.a0) * s / steps)
+    pts.push(`${(g.cx + R * Math.cos(a)).toFixed(0)} ${(g.cy + R * Math.sin(a)).toFixed(0)}`)
+  }
+  let t0 = ringEllipseParam(g, seg.a0), t1 = ringEllipseParam(g, seg.a1)
+  while(t1 <= t0) t1 += 2 * Math.PI
+  const p = t => `${(g.cx + g.rx * Math.cos(t)).toFixed(1)} ${(g.cy + g.ry * Math.sin(t)).toFixed(1)}`
+  const large = (t1 - t0) > Math.PI ? 1 : 0
+  return `M ${p(t0)} L ${pts.join(" L ")} L ${p(t1)} A ${g.rx} ${g.ry} 0 ${large} 0 ${p(t0)} Z`
 }
 
 // the account id etched into the felt — big, bold, faded, in the owner's
@@ -555,7 +637,10 @@ function ringEtchLabel(seg, g, NS){
   const text = document.createElementNS(NS, "text")
   text.setAttribute("class", "ring-etchlabel")
   text.setAttribute("fill", getPlayerColour(seg.account.playerId))
-  text.textContent = (seg.account.id.split(":")[1] || seg.account.id) + (seg.mine ? " ·you" : "")
+  // ring7: 🔒 prefix marks a locked account right on its etched id (the
+  // corner badge is dropped — the darkened store + arc + prefix carry it)
+  const lockPrefix = (boardSkin === "ring7" && seg.account.mode === "lock") ? "🔒 " : ""
+  text.textContent = lockPrefix + (seg.account.id.split(":")[1] || seg.account.id) + (seg.mine ? " ·you" : "")
 
   const fs = Math.min(28, Math.max(16, g.step * 0.24))
   text.setAttribute("font-size", fs)
