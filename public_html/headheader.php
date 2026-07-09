@@ -147,7 +147,36 @@ echo <<<EOMENU
               <li class="nav-item $active">
                 <a class="nav-link" href="$filename">$label</a>
               </li>
-EOMENU;			  
+EOMENU;
+}
+
+// ┌─┐┌┬┐┌┬┐┬┌┐┌  ┌┬┐┌─┐┌┐┌┬ ┬
+// ├─┤ │││││││││   │││├┤ ││││ │
+// ┴ ┴─┴┘┴ ┴┴┘└┘  ┴ ┴└─┘┘└┘└─┘
+// Admin-only menu (GMADMINMENU1). Gated on $isAdmin (IP/VPN — see auth.php),
+// this ONLY hides these from the public menu; the destinations themselves are
+// not access-gated (anyone with a direct link can use them). Crown 👑 marks it
+// as an admin surface. Items that are deprecated-but-kept-for-testing (Explore,
+// Create — the external kfund tools being replaced internally) live here so
+// they stay reachable/visible to admin without cluttering the public site.
+if ($isAdmin) {
+	$adminItems = [
+		['label' => 'Explore',              'href' => 'https://tools.gomint.me/explore/NFT', 'target' => '_blank'],
+		['label' => 'Create',               'href' => 'https://tools.gomint.me/create/NFT',  'target' => '_blank'],
+		['label' => 'Postcards',            'href' => '/m/playground/postcard-gomint.php',   'target' => ''],
+		['label' => 'Future transactions',  'href' => '/future/',                            'target' => ''],
+		// Profile (wallet auth modal) — pending GM-AUTH1; added when the modal exists
+	];
+
+	echo '<li class="nav-item dropdown">';
+	echo '<a class="dropdown-toggle nav-link" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false" title="Admin-only — visible because you are on the admin IP/VPN">👑 Admin</a>';
+	echo '<div class="dropdown-menu">';
+	foreach ($adminItems as $item) {
+		$t = $item['target'] ? " target='{$item['target']}'" : '';
+		echo "<a class='dropdown-item' href='{$item['href']}'$t>{$item['label']}</a>";
+	}
+	echo '</div>';
+	echo '</li>';
 }
 
 ?>
