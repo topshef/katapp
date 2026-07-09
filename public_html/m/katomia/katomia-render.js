@@ -769,17 +769,13 @@ function getFastThumb(url, imgEl){
 
 			exitBtn.onclick = e => {
 				e.stopPropagation()
-
-				const ok = confirm(
-					`Remove account ${account.label}?\n\nAll assets and offers will be removed.`
-				)
-				if(!ok) return
-
-				socket.send(JSON.stringify({
-					type: "game_removeAccount",
-					gameId,
-					accountId: account.id
-				}))
+				// KAT-AUTOLOAD2: route through removeAccount() (network.js) — it
+				// forgets the label in the localStorage account cache before sending.
+				// This button used to send game_removeAccount directly, so the cache
+				// kept the label and restoreCachedAccounts() resurrected the account
+				// on the next refresh (KAT-AUTOLOAD1 fixed the same leak for whole-
+				// game exit; this was the per-account leg).
+				removeAccount(account.id)
 			}
 
 			return exitBtn
