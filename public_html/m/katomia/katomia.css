@@ -1981,6 +1981,11 @@ textarea:focus{
   min-width:0;
 }
 
+/* ORDERS-LAYOUT1: the market chart is a full-width band above the orders/tx columns
+   (mode-order gates it to order mode via the shared display rules). */
+.market-chart-section{ margin-bottom:16px; }
+.market-chart-section .orders-market-summary{ margin:0; }
+
 /* ORDERS-UI1: orders | transactions side-by-side on desktop, auto-wrapping to a
    single column when there isn't room for two ~360px tracks. align-items:start so
    the two columns don't stretch each other's height. */
