@@ -45,28 +45,52 @@ const defaultReadUrl = ({ network, txid }) =>
 
 const defaultSaveUrl = () => location.pathname + '?action=txSave'
 
-async function fetchTransactionBytes({ network, txid, readUrl }) {
-	const url = readUrl({ network, txid })
-	kdiag('signer:bytes:fetch', { url })
+// Fallback pool. xproof-created scheduled multisig txs are pooled in the SHARED kpool
+// via kpos.uk/pool (which proxies to the hapi2 backend), not this site's local kpool.
+// When the local pool doesn't have the tx, read AND save through kpos so those signings
+// work here too. Normal Katomia txs are found locally and never touch this path.
+const KPOS_POOL = 'https://kpos.uk/pool'
+const kposReadUrl = ({ network, txid }) =>
+	`${KPOS_POOL}/txRead?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
+const kposSaveUrl = ({ network }) =>
+	`${KPOS_POOL}/txSave?network=${encodeURIComponent(network)}`
 
+async function readHex2(url) {
 	const res = await fetch(url)
-	if (!res.ok) throw new Error('Failed to fetch transaction')
-
+	if (!res.ok) return { ok: false }
 	const data = await res.json()
-	const hex2 = data?.result?.hex2
-
-	if (!hex2) {
-		kdiag('signer:bytes:missing', { errors: data?.result?.errors })
-		alert(`error DQ63632 / ${data?.result?.errors?.join?.() || ''}`)
-		return null
-	}
-
-	kdiag('signer:bytes:ok', { bytes: hex2.length / 2 })
-	return hexToBytes(hex2)
+	return { ok: true, hex2: data?.result?.hex2 || null, errors: data?.result?.errors }
 }
 
-async function saveSignedTransaction({ network, signedTransactionHex, saveUrl }) {
-	const url = saveUrl()
+// Returns { bytes, src } — src ('local' | 'kpos') tells saveSignedTransaction which pool
+// to write the signature back to, so it joins the same collection the tx came from.
+async function fetchTransactionBytes({ network, txid, readUrl }) {
+	const primary = readUrl({ network, txid })
+	kdiag('signer:bytes:fetch', { url: primary })
+	const r = await readHex2(primary)
+
+	if (r.hex2) {
+		kdiag('signer:bytes:ok', { bytes: r.hex2.length / 2, src: 'local' })
+		return { bytes: hexToBytes(r.hex2), src: 'local' }
+	}
+
+	// not in the local pool → try the shared kpos pool (xproof scheduled txs live there)
+	kdiag('signer:bytes:fallback-kpos', { txid, localErrors: r.errors })
+	const rk = await readHex2(kposReadUrl({ network, txid }))
+	if (rk.hex2) {
+		kdiag('signer:bytes:ok', { bytes: rk.hex2.length / 2, src: 'kpos' })
+		return { bytes: hexToBytes(rk.hex2), src: 'kpos' }
+	}
+
+	kdiag('signer:bytes:missing', { local: r.errors, kpos: rk.errors })
+	const msg = (r.errors || rk.errors)?.map?.(e => e?.message || e)?.join?.(', ') || ''
+	alert(`error DQ63632 / ${msg}`)
+	return null
+}
+
+async function saveSignedTransaction({ network, signedTransactionHex, saveUrl, src }) {
+	// save the collected signature back to the SAME pool the bytes came from
+	const url = (src === 'kpos') ? kposSaveUrl({ network }) : saveUrl()
 
 	const payload = {
 		network,
@@ -361,16 +385,18 @@ export function renderWalletConnectSigner(container, {
 				if (!wc.signTx) throw new Error('signTx missing (wrong bundle cached)')
 
 				const accountId = await ensureAccountId()
-				const transactionBytes = await fetchTransactionBytes({ network, txid, readUrl })
-				if (!transactionBytes) return
+				const fetched = await fetchTransactionBytes({ network, txid, readUrl })
+				if (!fetched) return
+				const { bytes: transactionBytes, src: poolSrc } = fetched
 
 				const result = await wc.signTx({ accountId, transactionBytes, submitNow: false })
-				kdiag('signer:sign:signed', { accountId })
+				kdiag('signer:sign:signed', { accountId, poolSrc })
 
 				const saveResult = await saveSignedTransaction({
 					network,
 					signedTransactionHex: result.signedTransactionHex,
-					saveUrl
+					saveUrl,
+					src: poolSrc
 				})
 
 				kdiag('signer:sign:saved', {
