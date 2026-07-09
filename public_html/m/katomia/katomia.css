@@ -1598,14 +1598,14 @@ svg .svg-sell{
 /* tiny +/- nudge under the rate input — subtle, no layout impact */
 .rate-steps{ margin-top:4px; display:flex; gap:6px; }
 .rate-steps button{
-  width:26px; height:20px; padding:0;
+  padding:1px 6px;
   justify-content:center;
-  font-size:13px; line-height:1; font-weight:400;
-  color:#888; background:#f7f7f7;
-  border:1px solid #ddd; border-radius:4px;
+  font-size:10px; line-height:1.4; font-weight:400;
+  color:#333; background:#eee;
+  border:1px solid #ccc; border-radius:4px;
   cursor:pointer; user-select:none;
 }
-.rate-steps button:hover{ background:#eee; color:#555; }
+.rate-steps button:hover{ background:#e2e2e2; }
 
 /* Collectible modal inline pairs */
 .collectible-token-row,

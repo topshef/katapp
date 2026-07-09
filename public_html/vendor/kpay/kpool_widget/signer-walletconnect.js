@@ -408,7 +408,9 @@ export function renderWalletConnectSigner(container, {
 			const p = signerPreview(id) || {}
 			if (!p.text || p.state === 'loading') { preview.style.display = 'none'; return }
 			preview.dataset.state = p.state
-			preview.textContent = (p.state === 'completes' ? '✅ ' : p.state === 'not-needed' ? 'ℹ️ ' : '✍️ ') + p.text
+			// completes = plain text (a tick reads as DONE, not todo); ✍️ only where a
+			// signature is still wanted; ℹ️ for the informational states.
+			preview.textContent = (p.state === 'needed' ? '✍️ ' : (p.state === 'not-needed' || p.state === 'already') ? 'ℹ️ ' : '') + p.text
 			preview.style.display = ''
 		}
 		const curId = () => hasMulti ? acct.value : account
@@ -437,7 +439,7 @@ function injectSignerCSS() {
 		.kpsign-acct { font:13px ui-monospace,Menlo,Consolas,monospace; color:#555; }
 		/* TX-CARDS-WCPREVIEW1: threshold preview under the account picker */
 		.kpsign-preview { text-align:center; font-size:12px; margin:8px auto 0; max-width:340px; line-height:1.4; }
-		.kpsign-preview[data-state="completes"] { color:#137333; font-weight:600; }
+		.kpsign-preview[data-state="completes"] { color:#137333; }
 		.kpsign-preview[data-state="needed"] { color:#52525b; }
 		.kpsign-preview[data-state="already"] { color:#52525b; }
 		.kpsign-preview[data-state="not-needed"] { color:#9aa0a6; }

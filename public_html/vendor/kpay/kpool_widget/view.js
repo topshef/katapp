@@ -876,7 +876,9 @@ export function computeSignerPreview({ data, accounts, accountId }) {
 	const list = Object.values(accounts)
 	// accounts is keyed BY account id — the acc objects don't carry an accountId field
 	const acc = accounts[accountId] || list.find(a => a.label === accountId)
-	if (!acc || !acc.mustSign) return { state: 'not-needed', text: "This account isn't required to sign this transaction — it's shown for reference." }
+	if (!acc || !acc.mustSign) return { state: 'not-needed', text: document.body.classList.contains('nerd')
+		? "Signing with this account isn't required to execute this transaction. But optionally you may sign as witness to prove you agree with it. Proof registration may depend on game settings (eg whether witness signatures are included in submission to Hedera)."
+		: "This account isn't required to sign this transaction." }
 	const st = accountSigningStatus(acc, signedPubkeys)
 	if (st.state === 'loading') return { state: 'loading', text: '' }
 	if (st.state === 'ready') return { state: 'already', text: 'This account has already met its signing requirement here.' }
@@ -885,7 +887,7 @@ export function computeSignerPreview({ data, accounts, accountId }) {
 		a !== acc && a.mustSign && accountSigningStatus(a, signedPubkeys).state === 'pending')
 	return othersOutstanding
 		? { state: 'needed', text: "This account's signature is required for this transaction." }
-		: { state: 'completes', text: 'Signing with this account will complete the transaction — no further signatures needed.' }
+		: { state: 'completes', text: 'Signing with this account will complete the transaction' }
 }
 
 // In-place repaint of the account cards' signing state (border colour + header
