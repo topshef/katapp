@@ -862,6 +862,31 @@ function accountSigningStatus(acc, signedPubkeys) {
 		signed: s.signedRequiredKeyCount, need: s.signedRequiredKeyCount + s.minMoreKeyCount }
 }
 
+// TX-CARDS-WCPREVIEW1: for the WC account-picker — given the account the user has
+// SELECTED to sign with, say what signing it would do for THIS transaction. Uses the
+// same threshold solver as the cards/pie so the verdict agrees. Returns { state, text }:
+//   not-needed  — the account isn't a required signer here (witness / receiver only)
+//   already     — it has already met its signing requirement
+//   completes   — signing it now would complete the WHOLE tx's threshold (last one)
+//   needed      — required, but other accounts still need to sign too
+//   loading     — key info not in yet (no banner)
+export function computeSignerPreview({ data, accounts, accountId }) {
+	if (!data || !accounts || !accountId) return { state: 'loading', text: '' }
+	const signedPubkeys = (data.sigs || []).map(s => s.pubKey).filter(Boolean).map(normalizePublicKey).filter(Boolean)
+	const list = Object.values(accounts)
+	const acc = list.find(a => a.accountId === accountId || a.label === accountId)
+	if (!acc || !acc.mustSign) return { state: 'not-needed', text: "This account isn't required to sign this transaction — it's shown for reference." }
+	const st = accountSigningStatus(acc, signedPubkeys)
+	if (st.state === 'loading') return { state: 'loading', text: '' }
+	if (st.state === 'ready') return { state: 'already', text: 'This account has already met its signing requirement here.' }
+	// required and not yet met — is it the LAST one? (all OTHER required accounts ready)
+	const othersOutstanding = list.some(a =>
+		a !== acc && a.mustSign && accountSigningStatus(a, signedPubkeys).state === 'pending')
+	return othersOutstanding
+		? { state: 'needed', text: "This account's signature is required for this transaction." }
+		: { state: 'completes', text: 'Signing with this account will complete the transaction — no further signatures needed.' }
+}
+
 // In-place repaint of the account cards' signing state (border colour + header
 // summary: reason glyphs + m-of-n signed). Keyed by data-acct so an update never
 // rebuilds the card DOM (TX-CARDS9 step a). No-ops in table/nerd mode (no .txcards).

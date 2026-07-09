@@ -26,7 +26,8 @@ const {
 	markSettledIfSuccess,
 	pickAssetLabel,
 	resolveTxView,
-	buildTransferViews
+	buildTransferViews,
+	computeSignerPreview
 } = await import(`./view.js?v=${V}`)
 
 const {
@@ -225,6 +226,11 @@ async function renderSigner(txState, opts) {
 		txid:     txState.txid,
 		readUrl:  opts.readUrl,
 		saveUrl:  opts.saveUrl,
+		// TX-CARDS-WCPREVIEW1: let the picker say what signing the selected account does.
+		signerPreview: (accountId) => {
+			try { return computeSignerPreview({ data: txState.data, accounts: txState.accounts, accountId }) }
+			catch (e) { return { state: 'loading', text: '' } }
+		},
 		onSigned:  async (saveResult) => {
 			notify(txState, '✍️ Signature submitted', 'success')
 			// KFLOW-MARKERS1 G2: fe-tier signing checkpoint, correlated to the katomia run
