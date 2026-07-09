@@ -1453,7 +1453,7 @@ svg .svg-sell{
   font-weight:600;
 }
 
-.asset-modal-card input,
+.asset-modal-card input:not([type="radio"]):not([type="checkbox"]),
 .asset-modal-card select,
 .asset-modal-card textarea{
   width:100%;
@@ -1471,7 +1471,7 @@ svg .svg-sell{
   transition:.12s;
 }
 
-.asset-modal-card input:focus,
+.asset-modal-card input:not([type="radio"]):not([type="checkbox"]):focus,
 .asset-modal-card select:focus,
 .asset-modal-card textarea:focus{
   background:#fff;
