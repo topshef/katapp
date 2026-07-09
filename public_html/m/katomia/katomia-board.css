@@ -60,6 +60,94 @@ body.board-page{
 }
 .board-wedge.drag-over{ opacity: .30; }
 
+/* ── ring skin: segments = accounts, oval = basket boundary ─────────────── */
+
+.ring-felt{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+.ring-boundary{
+  stroke: #cfc6b2;
+  stroke-width: 1.5;
+}
+.ring-ovalline{                        /* stage 2: per-segment lock arcs live here */
+  fill: none;
+  stroke: #8fa8c8;
+  stroke-width: 2;
+}
+
+.ring-box{
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 10px;
+}
+.ring-box.drag-over{
+  outline: 2px solid #4a90d9;
+  outline-offset: 2px;
+  background: rgba(255,255,255,.55);
+}
+
+.ring-basket .board-band{ justify-content: center; }
+
+.ring-avail{ min-width: 90px; }
+.ring-avail .board-band{ justify-content: center; }
+
+.ring-head{
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ring-head-label{ padding-bottom: 1px; }   /* player colour underline, set inline */
+.ring-avail--mine .ring-head-label{ background: rgba(255,255,255,.65); border-radius: 4px 4px 0 0; padding: 0 3px 1px; }
+
+.ring-lock{ font-size: 12px; }
+.ring-lock.clickable{ cursor: pointer; }
+
+.board-wedge--mine{ opacity: .19; }
+
+.ring-hub{
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  border-radius: 50%;
+  background: #fffdf7;
+  border: 2px solid #8fa8c8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #667;
+}
+
+/* fixed passthrough host for the legacy dotted trade line (drawTradeLine →
+   #game .trade-line-layer, styled in katomia.css) */
+.board-linelayer{
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+}
+
+@media (max-width: 520px){
+  .ring-head{ font-size: 11px; }
+  .ring-box .board-chip{ font-size: 10px; padding: 2px 5px; }
+  .ring-box .board-chip .asset-thumb{ width: 26px; height: 26px; }
+}
+
 /* ── seat cards (other players) ─────────────────────────────────────────── */
 
 .board-seat{

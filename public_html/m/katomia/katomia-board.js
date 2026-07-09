@@ -17,11 +17,11 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["table", "market"]
+const BOARD_SKINS = ["ring", "table", "market"]
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
-  return BOARD_SKINS.includes(s) ? s : "table"
+  return BOARD_SKINS.includes(s) ? s : "ring"
 })()
 
 {
@@ -62,6 +62,11 @@ function renderBoard(){
   const root = document.getElementById("boardRoot")
   if(!root) return
 
+  if(boardSkin === "ring"){
+    renderRingBoard(root)
+    return
+  }
+
   const accounts = getVisibleAccounts(getAccounts())
   const accountMap = getAccountMap()
   const reservedByAccount = buildReservedByAccount(accounts)
@@ -97,6 +102,184 @@ function renderBoard(){
   frag.appendChild(makeDock(mine, { reservedByAccount, accountMap }))
 
   root.replaceChildren(frag)
+}
+
+/* ── ring skin (user drawing 2026-07-09) ────────────────────────────────── */
+// The legacy MOBILE view transposed to polar. One segment per ACCOUNT (not
+// player — a player with 3 accounts holds 3 segments; drops target an account
+// explicitly, no nested aiming). The big oval is the basket boundary: inside
+// it = that account's basket, outside to the screen edge = their available,
+// with reserved GHOSTED IN PLACE. Hovering a ghost or a basket item shows the
+// legacy dotted trade line between them (highlightTradePair — same rules).
+// Segments run in JOIN ORDER from 9 o'clock, clockwise, and the layout is the
+// SAME for every viewer (shared board — livestream-friendly; a rotate-to-me
+// toggle can come later). Your own segments get a stronger wash + (you).
+// The small center circle is the pivot — it becomes the strike timer /
+// hourglass in the signing phase (stage 2, with per-segment lock arcs on the
+// oval line itself; for now locks are glyphs on the account label).
+
+function renderRingBoard(root){
+
+  const accounts = getAccounts()          // join order — shared board for all
+  const accountMap = getAccountMap()
+  const reservedByAccount = buildReservedByAccount(accounts)
+
+  const W = root.clientWidth, H = root.clientHeight
+  const cx = W / 2, cy = H / 2
+  const rc = Math.max(24, Math.min(W, H) * 0.045)          // center pivot
+  // basket oval — capped so east/west segments keep ≥ ~95px of available-space
+  // outside it (portrait phones squeezed chips across the line otherwise)
+  const rx = Math.max(92, Math.min(W * 0.30, W / 2 - 95))
+  const ry = Math.max(100, Math.min(H * 0.27, H / 2 - 120))
+
+  const rad = deg => deg * Math.PI / 180
+  const ovalR = a => (rx * ry) / Math.hypot(ry * Math.cos(a), rx * Math.sin(a))
+  const edgeR = a => {
+    const c = Math.abs(Math.cos(a)), s = Math.abs(Math.sin(a))
+    return Math.min(c > 1e-6 ? (W / 2) / c : Infinity, s > 1e-6 ? (H / 2) / s : Infinity)
+  }
+
+  const frag = document.createDocumentFragment()
+  const N = accounts.length
+  const step = N ? 360 / N : 360
+  const geo = { W, H, cx, cy }
+
+  accounts.forEach((account, i) => {
+
+    const a0 = 180 + i * step, a1 = a0 + step
+    const am = rad((a0 + a1) / 2)
+    const mine = isMyAccount(account)
+
+    // wash + fat drop target: the whole slice IS the account
+    const wedge = makeWedge(account, a0, a1, geo, mine)
+    if(mine){
+      wedge.classList.add("board-wedge--mine")
+      setupDropTarget(wedge, account)   // own segments accept drops too (acct → acct)
+    }
+    frag.appendChild(wedge)
+
+    const chord = fr => Math.max(0.001, 2 * fr * Math.sin(rad(step / 2)))
+    const rOval = ovalR(am), rEdge = edgeR(am)
+
+    // a box's width budget is the TIGHTER of its segment's chord (tangential
+    // room) and the annulus depth it sits in (radial room, floored so N/S
+    // segments — where radial depth doesn't bound horizontal width — aren't
+    // starved). Boxes are also pushed apart radially (inner hub-ward, outer
+    // edge-ward) so diagonal segments' boxes don't meet at the oval line.
+    const boxW = (radialRoom, tangRoom) =>
+      Math.min(Math.max(Math.min(tangRoom, Math.max(radialRoom, 96)), 72), 240)
+
+    // inner box — their basket, inside the oval
+    const ri = rc + (rOval - rc) * 0.48
+    const innerW = boxW((rOval - rc) * 0.8, chord(Math.max(ri, rOval * 0.55)) * 0.9)
+    const inner = document.createElement("div")
+    inner.className = "ring-box ring-basket"
+    inner.style.maxWidth = innerW + "px"
+    inner.style.left = Math.min(Math.max(cx + ri * Math.cos(am), innerW / 2 + 6), W - innerW / 2 - 6) + "px"
+    inner.style.top = Math.min(Math.max(cy + ri * Math.sin(am), 40), H - 40) + "px"
+    boardBasketChips(account, inner, accountMap)
+    setupDropTarget(inner, account)
+    frag.appendChild(inner)
+
+    // outer box — label + available (ghosts in place), outside the oval
+    const ro = rOval + (rEdge - rOval) * 0.62
+    const outerW = boxW((rEdge - rOval) * 0.92, chord(ro) * 0.75)
+    const outer = document.createElement("div")
+    outer.className = "ring-box ring-avail" + (mine ? " ring-avail--mine" : "")
+    outer.style.maxWidth = outerW + "px"
+    outer.style.left = Math.min(Math.max(cx + ro * Math.cos(am), outerW / 2 + 6), W - outerW / 2 - 6) + "px"
+    outer.style.top = Math.min(Math.max(cy + ro * Math.sin(am), 48), H - 48) + "px"
+
+    outer.appendChild(ringHead(account, mine))
+    const chips = document.createElement("div")
+    chips.className = "board-band"
+    boardStoreChips(account, chips)
+    boardReservedChips(account, chips, reservedByAccount)
+    outer.appendChild(chips)
+    setupDropTarget(outer, account)
+    frag.appendChild(outer)
+  })
+
+  // felt linework: basket oval, segment boundaries, hub ring
+  frag.appendChild(ringFelt(accounts, { W, H, cx, cy, rc, rx, ry, step, edgeR, rad }))
+
+  // center pivot — future strike timer / signing hourglass
+  const hub = document.createElement("div")
+  hub.className = "ring-hub"
+  hub.style.left = cx + "px"
+  hub.style.top = cy + "px"
+  hub.style.width = hub.style.height = rc * 2 + "px"
+  const lp = boardLockSummary(accounts.filter(a => isMyAccount(a)), accounts)
+  hub.textContent = lp ? `${lp.locked}/${lp.total}` : ""
+  hub.title = (gameMeta?.profile?.name || gameMeta?.id || "") +
+    (lp ? ` — ${lp.locked} of ${lp.total} locked (${lp.scope})` : "")
+  frag.appendChild(hub)
+
+  root.replaceChildren(frag)
+}
+
+// account label + lock glyph (mine = clickable toggle; the oval-arc lock
+// indicator replaces this in stage 2)
+function ringHead(account, mine){
+
+  const head = document.createElement("div")
+  head.className = "ring-head"
+
+  const label = document.createElement("span")
+  label.className = "ring-head-label"
+  label.textContent = (account.id.split(":")[1] || account.id) + (mine ? " (you)" : "")
+  label.style.borderBottom = "2px solid " + getPlayerColour(account.playerId)
+  head.appendChild(label)
+
+  const glyph = document.createElement("span")
+  glyph.className = "ring-lock" + (mine ? " clickable" : "")
+  glyph.textContent = account.mode === "lock" ? "🔒" : "🔁"
+  glyph.title = account.mode === "lock" ? "Locked" : "Trading"
+
+  if(mine){
+    glyph.onclick = async e => {
+      e.stopPropagation()
+      // same commitment flow as createAccountModeEl (PROP-LOCKSIGN1)
+      const locking = account.mode !== "lock"
+      let commitment = null
+      if(locking && typeof buildLockCommitment === "function")
+        commitment = await buildLockCommitment()
+      socket.send(JSON.stringify({
+        type: "game_toggleLock", gameId, accountId: account.id,
+        ...(commitment ? { commitment } : {})
+      }))
+      window.__lastLockBasisSent = locking ? (commitment?.payload?.basisHash ?? null) : null
+    }
+  }
+  head.appendChild(glyph)
+  return head
+}
+
+function ringFelt(accounts, g){
+  const NS = "http://www.w3.org/2000/svg"
+  const svg = document.createElementNS(NS, "svg")
+  svg.setAttribute("class", "ring-felt")
+  svg.setAttribute("viewBox", `0 0 ${g.W} ${g.H}`)
+
+  accounts.forEach((_, i) => {
+    const a = g.rad(180 + i * g.step)
+    const rE = g.edgeR(a)
+    const line = document.createElementNS(NS, "line")
+    line.setAttribute("x1", g.cx + g.rc * Math.cos(a))
+    line.setAttribute("y1", g.cy + g.rc * Math.sin(a))
+    line.setAttribute("x2", g.cx + rE * Math.cos(a))
+    line.setAttribute("y2", g.cy + rE * Math.sin(a))
+    line.setAttribute("class", "ring-boundary")
+    svg.appendChild(line)
+  })
+
+  const oval = document.createElementNS(NS, "ellipse")
+  oval.setAttribute("cx", g.cx); oval.setAttribute("cy", g.cy)
+  oval.setAttribute("rx", g.rx); oval.setAttribute("ry", g.ry)
+  oval.setAttribute("class", "ring-ovalline")   // stage 2: per-segment lock arcs
+  svg.appendChild(oval)
+
+  return svg
 }
 
 /* ── layout pieces ──────────────────────────────────────────────────────── */
@@ -383,6 +566,12 @@ function boardReservedChips(account, container, reservedByAccount){
     el.classList.add("board-chip", "board-ghost")
     el.title = "Reserved — already offered out"
 
+    // hover shows the dotted line to where it landed (legacy pair rules)
+    el.dataset.assetId = item.assetId
+    el.dataset.toAccount = item.toAccountId
+    el.onmouseenter = () => highlightTradePair(item.assetId, account.id, item.toAccountId, true)
+    el.onmouseleave = () => highlightTradePair(item.assetId, account.id, item.toAccountId, false)
+
     if(mine){
       el.onclick = () => {
         const ok = confirm("Withdraw " + boardAssetText(item.assetId, item.amount || 1) + " from " + item.toAccountId + "?")
@@ -416,6 +605,14 @@ function boardBasketChips(account, container, accountMap){
     })
     applyAssetClasses(el, item.assetId, item.amount || 1)
     el.classList.add("board-chip")
+
+    // hover shows the dotted line back to the giver's ghost (legacy pair rules)
+    el.dataset.assetId = item.assetId
+    el.dataset.toAccount = account.id
+    if(fromAccountId){
+      el.onmouseenter = () => highlightTradePair(item.assetId, fromAccountId, account.id, true)
+      el.onmouseleave = () => highlightTradePair(item.assetId, fromAccountId, account.id, false)
+    }
 
     if(senderIsMine){
       el.title = "Your offer — tap to withdraw, drag to redirect"
@@ -493,6 +690,13 @@ function boardDemoInit(){
           { assetId: "HBAR", amount: 500000000, fromId: "p2:0.0.2002" },
           { assetId: "0.0.789#31", amount: 1, fromId: "p3:0.0.3003" }
         ]
+      },
+      // second account for the same player — on the ring skin this holds its
+      // OWN segment (segments = accounts, the 2026-07-09 structural decision)
+      "p1:0.0.1111": {
+        id: "p1:0.0.1111", label: "0.0.1111", playerId: "p1", mode: "shop",
+        assets: { "HBAR": 220000000 },
+        basket: []
       },
       "p2:0.0.2002": {
         id: "p2:0.0.2002", label: "0.0.2002", playerId: "p2", mode: "shop",

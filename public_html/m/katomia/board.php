@@ -23,6 +23,7 @@
 
 <div class="board-chrome">
   <select id="boardSkinSelect" title="Board skin">
+    <option value="ring">⭕ Ring (per account)</option>
     <option value="table">🎲 Round table</option>
     <option value="market">🏪 Market square</option>
   </select>
@@ -30,6 +31,10 @@
 </div>
 
 <div id="boardRoot"></div>
+
+<!-- hover trade-line host: drawTradeLine() draws its dotted pair line into
+     #game (legacy layer) — here it's a fixed passthrough over the board -->
+<div id="game" class="board-linelayer"></div>
 
 <!-- Same asset modal as game.php — openAssetModal() (helpers) is the tap-to-offer
      path for chips; board taps reuse it verbatim. -->
