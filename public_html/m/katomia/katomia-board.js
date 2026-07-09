@@ -17,7 +17,7 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "susan", "table", "market"]
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
 // ids etched into the felt instead of label rows, oval faded+thickened (future
@@ -77,21 +77,53 @@ const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7
 //   "You at bottom" orientation toggle (off = shared/screen-share layout)
 // - offers from OTHER PLAYERS (player level, not account — your own second
 //   account shouldn't animate at you) fly in with a trail when they land
-const ringEtched = () => /^ring[2-8]$/.test(boardSkin)
-const ringSleeved = () => /^ring[4-8]$/.test(boardSkin)
-const ringArcs = () => /^ring[5-8]$/.test(boardSkin)
-const ringNoOval = () => /^ring[6-8]$/.test(boardSkin)
-const ring8 = () => boardSkin === "ring8"
+// ring9 (review 7, 2026-07-09 — default; v8 frozen): fix + party-semantics pass.
+// - line-over-chips-at-rest ROOT CAUSE found: position:fixed elements are
+//   their own stacking contexts (Chrome), and #boardRoot had NO z-index — so
+//   the line hosts' z4 vs the boxes' z5 never competed; DOM order painted the
+//   hosts (later siblings) on top. #boardRoot now carries z-index:5 (global
+//   bug fix, all skins).
+// - trails DOTTED + fading (dasharray is the dot pattern now; draw-in gone)
+// - withdraw/reject animates the chip BACK to its owner's store — shown to
+//   everyone INCLUDING the actor (it's a click, not a drag; the motion cues
+//   where it returned to)
+// - Net = FULL pairwise netting (A→B $1 + B→A $3 ⇒ single B→A $2), not just
+//   same-direction merging. Netted-away chips: a fade-out would be nice —
+//   BOARD-POLISH1 (needs FLIP diffing; the "1 flies into the 3 and crashes
+//   into 2" animation is the deluxe version, also parked there).
+// - "Active only" → "Party only", rule-aware: cluster → only MY cluster;
+//   active → all active accounts; all → everyone. Shows who is actually
+//   party to my proposal.
+// - when ≥2 disconnected clusters coexist, segments OUTSIDE my cluster fade
+//   their wash — the "cluster settles by surprise" problem becomes visible
+// - hub K sized to fill the circle; footer lock button fixed-width; dropdown
+//   🔒 moved AFTER the id (no jump); dev rotation spinner dropped (superseded
+//   by You-at-bottom; frozen skins keep theirs). Parked idea: TWEEN the
+//   rotation when toggling You-at-bottom — one number, easy juice someday.
+// susan (Lazy Susan v1, same pass): the ring UNWRAPPED for the wide phase —
+// other accounts are rectangular cards in a horizontal carousel (arrows +
+// native swipe), my store+basket strips sit full-width above the footer.
+// Same chips, same drop semantics, same footer/net/party machinery. This is
+// the browsing view for many players; the ring is the endgame view once a
+// cluster forms (flow discussion: RENDERPATH doc §8).
+const ringEtched = () => /^ring[2-9]$/.test(boardSkin) || susan()
+const ringSleeved = () => /^ring[4-9]$/.test(boardSkin) || susan()
+const ringArcs = () => /^ring[5-9]$/.test(boardSkin)
+const ringNoOval = () => /^ring[6-9]$/.test(boardSkin)
+const ring8 = () => /^ring[89]$/.test(boardSkin) || susan()   // v8 feature set
+const ring9 = () => boardSkin === "ring9" || susan()          // v9 fix set
+const susan = () => boardSkin === "susan"
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
-  return BOARD_SKINS.includes(s) ? s : "ring8"
+  return BOARD_SKINS.includes(s) ? s : "ring9"
 })()
 
-// ring8 footer state (viewer-local, session-only)
+// footer state (viewer-local, session-only)
 let boardSelfBottom = true        // me at 6 o'clock; off = shared layout
-let boardNetView = false          // net same-giver same-asset FT basket lines
+let boardNetView = false          // FULL pairwise netting of FT basket flows
 let boardSelectedAccount = null   // footer dropdown selection (account id)
+let boardPartyOnly = false        // rule-aware party-to-proposal filter
 
 // dev control (footer): the layout's start angle — segments begin here and run
 // clockwise. 180 = the first account's segment straddles 9 o'clock. Editable
@@ -135,6 +167,11 @@ function renderBoard(){
 
   const root = document.getElementById("boardRoot")
   if(!root) return
+
+  if(susan()){
+    renderSusanBoard(root)
+    return
+  }
 
   if(boardSkin.startsWith("ring")){
     renderRingBoard(root)
@@ -194,24 +231,9 @@ function renderBoard(){
 
 function renderRingBoard(root){
 
-  // join order — shared board for all; the active-only filter (footer) reuses
-  // the legacy visibility logic but keeps join order (getVisibleAccounts
-  // sorts mine-first, which would reseat the shared board)
-  const all = getAccounts()
-  let accounts = all
-  if(showActiveOnly){
-    const vis = new Set(getVisibleAccounts(all).map(a => a.id))
-    accounts = all.filter(a => vis.has(a.id))
-  }
-
-  // ring8 net view (viewer-local): merge same-giver same-asset FT basket
-  // lines so a 10-then-10 drop reads as 20 — the tx will net them anyway, so
-  // net-on previews the after and removes the strike "jolt". NFTs untouched.
-  // Dev caveat: withdrawing a merged chip withdraws the underlying first
-  // matching line only.
-  if(ring8() && boardNetView)
-    accounts = accounts.map(a => ({ ...a, basket: boardNetBasket(a.basket) }))
-
+  // join order — shared board for all; filters preserve join order
+  // (getVisibleAccounts sorts mine-first, which would reseat the shared board)
+  const accounts = boardFilteredAccounts()
   const accountMap = getAccountMap()
   const reservedByAccount = buildReservedByAccount(accounts)
   const etched = ringEtched()
@@ -252,6 +274,21 @@ function renderRingBoard(root){
     }
   }
 
+  // v9 (review 7): when ≥2 DISCONNECTED clusters coexist, segments outside my
+  // cluster fade their wash — makes the split visible before it settles by
+  // surprise. Uses the LOCK-PROGRESS1 grouping; unconnected accounts count as
+  // outside. Only meaningful under the cluster rule.
+  let outsideMyCluster = null
+  if(ring9() && (gameMeta?.lockRule || "cluster") === "cluster"){
+    const gids = new Set(accounts.map(a => getLockProgress(a.id)?.groupId).filter(Boolean))
+    if(gids.size > 1){
+      const myG = new Set(accounts.filter(a => isMyAccount(a))
+        .map(a => getLockProgress(a.id)?.groupId).filter(Boolean))
+      if(myG.size)
+        outsideMyCluster = a => !myG.has(getLockProgress(a.id)?.groupId)
+    }
+  }
+
   accounts.forEach((account, i) => {
 
     const a0 = start + i * step, a1 = a0 + step
@@ -265,6 +302,8 @@ function renderRingBoard(root){
     if(mine) wedge.classList.add("board-wedge--mine")
     if(ring8() && account.id === boardSelectedAccount)
       wedge.classList.add("board-wedge--selected")   // footer dropdown highlight
+    if(outsideMyCluster && !mine && outsideMyCluster(account))
+      wedge.classList.add("board-wedge--othercluster")
     boardDropTarget(wedge, account)
     frag.appendChild(wedge)
 
@@ -333,10 +372,12 @@ function renderRingBoard(root){
   const lp = boardLockSummary(accounts.filter(a => isMyAccount(a)), accounts)
   if(ring8()){
     // faint brand K behind the count (KPAY face — Montserrat where loaded,
-    // graceful fallback otherwise); the hub doubles as a circular logo
+    // graceful fallback otherwise); the hub doubles as a circular logo.
+    // v9: sized to FILL the circle — corners touching the rim (review 7)
     const k = document.createElement("span")
     k.className = "ring-hub-k"
     k.textContent = "K"
+    if(ring9()) k.style.fontSize = (rc * 1.9) + "px"
     hub.appendChild(k)
   }
   const hubText = document.createElement("span")
@@ -360,22 +401,207 @@ function renderRingBoard(root){
   if(ring8()) boardAnimateNewOffers()
 }
 
-// ── ring8 helpers ─────────────────────────────────────────────────────────
+/* ── Lazy Susan v1 (review 7) ───────────────────────────────────────────────
+   The ring UNWRAPPED for the WIDE phase (many players, pre-cluster): other
+   accounts are rectangular cards in a horizontal carousel — arrows + native
+   swipe/scroll-snap — and my accounts are full-width strips above the footer
+   (basket strip over store strip, mirroring the ring's inside/outside).
+   Cards mirror that: store on top, basket at the bottom edge facing mine.
+   Same chips, same drop semantics (whole card = the account), same footer,
+   net + party filters, same offer/withdraw choreography. Swipe-a-player-away
+   to dismiss = later feature. Flow: browse + hook up here, then jump to the
+   ring (Party only) once a cluster forms — RENDERPATH doc §8. */
 
-// FT lines in one basket from the same giver merge; NFTs (serial ids) never do
-function boardNetBasket(basket){
-  const out = [], idx = {}
-  ;(basket || []).forEach(item => {
-    const id = String(item.assetId)
-    if(id.includes("#")){ out.push(item); return }
-    const key = (item.fromId || "") + "|" + id
-    if(idx[key] != null) out[idx[key]] = { ...out[idx[key]], amount: (out[idx[key]].amount || 1) + (item.amount || 1) }
-    else { idx[key] = out.length; out.push({ ...item }) }
-  })
-  return out
+function renderSusanBoard(root){
+
+  const accounts = boardFilteredAccounts()
+  const accountMap = getAccountMap()
+  const reservedByAccount = buildReservedByAccount(accounts)
+  const mine = accounts.filter(a => isMyAccount(a))
+  const others = accounts.filter(a => !isMyAccount(a))
+  const ctx = { reservedByAccount, accountMap }
+
+  const frag = document.createDocumentFragment()
+  const wrap = document.createElement("div")
+  wrap.className = "susan"
+
+  const carWrap = document.createElement("div")
+  carWrap.className = "susan-carousel-wrap"
+  const car = document.createElement("div")
+  car.className = "susan-carousel"
+  const arrow = (txt, dx) => {
+    const b = document.createElement("button")
+    b.className = "susan-arrow"
+    b.textContent = txt
+    b.onclick = () => car.scrollBy({ left: dx, behavior: "smooth" })
+    return b
+  }
+  others.forEach(account => car.appendChild(susanCard(account, ctx)))
+  if(!others.length){
+    const hint = document.createElement("div")
+    hint.className = "susan-empty"
+    hint.textContent = "No one else on the wheel yet"
+    car.appendChild(hint)
+  }
+  carWrap.appendChild(arrow("‹", -230))
+  carWrap.appendChild(car)
+  carWrap.appendChild(arrow("›", 230))
+  wrap.appendChild(carWrap)
+
+  const mineWrap = document.createElement("div")
+  mineWrap.className = "susan-mine"
+  mine.forEach(account => mineWrap.appendChild(susanMineRow(account, ctx)))
+  wrap.appendChild(mineWrap)
+
+  frag.appendChild(wrap)
+  frag.appendChild(ringFooter(mine))
+  root.replaceChildren(frag)
+
+  boardAnimateNewOffers()
 }
 
+function susanCard(account, ctx){
+  const card = document.createElement("div")
+  card.className = "susan-card"
+    + (account.mode === "lock" ? " susan-card--locked" : "")
+    + (account.id === boardSelectedAccount ? " susan-card--selected" : "")
+  card.style.borderTopColor = getPlayerColour(account.playerId)
+  card.dataset.accountId = account.id
+
+  const head = document.createElement("div")
+  head.className = "susan-head"
+  head.style.color = getPlayerColour(account.playerId)
+  head.textContent = (account.id.split(":")[1] || account.id) + (account.mode === "lock" ? " 🔒" : "")
+  card.appendChild(head)
+  const xl = window.accountLabelCache?.[account.id.split(":")[1] || account.id]
+  if(xl){
+    const sub = document.createElement("div")
+    sub.className = "susan-xsub"
+    sub.textContent = xl
+    card.appendChild(sub)
+  }
+
+  const store = document.createElement("div")
+  store.className = "board-band susan-store"
+  store.title = "Their store (available)"
+  boardStoreChips(account, store)
+  boardReservedChips(account, store, ctx.reservedByAccount)
+  card.appendChild(store)
+
+  const basket = document.createElement("div")
+  basket.className = "board-band susan-basket"
+  basket.title = "Their basket — drop here to offer"
+  boardBasketChips(account, basket, ctx.accountMap)
+  card.appendChild(basket)
+
+  boardDropTarget(card, account)
+  return card
+}
+
+function susanMineRow(account, ctx){
+  const row = document.createElement("div")
+  row.className = "susan-mine-row"
+  row.style.borderLeft = "4px solid " + getPlayerColour(account.playerId)
+  row.dataset.accountId = account.id
+
+  const head = document.createElement("div")
+  head.className = "susan-head"
+  head.textContent = (account.id.split(":")[1] || account.id) + " (you)"
+    + (account.mode === "lock" ? " 🔒" : "")
+  row.appendChild(head)
+
+  const basket = document.createElement("div")
+  basket.className = "board-band susan-basket"
+  basket.title = "Your basket — offers to you land here"
+  boardBasketChips(account, basket, ctx.accountMap)
+  row.appendChild(basket)
+
+  const store = document.createElement("div")
+  store.className = "board-band susan-store"
+  store.title = "Your store"
+  boardStoreChips(account, store)
+  boardReservedChips(account, store, ctx.reservedByAccount)
+  row.appendChild(store)
+
+  boardDropTarget(row, account)
+  return row
+}
+
+// ── ring8/9 helpers ───────────────────────────────────────────────────────
+
+// shared account pipeline: join-order preserved, party filter + netting
+function boardFilteredAccounts(){
+  const all = getAccounts()
+  let accounts = all
+
+  if(ring8() && boardPartyOnly){
+    // rule-aware "Party only" (review 7): show the accounts that are party to
+    // MY proposal. cluster → my connected component(s) only; active → all
+    // active accounts; all → everyone is required, nothing to hide. Uses the
+    // LOCK-PROGRESS1 grouping (getLockProgress) so board and lockbar can
+    // never disagree. With no trades yet nothing is party — show everyone.
+    const rule = gameMeta?.lockRule || "cluster"
+    if(rule !== "all"){
+      const myGroups = new Set(
+        all.filter(a => isMyAccount(a)).map(a => getLockProgress(a.id)?.groupId).filter(Boolean))
+      const partOf = a => {
+        const lp = getLockProgress(a.id)
+        if(!lp) return false
+        return rule === "active" ? true : myGroups.has(lp.groupId)
+      }
+      const party = all.filter(a => isMyAccount(a) || partOf(a))
+      if(party.some(a => !isMyAccount(a))) accounts = party
+    }
+  } else if(!ring8() && showActiveOnly){
+    const vis = new Set(getVisibleAccounts(all).map(a => a.id))
+    accounts = all.filter(a => vis.has(a.id))
+  }
+
+  // net view (viewer-local): FULL pairwise netting per FT asset — A→B $1 and
+  // B→A $3 collapse to a single B→A $2 (review 7; the tx nets exactly like
+  // this, so net-on previews the after and removes the strike jolt). NFTs
+  // pass through. BOARD-POLISH1: netted-away chips should fade out / fly
+  // into their counterpart and "crash" into the difference — needs FLIP
+  // diffing, parked.
+  if(ring8() && boardNetView)
+    accounts = boardNetAccounts(accounts)
+
+  return accounts
+}
+
+function boardNetAccounts(accounts){
+  const net = new Map()      // "asset|loId|hiId" → signed amount (+ = lo gives hi)
+  const nfts = []            // NFT basket lines pass through untouched
+  accounts.forEach(acc => {
+    (acc.basket || []).forEach(item => {
+      const id = String(item.assetId)
+      if(id.includes("#") || !item.fromId){ nfts.push({ to: acc.id, item }); return }
+      const [lo, hi] = [item.fromId, acc.id].sort()
+      const key = id + "|" + lo + "|" + hi
+      const sign = item.fromId === lo ? 1 : -1
+      net.set(key, (net.get(key) || 0) + sign * (item.amount || 1))
+    })
+  })
+  const baskets = {}
+  accounts.forEach(a => baskets[a.id] = [])
+  net.forEach((amt, key) => {
+    if(!amt) return
+    const [assetId, lo, hi] = key.split("|")
+    const to = amt > 0 ? hi : lo, from = amt > 0 ? lo : hi
+    if(baskets[to]) baskets[to].push({ assetId, amount: Math.abs(amt), fromId: from })
+  })
+  nfts.forEach(({ to, item }) => baskets[to] && baskets[to].push(item))
+  return accounts.map(a => ({ ...a, basket: baskets[a.id] || [] }))
+}
+
+// offer/withdraw choreography: diff the raw state between broadcasts.
+// New offers fly ghost→basket for everyone EXCEPT the giver's player (they
+// did the motion). Withdrawn/rejected offers fly basket→store for EVERYONE
+// including the actor (it's a click, not a drag — the return cue helps).
+// Rects+markup are snapshotted each paint so removals can replay from the
+// previous layout.
 let _prevOfferKeys = null
+let _prevOfferRects = new Map()
 function boardAnimateNewOffers(){
   const keys = new Map()
   Object.values(state?.accounts || {}).forEach(acc => {
@@ -386,19 +612,52 @@ function boardAnimateNewOffers(){
   })
   const prev = _prevOfferKeys
   _prevOfferKeys = keys
-  if(!prev) return   // first paint
 
-  keys.forEach((amt, k) => {
-    if((prev.get(k) || 0) >= amt) return
+  const pairEls = k => {
     const [toId, fromId, assetId] = k.split("|")
-    const fromAccount = state.accounts?.[fromId]
-    if(!fromAccount || fromAccount.playerId === currentPlayerId) return  // player-level guard
     const sel = `[data-owner-account="${CSS.escape(fromId)}"]`
       + `[data-asset-id="${CSS.escape(assetId)}"]`
       + `[data-to-account="${CSS.escape(toId)}"]`
-    const ghost = document.querySelector(`.asset.reserved${sel}`)
-    const basketEl = document.querySelector(`.asset.basket${sel}`)
-    if(ghost && basketEl) boardFlyLeg(ghost, basketEl, getPlayerColour(fromAccount.playerId), 0)
+    return {
+      ghost: document.querySelector(`.asset.reserved${sel}`),
+      basket: document.querySelector(`.asset.basket${sel}`)
+    }
+  }
+
+  if(prev){
+    keys.forEach((amt, k) => {
+      if((prev.get(k) || 0) >= amt) return
+      const fromAccount = state.accounts?.[k.split("|")[1]]
+      if(!fromAccount || fromAccount.playerId === currentPlayerId) return
+      const { ghost, basket } = pairEls(k)
+      if(ghost && basket) boardFlyLeg(ghost, basket, getPlayerColour(fromAccount.playerId), 0)
+    })
+
+    prev.forEach((amt, k) => {
+      if((keys.get(k) || 0) >= amt) return
+      const snap = _prevOfferRects.get(k)
+      if(!snap) return
+      const [, fromId, assetId] = k.split("|")
+      const owner = state.accounts?.[fromId]
+      // return target: the owner's store chip it went back into (new DOM);
+      // fall back to where the ghost used to be
+      const home = document.querySelector(
+        `.asset:not(.basket):not(.reserved)[data-owner-account="${CSS.escape(fromId)}"][data-asset-id="${CSS.escape(assetId)}"]`)
+      const target = home ? home.getBoundingClientRect() : snap.ghost
+      if(snap.basket && target)
+        boardFlyRect(snap.html, snap.basket, target, getPlayerColour(owner?.playerId), 0)
+    })
+  }
+
+  // snapshot for the next diff
+  _prevOfferRects = new Map()
+  keys.forEach((amt, k) => {
+    const { ghost, basket } = pairEls(k)
+    if(basket) _prevOfferRects.set(k, {
+      basket: basket.getBoundingClientRect(),
+      ghost: ghost ? ghost.getBoundingClientRect() : null,
+      html: basket.outerHTML
+    })
   })
 }
 
@@ -424,12 +683,20 @@ function ringFooter(mine){
     return el
   }
 
-  bar.appendChild(check("Active only", showActiveOnly, v => { showActiveOnly = v; render() }))
+  if(ring8()){
+    // "Party only" (was "Active only", review 7): rule-aware — who is party
+    // to MY proposal. cluster → my cluster; active → all active; all → n/a.
+    bar.appendChild(check("Party only", boardPartyOnly,
+      v => { boardPartyOnly = v; render() },
+      "Show only accounts party to your proposal (follows the game's lock rule: " + (gameMeta?.lockRule || "cluster") + ")"))
+  } else {
+    bar.appendChild(check("Active only", showActiveOnly, v => { showActiveOnly = v; render() }))
+  }
 
   if(ring8()){
     bar.appendChild(check("Net", boardNetView,
       v => { boardNetView = v; render() },
-      "View baskets netted: same giver + same asset merge into one line (the transaction nets them anyway — net-on previews the after and avoids the strike jolt)"))
+      "View baskets fully netted per pair: opposite-direction flows of the same asset collapse to their difference (the transaction nets exactly like this — net-on previews the after and avoids the strike jolt)"))
     bar.appendChild(check("You at bottom", boardSelfBottom,
       v => { boardSelfBottom = v; render() },
       "On: the board rotates so your accounts face you. Off: everyone sees the identical layout (screen-share / spectator)"))
@@ -445,7 +712,8 @@ function ringFooter(mine){
     mine.forEach(a => {
       const o = document.createElement("option")
       o.value = a.id
-      o.textContent = (a.mode === "lock" ? "🔒 " : "") + (a.id.split(":")[1] || a.id)
+      // 🔒 AFTER the id (review 7) — appears/disappears without the id jumping
+      o.textContent = (a.id.split(":")[1] || a.id) + (a.mode === "lock" ? " 🔒" : "")
       sel.appendChild(o)
     })
     const add = document.createElement("option")
@@ -498,7 +766,7 @@ function ringFooter(mine){
     })
   }
 
-  if(ringArcs()){
+  if(ringArcs() || susan()){
     const play = document.createElement("button")
     play.className = "ring-footer-play"
     play.textContent = "▶"
@@ -507,20 +775,35 @@ function ringFooter(mine){
     bar.appendChild(play)
   }
 
-  // dev: start-angle spinner — explore how rotations render (user 2026-07-09
-  // #2; review 6: keep for now, nerd-mode candidate at release. With "You at
-  // bottom" ON this is the SHARED base the self-rotation derives from.)
-  const rot = document.createElement("label")
-  rot.className = "ring-footer-rot"
-  rot.title = "Dev: board start angle (degrees, segments run clockwise from here)"
-  rot.appendChild(document.createTextNode("↻"))
-  const ri = document.createElement("input")
-  ri.type = "number"
-  ri.step = 15
-  ri.value = boardStartAngle
-  ri.onchange = () => { boardStartAngle = Number(ri.value) || 0; render() }
-  rot.appendChild(ri)
-  bar.appendChild(rot)
+  if(susan()){
+    // no hub on the wheel — cluster progress rides the footer instead
+    const lp = boardLockSummary(mine, boardFilteredAccounts())
+    if(lp){
+      const badge = document.createElement("span")
+      badge.className = "ring-footer-lp"
+      badge.textContent = `🔒 ${lp.locked}/${lp.total}`
+      badge.title = `${lp.locked} of ${lp.total} accounts locked (${lp.scope})`
+      bar.appendChild(badge)
+    }
+  }
+
+  // dev start-angle spinner: frozen skins only — review 7 dropped it for v9+
+  // (superseded by You-at-bottom, and a no-op while that toggle is on anyway).
+  // Parked juice idea: tween the rotation when You-at-bottom flips — the
+  // whole layout hangs off one angle, so it's a single-number animation.
+  if(!ring8()){
+    const rot = document.createElement("label")
+    rot.className = "ring-footer-rot"
+    rot.title = "Dev: board start angle (degrees, segments run clockwise from here)"
+    rot.appendChild(document.createTextNode("↻"))
+    const ri = document.createElement("input")
+    ri.type = "number"
+    ri.step = 15
+    ri.value = boardStartAngle
+    ri.onchange = () => { boardStartAngle = Number(ri.value) || 0; render() }
+    rot.appendChild(ri)
+    bar.appendChild(rot)
+  }
 
   return bar
 }
@@ -569,20 +852,30 @@ function playTransfers(){
 // one leg of the transfer animation: clone flies ghost → basket, trail line
 // in the giver's colour draws with it and fades
 function boardFlyLeg(ghost, basketEl, colour, delay){
-  const a = ghost.getBoundingClientRect(), b = basketEl.getBoundingClientRect()
-  const fly = basketEl.cloneNode(true)
-  fly.className = basketEl.className + " board-fly"
+  boardFlyRect(basketEl.outerHTML, ghost.getBoundingClientRect(), basketEl.getBoundingClientRect(), colour, delay)
+}
+
+// markup + two rects → flight (also used for withdraw-back, where the source
+// chip no longer exists in the new DOM and we replay from a snapshot)
+function boardFlyRect(html, a, b, colour, delay){
+  if(!html || !a || !b) return
+  const tmp = document.createElement("div")
+  tmp.innerHTML = html
+  const fly = tmp.firstElementChild
+  if(!fly) return
+  fly.className += " board-fly"
   fly.style.left = a.left + "px"
   fly.style.top = a.top + "px"
   document.body.appendChild(fly)
   setTimeout(() => {
     fly.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px)`
     boardTrail(a, b, colour)
-  }, delay + 30)
-  setTimeout(() => fly.remove(), delay + 1000)
+  }, (delay || 0) + 30)
+  setTimeout(() => fly.remove(), (delay || 0) + 1000)
 }
 
-// trailing line: draws in with the flight, lingers, fades out over ~2.5s
+// trailing line: DOTTED in the giver's colour (review 7 — was solid with a
+// draw-in; the dash channel now carries the dot pattern), fades out slowly
 function boardTrail(a, b, colour){
   let svg = document.querySelector(".board-traillayer")
   if(!svg){
@@ -596,15 +889,11 @@ function boardTrail(a, b, colour){
   line.setAttribute("x2", b.left + b.width / 2); line.setAttribute("y2", b.top + b.height / 2)
   line.setAttribute("class", "board-trailline")
   line.style.stroke = colour || "#999"
-  const len = Math.hypot(b.left - a.left, b.top - a.top) || 1
-  line.style.strokeDasharray = len
-  line.style.strokeDashoffset = len
   svg.appendChild(line)
   requestAnimationFrame(() => {
-    line.style.strokeDashoffset = 0          // draw in with the flight
-    setTimeout(() => { line.style.opacity = 0 }, 1200)   // then fade away
+    setTimeout(() => { line.style.opacity = 0 }, 1000)   // linger, then fade
   })
-  setTimeout(() => line.remove(), 4000)
+  setTimeout(() => line.remove(), 3600)
 }
 
 // PROP-LOCKSIGN1 commitment flow, shared by the v1 label glyph + footer buttons
@@ -892,13 +1181,25 @@ function ringEtchLabel(seg, g, NS){
 
   // perpendicular nudge INTO the segment (interior sits at larger angle than
   // a0, smaller than a1), plus keep the glyphs upright
-  const inward = (abDeg === seg.a0 ? 1 : -1) * 18
+  const inwardSign = abDeg === seg.a0 ? 1 : -1
   const perp = ab + Math.PI / 2
-  const x = g.cx + rt * Math.cos(ab) + inward * Math.cos(perp)
-  const y = g.cy + rt * Math.sin(ab) + inward * Math.sin(perp)
 
   let rot = ((abDeg % 360) + 360) % 360
   if(rot > 90 && rot < 270) rot -= 180
+
+  // v9 (review 7): pad by glyph metrics — a label BELOW the line needs its
+  // ASCENDERS cleared (they reach back up toward the line), one ABOVE only
+  // its descenders, so a fixed 18px sat close below and roomy above
+  let inward = inwardSign * 18
+  if(ring9()){
+    const rr = rot * Math.PI / 180
+    const below = inwardSign * (Math.cos(perp) * Math.cos(rr + Math.PI / 2)
+                              + Math.sin(perp) * Math.sin(rr + Math.PI / 2)) > 0
+    inward = inwardSign * (below ? 7 + fs * 0.78 : 7 + fs * 0.25)
+  }
+
+  const x = g.cx + rt * Math.cos(ab) + inward * Math.cos(perp)
+  const y = g.cy + rt * Math.sin(ab) + inward * Math.sin(perp)
 
   text.setAttribute("x", x)
   text.setAttribute("y", y)
