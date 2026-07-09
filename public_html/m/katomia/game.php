@@ -36,13 +36,19 @@
 
 <div class="game-left">
 
+<!-- ORDERS-LAYOUT1: the market chart is its OWN full-width section at the top; orders +
+     transactions sit BELOW it as siblings. Previously the chart lived inside
+     #ordersSection, so on desktop the transactions column aligned to the chart's top
+     rather than the orders list. mode-order gates it to order mode like the sections. -->
+<div class="market-chart-section mode-order">
+  <div class="orders-market-summary subtle"></div>
+</div>
+
 <!-- ORDERS-UI1: orders | tx sit side-by-side on desktop (auto-fit grid), and
      wrap to a single column on narrower viewports. -->
 <div class="trade-cols">
 
 <div id="ordersSection" class="mode-order">
-
-  <div class="orders-market-summary subtle"></div>
 
   <details class="orders-details" open>
 
