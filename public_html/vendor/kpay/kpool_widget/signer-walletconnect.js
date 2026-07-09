@@ -299,6 +299,11 @@ export function renderWalletConnectSigner(container, {
 
 			acct.onchange = async () => {
 				const id = acct.value
+				// TX-CARDS-WCPREVIEW1: update the preview line IMMEDIATELY on selection
+				// (synchronous, snappy) — no re-render happens on a plain switch, so this
+				// is what refreshes the message; without it the previous account's line
+				// lingered.
+				if (id !== ADD_NEW) updatePreview(id)
 				if (id === ADD_NEW) {
 					acct.value = account   // revert the visible selection; connect re-renders
 					kdiag('signer:connect:add', { network })
@@ -406,8 +411,12 @@ export function renderWalletConnectSigner(container, {
 			preview.textContent = (p.state === 'completes' ? '✅ ' : p.state === 'not-needed' ? 'ℹ️ ' : '✍️ ') + p.text
 			preview.style.display = ''
 		}
-		updatePreview(hasMulti ? acct.value : account)
-		if (hasMulti) acct.addEventListener('change', () => { if (acct.value !== ADD_NEW) updatePreview(acct.value) })
+		const curId = () => hasMulti ? acct.value : account
+		updatePreview(curId())   // initial; switches update via acct.onchange
+		// keyInfo enriches async — the first paint may compute 'loading' (hidden). Recheck a
+		// couple of times so the line appears once the threshold data is in, without a switch.
+		setTimeout(() => { if (preview.isConnected) updatePreview(curId()) }, 1200)
+		setTimeout(() => { if (preview.isConnected) updatePreview(curId()) }, 3000)
 	}
 
 	render()
@@ -421,7 +430,9 @@ function injectSignerCSS() {
 
 	const s = document.createElement('style')
 	s.textContent = `
-		.kpsign { display:flex; justify-content:center; margin:16px 0; }
+		/* TX-CARDS-WCPREVIEW1: column so the preview line sits UNDER the picker row (was a
+		   flex row, which pushed the preview out to the right and widened the modal). */
+		.kpsign { display:flex; flex-direction:column; align-items:center; margin:16px 0; }
 		.kpsign-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center; }
 		.kpsign-acct { font:13px ui-monospace,Menlo,Consolas,monospace; color:#555; }
 		/* TX-CARDS-WCPREVIEW1: threshold preview under the account picker */
