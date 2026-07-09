@@ -148,14 +148,96 @@ body.board-page{
   box-shadow: none;            /* ghosts lie flat — they've left the table */
 }
 
-/* ring4: everything a smidge bigger (review #2) — desktop and mobile */
-[data-board-skin="ring4"] .board-chip{
+/* ring4+: everything a smidge bigger (review #2) — desktop and mobile */
+:is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"]) .board-chip{
   font-size: 12.5px;
   padding: 4px 8px;
 }
-[data-board-skin="ring4"] .board-chip .asset-thumb{
+:is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"]) .board-chip .asset-thumb{
   width: 40px;
   height: 40px;
+}
+
+/* ring5/6: the sleeve is the OG SOLID BAR (review #3) — square left corners
+   so the border reads as a rectangle butted against the chip, not a rounded
+   wrap (same shape rule as .asset.basket in the legacy view) */
+:is([data-board-skin="ring5"], [data-board-skin="ring6"]) .board-chip{
+  border-radius: 0 9px 9px 0;
+}
+
+/* …and NFTs identically (user clarification): bare thumb + square bar beside
+   it, exactly the OG mobile basket look — the chip-level shadow/radius was
+   wrapping the image in a second bubble */
+:is([data-board-skin="ring5"], [data-board-skin="ring6"]) .board-chip.thumb-only{
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+  background: none;
+}
+
+/* the hover/tap pair line was drawn but invisible over the coloured felt —
+   thicker + darker on the board page */
+.board-page .trade-line-layer line{
+  stroke: #444;
+  stroke-width: 2;
+  stroke-dasharray: 5 5;
+}
+
+/* per-account lock arcs (ring5/6): faint base, lock-orange when locked,
+   your own arcs are tappable (stroke only) */
+.ring-lockarc{
+  fill: none;
+  stroke: #9db4cf;
+  stroke-width: 12;
+  opacity: .22;
+}
+.ring-lockarc--mine{
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.ring-lockarc--locked{
+  stroke: #f5a623;
+  opacity: .75;
+}
+[data-board-skin="ring6"] .ring-lockarc--mine:not(.ring-lockarc--locked){
+  stroke-dasharray: 4 8;       /* faint affordance where your arc would be */
+  opacity: .30;
+}
+.ring-basketzone{               /* ring6: shading instead of a line */
+  fill: rgba(90, 70, 20, .05);
+  stroke: none;
+}
+
+/* hub rim as cluster progress ring */
+.ring-hub--ringed{ border: none; }
+.ring-hubring{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.ring-hubring-base{ fill: none; stroke: #a9c9ec; stroke-width: 4; }
+.ring-hubring-locked{ fill: none; stroke: #f5a623; stroke-width: 4; stroke-linecap: round; }
+.ring-hub--ringed span{ position: relative; z-index: 1; }
+
+/* ▶ preview flight */
+.board-fly{
+  position: fixed;
+  z-index: 60;
+  margin: 0;
+  pointer-events: none;
+  transition: transform .85s cubic-bezier(.35, .9, .35, 1);
+  box-shadow: 0 6px 16px rgba(0,0,0,.25);
+}
+.ring-footer-play{
+  border: 1px solid #ddd6c6;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
 }
 
 .ring-lockbadge{
@@ -234,10 +316,14 @@ body.board-page{
 }
 
 /* fixed passthrough host for the legacy dotted trade line (drawTradeLine →
-   #game .trade-line-layer, styled in katomia.css) */
-.board-linelayer{
+   #game .trade-line-layer, styled in katomia.css). id+class selector: the
+   legacy `#game{position:relative}` rule outranks a bare class and left this
+   host 0px tall — the drawn line lived in a zero-height svg (review #3:
+   "dotted line not showing up"). */
+#game.board-linelayer{
   position: fixed;
   inset: 0;
+  height: auto;
   pointer-events: none;
   z-index: 40;
 }
@@ -254,9 +340,9 @@ body.board-page{
   [data-board-skin="ring2"] .ring-box .board-chip .asset-thumb,
   [data-board-skin="ring3"] .ring-box .board-chip .asset-thumb{ width: 32px; height: 32px; }
 
-  /* ring4 portrait: the requested smidge up from ring2 */
-  [data-board-skin="ring4"] .ring-box .board-chip{ font-size: 12px; padding: 3px 8px; }
-  [data-board-skin="ring4"] .ring-box .board-chip .asset-thumb{ width: 36px; height: 36px; }
+  /* ring4+ portrait: the requested smidge up from ring2 */
+  :is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"]) .ring-box .board-chip{ font-size: 12px; padding: 3px 8px; }
+  :is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"]) .ring-box .board-chip .asset-thumb{ width: 36px; height: 36px; }
 }
 
 /* ── seat cards (other players) ─────────────────────────────────────────── */

@@ -17,7 +17,7 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "table", "market"]
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
 // ids etched into the felt instead of label rows, oval faded+thickened (future
@@ -29,11 +29,21 @@ const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "table", "market"]
 // chip instead wears the v1 basket treatment: the owner's thick left sleeve,
 // clean face. Chips a smidge bigger everywhere. One frozen variant per
 // iteration, on purpose — new feedback = new skin, so oddities stay comparable.
-const ringEtched = () => boardSkin === "ring2" || boardSkin === "ring3" || boardSkin === "ring4"
+// ring5 (feedback pass 3, default): sleeve drawn as the OG SOLID BAR (square
+// left corners, not a rounded border), per-account LOCK ARCS on the oval
+// (tap your own arc to lock — stage 2 arrives), hub becomes the cluster
+// progress ring, footer gains ▶ (animate transfers ghost→basket).
+// ring6 (experiment): ring5 with the oval line REMOVED — the user is half
+// inclined to drop it; inner zone reads from a soft shading + sleeves alone,
+// and lock arcs materialise only where a lock exists (plus a faint dashed
+// affordance on your own segments).
+const ringEtched = () => /^ring[2-6]$/.test(boardSkin)
+const ringSleeved = () => /^ring[4-6]$/.test(boardSkin)
+const ringArcs = () => boardSkin === "ring5" || boardSkin === "ring6"
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
-  return BOARD_SKINS.includes(s) ? s : "ring4"
+  return BOARD_SKINS.includes(s) ? s : "ring5"
 })()
 
 // dev control (footer): the layout's start angle — segments begin here and run
@@ -239,14 +249,19 @@ function renderRingBoard(root){
   // felt linework: basket oval, segment boundaries, hub ring, etched ids
   frag.appendChild(ringFelt(segs, { W, H, cx, cy, rc, rx, ry, step, edgeR, ovalR, rad, etched }))
 
-  // center pivot — future strike timer / signing hourglass
+  // center pivot — future strike timer / signing hourglass. With lock arcs
+  // (ring5/6) the hub rim doubles as the cluster progress ring: the lockbar
+  // bent into a circle, orange filling with each required lock.
   const hub = document.createElement("div")
-  hub.className = "ring-hub"
+  hub.className = "ring-hub" + (ringArcs() ? " ring-hub--ringed" : "")
   hub.style.left = cx + "px"
   hub.style.top = cy + "px"
   hub.style.width = hub.style.height = rc * 2 + "px"
   const lp = boardLockSummary(accounts.filter(a => isMyAccount(a)), accounts)
-  hub.textContent = lp ? `${lp.locked}/${lp.total}` : ""
+  const hubText = document.createElement("span")
+  hubText.textContent = lp ? `${lp.locked}/${lp.total}` : ""
+  hub.appendChild(hubText)
+  if(ringArcs() && lp) hub.appendChild(hubProgressRing(lp, rc))
   hub.title = (gameMeta?.profile?.name || gameMeta?.id || "") +
     (lp ? ` — ${lp.locked} of ${lp.total} locked (${lp.scope})` : "")
   frag.appendChild(hub)
@@ -284,6 +299,15 @@ function ringFooter(mine){
     bar.appendChild(b)
   })
 
+  if(ringArcs()){
+    const play = document.createElement("button")
+    play.className = "ring-footer-play"
+    play.textContent = "▶"
+    play.title = "Preview: animate every standing offer from its ghost to where it landed"
+    play.onclick = playTransfers
+    bar.appendChild(play)
+  }
+
   // dev: start-angle spinner — explore how rotations render (user 2026-07-09 #2)
   const rot = document.createElement("label")
   rot.className = "ring-footer-rot"
@@ -298,6 +322,55 @@ function ringFooter(mine){
   bar.appendChild(rot)
 
   return bar
+}
+
+// hub rim as cluster progress: base circle in trading blue, locked fraction
+// overlaid in lock orange, starting at 12 o'clock
+function hubProgressRing(lp, rc){
+  const NS = "http://www.w3.org/2000/svg"
+  const svg = document.createElementNS(NS, "svg")
+  svg.setAttribute("class", "ring-hubring")
+  svg.setAttribute("viewBox", `0 0 ${rc * 2} ${rc * 2}`)
+  const mk = cls => {
+    const c = document.createElementNS(NS, "circle")
+    c.setAttribute("cx", rc); c.setAttribute("cy", rc); c.setAttribute("r", rc - 2)
+    c.setAttribute("class", cls)
+    c.setAttribute("transform", `rotate(-90 ${rc} ${rc})`)
+    svg.appendChild(c)
+    return c
+  }
+  mk("ring-hubring-base")
+  const arc = mk("ring-hubring-locked")
+  const C = 2 * Math.PI * (rc - 2)
+  arc.style.strokeDasharray = `${C * lp.locked / lp.total} ${C}`
+  return svg
+}
+
+// ▶ preview: replay every standing offer as a chip flying from its ghost to
+// where it landed (pure eye-candy over getBoundingClientRect — no state
+// change; the signing-modal preview idea transplanted to the board)
+function playTransfers(){
+  let i = 0
+  document.querySelectorAll(".asset.basket").forEach(basketEl => {
+    const { ownerAccount, assetId, toAccount } = basketEl.dataset
+    if(!ownerAccount || !assetId) return
+    const sel = `[data-owner-account="${CSS.escape(ownerAccount)}"]`
+      + `[data-asset-id="${CSS.escape(assetId)}"]`
+      + `[data-to-account="${CSS.escape(toAccount)}"]`
+    const ghost = document.querySelector(`.asset.reserved${sel}`)
+    if(!ghost) return
+    const a = ghost.getBoundingClientRect(), b = basketEl.getBoundingClientRect()
+    const fly = basketEl.cloneNode(true)
+    fly.className = basketEl.className + " board-fly"
+    fly.style.left = a.left + "px"
+    fly.style.top = a.top + "px"
+    document.body.appendChild(fly)
+    const delay = i++ * 220
+    setTimeout(() => {
+      fly.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px)`
+    }, delay + 30)
+    setTimeout(() => fly.remove(), delay + 1000)
+  })
 }
 
 // PROP-LOCKSIGN1 commitment flow, shared by the v1 label glyph + footer buttons
@@ -414,17 +487,64 @@ function ringFelt(segs, g){
     svg.appendChild(line)
   })
 
-  const oval = document.createElementNS(NS, "ellipse")
-  oval.setAttribute("cx", g.cx); oval.setAttribute("cy", g.cy)
-  oval.setAttribute("rx", g.rx); oval.setAttribute("ry", g.ry)
-  // faded + thick in etched variants: reads as felt, and the width is the
-  // stage-2 tap-to-lock arc target
-  oval.setAttribute("class", "ring-ovalline" + (g.etched ? " ring-ovalline--faded" : ""))
-  svg.appendChild(oval)
+  if(ringArcs()){
+    // stage 2 arrives: the oval is split into per-account arcs — an account's
+    // arc lights lock-orange when THEY lock, and your own arcs are tappable
+    // lock toggles (pointer-events on the stroke only). ring6 drops the base
+    // line entirely: a soft filled shading marks the basket zone instead, and
+    // arcs exist only as lock state (yours get a faint dashed affordance).
+    if(boardSkin === "ring6"){
+      const zone = document.createElementNS(NS, "ellipse")
+      zone.setAttribute("cx", g.cx); zone.setAttribute("cy", g.cy)
+      zone.setAttribute("rx", g.rx); zone.setAttribute("ry", g.ry)
+      zone.setAttribute("class", "ring-basketzone")
+      svg.appendChild(zone)
+    }
+    segs.forEach(seg => {
+      const locked = seg.account.mode === "lock"
+      if(boardSkin === "ring6" && !locked && !seg.mine) return
+      const arc = document.createElementNS(NS, "path")
+      arc.setAttribute("d", ringArcPath(seg, g))
+      arc.setAttribute("class", "ring-lockarc"
+        + (locked ? " ring-lockarc--locked" : "")
+        + (seg.mine ? " ring-lockarc--mine" : ""))
+      if(seg.mine){
+        arc.onclick = () => boardToggleLock(seg.account)
+        const t = document.createElementNS(NS, "title")
+        t.textContent = locked ? "Locked — tap your arc to unlock" : "Tap your arc to lock"
+        arc.appendChild(t)
+      }
+      svg.appendChild(arc)
+    })
+  } else {
+    const oval = document.createElementNS(NS, "ellipse")
+    oval.setAttribute("cx", g.cx); oval.setAttribute("cy", g.cy)
+    oval.setAttribute("rx", g.rx); oval.setAttribute("ry", g.ry)
+    // faded + thick in etched variants: reads as felt, and the width is the
+    // stage-2 tap-to-lock arc target
+    oval.setAttribute("class", "ring-ovalline" + (g.etched ? " ring-ovalline--faded" : ""))
+    svg.appendChild(oval)
+  }
 
   if(g.etched) segs.forEach(seg => svg.appendChild(ringEtchLabel(seg, g, NS)))
 
   return svg
+}
+
+// the ellipse arc across one segment. Segment boundaries are TRUE directions
+// from center; ellipse points need the PARAMETRIC angle (t: cos t scaled by
+// rx, sin t by ry), so convert first or arcs won't meet the boundary lines.
+function ringArcPath(seg, g){
+  const param = deg => {
+    const a = g.rad(deg)
+    return Math.atan2(Math.sin(a) / g.ry, Math.cos(a) / g.rx)
+  }
+  let t0 = param(seg.a0), t1 = param(seg.a1)
+  while(t1 <= t0) t1 += 2 * Math.PI
+  const p = t => [g.cx + g.rx * Math.cos(t), g.cy + g.ry * Math.sin(t)]
+  const [x0, y0] = p(t0), [x1, y1] = p(t1)
+  const large = (t1 - t0) > Math.PI ? 1 : 0
+  return `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${g.rx} ${g.ry} 0 ${large} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`
 }
 
 // the account id etched into the felt — big, bold, faded, in the owner's
@@ -724,7 +844,7 @@ function boardAssetText(assetId, amount){
 // artwork: the art's colour must never read as ownership.
 function ringTint(el, playerId){
   if(!ringEtched() || !playerId) return
-  if(boardSkin === "ring4"){
+  if(ringSleeved()){
     applyOwnerSleeve(el, playerId)
     return
   }

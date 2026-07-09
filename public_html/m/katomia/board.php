@@ -23,7 +23,9 @@
 
 <div class="board-chrome">
   <select id="boardSkinSelect" title="Board skin">
-    <option value="ring4">⭕ Ring v4 — sleeves, etched boundary (default)</option>
+    <option value="ring5">⭕ Ring v5 — OG sleeves, lock arcs (default)</option>
+    <option value="ring6">🧪 Ring v6 — no oval (experiment)</option>
+    <option value="ring4">🎗 Ring v4 — sleeves, etched boundary</option>
     <option value="ring2">🎲 Ring v2 — etched boundary, tinted faces</option>
     <option value="ring3">🎯 Ring v3 — etched centroid, tinted faces</option>
     <option value="ring">📇 Ring v1 (label rows)</option>
