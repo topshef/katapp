@@ -87,10 +87,12 @@
 <script src="/m/bid/localCacheIFPS.js"></script>
 <script src="/m/bid/localCacheArweave.js"></script>
 
-<!-- ring16: IN-APP signing — the same WalletConnect + kpool-widget stack as
-     game.php; the board's Sign button opens the widget via its #sign=… hash
-     opener (KPAY_SIGN_HASH). HashPack-first MVP; the hub tap keeps the
-     external all-wallets page for comparison testing. -->
+<!-- ring16 (corrected review 17): the WC bundle is here for DIRECT signing —
+     ✍ Sign calls the headless WC.signTx (the modal's Sign action, no modal;
+     board IS the signing surface). The kpay-embed stays loaded only as the
+     hash deep-link path (#sign=…) — effectively hidden; the widget modal
+     remains reachable via the tx list outside the ring, and the hub tap
+     opens the external all-wallets page for comparison. -->
 <?php require_once($_SERVER['DOCUMENT_ROOT'] . "/vendor/walletconnect/kwcScriptTag.php"); ?>
 <script>window.KPAY_SIGN_HASH = true</script>
 <script src="/vendor/kpay/kpool_widget/kpay-embed.js" defer></script>

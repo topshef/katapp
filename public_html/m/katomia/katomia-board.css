@@ -1147,3 +1147,10 @@ body.board-page{
   stroke-dasharray: 5 6 !important;
   opacity: .8 !important;
 }
+
+/* review 17: the spotlight fades IN at flight speed (darkest as assets land)
+   and lifts gracefully; only the first mount animates, not every re-render */
+.ring-focusshade--in{ animation: ring-focusfade .9s ease forwards; }
+.ring-focusshade--out{ animation: ring-focuslift .5s ease forwards; }
+@keyframes ring-focusfade{ from{ opacity: 0; } to{ opacity: 1; } }
+@keyframes ring-focuslift{ from{ opacity: 1; } to{ opacity: 0; } }

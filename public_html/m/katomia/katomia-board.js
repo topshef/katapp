@@ -683,6 +683,15 @@ function renderRingBoard(root){
   // accounts — don't animate at you; you did the motion. Skipped on the
   // first paint (everything would fly).
   if(ring8()) boardAnimateNewOffers()
+
+  // review 17: the STRIKE MOMENT — entering the signing phase auto-plays the
+  // choreography once (legs fly to their baskets while the spotlight fades
+  // in at the same speed). No button needed; ▶ replays it.
+  if(ring16()){
+    const txid = boardSigning?.tx?.txid || null
+    if(txid && window.__boardStruckTx !== txid) setTimeout(playTransfers, 80)
+    window.__boardStruckTx = txid
+  }
 }
 
 /* ── Lazy Susan v1 (review 7) ───────────────────────────────────────────────
@@ -941,9 +950,65 @@ function boardTxChips(legs, container, accounts){
     })
     applyAssetClasses(el, leg.assetId, leg.amount)
     el.classList.add("board-chip", "board-txchip")
+    if(leg.from) el.dataset.fromHac = leg.from
     el.title = "Pending transaction leg — awaiting signatures"
     container.appendChild(el)
   })
+}
+
+// review 17: the direct WalletConnect signing flow — mirrors the widget's
+// "Sign now" (signer-walletconnect.js) without its UI: ensure a connected
+// account, take the tx bytes from the broadcast (txhex; txRead fallback),
+// WC.signTx, POST the signature to the pool. HashPack-first MVP.
+function boardHexToBytes(hex){
+  const out = new Uint8Array(hex.length / 2)
+  for(let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16)
+  return out
+}
+
+async function boardDirectSign(account){
+  const wc = window.WC
+  const tx = boardSigning?.tx
+  if(!tx) return
+  const network = gameMeta?.network || ""
+  if(!wc?.signTx){
+    // bundle missing → the external page still signs (never dead-ends)
+    window.open(`/m/sign/?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(tx.txid)}&pch=${encodeURIComponent(tx.pch || "")}`, "_blank")
+    return
+  }
+  const accountId = account.id.split(":")[1] || account.id
+  try {
+    window.kdiag?.("board:sign:click", { network, txid: tx.txid, accountId })
+    let active = null
+    try { active = await wc.getAccount?.() } catch {}
+    if(!active) active = await wc.connect()          // pairing UI is the wallet's own
+    if(active !== accountId && typeof wc.setActiveAccount === "function"){
+      try { await wc.setActiveAccount(accountId) } catch(e){
+        notify(`Wallet is connected as ${active} — switch to ${accountId} in your wallet, or sign as ${active}`, "warning", { timeout: 6000 })
+      }
+    }
+    let bytes = tx.txhex ? boardHexToBytes(tx.txhex) : null
+    if(!bytes){
+      const r = await fetch(`/future/?action=txRead&network=${encodeURIComponent(network)}&txid=${encodeURIComponent(tx.txid)}`)
+      const j = await r.json().catch(() => null)
+      if(j?.hex2) bytes = boardHexToBytes(j.hex2)
+    }
+    if(!bytes) throw new Error("transaction bytes unavailable")
+    const signAs = (await wc.getAccount?.()) || accountId
+    const { signedTransactionHex } = await wc.signTx({ accountId: signAs, transactionBytes: bytes })
+    const save = await fetch("/future/?action=txSave", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ network, comment: "board direct sign",
+        response: { signedTransaction: Array.from(boardHexToBytes(signedTransactionHex)) } })
+    })
+    if(!save.ok) throw new Error(`signature save failed (${save.status})`)
+    window.kdiag?.("board:sign:saved", { txid: tx.txid, accountId: signAs })
+    notify(`✍ Signed as ${signAs}`, "success", { timeout: 4000 })
+  } catch(e){
+    window.kdiag?.("board:sign:error", { error: String(e) })
+    notify(`Signing failed: ${e.message || e}`, "error", { timeout: 6000 })
+  }
 }
 
 let _boardCountdownTimer = null
@@ -1184,17 +1249,13 @@ function ringFooter(mine){
       // the embedded roll-up is the next slice.
       lockBtn.className = "ring-footer-lock ring-footer-sign"
       lockBtn.textContent = "✍ Sign"
-      // review 16: sign IN-APP — the kpool widget + WalletConnect are loaded
-      // on board.php; the hash is its opener (HashPack-first MVP). The
-      // external all-wallets page moved to tapping the HUB (dev/compare).
-      lockBtn.onclick = () => {
-        if(window.KPAY_SIGN_HASH){
-          location.hash = `sign=${gameMeta?.network || ""}:${boardSigning.tx.txid}:${boardSigning.tx.pch || ""}`
-        } else window.open(
-          `/m/sign/?network=${encodeURIComponent(gameMeta?.network || "")}` +
-          `&txid=${encodeURIComponent(boardSigning.tx.txid)}&pch=${encodeURIComponent(boardSigning.tx.pch || "")}`,
-          "_blank")
-      }
+      // review 17 CORRECTION: Sign is the modal's SIGN ACTION, not the modal —
+      // straight to WalletConnect via the headless WC.signTx (connect first
+      // if needed), signature saved back to the pool. No intermediate UI;
+      // the board IS the signing surface. External all-wallets page stays on
+      // the hub tap; the widget modal remains reachable via the tx list
+      // outside the ring.
+      lockBtn.onclick = () => boardDirectSign(cur)
     } else {
       lockBtn.className = "ring-footer-lock" + (cur?.mode === "lock" ? " locked" : "")
       lockBtn.textContent = cur?.mode === "lock" ? "🔓 Unlock" : "🔒 Lock"
@@ -1235,16 +1296,24 @@ function ringFooter(mine){
 
   if(ringArcs() || susan()){
     const play = document.createElement("button")
-    play.className = "ring-footer-play" + (boardFocusMode ? " ring-footer-play--on" : "")
-    play.textContent = boardFocusMode ? "⏸" : "▶"
+    const focusOn = boardFocusMode || (ring16() && !!boardSigning)
+    play.className = "ring-footer-play" + (focusOn ? " ring-footer-play--on" : "")
+    play.textContent = (boardFocusMode && !boardSigning) ? "⏸" : "▶"
     play.title = ring16()
       ? "Focus preview: assets fly to their baskets and the spotlight closes on the deal — press again to lift it"
       : "Preview: animate every standing offer from its ghost to where it landed"
     play.onclick = () => {
       if(!ring16()){ playTransfers(); return }
+      if(boardSigning){ playTransfers(); return }   // spotlight is permanent here
       boardFocusMode = !boardFocusMode
-      if(boardFocusMode) playTransfers()
-      render()
+      if(boardFocusMode){ playTransfers(); render() }
+      else {
+        // graceful lift: fade the shade out before repainting (review 17 —
+        // the instant switch was jarring)
+        const shade = document.querySelector(".ring-focusshade")
+        if(shade){ shade.classList.add("ring-focusshade--out"); setTimeout(render, 560) }
+        else render()
+      }
     }
     bar.appendChild(play)
   }
@@ -1343,6 +1412,24 @@ function hubProgressRing(lp, rc){
 // flight leaves a TRAILING LINE in the giver's colour that fades slowly
 // (review 4 — like the signing-modal animation).
 function playTransfers(){
+  // signing phase (review 17): there are no ghost/basket pairs any more —
+  // the legs fly from their GIVER's store zone to where they now sit
+  if(boardSigning){
+    let i = 0
+    document.querySelectorAll(".board-txchip").forEach(chip => {
+      const fromHac = chip.dataset.fromHac
+      if(!fromHac) return
+      const giverBox = [...document.querySelectorAll(".ring-avail")]
+        .find(b => (b.dataset.dropAccount || "").endsWith(":" + fromHac))
+      const from = giverBox ? giverBox.getBoundingClientRect() : null
+      if(!from) return
+      const giver = Object.values(state?.accounts || {})
+        .find(a => (a.id.split(":")[1] || a.id) === fromHac)
+      boardFlyRect(chip.outerHTML, from, chip.getBoundingClientRect(),
+        getPlayerColour(giver?.playerId), i++ * 220)
+    })
+    return
+  }
   let i = 0
   document.querySelectorAll(".asset.basket").forEach(basketEl => {
     const { ownerAccount, assetId, toAccount, ownerPlayer } = basketEl.dataset
@@ -1845,10 +1932,14 @@ function ringFelt(segs, g){
     })
   }
 
-  // ▶ focus (review 16): heavy dark everywhere outside the basket spotlight —
-  // drawn LAST so even the etched ids sink to a faint memory; the footer
-  // (z12) and chrome stay above. Signing endgame will reuse this darkness.
-  if(ring16() && boardFocusMode){
+  // ▶ focus / signing spotlight (review 16, corrected review 17): heavy dark
+  // outside the basket spotlight, drawn LAST (even the etched ids sink to a
+  // faint memory; footer/chrome stay above). During the SIGNING PHASE the
+  // spotlight is PERMANENT — not a choice; ▶ only replays the choreography.
+  // The darkening FADES IN at the speed of the flight (~.9s, darkest as the
+  // assets land) — and only animates on first mount, not on every re-render.
+  const shadeOn = ring16() && (boardFocusMode || !!boardSigning)
+  if(shadeOn){
     const shade = document.createElementNS(NS, "path")
     shade.setAttribute("d",
       `M 0 0 H ${g.W} V ${g.H} H 0 Z ` +
@@ -1856,9 +1947,10 @@ function ringFelt(segs, g){
       `a ${g.rx} ${g.ry} 0 1 0 ${g.rx * 2} 0 ` +
       `a ${g.rx} ${g.ry} 0 1 0 ${-g.rx * 2} 0 Z`)
     shade.setAttribute("fill-rule", "evenodd")
-    shade.setAttribute("class", "ring-focusshade")
+    shade.setAttribute("class", "ring-focusshade" + (window.__boardShadeOn ? "" : " ring-focusshade--in"))
     ;(top || svg).appendChild(shade)
   }
+  window.__boardShadeOn = shadeOn
 
   if(top){
     const both = document.createDocumentFragment()
