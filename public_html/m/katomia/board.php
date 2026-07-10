@@ -23,7 +23,8 @@
 
 <div class="board-chrome">
   <select id="boardSkinSelect" title="Board skin">
-    <option value="ring14">⭕ Ring v14 — quarter flag, ghost-wash lock (default)</option>
+    <option value="ring15">⭕ Ring v15 — SIGNING layer (default)</option>
+    <option value="ring14">🚩 Ring v14 — quarter flag, ghost-wash lock</option>
     <option value="ring13">🃏 Ring v13 — pennant flag, toast deck</option>
     <option value="ring12">💡 Ring v12 — strip-light party, clean hub</option>
     <option value="ring11">🛒 Ring v11 — pick, party glow</option>

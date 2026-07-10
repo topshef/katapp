@@ -551,8 +551,8 @@ body.board-page{
 :is([data-board-fam~="v14"], [data-board-fam~="susan5p"]) .board-pickchip::before{
   content: "";
   position: absolute;
-  top: 0;
-  left: -10px;                 /* 7px flag − 1px overlap into the 4px sleeve */
+  top: 0;                      /* top corner = the flagpole's top-left corner */
+  left: -11px;                 /* base flush against the 4px sleeve's LEFT edge */
   width: 7px;
   height: 12px;
   background: var(--pickflag, #888);
@@ -565,9 +565,9 @@ body.board-page{
 .board-touchhalo{
   position: fixed;
   z-index: 59;
-  width: 46px;
-  height: 46px;
-  margin: -23px 0 0 -23px;
+  width: 92px;                 /* review 14: ×2 — the finger covered the small one */
+  height: 92px;
+  margin: -46px 0 0 -46px;
   border: 2px dotted #777;
   border-radius: 50%;
   pointer-events: none;
@@ -599,7 +599,7 @@ body.board-page{
   padding: 3px;
 }
 [data-board-fam~="susan4p"] .susan-mine-row .susan-basket{
-  background: rgba(255, 255, 253, .95);
+  background: rgba(255, 255, 253, .7);
 }
 
 /* board-side hub cues (inside → out): hub grey border · player-colour arc ·
@@ -687,7 +687,7 @@ body.board-page{
   padding: 8px;
   overflow-y: auto;
 }
-.susan-card--selected{ outline: 2px solid #4a90d9; outline-offset: 2px; }
+.susan-card--selected{ box-shadow: 0 0 12px 3px rgba(74, 144, 217, .45); }   /* soft glow (review 14) */
 .susan-card--locked .susan-store{ filter: brightness(.82); }
 .susan-card.drag-over{ outline: 2px solid #4a90d9; outline-offset: 2px; background: #f7f3e9; }
 
@@ -761,7 +761,7 @@ body.board-page{
   margin: 8px -8px 0;
   border-radius: 0 0 11px 11px;
   border-top: 2px dashed #c9c2b3;      /* = .ring-lockarc--wall, unwrapped */
-  background: rgba(255, 255, 253, .85);
+  background: rgba(255, 255, 253, .62);   /* review 14: lines read through */
   min-height: 30%;
   padding: 6px 8px 8px;
 }
@@ -1076,4 +1076,44 @@ body.board-page{
 [data-board-fam~="susan3p"] .susan-card{
   flex: 1 0 210px;
   max-width: 360px;
+}
+
+/* ── ring15: the signing layer (first slice) ────────────────────────────── */
+
+/* party arcs carry the tx status — SIGN-STATUSLANG1 colours: pulsing orange
+   awaiting, green signed, red dashed failed (shape + hue, colourblind-safe) */
+.ring-signarc{ stroke-width: 8; opacity: .9; }
+.ring-signarc--pending{
+  stroke: #f5a623 !important;
+  stroke-dasharray: none;
+  animation: ring-signpulse 1.6s ease-in-out infinite;
+}
+.ring-signarc--signed{ stroke: #35b06f !important; stroke-dasharray: none; }
+.ring-signarc--failed{ stroke: #d64541 !important; stroke-dasharray: 6 6; }
+@keyframes ring-signpulse{
+  0%, 100%{ opacity: .55; }
+  50%{ opacity: .95; }
+}
+
+/* hub countdown (tx expiry) */
+.ring-hub-count{
+  position: relative;
+  z-index: 1;
+  font-size: 13px;
+  font-weight: 800;
+  color: #b07b12;
+  font-variant-numeric: tabular-nums;
+}
+.ring-hub-count--signed{ color: #2e8f5b; }
+.ring-hub-count--failed{ color: #d64541; }
+
+/* pending tx legs sitting on the table */
+.board-txchip{
+  box-shadow: 0 0 0 1.5px rgba(245, 166, 35, .5);
+}
+
+.ring-footer-sign{
+  background: #fdf1dc;
+  border-color: #f5a623;
+  font-weight: 700;
 }

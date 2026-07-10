@@ -17,7 +17,7 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "ring11", "ring12", "ring13", "ring14", "susan", "susan2", "susan3", "susan4", "susan5", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "ring11", "ring12", "ring13", "ring14", "ring15", "susan", "susan2", "susan3", "susan4", "susan5", "table", "market"]
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
 // ids etched into the felt instead of label rows, oval faded+thickened (future
@@ -221,17 +221,34 @@ const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7
 // - CSS growth fix: body[data-board-fam~="…"] family tokens replace the
 //   ever-growing :is(skin,skin,…) groups — new skins inherit by declaring
 //   their families in render(), not by editing every selector list.
-const ringEtched = () => /^ring([2-9]|1[0-4])$/.test(boardSkin) || susan()
-const ringSleeved = () => /^ring([4-9]|1[0-4])$/.test(boardSkin) || susan()
-const ringArcs = () => /^ring([5-9]|1[0-4])$/.test(boardSkin)
-const ringNoOval = () => /^ring([6-9]|1[0-4])$/.test(boardSkin)
-const ring8 = () => /^ring(8|9|1[0-4])$/.test(boardSkin) || susan()   // v8 feature set
-const ring9 = () => /^ring(9|1[0-4])$/.test(boardSkin) || susan()     // v9 fix set
-const ring10 = () => /^ring1[0-4]$/.test(boardSkin)
-const ring11 = () => /^ring1[1-4]$/.test(boardSkin)
-const ring12 = () => /^ring1[2-4]$/.test(boardSkin)
-const ring13 = () => /^ring1[34]$/.test(boardSkin)
-const ring14 = () => boardSkin === "ring14"
+// ring15 (review 14 — default; v14 frozen): THE SIGNING LAYER, first slice,
+// built against the REAL pending-tx record (state.tx.pending: txid, pch,
+// pchbasis legs, lifecycle) — the user tests on t-prop/t-pact testnet:
+// - post-strike the board STAYS: receiving legs from pchbasis render as
+//   chips in each party's basket zone (sleeve = giver where unique) —
+//   nothing visually leaves the table
+// - party arcs flip to SIGNING STATUS (pulsing orange = awaiting
+//   signatures, green = SIGNED, red = failure statuses) — the lock-arc
+//   language carried into the next phase, SIGN-STATUSLANG1 colours
+// - the hub becomes the COUNTDOWN to tx expiry (validStart+180s from the
+//   txid; the SIGN-COUNTDOWN1 hourglass landing where predicted)
+// - the footer Lock slot swaps to ✍ SIGN for party accounts — opens the
+//   existing signing page/modal (untouched, as agreed) in a new tab; the
+//   embedded roll-up comes later
+// This is buildSceneFromTx in embryo — boardTxLegs() is the tx→scene
+// adapter; the full Phase 1.5 split grows around it.
+const ringEtched = () => /^ring([2-9]|1[0-5])$/.test(boardSkin) || susan()
+const ringSleeved = () => /^ring([4-9]|1[0-5])$/.test(boardSkin) || susan()
+const ringArcs = () => /^ring([5-9]|1[0-5])$/.test(boardSkin)
+const ringNoOval = () => /^ring([6-9]|1[0-5])$/.test(boardSkin)
+const ring8 = () => /^ring(8|9|1[0-5])$/.test(boardSkin) || susan()   // v8 feature set
+const ring9 = () => /^ring(9|1[0-5])$/.test(boardSkin) || susan()     // v9 fix set
+const ring10 = () => /^ring1[0-5]$/.test(boardSkin)
+const ring11 = () => /^ring1[1-5]$/.test(boardSkin)
+const ring12 = () => /^ring1[2-5]$/.test(boardSkin)
+const ring13 = () => /^ring1[3-5]$/.test(boardSkin)
+const ring14 = () => /^ring1[45]$/.test(boardSkin)
+const ring15 = () => boardSkin === "ring15"
 const susan = () => /^susan[2-5]?$/.test(boardSkin)
 const susan2 = () => /^susan[2-5]$/.test(boardSkin)
 const susan3 = () => /^susan[3-5]$/.test(boardSkin)
@@ -240,7 +257,7 @@ const susan5 = () => boardSkin === "susan5"
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
-  return BOARD_SKINS.includes(s) ? s : "ring14"
+  return BOARD_SKINS.includes(s) ? s : "ring15"
 })()
 
 // footer state (viewer-local, session-only)
@@ -287,7 +304,7 @@ async function render(){
   // families here instead of every selector list growing another entry
   document.body.dataset.boardFam = [
     ring8() && "v8", ring9() && "v9", ring10() && "v10", ring11() && "v11",
-    ring12() && "v12", ring13() && "v13", ring14() && "v14",
+    ring12() && "v12", ring13() && "v13", ring14() && "v14", ring15() && "v15",
     susan2() && "susan2p", susan3() && "susan3p", susan4() && "susan4p",
     susan5() && "susan5p",
   ].filter(Boolean).join(" ")
@@ -396,6 +413,7 @@ function renderRingBoard(root){
   const accountMap = getAccountMap()
   const reservedByAccount = buildReservedByAccount(accounts)
   const etched = ringEtched()
+  boardSigning = boardDetectSigning()
 
   const W = root.clientWidth, H = root.clientHeight
   const cx = W / 2, cy = H / 2
@@ -453,7 +471,9 @@ function renderRingBoard(root){
     const a0 = start + i * step, a1 = a0 + step
     const am = rad((a0 + a1) / 2)
     const mine = isMyAccount(account)
-    segs.push({ account, a0, a1, am, mine })
+    const hac = account.id.split(":")[1] || account.id
+    segs.push({ account, a0, a1, am, mine,
+      sign: boardSigning && boardSigning.legs[hac] ? boardSigning.status : null })
 
     // wash + fat drop target: the whole slice IS the account (own segments
     // accept drops too — acct → acct moves, and drag-home = withdraw)
@@ -486,6 +506,13 @@ function renderRingBoard(root){
     inner.style.left = Math.min(Math.max(cx + ri * Math.cos(am), innerW / 2 + 6), W - innerW / 2 - 6) + "px"
     inner.style.top = Math.min(Math.max(cy + ri * Math.sin(am), 40), H - 40) + "px"
     boardBasketChips(account, inner, accountMap)
+    // signing phase: the strike cleared the baskets server-side, but the
+    // board keeps the picture — receiving legs render as tx chips in place
+    if(boardSigning){
+      const hac = account.id.split(":")[1] || account.id
+      const legs = boardSigning.legs[hac]
+      if(legs && !inner.querySelector(".asset")) boardTxChips(legs, inner, accounts)
+    }
     boardDropTarget(inner, account)
     frag.appendChild(inner)
 
@@ -565,6 +592,14 @@ function renderRingBoard(root){
     // v12 (review 11): the hub is CLEAN — thin grey border + K only. The
     // player-colour arcs moved to the board side of the hub (ringFelt),
     // with the party strip-light outside them.
+    // v15: in the signing phase the hub is the COUNTDOWN to tx expiry
+    // (SIGN-COUNTDOWN1 — landing exactly where the 2026-07-06 doc predicted)
+    if(boardSigning){
+      const count = document.createElement("span")
+      count.className = "ring-hub-count ring-hub-count--" + boardSigning.status
+      hub.appendChild(count)
+      boardStartCountdown(count)
+    }
   } else if(ring10()){
     // v10 HUB RING (review 9): per-account arcs in each player's colour (the
     // Ludo rim), plus a thin LIT inner arc on accounts in MY party — the
@@ -670,6 +705,12 @@ function susanCard(account, ctx, mine = false){
   const head = document.createElement("div")
   head.className = "susan-head"
   head.style.color = getPlayerColour(account.playerId)
+  if(mine){
+    // review 14: tapping your own header selects the account (two-way with
+    // the footer dropdown — the dropdown may retire in some contexts later)
+    head.style.cursor = "pointer"
+    head.onclick = () => { boardSelectedAccount = account.id; render() }
+  }
   head.textContent = (account.id.split(":")[1] || account.id)
     + (mine ? " (you)" : "")
     + (account.mode === "lock" ? " 🔒" : "")
@@ -770,6 +811,90 @@ function boardFilteredAccounts(){
   return accounts
 }
 
+/* ── SIGNING LAYER (ring15, first slice) ────────────────────────────────── */
+// buildSceneFromTx in embryo: parse the pending tx's pchbasis legs into a
+// per-hedera-account view. recv legs paint as basket chips (sleeve = the
+// giver when uniquely attributable — a netted tx usually has one sender per
+// asset); send legs reserved for the ghost side later.
+let boardSigning = null   // set per render; footer reads it
+
+function boardTxLegs(tx){
+  let basis = tx?.pchbasis
+  try { if(typeof basis === "string") basis = JSON.parse(basis) } catch { basis = null }
+  basis ||= {}
+  const by = {}
+  const ent = id => (by[id] ||= { recv: [], send: [] })
+  const senders = {}
+  const flow = (acct, assetId, amt) => {
+    if(!acct || !amt) return
+    if(amt < 0){
+      ent(acct).send.push({ assetId, amount: -amt })
+      senders[assetId] = (assetId in senders) ? null : acct   // null = ambiguous
+    } else ent(acct).recv.push({ assetId, amount: amt })
+  }
+  ;(basis.addHbarTransfer || []).forEach(x => flow(x.accountId, "HBAR", Number(x.amount ?? 0)))
+  ;(basis.addTokenTransfer || []).forEach(x => flow(x.accountId, x.tokenId, Number(x.amount ?? 0)))
+  ;(basis.addNftTransfer || []).forEach(x => {
+    const id = `${x.tokenId}#${x.serial}`
+    const from = x.senderAccountId || x.sender || null
+    const to = x.receiverAccountId || x.receiver || x.accountId || null
+    if(from){ ent(from).send.push({ assetId: id, amount: 1 }); senders[id] = from }
+    if(to) ent(to).recv.push({ assetId: id, amount: 1 })
+  })
+  Object.values(by).forEach(e => e.recv.forEach(r => { r.from = senders[r.assetId] || null }))
+  return by
+}
+
+function boardDetectSigning(){
+  if(!ring15()) return null
+  const txs = (state?.tx?.pending || []).filter(t => !t.lifecycle?.isFinalStatus)
+  if(!txs.length) return null
+  const tx = txs[0]
+  const st = String(tx.lifecycle?.status || "PENDING").toUpperCase()
+  // txid = payer@validStartSeconds.nanos; Hedera valid window defaults 180s
+  const vs = Number(String(tx.txid || "").split("@")[1]?.split(".")[0]) * 1000
+  return {
+    tx,
+    legs: boardTxLegs(tx),
+    status: st === "SUCCESS" || st === "SIGNED" ? "signed" : /FAIL|ERROR|EXPIRE|INVALID/.test(st) ? "failed" : "pending",
+    expiry: (vs || tx.createdAt || Date.now()) + 180000
+  }
+}
+
+// paint a party's receiving legs as basket chips (static in this slice —
+// withdraw/reject don't apply to a struck tx; sleeve = giver where unique)
+function boardTxChips(legs, container, accounts){
+  legs.recv.forEach(leg => {
+    const giver = leg.from
+      ? accounts.find(a => (a.id.split(":")[1] || a.id) === leg.from)
+      : null
+    const el = makeAssetEl({
+      text: boardAssetText(leg.assetId, leg.amount),
+      assetId: leg.assetId,
+      ownerAccountId: giver?.id || "",
+      ownerPlayerId: giver?.playerId || "",
+      basket: !!giver
+    })
+    applyAssetClasses(el, leg.assetId, leg.amount)
+    el.classList.add("board-chip", "board-txchip")
+    el.title = "Pending transaction leg — awaiting signatures"
+    container.appendChild(el)
+  })
+}
+
+let _boardCountdownTimer = null
+function boardStartCountdown(el){
+  clearInterval(_boardCountdownTimer)
+  const tick = () => {
+    if(!boardSigning || !document.body.contains(el)){ clearInterval(_boardCountdownTimer); return }
+    const left = Math.max(0, boardSigning.expiry - Date.now())
+    const m = Math.floor(left / 60000), sec = Math.floor((left % 60000) / 1000)
+    el.textContent = left ? `${m}:${String(sec).padStart(2, "0")}` : "expired"
+  }
+  tick()
+  _boardCountdownTimer = setInterval(tick, 1000)
+}
+
 // is this account party to MY proposal? Rule-aware, shared by the Party-only
 // filter and the hub-ring party cue. cluster → shares a lock group with any
 // of my accounts (my own accounts only count if they're IN a group); active →
@@ -816,6 +941,16 @@ function boardNetAccounts(accounts){
 // including the actor (it's a click, not a drag — the return cue helps).
 // Rects+markup are snapshotted each paint so removals can replay from the
 // previous layout.
+// moves THIS client initiated (offer/pick/redirect) — the flight animation
+// skips these; everything else that lands animates, including someone
+// picking from MY store (review 14: the old player-level guard wrongly
+// suppressed that — the giver is me, but the INITIATOR was the picker)
+const _recentLocalMoves = new Map()
+function boardNoteLocalMove(toId, fromId, assetId){
+  _recentLocalMoves.set(`${toId}|${fromId}|${assetId}`, Date.now())
+}
+window.boardNoteLocalMove = boardNoteLocalMove   // core.js calls it optionally
+
 let _prevOfferKeys = null
 let _prevOfferRects = new Map()
 function boardAnimateNewOffers(){
@@ -841,16 +976,24 @@ function boardAnimateNewOffers(){
   }
 
   if(prev){
+    const cutoff = Date.now() - 6000
+    _recentLocalMoves.forEach((ts, k) => { if(ts < cutoff) _recentLocalMoves.delete(k) })
+
     keys.forEach((amt, k) => {
       if((prev.get(k) || 0) >= amt) return
+      if(_recentLocalMoves.has(k)) return          // I did this myself
       const fromAccount = state.accounts?.[k.split("|")[1]]
-      if(!fromAccount || fromAccount.playerId === currentPlayerId) return
+      if(!fromAccount) return
       const { ghost, basket } = pairEls(k)
       if(ghost && basket) boardFlyLeg(ghost, basket, getPlayerColour(fromAccount.playerId), 0)
     })
 
     prev.forEach((amt, k) => {
       if((keys.get(k) || 0) >= amt) return
+      // a STRIKE clears every basket at once — that's not a withdraw; the
+      // legs stay on the table as tx chips, so no fly-home choreography
+      // (the success/failure settlement flights come with the next slice)
+      if(boardSigning) return
       const snap = _prevOfferRects.get(k)
       if(!snap) return
       const [, fromId, assetId] = k.split("|")
@@ -964,10 +1107,23 @@ function ringFooter(mine){
 
     const lockBtn = document.createElement("button")
     const cur = selected()
-    lockBtn.className = "ring-footer-lock" + (cur?.mode === "lock" ? " locked" : "")
-    lockBtn.textContent = cur?.mode === "lock" ? "🔓 Unlock" : "🔒 Lock"
-    lockBtn.disabled = !cur
-    lockBtn.onclick = () => { const a = selected(); if(a) boardToggleLock(a) }
+    const curHac = cur ? (cur.id.split(":")[1] || cur.id) : null
+    if(boardSigning && curHac && boardSigning.legs[curHac]){
+      // signing phase: the Lock slot IS the Sign slot (same checkpoint,
+      // next phase). Opens the existing signing page — modal untouched;
+      // the embedded roll-up is the next slice.
+      lockBtn.className = "ring-footer-lock ring-footer-sign"
+      lockBtn.textContent = "✍ Sign"
+      lockBtn.onclick = () => window.open(
+        `/m/sign/?network=${encodeURIComponent(gameMeta?.network || "")}` +
+        `&txid=${encodeURIComponent(boardSigning.tx.txid)}&pch=${encodeURIComponent(boardSigning.tx.pch || "")}`,
+        "_blank")
+    } else {
+      lockBtn.className = "ring-footer-lock" + (cur?.mode === "lock" ? " locked" : "")
+      lockBtn.textContent = cur?.mode === "lock" ? "🔓 Unlock" : "🔒 Lock"
+      lockBtn.disabled = !cur
+      lockBtn.onclick = () => { const a = selected(); if(a) boardToggleLock(a) }
+    }
     bar.appendChild(lockBtn)
 
     const delBtn = document.createElement("button")
@@ -1291,8 +1447,8 @@ function boardTouchDrag(el, payload){
         el.addEventListener("click", swallow, { capture: true, once: true })
         setTimeout(() => el.removeEventListener("click", swallow, { capture: true }), 600)
       }
-      const lift = 36   // chip floats above the fingertip
-      fly.style.transform = `translate(${ev.clientX - startX}px, ${ev.clientY - startY - lift}px)`
+      const lift = 54   // chip floats clear above the fingertip, projected larger
+      fly.style.transform = `translate(${ev.clientX - startX}px, ${ev.clientY - startY - lift}px) scale(1.3)`
       halo.style.left = ev.clientX + "px"
       halo.style.top = ev.clientY + "px"
     }
@@ -1326,6 +1482,7 @@ function boardExecuteDrop(p, account){
     if(!isMyAccount(account)) return
     const amount = getTransferAmount(p.assetId, p.available || 1)
     if(amount === null) return
+    boardNoteLocalMove(account.id, p.pickFrom, p.assetId)
     socket.send(JSON.stringify({
       type: "game_pick", gameId,
       fromId: p.pickFrom, toId: account.id, assetId: p.assetId, amount
@@ -1361,6 +1518,7 @@ function boardExecuteDrop(p, account){
 
   const amount = getTransferAmount(p.assetId, p.available || 1)
   if(amount === null) return
+  boardNoteLocalMove(account.id, p.fromAccountId, p.assetId)
   if(p.fromBasketToAccountId)
     socket.send(JSON.stringify({
       type: "game_withdraw", gameId,
@@ -1521,7 +1679,8 @@ function ringFelt(segs, g){
       arc.setAttribute("class", "ring-lockarc"
         + (locked ? " ring-lockarc--locked" : "")
         + (seg.mine ? " ring-lockarc--mine" : "")
-        + (ring8() ? (seg.mine ? " ring-lockarc--open" : " ring-lockarc--wall") : ""))
+        + (ring8() ? (seg.mine ? " ring-lockarc--open" : " ring-lockarc--wall") : "")
+        + (seg.sign ? " ring-signarc ring-signarc--" + seg.sign : ""))
       if(seg.mine){
         arc.onclick = () => boardToggleLock(seg.account)
         const t = document.createElementNS(NS, "title")
@@ -2315,6 +2474,40 @@ function boardDemoApply(msg){
   if(msg.type === "game_toggleLock"){
     const a = acc(msg.accountId)
     if(a) a.mode = a.mode === "lock" ? "shop" : "lock"
+
+    // sandbox STRIKE: when every active account is locked, synthesize a
+    // pending tx exactly in the backend record's shape (txid/pch/pchbasis/
+    // lifecycle) so the ring15 signing layer can be exercised offline.
+    // (The user tests the real flow on testnet — this is for dev/Playwright.)
+    const active = new Set()
+    Object.values(state.accounts).forEach(x => {
+      if((x.basket || []).length) active.add(x.id)
+      ;(x.basket || []).forEach(i => i.fromId && active.add(i.fromId))
+    })
+    if(active.size && [...active].every(id => state.accounts[id]?.mode === "lock")){
+      const hbar = [], tok = [], nft = []
+      Object.values(state.accounts).forEach(x => {
+        const to = x.id.split(":")[1]
+        ;(x.basket || []).forEach(i => {
+          const from = String(i.fromId || "").split(":")[1]
+          const amt = i.amount || 1
+          const id = String(i.assetId)
+          if(id === "HBAR"){ hbar.push({ accountId: from, amount: -amt }, { accountId: to, amount: amt }) }
+          else if(id.includes("#")){
+            const [tokenId, serial] = id.split("#")
+            nft.push({ tokenId, serial, senderAccountId: from, receiverAccountId: to })
+          }
+          else { tok.push({ accountId: from, tokenId: id, amount: -amt }, { accountId: to, tokenId: id, amount: amt }) }
+        })
+        x.basket = []
+        x.mode = "shop"
+      })
+      state.tx = { pending: [{
+        txid: `0.0.999@${Math.floor(Date.now() / 1000)}.000000000`,
+        pch: "demo", pchbasis: { addHbarTransfer: hbar, addTokenTransfer: tok, addNftTransfer: nft },
+        lifecycle: { status: "PENDING" }, createdAt: Date.now()
+      }] }
+    }
   }
 
   if(msg.type === "game_setPref"){

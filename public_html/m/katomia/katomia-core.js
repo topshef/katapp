@@ -155,6 +155,8 @@
 			const amount = getTransferAmount(selectedAssetId, available)
 			if(amount === null) return
 
+			// board page: mark self-initiated so the flight animation skips me
+			window.boardNoteLocalMove?.(targetAccountId, selectedFromAccountId, selectedAssetId)
 			socket.send(JSON.stringify({
 				type: "game_offer",
 				gameId,
