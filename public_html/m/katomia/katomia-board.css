@@ -377,6 +377,51 @@ body.board-page{
 /* v9: segments outside MY cluster fade when ≥2 disconnected clusters exist */
 .board-wedge--othercluster{ opacity: .05; }
 
+/* ── ring10 (review 9) ──────────────────────────────────────────────────── */
+
+/* touch drag REAL-TIME: the fly clone inherited .board-fly's 0.85s transform
+   transition — that was the "asset chases the finger" lag (global fix) */
+.board-touchfly{ transition: none !important; }
+
+/* spotlight inverted: the STORE region shades down, the basket zone keeps
+   the untouched base felt — light lands on the deal */
+.ring-storeshade{
+  fill: rgba(60, 48, 22, .07);
+  stroke: none;
+  pointer-events: none;
+}
+
+/* hub ring: per-account player-colour arcs + thin lit arc for MY party */
+.ring-hubarc{
+  fill: none;
+  stroke-width: 4;
+  opacity: .85;
+}
+.ring-hubarc-party{
+  fill: none;
+  stroke: #fffdf4;
+  stroke-width: 2;
+  opacity: .95;
+}
+[data-board-skin="ring10"] .ring-hub{ border-color: #cfc6b2; }
+
+/* own-wash saturation boost dropped — identity reads from ·you, the open
+   arc, and the hub cues; every viewer sees the same board */
+[data-board-skin="ring10"] .board-wedge--mine{ opacity: .12; }
+
+/* desktop: hovering your own (invisible) lock arc previews the lock */
+[data-board-skin="ring10"] .ring-lockarc--open:not(.ring-lockarc--locked):hover{
+  stroke: rgba(245, 166, 35, .35);
+  stroke-dasharray: none;
+}
+
+/* susan: pair/trail lines were buried behind the opaque cards — ride above
+   the card surfaces on susan skins (over chips too; acceptable there) */
+:is([data-board-skin="susan"], [data-board-skin="susan2"]) #game.board-linelayer,
+:is([data-board-skin="susan"], [data-board-skin="susan2"]) .board-traillayer{
+  z-index: 7;
+}
+
 /* v9: fixed-width lock button — no size jump on toggle */
 :is([data-board-skin="ring9"], [data-board-skin="susan"]) .ring-footer-lock{
   min-width: 96px;

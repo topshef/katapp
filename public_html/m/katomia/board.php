@@ -23,7 +23,8 @@
 
 <div class="board-chrome">
   <select id="boardSkinSelect" title="Board skin">
-    <option value="ring9">⭕ Ring v9 — party filter, netting v2 (default)</option>
+    <option value="ring10">⭕ Ring v10 — hub ring, spotlight, party cues (default)</option>
+    <option value="ring9">🧿 Ring v9 — party filter, netting v2</option>
     <option value="susan2">🎠 Lazy Susan v2 — ring-echo, touch drag</option>
     <option value="susan">🎡 Lazy Susan v1 (frozen)</option>
     <option value="ring8">🧷 Ring v8 — snags + footer rework</option>

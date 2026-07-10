@@ -17,7 +17,7 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "susan", "susan2", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "susan", "susan2", "table", "market"]
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
 // ids etched into the felt instead of label rows, oval faded+thickened (future
@@ -118,18 +118,43 @@ const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7
 // gains "Pickable" — the generic player pref (backend game_setPref /
 // KAT-PLAYERPREF1): allow others to pick assets from my store; the pick
 // GESTURE itself is next pass (needs the backend action).
-const ringEtched = () => /^ring[2-9]$/.test(boardSkin) || susan()
-const ringSleeved = () => /^ring[4-9]$/.test(boardSkin) || susan()
-const ringArcs = () => /^ring[5-9]$/.test(boardSkin)
-const ringNoOval = () => /^ring[6-9]$/.test(boardSkin)
-const ring8 = () => /^ring[89]$/.test(boardSkin) || susan()   // v8 feature set
-const ring9 = () => boardSkin === "ring9" || susan()          // v9 fix set
+// ring10 (review 9, 2026-07-10 — default; v9 frozen). Naming: the small
+// centre circle = the HUB; its rim = the HUB RING.
+// - touch drag now REAL-TIME: the fly clone inherited .board-fly's 0.85s
+//   transform transition, so it chased the finger at constant speed —
+//   .board-touchfly kills the transition (global fix)
+// - spotlight RESTORED and inverted per the new spec: v9 had lost the v7
+//   lightening (the --lit fill was accidentally gated to ring7 only); v10
+//   keeps the basket zone at the base felt and DARKENS the store region
+//   instead (evenodd shade) — the spotlight is on the deal
+// - HUB RING = per-account arcs in each player's colour (Ludo rim); accounts
+//   in MY party additionally carry a thin lit inner arc — the visual cue for
+//   what Party-only will keep. Lock count text + progress ring CULLED (once
+//   party-only is on, the ratio is visible on the board itself); count stays
+//   in the hub tooltip
+// - Party only now hides MY unconnected accounts too (cleaner lock counts;
+//   the dust-transfer trick deliberately links accounts into the party)
+// - own-wash saturation boost dropped — ·you, the open arc and the hub cues
+//   carry identity; boards look the same for everyone
+// - own lock arc: desktop hover previews a washed-out orange
+// - chips shrink to their wrapped text (the wrap left dead right-padding)
+// - stuck pair line fixed: cleared on every render (mouseleave can't fire
+//   when the hovered chip is re-rendered away)
+// - susan: pair/trail lines were buried behind the opaque cards — line
+//   hosts ride above card surfaces on susan skins
+const ringEtched = () => /^ring([2-9]|10)$/.test(boardSkin) || susan()
+const ringSleeved = () => /^ring([4-9]|10)$/.test(boardSkin) || susan()
+const ringArcs = () => /^ring([5-9]|10)$/.test(boardSkin)
+const ringNoOval = () => /^ring([6-9]|10)$/.test(boardSkin)
+const ring8 = () => /^ring(8|9|10)$/.test(boardSkin) || susan()   // v8 feature set
+const ring9 = () => /^ring(9|10)$/.test(boardSkin) || susan()     // v9 fix set
+const ring10 = () => boardSkin === "ring10"
 const susan = () => boardSkin === "susan" || susan2()
 const susan2 = () => boardSkin === "susan2"
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
-  return BOARD_SKINS.includes(s) ? s : "ring9"
+  return BOARD_SKINS.includes(s) ? s : "ring10"
 })()
 
 // footer state (viewer-local, session-only)
@@ -173,7 +198,32 @@ async function render(){
   if(gameMeta?.network)
     document.body.dataset.network = gameMeta.network.toLowerCase()
 
+  // stuck pair line (review 9): mouseleave never fires when the hovered chip
+  // is re-rendered away — clear the hover line on every paint
+  try { clearTradeLine() } catch {}
+
   renderBoard()
+
+  // review 9: a chip whose text wraps kept its pre-wrap width — dead
+  // right-padding. Shrink wrapped text chips to their actual line extents.
+  if(ring9()) boardTightenChips()
+}
+
+// shrink-to-wrapped-text: walk the rendered line boxes via Range rects and
+// cap the chip's width at the widest actual line (plus its own padding)
+function boardTightenChips(){
+  document.querySelectorAll(".board-chip:not(.thumb-only)").forEach(el => {
+    if(!el.firstChild || el.firstChild.nodeType !== 3) return
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    const rects = [...range.getClientRects()]
+    if(rects.length < 2) return                       // single line — leave it
+    const widest = Math.max(...rects.map(r => r.width))
+    const cs = getComputedStyle(el)
+    const pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight)
+      + parseFloat(cs.borderLeftWidth || 0)
+    el.style.width = Math.ceil(widest + pad + 1) + "px"
+  })
 }
 
 function renderBoard(){
@@ -393,10 +443,19 @@ function renderRingBoard(root){
     if(ring9()) k.style.fontSize = (rc * 1.9) + "px"
     hub.appendChild(k)
   }
-  const hubText = document.createElement("span")
-  hubText.textContent = lp ? `${lp.locked}/${lp.total}` : ""
-  hub.appendChild(hubText)
-  if(ringArcs() && lp) hub.appendChild(hubProgressRing(lp, rc))
+  if(ring10()){
+    // v10 HUB RING (review 9): per-account arcs in each player's colour (the
+    // Ludo rim), plus a thin LIT inner arc on accounts in MY party — the
+    // preview of what Party-only keeps. Lock count text + progress ring
+    // culled: with Party-only on, the ratio is the board itself. The count
+    // lives on in the tooltip.
+    hub.appendChild(hubPlayersRing(segs, accounts, rc))
+  } else {
+    const hubText = document.createElement("span")
+    hubText.textContent = lp ? `${lp.locked}/${lp.total}` : ""
+    hub.appendChild(hubText)
+    if(ringArcs() && lp) hub.appendChild(hubProgressRing(lp, rc))
+  }
   // "accounts" spelled out (user 2026-07-09): locking counts ACCOUNTS —
   // segments are accounts, a multi-account player locks each separately
   hub.title = (gameMeta?.profile?.name || gameMeta?.id || "") +
@@ -553,16 +612,13 @@ function boardFilteredAccounts(){
     // active accounts; all → everyone is required, nothing to hide. Uses the
     // LOCK-PROGRESS1 grouping (getLockProgress) so board and lockbar can
     // never disagree. With no trades yet nothing is party — show everyone.
+    // v10 (review 9): my OWN unconnected accounts hide too — the lock ratio
+    // must match the segments on screen. To bring a spare account to the
+    // party, link it with a dust transfer (deliberate, documented gesture).
     const rule = gameMeta?.lockRule || "cluster"
     if(rule !== "all"){
-      const myGroups = new Set(
-        all.filter(a => isMyAccount(a)).map(a => getLockProgress(a.id)?.groupId).filter(Boolean))
-      const partOf = a => {
-        const lp = getLockProgress(a.id)
-        if(!lp) return false
-        return rule === "active" ? true : myGroups.has(lp.groupId)
-      }
-      const party = all.filter(a => isMyAccount(a) || partOf(a))
+      const partOf = a => boardInMyParty(a, all)
+      const party = all.filter(a => ring10() ? partOf(a) : (isMyAccount(a) || partOf(a)))
       if(party.some(a => !isMyAccount(a))) accounts = party
     }
   } else if(!ring8() && showActiveOnly){
@@ -580,6 +636,21 @@ function boardFilteredAccounts(){
     accounts = boardNetAccounts(accounts)
 
   return accounts
+}
+
+// is this account party to MY proposal? Rule-aware, shared by the Party-only
+// filter and the hub-ring party cue. cluster → shares a lock group with any
+// of my accounts (my own accounts only count if they're IN a group); active →
+// any account in the trading graph; all → everyone.
+function boardInMyParty(account, allAccounts){
+  const rule = gameMeta?.lockRule || "cluster"
+  if(rule === "all") return true
+  const lp = getLockProgress(account.id)
+  if(!lp) return false
+  if(rule === "active") return true
+  const myGroups = new Set(
+    allAccounts.filter(a => isMyAccount(a)).map(a => getLockProgress(a.id)?.groupId).filter(Boolean))
+  return myGroups.has(lp.groupId)
 }
 
 function boardNetAccounts(accounts){
@@ -828,6 +899,37 @@ function ringFooter(mine){
   }
 
   return bar
+}
+
+// v10 hub ring: one arc per account in its player's colour, aligned with the
+// board segments (circle, so true angle = parametric angle); party members
+// carry a thin lit arc just inside — the Party-only preview cue
+function hubPlayersRing(segs, accounts, rc){
+  const NS = "http://www.w3.org/2000/svg"
+  const svg = document.createElementNS(NS, "svg")
+  svg.setAttribute("class", "ring-hubring")
+  svg.setAttribute("viewBox", `0 0 ${rc * 2} ${rc * 2}`)
+
+  const arc = (r, a0, a1, cls, colour) => {
+    const rad = d => d * Math.PI / 180
+    const p = a => `${(rc + r * Math.cos(rad(a))).toFixed(1)} ${(rc + r * Math.sin(rad(a))).toFixed(1)}`
+    const large = (a1 - a0) > 180 ? 1 : 0
+    const el = document.createElementNS(NS, "path")
+    el.setAttribute("d", `M ${p(a0)} A ${r} ${r} 0 ${large} 1 ${p(a1)}`)
+    el.setAttribute("class", cls)
+    if(colour) el.style.stroke = colour
+    svg.appendChild(el)
+  }
+
+  // full-circle single account: two half arcs (an arc to itself draws nothing)
+  segs.forEach(seg => {
+    const a0 = seg.a0, a1 = seg.a1 - a0 >= 360 ? seg.a0 + 359.9 : seg.a1
+    arc(rc - 3, a0, a1, "ring-hubarc", getPlayerColour(seg.account.playerId))
+    if(boardInMyParty(seg.account, accounts))
+      arc(rc - 7, a0, a1, "ring-hubarc-party")
+  })
+
+  return svg
 }
 
 // hub rim as cluster progress: base circle in trading blue, locked fraction
@@ -1168,7 +1270,22 @@ function ringFelt(segs, g){
     // arcs exist only as lock state (yours get a faint dashed affordance).
     // ring6 shades the basket DARKER; ring7 inverts — the basket is a lit
     // SPOTLIGHT and locking darkens that account's STORE zone instead.
-    if(ringNoOval()){
+    if(ring10()){
+      // v10 spotlight (review 9): v9 had accidentally LOST the v7 lightening
+      // (the --lit fill was gated to ring7 only). New spec inverts the
+      // mechanism: the basket zone keeps the untouched base felt and the
+      // STORE region takes a subtle dark shade instead (evenodd: full board
+      // minus the ellipse) — the spotlight is on the deal.
+      const shade = document.createElementNS(NS, "path")
+      shade.setAttribute("d",
+        `M 0 0 H ${g.W} V ${g.H} H 0 Z ` +
+        `M ${g.cx - g.rx} ${g.cy} ` +
+        `a ${g.rx} ${g.ry} 0 1 0 ${g.rx * 2} 0 ` +
+        `a ${g.rx} ${g.ry} 0 1 0 ${-g.rx * 2} 0 Z`)
+      shade.setAttribute("fill-rule", "evenodd")
+      shade.setAttribute("class", "ring-storeshade")
+      svg.appendChild(shade)
+    } else if(ringNoOval()){
       const zone = document.createElementNS(NS, "ellipse")
       zone.setAttribute("cx", g.cx); zone.setAttribute("cy", g.cy)
       zone.setAttribute("rx", g.rx); zone.setAttribute("ry", g.ry)
