@@ -23,7 +23,8 @@
 
 <div class="board-chrome">
   <select id="boardSkinSelect" title="Board skin">
-    <option value="ring15">⭕ Ring v15 — SIGNING layer (default)</option>
+    <option value="ring16">⭕ Ring v16 — in-app sign, focus play (default)</option>
+    <option value="ring15">✍ Ring v15 — signing layer</option>
     <option value="ring14">🚩 Ring v14 — quarter flag, ghost-wash lock</option>
     <option value="ring13">🃏 Ring v13 — pennant flag, toast deck</option>
     <option value="ring12">💡 Ring v12 — strip-light party, clean hub</option>
@@ -85,6 +86,15 @@
 <script type="module" src="/m/bid/localCacheDB.js"></script>
 <script src="/m/bid/localCacheIFPS.js"></script>
 <script src="/m/bid/localCacheArweave.js"></script>
+
+<!-- ring16: IN-APP signing — the same WalletConnect + kpool-widget stack as
+     game.php; the board's Sign button opens the widget via its #sign=… hash
+     opener (KPAY_SIGN_HASH). HashPack-first MVP; the hub tap keeps the
+     external all-wallets page for comparison testing. -->
+<?php require_once($_SERVER['DOCUMENT_ROOT'] . "/vendor/walletconnect/kwcScriptTag.php"); ?>
+<script>window.KPAY_SIGN_HASH = true</script>
+<script src="/vendor/kpay/kpool_widget/kpay-embed.js" defer></script>
+<script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
 
 <script type="module" src="<?= kasset('katomia-init.js') ?>"></script>
 <script src="<?= kasset('katomia-core.js') ?>"></script>

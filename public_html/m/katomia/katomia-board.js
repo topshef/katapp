@@ -17,7 +17,7 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "ring11", "ring12", "ring13", "ring14", "ring15", "susan", "susan2", "susan3", "susan4", "susan5", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "ring11", "ring12", "ring13", "ring14", "ring15", "ring16", "susan", "susan2", "susan3", "susan4", "susan5", "table", "market"]
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
 // ids etched into the felt instead of label rows, oval faded+thickened (future
@@ -237,18 +237,49 @@ const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7
 //   embedded roll-up comes later
 // This is buildSceneFromTx in embryo — boardTxLegs() is the tx→scene
 // adapter; the full Phase 1.5 split grows around it.
-const ringEtched = () => /^ring([2-9]|1[0-5])$/.test(boardSkin) || susan()
-const ringSleeved = () => /^ring([4-9]|1[0-5])$/.test(boardSkin) || susan()
-const ringArcs = () => /^ring([5-9]|1[0-5])$/.test(boardSkin)
-const ringNoOval = () => /^ring([6-9]|1[0-5])$/.test(boardSkin)
-const ring8 = () => /^ring(8|9|1[0-5])$/.test(boardSkin) || susan()   // v8 feature set
-const ring9 = () => /^ring(9|1[0-5])$/.test(boardSkin) || susan()     // v9 fix set
-const ring10 = () => /^ring1[0-5]$/.test(boardSkin)
-const ring11 = () => /^ring1[1-5]$/.test(boardSkin)
-const ring12 = () => /^ring1[2-5]$/.test(boardSkin)
-const ring13 = () => /^ring1[3-5]$/.test(boardSkin)
-const ring14 = () => /^ring1[45]$/.test(boardSkin)
-const ring15 = () => boardSkin === "ring15"
+// ring16 (review 16, 2026-07-10 evening — default; v15 frozen): the live
+// testnet walkthrough pass.
+// - ▶ is now a FOCUS TOGGLE: assets animate to their baskets AND everything
+//   outside the hub-ring spotlight drops into heavy darkness (footer stays);
+//   press again to lift it. It's the before/after of the signing modal made
+//   spatial — "you will own these" — and previews the signing phase's look.
+// - LOCK darkens the store roughly twice as hard (assets barely visible,
+//   big 🔒 stays on top). NOTE (owner, thinking evolved live): the preview
+//   dark and the lock dark may eventually merge into one grammar — if they
+//   converge, collapse .ring-storedim / .ring-focusshade to one class.
+// - footer Sign now signs IN-APP: the kpool widget + WalletConnect load on
+//   board.php and Sign sets #sign=network:txid:pch (the widget's hashchange
+//   opener). HashPack-first MVP; the EXTERNAL page (all wallet options)
+//   moved to tapping the HUB during signing — kept for comparison testing,
+//   likely hidden at MVP (the /future page remains the power route).
+// - hovering the footer Lock button previews WHICH arc you'd lock (thin
+//   dashed orange — deliberately not the locked look; the click thickens
+//   it). No asset highlighting on hover: locking commits the WHOLE ring,
+//   not just your legs (owner talked himself out of highlighting — keep it
+//   that way).
+// - board prefs (skin, Party only, Net, You-at-bottom) persist in
+//   localStorage — a WS drop + refresh no longer reverts your view (owner
+//   picked localStorage over URL-hash).
+// Observations logged, not coded (owner, review 16): susan scroll-jump when
+// the cursor crosses a scrollable card (scroll view likely temporary);
+// lock/pick asymmetry ACCEPTED — you can't pick from a locked store, but
+// offering INTO a locked basket auto-unlocks it, so a determined trader can
+// unlock-by-gifting then pick; workaround is part of the social game.
+// Colour contrast: palette reordered backend-side (navy/purple clashed at
+// review 16); with many players colour de-emphasises and layout carries.
+const ringEtched = () => /^ring([2-9]|1[0-6])$/.test(boardSkin) || susan()
+const ringSleeved = () => /^ring([4-9]|1[0-6])$/.test(boardSkin) || susan()
+const ringArcs = () => /^ring([5-9]|1[0-6])$/.test(boardSkin)
+const ringNoOval = () => /^ring([6-9]|1[0-6])$/.test(boardSkin)
+const ring8 = () => /^ring(8|9|1[0-6])$/.test(boardSkin) || susan()   // v8 feature set
+const ring9 = () => /^ring(9|1[0-6])$/.test(boardSkin) || susan()     // v9 fix set
+const ring10 = () => /^ring1[0-6]$/.test(boardSkin)
+const ring11 = () => /^ring1[1-6]$/.test(boardSkin)
+const ring12 = () => /^ring1[2-6]$/.test(boardSkin)
+const ring13 = () => /^ring1[3-6]$/.test(boardSkin)
+const ring14 = () => /^ring1[4-6]$/.test(boardSkin)
+const ring15 = () => /^ring1[56]$/.test(boardSkin)
+const ring16 = () => boardSkin === "ring16"
 const susan = () => /^susan[2-5]?$/.test(boardSkin)
 const susan2 = () => /^susan[2-5]$/.test(boardSkin)
 const susan3 = () => /^susan[3-5]$/.test(boardSkin)
@@ -257,14 +288,29 @@ const susan5 = () => boardSkin === "susan5"
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
-  return BOARD_SKINS.includes(s) ? s : "ring15"
+  return BOARD_SKINS.includes(s) ? s : (boardLoadPrefs().skin || "ring16")
 })()
 
-// footer state (viewer-local, session-only)
-let boardSelfBottom = true        // me at 6 o'clock; off = shared layout
-let boardNetView = false          // FULL pairwise netting of FT basket flows
-let boardSelectedAccount = null   // footer dropdown selection (account id)
-let boardPartyOnly = false        // rule-aware party-to-proposal filter
+// footer state — STICKY via localStorage (review 16: a WS drop forces a
+// refresh, and losing your toggles each time was maddening)
+const BOARD_PREFS_KEY = "katomiaBoardPrefs"
+function boardLoadPrefs(){
+  try { return JSON.parse(localStorage.getItem(BOARD_PREFS_KEY) || "{}") } catch { return {} }
+}
+function boardSavePrefs(){
+  try {
+    localStorage.setItem(BOARD_PREFS_KEY, JSON.stringify({
+      skin: boardSkin, selfBottom: boardSelfBottom,
+      netView: boardNetView, partyOnly: boardPartyOnly
+    }))
+  } catch {}
+}
+const _bp = boardLoadPrefs()
+let boardSelfBottom = _bp.selfBottom ?? true   // me at 6 o'clock; off = shared
+let boardNetView = _bp.netView ?? false        // FULL pairwise netting
+let boardSelectedAccount = null                // footer dropdown selection
+let boardPartyOnly = _bp.partyOnly ?? false    // rule-aware party filter
+let boardFocusMode = false                     // ▶ spotlight toggle (session)
 
 // dev control (footer): the layout's start angle — segments begin here and run
 // clockwise. 180 = the first account's segment straddles 9 o'clock. Editable
@@ -280,6 +326,7 @@ let boardStartAngle = 180
       const u = new URL(location)
       u.searchParams.set("skin", boardSkin)
       history.replaceState(null, "", u)
+      boardSavePrefs()
       render()
     }
   }
@@ -304,7 +351,7 @@ async function render(){
   // families here instead of every selector list growing another entry
   document.body.dataset.boardFam = [
     ring8() && "v8", ring9() && "v9", ring10() && "v10", ring11() && "v11",
-    ring12() && "v12", ring13() && "v13", ring14() && "v14", ring15() && "v15",
+    ring12() && "v12", ring13() && "v13", ring14() && "v14", ring15() && "v15", ring16() && "v16",
     susan2() && "susan2p", susan3() && "susan3p", susan4() && "susan4p",
     susan5() && "susan5p",
   ].filter(Boolean).join(" ")
@@ -599,6 +646,14 @@ function renderRingBoard(root){
       count.className = "ring-hub-count ring-hub-count--" + boardSigning.status
       hub.appendChild(count)
       boardStartCountdown(count)
+      if(ring16()){
+        hub.style.cursor = "pointer"
+        hub.title += " — tap for the full signing page (all wallet options)"
+        hub.onclick = () => window.open(
+          `/m/sign/?network=${encodeURIComponent(gameMeta?.network || "")}` +
+          `&txid=${encodeURIComponent(boardSigning.tx.txid)}&pch=${encodeURIComponent(boardSigning.tx.pch || "")}`,
+          "_blank")
+      }
     }
   } else if(ring10()){
     // v10 HUB RING (review 9): per-account arcs in each player's colour (the
@@ -1061,7 +1116,7 @@ function ringFooter(mine){
     // "Party only" (was "Active only", review 7): rule-aware — who is party
     // to MY proposal. cluster → my cluster; active → all active; all → n/a.
     bar.appendChild(check("Party only", boardPartyOnly,
-      v => { boardPartyOnly = v; render() },
+      v => { boardPartyOnly = v; boardSavePrefs(); render() },
       "Show only accounts party to your proposal (follows the game's lock rule: " + (gameMeta?.lockRule || "cluster") + ")"))
   } else {
     bar.appendChild(check("Active only", showActiveOnly, v => { showActiveOnly = v; render() }))
@@ -1069,10 +1124,10 @@ function ringFooter(mine){
 
   if(ring8()){
     bar.appendChild(check("Net", boardNetView,
-      v => { boardNetView = v; render() },
+      v => { boardNetView = v; boardSavePrefs(); render() },
       "View baskets fully netted per pair: opposite-direction flows of the same asset collapse to their difference (the transaction nets exactly like this — net-on previews the after and avoids the strike jolt)"))
     bar.appendChild(check("You at bottom", boardSelfBottom,
-      v => { boardSelfBottom = v; render() },
+      v => { boardSelfBottom = v; boardSavePrefs(); render() },
       "On: the board rotates so your accounts face you. Off: everyone sees the identical layout (screen-share / spectator)"))
 
     // Pickable (review 8) — the first GENERIC player pref (KAT-PLAYERPREF1,
@@ -1129,15 +1184,31 @@ function ringFooter(mine){
       // the embedded roll-up is the next slice.
       lockBtn.className = "ring-footer-lock ring-footer-sign"
       lockBtn.textContent = "✍ Sign"
-      lockBtn.onclick = () => window.open(
-        `/m/sign/?network=${encodeURIComponent(gameMeta?.network || "")}` +
-        `&txid=${encodeURIComponent(boardSigning.tx.txid)}&pch=${encodeURIComponent(boardSigning.tx.pch || "")}`,
-        "_blank")
+      // review 16: sign IN-APP — the kpool widget + WalletConnect are loaded
+      // on board.php; the hash is its opener (HashPack-first MVP). The
+      // external all-wallets page moved to tapping the HUB (dev/compare).
+      lockBtn.onclick = () => {
+        if(window.KPAY_SIGN_HASH){
+          location.hash = `sign=${gameMeta?.network || ""}:${boardSigning.tx.txid}:${boardSigning.tx.pch || ""}`
+        } else window.open(
+          `/m/sign/?network=${encodeURIComponent(gameMeta?.network || "")}` +
+          `&txid=${encodeURIComponent(boardSigning.tx.txid)}&pch=${encodeURIComponent(boardSigning.tx.pch || "")}`,
+          "_blank")
+      }
     } else {
       lockBtn.className = "ring-footer-lock" + (cur?.mode === "lock" ? " locked" : "")
       lockBtn.textContent = cur?.mode === "lock" ? "🔓 Unlock" : "🔒 Lock"
       lockBtn.disabled = !cur
       lockBtn.onclick = () => { const a = selected(); if(a) boardToggleLock(a) }
+      if(ring16() && cur){
+        // hover previews WHICH arc this would lock — thin dashed orange, not
+        // the locked look (the click thickens it). No asset highlighting:
+        // a lock commits the whole ring, not just your legs.
+        const arcOf = () => document.querySelector(
+          `.ring-lockarc[data-account-id="${CSS.escape(boardSelectedAccount || "")}"]`)
+        lockBtn.onmouseenter = () => arcOf()?.classList.add("ring-lockpreview")
+        lockBtn.onmouseleave = () => arcOf()?.classList.remove("ring-lockpreview")
+      }
     }
     bar.appendChild(lockBtn)
 
@@ -1164,10 +1235,17 @@ function ringFooter(mine){
 
   if(ringArcs() || susan()){
     const play = document.createElement("button")
-    play.className = "ring-footer-play"
-    play.textContent = "▶"
-    play.title = "Preview: animate every standing offer from its ghost to where it landed"
-    play.onclick = playTransfers
+    play.className = "ring-footer-play" + (boardFocusMode ? " ring-footer-play--on" : "")
+    play.textContent = boardFocusMode ? "⏸" : "▶"
+    play.title = ring16()
+      ? "Focus preview: assets fly to their baskets and the spotlight closes on the deal — press again to lift it"
+      : "Preview: animate every standing offer from its ghost to where it landed"
+    play.onclick = () => {
+      if(!ring16()){ playTransfers(); return }
+      boardFocusMode = !boardFocusMode
+      if(boardFocusMode) playTransfers()
+      render()
+    }
     bar.appendChild(play)
   }
 
@@ -1691,6 +1769,7 @@ function ringFelt(segs, g){
       if(!ring8() && ringNoOval() && !locked && !seg.mine) return
       const arc = document.createElementNS(NS, "path")
       arc.setAttribute("d", ringArcPath(seg, g))
+      arc.dataset.accountId = seg.account.id
       arc.setAttribute("class", "ring-lockarc"
         + (locked ? " ring-lockarc--locked" : "")
         + (seg.mine ? " ring-lockarc--mine" : "")
@@ -1764,6 +1843,21 @@ function ringFelt(segs, g){
         labelLayer.appendChild(you)
       }
     })
+  }
+
+  // ▶ focus (review 16): heavy dark everywhere outside the basket spotlight —
+  // drawn LAST so even the etched ids sink to a faint memory; the footer
+  // (z12) and chrome stay above. Signing endgame will reuse this darkness.
+  if(ring16() && boardFocusMode){
+    const shade = document.createElementNS(NS, "path")
+    shade.setAttribute("d",
+      `M 0 0 H ${g.W} V ${g.H} H 0 Z ` +
+      `M ${g.cx - g.rx} ${g.cy} ` +
+      `a ${g.rx} ${g.ry} 0 1 0 ${g.rx * 2} 0 ` +
+      `a ${g.rx} ${g.ry} 0 1 0 ${-g.rx * 2} 0 Z`)
+    shade.setAttribute("fill-rule", "evenodd")
+    shade.setAttribute("class", "ring-focusshade")
+    ;(top || svg).appendChild(shade)
   }
 
   if(top){

@@ -1120,3 +1120,30 @@ body.board-page{
   border-color: #f5a623;
   font-weight: 700;
 }
+
+/* ── ring16 (review 16) ─────────────────────────────────────────────────── */
+
+/* ▶ focus: near-blackout outside the spotlight — the deal is all there is */
+.ring-focusshade{
+  fill: rgba(28, 22, 12, .82);
+  stroke: none;
+  pointer-events: none;
+}
+.ring-footer-play--on{
+  background: #2f2a1e;
+  color: #fff;
+  border-color: #2f2a1e;
+}
+
+/* lock, twice as dark (review 16) — assets barely visible, 🔒 stays clear */
+[data-board-fam~="v16"] .ring-storedim{ fill: rgba(45, 35, 15, .38); }
+[data-board-fam~="v16"] .board-lockdim{ filter: saturate(.25) opacity(.35) brightness(1.05); }
+
+/* footer-Lock hover: preview WHICH arc you'd lock — thin dashed orange,
+   deliberately not the locked look */
+.ring-lockpreview{
+  stroke: #f5a623 !important;
+  stroke-width: 3 !important;
+  stroke-dasharray: 5 6 !important;
+  opacity: .8 !important;
+}
