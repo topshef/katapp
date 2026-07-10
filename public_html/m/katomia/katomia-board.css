@@ -489,6 +489,49 @@ body.board-page{
   font-size: 13px;
 }
 
+/* ── susan2 (review 8): echo the ring's visual language ─────────────────── */
+
+/* chips +60% (mobile min was too small), account heads +30% */
+[data-board-skin="susan2"] .board-chip{
+  font-size: clamp(13.5px, 1.7vmin + 6.5px, 26px);
+  padding: 5px 10px;
+}
+[data-board-skin="susan2"] .board-chip .asset-thumb{
+  width: clamp(42px, 5.4vmin + 21px, 83px);
+  height: clamp(42px, 5.4vmin + 21px, 83px);
+}
+[data-board-skin="susan2"] .susan-head{ font-size: 17px; }
+[data-board-skin="susan2"] .susan-xsub{ font-size: 12px; }
+
+/* card basket = the card's whole FOOTER region, lit like the ring spotlight,
+   behind the ring's DOTTED crossable line (full-bleed to the card edges) */
+[data-board-skin="susan2"] .susan-card{ padding-bottom: 0; }
+[data-board-skin="susan2"] .susan-card .susan-basket{
+  margin: 8px -8px 0;
+  border-radius: 0 0 11px 11px;
+  border-top: 2px dashed #c9c2b3;      /* = .ring-lockarc--wall, unwrapped */
+  background: rgba(255, 255, 253, .85);
+  min-height: 30%;
+  padding: 6px 8px 8px;
+}
+
+/* my area sits behind the SOLID divider; no line between my own store and
+   basket (my space flows, like the ring's open own-arc) */
+[data-board-skin="susan2"] .susan-mine{
+  border-top: 3px solid #c9c2b3;       /* = .ring-divider, unwrapped */
+  max-height: 60vh;                    /* takes what the assets need */
+}
+[data-board-skin="susan2"] .susan-mine-row .susan-basket{
+  border: none;
+  background: rgba(255, 255, 253, .95);
+  min-height: 44px;
+}
+
+/* susan2 cards: ~2 visible on portrait, squash rather than starve */
+@media (max-width: 520px){
+  [data-board-skin="susan2"] .susan-card{ flex-basis: clamp(170px, 46vw, 240px); }
+}
+
 /* hub brand K — Montserrat where available (KPAY face), faint, behind count */
 .ring-hub-k{
   position: absolute;

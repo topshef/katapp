@@ -17,7 +17,7 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "susan", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "susan", "susan2", "table", "market"]
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
 // ids etched into the felt instead of label rows, oval faded+thickened (future
@@ -106,13 +106,26 @@ const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7
 // Same chips, same drop semantics, same footer/net/party machinery. This is
 // the browsing view for many players; the ring is the endgame view once a
 // cluster forms (flow discussion: RENDERPATH doc §8).
+// susan2 (review 8, 2026-07-10 — susan default; v1 frozen): the alignment
+// pass. TOUCH DRAG lands board-wide (press a chip and drag — HTML5 dnd is
+// mouse-only; a pointer-events shim clones the chip under the finger and
+// executes the same drop semantics, amount prompt included; tap-to-modal
+// still works). Susan cards echo the ring's language: basket = the card's
+// whole footer region, lit like the spotlight, behind the ring's DOTTED
+// crossable line; my area sits behind the SOLID divider, no line between my
+// own store and basket (my space flows). Chips +60%, account heads +30%,
+// my strips take the height they need and the wheel gets the rest. Footer
+// gains "Pickable" — the generic player pref (backend game_setPref /
+// KAT-PLAYERPREF1): allow others to pick assets from my store; the pick
+// GESTURE itself is next pass (needs the backend action).
 const ringEtched = () => /^ring[2-9]$/.test(boardSkin) || susan()
 const ringSleeved = () => /^ring[4-9]$/.test(boardSkin) || susan()
 const ringArcs = () => /^ring[5-9]$/.test(boardSkin)
 const ringNoOval = () => /^ring[6-9]$/.test(boardSkin)
 const ring8 = () => /^ring[89]$/.test(boardSkin) || susan()   // v8 feature set
 const ring9 = () => boardSkin === "ring9" || susan()          // v9 fix set
-const susan = () => boardSkin === "susan"
+const susan = () => boardSkin === "susan" || susan2()
+const susan2 = () => boardSkin === "susan2"
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
@@ -701,6 +714,15 @@ function ringFooter(mine){
       v => { boardSelfBottom = v; render() },
       "On: the board rotates so your accounts face you. Off: everyone sees the identical layout (screen-share / spectator)"))
 
+    // Pickable (review 8) — the first GENERIC player pref (KAT-PLAYERPREF1,
+    // backend game_setPref → broadcast in players[].prefs). Declares "others
+    // may pick assets straight from my store" — window-shopping on the wheel.
+    // The pick GESTURE itself needs its backend action, next pass.
+    const myPrefs = state?.players?.[currentPlayerId]?.prefs || {}
+    bar.appendChild(check("Pickable", !!myPrefs.allowPick,
+      v => socket.send(JSON.stringify({ type: "game_setPref", gameId, key: "allowPick", value: v })),
+      "Allow other players to pick assets straight from your store (they shop, you agreed in advance)"))
+
     // account dropdown: pick → Lock/Unlock + 🗑 Delete act on it; ➕ Add last.
     // When all-locked, the Lock slot becomes the SIGN button (same checkpoint,
     // next phase) — see the scene/tx notes at the bottom of this file.
@@ -917,6 +939,10 @@ async function boardToggleLock(account){
 //    anywhere else it just snaps back (re-render restores it — no-op)
 function boardDropTarget(el, account){
 
+  // touch-drag hit test target (elementFromPoint → closest [data-drop-account])
+  el.dataset.dropAccount = account.id
+  el.__dropAccount = account
+
   setupDropTarget(el, account)
   const coreDrop = el.ondrop
 
@@ -955,6 +981,102 @@ function boardDropTarget(el, account){
 
     coreDrop(e)
   }
+}
+
+// ── touch drag (review 8) ───────────────────────────────────────────────────
+// HTML5 drag/drop is mouse-only; on touch we clone the chip under the finger
+// (pointer events) and on release execute the SAME drop semantics against
+// whatever [data-drop-account] sits beneath — amount prompt included via
+// getTransferAmount. Tap (no movement) still fires the chip's click handler
+// (modal etc.). Chips get touch-action:none, so page/carousel scrolling has
+// to start OFF a chip — acceptable board-game trade-off, noted.
+function boardTouchDrag(el, payload){
+
+  el.style.touchAction = "none"
+
+  el.addEventListener("pointerdown", e => {
+    if(e.pointerType === "mouse") return    // mouse keeps native dnd
+    const startX = e.clientX, startY = e.clientY
+    let fly = null
+
+    const move = ev => {
+      if(!fly){
+        if(Math.hypot(ev.clientX - startX, ev.clientY - startY) < 10) return
+        fly = el.cloneNode(true)
+        fly.className = el.className + " board-fly board-touchfly"
+        const r = el.getBoundingClientRect()
+        fly.style.left = r.left + "px"
+        fly.style.top = r.top + "px"
+        document.body.appendChild(fly)
+        el.classList.add("board-dragsrc")
+        // a drag must not ALSO fire the chip's tap action on release
+        const swallow = c => { c.stopImmediatePropagation(); c.preventDefault() }
+        el.addEventListener("click", swallow, { capture: true, once: true })
+        setTimeout(() => el.removeEventListener("click", swallow, { capture: true }), 600)
+      }
+      fly.style.transform = `translate(${ev.clientX - startX}px, ${ev.clientY - startY}px)`
+    }
+
+    const up = ev => {
+      window.removeEventListener("pointermove", move)
+      window.removeEventListener("pointerup", up)
+      window.removeEventListener("pointercancel", up)
+      el.classList.remove("board-dragsrc")
+      if(!fly) return                        // plain tap — click proceeds
+      fly.remove()
+      const hit = document.elementFromPoint(ev.clientX, ev.clientY)
+      const target = hit?.closest?.("[data-drop-account]")
+      if(target?.__dropAccount) boardExecuteDrop(payload, target.__dropAccount)
+    }
+
+    window.addEventListener("pointermove", move)
+    window.addEventListener("pointerup", up)
+    window.addEventListener("pointercancel", up)
+  })
+}
+
+// the drop semantics, shared by mouse dnd (boardDropTarget wraps the legacy
+// handler) and touch drag (executed directly from the payload)
+function boardExecuteDrop(p, account){
+  if(!account || !p?.assetId) return
+
+  if(p.rejectFrom){
+    if(account.id === p.rejectFrom){
+      socket.send(JSON.stringify({
+        type: "game_reject", gameId,
+        accountId: p.rejectAccount, assetId: p.assetId
+      }))
+      clearSelection(); render()
+    }
+    return   // anywhere else: snap back (re-render restores)
+  }
+
+  if(!p.fromAccountId) return
+  if(account.id === p.fromAccountId && !p.fromBasketToAccountId) return
+  if(p.fromBasketToAccountId && account.id === p.fromBasketToAccountId) return
+
+  if(p.fromBasketToAccountId && account.id === p.fromAccountId){
+    // drag home = plain withdraw
+    socket.send(JSON.stringify({
+      type: "game_withdraw", gameId,
+      fromId: p.fromAccountId, toId: p.fromBasketToAccountId, assetId: p.assetId
+    }))
+    clearSelection(); render()
+    return
+  }
+
+  const amount = getTransferAmount(p.assetId, p.available || 1)
+  if(amount === null) return
+  if(p.fromBasketToAccountId)
+    socket.send(JSON.stringify({
+      type: "game_withdraw", gameId,
+      fromId: p.fromAccountId, toId: p.fromBasketToAccountId, assetId: p.assetId
+    }))
+  socket.send(JSON.stringify({
+    type: "game_offer", gameId,
+    fromId: p.fromAccountId, toId: account.id, assetId: p.assetId, amount
+  }))
+  clearSelection(); render()
 }
 
 // touch has no hover: tapping a chip that has no action of yours flashes the
@@ -1524,6 +1646,7 @@ function boardStoreChips(account, container){
         e.dataTransfer.setData("fromAccountId", account.id)
         e.dataTransfer.setData("fromBasketToAccountId", "")
       }
+      boardTouchDrag(el, { assetId, available: amount || 1, fromAccountId: account.id, fromBasketToAccountId: "" })
     }
     container.appendChild(el)
   })
@@ -1571,6 +1694,7 @@ function boardReservedChips(account, container, reservedByAccount){
         e.dataTransfer.setData("fromAccountId", account.id)
         e.dataTransfer.setData("fromBasketToAccountId", item.toAccountId)
       }
+      boardTouchDrag(el, { assetId: item.assetId, available: item.amount || 1, fromAccountId: account.id, fromBasketToAccountId: item.toAccountId })
     } else {
       // not yours: tap = flash where it went (touch has no hover)
       el.onclick = () => flashTradePair(item.assetId, account.id, item.toAccountId)
@@ -1625,6 +1749,7 @@ function boardBasketChips(account, container, accountMap){
         e.dataTransfer.setData("fromAccountId", fromAccountId)
         e.dataTransfer.setData("fromBasketToAccountId", account.id)
       }
+      boardTouchDrag(el, { assetId: item.assetId, available: item.amount || 1, fromAccountId, fromBasketToAccountId: account.id })
     } else if(receiverIsMine){
       el.title = "Offered to you — tap to return it, or drag it back to its giver"
       el.onclick = () => {
@@ -1644,6 +1769,7 @@ function boardBasketChips(account, container, accountMap){
           e.dataTransfer.setData("rejectFrom", fromAccountId)
           e.dataTransfer.setData("rejectAccount", account.id)
         }
+        boardTouchDrag(el, { assetId: item.assetId, rejectFrom: fromAccountId, rejectAccount: account.id })
       }
     } else if(fromAccountId){
       // not your trade: tap = flash the pair line (touch has no hover)
@@ -1776,6 +1902,11 @@ function boardDemoApply(msg){
   if(msg.type === "game_toggleLock"){
     const a = acc(msg.accountId)
     if(a) a.mode = a.mode === "lock" ? "shop" : "lock"
+  }
+
+  if(msg.type === "game_setPref"){
+    const p = state.players?.[currentPlayerId]
+    if(p) (p.prefs ||= {})[msg.key] = !!msg.value
   }
 
   if(!msg.__seed) render()

@@ -24,7 +24,8 @@
 <div class="board-chrome">
   <select id="boardSkinSelect" title="Board skin">
     <option value="ring9">⭕ Ring v9 — party filter, netting v2 (default)</option>
-    <option value="susan">🎠 Lazy Susan v1 — carousel (wide phase)</option>
+    <option value="susan2">🎠 Lazy Susan v2 — ring-echo, touch drag</option>
+    <option value="susan">🎡 Lazy Susan v1 (frozen)</option>
     <option value="ring8">🧷 Ring v8 — snags + footer rework</option>
     <option value="ring7">🔦 Ring v7 — spotlight, lock dims store</option>
     <option value="ring6">🧪 Ring v6 — no oval, dark basket</option>
