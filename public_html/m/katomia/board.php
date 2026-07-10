@@ -23,12 +23,14 @@
 
 <div class="board-chrome">
   <select id="boardSkinSelect" title="Board skin">
-    <option value="ring13">⭕ Ring v13 — pennant flag, toast deck, lock dim (default)</option>
+    <option value="ring14">⭕ Ring v14 — quarter flag, ghost-wash lock (default)</option>
+    <option value="ring13">🃏 Ring v13 — pennant flag, toast deck</option>
     <option value="ring12">💡 Ring v12 — strip-light party, clean hub</option>
     <option value="ring11">🛒 Ring v11 — pick, party glow</option>
     <option value="ring10">💿 Ring v10 — hub ring, spotlight</option>
     <option value="ring9">🧿 Ring v9 — party filter, netting v2</option>
-    <option value="susan4">🎠 Lazy Susan v4 — two-tone strips, under-chip lines</option>
+    <option value="susan5">🎠 Lazy Susan v5 — mine as cards, drag halo</option>
+    <option value="susan4">🎪 Lazy Susan v4 — two-tone strips (frozen)</option>
     <option value="susan3">🎡 Lazy Susan v3 — pick, sized (frozen)</option>
     <option value="susan2">🎪 Lazy Susan v2 — ring-echo (frozen)</option>
     <option value="susan">🎡 Lazy Susan v1 (frozen)</option>

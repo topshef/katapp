@@ -17,7 +17,7 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "ring11", "ring12", "ring13", "susan", "susan2", "susan3", "susan4", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "ring11", "ring12", "ring13", "ring14", "susan", "susan2", "susan3", "susan4", "susan5", "table", "market"]
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
 // ids etched into the felt instead of label rows, oval faded+thickened (future
@@ -205,24 +205,42 @@ const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7
 //   basket lit — prepping users for the party view's spotlight language
 // - desktop drag: invalid targets show a no-drop cursor (dropEffect none,
 //   driven by a window-scoped payload set at dragstart)
-const ringEtched = () => /^ring([2-9]|1[0-3])$/.test(boardSkin) || susan()
-const ringSleeved = () => /^ring([4-9]|1[0-3])$/.test(boardSkin) || susan()
-const ringArcs = () => /^ring([5-9]|1[0-3])$/.test(boardSkin)
-const ringNoOval = () => /^ring([6-9]|1[0-3])$/.test(boardSkin)
-const ring8 = () => /^ring(8|9|1[0-3])$/.test(boardSkin) || susan()   // v8 feature set
-const ring9 = () => /^ring(9|1[0-3])$/.test(boardSkin) || susan()     // v9 fix set
-const ring10 = () => /^ring1[0-3]$/.test(boardSkin)
-const ring11 = () => /^ring1[1-3]$/.test(boardSkin)
-const ring12 = () => /^ring1[23]$/.test(boardSkin)
-const ring13 = () => boardSkin === "ring13"
-const susan = () => /^susan[2-4]?$/.test(boardSkin)
-const susan2 = () => /^susan[234]$/.test(boardSkin)
-const susan3 = () => /^susan[34]$/.test(boardSkin)
-const susan4 = () => boardSkin === "susan4"
+// ring14 + susan5 (review 13, 2026-07-10 — defaults; v13/susan4 frozen):
+// - pick flag FINAL shape (quarter-square): isoceles, vertical base FUSED to
+//   the sleeve (1px overlap kills the hairline seam), apex pointing left at
+//   half height; fixed height regardless of chip height
+// - susan my-accounts: side-by-side CARDS like everyone else, bands FLIPPED
+//   (basket over store) — the page reads store/basket|basket/store down the
+//   fold, matching the ring's store·basket·basket·store symmetry
+// - lock effect on chips: DARKENING out, GHOST-WASH in (the dark-glass idea
+//   washed out, not dimmed — same family as the reserved ghosting)
+// - touch drag: the clone sat exactly UNDER the finger (that's why it felt
+//   invisible) — it now lifts ~36px above the touch point and a dotted halo
+//   ring follows the finger (the user's tap-oval idea); threshold 10→6px.
+//   Interaction helper is shared, so all skins feel it (UX fix, not a look).
+// - CSS growth fix: body[data-board-fam~="…"] family tokens replace the
+//   ever-growing :is(skin,skin,…) groups — new skins inherit by declaring
+//   their families in render(), not by editing every selector list.
+const ringEtched = () => /^ring([2-9]|1[0-4])$/.test(boardSkin) || susan()
+const ringSleeved = () => /^ring([4-9]|1[0-4])$/.test(boardSkin) || susan()
+const ringArcs = () => /^ring([5-9]|1[0-4])$/.test(boardSkin)
+const ringNoOval = () => /^ring([6-9]|1[0-4])$/.test(boardSkin)
+const ring8 = () => /^ring(8|9|1[0-4])$/.test(boardSkin) || susan()   // v8 feature set
+const ring9 = () => /^ring(9|1[0-4])$/.test(boardSkin) || susan()     // v9 fix set
+const ring10 = () => /^ring1[0-4]$/.test(boardSkin)
+const ring11 = () => /^ring1[1-4]$/.test(boardSkin)
+const ring12 = () => /^ring1[2-4]$/.test(boardSkin)
+const ring13 = () => /^ring1[34]$/.test(boardSkin)
+const ring14 = () => boardSkin === "ring14"
+const susan = () => /^susan[2-5]?$/.test(boardSkin)
+const susan2 = () => /^susan[2-5]$/.test(boardSkin)
+const susan3 = () => /^susan[3-5]$/.test(boardSkin)
+const susan4 = () => /^susan[45]$/.test(boardSkin)
+const susan5 = () => boardSkin === "susan5"
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
-  return BOARD_SKINS.includes(s) ? s : "ring13"
+  return BOARD_SKINS.includes(s) ? s : "ring14"
 })()
 
 // footer state (viewer-local, session-only)
@@ -265,6 +283,14 @@ async function render(){
 
   document.body.dataset.viewMode = "board"
   document.body.dataset.boardSkin = boardSkin
+  // family tokens: CSS matches [data-board-fam~="v8"] etc. — new skins join
+  // families here instead of every selector list growing another entry
+  document.body.dataset.boardFam = [
+    ring8() && "v8", ring9() && "v9", ring10() && "v10", ring11() && "v11",
+    ring12() && "v12", ring13() && "v13", ring14() && "v14",
+    susan2() && "susan2p", susan3() && "susan3p", susan4() && "susan4p",
+    susan5() && "susan5p",
+  ].filter(Boolean).join(" ")
   if(gameMeta?.network)
     document.body.dataset.network = gameMeta.network.toLowerCase()
 
@@ -617,8 +643,12 @@ function renderSusanBoard(root){
   wrap.appendChild(carWrap)
 
   const mineWrap = document.createElement("div")
-  mineWrap.className = "susan-mine"
-  mine.forEach(account => mineWrap.appendChild(susanMineRow(account, ctx)))
+  mineWrap.className = "susan-mine" + (susan5() ? " susan-mine--cards" : "")
+  // susan5 (review 13): my accounts are side-by-side CARDS like everyone
+  // else, bands flipped (basket over store) — the page reads store/basket |
+  // basket/store down the fold, the ring's symmetry unwrapped
+  mine.forEach(account => mineWrap.appendChild(
+    susan5() ? susanCard(account, ctx, true) : susanMineRow(account, ctx)))
   wrap.appendChild(mineWrap)
 
   frag.appendChild(wrap)
@@ -628,9 +658,10 @@ function renderSusanBoard(root){
   boardAnimateNewOffers()
 }
 
-function susanCard(account, ctx){
+function susanCard(account, ctx, mine = false){
   const card = document.createElement("div")
   card.className = "susan-card"
+    + (mine ? " susan-card--mine" : "")
     + (account.mode === "lock" ? " susan-card--locked" : "")
     + (account.id === boardSelectedAccount ? " susan-card--selected" : "")
   card.style.borderTopColor = getPlayerColour(account.playerId)
@@ -640,6 +671,7 @@ function susanCard(account, ctx){
   head.className = "susan-head"
   head.style.color = getPlayerColour(account.playerId)
   head.textContent = (account.id.split(":")[1] || account.id)
+    + (mine ? " (you)" : "")
     + (account.mode === "lock" ? " 🔒" : "")
     + (playerAllowsPick(account.playerId) && !isMyAccount(account) ? " ◀" : "")
   card.appendChild(head)
@@ -653,16 +685,18 @@ function susanCard(account, ctx){
 
   const store = document.createElement("div")
   store.className = "board-band susan-store"
-  store.title = "Their store (available)"
+  store.title = mine ? "Your store" : "Their store (available)"
   boardStoreChips(account, store)
   boardReservedChips(account, store, ctx.reservedByAccount)
-  card.appendChild(store)
 
   const basket = document.createElement("div")
   basket.className = "board-band susan-basket"
-  basket.title = "Their basket — drop here to offer"
+  basket.title = mine ? "Your basket — offers to you land here" : "Their basket — drop here to offer"
   boardBasketChips(account, basket, ctx.accountMap)
-  card.appendChild(basket)
+
+  // mine: basket over store (mirrors the fold); others: store over basket
+  if(mine){ card.appendChild(basket); card.appendChild(store) }
+  else { card.appendChild(store); card.appendChild(basket) }
 
   boardDropTarget(card, account)
   return card
@@ -1233,24 +1267,34 @@ function boardTouchDrag(el, payload){
   el.addEventListener("pointerdown", e => {
     if(e.pointerType === "mouse") return    // mouse keeps native dnd
     const startX = e.clientX, startY = e.clientY
-    let fly = null
+    let fly = null, halo = null
 
     const move = ev => {
       if(!fly){
-        if(Math.hypot(ev.clientX - startX, ev.clientY - startY) < 10) return
+        if(Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return
         fly = el.cloneNode(true)
         fly.className = el.className + " board-fly board-touchfly"
         const r = el.getBoundingClientRect()
         fly.style.left = r.left + "px"
         fly.style.top = r.top + "px"
         document.body.appendChild(fly)
+        // review 13: the clone tracked the finger EXACTLY — i.e. it sat
+        // hidden under the fingertip. It now rides LIFTED above the touch
+        // point, and a dotted halo ring marks the touch itself (the user's
+        // tap-oval idea) so the drag is always visible.
+        halo = document.createElement("div")
+        halo.className = "board-touchhalo"
+        document.body.appendChild(halo)
         el.classList.add("board-dragsrc")
         // a drag must not ALSO fire the chip's tap action on release
         const swallow = c => { c.stopImmediatePropagation(); c.preventDefault() }
         el.addEventListener("click", swallow, { capture: true, once: true })
         setTimeout(() => el.removeEventListener("click", swallow, { capture: true }), 600)
       }
-      fly.style.transform = `translate(${ev.clientX - startX}px, ${ev.clientY - startY}px)`
+      const lift = 36   // chip floats above the fingertip
+      fly.style.transform = `translate(${ev.clientX - startX}px, ${ev.clientY - startY - lift}px)`
+      halo.style.left = ev.clientX + "px"
+      halo.style.top = ev.clientY + "px"
     }
 
     const up = ev => {
@@ -1260,6 +1304,7 @@ function boardTouchDrag(el, payload){
       el.classList.remove("board-dragsrc")
       if(!fly) return                        // plain tap — click proceeds
       fly.remove()
+      halo?.remove()
       const hit = document.elementFromPoint(ev.clientX, ev.clientY)
       const target = hit?.closest?.("[data-drop-account]")
       if(target?.__dropAccount) boardExecuteDrop(payload, target.__dropAccount)
