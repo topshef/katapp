@@ -1,6 +1,9 @@
-<!-- BRAND-K1 placeholder: geometric K, square proportions per the KPAY mark.
-     Swap this file for the real logo asset — the board hub loads it as-is. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <path d="M30 10 V90 M78 12 L34 50 L78 88"
-        fill="none" stroke="rgba(0,0,0,0.09)" stroke-width="17"/>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="270" height="256" viewBox="0 0 270 256">
+  <rect width="270" height="256" fill="#fff"/>
+
+  <g fill="#000" shape-rendering="geometricPrecision">
+    <rect x="38" y="28" width="55" height="200"/>
+    <path d="M176 28H238L155 128L238 228H176L93 128Z"/>
+  </g>
 </svg>

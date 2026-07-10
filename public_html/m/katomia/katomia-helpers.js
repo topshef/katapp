@@ -651,9 +651,18 @@ function getPendingTxAccountMap(){
 				})
 			}
 
-			scan(basis.addTokenTransfer, x => x.tokenId)
-			scan(basis.addNftTransfer, x => `${x.tokenId}#${x.serial}`)
-			scan(basis.addHbarTransfer, () => "HBAR")
+			// pchbasis' REAL shape is transfers.{hbar,token,nft}Transfers (computePch,
+			// kpoolHelpers) — the add* names below never existed in it, so this map
+			// only ever caught the operator (BOARD-UI1 review-15 find). add* kept as
+			// a fallback for any older records.
+			const t = basis.transfers || {}
+			scan(t.tokenTransfers || basis.addTokenTransfer, x => x.tokenId)
+			scan(t.hbarTransfers || basis.addHbarTransfer, () => "HBAR")
+			;(t.nftTransfers || basis.addNftTransfer || []).forEach(x => {
+				const asset = `${x.tokenId}#${x.serialNumber ?? x.serial}`
+				add(x.senderAccountId || x.sender || x.accountId, asset)
+				add(x.receiverAccountId || x.receiver, asset)
+			})
 
 		}catch(e){
 			console.warn("pchbasis parse failed", tx)

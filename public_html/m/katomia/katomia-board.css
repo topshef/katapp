@@ -1103,6 +1103,9 @@ body.board-page{
   font-weight: 800;
   color: #b07b12;
   font-variant-numeric: tabular-nums;
+  background: rgba(255, 253, 247, .92);   /* pill so it reads over the K */
+  border-radius: 9px;
+  padding: 1px 7px;
 }
 .ring-hub-count--signed{ color: #2e8f5b; }
 .ring-hub-count--failed{ color: #d64541; }

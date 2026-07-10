@@ -409,11 +409,11 @@ function renderRingBoard(root){
 
   // join order — shared board for all; filters preserve join order
   // (getVisibleAccounts sorts mine-first, which would reseat the shared board)
+  boardSigning = boardDetectSigning()
   const accounts = boardFilteredAccounts()
   const accountMap = getAccountMap()
   const reservedByAccount = buildReservedByAccount(accounts)
   const etched = ringEtched()
-  boardSigning = boardDetectSigning()
 
   const W = root.clientWidth, H = root.clientHeight
   const cx = W / 2, cy = H / 2
@@ -789,7 +789,7 @@ function boardFilteredAccounts(){
     // must match the segments on screen. To bring a spare account to the
     // party, link it with a dust transfer (deliberate, documented gesture).
     const rule = gameMeta?.lockRule || "cluster"
-    if(rule !== "all"){
+    if(boardSigning || rule !== "all"){
       const partOf = a => boardInMyParty(a, all)
       const party = all.filter(a => ring10() ? partOf(a) : (isMyAccount(a) || partOf(a)))
       if(party.some(a => !isMyAccount(a))) accounts = party
@@ -822,6 +822,14 @@ function boardTxLegs(tx){
   let basis = tx?.pchbasis
   try { if(typeof basis === "string") basis = JSON.parse(basis) } catch { basis = null }
   basis ||= {}
+  // REAL shape (computePch → pchbasis.transfers.*; review-15 fix — the first
+  // slice parsed a guessed add* shape that doesn't exist, so the board
+  // cleared: countdown fired, legs stayed empty). Legacy add* kept as a
+  // fallback for the sandbox/old records.
+  const t = basis.transfers || {}
+  const hbar = t.hbarTransfers || basis.addHbarTransfer || []
+  const toks = t.tokenTransfers || basis.addTokenTransfer || []
+  const nfts = t.nftTransfers || basis.addNftTransfer || []
   const by = {}
   const ent = id => (by[id] ||= { recv: [], send: [] })
   const senders = {}
@@ -832,12 +840,13 @@ function boardTxLegs(tx){
       senders[assetId] = (assetId in senders) ? null : acct   // null = ambiguous
     } else ent(acct).recv.push({ assetId, amount: amt })
   }
-  ;(basis.addHbarTransfer || []).forEach(x => flow(x.accountId, "HBAR", Number(x.amount ?? 0)))
-  ;(basis.addTokenTransfer || []).forEach(x => flow(x.accountId, x.tokenId, Number(x.amount ?? 0)))
-  ;(basis.addNftTransfer || []).forEach(x => {
-    const id = `${x.tokenId}#${x.serial}`
+  hbar.forEach(x => flow(x.accountId, "HBAR", Number(x.amount ?? x.value ?? 0)))
+  toks.forEach(x => flow(x.accountId, x.tokenId, Number(x.amount ?? x.value ?? 0)))
+  nfts.forEach(x => {
+    const serial = x.serialNumber ?? x.serial
+    const id = `${x.tokenId}#${serial}`
     const from = x.senderAccountId || x.sender || null
-    const to = x.receiverAccountId || x.receiver || x.accountId || null
+    const to = x.receiverAccountId || x.receiver || null
     if(from){ ent(from).send.push({ assetId: id, amount: 1 }); senders[id] = from }
     if(to) ent(to).recv.push({ assetId: id, amount: 1 })
   })
@@ -900,6 +909,12 @@ function boardStartCountdown(el){
 // of my accounts (my own accounts only count if they're IN a group); active →
 // any account in the trading graph; all → everyone.
 function boardInMyParty(account, allAccounts){
+  // signing phase: the struck tx IS the party — the baskets (and with them
+  // the lock graph) are cleared server-side at strike
+  if(boardSigning){
+    const hac = account.id.split(":")[1] || account.id
+    return !!boardSigning.legs[hac]
+  }
   const rule = gameMeta?.lockRule || "cluster"
   if(rule === "all") return true
   const lp = getLockProgress(account.id)
@@ -2495,16 +2510,19 @@ function boardDemoApply(msg){
           if(id === "HBAR"){ hbar.push({ accountId: from, amount: -amt }, { accountId: to, amount: amt }) }
           else if(id.includes("#")){
             const [tokenId, serial] = id.split("#")
-            nft.push({ tokenId, serial, senderAccountId: from, receiverAccountId: to })
+            nft.push({ tokenId, serialNumber: serial, senderAccountId: from, receiverAccountId: to })
           }
           else { tok.push({ accountId: from, tokenId: id, amount: -amt }, { accountId: to, tokenId: id, amount: amt }) }
         })
         x.basket = []
         x.mode = "shop"
       })
+      // REAL pchbasis shape (computePch): transfers.{hbar,token,nft}Transfers
       state.tx = { pending: [{
         txid: `0.0.999@${Math.floor(Date.now() / 1000)}.000000000`,
-        pch: "demo", pchbasis: { addHbarTransfer: hbar, addTokenTransfer: tok, addNftTransfer: nft },
+        pch: "demo",
+        pchbasis: { network: "playnet", type: "TransferTransaction",
+          transfers: { hbarTransfers: hbar, tokenTransfers: tok, nftTransfers: nft } },
         lifecycle: { status: "PENDING" }, createdAt: Date.now()
       }] }
     }
