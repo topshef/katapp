@@ -17,7 +17,7 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "ring11", "susan", "susan2", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "ring11", "ring12", "susan", "susan2", "susan3", "table", "market"]
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
 // ids etched into the felt instead of label rows, oval faded+thickened (future
@@ -163,20 +163,44 @@ const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7
 // - locked accounts: BIG 🔒 at the store centroid, on top of the dim (three
 //   cues now: orange arc + darkened store + centroid lock; the small etched
 //   one stays for now)
-const ringEtched = () => /^ring([2-9]|1[01])$/.test(boardSkin) || susan()
-const ringSleeved = () => /^ring([4-9]|1[01])$/.test(boardSkin) || susan()
-const ringArcs = () => /^ring([5-9]|1[01])$/.test(boardSkin)
-const ringNoOval = () => /^ring([6-9]|1[01])$/.test(boardSkin)
-const ring8 = () => /^ring(8|9|1[01])$/.test(boardSkin) || susan()   // v8 feature set
-const ring9 = () => /^ring(9|1[01])$/.test(boardSkin) || susan()     // v9 fix set
-const ring10 = () => /^ring1[01]$/.test(boardSkin)
-const ring11 = () => boardSkin === "ring11"
-const susan = () => boardSkin === "susan" || susan2()
-const susan2 = () => boardSkin === "susan2"
+// ring12 + susan3 (review 11, 2026-07-10 — defaults; v11/susan2 frozen):
+// - party cue = STRIP LIGHT, not gold (gold/orange is reserved for LOCK):
+//   a white lit arc — "turning on a light" for that segment
+// - hub cleanup: the player-colour arcs LEAVE the hub (it keeps just its
+//   thin grey border + the K); on the board side of the hub sit two arcs —
+//   the player colour (always) and the party strip-light outside it
+// - K is now an ASSET FILE (assets/kpay-k.svg) — swap the file to rebrand
+//   (BRAND-K1); the geometric placeholder is baked in it
+// - pickable cue: the teal halo is gone (colour stays reserved for meaning;
+//   it was invisible on mobile anyway). The SLEEVE (official name for the
+//   owner's square left bar) grows a PICK FLAG — a small player-coloured
+//   right triangle jutting left from its top, like a golf flag; overlaid
+//   absolutely so nothing shifts when Pickable toggles. Badge emoji 🛍 → ◀
+//   (🛍 didn't render on the user's font; ◀ = "pull it backwards").
+//   Agent-suggested alternatives, NOT owner decisions, for future passes:
+//   darkened wash behind pickable chips; a notch cut INTO the sleeve top;
+//   sleeve rendered dashed when pickable. Owner's own later idea (logged,
+//   green-hat): pickable assets periodically jiggle — store goods calling
+//   the customer; ties into profiles/pitches. See BOARD-GAMIFY1.
+// - pick now works on the wheel: the gesture was gated to ring11 only —
+//   susan3 (and ring12) get it; susan chips scale down (max ≈60% of v2) and
+//   cards widen into unused desktop space
+const ringEtched = () => /^ring([2-9]|1[0-2])$/.test(boardSkin) || susan()
+const ringSleeved = () => /^ring([4-9]|1[0-2])$/.test(boardSkin) || susan()
+const ringArcs = () => /^ring([5-9]|1[0-2])$/.test(boardSkin)
+const ringNoOval = () => /^ring([6-9]|1[0-2])$/.test(boardSkin)
+const ring8 = () => /^ring(8|9|1[0-2])$/.test(boardSkin) || susan()   // v8 feature set
+const ring9 = () => /^ring(9|1[0-2])$/.test(boardSkin) || susan()     // v9 fix set
+const ring10 = () => /^ring1[0-2]$/.test(boardSkin)
+const ring11 = () => /^ring1[12]$/.test(boardSkin)
+const ring12 = () => boardSkin === "ring12"
+const susan = () => /^susan[23]?$/.test(boardSkin)
+const susan2 = () => boardSkin === "susan2" || susan3()
+const susan3 = () => boardSkin === "susan3"
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
-  return BOARD_SKINS.includes(s) ? s : "ring11"
+  return BOARD_SKINS.includes(s) ? s : "ring12"
 })()
 
 // footer state (viewer-local, session-only)
@@ -455,7 +479,15 @@ function renderRingBoard(root){
   hub.style.top = cy + "px"
   hub.style.width = hub.style.height = rc * 2 + "px"
   const lp = boardLockSummary(accounts.filter(a => isMyAccount(a)), accounts)
-  if(ring11()){
+  if(ring12()){
+    // v12: the K comes from an ASSET FILE — swap assets/kpay-k.svg for the
+    // real logo (BRAND-K1); the geometric placeholder lives in the file
+    const kimg = document.createElement("img")
+    kimg.className = "ring-hub-ksvg"
+    kimg.src = "assets/kpay-k.svg"
+    kimg.alt = ""
+    hub.appendChild(kimg)
+  } else if(boardSkin === "ring11"){
     // v11 (review 10): the font K mis-centred (baseline) and fell back to the
     // wrong face on mobile — replaced with a GEOMETRIC K path: square
     // proportions per the KPAY mark, dead-centred, font-independent. The
@@ -479,7 +511,11 @@ function renderRingBoard(root){
     if(ring9()) k.style.fontSize = (rc * 1.9) + "px"
     hub.appendChild(k)
   }
-  if(ring10()){
+  if(ring12()){
+    // v12 (review 11): the hub is CLEAN — thin grey border + K only. The
+    // player-colour arcs moved to the board side of the hub (ringFelt),
+    // with the party strip-light outside them.
+  } else if(ring10()){
     // v10 HUB RING (review 9): per-account arcs in each player's colour (the
     // Ludo rim), plus a thin LIT inner arc on accounts in MY party — the
     // preview of what Party-only keeps. Lock count text + progress ring
@@ -581,7 +617,7 @@ function susanCard(account, ctx){
   head.style.color = getPlayerColour(account.playerId)
   head.textContent = (account.id.split(":")[1] || account.id)
     + (account.mode === "lock" ? " 🔒" : "")
-    + (playerAllowsPick(account.playerId) && !isMyAccount(account) ? " 🛍" : "")
+    + (playerAllowsPick(account.playerId) && !isMyAccount(account) ? " ◀" : "")
   card.appendChild(head)
   const xl = window.accountLabelCache?.[account.id.split(":")[1] || account.id]
   if(xl){
@@ -1423,7 +1459,7 @@ function ringFelt(segs, g){
     // the hub on my segments (replaces the etched ·you suffix). Later: short
     // player names for others here, tappable → player info/reputation.
     const allAccounts = segs.map(s => s.account)
-    const circArc = (r, a0d, a1d, cls) => {
+    const circArc = (r, a0d, a1d, cls, colour) => {
       const p = d => {
         const a = g.rad(d)
         return `${(g.cx + r * Math.cos(a)).toFixed(1)} ${(g.cy + r * Math.sin(a)).toFixed(1)}`
@@ -1432,15 +1468,24 @@ function ringFelt(segs, g){
       const el = document.createElementNS(NS, "path")
       el.setAttribute("d", `M ${p(a0d)} A ${r} ${r} 0 ${span > 180 ? 1 : 0} 1 ${p(a0d + span)}`)
       el.setAttribute("class", cls)
+      if(colour) el.style.stroke = colour
       labelLayer.appendChild(el)
     }
     segs.forEach(seg => {
-      if(boardInMyParty(seg.account, allAccounts))
+      if(ring12()){
+        // v12 (review 11): board-side hub cues, inside→out: hub grey border,
+        // PLAYER-COLOUR arc (always), PARTY STRIP-LIGHT (white — gold was
+        // clashing with the lock orange; this is "the light comes on")
+        circArc(g.rc + 6, seg.a0 + 2, seg.a1 - 2, "ring-playerarc",
+          getPlayerColour(seg.account.playerId))
+        if(boardInMyParty(seg.account, allAccounts))
+          circArc(g.rc + 12, seg.a0 + 3, seg.a1 - 3, "ring-partylight")
+      } else if(boardInMyParty(seg.account, allAccounts))
         circArc(g.rc + 5, seg.a0 + 3, seg.a1 - 3, "ring-partyarc")
       if(seg.mine){
         const midDeg = (seg.a0 + seg.a1) / 2
         const mid = g.rad(midDeg)
-        const rl = g.rc + 16
+        const rl = g.rc + (ring12() ? 25 : 16)
         const x = g.cx + rl * Math.cos(mid), y = g.cy + rl * Math.sin(mid)
         let rot = (((midDeg + 90) % 360) + 360) % 360   // tangent, reading upright
         if(rot > 90 && rot < 270) rot -= 180
@@ -1514,7 +1559,7 @@ function ringEtchLabel(seg, g, NS){
   const lockPrefix = (boardSkin === "ring7" && seg.account.mode === "lock") ? "🔒 " : ""
   // v11: ·you moved to the hub doorstep (angled label); 🛍 marks a store
   // whose player allows picking
-  const pickBadge = (ring11() && playerAllowsPick(seg.account.playerId) && !seg.mine) ? " 🛍" : ""
+  const pickBadge = (ring11() && playerAllowsPick(seg.account.playerId) && !seg.mine) ? " ◀" : ""
   text.textContent = lockPrefix + (seg.account.id.split(":")[1] || seg.account.id)
     + (seg.mine && !ring11() ? " ·you" : "") + pickBadge
 
@@ -1889,11 +1934,15 @@ function boardStoreChips(account, container){
         e.dataTransfer.setData("fromBasketToAccountId", "")
       }
       boardTouchDrag(el, { assetId, available: amount || 1, fromAccountId: account.id, fromBasketToAccountId: "" })
-    } else if(ring11() && playerAllowsPick(account.playerId) && getAccounts().some(a => isMyAccount(a))){
+    } else if((ring11() || susan3()) && playerAllowsPick(account.playerId) && getAccounts().some(a => isMyAccount(a))){
       // PICK (review 10 / KAT-PICK1): their player allows picking — grab the
       // chip and drop it into any of YOUR regions; game_pick lands it in
-      // your basket as if they offered it (amount prompt as usual)
+      // your basket as if they offered it (amount prompt as usual).
+      // review 11: the cue is the PICK FLAG — a small player-coloured
+      // triangle jutting left from the sleeve top (overlaid, zero layout
+      // shift when Pickable toggles)
       el.classList.add("board-pickchip")
+      el.style.setProperty("--pickflag", getPlayerColour(account.playerId))
       el.title = "Pickable — drag into your space to take it"
       el.draggable = true
       el.ondragstart = e => {
