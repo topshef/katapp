@@ -17,7 +17,7 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "ring11", "ring12", "susan", "susan2", "susan3", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "ring11", "ring12", "ring13", "susan", "susan2", "susan3", "susan4", "table", "market"]
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
 // ids etched into the felt instead of label rows, oval faded+thickened (future
@@ -185,22 +185,44 @@ const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7
 // - pick now works on the wheel: the gesture was gated to ring11 only —
 //   susan3 (and ring12) get it; susan chips scale down (max ≈60% of v2) and
 //   cards widen into unused desktop space
-const ringEtched = () => /^ring([2-9]|1[0-2])$/.test(boardSkin) || susan()
-const ringSleeved = () => /^ring([4-9]|1[0-2])$/.test(boardSkin) || susan()
-const ringArcs = () => /^ring([5-9]|1[0-2])$/.test(boardSkin)
-const ringNoOval = () => /^ring([6-9]|1[0-2])$/.test(boardSkin)
-const ring8 = () => /^ring(8|9|1[0-2])$/.test(boardSkin) || susan()   // v8 feature set
-const ring9 = () => /^ring(9|1[0-2])$/.test(boardSkin) || susan()     // v9 fix set
-const ring10 = () => /^ring1[0-2]$/.test(boardSkin)
-const ring11 = () => /^ring1[12]$/.test(boardSkin)
-const ring12 = () => boardSkin === "ring12"
-const susan = () => /^susan[23]?$/.test(boardSkin)
-const susan2 = () => boardSkin === "susan2" || susan3()
-const susan3 = () => boardSkin === "susan3"
+// ring13 + susan4 (review 12, 2026-07-10 — defaults; v12/susan3 frozen):
+// - toast deck: on the board page toasts overlap like a stack of cards in a
+//   thin top banner (newest on top), instead of filling the screen
+// - pick flag reshaped: ◀ isoceles — the LONG edge fuses flat against the
+//   sleeve, tip points left at half-height (less pointy, sits below the
+//   chip top; the user may still redraw it — yak parked)
+// - your OWN chips wear the pick flag too when YOU are Pickable — uniform
+//   "price-tagged, help yourself" view for everyone including you
+// - ghosts are now OPAQUE-pale instead of element-opacity 40% — the hover
+//   pair line stopped showing THROUGH them (it was never "on top", the
+//   ghost was see-through; thumbs keep a filter, faint show-through noted)
+// - locked stores now darken their CHIPS too (.board-lockdim class, on top
+//   of the felt shade — assets leave the light, ids stay bright)
+// - susan joins the under-chip line order: card/strip surfaces went
+//   slightly translucent so the z4 line layer reads through the felt but
+//   hides under opaque chips (frozen susan2/3 keep the lines-on-top hack)
+// - susan my-strip: two-tone bands like the cards/ring — store on felt,
+//   basket lit — prepping users for the party view's spotlight language
+// - desktop drag: invalid targets show a no-drop cursor (dropEffect none,
+//   driven by a window-scoped payload set at dragstart)
+const ringEtched = () => /^ring([2-9]|1[0-3])$/.test(boardSkin) || susan()
+const ringSleeved = () => /^ring([4-9]|1[0-3])$/.test(boardSkin) || susan()
+const ringArcs = () => /^ring([5-9]|1[0-3])$/.test(boardSkin)
+const ringNoOval = () => /^ring([6-9]|1[0-3])$/.test(boardSkin)
+const ring8 = () => /^ring(8|9|1[0-3])$/.test(boardSkin) || susan()   // v8 feature set
+const ring9 = () => /^ring(9|1[0-3])$/.test(boardSkin) || susan()     // v9 fix set
+const ring10 = () => /^ring1[0-3]$/.test(boardSkin)
+const ring11 = () => /^ring1[1-3]$/.test(boardSkin)
+const ring12 = () => /^ring1[23]$/.test(boardSkin)
+const ring13 = () => boardSkin === "ring13"
+const susan = () => /^susan[2-4]?$/.test(boardSkin)
+const susan2 = () => /^susan[234]$/.test(boardSkin)
+const susan3 = () => /^susan[34]$/.test(boardSkin)
+const susan4 = () => boardSkin === "susan4"
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
-  return BOARD_SKINS.includes(s) ? s : "ring12"
+  return BOARD_SKINS.includes(s) ? s : "ring13"
 })()
 
 // footer state (viewer-local, session-only)
@@ -227,6 +249,8 @@ let boardStartAngle = 180
     }
   }
 }
+
+document.addEventListener("dragend", () => { window.__boardDragPayload = null })
 
 let _boardResizeT = null
 window.addEventListener("resize", () => {
@@ -1115,6 +1139,18 @@ async function boardToggleLock(account){
 //    (core would withdraw + re-offer to self, which reads as a self-basket)
 //  · drag an item YOU received back to its giver's segment = reject; dropped
 //    anywhere else it just snaps back (re-render restores it — no-op)
+// would this payload do anything if dropped on this account? (drives the
+// desktop no-drop cursor — review 12 nice-to-have)
+function boardDropValid(p, account){
+  if(!p || !account) return true                     // unknown → don't block
+  if(p.pick) return isMyAccount(account)
+  if(p.rejectFrom) return account.id === p.rejectFrom
+  if(!p.fromAccountId) return true
+  if(account.id === p.fromAccountId && !p.fromBasketToAccountId) return false
+  if(p.fromBasketToAccountId && account.id === p.fromBasketToAccountId) return false
+  return true
+}
+
 function boardDropTarget(el, account){
 
   // touch-drag hit test target (elementFromPoint → closest [data-drop-account])
@@ -1123,6 +1159,15 @@ function boardDropTarget(el, account){
 
   setupDropTarget(el, account)
   const coreDrop = el.ondrop
+  const coreOver = el.ondragover
+
+  el.ondragover = e => {
+    coreOver && coreOver(e)
+    // dataTransfer payloads are sealed during dragover — validity comes from
+    // the window-scoped copy set at dragstart
+    if(window.__boardDragPayload)
+      e.dataTransfer.dropEffect = boardDropValid(window.__boardDragPayload, account) ? "move" : "none"
+  }
 
   el.ondrop = e => {
 
@@ -1923,8 +1968,15 @@ function boardStoreChips(account, container){
     applyAssetClasses(el, assetId, amount)
     el.classList.add("board-chip")
     ringTint(el, account.playerId)
+    if((ring13() || susan4()) && account.mode === "lock")
+      el.classList.add("board-lockdim")   // assets leave the light on lock
 
     if(mine){
+      if((ring13() || susan4()) && playerAllowsPick(account.playerId)){
+        // uniform view (review 12): YOUR chips show the price-tag flag too
+        el.classList.add("board-pickchip")
+        el.style.setProperty("--pickflag", getPlayerColour(account.playerId))
+      }
       el.onclick = () => openAssetModal(assetId, account.id, amount)
       el.draggable = true
       el.ondragstart = e => {
@@ -1932,6 +1984,7 @@ function boardStoreChips(account, container){
         e.dataTransfer.setData("available", amount || 1)
         e.dataTransfer.setData("fromAccountId", account.id)
         e.dataTransfer.setData("fromBasketToAccountId", "")
+        window.__boardDragPayload = { assetId, fromAccountId: account.id, fromBasketToAccountId: "" }
       }
       boardTouchDrag(el, { assetId, available: amount || 1, fromAccountId: account.id, fromBasketToAccountId: "" })
     } else if((ring11() || susan3()) && playerAllowsPick(account.playerId) && getAccounts().some(a => isMyAccount(a))){
@@ -1949,6 +2002,7 @@ function boardStoreChips(account, container){
         e.dataTransfer.setData("assetId", assetId)
         e.dataTransfer.setData("available", amount || 1)
         e.dataTransfer.setData("pickFrom", account.id)
+        window.__boardDragPayload = { pick: true, assetId, pickFrom: account.id }
       }
       boardTouchDrag(el, { pick: true, assetId, available: amount || 1, pickFrom: account.id })
     }
@@ -1977,6 +2031,8 @@ function boardReservedChips(account, container, reservedByAccount){
     el.classList.add("board-chip", "board-ghost")
     el.title = "Reserved — already offered out"
     ringTint(el, account.playerId)
+    if((ring13() || susan4()) && account.mode === "lock")
+      el.classList.add("board-lockdim")
 
     // hover shows the dotted line to where it landed (legacy pair rules)
     el.dataset.assetId = item.assetId
@@ -2002,6 +2058,7 @@ function boardReservedChips(account, container, reservedByAccount){
         e.dataTransfer.setData("available", item.amount || 1)
         e.dataTransfer.setData("fromAccountId", account.id)
         e.dataTransfer.setData("fromBasketToAccountId", item.toAccountId)
+        window.__boardDragPayload = { assetId: item.assetId, fromAccountId: account.id, fromBasketToAccountId: item.toAccountId }
       }
       boardTouchDrag(el, { assetId: item.assetId, available: item.amount || 1, fromAccountId: account.id, fromBasketToAccountId: item.toAccountId })
     } else {
@@ -2057,6 +2114,7 @@ function boardBasketChips(account, container, accountMap){
         e.dataTransfer.setData("available", item.amount || 1)
         e.dataTransfer.setData("fromAccountId", fromAccountId)
         e.dataTransfer.setData("fromBasketToAccountId", account.id)
+        window.__boardDragPayload = { assetId: item.assetId, fromAccountId, fromBasketToAccountId: account.id }
       }
       boardTouchDrag(el, { assetId: item.assetId, available: item.amount || 1, fromAccountId, fromBasketToAccountId: account.id })
     } else if(receiverIsMine){
@@ -2077,6 +2135,7 @@ function boardBasketChips(account, container, accountMap){
           e.dataTransfer.setData("assetId", item.assetId)
           e.dataTransfer.setData("rejectFrom", fromAccountId)
           e.dataTransfer.setData("rejectAccount", account.id)
+          window.__boardDragPayload = { rejectFrom: fromAccountId, rejectAccount: account.id, assetId: item.assetId }
         }
         boardTouchDrag(el, { assetId: item.assetId, rejectFrom: fromAccountId, rejectAccount: account.id })
       }

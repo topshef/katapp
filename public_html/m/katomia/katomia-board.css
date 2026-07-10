@@ -319,13 +319,13 @@ body.board-page{
 
 /* chip faces WHITE — grey faces vanished against the shading washes; OG
    square-cornered sleeve + lift shadow carried over from v5-7 */
-:is([data-board-skin="ring8"], [data-board-skin="ring9"], [data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"]) .board-chip{
+:is([data-board-skin="ring8"], [data-board-skin="ring9"], [data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="ring13"], [data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"], [data-board-skin="susan4"]) .board-chip{
   background: #fff;
   border-radius: 0 9px 9px 0;
   box-shadow: 0 1px 1.5px rgba(0,0,0,.20), 0 2px 6px rgba(0,0,0,.09);
 }
-:is([data-board-skin="ring8"], [data-board-skin="ring9"], [data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"]) .board-ghost{ box-shadow: none; }
-:is([data-board-skin="ring8"], [data-board-skin="ring9"], [data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"]) .board-chip.thumb-only{
+:is([data-board-skin="ring8"], [data-board-skin="ring9"], [data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="ring13"], [data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"], [data-board-skin="susan4"]) .board-ghost{ box-shadow: none; }
+:is([data-board-skin="ring8"], [data-board-skin="ring9"], [data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="ring13"], [data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"], [data-board-skin="susan4"]) .board-chip.thumb-only{
   background: none;
   box-shadow: none;
   border-radius: 0;
@@ -334,11 +334,11 @@ body.board-page{
 
 /* viewport-responsive sizing: ~⅔ … ~1.3× of the old fixed size
    (12.5px/40px at ~800 vmin). Resize-jank smoothing = BOARD-POLISH1. */
-:is([data-board-skin="ring8"], [data-board-skin="ring9"], [data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"]) .board-chip{
+:is([data-board-skin="ring8"], [data-board-skin="ring9"], [data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="ring13"], [data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"], [data-board-skin="susan4"]) .board-chip{
   font-size: clamp(8.5px, 1.05vmin + 4.1px, 16.5px);
   padding: 3px 7px;
 }
-:is([data-board-skin="ring8"], [data-board-skin="ring9"], [data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"]) .board-chip .asset-thumb{
+:is([data-board-skin="ring8"], [data-board-skin="ring9"], [data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="ring13"], [data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"], [data-board-skin="susan4"]) .board-chip .asset-thumb{
   width: clamp(26px, 3.4vmin + 13px, 52px);
   height: clamp(26px, 3.4vmin + 13px, 52px);
 }
@@ -360,7 +360,7 @@ body.board-page{
   stroke-width: 14;              /* fat invisible tap target */
   opacity: 1;
 }
-:is([data-board-skin="ring8"], [data-board-skin="ring9"], [data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"]) .ring-lockarc--locked{
+:is([data-board-skin="ring8"], [data-board-skin="ring9"], [data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="ring13"]) .ring-lockarc--locked{
   stroke: #f5a623;
   stroke-width: 8;
   opacity: .85;
@@ -403,14 +403,14 @@ body.board-page{
   stroke-width: 2;
   opacity: .95;
 }
-:is([data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"]) .ring-hub{ border-color: #cfc6b2; }
+:is([data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="ring13"]) .ring-hub{ border-color: #cfc6b2; }
 
 /* own-wash saturation boost dropped — identity reads from ·you, the open
    arc, and the hub cues; every viewer sees the same board */
-:is([data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"]) .board-wedge--mine{ opacity: .12; }
+:is([data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="ring13"]) .board-wedge--mine{ opacity: .12; }
 
 /* desktop: hovering your own (invisible) lock arc previews the lock */
-:is([data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"]) .ring-lockarc--open:not(.ring-lockarc--locked):hover{
+:is([data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="ring13"]) .ring-lockarc--open:not(.ring-lockarc--locked):hover{
   stroke: rgba(245, 166, 35, .35);
   stroke-dasharray: none;
 }
@@ -484,6 +484,74 @@ body.board-page{
   pointer-events: none;
 }
 
+/* v13/susan4 pick flag — per the owner's drawing (review 12): a drooping
+   pennant. Top vertex on the sleeve's top corner, apex out-left ~¼ down,
+   long edge rejoining the sleeve lower — the LONG edge fuses to the pole. */
+:is([data-board-skin="ring13"], [data-board-skin="susan4"]) .board-pickchip{ position: relative; }
+:is([data-board-skin="ring13"], [data-board-skin="susan4"]) .board-pickchip::before{
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -11px;              /* 7px flag + the 4px sleeve */
+  width: 7px;
+  height: 12px;
+  background: var(--pickflag, #888);
+  clip-path: polygon(100% 0, 0 28%, 100% 100%);
+  pointer-events: none;
+}
+
+/* toast DECK (review 12, board page only): toasts overlap like a stack of
+   cards in a thin top banner — newest paints on top; a torrent can never
+   fill the screen. game.php keeps the legacy column. */
+.board-page #notifications{
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  max-height: 110px;
+  width: min(480px, 92vw);
+}
+.board-page #notifications .notice{
+  box-shadow: 0 2px 10px rgba(0,0,0,.20);
+}
+.board-page #notifications .notice + .notice{
+  margin-top: -26px;        /* the deck overlap */
+}
+
+/* v13/susan4: ghosts OPAQUE-pale — element opacity let the pair line show
+   through (it was never "on top"); thumbs keep a filter (faint show-through
+   on images only, noted) */
+:is([data-board-skin="ring13"], [data-board-skin="susan4"]) .board-ghost{
+  opacity: 1;
+  background: #efe9dc;
+  color: #a89f8d;
+}
+:is([data-board-skin="ring13"], [data-board-skin="susan4"]) .board-ghost .asset-thumb{
+  filter: grayscale(.5) opacity(.5);
+}
+
+/* v13/susan4: locked stores darken their CHIPS as well as the felt */
+.board-lockdim{
+  filter: brightness(.72) saturate(.8);
+}
+
+/* susan4: surfaces go translucent so the z4 line layer reads through the
+   felt but hides under opaque chips — joins the ring's under-chip order
+   (frozen susan2/3 keep their lines-above-cards hack) */
+[data-board-skin="susan4"] .susan-card{ background: rgba(241, 236, 224, .55); }
+[data-board-skin="susan4"] .susan-mine{ background: rgba(255, 254, 249, .7); }
+
+/* susan4 my-strip: two-tone like the cards/ring — store on felt, basket lit */
+[data-board-skin="susan4"] .susan-mine-row .susan-store{
+  background: rgba(241, 236, 224, .6);
+  border-radius: 8px;
+  padding: 3px;
+}
+[data-board-skin="susan4"] .susan-mine-row .susan-basket{
+  background: rgba(255, 255, 253, .95);
+}
+
 /* board-side hub cues (inside → out): hub grey border · player-colour arc ·
    party STRIP-LIGHT (white — "the light comes on"; gold stays with LOCK) */
 .ring-playerarc{
@@ -507,11 +575,11 @@ body.board-page{
    the card surfaces on susan skins (over chips too; acceptable there) */
 :is([data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"]) #game.board-linelayer,
 :is([data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"]) .board-traillayer{
-  z-index: 7;
+  z-index: 7;   /* frozen susans; susan4 rejoins the z4 under-chip order */
 }
 
 /* v9: fixed-width lock button — no size jump on toggle */
-:is([data-board-skin="ring9"], [data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"]) .ring-footer-lock{
+:is([data-board-skin="ring9"], [data-board-skin="ring10"], [data-board-skin="ring11"], [data-board-skin="ring12"], [data-board-skin="ring13"], [data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"], [data-board-skin="susan4"]) .ring-footer-lock{
   min-width: 96px;
   text-align: center;
 }
@@ -633,13 +701,13 @@ body.board-page{
   width: clamp(42px, 5.4vmin + 21px, 83px);
   height: clamp(42px, 5.4vmin + 21px, 83px);
 }
-:is([data-board-skin="susan2"], [data-board-skin="susan3"]) .susan-head{ font-size: 17px; }
-:is([data-board-skin="susan2"], [data-board-skin="susan3"]) .susan-xsub{ font-size: 12px; }
+:is([data-board-skin="susan2"], [data-board-skin="susan3"], [data-board-skin="susan4"]) .susan-head{ font-size: 17px; }
+:is([data-board-skin="susan2"], [data-board-skin="susan3"], [data-board-skin="susan4"]) .susan-xsub{ font-size: 12px; }
 
 /* card basket = the card's whole FOOTER region, lit like the ring spotlight,
    behind the ring's DOTTED crossable line (full-bleed to the card edges) */
-:is([data-board-skin="susan2"], [data-board-skin="susan3"]) .susan-card{ padding-bottom: 0; }
-:is([data-board-skin="susan2"], [data-board-skin="susan3"]) .susan-card .susan-basket{
+:is([data-board-skin="susan2"], [data-board-skin="susan3"], [data-board-skin="susan4"]) .susan-card{ padding-bottom: 0; }
+:is([data-board-skin="susan2"], [data-board-skin="susan3"], [data-board-skin="susan4"]) .susan-card .susan-basket{
   margin: 8px -8px 0;
   border-radius: 0 0 11px 11px;
   border-top: 2px dashed #c9c2b3;      /* = .ring-lockarc--wall, unwrapped */
@@ -650,11 +718,11 @@ body.board-page{
 
 /* my area sits behind the SOLID divider; no line between my own store and
    basket (my space flows, like the ring's open own-arc) */
-:is([data-board-skin="susan2"], [data-board-skin="susan3"]) .susan-mine{
+:is([data-board-skin="susan2"], [data-board-skin="susan3"], [data-board-skin="susan4"]) .susan-mine{
   border-top: 3px solid #c9c2b3;       /* = .ring-divider, unwrapped */
   max-height: 60vh;                    /* takes what the assets need */
 }
-:is([data-board-skin="susan2"], [data-board-skin="susan3"]) .susan-mine-row .susan-basket{
+:is([data-board-skin="susan2"], [data-board-skin="susan3"], [data-board-skin="susan4"]) .susan-mine-row .susan-basket{
   border: none;
   background: rgba(255, 255, 253, .95);
   min-height: 44px;
@@ -662,7 +730,7 @@ body.board-page{
 
 /* susan2 cards: ~2 visible on portrait, squash rather than starve */
 @media (max-width: 520px){
-  :is([data-board-skin="susan2"], [data-board-skin="susan3"]) .susan-card{ flex-basis: clamp(170px, 46vw, 240px); }
+  :is([data-board-skin="susan2"], [data-board-skin="susan3"], [data-board-skin="susan4"]) .susan-card{ flex-basis: clamp(170px, 46vw, 240px); }
 }
 
 /* hub brand K — Montserrat where available (KPAY face), faint, behind count */
@@ -947,15 +1015,15 @@ body.board-page{
    unused desktop space) ── */
 /* susan3: chips scale DOWN (max ≈60% of v2 — v2 maxed too large), and cards
    grow into unused width on wide screens */
-[data-board-skin="susan3"] .board-chip{
+:is([data-board-skin="susan3"], [data-board-skin="susan4"]) .board-chip{
   font-size: clamp(11px, 1.1vmin + 5px, 16px);
   padding: 4px 8px;
 }
-[data-board-skin="susan3"] .board-chip .asset-thumb{
+:is([data-board-skin="susan3"], [data-board-skin="susan4"]) .board-chip .asset-thumb{
   width: clamp(30px, 3.2vmin + 14px, 50px);
   height: clamp(30px, 3.2vmin + 14px, 50px);
 }
-[data-board-skin="susan3"] .susan-card{
+:is([data-board-skin="susan3"], [data-board-skin="susan4"]) .susan-card{
   flex: 1 0 210px;
   max-width: 360px;
 }
