@@ -17,7 +17,7 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
-const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "susan", "susan2", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "ring11", "susan", "susan2", "table", "market"]
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
 // ids etched into the felt instead of label rows, oval faded+thickened (future
@@ -142,19 +142,41 @@ const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7
 //   when the hovered chip is re-rendered away)
 // - susan: pair/trail lines were buried behind the opaque cards — line
 //   hosts ride above card surfaces on susan skins
-const ringEtched = () => /^ring([2-9]|10)$/.test(boardSkin) || susan()
-const ringSleeved = () => /^ring([4-9]|10)$/.test(boardSkin) || susan()
-const ringArcs = () => /^ring([5-9]|10)$/.test(boardSkin)
-const ringNoOval = () => /^ring([6-9]|10)$/.test(boardSkin)
-const ring8 = () => /^ring(8|9|10)$/.test(boardSkin) || susan()   // v8 feature set
-const ring9 = () => /^ring(9|10)$/.test(boardSkin) || susan()     // v9 fix set
-const ring10 = () => boardSkin === "ring10"
+// ring11 (review 10, 2026-07-10 — default; v10 frozen):
+// - PICK lands end-to-end: chips in a Pickable player's store are grabbable
+//   (mouse + touch) and drop into any of MY regions → game_pick (KAT-PICK1
+//   on alpha; amount prompt as usual). Pickable stores show a 🛍 by the
+//   etched id / susan card head; pick chips get a grab cursor.
+// - party lit arc MOVED OUTSIDE the hub (it was white-on-white inside):
+//   drawn on the felt at rc+5, warm gold, one arc per party account —
+//   including yourself once you have any edge
+// - "you" now sits at the hub: angled with your segment's bisector, upright,
+//   just outside the hub ring; the ·you suffix leaves the etched id. (Later:
+//   short player names for others there, tappable → player info/reputation.)
+// - K is a geometric SVG path (square proportions per the KPAY mark, dead-
+//   centred, font-independent — mobile was rendering a fallback font and the
+//   glyph baseline sat low). Proper logo asset = BRAND-K1.
+// - sleeve regression fixed: ring10's chip CSS group was missing from the
+//   square-corner/white-face lists, so STORE chips fell back to rounded
+//   (baskets looked right only because legacy .asset.basket zeroes its left
+//   radii). Lists now include ring10/ring11/susan2.
+// - locked accounts: BIG 🔒 at the store centroid, on top of the dim (three
+//   cues now: orange arc + darkened store + centroid lock; the small etched
+//   one stays for now)
+const ringEtched = () => /^ring([2-9]|1[01])$/.test(boardSkin) || susan()
+const ringSleeved = () => /^ring([4-9]|1[01])$/.test(boardSkin) || susan()
+const ringArcs = () => /^ring([5-9]|1[01])$/.test(boardSkin)
+const ringNoOval = () => /^ring([6-9]|1[01])$/.test(boardSkin)
+const ring8 = () => /^ring(8|9|1[01])$/.test(boardSkin) || susan()   // v8 feature set
+const ring9 = () => /^ring(9|1[01])$/.test(boardSkin) || susan()     // v9 fix set
+const ring10 = () => /^ring1[01]$/.test(boardSkin)
+const ring11 = () => boardSkin === "ring11"
 const susan = () => boardSkin === "susan" || susan2()
 const susan2 = () => boardSkin === "susan2"
 
 let boardSkin = (() => {
   const s = new URLSearchParams(location.search).get("skin")
-  return BOARD_SKINS.includes(s) ? s : "ring10"
+  return BOARD_SKINS.includes(s) ? s : "ring11"
 })()
 
 // footer state (viewer-local, session-only)
@@ -433,7 +455,21 @@ function renderRingBoard(root){
   hub.style.top = cy + "px"
   hub.style.width = hub.style.height = rc * 2 + "px"
   const lp = boardLockSummary(accounts.filter(a => isMyAccount(a)), accounts)
-  if(ring8()){
+  if(ring11()){
+    // v11 (review 10): the font K mis-centred (baseline) and fell back to the
+    // wrong face on mobile — replaced with a GEOMETRIC K path: square
+    // proportions per the KPAY mark, dead-centred, font-independent. The
+    // real logo asset swap is BRAND-K1.
+    const NS = "http://www.w3.org/2000/svg"
+    const ksvg = document.createElementNS(NS, "svg")
+    ksvg.setAttribute("class", "ring-hub-ksvg")
+    ksvg.setAttribute("viewBox", "0 0 100 100")
+    const kpath = document.createElementNS(NS, "path")
+    kpath.setAttribute("d", "M30 10 V90 M78 12 L34 50 L78 88")
+    kpath.setAttribute("class", "ring-hub-kpath")
+    ksvg.appendChild(kpath)
+    hub.appendChild(ksvg)
+  } else if(ring8()){
     // faint brand K behind the count (KPAY face — Montserrat where loaded,
     // graceful fallback otherwise); the hub doubles as a circular logo.
     // v9: sized to FILL the circle — corners touching the rim (review 7)
@@ -543,7 +579,9 @@ function susanCard(account, ctx){
   const head = document.createElement("div")
   head.className = "susan-head"
   head.style.color = getPlayerColour(account.playerId)
-  head.textContent = (account.id.split(":")[1] || account.id) + (account.mode === "lock" ? " 🔒" : "")
+  head.textContent = (account.id.split(":")[1] || account.id)
+    + (account.mode === "lock" ? " 🔒" : "")
+    + (playerAllowsPick(account.playerId) && !isMyAccount(account) ? " 🛍" : "")
   card.appendChild(head)
   const xl = window.accountLabelCache?.[account.id.split(":")[1] || account.id]
   if(xl){
@@ -925,7 +963,9 @@ function hubPlayersRing(segs, accounts, rc){
   segs.forEach(seg => {
     const a0 = seg.a0, a1 = seg.a1 - a0 >= 360 ? seg.a0 + 359.9 : seg.a1
     arc(rc - 3, a0, a1, "ring-hubarc", getPlayerColour(seg.account.playerId))
-    if(boardInMyParty(seg.account, accounts))
+    // v10 drew the party arc INSIDE the hub — white on white, invisible
+    // (review 10). v11 lights it OUTSIDE the hub on the felt (ringFelt).
+    if(!ring11() && boardInMyParty(seg.account, accounts))
       arc(rc - 7, a0, a1, "ring-hubarc-party")
   })
 
@@ -1050,6 +1090,19 @@ function boardDropTarget(el, account){
 
   el.ondrop = e => {
 
+    // mouse-dnd pick payload routes through the shared executor
+    const pickFrom = e.dataTransfer.getData("pickFrom")
+    if(pickFrom){
+      e.preventDefault()
+      el.classList.remove("drag-over")
+      boardExecuteDrop({
+        pick: true, pickFrom,
+        assetId: e.dataTransfer.getData("assetId"),
+        available: parseInt(e.dataTransfer.getData("available") || "1", 10)
+      }, account)
+      return
+    }
+
     const rejectFrom = e.dataTransfer.getData("rejectFrom")
     if(rejectFrom){
       e.preventDefault()
@@ -1141,6 +1194,19 @@ function boardTouchDrag(el, payload){
 // handler) and touch drag (executed directly from the payload)
 function boardExecuteDrop(p, account){
   if(!account || !p?.assetId) return
+
+  if(p.pick){
+    // picks land only in YOUR space; the backend re-checks allowPick
+    if(!isMyAccount(account)) return
+    const amount = getTransferAmount(p.assetId, p.available || 1)
+    if(amount === null) return
+    socket.send(JSON.stringify({
+      type: "game_pick", gameId,
+      fromId: p.pickFrom, toId: account.id, assetId: p.assetId, amount
+    }))
+    clearSelection(); render()
+    return
+  }
 
   if(p.rejectFrom){
     if(account.id === p.rejectFrom){
@@ -1304,6 +1370,20 @@ function ringFelt(segs, g){
         dim.setAttribute("d", ringStoreZonePath(seg, g))
         dim.setAttribute("class", "ring-storedim")
         dimLayer.appendChild(dim)
+        // v11 (review 10): BIG 🔒 at the store centroid, on top of the dim —
+        // third lock cue alongside the orange arc + darkened store
+        if(ring11()){
+          const rl = (g.ovalR(seg.am) + g.edgeR(seg.am)) / 2
+          const big = document.createElementNS(NS, "text")
+          big.setAttribute("class", "ring-biglock")
+          big.setAttribute("x", g.cx + rl * Math.cos(seg.am))
+          big.setAttribute("y", g.cy + rl * Math.sin(seg.am))
+          big.setAttribute("text-anchor", "middle")
+          big.setAttribute("dominant-baseline", "central")
+          big.setAttribute("font-size", Math.min(58, Math.max(34, g.step * 0.5)))
+          big.textContent = "🔒"
+          dimLayer.appendChild(big)
+        }
       }
       // arc visibility matrix — ring8 INVERTS the ownership marking: other
       // players' arcs are solid grey (the divider continues through them);
@@ -1335,6 +1415,47 @@ function ringFelt(segs, g){
   }
 
   if(g.etched) segs.forEach(seg => labelLayer.appendChild(ringEtchLabel(seg, g, NS)))
+
+  if(ring11()){
+    // v11 (review 10): party + identity cues moved to the HUB's doorstep —
+    // a warm gold arc just OUTSIDE the hub for every account in MY party
+    // (v10's inner version was white-on-white), and an angled "you" beside
+    // the hub on my segments (replaces the etched ·you suffix). Later: short
+    // player names for others here, tappable → player info/reputation.
+    const allAccounts = segs.map(s => s.account)
+    const circArc = (r, a0d, a1d, cls) => {
+      const p = d => {
+        const a = g.rad(d)
+        return `${(g.cx + r * Math.cos(a)).toFixed(1)} ${(g.cy + r * Math.sin(a)).toFixed(1)}`
+      }
+      const span = Math.min(a1d - a0d, 359.9)
+      const el = document.createElementNS(NS, "path")
+      el.setAttribute("d", `M ${p(a0d)} A ${r} ${r} 0 ${span > 180 ? 1 : 0} 1 ${p(a0d + span)}`)
+      el.setAttribute("class", cls)
+      labelLayer.appendChild(el)
+    }
+    segs.forEach(seg => {
+      if(boardInMyParty(seg.account, allAccounts))
+        circArc(g.rc + 5, seg.a0 + 3, seg.a1 - 3, "ring-partyarc")
+      if(seg.mine){
+        const midDeg = (seg.a0 + seg.a1) / 2
+        const mid = g.rad(midDeg)
+        const rl = g.rc + 16
+        const x = g.cx + rl * Math.cos(mid), y = g.cy + rl * Math.sin(mid)
+        let rot = (((midDeg + 90) % 360) + 360) % 360   // tangent, reading upright
+        if(rot > 90 && rot < 270) rot -= 180
+        const you = document.createElementNS(NS, "text")
+        you.setAttribute("class", "ring-youlabel")
+        you.setAttribute("fill", getPlayerColour(seg.account.playerId))
+        you.setAttribute("x", x); you.setAttribute("y", y)
+        you.setAttribute("text-anchor", "middle")
+        you.setAttribute("dominant-baseline", "central")
+        you.setAttribute("transform", `rotate(${rot} ${x} ${y})`)
+        you.textContent = "you"
+        labelLayer.appendChild(you)
+      }
+    })
+  }
 
   if(top){
     const both = document.createDocumentFragment()
@@ -1391,7 +1512,11 @@ function ringEtchLabel(seg, g, NS){
   // ring7: 🔒 prefix inline (shifts the id — ring8 fixes that with its own
   // anchored node so the account number never moves on lock)
   const lockPrefix = (boardSkin === "ring7" && seg.account.mode === "lock") ? "🔒 " : ""
-  text.textContent = lockPrefix + (seg.account.id.split(":")[1] || seg.account.id) + (seg.mine ? " ·you" : "")
+  // v11: ·you moved to the hub doorstep (angled label); 🛍 marks a store
+  // whose player allows picking
+  const pickBadge = (ring11() && playerAllowsPick(seg.account.playerId) && !seg.mine) ? " 🛍" : ""
+  text.textContent = lockPrefix + (seg.account.id.split(":")[1] || seg.account.id)
+    + (seg.mine && !ring11() ? " ·you" : "") + pickBadge
 
   // ring8: etched ids scale with the viewport (~⅔ … ~1.3× of the fixed size)
   const vScale = ring8() ? Math.min(1.3, Math.max(0.67, Math.min(g.W, g.H) / 800)) : 1
@@ -1764,9 +1889,27 @@ function boardStoreChips(account, container){
         e.dataTransfer.setData("fromBasketToAccountId", "")
       }
       boardTouchDrag(el, { assetId, available: amount || 1, fromAccountId: account.id, fromBasketToAccountId: "" })
+    } else if(ring11() && playerAllowsPick(account.playerId) && getAccounts().some(a => isMyAccount(a))){
+      // PICK (review 10 / KAT-PICK1): their player allows picking — grab the
+      // chip and drop it into any of YOUR regions; game_pick lands it in
+      // your basket as if they offered it (amount prompt as usual)
+      el.classList.add("board-pickchip")
+      el.title = "Pickable — drag into your space to take it"
+      el.draggable = true
+      el.ondragstart = e => {
+        e.dataTransfer.setData("assetId", assetId)
+        e.dataTransfer.setData("available", amount || 1)
+        e.dataTransfer.setData("pickFrom", account.id)
+      }
+      boardTouchDrag(el, { pick: true, assetId, available: amount || 1, pickFrom: account.id })
     }
     container.appendChild(el)
   })
+}
+
+// does this player allow others to pick from their stores? (KAT-PLAYERPREF1)
+function playerAllowsPick(playerId){
+  return !!state?.players?.[playerId]?.prefs?.allowPick
 }
 
 function boardReservedChips(account, container, reservedByAccount){
@@ -1928,7 +2071,7 @@ function boardDemoInit(){
       p1: { name: "You",  colour: "#7c4dff" },
       p2: { name: "Ada",  colour: "#e91e63" },
       p3: { name: "Bud",  colour: "#00897b" },
-      p4: { name: "Cyn",  colour: "#f59f00" }
+      p4: { name: "Cyn",  colour: "#f59f00", prefs: { allowPick: true } }   // pickable — demo the shopping gesture
     },
     accounts: {
       "p1:0.0.1001": {
@@ -2024,6 +2167,19 @@ function boardDemoApply(msg){
   if(msg.type === "game_setPref"){
     const p = state.players?.[currentPlayerId]
     if(p) (p.prefs ||= {})[msg.key] = !!msg.value
+  }
+
+  if(msg.type === "game_pick"){
+    const from = acc(msg.fromId), to = acc(msg.toId)
+    if(from && to){
+      const have = from.assets[msg.assetId] || 0
+      const amount = Math.min(msg.amount || 1, have)
+      if(amount > 0){
+        if(have - amount <= 0) delete from.assets[msg.assetId]
+        else from.assets[msg.assetId] = have - amount
+        to.basket.push({ assetId: msg.assetId, amount, fromId: msg.fromId })
+      }
+    }
   }
 
   if(!msg.__seed) render()
