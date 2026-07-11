@@ -1050,7 +1050,29 @@ function boardFilteredAccounts(){
   if(ring8() && boardNetView)
     accounts = boardNetAccounts(accounts)
 
+  return boardGroupByPlayer(accounts)
+}
+
+// BOARD-PARTYGROUP1 (user 2026-07-11): plain join order can interleave one
+// player's accounts with another's — e.g. join order [A1, B1, A2] if A adds a
+// second account after B joins. renderRingBoard's "you at bottom" only
+// rotates around the FIRST contiguous run of your accounts (below), so a
+// non-contiguous 2nd account lands wherever its raw index falls — the user
+// saw this as "I'm at the bottom AND the top, with someone else's account
+// between them on both sides." Fix: stable-group every player's accounts into
+// one contiguous run. Grouped by each player's EARLIEST join index (not "am I
+// the viewer") so the board stays the SAME deterministic order for every
+// viewer — a reshuffle, not a personalised layout.
+function boardGroupByPlayer(accounts){
+  const firstIdx = new Map()
+  accounts.forEach((a, i) => { if(!firstIdx.has(a.playerId)) firstIdx.set(a.playerId, i) })
   return accounts
+    .map((a, i) => ({ a, i }))
+    .sort((x, y) => {
+      const gx = firstIdx.get(x.a.playerId), gy = firstIdx.get(y.a.playerId)
+      return gx !== gy ? gx - gy : x.i - y.i
+    })
+    .map(x => x.a)
 }
 
 /* ── SIGNING LAYER (ring15, first slice) ────────────────────────────────── */
