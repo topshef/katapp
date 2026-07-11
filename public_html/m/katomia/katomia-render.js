@@ -593,7 +593,14 @@ function getFastThumb(url, imgEl){
       a.style.fontSize = "12px"
       a.style.textDecoration = "none"
 
-      a.href = `/m/sign/?network=${tx.network}&txid=${tx.txid}&pch=${tx.pch}`
+      // KDIAG-BOARDSIGNDOT1: was raw-interpolated + unguarded — a tx without a
+      // txid yet produced a literal "...?txid=undefined" link to /m/sign/,
+      // landing on an empty sign page (no hex2 in txRead payload)
+      a.href = tx.txid
+        ? `/m/sign/?network=${encodeURIComponent(tx.network || "")}` +
+          `&txid=${encodeURIComponent(tx.txid)}&pch=${encodeURIComponent(tx.pch || "")}`
+        : "#"
+      if(!tx.txid) a.style.pointerEvents = "none"
       a.target = "_blank"
       
       a.dataset.txid = tx.txid
