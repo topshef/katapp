@@ -312,6 +312,33 @@ let boardSelectedAccount = null                // footer dropdown selection
 let boardPartyOnly = _bp.partyOnly ?? false    // rule-aware party filter
 let boardFocusMode = false                     // ▶ spotlight toggle (session)
 
+// BOARD-SUCCESS1 (placeholder — user 2026-07-11): once a tx we were watching
+// mid-signing flips to a final SUCCESS/SIGNED status, boardDetectSigning()'s
+// filter (!lifecycle.isFinalStatus) excludes it on the very next render, so the
+// board silently reverts to negotiation mode — no beat where players see/
+// celebrate the result. This is a stopgap: a blocking native alert() (exactly
+// what was asked for as the placeholder — halts the screen until dismissed).
+// Real design (confetti, a proper modal, and whether reverting to negotiation
+// is even the right "next" — it may not be) is still open: see BOARD-UI1 /
+// BOARD-GAMIFY1 for the follow-up task.
+const boardSeenMidSigningTx = new Set()
+const boardSuccessAcked = new Set()
+function boardCheckJustSucceeded(){
+  ;(state?.tx?.pending || []).forEach(t => {
+    if(!t?.txid) return
+    const isFinal = !!t.lifecycle?.isFinalStatus
+    if(!isFinal){ boardSeenMidSigningTx.add(t.txid); return }
+    const st = String(t.lifecycle?.status || "").toUpperCase()
+    const succeeded = st === "SUCCESS" || st === "SIGNED"
+    if(succeeded && boardSeenMidSigningTx.has(t.txid) && !boardSuccessAcked.has(t.txid)){
+      boardSuccessAcked.add(t.txid)
+      boardDiag("board:success:shown", { txid: t.txid })
+      alert(`✅ Deal complete!\n\n${t.txid}\n\nTap OK to continue.`)
+      boardDiag("board:success:acked", { txid: t.txid })
+    }
+  })
+}
+
 // dev control (footer): the layout's start angle — segments begin here and run
 // clockwise. 180 = the first account's segment straddles 9 o'clock. Editable
 // to explore how different rotations render; not a user-facing feature.
@@ -344,6 +371,8 @@ window.addEventListener("resize", () => {
 
 async function render(){
   if(!state) return
+
+  boardCheckJustSucceeded()
 
   document.body.dataset.viewMode = "board"
   document.body.dataset.boardSkin = boardSkin
@@ -918,6 +947,22 @@ function boardTxLegs(tx){
   return by
 }
 
+// SIGN-STATUSLANG1 (still open — user 2026-07-11): the lock arcs' `sign` field
+// below is a single WHOLE-TX status (pending/signed/failed) applied uniformly
+// to every account with legs in the tx — it can't yet distinguish "this
+// account hasn't signed" (orange) from "this account signed" (green) from
+// "this account can't fund its leg / needs token association" (red), which is
+// what was asked for: the exact same per-account rules the signing modal uses
+// (kpool_widget/view.js: accountSigningStatus() + updateCardSigning()). Doing
+// that correctly needs the same inputs the modal has and the board doesn't
+// today — per-account keyInfo + balances from a mirror-node enrichment pass
+// (index.js's enrichAccountsKeyInfo/enrichWall), then the same threshold
+// solver (getThresholdSummary) — not just data.sigs. Reusing that logic
+// directly (rather than re-deriving similar-but-different rules here) is the
+// point of SIGN-STATUSLANG1's "shared vocabulary module... reuse on the game
+// board" — half-implementing it on the board risked exactly the drift
+// PROP-SIGN-UNIFY1 exists to prevent. Flagging as the next queued piece
+// rather than guessing at colors for money-moving state.
 function boardDetectSigning(){
   if(!ring15()) return null
   const txs = (state?.tx?.pending || []).filter(t => !t.lifecycle?.isFinalStatus)
@@ -929,6 +974,17 @@ function boardDetectSigning(){
   return {
     tx,
     legs: boardTxLegs(tx),
+    // BOARD-RETRY1 (backlog — user 2026-07-11): a "failed" verdict here just
+    // falls through to boardDetectSigning() returning null on the next render
+    // (isFinalStatus excludes it from `txs`) — everything silently pops back
+    // to stores/negotiation and the deal's history is lost. Owner's design
+    // direction: auto-retry by default — repopulate baskets from the failed
+    // tx's legs and re-lock as a draft (the inverse of the strike), rather
+    // than reconstructing state from scratch via a re-fetched txid. See
+    // BOARD-RETRY1 for the full design (and the netted-representation note:
+    // reloading by txid alone loses the pre-netting proposal shape, which is
+    // fine — represent it netted). Not building this pass, just marking where
+    // it hooks in.
     status: st === "SUCCESS" || st === "SIGNED" ? "signed" : /FAIL|ERROR|EXPIRE|INVALID/.test(st) ? "failed" : "pending",
     expiry: (vs || tx.createdAt || Date.now()) + 180000
   }
