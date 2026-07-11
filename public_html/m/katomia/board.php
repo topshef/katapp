@@ -105,6 +105,13 @@
 <script src="<?= kasset('katomia-helpers.js') ?>"></script>
 <script src="<?= kasset('katomia-enrich.js') ?>"></script>
 <script src="<?= kasset('katomia-network.js') ?>"></script>
+<!-- KDIAG-BOARDBLIND1: board.php never loaded this, so katomiaDiagSend()
+     (the self-contained /diag sender — the create-order-modal comment in this
+     file explains window.kdiag from the kpool widget is lazy and NOT reliably
+     present here) didn't exist on the board page at all: no katomia:build, no
+     wc:version, and boardDirectSign()'s window.kdiag?.() calls were silent
+     no-ops. Ring16 direct-sign attempts left zero trace in kdiag. -->
+<script src="<?= kasset('katomia-modals.js') ?>"></script>
 <script src="<?= kasset('katomia-render.js') ?>"></script>
 <script src="<?= kasset('katomia-board.js') ?>"></script>
 

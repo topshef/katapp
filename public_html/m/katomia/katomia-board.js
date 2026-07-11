@@ -966,6 +966,34 @@ function boardHexToBytes(hex){
   return out
 }
 
+// KDIAG-BOARDBLIND1: window.kdiag only exists once the kpool widget's modal
+// mounts, which ring16 deliberately never does (board IS the signing surface,
+// no modal). Bare window.kdiag?.() calls were silently swallowing every
+// board:sign:* event. katomiaDiagSend (katomia-modals.js, now loaded on
+// board.php) posts to /diag directly regardless — same fallback pattern as
+// katomia-render-orders.js:578.
+const boardDiag = (typeof katomiaDiagSend === "function") ? katomiaDiagSend : (msg, data) => window.kdiag?.(msg, data)
+
+// KDIAG-TXBYTES1: /future/?action=txRead proxies through getCachedData(),
+// which (bug, tracked separately) can return the literal text
+// "error KR994 cache loading locked, please retry" instead of JSON while a
+// concurrent origin fetch is in flight. r.json() then throws, gets swallowed,
+// and boardDirectSign reported a generic "transaction bytes unavailable" with
+// no way to tell a real missing-tx from a transient lock. One short retry
+// covers the transient case; either way we now log the raw response.
+async function boardReadTxBytes(network, txid){
+  for(let attempt = 0; attempt < 2; attempt++){
+    const r = await fetch(`/future/?action=txRead&network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`)
+    const text = await r.text()
+    let j = null
+    try { j = JSON.parse(text) } catch {}
+    if(j?.hex2) return boardHexToBytes(j.hex2)
+    boardDiag("board:sign:bytes-miss", { attempt, status: r.status, bodyStart: text.slice(0, 120) })
+    if(attempt === 0) await new Promise(res => setTimeout(res, 1200))
+  }
+  return null
+}
+
 async function boardDirectSign(account){
   const wc = window.WC
   const tx = boardSigning?.tx
@@ -978,7 +1006,7 @@ async function boardDirectSign(account){
   }
   const accountId = account.id.split(":")[1] || account.id
   try {
-    window.kdiag?.("board:sign:click", { network, txid: tx.txid, accountId })
+    boardDiag("board:sign:click", { network, txid: tx.txid, accountId })
     let active = null
     try { active = await wc.getAccount?.() } catch {}
     if(!active) active = await wc.connect()          // pairing UI is the wallet's own
@@ -988,11 +1016,7 @@ async function boardDirectSign(account){
       }
     }
     let bytes = tx.txhex ? boardHexToBytes(tx.txhex) : null
-    if(!bytes){
-      const r = await fetch(`/future/?action=txRead&network=${encodeURIComponent(network)}&txid=${encodeURIComponent(tx.txid)}`)
-      const j = await r.json().catch(() => null)
-      if(j?.hex2) bytes = boardHexToBytes(j.hex2)
-    }
+    if(!bytes) bytes = await boardReadTxBytes(network, tx.txid)
     if(!bytes) throw new Error("transaction bytes unavailable")
     const signAs = (await wc.getAccount?.()) || accountId
     const { signedTransactionHex } = await wc.signTx({ accountId: signAs, transactionBytes: bytes })
@@ -1003,10 +1027,10 @@ async function boardDirectSign(account){
         response: { signedTransaction: Array.from(boardHexToBytes(signedTransactionHex)) } })
     })
     if(!save.ok) throw new Error(`signature save failed (${save.status})`)
-    window.kdiag?.("board:sign:saved", { txid: tx.txid, accountId: signAs })
+    boardDiag("board:sign:saved", { txid: tx.txid, accountId: signAs })
     notify(`✍ Signed as ${signAs}`, "success", { timeout: 4000 })
   } catch(e){
-    window.kdiag?.("board:sign:error", { error: String(e) })
+    boardDiag("board:sign:error", { error: String(e) })
     notify(`Signing failed: ${e.message || e}`, "error", { timeout: 6000 })
   }
 }
