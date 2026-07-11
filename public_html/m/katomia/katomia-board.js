@@ -487,6 +487,10 @@ async function render(){
 
   renderBoard()
 
+  // renderBoard() (via renderRingBoard) has just recomputed boardSigning —
+  // start/stop the per-account signing-status poll to match (SIGN-STATUSLANG1)
+  boardEnsureSignStatusPoll()
+
   // review 9: a chip whose text wraps kept its pre-wrap width — dead
   // right-padding. Shrink wrapped text chips to their actual line extents.
   if(ring9()) boardTightenChips()
@@ -642,8 +646,19 @@ function renderRingBoard(root){
     const am = rad((a0 + a1) / 2)
     const mine = isMyAccount(account)
     const hac = account.id.split(":")[1] || account.id
+    // SIGN-STATUSLANG1 first pass: colour each account's arc by ITS OWN signing
+    // status (green=signed / orange=pending), computed by boardRefreshSignStatus
+    // from the SAME widget machinery the /m/sign/ modal uses (txRead sigs +
+    // per-account threshold solve). Falls back to the whole-tx status until the
+    // first async refresh lands. Balance/association (red) is deliberately
+    // parked for this pass (still SIGN-STATUSLANG1 / awaiting the balance enrich).
+    let perAcct = boardSigning && boardSignStatus?.txid === boardSigning.tx?.txid
+      ? boardSignStatus.byAccount?.[hac] : null
+    if(perAcct === "loading") perAcct = "pending"   // orange while keyInfo loads; no --loading CSS class
     segs.push({ account, a0, a1, am, mine,
-      sign: boardSigning && boardSigning.legs[hac] ? boardSigning.status : null })
+      sign: boardSigning && boardSigning.legs[hac]
+        ? (perAcct && perAcct !== "none" ? perAcct : boardSigning.status)
+        : null })
 
     // wash + fat drop target: the whole slice IS the account (own segments
     // accept drops too — acct → acct moves, and drag-home = withdraw)
@@ -1010,6 +1025,79 @@ function boardFilteredAccounts(){
 // giver when uniquely attributable — a netted tx usually has one sender per
 // asset); send legs reserved for the ghost side later.
 let boardSigning = null   // set per render; footer reads it
+
+// ── SIGN-STATUSLANG1 first pass: per-account signing status on the arcs ──────
+// "Zoom out, see how the widget does it, replicate sensibly" (user 2026-07-11).
+// Rather than reimplement a parallel (and inevitably divergent — the exact
+// trap PROP-SIGN-UNIFY1 exists to avoid) status calc, this REUSES the same
+// exported kpool_widget functions the /m/sign/ modal uses:
+//   txRead → the signed pubkeys (data.sigs) + accounts+roles for THIS txid
+//   enrichAccountsInfo + calcAccountsThatSign → who must sign (receiver_sig etc)
+//   enrichAccountsKeyInfo → each account's key tree (mirror-node)
+//   getThresholdSummary → has THIS account met its signing threshold?
+// The board loads these via dynamic import() (same mechanism katomia-auth.js
+// already uses for the mirror/protobuf modules). Balance/association (the red
+// state) is parked for this pass per the user — signing status first.
+let boardSignStatus = null   // { txid, byAccount: { hac: 'signed'|'pending'|'loading'|'none' } }
+let _boardSignMod = null
+let _boardSignPoll = null
+let _boardSignLast = ""
+
+async function boardSignModule(){
+  if(_boardSignMod) return _boardSignMod
+  const base = "/vendor/kpay/kpool_widget/"
+  const [model, threshold, keynorm] = await Promise.all([
+    import(base + "model.js"), import(base + "threshold.js"), import(base + "keynorm.js")
+  ])
+  _boardSignMod = { model, threshold, keynorm }
+  return _boardSignMod
+}
+
+async function boardRefreshSignStatus(){
+  const tx = boardSigning?.tx
+  if(!tx?.txid) return
+  const network = gameMeta?.network || ""
+  try {
+    const { model, threshold, keynorm } = await boardSignModule()
+    const { data, accounts } = await model.txRead({ network, txid: tx.txid })
+    if(!accounts) return
+    await model.enrichAccountsInfo({ network, accounts })
+    model.calcAccountsThatSign(accounts)
+    await model.enrichAccountsKeyInfo({ network, accounts })
+    const signedPubkeys = (data?.sigs || [])
+      .map(s => s.pubKey).filter(Boolean).map(keynorm.normalizePublicKey).filter(Boolean)
+    const byAccount = {}
+    for(const [id, acc] of Object.entries(accounts)){
+      const hac = id.split(":")[1] || id
+      if(!acc.mustSign){ byAccount[hac] = "none"; continue }
+      const keyTree = acc.keyInfo && keynorm.normalizeKeyTree(acc.keyInfo)
+      if(!keyTree){ byAccount[hac] = "loading"; continue }
+      const s = threshold.getThresholdSummary({ keyTree, signedPubkeys })
+      byAccount[hac] = s.thresholdSatisfied ? "signed" : "pending"
+    }
+    boardSignStatus = { txid: tx.txid, byAccount }
+    const sig = JSON.stringify(byAccount)
+    boardDiag("board:signstatus", { txid: tx.txid, byAccount, signedKeys: signedPubkeys.length })
+    if(sig !== _boardSignLast){ _boardSignLast = sig; render() }   // repaint only on change
+  } catch(e){
+    boardDiag("board:signstatus:error", { error: String(e) })
+  }
+}
+
+// start/stop the signing-status poll with the signing phase. Called from render()
+// after boardSigning is (re)computed. Poll interval mirrors the widget's fallback
+// cadence; a live WS feed can supersede this later (PROP-SIGN-UNIFY1).
+function boardEnsureSignStatusPoll(){
+  if(boardSigning?.tx?.txid && ring16()){
+    if(!_boardSignPoll){
+      boardRefreshSignStatus()
+      _boardSignPoll = setInterval(boardRefreshSignStatus, 4000)
+    }
+  } else if(_boardSignPoll){
+    clearInterval(_boardSignPoll); _boardSignPoll = null
+    boardSignStatus = null; _boardSignLast = ""
+  }
+}
 
 function boardTxLegs(tx){
   let basis = tx?.pchbasis
