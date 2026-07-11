@@ -357,7 +357,49 @@ const boardLoggedFinalTx = new Set()
 // SIGN-STATUSLANG1 already flagged as missing. Keeping the isFinalStatus path
 // below too (cheap, harmless) in case it turns out to apply in some other
 // flow (e.g. signed externally rather than via boardDirectSign).
-const boardMySignedTx = new Map()   // txid -> ts, only while still open in the finder below
+const boardMySignedTx = new Map()   // txid -> ts, tracked from board:sign:saved
+const boardResolving = new Map()    // txid -> ts, vanished-from-pending, awaiting success/fail verdict
+
+// v4 (user 2026-07-11): the alert now REPORTS the actual result. A tx that
+// vanished from pending is either a success or a failure/expiry; we tell them
+// apart via the SETTLED RECORDS the backend pushes on success — the same
+// signal katomia-localdb's settledTxStubs() rebuilds SUCCESS txs from
+// (state.players.*.orders.*.settled, keyed by txid). Settled record present =
+// executed on-chain; absent (after a grace window for the push to arrive) =
+// failed or expired. Synchronous scan of live state, no IndexedDB.
+function boardTxHasSettled(txid){
+  for(const player of Object.values(state?.players || {}))
+    for(const order of Object.values(player?.orders || {}))
+      for(const s of (order?.settled || []))
+        if(s?.txid === txid) return true
+  return false
+}
+
+const BOARD_RESULT_GRACE_MS = 12000   // wait this long for a settled record before calling it a failure
+function boardShowResult(txid, ok){
+  if(boardSuccessAcked.has(txid)) return
+  boardSuccessAcked.add(txid)
+  boardSaveAckedTx(boardSuccessAcked)
+  boardResolving.delete(txid)
+  boardDiag("board:result:shown", { txid, ok })
+  alert(ok
+    ? `✅ Transaction successful\n\n${txid}\n\nTap OK to continue.`
+    : `⚠️ Transaction failed or expired\n\n${txid}\n\nIt was not executed on-chain. Tap OK to continue.`)
+  boardDiag("board:result:acked", { txid, ok })
+}
+
+// A vanished tx: resolve to success as soon as a settled record appears;
+// otherwise conclude failure once the grace window elapses. Re-checks on a
+// timer because a failure/expiry produces no further game_state push (so no
+// render) to re-trigger this naturally.
+function boardResolveTx(txid){
+  if(boardSuccessAcked.has(txid)){ boardResolving.delete(txid); return }
+  if(boardTxHasSettled(txid)){ boardShowResult(txid, true); return }
+  const since = boardResolving.get(txid)
+  if(since && Date.now() - since > BOARD_RESULT_GRACE_MS){ boardShowResult(txid, false); return }
+  setTimeout(() => boardResolveTx(txid), 3000)
+}
+
 function boardCheckJustSucceeded(){
   const pending = state?.tx?.pending || []
   const stillSigning = new Set(pending.filter(t => !t?.lifecycle?.isFinalStatus).map(t => t?.txid).filter(Boolean))
@@ -369,30 +411,25 @@ function boardCheckJustSucceeded(){
     }
   })
 
-  const showSuccess = (txid, via) => {
-    if(boardSuccessAcked.has(txid)) return
-    boardSuccessAcked.add(txid)
-    boardSaveAckedTx(boardSuccessAcked)
-    boardDiag("board:success:shown", { txid, via })
-    alert(`✅ Deal complete!\n\n${txid}\n\nTap OK to continue.`)
-    boardDiag("board:success:acked", { txid })
-  }
-
+  // if a final status DOES ever land in pending, trust it directly
   pending.forEach(t => {
-    if(!t?.txid) return
+    if(!t?.txid || boardSuccessAcked.has(t.txid)) return
     const st = String(t.lifecycle?.status || "").toUpperCase()
-    if(!t.lifecycle?.isFinalStatus || (st !== "SUCCESS" && st !== "SIGNED")) return
-    // txid = payer@validStartSeconds.nanos — same parse boardDetectSigning() uses
+    if(!t.lifecycle?.isFinalStatus) return
     const vs = Number(String(t.txid).split("@")[1]?.split(".")[0]) * 1000
-    if(!vs || Date.now() - vs > 5 * 60 * 1000) return   // only recent — don't resurrect old history on every reload
-    showSuccess(t.txid, "final-status-in-pending")
+    if(!vs || Date.now() - vs > 5 * 60 * 1000) return   // recent only — don't resurrect old history on reload
+    if(st === "SUCCESS" || st === "SIGNED") boardShowResult(t.txid, true)
+    else if(/FAIL|ERROR|EXPIRE|INVALID/.test(st)) boardShowResult(t.txid, false)
   })
 
+  // the primary path: a tx we signed has left the still-signing set → resolve it
   boardMySignedTx.forEach((ts, txid) => {
     if(stillSigning.has(txid)) return             // still mid-signing — nothing to do yet
     boardMySignedTx.delete(txid)
     if(Date.now() - ts > 5 * 60 * 1000) return
-    showSuccess(txid, "vanished-from-pending")
+    if(boardSuccessAcked.has(txid) || boardResolving.has(txid)) return
+    boardResolving.set(txid, Date.now())
+    boardResolveTx(txid)
   })
 }
 
