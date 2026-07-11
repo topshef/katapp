@@ -709,16 +709,16 @@ function renderRingBoard(root){
     const am = rad((a0 + a1) / 2)
     const mine = isMyAccount(account)
     const hac = account.id.split(":")[1] || account.id
-    // SIGN-STATUSLANG1 first pass: colour each account's arc by ITS OWN signing
-    // status (green=signed / orange=pending / grey=not required), computed by
-    // boardRefreshSignStatus from the SAME widget machinery the /m/sign/ modal
-    // uses (txRead sigs + per-account threshold solve — mirrors paintCardRing's
-    // "none = no special class, just the neutral border" treatment). Falls back
-    // to the whole-tx status only while perAcct hasn't loaded YET (null) — once
-    // it has, even "none" is a real, distinct answer and must win over the
-    // generic orange (user 2026-07-12: a party member who's just receiving,
-    // with no signature required, was showing orange like everyone else).
-    // Balance/association (red) is deliberately parked for this pass.
+    // SIGN-STATUSLANG1: colour each account's arc by ITS OWN signing status —
+    // green=signed, orange=pending, grey=not required, red(dashed)=balance
+    // shortfall or missing token association — computed by boardRefreshSignStatus
+    // from the SAME widget machinery + rules the /m/sign/ modal uses (txRead
+    // sigs, per-account threshold solve, and the modal's own precheck parsing
+    // for the balance/assoc red state — see boardBalanceIssues). Falls back to
+    // the whole-tx status only while perAcct hasn't loaded YET (null) — once it
+    // has, even "none" is a real, distinct answer and must win over the generic
+    // orange (user 2026-07-12: a party member who's just receiving, with no
+    // signature required, was showing orange like everyone else).
     let perAcct = boardSigning && boardSignStatus?.txid === boardSigning.tx?.txid
       ? boardSignStatus.byAccount?.[hac] : null
     if(perAcct === "loading") perAcct = "pending"   // orange while keyInfo loads; no --loading CSS class
@@ -1165,14 +1165,14 @@ let boardSigning = null   // set per render; footer reads it
 // Rather than reimplement a parallel (and inevitably divergent — the exact
 // trap PROP-SIGN-UNIFY1 exists to avoid) status calc, this REUSES the same
 // exported kpool_widget functions the /m/sign/ modal uses:
-//   txRead → the signed pubkeys (data.sigs) + accounts+roles for THIS txid
+//   txRead → the signed pubkeys (data.sigs), accounts+roles, AND data.precheck
+//            for THIS txid
 //   enrichAccountsInfo + calcAccountsThatSign → who must sign (receiver_sig etc)
 //   enrichAccountsKeyInfo → each account's key tree (mirror-node)
 //   getThresholdSummary → has THIS account met its signing threshold?
 // The board loads these via dynamic import() (same mechanism katomia-auth.js
-// already uses for the mirror/protobuf modules). Balance/association (the red
-// state) is parked for this pass per the user — signing status first.
-let boardSignStatus = null   // { txid, byAccount: { hac: 'signed'|'pending'|'loading'|'none' } }
+// already uses for the mirror/protobuf modules).
+let boardSignStatus = null   // { txid, byAccount: { hac: 'signed'|'pending'|'loading'|'none'|'failed' } }
 let _boardSignMod = null
 let _boardSignPoll = null
 let _boardSignLast = ""
@@ -1185,6 +1185,33 @@ async function boardSignModule(){
   ])
   _boardSignMod = { model, threshold, keynorm }
   return _boardSignMod
+}
+
+// user 2026-07-12: "same rules as the regular signing modal" for red too.
+// This is a straight copy of kpool_widget/view.js updateCardBalances()'s
+// short/unassoc parsing (not imported — that function is wired directly into
+// .txcards DOM, not a standalone pure calc). Keep in sync if the modal's
+// rules change; the real fix is hoisting this into the shared module
+// SIGN-STATUSLANG1 already calls for. Two sources, same as the modal:
+// precheck.balances[acct][asset].forecast<0 (structured), and the
+// authoritative precheck.tests.fail strings (these carry things forecast
+// alone misses, e.g. the HBAR fee buffer). Association is a distinct fault
+// from a balance shortfall (it's the RECEIVING side's responsibility) but
+// for the arc's single red/not-red verdict both block the same as the modal:
+// card.dataset.balanceShort = (short.size || unassoc.size) ? '1' : '0'.
+function boardBalanceIssues(precheck){
+  const short = {}, unassoc = {}
+  const add = (map, acct, key) => { (map[acct] ||= new Set()).add(key) }
+  for(const [acct, assets] of Object.entries(precheck?.balances || {}))
+    for(const [asset, f] of Object.entries(assets || {}))
+      if(f && Number(f.forecast) < 0) add(short, acct, asset)
+  for(const line of precheck?.tests?.fail || []){
+    let m
+    if((m = /has sender (\S+) enough (\S+)/.exec(line))) add(short, m[1], m[2])
+    else if((m = /has (\S+) sufficient hbar balance/.exec(line))) add(short, m[1], "hbar")
+    else if((m = /has (?:sender|receiver) (\S+) associated (\S+)/.exec(line))) add(unassoc, m[1], m[2])
+  }
+  return { short, unassoc }
 }
 
 async function boardRefreshSignStatus(){
@@ -1200,9 +1227,15 @@ async function boardRefreshSignStatus(){
     await model.enrichAccountsKeyInfo({ network, accounts })
     const signedPubkeys = (data?.sigs || [])
       .map(s => s.pubKey).filter(Boolean).map(keynorm.normalizePublicKey).filter(Boolean)
+    const { short, unassoc } = boardBalanceIssues(data?.precheck)
     const byAccount = {}
     for(const [id, acc] of Object.entries(accounts)){
       const hac = id.split(":")[1] || id
+      // red wins over everything, same priority as the modal's paintCardRing
+      // (balance-short checked BEFORE signState, ahead of mustSign too — a
+      // pure receiver needing token association still needs to show red)
+      const hasIssue = !!(short[id]?.size || short[hac]?.size || unassoc[id]?.size || unassoc[hac]?.size)
+      if(hasIssue){ byAccount[hac] = "failed"; continue }   // reuses the existing red/dashed .ring-signarc--failed
       if(!acc.mustSign){ byAccount[hac] = "none"; continue }
       const keyTree = acc.keyInfo && keynorm.normalizeKeyTree(acc.keyInfo)
       if(!keyTree){ byAccount[hac] = "loading"; continue }
@@ -1211,7 +1244,8 @@ async function boardRefreshSignStatus(){
     }
     boardSignStatus = { txid: tx.txid, byAccount }
     const sig = JSON.stringify(byAccount)
-    boardDiag("board:signstatus", { txid: tx.txid, byAccount, signedKeys: signedPubkeys.length })
+    boardDiag("board:signstatus", { txid: tx.txid, byAccount, signedKeys: signedPubkeys.length,
+      shortAccts: Object.keys(short), unassocAccts: Object.keys(unassoc) })
     if(sig !== _boardSignLast){ _boardSignLast = sig; render() }   // repaint only on change
   } catch(e){
     boardDiag("board:signstatus:error", { error: String(e) })
