@@ -321,21 +321,53 @@ let boardFocusMode = false                     // ▶ spotlight toggle (session)
 // Real design (confetti, a proper modal, and whether reverting to negotiation
 // is even the right "next" — it may not be) is still open: see BOARD-UI1 /
 // BOARD-GAMIFY1 for the follow-up task.
-const boardSeenMidSigningTx = new Set()
-const boardSuccessAcked = new Set()
+//
+// v2 (same day): the first cut only tracked "seen mid-signing" in an
+// in-memory Set, scoped to this page's lifetime — it silently never fires if
+// the tx was signed via the external /m/sign/ page (a different tab) and the
+// board tab is then freshly loaded/reloaded, because that fresh load never
+// observed the tx mid-signing. Confirmed via kdiag this is exactly what
+// happened on the first real test. Fixed: trigger off recency (parsed from
+// the txid's own validStart timestamp) instead of same-session tracking, and
+// persist acked txids to localStorage so it survives reloads without
+// re-alerting on stale history.
+const BOARD_SUCCESS_ACKED_KEY = "katomia_board_success_acked"
+function boardLoadAckedTx(){
+  try { return new Set(JSON.parse(localStorage.getItem(BOARD_SUCCESS_ACKED_KEY) || "[]")) }
+  catch { return new Set() }
+}
+function boardSaveAckedTx(set){
+  try { localStorage.setItem(BOARD_SUCCESS_ACKED_KEY, JSON.stringify([...set].slice(-50))) }
+  catch {}
+}
+const boardSuccessAcked = boardLoadAckedTx()
+const boardLoggedFinalTx = new Set()
 function boardCheckJustSucceeded(){
-  ;(state?.tx?.pending || []).forEach(t => {
-    if(!t?.txid) return
-    const isFinal = !!t.lifecycle?.isFinalStatus
-    if(!isFinal){ boardSeenMidSigningTx.add(t.txid); return }
-    const st = String(t.lifecycle?.status || "").toUpperCase()
-    const succeeded = st === "SUCCESS" || st === "SIGNED"
-    if(succeeded && boardSeenMidSigningTx.has(t.txid) && !boardSuccessAcked.has(t.txid)){
-      boardSuccessAcked.add(t.txid)
-      boardDiag("board:success:shown", { txid: t.txid })
-      alert(`✅ Deal complete!\n\n${t.txid}\n\nTap OK to continue.`)
-      boardDiag("board:success:acked", { txid: t.txid })
+  const pending = state?.tx?.pending || []
+  // Verification (KDIAG-BOARDBLIND1 taught the lesson: check, don't assume):
+  // does the backend even KEEP a finalized tx in state.tx.pending (with
+  // isFinalStatus true), or does it get removed from the array once settled?
+  // This whole feature's detection depends on the former. Logged once per
+  // txid the first time it's observed final, so the next real test confirms
+  // or refutes it directly instead of another guess.
+  pending.forEach(t => {
+    if(t?.txid && t.lifecycle?.isFinalStatus && !boardLoggedFinalTx.has(t.txid)){
+      boardLoggedFinalTx.add(t.txid)
+      boardDiag("board:tx-pending-final-seen", { txid: t.txid, status: t.lifecycle?.status, pendingCount: pending.length })
     }
+  })
+  pending.forEach(t => {
+    if(!t?.txid || boardSuccessAcked.has(t.txid)) return
+    const st = String(t.lifecycle?.status || "").toUpperCase()
+    if(!t.lifecycle?.isFinalStatus || (st !== "SUCCESS" && st !== "SIGNED")) return
+    // txid = payer@validStartSeconds.nanos — same parse boardDetectSigning() uses
+    const vs = Number(String(t.txid).split("@")[1]?.split(".")[0]) * 1000
+    if(!vs || Date.now() - vs > 5 * 60 * 1000) return   // only recent — don't resurrect old history on every reload
+    boardSuccessAcked.add(t.txid)
+    boardSaveAckedTx(boardSuccessAcked)
+    boardDiag("board:success:shown", { txid: t.txid })
+    alert(`✅ Deal complete!\n\n${t.txid}\n\nTap OK to continue.`)
+    boardDiag("board:success:acked", { txid: t.txid })
   })
 }
 
@@ -637,7 +669,13 @@ function renderRingBoard(root){
     // real logo (BRAND-K1); the geometric placeholder lives in the file
     const kimg = document.createElement("img")
     kimg.className = "ring-hub-ksvg"
-    kimg.src = "assets/kpay-k.svg"
+    // BOARD-CLEANUP3: was a relative "assets/kpay-k.svg" — resolved fine at
+    // board.php?game=<id> (path depth 1) but 404s under the new /board/<id>
+    // route (BOARD-CLEANUP1/58a730a): the .htaccess asset-passthrough rule
+    // only rewrites .js/.css, not images, and browsers resolve relative URLs
+    // against the CURRENT PATH, not the server-rewritten one. Absolute path
+    // sidesteps the whole class of bug instead of chasing every extension.
+    kimg.src = "/m/katomia/assets/kpay-k.svg"
     kimg.alt = ""
     hub.appendChild(kimg)
   } else if(boardSkin === "ring11"){
