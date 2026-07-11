@@ -342,32 +342,57 @@ function boardSaveAckedTx(set){
 }
 const boardSuccessAcked = boardLoadAckedTx()
 const boardLoggedFinalTx = new Set()
+// v3 (same day, real test): signed both required accounts from the board
+// (2× board:sign:click/saved, confirmed in kdiag) and "everything disappeared"
+// per the user — but board:tx-pending-final-seen NEVER fired across the whole
+// test. So the v2 assumption is refuted by direct evidence: the backend does
+// NOT leave a settled tx sitting in state.tx.pending with isFinalStatus true —
+// the entry just vanishes from the array once it settles. New signal: track
+// txids THIS TAB just successfully board:sign:saved; when one of those stops
+// appearing among the still-mid-signing entries in pending, treat that as
+// completion. Known limitation (documented, not solved): a failed/expired tx
+// would ALSO vanish this way, so this can false-positive "complete" on a
+// failure — acceptable for a placeholder that's actively being tested and
+// will get noticed/reported; real completion needs the same threshold-solve
+// SIGN-STATUSLANG1 already flagged as missing. Keeping the isFinalStatus path
+// below too (cheap, harmless) in case it turns out to apply in some other
+// flow (e.g. signed externally rather than via boardDirectSign).
+const boardMySignedTx = new Map()   // txid -> ts, only while still open in the finder below
 function boardCheckJustSucceeded(){
   const pending = state?.tx?.pending || []
-  // Verification (KDIAG-BOARDBLIND1 taught the lesson: check, don't assume):
-  // does the backend even KEEP a finalized tx in state.tx.pending (with
-  // isFinalStatus true), or does it get removed from the array once settled?
-  // This whole feature's detection depends on the former. Logged once per
-  // txid the first time it's observed final, so the next real test confirms
-  // or refutes it directly instead of another guess.
+  const stillSigning = new Set(pending.filter(t => !t?.lifecycle?.isFinalStatus).map(t => t?.txid).filter(Boolean))
+
   pending.forEach(t => {
     if(t?.txid && t.lifecycle?.isFinalStatus && !boardLoggedFinalTx.has(t.txid)){
       boardLoggedFinalTx.add(t.txid)
       boardDiag("board:tx-pending-final-seen", { txid: t.txid, status: t.lifecycle?.status, pendingCount: pending.length })
     }
   })
+
+  const showSuccess = (txid, via) => {
+    if(boardSuccessAcked.has(txid)) return
+    boardSuccessAcked.add(txid)
+    boardSaveAckedTx(boardSuccessAcked)
+    boardDiag("board:success:shown", { txid, via })
+    alert(`✅ Deal complete!\n\n${txid}\n\nTap OK to continue.`)
+    boardDiag("board:success:acked", { txid })
+  }
+
   pending.forEach(t => {
-    if(!t?.txid || boardSuccessAcked.has(t.txid)) return
+    if(!t?.txid) return
     const st = String(t.lifecycle?.status || "").toUpperCase()
     if(!t.lifecycle?.isFinalStatus || (st !== "SUCCESS" && st !== "SIGNED")) return
     // txid = payer@validStartSeconds.nanos — same parse boardDetectSigning() uses
     const vs = Number(String(t.txid).split("@")[1]?.split(".")[0]) * 1000
     if(!vs || Date.now() - vs > 5 * 60 * 1000) return   // only recent — don't resurrect old history on every reload
-    boardSuccessAcked.add(t.txid)
-    boardSaveAckedTx(boardSuccessAcked)
-    boardDiag("board:success:shown", { txid: t.txid })
-    alert(`✅ Deal complete!\n\n${t.txid}\n\nTap OK to continue.`)
-    boardDiag("board:success:acked", { txid: t.txid })
+    showSuccess(t.txid, "final-status-in-pending")
+  })
+
+  boardMySignedTx.forEach((ts, txid) => {
+    if(stillSigning.has(txid)) return             // still mid-signing — nothing to do yet
+    boardMySignedTx.delete(txid)
+    if(Date.now() - ts > 5 * 60 * 1000) return
+    showSuccess(txid, "vanished-from-pending")
   })
 }
 
@@ -1128,6 +1153,7 @@ async function boardDirectSign(account){
     })
     if(!save.ok) throw new Error(`signature save failed (${save.status})`)
     boardDiag("board:sign:saved", { txid: tx.txid, accountId: signAs })
+    boardMySignedTx.set(tx.txid, Date.now())   // feeds boardCheckJustSucceeded's "vanished from pending" detector
     notify(`✍ Signed as ${signAs}`, "success", { timeout: 4000 })
   } catch(e){
     boardDiag("board:sign:error", { error: String(e) })
