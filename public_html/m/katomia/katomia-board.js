@@ -987,7 +987,13 @@ async function boardReadTxBytes(network, txid){
     const text = await r.text()
     let j = null
     try { j = JSON.parse(text) } catch {}
-    if(j?.hex2) return boardHexToBytes(j.hex2)
+    // KDIAG-TXBYTES2: kpool.php wraps the payload as {success, result:{...hex2}} —
+    // the widget's own txRead() (model.js:31, `data = rawTx.result`) unwraps this;
+    // this call was checking j.hex2 at the top level and always missing it, which
+    // is why this always threw "transaction bytes unavailable" (confirmed live:
+    // the endpoint returns 200 with a real hex2, just nested under .result).
+    const hex2 = j?.result?.hex2 ?? j?.hex2
+    if(hex2) return boardHexToBytes(hex2)
     boardDiag("board:sign:bytes-miss", { attempt, status: r.status, bodyStart: text.slice(0, 120) })
     if(attempt === 0) await new Promise(res => setTimeout(res, 1200))
   }
