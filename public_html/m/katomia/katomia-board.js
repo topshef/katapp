@@ -301,7 +301,8 @@ function boardSavePrefs(){
   try {
     localStorage.setItem(BOARD_PREFS_KEY, JSON.stringify({
       skin: boardSkin, selfBottom: boardSelfBottom,
-      netView: boardNetView, partyOnly: boardPartyOnly
+      netView: boardNetView, partyOnly: boardPartyOnly,
+      maxSegments: boardMaxSegments
     }))
   } catch {}
 }
@@ -310,6 +311,14 @@ let boardSelfBottom = _bp.selfBottom ?? true   // me at 6 o'clock; off = shared
 let boardNetView = _bp.netView ?? false        // FULL pairwise netting
 let boardSelectedAccount = null                // footer dropdown selection
 let boardPartyOnly = _bp.partyOnly ?? false    // rule-aware party filter
+
+// BOARD-WHEEL1 (user 2026-07-11): Lazy Susan is retired (scope, not code —
+// still in git history / renderSusanBoard if ever needed). Its job — "too
+// many players to fit" — moves onto the ring itself: mine stays fixed, OTHER
+// players become a scrollable window capped at boardMaxSegments total slots
+// (mine + visible others). A footer number input controls this; default 6.
+let boardMaxSegments = Math.max(3, Number(_bp.maxSegments) || 6)
+let boardOthersScrollOffset = 0   // index into the (player-grouped) others list — which window is showing
 let boardFocusMode = false                     // ▶ spotlight toggle (session)
 
 // BOARD-SUCCESS1 (placeholder — user 2026-07-11): once a tx we were watching
@@ -639,22 +648,35 @@ function renderRingBoard(root){
   }
 
   const frag = document.createDocumentFragment()
-  const N = accounts.length
-  const step = N ? 360 / N : 360
+
+  // BOARD-WHEEL1: mine stays fixed+whole; if there are more players than
+  // boardMaxSegments, others are windowed with a scroll-divider on each side
+  // (boardRingLayoutSlots). Below the cap this is just `accounts` again, one
+  // slot each, no dividers — unchanged from before this feature.
+  const slots = boardRingLayoutSlots(accounts)
+  const acctSlotCount = slots.filter(s => s.type === "account").length
+  const dividerCount = slots.length - acctSlotCount
+  const step = acctSlotCount ? (360 - dividerCount * BOARD_DIVIDER_DEG) / acctSlotCount : 360
+  const widths = slots.map(s => s.type === "divider" ? BOARD_DIVIDER_DEG : step)
+  const cumStart = []
+  { let acc = 0; widths.forEach(w => { cumStart.push(acc); acc += w }) }
+
   const geo = { W, H, cx, cy }
   const bottomPad = etched ? 76 : 48        // keep boxes clear of the footer bar
-  const segs = []                           // geometry handed to the felt layer
+  const segs = []                           // geometry handed to the felt layer (accounts only)
 
-  // ring8 "you at bottom": rotate the shared layout so the middle of my first
-  // run of accounts points due south (90° screen). Toggle off = everyone sees
-  // the identical board (screen-share / spectator mode).
+  // ring8 "you at bottom": rotate the shared layout so the middle of my run
+  // of slots points due south (90° screen). Toggle off = everyone sees the
+  // identical board (screen-share / spectator mode). Mine is ALWAYS one
+  // contiguous run now — boardGroupByPlayer (under the cap) and
+  // boardRingLayoutSlots' construction (over the cap) both guarantee it — so
+  // this no longer needs to hunt for the first contiguous run, just find mine.
   let start = boardStartAngle
   if(ring8() && boardSelfBottom){
-    const mineIdx = accounts.map((a, i) => isMyAccount(a) ? i : -1).filter(i => i >= 0)
+    const mineIdx = slots.map((s, i) => (s.type === "account" && isMyAccount(s.account)) ? i : -1).filter(i => i >= 0)
     if(mineIdx.length){
-      let runEnd = 0
-      while(runEnd < mineIdx.length - 1 && mineIdx[runEnd + 1] === mineIdx[runEnd] + 1) runEnd++
-      const center = boardStartAngle + (mineIdx[0] + (runEnd + 1) / 2) * step
+      const first = mineIdx[0], last = mineIdx[mineIdx.length - 1]
+      const center = boardStartAngle + (cumStart[first] + cumStart[last] + widths[last]) / 2
       start = boardStartAngle + (90 - center)
     }
   }
@@ -674,9 +696,16 @@ function renderRingBoard(root){
     }
   }
 
-  accounts.forEach((account, i) => {
+  slots.forEach((slot, i) => {
 
-    const a0 = start + i * step, a1 = a0 + step
+    const a0 = start + cumStart[i], a1 = a0 + widths[i]
+
+    if(slot.type === "divider"){
+      frag.appendChild(makeScrollDividerWedge(a0, a1, geo, slot.hiddenCount))
+      return
+    }
+
+    const account = slot.account
     const am = rad((a0 + a1) / 2)
     const mine = isMyAccount(account)
     const hac = account.id.split(":")[1] || account.id
@@ -1073,6 +1102,51 @@ function boardGroupByPlayer(accounts){
       return gx !== gy ? gx - gy : x.i - y.i
     })
     .map(x => x.a)
+}
+
+const BOARD_DIVIDER_DEG = 14   // fixed angular width of a scroll-wedge divider
+
+// BOARD-WHEEL1: turns the (already player-grouped) account list into an
+// ordered list of ring "slots" — either an account or a thin scroll-divider.
+// Below boardMaxSegments: unchanged status quo, every account shown, no
+// dividers (this is the ONLY path when the game is small — no behaviour
+// change from before this feature). Above it: mine stays fixed and whole;
+// others are windowed to whatever's left of the budget, with a divider on
+// each side acting as both the visual seam and the scroll button. The window
+// into "others" is a plain modulo slice from boardOthersScrollOffset — tapping
+// either divider advances it by one and loops (infinite wheel, per the user's
+// spec: "keep it basic for now, just get the concept working").
+function boardRingLayoutSlots(accounts){
+  if(accounts.length <= boardMaxSegments)
+    return accounts.map(account => ({ type: "account", account }))
+
+  const mine = accounts.filter(a => isMyAccount(a))
+  const others = accounts.filter(a => !isMyAccount(a))
+  const visibleOthersCount = Math.max(0, boardMaxSegments - mine.length)
+
+  if(!others.length || !visibleOthersCount)
+    return mine.map(account => ({ type: "account", account }))
+
+  const offset = ((boardOthersScrollOffset % others.length) + others.length) % others.length
+  const visibleOthers = []
+  for(let k = 0; k < Math.min(visibleOthersCount, others.length); k++)
+    visibleOthers.push(others[(offset + k) % others.length])
+
+  const hiddenCount = others.length - visibleOthers.length
+  const divider = () => ({ type: "divider", hiddenCount })
+
+  return [
+    ...mine.map(account => ({ type: "account", account })),
+    divider(),
+    ...visibleOthers.map(account => ({ type: "account", account })),
+    divider()
+  ]
+}
+
+function boardScrollOthers(step){
+  boardOthersScrollOffset += step
+  boardDiag("board:wheel:scroll", { offset: boardOthersScrollOffset, step })
+  render()
 }
 
 /* ── SIGNING LAYER (ring15, first slice) ────────────────────────────────── */
@@ -1525,6 +1599,30 @@ function ringFooter(mine){
     bar.appendChild(check("You at bottom", boardSelfBottom,
       v => { boardSelfBottom = v; boardSavePrefs(); render() },
       "On: the board rotates so your accounts face you. Off: everyone sees the identical layout (screen-share / spectator)"))
+
+    // BOARD-WHEEL1: max ring slots (mine + visible others) before the rest
+    // become a scrollable window behind a divider wedge. Lazy Susan's old job
+    // — too many players to fit — now lives here instead of a second board.
+    const maxLabel = document.createElement("label")
+    maxLabel.className = "ring-footer-filter"
+    maxLabel.title = "Maximum players shown on the ring at once (yours + others). Above this, the rest scroll behind a tap-to-advance divider."
+    const maxInput = document.createElement("input")
+    maxInput.type = "number"
+    maxInput.min = "3"
+    maxInput.max = "24"
+    maxInput.className = "ring-footer-maxseg"
+    maxInput.value = boardMaxSegments
+    maxInput.onchange = () => {
+      const v = Math.max(3, Math.min(24, Number(maxInput.value) || 6))
+      maxInput.value = v
+      boardMaxSegments = v
+      boardOthersScrollOffset = 0
+      boardSavePrefs()
+      render()
+    }
+    maxLabel.appendChild(document.createTextNode("Max on ring "))
+    maxLabel.appendChild(maxInput)
+    bar.appendChild(maxLabel)
 
     // Pickable (review 8) — the first GENERIC player pref (KAT-PLAYERPREF1,
     // backend game_setPref → broadcast in players[].prefs). Declares "others
@@ -2457,6 +2555,37 @@ function makeWedge(account, a0, a1, geo, isMine = false){
   el.style.background = getPlayerColour(account.playerId)
 
   if(!isMine) setupDropTarget(el, account)
+  return el
+}
+
+// BOARD-WHEEL1: same pie-slice geometry as makeWedge, but a plain scroll
+// button instead of an account — the seam between "mine" (fixed) and the
+// currently-visible window of "others" when there are more players than
+// boardMaxSegments. Tap = advance the window by one, looping (basic concept
+// per the user's spec — no animation yet).
+function makeScrollDividerWedge(a0, a1, geo, hiddenCount){
+  const el = document.createElement("div")
+  el.className = "board-wedge board-wedge--divider"
+  el.title = `${hiddenCount} more player${hiddenCount === 1 ? "" : "s"} — tap to scroll`
+
+  const R = Math.max(geo.W, geo.H) * 1.6
+  const pts = [[geo.cx, geo.cy]]
+  const steps = 3
+  for(let s = 0; s <= steps; s++){
+    const a = (a0 + (a1 - a0) * s / steps) * Math.PI / 180
+    pts.push([geo.cx + R * Math.cos(a), geo.cy + R * Math.sin(a)])
+  }
+  el.style.clipPath = "polygon(" + pts.map(p => `${p[0].toFixed(0)}px ${p[1].toFixed(0)}px`).join(",") + ")"
+
+  const am = (a0 + a1) / 2 * Math.PI / 180
+  const badge = document.createElement("div")
+  badge.className = "board-wedge-divider-badge"
+  badge.style.left = (geo.cx + Math.min(geo.W, geo.H) * 0.36 * Math.cos(am)) + "px"
+  badge.style.top = (geo.cy + Math.min(geo.W, geo.H) * 0.36 * Math.sin(am)) + "px"
+  badge.textContent = "⋯" + hiddenCount
+  el.appendChild(badge)
+
+  el.onclick = () => boardScrollOthers(1)
   return el
 }
 

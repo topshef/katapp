@@ -31,14 +31,14 @@ $exitHref = $gameId ? '/m/katomia/game/' . rawurlencode($gameId) : '/m/katomia/'
 <div id="notifications"></div>
 
 <div class="board-chrome">
-  <!-- 2026-07-11 cleanup: culled down to the two live skins (ring16 = the
-       proposal-board base, susan5 = Lazy Susan) — everything else was
-       superseded exploration, still in git history if ever needed again.
-       Left as a generic select (not hardcoded to two) so a future skin just
-       adds an <option>. -->
+  <!-- 2026-07-11 cleanup: culled to the one live skin (ring16) — everything
+       else (including susan5/Lazy Susan, retired same day under BOARD-WHEEL1
+       — its job now lives on the ring itself, see katomia-board.js
+       boardRingLayoutSlots) was superseded exploration, still in git history
+       if ever needed again. Left as a generic select (not hardcoded to one)
+       so a future skin is just another <option>. -->
   <select id="boardSkinSelect" title="Board skin">
     <option value="ring16">⭕ Ring — in-app sign, focus play (default)</option>
-    <option value="susan5">🎠 Lazy Susan — cards, drag halo</option>
   </select>
   <a class="board-exit" href="<?= htmlspecialchars($exitHref, ENT_QUOTES, 'UTF-8') ?>" title="Exit to game page">✕</a>
 </div>

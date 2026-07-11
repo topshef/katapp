@@ -65,6 +65,28 @@ body.board-page{
 }
 .board-wedge.drag-over{ opacity: .30; }
 
+/* BOARD-WHEEL1: the scroll-divider wedge between mine and the visible window
+   of others — a plain, neutral, clickable seam (not an account, no player
+   colour, no drop target). */
+.board-wedge--divider{
+  background: repeating-linear-gradient(135deg, rgba(0,0,0,.10) 0 6px, rgba(0,0,0,.04) 6px 12px);
+  cursor: pointer;
+  opacity: .35;
+}
+.board-wedge--divider:hover{ opacity: .55; }
+.board-wedge-divider-badge{
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,.55);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 /* ── ring skin: segments = accounts, oval = basket boundary ─────────────── */
 
 .ring-felt{
@@ -808,6 +830,15 @@ body.board-page{
   border-radius: 8px;
   background: #fff;
   max-width: 40vw;
+}
+
+.ring-footer-maxseg{
+  font-size: 12px;
+  padding: 3px 4px;
+  border: 1px solid #ddd6c6;
+  border-radius: 8px;
+  background: #fff;
+  width: 44px;
 }
 .ring-footer-del{
   border: 1px solid #ddd6c6;
