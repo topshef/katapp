@@ -358,29 +358,26 @@ const boardLoggedFinalTx = new Set()
 // below too (cheap, harmless) in case it turns out to apply in some other
 // flow (e.g. signed externally rather than via boardDirectSign).
 const boardMySignedTx = new Map()   // txid -> ts, tracked from board:sign:saved
-const boardResolving = new Map()    // txid -> ts, vanished-from-pending, awaiting success/fail verdict
 
-// v4 (user 2026-07-11): the alert now REPORTS the actual result. A tx that
-// vanished from pending is either a success or a failure/expiry; we tell them
-// apart via the SETTLED RECORDS the backend pushes on success — the same
-// signal katomia-localdb's settledTxStubs() rebuilds SUCCESS txs from
-// (state.players.*.orders.*.settled, keyed by txid). Settled record present =
-// executed on-chain; absent (after a grace window for the push to arrive) =
-// failed or expired. Synchronous scan of live state, no IndexedDB.
-function boardTxHasSettled(txid){
-  for(const player of Object.values(state?.players || {}))
-    for(const order of Object.values(player?.orders || {}))
-      for(const s of (order?.settled || []))
-        if(s?.txid === txid) return true
-  return false
-}
-
-const BOARD_RESULT_GRACE_MS = 12000   // wait this long for a settled record before calling it a failure
+// v5 (user 2026-07-11, WRONG RESULT CAUGHT LIVE): v4's "settled record" check
+// (state.players.*.orders.*.settled) reported a tx that /m/sign/ itself showed
+// as comboStatus:"SUCCESS", thresholdSatisfied:true as "failed or expired" —
+// confirmed via kdiag + the user cross-checking /m/sign/ directly. Root cause:
+// that settled-record path (katomia-localdb's settledTxStubs()) is for the
+// ORDER/MARKET-MATCH flow — proposal-mode board strikes never write into it at
+// all, so it was ALWAYS going to report "not found" regardless of outcome.
+//
+// The user's own instinct was the fix: "I assume your WebSocket connected to
+// the transaction we're watching for" — and there IS exactly that. The /m/sign/
+// widget opens a PER-TRANSACTION socket (createTxSocket, websocket.js) separate
+// from katomia's own game socket, subscribed to one txid, pushing tx_receipt
+// (the real Hedera receipt status — authoritative, not guessed) and sig
+// updates. Reused directly via dynamic import, same pattern as the signstatus
+// pipeline above — one source of truth instead of a second, divergent guess.
 function boardShowResult(txid, ok){
   if(boardSuccessAcked.has(txid)) return
   boardSuccessAcked.add(txid)
   boardSaveAckedTx(boardSuccessAcked)
-  boardResolving.delete(txid)
   boardDiag("board:result:shown", { txid, ok })
   alert(ok
     ? `✅ Transaction successful\n\n${txid}\n\nTap OK to continue.`
@@ -388,16 +385,50 @@ function boardShowResult(txid, ok){
   boardDiag("board:result:acked", { txid, ok })
 }
 
-// A vanished tx: resolve to success as soon as a settled record appears;
-// otherwise conclude failure once the grace window elapses. Re-checks on a
-// timer because a failure/expiry produces no further game_state push (so no
-// render) to re-trigger this naturally.
-function boardResolveTx(txid){
-  if(boardSuccessAcked.has(txid)){ boardResolving.delete(txid); return }
-  if(boardTxHasSettled(txid)){ boardShowResult(txid, true); return }
-  const since = boardResolving.get(txid)
-  if(since && Date.now() - since > BOARD_RESULT_GRACE_MS){ boardShowResult(txid, false); return }
-  setTimeout(() => boardResolveTx(txid), 3000)
+let _boardTxSocket = null
+let _boardTxSocketId = null
+const BOARD_NO_RECEIPT_MS = 45000   // honest timeout: "unresolved", never a confident false failure guess
+
+function boardHandleTxUpdate(txid, update){
+  boardDiag("board:txsocket:update", { txid, type: update?.type, hasReceipt: !!update?.receipt, hasSigs: !!update?.sigs })
+  if(update?.type === "tx_receipt" && update.receipt){
+    const status = update.receipt.status?._code || update.receipt.status
+    boardShowResult(txid, status === "SUCCESS")
+  }
+  if(update?.sigs) boardRefreshSignStatus()   // event-driven — don't wait for the poll tick
+}
+
+// One socket per txid entering the signing phase; torn down when it leaves.
+// Runs alongside boardEnsureSignStatusPoll (poll is now just a safety net —
+// the socket is primary, matching how the widget itself is documented: "WS is
+// primary, polling is only the fallback").
+function boardEnsureTxSocket(){
+  const txid = boardSigning?.tx?.txid || null
+  if(txid === _boardTxSocketId) return
+  if(_boardTxSocket){ try { _boardTxSocket.close() } catch {} ; _boardTxSocket = null }
+  _boardTxSocketId = txid
+  if(!txid || boardSuccessAcked.has(txid)) return
+  ;(async () => {
+    try {
+      const { createTxSocket } = await import("/vendor/kpay/kpool_widget/websocket.js")
+      if(_boardTxSocketId !== txid) return   // superseded while the import was in flight
+      _boardTxSocket = createTxSocket({
+        baseUrl: window.CONFIG?.HAPI_BASE || "",
+        txid,
+        onTxUpdate: update => boardHandleTxUpdate(txid, update)
+      })
+      boardDiag("board:txsocket:open", { txid })
+      // honest fallback: if 45s pass with no receipt push at all (socket down,
+      // backend hiccup), say so — do NOT guess success or failure
+      setTimeout(() => {
+        if(_boardTxSocketId === txid && !boardSuccessAcked.has(txid)){
+          boardDiag("board:txsocket:no-receipt", { txid })
+        }
+      }, BOARD_NO_RECEIPT_MS)
+    } catch(e){
+      boardDiag("board:txsocket:error", { txid, error: String(e) })
+    }
+  })()
 }
 
 function boardCheckJustSucceeded(){
@@ -411,7 +442,8 @@ function boardCheckJustSucceeded(){
     }
   })
 
-  // if a final status DOES ever land in pending, trust it directly
+  // if a final status DOES ever land in pending, trust it directly (kept as a
+  // cheap secondary path; boardEnsureTxSocket's tx_receipt push is primary)
   pending.forEach(t => {
     if(!t?.txid || boardSuccessAcked.has(t.txid)) return
     const st = String(t.lifecycle?.status || "").toUpperCase()
@@ -422,14 +454,14 @@ function boardCheckJustSucceeded(){
     else if(/FAIL|ERROR|EXPIRE|INVALID/.test(st)) boardShowResult(t.txid, false)
   })
 
-  // the primary path: a tx we signed has left the still-signing set → resolve it
+  // diagnostic only now — resolution itself comes from the tx socket
+  // (boardEnsureTxSocket/boardHandleTxUpdate), which doesn't depend on US
+  // having been the one to sign, so it also covers "someone else's last
+  // signature completed it while I watched"
   boardMySignedTx.forEach((ts, txid) => {
-    if(stillSigning.has(txid)) return             // still mid-signing — nothing to do yet
+    if(stillSigning.has(txid)) return
     boardMySignedTx.delete(txid)
-    if(Date.now() - ts > 5 * 60 * 1000) return
-    if(boardSuccessAcked.has(txid) || boardResolving.has(txid)) return
-    boardResolving.set(txid, Date.now())
-    boardResolveTx(txid)
+    boardDiag("board:mysigned:vanished-from-pending", { txid })
   })
 }
 
@@ -488,8 +520,10 @@ async function render(){
   renderBoard()
 
   // renderBoard() (via renderRingBoard) has just recomputed boardSigning —
-  // start/stop the per-account signing-status poll to match (SIGN-STATUSLANG1)
+  // start/stop the per-account signing-status poll (SIGN-STATUSLANG1) and the
+  // per-tx result socket (BOARD-SUCCESS1) to match
   boardEnsureSignStatusPoll()
+  boardEnsureTxSocket()
 
   // review 9: a chip whose text wraps kept its pre-wrap width — dead
   // right-padding. Shrink wrapped text chips to their actual line extents.
