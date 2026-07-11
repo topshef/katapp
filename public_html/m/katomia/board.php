@@ -1,4 +1,12 @@
-<?php require_once __DIR__ . '/kasset.php'; ?>
+<?php
+require_once __DIR__ . '/kasset.php';
+// 2026-07-11 cleanup: close (✕) sends testers back to the OG game page for
+// this game (tx list, messages, other stuff not on the board yet) instead of
+// the home index — a stopgap until the board is the full home for proposal
+// mode. Falls back to home if somehow reached with no game id.
+$gameId = $_GET['game'] ?? '';
+$exitHref = $gameId ? '/m/katomia/game/' . rawurlencode($gameId) : '/m/katomia/';
+?>
 <!DOCTYPE html>
 <html>
 <head>
@@ -16,38 +24,23 @@
      as the stable reference while board skins are kicked around here. Same data,
      same socket join, same chips — only render() is replaced (katomia-board.js
      loads after katomia-render.js, so its render() declaration wins).
-     URL: board.php?game=<id>&skin=<table|market>   ·   ?demo=1 = local fixture,
-     no socket — a sandbox for skin work and screenshots. -->
+     URL: /m/katomia/board/<id>?skin=<ring16|susan5>  (also reachable directly as
+     board.php?game=<id>&skin=…)   ·   ?demo=1 = local fixture, no socket — a
+     sandbox for skin work and screenshots. -->
 
 <div id="notifications"></div>
 
 <div class="board-chrome">
+  <!-- 2026-07-11 cleanup: culled down to the two live skins (ring16 = the
+       proposal-board base, susan5 = Lazy Susan) — everything else was
+       superseded exploration, still in git history if ever needed again.
+       Left as a generic select (not hardcoded to two) so a future skin just
+       adds an <option>. -->
   <select id="boardSkinSelect" title="Board skin">
-    <option value="ring16">⭕ Ring v16 — in-app sign, focus play (default)</option>
-    <option value="ring15">✍ Ring v15 — signing layer</option>
-    <option value="ring14">🚩 Ring v14 — quarter flag, ghost-wash lock</option>
-    <option value="ring13">🃏 Ring v13 — pennant flag, toast deck</option>
-    <option value="ring12">💡 Ring v12 — strip-light party, clean hub</option>
-    <option value="ring11">🛒 Ring v11 — pick, party glow</option>
-    <option value="ring10">💿 Ring v10 — hub ring, spotlight</option>
-    <option value="ring9">🧿 Ring v9 — party filter, netting v2</option>
-    <option value="susan5">🎠 Lazy Susan v5 — mine as cards, drag halo</option>
-    <option value="susan4">🎪 Lazy Susan v4 — two-tone strips (frozen)</option>
-    <option value="susan3">🎡 Lazy Susan v3 — pick, sized (frozen)</option>
-    <option value="susan2">🎪 Lazy Susan v2 — ring-echo (frozen)</option>
-    <option value="susan">🎡 Lazy Susan v1 (frozen)</option>
-    <option value="ring8">🧷 Ring v8 — snags + footer rework</option>
-    <option value="ring7">🔦 Ring v7 — spotlight, lock dims store</option>
-    <option value="ring6">🧪 Ring v6 — no oval, dark basket</option>
-    <option value="ring5">🔵 Ring v5 — OG sleeves, lock arcs</option>
-    <option value="ring4">🎗 Ring v4 — sleeves, etched boundary</option>
-    <option value="ring2">🎲 Ring v2 — etched boundary, tinted faces</option>
-    <option value="ring3">🎯 Ring v3 — etched centroid, tinted faces</option>
-    <option value="ring">📇 Ring v1 (label rows)</option>
-    <option value="table">🎲 Round table (ref)</option>
-    <option value="market">🏪 Market square (ref)</option>
+    <option value="ring16">⭕ Ring — in-app sign, focus play (default)</option>
+    <option value="susan5">🎠 Lazy Susan — cards, drag halo</option>
   </select>
-  <a class="board-exit" href="/m/katomia/" title="Exit to games">✕</a>
+  <a class="board-exit" href="<?= htmlspecialchars($exitHref, ENT_QUOTES, 'UTF-8') ?>" title="Exit to game page">✕</a>
 </div>
 
 <div id="boardRoot"></div>

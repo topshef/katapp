@@ -122,15 +122,17 @@
       </label>
       <!-- BOARD-UI1: the desktop checkbox grew into a view/skin dropdown. grid/list
            re-render in place (the old viewMode toggle); board-* skins navigate to the
-           standalone full-screen board page (board.php) — the legacy page stays as-is. -->
+           standalone full-screen board page (board.php) — the legacy page stays as-is.
+           2026-07-11 cleanup: round table / market square were early experiments that
+           didn't pan out — culled (still in git history if ever needed). Two live
+           board skins now: ring16 (default proposal board) and susan5 (Lazy Susan). -->
       <label class="desktop-toggle">
         View
         <select id="viewSelect">
           <option value="columns">🖥️ Grid (desktop)</option>
           <option value="merged">📱 List (mobile)</option>
-          <option value="board-ring16">⭕ Board — ring</option>
-          <option value="board-table">🎲 Board — round table</option>
-          <option value="board-market">🏪 Board — market square</option>
+          <option value="board-ring16">⭕ Board</option>
+          <option value="board-susan5">🎠 Lazy Susan</option>
         </select>
       </label>
     </div>

@@ -6,6 +6,14 @@ RewriteRule ^game/(.+\.(js|css))$ $1 [L,QSA]
 RewriteRule ^game/([^/]+)/?$ ?game=$1 [L,QSA,E=TRACE:TY63433]
 RewriteRule ^create/?$ ?page=create [L,QSA,E=TRACE:RJ23394]
 
+# BOARD-UI1 2026-07-11: clean route for the proposal board — /board/<id> instead
+# of board.php?game=<id>. ?skin=… stays a query param (QSA merges it through).
+# Asset rule mirrors the ^game/ one above: kasset() emits relative "file.js?v=…"
+# URLs that the browser resolves against /board/<id>, so they need rewriting
+# back to the real sibling file.
+RewriteRule ^board/(.+\.(js|css))$ $1 [L,QSA]
+RewriteRule ^board/([^/]+)/?$ board.php?game=$1 [L,QSA,E=TRACE:KB18204]
+
 
 RewriteRule ^kea/?$ KEA [L,QSA]
 

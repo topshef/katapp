@@ -145,8 +145,9 @@ if(viewSelect){
   viewSelect.onchange = e => {
     const v = e.target.value
     if(v.startsWith("board-")){
-      location.href = "/m/katomia/board.php?game=" + encodeURIComponent(gameId || "")
-        + "&skin=" + encodeURIComponent(v.slice(6))
+      // KATBOARD-ROUTE1: clean /board/<id> route (.htaccess), skin stays a query param
+      location.href = "/m/katomia/board/" + encodeURIComponent(gameId || "")
+        + "?skin=" + encodeURIComponent(v.slice(6))
       return
     }
     viewMode = v
