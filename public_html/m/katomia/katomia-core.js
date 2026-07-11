@@ -12,7 +12,14 @@
 
 			const parts = location.pathname.split("/").filter(Boolean)
 
-			const i = parts.indexOf("game")
+			// BOARD-CLEANUP1: /board/<id> is a server-side-only rewrite
+			// (.htaccess → board.php?game=$1) — the browser's address bar and
+			// location.pathname/search never change, so this client-side
+			// re-derivation has to recognize "board" too, or it returns null
+			// here (both branches miss) and the backend rejects the socket
+			// join with "Invalid game null".
+			const marker = ["game", "board"].find(m => parts.indexOf(m) >= 0)
+			const i = marker ? parts.indexOf(marker) : -1
 			if(i >= 0 && parts[i+1])
 				return parts[i+1]
 
