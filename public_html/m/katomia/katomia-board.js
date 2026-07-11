@@ -710,17 +710,21 @@ function renderRingBoard(root){
     const mine = isMyAccount(account)
     const hac = account.id.split(":")[1] || account.id
     // SIGN-STATUSLANG1 first pass: colour each account's arc by ITS OWN signing
-    // status (green=signed / orange=pending), computed by boardRefreshSignStatus
-    // from the SAME widget machinery the /m/sign/ modal uses (txRead sigs +
-    // per-account threshold solve). Falls back to the whole-tx status until the
-    // first async refresh lands. Balance/association (red) is deliberately
-    // parked for this pass (still SIGN-STATUSLANG1 / awaiting the balance enrich).
+    // status (green=signed / orange=pending / grey=not required), computed by
+    // boardRefreshSignStatus from the SAME widget machinery the /m/sign/ modal
+    // uses (txRead sigs + per-account threshold solve — mirrors paintCardRing's
+    // "none = no special class, just the neutral border" treatment). Falls back
+    // to the whole-tx status only while perAcct hasn't loaded YET (null) — once
+    // it has, even "none" is a real, distinct answer and must win over the
+    // generic orange (user 2026-07-12: a party member who's just receiving,
+    // with no signature required, was showing orange like everyone else).
+    // Balance/association (red) is deliberately parked for this pass.
     let perAcct = boardSigning && boardSignStatus?.txid === boardSigning.tx?.txid
       ? boardSignStatus.byAccount?.[hac] : null
     if(perAcct === "loading") perAcct = "pending"   // orange while keyInfo loads; no --loading CSS class
     segs.push({ account, a0, a1, am, mine,
       sign: boardSigning && boardSigning.legs[hac]
-        ? (perAcct && perAcct !== "none" ? perAcct : boardSigning.status)
+        ? (perAcct ?? boardSigning.status)
         : null })
 
     // wash + fat drop target: the whole slice IS the account (own segments

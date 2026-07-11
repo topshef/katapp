@@ -1121,6 +1121,11 @@ body.board-page{
 }
 .ring-signarc--signed{ stroke: #35b06f !important; stroke-dasharray: none; }
 .ring-signarc--failed{ stroke: #d64541 !important; stroke-dasharray: 6 6; }
+/* user 2026-07-12: a party member with no signature required (e.g. just
+   receiving, no receiver_sig_required) reads as a plain neutral grey — same
+   idea as the signing modal's card, which applies NO special class at all
+   for "none" and just shows the default border. No pulse, no dash. */
+.ring-signarc--none{ stroke: #9a9a9a !important; stroke-dasharray: none; opacity: .5; }
 @keyframes ring-signpulse{
   0%, 100%{ opacity: .55; }
   50%{ opacity: .95; }
