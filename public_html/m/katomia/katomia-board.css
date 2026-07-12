@@ -881,6 +881,35 @@ body.board-page{
   background: #fff;
   width: 44px;
 }
+
+/* ⚙ Prefs popover (user 2026-07-12): cosmetic/debug controls fold out of the
+   footer — Net, You at bottom, Max on ring, Anim speed. NOT nerd-gated (so
+   deliberately not named a nerd menu); mechanical controls stay on the bar. */
+.ring-footer-prefswrap{ position: relative; }
+.ring-footer-prefsbtn{
+  font-size: 14px;
+  padding: 3px 8px;
+  border: 1px solid #ddd6c6;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+.ring-footer-prefsbtn--open{ background: #f1ecdf; }
+.ring-footer-prefs{
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255,254,249,.98);
+  border: 1px solid #e5e0d4;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  white-space: nowrap;
+  z-index: 13;
+}
 .ring-footer-del{
   border: 1px solid #ddd6c6;
   border-radius: 16px;

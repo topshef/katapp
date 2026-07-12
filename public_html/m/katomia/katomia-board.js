@@ -302,15 +302,19 @@ function boardSavePrefs(){
     localStorage.setItem(BOARD_PREFS_KEY, JSON.stringify({
       skin: boardSkin, selfBottom: boardSelfBottom,
       netView: boardNetView, partyOnly: boardPartyOnly,
-      maxSegments: boardMaxSegments
+      maxSegments: boardMaxSegments, animSpeed: boardAnimSpeed
     }))
   } catch {}
 }
 const _bp = boardLoadPrefs()
-let boardSelfBottom = _bp.selfBottom ?? true   // me at 6 o'clock; off = shared
-let boardNetView = _bp.netView ?? false        // FULL pairwise netting
+let boardSelfBottom = _bp.selfBottom ?? true   // me at 6 o'clock; off = shared (Prefs; default ON per user 2026-07-12)
+let boardNetView = _bp.netView ?? false        // FULL pairwise netting (Prefs)
 let boardSelectedAccount = null                // footer dropdown selection
 let boardPartyOnly = _bp.partyOnly ?? false    // rule-aware party filter
+// animation speed multiplier (Prefs — debug throttle): 1 = normal, 0.25 = ¼
+// speed etc. Divides into every boardAnimate duration.
+let boardAnimSpeed = Number(_bp.animSpeed) || 1
+let boardPrefsOpen = false                     // ⚙ popover, session only
 
 // BOARD-WHEEL1 (user 2026-07-11): Lazy Susan is retired (scope, not code —
 // still in git history / renderSusanBoard if ever needed). Its job — "too
@@ -693,12 +697,12 @@ function renderRingBoard(root){
   const bottomPad = etched ? 76 : 48        // keep boxes clear of the footer bar
   const segs = []                           // geometry handed to the felt layer (accounts only)
 
-  // ring8 "you at bottom": rotate the shared layout so the middle of my run
-  // of slots points due south (90° screen). Toggle off = everyone sees the
+  // ring8 "you at bottom": rotate the layout so the middle of my run of
+  // slots points due south (90° screen). Toggle off = everyone sees the
   // identical board (screen-share / spectator mode). Mine is ALWAYS one
-  // contiguous run now — boardGroupByPlayer (under the cap) and
-  // boardRingLayoutSlots' construction (over the cap) both guarantee it — so
-  // this no longer needs to hunt for the first contiguous run, just find mine.
+  // contiguous run at the layout's front (boardRingLayoutSlots, both
+  // branches) — "the position of the current player is the midpoint between
+  // the two dividers" (user 2026-07-12).
   let start = boardStartAngle
   if(ring8() && boardSelfBottom){
     const mineIdx = slots.map((s, i) => (s.type === "account" && isMyAccount(s.account)) ? i : -1).filter(i => i >= 0)
@@ -706,6 +710,12 @@ function renderRingBoard(root){
       const first = mineIdx[0], last = mineIdx[mineIdx.length - 1]
       const center = boardStartAngle + (cumStart[first] + cumStart[last] + widths[last]) / 2
       start = boardStartAngle + (90 - center)
+    } else {
+      // SPECTATOR (user 2026-07-12): no accounts of mine, but the mine-gap
+      // still has a definition — the zero-width point between the two
+      // dividers (the layout's wrap point, angle 0). Face it due south, so
+      // the divider pair brackets an empty south seat instead of drifting.
+      start = 90
     }
   }
 
@@ -714,19 +724,14 @@ function renderRingBoard(root){
   // one), re-rendering per frame. Shortest path so 350° goes -10°, not +350°.
   if(_boardAnimateNextRotation && _boardStartRendered != null){
     _boardAnimateNextRotation = false
-    cancelAnimationFrame(_boardRotateRaf)
+    _boardRotateCancel?.()
     const from = boardShortestDelta(_boardStartRendered - start)
     _boardRotateOffset = from
-    const t0 = performance.now(), dur = 550
-    const tick = now => {
-      const t = Math.min(1, (now - t0) / dur)
-      const e = t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2   // easeInOutCubic
+    _boardRotateCancel = boardAnimate(550, (e, done) => {
       _boardRotateOffset = from * (1 - e)
-      if(t < 1) _boardRotateRaf = requestAnimationFrame(tick)
-      else _boardRotateOffset = 0
+      if(done){ _boardRotateOffset = 0; _boardRotateCancel = null }
       render()
-    }
-    _boardRotateRaf = requestAnimationFrame(tick)
+    })
   }
   start += _boardRotateOffset
   _boardStartRendered = start
@@ -1403,18 +1408,22 @@ function boardOrganicApply(cx, cy, W, H){
    triggered mid-tween (WS push etc.) just paints at the current offset. */
 let _boardStartRendered = null      // effective start angle last painted
 let _boardRotateOffset = 0          // animated delta, 0 when settled
-let _boardRotateRaf = null
+let _boardRotateCancel = null
 let _boardAnimateNextRotation = false   // set by the toggle, consumed by renderRingBoard
 
 function boardShortestDelta(deg){ return ((deg % 360) + 540) % 360 - 180 }
 
 // shared tween driver: onFrame(easedProgress, done) per rAF, easeInOutCubic —
 // the one easing every board animation uses. Returns a cancel function.
+// boardAnimSpeed (Prefs, user 2026-07-12) divides into every duration — a
+// debug throttle so glitches can be watched at ¼/⅒ speed live instead of
+// recording the screen and scrubbing.
 function boardAnimate(dur, onFrame){
   const t0 = performance.now()
+  const effDur = dur / (boardAnimSpeed || 1)
   let raf
   const tick = now => {
-    const t = Math.min(1, (now - t0) / dur)
+    const t = Math.min(1, (now - t0) / effDur)
     const e = t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
     if(t < 1) raf = requestAnimationFrame(tick)
     onFrame(e, t >= 1)
@@ -1508,11 +1517,23 @@ function boardTogglePartyOnly(v){
 // either divider advances it by one and loops (infinite wheel, per the user's
 // spec: "keep it basic for now, just get the concept working").
 function boardRingLayoutSlots(accounts){
-  if(accounts.length <= boardMaxSegments)
-    return accounts.map(account => ({ type: "account", account }))
-
   const mine = accounts.filter(a => isMyAccount(a))
   const others = accounts.filter(a => !isMyAccount(a))
+
+  // BOARD-WHEEL4 (user 2026-07-12): mine-first in BOTH branches. The
+  // under-cap path used to keep raw join-grouped order (mine wherever it
+  // fell) while the windowed path forced mine first — so a party toggle that
+  // crossed the cap tried to tween between two DIFFERENT slot orderings, and
+  // boardMergeSlotLayouts orphaned the accounts whose relative position
+  // flipped (they lost their wNew and popped in at the end of the tween —
+  // the "suddenly appearing segments" + the end jolt of the recenter). One
+  // consistent order kills the whole family. This does make the layout
+  // viewer-dependent below the cap too (it already was above it) — accepted:
+  // "you at bottom will become the standard... the dividing and rotating
+  // means there's no unified view for everyone anyway" (user, verbatim).
+  if(accounts.length <= boardMaxSegments)
+    return [...mine, ...others].map(account => ({ type: "account", account }))
+
   const visibleOthersCount = Math.max(0, boardMaxSegments - mine.length)
 
   if(!others.length || !visibleOthersCount)
@@ -2080,6 +2101,11 @@ function ringFooter(mine){
   if(ring8()){
     // "Party only" (was "Active only", review 7): rule-aware — who is party
     // to MY proposal. cluster → my cluster; active → all active; all → n/a.
+    // Stays on the MAIN footer (it changes what you see, quasi-mechanical).
+    // FUTURE (user 2026-07-12, context note — not now): this grows into
+    // "player selection views" — party-only as one preset among several,
+    // plus CUSTOM selections (pick an arbitrary group of players to show) —
+    // particularly useful for testing different group scenarios.
     bar.appendChild(check("Party only", boardPartyOnly,
       v => boardTogglePartyOnly(v),   // animated collapse/expand of non-party segments
       "Show only accounts party to your proposal (follows the game's lock rule: " + (gameMeta?.lockRule || "cluster") + ")"))
@@ -2088,36 +2114,77 @@ function ringFooter(mine){
   }
 
   if(ring8()){
-    bar.appendChild(check("Net", boardNetView,
-      v => { boardNetView = v; boardSavePrefs(); render() },
-      "View baskets fully netted per pair: opposite-direction flows of the same asset collapse to their difference (the transaction nets exactly like this — net-on previews the after and avoids the strike jolt)"))
-    bar.appendChild(check("You at bottom", boardSelfBottom,
-      v => { boardSelfBottom = v; _boardAnimateNextRotation = true; boardSavePrefs(); render() },
-      "On: the board rotates so your accounts face you. Off: everyone sees the identical layout (screen-share / spectator)"))
+    // ── ⚙ Prefs popover (user 2026-07-12): the cosmetic/debug controls fold
+    // away — Net, You at bottom, Max on ring, Anim speed. Mechanical controls
+    // (Party only, Pickable — they affect gameplay/visibility semantics) stay
+    // on the main bar. Not gated by the nerd flag (deliberately NOT called a
+    // nerd menu — it shows for everyone for now; may gate later).
+    const prefsWrap = document.createElement("span")
+    prefsWrap.className = "ring-footer-prefswrap"
+    const prefsBtn = document.createElement("button")
+    prefsBtn.className = "ring-footer-prefsbtn" + (boardPrefsOpen ? " ring-footer-prefsbtn--open" : "")
+    prefsBtn.textContent = "⚙"
+    prefsBtn.title = "Preferences"
+    prefsBtn.onclick = () => { boardPrefsOpen = !boardPrefsOpen; render() }
+    prefsWrap.appendChild(prefsBtn)
 
-    // BOARD-WHEEL1: max ring slots (mine + visible others) before the rest
-    // become a scrollable window behind a divider wedge. Lazy Susan's old job
-    // — too many players to fit — now lives here instead of a second board.
-    const maxLabel = document.createElement("label")
-    maxLabel.className = "ring-footer-filter"
-    maxLabel.title = "Maximum players shown on the ring at once (yours + others). Above this, the rest scroll behind a tap-to-advance divider."
-    const maxInput = document.createElement("input")
-    maxInput.type = "number"
-    maxInput.min = "3"
-    maxInput.max = "24"
-    maxInput.className = "ring-footer-maxseg"
-    maxInput.value = boardMaxSegments
-    maxInput.onchange = () => {
-      const v = Math.max(3, Math.min(24, Number(maxInput.value) || 6))
-      maxInput.value = v
-      boardMaxSegments = v
-      boardOthersScrollOffset = 0
-      boardSavePrefs()
-      render()
+    if(boardPrefsOpen){
+      const panel = document.createElement("div")
+      panel.className = "ring-footer-prefs"
+
+      panel.appendChild(check("Net", boardNetView,
+        v => { boardNetView = v; boardSavePrefs(); render() },
+        "View baskets fully netted per pair: opposite-direction flows of the same asset collapse to their difference (the transaction nets exactly like this — net-on previews the after and avoids the strike jolt)"))
+      panel.appendChild(check("You at bottom", boardSelfBottom,
+        v => { boardSelfBottom = v; _boardAnimateNextRotation = true; boardSavePrefs(); render() },
+        "On: the board rotates so your accounts face you (default). Off: everyone sees the identical layout (screen-share / spectator)"))
+
+      // BOARD-WHEEL1: max ring slots (mine + visible others) before the rest
+      // become a scrollable window behind a divider wedge. Lazy Susan's old
+      // job — too many players to fit — lives here instead of a second board.
+      const maxLabel = document.createElement("label")
+      maxLabel.className = "ring-footer-filter"
+      maxLabel.title = "Maximum players shown on the ring at once (yours + others). Above this, the rest scroll behind a tap-to-advance divider."
+      const maxInput = document.createElement("input")
+      maxInput.type = "number"
+      maxInput.min = "3"
+      maxInput.max = "24"
+      maxInput.className = "ring-footer-maxseg"
+      maxInput.value = boardMaxSegments
+      maxInput.onchange = () => {
+        const v = Math.max(3, Math.min(24, Number(maxInput.value) || 6))
+        maxInput.value = v
+        boardMaxSegments = v
+        boardOthersScrollOffset = 0
+        boardSavePrefs()
+        render()
+      }
+      maxLabel.appendChild(document.createTextNode("Max on ring "))
+      maxLabel.appendChild(maxInput)
+      panel.appendChild(maxLabel)
+
+      // animation speed — debug throttle (user 2026-07-12: "I'm having to
+      // record the animation and slow it down to see what's happening")
+      const spdLabel = document.createElement("label")
+      spdLabel.className = "ring-footer-filter"
+      spdLabel.title = "Animation speed — slow everything down to inspect the choreography"
+      const spd = document.createElement("select")
+      spd.className = "ring-footer-maxseg"
+      ;[["1", "1×"], ["0.5", "½×"], ["0.25", "¼×"], ["0.1", "⅒×"]].forEach(([v, t]) => {
+        const o = document.createElement("option")
+        o.value = v; o.textContent = t
+        spd.appendChild(o)
+      })
+      spd.value = String(boardAnimSpeed)
+      if(spd.selectedIndex < 0) spd.value = "1"
+      spd.onchange = () => { boardAnimSpeed = Number(spd.value) || 1; boardSavePrefs() }
+      spdLabel.appendChild(document.createTextNode("Anim "))
+      spdLabel.appendChild(spd)
+      panel.appendChild(spdLabel)
+
+      prefsWrap.appendChild(panel)
     }
-    maxLabel.appendChild(document.createTextNode("Max on ring "))
-    maxLabel.appendChild(maxInput)
-    bar.appendChild(maxLabel)
+    bar.appendChild(prefsWrap)
 
     // Pickable (review 8) — the first GENERIC player pref (KAT-PLAYERPREF1,
     // backend game_setPref → broadcast in players[].prefs). Declares "others
