@@ -7,7 +7,7 @@ window.pendingCreateOrderAccount = null
 // katomia.css (:root --katomia-css-build). Both are surfaced in the diagnostics
 // so we can tell, from the server-side kdiag logs, exactly which version of the
 // code a given browser is running — and whether a cached (stale) asset is in play.
-const KATOMIA_JS_BUILD = "20260703-proplocksign-1"
+const KATOMIA_JS_BUILD = "20260712-ktag-1"
 
 // Self-contained diagnostics sender. window.kdiag (from the kpool widget) is
 // lazy-loaded only when the signing widget mounts, so it is NOT available when
@@ -31,6 +31,65 @@ function katomiaDiagRemoteOn(){
   } catch { return DIAG_DEFAULT_ON }
 }
 
+// ── KDIAG-TAG1 (user 2026-07-12): forensic feedback ticker + device slug ─────
+// Voice feedback about animations needs a shared clock: "at tag 6/537 the
+// glow popped" beats interpolating Otter transcription timestamps (the user's
+// own conclusion — transcript stamps don't share a zero with the logs and
+// drift). Two pieces, both shown in a small on-screen badge and stamped onto
+// every katomiaDiagSend event:
+//   TAG — a tick every 3 seconds, derived from WALL-CLOCK epoch (identical
+//     across every device/browser at once, no sync handshake): displayed as
+//     "6/537" — prefix digit rolls every 1000 ticks (~50 min), last three
+//     digits every 3 s. The user quotes the full tag once, then just the
+//     trailing digits ("…542"). Because it's pure epoch math, a quoted tag
+//     also decodes back to a real 3-second window server-side.
+//   DEV — a per-WINDOW slug ("AX372", sessionStorage — two Chrome windows get
+//     different slugs) so multi-device/multi-window feedback is attributable:
+//     "on Chrome AX372…" — and the kdiag log filters by the same slug.
+// URL-gated, normally off: ?ktag=1 turns it on for the session (sticky via
+// sessionStorage so in-tab navigation keeps it), ?ktag=0 turns it off.
+// The widget's own kdiag (kpool diag.js) events don't carry these fields yet
+// — board/game feedback flows through katomiaDiagSend, which does.
+function ktagEnabled(){
+  try {
+    const p = new URLSearchParams(location.search).get("ktag")
+    if(p === "1"){ sessionStorage.setItem("ktag_on", "1"); return true }
+    if(p === "0"){ sessionStorage.removeItem("ktag_on"); return false }
+    return sessionStorage.getItem("ktag_on") === "1"
+  } catch { return false }
+}
+function ktagSlug(){
+  try {
+    let s = sessionStorage.getItem("ktag_slug")
+    if(!s){
+      const L = "ACDEFHJKLMNPRTUVWXYZ"   // easy to say aloud; no B/G/I/O/Q/S (sound/shape confusables)
+      s = L[Math.floor(Math.random() * L.length)] + L[Math.floor(Math.random() * L.length)]
+        + String(Math.floor(Math.random() * 900) + 100)
+      sessionStorage.setItem("ktag_slug", s)
+    }
+    return s
+  } catch { return "XX000" }
+}
+function ktagNow(){
+  const tick = Math.floor(Date.now() / 3000)
+  return (Math.floor(tick / 1000) % 10) + "/" + String(tick % 1000).padStart(3, "0")
+}
+const KTAG_ON = ktagEnabled()
+if(KTAG_ON){
+  const badge = document.createElement("div")
+  badge.id = "ktagBadge"
+  badge.style.cssText = "position:fixed;top:8px;left:8px;z-index:2147483000;" +
+    "background:rgba(0,0,0,.72);color:#fff;font:600 13px/1.4 ui-monospace,monospace;" +
+    "padding:4px 9px;border-radius:8px;pointer-events:none;letter-spacing:.5px"
+  const paint = () => { badge.textContent = ktagSlug() + " · " + ktagNow() }
+  paint()
+  setInterval(paint, 500)
+  const mount = () => document.body.appendChild(badge)
+  if(document.body) mount()
+  else document.addEventListener("DOMContentLoaded", mount)
+  katomiaDiagSend("ktag:on", { dev: ktagSlug(), tag: ktagNow(), href: location.href })
+}
+
 function katomiaDiagSend(msg, data){
   // always mirror locally for live debugging
   try { console.debug("[katomiaDiag]", msg, data ?? "") } catch {}
@@ -39,8 +98,11 @@ function katomiaDiagSend(msg, data){
 
   if(!katomiaDiagRemoteOn()) return
 
+  const ev = { t: new Date().toISOString(), msg, data }
+  if(KTAG_ON){ ev.tag = ktagNow(); ev.dev = ktagSlug() }   // KDIAG-TAG1: cross-ref with spoken feedback
+
   const payload = JSON.stringify({
-    events: [{ t: new Date().toISOString(), msg, data }],
+    events: [ev],
     page:   location.pathname,
     ua:     navigator.userAgent.slice(0, 200)
   })

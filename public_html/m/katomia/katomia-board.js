@@ -733,6 +733,7 @@ function renderRingBoard(root){
     _boardAnimateNextRotation = false
     _boardRotateCancel?.()
     const from = boardShortestDelta(_boardStartRendered - start)
+    boardDiag("board:rotanim:start", { fromDeg: Math.round(from), speed: boardAnimSpeed })
     _boardRotateOffset = from
     _boardRotateCancel = boardAnimate(550, (e, done) => {
       _boardRotateOffset = from * (1 - e)
@@ -1597,9 +1598,20 @@ function boardTogglePartyOnly(v){
   _boardScrollCancel?.(); _boardScrollCancel = null; _boardOthersRotate = 0
   _boardPartyCancel?.()
   _boardPartyAnim = { entities, e: 0 }
+  // animation forensics (user 2026-07-12): the full entity plan up front +
+  // a completion marker, so a quoted ktag window shows exactly which slots
+  // were collapsing/expanding and to what widths when a glitch was seen
+  boardDiag("board:panim:start", { partyOnly: v, speed: boardAnimSpeed,
+    entities: entities.map(en => ({
+      k: en.slot.type === "divider" ? "D" + en.slot.dividerIndex
+        : (en.slot.account.id.split(":")[1] || en.slot.account.id),
+      wOld: Math.round(en.wOld), wNew: Math.round(en.wNew) })) })
   _boardPartyCancel = boardAnimate(550, (e, done) => {
     if(_boardPartyAnim) _boardPartyAnim.e = e
-    if(done){ _boardPartyAnim = null; _boardPartyCancel = null }
+    if(done){
+      _boardPartyAnim = null; _boardPartyCancel = null
+      boardDiag("board:panim:end", { partyOnly: v })
+    }
     render()
   })
   render()
@@ -2906,6 +2918,7 @@ function ringFelt(segs, g){
   }
   const segBase = seg => fadeWrap((seg?.wclip && baseClipG) ? baseClipG : svg, seg)
   const segTop = seg => fadeWrap((seg?.wclip && topClipG) ? topClipG : (top || svg), seg)
+  const _deferredSignArcs = []   // signing arcs render after the focus shade (lights over darkness)
 
   const mkLine = (a, r0, r1, cls, layer = svg) => {
     const line = document.createElementNS(NS, "line")
@@ -3012,7 +3025,13 @@ function ringFelt(segs, g){
         t.textContent = locked ? "Locked — tap your arc to unlock" : "Tap your arc to lock"
         arc.appendChild(t)
       }
-      segBase(seg).appendChild(arc)
+      // signing-status arcs are LIGHTS (user 2026-07-12): they must
+      // illuminate over the focus/signing darkness, not be buried under it —
+      // "only glowing on the inside… the glow needs to sit on top of the
+      // dark shadow covering the store". Deferred and appended after the
+      // shade below; plain lock arcs keep the normal (base) layering.
+      if(seg.sign) _deferredSignArcs.push({ arc, seg })
+      else segBase(seg).appendChild(arc)
     })
   } else {
     const oval = document.createElementNS(NS, "ellipse")
@@ -3098,6 +3117,15 @@ function ringFelt(segs, g){
     ;(top || svg).appendChild(shade)
   }
   window.__boardShadeOn = shadeOn
+
+  // the deferred signing-status arcs land AFTER the shade: the glow now
+  // spills onto the darkened store side too — a light over the darkness,
+  // which the spotlight amplifies (the exact effect the user designed).
+  // Trade-off: mid-wheel-glide these skip the SVG wheel clip (they'd have to
+  // sit inside topClipG, which was appended before the shade) — signing +
+  // glide simultaneously is rare; revisit if it ever shows.
+  _deferredSignArcs.forEach(({ arc, seg }) => fadeWrap(top || svg, seg).appendChild(arc))
+  _deferredSignArcs.length = 0
 
   if(top){
     const both = document.createDocumentFragment()
