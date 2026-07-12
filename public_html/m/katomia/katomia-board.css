@@ -424,7 +424,7 @@ body.board-page{
   opacity: 1;
 }
 [data-board-fam~="v8"] .ring-lockarc--locked{
-  stroke: #f5a623;
+  stroke: #f5a623 !important;   /* !important: must win over --target/--wall/--open on the same arc */
   stroke-width: 8;
   opacity: .85;
   stroke-dasharray: none;   /* locked = solid, even where the wall is dotted */
@@ -472,9 +472,13 @@ body.board-page{
    arc, and the hub cues; every viewer sees the same board */
 [data-board-fam~="v10"] .board-wedge--mine{ opacity: .12; }
 
-/* desktop: hovering your own (invisible) lock arc previews the lock */
+/* desktop: hovering your own (invisible, or v16 target-strip) lock arc
+   previews the lock. !important (user round 3): must win over --target's
+   own !important resting colour — higher specificity already made it win
+   pre-!important, this just keeps it winning now that --target needs
+   !important too (see --target below). */
 [data-board-fam~="v10"] .ring-lockarc--open:not(.ring-lockarc--locked):hover{
-  stroke: rgba(245, 166, 35, .35);
+  stroke: rgba(245, 166, 35, .35) !important;
   stroke-dasharray: none;
 }
 
@@ -1246,18 +1250,28 @@ body.board-page{
    TARGET STRIP: accounts party to the live proposal pre-paint their oval arc
    as a thick neutral strip — the outer echo of the hub's white party arcs, a
    visible lock target before anyone locks, and the bed the lock-orange fills.
-   OPAQUE, not a darkening (user correction #1): a translucent strip
-   composited two-tone over the zones and the oval midline still showed
-   through — the exact thing the strip exists to remove.
-   PER-PLAYER, not a fixed hex (user correction #2, same day, w/ screenshot):
-   a flat "midpoint of the two zone base colours" ignored that every wedge is
-   ALSO tinted by that player's own wash colour — the fixed beige read as a
-   mismatched third hue between two salmon-pink zones. The real colour is now
-   computed per segment in JS (boardTargetStripColour, katomia-board.js) —
-   this hex is just the FALLBACK for the (should-never-happen) case JS didn't
-   set an inline stroke. Keep it a neutral felt/shade midpoint, not tuned. */
+   OPAQUE, not a darkening (correction #1): a translucent strip composited
+   two-tone over the zones and the oval midline still showed through.
+   PER-PLAYER, not a fixed hex (correction #2, w/ screenshot): every wedge is
+   ALSO tinted by that player's own wash colour, so a flat hex read as a
+   mismatched third hue between two salmon-pink zones. LIGHTENED, not
+   darkened (correction #3, after seeing it live): more contrast against the
+   dark focus-shade. The colour is computed per segment in JS
+   (boardTargetStripColour) via a CSS custom property, --tstrip — the literal
+   #eeeae0 below is just the fallback for the (should-never-happen) case JS
+   didn't set it.
+   !important (correction #4 — user: hover wasn't turning orange, locked
+   wasn't staying solid orange): an EARLIER version set this via
+   arc.style.stroke directly, which unconditionally beats every selector
+   rule including :hover and .ring-lockarc--locked on the SAME element — it
+   wasn't just winning against --target's own class, it was silently
+   overriding every state change downstream. Now a custom property (no
+   override power) + !important only on THIS resting rule (needed to beat
+   --open's transparent default, similar specificity); --locked and the
+   :hover rule carry their own !important + higher specificity and win over
+   this live, as intended. */
 [data-board-fam~="v16"] .ring-lockarc--target{
-  stroke: #eeeae0;
+  stroke: var(--tstrip, #eeeae0) !important;
   stroke-width: 12;
   stroke-dasharray: none;
   opacity: 1;

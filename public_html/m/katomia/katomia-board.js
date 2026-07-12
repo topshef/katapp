@@ -2859,14 +2859,15 @@ function ringHead(account, mine){
 }
 
 // BOARD-WHEEL7 target-strip colour (user 2026-07-12): felt ⊕ this player's
-// wedge wash ⊕ half the store-shade darkening, composited to one flat hex.
-// Constants mirror the CSS literals they're standing in for — recompute
-// (i.e. edit these three) if body.board-page's felt, .board-wedge's wash
-// opacity, or .ring-storeshade's tint/alpha ever change.
+// wedge wash ⊕ half a LIGHTENING (not darkening — user's 2nd-round call,
+// after seeing the darkened version live: wants more contrast against the
+// dark focus-shade background, so the strip goes lighter, not deeper),
+// composited to one flat hex. Constants mirror the CSS literals they're
+// standing in for — recompute (edit these) if body.board-page's felt or
+// .board-wedge's wash opacity ever change.
 const BOARD_FELT_RGB = [245, 241, 232]          // body.board-page background #f5f1e8
 const BOARD_WASH_ALPHA = 0.12                   // .board-wedge opacity
-const BOARD_SHADE_RGB = [60, 48, 22]            // .ring-storeshade fill tint
-const BOARD_SHADE_ALPHA = 0.07                  // .ring-storeshade fill alpha (HALVED below, per user)
+const BOARD_LIGHTEN_ALPHA = 0.035               // half-strength lighten (was half-strength darken toward the store shade's tint — same magnitude, opposite direction, toward white)
 function boardHexToRgb(hex){
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || "")
   return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [153, 153, 153]
@@ -2874,7 +2875,7 @@ function boardHexToRgb(hex){
 const boardMixRgb = (base, tint, alpha) => base.map((c, i) => Math.round(c * (1 - alpha) + tint[i] * alpha))
 function boardTargetStripColour(playerHex){
   const washed = boardMixRgb(BOARD_FELT_RGB, boardHexToRgb(playerHex), BOARD_WASH_ALPHA)
-  const [r, gC, b] = boardMixRgb(washed, BOARD_SHADE_RGB, BOARD_SHADE_ALPHA / 2)
+  const [r, gC, b] = boardMixRgb(washed, [255, 255, 255], BOARD_LIGHTEN_ALPHA)
   return "#" + [r, gC, b].map(c => c.toString(16).padStart(2, "0")).join("")
 }
 
@@ -3049,22 +3050,28 @@ function ringFelt(segs, g){
         + (ring8() ? (seg.mine ? " ring-lockarc--open" : " ring-lockarc--wall") : "")
         + (party ? " ring-lockarc--target" : "")
         + (seg.sign ? " ring-signarc ring-signarc--" + seg.sign : ""))
-      // TARGET STRIP colour, per segment (user correction 2026-07-12): a
-      // fixed CSS hex can't be right — every wedge is ALSO tinted by that
-      // player's own wash colour (.board-wedge, opacity .12), which the
-      // screenshot showed plainly (salmon-pink zones either side of a
-      // mismatched neutral beige strip). Not "midpoint of two hues" either —
-      // the user's actual spec: take THIS wedge's own tint, then the SAME
-      // darkening the store shade applies, at HALF strength, composited
-      // solid (no live alpha blending — that's what caused the double-tone
-      // in the first place). So: felt ⊕ wash(.12) ⊕ dark(.035, half of the
-      // store shade's .07) computed to one flat hex and written inline
-      // (wins over the CSS class's stroke with no specificity fight, no
-      // !important needed). YAK-SHAVED PAST THE POINT OF PROPORTION for a
-      // cosmetic pre-lock affordance strip — candidate to simplify/cull
-      // later (a flat per-player CSS variable would do 90% of this for far
-      // less code) if it ever becomes a maintenance snag.
-      if(party) arc.style.stroke = boardTargetStripColour(getPlayerColour(seg.account.playerId))
+      // TARGET STRIP colour, per segment (user correction round 2, w/
+      // screenshot): a fixed CSS hex can't be right — every wedge is ALSO
+      // tinted by that player's own wash colour (.board-wedge, opacity
+      // .12). felt ⊕ wash(.12) ⊕ lighten(.035), computed to one flat hex —
+      // see boardTargetStripColour.
+      //
+      // Set as a CSS CUSTOM PROPERTY, not arc.style.stroke directly (fixed
+      // round 3 — user: hover wasn't turning orange, and locked wasn't
+      // staying solid orange). A plain inline `stroke` wins over EVERY
+      // selector-based rule unconditionally, including :hover and
+      // .ring-lockarc--locked — it doesn't just beat --target's own class,
+      // it silently beat every state change downstream too. A custom
+      // property carries the colour without that override power: the
+      // resting rule still needs !important to beat --open's transparent
+      // default (both plain classes, resting order doesn't reliably favour
+      // --target), but :hover / --locked keep their normal higher
+      // specificity and win over it live, as CSS intends.
+      // YAK-SHAVED PAST THE POINT OF PROPORTION for a cosmetic pre-lock
+      // affordance strip — candidate to simplify/cull later (a flat
+      // per-player CSS variable would do 90% of this for far less code) if
+      // it ever becomes a maintenance snag.
+      if(party) arc.style.setProperty("--tstrip", boardTargetStripColour(getPlayerColour(seg.account.playerId)))
       if(seg.mine){
         arc.onclick = () => boardToggleLock(seg.account)
         const t = document.createElementNS(NS, "title")
