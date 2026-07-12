@@ -65,6 +65,23 @@ body.board-page{
 }
 .board-wedge.drag-over{ opacity: .30; }
 
+/* BOARD-WHEEL2 v2: mid-glide clip windows — the others region renders inside
+   these two containers, cut to the fixed sector between the dividers, so
+   the leaver/newcomer cross the thresholds like a wheel turning underneath.
+   Two containers preserve the normal z-order (wedge washes below the felt
+   lines at z3, chips above at z5). clip-path creates a stacking context and
+   clips hit-testing too — hidden chip halves aren't clickable, correctly.
+   pointer-events pierces the containers; wedges re-enable explicitly (the
+   property inherits), .ring-organic children already do. */
+.ring-wheelclip{
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.ring-wheelclip--wedges{ z-index: 0; }
+.ring-wheelclip--chips{ z-index: 5; }
+.ring-wheelclip--wedges .board-wedge{ pointer-events: auto; }
+
 /* BOARD-WHEEL1: the scroll-divider wedge between mine and the visible window
    of others — a plain, neutral, clickable seam (not an account, no player
    colour, no drop target). */

@@ -741,12 +741,55 @@ function renderRingBoard(root){
     }
   }
 
-  slots.forEach((slot, i) => {
+  // ── wheel-glide clip window (see the v2 note at _boardOthersRotate) ──────
+  // Mid-glide, everything in the others group renders inside two clip
+  // containers (wedges below the felt, chips above — preserving the normal
+  // z-order) cut to the FIXED sector between the dividers, and the LEAVER is
+  // re-inserted one slot before the window so it slides out through the near
+  // threshold while the newcomer slides in through the far one. The felt's
+  // own elements for these segs (arcs/labels/dims) get the same clip inside
+  // ringFelt (seg.wclip → SVG clipPath). All of it exists only while the
+  // tween runs — the final frame (offset 0) renders the plain layout, which
+  // is exactly when the leaver leaves the DOM.
+  let renderSlots = slots.map((slot, i) => ({ slot, base: cumStart[i], width: widths[i] }))
+  let wheelClip = null, wheelWedgeClip = null, wheelChipClip = null
+  const firstOthers = slots.findIndex(s => s.group === "others")
+  if(_boardOthersRotate > 0 && firstOthers >= 0 && !_boardPartyAnim){
+    let lastOthers = firstOthers
+    slots.forEach((s, i) => { if(s.group === "others") lastOthers = i })
+    wheelClip = { a0: start + cumStart[firstOthers],
+                  a1: start + cumStart[lastOthers] + widths[lastOthers] }
+    // the leaver: the account that just scrolled out of the window (taps are
+    // always +1). With >1 hidden it can never also be the newcomer.
+    const others = accounts.filter(a => !isMyAccount(a))
+    if(others.length > 1){
+      const off = ((boardOthersScrollOffset % others.length) + others.length) % others.length
+      const leaver = others[(off - 1 + others.length) % others.length]
+      renderSlots.splice(firstOthers, 0, {
+        slot: { type: "account", account: leaver, group: "others" },
+        base: cumStart[firstOthers] - step, width: step })
+    }
+    const poly = boardSectorPolygon(wheelClip.a0, wheelClip.a1, geo, 8)
+    wheelWedgeClip = document.createElement("div")
+    wheelWedgeClip.className = "ring-wheelclip ring-wheelclip--wedges"
+    wheelWedgeClip.style.clipPath = poly
+    wheelChipClip = document.createElement("div")
+    wheelChipClip.className = "ring-wheelclip ring-wheelclip--chips"
+    wheelChipClip.style.clipPath = poly
+    frag.appendChild(wheelWedgeClip)
+    frag.appendChild(wheelChipClip)
+  }
+
+  renderSlots.forEach(({ slot, base, width }) => {
 
     // wheel-scroll glide: the others-window slots carry the animated offset;
     // mine and the dividers hold still (the wheel turns, the mouth doesn't)
     const gOff = slot.group === "others" ? _boardOthersRotate : 0
-    const a0 = start + cumStart[i] + gOff, a1 = a0 + widths[i]
+    const a0 = start + base + gOff, a1 = a0 + width
+    // element destinations: clipped containers for the others group mid-glide
+    const inWheel = slot.group === "others" && wheelClip
+    const wedgeDest = inWheel ? wheelWedgeClip : frag
+    const chipDest = inWheel ? wheelChipClip : frag
 
     if(slot.type === "divider"){
       frag.appendChild(makeScrollDividerWedge(a0, a1, geo, slot.hiddenCount))
@@ -770,7 +813,7 @@ function renderRingBoard(root){
     let perAcct = boardSigning && boardSignStatus?.txid === boardSigning.tx?.txid
       ? boardSignStatus.byAccount?.[hac] : null
     if(perAcct === "loading") perAcct = "pending"   // orange while keyInfo loads; no --loading CSS class
-    segs.push({ account, a0, a1, am, mine,
+    segs.push({ account, a0, a1, am, mine, wclip: !!inWheel,
       sign: boardSigning && boardSigning.legs[hac]
         ? (perAcct ?? boardSigning.status)
         : null })
@@ -784,7 +827,7 @@ function renderRingBoard(root){
     if(outsideMyCluster && !mine && outsideMyCluster(account))
       wedge.classList.add("board-wedge--othercluster")
     boardDropTarget(wedge, account)
-    frag.appendChild(wedge)
+    wedgeDest.appendChild(wedge)
 
     const chord = fr => Math.max(0.001, 2 * fr * Math.sin(rad(step / 2)))
     const rOval = ovalR(am), rEdge = edgeR(am)
@@ -838,7 +881,7 @@ function renderRingBoard(root){
         badge.style.top = (cy + rb * Math.sin(am)) + "px"
         wrap.appendChild(badge)
       }
-      frag.appendChild(wrap)
+      chipDest.appendChild(wrap)
 
       const midDeg = (a0 + a1) / 2, halfDeg = Math.max(6, step / 2 - 1)
       _boardOrganicZones.push(
@@ -874,7 +917,7 @@ function renderRingBoard(root){
       if(legs && !inner.querySelector(".asset")) boardTxChips(legs, inner, accounts)
     }
     boardDropTarget(inner, account)
-    frag.appendChild(inner)
+    chipDest.appendChild(inner)
 
     // outer box — available (ghosts in place), outside the oval. v1 carries a
     // label row; etched variants write the id into the felt instead so the
@@ -901,11 +944,11 @@ function renderRingBoard(root){
     boardReservedChips(account, chips, reservedByAccount)
     outer.appendChild(chips)
     boardDropTarget(outer, account)
-    frag.appendChild(outer)
+    chipDest.appendChild(outer)
   })
 
   // felt linework: basket oval, segment boundaries, hub ring, etched ids
-  frag.appendChild(ringFelt(segs, { W, H, cx, cy, rc, rx, ry, step, edgeR, ovalR, rad, etched }))
+  frag.appendChild(ringFelt(segs, { W, H, cx, cy, rc, rx, ry, step, edgeR, ovalR, rad, etched, wheelClip }))
 
   // center pivot — future strike timer / signing hourglass. With lock arcs
   // (ring5/6) the hub rim doubles as the cluster progress ring: the lockbar
@@ -1363,16 +1406,35 @@ function boardAnimate(dur, onFrame){
   return () => cancelAnimationFrame(raf)
 }
 
-// ── wheel-scroll animation (user 2026-07-12): tapping a divider used to snap
-// the others-window one position — now the OTHERS' segments glide one
-// account-width (same ease as the self-bottom rotation), the newcomer
-// sweeping in through the far divider. Mine + the dividers stay fixed (the
-// wheel turns inside the pacman mouth, the mouth doesn't move). The leaver is
-// simply gone at tap — its gap is what the glide closes. Applied as an
-// angle offset on "others"-group slots only (boardRingLayoutSlots marks them).
+// ── wheel-scroll animation (user 2026-07-12, v2 same day): tapping a divider
+// used to snap the others-window one position. Now it reads as a WHEEL
+// TURNING UNDER THE BOARD, revealed between the two divider wedges (the
+// user's mental model, verbatim): the whole others region — wedges, chips,
+// felt arcs/labels — is CLIPPED to the fixed sector between the dividers;
+// during the glide the LEAVER keeps rendering one slot before the window
+// (sliding out through the near divider) while the newcomer slides in
+// through the far one. No pop-in on top, no gap behind: both simply cross
+// the thresholds. The leaver drops from the DOM only when the tween
+// completes (v1 dropped it at tap — the visible blank the user reported).
+// It's a "magic wheel" — the leaver must NOT reappear round the other side,
+// which the one-slot-outside placement + clip guarantees by construction.
+// Applied as an angle offset on "others"-group slots only.
 let _boardOthersRotate = 0
 let _boardScrollCancel = null
 let _boardLastStepDeg = 0     // account-slot width from the last normal layout
+
+// pie-slice polygon spanning [a0,a1] degrees from the board center out past
+// the edges — the one shape used by account wedges, divider wedges and the
+// wheel clip windows (CSS clip-path string)
+function boardSectorPolygon(a0, a1, geo, steps = 6){
+  const R = Math.max(geo.W, geo.H) * 1.6
+  const pts = [[geo.cx, geo.cy]]
+  for(let s = 0; s <= steps; s++){
+    const a = (a0 + (a1 - a0) * s / steps) * Math.PI / 180
+    pts.push([geo.cx + R * Math.cos(a), geo.cy + R * Math.sin(a)])
+  }
+  return "polygon(" + pts.map(p => `${p[0].toFixed(0)}px ${p[1].toFixed(0)}px`).join(",") + ")"
+}
 
 // ── party-only collapse/expand (user 2026-07-12): non-party segments close
 // like pacman eating — their angular width tweens to 0 while the survivors
@@ -2547,14 +2609,46 @@ function ringFelt(segs, g){
   const labelLayer = top || svg
   const dimLayer = top || svg
 
-  const mkLine = (a, r0, r1, cls) => {
+  // wheel-glide clip (BOARD-WHEEL2 v2): mid-glide, the others-group segs'
+  // felt elements (boundary lines, lock/sign arcs, dims, etched ids) render
+  // inside an SVG clipPath cut to the fixed sector between the dividers —
+  // the same window the DOM-side wedge/chip containers use, so the whole
+  // segment crosses the threshold as one piece.
+  let baseClipG = null, topClipG = null
+  if(g.wheelClip){
+    const sectorD = (host, id) => {
+      const R = Math.max(g.W, g.H) * 1.6
+      let d = `M ${g.cx} ${g.cy}`
+      const steps = 8
+      for(let s = 0; s <= steps; s++){
+        const a = g.rad(g.wheelClip.a0 + (g.wheelClip.a1 - g.wheelClip.a0) * s / steps)
+        d += ` L ${(g.cx + R * Math.cos(a)).toFixed(0)} ${(g.cy + R * Math.sin(a)).toFixed(0)}`
+      }
+      const defs = document.createElementNS(NS, "defs")
+      const cp = document.createElementNS(NS, "clipPath")
+      cp.setAttribute("id", id)
+      const path = document.createElementNS(NS, "path")
+      path.setAttribute("d", d + " Z")
+      cp.appendChild(path); defs.appendChild(cp); host.appendChild(defs)
+      const grp = document.createElementNS(NS, "g")
+      grp.setAttribute("clip-path", `url(#${id})`)
+      host.appendChild(grp)
+      return grp
+    }
+    baseClipG = sectorD(svg, "kwheelclip-base")
+    topClipG = top ? sectorD(top, "kwheelclip-top") : baseClipG
+  }
+  const segBase = seg => (seg?.wclip && baseClipG) ? baseClipG : svg
+  const segTop = seg => (seg?.wclip && topClipG) ? topClipG : (top || svg)
+
+  const mkLine = (a, r0, r1, cls, layer = svg) => {
     const line = document.createElementNS(NS, "line")
     line.setAttribute("x1", g.cx + r0 * Math.cos(a))
     line.setAttribute("y1", g.cy + r0 * Math.sin(a))
     line.setAttribute("x2", g.cx + r1 * Math.cos(a))
     line.setAttribute("y2", g.cy + r1 * Math.sin(a))
     line.setAttribute("class", cls)
-    svg.appendChild(line)
+    layer.appendChild(line)
   }
 
   segs.forEach((seg, i) => {
@@ -2569,10 +2663,10 @@ function ringFelt(segs, g){
     const prev = segs[(i + segs.length - 1) % segs.length]
     if(ring8() && segs.length > 1 && (seg.mine !== prev.mine)){
       const rOvalHere = (g.rx * g.ry) / Math.hypot(g.ry * Math.cos(a), g.rx * Math.sin(a))
-      mkLine(a, g.rc, rOvalHere, "ring-boundary")
-      mkLine(a, rOvalHere, rE, "ring-divider")
+      mkLine(a, g.rc, rOvalHere, "ring-boundary", segBase(seg))
+      mkLine(a, rOvalHere, rE, "ring-divider", segBase(seg))
     } else {
-      mkLine(a, g.rc, rE, "ring-boundary")
+      mkLine(a, g.rc, rE, "ring-boundary", segBase(seg))
     }
   })
 
@@ -2617,7 +2711,7 @@ function ringFelt(segs, g){
         const dim = document.createElementNS(NS, "path")
         dim.setAttribute("d", ringStoreZonePath(seg, g))
         dim.setAttribute("class", "ring-storedim")
-        dimLayer.appendChild(dim)
+        segTop(seg).appendChild(dim)
         // v11 (review 10): BIG 🔒 at the store centroid, on top of the dim —
         // third lock cue alongside the orange arc + darkened store
         if(ring11()){
@@ -2630,7 +2724,7 @@ function ringFelt(segs, g){
           big.setAttribute("dominant-baseline", "central")
           big.setAttribute("font-size", Math.min(58, Math.max(34, g.step * 0.5)))
           big.textContent = "🔒"
-          dimLayer.appendChild(big)
+          segTop(seg).appendChild(big)
         }
       }
       // arc visibility matrix — ring8 INVERTS the ownership marking: other
@@ -2652,7 +2746,7 @@ function ringFelt(segs, g){
         t.textContent = locked ? "Locked — tap your arc to unlock" : "Tap your arc to lock"
         arc.appendChild(t)
       }
-      svg.appendChild(arc)
+      segBase(seg).appendChild(arc)
     })
   } else {
     const oval = document.createElementNS(NS, "ellipse")
@@ -2664,7 +2758,7 @@ function ringFelt(segs, g){
     svg.appendChild(oval)
   }
 
-  if(g.etched) segs.forEach(seg => labelLayer.appendChild(ringEtchLabel(seg, g, NS)))
+  if(g.etched) segs.forEach(seg => segTop(seg).appendChild(ringEtchLabel(seg, g, NS)))
 
   if(ring11()){
     // v11 (review 10): party + identity cues moved to the HUB's doorstep —
@@ -2673,7 +2767,7 @@ function ringFelt(segs, g){
     // the hub on my segments (replaces the etched ·you suffix). Later: short
     // player names for others here, tappable → player info/reputation.
     const allAccounts = segs.map(s => s.account)
-    const circArc = (r, a0d, a1d, cls, colour) => {
+    const circArc = (r, a0d, a1d, cls, colour, layer = labelLayer) => {
       const p = d => {
         const a = g.rad(d)
         return `${(g.cx + r * Math.cos(a)).toFixed(1)} ${(g.cy + r * Math.sin(a)).toFixed(1)}`
@@ -2683,7 +2777,7 @@ function ringFelt(segs, g){
       el.setAttribute("d", `M ${p(a0d)} A ${r} ${r} 0 ${span > 180 ? 1 : 0} 1 ${p(a0d + span)}`)
       el.setAttribute("class", cls)
       if(colour) el.style.stroke = colour
-      labelLayer.appendChild(el)
+      layer.appendChild(el)
     }
     segs.forEach(seg => {
       if(ring12()){
@@ -2691,11 +2785,11 @@ function ringFelt(segs, g){
         // PLAYER-COLOUR arc (always), PARTY STRIP-LIGHT (white — gold was
         // clashing with the lock orange; this is "the light comes on")
         circArc(g.rc + 6, seg.a0 + 2, seg.a1 - 2, "ring-playerarc",
-          getPlayerColour(seg.account.playerId))
+          getPlayerColour(seg.account.playerId), segTop(seg))
         if(boardInMyParty(seg.account, allAccounts))
-          circArc(g.rc + 12, seg.a0 + 3, seg.a1 - 3, "ring-partylight")
+          circArc(g.rc + 12, seg.a0 + 3, seg.a1 - 3, "ring-partylight", null, segTop(seg))
       } else if(boardInMyParty(seg.account, allAccounts))
-        circArc(g.rc + 5, seg.a0 + 3, seg.a1 - 3, "ring-partyarc")
+        circArc(g.rc + 5, seg.a0 + 3, seg.a1 - 3, "ring-partyarc", null, segTop(seg))
       if(seg.mine){
         const midDeg = (seg.a0 + seg.a1) / 2
         const mid = g.rad(midDeg)
@@ -2898,15 +2992,7 @@ function makeWedge(account, a0, a1, geo, isMine = false){
   const el = document.createElement("div")
   el.className = "board-wedge"
   el.dataset.accountId = account.id
-
-  const R = Math.max(geo.W, geo.H) * 1.6
-  const pts = [[geo.cx, geo.cy]]
-  const steps = 6
-  for(let s = 0; s <= steps; s++){
-    const a = (a0 + (a1 - a0) * s / steps) * Math.PI / 180
-    pts.push([geo.cx + R * Math.cos(a), geo.cy + R * Math.sin(a)])
-  }
-  el.style.clipPath = "polygon(" + pts.map(p => `${p[0].toFixed(0)}px ${p[1].toFixed(0)}px`).join(",") + ")"
+  el.style.clipPath = boardSectorPolygon(a0, a1, geo)
   el.style.background = getPlayerColour(account.playerId)
 
   if(!isMine) setupDropTarget(el, account)
@@ -2922,15 +3008,7 @@ function makeScrollDividerWedge(a0, a1, geo, hiddenCount){
   const el = document.createElement("div")
   el.className = "board-wedge board-wedge--divider"
   el.title = `${hiddenCount} more player${hiddenCount === 1 ? "" : "s"} — tap to scroll`
-
-  const R = Math.max(geo.W, geo.H) * 1.6
-  const pts = [[geo.cx, geo.cy]]
-  const steps = 3
-  for(let s = 0; s <= steps; s++){
-    const a = (a0 + (a1 - a0) * s / steps) * Math.PI / 180
-    pts.push([geo.cx + R * Math.cos(a), geo.cy + R * Math.sin(a)])
-  }
-  el.style.clipPath = "polygon(" + pts.map(p => `${p[0].toFixed(0)}px ${p[1].toFixed(0)}px`).join(",") + ")"
+  el.style.clipPath = boardSectorPolygon(a0, a1, geo, 3)
 
   const am = (a0 + a1) / 2 * Math.PI / 180
   const badge = document.createElement("div")
