@@ -1246,12 +1246,17 @@ body.board-page{
    TARGET STRIP: accounts party to the live proposal pre-paint their oval arc
    as a thick neutral strip — the outer echo of the hub's white party arcs, a
    visible lock target before anyone locks, and the bed the lock-orange fills.
-   Tone: the blend of the two zone colours it straddles — felt #f5f1e8 inside,
-   felt + rgba(60,48,22,.07) shade outside → the same brown family at roughly
-   double the shade's alpha reads as the midpoint across both. Tweak the
-   alpha to taste. */
+   OPAQUE, not a darkening (user correction, same day): a translucent strip
+   composited two-tone over the zones and the oval midline still showed
+   through — the exact thing the strip exists to remove. Solid colour =
+   the computed midpoint of the two zones it straddles:
+     inner (basket felt)  #f5f1e8            = rgb(245,241,232)
+     outer (store)        felt ⊕ rgba(60,48,22,.07) = rgb(232,227,217)
+     midpoint             = rgb(238,234,224) = #eeeae0
+   Recompute if the felt (body.board-page background) or .ring-storeshade
+   alpha ever change. */
 [data-board-fam~="v16"] .ring-lockarc--target{
-  stroke: rgba(60, 48, 22, .13);
+  stroke: #eeeae0;
   stroke-width: 12;
   stroke-dasharray: none;
   opacity: 1;
