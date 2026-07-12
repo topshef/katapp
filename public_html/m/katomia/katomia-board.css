@@ -895,6 +895,12 @@ body.board-page{
   cursor: pointer;
 }
 .ring-footer-prefsbtn--open{ background: #f1ecdf; }
+.ring-footer-prefs hr{
+  border: 0;
+  border-top: 1px solid #e5e0d4;
+  margin: 2px 0;
+  width: 100%;
+}
 .ring-footer-prefs{
   /* FIXED, not absolute (user 2026-07-12: "the settings button doesn't
      work"): .ring-footer is overflow-x:auto — a scroll container — so an

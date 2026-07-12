@@ -682,6 +682,13 @@ function renderRingBoard(root){
     })
     const acctW = widths.filter((w, i) => slots[i].type === "account" && w > 1)
     step = acctW.length ? acctW.reduce((s, x) => s + x, 0) / acctW.length : 360   // felt font sizing only
+    // BOARD-ORGANIC2 (chip glide): the e=1 layout, so each chip can be given
+    // its final solved position to glide toward during the tween
+    const wN = _boardPartyAnim.entities.map(en => en.wNew)
+    const cumN = []
+    { let a = 0; wN.forEach(w => { cumN.push(a); a += w }) }
+    _boardPartyAnim.targetWidths = wN
+    _boardPartyAnim.targetCum = cumN
   } else {
     slots = boardRingLayoutSlots(accounts)
     const acctSlotCount = slots.filter(s => s.type === "account").length
@@ -735,6 +742,24 @@ function renderRingBoard(root){
   }
   start += _boardRotateOffset
   _boardStartRendered = start
+
+  // BOARD-ORGANIC2: the e=1 start angle (same recenter math over the target
+  // widths, no animation offsets) — anchors each chip's glide destination
+  let targetStart = null
+  if(_boardPartyAnim){
+    targetStart = boardStartAngle
+    if(ring8() && boardSelfBottom){
+      const tw = _boardPartyAnim.targetWidths, tc = _boardPartyAnim.targetCum
+      const mineIdx = slots.map((s, i) => (s.type === "account" && isMyAccount(s.account)) ? i : -1).filter(i => i >= 0)
+      if(mineIdx.length){
+        const first = mineIdx[0], last = mineIdx[mineIdx.length - 1]
+        const center = boardStartAngle + (tc[first] + tc[last] + tw[last]) / 2
+        targetStart = boardStartAngle + (90 - center)
+      } else {
+        targetStart = 90
+      }
+    }
+  }
 
   // v9 (review 7): when ≥2 DISCONNECTED clusters coexist, segments outside my
   // cluster fade their wash — makes the split visible before it settles by
@@ -802,12 +827,20 @@ function renderRingBoard(root){
     frag.appendChild(wheelChipClip)
   }
 
-  renderSlots.forEach(({ slot, base, width }) => {
+  renderSlots.forEach(({ slot, base, width }, slotIdx) => {
 
     // wheel-scroll glide: the others-window slots carry the animated offset;
     // mine and the dividers hold still (the wheel turns, the mouth doesn't)
     const gOff = slot.group === "others" ? _boardOthersRotate : 0
     const a0 = start + base + gOff, a1 = a0 + width
+
+    // BOARD-ORGANIC2: this slot's e=1 angles (party anim renders entities
+    // 1:1 — no splices — so slotIdx indexes targetCum/targetWidths directly)
+    let tMid = null, tW = 0
+    if(_boardPartyAnim && slot.type === "account"){
+      tW = _boardPartyAnim.targetWidths[slotIdx]
+      tMid = targetStart + _boardPartyAnim.targetCum[slotIdx] + tW / 2
+    }
     // element destinations: clipped containers for the others group mid-glide
     const inWheel = slot.group === "others" && wheelClip
     const wedgeDest = inWheel ? wheelWedgeClip : frag
@@ -918,11 +951,25 @@ function renderRingBoard(root){
       chipDest.appendChild(wrap)
 
       const midDeg = (a0 + a1) / 2, halfDeg = Math.max(6, step / 2 - 1)
+      // BOARD-ORGANIC2: e=1 zone geometry for the chip glide — built with the
+      // EXACT same formulas as the normal path uses (halfDeg from the final
+      // uniform width, radii at the final mid-angle), so the end solve caches
+      // under the SAME strict key the post-anim render computes: the final
+      // tween frame IS the final layout, no settle jump. Leavers (tW→0) get
+      // no target — they hold their start positions while fading/clipping.
+      let tBasket = null, tStore = null
+      if(tMid != null && tW > 2){
+        const tAm = rad(tMid)
+        const tOval = ovalR(tAm), tEdge = edgeR(tAm)
+        const tHalf = Math.max(6, tW / 2 - 1)
+        tBasket = { midDeg: tMid, halfDeg: tHalf, rMin: rc + 10, rMax: tOval - 6 }
+        tStore = { midDeg: tMid, halfDeg: tHalf, rMin: tOval + 8, rMax: Math.max(tOval + 40, tEdge - 14) }
+      }
       _boardOrganicZones.push(
         { chips: basketChips, midDeg, halfDeg, rMin: rc + 10, rMax: rOval - 6,
-          key: account.id + "|basket" },
+          key: account.id + "|basket", target: tBasket },
         { chips: storeChips, midDeg, halfDeg, rMin: rOval + 8, rMax: Math.max(rOval + 40, rEdge - 14),
-          key: account.id + "|store" })
+          key: account.id + "|store", target: tStore })
       return
     }
 
@@ -1370,42 +1417,71 @@ function boardOrganicApply(cx, cy, W, H){
   _boardOrganicZones = []
   if(!zones.length) return
 
+  const cacheSet = (key, entry) => {
+    if(_boardOrganicCache.size > 300) _boardOrganicCache.clear()
+    _boardOrganicCache.set(key, entry)
+  }
+  const strictKey = (z, chipKeys, gz) =>
+    z.key + "|" + chipKeys.join(";") + "|" + Math.round(gz.rMin) + "|"
+      + Math.round(gz.rMax) + "|" + gz.halfDeg.toFixed(1) + "|" + W + "x" + H
+
+  // BOARD-ORGANIC2 (user 2026-07-12: the assets "reposition themselves" when
+  // the animation settles — animate them to their target location instead).
+  // During the party tween each chip GLIDES between two solves: START (the
+  // pre-toggle geometry, solved on the first frame under a geometry-loose
+  // key) and END (the e=1 geometry, solved once under the SAME strict key
+  // the post-anim render computes — so the last tween frame equals the next
+  // normal render exactly: no settle jump, and the end solve is already
+  // cached when the tween hands back). Chosen over the also-considered
+  // per-frame re-solve: solver outputs aren't continuous in geometry (chips
+  // can swap arrangements between nearby solves), so per-frame re-solving
+  // risks mid-tween jiggle; two endpoint solves + lerp is cheaper AND
+  // guaranteed smooth. Leavers have no target (width→0) — they hold their
+  // start positions while their wedge clips + fades over them.
   const prepped = zones.filter(z => z.chips.length).map(z => {
     const chipKeys = z.chips.map(el =>
       (el.dataset.assetId || "") + "|" + el.className + "|" + (el.textContent || "").slice(0, 24))
-    // party collapse/expand: segment geometry (halfDeg/radii) changes every
-    // frame of the tween — a geometry-strict key would miss (= re-measure +
-    // re-solve per frame). Drop geometry from the key while it runs: chips
-    // keep their first-frame positions and the shrinking wedge closes over
-    // them (the pacman look), with a fresh strict solve on the final layout.
-    const cacheKey = _boardPartyAnim
-      ? "panim|" + z.key + "|" + chipKeys.join(";") + "|" + W + "x" + H
-      : z.key + "|" + chipKeys.join(";") + "|" + Math.round(z.rMin) + "|"
-        + Math.round(z.rMax) + "|" + z.halfDeg.toFixed(1) + "|" + W + "x" + H
-    return { z, chipKeys, cacheKey, entry: _boardOrganicCache.get(cacheKey) }
+    if(_boardPartyAnim){
+      const startKey = "panim|" + z.key + "|" + chipKeys.join(";") + "|" + W + "x" + H
+      const endKey = z.target ? strictKey(z, chipKeys, z.target) : null
+      return { z, chipKeys, startKey, endKey,
+        entry: _boardOrganicCache.get(startKey),
+        endEntry: endKey ? _boardOrganicCache.get(endKey) : null }
+    }
+    const key = strictKey(z, chipKeys, z)
+    return { z, chipKeys, startKey: key, endKey: null, entry: _boardOrganicCache.get(key), endEntry: null }
   })
 
-  if(prepped.some(p => !p.entry)){
+  if(prepped.some(p => !p.entry || (p.endKey && !p.endEntry))){
     // about to measure fresh sizes — run the wrapped-text width shrink FIRST
     // so the measured (and cached) width is the final one. render() calls
     // boardTightenChips() again later; by then widths are already set, so
-    // it's a no-op. Gated to cache misses so rotation frames (all hits)
+    // it's a no-op. Gated to cache misses so animation frames (all hits)
     // never touch layout beyond the left/top writes below.
     if(ring9()) boardTightenChips()
     prepped.forEach(p => {
-      if(p.entry) return
-      const sizes = p.z.chips.map(el => ({ w: el.offsetWidth || 40, h: el.offsetHeight || 24 }))
-      p.entry = { pos: boardRelaxZone(sizes, p.chipKeys, p.z), sizes }
-      if(_boardOrganicCache.size > 300) _boardOrganicCache.clear()
-      _boardOrganicCache.set(p.cacheKey, p.entry)
+      if(!p.entry){
+        const sizes = p.z.chips.map(el => ({ w: el.offsetWidth || 40, h: el.offsetHeight || 24 }))
+        p.entry = { pos: boardRelaxZone(sizes, p.chipKeys, p.z), sizes }
+        cacheSet(p.startKey, p.entry)
+      }
+      if(p.endKey && !p.endEntry){
+        // same chips, same sizes — only the zone geometry differs
+        p.endEntry = { pos: boardRelaxZone(p.entry.sizes, p.chipKeys, p.z.target), sizes: p.entry.sizes }
+        cacheSet(p.endKey, p.endEntry)
+      }
     })
   }
 
-  prepped.forEach(({ z, entry }) => {
+  const e = _boardPartyAnim ? _boardPartyAnim.e : 0
+  prepped.forEach(({ z, entry, endEntry }) => {
     const mid = z.midDeg * Math.PI / 180
     const cos = Math.cos(mid), sin = Math.sin(mid)
     z.chips.forEach((el, i) => {
-      const p = entry.pos[i], s = entry.sizes[i]
+      let p = entry.pos[i]
+      if(endEntry && endEntry.pos[i])
+        p = { x: p.x + (endEntry.pos[i].x - p.x) * e, y: p.y + (endEntry.pos[i].y - p.y) * e }
+      const s = entry.sizes[i]
       el.style.left = (cx + p.x * cos - p.y * sin - s.w / 2) + "px"
       el.style.top = (cy + p.x * sin + p.y * cos - s.h / 2) + "px"
     })
@@ -1506,6 +1582,17 @@ function boardTogglePartyOnly(v){
   const newL = boardComputeSlotLayout(boardFilteredAccounts())
   const entities = boardMergeSlotLayouts(oldL, newL)
   if(!entities.some(en => Math.abs(en.wOld - en.wNew) > 0.01)){ render(); return }   // no layout change
+  // UNREPRODUCED edge case (user 2026-07-12, "hold that thought"): a
+  // rotation that snapped into place at the END of undoing party-only, seen
+  // once after adding/removing accounts, not reproducible since. Best clues
+  // if it resurfaces: (1) `entities` is a SNAPSHOT — if an account joins or
+  // leaves MID-TWEEN (WS push), the e=1 layout no longer equals the fresh
+  // post-anim layout and the handoff snaps; (2) adding/removing accounts
+  // changes boardGroupByPlayer's earliest-join ordering, so a layout
+  // captured before the change and one computed after can disagree about
+  // MINE's angular extent → recenter target differs → end rotation snap.
+  // Design cue: either restart the tween on any membership change landing
+  // mid-flight, or recompute newL per frame instead of snapshotting.
   // a wheel glide mid-flight would fight the layout tween — settle it first
   _boardScrollCancel?.(); _boardScrollCancel = null; _boardOthersRotate = 0
   _boardPartyCancel?.()
@@ -2110,27 +2197,17 @@ function ringFooter(mine){
     return el
   }
 
-  if(ring8()){
-    // "Party only" (was "Active only", review 7): rule-aware — who is party
-    // to MY proposal. cluster → my cluster; active → all active; all → n/a.
-    // Stays on the MAIN footer (it changes what you see, quasi-mechanical).
-    // FUTURE (user 2026-07-12, context note — not now): this grows into
-    // "player selection views" — party-only as one preset among several,
-    // plus CUSTOM selections (pick an arbitrary group of players to show) —
-    // particularly useful for testing different group scenarios.
-    bar.appendChild(check("Party only", boardPartyOnly,
-      v => boardTogglePartyOnly(v),   // animated collapse/expand of non-party segments
-      "Show only accounts party to your proposal (follows the game's lock rule: " + (gameMeta?.lockRule || "cluster") + ")"))
-  } else {
+  if(!ring8())
     bar.appendChild(check("Active only", showActiveOnly, v => { showActiveOnly = v; render() }))
-  }
 
   if(ring8()){
-    // ── ⚙ Prefs popover (user 2026-07-12): the cosmetic/debug controls fold
-    // away — Net, You at bottom, Max on ring, Anim speed. Mechanical controls
-    // (Party only, Pickable — they affect gameplay/visibility semantics) stay
-    // on the main bar. Not gated by the nerd flag (deliberately NOT called a
-    // nerd menu — it shows for everyone for now; may gate later).
+    // ── ⚙ Prefs popover (user 2026-07-12, decluttered same day): the footer
+    // is now just ⚙ + account select + lock/sign + 🗑 + ▶. EVERYTHING else
+    // lives in this menu — nerd/testing controls (Net, You at bottom, Max on
+    // ring, Anim speed) above a rule, the two MAIN options (Party only,
+    // Pickable — they affect gameplay/visibility semantics) below it. All
+    // shown to everyone for now (deliberately NOT nerd-gated / not named a
+    // nerd menu); the split line is the seam to gate on later.
     const prefsWrap = document.createElement("span")
     prefsWrap.className = "ring-footer-prefswrap"
     const prefsBtn = document.createElement("button")
@@ -2201,18 +2278,31 @@ function ringFooter(mine){
       spdLabel.appendChild(spd)
       panel.appendChild(spdLabel)
 
+      // ── the rule: testing/nerd knobs above, the two MAIN options below ──
+      panel.appendChild(document.createElement("hr"))
+
+      // "Party only" (was "Active only", review 7): rule-aware — who is
+      // party to MY proposal. cluster → my cluster; active → all active;
+      // all → n/a. FUTURE (user 2026-07-12, context note — not now): grows
+      // into "player selection views" — party-only as one preset among
+      // several, plus CUSTOM selections (pick an arbitrary group of players
+      // to show) — particularly useful for testing group scenarios.
+      panel.appendChild(check("Party only", boardPartyOnly,
+        v => boardTogglePartyOnly(v),   // animated collapse/expand of non-party segments
+        "Show only accounts party to your proposal (follows the game's lock rule: " + (gameMeta?.lockRule || "cluster") + ")"))
+
+      // Pickable (review 8) — the first GENERIC player pref (KAT-PLAYERPREF1,
+      // backend game_setPref → broadcast in players[].prefs). Declares
+      // "others may pick assets straight from my store" — window-shopping on
+      // the wheel. The pick GESTURE itself needs its backend action, next pass.
+      const myPrefs = state?.players?.[currentPlayerId]?.prefs || {}
+      panel.appendChild(check("Pickable", !!myPrefs.allowPick,
+        v => socket.send(JSON.stringify({ type: "game_setPref", gameId, key: "allowPick", value: v })),
+        "Allow other players to pick assets straight from your store (they shop, you agreed in advance)"))
+
       prefsWrap.appendChild(panel)
     }
     bar.appendChild(prefsWrap)
-
-    // Pickable (review 8) — the first GENERIC player pref (KAT-PLAYERPREF1,
-    // backend game_setPref → broadcast in players[].prefs). Declares "others
-    // may pick assets straight from my store" — window-shopping on the wheel.
-    // The pick GESTURE itself needs its backend action, next pass.
-    const myPrefs = state?.players?.[currentPlayerId]?.prefs || {}
-    bar.appendChild(check("Pickable", !!myPrefs.allowPick,
-      v => socket.send(JSON.stringify({ type: "game_setPref", gameId, key: "allowPick", value: v })),
-      "Allow other players to pick assets straight from your store (they shop, you agreed in advance)"))
 
     // account dropdown: pick → Lock/Unlock + 🗑 Delete act on it; ➕ Add last.
     // When all-locked, the Lock slot becomes the SIGN button (same checkpoint,
