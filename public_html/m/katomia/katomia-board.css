@@ -1280,8 +1280,20 @@ body.board-page{
    thickness. Party others graduate to the target strip above; the frozen
    v8-15 skins keep their dotted look. */
 [data-board-fam~="v16"] .ring-lockarc--wall{ stroke-dasharray: none; }
-/* locked = the SAME strip filled in orange (not a thin line over the strip) */
-[data-board-fam~="v16"] .ring-lockarc--locked{ stroke-width: 12; }
+/* locked = the SAME strip filled in orange (not a thin line over the strip).
+   opacity 1 (user round 4): the v8 rule's .85 let the two zones show through
+   the orange — the same two-tone artefact again. Solid paint, everywhere. */
+[data-board-fam~="v16"] .ring-lockarc--locked{ stroke-width: 12; opacity: 1; }
+/* hover preview, v16: SOLID pale orange (user round 4, w/ screenshot: the
+   inherited v10 hover is rgba(...,.35) — TRANSLUCENT, so it composited
+   differently over the light inner and darker outer zones = a two-tone
+   strip, the artefact this whole design exists to remove). #f8d5a5 is that
+   same 35% orange pre-composited over the light zone, as one flat paint.
+   Same specificity as the v10 rule, later in the file → wins. */
+[data-board-fam~="v16"] .ring-lockarc--open:not(.ring-lockarc--locked):hover{
+  stroke: #f8d5a5 !important;
+  opacity: 1;
+}
 @keyframes ring-signpulse{
   0%, 100%{ opacity: .55; }
   50%{ opacity: .95; }

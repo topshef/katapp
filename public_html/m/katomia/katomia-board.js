@@ -2867,7 +2867,13 @@ function ringHead(account, mine){
 // .board-wedge's wash opacity ever change.
 const BOARD_FELT_RGB = [245, 241, 232]          // body.board-page background #f5f1e8
 const BOARD_WASH_ALPHA = 0.12                   // .board-wedge opacity
-const BOARD_LIGHTEN_ALPHA = 0.035               // half-strength lighten (was half-strength darken toward the store shade's tint — same magnitude, opposite direction, toward white)
+// HALFWAY TO WHITE (user round 4, w/ screenshot: "the colour is now exactly
+// the same as the inner colour — no change at all"). The first lighten pass
+// naively mirrored the darken's alpha (.035) — but compositing distance is
+// asymmetric: 3.5% toward rgb(60,48,22) moved a light base ~6 RGB units
+// (visible), 3.5% toward white moved it ~0.5 units (imperceptible).
+// "Lighten halfway" = halfway to white.
+const BOARD_LIGHTEN_ALPHA = 0.5
 function boardHexToRgb(hex){
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || "")
   return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [153, 153, 153]
