@@ -481,6 +481,9 @@ document.addEventListener("click", e => {
   const modal = document.getElementById("createOrderModal")
   const actions = ["createOrderSubmit","createOrderEdit","createOrderDelete"]
 
+  if(id == "createOrderRateUp")   return stepOrderRate(+1)
+  if(id == "createOrderRateDown") return stepOrderRate(-1)
+
   if(id == "createOrderAccountAdd"){
     const input = prompt("Enter account ID")
     if(!input) return
@@ -529,6 +532,35 @@ document.addEventListener("click", e => {
 function computeAutoMinFill(offerRaw, requestRaw){
   const d = gcd(Math.abs(offerRaw), Math.abs(requestRaw))
   return d > 0 ? { numerator: 1, denominator: d } : null
+}
+
+// ORDER-CLONE1: round to 4 significant figures (kills the decimal-heavy noise a
+// cloned rate carries; also cleans up floating-point remainders after a step).
+function round4sig(x){
+  if(!Number.isFinite(x) || x === 0) return x
+  return parseFloat(Number(x).toPrecision(4))
+}
+
+// +/- rate stepper. Nudges the 4th significant figure so every step lands on a
+// clean 4-sig-fig value regardless of the rate's magnitude, then recomputes the
+// ratio / integer-math / auto min-fill so the order stays consistent.
+function stepOrderRate(dir){
+  const rateEl = document.getElementById("createOrderRate")
+  if(!rateEl) return
+  let cur = parseFloat(rateEl.value)
+  if(!Number.isFinite(cur) || cur <= 0){
+    cur = 1                                   // seed from a sane base when empty/invalid
+  } else {
+    const step = Math.pow(10, Math.floor(Math.log10(Math.abs(cur))) - 3)
+    cur = round4sig(cur) + dir * step
+    if(cur <= 0) cur = step                    // never step to zero / negative
+  }
+  rateEl.value = round4sig(cur)
+  window.minFillWasAutoSet = true              // let min-fill re-auto-calc for the new rate
+  validateOrderMath()
+  const rawEl = document.getElementById("createOrderRaw")
+  const _type = document.getElementById("createOrderType")?.value
+  if(rawEl && _type === "simple-ft") rawEl.value = buildSimpleFxRaw()
 }
 
 

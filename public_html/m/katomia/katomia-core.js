@@ -12,7 +12,14 @@
 
 			const parts = location.pathname.split("/").filter(Boolean)
 
-			const i = parts.indexOf("game")
+			// BOARD-CLEANUP1: /board/<id> is a server-side-only rewrite
+			// (.htaccess → board.php?game=$1) — the browser's address bar and
+			// location.pathname/search never change, so this client-side
+			// re-derivation has to recognize "board" too, or it returns null
+			// here (both branches miss) and the backend rejects the socket
+			// join with "Invalid game null".
+			const marker = ["game", "board"].find(m => parts.indexOf(m) >= 0)
+			const i = marker ? parts.indexOf(marker) : -1
 			if(i >= 0 && parts[i+1])
 				return parts[i+1]
 
@@ -56,7 +63,11 @@
     }
 
 
-    // Stored as JWK (JSON) in localStorage — same pattern as playerToken
+    // Stored as JWK (JSON) in localStorage — same pattern as playerToken.
+    // KEY ROTATION is deliberately NOT a feature (user decision 2026-07-07): clearing
+    // the browser's site data deletes this key and a fresh one is minted on next load —
+    // that IS the rotation path. Anonymous users churn identity that way for free;
+    // wallet-bound users have no reason to (they'd just re-raise a binding anyway).
     const PLAYER_KEY_STORAGE = "katomiaPlayerKeypair"
 
     async function getOrCreatePlayerKeypair() {
@@ -100,7 +111,6 @@
        DOM
     ========================= */
 
-    const accountLabelInput = document.getElementById("accountLabelInput")
     const addAccountBtn  = document.getElementById("addAccountBtn")
     const createOrderBtn = document.getElementById("createOrderBtn")
     const viewToggle = document.getElementById("viewToggle")
@@ -152,6 +162,8 @@
 			const amount = getTransferAmount(selectedAssetId, available)
 			if(amount === null) return
 
+			// board page: mark self-initiated so the flight animation skips me
+			window.boardNoteLocalMove?.(targetAccountId, selectedFromAccountId, selectedAssetId)
 			socket.send(JSON.stringify({
 				type: "game_offer",
 				gameId,

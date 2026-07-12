@@ -22,17 +22,12 @@
 
   <div id="gameMeta" class="game-meta"></div>
 
+  <!-- PROP-ADDACCT1: the raw input + bracket-notation entry moved into the
+       add-account modal (see #addAccountModal below); this button just opens it. -->
   <div class="controls mode-proposal">
-    <label>
-      <input id="accountLabelInput" placeholder="Account eg 12345" />
-    </label>
-
     <button id="addAccountBtn">
       <i class="fa-solid fa-plus"></i> Add account
     </button>
-
-
-
   </div>
   
 
@@ -41,13 +36,19 @@
 
 <div class="game-left">
 
+<!-- ORDERS-LAYOUT1: the market chart is its OWN full-width section at the top; orders +
+     transactions sit BELOW it as siblings. Previously the chart lived inside
+     #ordersSection, so on desktop the transactions column aligned to the chart's top
+     rather than the orders list. mode-order gates it to order mode like the sections. -->
+<div class="market-chart-section mode-order">
+  <div class="orders-market-summary subtle"></div>
+</div>
+
 <!-- ORDERS-UI1: orders | tx sit side-by-side on desktop (auto-fit grid), and
      wrap to a single column on narrower viewports. -->
 <div class="trade-cols">
 
 <div id="ordersSection" class="mode-order">
-
-  <div class="orders-market-summary subtle"></div>
 
   <details class="orders-details" open>
 
@@ -119,9 +120,22 @@
         <input type="checkbox" id="showTradedAssets"/>
         Traded assets only
       </label>
+      <!-- BOARD-UI1: the desktop checkbox grew into a view/skin dropdown. grid/list
+           re-render in place (the old viewMode toggle); board-* skins navigate to the
+           standalone full-screen board page (board.php) — the legacy page stays as-is.
+           2026-07-11 cleanup: round table / market square were early experiments that
+           didn't pan out — culled (still in git history if ever needed).
+           2026-07-11 BOARD-WHEEL1: Lazy Susan retired too — its job ("too many
+           players to fit") now lives on the ring itself (mine fixed, others a
+           scrollable window, see katomia-board.js boardRingLayoutSlots). One
+           live board skin now: ring16. -->
       <label class="desktop-toggle">
-        <input type="checkbox" id="viewToggle" />
-        🖥️ Desktop view
+        View
+        <select id="viewSelect">
+          <option value="columns">🖥️ Grid (desktop)</option>
+          <option value="merged">📱 List (mobile)</option>
+          <option value="board-ring16">⭕ Board</option>
+        </select>
       </label>
     </div>
 
@@ -161,6 +175,47 @@
 
   </details>
 </div>
+
+	<!-- PROP-ADDACCT1: add-account modal — a COMPOSER for the existing addAccounts()
+	     label format (bracket notation "0.0.x(a,b,0.0.n-7)"); the join path is unchanged.
+	     Flow: pick account (WC-connected / connect / manual) → tick assets → join.
+	     Logic in katomia-addaccount.js. -->
+	<div id="addAccountModal" class="asset-modal hidden">
+		<div class="asset-modal-card addacct-card">
+			<div id="addAcctClose" class="asset-modal-close">✕</div>
+
+			<div class="asset-modal-name">Add account</div>
+
+			<div id="addAcctStepAccount">
+				<label id="addAcctWcLabel">Connected wallet accounts</label>
+				<div id="addAcctWcList" class="addacct-wc-list subtle"></div>
+				<button id="addAcctConnect" type="button">🔗 Connect wallet…</button>
+
+				<label class="addacct-manual-label">Or enter an account</label>
+				<div class="addacct-manual">
+					<input id="addAcctManual" placeholder="Account eg 12345" />
+					<button id="addAcctManualUse" type="button">Use</button>
+				</div>
+			</div>
+
+			<div id="addAcctStepAssets" class="hidden">
+				<div class="addacct-chosen"><span id="addAcctChosen" class="addacct-chosen-id"></span> <button id="addAcctBack" type="button" class="addacct-link">change</button></div>
+				<div class="addacct-assets-head">
+					<label>Assets to bring in</label>
+					<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">none</button></span>
+				</div>
+				<div id="addAcctAssets" class="addacct-assets"></div>
+				<p id="addAcctHint" class="subtle addacct-hint hidden">💠 Not bound yet — you can join anyway; bind this account in <button id="addAcctProfileLink" type="button" class="addacct-link">Profile → Wallet binding</button> to carry reputation.</p>
+			</div>
+
+			<div id="addAcctStatus" class="subtle addacct-status"></div>
+
+			<div id="addAcctActions" class="addacct-actions hidden">
+				<button id="addAcctJoinAll" type="button">Join with all assets</button>
+				<button id="addAcctJoin" type="button">Join with selected (<span id="addAcctJoinCount">0</span>)</button>
+			</div>
+		</div>
+	</div>
 
 	<div id="createOrderModal" class="asset-modal hidden">
 		<div class="asset-modal-card">
@@ -222,6 +277,10 @@
       
       <label>Rate <span id="createOrderRateUnit" style="font-weight:normal;font-size:11px;color:#999;margin-left:4px;"></span></label>
       <input id="createOrderRate" type="number" step="any">
+      <div class="rate-steps">
+        <button type="button" id="createOrderRateDown" tabindex="-1" aria-label="Decrease rate">−</button>
+        <button type="button" id="createOrderRateUp" tabindex="-1" aria-label="Increase rate">+</button>
+      </div>
       
       <div id="createOrderRateHint" style="font-size:11px;color:#888;margin-top:4px;min-height:14px;"></div>
 
@@ -323,11 +382,26 @@
   <div id="exitGameBtn" class="exit-game-btn">🗑️</div>
 
 
-<script><?php require_once('config.php');?>
+<script><?php require_once('config.php');
+  // KFLOW1: frontend commit stamp for flow fingerprints — resolve HEAD without
+  // exec (worktree-safe: .git may be a "gitdir:" pointer file; refs live in commondir).
+  $kg = dirname($_SERVER['DOCUMENT_ROOT']) . '/.git';
+  if (is_file($kg) && preg_match('/^gitdir:\s*(.+)$/m', (string)@file_get_contents($kg), $km)) $kg = trim($km[1]);
+  $khead = trim((string)@file_get_contents("$kg/HEAD"));
+  if (preg_match('#^ref:\s*(.+)#', $khead, $km)) {
+      $kcommon = trim((string)@file_get_contents("$kg/commondir"));
+      $kroot = $kcommon ? ($kcommon[0] === '/' ? $kcommon : "$kg/$kcommon") : $kg;
+      $khead = trim((string)@file_get_contents($kroot . '/' . trim($km[1])));
+  }
+  $kflowCommit = preg_match('/^[0-9a-f]{40}$/', $khead) ? substr($khead, 0, 7) : '';
+?>
   window.CONFIG = {
     HAPI_BASE: "<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>"
   }
+  window.KFLOW_COMMIT = "<?= htmlspecialchars($kflowCommit, ENT_QUOTES, 'UTF-8') ?>"
 </script>
+<!-- KFLOW1: flow-fingerprint checkpoints — loads first so every later script can call window.kflow -->
+<script src="<?= kasset('kflow.js') ?>"></script>
 
 <script src="/m/bid/localbase.min.js"></script> <!-- beware spelling of Localbase -->
 <script type="module" data-global src="/m/tools/glog/latest/glog.js" ></script>
@@ -365,6 +439,7 @@
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
 <script src="<?= kasset('katomia-profile.js') ?>"></script>
 <script src="<?= kasset('katomia-auth.js') ?>"></script>
+<script src="<?= kasset('katomia-addaccount.js') ?>"></script>
 
 <!-- KAT-FEEDBACK1 dogfooding: long-press anywhere on the game page (2s) opens
      a "Send Feedback" modal. Signs with the intent keypair above if present. -->

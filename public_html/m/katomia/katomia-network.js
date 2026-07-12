@@ -90,8 +90,9 @@ function addAccounts(raw){
 
   }
 
-  if(!socket || socket.readyState !== WebSocket.OPEN) connect(sendAll)
-  else sendAll()
+  // Always via connect(): it runs sendAll immediately on a joined socket and
+  // queues it behind game_join otherwise (OPEN-but-unjoined / CONNECTING / dead).
+  connect(sendAll)
 }
 
 function removeAccount(accountId){
@@ -116,9 +117,12 @@ function removeAccount(accountId){
   }))
 }
 
-addAccountBtn.onclick = () => {
-  addAccounts(accountLabelInput.value)
-  accountLabelInput.value = ""
+// PROP-ADDACCT1: the button opens the add-account modal (katomia-addaccount.js);
+// prompt() fallback keeps the game usable if the modal script ever fails to load.
+// Guarded: absent on board.php (BOARD-UI1).
+if(addAccountBtn) addAccountBtn.onclick = () => {
+  if(typeof openAddAccountModal === "function") openAddAccountModal()
+  else { const v = prompt("Enter account ID"); if(v) addAccounts(v) }
 }
 
 
@@ -126,12 +130,32 @@ addAccountBtn.onclick = () => {
 const showTradingAccounts = document.getElementById("showTradingAccounts")
 const showTradedAssets = document.getElementById("showTradedAssets")
 
-viewToggle.onchange = e => {
+// Guarded like core's viewToggle init: this file is also loaded on pages without
+// the proposal filter controls (board.php — BOARD-UI1).
+if(viewToggle) viewToggle.onchange = e => {
   viewMode = e.target.checked ? "columns" : "merged"
   render()
 }
 
-showTradingAccounts.onchange = e => {
+// BOARD-UI1: view SELECT (game.php replaced the desktop checkbox with a dropdown —
+// grid/list stay on-page, board skins navigate to the standalone board page).
+const viewSelect = document.getElementById("viewSelect")
+if(viewSelect){
+  viewSelect.value = viewMode
+  viewSelect.onchange = e => {
+    const v = e.target.value
+    if(v.startsWith("board-")){
+      // KATBOARD-ROUTE1: clean /board/<id> route (.htaccess), skin stays a query param
+      location.href = "/m/katomia/board/" + encodeURIComponent(gameId || "")
+        + "?skin=" + encodeURIComponent(v.slice(6))
+      return
+    }
+    viewMode = v
+    render()
+  }
+}
+
+if(showTradingAccounts) showTradingAccounts.onchange = e => {
 
   showActiveOnly = e.target.checked
 
@@ -144,7 +168,7 @@ showTradingAccounts.onchange = e => {
   render()
 }
 
-showTradedAssets.onchange = e => {
+if(showTradedAssets) showTradedAssets.onchange = e => {
 
   showTradedOnly = e.target.checked
   showTradingAccounts.checked = e.target.checked
@@ -200,15 +224,30 @@ if(!window.__katomiaWsLifecycle){
   window.addEventListener("online", wake)
 }
 
+// Intent key cache: onopen must send game_join BEFORE any queued action, but the
+// key derivation is async — cache it after first use so reconnect joins are sent
+// synchronously inside onopen (no window for a user action to race past the join).
+let cachedIntentKey = null
+
 function connect(onOpenAction){
 
+  // An explicit connect (e.g. adding an account again after a 🗑️ exit) re-arms the
+  // resilience layer that exitGame() switched off.
+  wsShouldRun = true
+
   if(socket && socket.readyState === WebSocket.OPEN){
+    // OPEN but join not yet sent = onopen still mid-await (fresh reconnect).
+    // Sending now would reach the server before game_join and be refused
+    // ("socket.playerToken missing") — queue behind the join instead.
+    if(!socket.__joined){ (socket.__onJoined ||= []).push(onOpenAction || (() => {})); return }
     onOpenAction && onOpenAction()
     return
   }
 
   if(socket && socket.readyState === WebSocket.CONNECTING){
-    onOpenAction && socket.addEventListener("open", onOpenAction, { once:true })
+    // Queue behind the join, not the raw 'open' event — a bare open-listener runs
+    // while onopen may still be awaiting the intent key, i.e. before game_join.
+    onOpenAction && (socket.__onJoined ||= []).push(onOpenAction)
     return
   }
 
@@ -225,20 +264,33 @@ function connect(onOpenAction){
 		// channel is the secure association. In order mode the backend learns the key from
 		// order signatures; proposal mode needs it up front so account rows can show the
 		// player-aware 💠/△ control marker before anything is signed.
-		let intentPublicKey = null
-		try { if(typeof getKatomiaOrderPubkeyHex === "function") intentPublicKey = await getKatomiaOrderPubkeyHex() }
-		catch(e){ console.error("[join] intent key unavailable", e) }
+		// Cached after first derivation so reconnects skip the await — that await opened
+		// a window where the socket was OPEN but unjoined, and a user action sent then
+		// was silently refused server-side ("socket.playerToken missing", 2026-07-07).
+		let intentPublicKey = cachedIntentKey
+		if(!intentPublicKey){
+			try { if(typeof getKatomiaOrderPubkeyHex === "function") intentPublicKey = cachedIntentKey = await getKatomiaOrderPubkeyHex() }
+			catch(e){ console.error("[join] intent key unavailable", e) }
+		}
 
 		const payload = {
       type: "game_join",
       gameId,
       playerToken: getOrCreatePlayerToken(),
       playerName: "anon",
+      // KFLOW1: thread the frontend run + visit ids so backend checkpoints on this
+      // socket join the same flow fingerprint (stored on the socket server-side)
+      ...(window.kflow ? { kflowRun: window.kflow.run, kflowVisit: window.kflow.visit } : {}),
       ...(intentPublicKey ? { intentPublicKey } : {})
     }
 
+    window.kflow?.("game:join", intentPublicKey ? "keyed" : "plain", { gameId })
     socket.send(JSON.stringify(payload))
 		glog("payload for game_join", payload)
+
+		// join is on the wire — release anything queued behind it (see connect()).
+		socket.__joined = true
+		;(socket.__onJoined || []).splice(0).forEach(fn => { try { fn() } catch(e){ console.error(e) } })
 
     onOpenAction && onOpenAction()
   }
@@ -263,18 +315,26 @@ function connect(onOpenAction){
 		if(data.type !== "game_state") glog(`websocket data IGNORED for type=${data.type}`, data)
 		if(data.type !== "game_state") return
 
+    // KFLOW1: first-state marker — the moment the game is actually usable. Once
+    // per pageload (kflow collapses consecutive dups anyway; this keeps it clean).
+    if(!window.__kflowStateSeen){ window.__kflowStateSeen = true; window.kflow?.("game:state", "first", { gameId }) }
+
     gameMeta = data.meta || null
     state = data.state
+    // PROP-ADDACCT1: survives exitGame() (which nulls gameMeta) so the add-account
+    // modal still knows the game's network when re-adding after a 🗑️ exit.
+    if(gameMeta?.network) window.__katomiaNetwork = gameMeta.network
     
     document.body.dataset.tradingMode = gameMeta?.config?.tradingMode || ""
   
     currentPlayerId = data.myPlayerId || null
     restoreCachedAccounts()
 
-    if(window.pendingAutoload && accountLabelInput && !accountLabelInput.value){
-      accountLabelInput.value = window.pendingAutoload
+    if(window.pendingAutoload){
+      // PROP-ADDACCT1: autoload adds directly — the old path staged it via the
+      // (now removed) inline account input before clicking Add.
+      addAccounts(window.pendingAutoload)
       window.pendingAutoload = null
-      addAccountBtn.click()
     }
 
 		glog(`state received for ${currentPlayerId}`, {gameMeta, state})
@@ -303,16 +363,28 @@ function exitGame(){
 	wsShouldRun = false
 	if(wsReconnectTimer){ clearTimeout(wsReconnectTimer); wsReconnectTimer = null }
 
+	// Exit is the explicit "I'm done" signal: wipe this game's account cache so a
+	// refresh does NOT auto-restore the accounts (user 2026-07-07). The cache and
+	// restoreCachedAccounts() stay for their real job — re-seating you when the
+	// memory-only backend restarts MID-game. Deep links (?autoload=) are a separate
+	// path (window.pendingAutoload) and still work after an exit.
+	setCachedAccountLabels([])
+
 	if(socket){
 		const playerToken = getOrCreatePlayerToken()
 
+		window.kflow?.("game:exit", "", { gameId })
 		socket.send(JSON.stringify({
 			type: "game_exit",
 			gameId,
 			playerToken
 		}))
 
-		socket.close()
+		// Deferred close: close() right after send can lose the exit frame when the
+		// page is torn down (fast refresh/navigation) — then the server keeps the
+		// accounts and they're back on reload despite the cache wipe above.
+		const s = socket
+		setTimeout(() => { try { s.close() } catch(e){} }, 300)
 	}
 
 	socket = null

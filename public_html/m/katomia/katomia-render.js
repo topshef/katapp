@@ -593,7 +593,14 @@ function getFastThumb(url, imgEl){
       a.style.fontSize = "12px"
       a.style.textDecoration = "none"
 
-      a.href = `/m/sign/?network=${tx.network}&txid=${tx.txid}&pch=${tx.pch}`
+      // KDIAG-BOARDSIGNDOT1: was raw-interpolated + unguarded — a tx without a
+      // txid yet produced a literal "...?txid=undefined" link to /m/sign/,
+      // landing on an empty sign page (no hex2 in txRead payload)
+      a.href = tx.txid
+        ? `/m/sign/?network=${encodeURIComponent(tx.network || "")}` +
+          `&txid=${encodeURIComponent(tx.txid)}&pch=${encodeURIComponent(tx.pch || "")}`
+        : "#"
+      if(!tx.txid) a.style.pointerEvents = "none"
       a.target = "_blank"
       
       a.dataset.txid = tx.txid
@@ -769,17 +776,13 @@ function getFastThumb(url, imgEl){
 
 			exitBtn.onclick = e => {
 				e.stopPropagation()
-
-				const ok = confirm(
-					`Remove account ${account.label}?\n\nAll assets and offers will be removed.`
-				)
-				if(!ok) return
-
-				socket.send(JSON.stringify({
-					type: "game_removeAccount",
-					gameId,
-					accountId: account.id
-				}))
+				// KAT-AUTOLOAD2: route through removeAccount() (network.js) — it
+				// forgets the label in the localStorage account cache before sending.
+				// This button used to send game_removeAccount directly, so the cache
+				// kept the label and restoreCachedAccounts() resurrected the account
+				// on the next refresh (KAT-AUTOLOAD1 fixed the same leak for whole-
+				// game exit; this was the per-account leg).
+				removeAccount(account.id)
 			}
 
 			return exitBtn

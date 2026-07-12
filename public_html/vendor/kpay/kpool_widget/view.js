@@ -153,9 +153,11 @@ const SIGN_REASON = {
 	}
 
 	// PROTO1/SECURITY: verdict line for the bytes-vs-display check (model.js
-	// verifyTransfersAgainstBytes). Mismatch = loud red banner — the user must not
-	// trust what's rendered. Match = quiet ✓ reassurance. unavailable/error = shown
-	// in nerd mode only (a settled view without bytes is normal, don't cry wolf).
+	// verifyTransfersAgainstBytes). Mismatch = loud red banner, ALWAYS shown — the
+	// user must not trust what's rendered. Everything else (match tick, unavailable,
+	// error) is NERD-ONLY (user 2026-07-06: "it's a given that we're verifying — we
+	// don't need a dev note like that on a normal view"). Visibility is CSS-driven
+	// off body.nerd (injectTxReadCSS) so the nerd toggle applies live, no re-render.
 	function buildBytesVerifyNote(bytesVerify) {
 		if (!bytesVerify) return null
 		const el = document.createElement('div')
@@ -167,32 +169,42 @@ const SIGN_REASON = {
 				`<strong>⚠️ WARNING — the transfers shown do NOT match the transaction bytes being signed.</strong>` +
 				`<br>Do not sign. ` +
 				`<span class="subtle">bytes-only: ${bytesVerify.missingFromDisplay.length}, display-only: ${bytesVerify.extraInDisplay.length} — details in diagnostics (tx:bytes-verify).</span>`
-			el.style.cssText = 'color:#b00020;background:#fde7ea;border:1px solid #f3b5c0;border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13px;'
 			return el
 		}
+		// SIGN-BYTESNOTE1: plainer wording, no nested brackets, and this note now sits at
+		// the BOTTOM near the line items (see make() below) rather than crowding the top.
 		if (bytesVerify.status === 'match') {
-			el.textContent = `✔ display verified against signed bytes (${bytesVerify.counts.bytes} transfer legs, ${bytesVerify.mode})`
-			el.style.cssText = 'color:#2e7d32;font-size:11px;margin:4px 0;'
+			el.textContent = `✔ Checked — the ${bytesVerify.counts.bytes} transfers shown here match the actual transaction you are signing, so what you see is what you approve.`
 			return el
 		}
-		// unavailable / error — informational, nerd-only
-		el.textContent = `bytes-verify: ${bytesVerify.status} — ${bytesVerify.reason || ''}`
-		el.style.cssText = 'color:#999;font-size:11px;margin:4px 0;'
-		if (!document.body.classList.contains('nerd')) el.style.display = 'none'
+		// unavailable / error — informational (nerd-only)
+		el.textContent = `Transfer check ${bytesVerify.status}${bytesVerify.reason ? ' — ' + bytesVerify.reason : ''} (couldn't compare the shown transfers to the signed bytes).`
 		return el
 	}
 
 	// Returns the transfer block element. For a single known view this is the bare view
 	// element. 'nerd' (explicit ?txview=nerd) wraps every registered view side by side.
+	// STATUS-TAB-RETIRE1: the main block is ALWAYS cards now — nerd mode no longer swaps
+	// it for the line-item table (that moved to the bottom nerd panel); ?txview= remains
+	// as an explicit dev override.
 	export function buildTransferViews({ network, flow, transfers }) {
-		const mode = resolveTxView()
+		let urlView = null
+		try { urlView = new URLSearchParams(location.search).get('txview') } catch {}
+		const mode = urlView || 'cards'
 		const make = name => {
 			const el = (TX_VIEWS[name] || TX_VIEWS.table)({ network, flow, transfers })
-			// bytes-vs-display verdict rides above EVERY transfer view (table + cards)
 			const note = buildBytesVerifyNote(transfers?.bytesVerify)
 			if (!note) return el
 			const wrap = document.createElement('div')
-			wrap.append(note, el)
+			// The wrapper takes the view's place as the flex item of .txread-intent-row,
+			// so it must carry the cards' flex sizing — without this .txcards shrinks to
+			// content width (the "narrow account cards" regression, 2026-07-06).
+			if (el.classList?.contains('txcards')) wrap.style.flex = '1 1 380px'
+			// SIGN-BYTESNOTE1: a MISMATCH is a danger — keep it ABOVE the transfers, loud.
+			// The reassuring "✔ Checked" (and unavailable) note is nerd-only reference, so
+			// it goes at the BOTTOM, under the line items, as a quiet footnote.
+			if (transfers?.bytesVerify?.status === 'mismatch') { note.classList.add('txread-bytes-verify--top'); wrap.append(note, el) }
+			else { note.classList.add('txread-bytes-verify--foot'); wrap.append(el, note) }
 			return wrap
 		}
 
@@ -307,6 +319,18 @@ const SIGN_REASON = {
 		idLink.rel = 'noopener'
 		idLink.textContent = acc.id
 		head.appendChild(idLink)
+
+		// Fee-payer cue in NORMAL mode (feedback 3c28f05d, 2026-07-06): knowing who pays
+		// the Hedera fee is more than nerd detail — badge the operator's header with its
+		// own tooltip. The dotted "HBAR fee" chip on its send side still shows the fee
+		// itself; the expanded detail spells it out in a sentence.
+		if ((acc.roles || []).includes('operator')) {
+			const payer = document.createElement('span')
+			payer.className = 'txcard-payer'
+			payer.textContent = '⬡'   // neutral shape (per user — nothing payment-branded)
+			payer.title = 'Fee payer — this account pays the Hedera network fee for this transaction'
+			head.appendChild(payer)
+		}
 
 		// xproof label (domain/name) is added next to the account id by updateCardXproof
 		// once signing accounts are enriched — always visible, no expand needed.
@@ -481,13 +505,8 @@ const SIGN_REASON = {
 		xfers.classList.add('txread-intent-xfers')
 		intentRow.appendChild(xfers)
 
-		// You send / You receive narrative — populated by index.js once a wallet
-		// account is known (experimental); hidden otherwise.
-		const narrative = document.createElement('div')
-		narrative.id = 'txread-narrative'
-		narrative.className = 'txread-narrative'
-		narrative.hidden = true
-		intentRow.appendChild(narrative)
+		// (STATUS-TAB-RETIRE1: the you-send/receive narrative moved into the bottom nerd
+		// panel — see the .txread-nerd-panel block near the end of this builder.)
 
 		// ── DOM ORDER (per user, top→bottom): status (countdown, inserted at intent top later)
 		// → scope (network·txid·pch + due) → memo → cards (+preview) → witnesses → signing.
@@ -566,8 +585,37 @@ const SIGN_REASON = {
 		bannerSlot.style.position = 'relative'
 		wrapper.appendChild(bannerSlot)
 
-		// Status detail + approvals table are CREATED here but PLACED by index.js
-		// into the Status tab pane, so the render-by-id functions keep working.
+		// ── 4. NERD PANEL (STATUS-TAB-RETIRE1, user 2026-07-07): nerd mode ADDS this
+		// collapsible section at the bottom instead of replacing the cards — the legacy
+		// line-item table + the you-send/receive narrative, plus room for future debug
+		// output. Visibility is CSS-gated on body.nerd; expand animation matches the
+		// account cards (grid-template-rows 0fr→1fr).
+		const nerdPanel = document.createElement('div')
+		nerdPanel.className = 'txread-nerd-panel'
+		const nerdHead = document.createElement('div')
+		nerdHead.className = 'txread-nerd-head'
+		nerdHead.innerHTML = `<span>🤓 Line items</span><span class="txread-nerd-caret">▸</span>`
+		nerdHead.onclick = () => nerdPanel.classList.toggle('txread-nerd-panel--open')
+		const nerdDetail = document.createElement('div')
+		nerdDetail.className = 'txread-nerd-detail'
+		const nerdInner = document.createElement('div')
+		nerdInner.className = 'txread-nerd-inner'
+		nerdInner.appendChild(buildTransferList(network, (flow?.lineItems) || transfers?.lineItems || []))
+		// You send / You receive narrative — populated by index.js updateNarrative once a
+		// wallet account is known (nerd-only); keeps its #txread-narrative id.
+		const narrative = document.createElement('div')
+		narrative.id = 'txread-narrative'
+		narrative.className = 'txread-narrative'
+		narrative.hidden = true
+		nerdInner.appendChild(narrative)
+		nerdDetail.appendChild(nerdInner)
+		nerdPanel.append(nerdHead, nerdDetail)
+		wrapper.appendChild(nerdPanel)
+
+		// STATUS-TAB-RETIRE1: readinessEl/precheckEl/accountKeysEl are still CREATED (the
+		// render-by-id functions null-guard, and renderPrecheckInfo must keep running for
+		// the chip rings) but no longer PLACED anywhere — the Status tab that displayed
+		// them is retired. Delete these + renderAccountKeyInfo in the next cleanup pass.
 		const statusBlock = buildStatusBlock({ data })
 		statusBlock.el.classList.add('txread-status-main')
 		// The content status line is GONE (per user): the status LABEL lives in the modal header
@@ -814,22 +862,63 @@ function accountSigningStatus(acc, signedPubkeys) {
 		signed: s.signedRequiredKeyCount, need: s.signedRequiredKeyCount + s.minMoreKeyCount }
 }
 
+// TX-CARDS-WCPREVIEW1: for the WC account-picker — given the account the user has
+// SELECTED to sign with, say what signing it would do for THIS transaction. Uses the
+// same threshold solver as the cards/pie so the verdict agrees. Returns { state, text }:
+//   not-needed  — the account isn't a required signer here (witness / receiver only)
+//   already     — it has already met its signing requirement
+//   completes   — signing it now would complete the WHOLE tx's threshold (last one)
+//   needed      — required, but other accounts still need to sign too
+//   loading     — key info not in yet (no banner)
+export function computeSignerPreview({ data, accounts, accountId }) {
+	if (!data || !accounts || !accountId) return { state: 'loading', text: '' }
+	const signedPubkeys = (data.sigs || []).map(s => s.pubKey).filter(Boolean).map(normalizePublicKey).filter(Boolean)
+	const list = Object.values(accounts)
+	// accounts is keyed BY account id — the acc objects don't carry an accountId field
+	const acc = accounts[accountId] || list.find(a => a.label === accountId)
+	if (!acc || !acc.mustSign) return { state: 'not-needed', text: document.body.classList.contains('nerd')
+		? "Signing with this account isn't required to execute this transaction. But optionally you may sign as witness to prove you agree with it. Proof registration may depend on game settings (eg whether witness signatures are included in submission to Hedera)."
+		: "This account isn't required to sign this transaction." }
+	const st = accountSigningStatus(acc, signedPubkeys)
+	if (st.state === 'loading') return { state: 'loading', text: '' }
+	if (st.state === 'ready') return { state: 'already', text: 'This account has already met its signing requirement here.' }
+	// required and not yet met — is it the LAST one? (all OTHER required accounts ready)
+	const othersOutstanding = list.some(a =>
+		a !== acc && a.mustSign && accountSigningStatus(a, signedPubkeys).state === 'pending')
+	return othersOutstanding
+		? { state: 'needed', text: "This account's signature is required for this transaction." }
+		: { state: 'completes', text: 'Signing with this account will complete the transaction' }
+}
+
 // In-place repaint of the account cards' signing state (border colour + header
 // summary: reason glyphs + m-of-n signed). Keyed by data-acct so an update never
 // rebuilds the card DOM (TX-CARDS9 step a). No-ops in table/nerd mode (no .txcards).
 export function updateCardSigning(accounts, signedPubkeys = [], network) {
 	const cards = document.querySelector('.txcards')
 	if (!cards) return
+	// HIP-1259: once a tx has consensus, the ACTUAL fee appears as a real transfer to
+	// the fee collection account (0.0.802) with its own card — the synthetic estimated
+	// "HBAR fee" chip would then duplicate it, so it's suppressed (user 2026-07-07).
+	// The check is against the RENDERED CARDS, not the accounts data: on a LIVE success
+	// the poll adds 802 to the data but no card is built mid-session — suppressing then
+	// yanked the chip out from under the success animation (jolt + trajectory lines out
+	// of step, user 2026-07-07). The chip only gives way when the 802 card is actually
+	// on screen to replace it, i.e. after a reload of the settled tx.
+	const realFeePresent = ['0.0.802', '0.0.98', '0.0.800', '0.0.801']
+		.some(id => cards.querySelector(`.txcard-head[data-acct="${id}"]`))
 	Object.entries(accounts || {}).forEach(([id, acc]) => {
 		const head = cards.querySelector(`.txcard-head[data-acct="${CSS.escape(id)}"]`)
 		const card = head?.closest('.txcard')
 		if (!card) return
 		updateCardXproof(head, acc.label)
+		// SIGN-ASSETASSOC1: expose auto-association capacity (mirror account info) for the
+		// balance pass + detail wording; '' when info hasn't enriched yet (treated as unknown).
+		if (acc.info) card.dataset.maxAutoAssoc = String(acc.info.max_automatic_token_associations ?? '')
 		const st = accountSigningStatus(acc, signedPubkeys)
 		card.dataset.signState = st.state   // one axis of the aggregate ring (balance is the other)
 		paintCardRing(card)
 
-		ensureOperatorFeeChip(card, (acc.mustSignReason || []).includes('operator'))
+		ensureOperatorFeeChip(card, (acc.mustSignReason || []).includes('operator') && !realFeePresent)
 
 		card._detail = { acc, signedPubkeys, network, id }   // for the lazy expand; refresh if already open
 		if (card.classList.contains('txcard--open')) renderCardDetail(card)
@@ -910,10 +999,11 @@ export function updateCardBalances(precheck) {
 			if (f && Number(f.forecast) < 0) add(short, acct, asset)
 	// authoritative fail strings: balance ("… enough …" / "… sufficient hbar …") vs association
 	// ("… associated …"). Association is a DIFFERENT class of fault from a shortfall — it's the
-	// receiving account's responsibility, and a receiver with an auto-association slot would
-	// actually succeed. The precheck only knows the existing relationship (not auto-assoc), so
-	// we can't be sure → dashed (uncertain). TODO: solid vs dashed from the account's
-	// max_automatic_token_associations (0 = definite fail → solid; >0/-1 = auto → dashed).
+	// receiving account's responsibility. SIGN-ASSETASSOC1: solid vs dashed now branches on the
+	// account's max_automatic_token_associations (stashed on the card by updateCardSigning):
+	// 0 = no auto-assoc slots, definite fail → SOLID red; >0 or -1 (unlimited, HIP-904) → the
+	// transfer may still land via a free slot → DASHED red. Used-slot counting (mirror /tokens
+	// automatic_association flags) is a future refinement — optimistic meanwhile.
 	for (const line of precheck?.tests?.fail || []) {
 		let m
 		if ((m = /has sender (\S+) enough (\S+)/.exec(line))) add(short, m[1], m[2])
@@ -930,8 +1020,12 @@ export function updateCardBalances(precheck) {
 		card.dataset.balanceShort = (shortAssets.size || unassocAssets.size) ? '1' : '0'   // either blocks → red ring
 		card.querySelectorAll('.txcard-send .txcard-chip').forEach(chip =>
 			chip.classList.toggle('txcard-chip--short', shortAssets.has(key(chip))))
-		card.querySelectorAll('.txcard-receive .txcard-chip').forEach(chip =>
-			chip.classList.toggle('txcard-chip--unassoc', unassocAssets.has(key(chip))))
+		const assocHard = card.dataset.maxAutoAssoc === '0'   // no auto-assoc slots → definite fail
+		card.querySelectorAll('.txcard-receive .txcard-chip').forEach(chip => {
+			const is = unassocAssets.has(key(chip))
+			chip.classList.toggle('txcard-chip--unassoc', is && !assocHard)
+			chip.classList.toggle('txcard-chip--unassoc-hard', is && assocHard)
+		})
 		paintCardRing(card)
 		// SIGN-EXPLAIN1: stash the issue sets for the expanded detail's plain-words list,
 		// and refresh an already-open detail so the lines track live precheck updates.
@@ -948,46 +1042,87 @@ export function updateCardBalances(precheck) {
 function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 	const wrap = document.createElement('div')
 
-	// The one non-obvious reason for signing — spell it out so nobody wonders why a
-	// receiving account needs to sign (receiver_sig_required is set on the account key).
-	if ((acc.mustSignReason || []).includes('receiver_sig_required')) {
-		const note = document.createElement('div')
-		note.className = 'txcard-detail-note'
-		note.textContent = 'Receiver signature required: this account must sign even though it is receiving.'
-		wrap.appendChild(note)
-	}
-	// Make "no signature needed" explicit (it's implied by the thin grey border). Keep the
-	// keys/pie visible anyway — useful reference. NB: not phrased as "receiver-sig not
-	// required" since receivers sometimes DO sign (see the receiver note above).
-	else if (!acc.mustSign) {
-		const note = document.createElement('div')
-		note.className = 'txcard-detail-note txcard-detail-note--muted'
-		note.textContent = 'No signature required from this account (shown for reference).'
-		wrap.appendChild(note)
+	// TX-CARDS-XPROOFLINK1: the xproof domain/name (moved out of the tappable card header)
+	// with its clickable verification link + a one-line explainer, shown here in the detail.
+	if (acc.label && (acc.label.domain || acc.label.name)) {
+		const xp = document.createElement('div')
+		xp.className = 'txcard-detail-xproof'
+		const parts = []
+		if (acc.label.name) parts.push(`<span class="txcard-acct-label">${acc.label.name}</span>`)
+		if (acc.label.domain) parts.push(`<a href="https://${acc.label.domain}" target="_blank" rel="noopener">${acc.label.domain} ↗</a>`)
+		xp.innerHTML = parts.join(' · ') +
+			`<div class="txcard-detail-note txcard-detail-note--muted">Domain identity claimed for this account (xproof). Open the link to verify who published it.</div>`
+		wrap.appendChild(xp)
 	}
 
-	// SIGN-EXPLAIN1: the rings and glyphs CUE the state; these lines SAY it. One muted
-	// line per outstanding item for this account (signatures still needed, overdrafts,
-	// missing associations) so expanding the card reads as a to-do list, not a puzzle.
-	// Nothing renders when the account is all clear. Asset names come off the chips so
-	// the wording matches what the user sees (precheck keys 'hbar' ↔ chip 'tinybar').
+	// SIGN-EXPLAIN1 (+ standard bullets, user 2026-07-07): ONE unified message list —
+	// ⚠️ = a problem blocking this account, ℹ️ = plain information (operator fee-payer,
+	// receiver-sig-required, no-sig-needed reference). Warnings float to the top; every
+	// line keeps the same muted style — no per-type CSS, the bullet carries the class.
+	// Asset names come off the chips so wording matches what the user sees (precheck
+	// keys 'hbar' ↔ chip 'tinybar'). Fee estimate (amount) is TX-CARDS-FEEEST1.
 	{
 		const labelFor = k => {
 			const sel = `.txcard-chip[data-asset-key="${CSS.escape(k === 'hbar' ? 'tinybar' : k)}"] .txcard-chip-text`
 			return card?.querySelector(sel)?.textContent?.trim() || (k === 'hbar' ? 'HBAR' : `token ${k}`)
 		}
-		const issues = []
+		const items = []
 		const st = accountSigningStatus(acc, signedPubkeys)
+		// signatures pending are the NORMAL flow of this modal, not a fault — bullet is the
+		// header's signing glyph (visually ties summary ✍️ 0/1 to this line), but it keeps
+		// warn strength/position because it's still the thing to act on (user 2026-07-07).
 		if (st.state === 'pending' && st.need)
-			issues.push(`✍️ ${st.need - st.signed} more signature${st.need - st.signed === 1 ? '' : 's'} needed (${st.signed} of ${st.need} signed).`)
+			items.push({ warn: true, bullet: '✍️', text: `${st.need - st.signed} more signature${st.need - st.signed === 1 ? '' : 's'} needed (${st.signed} of ${st.need} signed).` })
 		for (const a of card?._balanceIssues?.short || [])
-			issues.push(`🔴 Not enough ${labelFor(a)} — the balance won't cover what this account sends.`)
+			items.push({ warn: true, text: `Not enough ${labelFor(a)} — the balance won't cover what this account sends.` })
+		// SIGN-ASSETASSOC1: association wording branches on the account's auto-association
+		// capacity (mirror max_automatic_token_associations, stashed on the card by
+		// updateCardSigning): 0 slots = the transfer WILL fail (solid red chip); otherwise
+		// it may land via a free slot (dashed chip). Counting USED auto slots (mirror
+		// /tokens automatic_association flags) is a future refinement — optimistic for now.
+		const maxAuto = card?.dataset.maxAutoAssoc
+		// association is about the ASSET, not an amount — name only, token id in brackets
+		// ("KUSD (token 0.0.2341021)"); falls back to the bare token id pre-enrichment.
+		const assocLabel = k => {
+			const sym = labelFor(k).replace(/^[\d.,\s]+/, '').trim()
+			return sym && sym !== `token ${k}` ? `${sym} (token ${k})` : `token ${k}`
+		}
 		for (const a of card?._balanceIssues?.unassoc || [])
-			issues.push(`◌ ${labelFor(a)} is not associated with this account — the transfer can't land unless an auto-association slot is free.`)
-		if (issues.length) {
+			items.push({ warn: true, text: maxAuto === '0'
+				? `${assocLabel(a)} is not associated with this account and it has no auto-association slots — this transfer will fail until the account associates the token.`
+				: `${assocLabel(a)} is not associated with this account — it may still land if a free auto-association slot picks it up.` })
+
+		// info lines (previously standalone notes above the list — folded in so ordering
+		// is uniform: warnings first, information below)
+		if ((acc.mustSignReason || []).includes('operator'))
+			items.push({ warn: false, text: 'This account is the operator: it pays the Hedera network fee for this transaction.' })
+		// receiver_sig_required is the one non-obvious reason for signing; when the account
+		// doesn't sign at all, say so (implied by the thin grey border, but make it explicit).
+		if ((acc.mustSignReason || []).includes('receiver_sig_required'))
+			items.push({ warn: false, text: 'Receiver signature required: this account must sign even though it is receiving.' })
+		else if (!acc.mustSign) {
+			// SIGN-NOSIGREASON1: say WHY no signature is needed. An account that only
+			// RECEIVES doesn't sign unless its key has receiver_sig_required set — which
+			// this one doesn't. Normal mode phrases it plainly; nerd names the flag.
+			const nerd = document.body.classList.contains('nerd')
+			items.push({ warn: false, text: nerd
+				? 'No signature required — this account only receives here and its key does not set receiver_sig_required.'
+				: "No signature required — this account is only receiving, and it hasn't asked to approve incoming transfers." })
+		}
+
+		if (items.length) {
 			const list = document.createElement('div')
 			list.className = 'txcard-detail-issues'
-			issues.forEach(t => { const li = document.createElement('div'); li.textContent = t; list.appendChild(li) })
+			items.sort((a, b) => (b.warn ? 1 : 0) - (a.warn ? 1 : 0))   // stable sort: warnings first
+			// class-based so warning presentation can evolve without touching this code:
+			// warnings render full-strength (same color as the account id in the header),
+			// information stays muted (user 2026-07-07).
+			items.forEach(i => {
+				const li = document.createElement('div')
+				li.className = 'txcard-issue ' + (i.warn ? 'txcard-issue--warn' : 'txcard-issue--info')
+				li.textContent = `${i.bullet || (i.warn ? '⚠️' : 'ℹ️')} ${i.text}`
+				list.appendChild(li)
+			})
 			wrap.appendChild(list)
 		}
 	}
@@ -1007,7 +1142,15 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 		grid.className = 'txcard-keys'
 		const head = document.createElement('div')
 		head.className = 'txcard-keys-row txcard-keys-head'
-		;['✍️', '🔑', '⚖️', 'Redund', 'Ctrl'].forEach(t => { const c = document.createElement('div'); c.textContent = t; head.appendChild(c) })
+		// tooltips carry the old Status-tab explainer (STATUS-TAB-RETIRE1): Banzhaf =
+		// voting power, redundancy = how replaceable a key is.
+		;[
+			['✍️',     'Signed yet? ☑ = this key has signed'],
+			['🔑',     'Key — the last 4 characters of the public key'],
+			['⚖️',     "Banzhaf — this key's voting power: its share of all the ways the signing threshold can be met"],
+			['Redund', 'Redundancy — how replaceable the key is: how often the threshold could still be met without it'],
+			['Ctrl',   'Control — full-exclusive: this key alone can decide; shared: control is split across keys']
+		].forEach(([t, tip]) => { const c = document.createElement('div'); c.textContent = t; c.title = tip; head.appendChild(c) })
 		grid.appendChild(head)
 		Object.entries(scores).forEach(([pubkey, score]) => {
 			const signed = signedPubkeys.includes(normalizePublicKey(pubkey))
@@ -1032,6 +1175,9 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 			row.append(tick, keyCell, banz, redC, ctrl)
 			grid.appendChild(row)
 		})
+		// reference-only account (no signature needed): soften the key table like the
+		// neutral pie — one opacity layer, content untouched (user 2026-07-07).
+		if (!acc.mustSign) grid.classList.add('txcard-detail--refonly')
 		layout.appendChild(grid)
 	}
 	wrap.appendChild(layout)
@@ -1049,12 +1195,14 @@ function updateCardXproof(head, label) {
 	if (!label || (!label.domain && !label.name)) { x?.remove(); return }
 	if (!x) { x = document.createElement('span'); x.className = 'txcard-xproof-head'; head.querySelector('.txcard-acct').after(x) }
 	x.innerHTML = ''
+	// TX-CARDS-XPROOFLINK1: header xproof is PLAIN TEXT — a hyperlink here intercepted the
+	// tap meant to expand the card. The clickable domain link now lives in the expanded
+	// detail (buildAccountDetail → xproof row). Header just shows the domain/name.
 	if (label.domain) {
-		const a = document.createElement('a')
-		a.className = 'txcard-acct txcard-acct-domain'
-		a.href = `https://${label.domain}`; a.target = '_blank'; a.rel = 'noopener'
-		a.textContent = label.domain
-		x.appendChild(a)
+		const d = document.createElement('span')
+		d.className = 'txcard-acct txcard-acct-domain'
+		d.textContent = label.domain
+		x.appendChild(d)
 	}
 	if (label.name) {
 		const n = document.createElement('span')
@@ -1309,7 +1457,10 @@ function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo }) {
       widget.style.maxWidth = '100%'
       widget.style.height = 'auto'
     }
-    window.kpie.render(widget, { keyInfo: normTree, signedPubkeys: signedPubkeys || [] })
+    // neutral: account is shown for reference only (no signature needed) — the pie keeps
+    // the key structure but drops green/orange signing colors for two-tone gray, so an
+    // unsigned-but-irrelevant account doesn't read as "pending" (user 2026-07-07).
+    window.kpie.render(widget, { keyInfo: normTree, signedPubkeys: signedPubkeys || [], neutral: !mustSign })
       .catch(err => console.warn('[kpie] render failed', err))
   }
 
@@ -1317,6 +1468,11 @@ function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo }) {
 }
 
 
+// STATUS-TAB-RETIRE1: ORPHANED — this big approvals table only ever rendered into the
+// retired Status tab's #account-keys element (now never attached, so the guard below
+// returns immediately). The per-card detail (buildAccountDetail) carries the same info
+// with tooltips. Delete in the next cleanup pass together with the call site at
+// renderSigningSection and index.js buildStatusPane/INFO_SVG.
 export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
   const container = document.getElementById('account-keys')
   if (!container) return
@@ -1876,6 +2032,17 @@ export function injectTxReadCSS() {
 		.txread-approvals .ksubtitle { display: none; }
 		.acctkeys-header, .acctkeys-account { text-align: center; }
 
+		/* PROTO1 bytes-vs-display verdict (buildBytesVerifyNote). Only the mismatch
+		   warning is for everyone; match/unavailable/error are nerd-mode detail —
+		   in normal mode the bytes ARE the display's provenance, nothing to announce. */
+		.txread-bytes-verify[data-status="mismatch"] { color:#b00020; background:#fde7ea; border:1px solid #f3b5c0; border-radius:8px; padding:8px 10px; margin:6px 0; font-size:13px; }
+		.txread-bytes-verify[data-status="match"] { color:#2e7d32; font-size:11px; margin:4px 0; line-height:1.35; }
+		.txread-bytes-verify[data-status="unavailable"], .txread-bytes-verify[data-status="error"] { color:#999; font-size:11px; margin:4px 0; }
+		/* SIGN-BYTESNOTE1: footnote placement — a little top separation from the line items */
+		.txread-bytes-verify--foot { margin-top:8px; padding-top:6px; border-top:1px solid #f0f0f0; }
+		.txread-bytes-verify:not([data-status="mismatch"]) { display:none; }
+		body.nerd .txread-bytes-verify:not([data-status="mismatch"]) { display:block; }
+
 		/* intent: line items + optional narrative side by side */
 		.txread-intent-row { display:flex; flex-wrap:wrap; gap:24px; justify-content:space-evenly; align-items:flex-start; }
 		.txread-intent-row .txread-xfers { max-width:none; margin:0; }
@@ -1926,6 +2093,9 @@ export function injectTxReadCSS() {
 		}
 		.txcard-acct { font-size:13px; font-weight:500; color:#52525b; text-decoration:none; word-break:break-all; }
 		.txcard-acct:hover { text-decoration:underline; }
+		/* fee-payer badge on the operator's header (feedback 3c28f05d) — neutral shape,
+		   same gray family as the id text */
+		.txcard-payer { font-size:12px; margin-left:4px; cursor:default; line-height:1; color:#a1a1aa; }
 		.txcard-acct-label { font-size:12px; color:#a1a1aa; }
 		/* xproof next to the account id — domain reuses .txcard-acct so it matches (plain
 		   text, underline on hover) and can be group-restyled with the account id later. */
@@ -1944,6 +2114,10 @@ export function injectTxReadCSS() {
 		/* token NOT associated on the RECEIVING side: dashed red (uncertain — a receiver with an
 		   auto-association slot would still succeed). Different fault class from a balance shortfall. */
 		.txcard-chip--unassoc { border-color:#e5484d; border-style:dashed; box-shadow:0 0 0 1px #e5484d; }
+		/* SIGN-ASSETASSOC1: receiver has NO auto-association slots — failure is definite, ring solid.
+		   Compound selector so it outranks the later .txcard-chip-ghost dashed border (receive
+		   chips are ghosts by design). */
+		.txcard-chip--unassoc-hard, .txcard-chip-ghost.txcard-chip--unassoc-hard { border-color:#e5484d; border-style:solid; box-shadow:0 0 0 1px #e5484d; }
 		/* operator fee chip: no amount, distinct dotted/italic so it reads as an estimate */
 		.txcard-chip--fee { border-style:dotted; font-style:italic; color:#71717a; }
 
@@ -1953,6 +2127,18 @@ export function injectTxReadCSS() {
 		   too small for low-vision users. We need a "low-vision" theme/skin (larger fonts, bigger
 		   hit targets, stronger contrast) as a future themeing pass. See task A11Y-LOWVISION1. */
 		.txcard-chevron { color:#71717a; font-size:16px; line-height:1; transition:transform .2s ease; }
+		/* nerd bottom panel (STATUS-TAB-RETIRE1): collapsible line-items/debug section,
+		   nerd-only, same expand mechanics as the account cards */
+		body:not(.nerd) .txread-nerd-panel { display:none; }
+		.txread-nerd-panel { border:1px solid #e4e4e7; border-radius:10px; margin-top:14px; background:#fafafa; }
+		.txread-nerd-head { display:flex; justify-content:space-between; align-items:center; padding:8px 12px; cursor:pointer; user-select:none; font-size:12px; font-weight:600; color:#52525b; }
+		.txread-nerd-caret { transition:transform .22s ease; }
+		.txread-nerd-panel--open .txread-nerd-caret { transform:rotate(90deg); }
+		.txread-nerd-detail { display:grid; grid-template-rows:0fr; transition:grid-template-rows .22s ease; }
+		.txread-nerd-panel--open .txread-nerd-detail { grid-template-rows:1fr; }
+		.txread-nerd-inner { overflow:hidden; }
+		.txread-nerd-panel--open .txread-nerd-inner { padding:0 12px 10px; }
+
 		.txcard-detail { display:grid; grid-template-rows:0fr; transition:grid-template-rows .22s ease; }
 		.txcard--open .txcard-detail { grid-template-rows:1fr; }
 		.txcard-detail-inner { overflow:hidden; min-height:0; }
@@ -1977,6 +2163,11 @@ export function injectTxReadCSS() {
 		/* SIGN-EXPLAIN1: plain-words outstanding-items list — light gray, one line per
 		   issue, sits above the pie/keys so it reads first on expand. */
 		.txcard-detail-issues { font-size:12px; color:#9ca3af; margin:0 0 10px; display:flex; flex-direction:column; gap:3px; }
+		/* warnings full-strength (matches .txcard-acct), info stays muted — same size/style otherwise */
+		.txcard-issue--warn { color:#52525b; }
+		/* reference-only detail (no signature needed): one opacity layer mutes the key table
+		   to match the neutral gray pie — it's there for reference, not focus */
+		.txcard-detail--refonly { opacity:.55; }
 
 		/* witnesses — signed keys not tied to any account; listed under the cards as chips
 		   (may later read as votes). Sits just above the Hedera <network> scope line. */

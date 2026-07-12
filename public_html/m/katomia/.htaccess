@@ -6,6 +6,17 @@ RewriteRule ^game/(.+\.(js|css))$ $1 [L,QSA]
 RewriteRule ^game/([^/]+)/?$ ?game=$1 [L,QSA,E=TRACE:TY63433]
 RewriteRule ^create/?$ ?page=create [L,QSA,E=TRACE:RJ23394]
 
+# BOARD-UI1 2026-07-11: clean route for the proposal board — /board/<id> instead
+# of board.php?game=<id>. ?skin=… stays a query param (QSA merges it through).
+# Asset rule mirrors the ^game/ one above: any relative "file.ext" URL the
+# browser resolves against /board/<id> needs rewriting back to the real
+# sibling file. BOARD-CLEANUP3: this went out js|css-only and 404'd the ring
+# hub's K-logo (assets/kpay-k.svg) — the JS source is now fixed to an
+# absolute path (the real fix), but covering common asset extensions here too
+# as a safety net for anything else still using a relative path.
+RewriteRule ^board/(.+\.(js|css|svg|png|jpe?g|gif|webp|ico))$ $1 [L,QSA]
+RewriteRule ^board/([^/]+)/?$ board.php?game=$1 [L,QSA,E=TRACE:KB18204]
+
 
 RewriteRule ^kea/?$ KEA [L,QSA]
 

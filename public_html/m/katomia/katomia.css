@@ -609,20 +609,11 @@
   color:#000;
 }
 
-@media (max-width:699px){
-  label:has(#viewToggle){
-    display:none;
-  }
-}
-
+/* BOARD-UI1: was display:none under 700px when this only held the desktop-view
+   checkbox — the view dropdown now carries the board skins, which are FOR mobile,
+   so it stays visible at every width. */
 .desktop-toggle{
   cursor:pointer;
-}
-
-@media (max-width:699px){
-  .desktop-toggle{
-    display:none;
-  }
 }
 .asset.thumb-stack-item{
   position: relative;
@@ -1037,22 +1028,72 @@ button i{
   opacity:0.9;
 }
 
-#accountLabelInput{
+/* ── PROP-ADDACCT1: add-account modal (replaces the old inline #accountLabelInput,
+     whose green focus ring went with it — UI-HOVERCOLOR1) ── */
+.addacct-card{ max-width:420px; }
+
+/* there is NO global .hidden rule in this sheet (only per-component ones), and the
+   .asset-modal-card label/input rules outrank bare classes — both scoped here. */
+#addAccountModal .hidden{ display:none; }
+.asset-modal-card .addacct-manual input{ width:auto; }
+
+.addacct-wc-list{ display:flex; flex-direction:column; gap:6px; margin:6px 0 10px; }
+.addacct-wc-row{
+  justify-content:flex-start;
+  font-family:monospace;
+  font-weight:500;
+}
+.addacct-wc-row:disabled{ opacity:.5; cursor:default; }
+
+.addacct-manual-label{ display:block; margin-top:14px; }
+.addacct-manual{ display:flex; gap:6px; margin-top:4px; }
+.addacct-manual input{
+  flex:1;
   padding:7px 10px;
   font-size:13px;
-
   border:1px solid #ccc;
   border-radius:8px;
-
   outline:none;
   transition:border .12s ease, box-shadow .12s ease;
 }
-
-/* focus */
-#accountLabelInput:focus{
-  border-color:#4CAF50;
-  box-shadow:0 0 0 2px rgba(76,175,80,0.15);
+.addacct-manual input:focus{
+  border-color:#888;
+  box-shadow:0 0 0 2px rgba(0,0,0,.06);
 }
+
+.addacct-chosen{ margin-bottom:8px; }
+.addacct-chosen-id{ font-family:monospace; font-weight:600; }
+
+.addacct-assets-head{ display:flex; justify-content:space-between; align-items:baseline; }
+.addacct-assets{
+  max-height:40vh;
+  overflow-y:auto;
+  margin:6px 0;
+}
+/* game-style chips; tap = ghost out (excluded). Mirrors the basket ghost look. */
+.addacct-chip{ cursor:pointer; font-size:13px; }
+.addacct-chip.addacct-ghost{
+  opacity:.4;
+  background:#fff;
+  border:1px dashed #bbb;
+  padding:3px 7px;   /* border compensates padding so chips don't jiggle */
+}
+
+.addacct-link{
+  background:none; border:none; padding:0;
+  color:#4a7dbd; cursor:pointer;
+  font-size:inherit; font-weight:500;
+}
+.addacct-link:hover{ background:none; text-decoration:underline; }
+
+.addacct-hint{ font-size:12px; margin:8px 0 0; }
+.addacct-status{ min-height:18px; margin-top:8px; }
+.addacct-error{ color:#b0413e; }
+
+.addacct-actions{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+#addAcctJoinAll{ background:#6ea875; color:#fff; border:none; }
+#addAcctJoinAll:hover{ background:#639a69; }
+#addAcctJoin:disabled{ opacity:.5; cursor:default; }
 
 
 
@@ -1403,7 +1444,7 @@ svg .svg-sell{
   font-weight:600;
 }
 
-.asset-modal-card input,
+.asset-modal-card input:not([type="radio"]):not([type="checkbox"]),
 .asset-modal-card select,
 .asset-modal-card textarea{
   width:100%;
@@ -1421,7 +1462,7 @@ svg .svg-sell{
   transition:.12s;
 }
 
-.asset-modal-card input:focus,
+.asset-modal-card input:not([type="radio"]):not([type="checkbox"]):focus,
 .asset-modal-card select:focus,
 .asset-modal-card textarea:focus{
   background:#fff;
@@ -1544,6 +1585,18 @@ svg .svg-sell{
   margin:0;
   flex:none;
 }
+
+/* tiny +/- nudge under the rate input — subtle, no layout impact */
+.rate-steps{ margin-top:4px; display:flex; gap:6px; }
+.rate-steps button{
+  padding:1px 6px;
+  justify-content:center;
+  font-size:10px; line-height:1.4; font-weight:400;
+  color:#333; background:#eee;
+  border:1px solid #ccc; border-radius:4px;
+  cursor:pointer; user-select:none;
+}
+.rate-steps button:hover{ background:#e2e2e2; }
 
 /* Collectible modal inline pairs */
 .collectible-token-row,
@@ -1931,6 +1984,11 @@ textarea:focus{
   min-width:0;
 }
 
+/* ORDERS-LAYOUT1: the market chart is a full-width band above the orders/tx columns
+   (mode-order gates it to order mode via the shared display rules). */
+.market-chart-section{ margin-bottom:16px; }
+.market-chart-section .orders-market-summary{ margin:0; }
+
 /* ORDERS-UI1: orders | transactions side-by-side on desktop, auto-wrapping to a
    single column when there isn't room for two ~360px tracks. align-items:start so
    the two columns don't stretch each other's height. */
@@ -2033,55 +2091,78 @@ textarea:focus{
 
 /* ─────────────────────────────────────────────────────────────────────────── */
 
-/* PROFILE-AUTH1 — wallet Authenticate panel */
+/* PROFILE-AUTH1 — wallet Authenticate panel.
+   PROFILE-TIDY1 (2026-07-07): modernised — one control style (rounded, consistent
+   heights, custom chevron), label column so Network/Account rows line up, options as
+   an aligned grid. ALSO the load-bearing fix: there was NO .hidden rule on these
+   pages at all (lost when the modal left game.php for the shared partial), so the
+   network row / options / statement showed unconditionally — the "clutter". */
+#profileModal .hidden{ display:none; }
+
 .profile-auth{
   /* now nested inside .profile-section (.profile-repute), which owns the divider */
   margin-top:8px;
 }
-.profile-auth-account{
-  margin-top:10px;
-  display:flex;
-  align-items:center;
-  gap:6px;
-  flex-wrap:wrap;
+.profile-auth select{
+  appearance:none;
+  -webkit-appearance:none;
+  background:#fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239aa0a6' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  border:1px solid #dcdfe4;
+  border-radius:8px;
+  padding:7px 28px 7px 10px;
+  font-size:12px;
+  color:#222;
+  line-height:1.3;
 }
-.profile-auth-account > .profile-label{ flex:0 0 auto; }
+.profile-auth select:focus{
+  outline:none;
+  border-color:#9aa6b2;
+  box-shadow:0 0 0 2px rgba(0,0,0,.05);
+}
+.profile-auth-account{
+  margin-top:8px;
+  display:grid;
+  grid-template-columns:64px minmax(0,1fr) auto;
+  gap:8px;
+  align-items:center;
+}
+.profile-auth-account > .profile-label{ margin:0; }
 .profile-auth-account select,
 .profile-auth-select{
-  flex:1 1 140px;
   min-width:0;
-  padding:6px 8px;
   font-family:var(--font-mono);
-  font-size:12px;
 }
-/* "Disconnect" account button — a clear labelled ghost button (was a cryptic ✕). */
-.profile-auth-x{
-  flex:0 0 auto;
-  padding:5px 10px;
+/* "Disconnect" account button — a clear labelled ghost button (was a cryptic ✕).
+   Padding matches the selects (7px block) so it centres level with the account id.
+   button.-prefixed to outrank ".profile-card button"'s margin-top:12px (same
+   specificity, later in the sheet wins). */
+button.profile-auth-x{
+  padding:7px 10px;
+  margin:0;
+  align-self:center;
   border:1px solid #e3e6ea;
-  border-radius:6px;
+  border-radius:8px;
   background:#fff;
   cursor:pointer;
-  line-height:1;
+  line-height:1.3;
   font-size:11px;
   color:#b00020;
 }
 .profile-auth-x:hover{ background:#fbe9ec; border-color:#f2c2cc; }
-/* Commitment options (expiry / scope / publish) — PROFILE-AUTH wireframe */
+/* Commitment options (expiry / scope / publish) — one row aligned with the account
+   rows: Expiry label shares the 64px label column, Scope's select gets the wider
+   share (its option text is the longest); publish spans the full row below. */
 .profile-auth-options{
-  margin-top:10px;
-  display:flex;
-  flex-wrap:wrap;
-  gap:10px 14px;
+  margin-top:8px;
+  display:grid;
+  grid-template-columns:64px minmax(0, 0.8fr) auto minmax(0, 1.2fr);
+  gap:8px;
   align-items:center;
   font-size:12px;
 }
-.profile-auth-options select{
-  margin-left:4px;
-  padding:4px 6px;
-  font-size:12px;
-}
-.profile-auth-publish{ display:flex; align-items:center; gap:6px; }
+.profile-auth-options > .profile-label{ margin:0; }
+.profile-auth-options select{ min-width:0; }
+.profile-auth-publish{ grid-column:1 / -1; display:flex; align-items:center; gap:6px; }
 .profile-auth-statement{
   margin-top:10px;
   padding:8px 10px;
@@ -2190,6 +2271,22 @@ body.nerd .profile-nerd-only{ display:block; }
   min-height:1em;
   font-size:12px;
 }
+/* PROFILE-TIDY1: primary action styling for Raise commitment (generic buttons went
+   neutral in UI-HOVERCOLOR1 — this one deserves emphasis) */
+#authBtn{
+  margin-top:12px;
+  background:#4a7dbd;
+  color:#fff;
+  border:none;
+  border-radius:8px;
+  padding:8px 16px;
+  font-size:13px;
+}
+#authBtn:hover{ background:#426fa8; }
+/* nerd-only collapsed envelope after a raise */
+.profile-auth-result{ margin-top:8px; font-size:12px; }
+.profile-auth-result > summary{ cursor:pointer; color:#5f6368; }
+.profile-auth-result button{ margin-top:8px; }
 .profile-auth-output{
   margin-top:10px;
   max-height:240px;

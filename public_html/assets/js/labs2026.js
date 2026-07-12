@@ -48,9 +48,15 @@ function fetchProduct(productId) {
     return Promise.resolve(null)
   }
 
-  const url = `https://tools.gomint.me/explore/NFT/?json&productId=${productId}`
+  // GMKFUND-WRAP1: was a direct call to https://tools.gomint.me/explore/NFT -
+  // that kfund host is IP-allowlisted (server yes, end-user devices no), so
+  // mobile visitors got 403/"Failed to fetch" and the page hung. Now goes
+  // through a same-origin server-side wrapper (m/api/nft.php) that makes the
+  // upstream call from the server and can be repointed via env with no client
+  // change.
+  const url = `/m/api/nft.php?productId=${productId}`
   // console.log('fetchProduct URL:', url)
-	
+
 
   return fetch(url)
     .then(response => {
@@ -260,10 +266,23 @@ async function transformDealData({deal}) {
     let out = {}
 		out.network = deal.network
 		// ubid.deal = deal // return the input ?
-		out.allTransfers = mergeAllTransfers(deal) // add this back into the input
+		out.allTransfers = await mergeAllTransfers(deal) // add this back into the input
     out.title       = deal.display.title ?? 'untitled RH45323'
     out.description = deal.display.description ?? 'no desc WK83843'
-    out.image       = deal.display.thumbnail ?? ''
+
+		// Prefer the traded NFT's own image over the deal's stored thumbnail.
+		// Rule is deliberately NFT-image-first (per user 2026-07-08): many
+		// GoMint deals either have no thumbnail or have a stale hardcoded
+		// katomic.org placeholder baked in, and the real product art is more
+		// useful than either. Only the common single-NFT case is handled;
+		// multiple NFTs in one deal falls through to the thumbnail/default for
+		// now (todo: image carousel/click-through).
+		const nftImages = out.allTransfers
+			.filter(x => x.assetType === 'NFT' && x.imageURL)
+			.map(x => x.imageURL)
+		const singleNftImage = (nftImages.length === 1) ? nftImages[0] : null
+
+		out.image = singleNftImage || deal.display.thumbnail || ''
 		out.button      = deal.display.button || 'Buy now'
 
     if (hasParm('operatorId'))
@@ -323,60 +342,163 @@ function parseAmount(value) {
 
   return {
     sign: isNegative ? '-' : '+',
-		verb: isNegative ? 'receives' : 'sends',
+		verb: isNegative ? 'sends' : 'receives',  // GMDEALDISPLAY1: was inverted - a negative
+		                                           // transfer value means the account is SENDING
+		                                           // that asset, not receiving it (confirmed
+		                                           // against authored userInput text, eg
+		                                           // {"value":"-0.3","userInput":"buyer sends 0.3 hbar"})
     absAmount
   }
 }
 
-function mergeAllTransfers(deal) {  // too long atm.. todo remove narrative and handle in render
- 
-	
+// ─── Asset type + decimal-aware display ──────────────────────────────────
+// Ported from swap.kpay.live/public_html/m/katomia/katomia-helpers.js
+// (getAssetType) and katomia-enrich.js (getDisplayDecimals / formatAssetDisplay)
+// as of 2026-07-08. Deliberately duplicated rather than shared, for GoMint
+// stability while it's mid-sync with Katomia - see GMDEALDISPLAY1. If
+// Katomia's asset classification/formatting changes, check whether this copy
+// needs the same update. Longer term this should become a shared library
+// both projects import instead of each keeping its own copy.
+
+function getAssetType(tokenClass, amount = 1) {
+	if (!tokenClass) return 'UNKNOWN'
+	if (tokenClass.type === 'NON_FUNGIBLE_UNIQUE') return 'NFT'
+
+	const decimals = Number(tokenClass.decimals || 0)
+	if (decimals === 0) return (Math.abs(amount) <= 10000) ? 'LE' : 'FT0'  // LE = limited-edition / zero-decimal collectible fungible
+	return 'FT'
+}
+
+function getDisplayDecimals(tokenClass) {
+	const decimals = Number(tokenClass?.decimals || 0)
+	return Math.min(decimals, 8)
+}
+
+function getTokenLabel(tokenClass, fallbackId) {
+	if (!tokenClass) return fallbackId
+
+	const symbol = tokenClass.symbol || fallbackId
+	const name = tokenClass.name || fallbackId
+
+	// some legacy tokens (eg KT1) carry a hedera://...roothash=... URI as their
+	// "symbol" - fall back to name in that case, same special-case as Katomia's
+	// formatAssetDisplay
+	let label = (symbol && String(symbol).toLowerCase().startsWith('hedera://')) ? name : symbol
+
+	if (name && label !== name) label += ` (${name})`
+	return label || fallbackId
+}
+
+function formatFungibleAmount(rawValue, tokenClass) {
+	const decimals = Number(tokenClass?.decimals || 0)
+	if (!decimals) return String(Math.abs(Number(rawValue)))
+
+	const value = Math.abs(Number(rawValue)) / (10 ** decimals)
+	const displayDecimals = getDisplayDecimals(tokenClass)
+	const rounded = value.toFixed(displayDecimals).replace(/\.?0+$/, '')
+	return rounded || '0'
+}
+
+// {var} tokens and the bare "buyer" placeholder both render as mono chips -
+// "buyer" is a reserved word substituted server-side at signing time (see
+// hbarlive_hts/dealEngine.js injectString()), so it's not a real account id
+// yet at display time; showing it as a chip like any other unresolved
+// variable is clearer than a "You send/receive" guess this early.
+function chipify(text) {
+	if (text == null) return text
+	return String(text)
+		.replace(/\{([^}]*)\}/g, "<span class='code'>$1</span>")
+		.replace(/\bbuyer\b/g, "<span class='code'>buyer</span>")
+}
+
+// Resolve an NFT serial or serial-range to the product id of its FIRST
+// concrete serial - the explore API only returns a real image/name for a
+// single serial, not a range. Handles "213" (single), "1to70" (db range
+// form) and "1:70" (colon form); returns null for "any"/non-numeric so we
+// don't chase an image that doesn't resolve.
+function nftMetaProductId(network, tokenId, serial) {
+	const first = String(serial).split(/to|:/)[0].trim()
+	if (!/^\d+$/.test(first)) return null
+	return `${network};${tokenId}-${first}`
+}
+
+// ─── Merge + enrich all transfers ─────────────────────────────────────────
+// Fetches token/NFT metadata (name, symbol, decimals) for everything
+// referenced in the deal so amounts and labels render properly instead of
+// raw token ids and unscaled integers (GMDEALDISPLAY1).
+async function mergeAllTransfers(deal) {
+
+	const network = deal.network
+
+	window.gmAssetMetaCache ||= {}
+	const cache = window.gmAssetMetaCache
+
+	const metaKeys = new Set()
+	;(deal.addTokenTransfer || []).forEach(x => metaKeys.add(`${network};${x.tokenId}`))
+	;(deal.addNftTransfer || []).forEach(x => {
+		const key = nftMetaProductId(network, x.tokenId, x.serial)
+		if (key) metaKeys.add(key)
+	})
+
+	const jobs = [...metaKeys]
+		.filter(key => cache[key] === undefined)
+		.map(key => fetchProduct(key).then(meta => { cache[key] = meta }).catch(() => { cache[key] = null }))
+
+	if (jobs.length) await Promise.all(jobs)
+
   const normaliseHbar = xfer => {
-    const {sign, verb, absAmount} = parseAmount(xfer.value) 
-		console.log({xfer,sign, verb,absAmount})
-    // const verb = amount < 0 ? 'sends' : 'receives'
-		const asset = 'HBAR'
-		
+    const {verb, absAmount} = parseAmount(xfer.value)
+
     return {
-      // ...xfer,
-			asset,
-			sign, verb, absAmount, 
-      assetType: 'FT',
+			assetType: 'FT',
 			accountId: xfer.accountId,
 			amount: xfer.value,
-      // narrative: xfer.userInput || `${xfer.accountId} ${verb} ${absAmount} HBAR`
-      narrative: `${xfer.accountId} ${verb} ${absAmount} ${asset}`
+			displayAmount: absAmount,  // deal hbar values are already decimal hbar, not tinybar
+			tokenLabel: 'hbar',
+			tokenLink: 'https://hedera.com/hbar',
+			verb,
+			userInput: xfer.userInput,
     }
   }
 
   const normaliseFT = xfer => {
-		const {sign, verb, absAmount} = parseAmount(xfer.value) 
-		const asset = xfer.tokenId
-		
+		const {verb, absAmount} = parseAmount(xfer.value)
+		const isVar = String(xfer.value).includes('{')
+		const meta = cache[`${network};${xfer.tokenId}`]
+		const tokenClass = meta?.token_class
+
     return {
-      // ...xfer,
-			asset, needsHydration: true,
-			sign, verb, absAmount,
-      assetType: 'FT',
+			asset: xfer.tokenId,
+			assetType: getAssetType(tokenClass, Number(absAmount) || 1),
 			accountId: xfer.accountId,
       amount: xfer.value,
-      // narrative: xfer.userInput || `${xfer.accountId} ${verb} ${abs} ${xfer.tokenId}`,
-			narrative: `${xfer.accountId} ${verb} ${absAmount} ${asset}`,
-      
+			displayAmount: isVar ? absAmount : formatFungibleAmount(absAmount, tokenClass),
+			tokenLabel: getTokenLabel(tokenClass, xfer.tokenId),
+			tokenLink: `https://hashscan.io/${network}/token/${xfer.tokenId}`,
+			verb,
+			userInput: xfer.userInput,
     }
   }
 
   const normaliseNFT = xfer => {
-		const productId = `${deal.network};${xfer.tokenId}-${xfer.serial}`
+		// display/link productId keeps the original serial (range or single),
+		// same form the product page accepts. But metadata (name + image) is
+		// looked up under the FIRST concrete serial - the explore API only
+		// resolves a real image for a single serial, not a "1to70" range.
+		const productId = `${network};${xfer.tokenId}-${xfer.serial}`
+		const metaKey = nftMetaProductId(network, xfer.tokenId, xfer.serial)
+		const meta = metaKey ? cache[metaKey] : null
+
     return {
-      ...xfer,
       assetType: 'NFT',
       asset: xfer.tokenId,
 			serialRange: xfer.serial,
 			productId: productId,
-      narrative:
-        xfer.userInput ||
-        `${xfer.sender} sends NFT ${xfer.tokenId}#${xfer.serial} to ${xfer.receiver}`
+			sender: xfer.sender,
+			receiver: xfer.receiver,
+			tokenLabel: meta?.token_instance_name || `${xfer.tokenId} #${xfer.serial}`,
+			imageURL: meta?.token_asset_image_URL || null,
+			userInput: xfer.userInput,
     }
   }
 
@@ -386,7 +508,6 @@ function mergeAllTransfers(deal) {  // too long atm.. todo remove narrative and 
     ...(deal.addNftTransfer || []).map(normaliseNFT)
   ]
 
-	console.log(allTransfers)
   return allTransfers
 }
 
@@ -452,52 +573,73 @@ function renderProductPanel(data) {
 
 
 
+// An alias (deal.alias, eg {"treasury":"0.0.196823"}) is just the deal
+// author's own convenience label for an account - not a trusted/reserved
+// name like "buyer", so it's plain parenthetical text, not a code chip.
+// Rendered as "<link to hashscan>0.0.196823</link> (treasury)".
+function renderAccountId(accountId, network, dealdata) {
+	if (accountId === 'buyer') return 'buyer'  // chipify() wraps this below
+	if (String(accountId).includes('{')) return accountId  // unresolved {var} - chipify() wraps below
+
+	const alias = dealdata?.aliasReversed?.[accountId]
+	const linked = `<a href='https://hashscan.io/${network}/account/${accountId}' target='hashscan'>${accountId}</a>`
+	return alias ? `${linked} (${alias})` : linked
+}
+
 function renderTransfer(xfer, dealdata) {
-	console.log(xfer)  // todo build narrative from primitives
-	const entityLabels = dealdata.aliasReversed || []
-	console.log({entityLabels})
-	
-	let debug = xfer.userInput || xfer.narrative || ''
-	
-	let narrative
-	if (xfer.assetType == 'NFT') {
-		console.log(xfer)
-		const nftProductId = `${dealdata.network};${xfer.asset}-${xfer.serialRange}`
-		const label = `${xfer.asset} #${xfer.serial}`
-		
-		const href = `?v=labs&productId=${nftProductId}`
-		const tooltip = `Product Id ${nftProductId}`
-		
-		const localLink = renderLocalLink({href, label, tooltip})
-		
+	const network = dealdata.network
+
+	// legacy fallback: transfers with no structured accountId/sender-receiver
+	// (rare/old records that only ever had a freeform narrative) can't build
+	// the enriched line below - fall back to showing that text alone rather
+	// than a blank/broken auto line
+	const hasStructuredData = xfer.assetType === 'NFT'
+		? (xfer.sender != null && xfer.receiver != null)
+		: (xfer.accountId != null)
+
+	if (!hasStructuredData)
+		return chipify(xfer.userInput || xfer.txt || '')
+
+	let primary
+
+	if (xfer.assetType === 'NFT') {
+		const href = `?v=labs&productId=${xfer.productId}`
+		const tooltip = `Product Id ${xfer.productId}`
+
+		const localLink = renderLocalLink({href, label: xfer.tokenLabel, tooltip})
 		const elNft = renderTooltip(localLink, tooltip)
-		
-		narrative = `${xfer.sender} sends ${elNft} to ${xfer.receiver}` // test9ng ony
-		
+
+		const sender = renderAccountId(xfer.sender, network, dealdata)
+		const receiver = renderAccountId(xfer.receiver, network, dealdata)
+
+		primary = `${sender} sends ${elNft} to ${receiver}`
+
 	} else {
-		
-		narrative = `${xfer.accountId} ${xfer.verb} ${xfer.absAmount} ${xfer.asset} ${xfer.assetType}` // test9ng ony
+		// LE/FT0 (zero-decimal fungible - eg limited editions) read better without
+		// a redundant "1" when only a single unit is changing hands
+		let amountPart
+		if (xfer.assetType === 'LE' || xfer.assetType === 'FT0') {
+			const n = Number(xfer.displayAmount)
+			amountPart = (!isNaN(n) && n > 1) ? `×${xfer.displayAmount} ` : ''
+		} else {
+			amountPart = `${xfer.displayAmount} `
+		}
+
+		const tokenLinkHtml = xfer.tokenLink
+			? `<a href='${xfer.tokenLink}' target='hashscan'>${xfer.tokenLabel}</a>`
+			: xfer.tokenLabel
+
+		const account = renderAccountId(xfer.accountId, network, dealdata)
+
+		primary = `${account} ${xfer.verb} ${amountPart}${tokenLinkHtml}`
 	}
-		
-  
-	
-	
-  narrative = narrative.replace(/\{(.*?)\}/g, "<span class='code'>$1</span>")
 
-	// todo later depending on wallet connect state
-	// narrative = narrative
-		// .replace(/\bbuyer receives\b/g, 'You receive')
-		// .replace(/\bbuyer sends\b/g, 'You send')
-
-
-  // for (const [key, value] of Object.entries(entityLabels)) {
-    // const link = `<a href='https://kpay.uk/${value}' target='${value}'>${key}</a>`
-    // const regex = new RegExp(`\\b${key}\\b`, 'g')
-    // text = text.replace(regex, link)
-  // }
-		
-	return  narrative
-	// return  renderTooltip(narrative, `debug YU87457: ${debug}`)
+	// the authored userInput sentence is no longer shown alongside this line -
+	// once we have structured data, it was purely restating the same transfer
+	// (often via an alias name, which now renders inline above via
+	// renderAccountId instead of as a separate line). Kept on the xfer object
+	// though, in case a future "view raw script" toggle wants it.
+	return chipify(primary)
 }
 
 
@@ -506,9 +648,7 @@ function renderDealPanel(data) {
 	  document.querySelector('#deal-panel .ubid-description').innerHTML = data.description
 	  document.querySelector('#combo-container .ubid-media img').src = data.image || 'https://katomic.org/demo/defaultDealThumbnail.png'
 		
-		console.log(data)
-		console.log(data.transfers)
-		document.querySelector('#deal-panel .ubid-transfers').innerHTML 
+		document.querySelector('#deal-panel .ubid-transfers').innerHTML
 			= data.allTransfers.map(x => renderTransfer(x, data)).join('<BR>')
 
 		document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = (data.parameters || []).map(renderParameter).join('')
@@ -738,6 +878,11 @@ async function renderPage() {
   document.querySelector('#product-panel .ubid-related-by-collection').innerHTML = ''
   document.querySelector('#deal-panel .ubid-transfers').innerHTML = ''
   document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = ''
+
+  // reset the shared image so the shimmer placeholder shows again on SPA
+  // navigation between products/deals, not just the very first page load
+  const img = document.querySelector('#combo-container .ubid-media img')
+  if (img) { img.classList.remove('loaded'); img.removeAttribute('src') }
 
   const entityType = resolveEntityType(productId, dealId)
 	showPanel(entityType)

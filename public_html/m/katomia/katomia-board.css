@@ -1,0 +1,1192 @@
+/* katomia-board.css — BOARD-UI1 board-skin styles (board.php only).
+   Chips keep the .asset base look from katomia.css; this file is the felt:
+   wedge washes, seat cards, center table, dock. */
+
+body.board-page{
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #f5f1e8;               /* the felt */
+  font-family: system-ui, sans-serif;
+}
+
+#boardRoot{
+  position: fixed;
+  inset: 0;
+  /* review 7 root cause: fixed elements are their own stacking contexts, so
+     without a z-index here the pair/trail hosts (later siblings, z4) painted
+     OVER the chips regardless of the boxes' z5. Root above hosts = lines
+     always under the board's content. */
+  z-index: 5;
+}
+
+/* ── chrome: skin picker + exit ─────────────────────────────────────────── */
+
+.board-chrome{
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 50;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.board-chrome select{
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid #ddd6c6;
+  border-radius: 8px;
+  background: #fffdf7;
+}
+
+.board-exit{
+  text-decoration: none;
+  color: #666;
+  background: #fffdf7;
+  border: 1px solid #ddd6c6;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+.board-exit:hover{ color: #000; }
+
+/* ── wedges: the Ludo wash + fat drop targets ───────────────────────────── */
+
+.board-wedge{
+  position: absolute;
+  inset: 0;
+  opacity: .12;
+  transition: opacity .15s ease;
+}
+.board-wedge.drag-over{ opacity: .30; }
+
+/* BOARD-WHEEL1: the scroll-divider wedge between mine and the visible window
+   of others — a plain, neutral, clickable seam (not an account, no player
+   colour, no drop target). */
+.board-wedge--divider{
+  background: repeating-linear-gradient(135deg, rgba(0,0,0,.10) 0 6px, rgba(0,0,0,.04) 6px 12px);
+  cursor: pointer;
+  opacity: .35;
+}
+.board-wedge--divider:hover{ opacity: .55; }
+.board-wedge-divider-badge{
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,.55);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 10px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ── ring skin: segments = accounts, oval = basket boundary ─────────────── */
+
+.ring-felt{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+.ring-boundary{
+  stroke: #cfc6b2;
+  stroke-width: 1.5;
+}
+.ring-ovalline{                        /* stage 2: per-segment lock arcs live here */
+  fill: none;
+  stroke: #8fa8c8;
+  stroke-width: 2;
+}
+
+.ring-box{
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 2px;
+  border-radius: 10px;
+}
+.ring-box.drag-over{
+  outline: 2px solid #4a90d9;
+  outline-offset: 2px;
+  background: rgba(255,255,255,.55);
+}
+
+.ring-basket .board-band{ justify-content: center; }
+
+.ring-avail{ min-width: 90px; }
+.ring-avail .board-band{ justify-content: center; }
+
+.ring-head{
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ring-head-label{ padding-bottom: 1px; }   /* player colour underline, set inline */
+.ring-avail--mine .ring-head-label{ background: rgba(255,255,255,.65); border-radius: 4px 4px 0 0; padding: 0 3px 1px; }
+
+.ring-lock{ font-size: 12px; }
+.ring-lock.clickable{ cursor: pointer; }
+
+/* ── etched variants (ring2/ring3) ──────────────────────────────────────── */
+
+/* account ids written into the felt — big, bold, faded, owner-coloured */
+.ring-etchlabel{
+  font-weight: 800;
+  letter-spacing: .06em;
+  opacity: .30;
+  user-select: none;
+}
+
+/* the oval fades back to felt and thickens — its width is the future
+   tap-to-lock arc target (stage 2) */
+.ring-ovalline--faded{
+  stroke: #9db4cf;
+  stroke-width: 12;
+  opacity: .22;
+}
+
+/* chips sit ON the board: subtle lift (ring2/3 also tint the face; ring4
+   keeps faces clean — owner lives in the left sleeve only) */
+[data-board-skin="ring2"] .board-chip,
+[data-board-skin="ring3"] .board-chip,
+[data-board-skin="ring4"] .board-chip{
+  box-shadow: 0 1px 1.5px rgba(0,0,0,.22), 0 2px 6px rgba(0,0,0,.10);
+  border-radius: 9px;
+}
+[data-board-skin="ring2"] .board-ghost,
+[data-board-skin="ring3"] .board-ghost,
+[data-board-skin="ring4"] .board-ghost{
+  box-shadow: none;            /* ghosts lie flat — they've left the table */
+}
+
+/* ring4+: everything a smidge bigger (review #2) — desktop and mobile */
+:is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"], [data-board-skin="ring7"]) .board-chip{
+  font-size: 12.5px;
+  padding: 4px 8px;
+}
+:is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"], [data-board-skin="ring7"]) .board-chip .asset-thumb{
+  width: 40px;
+  height: 40px;
+}
+
+/* ring5/6: the sleeve is the OG SOLID BAR (review #3) — square left corners
+   so the border reads as a rectangle butted against the chip, not a rounded
+   wrap (same shape rule as .asset.basket in the legacy view) */
+:is([data-board-skin="ring5"], [data-board-skin="ring6"], [data-board-skin="ring7"]) .board-chip{
+  border-radius: 0 9px 9px 0;
+}
+
+/* …and NFTs identically (user clarification): bare thumb + square bar beside
+   it, exactly the OG mobile basket look — the chip-level shadow/radius was
+   wrapping the image in a second bubble */
+:is([data-board-skin="ring5"], [data-board-skin="ring6"], [data-board-skin="ring7"]) .board-chip.thumb-only{
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+  background: none;
+}
+
+/* the hover/tap pair line was drawn but invisible over the coloured felt —
+   thicker + darker on the board page */
+.board-page .trade-line-layer line{
+  stroke: #444;
+  stroke-width: 2;
+  stroke-dasharray: 5 5;
+}
+
+/* per-account lock arcs (ring5/6): faint base, lock-orange when locked,
+   your own arcs are tappable (stroke only) */
+.ring-lockarc{
+  fill: none;
+  stroke: #9db4cf;
+  stroke-width: 12;
+  opacity: .22;
+}
+.ring-lockarc--mine{
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.ring-lockarc--locked{
+  stroke: #f5a623;
+  opacity: .75;
+}
+:is([data-board-skin="ring6"], [data-board-skin="ring7"]) .ring-lockarc--mine:not(.ring-lockarc--locked){
+  stroke-dasharray: 4 8;       /* faint affordance where your arc would be */
+  opacity: .30;
+}
+.ring-basketzone{               /* ring6: shading instead of a line */
+  fill: rgba(90, 70, 20, .05);
+  stroke: none;
+}
+.ring-basketzone--lit{          /* ring7: the basket is the SPOTLIGHT */
+  fill: rgba(255, 255, 253, .5);
+}
+.ring-storedim{                 /* ring7: a locked account's store goes dark */
+  fill: rgba(55, 42, 18, .17);
+  stroke: none;
+  pointer-events: none;
+}
+
+/* ▶ trailing line — drawn in the giver's colour, fades slowly */
+.board-traillayer{
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 4;   /* under the chips too — the fly clone (z60) stays above while moving */
+}
+.board-trailline{
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 3 7;      /* dotted (review 7) — draw-in dropped for dots */
+  opacity: .75;
+  transition: opacity 2.2s ease;
+}
+
+/* hub rim as cluster progress ring */
+.ring-hub--ringed{ border: none; }
+.ring-hubring{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.ring-hubring-base{ fill: none; stroke: #a9c9ec; stroke-width: 4; }
+.ring-hubring-locked{ fill: none; stroke: #f5a623; stroke-width: 4; stroke-linecap: round; }
+.ring-hub--ringed span{ position: relative; z-index: 1; }
+
+/* ▶ preview flight */
+.board-fly{
+  position: fixed;
+  z-index: 60;
+  margin: 0;
+  pointer-events: none;
+  transition: transform .85s cubic-bezier(.35, .9, .35, 1);
+  box-shadow: 0 6px 16px rgba(0,0,0,.25);
+}
+.ring-footer-play{
+  border: 1px solid #ddd6c6;
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+}
+
+.ring-lockbadge{
+  position: absolute;
+  top: -9px;
+  right: -6px;
+  font-size: 13px;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.25));
+}
+
+/* footer control bar — thumb-reach: filters + my lock toggles; the signing
+   roll-up docks here later */
+.ring-footer{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px calc(7px + env(safe-area-inset-bottom));
+  background: rgba(255,254,249,.92);
+  border-top: 1px solid #e5e0d4;
+  box-shadow: 0 -3px 12px rgba(0,0,0,.07);
+  font-size: 12px;
+  overflow-x: auto;
+}
+.ring-footer-filter{ display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.ring-footer-lock{
+  border: 1px solid #ddd6c6;
+  border-radius: 16px;
+  background: #fff;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ring-footer-lock.locked{
+  background: #fdf1dc;
+  border-color: #f5a623;
+}
+
+/* ── ring8 (review 6) ───────────────────────────────────────────────────── */
+
+/* felt split: top layer (locked-store dim + etched labels) sits ABOVE the
+   chip boxes (z5) so the dim shades chips; labels append after the dim */
+.ring-felt--top{ z-index: 6; }
+
+/* chip faces WHITE — grey faces vanished against the shading washes; OG
+   square-cornered sleeve + lift shadow carried over from v5-7 */
+[data-board-fam~="v8"] .board-chip{
+  background: #fff;
+  border-radius: 0 9px 9px 0;
+  box-shadow: 0 1px 1.5px rgba(0,0,0,.20), 0 2px 6px rgba(0,0,0,.09);
+}
+[data-board-fam~="v8"] .board-ghost{ box-shadow: none; }
+[data-board-fam~="v8"] .board-chip.thumb-only{
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+/* viewport-responsive sizing: ~⅔ … ~1.3× of the old fixed size
+   (12.5px/40px at ~800 vmin). Resize-jank smoothing = BOARD-POLISH1. */
+[data-board-fam~="v8"] .board-chip{
+  font-size: clamp(8.5px, 1.05vmin + 4.1px, 16.5px);
+  padding: 3px 7px;
+}
+[data-board-fam~="v8"] .board-chip .asset-thumb{
+  width: clamp(26px, 3.4vmin + 13px, 52px);
+  height: clamp(26px, 3.4vmin + 13px, 52px);
+}
+
+/* inverted boundary language: your own arc has NO line (your space flows
+   into the baskets — but it stays tappable: transparent stroke = the lock
+   toggle); other players' arcs are DOTTED, not solid (user refinement:
+   others may cross this line, mindfully); the mine/other radial boundaries
+   extend outward as the solid divider */
+.ring-lockarc--wall{
+  stroke: #c9c2b3;
+  opacity: .8;
+  stroke-width: 2.5;
+  stroke-dasharray: 3 7;
+  stroke-linecap: round;
+}
+.ring-lockarc--open:not(.ring-lockarc--locked){
+  stroke: transparent;
+  stroke-width: 14;              /* fat invisible tap target */
+  opacity: 1;
+}
+[data-board-fam~="v8"] .ring-lockarc--locked{
+  stroke: #f5a623;
+  stroke-width: 8;
+  opacity: .85;
+  stroke-dasharray: none;   /* locked = solid, even where the wall is dotted */
+}
+.ring-divider{
+  stroke: #c9c2b3;
+  stroke-width: 3;
+}
+
+/* selected account (footer dropdown) — wedge brightens */
+.board-wedge--selected{ opacity: .26; }
+
+/* v9: segments outside MY cluster fade when ≥2 disconnected clusters exist */
+.board-wedge--othercluster{ opacity: .05; }
+
+/* ── ring10 (review 9) ──────────────────────────────────────────────────── */
+
+/* touch drag REAL-TIME: the fly clone inherited .board-fly's 0.85s transform
+   transition — that was the "asset chases the finger" lag (global fix) */
+.board-touchfly{ transition: none !important; }
+
+/* spotlight inverted: the STORE region shades down, the basket zone keeps
+   the untouched base felt — light lands on the deal */
+.ring-storeshade{
+  fill: rgba(60, 48, 22, .07);
+  stroke: none;
+  pointer-events: none;
+}
+
+/* hub ring: per-account player-colour arcs + thin lit arc for MY party */
+.ring-hubarc{
+  fill: none;
+  stroke-width: 4;
+  opacity: .85;
+}
+.ring-hubarc-party{
+  fill: none;
+  stroke: #fffdf4;
+  stroke-width: 2;
+  opacity: .95;
+}
+[data-board-fam~="v10"] .ring-hub{ border-color: #cfc6b2; }
+
+/* own-wash saturation boost dropped — identity reads from ·you, the open
+   arc, and the hub cues; every viewer sees the same board */
+[data-board-fam~="v10"] .board-wedge--mine{ opacity: .12; }
+
+/* desktop: hovering your own (invisible) lock arc previews the lock */
+[data-board-fam~="v10"] .ring-lockarc--open:not(.ring-lockarc--locked):hover{
+  stroke: rgba(245, 166, 35, .35);
+  stroke-dasharray: none;
+}
+
+/* ── ring11 (review 10) ─────────────────────────────────────────────────── */
+
+/* party arc OUTSIDE the hub — warm gold on the felt (v10's inner version
+   was white-on-white) */
+.ring-partyarc{
+  fill: none;
+  stroke: #e2a93c;
+  stroke-width: 4;
+  stroke-linecap: round;
+  opacity: .9;
+}
+
+/* angled "you" at the hub doorstep */
+.ring-youlabel{
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: .08em;
+  opacity: .75;
+  user-select: none;
+}
+
+/* BIG lock at a locked store's centroid (on top of the dim) */
+.ring-biglock{
+  opacity: .85;
+  user-select: none;
+}
+
+/* geometric K (square proportions per the KPAY mark) — BRAND-K1 swaps in
+   the real asset later */
+.ring-hub-ksvg{
+  position: absolute;
+  inset: 14%;
+  width: 72%;
+  height: 72%;
+  z-index: 0;
+  pointer-events: none;
+}
+.ring-hub-kpath{
+  fill: none;
+  stroke: rgba(0, 0, 0, .09);
+  stroke-width: 17;
+}
+
+/* pickable chips: grab affordance. The teal halo (v11) is retired — colour
+   stays reserved for meaning and it vanished on mobile; frozen v11 keeps it. */
+.board-pickchip{ cursor: grab; }
+[data-board-skin="ring11"] .board-pickchip{
+  outline: 1.5px dashed rgba(30, 150, 140, .55);
+  outline-offset: 1px;
+}
+
+/* ── ring12 / susan3 (review 11) ────────────────────────────────────────── */
+
+/* the PICK FLAG: a small player-coloured right triangle jutting left from
+   the SLEEVE top (golf-flag on the flagpole). Absolutely overlaid — zero
+   layout shift when Pickable toggles. Base ≈ ⅓ chip height. */
+:is([data-board-skin="ring12"], [data-board-skin="susan3"]) .board-pickchip{ position: relative; }
+:is([data-board-skin="ring12"], [data-board-skin="susan3"]) .board-pickchip::before{
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -12px;              /* clear of the 4px sleeve border */
+  width: 0;
+  height: 0;
+  border-top: 8px solid var(--pickflag, #888);
+  border-left: 8px solid transparent;
+  pointer-events: none;
+}
+
+/* v13/susan4 pick flag — per the owner's drawing (review 12): a drooping
+   pennant. Top vertex on the sleeve's top corner, apex out-left ~¼ down,
+   long edge rejoining the sleeve lower — the LONG edge fuses to the pole. */
+:is([data-board-skin="ring13"], [data-board-skin="susan4"]) .board-pickchip{ position: relative; }
+:is([data-board-skin="ring13"], [data-board-skin="susan4"]) .board-pickchip::before{
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -11px;              /* 7px flag + the 4px sleeve */
+  width: 7px;
+  height: 12px;
+  background: var(--pickflag, #888);
+  clip-path: polygon(100% 0, 0 28%, 100% 100%);
+  pointer-events: none;
+}
+
+/* toast DECK (review 12, board page only): toasts overlap like a stack of
+   cards in a thin top banner — newest paints on top; a torrent can never
+   fill the screen. game.php keeps the legacy column. */
+.board-page #notifications{
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 80;
+  max-height: 110px;
+  width: min(480px, 92vw);
+}
+.board-page #notifications .notice{
+  box-shadow: 0 2px 10px rgba(0,0,0,.20);
+}
+.board-page #notifications .notice + .notice{
+  margin-top: -26px;        /* the deck overlap */
+}
+
+/* v13/susan4: ghosts OPAQUE-pale — element opacity let the pair line show
+   through (it was never "on top"); thumbs keep a filter (faint show-through
+   on images only, noted) */
+:is([data-board-fam~="v13"], [data-board-fam~="susan4p"]) .board-ghost{
+  opacity: 1;
+  background: #efe9dc;
+  color: #a89f8d;
+}
+:is([data-board-fam~="v13"], [data-board-fam~="susan4p"]) .board-ghost .asset-thumb{
+  filter: grayscale(.5) opacity(.5);
+}
+
+/* v13/susan4: locked stores darken their CHIPS as well as the felt */
+.board-lockdim{
+  filter: brightness(.72) saturate(.8);
+}
+
+/* ── ring14 / susan5 (review 13) ────────────────────────────────────────── */
+
+/* lock effect v14: GHOST-WASH, not darkening — the dark-glass idea washed
+   out; same family feel as reserved ghosting */
+:is([data-board-fam~="v14"], [data-board-fam~="susan5p"]) .board-lockdim{
+  filter: saturate(.35) opacity(.55) brightness(1.03);
+}
+
+/* pick flag FINAL (quarter-square, per owner spec): isoceles, vertical base
+   FUSED to the sleeve (1px overlap kills the hairline gap), apex left at
+   half height; fixed 12px height on every chip */
+:is([data-board-fam~="v14"], [data-board-fam~="susan5p"]) .board-pickchip{ position: relative; }
+:is([data-board-fam~="v14"], [data-board-fam~="susan5p"]) .board-pickchip::before{
+  content: "";
+  position: absolute;
+  top: 0;                      /* top corner = the flagpole's top-left corner */
+  left: -11px;                 /* base flush against the 4px sleeve's LEFT edge */
+  width: 7px;
+  height: 12px;
+  background: var(--pickflag, #888);
+  clip-path: polygon(100% 0, 100% 100%, 0 50%);
+  border: none;
+  pointer-events: none;
+}
+
+/* touch-drag halo: dotted ring under the finger while the chip floats above */
+.board-touchhalo{
+  position: fixed;
+  z-index: 59;
+  width: 92px;                 /* review 14: ×2 — the finger covered the small one */
+  height: 92px;
+  margin: -46px 0 0 -46px;
+  border: 2px dotted #777;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: .7;
+}
+
+/* susan5: my accounts as side-by-side cards (bands flipped in JS) */
+.susan-mine--cards{
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 6px 8px;
+  align-items: stretch;
+}
+.susan-mine--cards .susan-card{ border-left: none; }
+.susan-card--mine .susan-basket{ margin-top: 4px; }
+.susan-card--mine .susan-store{ margin-top: 6px; }
+
+/* susan4: surfaces go translucent so the z4 line layer reads through the
+   felt but hides under opaque chips — joins the ring's under-chip order
+   (frozen susan2/3 keep their lines-above-cards hack) */
+[data-board-fam~="susan4p"] .susan-card{ background: rgba(241, 236, 224, .55); }
+[data-board-fam~="susan4p"] .susan-mine{ background: rgba(255, 254, 249, .7); }
+
+/* susan4 my-strip: two-tone like the cards/ring — store on felt, basket lit */
+[data-board-fam~="susan4p"] .susan-mine-row .susan-store{
+  background: rgba(241, 236, 224, .6);
+  border-radius: 8px;
+  padding: 3px;
+}
+[data-board-fam~="susan4p"] .susan-mine-row .susan-basket{
+  background: rgba(255, 255, 253, .7);
+}
+
+/* board-side hub cues (inside → out): hub grey border · player-colour arc ·
+   party STRIP-LIGHT (white — "the light comes on"; gold stays with LOCK) */
+.ring-playerarc{
+  fill: none;
+  stroke-width: 4;
+  stroke-linecap: round;
+  opacity: .85;
+}
+.ring-partylight{
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 5;
+  stroke-linecap: round;
+  opacity: .95;
+}
+
+/* (susan3 sizing lives at the END of this file — must outrank the base
+   susan rules and susan2 groups by order) */
+
+/* susan: pair/trail lines were buried behind the opaque cards — ride above
+   the card surfaces on susan skins (over chips too; acceptable there) */
+:is([data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"]) #game.board-linelayer,
+:is([data-board-skin="susan"], [data-board-skin="susan2"], [data-board-skin="susan3"]) .board-traillayer{
+  z-index: 7;   /* frozen susans; susan4 rejoins the z4 under-chip order */
+}
+
+/* v9: fixed-width lock button — no size jump on toggle */
+[data-board-fam~="v9"] .ring-footer-lock{
+  min-width: 96px;
+  text-align: center;
+}
+
+/* footer cluster-progress badge (susan has no hub) */
+.ring-footer-lp{ font-size: 12px; color: #887; white-space: nowrap; }
+
+/* ── Lazy Susan v1 ──────────────────────────────────────────────────────── */
+
+.susan{
+  position: fixed;
+  inset: 0;
+  bottom: 44px;
+  display: flex;
+  flex-direction: column;
+  padding-top: 50px;          /* clear the chrome */
+  z-index: 5;
+}
+
+.susan-carousel-wrap{
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.susan-arrow{
+  width: 30px;
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  color: #b6ad99;
+  cursor: pointer;
+}
+.susan-arrow:hover{ color: #776; }
+
+.susan-carousel{
+  flex: 1;
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 6px 2px 10px;
+}
+
+.susan-card{
+  scroll-snap-align: start;
+  flex: 0 0 210px;
+  display: flex;
+  flex-direction: column;
+  background: #f1ece0;         /* felt card; basket strip is the lit zone */
+  border: 1px solid #e2dbc9;
+  border-top: 4px solid #999;  /* player colour, inline */
+  border-radius: 12px;
+  padding: 8px;
+  overflow-y: auto;
+}
+.susan-card--selected{ box-shadow: 0 0 12px 3px rgba(74, 144, 217, .45); }   /* soft glow (review 14) */
+.susan-card--locked .susan-store{ filter: brightness(.82); }
+.susan-card.drag-over{ outline: 2px solid #4a90d9; outline-offset: 2px; background: #f7f3e9; }
+
+.susan-head{
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: .04em;
+  opacity: .75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.susan-xsub{ font-size: 10px; color: #998; margin-top: -2px; }
+
+.susan-store{
+  flex: 1;
+  align-content: flex-start;
+  margin-top: 4px;
+  min-height: 34px;
+}
+
+.susan-basket{
+  background: rgba(255, 255, 253, .8);   /* the spotlight, unwrapped */
+  border-radius: 8px;
+  min-height: 42px;
+  margin-top: 6px;
+  padding: 3px;
+  align-content: flex-start;
+}
+
+.susan-mine{
+  max-height: 42vh;
+  overflow-y: auto;
+  border-top: 1px solid #e5e0d4;
+  background: #fffef9;
+  box-shadow: 0 -3px 12px rgba(0,0,0,.06);
+}
+
+.susan-mine-row{
+  padding: 6px 10px 8px;
+}
+.susan-mine-row .susan-basket{ background: rgba(255,255,253,.9); border: 1px solid #eee7d6; }
+.susan-mine-row .susan-store{ margin-top: 5px; }
+
+.susan-empty{
+  align-self: center;
+  margin: auto;
+  color: #b3ab99;
+  font-style: italic;
+  font-size: 13px;
+}
+
+/* ── susan2 (review 8): echo the ring's visual language ─────────────────── */
+
+/* chips +60% (mobile min was too small), account heads +30% */
+[data-board-skin="susan2"] .board-chip{
+  font-size: clamp(13.5px, 1.7vmin + 6.5px, 26px);
+  padding: 5px 10px;
+}
+[data-board-skin="susan2"] .board-chip .asset-thumb{
+  width: clamp(42px, 5.4vmin + 21px, 83px);
+  height: clamp(42px, 5.4vmin + 21px, 83px);
+}
+[data-board-fam~="susan2p"] .susan-head{ font-size: 17px; }
+[data-board-fam~="susan2p"] .susan-xsub{ font-size: 12px; }
+
+/* card basket = the card's whole FOOTER region, lit like the ring spotlight,
+   behind the ring's DOTTED crossable line (full-bleed to the card edges) */
+[data-board-fam~="susan2p"] .susan-card{ padding-bottom: 0; }
+[data-board-fam~="susan2p"] .susan-card .susan-basket{
+  margin: 8px -8px 0;
+  border-radius: 0 0 11px 11px;
+  border-top: 2px dashed #c9c2b3;      /* = .ring-lockarc--wall, unwrapped */
+  background: rgba(255, 255, 253, .62);   /* review 14: lines read through */
+  min-height: 30%;
+  padding: 6px 8px 8px;
+}
+
+/* my area sits behind the SOLID divider; no line between my own store and
+   basket (my space flows, like the ring's open own-arc) */
+[data-board-fam~="susan2p"] .susan-mine{
+  border-top: 3px solid #c9c2b3;       /* = .ring-divider, unwrapped */
+  max-height: 60vh;                    /* takes what the assets need */
+}
+[data-board-fam~="susan2p"] .susan-mine-row .susan-basket{
+  border: none;
+  background: rgba(255, 255, 253, .95);
+  min-height: 44px;
+}
+
+/* susan2 cards: ~2 visible on portrait, squash rather than starve */
+@media (max-width: 520px){
+  [data-board-fam~="susan2p"] .susan-card{ flex-basis: clamp(170px, 46vw, 240px); }
+}
+
+/* hub brand K — Montserrat where available (KPAY face), faint, behind count */
+.ring-hub-k{
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Montserrat, system-ui, sans-serif;
+  font-weight: 800;
+  font-size: 170%;
+  color: rgba(0, 0, 0, .08);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.ring-etchsub{ opacity: .55; font-weight: 600; }
+.ring-etchlock{ opacity: .9; }
+
+.ring-footer-accsel{
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid #ddd6c6;
+  border-radius: 8px;
+  background: #fff;
+  max-width: 40vw;
+}
+
+.ring-footer-maxseg{
+  font-size: 12px;
+  padding: 3px 4px;
+  border: 1px solid #ddd6c6;
+  border-radius: 8px;
+  background: #fff;
+  width: 44px;
+}
+.ring-footer-del{
+  border: 1px solid #ddd6c6;
+  border-radius: 16px;
+  background: #fff;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.ring-footer-lock:disabled, .ring-footer-del:disabled{ opacity: .4; cursor: default; }
+
+/* dev rotation spinner */
+.ring-footer-rot{
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: #998;
+}
+.ring-footer-rot input{
+  width: 54px;
+  font-size: 12px;
+  padding: 2px 4px;
+  border: 1px solid #ddd6c6;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.board-wedge--mine{ opacity: .19; }
+
+.ring-hub{
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 6;
+  border-radius: 50%;
+  overflow: hidden;            /* the big brand K clips at the rim */
+  background: #fffdf7;
+  border: 2px solid #8fa8c8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #667;
+}
+
+/* fixed passthrough host for the legacy dotted trade line (drawTradeLine →
+   #game .trade-line-layer, styled in katomia.css). id+class selector: the
+   legacy `#game{position:relative}` rule outranks a bare class and left this
+   host 0px tall — the drawn line lived in a zero-height svg (review #3:
+   "dotted line not showing up"). */
+#game.board-linelayer{
+  position: fixed;
+  inset: 0;
+  height: auto;
+  pointer-events: none;
+  z-index: 4;   /* UNDER the chip boxes (z5): lines run beneath chips (review 6) */
+}
+
+@media (max-width: 520px){
+  .ring-head{ font-size: 11px; }
+  .ring-box .board-chip{ font-size: 10px; padding: 2px 5px; }
+  .ring-box .board-chip .asset-thumb{ width: 26px; height: 26px; }
+
+  /* etched variants reclaim the label rows' space — chips get it back
+     (review 2026-07-09: chips too small to read on mobile) */
+  [data-board-skin="ring2"] .ring-box .board-chip,
+  [data-board-skin="ring3"] .ring-box .board-chip{ font-size: 11.5px; padding: 3px 7px; }
+  [data-board-skin="ring2"] .ring-box .board-chip .asset-thumb,
+  [data-board-skin="ring3"] .ring-box .board-chip .asset-thumb{ width: 32px; height: 32px; }
+
+  /* ring4+ portrait: the requested smidge up from ring2 */
+  :is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"], [data-board-skin="ring7"]) .ring-box .board-chip{ font-size: 12px; padding: 3px 8px; }
+  :is([data-board-skin="ring4"], [data-board-skin="ring5"], [data-board-skin="ring6"], [data-board-skin="ring7"]) .ring-box .board-chip .asset-thumb{ width: 36px; height: 36px; }
+}
+
+/* ── seat cards (other players) ─────────────────────────────────────────── */
+
+.board-seat{
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 180px;
+  max-width: 28vw;
+  background: #fff;
+  border-radius: 12px;
+  border-top: 4px solid #999;        /* player colour, set inline */
+  box-shadow: 0 2px 10px rgba(0,0,0,.12);
+  padding: 6px 8px 7px;
+  z-index: 5;
+}
+.board-seat--slim{ width: 138px; }
+
+.board-seat.drag-over{
+  outline: 2px solid #4a90d9;
+  outline-offset: 2px;
+}
+
+.board-seat-head{
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.board-seat-badge{
+  font-size: 11px;
+  color: #877;
+  margin-top: 3px;
+}
+
+/* ── chip bands ─────────────────────────────────────────────────────────── */
+
+.board-band{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-items: center;
+  min-height: 18px;
+}
+
+/* inner ring: their basket — separated by the table edge */
+.board-band-basket{
+  border-top: 1px dashed #e0d9c8;
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.board-chip{
+  font-size: 11px;
+  margin: 1px;
+  padding: 3px 6px;
+}
+
+.board-chip.thumb-only{ padding: 0; }
+.board-chip .asset-thumb{ width: 34px; height: 34px; border-radius: 8px; }
+
+/* reserved-as-ghost: stays in the available band, faded + dashed */
+.board-ghost{
+  opacity: .40;
+  outline: 1px dashed #b9b09c;
+  outline-offset: -1px;
+}
+
+/* ── center oval ────────────────────────────────────────────────────────── */
+
+.board-center{
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.board-lockring{
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.board-lockring-base{
+  fill: #fffdf7;
+  stroke: #a9c9ec;                    /* lockbar trading blue */
+  stroke-width: 5;
+}
+.board-lockring-locked{
+  fill: none;
+  stroke: #f5a623;                    /* lockbar locked orange */
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.board-center-inner{
+  position: relative;
+  text-align: center;
+  padding: 10px 18px;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden auto;
+}
+
+.board-center-title{
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.board-center-sub{
+  font-size: 11px;
+  color: #998;
+}
+
+.board-center-basket{
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.board-center-empty{
+  font-size: 11px;
+  color: #b3ab99;
+  font-style: italic;
+  padding: 4px 0;
+}
+
+/* ── my dock ────────────────────────────────────────────────────────────── */
+
+.board-dock{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  background: #fffef9;
+  border-top: 1px solid #e5e0d4;
+  box-shadow: 0 -3px 12px rgba(0,0,0,.07);
+  padding: 6px 10px calc(6px + env(safe-area-inset-bottom));
+  max-height: 38vh;
+  overflow: auto;
+}
+
+.board-dock-row{
+  padding: 3px 8px;
+  border-radius: 8px;
+  margin-bottom: 2px;
+}
+
+.board-dock-head{
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* the reused mode toggle renders its usual .mode + .lockbar — compact them */
+.board-dock-head .mode{ font-size: 12px; cursor: pointer; }
+.board-dock-head .lockbar{ width: 70px; }
+
+.board-dock-chips{ margin-top: 2px; }
+
+.board-dock-empty, .board-dock-label{ font-size: 12px; }
+.board-dock-empty{ color: #998; font-style: italic; }
+
+/* phones: slimmer seats, tighter dock */
+@media (max-width: 520px){
+  .board-seat{ width: 138px; padding: 5px 6px; }
+  .board-seat--slim{ width: 116px; }
+  .board-chip{ font-size: 10px; }
+  .board-dock{ max-height: 34vh; }
+}
+
+/* ── susan3 sizing — LAST on purpose: outranks base susan + susan2 groups
+   by source order (review 11: v2 chips maxed too large; cards widen into
+   unused desktop space) ── */
+/* susan3: chips scale DOWN (max ≈60% of v2 — v2 maxed too large), and cards
+   grow into unused width on wide screens */
+[data-board-fam~="susan3p"] .board-chip{
+  font-size: clamp(11px, 1.1vmin + 5px, 16px);
+  padding: 4px 8px;
+}
+[data-board-fam~="susan3p"] .board-chip .asset-thumb{
+  width: clamp(30px, 3.2vmin + 14px, 50px);
+  height: clamp(30px, 3.2vmin + 14px, 50px);
+}
+[data-board-fam~="susan3p"] .susan-card{
+  flex: 1 0 210px;
+  max-width: 360px;
+}
+
+/* ── ring15: the signing layer (first slice) ────────────────────────────── */
+
+/* party arcs carry the tx status — SIGN-STATUSLANG1 colours: pulsing orange
+   awaiting, green signed, red dashed failed (shape + hue, colourblind-safe) */
+.ring-signarc{ stroke-width: 8; opacity: .9; }
+.ring-signarc--pending{
+  stroke: #f5a623 !important;
+  stroke-dasharray: none;
+  animation: ring-signpulse 1.6s ease-in-out infinite;
+}
+.ring-signarc--signed{ stroke: #35b06f !important; stroke-dasharray: none; }
+.ring-signarc--failed{ stroke: #d64541 !important; stroke-dasharray: 6 6; }
+/* user 2026-07-12: a party member with no signature required (e.g. just
+   receiving, no receiver_sig_required) reads as a plain neutral grey — same
+   idea as the signing modal's card, which applies NO special class at all
+   for "none" and just shows the default border. No pulse, no dash. */
+.ring-signarc--none{ stroke: #9a9a9a !important; stroke-dasharray: none; opacity: .5; }
+@keyframes ring-signpulse{
+  0%, 100%{ opacity: .55; }
+  50%{ opacity: .95; }
+}
+
+/* hub countdown (tx expiry) */
+.ring-hub-count{
+  position: relative;
+  z-index: 1;
+  font-size: 13px;
+  font-weight: 800;
+  color: #b07b12;
+  font-variant-numeric: tabular-nums;
+  background: rgba(255, 253, 247, .92);   /* pill so it reads over the K */
+  border-radius: 9px;
+  padding: 1px 7px;
+}
+.ring-hub-count--signed{ color: #2e8f5b; }
+.ring-hub-count--failed{ color: #d64541; }
+
+/* pending tx legs sitting on the table */
+.board-txchip{
+  box-shadow: 0 0 0 1.5px rgba(245, 166, 35, .5);
+}
+
+.ring-footer-sign{
+  background: #fdf1dc;
+  border-color: #f5a623;
+  font-weight: 700;
+}
+
+/* ── ring16 (review 16) ─────────────────────────────────────────────────── */
+
+/* ▶ focus: near-blackout outside the spotlight — the deal is all there is */
+.ring-focusshade{
+  fill: rgba(28, 22, 12, .82);
+  stroke: none;
+  pointer-events: none;
+}
+.ring-footer-play--on{
+  background: #2f2a1e;
+  color: #fff;
+  border-color: #2f2a1e;
+}
+
+/* lock, twice as dark (review 16) — assets barely visible, 🔒 stays clear */
+[data-board-fam~="v16"] .ring-storedim{ fill: rgba(45, 35, 15, .38); }
+[data-board-fam~="v16"] .board-lockdim{ filter: saturate(.25) opacity(.35) brightness(1.05); }
+
+/* footer-Lock hover: preview WHICH arc you'd lock — thin dashed orange,
+   deliberately not the locked look */
+.ring-lockpreview{
+  stroke: #f5a623 !important;
+  stroke-width: 3 !important;
+  stroke-dasharray: 5 6 !important;
+  opacity: .8 !important;
+}
+
+/* review 17: the spotlight fades IN at flight speed (darkest as assets land)
+   and lifts gracefully; only the first mount animates, not every re-render */
+.ring-focusshade--in{ animation: ring-focusfade .9s ease forwards; }
+.ring-focusshade--out{ animation: ring-focuslift .5s ease forwards; }
+@keyframes ring-focusfade{ from{ opacity: 0; } to{ opacity: 1; } }
+@keyframes ring-focuslift{ from{ opacity: 1; } to{ opacity: 0; } }

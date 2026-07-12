@@ -142,19 +142,27 @@
 		if ($data) {
 			$bytes = strlen($data);
 			//file_put_contents("$cachefolder/dir.txt", time() . "\t$hash\t$bytes\t$url\n", FILE_APPEND); // i think we can delete this now
-			
+
 			file_put_contents($cachepath, $data);
-			unlink("$cachepath.loading"); // remove lock
-			
+
 			// write a header file for debug, and management
 			$cachepath_header = str_replace('.txt','.header.txt', $cachepath);
 			$callDuration = time() - $startTime;
 			$header = compact('url','hash', 'cachefolder', 'cachefile', 'timeoutseconds', 'cacheOnly', 'callDuration', 'bytes');
 			$result = file_put_contents($cachepath_header, json_encode($header, JSON_PRETTY_PRINT));
-			
+
 			elog("result $result writing cache for $url to $cachepath");
 		}
-		
+
+		// KDIAG-CACHELOCK1: this used to unlink() only inside the if($data) branch
+		// above, so a failed/empty origin fetch (file_get_contents returning false)
+		// left the .loading lock in place — every caller hitting the same $url
+		// (same hash) got the literal string "error KR994 cache loading locked,
+		// please retry" instead of real data or a clean failure, for up to 60s.
+		// Reproduced live 2026-07-11: an errored kpool call left this file stuck.
+		// Release the lock regardless of outcome.
+		if (file_exists("$cachepath.loading")) unlink("$cachepath.loading");
+
 		return $data;
 
 	}

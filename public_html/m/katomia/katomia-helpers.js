@@ -129,14 +129,37 @@
 
 			// lookup decimals from metadata cache
 			const meta = window.assetDisplayCache?.[assetId]
-			// const decimals = Number(meta?.token_class?.decimals || 0)
-            const decimals = String(assetId).toUpperCase() == "HBAR" ? 8 : Number(meta?.token_class?.decimals || 0)
+			const isHbar = String(assetId).toUpperCase() == "HBAR"
+			const isNft = String(assetId).includes("#")
+
+			// AMOUNT-SCALE1 (2026-07-07 incident): without meta the old code fell back to
+			// decimals 0 and let a DISPLAY amount (0.01 USDC) into game state as raw units
+			// — the store went fractional and the strike tx truncated the leg to 0. Never
+			// scale a token with UNKNOWN decimals: kick the enrichment and ask to retry.
+			if(!isHbar && !isNft && !meta){
+				try { if(typeof enrichAsset === "function" && gameMeta?.network) enrichAsset(gameMeta.network, assetId, available).then(e => { (window.assetDisplayCache ||= {})[assetId] = e.meta }).catch(() => {}) } catch(e){}
+				notify?.("Still loading this asset's details — try again in a second", "warning", { timeout: 4000 })
+				return null
+			}
+
+			const decimals = isHbar ? 8 : Number(meta?.token_class?.decimals || 0)
 
 			let scaled = n
 
 			if(decimals){
 				scaled = Math.round(n * (10 ** decimals))
 			}
+
+			// raw units are integers by definition — a fractional result here means the
+			// input was finer than the token's decimals (e.g. 0.5 of a 0-decimal LE token)
+			if(!Number.isInteger(scaled)){
+				notify?.(`Amount too fine — this asset has ${decimals} decimal places`, "warning", { timeout: 4000 })
+				return null
+			}
+
+			// input-side audit trail (user 2026-07-07: log the input so mis-scaling is
+			// traceable): what was typed, what meta said, what raw amount goes to the game.
+			try { window.kdiag?.("offer:amount", { assetId, input: String(input), decimals, scaled, available }) } catch(e){}
 
 			if(scaled > available) return null
 
@@ -149,10 +172,20 @@
 			return Object.values(state.accounts).map(account => ({
 				id: account.id,
 				label: account.label,
+				accountId: account.accountId || account.label,
 				playerId: account.playerId,
 				assets: account.assets || [],
 				basket: account.basket || [],
 				mode: account.mode || "shop",
+				// PROFILE-AUTH3/PROP-LOCKSIGN1: this whitelist silently DROPPED the auth
+				// fields the backend stamps on broadcast, so the 💠/△ row marker always
+				// saw undefined and showed △ even with a valid verified binding (order
+				// badges read state.accounts directly, which is why THEY showed 💠).
+				authenticated: !!account.authenticated,
+				authBound: !!account.authBound,
+				authWeight: account.authWeight || 0,
+				authThreshold: account.authThreshold ?? null,
+				authIntentKeys: account.authIntentKeys || [],
 			}))
 		}
 
@@ -618,9 +651,18 @@ function getPendingTxAccountMap(){
 				})
 			}
 
-			scan(basis.addTokenTransfer, x => x.tokenId)
-			scan(basis.addNftTransfer, x => `${x.tokenId}#${x.serial}`)
-			scan(basis.addHbarTransfer, () => "HBAR")
+			// pchbasis' REAL shape is transfers.{hbar,token,nft}Transfers (computePch,
+			// kpoolHelpers) — the add* names below never existed in it, so this map
+			// only ever caught the operator (BOARD-UI1 review-15 find). add* kept as
+			// a fallback for any older records.
+			const t = basis.transfers || {}
+			scan(t.tokenTransfers || basis.addTokenTransfer, x => x.tokenId)
+			scan(t.hbarTransfers || basis.addHbarTransfer, () => "HBAR")
+			;(t.nftTransfers || basis.addNftTransfer || []).forEach(x => {
+				const asset = `${x.tokenId}#${x.serialNumber ?? x.serial}`
+				add(x.senderAccountId || x.sender || x.accountId, asset)
+				add(x.receiverAccountId || x.receiver, asset)
+			})
 
 		}catch(e){
 			console.warn("pchbasis parse failed", tx)

@@ -1342,10 +1342,14 @@ footer .contact-form button.filled-button:hover {
 @media (max-width: 768px) {
 
     .page-heading.header-text {
-       /* display: none;  */
-       height: 0px;
+       /* GMSEARCH-MOBILE1: header is position:absolute; height:80px and overlays
+          the top of the page. This banner (collapsed/hidden on mobile) is the
+          first element in flow, so give it enough height to act as a spacer and
+          push the gallery content clear of the header instead of under it.
+          Was height:0 - which is exactly why the first card sat under the logo. */
+       height: 90px;
        visibility: hidden;
-       padding: 10px 0px 10px 0px ;
+       padding: 0px;
     }
 
     .contact-us {
@@ -1530,3 +1534,28 @@ h5 a:hover { color: inherit; }
 }
 
 
+
+/* GM-TOAST-X (feedback 859f6683, 2026-07-07): the shared kwc bundle emits
+   Bootstrap-5 dismissible-alert markup (.btn-close, an empty button styled by a
+   background SVG in BS5), but this site loads Bootstrap 4.1.3 — so the close
+   button rendered as a bare unstyled rectangle. Shim it to a visible ✕. */
+.btn-close {
+    box-sizing: content-box;
+    background: transparent;
+    border: 0;
+    padding: 0.25em;
+    font-size: 1.1em;
+    line-height: 1;
+    color: inherit;
+    opacity: 0.5;
+    cursor: pointer;
+}
+.btn-close::before { content: "✕"; }
+.btn-close:hover { opacity: 0.9; }
+.alert-dismissible .btn-close {
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 2;
+    padding: 0.75rem 1rem;
+}

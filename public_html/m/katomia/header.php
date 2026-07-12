@@ -26,18 +26,16 @@
     <button id="appMenuBtn" class="app-menu-btn" aria-label="Menu" aria-expanded="false" title="Menu">☰</button>
   </div>
 
+  <!-- MENU-TIDY1 (user 2026-07-07): the menu holds DESTINATIONS only. Removed:
+       "Create market" (a button on the Markets page — contextual, not navigation)
+       and "Nerd mode" (a preference — lives in Profile → Preferences & diagnostics).
+       The KEA entry (AUTH-LANG1 second door to the modal's collapsed section) stays
+       while the kea feature flag is on; it disappears wholesale at release. -->
   <nav id="appMenu" class="app-menu hidden">
-    <button type="button" class="app-menu-item" data-menu-profile>🔗 Profile &amp; connect</button>
-    <!-- AUTH-LANG1: second door to the SAME modal, landing on the KEA section — the
-         execution agent is a different act (pre-approved auto-settle) so it gets its
-         own entry, but one home. Wired in katomia-profile.js ([data-menu-kea]). -->
+    <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
+    <a class="app-menu-item" href="/m/katomia/">🏛️ Markets</a>
     <button type="button" class="app-menu-item" data-menu-kea data-feature="kea"
             title="Pre-approve a policy and let KEA auto-settle orders your intent key has signed — no per-transaction prompts.">🤖 Execution agent</button>
-    <a class="app-menu-item" href="/m/katomia/">🏛️ Markets</a>
-    <a class="app-menu-item" href="/m/katomia/create">➕ Create market</a>
-    <label class="app-menu-item nerd-control">
-      <input type="checkbox" class="nerd-toggle-input"> 🤓 Nerd mode
-    </label>
   </nav>
 </div>
 
@@ -70,9 +68,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   btn.onclick = e => { e.stopPropagation(); setOpen(menu.classList.contains("hidden")) }
 
-  // any item click closes the menu (the nerd toggle label stays open to allow flicking)
+  // any item click closes the menu (MENU-TIDY1: the nerd toggle moved out, so the old
+  // stay-open special case for it is gone)
   menu.addEventListener("click", e => {
-    if(e.target.closest(".nerd-control")) return
     if(e.target.closest(".app-menu-item")) setOpen(false)
   })
 

@@ -24,6 +24,14 @@
       <div class="profile-list">
         <div class="profile-label">Intent public key <span class="profile-tag profile-tag-public" title="Public. Your intent key — every order or proposal you place is signed by it, so others can recognise your intents across games.">public</span></div>
         <div id="profilePubkey" class="profile-mono" title="Your session's Ed25519 intent key. Signs your orders and proposal commitments — it says WHAT you want. A wallet can stand behind it (see Wallet binding below)."></div>
+        <!-- One-line visible explainer (user 2026-07-07) — the tooltips carry the depth,
+             this anchors the storyline language: intent key = WHAT you want.
+             KEY ROTATION — deliberately NOT a feature (user talked themselves out,
+             2026-07-07): the key lives in this browser's localStorage
+             (katomiaPlayerKeypair, see katomia-core.js getOrCreatePlayerKeypair);
+             clearing site data rotates it naturally — a fresh key is minted on next
+             load. Anonymous identity churn is self-serve; bound users wouldn't want it. -->
+        <p class="subtle profile-section-sub">This browser's signing identity: every order or proposal you place is signed with it, so others can recognise your intents. It says <em>what</em> you want — the wallet binding below says <em>who</em> you are.</p>
 
         <!-- KVAC / prepaid access id — NERD ONLY, STUBBED. HKSAT = SHA256(player token):
              the PUBLIC handle for prepaid fees (KSAT/KVAC model — see kpay.uk/kvac). The
@@ -49,11 +57,12 @@
          consumers: reputation on your orders AND members-only market access
          (GAME-JOINRULE1). "Reputation binding" was under-scoped once gating went live.
          WIREFRAME — options (expiry/scope/publish) are exposed to feel the UX. ═══ -->
-    <div class="profile-section profile-repute">
-      <div class="profile-section-head">
-        <span class="profile-section-title" title="One signed commitment, two uses: your orders can carry reputation, and members-only markets unlock for your accounts. Your intent key says WHAT you want; a binding says WHO you are.">🔗 Wallet binding</span>
-        <span class="profile-tag profile-tag-optional" title="Optional. Bind your intent key to a wallet account so your orders carry reputation and members-only markets open up. Nobody has to do this.">optional</span>
-      </div>
+    <!-- PROFILE-TIDY1: now a collapsible <details> like KEA/Preferences (open by
+         default — it stays the priority section) so the modal's organisation can be
+         played with. Kept the name "Wallet binding": the binding IS the authorisation
+         (one signed commitment covers both), and AUTH-LANG1 pinned this word. -->
+    <details class="profile-section profile-repute" id="profileBindSection" open>
+      <summary class="profile-section-title" title="One signed commitment, two uses: your orders can carry reputation, and members-only markets unlock for your accounts. Your intent key says WHAT you want; a binding says WHO you are.">🔗 Wallet binding <span class="profile-tag profile-tag-optional" title="Optional. Bind your intent key to a wallet account so your orders carry reputation and members-only markets open up. Nobody has to do this.">optional</span></summary>
       <p class="subtle profile-section-sub">Prove who you are: sign once with a wallet to put a real account behind your intent key — your orders can carry reputation, and members-only markets unlock. Publishing makes the binding public.</p>
 
       <div class="profile-auth">
@@ -76,22 +85,22 @@
           <button id="authAccountRemove" type="button" class="profile-auth-x hidden" title="Disconnect this wallet account">Disconnect</button>
         </div>
 
-        <!-- Commitment options — shown once an account is chosen. -->
+        <!-- Commitment options — shown once an account is chosen. Flat grid items (not
+             wrapping <label>s) so Expiry sits in the same 64px label column as
+             Network/Account, with Scope beside it getting the wider share. -->
         <div id="authOptions" class="profile-auth-options hidden">
-          <label class="profile-label">Expiry
-            <select id="authExpiry">
-              <option value="86400000">24 hours</option>
-              <option value="604800000">7 days</option>
-              <option value="2592000000">30 days</option>
-              <option value="">No expiry</option>
-            </select>
-          </label>
-          <label class="profile-label">Scope
-            <select id="authScope">
-              <option value="global">Global — all games</option>
-              <option value="game">This game only</option>
-            </select>
-          </label>
+          <span class="profile-label">Expiry</span>
+          <select id="authExpiry">
+            <option value="86400000">24 hours</option>
+            <option value="604800000">7 days</option>
+            <option value="2592000000">30 days</option>
+            <option value="">No expiry</option>
+          </select>
+          <span class="profile-label">Scope</span>
+          <select id="authScope">
+            <option value="global">Global — all games</option>
+            <option value="game">This game only</option>
+          </select>
           <label class="profile-auth-publish">
             <input type="checkbox" id="authPublish" checked> Publish this binding (public)
           </label>
@@ -102,10 +111,15 @@
 
         <button id="authBtn" type="button">💠 Raise commitment</button>
         <div id="authStatus" class="profile-auth-status subtle"></div>
-        <pre id="authOutput" class="profile-auth-output hidden"></pre>
-        <button id="authCopyBtn" type="button" class="hidden">⧉ Copy envelope</button>
+        <!-- PROFILE-TIDY1: the signed envelope + copy button are tech detail — nerd-only,
+             and collapsed even then. Normal mode just gets the status line above. -->
+        <details id="authResultDetails" class="profile-nerd-only profile-auth-result hidden">
+          <summary>Signed envelope (technical detail)</summary>
+          <pre id="authOutput" class="profile-auth-output"></pre>
+          <button id="authCopyBtn" type="button">⧉ Copy envelope</button>
+        </details>
       </div>
-    </div>
+    </details>
 
     <!-- ═══ EXECUTION AGENT — KEA (QR → link → copy). Collapsed by default so the
          wallet-binding flow gets priority. AUTH-LANG1: this is the DELEGATION act —

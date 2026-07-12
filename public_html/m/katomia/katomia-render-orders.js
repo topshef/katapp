@@ -1511,7 +1511,7 @@ function createTradeBtn(pair){  //simple FX
 function renderOrderMarketSummary(){
 
   const el = document.querySelector(
-    "#ordersSection .orders-market-summary"
+    ".orders-market-summary"   // ORDERS-LAYOUT1: now a top-level full-width chart section
   )
 
   if(!el) return

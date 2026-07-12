@@ -45,28 +45,52 @@ const defaultReadUrl = ({ network, txid }) =>
 
 const defaultSaveUrl = () => location.pathname + '?action=txSave'
 
-async function fetchTransactionBytes({ network, txid, readUrl }) {
-	const url = readUrl({ network, txid })
-	kdiag('signer:bytes:fetch', { url })
+// Fallback pool. xproof-created scheduled multisig txs are pooled in the SHARED kpool
+// via kpos.uk/pool (which proxies to the hapi2 backend), not this site's local kpool.
+// When the local pool doesn't have the tx, read AND save through kpos so those signings
+// work here too. Normal Katomia txs are found locally and never touch this path.
+const KPOS_POOL = 'https://kpos.uk/pool'
+const kposReadUrl = ({ network, txid }) =>
+	`${KPOS_POOL}/txRead?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
+const kposSaveUrl = ({ network }) =>
+	`${KPOS_POOL}/txSave?network=${encodeURIComponent(network)}`
 
+async function readHex2(url) {
 	const res = await fetch(url)
-	if (!res.ok) throw new Error('Failed to fetch transaction')
-
+	if (!res.ok) return { ok: false }
 	const data = await res.json()
-	const hex2 = data?.result?.hex2
-
-	if (!hex2) {
-		kdiag('signer:bytes:missing', { errors: data?.result?.errors })
-		alert(`error DQ63632 / ${data?.result?.errors?.join?.() || ''}`)
-		return null
-	}
-
-	kdiag('signer:bytes:ok', { bytes: hex2.length / 2 })
-	return hexToBytes(hex2)
+	return { ok: true, hex2: data?.result?.hex2 || null, errors: data?.result?.errors }
 }
 
-async function saveSignedTransaction({ network, signedTransactionHex, saveUrl }) {
-	const url = saveUrl()
+// Returns { bytes, src } — src ('local' | 'kpos') tells saveSignedTransaction which pool
+// to write the signature back to, so it joins the same collection the tx came from.
+async function fetchTransactionBytes({ network, txid, readUrl }) {
+	const primary = readUrl({ network, txid })
+	kdiag('signer:bytes:fetch', { url: primary })
+	const r = await readHex2(primary)
+
+	if (r.hex2) {
+		kdiag('signer:bytes:ok', { bytes: r.hex2.length / 2, src: 'local' })
+		return { bytes: hexToBytes(r.hex2), src: 'local' }
+	}
+
+	// not in the local pool → try the shared kpos pool (xproof scheduled txs live there)
+	kdiag('signer:bytes:fallback-kpos', { txid, localErrors: r.errors })
+	const rk = await readHex2(kposReadUrl({ network, txid }))
+	if (rk.hex2) {
+		kdiag('signer:bytes:ok', { bytes: rk.hex2.length / 2, src: 'kpos' })
+		return { bytes: hexToBytes(rk.hex2), src: 'kpos' }
+	}
+
+	kdiag('signer:bytes:missing', { local: r.errors, kpos: rk.errors })
+	const msg = (r.errors || rk.errors)?.map?.(e => e?.message || e)?.join?.(', ') || ''
+	alert(`error DQ63632 / ${msg}`)
+	return null
+}
+
+async function saveSignedTransaction({ network, signedTransactionHex, saveUrl, src }) {
+	// save the collected signature back to the SAME pool the bytes came from
+	const url = (src === 'kpos') ? kposSaveUrl({ network }) : saveUrl()
 
 	const payload = {
 		network,
@@ -117,6 +141,7 @@ export function renderWalletConnectSigner(container, {
 	saveUrl = defaultSaveUrl,
 	onSigned,
 	onAccount,
+	signerPreview,   // TX-CARDS-WCPREVIEW1: (accountId) → { state, text } threshold preview
 	onLock,    // called before wc.connect() opens its modal — prevents backdrop-close
 	onUnlock   // called after wc.connect() resolves (success or error)
 } = {}) {
@@ -298,6 +323,11 @@ export function renderWalletConnectSigner(container, {
 
 			acct.onchange = async () => {
 				const id = acct.value
+				// TX-CARDS-WCPREVIEW1: update the preview line IMMEDIATELY on selection
+				// (synchronous, snappy) — no re-render happens on a plain switch, so this
+				// is what refreshes the message; without it the previous account's line
+				// lingered.
+				if (id !== ADD_NEW) updatePreview(id)
 				if (id === ADD_NEW) {
 					acct.value = account   // revert the visible selection; connect re-renders
 					kdiag('signer:connect:add', { network })
@@ -361,16 +391,18 @@ export function renderWalletConnectSigner(container, {
 				if (!wc.signTx) throw new Error('signTx missing (wrong bundle cached)')
 
 				const accountId = await ensureAccountId()
-				const transactionBytes = await fetchTransactionBytes({ network, txid, readUrl })
-				if (!transactionBytes) return
+				const fetched = await fetchTransactionBytes({ network, txid, readUrl })
+				if (!fetched) return
+				const { bytes: transactionBytes, src: poolSrc } = fetched
 
 				const result = await wc.signTx({ accountId, transactionBytes, submitNow: false })
-				kdiag('signer:sign:signed', { accountId })
+				kdiag('signer:sign:signed', { accountId, poolSrc })
 
 				const saveResult = await saveSignedTransaction({
 					network,
 					signedTransactionHex: result.signedTransactionHex,
-					saveUrl
+					saveUrl,
+					src: poolSrc
 				})
 
 				kdiag('signer:sign:saved', {
@@ -391,6 +423,28 @@ export function renderWalletConnectSigner(container, {
 
 		row.append(acct, disc, sign)
 		wrap.appendChild(row)
+
+		// TX-CARDS-WCPREVIEW1: banner under the picker saying what signing the SELECTED
+		// account does for this tx (needed / not needed / completes the threshold).
+		const preview = document.createElement('div')
+		preview.className = 'kpsign-preview'
+		wrap.appendChild(preview)
+		const updatePreview = (id) => {
+			if (typeof signerPreview !== 'function') { preview.style.display = 'none'; return }
+			const p = signerPreview(id) || {}
+			if (!p.text || p.state === 'loading') { preview.style.display = 'none'; return }
+			preview.dataset.state = p.state
+			// completes = plain text (a tick reads as DONE, not todo); ✍️ only where a
+			// signature is still wanted; ℹ️ for the informational states.
+			preview.textContent = (p.state === 'needed' ? '✍️ ' : (p.state === 'not-needed' || p.state === 'already') ? 'ℹ️ ' : '') + p.text
+			preview.style.display = ''
+		}
+		const curId = () => hasMulti ? acct.value : account
+		updatePreview(curId())   // initial; switches update via acct.onchange
+		// keyInfo enriches async — the first paint may compute 'loading' (hidden). Recheck a
+		// couple of times so the line appears once the threshold data is in, without a switch.
+		setTimeout(() => { if (preview.isConnected) updatePreview(curId()) }, 1200)
+		setTimeout(() => { if (preview.isConnected) updatePreview(curId()) }, 3000)
 	}
 
 	render()
@@ -404,9 +458,17 @@ function injectSignerCSS() {
 
 	const s = document.createElement('style')
 	s.textContent = `
-		.kpsign { display:flex; justify-content:center; margin:16px 0; }
+		/* TX-CARDS-WCPREVIEW1: column so the preview line sits UNDER the picker row (was a
+		   flex row, which pushed the preview out to the right and widened the modal). */
+		.kpsign { display:flex; flex-direction:column; align-items:center; margin:16px 0; }
 		.kpsign-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center; }
 		.kpsign-acct { font:13px ui-monospace,Menlo,Consolas,monospace; color:#555; }
+		/* TX-CARDS-WCPREVIEW1: threshold preview under the account picker */
+		.kpsign-preview { text-align:center; font-size:12px; margin:8px auto 0; max-width:340px; line-height:1.4; }
+		.kpsign-preview[data-state="completes"] { color:#137333; }
+		.kpsign-preview[data-state="needed"] { color:#52525b; }
+		.kpsign-preview[data-state="already"] { color:#52525b; }
+		.kpsign-preview[data-state="not-needed"] { color:#9aa0a6; }
 		.kpsign-btn { all:revert; padding:6px 16px; border:1px solid #4aa3ff; border-radius:6px;
 			background:#eaf4ff; color:#084298; cursor:pointer; font:inherit; }
 		.kpsign-btn:hover { background:#d6eaff; }

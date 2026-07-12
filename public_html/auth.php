@@ -7,7 +7,10 @@
 	$ip_tester = $env['ip_tester'];
 	$is_tester_based_on_ip = strpos($ip_tester, $ip) !== false;
 	
-	$ip_admin = '130.185.251.53 ';  // self, not admin 194.35.12.127
+	// GMADMINMENU1: added Lincoln server IP (176.126.78.48) so the server itself
+	// — and headless/agent requests originating from it — count as admin and can
+	// see the admin menu + admin-only surfaces. (self = 130.185.251.53; not admin 194.35.12.127)
+	$ip_admin = '130.185.251.53 176.126.78.48 ';
 	$isAdmin = strpos($ip_admin, $ip) !== false;
 	if (!defined('IS_ADMIN')) define('IS_ADMIN', $isAdmin);
 	if ($isAdmin) $_SESSION['flags']['isAdmin'] = true;

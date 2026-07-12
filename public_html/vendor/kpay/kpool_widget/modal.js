@@ -76,8 +76,17 @@ function injectModalCSS() {
 			line-height: 1; padding: 4px 6px; border-radius: 6px; font: inherit;
 		}
 		.kpm-diag { font-size: 12px; opacity: .75; }
-		.kpm-diag:hover, .kpm-close:hover { background: rgba(0,0,0,.08); opacity: 1; }
-		.kpm-close { font-size: 22px; }
+		.kpm-diag:hover { background: rgba(0,0,0,.08); opacity: 1; }
+		/* SIGN-HEADERSNAG1: conventional close button — a fixed square hit area, the ✕
+		   vertically centred to match the status dot / nerd toggle / open-tab icon in the
+		   same row (all now 28px tall, align-items:center). Hover = subtle CIRCLE that
+		   tints red (the familiar "close" affordance), not the old square grey bubble. */
+		.kpm-head-actions > * { display: inline-flex; align-items: center; justify-content: center; height: 28px; }
+		.kpm-close {
+			width: 28px; height: 28px; padding: 0; font-size: 22px;
+			border-radius: 50%; color: #6b7280; transition: background .12s, color .12s;
+		}
+		.kpm-close:hover { background: rgba(220,38,38,.12); color: #dc2626; }
 
 		/* Nerd toggle relocated into the header (ORDERS-UI1) — the widget styles it
 		   position:absolute for its inline top-right corner; neutralise that here so
@@ -107,6 +116,10 @@ function injectModalCSS() {
 		/* only the body scrolls, and only when content actually exceeds the card
 		   height (e.g. a transaction with many transfers / signing rows). */
 		.kpm-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 16px; }
+		/* SIGN-LAYOUTJUMP1: while the modal is still resizing from async enrichment, block
+		   taps so they can't land on an element that's about to move (esp. the Sign button).
+		   Invisible to the user; lifts within ~350ms of the layout settling. */
+		.kpm-card[data-settling="1"] .kpm-body { pointer-events: none; }
 
 		@media (max-width: 768px) {
 			.kpm-overlay { padding: 0; }
@@ -125,6 +138,34 @@ function injectModalCSS() {
 		}
 	`
 	document.head.appendChild(style)
+	installWcmZIndexGuard()
+}
+
+// WCM-ZINDEX1 (2026-07-08): WalletConnect's ThemeUtil.setTheme() writes
+// --wcm-z-index:"89" INLINE on <html>, which beats both the :root rule above and the
+// per-connect programmatic bump — and it re-applies ASYNC during the modal lifecycle
+// (theme re-render / session restore), so a bump set just before wc.connect() can be
+// clobbered a beat later, dropping the WC modal UNDER our signing/profile modals
+// (z 2000–9999). Reported intermittently 2026-07-08. This self-healing guard re-asserts
+// our high value whenever WC lowers it — a MutationObserver on <html>'s style attribute,
+// installed once. Only ever RAISES the z-index, so it can't harm anything.
+const WCM_Z = '2147483000'
+// window-level flag (not module-level): katomia-auth.js installs the SAME guard on page
+// load so the profile/add-account connect flows are covered even when the signing modal
+// (this module) never opens. Whichever runs first wins; the other no-ops.
+function installWcmZIndexGuard() {
+	if (typeof window === 'undefined' || window.__wcmZGuardInstalled || typeof MutationObserver === 'undefined') return
+	window.__wcmZGuardInstalled = true
+	const html = document.documentElement
+	const assert = () => {
+		if (html.style.getPropertyValue('--wcm-z-index') === WCM_Z) return
+		const was = html.style.getPropertyValue('--wcm-z-index') || '(unset)'
+		html.style.setProperty('--wcm-z-index', WCM_Z)
+		html.style.setProperty('--w3m-z-index', WCM_Z)
+		try { globalThis.kdiag?.('wc:zindex-corrected', { was, to: WCM_Z }) } catch {}
+	}
+	assert()
+	new MutationObserver(assert).observe(html, { attributes: true, attributeFilter: ['style'] })
 }
 
 export function buildModal({ onClose } = {}) {
@@ -179,6 +220,31 @@ export function buildModal({ onClose } = {}) {
 	const body = document.createElement('div')
 	body.className = 'kpm-body'
 	card.appendChild(body)
+
+	// SIGN-LAYOUTJUMP1 (2026-07-08): the modal grows as async enrichment lands (asset
+	// names, xproof labels, precheck, fee lines) AFTER first paint — a user who opens the
+	// modal and immediately presses Sign had the button move out from under the tap, and
+	// the click landed on the txread-scope link instead. On MAINNET that's a dangerous
+	// "I thought I signed" class. While the card is still RESIZING, mark it settling so
+	// the body is non-interactive (a too-fast tap is a harmless no-op, not a mis-hit on a
+	// moved element); once the height holds steady for a beat, interaction is restored.
+	if (typeof ResizeObserver !== 'undefined') {
+		let settleTimer = null
+		let lastH = 0
+		const SETTLE_MS = 350
+		card.dataset.settling = '1'
+		const ro = new ResizeObserver(() => {
+			const h = card.offsetHeight
+			if (h === lastH) return           // ignore no-op notifications
+			lastH = h
+			card.dataset.settling = '1'
+			clearTimeout(settleTimer)
+			settleTimer = setTimeout(() => { card.dataset.settling = '0' }, SETTLE_MS)
+		})
+		ro.observe(card)
+		// safety net: never leave it locked if resizes never quiesce
+		setTimeout(() => { card.dataset.settling = '0'; try { ro.disconnect() } catch (e) {} }, 8000)
+	}
 
 	overlay.appendChild(backdrop)
 	overlay.appendChild(card)
