@@ -321,7 +321,7 @@ let boardPrefsOpen = false                     // ⚙ popover, session only
 // many players to fit" — moves onto the ring itself: mine stays fixed, OTHER
 // players become a scrollable window capped at boardMaxSegments total slots
 // (mine + visible others). A footer number input controls this; default 6.
-let boardMaxSegments = Math.max(3, Number(_bp.maxSegments) || 6)
+let boardMaxSegments = Math.max(2, Number(_bp.maxSegments) || 6)   // min 2 = two-party swap view (user 2026-07-12)
 let boardOthersScrollOffset = 0   // index into the (player-grouped) others list — which window is showing
 let boardFocusMode = false                     // ▶ spotlight toggle (session)
 
@@ -2161,14 +2161,17 @@ function ringFooter(mine){
       const maxLabel = document.createElement("label")
       maxLabel.className = "ring-footer-filter"
       maxLabel.title = "Maximum players shown on the ring at once (yours + others). Above this, the rest scroll behind a tap-to-advance divider."
+      // min 2 (user 2026-07-12): "half the screen is a player — collapses
+      // down to the conventional two-party swap", scrolling through partners
+      // one at a time. Never obtuse: 2 slots = at most ~180° each.
       const maxInput = document.createElement("input")
       maxInput.type = "number"
-      maxInput.min = "3"
+      maxInput.min = "2"
       maxInput.max = "24"
       maxInput.className = "ring-footer-maxseg"
       maxInput.value = boardMaxSegments
       maxInput.onchange = () => {
-        const v = Math.max(3, Math.min(24, Number(maxInput.value) || 6))
+        const v = Math.max(2, Math.min(24, Number(maxInput.value) || 6))
         maxInput.value = v
         boardMaxSegments = v
         boardOthersScrollOffset = 0
@@ -2186,7 +2189,7 @@ function ringFooter(mine){
       spdLabel.title = "Animation speed — slow everything down to inspect the choreography"
       const spd = document.createElement("select")
       spd.className = "ring-footer-maxseg"
-      ;[["1", "1×"], ["0.5", "½×"], ["0.25", "¼×"], ["0.1", "⅒×"]].forEach(([v, t]) => {
+      ;[["2", "2×"], ["1", "1×"], ["0.5", "½×"], ["0.25", "¼×"], ["0.1", "⅒×"]].forEach(([v, t]) => {
         const o = document.createElement("option")
         o.value = v; o.textContent = t
         spd.appendChild(o)
@@ -2978,7 +2981,10 @@ function ringFelt(segs, g){
         you.setAttribute("dominant-baseline", "central")
         you.setAttribute("transform", `rotate(${rot} ${x} ${y})`)
         you.textContent = "you"
-        labelLayer.appendChild(you)
+        // segTop, not labelLayer (user 2026-07-12): the "you" label was the
+        // one element outside the fade/clip scope — it overhung its
+        // collapsing segment and popped instead of fading in/out with it
+        segTop(seg).appendChild(you)
       }
     })
   }
@@ -3050,6 +3056,8 @@ function ringStoreZonePath(seg, g){
 // the account id etched into the felt — big, bold, faded, in the owner's
 // colour. ring2: written along the segment's most-horizontal boundary line
 // (nudged into the segment); ring3: horizontal at the outer zone's centroid.
+const _boardEtchSide = new Map()   // account id → which boundary its etched id last wrote along (hysteresis)
+
 function ringEtchLabel(seg, g, NS){
 
   const text = document.createElementNS(NS, "text")
@@ -3086,9 +3094,22 @@ function ringEtchLabel(seg, g, NS){
     return text
   }
 
-  // ring2: pick the boundary that lies most east-west, write along it
+  // ring2: pick the boundary that lies most east-west, write along it.
+  // STICKY with hysteresis (user 2026-07-12: the id "flashed between two
+  // possible positions" during animations — a raw c0>=c1 pick flips back and
+  // forth every frame as the segment rotates through the crossover). Keep
+  // the previous side unless the other is CLEARLY better; converges to the
+  // optimum at rest, never thrashes mid-tween.
   const c0 = Math.abs(Math.cos(g.rad(seg.a0))), c1 = Math.abs(Math.cos(g.rad(seg.a1)))
-  const abDeg = c0 >= c1 ? seg.a0 : seg.a1
+  let side = c0 >= c1 ? "a0" : "a1"
+  const prevSide = _boardEtchSide.get(seg.account.id)
+  if(prevSide && prevSide !== side){
+    const cPrev = prevSide === "a0" ? c0 : c1
+    const cNew = side === "a0" ? c0 : c1
+    if(cNew - cPrev < 0.15) side = prevSide
+  }
+  _boardEtchSide.set(seg.account.id, side)
+  const abDeg = side === "a0" ? seg.a0 : seg.a1
   const ab = g.rad(abDeg)
   // pulled in from the screen edge so the text never clips
   const rt = Math.max(g.ovalR(ab) + halfLen * 0.4,

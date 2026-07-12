@@ -1187,19 +1187,37 @@ body.board-page{
 /* ── ring15: the signing layer (first slice) ────────────────────────────── */
 
 /* party arcs carry the tx status — SIGN-STATUSLANG1 colours: pulsing orange
-   awaiting, green signed, red dashed failed (shape + hue, colourblind-safe) */
-.ring-signarc{ stroke-width: 8; opacity: .9; }
+   awaiting, green signed, red dashed failed (shape + hue, colourblind-safe).
+
+   GLOW (user 2026-07-12): players' assigned colours can collide with the
+   traffic-light meanings (an early player is often red or green), so the two
+   colour systems get different MATERIALS — gameplay colours stay crisp,
+   painted-on; signing status is a LIGHT: a neon-strip soft glow, deliberately
+   blurry and spread ("not too tight") so it can never be mistaken for a
+   player's paint. The signing-phase spotlight (dark felt) amplifies it —
+   the glow visibly illuminates over the darkened board. */
+.ring-signarc{ stroke-width: 8; opacity: .95; }
 .ring-signarc--pending{
   stroke: #f5a623 !important;
   stroke-dasharray: none;
+  filter: drop-shadow(0 0 6px #f5a623) drop-shadow(0 0 18px rgba(245,166,35,.75));
   animation: ring-signpulse 1.6s ease-in-out infinite;
 }
-.ring-signarc--signed{ stroke: #35b06f !important; stroke-dasharray: none; }
-.ring-signarc--failed{ stroke: #d64541 !important; stroke-dasharray: 6 6; }
+.ring-signarc--signed{
+  stroke: #35b06f !important;
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 6px #35b06f) drop-shadow(0 0 18px rgba(53,176,111,.75));
+}
+.ring-signarc--failed{
+  stroke: #d64541 !important;
+  stroke-dasharray: 6 6;
+  filter: drop-shadow(0 0 6px #d64541) drop-shadow(0 0 18px rgba(214,69,65,.75));
+}
 /* user 2026-07-12: a party member with no signature required (e.g. just
    receiving, no receiver_sig_required) reads as a plain neutral grey — same
    idea as the signing modal's card, which applies NO special class at all
-   for "none" and just shows the default border. No pulse, no dash. */
+   for "none" and just shows the default border. No pulse, no dash — and NO
+   glow: in the light-vs-paint language, this is a light that isn't lit. */
 .ring-signarc--none{ stroke: #9a9a9a !important; stroke-dasharray: none; opacity: .5; }
 @keyframes ring-signpulse{
   0%, 100%{ opacity: .55; }
