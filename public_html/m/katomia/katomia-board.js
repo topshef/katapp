@@ -627,13 +627,18 @@ function renderRingBoard(root){
   // join order — shared board for all; filters preserve join order
   // (getVisibleAccounts sorts mine-first, which would reseat the shared board)
   boardSigning = boardDetectSigning()
-  // party collapse/expand mid-tween: paint the UNION list (leavers still on
-  // the board at their shrinking widths) instead of the filtered one —
-  // re-resolved to LIVE account objects each render so a WS state push
-  // landing mid-tween doesn't paint 550ms-stale chip data
+  // party collapse/expand mid-tween: paint the merged entity list (leavers
+  // still on the board at their shrinking widths) instead of the filtered
+  // one — account refs re-resolved to LIVE objects each render so a WS state
+  // push landing mid-tween doesn't paint 550ms-stale chip data
   const accountMap = getAccountMap()
+  if(_boardPartyAnim)
+    _boardPartyAnim.entities.forEach(en => {
+      if(en.slot.type === "account")
+        en.slot.account = accountMap[en.slot.account.id] || en.slot.account
+    })
   const accounts = _boardPartyAnim
-    ? _boardPartyAnim.accounts.map(a => accountMap[a.id] || a)
+    ? _boardPartyAnim.entities.filter(en => en.slot.type === "account").map(en => en.slot.account)
     : boardFilteredAccounts()
   const reservedByAccount = buildReservedByAccount(accounts)
   const etched = ringEtched()
@@ -659,20 +664,20 @@ function renderRingBoard(root){
   // boardMaxSegments, others are windowed with a scroll-divider on each side
   // (boardRingLayoutSlots). Below the cap this is just `accounts` again, one
   // slot each, no dividers — unchanged from before this feature.
-  // Party collapse/expand: windowing bypassed, every union account gets a
-  // slot whose width is weighted by the tween (leavers 1→0, arrivals 0→1,
-  // keepers 1) — the pacman close/open. Snaps to the normal layout on done.
+  // Party collapse/expand v2: widths interpolate between the two REAL slot
+  // layouts captured at toggle (dividers and windowing included — see
+  // boardTogglePartyOnly), so both tween endpoints equal the actual screens.
   let slots, step, widths
   if(_boardPartyAnim){
-    slots = accounts.map(account => ({ type: "account", account }))
     const e = _boardPartyAnim.e
-    const wts = accounts.map(a =>
-      _boardPartyAnim.removed.has(a.id) ? 1 - e :
-      _boardPartyAnim.added.has(a.id) ? e : 1)
-    const tot = wts.reduce((s, x) => s + x, 0) || 1
-    widths = wts.map(w => w / tot * 360)
-    slots.forEach((s, i) => { s.weight = wts[i] })     // chip fade rides this
-    step = 360 / Math.max(1, accounts.length)          // felt font sizing only
+    slots = _boardPartyAnim.entities.map(en => en.slot)
+    widths = _boardPartyAnim.entities.map(en => en.wOld + (en.wNew - en.wOld) * e)
+    _boardPartyAnim.entities.forEach(en => {
+      if(en.slot.type === "account")
+        en.slot.weight = en.wNew < 0.01 ? 1 - e : en.wOld < 0.01 ? e : 1   // chip fade rides this
+    })
+    const acctW = widths.filter((w, i) => slots[i].type === "account" && w > 1)
+    step = acctW.length ? acctW.reduce((s, x) => s + x, 0) / acctW.length : 360   // felt font sizing only
   } else {
     slots = boardRingLayoutSlots(accounts)
     const acctSlotCount = slots.filter(s => s.type === "account").length
@@ -754,20 +759,32 @@ function renderRingBoard(root){
   let renderSlots = slots.map((slot, i) => ({ slot, base: cumStart[i], width: widths[i] }))
   let wheelClip = null, wheelWedgeClip = null, wheelChipClip = null
   const firstOthers = slots.findIndex(s => s.group === "others")
-  if(_boardOthersRotate > 0 && firstOthers >= 0 && !_boardPartyAnim){
+  if(_boardOthersRotate !== 0 && firstOthers >= 0 && !_boardPartyAnim){
     let lastOthers = firstOthers
     slots.forEach((s, i) => { if(s.group === "others") lastOthers = i })
     wheelClip = { a0: start + cumStart[firstOthers],
                   a1: start + cumStart[lastOthers] + widths[lastOthers] }
-    // the leaver: the account that just scrolled out of the window (taps are
-    // always +1). With >1 hidden it can never also be the newcomer.
+    // the leaver: the account that just scrolled out of the window. Direction
+    // decides which END it fell off and which threshold it exits through:
+    // +1 (glide > 0) dropped the FRONT account — re-inserted one slot before
+    // the window, exits the near divider; −1 dropped the BACK one —
+    // re-inserted one slot after, exits the far divider. With ≥1 hidden it
+    // can never also be the entrant.
     const others = accounts.filter(a => !isMyAccount(a))
     if(others.length > 1){
       const off = ((boardOthersScrollOffset % others.length) + others.length) % others.length
-      const leaver = others[(off - 1 + others.length) % others.length]
-      renderSlots.splice(firstOthers, 0, {
-        slot: { type: "account", account: leaver, group: "others" },
-        base: cumStart[firstOthers] - step, width: step })
+      const m = lastOthers - firstOthers + 1
+      if(_boardOthersRotate > 0){
+        const leaver = others[(off - 1 + others.length) % others.length]
+        renderSlots.splice(firstOthers, 0, {
+          slot: { type: "account", account: leaver, group: "others" },
+          base: cumStart[firstOthers] - step, width: step })
+      } else {
+        const leaver = others[(off + m) % others.length]
+        renderSlots.splice(lastOthers + 1, 0, {
+          slot: { type: "account", account: leaver, group: "others" },
+          base: cumStart[lastOthers] + widths[lastOthers], width: step })
+      }
     }
     const poly = boardSectorPolygon(wheelClip.a0, wheelClip.a1, geo, 8)
     wheelWedgeClip = document.createElement("div")
@@ -792,7 +809,7 @@ function renderRingBoard(root){
     const chipDest = inWheel ? wheelChipClip : frag
 
     if(slot.type === "divider"){
-      frag.appendChild(makeScrollDividerWedge(a0, a1, geo, slot.hiddenCount))
+      frag.appendChild(makeScrollDividerWedge(a0, a1, geo, slot.hiddenCount, slot.dir))
       return
     }
 
@@ -1449,22 +1466,29 @@ function boardSectorPolygon(a0, a1, geo, steps = 6){
 let _boardPartyAnim = null    // { accounts, removed:Set, added:Set, e }
 let _boardPartyCancel = null
 
+// v2 (user 2026-07-12): v1 tweened raw account widths and BYPASSED the wheel
+// windowing — so over the segment cap, the divider wedges vanished at tap and
+// every width recomputed without them: the jump the user reported. Now the
+// tween interpolates between the two REAL slot layouts (dividers, windowing
+// and all — boardComputeSlotLayout is the renderer's own math), so e=0 IS the
+// pre-toggle screen and e=1 IS the post-toggle screen, dividers gliding/
+// shrinking like everything else, revealed others emerging at their divider
+// seam. This is the user's two-phase design collapsed into one continuous
+// pass (no mid-point handoff to glitch). Deviation noted: revealed segments
+// inflate from the seam rather than rolling in behind an animated clip — if
+// that reads wrong live, the clip-roll is the follow-up.
 function boardTogglePartyOnly(v){
-  const before = boardFilteredAccounts()
+  const oldL = ring16() ? boardComputeSlotLayout(boardFilteredAccounts()) : null
   boardPartyOnly = v
   boardSavePrefs()
-  const after = boardFilteredAccounts()
-  const beforeIds = new Set(before.map(a => a.id))
-  const afterIds = new Set(after.map(a => a.id))
-  const removed = new Set(before.filter(a => !afterIds.has(a.id)).map(a => a.id))
-  const added = new Set(after.filter(a => !beforeIds.has(a.id)).map(a => a.id))
-  if((!removed.size && !added.size) || !ring16()){ render(); return }   // no membership change → nothing to animate
-  // the union is whichever side is the superset (collapse: before ⊇ after;
-  // expand: after ⊇ before) — party filtering only ever adds/removes, and
-  // both lists come out of the same grouped ordering
-  const union = removed.size ? before : after
+  if(!oldL){ render(); return }
+  const newL = boardComputeSlotLayout(boardFilteredAccounts())
+  const entities = boardMergeSlotLayouts(oldL, newL)
+  if(!entities.some(en => Math.abs(en.wOld - en.wNew) > 0.01)){ render(); return }   // no layout change
+  // a wheel glide mid-flight would fight the layout tween — settle it first
+  _boardScrollCancel?.(); _boardScrollCancel = null; _boardOthersRotate = 0
   _boardPartyCancel?.()
-  _boardPartyAnim = { accounts: union, removed, added, e: 0 }
+  _boardPartyAnim = { entities, e: 0 }
   _boardPartyCancel = boardAnimate(550, (e, done) => {
     if(_boardPartyAnim) _boardPartyAnim.e = e
     if(done){ _boardPartyAnim = null; _boardPartyCancel = null }
@@ -1500,25 +1524,79 @@ function boardRingLayoutSlots(accounts){
     visibleOthers.push(others[(offset + k) % others.length])
 
   const hiddenCount = others.length - visibleOthers.length
-  const divider = () => ({ type: "divider", hiddenCount })
+  // dir: tap direction per divider — OPPOSITE ways (user 2026-07-12; v1 had
+  // both going the same way). Current mapping: each divider PULLS the hidden
+  // players in through ITSELF (near divider −1, far divider +1). The user is
+  // trying both to see which feels intuitive — this mapping may yet flip
+  // (swap the signs here, nothing else cares). dividerIndex keys the party
+  // tween's layout merge (boardMergeSlotLayouts).
+  const divider = (dividerIndex, dir) => ({ type: "divider", hiddenCount, dividerIndex, dir })
 
   return [
     ...mine.map(account => ({ type: "account", account })),
-    divider(),
+    divider(0, -1),
     // group tag: the wheel-scroll glide (_boardOthersRotate) applies to these
     // slots only — mine and the dividers hold still while the window turns
     ...visibleOthers.map(account => ({ type: "account", account, group: "others" })),
-    divider()
+    divider(1, 1)
   ]
+}
+
+// the ONE place slot geometry comes from: accounts+dividers with their
+// angular widths. Extracted so the party-toggle tween can compute the exact
+// before/after layouts with the same machinery the renderer uses — the tween
+// endpoints then EQUAL the real screens by construction (no jumps).
+function boardComputeSlotLayout(accountsList){
+  const slots = boardRingLayoutSlots(accountsList)
+  const acctSlotCount = slots.filter(s => s.type === "account").length
+  const dividerCount = slots.length - acctSlotCount
+  const step = acctSlotCount ? (360 - dividerCount * BOARD_DIVIDER_DEG) / acctSlotCount : 360
+  const widths = slots.map(s => s.type === "divider" ? BOARD_DIVIDER_DEG : step)
+  return { slots, widths, step }
+}
+
+// merge two slot sequences (old + new layout) into one ordered entity list
+// with per-entity old/new widths. Common entities (same account id / same
+// divider) keep their shared relative order; old-only entities (leavers,
+// vanishing dividers) sit where they were with wNew=0; new-only entities
+// (revealed others, appearing dividers) sit where they belong with wOld=0 —
+// the cumulative walk then makes them emerge exactly at their seam.
+function boardMergeSlotLayouts(oldL, newL){
+  const k = s => s.type === "divider" ? "d" + s.dividerIndex : "a" + s.account.id
+  const oldKeys = oldL.slots.map(k), newKeys = newL.slots.map(k)
+  const newIndex = new Map(newKeys.map((kk, i) => [kk, i]))
+  const entities = []
+  let nPtr = 0
+  const emitNewOnly = upTo => {
+    while(nPtr < upTo){
+      if(!oldKeys.includes(newKeys[nPtr]))
+        entities.push({ slot: newL.slots[nPtr], wOld: 0, wNew: newL.widths[nPtr] })
+      nPtr++
+    }
+  }
+  oldL.slots.forEach((s, i) => {
+    const ni = newIndex.get(oldKeys[i])
+    if(ni != null && ni >= nPtr){
+      emitNewOnly(ni)
+      entities.push({ slot: newL.slots[ni], wOld: oldL.widths[i], wNew: newL.widths[ni] })
+      nPtr = ni + 1
+    } else {
+      entities.push({ slot: s, wOld: oldL.widths[i], wNew: 0 })
+    }
+  })
+  emitNewOnly(newL.slots.length)
+  return entities
 }
 
 function boardScrollOthers(step){
   boardOthersScrollOffset += step
   boardDiag("board:wheel:scroll", { offset: boardOthersScrollOffset, step })
-  // glide instead of snap: at offset = +step×width the surviving others paint
-  // at their OLD positions (the newcomer at the far divider), then everything
-  // eases to 0 = the new layout. Rapid taps restart the tween from the new
-  // window — slight replay, acceptable.
+  // glide instead of snap: at offset = ±step×width the surviving others paint
+  // at their OLD positions (the entrant behind its divider), then everything
+  // eases to 0 = the new layout. Sign carries direction: +1 glides the wheel
+  // one way (entrant through the FAR divider), −1 the other (entrant through
+  // the NEAR one). Rapid taps restart the tween from the new window — slight
+  // replay, acceptable.
   _boardScrollCancel?.()
   const from = step * (_boardLastStepDeg || 0)
   if(from){
@@ -3004,21 +3082,27 @@ function makeWedge(account, a0, a1, geo, isMine = false){
 // currently-visible window of "others" when there are more players than
 // boardMaxSegments. Tap = advance the window by one, looping (basic concept
 // per the user's spec — no animation yet).
-function makeScrollDividerWedge(a0, a1, geo, hiddenCount){
+function makeScrollDividerWedge(a0, a1, geo, hiddenCount, dir = 1){
   const el = document.createElement("div")
   el.className = "board-wedge board-wedge--divider"
   el.title = `${hiddenCount} more player${hiddenCount === 1 ? "" : "s"} — tap to scroll`
   el.style.clipPath = boardSectorPolygon(a0, a1, geo, 3)
 
-  const am = (a0 + a1) / 2 * Math.PI / 180
-  const badge = document.createElement("div")
-  badge.className = "board-wedge-divider-badge"
-  badge.style.left = (geo.cx + Math.min(geo.W, geo.H) * 0.36 * Math.cos(am)) + "px"
-  badge.style.top = (geo.cy + Math.min(geo.W, geo.H) * 0.36 * Math.sin(am)) + "px"
-  badge.textContent = "⋯" + hiddenCount
-  el.appendChild(badge)
+  // badge skipped when the divider is mid-collapse in the party tween (a
+  // floating count over a vanishing sliver reads wrong)
+  if(a1 - a0 >= 6){
+    const am = (a0 + a1) / 2 * Math.PI / 180
+    const badge = document.createElement("div")
+    badge.className = "board-wedge-divider-badge"
+    badge.style.left = (geo.cx + Math.min(geo.W, geo.H) * 0.36 * Math.cos(am)) + "px"
+    badge.style.top = (geo.cy + Math.min(geo.W, geo.H) * 0.36 * Math.sin(am)) + "px"
+    badge.textContent = "⋯" + hiddenCount
+    el.appendChild(badge)
+  }
 
-  el.onclick = () => boardScrollOthers(1)
+  // opposite directions per divider (see boardRingLayoutSlots for the
+  // mapping rationale — may flip after the user tries both)
+  el.onclick = () => boardScrollOthers(dir)
   return el
 }
 
