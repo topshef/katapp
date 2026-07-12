@@ -836,6 +836,7 @@ function renderRingBoard(root){
       ? boardSignStatus.byAccount?.[hac] : null
     if(perAcct === "loading") perAcct = "pending"   // orange while keyInfo loads; no --loading CSS class
     segs.push({ account, a0, a1, am, mine, wclip: !!inWheel,
+      weight: slot.weight,   // party-tween fade: felt elements (etched id, arcs) dim with the closing segment
       sign: boardSigning && boardSigning.legs[hac]
         ? (perAcct ?? boardSigning.status)
         : null })
@@ -874,6 +875,17 @@ function renderRingBoard(root){
       // wedge closes over them — boardOrganicApply keeps their positions
       // frozen via the geometry-loose cache key during the tween)
       if(slot.weight != null && slot.weight < 1) wrap.style.opacity = slot.weight
+      // belt & braces (user 2026-07-12): chips keep their first-frame
+      // positions during the party tween (geometry-loose cache), so a
+      // narrowing wedge no longer contains them — they were "briefly
+      // spilling into adjacent segments". Clip every segment's chips to its
+      // CURRENT wedge sector while the tween runs: whatever the chips do,
+      // they can never escape their own closing slice. (The end-of-tween
+      // chip REPOSITION jump is a separate parked item — the user wants the
+      // asset drawing/positioning story looked at as its own pass, in the
+      // context of these animations; FLIP-glide between relax states is the
+      // likely shape. See BOARD-ORGANIC1 follow-ups.)
+      if(_boardPartyAnim) wrap.style.clipPath = boardSectorPolygon(a0, a1, geo)
 
       const basketCont = document.createElement("div")
       boardBasketChips(account, basketCont, accountMap)
@@ -2125,7 +2137,11 @@ function ringFooter(mine){
     prefsBtn.className = "ring-footer-prefsbtn" + (boardPrefsOpen ? " ring-footer-prefsbtn--open" : "")
     prefsBtn.textContent = "⚙"
     prefsBtn.title = "Preferences"
-    prefsBtn.onclick = () => { boardPrefsOpen = !boardPrefsOpen; render() }
+    prefsBtn.onclick = () => {
+      boardPrefsOpen = !boardPrefsOpen
+      boardDiag("board:prefs:toggle", { open: boardPrefsOpen })   // kdiag so a dead button is diagnosable
+      render()
+    }
     prefsWrap.appendChild(prefsBtn)
 
     if(boardPrefsOpen){
@@ -2783,8 +2799,20 @@ function ringFelt(segs, g){
     baseClipG = sectorD(svg, "kwheelclip-base")
     topClipG = top ? sectorD(top, "kwheelclip-top") : baseClipG
   }
-  const segBase = seg => (seg?.wclip && baseClipG) ? baseClipG : svg
-  const segTop = seg => (seg?.wclip && topClipG) ? topClipG : (top || svg)
+  // party-tween fade (user 2026-07-12: the collapsing segment's account id
+  // "flickers away right at the end" — everything that's going to disappear
+  // should fade out as the segment closes). A per-seg <g> with group opacity
+  // MULTIPLIES into the children's own CSS opacity (arcs at .22 etc.), which
+  // a direct style.opacity would have overridden (making them brighter).
+  const fadeWrap = (layer, seg) => {
+    if(seg?.weight == null || seg.weight >= 1) return layer
+    const gg = document.createElementNS(NS, "g")
+    gg.style.opacity = seg.weight
+    layer.appendChild(gg)
+    return gg
+  }
+  const segBase = seg => fadeWrap((seg?.wclip && baseClipG) ? baseClipG : svg, seg)
+  const segTop = seg => fadeWrap((seg?.wclip && topClipG) ? topClipG : (top || svg), seg)
 
   const mkLine = (a, r0, r1, cls, layer = svg) => {
     const line = document.createElementNS(NS, "line")
@@ -3038,7 +3066,12 @@ function ringEtchLabel(seg, g, NS){
 
   // ring8: etched ids scale with the viewport (~⅔ … ~1.3× of the fixed size)
   const vScale = ring8() ? Math.min(1.3, Math.max(0.67, Math.min(g.W, g.H) / 800)) : 1
-  const fs = Math.min(28, Math.max(16, g.step * 0.24)) * vScale
+  // CONSTANT size (user 2026-07-12): was g.step*0.24 — proportional to
+  // segment width, so the id grew/shrank with segment count AND mid-tween
+  // (step is the average width, which changes as segments collapse) — the
+  // "account number suddenly jumps and gets bigger". Viewport scaling stays
+  // (not segment-dependent); animating font size was rejected as messy.
+  const fs = 20 * vScale
   text.setAttribute("font-size", fs)
   const halfLen = fs * 0.31 * text.textContent.length   // rough glyph budget
 

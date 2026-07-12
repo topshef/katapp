@@ -896,9 +896,14 @@ body.board-page{
 }
 .ring-footer-prefsbtn--open{ background: #f1ecdf; }
 .ring-footer-prefs{
-  position: absolute;
-  bottom: calc(100% + 10px);
-  left: 0;
+  /* FIXED, not absolute (user 2026-07-12: "the settings button doesn't
+     work"): .ring-footer is overflow-x:auto — a scroll container — so an
+     absolutely-positioned child extending ABOVE the bar was simply clipped
+     invisible. The click worked; the panel couldn't show. position:fixed
+     escapes the ancestor clip (no transformed ancestors in the footer). */
+  position: fixed;
+  bottom: calc(48px + env(safe-area-inset-bottom));
+  left: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
