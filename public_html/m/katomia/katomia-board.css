@@ -129,6 +129,30 @@ body.board-page{
 .ring-avail{ min-width: 90px; }
 .ring-avail .board-band{ justify-content: center; }
 
+/* BOARD-ORGANIC1: ring16 drops the rect boxes — chips are positioned
+   individually (left/top set by the relax pass in katomia-board.js). The
+   wrap spans the board purely as an event surface: pointer-events off on
+   itself (drops on bare felt still reach the wedge below), on for chips —
+   chip drags/taps bubble to the wrap, which carries the account's drop
+   target. transform stays UNTOUCHED (flights/FLIP own it). */
+.ring-organic{
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.ring-organic > *{
+  position: absolute;
+  pointer-events: auto;
+  margin: 0;
+  max-width: 132px;   /* keep text chips wrapping like the old box budget did */
+}
+.ring-organic .ring-lockbadge--organic{
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  max-width: none;
+}
+
 .ring-head{
   display: flex;
   align-items: center;

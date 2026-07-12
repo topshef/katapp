@@ -681,6 +681,28 @@ function renderRingBoard(root){
     }
   }
 
+  // rotate animation: the toggle just flipped — seed the offset so this frame
+  // still paints the OLD orientation, then tween the offset to 0 (the new
+  // one), re-rendering per frame. Shortest path so 350° goes -10°, not +350°.
+  if(_boardAnimateNextRotation && _boardStartRendered != null){
+    _boardAnimateNextRotation = false
+    cancelAnimationFrame(_boardRotateRaf)
+    const from = boardShortestDelta(_boardStartRendered - start)
+    _boardRotateOffset = from
+    const t0 = performance.now(), dur = 550
+    const tick = now => {
+      const t = Math.min(1, (now - t0) / dur)
+      const e = t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2   // easeInOutCubic
+      _boardRotateOffset = from * (1 - e)
+      if(t < 1) _boardRotateRaf = requestAnimationFrame(tick)
+      else _boardRotateOffset = 0
+      render()
+    }
+    _boardRotateRaf = requestAnimationFrame(tick)
+  }
+  start += _boardRotateOffset
+  _boardStartRendered = start
+
   // v9 (review 7): when ≥2 DISCONNECTED clusters coexist, segments outside my
   // cluster fade their wash — makes the split visible before it settles by
   // surprise. Uses the LOCK-PROGRESS1 grouping; unconnected accounts count as
@@ -740,6 +762,62 @@ function renderRingBoard(root){
 
     const chord = fr => Math.max(0.001, 2 * fr * Math.sin(rad(step / 2)))
     const rOval = ovalR(am), rEdge = edgeR(am)
+
+    if(ring16()){
+      // BOARD-ORGANIC1: no boxes — chips settle individually into the wedge's
+      // two zones via the relax pass (solved after the DOM lands, in
+      // boardOrganicApply — sizes need real layout). The wrap carries the
+      // account's drop target so a drop ON a chip still resolves to this
+      // account (events bubble chip → wrap; the wedge already catches drops
+      // on bare felt — identical semantics to the old inner/outer boxes,
+      // which called the same boardDropTarget(el, account)).
+      const wrap = document.createElement("div")
+      wrap.className = "ring-organic"
+      boardDropTarget(wrap, account)
+      // drag feedback used to be the box's .drag-over outline; the wrap spans
+      // the whole board so outline it can't — light the account's wedge instead
+      wrap.addEventListener("dragenter", () => wedge.classList.add("drag-over"))
+      wrap.addEventListener("dragleave", () => wedge.classList.remove("drag-over"))
+      wrap.addEventListener("drop", () => wedge.classList.remove("drag-over"))
+
+      const basketCont = document.createElement("div")
+      boardBasketChips(account, basketCont, accountMap)
+      // signing phase: the strike cleared the baskets server-side, but the
+      // board keeps the picture — receiving legs render as tx chips in place
+      if(boardSigning){
+        const legs = boardSigning.legs[hac]
+        if(legs && !basketCont.querySelector(".asset")) boardTxChips(legs, basketCont, accounts)
+      }
+      const storeCont = document.createElement("div")
+      boardStoreChips(account, storeCont)
+      boardReservedChips(account, storeCont, reservedByAccount)
+
+      const basketChips = [...basketCont.children]
+      const storeChips = [...storeCont.children]
+      basketChips.forEach(c => wrap.appendChild(c))
+      storeChips.forEach(c => wrap.appendChild(c))
+
+      if(account.mode === "lock"){
+        // etched skins: 🔒 badge used to ride the outer box — anchor it at the
+        // store zone's outer reach instead
+        const badge = document.createElement("div")
+        badge.className = "ring-lockbadge ring-lockbadge--organic"
+        badge.textContent = "🔒"
+        const rb = rOval + (rEdge - rOval) * 0.85
+        badge.style.left = (cx + rb * Math.cos(am)) + "px"
+        badge.style.top = (cy + rb * Math.sin(am)) + "px"
+        wrap.appendChild(badge)
+      }
+      frag.appendChild(wrap)
+
+      const midDeg = (a0 + a1) / 2, halfDeg = Math.max(6, step / 2 - 1)
+      _boardOrganicZones.push(
+        { chips: basketChips, midDeg, halfDeg, rMin: rc + 10, rMax: rOval - 6,
+          key: account.id + "|basket" },
+        { chips: storeChips, midDeg, halfDeg, rMin: rOval + 8, rMax: Math.max(rOval + 40, rEdge - 14),
+          key: account.id + "|store" })
+      return
+    }
 
     // a box's width budget is the TIGHTER of its segment's chord (tangential
     // room) and the annulus depth it sits in (radial room, floored so N/S
@@ -888,6 +966,10 @@ function renderRingBoard(root){
   if(etched) frag.appendChild(ringFooter(accounts.filter(a => isMyAccount(a))))
 
   root.replaceChildren(frag)
+
+  // BOARD-ORGANIC1: chips are in the live DOM now — measure, relax, place.
+  // Must run BEFORE the flight animations below (they read chip rects).
+  boardOrganicApply(cx, cy, W, H)
 
   // ring8: offers from OTHER PLAYERS fly in as they land (one leg of the ▶
   // animation). Player-level guard: your own drops — from ANY of your
@@ -1109,6 +1191,125 @@ function boardGroupByPlayer(accounts){
 }
 
 const BOARD_DIVIDER_DEG = 14   // fixed angular width of a scroll-wedge divider
+
+/* ── BOARD-ORGANIC1: collision-relax chip positioning (RENDERPATH Phase 2b) ──
+   Chips stop living in rectangular flex boxes and settle individually into
+   their segment's annular zone (basket inside the oval, store outside), via a
+   small relax solver — "d3-force or ~80 lines by hand; wedge boundaries +
+   oval as constraint walls" (BOARD-ORGANIC1). Done by hand: no dependency,
+   and the solver runs in a SEGMENT-LOCAL frame (x = radial, y = tangential,
+   mid-angle = x-axis) so results are cacheable independent of board rotation
+   — that's what makes the "You at bottom" rotate animation cheap (per frame:
+   cache hit + rotate, no re-solve, no re-measure).
+   Decisions honoured from the task/review notes:
+   - review 14 overflow policy: angular walls are HARD (a chip never enters a
+     neighbour's wedge); radial max is SOFT, so pressure spills chips outward
+     — off the board's edge for stores (off-screen, per the policy), across
+     the oval into the account's OWN store zone for baskets (never sideways).
+   - deterministic: seeds hash off stable chip keys, fixed iteration count —
+     same state ⇒ same layout across re-renders (no jitter on poll repaints).
+   - renderer/data flow untouched: same chip builders, same DOM elements,
+     same drag/tap/hover handlers; only WHERE chips sit changes. */
+let _boardOrganicZones = []               // collected per render, consumed by boardOrganicApply
+const _boardOrganicCache = new Map()      // solve results keyed by zone+chips+geometry (rotation-independent)
+
+function boardHash01(s){
+  let h = 2166136261
+  for(let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) }
+  return ((h >>> 0) % 10000) / 10000
+}
+
+// relax pass in the segment-local frame. sizes: [{w,h}] px; zone: {halfDeg,
+// rMin, rMax}. Returns [{x,y}] — x along the segment's mid-angle (radial),
+// y tangential. Angular clamp hard, radial max soft (see policy note above).
+function boardRelaxZone(sizes, keys, zone){
+  const halfAng = Math.min(zone.halfDeg, 80) * Math.PI / 180
+  const tanHalf = Math.tan(halfAng)
+  const items = sizes.map((s, i) => {
+    const j1 = boardHash01(keys[i]), j2 = boardHash01(keys[i] + "~")
+    const x = zone.rMin + ((i + 0.5) / sizes.length * 0.8 + j2 * 0.2) * Math.max(1, zone.rMax - zone.rMin)
+    const maxY = Math.max(2, x * tanHalf - s.w / 2)
+    return { w: s.w, h: s.h, cr: Math.max(s.w, s.h) / 2 + 3, x, y: (j1 * 2 - 1) * maxY * 0.8 }
+  })
+  for(let it = 0; it < 40; it++){
+    for(let a = 0; a < items.length; a++) for(let b = a + 1; b < items.length; b++){
+      const A = items[a], B = items[b]
+      const dx = B.x - A.x, dy = B.y - A.y
+      const d = Math.hypot(dx, dy) || 0.001
+      const min = (A.cr + B.cr) * 0.88          // circle-ish colliders, slight tolerated snuggle
+      if(d < min){
+        const push = (min - d) / d / 2
+        A.x -= dx * push; A.y -= dy * push
+        B.x += dx * push; B.y += dy * push
+      }
+    }
+    items.forEach(A => {
+      A.x = Math.max(zone.rMin + A.h / 2, A.x)                    // inner wall hard (hub / oval)
+      const over = A.x - (zone.rMax - A.h / 2)
+      if(over > 0) A.x -= over * 0.3                              // outer wall SOFT — pressure spills outward
+      const maxY = Math.max(2, A.x * tanHalf - A.w / 2)
+      A.y = Math.max(-maxY, Math.min(maxY, A.y))                  // wedge walls HARD — never a neighbour's space
+    })
+  }
+  return items.map(A => ({ x: A.x, y: A.y }))
+}
+
+// measure → solve (or cache-hit) → place, in board coordinates. Runs after
+// root.replaceChildren so offsetWidth/Height are real. Chips are positioned
+// by left/top with the half-size baked in (NOT transform: the flight
+// animations and future FLIP passes own el.style.transform).
+function boardOrganicApply(cx, cy, W, H){
+  const zones = _boardOrganicZones
+  _boardOrganicZones = []
+  if(!zones.length) return
+
+  const prepped = zones.filter(z => z.chips.length).map(z => {
+    const chipKeys = z.chips.map(el =>
+      (el.dataset.assetId || "") + "|" + el.className + "|" + (el.textContent || "").slice(0, 24))
+    const cacheKey = z.key + "|" + chipKeys.join(";") + "|" + Math.round(z.rMin) + "|"
+      + Math.round(z.rMax) + "|" + z.halfDeg.toFixed(1) + "|" + W + "x" + H
+    return { z, chipKeys, cacheKey, entry: _boardOrganicCache.get(cacheKey) }
+  })
+
+  if(prepped.some(p => !p.entry)){
+    // about to measure fresh sizes — run the wrapped-text width shrink FIRST
+    // so the measured (and cached) width is the final one. render() calls
+    // boardTightenChips() again later; by then widths are already set, so
+    // it's a no-op. Gated to cache misses so rotation frames (all hits)
+    // never touch layout beyond the left/top writes below.
+    if(ring9()) boardTightenChips()
+    prepped.forEach(p => {
+      if(p.entry) return
+      const sizes = p.z.chips.map(el => ({ w: el.offsetWidth || 40, h: el.offsetHeight || 24 }))
+      p.entry = { pos: boardRelaxZone(sizes, p.chipKeys, p.z), sizes }
+      if(_boardOrganicCache.size > 300) _boardOrganicCache.clear()
+      _boardOrganicCache.set(p.cacheKey, p.entry)
+    })
+  }
+
+  prepped.forEach(({ z, entry }) => {
+    const mid = z.midDeg * Math.PI / 180
+    const cos = Math.cos(mid), sin = Math.sin(mid)
+    z.chips.forEach((el, i) => {
+      const p = entry.pos[i], s = entry.sizes[i]
+      el.style.left = (cx + p.x * cos - p.y * sin - s.w / 2) + "px"
+      el.style.top = (cy + p.x * sin + p.y * cos - s.h / 2) + "px"
+    })
+  })
+}
+
+/* ── rotate animation for "You at bottom" (user 2026-07-12) ──────────────────
+   The toggle used to hard-jump between orientations. Now the start angle
+   tweens (shortest path, ease-in-out, ~550ms) from the orientation on screen
+   to the new one, re-rendering per frame — cheap because the organic solve is
+   rotation-independent (cache hit per frame) and N stays small. Any render
+   triggered mid-tween (WS push etc.) just paints at the current offset. */
+let _boardStartRendered = null      // effective start angle last painted
+let _boardRotateOffset = 0          // animated delta, 0 when settled
+let _boardRotateRaf = null
+let _boardAnimateNextRotation = false   // set by the toggle, consumed by renderRingBoard
+
+function boardShortestDelta(deg){ return ((deg % 360) + 540) % 360 - 180 }
 
 // BOARD-WHEEL1: turns the (already player-grouped) account list into an
 // ordered list of ring "slots" — either an account or a thin scroll-divider.
@@ -1635,7 +1836,7 @@ function ringFooter(mine){
       v => { boardNetView = v; boardSavePrefs(); render() },
       "View baskets fully netted per pair: opposite-direction flows of the same asset collapse to their difference (the transaction nets exactly like this — net-on previews the after and avoids the strike jolt)"))
     bar.appendChild(check("You at bottom", boardSelfBottom,
-      v => { boardSelfBottom = v; boardSavePrefs(); render() },
+      v => { boardSelfBottom = v; _boardAnimateNextRotation = true; boardSavePrefs(); render() },
       "On: the board rotates so your accounts face you. Off: everyone sees the identical layout (screen-share / spectator)"))
 
     // BOARD-WHEEL1: max ring slots (mine + visible others) before the rest
