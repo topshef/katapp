@@ -1225,6 +1225,43 @@ body.board-page{
    for "none" and just shows the default border. No pulse, no dash — and NO
    glow: in the light-vs-paint language, this is a light that isn't lit. */
 .ring-signarc--none{ stroke: #9a9a9a !important; stroke-dasharray: none; opacity: .5; }
+
+/* the strip-light's BED (user 2026-07-12): a plain opaque strip painted
+   under each glowing signing arc, so the spotlight shade's hard edge can't
+   show through the translucent glow — "paint the strip light background on
+   first, and then put the strip light on top". */
+.ring-signarc-under{
+  fill: none;
+  stroke: #fffdf7;
+  stroke-width: 11;
+  opacity: .95;
+  pointer-events: none;
+  stroke-linecap: round;
+}
+/* pin the glow's width regardless of the lock-arc class riding along
+   (--open alone would set 14 on mine and out-fatten the 11px bed) */
+.ring-lockarc.ring-signarc{ stroke-width: 8; }
+
+/* ── v16 arc language (user 2026-07-12) ─────────────────────────────────────
+   TARGET STRIP: accounts party to the live proposal pre-paint their oval arc
+   as a thick neutral strip — the outer echo of the hub's white party arcs, a
+   visible lock target before anyone locks, and the bed the lock-orange fills.
+   Tone: the blend of the two zone colours it straddles — felt #f5f1e8 inside,
+   felt + rgba(60,48,22,.07) shade outside → the same brown family at roughly
+   double the shade's alpha reads as the midpoint across both. Tweak the
+   alpha to taste. */
+[data-board-fam~="v16"] .ring-lockarc--target{
+  stroke: rgba(60, 48, 22, .13);
+  stroke-width: 12;
+  stroke-dasharray: none;
+  opacity: 1;
+}
+/* non-party others: the dotted wall reads unclean (user) — SOLID, same
+   thickness. Party others graduate to the target strip above; the frozen
+   v8-15 skins keep their dotted look. */
+[data-board-fam~="v16"] .ring-lockarc--wall{ stroke-dasharray: none; }
+/* locked = the SAME strip filled in orange (not a thin line over the strip) */
+[data-board-fam~="v16"] .ring-lockarc--locked{ stroke-width: 12; }
 @keyframes ring-signpulse{
   0%, 100%{ opacity: .55; }
   50%{ opacity: .95; }

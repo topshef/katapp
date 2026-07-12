@@ -3011,6 +3011,15 @@ function ringFelt(segs, g){
       // YOUR arc has no line at all — but stays tappable (transparent
       // stroke) and lights orange when you lock
       if(!ring8() && ringNoOval() && !locked && !seg.mine) return
+      // v16 TARGET STRIP (user 2026-07-12): accounts party to the live
+      // proposal get their oval arc PRE-PAINTED as a thick blended strip —
+      // the outer-ring echo of the hub's white party arcs, a visible
+      // "shadow of a strip" before anyone locks, a fat hover/tap target,
+      // and the bed the lock-orange later FILLS (instead of orange over a
+      // bare line, which read harsh). Applied to mine AND other players'
+      // party arcs alike, per the user.
+      const party = ring16() && !seg.sign && !locked
+        && boardInMyParty(seg.account, segs.map(s => s.account))
       const arc = document.createElementNS(NS, "path")
       arc.setAttribute("d", ringArcPath(seg, g))
       arc.dataset.accountId = seg.account.id
@@ -3018,6 +3027,7 @@ function ringFelt(segs, g){
         + (locked ? " ring-lockarc--locked" : "")
         + (seg.mine ? " ring-lockarc--mine" : "")
         + (ring8() ? (seg.mine ? " ring-lockarc--open" : " ring-lockarc--wall") : "")
+        + (party ? " ring-lockarc--target" : "")
         + (seg.sign ? " ring-signarc ring-signarc--" + seg.sign : ""))
       if(seg.mine){
         arc.onclick = () => boardToggleLock(seg.account)
@@ -3121,10 +3131,20 @@ function ringFelt(segs, g){
   // the deferred signing-status arcs land AFTER the shade: the glow now
   // spills onto the darkened store side too — a light over the darkness,
   // which the spotlight amplifies (the exact effect the user designed).
+  // Each arc rides on a plain opaque UNDERLAY strip (user 2026-07-12: the
+  // spotlight's hard edge showed THROUGH the translucent glow — "paint the
+  // strip light background on first, and then put the strip light on top").
   // Trade-off: mid-wheel-glide these skip the SVG wheel clip (they'd have to
   // sit inside topClipG, which was appended before the shade) — signing +
   // glide simultaneously is rare; revisit if it ever shows.
-  _deferredSignArcs.forEach(({ arc, seg }) => fadeWrap(top || svg, seg).appendChild(arc))
+  _deferredSignArcs.forEach(({ arc, seg }) => {
+    const layer = fadeWrap(top || svg, seg)
+    const under = document.createElementNS(NS, "path")
+    under.setAttribute("d", arc.getAttribute("d"))
+    under.setAttribute("class", "ring-signarc-under")
+    layer.appendChild(under)
+    layer.appendChild(arc)
+  })
   _deferredSignArcs.length = 0
 
   if(top){
