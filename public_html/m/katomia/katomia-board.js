@@ -627,8 +627,14 @@ function renderRingBoard(root){
   // join order — shared board for all; filters preserve join order
   // (getVisibleAccounts sorts mine-first, which would reseat the shared board)
   boardSigning = boardDetectSigning()
-  const accounts = boardFilteredAccounts()
+  // party collapse/expand mid-tween: paint the UNION list (leavers still on
+  // the board at their shrinking widths) instead of the filtered one —
+  // re-resolved to LIVE account objects each render so a WS state push
+  // landing mid-tween doesn't paint 550ms-stale chip data
   const accountMap = getAccountMap()
+  const accounts = _boardPartyAnim
+    ? _boardPartyAnim.accounts.map(a => accountMap[a.id] || a)
+    : boardFilteredAccounts()
   const reservedByAccount = buildReservedByAccount(accounts)
   const etched = ringEtched()
 
@@ -653,11 +659,28 @@ function renderRingBoard(root){
   // boardMaxSegments, others are windowed with a scroll-divider on each side
   // (boardRingLayoutSlots). Below the cap this is just `accounts` again, one
   // slot each, no dividers — unchanged from before this feature.
-  const slots = boardRingLayoutSlots(accounts)
-  const acctSlotCount = slots.filter(s => s.type === "account").length
-  const dividerCount = slots.length - acctSlotCount
-  const step = acctSlotCount ? (360 - dividerCount * BOARD_DIVIDER_DEG) / acctSlotCount : 360
-  const widths = slots.map(s => s.type === "divider" ? BOARD_DIVIDER_DEG : step)
+  // Party collapse/expand: windowing bypassed, every union account gets a
+  // slot whose width is weighted by the tween (leavers 1→0, arrivals 0→1,
+  // keepers 1) — the pacman close/open. Snaps to the normal layout on done.
+  let slots, step, widths
+  if(_boardPartyAnim){
+    slots = accounts.map(account => ({ type: "account", account }))
+    const e = _boardPartyAnim.e
+    const wts = accounts.map(a =>
+      _boardPartyAnim.removed.has(a.id) ? 1 - e :
+      _boardPartyAnim.added.has(a.id) ? e : 1)
+    const tot = wts.reduce((s, x) => s + x, 0) || 1
+    widths = wts.map(w => w / tot * 360)
+    slots.forEach((s, i) => { s.weight = wts[i] })     // chip fade rides this
+    step = 360 / Math.max(1, accounts.length)          // felt font sizing only
+  } else {
+    slots = boardRingLayoutSlots(accounts)
+    const acctSlotCount = slots.filter(s => s.type === "account").length
+    const dividerCount = slots.length - acctSlotCount
+    step = acctSlotCount ? (360 - dividerCount * BOARD_DIVIDER_DEG) / acctSlotCount : 360
+    widths = slots.map(s => s.type === "divider" ? BOARD_DIVIDER_DEG : step)
+    _boardLastStepDeg = step                           // wheel-scroll glide distance
+  }
   const cumStart = []
   { let acc = 0; widths.forEach(w => { cumStart.push(acc); acc += w }) }
 
@@ -720,7 +743,10 @@ function renderRingBoard(root){
 
   slots.forEach((slot, i) => {
 
-    const a0 = start + cumStart[i], a1 = a0 + widths[i]
+    // wheel-scroll glide: the others-window slots carry the animated offset;
+    // mine and the dividers hold still (the wheel turns, the mouth doesn't)
+    const gOff = slot.group === "others" ? _boardOthersRotate : 0
+    const a0 = start + cumStart[i] + gOff, a1 = a0 + widths[i]
 
     if(slot.type === "divider"){
       frag.appendChild(makeScrollDividerWedge(a0, a1, geo, slot.hiddenCount))
@@ -779,6 +805,10 @@ function renderRingBoard(root){
       wrap.addEventListener("dragenter", () => wedge.classList.add("drag-over"))
       wrap.addEventListener("dragleave", () => wedge.classList.remove("drag-over"))
       wrap.addEventListener("drop", () => wedge.classList.remove("drag-over"))
+      // party collapse/expand: chips fade with their segment's weight (the
+      // wedge closes over them — boardOrganicApply keeps their positions
+      // frozen via the geometry-loose cache key during the tween)
+      if(slot.weight != null && slot.weight < 1) wrap.style.opacity = slot.weight
 
       const basketCont = document.createElement("div")
       boardBasketChips(account, basketCont, accountMap)
@@ -1266,8 +1296,15 @@ function boardOrganicApply(cx, cy, W, H){
   const prepped = zones.filter(z => z.chips.length).map(z => {
     const chipKeys = z.chips.map(el =>
       (el.dataset.assetId || "") + "|" + el.className + "|" + (el.textContent || "").slice(0, 24))
-    const cacheKey = z.key + "|" + chipKeys.join(";") + "|" + Math.round(z.rMin) + "|"
-      + Math.round(z.rMax) + "|" + z.halfDeg.toFixed(1) + "|" + W + "x" + H
+    // party collapse/expand: segment geometry (halfDeg/radii) changes every
+    // frame of the tween — a geometry-strict key would miss (= re-measure +
+    // re-solve per frame). Drop geometry from the key while it runs: chips
+    // keep their first-frame positions and the shrinking wedge closes over
+    // them (the pacman look), with a fresh strict solve on the final layout.
+    const cacheKey = _boardPartyAnim
+      ? "panim|" + z.key + "|" + chipKeys.join(";") + "|" + W + "x" + H
+      : z.key + "|" + chipKeys.join(";") + "|" + Math.round(z.rMin) + "|"
+        + Math.round(z.rMax) + "|" + z.halfDeg.toFixed(1) + "|" + W + "x" + H
     return { z, chipKeys, cacheKey, entry: _boardOrganicCache.get(cacheKey) }
   })
 
@@ -1311,6 +1348,69 @@ let _boardAnimateNextRotation = false   // set by the toggle, consumed by render
 
 function boardShortestDelta(deg){ return ((deg % 360) + 540) % 360 - 180 }
 
+// shared tween driver: onFrame(easedProgress, done) per rAF, easeInOutCubic —
+// the one easing every board animation uses. Returns a cancel function.
+function boardAnimate(dur, onFrame){
+  const t0 = performance.now()
+  let raf
+  const tick = now => {
+    const t = Math.min(1, (now - t0) / dur)
+    const e = t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+    if(t < 1) raf = requestAnimationFrame(tick)
+    onFrame(e, t >= 1)
+  }
+  raf = requestAnimationFrame(tick)
+  return () => cancelAnimationFrame(raf)
+}
+
+// ── wheel-scroll animation (user 2026-07-12): tapping a divider used to snap
+// the others-window one position — now the OTHERS' segments glide one
+// account-width (same ease as the self-bottom rotation), the newcomer
+// sweeping in through the far divider. Mine + the dividers stay fixed (the
+// wheel turns inside the pacman mouth, the mouth doesn't move). The leaver is
+// simply gone at tap — its gap is what the glide closes. Applied as an
+// angle offset on "others"-group slots only (boardRingLayoutSlots marks them).
+let _boardOthersRotate = 0
+let _boardScrollCancel = null
+let _boardLastStepDeg = 0     // account-slot width from the last normal layout
+
+// ── party-only collapse/expand (user 2026-07-12): non-party segments close
+// like pacman eating — their angular width tweens to 0 while the survivors
+// expand to fill, then they drop from the DOM (and the reverse on untick).
+// During the tween the render uses the UNION account list with per-account
+// width weights; the wheel windowing is bypassed (a transient superset can
+// exceed the cap for ~550ms — acceptable, it snaps to the windowed layout at
+// the end). Chips fade with their segment's weight rather than re-solving the
+// shrinking geometry every frame (boardOrganicApply switches to a geometry-
+// loose cache key while this runs — the wedge closes OVER the fading chips,
+// which is exactly the eating look).
+let _boardPartyAnim = null    // { accounts, removed:Set, added:Set, e }
+let _boardPartyCancel = null
+
+function boardTogglePartyOnly(v){
+  const before = boardFilteredAccounts()
+  boardPartyOnly = v
+  boardSavePrefs()
+  const after = boardFilteredAccounts()
+  const beforeIds = new Set(before.map(a => a.id))
+  const afterIds = new Set(after.map(a => a.id))
+  const removed = new Set(before.filter(a => !afterIds.has(a.id)).map(a => a.id))
+  const added = new Set(after.filter(a => !beforeIds.has(a.id)).map(a => a.id))
+  if((!removed.size && !added.size) || !ring16()){ render(); return }   // no membership change → nothing to animate
+  // the union is whichever side is the superset (collapse: before ⊇ after;
+  // expand: after ⊇ before) — party filtering only ever adds/removes, and
+  // both lists come out of the same grouped ordering
+  const union = removed.size ? before : after
+  _boardPartyCancel?.()
+  _boardPartyAnim = { accounts: union, removed, added, e: 0 }
+  _boardPartyCancel = boardAnimate(550, (e, done) => {
+    if(_boardPartyAnim) _boardPartyAnim.e = e
+    if(done){ _boardPartyAnim = null; _boardPartyCancel = null }
+    render()
+  })
+  render()
+}
+
 // BOARD-WHEEL1: turns the (already player-grouped) account list into an
 // ordered list of ring "slots" — either an account or a thin scroll-divider.
 // Below boardMaxSegments: unchanged status quo, every account shown, no
@@ -1343,7 +1443,9 @@ function boardRingLayoutSlots(accounts){
   return [
     ...mine.map(account => ({ type: "account", account })),
     divider(),
-    ...visibleOthers.map(account => ({ type: "account", account })),
+    // group tag: the wheel-scroll glide (_boardOthersRotate) applies to these
+    // slots only — mine and the dividers hold still while the window turns
+    ...visibleOthers.map(account => ({ type: "account", account, group: "others" })),
     divider()
   ]
 }
@@ -1351,6 +1453,20 @@ function boardRingLayoutSlots(accounts){
 function boardScrollOthers(step){
   boardOthersScrollOffset += step
   boardDiag("board:wheel:scroll", { offset: boardOthersScrollOffset, step })
+  // glide instead of snap: at offset = +step×width the surviving others paint
+  // at their OLD positions (the newcomer at the far divider), then everything
+  // eases to 0 = the new layout. Rapid taps restart the tween from the new
+  // window — slight replay, acceptable.
+  _boardScrollCancel?.()
+  const from = step * (_boardLastStepDeg || 0)
+  if(from){
+    _boardOthersRotate = from
+    _boardScrollCancel = boardAnimate(450, (e, done) => {
+      _boardOthersRotate = from * (1 - e)
+      if(done){ _boardOthersRotate = 0; _boardScrollCancel = null }
+      render()
+    })
+  }
   render()
 }
 
@@ -1825,7 +1941,7 @@ function ringFooter(mine){
     // "Party only" (was "Active only", review 7): rule-aware — who is party
     // to MY proposal. cluster → my cluster; active → all active; all → n/a.
     bar.appendChild(check("Party only", boardPartyOnly,
-      v => { boardPartyOnly = v; boardSavePrefs(); render() },
+      v => boardTogglePartyOnly(v),   // animated collapse/expand of non-party segments
       "Show only accounts party to your proposal (follows the game's lock rule: " + (gameMeta?.lockRule || "cluster") + ")"))
   } else {
     bar.appendChild(check("Active only", showActiveOnly, v => { showActiveOnly = v; render() }))
