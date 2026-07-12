@@ -1246,15 +1246,16 @@ body.board-page{
    TARGET STRIP: accounts party to the live proposal pre-paint their oval arc
    as a thick neutral strip — the outer echo of the hub's white party arcs, a
    visible lock target before anyone locks, and the bed the lock-orange fills.
-   OPAQUE, not a darkening (user correction, same day): a translucent strip
+   OPAQUE, not a darkening (user correction #1): a translucent strip
    composited two-tone over the zones and the oval midline still showed
-   through — the exact thing the strip exists to remove. Solid colour =
-   the computed midpoint of the two zones it straddles:
-     inner (basket felt)  #f5f1e8            = rgb(245,241,232)
-     outer (store)        felt ⊕ rgba(60,48,22,.07) = rgb(232,227,217)
-     midpoint             = rgb(238,234,224) = #eeeae0
-   Recompute if the felt (body.board-page background) or .ring-storeshade
-   alpha ever change. */
+   through — the exact thing the strip exists to remove.
+   PER-PLAYER, not a fixed hex (user correction #2, same day, w/ screenshot):
+   a flat "midpoint of the two zone base colours" ignored that every wedge is
+   ALSO tinted by that player's own wash colour — the fixed beige read as a
+   mismatched third hue between two salmon-pink zones. The real colour is now
+   computed per segment in JS (boardTargetStripColour, katomia-board.js) —
+   this hex is just the FALLBACK for the (should-never-happen) case JS didn't
+   set an inline stroke. Keep it a neutral felt/shade midpoint, not tuned. */
 [data-board-fam~="v16"] .ring-lockarc--target{
   stroke: #eeeae0;
   stroke-width: 12;
