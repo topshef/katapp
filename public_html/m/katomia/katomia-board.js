@@ -1437,6 +1437,7 @@ const BOARD_DIVIDER_DEG = 14   // fixed angular width of a scroll-wedge divider
      same drag/tap/hover handlers; only WHERE chips sit changes. */
 let _boardOrganicZones = []               // collected per render, consumed by boardOrganicApply
 const _boardOrganicCache = new Map()      // solve results keyed by zone+chips+geometry (rotation-independent)
+let _boardChipPrevPos = new Map()         // chip identity → last painted {left,top} (FLIP glide, BOARD-ORGANIC3)
 
 function boardHash01(s){
   let h = 2166136261
@@ -1559,7 +1560,22 @@ function boardOrganicApply(cx, cy, W, H){
     })
   }
 
+  // BOARD-ORGANIC3 (user 2026-07-14, "stuff is just jumping around"): when a
+  // zone re-solves (a new ghost changes the chip list → fresh solve → every
+  // chip in the zone lands somewhere new), surviving chips now GLIDE from
+  // where they last painted to their new spot instead of teleporting. FLIP
+  // via transform (left/top stay the layout truth; flights use clones so the
+  // chips' own transform is free). Identity is assetId + zone + ghost-or-not
+  // (+ occurrence) — deliberately NOT the textContent, so an amount change
+  // (drop 1 HBAR → 499.7 becomes 498.7) glides the same pile instead of
+  // treating it as a brand-new chip. New chips don't glide (arrivals are the
+  // flight animations' job); the tween-driven passes (party/rotate/scroll)
+  // position per-frame themselves, so gliding is skipped while they run —
+  // positions still recorded for continuity when they hand back.
   const e = _boardPartyAnim ? _boardPartyAnim.e : 0
+  const skipGlide = !!(_boardPartyAnim || _boardRotateCancel || _boardScrollCancel || _boardOthersRotate)
+  const nextPos = new Map()
+  const occ = {}
   prepped.forEach(({ z, entry, endEntry }) => {
     const mid = z.midDeg * Math.PI / 180
     const cos = Math.cos(mid), sin = Math.sin(mid)
@@ -1568,10 +1584,28 @@ function boardOrganicApply(cx, cy, W, H){
       if(endEntry && endEntry.pos[i])
         p = { x: p.x + (endEntry.pos[i].x - p.x) * e, y: p.y + (endEntry.pos[i].y - p.y) * e }
       const s = entry.sizes[i]
-      el.style.left = (cx + p.x * cos - p.y * sin - s.w / 2) + "px"
-      el.style.top = (cy + p.x * sin + p.y * cos - s.h / 2) + "px"
+      const left = cx + p.x * cos - p.y * sin - s.w / 2
+      const top = cy + p.x * sin + p.y * cos - s.h / 2
+      el.style.left = left + "px"
+      el.style.top = top + "px"
+
+      const ident = z.key + "|" + (el.dataset.assetId || "") + "|" + (el.classList.contains("board-ghost") ? "g" : "s")
+      const k = ident + "#" + (occ[ident] = (occ[ident] || 0) + 1)
+      const prev = _boardChipPrevPos.get(k)
+      nextPos.set(k, { left, top })
+      if(skipGlide || !prev) return
+      const dx = prev.left - left, dy = prev.top - top
+      if(Math.hypot(dx, dy) < 4) return
+      el.style.transition = "none"
+      el.style.transform = `translate(${dx}px, ${dy}px)`
+      requestAnimationFrame(() => {
+        el.style.transition = "transform " + Math.round(450 / (boardAnimSpeed || 1)) + "ms cubic-bezier(.65,0,.35,1)"
+        el.style.transform = ""
+        setTimeout(() => { el.style.transition = "" }, 520 / (boardAnimSpeed || 1))
+      })
     })
   })
+  _boardChipPrevPos = nextPos   // stale identities pruned every apply
 }
 
 /* ── rotate animation for "You at bottom" (user 2026-07-12) ──────────────────
@@ -2304,6 +2338,25 @@ function ringFooter(mine){
     if(!boardSelectedAccount || !mine.some(a => a.id === boardSelectedAccount))
       boardSelectedAccount = mine[0]?.id || null
 
+    // shared composer modal (addaccount-modal.php + katomia-addaccount.js,
+    // user 2026-07-14) — WC-connected / connect / manual, same as the
+    // legacy page. prompt() stays only as a belt-and-braces fallback.
+    const openAdd = () => {
+      if(typeof openAddAccountModal === "function") openAddAccountModal()
+      else { const v = prompt("Add account (e.g. 12345 or 0.0.12345):"); if(v) addAccounts(v) }
+    }
+
+    if(!mine.length){
+      // user bug report (2026-07-14): with NO accounts the select held only
+      // the "➕ Add account…" option — already selected, so picking it never
+      // fired onchange and Add was a dead end (worked fine once ≥1 account
+      // existed). An empty list gets a plain button instead.
+      const addBtn = document.createElement("button")
+      addBtn.className = "ring-footer-accsel"
+      addBtn.textContent = "➕ Add account…"
+      addBtn.onclick = openAdd
+      bar.appendChild(addBtn)
+    } else {
     const sel = document.createElement("select")
     sel.className = "ring-footer-accsel"
     mine.forEach(a => {
@@ -2321,17 +2374,14 @@ function ringFooter(mine){
     sel.onchange = () => {
       if(sel.value === "__add"){
         sel.value = boardSelectedAccount || ""
-        // shared composer modal (addaccount-modal.php + katomia-addaccount.js,
-        // user 2026-07-14) — WC-connected / connect / manual, same as the
-        // legacy page. prompt() stays only as a belt-and-braces fallback.
-        if(typeof openAddAccountModal === "function") openAddAccountModal()
-        else { const v = prompt("Add account (e.g. 12345 or 0.0.12345):"); if(v) addAccounts(v) }
+        openAdd()
         return
       }
       boardSelectedAccount = sel.value
       render()   // re-highlights the selected wedge
     }
     bar.appendChild(sel)
+    }
 
     const selected = () => mine.find(a => a.id === boardSelectedAccount)
 
@@ -3152,12 +3202,24 @@ function ringFelt(segs, g){
   // assets land) — and only animates on first mount, not on every re-render.
   const shadeOn = ring16() && (boardFocusMode || !!boardSigning)
   if(shadeOn){
+    // user 2026-07-14 ("fat tire"): the hole now extends PAST the rim by
+    // ~1.2× an NFT thumb height (the v8 clamp() below mirrors the CSS), so
+    // the ghost chips hugging the rim from outside sit inside the light too
+    // — the lit area reads as wheel + tire, before-state and after-state
+    // both visible. The edge is blurred (CSS filter on .ring-focusshade) as
+    // a soft barrier between reserved and store — deliberately NOT a drawn
+    // rim line; whether a hard rim is wanted is an open question, soft
+    // first. The outer rect overshoots the viewport so the blur can't thin
+    // the shade at the screen edges.
+    const thumbH = Math.min(52, Math.max(26, 0.034 * Math.min(g.W, g.H) + 13))
+    const m = thumbH * 1.2
+    const hrx = g.rx + m, hry = g.ry + m, B = 48
     const shade = document.createElementNS(NS, "path")
     shade.setAttribute("d",
-      `M 0 0 H ${g.W} V ${g.H} H 0 Z ` +
-      `M ${g.cx - g.rx} ${g.cy} ` +
-      `a ${g.rx} ${g.ry} 0 1 0 ${g.rx * 2} 0 ` +
-      `a ${g.rx} ${g.ry} 0 1 0 ${-g.rx * 2} 0 Z`)
+      `M ${-B} ${-B} H ${g.W + B} V ${g.H + B} H ${-B} Z ` +
+      `M ${g.cx - hrx} ${g.cy} ` +
+      `a ${hrx} ${hry} 0 1 0 ${hrx * 2} 0 ` +
+      `a ${hrx} ${hry} 0 1 0 ${-hrx * 2} 0 Z`)
     shade.setAttribute("fill-rule", "evenodd")
     shade.setAttribute("class", "ring-focusshade" + (window.__boardShadeOn ? "" : " ring-focusshade--in"))
     ;(top || svg).appendChild(shade)

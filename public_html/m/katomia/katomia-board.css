@@ -1364,11 +1364,16 @@ body.board-page .app-banner{
 
 /* ── ring16 (review 16) ─────────────────────────────────────────────────── */
 
-/* ▶ focus: near-blackout outside the spotlight — the deal is all there is */
+/* ▶ focus: near-blackout outside the spotlight — the deal is all there is.
+   Blurred edge (user 2026-07-14): a soft barrier between reserved (rim-
+   hugging ghosts, inside the widened hole) and store — no hard rim line
+   drawn on purpose; the JS overshoots the outer rect so the blur can't thin
+   the shade at the screen edges. */
 .ring-focusshade{
   fill: rgba(28, 22, 12, .82);
   stroke: none;
   pointer-events: none;
+  filter: blur(14px);
 }
 .ring-footer-play--on{
   background: #2f2a1e;
