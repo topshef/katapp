@@ -98,6 +98,13 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
       </select>
     </label>
     <label class="board-settings-label">
+      🧪 Chip layout
+      <select id="boardPrefLayout" title="Dev design knob: how chips arrange inside each segment. Shelves = tidy concentric rows clustered at the rim; Organic = the physics relax. Comparing live — the loser gets removed.">
+        <option value="shelves">🗄 Shelves</option>
+        <option value="organic">🫧 Organic</option>
+      </select>
+    </label>
+    <label class="board-settings-label">
       🧪 Trail after-glow
       <select id="boardPrefTrailResidual" title="Dev design knob: after the ▶ replay trail fades, this fraction of its opacity persists as a burn-in showing where each asset came from. Wiped on the next replay.">
         <option value="0">off</option>

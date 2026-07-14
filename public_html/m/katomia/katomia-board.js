@@ -316,7 +316,7 @@ function boardSavePrefs(){
       skin: boardSkin, selfBottom: boardSelfBottom,
       netView: boardNetView, partyOnly: boardPartyOnly,
       maxSegments: boardMaxSegments, animSpeed: boardAnimSpeed,
-      trailResidual: boardTrailResidual
+      trailResidual: boardTrailResidual, layoutMode: boardLayoutMode
     }))
   } catch {}
 }
@@ -341,6 +341,10 @@ let boardAnimSpeed = Number(_bp.animSpeed) || 1
 let boardTrailResidual = _bp.trailResidual ?? 0.5
 // boardPrefsOpen (⚙ popover open/closed) retired BOARD-HEADERINT1 — Preferences
 // now lives in profile-modal.php, opened via the normal Profile menu item.
+// 🧪 chip layout (BOARD-LAYOUT1, user 2026-07-14): "shelves" = deterministic
+// concentric rows clustered at the rim; "organic" = the original relax
+// solver. Toggle kept so both can be compared live; loser gets removed.
+let boardLayoutMode = _bp.layoutMode === "organic" ? "organic" : "shelves"
 
 // BOARD-WHEEL1 (user 2026-07-11): Lazy Susan is retired (scope, not code —
 // still in git history / renderSusanBoard if ever needed). Its job — "too
@@ -650,6 +654,16 @@ function boardSyncPrefsUI(){
     trailRes.value = String(boardTrailResidual)
     if(trailRes.selectedIndex < 0) trailRes.value = "0.5"
     trailRes.onchange = () => { boardTrailResidual = Number(trailRes.value) || 0; boardSavePrefs() }
+  }
+  const layout = document.getElementById("boardPrefLayout")
+  if(layout){
+    layout.value = boardLayoutMode
+    layout.onchange = () => {
+      boardLayoutMode = layout.value === "organic" ? "organic" : "shelves"
+      boardClearTrails()   // full reshuffle — drawn trails go stale
+      boardSavePrefs()
+      render()             // FLIP glides every chip to its new arrangement
+    }
   }
   const partyOnly = document.getElementById("boardPrefPartyOnly")
   if(partyOnly){
@@ -1601,6 +1615,79 @@ function boardRelaxZone(sizes, keys, zone, inners, seeds){
   return items.map(A => ({ x: A.x, y: A.y }))
 }
 
+// BOARD-LAYOUT1 (user 2026-07-14, planning pass → 🧪 toggle): deterministic
+// "SHELF" layout, the alternative to the organic relax above. The screenshot
+// critique — chips read as ERRATIC — has three concrete causes in the relax:
+// hash-random tangential jitter, CIRCLE colliders on wide rectangular labels
+// (a "Chickens feb 2024" chip gets a huge phantom radius → uneven gaps), and
+// the seeding, which faithfully preserves accumulated disorder forever.
+// Shelves instead: chips sit in concentric arc ROWS. Store zones shelve
+// OUTWARD starting just past the ghost band; basket zones shelve INWARD from
+// the oval — so everything deal-adjacent clusters at the rim (the user's
+// "cashier's counter" read) and quantity spreads away from it. Rows are
+// centered in the wedge; chips sort tall-first so NFT thumbs group together
+// and text labels line up on their own rows. Deterministic per chip set:
+// same inputs = same layout, no history drift, no seeds needed. The organic
+// relax stays selectable (🧪 Settings) for live comparison.
+function boardShelfZone(sizes, keys, zone, inners, isBasket){
+  const halfAng = Math.min(zone.halfDeg, 80) * Math.PI / 180
+  const tanHalf = Math.tan(halfAng)
+  const gap = 6
+  const pos = new Array(sizes.length)
+
+  const ghostIdx = [], chipIdx = []
+  sizes.forEach((s, i) => (inners?.[i] ? ghostIdx : chipIdx).push(i))
+
+  // ghosts: single rim-band row, in order, centered — the alignment pass
+  // then moves paired ones onto their pile→basket lines anyway
+  let ghostBandH = 0
+  if(ghostIdx.length){
+    ghostBandH = Math.max(...ghostIdx.map(i => sizes[i].h))
+    const x = zone.rMin + ghostBandH / 2
+    const totalW = ghostIdx.reduce((w, i) => w + sizes[i].w, 0) + gap * (ghostIdx.length - 1)
+    let y = -totalW / 2
+    ghostIdx.forEach(i => {
+      const maxY = Math.max(2, x * tanHalf - sizes[i].w / 2)
+      pos[i] = { x, y: Math.max(-maxY, Math.min(maxY, y + sizes[i].w / 2)) }
+      y += sizes[i].w + gap
+    })
+  }
+
+  // tall-first, then wide-first, stable — thumbs shelve together
+  const order = [...chipIdx].sort((a, b) =>
+    sizes[b].h - sizes[a].h || sizes[b].w - sizes[a].w || a - b)
+
+  // store: cursor walks outward from past the ghost band; basket: inward
+  // from the oval edge. Row x uses the row's tallest (= first, sorted) chip.
+  let cursor = isBasket ? zone.rMax : zone.rMin + (ghostIdx.length ? ghostBandH + 12 : 0)
+  let i = 0
+  while(i < order.length){
+    const rowH = sizes[order[i]].h
+    const x = isBasket ? cursor - rowH / 2 : cursor + rowH / 2
+    const rowMax = Math.max(sizes[order[i]].w + 4, 2 * x * tanHalf - 8)
+    const row = []
+    let rowW = 0
+    while(i < order.length){
+      const w = sizes[order[i]].w
+      if(row.length && rowW + gap + w > rowMax) break
+      row.push(order[i])
+      rowW += (row.length > 1 ? gap : 0) + w
+      i++
+    }
+    let y = -rowW / 2
+    row.forEach(j => {
+      const maxY = Math.max(2, x * tanHalf - sizes[j].w / 2)
+      pos[j] = { x, y: Math.max(-maxY, Math.min(maxY, y + sizes[j].w / 2)) }
+      y += sizes[j].w + gap
+    })
+    cursor = isBasket ? cursor - rowH - gap : cursor + rowH + gap
+  }
+
+  // safety: anything unplaced (shouldn't happen) sits at the zone's inner edge
+  sizes.forEach((s, i) => { if(!pos[i]) pos[i] = { x: zone.rMin + s.h / 2, y: 0 } })
+  return pos
+}
+
 // FLIP glide (BOARD-ORGANIC3): animate a chip from where it last painted to
 // its new left/top. transform is free for this — flights use clones.
 function boardGlideChip(el, prev, left, top){
@@ -1634,6 +1721,7 @@ function boardOrganicApply(cx, cy, W, H, oval){
   const strictKey = (z, chipKeys, gz) =>
     z.key + "|" + chipKeys.join(";") + "|" + Math.round(gz.rMin) + "|"
       + Math.round(gz.rMax) + "|" + gz.halfDeg.toFixed(1) + "|" + W + "x" + H
+      + "|" + boardLayoutMode   // BOARD-LAYOUT1: shelf/organic solves must not share cache entries
 
   // BOARD-ORGANIC2 (user 2026-07-12: the assets "reposition themselves" when
   // the animation settles — animate them to their target location instead).
@@ -1661,7 +1749,7 @@ function boardOrganicApply(cx, cy, W, H, oval){
       return ident + "#" + (occ[ident] = (occ[ident] || 0) + 1)
     })
     if(_boardPartyAnim){
-      const startKey = "panim|" + z.key + "|" + chipKeys.join(";") + "|" + W + "x" + H
+      const startKey = "panim|" + z.key + "|" + chipKeys.join(";") + "|" + W + "x" + H + "|" + boardLayoutMode
       const endKey = z.target ? strictKey(z, chipKeys, z.target) : null
       return { z, chipKeys, idents, startKey, endKey,
         entry: _boardOrganicCache.get(startKey),
@@ -1683,19 +1771,24 @@ function boardOrganicApply(cx, cy, W, H, oval){
       // is in the className, which is already part of the cache key
       const inners = p.z.chips.map(el => el.classList.contains("board-ghost"))
       // survivors start the solve where they last painted (local coords) —
-      // only genuinely new chips get the spread placement
+      // only genuinely new chips get the spread placement. Shelf mode is
+      // deterministic and ignores seeds entirely (BOARD-LAYOUT1).
       const seeds = p.idents.map(k => {
         const pp = _boardChipPrevPos.get(k)
         return pp && pp.lx != null ? { x: pp.lx, y: pp.ly } : null
       })
+      const isBasket = /\|basket$/.test(p.z.key)
+      const sizes = p.entry?.sizes || p.z.chips.map(el => ({ w: el.offsetWidth || 40, h: el.offsetHeight || 24 }))
+      const solve = gz => boardLayoutMode === "shelves"
+        ? boardShelfZone(sizes, p.chipKeys, gz, inners, isBasket)
+        : boardRelaxZone(sizes, p.chipKeys, gz, inners, seeds)
       if(!p.entry){
-        const sizes = p.z.chips.map(el => ({ w: el.offsetWidth || 40, h: el.offsetHeight || 24 }))
-        p.entry = { pos: boardRelaxZone(sizes, p.chipKeys, p.z, inners, seeds), sizes }
+        p.entry = { pos: solve(p.z), sizes }
         cacheSet(p.startKey, p.entry)
       }
       if(p.endKey && !p.endEntry){
         // same chips, same sizes — only the zone geometry differs
-        p.endEntry = { pos: boardRelaxZone(p.entry.sizes, p.chipKeys, p.z.target, inners, seeds), sizes: p.entry.sizes }
+        p.endEntry = { pos: solve(p.z.target), sizes }
         cacheSet(p.endKey, p.endEntry)
       }
     })
