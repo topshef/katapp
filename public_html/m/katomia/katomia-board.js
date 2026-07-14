@@ -415,50 +415,54 @@ const boardMySignedTx = new Map()   // txid -> ts, tracked from board:sign:saved
 // pipeline above — one source of truth instead of a second, divergent guess.
 // result celebration (user 2026-07-14): confetti on success; grey ash
 // flecks as the failure PLACEHOLDER (the "burn / tear-down" idea is still
-// open). Self-contained DOM particles + CSS keyframes — no library.
-// v2 (same day): success rained from the top like weather, not celebration —
-// now BURSTS from the central hub (the K): up and out in a cone, then
-// gravity rains it down. Failure ash still falls from the top (ash falls).
-function boardCelebrate(ok){
-  const colors = ok
-    ? ["#f5a623", "#4a90d9", "#7ed321", "#e94b7f", "#9013fe", "#f8e71c"]
-    : ["#555", "#777", "#3a3a3a", "#8a6d3b"]
+// open). v4 — SUCCESS now uses canvas-confetti, the kpay widget's recipe
+// VERBATIM (vendor/kpay/kpool_widget/index.js triggerSuccessAnimation):
+// three hand-rolled attempts (rain / two-stage burst / axis-split arc) all
+// read wrong to the user; the widget's is the known-good reference. Only
+// change: origin moved to the board's central hub (the K). useWorker keeps
+// the animation running even while the result alert() blocks the main
+// thread — which is also why the widget's version always looked smooth.
+const BOARD_CONFETTI_CDN = "https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"
+let _boardConfettiPromise = null
+function boardLoadConfetti(){
+  if(window.confetti) return Promise.resolve(window.confetti)
+  return _boardConfettiPromise ||= new Promise(res => {
+    const s = document.createElement("script")
+    s.src = BOARD_CONFETTI_CDN
+    s.onload = () => res(window.confetti || null)
+    s.onerror = () => res(null)
+    document.head.appendChild(s)
+  })
+}
+
+async function boardCelebrate(ok){
+  if(ok){
+    const confetti = await boardLoadConfetti()
+    if(!confetti?.create) return
+    const hub = document.querySelector(".ring-hub")?.getBoundingClientRect()
+    const origin = {
+      x: hub ? (hub.left + hub.width / 2) / innerWidth : 0.5,
+      y: hub ? (hub.top + hub.height / 2) / innerHeight : 0.5
+    }
+    const canvas = document.createElement("canvas")
+    canvas.style.cssText = "position:fixed;inset:0;width:100%;height:100%;z-index:2147483647;pointer-events:none"
+    document.body.appendChild(canvas)
+    const fire = confetti.create(canvas, { resize: true, useWorker: true })
+    fire({ particleCount: 120, spread: 70, origin })
+    setTimeout(() => fire({ particleCount: 80, spread: 100, origin }), 250)
+    setTimeout(() => { fire.reset(); canvas.remove() }, 4250)
+    return
+  }
+  // failure ash — self-contained DOM particles, falls from the top
+  const colors = ["#555", "#777", "#3a3a3a", "#8a6d3b"]
   const wrap = document.createElement("div")
   wrap.className = "board-celebrate"
-  const hub = document.querySelector(".ring-hub")?.getBoundingClientRect()
-  const ox = hub ? hub.left + hub.width / 2 : innerWidth / 2
-  const oy = hub ? hub.top + hub.height / 2 : innerHeight * 0.45
-  const n = ok ? 90 : 40
-  for(let i = 0; i < n; i++){
+  for(let i = 0; i < 40; i++){
     const p = document.createElement("i")
     p.style.background = colors[Math.floor(Math.random() * colors.length)]
     const w = 6 + Math.random() * 6
     p.style.width = w + "px"
-    p.style.height = (ok ? w * 1.4 : w * 0.8) + "px"
-    if(ok){
-      // v3 (user: peak-then-plummet read as two animations, not physics).
-      // Natural arc = split the axes: a carrier <b> drifts sideways at
-      // constant speed for the whole flight, the piece <i> inside rises
-      // ease-out then falls ease-in — composed, that's a parabola, the same
-      // trick every confetti library uses.
-      const carrier = document.createElement("b")
-      carrier.style.left = ox + "px"
-      carrier.style.top = oy + "px"
-      const dur = 1.7 + Math.random() * 1.3
-      const delay = (Math.random() * 0.2).toFixed(2) + "s"
-      carrier.style.setProperty("--dx", ((Math.random() * 2 - 1) * (50 + Math.random() * 250)).toFixed(0) + "px")
-      carrier.style.setProperty("--d", delay)
-      carrier.style.animationDuration = dur.toFixed(2) + "s"
-      const up = 0.4 + Math.random() * 0.35
-      p.style.setProperty("--dy", -(90 + Math.random() * 240).toFixed(0) + "px")
-      p.style.setProperty("--fall", (innerHeight - oy + 60).toFixed(0) + "px")
-      p.style.setProperty("--up", up.toFixed(2) + "s")
-      p.style.setProperty("--down", (dur - up).toFixed(2) + "s")
-      p.style.setProperty("--d", delay)
-      carrier.appendChild(p)
-      wrap.appendChild(carrier)
-      continue
-    }
+    p.style.height = (w * 0.8) + "px"
     p.style.left = (Math.random() * 100) + "vw"
     p.style.borderRadius = "50%"   // ash flecks vs confetti rectangles
     p.style.animationDelay = (Math.random() * 0.4) + "s"
@@ -508,6 +512,9 @@ function boardEnsureTxSocket(){
   if(_boardTxSocket){ try { _boardTxSocket.close() } catch {} ; _boardTxSocket = null }
   _boardTxSocketId = txid
   if(!txid || boardSuccessAcked.has(txid)) return
+  // preload the confetti lib now, while signing is underway — at result time
+  // the burst then fires synchronously, before the alert() blocks the thread
+  boardLoadConfetti()
   ;(async () => {
     try {
       const { createTxSocket } = await import("/vendor/kpay/kpool_widget/websocket.js")
@@ -627,6 +634,7 @@ function boardSyncPrefsUI(){
       maxSeg.value = v
       boardMaxSegments = v
       boardOthersScrollOffset = 0
+      boardClearTrails()   // the whole layout reshuffles — drawn trails go stale
       boardSavePrefs()
       render()
     }
@@ -2511,7 +2519,10 @@ function boardAnimateNewOffers(){
       // several times". Bug-as-feature; the seam to watch is chip movement
       // getting big enough that the smudge reads as distinct wrong lines —
       // THEN dedupe by removing lines with this pair key before drawing.
-      if(ghost && basket) boardFlyLeg(ghost, basket, getPlayerColour(fromAccount.playerId), 0, k)
+      if(ghost && basket){
+        boardFlyLeg(ghost, basket, getPlayerColour(fromAccount.playerId), 0, k)
+        boardTrailPileSegment(k.split("|")[1], k.split("|")[2], ghost, getPlayerColour(fromAccount.playerId), k)
+      }
     })
 
     prev.forEach((amt, k) => {
@@ -2533,19 +2544,20 @@ function boardAnimateNewOffers(){
       // fall back to where the ghost used to be
       const home = document.querySelector(
         `.asset:not(.basket):not(.reserved)[data-owner-account="${CSS.escape(fromId)}"][data-asset-id="${CSS.escape(assetId)}"]`)
-      const target = home ? home.getBoundingClientRect() : snap.ghost
+      const target = home ? boardChipRect(home) : snap.ghost   // settled spot, not mid-glide
       if(snap.basket && target)
         boardFlyRect(snap.html, snap.basket, target, getPlayerColour(owner?.playerId), 0, { key: k, persist: false })
     })
   }
 
-  // snapshot for the next diff
+  // snapshot for the next diff — settled rects (boardChipRect), not the
+  // mid-glide transformed ones
   _prevOfferRects = new Map()
   keys.forEach((amt, k) => {
     const { ghost, basket } = pairEls(k)
     if(basket) _prevOfferRects.set(k, {
-      basket: basket.getBoundingClientRect(),
-      ghost: ghost ? ghost.getBoundingClientRect() : null,
+      basket: boardChipRect(basket),
+      ghost: ghost ? boardChipRect(ghost) : null,
       html: basket.outerHTML
     })
   })
@@ -2851,15 +2863,42 @@ function playTransfers(){
     if(!ghost) return
     // same pair key shape as boardAnimateNewOffers (to|from|asset) so a
     // withdraw clears replay after-glow too
-    boardFlyLeg(ghost, basketEl, getPlayerColour(ownerPlayer), i++ * 220, `${toAccount}|${ownerAccount}|${assetId}`)
+    const k = `${toAccount}|${ownerAccount}|${assetId}`
+    boardFlyLeg(ghost, basketEl, getPlayerColour(ownerPlayer), i++ * 220, k)
+    boardTrailPileSegment(ownerAccount, assetId, ghost, getPlayerColour(ownerPlayer), k)
   })
+}
+
+// SETTLED chip rect (user's kinked-lines screenshot, 2026-07-14 / KTAG
+// 8/872+921): getBoundingClientRect() right after a render catches chips
+// MID-GLIDE — the FLIP transform still has them at their spawn position, so
+// trails anchored there (fungible looked right only by luck: its spawn point,
+// the pile, is ON the line; the NFT's old store spot isn't — hence "line from
+// where it used to be" and the kink). Organic chips carry their settled
+// layout in style.left/top (board coords == viewport coords, #boardRoot is
+// fixed inset:0) — use that; anything else falls back to the live rect.
+function boardChipRect(el){
+  const l = parseFloat(el.style.left), t = parseFloat(el.style.top)
+  if(Number.isFinite(l) && Number.isFinite(t))
+    return { left: l, top: t, width: el.offsetWidth, height: el.offsetHeight }
+  return el.getBoundingClientRect()
+}
+
+// pile→ghost after-glow segment (user 2026-07-14: the replay only restored
+// ghost→basket — the store→ghost third of the line should draw too). Same
+// pair key so withdraw/movement clearing takes all segments together. NFTs
+// have no pile chip left — the segment simply doesn't exist for them.
+function boardTrailPileSegment(fromId, assetId, ghostEl, colour, key){
+  const pile = document.querySelector(
+    `.asset:not(.basket):not(.reserved)[data-owner-account="${CSS.escape(fromId)}"][data-asset-id="${CSS.escape(assetId)}"]`)
+  if(pile && ghostEl) boardTrail(boardChipRect(pile), boardChipRect(ghostEl), colour, { key })
 }
 
 // one leg of the transfer animation: clone flies ghost → basket, trail line
 // in the giver's colour draws with it and fades. key (optional) tags the
 // trail with its offer pair so a later withdraw can clear the after-glow.
 function boardFlyLeg(ghost, basketEl, colour, delay, key){
-  boardFlyRect(basketEl.outerHTML, ghost.getBoundingClientRect(), basketEl.getBoundingClientRect(), colour, delay, { key })
+  boardFlyRect(basketEl.outerHTML, boardChipRect(ghost), boardChipRect(basketEl), colour, delay, { key })
 }
 
 // markup + two rects → flight (also used for withdraw-back, where the source

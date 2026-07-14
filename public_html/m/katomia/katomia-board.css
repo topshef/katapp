@@ -1405,12 +1405,11 @@ body.board-page .app-banner{
   z-index: 3000;
   overflow: hidden;
 }
+/* failure ash only — success confetti is canvas-confetti now (v4, the kpay
+   widget's own recipe; the hand-rolled CSS versions are gone) */
 .board-celebrate i{
   display: block;
   opacity: .95;
-}
-/* failure ash: falls from the top (direct <i> children) */
-.board-celebrate > i{
   position: absolute;
   top: -20px;
   animation: board-confetti-fall linear forwards;
@@ -1418,32 +1417,6 @@ body.board-page .app-banner{
 @keyframes board-confetti-fall{
   0%{ transform: translateY(-20px) rotate(0deg); }
   100%{ transform: translateY(105vh) rotate(720deg); opacity: .75; }
-}
-/* success burst v3 — natural arc by axis split: the <b> carrier drifts
-   sideways linearly for the whole flight; the <i> piece rises ease-out then
-   falls ease-in. Composed = parabola (v2's single two-stop keyframe read as
-   "two separate animations", user 2026-07-14). */
-.board-celebrate b{
-  position: absolute;
-  display: block;
-  animation: board-confetti-drift linear forwards;
-  animation-delay: var(--d, 0s);
-}
-@keyframes board-confetti-drift{
-  to{ transform: translateX(var(--dx)); }
-}
-.board-celebrate b i{
-  animation:
-    board-confetti-up   var(--up)   cubic-bezier(.17,.74,.35,1) var(--d, 0s) forwards,
-    board-confetti-down var(--down) cubic-bezier(.45,.06,.8,.4) calc(var(--d, 0s) + var(--up)) forwards;
-}
-@keyframes board-confetti-up{
-  from{ transform: translateY(0) rotate(0deg); }
-  to{ transform: translateY(var(--dy)) rotate(260deg); }
-}
-@keyframes board-confetti-down{
-  from{ transform: translateY(var(--dy)) rotate(260deg); }
-  to{ transform: translateY(var(--fall)) rotate(720deg); opacity: .7; }
 }
 
 /* review 17: the spotlight fades IN at flight speed (darkest as assets land)
