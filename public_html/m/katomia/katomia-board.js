@@ -3070,6 +3070,10 @@ function ringFelt(segs, g){
   }
 
   if(g.etched) segs.forEach(seg => segTop(seg).appendChild(ringEtchLabel(seg, g, NS)))
+  // BOARD-IDCOIN1: additive "coin lettering" comparison — same id, curved
+  // along the hub rim instead of the segment boundary. Not a replacement;
+  // kept side by side with the etched label above per the user's ask.
+  if(g.etched) segs.forEach(seg => segTop(seg).appendChild(ringHubCoinLabel(seg, g, NS)))
 
   if(ring11()){
     // v11 (review 10): party + identity cues moved to the HUB's doorstep —
@@ -3212,6 +3216,12 @@ function ringStoreZonePath(seg, g){
 // (nudged into the segment); ring3: horizontal at the outer zone's centroid.
 const _boardEtchSide = new Map()   // account id → which boundary its etched id last wrote along (hysteresis)
 
+// shared by ringEtchLabel + ringHubCoinLabel (BOARD-IDCOIN1)
+function ringLabelFontSize(g){
+  const vScale = ring8() ? Math.min(1.3, Math.max(0.67, Math.min(g.W, g.H) / 800)) : 1
+  return 20 * vScale
+}
+
 function ringEtchLabel(seg, g, NS){
 
   const text = document.createElementNS(NS, "text")
@@ -3226,14 +3236,14 @@ function ringEtchLabel(seg, g, NS){
   text.textContent = lockPrefix + (seg.account.id.split(":")[1] || seg.account.id)
     + (seg.mine && !ring11() ? " ·you" : "") + pickBadge
 
-  // ring8: etched ids scale with the viewport (~⅔ … ~1.3× of the fixed size)
-  const vScale = ring8() ? Math.min(1.3, Math.max(0.67, Math.min(g.W, g.H) / 800)) : 1
   // CONSTANT size (user 2026-07-12): was g.step*0.24 — proportional to
   // segment width, so the id grew/shrank with segment count AND mid-tween
   // (step is the average width, which changes as segments collapse) — the
   // "account number suddenly jumps and gets bigger". Viewport scaling stays
   // (not segment-dependent); animating font size was rejected as messy.
-  const fs = 20 * vScale
+  // ring8: scales with the viewport (~⅔ … ~1.3× of the fixed size) — shared
+  // with ringHubCoinLabel (BOARD-IDCOIN1) via ringLabelFontSize().
+  const fs = ringLabelFontSize(g)
   text.setAttribute("font-size", fs)
   const halfLen = fs * 0.31 * text.textContent.length   // rough glyph budget
 
@@ -3332,6 +3342,55 @@ function ringEtchLabel(seg, g, NS){
     grp.appendChild(sub)
   }
 
+  return grp
+}
+
+// BOARD-IDCOIN1 (user 2026-07-14): account id curved along the hub rim,
+// "coin lettering" — ADDITIVE alongside ringEtchLabel above (kept for
+// side-by-side comparison, not a replacement). Sits just outside the hub
+// player-ring arcs (hubPlayersRing draws at rc-3/rc-7) — well inside the
+// oval the spotlight shade cuts a hole for below, so it stays readable when
+// the etched label sinks into the dark.
+//
+// Orientation ("like writing on a coin"): top-half segments read like a
+// bridge — arc peak up, normal a0→a1 sweep, letters upright. Bottom-half
+// read like a plate — arc peak down, sweep REVERSED (a1→a0) — without the
+// reversal the glyphs would render upside down at the bottom of the circle.
+// Segments near the 3/9 o'clock seam go whichever way the sin() sign falls;
+// user: "doesn't really matter which way they go" right at that boundary.
+function ringHubCoinLabel(seg, g, NS){
+  const hac = seg.account.id.split(":")[1] || seg.account.id
+  const r = g.rc + 10
+  // full-circle single account (hubPlayersRing guards the same case): an SVG
+  // arc can't have coincident start/end points, so cap the sweep just short.
+  const a0 = seg.a0, a1 = seg.a1 - a0 >= 360 ? seg.a0 + 359.9 : seg.a1
+  const bottomHalf = Math.sin(seg.am) > 0
+  const [d0, d1] = bottomHalf ? [a1, a0] : [a0, a1]
+  const p = d => `${(g.cx + r * Math.cos(g.rad(d))).toFixed(1)} ${(g.cy + r * Math.sin(g.rad(d))).toFixed(1)}`
+  const large = Math.abs(a1 - a0) > 180 ? 1 : 0
+  const sweep = bottomHalf ? 0 : 1
+
+  const path = document.createElementNS(NS, "path")
+  const pathId = "board-coinpath-" + hac.replace(/[^a-zA-Z0-9]/g, "_")
+  path.setAttribute("id", pathId)
+  path.setAttribute("d", `M ${p(d0)} A ${r} ${r} 0 ${large} ${sweep} ${p(d1)}`)
+  path.setAttribute("fill", "none")
+
+  const text = document.createElementNS(NS, "text")
+  text.setAttribute("class", "ring-coinlabel")
+  text.setAttribute("font-size", ringLabelFontSize(g))
+  text.setAttribute("fill", getPlayerColour(seg.account.playerId))
+
+  const textPath = document.createElementNS(NS, "textPath")
+  textPath.setAttributeNS("http://www.w3.org/1999/xlink", "href", "#" + pathId)
+  textPath.setAttribute("startOffset", "50%")
+  textPath.setAttribute("text-anchor", "middle")
+  textPath.textContent = hac
+  text.appendChild(textPath)
+
+  const grp = document.createElementNS(NS, "g")
+  grp.appendChild(path)
+  grp.appendChild(text)
   return grp
 }
 

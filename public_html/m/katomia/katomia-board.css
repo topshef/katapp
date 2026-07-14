@@ -184,6 +184,16 @@ body.board-page .app-banner{
   user-select: none;
 }
 
+/* BOARD-IDCOIN1: coin-lettering id curved along the hub rim — additive
+   comparison to .ring-etchlabel above. Fuller opacity than the etched label
+   (which is deliberately faint/felt-like): legibility through the spotlight
+   is the whole point of this variant. */
+.ring-coinlabel{
+  font-weight: 800;
+  letter-spacing: .04em;
+  user-select: none;
+}
+
 /* the oval fades back to felt and thickens — its width is the future
    tap-to-lock arc target (stage 2) */
 .ring-ovalline--faded{
