@@ -34,7 +34,7 @@
   <nav id="appMenu" class="app-menu hidden">
     <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
     <a class="app-menu-item" href="/m/katomia/">🏛️ Markets</a>
-    <button type="button" class="app-menu-item" data-menu-kea data-feature="kea"
+    <button type="button" class="app-menu-item hide-in-proposal" data-menu-kea data-feature="kea"
             title="Pre-approve a policy and let KEA auto-settle orders your intent key has signed — no per-transaction prompts.">🤖 Execution agent</button>
   </nav>
 </div>
