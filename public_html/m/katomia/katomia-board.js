@@ -1264,7 +1264,7 @@ function renderRingBoard(root){
 
   // BOARD-ORGANIC1: chips are in the live DOM now — measure, relax, place.
   // Must run BEFORE the flight animations below (they read chip rects).
-  boardOrganicApply(cx, cy, W, H)
+  boardOrganicApply(cx, cy, W, H, { rx, ry })
 
   // ring8: offers from OTHER PLAYERS fly in as they land (one leg of the ▶
   // animation). Player-level guard: your own drops — from ANY of your
@@ -1571,11 +1571,28 @@ function boardRelaxZone(sizes, keys, zone, inners, seeds){
   return items.map(A => ({ x: A.x, y: A.y }))
 }
 
+// FLIP glide (BOARD-ORGANIC3): animate a chip from where it last painted to
+// its new left/top. transform is free for this — flights use clones.
+function boardGlideChip(el, prev, left, top){
+  if(!prev) return
+  const dx = prev.left - left, dy = prev.top - top
+  if(Math.hypot(dx, dy) < 4) return
+  el.style.transition = "none"
+  el.style.transform = `translate(${dx}px, ${dy}px)`
+  requestAnimationFrame(() => {
+    el.style.transition = "transform " + Math.round(450 / (boardAnimSpeed || 1)) + "ms cubic-bezier(.65,0,.35,1)"
+    el.style.transform = ""
+    setTimeout(() => { el.style.transition = "" }, 520 / (boardAnimSpeed || 1))
+  })
+}
+
 // measure → solve (or cache-hit) → place, in board coordinates. Runs after
 // root.replaceChildren so offsetWidth/Height are real. Chips are positioned
 // by left/top with the half-size baked in (NOT transform: the flight
 // animations and future FLIP passes own el.style.transform).
-function boardOrganicApply(cx, cy, W, H){
+// oval ({rx, ry}, BOARD-CHIPLINE1): the rim ellipse — lets the ghost
+// alignment pass below put each ghost on its pile→basket line.
+function boardOrganicApply(cx, cy, W, H, oval){
   const zones = _boardOrganicZones
   _boardOrganicZones = []
   if(!zones.length) return
@@ -1669,6 +1686,10 @@ function boardOrganicApply(cx, cy, W, H){
   const e = _boardPartyAnim ? _boardPartyAnim.e : 0
   const skipGlide = !!(_boardPartyAnim || _boardRotateCancel || _boardScrollCancel || _boardOthersRotate)
   const nextPos = new Map()
+  // BOARD-CHIPLINE1 endpoint collection: store piles + basket chips indexed by
+  // pair, ghosts deferred (their glide waits for the alignment pass below —
+  // otherwise they'd animate to the solver spot and then jump to the line)
+  const piles = new Map(), baskets = new Map(), ghostRecs = []
   prepped.forEach(({ z, idents, entry, endEntry }) => {
     const mid = z.midDeg * Math.PI / 180
     const cos = Math.cos(mid), sin = Math.sin(mid)
@@ -1685,18 +1706,77 @@ function boardOrganicApply(cx, cy, W, H){
       const k = idents[i]
       const prev = _boardChipPrevPos.get(k)
       nextPos.set(k, { left, top, lx: p.x, ly: p.y })   // screen for the glide, local for the seed
-      if(skipGlide || !prev) return
-      const dx = prev.left - left, dy = prev.top - top
-      if(Math.hypot(dx, dy) < 4) return
-      el.style.transition = "none"
-      el.style.transform = `translate(${dx}px, ${dy}px)`
-      requestAnimationFrame(() => {
-        el.style.transition = "transform " + Math.round(450 / (boardAnimSpeed || 1)) + "ms cubic-bezier(.65,0,.35,1)"
-        el.style.transform = ""
-        setTimeout(() => { el.style.transition = "" }, 520 / (boardAnimSpeed || 1))
-      })
+
+      const d = el.dataset
+      const isGhost = el.classList.contains("board-ghost")
+      if(isGhost){
+        ghostRecs.push({ el, k, prev, w: s.w, h: s.h, cos, sin,
+          pairFrom: d.ownerAccount, pairAsset: d.assetId, pairTo: d.toAccount })
+        return   // glide deferred to the alignment pass
+      }
+      if(el.classList.contains("basket") && d.ownerAccount && d.assetId && d.toAccount)
+        baskets.set(d.ownerAccount + "|" + d.assetId + "|" + d.toAccount, { x: left + s.w / 2, y: top + s.h / 2 })
+      else if(d.ownerAccount && d.assetId)
+        piles.set(d.ownerAccount + "|" + d.assetId, { x: left + s.w / 2, y: top + s.h / 2 })
+
+      if(!skipGlide) boardGlideChip(el, prev, left, top)
     })
   })
+
+  // ── BOARD-CHIPLINE1 (user 2026-07-14): colinear chip geometry — each ghost
+  // moves to where the straight line from its STORE PILE to its BASKET chip
+  // crosses the rim band, so pile → ghost → basket read as one line (and the
+  // offer animation launches along it instead of from a solver-chosen spot).
+  // Ghosts without both endpoints (NFTs — no pile remainder — or a basket
+  // hidden by filters) keep their solver rim-hug position. Skipped during the
+  // party tween (chips are frozen + wedge-clipped there); fine during
+  // rotate/scroll since both endpoints move together each frame.
+  const bandFor = h => oval ? { A: oval.rx + 8 + h / 2, B: oval.ry + 8 + h / 2 } : null
+  const pairSeen = new Map()   // duplicate pairs (net off): fan along the line's normal
+  if(oval && !_boardPartyAnim) ghostRecs.forEach(g => {
+    if(!(g.pairFrom && g.pairAsset && g.pairTo)) return
+    const P = piles.get(g.pairFrom + "|" + g.pairAsset)
+    const B = baskets.get(g.pairFrom + "|" + g.pairAsset + "|" + g.pairTo)
+    if(!P || !B) return
+    const band = bandFor(g.h)
+    // intersect P + t(B−P) with the band ellipse: P sits outside it (store
+    // zone starts at oval+8), B inside (basket zone ends at oval−6), so
+    // exactly one root lands in (0,1)
+    const u = (P.x - cx) / band.A, v = (P.y - cy) / band.B
+    const du = (B.x - P.x) / band.A, dv = (B.y - P.y) / band.B
+    const a = du * du + dv * dv
+    const b = 2 * (u * du + v * dv)
+    const c = u * u + v * v - 1
+    const disc = b * b - 4 * a * c
+    if(disc <= 0 || !a) return
+    const sq = Math.sqrt(disc)
+    const t = [(-b - sq) / (2 * a), (-b + sq) / (2 * a)].find(t => t > 0 && t < 1)
+    if(t == null) return
+    let gx = P.x + t * (B.x - P.x), gy = P.y + t * (B.y - P.y)
+    // net-off duplicates of the same pair: nudge along the line's normal
+    const pk = g.pairFrom + "|" + g.pairAsset + "|" + g.pairTo
+    const n = pairSeen.get(pk) || 0
+    pairSeen.set(pk, n + 1)
+    if(n){
+      const len = Math.hypot(B.x - P.x, B.y - P.y) || 1
+      gx += (-(B.y - P.y) / len) * n * (g.h + 4)
+      gy += ((B.x - P.x) / len) * n * (g.h + 4)
+    }
+    const left = gx - g.w / 2, top = gy - g.h / 2
+    g.el.style.left = left + "px"
+    g.el.style.top = top + "px"
+    // keep the seed/glide memory pointing at the ALIGNED spot (local coords
+    // via the zone frame's inverse rotation) or the next solve tugs it back
+    const dxs = gx - cx, dys = gy - cy
+    nextPos.set(g.k, { left, top, lx: dxs * g.cos + dys * g.sin, ly: -dxs * g.sin + dys * g.cos })
+    g.aligned = true
+  })
+  // ghosts glide to wherever they ended up (aligned or solver spot)
+  if(!skipGlide) ghostRecs.forEach(g => {
+    const cur = nextPos.get(g.k)
+    if(cur) boardGlideChip(g.el, g.prev, cur.left, cur.top)
+  })
+
   _boardChipPrevPos = nextPos   // stale identities pruned every apply
 }
 

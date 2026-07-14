@@ -357,12 +357,19 @@
 
 			const reservedEl = document.querySelector(`.asset.reserved${selector}`)
 			const basketEl = document.querySelector(`.asset.basket${selector}`)
+			// BOARD-CHIPLINE1 (user 2026-07-14): third point on the line — the store
+			// pile the reservation came from. Absent for NFTs/whole-pile offers.
+			const pileEl = document.querySelector(
+				`.asset:not(.basket):not(.reserved)` +
+				`[data-owner-account="${CSS.escape(fromAccountId)}"]` +
+				`[data-asset-id="${CSS.escape(assetId)}"]`)
 
 			if(reservedEl) applyHoverHighlight(reservedEl, on)
 			if(basketEl) applyHoverHighlight(basketEl, on)
 
 			if(on && reservedEl && basketEl){
 				drawTradeLine(reservedEl, basketEl)
+				if(pileEl) drawTradeLine(reservedEl, pileEl, true)
 			}
 			else{
 				clearTradeLine()
@@ -387,11 +394,11 @@
 			if(svg) svg.innerHTML = ""
 		}
 
-		function drawTradeLine(elA, elB){
+		function drawTradeLine(elA, elB, append){
 			if(!elA || !elB) return
 
 			const svg = getTradeLineLayer()
-			svg.innerHTML = ""
+			if(!append) svg.innerHTML = ""
 
 			const gameRect = gameEl.getBoundingClientRect()
 			const a = elA.getBoundingClientRect()
