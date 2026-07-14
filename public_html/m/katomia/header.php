@@ -90,6 +90,21 @@ document.addEventListener("DOMContentLoaded", () => {
     if(e.target.closest(".app-menu-item")) setOpen(false)
   })
 
+  // Diagnostic tripwire (2026-07-14, after board.php shipped without
+  // katomia-profile.js and Profile silently no-op'd — same failure shape as
+  // KDIAG-BOARDBLIND1: a page missing a script it depends on, no trace of
+  // why). This ALWAYS attaches (header.php loads everywhere); it only ever
+  // fires kdiag when the real listener (installed by initKatomiaProfile in
+  // katomia-profile.js) never showed up, so a future "Profile does nothing"
+  // report has something to check instead of starting from zero.
+  document.querySelectorAll("[data-menu-profile]").forEach(el =>
+    el.addEventListener("click", () => {
+      if(typeof openKatomiaProfile !== "function")
+        window.katomiaDiagSend?.("profile:open-failed",
+          { reason: "openKatomiaProfile undefined — katomia-profile.js not loaded on this page", path: location.pathname })
+    })
+  )
+
   document.addEventListener("click", e => {
     if(!menu.classList.contains("hidden") && !menu.contains(e.target)) setOpen(false)
   })

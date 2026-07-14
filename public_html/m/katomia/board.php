@@ -99,6 +99,17 @@ require_once __DIR__ . '/kasset.php';
 <script src="<?= kasset('katomia-render.js') ?>"></script>
 <script src="<?= kasset('katomia-board.js') ?>"></script>
 
+<!-- BOARD-HEADERINT1 follow-up (2026-07-14): board.php gained header.php +
+     profile-modal.php but these two were missed — profile-modal.php's own
+     top comment lists them as required, and without katomia-profile.js the
+     [data-menu-profile] click listener never gets attached, so Profile
+     silently no-ops (same failure shape as KDIAG-BOARDBLIND1 above: a page
+     missing a script it now depends on, with nothing to say why). katomia-
+     addaccount.js deliberately NOT added — board.php still uses the prompt()
+     stopgap for adding accounts (see boardSelectedAccount's onchange above). -->
+<script src="<?= kasset('katomia-profile.js') ?>"></script>
+<script src="<?= kasset('katomia-auth.js') ?>"></script>
+
 <script>
 window.addEventListener("load", () => {
   const params = new URLSearchParams(location.search)
