@@ -3,6 +3,18 @@
 // Include right after <body> on every page (index/games list, create, game).
 // Links are absolute (/m/katomia/) because the game page lives at a rewritten
 // depth (/m/katomia/game/XYZ) — same convention as the hapi/keakonnect paths.
+
+// KATOMIA-ADMIN1: site-wide operator-admin check, modeled on gomint's
+// auth.php IP-admin pattern (shop.gomint.me, same repo family, same IP
+// list). Distinct from the existing per-game/NFT admin concept (👑,
+// katomia-profile.js renderGameAdminTools) — 🛠 is used here deliberately
+// so the two don't both read as "crown = admin" in the same app. Soft/
+// discoverability gating only (hides the menu item), not a hard access
+// block — the destination itself isn't IP-checked.
+$katomiaIpAdmin = '130.185.251.53 176.126.78.48 ';
+$katomiaIsAdmin = strpos($katomiaIpAdmin, $_SERVER['REMOTE_ADDR'] ?? '') !== false;
+$katomiaGameId = $_GET['game'] ?? '';
+$katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($katomiaGameId) : '/m/katomia/';
 ?>
 <style>
   /* Page harmonizer: every page that carries this header gets the same body inset
@@ -36,6 +48,10 @@
     <a class="app-menu-item" href="/m/katomia/">🏛️ Markets</a>
     <button type="button" class="app-menu-item hide-in-proposal" data-menu-kea data-feature="kea"
             title="Pre-approve a policy and let KEA auto-settle orders your intent key has signed — no per-transaction prompts.">🤖 Execution agent</button>
+    <?php if ($katomiaIsAdmin): ?>
+    <a class="app-menu-item" href="<?= htmlspecialchars($katomiaLegacyGameHref) ?>"
+       title="Site admin — visible because you are on the admin IP (KATOMIA-ADMIN1). Opens the legacy game.php view for cross-comparison.">🛠 Admin</a>
+    <?php endif; ?>
   </nav>
 </div>
 
