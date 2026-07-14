@@ -32,6 +32,10 @@ require_once __DIR__ . '/kasset.php';
   define('KATOMIA_BOARD_CONTEXT', true);
   require __DIR__ . '/header.php';
   require __DIR__ . '/profile-modal.php';
+  // user 2026-07-14: the footer's ➕ Add account now opens the same composer
+  // modal as the legacy page (WC-connected / connect / manual) instead of the
+  // bare prompt() stopgap.
+  require __DIR__ . '/addaccount-modal.php';
 ?>
 
 <div id="boardRoot"></div>
@@ -104,11 +108,13 @@ require_once __DIR__ . '/kasset.php';
      top comment lists them as required, and without katomia-profile.js the
      [data-menu-profile] click listener never gets attached, so Profile
      silently no-ops (same failure shape as KDIAG-BOARDBLIND1 above: a page
-     missing a script it now depends on, with nothing to say why). katomia-
-     addaccount.js deliberately NOT added — board.php still uses the prompt()
-     stopgap for adding accounts (see boardSelectedAccount's onchange above). -->
+     missing a script it now depends on, with nothing to say why).
+     katomia-addaccount.js joined later the same day: the footer's ➕ Add
+     account now opens the shared composer modal (addaccount-modal.php)
+     instead of the prompt() stopgap. -->
 <script src="<?= kasset('katomia-profile.js') ?>"></script>
 <script src="<?= kasset('katomia-auth.js') ?>"></script>
+<script src="<?= kasset('katomia-addaccount.js') ?>"></script>
 
 <script>
 window.addEventListener("load", () => {

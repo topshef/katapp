@@ -1447,14 +1447,25 @@ function boardHash01(s){
 // relax pass in the segment-local frame. sizes: [{w,h}] px; zone: {halfDeg,
 // rMin, rMax}. Returns [{x,y}] — x along the segment's mid-angle (radial),
 // y tangential. Angular clamp hard, radial max soft (see policy note above).
-function boardRelaxZone(sizes, keys, zone){
+// inners[i] (user 2026-07-14): ghost/reserved chips are "involved in the
+// deal", so they gravitate to the zone's INNER wall — hugging the rim from
+// the outside (rMin in the store zone is oval+8, so the 8px is the buffer:
+// they never touch the ring itself). They keep a little collision slack
+// outward but are otherwise pinned; uninvolved chips get pushed out, which
+// also stops ghosts landing off-screen (the old symptom: the ▶ replay
+// animated "from nowhere" because its ghost origin had spilled past the
+// viewport — the outer wall is soft, and ghosts had no reason to stay in).
+function boardRelaxZone(sizes, keys, zone, inners){
   const halfAng = Math.min(zone.halfDeg, 80) * Math.PI / 180
   const tanHalf = Math.tan(halfAng)
   const items = sizes.map((s, i) => {
     const j1 = boardHash01(keys[i]), j2 = boardHash01(keys[i] + "~")
-    const x = zone.rMin + ((i + 0.5) / sizes.length * 0.8 + j2 * 0.2) * Math.max(1, zone.rMax - zone.rMin)
+    const inner = !!inners?.[i]
+    const x = inner
+      ? zone.rMin + s.h / 2
+      : zone.rMin + ((i + 0.5) / sizes.length * 0.8 + j2 * 0.2) * Math.max(1, zone.rMax - zone.rMin)
     const maxY = Math.max(2, x * tanHalf - s.w / 2)
-    return { w: s.w, h: s.h, cr: Math.max(s.w, s.h) / 2 + 3, x, y: (j1 * 2 - 1) * maxY * 0.8 }
+    return { w: s.w, h: s.h, cr: Math.max(s.w, s.h) / 2 + 3, x, y: (j1 * 2 - 1) * maxY * 0.8, inner }
   })
   for(let it = 0; it < 40; it++){
     for(let a = 0; a < items.length; a++) for(let b = a + 1; b < items.length; b++){
@@ -1470,6 +1481,7 @@ function boardRelaxZone(sizes, keys, zone){
     }
     items.forEach(A => {
       A.x = Math.max(zone.rMin + A.h / 2, A.x)                    // inner wall hard (hub / oval)
+      if(A.inner) A.x = Math.min(A.x, zone.rMin + A.h / 2 + 12)   // ghosts hug the rim (12px collision slack)
       const over = A.x - (zone.rMax - A.h / 2)
       if(over > 0) A.x -= over * 0.3                              // outer wall SOFT — pressure spills outward
       const maxY = Math.max(2, A.x * tanHalf - A.w / 2)
@@ -1531,14 +1543,17 @@ function boardOrganicApply(cx, cy, W, H){
     // never touch layout beyond the left/top writes below.
     if(ring9()) boardTightenChips()
     prepped.forEach(p => {
+      // ghost/reserved chips hug the rim (boardRelaxZone inners) — the flag
+      // is in the className, which is already part of the cache key
+      const inners = p.z.chips.map(el => el.classList.contains("board-ghost"))
       if(!p.entry){
         const sizes = p.z.chips.map(el => ({ w: el.offsetWidth || 40, h: el.offsetHeight || 24 }))
-        p.entry = { pos: boardRelaxZone(sizes, p.chipKeys, p.z), sizes }
+        p.entry = { pos: boardRelaxZone(sizes, p.chipKeys, p.z, inners), sizes }
         cacheSet(p.startKey, p.entry)
       }
       if(p.endKey && !p.endEntry){
         // same chips, same sizes — only the zone geometry differs
-        p.endEntry = { pos: boardRelaxZone(p.entry.sizes, p.chipKeys, p.z.target), sizes: p.entry.sizes }
+        p.endEntry = { pos: boardRelaxZone(p.entry.sizes, p.chipKeys, p.z.target, inners), sizes: p.entry.sizes }
         cacheSet(p.endKey, p.endEntry)
       }
     })
@@ -2306,10 +2321,11 @@ function ringFooter(mine){
     sel.onchange = () => {
       if(sel.value === "__add"){
         sel.value = boardSelectedAccount || ""
-        // add-account MODAL lives on game.php (katomia-addaccount.js + markup)
-        // — port it to board.php later; prompt is the stopgap composer
-        const v = prompt("Add account (e.g. 12345 or 0.0.12345):")
-        if(v) addAccounts(v)
+        // shared composer modal (addaccount-modal.php + katomia-addaccount.js,
+        // user 2026-07-14) — WC-connected / connect / manual, same as the
+        // legacy page. prompt() stays only as a belt-and-braces fallback.
+        if(typeof openAddAccountModal === "function") openAddAccountModal()
+        else { const v = prompt("Add account (e.g. 12345 or 0.0.12345):"); if(v) addAccounts(v) }
         return
       }
       boardSelectedAccount = sel.value
@@ -3345,12 +3361,12 @@ function ringEtchLabel(seg, g, NS){
   return grp
 }
 
-// BOARD-IDCOIN1 (user 2026-07-14): account id curved along the hub rim,
-// "coin lettering" — ADDITIVE alongside ringEtchLabel above (kept for
-// side-by-side comparison, not a replacement). Sits just outside the hub
-// player-ring arcs (hubPlayersRing draws at rc-3/rc-7) — well inside the
-// oval the spotlight shade cuts a hole for below, so it stays readable when
-// the etched label sinks into the dark.
+// BOARD-IDCOIN1 (user 2026-07-14): account id curved along the INSIDE of the
+// rim (the basket oval — the wheel's "donut" edge), "coin lettering" —
+// ADDITIVE alongside ringEtchLabel above (kept for side-by-side comparison,
+// not a replacement). v1 sat on the hub; user correction (same day): wrong
+// circle — expand out to hug the rim's inner face, and use the same soft
+// tone as the etched ids (v1's full-strength player colour was too loud).
 //
 // Orientation ("like writing on a coin"): top-half segments read like a
 // bridge — arc peak up, normal a0→a1 sweep, letters upright. Bottom-half
@@ -3360,25 +3376,35 @@ function ringEtchLabel(seg, g, NS){
 // user: "doesn't really matter which way they go" right at that boundary.
 function ringHubCoinLabel(seg, g, NS){
   const hac = seg.account.id.split(":")[1] || seg.account.id
-  const r = g.rc + 10
+  const fs = ringLabelFontSize(g)
   // full-circle single account (hubPlayersRing guards the same case): an SVG
   // arc can't have coincident start/end points, so cap the sweep just short.
   const a0 = seg.a0, a1 = seg.a1 - a0 >= 360 ? seg.a0 + 359.9 : seg.a1
   const bottomHalf = Math.sin(seg.am) > 0
+  // baseline inset from the oval: textPath glyphs grow "up" from the baseline
+  // — toward the rim on top-half arcs (clear the full cap height), toward the
+  // hub on bottom-half ones (only descenders reach rimward, less clearance).
+  const inset = (bottomHalf ? fs * 0.3 : fs * 0.85) + 6
+  const irx = Math.max(20, g.rx - inset), iry = Math.max(20, g.ry - inset)
+  // radius of the inset oval at a true angle — same form as g.ovalR
+  const ir = a => (irx * iry) / Math.hypot(iry * Math.cos(a), irx * Math.sin(a))
   const [d0, d1] = bottomHalf ? [a1, a0] : [a0, a1]
-  const p = d => `${(g.cx + r * Math.cos(g.rad(d))).toFixed(1)} ${(g.cy + r * Math.sin(g.rad(d))).toFixed(1)}`
+  const p = d => {
+    const a = g.rad(d), r = ir(a)
+    return `${(g.cx + r * Math.cos(a)).toFixed(1)} ${(g.cy + r * Math.sin(a)).toFixed(1)}`
+  }
   const large = Math.abs(a1 - a0) > 180 ? 1 : 0
   const sweep = bottomHalf ? 0 : 1
 
   const path = document.createElementNS(NS, "path")
   const pathId = "board-coinpath-" + hac.replace(/[^a-zA-Z0-9]/g, "_")
   path.setAttribute("id", pathId)
-  path.setAttribute("d", `M ${p(d0)} A ${r} ${r} 0 ${large} ${sweep} ${p(d1)}`)
+  path.setAttribute("d", `M ${p(d0)} A ${irx} ${iry} 0 ${large} ${sweep} ${p(d1)}`)
   path.setAttribute("fill", "none")
 
   const text = document.createElementNS(NS, "text")
   text.setAttribute("class", "ring-coinlabel")
-  text.setAttribute("font-size", ringLabelFontSize(g))
+  text.setAttribute("font-size", fs)
   text.setAttribute("fill", getPlayerColour(seg.account.playerId))
 
   const textPath = document.createElementNS(NS, "textPath")

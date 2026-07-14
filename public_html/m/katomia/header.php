@@ -48,11 +48,66 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
     <a class="app-menu-item" href="/m/katomia/">🏛️ Markets</a>
     <button type="button" class="app-menu-item hide-in-proposal" data-menu-kea data-feature="kea"
             title="Pre-approve a policy and let KEA auto-settle orders your intent key has signed — no per-transaction prompts.">🤖 Execution agent</button>
+    <?php if (defined('KATOMIA_BOARD_CONTEXT')): ?>
+    <button type="button" class="app-menu-item" data-menu-settings>⚙ Settings</button>
+    <?php endif; ?>
     <?php if ($katomiaIsAdmin): ?>
     <a class="app-menu-item" href="<?= htmlspecialchars($katomiaLegacyGameHref) ?>"
        title="Site admin — visible because you are on the admin IP (KATOMIA-ADMIN1). Opens the legacy game.php view for cross-comparison.">🛠 Admin</a>
     <?php endif; ?>
   </nav>
+
+  <?php if (defined('KATOMIA_BOARD_CONTEXT')): ?>
+  <!-- BOARD-HEADERINT1 round 2 (user 2026-07-14): board Preferences moved OUT
+       of the profile modal (too tucked away, too much noise there) into this
+       compact popover that REPLACES the hamburger menu in place — small on
+       purpose so setting changes are visible on the board behind it. Opens
+       via the ⚙ Settings menu item; closes via the hamburger button (no ✕ —
+       user's call). Deliberately does NOT close on outside click: you want to
+       poke the board while it's open to see the effect. Controls are wired by
+       katomia-board.js boardSyncPrefsUI() (same ids as before the move). -->
+  <div id="boardSettingsPanel" class="board-settings-panel hidden">
+    <label class="board-settings-label">
+      Board skin
+      <!-- KATOMIA-CONFIG1: option text is the public-facing theme name
+           ("Round Table"); value="ring16" stays the dev-facing label. -->
+      <select id="boardSkinSelect" title="Board skin">
+        <option value="ring16">⭕ Round Table (ring16 — in-app sign, focus play)</option>
+      </select>
+    </label>
+    <label class="board-settings-label">
+      <input type="checkbox" id="boardPrefNet" title="View baskets fully netted per pair: opposite-direction flows of the same asset collapse to their difference (the transaction nets exactly like this — net-on previews the after and avoids the strike jolt)">
+      Net
+    </label>
+    <label class="board-settings-label">
+      <input type="checkbox" id="boardPrefSelfBottom" title="On: the board rotates so your accounts face you (default). Off: everyone sees the identical layout (screen-share / spectator)">
+      You at bottom
+    </label>
+    <label class="board-settings-label">
+      Max on ring
+      <input type="number" id="boardPrefMaxSeg" min="2" max="24" class="board-settings-num" title="Maximum players shown on the ring at once (yours + others). Above this, the rest scroll behind a tap-to-advance divider.">
+    </label>
+    <label class="board-settings-label">
+      Anim speed
+      <select id="boardPrefAnimSpeed" title="Animation speed — slow everything down to inspect the choreography">
+        <option value="2">2×</option>
+        <option value="1">1×</option>
+        <option value="0.5">½×</option>
+        <option value="0.25">¼×</option>
+        <option value="0.1">⅒×</option>
+      </select>
+    </label>
+    <hr>
+    <label class="board-settings-label">
+      <input type="checkbox" id="boardPrefPartyOnly" title="Show only accounts party to your proposal (follows the game's lock rule)">
+      Party only
+    </label>
+    <label class="board-settings-label">
+      <input type="checkbox" id="boardPrefPickable" title="Allow other players to pick assets straight from your store (they shop, you agreed in advance)">
+      Pickable
+    </label>
+  </div>
+  <?php endif; ?>
 </div>
 
 <script>
@@ -82,7 +137,25 @@ document.addEventListener("DOMContentLoaded", () => {
     btn.setAttribute("aria-expanded", String(open))
   }
 
-  btn.onclick = e => { e.stopPropagation(); setOpen(menu.classList.contains("hidden")) }
+  // Board settings popover (BOARD-HEADERINT1 round 2): the ⚙ Settings menu
+  // item swaps the menu for the settings panel in the same spot; the
+  // hamburger button closes it again (acts as the panel's dismiss while
+  // it's open — no ✕). Panel markup only exists on board.php.
+  const settings = document.getElementById("boardSettingsPanel")
+  const settingsOpen = open => {
+    if(!settings) return
+    settings.classList.toggle("hidden", !open)
+    if(open && typeof boardSyncPrefsUI === "function") boardSyncPrefsUI()
+  }
+  document.querySelectorAll("[data-menu-settings]").forEach(el =>
+    el.addEventListener("click", () => settingsOpen(true))
+  )
+
+  btn.onclick = e => {
+    e.stopPropagation()
+    if(settings && !settings.classList.contains("hidden")){ settingsOpen(false); return }
+    setOpen(menu.classList.contains("hidden"))
+  }
 
   // any item click closes the menu (MENU-TIDY1: the nerd toggle moved out, so the old
   // stay-open special case for it is gone)

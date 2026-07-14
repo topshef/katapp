@@ -30,6 +30,42 @@ body.board-page{
 }
 
 /* ── shared header integration (BOARD-HEADERINT1) ───────────────────────── */
+
+/* Settings popover — swaps in where the hamburger menu opens (same anchor,
+   .app-banner is position:relative). Compact on purpose: the point of moving
+   it out of the profile modal was seeing the board react while you fiddle. */
+.board-settings-panel{
+  position: absolute;
+  top: 100%;
+  right: 8px;
+  z-index: 1500;
+
+  min-width: 210px;
+  padding: 10px 12px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+}
+.board-settings-panel.hidden{ display: none; }
+.board-settings-panel hr{ width: 100%; margin: 2px 0; border: 0; border-top: 1px solid #eee; }
+.board-settings-label{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #555;
+  cursor: pointer;
+  user-select: none;
+}
+.board-settings-label input[type="checkbox"]{ margin: 0; cursor: pointer; }
+.board-settings-num{ width: 56px; }
+.board-settings-label select{ font-size: 12px; max-width: 150px; }
 /* board.php now includes header.php's .app-banner. It's static (unpositioned)
    while the board's own chrome is all position:fixed with z-index up to 80 —
    without promoting the banner it would render UNDER the ring per normal CSS
@@ -184,13 +220,14 @@ body.board-page .app-banner{
   user-select: none;
 }
 
-/* BOARD-IDCOIN1: coin-lettering id curved along the hub rim — additive
-   comparison to .ring-etchlabel above. Fuller opacity than the etched label
-   (which is deliberately faint/felt-like): legibility through the spotlight
-   is the whole point of this variant. */
+/* BOARD-IDCOIN1: coin-lettering id curved along the inside of the rim —
+   additive comparison to .ring-etchlabel above. Same soft felt tone as the
+   etched id (user correction 2026-07-14: v1's full-strength player colour
+   was too loud next to it). */
 .ring-coinlabel{
   font-weight: 800;
   letter-spacing: .04em;
+  opacity: .30;
   user-select: none;
 }
 

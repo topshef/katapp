@@ -122,10 +122,6 @@ async function renderKatomiaProfile(){
   // PROFILE-AUTH1: populate the Authenticate account row (no forced connect).
   if(typeof katomiaAuthOnProfileOpen === "function")
     katomiaAuthOnProfileOpen().catch(e => console.error("[auth] account refresh failed", e))
-
-  // BOARD-HEADERINT1: sync the board-only Preferences section (only present,
-  // and this function only defined, when on board.php).
-  if(typeof boardSyncPrefsUI === "function") boardSyncPrefsUI()
 }
 
 // KVAC / KSAT (prepaid fee model — see kpay.uk/kvac). HKSAT = SHA256(player token) is the

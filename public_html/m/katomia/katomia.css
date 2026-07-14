@@ -2324,11 +2324,6 @@ body.nerd .profile-nerd-only{ display:block; }
   cursor:pointer;
   user-select:none;
 }
-
-/* BOARD-HEADERINT1: board-only Preferences section — the Max on ring number
-   input doesn't need the browser's full-width default. */
-.profile-board-prefs-num{ width:56px; }
-
 @media (max-width:640px){
   .profile-btn{
     top:90px;

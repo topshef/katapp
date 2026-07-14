@@ -137,58 +137,9 @@
       <button id="profileCopyLinkBtn">Copy KEA link</button>
     </details>
 
-    <?php if(defined('KATOMIA_BOARD_CONTEXT')): ?>
-    <!-- ═══ PREFERENCES (board-only) — BOARD-HEADERINT1: absorbs board.php's old
-         standalone skin <select> and the katomia-board.js ⚙ popover (Net/You at
-         bottom/Max on ring/Anim speed/Party only/Pickable). Only rendered when
-         board.php defines KATOMIA_BOARD_CONTEXT before requiring this partial.
-         katomia-board.js's boardSyncPrefsUI() wires these controls — this file
-         only lays out the markup + stable ids. ═══ -->
-    <details class="profile-section profile-board-prefs">
-      <summary class="profile-section-title">🎛 Preferences</summary>
-      <div class="profile-debug">
-        <label class="profile-debug-label">
-          Board skin
-          <!-- KATOMIA-CONFIG1: option text is the public-facing theme name
-               ("Round Table"); value="ring16" stays the dev-facing label. -->
-          <select id="boardSkinSelect" title="Board skin">
-            <option value="ring16">⭕ Round Table (ring16 — in-app sign, focus play)</option>
-          </select>
-        </label>
-        <label class="profile-debug-label">
-          <input type="checkbox" id="boardPrefNet" title="View baskets fully netted per pair: opposite-direction flows of the same asset collapse to their difference (the transaction nets exactly like this — net-on previews the after and avoids the strike jolt)">
-          Net
-        </label>
-        <label class="profile-debug-label">
-          <input type="checkbox" id="boardPrefSelfBottom" title="On: the board rotates so your accounts face you (default). Off: everyone sees the identical layout (screen-share / spectator)">
-          You at bottom
-        </label>
-        <label class="profile-debug-label">
-          Max on ring
-          <input type="number" id="boardPrefMaxSeg" min="2" max="24" class="profile-board-prefs-num" title="Maximum players shown on the ring at once (yours + others). Above this, the rest scroll behind a tap-to-advance divider.">
-        </label>
-        <label class="profile-debug-label">
-          Anim speed
-          <select id="boardPrefAnimSpeed" title="Animation speed — slow everything down to inspect the choreography">
-            <option value="2">2×</option>
-            <option value="1">1×</option>
-            <option value="0.5">½×</option>
-            <option value="0.25">¼×</option>
-            <option value="0.1">⅒×</option>
-          </select>
-        </label>
-        <hr>
-        <label class="profile-debug-label">
-          <input type="checkbox" id="boardPrefPartyOnly" title="Show only accounts party to your proposal (follows the game's lock rule)">
-          Party only
-        </label>
-        <label class="profile-debug-label">
-          <input type="checkbox" id="boardPrefPickable" title="Allow other players to pick assets straight from your store (they shop, you agreed in advance)">
-          Pickable
-        </label>
-      </div>
-    </details>
-    <?php endif; ?>
+    <!-- Board preferences lived here briefly (BOARD-HEADERINT1) — moved same
+         day to header.php's #boardSettingsPanel popover (user: too tucked
+         away in the modal, and the modal covered the board it was adjusting). -->
 
     <!-- ═══ PREFERENCES & DIAGNOSTICS — dev controls. Collapsed by default. ═══ -->
     <details class="profile-section profile-debug-section">
