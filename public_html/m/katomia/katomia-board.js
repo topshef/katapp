@@ -436,24 +436,33 @@ function boardCelebrate(ok){
     p.style.width = w + "px"
     p.style.height = (ok ? w * 1.4 : w * 0.8) + "px"
     if(ok){
-      p.style.left = ox + "px"
-      p.style.top = oy + "px"
-      // launch: upward cone (±70° around straight up), gravity brings it down
-      const ang = (-90 + (Math.random() * 2 - 1) * 70) * Math.PI / 180
-      const v = 120 + Math.random() * 280
-      const bx = Math.cos(ang) * v, by = Math.sin(ang) * v
-      p.style.setProperty("--bx", bx + "px")
-      p.style.setProperty("--by", by + "px")
-      p.style.setProperty("--fx", (bx * 1.6) + "px")
-      p.style.setProperty("--fy", (innerHeight - oy + 40) + "px")
-      p.style.animation = `board-confetti-burst ${(1.8 + Math.random() * 1.4).toFixed(2)}s cubic-bezier(.2,.7,.5,1) forwards`
-      p.style.animationDelay = (Math.random() * 0.25).toFixed(2) + "s"
-    } else {
-      p.style.left = (Math.random() * 100) + "vw"
-      p.style.borderRadius = "50%"   // ash flecks vs confetti rectangles
-      p.style.animationDelay = (Math.random() * 0.4) + "s"
-      p.style.animationDuration = (3 + Math.random() * 2) + "s"
+      // v3 (user: peak-then-plummet read as two animations, not physics).
+      // Natural arc = split the axes: a carrier <b> drifts sideways at
+      // constant speed for the whole flight, the piece <i> inside rises
+      // ease-out then falls ease-in — composed, that's a parabola, the same
+      // trick every confetti library uses.
+      const carrier = document.createElement("b")
+      carrier.style.left = ox + "px"
+      carrier.style.top = oy + "px"
+      const dur = 1.7 + Math.random() * 1.3
+      const delay = (Math.random() * 0.2).toFixed(2) + "s"
+      carrier.style.setProperty("--dx", ((Math.random() * 2 - 1) * (50 + Math.random() * 250)).toFixed(0) + "px")
+      carrier.style.setProperty("--d", delay)
+      carrier.style.animationDuration = dur.toFixed(2) + "s"
+      const up = 0.4 + Math.random() * 0.35
+      p.style.setProperty("--dy", -(90 + Math.random() * 240).toFixed(0) + "px")
+      p.style.setProperty("--fall", (innerHeight - oy + 60).toFixed(0) + "px")
+      p.style.setProperty("--up", up.toFixed(2) + "s")
+      p.style.setProperty("--down", (dur - up).toFixed(2) + "s")
+      p.style.setProperty("--d", delay)
+      carrier.appendChild(p)
+      wrap.appendChild(carrier)
+      continue
     }
+    p.style.left = (Math.random() * 100) + "vw"
+    p.style.borderRadius = "50%"   // ash flecks vs confetti rectangles
+    p.style.animationDelay = (Math.random() * 0.4) + "s"
+    p.style.animationDuration = (3 + Math.random() * 2) + "s"
     wrap.appendChild(p)
   }
   document.body.appendChild(wrap)
@@ -545,14 +554,25 @@ function boardCheckJustSucceeded(){
     else if(/FAIL|ERROR|EXPIRE|INVALID/.test(st)) boardShowResult(t.txid, false)
   })
 
-  // diagnostic only now — resolution itself comes from the tx socket
-  // (boardEnsureTxSocket/boardHandleTxUpdate), which doesn't depend on US
-  // having been the one to sign, so it also covers "someone else's last
-  // signature completed it while I watched"
+  // diagnostic + EXPIRY VERDICT. Resolution normally comes from the tx
+  // socket (boardEnsureTxSocket/boardHandleTxUpdate) — but an EXPIRED tx
+  // never gets a receipt, so that path stays silent and the board just
+  // reset with no result at all (user 2026-07-14). Honest inference: a
+  // Hedera tx is only valid ~3min from its validStart; once validStart+4min
+  // passes with no receipt acked, "failed or expired" is the truth (a
+  // success receipt would have landed via socket or poll long before).
   boardMySignedTx.forEach((ts, txid) => {
     if(stillSigning.has(txid)) return
     boardMySignedTx.delete(txid)
     boardDiag("board:mysigned:vanished-from-pending", { txid })
+    const vs = Number(String(txid).split("@")[1]?.split(".")[0]) * 1000
+    if(!vs) return
+    const delay = Math.max(0, vs + 4 * 60 * 1000 - Date.now()) + 500
+    setTimeout(() => {
+      if(boardSuccessAcked.has(txid)) return
+      boardDiag("board:result:expiry-verdict", { txid })
+      boardShowResult(txid, false)
+    }, delay)
   })
 }
 
@@ -872,6 +892,7 @@ function renderRingBoard(root){
   if(_boardAnimateNextRotation && _boardStartRendered != null){
     _boardAnimateNextRotation = false
     _boardRotateCancel?.()
+    boardClearTrails()   // drawn trails are screen-frame snapshots — stale once the board turns
     const from = boardShortestDelta(_boardStartRendered - start)
     boardDiag("board:rotanim:start", { fromDeg: Math.round(from), speed: boardAnimSpeed })
     _boardRotateOffset = from
@@ -1714,12 +1735,19 @@ function boardOrganicApply(cx, cy, W, H, oval){
           pairFrom: d.ownerAccount, pairAsset: d.assetId, pairTo: d.toAccount })
         return   // glide deferred to the alignment pass
       }
-      if(el.classList.contains("basket") && d.ownerAccount && d.assetId && d.toAccount)
+      const isBasket = el.classList.contains("basket")
+      if(isBasket && d.ownerAccount && d.assetId && d.toAccount)
         baskets.set(d.ownerAccount + "|" + d.assetId + "|" + d.toAccount, { x: left + s.w / 2, y: top + s.h / 2 })
-      else if(d.ownerAccount && d.assetId)
+      else if(!isBasket && d.ownerAccount && d.assetId)
         piles.set(d.ownerAccount + "|" + d.assetId, { x: left + s.w / 2, y: top + s.h / 2 })
 
-      if(!skipGlide) boardGlideChip(el, prev, left, top)
+      // withdraw-return glide (user 2026-07-14): an NFT coming home has no
+      // prev under its store identity — it lived at the rim as a ghost last
+      // frame. Glide it back from there instead of teleporting.
+      let glideFrom = prev
+      if(!glideFrom && !isBasket && d.ownerAccount && d.assetId)
+        glideFrom = _boardChipPrevPos.get(k.replace(/\|s#(\d+)$/, "|g#$1"))
+      if(!skipGlide) boardGlideChip(el, glideFrom, left, top)
     })
   })
 
@@ -1771,10 +1799,23 @@ function boardOrganicApply(cx, cy, W, H, oval){
     nextPos.set(g.k, { left, top, lx: dxs * g.cos + dys * g.sin, ly: -dxs * g.sin + dys * g.cos })
     g.aligned = true
   })
-  // ghosts glide to wherever they ended up (aligned or solver spot)
+  // ghosts glide to wherever they ended up (aligned or solver spot).
+  // Spawn glide (user 2026-07-14, "like an asset going out for sale — near
+  // the counter"): a BRAND-NEW ghost has no prev of its own, so it animates
+  // out of its store pile (fungible — the pile is still there) or from the
+  // departed store chip's last position (NFT — the whole chip moved, its
+  // old spot is in the outgoing prev map under the store identity).
   if(!skipGlide) ghostRecs.forEach(g => {
     const cur = nextPos.get(g.k)
-    if(cur) boardGlideChip(g.el, g.prev, cur.left, cur.top)
+    if(!cur) return
+    let from = g.prev
+    if(!from){
+      const pile = g.pairFrom && g.pairAsset ? piles.get(g.pairFrom + "|" + g.pairAsset) : null
+      from = pile
+        ? { left: pile.x - g.w / 2, top: pile.y - g.h / 2 }
+        : _boardChipPrevPos.get(g.k.replace(/\|g#(\d+)$/, "|s#$1"))
+    }
+    boardGlideChip(g.el, from, cur.left, cur.top)
   })
 
   _boardChipPrevPos = nextPos   // stale identities pruned every apply
@@ -1867,6 +1908,7 @@ let _boardPartyCancel = null
 // inflate from the seam rather than rolling in behind an animated clip — if
 // that reads wrong live, the clip-roll is the follow-up.
 function boardTogglePartyOnly(v){
+  boardClearTrails()   // segments collapse/expand — every drawn trail goes stale
   const oldL = ring16() ? boardComputeSlotLayout(boardFilteredAccounts()) : null
   boardPartyOnly = v
   boardSavePrefs()
@@ -2021,6 +2063,7 @@ function boardScrollOthers(step){
   // the NEAR one). Rapid taps restart the tween from the new window — slight
   // replay, acceptable.
   _boardScrollCancel?.()
+  boardClearTrails()   // the others-wheel turns — trails to/from it go stale
   const from = step * (_boardLastStepDeg || 0)
   if(from){
     _boardOthersRotate = from
@@ -2461,6 +2504,13 @@ function boardAnimateNewOffers(){
       const fromAccount = state.accounts?.[k.split("|")[1]]
       if(!fromAccount) return
       const { ghost, basket } = pairEls(k)
+      // KNOWN QUIRK, KEPT ON PURPOSE (user 2026-07-14): repeat drops of the
+      // same pair leave slightly OFFSET after-glow lines (the other chips
+      // shift a touch each re-solve, so each drop's trail lands a few px
+      // apart) — a smudged multi-stroke that accentuates "this happened
+      // several times". Bug-as-feature; the seam to watch is chip movement
+      // getting big enough that the smudge reads as distinct wrong lines —
+      // THEN dedupe by removing lines with this pair key before drawing.
       if(ghost && basket) boardFlyLeg(ghost, basket, getPlayerColour(fromAccount.playerId), 0, k)
     })
 
@@ -2590,12 +2640,22 @@ function ringFooter(mine){
     const lockBtn = document.createElement("button")
     const cur = selected()
     const curHac = cur ? (cur.id.split(":")[1] || cur.id) : null
-    if(boardSigning && curHac && boardSigning.legs[curHac]){
+    if(boardSigning && curHac){
       // signing phase: the Lock slot IS the Sign slot (same checkpoint,
       // next phase). Opens the existing signing page — modal untouched;
       // the embedded roll-up is the next slice.
+      // User bug report KTAG 8/577 (2026-07-14): this branch used to also
+      // require boardSigning.legs[curHac], so accounts NOT party to the
+      // struck tx fell through to the Lock button — but locking isn't a
+      // thing mid-signing. Now every account shows Sign; non-party accounts
+      // sign as a WITNESS (same label per the user's call — the tooltip
+      // carries the distinction, no extra visual complexity).
+      const party = !!boardSigning.legs[curHac]
       lockBtn.className = "ring-footer-lock ring-footer-sign"
       lockBtn.textContent = "✍ Sign"
+      lockBtn.title = party
+        ? "Sign this transaction with the selected account"
+        : "Sign as witness — this account has no legs in the transaction, but its signature is still recorded"
       // review 17 CORRECTION: Sign is the modal's SIGN ACTION, not the modal —
       // straight to WalletConnect via the headless WC.signTx (connect first
       // if needed), signature saved back to the pool. No intermediate UI;
@@ -2820,6 +2880,17 @@ function boardFlyRect(html, a, b, colour, delay, opts){
     boardTrail(a, b, colour, opts)
   }, (delay || 0) + 30)
   setTimeout(() => fly.remove(), (delay || 0) + 1000)
+}
+
+// board movement invalidates every drawn trail — the lines are screen-frame
+// snapshots, so any rotation/collapse/wheel-scroll leaves them pointing at
+// stale coordinates (user 2026-07-14: "if the segment moves, remove the
+// line"). Called at the start of each movement tween. FUTURE (nice-to-have,
+// user rated it likely-complicated and low priority): instead of removing,
+// re-anchor the lines to their chip pairs and redraw them live through the
+// motion — the pair keys the lines already carry are the hook for that.
+function boardClearTrails(){
+  document.querySelectorAll(".board-trailline").forEach(l => l.remove())
 }
 
 // trailing line: DOTTED in the giver's colour (review 7 — was solid with a
