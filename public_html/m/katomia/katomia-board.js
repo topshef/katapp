@@ -327,7 +327,8 @@ let boardPartyOnly = _bp.partyOnly ?? false    // rule-aware party filter
 // animation speed multiplier (Prefs — debug throttle): 1 = normal, 0.25 = ¼
 // speed etc. Divides into every boardAnimate duration.
 let boardAnimSpeed = Number(_bp.animSpeed) || 1
-let boardPrefsOpen = false                     // ⚙ popover, session only
+// boardPrefsOpen (⚙ popover open/closed) retired BOARD-HEADERINT1 — Preferences
+// now lives in profile-modal.php, opened via the normal Profile menu item.
 
 // BOARD-WHEEL1 (user 2026-07-11): Lazy Susan is retired (scope, not code —
 // still in git history / renderSusanBoard if ever needed). Its job — "too
@@ -510,6 +511,62 @@ let boardStartAngle = 180
     }
   }
 }
+
+// BOARD-HEADERINT1: populates + wires the rest of the board-only Preferences
+// section now living in profile-modal.php (KATOMIA_BOARD_CONTEXT), replacing
+// the ⚙ popover this file used to build itself on every render(). Since the
+// controls are now static server-rendered markup (not rebuilt each render),
+// syncing on load + on profile-open covers it — no per-render cost needed.
+// katomia-profile.js calls this by name if it exists (same optional-hook
+// pattern as katomiaAuthOnProfileOpen) whenever the profile modal opens.
+function boardSyncPrefsUI(){
+  const net = document.getElementById("boardPrefNet")
+  if(net){
+    net.checked = boardNetView
+    net.onchange = () => { boardNetView = net.checked; boardSavePrefs(); render() }
+  }
+  const selfBottom = document.getElementById("boardPrefSelfBottom")
+  if(selfBottom){
+    selfBottom.checked = boardSelfBottom
+    selfBottom.onchange = () => {
+      boardSelfBottom = selfBottom.checked
+      _boardAnimateNextRotation = true
+      boardSavePrefs()
+      render()
+    }
+  }
+  const maxSeg = document.getElementById("boardPrefMaxSeg")
+  if(maxSeg){
+    maxSeg.value = boardMaxSegments
+    maxSeg.onchange = () => {
+      const v = Math.max(2, Math.min(24, Number(maxSeg.value) || 6))
+      maxSeg.value = v
+      boardMaxSegments = v
+      boardOthersScrollOffset = 0
+      boardSavePrefs()
+      render()
+    }
+  }
+  const animSpeed = document.getElementById("boardPrefAnimSpeed")
+  if(animSpeed){
+    animSpeed.value = String(boardAnimSpeed)
+    if(animSpeed.selectedIndex < 0) animSpeed.value = "1"
+    animSpeed.onchange = () => { boardAnimSpeed = Number(animSpeed.value) || 1; boardSavePrefs() }
+  }
+  const partyOnly = document.getElementById("boardPrefPartyOnly")
+  if(partyOnly){
+    partyOnly.checked = boardPartyOnly
+    partyOnly.onchange = () => boardTogglePartyOnly(partyOnly.checked)   // animated collapse/expand of non-party segments
+  }
+  const pickable = document.getElementById("boardPrefPickable")
+  if(pickable){
+    const myPrefs = state?.players?.[currentPlayerId]?.prefs || {}
+    pickable.checked = !!myPrefs.allowPick
+    pickable.onchange = () =>
+      socket.send(JSON.stringify({ type: "game_setPref", gameId, key: "allowPick", value: pickable.checked }))
+  }
+}
+boardSyncPrefsUI()
 
 document.addEventListener("dragend", () => { window.__boardDragPayload = null })
 
@@ -2226,109 +2283,6 @@ function ringFooter(mine){
     bar.appendChild(check("Active only", showActiveOnly, v => { showActiveOnly = v; render() }))
 
   if(ring8()){
-    // ── ⚙ Prefs popover (user 2026-07-12, decluttered same day): the footer
-    // is now just ⚙ + account select + lock/sign + 🗑 + ▶. EVERYTHING else
-    // lives in this menu — nerd/testing controls (Net, You at bottom, Max on
-    // ring, Anim speed) above a rule, the two MAIN options (Party only,
-    // Pickable — they affect gameplay/visibility semantics) below it. All
-    // shown to everyone for now (deliberately NOT nerd-gated / not named a
-    // nerd menu); the split line is the seam to gate on later.
-    const prefsWrap = document.createElement("span")
-    prefsWrap.className = "ring-footer-prefswrap"
-    const prefsBtn = document.createElement("button")
-    prefsBtn.className = "ring-footer-prefsbtn" + (boardPrefsOpen ? " ring-footer-prefsbtn--open" : "")
-    prefsBtn.textContent = "⚙"
-    prefsBtn.title = "Preferences"
-    prefsBtn.onclick = () => {
-      boardPrefsOpen = !boardPrefsOpen
-      boardDiag("board:prefs:toggle", { open: boardPrefsOpen })   // kdiag so a dead button is diagnosable
-      render()
-    }
-    prefsWrap.appendChild(prefsBtn)
-
-    if(boardPrefsOpen){
-      const panel = document.createElement("div")
-      panel.className = "ring-footer-prefs"
-
-      panel.appendChild(check("Net", boardNetView,
-        v => { boardNetView = v; boardSavePrefs(); render() },
-        "View baskets fully netted per pair: opposite-direction flows of the same asset collapse to their difference (the transaction nets exactly like this — net-on previews the after and avoids the strike jolt)"))
-      panel.appendChild(check("You at bottom", boardSelfBottom,
-        v => { boardSelfBottom = v; _boardAnimateNextRotation = true; boardSavePrefs(); render() },
-        "On: the board rotates so your accounts face you (default). Off: everyone sees the identical layout (screen-share / spectator)"))
-
-      // BOARD-WHEEL1: max ring slots (mine + visible others) before the rest
-      // become a scrollable window behind a divider wedge. Lazy Susan's old
-      // job — too many players to fit — lives here instead of a second board.
-      const maxLabel = document.createElement("label")
-      maxLabel.className = "ring-footer-filter"
-      maxLabel.title = "Maximum players shown on the ring at once (yours + others). Above this, the rest scroll behind a tap-to-advance divider."
-      // min 2 (user 2026-07-12): "half the screen is a player — collapses
-      // down to the conventional two-party swap", scrolling through partners
-      // one at a time. Never obtuse: 2 slots = at most ~180° each.
-      const maxInput = document.createElement("input")
-      maxInput.type = "number"
-      maxInput.min = "2"
-      maxInput.max = "24"
-      maxInput.className = "ring-footer-maxseg"
-      maxInput.value = boardMaxSegments
-      maxInput.onchange = () => {
-        const v = Math.max(2, Math.min(24, Number(maxInput.value) || 6))
-        maxInput.value = v
-        boardMaxSegments = v
-        boardOthersScrollOffset = 0
-        boardSavePrefs()
-        render()
-      }
-      maxLabel.appendChild(document.createTextNode("Max on ring "))
-      maxLabel.appendChild(maxInput)
-      panel.appendChild(maxLabel)
-
-      // animation speed — debug throttle (user 2026-07-12: "I'm having to
-      // record the animation and slow it down to see what's happening")
-      const spdLabel = document.createElement("label")
-      spdLabel.className = "ring-footer-filter"
-      spdLabel.title = "Animation speed — slow everything down to inspect the choreography"
-      const spd = document.createElement("select")
-      spd.className = "ring-footer-maxseg"
-      ;[["2", "2×"], ["1", "1×"], ["0.5", "½×"], ["0.25", "¼×"], ["0.1", "⅒×"]].forEach(([v, t]) => {
-        const o = document.createElement("option")
-        o.value = v; o.textContent = t
-        spd.appendChild(o)
-      })
-      spd.value = String(boardAnimSpeed)
-      if(spd.selectedIndex < 0) spd.value = "1"
-      spd.onchange = () => { boardAnimSpeed = Number(spd.value) || 1; boardSavePrefs() }
-      spdLabel.appendChild(document.createTextNode("Anim "))
-      spdLabel.appendChild(spd)
-      panel.appendChild(spdLabel)
-
-      // ── the rule: testing/nerd knobs above, the two MAIN options below ──
-      panel.appendChild(document.createElement("hr"))
-
-      // "Party only" (was "Active only", review 7): rule-aware — who is
-      // party to MY proposal. cluster → my cluster; active → all active;
-      // all → n/a. FUTURE (user 2026-07-12, context note — not now): grows
-      // into "player selection views" — party-only as one preset among
-      // several, plus CUSTOM selections (pick an arbitrary group of players
-      // to show) — particularly useful for testing group scenarios.
-      panel.appendChild(check("Party only", boardPartyOnly,
-        v => boardTogglePartyOnly(v),   // animated collapse/expand of non-party segments
-        "Show only accounts party to your proposal (follows the game's lock rule: " + (gameMeta?.lockRule || "cluster") + ")"))
-
-      // Pickable (review 8) — the first GENERIC player pref (KAT-PLAYERPREF1,
-      // backend game_setPref → broadcast in players[].prefs). Declares
-      // "others may pick assets straight from my store" — window-shopping on
-      // the wheel. The pick GESTURE itself needs its backend action, next pass.
-      const myPrefs = state?.players?.[currentPlayerId]?.prefs || {}
-      panel.appendChild(check("Pickable", !!myPrefs.allowPick,
-        v => socket.send(JSON.stringify({ type: "game_setPref", gameId, key: "allowPick", value: v })),
-        "Allow other players to pick assets straight from your store (they shop, you agreed in advance)"))
-
-      prefsWrap.appendChild(panel)
-    }
-    bar.appendChild(prefsWrap)
-
     // account dropdown: pick → Lock/Unlock + 🗑 Delete act on it; ➕ Add last.
     // When all-locked, the Lock slot becomes the SIGN button (same checkpoint,
     // next phase) — see the scene/tx notes at the bottom of this file.

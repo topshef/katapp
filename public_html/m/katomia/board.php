@@ -1,11 +1,5 @@
 <?php
 require_once __DIR__ . '/kasset.php';
-// 2026-07-11 cleanup: close (✕) sends testers back to the OG game page for
-// this game (tx list, messages, other stuff not on the board yet) instead of
-// the home index — a stopgap until the board is the full home for proposal
-// mode. Falls back to home if somehow reached with no game id.
-$gameId = $_GET['game'] ?? '';
-$exitHref = $gameId ? '/m/katomia/game/' . rawurlencode($gameId) : '/m/katomia/';
 ?>
 <!DOCTYPE html>
 <html>
@@ -28,27 +22,17 @@ $exitHref = $gameId ? '/m/katomia/game/' . rawurlencode($gameId) : '/m/katomia/'
      board.php?game=<id>&skin=…)   ·   ?demo=1 = local fixture, no socket — a
      sandbox for skin work and screenshots. -->
 
-<div id="notifications"></div>
-
-<div class="board-chrome">
-  <!-- 2026-07-11 cleanup: culled to the one live skin (ring16) — everything
-       else (including susan5/Lazy Susan, retired same day under BOARD-WHEEL1
-       — its job now lives on the ring itself, see katomia-board.js
-       boardRingLayoutSlots) was superseded exploration, still in git history
-       if ever needed again. Left as a generic select (not hardcoded to one)
-       so a future skin is just another <option>.
-       KATOMIA-CONFIG1 2026-07-14: the OPTION TEXT is now a public-facing
-       theme name ("Round Table" — user: "it's just sort of a classic board
-       game layout, really"; the plurality/no-single-seat-of-power
-       connotation also happens to echo the trust positioning, unplanned but
-       welcome). The internal `value="ring16"` is UNCHANGED on purpose — the
-       user wants it to stay as the developer-facing label; it quietly
-       versions how much dev has landed on this skin. -->
-  <select id="boardSkinSelect" title="Board skin">
-    <option value="ring16">⭕ Round Table (ring16 — in-app sign, focus play)</option>
-  </select>
-  <a class="board-exit" href="<?= htmlspecialchars($exitHref, ENT_QUOTES, 'UTF-8') ?>" title="Exit to game page">✕</a>
-</div>
+<?php
+  // BOARD-HEADERINT1: board.php now shares header.php + profile-modal.php
+  // with game.php, replacing the standalone chrome it built in its BOARD-UI1
+  // sandbox days (skin <select> + ✕ close — both now live inside the profile
+  // modal's new board-only Preferences section; the hamburger's Markets link
+  // replaces ✕). KATOMIA_BOARD_CONTEXT gates that section on — see
+  // profile-modal.php.
+  define('KATOMIA_BOARD_CONTEXT', true);
+  require __DIR__ . '/header.php';
+  require __DIR__ . '/profile-modal.php';
+?>
 
 <div id="boardRoot"></div>
 
