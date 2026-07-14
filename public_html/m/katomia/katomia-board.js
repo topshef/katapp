@@ -413,26 +413,47 @@ const boardMySignedTx = new Map()   // txid -> ts, tracked from board:sign:saved
 // (the real Hedera receipt status — authoritative, not guessed) and sig
 // updates. Reused directly via dynamic import, same pattern as the signstatus
 // pipeline above — one source of truth instead of a second, divergent guess.
-// result celebration (user 2026-07-14): confetti rain on success; grey ash
+// result celebration (user 2026-07-14): confetti on success; grey ash
 // flecks as the failure PLACEHOLDER (the "burn / tear-down" idea is still
-// open). Self-contained DOM particles + one CSS keyframe — no library.
+// open). Self-contained DOM particles + CSS keyframes — no library.
+// v2 (same day): success rained from the top like weather, not celebration —
+// now BURSTS from the central hub (the K): up and out in a cone, then
+// gravity rains it down. Failure ash still falls from the top (ash falls).
 function boardCelebrate(ok){
   const colors = ok
     ? ["#f5a623", "#4a90d9", "#7ed321", "#e94b7f", "#9013fe", "#f8e71c"]
     : ["#555", "#777", "#3a3a3a", "#8a6d3b"]
   const wrap = document.createElement("div")
   wrap.className = "board-celebrate"
+  const hub = document.querySelector(".ring-hub")?.getBoundingClientRect()
+  const ox = hub ? hub.left + hub.width / 2 : innerWidth / 2
+  const oy = hub ? hub.top + hub.height / 2 : innerHeight * 0.45
   const n = ok ? 90 : 40
   for(let i = 0; i < n; i++){
     const p = document.createElement("i")
-    p.style.left = (Math.random() * 100) + "vw"
     p.style.background = colors[Math.floor(Math.random() * colors.length)]
     const w = 6 + Math.random() * 6
     p.style.width = w + "px"
     p.style.height = (ok ? w * 1.4 : w * 0.8) + "px"
-    if(!ok) p.style.borderRadius = "50%"   // ash flecks vs confetti rectangles
-    p.style.animationDelay = (Math.random() * (ok ? 0.8 : 0.4)) + "s"
-    p.style.animationDuration = (ok ? 2 + Math.random() * 1.6 : 3 + Math.random() * 2) + "s"
+    if(ok){
+      p.style.left = ox + "px"
+      p.style.top = oy + "px"
+      // launch: upward cone (±70° around straight up), gravity brings it down
+      const ang = (-90 + (Math.random() * 2 - 1) * 70) * Math.PI / 180
+      const v = 120 + Math.random() * 280
+      const bx = Math.cos(ang) * v, by = Math.sin(ang) * v
+      p.style.setProperty("--bx", bx + "px")
+      p.style.setProperty("--by", by + "px")
+      p.style.setProperty("--fx", (bx * 1.6) + "px")
+      p.style.setProperty("--fy", (innerHeight - oy + 40) + "px")
+      p.style.animation = `board-confetti-burst ${(1.8 + Math.random() * 1.4).toFixed(2)}s cubic-bezier(.2,.7,.5,1) forwards`
+      p.style.animationDelay = (Math.random() * 0.25).toFixed(2) + "s"
+    } else {
+      p.style.left = (Math.random() * 100) + "vw"
+      p.style.borderRadius = "50%"   // ash flecks vs confetti rectangles
+      p.style.animationDelay = (Math.random() * 0.4) + "s"
+      p.style.animationDuration = (3 + Math.random() * 2) + "s"
+    }
     wrap.appendChild(p)
   }
   document.body.appendChild(wrap)
@@ -2744,11 +2765,16 @@ function boardTrail(a, b, colour, { key, persist = true } = {}){
   // it maps is withdrawn (persist:false + the pairKey removal in
   // boardAnimateNewOffers — a returned asset's line is redundant, user
   // 2026-07-14). 0 = old fade-to-nothing behaviour.
+  // persist:false (withdraw-return) also fades FASTER — once it's withdrawn
+  // the connection is gone and nobody's interested (user 2026-07-14, called
+  // minor: the 200ms/.5s numbers are polish knobs if it still lingers).
+  const fast = !persist
+  if(fast) line.style.transition = "opacity .5s ease"
   const residual = persist ? 0.75 * (boardTrailResidual || 0) : 0
   requestAnimationFrame(() => {
-    setTimeout(() => { line.style.opacity = residual }, 1000)   // linger, then fade
+    setTimeout(() => { line.style.opacity = residual }, fast ? 200 : 1000)   // linger, then fade
   })
-  if(!residual) setTimeout(() => line.remove(), 3600)
+  if(!residual) setTimeout(() => line.remove(), fast ? 900 : 3600)
 }
 
 // PROP-LOCKSIGN1 commitment flow, shared by the v1 label glyph + footer buttons

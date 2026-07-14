@@ -1415,6 +1415,13 @@ body.board-page .app-banner{
   0%{ transform: translateY(-20px) rotate(0deg); }
   100%{ transform: translateY(105vh) rotate(720deg); opacity: .75; }
 }
+/* success burst (v2): out of the hub to a peak (--bx/--by, upward cone) by
+   40%, then gravity takes it below the fold (--fx/--fy) */
+@keyframes board-confetti-burst{
+  0%{ transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  40%{ transform: translate(var(--bx), var(--by)) rotate(300deg); }
+  100%{ transform: translate(var(--fx), var(--fy)) rotate(720deg); opacity: .7; }
+}
 
 /* review 17: the spotlight fades IN at flight speed (darkest as assets land)
    and lifts gracefully; only the first mount animates, not every re-render */
