@@ -5,6 +5,15 @@
 body.board-page{
   margin: 0;
   padding: 0;
+  /* BOARD-HEADERINT1 fix: everything under the banner is position:fixed
+     (#boardRoot etc.), so it contributes nothing to body's auto height — body
+     collapsed to just the ~90px banner. overflow:hidden then clipped the
+     hamburger dropdown (.app-menu, position:absolute inside the banner) right
+     there, since absolute descendants ARE clipped by an ancestor's overflow
+     even when a position:fixed sibling escapes it. min-height:100vh gives
+     overflow:hidden a sane boundary again without affecting the (already
+     viewport-fixed) board itself. */
+  min-height: 100vh;
   overflow: hidden;
   background: #f5f1e8;               /* the felt */
   font-family: system-ui, sans-serif;
