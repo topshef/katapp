@@ -1536,7 +1536,8 @@ const BOARD_DIVIDER_DEG = 14   // fixed angular width of a scroll-wedge divider
      same drag/tap/hover handlers; only WHERE chips sit changes. */
 let _boardOrganicZones = []               // collected per render, consumed by boardOrganicApply
 const _boardOrganicCache = new Map()      // solve results keyed by zone+chips+geometry (rotation-independent)
-let _boardChipPrevPos = new Map()         // chip identity → last painted {left,top} (FLIP glide, BOARD-ORGANIC3)
+let _boardChipPrevPos = new Map()         // chip identity → last painted {left,top,lx,ly} (FLIP glide, BOARD-ORGANIC3)
+let _boardChipPrevPosOld = new Map()      // the frame BEFORE that — where a chip that vanished THIS frame last stood (NFT offer flight origin)
 
 function boardHash01(s){
   let h = 2166136261
@@ -1809,24 +1810,24 @@ function boardOrganicApply(cx, cy, W, H, oval){
   })
   // ghosts glide to wherever they ended up (aligned or solver spot).
   // Spawn glide (user 2026-07-14, "like an asset going out for sale — near
-  // the counter"): a BRAND-NEW ghost has no prev of its own, so it animates
-  // out of its store pile (fungible — the pile is still there) or from the
-  // departed store chip's last position (NFT — the whole chip moved, its
-  // old spot is in the outgoing prev map under the store identity).
+  // the counter"): a BRAND-NEW fungible ghost has no prev of its own, so it
+  // animates out of its store pile. NFT spawns are NOT handled here any
+  // more — boardFlyNftOffer (a clone flight, immune to the re-renders that
+  // kill an element transform mid-glide) owns the whole store→ghost→basket
+  // choreography for them.
   if(!skipGlide) ghostRecs.forEach(g => {
     const cur = nextPos.get(g.k)
     if(!cur) return
     let from = g.prev
     if(!from){
       const pile = g.pairFrom && g.pairAsset ? piles.get(g.pairFrom + "|" + g.pairAsset) : null
-      from = pile
-        ? { left: pile.x - g.w / 2, top: pile.y - g.h / 2 }
-        : _boardChipPrevPos.get(g.k.replace(/\|g#(\d+)$/, "|s#$1"))
+      if(pile) from = { left: pile.x - g.w / 2, top: pile.y - g.h / 2 }
     }
     boardGlideChip(g.el, from, cur.left, cur.top)
   })
 
-  _boardChipPrevPos = nextPos   // stale identities pruned every apply
+  _boardChipPrevPosOld = _boardChipPrevPos   // keep one frame of history — vanished chips' last stand
+  _boardChipPrevPos = nextPos                // stale identities pruned every apply
 }
 
 /* ── rotate animation for "You at bottom" (user 2026-07-12) ──────────────────
@@ -2520,8 +2521,23 @@ function boardAnimateNewOffers(){
       // getting big enough that the smudge reads as distinct wrong lines —
       // THEN dedupe by removing lines with this pair key before drawing.
       if(ghost && basket){
-        boardFlyLeg(ghost, basket, getPlayerColour(fromAccount.playerId), 0, k)
-        boardTrailPileSegment(k.split("|")[1], k.split("|")[2], ghost, getPlayerColour(fromAccount.playerId), k)
+        const [, fromId, assetId] = k.split("|")
+        const colour = getPlayerColour(fromAccount.playerId)
+        const pile = document.querySelector(
+          `.asset:not(.basket):not(.reserved)[data-owner-account="${CSS.escape(fromId)}"][data-asset-id="${CSS.escape(assetId)}"]`)
+        if(pile){
+          // fungible: pile stays — clone flies ghost→basket, pile→ghost
+          // segment joins the after-glow
+          boardFlyLeg(ghost, basket, colour, 0, k)
+          boardTrailPileSegment(fromId, assetId, ghost, colour, k)
+        } else {
+          // NFT (whole chip moved): store→(arc)→ghost→(straight)→basket in
+          // one clone flight, launched from where the store chip stood last
+          // frame; plain ghost→basket if that spot is unknown
+          const oldStore = _boardChipPrevPosOld.get(`${fromId}|store|${assetId}|s#1`)
+          if(oldStore) boardFlyNftOffer(oldStore, ghost, basket, colour, k)
+          else boardFlyLeg(ghost, basket, colour, 0, k)
+        }
       }
     })
 
@@ -2899,6 +2915,67 @@ function boardTrailPileSegment(fromId, assetId, ghostEl, colour, key){
 // trail with its offer pair so a later withdraw can clear the after-glow.
 function boardFlyLeg(ghost, basketEl, colour, delay, key){
   boardFlyRect(basketEl.outerHTML, boardChipRect(ghost), boardChipRect(basketEl), colour, delay, { key })
+}
+
+// NFT offer choreography (user 2026-07-14): the store chip ARCS to the rim,
+// drops its ghost there, and continues STRAIGHT to the basket — one motion.
+// The arc is a quadratic Bézier whose control point sits on the basket→ghost
+// line extended past the ghost, so the curve arrives TANGENT to the straight
+// leg — no kink at the handoff (the user's own suggested construction). The
+// real ghost stays hidden until the clone passes its spot and "drops it off".
+// A clone flight rather than a transform glide on the ghost itself: renders
+// replace the DOM (root.replaceChildren), which silently killed the earlier
+// element-transform spawn glide — a body-level clone is immune. One-off per
+// drop: the ▶ replay only ever replays ghost→basket (the store→ghost move is
+// history once the ghost exists — user: no need to draw that line again).
+function boardFlyNftOffer(fromPos, ghostEl, basketEl, colour, key){
+  const g = boardChipRect(ghostEl), b = boardChipRect(basketEl)
+  const P0 = { x: fromPos.left + g.width / 2, y: fromPos.top + g.height / 2 }
+  const G = { x: g.left + g.width / 2, y: g.top + g.height / 2 }
+  const B = { x: b.left + b.width / 2, y: b.top + b.height / 2 }
+  const gb = Math.hypot(B.x - G.x, B.y - G.y) || 1
+  const ext = Math.min(120, Math.hypot(P0.x - G.x, P0.y - G.y) * 0.5)
+  const C = { x: G.x + (G.x - B.x) / gb * ext, y: G.y + (G.y - B.y) / gb * ext }
+
+  // the clone is the ASSET on the move (basket styling, same as boardFlyLeg)
+  // — the pale ghost is what gets left behind, not what travels
+  const tmp = document.createElement("div")
+  tmp.innerHTML = basketEl.outerHTML
+  const fly = tmp.firstElementChild
+  if(!fly) return
+  fly.className += " board-fly"
+  fly.style.transition = "none"   // driven per-frame — .board-fly's own transform transition would lag it
+  fly.style.left = "0px"
+  fly.style.top = "0px"
+  fly.style.transform = `translate(${P0.x - b.width / 2}px, ${P0.y - b.height / 2}px)`
+  document.body.appendChild(fly)
+  ghostEl.style.opacity = "0"
+
+  const arcLen = Math.hypot(P0.x - G.x, P0.y - G.y)
+  const split = arcLen / (arcLen + gb)   // time share of the arc leg ≈ length share
+  let dropped = false
+  boardAnimate(950, (e, done) => {
+    let x, y
+    if(e < split){
+      const t = e / split
+      x = (1 - t) * (1 - t) * P0.x + 2 * (1 - t) * t * C.x + t * t * G.x
+      y = (1 - t) * (1 - t) * P0.y + 2 * (1 - t) * t * C.y + t * t * G.y
+    } else {
+      if(!dropped){
+        dropped = true
+        ghostEl.style.opacity = ""            // ghost left behind at the rim
+        boardTrail(g, b, colour, { key })     // the straight leg's line draws from here
+      }
+      const t = (e - split) / (1 - split)
+      x = G.x + (B.x - G.x) * t
+      y = G.y + (B.y - G.y) * t
+    }
+    fly.style.transform = `translate(${x - b.width / 2}px, ${y - b.height / 2}px)`
+    if(done){
+      ghostEl.style.opacity = ""   // belt & braces (a mid-flight re-render swaps the element anyway)
+      fly.remove()
+    }
+  })
 }
 
 // markup + two rects → flight (also used for withdraw-back, where the source
