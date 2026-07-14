@@ -36,9 +36,16 @@ $exitHref = $gameId ? '/m/katomia/game/' . rawurlencode($gameId) : '/m/katomia/'
        — its job now lives on the ring itself, see katomia-board.js
        boardRingLayoutSlots) was superseded exploration, still in git history
        if ever needed again. Left as a generic select (not hardcoded to one)
-       so a future skin is just another <option>. -->
+       so a future skin is just another <option>.
+       KATOMIA-CONFIG1 2026-07-14: the OPTION TEXT is now a public-facing
+       theme name ("Round Table" — user: "it's just sort of a classic board
+       game layout, really"; the plurality/no-single-seat-of-power
+       connotation also happens to echo the trust positioning, unplanned but
+       welcome). The internal `value="ring16"` is UNCHANGED on purpose — the
+       user wants it to stay as the developer-facing label; it quietly
+       versions how much dev has landed on this skin. -->
   <select id="boardSkinSelect" title="Board skin">
-    <option value="ring16">⭕ Ring — in-app sign, focus play (default)</option>
+    <option value="ring16">⭕ Round Table (ring16 — in-app sign, focus play)</option>
   </select>
   <a class="board-exit" href="<?= htmlspecialchars($exitHref, ENT_QUOTES, 'UTF-8') ?>" title="Exit to game page">✕</a>
 </div>

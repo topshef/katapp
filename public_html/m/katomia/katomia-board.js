@@ -293,6 +293,19 @@ let boardSkin = (() => {
 
 // footer state — STICKY via localStorage (review 16: a WS drop forces a
 // refresh, and losing your toggles each time was maddening)
+//
+// SCOPE SEAM (user 2026-07-14): this key is deliberately GLOBAL — one
+// localStorage entry, not per-game — so a layout you dial in on one game
+// (max-on-ring, pickable, etc.) carries over as your default the next time
+// you open a different one. That's the agreed starting point ("a lot of
+// those you might want them to stick across games... I don't think any of
+// those are absolutely specific to a specific game"), not a fixed decision —
+// the user is open to per-game scoping later if it turns out some of these
+// (max-on-ring and pickable were the two floated as maybe-game-specific)
+// want to vary by game after all. THE SWITCH, if that day comes: change
+// BOARD_PREFS_KEY below to include gameId (e.g. `katomiaBoardPrefs:${gameId}`)
+// — everything else (load/save shape, defaults) is already written
+// game-agnostically and needs no other change.
 const BOARD_PREFS_KEY = "katomiaBoardPrefs"
 function boardLoadPrefs(){
   try { return JSON.parse(localStorage.getItem(BOARD_PREFS_KEY) || "{}") } catch { return {} }
