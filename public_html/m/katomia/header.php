@@ -76,8 +76,8 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
       </select>
     </label>
     <label class="board-settings-label">
-      <input type="checkbox" id="boardPrefNet" title="View baskets fully netted per pair: opposite-direction flows of the same asset collapse to their difference (the transaction nets exactly like this — net-on previews the after and avoids the strike jolt)">
-      Net
+      <input type="checkbox" id="boardPrefNet" title="Net is the standard view (the transaction nets exactly like this). 🧪 escape hatch: untick to see every individual offer un-netted — dev/testing only, likely to be removed.">
+      🧪 Net
     </label>
     <label class="board-settings-label">
       <input type="checkbox" id="boardPrefSelfBottom" title="On: the board rotates so your accounts face you (default). Off: everyone sees the identical layout (screen-share / spectator)">

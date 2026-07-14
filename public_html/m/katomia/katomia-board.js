@@ -322,7 +322,11 @@ function boardSavePrefs(){
 }
 const _bp = boardLoadPrefs()
 let boardSelfBottom = _bp.selfBottom ?? true   // me at 6 o'clock; off = shared (Prefs; default ON per user 2026-07-12)
-let boardNetView = _bp.netView ?? false        // FULL pairwise netting (Prefs)
+// net is the STANDARD view now (user 2026-07-14: "we're going to go with net
+// as the standard view, and we probably won't expose that option to turn it
+// off to users") — default flipped to ON; the toggle stays as a 🧪 escape
+// hatch, parked not removed (unknown edge cases may still want the split view)
+let boardNetView = _bp.netView ?? true         // FULL pairwise netting (🧪 Settings)
 let boardSelectedAccount = null                // footer dropdown selection
 const _boardSeenMineIds = new Set()            // my account ids ever seen — newest-lands-selected (2026-07-14)
 let boardPartyOnly = _bp.partyOnly ?? false    // rule-aware party filter
@@ -409,15 +413,46 @@ const boardMySignedTx = new Map()   // txid -> ts, tracked from board:sign:saved
 // (the real Hedera receipt status — authoritative, not guessed) and sig
 // updates. Reused directly via dynamic import, same pattern as the signstatus
 // pipeline above — one source of truth instead of a second, divergent guess.
+// result celebration (user 2026-07-14): confetti rain on success; grey ash
+// flecks as the failure PLACEHOLDER (the "burn / tear-down" idea is still
+// open). Self-contained DOM particles + one CSS keyframe — no library.
+function boardCelebrate(ok){
+  const colors = ok
+    ? ["#f5a623", "#4a90d9", "#7ed321", "#e94b7f", "#9013fe", "#f8e71c"]
+    : ["#555", "#777", "#3a3a3a", "#8a6d3b"]
+  const wrap = document.createElement("div")
+  wrap.className = "board-celebrate"
+  const n = ok ? 90 : 40
+  for(let i = 0; i < n; i++){
+    const p = document.createElement("i")
+    p.style.left = (Math.random() * 100) + "vw"
+    p.style.background = colors[Math.floor(Math.random() * colors.length)]
+    const w = 6 + Math.random() * 6
+    p.style.width = w + "px"
+    p.style.height = (ok ? w * 1.4 : w * 0.8) + "px"
+    if(!ok) p.style.borderRadius = "50%"   // ash flecks vs confetti rectangles
+    p.style.animationDelay = (Math.random() * (ok ? 0.8 : 0.4)) + "s"
+    p.style.animationDuration = (ok ? 2 + Math.random() * 1.6 : 3 + Math.random() * 2) + "s"
+    wrap.appendChild(p)
+  }
+  document.body.appendChild(wrap)
+  setTimeout(() => wrap.remove(), 7000)
+}
+
 function boardShowResult(txid, ok){
   if(boardSuccessAcked.has(txid)) return
   boardSuccessAcked.add(txid)
   boardSaveAckedTx(boardSuccessAcked)
   boardDiag("board:result:shown", { txid, ok })
-  alert(ok
-    ? `✅ Transaction successful\n\n${txid}\n\nTap OK to continue.`
-    : `⚠️ Transaction failed or expired\n\n${txid}\n\nIt was not executed on-chain. Tap OK to continue.`)
-  boardDiag("board:result:acked", { txid, ok })
+  boardCelebrate(ok)
+  // let the first particles paint before alert() blocks the JS thread (CSS
+  // animations keep running behind the native dialog)
+  setTimeout(() => {
+    alert(ok
+      ? `✅ Transaction successful\n\n${txid}\n\nTap OK to continue.`
+      : `⚠️ Transaction failed or expired\n\n${txid}\n\nIt was not executed on-chain. Tap OK to continue.`)
+    boardDiag("board:result:acked", { txid, ok })
+  }, 150)
 }
 
 let _boardTxSocket = null
@@ -2232,6 +2267,24 @@ function boardInMyParty(account, allAccounts){
   return myGroups.has(lp.groupId)
 }
 
+// net view (user 2026-07-14): one displayed chip = possibly MANY underlying
+// basket entries — withdrawing/returning it must take ALL its legs, not one
+// at a time (the confirm names the full netted amount; peeling a single leg
+// off was a lie). The backend removes one entry per message, so send one per
+// raw leg. Direction note: netting also folds OPPOSITE-direction offers into
+// the shown chip; those belong to the counterparty and aren't ours to
+// withdraw — we clear the shown direction only, so a counter-offer remainder
+// re-nets and flips direction, which is visible and truthful.
+// FUTURE seam: if net becomes the only view (user is leaning that way, non-
+// net kept as a 🧪 escape hatch for now), consider netting the DATA on the
+// backend instead — this is the client-side stopgap.
+function boardNetLegCount(fromId, toId, assetId){
+  if(!(ring8() && boardNetView)) return 1
+  const raw = Object.values(state?.accounts || {}).find(a => a.id === toId)?.basket || []
+  return Math.max(1, raw.filter(it =>
+    String(it.assetId) === String(assetId) && getFromAccountId(it) === fromId).length)
+}
+
 function boardNetAccounts(accounts){
   const net = new Map()      // "asset|loId|hiId" → signed amount (+ = lo gives hi)
   const nfts = []            // NFT basket lines pass through untouched
@@ -2307,7 +2360,7 @@ function boardAnimateNewOffers(){
       const fromAccount = state.accounts?.[k.split("|")[1]]
       if(!fromAccount) return
       const { ghost, basket } = pairEls(k)
-      if(ghost && basket) boardFlyLeg(ghost, basket, getPlayerColour(fromAccount.playerId), 0)
+      if(ghost && basket) boardFlyLeg(ghost, basket, getPlayerColour(fromAccount.playerId), 0, k)
     })
 
     prev.forEach((amt, k) => {
@@ -2316,6 +2369,11 @@ function boardAnimateNewOffers(){
       // legs stay on the table as tx chips, so no fly-home choreography
       // (the success/failure settlement flights come with the next slice)
       if(boardSigning) return
+      // withdrawn offer: its after-glow trail is now redundant (user
+      // 2026-07-14) — clear it, and the return flight leaves none
+      document.querySelectorAll(".board-trailline").forEach(l => {
+        if(l.dataset.pairKey === k) l.remove()
+      })
       const snap = _prevOfferRects.get(k)
       if(!snap) return
       const [, fromId, assetId] = k.split("|")
@@ -2326,7 +2384,7 @@ function boardAnimateNewOffers(){
         `.asset:not(.basket):not(.reserved)[data-owner-account="${CSS.escape(fromId)}"][data-asset-id="${CSS.escape(assetId)}"]`)
       const target = home ? home.getBoundingClientRect() : snap.ghost
       if(snap.basket && target)
-        boardFlyRect(snap.html, snap.basket, target, getPlayerColour(owner?.playerId), 0)
+        boardFlyRect(snap.html, snap.basket, target, getPlayerColour(owner?.playerId), 0, { key: k, persist: false })
     })
   }
 
@@ -2630,19 +2688,23 @@ function playTransfers(){
       + `[data-to-account="${CSS.escape(toAccount)}"]`
     const ghost = document.querySelector(`.asset.reserved${sel}`)
     if(!ghost) return
-    boardFlyLeg(ghost, basketEl, getPlayerColour(ownerPlayer), i++ * 220)
+    // same pair key shape as boardAnimateNewOffers (to|from|asset) so a
+    // withdraw clears replay after-glow too
+    boardFlyLeg(ghost, basketEl, getPlayerColour(ownerPlayer), i++ * 220, `${toAccount}|${ownerAccount}|${assetId}`)
   })
 }
 
 // one leg of the transfer animation: clone flies ghost → basket, trail line
-// in the giver's colour draws with it and fades
-function boardFlyLeg(ghost, basketEl, colour, delay){
-  boardFlyRect(basketEl.outerHTML, ghost.getBoundingClientRect(), basketEl.getBoundingClientRect(), colour, delay)
+// in the giver's colour draws with it and fades. key (optional) tags the
+// trail with its offer pair so a later withdraw can clear the after-glow.
+function boardFlyLeg(ghost, basketEl, colour, delay, key){
+  boardFlyRect(basketEl.outerHTML, ghost.getBoundingClientRect(), basketEl.getBoundingClientRect(), colour, delay, { key })
 }
 
 // markup + two rects → flight (also used for withdraw-back, where the source
-// chip no longer exists in the new DOM and we replay from a snapshot)
-function boardFlyRect(html, a, b, colour, delay){
+// chip no longer exists in the new DOM and we replay from a snapshot).
+// opts: { key, persist } forwarded to boardTrail.
+function boardFlyRect(html, a, b, colour, delay, opts){
   if(!html || !a || !b) return
   const tmp = document.createElement("div")
   tmp.innerHTML = html
@@ -2654,14 +2716,14 @@ function boardFlyRect(html, a, b, colour, delay){
   document.body.appendChild(fly)
   setTimeout(() => {
     fly.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px)`
-    boardTrail(a, b, colour)
+    boardTrail(a, b, colour, opts)
   }, (delay || 0) + 30)
   setTimeout(() => fly.remove(), (delay || 0) + 1000)
 }
 
 // trailing line: DOTTED in the giver's colour (review 7 — was solid with a
 // draw-in; the dash channel now carries the dot pattern), fades out slowly
-function boardTrail(a, b, colour){
+function boardTrail(a, b, colour, { key, persist = true } = {}){
   let svg = document.querySelector(".board-traillayer")
   if(!svg){
     svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
@@ -2674,11 +2736,15 @@ function boardTrail(a, b, colour){
   line.setAttribute("x2", b.left + b.width / 2); line.setAttribute("y2", b.top + b.height / 2)
   line.setAttribute("class", "board-trailline")
   line.style.stroke = colour || "#999"
+  if(key) line.dataset.pairKey = key
   svg.appendChild(line)
   // 🧪 after-glow (boardTrailResidual): fade to a persistent fraction of the
   // starting opacity (.75, see .board-trailline) instead of to nothing — the
-  // burn-in stays until the next replay wipes the layer. 0 = old behaviour.
-  const residual = 0.75 * (boardTrailResidual || 0)
+  // burn-in stays until the next replay wipes the layer, or until the offer
+  // it maps is withdrawn (persist:false + the pairKey removal in
+  // boardAnimateNewOffers — a returned asset's line is redundant, user
+  // 2026-07-14). 0 = old fade-to-nothing behaviour.
+  const residual = persist ? 0.75 * (boardTrailResidual || 0) : 0
   requestAnimationFrame(() => {
     setTimeout(() => { line.style.opacity = residual }, 1000)   // linger, then fade
   })
@@ -3898,7 +3964,9 @@ function boardReservedChips(account, container, reservedByAccount){
       el.onclick = () => {
         const ok = confirm("Withdraw " + boardAssetText(item.assetId, item.amount || 1) + " from " + item.toAccountId + "?")
         if(!ok) return
-        socket.send(JSON.stringify({
+        // net view: the chip is the whole netted stack — withdraw every leg
+        const n = boardNetLegCount(account.id, item.toAccountId, item.assetId)
+        for(let i = 0; i < n; i++) socket.send(JSON.stringify({
           type: "game_withdraw", gameId,
           fromId: account.id, toId: item.toAccountId, assetId: item.assetId
         }))
@@ -3956,7 +4024,9 @@ function boardBasketChips(account, container, accountMap){
       el.onclick = () => {
         const ok = confirm("Withdraw " + boardAssetText(item.assetId, item.amount || 1) + " from " + account.id + "?")
         if(!ok) return
-        socket.send(JSON.stringify({
+        // net view: the chip is the whole netted stack — withdraw every leg
+        const n = boardNetLegCount(fromAccountId, account.id, item.assetId)
+        for(let i = 0; i < n; i++) socket.send(JSON.stringify({
           type: "game_withdraw", gameId,
           fromId: fromAccountId, toId: account.id, assetId: item.assetId
         }))
@@ -3976,7 +4046,9 @@ function boardBasketChips(account, container, accountMap){
       el.onclick = () => {
         const ok = confirm("Return " + boardAssetText(item.assetId, item.amount || 1) + " to " + fromAccountId + "?")
         if(!ok) return
-        socket.send(JSON.stringify({
+        // net view: same all-legs treatment as withdraw
+        const n = boardNetLegCount(fromAccountId, account.id, item.assetId)
+        for(let i = 0; i < n; i++) socket.send(JSON.stringify({
           type: "game_reject", gameId,
           accountId: account.id, assetId: item.assetId
         }))
