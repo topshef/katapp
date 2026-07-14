@@ -1577,16 +1577,27 @@ function boardHash01(s){
 // (modulo collision nudges the glide animates), only genuinely new chips
 // hunt for a spot. Local coords are rotation-independent (x radial along
 // the segment mid, y tangential), so seeds survive board rotation.
-function boardRelaxZone(sizes, keys, zone, inners, seeds){
+// RESERVED RIM BAND (user 2026-07-14 night: "clear the cashier's counter"):
+// in store zones the first ~chip-height past the oval belongs to GHOSTS
+// ONLY — store chips' inner wall starts beyond it, even before any ghost
+// exists, so reserved vs store reads as two distinct rings. Basket zones
+// (inside the oval) are unaffected. Seeded chips from pre-band layouts get
+// walled out by the hard clamp; the FLIP glide animates the eviction.
+function boardRelaxZone(sizes, keys, zone, inners, seeds, isBasket){
   const halfAng = Math.min(zone.halfDeg, 80) * Math.PI / 180
   const tanHalf = Math.tan(halfAng)
+  const hasGhost = !!inners?.some(Boolean)
+  const band = isBasket ? 0 :
+    (hasGhost ? Math.max(...sizes.filter((_, i) => inners[i]).map(s => s.h))
+              : Math.max(40, ...sizes.map(s => s.h))) + 12
   const items = sizes.map((s, i) => {
     const j1 = boardHash01(keys[i]), j2 = boardHash01(keys[i] + "~")
     const inner = !!inners?.[i]
     const seed = seeds?.[i]
+    const base = inner ? zone.rMin : zone.rMin + band
     const x = seed ? seed.x
       : inner ? zone.rMin + s.h / 2
-      : zone.rMin + ((i + 0.5) / sizes.length * 0.8 + j2 * 0.2) * Math.max(1, zone.rMax - zone.rMin)
+      : base + ((i + 0.5) / sizes.length * 0.8 + j2 * 0.2) * Math.max(1, zone.rMax - base)
     const maxY = Math.max(2, x * tanHalf - s.w / 2)
     const y = seed ? seed.y : (j1 * 2 - 1) * maxY * 0.8
     return { w: s.w, h: s.h, cr: Math.max(s.w, s.h) / 2 + 3, x, y, inner }
@@ -1604,7 +1615,8 @@ function boardRelaxZone(sizes, keys, zone, inners, seeds){
       }
     }
     items.forEach(A => {
-      A.x = Math.max(zone.rMin + A.h / 2, A.x)                    // inner wall hard (hub / oval)
+      // inner wall hard: ghosts at the oval, store chips past the reserved band
+      A.x = Math.max(zone.rMin + (A.inner ? 0 : band) + A.h / 2, A.x)
       if(A.inner) A.x = Math.min(A.x, zone.rMin + A.h / 2 + 12)   // ghosts hug the rim (12px collision slack)
       const over = A.x - (zone.rMax - A.h / 2)
       if(over > 0) A.x -= over * 0.3                              // outer wall SOFT — pressure spills outward
@@ -1657,9 +1669,11 @@ function boardShelfZone(sizes, keys, zone, inners, isBasket){
   const order = [...chipIdx].sort((a, b) =>
     sizes[b].h - sizes[a].h || sizes[b].w - sizes[a].w || a - b)
 
-  // store: cursor walks outward from past the ghost band; basket: inward
-  // from the oval edge. Row x uses the row's tallest (= first, sorted) chip.
-  let cursor = isBasket ? zone.rMax : zone.rMin + (ghostIdx.length ? ghostBandH + 12 : 0)
+  // store: cursor walks outward from past the RESERVED rim band (ghost-only
+  // — "clear the cashier's counter", reserved even before any ghost exists);
+  // basket: inward from the oval edge. Row x uses the row's tallest chip.
+  const band = (ghostIdx.length ? ghostBandH : Math.max(40, ...chipIdx.map(i => sizes[i].h))) + 12
+  let cursor = isBasket ? zone.rMax : zone.rMin + band
   let i = 0
   while(i < order.length){
     const rowH = sizes[order[i]].h
@@ -1781,7 +1795,7 @@ function boardOrganicApply(cx, cy, W, H, oval){
       const sizes = p.entry?.sizes || p.z.chips.map(el => ({ w: el.offsetWidth || 40, h: el.offsetHeight || 24 }))
       const solve = gz => boardLayoutMode === "shelves"
         ? boardShelfZone(sizes, p.chipKeys, gz, inners, isBasket)
-        : boardRelaxZone(sizes, p.chipKeys, gz, inners, seeds)
+        : boardRelaxZone(sizes, p.chipKeys, gz, inners, seeds, isBasket)
       if(!p.entry){
         p.entry = { pos: solve(p.z), sizes }
         cacheSet(p.startKey, p.entry)
