@@ -97,6 +97,16 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
         <option value="0.1">⅒×</option>
       </select>
     </label>
+    <label class="board-settings-label">
+      🧪 Trail after-glow
+      <select id="boardPrefTrailResidual" title="Dev design knob: after the ▶ replay trail fades, this fraction of its opacity persists as a burn-in showing where each asset came from. Wiped on the next replay.">
+        <option value="0">off</option>
+        <option value="0.25">25%</option>
+        <option value="0.5">50%</option>
+        <option value="0.75">75%</option>
+        <option value="1">100%</option>
+      </select>
+    </label>
     <hr>
     <label class="board-settings-label">
       <input type="checkbox" id="boardPrefPartyOnly" title="Show only accounts party to your proposal (follows the game's lock rule)">

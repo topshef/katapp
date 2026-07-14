@@ -315,7 +315,8 @@ function boardSavePrefs(){
     localStorage.setItem(BOARD_PREFS_KEY, JSON.stringify({
       skin: boardSkin, selfBottom: boardSelfBottom,
       netView: boardNetView, partyOnly: boardPartyOnly,
-      maxSegments: boardMaxSegments, animSpeed: boardAnimSpeed
+      maxSegments: boardMaxSegments, animSpeed: boardAnimSpeed,
+      trailResidual: boardTrailResidual
     }))
   } catch {}
 }
@@ -323,10 +324,17 @@ const _bp = boardLoadPrefs()
 let boardSelfBottom = _bp.selfBottom ?? true   // me at 6 o'clock; off = shared (Prefs; default ON per user 2026-07-12)
 let boardNetView = _bp.netView ?? false        // FULL pairwise netting (Prefs)
 let boardSelectedAccount = null                // footer dropdown selection
+const _boardSeenMineIds = new Set()            // my account ids ever seen — newest-lands-selected (2026-07-14)
 let boardPartyOnly = _bp.partyOnly ?? false    // rule-aware party filter
 // animation speed multiplier (Prefs — debug throttle): 1 = normal, 0.25 = ¼
 // speed etc. Divides into every boardAnimate duration.
 let boardAnimSpeed = Number(_bp.animSpeed) || 1
+// 🧪 dev setting (user 2026-07-14): after the ▶ replay's trail line fades, a
+// fraction of its opacity PERSISTS — a burn-in showing where each asset came
+// from while the deal sits locked. 0 = old fade-to-nothing behaviour; the
+// residual lines are wiped at the start of the next replay. A design-tuning
+// knob, not a planned user feature.
+let boardTrailResidual = _bp.trailResidual ?? 0.5
 // boardPrefsOpen (⚙ popover open/closed) retired BOARD-HEADERINT1 — Preferences
 // now lives in profile-modal.php, opened via the normal Profile menu item.
 
@@ -552,6 +560,12 @@ function boardSyncPrefsUI(){
     animSpeed.value = String(boardAnimSpeed)
     if(animSpeed.selectedIndex < 0) animSpeed.value = "1"
     animSpeed.onchange = () => { boardAnimSpeed = Number(animSpeed.value) || 1; boardSavePrefs() }
+  }
+  const trailRes = document.getElementById("boardPrefTrailResidual")
+  if(trailRes){
+    trailRes.value = String(boardTrailResidual)
+    if(trailRes.selectedIndex < 0) trailRes.value = "0.5"
+    trailRes.onchange = () => { boardTrailResidual = Number(trailRes.value) || 0; boardSavePrefs() }
   }
   const partyOnly = document.getElementById("boardPrefPartyOnly")
   if(partyOnly){
@@ -1456,17 +1470,26 @@ function boardHash01(s){
 // also stops ghosts landing off-screen (the old symptom: the ▶ replay
 // animated "from nowhere" because its ghost origin had spilled past the
 // viewport — the outer wall is soft, and ghosts had no reason to stay in).
-function boardRelaxZone(sizes, keys, zone, inners){
+// seeds[i] (BOARD-ORGANIC3 round 2, user 2026-07-14: "the netting should
+// land on the EXISTING location of the chip, not draw a new location"):
+// chips that were already on screen START the relax at their previous
+// local position instead of the index/hash spread — survivors stay put
+// (modulo collision nudges the glide animates), only genuinely new chips
+// hunt for a spot. Local coords are rotation-independent (x radial along
+// the segment mid, y tangential), so seeds survive board rotation.
+function boardRelaxZone(sizes, keys, zone, inners, seeds){
   const halfAng = Math.min(zone.halfDeg, 80) * Math.PI / 180
   const tanHalf = Math.tan(halfAng)
   const items = sizes.map((s, i) => {
     const j1 = boardHash01(keys[i]), j2 = boardHash01(keys[i] + "~")
     const inner = !!inners?.[i]
-    const x = inner
-      ? zone.rMin + s.h / 2
+    const seed = seeds?.[i]
+    const x = seed ? seed.x
+      : inner ? zone.rMin + s.h / 2
       : zone.rMin + ((i + 0.5) / sizes.length * 0.8 + j2 * 0.2) * Math.max(1, zone.rMax - zone.rMin)
     const maxY = Math.max(2, x * tanHalf - s.w / 2)
-    return { w: s.w, h: s.h, cr: Math.max(s.w, s.h) / 2 + 3, x, y: (j1 * 2 - 1) * maxY * 0.8, inner }
+    const y = seed ? seed.y : (j1 * 2 - 1) * maxY * 0.8
+    return { w: s.w, h: s.h, cr: Math.max(s.w, s.h) / 2 + 3, x, y, inner }
   })
   for(let it = 0; it < 40; it++){
     for(let a = 0; a < items.length; a++) for(let b = a + 1; b < items.length; b++){
@@ -1522,18 +1545,27 @@ function boardOrganicApply(cx, cy, W, H){
   // risks mid-tween jiggle; two endpoint solves + lerp is cheaper AND
   // guaranteed smooth. Leavers have no target (width→0) — they hold their
   // start positions while their wedge clips + fades over them.
+  // stable chip identity (BOARD-ORGANIC3): assetId + zone + ghost-or-not
+  // (+ occurrence) — deliberately NOT the textContent, so an amount change
+  // (drop 1 HBAR → 499.7 becomes 498.7) is the SAME chip. Feeds both the
+  // solve seeding (chips keep their spots) and the FLIP glide below.
+  const occ = {}
   const prepped = zones.filter(z => z.chips.length).map(z => {
     const chipKeys = z.chips.map(el =>
       (el.dataset.assetId || "") + "|" + el.className + "|" + (el.textContent || "").slice(0, 24))
+    const idents = z.chips.map(el => {
+      const ident = z.key + "|" + (el.dataset.assetId || "") + "|" + (el.classList.contains("board-ghost") ? "g" : "s")
+      return ident + "#" + (occ[ident] = (occ[ident] || 0) + 1)
+    })
     if(_boardPartyAnim){
       const startKey = "panim|" + z.key + "|" + chipKeys.join(";") + "|" + W + "x" + H
       const endKey = z.target ? strictKey(z, chipKeys, z.target) : null
-      return { z, chipKeys, startKey, endKey,
+      return { z, chipKeys, idents, startKey, endKey,
         entry: _boardOrganicCache.get(startKey),
         endEntry: endKey ? _boardOrganicCache.get(endKey) : null }
     }
     const key = strictKey(z, chipKeys, z)
-    return { z, chipKeys, startKey: key, endKey: null, entry: _boardOrganicCache.get(key), endEntry: null }
+    return { z, chipKeys, idents, startKey: key, endKey: null, entry: _boardOrganicCache.get(key), endEntry: null }
   })
 
   if(prepped.some(p => !p.entry || (p.endKey && !p.endEntry))){
@@ -1547,14 +1579,20 @@ function boardOrganicApply(cx, cy, W, H){
       // ghost/reserved chips hug the rim (boardRelaxZone inners) — the flag
       // is in the className, which is already part of the cache key
       const inners = p.z.chips.map(el => el.classList.contains("board-ghost"))
+      // survivors start the solve where they last painted (local coords) —
+      // only genuinely new chips get the spread placement
+      const seeds = p.idents.map(k => {
+        const pp = _boardChipPrevPos.get(k)
+        return pp && pp.lx != null ? { x: pp.lx, y: pp.ly } : null
+      })
       if(!p.entry){
         const sizes = p.z.chips.map(el => ({ w: el.offsetWidth || 40, h: el.offsetHeight || 24 }))
-        p.entry = { pos: boardRelaxZone(sizes, p.chipKeys, p.z, inners), sizes }
+        p.entry = { pos: boardRelaxZone(sizes, p.chipKeys, p.z, inners, seeds), sizes }
         cacheSet(p.startKey, p.entry)
       }
       if(p.endKey && !p.endEntry){
         // same chips, same sizes — only the zone geometry differs
-        p.endEntry = { pos: boardRelaxZone(p.entry.sizes, p.chipKeys, p.z.target, inners), sizes: p.entry.sizes }
+        p.endEntry = { pos: boardRelaxZone(p.entry.sizes, p.chipKeys, p.z.target, inners, seeds), sizes: p.entry.sizes }
         cacheSet(p.endKey, p.endEntry)
       }
     })
@@ -1575,8 +1613,7 @@ function boardOrganicApply(cx, cy, W, H){
   const e = _boardPartyAnim ? _boardPartyAnim.e : 0
   const skipGlide = !!(_boardPartyAnim || _boardRotateCancel || _boardScrollCancel || _boardOthersRotate)
   const nextPos = new Map()
-  const occ = {}
-  prepped.forEach(({ z, entry, endEntry }) => {
+  prepped.forEach(({ z, idents, entry, endEntry }) => {
     const mid = z.midDeg * Math.PI / 180
     const cos = Math.cos(mid), sin = Math.sin(mid)
     z.chips.forEach((el, i) => {
@@ -1589,10 +1626,9 @@ function boardOrganicApply(cx, cy, W, H){
       el.style.left = left + "px"
       el.style.top = top + "px"
 
-      const ident = z.key + "|" + (el.dataset.assetId || "") + "|" + (el.classList.contains("board-ghost") ? "g" : "s")
-      const k = ident + "#" + (occ[ident] = (occ[ident] || 0) + 1)
+      const k = idents[i]
       const prev = _boardChipPrevPos.get(k)
-      nextPos.set(k, { left, top })
+      nextPos.set(k, { left, top, lx: p.x, ly: p.y })   // screen for the glide, local for the seed
       if(skipGlide || !prev) return
       const dx = prev.left - left, dy = prev.top - top
       if(Math.hypot(dx, dy) < 4) return
@@ -2335,6 +2371,13 @@ function ringFooter(mine){
     // account dropdown: pick → Lock/Unlock + 🗑 Delete act on it; ➕ Add last.
     // When all-locked, the Lock slot becomes the SIGN button (same checkpoint,
     // next phase) — see the scene/tx notes at the bottom of this file.
+    // user 2026-07-14 (UX polish): a newly-landed account becomes the
+    // selection — you just added it, it's what you want to act on. Cumulative
+    // seen-set so the first render seeds silently and a party-filter
+    // hide/show doesn't count as new.
+    const freshMine = _boardSeenMineIds.size ? mine.find(a => !_boardSeenMineIds.has(a.id)) : null
+    if(freshMine) boardSelectedAccount = freshMine.id
+    mine.forEach(a => _boardSeenMineIds.add(a.id))
     if(!boardSelectedAccount || !mine.some(a => a.id === boardSelectedAccount))
       boardSelectedAccount = mine[0]?.id || null
 
@@ -2557,6 +2600,9 @@ function hubProgressRing(lp, rc){
 // flight leaves a TRAILING LINE in the giver's colour that fades slowly
 // (review 4 — like the signing-modal animation).
 function playTransfers(){
+  // fresh slate per replay — persistent after-glow trails (boardTrailResidual)
+  // from the previous run would double up under the new ones
+  document.querySelectorAll(".board-trailline").forEach(l => l.remove())
   // signing phase (review 17): there are no ghost/basket pairs any more —
   // the legs fly from their GIVER's store zone to where they now sit
   if(boardSigning){
@@ -2629,10 +2675,14 @@ function boardTrail(a, b, colour){
   line.setAttribute("class", "board-trailline")
   line.style.stroke = colour || "#999"
   svg.appendChild(line)
+  // 🧪 after-glow (boardTrailResidual): fade to a persistent fraction of the
+  // starting opacity (.75, see .board-trailline) instead of to nothing — the
+  // burn-in stays until the next replay wipes the layer. 0 = old behaviour.
+  const residual = 0.75 * (boardTrailResidual || 0)
   requestAnimationFrame(() => {
-    setTimeout(() => { line.style.opacity = 0 }, 1000)   // linger, then fade
+    setTimeout(() => { line.style.opacity = residual }, 1000)   // linger, then fade
   })
-  setTimeout(() => line.remove(), 3600)
+  if(!residual) setTimeout(() => line.remove(), 3600)
 }
 
 // PROP-LOCKSIGN1 commitment flow, shared by the v1 label glyph + footer buttons
