@@ -155,8 +155,10 @@ EOMENU;
 // ┴ ┴─┴┘┴ ┴┴┘└┘  ┴ ┴└─┘┘└┘└─┘
 // Admin-only menu (GMADMINMENU1). Gated on $isAdmin (IP/VPN — see auth.php),
 // this ONLY hides these from the public menu; the destinations themselves are
-// not access-gated (anyone with a direct link can use them). Crown 👑 marks it
-// as an admin surface. Items that are deprecated-but-kept-for-testing (Explore,
+// not access-gated (anyone with a direct link can use them). Tools 🛠 marks it
+// as an admin surface (KATOMIA-ADMIN1: swapped from 👑, which now reads as the
+// katomia per-game/NFT admin concept elsewhere in the repo family — kept 👑
+// meaning one thing site-wide). Items that are deprecated-but-kept-for-testing (Explore,
 // Create — the external kfund tools being replaced internally) live here so
 // they stay reachable/visible to admin without cluttering the public site.
 if ($isAdmin) {
@@ -169,7 +171,7 @@ if ($isAdmin) {
 	];
 
 	echo '<li class="nav-item dropdown">';
-	echo '<a class="dropdown-toggle nav-link" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false" title="Admin-only — visible because you are on the admin IP/VPN">👑 Admin</a>';
+	echo '<a class="dropdown-toggle nav-link" data-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false" title="Admin-only — visible because you are on the admin IP/VPN">🛠 Admin</a>';
 	echo '<div class="dropdown-menu">';
 	foreach ($adminItems as $item) {
 		$t = $item['target'] ? " target='{$item['target']}'" : '';
