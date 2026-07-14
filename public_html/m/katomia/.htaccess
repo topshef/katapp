@@ -17,6 +17,14 @@ RewriteRule ^create/?$ ?page=create [L,QSA,E=TRACE:RJ23394]
 RewriteRule ^board/(.+\.(js|css|svg|png|jpe?g|gif|webp|ico))$ $1 [L,QSA]
 RewriteRule ^board/([^/]+)/?$ board.php?game=$1 [L,QSA,E=TRACE:KB18204]
 
+# KATOMIA-CONFIG1 2026-07-14: new curated-games landing page. Deliberately an
+# OPT-IN path, not the site's default root — whether Landing ever REPLACES
+# the default (bare /m/katomia/ → contents.php) is still an open product
+# decision (user: "I'm not sure yet... we might do both over time"). This
+# route exists so the page can be reviewed/linked without touching the
+# existing default at all.
+RewriteRule ^welcome/?$ landing.php [L,QSA]
+
 
 RewriteRule ^kea/?$ KEA [L,QSA]
 

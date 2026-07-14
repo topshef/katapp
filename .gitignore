@@ -21,6 +21,11 @@ test*
 zz*
 *.log
 *.json
+# KATOMIA-CONFIG1 (user 2026-07-14): site-wide, non-secret config (landing page's
+# curated game list, later default skin/branding for white-label editions) —
+# deliberately git-tracked so it's administrable/reviewable like any other code,
+# unlike the blanket *.json rule above (which exists for build/cache noise).
+!/public_html/m/katomia/site-config.json
 *.lock
 *.bak
 #login
