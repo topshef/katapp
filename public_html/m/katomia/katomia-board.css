@@ -702,6 +702,17 @@ body.board-page .app-banner{
    FUSED to the sleeve (1px overlap kills the hairline gap), apex left at
    half height; fixed 12px height on every chip */
 :is([data-board-fam~="v14"], [data-board-fam~="susan5p"]) .board-pickchip{ position: relative; }
+/* PICKABLE SCATTER ROOT CAUSE (2026-07-15, round 4 — the real one): the
+   rule above predates the organic layout; it exists purely to anchor the
+   ::before flag, and was written when chips sat IN FLOW inside boxes, where
+   position:relative was harmless. Organic/shelf chips are ABSOLUTE children
+   (.ring-organic > *, specificity 0,1,0) — the rule above (0,2,0) silently
+   flipped any chip gaining .board-pickchip to position:relative, turning
+   its left/top placement into an offset from its FLOW position: the chip
+   flies right/down by hundreds of px while every diagnostic (which reads
+   left/top) sees nothing move. absolute is equally a positioned ancestor
+   for the flag, so the ::before anchoring is unaffected. */
+.ring-organic > .board-pickchip{ position: absolute; }
 :is([data-board-fam~="v14"], [data-board-fam~="susan5p"]) .board-pickchip::before{
   content: "";
   position: absolute;
