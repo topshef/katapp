@@ -506,18 +506,25 @@ function boardUpdateBanner(){
     // gated). Re-renders naturally flip this to the signing-mode banner
     // once Date.now() crosses validStartMs — no separate timer needed, this
     // runs every render alongside everything else.
+    // MESSAGING ALIGNMENT (user 2026-07-15): the whole spotlit phase is
+    // "signing mode"; the banner narrates the SUBMISSION lifecycle within
+    // it, using the same state language as the signing widget's own
+    // getTxValidityStatus labels ('Waiting...', 'Ready to submit..',
+    // 'Expired?') rather than a second vocabulary:
+    //   waiting to submit → ready to submit (collecting signatures) →
+    //   expired? (grace) → verdict toast (🟩/🟥).
     if(boardSigning.validStartMs && Date.now() < boardSigning.validStartMs){
-      boardSetBanner("⏳ Not yet submittable — opens in " +
+      boardSetBanner("⏳ Waiting to submit — opens in " +
         Math.ceil((boardSigning.validStartMs - Date.now()) / 1000) + "s" + txSpan)
       return
     }
-    // grace limbo (user 2026-07-15): countdown done but the backend hasn't
-    // ruled yet — mirror its own 'Expired?' label rather than sitting mute.
+    // grace limbo: countdown done but the backend hasn't ruled yet —
+    // mirror its own 'Expired?' label rather than sitting mute.
     if(boardSigning.expiry && Date.now() > boardSigning.expiry){
       boardSetBanner("⌛ Expired? — confirming with the network" + txSpan)
       return
     }
-    boardSetBanner("✍ Signing mode — waiting for signatures" + txSpan)
+    boardSetBanner("✍ Ready to submit — collecting signatures" + txSpan)
     return
   }
   if(typeof selectedAssetId !== "undefined" && selectedAssetId){

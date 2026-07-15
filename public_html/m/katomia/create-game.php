@@ -242,10 +242,12 @@ h3{
       submitted. Nothing is "on-chain" before submission; this just sets how
       late a signed transaction can still be sent in. Hedera's own default
       is 120s; shorter is handy for fast tests and for signers who don't
-      want to hang around.
+      want to hang around. <b>Hedera accepts 15&ndash;180s</b> — values
+      outside that are rejected by the network itself
+      (INVALID_TRANSACTION_DURATION), so out-of-range input is clamped.
     </div>
 
-    <input id="validDurationSeconds" value="40">
+    <input id="validDurationSeconds" type="number" min="15" max="180" value="40">
   </div>
 
 
@@ -347,8 +349,12 @@ const payload = {
     txDelaySeconds: txDelaySeconds.value === "" ? 60 : Number(txDelaySeconds.value),
     // KATOMIA-VALIDDUR1 (user 2026-07-15): threads through katomia.js →
     // deal.js's setTransactionValidDuration(); backend default 40s if
-    // omitted, matching this field's own default.
-    validDurationSeconds: validDurationSeconds.value === "" ? 40 : Number(validDurationSeconds.value)
+    // omitted, matching this field's own default. Clamped to Hedera's legal
+    // 15..180s — a 5s test game reached a node and was precheck-rejected
+    // (INVALID_TRANSACTION_DURATION); backend clamps too, this just keeps
+    // the game config honest about what will actually be built.
+    validDurationSeconds: validDurationSeconds.value === "" ? 40
+      : Math.max(15, Math.min(180, Number(validDurationSeconds.value) || 40))
   },
 
 }

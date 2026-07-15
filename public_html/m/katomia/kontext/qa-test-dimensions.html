@@ -80,7 +80,7 @@ XPROOF project's headless-WC facility (Playwright). <span class="auto">AUTO</spa
 <p class="note">One number crosses five components and produced three distinct silent-fallback bugs in one day
 (2026-07-15) — each decode path falls back to a plausible default (120s, the SDK default) instead of failing loud,
 so wrong values are invisible unless a NON-default duration is configured. Rule of thumb for all timing tests:
-<b>always test with a duration ≠ 120 and ≠ 40</b> (the two defaults in play), e.g. 15s — then every fallback is
+<b>always test with a duration ≠ 120 and ≠ 40</b> (the two defaults in play) and <b>within Hedera's legal 15–180s</b> — below 15s the NODE precheck-rejects submission with INVALID_TRANSACTION_DURATION (found live 2026-07-15: a 5s game silently killed every SIGNED tx while unsigned ones expired normally, masking it); all layers now clamp, e.g. use 16s — then every fallback is
 visible as a wrong number.</p>
 
 <table>
