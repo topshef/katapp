@@ -2381,7 +2381,12 @@ async function boardRefreshSignStatus(){
       const s = threshold.getThresholdSummary({ keyTree, signedPubkeys })
       byAccount[hac] = s.thresholdSatisfied ? "signed" : "pending"
     }
-    boardSignStatus = { txid: tx.txid, byAccount }
+    // KATOMIA-VALIDDUR1 (user 2026-07-15): model.txRead already decodes the
+    // REAL valid-duration straight from the signed bytes (VALIDD1, model.js)
+    // — the exact number the user asked to "get from the raw protobuf on
+    // the front end". Riding along on boardSignStatus so boardDetectSigning
+    // can prefer it over the BOARD_TX_EXPIRY_MS guess once this poll lands.
+    boardSignStatus = { txid: tx.txid, byAccount, validDurationSeconds: data?.validDurationSeconds || null }
     const sig = JSON.stringify(byAccount)
     boardDiag("board:signstatus", { txid: tx.txid, byAccount, signedKeys: signedPubkeys.length,
       shortAccts: Object.keys(short), unassocAccts: Object.keys(unassoc) })
@@ -2495,7 +2500,13 @@ function boardDetectSigning(){
     // fine — represent it netted). Not building this pass, just marking where
     // it hooks in.
     status: st === "SUCCESS" || st === "SIGNED" ? "signed" : /FAIL|ERROR|EXPIRE|INVALID/.test(st) ? "failed" : "pending",
-    expiry: (vs || tx.createdAt || Date.now()) + BOARD_TX_EXPIRY_MS
+    // KATOMIA-VALIDDUR1: prefer the REAL per-tx duration once boardRefreshSignStatus's
+    // poll has decoded it (matches this tx's id — a stale value from a previous
+    // tx must not leak in); BOARD_TX_EXPIRY_MS is only the pre-poll/undecodable
+    // fallback, same guess-vs-real relationship as the backend's getExpiryFromTxId.
+    expiry: (vs || tx.createdAt || Date.now()) +
+      (boardSignStatus?.txid === tx.txid && boardSignStatus.validDurationSeconds
+        ? boardSignStatus.validDurationSeconds * 1000 : BOARD_TX_EXPIRY_MS)
   }
 }
 

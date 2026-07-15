@@ -231,8 +231,18 @@ h3{
     <div class="explain">
       Delay transaction start (seconds)
     </div>
-    
+
     <input id="txDelaySeconds" value="60">
+  </div>
+
+  <div class="field">
+    <div class="explain">
+      Valid duration (seconds) — how long a struck transaction stays signable
+      before it expires on-chain. Hedera's own default is 120s; shorter is
+      handy for fast tests and for signers who don't want to hang around.
+    </div>
+
+    <input id="validDurationSeconds" value="40">
   </div>
 
 
@@ -331,8 +341,12 @@ const payload = {
     
   config: {
     tradingMode:getRadio("tradingMode"),
-    txDelaySeconds: txDelaySeconds.value === "" ? 60 : Number(txDelaySeconds.value)
-  },  
+    txDelaySeconds: txDelaySeconds.value === "" ? 60 : Number(txDelaySeconds.value),
+    // KATOMIA-VALIDDUR1 (user 2026-07-15): threads through katomia.js →
+    // deal.js's setTransactionValidDuration(); backend default 40s if
+    // omitted, matching this field's own default.
+    validDurationSeconds: validDurationSeconds.value === "" ? 40 : Number(validDurationSeconds.value)
+  },
 
 }
 
