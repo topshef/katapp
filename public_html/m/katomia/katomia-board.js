@@ -1829,6 +1829,37 @@ function boardOrganicApply(cx, cy, W, H, oval){
   _boardOrganicZones = []
   if(!zones.length) return
 
+  // VISIBLE DRAWING AREA (BOARD-SAFEAREA1, user 2026-07-15: asset chips were
+  // being cut off the screen edge in BOTH the organic and shelf layouts). The
+  // ring16 solvers reach out to rEdge — the RAW #boardRoot rectangle, which is
+  // position:fixed inset:0 = the whole viewport — but the actually-drawable
+  // area is smaller than that on three counts, none of which rEdge knows about:
+  //   • the transparent .app-banner (logo + hamburger) floats OVER the top of
+  //     the board (z-index above it), and .ring-footer floats over the bottom —
+  //     a chip placed under either is invisible;
+  //   • rEdge is measured at the segment MID-ANGLE only, so a chip spread
+  //     tangentially toward a screen CORNER crosses the nearer edge while its
+  //     radius still reads "inside";
+  //   • organic's outer wall is deliberately SOFT (spills past rMax under
+  //     crowding) and the shelf solver has NO outer clamp at all.
+  // The old box layout clamped each box into [48 .. H-bottomPad] etc. (lines
+  // ~1268/1289); the organic path lost that. Rather than re-derive a rectangle
+  // in every solver, clamp each chip's final BOX into the measured safe rect
+  // once, here at the shared placement point — so organic soft-spill, shelf row
+  // overflow, tangential corner spill and banner/footer occlusion are all
+  // caught uniformly, whichever solver ran. Measured (not constant) because the
+  // banner/footer heights vary with skin and wrap on mobile. #boardRoot fills
+  // the viewport, so these viewport-space rects share the chips' coord frame.
+  const bannerEl = document.querySelector("body.board-page .app-banner")
+  const footerEl = document.querySelector(".ring-footer")
+  const safeTop = (bannerEl ? bannerEl.getBoundingClientRect().bottom : 0) + 6
+  const safeBot = (footerEl ? footerEl.getBoundingClientRect().top : H) - 6
+  const safeL = 6, safeR = W - 6
+  const clampSafe = (left, top, w, h) => ({
+    left: Math.max(safeL, Math.min(left, safeR - w)),
+    top:  Math.max(safeTop, Math.min(top, safeBot - h))
+  })
+
   const cacheSet = (key, entry) => {
     if(_boardOrganicCache.size > 300) _boardOrganicCache.clear()
     _boardOrganicCache.set(key, entry)
@@ -1971,8 +2002,15 @@ function boardOrganicApply(cx, cy, W, H, oval){
       if(endEntry && endEntry.pos[i])
         p = { x: p.x + (endEntry.pos[i].x - p.x) * e, y: p.y + (endEntry.pos[i].y - p.y) * e }
       const s = entry.sizes[i]
-      const left = cx + p.x * cos - p.y * sin - s.w / 2
-      const top = cy + p.x * sin + p.y * cos - s.h / 2
+      // solver output is in board coords (x radial along mid, y tangential);
+      // bake in the half-size, then clamp the whole box into the safe drawing
+      // rect (BOARD-SAFEAREA1) so no chip lands off-screen or under the
+      // banner/footer. Clamping here (before nextPos/pile/basket records below)
+      // keeps the glide origin, trade-line endpoints and seed positions all
+      // consistent with where the chip actually paints.
+      let left = cx + p.x * cos - p.y * sin - s.w / 2
+      let top = cy + p.x * sin + p.y * cos - s.h / 2
+      ;({ left, top } = clampSafe(left, top, s.w, s.h))
       el.style.left = left + "px"
       el.style.top = top + "px"
 
