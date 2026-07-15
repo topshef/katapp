@@ -477,11 +477,48 @@ async function boardCelebrate(ok){
   setTimeout(() => wrap.remove(), 7000)
 }
 
+// ── top status banner (user 2026-07-15) ─────────────────────────────────────
+// Sits over the darkened top of the board. Today: signing-mode status, the
+// square consensus-status verdict (🟩/🟥 — SQUARE = Hedera consensus result,
+// the ring's COLOURS stay the signing-status language), and the tap-to-offer
+// hint. Placeholder seam for the sessions/proposal-recall flow (KAT-
+// PROPRECALL1): this is where "exit signing mode" and the proposal switcher
+// will live once that's designed — don't grow it ad-hoc past status text.
+function boardSetBanner(html){
+  let b = document.getElementById("boardBanner")
+  if(!html){ b?.remove(); return }
+  if(!b){
+    b = document.createElement("div")
+    b.id = "boardBanner"
+    document.body.appendChild(b)
+  }
+  b.innerHTML = html
+}
+
+function boardUpdateBanner(){
+  if(boardSigning){
+    const txid = boardSigning.tx?.txid || ""
+    boardSetBanner("✍ Signing mode — waiting for signatures" +
+      (txid ? ` · <span class="board-banner-tx">${txid}</span>` : ""))
+    return
+  }
+  if(typeof selectedAssetId !== "undefined" && selectedAssetId){
+    boardSetBanner("👆 Tap a player's segment to offer it there — tap the chip again to cancel")
+    return
+  }
+  boardSetBanner(null)
+}
+
 function boardShowResult(txid, ok){
   if(boardSuccessAcked.has(txid)) return
   boardSuccessAcked.add(txid)
   boardSaveAckedTx(boardSuccessAcked)
   boardDiag("board:result:shown", { txid, ok })
+  // square consensus verdict up top, alongside the alert (user 2026-07-15) —
+  // the next render after OK clears it; that's fine, it's the placeholder
+  // for the sessions flow's persistent status
+  boardSetBanner((ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired") +
+    ` · <span class="board-banner-tx">${txid}</span>`)
   boardCelebrate(ok)
   // let the first particles paint before alert() blocks the JS thread (CSS
   // animations keep running behind the native dialog)
@@ -519,6 +556,19 @@ function boardEnsureTxSocket(){
   // preload the confetti lib now, while signing is underway — at result time
   // the burst then fires synchronously, before the alert() blocks the thread
   boardLoadConfetti()
+  // EXPIRY VERDICT for ANY watched tx (user 2026-07-15, KY564 1/402: locked,
+  // countdown lapsed, still no notice — the earlier verdict only covered txs
+  // THIS TAB had signed). Same inference: validStart+4min is past any ~3min
+  // validity window; no receipt by then = failed/expired, announce it.
+  {
+    const vs = Number(String(txid).split("@")[1]?.split(".")[0]) * 1000
+    if(vs) setTimeout(() => {
+      if(!boardSuccessAcked.has(txid)){
+        boardDiag("board:result:expiry-verdict", { txid, path: "watched" })
+        boardShowResult(txid, false)
+      }
+    }, Math.max(0, vs + 4 * 60 * 1000 - Date.now()) + 500)
+  }
   ;(async () => {
     try {
       const { createTxSocket } = await import("/vendor/kpay/kpool_widget/websocket.js")
@@ -1304,6 +1354,7 @@ function renderRingBoard(root){
   if(etched) frag.appendChild(ringFooter(accounts.filter(a => isMyAccount(a))))
 
   root.replaceChildren(frag)
+  boardUpdateBanner()   // signing status / tap-to-offer hint / hidden
 
   // BOARD-ORGANIC1: chips are in the live DOM now — measure, relax, place.
   // Must run BEFORE the flight animations below (they read chip rects).
@@ -1618,7 +1669,9 @@ function boardRelaxZone(sizes, keys, zone, inners, seeds, isBasket){
       // inner wall hard: ghosts at the oval, store chips past the reserved band
       A.x = Math.max(zone.rMin + (A.inner ? 0 : band) + A.h / 2, A.x)
       if(A.inner) A.x = Math.min(A.x, zone.rMin + A.h / 2 + 12)   // ghosts hug the rim (12px collision slack)
-      const over = A.x - (zone.rMax - A.h / 2)
+      // basket zones: outer edge inset 34px so chips keep off the curved
+      // account-number band inside the rim (BOARD-IDCOIN1; user 2026-07-15)
+      const over = A.x - (zone.rMax - (isBasket ? 34 : 0) - A.h / 2)
       if(over > 0) A.x -= over * 0.3                              // outer wall SOFT — pressure spills outward
       const maxY = Math.max(2, A.x * tanHalf - A.w / 2)
       A.y = Math.max(-maxY, Math.min(maxY, A.y))                  // wedge walls HARD — never a neighbour's space
@@ -1671,9 +1724,13 @@ function boardShelfZone(sizes, keys, zone, inners, isBasket){
 
   // store: cursor walks outward from past the RESERVED rim band (ghost-only
   // — "clear the cashier's counter", reserved even before any ghost exists);
-  // basket: inward from the oval edge. Row x uses the row's tallest chip.
+  // basket: inward from the oval edge MINUS the coin-label band (user
+  // 2026-07-15, KY564 1/300: NFTs rendered under the curved account number —
+  // the label band inside the rim is a no-chip zone; 34px approximates the
+  // BOARD-IDCOIN1 label depth. Per-glyph hard bounding boxes = later, if the
+  // band isn't enough). Row x uses the row's tallest chip.
   const band = (ghostIdx.length ? ghostBandH : Math.max(40, ...chipIdx.map(i => sizes[i].h))) + 12
-  let cursor = isBasket ? zone.rMax : zone.rMin + band
+  let cursor = isBasket ? zone.rMax - 34 : zone.rMin + band
   let i = 0
   while(i < order.length){
     const rowH = sizes[order[i]].h
@@ -2616,7 +2673,13 @@ function boardAnimateNewOffers(){
 
     keys.forEach((amt, k) => {
       if((prev.get(k) || 0) >= amt) return
-      if(_recentLocalMoves.has(k)) return          // I did this myself
+      // OWN moves animate too now (user 2026-07-15, KY564 1/300): the local-
+      // move skip worked as designed on touch — and the drop "just appeared,
+      // no dotted line". On desktop drag the skip happened to miss, the
+      // replay ran anyway, and the user liked it. Consistency wins: always
+      // fly the leg; _recentLocalMoves stays maintained in case a use
+      // returns (e.g. suppressing double-motion if a drag ghost ever
+      // animates live).
       const fromAccount = state.accounts?.[k.split("|")[1]]
       if(!fromAccount) return
       const { ghost, basket } = pairEls(k)
@@ -4010,6 +4073,10 @@ function makeWedge(account, a0, a1, geo, isMine = false){
   el.dataset.accountId = account.id
   el.style.clipPath = boardSectorPolygon(a0, a1, geo)
   el.style.background = getPlayerColour(account.playerId)
+  // TAP-TO-OFFER cue: while a chip is selected, candidate destination
+  // segments lift a touch so "tap a segment" reads as the next move
+  if(typeof selectedAssetId !== "undefined" && selectedAssetId && account.id !== selectedFromAccountId)
+    el.classList.add("board-wedge--offertarget")
 
   if(!isMine) setupDropTarget(el, account)
   return el
@@ -4283,7 +4350,8 @@ function boardStoreChips(account, container){
       assetId,
       ownerAccountId: account.id,
       ownerPlayerId: account.playerId,
-      clickable: mine
+      clickable: mine,
+      selected: mine && isSelected(assetId, account.id, null)
     })
     applyAssetClasses(el, assetId, amount)
     el.classList.add("board-chip")
@@ -4297,7 +4365,21 @@ function boardStoreChips(account, container){
         el.classList.add("board-pickchip")
         el.style.setProperty("--pickflag", getPlayerColour(account.playerId))
       }
-      el.onclick = () => openAssetModal(assetId, account.id, amount)
+      // TAP-TO-OFFER (user 2026-07-15): tap selects the chip (legacy grid's
+      // own setSelectedAsset machinery — setupDropTarget's click handler on
+      // every wedge already completes the offer via offerSelectedToAccount,
+      // amount prompt included), replacing the old openAssetModal popup which
+      // the user found confusing on the board. Tap the chip again to cancel.
+      // The legacy game.php page keeps its modal. FUTURE: multi-tap selection
+      // (several chips → one destination) — the state is single-asset today.
+      el.onclick = () => {
+        if(ring8()){
+          if(isSelected(assetId, account.id, null)){ clearSelection(); render() }
+          else setSelectedAsset(assetId, account.id, null)
+          return
+        }
+        openAssetModal(assetId, account.id, amount)
+      }
       el.draggable = true
       el.ondragstart = e => {
         e.dataTransfer.setData("assetId", assetId)

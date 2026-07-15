@@ -14,6 +14,14 @@ body.board-page{
      overflow:hidden a sane boundary again without affecting the (already
      viewport-fixed) board itself. */
   min-height: 100vh;
+  /* mobile scroll-jiggle fix (user 2026-07-15, KY564 1/728: the whole board
+     dragged up/down ~a logo-height then snapped back): 100vh > the VISIBLE
+     viewport while the browser chrome is showing, so the page was genuinely
+     scrollable by that difference. dvh tracks the dynamic viewport;
+     overscroll-behavior kills the rubber-band. Proper fullscreen/PWA is
+     KAT-PWA1. */
+  min-height: 100dvh;
+  overscroll-behavior: none;
   overflow: hidden;
   background: #f5f1e8;               /* the felt */
   font-family: system-ui, sans-serif;
@@ -79,7 +87,41 @@ body.board-page .app-banner{
   position: relative;
   z-index: 70;
   margin: 0 0 12px 0;
+  /* transparent over the felt (user 2026-07-15, tablet pass): the logo +
+     hamburger float on the board instead of sitting in a grey strip — the
+     board is fixed full-viewport behind, so nothing needs re-layout. The
+     dropdown menu + settings panel keep their own white cards. Footer stays
+     solid for now (user's call); its collapse-when-mostly-empty idea is
+     logged in BOARD-POLISH1. */
+  background: transparent;
+  border-bottom: none;
 }
+
+/* top status banner (boardSetBanner): signing mode, 🟩/🟥 consensus verdict,
+   tap-to-offer hint. Sits over the darkened top of the board, under the
+   header line. Placeholder seam for the sessions flow (KAT-PROPRECALL1). */
+#boardBanner{
+  position: fixed;
+  top: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 78;                /* over the felt + shade, under toasts (80) */
+  max-width: min(560px, 92vw);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(40, 34, 22, .82);
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#boardBanner .board-banner-tx{ opacity: .65; font-size: 11px; }
+
+/* tap-to-offer: candidate destination segments lift while a chip is selected */
+.board-wedge--offertarget{ filter: saturate(1.5) brightness(1.04); }
 
 /* ── wedges: the Ludo wash + fat drop targets ───────────────────────────── */
 
