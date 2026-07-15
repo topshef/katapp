@@ -712,7 +712,16 @@ function boardSyncPrefsUI(){
   const layout = document.getElementById("boardPrefLayout")
   if(layout){
     layout.value = boardLayoutMode
-    layout.onchange = () => {
+    layout.onchange = e => {
+      // pickable-scatter round 2 forensics (2026-07-15): the kdiag trace
+      // showed the scatter was THIS handler firing (mode organic→shelves,
+      // 456-794px drift as the FLIP glide re-arranged every chip) seconds
+      // after page load — NOT the pickable toggle itself, whose class-churn
+      // fix is holding (drift 0 everywhere else). Unknown who fired it: the
+      // user, or Chrome form-state restore desyncing the select from the
+      // variable. isTrusted + old/new in the diag settles it next repro;
+      // autocomplete=off on the panel (header.php) kills the restore path.
+      boardDiag("board:layout:change", { from: boardLayoutMode, to: layout.value, isTrusted: !!e?.isTrusted })
       boardLayoutMode = layout.value === "organic" ? "organic" : "shelves"
       boardClearTrails()   // full reshuffle — drawn trails go stale
       boardSavePrefs()
@@ -728,8 +737,10 @@ function boardSyncPrefsUI(){
   if(pickable){
     const myPrefs = state?.players?.[currentPlayerId]?.prefs || {}
     pickable.checked = !!myPrefs.allowPick
-    pickable.onchange = () =>
+    pickable.onchange = () => {
+      boardDiag("board:pref:pickable", { value: pickable.checked })
       socket.send(JSON.stringify({ type: "game_setPref", gameId, key: "allowPick", value: pickable.checked }))
+    }
   }
 }
 boardSyncPrefsUI()

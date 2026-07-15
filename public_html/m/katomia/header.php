@@ -66,7 +66,11 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
        user's call). Deliberately does NOT close on outside click: you want to
        poke the board while it's open to see the effect. Controls are wired by
        katomia-board.js boardSyncPrefsUI() (same ids as before the move). -->
-  <div id="boardSettingsPanel" class="board-settings-panel hidden">
+  <!-- autocomplete=off (2026-07-15 forensics): Chrome form-state restore can
+       repopulate these controls with STALE values after a soft reload,
+       desyncing them from the JS variables — prime suspect for the layout
+       select silently flipping organic→shelves and rearranging every chip. -->
+  <form id="boardSettingsPanel" class="board-settings-panel hidden" autocomplete="off" onsubmit="return false">
     <label class="board-settings-label">
       Board skin
       <!-- KATOMIA-CONFIG1: option text is the public-facing theme name
@@ -123,7 +127,7 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
       <input type="checkbox" id="boardPrefPickable" title="Allow other players to pick assets straight from your store (they shop, you agreed in advance)">
       Pickable
     </label>
-  </div>
+  </form>
   <?php endif; ?>
 </div>
 
