@@ -237,9 +237,12 @@ h3{
 
   <div class="field">
     <div class="explain">
-      Valid duration (seconds) — how long a struck transaction stays signable
-      before it expires on-chain. Hedera's own default is 120s; shorter is
-      handy for fast tests and for signers who don't want to hang around.
+      Valid duration (seconds) — the window, starting at the transaction's
+      timestamp, within which a consensus node will still accept it once
+      submitted. Nothing is "on-chain" before submission; this just sets how
+      late a signed transaction can still be sent in. Hedera's own default
+      is 120s; shorter is handy for fast tests and for signers who don't
+      want to hang around.
     </div>
 
     <input id="validDurationSeconds" value="40">
