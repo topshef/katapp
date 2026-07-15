@@ -1685,19 +1685,54 @@ function boardRelaxZone(sizes, keys, zone, inners, seeds, isBasket){
   const band = isBasket ? 0 :
     (hasGhost ? Math.max(...sizes.filter((_, i) => inners[i]).map(s => s.h))
               : Math.max(40, ...sizes.map(s => s.h))) + 12
+  const innerWall = zone.rMin + band            // store chips start past the reserved band
+
+  // BOARD-ORGANIC4 (user 2026-07-15): CLUSTER the chips around an anchor and
+  // let collisions spread them — instead of scattering them across the whole
+  // wedge and hoping the walls catch them. Root cause of the "chips butt to one
+  // end, no logic to it" bug: the old seeding spread y by ±0.8·maxY where
+  // maxY = x·tan(halfDeg). For the CURRENT player's obtuse segment (few
+  // players → halfDeg near 80–90° → tan explodes) that flung chips hundreds of
+  // px sideways, and NOTHING pulled them back (the only forces were
+  // collision-apart + wall-clamp). Many players → narrow segments → small maxY
+  // → the bug hid. Fix: seed new chips in a compact DISK around an anchor on
+  // the mid-line, and add a gentle centring spring toward it each iteration, so
+  // the blob forms in the middle of the band and grows outward — the same
+  // organic look at ANY wedge angle. Survivors (seeded) and ghosts (inner) are
+  // exempt from the spring so they stay put / keep hugging the rim.
+  const areaChips = sizes.filter((_, i) => !inners?.[i])
+  const area = areaChips.reduce((t, s) => t + s.w * s.h, 0)
+  const blobR = Math.max(1, Math.sqrt(area / (Math.PI * 0.6)))   // packed-circle radius, ~60% fill
+  // anchor: centre the blob in the zone's radial band (basket band excludes the
+  // 34px coin-label inset), clamped so the blob fits; degenerate band → inner.
+  const lo = (isBasket ? zone.rMin : innerWall) + blobR
+  const hi = (isBasket ? zone.rMax - 34 : zone.rMax) - blobR
+  const mid = ((isBasket ? zone.rMin : innerWall) + (isBasket ? zone.rMax - 34 : zone.rMax)) / 2
+  const ax = lo <= hi ? Math.min(Math.max(mid, lo), hi) : lo
+
   const items = sizes.map((s, i) => {
     const j1 = boardHash01(keys[i]), j2 = boardHash01(keys[i] + "~")
     const inner = !!inners?.[i]
     const seed = seeds?.[i]
-    const base = inner ? zone.rMin : zone.rMin + band
-    const x = seed ? seed.x
-      : inner ? zone.rMin + s.h / 2
-      : base + ((i + 0.5) / sizes.length * 0.8 + j2 * 0.2) * Math.max(1, zone.rMax - base)
-    const maxY = Math.max(2, x * tanHalf - s.w / 2)
-    const y = seed ? seed.y : (j1 * 2 - 1) * maxY * 0.8
-    return { w: s.w, h: s.h, cr: Math.max(s.w, s.h) / 2 + 3, x, y, inner }
+    let x, y
+    if(seed){ x = seed.x; y = seed.y }                          // survivor — stays where it painted
+    else if(inner){ x = zone.rMin + s.h / 2; y = (j1 * 2 - 1) * Math.min(s.w, 60) }  // ghost hugs rim, near mid-line
+    else {                                                      // new chip — seed in the anchor disk
+      const t = j1 * Math.PI * 2, rr = Math.sqrt(j2) * blobR
+      x = ax + Math.cos(t) * rr
+      y = Math.sin(t) * rr
+    }
+    return { w: s.w, h: s.h, cr: Math.max(s.w, s.h) / 2 + 3, x, y, inner, drift: !seed && !inner }
   })
   for(let it = 0; it < 40; it++){
+    // centring spring: pull fresh (undrifted) chips toward the anchor/mid-line
+    // so the blob clusters instead of leaning on the wedge walls. Gentle enough
+    // that collisions still own local spacing; survivors/ghosts opt out.
+    items.forEach(A => {
+      if(!A.drift) return
+      A.x += (ax - A.x) * 0.05
+      A.y += (0 - A.y) * 0.05
+    })
     for(let a = 0; a < items.length; a++) for(let b = a + 1; b < items.length; b++){
       const A = items[a], B = items[b]
       const dx = B.x - A.x, dy = B.y - A.y
