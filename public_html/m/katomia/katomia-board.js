@@ -556,19 +556,9 @@ function boardEnsureTxSocket(){
   // preload the confetti lib now, while signing is underway — at result time
   // the burst then fires synchronously, before the alert() blocks the thread
   boardLoadConfetti()
-  // EXPIRY VERDICT for ANY watched tx (user 2026-07-15, KY564 1/402: locked,
-  // countdown lapsed, still no notice — the earlier verdict only covered txs
-  // THIS TAB had signed). Same inference: validStart+4min is past any ~3min
-  // validity window; no receipt by then = failed/expired, announce it.
-  {
-    const vs = Number(String(txid).split("@")[1]?.split(".")[0]) * 1000
-    if(vs) setTimeout(() => {
-      if(!boardSuccessAcked.has(txid)){
-        boardDiag("board:result:expiry-verdict", { txid, path: "watched" })
-        boardShowResult(txid, false)
-      }
-    }, Math.max(0, vs + 4 * 60 * 1000 - Date.now()) + 500)
-  }
+  // EXPIRY VERDICT: no longer a client-side timer guess (removed 2026-07-15 —
+  // see BOARD_TX_EXPIRY_MS below for why). renderRingBoard's vanish-from-
+  // pending watch is now the only source of an expiry/failure verdict.
   ;(async () => {
     try {
       const { createTxSocket } = await import("/vendor/kpay/kpool_widget/websocket.js")
@@ -615,25 +605,16 @@ function boardCheckJustSucceeded(){
     else if(/FAIL|ERROR|EXPIRE|INVALID/.test(st)) boardShowResult(t.txid, false)
   })
 
-  // diagnostic + EXPIRY VERDICT. Resolution normally comes from the tx
-  // socket (boardEnsureTxSocket/boardHandleTxUpdate) — but an EXPIRED tx
-  // never gets a receipt, so that path stays silent and the board just
-  // reset with no result at all (user 2026-07-14). Honest inference: a
-  // Hedera tx is only valid ~3min from its validStart; once validStart+4min
-  // passes with no receipt acked, "failed or expired" is the truth (a
-  // success receipt would have landed via socket or poll long before).
+  // diagnostic only now. The expiry/failure VERDICT used to be a client-side
+  // timer guessed off this map (removed 2026-07-15 — three independently-
+  // guessed deadlines here, in the countdown display, and the real backend
+  // resolution all disagreed, "async expiries" per the user). Verdicts are
+  // now purely SIGNAL-driven off boardSigning actually disappearing — see
+  // renderRingBoard, right after boardSigning = boardDetectSigning().
   boardMySignedTx.forEach((ts, txid) => {
     if(stillSigning.has(txid)) return
     boardMySignedTx.delete(txid)
     boardDiag("board:mysigned:vanished-from-pending", { txid })
-    const vs = Number(String(txid).split("@")[1]?.split(".")[0]) * 1000
-    if(!vs) return
-    const delay = Math.max(0, vs + 4 * 60 * 1000 - Date.now()) + 500
-    setTimeout(() => {
-      if(boardSuccessAcked.has(txid)) return
-      boardDiag("board:result:expiry-verdict", { txid })
-      boardShowResult(txid, false)
-    }, delay)
   })
 }
 
@@ -863,6 +844,30 @@ function renderRingBoard(root){
   // join order — shared board for all; filters preserve join order
   // (getVisibleAccounts sorts mine-first, which would reseat the shared board)
   boardSigning = boardDetectSigning()
+  // SIGNAL-DRIVEN expiry/failure verdict (replaces the 2026-07-14 client-
+  // timer guesses, removed 2026-07-15 for disagreeing with the real backend
+  // deadline — see BOARD_TX_EXPIRY_MS above). boardDetectSigning() only
+  // stops returning a txid once the BACKEND has actually resolved it (tx
+  // dropped from state.tx.pending, or marked isFinalStatus, via its own
+  // broadcast) — so reacting to that disappearance is exactly in sync with
+  // when the board's UI ACTUALLY clears, by construction; no separate clock
+  // to drift against it. Short grace window before declaring failure: a
+  // genuine SUCCESS is usually already acked via the tx-receipt socket
+  // (boardHandleTxUpdate) by the time the tx vanishes from pending, but if
+  // that push is still in flight this avoids a false failure flash.
+  {
+    const nowTxid = boardSigning?.tx?.txid || null
+    if(_boardLastSigningTxid && _boardLastSigningTxid !== nowTxid && !boardSuccessAcked.has(_boardLastSigningTxid)){
+      const vanished = _boardLastSigningTxid
+      setTimeout(() => {
+        if(!boardSuccessAcked.has(vanished)){
+          boardDiag("board:result:vanished-from-pending", { txid: vanished })
+          boardShowResult(vanished, false)
+        }
+      }, 2000)
+    }
+    _boardLastSigningTxid = nowTxid
+  }
   // party collapse/expand mid-tween: paint the merged entity list (leavers
   // still on the board at their shrinking widths) instead of the filtered
   // one — account refs re-resolved to LIVE objects each render so a WS state
@@ -2292,6 +2297,7 @@ function boardScrollOthers(step){
 // giver when uniquely attributable — a netted tx usually has one sender per
 // asset); send legs reserved for the ghost side later.
 let boardSigning = null   // set per render; footer reads it
+let _boardLastSigningTxid = null   // previous render's watched txid — vanish-from-pending expiry verdict (2026-07-15)
 
 // ── SIGN-STATUSLANG1 first pass: per-account signing status on the arcs ──────
 // "Zoom out, see how the widget does it, replicate sensibly" (user 2026-07-11).
@@ -2452,6 +2458,20 @@ function boardTxLegs(tx){
 // board" — half-implementing it on the board risked exactly the drift
 // PROP-SIGN-UNIFY1 exists to prevent. Flagging as the next queued piece
 // rather than guessing at colors for money-moving state.
+// SINGLE SOURCE OF TRUTH cross-reference (user 2026-07-15: the displayed
+// countdown, an earlier client-side expiry-verdict guess, and the ACTUAL
+// backend-driven clearing of signing mode all used DIFFERENT deadlines and
+// visibly disagreed — "async expiries", a countdown reading 0:00 while the
+// board stayed in signing mode for another minute). The backend is
+// authoritative — it's the one that actually resolves + broadcasts:
+// hbarlive_hts/katomiaWorker.js, TX_GRACE_MS (30s) + getExpiryFromTxId
+// (validStart + 2min) → real deadline = validStart + 150s, checked every
+// INTERVAL (5s). This constant mirrors that NUMBER for the countdown
+// display only — it does not drive any verdict any more (that's now purely
+// signal-driven, see renderRingBoard). Keep numerically in sync with the
+// backend constants above if either changes.
+const BOARD_TX_EXPIRY_MS = 150000
+
 function boardDetectSigning(){
   if(!ring15()) return null
   const txs = (state?.tx?.pending || []).filter(t => !t.lifecycle?.isFinalStatus)
@@ -2475,7 +2495,7 @@ function boardDetectSigning(){
     // fine — represent it netted). Not building this pass, just marking where
     // it hooks in.
     status: st === "SUCCESS" || st === "SIGNED" ? "signed" : /FAIL|ERROR|EXPIRE|INVALID/.test(st) ? "failed" : "pending",
-    expiry: (vs || tx.createdAt || Date.now()) + 180000
+    expiry: (vs || tx.createdAt || Date.now()) + BOARD_TX_EXPIRY_MS
   }
 }
 

@@ -1301,13 +1301,22 @@ body.board-page .app-banner{
 }
 .ring-signarc--failed{
   stroke: #d64541 !important;
-  stroke-dasharray: 6 6;
-  /* user bug 2026-07-15 (XV3o8 3/386 vs KY564 3/388): the same failed arc
-     read SOLID red for other players but dotted for the owner — ownership,
-     not device: other players' arcs carry .ring-lockarc--wall, whose
-     stroke-linecap:round extends every dash by half the 8px width at each
-     end, completely filling the 6px gaps. Butt caps keep the dots dots. */
-  stroke-linecap: butt;
+  /* !important on BOTH (2026-07-15, round 2 — the linecap-only fix below
+     didn't hold): the real cause wasn't ownership or device, it was CSS
+     specificity. Every locked account (line ~505, [data-board-fam~="v8"]
+     .ring-lockarc--locked, specificity 0,2,0) gets `stroke-dasharray: none`
+     — HIGHER specificity than this single-class rule (0,1,0), so it won
+     regardless of source order once an account locked, exactly matching
+     "shows dashed sometimes, solid other times" (whether THIS render still
+     had the pre-lock state cached, not who owns the account). !important
+     forces the failed-status dash to win outright, same fix pattern this
+     file already uses for the identical class of problem (see the
+     correction #4 note on .ring-lockarc--target above). Butt caps (was a
+     real but secondary effect): .ring-lockarc--wall's round linecap
+     extends each 6px dash by half the 8px stroke width per end, nearly
+     filling the gap. */
+  stroke-dasharray: 6 6 !important;
+  stroke-linecap: butt !important;
   filter: drop-shadow(0 0 6px #d64541) drop-shadow(0 0 18px rgba(214,69,65,.75));
 }
 /* user 2026-07-12: a party member with no signature required (e.g. just
