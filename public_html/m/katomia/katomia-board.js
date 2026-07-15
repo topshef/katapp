@@ -1865,9 +1865,18 @@ function boardOrganicApply(cx, cy, W, H, oval){
     // classes change neither (the pick flag is absolutely overlaid, lockdim
     // is a filter, selected is an outline). With them stripped, a Pickable/
     // lock/selection toggle is a cache HIT — chips provably cannot move.
+    // .trim() is LOAD-BEARING (scatter round 3, 2026-07-15): classList.add
+    // appends at the END, so the strip left a trailing space — "…board-chip "
+    // ≠ "…board-chip" — and every pickable toggle was a spurious cache miss.
+    // The miss re-measured freshly rebuilt chips (offsetWidth wobbles across
+    // rebuilds: tighten/wrap/font timing) and re-derived left = center − w/2,
+    // stepping every TEXT chip sideways while thumb chips (fixed width) held
+    // still — exactly the user's "all jump right, one stays" report. With the
+    // trim, a state-class toggle is a byte-identical key → cache hit → no
+    // re-solve, no re-measure, no movement, by construction.
     const chipKeys = z.chips.map(el =>
       (el.dataset.assetId || "") + "|" +
-      el.className.replace(/\b(board-pickchip|board-lockdim|selected)\b/g, "").replace(/\s+/g, " ") +
+      el.className.replace(/\b(board-pickchip|board-lockdim|selected)\b/g, "").replace(/\s+/g, " ").trim() +
       "|" + (el.textContent || "").slice(0, 24))
     const idents = z.chips.map(el => {
       const ident = z.key + "|" + (el.dataset.assetId || "") + "|" + (el.classList.contains("board-ghost") ? "g" : "s")
@@ -2097,6 +2106,23 @@ function boardOrganicApply(cx, cy, W, H, oval){
     boardGlideChip(g.el, from, cur.left, cur.top)
   })
 
+  // paint-level movement summary (scatter forensics, 2026-07-15): compares
+  // FINAL painted left/top per identity against the previous apply — catches
+  // movement from ANY source (solver, sizes, alignment, keep-out), not just
+  // solver drift. Silent when nothing moved >2px, so quiet in steady state.
+  {
+    let moved = 0, maxPx = 0, sumDx = 0
+    nextPos.forEach((p, k) => {
+      const prev = _boardChipPrevPos.get(k)
+      if(!prev) return
+      const d = Math.hypot(p.left - prev.left, p.top - prev.top)
+      if(d > 2){ moved++; maxPx = Math.max(maxPx, d); sumDx += p.left - prev.left }
+    })
+    if(moved) boardDiag("board:paint:moves", {
+      moved, maxPx: Math.round(maxPx), avgDx: Math.round(sumDx / moved),
+      layout: boardLayoutMode, total: nextPos.size
+    })
+  }
   _boardChipPrevPosOld = _boardChipPrevPos   // keep one frame of history — vanished chips' last stand
   _boardChipPrevPos = nextPos                // stale identities pruned every apply
 }
