@@ -457,24 +457,24 @@ async function boardCelebrate(ok){
     setTimeout(() => { fire.reset(); canvas.remove() }, 4250)
     return
   }
-  // failure ash — self-contained DOM particles, falls from the top
-  const colors = ["#555", "#777", "#3a3a3a", "#8a6d3b"]
-  const wrap = document.createElement("div")
-  wrap.className = "board-celebrate"
-  for(let i = 0; i < 40; i++){
-    const p = document.createElement("i")
-    p.style.background = colors[Math.floor(Math.random() * colors.length)]
-    const w = 6 + Math.random() * 6
-    p.style.width = w + "px"
-    p.style.height = (w * 0.8) + "px"
-    p.style.left = (Math.random() * 100) + "vw"
-    p.style.borderRadius = "50%"   // ash flecks vs confetti rectangles
-    p.style.animationDelay = (Math.random() * 0.4) + "s"
-    p.style.animationDuration = (3 + Math.random() * 2) + "s"
-    wrap.appendChild(p)
-  }
-  document.body.appendChild(wrap)
-  setTimeout(() => wrap.remove(), 7000)
+  // FAILURE: windscreen-wiper sweep (user 2026-07-15 — the earlier ash rain
+  // "mixed the idea of a party with a failure"; this is the requested
+  // placeholder: one of the wheel's spokes does a full 360°, wiping the
+  // board clean, then the popup lands). A hub-centred disc with a thin
+  // dark sector + fading trail painted by conic-gradient, one rotation.
+  // FUTURE: style the wipe differently for expired vs failed; both may be
+  // replaced by real tear-down animations down the line.
+  const hub2 = document.querySelector(".ring-hub")?.getBoundingClientRect()
+  const cx2 = hub2 ? hub2.left + hub2.width / 2 : innerWidth / 2
+  const cy2 = hub2 ? hub2.top + hub2.height / 2 : innerHeight * 0.45
+  const R = Math.hypot(Math.max(cx2, innerWidth - cx2), Math.max(cy2, innerHeight - cy2)) * 2
+  const wiper = document.createElement("div")
+  wiper.className = "board-wiper"
+  wiper.style.width = wiper.style.height = R + "px"
+  wiper.style.left = (cx2 - R / 2) + "px"
+  wiper.style.top = (cy2 - R / 2) + "px"
+  document.body.appendChild(wiper)
+  setTimeout(() => wiper.remove(), 1600)
 }
 
 // ── top status banner (user 2026-07-15) ─────────────────────────────────────
@@ -1883,7 +1883,7 @@ function boardOrganicApply(cx, cy, W, H, oval){
   // BOARD-CHIPLINE1 endpoint collection: store piles + basket chips indexed by
   // pair, ghosts deferred (their glide waits for the alignment pass below —
   // otherwise they'd animate to the solver spot and then jump to the line)
-  const piles = new Map(), baskets = new Map(), ghostRecs = []
+  const piles = new Map(), baskets = new Map(), ghostRecs = [], chipGlides = []
   prepped.forEach(({ z, idents, entry, endEntry }) => {
     const mid = z.midDeg * Math.PI / 180
     const cos = Math.cos(mid), sin = Math.sin(mid)
@@ -1920,8 +1920,45 @@ function boardOrganicApply(cx, cy, W, H, oval){
       let glideFrom = prev
       if(!glideFrom && !isBasket && d.ownerAccount && d.assetId)
         glideFrom = _boardChipPrevPos.get(k.replace(/\|s#(\d+)$/, "|g#$1"))
-      if(!skipGlide) boardGlideChip(el, glideFrom, left, top)
+      // glide deferred until after the label keep-out pass below, so the
+      // animation targets the FINAL spot, not a pre-push one
+      chipGlides.push({ el, k, from: glideFrom, w: s.w, h: s.h })
     })
+  })
+
+  // SPOKE-LABEL KEEP-OUT (user 2026-07-15: the etched account numbers along
+  // the segment boundaries were printing over asset chips — "box off the
+  // number area", chips may not sit on it). Screen-space post-pass, layout-
+  // mode agnostic: for each main etched id's rect, intersecting chips get
+  // pushed out along the smaller-overlap axis, two passes. Ghosts are exempt
+  // (they live at the rim, and pushing them would break the pile→ghost→basket
+  // line). Note: the push may re-introduce small chip-chip overlaps — the
+  // solver doesn't re-run; acceptable until labels become real obstacles
+  // inside the solvers. lx/ly seeds keep their pre-push values on purpose:
+  // the next solve re-lands there and this pass re-evicts, which is stable.
+  if(!_boardPartyAnim){
+    const labelRects = [...document.querySelectorAll("text.ring-etchlabel")]
+      .filter(t => !t.classList.contains("ring-etchsub") && !t.classList.contains("ring-etchlock"))
+      .map(t => t.getBoundingClientRect())
+    if(labelRects.length) for(let pass = 0; pass < 2; pass++)
+      chipGlides.forEach(c => {
+        const p = nextPos.get(c.k)
+        if(!p) return
+        labelRects.forEach(r => {
+          const pad = 4
+          const ox = Math.min(p.left + c.w, r.right + pad) - Math.max(p.left, r.left - pad)
+          const oy = Math.min(p.top + c.h, r.bottom + pad) - Math.max(p.top, r.top - pad)
+          if(ox <= 0 || oy <= 0) return
+          if(ox < oy) p.left += (p.left + c.w / 2 < (r.left + r.right) / 2 ? -ox : ox)
+          else p.top += (p.top + c.h / 2 < (r.top + r.bottom) / 2 ? -oy : oy)
+          c.el.style.left = p.left + "px"
+          c.el.style.top = p.top + "px"
+        })
+      })
+  }
+  if(!skipGlide) chipGlides.forEach(c => {
+    const p = nextPos.get(c.k)
+    if(p) boardGlideChip(c.el, c.from, p.left, p.top)
   })
 
   // ── BOARD-CHIPLINE1 (user 2026-07-14): colinear chip geometry — each ghost
@@ -4015,6 +4052,10 @@ function ringEtchLabel(seg, g, NS){
 // reversal the glyphs would render upside down at the bottom of the circle.
 // Segments near the 3/9 o'clock seam go whichever way the sin() sign falls;
 // user: "doesn't really matter which way they go" right at that boundary.
+// MOBILE PORTRAIT (user 2026-07-15, parked — BOARD-ACCTNUM1): these curved
+// ids are much harder to read in portrait; the SPOKE (etched) ids read well
+// there but get covered by the signing spotlight. Likely future: suppress
+// the coin variant in portrait and/or rethink which id renders when.
 function ringHubCoinLabel(seg, g, NS){
   const hac = seg.account.id.split(":")[1] || seg.account.id
   const fs = ringLabelFontSize(g)
