@@ -526,20 +526,18 @@ function boardShowResult(txid, ok){
   boardSuccessAcked.add(txid)
   boardSaveAckedTx(boardSuccessAcked)
   boardDiag("board:result:shown", { txid, ok })
-  // square consensus verdict up top, alongside the alert (user 2026-07-15) —
-  // the next render after OK clears it; that's fine, it's the placeholder
-  // for the sessions flow's persistent status
-  boardSetBanner((ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired") +
-    ` · <span class="board-banner-tx">${txid}</span>`)
   boardCelebrate(ok)
-  // let the first particles paint before alert() blocks the JS thread (CSS
-  // animations keep running behind the native dialog)
-  setTimeout(() => {
-    alert(ok
-      ? `✅ Transaction successful\n\n${txid}\n\nTap OK to continue.`
-      : `⚠️ Transaction failed or expired\n\n${txid}\n\nIt was not executed on-chain. Tap OK to continue.`)
-    boardDiag("board:result:acked", { txid, ok })
-  }, 150)
+  // PERSISTENT, CLOSABLE TOAST (user 2026-07-15): the verdict used to be a
+  // banner bubble + a blocking alert(); now it's a toast that stays until
+  // the user closes it (timeout 0 = persistent, ✕ per GM-TOAST-X1) — the
+  // format the user wants to grow into progress-status messaging generally.
+  // Squares = Hedera consensus status (ring colours stay signing status).
+  // The alert() is gone: the wiper/confetti + toast carry the moment, and
+  // the real result MODAL (Try again etc.) is KAT-PROPRECALL1's design.
+  try {
+    notify((ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired") + ` · ${txid}`,
+      ok ? "success" : "error", { timeout: 0 })
+  } catch {}
 }
 
 let _boardTxSocket = null
@@ -2483,13 +2481,15 @@ function boardTxLegs(tx){
 // visibly disagreed — "async expiries", a countdown reading 0:00 while the
 // board stayed in signing mode for another minute). The backend is
 // authoritative — it's the one that actually resolves + broadcasts:
-// hbarlive_hts/katomiaWorker.js, TX_GRACE_MS (30s) + getExpiryFromTxId
-// (validStart + 2min) → real deadline = validStart + 150s, checked every
-// INTERVAL (5s). This constant mirrors that NUMBER for the countdown
-// display only — it does not drive any verdict any more (that's now purely
+// hbarlive_hts/katomiaWorker.js, TX_GRACE_MS (10s, was 30s until
+// 2026-07-15) + the SDK-default 120s duration → fallback deadline =
+// validStart + 130s, checked every INTERVAL (5s). This constant mirrors
+// that NUMBER for the countdown display only — and only as the LAST-RESORT
+// guess: the broadcast validDurationSeconds (round 3) supersedes it for
+// every tx struck since. It does not drive any verdict (that's purely
 // signal-driven, see renderRingBoard). Keep numerically in sync with the
 // backend constants above if either changes.
-const BOARD_TX_EXPIRY_MS = 150000
+const BOARD_TX_EXPIRY_MS = 130000
 
 function boardDetectSigning(){
   if(!ring15()) return null

@@ -41,7 +41,7 @@ XPROOF project's headless-WC facility (Playwright). <span class="auto">AUTO</spa
 <tr><td class="dim">Lock rule</td><td>all, active, cluster</td><td>party-only filter follows it</td></tr>
 <tr><td class="dim">Board motion</td><td>you-at-bottom toggle, party-only toggle, wheel scroll, max-on-ring change, resize/orientation</td><td>each must clear stale trail lines; chips must not jump (glide)</td></tr>
 <tr><td class="dim">Settings</td><td>each ⚙ control × persistence (reload) × live effect</td><td>skin, net, self-bottom, max-on-ring, anim speed, trail after-glow, chip layout, party-only, pickable</td></tr>
-<tr><td class="dim">Signing outcome</td><td>success, failure, EXPIRY (no receipt ever), partial sigs, witness sig</td><td>expiry verdict at validStart+4min; square 🟩/🟥 banner</td></tr>
+<tr><td class="dim">Signing outcome</td><td>success, failure, EXPIRY (no receipt ever), partial sigs, witness sig</td><td>expiry verdict signal-driven (backend resolve broadcast); square 🟩/🟥 banner</td></tr>
 <tr><td class="dim">Connection health</td><td>stable, WS drop/reconnect, slow mirror, mid-flow refresh</td><td>add-account late-land (30s+60s poll) lives here</td></tr>
 </table>
 
@@ -59,7 +59,7 @@ XPROOF project's headless-WC facility (Playwright). <span class="auto">AUTO</spa
 <tr><td>F9</td><td>Sign — party account (WC prompt → approve)</td><td>green status arc; sign saved; banner "signing mode" visible</td><td class="auto">AUTO</td></tr>
 <tr><td>F10</td><td>Sign — NON-party account</td><td>button still ✍ Sign (witness tooltip), never Lock, no error</td><td class="auto">AUTO</td></tr>
 <tr><td>F11</td><td>Transaction success</td><td>confetti burst from hub (canvas-confetti), 🟩 banner + alert, board resets</td><td class="man">MANUAL</td></tr>
-<tr><td>F12</td><td>Transaction EXPIRY (let countdown lapse, sign nothing)</td><td>~1min after countdown: 🟥 banner + failed/expired alert + ash — never silence</td><td class="auto">AUTO</td></tr>
+<tr><td>F12</td><td>Transaction EXPIRY (let countdown lapse, sign nothing)</td><td>~11-16s after countdown: wiper sweep + persistent 🟥 toast (closable, never auto-dismisses) — never silence</td><td class="auto">AUTO</td></tr>
 <tr><td>F13</td><td>▶ preview replay</td><td>flights ghost→basket + pile→ghost trail segments; spotlight fat-tire + blurred edge; ghosts inside the light</td><td class="man">MANUAL</td></tr>
 </table>
 
@@ -87,12 +87,12 @@ visible as a wrong number.</p>
 <tr><th>Concept</th><th>Definition</th><th>Owner</th></tr>
 <tr><td class="dim">validStart</td><td>tx timestamp (after the <code>@</code> in the txid); consensus nodes reject txs submitted before it. Set = now + <code>config.txDelaySeconds</code></td><td>backend postCluster</td></tr>
 <tr><td class="dim">validDuration</td><td>window from validStart within which a consensus node will still accept the tx on submission (nothing is on-chain before submission). SDK default 120s; game default 40s</td><td><code>deal.js setTransactionValidDuration</code>, from <code>config.validDurationSeconds</code></td></tr>
-<tr><td class="dim">grace</td><td>TX_GRACE_MS (30s) detection slack the backend worker adds before failing — NOT part of the validity window</td><td>katomiaWorker</td></tr>
+<tr><td class="dim">grace</td><td>TX_GRACE_MS (10s, was 30s until 2026-07-15) detection slack the backend worker adds before failing — NOT part of the validity window</td><td>katomiaWorker</td></tr>
 <tr><td class="dim">resolution</td><td>worker check cadence 5s; board clears on the backend's resolve broadcast (signal-driven, no client clock)</td><td>katomiaWorker → broadcast → board</td></tr>
 </table>
 
 <p class="note">Expected end-to-end timeline for duration D with no signatures:
-countdown shows D from validStart → hits 0 at validStart+D → backend fails it by validStart+D+30s(+≤5s poll)
+countdown shows D from validStart → hits 0 at validStart+D → backend fails it by validStart+D+10s(+≤5s poll)
 → board wiper + 🟥 within ~2s of that broadcast. Anything else = a specific component below.</p>
 
 <table>
@@ -101,7 +101,7 @@ countdown shows D from validStart → hits 0 at validStart+D → backend fails i
 <tr><td>T1</td><td>create game duration=15 → inspect create-request elog + strike-window elog</td><td>form → API → game.config → postCluster (the 15-became-40 leg)</td><td class="auto">AUTO</td></tr>
 <tr><td>T2</td><td>strike → <code>txRead detail=1</code> → decode bodyBytesHex → assert 15</td><td>postCluster → deal.js → signed bytes</td><td class="auto">AUTO</td></tr>
 <tr><td>T3</td><td>strike → worker "expiry set" elog: usedDurationS=15, source=record</td><td>worker input priority (record → bytes → default)</td><td class="auto">AUTO</td></tr>
-<tr><td>T4</td><td>let it lapse → resolveTxFailed broadcast by validStart+15+30(+5)</td><td>worker deadline arithmetic + cadence</td><td class="auto">AUTO</td></tr>
+<tr><td>T4</td><td>let it lapse → resolveTxFailed broadcast by validStart+15+10(+5)</td><td>worker deadline arithmetic + cadence</td><td class="auto">AUTO</td></tr>
 <tr><td>T5</td><td>board: kdiag <code>board:signing:window</code> shows durationSource=broadcast, expiry=validStart+15s from the FIRST event (no fallback-guess flash)</td><td>getTxPublicRecord broadcast → boardDetectSigning priority</td><td class="man">MANUAL→AUTO</td></tr>
 <tr><td>T6</td><td>board: wiper + 🟥 verdict within ~2s of tx vanishing from pending; banner staged ⏳→✍ across validStart when txDelaySeconds &gt; 0</td><td>signal-driven verdict + banner stages</td><td class="man">MANUAL</td></tr>
 <tr><td>T7</td><td>pre-deploy tx (no broadcast field): countdown upgrades fallback→bytes-decode when the signstatus poll lands (visible in board:signing:window)</td><td>source-priority fallback chain</td><td class="man">MANUAL</td></tr>
