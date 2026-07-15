@@ -76,7 +76,42 @@ XPROOF project's headless-WC facility (Playwright). <span class="auto">AUTO</spa
 <tr><td>L8</td><td>Mobile scroll attempt</td><td>board does not drag/bounce (dvh + overscroll fix); hub stays centred</td><td class="man">MANUAL</td></tr>
 </table>
 
-<h2>4 · Known device-dependent watch list</h2>
+<h2>4 · Transaction timing &amp; validity (KATOMIA-VALIDDUR1)</h2>
+<p class="note">One number crosses five components and produced three distinct silent-fallback bugs in one day
+(2026-07-15) — each decode path falls back to a plausible default (120s, the SDK default) instead of failing loud,
+so wrong values are invisible unless a NON-default duration is configured. Rule of thumb for all timing tests:
+<b>always test with a duration ≠ 120 and ≠ 40</b> (the two defaults in play), e.g. 15s — then every fallback is
+visible as a wrong number.</p>
+
+<table>
+<tr><th>Concept</th><th>Definition</th><th>Owner</th></tr>
+<tr><td class="dim">validStart</td><td>tx timestamp (after the <code>@</code> in the txid); consensus nodes reject txs submitted before it. Set = now + <code>config.txDelaySeconds</code></td><td>backend postCluster</td></tr>
+<tr><td class="dim">validDuration</td><td>window from validStart within which a consensus node will still accept the tx on submission (nothing is on-chain before submission). SDK default 120s; game default 40s</td><td><code>deal.js setTransactionValidDuration</code>, from <code>config.validDurationSeconds</code></td></tr>
+<tr><td class="dim">grace</td><td>TX_GRACE_MS (30s) detection slack the backend worker adds before failing — NOT part of the validity window</td><td>katomiaWorker</td></tr>
+<tr><td class="dim">resolution</td><td>worker check cadence 5s; board clears on the backend's resolve broadcast (signal-driven, no client clock)</td><td>katomiaWorker → broadcast → board</td></tr>
+</table>
+
+<p class="note">Expected end-to-end timeline for duration D with no signatures:
+countdown shows D from validStart → hits 0 at validStart+D → backend fails it by validStart+D+30s(+≤5s poll)
+→ board wiper + 🟥 within ~2s of that broadcast. Anything else = a specific component below.</p>
+
+<table>
+<tr><th>#</th><th>Test</th><th>Pins</th><th></th></tr>
+<tr><td>U1-U12</td><td><code>node qa-validdur-tests.js</code> (backend repo root) — decode matrix: Long int64 (bug #1), SignedTransaction wrapper (bug #2), cross-shape misuse silent-fallback modes, absent field, garbage, REAL production fixture bytes, expiry arithmetic</td><td>kpoolHelpers decoders + worker expiry contract</td><td class="auto">AUTO ✅</td></tr>
+<tr><td>T1</td><td>create game duration=15 → inspect create-request elog + strike-window elog</td><td>form → API → game.config → postCluster (the 15-became-40 leg)</td><td class="auto">AUTO</td></tr>
+<tr><td>T2</td><td>strike → <code>txRead detail=1</code> → decode bodyBytesHex → assert 15</td><td>postCluster → deal.js → signed bytes</td><td class="auto">AUTO</td></tr>
+<tr><td>T3</td><td>strike → worker "expiry set" elog: usedDurationS=15, source=record</td><td>worker input priority (record → bytes → default)</td><td class="auto">AUTO</td></tr>
+<tr><td>T4</td><td>let it lapse → resolveTxFailed broadcast by validStart+15+30(+5)</td><td>worker deadline arithmetic + cadence</td><td class="auto">AUTO</td></tr>
+<tr><td>T5</td><td>board: kdiag <code>board:signing:window</code> shows durationSource=broadcast, expiry=validStart+15s from the FIRST event (no fallback-guess flash)</td><td>getTxPublicRecord broadcast → boardDetectSigning priority</td><td class="man">MANUAL→AUTO</td></tr>
+<tr><td>T6</td><td>board: wiper + 🟥 verdict within ~2s of tx vanishing from pending; banner staged ⏳→✍ across validStart when txDelaySeconds &gt; 0</td><td>signal-driven verdict + banner stages</td><td class="man">MANUAL</td></tr>
+<tr><td>T7</td><td>pre-deploy tx (no broadcast field): countdown upgrades fallback→bytes-decode when the signstatus poll lands (visible in board:signing:window)</td><td>source-priority fallback chain</td><td class="man">MANUAL</td></tr>
+</table>
+<p class="note">T1–T4 are backend-only (curl + log grep — no browser, no WC): natural katrun scenario when automated
+(KATRUN-KFLOW1 pattern; kflowSpec.js already defines the test:start→test:verdict unit shape). T5–T7 need the board;
+kdiag events (<code>board:signing:window</code>, <code>board:signstatus.validDurationSeconds</code>, backend
+<code>KATOMIA-VALIDDUR1</code> elogs) are the assertion surface for kflow units per KFLOW1.</p>
+
+<h2>5 · Known device-dependent watch list</h2>
 <table>
 <tr><th>Item</th><th>Where seen</th><th>Status</th></tr>
 <tr><td>Offer animation missing on own drops (touch)</td><td>Samsung S6 tablet, KY564 1/300</td><td>fix shipped 2026-07-15 (own-move skip removed) — retest</td></tr>

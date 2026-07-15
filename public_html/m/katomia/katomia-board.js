@@ -856,6 +856,7 @@ function renderRingBoard(root){
   // join order — shared board for all; filters preserve join order
   // (getVisibleAccounts sorts mine-first, which would reseat the shared board)
   boardSigning = boardDetectSigning()
+  boardSigningWindowDiag(boardSigning)   // KATOMIA-VALIDDUR1: log window changes
   // SIGNAL-DRIVEN expiry/failure verdict (replaces the 2026-07-14 client-
   // timer guesses, removed 2026-07-15 for disagreeing with the real backend
   // deadline — see BOARD_TX_EXPIRY_MS above). boardDetectSigning() only
@@ -2401,7 +2402,8 @@ async function boardRefreshSignStatus(){
     boardSignStatus = { txid: tx.txid, byAccount, validDurationSeconds: data?.validDurationSeconds || null }
     const sig = JSON.stringify(byAccount)
     boardDiag("board:signstatus", { txid: tx.txid, byAccount, signedKeys: signedPubkeys.length,
-      shortAccts: Object.keys(short), unassocAccts: Object.keys(unassoc) })
+      shortAccts: Object.keys(short), unassocAccts: Object.keys(unassoc),
+      validDurationSeconds: data?.validDurationSeconds ?? null })   // KATOMIA-VALIDDUR1: was invisible in traces
     if(sig !== _boardSignLast){ _boardSignLast = sig; render() }   // repaint only on change
   } catch(e){
     boardDiag("board:signstatus:error", { error: String(e) })
@@ -2517,14 +2519,51 @@ function boardDetectSigning(){
     // "not submittable yet" stage the banner should separate from "waiting
     // for signatures" (which only makes sense once submission is possible).
     validStartMs: vs || null,
-    // KATOMIA-VALIDDUR1: prefer the REAL per-tx duration once boardRefreshSignStatus's
-    // poll has decoded it (matches this tx's id — a stale value from a previous
-    // tx must not leak in); BOARD_TX_EXPIRY_MS is only the pre-poll/undecodable
-    // fallback, same guess-vs-real relationship as the backend's getExpiryFromTxId.
-    expiry: (vs || tx.createdAt || Date.now()) +
-      (boardSignStatus?.txid === tx.txid && boardSignStatus.validDurationSeconds
-        ? boardSignStatus.validDurationSeconds * 1000 : BOARD_TX_EXPIRY_MS)
+    // KATOMIA-VALIDDUR1 source priority (round 3 — the round-2 version waited
+    // on the signstatus poll's bytes decode, so the countdown flashed the
+    // 150s guess for several seconds before snapping to the real number):
+    //   1. tx.validDurationSeconds — the BROADCAST value, stamped on the
+    //      pending record by postCluster at build time (the same number
+    //      handed to setTransactionValidDuration). Present from the very
+    //      first game_state push, so no guess-flash at all for new txs.
+    //   2. boardSignStatus.validDurationSeconds — the signstatus poll's
+    //      bytes decode (model.txRead VALIDD1), for txs struck before the
+    //      broadcast field existed. Guarded by txid so a stale value from a
+    //      previous tx can't leak in.
+    //   3. BOARD_TX_EXPIRY_MS — the documented fallback guess.
+    // boardSigningWindowDiag below logs which source won, once per change.
+    expiry: (vs || tx.createdAt || Date.now()) + (
+      tx.validDurationSeconds ? tx.validDurationSeconds * 1000
+      : boardSignStatus?.txid === tx.txid && boardSignStatus.validDurationSeconds
+        ? boardSignStatus.validDurationSeconds * 1000
+        : BOARD_TX_EXPIRY_MS),
+    durationSource: tx.validDurationSeconds ? "broadcast"
+      : boardSignStatus?.txid === tx.txid && boardSignStatus.validDurationSeconds ? "bytes-decode"
+      : "fallback-guess"
   }
+}
+
+// KATOMIA-VALIDDUR1 diagnostics: one kdiag line whenever the signing window
+// CHANGES (new txid, or the duration source/value upgraded mid-flight, e.g.
+// fallback-guess → bytes-decode when the poll lands) — the untangling trace
+// the timing bugs kept needing. Deliberately not per-render: same window =
+// silence.
+let _boardWindowLogged = ""
+function boardSigningWindowDiag(sig){
+  if(!sig){ _boardWindowLogged = ""; return }
+  const key = `${sig.tx?.txid}|${sig.durationSource}|${sig.expiry}`
+  if(key === _boardWindowLogged) return
+  _boardWindowLogged = key
+  boardDiag("board:signing:window", {
+    txid: sig.tx?.txid,
+    validStartMs: sig.validStartMs,
+    validStartIso: sig.validStartMs ? new Date(sig.validStartMs).toISOString() : null,
+    expiry: sig.expiry,
+    expiryIso: new Date(sig.expiry).toISOString(),
+    durationSource: sig.durationSource,
+    broadcastDurationS: sig.tx?.validDurationSeconds ?? null,
+    decodedDurationS: boardSignStatus?.txid === sig.tx?.txid ? boardSignStatus?.validDurationSeconds ?? null : null
+  })
 }
 
 // paint a party's receiving legs as basket chips (static in this slice —
