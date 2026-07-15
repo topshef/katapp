@@ -958,13 +958,6 @@ function renderRingBoard(root){
     })
     const acctW = widths.filter((w, i) => slots[i].type === "account" && w > 1)
     step = acctW.length ? acctW.reduce((s, x) => s + x, 0) / acctW.length : 360   // felt font sizing only
-    // BOARD-ORGANIC2 (chip glide): the e=1 layout, so each chip can be given
-    // its final solved position to glide toward during the tween
-    const wN = _boardPartyAnim.entities.map(en => en.wNew)
-    const cumN = []
-    { let a = 0; wN.forEach(w => { cumN.push(a); a += w }) }
-    _boardPartyAnim.targetWidths = wN
-    _boardPartyAnim.targetCum = cumN
   } else {
     slots = boardRingLayoutSlots(accounts)
     const acctSlotCount = slots.filter(s => s.type === "account").length
@@ -1020,24 +1013,6 @@ function renderRingBoard(root){
   }
   start += _boardRotateOffset
   _boardStartRendered = start
-
-  // BOARD-ORGANIC2: the e=1 start angle (same recenter math over the target
-  // widths, no animation offsets) — anchors each chip's glide destination
-  let targetStart = null
-  if(_boardPartyAnim){
-    targetStart = boardStartAngle
-    if(ring8() && boardSelfBottom){
-      const tw = _boardPartyAnim.targetWidths, tc = _boardPartyAnim.targetCum
-      const mineIdx = slots.map((s, i) => (s.type === "account" && isMyAccount(s.account)) ? i : -1).filter(i => i >= 0)
-      if(mineIdx.length){
-        const first = mineIdx[0], last = mineIdx[mineIdx.length - 1]
-        const center = boardStartAngle + (tc[first] + tc[last] + tw[last]) / 2
-        targetStart = boardStartAngle + (90 - center)
-      } else {
-        targetStart = 90
-      }
-    }
-  }
 
   // v9 (review 7): when ≥2 DISCONNECTED clusters coexist, segments outside my
   // cluster fade their wash — makes the split visible before it settles by
@@ -1112,13 +1087,6 @@ function renderRingBoard(root){
     const gOff = slot.group === "others" ? _boardOthersRotate : 0
     const a0 = start + base + gOff, a1 = a0 + width
 
-    // BOARD-ORGANIC2: this slot's e=1 angles (party anim renders entities
-    // 1:1 — no splices — so slotIdx indexes targetCum/targetWidths directly)
-    let tMid = null, tW = 0
-    if(_boardPartyAnim && slot.type === "account"){
-      tW = _boardPartyAnim.targetWidths[slotIdx]
-      tMid = targetStart + _boardPartyAnim.targetCum[slotIdx] + tW / 2
-    }
     // element destinations: clipped containers for the others group mid-glide
     const inWheel = slot.group === "others" && wheelClip
     const wedgeDest = inWheel ? wheelWedgeClip : frag
@@ -1183,19 +1151,12 @@ function renderRingBoard(root){
       wrap.addEventListener("dragleave", () => wedge.classList.remove("drag-over"))
       wrap.addEventListener("drop", () => wedge.classList.remove("drag-over"))
       // party collapse/expand: chips fade with their segment's weight (the
-      // wedge closes over them — boardOrganicApply keeps their positions
-      // frozen via the geometry-loose cache key during the tween)
+      // wedge closes over them; BOARD-PHYSICS1 — the sim's walls follow the
+      // interpolated zone geometry each frame, squeezing chips with the wedge)
       if(slot.weight != null && slot.weight < 1) wrap.style.opacity = slot.weight
-      // belt & braces (user 2026-07-12): chips keep their first-frame
-      // positions during the party tween (geometry-loose cache), so a
-      // narrowing wedge no longer contains them — they were "briefly
-      // spilling into adjacent segments". Clip every segment's chips to its
-      // CURRENT wedge sector while the tween runs: whatever the chips do,
-      // they can never escape their own closing slice. (The end-of-tween
-      // chip REPOSITION jump is a separate parked item — the user wants the
-      // asset drawing/positioning story looked at as its own pass, in the
-      // context of these animations; FLIP-glide between relax states is the
-      // likely shape. See BOARD-ORGANIC1 follow-ups.)
+      // belt & braces (user 2026-07-12): clip every segment's chips to its
+      // CURRENT wedge sector while the tween runs — whatever the chips do,
+      // they can never escape their own closing slice
       if(_boardPartyAnim) wrap.style.clipPath = boardSectorPolygon(a0, a1, geo)
 
       const basketCont = document.createElement("div")
@@ -1229,25 +1190,14 @@ function renderRingBoard(root){
       chipDest.appendChild(wrap)
 
       const midDeg = (a0 + a1) / 2, halfDeg = Math.max(6, step / 2 - 1)
-      // BOARD-ORGANIC2: e=1 zone geometry for the chip glide — built with the
-      // EXACT same formulas as the normal path uses (halfDeg from the final
-      // uniform width, radii at the final mid-angle), so the end solve caches
-      // under the SAME strict key the post-anim render computes: the final
-      // tween frame IS the final layout, no settle jump. Leavers (tW→0) get
-      // no target — they hold their start positions while fading/clipping.
-      let tBasket = null, tStore = null
-      if(tMid != null && tW > 2){
-        const tAm = rad(tMid)
-        const tOval = ovalR(tAm), tEdge = edgeR(tAm)
-        const tHalf = Math.max(6, tW / 2 - 1)
-        tBasket = { midDeg: tMid, halfDeg: tHalf, rMin: rc + 10, rMax: tOval - 6 }
-        tStore = { midDeg: tMid, halfDeg: tHalf, rMin: tOval + 8, rMax: Math.max(tOval + 40, tEdge - 14) }
-      }
+      // BOARD-PHYSICS1: no more endpoint solves — during the party tween these
+      // zones carry the per-frame interpolated angles, and the sim's bodies
+      // simply follow the moving walls (the wedge clip above covers the squeeze)
       _boardOrganicZones.push(
         { chips: basketChips, midDeg, halfDeg, rMin: rc + 10, rMax: rOval - 6,
-          key: account.id + "|basket", target: tBasket },
+          key: account.id + "|basket" },
         { chips: storeChips, midDeg, halfDeg, rMin: rOval + 8, rMax: Math.max(rOval + 40, rEdge - 14),
-          key: account.id + "|store", target: tStore })
+          key: account.id + "|store" })
       return
     }
 
@@ -1625,28 +1575,60 @@ function boardGroupByPlayer(accounts){
 
 const BOARD_DIVIDER_DEG = 14   // fixed angular width of a scroll-wedge divider
 
-/* ── BOARD-ORGANIC1: collision-relax chip positioning (RENDERPATH Phase 2b) ──
-   Chips stop living in rectangular flex boxes and settle individually into
-   their segment's annular zone (basket inside the oval, store outside), via a
-   small relax solver — "d3-force or ~80 lines by hand; wedge boundaries +
-   oval as constraint walls" (BOARD-ORGANIC1). Done by hand: no dependency,
-   and the solver runs in a SEGMENT-LOCAL frame (x = radial, y = tangential,
-   mid-angle = x-axis) so results are cacheable independent of board rotation
-   — that's what makes the "You at bottom" rotate animation cheap (per frame:
-   cache hit + rotate, no re-solve, no re-measure).
-   Decisions honoured from the task/review notes:
-   - review 14 overflow policy: angular walls are HARD (a chip never enters a
-     neighbour's wedge); radial max is SOFT, so pressure spills chips outward
-     — off the board's edge for stores (off-screen, per the policy), across
-     the oval into the account's OWN store zone for baskets (never sideways).
-   - deterministic: seeds hash off stable chip keys, fixed iteration count —
-     same state ⇒ same layout across re-renders (no jitter on poll repaints).
-   - renderer/data flow untouched: same chip builders, same DOM elements,
-     same drag/tap/hover handlers; only WHERE chips sit changes. */
-let _boardOrganicZones = []               // collected per render, consumed by boardOrganicApply
-const _boardOrganicCache = new Map()      // solve results keyed by zone+chips+geometry (rotation-independent)
-let _boardChipPrevPos = new Map()         // chip identity → last painted {left,top,lx,ly} (FLIP glide, BOARD-ORGANIC3)
-let _boardChipPrevPosOld = new Map()      // the frame BEFORE that — where a chip that vanished THIS frame last stood (NFT offer flight origin)
+/* ── BOARD-PHYSICS1 (2026-07-15): persistent chip physics ─────────────────
+   REWRITE of the BOARD-ORGANIC1..4 placement stack, at the user's call after
+   the "second asset kicks the first, dotted line goes stale" bug: get the
+   physics MENTAL MODEL right — a chip's position is durable state; things
+   may push each other, but every push is visible motion, and anything
+   attached (ghost alignment, trade lines) tracks the chips continuously.
+
+   OLD MODEL (deleted): a from-scratch solver re-derived every chip's
+   position whenever a zone's content changed, then FOUR compensating
+   mechanisms hid the teleports: a solve cache (the pickable-scatter saga),
+   seeds feeding old positions back in, a FLIP glide animating the jumps
+   after the fact, and the party-anim endpoint lerp. Trade lines snapshotted
+   rects at hover time and went stale the moment anything moved.
+
+   NEW MODEL: bodies (one per chip identity) persist across renders in
+   _boardSimBodies, in the zone-LOCAL frame (x radial along the segment
+   mid-angle, y tangential — rotation-independent, so the "You at bottom"
+   rotate and the wheel scroll stay free: paint just re-projects under the
+   current mid-angle). Each render REBINDS the freshly built DOM elements to
+   their bodies (identity: zone + assetId + ghost-or-not + occurrence,
+   deliberately NOT the text, so an amount change keeps the body — and since
+   position is the body's CENTER, a width change no longer shifts anything).
+   A tiny relaxation sim then runs a few iterations per rAF until settled:
+     - organic: mutual collision pushes (kicking allowed — and VISIBLE,
+       because it happens over frames, not inside a hidden solve) plus a
+       gentle damped spring toward the zone anchor (closes gaps when chips
+       leave; the damping ramp guarantees convergence), walls as before
+       (angular hard, inner band hard, outer soft, basket coin-band inset);
+     - shelves: strong springs toward the deterministic boardShelfZone
+       targets — an HONEST animated re-flow instead of a pretend-static one;
+     - both: the BOARD-SAFEAREA1 screen clamp and the spoke-label keep-out
+       run INSIDE the loop, so those constraints are part of the physics,
+       not a post-hoc shove that reintroduces overlaps.
+   Every paint recomputes the ghost pile→ghost→basket alignment
+   (BOARD-CHIPLINE1) and re-aims the hover trade line
+   (window.__boardRefreshTradeLine, katomia-helpers) — attached things track
+   their chips BY CONSTRUCTION, retiring the stale-line bug class. The sim
+   sleeps (no rAF) once movement/frame drops under threshold; membership,
+   size, zone-geometry or layout-mode changes re-excite it. A cosmetic
+   re-render (pickable/lock/selection class churn) changes none of those, so
+   it provably moves nothing — no cache key to get wrong this time.
+   _boardChipPrevPos/_boardChipPrevPosOld keep their apply-time semantics:
+   flight animations read them (NFT offer origin, withdraw-return spawn). */
+let _boardOrganicZones = []           // collected per render, consumed by boardOrganicApply
+let _boardChipPrevPos = new Map()     // identity → apply-time {left,top,lx,ly} (flight origins, ghost→store spawn)
+let _boardChipPrevPosOld = new Map()  // one apply older — where a chip that vanished THIS apply last stood
+
+let _boardSimBodies = new Map()       // identity → body {el,x,y,w,h,cr,inner,zoneKey,txt,tx,ty,pl,pt}
+let _boardSimZones = new Map()        // zoneKey → projected geometry, refreshed every apply
+let _boardSimEnv = null               // screen-space env: centre, safe rect, oval, label rects
+let _boardSimRaf = 0
+let _boardSimCalm = 0                 // frames since last excitement — ramps the anchor spring down
+let _boardSimQuiet = 0                // consecutive settled frames — 3 puts the sim to sleep
+let _boardSimLastMode = null          // layout mode at the last apply — a toggle re-excites
 
 function boardHash01(s){
   let h = 2166136261
@@ -1654,109 +1636,200 @@ function boardHash01(s){
   return ((h >>> 0) % 10000) / 10000
 }
 
-// relax pass in the segment-local frame. sizes: [{w,h}] px; zone: {halfDeg,
-// rMin, rMax}. Returns [{x,y}] — x along the segment's mid-angle (radial),
-// y tangential. Angular clamp hard, radial max soft (see policy note above).
-// inners[i] (user 2026-07-14): ghost/reserved chips are "involved in the
-// deal", so they gravitate to the zone's INNER wall — hugging the rim from
-// the outside (rMin in the store zone is oval+8, so the 8px is the buffer:
-// they never touch the ring itself). They keep a little collision slack
-// outward but are otherwise pinned; uninvolved chips get pushed out, which
-// also stops ghosts landing off-screen (the old symptom: the ▶ replay
-// animated "from nowhere" because its ghost origin had spilled past the
-// viewport — the outer wall is soft, and ghosts had no reason to stay in).
-// seeds[i] (BOARD-ORGANIC3 round 2, user 2026-07-14: "the netting should
-// land on the EXISTING location of the chip, not draw a new location"):
-// chips that were already on screen START the relax at their previous
-// local position instead of the index/hash spread — survivors stay put
-// (modulo collision nudges the glide animates), only genuinely new chips
-// hunt for a spot. Local coords are rotation-independent (x radial along
-// the segment mid, y tangential), so seeds survive board rotation.
-// RESERVED RIM BAND (user 2026-07-14 night: "clear the cashier's counter"):
-// in store zones the first ~chip-height past the oval belongs to GHOSTS
-// ONLY — store chips' inner wall starts beyond it, even before any ghost
-// exists, so reserved vs store reads as two distinct rings. Basket zones
-// (inside the oval) are unaffected. Seeded chips from pre-band layouts get
-// walled out by the hard clamp; the FLIP glide animates the eviction.
-function boardRelaxZone(sizes, keys, zone, inners, seeds, isBasket){
-  const halfAng = Math.min(zone.halfDeg, 80) * Math.PI / 180
-  const tanHalf = Math.tan(halfAng)
-  const hasGhost = !!inners?.some(Boolean)
-  const band = isBasket ? 0 :
-    (hasGhost ? Math.max(...sizes.filter((_, i) => inners[i]).map(s => s.h))
-              : Math.max(40, ...sizes.map(s => s.h))) + 12
-  const innerWall = zone.rMin + band            // store chips start past the reserved band
+function boardSimExcite(){
+  _boardSimCalm = 0
+  _boardSimQuiet = 0
+  if(!_boardSimRaf) _boardSimRaf = requestAnimationFrame(boardSimFrame)
+}
 
-  // BOARD-ORGANIC4 (user 2026-07-15): CLUSTER the chips around an anchor and
-  // let collisions spread them — instead of scattering them across the whole
-  // wedge and hoping the walls catch them. Root cause of the "chips butt to one
-  // end, no logic to it" bug: the old seeding spread y by ±0.8·maxY where
-  // maxY = x·tan(halfDeg). For the CURRENT player's obtuse segment (few
-  // players → halfDeg near 80–90° → tan explodes) that flung chips hundreds of
-  // px sideways, and NOTHING pulled them back (the only forces were
-  // collision-apart + wall-clamp). Many players → narrow segments → small maxY
-  // → the bug hid. Fix: seed new chips in a compact DISK around an anchor on
-  // the mid-line, and add a gentle centring spring toward it each iteration, so
-  // the blob forms in the middle of the band and grows outward — the same
-  // organic look at ANY wedge angle. Survivors (seeded) and ghosts (inner) are
-  // exempt from the spring so they stay put / keep hugging the rim.
-  const areaChips = sizes.filter((_, i) => !inners?.[i])
-  const area = areaChips.reduce((t, s) => t + s.w * s.h, 0)
-  const blobR = Math.max(1, Math.sqrt(area / (Math.PI * 0.6)))   // packed-circle radius, ~60% fill
-  // anchor: centre the blob in the zone's radial band (basket band excludes the
-  // 34px coin-label inset), clamped so the blob fits; degenerate band → inner.
-  const lo = (isBasket ? zone.rMin : innerWall) + blobR
-  const hi = (isBasket ? zone.rMax - 34 : zone.rMax) - blobR
-  const mid = ((isBasket ? zone.rMin : innerWall) + (isBasket ? zone.rMax - 34 : zone.rMax)) / 2
-  const ax = lo <= hi ? Math.min(Math.max(mid, lo), hi) : lo
+function boardSimFrame(){
+  _boardSimRaf = 0
+  if(!_boardSimEnv || !_boardSimBodies.size) return
+  const moved = boardSimTick(2)
+  boardSimPaint()
+  if(moved < 0.15) _boardSimQuiet++
+  else _boardSimQuiet = 0
+  if(_boardSimQuiet < 3) _boardSimRaf = requestAnimationFrame(boardSimFrame)
+}
 
-  const items = sizes.map((s, i) => {
-    const j1 = boardHash01(keys[i]), j2 = boardHash01(keys[i] + "~")
-    const inner = !!inners?.[i]
-    const seed = seeds?.[i]
-    let x, y
-    if(seed){ x = seed.x; y = seed.y }                          // survivor — stays where it painted
-    else if(inner){ x = zone.rMin + s.h / 2; y = (j1 * 2 - 1) * Math.min(s.w, 60) }  // ghost hugs rim, near mid-line
-    else {                                                      // new chip — seed in the anchor disk
-      const t = j1 * Math.PI * 2, rr = Math.sqrt(j2) * blobR
-      x = ax + Math.cos(t) * rr
-      y = Math.sin(t) * rr
-    }
-    return { w: s.w, h: s.h, cr: Math.max(s.w, s.h) / 2 + 3, x, y, inner, drift: !seed && !inner }
+// one physics step: springs → collisions → walls → screen clamps, in the
+// zone-local frame. Ghosts (inner) don't participate — the reserved rim band
+// already keeps store chips off their patch, and the paint pass pins them to
+// the rim / their pile→basket line. Returns the largest displacement, which
+// boardSimFrame uses for settle detection. The anchor spring is damped by
+// time-since-excitement so the organic equilibrium (spring-in vs push-apart)
+// provably converges instead of oscillating at the blob's edge; collision
+// resolution stays undamped — overlaps always resolve.
+function boardSimTick(iters){
+  const env = _boardSimEnv
+  if(!env) return 0
+  const speed = Math.min(1, boardAnimSpeed || 1)   // Prefs debug throttle rides the sim too
+  const damp = 1 / (1 + _boardSimCalm * 0.05)
+  _boardSimCalm++
+  const shelves = boardLayoutMode === "shelves"
+  const byZone = new Map()
+  _boardSimBodies.forEach(b => {
+    if(!b.el || b.inner) return
+    let arr = byZone.get(b.zoneKey)
+    if(!arr) byZone.set(b.zoneKey, arr = [])
+    arr.push(b)
+    b.px0 = b.x; b.py0 = b.y
   })
-  for(let it = 0; it < 40; it++){
-    // centring spring: pull fresh (undrifted) chips toward the anchor/mid-line
-    // so the blob clusters instead of leaning on the wedge walls. Gentle enough
-    // that collisions still own local spacing; survivors/ghosts opt out.
-    items.forEach(A => {
-      if(!A.drift) return
-      A.x += (ax - A.x) * 0.05
-      A.y += (0 - A.y) * 0.05
-    })
-    for(let a = 0; a < items.length; a++) for(let b = a + 1; b < items.length; b++){
-      const A = items[a], B = items[b]
-      const dx = B.x - A.x, dy = B.y - A.y
-      const d = Math.hypot(dx, dy) || 0.001
-      const min = (A.cr + B.cr) * 0.88          // circle-ish colliders, slight tolerated snuggle
-      if(d < min){
-        const push = (min - d) / d / 2
-        A.x -= dx * push; A.y -= dy * push
-        B.x += dx * push; B.y += dy * push
+  for(let it = 0; it < iters; it++){
+    byZone.forEach((movers, zk) => {
+      const z = _boardSimZones.get(zk)
+      if(!z) return
+      movers.forEach(b => {
+        if(shelves){
+          if(b.tx != null){ b.x += (b.tx - b.x) * 0.22 * speed; b.y += (b.ty - b.y) * 0.22 * speed }
+        } else {
+          b.x += (z.ax - b.x) * 0.03 * speed * damp
+          b.y -= b.y * 0.03 * speed * damp
+        }
+      })
+      if(!shelves) for(let a = 0; a < movers.length; a++) for(let c = a + 1; c < movers.length; c++){
+        const A = movers[a], B = movers[c]
+        const dx = B.x - A.x, dy = B.y - A.y
+        const d = Math.hypot(dx, dy) || 0.001
+        const min = (A.cr + B.cr) * 0.88          // circle-ish colliders, slight tolerated snuggle
+        if(d < min){
+          const push = (min - d) / d / 2 * speed
+          A.x -= dx * push; A.y -= dy * push
+          B.x += dx * push; B.y += dy * push
+        }
       }
-    }
-    items.forEach(A => {
-      // inner wall hard: ghosts at the oval, store chips past the reserved band
-      A.x = Math.max(zone.rMin + (A.inner ? 0 : band) + A.h / 2, A.x)
-      if(A.inner) A.x = Math.min(A.x, zone.rMin + A.h / 2 + 12)   // ghosts hug the rim (12px collision slack)
-      // basket zones: outer edge inset 34px so chips keep off the curved
-      // account-number band inside the rim (BOARD-IDCOIN1; user 2026-07-15)
-      const over = A.x - (zone.rMax - (isBasket ? 34 : 0) - A.h / 2)
-      if(over > 0) A.x -= over * 0.3                              // outer wall SOFT — pressure spills outward
-      const maxY = Math.max(2, A.x * tanHalf - A.w / 2)
-      A.y = Math.max(-maxY, Math.min(maxY, A.y))                  // wedge walls HARD — never a neighbour's space
+      movers.forEach(b => {
+        // inner wall hard (past the ghost-only rim band), outer wall soft
+        // (pressure spills outward), basket coin-band inset (BOARD-IDCOIN1),
+        // angular walls hard (never a neighbour's wedge)
+        b.x = Math.max(z.rMin + z.band + b.h / 2, b.x)
+        const over = b.x - (z.rMax - (z.isBasket ? 34 : 0) - b.h / 2)
+        if(over > 0) b.x -= over * 0.3
+        const maxY = Math.max(2, b.x * z.tanHalf - b.w / 2)
+        b.y = Math.max(-maxY, Math.min(maxY, b.y))
+        // BOARD-SAFEAREA1, inside the loop: clamp the box into the measured
+        // visible rect (banner bottom / footer top / side margins) — catches
+        // tangential corner spill the mid-angle radius math can't see
+        const left = env.cx + b.x * z.cos - b.y * z.sin - b.w / 2
+        const top = env.cy + b.x * z.sin + b.y * z.cos - b.h / 2
+        const cl = Math.max(env.safeL, Math.min(left, env.safeR - b.w))
+        const ct = Math.max(env.safeTop, Math.min(top, env.safeBot - b.h))
+        if(cl !== left || ct !== top){
+          const gx = cl + b.w / 2 - env.cx, gy = ct + b.h / 2 - env.cy
+          b.x = gx * z.cos + gy * z.sin
+          b.y = -gx * z.sin + gy * z.cos
+        }
+      })
     })
   }
-  return items.map(A => ({ x: A.x, y: A.y }))
+  // SPOKE-LABEL KEEP-OUT (user 2026-07-15): etched account numbers along the
+  // segment boundaries are no-chip zones. Same screen-space push as before,
+  // but now part of the tick, so the collision pass re-resolves any overlap
+  // the push creates. Skipped during tweens (labels are mid-motion).
+  if(env.labelRects.length) byZone.forEach((movers, zk) => {
+    const z = _boardSimZones.get(zk)
+    if(!z) return
+    movers.forEach(b => {
+      let left = env.cx + b.x * z.cos - b.y * z.sin - b.w / 2
+      let top = env.cy + b.x * z.sin + b.y * z.cos - b.h / 2
+      let hit = false
+      env.labelRects.forEach(r => {
+        const pad = 4
+        const ox = Math.min(left + b.w, r.right + pad) - Math.max(left, r.left - pad)
+        const oy = Math.min(top + b.h, r.bottom + pad) - Math.max(top, r.top - pad)
+        if(ox <= 0 || oy <= 0) return
+        hit = true
+        if(ox < oy) left += (left + b.w / 2 < (r.left + r.right) / 2 ? -ox : ox)
+        else top += (top + b.h / 2 < (r.top + r.bottom) / 2 ? -oy : oy)
+      })
+      if(hit){
+        const gx = left + b.w / 2 - env.cx, gy = top + b.h / 2 - env.cy
+        b.x = gx * z.cos + gy * z.sin
+        b.y = -gx * z.sin + gy * z.cos
+      }
+    })
+  })
+  let maxMove = 0
+  byZone.forEach(movers => movers.forEach(b => {
+    maxMove = Math.max(maxMove, Math.hypot(b.x - b.px0, b.y - b.py0))
+  }))
+  return maxMove
+}
+
+// project bodies to the screen and write left/top (center-based: the
+// half-size offset is applied here, so a width change never moves a chip's
+// center). Ghosts are pinned each paint: radially to the rim band, and —
+// when both endpoints exist — onto their pile→basket line (BOARD-CHIPLINE1
+// colinear geometry, same intersection math as before, now recomputed every
+// painted frame so the alignment TRACKS the moving pile/basket chips). The
+// hover trade line is re-aimed whenever anything moved.
+function boardSimPaint(){
+  const env = _boardSimEnv
+  if(!env) return
+  const piles = new Map(), baskets = new Map(), ghosts = []
+  let movedAny = false
+  const place = (b, z) => {
+    const left = env.cx + b.x * z.cos - b.y * z.sin - b.w / 2
+    const top = env.cy + b.x * z.sin + b.y * z.cos - b.h / 2
+    if(b.pl !== left || b.pt !== top){
+      b.el.style.left = left + "px"
+      b.el.style.top = top + "px"
+      b.pl = left; b.pt = top
+      movedAny = true
+    }
+    return { left, top }
+  }
+  _boardSimBodies.forEach(b => {
+    const z = _boardSimZones.get(b.zoneKey)
+    if(!z || !b.el) return
+    if(b.inner){ ghosts.push({ b, z }); return }
+    const { left, top } = place(b, z)
+    const d = b.el.dataset
+    if(z.isBasket && d.ownerAccount && d.assetId && d.toAccount)
+      baskets.set(d.ownerAccount + "|" + d.assetId + "|" + d.toAccount, { x: left + b.w / 2, y: top + b.h / 2 })
+    else if(!z.isBasket && d.ownerAccount && d.assetId)
+      piles.set(d.ownerAccount + "|" + d.assetId, { x: left + b.w / 2, y: top + b.h / 2 })
+  })
+  const pairSeen = new Map()   // net-off duplicates of a pair fan along the line's normal
+  ghosts.forEach(({ b, z }) => {
+    b.x = z.rMin + b.h / 2     // rim pin — the 8px oval buffer is in rMin
+    const d = b.el.dataset
+    if(env.oval && !env.party && d.ownerAccount && d.assetId && d.toAccount){
+      const P = piles.get(d.ownerAccount + "|" + d.assetId)
+      const B = baskets.get(d.ownerAccount + "|" + d.assetId + "|" + d.toAccount)
+      if(P && B){
+        // intersect P + t(B−P) with the rim band ellipse: P is outside it
+        // (store zone starts at oval+8), B inside (basket ends at oval−6),
+        // so exactly one root lands in (0,1)
+        const eA = env.oval.rx + 8 + b.h / 2, eB = env.oval.ry + 8 + b.h / 2
+        const u = (P.x - env.cx) / eA, v = (P.y - env.cy) / eB
+        const du = (B.x - P.x) / eA, dv = (B.y - P.y) / eB
+        const qa = du * du + dv * dv
+        const qb = 2 * (u * du + v * dv)
+        const qc = u * u + v * v - 1
+        const disc = qb * qb - 4 * qa * qc
+        if(disc > 0 && qa){
+          const sq = Math.sqrt(disc)
+          const t = [(-qb - sq) / (2 * qa), (-qb + sq) / (2 * qa)].find(t => t > 0 && t < 1)
+          if(t != null){
+            let gx = P.x + t * (B.x - P.x), gy = P.y + t * (B.y - P.y)
+            const pk = d.ownerAccount + "|" + d.assetId + "|" + d.toAccount
+            const n = pairSeen.get(pk) || 0
+            pairSeen.set(pk, n + 1)
+            if(n){
+              const len = Math.hypot(B.x - P.x, B.y - P.y) || 1
+              gx += (-(B.y - P.y) / len) * n * (b.h + 4)
+              gy += ((B.x - P.x) / len) * n * (b.h + 4)
+            }
+            b.x = (gx - env.cx) * z.cos + (gy - env.cy) * z.sin
+            b.y = -(gx - env.cx) * z.sin + (gy - env.cy) * z.cos
+          }
+        }
+      }
+    }
+    place(b, z)
+  })
+  if(movedAny) window.__boardRefreshTradeLine?.()
 }
 
 // BOARD-LAYOUT1 (user 2026-07-14, planning pass → 🧪 toggle): deterministic
@@ -1838,374 +1911,207 @@ function boardShelfZone(sizes, keys, zone, inners, isBasket){
   return pos
 }
 
-// FLIP glide (BOARD-ORGANIC3): animate a chip from where it last painted to
-// its new left/top. transform is free for this — flights use clones.
-function boardGlideChip(el, prev, left, top){
-  if(!prev) return
-  const dx = prev.left - left, dy = prev.top - top
-  if(Math.hypot(dx, dy) < 4) return
-  el.style.transition = "none"
-  el.style.transform = `translate(${dx}px, ${dy}px)`
-  requestAnimationFrame(() => {
-    el.style.transition = "transform " + Math.round(450 / (boardAnimSpeed || 1)) + "ms cubic-bezier(.65,0,.35,1)"
-    el.style.transform = ""
-    setTimeout(() => { el.style.transition = "" }, 520 / (boardAnimSpeed || 1))
-  })
-}
-
-// measure → solve (or cache-hit) → place, in board coordinates. Runs after
-// root.replaceChildren so offsetWidth/Height are real. Chips are positioned
-// by left/top with the half-size baked in (NOT transform: the flight
-// animations and future FLIP passes own el.style.transform).
-// oval ({rx, ry}, BOARD-CHIPLINE1): the rim ellipse — lets the ghost
-// alignment pass below put each ghost on its pile→basket line.
+// BOARD-PHYSICS1 apply: sync the persistent sim to this render's DOM, then
+// paint. Runs after root.replaceChildren so offsetWidth/Height are real.
+// Chips are positioned by left/top with the half-size baked in (NOT
+// transform: the flight animations own el.style.transform).
+// oval ({rx, ry}, BOARD-CHIPLINE1): the rim ellipse for ghost alignment.
 function boardOrganicApply(cx, cy, W, H, oval){
   const zones = _boardOrganicZones
   _boardOrganicZones = []
-  if(!zones.length) return
+  if(!zones.length){
+    // a skin without organic zones rendered — drop the sim so stale bodies
+    // holding dead DOM references don't linger
+    if(_boardSimRaf){ cancelAnimationFrame(_boardSimRaf); _boardSimRaf = 0 }
+    _boardSimBodies.clear(); _boardSimZones.clear(); _boardSimEnv = null
+    return
+  }
 
-  // VISIBLE DRAWING AREA (BOARD-SAFEAREA1, user 2026-07-15: asset chips were
-  // being cut off the screen edge in BOTH the organic and shelf layouts). The
-  // ring16 solvers reach out to rEdge — the RAW #boardRoot rectangle, which is
-  // position:fixed inset:0 = the whole viewport — but the actually-drawable
-  // area is smaller than that on three counts, none of which rEdge knows about:
-  //   • the transparent .app-banner (logo + hamburger) floats OVER the top of
-  //     the board (z-index above it), and .ring-footer floats over the bottom —
-  //     a chip placed under either is invisible;
-  //   • rEdge is measured at the segment MID-ANGLE only, so a chip spread
-  //     tangentially toward a screen CORNER crosses the nearer edge while its
-  //     radius still reads "inside";
-  //   • organic's outer wall is deliberately SOFT (spills past rMax under
-  //     crowding) and the shelf solver has NO outer clamp at all.
-  // The old box layout clamped each box into [48 .. H-bottomPad] etc. (lines
-  // ~1268/1289); the organic path lost that. Rather than re-derive a rectangle
-  // in every solver, clamp each chip's final BOX into the measured safe rect
-  // once, here at the shared placement point — so organic soft-spill, shelf row
-  // overflow, tangential corner spill and banner/footer occlusion are all
-  // caught uniformly, whichever solver ran. Measured (not constant) because the
-  // banner/footer heights vary with skin and wrap on mobile. #boardRoot fills
-  // the viewport, so these viewport-space rects share the chips' coord frame.
+  const tween = !!(_boardPartyAnim || _boardRotateCancel || _boardScrollCancel || _boardOthersRotate)
+
+  // screen-space env, re-measured each apply. Safe rect = BOARD-SAFEAREA1
+  // (the visible drawing area: the transparent .app-banner floats over the
+  // board's top and .ring-footer over its bottom; both measured, not
+  // constants, because their heights vary with skin and wrap on mobile).
   const bannerEl = document.querySelector("body.board-page .app-banner")
   const footerEl = document.querySelector(".ring-footer")
-  const safeTop = (bannerEl ? bannerEl.getBoundingClientRect().bottom : 0) + 6
-  const safeBot = (footerEl ? footerEl.getBoundingClientRect().top : H) - 6
-  const safeL = 6, safeR = W - 6
-  const clampSafe = (left, top, w, h) => ({
-    left: Math.max(safeL, Math.min(left, safeR - w)),
-    top:  Math.max(safeTop, Math.min(top, safeBot - h))
-  })
-
-  const cacheSet = (key, entry) => {
-    if(_boardOrganicCache.size > 300) _boardOrganicCache.clear()
-    _boardOrganicCache.set(key, entry)
-  }
-  const strictKey = (z, chipKeys, gz) =>
-    z.key + "|" + chipKeys.join(";") + "|" + Math.round(gz.rMin) + "|"
-      + Math.round(gz.rMax) + "|" + gz.halfDeg.toFixed(1) + "|" + W + "x" + H
-      + "|" + boardLayoutMode   // BOARD-LAYOUT1: shelf/organic solves must not share cache entries
-
-  // BOARD-ORGANIC2 (user 2026-07-12: the assets "reposition themselves" when
-  // the animation settles — animate them to their target location instead).
-  // During the party tween each chip GLIDES between two solves: START (the
-  // pre-toggle geometry, solved on the first frame under a geometry-loose
-  // key) and END (the e=1 geometry, solved once under the SAME strict key
-  // the post-anim render computes — so the last tween frame equals the next
-  // normal render exactly: no settle jump, and the end solve is already
-  // cached when the tween hands back). Chosen over the also-considered
-  // per-frame re-solve: solver outputs aren't continuous in geometry (chips
-  // can swap arrangements between nearby solves), so per-frame re-solving
-  // risks mid-tween jiggle; two endpoint solves + lerp is cheaper AND
-  // guaranteed smooth. Leavers have no target (width→0) — they hold their
-  // start positions while their wedge clips + fades over them.
-  // stable chip identity (BOARD-ORGANIC3): assetId + zone + ghost-or-not
-  // (+ occurrence) — deliberately NOT the textContent, so an amount change
-  // (drop 1 HBAR → 499.7 becomes 498.7) is the SAME chip. Feeds both the
-  // solve seeding (chips keep their spots) and the FLIP glide below.
-  const occ = {}
-  const prepped = zones.filter(z => z.chips.length).map(z => {
-    // VOLATILE STATE CLASSES stripped from the cache key (user bug
-    // 2026-07-15: toggling Pickable scattered every chip "all over the
-    // place" — board-pickchip joining the className changed every chip's
-    // key, forcing a full re-solve for a purely cosmetic overlay). The key
-    // exists to invalidate on things that change SIZE or membership; these
-    // classes change neither (the pick flag is absolutely overlaid, lockdim
-    // is a filter, selected is an outline). With them stripped, a Pickable/
-    // lock/selection toggle is a cache HIT — chips provably cannot move.
-    // .trim() is LOAD-BEARING (scatter round 3, 2026-07-15): classList.add
-    // appends at the END, so the strip left a trailing space — "…board-chip "
-    // ≠ "…board-chip" — and every pickable toggle was a spurious cache miss.
-    // The miss re-measured freshly rebuilt chips (offsetWidth wobbles across
-    // rebuilds: tighten/wrap/font timing) and re-derived left = center − w/2,
-    // stepping every TEXT chip sideways while thumb chips (fixed width) held
-    // still — exactly the user's "all jump right, one stays" report. With the
-    // trim, a state-class toggle is a byte-identical key → cache hit → no
-    // re-solve, no re-measure, no movement, by construction.
-    const chipKeys = z.chips.map(el =>
-      (el.dataset.assetId || "") + "|" +
-      el.className.replace(/\b(board-pickchip|board-lockdim|selected)\b/g, "").replace(/\s+/g, " ").trim() +
-      "|" + (el.textContent || "").slice(0, 24))
-    const idents = z.chips.map(el => {
-      const ident = z.key + "|" + (el.dataset.assetId || "") + "|" + (el.classList.contains("board-ghost") ? "g" : "s")
-      return ident + "#" + (occ[ident] = (occ[ident] || 0) + 1)
-    })
-    if(_boardPartyAnim){
-      const startKey = "panim|" + z.key + "|" + chipKeys.join(";") + "|" + W + "x" + H + "|" + boardLayoutMode
-      const endKey = z.target ? strictKey(z, chipKeys, z.target) : null
-      return { z, chipKeys, idents, startKey, endKey,
-        entry: _boardOrganicCache.get(startKey),
-        endEntry: endKey ? _boardOrganicCache.get(endKey) : null }
-    }
-    const key = strictKey(z, chipKeys, z)
-    return { z, chipKeys, idents, startKey: key, endKey: null, entry: _boardOrganicCache.get(key), endEntry: null }
-  })
-
-  if(prepped.some(p => !p.entry || (p.endKey && !p.endEntry))){
-    // about to measure fresh sizes — run the wrapped-text width shrink FIRST
-    // so the measured (and cached) width is the final one. render() calls
-    // boardTightenChips() again later; by then widths are already set, so
-    // it's a no-op. Gated to cache misses so animation frames (all hits)
-    // never touch layout beyond the left/top writes below.
-    if(ring9()) boardTightenChips()
-    prepped.forEach(p => {
-      // ghost/reserved chips hug the rim (boardRelaxZone inners) — the flag
-      // is in the className, which is already part of the cache key
-      const inners = p.z.chips.map(el => el.classList.contains("board-ghost"))
-      // survivors start the solve where they last painted (local coords) —
-      // only genuinely new chips get the spread placement. Shelf mode is
-      // deterministic and ignores seeds entirely (BOARD-LAYOUT1).
-      const seeds = p.idents.map(k => {
-        const pp = _boardChipPrevPos.get(k)
-        return pp && pp.lx != null ? { x: pp.lx, y: pp.ly } : null
-      })
-      const isBasket = /\|basket$/.test(p.z.key)
-      const sizes = p.entry?.sizes || p.z.chips.map(el => ({ w: el.offsetWidth || 40, h: el.offsetHeight || 24 }))
-      const solve = gz => boardLayoutMode === "shelves"
-        ? boardShelfZone(sizes, p.chipKeys, gz, inners, isBasket)
-        : boardRelaxZone(sizes, p.chipKeys, gz, inners, seeds, isBasket)
-      if(!p.entry){
-        p.entry = { pos: solve(p.z), sizes }
-        cacheSet(p.startKey, p.entry)
-        // solve diagnostics (2026-07-15, chasing the pickable scatter): one
-        // kdiag line per FRESH solve — seed hit/miss counts + how far chips
-        // actually moved from their previous spots. A healthy re-solve of
-        // surviving chips reads seedsHit=n maxDriftPx≈0; a scatter shows up
-        // as seedsMiss>0 or a big drift, pointing at identity churn. Fresh
-        // solves only happen on real content change, so this stays quiet.
-        let maxDrift = 0
-        p.entry.pos.forEach((pos, i) => {
-          const pp = _boardChipPrevPos.get(p.idents[i])
-          if(pp?.lx != null) maxDrift = Math.max(maxDrift, Math.hypot(pos.x - pp.lx, pos.y - pp.ly))
-        })
-        boardDiag("board:organic:solve", {
-          zone: p.z.key, layout: boardLayoutMode, chips: p.z.chips.length,
-          seedsHit: seeds.filter(Boolean).length, seedsMiss: seeds.filter(s => !s).length,
-          maxDriftPx: Math.round(maxDrift)
-        })
-      }
-      if(p.endKey && !p.endEntry){
-        // same chips, same sizes — only the zone geometry differs
-        p.endEntry = { pos: solve(p.z.target), sizes }
-        cacheSet(p.endKey, p.endEntry)
-      }
-    })
-  }
-
-  // BOARD-ORGANIC3 (user 2026-07-14, "stuff is just jumping around"): when a
-  // zone re-solves (a new ghost changes the chip list → fresh solve → every
-  // chip in the zone lands somewhere new), surviving chips now GLIDE from
-  // where they last painted to their new spot instead of teleporting. FLIP
-  // via transform (left/top stay the layout truth; flights use clones so the
-  // chips' own transform is free). Identity is assetId + zone + ghost-or-not
-  // (+ occurrence) — deliberately NOT the textContent, so an amount change
-  // (drop 1 HBAR → 499.7 becomes 498.7) glides the same pile instead of
-  // treating it as a brand-new chip. New chips don't glide (arrivals are the
-  // flight animations' job); the tween-driven passes (party/rotate/scroll)
-  // position per-frame themselves, so gliding is skipped while they run —
-  // positions still recorded for continuity when they hand back.
-  const e = _boardPartyAnim ? _boardPartyAnim.e : 0
-  const skipGlide = !!(_boardPartyAnim || _boardRotateCancel || _boardScrollCancel || _boardOthersRotate)
-  const nextPos = new Map()
-  // BOARD-CHIPLINE1 endpoint collection: store piles + basket chips indexed by
-  // pair, ghosts deferred (their glide waits for the alignment pass below —
-  // otherwise they'd animate to the solver spot and then jump to the line)
-  const piles = new Map(), baskets = new Map(), ghostRecs = [], chipGlides = []
-  prepped.forEach(({ z, idents, entry, endEntry }) => {
-    const mid = z.midDeg * Math.PI / 180
-    const cos = Math.cos(mid), sin = Math.sin(mid)
-    z.chips.forEach((el, i) => {
-      let p = entry.pos[i]
-      if(endEntry && endEntry.pos[i])
-        p = { x: p.x + (endEntry.pos[i].x - p.x) * e, y: p.y + (endEntry.pos[i].y - p.y) * e }
-      const s = entry.sizes[i]
-      // solver output is in board coords (x radial along mid, y tangential);
-      // bake in the half-size, then clamp the whole box into the safe drawing
-      // rect (BOARD-SAFEAREA1) so no chip lands off-screen or under the
-      // banner/footer. Clamping here (before nextPos/pile/basket records below)
-      // keeps the glide origin, trade-line endpoints and seed positions all
-      // consistent with where the chip actually paints.
-      let left = cx + p.x * cos - p.y * sin - s.w / 2
-      let top = cy + p.x * sin + p.y * cos - s.h / 2
-      ;({ left, top } = clampSafe(left, top, s.w, s.h))
-      el.style.left = left + "px"
-      el.style.top = top + "px"
-
-      const k = idents[i]
-      const prev = _boardChipPrevPos.get(k)
-      nextPos.set(k, { left, top, lx: p.x, ly: p.y })   // screen for the glide, local for the seed
-
-      const d = el.dataset
-      const isGhost = el.classList.contains("board-ghost")
-      if(isGhost){
-        ghostRecs.push({ el, k, prev, w: s.w, h: s.h, cos, sin,
-          pairFrom: d.ownerAccount, pairAsset: d.assetId, pairTo: d.toAccount })
-        return   // glide deferred to the alignment pass
-      }
-      const isBasket = el.classList.contains("basket")
-      if(isBasket && d.ownerAccount && d.assetId && d.toAccount)
-        baskets.set(d.ownerAccount + "|" + d.assetId + "|" + d.toAccount, { x: left + s.w / 2, y: top + s.h / 2 })
-      else if(!isBasket && d.ownerAccount && d.assetId)
-        piles.set(d.ownerAccount + "|" + d.assetId, { x: left + s.w / 2, y: top + s.h / 2 })
-
-      // withdraw-return glide (user 2026-07-14): an NFT coming home has no
-      // prev under its store identity — it lived at the rim as a ghost last
-      // frame. Glide it back from there instead of teleporting.
-      let glideFrom = prev
-      if(!glideFrom && !isBasket && d.ownerAccount && d.assetId)
-        glideFrom = _boardChipPrevPos.get(k.replace(/\|s#(\d+)$/, "|g#$1"))
-      // glide deferred until after the label keep-out pass below, so the
-      // animation targets the FINAL spot, not a pre-push one
-      chipGlides.push({ el, k, from: glideFrom, w: s.w, h: s.h })
-    })
-  })
-
-  // SPOKE-LABEL KEEP-OUT (user 2026-07-15: the etched account numbers along
-  // the segment boundaries were printing over asset chips — "box off the
-  // number area", chips may not sit on it). Screen-space post-pass, layout-
-  // mode agnostic: for each main etched id's rect, intersecting chips get
-  // pushed out along the smaller-overlap axis, two passes. Ghosts are exempt
-  // (they live at the rim, and pushing them would break the pile→ghost→basket
-  // line). Note: the push may re-introduce small chip-chip overlaps — the
-  // solver doesn't re-run; acceptable until labels become real obstacles
-  // inside the solvers. lx/ly seeds keep their pre-push values on purpose:
-  // the next solve re-lands there and this pass re-evicts, which is stable.
-  if(!_boardPartyAnim){
-    const labelRects = [...document.querySelectorAll("text.ring-etchlabel")]
+  _boardSimEnv = {
+    cx, cy, W, H, oval, party: !!_boardPartyAnim,
+    safeTop: (bannerEl ? bannerEl.getBoundingClientRect().bottom : 0) + 6,
+    safeBot: (footerEl ? footerEl.getBoundingClientRect().top : H) - 6,
+    safeL: 6, safeR: W - 6,
+    labelRects: tween ? [] : [...document.querySelectorAll("text.ring-etchlabel")]
       .filter(t => !t.classList.contains("ring-etchsub") && !t.classList.contains("ring-etchlock"))
       .map(t => t.getBoundingClientRect())
-    if(labelRects.length) for(let pass = 0; pass < 2; pass++)
-      chipGlides.forEach(c => {
-        const p = nextPos.get(c.k)
-        if(!p) return
-        labelRects.forEach(r => {
-          const pad = 4
-          const ox = Math.min(p.left + c.w, r.right + pad) - Math.max(p.left, r.left - pad)
-          const oy = Math.min(p.top + c.h, r.bottom + pad) - Math.max(p.top, r.top - pad)
-          if(ox <= 0 || oy <= 0) return
-          if(ox < oy) p.left += (p.left + c.w / 2 < (r.left + r.right) / 2 ? -ox : ox)
-          else p.top += (p.top + c.h / 2 < (r.top + r.bottom) / 2 ? -oy : oy)
-          c.el.style.left = p.left + "px"
-          c.el.style.top = p.top + "px"
-        })
-      })
   }
-  if(!skipGlide) chipGlides.forEach(c => {
-    const p = nextPos.get(c.k)
-    if(p) boardGlideChip(c.el, c.from, p.left, p.top)
+
+  // ── sync pass 1: zone geometry + rebind elements to bodies ──────────────
+  // identity: zone + assetId + ghost-or-not + occurrence — deliberately NOT
+  // the textContent (an amount change is the same chip) and NOT the class
+  // list (pickable/lock/selection churn is cosmetic). `changed` collects
+  // whether anything the physics cares about moved: membership, sizes,
+  // zone geometry (halfDeg/radii — NOT midDeg: rotation only re-projects,
+  // it doesn't disturb the local frame), viewport, layout mode.
+  const occ = {}
+  const seen = new Set()
+  const fresh = []
+  let changed = false
+  const live = zones.filter(z => z.chips.length)
+  const zoneChips = live.map(z => {
+    let zrec = _boardSimZones.get(z.key)
+    if(!zrec){ zrec = {}; _boardSimZones.set(z.key, zrec) }
+    const geo = Math.round(z.halfDeg * 10) + "|" + Math.round(z.rMin) + "|" + Math.round(z.rMax) + "|" + W + "x" + H
+    if(zrec.geo !== geo){ zrec.geo = geo; changed = true }
+    const midRad = z.midDeg * Math.PI / 180
+    zrec.cos = Math.cos(midRad); zrec.sin = Math.sin(midRad)
+    zrec.halfDeg = z.halfDeg
+    zrec.tanHalf = Math.tan(Math.min(z.halfDeg, 80) * Math.PI / 180)
+    zrec.rMin = z.rMin; zrec.rMax = z.rMax
+    zrec.isBasket = /\|basket$/.test(z.key)
+    const recs = z.chips.map(el => {
+      const isGhost = el.classList.contains("board-ghost")
+      const ident0 = z.key + "|" + (el.dataset.assetId || "") + "|" + (isGhost ? "g" : "s")
+      const ident = ident0 + "#" + (occ[ident0] = (occ[ident0] || 0) + 1)
+      seen.add(ident)
+      let b = _boardSimBodies.get(ident)
+      if(!b){
+        b = { ident, zoneKey: z.key, inner: isGhost, x: null, y: null }
+        _boardSimBodies.set(ident, b)
+        fresh.push(b)
+        changed = true
+      }
+      b.el = el
+      const txt = (el.textContent || "").slice(0, 24)
+      if(b.txt !== txt && !tween){
+        // text changed → size may have — re-measure. Center-based positions
+        // mean even a width change can't shift the chip's center.
+        b.txt = txt
+        if(fresh.indexOf(b) < 0) fresh.push(b)
+      }
+      return b
+    })
+    return { zrec, recs }
+  })
+  _boardSimBodies.forEach((b, k) => {
+    if(!seen.has(k)){ _boardSimBodies.delete(k); changed = true }
+  })
+  _boardSimZones.forEach((zr, k) => {
+    if(!live.some(z => z.key === k)) _boardSimZones.delete(k)
+  })
+  if(boardLayoutMode !== _boardSimLastMode){
+    _boardSimLastMode = boardLayoutMode
+    changed = true
+  }
+
+  // measure the fresh/changed ones — tighten wrapped text first so the
+  // measured width is final (render() calls boardTightenChips() again
+  // later; widths already set by then, so it's a no-op)
+  if(fresh.length){
+    if(ring9()) boardTightenChips()
+    fresh.forEach(b => {
+      b.w = b.el.offsetWidth || 40
+      b.h = b.el.offsetHeight || 24
+      b.cr = Math.max(b.w, b.h) / 2 + 3
+    })
+  }
+
+  // ── sync pass 2: per-zone derived geometry, shelf targets, spawns ───────
+  zoneChips.forEach(({ zrec, recs }) => {
+    const movers = recs.filter(b => !b.inner)
+    const ghostsIn = recs.filter(b => b.inner)
+    // reserved rim band ("clear the cashier's counter"): ghost-only, held
+    // open even before any ghost exists so the two rings read as distinct
+    zrec.band = zrec.isBasket ? 0 :
+      (ghostsIn.length ? Math.max(...ghostsIn.map(b => b.h))
+                       : Math.max(40, ...movers.map(b => b.h), 40)) + 12
+    // anchor: the blob's home, centred in the radial band (BOARD-ORGANIC4 —
+    // wedge-angle-independent, unlike the old tan-based spread)
+    const area = movers.reduce((t, b) => t + b.w * b.h, 0)
+    const blobR = Math.max(1, Math.sqrt(area / (Math.PI * 0.6)))
+    const inW = zrec.isBasket ? zrec.rMin : zrec.rMin + zrec.band
+    const outW = zrec.isBasket ? zrec.rMax - 34 : zrec.rMax
+    const lo = inW + blobR, hi = outW - blobR
+    zrec.ax = lo <= hi ? Math.min(Math.max((inW + outW) / 2, lo), hi) : lo
+
+    // shelves: deterministic targets, recomputed every apply (pure math, no
+    // DOM), sprung to in the tick — an honest animated re-flow
+    if(boardLayoutMode === "shelves"){
+      const pos = boardShelfZone(
+        recs.map(b => ({ w: b.w, h: b.h })), recs.map(b => b.ident),
+        zrec, recs.map(b => b.inner), zrec.isBasket)
+      recs.forEach((b, i) => { if(!b.inner){ b.tx = pos[i].x; b.ty = pos[i].y } })
+    } else recs.forEach(b => { b.tx = b.ty = null })
+
+    // spawn: initial local position for brand-new bodies. Existing bodies
+    // are never touched here — placed chips stay put by construction.
+    recs.forEach(b => {
+      if(b.x != null) return
+      if(b.inner){
+        // ghost spawns at the rim beside its own store pile ("out for sale —
+        // near the counter"); the paint alignment settles it onto the line
+        const sib = _boardSimBodies.get(b.ident.replace(/\|g#(\d+)$/, "|s#$1")) ||
+                    _boardSimBodies.get(b.zoneKey + "|" + (b.el.dataset.assetId || "") + "|s#1")
+        b.x = zrec.rMin + b.h / 2
+        b.y = sib && sib.y != null ? sib.y : 0
+        return
+      }
+      // withdraw-return: the chip stood at the rim as a ghost last apply —
+      // spawn there and let the sim carry it home (replaces the old
+      // glide-from special case)
+      const gPrev = _boardChipPrevPos.get(b.ident.replace(/\|s#(\d+)$/, "|g#$1"))
+      if(gPrev && gPrev.lx != null){ b.x = gPrev.lx; b.y = gPrev.ly; return }
+      // shelves: straight to the shelf target (no origin story to animate)
+      if(b.tx != null){ b.x = b.tx; b.y = b.ty; return }
+      // organic: hash-jittered spot in the anchor disk — the collision pass
+      // makes room for it visibly
+      const j1 = boardHash01(b.ident), j2 = boardHash01(b.ident + "~")
+      const t = j1 * Math.PI * 2, rr = Math.sqrt(j2) * blobR
+      b.x = zrec.ax + Math.cos(t) * rr
+      b.y = Math.sin(t) * rr
+    })
   })
 
-  // ── BOARD-CHIPLINE1 (user 2026-07-14): colinear chip geometry — each ghost
-  // moves to where the straight line from its STORE PILE to its BASKET chip
-  // crosses the rim band, so pile → ghost → basket read as one line (and the
-  // offer animation launches along it instead of from a solver-chosen spot).
-  // Ghosts without both endpoints (NFTs — no pile remainder — or a basket
-  // hidden by filters) keep their solver rim-hug position. Skipped during the
-  // party tween (chips are frozen + wedge-clipped there); fine during
-  // rotate/scroll since both endpoints move together each frame.
-  const bandFor = h => oval ? { A: oval.rx + 8 + h / 2, B: oval.ry + 8 + h / 2 } : null
-  const pairSeen = new Map()   // duplicate pairs (net off): fan along the line's normal
-  if(oval && !_boardPartyAnim) ghostRecs.forEach(g => {
-    if(!(g.pairFrom && g.pairAsset && g.pairTo)) return
-    const P = piles.get(g.pairFrom + "|" + g.pairAsset)
-    const B = baskets.get(g.pairFrom + "|" + g.pairAsset + "|" + g.pairTo)
-    if(!P || !B) return
-    const band = bandFor(g.h)
-    // intersect P + t(B−P) with the band ellipse: P sits outside it (store
-    // zone starts at oval+8), B inside (basket zone ends at oval−6), so
-    // exactly one root lands in (0,1)
-    const u = (P.x - cx) / band.A, v = (P.y - cy) / band.B
-    const du = (B.x - P.x) / band.A, dv = (B.y - P.y) / band.B
-    const a = du * du + dv * dv
-    const b = 2 * (u * du + v * dv)
-    const c = u * u + v * v - 1
-    const disc = b * b - 4 * a * c
-    if(disc <= 0 || !a) return
-    const sq = Math.sqrt(disc)
-    const t = [(-b - sq) / (2 * a), (-b + sq) / (2 * a)].find(t => t > 0 && t < 1)
-    if(t == null) return
-    let gx = P.x + t * (B.x - P.x), gy = P.y + t * (B.y - P.y)
-    // net-off duplicates of the same pair: nudge along the line's normal
-    const pk = g.pairFrom + "|" + g.pairAsset + "|" + g.pairTo
-    const n = pairSeen.get(pk) || 0
-    pairSeen.set(pk, n + 1)
-    if(n){
-      const len = Math.hypot(B.x - P.x, B.y - P.y) || 1
-      gx += (-(B.y - P.y) / len) * n * (g.h + 4)
-      gy += ((B.x - P.x) / len) * n * (g.h + 4)
-    }
-    const left = gx - g.w / 2, top = gy - g.h / 2
-    g.el.style.left = left + "px"
-    g.el.style.top = top + "px"
-    // keep the seed/glide memory pointing at the ALIGNED spot (local coords
-    // via the zone frame's inverse rotation) or the next solve tugs it back
-    const dxs = gx - cx, dys = gy - cy
-    nextPos.set(g.k, { left, top, lx: dxs * g.cos + dys * g.sin, ly: -dxs * g.sin + dys * g.cos })
-    g.aligned = true
-  })
-  // ghosts glide to wherever they ended up (aligned or solver spot).
-  // Spawn glide (user 2026-07-14, "like an asset going out for sale — near
-  // the counter"): a BRAND-NEW fungible ghost has no prev of its own, so it
-  // animates out of its store pile. NFT spawns are NOT handled here any
-  // more — boardFlyNftOffer (a clone flight, immune to the re-renders that
-  // kill an element transform mid-glide) owns the whole store→ghost→basket
-  // choreography for them.
-  if(!skipGlide) ghostRecs.forEach(g => {
-    const cur = nextPos.get(g.k)
-    if(!cur) return
-    let from = g.prev
-    if(!from){
-      const pile = g.pairFrom && g.pairAsset ? piles.get(g.pairFrom + "|" + g.pairAsset) : null
-      if(pile) from = { left: pile.x - g.w / 2, top: pile.y - g.h / 2 }
-    }
-    boardGlideChip(g.el, from, cur.left, cur.top)
-  })
+  // ── excite + paint ───────────────────────────────────────────────────────
+  if(changed){
+    _boardSimCalm = 0
+    _boardSimQuiet = 0
+    if(fresh.length) boardSimTick(3)   // pre-settle: new chips paint near-home this frame
+    if(!_boardSimRaf) _boardSimRaf = requestAnimationFrame(boardSimFrame)
+  }
+  boardSimPaint()
 
-  // paint-level movement summary (scatter forensics, 2026-07-15): compares
-  // FINAL painted left/top per identity against the previous apply — catches
-  // movement from ANY source (solver, sizes, alignment, keep-out), not just
-  // solver drift. Silent when nothing moved >2px, so quiet in steady state.
+  // apply-time position bookkeeping — flight animations read these (NFT
+  // offer origin via PrevPosOld; withdraw-return spawn via PrevPos)
+  const next = new Map()
+  _boardSimBodies.forEach((b, k) => {
+    if(b.pl != null) next.set(k, { left: b.pl, top: b.pt, lx: b.x, ly: b.y })
+  })
+  // paint-level movement summary (scatter forensics, kept): catches
+  // apply-to-apply movement from ANY source; silent in steady state
   {
-    let moved = 0, maxPx = 0, sumDx = 0
-    nextPos.forEach((p, k) => {
+    let moved = 0, maxPx = 0
+    next.forEach((p, k) => {
       const prev = _boardChipPrevPos.get(k)
       if(!prev) return
-      const d = Math.hypot(p.left - prev.left, p.top - prev.top)
-      if(d > 2){ moved++; maxPx = Math.max(maxPx, d); sumDx += p.left - prev.left }
+      const dd = Math.hypot(p.left - prev.left, p.top - prev.top)
+      if(dd > 2){ moved++; maxPx = Math.max(maxPx, dd) }
     })
     if(moved) boardDiag("board:paint:moves", {
-      moved, maxPx: Math.round(maxPx), avgDx: Math.round(sumDx / moved),
-      layout: boardLayoutMode, total: nextPos.size
+      moved, maxPx: Math.round(maxPx), layout: boardLayoutMode, total: next.size
     })
   }
-  _boardChipPrevPosOld = _boardChipPrevPos   // keep one frame of history — vanished chips' last stand
-  _boardChipPrevPos = nextPos                // stale identities pruned every apply
+  _boardChipPrevPosOld = _boardChipPrevPos
+  _boardChipPrevPos = next
 }
 
 /* ── rotate animation for "You at bottom" (user 2026-07-12) ──────────────────
    The toggle used to hard-jump between orientations. Now the start angle
    tweens (shortest path, ease-in-out, ~550ms) from the orientation on screen
-   to the new one, re-rendering per frame — cheap because the organic solve is
-   rotation-independent (cache hit per frame) and N stays small. Any render
-   triggered mid-tween (WS push etc.) just paints at the current offset. */
+   to the new one, re-rendering per frame — cheap because chip bodies live in
+   the rotation-independent zone-local frame (BOARD-PHYSICS1: paint just
+   re-projects under the new mid-angle, no physics disturbed) and N stays
+   small. Any render triggered mid-tween (WS push etc.) just paints at the
+   current offset. */
 let _boardStartRendered = null      // effective start angle last painted
 let _boardRotateOffset = 0          // animated delta, 0 when settled
 let _boardRotateCancel = null
