@@ -498,8 +498,20 @@ function boardSetBanner(html){
 function boardUpdateBanner(){
   if(boardSigning){
     const txid = boardSigning.tx?.txid || ""
-    boardSetBanner("✍ Signing mode — waiting for signatures" +
-      (txid ? ` · <span class="board-banner-tx">${txid}</span>` : ""))
+    const txSpan = txid ? ` · <span class="board-banner-tx">${txid}</span>` : ""
+    // KATOMIA-VALIDDUR1 (user 2026-07-15): txDelaySeconds delays a struck
+    // tx's own validStart into the future — it sits in pending, but a
+    // consensus node won't accept it yet. Distinct stage from "waiting for
+    // signatures" (signing can still happen early; SUBMISSION is what's
+    // gated). Re-renders naturally flip this to the signing-mode banner
+    // once Date.now() crosses validStartMs — no separate timer needed, this
+    // runs every render alongside everything else.
+    if(boardSigning.validStartMs && Date.now() < boardSigning.validStartMs){
+      boardSetBanner("⏳ Not yet submittable — opens in " +
+        Math.ceil((boardSigning.validStartMs - Date.now()) / 1000) + "s" + txSpan)
+      return
+    }
+    boardSetBanner("✍ Signing mode — waiting for signatures" + txSpan)
     return
   }
   if(typeof selectedAssetId !== "undefined" && selectedAssetId){
@@ -2500,6 +2512,11 @@ function boardDetectSigning(){
     // fine — represent it netted). Not building this pass, just marking where
     // it hooks in.
     status: st === "SUCCESS" || st === "SIGNED" ? "signed" : /FAIL|ERROR|EXPIRE|INVALID/.test(st) ? "failed" : "pending",
+    // KATOMIA-VALIDDUR1 (user 2026-07-15): txDelaySeconds means the tx can
+    // sit in pending BEFORE its own validStart is even reached — a distinct
+    // "not submittable yet" stage the banner should separate from "waiting
+    // for signatures" (which only makes sense once submission is possible).
+    validStartMs: vs || null,
     // KATOMIA-VALIDDUR1: prefer the REAL per-tx duration once boardRefreshSignStatus's
     // poll has decoded it (matches this tx's id — a stale value from a previous
     // tx must not leak in); BOARD_TX_EXPIRY_MS is only the pre-poll/undecodable
@@ -2626,6 +2643,11 @@ function boardStartCountdown(el){
     const left = Math.max(0, boardSigning.expiry - Date.now())
     const m = Math.floor(left / 60000), sec = Math.floor((left % 60000) / 1000)
     el.textContent = left ? `${m}:${String(sec).padStart(2, "0")}` : "expired"
+    // KATOMIA-VALIDDUR1: the pre-submit banner shows a live "opens in Ns" —
+    // render() only calls boardUpdateBanner on state changes, which can be
+    // sparse during a quiet wait, so this timer (already ticking every
+    // second for the hub countdown) keeps it fresh too.
+    boardUpdateBanner()
   }
   tick()
   _boardCountdownTimer = setInterval(tick, 1000)
