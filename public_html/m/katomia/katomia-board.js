@@ -1846,8 +1846,18 @@ function boardOrganicApply(cx, cy, W, H, oval){
   // solve seeding (chips keep their spots) and the FLIP glide below.
   const occ = {}
   const prepped = zones.filter(z => z.chips.length).map(z => {
+    // VOLATILE STATE CLASSES stripped from the cache key (user bug
+    // 2026-07-15: toggling Pickable scattered every chip "all over the
+    // place" — board-pickchip joining the className changed every chip's
+    // key, forcing a full re-solve for a purely cosmetic overlay). The key
+    // exists to invalidate on things that change SIZE or membership; these
+    // classes change neither (the pick flag is absolutely overlaid, lockdim
+    // is a filter, selected is an outline). With them stripped, a Pickable/
+    // lock/selection toggle is a cache HIT — chips provably cannot move.
     const chipKeys = z.chips.map(el =>
-      (el.dataset.assetId || "") + "|" + el.className + "|" + (el.textContent || "").slice(0, 24))
+      (el.dataset.assetId || "") + "|" +
+      el.className.replace(/\b(board-pickchip|board-lockdim|selected)\b/g, "").replace(/\s+/g, " ") +
+      "|" + (el.textContent || "").slice(0, 24))
     const idents = z.chips.map(el => {
       const ident = z.key + "|" + (el.dataset.assetId || "") + "|" + (el.classList.contains("board-ghost") ? "g" : "s")
       return ident + "#" + (occ[ident] = (occ[ident] || 0) + 1)
@@ -1889,6 +1899,22 @@ function boardOrganicApply(cx, cy, W, H, oval){
       if(!p.entry){
         p.entry = { pos: solve(p.z), sizes }
         cacheSet(p.startKey, p.entry)
+        // solve diagnostics (2026-07-15, chasing the pickable scatter): one
+        // kdiag line per FRESH solve — seed hit/miss counts + how far chips
+        // actually moved from their previous spots. A healthy re-solve of
+        // surviving chips reads seedsHit=n maxDriftPx≈0; a scatter shows up
+        // as seedsMiss>0 or a big drift, pointing at identity churn. Fresh
+        // solves only happen on real content change, so this stays quiet.
+        let maxDrift = 0
+        p.entry.pos.forEach((pos, i) => {
+          const pp = _boardChipPrevPos.get(p.idents[i])
+          if(pp?.lx != null) maxDrift = Math.max(maxDrift, Math.hypot(pos.x - pp.lx, pos.y - pp.ly))
+        })
+        boardDiag("board:organic:solve", {
+          zone: p.z.key, layout: boardLayoutMode, chips: p.z.chips.length,
+          seedsHit: seeds.filter(Boolean).length, seedsMiss: seeds.filter(s => !s).length,
+          maxDriftPx: Math.round(maxDrift)
+        })
       }
       if(p.endKey && !p.endEntry){
         // same chips, same sizes — only the zone geometry differs
@@ -3664,14 +3690,23 @@ function ringFelt(segs, g){
   svg.setAttribute("viewBox", `0 0 ${g.W} ${g.H}`)
 
   // ring8 splits the felt in two: this base svg (z below the chip boxes) and
-  // a TOP svg (z above them) carrying the locked-store dim + etched labels —
-  // so the dim shades the chips but never the account id / 🔒 / xproof label
+  // a TOP svg (z above them) carrying the locked-store dim — the dim shades
+  // the chips. Labels used to ride the top svg too, but the user reversed
+  // that (2026-07-15, w/ screenshot): the account ids are writing ON the
+  // board, so a chip that strays over one must COVER it — a label painting
+  // over a chip reads as the number floating above the table. They now get
+  // their own LABELS svg at z4, under the chips' z5 (.ring-organic).
   const top = ring8() ? document.createElementNS(NS, "svg") : null
   if(top){
     top.setAttribute("class", "ring-felt ring-felt--top")
     top.setAttribute("viewBox", `0 0 ${g.W} ${g.H}`)
   }
-  const labelLayer = top || svg
+  const labels = ring8() ? document.createElementNS(NS, "svg") : null
+  if(labels){
+    labels.setAttribute("class", "ring-felt ring-felt--labels")
+    labels.setAttribute("viewBox", `0 0 ${g.W} ${g.H}`)
+  }
+  const labelLayer = labels || top || svg
   const dimLayer = top || svg
 
   // wheel-glide clip (BOARD-WHEEL2 v2): mid-glide, the others-group segs'
@@ -3679,7 +3714,7 @@ function ringFelt(segs, g){
   // inside an SVG clipPath cut to the fixed sector between the dividers —
   // the same window the DOM-side wedge/chip containers use, so the whole
   // segment crosses the threshold as one piece.
-  let baseClipG = null, topClipG = null
+  let baseClipG = null, topClipG = null, labelClipG = null
   if(g.wheelClip){
     const sectorD = (host, id) => {
       const R = Math.max(g.W, g.H) * 1.6
@@ -3702,6 +3737,7 @@ function ringFelt(segs, g){
     }
     baseClipG = sectorD(svg, "kwheelclip-base")
     topClipG = top ? sectorD(top, "kwheelclip-top") : baseClipG
+    labelClipG = labels ? sectorD(labels, "kwheelclip-labels") : baseClipG
   }
   // party-tween fade (user 2026-07-12: the collapsing segment's account id
   // "flickers away right at the end" — everything that's going to disappear
@@ -3717,6 +3753,7 @@ function ringFelt(segs, g){
   }
   const segBase = seg => fadeWrap((seg?.wclip && baseClipG) ? baseClipG : svg, seg)
   const segTop = seg => fadeWrap((seg?.wclip && topClipG) ? topClipG : (top || svg), seg)
+  const segLabels = seg => fadeWrap((seg?.wclip && labelClipG) ? labelClipG : (labels || svg), seg)
   const _deferredSignArcs = []   // signing arcs render after the focus shade (lights over darkness)
 
   const mkLine = (a, r0, r1, cls, layer = svg) => {
@@ -3874,11 +3911,12 @@ function ringFelt(segs, g){
     svg.appendChild(oval)
   }
 
-  if(g.etched) segs.forEach(seg => segTop(seg).appendChild(ringEtchLabel(seg, g, NS)))
+  if(g.etched) segs.forEach(seg => segLabels(seg).appendChild(ringEtchLabel(seg, g, NS)))
   // BOARD-IDCOIN1: additive "coin lettering" comparison — same id, curved
   // along the hub rim instead of the segment boundary. Not a replacement;
   // kept side by side with the etched label above per the user's ask.
-  if(g.etched) segs.forEach(seg => segTop(seg).appendChild(ringHubCoinLabel(seg, g, NS)))
+  // Both label kinds route via segLabels → the z4 labels svg (under chips).
+  if(g.etched) segs.forEach(seg => segLabels(seg).appendChild(ringHubCoinLabel(seg, g, NS)))
 
   if(ring11()){
     // v11 (review 10): party + identity cues moved to the HUB's doorstep —
@@ -4001,10 +4039,11 @@ function ringFelt(segs, g){
   })
   _deferredSignArcs.length = 0
 
-  if(top){
+  if(top || labels){
     const both = document.createDocumentFragment()
     both.appendChild(svg)
-    both.appendChild(top)
+    if(labels) both.appendChild(labels)
+    if(top) both.appendChild(top)
     return both
   }
   return svg

@@ -458,6 +458,12 @@ body.board-page .app-banner{
 /* felt split: top layer (locked-store dim + etched labels) sits ABOVE the
    chip boxes (z5) so the dim shades chips; labels append after the dim */
 .ring-felt--top{ z-index: 6; }
+/* labels layer (user 2026-07-15, w/ screenshot): account ids are written ON
+   the board — a chip straying over one must COVER it, or the number reads
+   as floating above the table. z4 < the chips' z5; the lock dim stays in
+   --top (z6) so it still shades chips. */
+.ring-felt--labels{ z-index: 4; }
+.ring-organic{ z-index: 5; }   /* explicit — the labels/chips ordering above depends on it */
 
 /* chip faces WHITE — grey faces vanished against the shading washes; OG
    square-cornered sleeve + lift shadow carried over from v5-7 */
