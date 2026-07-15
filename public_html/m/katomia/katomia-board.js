@@ -1980,13 +1980,26 @@ function boardOrganicApply(cx, cy, W, H, oval){
         fresh.push(b)
         changed = true
       }
-      b.el = el
+      if(b.el !== el){
+        // REBIND: renders REPLACE the DOM, so this is a brand-new element
+        // with empty styles — void the painted-position memory or the paint
+        // dirty-check (pl/pt unchanged since the sim settled) would skip the
+        // style write and leave the new element unpositioned at the DOM
+        // default, top-left. (Round-1 live bug: every settled chip vanished
+        // to the corner on any re-render — "ghost NFTs missing", "spotlight
+        // wipes everything to top left" — because ghosts/settled chips are
+        // exactly the ones that never move.)
+        b.el = el
+        b.pl = b.pt = null
+      }
       const txt = (el.textContent || "").slice(0, 24)
       if(b.txt !== txt && !tween){
-        // text changed → size may have — re-measure. Center-based positions
-        // mean even a width change can't shift the chip's center.
+        // text changed → size may have — re-measure (and excite: the new
+        // size must feed back into the physics). Center-based positions mean
+        // even a width change can't shift the chip's center.
         b.txt = txt
         if(fresh.indexOf(b) < 0) fresh.push(b)
+        changed = true
       }
       return b
     })
