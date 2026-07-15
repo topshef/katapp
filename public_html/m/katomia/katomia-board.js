@@ -511,6 +511,12 @@ function boardUpdateBanner(){
         Math.ceil((boardSigning.validStartMs - Date.now()) / 1000) + "s" + txSpan)
       return
     }
+    // grace limbo (user 2026-07-15): countdown done but the backend hasn't
+    // ruled yet — mirror its own 'Expired?' label rather than sitting mute.
+    if(boardSigning.expiry && Date.now() > boardSigning.expiry){
+      boardSetBanner("⌛ Expired? — confirming with the network" + txSpan)
+      return
+    }
     boardSetBanner("✍ Signing mode — waiting for signatures" + txSpan)
     return
   }
@@ -870,12 +876,16 @@ function renderRingBoard(root){
     const nowTxid = boardSigning?.tx?.txid || null
     if(_boardLastSigningTxid && _boardLastSigningTxid !== nowTxid && !boardSuccessAcked.has(_boardLastSigningTxid)){
       const vanished = _boardLastSigningTxid
+      // 500ms (was 2000, user 2026-07-15: the wiper lagged the shade lift —
+      // fire "pretty much immediately"): still enough for a same-moment
+      // success receipt push to win the race, and the shade's synced fade
+      // (ring-focusshade--wipe, below) covers the remaining offset.
       setTimeout(() => {
         if(!boardSuccessAcked.has(vanished)){
           boardDiag("board:result:vanished-from-pending", { txid: vanished })
           boardShowResult(vanished, false)
         }
-      }, 2000)
+      }, 500)
     }
     _boardLastSigningTxid = nowTxid
   }
@@ -2681,7 +2691,15 @@ function boardStartCountdown(el){
     if(!boardSigning || !document.body.contains(el)){ clearInterval(_boardCountdownTimer); return }
     const left = Math.max(0, boardSigning.expiry - Date.now())
     const m = Math.floor(left / 60000), sec = Math.floor((left % 60000) / 1000)
-    el.textContent = left ? `${m}:${String(sec).padStart(2, "0")}` : "expired"
+    // "Expired?" with the question mark — the BACKEND's own label for this
+    // exact state (kpoolHelpers getTxValidityStatus: display 'Expired?'
+    // while the verdict is still uncertain, plain 'Expired' only later).
+    // User 2026-07-15: the grace limbo needs marking, not a bare "expired"
+    // you sit under "dumbly wondering" — this is the egg-timer's last few
+    // grains (SIGN-COUNTDOWN1's hourglass framing: sand visually buffers
+    // the clock drift we can't be precise about). The definite verdict is
+    // the wiper + 🟥 toast when the backend's resolve broadcast lands.
+    el.textContent = left ? `${m}:${String(sec).padStart(2, "0")}` : "⌛ expired?"
     // KATOMIA-VALIDDUR1: the pre-submit banner shows a live "opens in Ns" —
     // render() only calls boardUpdateBanner on state changes, which can be
     // sparse during a quiet wait, so this timer (already ticking every
@@ -3043,9 +3061,15 @@ function ringFooter(mine){
       if(boardFocusMode){ playTransfers(); render() }
       else {
         // graceful lift: fade the shade out before repainting (review 17 —
-        // the instant switch was jarring)
+        // the instant switch was jarring). __boardShadeOn cleared here so the
+        // render's else-if (--wipe fade, for the RESOLVE path) doesn't fade a
+        // second shade on top of this one.
         const shade = document.querySelector(".ring-focusshade")
-        if(shade){ shade.classList.add("ring-focusshade--out"); setTimeout(render, 560) }
+        if(shade){
+          shade.classList.add("ring-focusshade--out")
+          window.__boardShadeOn = false
+          setTimeout(render, 560)
+        }
         else render()
       }
     }
@@ -3931,6 +3955,23 @@ function ringFelt(segs, g){
     shade.setAttribute("fill-rule", "evenodd")
     shade.setAttribute("class", "ring-focusshade" + (window.__boardShadeOn ? "" : " ring-focusshade--in"))
     ;(top || svg).appendChild(shade)
+  } else if(window.__boardShadeOn){
+    // shade was on last paint and turned off THIS render (signing resolved /
+    // tx vanished): draw it one last time with the slow --wipe fade so it
+    // dissolves in step with the wiper sweep instead of vanishing a beat
+    // before it (user 2026-07-15). The ▶ toggle-off path does its own
+    // 0.5s fade pre-render and clears __boardShadeOn to skip this.
+    const thumbH2 = Math.min(52, Math.max(26, 0.034 * Math.min(g.W, g.H) + 13))
+    const m2 = thumbH2 * 1.2, hrx2 = g.rx + m2, hry2 = g.ry + m2, B2 = 48
+    const fade = document.createElementNS(NS, "path")
+    fade.setAttribute("d",
+      `M ${-B2} ${-B2} H ${g.W + B2} V ${g.H + B2} H ${-B2} Z ` +
+      `M ${g.cx - hrx2} ${g.cy} ` +
+      `a ${hrx2} ${hry2} 0 1 0 ${hrx2 * 2} 0 ` +
+      `a ${hrx2} ${hry2} 0 1 0 ${-hrx2 * 2} 0 Z`)
+    fade.setAttribute("fill-rule", "evenodd")
+    fade.setAttribute("class", "ring-focusshade ring-focusshade--wipe")
+    ;(top || svg).appendChild(fade)
   }
   window.__boardShadeOn = shadeOn
 
