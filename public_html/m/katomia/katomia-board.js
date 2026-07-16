@@ -1687,16 +1687,35 @@ function boardSimTick(iters){
           b.y -= b.y * 0.03 * speed * damp
         }
       })
+      // SOLID CHIPS (user 2026-07-16: chips were "stacking on top of each
+      // other quite heavily — consider them solid objects"): rectangle
+      // overlap resolved along the smaller-overlap axis, board-game style.
+      // The old circle colliders over-forgave rectangles: a wide text chip's
+      // bounding circle × the 0.88 snuggle let another chip sink ~26px into
+      // it along the short axis. Chips are SCREEN-axis-aligned rectangles
+      // and the local frame is rotated, so the AABB test projects the pair
+      // delta to screen, pushes there, and rotates the push back (pure
+      // rotation — lengths survive). 60% of the separation per iteration
+      // keeps the motion smooth; the iterations finish the job, so settled
+      // chips end fully apart (4px seam). cr circles stay as the broadphase.
       if(!shelves) for(let a = 0; a < movers.length; a++) for(let c = a + 1; c < movers.length; c++){
         const A = movers[a], B = movers[c]
         const dx = B.x - A.x, dy = B.y - A.y
-        const d = Math.hypot(dx, dy) || 0.001
-        const min = (A.cr + B.cr) * 0.88          // circle-ish colliders, slight tolerated snuggle
-        if(d < min){
-          const push = (min - d) / d / 2 * speed
-          A.x -= dx * push; A.y -= dy * push
-          B.x += dx * push; B.y += dy * push
-        }
+        if(Math.hypot(dx, dy) > A.cr + B.cr) continue      // broadphase: rects can't touch
+        const dxs = dx * z.cos - dy * z.sin                // pair delta, screen frame
+        const dys = dx * z.sin + dy * z.cos
+        const ox = (A.w + B.w) / 2 + 4 - Math.abs(dxs)
+        const oy = (A.h + B.h) / 2 + 4 - Math.abs(dys)
+        if(ox <= 0 || oy <= 0) continue
+        let px = 0, py = 0                                 // screen-frame push on B
+        if(dxs === 0 && dys === 0){ px = a % 2 ? 4 : -4; py = 4 }   // dead-centre stack: deterministic nudge
+        else if(ox < oy) px = (dxs >= 0 ? 1 : -1) * ox
+        else py = (dys >= 0 ? 1 : -1) * oy
+        const f = 0.3 * speed                              // half each side × 0.6 step
+        const plx = (px * z.cos + py * z.sin) * f
+        const ply = (-px * z.sin + py * z.cos) * f
+        A.x -= plx; A.y -= ply
+        B.x += plx; B.y += ply
       }
       movers.forEach(b => {
         // inner wall hard (past the ghost-only rim band), outer wall soft
