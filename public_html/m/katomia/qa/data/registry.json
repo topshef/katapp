@@ -2,20 +2,74 @@
   "_about": "QA registry — the index the qa/ pages hydrate from. Change control happens HERE (and in the sibling JSON files), in git; the HTML pages are static viewers. Task: QA-UXGRID1.",
   "updated": "2026-07-16",
   "docs": [
-    { "id": "guide", "title": "The plain-language guide (start here)", "href": "guide.html", "audience": "anyone — customers, new joiners, no tech background needed" },
-    { "id": "strategy", "title": "UX testing strategy (the detailed version)", "href": "strategy.html", "audience": "working reference — dimensions→instances model, pairwise, benchmarks, harness choices" },
-    { "id": "dimensions", "title": "Board test dimensions & case seeds (registry)", "href": "dimensions.html", "audience": "working checklist — the 16 axes + core-flow case seeds (QA-TESTDIM1)" },
-    { "id": "qa-overview", "title": "QA at Katomia — company-wide overview", "href": "../kontext/index.php?doc=QA-OVERVIEW", "audience": "everyone; maintained from the QA seat", "note": "lives in the workspace (tasks/QA-OVERVIEW.md); link may need wiring" }
+    {
+      "id": "guide",
+      "title": "The plain-language guide (start here)",
+      "href": "guide.html",
+      "audience": "anyone — customers, new joiners, no tech background needed"
+    },
+    {
+      "id": "strategy",
+      "title": "UX testing strategy (the detailed version)",
+      "href": "strategy.html",
+      "audience": "working reference — dimensions→instances model, pairwise, benchmarks, harness choices"
+    },
+    {
+      "id": "dimensions",
+      "title": "Board test dimensions & case seeds (registry)",
+      "href": "dimensions.html",
+      "audience": "working checklist — the 16 axes + core-flow case seeds (QA-TESTDIM1)"
+    },
+    {
+      "id": "qa-overview",
+      "title": "QA at Katomia — company-wide overview",
+      "href": "../kontext/index.php?doc=QA-OVERVIEW",
+      "audience": "everyone; maintained from the QA seat",
+      "note": "lives in the workspace (tasks/QA-OVERVIEW.md); link may need wiring"
+    }
   ],
   "data": [
-    { "id": "dimensions", "file": "data/dimensions.json", "what": "the 16 test dimensions (axes) in structured form" },
-    { "id": "canaries", "file": "data/canaries.json", "what": "regression catalogue: failure categories from real incidents, each with its guard assertion and status" },
-    { "id": "chipdrop", "file": "data/classes/chipdrop.json", "what": "first test class: chip-drop end-to-end, with derived instances" }
+    {
+      "id": "dimensions",
+      "file": "data/dimensions.json",
+      "what": "the 16 test dimensions (axes) in structured form"
+    },
+    {
+      "id": "canaries",
+      "file": "data/canaries.json",
+      "what": "regression catalogue: failure categories from real incidents, each with its guard assertion and status"
+    },
+    {
+      "id": "chipdrop",
+      "file": "data/classes/chipdrop.json",
+      "what": "first test class: chip-drop end-to-end, with derived instances"
+    },
+    {
+      "id": "smoke",
+      "file": "data/classes/smoke.json",
+      "what": "SMOKE class: two hand-runnable scenes for exercising the record→dashboard loop"
+    }
   ],
-  "classes": ["chipdrop"],
+  "classes": [
+    "smoke",
+    "chipdrop"
+  ],
   "decisions": [
-    { "date": "2026-07-16", "what": "Harness options: A (static pairwise suite) + C (vision-assert benchmarks) adopted; B (agent-generated nightly instances) deferred until A is green and boring. Reporting: kflow test:start/test:verdict onto the shared retest grid.", "by": "user" },
-    { "date": "2026-07-16", "what": "qa/ folder is the QA home inside the app: JSON = source of truth under git change-control, HTML pages = static viewers hydrating from it. Bug fix + its test case should land in the same commit wherever possible.", "by": "user" }
+    {
+      "date": "2026-07-16",
+      "what": "Harness options: A (static pairwise suite) + C (vision-assert benchmarks) adopted; B (agent-generated nightly instances) deferred until A is green and boring. Reporting: kflow test:start/test:verdict onto the shared retest grid.",
+      "by": "user"
+    },
+    {
+      "date": "2026-07-16",
+      "what": "qa/ folder is the QA home inside the app: JSON = source of truth under git change-control, HTML pages = static viewers hydrating from it. Bug fix + its test case should land in the same commit wherever possible.",
+      "by": "user"
+    },
+    {
+      "date": "2026-07-16",
+      "what": "QA home reorganised into three layers: Documentation (static-ish) / Configuration (slow-moving JSON, git change-controlled) / Results (live retest grid + manual-run recorder). Manual runs are recorded as kflow test:start/test:verdict checkpoints — the SAME convention katrun uses — via the existing /kflow endpoint, so all testing speaks one language and the backend kflow-admin sees frontend runs too (KFLOW_FE_DIRS).",
+      "by": "user+agent"
+    }
   ],
   "tasks": {
     "QA-UXGRID1": "the strategy + this folder's execution",

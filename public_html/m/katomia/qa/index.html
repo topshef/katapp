@@ -3,104 +3,94 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Katomia QA — home</title>
+<title>Katomia QA</title>
 <style>
-  body{ font-family: system-ui, sans-serif; margin: 0 auto; max-width: 1020px; padding: 24px 16px 80px; color: #222; line-height: 1.5; }
-  h1{ font-size: 23px; } h2{ font-size: 18px; margin-top: 32px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  body{ font-family: system-ui, sans-serif; margin: 0 auto; max-width: 900px; padding: 24px 16px 80px; color: #222; line-height: 1.5; }
+  h1{ font-size: 24px; }
   .note{ color: #777; font-size: 12px; }
-  table{ border-collapse: collapse; width: 100%; font-size: 13px; margin: 10px 0; }
-  th, td{ border: 1px solid #ddd; padding: 5px 8px; text-align: left; vertical-align: top; }
-  th{ background: #f5f2ea; }
-  code{ background: #f3f3f3; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
   a{ color: #2a5a78; }
-  .pill{ display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-  .pill.live-scratchpad{ background: #fff3d6; color: #8a6100; }
-  .pill.to-build{ background: #fde5e0; color: #a33; }
-  .pill.live-suite{ background: #e2f2e2; color: #2c7a2c; }
-  .pill.manual{ background: #fff3d6; color: #8a6100; }
-  .pill.auto{ background: #e2f2e2; color: #2c7a2c; }
-  .pill.unrun{ background: #eee; color: #666; }
-  .bdy{ color: #c0392b; font-weight: 600; }
-  .cards{ display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0; }
-  .card{ flex: 1 1 210px; border: 1px solid #ddd; border-radius: 10px; padding: 12px 14px; background: #fbfaf6; }
-  .card h3{ margin: 0 0 6px; font-size: 14px; }
-  .card p{ margin: 0; font-size: 12px; color: #666; }
-  .err{ color: #a33; font-size: 13px; }
+  .sections{ display: flex; gap: 14px; flex-wrap: wrap; margin: 20px 0; }
+  .section{ flex: 1 1 260px; border: 1px solid #ddd; border-radius: 12px; padding: 16px 18px; background: #fbfaf6; }
+  .section h2{ margin: 0 0 4px; font-size: 17px; }
+  .section p.blurb{ margin: 4px 0 10px; font-size: 13px; color: #666; }
+  .section ul{ margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+  .section li{ margin: 3px 0; }
+  .stat{ font-size: 12px; color: #555; background: #f1ede2; border-radius: 8px; padding: 6px 10px; margin-top: 10px; }
+  .stat b{ color: #222; }
 </style>
 </head>
 <body>
 
-<h1>Katomia QA — home</h1>
-<p class="note">The QA tool embedded in the app (task <b>QA-UXGRID1</b>). Everything below the Documents section is
-<b>hydrated live from the JSON data files</b> in <code>qa/data/</code> — those files are the source of truth, under git
-change-control; these pages just display them. Edit the JSON (usually via a Claude session), refresh, see it here.</p>
+<h1>Katomia QA</h1>
+<p class="note">The QA tool embedded in the app (task <b>QA-UXGRID1</b>). Three layers: <b>documentation</b> explains the
+process (static-ish), <b>configuration</b> defines what we test (slow-moving, git change-controlled JSON), <b>results</b>
+shows testing happening (live). </p>
 
-<h2>Documents</h2>
-<div class="cards" id="docs"></div>
+<div class="sections">
 
-<h2>Test dimensions <span class="note">(from <code>data/dimensions.json</code> — <span class="bdy">red</span> = boundary values, where bugs cluster)</span></h2>
-<table id="dims"><tr><th>Dimension</th><th>Values</th><th>Notes</th></tr></table>
+  <div class="section">
+    <h2>📖 Documentation</h2>
+    <p class="blurb">How and why we test — the process itself. Evolves slowly, by discussion.</p>
+    <ul id="docs"><li class="note">loading…</li></ul>
+  </div>
 
-<h2>Canary catalogue <span class="note">(from <code>data/canaries.json</code> — every past incident's permanent guard)</span></h2>
-<table id="canaries"><tr><th>Rule</th><th>Born from</th><th>Assertion</th><th>Status</th></tr></table>
+  <div class="section">
+    <h2>⚙️ Configuration</h2>
+    <p class="blurb">What we test: dimensions (the axes), test classes and their derived instances, the canary
+    catalogue, decisions. Designing tests and fixing bugs updates this layer — every change is a git commit.</p>
+    <ul>
+      <li><a href="config.html">Dimensions · canaries · classes · decisions</a></li>
+    </ul>
+    <div class="stat" id="cfgStat">loading…</div>
+  </div>
 
-<h2>Test classes <span class="note">(from <code>data/classes/*.json</code>)</span></h2>
-<div id="classes"></div>
+  <div class="section">
+    <h2>📊 Results</h2>
+    <p class="blurb">Testing happening: the retest grid (commits across, cases down — same idea as the backend's
+    kflow-admin), the manual-run recorder, recent runs.</p>
+    <ul>
+      <li><a href="results.html">Results dashboard + run recorder</a></li>
+      <li><a href="https://alpha.katlab.kpay.live/kflow-admin" target="_blank">Backend kflow-admin (full event stream, access-controlled)</a></li>
+    </ul>
+    <div class="stat" id="resStat">loading…</div>
+  </div>
 
-<h2>Decisions log <span class="note">(from <code>data/registry.json</code>)</span></h2>
-<table id="decisions"><tr><th>Date</th><th>Decision</th></tr></table>
+</div>
+
+<p class="note">Data files live in <code>qa/data/</code> (source of truth, git-tracked). These pages only display them.
+Manual test runs are recorded as <code>test:start</code>/<code>test:verdict</code> kflow checkpoints — the same
+convention the backend's katrun robot uses, so all testing speaks one language.</p>
 
 <script>
-const $ = s => document.querySelector(s)
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
-const pill = (v, cls) => `<span class="pill ${esc(cls ?? v)}">${esc(v)}</span>`
-
-async function j(path){
-  const r = await fetch(path, { cache: "no-store" })
-  if(!r.ok) throw new Error(path + " → " + r.status)
-  return r.json()
-}
-
 ;(async () => {
   try {
-    const reg = await j("data/registry.json")
-
-    $("#docs").innerHTML = reg.docs.map(d =>
-      `<div class="card"><h3><a href="${esc(d.href)}">${esc(d.title)}</a></h3><p>${esc(d.audience)}</p></div>`).join("")
-
-    $("#decisions").insertAdjacentHTML("beforeend", (reg.decisions || []).map(d =>
-      `<tr><td style="white-space:nowrap">${esc(d.date)}</td><td>${esc(d.what)}</td></tr>`).join(""))
-
-    const dims = await j("data/dimensions.json")
-    $("#dims").insertAdjacentHTML("beforeend", dims.dimensions.map(d => {
-      const vals = d.values.map(v => d.boundaries?.includes(v) ? `<span class="bdy">${esc(v)}</span>` : esc(v)).join(" · ")
-      return `<tr><td style="white-space:nowrap"><b>${esc(d.name)}</b></td><td>${vals}</td><td class="note">${esc(d.notes)}</td></tr>`
-    }).join(""))
-
-    const can = await j("data/canaries.json")
-    $("#canaries").insertAdjacentHTML("beforeend", can.canaries.map(c =>
-      `<tr><td><b>${esc(c.category)}</b><br><span class="note">${esc(c.rule)}</span></td>
-       <td class="note">${esc(c.incident)}</td><td class="note">${esc(c.assertion)}</td>
-       <td>${pill(c.status)}${c.priority ? " " + pill(c.priority, "to-build") : ""}</td></tr>`).join(""))
-
-    for(const id of reg.classes){
-      const cl = await j(`data/classes/${id}.json`)
-      const dimIds = Object.keys(cl.dimensions)
-      const rows = cl.instances.map(i =>
-        `<tr><td><code>${esc(i.id)}</code></td>` +
-        dimIds.map(k => `<td>${esc(i.vector[k])}</td>`).join("") +
-        `<td>${pill(i.run)} ${pill(i.status)}</td><td class="note">${esc(i.why_manual || i.note || "")}</td></tr>`).join("")
-      $("#classes").insertAdjacentHTML("beforeend", `
-        <h3>${esc(cl.id)} — ${esc(cl.title)} ${pill(cl.status, "unrun")}</h3>
-        <p class="note">Cartesian ${esc(cl.cartesian_size)} → ${esc(cl.pairwise_target)}. Constraints: ${cl.constraints.map(esc).join("; ")}</p>
-        <details><summary style="cursor:pointer; font-size:13px;">Oracle — what "OK" means for this class</summary>
-          <ul class="note">${cl.oracle.hard_assertions.map(a => `<li>${esc(a)}</li>`).join("")}
-          <li><b>trace:</b> ${esc(cl.oracle.trace_shape)}</li><li><b>benchmark:</b> ${esc(cl.oracle.benchmark)}</li></ul>
-        </details>
-        <table><tr><th>Instance</th>${dimIds.map(k => `<th>${esc(k)}</th>`).join("")}<th>Run</th><th></th></tr>${rows}</table>`)
+    const reg = await (await fetch("data/registry.json", { cache: "no-store" })).json()
+    document.querySelector("#docs").innerHTML = reg.docs.map(d =>
+      `<li><a href="${esc(d.href)}">${esc(d.title)}</a><br><span class="note">${esc(d.audience)}</span></li>`).join("")
+    let dims = 0, canaries = 0, instances = 0, manual = 0
+    try { dims = (await (await fetch("data/dimensions.json", { cache: "no-store" })).json()).dimensions.length } catch {}
+    try { canaries = (await (await fetch("data/canaries.json", { cache: "no-store" })).json()).canaries.length } catch {}
+    for(const id of reg.classes || []){
+      try {
+        const cl = await (await fetch(`data/classes/${id}.json`, { cache: "no-store" })).json()
+        instances += cl.instances.length
+        manual += cl.instances.filter(i => i.run === "manual").length
+      } catch {}
     }
+    document.querySelector("#cfgStat").innerHTML =
+      `<b>${dims}</b> dimensions · <b>${canaries}</b> canaries · <b>${(reg.classes || []).length}</b> classes · <b>${instances}</b> instances (<b>${manual}</b> manual)`
+    try {
+      const res = await (await fetch("results.php?days=30", { cache: "no-store" })).json()
+      const verdicts = res.events.filter(e => e.checkpoint === "test:verdict")
+      const passes = verdicts.filter(e => e.v === "pass").length
+      const last = verdicts[verdicts.length - 1]
+      document.querySelector("#resStat").innerHTML =
+        `<b>${verdicts.length}</b> runs recorded (30d) · <b>${passes}</b> pass · current commit <b>${esc(res.commit)}</b>` +
+        (last ? `<br>last: ${esc(last.detail?.instance || last.v)} → <b>${esc(last.v)}</b> @ ${esc((last.t || "").slice(5, 16).replace("T", " "))}` : "")
+    } catch { document.querySelector("#resStat").textContent = "no runs yet" }
   } catch(e){
-    document.body.insertAdjacentHTML("beforeend", `<p class="err">Failed to load QA data: ${esc(e.message)}</p>`)
+    document.body.insertAdjacentHTML("beforeend", `<p class="note">Failed to load: ${esc(e.message)}</p>`)
   }
 })()
 </script>

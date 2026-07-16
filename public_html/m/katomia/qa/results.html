@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Katomia QA — results</title>
+<style>
+  body{ font-family: system-ui, sans-serif; margin: 0 auto; max-width: 1100px; padding: 24px 16px 80px; color: #222; line-height: 1.5; }
+  h1{ font-size: 22px; } h2{ font-size: 17px; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  .note{ color: #777; font-size: 12px; }
+  a{ color: #2a5a78; }
+  table{ border-collapse: collapse; font-size: 13px; margin: 10px 0; }
+  th, td{ border: 1px solid #ddd; padding: 5px 9px; text-align: left; vertical-align: top; }
+  th{ background: #f5f2ea; }
+  code{ background: #f3f3f3; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+  .cell{ text-align: center; font-weight: 700; }
+  .pass{ background: #e2f2e2; color: #2c7a2c; }
+  .fail{ background: #fde5e0; color: #a33; }
+  .error{ background: #fdeecd; color: #8a6100; }
+  .abandon{ background: #eee; color: #777; }
+  .recorder{ border: 1px solid #cbb; border-radius: 12px; background: #fbf7ef; padding: 14px 18px; margin: 16px 0; }
+  .recorder h2{ margin: 0 0 8px; border: 0; font-size: 16px; }
+  .recorder select, .recorder input[type=text]{ font-size: 13px; padding: 4px 6px; max-width: 100%; }
+  .recorder button{ font-size: 13px; padding: 5px 14px; border-radius: 8px; border: 1px solid #aaa; background: #fff; cursor: pointer; }
+  .recorder button.primary{ background: #2c7a2c; border-color: #2c7a2c; color: #fff; }
+  .recorder button.fail{ background: #a33; border-color: #a33; color: #fff; }
+  .recorder .active{ background: #fff3d6; border-radius: 8px; padding: 8px 12px; margin-top: 8px; font-size: 13px; }
+  .steps{ font-size: 12px; color: #555; background: #f4f1e8; border-radius: 8px; padding: 8px 12px; margin-top: 8px; white-space: pre-wrap; }
+  .filters button{ font-size: 12px; padding: 3px 10px; border-radius: 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; margin-right: 6px; }
+  .filters button.on{ background: #2a5a78; color: #fff; border-color: #2a5a78; }
+  .gridwrap{ overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<h1>Katomia QA — results</h1>
+<p><a href="./">← QA home</a> · <a href="config.html">Configuration</a>
+<span class="note" style="float:right">current frontend commit: <b id="curCommit">…</b> · auto-refreshes</span></p>
+<p class="note">The retest grid, kflow-admin style: <b>commits across the top, test cases down the side</b>. Every cell
+is real recorded evidence — a <code>test:start</code>/<code>test:verdict</code> checkpoint pair in this seat's kflow
+stream (the exact convention the backend's katrun robot uses). Human runs come from the recorder below; automated runs
+will land here through the same door when the runner exists.</p>
+
+<div class="recorder" id="recorder">
+  <h2>🎬 Record a manual run</h2>
+  <div id="recIdle">
+    <label>Test case:
+      <select id="recCase"></select>
+    </label>
+    <button class="primary" id="recStart">▶ Start</button>
+    <div class="steps" id="recSteps"></div>
+    <p class="note">Start stamps <code>test:start</code>, then go do the test on the board (any tab). Come back and
+    give the verdict — the pair shares a run id, so the grid can thread them, and kdiag captures your board activity
+    in between under the same time window.</p>
+  </div>
+  <div id="recActive" style="display:none">
+    <div class="active">Recording <b id="recWhat"></b> — started <span id="recWhen"></span></div>
+    <div style="margin-top:10px">
+      <input type="text" id="recNote" placeholder="notes (what you saw, anything odd)…" size="50">
+    </div>
+    <div style="margin-top:10px; display:flex; gap:8px;">
+      <button class="primary" id="recPass">✓ Pass</button>
+      <button class="fail" id="recFail">✗ Fail</button>
+      <button id="recAbandon">Abandon</button>
+    </div>
+  </div>
+</div>
+
+<h2>Retest grid</h2>
+<div class="filters" id="filters">
+  <button data-f="all" class="on">All sources</button><button data-f="human">Human 🖐</button><button data-f="auto">Automated 🤖</button>
+</div>
+<div class="gridwrap"><table id="grid"></table></div>
+<p class="note">✓ pass · ✗ fail · ⚠ error · ○ started, no verdict · ×N = N runs of that case on that commit (latest shown).
+Cases appear as soon as they've been run once — the full configured case list lives in <a href="config.html">Configuration</a>.</p>
+
+<h2>Recent runs</h2>
+<table id="recent"><tr><th>When</th><th>Case</th><th>Verdict</th><th>Source</th><th>Commit</th><th>Note</th></tr></table>
+
+<script>
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
+const $ = s => document.querySelector(s)
+let COMMIT = "", FILTER = "all", INSTANCES = new Map()   // id → {steps, class}
+let seq = 0
+
+const rand = () => Array.from(crypto.getRandomValues(new Uint8Array(5)), b => b.toString(16).padStart(2, "0")).join("")
+
+async function emit(run, checkpoint, v, detail){
+  const ev = { t: new Date().toISOString(), run, seq: ++seq, tier: "fe", checkpoint, v,
+    commit: COMMIT, page: location.pathname, detail }
+  await fetch("/kflow", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ events: [ev] }) })
+}
+
+// ── recorder state (survives reload via sessionStorage) ──────────────────────
+const recState = () => { try { return JSON.parse(sessionStorage.getItem("qa_rec") || "null") } catch { return null } }
+const setRec = s => { s ? sessionStorage.setItem("qa_rec", JSON.stringify(s)) : sessionStorage.removeItem("qa_rec") }
+
+function renderRecorder(){
+  const s = recState()
+  $("#recIdle").style.display = s ? "none" : ""
+  $("#recActive").style.display = s ? "" : "none"
+  if(s){
+    $("#recWhat").textContent = s.instance
+    $("#recWhen").textContent = new Date(s.t).toLocaleTimeString()
+  } else {
+    const sel = $("#recCase")
+    const inst = INSTANCES.get(sel.value)
+    $("#recSteps").textContent = inst ? (inst.steps || "(no scripted steps — freeform)") : ""
+  }
+}
+
+async function startRun(){
+  const instance = $("#recCase").value
+  const s = { run: rand(), instance, t: Date.now() }
+  setRec(s)
+  await emit(s.run, "test:start", instance, { source: "human", instance })
+  renderRecorder(); refresh()
+}
+async function verdict(v){
+  const s = recState()
+  if(!s) return
+  await emit(s.run, "test:verdict", v, {
+    source: "human", instance: s.instance,
+    note: ($("#recNote").value || "").slice(0, 300),
+    secs: Math.round((Date.now() - s.t) / 1000)
+  })
+  setRec(null); $("#recNote").value = ""
+  renderRecorder(); refresh()
+}
+$("#recStart").onclick = startRun
+$("#recPass").onclick = () => verdict("pass")
+$("#recFail").onclick = () => verdict("fail")
+$("#recAbandon").onclick = () => verdict("abandon")
+$("#recCase") && ($("#recCase").onchange = renderRecorder)
+
+// ── filters ──────────────────────────────────────────────────────────────────
+document.querySelectorAll("#filters button").forEach(b => b.onclick = () => {
+  FILTER = b.dataset.f
+  document.querySelectorAll("#filters button").forEach(x => x.classList.toggle("on", x === b))
+  refresh()
+})
+
+// ── data + render ─────────────────────────────────────────────────────────────
+async function loadConfig(){
+  const reg = await (await fetch("data/registry.json", { cache: "no-store" })).json()
+  const sel = $("#recCase")
+  sel.innerHTML = ""
+  for(const id of reg.classes || []){
+    try {
+      const cl = await (await fetch(`data/classes/${id}.json`, { cache: "no-store" })).json()
+      const groups = [["manual", "🖐"], ["auto", "🤖"]]
+      for(const [kind, glyph] of groups){
+        cl.instances.filter(i => i.run === kind).forEach(i => {
+          INSTANCES.set(i.id, { steps: i.steps || cl.steps_hint || "", cls: cl.id })
+          sel.insertAdjacentHTML("beforeend",
+            `<option value="${esc(i.id)}">${glyph} ${esc(i.id)}${i.why_manual ? " — " + esc(i.why_manual) : ""}</option>`)
+        })
+      }
+    } catch {}
+  }
+  sel.insertAdjacentHTML("beforeend", `<option value="FREEFORM">🖐 FREEFORM — unscripted exploratory session</option>`)
+  INSTANCES.set("FREEFORM", { steps: "Explore freely; note anything odd. The verdict is your overall impression." })
+}
+
+const GLYPH = { pass: "✓", fail: "✗", error: "⚠", abandon: "–", done: "✓" }
+async function refresh(){
+  const res = await (await fetch("results.php?days=30", { cache: "no-store" })).json()
+  COMMIT = res.commit
+  $("#curCommit").textContent = res.commit
+  const startsByRun = new Map()
+  res.events.filter(e => e.checkpoint === "test:start").forEach(e => startsByRun.set(e.run, e))
+  let verdicts = res.events.filter(e => e.checkpoint === "test:verdict").map(e => {
+    const start = startsByRun.get(e.run)
+    return {
+      t: e.t, run: e.run, v: e.v, commit: e.commit || start?.commit || "",
+      instance: e.detail?.instance || start?.v || "(unknown)",
+      source: e.detail?.source || start?.detail?.source || "auto",
+      note: e.detail?.note || ""
+    }
+  })
+  // open runs (started, no verdict yet)
+  const verdictRuns = new Set(verdicts.map(x => x.run))
+  const open = [...startsByRun.values()].filter(e => !verdictRuns.has(e.run)).map(e => ({
+    t: e.t, run: e.run, v: "open", commit: e.commit, instance: e.detail?.instance || e.v,
+    source: e.detail?.source || "auto", note: ""
+  }))
+  let rows = verdicts.concat(open)
+  if(FILTER !== "all") rows = rows.filter(r => r.source === FILTER)
+
+  // grid: commits (cols, by first-seen order) × instances (rows)
+  const commits = [...new Set(rows.map(r => r.commit).filter(Boolean))]
+  const cases = [...new Set(rows.map(r => r.instance))].sort()
+  const grid = $("#grid")
+  grid.innerHTML = "<tr><th>case \\ commit</th>" + commits.map(c =>
+    `<th${c === COMMIT ? ' style="background:#e8f0e8"' : ""}><code>${esc(c)}</code>${c === COMMIT ? "<br><span class='note'>current</span>" : ""}</th>`).join("") + "</tr>"
+  for(const cs of cases){
+    let tr = `<tr><td><b>${esc(cs)}</b></td>`
+    for(const cm of commits){
+      const cell = rows.filter(r => r.instance === cs && r.commit === cm)
+        .sort((a, b) => strcmpT(a, b))
+      if(!cell.length){ tr += "<td></td>"; continue }
+      const last = cell[cell.length - 1]
+      const cls = last.v === "open" ? "abandon" : (GLYPH[last.v] ? last.v : "error")
+      const glyph = last.v === "open" ? "○" : (GLYPH[last.v] || "⚠")
+      tr += `<td class="cell ${esc(cls)}" title="${esc(cell.map(x => x.v + " @ " + x.t).join("\n"))}">${glyph}${cell.length > 1 ? "<span class='note'>×" + cell.length + "</span>" : ""}</td>`
+    }
+    grid.insertAdjacentHTML("beforeend", tr + "</tr>")
+  }
+  if(!cases.length) grid.innerHTML = "<tr><td class='note'>No runs recorded yet — record one above and it appears here.</td></tr>"
+
+  const recent = $("#recent")
+  recent.innerHTML = "<tr><th>When</th><th>Case</th><th>Verdict</th><th>Source</th><th>Commit</th><th>Note</th></tr>" +
+    rows.sort((a, b) => b.t.localeCompare(a.t)).slice(0, 30).map(r =>
+      `<tr><td class="note">${esc(r.t.slice(5, 19).replace("T", " "))}</td><td>${esc(r.instance)}</td>
+       <td class="cell ${esc(r.v === "open" ? "abandon" : r.v)}">${esc(r.v)}</td>
+       <td>${r.source === "human" ? "🖐 human" : "🤖 " + esc(r.source)}</td>
+       <td><code>${esc(r.commit)}</code></td><td class="note">${esc(r.note)}</td></tr>`).join("")
+}
+const strcmpT = (a, b) => a.t.localeCompare(b.t)
+
+;(async () => {
+  await loadConfig()
+  renderRecorder()
+  await refresh()
+  setInterval(refresh, 20000)
+})()
+</script>
+
+</body>
+</html>
