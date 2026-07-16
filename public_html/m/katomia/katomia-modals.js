@@ -100,6 +100,10 @@ function katomiaDiagSend(msg, data){
 
   const ev = { t: new Date().toISOString(), msg, data }
   if(KTAG_ON){ ev.tag = ktagNow(); ev.dev = ktagSlug() }   // KDIAG-TAG1: cross-ref with spoken feedback
+  // FEEDBACK-COMMENTARY1: active feedback session (cross-tab, set by the
+  // feedback widget) stamps kdiag too -- narration, kflow and kdiag all share
+  // the session slug, so a narrated session threads every diagnostic under it.
+  try { const s = JSON.parse(localStorage.getItem("kfw_session") || "null"); if(s?.slug) ev.session = s.slug } catch {}
 
   const payload = JSON.stringify({
     events: [ev],

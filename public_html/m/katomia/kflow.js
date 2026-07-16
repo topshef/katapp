@@ -65,6 +65,11 @@
 
 	function kflow(checkpoint, v, detail){
 		const ev = { t: new Date().toISOString(), run: RUN, visit: VISIT, seq: ++seq, tier: "fe", checkpoint, v: v || "", commit: COMMIT, game: gameOf(), page: location.pathname }
+		// FEEDBACK-COMMENTARY1: while a feedback session is active (kfw_session
+		// in localStorage -- deliberately localStorage, NOT sessionStorage: it
+		// crosses TABS, so the board tab's events thread to a session started
+		// from any other tab), every checkpoint carries the session slug.
+		try { const s = JSON.parse(localStorage.getItem("kfw_session") || "null"); if(s?.slug) ev.session = s.slug } catch {}
 		if(detailOn && detail !== undefined) ev.detail = safe(detail)
 		Q.push(ev)
 		if(!timer) timer = setTimeout(flush, 2000)
