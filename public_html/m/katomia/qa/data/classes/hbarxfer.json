@@ -1,0 +1,39 @@
+{
+  "_about": "HBARXFER class -- board-mode proposal-and-sign HBAR transfer, end-to-end. Born directly from a live user test (feedback session delta-sierra-46, 2026-07-16): a real testnet HBAR offer, locked, signed via WalletConnect, executed, landed in the recipient's store. User: 'if that's something we can set up as a stand automated test, this is also a demo of that.' Key requirement: automated runs use a SMALL testnet amount (0.01 ℏ), not 1 ℏ -- there's no reason to spend more on a repeatable check.",
+  "id": "HBARXFER",
+  "title": "Board proposal: offer HBAR, lock, sign via WalletConnect, execute, verify landing",
+  "status": "defined",
+  "task": "QA-UXGRID1",
+  "updated": "2026-07-16",
+  "oracle": {
+    "hard_assertions": [
+      "kflow board:sign:click fires for the signing account",
+      "kdiag board:txsocket:update sequence includes signature_added then tx_receipt (hasReceipt:true)",
+      "board:result:shown fires with ok:true",
+      "the transferred amount now appears in the recipient's STORE zone (a new store chip for the asset)",
+      "the recipient's segment gains a 🧪 zone-walls entry if it had none before (BOARD-ZONEWALLSEMPTY1 -- store zone was empty pre-transfer)",
+      "board:signstatus.unassocAccts stays empty for a plain HBAR transfer (no association required)",
+      "kflow events on both the sender and recipient tabs share the SAME game id (post KFLOW-gameOf fix, 2026-07-16) -- the multi-browser correlation the user asked for"
+    ],
+    "trace_shape": "board:sign:click -> board:signstatus(pending) -> board:txsocket:update(signature_added) -> board:signstatus(signed) -> board:txsocket:update(tx_receipt, hasReceipt:true) -> board:result:shown(ok:true)",
+    "benchmark": "the user's own live run, session delta-sierra-46 (2026-07-16 19:16-19:20, testnet, txid 0.0.1532@1784229438.829000000, 1 ℏ, t-prop) -- kdiag/kflow trace archived in logs/kflow + logs/kdiag on lab1 for that window; screenshots not captured (recorded via feedback session, not the qa/results.html recorder)"
+  },
+  "dimensions": {
+    "network": { "ref": "network", "values": ["testnet"], "note": "mainnet excluded from automation on principle -- real value, no reason to spend it on a repeatable check" },
+    "amount": { "ref": null, "name": "transfer amount", "values": ["0.01"], "note": "USER REQUIREMENT (2026-07-16): automated runs must use a SMALL amount, not the 1 ℏ used in the manual demo -- 0.01 ℏ is plenty to prove the pipeline and costs near nothing repeated" },
+    "target": { "ref": null, "name": "target account state", "values": ["empty-store", "populated-store"], "boundaries": ["empty-store"], "note": "empty-store is the interesting case -- exercises BOARD-ZONEWALLSEMPTY1's boundary and proves the chip has somewhere to land even with no prior wall drawn" },
+    "players": { "ref": "players", "values": ["2", "at-cap"] },
+    "layout": { "ref": "chip-layout", "values": ["organic", "shelves"] }
+  },
+  "constraints": [],
+  "cartesian_size": 4,
+  "pairwise_target": "n/a -- small enough to run exhaustively once automatable",
+  "instances": [
+    { "id": "HBARXFER-01", "vector": { "network": "testnet", "amount": "0.01", "target": "empty-store", "players": "2", "layout": "organic" }, "run": "manual", "why_manual": "signing requires a real WalletConnect wallet -- automation blocked on QA-WCTEST1's headless virtual-wallet bot, not yet wired", "status": "unrun", "benchmark": null },
+    { "id": "HBARXFER-02", "vector": { "network": "testnet", "amount": "0.01", "target": "populated-store", "players": "at-cap", "layout": "shelves" }, "run": "manual", "why_manual": "same WC-signing dependency", "status": "unrun", "benchmark": null }
+  ],
+  "fixtures": {
+    "manual": "any live board on lab1 (or alpha), a testnet account with a paired wallet; feedback-session recorder (long-press -> Start session) captures the kdiag/kflow trace automatically",
+    "auto": "BLOCKED on QA-WCTEST1 (headless WalletConnect virtual-wallet bot: pair from the WC URI, auto-approve, auto-sign). Once that lands, this class runs the same steps end-to-end with no human: create/join game -> offer 0.01 ℏ -> lock -> strike -> bot wallet signs -> assert the oracle sequence above. Ties into TESTLOOP1/KATRUN1 the same way katrun's other scenarios do."
+  }
+}

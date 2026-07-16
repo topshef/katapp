@@ -48,11 +48,17 @@
       "id": "smoke",
       "file": "data/classes/smoke.json",
       "what": "SMOKE class: two hand-runnable scenes for exercising the record→dashboard loop"
+    },
+    {
+      "id": "hbarxfer",
+      "file": "data/classes/hbarxfer.json",
+      "what": "HBAR transfer end-to-end (offer/lock/sign/execute) -- born from a live user test; automation blocked on QA-WCTEST1"
     }
   ],
   "classes": [
     "smoke",
-    "chipdrop"
+    "chipdrop",
+    "hbarxfer"
   ],
   "decisions": [
     {
@@ -69,6 +75,11 @@
       "date": "2026-07-16",
       "what": "QA home reorganised into three layers: Documentation (static-ish) / Configuration (slow-moving JSON, git change-controlled) / Results (live retest grid + manual-run recorder). Manual runs are recorded as kflow test:start/test:verdict checkpoints — the SAME convention katrun uses — via the existing /kflow endpoint, so all testing speaks one language and the backend kflow-admin sees frontend runs too (KFLOW_FE_DIRS).",
       "by": "user+agent"
+    },
+    {
+      "date": "2026-07-16",
+      "what": "Automated HBAR-transfer test amounts must be small on testnet (0.01, not 1) -- no reason to spend more on a repeatable check.",
+      "by": "user"
     }
   ],
   "tasks": {
