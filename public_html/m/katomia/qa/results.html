@@ -13,22 +13,39 @@
   th, td{ border: 1px solid #ddd; padding: 5px 9px; text-align: left; vertical-align: top; }
   th{ background: #f5f2ea; }
   code{ background: #f3f3f3; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
-  .cell{ text-align: center; font-weight: 700; }
+  .cell{ text-align: center; font-weight: 700; cursor: pointer; }
   .pass{ background: #e2f2e2; color: #2c7a2c; }
   .fail{ background: #fde5e0; color: #a33; }
+  .meh{ background: #fdf3d0; color: #8a6100; }
   .error{ background: #fdeecd; color: #8a6100; }
-  .abandon{ background: #eee; color: #777; }
+  .abandon, .open{ background: #eee; color: #777; }
+  .feedback{ background: #e8eef7; color: #2a5a78; }
   .recorder{ border: 1px solid #cbb; border-radius: 12px; background: #fbf7ef; padding: 14px 18px; margin: 16px 0; }
   .recorder h2{ margin: 0 0 8px; border: 0; font-size: 16px; }
-  .recorder select, .recorder input[type=text]{ font-size: 13px; padding: 4px 6px; max-width: 100%; }
-  .recorder button{ font-size: 13px; padding: 5px 14px; border-radius: 8px; border: 1px solid #aaa; background: #fff; cursor: pointer; }
+  .recorder select, .recorder textarea{ font-size: 13px; padding: 4px 6px; max-width: 100%; }
+  .recorder textarea{ width: 100%; box-sizing: border-box; min-height: 64px; }
+  .recorder button{ font-size: 13px; padding: 6px 14px; border-radius: 8px; border: 1px solid #aaa; background: #fff; cursor: pointer; }
   .recorder button.primary{ background: #2c7a2c; border-color: #2c7a2c; color: #fff; }
-  .recorder button.fail{ background: #a33; border-color: #a33; color: #fff; }
+  .recorder button.failbtn{ background: #a33; border-color: #a33; color: #fff; }
+  .recorder button.mehbtn{ background: #c9a227; border-color: #c9a227; color: #fff; }
+  .recorder button.notebtn{ background: #2a5a78; border-color: #2a5a78; color: #fff; }
   .recorder .active{ background: #fff3d6; border-radius: 8px; padding: 8px 12px; margin-top: 8px; font-size: 13px; }
   .steps{ font-size: 12px; color: #555; background: #f4f1e8; border-radius: 8px; padding: 8px 12px; margin-top: 8px; white-space: pre-wrap; }
   .filters button{ font-size: 12px; padding: 3px 10px; border-radius: 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; margin-right: 6px; }
   .filters button.on{ background: #2a5a78; color: #fff; border-color: #2a5a78; }
   .gridwrap{ overflow-x: auto; }
+  .noted{ max-width: 340px; }
+  tr.clickable{ cursor: pointer; }
+  tr.clickable:hover td{ background: #faf7ee; }
+  .logged{ font-size: 12px; color: #2c7a2c; margin-left: 8px; }
+  /* run-detail modal */
+  #modalBack{ position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; z-index: 50; }
+  #modal{ position: fixed; inset: 6% 8%; background: #fff; border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.35);
+          display: none; z-index: 51; padding: 18px 22px; overflow-y: auto; }
+  #modal h2{ margin-top: 0; }
+  #modal .ev{ border-left: 3px solid #ccc; padding: 6px 12px; margin: 10px 0; }
+  #modal .ev .full{ white-space: pre-wrap; font-size: 14px; margin-top: 4px; }
+  #modalClose{ position: sticky; float: right; top: 0; font-size: 18px; border: 0; background: none; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -37,32 +54,47 @@
 <p><a href="./">← QA home</a> · <a href="config.html">Configuration</a>
 <span class="note" style="float:right">current frontend commit: <b id="curCommit">…</b> · auto-refreshes</span></p>
 <p class="note">The retest grid, kflow-admin style: <b>commits across the top, test cases down the side</b>. Every cell
-is real recorded evidence — a <code>test:start</code>/<code>test:verdict</code> checkpoint pair in this seat's kflow
-stream (the exact convention the backend's katrun robot uses). Human runs come from the recorder below; automated runs
-will land here through the same door when the runner exists.</p>
+is real recorded evidence — kflow <code>test:*</code> checkpoints in this seat's stream (the same convention the
+backend's katrun robot uses). <b>Tap any cell or row for the full run detail.</b></p>
 
 <div class="recorder" id="recorder">
-  <h2>🎬 Record a manual run</h2>
+  <h2>🎬 Record a run / give feedback</h2>
   <div id="recIdle">
     <label>Test case:
       <select id="recCase"></select>
     </label>
     <button class="primary" id="recStart">▶ Start</button>
     <div class="steps" id="recSteps"></div>
-    <p class="note">Start stamps <code>test:start</code>, then go do the test on the board (any tab). Come back and
-    give the verdict — the pair shares a run id, so the grid can thread them, and kdiag captures your board activity
-    in between under the same time window.</p>
+    <p class="note">Start stamps <code>test:start</code>, then do the test on the board (any tab). While recording you
+    can <b>💬 log notes as you go</b> — each lands as its own timestamped checkpoint inside the run — then close with a
+    verdict. kdiag captures your board activity in between under the same time window.</p>
   </div>
   <div id="recActive" style="display:none">
-    <div class="active">Recording <b id="recWhat"></b> — started <span id="recWhen"></span></div>
+    <div class="active">Recording <b id="recWhat"></b> — started <span id="recWhen"></span> <span id="noteCount" class="logged"></span></div>
     <div style="margin-top:10px">
-      <input type="text" id="recNote" placeholder="notes (what you saw, anything odd)…" size="50">
+      <textarea id="recNote" placeholder="notes — write freely, full length is kept (this is the feedback channel; severity below if it's a finding)…"></textarea>
     </div>
-    <div style="margin-top:10px; display:flex; gap:8px;">
+    <div style="margin-top:6px">
+      <label class="note">Severity (for findings — the task taxonomy):
+        <select id="recSev">
+          <option value="">— none / just commentary —</option>
+          <option value="sand">⏳ sand — cosmetic, in passing</option>
+          <option value="stone">🪨 stone — real but contained</option>
+          <option value="rock">⛏ rock — needs proper attention</option>
+        </select>
+      </label>
+    </div>
+    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="notebtn" id="recLog">💬 Log note (keep going)</button>
+      <span style="flex:1"></span>
       <button class="primary" id="recPass">✓ Pass</button>
-      <button class="fail" id="recFail">✗ Fail</button>
+      <button class="mehbtn" id="recMeh">～ Meh</button>
+      <button class="failbtn" id="recFail">✗ Fail</button>
       <button id="recAbandon">Abandon</button>
     </div>
+    <p class="note">Pass = as expected · Meh = works, but noted wrinkles (severity says how much they matter) ·
+    Fail = the behaviour is wrong. If it's all just observations, log notes and close with whatever fits — the notes
+    are the value.</p>
   </div>
 </div>
 
@@ -71,17 +103,23 @@ will land here through the same door when the runner exists.</p>
   <button data-f="all" class="on">All sources</button><button data-f="human">Human 🖐</button><button data-f="auto">Automated 🤖</button>
 </div>
 <div class="gridwrap"><table id="grid"></table></div>
-<p class="note">✓ pass · ✗ fail · ⚠ error · ○ started, no verdict · ×N = N runs of that case on that commit (latest shown).
-Cases appear as soon as they've been run once — the full configured case list lives in <a href="config.html">Configuration</a>.</p>
+<p class="note">✓ pass · ～ meh · ✗ fail · ⚠ error · ○ started, no verdict · ×N = N runs (latest shown). Tap a cell for
+detail. The full configured case list lives in <a href="config.html">Configuration</a>.</p>
 
 <h2>Recent runs</h2>
-<table id="recent"><tr><th>When</th><th>Case</th><th>Verdict</th><th>Source</th><th>Commit</th><th>Note</th></tr></table>
+<table id="recent"><tr><th>When</th><th>Case</th><th>Verdict</th><th>Source</th><th>Commit</th><th>Notes</th></tr></table>
+
+<div id="modalBack"></div>
+<div id="modal">
+  <button id="modalClose">✕</button>
+  <div id="modalBody"></div>
+</div>
 
 <script>
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
 const $ = s => document.querySelector(s)
-let COMMIT = "", FILTER = "all", INSTANCES = new Map()   // id → {steps, class}
-let seq = 0
+let COMMIT = "", FILTER = "all", INSTANCES = new Map(), EVENTS = []
+let seq = 0, noteCount = 0
 
 const rand = () => Array.from(crypto.getRandomValues(new Uint8Array(5)), b => b.toString(16).padStart(2, "0")).join("")
 
@@ -91,6 +129,10 @@ async function emit(run, checkpoint, v, detail){
   await fetch("/kflow", { method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ events: [ev] }) })
 }
+// full-length notes (the 300-char slice ate the user's rim narrative on day one
+// — never again). kflow.php's body cap is 64KB; 8000 chars is plenty of essay.
+const noteVal = () => ($("#recNote").value || "").slice(0, 8000)
+const sevVal = () => $("#recSev").value || ""
 
 // ── recorder state (survives reload via sessionStorage) ──────────────────────
 const recState = () => { try { return JSON.parse(sessionStorage.getItem("qa_rec") || "null") } catch { return null } }
@@ -103,36 +145,48 @@ function renderRecorder(){
   if(s){
     $("#recWhat").textContent = s.instance
     $("#recWhen").textContent = new Date(s.t).toLocaleTimeString()
+    $("#noteCount").textContent = s.notes ? `· ${s.notes} note${s.notes > 1 ? "s" : ""} logged` : ""
   } else {
-    const sel = $("#recCase")
-    const inst = INSTANCES.get(sel.value)
+    const inst = INSTANCES.get($("#recCase").value)
     $("#recSteps").textContent = inst ? (inst.steps || "(no scripted steps — freeform)") : ""
   }
 }
 
 async function startRun(){
   const instance = $("#recCase").value
-  const s = { run: rand(), instance, t: Date.now() }
+  const s = { run: rand(), instance, t: Date.now(), notes: 0 }
   setRec(s)
+  renderRecorder()
   await emit(s.run, "test:start", instance, { source: "human", instance })
+  refresh()
+}
+async function logNote(){
+  const s = recState()
+  if(!s || !noteVal()) return
+  s.notes = (s.notes || 0) + 1
+  setRec(s)
+  await emit(s.run, "test:note", sevVal() || "note", {
+    source: "human", instance: s.instance, note: noteVal(), sev: sevVal() })
+  $("#recNote").value = ""; $("#recSev").value = ""
   renderRecorder(); refresh()
 }
 async function verdict(v){
   const s = recState()
   if(!s) return
   await emit(s.run, "test:verdict", v, {
-    source: "human", instance: s.instance,
-    note: ($("#recNote").value || "").slice(0, 300),
+    source: "human", instance: s.instance, note: noteVal(), sev: sevVal(),
     secs: Math.round((Date.now() - s.t) / 1000)
   })
-  setRec(null); $("#recNote").value = ""
+  setRec(null); $("#recNote").value = ""; $("#recSev").value = ""
   renderRecorder(); refresh()
 }
 $("#recStart").onclick = startRun
+$("#recLog").onclick = logNote
 $("#recPass").onclick = () => verdict("pass")
+$("#recMeh").onclick = () => verdict("meh")
 $("#recFail").onclick = () => verdict("fail")
 $("#recAbandon").onclick = () => verdict("abandon")
-$("#recCase") && ($("#recCase").onchange = renderRecorder)
+$("#recCase").onchange = renderRecorder
 
 // ── filters ──────────────────────────────────────────────────────────────────
 document.querySelectorAll("#filters button").forEach(b => b.onclick = () => {
@@ -141,7 +195,31 @@ document.querySelectorAll("#filters button").forEach(b => b.onclick = () => {
   refresh()
 })
 
-// ── data + render ─────────────────────────────────────────────────────────────
+// ── run-detail modal ──────────────────────────────────────────────────────────
+const SEVG = { sand: "⏳ sand", stone: "🪨 stone", rock: "⛏ rock" }
+function openRun(run){
+  const evs = EVENTS.filter(e => e.run === run).sort((a, b) => a.t.localeCompare(b.t))
+  if(!evs.length) return
+  const start = evs.find(e => e.checkpoint === "test:start")
+  const inst = start?.detail?.instance || start?.v || evs[0].detail?.instance || "(unknown)"
+  $("#modalBody").innerHTML = `<h2>${esc(inst)} <span class="note">run <code>${esc(run)}</code> · commit <code>${esc(evs[0].commit)}</code></h2>` +
+    evs.map(e => {
+      const d = e.detail || {}
+      const kind = e.checkpoint.replace("test:", "")
+      const badge = kind === "verdict" ? `<span class="cell ${esc(e.v)}" style="padding:1px 8px; border-radius:8px;">${esc(e.v)}</span>` :
+                    kind === "note" ? `💬 note${d.sev ? " · " + (SEVG[d.sev] || esc(d.sev)) : ""}` : "▶ start"
+      return `<div class="ev"><span class="note">${esc(e.t.slice(5, 19).replace("T", " "))}</span> — ${badge}
+        ${d.secs ? `<span class="note"> · ${d.secs}s</span>` : ""}
+        ${d.note ? `<div class="full">${esc(d.note)}</div>` : ""}</div>`
+    }).join("")
+  $("#modalBack").style.display = "block"
+  $("#modal").style.display = "block"
+}
+const closeModal = () => { $("#modalBack").style.display = "none"; $("#modal").style.display = "none" }
+$("#modalBack").onclick = closeModal
+$("#modalClose").onclick = closeModal
+
+// ── config + data ─────────────────────────────────────────────────────────────
 async function loadConfig(){
   const reg = await (await fetch("data/registry.json", { cache: "no-store" })).json()
   const sel = $("#recCase")
@@ -149,8 +227,7 @@ async function loadConfig(){
   for(const id of reg.classes || []){
     try {
       const cl = await (await fetch(`data/classes/${id}.json`, { cache: "no-store" })).json()
-      const groups = [["manual", "🖐"], ["auto", "🤖"]]
-      for(const [kind, glyph] of groups){
+      for(const [kind, glyph] of [["manual", "🖐"], ["auto", "🤖"]]){
         cl.instances.filter(i => i.run === kind).forEach(i => {
           INSTANCES.set(i.id, { steps: i.steps || cl.steps_hint || "", cls: cl.id })
           sel.insertAdjacentHTML("beforeend",
@@ -160,35 +237,34 @@ async function loadConfig(){
     } catch {}
   }
   sel.insertAdjacentHTML("beforeend", `<option value="FREEFORM">🖐 FREEFORM — unscripted exploratory session</option>`)
-  INSTANCES.set("FREEFORM", { steps: "Explore freely; note anything odd. The verdict is your overall impression." })
+  INSTANCES.set("FREEFORM", { steps: "Explore freely; log notes as you go (💬 keeps the run open). Close with whatever verdict fits — the notes are the value." })
 }
 
-const GLYPH = { pass: "✓", fail: "✗", error: "⚠", abandon: "–", done: "✓" }
+const GLYPH = { pass: "✓", meh: "～", fail: "✗", error: "⚠", abandon: "–", done: "✓", open: "○" }
 async function refresh(){
   const res = await (await fetch("results.php?days=30", { cache: "no-store" })).json()
   COMMIT = res.commit
+  EVENTS = res.events
   $("#curCommit").textContent = res.commit
-  const startsByRun = new Map()
-  res.events.filter(e => e.checkpoint === "test:start").forEach(e => startsByRun.set(e.run, e))
-  let verdicts = res.events.filter(e => e.checkpoint === "test:verdict").map(e => {
-    const start = startsByRun.get(e.run)
-    return {
-      t: e.t, run: e.run, v: e.v, commit: e.commit || start?.commit || "",
-      instance: e.detail?.instance || start?.v || "(unknown)",
-      source: e.detail?.source || start?.detail?.source || "auto",
-      note: e.detail?.note || ""
-    }
-  })
-  // open runs (started, no verdict yet)
-  const verdictRuns = new Set(verdicts.map(x => x.run))
-  const open = [...startsByRun.values()].filter(e => !verdictRuns.has(e.run)).map(e => ({
-    t: e.t, run: e.run, v: "open", commit: e.commit, instance: e.detail?.instance || e.v,
-    source: e.detail?.source || "auto", note: ""
+
+  const byRun = new Map()
+  for(const e of EVENTS){
+    let r = byRun.get(e.run)
+    if(!r) byRun.set(e.run, r = { run: e.run, t: e.t, commit: e.commit, notes: [], verdict: null, instance: null, source: null })
+    r.t = r.t < e.t ? r.t : e.t
+    r.commit = r.commit || e.commit
+    const d = e.detail || {}
+    r.instance = r.instance || d.instance || (e.checkpoint === "test:start" ? e.v : null)
+    r.source = r.source || d.source
+    if(e.checkpoint === "test:note" && d.note) r.notes.push(d.note)
+    if(e.checkpoint === "test:verdict"){ r.verdict = e.v; r.vt = e.t; if(d.note) r.notes.push(d.note) }
+  }
+  let rows = [...byRun.values()].map(r => ({
+    ...r, instance: r.instance || "(unknown)", source: r.source || "auto",
+    v: r.verdict || "open", note: r.notes.join(" ⁋ ")
   }))
-  let rows = verdicts.concat(open)
   if(FILTER !== "all") rows = rows.filter(r => r.source === FILTER)
 
-  // grid: commits (cols, by first-seen order) × instances (rows)
   const commits = [...new Set(rows.map(r => r.commit).filter(Boolean))]
   const cases = [...new Set(rows.map(r => r.instance))].sort()
   const grid = $("#grid")
@@ -197,27 +273,28 @@ async function refresh(){
   for(const cs of cases){
     let tr = `<tr><td><b>${esc(cs)}</b></td>`
     for(const cm of commits){
-      const cell = rows.filter(r => r.instance === cs && r.commit === cm)
-        .sort((a, b) => strcmpT(a, b))
+      const cell = rows.filter(r => r.instance === cs && r.commit === cm).sort((a, b) => a.t.localeCompare(b.t))
       if(!cell.length){ tr += "<td></td>"; continue }
       const last = cell[cell.length - 1]
-      const cls = last.v === "open" ? "abandon" : (GLYPH[last.v] ? last.v : "error")
-      const glyph = last.v === "open" ? "○" : (GLYPH[last.v] || "⚠")
-      tr += `<td class="cell ${esc(cls)}" title="${esc(cell.map(x => x.v + " @ " + x.t).join("\n"))}">${glyph}${cell.length > 1 ? "<span class='note'>×" + cell.length + "</span>" : ""}</td>`
+      tr += `<td class="cell ${esc(last.v)}" data-run="${esc(last.run)}" title="tap for detail">` +
+        `${GLYPH[last.v] || "⚠"}${cell.length > 1 ? "<span class='note'>×" + cell.length + "</span>" : ""}</td>`
     }
     grid.insertAdjacentHTML("beforeend", tr + "</tr>")
   }
   if(!cases.length) grid.innerHTML = "<tr><td class='note'>No runs recorded yet — record one above and it appears here.</td></tr>"
+  grid.querySelectorAll("td[data-run]").forEach(td => td.onclick = () => openRun(td.dataset.run))
 
   const recent = $("#recent")
-  recent.innerHTML = "<tr><th>When</th><th>Case</th><th>Verdict</th><th>Source</th><th>Commit</th><th>Note</th></tr>" +
-    rows.sort((a, b) => b.t.localeCompare(a.t)).slice(0, 30).map(r =>
-      `<tr><td class="note">${esc(r.t.slice(5, 19).replace("T", " "))}</td><td>${esc(r.instance)}</td>
-       <td class="cell ${esc(r.v === "open" ? "abandon" : r.v)}">${esc(r.v)}</td>
+  recent.innerHTML = "<tr><th>When</th><th>Case</th><th>Verdict</th><th>Source</th><th>Commit</th><th>Notes</th></tr>" +
+    rows.sort((a, b) => (b.vt || b.t).localeCompare(a.vt || a.t)).slice(0, 30).map(r => {
+      const trunc = r.note.length > 90 ? esc(r.note.slice(0, 90)) + "&hellip;" : esc(r.note)
+      return `<tr class="clickable" data-run="${esc(r.run)}"><td class="note">${esc((r.vt || r.t).slice(5, 19).replace("T", " "))}</td>
+       <td>${esc(r.instance)}</td><td class="cell ${esc(r.v)}">${esc(r.v)}</td>
        <td>${r.source === "human" ? "🖐 human" : "🤖 " + esc(r.source)}</td>
-       <td><code>${esc(r.commit)}</code></td><td class="note">${esc(r.note)}</td></tr>`).join("")
+       <td><code>${esc(r.commit)}</code></td><td class="noted note">${trunc}${r.notes.length > 1 ? ` <b>(${r.notes.length} notes)</b>` : ""}</td></tr>`
+    }).join("")
+  recent.querySelectorAll("tr[data-run]").forEach(tr => tr.onclick = () => openRun(tr.dataset.run))
 }
-const strcmpT = (a, b) => a.t.localeCompare(b.t)
 
 ;(async () => {
   await loadConfig()
