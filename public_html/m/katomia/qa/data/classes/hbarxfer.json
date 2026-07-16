@@ -91,7 +91,8 @@
       "run": "manual",
       "why_manual": "same WC-signing dependency",
       "status": "unrun",
-      "benchmark": null
+      "benchmark": null,
+      "steps": "1. Shelves layout, at-cap players (6).\n2. Sender's paired wallet offers 0.01 testnet HBAR to a recipient account whose store is NOT empty (already holds other assets — the 'populated-store' boundary, contrast with HBARXFER-01's empty-store case).\n3. Lock both, wait for the strike, then tap ✍ Sign on the SENDER's account (same button the Lock control becomes — it needs a SECOND click once the signing phase starts).\n4. Confirm success toast + receipt; check the recipient's existing chips didn't jolt when the new one landed."
     }
   ],
   "fixtures": {

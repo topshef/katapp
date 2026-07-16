@@ -281,11 +281,13 @@ function guessCase(text){
   if(/\bzone[\s-]?wall/.test(t)) return "BOARD-ZONEWALLSEMPTY1"
   return "FREEFORM"
 }
+let COMMIT_TIMES = {}
 async function refresh(){
   const res = await (await fetch("results.php?days=30", { cache: "no-store" })).json()
   COMMIT = res.commit
   EVENTS = res.events
   SESSIONS = res.sessions || []
+  COMMIT_TIMES = res.commitTimes || {}
   $("#curCommit").textContent = res.commit
 
   const byRun = new Map()
@@ -315,11 +317,23 @@ async function refresh(){
   }))
   if(FILTER !== "all") rows = rows.filter(r => r.source === FILTER)
 
+  // commit columns ordered OLDEST -> NEWEST left-to-right (a pseudo timeline —
+  // not linear/even spacing, but time genuinely increases rightward), by each
+  // commit's REAL git commit date (results.php's commitTimes), not first-seen
+  // order in the log (which can differ if events arrive out of order).
   const commits = [...new Set(rows.map(r => r.commit).filter(Boolean))]
+    .sort((a, b) => (COMMIT_TIMES[a] || "").localeCompare(COMMIT_TIMES[b] || ""))
+  const fmtCommitTime = h => {
+    const iso = COMMIT_TIMES[h]
+    if(!iso) return ""
+    const d = new Date(iso)
+    return d.toLocaleDateString(undefined, { month: "2-digit", day: "2-digit" }) + " " +
+      d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+  }
   const cases = [...new Set(rows.map(r => r.instance))].sort()
   const grid = $("#grid")
   grid.innerHTML = "<tr><th>case \\ commit</th>" + commits.map(c =>
-    `<th${c === COMMIT ? ' style="background:#e8f0e8"' : ""}><code>${esc(c)}</code>${c === COMMIT ? "<br><span class='note'>current</span>" : ""}</th>`).join("") + "</tr>"
+    `<th${c === COMMIT ? ' style="background:#e8f0e8"' : ""}><code>${esc(c)}</code><br><span class="note">${esc(fmtCommitTime(c))}</span>${c === COMMIT ? "<br><span class='note'>current</span>" : ""}</th>`).join("") + "</tr>"
   for(const cs of cases){
     let tr = `<tr><td><b>${esc(cs)}</b></td>`
     for(const cm of commits){

@@ -93,5 +93,23 @@ foreach ($sessions as &$s) {
 }
 unset($s);
 
-echo json_encode(['commit' => $commit, 'events' => $events, 'sessions' => $sessions],
+// COMMIT TIMESTAMPS (user 2026-07-16: "along the top we've got, like, some
+// kind of timestamp on the commit... a pseudo timeline, not linear, but a
+// measure of time going forward"): the grid's columns are commit hashes with
+// no sense of when each landed. Look up each distinct commit's real git
+// commit date so the header can show it. `git log` resolves a short (7-char)
+// hash fine as long as it's still in this repo's history.
+$commits = array_unique(array_filter(array_merge(
+    array_column($events, 'commit'), array_column($sessions, 'commit'), [$commit])));
+$commitTimes = [];
+if ($commits) {
+    $repo = escapeshellarg(dirname($_SERVER['DOCUMENT_ROOT']));
+    foreach ($commits as $h) {
+        $safe = escapeshellarg($h);
+        $out = @shell_exec("git -C $repo log -1 --format=%cI $safe 2>/dev/null");
+        if ($out) $commitTimes[$h] = trim($out);
+    }
+}
+
+echo json_encode(['commit' => $commit, 'events' => $events, 'sessions' => $sessions, 'commitTimes' => $commitTimes],
     JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
