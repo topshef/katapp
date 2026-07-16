@@ -1679,6 +1679,62 @@ function boardSimFrame(){
   if(_boardSimQuiet < 3) _boardSimRaf = requestAnimationFrame(boardSimFrame)
 }
 
+// ── OVAL-TRUE WALLS (user 2026-07-16 — the zone-walls overlay's "massive
+// reveal"): the radial walls used to be scalar radii sampled at the segment
+// MID-ANGLE (zone.rMin/rMax), i.e. CIRCLES — but the rim is an ELLIPSE and
+// the screen a rectangle. On a square screen circle≈ellipse and it looked
+// right; portrait/landscape put every wall visibly away from the felt: chips
+// obeyed invisible circles, baskets poked out of the oval's sides, stores
+// stood far off the rim at N/S. Now every radial wall evaluates at the
+// chip's OWN screen angle against the TRUE shapes — hub circle, rim ellipse
+// (env.oval), screen edge — via these helpers, shared by the physics tick,
+// the shelf-target clamp AND the 🧪 walls overlay, so what's drawn is what's
+// enforced, by construction.
+function boardRimAt(env, th){
+  const o = env.oval
+  return (o.rx * o.ry) / Math.hypot(o.ry * Math.cos(th), o.rx * Math.sin(th))
+}
+function boardEdgeAt(env, th){
+  const c = Math.abs(Math.cos(th)), s = Math.abs(Math.sin(th))
+  return Math.min(c > 1e-6 ? (env.W / 2) / c : Infinity, s > 1e-6 ? (env.H / 2) / s : Infinity)
+}
+// clamp a zone-local point to the zone's walls: radial (at the point's own
+// angle), angular wedge (straight spokes), safe screen rect. soft=true keeps
+// the outer wall springy (physics — pressure spills gradually); false snaps
+// it hard (shelf-target clamping, so targets are feasible and the tick's
+// spring never fights the wall — that fight would jitter forever).
+function boardWallClamp(env, z, b, x, y, soft){
+  const r0 = Math.hypot(x, y) || 0.001
+  const thL = Math.atan2(y, x)
+  const thS = z.midRad + thL
+  // chip half-extent along the radial direction (chips are screen-axis-
+  // aligned boxes; their reach along a ray depends on the ray's angle)
+  const he = (Math.abs(Math.cos(thS)) * b.w + Math.abs(Math.sin(thS)) * b.h) / 2
+  let r = r0
+  const rim = boardRimAt(env, thS)
+  const minR = z.isBasket ? z.rMin + he : rim + 8 + z.band + he
+  if(r < minR) r = minR
+  // basket outer: rim minus the 6px oval inset minus the 34px coin-label
+  // band (BOARD-IDCOIN1); store outer: screen edge minus 14
+  const maxR = z.isBasket ? rim - 6 - 34 - he : boardEdgeAt(env, thS) - 14 - he
+  if(r > maxR) r = soft ? r - (r - maxR) * 0.3 : maxR
+  if(r !== r0){ x = r * Math.cos(thL); y = r * Math.sin(thL) }
+  const maxY = Math.max(2, x * z.tanHalf - b.w / 2)
+  y = Math.max(-maxY, Math.min(maxY, y))
+  // BOARD-SAFEAREA1: clamp the box into the measured visible rect (banner
+  // bottom / footer top / side margins) — catches tangential corner spill
+  const left = env.cx + x * z.cos - y * z.sin - b.w / 2
+  const top = env.cy + x * z.sin + y * z.cos - b.h / 2
+  const cl = Math.max(env.safeL, Math.min(left, env.safeR - b.w))
+  const ct = Math.max(env.safeTop, Math.min(top, env.safeBot - b.h))
+  if(cl !== left || ct !== top){
+    const gx = cl + b.w / 2 - env.cx, gy = ct + b.h / 2 - env.cy
+    x = gx * z.cos + gy * z.sin
+    y = -gx * z.sin + gy * z.cos
+  }
+  return { x, y }
+}
+
 // one physics step: springs → collisions → walls → screen clamps, in the
 // zone-local frame. Ghosts (inner) don't participate — the reserved rim band
 // already keeps store chips off their patch, and the paint pass pins them to
@@ -1745,26 +1801,10 @@ function boardSimTick(iters){
         B.x += plx; B.y += ply
       }
       movers.forEach(b => {
-        // inner wall hard (past the ghost-only rim band), outer wall soft
-        // (pressure spills outward), basket coin-band inset (BOARD-IDCOIN1),
-        // angular walls hard (never a neighbour's wedge)
-        b.x = Math.max(z.rMin + z.band + b.h / 2, b.x)
-        const over = b.x - (z.rMax - (z.isBasket ? 34 : 0) - b.h / 2)
-        if(over > 0) b.x -= over * 0.3
-        const maxY = Math.max(2, b.x * z.tanHalf - b.w / 2)
-        b.y = Math.max(-maxY, Math.min(maxY, b.y))
-        // BOARD-SAFEAREA1, inside the loop: clamp the box into the measured
-        // visible rect (banner bottom / footer top / side margins) — catches
-        // tangential corner spill the mid-angle radius math can't see
-        const left = env.cx + b.x * z.cos - b.y * z.sin - b.w / 2
-        const top = env.cy + b.x * z.sin + b.y * z.cos - b.h / 2
-        const cl = Math.max(env.safeL, Math.min(left, env.safeR - b.w))
-        const ct = Math.max(env.safeTop, Math.min(top, env.safeBot - b.h))
-        if(cl !== left || ct !== top){
-          const gx = cl + b.w / 2 - env.cx, gy = ct + b.h / 2 - env.cy
-          b.x = gx * z.cos + gy * z.sin
-          b.y = -gx * z.sin + gy * z.cos
-        }
+        // walls: oval-true radial (at the chip's own angle) + angular +
+        // safe rect — the shared clamp, soft outer (pressure spills)
+        const p = boardWallClamp(env, z, b, b.x, b.y, true)
+        b.x = p.x; b.y = p.y
       })
     })
   }
@@ -1838,7 +1878,17 @@ function boardSimPaint(){
   })
   const pairSeen = new Map()   // net-off duplicates of a pair fan along the line's normal
   ghosts.forEach(({ b, z }) => {
-    b.x = z.rMin + b.h / 2     // rim pin — the 8px oval buffer is in rMin
+    // rim pin, oval-true: project the ghost radially onto the rim band at
+    // its OWN angle (the old scalar z.rMin pinned it to the mid-angle
+    // CIRCLE — visibly off the ellipse at N/S on portrait screens)
+    {
+      const rr = Math.hypot(b.x, b.y) || 1
+      const thS = z.midRad + Math.atan2(b.y, b.x)
+      const he = (Math.abs(Math.cos(thS)) * b.w + Math.abs(Math.sin(thS)) * b.h) / 2
+      const pin = boardRimAt(env, thS) + 8 + he
+      b.x = b.x / rr * pin
+      b.y = b.y / rr * pin
+    }
     const d = b.el.dataset
     if(env.oval && !env.party && d.ownerAccount && d.assetId && d.toAccount){
       const P = piles.get(d.ownerAccount + "|" + d.assetId)
@@ -1897,18 +1947,23 @@ function boardDrawZoneWalls(){
   const NS = "http://www.w3.org/2000/svg"
   const svg = document.createElementNS(NS, "svg")
   svg.setAttribute("class", "board-zonewalls")
-  const wedge = (z, rIn, rOut, cls) => {
-    if(rOut <= rIn) return
+  // oval-true: each boundary radius is a FUNCTION of the absolute screen
+  // angle, evaluated per sample — the exact same boardRimAt/boardEdgeAt the
+  // physics clamps use, so the drawing IS the enforcement (the 2026-07-16
+  // circular-walls bug can't silently return)
+  const wedge = (z, rInAt, rOutAt, cls) => {
     const half = Math.min(z.halfDeg, 80)
-    const steps = 16
+    const steps = 24
     const pts = []
     for(let i = 0; i <= steps; i++){
-      const th = (-half + 2 * half * i / steps) * Math.PI / 180
-      pts.push([rIn * Math.cos(th), rIn * Math.sin(th)])
+      const a = (-half + 2 * half * i / steps) * Math.PI / 180
+      const r = rInAt(z.midRad + a)
+      pts.push([r * Math.cos(a), r * Math.sin(a)])
     }
     for(let i = steps; i >= 0; i--){
-      const th = (-half + 2 * half * i / steps) * Math.PI / 180
-      pts.push([rOut * Math.cos(th), rOut * Math.sin(th)])
+      const a = (-half + 2 * half * i / steps) * Math.PI / 180
+      const r = rOutAt(z.midRad + a)
+      pts.push([r * Math.cos(a), r * Math.sin(a)])
     }
     const d = pts.map(([lx, ly], i) =>
       (i ? "L" : "M")
@@ -1920,10 +1975,14 @@ function boardDrawZoneWalls(){
     svg.appendChild(p)
   }
   _boardSimZones.forEach(z => {
-    if(z.isBasket) wedge(z, z.rMin, z.rMax - 34, "board-zonewall board-zonewall--basket")
+    if(z.isBasket)
+      wedge(z, () => z.rMin, th => boardRimAt(env, th) - 6 - 34,
+        "board-zonewall board-zonewall--basket")
     else {
-      wedge(z, z.rMin + z.band, z.rMax, "board-zonewall board-zonewall--store")
-      wedge(z, z.rMin, z.rMin + z.band, "board-zonewall board-zonewall--band")
+      wedge(z, th => boardRimAt(env, th) + 8 + z.band, th => boardEdgeAt(env, th) - 14,
+        "board-zonewall board-zonewall--store")
+      wedge(z, th => boardRimAt(env, th) + 8, th => boardRimAt(env, th) + 8 + z.band,
+        "board-zonewall board-zonewall--band")
     }
   })
   const rect = document.createElementNS(NS, "rect")
@@ -2068,6 +2127,7 @@ function boardOrganicApply(cx, cy, W, H, oval){
     const geo = Math.round(z.halfDeg * 10) + "|" + Math.round(z.rMin) + "|" + Math.round(z.rMax) + "|" + W + "x" + H
     if(zrec.geo !== geo){ zrec.geo = geo; changed = true }
     const midRad = z.midDeg * Math.PI / 180
+    zrec.midRad = midRad   // oval-true walls evaluate rim/edge at absolute angles
     zrec.cos = Math.cos(midRad); zrec.sin = Math.sin(midRad)
     zrec.halfDeg = z.halfDeg
     zrec.tanHalf = Math.tan(Math.min(z.halfDeg, 80) * Math.PI / 180)
@@ -2162,7 +2222,16 @@ function boardOrganicApply(cx, cy, W, H, oval){
       const pos = boardShelfZone(
         recs.map(b => ({ w: b.w, h: b.h })), recs.map(b => b.ident),
         zrec, recs.map(b => b.inner), zrec.isBasket)
-      recs.forEach((b, i) => { if(!b.inner){ b.tx = pos[i].x; b.ty = pos[i].y } })
+      // targets HARD-clamped to the oval-true walls: the solver still thinks
+      // in mid-angle circles, so rows near the rim/edge would violate the
+      // real walls on non-square screens — and an infeasible target makes
+      // the tick's spring fight the wall clamp every frame (visible jitter,
+      // never settles). Clamping here keeps every target reachable.
+      recs.forEach((b, i) => {
+        if(b.inner) return
+        const t = boardWallClamp(_boardSimEnv, zrec, b, pos[i].x, pos[i].y, false)
+        b.tx = t.x; b.ty = t.y
+      })
     } else recs.forEach(b => { b.tx = b.ty = null })
 
     // spawn: initial local position for brand-new bodies. Existing bodies
