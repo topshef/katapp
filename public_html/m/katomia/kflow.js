@@ -22,7 +22,16 @@
 	// reload but real tests legitimately span reloads (exit → refresh → assert).
 	const VISIT = (() => { try { let v = sessionStorage.getItem("kflow_visit"); if(!v){ v = rand(); sessionStorage.setItem("kflow_visit", v) } return v } catch { return "" } })()
 	const COMMIT = window.KFLOW_COMMIT || ""
-	const gameOf = () => { try { return (location.pathname.match(/\/game\/([\w-]+)/) || [])[1] || "" } catch { return "" } }
+	// FEEDBACK-COMMENTARY1 finding (user 2026-07-16, session delta-sierra-46):
+	// this only ever matched /game/<id> — board pages route as /board/<id>
+	// (BOARD-UI1), so every kflow event's top-level `game` field has been
+	// BLANK for the whole life of the board skin. It surfaced when the user
+	// asked to thread two browsers' activity in the same game and had to fall
+	// back to "you can see it's the same game from context" — the field that
+	// should have made that trivial was silently empty. detail.gameId (set on
+	// join/state checkpoints) still carried the truth, which is how this got
+	// spotted at all.
+	const gameOf = () => { try { return (location.pathname.match(/\/(?:game|board)\/([\w-]+)/) || [])[1] || "" } catch { return "" } }
 	let seq = 0
 	const Q = []
 	let timer = null
