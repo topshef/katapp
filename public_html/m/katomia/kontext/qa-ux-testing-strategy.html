@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Katomia — UX testing strategy: dimension-derived grids, benchmarks, and an AI-era harness</title>
+<style>
+  body{ font-family: system-ui, sans-serif; margin: 0 auto; max-width: 1020px; padding: 24px 16px 80px; color: #222; line-height: 1.5; }
+  h1{ font-size: 23px; } h2{ font-size: 18px; margin-top: 34px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  h3{ font-size: 15px; margin-top: 22px; }
+  table{ border-collapse: collapse; width: 100%; font-size: 13px; margin: 10px 0; }
+  th, td{ border: 1px solid #ddd; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th{ background: #f5f2ea; }
+  code{ background: #f3f3f3; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+  .note{ color: #777; font-size: 12px; }
+  .auto{ color: #2c7a2c; font-weight: 600; }
+  .man{ color: #a15c00; font-weight: 600; }
+  .rec{ background: #eef7ee; border-left: 4px solid #2c7a2c; padding: 10px 14px; margin: 12px 0; }
+  .choice{ background: #f7f4ec; border-left: 4px solid #b8963e; padding: 10px 14px; margin: 12px 0; }
+  .dim{ font-weight: 600; white-space: nowrap; }
+  .bdy{ color: #c0392b; font-weight: 600; }
+  .done{ color: #2c7a2c; }
+  blockquote{ margin: 10px 0; padding: 8px 14px; border-left: 3px solid #ccc; color: #555; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>UX testing strategy — dimension-derived grids, human benchmarks, automated expansion</h1>
+<p class="note">Task <b>QA-UXGRID1</b> · drafted 2026-07-16 from the user's brief (post BOARD-PHYSICS1 plateau 3115272) ·
+builds on the QA-TESTDIM1 dimension registry (<a href="qa-test-dimensions.html">qa-test-dimensions.html</a>) and the
+QA-OVERVIEW machinery (kflow / katrun / retest grid). Plain language first, jargon in brackets — same convention as QA-OVERVIEW.</p>
+
+<h2>1 · The idea in one paragraph</h2>
+<p>
+We stop writing test cases one by one. Instead we define, per behaviour we care about, a <b>test class</b> (what's being
+proven, and how "OK" is judged) and a set of <b>dimensions</b> (the axes that could change the outcome: player count,
+aspect ratio, device, what's being dropped where…). Individual <b>test instances</b> are then <i>derived</i> from
+dimension combinations — never hand-enumerated. Because full combination counts explode ("a stupid crazy number"),
+we use the industry's standard trick (<i>pairwise testing</i>, §3) to shrink thousands of combinations to dozens
+that still catch almost everything, plus the known <b>turning points</b> (<i>boundary values</i>) that history says
+matter — e.g. player count at exactly the ring cap, and square-vs-portrait aspect (a square screen is what <i>hid</i>
+the circular-walls bug for weeks). A human (you) runs a <b>cherry-picked handful</b> of instances per class and blesses
+them — the recorded kdiag trace + screenshots become the class <b>benchmark</b> ("this is expected behaviour").
+The <b>expanded set</b> runs automated, replays the same steps across the other combinations, checks itself against
+hard assertions + the benchmark, and reports pass/fail into <b>kflow</b> — the same retest grid the backend robots
+already report to.
+</p>
+
+<h2>2 · Where we stand — the tooling we already have</h2>
+<table>
+<tr><th>Piece</th><th>What it is</th><th>State</th></tr>
+<tr><td><b>kflow</b></td><td>Flight recorder + retest grid (<code>/kflow-admin</code>): checkpoints, run ids, named journeys, <code>test:start</code>/<code>test:verdict</code></td><td class="done">Live (backend). Frontend not wired in yet — this is the reporting home for UX tests</td></tr>
+<tr><td><b>katrun</b></td><td>Backend scenario robot (Alice/Bob scripts, real sockets), 2 continuous loops reporting to kflow</td><td class="done">Live. The pattern UX automation should copy</td></tr>
+<tr><td><b>boardDiag / kdiag</b></td><td>Frontend breadcrumbs (<code>board:paint:moves</code>, <code>board:organic:solve</code>, layout-change traces…) — built during the scatter chase, kept deliberately</td><td class="done">Live. These are the "commentary" a manual benchmark captures</td></tr>
+<tr><td><b>Demo fixture</b></td><td><code>board.php?demo=1</code> — full playable board, fake socket, deterministic reducer, no backend</td><td class="done">Live. Perfect substrate for pure-frontend classes (fast, isolated)</td></tr>
+<tr><td><b>Playwright harness</b></td><td>This week's ad-hoc checks (chromium at <code>/opt/kwallet</code>): overlap audit, oval-wall invariants, jitter watch, trail-tracking check, pickable-moves-nothing check — each verified a live fix headlessly before push</td><td class="man">Working but in a session scratchpad — needs promoting to a versioned <code>qa/</code> suite</td></tr>
+<tr><td><b>XPROOF headless WC</b></td><td>WalletConnect wallet-side bot (pair + auto-sign) — closes the signing leg no browser test can</td><td class="man">Exists in the xproof project; wiring = QA-WCTEST1 option 2</td></tr>
+<tr><td><b>🧪 zone-walls overlay</b></td><td>Draws the physics constraint geometry the sim actually enforces</td><td class="done">Live. Note: this is a <i>test oracle</i> as much as a debug aid — assertions can read the same functions</td></tr>
+<tr><td><b>lab2/lab3 baselines</b></td><td>Pinned known-good checkouts for side-by-side comparison</td><td class="done">Live, manual use</td></tr>
+<tr><td><b>kMon</b></td><td>Black-box uptime monitor (separate box)</td><td class="man">Backlog (KMON1) — out of scope here</td></tr>
+</table>
+<p>The striking gap: <b>everything below the browser is systematised; everything inside it is artisanal.</b> The pieces
+exist — they've just never been joined into a repeatable, reported loop.</p>
+
+<h2>3 · The industry frame — and where we deliberately deviate</h2>
+<h3>The parts of standard practice worth adopting wholesale</h3>
+<ul>
+<li><b>Equivalence partitioning</b> (ISTQB staple): don't test every value, test one per <i>class of values that behave the same</i>.
+Our "dimensions with a handful of values each" is exactly this — the registry in qa-test-dimensions.html already thinks this way.</li>
+<li><b>Boundary-value analysis</b>: bugs cluster at edges. Ours provably do: players at <i>exactly</i> <code>maxSegments</code> vs one over
+(wedge dividers appear), obtuse vs acute segment angle (the ±80° clamp), square vs non-square aspect (hid the circular-walls bug),
+0-ghost vs 1-ghost stores (band sizing). Every dimension below marks its <span class="bdy">boundaries</span> — they're always in the picked set.</li>
+<li><b>Pairwise / combinatorial selection</b>: the empirical result behind it (NIST's field-failure studies) — the large majority of
+real-world failures are triggered by an interaction of just <b>two</b> parameters, almost all by three. So instead of the full cartesian
+product you generate the smallest instance set where <i>every pair of values across every two dimensions appears at least once</i>.
+Typical shrinkage: our worked example below goes from <b>7,776</b> combinations to <b>~25</b> pairwise instances to <b>4 manual picks</b>.
+Established tools exist (Microsoft PICT, NIST ACTS), but the algorithm is simple enough that we generate ours in a few lines —
+with <b>constraints</b> (some combos are invalid: "drop on a hidden segment" requires players &gt; cap; the generator must know that).</li>
+<li><b>Risk-based prioritisation</b>: what you called cherry-picking. The manual set is chosen where judgement is irreplaceable
+(animation feel, visual balance) or risk is highest (mainnet-adjacent flows).</li>
+<li><b>Regression-to-canary habit</b>: every past incident becomes a permanently-running named test. The backend already lives
+this (the zombie canary); §6 extends it to the frontend's actual bug history.</li>
+</ul>
+
+<h3>Where we break from the classical mould (the AI-era adjustments)</h3>
+<p>Classical UX automation assumes tests are <i>expensive to write and brittle to keep</i> — whole industries (page-object
+patterns, selector-maintenance teams) exist to manage that cost. That assumption is now false here: <b>this week, every bug fix
+shipped with a purpose-built headless test written in minutes by the agent that wrote the fix</b> (overlap audit, oval invariants,
+trail tracking…). Three consequences we lean into:</p>
+<ul>
+<li><b>Tests are generated, not authored.</b> The dimension file is the source of truth; instance scripts are derived from it.
+When a dimension changes (a new layout mode), the grid regenerates — no stale hand-written case library.</li>
+<li><b>The human's scarce contribution is the benchmark, not the script.</b> You play the cherry-picked instance once, with kdiag
+recording and screenshots at defined moments; you say "this is right". That blessed bundle — steps, trace, images — is the oracle
+the machine replays against. (Classically called <i>golden master</i> / <i>approval testing</i>; we add the diagnostic trace, which
+classical UI testing never had.)</li>
+<li><b>Fuzzy visual judgement can now be automated — carefully.</b> A vision model comparing "screenshot now" vs "blessed screenshot,
+same instance" answers "has this materially changed?" better than pixel-diffing (which cries wolf on antialiasing) and worse than you
+(which is why the benchmark is yours). We propose it only as a <i>change detector</i> that escalates to a human, never as the judge
+of first instance. This replaces the classical visual-regression services (Percy/Chromatic) with something we control and that
+understands "the chips may sit anywhere inside the walls" — a semantic tolerance no pixel-differ has.</li>
+</ul>
+
+<h2>4 · The model: classes → dimensions → instances → benchmarks → canaries</h2>
+<table>
+<tr><th>Term</th><th>Definition</th><th>Example</th></tr>
+<tr><td><b>Class</b></td><td>One user-meaningful behaviour + its <b>oracle</b> (the checkable definition of OK: hard assertions, expected kdiag shape, benchmark screenshots)</td><td><code>CHIPDROP</code> — "offering an asset from one account to another renders correctly end-to-end"</td></tr>
+<tr><td><b>Dimension</b></td><td>An axis whose value could change the outcome, with few named values (<i>partitions</i>) and marked <span class="bdy">boundaries</span></td><td>players-on-board: 2 / 3 / <span class="bdy">6=cap</span> / <span class="bdy">7=wedges</span></td></tr>
+<tr><td><b>Instance</b></td><td>One concrete vector of dimension values, machine-derived (pairwise + boundaries + constraints), stably named</td><td><code>CHIPDROP-04</code> = 7 players · portrait · phone · →hidden · FT · scroll-mid-connections · shelves</td></tr>
+<tr><td><b>Benchmark</b></td><td>A blessed manual run of an instance: scripted steps + kdiag trace + screenshots + your verdict "OK". The class's reference for what right looks like</td><td>your tablet pass of CHIPDROP-01, recorded</td></tr>
+<tr><td><b>Canary</b></td><td>An instance (often born from an incident) that runs continuously and reports to kflow forever</td><td>"pickable toggle moves 0 chips" — already exists in this week's harness</td></tr>
+</table>
+<p><b>The lifecycle:</b> a class is defined → the generator derives instances → you run + bless the picks (benchmarks) →
+the automated expansion replays the rest → all verdicts land on the kflow grid → any incident adds a canary instance to the class.
+"Something surprises you → pin it down → leave a robot watching" — QA-OVERVIEW's loop, now for the UI.</p>
+
+<h2>5 · Worked example — the CHIPDROP class</h2>
+<h3>5.1 Oracle (what "OK" means, checkable)</h3>
+<ul>
+<li><b>Hard assertions</b> (machine-checkable, no judgement): the chip lands inside the target's basket <i>walls</i> (the same
+<code>boardRimAt/boardWallClamp</code> functions the physics uses — the walls overlay made these an oracle); a ghost sits on the giver's
+rim band; pile→ghost→basket endpoints stay within 4px of their chips through and after all motion; giver's store balance decrements;
+solid-chip invariant (0 overlapping pairs at settle); jitter 0 after settle; no console errors; <code>board:paint:moves</code> goes quiet.</li>
+<li><b>Trace shape</b> (kdiag): the expected checkpoint sequence for the gesture (drag events → offer sent → render → settle), no
+unexpected re-solves.</li>
+<li><b>Benchmark comparison</b> (for the visual/feel part): screenshots at gesture-start / mid-flight / settled vs the blessed run.</li>
+</ul>
+
+<h3>5.2 Dimensions (with boundaries and constraints)</h3>
+<table>
+<tr><th>Dim</th><th>Values</th><th>Why / boundaries</th></tr>
+<tr><td class="dim">P · players on board</td><td>2 · 3 · <span class="bdy">6 (=maxSegments cap)</span> · <span class="bdy">7 (wedge dividers appear)</span></td><td>segment angle (obtuse→acute) changes the physics; cap crossing changes the DOM structure</td></tr>
+<tr><td class="dim">A · own accounts</td><td>1 · 2</td><td>2 enables the own→own self-transfer path</td></tr>
+<tr><td class="dim">O · aspect</td><td>portrait · landscape · <span class="bdy">square</span></td><td>square≈circle hid the oval-walls bug; extremes stress the safe rect</td></tr>
+<tr><td class="dim">D · device/input</td><td>desktop-mouse · tablet-touch · phone-touch</td><td>drag vs tap-to-offer paths; hit-target sizes; dvh/banner behaviour</td></tr>
+<tr><td class="dim">T · target relation</td><td>own→own · →adjacent player · →opposite side · <span class="bdy">→hidden (wheel-scroll first)</span></td><td>travel distance changes the flight + line geometry; hidden requires the scroll interaction mid-flow. <i>Constraint: →hidden only valid when P=7; own→own only when A=2</i></td></tr>
+<tr><td class="dim">K · asset kind</td><td>FT slice (pile remains) · whole pile · NFT</td><td>three different choreographies (3-point line · pile vanishes · arc flight, no pile segment)</td></tr>
+<tr><td class="dim">M · motion state</td><td>static · after you-at-bottom rotate · connections drawn, then wheel-scroll</td><td>the "lines must survive motion" class of bugs lives here</td></tr>
+<tr><td class="dim">L · layout</td><td>shelves · organic · organic+sticky</td><td>different solvers; sticky changes arrival behaviour</td></tr>
+</table>
+<p class="note">Full cartesian: 4·2·3·3·4·3·3·3 = <b>7,776</b>. Pairwise with constraints: <b>≈25</b>. Picked for hand-running: <b>4</b>.</p>
+
+<h3>5.3 A derived instance set (illustrative pairwise sample — the generator produces the full ~25)</h3>
+<table>
+<tr><th>Id</th><th>P</th><th>A</th><th>O</th><th>D</th><th>T</th><th>K</th><th>M</th><th>L</th><th>Run</th></tr>
+<tr><td>CHIPDROP-01</td><td>2</td><td>1</td><td>portrait</td><td>tablet</td><td>→adjacent</td><td>FT slice</td><td>static</td><td>organic</td><td class="man">🖐 MANUAL — the everyday case; first benchmark</td></tr>
+<tr><td>CHIPDROP-02</td><td>3</td><td>2</td><td>landscape</td><td>desktop</td><td>own→own</td><td>NFT</td><td>static</td><td>shelves</td><td class="man">🖐 MANUAL — self-transfer + the NFT arc flight</td></tr>
+<tr><td>CHIPDROP-03</td><td><b>6</b></td><td>1</td><td><b>square</b></td><td>desktop</td><td>→opposite</td><td>whole pile</td><td>static</td><td>organic</td><td class="auto">AUTO</td></tr>
+<tr><td>CHIPDROP-04</td><td><b>7</b></td><td>2</td><td>portrait</td><td>phone</td><td><b>→hidden</b></td><td>FT slice</td><td>connections + scroll</td><td>shelves</td><td class="man">🖐 MANUAL — the hardest interaction; boundary-heavy</td></tr>
+<tr><td>CHIPDROP-05</td><td>7</td><td>1</td><td>landscape</td><td>tablet</td><td>→adjacent</td><td>NFT</td><td>after rotate</td><td>organic+sticky</td><td class="man">🖐 MANUAL — sticky feel + rotation</td></tr>
+<tr><td>CHIPDROP-06</td><td>2</td><td>2</td><td>square</td><td>phone</td><td>own→own</td><td>whole pile</td><td>after rotate</td><td>organic</td><td class="auto">AUTO</td></tr>
+<tr><td>CHIPDROP-07</td><td>3</td><td>1</td><td>portrait</td><td>desktop</td><td>→opposite</td><td>whole pile</td><td>after rotate</td><td>organic+sticky</td><td class="auto">AUTO</td></tr>
+<tr><td>CHIPDROP-08</td><td>6</td><td>2</td><td>landscape</td><td>phone</td><td>own→own</td><td>FT slice</td><td>connections + scroll</td><td>organic</td><td class="auto">AUTO</td></tr>
+<tr><td>CHIPDROP-09</td><td>7</td><td>1</td><td>square</td><td>tablet</td><td>→opposite</td><td>whole pile</td><td>static</td><td>organic+sticky</td><td class="auto">AUTO</td></tr>
+<tr><td>CHIPDROP-10</td><td>2</td><td>1</td><td>landscape</td><td>phone</td><td>→adjacent</td><td>whole pile</td><td>after rotate</td><td>shelves</td><td class="auto">AUTO</td></tr>
+<tr><td>CHIPDROP-11</td><td>3</td><td>2</td><td>square</td><td>tablet</td><td>→adjacent</td><td>NFT</td><td>connections + scroll</td><td>organic</td><td class="auto">AUTO</td></tr>
+<tr><td>CHIPDROP-12</td><td>6</td><td>1</td><td>portrait</td><td>desktop</td><td><b>→hidden</b>*</td><td>NFT</td><td>static</td><td>shelves</td><td class="auto">AUTO · *invalid at P=6 — generator substitutes →opposite (constraint demo)</td></tr>
+</table>
+<p class="note">Note how the manual picks are exactly where machine judgement is weakest: feel of the everyday case, the two
+signature animations, sticky's game-feel, and the one requiring a mid-flow human gesture sequence. Everything else asserts fine
+mechanically. Device rows automate as viewport+touch emulation first (Playwright device profiles); <i>real</i>-device passes stay
+manual until a device farm is ever justified.</p>
+
+<h2>6 · The regression catalogue — history as canaries</h2>
+<p>Mined from the last month of tasks/incidents. Pattern-named so future bugs slot into a category (and inherit its canary shape):</p>
+<table>
+<tr><th>Category (the failure class)</th><th>The incident that taught it</th><th>Canary assertion</th><th>Status</th></tr>
+<tr><td><b>Cosmetic-change stability</b> — visual-state churn must never move layout</td><td>Pickable scatter (4 rounds, 2026-07-15)</td><td>toggle pickable/lock/selection → <b>0 of N chips move</b></td><td class="done">automated this week (scratchpad)</td></tr>
+<tr><td><b>Geometry truth</b> — enforced walls = visible shapes</td><td>Circular walls vs oval rim (2026-07-16)</td><td>basket chips fully inside rim ellipse, store chips fully outside, at portrait AND landscape</td><td class="done">automated this week</td></tr>
+<tr><td><b>Visible-area containment</b></td><td>Chips off-screen / under banner/footer (BOARD-SAFEAREA1)</td><td>0 chips outside safe rect in any state</td><td class="done">automated this week</td></tr>
+<tr><td><b>Attached-artifact tracking</b> — lines/badges follow their chips</td><td>Stale dotted lines (2026-07-16); ghost alignment</td><td>trail/trade-line endpoints within 4px of chip centres after forced motion</td><td class="done">automated this week</td></tr>
+<tr><td><b>Settle discipline</b> — animation must terminate</td><td>Jitter reports (2026-07-16)</td><td>max movement 0.0px/frame over 30 frames after settle, every mode</td><td class="done">automated this week</td></tr>
+<tr><td><b>Paint completeness</b> — everything placed every render</td><td>Ghost NFTs vanishing / spotlight top-left wipe (rebind bug)</td><td>0 unplaced elements, 0 at top-left, ghosts+NFT ghosts present, incl. mid/post-replay</td><td class="done">automated this week</td></tr>
+<tr><td><b>Hydration click-integrity</b> — async load must not move click targets</td><td>SIGN-LAYOUTJUMP1 (Sign click landed on a link — dangerous class)</td><td>Sign button bounding-box stable from first paint through enrichment (Playwright bounding-box watch)</td><td class="man">to build — task exists, HIGH</td></tr>
+<tr><td><b>Affordance presence</b></td><td>GM-TOAST-X1 (toast ✕ invisible)</td><td>every toast shows a visible close ✕</td><td class="man">to build (verify-only item in HANDOFF)</td></tr>
+<tr><td><b>Choreography origins</b> — flights start where the thing was</td><td>NFT "flew from nowhere" (ghost origin off-screen); kinked trails</td><td>flight start-rect within Npx of the chip's last painted rect</td><td class="man">to build</td></tr>
+<tr><td><b>Width/format regressions</b></td><td>SIGN-CARDWIDTH1 (cards went narrow around the protobuf change)</td><td>key containers ≥ expected % of modal width at desktop</td><td class="man">to build</td></tr>
+</table>
+<p class="rec"><b>Immediate cheap win:</b> six of ten categories already have working checks sitting in a session scratchpad.
+Promoting them into a versioned <code>qa/</code> folder with a one-command runner banks this week's work before it evaporates.</p>
+
+<h2>7 · Harness &amp; reporting — proposal and choices</h2>
+<h3>The shape (recommended)</h3>
+<ul>
+<li><b>Source of truth:</b> one machine-readable file per class (<code>qa/cases/chipdrop.json</code>: oracle spec, dimensions,
+values, boundaries, constraints, picked-manual list). The human registry (qa-test-dimensions.html) stays the readable overview and
+links to these; the runner and the docs derive from the same file — no drift.</li>
+<li><b>Runner:</b> Playwright (chromium already on this box, proven against lab1 all week). Fixtures by class:
+<code>?demo=1</code> for pure-frontend classes; katrun-driven live backend for e2e classes; XPROOF headless-WC bot for signing legs
+(QA-WCTEST1). Device dimension via Playwright's device profiles (touch, DPR, viewport).</li>
+<li><b>Reporting:</b> every run emits kflow <code>test:start</code> / <code>test:verdict</code> with
+<code>{class, instance, commit, seat}</code> — UX results land on the <b>same retest grid</b> as katrun's, no new dashboard.
+Red verdicts follow the same alert path QA-OVERVIEW's next-steps call for.</li>
+<li><b>Benchmark recorder:</b> a tiny "record mode": you play a picked instance on lab1, it captures the kdiag stream +
+screenshots at the oracle's checkpoints into <code>qa/benchmarks/&lt;instance&gt;/</code>; blessing = committing it. Automated runs
+attach their equivalents to failures so a red cell always carries its evidence.</li>
+<li><b>Triggers:</b> (1) on demand — one command per class or instance; (2) a cron loop on the lab seat (the katrun heartbeat
+pattern — e.g. the canary set every 30 min against lab1); (3) later, post-checkpoint hook (a commit to the board triggers the
+board classes).</li>
+</ul>
+
+<h3>The choices for you to pick (A/B/C are not mutually exclusive)</h3>
+<div class="choice"><b>A · Static pairwise suite</b> — generator produces the ~25 instances per class once; they're reviewed,
+committed, and run verbatim until a dimension changes. <i>Predictable, diffable, cheap; the classical choice done with modern
+tooling.</i></div>
+<div class="choice"><b>B · Agent-generated instances per run</b> — each nightly run, the agent derives a fresh valid combination
+set from the dimension file (different seeds), so over weeks the coverage sweeps far beyond pairwise. <i>Catches 3-way+
+interactions pairwise misses; slightly nondeterministic (a red needs its vector recorded to reproduce — which the kflow verdict
+carries anyway).</i></div>
+<div class="choice"><b>C · Vision-assert benchmarks</b> — for the MANUAL-flavoured oracles, a vision model compares run
+screenshots against your blessed benchmark and answers "materially different?" — escalating diffs to you rather than judging.
+<i>Automates the fuzzy half that hard assertions can't reach; the model is a change-detector, never the authority.</i></div>
+<p class="rec"><b>Recommendation: A + C now, B later.</b> A gives the dependable grid; C is what makes the "benchmark" idea pay
+off (your one manual pass keeps guarding the class after you've moved on); B becomes attractive once A is green and boring.
+On reporting there's no real choice to make — kflow is built for exactly this and katrun has proven the pattern.</p>
+
+<h2>8 · Proposed next steps (each small)</h2>
+<ol>
+<li><b>Bank the existing checks</b> (sand/stone): move this week's five scratchpad harnesses into <code>qa/</code> on the frontend
+repo with a one-command runner. Instant regression cover for the physics board.</li>
+<li><b>First class file</b> (stone): <code>qa/cases/chipdrop.json</code> per §5 + the pairwise generator (small, constraint-aware).
+You review the derived ~25 and the 4 picks.</li>
+<li><b>kflow wiring</b> (stone): <code>test:start/test:verdict</code> from the runner; confirm cells appear on the lab grid.
+(Depends on nothing frontend-specific — the checkpoint API already exists.)</li>
+<li><b>First benchmark recording</b> (stone, with you): CHIPDROP-01 on your tablet against lab1, kdiag + screenshots captured and
+blessed.</li>
+<li><b>Hydration click-integrity canary</b> (stone, HIGH): the SIGN-LAYOUTJUMP1 bounding-box watch — the one category whose
+failure class is dangerous rather than cosmetic.</li>
+<li>Then: grow classes (SIGNING, ROTATION, SETTINGS-PERSISTENCE…) at the rate reality demands — each new incident lands in a
+category and leaves a canary.</li>
+</ol>
+
+<h2>9 · Task cross-references</h2>
+<table>
+<tr><th>Task</th><th>Relation</th></tr>
+<tr><td><b>QA-UXGRID1</b></td><td><b>this document</b> — the strategy + its execution</td></tr>
+<tr><td>QA-TESTDIM1</td><td>the dimension registry this derives from (doing) — stays the human-readable checklist</td></tr>
+<tr><td>TESTING</td><td>the umbrella strategy boulder (review) — this is a concrete resolution of its frontend half</td></tr>
+<tr><td>TESTLOOP1 / KATRUN1 / KATRUN-KFLOW1</td><td>the backend loop + kflow bridge this copies the pattern from</td></tr>
+<tr><td>QA-WCTEST1</td><td>headless-WC wallet bot — the signing leg for e2e classes</td></tr>
+<tr><td>KFLOW1 / KFLOW-MARKERS1</td><td>the reporting substrate (and the marker-coverage fix that strengthens the grid)</td></tr>
+<tr><td>SIGN-LAYOUTJUMP1</td><td>becomes the first hydration click-integrity canary (§6)</td></tr>
+<tr><td>BOARD-ARRANGE1</td><td>upcoming feature whose dimensions (sticky/pinned) already appear in the CHIPDROP grid</td></tr>
+</table>
+
+<p class="note">Maintained under QA-UXGRID1 · first draft 2026-07-16, seat lab1 (KATUI2) · sibling of
+<a href="qa-test-dimensions.html">qa-test-dimensions.html</a> · plain-first tone per QA-OVERVIEW convention.</p>
+
+</body>
+</html>
