@@ -1,0 +1,10 @@
+{
+  "_comment": "KATOMIA-CONFIG1 (2026-07-14): site-wide, non-secret config. Not build/deploy secrets — deliberately git-tracked (see .gitignore's narrow negation of the blanket *.json rule for this one file) so it's administrable/reviewable like any other code. Lives inside m/katomia/ on purpose: the user wants everything Katomia-related self-contained in this one folder so a future white-label deploy (a separate site, its own config) or a relocation/bundle only ever has to carry this folder. Extend this file (not a second one) for future site-wide settings — default skin, branding, etc.",
+  "landing": {
+    "title": "Katomia",
+    "tagline": "Swap things, not prices.",
+    "curatedGames": [
+      { "id": "t-prop", "network": "testnet", "label": "Proposal demo (testnet)" }
+    ]
+  }
+}

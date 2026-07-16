@@ -293,6 +293,19 @@ let boardSkin = (() => {
 
 // footer state — STICKY via localStorage (review 16: a WS drop forces a
 // refresh, and losing your toggles each time was maddening)
+//
+// SCOPE SEAM (user 2026-07-14): this key is deliberately GLOBAL — one
+// localStorage entry, not per-game — so a layout you dial in on one game
+// (max-on-ring, pickable, etc.) carries over as your default the next time
+// you open a different one. That's the agreed starting point ("a lot of
+// those you might want them to stick across games... I don't think any of
+// those are absolutely specific to a specific game"), not a fixed decision —
+// the user is open to per-game scoping later if it turns out some of these
+// (max-on-ring and pickable were the two floated as maybe-game-specific)
+// want to vary by game after all. THE SWITCH, if that day comes: change
+// BOARD_PREFS_KEY below to include gameId (e.g. `katomiaBoardPrefs:${gameId}`)
+// — everything else (load/save shape, defaults) is already written
+// game-agnostically and needs no other change.
 const BOARD_PREFS_KEY = "katomiaBoardPrefs"
 function boardLoadPrefs(){
   try { return JSON.parse(localStorage.getItem(BOARD_PREFS_KEY) || "{}") } catch { return {} }
@@ -302,22 +315,62 @@ function boardSavePrefs(){
     localStorage.setItem(BOARD_PREFS_KEY, JSON.stringify({
       skin: boardSkin, selfBottom: boardSelfBottom,
       netView: boardNetView, partyOnly: boardPartyOnly,
-      maxSegments: boardMaxSegments
+      maxSegments: boardMaxSegments, animSpeed: boardAnimSpeed,
+      trailResidual: boardTrailResidual, layoutMode: boardLayoutMode,
+      zoneWalls: boardZoneWalls, hugRing: boardHugRing,
+      stickyChips: boardStickyChips
     }))
   } catch {}
 }
 const _bp = boardLoadPrefs()
-let boardSelfBottom = _bp.selfBottom ?? true   // me at 6 o'clock; off = shared
-let boardNetView = _bp.netView ?? false        // FULL pairwise netting
+let boardSelfBottom = _bp.selfBottom ?? true   // me at 6 o'clock; off = shared (Prefs; default ON per user 2026-07-12)
+// net is the STANDARD view now (user 2026-07-14: "we're going to go with net
+// as the standard view, and we probably won't expose that option to turn it
+// off to users") — default flipped to ON; the toggle stays as a 🧪 escape
+// hatch, parked not removed (unknown edge cases may still want the split view)
+let boardNetView = _bp.netView ?? true         // FULL pairwise netting (🧪 Settings)
 let boardSelectedAccount = null                // footer dropdown selection
+const _boardSeenMineIds = new Set()            // my account ids ever seen — newest-lands-selected (2026-07-14)
 let boardPartyOnly = _bp.partyOnly ?? false    // rule-aware party filter
+// animation speed multiplier (Prefs — debug throttle): 1 = normal, 0.25 = ¼
+// speed etc. Divides into every boardAnimate duration.
+let boardAnimSpeed = Number(_bp.animSpeed) || 1
+// 🧪 dev setting (user 2026-07-14): after the ▶ replay's trail line fades, a
+// fraction of its opacity PERSISTS — a burn-in showing where each asset came
+// from while the deal sits locked. 0 = old fade-to-nothing behaviour; the
+// residual lines are wiped at the start of the next replay. A design-tuning
+// knob, not a planned user feature.
+let boardTrailResidual = _bp.trailResidual ?? 0.5
+// boardPrefsOpen (⚙ popover open/closed) retired BOARD-HEADERINT1 — Preferences
+// now lives in profile-modal.php, opened via the normal Profile menu item.
+// 🧪 chip layout (BOARD-LAYOUT1, user 2026-07-14): "shelves" = deterministic
+// concentric rows clustered at the rim; "organic" = the original relax
+// solver. Toggle kept so both can be compared live; loser gets removed.
+let boardLayoutMode = _bp.layoutMode === "organic" ? "organic" : "shelves"
+// 🧪 debug (user 2026-07-16): draw each zone's PHYSICS WALLS — the actual
+// region the sim lets chip edges occupy (inner wall past the ghost band,
+// soft outer wall, the ±80°-clamped angular walls, basket coin-band inset)
+// plus the safe drawing rect. The felt shows none of these truthfully; when
+// chips land oddly this shows whether the walls or the physics are wrong.
+let boardZoneWalls = _bp.zoneWalls ?? false
+// 🧪 lab (user 2026-07-16, "clustering towards the outside — chips could
+// come in a bit more, without touching the ring; keep it mild"): biases the
+// organic anchor inward in STORE zones (0.38 of the radial band instead of
+// the 0.5 midpoint). Baskets and shelves unaffected. Default off.
+let boardHugRing = _bp.hugRing ?? false
+// 🧪 lab (user 2026-07-16, board-game feel / BOARD-ARRANGE1 first slice):
+// once the sim settles, chips become STICKY — springs skip them and
+// collisions can't move them (a newcomer takes the whole separation push and
+// finds space around them). Walls still apply (geometry changes must clamp).
+// The footer 🧹 button clears stickiness and re-runs the layout.
+let boardStickyChips = _bp.stickyChips ?? false
 
 // BOARD-WHEEL1 (user 2026-07-11): Lazy Susan is retired (scope, not code —
 // still in git history / renderSusanBoard if ever needed). Its job — "too
 // many players to fit" — moves onto the ring itself: mine stays fixed, OTHER
 // players become a scrollable window capped at boardMaxSegments total slots
 // (mine + visible others). A footer number input controls this; default 6.
-let boardMaxSegments = Math.max(3, Number(_bp.maxSegments) || 6)
+let boardMaxSegments = Math.max(2, Number(_bp.maxSegments) || 6)   // min 2 = two-party swap view (user 2026-07-12)
 let boardOthersScrollOffset = 0   // index into the (player-grouped) others list — which window is showing
 let boardFocusMode = false                     // ▶ spotlight toggle (session)
 
@@ -383,15 +436,140 @@ const boardMySignedTx = new Map()   // txid -> ts, tracked from board:sign:saved
 // (the real Hedera receipt status — authoritative, not guessed) and sig
 // updates. Reused directly via dynamic import, same pattern as the signstatus
 // pipeline above — one source of truth instead of a second, divergent guess.
+// result celebration (user 2026-07-14): confetti on success; grey ash
+// flecks as the failure PLACEHOLDER (the "burn / tear-down" idea is still
+// open). v4 — SUCCESS now uses canvas-confetti, the kpay widget's recipe
+// VERBATIM (vendor/kpay/kpool_widget/index.js triggerSuccessAnimation):
+// three hand-rolled attempts (rain / two-stage burst / axis-split arc) all
+// read wrong to the user; the widget's is the known-good reference. Only
+// change: origin moved to the board's central hub (the K). useWorker keeps
+// the animation running even while the result alert() blocks the main
+// thread — which is also why the widget's version always looked smooth.
+const BOARD_CONFETTI_CDN = "https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"
+let _boardConfettiPromise = null
+function boardLoadConfetti(){
+  if(window.confetti) return Promise.resolve(window.confetti)
+  return _boardConfettiPromise ||= new Promise(res => {
+    const s = document.createElement("script")
+    s.src = BOARD_CONFETTI_CDN
+    s.onload = () => res(window.confetti || null)
+    s.onerror = () => res(null)
+    document.head.appendChild(s)
+  })
+}
+
+async function boardCelebrate(ok){
+  if(ok){
+    const confetti = await boardLoadConfetti()
+    if(!confetti?.create) return
+    const hub = document.querySelector(".ring-hub")?.getBoundingClientRect()
+    const origin = {
+      x: hub ? (hub.left + hub.width / 2) / innerWidth : 0.5,
+      y: hub ? (hub.top + hub.height / 2) / innerHeight : 0.5
+    }
+    const canvas = document.createElement("canvas")
+    canvas.style.cssText = "position:fixed;inset:0;width:100%;height:100%;z-index:2147483647;pointer-events:none"
+    document.body.appendChild(canvas)
+    const fire = confetti.create(canvas, { resize: true, useWorker: true })
+    fire({ particleCount: 120, spread: 70, origin })
+    setTimeout(() => fire({ particleCount: 80, spread: 100, origin }), 250)
+    setTimeout(() => { fire.reset(); canvas.remove() }, 4250)
+    return
+  }
+  // FAILURE: windscreen-wiper sweep (user 2026-07-15 — the earlier ash rain
+  // "mixed the idea of a party with a failure"; this is the requested
+  // placeholder: one of the wheel's spokes does a full 360°, wiping the
+  // board clean, then the popup lands). A hub-centred disc with a thin
+  // dark sector + fading trail painted by conic-gradient, one rotation.
+  // FUTURE: style the wipe differently for expired vs failed; both may be
+  // replaced by real tear-down animations down the line.
+  const hub2 = document.querySelector(".ring-hub")?.getBoundingClientRect()
+  const cx2 = hub2 ? hub2.left + hub2.width / 2 : innerWidth / 2
+  const cy2 = hub2 ? hub2.top + hub2.height / 2 : innerHeight * 0.45
+  const R = Math.hypot(Math.max(cx2, innerWidth - cx2), Math.max(cy2, innerHeight - cy2)) * 2
+  const wiper = document.createElement("div")
+  wiper.className = "board-wiper"
+  wiper.style.width = wiper.style.height = R + "px"
+  wiper.style.left = (cx2 - R / 2) + "px"
+  wiper.style.top = (cy2 - R / 2) + "px"
+  document.body.appendChild(wiper)
+  setTimeout(() => wiper.remove(), 1600)
+}
+
+// ── top status banner (user 2026-07-15) ─────────────────────────────────────
+// Sits over the darkened top of the board. Today: signing-mode status, the
+// square consensus-status verdict (🟩/🟥 — SQUARE = Hedera consensus result,
+// the ring's COLOURS stay the signing-status language), and the tap-to-offer
+// hint. Placeholder seam for the sessions/proposal-recall flow (KAT-
+// PROPRECALL1): this is where "exit signing mode" and the proposal switcher
+// will live once that's designed — don't grow it ad-hoc past status text.
+function boardSetBanner(html){
+  let b = document.getElementById("boardBanner")
+  if(!html){ b?.remove(); return }
+  if(!b){
+    b = document.createElement("div")
+    b.id = "boardBanner"
+    document.body.appendChild(b)
+  }
+  b.innerHTML = html
+}
+
+function boardUpdateBanner(){
+  if(boardSigning){
+    const txid = boardSigning.tx?.txid || ""
+    const txSpan = txid ? ` · <span class="board-banner-tx">${txid}</span>` : ""
+    // KATOMIA-VALIDDUR1 (user 2026-07-15): txDelaySeconds delays a struck
+    // tx's own validStart into the future — it sits in pending, but a
+    // consensus node won't accept it yet. Distinct stage from "waiting for
+    // signatures" (signing can still happen early; SUBMISSION is what's
+    // gated). Re-renders naturally flip this to the signing-mode banner
+    // once Date.now() crosses validStartMs — no separate timer needed, this
+    // runs every render alongside everything else.
+    // MESSAGING ALIGNMENT (user 2026-07-15): the whole spotlit phase is
+    // "signing mode"; the banner narrates the SUBMISSION lifecycle within
+    // it, using the same state language as the signing widget's own
+    // getTxValidityStatus labels ('Waiting...', 'Ready to submit..',
+    // 'Expired?') rather than a second vocabulary:
+    //   waiting to submit → ready to submit (collecting signatures) →
+    //   expired? (grace) → verdict toast (🟩/🟥).
+    if(boardSigning.validStartMs && Date.now() < boardSigning.validStartMs){
+      boardSetBanner("⏳ Waiting to submit — opens in " +
+        Math.ceil((boardSigning.validStartMs - Date.now()) / 1000) + "s" + txSpan)
+      return
+    }
+    // grace limbo: countdown done but the backend hasn't ruled yet —
+    // mirror its own 'Expired?' label rather than sitting mute.
+    if(boardSigning.expiry && Date.now() > boardSigning.expiry){
+      boardSetBanner("⌛ Expired? — confirming with the network" + txSpan)
+      return
+    }
+    boardSetBanner("✍ Ready to submit — collecting signatures" + txSpan)
+    return
+  }
+  if(typeof selectedAssetId !== "undefined" && selectedAssetId){
+    boardSetBanner("👆 Tap a player's segment to offer it there — tap the chip again to cancel")
+    return
+  }
+  boardSetBanner(null)
+}
+
 function boardShowResult(txid, ok){
   if(boardSuccessAcked.has(txid)) return
   boardSuccessAcked.add(txid)
   boardSaveAckedTx(boardSuccessAcked)
   boardDiag("board:result:shown", { txid, ok })
-  alert(ok
-    ? `✅ Transaction successful\n\n${txid}\n\nTap OK to continue.`
-    : `⚠️ Transaction failed or expired\n\n${txid}\n\nIt was not executed on-chain. Tap OK to continue.`)
-  boardDiag("board:result:acked", { txid, ok })
+  boardCelebrate(ok)
+  // PERSISTENT, CLOSABLE TOAST (user 2026-07-15): the verdict used to be a
+  // banner bubble + a blocking alert(); now it's a toast that stays until
+  // the user closes it (timeout 0 = persistent, ✕ per GM-TOAST-X1) — the
+  // format the user wants to grow into progress-status messaging generally.
+  // Squares = Hedera consensus status (ring colours stay signing status).
+  // The alert() is gone: the wiper/confetti + toast carry the moment, and
+  // the real result MODAL (Try again etc.) is KAT-PROPRECALL1's design.
+  try {
+    notify((ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired") + ` · ${txid}`,
+      ok ? "success" : "error", { timeout: 0 })
+  } catch {}
 }
 
 let _boardTxSocket = null
@@ -417,6 +595,12 @@ function boardEnsureTxSocket(){
   if(_boardTxSocket){ try { _boardTxSocket.close() } catch {} ; _boardTxSocket = null }
   _boardTxSocketId = txid
   if(!txid || boardSuccessAcked.has(txid)) return
+  // preload the confetti lib now, while signing is underway — at result time
+  // the burst then fires synchronously, before the alert() blocks the thread
+  boardLoadConfetti()
+  // EXPIRY VERDICT: no longer a client-side timer guess (removed 2026-07-15 —
+  // see BOARD_TX_EXPIRY_MS below for why). renderRingBoard's vanish-from-
+  // pending watch is now the only source of an expiry/failure verdict.
   ;(async () => {
     try {
       const { createTxSocket } = await import("/vendor/kpay/kpool_widget/websocket.js")
@@ -463,10 +647,12 @@ function boardCheckJustSucceeded(){
     else if(/FAIL|ERROR|EXPIRE|INVALID/.test(st)) boardShowResult(t.txid, false)
   })
 
-  // diagnostic only now — resolution itself comes from the tx socket
-  // (boardEnsureTxSocket/boardHandleTxUpdate), which doesn't depend on US
-  // having been the one to sign, so it also covers "someone else's last
-  // signature completed it while I watched"
+  // diagnostic only now. The expiry/failure VERDICT used to be a client-side
+  // timer guessed off this map (removed 2026-07-15 — three independently-
+  // guessed deadlines here, in the countdown display, and the real backend
+  // resolution all disagreed, "async expiries" per the user). Verdicts are
+  // now purely SIGNAL-driven off boardSigning actually disappearing — see
+  // renderRingBoard, right after boardSigning = boardDetectSigning().
   boardMySignedTx.forEach((ts, txid) => {
     if(stillSigning.has(txid)) return
     boardMySignedTx.delete(txid)
@@ -493,6 +679,119 @@ let boardStartAngle = 180
     }
   }
 }
+
+// BOARD-HEADERINT1: populates + wires the rest of the board-only Preferences
+// section now living in profile-modal.php (KATOMIA_BOARD_CONTEXT), replacing
+// the ⚙ popover this file used to build itself on every render(). Since the
+// controls are now static server-rendered markup (not rebuilt each render),
+// syncing on load + on profile-open covers it — no per-render cost needed.
+// katomia-profile.js calls this by name if it exists (same optional-hook
+// pattern as katomiaAuthOnProfileOpen) whenever the profile modal opens.
+function boardSyncPrefsUI(){
+  const net = document.getElementById("boardPrefNet")
+  if(net){
+    net.checked = boardNetView
+    net.onchange = () => { boardNetView = net.checked; boardSavePrefs(); render() }
+  }
+  const selfBottom = document.getElementById("boardPrefSelfBottom")
+  if(selfBottom){
+    selfBottom.checked = boardSelfBottom
+    selfBottom.onchange = () => {
+      boardSelfBottom = selfBottom.checked
+      _boardAnimateNextRotation = true
+      boardSavePrefs()
+      render()
+    }
+  }
+  const maxSeg = document.getElementById("boardPrefMaxSeg")
+  if(maxSeg){
+    maxSeg.value = boardMaxSegments
+    maxSeg.onchange = () => {
+      const v = Math.max(2, Math.min(24, Number(maxSeg.value) || 6))
+      maxSeg.value = v
+      boardMaxSegments = v
+      boardOthersScrollOffset = 0
+      boardClearTrails()   // the whole layout reshuffles — drawn trails go stale
+      boardSavePrefs()
+      render()
+    }
+  }
+  const animSpeed = document.getElementById("boardPrefAnimSpeed")
+  if(animSpeed){
+    animSpeed.value = String(boardAnimSpeed)
+    if(animSpeed.selectedIndex < 0) animSpeed.value = "1"
+    animSpeed.onchange = () => { boardAnimSpeed = Number(animSpeed.value) || 1; boardSavePrefs() }
+  }
+  const trailRes = document.getElementById("boardPrefTrailResidual")
+  if(trailRes){
+    trailRes.value = String(boardTrailResidual)
+    if(trailRes.selectedIndex < 0) trailRes.value = "0.5"
+    trailRes.onchange = () => { boardTrailResidual = Number(trailRes.value) || 0; boardSavePrefs() }
+  }
+  const layout = document.getElementById("boardPrefLayout")
+  if(layout){
+    layout.value = boardLayoutMode
+    layout.onchange = e => {
+      // pickable-scatter round 2 forensics (2026-07-15): the kdiag trace
+      // showed the scatter was THIS handler firing (mode organic→shelves,
+      // 456-794px drift as the FLIP glide re-arranged every chip) seconds
+      // after page load — NOT the pickable toggle itself, whose class-churn
+      // fix is holding (drift 0 everywhere else). Unknown who fired it: the
+      // user, or Chrome form-state restore desyncing the select from the
+      // variable. isTrusted + old/new in the diag settles it next repro;
+      // autocomplete=off on the panel (header.php) kills the restore path.
+      boardDiag("board:layout:change", { from: boardLayoutMode, to: layout.value, isTrusted: !!e?.isTrusted })
+      boardLayoutMode = layout.value === "organic" ? "organic" : "shelves"
+      boardClearTrails()   // full reshuffle — drawn trails go stale
+      boardSavePrefs()
+      render()             // FLIP glides every chip to its new arrangement
+    }
+  }
+  const zoneWalls = document.getElementById("boardPrefZoneWalls")
+  if(zoneWalls){
+    zoneWalls.checked = boardZoneWalls
+    zoneWalls.onchange = () => { boardZoneWalls = zoneWalls.checked; boardSavePrefs(); render() }
+  }
+  const hugRing = document.getElementById("boardPrefHugRing")
+  if(hugRing){
+    hugRing.checked = boardHugRing
+    hugRing.onchange = () => {
+      boardHugRing = hugRing.checked
+      boardSavePrefs()
+      boardSimExcite()   // the anchor moved — wake the sim so blobs re-home
+      render()
+    }
+  }
+  const sticky = document.getElementById("boardPrefSticky")
+  if(sticky){
+    sticky.checked = boardStickyChips
+    sticky.onchange = () => {
+      boardStickyChips = sticky.checked
+      if(boardStickyChips)
+        _boardSimBodies.forEach(b => { b.stick = true })    // freeze the board as it stands
+      else {
+        _boardSimBodies.forEach(b => { b.stick = false })
+        boardSimExcite()                                    // let the layout relax again
+      }
+      boardSavePrefs()
+    }
+  }
+  const partyOnly = document.getElementById("boardPrefPartyOnly")
+  if(partyOnly){
+    partyOnly.checked = boardPartyOnly
+    partyOnly.onchange = () => boardTogglePartyOnly(partyOnly.checked)   // animated collapse/expand of non-party segments
+  }
+  const pickable = document.getElementById("boardPrefPickable")
+  if(pickable){
+    const myPrefs = state?.players?.[currentPlayerId]?.prefs || {}
+    pickable.checked = !!myPrefs.allowPick
+    pickable.onchange = () => {
+      boardDiag("board:pref:pickable", { value: pickable.checked })
+      socket.send(JSON.stringify({ type: "game_setPref", gameId, key: "allowPick", value: pickable.checked }))
+    }
+  }
+}
+boardSyncPrefsUI()
 
 document.addEventListener("dragend", () => { window.__boardDragPayload = null })
 
@@ -627,8 +926,48 @@ function renderRingBoard(root){
   // join order — shared board for all; filters preserve join order
   // (getVisibleAccounts sorts mine-first, which would reseat the shared board)
   boardSigning = boardDetectSigning()
-  const accounts = boardFilteredAccounts()
+  boardSigningWindowDiag(boardSigning)   // KATOMIA-VALIDDUR1: log window changes
+  // SIGNAL-DRIVEN expiry/failure verdict (replaces the 2026-07-14 client-
+  // timer guesses, removed 2026-07-15 for disagreeing with the real backend
+  // deadline — see BOARD_TX_EXPIRY_MS above). boardDetectSigning() only
+  // stops returning a txid once the BACKEND has actually resolved it (tx
+  // dropped from state.tx.pending, or marked isFinalStatus, via its own
+  // broadcast) — so reacting to that disappearance is exactly in sync with
+  // when the board's UI ACTUALLY clears, by construction; no separate clock
+  // to drift against it. Short grace window before declaring failure: a
+  // genuine SUCCESS is usually already acked via the tx-receipt socket
+  // (boardHandleTxUpdate) by the time the tx vanishes from pending, but if
+  // that push is still in flight this avoids a false failure flash.
+  {
+    const nowTxid = boardSigning?.tx?.txid || null
+    if(_boardLastSigningTxid && _boardLastSigningTxid !== nowTxid && !boardSuccessAcked.has(_boardLastSigningTxid)){
+      const vanished = _boardLastSigningTxid
+      // 500ms (was 2000, user 2026-07-15: the wiper lagged the shade lift —
+      // fire "pretty much immediately"): still enough for a same-moment
+      // success receipt push to win the race, and the shade's synced fade
+      // (ring-focusshade--wipe, below) covers the remaining offset.
+      setTimeout(() => {
+        if(!boardSuccessAcked.has(vanished)){
+          boardDiag("board:result:vanished-from-pending", { txid: vanished })
+          boardShowResult(vanished, false)
+        }
+      }, 500)
+    }
+    _boardLastSigningTxid = nowTxid
+  }
+  // party collapse/expand mid-tween: paint the merged entity list (leavers
+  // still on the board at their shrinking widths) instead of the filtered
+  // one — account refs re-resolved to LIVE objects each render so a WS state
+  // push landing mid-tween doesn't paint 550ms-stale chip data
   const accountMap = getAccountMap()
+  if(_boardPartyAnim)
+    _boardPartyAnim.entities.forEach(en => {
+      if(en.slot.type === "account")
+        en.slot.account = accountMap[en.slot.account.id] || en.slot.account
+    })
+  const accounts = _boardPartyAnim
+    ? _boardPartyAnim.entities.filter(en => en.slot.type === "account").map(en => en.slot.account)
+    : boardFilteredAccounts()
   const reservedByAccount = buildReservedByAccount(accounts)
   const etched = ringEtched()
 
@@ -653,11 +992,28 @@ function renderRingBoard(root){
   // boardMaxSegments, others are windowed with a scroll-divider on each side
   // (boardRingLayoutSlots). Below the cap this is just `accounts` again, one
   // slot each, no dividers — unchanged from before this feature.
-  const slots = boardRingLayoutSlots(accounts)
-  const acctSlotCount = slots.filter(s => s.type === "account").length
-  const dividerCount = slots.length - acctSlotCount
-  const step = acctSlotCount ? (360 - dividerCount * BOARD_DIVIDER_DEG) / acctSlotCount : 360
-  const widths = slots.map(s => s.type === "divider" ? BOARD_DIVIDER_DEG : step)
+  // Party collapse/expand v2: widths interpolate between the two REAL slot
+  // layouts captured at toggle (dividers and windowing included — see
+  // boardTogglePartyOnly), so both tween endpoints equal the actual screens.
+  let slots, step, widths
+  if(_boardPartyAnim){
+    const e = _boardPartyAnim.e
+    slots = _boardPartyAnim.entities.map(en => en.slot)
+    widths = _boardPartyAnim.entities.map(en => en.wOld + (en.wNew - en.wOld) * e)
+    _boardPartyAnim.entities.forEach(en => {
+      if(en.slot.type === "account")
+        en.slot.weight = en.wNew < 0.01 ? 1 - e : en.wOld < 0.01 ? e : 1   // chip fade rides this
+    })
+    const acctW = widths.filter((w, i) => slots[i].type === "account" && w > 1)
+    step = acctW.length ? acctW.reduce((s, x) => s + x, 0) / acctW.length : 360   // felt font sizing only
+  } else {
+    slots = boardRingLayoutSlots(accounts)
+    const acctSlotCount = slots.filter(s => s.type === "account").length
+    const dividerCount = slots.length - acctSlotCount
+    step = acctSlotCount ? (360 - dividerCount * BOARD_DIVIDER_DEG) / acctSlotCount : 360
+    widths = slots.map(s => s.type === "divider" ? BOARD_DIVIDER_DEG : step)
+    _boardLastStepDeg = step                           // wheel-scroll glide distance
+  }
   const cumStart = []
   { let acc = 0; widths.forEach(w => { cumStart.push(acc); acc += w }) }
 
@@ -665,12 +1021,12 @@ function renderRingBoard(root){
   const bottomPad = etched ? 76 : 48        // keep boxes clear of the footer bar
   const segs = []                           // geometry handed to the felt layer (accounts only)
 
-  // ring8 "you at bottom": rotate the shared layout so the middle of my run
-  // of slots points due south (90° screen). Toggle off = everyone sees the
+  // ring8 "you at bottom": rotate the layout so the middle of my run of
+  // slots points due south (90° screen). Toggle off = everyone sees the
   // identical board (screen-share / spectator mode). Mine is ALWAYS one
-  // contiguous run now — boardGroupByPlayer (under the cap) and
-  // boardRingLayoutSlots' construction (over the cap) both guarantee it — so
-  // this no longer needs to hunt for the first contiguous run, just find mine.
+  // contiguous run at the layout's front (boardRingLayoutSlots, both
+  // branches) — "the position of the current player is the midpoint between
+  // the two dividers" (user 2026-07-12).
   let start = boardStartAngle
   if(ring8() && boardSelfBottom){
     const mineIdx = slots.map((s, i) => (s.type === "account" && isMyAccount(s.account)) ? i : -1).filter(i => i >= 0)
@@ -678,8 +1034,33 @@ function renderRingBoard(root){
       const first = mineIdx[0], last = mineIdx[mineIdx.length - 1]
       const center = boardStartAngle + (cumStart[first] + cumStart[last] + widths[last]) / 2
       start = boardStartAngle + (90 - center)
+    } else {
+      // SPECTATOR (user 2026-07-12): no accounts of mine, but the mine-gap
+      // still has a definition — the zero-width point between the two
+      // dividers (the layout's wrap point, angle 0). Face it due south, so
+      // the divider pair brackets an empty south seat instead of drifting.
+      start = 90
     }
   }
+
+  // rotate animation: the toggle just flipped — seed the offset so this frame
+  // still paints the OLD orientation, then tween the offset to 0 (the new
+  // one), re-rendering per frame. Shortest path so 350° goes -10°, not +350°.
+  if(_boardAnimateNextRotation && _boardStartRendered != null){
+    _boardAnimateNextRotation = false
+    _boardRotateCancel?.()
+    boardClearTrails()   // drawn trails are screen-frame snapshots — stale once the board turns
+    const from = boardShortestDelta(_boardStartRendered - start)
+    boardDiag("board:rotanim:start", { fromDeg: Math.round(from), speed: boardAnimSpeed })
+    _boardRotateOffset = from
+    _boardRotateCancel = boardAnimate(550, (e, done) => {
+      _boardRotateOffset = from * (1 - e)
+      if(done){ _boardRotateOffset = 0; _boardRotateCancel = null }
+      render()
+    })
+  }
+  start += _boardRotateOffset
+  _boardStartRendered = start
 
   // v9 (review 7): when ≥2 DISCONNECTED clusters coexist, segments outside my
   // cluster fade their wash — makes the split visible before it settles by
@@ -696,12 +1077,71 @@ function renderRingBoard(root){
     }
   }
 
-  slots.forEach((slot, i) => {
+  // ── wheel-glide clip window (see the v2 note at _boardOthersRotate) ──────
+  // Mid-glide, everything in the others group renders inside two clip
+  // containers (wedges below the felt, chips above — preserving the normal
+  // z-order) cut to the FIXED sector between the dividers, and the LEAVER is
+  // re-inserted one slot before the window so it slides out through the near
+  // threshold while the newcomer slides in through the far one. The felt's
+  // own elements for these segs (arcs/labels/dims) get the same clip inside
+  // ringFelt (seg.wclip → SVG clipPath). All of it exists only while the
+  // tween runs — the final frame (offset 0) renders the plain layout, which
+  // is exactly when the leaver leaves the DOM.
+  let renderSlots = slots.map((slot, i) => ({ slot, base: cumStart[i], width: widths[i] }))
+  let wheelClip = null, wheelWedgeClip = null, wheelChipClip = null
+  const firstOthers = slots.findIndex(s => s.group === "others")
+  if(_boardOthersRotate !== 0 && firstOthers >= 0 && !_boardPartyAnim){
+    let lastOthers = firstOthers
+    slots.forEach((s, i) => { if(s.group === "others") lastOthers = i })
+    wheelClip = { a0: start + cumStart[firstOthers],
+                  a1: start + cumStart[lastOthers] + widths[lastOthers] }
+    // the leaver: the account that just scrolled out of the window. Direction
+    // decides which END it fell off and which threshold it exits through:
+    // +1 (glide > 0) dropped the FRONT account — re-inserted one slot before
+    // the window, exits the near divider; −1 dropped the BACK one —
+    // re-inserted one slot after, exits the far divider. With ≥1 hidden it
+    // can never also be the entrant.
+    const others = accounts.filter(a => !isMyAccount(a))
+    if(others.length > 1){
+      const off = ((boardOthersScrollOffset % others.length) + others.length) % others.length
+      const m = lastOthers - firstOthers + 1
+      if(_boardOthersRotate > 0){
+        const leaver = others[(off - 1 + others.length) % others.length]
+        renderSlots.splice(firstOthers, 0, {
+          slot: { type: "account", account: leaver, group: "others" },
+          base: cumStart[firstOthers] - step, width: step })
+      } else {
+        const leaver = others[(off + m) % others.length]
+        renderSlots.splice(lastOthers + 1, 0, {
+          slot: { type: "account", account: leaver, group: "others" },
+          base: cumStart[lastOthers] + widths[lastOthers], width: step })
+      }
+    }
+    const poly = boardSectorPolygon(wheelClip.a0, wheelClip.a1, geo, 8)
+    wheelWedgeClip = document.createElement("div")
+    wheelWedgeClip.className = "ring-wheelclip ring-wheelclip--wedges"
+    wheelWedgeClip.style.clipPath = poly
+    wheelChipClip = document.createElement("div")
+    wheelChipClip.className = "ring-wheelclip ring-wheelclip--chips"
+    wheelChipClip.style.clipPath = poly
+    frag.appendChild(wheelWedgeClip)
+    frag.appendChild(wheelChipClip)
+  }
 
-    const a0 = start + cumStart[i], a1 = a0 + widths[i]
+  renderSlots.forEach(({ slot, base, width }, slotIdx) => {
+
+    // wheel-scroll glide: the others-window slots carry the animated offset;
+    // mine and the dividers hold still (the wheel turns, the mouth doesn't)
+    const gOff = slot.group === "others" ? _boardOthersRotate : 0
+    const a0 = start + base + gOff, a1 = a0 + width
+
+    // element destinations: clipped containers for the others group mid-glide
+    const inWheel = slot.group === "others" && wheelClip
+    const wedgeDest = inWheel ? wheelWedgeClip : frag
+    const chipDest = inWheel ? wheelChipClip : frag
 
     if(slot.type === "divider"){
-      frag.appendChild(makeScrollDividerWedge(a0, a1, geo, slot.hiddenCount))
+      frag.appendChild(makeScrollDividerWedge(a0, a1, geo, slot.hiddenCount, slot.dir))
       return
     }
 
@@ -722,7 +1162,8 @@ function renderRingBoard(root){
     let perAcct = boardSigning && boardSignStatus?.txid === boardSigning.tx?.txid
       ? boardSignStatus.byAccount?.[hac] : null
     if(perAcct === "loading") perAcct = "pending"   // orange while keyInfo loads; no --loading CSS class
-    segs.push({ account, a0, a1, am, mine,
+    segs.push({ account, a0, a1, am, mine, wclip: !!inWheel,
+      weight: slot.weight,   // party-tween fade: felt elements (etched id, arcs) dim with the closing segment
       sign: boardSigning && boardSigning.legs[hac]
         ? (perAcct ?? boardSigning.status)
         : null })
@@ -736,10 +1177,77 @@ function renderRingBoard(root){
     if(outsideMyCluster && !mine && outsideMyCluster(account))
       wedge.classList.add("board-wedge--othercluster")
     boardDropTarget(wedge, account)
-    frag.appendChild(wedge)
+    wedgeDest.appendChild(wedge)
 
     const chord = fr => Math.max(0.001, 2 * fr * Math.sin(rad(step / 2)))
     const rOval = ovalR(am), rEdge = edgeR(am)
+
+    if(ring16()){
+      // BOARD-ORGANIC1: no boxes — chips settle individually into the wedge's
+      // two zones via the relax pass (solved after the DOM lands, in
+      // boardOrganicApply — sizes need real layout). The wrap carries the
+      // account's drop target so a drop ON a chip still resolves to this
+      // account (events bubble chip → wrap; the wedge already catches drops
+      // on bare felt — identical semantics to the old inner/outer boxes,
+      // which called the same boardDropTarget(el, account)).
+      const wrap = document.createElement("div")
+      wrap.className = "ring-organic"
+      boardDropTarget(wrap, account)
+      // drag feedback used to be the box's .drag-over outline; the wrap spans
+      // the whole board so outline it can't — light the account's wedge instead
+      wrap.addEventListener("dragenter", () => wedge.classList.add("drag-over"))
+      wrap.addEventListener("dragleave", () => wedge.classList.remove("drag-over"))
+      wrap.addEventListener("drop", () => wedge.classList.remove("drag-over"))
+      // party collapse/expand: chips fade with their segment's weight (the
+      // wedge closes over them; BOARD-PHYSICS1 — the sim's walls follow the
+      // interpolated zone geometry each frame, squeezing chips with the wedge)
+      if(slot.weight != null && slot.weight < 1) wrap.style.opacity = slot.weight
+      // belt & braces (user 2026-07-12): clip every segment's chips to its
+      // CURRENT wedge sector while the tween runs — whatever the chips do,
+      // they can never escape their own closing slice
+      if(_boardPartyAnim) wrap.style.clipPath = boardSectorPolygon(a0, a1, geo)
+
+      const basketCont = document.createElement("div")
+      boardBasketChips(account, basketCont, accountMap)
+      // signing phase: the strike cleared the baskets server-side, but the
+      // board keeps the picture — receiving legs render as tx chips in place
+      if(boardSigning){
+        const legs = boardSigning.legs[hac]
+        if(legs && !basketCont.querySelector(".asset")) boardTxChips(legs, basketCont, accounts)
+      }
+      const storeCont = document.createElement("div")
+      boardStoreChips(account, storeCont)
+      boardReservedChips(account, storeCont, reservedByAccount)
+
+      const basketChips = [...basketCont.children]
+      const storeChips = [...storeCont.children]
+      basketChips.forEach(c => wrap.appendChild(c))
+      storeChips.forEach(c => wrap.appendChild(c))
+
+      if(account.mode === "lock"){
+        // etched skins: 🔒 badge used to ride the outer box — anchor it at the
+        // store zone's outer reach instead
+        const badge = document.createElement("div")
+        badge.className = "ring-lockbadge ring-lockbadge--organic"
+        badge.textContent = "🔒"
+        const rb = rOval + (rEdge - rOval) * 0.85
+        badge.style.left = (cx + rb * Math.cos(am)) + "px"
+        badge.style.top = (cy + rb * Math.sin(am)) + "px"
+        wrap.appendChild(badge)
+      }
+      chipDest.appendChild(wrap)
+
+      const midDeg = (a0 + a1) / 2, halfDeg = Math.max(6, step / 2 - 1)
+      // BOARD-PHYSICS1: no more endpoint solves — during the party tween these
+      // zones carry the per-frame interpolated angles, and the sim's bodies
+      // simply follow the moving walls (the wedge clip above covers the squeeze)
+      _boardOrganicZones.push(
+        { chips: basketChips, midDeg, halfDeg, rMin: rc + 10, rMax: rOval - 6,
+          key: account.id + "|basket" },
+        { chips: storeChips, midDeg, halfDeg, rMin: rOval + 8, rMax: Math.max(rOval + 40, rEdge - 14),
+          key: account.id + "|store" })
+      return
+    }
 
     // a box's width budget is the TIGHTER of its segment's chord (tangential
     // room) and the annulus depth it sits in (radial room, floored so N/S
@@ -766,7 +1274,7 @@ function renderRingBoard(root){
       if(legs && !inner.querySelector(".asset")) boardTxChips(legs, inner, accounts)
     }
     boardDropTarget(inner, account)
-    frag.appendChild(inner)
+    chipDest.appendChild(inner)
 
     // outer box — available (ghosts in place), outside the oval. v1 carries a
     // label row; etched variants write the id into the felt instead so the
@@ -793,11 +1301,11 @@ function renderRingBoard(root){
     boardReservedChips(account, chips, reservedByAccount)
     outer.appendChild(chips)
     boardDropTarget(outer, account)
-    frag.appendChild(outer)
+    chipDest.appendChild(outer)
   })
 
   // felt linework: basket oval, segment boundaries, hub ring, etched ids
-  frag.appendChild(ringFelt(segs, { W, H, cx, cy, rc, rx, ry, step, edgeR, ovalR, rad, etched }))
+  frag.appendChild(ringFelt(segs, { W, H, cx, cy, rc, rx, ry, step, edgeR, ovalR, rad, etched, wheelClip }))
 
   // center pivot — future strike timer / signing hourglass. With lock arcs
   // (ring5/6) the hub rim doubles as the cluster progress ring: the lockbar
@@ -888,6 +1396,11 @@ function renderRingBoard(root){
   if(etched) frag.appendChild(ringFooter(accounts.filter(a => isMyAccount(a))))
 
   root.replaceChildren(frag)
+  boardUpdateBanner()   // signing status / tap-to-offer hint / hidden
+
+  // BOARD-ORGANIC1: chips are in the live DOM now — measure, relax, place.
+  // Must run BEFORE the flight animations below (they read chip rects).
+  boardOrganicApply(cx, cy, W, H, { rx, ry })
 
   // ring8: offers from OTHER PLAYERS fly in as they land (one leg of the ▶
   // animation). Player-level guard: your own drops — from ANY of your
@@ -1110,6 +1623,846 @@ function boardGroupByPlayer(accounts){
 
 const BOARD_DIVIDER_DEG = 14   // fixed angular width of a scroll-wedge divider
 
+/* ── BOARD-PHYSICS1 (2026-07-15): persistent chip physics ─────────────────
+   REWRITE of the BOARD-ORGANIC1..4 placement stack, at the user's call after
+   the "second asset kicks the first, dotted line goes stale" bug: get the
+   physics MENTAL MODEL right — a chip's position is durable state; things
+   may push each other, but every push is visible motion, and anything
+   attached (ghost alignment, trade lines) tracks the chips continuously.
+
+   OLD MODEL (deleted): a from-scratch solver re-derived every chip's
+   position whenever a zone's content changed, then FOUR compensating
+   mechanisms hid the teleports: a solve cache (the pickable-scatter saga),
+   seeds feeding old positions back in, a FLIP glide animating the jumps
+   after the fact, and the party-anim endpoint lerp. Trade lines snapshotted
+   rects at hover time and went stale the moment anything moved.
+
+   NEW MODEL: bodies (one per chip identity) persist across renders in
+   _boardSimBodies, in the zone-LOCAL frame (x radial along the segment
+   mid-angle, y tangential — rotation-independent, so the "You at bottom"
+   rotate and the wheel scroll stay free: paint just re-projects under the
+   current mid-angle). Each render REBINDS the freshly built DOM elements to
+   their bodies (identity: zone + assetId + ghost-or-not + occurrence,
+   deliberately NOT the text, so an amount change keeps the body — and since
+   position is the body's CENTER, a width change no longer shifts anything).
+   A tiny relaxation sim then runs a few iterations per rAF until settled:
+     - organic: mutual collision pushes (kicking allowed — and VISIBLE,
+       because it happens over frames, not inside a hidden solve) plus a
+       gentle damped spring toward the zone anchor (closes gaps when chips
+       leave; the damping ramp guarantees convergence), walls as before
+       (angular hard, inner band hard, outer soft, basket coin-band inset);
+     - shelves: strong springs toward the deterministic boardShelfZone
+       targets — an HONEST animated re-flow instead of a pretend-static one;
+     - both: the BOARD-SAFEAREA1 screen clamp and the spoke-label keep-out
+       run INSIDE the loop, so those constraints are part of the physics,
+       not a post-hoc shove that reintroduces overlaps.
+   Every paint recomputes the ghost pile→ghost→basket alignment
+   (BOARD-CHIPLINE1) and re-aims the hover trade line
+   (window.__boardRefreshTradeLine, katomia-helpers) — attached things track
+   their chips BY CONSTRUCTION, retiring the stale-line bug class. The sim
+   sleeps (no rAF) once movement/frame drops under threshold; membership,
+   size, zone-geometry or layout-mode changes re-excite it. A cosmetic
+   re-render (pickable/lock/selection class churn) changes none of those, so
+   it provably moves nothing — no cache key to get wrong this time.
+   _boardChipPrevPos/_boardChipPrevPosOld keep their apply-time semantics:
+   flight animations read them (NFT offer origin, withdraw-return spawn). */
+let _boardOrganicZones = []           // collected per render, consumed by boardOrganicApply
+let _boardChipPrevPos = new Map()     // identity → apply-time {left,top,lx,ly} (flight origins, ghost→store spawn)
+let _boardChipPrevPosOld = new Map()  // one apply older — where a chip that vanished THIS apply last stood
+
+let _boardSimBodies = new Map()       // identity → body {el,x,y,w,h,cr,inner,zoneKey,txt,tx,ty,pl,pt}
+let _boardSimZones = new Map()        // zoneKey → projected geometry, refreshed every apply
+let _boardSimEnv = null               // screen-space env: centre, safe rect, oval, label rects
+let _boardSimRaf = 0
+let _boardSimCalm = 0                 // frames since last excitement — ramps the anchor spring down
+let _boardSimQuiet = 0                // consecutive settled frames — 3 puts the sim to sleep
+let _boardSimLastMode = null          // layout mode at the last apply — a toggle re-excites
+
+function boardHash01(s){
+  let h = 2166136261
+  for(let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) }
+  return ((h >>> 0) % 10000) / 10000
+}
+
+function boardSimExcite(){
+  _boardSimCalm = 0
+  _boardSimQuiet = 0
+  if(!_boardSimRaf) _boardSimRaf = requestAnimationFrame(boardSimFrame)
+}
+
+function boardSimFrame(){
+  _boardSimRaf = 0
+  if(!_boardSimEnv || !_boardSimBodies.size) return
+  const moved = boardSimTick(2)
+  boardSimPaint()
+  if(moved < 0.15) _boardSimQuiet++
+  else _boardSimQuiet = 0
+  if(_boardSimQuiet < 3) _boardSimRaf = requestAnimationFrame(boardSimFrame)
+  // 🧪 sticky: the sim just went to sleep — everything on the board has
+  // found its place; freeze it there (new arrivals start unstuck)
+  else if(boardStickyChips) _boardSimBodies.forEach(b => { b.stick = true })
+}
+
+// ── OVAL-TRUE WALLS (user 2026-07-16 — the zone-walls overlay's "massive
+// reveal"): the radial walls used to be scalar radii sampled at the segment
+// MID-ANGLE (zone.rMin/rMax), i.e. CIRCLES — but the rim is an ELLIPSE and
+// the screen a rectangle. On a square screen circle≈ellipse and it looked
+// right; portrait/landscape put every wall visibly away from the felt: chips
+// obeyed invisible circles, baskets poked out of the oval's sides, stores
+// stood far off the rim at N/S. Now every radial wall evaluates at the
+// chip's OWN screen angle against the TRUE shapes — hub circle, rim ellipse
+// (env.oval), screen edge — via these helpers, shared by the physics tick,
+// the shelf-target clamp AND the 🧪 walls overlay, so what's drawn is what's
+// enforced, by construction.
+function boardRimAt(env, th){
+  const o = env.oval
+  return (o.rx * o.ry) / Math.hypot(o.ry * Math.cos(th), o.rx * Math.sin(th))
+}
+function boardEdgeAt(env, th){
+  const c = Math.abs(Math.cos(th)), s = Math.abs(Math.sin(th))
+  return Math.min(c > 1e-6 ? (env.W / 2) / c : Infinity, s > 1e-6 ? (env.H / 2) / s : Infinity)
+}
+// clamp a zone-local point to the zone's walls: radial (at the point's own
+// angle), angular wedge (straight spokes), safe screen rect. soft=true keeps
+// the outer wall springy (physics — pressure spills gradually); false snaps
+// it hard (shelf-target clamping, so targets are feasible and the tick's
+// spring never fights the wall — that fight would jitter forever).
+function boardWallClamp(env, z, b, x, y, soft){
+  const r0 = Math.hypot(x, y) || 0.001
+  const thL = Math.atan2(y, x)
+  const thS = z.midRad + thL
+  // chip half-extent along the radial direction (chips are screen-axis-
+  // aligned boxes; their reach along a ray depends on the ray's angle)
+  const he = (Math.abs(Math.cos(thS)) * b.w + Math.abs(Math.sin(thS)) * b.h) / 2
+  let r = r0
+  const rim = boardRimAt(env, thS)
+  const minR = z.isBasket ? z.rMin + he : rim + 8 + z.band + he
+  if(r < minR) r = minR
+  // basket outer: rim minus the 6px oval inset minus the 34px coin-label
+  // band (BOARD-IDCOIN1); store outer: screen edge minus 14
+  const maxR = z.isBasket ? rim - 6 - 34 - he : boardEdgeAt(env, thS) - 14 - he
+  if(r > maxR) r = soft ? r - (r - maxR) * 0.3 : maxR
+  if(r !== r0){ x = r * Math.cos(thL); y = r * Math.sin(thL) }
+  const maxY = Math.max(2, x * z.tanHalf - b.w / 2)
+  y = Math.max(-maxY, Math.min(maxY, y))
+  // BOARD-SAFEAREA1: clamp the box into the measured visible rect (banner
+  // bottom / footer top / side margins) — catches tangential corner spill
+  const left = env.cx + x * z.cos - y * z.sin - b.w / 2
+  const top = env.cy + x * z.sin + y * z.cos - b.h / 2
+  const cl = Math.max(env.safeL, Math.min(left, env.safeR - b.w))
+  const ct = Math.max(env.safeTop, Math.min(top, env.safeBot - b.h))
+  if(cl !== left || ct !== top){
+    const gx = cl + b.w / 2 - env.cx, gy = ct + b.h / 2 - env.cy
+    x = gx * z.cos + gy * z.sin
+    y = -gx * z.sin + gy * z.cos
+  }
+  return { x, y }
+}
+
+// one physics step: springs → collisions → walls → screen clamps, in the
+// zone-local frame. Ghosts (inner) don't participate — the reserved rim band
+// already keeps store chips off their patch, and the paint pass pins them to
+// the rim / their pile→basket line. Returns the largest displacement, which
+// boardSimFrame uses for settle detection. The anchor spring is damped by
+// time-since-excitement so the organic equilibrium (spring-in vs push-apart)
+// provably converges instead of oscillating at the blob's edge; collision
+// resolution stays undamped — overlaps always resolve.
+function boardSimTick(iters){
+  const env = _boardSimEnv
+  if(!env) return 0
+  const speed = Math.min(1, boardAnimSpeed || 1)   // Prefs debug throttle rides the sim too
+  const damp = 1 / (1 + _boardSimCalm * 0.05)
+  _boardSimCalm++
+  const shelves = boardLayoutMode === "shelves"
+  const byZone = new Map()
+  _boardSimBodies.forEach(b => {
+    if(!b.el || b.inner) return
+    let arr = byZone.get(b.zoneKey)
+    if(!arr) byZone.set(b.zoneKey, arr = [])
+    arr.push(b)
+    b.px0 = b.x; b.py0 = b.y
+  })
+  for(let it = 0; it < iters; it++){
+    byZone.forEach((movers, zk) => {
+      const z = _boardSimZones.get(zk)
+      if(!z) return
+      movers.forEach(b => {
+        if(boardStickyChips && b.stick) return   // 🧪 sticky: settled chips feel no springs
+        if(shelves){
+          if(b.tx != null){ b.x += (b.tx - b.x) * 0.22 * speed; b.y += (b.ty - b.y) * 0.22 * speed }
+        } else {
+          b.x += (z.ax - b.x) * 0.03 * speed * damp
+          b.y -= b.y * 0.03 * speed * damp
+        }
+      })
+      // SOLID CHIPS (user 2026-07-16: chips were "stacking on top of each
+      // other quite heavily — consider them solid objects"): rectangle
+      // overlap resolved along the smaller-overlap axis, board-game style.
+      // The old circle colliders over-forgave rectangles: a wide text chip's
+      // bounding circle × the 0.88 snuggle let another chip sink ~26px into
+      // it along the short axis. Chips are SCREEN-axis-aligned rectangles
+      // and the local frame is rotated, so the AABB test projects the pair
+      // delta to screen, pushes there, and rotates the push back (pure
+      // rotation — lengths survive). 60% of the separation per iteration
+      // keeps the motion smooth; the iterations finish the job, so settled
+      // chips end fully apart (4px seam). cr circles stay as the broadphase.
+      if(!shelves) for(let a = 0; a < movers.length; a++) for(let c = a + 1; c < movers.length; c++){
+        const A = movers[a], B = movers[c]
+        const dx = B.x - A.x, dy = B.y - A.y
+        if(Math.hypot(dx, dy) > A.cr + B.cr) continue      // broadphase: rects can't touch
+        const dxs = dx * z.cos - dy * z.sin                // pair delta, screen frame
+        const dys = dx * z.sin + dy * z.cos
+        const ox = (A.w + B.w) / 2 + 4 - Math.abs(dxs)
+        const oy = (A.h + B.h) / 2 + 4 - Math.abs(dys)
+        if(ox <= 0 || oy <= 0) continue
+        let px = 0, py = 0                                 // screen-frame push on B
+        if(dxs === 0 && dys === 0){ px = a % 2 ? 4 : -4; py = 4 }   // dead-centre stack: deterministic nudge
+        else if(ox < oy) px = (dxs >= 0 ? 1 : -1) * ox
+        else py = (dys >= 0 ? 1 : -1) * oy
+        // 🧪 sticky: a settled chip is immovable in collisions — the other
+        // party takes the WHOLE separation (board-game feel: your placed
+        // pieces stay put, arrivals find space around them). Both sticky
+        // (walls squeezed them together) → both move, or they'd never part.
+        const aStick = boardStickyChips && A.stick && !(B.stick)
+        const bStick = boardStickyChips && B.stick && !(A.stick)
+        const f = 0.3 * speed                              // half each side × 0.6 step
+        const plx = (px * z.cos + py * z.sin) * f
+        const ply = (-px * z.sin + py * z.cos) * f
+        if(!aStick){ A.x -= plx * (bStick ? 2 : 1); A.y -= ply * (bStick ? 2 : 1) }
+        if(!bStick){ B.x += plx * (aStick ? 2 : 1); B.y += ply * (aStick ? 2 : 1) }
+      }
+      movers.forEach(b => {
+        // walls: oval-true radial (at the chip's own angle) + angular +
+        // safe rect — the shared clamp, soft outer (pressure spills)
+        const p = boardWallClamp(env, z, b, b.x, b.y, true)
+        b.x = p.x; b.y = p.y
+      })
+    })
+  }
+  // SPOKE-LABEL KEEP-OUT (user 2026-07-15): etched account numbers along the
+  // segment boundaries are no-chip zones. Same screen-space push as before,
+  // but now part of the tick, so the collision pass re-resolves any overlap
+  // the push creates. Skipped during tweens (labels are mid-motion).
+  if(env.labelRects.length) byZone.forEach((movers, zk) => {
+    const z = _boardSimZones.get(zk)
+    if(!z) return
+    movers.forEach(b => {
+      let left = env.cx + b.x * z.cos - b.y * z.sin - b.w / 2
+      let top = env.cy + b.x * z.sin + b.y * z.cos - b.h / 2
+      let hit = false
+      env.labelRects.forEach(r => {
+        const pad = 4
+        const ox = Math.min(left + b.w, r.right + pad) - Math.max(left, r.left - pad)
+        const oy = Math.min(top + b.h, r.bottom + pad) - Math.max(top, r.top - pad)
+        if(ox <= 0 || oy <= 0) return
+        hit = true
+        if(ox < oy) left += (left + b.w / 2 < (r.left + r.right) / 2 ? -ox : ox)
+        else top += (top + b.h / 2 < (r.top + r.bottom) / 2 ? -oy : oy)
+      })
+      if(hit){
+        const gx = left + b.w / 2 - env.cx, gy = top + b.h / 2 - env.cy
+        b.x = gx * z.cos + gy * z.sin
+        b.y = -gx * z.sin + gy * z.cos
+      }
+    })
+  })
+  let maxMove = 0
+  byZone.forEach(movers => movers.forEach(b => {
+    maxMove = Math.max(maxMove, Math.hypot(b.x - b.px0, b.y - b.py0))
+  }))
+  return maxMove
+}
+
+// project bodies to the screen and write left/top (center-based: the
+// half-size offset is applied here, so a width change never moves a chip's
+// center). Ghosts are pinned each paint: radially to the rim band, and —
+// when both endpoints exist — onto their pile→basket line (BOARD-CHIPLINE1
+// colinear geometry, same intersection math as before, now recomputed every
+// painted frame so the alignment TRACKS the moving pile/basket chips). The
+// hover trade line is re-aimed whenever anything moved.
+function boardSimPaint(){
+  const env = _boardSimEnv
+  if(!env) return
+  const piles = new Map(), baskets = new Map(), ghosts = []
+  let movedAny = false
+  const place = (b, z) => {
+    const left = env.cx + b.x * z.cos - b.y * z.sin - b.w / 2
+    const top = env.cy + b.x * z.sin + b.y * z.cos - b.h / 2
+    if(b.pl !== left || b.pt !== top){
+      b.el.style.left = left + "px"
+      b.el.style.top = top + "px"
+      b.pl = left; b.pt = top
+      movedAny = true
+    }
+    return { left, top }
+  }
+  _boardSimBodies.forEach(b => {
+    const z = _boardSimZones.get(b.zoneKey)
+    if(!z || !b.el) return
+    if(b.inner){ ghosts.push({ b, z }); return }
+    const { left, top } = place(b, z)
+    const d = b.el.dataset
+    if(z.isBasket && d.ownerAccount && d.assetId && d.toAccount)
+      baskets.set(d.ownerAccount + "|" + d.assetId + "|" + d.toAccount, { x: left + b.w / 2, y: top + b.h / 2 })
+    else if(!z.isBasket && d.ownerAccount && d.assetId)
+      piles.set(d.ownerAccount + "|" + d.assetId, { x: left + b.w / 2, y: top + b.h / 2 })
+  })
+  const pairSeen = new Map()   // net-off duplicates of a pair fan along the line's normal
+  ghosts.forEach(({ b, z }) => {
+    // rim pin, oval-true: project the ghost radially onto the rim band at
+    // its OWN angle (the old scalar z.rMin pinned it to the mid-angle
+    // CIRCLE — visibly off the ellipse at N/S on portrait screens)
+    {
+      const rr = Math.hypot(b.x, b.y) || 1
+      const thS = z.midRad + Math.atan2(b.y, b.x)
+      const he = (Math.abs(Math.cos(thS)) * b.w + Math.abs(Math.sin(thS)) * b.h) / 2
+      const pin = boardRimAt(env, thS) + 8 + he
+      b.x = b.x / rr * pin
+      b.y = b.y / rr * pin
+    }
+    const d = b.el.dataset
+    if(env.oval && !env.party && d.ownerAccount && d.assetId && d.toAccount){
+      const P = piles.get(d.ownerAccount + "|" + d.assetId)
+      const B = baskets.get(d.ownerAccount + "|" + d.assetId + "|" + d.toAccount)
+      if(P && B){
+        // intersect P + t(B−P) with the rim band ellipse: P is outside it
+        // (store zone starts at oval+8), B inside (basket ends at oval−6),
+        // so exactly one root lands in (0,1)
+        const eA = env.oval.rx + 8 + b.h / 2, eB = env.oval.ry + 8 + b.h / 2
+        const u = (P.x - env.cx) / eA, v = (P.y - env.cy) / eB
+        const du = (B.x - P.x) / eA, dv = (B.y - P.y) / eB
+        const qa = du * du + dv * dv
+        const qb = 2 * (u * du + v * dv)
+        const qc = u * u + v * v - 1
+        const disc = qb * qb - 4 * qa * qc
+        if(disc > 0 && qa){
+          const sq = Math.sqrt(disc)
+          const t = [(-qb - sq) / (2 * qa), (-qb + sq) / (2 * qa)].find(t => t > 0 && t < 1)
+          if(t != null){
+            let gx = P.x + t * (B.x - P.x), gy = P.y + t * (B.y - P.y)
+            const pk = d.ownerAccount + "|" + d.assetId + "|" + d.toAccount
+            const n = pairSeen.get(pk) || 0
+            pairSeen.set(pk, n + 1)
+            if(n){
+              const len = Math.hypot(B.x - P.x, B.y - P.y) || 1
+              gx += (-(B.y - P.y) / len) * n * (b.h + 4)
+              gy += ((B.x - P.x) / len) * n * (b.h + 4)
+            }
+            b.x = (gx - env.cx) * z.cos + (gy - env.cy) * z.sin
+            b.y = -(gx - env.cx) * z.sin + (gy - env.cy) * z.cos
+          }
+        }
+      }
+    }
+    place(b, z)
+  })
+  if(movedAny){
+    window.__boardRefreshTradeLine?.()   // hover line tracks the chips
+    boardReanchorTrails()                // after-glow lines track them too
+  }
+}
+
+// 🧪 zone-walls debug overlay (user 2026-07-16): the sim's REAL constraint
+// geometry, drawn — "if there's a problem with the way the walls are drawn,
+// that might be a clue". Solid outline = the region a chip's EDGES may
+// occupy (inner + angular walls hard, outer wall soft); the angular walls
+// are the ±80°-CLAMPED ones the physics actually enforces, so on an obtuse
+// segment the overlay is visibly narrower than the felt wedge — that gap is
+// real, not a drawing bug. Dashed inner strip = the ghost-only rim band
+// ("cashier's counter"); dashed screen rect = the BOARD-SAFEAREA1 clamp.
+// Rebuilt every apply so it tracks rotation and tweens; under the chips
+// (z4) so they stay readable. These wedge paths are also the natural hook
+// for LATER per-zone highlighting (hover/drop-target lighting) — same
+// geometry, different class.
+function boardDrawZoneWalls(){
+  document.querySelector(".board-zonewalls")?.remove()
+  const env = _boardSimEnv
+  if(!boardZoneWalls || !env) return
+  const NS = "http://www.w3.org/2000/svg"
+  const svg = document.createElementNS(NS, "svg")
+  svg.setAttribute("class", "board-zonewalls")
+  // oval-true: each boundary radius is a FUNCTION of the absolute screen
+  // angle, evaluated per sample — the exact same boardRimAt/boardEdgeAt the
+  // physics clamps use, so the drawing IS the enforcement (the 2026-07-16
+  // circular-walls bug can't silently return)
+  const wedge = (z, rInAt, rOutAt, cls) => {
+    const half = Math.min(z.halfDeg, 80)
+    const steps = 24
+    const pts = []
+    for(let i = 0; i <= steps; i++){
+      const a = (-half + 2 * half * i / steps) * Math.PI / 180
+      const r = rInAt(z.midRad + a)
+      pts.push([r * Math.cos(a), r * Math.sin(a)])
+    }
+    for(let i = steps; i >= 0; i--){
+      const a = (-half + 2 * half * i / steps) * Math.PI / 180
+      const r = rOutAt(z.midRad + a)
+      pts.push([r * Math.cos(a), r * Math.sin(a)])
+    }
+    const d = pts.map(([lx, ly], i) =>
+      (i ? "L" : "M")
+      + (env.cx + lx * z.cos - ly * z.sin).toFixed(1) + " "
+      + (env.cy + lx * z.sin + ly * z.cos).toFixed(1)).join(" ") + " Z"
+    const p = document.createElementNS(NS, "path")
+    p.setAttribute("d", d)
+    p.setAttribute("class", cls)
+    svg.appendChild(p)
+  }
+  _boardSimZones.forEach(z => {
+    if(z.isBasket)
+      wedge(z, () => z.rMin, th => boardRimAt(env, th) - 6 - 34,
+        "board-zonewall board-zonewall--basket")
+    else {
+      wedge(z, th => boardRimAt(env, th) + 8 + z.band, th => boardEdgeAt(env, th) - 14,
+        "board-zonewall board-zonewall--store")
+      wedge(z, th => boardRimAt(env, th) + 8, th => boardRimAt(env, th) + 8 + z.band,
+        "board-zonewall board-zonewall--band")
+    }
+  })
+  const rect = document.createElementNS(NS, "rect")
+  rect.setAttribute("x", env.safeL)
+  rect.setAttribute("y", env.safeTop)
+  rect.setAttribute("width", env.safeR - env.safeL)
+  rect.setAttribute("height", env.safeBot - env.safeTop)
+  rect.setAttribute("class", "board-zonewall board-zonewall--safe")
+  svg.appendChild(rect)
+  document.getElementById("boardRoot")?.appendChild(svg)
+}
+
+// BOARD-LAYOUT1 (user 2026-07-14, planning pass → 🧪 toggle): deterministic
+// "SHELF" layout, the alternative to the organic relax above. The screenshot
+// critique — chips read as ERRATIC — has three concrete causes in the relax:
+// hash-random tangential jitter, CIRCLE colliders on wide rectangular labels
+// (a "Chickens feb 2024" chip gets a huge phantom radius → uneven gaps), and
+// the seeding, which faithfully preserves accumulated disorder forever.
+// Shelves instead: chips sit in concentric arc ROWS. Store zones shelve
+// OUTWARD starting just past the ghost band; basket zones shelve INWARD from
+// the oval — so everything deal-adjacent clusters at the rim (the user's
+// "cashier's counter" read) and quantity spreads away from it. Rows are
+// centered in the wedge; chips sort tall-first so NFT thumbs group together
+// and text labels line up on their own rows. Deterministic per chip set:
+// same inputs = same layout, no history drift, no seeds needed. The organic
+// relax stays selectable (🧪 Settings) for live comparison.
+function boardShelfZone(sizes, keys, zone, inners, isBasket){
+  const halfAng = Math.min(zone.halfDeg, 80) * Math.PI / 180
+  const tanHalf = Math.tan(halfAng)
+  const gap = 6
+  const pos = new Array(sizes.length)
+
+  const ghostIdx = [], chipIdx = []
+  sizes.forEach((s, i) => (inners?.[i] ? ghostIdx : chipIdx).push(i))
+
+  // ghosts: single rim-band row, in order, centered — the alignment pass
+  // then moves paired ones onto their pile→basket lines anyway
+  let ghostBandH = 0
+  if(ghostIdx.length){
+    ghostBandH = Math.max(...ghostIdx.map(i => sizes[i].h))
+    const x = zone.rMin + ghostBandH / 2
+    const totalW = ghostIdx.reduce((w, i) => w + sizes[i].w, 0) + gap * (ghostIdx.length - 1)
+    let y = -totalW / 2
+    ghostIdx.forEach(i => {
+      const maxY = Math.max(2, x * tanHalf - sizes[i].w / 2)
+      pos[i] = { x, y: Math.max(-maxY, Math.min(maxY, y + sizes[i].w / 2)) }
+      y += sizes[i].w + gap
+    })
+  }
+
+  // tall-first, then wide-first, stable — thumbs shelve together
+  const order = [...chipIdx].sort((a, b) =>
+    sizes[b].h - sizes[a].h || sizes[b].w - sizes[a].w || a - b)
+
+  // store: cursor walks outward from past the RESERVED rim band (ghost-only
+  // — "clear the cashier's counter", reserved even before any ghost exists);
+  // basket: inward from the oval edge MINUS the coin-label band (user
+  // 2026-07-15, KY564 1/300: NFTs rendered under the curved account number —
+  // the label band inside the rim is a no-chip zone; 34px approximates the
+  // BOARD-IDCOIN1 label depth. Per-glyph hard bounding boxes = later, if the
+  // band isn't enough). Row x uses the row's tallest chip.
+  const band = (ghostIdx.length ? ghostBandH : Math.max(40, ...chipIdx.map(i => sizes[i].h))) + 12
+  let cursor = isBasket ? zone.rMax - 34 : zone.rMin + band
+  let i = 0
+  while(i < order.length){
+    const rowH = sizes[order[i]].h
+    const x = isBasket ? cursor - rowH / 2 : cursor + rowH / 2
+    const rowMax = Math.max(sizes[order[i]].w + 4, 2 * x * tanHalf - 8)
+    const row = []
+    let rowW = 0
+    while(i < order.length){
+      const w = sizes[order[i]].w
+      if(row.length && rowW + gap + w > rowMax) break
+      row.push(order[i])
+      rowW += (row.length > 1 ? gap : 0) + w
+      i++
+    }
+    let y = -rowW / 2
+    row.forEach(j => {
+      const maxY = Math.max(2, x * tanHalf - sizes[j].w / 2)
+      pos[j] = { x, y: Math.max(-maxY, Math.min(maxY, y + sizes[j].w / 2)) }
+      y += sizes[j].w + gap
+    })
+    cursor = isBasket ? cursor - rowH - gap : cursor + rowH + gap
+  }
+
+  // safety: anything unplaced (shouldn't happen) sits at the zone's inner edge
+  sizes.forEach((s, i) => { if(!pos[i]) pos[i] = { x: zone.rMin + s.h / 2, y: 0 } })
+  return pos
+}
+
+// BOARD-PHYSICS1 apply: sync the persistent sim to this render's DOM, then
+// paint. Runs after root.replaceChildren so offsetWidth/Height are real.
+// Chips are positioned by left/top with the half-size baked in (NOT
+// transform: the flight animations own el.style.transform).
+// oval ({rx, ry}, BOARD-CHIPLINE1): the rim ellipse for ghost alignment.
+function boardOrganicApply(cx, cy, W, H, oval){
+  const zones = _boardOrganicZones
+  _boardOrganicZones = []
+  if(!zones.length){
+    // a skin without organic zones rendered — drop the sim so stale bodies
+    // holding dead DOM references don't linger
+    if(_boardSimRaf){ cancelAnimationFrame(_boardSimRaf); _boardSimRaf = 0 }
+    _boardSimBodies.clear(); _boardSimZones.clear(); _boardSimEnv = null
+    boardDrawZoneWalls()   // removes the 🧪 overlay (no env)
+    return
+  }
+
+  const tween = !!(_boardPartyAnim || _boardRotateCancel || _boardScrollCancel || _boardOthersRotate)
+
+  // screen-space env, re-measured each apply. Safe rect = BOARD-SAFEAREA1
+  // (the visible drawing area: the transparent .app-banner floats over the
+  // board's top and .ring-footer over its bottom; both measured, not
+  // constants, because their heights vary with skin and wrap on mobile).
+  const bannerEl = document.querySelector("body.board-page .app-banner")
+  const footerEl = document.querySelector(".ring-footer")
+  _boardSimEnv = {
+    cx, cy, W, H, oval, party: !!_boardPartyAnim,
+    safeTop: (bannerEl ? bannerEl.getBoundingClientRect().bottom : 0) + 6,
+    safeBot: (footerEl ? footerEl.getBoundingClientRect().top : H) - 6,
+    safeL: 6, safeR: W - 6,
+    labelRects: tween ? [] : [...document.querySelectorAll("text.ring-etchlabel")]
+      .filter(t => !t.classList.contains("ring-etchsub") && !t.classList.contains("ring-etchlock"))
+      .map(t => t.getBoundingClientRect())
+  }
+
+  // ── sync pass 1: zone geometry + rebind elements to bodies ──────────────
+  // identity: zone + assetId + ghost-or-not + occurrence — deliberately NOT
+  // the textContent (an amount change is the same chip) and NOT the class
+  // list (pickable/lock/selection churn is cosmetic). `changed` collects
+  // whether anything the physics cares about moved: membership, sizes,
+  // zone geometry (halfDeg/radii — NOT midDeg: rotation only re-projects,
+  // it doesn't disturb the local frame), viewport, layout mode.
+  const occ = {}
+  const seen = new Set()
+  const fresh = []
+  let changed = false
+  const live = zones.filter(z => z.chips.length)
+  const zoneChips = live.map(z => {
+    let zrec = _boardSimZones.get(z.key)
+    if(!zrec){ zrec = {}; _boardSimZones.set(z.key, zrec) }
+    const geo = Math.round(z.halfDeg * 10) + "|" + Math.round(z.rMin) + "|" + Math.round(z.rMax) + "|" + W + "x" + H
+    if(zrec.geo !== geo){ zrec.geo = geo; changed = true }
+    const midRad = z.midDeg * Math.PI / 180
+    zrec.midRad = midRad   // oval-true walls evaluate rim/edge at absolute angles
+    zrec.cos = Math.cos(midRad); zrec.sin = Math.sin(midRad)
+    zrec.halfDeg = z.halfDeg
+    zrec.tanHalf = Math.tan(Math.min(z.halfDeg, 80) * Math.PI / 180)
+    zrec.rMin = z.rMin; zrec.rMax = z.rMax
+    zrec.isBasket = /\|basket$/.test(z.key)
+    const recs = z.chips.map(el => {
+      const isGhost = el.classList.contains("board-ghost")
+      const ident0 = z.key + "|" + (el.dataset.assetId || "") + "|" + (isGhost ? "g" : "s")
+      const ident = ident0 + "#" + (occ[ident0] = (occ[ident0] || 0) + 1)
+      seen.add(ident)
+      let b = _boardSimBodies.get(ident)
+      if(!b){
+        b = { ident, zoneKey: z.key, inner: isGhost, x: null, y: null }
+        _boardSimBodies.set(ident, b)
+        fresh.push(b)
+        changed = true
+      }
+      if(b.el !== el){
+        // REBIND: renders REPLACE the DOM, so this is a brand-new element
+        // with empty styles — void the painted-position memory or the paint
+        // dirty-check (pl/pt unchanged since the sim settled) would skip the
+        // style write and leave the new element unpositioned at the DOM
+        // default, top-left. (Round-1 live bug: every settled chip vanished
+        // to the corner on any re-render — "ghost NFTs missing", "spotlight
+        // wipes everything to top left" — because ghosts/settled chips are
+        // exactly the ones that never move.)
+        b.el = el
+        b.pl = b.pt = null
+      }
+      const txt = (el.textContent || "").slice(0, 24)
+      if(b.txt !== txt && !tween){
+        // text changed → size may have — re-measure (and excite: the new
+        // size must feed back into the physics). Center-based positions mean
+        // even a width change can't shift the chip's center.
+        b.txt = txt
+        if(fresh.indexOf(b) < 0) fresh.push(b)
+        changed = true
+      }
+      return b
+    })
+    return { zrec, recs }
+  })
+  _boardSimBodies.forEach((b, k) => {
+    if(!seen.has(k)){ _boardSimBodies.delete(k); changed = true }
+  })
+  _boardSimZones.forEach((zr, k) => {
+    if(!live.some(z => z.key === k)) _boardSimZones.delete(k)
+  })
+  if(boardLayoutMode !== _boardSimLastMode){
+    _boardSimLastMode = boardLayoutMode
+    changed = true
+  }
+
+  // measure the fresh/changed ones — tighten wrapped text first so the
+  // measured width is final (render() calls boardTightenChips() again
+  // later; widths already set by then, so it's a no-op)
+  if(fresh.length){
+    if(ring9()) boardTightenChips()
+    fresh.forEach(b => {
+      b.w = b.el.offsetWidth || 40
+      b.h = b.el.offsetHeight || 24
+      b.cr = Math.max(b.w, b.h) / 2 + 3
+    })
+  }
+
+  // ── sync pass 2: per-zone derived geometry, shelf targets, spawns ───────
+  zoneChips.forEach(({ zrec, recs }) => {
+    const movers = recs.filter(b => !b.inner)
+    const ghostsIn = recs.filter(b => b.inner)
+    // reserved rim band ("clear the cashier's counter"): ghost-only, held
+    // open even before any ghost exists so the two rings read as distinct
+    zrec.band = zrec.isBasket ? 0 :
+      (ghostsIn.length ? Math.max(...ghostsIn.map(b => b.h))
+                       : Math.max(40, ...movers.map(b => b.h), 40)) + 12
+    // anchor: the blob's home, centred in the radial band (BOARD-ORGANIC4 —
+    // wedge-angle-independent, unlike the old tan-based spread)
+    const area = movers.reduce((t, b) => t + b.w * b.h, 0)
+    const blobR = Math.max(1, Math.sqrt(area / (Math.PI * 0.6)))
+    const inW = zrec.isBasket ? zrec.rMin : zrec.rMin + zrec.band
+    const outW = zrec.isBasket ? zrec.rMax - 34 : zrec.rMax
+    const lo = inW + blobR, hi = outW - blobR
+    // 🧪 hugRing: store blobs home at 0.38 of the radial band instead of the
+    // midpoint — a MILD inward lean toward the ring; the ghost band still
+    // keeps chip edges off it. Baskets keep the midpoint (their "inward" is
+    // the rim itself).
+    const home = inW + (outW - inW) * (boardHugRing && !zrec.isBasket ? 0.38 : 0.5)
+    zrec.ax = lo <= hi ? Math.min(Math.max(home, lo), hi) : lo
+
+    // shelves: deterministic targets, recomputed every apply (pure math, no
+    // DOM), sprung to in the tick — an honest animated re-flow
+    if(boardLayoutMode === "shelves"){
+      const pos = boardShelfZone(
+        recs.map(b => ({ w: b.w, h: b.h })), recs.map(b => b.ident),
+        zrec, recs.map(b => b.inner), zrec.isBasket)
+      // targets HARD-clamped to the oval-true walls: the solver still thinks
+      // in mid-angle circles, so rows near the rim/edge would violate the
+      // real walls on non-square screens — and an infeasible target makes
+      // the tick's spring fight the wall clamp every frame (visible jitter,
+      // never settles). Clamping here keeps every target reachable.
+      recs.forEach((b, i) => {
+        if(b.inner) return
+        const t = boardWallClamp(_boardSimEnv, zrec, b, pos[i].x, pos[i].y, false)
+        b.tx = t.x; b.ty = t.y
+      })
+    } else recs.forEach(b => { b.tx = b.ty = null })
+
+    // spawn: initial local position for brand-new bodies. Existing bodies
+    // are never touched here — placed chips stay put by construction.
+    recs.forEach(b => {
+      if(b.x != null) return
+      if(b.inner){
+        // ghost spawns at the rim beside its own store pile ("out for sale —
+        // near the counter"); the paint alignment settles it onto the line
+        const sib = _boardSimBodies.get(b.ident.replace(/\|g#(\d+)$/, "|s#$1")) ||
+                    _boardSimBodies.get(b.zoneKey + "|" + (b.el.dataset.assetId || "") + "|s#1")
+        b.x = zrec.rMin + b.h / 2
+        b.y = sib && sib.y != null ? sib.y : 0
+        return
+      }
+      // withdraw-return: the chip stood at the rim as a ghost last apply —
+      // spawn there and let the sim carry it home (replaces the old
+      // glide-from special case)
+      const gPrev = _boardChipPrevPos.get(b.ident.replace(/\|s#(\d+)$/, "|g#$1"))
+      if(gPrev && gPrev.lx != null){ b.x = gPrev.lx; b.y = gPrev.ly; return }
+      // shelves: straight to the shelf target (no origin story to animate)
+      if(b.tx != null){ b.x = b.tx; b.y = b.ty; return }
+      // organic: hash-jittered spot in the anchor disk — the collision pass
+      // makes room for it visibly
+      const j1 = boardHash01(b.ident), j2 = boardHash01(b.ident + "~")
+      const t = j1 * Math.PI * 2, rr = Math.sqrt(j2) * blobR
+      b.x = zrec.ax + Math.cos(t) * rr
+      b.y = Math.sin(t) * rr
+    })
+  })
+
+  // ── excite + paint ───────────────────────────────────────────────────────
+  if(changed){
+    _boardSimCalm = 0
+    _boardSimQuiet = 0
+    if(fresh.length) boardSimTick(3)   // pre-settle: new chips paint near-home this frame
+    if(!_boardSimRaf) _boardSimRaf = requestAnimationFrame(boardSimFrame)
+  }
+  boardSimPaint()
+
+  // apply-time position bookkeeping — flight animations read these (NFT
+  // offer origin via PrevPosOld; withdraw-return spawn via PrevPos)
+  const next = new Map()
+  _boardSimBodies.forEach((b, k) => {
+    if(b.pl != null) next.set(k, { left: b.pl, top: b.pt, lx: b.x, ly: b.y })
+  })
+  // paint-level movement summary (scatter forensics, kept): catches
+  // apply-to-apply movement from ANY source; silent in steady state
+  {
+    let moved = 0, maxPx = 0
+    next.forEach((p, k) => {
+      const prev = _boardChipPrevPos.get(k)
+      if(!prev) return
+      const dd = Math.hypot(p.left - prev.left, p.top - prev.top)
+      if(dd > 2){ moved++; maxPx = Math.max(maxPx, dd) }
+    })
+    if(moved) boardDiag("board:paint:moves", {
+      moved, maxPx: Math.round(maxPx), layout: boardLayoutMode, total: next.size
+    })
+  }
+  _boardChipPrevPosOld = _boardChipPrevPos
+  _boardChipPrevPos = next
+
+  boardDrawZoneWalls()   // 🧪 debug overlay — no-op unless enabled in Settings
+}
+
+/* ── rotate animation for "You at bottom" (user 2026-07-12) ──────────────────
+   The toggle used to hard-jump between orientations. Now the start angle
+   tweens (shortest path, ease-in-out, ~550ms) from the orientation on screen
+   to the new one, re-rendering per frame — cheap because chip bodies live in
+   the rotation-independent zone-local frame (BOARD-PHYSICS1: paint just
+   re-projects under the new mid-angle, no physics disturbed) and N stays
+   small. Any render triggered mid-tween (WS push etc.) just paints at the
+   current offset. */
+let _boardStartRendered = null      // effective start angle last painted
+let _boardRotateOffset = 0          // animated delta, 0 when settled
+let _boardRotateCancel = null
+let _boardAnimateNextRotation = false   // set by the toggle, consumed by renderRingBoard
+
+function boardShortestDelta(deg){ return ((deg % 360) + 540) % 360 - 180 }
+
+// shared tween driver: onFrame(easedProgress, done) per rAF, easeInOutCubic —
+// the one easing every board animation uses. Returns a cancel function.
+// boardAnimSpeed (Prefs, user 2026-07-12) divides into every duration — a
+// debug throttle so glitches can be watched at ¼/⅒ speed live instead of
+// recording the screen and scrubbing.
+function boardAnimate(dur, onFrame){
+  const t0 = performance.now()
+  const effDur = dur / (boardAnimSpeed || 1)
+  let raf
+  const tick = now => {
+    const t = Math.min(1, (now - t0) / effDur)
+    const e = t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+    if(t < 1) raf = requestAnimationFrame(tick)
+    onFrame(e, t >= 1)
+  }
+  raf = requestAnimationFrame(tick)
+  return () => cancelAnimationFrame(raf)
+}
+
+// ── wheel-scroll animation (user 2026-07-12, v2 same day): tapping a divider
+// used to snap the others-window one position. Now it reads as a WHEEL
+// TURNING UNDER THE BOARD, revealed between the two divider wedges (the
+// user's mental model, verbatim): the whole others region — wedges, chips,
+// felt arcs/labels — is CLIPPED to the fixed sector between the dividers;
+// during the glide the LEAVER keeps rendering one slot before the window
+// (sliding out through the near divider) while the newcomer slides in
+// through the far one. No pop-in on top, no gap behind: both simply cross
+// the thresholds. The leaver drops from the DOM only when the tween
+// completes (v1 dropped it at tap — the visible blank the user reported).
+// It's a "magic wheel" — the leaver must NOT reappear round the other side,
+// which the one-slot-outside placement + clip guarantees by construction.
+// Applied as an angle offset on "others"-group slots only.
+let _boardOthersRotate = 0
+let _boardScrollCancel = null
+let _boardLastStepDeg = 0     // account-slot width from the last normal layout
+
+// pie-slice polygon spanning [a0,a1] degrees from the board center out past
+// the edges — the one shape used by account wedges, divider wedges and the
+// wheel clip windows (CSS clip-path string)
+function boardSectorPolygon(a0, a1, geo, steps = 6){
+  const R = Math.max(geo.W, geo.H) * 1.6
+  const pts = [[geo.cx, geo.cy]]
+  for(let s = 0; s <= steps; s++){
+    const a = (a0 + (a1 - a0) * s / steps) * Math.PI / 180
+    pts.push([geo.cx + R * Math.cos(a), geo.cy + R * Math.sin(a)])
+  }
+  return "polygon(" + pts.map(p => `${p[0].toFixed(0)}px ${p[1].toFixed(0)}px`).join(",") + ")"
+}
+
+// ── party-only collapse/expand (user 2026-07-12): non-party segments close
+// like pacman eating — their angular width tweens to 0 while the survivors
+// expand to fill, then they drop from the DOM (and the reverse on untick).
+// During the tween the render uses the UNION account list with per-account
+// width weights; the wheel windowing is bypassed (a transient superset can
+// exceed the cap for ~550ms — acceptable, it snaps to the windowed layout at
+// the end). Chips fade with their segment's weight rather than re-solving the
+// shrinking geometry every frame (boardOrganicApply switches to a geometry-
+// loose cache key while this runs — the wedge closes OVER the fading chips,
+// which is exactly the eating look).
+let _boardPartyAnim = null    // { accounts, removed:Set, added:Set, e }
+let _boardPartyCancel = null
+
+// v2 (user 2026-07-12): v1 tweened raw account widths and BYPASSED the wheel
+// windowing — so over the segment cap, the divider wedges vanished at tap and
+// every width recomputed without them: the jump the user reported. Now the
+// tween interpolates between the two REAL slot layouts (dividers, windowing
+// and all — boardComputeSlotLayout is the renderer's own math), so e=0 IS the
+// pre-toggle screen and e=1 IS the post-toggle screen, dividers gliding/
+// shrinking like everything else, revealed others emerging at their divider
+// seam. This is the user's two-phase design collapsed into one continuous
+// pass (no mid-point handoff to glitch). Deviation noted: revealed segments
+// inflate from the seam rather than rolling in behind an animated clip — if
+// that reads wrong live, the clip-roll is the follow-up.
+function boardTogglePartyOnly(v){
+  boardClearTrails()   // segments collapse/expand — every drawn trail goes stale
+  const oldL = ring16() ? boardComputeSlotLayout(boardFilteredAccounts()) : null
+  boardPartyOnly = v
+  boardSavePrefs()
+  if(!oldL){ render(); return }
+  const newL = boardComputeSlotLayout(boardFilteredAccounts())
+  const entities = boardMergeSlotLayouts(oldL, newL)
+  if(!entities.some(en => Math.abs(en.wOld - en.wNew) > 0.01)){ render(); return }   // no layout change
+  // UNREPRODUCED edge case (user 2026-07-12, "hold that thought"): a
+  // rotation that snapped into place at the END of undoing party-only, seen
+  // once after adding/removing accounts, not reproducible since. Best clues
+  // if it resurfaces: (1) `entities` is a SNAPSHOT — if an account joins or
+  // leaves MID-TWEEN (WS push), the e=1 layout no longer equals the fresh
+  // post-anim layout and the handoff snaps; (2) adding/removing accounts
+  // changes boardGroupByPlayer's earliest-join ordering, so a layout
+  // captured before the change and one computed after can disagree about
+  // MINE's angular extent → recenter target differs → end rotation snap.
+  // Design cue: either restart the tween on any membership change landing
+  // mid-flight, or recompute newL per frame instead of snapshotting.
+  // a wheel glide mid-flight would fight the layout tween — settle it first
+  _boardScrollCancel?.(); _boardScrollCancel = null; _boardOthersRotate = 0
+  _boardPartyCancel?.()
+  _boardPartyAnim = { entities, e: 0 }
+  // animation forensics (user 2026-07-12): the full entity plan up front +
+  // a completion marker, so a quoted ktag window shows exactly which slots
+  // were collapsing/expanding and to what widths when a glitch was seen
+  boardDiag("board:panim:start", { partyOnly: v, speed: boardAnimSpeed,
+    entities: entities.map(en => ({
+      k: en.slot.type === "divider" ? "D" + en.slot.dividerIndex
+        : (en.slot.account.id.split(":")[1] || en.slot.account.id),
+      wOld: Math.round(en.wOld), wNew: Math.round(en.wNew) })) })
+  _boardPartyCancel = boardAnimate(550, (e, done) => {
+    if(_boardPartyAnim) _boardPartyAnim.e = e
+    if(done){
+      _boardPartyAnim = null; _boardPartyCancel = null
+      boardDiag("board:panim:end", { partyOnly: v })
+    }
+    render()
+  })
+  render()
+}
+
 // BOARD-WHEEL1: turns the (already player-grouped) account list into an
 // ordered list of ring "slots" — either an account or a thin scroll-divider.
 // Below boardMaxSegments: unchanged status quo, every account shown, no
@@ -1121,11 +2474,23 @@ const BOARD_DIVIDER_DEG = 14   // fixed angular width of a scroll-wedge divider
 // either divider advances it by one and loops (infinite wheel, per the user's
 // spec: "keep it basic for now, just get the concept working").
 function boardRingLayoutSlots(accounts){
-  if(accounts.length <= boardMaxSegments)
-    return accounts.map(account => ({ type: "account", account }))
-
   const mine = accounts.filter(a => isMyAccount(a))
   const others = accounts.filter(a => !isMyAccount(a))
+
+  // BOARD-WHEEL4 (user 2026-07-12): mine-first in BOTH branches. The
+  // under-cap path used to keep raw join-grouped order (mine wherever it
+  // fell) while the windowed path forced mine first — so a party toggle that
+  // crossed the cap tried to tween between two DIFFERENT slot orderings, and
+  // boardMergeSlotLayouts orphaned the accounts whose relative position
+  // flipped (they lost their wNew and popped in at the end of the tween —
+  // the "suddenly appearing segments" + the end jolt of the recenter). One
+  // consistent order kills the whole family. This does make the layout
+  // viewer-dependent below the cap too (it already was above it) — accepted:
+  // "you at bottom will become the standard... the dividing and rotating
+  // means there's no unified view for everyone anyway" (user, verbatim).
+  if(accounts.length <= boardMaxSegments)
+    return [...mine, ...others].map(account => ({ type: "account", account }))
+
   const visibleOthersCount = Math.max(0, boardMaxSegments - mine.length)
 
   if(!others.length || !visibleOthersCount)
@@ -1137,19 +2502,90 @@ function boardRingLayoutSlots(accounts){
     visibleOthers.push(others[(offset + k) % others.length])
 
   const hiddenCount = others.length - visibleOthers.length
-  const divider = () => ({ type: "divider", hiddenCount })
+  // dir: tap direction per divider — OPPOSITE ways (user 2026-07-12; v1 had
+  // both going the same way). Current mapping: each divider PULLS the hidden
+  // players in through ITSELF (near divider −1, far divider +1). The user is
+  // trying both to see which feels intuitive — this mapping may yet flip
+  // (swap the signs here, nothing else cares). dividerIndex keys the party
+  // tween's layout merge (boardMergeSlotLayouts).
+  const divider = (dividerIndex, dir) => ({ type: "divider", hiddenCount, dividerIndex, dir })
 
   return [
     ...mine.map(account => ({ type: "account", account })),
-    divider(),
-    ...visibleOthers.map(account => ({ type: "account", account })),
-    divider()
+    divider(0, -1),
+    // group tag: the wheel-scroll glide (_boardOthersRotate) applies to these
+    // slots only — mine and the dividers hold still while the window turns
+    ...visibleOthers.map(account => ({ type: "account", account, group: "others" })),
+    divider(1, 1)
   ]
+}
+
+// the ONE place slot geometry comes from: accounts+dividers with their
+// angular widths. Extracted so the party-toggle tween can compute the exact
+// before/after layouts with the same machinery the renderer uses — the tween
+// endpoints then EQUAL the real screens by construction (no jumps).
+function boardComputeSlotLayout(accountsList){
+  const slots = boardRingLayoutSlots(accountsList)
+  const acctSlotCount = slots.filter(s => s.type === "account").length
+  const dividerCount = slots.length - acctSlotCount
+  const step = acctSlotCount ? (360 - dividerCount * BOARD_DIVIDER_DEG) / acctSlotCount : 360
+  const widths = slots.map(s => s.type === "divider" ? BOARD_DIVIDER_DEG : step)
+  return { slots, widths, step }
+}
+
+// merge two slot sequences (old + new layout) into one ordered entity list
+// with per-entity old/new widths. Common entities (same account id / same
+// divider) keep their shared relative order; old-only entities (leavers,
+// vanishing dividers) sit where they were with wNew=0; new-only entities
+// (revealed others, appearing dividers) sit where they belong with wOld=0 —
+// the cumulative walk then makes them emerge exactly at their seam.
+function boardMergeSlotLayouts(oldL, newL){
+  const k = s => s.type === "divider" ? "d" + s.dividerIndex : "a" + s.account.id
+  const oldKeys = oldL.slots.map(k), newKeys = newL.slots.map(k)
+  const newIndex = new Map(newKeys.map((kk, i) => [kk, i]))
+  const entities = []
+  let nPtr = 0
+  const emitNewOnly = upTo => {
+    while(nPtr < upTo){
+      if(!oldKeys.includes(newKeys[nPtr]))
+        entities.push({ slot: newL.slots[nPtr], wOld: 0, wNew: newL.widths[nPtr] })
+      nPtr++
+    }
+  }
+  oldL.slots.forEach((s, i) => {
+    const ni = newIndex.get(oldKeys[i])
+    if(ni != null && ni >= nPtr){
+      emitNewOnly(ni)
+      entities.push({ slot: newL.slots[ni], wOld: oldL.widths[i], wNew: newL.widths[ni] })
+      nPtr = ni + 1
+    } else {
+      entities.push({ slot: s, wOld: oldL.widths[i], wNew: 0 })
+    }
+  })
+  emitNewOnly(newL.slots.length)
+  return entities
 }
 
 function boardScrollOthers(step){
   boardOthersScrollOffset += step
   boardDiag("board:wheel:scroll", { offset: boardOthersScrollOffset, step })
+  // glide instead of snap: at offset = ±step×width the surviving others paint
+  // at their OLD positions (the entrant behind its divider), then everything
+  // eases to 0 = the new layout. Sign carries direction: +1 glides the wheel
+  // one way (entrant through the FAR divider), −1 the other (entrant through
+  // the NEAR one). Rapid taps restart the tween from the new window — slight
+  // replay, acceptable.
+  _boardScrollCancel?.()
+  boardClearTrails()   // the others-wheel turns — trails to/from it go stale
+  const from = step * (_boardLastStepDeg || 0)
+  if(from){
+    _boardOthersRotate = from
+    _boardScrollCancel = boardAnimate(450, (e, done) => {
+      _boardOthersRotate = from * (1 - e)
+      if(done){ _boardOthersRotate = 0; _boardScrollCancel = null }
+      render()
+    })
+  }
   render()
 }
 
@@ -1159,6 +2595,7 @@ function boardScrollOthers(step){
 // giver when uniquely attributable — a netted tx usually has one sender per
 // asset); send legs reserved for the ghost side later.
 let boardSigning = null   // set per render; footer reads it
+let _boardLastSigningTxid = null   // previous render's watched txid — vanish-from-pending expiry verdict (2026-07-15)
 
 // ── SIGN-STATUSLANG1 first pass: per-account signing status on the arcs ──────
 // "Zoom out, see how the widget does it, replicate sensibly" (user 2026-07-11).
@@ -1242,10 +2679,16 @@ async function boardRefreshSignStatus(){
       const s = threshold.getThresholdSummary({ keyTree, signedPubkeys })
       byAccount[hac] = s.thresholdSatisfied ? "signed" : "pending"
     }
-    boardSignStatus = { txid: tx.txid, byAccount }
+    // KATOMIA-VALIDDUR1 (user 2026-07-15): model.txRead already decodes the
+    // REAL valid-duration straight from the signed bytes (VALIDD1, model.js)
+    // — the exact number the user asked to "get from the raw protobuf on
+    // the front end". Riding along on boardSignStatus so boardDetectSigning
+    // can prefer it over the BOARD_TX_EXPIRY_MS guess once this poll lands.
+    boardSignStatus = { txid: tx.txid, byAccount, validDurationSeconds: data?.validDurationSeconds || null }
     const sig = JSON.stringify(byAccount)
     boardDiag("board:signstatus", { txid: tx.txid, byAccount, signedKeys: signedPubkeys.length,
-      shortAccts: Object.keys(short), unassocAccts: Object.keys(unassoc) })
+      shortAccts: Object.keys(short), unassocAccts: Object.keys(unassoc),
+      validDurationSeconds: data?.validDurationSeconds ?? null })   // KATOMIA-VALIDDUR1: was invisible in traces
     if(sig !== _boardSignLast){ _boardSignLast = sig; render() }   // repaint only on change
   } catch(e){
     boardDiag("board:signstatus:error", { error: String(e) })
@@ -1319,6 +2762,22 @@ function boardTxLegs(tx){
 // board" — half-implementing it on the board risked exactly the drift
 // PROP-SIGN-UNIFY1 exists to prevent. Flagging as the next queued piece
 // rather than guessing at colors for money-moving state.
+// SINGLE SOURCE OF TRUTH cross-reference (user 2026-07-15: the displayed
+// countdown, an earlier client-side expiry-verdict guess, and the ACTUAL
+// backend-driven clearing of signing mode all used DIFFERENT deadlines and
+// visibly disagreed — "async expiries", a countdown reading 0:00 while the
+// board stayed in signing mode for another minute). The backend is
+// authoritative — it's the one that actually resolves + broadcasts:
+// hbarlive_hts/katomiaWorker.js, TX_GRACE_MS (10s, was 30s until
+// 2026-07-15) + the SDK-default 120s duration → fallback deadline =
+// validStart + 130s, checked every INTERVAL (5s). This constant mirrors
+// that NUMBER for the countdown display only — and only as the LAST-RESORT
+// guess: the broadcast validDurationSeconds (round 3) supersedes it for
+// every tx struck since. It does not drive any verdict (that's purely
+// signal-driven, see renderRingBoard). Keep numerically in sync with the
+// backend constants above if either changes.
+const BOARD_TX_EXPIRY_MS = 130000
+
 function boardDetectSigning(){
   if(!ring15()) return null
   const txs = (state?.tx?.pending || []).filter(t => !t.lifecycle?.isFinalStatus)
@@ -1342,8 +2801,56 @@ function boardDetectSigning(){
     // fine — represent it netted). Not building this pass, just marking where
     // it hooks in.
     status: st === "SUCCESS" || st === "SIGNED" ? "signed" : /FAIL|ERROR|EXPIRE|INVALID/.test(st) ? "failed" : "pending",
-    expiry: (vs || tx.createdAt || Date.now()) + 180000
+    // KATOMIA-VALIDDUR1 (user 2026-07-15): txDelaySeconds means the tx can
+    // sit in pending BEFORE its own validStart is even reached — a distinct
+    // "not submittable yet" stage the banner should separate from "waiting
+    // for signatures" (which only makes sense once submission is possible).
+    validStartMs: vs || null,
+    // KATOMIA-VALIDDUR1 source priority (round 3 — the round-2 version waited
+    // on the signstatus poll's bytes decode, so the countdown flashed the
+    // 150s guess for several seconds before snapping to the real number):
+    //   1. tx.validDurationSeconds — the BROADCAST value, stamped on the
+    //      pending record by postCluster at build time (the same number
+    //      handed to setTransactionValidDuration). Present from the very
+    //      first game_state push, so no guess-flash at all for new txs.
+    //   2. boardSignStatus.validDurationSeconds — the signstatus poll's
+    //      bytes decode (model.txRead VALIDD1), for txs struck before the
+    //      broadcast field existed. Guarded by txid so a stale value from a
+    //      previous tx can't leak in.
+    //   3. BOARD_TX_EXPIRY_MS — the documented fallback guess.
+    // boardSigningWindowDiag below logs which source won, once per change.
+    expiry: (vs || tx.createdAt || Date.now()) + (
+      tx.validDurationSeconds ? tx.validDurationSeconds * 1000
+      : boardSignStatus?.txid === tx.txid && boardSignStatus.validDurationSeconds
+        ? boardSignStatus.validDurationSeconds * 1000
+        : BOARD_TX_EXPIRY_MS),
+    durationSource: tx.validDurationSeconds ? "broadcast"
+      : boardSignStatus?.txid === tx.txid && boardSignStatus.validDurationSeconds ? "bytes-decode"
+      : "fallback-guess"
   }
+}
+
+// KATOMIA-VALIDDUR1 diagnostics: one kdiag line whenever the signing window
+// CHANGES (new txid, or the duration source/value upgraded mid-flight, e.g.
+// fallback-guess → bytes-decode when the poll lands) — the untangling trace
+// the timing bugs kept needing. Deliberately not per-render: same window =
+// silence.
+let _boardWindowLogged = ""
+function boardSigningWindowDiag(sig){
+  if(!sig){ _boardWindowLogged = ""; return }
+  const key = `${sig.tx?.txid}|${sig.durationSource}|${sig.expiry}`
+  if(key === _boardWindowLogged) return
+  _boardWindowLogged = key
+  boardDiag("board:signing:window", {
+    txid: sig.tx?.txid,
+    validStartMs: sig.validStartMs,
+    validStartIso: sig.validStartMs ? new Date(sig.validStartMs).toISOString() : null,
+    expiry: sig.expiry,
+    expiryIso: new Date(sig.expiry).toISOString(),
+    durationSource: sig.durationSource,
+    broadcastDurationS: sig.tx?.validDurationSeconds ?? null,
+    decodedDurationS: boardSignStatus?.txid === sig.tx?.txid ? boardSignStatus?.validDurationSeconds ?? null : null
+  })
 }
 
 // paint a party's receiving legs as basket chips (static in this slice —
@@ -1461,7 +2968,20 @@ function boardStartCountdown(el){
     if(!boardSigning || !document.body.contains(el)){ clearInterval(_boardCountdownTimer); return }
     const left = Math.max(0, boardSigning.expiry - Date.now())
     const m = Math.floor(left / 60000), sec = Math.floor((left % 60000) / 1000)
-    el.textContent = left ? `${m}:${String(sec).padStart(2, "0")}` : "expired"
+    // "Expired?" with the question mark — the BACKEND's own label for this
+    // exact state (kpoolHelpers getTxValidityStatus: display 'Expired?'
+    // while the verdict is still uncertain, plain 'Expired' only later).
+    // User 2026-07-15: the grace limbo needs marking, not a bare "expired"
+    // you sit under "dumbly wondering" — this is the egg-timer's last few
+    // grains (SIGN-COUNTDOWN1's hourglass framing: sand visually buffers
+    // the clock drift we can't be precise about). The definite verdict is
+    // the wiper + 🟥 toast when the backend's resolve broadcast lands.
+    el.textContent = left ? `${m}:${String(sec).padStart(2, "0")}` : "⌛ expired?"
+    // KATOMIA-VALIDDUR1: the pre-submit banner shows a live "opens in Ns" —
+    // render() only calls boardUpdateBanner on state changes, which can be
+    // sparse during a quiet wait, so this timer (already ticking every
+    // second for the hub countdown) keeps it fresh too.
+    boardUpdateBanner()
   }
   tick()
   _boardCountdownTimer = setInterval(tick, 1000)
@@ -1486,6 +3006,24 @@ function boardInMyParty(account, allAccounts){
   const myGroups = new Set(
     allAccounts.filter(a => isMyAccount(a)).map(a => getLockProgress(a.id)?.groupId).filter(Boolean))
   return myGroups.has(lp.groupId)
+}
+
+// net view (user 2026-07-14): one displayed chip = possibly MANY underlying
+// basket entries — withdrawing/returning it must take ALL its legs, not one
+// at a time (the confirm names the full netted amount; peeling a single leg
+// off was a lie). The backend removes one entry per message, so send one per
+// raw leg. Direction note: netting also folds OPPOSITE-direction offers into
+// the shown chip; those belong to the counterparty and aren't ours to
+// withdraw — we clear the shown direction only, so a counter-offer remainder
+// re-nets and flips direction, which is visible and truthful.
+// FUTURE seam: if net becomes the only view (user is leaning that way, non-
+// net kept as a 🧪 escape hatch for now), consider netting the DATA on the
+// backend instead — this is the client-side stopgap.
+function boardNetLegCount(fromId, toId, assetId){
+  if(!(ring8() && boardNetView)) return 1
+  const raw = Object.values(state?.accounts || {}).find(a => a.id === toId)?.basket || []
+  return Math.max(1, raw.filter(it =>
+    String(it.assetId) === String(assetId) && getFromAccountId(it) === fromId).length)
 }
 
 function boardNetAccounts(accounts){
@@ -1559,11 +3097,42 @@ function boardAnimateNewOffers(){
 
     keys.forEach((amt, k) => {
       if((prev.get(k) || 0) >= amt) return
-      if(_recentLocalMoves.has(k)) return          // I did this myself
+      // OWN moves animate too now (user 2026-07-15, KY564 1/300): the local-
+      // move skip worked as designed on touch — and the drop "just appeared,
+      // no dotted line". On desktop drag the skip happened to miss, the
+      // replay ran anyway, and the user liked it. Consistency wins: always
+      // fly the leg; _recentLocalMoves stays maintained in case a use
+      // returns (e.g. suppressing double-motion if a drag ghost ever
+      // animates live).
       const fromAccount = state.accounts?.[k.split("|")[1]]
       if(!fromAccount) return
       const { ghost, basket } = pairEls(k)
-      if(ghost && basket) boardFlyLeg(ghost, basket, getPlayerColour(fromAccount.playerId), 0)
+      // KNOWN QUIRK, KEPT ON PURPOSE (user 2026-07-14): repeat drops of the
+      // same pair leave slightly OFFSET after-glow lines (the other chips
+      // shift a touch each re-solve, so each drop's trail lands a few px
+      // apart) — a smudged multi-stroke that accentuates "this happened
+      // several times". Bug-as-feature; the seam to watch is chip movement
+      // getting big enough that the smudge reads as distinct wrong lines —
+      // THEN dedupe by removing lines with this pair key before drawing.
+      if(ghost && basket){
+        const [, fromId, assetId] = k.split("|")
+        const colour = getPlayerColour(fromAccount.playerId)
+        const pile = document.querySelector(
+          `.asset:not(.basket):not(.reserved)[data-owner-account="${CSS.escape(fromId)}"][data-asset-id="${CSS.escape(assetId)}"]`)
+        if(pile){
+          // fungible: pile stays — clone flies ghost→basket, pile→ghost
+          // segment joins the after-glow
+          boardFlyLeg(ghost, basket, colour, 0, k)
+          boardTrailPileSegment(fromId, assetId, ghost, colour, k)
+        } else {
+          // NFT (whole chip moved): store→(arc)→ghost→(straight)→basket in
+          // one clone flight, launched from where the store chip stood last
+          // frame; plain ghost→basket if that spot is unknown
+          const oldStore = _boardChipPrevPosOld.get(`${fromId}|store|${assetId}|s#1`)
+          if(oldStore) boardFlyNftOffer(oldStore, ghost, basket, colour, k)
+          else boardFlyLeg(ghost, basket, colour, 0, k)
+        }
+      }
     })
 
     prev.forEach((amt, k) => {
@@ -1572,6 +3141,11 @@ function boardAnimateNewOffers(){
       // legs stay on the table as tx chips, so no fly-home choreography
       // (the success/failure settlement flights come with the next slice)
       if(boardSigning) return
+      // withdrawn offer: its after-glow trail is now redundant (user
+      // 2026-07-14) — clear it, and the return flight leaves none
+      document.querySelectorAll(".board-trailline").forEach(l => {
+        if(l.dataset.pairKey === k) l.remove()
+      })
       const snap = _prevOfferRects.get(k)
       if(!snap) return
       const [, fromId, assetId] = k.split("|")
@@ -1580,19 +3154,20 @@ function boardAnimateNewOffers(){
       // fall back to where the ghost used to be
       const home = document.querySelector(
         `.asset:not(.basket):not(.reserved)[data-owner-account="${CSS.escape(fromId)}"][data-asset-id="${CSS.escape(assetId)}"]`)
-      const target = home ? home.getBoundingClientRect() : snap.ghost
+      const target = home ? boardChipRect(home) : snap.ghost   // settled spot, not mid-glide
       if(snap.basket && target)
-        boardFlyRect(snap.html, snap.basket, target, getPlayerColour(owner?.playerId), 0)
+        boardFlyRect(snap.html, snap.basket, target, getPlayerColour(owner?.playerId), 0, { key: k, persist: false })
     })
   }
 
-  // snapshot for the next diff
+  // snapshot for the next diff — settled rects (boardChipRect), not the
+  // mid-glide transformed ones
   _prevOfferRects = new Map()
   keys.forEach((amt, k) => {
     const { ghost, basket } = pairEls(k)
     if(basket) _prevOfferRects.set(k, {
-      basket: basket.getBoundingClientRect(),
-      ghost: ghost ? ghost.getBoundingClientRect() : null,
+      basket: boardChipRect(basket),
+      ghost: ghost ? boardChipRect(ghost) : null,
       html: basket.outerHTML
     })
   })
@@ -1620,63 +3195,42 @@ function ringFooter(mine){
     return el
   }
 
-  if(ring8()){
-    // "Party only" (was "Active only", review 7): rule-aware — who is party
-    // to MY proposal. cluster → my cluster; active → all active; all → n/a.
-    bar.appendChild(check("Party only", boardPartyOnly,
-      v => { boardPartyOnly = v; boardSavePrefs(); render() },
-      "Show only accounts party to your proposal (follows the game's lock rule: " + (gameMeta?.lockRule || "cluster") + ")"))
-  } else {
+  if(!ring8())
     bar.appendChild(check("Active only", showActiveOnly, v => { showActiveOnly = v; render() }))
-  }
 
   if(ring8()){
-    bar.appendChild(check("Net", boardNetView,
-      v => { boardNetView = v; boardSavePrefs(); render() },
-      "View baskets fully netted per pair: opposite-direction flows of the same asset collapse to their difference (the transaction nets exactly like this — net-on previews the after and avoids the strike jolt)"))
-    bar.appendChild(check("You at bottom", boardSelfBottom,
-      v => { boardSelfBottom = v; boardSavePrefs(); render() },
-      "On: the board rotates so your accounts face you. Off: everyone sees the identical layout (screen-share / spectator)"))
-
-    // BOARD-WHEEL1: max ring slots (mine + visible others) before the rest
-    // become a scrollable window behind a divider wedge. Lazy Susan's old job
-    // — too many players to fit — now lives here instead of a second board.
-    const maxLabel = document.createElement("label")
-    maxLabel.className = "ring-footer-filter"
-    maxLabel.title = "Maximum players shown on the ring at once (yours + others). Above this, the rest scroll behind a tap-to-advance divider."
-    const maxInput = document.createElement("input")
-    maxInput.type = "number"
-    maxInput.min = "3"
-    maxInput.max = "24"
-    maxInput.className = "ring-footer-maxseg"
-    maxInput.value = boardMaxSegments
-    maxInput.onchange = () => {
-      const v = Math.max(3, Math.min(24, Number(maxInput.value) || 6))
-      maxInput.value = v
-      boardMaxSegments = v
-      boardOthersScrollOffset = 0
-      boardSavePrefs()
-      render()
-    }
-    maxLabel.appendChild(document.createTextNode("Max on ring "))
-    maxLabel.appendChild(maxInput)
-    bar.appendChild(maxLabel)
-
-    // Pickable (review 8) — the first GENERIC player pref (KAT-PLAYERPREF1,
-    // backend game_setPref → broadcast in players[].prefs). Declares "others
-    // may pick assets straight from my store" — window-shopping on the wheel.
-    // The pick GESTURE itself needs its backend action, next pass.
-    const myPrefs = state?.players?.[currentPlayerId]?.prefs || {}
-    bar.appendChild(check("Pickable", !!myPrefs.allowPick,
-      v => socket.send(JSON.stringify({ type: "game_setPref", gameId, key: "allowPick", value: v })),
-      "Allow other players to pick assets straight from your store (they shop, you agreed in advance)"))
-
     // account dropdown: pick → Lock/Unlock + 🗑 Delete act on it; ➕ Add last.
     // When all-locked, the Lock slot becomes the SIGN button (same checkpoint,
     // next phase) — see the scene/tx notes at the bottom of this file.
+    // user 2026-07-14 (UX polish): a newly-landed account becomes the
+    // selection — you just added it, it's what you want to act on. Cumulative
+    // seen-set so the first render seeds silently and a party-filter
+    // hide/show doesn't count as new.
+    const freshMine = _boardSeenMineIds.size ? mine.find(a => !_boardSeenMineIds.has(a.id)) : null
+    if(freshMine) boardSelectedAccount = freshMine.id
+    mine.forEach(a => _boardSeenMineIds.add(a.id))
     if(!boardSelectedAccount || !mine.some(a => a.id === boardSelectedAccount))
       boardSelectedAccount = mine[0]?.id || null
 
+    // shared composer modal (addaccount-modal.php + katomia-addaccount.js,
+    // user 2026-07-14) — WC-connected / connect / manual, same as the
+    // legacy page. prompt() stays only as a belt-and-braces fallback.
+    const openAdd = () => {
+      if(typeof openAddAccountModal === "function") openAddAccountModal()
+      else { const v = prompt("Add account (e.g. 12345 or 0.0.12345):"); if(v) addAccounts(v) }
+    }
+
+    if(!mine.length){
+      // user bug report (2026-07-14): with NO accounts the select held only
+      // the "➕ Add account…" option — already selected, so picking it never
+      // fired onchange and Add was a dead end (worked fine once ≥1 account
+      // existed). An empty list gets a plain button instead.
+      const addBtn = document.createElement("button")
+      addBtn.className = "ring-footer-accsel"
+      addBtn.textContent = "➕ Add account…"
+      addBtn.onclick = openAdd
+      bar.appendChild(addBtn)
+    } else {
     const sel = document.createElement("select")
     sel.className = "ring-footer-accsel"
     mine.forEach(a => {
@@ -1694,28 +3248,36 @@ function ringFooter(mine){
     sel.onchange = () => {
       if(sel.value === "__add"){
         sel.value = boardSelectedAccount || ""
-        // add-account MODAL lives on game.php (katomia-addaccount.js + markup)
-        // — port it to board.php later; prompt is the stopgap composer
-        const v = prompt("Add account (e.g. 12345 or 0.0.12345):")
-        if(v) addAccounts(v)
+        openAdd()
         return
       }
       boardSelectedAccount = sel.value
       render()   // re-highlights the selected wedge
     }
     bar.appendChild(sel)
+    }
 
     const selected = () => mine.find(a => a.id === boardSelectedAccount)
 
     const lockBtn = document.createElement("button")
     const cur = selected()
     const curHac = cur ? (cur.id.split(":")[1] || cur.id) : null
-    if(boardSigning && curHac && boardSigning.legs[curHac]){
+    if(boardSigning && curHac){
       // signing phase: the Lock slot IS the Sign slot (same checkpoint,
       // next phase). Opens the existing signing page — modal untouched;
       // the embedded roll-up is the next slice.
+      // User bug report KTAG 8/577 (2026-07-14): this branch used to also
+      // require boardSigning.legs[curHac], so accounts NOT party to the
+      // struck tx fell through to the Lock button — but locking isn't a
+      // thing mid-signing. Now every account shows Sign; non-party accounts
+      // sign as a WITNESS (same label per the user's call — the tooltip
+      // carries the distinction, no extra visual complexity).
+      const party = !!boardSigning.legs[curHac]
       lockBtn.className = "ring-footer-lock ring-footer-sign"
       lockBtn.textContent = "✍ Sign"
+      lockBtn.title = party
+        ? "Sign this transaction with the selected account"
+        : "Sign as witness — this account has no legs in the transaction, but its signature is still recorded"
       // review 17 CORRECTION: Sign is the modal's SIGN ACTION, not the modal —
       // straight to WalletConnect via the headless WC.signTx (connect first
       // if needed), signature saved back to the pool. No intermediate UI;
@@ -1776,13 +3338,35 @@ function ringFooter(mine){
       if(boardFocusMode){ playTransfers(); render() }
       else {
         // graceful lift: fade the shade out before repainting (review 17 —
-        // the instant switch was jarring)
+        // the instant switch was jarring). __boardShadeOn cleared here so the
+        // render's else-if (--wipe fade, for the RESOLVE path) doesn't fade a
+        // second shade on top of this one.
         const shade = document.querySelector(".ring-focusshade")
-        if(shade){ shade.classList.add("ring-focusshade--out"); setTimeout(render, 560) }
+        if(shade){
+          shade.classList.add("ring-focusshade--out")
+          window.__boardShadeOn = false
+          setTimeout(render, 560)
+        }
         else render()
       }
     }
     bar.appendChild(play)
+
+    // 🧹 tidy (user 2026-07-16, board-game feel): re-run the chip layout on
+    // demand — clears 🧪 sticky positions and re-excites the sim (organic
+    // re-blobs, shelves re-shelves), all as visible motion. Ring16 only —
+    // it's a chip-physics affordance.
+    if(ring16()){
+      const tidy = document.createElement("button")
+      tidy.className = "ring-footer-play"
+      tidy.textContent = "🧹"
+      tidy.title = "Tidy up: re-run the chip layout (clears sticky chip positions)"
+      tidy.onclick = () => {
+        _boardSimBodies.forEach(b => { b.stick = false })
+        boardSimExcite()
+      }
+      bar.appendChild(tidy)
+    }
   }
 
   if(susan()){
@@ -1879,6 +3463,9 @@ function hubProgressRing(lp, rc){
 // flight leaves a TRAILING LINE in the giver's colour that fades slowly
 // (review 4 — like the signing-modal animation).
 function playTransfers(){
+  // fresh slate per replay — persistent after-glow trails (boardTrailResidual)
+  // from the previous run would double up under the new ones
+  document.querySelectorAll(".board-trailline").forEach(l => l.remove())
   // signing phase (review 17): there are no ghost/basket pairs any more —
   // the legs fly from their GIVER's store zone to where they now sit
   if(boardSigning){
@@ -1906,19 +3493,111 @@ function playTransfers(){
       + `[data-to-account="${CSS.escape(toAccount)}"]`
     const ghost = document.querySelector(`.asset.reserved${sel}`)
     if(!ghost) return
-    boardFlyLeg(ghost, basketEl, getPlayerColour(ownerPlayer), i++ * 220)
+    // same pair key shape as boardAnimateNewOffers (to|from|asset) so a
+    // withdraw clears replay after-glow too
+    const k = `${toAccount}|${ownerAccount}|${assetId}`
+    boardFlyLeg(ghost, basketEl, getPlayerColour(ownerPlayer), i++ * 220, k)
+    boardTrailPileSegment(ownerAccount, assetId, ghost, getPlayerColour(ownerPlayer), k)
   })
 }
 
+// SETTLED chip rect (user's kinked-lines screenshot, 2026-07-14 / KTAG
+// 8/872+921): getBoundingClientRect() right after a render catches chips
+// MID-GLIDE — the FLIP transform still has them at their spawn position, so
+// trails anchored there (fungible looked right only by luck: its spawn point,
+// the pile, is ON the line; the NFT's old store spot isn't — hence "line from
+// where it used to be" and the kink). Organic chips carry their settled
+// layout in style.left/top (board coords == viewport coords, #boardRoot is
+// fixed inset:0) — use that; anything else falls back to the live rect.
+function boardChipRect(el){
+  const l = parseFloat(el.style.left), t = parseFloat(el.style.top)
+  if(Number.isFinite(l) && Number.isFinite(t))
+    return { left: l, top: t, width: el.offsetWidth, height: el.offsetHeight }
+  return el.getBoundingClientRect()
+}
+
+// pile→ghost after-glow segment (user 2026-07-14: the replay only restored
+// ghost→basket — the store→ghost third of the line should draw too). Same
+// pair key so withdraw/movement clearing takes all segments together. NFTs
+// have no pile chip left — the segment simply doesn't exist for them.
+function boardTrailPileSegment(fromId, assetId, ghostEl, colour, key){
+  const pile = document.querySelector(
+    `.asset:not(.basket):not(.reserved)[data-owner-account="${CSS.escape(fromId)}"][data-asset-id="${CSS.escape(assetId)}"]`)
+  if(pile && ghostEl) boardTrail(boardChipRect(pile), boardChipRect(ghostEl), colour, { key, seg: "pg" })
+}
+
 // one leg of the transfer animation: clone flies ghost → basket, trail line
-// in the giver's colour draws with it and fades
-function boardFlyLeg(ghost, basketEl, colour, delay){
-  boardFlyRect(basketEl.outerHTML, ghost.getBoundingClientRect(), basketEl.getBoundingClientRect(), colour, delay)
+// in the giver's colour draws with it and fades. key (optional) tags the
+// trail with its offer pair so a later withdraw can clear the after-glow.
+function boardFlyLeg(ghost, basketEl, colour, delay, key){
+  boardFlyRect(basketEl.outerHTML, boardChipRect(ghost), boardChipRect(basketEl), colour, delay, { key, seg: "gb" })
+}
+
+// NFT offer choreography (user 2026-07-14): the store chip ARCS to the rim,
+// drops its ghost there, and continues STRAIGHT to the basket — one motion.
+// The arc is a quadratic Bézier whose control point sits on the basket→ghost
+// line extended past the ghost, so the curve arrives TANGENT to the straight
+// leg — no kink at the handoff (the user's own suggested construction). The
+// real ghost stays hidden until the clone passes its spot and "drops it off".
+// A clone flight rather than a transform glide on the ghost itself: renders
+// replace the DOM (root.replaceChildren), which silently killed the earlier
+// element-transform spawn glide — a body-level clone is immune. One-off per
+// drop: the ▶ replay only ever replays ghost→basket (the store→ghost move is
+// history once the ghost exists — user: no need to draw that line again).
+function boardFlyNftOffer(fromPos, ghostEl, basketEl, colour, key){
+  const g = boardChipRect(ghostEl), b = boardChipRect(basketEl)
+  const P0 = { x: fromPos.left + g.width / 2, y: fromPos.top + g.height / 2 }
+  const G = { x: g.left + g.width / 2, y: g.top + g.height / 2 }
+  const B = { x: b.left + b.width / 2, y: b.top + b.height / 2 }
+  const gb = Math.hypot(B.x - G.x, B.y - G.y) || 1
+  const ext = Math.min(120, Math.hypot(P0.x - G.x, P0.y - G.y) * 0.5)
+  const C = { x: G.x + (G.x - B.x) / gb * ext, y: G.y + (G.y - B.y) / gb * ext }
+
+  // the clone is the ASSET on the move (basket styling, same as boardFlyLeg)
+  // — the pale ghost is what gets left behind, not what travels
+  const tmp = document.createElement("div")
+  tmp.innerHTML = basketEl.outerHTML
+  const fly = tmp.firstElementChild
+  if(!fly) return
+  fly.className += " board-fly"
+  fly.style.transition = "none"   // driven per-frame — .board-fly's own transform transition would lag it
+  fly.style.left = "0px"
+  fly.style.top = "0px"
+  fly.style.transform = `translate(${P0.x - b.width / 2}px, ${P0.y - b.height / 2}px)`
+  document.body.appendChild(fly)
+  ghostEl.style.opacity = "0"
+
+  const arcLen = Math.hypot(P0.x - G.x, P0.y - G.y)
+  const split = arcLen / (arcLen + gb)   // time share of the arc leg ≈ length share
+  let dropped = false
+  boardAnimate(950, (e, done) => {
+    let x, y
+    if(e < split){
+      const t = e / split
+      x = (1 - t) * (1 - t) * P0.x + 2 * (1 - t) * t * C.x + t * t * G.x
+      y = (1 - t) * (1 - t) * P0.y + 2 * (1 - t) * t * C.y + t * t * G.y
+    } else {
+      if(!dropped){
+        dropped = true
+        ghostEl.style.opacity = ""            // ghost left behind at the rim
+        boardTrail(g, b, colour, { key, seg: "gb" })     // the straight leg's line draws from here
+      }
+      const t = (e - split) / (1 - split)
+      x = G.x + (B.x - G.x) * t
+      y = G.y + (B.y - G.y) * t
+    }
+    fly.style.transform = `translate(${x - b.width / 2}px, ${y - b.height / 2}px)`
+    if(done){
+      ghostEl.style.opacity = ""   // belt & braces (a mid-flight re-render swaps the element anyway)
+      fly.remove()
+    }
+  })
 }
 
 // markup + two rects → flight (also used for withdraw-back, where the source
-// chip no longer exists in the new DOM and we replay from a snapshot)
-function boardFlyRect(html, a, b, colour, delay){
+// chip no longer exists in the new DOM and we replay from a snapshot).
+// opts: { key, persist } forwarded to boardTrail.
+function boardFlyRect(html, a, b, colour, delay, opts){
   if(!html || !a || !b) return
   const tmp = document.createElement("div")
   tmp.innerHTML = html
@@ -1930,14 +3609,57 @@ function boardFlyRect(html, a, b, colour, delay){
   document.body.appendChild(fly)
   setTimeout(() => {
     fly.style.transform = `translate(${b.left - a.left}px, ${b.top - a.top}px)`
-    boardTrail(a, b, colour)
+    boardTrail(a, b, colour, opts)
   }, (delay || 0) + 30)
   setTimeout(() => fly.remove(), (delay || 0) + 1000)
 }
 
+// board movement invalidates every drawn trail — the lines are screen-frame
+// snapshots, so any rotation/collapse/wheel-scroll leaves them pointing at
+// stale coordinates (user 2026-07-14: "if the segment moves, remove the
+// line"). Called at the start of each movement tween. (Trails carrying a
+// seg marker now ALSO re-anchor live — boardReanchorTrails below — so these
+// clears are belt-and-braces for the big layout tweens.)
+function boardClearTrails(){
+  document.querySelectorAll(".board-trailline").forEach(l => l.remove())
+}
+
+// LIVE TRAILS (user 2026-07-16: "the dotted line is just sitting where it
+// was drawn and then assets move around — those joins need to persist"):
+// every painted frame something moved, the pile→ghost→basket after-glow
+// lines re-aim at their chips' CURRENT positions — exactly the future the
+// boardClearTrails note predicted ("re-anchor the lines to their chip
+// pairs; the pair keys the lines already carry are the hook"). Endpoints
+// are re-queried by selector each time, so the lines also survive the DOM
+// being rebuilt by a re-render. A line whose endpoint chip is GONE keeps
+// its last geometry — the withdraw path removes those lines itself.
+function boardReanchorTrails(){
+  const lines = document.querySelectorAll(".board-trailline[data-seg]")
+  if(!lines.length) return
+  const centre = el => {
+    const r = boardChipRect(el)
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+  }
+  lines.forEach(line => {
+    const parts = (line.dataset.pairKey || "").split("|")
+    if(parts.length < 3) return
+    const to = parts[0], from = parts[1], asset = parts.slice(2).join("|")
+    const sel = `[data-owner-account="${CSS.escape(from)}"][data-asset-id="${CSS.escape(asset)}"]`
+    const ghost = document.querySelector(`.asset.reserved${sel}[data-to-account="${CSS.escape(to)}"]`)
+    if(!ghost) return
+    const other = line.dataset.seg === "pg"
+      ? document.querySelector(`.asset:not(.basket):not(.reserved)${sel}`)
+      : document.querySelector(`.asset.basket${sel}[data-to-account="${CSS.escape(to)}"]`)
+    if(!other) return
+    const g = centre(ghost), o = centre(other)
+    line.setAttribute("x1", g.x); line.setAttribute("y1", g.y)
+    line.setAttribute("x2", o.x); line.setAttribute("y2", o.y)
+  })
+}
+
 // trailing line: DOTTED in the giver's colour (review 7 — was solid with a
 // draw-in; the dash channel now carries the dot pattern), fades out slowly
-function boardTrail(a, b, colour){
+function boardTrail(a, b, colour, { key, persist = true, seg } = {}){
   let svg = document.querySelector(".board-traillayer")
   if(!svg){
     svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
@@ -1950,11 +3672,29 @@ function boardTrail(a, b, colour){
   line.setAttribute("x2", b.left + b.width / 2); line.setAttribute("y2", b.top + b.height / 2)
   line.setAttribute("class", "board-trailline")
   line.style.stroke = colour || "#999"
+  if(key) line.dataset.pairKey = key
+  // seg marks WHICH leg of the pile→ghost→basket line this is ("pg"/"gb") so
+  // boardReanchorTrails can re-aim it at the chips' live positions each
+  // painted frame (LIVE TRAILS, user 2026-07-16). No seg = a transient line
+  // (withdraw-return) that fades before movement matters — left static.
+  if(seg) line.dataset.seg = seg
   svg.appendChild(line)
+  // 🧪 after-glow (boardTrailResidual): fade to a persistent fraction of the
+  // starting opacity (.75, see .board-trailline) instead of to nothing — the
+  // burn-in stays until the next replay wipes the layer, or until the offer
+  // it maps is withdrawn (persist:false + the pairKey removal in
+  // boardAnimateNewOffers — a returned asset's line is redundant, user
+  // 2026-07-14). 0 = old fade-to-nothing behaviour.
+  // persist:false (withdraw-return) also fades FASTER — once it's withdrawn
+  // the connection is gone and nobody's interested (user 2026-07-14, called
+  // minor: the 200ms/.5s numbers are polish knobs if it still lingers).
+  const fast = !persist
+  if(fast) line.style.transition = "opacity .5s ease"
+  const residual = persist ? 0.75 * (boardTrailResidual || 0) : 0
   requestAnimationFrame(() => {
-    setTimeout(() => { line.style.opacity = 0 }, 1000)   // linger, then fade
+    setTimeout(() => { line.style.opacity = residual }, fast ? 200 : 1000)   // linger, then fade
   })
-  setTimeout(() => line.remove(), 3600)
+  if(!residual) setTimeout(() => line.remove(), fast ? 900 : 3600)
 }
 
 // PROP-LOCKSIGN1 commitment flow, shared by the v1 label glyph + footer buttons
@@ -2213,6 +3953,33 @@ function ringHead(account, mine){
   return head
 }
 
+// BOARD-WHEEL7 target-strip colour (user 2026-07-12): felt ⊕ this player's
+// wedge wash ⊕ half a LIGHTENING (not darkening — user's 2nd-round call,
+// after seeing the darkened version live: wants more contrast against the
+// dark focus-shade background, so the strip goes lighter, not deeper),
+// composited to one flat hex. Constants mirror the CSS literals they're
+// standing in for — recompute (edit these) if body.board-page's felt or
+// .board-wedge's wash opacity ever change.
+const BOARD_FELT_RGB = [245, 241, 232]          // body.board-page background #f5f1e8
+const BOARD_WASH_ALPHA = 0.12                   // .board-wedge opacity
+// HALFWAY TO WHITE (user round 4, w/ screenshot: "the colour is now exactly
+// the same as the inner colour — no change at all"). The first lighten pass
+// naively mirrored the darken's alpha (.035) — but compositing distance is
+// asymmetric: 3.5% toward rgb(60,48,22) moved a light base ~6 RGB units
+// (visible), 3.5% toward white moved it ~0.5 units (imperceptible).
+// "Lighten halfway" = halfway to white.
+const BOARD_LIGHTEN_ALPHA = 0.5
+function boardHexToRgb(hex){
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || "")
+  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [153, 153, 153]
+}
+const boardMixRgb = (base, tint, alpha) => base.map((c, i) => Math.round(c * (1 - alpha) + tint[i] * alpha))
+function boardTargetStripColour(playerHex){
+  const washed = boardMixRgb(BOARD_FELT_RGB, boardHexToRgb(playerHex), BOARD_WASH_ALPHA)
+  const [r, gC, b] = boardMixRgb(washed, [255, 255, 255], BOARD_LIGHTEN_ALPHA)
+  return "#" + [r, gC, b].map(c => c.toString(16).padStart(2, "0")).join("")
+}
+
 function ringFelt(segs, g){
   const NS = "http://www.w3.org/2000/svg"
   const svg = document.createElementNS(NS, "svg")
@@ -2220,24 +3987,80 @@ function ringFelt(segs, g){
   svg.setAttribute("viewBox", `0 0 ${g.W} ${g.H}`)
 
   // ring8 splits the felt in two: this base svg (z below the chip boxes) and
-  // a TOP svg (z above them) carrying the locked-store dim + etched labels —
-  // so the dim shades the chips but never the account id / 🔒 / xproof label
+  // a TOP svg (z above them) carrying the locked-store dim — the dim shades
+  // the chips. Labels used to ride the top svg too, but the user reversed
+  // that (2026-07-15, w/ screenshot): the account ids are writing ON the
+  // board, so a chip that strays over one must COVER it — a label painting
+  // over a chip reads as the number floating above the table. They now get
+  // their own LABELS svg at z4, under the chips' z5 (.ring-organic).
   const top = ring8() ? document.createElementNS(NS, "svg") : null
   if(top){
     top.setAttribute("class", "ring-felt ring-felt--top")
     top.setAttribute("viewBox", `0 0 ${g.W} ${g.H}`)
   }
-  const labelLayer = top || svg
+  const labels = ring8() ? document.createElementNS(NS, "svg") : null
+  if(labels){
+    labels.setAttribute("class", "ring-felt ring-felt--labels")
+    labels.setAttribute("viewBox", `0 0 ${g.W} ${g.H}`)
+  }
+  const labelLayer = labels || top || svg
   const dimLayer = top || svg
 
-  const mkLine = (a, r0, r1, cls) => {
+  // wheel-glide clip (BOARD-WHEEL2 v2): mid-glide, the others-group segs'
+  // felt elements (boundary lines, lock/sign arcs, dims, etched ids) render
+  // inside an SVG clipPath cut to the fixed sector between the dividers —
+  // the same window the DOM-side wedge/chip containers use, so the whole
+  // segment crosses the threshold as one piece.
+  let baseClipG = null, topClipG = null, labelClipG = null
+  if(g.wheelClip){
+    const sectorD = (host, id) => {
+      const R = Math.max(g.W, g.H) * 1.6
+      let d = `M ${g.cx} ${g.cy}`
+      const steps = 8
+      for(let s = 0; s <= steps; s++){
+        const a = g.rad(g.wheelClip.a0 + (g.wheelClip.a1 - g.wheelClip.a0) * s / steps)
+        d += ` L ${(g.cx + R * Math.cos(a)).toFixed(0)} ${(g.cy + R * Math.sin(a)).toFixed(0)}`
+      }
+      const defs = document.createElementNS(NS, "defs")
+      const cp = document.createElementNS(NS, "clipPath")
+      cp.setAttribute("id", id)
+      const path = document.createElementNS(NS, "path")
+      path.setAttribute("d", d + " Z")
+      cp.appendChild(path); defs.appendChild(cp); host.appendChild(defs)
+      const grp = document.createElementNS(NS, "g")
+      grp.setAttribute("clip-path", `url(#${id})`)
+      host.appendChild(grp)
+      return grp
+    }
+    baseClipG = sectorD(svg, "kwheelclip-base")
+    topClipG = top ? sectorD(top, "kwheelclip-top") : baseClipG
+    labelClipG = labels ? sectorD(labels, "kwheelclip-labels") : baseClipG
+  }
+  // party-tween fade (user 2026-07-12: the collapsing segment's account id
+  // "flickers away right at the end" — everything that's going to disappear
+  // should fade out as the segment closes). A per-seg <g> with group opacity
+  // MULTIPLIES into the children's own CSS opacity (arcs at .22 etc.), which
+  // a direct style.opacity would have overridden (making them brighter).
+  const fadeWrap = (layer, seg) => {
+    if(seg?.weight == null || seg.weight >= 1) return layer
+    const gg = document.createElementNS(NS, "g")
+    gg.style.opacity = seg.weight
+    layer.appendChild(gg)
+    return gg
+  }
+  const segBase = seg => fadeWrap((seg?.wclip && baseClipG) ? baseClipG : svg, seg)
+  const segTop = seg => fadeWrap((seg?.wclip && topClipG) ? topClipG : (top || svg), seg)
+  const segLabels = seg => fadeWrap((seg?.wclip && labelClipG) ? labelClipG : (labels || svg), seg)
+  const _deferredSignArcs = []   // signing arcs render after the focus shade (lights over darkness)
+
+  const mkLine = (a, r0, r1, cls, layer = svg) => {
     const line = document.createElementNS(NS, "line")
     line.setAttribute("x1", g.cx + r0 * Math.cos(a))
     line.setAttribute("y1", g.cy + r0 * Math.sin(a))
     line.setAttribute("x2", g.cx + r1 * Math.cos(a))
     line.setAttribute("y2", g.cy + r1 * Math.sin(a))
     line.setAttribute("class", cls)
-    svg.appendChild(line)
+    layer.appendChild(line)
   }
 
   segs.forEach((seg, i) => {
@@ -2252,10 +4075,10 @@ function ringFelt(segs, g){
     const prev = segs[(i + segs.length - 1) % segs.length]
     if(ring8() && segs.length > 1 && (seg.mine !== prev.mine)){
       const rOvalHere = (g.rx * g.ry) / Math.hypot(g.ry * Math.cos(a), g.rx * Math.sin(a))
-      mkLine(a, g.rc, rOvalHere, "ring-boundary")
-      mkLine(a, rOvalHere, rE, "ring-divider")
+      mkLine(a, g.rc, rOvalHere, "ring-boundary", segBase(seg))
+      mkLine(a, rOvalHere, rE, "ring-divider", segBase(seg))
     } else {
-      mkLine(a, g.rc, rE, "ring-boundary")
+      mkLine(a, g.rc, rE, "ring-boundary", segBase(seg))
     }
   })
 
@@ -2300,7 +4123,7 @@ function ringFelt(segs, g){
         const dim = document.createElementNS(NS, "path")
         dim.setAttribute("d", ringStoreZonePath(seg, g))
         dim.setAttribute("class", "ring-storedim")
-        dimLayer.appendChild(dim)
+        segTop(seg).appendChild(dim)
         // v11 (review 10): BIG 🔒 at the store centroid, on top of the dim —
         // third lock cue alongside the orange arc + darkened store
         if(ring11()){
@@ -2313,7 +4136,7 @@ function ringFelt(segs, g){
           big.setAttribute("dominant-baseline", "central")
           big.setAttribute("font-size", Math.min(58, Math.max(34, g.step * 0.5)))
           big.textContent = "🔒"
-          dimLayer.appendChild(big)
+          segTop(seg).appendChild(big)
         }
       }
       // arc visibility matrix — ring8 INVERTS the ownership marking: other
@@ -2321,6 +4144,15 @@ function ringFelt(segs, g){
       // YOUR arc has no line at all — but stays tappable (transparent
       // stroke) and lights orange when you lock
       if(!ring8() && ringNoOval() && !locked && !seg.mine) return
+      // v16 TARGET STRIP (user 2026-07-12): accounts party to the live
+      // proposal get their oval arc PRE-PAINTED as a thick blended strip —
+      // the outer-ring echo of the hub's white party arcs, a visible
+      // "shadow of a strip" before anyone locks, a fat hover/tap target,
+      // and the bed the lock-orange later FILLS (instead of orange over a
+      // bare line, which read harsh). Applied to mine AND other players'
+      // party arcs alike, per the user.
+      const party = ring16() && !seg.sign && !locked
+        && boardInMyParty(seg.account, segs.map(s => s.account))
       const arc = document.createElementNS(NS, "path")
       arc.setAttribute("d", ringArcPath(seg, g))
       arc.dataset.accountId = seg.account.id
@@ -2328,14 +4160,43 @@ function ringFelt(segs, g){
         + (locked ? " ring-lockarc--locked" : "")
         + (seg.mine ? " ring-lockarc--mine" : "")
         + (ring8() ? (seg.mine ? " ring-lockarc--open" : " ring-lockarc--wall") : "")
+        + (party ? " ring-lockarc--target" : "")
         + (seg.sign ? " ring-signarc ring-signarc--" + seg.sign : ""))
+      // TARGET STRIP colour, per segment (user correction round 2, w/
+      // screenshot): a fixed CSS hex can't be right — every wedge is ALSO
+      // tinted by that player's own wash colour (.board-wedge, opacity
+      // .12). felt ⊕ wash(.12) ⊕ lighten(.035), computed to one flat hex —
+      // see boardTargetStripColour.
+      //
+      // Set as a CSS CUSTOM PROPERTY, not arc.style.stroke directly (fixed
+      // round 3 — user: hover wasn't turning orange, and locked wasn't
+      // staying solid orange). A plain inline `stroke` wins over EVERY
+      // selector-based rule unconditionally, including :hover and
+      // .ring-lockarc--locked — it doesn't just beat --target's own class,
+      // it silently beat every state change downstream too. A custom
+      // property carries the colour without that override power: the
+      // resting rule still needs !important to beat --open's transparent
+      // default (both plain classes, resting order doesn't reliably favour
+      // --target), but :hover / --locked keep their normal higher
+      // specificity and win over it live, as CSS intends.
+      // YAK-SHAVED PAST THE POINT OF PROPORTION for a cosmetic pre-lock
+      // affordance strip — candidate to simplify/cull later (a flat
+      // per-player CSS variable would do 90% of this for far less code) if
+      // it ever becomes a maintenance snag.
+      if(party) arc.style.setProperty("--tstrip", boardTargetStripColour(getPlayerColour(seg.account.playerId)))
       if(seg.mine){
         arc.onclick = () => boardToggleLock(seg.account)
         const t = document.createElementNS(NS, "title")
         t.textContent = locked ? "Locked — tap your arc to unlock" : "Tap your arc to lock"
         arc.appendChild(t)
       }
-      svg.appendChild(arc)
+      // signing-status arcs are LIGHTS (user 2026-07-12): they must
+      // illuminate over the focus/signing darkness, not be buried under it —
+      // "only glowing on the inside… the glow needs to sit on top of the
+      // dark shadow covering the store". Deferred and appended after the
+      // shade below; plain lock arcs keep the normal (base) layering.
+      if(seg.sign) _deferredSignArcs.push({ arc, seg })
+      else segBase(seg).appendChild(arc)
     })
   } else {
     const oval = document.createElementNS(NS, "ellipse")
@@ -2347,7 +4208,12 @@ function ringFelt(segs, g){
     svg.appendChild(oval)
   }
 
-  if(g.etched) segs.forEach(seg => labelLayer.appendChild(ringEtchLabel(seg, g, NS)))
+  if(g.etched) segs.forEach(seg => segLabels(seg).appendChild(ringEtchLabel(seg, g, NS)))
+  // BOARD-IDCOIN1: additive "coin lettering" comparison — same id, curved
+  // along the hub rim instead of the segment boundary. Not a replacement;
+  // kept side by side with the etched label above per the user's ask.
+  // Both label kinds route via segLabels → the z4 labels svg (under chips).
+  if(g.etched) segs.forEach(seg => segLabels(seg).appendChild(ringHubCoinLabel(seg, g, NS)))
 
   if(ring11()){
     // v11 (review 10): party + identity cues moved to the HUB's doorstep —
@@ -2356,7 +4222,7 @@ function ringFelt(segs, g){
     // the hub on my segments (replaces the etched ·you suffix). Later: short
     // player names for others here, tappable → player info/reputation.
     const allAccounts = segs.map(s => s.account)
-    const circArc = (r, a0d, a1d, cls, colour) => {
+    const circArc = (r, a0d, a1d, cls, colour, layer = labelLayer) => {
       const p = d => {
         const a = g.rad(d)
         return `${(g.cx + r * Math.cos(a)).toFixed(1)} ${(g.cy + r * Math.sin(a)).toFixed(1)}`
@@ -2366,7 +4232,7 @@ function ringFelt(segs, g){
       el.setAttribute("d", `M ${p(a0d)} A ${r} ${r} 0 ${span > 180 ? 1 : 0} 1 ${p(a0d + span)}`)
       el.setAttribute("class", cls)
       if(colour) el.style.stroke = colour
-      labelLayer.appendChild(el)
+      layer.appendChild(el)
     }
     segs.forEach(seg => {
       if(ring12()){
@@ -2374,11 +4240,11 @@ function ringFelt(segs, g){
         // PLAYER-COLOUR arc (always), PARTY STRIP-LIGHT (white — gold was
         // clashing with the lock orange; this is "the light comes on")
         circArc(g.rc + 6, seg.a0 + 2, seg.a1 - 2, "ring-playerarc",
-          getPlayerColour(seg.account.playerId))
+          getPlayerColour(seg.account.playerId), segTop(seg))
         if(boardInMyParty(seg.account, allAccounts))
-          circArc(g.rc + 12, seg.a0 + 3, seg.a1 - 3, "ring-partylight")
+          circArc(g.rc + 12, seg.a0 + 3, seg.a1 - 3, "ring-partylight", null, segTop(seg))
       } else if(boardInMyParty(seg.account, allAccounts))
-        circArc(g.rc + 5, seg.a0 + 3, seg.a1 - 3, "ring-partyarc")
+        circArc(g.rc + 5, seg.a0 + 3, seg.a1 - 3, "ring-partyarc", null, segTop(seg))
       if(seg.mine){
         const midDeg = (seg.a0 + seg.a1) / 2
         const mid = g.rad(midDeg)
@@ -2394,7 +4260,10 @@ function ringFelt(segs, g){
         you.setAttribute("dominant-baseline", "central")
         you.setAttribute("transform", `rotate(${rot} ${x} ${y})`)
         you.textContent = "you"
-        labelLayer.appendChild(you)
+        // segTop, not labelLayer (user 2026-07-12): the "you" label was the
+        // one element outside the fade/clip scope — it overhung its
+        // collapsing segment and popped instead of fading in/out with it
+        segTop(seg).appendChild(you)
       }
     })
   }
@@ -2407,22 +4276,71 @@ function ringFelt(segs, g){
   // assets land) — and only animates on first mount, not on every re-render.
   const shadeOn = ring16() && (boardFocusMode || !!boardSigning)
   if(shadeOn){
+    // user 2026-07-14 ("fat tire"): the hole now extends PAST the rim by
+    // ~1.2× an NFT thumb height (the v8 clamp() below mirrors the CSS), so
+    // the ghost chips hugging the rim from outside sit inside the light too
+    // — the lit area reads as wheel + tire, before-state and after-state
+    // both visible. The edge is blurred (CSS filter on .ring-focusshade) as
+    // a soft barrier between reserved and store — deliberately NOT a drawn
+    // rim line; whether a hard rim is wanted is an open question, soft
+    // first. The outer rect overshoots the viewport so the blur can't thin
+    // the shade at the screen edges.
+    const thumbH = Math.min(52, Math.max(26, 0.034 * Math.min(g.W, g.H) + 13))
+    const m = thumbH * 1.2
+    const hrx = g.rx + m, hry = g.ry + m, B = 48
     const shade = document.createElementNS(NS, "path")
     shade.setAttribute("d",
-      `M 0 0 H ${g.W} V ${g.H} H 0 Z ` +
-      `M ${g.cx - g.rx} ${g.cy} ` +
-      `a ${g.rx} ${g.ry} 0 1 0 ${g.rx * 2} 0 ` +
-      `a ${g.rx} ${g.ry} 0 1 0 ${-g.rx * 2} 0 Z`)
+      `M ${-B} ${-B} H ${g.W + B} V ${g.H + B} H ${-B} Z ` +
+      `M ${g.cx - hrx} ${g.cy} ` +
+      `a ${hrx} ${hry} 0 1 0 ${hrx * 2} 0 ` +
+      `a ${hrx} ${hry} 0 1 0 ${-hrx * 2} 0 Z`)
     shade.setAttribute("fill-rule", "evenodd")
     shade.setAttribute("class", "ring-focusshade" + (window.__boardShadeOn ? "" : " ring-focusshade--in"))
     ;(top || svg).appendChild(shade)
+  } else if(window.__boardShadeOn){
+    // shade was on last paint and turned off THIS render (signing resolved /
+    // tx vanished): draw it one last time with the slow --wipe fade so it
+    // dissolves in step with the wiper sweep instead of vanishing a beat
+    // before it (user 2026-07-15). The ▶ toggle-off path does its own
+    // 0.5s fade pre-render and clears __boardShadeOn to skip this.
+    const thumbH2 = Math.min(52, Math.max(26, 0.034 * Math.min(g.W, g.H) + 13))
+    const m2 = thumbH2 * 1.2, hrx2 = g.rx + m2, hry2 = g.ry + m2, B2 = 48
+    const fade = document.createElementNS(NS, "path")
+    fade.setAttribute("d",
+      `M ${-B2} ${-B2} H ${g.W + B2} V ${g.H + B2} H ${-B2} Z ` +
+      `M ${g.cx - hrx2} ${g.cy} ` +
+      `a ${hrx2} ${hry2} 0 1 0 ${hrx2 * 2} 0 ` +
+      `a ${hrx2} ${hry2} 0 1 0 ${-hrx2 * 2} 0 Z`)
+    fade.setAttribute("fill-rule", "evenodd")
+    fade.setAttribute("class", "ring-focusshade ring-focusshade--wipe")
+    ;(top || svg).appendChild(fade)
   }
   window.__boardShadeOn = shadeOn
 
-  if(top){
+  // the deferred signing-status arcs land AFTER the shade: the glow now
+  // spills onto the darkened store side too — a light over the darkness,
+  // which the spotlight amplifies (the exact effect the user designed).
+  // Each arc rides on a plain opaque UNDERLAY strip (user 2026-07-12: the
+  // spotlight's hard edge showed THROUGH the translucent glow — "paint the
+  // strip light background on first, and then put the strip light on top").
+  // Trade-off: mid-wheel-glide these skip the SVG wheel clip (they'd have to
+  // sit inside topClipG, which was appended before the shade) — signing +
+  // glide simultaneously is rare; revisit if it ever shows.
+  _deferredSignArcs.forEach(({ arc, seg }) => {
+    const layer = fadeWrap(top || svg, seg)
+    const under = document.createElementNS(NS, "path")
+    under.setAttribute("d", arc.getAttribute("d"))
+    under.setAttribute("class", "ring-signarc-under")
+    layer.appendChild(under)
+    layer.appendChild(arc)
+  })
+  _deferredSignArcs.length = 0
+
+  if(top || labels){
     const both = document.createDocumentFragment()
     both.appendChild(svg)
-    both.appendChild(top)
+    if(labels) both.appendChild(labels)
+    if(top) both.appendChild(top)
     return both
   }
   return svg
@@ -2466,6 +4384,14 @@ function ringStoreZonePath(seg, g){
 // the account id etched into the felt — big, bold, faded, in the owner's
 // colour. ring2: written along the segment's most-horizontal boundary line
 // (nudged into the segment); ring3: horizontal at the outer zone's centroid.
+const _boardEtchSide = new Map()   // account id → which boundary its etched id last wrote along (hysteresis)
+
+// shared by ringEtchLabel + ringHubCoinLabel (BOARD-IDCOIN1)
+function ringLabelFontSize(g){
+  const vScale = ring8() ? Math.min(1.3, Math.max(0.67, Math.min(g.W, g.H) / 800)) : 1
+  return 20 * vScale
+}
+
 function ringEtchLabel(seg, g, NS){
 
   const text = document.createElementNS(NS, "text")
@@ -2480,9 +4406,14 @@ function ringEtchLabel(seg, g, NS){
   text.textContent = lockPrefix + (seg.account.id.split(":")[1] || seg.account.id)
     + (seg.mine && !ring11() ? " ·you" : "") + pickBadge
 
-  // ring8: etched ids scale with the viewport (~⅔ … ~1.3× of the fixed size)
-  const vScale = ring8() ? Math.min(1.3, Math.max(0.67, Math.min(g.W, g.H) / 800)) : 1
-  const fs = Math.min(28, Math.max(16, g.step * 0.24)) * vScale
+  // CONSTANT size (user 2026-07-12): was g.step*0.24 — proportional to
+  // segment width, so the id grew/shrank with segment count AND mid-tween
+  // (step is the average width, which changes as segments collapse) — the
+  // "account number suddenly jumps and gets bigger". Viewport scaling stays
+  // (not segment-dependent); animating font size was rejected as messy.
+  // ring8: scales with the viewport (~⅔ … ~1.3× of the fixed size) — shared
+  // with ringHubCoinLabel (BOARD-IDCOIN1) via ringLabelFontSize().
+  const fs = ringLabelFontSize(g)
   text.setAttribute("font-size", fs)
   const halfLen = fs * 0.31 * text.textContent.length   // rough glyph budget
 
@@ -2497,9 +4428,22 @@ function ringEtchLabel(seg, g, NS){
     return text
   }
 
-  // ring2: pick the boundary that lies most east-west, write along it
+  // ring2: pick the boundary that lies most east-west, write along it.
+  // STICKY with hysteresis (user 2026-07-12: the id "flashed between two
+  // possible positions" during animations — a raw c0>=c1 pick flips back and
+  // forth every frame as the segment rotates through the crossover). Keep
+  // the previous side unless the other is CLEARLY better; converges to the
+  // optimum at rest, never thrashes mid-tween.
   const c0 = Math.abs(Math.cos(g.rad(seg.a0))), c1 = Math.abs(Math.cos(g.rad(seg.a1)))
-  const abDeg = c0 >= c1 ? seg.a0 : seg.a1
+  let side = c0 >= c1 ? "a0" : "a1"
+  const prevSide = _boardEtchSide.get(seg.account.id)
+  if(prevSide && prevSide !== side){
+    const cPrev = prevSide === "a0" ? c0 : c1
+    const cNew = side === "a0" ? c0 : c1
+    if(cNew - cPrev < 0.15) side = prevSide
+  }
+  _boardEtchSide.set(seg.account.id, side)
+  const abDeg = side === "a0" ? seg.a0 : seg.a1
   const ab = g.rad(abDeg)
   // pulled in from the screen edge so the text never clips
   const rt = Math.max(g.ovalR(ab) + halfLen * 0.4,
@@ -2571,6 +4515,69 @@ function ringEtchLabel(seg, g, NS){
   return grp
 }
 
+// BOARD-IDCOIN1 (user 2026-07-14): account id curved along the INSIDE of the
+// rim (the basket oval — the wheel's "donut" edge), "coin lettering" —
+// ADDITIVE alongside ringEtchLabel above (kept for side-by-side comparison,
+// not a replacement). v1 sat on the hub; user correction (same day): wrong
+// circle — expand out to hug the rim's inner face, and use the same soft
+// tone as the etched ids (v1's full-strength player colour was too loud).
+//
+// Orientation ("like writing on a coin"): top-half segments read like a
+// bridge — arc peak up, normal a0→a1 sweep, letters upright. Bottom-half
+// read like a plate — arc peak down, sweep REVERSED (a1→a0) — without the
+// reversal the glyphs would render upside down at the bottom of the circle.
+// Segments near the 3/9 o'clock seam go whichever way the sin() sign falls;
+// user: "doesn't really matter which way they go" right at that boundary.
+// MOBILE PORTRAIT (user 2026-07-15, parked — BOARD-ACCTNUM1): these curved
+// ids are much harder to read in portrait; the SPOKE (etched) ids read well
+// there but get covered by the signing spotlight. Likely future: suppress
+// the coin variant in portrait and/or rethink which id renders when.
+function ringHubCoinLabel(seg, g, NS){
+  const hac = seg.account.id.split(":")[1] || seg.account.id
+  const fs = ringLabelFontSize(g)
+  // full-circle single account (hubPlayersRing guards the same case): an SVG
+  // arc can't have coincident start/end points, so cap the sweep just short.
+  const a0 = seg.a0, a1 = seg.a1 - a0 >= 360 ? seg.a0 + 359.9 : seg.a1
+  const bottomHalf = Math.sin(seg.am) > 0
+  // baseline inset from the oval: textPath glyphs grow "up" from the baseline
+  // — toward the rim on top-half arcs (clear the full cap height), toward the
+  // hub on bottom-half ones (only descenders reach rimward, less clearance).
+  const inset = (bottomHalf ? fs * 0.3 : fs * 0.85) + 6
+  const irx = Math.max(20, g.rx - inset), iry = Math.max(20, g.ry - inset)
+  // radius of the inset oval at a true angle — same form as g.ovalR
+  const ir = a => (irx * iry) / Math.hypot(iry * Math.cos(a), irx * Math.sin(a))
+  const [d0, d1] = bottomHalf ? [a1, a0] : [a0, a1]
+  const p = d => {
+    const a = g.rad(d), r = ir(a)
+    return `${(g.cx + r * Math.cos(a)).toFixed(1)} ${(g.cy + r * Math.sin(a)).toFixed(1)}`
+  }
+  const large = Math.abs(a1 - a0) > 180 ? 1 : 0
+  const sweep = bottomHalf ? 0 : 1
+
+  const path = document.createElementNS(NS, "path")
+  const pathId = "board-coinpath-" + hac.replace(/[^a-zA-Z0-9]/g, "_")
+  path.setAttribute("id", pathId)
+  path.setAttribute("d", `M ${p(d0)} A ${irx} ${iry} 0 ${large} ${sweep} ${p(d1)}`)
+  path.setAttribute("fill", "none")
+
+  const text = document.createElementNS(NS, "text")
+  text.setAttribute("class", "ring-coinlabel")
+  text.setAttribute("font-size", fs)
+  text.setAttribute("fill", getPlayerColour(seg.account.playerId))
+
+  const textPath = document.createElementNS(NS, "textPath")
+  textPath.setAttributeNS("http://www.w3.org/1999/xlink", "href", "#" + pathId)
+  textPath.setAttribute("startOffset", "50%")
+  textPath.setAttribute("text-anchor", "middle")
+  textPath.textContent = hac
+  text.appendChild(textPath)
+
+  const grp = document.createElementNS(NS, "g")
+  grp.appendChild(path)
+  grp.appendChild(text)
+  return grp
+}
+
 /* ── layout pieces ──────────────────────────────────────────────────────── */
 
 // Fat pie-slice drop target + low-alpha colour wash, clipped from the board
@@ -2581,16 +4588,12 @@ function makeWedge(account, a0, a1, geo, isMine = false){
   const el = document.createElement("div")
   el.className = "board-wedge"
   el.dataset.accountId = account.id
-
-  const R = Math.max(geo.W, geo.H) * 1.6
-  const pts = [[geo.cx, geo.cy]]
-  const steps = 6
-  for(let s = 0; s <= steps; s++){
-    const a = (a0 + (a1 - a0) * s / steps) * Math.PI / 180
-    pts.push([geo.cx + R * Math.cos(a), geo.cy + R * Math.sin(a)])
-  }
-  el.style.clipPath = "polygon(" + pts.map(p => `${p[0].toFixed(0)}px ${p[1].toFixed(0)}px`).join(",") + ")"
+  el.style.clipPath = boardSectorPolygon(a0, a1, geo)
   el.style.background = getPlayerColour(account.playerId)
+  // TAP-TO-OFFER cue: while a chip is selected, candidate destination
+  // segments lift a touch so "tap a segment" reads as the next move
+  if(typeof selectedAssetId !== "undefined" && selectedAssetId && account.id !== selectedFromAccountId)
+    el.classList.add("board-wedge--offertarget")
 
   if(!isMine) setupDropTarget(el, account)
   return el
@@ -2601,29 +4604,27 @@ function makeWedge(account, a0, a1, geo, isMine = false){
 // currently-visible window of "others" when there are more players than
 // boardMaxSegments. Tap = advance the window by one, looping (basic concept
 // per the user's spec — no animation yet).
-function makeScrollDividerWedge(a0, a1, geo, hiddenCount){
+function makeScrollDividerWedge(a0, a1, geo, hiddenCount, dir = 1){
   const el = document.createElement("div")
   el.className = "board-wedge board-wedge--divider"
   el.title = `${hiddenCount} more player${hiddenCount === 1 ? "" : "s"} — tap to scroll`
+  el.style.clipPath = boardSectorPolygon(a0, a1, geo, 3)
 
-  const R = Math.max(geo.W, geo.H) * 1.6
-  const pts = [[geo.cx, geo.cy]]
-  const steps = 3
-  for(let s = 0; s <= steps; s++){
-    const a = (a0 + (a1 - a0) * s / steps) * Math.PI / 180
-    pts.push([geo.cx + R * Math.cos(a), geo.cy + R * Math.sin(a)])
+  // badge skipped when the divider is mid-collapse in the party tween (a
+  // floating count over a vanishing sliver reads wrong)
+  if(a1 - a0 >= 6){
+    const am = (a0 + a1) / 2 * Math.PI / 180
+    const badge = document.createElement("div")
+    badge.className = "board-wedge-divider-badge"
+    badge.style.left = (geo.cx + Math.min(geo.W, geo.H) * 0.36 * Math.cos(am)) + "px"
+    badge.style.top = (geo.cy + Math.min(geo.W, geo.H) * 0.36 * Math.sin(am)) + "px"
+    badge.textContent = "⋯" + hiddenCount
+    el.appendChild(badge)
   }
-  el.style.clipPath = "polygon(" + pts.map(p => `${p[0].toFixed(0)}px ${p[1].toFixed(0)}px`).join(",") + ")"
 
-  const am = (a0 + a1) / 2 * Math.PI / 180
-  const badge = document.createElement("div")
-  badge.className = "board-wedge-divider-badge"
-  badge.style.left = (geo.cx + Math.min(geo.W, geo.H) * 0.36 * Math.cos(am)) + "px"
-  badge.style.top = (geo.cy + Math.min(geo.W, geo.H) * 0.36 * Math.sin(am)) + "px"
-  badge.textContent = "⋯" + hiddenCount
-  el.appendChild(badge)
-
-  el.onclick = () => boardScrollOthers(1)
+  // opposite directions per divider (see boardRingLayoutSlots for the
+  // mapping rationale — may flip after the user tries both)
+  el.onclick = () => boardScrollOthers(dir)
   return el
 }
 
@@ -2866,7 +4867,8 @@ function boardStoreChips(account, container){
       assetId,
       ownerAccountId: account.id,
       ownerPlayerId: account.playerId,
-      clickable: mine
+      clickable: mine,
+      selected: mine && isSelected(assetId, account.id, null)
     })
     applyAssetClasses(el, assetId, amount)
     el.classList.add("board-chip")
@@ -2880,7 +4882,21 @@ function boardStoreChips(account, container){
         el.classList.add("board-pickchip")
         el.style.setProperty("--pickflag", getPlayerColour(account.playerId))
       }
-      el.onclick = () => openAssetModal(assetId, account.id, amount)
+      // TAP-TO-OFFER (user 2026-07-15): tap selects the chip (legacy grid's
+      // own setSelectedAsset machinery — setupDropTarget's click handler on
+      // every wedge already completes the offer via offerSelectedToAccount,
+      // amount prompt included), replacing the old openAssetModal popup which
+      // the user found confusing on the board. Tap the chip again to cancel.
+      // The legacy game.php page keeps its modal. FUTURE: multi-tap selection
+      // (several chips → one destination) — the state is single-asset today.
+      el.onclick = () => {
+        if(ring8()){
+          if(isSelected(assetId, account.id, null)){ clearSelection(); render() }
+          else setSelectedAsset(assetId, account.id, null)
+          return
+        }
+        openAssetModal(assetId, account.id, amount)
+      }
       el.draggable = true
       el.ondragstart = e => {
         e.dataTransfer.setData("assetId", assetId)
@@ -2947,7 +4963,9 @@ function boardReservedChips(account, container, reservedByAccount){
       el.onclick = () => {
         const ok = confirm("Withdraw " + boardAssetText(item.assetId, item.amount || 1) + " from " + item.toAccountId + "?")
         if(!ok) return
-        socket.send(JSON.stringify({
+        // net view: the chip is the whole netted stack — withdraw every leg
+        const n = boardNetLegCount(account.id, item.toAccountId, item.assetId)
+        for(let i = 0; i < n; i++) socket.send(JSON.stringify({
           type: "game_withdraw", gameId,
           fromId: account.id, toId: item.toAccountId, assetId: item.assetId
         }))
@@ -3005,7 +5023,9 @@ function boardBasketChips(account, container, accountMap){
       el.onclick = () => {
         const ok = confirm("Withdraw " + boardAssetText(item.assetId, item.amount || 1) + " from " + account.id + "?")
         if(!ok) return
-        socket.send(JSON.stringify({
+        // net view: the chip is the whole netted stack — withdraw every leg
+        const n = boardNetLegCount(fromAccountId, account.id, item.assetId)
+        for(let i = 0; i < n; i++) socket.send(JSON.stringify({
           type: "game_withdraw", gameId,
           fromId: fromAccountId, toId: account.id, assetId: item.assetId
         }))
@@ -3025,7 +5045,9 @@ function boardBasketChips(account, container, accountMap){
       el.onclick = () => {
         const ok = confirm("Return " + boardAssetText(item.assetId, item.amount || 1) + " to " + fromAccountId + "?")
         if(!ok) return
-        socket.send(JSON.stringify({
+        // net view: same all-legs treatment as withdraw
+        const n = boardNetLegCount(fromAccountId, account.id, item.assetId)
+        for(let i = 0; i < n; i++) socket.send(JSON.stringify({
           type: "game_reject", gameId,
           accountId: account.id, assetId: item.assetId
         }))

@@ -5,6 +5,23 @@
 body.board-page{
   margin: 0;
   padding: 0;
+  /* BOARD-HEADERINT1 fix: everything under the banner is position:fixed
+     (#boardRoot etc.), so it contributes nothing to body's auto height — body
+     collapsed to just the ~90px banner. overflow:hidden then clipped the
+     hamburger dropdown (.app-menu, position:absolute inside the banner) right
+     there, since absolute descendants ARE clipped by an ancestor's overflow
+     even when a position:fixed sibling escapes it. min-height:100vh gives
+     overflow:hidden a sane boundary again without affecting the (already
+     viewport-fixed) board itself. */
+  min-height: 100vh;
+  /* mobile scroll-jiggle fix (user 2026-07-15, KY564 1/728: the whole board
+     dragged up/down ~a logo-height then snapped back): 100vh > the VISIBLE
+     viewport while the browser chrome is showing, so the page was genuinely
+     scrollable by that difference. dvh tracks the dynamic viewport;
+     overscroll-behavior kills the rubber-band. Proper fullscreen/PWA is
+     KAT-PWA1. */
+  min-height: 100dvh;
+  overscroll-behavior: none;
   overflow: hidden;
   background: #f5f1e8;               /* the felt */
   font-family: system-ui, sans-serif;
@@ -20,40 +37,91 @@ body.board-page{
   z-index: 5;
 }
 
-/* ── chrome: skin picker + exit ─────────────────────────────────────────── */
+/* ── shared header integration (BOARD-HEADERINT1) ───────────────────────── */
 
-.board-chrome{
-  position: fixed;
-  top: 10px;
-  right: 10px;
-  z-index: 50;
+/* Settings popover — swaps in where the hamburger menu opens (same anchor,
+   .app-banner is position:relative). Compact on purpose: the point of moving
+   it out of the profile modal was seeing the board react while you fiddle. */
+.board-settings-panel{
+  position: absolute;
+  top: 100%;
+  right: 8px;
+  z-index: 1500;
+
+  min-width: 210px;
+  padding: 10px 12px;
+
   display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-items: center;
-}
 
-.board-chrome select{
-  font-size: 12px;
-  padding: 4px 6px;
-  border: 1px solid #ddd6c6;
-  border-radius: 8px;
-  background: #fffdf7;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
 }
-
-.board-exit{
-  text-decoration: none;
-  color: #666;
-  background: #fffdf7;
-  border: 1px solid #ddd6c6;
-  border-radius: 50%;
-  width: 28px;
-  height: 28px;
+.board-settings-panel.hidden{ display: none; }
+.board-settings-panel hr{ width: 100%; margin: 2px 0; border: 0; border-top: 1px solid #eee; }
+.board-settings-label{
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 14px;
+  gap: 8px;
+  font-size: 13px;
+  color: #555;
+  cursor: pointer;
+  user-select: none;
 }
-.board-exit:hover{ color: #000; }
+.board-settings-label input[type="checkbox"]{ margin: 0; cursor: pointer; }
+.board-settings-num{ width: 56px; }
+.board-settings-label select{ font-size: 12px; max-width: 150px; }
+/* board.php now includes header.php's .app-banner. It's static (unpositioned)
+   while the board's own chrome is all position:fixed with z-index up to 80 —
+   without promoting the banner it would render UNDER the ring per normal CSS
+   stacking rules (positioned content always paints above static content in
+   the same context, regardless of DOM order). z-index:70 sits above the ring
+   (max 60 for live content) but below #notifications (80, below) so toasts
+   still win if they ever overlap. Also cancels the banner's -16px bleed trick
+   — that's sized for the 16px body padding other pages carry; board-page's
+   padding is 0, so the bleed isn't needed here. */
+body.board-page .app-banner{
+  position: relative;
+  z-index: 70;
+  margin: 0 0 12px 0;
+  /* transparent over the felt (user 2026-07-15, tablet pass): the logo +
+     hamburger float on the board instead of sitting in a grey strip — the
+     board is fixed full-viewport behind, so nothing needs re-layout. The
+     dropdown menu + settings panel keep their own white cards. Footer stays
+     solid for now (user's call); its collapse-when-mostly-empty idea is
+     logged in BOARD-POLISH1. */
+  background: transparent;
+  border-bottom: none;
+}
+
+/* top status banner (boardSetBanner): signing mode, 🟩/🟥 consensus verdict,
+   tap-to-offer hint. Sits over the darkened top of the board, under the
+   header line. Placeholder seam for the sessions flow (KAT-PROPRECALL1). */
+#boardBanner{
+  position: fixed;
+  top: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 78;                /* over the felt + shade, under toasts (80) */
+  max-width: min(560px, 92vw);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(40, 34, 22, .82);
+  color: #fff;
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#boardBanner .board-banner-tx{ opacity: .65; font-size: 11px; }
+
+/* tap-to-offer: candidate destination segments lift while a chip is selected */
+.board-wedge--offertarget{ filter: saturate(1.5) brightness(1.04); }
 
 /* ── wedges: the Ludo wash + fat drop targets ───────────────────────────── */
 
@@ -64,6 +132,23 @@ body.board-page{
   transition: opacity .15s ease;
 }
 .board-wedge.drag-over{ opacity: .30; }
+
+/* BOARD-WHEEL2 v2: mid-glide clip windows — the others region renders inside
+   these two containers, cut to the fixed sector between the dividers, so
+   the leaver/newcomer cross the thresholds like a wheel turning underneath.
+   Two containers preserve the normal z-order (wedge washes below the felt
+   lines at z3, chips above at z5). clip-path creates a stacking context and
+   clips hit-testing too — hidden chip halves aren't clickable, correctly.
+   pointer-events pierces the containers; wedges re-enable explicitly (the
+   property inherits), .ring-organic children already do. */
+.ring-wheelclip{
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.ring-wheelclip--wedges{ z-index: 0; }
+.ring-wheelclip--chips{ z-index: 5; }
+.ring-wheelclip--wedges .board-wedge{ pointer-events: auto; }
 
 /* BOARD-WHEEL1: the scroll-divider wedge between mine and the visible window
    of others — a plain, neutral, clickable seam (not an account, no player
@@ -129,6 +214,30 @@ body.board-page{
 .ring-avail{ min-width: 90px; }
 .ring-avail .board-band{ justify-content: center; }
 
+/* BOARD-ORGANIC1: ring16 drops the rect boxes — chips are positioned
+   individually (left/top set by the relax pass in katomia-board.js). The
+   wrap spans the board purely as an event surface: pointer-events off on
+   itself (drops on bare felt still reach the wedge below), on for chips —
+   chip drags/taps bubble to the wrap, which carries the account's drop
+   target. transform stays UNTOUCHED (flights/FLIP own it). */
+.ring-organic{
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.ring-organic > *{
+  position: absolute;
+  pointer-events: auto;
+  margin: 0;
+  max-width: 132px;   /* keep text chips wrapping like the old box budget did */
+}
+.ring-organic .ring-lockbadge--organic{
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  max-width: none;
+}
+
 .ring-head{
   display: flex;
   align-items: center;
@@ -149,6 +258,17 @@ body.board-page{
 .ring-etchlabel{
   font-weight: 800;
   letter-spacing: .06em;
+  opacity: .30;
+  user-select: none;
+}
+
+/* BOARD-IDCOIN1: coin-lettering id curved along the inside of the rim —
+   additive comparison to .ring-etchlabel above. Same soft felt tone as the
+   etched id (user correction 2026-07-14: v1's full-strength player colour
+   was too loud next to it). */
+.ring-coinlabel{
+  font-weight: 800;
+  letter-spacing: .04em;
   opacity: .30;
   user-select: none;
 }
@@ -338,6 +458,12 @@ body.board-page{
 /* felt split: top layer (locked-store dim + etched labels) sits ABOVE the
    chip boxes (z5) so the dim shades chips; labels append after the dim */
 .ring-felt--top{ z-index: 6; }
+/* labels layer (user 2026-07-15, w/ screenshot): account ids are written ON
+   the board — a chip straying over one must COVER it, or the number reads
+   as floating above the table. z4 < the chips' z5; the lock dim stays in
+   --top (z6) so it still shades chips. */
+.ring-felt--labels{ z-index: 4; }
+.ring-organic{ z-index: 5; }   /* explicit — the labels/chips ordering above depends on it */
 
 /* chip faces WHITE — grey faces vanished against the shading washes; OG
    square-cornered sleeve + lift shadow carried over from v5-7 */
@@ -383,7 +509,7 @@ body.board-page{
   opacity: 1;
 }
 [data-board-fam~="v8"] .ring-lockarc--locked{
-  stroke: #f5a623;
+  stroke: #f5a623 !important;   /* !important: must win over --target/--wall/--open on the same arc */
   stroke-width: 8;
   opacity: .85;
   stroke-dasharray: none;   /* locked = solid, even where the wall is dotted */
@@ -431,9 +557,13 @@ body.board-page{
    arc, and the hub cues; every viewer sees the same board */
 [data-board-fam~="v10"] .board-wedge--mine{ opacity: .12; }
 
-/* desktop: hovering your own (invisible) lock arc previews the lock */
+/* desktop: hovering your own (invisible, or v16 target-strip) lock arc
+   previews the lock. !important (user round 3): must win over --target's
+   own !important resting colour — higher specificity already made it win
+   pre-!important, this just keeps it winning now that --target needs
+   !important too (see --target below). */
 [data-board-fam~="v10"] .ring-lockarc--open:not(.ring-lockarc--locked):hover{
-  stroke: rgba(245, 166, 35, .35);
+  stroke: rgba(245, 166, 35, .35) !important;
   stroke-dasharray: none;
 }
 
@@ -538,7 +668,9 @@ body.board-page{
   box-shadow: 0 2px 10px rgba(0,0,0,.20);
 }
 .board-page #notifications .notice + .notice{
-  margin-top: -26px;        /* the deck overlap */
+  /* user 2026-07-14: pile like a stack of paper — mostly overlapped, each
+     sheet peeking out, close them one by one or let them fade */
+  margin-top: -34px;
 }
 
 /* v13/susan4: ghosts OPAQUE-pale — element opacity let the pair line show
@@ -570,6 +702,17 @@ body.board-page{
    FUSED to the sleeve (1px overlap kills the hairline gap), apex left at
    half height; fixed 12px height on every chip */
 :is([data-board-fam~="v14"], [data-board-fam~="susan5p"]) .board-pickchip{ position: relative; }
+/* PICKABLE SCATTER ROOT CAUSE (2026-07-15, round 4 — the real one): the
+   rule above predates the organic layout; it exists purely to anchor the
+   ::before flag, and was written when chips sat IN FLOW inside boxes, where
+   position:relative was harmless. Organic/shelf chips are ABSOLUTE children
+   (.ring-organic > *, specificity 0,1,0) — the rule above (0,2,0) silently
+   flipped any chip gaining .board-pickchip to position:relative, turning
+   its left/top placement into an offset from its FLOW position: the chip
+   flies right/down by hundreds of px while every diagnostic (which reads
+   left/top) sees nothing move. absolute is equally a positioned ancestor
+   for the flag, so the ::before anchoring is unaffected. */
+.ring-organic > .board-pickchip{ position: absolute; }
 :is([data-board-fam~="v14"], [data-board-fam~="susan5p"]) .board-pickchip::before{
   content: "";
   position: absolute;
@@ -839,6 +982,46 @@ body.board-page{
   border-radius: 8px;
   background: #fff;
   width: 44px;
+}
+
+/* ⚙ Prefs popover (user 2026-07-12): cosmetic/debug controls fold out of the
+   footer — Net, You at bottom, Max on ring, Anim speed. NOT nerd-gated (so
+   deliberately not named a nerd menu); mechanical controls stay on the bar. */
+.ring-footer-prefswrap{ position: relative; }
+.ring-footer-prefsbtn{
+  font-size: 14px;
+  padding: 3px 8px;
+  border: 1px solid #ddd6c6;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+.ring-footer-prefsbtn--open{ background: #f1ecdf; }
+.ring-footer-prefs hr{
+  border: 0;
+  border-top: 1px solid #e5e0d4;
+  margin: 2px 0;
+  width: 100%;
+}
+.ring-footer-prefs{
+  /* FIXED, not absolute (user 2026-07-12: "the settings button doesn't
+     work"): .ring-footer is overflow-x:auto — a scroll container — so an
+     absolutely-positioned child extending ABOVE the bar was simply clipped
+     invisible. The click worked; the panel couldn't show. position:fixed
+     escapes the ancestor clip (no transformed ancestors in the footer). */
+  position: fixed;
+  bottom: calc(48px + env(safe-area-inset-bottom));
+  left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255,254,249,.98);
+  border: 1px solid #e5e0d4;
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  white-space: nowrap;
+  z-index: 13;
 }
 .ring-footer-del{
   border: 1px solid #ddd6c6;
@@ -1112,20 +1295,118 @@ body.board-page{
 /* ── ring15: the signing layer (first slice) ────────────────────────────── */
 
 /* party arcs carry the tx status — SIGN-STATUSLANG1 colours: pulsing orange
-   awaiting, green signed, red dashed failed (shape + hue, colourblind-safe) */
-.ring-signarc{ stroke-width: 8; opacity: .9; }
+   awaiting, green signed, red dashed failed (shape + hue, colourblind-safe).
+
+   GLOW (user 2026-07-12): players' assigned colours can collide with the
+   traffic-light meanings (an early player is often red or green), so the two
+   colour systems get different MATERIALS — gameplay colours stay crisp,
+   painted-on; signing status is a LIGHT: a neon-strip soft glow, deliberately
+   blurry and spread ("not too tight") so it can never be mistaken for a
+   player's paint. The signing-phase spotlight (dark felt) amplifies it —
+   the glow visibly illuminates over the darkened board. */
+.ring-signarc{ stroke-width: 8; opacity: .95; }
 .ring-signarc--pending{
   stroke: #f5a623 !important;
   stroke-dasharray: none;
+  filter: drop-shadow(0 0 6px #f5a623) drop-shadow(0 0 18px rgba(245,166,35,.75));
   animation: ring-signpulse 1.6s ease-in-out infinite;
 }
-.ring-signarc--signed{ stroke: #35b06f !important; stroke-dasharray: none; }
-.ring-signarc--failed{ stroke: #d64541 !important; stroke-dasharray: 6 6; }
+.ring-signarc--signed{
+  stroke: #35b06f !important;
+  stroke-dasharray: none;
+  filter: drop-shadow(0 0 6px #35b06f) drop-shadow(0 0 18px rgba(53,176,111,.75));
+}
+.ring-signarc--failed{
+  stroke: #d64541 !important;
+  /* !important on BOTH (2026-07-15, round 2 — the linecap-only fix below
+     didn't hold): the real cause wasn't ownership or device, it was CSS
+     specificity. Every locked account (line ~505, [data-board-fam~="v8"]
+     .ring-lockarc--locked, specificity 0,2,0) gets `stroke-dasharray: none`
+     — HIGHER specificity than this single-class rule (0,1,0), so it won
+     regardless of source order once an account locked, exactly matching
+     "shows dashed sometimes, solid other times" (whether THIS render still
+     had the pre-lock state cached, not who owns the account). !important
+     forces the failed-status dash to win outright, same fix pattern this
+     file already uses for the identical class of problem (see the
+     correction #4 note on .ring-lockarc--target above). Butt caps (was a
+     real but secondary effect): .ring-lockarc--wall's round linecap
+     extends each 6px dash by half the 8px stroke width per end, nearly
+     filling the gap. */
+  stroke-dasharray: 6 6 !important;
+  stroke-linecap: butt !important;
+  filter: drop-shadow(0 0 6px #d64541) drop-shadow(0 0 18px rgba(214,69,65,.75));
+}
 /* user 2026-07-12: a party member with no signature required (e.g. just
    receiving, no receiver_sig_required) reads as a plain neutral grey — same
    idea as the signing modal's card, which applies NO special class at all
-   for "none" and just shows the default border. No pulse, no dash. */
+   for "none" and just shows the default border. No pulse, no dash — and NO
+   glow: in the light-vs-paint language, this is a light that isn't lit. */
 .ring-signarc--none{ stroke: #9a9a9a !important; stroke-dasharray: none; opacity: .5; }
+
+/* the strip-light's BED (user 2026-07-12): a plain opaque strip painted
+   under each glowing signing arc, so the spotlight shade's hard edge can't
+   show through the translucent glow — "paint the strip light background on
+   first, and then put the strip light on top". */
+.ring-signarc-under{
+  fill: none;
+  stroke: #fffdf7;
+  stroke-width: 11;
+  opacity: .95;
+  pointer-events: none;
+  stroke-linecap: round;
+}
+/* pin the glow's width regardless of the lock-arc class riding along
+   (--open alone would set 14 on mine and out-fatten the 11px bed) */
+.ring-lockarc.ring-signarc{ stroke-width: 8; }
+
+/* ── v16 arc language (user 2026-07-12) ─────────────────────────────────────
+   TARGET STRIP: accounts party to the live proposal pre-paint their oval arc
+   as a thick neutral strip — the outer echo of the hub's white party arcs, a
+   visible lock target before anyone locks, and the bed the lock-orange fills.
+   OPAQUE, not a darkening (correction #1): a translucent strip composited
+   two-tone over the zones and the oval midline still showed through.
+   PER-PLAYER, not a fixed hex (correction #2, w/ screenshot): every wedge is
+   ALSO tinted by that player's own wash colour, so a flat hex read as a
+   mismatched third hue between two salmon-pink zones. LIGHTENED, not
+   darkened (correction #3, after seeing it live): more contrast against the
+   dark focus-shade. The colour is computed per segment in JS
+   (boardTargetStripColour) via a CSS custom property, --tstrip — the literal
+   #eeeae0 below is just the fallback for the (should-never-happen) case JS
+   didn't set it.
+   !important (correction #4 — user: hover wasn't turning orange, locked
+   wasn't staying solid orange): an EARLIER version set this via
+   arc.style.stroke directly, which unconditionally beats every selector
+   rule including :hover and .ring-lockarc--locked on the SAME element — it
+   wasn't just winning against --target's own class, it was silently
+   overriding every state change downstream. Now a custom property (no
+   override power) + !important only on THIS resting rule (needed to beat
+   --open's transparent default, similar specificity); --locked and the
+   :hover rule carry their own !important + higher specificity and win over
+   this live, as intended. */
+[data-board-fam~="v16"] .ring-lockarc--target{
+  stroke: var(--tstrip, #eeeae0) !important;
+  stroke-width: 12;
+  stroke-dasharray: none;
+  opacity: 1;
+}
+/* non-party others: the dotted wall reads unclean (user) — SOLID, same
+   thickness. Party others graduate to the target strip above; the frozen
+   v8-15 skins keep their dotted look. */
+[data-board-fam~="v16"] .ring-lockarc--wall{ stroke-dasharray: none; }
+/* locked = the SAME strip filled in orange (not a thin line over the strip).
+   opacity 1 (user round 4): the v8 rule's .85 let the two zones show through
+   the orange — the same two-tone artefact again. Solid paint, everywhere. */
+[data-board-fam~="v16"] .ring-lockarc--locked{ stroke-width: 12; opacity: 1; }
+/* hover preview, v16: SOLID pale orange (user round 4, w/ screenshot: the
+   inherited v10 hover is rgba(...,.35) — TRANSLUCENT, so it composited
+   differently over the light inner and darker outer zones = a two-tone
+   strip, the artefact this whole design exists to remove). #f8d5a5 is that
+   same 35% orange pre-composited over the light zone, as one flat paint.
+   Same specificity as the v10 rule, later in the file → wins. */
+[data-board-fam~="v16"] .ring-lockarc--open:not(.ring-lockarc--locked):hover{
+  stroke: #f8d5a5 !important;
+  opacity: 1;
+}
 @keyframes ring-signpulse{
   0%, 100%{ opacity: .55; }
   50%{ opacity: .95; }
@@ -1159,11 +1440,16 @@ body.board-page{
 
 /* ── ring16 (review 16) ─────────────────────────────────────────────────── */
 
-/* ▶ focus: near-blackout outside the spotlight — the deal is all there is */
+/* ▶ focus: near-blackout outside the spotlight — the deal is all there is.
+   Blurred edge (user 2026-07-14): a soft barrier between reserved (rim-
+   hugging ghosts, inside the widened hole) and store — no hard rim line
+   drawn on purpose; the JS overshoots the outer rect so the blur can't thin
+   the shade at the screen edges. */
 .ring-focusshade{
   fill: rgba(28, 22, 12, .82);
   stroke: none;
   pointer-events: none;
+  filter: blur(14px);
 }
 .ring-footer-play--on{
   background: #2f2a1e;
@@ -1184,9 +1470,65 @@ body.board-page{
   opacity: .8 !important;
 }
 
+/* result celebration (user 2026-07-14): confetti on success, ash placeholder
+   on failure — boardCelebrate(). Above everything incl. the shade (z80). */
+.board-celebrate{
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3000;
+  overflow: hidden;
+}
+/* failure = windscreen-wiper sweep (ash rain retired 2026-07-15 — party ≠
+   failure). A hub-centred disc: thin dark spoke + conic fading trail, one
+   360° rotation then gone. Success confetti stays canvas-confetti (v4). */
+.board-wiper{
+  position: fixed;
+  z-index: 2999;
+  pointer-events: none;
+  border-radius: 50%;
+  background: conic-gradient(
+    transparent 0deg 280deg,
+    rgba(60, 48, 28, .18) 280deg 352deg,
+    rgba(60, 48, 28, .55) 352deg 360deg);
+  /* overswing (user 2026-07-15): past 360° by ~55° with a quick fade at the
+     end — the hard stop at exactly one turn read abrupt */
+  animation: board-wipe 1.3s cubic-bezier(.45,.05,.55,.95) forwards;
+}
+@keyframes board-wipe{
+  0%{ transform: rotate(0deg); opacity: 0; }
+  10%{ opacity: 1; }
+  78%{ transform: rotate(360deg); opacity: 1; }
+  100%{ transform: rotate(415deg); opacity: 0; }
+}
+
+/* resolve-path shade dissolve: drawn once by the render that turns the
+   spotlight off (tx resolved/vanished), fading in step with the wiper sweep
+   — user 2026-07-15: the shade lifting a beat BEFORE the wiper looked
+   disconnected. (The ▶ toggle keeps its own quicker --out lift.) */
+.ring-focusshade--wipe{ animation: ring-focuslift 1.5s ease forwards; }
+
 /* review 17: the spotlight fades IN at flight speed (darkest as assets land)
    and lifts gracefully; only the first mount animates, not every re-render */
 .ring-focusshade--in{ animation: ring-focusfade .9s ease forwards; }
 .ring-focusshade--out{ animation: ring-focuslift .5s ease forwards; }
 @keyframes ring-focusfade{ from{ opacity: 0; } to{ opacity: 1; } }
 @keyframes ring-focuslift{ from{ opacity: 1; } to{ opacity: 0; } }
+
+/* ── 🧪 zone-walls debug overlay (2026-07-16, BOARD-PHYSICS1) ─────────────
+   The sim's real constraint geometry: solid wedge = where chip EDGES may
+   sit; dashed inner strip = ghost-only rim band; dashed rect = safe screen
+   area. z4 keeps it under the chips (z5). */
+.board-zonewalls{
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 4;
+  pointer-events: none;
+}
+.board-zonewall{ fill: none; }
+.board-zonewall--store{ stroke: rgba(217,72,15,.55); stroke-width: 1.5; fill: rgba(217,72,15,.05); }
+.board-zonewall--basket{ stroke: rgba(25,113,194,.55); stroke-width: 1.5; fill: rgba(25,113,194,.05); }
+.board-zonewall--band{ stroke: rgba(217,72,15,.35); stroke-width: 1; stroke-dasharray: 4 4; }
+.board-zonewall--safe{ stroke: rgba(80,80,80,.5); stroke-width: 1.5; stroke-dasharray: 8 6; }

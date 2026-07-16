@@ -205,22 +205,27 @@ function addAcctJoinGame(all){
   window.kflow?.("acct:add:join", all ? "all" : "sel", { label })
   addAccounts(label)
 
-  pollUntil(
-    () => getAccounts().some(a => isMyAccount(a) && a.label === addAcctLabel),
-    () => {
-      window.kflow?.("acct:add:done", "ok", { label: addAcctLabel })
-      closeAddAccountModal()
-      document.getElementById("addAcctJoinAll").disabled = false
-      try { notify?.(`Account ${addAcctLabel} joined the game`, "success", { timeout: 2500 }) } catch {}
-    },
-    200, 12000,
-    () => {
-      window.kflow?.("acct:add:done", "timeout", { label: addAcctLabel })
-      document.getElementById("addAcctJoinAll").disabled = false
-      updateAddAcctJoinCount()
-      addAcctStatus("Account didn't land — check the id and your connection, then try again. (A join rule on this game can also reject it.)", true)
-    }
-  )
+  // FALSE-NEGATIVE fix (user 2026-07-14, KTAG 5/757-772): the account landed
+  // but the 12s poll had already declared failure — the join can legitimately
+  // take longer (fresh WC pairing, socket re-join queueing the send). Longer
+  // first window, and the timeout no longer asserts failure: it softens the
+  // message and keeps polling in the background, converting a late land into
+  // a late success instead of a lie.
+  const landed = () => getAccounts().some(a => isMyAccount(a) && a.label === addAcctLabel)
+  const onLanded = late => {
+    window.kflow?.("acct:add:done", late ? "ok-late" : "ok", { label: addAcctLabel })
+    if(late) window.katomiaDiagSend?.("acct:add:late-land", { label: addAcctLabel })
+    closeAddAccountModal()
+    document.getElementById("addAcctJoinAll").disabled = false
+    try { notify?.(`Account ${addAcctLabel} joined the game`, "success", { timeout: 2500 }) } catch {}
+  }
+  pollUntil(landed, () => onLanded(false), 200, 30000, () => {
+    window.kflow?.("acct:add:done", "timeout", { label: addAcctLabel })
+    document.getElementById("addAcctJoinAll").disabled = false
+    updateAddAcctJoinCount()
+    addAcctStatus("Taking longer than expected — it may still land (watch the account list). Check your connection; a join rule on this game can also reject it.", true)
+    pollUntil(landed, () => onLanded(true), 500, 60000)
+  })
 }
 
 document.addEventListener("click", e => {
@@ -258,6 +263,9 @@ async function addAcctConnect(){
   const net = addAcctNet()
   if(!window.WC){ try { notify?.("WalletConnect not loaded yet", "error", { timeout: 3000 }) } catch {}; return }
   addAcctStatus("Connecting wallet…")
+  // snapshot BEFORE the pairing so freshly-arrived accounts are identifiable after
+  let before = []
+  try { before = (typeof kauthWCAccounts === "function") ? await kauthWCAccounts(net, false) : [] } catch {}
   try {
     document.documentElement.style.setProperty("--wcm-z-index", "2147483000")
     if(window.WC.ensureNetwork) await window.WC.ensureNetwork(net)
@@ -269,5 +277,15 @@ async function addAcctConnect(){
     try { notify?.("Wallet connect failed", "error", { timeout: 4000 }) } catch {}
   }
   addAcctStatus("")
+  // user 2026-07-14: connecting a wallet here MEANS "add this account" — when
+  // the pairing brought exactly one new (not-already-in-game) account, jump
+  // straight to its assets instead of asking the user to re-pick it from the
+  // list they just grew. Multiple new accounts (a wallet can approve several)
+  // still fall back to the list — that's a real choice.
+  let after = []
+  try { after = (typeof kauthWCAccounts === "function") ? await kauthWCAccounts(net, false) : [] } catch {}
+  const inGame = new Set(getAccounts().filter(a => isMyAccount(a)).map(a => a.label))
+  const fresh = after.filter(id => !before.includes(id) && !inGame.has(id))
+  if(fresh.length === 1){ chooseAddAcct(fresh[0], "wc-fresh"); return }
   renderAddAcctWcList()
 }

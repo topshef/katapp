@@ -348,6 +348,11 @@
     }
 
 
+		// BOARD-PHYSICS1 (2026-07-15): the pair currently on show, so the board's
+		// chip sim can re-aim the line as chips move — the drawn line used to be
+		// a one-time rect snapshot and went stale the moment a chip shifted.
+		let _activeTradePair = null
+
 		function highlightTradePair(assetId, fromAccountId, toAccountId, on){
 
 			const selector =
@@ -357,16 +362,35 @@
 
 			const reservedEl = document.querySelector(`.asset.reserved${selector}`)
 			const basketEl = document.querySelector(`.asset.basket${selector}`)
+			// BOARD-CHIPLINE1 (user 2026-07-14): third point on the line — the store
+			// pile the reservation came from. Absent for NFTs/whole-pile offers.
+			const pileEl = document.querySelector(
+				`.asset:not(.basket):not(.reserved)` +
+				`[data-owner-account="${CSS.escape(fromAccountId)}"]` +
+				`[data-asset-id="${CSS.escape(assetId)}"]`)
 
 			if(reservedEl) applyHoverHighlight(reservedEl, on)
 			if(basketEl) applyHoverHighlight(basketEl, on)
 
 			if(on && reservedEl && basketEl){
+				_activeTradePair = { assetId, fromAccountId, toAccountId }
 				drawTradeLine(reservedEl, basketEl)
+				if(pileEl) drawTradeLine(reservedEl, pileEl, true)
 			}
 			else{
+				_activeTradePair = null
 				clearTradeLine()
 			}
+		}
+
+		// called by the board sim every painted frame something moved: redraw the
+		// active line from the chips' CURRENT rects (re-queried by selector, so it
+		// also survives the chips being rebuilt by a re-render mid-hover). If an
+		// endpoint is gone (offer withdrawn), highlightTradePair clears the line.
+		window.__boardRefreshTradeLine = () => {
+			if(!_activeTradePair) return
+			highlightTradePair(_activeTradePair.assetId,
+				_activeTradePair.fromAccountId, _activeTradePair.toAccountId, true)
 		}
 
 
@@ -387,11 +411,11 @@
 			if(svg) svg.innerHTML = ""
 		}
 
-		function drawTradeLine(elA, elB){
+		function drawTradeLine(elA, elB, append){
 			if(!elA || !elB) return
 
 			const svg = getTradeLineLayer()
-			svg.innerHTML = ""
+			if(!append) svg.innerHTML = ""
 
 			const gameRect = gameEl.getBoundingClientRect()
 			const a = elA.getBoundingClientRect()

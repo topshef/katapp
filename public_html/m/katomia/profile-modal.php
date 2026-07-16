@@ -128,7 +128,7 @@
          data-feature="kea": hidden wholesale when KATOMIA_FEATURES.kea is off — the
          first release ships without KEA visible; later this whole section should be
          excludable from the bundle (BUNDLE1). ═══ -->
-    <details class="profile-section profile-kea" id="profileKeaSection" data-feature="kea">
+    <details class="profile-section profile-kea hide-in-proposal" id="profileKeaSection" data-feature="kea">
       <summary class="profile-section-title" title="KEA flips approval around: instead of approving each transaction after it appears (WalletConnect / WhatsApp / offline signing), you approve a policy up front. KEA watches for transactions that match orders your intent key has already signed, verifies them, and signs automatically — so it never needs to prompt you. Fastest way to settle; still self-custody.">🤖 Execution agent — KEA <span class="profile-tag" title="Pre-approve, then let KEA settle automatically. The opposite of a signing prompt: you authorise the policy before the transaction exists.">auto</span></summary>
       <p class="subtle">Pair the KEA app to watch and auto-settle orders your intent key has already signed — approve the policy once, no per-transaction prompts.</p>
       <div id="profileQr" class="profile-qr"></div>
@@ -136,6 +136,10 @@
       <a id="profileQrLink" class="profile-link" href="#"></a>
       <button id="profileCopyLinkBtn">Copy KEA link</button>
     </details>
+
+    <!-- Board preferences lived here briefly (BOARD-HEADERINT1) — moved same
+         day to header.php's #boardSettingsPanel popover (user: too tucked
+         away in the modal, and the modal covered the board it was adjusting). -->
 
     <!-- ═══ PREFERENCES & DIAGNOSTICS — dev controls. Collapsed by default. ═══ -->
     <details class="profile-section profile-debug-section">

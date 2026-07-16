@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Katomia QA</title>
+<style>
+  body{ font-family: system-ui, sans-serif; margin: 0 auto; max-width: 900px; padding: 24px 16px 80px; color: #222; line-height: 1.5; }
+  h1{ font-size: 24px; }
+  .note{ color: #777; font-size: 12px; }
+  a{ color: #2a5a78; }
+  .sections{ display: flex; gap: 14px; flex-wrap: wrap; margin: 20px 0; }
+  .section{ flex: 1 1 260px; border: 1px solid #ddd; border-radius: 12px; padding: 16px 18px; background: #fbfaf6; }
+  .section h2{ margin: 0 0 4px; font-size: 17px; }
+  .section p.blurb{ margin: 4px 0 10px; font-size: 13px; color: #666; }
+  .section ul{ margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+  .section li{ margin: 3px 0; }
+  .stat{ font-size: 12px; color: #555; background: #f1ede2; border-radius: 8px; padding: 6px 10px; margin-top: 10px; }
+  .stat b{ color: #222; }
+</style>
+</head>
+<body>
+
+<h1>Katomia QA</h1>
+<p class="note">The QA tool embedded in the app (task <b>QA-UXGRID1</b>). Three layers: <b>documentation</b> explains the
+process (static-ish), <b>configuration</b> defines what we test (slow-moving, git change-controlled JSON), <b>results</b>
+shows testing happening (live). </p>
+
+<div class="sections">
+
+  <div class="section">
+    <h2>📖 Documentation</h2>
+    <p class="blurb">How and why we test — the process itself. Evolves slowly, by discussion.</p>
+    <ul id="docs"><li class="note">loading…</li></ul>
+  </div>
+
+  <div class="section">
+    <h2>⚙️ Configuration</h2>
+    <p class="blurb">What we test: dimensions (the axes), test classes and their derived instances, the canary
+    catalogue, decisions. Designing tests and fixing bugs updates this layer — every change is a git commit.</p>
+    <ul>
+      <li><a href="config.html">Dimensions · canaries · classes · decisions</a></li>
+    </ul>
+    <div class="stat" id="cfgStat">loading…</div>
+  </div>
+
+  <div class="section">
+    <h2>📊 Results</h2>
+    <p class="blurb">Testing happening: the retest grid (commits across, cases down — same idea as the backend's
+    kflow-admin), the manual-run recorder, recent runs.</p>
+    <ul>
+      <li><a href="results.html">Results dashboard + run recorder</a></li>
+      <li><a href="https://alpha.katlab.kpay.live/kflow-admin" target="_blank">Backend kflow-admin (full event stream, access-controlled)</a></li>
+    </ul>
+    <div class="stat" id="resStat">loading…</div>
+  </div>
+
+</div>
+
+<p class="note">Data files live in <code>qa/data/</code> (source of truth, git-tracked). These pages only display them.
+Manual test runs are recorded as <code>test:start</code>/<code>test:verdict</code> kflow checkpoints — the same
+convention the backend's katrun robot uses, so all testing speaks one language.</p>
+
+<script>
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
+;(async () => {
+  try {
+    const reg = await (await fetch("data/registry.json", { cache: "no-store" })).json()
+    document.querySelector("#docs").innerHTML = reg.docs.map(d =>
+      `<li><a href="${esc(d.href)}">${esc(d.title)}</a><br><span class="note">${esc(d.audience)}</span></li>`).join("")
+    let dims = 0, canaries = 0, instances = 0, manual = 0
+    try { dims = (await (await fetch("data/dimensions.json", { cache: "no-store" })).json()).dimensions.length } catch {}
+    try { canaries = (await (await fetch("data/canaries.json", { cache: "no-store" })).json()).canaries.length } catch {}
+    for(const id of reg.classes || []){
+      try {
+        const cl = await (await fetch(`data/classes/${id}.json`, { cache: "no-store" })).json()
+        instances += cl.instances.length
+        manual += cl.instances.filter(i => i.run === "manual").length
+      } catch {}
+    }
+    document.querySelector("#cfgStat").innerHTML =
+      `<b>${dims}</b> dimensions · <b>${canaries}</b> canaries · <b>${(reg.classes || []).length}</b> classes · <b>${instances}</b> instances (<b>${manual}</b> manual)`
+    try {
+      const res = await (await fetch("results.php?days=30", { cache: "no-store" })).json()
+      const verdicts = res.events.filter(e => e.checkpoint === "test:verdict")
+      const passes = verdicts.filter(e => e.v === "pass").length
+      const last = verdicts[verdicts.length - 1]
+      document.querySelector("#resStat").innerHTML =
+        `<b>${verdicts.length}</b> runs recorded (30d) · <b>${passes}</b> pass · current commit <b>${esc(res.commit)}</b>` +
+        (last ? `<br>last: ${esc(last.detail?.instance || last.v)} → <b>${esc(last.v)}</b> @ ${esc((last.t || "").slice(5, 16).replace("T", " "))}` : "")
+    } catch { document.querySelector("#resStat").textContent = "no runs yet" }
+  } catch(e){
+    document.body.insertAdjacentHTML("beforeend", `<p class="note">Failed to load: ${esc(e.message)}</p>`)
+  }
+})()
+</script>
+
+</body>
+</html>

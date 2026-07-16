@@ -1,0 +1,305 @@
+{
+  "_about": "Test CLASS file — the machine-readable source both the viewer pages and (later) the automated runner read. Instances are DERIVED from the dimension vectors, never hand-authored; the 12 below are the illustrative pairwise sample from strategy.html §5.3 (the generator will produce the full ~25). Editing this file IS the change-control for the class.",
+  "id": "CHIPDROP",
+  "title": "Chip drop — offering an asset from one account to another renders correctly end-to-end",
+  "status": "defined",
+  "task": "QA-UXGRID1",
+  "updated": "2026-07-16",
+  "oracle": {
+    "hard_assertions": [
+      "dropped chip lands inside the target's basket walls (same boardRimAt/boardWallClamp functions the physics uses)",
+      "a ghost chip sits on the giver's rim band",
+      "pile→ghost→basket line endpoints stay within 4px of their chips through and after all motion",
+      "giver's store balance decrements by the offered amount",
+      "solid-chip invariant: 0 overlapping chip pairs at settle",
+      "settle discipline: 0.0px/frame movement after settle (30-frame watch)",
+      "no console errors",
+      "board:paint:moves goes quiet after settle"
+    ],
+    "trace_shape": "kdiag sequence: gesture events → offer sent → render → settle; no unexpected re-solves",
+    "benchmark": "screenshots at gesture-start / mid-flight / settled, compared against the blessed manual run of the same instance"
+  },
+  "dimensions": {
+    "P": {
+      "ref": "players",
+      "values": [
+        "2",
+        "3",
+        "6-at-cap",
+        "7-wedges"
+      ],
+      "boundaries": [
+        "6-at-cap",
+        "7-wedges"
+      ]
+    },
+    "A": {
+      "ref": "accounts-per-player",
+      "values": [
+        "1",
+        "2"
+      ]
+    },
+    "O": {
+      "ref": "aspect",
+      "values": [
+        "portrait",
+        "landscape",
+        "square"
+      ],
+      "boundaries": [
+        "square"
+      ]
+    },
+    "D": {
+      "ref": "device",
+      "values": [
+        "desktop-mouse",
+        "tablet-touch",
+        "phone-touch"
+      ]
+    },
+    "T": {
+      "ref": null,
+      "name": "target relation",
+      "values": [
+        "own-to-own",
+        "adjacent",
+        "opposite",
+        "hidden-scroll-first"
+      ],
+      "boundaries": [
+        "hidden-scroll-first"
+      ]
+    },
+    "K": {
+      "ref": "asset-kind",
+      "values": [
+        "ft-slice",
+        "whole-pile",
+        "nft"
+      ]
+    },
+    "M": {
+      "ref": "board-motion",
+      "values": [
+        "static",
+        "after-rotate",
+        "connections-then-scroll"
+      ]
+    },
+    "L": {
+      "ref": "chip-layout",
+      "values": [
+        "shelves",
+        "organic",
+        "organic-sticky"
+      ]
+    }
+  },
+  "constraints": [
+    "T=hidden-scroll-first requires P=7-wedges (a segment can only be hidden past the cap)",
+    "T=own-to-own requires A=2"
+  ],
+  "cartesian_size": 7776,
+  "pairwise_target": "~25 instances (generator, constraint-aware) — the 12 below are the reviewed illustrative sample",
+  "instances": [
+    {
+      "id": "CHIPDROP-01",
+      "vector": {
+        "P": "2",
+        "A": "1",
+        "O": "portrait",
+        "D": "tablet-touch",
+        "T": "adjacent",
+        "K": "ft-slice",
+        "M": "static",
+        "L": "organic"
+      },
+      "run": "manual",
+      "why_manual": "the everyday case — first benchmark",
+      "status": "unrun",
+      "benchmark": null,
+      "steps": "1. Tablet/touch, portrait orientation, organic layout (⚙ Settings).\n2. 2 players on the board, you with 1 account.\n3. Drag/tap-offer a fungible slice from your store to an ADJACENT player's segment.\n4. Check the everyday feel: chip flight, 3-point line, settle."
+    },
+    {
+      "id": "CHIPDROP-02",
+      "vector": {
+        "P": "3",
+        "A": "2",
+        "O": "landscape",
+        "D": "desktop-mouse",
+        "T": "own-to-own",
+        "K": "nft",
+        "M": "static",
+        "L": "shelves"
+      },
+      "run": "manual",
+      "why_manual": "self-transfer + the NFT arc flight",
+      "status": "unrun",
+      "benchmark": null,
+      "steps": "1. Desktop/mouse, landscape, shelves layout.\n2. 3 players, you with 2 accounts.\n3. Offer an NFT (whole chip, not a slice) from one of YOUR accounts to your OTHER account (own-to-own).\n4. Check the NFT arc flight (store->rim->basket) and that own-to-own actually completes (NOTE: automated testing found own-to-own does NOT complete via tap-to-offer as of 2026-07-16 — see qa/harness/hbarxfer-auto-spike.cjs comments. Confirm whether that's also true here, or whether basket-drag differs from wedge-tap)."
+    },
+    {
+      "id": "CHIPDROP-03",
+      "vector": {
+        "P": "6-at-cap",
+        "A": "1",
+        "O": "square",
+        "D": "desktop-mouse",
+        "T": "opposite",
+        "K": "whole-pile",
+        "M": "static",
+        "L": "organic"
+      },
+      "run": "auto",
+      "status": "unrun"
+    },
+    {
+      "id": "CHIPDROP-04",
+      "vector": {
+        "P": "7-wedges",
+        "A": "2",
+        "O": "portrait",
+        "D": "phone-touch",
+        "T": "hidden-scroll-first",
+        "K": "ft-slice",
+        "M": "connections-then-scroll",
+        "L": "shelves"
+      },
+      "run": "manual",
+      "why_manual": "the hardest interaction; boundary-heavy",
+      "status": "unrun",
+      "benchmark": null,
+      "steps": "1. Phone/touch, portrait, shelves layout.\n2. 7 players (past the ring cap — scroll-wedges appear), you with 2 accounts.\n3. First draw some pile<->ghost<->basket connections so lines exist, THEN wheel-scroll to bring a currently-hidden player into view, THEN offer a fungible slice to that now-visible (was-hidden) player.\n4. Check lines survive the scroll, chips don't jump, offer completes normally."
+    },
+    {
+      "id": "CHIPDROP-05",
+      "vector": {
+        "P": "7-wedges",
+        "A": "1",
+        "O": "landscape",
+        "D": "tablet-touch",
+        "T": "adjacent",
+        "K": "nft",
+        "M": "after-rotate",
+        "L": "organic-sticky"
+      },
+      "run": "manual",
+      "why_manual": "sticky game-feel + rotation",
+      "status": "unrun",
+      "benchmark": null,
+      "steps": "1. Tablet/touch, landscape, organic layout with 🧪 Sticky chips ON.\n2. 7 players, you with 1 account.\n3. Offer an NFT to an adjacent player, then toggle 'You at bottom' to rotate the board.\n4. Check sticky chips hold their spot through the rotation, and the rotation animation itself feels right."
+    },
+    {
+      "id": "CHIPDROP-06",
+      "vector": {
+        "P": "2",
+        "A": "2",
+        "O": "square",
+        "D": "phone-touch",
+        "T": "own-to-own",
+        "K": "whole-pile",
+        "M": "after-rotate",
+        "L": "organic"
+      },
+      "run": "auto",
+      "status": "unrun"
+    },
+    {
+      "id": "CHIPDROP-07",
+      "vector": {
+        "P": "3",
+        "A": "1",
+        "O": "portrait",
+        "D": "desktop-mouse",
+        "T": "opposite",
+        "K": "whole-pile",
+        "M": "after-rotate",
+        "L": "organic-sticky"
+      },
+      "run": "auto",
+      "status": "unrun"
+    },
+    {
+      "id": "CHIPDROP-08",
+      "vector": {
+        "P": "6-at-cap",
+        "A": "2",
+        "O": "landscape",
+        "D": "phone-touch",
+        "T": "own-to-own",
+        "K": "ft-slice",
+        "M": "connections-then-scroll",
+        "L": "organic"
+      },
+      "run": "auto",
+      "status": "unrun"
+    },
+    {
+      "id": "CHIPDROP-09",
+      "vector": {
+        "P": "7-wedges",
+        "A": "1",
+        "O": "square",
+        "D": "tablet-touch",
+        "T": "opposite",
+        "K": "whole-pile",
+        "M": "static",
+        "L": "organic-sticky"
+      },
+      "run": "auto",
+      "status": "unrun"
+    },
+    {
+      "id": "CHIPDROP-10",
+      "vector": {
+        "P": "2",
+        "A": "1",
+        "O": "landscape",
+        "D": "phone-touch",
+        "T": "adjacent",
+        "K": "whole-pile",
+        "M": "after-rotate",
+        "L": "shelves"
+      },
+      "run": "auto",
+      "status": "unrun"
+    },
+    {
+      "id": "CHIPDROP-11",
+      "vector": {
+        "P": "3",
+        "A": "2",
+        "O": "square",
+        "D": "tablet-touch",
+        "T": "adjacent",
+        "K": "nft",
+        "M": "connections-then-scroll",
+        "L": "organic"
+      },
+      "run": "auto",
+      "status": "unrun"
+    },
+    {
+      "id": "CHIPDROP-12",
+      "vector": {
+        "P": "6-at-cap",
+        "A": "1",
+        "O": "portrait",
+        "D": "desktop-mouse",
+        "T": "opposite",
+        "K": "nft",
+        "M": "static",
+        "L": "shelves"
+      },
+      "run": "auto",
+      "status": "unrun",
+      "note": "generator originally proposed T=hidden here — invalid at P=6 (constraint), substituted opposite; kept as the constraint demo"
+    }
+  ],
+  "fixtures": {
+    "auto": "board.php?demo=1 + Playwright device profiles (viewport/touch emulation); real-device passes stay manual",
+    "manual": "lab1 live board, kdiag recording on, screenshots at the oracle checkpoints"
+  }
+}

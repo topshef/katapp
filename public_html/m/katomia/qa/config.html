@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Katomia QA — configuration</title>
+<style>
+  body{ font-family: system-ui, sans-serif; margin: 0 auto; max-width: 1020px; padding: 24px 16px 80px; color: #222; line-height: 1.5; }
+  h1{ font-size: 23px; } h2{ font-size: 18px; margin-top: 32px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  .note{ color: #777; font-size: 12px; }
+  table{ border-collapse: collapse; width: 100%; font-size: 13px; margin: 10px 0; }
+  th, td{ border: 1px solid #ddd; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th{ background: #f5f2ea; }
+  code{ background: #f3f3f3; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+  a{ color: #2a5a78; }
+  .pill{ display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  .pill.live-scratchpad{ background: #fff3d6; color: #8a6100; }
+  .pill.to-build{ background: #fde5e0; color: #a33; }
+  .pill.live-suite{ background: #e2f2e2; color: #2c7a2c; }
+  .pill.manual{ background: #fff3d6; color: #8a6100; }
+  .pill.auto{ background: #e2f2e2; color: #2c7a2c; }
+  .pill.unrun{ background: #eee; color: #666; }
+  .bdy{ color: #c0392b; font-weight: 600; }
+  .cards{ display: flex; gap: 12px; flex-wrap: wrap; margin: 14px 0; }
+  .card{ flex: 1 1 210px; border: 1px solid #ddd; border-radius: 10px; padding: 12px 14px; background: #fbfaf6; }
+  .card h3{ margin: 0 0 6px; font-size: 14px; }
+  .card p{ margin: 0; font-size: 12px; color: #666; }
+  .err{ color: #a33; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>Katomia QA — configuration</h1>
+<p><a href="./">← QA home</a> · <a href="results.html">Results dashboard →</a></p>
+<p class="note">The slow-moving layer: dimensions, canaries, test classes and their derived instances (task <b>QA-UXGRID1</b>). Everything below the Documents section is
+<b>hydrated live from the JSON data files</b> in <code>qa/data/</code> — those files are the source of truth, under git
+change-control; these pages just display them. Edit the JSON (usually via a Claude session), refresh, see it here.</p>
+
+<h2>Test dimensions <span class="note">(from <code>data/dimensions.json</code> — <span class="bdy">red</span> = boundary values, where bugs cluster)</span></h2>
+<table id="dims"><tr><th>Dimension</th><th>Values</th><th>Notes</th></tr></table>
+
+<h2>Canary catalogue <span class="note">(from <code>data/canaries.json</code> — every past incident's permanent guard)</span></h2>
+<table id="canaries"><tr><th>Rule</th><th>Born from</th><th>Assertion</th><th>Status</th></tr></table>
+
+<h2>Test classes <span class="note">(from <code>data/classes/*.json</code>)</span></h2>
+<div id="classes"></div>
+
+<h2>Decisions log <span class="note">(from <code>data/registry.json</code>)</span></h2>
+<table id="decisions"><tr><th>Date</th><th>Decision</th></tr></table>
+
+<script>
+const $ = s => document.querySelector(s)
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
+const pill = (v, cls) => `<span class="pill ${esc(cls ?? v)}">${esc(v)}</span>`
+
+async function j(path){
+  const r = await fetch(path, { cache: "no-store" })
+  if(!r.ok) throw new Error(path + " → " + r.status)
+  return r.json()
+}
+
+;(async () => {
+  try {
+    const reg = await j("data/registry.json")
+
+    $("#decisions").insertAdjacentHTML("beforeend", (reg.decisions || []).map(d =>
+      `<tr><td style="white-space:nowrap">${esc(d.date)}</td><td>${esc(d.what)}</td></tr>`).join(""))
+
+    const dims = await j("data/dimensions.json")
+    $("#dims").insertAdjacentHTML("beforeend", dims.dimensions.map(d => {
+      const vals = d.values.map(v => d.boundaries?.includes(v) ? `<span class="bdy">${esc(v)}</span>` : esc(v)).join(" · ")
+      return `<tr><td style="white-space:nowrap"><b>${esc(d.name)}</b></td><td>${vals}</td><td class="note">${esc(d.notes)}</td></tr>`
+    }).join(""))
+
+    const can = await j("data/canaries.json")
+    $("#canaries").insertAdjacentHTML("beforeend", can.canaries.map(c =>
+      `<tr><td><b>${esc(c.category)}</b><br><span class="note">${esc(c.rule)}</span></td>
+       <td class="note">${esc(c.incident)}</td><td class="note">${esc(c.assertion)}</td>
+       <td>${pill(c.status)}${c.priority ? " " + pill(c.priority, "to-build") : ""}</td></tr>`).join(""))
+
+    for(const id of reg.classes){
+      const cl = await j(`data/classes/${id}.json`)
+      const dimIds = Object.keys(cl.dimensions)
+      const rows = cl.instances.map(i =>
+        `<tr><td><code>${esc(i.id)}</code></td>` +
+        dimIds.map(k => `<td>${esc(i.vector[k])}</td>`).join("") +
+        `<td>${pill(i.run)} ${pill(i.status)}</td><td class="note">${esc(i.why_manual || i.note || "")}</td></tr>`).join("")
+      $("#classes").insertAdjacentHTML("beforeend", `
+        <h3>${esc(cl.id)} — ${esc(cl.title)} ${pill(cl.status, "unrun")}</h3>
+        <p class="note">Cartesian ${esc(cl.cartesian_size)} → ${esc(cl.pairwise_target)}. Constraints: ${cl.constraints.map(esc).join("; ")}</p>
+        <details><summary style="cursor:pointer; font-size:13px;">Oracle — what "OK" means for this class</summary>
+          <ul class="note">${cl.oracle.hard_assertions.map(a => `<li>${esc(a)}</li>`).join("")}
+          <li><b>trace:</b> ${esc(cl.oracle.trace_shape)}</li><li><b>benchmark:</b> ${esc(cl.oracle.benchmark)}</li></ul>
+        </details>
+        <table><tr><th>Instance</th>${dimIds.map(k => `<th>${esc(k)}</th>`).join("")}<th>Run</th><th></th></tr>${rows}</table>`)
+    }
+  } catch(e){
+    document.body.insertAdjacentHTML("beforeend", `<p class="err">Failed to load QA data: ${esc(e.message)}</p>`)
+  }
+})()
+</script>
+
+</body>
+</html>

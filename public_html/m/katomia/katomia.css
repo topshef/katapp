@@ -58,6 +58,16 @@
     body[data-trading-mode="debug"] .mode-order,
     body[data-trading-mode="orderBook"] .mode-order{ display:block; }
 
+    /* KATOMIA-CONFIG1 (user 2026-07-14): "execution agent... it's not
+       relevant for proposal mode" — a NEGATIVE gate, not the positive
+       .mode-order above. .mode-order defaults to display:none and only
+       switches on inside a game, which would also hide something like KEA
+       on the index/profile/landing pages where there's no game context at
+       all — wrong here: KEA is a cross-game profile feature that should
+       stay visible everywhere EXCEPT specifically inside a proposal-mode
+       game. */
+    body[data-trading-mode="proposal"] .hide-in-proposal{ display:none; }
+
 
     .debug-only{ display:none; }
     body[data-trading-mode="debug"] .debug-only{ display:inline-flex; }
@@ -2314,7 +2324,6 @@ body.nerd .profile-nerd-only{ display:block; }
   cursor:pointer;
   user-select:none;
 }
-
 @media (max-width:640px){
   .profile-btn{
     top:90px;

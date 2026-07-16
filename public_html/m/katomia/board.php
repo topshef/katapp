@@ -1,11 +1,5 @@
 <?php
 require_once __DIR__ . '/kasset.php';
-// 2026-07-11 cleanup: close (✕) sends testers back to the OG game page for
-// this game (tx list, messages, other stuff not on the board yet) instead of
-// the home index — a stopgap until the board is the full home for proposal
-// mode. Falls back to home if somehow reached with no game id.
-$gameId = $_GET['game'] ?? '';
-$exitHref = $gameId ? '/m/katomia/game/' . rawurlencode($gameId) : '/m/katomia/';
 ?>
 <!DOCTYPE html>
 <html>
@@ -28,20 +22,21 @@ $exitHref = $gameId ? '/m/katomia/game/' . rawurlencode($gameId) : '/m/katomia/'
      board.php?game=<id>&skin=…)   ·   ?demo=1 = local fixture, no socket — a
      sandbox for skin work and screenshots. -->
 
-<div id="notifications"></div>
-
-<div class="board-chrome">
-  <!-- 2026-07-11 cleanup: culled to the one live skin (ring16) — everything
-       else (including susan5/Lazy Susan, retired same day under BOARD-WHEEL1
-       — its job now lives on the ring itself, see katomia-board.js
-       boardRingLayoutSlots) was superseded exploration, still in git history
-       if ever needed again. Left as a generic select (not hardcoded to one)
-       so a future skin is just another <option>. -->
-  <select id="boardSkinSelect" title="Board skin">
-    <option value="ring16">⭕ Ring — in-app sign, focus play (default)</option>
-  </select>
-  <a class="board-exit" href="<?= htmlspecialchars($exitHref, ENT_QUOTES, 'UTF-8') ?>" title="Exit to game page">✕</a>
-</div>
+<?php
+  // BOARD-HEADERINT1: board.php now shares header.php + profile-modal.php
+  // with game.php, replacing the standalone chrome it built in its BOARD-UI1
+  // sandbox days (skin <select> + ✕ close — both now live inside the profile
+  // modal's new board-only Preferences section; the hamburger's Markets link
+  // replaces ✕). KATOMIA_BOARD_CONTEXT gates that section on — see
+  // profile-modal.php.
+  define('KATOMIA_BOARD_CONTEXT', true);
+  require __DIR__ . '/header.php';
+  require __DIR__ . '/profile-modal.php';
+  // user 2026-07-14: the footer's ➕ Add account now opens the same composer
+  // modal as the legacy page (WC-connected / connect / manual) instead of the
+  // bare prompt() stopgap.
+  require __DIR__ . '/addaccount-modal.php';
+?>
 
 <div id="boardRoot"></div>
 
@@ -68,11 +63,32 @@ $exitHref = $gameId ? '/m/katomia/game/' . rawurlencode($gameId) : '/m/katomia/'
   </div>
 </div>
 
-<script><?php require_once('config.php'); ?>
+<script><?php require_once('config.php');
+  // KFLOW1: frontend commit stamp for checkpoints — same worktree-safe
+  // derivation as game.php (.git may be a "gitdir:" pointer; refs in commondir)
+  $kg = dirname($_SERVER['DOCUMENT_ROOT']) . '/.git';
+  if (is_file($kg) && preg_match('/^gitdir:\s*(.+)$/m', (string)@file_get_contents($kg), $km)) $kg = trim($km[1]);
+  $khead = trim((string)@file_get_contents("$kg/HEAD"));
+  if (preg_match('#^ref:\s*(.+)#', $khead, $km)) {
+      $kcommon = trim((string)@file_get_contents("$kg/commondir"));
+      $kroot = $kcommon ? ($kcommon[0] === '/' ? $kcommon : "$kg/$kcommon") : $kg;
+      $khead = trim((string)@file_get_contents($kroot . '/' . trim($km[1])));
+  }
+  $kflowCommit = preg_match('/^[0-9a-f]{40}$/', $khead) ? substr($khead, 0, 7) : '';
+?>
   window.CONFIG = {
     HAPI_BASE: "<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>"
   }
+  window.KFLOW_COMMIT = "<?= htmlspecialchars($kflowCommit, ENT_QUOTES, 'UTF-8') ?>"
 </script>
+<!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
+<script src="<?= kasset('kflow.js') ?>"></script>
+<!-- KAT-FEEDBACK1 + FEEDBACK-COMMENTARY1: long-press feedback, now WITH
+     session mode (start → REC pill top-left → stop → paste transcript/debrief
+     → send & close through the normal signed /kfeedback route). Activated on
+     the board (user 2026-07-16) — this page is where the QA narration happens. -->
+<script src="/vendor/feedback-widget/feedback-widget.js?v=<?= @filemtime($_SERVER['DOCUMENT_ROOT'] . '/vendor/feedback-widget/feedback-widget.js') ?>"
+        data-product="katomia-board"></script>
 
 <script src="/m/bid/localbase.min.js"></script>
 <script type="module" data-global src="/m/tools/glog/latest/glog.js"></script>
@@ -107,6 +123,19 @@ $exitHref = $gameId ? '/m/katomia/game/' . rawurlencode($gameId) : '/m/katomia/'
 <script src="<?= kasset('katomia-modals.js') ?>"></script>
 <script src="<?= kasset('katomia-render.js') ?>"></script>
 <script src="<?= kasset('katomia-board.js') ?>"></script>
+
+<!-- BOARD-HEADERINT1 follow-up (2026-07-14): board.php gained header.php +
+     profile-modal.php but these two were missed — profile-modal.php's own
+     top comment lists them as required, and without katomia-profile.js the
+     [data-menu-profile] click listener never gets attached, so Profile
+     silently no-ops (same failure shape as KDIAG-BOARDBLIND1 above: a page
+     missing a script it now depends on, with nothing to say why).
+     katomia-addaccount.js joined later the same day: the footer's ➕ Add
+     account now opens the shared composer modal (addaccount-modal.php)
+     instead of the prompt() stopgap. -->
+<script src="<?= kasset('katomia-profile.js') ?>"></script>
+<script src="<?= kasset('katomia-auth.js') ?>"></script>
+<script src="<?= kasset('katomia-addaccount.js') ?>"></script>
 
 <script>
 window.addEventListener("load", () => {
