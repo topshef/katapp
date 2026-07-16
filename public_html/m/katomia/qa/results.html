@@ -46,6 +46,15 @@
   #modal .ev{ border-left: 3px solid #ccc; padding: 6px 12px; margin: 10px 0; }
   #modal .ev .full{ white-space: pre-wrap; font-size: 14px; margin-top: 4px; }
   #modalClose{ position: sticky; float: right; top: 0; font-size: 18px; border: 0; background: none; cursor: pointer; }
+  /* mobile (user 2026-07-16): the modal must BE the screen, and tables must
+     scroll inside the phone's width instead of stretching the page */
+  @media (max-width: 700px){
+    body{ padding: 14px 8px 60px; }
+    #modal{ inset: 0; border-radius: 0; padding: 12px 14px calc(16px + env(safe-area-inset-bottom)); }
+    #modalClose{ font-size: 26px; padding: 6px 10px; }
+    .noted{ max-width: 160px; }
+    .recorder{ padding: 10px 12px; }
+  }
 </style>
 </head>
 <body>
@@ -107,7 +116,7 @@ backend's katrun robot uses). <b>Tap any cell or row for the full run detail.</b
 detail. The full configured case list lives in <a href="config.html">Configuration</a>.</p>
 
 <h2>Recent runs</h2>
-<table id="recent"><tr><th>When</th><th>Case</th><th>Verdict</th><th>Source</th><th>Commit</th><th>Notes</th></tr></table>
+<div class="gridwrap"><table id="recent"><tr><th>When</th><th>Case</th><th>Verdict</th><th>Source</th><th>Commit</th><th>Notes</th></tr></table></div>
 
 <div id="modalBack"></div>
 <div id="modal">
