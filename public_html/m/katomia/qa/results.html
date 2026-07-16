@@ -20,6 +20,7 @@
   .error{ background: #fdeecd; color: #8a6100; }
   .abandon, .open{ background: #eee; color: #777; }
   .feedback{ background: #e8eef7; color: #2a5a78; }
+  .cell.noted{ background: #e8eef7; color: #2a5a78; }   /* scoped to the verdict badge — plain .noted below is the notes-column width rule */
   .recorder{ border: 1px solid #cbb; border-radius: 12px; background: #fbf7ef; padding: 14px 18px; margin: 16px 0; }
   .recorder h2{ margin: 0 0 8px; border: 0; font-size: 16px; }
   .recorder select, .recorder textarea{ font-size: 13px; padding: 4px 6px; max-width: 100%; }
@@ -109,7 +110,7 @@ backend's katrun robot uses). <b>Tap any cell or row for the full run detail.</b
 
 <h2>Retest grid</h2>
 <div class="filters" id="filters">
-  <button data-f="all" class="on">All sources</button><button data-f="human">Human 🖐</button><button data-f="auto">Automated 🤖</button>
+  <button data-f="all" class="on">All sources</button><button data-f="human">Human 🖐</button><button data-f="auto">Automated 🤖</button><button data-f="feedback">Feedback 📝</button>
 </div>
 <div class="gridwrap"><table id="grid"></table></div>
 <p class="note">✓ pass · ～ meh · ✗ fail · ⚠ error · ○ started, no verdict · ×N = N runs (latest shown). Tap a cell for
@@ -127,7 +128,7 @@ detail. The full configured case list lives in <a href="config.html">Configurati
 <script>
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
 const $ = s => document.querySelector(s)
-let COMMIT = "", FILTER = "all", INSTANCES = new Map(), EVENTS = []
+let COMMIT = "", FILTER = "all", INSTANCES = new Map(), EVENTS = [], SESSIONS = []
 let seq = 0, noteCount = 0
 
 const rand = () => Array.from(crypto.getRandomValues(new Uint8Array(5)), b => b.toString(16).padStart(2, "0")).join("")
@@ -206,7 +207,23 @@ document.querySelectorAll("#filters button").forEach(b => b.onclick = () => {
 
 // ── run-detail modal ──────────────────────────────────────────────────────────
 const SEVG = { sand: "⏳ sand", stone: "🪨 stone", rock: "⛏ rock" }
+function openSession(slug){
+  const s = SESSIONS.find(x => x.slug === slug)
+  if(!s) return
+  const rows = []
+  if(s.startedAt) rows.push({ t: s.startedAt, badge: "▶ start", text: s.briefing })
+  ;(s.notes || []).forEach(n => rows.push({ t: n.t, badge: "📝 feedback", text: n.text }))
+  if(s.closedAt) rows.push({ t: s.closedAt, badge: s.abandoned ? "abandoned" : "■ closed", text: null })
+  rows.sort((a, b) => a.t.localeCompare(b.t))
+  $("#modalBody").innerHTML =
+    `<h2>Feedback session <code style="font-size:15px">${esc(slug)}</code> <span class="note">commit <code>${esc(s.commit)}</code></span></h2>` +
+    rows.map(r => `<div class="ev"><span class="note">${esc((r.t || "").slice(5, 19).replace("T", " "))}</span> — ${r.badge}
+      ${r.text ? `<div class="full">${esc(r.text)}</div>` : ""}</div>`).join("")
+  $("#modalBack").style.display = "block"
+  $("#modal").style.display = "block"
+}
 function openRun(run){
+  if(run.startsWith("sess:")) return openSession(run.slice(5))
   const evs = EVENTS.filter(e => e.run === run).sort((a, b) => a.t.localeCompare(b.t))
   if(!evs.length) return
   const start = evs.find(e => e.checkpoint === "test:start")
@@ -249,11 +266,26 @@ async function loadConfig(){
   INSTANCES.set("FREEFORM", { steps: "Explore freely; log notes as you go (💬 keeps the run open). Close with whatever verdict fits — the notes are the value." })
 }
 
-const GLYPH = { pass: "✓", meh: "～", fail: "✗", error: "⚠", abandon: "–", done: "✓", open: "○" }
+const GLYPH = { pass: "✓", meh: "～", fail: "✗", error: "⚠", abandon: "–", done: "✓", open: "○", noted: "📝" }
+// FEEDBACK-SESSION CASE HEURISTIC (user 2026-07-16): a feedback session has
+// no "which test case" field — it's freeform by design. Rather than force
+// the user to pick one at record time (defeating the point of freeform),
+// guess from the briefing+notes text so it still lands on the right grid
+// row; falls back to FREEFORM. Deliberately dumb (keyword match, not NLP) —
+// the real triage is a human or a background agent reading the modal, this
+// just gets it roughly filed so it's not lost in an undifferentiated pile.
+function guessCase(text){
+  const t = (text || "").toLowerCase()
+  if(/\bh[\s-]?bar\b|\bhbar\b/.test(t)) return "HBARXFER-01"
+  if(/\brim\b|\bcashier|\bband\b.*wall|\bwall\b.*band/.test(t)) return "BOARD-RIMBAND1"
+  if(/\bzone[\s-]?wall/.test(t)) return "BOARD-ZONEWALLSEMPTY1"
+  return "FREEFORM"
+}
 async function refresh(){
   const res = await (await fetch("results.php?days=30", { cache: "no-store" })).json()
   COMMIT = res.commit
   EVENTS = res.events
+  SESSIONS = res.sessions || []
   $("#curCommit").textContent = res.commit
 
   const byRun = new Map()
@@ -271,6 +303,15 @@ async function refresh(){
   let rows = [...byRun.values()].map(r => ({
     ...r, instance: r.instance || "(unknown)", source: r.source || "auto",
     v: r.verdict || "open", note: r.notes.join(" ⁋ ")
+  }))
+  // feedback sessions join the SAME rows array — same shape (run/t/commit/
+  // instance/source/v/note/vt) — so the grid + recent-table below need no
+  // branching to display them; only openRun() needs a session-aware path.
+  rows.push(...SESSIONS.map(s => {
+    const noteList = [s.briefing, ...(s.notes || []).map(n => n.text)].filter(Boolean)
+    return { run: "sess:" + s.slug, t: s.startedAt || "", vt: s.closedAt || s.startedAt || "",
+      commit: s.commit || "", instance: guessCase(noteList.join(" ⁋ ")), source: "feedback",
+      v: s.abandoned ? "abandon" : "noted", note: noteList.join(" ⁋ "), notes: noteList }
   }))
   if(FILTER !== "all") rows = rows.filter(r => r.source === FILTER)
 
@@ -299,7 +340,7 @@ async function refresh(){
       const trunc = r.note.length > 90 ? esc(r.note.slice(0, 90)) + "&hellip;" : esc(r.note)
       return `<tr class="clickable" data-run="${esc(r.run)}"><td class="note">${esc((r.vt || r.t).slice(5, 19).replace("T", " "))}</td>
        <td>${esc(r.instance)}</td><td class="cell ${esc(r.v)}">${esc(r.v)}</td>
-       <td>${r.source === "human" ? "🖐 human" : "🤖 " + esc(r.source)}</td>
+       <td>${r.source === "human" ? "🖐 human" : r.source === "feedback" ? "📝 feedback" : "🤖 " + esc(r.source)}</td>
        <td><code>${esc(r.commit)}</code></td><td class="noted note">${trunc}${r.notes.length > 1 ? ` <b>(${r.notes.length} notes)</b>` : ""}</td></tr>`
     }).join("")
   recent.querySelectorAll("tr[data-run]").forEach(tr => tr.onclick = () => openRun(tr.dataset.run))
