@@ -316,7 +316,8 @@ function boardSavePrefs(){
       skin: boardSkin, selfBottom: boardSelfBottom,
       netView: boardNetView, partyOnly: boardPartyOnly,
       maxSegments: boardMaxSegments, animSpeed: boardAnimSpeed,
-      trailResidual: boardTrailResidual, layoutMode: boardLayoutMode
+      trailResidual: boardTrailResidual, layoutMode: boardLayoutMode,
+      zoneWalls: boardZoneWalls, hugRing: boardHugRing
     }))
   } catch {}
 }
@@ -345,6 +346,17 @@ let boardTrailResidual = _bp.trailResidual ?? 0.5
 // concentric rows clustered at the rim; "organic" = the original relax
 // solver. Toggle kept so both can be compared live; loser gets removed.
 let boardLayoutMode = _bp.layoutMode === "organic" ? "organic" : "shelves"
+// 🧪 debug (user 2026-07-16): draw each zone's PHYSICS WALLS — the actual
+// region the sim lets chip edges occupy (inner wall past the ghost band,
+// soft outer wall, the ±80°-clamped angular walls, basket coin-band inset)
+// plus the safe drawing rect. The felt shows none of these truthfully; when
+// chips land oddly this shows whether the walls or the physics are wrong.
+let boardZoneWalls = _bp.zoneWalls ?? false
+// 🧪 lab (user 2026-07-16, "clustering towards the outside — chips could
+// come in a bit more, without touching the ring; keep it mild"): biases the
+// organic anchor inward in STORE zones (0.38 of the radial band instead of
+// the 0.5 midpoint). Baskets and shelves unaffected. Default off.
+let boardHugRing = _bp.hugRing ?? false
 
 // BOARD-WHEEL1 (user 2026-07-11): Lazy Susan is retired (scope, not code —
 // still in git history / renderSusanBoard if ever needed). Its job — "too
@@ -726,6 +738,21 @@ function boardSyncPrefsUI(){
       boardClearTrails()   // full reshuffle — drawn trails go stale
       boardSavePrefs()
       render()             // FLIP glides every chip to its new arrangement
+    }
+  }
+  const zoneWalls = document.getElementById("boardPrefZoneWalls")
+  if(zoneWalls){
+    zoneWalls.checked = boardZoneWalls
+    zoneWalls.onchange = () => { boardZoneWalls = zoneWalls.checked; boardSavePrefs(); render() }
+  }
+  const hugRing = document.getElementById("boardPrefHugRing")
+  if(hugRing){
+    hugRing.checked = boardHugRing
+    hugRing.onchange = () => {
+      boardHugRing = hugRing.checked
+      boardSavePrefs()
+      boardSimExcite()   // the anchor moved — wake the sim so blobs re-home
+      render()
     }
   }
   const partyOnly = document.getElementById("boardPrefPartyOnly")
@@ -1851,6 +1878,64 @@ function boardSimPaint(){
   if(movedAny) window.__boardRefreshTradeLine?.()
 }
 
+// 🧪 zone-walls debug overlay (user 2026-07-16): the sim's REAL constraint
+// geometry, drawn — "if there's a problem with the way the walls are drawn,
+// that might be a clue". Solid outline = the region a chip's EDGES may
+// occupy (inner + angular walls hard, outer wall soft); the angular walls
+// are the ±80°-CLAMPED ones the physics actually enforces, so on an obtuse
+// segment the overlay is visibly narrower than the felt wedge — that gap is
+// real, not a drawing bug. Dashed inner strip = the ghost-only rim band
+// ("cashier's counter"); dashed screen rect = the BOARD-SAFEAREA1 clamp.
+// Rebuilt every apply so it tracks rotation and tweens; under the chips
+// (z4) so they stay readable. These wedge paths are also the natural hook
+// for LATER per-zone highlighting (hover/drop-target lighting) — same
+// geometry, different class.
+function boardDrawZoneWalls(){
+  document.querySelector(".board-zonewalls")?.remove()
+  const env = _boardSimEnv
+  if(!boardZoneWalls || !env) return
+  const NS = "http://www.w3.org/2000/svg"
+  const svg = document.createElementNS(NS, "svg")
+  svg.setAttribute("class", "board-zonewalls")
+  const wedge = (z, rIn, rOut, cls) => {
+    if(rOut <= rIn) return
+    const half = Math.min(z.halfDeg, 80)
+    const steps = 16
+    const pts = []
+    for(let i = 0; i <= steps; i++){
+      const th = (-half + 2 * half * i / steps) * Math.PI / 180
+      pts.push([rIn * Math.cos(th), rIn * Math.sin(th)])
+    }
+    for(let i = steps; i >= 0; i--){
+      const th = (-half + 2 * half * i / steps) * Math.PI / 180
+      pts.push([rOut * Math.cos(th), rOut * Math.sin(th)])
+    }
+    const d = pts.map(([lx, ly], i) =>
+      (i ? "L" : "M")
+      + (env.cx + lx * z.cos - ly * z.sin).toFixed(1) + " "
+      + (env.cy + lx * z.sin + ly * z.cos).toFixed(1)).join(" ") + " Z"
+    const p = document.createElementNS(NS, "path")
+    p.setAttribute("d", d)
+    p.setAttribute("class", cls)
+    svg.appendChild(p)
+  }
+  _boardSimZones.forEach(z => {
+    if(z.isBasket) wedge(z, z.rMin, z.rMax - 34, "board-zonewall board-zonewall--basket")
+    else {
+      wedge(z, z.rMin + z.band, z.rMax, "board-zonewall board-zonewall--store")
+      wedge(z, z.rMin, z.rMin + z.band, "board-zonewall board-zonewall--band")
+    }
+  })
+  const rect = document.createElementNS(NS, "rect")
+  rect.setAttribute("x", env.safeL)
+  rect.setAttribute("y", env.safeTop)
+  rect.setAttribute("width", env.safeR - env.safeL)
+  rect.setAttribute("height", env.safeBot - env.safeTop)
+  rect.setAttribute("class", "board-zonewall board-zonewall--safe")
+  svg.appendChild(rect)
+  document.getElementById("boardRoot")?.appendChild(svg)
+}
+
 // BOARD-LAYOUT1 (user 2026-07-14, planning pass → 🧪 toggle): deterministic
 // "SHELF" layout, the alternative to the organic relax above. The screenshot
 // critique — chips read as ERRATIC — has three concrete causes in the relax:
@@ -1943,6 +2028,7 @@ function boardOrganicApply(cx, cy, W, H, oval){
     // holding dead DOM references don't linger
     if(_boardSimRaf){ cancelAnimationFrame(_boardSimRaf); _boardSimRaf = 0 }
     _boardSimBodies.clear(); _boardSimZones.clear(); _boardSimEnv = null
+    boardDrawZoneWalls()   // removes the 🧪 overlay (no env)
     return
   }
 
@@ -2063,7 +2149,12 @@ function boardOrganicApply(cx, cy, W, H, oval){
     const inW = zrec.isBasket ? zrec.rMin : zrec.rMin + zrec.band
     const outW = zrec.isBasket ? zrec.rMax - 34 : zrec.rMax
     const lo = inW + blobR, hi = outW - blobR
-    zrec.ax = lo <= hi ? Math.min(Math.max((inW + outW) / 2, lo), hi) : lo
+    // 🧪 hugRing: store blobs home at 0.38 of the radial band instead of the
+    // midpoint — a MILD inward lean toward the ring; the ghost band still
+    // keeps chip edges off it. Baskets keep the midpoint (their "inward" is
+    // the rim itself).
+    const home = inW + (outW - inW) * (boardHugRing && !zrec.isBasket ? 0.38 : 0.5)
+    zrec.ax = lo <= hi ? Math.min(Math.max(home, lo), hi) : lo
 
     // shelves: deterministic targets, recomputed every apply (pure math, no
     // DOM), sprung to in the tick — an honest animated re-flow
@@ -2134,6 +2225,8 @@ function boardOrganicApply(cx, cy, W, H, oval){
   }
   _boardChipPrevPosOld = _boardChipPrevPos
   _boardChipPrevPos = next
+
+  boardDrawZoneWalls()   // 🧪 debug overlay — no-op unless enabled in Settings
 }
 
 /* ── rotate animation for "You at bottom" (user 2026-07-12) ──────────────────
