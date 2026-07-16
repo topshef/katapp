@@ -317,7 +317,8 @@ function boardSavePrefs(){
       netView: boardNetView, partyOnly: boardPartyOnly,
       maxSegments: boardMaxSegments, animSpeed: boardAnimSpeed,
       trailResidual: boardTrailResidual, layoutMode: boardLayoutMode,
-      zoneWalls: boardZoneWalls, hugRing: boardHugRing
+      zoneWalls: boardZoneWalls, hugRing: boardHugRing,
+      stickyChips: boardStickyChips
     }))
   } catch {}
 }
@@ -357,6 +358,12 @@ let boardZoneWalls = _bp.zoneWalls ?? false
 // organic anchor inward in STORE zones (0.38 of the radial band instead of
 // the 0.5 midpoint). Baskets and shelves unaffected. Default off.
 let boardHugRing = _bp.hugRing ?? false
+// 🧪 lab (user 2026-07-16, board-game feel / BOARD-ARRANGE1 first slice):
+// once the sim settles, chips become STICKY — springs skip them and
+// collisions can't move them (a newcomer takes the whole separation push and
+// finds space around them). Walls still apply (geometry changes must clamp).
+// The footer 🧹 button clears stickiness and re-runs the layout.
+let boardStickyChips = _bp.stickyChips ?? false
 
 // BOARD-WHEEL1 (user 2026-07-11): Lazy Susan is retired (scope, not code —
 // still in git history / renderSusanBoard if ever needed). Its job — "too
@@ -753,6 +760,20 @@ function boardSyncPrefsUI(){
       boardSavePrefs()
       boardSimExcite()   // the anchor moved — wake the sim so blobs re-home
       render()
+    }
+  }
+  const sticky = document.getElementById("boardPrefSticky")
+  if(sticky){
+    sticky.checked = boardStickyChips
+    sticky.onchange = () => {
+      boardStickyChips = sticky.checked
+      if(boardStickyChips)
+        _boardSimBodies.forEach(b => { b.stick = true })    // freeze the board as it stands
+      else {
+        _boardSimBodies.forEach(b => { b.stick = false })
+        boardSimExcite()                                    // let the layout relax again
+      }
+      boardSavePrefs()
     }
   }
   const partyOnly = document.getElementById("boardPrefPartyOnly")
@@ -1677,6 +1698,9 @@ function boardSimFrame(){
   if(moved < 0.15) _boardSimQuiet++
   else _boardSimQuiet = 0
   if(_boardSimQuiet < 3) _boardSimRaf = requestAnimationFrame(boardSimFrame)
+  // 🧪 sticky: the sim just went to sleep — everything on the board has
+  // found its place; freeze it there (new arrivals start unstuck)
+  else if(boardStickyChips) _boardSimBodies.forEach(b => { b.stick = true })
 }
 
 // ── OVAL-TRUE WALLS (user 2026-07-16 — the zone-walls overlay's "massive
@@ -1763,6 +1787,7 @@ function boardSimTick(iters){
       const z = _boardSimZones.get(zk)
       if(!z) return
       movers.forEach(b => {
+        if(boardStickyChips && b.stick) return   // 🧪 sticky: settled chips feel no springs
         if(shelves){
           if(b.tx != null){ b.x += (b.tx - b.x) * 0.22 * speed; b.y += (b.ty - b.y) * 0.22 * speed }
         } else {
@@ -1794,11 +1819,17 @@ function boardSimTick(iters){
         if(dxs === 0 && dys === 0){ px = a % 2 ? 4 : -4; py = 4 }   // dead-centre stack: deterministic nudge
         else if(ox < oy) px = (dxs >= 0 ? 1 : -1) * ox
         else py = (dys >= 0 ? 1 : -1) * oy
+        // 🧪 sticky: a settled chip is immovable in collisions — the other
+        // party takes the WHOLE separation (board-game feel: your placed
+        // pieces stay put, arrivals find space around them). Both sticky
+        // (walls squeezed them together) → both move, or they'd never part.
+        const aStick = boardStickyChips && A.stick && !(B.stick)
+        const bStick = boardStickyChips && B.stick && !(A.stick)
         const f = 0.3 * speed                              // half each side × 0.6 step
         const plx = (px * z.cos + py * z.sin) * f
         const ply = (-px * z.sin + py * z.cos) * f
-        A.x -= plx; A.y -= ply
-        B.x += plx; B.y += ply
+        if(!aStick){ A.x -= plx * (bStick ? 2 : 1); A.y -= ply * (bStick ? 2 : 1) }
+        if(!bStick){ B.x += plx * (aStick ? 2 : 1); B.y += ply * (aStick ? 2 : 1) }
       }
       movers.forEach(b => {
         // walls: oval-true radial (at the chip's own angle) + angular +
@@ -1925,7 +1956,10 @@ function boardSimPaint(){
     }
     place(b, z)
   })
-  if(movedAny) window.__boardRefreshTradeLine?.()
+  if(movedAny){
+    window.__boardRefreshTradeLine?.()   // hover line tracks the chips
+    boardReanchorTrails()                // after-glow lines track them too
+  }
 }
 
 // 🧪 zone-walls debug overlay (user 2026-07-16): the sim's REAL constraint
@@ -3317,6 +3351,22 @@ function ringFooter(mine){
       }
     }
     bar.appendChild(play)
+
+    // 🧹 tidy (user 2026-07-16, board-game feel): re-run the chip layout on
+    // demand — clears 🧪 sticky positions and re-excites the sim (organic
+    // re-blobs, shelves re-shelves), all as visible motion. Ring16 only —
+    // it's a chip-physics affordance.
+    if(ring16()){
+      const tidy = document.createElement("button")
+      tidy.className = "ring-footer-play"
+      tidy.textContent = "🧹"
+      tidy.title = "Tidy up: re-run the chip layout (clears sticky chip positions)"
+      tidy.onclick = () => {
+        _boardSimBodies.forEach(b => { b.stick = false })
+        boardSimExcite()
+      }
+      bar.appendChild(tidy)
+    }
   }
 
   if(susan()){
@@ -3473,14 +3523,14 @@ function boardChipRect(el){
 function boardTrailPileSegment(fromId, assetId, ghostEl, colour, key){
   const pile = document.querySelector(
     `.asset:not(.basket):not(.reserved)[data-owner-account="${CSS.escape(fromId)}"][data-asset-id="${CSS.escape(assetId)}"]`)
-  if(pile && ghostEl) boardTrail(boardChipRect(pile), boardChipRect(ghostEl), colour, { key })
+  if(pile && ghostEl) boardTrail(boardChipRect(pile), boardChipRect(ghostEl), colour, { key, seg: "pg" })
 }
 
 // one leg of the transfer animation: clone flies ghost → basket, trail line
 // in the giver's colour draws with it and fades. key (optional) tags the
 // trail with its offer pair so a later withdraw can clear the after-glow.
 function boardFlyLeg(ghost, basketEl, colour, delay, key){
-  boardFlyRect(basketEl.outerHTML, boardChipRect(ghost), boardChipRect(basketEl), colour, delay, { key })
+  boardFlyRect(basketEl.outerHTML, boardChipRect(ghost), boardChipRect(basketEl), colour, delay, { key, seg: "gb" })
 }
 
 // NFT offer choreography (user 2026-07-14): the store chip ARCS to the rim,
@@ -3530,7 +3580,7 @@ function boardFlyNftOffer(fromPos, ghostEl, basketEl, colour, key){
       if(!dropped){
         dropped = true
         ghostEl.style.opacity = ""            // ghost left behind at the rim
-        boardTrail(g, b, colour, { key })     // the straight leg's line draws from here
+        boardTrail(g, b, colour, { key, seg: "gb" })     // the straight leg's line draws from here
       }
       const t = (e - split) / (1 - split)
       x = G.x + (B.x - G.x) * t
@@ -3567,17 +3617,49 @@ function boardFlyRect(html, a, b, colour, delay, opts){
 // board movement invalidates every drawn trail — the lines are screen-frame
 // snapshots, so any rotation/collapse/wheel-scroll leaves them pointing at
 // stale coordinates (user 2026-07-14: "if the segment moves, remove the
-// line"). Called at the start of each movement tween. FUTURE (nice-to-have,
-// user rated it likely-complicated and low priority): instead of removing,
-// re-anchor the lines to their chip pairs and redraw them live through the
-// motion — the pair keys the lines already carry are the hook for that.
+// line"). Called at the start of each movement tween. (Trails carrying a
+// seg marker now ALSO re-anchor live — boardReanchorTrails below — so these
+// clears are belt-and-braces for the big layout tweens.)
 function boardClearTrails(){
   document.querySelectorAll(".board-trailline").forEach(l => l.remove())
 }
 
+// LIVE TRAILS (user 2026-07-16: "the dotted line is just sitting where it
+// was drawn and then assets move around — those joins need to persist"):
+// every painted frame something moved, the pile→ghost→basket after-glow
+// lines re-aim at their chips' CURRENT positions — exactly the future the
+// boardClearTrails note predicted ("re-anchor the lines to their chip
+// pairs; the pair keys the lines already carry are the hook"). Endpoints
+// are re-queried by selector each time, so the lines also survive the DOM
+// being rebuilt by a re-render. A line whose endpoint chip is GONE keeps
+// its last geometry — the withdraw path removes those lines itself.
+function boardReanchorTrails(){
+  const lines = document.querySelectorAll(".board-trailline[data-seg]")
+  if(!lines.length) return
+  const centre = el => {
+    const r = boardChipRect(el)
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+  }
+  lines.forEach(line => {
+    const parts = (line.dataset.pairKey || "").split("|")
+    if(parts.length < 3) return
+    const to = parts[0], from = parts[1], asset = parts.slice(2).join("|")
+    const sel = `[data-owner-account="${CSS.escape(from)}"][data-asset-id="${CSS.escape(asset)}"]`
+    const ghost = document.querySelector(`.asset.reserved${sel}[data-to-account="${CSS.escape(to)}"]`)
+    if(!ghost) return
+    const other = line.dataset.seg === "pg"
+      ? document.querySelector(`.asset:not(.basket):not(.reserved)${sel}`)
+      : document.querySelector(`.asset.basket${sel}[data-to-account="${CSS.escape(to)}"]`)
+    if(!other) return
+    const g = centre(ghost), o = centre(other)
+    line.setAttribute("x1", g.x); line.setAttribute("y1", g.y)
+    line.setAttribute("x2", o.x); line.setAttribute("y2", o.y)
+  })
+}
+
 // trailing line: DOTTED in the giver's colour (review 7 — was solid with a
 // draw-in; the dash channel now carries the dot pattern), fades out slowly
-function boardTrail(a, b, colour, { key, persist = true } = {}){
+function boardTrail(a, b, colour, { key, persist = true, seg } = {}){
   let svg = document.querySelector(".board-traillayer")
   if(!svg){
     svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
@@ -3591,6 +3673,11 @@ function boardTrail(a, b, colour, { key, persist = true } = {}){
   line.setAttribute("class", "board-trailline")
   line.style.stroke = colour || "#999"
   if(key) line.dataset.pairKey = key
+  // seg marks WHICH leg of the pile→ghost→basket line this is ("pg"/"gb") so
+  // boardReanchorTrails can re-aim it at the chips' live positions each
+  // painted frame (LIVE TRAILS, user 2026-07-16). No seg = a transient line
+  // (withdraw-return) that fades before movement matters — left static.
+  if(seg) line.dataset.seg = seg
   svg.appendChild(line)
   // 🧪 after-glow (boardTrailResidual): fade to a persistent fraction of the
   // starting opacity (.75, see .board-trailline) instead of to nothing — the
