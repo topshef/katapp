@@ -2,7 +2,7 @@
   "_about": "HBARXFER class -- board-mode proposal-and-sign HBAR transfer, end-to-end. Born directly from a live user test (feedback session delta-sierra-46, 2026-07-16): a real testnet HBAR offer, locked, signed via WalletConnect, executed, landed in the recipient's store. User: 'if that's something we can set up as a stand automated test, this is also a demo of that.' Key requirement: automated runs use a SMALL testnet amount (0.01 ℏ), not 1 ℏ -- there's no reason to spend more on a repeatable check.",
   "id": "HBARXFER",
   "title": "Board proposal: offer HBAR, lock, sign via WalletConnect, execute, verify landing",
-  "status": "defined",
+  "status": "spiked",
   "task": "QA-UXGRID1",
   "updated": "2026-07-16",
   "oracle": {
@@ -19,21 +19,83 @@
     "benchmark": "the user's own live run, session delta-sierra-46 (2026-07-16 19:16-19:20, testnet, txid 0.0.1532@1784229438.829000000, 1 ℏ, t-prop) -- kdiag/kflow trace archived in logs/kflow + logs/kdiag on lab1 for that window; screenshots not captured (recorded via feedback session, not the qa/results.html recorder)"
   },
   "dimensions": {
-    "network": { "ref": "network", "values": ["testnet"], "note": "mainnet excluded from automation on principle -- real value, no reason to spend it on a repeatable check" },
-    "amount": { "ref": null, "name": "transfer amount", "values": ["0.01"], "note": "USER REQUIREMENT (2026-07-16): automated runs must use a SMALL amount, not the 1 ℏ used in the manual demo -- 0.01 ℏ is plenty to prove the pipeline and costs near nothing repeated" },
-    "target": { "ref": null, "name": "target account state", "values": ["empty-store", "populated-store"], "boundaries": ["empty-store"], "note": "empty-store is the interesting case -- exercises BOARD-ZONEWALLSEMPTY1's boundary and proves the chip has somewhere to land even with no prior wall drawn" },
-    "players": { "ref": "players", "values": ["2", "at-cap"] },
-    "layout": { "ref": "chip-layout", "values": ["organic", "shelves"] }
+    "network": {
+      "ref": "network",
+      "values": [
+        "testnet"
+      ],
+      "note": "mainnet excluded from automation on principle -- real value, no reason to spend it on a repeatable check"
+    },
+    "amount": {
+      "ref": null,
+      "name": "transfer amount",
+      "values": [
+        "0.01"
+      ],
+      "note": "USER REQUIREMENT (2026-07-16): automated runs must use a SMALL amount, not the 1 ℏ used in the manual demo -- 0.01 ℏ is plenty to prove the pipeline and costs near nothing repeated"
+    },
+    "target": {
+      "ref": null,
+      "name": "target account state",
+      "values": [
+        "empty-store",
+        "populated-store"
+      ],
+      "boundaries": [
+        "empty-store"
+      ],
+      "note": "empty-store is the interesting case -- exercises BOARD-ZONEWALLSEMPTY1's boundary and proves the chip has somewhere to land even with no prior wall drawn"
+    },
+    "players": {
+      "ref": "players",
+      "values": [
+        "2",
+        "at-cap"
+      ]
+    },
+    "layout": {
+      "ref": "chip-layout",
+      "values": [
+        "organic",
+        "shelves"
+      ]
+    }
   },
   "constraints": [],
   "cartesian_size": 4,
   "pairwise_target": "n/a -- small enough to run exhaustively once automatable",
   "instances": [
-    { "id": "HBARXFER-01", "vector": { "network": "testnet", "amount": "0.01", "target": "empty-store", "players": "2", "layout": "organic" }, "run": "manual", "why_manual": "signing requires a real WalletConnect wallet -- automation blocked on QA-WCTEST1's headless virtual-wallet bot, not yet wired", "status": "unrun", "benchmark": null },
-    { "id": "HBARXFER-02", "vector": { "network": "testnet", "amount": "0.01", "target": "populated-store", "players": "at-cap", "layout": "shelves" }, "run": "manual", "why_manual": "same WC-signing dependency", "status": "unrun", "benchmark": null }
+    {
+      "id": "HBARXFER-01",
+      "vector": {
+        "network": "testnet",
+        "amount": "0.01",
+        "target": "empty-store",
+        "players": "2",
+        "layout": "organic"
+      },
+      "run": "auto",
+      "why_manual": null,
+      "status": "spike-partial",
+      "benchmark": null
+    },
+    {
+      "id": "HBARXFER-02",
+      "vector": {
+        "network": "testnet",
+        "amount": "0.01",
+        "target": "populated-store",
+        "players": "at-cap",
+        "layout": "shelves"
+      },
+      "run": "manual",
+      "why_manual": "same WC-signing dependency",
+      "status": "unrun",
+      "benchmark": null
+    }
   ],
   "fixtures": {
     "manual": "any live board on lab1 (or alpha), a testnet account with a paired wallet; feedback-session recorder (long-press -> Start session) captures the kdiag/kflow trace automatically",
-    "auto": "BLOCKED on QA-WCTEST1 (headless WalletConnect virtual-wallet bot: pair from the WC URI, auto-approve, auto-sign). Once that lands, this class runs the same steps end-to-end with no human: create/join game -> offer 0.01 ℏ -> lock -> strike -> bot wallet signs -> assert the oracle sequence above. Ties into TESTLOOP1/KATRUN1 the same way katrun's other scenarios do."
+    "auto": "PROVEN 2026-07-16 up to account-pairing (not the full transfer yet): kWallet IS the harness -- confirmed the assumption wrong that QA-WCTEST1 blocks this. Spike script (qa/scratchpad hbarxfer-auto.cjs pattern) drove the REAL board.php UI headlessly: opened the empty-state 'Add account' button -> clicked Connect -> extracted the wc: URI from the live pairing modal's shadow DOM (same generic walker as kWallet's own playwright-e2e.cjs) -> POSTed it to kWallet service /api/pair (mode:auto) -> kWallet auto-approved -> account 0.0.9556348 landed and joined with all assets, fully unattended. A second, manual-entry recipient account (0.0.5200540, receive-only, no wallet) landed the same way. REMAINING: offer 0.01 hbar A->B, lock both (LOCAL intent-key signature, no wallet round-trip -- buildLockCommitment in katomia-render.js uses getOrCreatePlayerKeypair, NOT WalletConnect), then the strike auto-fires (txDelaySeconds:0) and kWallet (still in auto mode) will receive + sign the actual hedera_signAndExecuteTransaction request -- assert via kdiag board:result:shown ok:true. This next slice is UI-scripting only (drag/tap-to-offer + lock clicks), no new unknowns. BLOCKED IN PRACTICE by GAMEPRIVATE-JOINSTUCK1 for PRIVATE test games (found during this spike) -- use visibility:public for the dedicated QA game until that backend bug is fixed."
   }
 }

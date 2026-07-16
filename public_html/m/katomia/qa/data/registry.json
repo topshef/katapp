@@ -80,6 +80,11 @@
       "date": "2026-07-16",
       "what": "Automated HBAR-transfer test amounts must be small on testnet (0.01, not 1) -- no reason to spend more on a repeatable check.",
       "by": "user"
+    },
+    {
+      "date": "2026-07-16",
+      "what": "Corrected: HBARXFER is NOT blocked on QA-WCTEST1 -- the kWallet headless WC harness (KWALLET1, hosted at kpay.uk/devtools/kwallet/) already exists, is proven, and IS compatible with katomia's kwc bundle. Spiked live: automated WC pairing + account-join works end to end. Found a real backend bug along the way (GAMEPRIVATE-JOINSTUCK1) that would strand any real user creating a private game.",
+      "by": "user+agent"
     }
   ],
   "tasks": {
