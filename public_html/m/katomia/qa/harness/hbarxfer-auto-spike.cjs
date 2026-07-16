@@ -1,25 +1,17 @@
-// hbarxfer-auto-spike.cjs -- QA-UXGRID1 HBARXFER, PROVEN 2026-07-16 up to
-// account-pairing (both accounts land: kWallet WC-paired sender + manual-
-// entry recipient), against a dedicated PUBLIC testnet game -- see
-// data/classes/hbarxfer.json's fixtures.auto for the full trace and
-// GAMEPRIVATE-JOINSTUCK1 for why the game must be public until that
-// backend bug is fixed. NEXT SLICE (not yet scripted): offer 0.01 hbar,
-// lock both accounts (local intent-key signature, no wallet needed),
-// let the strike auto-fire (txDelaySeconds:0), assert kWallet
-// auto-signs + board:result:shown ok:true. Run:
-//   set -a; . /opt/kwallet/.env; set +a
-//   GAME=<a fresh PUBLIC game id> node hbarxfer-auto-spike.cjs
-// Needs kWallet in auto mode first (POST /api/mode {mode:"auto"}) --
-// restore to manual after (this box's default/shared state).
+// hbarxfer-full2.cjs -- QA-UXGRID1 HBARXFER, complete automated run, v2.
+// Finding from v1: makeWedge() only calls setupDropTarget when !isMine --
+// an account's OWN wedges never get a click handler, so own-to-own offers
+// are not completable via the board's tap-to-offer path. Fix: TWO real
+// players (two browser contexts), sender (kWallet WC) + recipient (manual
+// entry, its own anon player) -- the natural case anyway.
 const { chromium } = require("/opt/kwallet/node_modules/playwright")
 
-const GAME = process.env.GAME || "4MDZDW"
+const GAME = process.env.GAME
 const BOARD = `https://lab1.katlab.kpay.live/m/katomia/board/${GAME}?skin=ring16`
 const KWALLET_BASE = "http://127.0.0.1:8790"
 const KWALLET_TOKEN = process.env.KWALLET_TOKEN
-const RECIPIENT = process.env.RECIPIENT || "0.0.5200540" // xproof network-verifier testnet acct, receive-only, no wallet needed
-const AMOUNT_H = 0.01
-
+const RECIPIENT = process.env.RECIPIENT || "0.0.5200540"
+const AMOUNT_H = "0.01"
 const log = (...a) => console.log(new Date().toISOString(), "[hbarxfer]", ...a)
 
 const URI_FINDER = `() => {
@@ -35,7 +27,6 @@ const URI_FINDER = `() => {
   visit(document)
   return [...found][0] || null
 }`
-
 async function extractUri(page){
   for(let i = 0; i < 40; i++){
     const uri = await page.evaluate(`(${URI_FINDER})()`).catch(() => null)
@@ -44,71 +35,154 @@ async function extractUri(page){
   }
   return null
 }
-
 async function kwallet(path, body){
   const r = await fetch(KWALLET_BASE + path, { method: "POST",
     headers: { "content-type": "application/json", "x-kwallet-token": KWALLET_TOKEN },
     body: JSON.stringify(body || {}) })
   return r.json()
 }
+// BUG FOUND (first live run): a fresh run id + empty commit PER CALL split
+// every automated run into two disconnected rows (start-only "open" +
+// verdict-only) and the grid's commits list does `.filter(Boolean)`, which
+// silently drops an empty-string commit -- the verdict row existed in the
+// data but had no column to render in. Fixed: one shared run id for the
+// whole script + the REAL current site commit (fetched once).
+let RUN_ID = null, SITE_COMMIT = null
+async function reportKflow(checkpoint, v, detail){
+  if(!RUN_ID) RUN_ID = "hbarxfer-" + Date.now().toString(36)
+  if(SITE_COMMIT === null) SITE_COMMIT = await fetch("https://lab1.katlab.kpay.live/m/katomia/qa/results.php?days=1")
+    .then(r => r.json()).then(j => j.commit || "").catch(() => "")
+  await fetch("https://lab1.katlab.kpay.live/kflow", { method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ events: [{ t: new Date().toISOString(), run: RUN_ID,
+      seq: checkpoint === "test:start" ? 1 : 2, tier: "fe", checkpoint, v, commit: SITE_COMMIT, detail }] }) })
+}
 
 async function main(){
+  const t0 = Date.now()
   const browser = await chromium.launch()
-  const page = await browser.newPage()
-  page.on("pageerror", e => log("PAGEERROR", String(e).slice(0, 200)))
-  page.on("console", m => { const t = m.text(); if(/error|fail/i.test(t)) log("[console]", t.slice(0, 200)) })
 
-  log("open board", BOARD)
-  await page.goto(BOARD, { waitUntil: "domcontentloaded" })
-  await page.waitForTimeout(2000)
-
-  // ── add account 1: kWallet via WalletConnect ──
-  log("click Add account (empty state)")
-  await page.locator("button.ring-footer-accsel").first().click({ timeout: 10000 })
-  await page.waitForTimeout(500)
-  log("click Connect wallet")
-  await page.locator("#addAcctConnect").click({ timeout: 10000 })
-  log("extracting WC URI from the modal…")
-  const uri = await extractUri(page)
-  if(!uri) throw new Error("no WC URI found in the add-account modal")
-  log("got URI, pairing kWallet service")
+  // ── PLAYER A (sender): kWallet via WalletConnect ──
+  const pageA = await (await browser.newContext()).newPage()
+  pageA.on("dialog", d => d.accept(AMOUNT_H))
+  pageA.on("pageerror", e => log("A PAGEERROR", String(e).slice(0, 200)))
+  log("[A] open board")
+  await pageA.goto(BOARD, { waitUntil: "domcontentloaded" })
+  await pageA.waitForTimeout(2000)
+  await pageA.locator("button.ring-footer-accsel").first().click({ timeout: 10000 })
+  await pageA.waitForTimeout(500)
+  await pageA.locator("#addAcctConnect").click({ timeout: 10000 })
+  const uri = await extractUri(pageA)
+  if(!uri) throw new Error("no WC URI")
   const pr = await kwallet("/api/pair", { uri })
-  if(!pr.ok) throw new Error("kWallet pair failed: " + JSON.stringify(pr))
-  log("kWallet pair ok, waiting for the account to land in the modal/game…")
-  await page.waitForFunction(() => document.getElementById("addAcctStepAssets") &&
-    !document.getElementById("addAcctStepAssets").classList.contains("hidden"), { timeout: 20000 }).catch(() => {})
-  await page.waitForTimeout(1000)
-  const joinBtn = page.locator("#addAcctJoinAll")
-  if(await joinBtn.count()){ log("joining all assets for account 1"); await joinBtn.click() }
-  await page.waitForTimeout(2000)
+  if(!pr.ok) throw new Error("pair failed: " + JSON.stringify(pr))
+  await pageA.waitForTimeout(2000)
+  if(await pageA.locator("#addAcctJoinAll").count()) await pageA.locator("#addAcctJoinAll").click()
+  await pageA.waitForTimeout(2000)
+  const acctA = await pageA.evaluate(() => (typeof getAccounts === "function" ? getAccounts() : [])
+    .filter(a => typeof isMyAccount === "function" && isMyAccount(a))[0]?.id)
+  log("[A] sender account:", acctA)
+  if(!acctA) throw new Error("sender never landed")
 
-  const acct1 = await page.evaluate(() => {
-    const mine = (typeof getAccounts === "function" ? getAccounts() : []).filter(a => typeof isMyAccount === "function" && isMyAccount(a))
-    return mine[0]?.id?.split(":")[1] || null
+  // ── PLAYER B (recipient): a SEPARATE player, manual entry, no wallet ──
+  const pageB = await (await browser.newContext()).newPage()
+  pageB.on("pageerror", e => log("B PAGEERROR", String(e).slice(0, 200)))
+  log("[B] open board (second player)")
+  await pageB.goto(BOARD, { waitUntil: "domcontentloaded" })
+  await pageB.waitForTimeout(2000)
+  await pageB.locator("button.ring-footer-accsel").first().click({ timeout: 10000 })
+  await pageB.waitForTimeout(500)
+  await pageB.fill("#addAcctManual", RECIPIENT)
+  await pageB.click("#addAcctManualUse")
+  await pageB.waitForTimeout(1000)
+  if(await pageB.locator("#addAcctJoinAll").count()) await pageB.locator("#addAcctJoinAll").click()
+  await pageB.waitForTimeout(2000)
+  const acctB = await pageB.evaluate(() => (typeof getAccounts === "function" ? getAccounts() : [])
+    .filter(a => typeof isMyAccount === "function" && isMyAccount(a))[0]?.id)
+  log("[B] recipient account:", acctB)
+  if(!acctB) throw new Error("recipient never landed")
+
+  // ── A sees B (a real other player now) -- offer AMOUNT_H HBAR ──
+  await pageA.waitForTimeout(1500)   // let A's board pick up B's broadcasted join
+  log("[A] tap HBAR chip")
+  await pageA.evaluate((senderId) => {
+    const chip = [...document.querySelectorAll(".asset")].find(el =>
+      el.dataset.assetId === "HBAR" && el.dataset.ownerAccount === senderId &&
+      !el.classList.contains("basket") && !el.classList.contains("reserved"))
+    if(!chip) throw new Error("no HBAR store chip for sender")
+    chip.click()
+  }, acctA)
+  await pageA.waitForTimeout(500)
+  log("[A] tap B's wedge (now a real drop target -- setupDropTarget only binds for !isMine)")
+  // coordinate-based clicking kept missing the wedge's clip-path polygon
+  // (a wide pie slice's bounding-BOX corners often sit OUTSIDE the actual
+  // clipped sector, and the box centre sits on the intercepting hub) --
+  // .click() called IN-PAGE on the element itself dispatches a MouseEvent
+  // with target===el directly, satisfying the handler's `e.target !== el`
+  // guard with no hit-testing/clip-path/z-order involved at all.
+  const clicked = await pageA.evaluate((accountId) => {
+    const el = document.querySelector(`.board-wedge[data-drop-account="${accountId}"]`)
+    if(!el) return false
+    el.click()
+    return true
+  }, acctB)
+  log("in-page wedge click dispatched:", clicked)
+  await pageA.waitForTimeout(2000)
+
+  const offered = await pageA.evaluate((senderId) =>
+    !!document.querySelector(`.asset.reserved[data-owner-account="${senderId}"][data-asset-id="HBAR"]`), acctA)
+  log("offer ghost present:", offered)
+  if(!offered) throw new Error("offer never registered")
+
+  // ── lock both accounts (local intent key, no wallet on either side) ──
+  log("[A] lock")
+  await pageA.locator("button.ring-footer-lock").first().click()
+  await pageA.waitForTimeout(1000)
+  log("[B] lock")
+  await pageB.waitForTimeout(1000)   // let B's board pick up the offer first
+  await pageB.locator("button.ring-footer-lock").first().click()
+  await pageB.waitForTimeout(1500)
+
+  // ── strike auto-fires (txDelaySeconds:0) once BOTH are locked. Finding
+  // (v2 run 1): locking does NOT itself sign anything -- once the strike
+  // starts the signing phase, the SAME footer button becomes "✍ Sign"
+  // (boardSigning ? Sign : Lock, per the code: the lock slot IS the sign
+  // slot in the next phase) and needs its OWN click to actually invoke
+  // boardDirectSign -> the WC request kWallet auto-signs. A locks-then-
+  // walks-away run never sends anything to sign, expires silently at 40s.
+  log("[A] waiting for the signing phase, then clicking Sign")
+  await pageA.waitForFunction(() => window.boardSigning, { timeout: 15000 }).catch(() => {})
+  await pageA.waitForTimeout(500)
+  await pageA.locator("button.ring-footer-lock").first().click()
+  log("[A] Sign clicked")
+
+  // ── poll A's toast for the verdict ──
+  log("waiting for kWallet auto-sign -> result toast")
+  let success = null, tries = 0
+  while(tries++ < 50){
+    const txt = await pageA.evaluate(() => document.body.innerText)
+    if(txt.includes("Transaction successful")){ success = true; break }
+    if(txt.includes("Transaction failed or expired")){ success = false; break }
+    await pageA.waitForTimeout(1000)
+  }
+  log("success:", success, "elapsed s:", Math.round((Date.now() - t0) / 1000))
+  await pageA.screenshot({ path: "/tmp/claude-0/-var-www-swap-kpay-live-katlab-lab1/b5bfcda0-bcef-438f-9776-811088e67443/scratchpad/hbarxfer-final.png" })
+
+  const verdict = success === true ? "pass" : success === false ? "fail" : "error"
+  await reportKflow("test:start", "HBARXFER-01", { source: "auto", instance: "HBARXFER-01" })
+  await reportKflow("test:verdict", verdict, {
+    source: "auto", instance: "HBARXFER-01",
+    note: `automated run, game ${GAME}, sender ${acctA} -> ${acctB}, ${AMOUNT_H} HBAR` +
+      (success === null ? " (no result toast within timeout)" : ""),
+    secs: Math.round((Date.now() - t0) / 1000)
   })
-  log("account 1 (sender, kWallet-signed) =", acct1)
-  if(!acct1) throw new Error("account 1 never landed")
-
-  // ── add account 2: recipient, MANUAL ENTRY (receive-only, no wallet) ──
-  log("open Add account again for the recipient")
-  await page.locator(".ring-footer-accsel").first().selectOption({ label: "➕ Add account…" }).catch(async () => {
-    await page.getByText("➕ Add account", { exact: false }).click()
-  })
-  await page.waitForTimeout(500)
-  await page.fill("#addAcctManual", RECIPIENT)
-  await page.click("#addAcctManualUse")
-  await page.waitForTimeout(1000)
-  const joinBtn2 = page.locator("#addAcctJoinAll")
-  if(await joinBtn2.count()){ log("joining recipient account"); await joinBtn2.click() }
-  await page.waitForTimeout(2000)
-
-  const mineNow = await page.evaluate(() => (typeof getAccounts === "function" ? getAccounts() : [])
-    .filter(a => typeof isMyAccount === "function" && isMyAccount(a)).map(a => a.id))
-  log("accounts now mine:", JSON.stringify(mineNow))
-  if(mineNow.length < 2) throw new Error("recipient account never landed -- have: " + JSON.stringify(mineNow))
-
-  await page.screenshot({ path: "/tmp/claude-0/-var-www-swap-kpay-live-katlab-lab1/b5bfcda0-bcef-438f-9776-811088e67443/scratchpad/hbarxfer-board.png" })
-  log("BOTH accounts landed -- stopping here for the spike (offer/lock/strike is the next slice)")
+  log("reported test:verdict", verdict)
   await browser.close()
+  process.exit(success === true ? 0 : 1)
 }
-main().catch(e => { console.error("FATAL", e.message); process.exit(1) })
+main().catch(async e => {
+  console.error("FATAL", e.message)
+  await reportKflow("test:start", "HBARXFER-01", { source: "auto", instance: "HBARXFER-01" }).catch(() => {})
+  await reportKflow("test:verdict", "error", { source: "auto", instance: "HBARXFER-01", note: String(e.message).slice(0, 300) }).catch(() => {})
+  process.exit(1)
+})

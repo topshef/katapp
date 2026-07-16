@@ -2,7 +2,7 @@
   "_about": "HBARXFER class -- board-mode proposal-and-sign HBAR transfer, end-to-end. Born directly from a live user test (feedback session delta-sierra-46, 2026-07-16): a real testnet HBAR offer, locked, signed via WalletConnect, executed, landed in the recipient's store. User: 'if that's something we can set up as a stand automated test, this is also a demo of that.' Key requirement: automated runs use a SMALL testnet amount (0.01 ℏ), not 1 ℏ -- there's no reason to spend more on a repeatable check.",
   "id": "HBARXFER",
   "title": "Board proposal: offer HBAR, lock, sign via WalletConnect, execute, verify landing",
-  "status": "spiked",
+  "status": "auto-proven",
   "task": "QA-UXGRID1",
   "updated": "2026-07-16",
   "oracle": {
@@ -76,8 +76,8 @@
       },
       "run": "auto",
       "why_manual": null,
-      "status": "spike-partial",
-      "benchmark": null
+      "status": "pass",
+      "benchmark": "kflow run hbarxfer-corrected-1, commit fc98e8e, 2026-07-16 21:16-21:18 -- fully automated: kWallet-paired sender + manual-entry recipient (two real players), offer, lock both, Sign clicked, kWallet auto-signed, receipt+success within 1s. Screenshot: qa/harness/hbarxfer-pass.png"
     },
     {
       "id": "HBARXFER-02",
@@ -96,6 +96,6 @@
   ],
   "fixtures": {
     "manual": "any live board on lab1 (or alpha), a testnet account with a paired wallet; feedback-session recorder (long-press -> Start session) captures the kdiag/kflow trace automatically",
-    "auto": "PROVEN 2026-07-16 up to account-pairing (not the full transfer yet): kWallet IS the harness -- confirmed the assumption wrong that QA-WCTEST1 blocks this. Spike script (qa/scratchpad hbarxfer-auto.cjs pattern) drove the REAL board.php UI headlessly: opened the empty-state 'Add account' button -> clicked Connect -> extracted the wc: URI from the live pairing modal's shadow DOM (same generic walker as kWallet's own playwright-e2e.cjs) -> POSTed it to kWallet service /api/pair (mode:auto) -> kWallet auto-approved -> account 0.0.9556348 landed and joined with all assets, fully unattended. A second, manual-entry recipient account (0.0.5200540, receive-only, no wallet) landed the same way. REMAINING: offer 0.01 hbar A->B, lock both (LOCAL intent-key signature, no wallet round-trip -- buildLockCommitment in katomia-render.js uses getOrCreatePlayerKeypair, NOT WalletConnect), then the strike auto-fires (txDelaySeconds:0) and kWallet (still in auto mode) will receive + sign the actual hedera_signAndExecuteTransaction request -- assert via kdiag board:result:shown ok:true. This next slice is UI-scripting only (drag/tap-to-offer + lock clicks), no new unknowns. BLOCKED IN PRACTICE by GAMEPRIVATE-JOINSTUCK1 for PRIVATE test games (found during this spike) -- use visibility:public for the dedicated QA game until that backend bug is fixed."
+    "auto": "PROVEN END-TO-END 2026-07-16 (qa/harness/hbarxfer-auto-spike.cjs): kWallet-paired sender (player A) + manual-entry recipient (player B, a SEPARATE player -- own-to-own doesn't work, see finding below) -> offer 0.01 tHBAR -> lock both -> Sign click -> kWallet auto-signs -> receipt + success, all unattended. Reported into kflow as a real test:start/test:verdict(pass) pair, visible on the retest grid alongside the human/feedback rows for the same case. Two real bugs found and fixed while getting there (both instructive, kept in the harness's comments): (1) makeWedge() only calls setupDropTarget when !isMine -- an account's OWN wedges never get a click handler, so an offer from one of your own accounts to another of your own accounts cannot be completed via tap-to-offer at all. Own-to-own transfers need a different UI path (or a fix) if ever wanted -- not filed as its own task yet, flag if it matters. (2) locking does not itself sign anything -- once the strike starts the signing phase, the SAME footer button becomes '✍ Sign' and needs a SECOND click; an early attempt that locked and walked away let the 40s signing window expire with nothing ever sent. Also: keep validDurationSeconds generous (180, not 40) for automated runs -- WC pairing/UI-scripting overhead can eat most of a short window before Sign is even clicked, leaving too little margin for the real signing round-trip. Runner: GAME=<fresh public game id> KWALLET_TOKEN=... node hbarxfer-auto-spike.cjs (kWallet must be in auto mode first; restore to manual after -- shared resource)."
   }
 }
