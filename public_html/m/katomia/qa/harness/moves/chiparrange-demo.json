@@ -1,0 +1,19 @@
+{
+  "_about": "Scripted-move demo for BOARD-ARRANGE1 — replayable user moves on the ?demo=1 board. Run: node ../board-arrange.cjs --moves moves/chiparrange-demo.json --video --slow. The player executes each step through the real gesture handlers (synthetic touch drags), so what the video shows is exactly what a user's fingers would produce.",
+  "moves": [
+    { "op": "pause", "ms": 1500, "note": "board settles into its opening layout" },
+    { "op": "arrange", "owner": "p1:0.0.1001", "asset": "0.0.456", "kind": "store", "dr": 55, "dt": 45,
+      "note": "you tidy your own store: drag the token chip to where YOU want it — it stays" },
+    { "op": "pause", "ms": 1200 },
+    { "op": "arrange", "owner": "p1:0.0.1001", "asset": "HBAR", "kind": "store", "dr": -30, "dt": -50,
+      "note": "second chip placed by hand — your area, your arrangement" },
+    { "op": "pause", "ms": 1200 },
+    { "op": "offer", "owner": "p1:0.0.1111", "asset": "HBAR", "to": "p2:0.0.2002", "at": { "lr": 0.35, "lt": 30 },
+      "note": "drop an offer into Ada's basket — the chip lands exactly where you dropped it, and your arranged chips don't budge" },
+    { "op": "pause", "ms": 2000 },
+    { "op": "reload", "note": "reload the page — your arrangement comes back (per-game persistence)" },
+    { "op": "pause", "ms": 2000 },
+    { "op": "tidy", "note": "🧹 tidy on demand — pins clear and the auto-layout re-flows everything" },
+    { "op": "pause", "ms": 2500 }
+  ]
+}

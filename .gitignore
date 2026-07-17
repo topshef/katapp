@@ -31,6 +31,9 @@ zz*
 # cases/dimensions/canaries edited and reviewed like code). Same rationale
 # as KATOMIA-CONFIG1 above.
 !/public_html/m/katomia/qa/data/**/*.json
+# BOARD-ARRANGE1 (2026-07-17): harness move scripts (scripted demo/replay
+# inputs) are authored test content — same source-of-truth rationale.
+!/public_html/m/katomia/qa/harness/moves/*.json
 *.lock
 *.bak
 #login
