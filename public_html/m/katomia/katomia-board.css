@@ -1508,6 +1508,12 @@ body.board-page .app-banner{
    disconnected. (The ▶ toggle keeps its own quicker --out lift.) */
 .ring-focusshade--wipe{ animation: ring-focuslift 1.5s ease forwards; }
 
+/* success case (BOARD-SUCCESS1 follow-up, 2026-07-17): confetti runs ~4.25s
+   (boardCelebrate — two bursts + cleanup at 4250ms) — the spotlight lift
+   is stretched to match so it fades out alongside the confetti instead of
+   dousing the board mid-celebration. */
+.ring-focusshade--wipe-success{ animation: ring-focuslift 4.25s ease forwards; }
+
 /* review 17: the spotlight fades IN at flight speed (darkest as assets land)
    and lifts gracefully; only the first mount animates, not every re-render */
 .ring-focusshade--in{ animation: ring-focusfade .9s ease forwards; }

@@ -558,6 +558,11 @@ function boardShowResult(txid, ok){
   boardSuccessAcked.add(txid)
   boardSaveAckedTx(boardSuccessAcked)
   boardDiag("board:result:shown", { txid, ok })
+  // read by the wipe branch below (~4442) so the spotlight lift can match
+  // whichever celebration is actually playing — confetti (~4.25s) on
+  // success vs the wiper sweep (~1.5s) on failure, instead of always using
+  // the wiper's shorter timing and dousing the spotlight mid-confetti.
+  window.__boardLastResultOk = ok
   boardCelebrate(ok)
   // PERSISTENT, CLOSABLE TOAST (user 2026-07-15): the verdict used to be a
   // banner bubble + a blocking alert(); now it's a toast that stays until
@@ -4470,10 +4475,14 @@ function ringFelt(segs, g){
     ;(top || svg).appendChild(shade)
   } else if(window.__boardShadeOn){
     // shade was on last paint and turned off THIS render (signing resolved /
-    // tx vanished): draw it one last time with the slow --wipe fade so it
-    // dissolves in step with the wiper sweep instead of vanishing a beat
-    // before it (user 2026-07-15). The ▶ toggle-off path does its own
-    // 0.5s fade pre-render and clears __boardShadeOn to skip this.
+    // tx vanished): draw it one last time with a slow fade so it dissolves
+    // in step with whichever celebration boardShowResult just kicked off,
+    // instead of vanishing a beat before it (user 2026-07-15, failure case).
+    // SUCCESS runs confetti (~4.25s, boardCelebrate) — --wipe's 1.5s doused
+    // the spotlight mid-confetti, so success gets its own longer fade class
+    // timed to match; FAILURE keeps --wipe, tuned to the ~1.6s wiper sweep.
+    // The ▶ toggle-off path does its own 0.5s fade pre-render and clears
+    // __boardShadeOn to skip this branch entirely.
     const thumbH2 = Math.min(52, Math.max(26, 0.034 * Math.min(g.W, g.H) + 13))
     const m2 = thumbH2 * 1.2, hrx2 = g.rx + m2, hry2 = g.ry + m2, B2 = 48
     const fade = document.createElementNS(NS, "path")
@@ -4483,7 +4492,8 @@ function ringFelt(segs, g){
       `a ${hrx2} ${hry2} 0 1 0 ${hrx2 * 2} 0 ` +
       `a ${hrx2} ${hry2} 0 1 0 ${-hrx2 * 2} 0 Z`)
     fade.setAttribute("fill-rule", "evenodd")
-    fade.setAttribute("class", "ring-focusshade ring-focusshade--wipe")
+    fade.setAttribute("class", "ring-focusshade "
+      + (window.__boardLastResultOk ? "ring-focusshade--wipe-success" : "ring-focusshade--wipe"))
     ;(top || svg).appendChild(fade)
   }
   window.__boardShadeOn = shadeOn
