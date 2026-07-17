@@ -4451,6 +4451,23 @@ function ringFelt(segs, g){
   // The darkening FADES IN at the speed of the flight (~.9s, darkest as the
   // assets land) — and only animates on first mount, not on every re-render.
   const shadeOn = ring16() && (boardFocusMode || !!boardSigning)
+  // BOARD-SUCCESS1 follow-up (2026-07-17, "no difference at all" — user
+  // caught this live via kdiag: board:result:shown fired correctly, the
+  // deployed file had the fix, but the fade was invisible regardless of
+  // its animation-duration): renderRingBoard's own SVG gets thrown away by
+  // root.replaceChildren on EVERY render() — the same "silently killed"
+  // trap boardFlyNftOffer's comment (~3690) already documents for a
+  // transform glide. render() fires on every game_state push, which is
+  // sub-second during an active session, so a one-shot fade element was
+  // being destroyed within a fraction of a second of being drawn — the
+  // 1.5s/4.25s duration on it never mattered because it never got to run.
+  // Fix: track a wall-clock deadline + which class is fading, and redraw
+  // the SAME fade on every render until the deadline passes, giving each
+  // fresh element a NEGATIVE animation-delay equal to real elapsed time so
+  // it resumes exactly where the destroyed one left off instead of
+  // restarting from opaque each time.
+  const wipeNow = Date.now()
+  const wipeActive = !shadeOn && window.__boardWipeUntil && wipeNow < window.__boardWipeUntil
   if(shadeOn){
     // user 2026-07-14 ("fat tire"): the hole now extends PAST the rim by
     // ~1.2× an NFT thumb height (the v8 clamp() below mirrors the CSS), so
@@ -4473,16 +4490,27 @@ function ringFelt(segs, g){
     shade.setAttribute("fill-rule", "evenodd")
     shade.setAttribute("class", "ring-focusshade" + (window.__boardShadeOn ? "" : " ring-focusshade--in"))
     ;(top || svg).appendChild(shade)
-  } else if(window.__boardShadeOn){
+    window.__boardWipeUntil = 0   // spotlight is back on — any pending wipe is moot
+  } else if(wipeActive || window.__boardShadeOn){
     // shade was on last paint and turned off THIS render (signing resolved /
-    // tx vanished): draw it one last time with a slow fade so it dissolves
-    // in step with whichever celebration boardShowResult just kicked off,
-    // instead of vanishing a beat before it (user 2026-07-15, failure case).
-    // SUCCESS runs confetti (~4.25s, boardCelebrate) — --wipe's 1.5s doused
-    // the spotlight mid-confetti, so success gets its own longer fade class
-    // timed to match; FAILURE keeps --wipe, tuned to the ~1.6s wiper sweep.
-    // The ▶ toggle-off path does its own 0.5s fade pre-render and clears
-    // __boardShadeOn to skip this branch entirely.
+    // tx vanished), OR a wipe from an earlier render is still within its
+    // window (see wipeActive comment above) — (re)draw it with a slow fade
+    // so it dissolves in step with whichever celebration boardShowResult
+    // just kicked off, instead of vanishing a beat before it (user
+    // 2026-07-15, failure case). SUCCESS runs confetti (~4.25s,
+    // boardCelebrate) — --wipe's 1.5s doused the spotlight mid-confetti, so
+    // success gets its own longer fade class timed to match; FAILURE keeps
+    // --wipe, tuned to the ~1.6s wiper sweep. The ▶ toggle-off path does
+    // its own 0.5s fade pre-render and clears __boardShadeOn to skip this
+    // branch entirely (wipeActive stays false since it only arms on the
+    // result-driven path below).
+    if(!wipeActive){
+      // first render of this wipe: arm the deadline off boardShowResult's ok flag
+      window.__boardWipeDurMs = window.__boardLastResultOk ? 4250 : 1500
+      window.__boardWipeClass = window.__boardLastResultOk ? "ring-focusshade--wipe-success" : "ring-focusshade--wipe"
+      window.__boardWipeUntil = wipeNow + window.__boardWipeDurMs
+    }
+    const elapsedMs = Math.max(0, window.__boardWipeDurMs - (window.__boardWipeUntil - wipeNow))
     const thumbH2 = Math.min(52, Math.max(26, 0.034 * Math.min(g.W, g.H) + 13))
     const m2 = thumbH2 * 1.2, hrx2 = g.rx + m2, hry2 = g.ry + m2, B2 = 48
     const fade = document.createElementNS(NS, "path")
@@ -4492,9 +4520,11 @@ function ringFelt(segs, g){
       `a ${hrx2} ${hry2} 0 1 0 ${hrx2 * 2} 0 ` +
       `a ${hrx2} ${hry2} 0 1 0 ${-hrx2 * 2} 0 Z`)
     fade.setAttribute("fill-rule", "evenodd")
-    fade.setAttribute("class", "ring-focusshade "
-      + (window.__boardLastResultOk ? "ring-focusshade--wipe-success" : "ring-focusshade--wipe"))
+    fade.setAttribute("class", "ring-focusshade " + window.__boardWipeClass)
+    fade.style.animationDelay = `-${elapsedMs}ms`   // resume mid-fade, not restart opaque
     ;(top || svg).appendChild(fade)
+  } else {
+    window.__boardWipeUntil = 0
   }
   window.__boardShadeOn = shadeOn
 
