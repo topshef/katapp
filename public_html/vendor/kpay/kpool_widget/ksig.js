@@ -121,12 +121,16 @@ function loadScript(relPath, isReady, label) {
 	})
 }
 
-const defaultReadUrl = ({ network, txid }) =>
-	location.pathname + `?action=txRead&network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
+const defaultReadUrl = ({ network, txid }) => {
+	const hapiBase = new URLSearchParams(location.search).get('hapi_base')
+	const hapiBaseQS = hapiBase ? `&hapi_base=${encodeURIComponent(hapiBase)}` : ''
+	return location.pathname + `?action=txRead&network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}${hapiBaseQS}`
+}
 
 async function fetchTx(readUrl, network, txid) {
 	const url = readUrl({ network, txid })
 	const res = await fetch(url)
+	window.showHapiDebug?.(res, 'ksig:txRead')
 	if (!res.ok) throw new Error(`txRead failed (${res.status})`)
 	return res.json()
 }
@@ -316,7 +320,9 @@ async function submitSignature({ publicKey, sigHex }, { network, txid, pch, read
 		// the signature was silently dropped. saveUrl may be a function (kpay-embed passes
 		// futureSaveUrl) or a string; fall back to page-relative for same-origin hosts.
 		const resolvedSaveUrl = (typeof saveUrl === 'function') ? saveUrl() : saveUrl
-		const postUrl = resolvedSaveUrl || (location.pathname + '?action=txSave')
+		const hapiBase = new URLSearchParams(location.search).get('hapi_base')
+		const hapiBaseQS = hapiBase ? `&hapi_base=${encodeURIComponent(hapiBase)}` : ''
+		const postUrl = resolvedSaveUrl || (location.pathname + `?action=txSave${hapiBaseQS}`)
 		const payload = {
 			network,
 			comment: 'KSIG offline',

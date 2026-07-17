@@ -39,11 +39,16 @@ function hexToBytes(hex) {
 	return bytes
 }
 
+const hapiBaseQS = () => {
+	const hapiBase = new URLSearchParams(location.search).get('hapi_base')
+	return hapiBase ? `&hapi_base=${encodeURIComponent(hapiBase)}` : ''
+}
+
 const defaultReadUrl = ({ network, txid }) =>
 	location.pathname +
-	`?action=txRead&network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
+	`?action=txRead&network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}${hapiBaseQS()}`
 
-const defaultSaveUrl = () => location.pathname + '?action=txSave'
+const defaultSaveUrl = () => location.pathname + `?action=txSave${hapiBaseQS()}`
 
 // Fallback pool. xproof-created scheduled multisig txs are pooled in the SHARED kpool
 // via kpos.uk/pool (which proxies to the hapi2 backend), not this site's local kpool.
@@ -57,6 +62,7 @@ const kposSaveUrl = ({ network }) =>
 
 async function readHex2(url) {
 	const res = await fetch(url)
+	window.showHapiDebug?.(res, 'signer:txRead')
 	if (!res.ok) return { ok: false }
 	const data = await res.json()
 	return { ok: true, hex2: data?.result?.hex2 || null, errors: data?.result?.errors }
