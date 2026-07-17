@@ -28,6 +28,41 @@ function splitAccountLabels(input){
 }
 
 
+// WC-NETSCOPE1 (page-level scoping): the WC bundle initialises for config
+// chains[0] (mainnet), so after a reload on a testnet game the restored testnet
+// session was invisible — getAccounts() empty ("no wallet connected") while a
+// live session existed — until some modal ensured the network. Scope the
+// connector to the game's network once it's known, so session restore + the
+// account picker are right from first paint. Only when a prior WC pairing
+// exists in storage: a visitor who never paired shouldn't pay the relay
+// handshake. The 3MB bundle usually lands AFTER the first game_state, so wait
+// for window.WC briefly (verified in the WC-NETSCOPE1 retest — at state+3.5s
+// the bundle wasn't up yet). Fire-and-forget; explicit actions (Sign, connect,
+// Authenticate) still ensureNetwork on demand.
+let _kwcScopeWaiter = null
+function kwcEarlyScope(net){
+  if(window.__kwcEarlyScoped || !net) return
+  let hasWcSession = false
+  try { hasWcSession = Object.keys(localStorage).some(k => k.startsWith("wc@2")) } catch {}
+  if(!hasWcSession) return
+  if(!window.WC?.ensureNetwork){
+    if(_kwcScopeWaiter) return
+    let tries = 0
+    _kwcScopeWaiter = setInterval(() => {
+      if(window.WC?.ensureNetwork || ++tries > 40){
+        clearInterval(_kwcScopeWaiter)
+        _kwcScopeWaiter = null
+        if(window.WC?.ensureNetwork) kwcEarlyScope(net)
+      }
+    }, 500)
+    return
+  }
+  window.__kwcEarlyScoped = true
+  window.WC.ensureNetwork(net)
+    .then(() => window.kauthPruneWcModals?.())
+    .catch(e => window.kdiag?.("wc:early-scope-fail", { network: net, error: String(e?.message || e) }))
+}
+
 const ACCOUNT_CACHE_KEY = `katomiaAccounts:${gameId}:${getOrCreatePlayerToken()}`
 
 function getCachedAccountLabels(){
@@ -325,24 +360,7 @@ function connect(onOpenAction){
     // modal still knows the game's network when re-adding after a 🗑️ exit.
     if(gameMeta?.network) window.__katomiaNetwork = gameMeta.network
 
-    // WC-NETSCOPE1 (page-level scoping): the WC bundle initialises for config
-    // chains[0] (mainnet), so after a reload on a testnet game the restored testnet
-    // session was invisible — getAccounts() empty ("no wallet connected") while a
-    // live session existed — until some modal ensured the network. Scope the
-    // connector to the game's network at first state so session restore + the
-    // account picker are right from first paint. Only when a prior WC pairing
-    // exists in storage: a visitor who never paired shouldn't pay the relay
-    // handshake. Fire-and-forget; explicit actions still ensureNetwork on demand.
-    if(gameMeta?.network && !window.__kwcEarlyScoped && window.WC?.ensureNetwork){
-      let hasWcSession = false
-      try { hasWcSession = Object.keys(localStorage).some(k => k.startsWith("wc@2")) } catch {}
-      if(hasWcSession){
-        window.__kwcEarlyScoped = true
-        window.WC.ensureNetwork(gameMeta.network)
-          .then(() => window.kauthPruneWcModals?.())
-          .catch(e => window.kdiag?.("wc:early-scope-fail", { network: gameMeta?.network, error: String(e?.message || e) }))
-      }
-    }
+    if(gameMeta?.network) kwcEarlyScope(gameMeta.network)
     
     document.body.dataset.tradingMode = gameMeta?.config?.tradingMode || ""
   
