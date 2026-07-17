@@ -39,12 +39,26 @@ function splitAccountLabels(input){
 // for window.WC briefly (verified in the WC-NETSCOPE1 retest — at state+3.5s
 // the bundle wasn't up yet). Fire-and-forget; explicit actions (Sign, connect,
 // Authenticate) still ensureNetwork on demand.
+// Prior-pairing detector. This bundle's WC Core persists to IndexedDB
+// (WALLET_CONNECT_V2_INDEXED_DB — verified in the 64c41ba iife; a localStorage
+// "wc@2…" check never matches). indexedDB.databases() enumerates WITHOUT
+// creating. Where the API is missing (older Safari) we err towards scoping —
+// a spare relay handshake beats an invisible restored session.
+async function kwcHasWcStorage(){
+  try { if(Object.keys(localStorage).some(k => k.startsWith("wc@2"))) return true } catch {}
+  try {
+    if(window.indexedDB?.databases){
+      const dbs = await indexedDB.databases()
+      return dbs.some(d => d.name === "WALLET_CONNECT_V2_INDEXED_DB")
+    }
+  } catch {}
+  return true
+}
+
 let _kwcScopeWaiter = null
-function kwcEarlyScope(net){
+async function kwcEarlyScope(net){
   if(window.__kwcEarlyScoped || !net) return
-  let hasWcSession = false
-  try { hasWcSession = Object.keys(localStorage).some(k => k.startsWith("wc@2")) } catch {}
-  if(!hasWcSession) return
+  if(!await kwcHasWcStorage()) return
   if(!window.WC?.ensureNetwork){
     if(_kwcScopeWaiter) return
     let tries = 0
