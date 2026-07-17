@@ -324,6 +324,25 @@ function connect(onOpenAction){
     // PROP-ADDACCT1: survives exitGame() (which nulls gameMeta) so the add-account
     // modal still knows the game's network when re-adding after a 🗑️ exit.
     if(gameMeta?.network) window.__katomiaNetwork = gameMeta.network
+
+    // WC-NETSCOPE1 (page-level scoping): the WC bundle initialises for config
+    // chains[0] (mainnet), so after a reload on a testnet game the restored testnet
+    // session was invisible — getAccounts() empty ("no wallet connected") while a
+    // live session existed — until some modal ensured the network. Scope the
+    // connector to the game's network at first state so session restore + the
+    // account picker are right from first paint. Only when a prior WC pairing
+    // exists in storage: a visitor who never paired shouldn't pay the relay
+    // handshake. Fire-and-forget; explicit actions still ensureNetwork on demand.
+    if(gameMeta?.network && !window.__kwcEarlyScoped && window.WC?.ensureNetwork){
+      let hasWcSession = false
+      try { hasWcSession = Object.keys(localStorage).some(k => k.startsWith("wc@2")) } catch {}
+      if(hasWcSession){
+        window.__kwcEarlyScoped = true
+        window.WC.ensureNetwork(gameMeta.network)
+          .then(() => window.kauthPruneWcModals?.())
+          .catch(e => window.kdiag?.("wc:early-scope-fail", { network: gameMeta?.network, error: String(e?.message || e) }))
+      }
+    }
     
     document.body.dataset.tradingMode = gameMeta?.config?.tradingMode || ""
   
