@@ -297,6 +297,18 @@ require_once "$docroot/headheader.php";
 // v2 list + modular widget modal. List reuses the existing ?action=txList
 // endpoint. The modal is the kpay widget mounted via window.KPOOL.open().
 
+window.showHapiDebug = function(res, label) {
+  let badge = document.getElementById('hapi-debug-badge')
+  if (!badge) {
+    badge = document.createElement('div')
+    badge.id = 'hapi-debug-badge'
+    badge.style.cssText = 'position:fixed;bottom:8px;left:8px;z-index:999999;background:rgba(0,0,0,0.8);color:#0f0;font-family:monospace;font-size:11px;line-height:1.4;padding:6px 8px;border-radius:6px;max-width:90vw;white-space:pre-wrap;word-break:break-all'
+    document.body.appendChild(badge)
+  }
+  const debug = res.headers.get('X-Hapi-Debug') || 'no X-Hapi-Debug header (route not instrumented, or non-admin IP)'
+  badge.textContent = `[${label}] ${debug}`
+}
+
 ;(() => {
 
   const DEEP = {
@@ -352,17 +364,20 @@ require_once "$docroot/headheader.php";
     const network = els.network.value
     const since   = els.since.value || 600
     const until   = els.until.value || 600
+    const hapiBase = new URLSearchParams(location.search).get('hapi_base')
 
     // keep the call relative to this page (portable if the folder moves)
     const url = `${location.pathname}?action=txList`
       + `&network=${encodeURIComponent(network)}`
       + `&since=${encodeURIComponent(since)}`
       + `&until=${encodeURIComponent(until)}`
+      + (hapiBase ? `&hapi_base=${encodeURIComponent(hapiBase)}` : '')
 
     els.list.innerHTML = `<div class="kp-empty">Loading…</div>`
 
     try {
       const res = await fetch(url)
+      window.showHapiDebug?.(res, 'v2:list')
       if (!res.ok) throw new Error(`txList failed (${res.status})`)
 
       const json = await res.json()
