@@ -213,6 +213,18 @@ require_once "$docroot/headheader.php";
 // ┴ ┴┴  └─┘└─┘┴─┘   ┴ ┴ └─  ╩═╝┴└─┘ ┴ 
 // kpool tx List
 
+function showHapiDebug(res, label) {
+  let badge = document.getElementById('hapi-debug-badge')
+  if (!badge) {
+    badge = document.createElement('div')
+    badge.id = 'hapi-debug-badge'
+    badge.style.cssText = 'position:fixed;bottom:8px;left:8px;z-index:999999;background:rgba(0,0,0,0.8);color:#0f0;font-family:monospace;font-size:11px;line-height:1.4;padding:6px 8px;border-radius:6px;max-width:90vw;white-space:pre-wrap;word-break:break-all'
+    document.body.appendChild(badge)
+  }
+  const debug = res.headers.get('X-Hapi-Debug') || 'no X-Hapi-Debug header (route not instrumented, or non-admin IP)'
+  badge.textContent = `[${label}] ${debug}`
+}
+
 function formatRemaining(ts) {
   const now = Math.floor(Date.now() / 1000)
   const diff = ts - now
@@ -246,6 +258,7 @@ async function loadTxList() {
 	const hapiBaseQS = hapiBase ? `&hapi_base=${encodeURIComponent(hapiBase)}` : ''
 
   const res = await fetch(`/future/?action=txList&network=${network}&since=${since}&until=${until}${hapiBaseQS}`)
+  showHapiDebug(res, 'list')
   const txs = (await res.json())?.result?.tx || []
 
   txs.sort((a, b) => a.txid.split('@')[1] - b.txid.split('@')[1])
