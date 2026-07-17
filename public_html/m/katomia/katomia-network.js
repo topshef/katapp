@@ -28,6 +28,55 @@ function splitAccountLabels(input){
 }
 
 
+// WC-NETSCOPE1 (page-level scoping): the WC bundle initialises for config
+// chains[0] (mainnet), so after a reload on a testnet game the restored testnet
+// session was invisible — getAccounts() empty ("no wallet connected") while a
+// live session existed — until some modal ensured the network. Scope the
+// connector to the game's network once it's known, so session restore + the
+// account picker are right from first paint. Only when a prior WC pairing
+// exists in storage: a visitor who never paired shouldn't pay the relay
+// handshake. The 3MB bundle usually lands AFTER the first game_state, so wait
+// for window.WC briefly (verified in the WC-NETSCOPE1 retest — at state+3.5s
+// the bundle wasn't up yet). Fire-and-forget; explicit actions (Sign, connect,
+// Authenticate) still ensureNetwork on demand.
+// Prior-pairing detector. This bundle's WC Core persists to IndexedDB
+// (WALLET_CONNECT_V2_INDEXED_DB — verified in the 64c41ba iife; a localStorage
+// "wc@2…" check never matches). indexedDB.databases() enumerates WITHOUT
+// creating. Where the API is missing (older Safari) we err towards scoping —
+// a spare relay handshake beats an invisible restored session.
+async function kwcHasWcStorage(){
+  try { if(Object.keys(localStorage).some(k => k.startsWith("wc@2"))) return true } catch {}
+  try {
+    if(window.indexedDB?.databases){
+      const dbs = await indexedDB.databases()
+      return dbs.some(d => d.name === "WALLET_CONNECT_V2_INDEXED_DB")
+    }
+  } catch {}
+  return true
+}
+
+let _kwcScopeWaiter = null
+async function kwcEarlyScope(net){
+  if(window.__kwcEarlyScoped || !net) return
+  if(!await kwcHasWcStorage()) return
+  if(!window.WC?.ensureNetwork){
+    if(_kwcScopeWaiter) return
+    let tries = 0
+    _kwcScopeWaiter = setInterval(() => {
+      if(window.WC?.ensureNetwork || ++tries > 40){
+        clearInterval(_kwcScopeWaiter)
+        _kwcScopeWaiter = null
+        if(window.WC?.ensureNetwork) kwcEarlyScope(net)
+      }
+    }, 500)
+    return
+  }
+  window.__kwcEarlyScoped = true
+  window.WC.ensureNetwork(net)
+    .then(() => window.kauthPruneWcModals?.())
+    .catch(e => window.kdiag?.("wc:early-scope-fail", { network: net, error: String(e?.message || e) }))
+}
+
 const ACCOUNT_CACHE_KEY = `katomiaAccounts:${gameId}:${getOrCreatePlayerToken()}`
 
 function getCachedAccountLabels(){
@@ -324,6 +373,8 @@ function connect(onOpenAction){
     // PROP-ADDACCT1: survives exitGame() (which nulls gameMeta) so the add-account
     // modal still knows the game's network when re-adding after a 🗑️ exit.
     if(gameMeta?.network) window.__katomiaNetwork = gameMeta.network
+
+    if(gameMeta?.network) kwcEarlyScope(gameMeta.network)
     
     document.body.dataset.tradingMode = gameMeta?.config?.tradingMode || ""
   

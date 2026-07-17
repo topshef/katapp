@@ -3031,6 +3031,20 @@ async function boardReadTxBytes(network, txid){
   return null
 }
 
+// SIGN-ERRSTR1: WalletConnect rejections are plain objects ({message, code, data}),
+// not Error instances — String(e) gave kdiag and the toast "[object Object]",
+// which is why the 2026-07-17 network-mismatch incident wasn't self-diagnosing.
+function boardWcErrStr(e){
+  if(e instanceof Error) return e.message
+  if(typeof e === "string") return e
+  if(e && typeof e === "object"){
+    const parts = [e.message, e.code != null ? `(code ${e.code})` : null].filter(Boolean)
+    if(parts.length) return parts.join(" ")
+    try { const j = JSON.stringify(e); if(j && j !== "{}") return j } catch {}
+  }
+  return String(e)
+}
+
 async function boardDirectSign(account){
   const wc = window.WC
   const tx = boardSigning?.tx
@@ -3044,6 +3058,17 @@ async function boardDirectSign(account){
   const accountId = account.id.split(":")[1] || account.id
   try {
     boardDiag("board:sign:click", { network, txid: tx.txid, accountId })
+    // WC-NETSCOPE1: the bundle initialises for config chains[0] (mainnet), and the
+    // board never scoped it — so after any reload the first Sign tap on a testnet
+    // game built a mainnet connector (mainnet-scoped pairing proposal, wrong-network
+    // signers). Same ensureNetwork dance as addAcctConnect / the modals, BEFORE any
+    // other WC call so getAccount/connect/signTx all see the game's network.
+    if(network && wc.ensureNetwork){
+      try {
+        await wc.ensureNetwork(network)
+        window.kauthPruneWcModals?.()   // WC-NETSWITCH1: drop the stale modal a rebuild left
+      } catch(e){ boardDiag("board:sign:ensure-network-fail", { network, error: boardWcErrStr(e) }) }
+    }
     let active = null
     try { active = await wc.getAccount?.() } catch {}
     if(!active) active = await wc.connect()          // pairing UI is the wallet's own
@@ -3068,8 +3093,12 @@ async function boardDirectSign(account){
     boardMySignedTx.set(tx.txid, Date.now())   // feeds boardCheckJustSucceeded's "vanished from pending" detector
     notify(`✍ Signed as ${signAs}`, "success", { timeout: 4000 })
   } catch(e){
-    boardDiag("board:sign:error", { error: String(e) })
-    notify(`Signing failed: ${e.message || e}`, "error", { timeout: 6000 })
+    // SIGN-ERRSTR1: readable message + the raw rejection as a structured field
+    // (not a string) so the next incident is self-explaining in kdiag.
+    let raw
+    try { raw = JSON.parse(JSON.stringify(e)) } catch {}
+    boardDiag("board:sign:error", { error: boardWcErrStr(e), code: e?.code, raw })
+    notify(`Signing failed: ${boardWcErrStr(e)}`, "error", { timeout: 6000 })
   }
 }
 

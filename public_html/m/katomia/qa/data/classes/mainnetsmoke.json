@@ -1,0 +1,35 @@
+{
+  "_about": "MAINNETSMOKE class -- real-mainnet confirmation that board+WC+kWallet is live, using kwallet-mainnet's KSIG-SALT-v1 scalar signer (QA-MAINNETSEND1, 2026-07-17). Unlike HBARXFER/WCNETSWITCH this spends real HBAR every run (transfer + node fee, ~0.0115 total) -- deliberately small, and balance-floor-guarded to skip (not fail) if the sender needs a top-up.",
+  "id": "MAINNETSMOKE",
+  "title": "Board proposal-and-sign HBAR transfer on real mainnet",
+  "status": "auto-proven",
+  "task": "QA-MAINNETSEND1",
+  "updated": "2026-07-17",
+  "oracle": {
+    "hard_assertions": [
+      "mirror node confirms the EXACT board txid (not an amount/recipient match -- QA-MAINNETSEND1 run 1 false-PASSed that way once) with result SUCCESS",
+      "sender's mirror-node balance stays above MIN_BALANCE_TINYBAR (1 HBAR) -- run SKIPS rather than spending down to zero"
+    ],
+    "benchmark": "qa/harness/hbar-mainnet-send.cjs (2026-07-17 20:06Z, game MF778Q, txid 0.0.10650022-1784318772-996000000) -- first-ever real-mainnet pass of this flow, manual/investigative. mainnet-smoke-auto.cjs is the kflow-reporting automation of the same scenario, first run 2026-07-17 20:24Z (game FCNSFD, txid 0.0.10650022-1784319861-457000000), also SUCCESS."
+  },
+  "dimensions": {
+    "network": { "ref": "network", "values": ["mainnet"], "note": "the deliberate exception to HBARXFER/WCNETSWITCH's testnet-only rule -- real value is the point (proves the KSIG-SALT-v1 scalar signer + full board path work where it counts)" },
+    "amount": { "ref": null, "name": "transfer amount", "values": ["0.01"] }
+  },
+  "constraints": [],
+  "cartesian_size": 1,
+  "pairwise_target": "n/a -- single instance",
+  "instances": [
+    {
+      "id": "MAINNETSMOKE-01",
+      "vector": { "network": "mainnet", "amount": "0.01" },
+      "run": "auto",
+      "why_manual": null,
+      "status": "pass",
+      "benchmark": "kflow run mainnetsmoke-*, commit 5ec6cd3, 2026-07-17 20:23-20:24 -- game FCNSFD, txid 0.0.10650022-1784319861-457000000, mirror SUCCESS."
+    }
+  ],
+  "fixtures": {
+    "auto": "qa/harness/mainnet-smoke-auto.cjs -- kwallet-mainnet (:8791, scalar-mode signer, account 0.0.10650022) paired sender + manual-entry recipient 0.0.10177400. NOT yet on a cron -- cadence/amount is a real-money-spend policy decision, left for the user to set (see QA-MAINNETSMOKE1 task). Runnable on demand: KWALLET_TOKEN=... node mainnet-smoke-auto.cjs."
+  }
+}

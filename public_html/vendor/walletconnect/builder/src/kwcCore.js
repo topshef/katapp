@@ -391,8 +391,19 @@ async function ensureNetwork(network) {
 
 
 
+// WC-ACCTFILTER1: session restore (DAppConnector.init) recreates a signer for EVERY
+// stored session regardless of the connector's network, and only getWalletAccounts()
+// filtered them — so the picker could say "no wallet connected" while getSigner()/
+// signTx happily used a wrong-network signer (signers[0] fallback = arbitrary network
+// with mixed sessions; strict wallets then reject the cross-network request). One
+// filter, applied at the single read point, keeps every API answer consistent.
+function signerOnCurrentNetwork(s) {
+  if (!currentNetwork) return true
+  try { return s.getLedgerId?.()?.toString?.() === currentNetwork } catch { return true }
+}
+
 function getSignersList() {
-  return dappConnector?.signers || []
+  return (dappConnector?.signers || []).filter(signerOnCurrentNetwork)
 }
 
 function findSigner(accountId) {
@@ -636,22 +647,14 @@ function getWalletNetwork() {
 
 
 // getWalletAccounts
-// All connected account IDs (a wallet session can pair multiple). Reads the
-// connector's signers directly (NOT via getSigner(), which trims to one) so the
-// full list survives. Additive — getAccount() still returns a single active one.
+// All connected account IDs (a wallet session can pair multiple). Reads the full
+// signers list (NOT getSigner(), which picks one) so the whole set survives.
+// Additive — getAccount() still returns a single active one. The network filter
+// lives in getSignersList() now (WC-ACCTFILTER1) so this answer can never disagree
+// with getSigner()/signTx again.
 async function getWalletAccounts() {
   await initializeWalletConnect()
-  if (!dappConnector?.signers?.length) return []
-  // Safety belt: only return accounts whose signer is actually on the connector's
-  // current network. A persisted session from the other network could otherwise be
-  // restored and leak a wrong-network account into the picklist. Each DAppSigner
-  // exposes its real ledger via getLedgerId().
-  return dappConnector.signers
-    .filter(s => {
-      if (!currentNetwork) return true
-      try { return s.getLedgerId?.()?.toString?.() === currentNetwork } catch { return true }
-    })
-    .map(s => s.getAccountId().toString())
+  return getSignersList().map(s => s.getAccountId().toString())
 }
 
 
@@ -1073,8 +1076,18 @@ async function signTxCoreV2 ({
     throw new Error("transactionBytes must be Uint8Array")
 
   const signer = await ensureWalletSignerReady()
-  if (!signer)
+  if (!signer) {
+    // WC-ACCTFILTER1: with network filtering on, a restored session from the OTHER
+    // network no longer silently signs — name the mismatch instead of the generic
+    // "no signer" so the user (and kdiag) can see exactly what to fix.
+    const stray = (dappConnector?.signers || []).find(s => !signerOnCurrentNetwork(s))
+    if (stray) {
+      let strayNet = "another network"
+      try { strayNet = stray.getLedgerId?.()?.toString?.() || strayNet } catch {}
+      throw new Error(`Connected wallet is on ${strayNet}, but this transaction is ${currentNetwork}. Reconnect your wallet on ${currentNetwork}.`)
+    }
     throw new Error("No signer available. Please reconnect wallet.")
+  }
 
   const activeAccountId =
     signer.getAccountId()?.toString()

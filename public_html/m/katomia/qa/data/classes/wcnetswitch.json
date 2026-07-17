@@ -1,0 +1,44 @@
+{
+  "_about": "WCNETSWITCH class -- regression coverage for WC-NETSCOPE1/WC-ACCTFILTER1 (2026-07-17: board never scoped the WC connector to the game's network, so a reload came up mainnet on a testnet game; session restore was invisible to getAccounts()). Same shape as HBARXFER (qa/harness/hbarxfer-auto-spike.cjs) -- kflow-reported, testnet-only, on the retest grid.",
+  "id": "WCNETSWITCH",
+  "title": "WalletConnect network scoping survives a reload",
+  "status": "auto-proven",
+  "task": "WC-NETSCOPE1",
+  "updated": "2026-07-17",
+  "oracle": {
+    "hard_assertions": [
+      "WCNETSWITCH-01: after a reload mid-signing, window.WC.getNetwork() reports the GAME's network, not the bundle's mainnet default",
+      "WCNETSWITCH-01: kdiag board:sign:saved fires (the Sign click actually completes) rather than board:sign:error",
+      "WCNETSWITCH-02: with NO user action after a reload, window.WC.getAccount()/getAccounts() surface the restored session on the game's network within ~15s (kwcEarlyScope)"
+    ],
+    "benchmark": "qa/harness/wc-netswitch-repro.cjs + wc-earlyscope-test.cjs (manual investigation harnesses, 2026-07-17) proved both failure modes live before the fix (64c41ba..3eb51a6); wc-netswitch-auto.cjs is the kflow-reporting automation of the same two scenarios."
+  },
+  "dimensions": {
+    "network": { "ref": "network", "values": ["testnet"], "note": "mainnet excluded from the recurring cron on principle, same as HBARXFER -- see qa/harness/mainnet-smoke-auto.cjs for the separate, low-frequency mainnet check" },
+    "trigger": { "ref": null, "name": "reload timing", "values": ["mid-signing", "post-pairing-no-action"] }
+  },
+  "constraints": [],
+  "cartesian_size": 2,
+  "pairwise_target": "n/a -- both instances run every cycle, exhaustive",
+  "instances": [
+    {
+      "id": "WCNETSWITCH-01",
+      "vector": { "network": "testnet", "trigger": "mid-signing" },
+      "run": "auto",
+      "why_manual": null,
+      "status": "pass",
+      "benchmark": "kflow run wcnetswitch-*, commit b957ddf, 2026-07-17 20:17-20:18 -- reload during the signing phase, network correctly reports testnet post-reload, Sign completes (board:sign:saved)."
+    },
+    {
+      "id": "WCNETSWITCH-02",
+      "vector": { "network": "testnet", "trigger": "post-pairing-no-action" },
+      "run": "auto",
+      "why_manual": null,
+      "status": "pass",
+      "benchmark": "kflow run wcnetswitch-*, commit b957ddf, 2026-07-17 20:17 -- pair, reload, NO click: restored session visible (network+account+accounts all populated) within 2s."
+    }
+  ],
+  "fixtures": {
+    "auto": "qa/harness/wc-netswitch-auto.cjs -- testnet kWallet (:8790) paired sender + manual-entry recipient, two independently kflow-reported instances per run. Scheduled every 2 hours via qa/harness/wc-netswitch-cron.sh (crontab), staggered against hbarxfer-cron.sh so they don't contend for the shared testnet kWallet. Skips (no game created) if kWallet has pending items or a human is mid-approval, mode restored unconditionally after."
+  }
+}
