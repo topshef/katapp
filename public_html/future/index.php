@@ -242,8 +242,10 @@ async function loadTxList() {
   const network = parms.get('network') || '<?php echo $network ?>'
 	const since = parms.get('since') || 600
 	const until = parms.get('until') || 600
+	const hapiBase = parms.get('hapi_base')
+	const hapiBaseQS = hapiBase ? `&hapi_base=${encodeURIComponent(hapiBase)}` : ''
 
-  const res = await fetch(`/future/?action=txList&network=${network}&since=${since}&until=${until}`)
+  const res = await fetch(`/future/?action=txList&network=${network}&since=${since}&until=${until}${hapiBaseQS}`)
   const txs = (await res.json())?.result?.tx || []
 
   txs.sort((a, b) => a.txid.split('@')[1] - b.txid.split('@')[1])

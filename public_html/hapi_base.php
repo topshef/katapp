@@ -2,16 +2,29 @@
 
 
 
-function get_hapi_base($network = null, $multiNode = false) {
+// admin-only override via ?hapi_base= — see kpool.php for the IP gate
+const HAPI_BASE_ALLOWED_OVERRIDES = [
+  'hapi4.hbar.live',
+  'hapi2.hbar.live/live',
+  'api.gomint.me/live',
+];
+
+function get_hapi_base($network = null, $multiNode = false, $override = null) {
   require_once "{$_SERVER['DOCUMENT_ROOT']}/elog.php";
   require_once "{$_SERVER['DOCUMENT_ROOT']}/kmon.php";
 
-  $envPath = dirname($_SERVER['DOCUMENT_ROOT']) . '/.env_hapi';
-  $env = is_readable($envPath) ? parse_ini_file($envPath) : [];
+  $override = trim($override ?? '');
 
-  elog($env);
+  if ($override && in_array($override, HAPI_BASE_ALLOWED_OVERRIDES, true)) {
+    $base = $override;
+  } else {
+    $envPath = dirname($_SERVER['DOCUMENT_ROOT']) . '/.env_hapi';
+    $env = is_readable($envPath) ? parse_ini_file($envPath) : [];
 
-  $base = trim($env['HAPI_BASE'] ?? '');
+    elog($env);
+
+    $base = trim($env['HAPI_BASE'] ?? '');
+  }
 
   if (!$base) {
     $base = 'hapi4.hbar.live';
