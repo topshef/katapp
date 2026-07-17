@@ -22,7 +22,8 @@
   .feedback{ background: #e8eef7; color: #2a5a78; }
   .cell.noted{ background: #e8eef7; color: #2a5a78; }   /* scoped to the verdict badge — plain .noted below is the notes-column width rule */
   .recorder{ border: 1px solid #cbb; border-radius: 12px; background: #fbf7ef; padding: 14px 18px; margin: 16px 0; }
-  .recorder h2{ margin: 0 0 8px; border: 0; font-size: 16px; }
+  .recorder summary{ margin: 0 0 8px; font-size: 16px; }
+  .recorder[open] summary{ margin-bottom: 12px; }
   .recorder select, .recorder textarea{ font-size: 13px; padding: 4px 6px; max-width: 100%; }
   .recorder textarea{ width: 100%; box-sizing: border-box; min-height: 64px; }
   .recorder button{ font-size: 13px; padding: 6px 14px; border-radius: 8px; border: 1px solid #aaa; background: #fff; cursor: pointer; }
@@ -34,7 +35,19 @@
   .steps{ font-size: 12px; color: #555; background: #f4f1e8; border-radius: 8px; padding: 8px 12px; margin-top: 8px; white-space: pre-wrap; }
   .filters button{ font-size: 12px; padding: 3px 10px; border-radius: 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; margin-right: 6px; }
   .filters button.on{ background: #2a5a78; color: #fff; border-color: #2a5a78; }
-  .gridwrap{ overflow-x: auto; }
+  .gridwrap{ overflow-x: auto; position: relative; }
+  .gridToolbar{ display: flex; justify-content: space-between; align-items: center; margin: 6px 0; flex-wrap: wrap; gap: 8px; }
+  .gridToolbar button{ font-size: 12px; padding: 4px 12px; border-radius: 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; }
+  /* fullscreen (user 2026-07-17): body's max-width/padding otherwise crop the
+     grid even when the browser window itself is fullscreen — put the Fullscreen
+     API target on .gridwrap itself so it gets the *entire* viewport, independent
+     of body layout. */
+  .gridwrap:fullscreen{ width: 100vw; height: 100vh; overflow: auto; background: #fff; padding: 20px; box-sizing: border-box; }
+  .gridwrap:-webkit-full-screen{ width: 100vw; height: 100vh; overflow: auto; background: #fff; padding: 20px; box-sizing: border-box; }
+  /* sticky case/commit column (user 2026-07-17): keep the case identity visible
+     while scrolling horizontally through commit history. */
+  #grid th:first-child, #grid td:first-child{ position: sticky; left: 0; z-index: 2; background: #fff; }
+  #grid th:first-child{ background: #f5f2ea; z-index: 3; }
   .noted{ max-width: 340px; }
   tr.clickable{ cursor: pointer; }
   tr.clickable:hover td{ background: #faf7ee; }
@@ -67,8 +80,9 @@
 is real recorded evidence — kflow <code>test:*</code> checkpoints in this seat's stream (the same convention the
 backend's katrun robot uses). <b>Tap any cell or row for the full run detail.</b></p>
 
-<div class="recorder" id="recorder">
-  <h2>🎬 Record a run / give feedback</h2>
+<details class="recorder" id="recorder">
+  <summary style="cursor:pointer; font-weight:600;">🎬 Record a run / give feedback — <span style="color:#a33">deprecated</span>
+    <span class="note" style="font-weight:400">(kept for reference; superseded by feedback sessions — see <a href="https://kpay.uk/devtools/kpad/?task=QA-UXGRID1" target="_blank">QA-UXGRID1</a> and <a href="https://kpay.uk/devtools/kpad/?task=FEEDBACK-COMMENTARY1" target="_blank">FEEDBACK-COMMENTARY1</a>)</span></summary>
   <div id="recIdle">
     <label>Test case:
       <select id="recCase"></select>
@@ -106,15 +120,21 @@ backend's katrun robot uses). <b>Tap any cell or row for the full run detail.</b
     Fail = the behaviour is wrong. If it's all just observations, log notes and close with whatever fits — the notes
     are the value.</p>
   </div>
-</div>
+</details>
 
 <h2>Retest grid</h2>
-<div class="filters" id="filters">
-  <button data-f="all" class="on">All sources</button><button data-f="human">Human 🖐</button><button data-f="auto">Automated 🤖</button><button data-f="feedback">Feedback 📝</button>
+<div class="gridwrap" id="gridWrap">
+  <div class="gridToolbar">
+    <div class="filters" id="filters">
+      <button data-f="all" class="on">All sources</button><button data-f="human">Human 🖐</button><button data-f="auto">Automated 🤖</button><button data-f="feedback">Feedback 📝</button>
+    </div>
+    <button type="button" id="fsToggle">⛶ Fullscreen</button>
+  </div>
+  <table id="grid"></table>
 </div>
-<div class="gridwrap"><table id="grid"></table></div>
 <p class="note">✓ pass · ～ meh · ✗ fail · ⚠ error · ○ started, no verdict · ×N = N runs (latest shown). Tap a cell for
-detail. The full configured case list lives in <a href="config.html">Configuration</a>.</p>
+detail. The full configured case list lives in <a href="config.html">Configuration</a>. Case/commit column stays
+pinned while scrolling; use ⛶ to review the full grid without the page's own margins cropping it.</p>
 
 <h2>Recent runs</h2>
 <div class="gridwrap"><table id="recent"><tr><th>When</th><th>Case</th><th>Verdict</th><th>Source</th><th>Commit</th><th>Notes</th></tr></table></div>
@@ -204,6 +224,18 @@ document.querySelectorAll("#filters button").forEach(b => b.onclick = () => {
   document.querySelectorAll("#filters button").forEach(x => x.classList.toggle("on", x === b))
   refresh()
 })
+
+// ── grid fullscreen (user 2026-07-17): Fullscreen API on #gridWrap itself, not
+// the whole page — body's max-width/padding otherwise still crop it even once
+// the browser window is fullscreen. ──────────────────────────────────────────
+const gridWrap = $("#gridWrap")
+const fsToggle = $("#fsToggle")
+const syncFsLabel = () => { fsToggle.textContent = document.fullscreenElement === gridWrap ? "⤡ Exit fullscreen" : "⛶ Fullscreen" }
+fsToggle.onclick = () => {
+  if(document.fullscreenElement === gridWrap) document.exitFullscreen()
+  else gridWrap.requestFullscreen?.()
+}
+document.addEventListener("fullscreenchange", syncFsLabel)
 
 // ── run-detail modal ──────────────────────────────────────────────────────────
 const SEVG = { sand: "⏳ sand", stone: "🪨 stone", rock: "⛏ rock" }
