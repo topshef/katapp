@@ -7,6 +7,9 @@ const HAPI_BASE_ALLOWED_OVERRIDES = [
   'hapi4.hbar.live',
   'hapi2.hbar.live/live',
   'api.gomint.me/live',
+  'alpha.katlab.kpay.live',
+  'bravo.katlab.kpay.live',
+  'charlie.katlab.kpay.live',
 ];
 
 function get_hapi_base($network = null, $multiNode = false, $override = null) {
