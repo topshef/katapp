@@ -1,6 +1,6 @@
 {
   "_about": "QA registry — the index the qa/ pages hydrate from. Change control happens HERE (and in the sibling JSON files), in git; the HTML pages are static viewers. Task: QA-UXGRID1.",
-  "updated": "2026-07-16",
+  "updated": "2026-07-17",
   "docs": [
     {
       "id": "guide",
@@ -58,7 +58,8 @@
   "classes": [
     "smoke",
     "chipdrop",
-    "hbarxfer"
+    "hbarxfer",
+    "chiparrange"
   ],
   "decisions": [
     {

@@ -223,14 +223,18 @@ function getFastThumb(url, imgEl){
 			if(!useThumbnail)
 				el.textContent = text
 
+			// BOARD-ARRANGE1: every chip carries its asset id — pair-line lookups
+			// and the physics' spawn-at-drop-point matching need it even for
+			// assets with no metadata yet (HBAR on the demo board, un-enriched
+			// tokens on a fresh join)
+			el.dataset.assetId = assetId
+
 			if(meta){
 				el.dataset.assetName = text
-				
+
 				const { serial } = parseAssetId(assetId)
 				el.dataset.assetName = serial ? text + " #" + serial : text
 
-
-				el.dataset.assetId = assetId
 				el.dataset.assetSymbol = meta.token_class?.symbol || ""
 				el.dataset.assetDescription = meta.token_instance_description || ""
 

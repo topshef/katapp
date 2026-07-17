@@ -1684,6 +1684,100 @@ function boardHash01(s){
   return ((h >>> 0) % 10000) / 10000
 }
 
+// ── BOARD-ARRANGE1: user-pinned chips ───────────────────────────────────────
+// A chip the user placed by hand (drag-to-arrange, or spawn-at-drop-point)
+// carries b.pin: it feels no layout spring and is immovable in collisions
+// (arrivals find space around it) — but walls still clamp it, so a resize
+// never strands it outside the felt. Pins persist per game in localStorage
+// as zone-LOCAL coords (radial/tangential — orientation-independent, so a
+// rotated ring restores them correctly). 🧹 Tidy clears them.
+let _boardPins = null                 // ident → {lx,ly}, lazy-loaded per game
+let _boardPendingSpawns = []          // {accountId, assetId, x, y, ts} — drop points awaiting their chip
+
+function boardPinsKey(){ return "katomiaBoardPins:" + (typeof gameId !== "undefined" && gameId ? gameId : "demo") }
+function boardPins(){
+  if(!_boardPins){
+    try { _boardPins = JSON.parse(localStorage.getItem(boardPinsKey()) || "{}") } catch { _boardPins = {} }
+  }
+  return _boardPins
+}
+function boardPinsSave(){
+  try {
+    const pins = boardPins()
+    const keys = Object.keys(pins)
+    // cap: drop oldest-inserted beyond 200 (object key order = insertion)
+    keys.slice(0, Math.max(0, keys.length - 200)).forEach(k => delete pins[k])
+    localStorage.setItem(boardPinsKey(), JSON.stringify(pins))
+  } catch {}
+}
+function boardPinRecord(b){
+  boardPins()[b.ident] = { lx: Math.round(b.x * 10) / 10, ly: Math.round(b.y * 10) / 10 }
+  boardPinsSave()
+}
+function boardPinsClear(){
+  _boardPins = {}
+  try { localStorage.removeItem(boardPinsKey()) } catch {}
+}
+function boardNotePendingSpawn(accountId, assetId, x, y){
+  if(!accountId || !assetId) return
+  _boardPendingSpawns = _boardPendingSpawns.filter(p => Date.now() - p.ts < 15000)
+  _boardPendingSpawns.push({ accountId, assetId, x, y, ts: Date.now() })
+}
+// consume a pending drop point matching this fresh body (any zone of the
+// drop account — offers land in |basket, picks in the shopper's basket too)
+function boardPendingSpawnTake(b, z){
+  const env = _boardSimEnv
+  if(!env || !_boardPendingSpawns.length) return null
+  const assetId = b.el?.dataset?.assetId || ""
+  const i = _boardPendingSpawns.findIndex(p =>
+    Date.now() - p.ts < 15000 && p.assetId === assetId && b.zoneKey.startsWith(p.accountId + "|"))
+  if(i < 0) return null
+  const p = _boardPendingSpawns.splice(i, 1)[0]
+  const gx = p.x - env.cx, gy = p.y - env.cy
+  const lx = gx * z.cos + gy * z.sin, ly = -gx * z.sin + gy * z.cos
+  return boardWallClamp(env, z, b, lx, ly, false)
+}
+
+// drag-to-arrange: place the chip under srcEl at screen point (x,y) IF that
+// point lies in the chip's own zone (judged by the wall clamp — a point
+// whose clamped position is far away wasn't really in the zone). Returns
+// true when the arrange happened (callers then skip drop semantics).
+function boardArrangeAt(srcEl, x, y){
+  const env = _boardSimEnv
+  if(!env || !srcEl) return false
+  let body = null
+  _boardSimBodies.forEach(b => { if(b.el === srcEl) body = b })
+  if(!body || body.inner) return false
+  const z = _boardSimZones.get(body.zoneKey)
+  if(!z) return false
+  const gx = x - env.cx, gy = y - env.cy
+  const lx = gx * z.cos + gy * z.sin, ly = -gx * z.sin + gy * z.cos
+  const p = boardWallClamp(env, z, body, lx, ly, false)
+  if(Math.hypot(p.x - lx, p.y - ly) > 48) return false
+  body.x = p.x; body.y = p.y
+  body.pin = true
+  boardPinRecord(body)
+  boardSimExcite()   // neighbours make room; the pinned chip itself won't budge
+  return true
+}
+
+// mouse dnd plumbing for arrange: remember which chip is being dragged
+// (dataTransfer is sealed during dragover/drop), and catch releases that
+// never reached a drop target (dragend with nothing handled — e.g. over the
+// hub) so an own-zone release still arranges.
+document.addEventListener("dragstart", e => {
+  const chip = e.target?.closest?.(".board-chip")
+  window.__boardDragEl = chip || null
+  window.__boardDropHandled = false
+}, true)
+document.addEventListener("drop", () => { window.__boardDropHandled = true }, true)
+document.addEventListener("dragend", e => {
+  const el = window.__boardDragEl
+  window.__boardDragEl = null
+  if(!el || window.__boardDropHandled) return
+  if(e.clientX || e.clientY) boardArrangeAt(el, e.clientX, e.clientY)
+})
+
 function boardSimExcite(){
   _boardSimCalm = 0
   _boardSimQuiet = 0
@@ -1787,6 +1881,7 @@ function boardSimTick(iters){
       const z = _boardSimZones.get(zk)
       if(!z) return
       movers.forEach(b => {
+        if(b.pin) return                         // user-pinned: no layout spring, ever
         if(boardStickyChips && b.stick) return   // 🧪 sticky: settled chips feel no springs
         if(shelves){
           if(b.tx != null){ b.x += (b.tx - b.x) * 0.22 * speed; b.y += (b.ty - b.y) * 0.22 * speed }
@@ -1823,8 +1918,12 @@ function boardSimTick(iters){
         // party takes the WHOLE separation (board-game feel: your placed
         // pieces stay put, arrivals find space around them). Both sticky
         // (walls squeezed them together) → both move, or they'd never part.
-        const aStick = boardStickyChips && A.stick && !(B.stick)
-        const bStick = boardStickyChips && B.stick && !(A.stick)
+        // User-pinned chips (BOARD-ARRANGE1) hold the same way, regardless
+        // of the 🧪 sticky setting.
+        const aHold = A.pin || (boardStickyChips && A.stick)
+        const bHold = B.pin || (boardStickyChips && B.stick)
+        const aStick = aHold && !bHold
+        const bStick = bHold && !aHold
         const f = 0.3 * speed                              // half each side × 0.6 step
         const plx = (px * z.cos + py * z.sin) * f
         const ply = (-px * z.sin + py * z.cos) * f
@@ -2272,6 +2371,19 @@ function boardOrganicApply(cx, cy, W, H, oval){
     // are never touched here — placed chips stay put by construction.
     recs.forEach(b => {
       if(b.x != null) return
+      if(!b.inner){
+        // BOARD-ARRANGE1: (a) a chip the user just dropped here spawns at
+        // the drop point; (b) a pinned arrangement persisted for this game
+        // restores. Both pin the body — arrivals route around it.
+        const ps = boardPendingSpawnTake(b, zrec)
+        if(ps){ b.x = ps.x; b.y = ps.y; b.pin = true; boardPinRecord(b); return }
+        const pin = boardPins()[b.ident]
+        if(pin && pin.lx != null){
+          const p = boardWallClamp(_boardSimEnv, zrec, b, pin.lx, pin.ly, false)
+          b.x = p.x; b.y = p.y; b.pin = true
+          return
+        }
+      }
       if(b.inner){
         // ghost spawns at the rim beside its own store pile ("out for sale —
         // near the counter"); the paint alignment settles it onto the line
@@ -3360,9 +3472,10 @@ function ringFooter(mine){
       const tidy = document.createElement("button")
       tidy.className = "ring-footer-play"
       tidy.textContent = "🧹"
-      tidy.title = "Tidy up: re-run the chip layout (clears sticky chip positions)"
+      tidy.title = "Tidy up: re-run the chip layout (clears sticky positions and hand-placed pins)"
       tidy.onclick = () => {
-        _boardSimBodies.forEach(b => { b.stick = false })
+        _boardSimBodies.forEach(b => { b.stick = false; b.pin = false })
+        boardPinsClear()
         boardSimExcite()
       }
       bar.appendChild(tidy)
@@ -3721,10 +3834,13 @@ async function boardToggleLock(account){
 function boardDropValid(p, account){
   if(!p || !account) return true                     // unknown → don't block
   if(p.pick) return isMyAccount(account)
-  if(p.rejectFrom) return account.id === p.rejectFrom
+  // BOARD-ARRANGE1: the previously-dead own-zone drops are now valid — they
+  // arrange the chip where it lands (the ondrop wrapper intercepts them
+  // before any offer/reject semantics could fire)
+  if(p.rejectFrom) return account.id === p.rejectFrom || account.id === p.rejectAccount
   if(!p.fromAccountId) return true
-  if(account.id === p.fromAccountId && !p.fromBasketToAccountId) return false
-  if(p.fromBasketToAccountId && account.id === p.fromBasketToAccountId) return false
+  if(account.id === p.fromAccountId && !p.fromBasketToAccountId) return true   // arrange in own store
+  if(p.fromBasketToAccountId && account.id === p.fromBasketToAccountId) return true   // arrange in that basket
   return true
 }
 
@@ -3748,6 +3864,15 @@ function boardDropTarget(el, account){
 
   el.ondrop = e => {
 
+    // BOARD-ARRANGE1: a drop landing in the dragged chip's OWN zone is an
+    // arrange — the chip pins where it fell; no offer/reject/withdraw fires
+    if(window.__boardDragEl && boardArrangeAt(window.__boardDragEl, e.clientX, e.clientY)){
+      e.preventDefault()
+      el.classList.remove("drag-over")
+      window.__boardDragEl = null
+      return
+    }
+
     // mouse-dnd pick payload routes through the shared executor
     const pickFrom = e.dataTransfer.getData("pickFrom")
     if(pickFrom){
@@ -3757,7 +3882,7 @@ function boardDropTarget(el, account){
         pick: true, pickFrom,
         assetId: e.dataTransfer.getData("assetId"),
         available: parseInt(e.dataTransfer.getData("available") || "1", 10)
-      }, account)
+      }, account, { x: e.clientX, y: e.clientY })
       return
     }
 
@@ -3792,6 +3917,16 @@ function boardDropTarget(el, account){
       return
     }
 
+    // own-zone drops whose arrange containment failed (release just outside
+    // the walls): dead-end here — before BOARD-ARRANGE1 these were blocked
+    // at dragover, so legacy coreDrop must never see them (it would read an
+    // own-zone drop as an offer)
+    if(fromId && !fromBasketTo && account.id === fromId) return
+    if(fromBasketTo && account.id === fromBasketTo) return
+
+    // a real offer via mouse dnd — remember the drop point so the arriving
+    // basket chip spawns where it was dropped (BOARD-ARRANGE1)
+    boardNotePendingSpawn(account.id, e.dataTransfer.getData("assetId"), e.clientX, e.clientY)
     coreDrop(e)
   }
 }
@@ -3848,9 +3983,12 @@ function boardTouchDrag(el, payload){
       if(!fly) return                        // plain tap — click proceeds
       fly.remove()
       halo?.remove()
+      // BOARD-ARRANGE1: released inside the chip's OWN zone = arrange, not
+      // an offer — the chip moves to the release point and pins there
+      if(boardArrangeAt(el, ev.clientX, ev.clientY)) return
       const hit = document.elementFromPoint(ev.clientX, ev.clientY)
       const target = hit?.closest?.("[data-drop-account]")
-      if(target?.__dropAccount) boardExecuteDrop(payload, target.__dropAccount)
+      if(target?.__dropAccount) boardExecuteDrop(payload, target.__dropAccount, { x: ev.clientX, y: ev.clientY })
     }
 
     window.addEventListener("pointermove", move)
@@ -3860,8 +3998,10 @@ function boardTouchDrag(el, payload){
 }
 
 // the drop semantics, shared by mouse dnd (boardDropTarget wraps the legacy
-// handler) and touch drag (executed directly from the payload)
-function boardExecuteDrop(p, account){
+// handler) and touch drag (executed directly from the payload). pt (optional
+// {x,y} screen coords of the release) feeds spawn-at-drop-point — the chip
+// the backend echoes back materialises where the user dropped it.
+function boardExecuteDrop(p, account, pt){
   if(!account || !p?.assetId) return
 
   if(p.pick){
@@ -3869,6 +4009,7 @@ function boardExecuteDrop(p, account){
     if(!isMyAccount(account)) return
     const amount = getTransferAmount(p.assetId, p.available || 1)
     if(amount === null) return
+    if(pt) boardNotePendingSpawn(account.id, p.assetId, pt.x, pt.y)
     boardNoteLocalMove(account.id, p.pickFrom, p.assetId)
     socket.send(JSON.stringify({
       type: "game_pick", gameId,
@@ -3905,6 +4046,7 @@ function boardExecuteDrop(p, account){
 
   const amount = getTransferAmount(p.assetId, p.available || 1)
   if(amount === null) return
+  if(pt) boardNotePendingSpawn(account.id, p.assetId, pt.x, pt.y)
   boardNoteLocalMove(account.id, p.fromAccountId, p.assetId)
   if(p.fromBasketToAccountId)
     socket.send(JSON.stringify({
