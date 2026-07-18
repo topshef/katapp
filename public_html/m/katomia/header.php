@@ -51,6 +51,12 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
     <?php if (defined('KATOMIA_BOARD_CONTEXT')): ?>
     <button type="button" class="app-menu-item" data-menu-settings>⚙ Settings</button>
     <?php endif; ?>
+    <!-- KAT-FEEDBACK1-ENTRYPOINT1: explicit route to the feedback modal for users who
+         don't know the long-press (falls back to the standalone page if the widget
+         script isn't on this page for any reason) -->
+    <button type="button" class="app-menu-item"
+            onclick="if(window.KFeedbackWidget){KFeedbackWidget.open()}else{location.href='/m/feedback/?product=katomia'}"
+            title="Tell us anything — you can also long-press anywhere on the page.">💬 Send feedback</button>
     <?php if ($katomiaIsAdmin): ?>
     <a class="app-menu-item" href="<?= htmlspecialchars($katomiaLegacyGameHref) ?>"
        title="Site admin — visible because you are on the admin IP (KATOMIA-ADMIN1). Opens the legacy game.php view for cross-comparison.">🛠 Admin</a>

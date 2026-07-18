@@ -417,5 +417,11 @@ fetch("./footer.html")
   })
 </script>
 
+<!-- KAT-FEEDBACK1-ENTRYPOINT1: widget on the welcome/games-list page too — long-press
+     works here and the header menu's Send feedback opens in place instead of falling
+     back to /m/feedback (backend-served canonical copy, KPAD-SELFFEED1) -->
+<script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
+        data-product="katomia-home"></script>
+
 </body>
 </html>
