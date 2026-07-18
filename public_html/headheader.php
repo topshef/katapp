@@ -167,6 +167,9 @@ if ($isAdmin) {
 		['label' => 'Create',               'href' => 'https://tools.gomint.me/create/NFT',  'target' => '_blank'],
 		['label' => 'Postcards',            'href' => '/m/playground/postcard-gomint.php',   'target' => ''],
 		['label' => 'Future transactions',  'href' => '/future/',                            'target' => ''],
+		// moved out of the public footer per feedback a6c9bf22 (was admin-gated there
+		// too, but the operator IS admin so it always showed at the bottom of the shop)
+		['label' => 'Bid labs',             'href' => '/m/bid',                              'target' => ''],
 		// Profile (wallet auth modal) — pending GM-AUTH1; added when the modal exists
 	];
 

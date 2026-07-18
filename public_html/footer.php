@@ -79,7 +79,9 @@
         <div class="row">
           <div class="col-md-12">
             <p>
-                <?php echo $html_copyright; if ($isAdmin) echo " |  <a href='/m/bid'>Bid labs</a>";?> 
+                <?php echo $html_copyright; /* Bid labs moved to the 🛠 Admin dropdown
+                (headheader.php) per feedback a6c9bf22 — it was admin-gated here too, but the
+                operator IS admin, so it always cluttered the public footer for them. */ ?>
             </p>
           </div>
         </div>
