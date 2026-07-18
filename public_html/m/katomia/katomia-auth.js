@@ -489,6 +489,20 @@ async function publishKatomiaAuthEnvelope(envelope){
     }
     kauthDiag("publish", { ok: true, network: json.network, accountId: json.accountId, authed: json.authed, weight: json.weight })
     notify?.("Binding published", "success", { timeout: 2500 })
+    // KAT-PROFILE-COMMITSTATUS1 (feedback 64b17b22): remember the published commitment
+    // locally so the profile can show current status instead of leaving the user to
+    // re-raise "just in case". Local record only (no backend revoke exists today) —
+    // the backend binding stays authoritative.
+    try {
+      const c = env.challenge || {}
+      localStorage.setItem("katomiaLastCommitment", JSON.stringify({
+        accountId: json.accountId || c.accountId || null,
+        network: json.network || c.network || null,
+        expiresAt: c.validity?.expiresAt || null,
+        publishedAt: new Date().toISOString()
+      }))
+      kauthRenderCurrentCommitment()
+    } catch(_){}
     // GAME-JOINRULE1: pages can react to a fresh commitment (index refreshes the now-
     // larger games list; a gated game page retries its rejected join).
     try { window.onKatomiaBindingPublished?.() } catch(e){ console.error("[auth] publish hook failed", e) }
@@ -501,11 +515,46 @@ async function publishKatomiaAuthEnvelope(envelope){
   }
 }
 
+// KAT-PROFILE-COMMITSTATUS1 (feedback 64b17b22): show the last published commitment's
+// status on the profile — "valid until <date>" while live, "expired <date>" after — so
+// the user can see at a glance whether they're already committed instead of re-raising
+// just in case. Reads the local record written at publish time (the user's own
+// suggested baby step); re-raising to EXTEND expiry still works exactly as before.
+function kauthRenderCurrentCommitment(){
+  const btn = document.getElementById("authBtn")
+  if(!btn || !btn.parentNode) return
+  let rec = null
+  try { rec = JSON.parse(localStorage.getItem("katomiaLastCommitment") || "null") } catch(_){}
+  let el = document.getElementById("authCurrentCommitment")
+  if(!rec){ if(el) el.remove(); return }
+  if(!el){
+    el = document.createElement("div")
+    el.id = "authCurrentCommitment"
+    el.style.cssText = "font-size:12px;margin:4px 0 8px"
+    el.title = "Recorded on this device when you last published — the backend binding is authoritative. Raise again any time to extend the expiry."
+    btn.parentNode.insertBefore(el, btn)
+  }
+  const exp = rec.expiresAt ? new Date(rec.expiresAt) : null
+  const live = exp && exp.getTime() > Date.now()
+  const who = (rec.accountId || "?") + (rec.network ? " · " + rec.network : "")
+  if(live){
+    el.style.color = "#16a34a"
+    el.textContent = "✓ Commitment live: " + who + " — valid until " + exp.toLocaleString()
+  } else if(exp){
+    el.style.color = "#b45309"
+    el.textContent = "⚠ Last commitment (" + who + ") expired " + exp.toLocaleString() + " — raise again to re-authenticate."
+  } else {
+    el.style.color = "#555"
+    el.textContent = "Commitment published " + new Date(rec.publishedAt).toLocaleString() + " (" + who + ") — no expiry recorded."
+  }
+}
+
 function initKatomiaAuth(){
   kauthInstallWcmZGuard()   // document-level; install even if this page has no profile modal
   const btn = document.getElementById("authBtn")
   if(!btn) return
   btn.onclick = () => runKatomiaRaiseCommitment()
+  kauthRenderCurrentCommitment()
 
   const copy = document.getElementById("authCopyBtn")
   if(copy) copy.onclick = () => copyKatomiaAuthEnvelope()
