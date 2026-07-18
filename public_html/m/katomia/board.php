@@ -87,7 +87,8 @@ require_once __DIR__ . '/kasset.php';
      session mode (start → REC pill top-left → stop → paste transcript/debrief
      → send & close through the normal signed /kfeedback route). Activated on
      the board (user 2026-07-16) — this page is where the QA narration happens. -->
-<script src="/vendor/feedback-widget/feedback-widget.js?v=<?= @filemtime($_SERVER['DOCUMENT_ROOT'] . '/vendor/feedback-widget/feedback-widget.js') ?>"
+<!-- KPAD-SELFFEED1: served from the backend (its canonical home) — no local copy -->
+<script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
         data-product="katomia-board"></script>
 
 <script src="/m/bid/localbase.min.js"></script>

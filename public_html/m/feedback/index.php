@@ -9,8 +9,6 @@
 require_once($_SERVER['DOCUMENT_ROOT'] . '/hapi_base.php');
 $hapi_base = get_hapi_base();
 $product = isset($_GET['product']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['product']) : 'feedback-page';
-$assetPath = $_SERVER['DOCUMENT_ROOT'] . '/vendor/feedback-widget/feedback-widget.js';
-$assetVer = is_file($assetPath) ? filemtime($assetPath) : time();
 ?>
 <!DOCTYPE html>
 <html>
@@ -31,7 +29,8 @@ $assetVer = is_file($assetPath) ? filemtime($assetPath) : time();
   <script>
     window.CONFIG = { HAPI_BASE: "<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>" }
   </script>
-  <script src="/vendor/feedback-widget/feedback-widget.js?v=<?= (int)$assetVer ?>"
+  <!-- KPAD-SELFFEED1: served from the backend (its canonical home) — no local copy -->
+  <script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
           data-product="<?= htmlspecialchars($product, ENT_QUOTES, 'UTF-8') ?>"
           data-auto-open="1"></script>
 </body>
