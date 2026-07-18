@@ -102,7 +102,7 @@
     <script src="assets/js/slick.js"></script>
     <script src="assets/js/accordions.js"></script>
 
-    <script language = "text/Javascript"> 
+    <script language = "text/Javascript">
       cleared[0] = cleared[1] = cleared[2] = 0; //set a cleared flag for each field
       function clearField(t){                   //declaring the array outside of the
       if(! cleared[t.id]){                      // function makes it static and global
@@ -112,3 +112,15 @@
           }
       }
     </script>
+
+    <?php
+    // feedback rollout (KPAD-SELFFEED1/GM-FEEDBACK-ROLLOUT1): long-press feedback widget on
+    // every page that renders this footer — backend-served canonical copy, absolute URL so it
+    // works from any path depth. The widget itself guards against double-include, so pages
+    // that used to carry their own tag are safe either way (their tags are removed anyway).
+    require_once "{$_SERVER['DOCUMENT_ROOT']}/hapi_base.php";
+    $kfwBase = htmlspecialchars(get_hapi_base(), ENT_QUOTES, 'UTF-8');
+    ?>
+    <script src="https://<?= $kfwBase ?>/feedback-widget.js"
+            data-api="<?= $kfwBase ?>"
+            data-product="gomint"></script>

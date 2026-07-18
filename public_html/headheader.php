@@ -200,11 +200,17 @@ if ($isAdmin) {
 			  
 <?php } ?>
 
-<?php if (isset($content['contact'])) {  ?>			  
+<?php if (isset($content['contact'])) {  ?>
               <li class="nav-item <?php if (basename($_SERVER['REQUEST_URI']) == 'contact.php') echo 'active'; ?>">
                 <a class="nav-link" href="contact.php">Contact Us</a>
               </li>
 <?php } ?>
+              <!-- feedback rollout (KPAD-SELFFEED1/GM-FEEDBACK-ROLLOUT1): discoverable route to the
+                   widget for users who don't know the long-press; opens the modal in place when the
+                   widget is on this page (footer.php includes it), else falls back to /m/feedback -->
+              <li class="nav-item">
+                <a class="nav-link" href="/m/feedback" onclick="if(window.KFeedbackWidget){KFeedbackWidget.open();return false}">💬 Feedback</a>
+              </li>
 <?php if (false) {  //disabled for now  ?>
 			   <li class="nav-item">
 				<button id='pair-btn-icon' class='header-icon'><img src='./assets/images/hashpack-icon-white-trans.svg' width=30>
