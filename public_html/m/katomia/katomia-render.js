@@ -1128,10 +1128,40 @@ function getFastThumb(url, imgEl){
 			return rowEl
 		}
 
+    // GAME-LABELS1: same icon/label lookup as contents.php's (games-list index page)
+    // displayLookup/displayValue/formatJoinRule — copied rather than imported because
+    // the index page declares them inline in its own <script> block, not as an
+    // exportable module. TODO: unify to one shared source once it's clear which side
+    // should own it.
+    const displayLookup = {
+      tradingMode: { proposal: "💡 Proposal", orderBook: "📊 Order Book", debug: "🛠️ debug" },
+      network: { playnet: "🧸 Playnet", testnet: "🟠 Testnet", mainnet: "🟣 Mainnet" },
+      visibility: { public: "🌍 Public", unlisted: "🔗 Unlisted", private: "🔒 Private" },
+      lockRule: { cluster: "☆ cluster", active: "☆☆ active", all: "🌍 all" },
+      joinRule: { '*': "🙌 anyone" },
+    }
+
+    function displayValue(group, value){
+      return displayLookup[group]?.[value] || value || ""
+    }
+
+    function formatJoinRule(rule){
+      if(typeof rule === "string") return displayValue("joinRule", rule)
+
+      // allowlist array or {rule,params} object → members-only chip
+      if(Array.isArray(rule)) return "🔐 listed accounts"
+
+      if(rule && rule.rule){
+        return "🔐 " + rule.rule + "(" + (rule.params || []).join(",") + ")"
+      }
+
+      return ""
+    }
+
     // ┬─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐  ╔═╗┌─┐┌┐┌┌─┐┬┌─┐  ╔╦╗┌─┐┌┬┐┌─┐
     // ├┬┘├┤ │││ ││├┤ ├┬┘  ║  │ ││││├┤ ││ ┬  ║║║├┤  │ ├─┤
     // ┴└─└─┘┘└┘─┴┘└─┘┴└─  ╚═╝└─┘┘└┘└  ┴└─┘  ╩ ╩└─┘ ┴ ┴ ┴
-    // render Config Meta          
+    // render Config Meta
     function renderConfigMeta(config){
       if(!config) return ""
 
@@ -1146,8 +1176,9 @@ function getFastThumb(url, imgEl){
       return entries
         .map(([k,v]) => {
           if(Array.isArray(v) || (v && typeof v === 'object')) return null
-          if(formats[k]) return `<span>${formats[k].replace("{}", v)}</span>`
-          return `<span>${k}: ${v}</span>`
+          const shown = displayLookup[k] ? displayValue(k, v) : v
+          if(formats[k]) return `<span class="meta-chip">${formats[k].replace("{}", shown)}</span>`
+          return `<span class="meta-chip">${k}: ${shown}</span>`
         })
         .filter(Boolean)
         .join("")
@@ -1200,7 +1231,7 @@ function getFastThumb(url, imgEl){
       if(!gameMetaEl || !gameMeta) return
 
       const title = gameMeta.profile?.name || ""
-      const joinText = String(gameMeta.joinRule || "").trim()
+      const joinText = formatJoinRule(gameMeta.joinRule)
       const adminTools = await renderGameAdminTools()
 
       if(token !== _mainRenderToken) return
@@ -1213,9 +1244,9 @@ function getFastThumb(url, imgEl){
 
         <div class="game-meta-row">
           <span>ID: ${gameMeta.id} ${adminTools}</span>
-          <span>Visibility: ${gameMeta.visibility}</span>
-          ${joinText ? `<span>Join: ${joinText}</span>` : ""}
-          <span>Lock: ${gameMeta.lockRule}</span>
+          <span class="meta-chip">Visibility: ${displayValue("visibility", gameMeta.visibility)}</span>
+          ${joinText ? `<span class="meta-chip">Join: ${joinText}</span>` : ""}
+          <span class="meta-chip">Lock: ${displayValue("lockRule", gameMeta.lockRule)}</span>
           ${renderConfigMeta(gameMeta.config)}
         </div>
       `
