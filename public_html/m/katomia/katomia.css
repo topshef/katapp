@@ -1567,6 +1567,13 @@ svg .svg-sell{
   flex:1;
   justify-content:center;
   text-align:center;
+
+  /* UI-BUTTONMODERN1: glassy base — translucent tint (per-button below) over a
+     blurred backdrop, soft edge instead of the old flat #ccc border */
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  border:1px solid rgba(0,0,0,.06);
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
 }
 
 #createOrderDev{
@@ -1670,45 +1677,59 @@ svg .svg-sell{
   margin-top:10px;
   width:100%;
 
-  background:#eee;
+  background:rgba(0,0,0,.04);
   color:#555;
+  border-color:rgba(0,0,0,.06);
 }
 
 
 #createOrderExit:hover{
-  background:#ddd;
+  background:rgba(0,0,0,.07);
 }
 
+/* UI-BUTTONMODERN1: these used to be flat deep fills (#6ea875/#6d8fb3/#b78383/#999)
+   with the global button rule's dark #333 text on top — confirmed via playwright as
+   illegible ("dark text on deep colour"). Now a light glass tint of the same hue,
+   with matching-hue text instead of the inherited dark default, so contrast holds
+   without abandoning the green/blue/red/gray semantics (create/edit/delete/truncate). */
 #createOrderSubmit{
-  background:#6ea875;
+  background:rgba(110,168,117,.22);
+  color:#2f6b3a;
+  border-color:rgba(110,168,117,.4);
 }
 
 #createOrderEdit{
-  background:#6d8fb3;
+  background:rgba(109,143,179,.22);
+  color:#2f5578;
+  border-color:rgba(109,143,179,.4);
 }
 
 #createOrderDelete{
-  background:#b78383;
+  background:rgba(183,131,131,.22);
+  color:#7a3a3a;
+  border-color:rgba(183,131,131,.4);
 }
 
 #createOrderTruncate{
-  background:#999;
+  background:rgba(153,153,153,.22);
+  color:#555;
+  border-color:rgba(153,153,153,.35);
 }
 
 #createOrderSubmit:hover{
-  background:#639a69;
+  background:rgba(110,168,117,.34);
 }
 
 #createOrderEdit:hover{
-  background:#6485a7;
+  background:rgba(109,143,179,.34);
 }
 
 #createOrderDelete:hover{
-  background:#aa7676;
+  background:rgba(183,131,131,.34);
 }
 
 #createOrderTruncate:hover{
-  background:#8d8d8d;
+  background:rgba(153,153,153,.34);
 }
 
 @media (max-width:768px){
