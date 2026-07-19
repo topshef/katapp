@@ -234,7 +234,13 @@ function formatJoinRule(rule){
   if(Array.isArray(rule)) return "🔐 listed accounts"
 
   if(rule && rule.rule){
-    return "🔐 " + rule.rule + "(" + (rule.params || []).join(",") + ")"
+    const params = rule.params || []
+    // GAME-JOINUI1: readable summaries for the known rule engines
+    // (katomiaHelpers.js joinRules) — raw "rule(params)" stays as the
+    // fallback for any rule type not covered here.
+    if(rule.rule === "accountGroup") return "🔐 " + (params[0] || "group") + " group"
+    if(rule.rule === "accountIdRange") return "🔐 account " + (params[0] ?? "0") + "–" + (params[1] ?? "∞")
+    return "🔐 " + rule.rule + (params.length ? "(" + params.join(",") + ")" : "")
   }
 
   return ""
