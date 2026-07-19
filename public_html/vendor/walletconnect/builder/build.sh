@@ -147,6 +147,21 @@ tar -czf "$ARCHIVE_PATH" -C "$SNAPSHOT_PATH" . || true
 
 
 # --------------------------------------------------
+# Publish to shared snapshot store (WC-LABPROP1)
+# --------------------------------------------------
+# Clean-commit snapshots are immutable and content-addressed, so they live in
+# ONE box-wide store that every seat/site serves from (via the snapshots-shared
+# symlink + .htaccess fallback) — a git pin flip can then never outrun its
+# bundle. Dirty builds stay seat-local. First write wins; never overwrite.
+
+KWC_STORE="${KWC_STORE:-/var/www/kwc-snapshots}"
+if [ "$GITSTATUS" = "clean" ] && [ -d "$KWC_STORE" ] && [ ! -d "$KWC_STORE/$SNAP_NAME" ]; then
+  cp -r "$SNAPSHOT_PATH" "$KWC_STORE/$SNAP_NAME"
+  chown -R www-data:www-data "$KWC_STORE/$SNAP_NAME" 2>/dev/null || true
+  echo "✔ Published to store ${KWC_STORE}/${SNAP_NAME}"
+fi
+
+# --------------------------------------------------
 # Update Snapshot Pointers (directory-level symlinks)
 # --------------------------------------------------
 

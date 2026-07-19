@@ -1,187 +1,173 @@
 <?php
 /**
- * -lazyhydrate.php
+ * lazy-hydrate.php
  *
- * Generic pull-through cache hydrator.
+ * Pull-through cache for missing kwc build artifacts.
  *
- * When a requested file does not exist locally, Apache rewrites
- * the request to this script. This script:
+ * Apache rewrites any /releases/<version>/* or /snapshots/<hash>/* request whose
+ * file exists neither locally nor in the shared store to this script. It fetches
+ * the artifact set from the first origin with a VALID copy, persists it (into the
+ * shared store when present, so every seat on this box benefits), then serves it.
  *
- * 1. Validates the requested path.
- * 2. Attempts to fetch the same relative path from one of the
- *    configured origin servers.
- * 3. If successful, writes the file locally (atomic write).
- * 4. Redirects the client back to the original URL.
+ * This is the cross-server hydration path: to hydrate between castles, add the
+ * other servers' builder URLs to $origins below. Within one box the shared store
+ * (snapshots-shared -> /var/www/kwc-snapshots) normally answers first and this
+ * script never runs.
  *
- * This enables lazy hydration of public artifacts without cron,
- * SSH, or push-based deployment.
- *
- * IMPORTANT:
- * - This script only works for publicly accessible origin files.
- * - Ensure this directory is writable by PHP.
- * - Adjust path validation rules carefully.
+ * WC-LABPROP1 hardening (2026-07-19) — the previous version:
+ *   - lost its rewrite context on double internal rewrite (REDIRECT_gitCommit
+ *     unset -> bailed with a 200 'UJ39848' console.log stub)
+ *   - tested an undefined $ext, so even a good fetch never registered as success
+ *   - persisted origin ERROR BODIES as the artifact (origins answer 200 for their
+ *     own hydrate errors) — that is how 52-byte stubs got written under immutable
+ *     snapshot paths on lab1/main
+ * Now: context is re-derived from the request URI, bodies are validated before
+ * being persisted, failures are real 404s with no-store, self-origin is skipped,
+ * and hydrate sub-requests carry X-KWC-Hydrate so two hydrators can never recurse
+ * into each other.
  */
 
-// -------------------------------
-// Configuration
-// -------------------------------
 require_once "{$_SERVER['DOCUMENT_ROOT']}/assets/php/elog.php";
 
-$appName    = $_SERVER['REDIRECT_appName'] ?? false;
-$appFilename = $_SERVER['REDIRECT_fileName'] ?? null;
-$appVersion = $_SERVER['REDIRECT_appVersion'] ?? false;
-$gitCommit  = $_SERVER['REDIRECT_gitCommit'] ?? false;
+// a fellow hydrator asking us — we don't have the file either (or Apache would have
+// served it before rewriting to us). Answer 404 immediately, never recurse.
+if (!empty($_SERVER['HTTP_X_KWC_HYDRATE']))
+    hydrate_fail(404, 'UJ39849 no artifact here (hydrate sub-request, not recursing)');
 
-elog([$_GET, $_SERVER, $_ENV, getenv()]);
+// -------------------------------
+// Context — the request URI is the reliable source (REDIRECT_* env vars gain a
+// REDIRECT_ prefix per internal rewrite round and get lost); envs are fallback.
+// -------------------------------
+$appName     = 'kwc';
+$appFilename = 'kwc.iife';
+$appVersion  = false;
+$gitCommit   = false;
 
-if ($appVersion) $buildDir = "releases/$appVersion";
-if ($gitCommit)  $buildDir = "snapshots/$gitCommit";
-// elog(__DIR__); // where we are
+$reqPath = parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH) ?: '';
+if (preg_match('#/releases/([^/]+)/#', $reqPath, $m)) $appVersion = $m[1];
+elseif (preg_match('#/snapshots/([a-f0-9]{7,40})/#', $reqPath, $m)) $gitCommit = $m[1];
 
-if (!$appVersion && !$gitCommit) {
-    javascript_exit('error UJ39848 invalid hydrate context');
+if (!$appVersion && !$gitCommit) foreach ($_SERVER as $k => $v) {
+    if ($v && substr($k, -9) === 'gitCommit' && preg_match('/^[a-f0-9]{7,40}$/', $v)) $gitCommit = $v;
+    if ($v && substr($k, -10) === 'appVersion') $appVersion = $v;
 }
 
-// does this work for "latest" etc? if the remote is a symlink this will be copied local as actual files...zz
+// mutable pointers (latest/hottest/dirty) are seat-local by design — never hydrated
+if (!$appVersion && !$gitCommit)
+    hydrate_fail(404, 'UJ39848 invalid hydrate context (no immutable version in request)');
 
-$localDir = __DIR__;
+$buildDir = $appVersion ? "releases/$appVersion" : "snapshots/$gitCommit";
 
-// List of origin base URLs (no trailing slash)
+// snapshots persist into the shared store when the symlink exists (all seats gain
+// the artifact at once); releases, or store-less installs, stay local.
+$snapRoot = ($gitCommit && is_dir(__DIR__ . '/snapshots-shared')) ? __DIR__ . '/snapshots-shared' : __DIR__ . '/snapshots';
+$localDir = $appVersion ? __DIR__ . "/releases/$appVersion" : "$snapRoot/$gitCommit";
+
+// -------------------------------
+// Origins (no trailing slash). Self is skipped at fetch time, so the same list
+// can ship everywhere. Cross-server: append other castles' builder URLs here.
+// -------------------------------
 $origins = [
     'https://swap.kpay.live/vendor/walletconnect/builder',
-    // 'https://backup.example.com/builder'
+    'https://lab1.katlab.kpay.live/vendor/walletconnect/builder',
+    'https://lab2.katlab.kpay.live/vendor/walletconnect/builder',
+    'https://lab3.katlab.kpay.live/vendor/walletconnect/builder',
 ];
+$selfHost = strtolower($_SERVER['HTTP_HOST'] ?? '');
 
-// echo "<PRE>GH82738 basepath = $basepath";
+// must match the naming in build.sh — the .js is the artifact, the rest is best-effort
+$requiredFile  = "$appFilename.js";
+$optionalFiles = ["$appFilename.js.map", 'build.md', 'build.json', "$appName.tar.gz"];
 
 $isSuccess = false;
 $debug = [];
 
-// this must match the naming in build.sh  consider using tar.gz instead via shell
-$fileToCopy = ["$appFilename.js", "$appFilename.js.map", 'build.md', 'build.json', "$appName.tar.gz"];
-
 foreach ($origins as $origin) {
-	// foreach (['js', 'js.map', 'md', 'json', 'tar.gz'] as $ext) {
-	foreach ($fileToCopy as $filename) {
-		$remotePath = "$origin/$buildDir/$filename";
-		$localPath = "$localDir/$buildDir/$filename";
-		// if (file_exists($localPath)) continue;  // 
-		if (file_exists($localPath)) javascript_exit('unexpected error UJ83744 server local file already exists');
-		
-		// echo "pull: $localPath <= $remotePath\n";
-		$context = stream_context_create(['http' => ['ignore_errors' => true]]);
-		$raw = file_get_contents($remotePath, false, $context);
-		$headers = $http_response_header ?? [];
-		$status = get_final_status($headers);
-		// elog($headers, "status = $status from $remotePath");
-		
-		$isOk = $status >= 200 && $status < 300 && strlen($raw) > 0;
-		if (!$isOk ) elog($headers, "\nYH83744 status=$status failed to fetch $remotePath");
-		else elog("\nok fetch $remotePath");
+    if (strtolower(parse_url($origin, PHP_URL_HOST) ?: '') === $selfHost) continue;
 
-		//fatal if js missing. others optional
-		if (!$isOk  && $ext == 'js') {
-			$debug[] = "error DW39244 failed to hydrate artifact $appName $appVersion $gitCommit $remotePath";
-			break; // try next origin
-		}
-		// elog($raw);
-		if (!$isOk) continue;
-		
-		// $resput = file_put_contents($localPath, $raw);
-		if (!atomic_write($localPath, $raw) && $ext == 'js')
-			javascript_exit("error RH23744 failed to save valid artifact $appName $appVersion $gitCommit");
-		
-		// elog("resput=$resput writing $localPath");
-		// if (!$resput && $ext == 'js') javascript_exit("error RH23744 failed to save valid artifact $appName $appVersion $gitCommit");
-		
-		if ($ext == 'js') $isSuccess = true; // we're done, we have the artifact
-	}
-	
-	if ($isSuccess) break;
-} //end foreach origins
-elog($debug, "x debug entries HJ87374");
+    $raw = fetch_artifact("$origin/$buildDir/$requiredFile");
+    if (!looks_valid($requiredFile, $raw)) {
+        $debug[] = "DW39244 no valid $requiredFile at $origin/$buildDir";
+        continue;
+    }
+    if (!atomic_write("$localDir/$requiredFile", $raw))
+        hydrate_fail(500, "RH23744 failed to save valid artifact $appName $appVersion $gitCommit");
+    $isSuccess = true;
 
-if (!$isSuccess) javascript_exit(json_encode($debug));
+    foreach ($optionalFiles as $filename) {
+        $opt = fetch_artifact("$origin/$buildDir/$filename");
+        if (looks_valid($filename, $opt)) atomic_write("$localDir/$filename", $opt);
+    }
+    break;
+}
 
-// serve js script "$localDir/$basepath.js"
-$jsPath = "$localDir/$basepath.js";
+if (!$isSuccess) {
+    elog($debug, 'lazy-hydrate: all origins failed');
+    hydrate_fail(404, "DW39244 failed to hydrate $buildDir from any origin");
+}
 
-if (!file_exists($jsPath))
-    javascript_exit("error JS94833 hydrated js missing after success");
+elog("lazy-hydrate: hydrated $buildDir into $localDir");
 
-$size = filesize($jsPath);
-if (!$size)
-    javascript_exit("error JS94834 hydrated js empty after write");
+// -------------------------------
+// Serve the hydrated js
+// -------------------------------
+$jsPath = "$localDir/$requiredFile";
+if (!file_exists($jsPath) || !($size = filesize($jsPath)))
+    hydrate_fail(500, 'JS94833 hydrated js missing/empty after success');
 
 header('Content-Type: application/javascript');
 header('Content-Length: ' . $size);
-header('Cache-Control: public, max-age=31536000, immutable');
-if ($gitCommit && $gitCommit !== 'latest' && $gitCommit !== 'hottest') {
-    header('Cache-Control: public, max-age=31536000, immutable');
-} else {
-    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
-}
-
+header('Cache-Control: public, max-age=31536000, immutable'); // only immutable versions reach this point
 readfile($jsPath);
 exit;
 
 
-//helpers
+// -------------------------------
+// Helpers
+// -------------------------------
 
-function javascript_exit($msg) {
-	header('Content-Type: application/javascript');	
-	exit("console.log('$msg')");
+function fetch_artifact($url) {
+    $context = stream_context_create(['http' => [
+        'ignore_errors' => true,
+        'timeout'       => 20,
+        'header'        => "X-KWC-Hydrate: 1\r\n",
+    ]]);
+    $raw = @file_get_contents($url, false, $context);
+    $status = get_final_status($http_response_header ?? []);
+    if ($status < 200 || $status >= 300) { elog("YH83744 status=$status fetching $url"); return false; }
+    return $raw;
+}
+
+// never persist an origin's error body as an artifact — that is the poison vector
+function looks_valid($filename, $raw) {
+    if ($raw === false || !strlen($raw)) return false;
+    if (strncmp($raw, "console.log('", 13) === 0) return false;       // legacy 200-stub from an unfixed origin
+    if (substr($filename, -3) === '.js' && strlen($raw) < 10240) return false; // real bundles are MBs, stubs are bytes
+    return true;
+}
+
+function hydrate_fail($status, $msg) {
+    elog("lazy-hydrate fail $status: $msg");
+    http_response_code($status);
+    header('Content-Type: text/plain');
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    exit("hydrate: $msg");
 }
 
 function get_final_status(array $headers) {
-    $status = null;
-
-    foreach ($headers as $line) {
-        if (strpos($line, 'HTTP/') === 0) {
-            preg_match('#HTTP/\d+\.\d+\s+(\d+)#', $line, $m);
-            $status = isset($m[1]) ? (int)$m[1] : null;
-        }
-    }
-
+    $status = 0;
+    foreach ($headers as $line)
+        if (strpos($line, 'HTTP/') === 0 && preg_match('#HTTP/\S+\s+(\d+)#', $line, $m)) $status = (int)$m[1];
     return $status;
 }
 
 function atomic_write($path, $data) {
     $dir = dirname($path);
-    if (!is_dir($dir) && !mkdir($dir, 0755, true))
-        return false;
+    if (!is_dir($dir) && !mkdir($dir, 0755, true)) return false;
 
     $tmp = $path . '.tmp.' . uniqid('', true);
-
-    if (file_put_contents($tmp, $data, LOCK_EX) === false) {
-        @unlink($tmp);
-        return false;
-    }
-
-    if (!rename($tmp, $path)) {
-        @unlink($tmp);
-        return false;
-    }
-
+    if (file_put_contents($tmp, $data, LOCK_EX) === false) { @unlink($tmp); return false; }
+    if (!rename($tmp, $path)) { @unlink($tmp); return false; }
+    @chmod($path, 0644);
     return true;
 }
-
-
-
-
-//  we coudl fetch a tar.gz or cycle thru artifacts.. maybe best fetch tar.gz and extract
-// and or do it from shell 
-// $cmd = sprintf(
-    // 'tar -xzf %s -C %s',
-    // escapeshellarg($archive),
-    // escapeshellarg($targetDir)
-// );
-
-// exec($cmd, $output, $status);
-
-// if ($status !== 0) {
-    // throw new Exception("Extraction failed");
-// }
-
-
-
