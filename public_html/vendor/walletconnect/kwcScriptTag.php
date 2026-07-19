@@ -12,12 +12,12 @@ elog($kwc, "loading script type $kwc->script_type from $kwc->url");
 function getKwc($in) {
 
   $kwc_root = $in['kwc_root'] ?? '/vendor/walletconnect';
-  // WC-ACCTFILTER1 (promoted 2026-07-17): 64c41ba = network-consistent signer reads
-  // (getSigner/getAccount/getAccounts all filter to the connector's network; signTx
-  // names a cross-network mismatch instead of "no signer"). Built + served from this
-  // site's builder/snapshots/64c41ba/. Roll back to 17f774f if ever needed
-  // (= WC-NETSWITCH1 double-modal fix + WC-SESSIONDISPOSE1 relay dispose).
-  $kwc_version = $in['kwc_version'] ?? '64c41ba';  //prev 17f774f / 4c7696e / 4f74b48 / 53216ab — override via ?kwc_version=… for A/B comparison
+  // GM-TOASTBREAK1 (promoted 2026-07-19): aa0fdbc = success-toast line break
+  // between "Transaction submitted" and the "View receipt <txid>" link (was
+  // running together, feedback 97da4777). Built + served from this site's
+  // builder/snapshots/aa0fdbc/. Roll back to 64c41ba if ever needed
+  // (= WC-ACCTFILTER1 network-consistent signer reads).
+  $kwc_version = $in['kwc_version'] ?? 'aa0fdbc';  //prev 64c41ba / 17f774f / 4c7696e / 4f74b48 / 53216ab — override via ?kwc_version=… for A/B comparison
 
   if (preg_match('/^[0-9a-fA-F]+$/', $kwc_version)) { // hex.. it's a commit snapshot
     $commit = $kwc_version;
