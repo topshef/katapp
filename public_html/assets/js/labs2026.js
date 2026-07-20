@@ -602,15 +602,30 @@ function renderTransfer(xfer, dealdata) {
 
 	let primary
 
+	// GMDEALDISPLAY-CHIPLEAK1: chipify() (below) globally regex-replaces any {var}
+	// placeholder with a <span class='code'>...</span> chip - correct for plain
+	// display text, but productId/tokenLink below get embedded inside href/onclick
+	// attribute values. An unresolved {var} baked into one of those (parameters not
+	// filled in yet - eg this exact dealonly=1 preview state) gets chip-wrapped
+	// there too, injecting a nested <span> tag inside an attribute string. That's
+	// invalid markup the browser can't parse, which is what was leaking raw
+	// "target='hashscan'>" etc as literal visible text (reported via feedback
+	// fda0de51, product-details-labs.php, dealonly=1&detail= preview banner).
+	// Fix: never build a clickable link from a still-unresolved id - fall back to
+	// plain (still-chippable) label text instead, same as renderAccountId already
+	// does for account ids (see its own {var} check above).
+	const hasUnresolvedVar = s => typeof s === 'string' && s.includes('{')
+
 	if (xfer.assetType === 'NFT') {
-		const href = `?v=labs&productId=${xfer.productId}`
-		const tooltip = `Product Id ${xfer.productId}`
-
-		const localLink = renderLocalLink({href, label: xfer.tokenLabel, tooltip})
-		const elNft = renderTooltip(localLink, tooltip)
-
 		const sender = renderAccountId(xfer.sender, network, dealdata)
 		const receiver = renderAccountId(xfer.receiver, network, dealdata)
+
+		const elNft = hasUnresolvedVar(xfer.productId)
+			? xfer.tokenLabel
+			: renderTooltip(
+					renderLocalLink({ href: `?v=labs&productId=${xfer.productId}`, label: xfer.tokenLabel, tooltip: `Product Id ${xfer.productId}` }),
+					`Product Id ${xfer.productId}`
+				)
 
 		primary = `${sender} sends ${elNft} to ${receiver}`
 
@@ -625,7 +640,7 @@ function renderTransfer(xfer, dealdata) {
 			amountPart = `${xfer.displayAmount} `
 		}
 
-		const tokenLinkHtml = xfer.tokenLink
+		const tokenLinkHtml = (xfer.tokenLink && !hasUnresolvedVar(xfer.tokenLink))
 			? `<a href='${xfer.tokenLink}' target='hashscan'>${xfer.tokenLabel}</a>`
 			: xfer.tokenLabel
 
