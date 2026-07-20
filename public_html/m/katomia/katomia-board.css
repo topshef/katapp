@@ -71,6 +71,13 @@ body.board-page{
   cursor: pointer;
   user-select: none;
 }
+/* Dev/lab knobs — hidden unless nerd mode is on. Own class (not the global
+   .nerd-only from katomia.css, which forces display:inline !important and
+   would break these flex rows) — same per-context pattern as
+   .profile-nerd-only. */
+.board-settings-nerd-only{ display: none; }
+body.nerd label.board-settings-nerd-only{ display: flex; }
+body.nerd hr.board-settings-nerd-only{ display: block; }
 .board-settings-label input[type="checkbox"]{ margin: 0; cursor: pointer; }
 .board-settings-num{ width: 56px; }
 .board-settings-label select{ font-size: 12px; max-width: 150px; }
@@ -985,8 +992,11 @@ body.board-page .app-banner{
 }
 
 /* ⚙ Prefs popover (user 2026-07-12): cosmetic/debug controls fold out of the
-   footer — Net, You at bottom, Max on ring, Anim speed. NOT nerd-gated (so
-   deliberately not named a nerd menu); mechanical controls stay on the bar. */
+   footer. MVP-SETTINGSDECLUTTER1 (2026-07-20): the panel grew well past its
+   original 4 controls with 🧪 dev/lab knobs — those are now nerd-mode gated
+   (.nerd-only below), reversing the original "not nerd-gated" call. Real
+   settings (skin, You at bottom, Max on ring, Party only, Pickable) stay
+   always visible. */
 .ring-footer-prefswrap{ position: relative; }
 .ring-footer-prefsbtn{
   font-size: 14px;

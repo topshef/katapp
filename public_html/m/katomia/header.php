@@ -86,55 +86,12 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
       </select>
     </label>
     <label class="board-settings-label">
-      <input type="checkbox" id="boardPrefNet" title="Net is the standard view (the transaction nets exactly like this). 🧪 escape hatch: untick to see every individual offer un-netted — dev/testing only, likely to be removed.">
-      🧪 Net
-    </label>
-    <label class="board-settings-label">
       <input type="checkbox" id="boardPrefSelfBottom" title="On: the board rotates so your accounts face you (default). Off: everyone sees the identical layout (screen-share / spectator)">
       You at bottom
     </label>
     <label class="board-settings-label">
       Max on ring
       <input type="number" id="boardPrefMaxSeg" min="2" max="24" class="board-settings-num" title="Maximum players shown on the ring at once (yours + others). Above this, the rest scroll behind a tap-to-advance divider.">
-    </label>
-    <label class="board-settings-label">
-      Anim speed
-      <select id="boardPrefAnimSpeed" title="Animation speed — slow everything down to inspect the choreography">
-        <option value="2">2×</option>
-        <option value="1">1×</option>
-        <option value="0.5">½×</option>
-        <option value="0.25">¼×</option>
-        <option value="0.1">⅒×</option>
-      </select>
-    </label>
-    <label class="board-settings-label">
-      🧪 Chip layout
-      <select id="boardPrefLayout" title="Dev design knob: how chips arrange inside each segment. Shelves = tidy concentric rows clustered at the rim; Organic = the physics relax. Comparing live — the loser gets removed.">
-        <option value="shelves">🗄 Shelves</option>
-        <option value="organic">🫧 Organic</option>
-      </select>
-    </label>
-    <label class="board-settings-label">
-      <input type="checkbox" id="boardPrefHugRing" title="Lab: organic store blobs home slightly closer to the ring — a mild inward bias; the reserved rim band still keeps chips off the ring itself">
-      🧪 Chips hug the ring
-    </label>
-    <label class="board-settings-label">
-      <input type="checkbox" id="boardPrefZoneWalls" title="Debug: draw each zone's physics walls — where chip edges may exist (solid), the ghost-only rim band (dashed), and the safe screen rect. On an obtuse segment the walls are visibly narrower than the wedge: that's the real ±80° clamp, not a drawing bug">
-      🧪 Show zone walls
-    </label>
-    <label class="board-settings-label">
-      <input type="checkbox" id="boardPrefSticky" title="Lab: chips stay where they settle, board-game style — new arrivals find space without moving them. The footer 🧹 re-runs the layout on demand">
-      🧪 Sticky chips
-    </label>
-    <label class="board-settings-label">
-      🧪 Trail after-glow
-      <select id="boardPrefTrailResidual" title="Dev design knob: after the ▶ replay trail fades, this fraction of its opacity persists as a burn-in showing where each asset came from. Wiped on the next replay.">
-        <option value="0">off</option>
-        <option value="0.25">25%</option>
-        <option value="0.5">50%</option>
-        <option value="0.75">75%</option>
-        <option value="1">100%</option>
-      </select>
     </label>
     <hr>
     <label class="board-settings-label">
@@ -144,6 +101,54 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
     <label class="board-settings-label">
       <input type="checkbox" id="boardPrefPickable" title="Allow other players to pick assets straight from your store (they shop, you agreed in advance)">
       Pickable
+    </label>
+
+    <!-- MVP-SETTINGSDECLUTTER1: dev/lab knobs (self-labeled 🧪/Debug/Lab below) — nerd-mode
+         only, same mechanism as everywhere else (body.nerd, katomia-profile.js). Reverses the
+         2026-07-12 "NOT nerd-gated" call now the panel's grown past its original 4 controls. -->
+    <hr class="board-settings-nerd-only">
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefNet" title="Net is the standard view (the transaction nets exactly like this). 🧪 escape hatch: untick to see every individual offer un-netted — dev/testing only, likely to be removed.">
+      🧪 Net
+    </label>
+    <label class="board-settings-label board-settings-nerd-only">
+      Anim speed
+      <select id="boardPrefAnimSpeed" title="Animation speed — slow everything down to inspect the choreography">
+        <option value="2">2×</option>
+        <option value="1">1×</option>
+        <option value="0.5">½×</option>
+        <option value="0.25">¼×</option>
+        <option value="0.1">⅒×</option>
+      </select>
+    </label>
+    <label class="board-settings-label board-settings-nerd-only">
+      🧪 Chip layout
+      <select id="boardPrefLayout" title="Dev design knob: how chips arrange inside each segment. Shelves = tidy concentric rows clustered at the rim; Organic = the physics relax. Comparing live — the loser gets removed.">
+        <option value="shelves">🗄 Shelves</option>
+        <option value="organic">🫧 Organic</option>
+      </select>
+    </label>
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefHugRing" title="Lab: organic store blobs home slightly closer to the ring — a mild inward bias; the reserved rim band still keeps chips off the ring itself">
+      🧪 Chips hug the ring
+    </label>
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefZoneWalls" title="Debug: draw each zone's physics walls — where chip edges may exist (solid), the ghost-only rim band (dashed), and the safe screen rect. On an obtuse segment the walls are visibly narrower than the wedge: that's the real ±80° clamp, not a drawing bug">
+      🧪 Show zone walls
+    </label>
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefSticky" title="Lab: chips stay where they settle, board-game style — new arrivals find space without moving them. The footer 🧹 re-runs the layout on demand">
+      🧪 Sticky chips
+    </label>
+    <label class="board-settings-label board-settings-nerd-only">
+      🧪 Trail after-glow
+      <select id="boardPrefTrailResidual" title="Dev design knob: after the ▶ replay trail fades, this fraction of its opacity persists as a burn-in showing where each asset came from. Wiped on the next replay.">
+        <option value="0">off</option>
+        <option value="0.25">25%</option>
+        <option value="0.5">50%</option>
+        <option value="0.75">75%</option>
+        <option value="1">100%</option>
+      </select>
     </label>
   </form>
   <?php endif; ?>
