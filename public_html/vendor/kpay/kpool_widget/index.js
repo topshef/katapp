@@ -194,6 +194,7 @@ async function renderSingleTx(hostEl, network, txid, pch = 'no_pch', opts = {}) 
 
 	try {
 		const tx = await renderTxView(txState)
+		if (tx?.notFound) return // renderTxView already rendered a visible reason - nothing left to load, signer, or poll for
 
 		// Render the WalletConnect signer BEFORE the account enrich. renderSigner is
 		// independent of loadSigningState's output, and loadSigningState's fetches have
@@ -775,6 +776,26 @@ async function renderTxView(txState) {
 	const _t0 = performance.now()
 	const { url, rawTx, data, transfers, accounts } = await txRead({ network, txid })
 	const _t1 = performance.now()
+
+	// VISIBILITY1: kpool genuinely having no record of this txid (eg a ksig-built
+	// transaction that was never registered anywhere - the offline-sign flow hands
+	// bytes straight back to the browser and, unlike the scheduled-tx path, nothing
+	// currently saves them server-side) used to fail completely silently here: data
+	// came back as a real (truthy) object shaped like {errors, mirror}, not empty/
+	// null, so it sailed straight past every guard into buildFlowModel() with no
+	// real transfers/accounts to work from - producing a populated-looking page with
+	// 0 line items and no visible indication why. Surface it instead of guessing on.
+	if (data?.errors?.length || data?.mirror?.ok === false) {
+		const reason = data.errors?.[0]?.message || data.mirror?.message || 'no detail returned'
+		container.innerHTML = '' // clear the "Loading transaction…" placeholder before appending
+		renderError(container, `⚠️ No record of this transaction was found (kpool + mirror node both came back empty) — reason: ${reason}. It may never have been registered, or hasn't reached consensus yet.`)
+		// notFound, not thrown: the caller must not treat this as an exception (it
+		// used to return undefined here, which the caller then fed straight into
+		// loadSigningState(), which threw on it, which the caller's own catch-all
+		// treated as a generic connection failure and used to overwrite the message
+		// above with "Couldn't load this transaction..." a moment after it rendered)
+		return { notFound: true }
+	}
 
 	await enrichTransfersInfo({ network, transfers })
 	const _t2 = performance.now()
