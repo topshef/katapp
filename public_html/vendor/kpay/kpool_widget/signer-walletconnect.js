@@ -471,6 +471,10 @@ function injectSignerCSS() {
 		.kpsign-acct { font:13px ui-monospace,Menlo,Consolas,monospace; color:#555; }
 		/* TX-CARDS-WCPREVIEW1: threshold preview under the account picker */
 		.kpsign-preview { text-align:center; font-size:12px; margin:8px auto 0; max-width:340px; line-height:1.4; }
+		/* SIGN-PREVIEWWRAP1: 340px wraps "already met its signing requirement" on desktop;
+		   modal body has room (card is min(900px,96vw), 768px+ is desktop per modal.js), so
+		   widen the line there. Mobile keeps 340px — narrower viewport, wrapping is fine. */
+		@media (min-width: 769px) { .kpsign-preview { max-width:480px; } }
 		.kpsign-preview[data-state="completes"] { color:#137333; }
 		.kpsign-preview[data-state="needed"] { color:#52525b; }
 		.kpsign-preview[data-state="already"] { color:#52525b; }
