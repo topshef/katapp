@@ -17,6 +17,9 @@
 
 /* ── skin state ─────────────────────────────────────────────────────────── */
 
+// BOARD-SKINLABEL1: to add a new skin, register its identifier here AND add
+// a matching <option value="..."> in header.php's #boardSkinSelect — the two
+// lists aren't derived from each other, so keep them in sync by hand.
 const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "ring11", "ring12", "ring13", "ring14", "ring15", "ring16", "susan", "susan2", "susan3", "susan4", "susan5", "table", "market"]
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account

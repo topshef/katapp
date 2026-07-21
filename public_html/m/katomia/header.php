@@ -79,10 +79,13 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
   <form id="boardSettingsPanel" class="board-settings-panel hidden" autocomplete="off" onsubmit="return false">
     <label class="board-settings-label">
       Board skin
-      <!-- KATOMIA-CONFIG1: option text is the public-facing theme name
-           ("Round Table"); value="ring16" stays the dev-facing label. -->
+      <!-- KATOMIA-CONFIG1: option text is the public-facing theme name only
+           ("Round Table") — no ring16/mode internals in the label; value="ring16"
+           stays the dev-facing id. BOARD-SKINLABEL1: to add a new skin, add
+           another <option value="...">Label</option> here, and register the
+           same value in BOARD_SKINS in katomia-board.js. -->
       <select id="boardSkinSelect" title="Board skin">
-        <option value="ring16">⭕ Round Table (ring16 — in-app sign, focus play)</option>
+        <option value="ring16">⭕ Round Table</option>
       </select>
     </label>
     <label class="board-settings-label">
