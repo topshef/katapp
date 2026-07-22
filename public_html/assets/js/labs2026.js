@@ -90,7 +90,11 @@ async function fetchDeal(dealId) {
   if (Array.isArray(data)) // todo check upstream shape
     data = data[0]
 
-  const deal = data.deal || data 
+  // kpos.uk's deal cache is filled by an hourly cron (rsync + ingest); a deal
+  // created in the last ~25min can still return bare null here (GM-DEALPAGE-NULLHANG1)
+  if (!data) return null
+
+  const deal = data.deal || data
 
 	// console.log('normalisePreKatomicDeal before', deal)
 	normalisePreKatomicDeal(deal) // this mutates deal
@@ -658,6 +662,16 @@ function renderTransfer(xfer, dealdata) {
 }
 
 
+function renderDealNotReady() {
+  document.querySelector('#deal-panel .ubid-title').innerHTML = 'Deal not ready yet'
+  document.querySelector('#deal-panel .ubid-description').innerHTML =
+    "This deal was just created and hasn't synced yet — try refreshing in a few minutes."
+  document.querySelector('#deal-panel .ubid-transfers').innerHTML = ''
+  document.querySelector('#deal-panel .ubid-user-inputs').innerHTML = ''
+  document.querySelector('#deal-panel .ubid-asset-link').innerHTML = ''
+}
+
+
 function renderDealPanel(data) {
 	  document.querySelector('#deal-panel .ubid-title').innerHTML = data.title
 	  document.querySelector('#deal-panel .ubid-description').innerHTML = data.description
@@ -905,10 +919,20 @@ async function renderPage() {
   let raw = {}
 
   if (entityType === 'deal') {
-    raw.deal = await fetchDeal(dealId)
-    window.__dealNetwork = raw.deal?.network || null // wallet bar reads this for ensureNetwork
-    const processed = await transformDealData(raw)
-    renderDealPanel(processed)
+    try {
+      raw.deal = await fetchDeal(dealId)
+
+      if (!raw.deal) {
+        renderDealNotReady()
+      } else {
+        window.__dealNetwork = raw.deal?.network || null // wallet bar reads this for ensureNetwork
+        const processed = await transformDealData(raw)
+        renderDealPanel(processed)
+      }
+    } catch (err) {
+      console.error('deal render failed', err)
+      renderDealNotReady()
+    }
   }
 
   if (entityType === 'product') {
