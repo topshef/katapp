@@ -740,7 +740,13 @@ async function signPreparedTransaction(transaction) {
     if (!signer)
       throw new Error("No signer available. Please reconnect your wallet.")
 
-    const signedTransaction = await transaction.signWithSigner(signer)
+    // GM-SSEFLAG1: use signer.signTransaction() and keep its RETURN value —
+    // the same call katomia's board makes via signTxCoreV2. transaction
+    // .signWithSigner() was handing back the original transaction, so the
+    // wallet's signature never made it into toBytes(): saved records came out
+    // carrying only the treasury signature kfund had already embedded in the
+    // bytes, and /future correctly reported the buyer as not signed.
+    const signedTransaction = await signer.signTransaction(transaction)
 
     console.log("[WC] Signed transaction (not submitted):", signedTransaction)
     return signedTransaction
@@ -976,10 +982,16 @@ const showTxSaveResult = saveResult => {
 
     walletUI.showTxAlert(msg, "info", "last_tx")
 
-    // auto-open the signing page, same as ksig_test.js's auto-open logic
-    // (window.open with the txid as the tab name, so repeat saves reuse the tab)
-    if (network && txId)
-      window.open(`/future/?network=${network}&txid=${txId}`, txId || "_blank")
+    // auto-open the signing page — steer the tab pre-opened at click time
+    // (executeDealFlow) so the popup blocker doesn't eat it; fall back to a
+    // fresh open if it never got created or the user closed it.
+    if (network && txId) {
+      const signUrl = `/future/?network=${network}&txid=${txId}`
+      const pre = window.__gmPendingSignWindow
+      if (pre && !pre.closed) pre.location = signUrl
+      else window.open(signUrl, txId || "_blank")
+      window.__gmPendingSignWindow = null
+    }
   } else {
     const msg = [
       errors.length
@@ -1243,6 +1255,13 @@ async function executeDealFlowCore ({
 // executeDealFlow
 // UI-triggered wrapper preserving existing behaviour and alerts
 export const executeDealFlow = async () => {
+  // GM-SSEFLAG1: open the tab HERE, synchronously, still inside the click
+  // gesture and before any await — a window.open() issued after the async
+  // wallet round-trip gets eaten by the popup blocker, which is why auto-open
+  // silently did nothing. Only the server-side path opens a signing page.
+  if (new URLSearchParams(window.location.search).get("submitServerSide"))
+    window.__gmPendingSignWindow = window.open("", "_blank")
+
   const accountId = await getActiveWalletAccount()
 
   if (!accountId) {
