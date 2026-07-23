@@ -960,21 +960,17 @@ const showTxSaveResult = saveResult => {
   // is to omit pch entirely rather than pass a placeholder.
   const txLink =
     network && txId
-      ? `<a href="/future/?network=${network}&txid=${txId}"
-           target="_blank" rel="noopener">
-           View saved tx ${txId}
-         </a>`
+      ? `<a href="/future/?network=${network}&txid=${txId}" target="_blank" rel="noopener">${txId}</a>`
       : ""
 
   if (ok) {
-    const msg = [
-      comments.length
-        ? comments.join("<br>")
-        : "Transaction saved successfully",
-      txLink
-    ]
-      .filter(Boolean)
-      .join("<br><br>")
+    // GM-SSEFLAG1 follow-up: match ksig_test.js's own success wording exactly
+    // ("Transaction has been raised with ID <link>") instead of the separately
+    // reinvented "Transaction saved successfully" + trailing "View saved tx" line —
+    // same flow (sign, don't broadcast, save for later), same message.
+    const msg = comments.length
+      ? comments.join("<br>")
+      : (txLink ? `Transaction has been raised with ID ${txLink}` : "Transaction saved successfully")
 
     walletUI.showTxAlert(msg, "success", "last_tx")
   } else {

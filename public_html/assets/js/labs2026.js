@@ -104,6 +104,16 @@ async function fetchDeal(dealId) {
 }
 
 
+// GM-SSEFLAG1: same falsy convention as isFlagSet() (hoot2026.js), applied to a plain
+// value instead of a URL param — deal constants arrive as strings, so "0"/"false"/"off"
+// need to read as false, not just "any non-empty string is truthy".
+function isTruthyFlagValue(value) {
+  if (value === null || value === undefined) return false
+  const v = String(value).trim().toLowerCase()
+  return v !== '0' && v !== 'false' && v !== 'off'
+}
+
+
 function normalisePreKatomicDeal(deal) {
 	
 	deal.network ||= deal.header?.network
@@ -932,7 +942,10 @@ async function renderPage() {
         // GM-SSEFLAG1 fix: fetchDeal() already unwraps `.deal` (line 97: `data.deal || data`),
         // so raw.deal IS the deal object itself — raw.deal.deal was one level too deep and
         // always undefined, which is why the flag never fired on the first two live tests.
-        window.__dealServerSideExecution = !!raw.deal?.constants?.serverSideExecution
+        // Deal constants arrive as strings, so plain !!value would read "0"/"off" as true —
+        // same falsy convention as isFlagSet() (hoot2026.js) applied to a value instead of
+        // a URL param: only an explicit falsy-looking string (or absence) counts as off.
+        window.__dealServerSideExecution = isTruthyFlagValue(raw.deal?.constants?.serverSideExecution)
         // GM-SSEFLAG-DIAG1 (temp, revert-safe): visibility into whether the flag
         // was read + the URL actually rewritten
         window.kdiag?.('gm:deal:ssx-check', {
