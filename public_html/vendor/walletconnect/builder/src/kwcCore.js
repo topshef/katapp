@@ -966,11 +966,17 @@ const showTxSaveResult = saveResult => {
   if (ok) {
     // GM-SSEFLAG1 follow-up: match ksig_test.js's own success wording exactly
     // ("Transaction has been raised with ID <link>") instead of the separately
-    // reinvented "Transaction saved successfully" + trailing "View saved tx" line —
-    // same flow (sign, don't broadcast, save for later), same message.
-    const msg = comments.length
-      ? comments.join("<br>")
-      : (txLink ? `Transaction has been raised with ID ${txLink}` : "Transaction saved successfully")
+    // reinvented "Transaction saved successfully" + trailing "View saved tx" line.
+    // The raised+link line ALWAYS shows (when we have a txId) — comments from the
+    // backend (e.g. "tx is type: Transaction") are extra context above it, not a
+    // replacement; the first cut here made them mutually exclusive, which dropped
+    // the link entirely because hapi5's txSave always returns comments.
+    const raised = txLink
+      ? `Transaction has been raised with ID ${txLink}`
+      : "Transaction saved successfully"
+    const msg = [comments.length ? comments.join("<br>") : null, raised]
+      .filter(Boolean)
+      .join("<br><br>")
 
     walletUI.showTxAlert(msg, "success", "last_tx")
   } else {
