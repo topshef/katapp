@@ -982,16 +982,13 @@ const showTxSaveResult = saveResult => {
 
     walletUI.showTxAlert(msg, "info", "last_tx")
 
-    // auto-open the signing page — steer the tab pre-opened at click time
-    // (executeDealFlow) so the popup blocker doesn't eat it; fall back to a
-    // fresh open if it never got created or the user closed it.
-    if (network && txId) {
-      const signUrl = `/future/?network=${network}&txid=${txId}`
-      const pre = window.__gmPendingSignWindow
-      if (pre && !pre.closed) pre.location = signUrl
-      else window.open(signUrl, txId || "_blank")
-      window.__gmPendingSignWindow = null
-    }
+    // auto-open the signing page (best effort — this runs after the async
+    // wallet round-trip, so the popup blocker may eat it on first use until
+    // the user allows popups for this site; the banner link is the fallback.
+    // Deliberately NO pre-opening at click time: Buy now's click behaviour
+    // must stay exactly what it always was — wallet prompt, nothing else.)
+    if (network && txId)
+      window.open(`/future/?network=${network}&txid=${txId}`, txId || "_blank")
   } else {
     const msg = [
       errors.length
@@ -1255,13 +1252,6 @@ async function executeDealFlowCore ({
 // executeDealFlow
 // UI-triggered wrapper preserving existing behaviour and alerts
 export const executeDealFlow = async () => {
-  // GM-SSEFLAG1: open the tab HERE, synchronously, still inside the click
-  // gesture and before any await — a window.open() issued after the async
-  // wallet round-trip gets eaten by the popup blocker, which is why auto-open
-  // silently did nothing. Only the server-side path opens a signing page.
-  if (new URLSearchParams(window.location.search).get("submitServerSide"))
-    window.__gmPendingSignWindow = window.open("", "_blank")
-
   const accountId = await getActiveWalletAccount()
 
   if (!accountId) {
