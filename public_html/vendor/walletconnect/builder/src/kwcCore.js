@@ -975,6 +975,11 @@ const showTxSaveResult = saveResult => {
       : "Transaction saved"
 
     walletUI.showTxAlert(msg, "info", "last_tx")
+
+    // auto-open the signing page, same as ksig_test.js's auto-open logic
+    // (window.open with the txid as the tab name, so repeat saves reuse the tab)
+    if (network && txId)
+      window.open(`/future/?network=${network}&txid=${txId}`, txId || "_blank")
   } else {
     const msg = [
       errors.length
