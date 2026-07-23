@@ -926,6 +926,26 @@ async function renderPage() {
         renderDealNotReady()
       } else {
         window.__dealNetwork = raw.deal?.network || null // wallet bar reads this for ensureNetwork
+
+        // if the deal is flagged, force the URL param the bundle already checks —
+        // no bundle edit needed, executeDealFlow() reads urlParams fresh on every click
+        // GM-SSEFLAG1 fix: fetchDeal() already unwraps `.deal` (line 97: `data.deal || data`),
+        // so raw.deal IS the deal object itself — raw.deal.deal was one level too deep and
+        // always undefined, which is why the flag never fired on the first two live tests.
+        window.__dealServerSideExecution = !!raw.deal?.constants?.serverSideExecution
+        // GM-SSEFLAG-DIAG1 (temp, revert-safe): visibility into whether the flag
+        // was read + the URL actually rewritten
+        window.kdiag?.('gm:deal:ssx-check', {
+          dealId, constants: raw.deal?.constants || null,
+          flagged: window.__dealServerSideExecution, urlBefore: window.location.search
+        })
+        if (window.__dealServerSideExecution) {
+          const url = new URL(window.location)
+          url.searchParams.set('submitServerSide', '1')
+          window.history.replaceState({}, '', url)
+        }
+        window.kdiag?.('gm:deal:ssx-url-after', { urlAfter: window.location.search })
+
         const processed = await transformDealData(raw)
         renderDealPanel(processed)
       }

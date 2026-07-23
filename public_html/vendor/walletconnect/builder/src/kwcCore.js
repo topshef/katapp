@@ -808,7 +808,14 @@ export function parseTxId(txid) {
 // const saveSignedTransaction = async signedTransaction => {
 async function saveSignedTransaction(signedTransaction) {  // to migrate this and deprecate here
   try {
-    const apiUrl = "https://kpos.uk/pool/txSave" 
+    // GM-SSEFLAG1 follow-up, same root cause + fix shape as KSIG-KPOOLSAVE1 (2f0c4cd):
+    // kpos.uk/pool/txSave resolves against a backend disconnected from this seat's own
+    // hapi_base (hapi5) — /future only ever reads from hapi5, so a save that lands on
+    // kpos's backend is invisible there ("record not found"). Same fix katomia-board.js's
+    // boardDirectSign already uses successfully: same-origin relative call through this
+    // repo's own future/kpool.php -> hapi_base.php, not the cross-domain kpos URL.
+    const apiUrl = "/future/?action=txSave"
+    // const apiUrl = "https://kpos.uk/pool/txSave"  // old: wrong backend, see above
     // const apiUrl = "/txSave" //nah.. have the app do this, and keep WC pure
 
 		const payload = {
@@ -946,9 +953,14 @@ const showTxSaveResult = saveResult => {
   const result = saveResult?.result || {}
   const { comments = [], errors = [], network, txId } = result
 
+  // GM-SSEFLAG1 follow-up: point at the same /future/ queue page every other
+  // "view this queued tx" link in the codebase uses (kpool_widget/index.js,
+  // ksig_test.js) instead of the raw kpos.uk API JSON endpoint. No pch here —
+  // this flow doesn't generate one, and the established convention (kpool_widget)
+  // is to omit pch entirely rather than pass a placeholder.
   const txLink =
     network && txId
-      ? `<a href="https://kpos.uk/pool/txRead?network=${network}&txid=${txId}"
+      ? `<a href="/future/?network=${network}&txid=${txId}"
            target="_blank" rel="noopener">
            View saved tx ${txId}
          </a>`
