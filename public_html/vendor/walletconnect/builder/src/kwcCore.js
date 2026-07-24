@@ -987,8 +987,13 @@ const showTxSaveResult = saveResult => {
     // the user allows popups for this site; the banner link is the fallback.
     // Deliberately NO pre-opening at click time: Buy now's click behaviour
     // must stay exactly what it always was — wallet prompt, nothing else.)
-    if (network && txId)
-      window.open(`/future/?network=${network}&txid=${txId}`, txId || "_blank")
+    // window.open returns null when blocked — kdiag'd so blocked-vs-broken
+    // is observable instead of guessed at (gm:tx:auto-open).
+    if (network && txId) {
+      const signUrl = `/future/?network=${network}&txid=${txId}`
+      const w = window.open(signUrl, txId || "_blank")
+      try { globalThis.kdiag?.("gm:tx:auto-open", { url: signUrl, opened: !!w }) } catch {}
+    }
   } else {
     const msg = [
       errors.length

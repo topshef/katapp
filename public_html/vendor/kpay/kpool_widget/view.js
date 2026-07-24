@@ -1050,8 +1050,12 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 		const parts = []
 		if (acc.label.name) parts.push(`<span class="txcard-acct-label">${acc.label.name}</span>`)
 		if (acc.label.domain) parts.push(`<a href="https://${acc.label.domain}" target="_blank" rel="noopener">${acc.label.domain} ↗</a>`)
-		xp.innerHTML = parts.join(' · ') +
-			`<div class="txcard-detail-note txcard-detail-note--muted">Domain identity claimed for this account (xproof). Open the link to verify who published it.</div>`
+		// the xproof explainer only applies to actual xproof domain claims — well-known
+		// system accounts (0.0.802 fee collection etc., xproof.js WELL_KNOWN_ACCOUNTS)
+		// carry a hard-coded name with domain:null and are NOT xproof identities
+		xp.innerHTML = parts.join(' · ') + (acc.label.domain
+			? `<div class="txcard-detail-note txcard-detail-note--muted">Domain identity claimed for this account (xproof). Open the link to verify who published it.</div>`
+			: '')
 		wrap.appendChild(xp)
 	}
 

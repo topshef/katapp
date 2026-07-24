@@ -310,13 +310,46 @@ function verifyTransfersAgainstBytes(data, transfers) {
 
 	const source = transfers.source
 	const settled = source === 'mirror'
-	// settled view: mirror legitimately adds fee/node rows → only bytes⊆mirror matters
-	const mismatch = settled ? missingFromDisplay.length > 0
+
+	// settled view: the mirror doesn't just ADD fee/node rows — it also folds the
+	// network fee INTO the payer's own hbar line (bytes: payer -35000000; mirror:
+	// payer -36541133 + fee row to 0.0.802), so the payer's byte-row finds no 1:1
+	// match and a plain subset check false-alarms on every settled tx (live case
+	// 2026-07-24, tx 0.0.10177400@1784851229). Accept the residual ONLY when it is
+	// exactly fee-shaped: hbar-only, the payer is the only account paying more
+	// than the bytes said, the excess lands only on accounts outside the tx body
+	// (node/fee collectors), and the whole thing nets to zero. Any token/NFT drift
+	// or a non-payer account short still fails loudly.
+	let feeNetted = false
+	if (settled && (missingFromDisplay.length || extraInDisplay.length)) {
+		const residualRows = [...missingFromDisplay, ...extraInDisplay]
+		if (residualRows.every(k => k.startsWith('HBAR|'))) {
+			const netOf = rows => rows.reduce((m, k) => {
+				const [, ac, , amt] = k.split('|')
+				m[ac] = (m[ac] || 0) + Number(amt)
+				return m
+			}, {})
+			const canonNet = netOf(canon.filter(k => k.startsWith('HBAR|')))
+			const shownNet = netOf(shown.filter(k => k.startsWith('HBAR|')))
+			const payer = String(data?.txid || decoded.transactionId || '').split('@')[0]
+			let sum = 0, feeShaped = true
+			for (const ac of new Set([...Object.keys(canonNet), ...Object.keys(shownNet)])) {
+				const r = (shownNet[ac] || 0) - (canonNet[ac] || 0)
+				sum += r
+				if (r < 0 && ac !== payer) feeShaped = false          // only the payer may pay extra
+				if (r > 0 && canonNet[ac] !== undefined) feeShaped = false // fee collectors live outside the tx body
+			}
+			feeNetted = feeShaped && sum === 0
+		}
+	}
+
+	const mismatch = settled ? (missingFromDisplay.length > 0 && !feeNetted)
 	                         : (missingFromDisplay.length > 0 || extraInDisplay.length > 0)
 
 	const result = {
 		status: mismatch ? 'mismatch' : 'match',
 		mode: settled ? 'subset (settled/mirror)' : 'strict (pre-consensus)',
+		feeNetted,
 		source,
 		bytesTxId: decoded.transactionId,
 		validDurationSeconds: decoded.validDurationSeconds,
