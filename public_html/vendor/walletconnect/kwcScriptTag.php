@@ -12,17 +12,17 @@ elog($kwc, "loading script type $kwc->script_type from $kwc->url");
 function getKwc($in) {
 
   $kwc_root = $in['kwc_root'] ?? '/vendor/walletconnect';
-  // GM-SSEFLAG1 (promoted 2026-07-24): de29cb6 = server-side-execution flag,
-  // signer.signTransaction() signature-capture fix, /future save routing,
-  // in-page KPaySign modal, recent-tx toasts. Snapshot URLs are served
-  // Cache-Control: immutable (see kwc.iife.js response headers) — MUST bump
-  // this to a genuinely new value on every change, never hand-patch an
-  // already-served snapshot in place again (incident 2026-07-24: mobile
-  // clients cached a mid-session copy of aa0fdbc under its immutable header
-  // and could never see later fixes, no server-side remedy existed once
-  // cached — a new URL was the only fix). Roll back to aa0fdbc if ever
-  // needed (= GM-TOASTBREAK1 success-toast line break, pre-SSEFLAG1).
-  $kwc_version = $in['kwc_version'] ?? 'de29cb6';  //prev aa0fdbc / 64c41ba / 17f774f / 4c7696e / 4f74b48 / 53216ab — override via ?kwc_version=… for A/B comparison
+  // GM-SSEAUTO1 (2026-07-24): 30c3fd9 = first PROPER vite build since the hand-patch
+  // era (built from src @ commit 30c3fd9, published to the shared store). Adds the
+  // three-state submitServerSide (absent = auto) + the pre-HashPack signature-
+  // completeness guard (ref GM-SIG1) that blocks fee-burning incomplete txs, and
+  // fixes submitServerSide=0 being read as server-side. Carries everything de29cb6
+  // had (GM-SSEFLAG1: sig-capture fix, /future save routing, KPaySign modal, toasts).
+  // Snapshot URLs are served Cache-Control: immutable — MUST bump this to a genuinely
+  // new value on every change, never hand-patch an already-served snapshot in place
+  // (incident 2026-07-24: mobile cached a mid-session copy of aa0fdbc forever).
+  // Roll back to de29cb6 (= hand-patched pre-guard state) if ever needed.
+  $kwc_version = $in['kwc_version'] ?? '30c3fd9';  //prev de29cb6 / aa0fdbc / 64c41ba / 17f774f / 4c7696e / 4f74b48 / 53216ab — override via ?kwc_version=… for A/B comparison
 
   if (preg_match('/^[0-9a-fA-F]+$/', $kwc_version)) { // hex.. it's a commit snapshot
     $commit = $kwc_version;
