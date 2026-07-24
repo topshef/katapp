@@ -785,7 +785,15 @@ async function renderTxView(txState) {
 	// null, so it sailed straight past every guard into buildFlowModel() with no
 	// real transfers/accounts to work from - producing a populated-looking page with
 	// 0 line items and no visible indication why. Surface it instead of guessing on.
-	if (data?.errors?.length || data?.mirror?.ok === false) {
+	// A mirror 404 alone is NOT "no record": a pre-consensus tx (e.g. a fresh
+	// server-side-execution save waiting for its remaining signatures) is exactly
+	// the case where kpool HAS the record and the mirror legitimately hasn't heard
+	// of it yet. Only declare not-found when kpool itself came back empty too —
+	// i.e. no signed bytes, no basis, no signatures (GM-SSEFLAG1 live false alarm
+	// 2026-07-24: modal opened on a just-saved tx, bytes-verify matched on basis,
+	// and this guard still painted "No record ... mirror fetch failed 404" over it).
+	const hasKpoolRecord = !!(data?.hex2 || data?.PCH_basis || data?.sigs?.length)
+	if (!hasKpoolRecord && (data?.errors?.length || data?.mirror?.ok === false)) {
 		const reason = data.errors?.[0]?.message || data.mirror?.message || 'no detail returned'
 		container.innerHTML = '' // clear the "Loading transaction…" placeholder before appending
 		renderError(container, `⚠️ No record of this transaction was found (kpool + mirror node both came back empty) — reason: ${reason}. It may never have been registered, or hasn't reached consensus yet.`)
