@@ -982,17 +982,24 @@ const showTxSaveResult = saveResult => {
 
     walletUI.showTxAlert(msg, "info", "last_tx")
 
-    // auto-open the signing page (best effort — this runs after the async
-    // wallet round-trip, so the popup blocker may eat it on first use until
-    // the user allows popups for this site; the banner link is the fallback.
-    // Deliberately NO pre-opening at click time: Buy now's click behaviour
-    // must stay exactly what it always was — wallet prompt, nothing else.)
-    // window.open returns null when blocked — kdiag'd so blocked-vs-broken
-    // is observable instead of guessed at (gm:tx:auto-open).
+    // auto-open the signing surface. Preferred: the in-page modal (kpay-embed.js
+    // → window.KPaySign), which keeps the customer on the product page AND is
+    // immune to the popup blocker (no new tab involved). Fallback when the host
+    // page doesn't load the embed: best-effort window.open of /future — may be
+    // popup-blocked since we're past the click gesture; the banner link covers
+    // that. Deliberately NO pre-opening at click time: Buy now's click behaviour
+    // must stay exactly what it always was — wallet prompt, nothing else.
+    // Either path is kdiag'd (gm:tx:auto-open) so blocked-vs-broken is
+    // observable instead of guessed at.
     if (network && txId) {
       const signUrl = `/future/?network=${network}&txid=${txId}`
-      const w = window.open(signUrl, txId || "_blank")
-      try { globalThis.kdiag?.("gm:tx:auto-open", { url: signUrl, opened: !!w }) } catch {}
+      if (typeof window.KPaySign === "function") {
+        window.KPaySign({ network, txid: txId })
+        try { globalThis.kdiag?.("gm:tx:auto-open", { url: signUrl, mode: "modal" }) } catch {}
+      } else {
+        const w = window.open(signUrl, txId || "_blank")
+        try { globalThis.kdiag?.("gm:tx:auto-open", { url: signUrl, mode: "tab", opened: !!w }) } catch {}
+      }
     }
   } else {
     const msg = [
