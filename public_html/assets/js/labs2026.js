@@ -140,13 +140,19 @@ async function renderRecentSseToasts(currentDealId) {
       else if (!d.hex2) status = 'not found in pool'
     } catch {}
 
-    const shortId = t.txid.length > 26 ? t.txid.slice(0, 26) + '…' : t.txid
+    // toast colour follows the ACTUAL status (standard bootstrap contextuals):
+    // success → green, failed/expired/invalid → red, in-flight → blue, unknown → grey
+    const s = status.toLowerCase()
+    const tone = /success/.test(s) ? 'success'
+               : /fail|invalid|error|expired/.test(s) ? 'danger'
+               : /not found|unavailable/.test(s) ? 'secondary'
+               : 'info'
     const el = document.createElement('div')
-    el.className = 'alert alert-secondary alert-dismissible fade show'
+    el.className = `alert alert-${tone} alert-dismissible fade show`
     el.role = 'alert'
     el.style.fontSize = '0.75rem'
     el.innerHTML =
-      `⏱ <a href="/future/?network=${encodeURIComponent(t.network)}&txid=${encodeURIComponent(t.txid)}" target="_blank" rel="noopener">${shortId}</a>` +
+      `<a href="/future/?network=${encodeURIComponent(t.network)}&txid=${encodeURIComponent(t.txid)}" target="_blank" rel="noopener">${t.txid}</a>` +
       ` — ${status}` +
       (isFinal ? '' : ` &nbsp;<a href="#" class="gm-toast-resume">resume signing</a>`) +
       `<button type="button" class="btn-close" aria-label="Close"></button>`
