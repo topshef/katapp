@@ -13,12 +13,26 @@ $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' :
 $host   = $_SERVER['HTTP_HOST'] ?? 'swap.kpay.live';
 $origin = "$scheme://$host";
 
+// GM-SSEAUTO1 side-fix (2026-07-24): metadata.name was hardcoded 'KPAY' for every
+// domain, so HashPack pairings made on shop.gomint.me were branded KPAY (the static
+// config.json was already GoMint-branded but is DEAD — this rewrite serves every
+// config.json request). Brand now follows the serving domain, same spirit as $origin.
+// NB wallets stamp metadata at PAIR time — an existing pairing keeps its old name
+// until the user disconnects and re-pairs.
+$brand = ['name' => 'KPAY', 'description' => 'Hello future payments'];
+$brandMap = [
+    'gomint.me' => ['name' => 'GoMint', 'description' => 'Tokenizing the future'],
+];
+foreach ($brandMap as $suffix => $b) {
+    if (substr($host, -strlen($suffix)) === $suffix) { $brand = $b; break; }
+}
+
 echo json_encode([
     'projectId' => '53db41bfb52ee26d9a304025f741ee18',
     'relayUrl'  => 'wss://relay.walletconnect.com',
     'metadata'  => [
-        'name'        => 'KPAY',
-        'description' => 'Hello future payments',
+        'name'        => $brand['name'],
+        'description' => $brand['description'],
         'url'         => $origin,   // ← auto: matches the domain being served
         'icons'       => [],
     ],

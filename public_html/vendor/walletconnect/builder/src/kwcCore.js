@@ -1199,6 +1199,82 @@ function bytesToHex(bytes) {
 }
 
 
+// GM-SSEAUTO1 / ref GM-SIG1 — pre-HashPack signature-completeness guard.
+//
+// AUTO-mode question: if this buyer signs in HashPack and HashPack submits, does
+// the tx reach consensus fully signed? HashPack does no precheck, so a missing
+// third-party signature (e.g. treasury pre-sign absent — the exact
+// GM-PRESIGN-HAPI2HAPI5-1 failure) burns the payer's fee at consensus.
+//
+// Lean version of the kpool widget's computeSignerPreview (kpool_widget/view.js),
+// scoped to what GoMint deals actually use — simple ED25519/ECDSA account keys:
+//   required non-buyer signers = fee payer + every account SENDING value
+//   each must already have a signature in the sigMap (pubKeyPrefix — wallets and
+//   the SDK put the FULL raw pubkey there — matched against the account's mirror key)
+// Failure policy: protective but never a new point of failure —
+//   - non-buyer senders exist + sigMap EMPTY          -> block (no mirror call needed)
+//   - mirror confirms a required account has no sig   -> block
+//   - mirror unreachable / complex (threshold) key    -> fail OPEN, kdiag notes it
+//   - introspection itself throws                     -> fail OPEN, kdiag notes it
+async function assessSignatureCompleteness(transaction, buyerAccountId) {
+  const verdict = { block: false, requiredOthers: [], missing: [], unverified: [], sigCount: 0 }
+  try {
+    const required = new Set()
+    const payer = transaction.transactionId?.accountId?.toString()
+    if (payer) required.add(payer)
+    // SDK ObjectMaps are iterable ([key, value]); tx may not be a TransferTransaction,
+    // so each surface is feature-detected
+    try { for (const [acct, amount] of (transaction.hbarTransfers || [])) if (amount.toTinybars().isNegative()) required.add(acct.toString()) } catch {}
+    try { for (const [, perAccount] of (transaction.tokenTransfers || [])) for (const [acct, amount] of perAccount) if (amount.isNegative()) required.add(acct.toString()) } catch {}
+    try { for (const [, transfers] of (transaction.nftTransfers || [])) for (const nft of transfers) if (nft.sender) required.add(nft.sender.toString()) } catch {}
+    required.delete(buyerAccountId)
+    verdict.requiredOthers = [...required]
+    if (!required.size) return verdict // buyer-only tx — nothing to guard
+
+    const prefixes = []
+    for (const st of (transaction._signedTransactions?.list || [])) {
+      for (const sp of (st.sigMap?.sigPair || []))
+        if (sp.pubKeyPrefix?.length) prefixes.push(bytesToHex(sp.pubKeyPrefix).toLowerCase())
+      break // sigMap is identical across the per-node copies
+    }
+    verdict.sigCount = prefixes.length
+    if (!prefixes.length) {
+      verdict.block = true
+      verdict.missing = [...required]
+      return verdict
+    }
+
+    const mirrorBase = currentNetwork === "mainnet"
+      ? "https://mainnet-public.mirrornode.hedera.com"
+      : `https://${currentNetwork || "testnet"}.mirrornode.hedera.com`
+    for (const acct of required) {
+      try {
+        const r = await fetch(`${mirrorBase}/api/v1/accounts/${acct}`)
+        if (!r.ok) throw new Error(`mirror ${r.status}`)
+        const key = (await r.json())?.key
+        if (!key?.key) { verdict.unverified.push(acct); continue }
+        const keyHex = key.key.toLowerCase()
+        // Simple key: a sig's pubKeyPrefix must BE this key (>=8 bytes of prefix
+        // before we trust a match — full keys are 32/33 bytes).
+        // Complex key (ProtobufEncoded keylist/threshold — GoMint treasuries are
+        // these): every leaf pubkey is embedded verbatim in the blob hex, so a sig
+        // whose pubkey appears nowhere in it is definitively NOT from this account's
+        // key tree. Presence of one related sig passes; whether it fully satisfies
+        // an m-of-n threshold stays the kpool widget's job (fail-open by design).
+        const signed = key._type === "ProtobufEncoded"
+          ? prefixes.some(p => p.length >= 16 && keyHex.includes(p))
+          : prefixes.some(p => p.length >= 16 && keyHex.startsWith(p))
+        if (!signed) verdict.missing.push(acct)
+      } catch { verdict.unverified.push(acct) }
+    }
+    verdict.block = verdict.missing.length > 0
+  } catch (e) {
+    verdict.error = String(e) // guard broke, not the tx — never block a good buy on that
+  }
+  return verdict
+}
+
+
 // ┌─┐─┐ ┬┌─┐┌─┐┬ ┬┌┬┐┌─┐  ╔╦╗┌─┐┌─┐┬    ╔═╗┬  ┌─┐┬ ┬
 // ├┤ ┌┴┬┘├┤ │  │ │ │ ├┤    ║║├┤ ├─┤│    ╠╣ │  │ ││││
 // └─┘┴ └─└─┘└─┘└─┘ ┴ └─┘  ═╩╝└─┘┴ ┴┴─┘  ╚  ┴─┘└─┘└┴┘
@@ -1213,7 +1289,8 @@ async function executeDealFlowCore ({
   accountId,
   dealId,
   userParamsString,
-  submitNow
+  submitNow,
+  guardIncomplete = false // GM-SSEAUTO1: true in auto mode — block instead of submitting incomplete
 }) {
   const apiUrl =
     `https://kpos.uk/deal/bytes/?dealId=${dealId}` +
@@ -1251,6 +1328,15 @@ async function executeDealFlowCore ({
   let finalSubmitNow = submitNow
   if (txInfo.status === "not_yet_valid")
     finalSubmitNow = false
+
+  // GM-SSEAUTO1: in auto mode, never hand HashPack a tx it would submit incomplete —
+  // that reaches consensus, fails INVALID_SIGNATURE, and burns the payer's fee
+  if (finalSubmitNow && guardIncomplete) {
+    const verdict = await assessSignatureCompleteness(transaction, accountId)
+    try { globalThis.kdiag?.("gm:tx:sig-guard", { dealId, accountId, ...verdict }) } catch {}
+    if (verdict.block)
+      return { status: "blocked_incomplete", verdict }
+  }
 
   if (finalSubmitNow) {
     const txResult =
@@ -1297,9 +1383,22 @@ export const executeDealFlow = async () => {
   const urlParams =
     new URLSearchParams(window.location.search)
 
-  let submitNow = true
-  if (urlParams.get("submitServerSide"))
-    submitNow = false
+  // GM-SSEAUTO1: three-state submitServerSide (absent = auto, the default every
+  // legacy deal inherits). NOTE the previous check — `if (urlParams.get(...))
+  // submitNow = false` — read ANY non-empty value as server-side, INCLUDING "0".
+  // Same falsy-string convention as the shop's parseSseMode / hoot2026 isFlagSet.
+  //   on ("1"/anything else) -> sign & return, server side submits (GM-SSEFLAG1 path)
+  //   off ("0"/"false"/"off") -> legacy HashPack sign+submit, guard skipped
+  //   auto (absent/""/"auto"/"null") -> sign+submit ONLY if the buyer's signature
+  //     completes the set; otherwise block before HashPack (GM-SIG1)
+  const sseRaw = urlParams.get("submitServerSide")
+  const sseVal = sseRaw === null ? "auto" : String(sseRaw).trim().toLowerCase()
+  const sseMode =
+    (sseVal === "" || sseVal === "auto" || sseVal === "null") ? "auto"
+    : (sseVal === "0" || sseVal === "false" || sseVal === "off") ? "off"
+    : "on"
+  const submitNow = sseMode !== "on"
+  const guardIncomplete = sseMode === "auto"
 
   const dealId =
     dealIdInput || urlParams.get("dealId")
@@ -1344,11 +1443,23 @@ export const executeDealFlow = async () => {
         accountId,
         dealId,
         userParamsString,
-        submitNow
+        submitNow,
+        guardIncomplete
       })
 
     if (!result)
       return
+
+    if (result.status === "blocked_incomplete") {
+      // GM-SIG1: deliberately friendly AND screenshotable — the ref code tells
+      // support/ops the deal simply hasn't been pre-approved yet (treasury/agent
+      // signature not attached). Details are in the gm:tx:sig-guard kdiag event.
+      walletUI.showAlert(
+        "Sorry — this deal hasn't been pre-approved yet. Please contact support (ref GM-SIG1).",
+        "warning"
+      )
+      return
+    }
 
     if (result.status === "submitted") {
       setTimeout(() => {

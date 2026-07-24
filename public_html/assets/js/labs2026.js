@@ -104,13 +104,37 @@ async function fetchDeal(dealId) {
 }
 
 
-// GM-SSEFLAG1: same falsy convention as isFlagSet() (hoot2026.js), applied to a plain
-// value instead of a URL param — deal constants arrive as strings, so "0"/"false"/"off"
-// need to read as false, not just "any non-empty string is truthy".
-function isTruthyFlagValue(value) {
-  if (value === null || value === undefined) return false
+// GM-SSEAUTO1: three-state parse of constants.serverSideExecution (supersedes the
+// GM-SSEFLAG1 binary isTruthyFlagValue). Deal constants arrive as strings.
+//   'on'   — explicit truthy → force sign-and-return, server side submits
+//   'off'  — explicit falsy ("0"/"false"/"off") → force legacy HashPack sign+submit,
+//            completeness guard skipped
+//   'auto' — absent / blank / "auto" / "null" → the DEFAULT every legacy deal inherits:
+//            the kwc bundle guards at Buy-now and blocks if the buyer's signature
+//            wouldn't complete the set (see GM-SIG1 in kwcCore.js)
+function parseSseMode(value) {
+  if (value === null || value === undefined) return 'auto'
   const v = String(value).trim().toLowerCase()
-  return v !== '0' && v !== 'false' && v !== 'off'
+  if (v === '' || v === 'auto' || v === 'null') return 'auto'
+  return (v === '0' || v === 'false' || v === 'off') ? 'off' : 'on'
+}
+
+
+// GM-SSEAUTO1: direct mirror-node lookup for a tx that has left kpool. txid arrives
+// as 0.0.x@sec.nanos (kpool form); the mirror REST path wants 0.0.x-sec-nanos.
+// Returns { result, consensus } or null (not found / bad id / mirror unreachable).
+async function mirrorTxLookup(network, txid) {
+  try {
+    const m = String(txid).match(/^(\d+\.\d+\.\d+)[@-](\d+)[.-](\d+)$/)
+    if (!m) return null
+    const base = network === 'mainnet'
+      ? 'https://mainnet-public.mirrornode.hedera.com'
+      : `https://${network}.mirrornode.hedera.com`
+    const r = await fetch(`${base}/api/v1/transactions/${m[1]}-${m[2]}-${m[3]}`)
+    if (!r.ok) return null
+    const tx = (await r.json())?.transactions?.[0]
+    return tx ? { result: tx.result, consensus: tx.consensus_timestamp } : null
+  } catch { return null }
 }
 
 
@@ -131,13 +155,22 @@ async function renderRecentSseToasts(currentDealId) {
   if (!container) return
 
   for (const t of mine) {
-    let status = 'status unavailable', isFinal = false
+    // GM-SSEAUTO1 toast cleanup: kpool clears completed/expired txs, so a kpool miss
+    // is NOT "gone" — check the mirror node like /future does. Mirror hit → real final
+    // status + HashScan link (by consensus timestamp). Mirror miss too → "may have
+    // expired", no link, and never a dead "resume signing" link on either miss path.
+    let status = 'status unavailable', isFinal = false, href = `/future/?network=${encodeURIComponent(t.network)}&txid=${encodeURIComponent(t.txid)}`
     try {
       const r = await fetch(`/future/?action=txRead&network=${encodeURIComponent(t.network)}&txid=${encodeURIComponent(t.txid)}`)
       const j = await r.json().catch(() => null)
       const d = j?.result || j || {}
       if (d.comboStatus) { status = d.comboStatus; isFinal = !!d.isStatusFinal }
-      else if (!d.hex2) status = 'not found in pool'
+      else if (!d.hex2) {
+        isFinal = true // whatever happened, there's nothing left to resume in kpool
+        const m = await mirrorTxLookup(t.network, t.txid)
+        if (m) { status = m.result; href = `https://hashscan.io/${encodeURIComponent(t.network)}/transaction/${m.consensus}` }
+        else { status = 'not found — may have expired'; href = null }
+      }
     } catch {}
 
     // toast colour follows the ACTUAL status (standard bootstrap contextuals):
@@ -152,7 +185,7 @@ async function renderRecentSseToasts(currentDealId) {
     el.role = 'alert'
     el.style.fontSize = '0.75rem'
     el.innerHTML =
-      `<a href="/future/?network=${encodeURIComponent(t.network)}&txid=${encodeURIComponent(t.txid)}" target="_blank" rel="noopener">${t.txid}</a>` +
+      (href ? `<a href="${href}" target="_blank" rel="noopener">${t.txid}</a>` : t.txid) +
       ` — ${status}` +
       (isFinal ? '' : ` &nbsp;<a href="#" class="gm-toast-resume">resume signing</a>`) +
       `<button type="button" class="btn-close" aria-label="Close"></button>`
@@ -990,27 +1023,24 @@ async function renderPage() {
       } else {
         window.__dealNetwork = raw.deal?.network || null // wallet bar reads this for ensureNetwork
 
-        // if the deal is flagged, force the URL param the bundle already checks —
-        // no bundle edit needed, executeDealFlow() reads urlParams fresh on every click
-        // GM-SSEFLAG1 fix: fetchDeal() already unwraps `.deal` (line 97: `data.deal || data`),
-        // so raw.deal IS the deal object itself — raw.deal.deal was one level too deep and
-        // always undefined, which is why the flag never fired on the first two live tests.
-        // Deal constants arrive as strings, so plain !!value would read "0"/"off" as true —
-        // same falsy convention as isFlagSet() (hoot2026.js) applied to a value instead of
-        // a URL param: only an explicit falsy-looking string (or absence) counts as off.
-        window.__dealServerSideExecution = isTruthyFlagValue(raw.deal?.constants?.serverSideExecution)
-        // GM-SSEFLAG-DIAG1 (temp, revert-safe): visibility into whether the flag
-        // was read + the URL actually rewritten
+        // GM-SSEAUTO1: derive the submitServerSide URL param (which executeDealFlow()
+        // reads fresh on every click) from the deal's constants — UNLESS the URL already
+        // carries one: a hand-typed ?submitServerSide=0/1/auto is the test override and
+        // always wins over the deal. 'auto' (the default) deliberately leaves the param
+        // absent — the bundle treats absent as auto and runs the completeness guard.
+        // (fetchDeal() already unwraps `.deal`, so raw.deal IS the deal object — GM-SSEFLAG1.)
+        const sseMode = parseSseMode(raw.deal?.constants?.serverSideExecution)
+        window.__dealServerSideExecution = sseMode
+        const sseUrl = new URL(window.location)
+        const sseManual = sseUrl.searchParams.get('submitServerSide')
+        if (sseManual === null && sseMode !== 'auto') {
+          sseUrl.searchParams.set('submitServerSide', sseMode === 'on' ? '1' : '0')
+          window.history.replaceState({}, '', sseUrl)
+        }
         window.kdiag?.('gm:deal:ssx-check', {
           dealId, constants: raw.deal?.constants || null,
-          flagged: window.__dealServerSideExecution, urlBefore: window.location.search
+          mode: sseMode, manualOverride: sseManual, urlAfter: window.location.search
         })
-        if (window.__dealServerSideExecution) {
-          const url = new URL(window.location)
-          url.searchParams.set('submitServerSide', '1')
-          window.history.replaceState({}, '', url)
-        }
-        window.kdiag?.('gm:deal:ssx-url-after', { urlAfter: window.location.search })
 
         const processed = await transformDealData(raw)
         renderDealPanel(processed)
