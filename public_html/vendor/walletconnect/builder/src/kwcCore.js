@@ -992,6 +992,20 @@ const showTxSaveResult = saveResult => {
     // Either path is kdiag'd (gm:tx:auto-open) so blocked-vs-broken is
     // observable instead of guessed at.
     if (network && txId) {
+      // GM-SSETOAST1: persist the save so a page refresh (or a wallet session
+      // dying mid-flow on a LATER attempt) can replay recent txs as live-status
+      // toasts — the host page (labs2026.js renderRecentSseToasts) reads this.
+      try {
+        const K = "gm_sse_recent"
+        const list = JSON.parse(localStorage.getItem(K) || "[]")
+        list.unshift({
+          network, txid: txId,
+          dealId: new URLSearchParams(window.location.search).get("dealId") || null,
+          ts: Date.now()
+        })
+        localStorage.setItem(K, JSON.stringify(list.slice(0, 10)))
+      } catch {}
+
       const signUrl = `/future/?network=${network}&txid=${txId}`
       if (typeof window.KPaySign === "function") {
         window.KPaySign({ network, txid: txId })

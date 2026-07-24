@@ -114,6 +114,53 @@ function isTruthyFlagValue(value) {
 }
 
 
+// GM-SSETOAST1: recent server-side-execution txs for THIS deal, persisted by the kwc
+// bundle at save time (localStorage gm_sse_recent), replayed on page load as small
+// dismissible toasts carrying the tx's ACTUAL current status (live txRead/comboStatus,
+// not a provisional guess). Covers refreshes and the observed flaky-wallet case where
+// a later Buy click dies silently — earlier saved txs stay visible and resumable.
+async function renderRecentSseToasts(currentDealId) {
+  let list = []
+  try { list = JSON.parse(localStorage.getItem('gm_sse_recent') || '[]') } catch {}
+  const dayAgo = Date.now() - 24 * 3600 * 1000
+  const mine = list.filter(t => t && t.dealId === currentDealId && t.ts > dayAgo).slice(0, 5)
+  window.kdiag?.('gm:recent:toasts', { dealId: currentDealId, stored: list.length, shown: mine.length })
+  if (!mine.length) return
+
+  const container = document.getElementById('last_tx')
+  if (!container) return
+
+  for (const t of mine) {
+    let status = 'status unavailable', isFinal = false
+    try {
+      const r = await fetch(`/future/?action=txRead&network=${encodeURIComponent(t.network)}&txid=${encodeURIComponent(t.txid)}`)
+      const j = await r.json().catch(() => null)
+      const d = j?.result || j || {}
+      if (d.comboStatus) { status = d.comboStatus; isFinal = !!d.isStatusFinal }
+      else if (!d.hex2) status = 'not found in pool'
+    } catch {}
+
+    const shortId = t.txid.length > 26 ? t.txid.slice(0, 26) + '…' : t.txid
+    const el = document.createElement('div')
+    el.className = 'alert alert-secondary alert-dismissible fade show'
+    el.role = 'alert'
+    el.style.fontSize = '0.75rem'
+    el.innerHTML =
+      `⏱ <a href="/future/?network=${encodeURIComponent(t.network)}&txid=${encodeURIComponent(t.txid)}" target="_blank" rel="noopener">${shortId}</a>` +
+      ` — ${status}` +
+      (isFinal ? '' : ` &nbsp;<a href="#" class="gm-toast-resume">resume signing</a>`) +
+      `<button type="button" class="btn-close" aria-label="Close"></button>`
+    el.querySelector('.btn-close')?.addEventListener('click', () => el.remove())
+    el.querySelector('.gm-toast-resume')?.addEventListener('click', e => {
+      e.preventDefault()
+      if (typeof window.KPaySign === 'function') window.KPaySign({ network: t.network, txid: t.txid })
+      else window.open(`/future/?network=${encodeURIComponent(t.network)}&txid=${encodeURIComponent(t.txid)}`, t.txid)
+    })
+    container.appendChild(el)
+  }
+}
+
+
 function normalisePreKatomicDeal(deal) {
 	
 	deal.network ||= deal.header?.network
@@ -961,6 +1008,12 @@ async function renderPage() {
 
         const processed = await transformDealData(raw)
         renderDealPanel(processed)
+
+        // GM-SSETOAST1: after the deal renders, replay this deal's recent
+        // server-side-execution txs as live-status toasts (fire-and-forget —
+        // must never block or break the deal render itself)
+        renderRecentSseToasts(dealId).catch(e =>
+          window.kdiag?.('gm:recent:toasts-error', { error: String(e) }))
       }
     } catch (err) {
       console.error('deal render failed', err)
