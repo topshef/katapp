@@ -213,7 +213,12 @@ require_once "$docroot/headheader.php";
 // ┴ ┴┴  └─┘└─┘┴─┘   ┴ ┴ └─  ╩═╝┴└─┘ ┴ 
 // kpool tx List
 
-function showHapiDebug(res, label) {
+<?php if (defined('IS_ADMIN') && IS_ADMIN): // GM-CONSOLEOVERLAY1 ?>
+// Diagnostic badge — was rendering unconditionally for every visitor (green-on-black
+// bar at the bottom of the page, leaking the hapi route/base). Now admin=1 only, per
+// the user's note on GM-CONSOLEOVERLAY1: keep it on admin VPN, never at admin=0.
+// All call sites use window.showHapiDebug?.() so it no-ops when the gate is closed.
+window.showHapiDebug = function(res, label) {
   let badge = document.getElementById('hapi-debug-badge')
   if (!badge) {
     badge = document.createElement('div')
@@ -224,6 +229,7 @@ function showHapiDebug(res, label) {
   const debug = res.headers.get('X-Hapi-Debug') || 'no X-Hapi-Debug header (route not instrumented, or non-admin IP)'
   badge.textContent = `[${label}] ${debug}`
 }
+<?php endif; ?>
 
 function formatRemaining(ts) {
   const now = Math.floor(Date.now() / 1000)
@@ -258,7 +264,7 @@ async function loadTxList() {
 	const hapiBaseQS = hapiBase ? `&hapi_base=${encodeURIComponent(hapiBase)}` : ''
 
   const res = await fetch(`/future/?action=txList&network=${network}&since=${since}&until=${until}${hapiBaseQS}`)
-  showHapiDebug(res, 'list')
+  window.showHapiDebug?.(res, 'list')
   const txs = (await res.json())?.result?.tx || []
 
   txs.sort((a, b) => a.txid.split('@')[1] - b.txid.split('@')[1])

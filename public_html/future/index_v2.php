@@ -297,6 +297,11 @@ require_once "$docroot/headheader.php";
 // v2 list + modular widget modal. List reuses the existing ?action=txList
 // endpoint. The modal is the kpay widget mounted via window.KPOOL.open().
 
+<?php if (defined('IS_ADMIN') && IS_ADMIN): // GM-CONSOLEOVERLAY1 ?>
+// Diagnostic badge — was rendering unconditionally for every visitor (green-on-black
+// bar at the bottom of the page, leaking the hapi route/base). Now admin=1 only, per
+// the user's note on GM-CONSOLEOVERLAY1: keep it on admin VPN, never at admin=0.
+// All call sites use window.showHapiDebug?.() so it no-ops when the gate is closed.
 window.showHapiDebug = function(res, label) {
   let badge = document.getElementById('hapi-debug-badge')
   if (!badge) {
@@ -308,6 +313,7 @@ window.showHapiDebug = function(res, label) {
   const debug = res.headers.get('X-Hapi-Debug') || 'no X-Hapi-Debug header (route not instrumented, or non-admin IP)'
   badge.textContent = `[${label}] ${debug}`
 }
+<?php endif; ?>
 
 ;(() => {
 
