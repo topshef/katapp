@@ -8,6 +8,10 @@ RewriteEngine On
   Require all denied
 </Files>
 
+# KAT-DOMAIN1: standalone-deploy diagnostics land in m/katomia/logs/ (kflow/kdiag
+# write dirname(docroot)/logs) — never serve them
+RewriteRule ^logs/ - [F]
+
 
 RewriteRule ^game/(.+\.(js|css))$ $1 [L,QSA]
 RewriteRule ^game/([^/]+)/?$ ?game=$1 [L,QSA,E=TRACE:TY63433]

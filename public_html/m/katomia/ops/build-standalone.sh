@@ -36,15 +36,31 @@ rsync -a --delete \
   --filter='P /assets/php' \
   --filter='P /elog.php' --filter='P /readenv.php' \
   --filter='P /hapi_base.php' --filter='P /kmon.php' \
+  --filter='P /kflow.php' --filter='P /diag.php' \
   --filter='P /.env' --filter='P /.htaccess' \
   --filter='P /build-info.json' \
   "$APP/" "$BUILD/"
 
-# 2. Docroot PHP shims + env
-cp "$ROOT/elog.php" "$ROOT/readenv.php" "$ROOT/hapi_base.php" "$ROOT/kmon.php" "$BUILD/"
+# 2. Docroot PHP shims + env + diagnostics endpoints (kflow/diag — the "k
+#    diagnostics"; without them beacons 404 and a failed session leaves no trace)
+cp "$ROOT/elog.php" "$ROOT/readenv.php" "$ROOT/hapi_base.php" "$ROOT/kmon.php" \
+   "$ROOT/kflow.php" "$ROOT/diag.php" "$BUILD/"
 mkdir -p "$BUILD/assets/php"
-cp "$ROOT/assets/php/sendPost.php" "$BUILD/assets/php/"
+cp "$ROOT/assets/php/sendPost.php" "$ROOT/assets/php/elog.php" "$BUILD/assets/php/"
 [ -f "$ROOT/.env" ] && cp "$ROOT/.env" "$BUILD/.env"
+
+# 2b. /m/bid local-cache stack — game.php/board.php load these absolutely; their
+#     404 on pat killed the module chain the signer flow hangs off (KAT-DOMAIN1
+#     test 1 failure, 2026-07-28) — plus the kpool explorer (tx mirror reads)
+mkdir -p "$BUILD/m/bid/explore"
+cp "$ROOT/m/bid/localbase.min.js" "$ROOT/m/bid/localCacheDB.js" \
+   "$ROOT/m/bid/localCacheDB.module.js" "$ROOT/m/bid/localCacheIFPS.js" \
+   "$ROOT/m/bid/localCacheArweave.js" "$BUILD/m/bid/"
+cp "$ROOT/m/bid/explore/kpool.php" "$ROOT/m/bid/explore/.htaccess" "$BUILD/m/bid/explore/"
+
+# 2c. writable log dirs beside the docroot (kflow/diag/elog write ../logs/*)
+mkdir -p "$APP/logs/kflow" "$APP/logs/kdiag"
+chown -R www-data:www-data "$APP/logs"
 
 # 3. Vendor subset (vendor/walletconnect on main is 1.5G — take only the served bits)
 mkdir -p "$BUILD/vendor/walletconnect/builder/snapshots"
@@ -55,6 +71,12 @@ cp "$ROOT/vendor/walletconnect/kwcScriptTag.php" \
    "$BUILD/vendor/walletconnect/"
 rsync -a --delete "$ROOT/vendor/walletconnect/builder/snapshots/$KWC_SNAPSHOT/" \
    "$BUILD/vendor/walletconnect/builder/snapshots/$KWC_SNAPSHOT/"
+# lazy-hydrate: catchall for snapshot artifacts missing locally (e.g. the bundle's
+# release.json probe) — same 404 semantics as live, and on a foreign server it can
+# hydrate from swap.kpay.live (in its $origins). Needs assets/php/elog.php (2. above).
+cp "$ROOT/vendor/walletconnect/builder/lazy-hydrate.php" "$BUILD/vendor/walletconnect/builder/"
+# same-box only: link the shared snapshot store if present
+[ -d /var/www/kwc-snapshots ] && ln -sfn /var/www/kwc-snapshots "$BUILD/vendor/walletconnect/builder/snapshots-shared"
 mkdir -p "$BUILD/vendor/kpay/kpool_widget"
 rsync -a --delete --exclude 'node_modules' \
    "$ROOT/vendor/kpay/kpool_widget/" "$BUILD/vendor/kpay/kpool_widget/"
@@ -77,8 +99,10 @@ cat <<'EOF'
 RewriteEngine On
 
 # Host gate: this folder is web-reachable via swap.kpay.live/m/katomia/build/
-# too — only serve it on its own domain (user-approved block, 2026-07-28)
-RewriteCond %{HTTP_HOST} !^pat\.katomia\.com$ [NC]
+# too — deny the dev hosts rather than allow-list one domain, so the same
+# artifact deploys unmodified to any standalone domain (user-approved block,
+# 2026-07-28; made domain-agnostic for remote installs same day)
+RewriteCond %{HTTP_HOST} ^(www\.)?swap\.kpay\.live$ [NC]
 RewriteRule ^ - [F]
 
 # never serve env files
@@ -89,6 +113,10 @@ RewriteRule ^ - [F]
 # Legacy absolute /m/katomia/* references → same file at docroot
 RewriteRule ^m/katomia/?$ index.php [L,QSA]
 RewriteRule ^m/katomia/(.*)$ $1 [L,QSA]
+
+# diagnostics endpoints (extensionless, same as the swap site root's rules)
+RewriteRule ^kflow$ kflow.php [L,QSA]
+RewriteRule ^diag$ diag.php [L,QSA]
 
 # ---- app routes, copied verbatim from m/katomia/.htaccess ----
 EOF
