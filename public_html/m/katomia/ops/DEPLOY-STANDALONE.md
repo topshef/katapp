@@ -16,7 +16,10 @@ the app plus everything it needs that normally lives elsewhere in the swap
 webroot: docroot PHP shims (`elog`/`readenv`/`hapi_base`/`kmon`/`kflow`/`diag` +
 `assets/php/`), the `/m/bid/` local-cache stack (Localbase + localCache* —
 **without these the signer/wallet flow dies silently**, test 1 finding), the
-`/m/bid/explore/kpool` tx-mirror proxy, a trimmed `vendor/` (pinned KWC snapshot
+`/future/?action=txRead|txSave` kpool proxy (**the signer's tx-bytes
+read/write — without it signing dies "DQ63632 kpool record not found"**, test
+2 finding; only the ?action= API is bundled, the /future page view stays
+swap-hosted), the `/m/bid/explore/kpool` tx-mirror proxy, a trimmed `vendor/` (pinned KWC snapshot
 + `lazy-hydrate.php` + kpool_widget — not the 1.5G walletconnect tree), glog,
 and a generated `.htaccess` (dev-host deny gate, legacy `/m/katomia/*` rewrite,
 `/kflow` + `/diag` routes, app routes verbatim). The gate is **domain-agnostic**
@@ -87,6 +90,10 @@ fails, read the day's jsonl there first.
   (arrow fn). GMPOC apache PHP is 7.3-era — fine for the app.
 - **CDN deps still remote** (esm.sh / cdnjs / jsdelivr): the bundle is
   file-complete but not network-isolated. Removing those is BUNDLE1.
+- **Asset names/thumbnails degrade** on a bundle deploy: the app enriches
+  assets via `/m/?format=json&productId=…` — the `/m/` shop app is NOT
+  bundled, so those lookups 403/404 (cosmetic; transfers still work, verified
+  by the passing kWallet run). Bundling a product-lookup shim is open scope.
 - **WC `release.json` 404/JS-body**: the KWC bundle probes
   `snapshots/<sha>/release.json`, which doesn't exist anywhere (live 404s it
   too); `lazy-hydrate.php` may answer it with the js artifact. Harmless —
