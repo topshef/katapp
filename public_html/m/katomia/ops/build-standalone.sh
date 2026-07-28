@@ -33,7 +33,7 @@ rsync -a --delete \
   --exclude '/.env_hapi' --exclude '/.htaccess' \
   --exclude 'node_modules' --exclude '*.bak' \
   --filter='P /vendor' --filter='P /m' \
-  --filter='P /assets/php' \
+  --filter='P /assets/php' --filter='P /future' \
   --filter='P /elog.php' --filter='P /readenv.php' \
   --filter='P /hapi_base.php' --filter='P /kmon.php' \
   --filter='P /kflow.php' --filter='P /diag.php' \
@@ -43,8 +43,11 @@ rsync -a --delete \
 
 # 2. Docroot PHP shims + env + diagnostics endpoints (kflow/diag — the "k
 #    diagnostics"; without them beacons 404 and a failed session leaves no trace)
-cp "$ROOT/elog.php" "$ROOT/readenv.php" "$ROOT/hapi_base.php" "$ROOT/kmon.php" \
+cp "$ROOT/readenv.php" "$ROOT/hapi_base.php" "$ROOT/kmon.php" \
    "$ROOT/kflow.php" "$ROOT/diag.php" "$BUILD/"
+# root elog.php is a RELATIVE SYMLINK to assets/php/elog.php on live — recreate it
+# as one (require_once dedupes by realpath; two real copies = redeclare fatal)
+ln -sfn assets/php/elog.php "$BUILD/elog.php"
 mkdir -p "$BUILD/assets/php"
 cp "$ROOT/assets/php/sendPost.php" "$ROOT/assets/php/elog.php" "$BUILD/assets/php/"
 [ -f "$ROOT/.env" ] && cp "$ROOT/.env" "$BUILD/.env"
@@ -57,6 +60,17 @@ cp "$ROOT/m/bid/localbase.min.js" "$ROOT/m/bid/localCacheDB.js" \
    "$ROOT/m/bid/localCacheDB.module.js" "$ROOT/m/bid/localCacheIFPS.js" \
    "$ROOT/m/bid/localCacheArweave.js" "$BUILD/m/bid/"
 cp "$ROOT/m/bid/explore/kpool.php" "$ROOT/m/bid/explore/.htaccess" "$BUILD/m/bid/explore/"
+
+# 2b2. /future kpool proxy — the signer widget AND katomia-board.js read/write
+#      tx bytes via /future/?action=txRead|txSave (absolute). ?action= requests
+#      short-circuit into kpool.php before index.php's heavy page deps, so only
+#      these two files (+ getCachedData) are needed; the /future PAGE view is
+#      NOT bundled and will error — it's the swap-hosted power route.
+#      (KAT-DOMAIN1 test 2 failure, 2026-07-28: raise-tx worked, signing died
+#      "kpool record not found" because /future/ 404'd.)
+mkdir -p "$BUILD/future"
+cp "$ROOT/future/index.php" "$ROOT/future/kpool.php" "$BUILD/future/"
+cp "$ROOT/assets/php/getCachedData.php" "$BUILD/assets/php/"
 
 # 2c. writable log dirs beside the docroot (kflow/diag/elog write ../logs/*)
 mkdir -p "$APP/logs/kflow" "$APP/logs/kdiag"
