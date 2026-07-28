@@ -56,3 +56,7 @@ scratchpad
 
 **/ops/ops.jsonl
 **/ops/ops.jsonl.pre-untrack-bak
+
+# KAT-DOMAIN1 (2026-07-28): standalone-deploy build output (pat.katomia.com
+# docroot) — a generated artifact, rebuild via m/katomia/ops/build-standalone.sh
+/public_html/m/katomia/build/

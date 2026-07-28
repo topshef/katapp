@@ -1,6 +1,13 @@
 
 RewriteEngine On
 
+# KAT-DOMAIN1 (2026-07-28): the standalone-deploy test (pat.katomia.com,
+# docroot m/katomia/build) reads its HAPI env from m/katomia/.env_hapi
+# (hapi_base.php looks at dirname(DOCUMENT_ROOT)) — never serve it over http.
+<Files ".env_hapi">
+  Require all denied
+</Files>
+
 
 RewriteRule ^game/(.+\.(js|css))$ $1 [L,QSA]
 RewriteRule ^game/([^/]+)/?$ ?game=$1 [L,QSA,E=TRACE:TY63433]
