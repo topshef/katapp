@@ -36,6 +36,10 @@ RewriteRule ^board/([^/]+)/?$ board.php?game=$1 [L,QSA,E=TRACE:KB18204]
 # existing default at all.
 RewriteRule ^welcome/?$ landing.php [L,QSA]
 
+# ENTRY-DEFAULTROOT1 (2026-07-29): welcome IS the default root now (index.php serves
+# landing.php bare); the games list moved to this explicit route.
+RewriteRule ^markets/?$ ?page=markets [L,QSA]
+
 
 RewriteRule ^kea/?$ KEA [L,QSA]
 

@@ -6,6 +6,12 @@ $landing = $siteConfig['landing'] ?? [];
 $title = $landing['title'] ?? 'Katomia';
 $tagline = $landing['tagline'] ?? '';
 $curatedGames = $landing['curatedGames'] ?? [];
+// ENTRY-SKINS1 (user 2026-07-29): URL-switchable CSS skins for this page — design
+// exploration surface. ?skin=liquid|clay|bubble; default 'paper' is the plain look.
+// A picker appears in NERD MODE only (deliberate: nerd mode as the UI-branching
+// playground for design-curious testers — user call, same day as ENTRY-KEANERD1).
+$landingSkins = ['paper', 'liquid', 'clay', 'bubble'];
+$landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'] : 'paper';
 ?>
 <!DOCTYPE html>
 <html>
@@ -58,9 +64,74 @@ $curatedGames = $landing['curatedGames'] ?? [];
   .landing-connect-btn:hover{ background: #265cc7; }
   .landing-connected{ margin-top: 10px; font-size: 13px; color: #2e7d32; }
   .landing-connected:empty{ display: none; }
+  /* ═══ ENTRY-SKINS1 — landing skins (design exploration; page-scoped, the shared
+     banner is deliberately untouched for now). 'paper' = the defaults above. ═══ */
+
+  /* — liquid: dark glass, drifting iridescent blobs; the torus/pitch-deck world — */
+  body.lskin-liquid{ background:#0b0e1a; color:#e8ecf5; }
+  body.lskin-liquid::before, body.lskin-liquid::after{
+    content:""; position:fixed; width:62vmax; height:62vmax; border-radius:50%;
+    filter:blur(90px); opacity:.38; z-index:-1; pointer-events:none;
+  }
+  body.lskin-liquid::before{ background:radial-gradient(circle,#2f6fed,transparent 62%);
+    top:-22vmax; right:-16vmax; animation:lqFloatA 19s ease-in-out infinite alternate; }
+  body.lskin-liquid::after{ background:radial-gradient(circle,#8b3bd8,transparent 62%);
+    bottom:-26vmax; left:-16vmax; animation:lqFloatB 23s ease-in-out infinite alternate; }
+  @keyframes lqFloatA{ to{ transform:translate(-9vmax,7vmax) scale(1.12); } }
+  @keyframes lqFloatB{ to{ transform:translate(8vmax,-6vmax) scale(.92); } }
+  body.lskin-liquid .landing-tagline{ color:#9aa6c0; }
+  body.lskin-liquid .landing-card,
+  body.lskin-liquid .landing-connect{
+    background:rgba(255,255,255,.06); border-color:rgba(255,255,255,.14); color:#e8ecf5;
+    backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    border-radius:18px; box-shadow:0 8px 30px rgba(0,0,0,.35);
+  }
+  body.lskin-liquid .landing-card:hover{ border-color:rgba(140,190,255,.5); }
+  body.lskin-liquid .landing-card-net{ color:#8f9bb5; }
+  body.lskin-liquid .landing-connect .subtle{ color:#93a0ba; }
+  body.lskin-liquid .landing-create{ background:linear-gradient(120deg,#31c48d,#2f6fed); border-radius:999px; }
+  body.lskin-liquid .landing-create:hover{ filter:brightness(1.1); }
+  body.lskin-liquid .landing-connect-btn{ background:linear-gradient(120deg,#2f6fed,#8b3bd8); border-radius:999px; }
+  body.lskin-liquid .landing-connected{ color:#5fd39a; }
+  body.lskin-liquid .landing-more a{ color:#6e7a95; }
+
+  /* — clay: warm, soft, no hard edges anywhere; squishy neumorphic mass — */
+  body.lskin-clay{ background:#efe9e1; }
+  body.lskin-clay .landing-tagline{ color:#8a7f72; }
+  body.lskin-clay .landing-card,
+  body.lskin-clay .landing-connect{
+    background:#f3ede5; border:none; border-radius:26px;
+    box-shadow:8px 8px 18px rgba(178,160,138,.4), -8px -8px 18px rgba(255,255,255,.95);
+    transition:transform .18s ease, box-shadow .18s ease;
+  }
+  body.lskin-clay .landing-card:hover{ transform:translateY(-3px);
+    box-shadow:10px 12px 22px rgba(178,160,138,.45), -8px -8px 18px rgba(255,255,255,.95); }
+  body.lskin-clay .landing-create{ background:#e8735a; border-radius:999px;
+    box-shadow:6px 6px 14px rgba(178,160,138,.5), -4px -4px 10px rgba(255,255,255,.8); }
+  body.lskin-clay .landing-create:hover{ transform:translateY(-2px) scale(1.02); background:#e8735a; }
+  body.lskin-clay .landing-connect-btn{ background:#5a8fe8; border-radius:999px;
+    box-shadow:4px 4px 10px rgba(178,160,138,.5), -3px -3px 8px rgba(255,255,255,.8); }
+  body.lskin-clay .landing-more a{ color:#a89b8c; }
+
+  /* — bubble: minimal light base; kbubble.js draws living borders (ENTRY-BUBBLE1).
+       .kbubble-on = the effect attached OK, so the CSS border steps aside; without
+       it (reduced-motion / no canvas) the paper borders simply remain. — */
+  body.lskin-bubble{ background:#f7f9fc; }
+  body.lskin-bubble .landing-card,
+  body.lskin-bubble .landing-connect{ border-radius:14px; }
+  body.lskin-bubble .kbubble-on{ border-color:transparent !important; box-shadow:none !important; }
+  body.lskin-bubble .landing-create{ background:#fff; color:#1d8a44; }
+  body.lskin-bubble .landing-connect-btn{ background:#fff; color:#2f6fed; }
+  body.lskin-bubble .landing-create.kbubble-on:hover{ background:#fff; transform:none; }
+
+  /* — nerd-mode skin picker (ENTRY-SKINS1): visible only with body.nerd — */
+  .landing-skin-picker{ display:none; margin-top:22px; font-size:13px; color:#888;
+    gap:8px; align-items:center; }
+  body.nerd .landing-skin-picker{ display:flex; }
+  .landing-skin-picker select{ padding:5px 8px; border-radius:6px; border:1px solid #ccc; }
 </style>
 </head>
-<body>
+<body class="lskin-<?= htmlspecialchars($landingSkin, ENT_QUOTES, 'UTF-8') ?>">
 <?php
   require __DIR__ . '/header.php';
   require __DIR__ . '/profile-modal.php';
@@ -108,7 +179,19 @@ $curatedGames = $landing['curatedGames'] ?? [];
     <div id="landingConnected" class="landing-connected"></div>
   </div>
 
-  <p class="landing-more"><a href="/m/katomia/">See all markets →</a></p>
+  <p class="landing-more"><a href="/m/katomia/markets">See all markets →</a></p>
+
+  <!-- ENTRY-SKINS1: nerd-mode-only skin picker — reloads with ?skin= so each variant
+       initialises cleanly (the bubble skin attaches canvases at load). -->
+  <div class="landing-skin-picker" title="Design exploration (nerd mode): try this page in different skins. The URL carries the choice — share it.">
+    🎨 Page skin
+    <select id="landingSkinSel">
+      <option value="paper">📄 Paper (default)</option>
+      <option value="liquid">🫧 Liquid glass</option>
+      <option value="clay">🏺 Soft clay</option>
+      <option value="bubble">💠 Bubble borders</option>
+    </select>
+  </div>
 </div>
 
 <script>
@@ -142,7 +225,37 @@ document.getElementById("landingConnectBtn").onclick = async () => {
 }
 document.getElementById("landingNet").onchange = () => landingRefreshAccounts(true)
 window.addEventListener("load", () => landingRefreshAccounts(false))
+
+// ENTRY-SKINS1: picker → reload with the chosen skin in the URL.
+{
+  const sel = document.getElementById("landingSkinSel")
+  sel.value = "<?= $landingSkin ?>"
+  sel.onchange = () => {
+    const p = new URLSearchParams(location.search)
+    if(sel.value === "paper") p.delete("skin"); else p.set("skin", sel.value)
+    location.search = p.toString()
+  }
+}
 </script>
+
+<?php if ($landingSkin === 'bubble'): ?>
+<!-- ENTRY-BUBBLE1: the living-border demo skin. kbubble degrades to the CSS border
+     (no .kbubble-on class) under reduced-motion / no canvas. -->
+<script src="<?= kasset('kbubble.js') ?>"></script>
+<script>
+window.addEventListener("load", () => {
+  if(!window.kbubble) return
+  document.querySelectorAll(".landing-card").forEach(el =>
+    kbubble.attach(el, { style: "iridescent", width: 1.8 }))
+  const create = document.querySelector(".landing-create")
+  if(create) kbubble.attach(create, { style: "glow", color: "rgba(29,138,68,.85)", width: 2 })
+  const btn = document.getElementById("landingConnectBtn")
+  if(btn) kbubble.attach(btn, { style: "glow", color: "rgba(47,111,237,.85)", width: 2 })
+  const card = document.querySelector(".landing-connect")
+  if(card) kbubble.attach(card, { style: "ink", width: 1.4, ambient: 0.25 })
+})
+</script>
+<?php endif; ?>
 
 <script><?php require_once('config.php'); ?>
   window.CONFIG = {

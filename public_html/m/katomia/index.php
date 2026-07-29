@@ -12,6 +12,13 @@ if ($page == 'create') {
 	exit;
 }
 
+// ENTRY-DEFAULTROOT1 (user 2026-07-29): the markets list moved off the root to
+// /markets — the root now belongs to the welcome page below.
+if ($page == 'markets') {
+	require_once("contents.php");
+	exit;
+}
+
 
 $gameId = $_GET['game'] ?? false;
 if ($gameId) {
@@ -19,5 +26,7 @@ if ($gameId) {
 	exit;
 }
 
-// games-list index — .php since HEADER-UNIFY (shared header/profile partials inside)
-require_once("contents.php");
+// ENTRY-DEFAULTROOT1: bare /m/katomia/ now serves the WELCOME page (user ruling
+// 2026-07-29, closing the question KATOMIA-CONFIG1 left open). /welcome stays as an
+// alias route; the games list lives at /markets (menu 🏛️ + "See all markets" link).
+require_once("landing.php");

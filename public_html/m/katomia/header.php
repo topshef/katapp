@@ -37,7 +37,7 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
 <div class="app-banner">
   <div class="app-banner-inner">
     <h2>
-      <a class="app-home-link" href="/m/katomia/" title="Katomia — all markets">
+      <a class="app-home-link" href="/m/katomia/" title="Katomia — home">
         <span class="app-title">KATOMIA</span>
         <span class="app-icons">💱 🐫</span>
       </a>
@@ -51,8 +51,11 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
        The KEA entry (AUTH-LANG1 second door to the modal's collapsed section) stays
        while the kea feature flag is on; it disappears wholesale at release. -->
   <nav id="appMenu" class="app-menu hidden">
+    <!-- ENTRY-DEFAULTROOT1 (user 2026-07-29): Home first — always a way back to the
+         welcome page (which is now the default root); Markets moved to /markets. -->
+    <a class="app-menu-item" href="/m/katomia/">🏠 Home</a>
     <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
-    <a class="app-menu-item" href="/m/katomia/">🏛️ Markets</a>
+    <a class="app-menu-item" href="/m/katomia/markets">🏛️ Markets</a>
     <button type="button" class="app-menu-item hide-in-proposal" data-menu-kea data-feature="kea"
             title="Pre-approve a policy and let KEA auto-settle orders your intent key has signed — no per-transaction prompts.">🤖 Execution agent</button>
     <?php if (defined('KATOMIA_BOARD_CONTEXT')): ?>

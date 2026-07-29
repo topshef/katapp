@@ -1,0 +1,198 @@
+// kbubble.js — ENTRY-BUBBLE1 (user brainstorm 2026-07-29): the "bubble border"
+// micro-interaction. An element's border is drawn as a closed elastic loop (a 1D wave
+// equation running around the perimeter of a rounded rect). Hovering blows at the
+// bubble — a ripple runs around the border from the pointer; clicking is a harder
+// puff. The idea: a brand-unique liquidity gesture (soft, alive, organic) instead of
+// a stock CSS hover.
+//
+// Plain 2D canvas, no WebGL needed at this scale (a few hundred points per element).
+// Progressive enhancement: attach() returns null (and touches nothing) when canvas is
+// unavailable or the user prefers reduced motion — the element keeps its CSS border,
+// so pages must treat the effect as optional garnish. On success the element gains
+// class "kbubble-on" (page CSS can then drop its native border).
+//
+// API:
+//   kbubble.attach(el, opts?) -> handle|null
+//     opts: bleed(px canvas margin, 20) · radius(corner px, from computed style)
+//           style: 'ink' | 'glow' | 'iridescent' (default 'ink')
+//           color(css, for ink/glow) · width(px, 1.6) · points(140)
+//           tension(28) · spring(14) · damp(2.2) · ambient(0.35) · puff(26)
+//   kbubble.detach(handle)
+//   handle.puff(strength?) — programmatic pulse (e.g. on form success)
+
+(() => {
+  if (window.kbubble) return
+
+  const reduced = matchMedia?.("(prefers-reduced-motion: reduce)").matches
+
+  // Sample the rounded-rect perimeter: base points + outward normals, even spacing.
+  function buildLoop(w, h, r, N){
+    r = Math.max(2, Math.min(r, w / 2, h / 2))
+    const segs = []   // [len, fn(t)->{x,y,nx,ny}]
+    const line = (x0, y0, x1, y1, nx, ny) => {
+      const len = Math.hypot(x1 - x0, y1 - y0)
+      segs.push([len, t => ({ x: x0 + (x1 - x0) * t, y: y0 + (y1 - y0) * t, nx, ny })])
+    }
+    const arc = (cx, cy, a0, a1) => {
+      const len = Math.abs(a1 - a0) * r
+      segs.push([len, t => {
+        const a = a0 + (a1 - a0) * t
+        const nx = Math.cos(a), ny = Math.sin(a)
+        return { x: cx + nx * r, y: cy + ny * r, nx, ny }
+      }])
+    }
+    const H = Math.PI / 2
+    line(r, 0, w - r, 0, 0, -1);        arc(w - r, r, -H, 0)
+    line(w, r, w, h - r, 1, 0);         arc(w - r, h - r, 0, H)
+    line(w - r, h, r, h, 0, 1);         arc(r, h - r, H, 2 * H)
+    line(0, h - r, 0, r, -1, 0);        arc(r, r, 2 * H, 3 * H)
+    const total = segs.reduce((s, [l]) => s + l, 0)
+    const pts = []
+    let si = 0, sOff = 0
+    for(let i = 0; i < N; i++){
+      let dist = i / N * total
+      while(dist - sOff > segs[si][0]){ sOff += segs[si][0]; si++ }
+      pts.push(segs[si][1]((dist - sOff) / segs[si][0]))
+    }
+    return pts
+  }
+
+  const handles = new Set()
+
+  function attach(el, opts = {}){
+    if(reduced) return null
+    const cv = document.createElement("canvas")
+    const ctx = cv.getContext && cv.getContext("2d")
+    if(!ctx) return null
+
+    const o = Object.assign({ bleed: 20, style: "ink", color: "", width: 1.6, points: 140,
+                              tension: 28, spring: 14, damp: 2.2, ambient: 0.35, puff: 26 }, opts)
+    if(getComputedStyle(el).position === "static") el.style.position = "relative"
+    cv.style.cssText = `position:absolute;inset:${-o.bleed}px;width:calc(100% + ${o.bleed * 2}px);height:calc(100% + ${o.bleed * 2}px);pointer-events:none;`
+    el.appendChild(cv)
+    el.classList.add("kbubble-on")
+
+    const st = { el, cv, ctx, o, d: null, v: null, pts: null, w: 0, h: 0, phase: [], last: 0,
+                 hover: false, px: 0, py: 0, raf: 0, dead: false }
+
+    function rebuild(){
+      const rect = el.getBoundingClientRect()
+      st.w = rect.width; st.h = rect.height
+      if(!st.w || !st.h) return
+      const dpr = Math.min(devicePixelRatio || 1, 2)
+      cv.width = (st.w + o.bleed * 2) * dpr
+      cv.height = (st.h + o.bleed * 2) * dpr
+      ctx.setTransform(dpr, 0, 0, dpr, o.bleed, o.bleed)
+      const r = o.radius ?? (parseFloat(getComputedStyle(el).borderRadius) || 10)
+      st.pts = buildLoop(st.w, st.h, r, o.points)
+      if(!st.d){ st.d = new Float32Array(o.points); st.v = new Float32Array(o.points)
+                 st.phase = Array.from({ length: o.points }, () => Math.random() * 7) }
+    }
+    rebuild()
+    const onResize = () => rebuild()
+    addEventListener("resize", onResize)
+
+    const nearest = (x, y) => {
+      let best = 0, bd = 1e9
+      for(let i = 0; i < st.pts.length; i++){
+        const dx = st.pts[i].x - x, dy = st.pts[i].y - y, d2 = dx * dx + dy * dy
+        if(d2 < bd){ bd = d2; best = i }
+      }
+      return best
+    }
+    // a puff pushes the border INWARD around a point; the wave does the rest
+    function impulse(idx, strength){
+      if(!st.pts) return
+      const N = st.pts.length
+      for(let k = -6; k <= 6; k++){
+        const g = Math.exp(-k * k / 10)
+        st.v[(idx + k + N) % N] -= strength * 0.3 * g
+      }
+    }
+    const local = e => { const r = el.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top] }
+    const onEnter = e => { st.hover = true; const [x, y] = local(e); impulse(nearest(x, y), o.puff * 0.45) }
+    const onMove  = e => { const [x, y] = local(e)
+      const sp = Math.hypot(x - st.px, y - st.py); st.px = x; st.py = y
+      if(st.hover && sp > 1) impulse(nearest(x, y), Math.min(sp, 14) * 0.28) }
+    const onLeave = () => { st.hover = false }
+    const onDown  = e => { const [x, y] = local(e); impulse(nearest(x, y), o.puff) }
+    el.addEventListener("pointerenter", onEnter)
+    el.addEventListener("pointermove", onMove)
+    el.addEventListener("pointerleave", onLeave)
+    el.addEventListener("pointerdown", onDown)
+
+    function frame(now){
+      window.__kbFrames = (window.__kbFrames || 0) + 1   // debug probe
+      if(st.dead) return
+      const dt = Math.min((now - (st.last || now)) / 1000, 1 / 30)
+      st.last = now
+      const { d, v, pts, o: op } = st
+      if(pts){
+        // Classic stable ripple integration (per-frame semantics): spread rate k must
+        // stay < 0.5 or the highest spatial mode diverges — the first cut used
+        // dt-scaled gains ~30x past that limit and the whole array went NaN in
+        // under a second (found via the __kbFrames/__kbState probes).
+        const N = pts.length, t = now / 1000
+        const k = Math.min(op.tension / 60, 0.49)
+        const s = op.spring / 600
+        const decay = Math.exp(-op.damp * Math.max(dt, 1 / 120))
+        const lim = op.bleed * 0.75
+        for(let i = 0; i < N; i++){
+          const lap = d[(i + N - 1) % N] + d[(i + 1) % N] - 2 * d[i]
+          const acc = k * lap - s * d[i] + op.ambient * 0.05 * Math.sin(t * 1.3 + st.phase[i])
+          v[i] = (v[i] + acc) * decay
+        }
+        for(let i = 0; i < N; i++){
+          d[i] += v[i]
+          if(d[i] > lim) d[i] = lim; else if(d[i] < -lim) d[i] = -lim
+        }
+        ctx.clearRect(-op.bleed, -op.bleed, st.w + op.bleed * 2, st.h + op.bleed * 2)
+        const P = i => { const p = pts[i % N]; const k = d[i % N]; return [p.x + p.nx * k, p.y + p.ny * k] }
+        ctx.lineWidth = op.width
+        ctx.lineCap = "round"
+        if(op.style === "iridescent"){
+          // soap film: short segments, hue walks the loop and drifts with time
+          for(let i = 0; i < N; i++){
+            const [x0, y0] = P(i), [x1, y1] = P(i + 1)
+            ctx.strokeStyle = `hsla(${(i / N * 360 + t * 40) % 360}, 85%, 66%, .9)`
+            ctx.shadowColor = ctx.strokeStyle
+            ctx.shadowBlur = 4
+            ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke()
+          }
+          ctx.shadowBlur = 0
+        } else {
+          if(op.style === "glow"){ ctx.shadowColor = op.color || "rgba(47,111,237,.8)"; ctx.shadowBlur = 7 }
+          ctx.strokeStyle = op.color || "rgba(29,35,42,.65)"
+          ctx.beginPath()
+          let [mx, my] = P(0), [nx2, ny2] = P(1)
+          ctx.moveTo((mx + nx2) / 2, (my + ny2) / 2)
+          for(let i = 1; i <= N; i++){
+            const [cx2, cy2] = P(i), [ex, ey] = P(i + 1)
+            ctx.quadraticCurveTo(cx2, cy2, (cx2 + ex) / 2, (cy2 + ey) / 2)
+          }
+          ctx.stroke()
+          ctx.shadowBlur = 0
+        }
+      }
+      st.raf = requestAnimationFrame(frame)
+    }
+    st.raf = requestAnimationFrame(frame)
+    el.__kbState = st   // debug probe
+
+    const handle = {
+      el,
+      puff: (s = o.puff) => impulse(Math.floor(Math.random() * o.points), s),
+      destroy(){
+        st.dead = true; cancelAnimationFrame(st.raf); removeEventListener("resize", onResize)
+        el.removeEventListener("pointerenter", onEnter); el.removeEventListener("pointermove", onMove)
+        el.removeEventListener("pointerleave", onLeave); el.removeEventListener("pointerdown", onDown)
+        cv.remove(); el.classList.remove("kbubble-on")
+        handles.delete(handle)
+      }
+    }
+    handles.add(handle)
+    return handle
+  }
+
+  window.kbubble = { attach, detach: h => h?.destroy?.(), _handles: handles }
+})()
