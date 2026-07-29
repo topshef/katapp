@@ -1,4 +1,13 @@
-<?php require_once __DIR__ . '/kasset.php'; ?>
+<?php require_once __DIR__ . '/kasset.php';
+// ENTRY-CREATEBASIC1 (user 2026-07-29): ?skin=basic renders the noddy version of this
+// form — name + network (Hedera testnet/mainnet only) + visibility (default unlisted),
+// everything else fixed to happy-path defaults (proposal, cluster lock, joinRule *,
+// delay 0, valid 60s, admin = intent pubkey). Same page, same submit path — the skin
+// only changes what's SHOWN, mirroring how other controls take render options. The
+// welcome page's "Create your own game" button links here with skin=basic; /create
+// bare stays the full form.
+$skinBasic = ($_GET['skin'] ?? '') === 'basic';
+?>
 <!DOCTYPE html>
 <html>
 <head>
@@ -130,6 +139,18 @@ h3{
 }
 
 
+/* ENTRY-CREATEBASIC1: the basic skin hides every .adv-only field and reorders the
+   rest network-first (be explicit about the network before anything else — user
+   2026-07-29). Flex order beats moving markup: the full form keeps its layout. */
+.form.skin-basic{ display:flex; flex-direction:column; }
+.form.skin-basic .adv-only{ display:none; }
+.form.skin-basic .page-title{ order:0; }
+.form.skin-basic .field-network{ order:1; }
+.form.skin-basic .field-name{ order:2; }
+.form.skin-basic .field-visibility{ order:3; }
+.form.skin-basic .create-btn{ order:4; align-self:flex-start; }
+.form.skin-basic .status{ order:5; }
+.form.skin-basic .net-playnet{ display:none; }
 
 </style>
 </head>
@@ -142,23 +163,23 @@ h3{
   require __DIR__ . '/profile-modal.php';
 ?>
 
-<div class="form">
+<div class="form<?= $skinBasic ? ' skin-basic' : '' ?>">
 
-  <h3 class="page-title">Create your own market</h3>
+  <h3 class="page-title"><?= $skinBasic ? 'Create your own game' : 'Create your own market' ?></h3>
 
-  <div class="field">
+  <div class="field field-name">
     <label>Game name <span class="explain">(optional)</span></label>
     <input id="gameName" placeholder="ABC demo">
-    
+
   </div>
 
-  <div class="field">
+  <div class="field field-network">
     <label>Network</label>
 
     <div class="options">
-      <label class="option"><input type="radio" name="network" value="playnet" checked> Playnet</label>
-      <label class="option"><input type="radio" name="network" value="testnet">         Testnet</label>
-      <label class="option"><input type="radio" name="network" value="mainnet">         Mainnet</label>
+      <label class="option net-playnet"><input type="radio" name="network" value="playnet" checked> Playnet</label>
+      <label class="option"><input type="radio" name="network" value="testnet">         Hedera Testnet</label>
+      <label class="option"><input type="radio" name="network" value="mainnet">         Hedera Mainnet</label>
     </div>
 
     <div class="explain" id="networkExplain"></div>
@@ -166,7 +187,7 @@ h3{
 	
 
 	
-  <div class="field">
+  <div class="field adv-only">
     <label>🔁/🔒 Swap/Lock Rule</label>
     <p class="explain">Initiate swaps once agreed between...</p>
 
@@ -179,7 +200,7 @@ h3{
     <div class="explain" id="lockExplain"></div>
   </div>
 
-  <div class="field">
+  <div class="field adv-only">
     <label>Trading mode</label>
 
     <div class="options">
@@ -191,7 +212,7 @@ h3{
     <div class="explain" id="tradingModeExplain"></div>
   </div>
 
-  <div class="field">
+  <div class="field field-visibility">
     <label>Visibility</label>
 
     <div class="options">
@@ -204,7 +225,7 @@ h3{
   </div>
 	
 
-	<div class="field">
+	<div class="field adv-only">
 		<div class="explain">
 			Access control (GAME-JOINRULE1). Leave blank to allow anyone. Or restrict entry to
 			committed accounts: a comma-separated allowlist (<code>0.0.123, 0.0.456</code>),
@@ -215,7 +236,7 @@ h3{
 
 	</div>
 
-	<div class="field">
+	<div class="field adv-only">
 		<div class="explain">
 			Admin ID (optional)
 		</div>
@@ -226,8 +247,8 @@ h3{
 
 	</div>
 
-  <label>Transaction settings</label>
-  <div class="field">
+  <label class="adv-only">Transaction settings</label>
+  <div class="field adv-only">
     <div class="explain">
       Delay transaction start (seconds)
     </div>
@@ -235,7 +256,7 @@ h3{
     <input id="txDelaySeconds" value="60">
   </div>
 
-  <div class="field">
+  <div class="field adv-only">
     <div class="explain">
       Valid duration (seconds) — the window, starting at the transaction's
       timestamp, within which a consensus node will still accept it once
@@ -260,6 +281,17 @@ h3{
 <script>
 
 const API_URL = "./hapi/create"
+
+// ENTRY-CREATEBASIC1: the basic skin's happy-path defaults. The hidden controls stay
+// the single source of truth — we just SET them, so the existing payload build below
+// works unchanged for both skins.
+const SKIN_BASIC = <?= $skinBasic ? 'true' : 'false' ?>;   // explicit ; — PHP's ?> swallows the newline
+if(SKIN_BASIC){
+  document.querySelector('input[name=network][value=testnet]').checked = true      // playnet hidden; testnet is the safe explicit start
+  document.querySelector('input[name=visibility][value=unlisted]').checked = true  // YouTube-familiar default: shareable link, not listed
+  txDelaySeconds.value = "0"
+  validDurationSeconds.value = "60"
+}
 
 const explain = {
 
@@ -384,7 +416,10 @@ const id = data.gameId || data.game?.id
 
 status.textContent = "Game created. Redirecting..."
 
-window.location.href = "./game/" + id
+// ENTRY-CREATEBASIC1: the basic flow lands on the BOARD (the default view) with
+// ?created=1 so board.php can toast the share-this-link hint. Full form keeps the
+// legacy game view it always had.
+window.location.href = SKIN_BASIC ? ("./board/" + id + "?created=1") : ("./game/" + id)
 
 }
 catch(err){

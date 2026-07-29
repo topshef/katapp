@@ -23,6 +23,13 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
      than katomia.css so it only applies to pages that actually include the header. */
   body { margin: 0; padding: 16px; box-sizing: border-box; }
   .app-banner { width: auto; margin: -16px -16px 12px -16px; position: relative; }
+
+  /* ENTRY-KEANERD1 (user 2026-07-29): KEA affordances are nerd-mode-only for the
+     closed alpha — non-nerd users never see the Execution agent (menu item + profile
+     section, both tagged data-feature="kea"). Deliberately overrides the earlier
+     "nerd mode shouldn't gate features" stance: it's a noise-gate for now, cheap to
+     revert. KATOMIA_FEATURES.kea stays the hard off-switch underneath. */
+  body:not(.nerd) [data-feature="kea"] { display: none !important; }
 </style>
 
 <div id="notifications"></div>

@@ -4,7 +4,8 @@
     "title": "Katomia",
     "tagline": "Swap things, not prices.",
     "curatedGames": [
-      { "id": "t-prop", "network": "testnet", "label": "Proposal demo (testnet)" }
+      { "id": "t-prop", "network": "Hedera testnet", "label": "🐫 Proposal demo — play money" },
+      { "id": "m-prop", "network": "Hedera mainnet", "label": "🐫 Silk Road — the real thing" }
     ]
   }
 }

@@ -176,6 +176,13 @@ h2{
 
 <div id="games" class="grid"></div>
 
+<!-- ENTRY-GATING1 (user brainstorm 2026-07-29, NOT coded yet): site-wide PAGE access
+     levers, distinct from per-game joinRule below. The intent: a unix-style
+     groups→routes permission map (likely a site-config.json "access" block) so pages
+     like this index can be tightened (require authentication, group membership, or
+     tokens-held-across-ALL-connected-accounts) or loosened per launch phase — demand
+     throttling / positive friction, not security. Soft launch ships everything open;
+     the levers come later. Global position = aggregate over all connected accounts. -->
 <div class="gated-hint" id="gatedHint" hidden>
   🔐 Some markets are members-only. <a data-menu-profile>Connect a wallet &amp; raise a commitment</a> to see the ones your accounts unlock.
 </div>

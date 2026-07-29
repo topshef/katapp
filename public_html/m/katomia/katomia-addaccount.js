@@ -6,6 +6,12 @@
 // the join uses, so the picklist matches exactly what joining would bring in.
 // Sequencing note (GAME-JOINRULE2): built as steps (account → assets) so a required
 // "bind" step can slot in between for bound-only games later.
+// ENTRY-AUTOADD1 (user brainstorm 2026-07-29, NOT coded yet): when a player who
+// connected a wallet on the welcome page ENTERS a game, auto-add their connected
+// account(s) with all assets — skipping this composer entirely on the happy path.
+// Planned as a preference, ON by default ("Automatically add my accounts to a game
+// when joining", profile → Preferences); this modal stays as the manual/curated path
+// and for turning the preference's result down to specific assets.
 
 let addAcctLabel = null      // chosen account label (normalised)
 let addAcctList = []         // [assetId,...] from preview (assetId may be "token#serial")

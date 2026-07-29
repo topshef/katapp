@@ -584,3 +584,217 @@ function initKatomiaAuth(){
 }
 
 window.addEventListener("load", initKatomiaAuth)
+
+// ═══ ENTRY-AUTHMODAL1 — generic Authenticate modal (user brainstorm 2026-07-29) ═══
+//
+// A minimal, invoke-from-anywhere authentication surface: the profile section's
+// account picker UX with NO binding options. Signs the same kpay.authChallenge wire
+// shape (compat with the /authenticate store — an authentication IS stored as a
+// binding, global scope) but with a fixed 30-day expiry Katomia chooses, and display
+// copy that says "I control this account" rather than the trading-authorisation
+// commitment. Rationale (user, 2026-07-29): login vs binding are both "sign a
+// message" but the STATEMENT differs; plain auth carries no user-facing obligation,
+// so no expiry/scope/publish controls. Discovery of "raise commitment" (reputation,
+// gated markets) stays in the profile — the carrot path.
+// Markup: authenticate-modal.php (included via profile-modal.php).
+
+function kamDiag(event, data){ kauthDiag("modal:" + event, data) }
+
+function kamNetworkVal(){
+  return gameMeta?.network || document.getElementById("kamNetwork")?.value || "mainnet"
+}
+
+function kamActiveAccount(){
+  const v = document.getElementById("kamAccount")?.value || ""
+  if(v && v !== KAUTH_ADD_NEW) return v
+  return (typeof window.__kamActive === "string") ? window.__kamActive : ""
+}
+
+function kamSetStatus(msg){ const el = document.getElementById("kamStatus"); if(el) el.textContent = msg || "" }
+
+function kamUpdateStatement(){
+  const el = document.getElementById("kamStatement")
+  if(!el) return
+  const account = kamActiveAccount()
+  el.classList.toggle("hidden", !account)
+  if(account) el.textContent = `I confirm that I control account ${account}. Signing links it to this browser's session so Katomia can recognise you.`
+}
+
+// Same picker pattern as kauthRenderAccounts, kam-scoped ids. Kept separate rather
+// than parameterised — the two panels will diverge (statement, options) and the
+// duplication is ~20 lines (rapid-iteration: no premature abstraction).
+function kamRenderAccounts(accounts){
+  const select = document.getElementById("kamAccount")
+  const remove = document.getElementById("kamRemove")
+  if(!select) return
+  const net = kamNetworkVal()
+  const label = id => (net && !/mainnet/.test(net)) ? `${net}:${id}` : id
+  const active = kamActiveAccount()
+  let html = accounts.length
+    ? accounts.map(a => `<option value="${a}"${a === active ? " selected" : ""}>${label(a)}</option>`).join("")
+    : `<option value="" selected>— no wallet connected —</option>`
+  html += `<option value="${KAUTH_ADD_NEW}">➕ Connect another account…</option>`
+  select.innerHTML = html
+  const cur = kamActiveAccount()
+  if(cur) window.__kamActive = cur
+  if(remove) remove.classList.toggle("hidden", !cur)
+  kamUpdateStatement()
+}
+
+async function kamOnAccountChange(){
+  const select = document.getElementById("kamAccount")
+  const network = kamNetworkVal()
+  const val = select?.value || ""
+  if(val === KAUTH_ADD_NEW){
+    if(!window.WC){ notify?.("WalletConnect not loaded yet", "error", { timeout: 3000 }); kamRenderAccounts([]); return }
+    kamSetStatus("Connecting wallet…")
+    try {
+      document.documentElement.style.setProperty("--wcm-z-index", "2147483000")   // same clobber story as kauthOnAccountChange
+      if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network)
+      window.kauthPruneWcModals()
+      await window.WC.connect?.()
+      kamDiag("connect:done", { network })
+    } catch(e){ kamDiag("connect:error", { error: String(e) }); notify?.("Wallet connect failed", "error", { timeout: 4000 }) }
+    kamSetStatus("")
+    const accounts = await kauthWCAccounts(network, true)
+    if(accounts.length) window.__kamActive = accounts[accounts.length - 1]
+    kamRenderAccounts(accounts)
+    return
+  }
+  if(val){
+    window.__kamActive = val
+    try { window.WC?.setActiveAccount?.(val) } catch(e){ kamDiag("setActive-fail", { accountId: val, error: String(e) }) }
+  }
+  document.getElementById("kamRemove")?.classList.toggle("hidden", !val || val === KAUTH_ADD_NEW)
+  kamUpdateStatement()
+}
+
+async function kamRemoveAccount(){
+  const account = kamActiveAccount()
+  if(!account) return
+  try {
+    if(window.WC?.disconnectAccount) await window.WC.disconnectAccount(account)
+    else if(window.WC?.disconnect) await window.WC.disconnect()
+  } catch(e){ kamDiag("disconnect:error", { account, error: String(e) }) }
+  window.__kamActive = null
+  const accounts = await kauthWCAccounts(kamNetworkVal(), true)
+  if(accounts.length) window.__kamActive = accounts[0]
+  kamRenderAccounts(accounts)
+}
+
+// The signing act. Same challenge/envelope/publish plumbing as the binding flow;
+// only the DEFAULTS differ (30-day expiry, global scope, always published — an
+// unpublished authentication would be pointless, there's nothing else to do with it).
+async function kamAuthenticate(){
+  const btn = document.getElementById("kamBtn")
+  const network = kamNetworkVal()
+  if(!window.WC){ notify?.("WalletConnect not loaded yet — try again in a moment", "error", { timeout: 3000 }); return }
+  const accountId = kamActiveAccount()
+  if(!accountId){ notify?.("Choose or connect an account first", "info", { timeout: 3500 }); kamRenderAccounts(await kauthWCAccounts(network, true)); return }
+
+  if(btn) btn.disabled = true
+  try {
+    try { if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network) } catch(e){ kamDiag("ensureNetwork-fail", { network, error: String(e) }) }
+    try { window.WC.setActiveAccount?.(accountId) } catch(e){}
+
+    const intentPublicKey = window.__kauthIntentKey || await getKatomiaOrderPubkeyHex()
+    if(!intentPublicKey){ notify?.("Intent key not ready", "error", { timeout: 3000 }); return }
+
+    const expiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString()   // Katomia's retention call, not a user option
+    const challenge = buildAuthChallenge({ network, intentPublicKey, accountId, expiresAt, scope: { kind: "global" } })
+    const message = JSON.stringify(challenge)
+    kamDiag("challenge", { accountId, network, id: challenge.id })
+
+    kamSetStatus("Approve the signature in your wallet…")
+    let signResult
+    try { signResult = await kauthWCSign(accountId, message) }
+    catch(e){ kamDiag("sign-fail", { error: String(e) }); kamSetStatus(""); notify?.("Signing failed or was rejected", "error", { timeout: 4000 }); return }
+
+    const signedAccount = signResult?.accountId || accountId
+    let snapshot = null, signedKeys = []
+    try { snapshot = await buildAccountKeySnapshot(network, signedAccount) } catch(e){ kamDiag("snapshot-fail", { error: String(e) }) }
+    try { signedKeys = await kauthResolveSignedKeys(signResult?.signatureMap, snapshot?.keys || []) } catch(e){ kamDiag("signedkeys-fail", { error: String(e) }) }
+
+    const envelope = assembleAuthEnvelope({ challenge, message, signResult, snapshot, signedKeys })
+    kamSetStatus("Publishing…")
+    const ok = await publishKatomiaAuthEnvelope(envelope)
+    kamSetStatus(ok ? "Authenticated ✓" : "Signed ✓ — publish failed (see console)")
+    kamDiag("done", { ok, accountId: signedAccount, network })
+    if(ok){
+      const onDone = window.__kamOnDone
+      setTimeout(() => { window.katomiaAuthenticateModal.close(); try { onDone?.() } catch(_){} }, 1200)
+    }
+  } finally {
+    if(btn) btn.disabled = false
+  }
+}
+
+// Is there a live published commitment/authentication from this browser? Local
+// record only (written at publish time) — the backend stays authoritative.
+function kauthHasLiveCommitment(){
+  try {
+    const rec = JSON.parse(localStorage.getItem("katomiaLastCommitment") || "null")
+    if(!rec) return false
+    if(!rec.expiresAt) return true
+    return new Date(rec.expiresAt).getTime() > Date.now()
+  } catch { return false }
+}
+
+window.katomiaAuthenticateModal = {
+  // opts: { message?: string shown under the title, network?: preselect (no-game pages),
+  //         onDone?: called after a successful authenticate+publish }
+  async open(opts = {}){
+    const modal = document.getElementById("kamModal")
+    if(!modal) return
+    const msg = document.getElementById("kamMessage")
+    if(msg){ msg.textContent = opts.message || ""; msg.classList.toggle("hidden", !opts.message) }
+    const inGame = !!(gameMeta?.network)
+    document.getElementById("kamNetworkRow")?.classList.toggle("hidden", inGame)
+    if(!inGame && opts.network){ const sel = document.getElementById("kamNetwork"); if(sel) sel.value = opts.network }
+    window.__kamOnDone = opts.onDone || null
+    kamSetStatus("")
+    modal.classList.remove("hidden")
+    kamDiag("open", { inGame, network: kamNetworkVal() })
+    try { window.__kauthIntentKey = window.__kauthIntentKey || await getKatomiaOrderPubkeyHex() } catch(_){}
+    kamRenderAccounts(await kauthWCAccounts(kamNetworkVal(), true))
+  },
+  close(){ document.getElementById("kamModal")?.classList.add("hidden") },
+  hasLiveCommitment: kauthHasLiveCommitment
+}
+
+function initKatomiaAuthModal(){
+  const modal = document.getElementById("kamModal")
+  if(!modal) return
+  document.getElementById("kamClose").onclick = () => window.katomiaAuthenticateModal.close()
+  modal.onclick = e => { if(e.target === modal) window.katomiaAuthenticateModal.close() }
+  const btn = document.getElementById("kamBtn")
+  if(btn) btn.onclick = () => kamAuthenticate()
+  const select = document.getElementById("kamAccount")
+  if(select) select.onchange = () => kamOnAccountChange()
+  const remove = document.getElementById("kamRemove")
+  if(remove) remove.onclick = () => kamRemoveAccount()
+  const netSel = document.getElementById("kamNetwork")
+  if(netSel) netSel.onchange = async () => {
+    window.__kamActive = null
+    kamSetStatus("Switching network…")
+    kamRenderAccounts(await kauthWCAccounts(kamNetworkVal(), true))
+    kamSetStatus("")
+  }
+
+  // ENTRY-AUTHMODAL1 hook: after a feedback send (kfw:sent, dispatched by
+  // feedback-widget.js) with no live commitment, OFFER authentication so the
+  // feedback can be attributed/grouped (tester groups — ENTRY-FEEDGROUPS1).
+  // Purely optional: closing keeps the feedback anonymous. The 1.6s delay lets
+  // the widget's own "✓ Thank you" toast register first. Retro-attribution works
+  // because feedback is signed with the intent key at send time — a later binding
+  // of that key covers it (FAQ point, user 2026-07-29).
+  document.addEventListener("kfw:sent", e => {
+    if(kauthHasLiveCommitment()) return
+    kamDiag("kfw-sent:offer", { id: e.detail?.id || null })
+    setTimeout(() => window.katomiaAuthenticateModal.open({
+      message: "Thanks — your feedback is in. We don't know which account it came from yet: authenticate (one wallet signature) and your feedback counts toward your account and any groups it belongs to. Optional — close this and it simply stays anonymous."
+    }), 1600)
+  })
+}
+
+window.addEventListener("load", initKatomiaAuthModal)

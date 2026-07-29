@@ -146,6 +146,17 @@ window.addEventListener("load", () => {
     return
   }
   if(typeof connect === "function") connect()
+
+  // ENTRY-CREATEBASIC1: fresh arrival from the basic create form (?created=1) —
+  // toast the share hint WITH the link visible in it (the address bar has it too,
+  // but showing it makes "share this" concrete). Param is stripped so a reload or
+  // a copied URL doesn't re-toast for the next person.
+  if(params.get("created")){
+    params.delete("created")
+    history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params.toString() : ""))
+    const link = location.origin + location.pathname
+    notify?.(`New game created — share this link for others to join: ${link}`, "success", { timeout: 15000 })
+  }
 })
 </script>
 

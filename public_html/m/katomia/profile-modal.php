@@ -159,3 +159,8 @@
   </div>
 
 </div>
+<?php
+// ENTRY-AUTHMODAL1: the generic authenticate modal rides along with the profile
+// stack — every page that has this modal has the scripts the other one needs too.
+require __DIR__ . '/authenticate-modal.php';
+?>

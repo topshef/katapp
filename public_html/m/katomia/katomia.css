@@ -2143,7 +2143,9 @@ textarea:focus{
    an aligned grid. ALSO the load-bearing fix: there was NO .hidden rule on these
    pages at all (lost when the modal left game.php for the shared partial), so the
    network row / options / statement showed unconditionally — the "clutter". */
-#profileModal .hidden{ display:none; }
+/* ENTRY-AUTHMODAL1: #kamModal (the generic authenticate modal) reuses this whole
+   panel family, so it needs the same scoped .hidden rule. */
+#profileModal .hidden, #kamModal .hidden{ display:none; }
 
 .profile-auth{
   /* now nested inside .profile-section (.profile-repute), which owns the divider */
