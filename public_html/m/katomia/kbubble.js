@@ -24,6 +24,13 @@
 //             1 = slinky string; high = stiff ring, long slow warps.
 //           smooth(0..1, 0): low-pass on the shape — kills granular ripples so only
 //             wide flexes survive (steel/plastic ring feel). Combines with iters.
+//           fill: null (default) | css colour | 'auto' — v3: fill the loop INTERIOR so
+//             the bubble IS the button surface, not a halo around a separately-filled
+//             box. 'auto' derives from the stroke (iridescent → animated spectrum
+//             gradient; ink/glow → the stroke colour at fillAlpha). Pages should drop
+//             their own background when filling: .kbubble-filled is added to the
+//             element for exactly that (see the .kbtn override in katomia.css).
+//           fillAlpha(0..1, 0.22): opacity of the auto fill.
 //           offsetX/offsetY(px, 0): draw offset of the loop relative to the element —
 //             0,0 sits ON the border (v2 FIX: v1 sat high-left at dpr>1, the canvas
 //             translation was in CSS px not device px); nonzero is a deliberate
@@ -79,7 +86,8 @@
 
     const o = Object.assign({ bleed: 20, style: "ink", color: "", width: 1.6, points: 140,
                               tension: 28, spring: 14, damp: 2.2, ambient: 0.35, puff: 26,
-                              spread: 0.12, iters: 1, smooth: 0, offsetX: 0, offsetY: 0, blur: null }, opts)
+                              spread: 0.12, iters: 1, smooth: 0, offsetX: 0, offsetY: 0, blur: null,
+                              fill: null, fillAlpha: 0.22 }, opts)
     if(getComputedStyle(el).position === "static") el.style.position = "relative"
     cv.style.cssText = `position:absolute;inset:${-o.bleed}px;width:calc(100% + ${o.bleed * 2}px);height:calc(100% + ${o.bleed * 2}px);pointer-events:none;`
     el.appendChild(cv)
@@ -89,6 +97,7 @@
                  hover: false, px: 0, py: 0, raf: 0, dead: false }
 
     function rebuild(){
+      el.classList.toggle("kbubble-filled", !!o.fill)   // re-synced so live opt changes apply
       const rect = el.getBoundingClientRect()
       st.w = rect.width; st.h = rect.height
       if(!st.w || !st.h) return
@@ -197,6 +206,42 @@
         const P = i => { const p = pts[i % N]; const k = d[i % N]; return [p.x + p.nx * k, p.y + p.ny * k] }
         ctx.lineWidth = op.width
         ctx.lineCap = "round"
+
+        // v3 fill: trace the same smoothed loop and fill its interior, so the living
+        // border encloses the button's surface instead of ringing a static box.
+        const traceLoop = () => {
+          ctx.beginPath()
+          let [mx0, my0] = P(0), [nx0, ny0] = P(1)
+          ctx.moveTo((mx0 + nx0) / 2, (my0 + ny0) / 2)
+          for(let i = 1; i <= N; i++){
+            const [cx2, cy2] = P(i), [ex, ey] = P(i + 1)
+            ctx.quadraticCurveTo(cx2, cy2, (cx2 + ex) / 2, (cy2 + ey) / 2)
+          }
+          ctx.closePath()
+        }
+        if(op.fill){
+          traceLoop()
+          ctx.shadowBlur = 0
+          if(op.fill !== "auto"){
+            ctx.fillStyle = op.fill
+            ctx.fill()
+          } else if(op.style === "iridescent"){
+            // spectrum wash, drifting with the same clock as the stroke hues
+            const g = ctx.createLinearGradient(0, 0, st.w, st.h)
+            for(let s = 0; s <= 4; s++)
+              g.addColorStop(s / 4, `hsla(${(s * 90 + t * 40) % 360}, 85%, 68%, ${op.fillAlpha})`)
+            ctx.fillStyle = g
+            ctx.fill()
+          } else {
+            // any css stroke colour, softened via globalAlpha (no colour parsing)
+            const a = ctx.globalAlpha
+            ctx.globalAlpha = op.fillAlpha
+            ctx.fillStyle = op.color || "rgba(29,35,42,.65)"
+            ctx.fill()
+            ctx.globalAlpha = a
+          }
+        }
+
         if(op.style === "iridescent"){
           // soap film: short segments, hue walks the loop and drifts with time
           for(let i = 0; i < N; i++){
@@ -236,7 +281,7 @@
         st.dead = true; cancelAnimationFrame(st.raf); removeEventListener("resize", onResize)
         el.removeEventListener("pointerenter", onEnter); el.removeEventListener("pointermove", onMove)
         el.removeEventListener("pointerleave", onLeave); el.removeEventListener("pointerdown", onDown)
-        cv.remove(); el.classList.remove("kbubble-on")
+        cv.remove(); el.classList.remove("kbubble-on", "kbubble-filled")
         handles.delete(handle)
       }
     }

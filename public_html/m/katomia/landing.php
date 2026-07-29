@@ -115,9 +115,14 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
   body.lskin-bubble .landing-card,
   body.lskin-bubble .landing-connect{ border-radius:14px; }
   body.lskin-bubble .kbubble-on{ border-color:transparent !important; box-shadow:none !important; }
-  body.lskin-bubble .landing-create{ background:#fff; color:#1d8a44; }
-  body.lskin-bubble .landing-connect-btn{ background:#fff; color:#2f6fed; }
-  body.lskin-bubble .landing-create.kbubble-on:hover{ background:#fff; transform:none; }
+  /* v3 filled: the loop's interior IS the surface — no static fill underneath it, so
+     the shape flexes as one instead of a rectangle showing through (user 2026-07-29). */
+  body.lskin-bubble .kbubble-filled{ background:transparent !important; }
+  body.lskin-bubble .landing-create{ color:#2f6b3a; }
+  body.lskin-bubble .landing-connect-btn{ color:#2f5578; }
+  body.lskin-bubble .landing-create.kbubble-on:hover{ background:transparent; transform:none; }
+  /* no mobile tap flash — it fights the bubble's own feedback (user 2026-07-29) */
+  body.lskin-bubble *{ -webkit-tap-highlight-color:transparent; }
 
   /* — nerd-mode skin picker (ENTRY-SKINS1): visible only with body.nerd — */
   .landing-skin-picker{ display:none; margin-top:22px; font-size:13px; color:#888;
@@ -241,16 +246,22 @@ window.addEventListener("load", () => landingRefreshAccounts(false))
      (no .kbubble-on class) under reduced-motion / no canvas. -->
 <script src="<?= kasset('kbubble.js') ?>"></script>
 <script>
+// ENTRY-BUBBLE1 v3 (user-tuned 2026-07-29, exported from kdemo/bubble.html): stiff,
+// wide-flexing ring — whole-element response (spread .8), fast wave + heavy smoothing
+// (iters 9 / smooth .76) so it warps rather than ripples granularly, well damped,
+// soft 8px blur. FILLED: the bubble's interior is the button surface, so the static
+// CSS fill is dropped (.kbubble-filled, see landing-connect-btn/.landing-create CSS).
+// The connect CARD gets NO bubble — it's a panel of options, not a button (user).
+const KB_TUNED = { spread: 0.8, iters: 9, smooth: 0.76, tension: 55, spring: 33,
+                   damp: 5.9, puff: 11, ambient: 0.3, width: 2, blur: 8 }
 window.addEventListener("load", () => {
   if(!window.kbubble) return
   document.querySelectorAll(".landing-card").forEach(el =>
-    kbubble.attach(el, { style: "iridescent", width: 1.8 }))
+    kbubble.attach(el, Object.assign({ style: "iridescent", fill: "auto", fillAlpha: 0.1 }, KB_TUNED)))
   const create = document.querySelector(".landing-create")
-  if(create) kbubble.attach(create, { style: "glow", color: "rgba(29,138,68,.85)", width: 2 })
+  if(create) kbubble.attach(create, Object.assign({ style: "glow", color: "rgba(47,124,74,.9)", fill: "auto", fillAlpha: 0.2 }, KB_TUNED))
   const btn = document.getElementById("landingConnectBtn")
-  if(btn) kbubble.attach(btn, { style: "glow", color: "rgba(47,111,237,.85)", width: 2 })
-  const card = document.querySelector(".landing-connect")
-  if(card) kbubble.attach(card, { style: "ink", width: 1.4, ambient: 0.25 })
+  if(btn) kbubble.attach(btn, Object.assign({ style: "glow", color: "rgba(47,85,120,.9)", fill: "auto", fillAlpha: 0.2 }, KB_TUNED))
 })
 </script>
 <?php endif; ?>
