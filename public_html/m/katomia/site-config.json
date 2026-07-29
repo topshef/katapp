@@ -3,9 +3,10 @@
   "landing": {
     "title": "Katomia",
     "tagline": "Swap things, not prices.",
+    "_curatedNote": "ENTRY-WELCOME1 R2 (user 2026-07-29): 'Silk Road' dropped from the welcome cards — placeholder with darknet-market baggage. Neutral ring/circle-flavoured names for now (the board IS a ring; Kabila's plaza = place-you-come-to idea, ours is round); naming iteration to follow. The m-prop GAME's own profile name still says Silk Road backend-side — separate rename when naming settles.",
     "curatedGames": [
-      { "id": "t-prop", "network": "Hedera testnet", "label": "🐫 Proposal demo — play money" },
-      { "id": "m-prop", "network": "Hedera mainnet", "label": "🐫 Silk Road — the real thing" }
+      { "id": "t-prop", "network": "Hedera testnet", "label": "🧪 Practice Ring — play money" },
+      { "id": "m-prop", "network": "Hedera mainnet", "label": "💠 The Open Ring — the real thing" }
     ]
   }
 }

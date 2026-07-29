@@ -1576,6 +1576,33 @@ svg .svg-sell{
   box-shadow:0 1px 3px rgba(0,0,0,.06);
 }
 
+/* ── ENTRY-KBTN1 (user 2026-07-29): the order-modal glassy vocabulary above, made a
+   REUSABLE library so the whole site converges on it (UI-BUTTONMODERN1 site-wide).
+   Same recipe: translucent hue tint (.22, hover .34), matching-hue text, blurred
+   backdrop, thin soft edge. Use `kbtn` + a colour; first consumers: welcome page
+   (create/connect) + both create-game skins. New buttons should use these instead
+   of minting solid fills. ── */
+.kbtn{
+  display:inline-block;
+  padding:11px 18px;
+  font-size:15px; font-weight:600;
+  border-radius:10px;
+  cursor:pointer; text-decoration:none; text-align:center;
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  background:rgba(255,255,255,.55); color:#3a4450;
+  border:1px solid rgba(0,0,0,.1);
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
+  transition:background .15s ease, border-color .15s ease;
+}
+.kbtn:hover{ background:rgba(255,255,255,.8); }
+.kbtn-green{ background:rgba(110,168,117,.22); color:#2f6b3a; border-color:rgba(110,168,117,.4); }
+.kbtn-green:hover{ background:rgba(110,168,117,.34); }
+.kbtn-blue{ background:rgba(109,143,179,.22); color:#2f5578; border-color:rgba(109,143,179,.4); }
+.kbtn-blue:hover{ background:rgba(109,143,179,.34); }
+.kbtn-red{ background:rgba(183,131,131,.22); color:#8a3d3d; border-color:rgba(183,131,131,.4); }
+.kbtn-red:hover{ background:rgba(183,131,131,.34); }
+
 #createOrderDev{
   margin-top:18px;
   zzborder-top:1px solid #eee;

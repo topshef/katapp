@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kbubble v2 — living border lab (ENTRY-BUBBLE1)</title>
+<!-- kdemo/: little runnable demo/gist pages for kicking tires (user 2026-07-29 —
+     kontext/ is agent context, NOT a demo home; this folder is). -->
+<style>
+  body{ margin:0; font:16px/1.55 system-ui,sans-serif; color:#1d232a; background:#f7f9fc; }
+  main{ max-width:860px; margin:0 auto; padding:36px 16px 90px; }
+  h1{ font-size:24px; margin:0 0 4px; }
+  .sub{ color:#68727d; margin:0 0 22px; font-size:14px; }
+  section{ border-radius:14px; padding:24px 22px; margin:16px 0; }
+  section.light{ background:#fff; border:1px solid #e3e0d8; }
+  section.dark{ background:#0b0e1a; color:#e8ecf5; }
+  h2{ font-size:14px; margin:0 0 16px; text-transform:uppercase; letter-spacing:.05em; opacity:.6; }
+  .row{ display:flex; gap:26px; flex-wrap:wrap; align-items:center; }
+  button.demo{
+    padding:13px 26px; font-size:15px; font-weight:600; cursor:pointer;
+    border:1px solid rgba(0,0,0,.25); border-radius:12px; background:#fff; color:#1d232a;
+  }
+  .dark button.demo{ background:rgba(255,255,255,.06); color:#e8ecf5; border-color:rgba(255,255,255,.3); }
+  .knobs{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px 22px; font-size:13px; color:#3a4450; }
+  .knobs label{ display:flex; flex-direction:column; gap:3px; }
+  .knobs .kv{ display:flex; justify-content:space-between; }
+  .knobs .kv b{ font-weight:600; }
+  .knobs .kv output{ font-family:ui-monospace,monospace; color:#2f6fed; }
+  .knobs .hint{ font-size:11px; color:#9aa2ad; line-height:1.35; }
+  .note{ font-size:14px; color:#68727d; border-left:3px solid #2f6fed; padding-left:12px; margin-top:18px; }
+  pre#settings{ background:#23272e; color:#dde3ea; padding:12px 14px; border-radius:8px; font-size:12.5px; overflow-x:auto; margin:14px 0 0; }
+  #copyBtn{ margin-top:8px; padding:6px 12px; font-size:13px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; }
+  code{ background:#efece4; border-radius:4px; padding:1px 5px; font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+<h1>kbubble v2 — living border lab</h1>
+<p class="sub">ENTRY-BUBBLE1 · hover blows at the bubble, click puffs harder · every slider shows its value and the
+settings box below is copy-paste-ready · source <code>m/katomia/kbubble.js</code> · v2: puff radius + wavelength/stiffness +
+offset + blur knobs, and the dpr offset bug fixed (the loop now sits ON the border at 0,0)</p>
+
+<section class="light">
+  <h2>Light — three stroke voices</h2>
+  <div class="row">
+    <button class="demo" data-kb='{"style":"ink"}'>Ink — clean line</button>
+    <button class="demo" data-kb='{"style":"glow","color":"rgba(47,111,237,.85)"}'>Glow — blurry line</button>
+    <button class="demo" data-kb='{"style":"iridescent"}'>Iridescent — soap film</button>
+  </div>
+</section>
+
+<section class="dark">
+  <h2>Dark — the pitch-deck world</h2>
+  <div class="row">
+    <button class="demo" data-kb='{"style":"iridescent","width":2}'>Iridescent on black</button>
+    <button class="demo" data-kb='{"style":"glow","color":"rgba(120,200,255,.8)"}'>Cool glow</button>
+    <button class="demo" data-kb='{"style":"ink","color":"rgba(255,255,255,.55)"}'>White ink</button>
+  </div>
+</section>
+
+<section class="light">
+  <h2>Knobs — live on every button</h2>
+  <div class="knobs" id="knobs"></div>
+  <p class="note"><b>The two new big ones:</b> <b>puff radius</b> slides from "ripple exactly where the pointer is"
+  to "the whole button responds, pointer position subliminal" — the hover-feel scale you described.
+  <b>wave speed</b> + <b>smoothing</b> together set slinky-string ↔ stiff plastic/steel ring (longer, wider flexes
+  instead of granular ripples). Offset 0,0 now sits on the border; slide it for the deliberate floating-halo look.</p>
+  <pre id="settings"></pre>
+  <button id="copyBtn" type="button">⧉ Copy settings</button>
+</section>
+
+<script src="../kbubble.js"></script>
+<script>
+// Knob definitions: [optKey, label, min, max, step, default, hint]
+const KNOBS = [
+  ["spread",  "puff radius (local → whole button)", 0, 1, 0.01, 0.12, "0 = pinpoint at the pointer · 1 = whole border responds as one"],
+  ["iters",   "wave speed (slinky → stiff ring)",   1, 10, 1, 1, "how fast a disturbance travels the loop — high reads as a rigid ring"],
+  ["smooth",  "smoothing (granular → wide flex)",   0, 1, 0.01, 0, "low-pass on the shape: kills small ripples, keeps big slow warps"],
+  ["tension", "tension",                            4, 60, 1, 28, "wave coupling per step (internally capped at the stability limit)"],
+  ["spring",  "spring to rest",                     2, 40, 1, 14, "pull back to the true border shape"],
+  ["damp",    "damping",                            0.5, 6, 0.1, 2.2, "energy loss — low keeps ripples ringing"],
+  ["puff",    "puff strength",                      6, 60, 1, 26, "impulse magnitude on click (hover uses a fraction)"],
+  ["ambient", "ambient float",                      0, 1.2, 0.05, 0.35, "idle life — 0 for strictly-reactive"],
+  ["width",   "line width (px)",                    0.5, 5, 0.1, 1.6, ""],
+  ["blur",    "blurriness (px)",                    0, 20, 1, 0, "shadow-blur on the stroke; glow/iridescent have small built-in defaults"],
+  ["offsetX", "offset X (px)",                      -12, 12, 1, 0, "0,0 = on the border; nonzero = floating halo"],
+  ["offsetY", "offset Y (px)",                      -12, 12, 1, 0, ""],
+]
+const handles = []
+const current = {}
+
+function renderSettings(){
+  const out = {}
+  for(const [key] of KNOBS){
+    const v = current[key]
+    // only emit non-defaults so the snippet stays minimal — defaults are in kbubble.js
+    const def = KNOBS.find(k => k[0] === key)[5]
+    if(key === "blur" ? v > 0 : v !== def) out[key] = v
+  }
+  document.getElementById("settings").textContent =
+    "kbubble.attach(el, " + JSON.stringify(Object.assign({ style: "…" }, out), null, 2).replace('"…"', '"ink|glow|iridescent"') + ")"
+}
+
+function applyAll(){
+  for(const h of handles){
+    for(const [key] of KNOBS){
+      if(key === "blur") h.opts.blur = current.blur > 0 ? current.blur : null
+      else h.opts[key] = current[key]
+    }
+    h.rebuild()   // offset lives in the canvas transform
+  }
+  renderSettings()
+}
+
+addEventListener("load", () => {
+  document.querySelectorAll("button.demo").forEach(el => {
+    const h = kbubble.attach(el, JSON.parse(el.dataset.kb || "{}"))
+    if(h) handles.push(h)
+  })
+
+  const box = document.getElementById("knobs")
+  for(const [key, label, min, max, step, def, hint] of KNOBS){
+    current[key] = def
+    const wrap = document.createElement("label")
+    wrap.innerHTML = `<span class="kv"><b>${label}</b><output>${def}</output></span>` +
+      `<input type="range" min="${min}" max="${max}" step="${step}" value="${def}">` +
+      (hint ? `<span class="hint">${hint}</span>` : "")
+    const inp = wrap.querySelector("input"), out = wrap.querySelector("output")
+    inp.oninput = () => { current[key] = Number(inp.value); out.textContent = inp.value; applyAll() }
+    box.appendChild(wrap)
+  }
+  renderSettings()
+
+  document.getElementById("copyBtn").onclick = async () => {
+    const btn = document.getElementById("copyBtn")
+    try { await navigator.clipboard.writeText(document.getElementById("settings").textContent); btn.textContent = "✓ copied" }
+    catch { btn.textContent = "select + copy manually" }
+    setTimeout(() => btn.textContent = "⧉ Copy settings", 1500)
+  }
+})
+</script>
+</main>
+</body>
+</html>

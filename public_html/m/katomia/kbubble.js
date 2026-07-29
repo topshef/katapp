@@ -15,10 +15,22 @@
 //   kbubble.attach(el, opts?) -> handle|null
 //     opts: bleed(px canvas margin, 20) · radius(corner px, from computed style)
 //           style: 'ink' | 'glow' | 'iridescent' (default 'ink')
-//           color(css, for ink/glow) · width(px, 1.6) · points(140)
+//           color(css, for ink/glow) · width(px, 1.6) · points(140) · blur(px, per-style)
 //           tension(28) · spring(14) · damp(2.2) · ambient(0.35) · puff(26)
+//           spread(0..1, 0.12): puff radius — how LOCAL the pointer's effect is.
+//             0 = pinpoint ripple at the pointer; 1 = the whole border responds as
+//             one (hover anywhere ≈ hover everywhere), pointer position subliminal.
+//           iters(1..10, 1): wave speed/wavelength — how fast disturbance spreads.
+//             1 = slinky string; high = stiff ring, long slow warps.
+//           smooth(0..1, 0): low-pass on the shape — kills granular ripples so only
+//             wide flexes survive (steel/plastic ring feel). Combines with iters.
+//           offsetX/offsetY(px, 0): draw offset of the loop relative to the element —
+//             0,0 sits ON the border (v2 FIX: v1 sat high-left at dpr>1, the canvas
+//             translation was in CSS px not device px); nonzero is a deliberate
+//             floating-halo look.
 //   kbubble.detach(handle)
 //   handle.puff(strength?) — programmatic pulse (e.g. on form success)
+//   handle.opts — live options object (demo sliders mutate it directly)
 
 (() => {
   if (window.kbubble) return
@@ -66,7 +78,8 @@
     if(!ctx) return null
 
     const o = Object.assign({ bleed: 20, style: "ink", color: "", width: 1.6, points: 140,
-                              tension: 28, spring: 14, damp: 2.2, ambient: 0.35, puff: 26 }, opts)
+                              tension: 28, spring: 14, damp: 2.2, ambient: 0.35, puff: 26,
+                              spread: 0.12, iters: 1, smooth: 0, offsetX: 0, offsetY: 0, blur: null }, opts)
     if(getComputedStyle(el).position === "static") el.style.position = "relative"
     cv.style.cssText = `position:absolute;inset:${-o.bleed}px;width:calc(100% + ${o.bleed * 2}px);height:calc(100% + ${o.bleed * 2}px);pointer-events:none;`
     el.appendChild(cv)
@@ -82,7 +95,9 @@
       const dpr = Math.min(devicePixelRatio || 1, 2)
       cv.width = (st.w + o.bleed * 2) * dpr
       cv.height = (st.h + o.bleed * 2) * dpr
-      ctx.setTransform(dpr, 0, 0, dpr, o.bleed, o.bleed)
+      // translation is in DEVICE px (v1 bug: passing CSS px here shifted the loop
+      // high-left by bleed/2 on dpr-2 screens — the user's "offset to its high left")
+      ctx.setTransform(dpr, 0, 0, dpr, (o.bleed + o.offsetX) * dpr, (o.bleed + o.offsetY) * dpr)
       const r = o.radius ?? (parseFloat(getComputedStyle(el).borderRadius) || 10)
       st.pts = buildLoop(st.w, st.h, r, o.points)
       if(!st.d){ st.d = new Float32Array(o.points); st.v = new Float32Array(o.points)
@@ -100,13 +115,25 @@
       }
       return best
     }
-    // a puff pushes the border INWARD around a point; the wave does the rest
+    // a puff pushes the border INWARD around a point; the wave does the rest.
+    // spread widens the puff from pinpoint to whole-border (v2): sigma grows with
+    // spread until, near 1, every point gets the same push and pointer position
+    // stops mattering visibly. Energy is normalised so widening the puff doesn't
+    // multiply the total kick.
     function impulse(idx, strength){
       if(!st.pts) return
       const N = st.pts.length
-      for(let k = -6; k <= 6; k++){
-        const g = Math.exp(-k * k / 10)
-        st.v[(idx + k + N) % N] -= strength * 0.3 * g
+      const spread = Math.min(Math.max(o.spread, 0), 1)
+      if(spread >= 0.97){
+        for(let i = 0; i < N; i++) st.v[i] -= strength * 0.3 * 0.22
+        return
+      }
+      const sigma = 2 + spread * N * 0.45
+      const win = Math.min(Math.ceil(sigma * 3), Math.floor(N / 2))
+      const norm = 2 / Math.sqrt(sigma)   // keeps perceived kick roughly constant
+      for(let k = -win; k <= win; k++){
+        const g = Math.exp(-k * k / (2 * sigma * sigma))
+        st.v[(idx + k + N) % N] -= strength * 0.3 * g * norm
       }
     }
     const local = e => { const r = el.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top] }
@@ -137,14 +164,34 @@
         const s = op.spring / 600
         const decay = Math.exp(-op.damp * Math.max(dt, 1 / 120))
         const lim = op.bleed * 0.75
-        for(let i = 0; i < N; i++){
-          const lap = d[(i + N - 1) % N] + d[(i + 1) % N] - 2 * d[i]
-          const acc = k * lap - s * d[i] + op.ambient * 0.05 * Math.sin(t * 1.3 + st.phase[i])
-          v[i] = (v[i] + acc) * decay
+        // iters (v2): re-running the neighbour coupling raises the effective wave
+        // speed — disturbances travel the loop faster and read as longer wavelengths
+        // (stiff ring), while each sub-step stays under the k<0.5 stability limit.
+        const iters = Math.max(1, Math.min(Math.round(op.iters), 10))
+        for(let it = 0; it < iters; it++){
+          const last = it === iters - 1
+          for(let i = 0; i < N; i++){
+            const lap = d[(i + N - 1) % N] + d[(i + 1) % N] - 2 * d[i]
+            const acc = k * lap - (last ? s * d[i] - op.ambient * 0.05 * Math.sin(t * 1.3 + st.phase[i]) : 0)
+            v[i] = (v[i] + acc) * (last ? decay : 1)
+          }
+          for(let i = 0; i < N; i++){
+            d[i] += v[i] / iters
+            if(d[i] > lim) d[i] = lim; else if(d[i] < -lim) d[i] = -lim
+          }
         }
-        for(let i = 0; i < N; i++){
-          d[i] += v[i]
-          if(d[i] > lim) d[i] = lim; else if(d[i] < -lim) d[i] = -lim
+        // smooth (v2): low-pass the shape — box-average blend kills granular ripples
+        // so only wide flexes survive (plastic/steel-ring feel).
+        const sm = Math.min(Math.max(op.smooth, 0), 1)
+        if(sm > 0){
+          const r = 1 + Math.round(sm * 7), tmp = st.tmp || (st.tmp = new Float32Array(N))
+          for(let i = 0; i < N; i++){
+            let sum = 0
+            for(let k2 = -r; k2 <= r; k2++) sum += d[(i + k2 + N) % N]
+            tmp[i] = sum / (2 * r + 1)
+          }
+          const a = sm * 0.65
+          for(let i = 0; i < N; i++) d[i] += (tmp[i] - d[i]) * a
         }
         ctx.clearRect(-op.bleed, -op.bleed, st.w + op.bleed * 2, st.h + op.bleed * 2)
         const P = i => { const p = pts[i % N]; const k = d[i % N]; return [p.x + p.nx * k, p.y + p.ny * k] }
@@ -156,12 +203,13 @@
             const [x0, y0] = P(i), [x1, y1] = P(i + 1)
             ctx.strokeStyle = `hsla(${(i / N * 360 + t * 40) % 360}, 85%, 66%, .9)`
             ctx.shadowColor = ctx.strokeStyle
-            ctx.shadowBlur = 4
+            ctx.shadowBlur = op.blur ?? 4
             ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke()
           }
           ctx.shadowBlur = 0
         } else {
-          if(op.style === "glow"){ ctx.shadowColor = op.color || "rgba(47,111,237,.8)"; ctx.shadowBlur = 7 }
+          if(op.style === "glow"){ ctx.shadowColor = op.color || "rgba(47,111,237,.8)"; ctx.shadowBlur = op.blur ?? 7 }
+          else if(op.blur > 0){ ctx.shadowColor = op.color || "rgba(29,35,42,.65)"; ctx.shadowBlur = op.blur }
           ctx.strokeStyle = op.color || "rgba(29,35,42,.65)"
           ctx.beginPath()
           let [mx, my] = P(0), [nx2, ny2] = P(1)
@@ -181,6 +229,8 @@
 
     const handle = {
       el,
+      opts: o,   // live — demo sliders mutate this directly (geometry opts need rebuild())
+      rebuild,
       puff: (s = o.puff) => impulse(Math.floor(Math.random() * o.points), s),
       destroy(){
         st.dead = true; cancelAnimationFrame(st.raf); removeEventListener("resize", onResize)

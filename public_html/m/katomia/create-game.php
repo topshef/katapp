@@ -46,19 +46,35 @@ h2{
   margin-bottom:22px;
 }
 
-label{
+/* ENTRY-CREATEPOLISH1 (user 2026-07-29): labels massively muted — the VALUES carry
+   the meaning ("Hedera Testnet" says network); the label is just a whisper of
+   structure. Option/radio labels below stay full-size. */
+.field > label, .form > label{
   display:block;
+  font-size:11px;
   font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:.07em;
+  color:#a8a294;
   margin-bottom:8px;
 }
+.field > label .explain{ text-transform:none; letter-spacing:0; }
 
-input[type=text]{
+/* ENTRY-CREATEPOLISH1: friendlier inputs — rounded, translucent glass border,
+   no more square #ccc boxes. (The old input[type=text] rule never matched: these
+   inputs carry no type attribute.) */
+.form input:not([type=radio]):not([type=checkbox]){
   width:100%;
-  padding:9px;
+  padding:10px 12px;
   font-size:14px;
-  border:1px solid #ccc;
-  border-radius:4px;
+  border:1px solid rgba(0,0,0,.12);
+  border-radius:10px;
+  background:rgba(255,255,255,.65);
+  box-sizing:border-box;
+  outline:none;
+  transition:border-color .15s ease;
 }
+.form input:not([type=radio]):not([type=checkbox]):focus{ border-color:rgba(47,111,237,.45); }
 
 .options{
   display:flex;
@@ -94,25 +110,9 @@ h3{
   font-size:16px;
 }
 
-.create-btn{
-  margin-top:10px;
-  padding:11px 18px;
-  font-size:15px;
-  font-weight:bold;
-  color:white;
-  background:#28a745;
-  border:none;
-  border-radius:6px;
-  cursor:pointer;
-  box-shadow:0 2px 4px rgba(0,0,0,0.15);
-  transition:all .15s ease;
-}
-
-.create-btn:hover{
-  background:#218838;
-  transform:translateY(-1px);
-  box-shadow:0 4px 6px rgba(0,0,0,0.2);
-}
+/* ENTRY-KBTN1: solid green fill retired — the button rides the shared .kbtn glassy
+   library (katomia.css); only layout stays here. */
+.create-btn{ margin-top:10px; }
 
 .status{
   margin-top:14px;
@@ -272,7 +272,7 @@ h3{
   </div>
 
 
-<button class="create-btn" id="createBtn">Create Game</button>
+<button class="create-btn kbtn kbtn-green" id="createBtn">Create Game</button>
 
 <div class="status" id="status"></div>
 

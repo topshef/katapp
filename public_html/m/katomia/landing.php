@@ -40,11 +40,10 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
   .landing-more{ margin-top: 28px; font-size: 12px; }
   .landing-more a{ color: #999; }
   .landing-empty{ color: #888; font-style: italic; }
-  .landing-create{
-    display: inline-block; margin-top: 16px; padding: 12px 18px; border-radius: 10px;
-    background: #28a745; color: #fff; text-decoration: none; font-weight: 600;
-  }
-  .landing-create:hover{ background: #218838; }
+  /* ENTRY-KBTN1: buttons now ride the shared .kbtn glassy library (katomia.css) —
+     these rules keep only layout. The old solid green/blue fills are gone (user
+     2026-07-29: subtler, glassy, thin edge — match the order-modal buttons). */
+  .landing-create{ margin-top: 16px; }
   /* ENTRY-WELCOME1: connect-from-welcome card. Convenience, not a gate — you can walk
      into any game without it; connecting here just means you're ready to trade the
      moment you join (and later feeds the auto-add-accounts-on-join idea,
@@ -57,11 +56,7 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
   .landing-connect .subtle{ font-size: 13px; color: #777; margin: 0 0 12px; }
   .landing-connect-row{ display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .landing-connect-row select{ padding: 8px; border-radius: 6px; border: 1px solid #ccc; }
-  .landing-connect-btn{
-    padding: 9px 14px; border: none; border-radius: 6px; cursor: pointer;
-    background: #2f6fed; color: #fff; font-weight: 600;
-  }
-  .landing-connect-btn:hover{ background: #265cc7; }
+  .landing-connect-btn{ padding: 9px 16px; font-size: 14px; }
   .landing-connected{ margin-top: 10px; font-size: 13px; color: #2e7d32; }
   .landing-connected:empty{ display: none; }
   /* ═══ ENTRY-SKINS1 — landing skins (design exploration; page-scoped, the shared
@@ -159,7 +154,7 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
 
   <!-- ENTRY-WELCOME1/ENTRY-CREATEBASIC1: one button, straight to the trimmed-down
        create form (name + network + visibility only) — the full form stays at /create. -->
-  <a class="landing-create" href="/m/katomia/create?skin=basic">➕ Create your own game</a>
+  <a class="landing-create kbtn kbtn-green" href="/m/katomia/create?skin=basic">➕ Create your own game</a>
 
   <!-- ENTRY-WELCOME1 (user 2026-07-29): connect directly from the welcome page — a
        convenience flow, NOT a gate. Deliberately connect-only: no signing at the door
@@ -174,7 +169,7 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
         <option value="mainnet">🟣 Hedera mainnet</option>
         <option value="testnet">🟠 Hedera testnet</option>
       </select>
-      <button id="landingConnectBtn" class="landing-connect-btn" type="button">Connect wallet</button>
+      <button id="landingConnectBtn" class="landing-connect-btn kbtn kbtn-blue" type="button">Connect wallet</button>
     </div>
     <div id="landingConnected" class="landing-connected"></div>
   </div>
@@ -191,6 +186,9 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
       <option value="clay">🏺 Soft clay</option>
       <option value="bubble">💠 Bubble borders</option>
     </select>
+    <!-- ENTRY-DARKMODE1: same DarkReader toggle as the menu item, surfaced here so
+         skin × dark/light combinations can be flipped in one place. -->
+    <button type="button" id="landingDarkBtn" title="Toggle DarkReader dark mode on this skin" onclick="window.kdarkToggle?.()">🌗</button>
   </div>
 </div>
 
