@@ -31,7 +31,8 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
      revert. KATOMIA_FEATURES.kea stays the hard off-switch underneath. */
   body:not(.nerd) [data-feature="kea"] { display: none !important; }
 
-  /* ENTRY-DARKMODE1: nerd-only menu items (generic hook — the dark-mode toggle first) */
+  /* Generic hook for future nerd-only menu items (the dark-mode toggle used to be one;
+     it now lives solely on the welcome theme-test row — ENTRY-DARKMODE1 R2). */
   .app-menu-item.nerd-only { display: none; }
   body.nerd .app-menu-item.nerd-only { display: block; width: 100%; }
 </style>
@@ -63,14 +64,12 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
     <!-- ENTRY-MENUKEA1 (user 2026-07-29): the 🤖 Execution agent menu item is GONE from
          the hamburger — not used for a while, and the profile section (still nerd-gated,
          data-feature=kea) remains the one door. Declutter; reposition another time. -->
-    <!-- ENTRY-DARKMODE1 (user 2026-07-29): DarkReader-based dark mode as a menu toggle —
-         same engine as kpay.uk's log.php sun/moon widget (assets/js/darkmode.js) but no
-         floating button on the app. Nerd-only for now: it's a design-testing instrument
-         (auto-derived theme, unpolished on some surfaces), same playground logic as the
-         landing skin picker. DarkReader works out the theme itself — no per-skin
-         dark variants needed. Same localStorage key as the widget ("dark-mode"). -->
-    <button type="button" class="app-menu-item nerd-only" id="kdarkToggle"
-            title="Experimental: automatic dark theme (DarkReader). A design-testing instrument — expect rough edges on some pages.">🌗 Dark mode</button>
+    <!-- ENTRY-DARKMODE1 R2 (user 2026-07-29): the dark-mode toggle is NOT in this menu —
+         it belongs only to the welcome page's nerd-mode theme-test row (landing.php),
+         since that's the one place it's actually useful. The engine (window.kdarkToggle,
+         a DarkReader wrapper matching kpay.uk's log.php widget) still loads from here so
+         any page can drive it, and a stored preference is re-applied on load. -->
+
     <?php if (defined('KATOMIA_BOARD_CONTEXT')): ?>
     <button type="button" class="app-menu-item" data-menu-settings>⚙ Settings</button>
     <?php endif; ?>
@@ -210,13 +209,11 @@ document.addEventListener("DOMContentLoaded", () => {
   })
   const apply = on => load().then(() => {
     on ? DarkReader.enable() : DarkReader.disable()
-    const btn = document.getElementById("kdarkToggle")
-    if(btn) btn.textContent = on ? "☀️ Light mode" : "🌗 Dark mode"
+    document.querySelectorAll("[data-kdark-btn]").forEach(b => { b.textContent = on ? "☀️" : "🌗" })
     try { localStorage.setItem(KEY, on ? "1" : "0") } catch {}
   }).catch(() => notify?.("Dark-mode engine failed to load", "error", { timeout: 3000 }))
   window.kdarkToggle = () => apply(localStorage.getItem(KEY) !== "1")
   document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById("kdarkToggle")?.addEventListener("click", () => window.kdarkToggle())
     if(localStorage.getItem(KEY) === "1") apply(true)
   })
 })()

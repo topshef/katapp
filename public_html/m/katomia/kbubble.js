@@ -31,10 +31,8 @@
 //             their own background when filling: .kbubble-filled is added to the
 //             element for exactly that (see the .kbtn override in katomia.css).
 //           fillAlpha(0..1, 0.22): opacity of the auto fill.
-//           offsetX/offsetY(px, 0): draw offset of the loop relative to the element —
-//             0,0 sits ON the border (v2 FIX: v1 sat high-left at dpr>1, the canvas
-//             translation was in CSS px not device px); nonzero is a deliberate
-//             floating-halo look.
+//           (v3.1: offsetX/offsetY dropped — they only existed to expose the v1 dpr
+//            offset bug, which is fixed; the loop always sits ON the border now.)
 //   kbubble.detach(handle)
 //   handle.puff(strength?) — programmatic pulse (e.g. on form success)
 //   handle.opts — live options object (demo sliders mutate it directly)
@@ -86,7 +84,7 @@
 
     const o = Object.assign({ bleed: 20, style: "ink", color: "", width: 1.6, points: 140,
                               tension: 28, spring: 14, damp: 2.2, ambient: 0.35, puff: 26,
-                              spread: 0.12, iters: 1, smooth: 0, offsetX: 0, offsetY: 0, blur: null,
+                              spread: 0.12, iters: 1, smooth: 0, blur: null,
                               fill: null, fillAlpha: 0.22 }, opts)
     if(getComputedStyle(el).position === "static") el.style.position = "relative"
     cv.style.cssText = `position:absolute;inset:${-o.bleed}px;width:calc(100% + ${o.bleed * 2}px);height:calc(100% + ${o.bleed * 2}px);pointer-events:none;`
@@ -106,7 +104,7 @@
       cv.height = (st.h + o.bleed * 2) * dpr
       // translation is in DEVICE px (v1 bug: passing CSS px here shifted the loop
       // high-left by bleed/2 on dpr-2 screens — the user's "offset to its high left")
-      ctx.setTransform(dpr, 0, 0, dpr, (o.bleed + o.offsetX) * dpr, (o.bleed + o.offsetY) * dpr)
+      ctx.setTransform(dpr, 0, 0, dpr, o.bleed * dpr, o.bleed * dpr)
       const r = o.radius ?? (parseFloat(getComputedStyle(el).borderRadius) || 10)
       st.pts = buildLoop(st.w, st.h, r, o.points)
       if(!st.d){ st.d = new Float32Array(o.points); st.v = new Float32Array(o.points)
@@ -169,14 +167,20 @@
         // dt-scaled gains ~30x past that limit and the whole array went NaN in
         // under a second (found via the __kbFrames/__kbState probes).
         const N = pts.length, t = now / 1000
-        const k = Math.min(op.tension / 60, 0.49)
+        // v3.1: tension used to saturate at ~29 (k capped at the 0.49 stability limit),
+        // so the slider went dead past that. Now anything above the limit is split into
+        // sub-steps instead of clamped — higher tension keeps meaning (faster, stiffer
+        // wave) and every sub-step still respects k<0.5.
+        const kRaw = op.tension / 60
+        const sub = Math.max(1, Math.ceil(kRaw / 0.49))
+        const k = kRaw / sub
         const s = op.spring / 600
         const decay = Math.exp(-op.damp * Math.max(dt, 1 / 120))
         const lim = op.bleed * 0.75
         // iters (v2): re-running the neighbour coupling raises the effective wave
         // speed — disturbances travel the loop faster and read as longer wavelengths
-        // (stiff ring), while each sub-step stays under the k<0.5 stability limit.
-        const iters = Math.max(1, Math.min(Math.round(op.iters), 10))
+        // (stiff ring).
+        const iters = Math.max(1, Math.min(Math.round(op.iters), 24)) * sub
         for(let it = 0; it < iters; it++){
           const last = it === iters - 1
           for(let i = 0; i < N; i++){

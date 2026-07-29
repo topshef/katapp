@@ -191,9 +191,9 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
       <option value="clay">🏺 Soft clay</option>
       <option value="bubble">💠 Bubble borders</option>
     </select>
-    <!-- ENTRY-DARKMODE1: same DarkReader toggle as the menu item, surfaced here so
-         skin × dark/light combinations can be flipped in one place. -->
-    <button type="button" id="landingDarkBtn" title="Toggle DarkReader dark mode on this skin" onclick="window.kdarkToggle?.()">🌗</button>
+    <!-- ENTRY-DARKMODE1 R2 (user 2026-07-29): this nerd-mode theme-test row is the ONLY
+         home for the dark/light toggle — it was removed from the hamburger menu. -->
+    <button type="button" id="landingDarkBtn" data-kdark-btn title="Toggle DarkReader dark mode on this skin" onclick="window.kdarkToggle?.()">🌗</button>
   </div>
 </div>
 
@@ -246,22 +246,23 @@ window.addEventListener("load", () => landingRefreshAccounts(false))
      (no .kbubble-on class) under reduced-motion / no canvas. -->
 <script src="<?= kasset('kbubble.js') ?>"></script>
 <script>
-// ENTRY-BUBBLE1 v3 (user-tuned 2026-07-29, exported from kdemo/bubble.html): stiff,
-// wide-flexing ring — whole-element response (spread .8), fast wave + heavy smoothing
-// (iters 9 / smooth .76) so it warps rather than ripples granularly, well damped,
-// soft 8px blur. FILLED: the bubble's interior is the button surface, so the static
-// CSS fill is dropped (.kbubble-filled, see landing-connect-btn/.landing-create CSS).
+// ENTRY-BUBBLE1 — user tuning, revision 2 (2026-07-29, exported verbatim from
+// kdemo/bubble.html): near-whole-element response (spread .75), fast wave with light
+// smoothing (iters 8 / smooth .3), gentle puff (6), heavily damped (6) — a fine
+// 0.9px line with a soft 4px blur, filled at .2. Update this ONE object to retune;
+// per-element bits (style/colour) stay at the call sites.
 // The connect CARD gets NO bubble — it's a panel of options, not a button (user).
-const KB_TUNED = { spread: 0.8, iters: 9, smooth: 0.76, tension: 55, spring: 33,
-                   damp: 5.9, puff: 11, ambient: 0.3, width: 2, blur: 8 }
+const KB_TUNED = { spread: 0.75, iters: 8, smooth: 0.3, tension: 25, spring: 28,
+                   damp: 6, puff: 6, ambient: 0.3, width: 0.9, blur: 4,
+                   fill: "auto", fillAlpha: 0.2 }
 window.addEventListener("load", () => {
   if(!window.kbubble) return
   document.querySelectorAll(".landing-card").forEach(el =>
-    kbubble.attach(el, Object.assign({ style: "iridescent", fill: "auto", fillAlpha: 0.1 }, KB_TUNED)))
+    kbubble.attach(el, Object.assign({ style: "iridescent" }, KB_TUNED)))
   const create = document.querySelector(".landing-create")
-  if(create) kbubble.attach(create, Object.assign({ style: "glow", color: "rgba(47,124,74,.9)", fill: "auto", fillAlpha: 0.2 }, KB_TUNED))
+  if(create) kbubble.attach(create, Object.assign({ style: "glow", color: "rgba(47,124,74,.9)" }, KB_TUNED))
   const btn = document.getElementById("landingConnectBtn")
-  if(btn) kbubble.attach(btn, Object.assign({ style: "glow", color: "rgba(47,85,120,.9)", fill: "auto", fillAlpha: 0.2 }, KB_TUNED))
+  if(btn) kbubble.attach(btn, Object.assign({ style: "glow", color: "rgba(47,85,120,.9)" }, KB_TUNED))
 })
 </script>
 <?php endif; ?>

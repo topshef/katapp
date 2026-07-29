@@ -36,8 +36,17 @@
   .knobs .kv output{ font-family:ui-monospace,monospace; color:#2f6fed; }
   .knobs .hint{ font-size:11px; color:#9aa2ad; line-height:1.35; }
   .note{ font-size:14px; color:#68727d; border-left:3px solid #2f6fed; padding-left:12px; margin-top:18px; }
-  pre#settings{ background:#23272e; color:#dde3ea; padding:12px 14px; border-radius:8px; font-size:12.5px; overflow-x:auto; margin:14px 0 0; }
-  #copyBtn{ margin-top:8px; padding:6px 12px; font-size:13px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; }
+  /* v3.1: the settings block is EDITABLE — paste or type values and they apply back to
+     the buttons and the sliders (round-trip), so tuning isn't slider-only. */
+  textarea#settings{
+    width:100%; box-sizing:border-box; min-height:290px; margin:14px 0 0;
+    background:#23272e; color:#dde3ea; border:1px solid #3a4250; border-radius:8px;
+    padding:12px 14px; font:12.5px/1.5 ui-monospace,monospace; resize:vertical;
+  }
+  textarea#settings.bad{ border-color:#e06c75; }
+  .setbar{ display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+  .setbar button{ padding:6px 12px; font-size:13px; border-radius:6px; border:1px solid #ccc; background:#fff; cursor:pointer; }
+  .setbar .msg{ font-size:12.5px; color:#68727d; }
   code{ background:#efece4; border-radius:4px; padding:1px 5px; font-size:13px; }
 </style>
 </head>
@@ -96,57 +105,109 @@ offset + blur knobs, and the dpr offset bug fixed (the loop now sits ON the bord
   to "the whole button responds, pointer position subliminal" — the hover-feel scale you described.
   <b>wave speed</b> + <b>smoothing</b> together set slinky-string ↔ stiff plastic/steel ring (longer, wider flexes
   instead of granular ripples). Offset 0,0 now sits on the border; slide it for the deliberate floating-halo look.</p>
-  <pre id="settings"></pre>
-  <button id="copyBtn" type="button">⧉ Copy settings</button>
+  <textarea id="settings" spellcheck="false"></textarea>
+  <div class="setbar">
+    <button id="applyBtn" type="button">▶ Apply settings</button>
+    <button id="copyBtn" type="button">⧉ Copy</button>
+    <button id="resetBtn" type="button">↺ Defaults</button>
+    <span class="msg" id="setMsg">edit or paste, then Apply (⌘/Ctrl+Enter) — sliders follow</span>
+  </div>
 </section>
 
 <script src="../kbubble.js"></script>
 <script>
 // Knob definitions: [optKey, label, min, max, step, default, hint]
+// v3.1 ranges widened (user's own tuning sat at several extremes) and the offsetX/Y
+// knobs removed — they only existed to expose the v1 dpr bug, which is fixed.
 const KNOBS = [
   ["spread",  "puff radius (local → whole button)", 0, 1, 0.01, 0.12, "0 = pinpoint at the pointer · 1 = whole border responds as one"],
-  ["iters",   "wave speed (slinky → stiff ring)",   1, 10, 1, 1, "how fast a disturbance travels the loop — high reads as a rigid ring"],
+  ["iters",   "wave speed (slinky → stiff ring)",   1, 24, 1, 1, "how fast a disturbance travels the loop — high reads as a rigid ring"],
   ["smooth",  "smoothing (granular → wide flex)",   0, 1, 0.01, 0, "low-pass on the shape: kills small ripples, keeps big slow warps"],
-  ["tension", "tension",                            4, 60, 1, 28, "wave coupling per step (internally capped at the stability limit)"],
-  ["spring",  "spring to rest",                     2, 40, 1, 14, "pull back to the true border shape"],
-  ["damp",    "damping",                            0.5, 6, 0.1, 2.2, "energy loss — low keeps ripples ringing"],
-  ["puff",    "puff strength",                      6, 60, 1, 26, "impulse magnitude on click (hover uses a fraction)"],
-  ["ambient", "ambient float",                      0, 1.2, 0.05, 0.35, "idle life — 0 for strictly-reactive"],
-  ["width",   "line width (px)",                    0.5, 5, 0.1, 1.6, ""],
-  ["blur",    "blurriness (px)",                    0, 20, 1, 0, "shadow-blur on the stroke; glow/iridescent have small built-in defaults"],
-  ["offsetX", "offset X (px)",                      -12, 12, 1, 0, "0,0 = on the border; nonzero = floating halo"],
-  ["offsetY", "offset Y (px)",                      -12, 12, 1, 0, ""],
-  ["fillAlpha", "fill opacity",                     0, 0.6, 0.02, 0.22, "only applies to the filled buttons (fill:'auto')"],
+  ["tension", "tension",                            1, 150, 1, 28, "wave coupling — past the stability limit it auto-sub-steps, so high values keep working"],
+  ["spring",  "spring to rest",                     0, 120, 1, 14, "pull back to the true border shape"],
+  ["damp",    "damping",                            0, 25, 0.1, 2.2, "energy loss — low keeps ripples ringing, high settles instantly"],
+  ["puff",    "puff strength",                      0, 80, 0.5, 26, "impulse magnitude on click (hover uses a fraction) — 0 = inert"],
+  ["ambient", "ambient float",                      0, 4, 0.05, 0.35, "idle life — 0 for strictly-reactive"],
+  ["width",   "line width (px)",                    0.1, 8, 0.1, 1.6, ""],
+  ["blur",    "blurriness (px)",                    0, 40, 0.5, 0, "shadow-blur on the stroke; glow/iridescent have small built-in defaults"],
+  ["fillAlpha", "fill opacity",                     0, 1, 0.01, 0.22, "applies when a fill is on (fill:'auto')"],
 ]
+const DEF = Object.fromEntries(KNOBS.map(k => [k[0], k[5]]))
 const handles = []
 const current = {}
+let editing = false   // don't fight the user's cursor while they type in the box
 
-function renderSettings(){
-  const out = {}
-  for(const [key] of KNOBS){
-    const v = current[key]
-    // only emit non-defaults so the snippet stays minimal — defaults are in kbubble.js
-    const def = KNOBS.find(k => k[0] === key)[5]
-    if(key === "blur" ? v > 0 : v !== def) out[key] = v
-  }
-  if(document.getElementById("fillAll")?.checked) out.fill = "auto"
-  else delete out.fillAlpha   // meaningless without a fill
-  document.getElementById("settings").textContent =
-    "kbubble.attach(el, " + JSON.stringify(Object.assign({ style: "…" }, out), null, 2).replace('"…"', '"ink|glow|iridescent"') + ")"
+const msg = (text, bad) => {
+  const el = document.getElementById("setMsg")
+  el.textContent = text
+  el.style.color = bad ? "#c0392b" : "#68727d"
 }
 
+// slider values → the exact snippet the user can copy, paste back, or hand over.
+// Every knob is emitted (not just non-defaults) so the block is directly editable.
+function renderSettings(){
+  if(editing) return
+  const out = {}
+  for(const [key] of KNOBS){
+    if(key === "fillAlpha" && !fillOn()) continue
+    out[key] = current[key]
+  }
+  if(fillOn()) out.fill = "auto"
+  document.getElementById("settings").value =
+    "kbubble.attach(el, " + JSON.stringify(Object.assign({ style: "ink|glow|iridescent" }, out), null, 2) + ")"
+}
+
+const fillOn = () => !!document.getElementById("fillAll")?.checked
+
 function applyAll(){
-  const fillAll = document.getElementById("fillAll")?.checked
   for(const h of handles){
     for(const [key] of KNOBS){
       if(key === "blur") h.opts.blur = current.blur > 0 ? current.blur : null
       else h.opts[key] = current[key]
     }
     // per-button fill comes from data-kb; the checkbox forces it on everywhere
-    h.opts.fill = fillAll ? "auto" : h.baseFill
-    h.rebuild()   // offset + the .kbubble-filled class live in rebuild()
+    h.opts.fill = fillOn() ? "auto" : h.baseFill
+    h.rebuild()   // the .kbubble-filled class + canvas geometry live in rebuild()
   }
   renderSettings()
+}
+
+// Parse whatever is in the box: a bare {...} object, or the full kbubble.attach(el, {...})
+// form (what Copy produces). Tolerates trailing commas and the "style" placeholder.
+function readSettings(){
+  const raw = document.getElementById("settings").value
+  const open = raw.indexOf("{"), close = raw.lastIndexOf("}")
+  if(open < 0 || close < open) throw new Error("no { … } object found")
+  const body = raw.slice(open, close + 1).replace(/,(\s*[}\]])/g, "$1")
+  const obj = JSON.parse(body)
+  if(typeof obj !== "object" || !obj) throw new Error("not an object")
+  return obj
+}
+
+function applyFromBox(){
+  let obj
+  try { obj = readSettings() }
+  catch(e){ document.getElementById("settings").classList.add("bad"); msg("Couldn't read that: " + e.message, true); return }
+  document.getElementById("settings").classList.remove("bad")
+
+  const unknown = [], clamped = []
+  for(const [key, val] of Object.entries(obj)){
+    if(key === "style" || key === "color") continue          // per-button, not global
+    if(key === "fill"){ document.getElementById("fillAll").checked = !!val && val !== "none"; continue }
+    const knob = KNOBS.find(k => k[0] === key)
+    if(!knob){ unknown.push(key); continue }
+    let v = Number(val)
+    if(!Number.isFinite(v)){ unknown.push(key); continue }
+    const [, , min, max] = knob
+    if(v < min || v > max){ clamped.push(`${key}→${v < min ? min : max}`); v = Math.min(Math.max(v, min), max) }
+    current[key] = v
+    const inp = document.querySelector(`input[data-knob="${key}"]`)
+    if(inp){ inp.value = v; inp.parentNode.querySelector("output").textContent = v }
+  }
+  editing = false
+  applyAll()
+  msg("Applied." + (clamped.length ? " Clamped: " + clamped.join(", ") + "." : "") +
+      (unknown.length ? " Ignored: " + unknown.join(", ") + "." : ""), false)
 }
 
 addEventListener("load", () => {
@@ -162,19 +223,34 @@ addEventListener("load", () => {
     current[key] = def
     const wrap = document.createElement("label")
     wrap.innerHTML = `<span class="kv"><b>${label}</b><output>${def}</output></span>` +
-      `<input type="range" min="${min}" max="${max}" step="${step}" value="${def}">` +
+      `<input type="range" data-knob="${key}" min="${min}" max="${max}" step="${step}" value="${def}">` +
       (hint ? `<span class="hint">${hint}</span>` : "")
     const inp = wrap.querySelector("input"), out = wrap.querySelector("output")
-    inp.oninput = () => { current[key] = Number(inp.value); out.textContent = inp.value; applyAll() }
+    inp.oninput = () => { editing = false; current[key] = Number(inp.value); out.textContent = inp.value; applyAll() }
     box.appendChild(wrap)
   }
   renderSettings()
 
+  const ta = document.getElementById("settings")
+  ta.addEventListener("input", () => { editing = true; msg("Edited — press Apply (⌘/Ctrl+Enter)") })
+  ta.addEventListener("keydown", e => {
+    if((e.metaKey || e.ctrlKey) && e.key === "Enter"){ e.preventDefault(); applyFromBox() }
+  })
+  document.getElementById("applyBtn").onclick = () => applyFromBox()
+  document.getElementById("resetBtn").onclick = () => {
+    for(const [key] of KNOBS){
+      current[key] = DEF[key]
+      const inp = document.querySelector(`input[data-knob="${key}"]`)
+      if(inp){ inp.value = DEF[key]; inp.parentNode.querySelector("output").textContent = DEF[key] }
+    }
+    document.getElementById("fillAll").checked = false
+    editing = false; applyAll(); msg("Back to library defaults")
+  }
   document.getElementById("copyBtn").onclick = async () => {
     const btn = document.getElementById("copyBtn")
-    try { await navigator.clipboard.writeText(document.getElementById("settings").textContent); btn.textContent = "✓ copied" }
-    catch { btn.textContent = "select + copy manually" }
-    setTimeout(() => btn.textContent = "⧉ Copy settings", 1500)
+    try { await navigator.clipboard.writeText(ta.value); btn.textContent = "✓ copied" }
+    catch { btn.textContent = "select + copy" }
+    setTimeout(() => btn.textContent = "⧉ Copy", 1500)
   }
 })
 </script>
