@@ -26,6 +26,12 @@ if ($page == 'circles') {
 	exit;
 }
 
+// ENTRY-LEARN1 (user 2026-07-30): explainer + FAQ — "what is a circle?" points here.
+if ($page == 'learn') {
+	require_once("learn.php");
+	exit;
+}
+
 
 $gameId = $_GET['game'] ?? false;
 if ($gameId) {

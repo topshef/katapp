@@ -47,6 +47,11 @@ RewriteRule ^markets/?$ ?page=markets [L,QSA]
 # links people have already shared. If a rename ever wants a matching URL, add an alias
 # line here pointing at the same target — don't move this one.
 RewriteRule ^circles/?$ ?page=circles [L,QSA]
+# ENTRY-LEARN1 (2026-07-30): the explainer + FAQ page ("what is a circle?"). Fixed
+# path for the same reason as /circles — the displayed term is a parameter, shared
+# links must not 404 when it changes.
+RewriteRule ^learn/?$ ?page=learn [L,QSA]
+
 
 
 RewriteRule ^kea/?$ KEA [L,QSA]

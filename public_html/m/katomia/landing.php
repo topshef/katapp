@@ -32,6 +32,14 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
      chrome to inherit. */
   .landing-wrap{ max-width: 480px; margin: 32px auto; padding: 0 16px; }
   .landing-tagline{ color: #666; margin: 0 0 24px; }
+  /* ENTRY-LEARN1: "Learn more" rides the strapline; "What is a {one}?" sits under the
+     doors, where the question actually occurs to a newcomer. Both muted — they must
+     not compete with the two entry cards for attention. */
+  .landing-learn{ font-size: 13px; color: #7a8595; text-decoration: none; margin-left: 8px; white-space: nowrap; }
+  .landing-learn:hover{ color: #2f6fed; text-decoration: underline; }
+  .landing-what{ margin: 14px 0 0; font-size: 13px; }
+  .landing-what a{ color: #7a8595; text-decoration: none; }
+  .landing-what a:hover{ color: #2f6fed; text-decoration: underline; }
   .landing-list{ display: flex; flex-direction: column; gap: 10px; }
   .landing-card{
     display: block; padding: 16px; border-radius: 10px;
@@ -191,7 +199,16 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
 ?>
 
 <div class="landing-wrap">
-  <?php if ($tagline): ?><p class="landing-tagline"><?= katomiaTermEsc($tagline) ?></p><?php endif; ?>
+  <!-- ENTRY-LEARN1 (user 2026-07-30): "Learn more" sits next to the strapline and goes
+       to the explainer/FAQ. "What is a circle?" under the entry cards points at the same
+       page's top section — same destination, but it answers the question a newcomer
+       actually has at the moment they're staring at two unfamiliar doors. -->
+  <?php if ($tagline): ?>
+  <p class="landing-tagline">
+    <?= katomiaTermEsc($tagline) ?>
+    <a class="landing-learn" href="/m/katomia/learn">Learn more →</a>
+  </p>
+  <?php endif; ?>
 
   <!-- ENTRY-CIRCLES1: the two curated doors. These are the ONLY elements on the page
        that get the bubble — the gesture is reserved for "entering a {one}" (user
@@ -228,6 +245,10 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
          rename ever needs a matching URL too, that's one extra alias line in .htaccess. -->
     <a class="landing-morelink" href="/m/katomia/circles">More <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?> →</a>
   </div>
+
+  <p class="landing-what">
+    <a href="/m/katomia/learn#what-is-it">What is a <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>?</a>
+  </p>
 
   <!-- ENTRY-WELCOME1 (user 2026-07-29): connect directly from the welcome page — a
        convenience flow, NOT a gate. Deliberately connect-only: no signing at the door
