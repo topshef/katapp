@@ -38,6 +38,9 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
   /* Generic hook for future nerd-only menu items (the dark-mode toggle used to be one;
      it now lives solely on the welcome theme-test row — ENTRY-DARKMODE1 R2). */
   .app-menu-item.nerd-only { display: none; }
+  /* BOARD-CHAT1 R2: menu entries that only make sense on a phone */
+  .app-menu-item.mobile-only { display: none; }
+  @media (max-width: 600px){ .app-menu-item.mobile-only { display: block; width: 100%; } }
   body.nerd .app-menu-item.nerd-only { display: block; width: 100%; }
 </style>
 
@@ -80,6 +83,10 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
          any page can drive it, and a stored preference is re-applied on load. -->
 
     <?php if (defined('KATOMIA_BOARD_CONTEXT')): ?>
+    <!-- BOARD-CHAT1 R2 (user feedback 2026-07-30): the floating 💬 panel is hidden on
+         mobile because it covered the board controls. This is its replacement there —
+         a full-screen message stream. Hidden on desktop, where the panel still works. -->
+    <button type="button" class="app-menu-item mobile-only" data-menu-chat>💬 Messages</button>
     <button type="button" class="app-menu-item" data-menu-settings>⚙ Settings</button>
     <?php endif; ?>
     <!-- KAT-FEEDBACK1-ENTRYPOINT1: explicit route to the feedback modal for users who

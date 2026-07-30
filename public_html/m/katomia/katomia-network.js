@@ -337,6 +337,10 @@ function connect(onOpenAction){
     socket.send(JSON.stringify(payload))
 		glog("payload for game_join", payload)
 
+		// DEMO-SPECTATE1 R2: expose a re-join so a spectator can be upgraded in place the
+		// moment they raise a commitment (see onKatomiaBindingPublished below).
+		window.katomiaRejoin = () => { try { socket.send(JSON.stringify(payload)) } catch(e){ console.warn("[rejoin] failed", e) } }
+
 		// join is on the wire — release anything queued behind it (see connect()).
 		socket.__joined = true
 		;(socket.__onJoined || []).splice(0).forEach(fn => { try { fn() } catch(e){ console.error(e) } })
@@ -384,9 +388,20 @@ function connect(onOpenAction){
     // MAY PARTICIPATE and tells us which we are. A spectator is subscribed to a public
     // game they cannot take part in — every mutating action is refused server-side, so
     // the UI must not offer controls that will only produce an error toast.
+    // DEMO-SPECTATE1 R2 (user 2026-07-30): a spectator who raises a commitment mid-watch
+    // should be upgraded without a page reload. The server decides the role at JOIN, so
+    // the upgrade is simply a re-join on the same socket — cheap, and it reuses the one
+    // code path that already knows how to compute the role. Only fires when we are
+    // actually a spectator, so a normal player publishing a binding costs nothing.
+    const wasSpectator = window.katomiaSpectator
     window.katomiaSpectator = !!data.spectator
     window.katomiaSpectatorReason = data.spectatorReason || null
     document.body.classList.toggle("spectating", !!data.spectator)
+    if(wasSpectator && !data.spectator) notify?.("✅ You're in — your commitment was accepted.", "success", { timeout: 4000 })
+
+    // DEMO-WATCHERS1: live audience, counted from open sockets server-side.
+    window.katomiaWatching = Number.isFinite(data.watching) ? data.watching : null
+    window.katomiaPlaying = Number.isFinite(data.playing) ? data.playing : null
 
     restoreCachedAccounts()
 

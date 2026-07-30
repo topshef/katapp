@@ -55,8 +55,23 @@ require_once __DIR__ . '/kasset.php';
   <span>👀 <b>You're watching.</b></span>
   <span class="kspec-why" id="boardSpectatorWhy"></span>
 </div>
+<!-- DEMO-WATCHERS1 (user 2026-07-30): live audience counter. Server-counted from open
+     sockets, split playing vs watching. -->
+<div id="boardAudience" class="kaud" hidden></div>
 <div id="boardChatLayer" class="kchat-layer"></div>
 <div id="boardChatPanel" class="kchat-panel"></div>
+
+<!-- BOARD-CHAT1 R2: mobile transcript, opened from ☰ (the floating panel is
+     desktop-only — on a phone it covered the board controls). Full screen because
+     there is no room for board + transcript on a phone; two devices side by side is
+     the intended way to watch both. -->
+<div id="boardChatFull" class="kchat-full" role="dialog" aria-modal="true" aria-label="Messages">
+  <div class="kchat-full-head">
+    <b>💬 Messages<span class="sub" id="boardChatFullSub"></span></b>
+    <button type="button" class="kchat-full-close" id="boardChatFullClose">Close</button>
+  </div>
+  <div class="kchat-full-list"><div class="kchat-panel-list" id="boardChatFullList"></div></div>
+</div>
 
 <!-- Same asset modal as game.php — openAssetModal() (helpers) is the tap-to-offer
      path for chips; board taps reuse it verbatim. -->

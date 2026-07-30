@@ -91,13 +91,27 @@
 
   function renderLog(chat) {
     var p = panel();
-    if (!p) return;
-    var list = p.querySelector(".kchat-panel-list");
-    var count = p.querySelector(".kchat-panel-count");
-    count.textContent = chat.length ? String(chat.length) : "";
+    var count = p && p.querySelector(".kchat-panel-count");
+    if (count) count.textContent = chat.length ? String(chat.length) : "";
+    // BOARD-CHAT1 R2: two destinations — the desktop panel and the mobile full-screen
+    // stream. Both get the same rows; CSS decides which one the device can see.
+    renderInto(p && p.querySelector(".kchat-panel-list"), chat);
+    renderInto(document.getElementById("boardChatFullList"), chat);
+    var sub = document.getElementById("boardChatFullSub");
+    if (sub) sub.textContent = chat.length ? chat.length + " so far" : "nothing said yet";
+  }
 
+  function renderInto(list, chat) {
+    if (!list) return;
     var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 24;
     list.innerHTML = "";
+    if (!chat.length) {
+      var e = document.createElement("div");
+      e.className = "kchat-full-empty";
+      e.textContent = "No messages yet.";
+      list.appendChild(e);
+      return;
+    }
     chat.slice(-MAX_LOG).forEach(function (m) {
       var row = document.createElement("div");
       row.className = "kchat-row";
@@ -124,6 +138,18 @@
       list.appendChild(row);
     });
     if (atBottom) list.scrollTop = list.scrollHeight;
+  }
+
+  // BOARD-CHAT1 R2: full-screen transcript for phones, opened from ☰ → 💬 Messages.
+  function openFull(on) {
+    var el = document.getElementById("boardChatFull");
+    if (!el) return;
+    el.classList.toggle("open", on !== false);
+    if (on !== false) {
+      var l = document.getElementById("boardChatFullList");
+      if (l) l.scrollTop = l.scrollHeight;
+      document.getElementById("appMenu")?.classList.add("hidden");
+    }
   }
 
   /* ── bubbles ──────────────────────────────────────────────────────────────── */
@@ -256,6 +282,21 @@
 
   // DEMO-SPECTATE1: keep the ribbon's explanation in step with the server's reason.
   // Lives here because this file already runs after every board paint.
+  // DEMO-WATCHERS1: render the live audience. Only shown once there is someone to
+  // report — a badge reading "0 watching" on a quiet board is noise, not information.
+  function syncAudience(){
+    var el = document.getElementById("boardAudience");
+    if(!el) return;
+    var w = window.katomiaWatching, p = window.katomiaPlaying;
+    if(!Number.isFinite(w) && !Number.isFinite(p)){ el.hidden = true; return; }
+    var bits = [];
+    if(p) bits.push('<b>' + p + '</b> playing');
+    if(w) bits.push('👀 <b>' + w + '</b> watching');
+    if(!bits.length){ el.hidden = true; return; }
+    el.innerHTML = bits.join('<span class="kaud-sep"> · </span>');
+    el.hidden = false;
+  }
+
   function syncSpectatorRibbon(){
     var why = document.getElementById("boardSpectatorWhy");
     if(!why) return;
@@ -265,7 +306,7 @@
       : "";
   }
 
-  window.boardRenderChat = function(){ boardRenderChat(); syncSpectatorRibbon(); };
+  window.boardRenderChat = function(){ boardRenderChat(); syncSpectatorRibbon(); syncAudience(); };
   window.katomiaChat = {
     render: boardRenderChat,
     reposition: reposition,
@@ -276,6 +317,26 @@
       if (p) p.classList.toggle("kchat-panel--open", logOpen);
     }
   };
+
+  window.katomiaChat.openFull = openFull;
+
+  // DEMO-SPECTATE1 R2: raising a commitment while watching upgrades you in place.
+  // The profile modal fires this after a binding is published; a re-join makes the
+  // server recompute the role on the same socket. Chained so any existing handler
+  // (e.g. the markets list refresh) still runs.
+  {
+    const prev = window.onKatomiaBindingPublished;
+    window.onKatomiaBindingPublished = function(){
+      try { prev && prev.apply(this, arguments) } catch(e){ console.warn("[chat] prior binding handler failed", e) }
+      if(window.katomiaSpectator) window.katomiaRejoin?.();
+    };
+  }
+
+  document.addEventListener("click", function (e) {
+    if (e.target.closest("[data-menu-chat]")) { e.preventDefault(); openFull(true); }
+    else if (e.target.closest("#boardChatFullClose")) { e.preventDefault(); openFull(false); }
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") openFull(false); });
 
   // Rotation and resize move wedges without a state change — follow them.
   window.addEventListener("resize", function () { setTimeout(reposition, 60); });
