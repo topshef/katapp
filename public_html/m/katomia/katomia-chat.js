@@ -254,7 +254,18 @@
     timer = setInterval(sweep, 1000);
   }
 
-  window.boardRenderChat = boardRenderChat;
+  // DEMO-SPECTATE1: keep the ribbon's explanation in step with the server's reason.
+  // Lives here because this file already runs after every board paint.
+  function syncSpectatorRibbon(){
+    var why = document.getElementById("boardSpectatorWhy");
+    if(!why) return;
+    var r = window.katomiaSpectatorReason;
+    why.textContent = window.katomiaSpectator
+      ? (r ? "— " + r + ". You can follow along, but not take part." : "— you can follow along, but not take part.")
+      : "";
+  }
+
+  window.boardRenderChat = function(){ boardRenderChat(); syncSpectatorRibbon(); };
   window.katomiaChat = {
     render: boardRenderChat,
     reposition: reposition,

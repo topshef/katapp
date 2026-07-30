@@ -49,6 +49,12 @@ require_once __DIR__ . '/kasset.php';
      inside the board root is wiped the moment a new message triggers a re-render —
      which is exactly when a bubble needs to appear. Same reasoning as the
      #game.board-linelayer passthrough above; both are fixed overlays over the board. -->
+<!-- DEMO-SPECTATE1: shown only when the backend says this socket is a spectator
+     (body.spectating, set in katomia-network.js from the game_state payload). -->
+<div id="boardSpectatorRibbon" class="kspec-ribbon">
+  <span>👀 <b>You're watching.</b></span>
+  <span class="kspec-why" id="boardSpectatorWhy"></span>
+</div>
 <div id="boardChatLayer" class="kchat-layer"></div>
 <div id="boardChatPanel" class="kchat-panel"></div>
 

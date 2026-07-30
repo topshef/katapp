@@ -379,6 +379,15 @@ function connect(onOpenAction){
     document.body.dataset.tradingMode = gameMeta?.config?.tradingMode || ""
   
     currentPlayerId = data.myPlayerId || null
+
+    // DEMO-SPECTATE1 (user 2026-07-30): the backend now distinguishes MAY VIEW from
+    // MAY PARTICIPATE and tells us which we are. A spectator is subscribed to a public
+    // game they cannot take part in — every mutating action is refused server-side, so
+    // the UI must not offer controls that will only produce an error toast.
+    window.katomiaSpectator = !!data.spectator
+    window.katomiaSpectatorReason = data.spectatorReason || null
+    document.body.classList.toggle("spectating", !!data.spectator)
+
     restoreCachedAccounts()
 
     if(window.pendingAutoload){
