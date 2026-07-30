@@ -12,7 +12,15 @@
 
 		function notify(message, type="info", opts={}){
 
-			const { timeout=4000 } = opts
+			let { timeout=4000 } = opts
+
+			// DEMO-SPECTATE1 R2 (user 2026-07-30, watching the demo): a "transaction failed
+			// or expired" toast is raised with no timeout so a PLAYER can read it in their
+			// own time and dismiss it deliberately — correct for someone acting, wrong for
+			// someone watching. A passive spectator never clears it, so it sat on the board
+			// permanently. Sticky toasts get a generous life for spectators rather than an
+			// infinite one; players keep the existing behaviour untouched.
+			if(window.katomiaSpectator && !timeout) timeout = 12000
 
 			const icons = {
 				info:"ℹ️",

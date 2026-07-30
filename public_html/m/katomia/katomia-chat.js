@@ -176,11 +176,22 @@
     var w = el.offsetWidth, ht = el.offsetHeight;
     if (!w) return;                             // not laid out yet — next reposition fixes it
 
-    // board pixels -> viewport pixels, then clamp inside the board's on-screen box
+    // board pixels -> viewport pixels, then clamp inside the board's on-screen box.
+    // R2 (user 2026-07-30): the top of the board is contested — #boardBanner appears
+    // there mid-deal ("Ready to submit — collecting signatures") and a bubble landed
+    // underneath it. Rather than pick a magic offset, measure whatever is currently
+    // occupying the top lane and start below it, so this keeps working if another
+    // banner is added later.
     var vx = o.x + a.x, vy = o.y + a.y;
+    var topGuard = o.y + PAD;
+    var bn = document.getElementById("boardBanner");
+    if (bn) {
+      var br = bn.getBoundingClientRect();
+      if (br.height) topGuard = Math.max(topGuard, br.bottom + 8);
+    }
     var wantL = vx - w / 2, wantT = vy - ht / 2;
     var l = Math.max(o.x + PAD, Math.min(wantL, o.x + o.w - w - PAD));
-    var t = Math.max(o.y + PAD, Math.min(wantT, o.y + o.h - ht - PAD));
+    var t = Math.max(topGuard, Math.min(wantT, o.y + o.h - ht - PAD));
 
     // Switch off the centring transform and position by corner, so the clamp is exact.
     el.style.setProperty("--kchat-dx", "0px");
