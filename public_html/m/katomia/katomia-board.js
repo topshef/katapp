@@ -1384,6 +1384,12 @@ function renderRingBoard(root){
     if(ring9()) k.style.fontSize = (rc * 1.9) + "px"
     hub.appendChild(k)
   }
+  // BOARD-HUBCLEAR1 (user 2026-07-30, watching the demo): "whilst there's a countdown or
+  // anything else on the center, we should hide the K logo". The countdown was being laid
+  // ON TOP of the mark. Done once here rather than as a guard inside each skin branch, so
+  // it covers every K variant (img, geometric svg, glyph) and any future one.
+  if(boardSigning) hub.querySelectorAll(".ring-hub-ksvg, .ring-hub-k").forEach(n => n.remove())
+
   if(ring12()){
     // v12 (review 11): the hub is CLEAN — thin grey border + K only. The
     // player-colour arcs moved to the board side of the hub (ringFelt),
@@ -2207,7 +2213,16 @@ function boardShelfZone(sizes, keys, zone, inners, isBasket){
   // the label band inside the rim is a no-chip zone; 34px approximates the
   // BOARD-IDCOIN1 label depth. Per-glyph hard bounding boxes = later, if the
   // band isn't enough). Row x uses the row's tallest chip.
-  const band = (ghostIdx.length ? ghostBandH : Math.max(40, ...chipIdx.map(i => sizes[i].h))) + 12
+  // BOARD-RIMBAND1 (user 2026-07-16, fixed 2026-07-30): this used to SWITCH which
+  // quantity sized the band — tallest STORE chip while the counter was empty, tallest
+  // GHOST once it wasn't. A ghost thumb is smaller than its store chip, so offering an
+  // item made the giver's rim band visibly SHRINK, and withdrawing it made it grow:
+  // "something in it, it gets smaller; outside, it's bigger — counterintuitive."
+  // Taking the MAX of both makes the empty state byte-identical to before (ghostBandH is
+  // 0 with no ghosts) while removing the shrink. Residual, deliberately left: if the item
+  // offered was itself the tallest chip in the store, the band can still ease down to the
+  // next-tallest — the band is genuinely reserving less at that point. See the task.
+  const band = Math.max(40, ghostBandH, ...chipIdx.map(i => sizes[i].h)) + 12
   let cursor = isBasket ? zone.rMax - 34 : zone.rMin + band
   let i = 0
   while(i < order.length){
@@ -2362,9 +2377,10 @@ function boardOrganicApply(cx, cy, W, H, oval){
     const ghostsIn = recs.filter(b => b.inner)
     // reserved rim band ("clear the cashier's counter"): ghost-only, held
     // open even before any ghost exists so the two rings read as distinct
+    // BOARD-RIMBAND1: same max-of-both fix as the shelf pass above — these two must agree
+    // or the sim's walls and the shelf layout disagree about where the counter ends.
     zrec.band = zrec.isBasket ? 0 :
-      (ghostsIn.length ? Math.max(...ghostsIn.map(b => b.h))
-                       : Math.max(40, ...movers.map(b => b.h), 40)) + 12
+      Math.max(40, ...ghostsIn.map(b => b.h), ...movers.map(b => b.h)) + 12
     // anchor: the blob's home, centred in the radial band (BOARD-ORGANIC4 —
     // wedge-angle-independent, unlike the old tan-based spread)
     const area = movers.reduce((t, b) => t + b.w * b.h, 0)
