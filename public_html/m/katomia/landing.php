@@ -6,6 +6,9 @@ $landing = $siteConfig['landing'] ?? [];
 $title = $landing['title'] ?? 'Katomia';
 $tagline = $landing['tagline'] ?? '';
 $curatedGames = $landing['curatedGames'] ?? [];
+// ENTRY-CIRCLES1 (user 2026-07-30): every user-facing "circle" on this page comes
+// from here — the word is a config parameter, never a literal. See site-config.php.
+$T = katomiaTerms();
 // ENTRY-SKINS1 (user 2026-07-29): URL-switchable CSS skins for this page — design
 // exploration surface. ?skin=liquid|clay|bubble; default 'paper' is the plain look.
 // A picker appears in NERD MODE only (deliberate: nerd mode as the UI-branching
@@ -18,12 +21,15 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- ENTRY-FADES1: must be in <head> — it arms the fade-IN before first paint. -->
+<script src="<?= kasset('kfade.js') ?>"></script>
 <link rel="stylesheet" href="<?= kasset('katomia.css') ?>">
 <title><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></title>
 <style>
   /* KATOMIA-LANDING1: intentionally tiny — a hand-picked jumping-off point,
      not a second games list (that's contents.php's job, reachable from here
-     via the "See all markets" link). No grid/table chrome to inherit. */
+     via the "More {many}" / nerd-mode "See all markets" links). No grid/table
+     chrome to inherit. */
   .landing-wrap{ max-width: 480px; margin: 32px auto; padding: 0 16px; }
   .landing-tagline{ color: #666; margin: 0 0 24px; }
   .landing-list{ display: flex; flex-direction: column; gap: 10px; }
@@ -36,18 +42,31 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
   .landing-card-label{ font-weight: 600; }
   .landing-card-net{ font-size: 12px; color: #888; margin-top: 2px; }
   /* ENTRY-WELCOME1: See-all demoted to small + muted (user 2026-07-29) — the curated
-     cards + create button are the happy path; the full list is a power-user door. */
-  .landing-more{ margin-top: 28px; font-size: 12px; }
+     cards + create button are the happy path; the full list is a power-user door.
+     ENTRY-CIRCLES1 (2026-07-30): and now nerd-ONLY — normal mode gets "More {many}",
+     which goes to the proposal-only /{many} page instead of the raw markets grid. */
+  .landing-more{ margin-top: 28px; font-size: 12px; display: none; }
+  body.nerd .landing-more{ display: block; }
   .landing-more a{ color: #999; }
   .landing-empty{ color: #888; font-style: italic; }
   /* ENTRY-KBTN1: buttons now ride the shared .kbtn glassy library (katomia.css) —
      these rules keep only layout. The old solid green/blue fills are gone (user
      2026-07-29: subtler, glassy, thin edge — match the order-modal buttons). */
-  .landing-create{ margin-top: 16px; }
-  /* ENTRY-WELCOME1: connect-from-welcome card. Convenience, not a gate — you can walk
-     into any game without it; connecting here just means you're ready to trade the
-     moment you join (and later feeds the auto-add-accounts-on-join idea,
-     ENTRY-AUTOADD1). */
+  /* ENTRY-CIRCLES1: create + "more" sit on one row — the two onward doors, after
+     the two curated ones above. */
+  .landing-actions{ margin-top: 16px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .landing-create{ margin-top: 0; }
+  .landing-morelink{ font-size: 13px; color: #7a8595; text-decoration: none; }
+  .landing-morelink:hover{ color: #2f6fed; text-decoration: underline; }
+  /* ENTRY-WELCOME1 (user 2026-07-29): connect-from-welcome card. Convenience, not a
+     gate — you can walk into any {one} without it; connecting here just means you're
+     ready to trade the moment you join (and later feeds the auto-add-accounts-on-join
+     idea, ENTRY-AUTOADD1).
+     TENSION (user 2026-07-30, deliberately left as-is for now): offering "connect your
+     wallet" BELOW the two entry doors reads backwards — you pick a door, then you're
+     asked to do setup. It is a leftover of the original plan to ask people to connect
+     up front, which is NOT the plan any more. Kept for now; revisit when the entry flow
+     is next opened up. See ENTRY-WELCOME1 notes. */
   .landing-connect{
     margin-top: 28px; padding: 16px; border-radius: 10px;
     background: #fff; border: 1px solid #e5e0d4; box-shadow: 0 1px 3px rgba(0,0,0,.05);
@@ -59,6 +78,16 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
   .landing-connect-btn{ padding: 9px 16px; font-size: 14px; }
   .landing-connected{ margin-top: 10px; font-size: 13px; color: #2e7d32; }
   .landing-connected:empty{ display: none; }
+
+  /* ═══ ENTRY-CIRCLES1 — the two entry cards carry the bubble in EVERY skin ═══
+     User ruling 2026-07-30: keep the default page 'paper', but give the bubble
+     treatment to the two entry options specifically. The gesture now MEANS
+     "this is a door into a {one}" rather than being page-wide decoration — so
+     these rules are skin-independent, unlike the lskin-bubble block below. */
+  .landing-card.kbubble-on{ border-color: transparent !important; box-shadow: none !important; }
+  .landing-card.kbubble-filled{ background: transparent !important; }
+  .landing-card{ -webkit-tap-highlight-color: transparent; }
+
   /* ═══ ENTRY-SKINS1 — landing skins (design exploration; page-scoped, the shared
      banner is deliberately untouched for now). 'paper' = the defaults above. ═══ */
 
@@ -89,6 +118,7 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
   body.lskin-liquid .landing-connect-btn{ background:linear-gradient(120deg,#2f6fed,#8b3bd8); border-radius:999px; }
   body.lskin-liquid .landing-connected{ color:#5fd39a; }
   body.lskin-liquid .landing-more a{ color:#6e7a95; }
+  body.lskin-liquid .landing-morelink{ color:#8f9bb5; }
 
   /* — clay: warm, soft, no hard edges anywhere; squishy neumorphic mass — */
   body.lskin-clay{ background:#efe9e1; }
@@ -107,10 +137,14 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
   body.lskin-clay .landing-connect-btn{ background:#5a8fe8; border-radius:999px;
     box-shadow:4px 4px 10px rgba(178,160,138,.5), -3px -3px 8px rgba(255,255,255,.8); }
   body.lskin-clay .landing-more a{ color:#a89b8c; }
+  body.lskin-clay .landing-morelink{ color:#a89b8c; }
 
   /* — bubble: minimal light base; kbubble.js draws living borders (ENTRY-BUBBLE1).
        .kbubble-on = the effect attached OK, so the CSS border steps aside; without
-       it (reduced-motion / no canvas) the paper borders simply remain. — */
+       it (reduced-motion / no canvas) the paper borders simply remain.
+       ENTRY-CIRCLES1: this skin is now the "bubble EVERYTHING" variant — the two
+       entry cards get theirs on every skin (above), so what's left here is the
+       page-wide treatment of the create + connect buttons. — */
   body.lskin-bubble{ background:#f7f9fc; }
   body.lskin-bubble .landing-card,
   body.lskin-bubble .landing-connect{ border-radius:14px; }
@@ -126,9 +160,28 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
 
   /* — nerd-mode skin picker (ENTRY-SKINS1): visible only with body.nerd — */
   .landing-skin-picker{ display:none; margin-top:22px; font-size:13px; color:#888;
-    gap:8px; align-items:center; }
+    gap:8px; align-items:center; flex-wrap:wrap; }
   body.nerd .landing-skin-picker{ display:flex; }
   .landing-skin-picker select{ padding:5px 8px; border-radius:6px; border:1px solid #ccc; }
+
+  /* — nerd-mode bubble tuning (ENTRY-CIRCLES1, user 2026-07-30): "nerd option to
+       apply alternative settings would be amazing (local to the user)". Stored in
+       this browser's localStorage only — it overrides the entry transition on the
+       real pages, for this tester, without touching the deployed defaults. — */
+  .landing-tuner{ display:none; margin-top:14px; font-size:12.5px; color:#888; }
+  body.nerd .landing-tuner{ display:block; }
+  .landing-tuner summary{ cursor:pointer; color:#7a8595; }
+  .landing-tuner textarea{
+    width:100%; box-sizing:border-box; margin-top:8px; min-height:104px; padding:9px 11px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; line-height:1.5;
+    border:1px solid #ccd2da; border-radius:8px; background:#fbfcfe; color:#333; resize:vertical;
+  }
+  .landing-tuner-row{ display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+  .landing-tuner-row button{ padding:5px 11px; font-size:12.5px; border-radius:6px;
+    border:1px solid #ccd2da; background:#fff; cursor:pointer; }
+  .landing-tuner-row button:hover{ border-color:#2f6fed; color:#2f6fed; }
+  .landing-tuner-msg{ color:#2f6fed; }
+  .landing-tuner-msg.warn{ color:#b4690e; }
 </style>
 </head>
 <body class="lskin-<?= htmlspecialchars($landingSkin, ENT_QUOTES, 'UTF-8') ?>">
@@ -138,28 +191,43 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
 ?>
 
 <div class="landing-wrap">
-  <?php if ($tagline): ?><p class="landing-tagline"><?= htmlspecialchars($tagline, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
+  <?php if ($tagline): ?><p class="landing-tagline"><?= katomiaTermEsc($tagline) ?></p><?php endif; ?>
 
+  <!-- ENTRY-CIRCLES1: the two curated doors. These are the ONLY elements on the page
+       that get the bubble — the gesture is reserved for "entering a {one}" (user
+       2026-07-30), so administrative buttons below stay plain and use the quiet fade. -->
   <div class="landing-list">
     <?php if (!$curatedGames): ?>
-      <p class="landing-empty">No curated games configured yet — see site-config.json.</p>
+      <p class="landing-empty">No curated <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?> configured yet — see site-config.json.</p>
     <?php endif; ?>
     <?php foreach ($curatedGames as $g):
       $id = $g['id'] ?? '';
       if (!$id) continue;
       $label = $g['label'] ?? $id;
-      $network = $g['network'] ?? '';
+      // ENTRY-CIRCLES1: the muted second line is now the flavour NOTE ("play money"),
+      // not the network — the network moved up into the title where the user wants it.
+      // Falls back to the old network line for any config not yet carrying a note.
+      $note = $g['note'] ?? ($g['network'] ?? '');
     ?>
-      <a class="landing-card" href="/m/katomia/board/<?= rawurlencode($id) ?>">
-        <div class="landing-card-label"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></div>
-        <?php if ($network): ?><div class="landing-card-net"><?= htmlspecialchars($network, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
+      <a class="landing-card" data-kbubble-open href="/m/katomia/board/<?= rawurlencode($id) ?>">
+        <div class="landing-card-label"><?= katomiaTermEsc($label) ?></div>
+        <?php if ($note): ?><div class="landing-card-net"><?= katomiaTermEsc($note) ?></div><?php endif; ?>
       </a>
     <?php endforeach; ?>
   </div>
 
   <!-- ENTRY-WELCOME1/ENTRY-CREATEBASIC1: one button, straight to the trimmed-down
-       create form (name + network + visibility only) — the full form stays at /create. -->
-  <a class="landing-create kbtn kbtn-green" href="/m/katomia/create?skin=basic">➕ Create your own game</a>
+       create form (name + network + visibility only) — the full form stays at /create.
+       ENTRY-CIRCLES1: "More {many}" sits alongside it — same row, both onward doors.
+       It points at /{many} (proposal-mode only, card view), NOT the full markets grid;
+       the grid stays behind the nerd-only link below. -->
+  <div class="landing-actions">
+    <a class="landing-create kbtn kbtn-green" href="/m/katomia/create?skin=basic">➕ Create your own <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?></a>
+    <!-- The PATH is fixed infrastructure (/circles); only the LABEL is the parameter.
+         Renaming the term must not 404 a URL people have bookmarked or shared. If a
+         rename ever needs a matching URL too, that's one extra alias line in .htaccess. -->
+    <a class="landing-morelink" href="/m/katomia/circles">More <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?> →</a>
+  </div>
 
   <!-- ENTRY-WELCOME1 (user 2026-07-29): connect directly from the welcome page — a
        convenience flow, NOT a gate. Deliberately connect-only: no signing at the door
@@ -168,7 +236,12 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
        first entry). Site-wide access levers / group gating: ENTRY-GATING1. -->
   <div class="landing-connect">
     <h3>🔗 Connect your wallet</h3>
-    <p class="subtle">Optional — connect now and you're ready to trade the moment you join a game. You can always do it later from the profile menu.</p>
+    <!-- ENTRY-CIRCLES1 (user 2026-07-30): the old copy sent people to the PROFILE MENU
+         to add accounts later. That's the long way round — accounts are added from the
+         control bar at the bottom of the board itself (Add account, bottom-left), which
+         is where you'll actually be when you want one. Don't route people to a more
+         complicated path than the one in front of them. -->
+    <p class="subtle">Optional — connect now and you're ready to trade the moment you join a <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>. You can also add accounts later, from the bar at the bottom of any <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>.</p>
     <div class="landing-connect-row">
       <select id="landingNet" title="Which Hedera network to connect on">
         <option value="mainnet">🟣 Hedera mainnet</option>
@@ -179,6 +252,8 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
     <div id="landingConnected" class="landing-connected"></div>
   </div>
 
+  <!-- ENTRY-CIRCLES1: nerd mode keeps the raw markets grid (every game, every mode,
+       every column). Normal mode never sees the word "markets". -->
   <p class="landing-more"><a href="/m/katomia/markets">See all markets →</a></p>
 
   <!-- ENTRY-SKINS1: nerd-mode-only skin picker — reloads with ?skin= so each variant
@@ -189,23 +264,40 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
       <option value="paper">📄 Paper (default)</option>
       <option value="liquid">🫧 Liquid glass</option>
       <option value="clay">🏺 Soft clay</option>
-      <option value="bubble">💠 Bubble borders</option>
+      <option value="bubble">💠 Bubble everything</option>
     </select>
     <!-- ENTRY-DARKMODE1 R2 (user 2026-07-29): this nerd-mode theme-test row is the ONLY
          home for the dark/light toggle — it was removed from the hamburger menu. -->
     <button type="button" id="landingDarkBtn" data-kdark-btn title="Toggle DarkReader dark mode on this skin" onclick="window.kdarkToggle?.()">🌗</button>
   </div>
+
+  <!-- ENTRY-CIRCLES1: per-user entry-transition tuning (nerd mode, localStorage). -->
+  <details class="landing-tuner">
+    <summary>⚙ Entry transition — my settings</summary>
+    <p style="margin:8px 0 0">Overrides the <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>-entry bubble <b>for this browser only</b>. Same knob names as the
+      <a href="/m/katomia/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
+    <textarea id="landingTuneBox" spellcheck="false" placeholder='{ "ms": 800, "style": "iridescent" }'></textarea>
+    <div class="landing-tuner-row">
+      <button type="button" id="landingTuneApply">▶ Apply</button>
+      <button type="button" id="landingTuneClear">↺ Site defaults</button>
+      <span class="landing-tuner-msg" id="landingTuneMsg"></span>
+    </div>
+  </details>
 </div>
 
 <script>
 // ENTRY-WELCOME1: welcome-page connect widget. Thin glue over the shared WC connector
 // + katomia-auth.js helpers (kauthWCAccounts). Passive on load (never rebuilds the
 // connector just to peek); explicit on click (ensureNetwork + connect).
+// ENTRY-CIRCLES1: KTERMS carries the configured vocabulary into JS so runtime strings
+// don't hardcode "circle" either.
+window.KTERMS = <?= json_encode($T, JSON_UNESCAPED_UNICODE) ?>;
+
 async function landingRenderConnected(accounts){
   const el = document.getElementById("landingConnected")
   if(!el) return
   el.textContent = accounts.length
-    ? `✓ Connected: ${accounts.join(", ")} — you're ready to trade in any game.`
+    ? `✓ Connected: ${accounts.join(", ")} — you're ready to trade in any ${KTERMS.one}.`
     : ""
 }
 async function landingRefreshAccounts(ensure){
@@ -241,31 +333,103 @@ window.addEventListener("load", () => landingRefreshAccounts(false))
 }
 </script>
 
-<?php if ($landingSkin === 'bubble'): ?>
-<!-- ENTRY-BUBBLE1: the living-border demo skin. kbubble degrades to the CSS border
-     (no .kbubble-on class) under reduced-motion / no canvas. -->
+<!-- ═══ ENTRY-CIRCLES1 (user 2026-07-30): the entry gesture ═══
+     kbubble draws a living border on the two {one} cards; kbubbleOpen turns a click on
+     one into the inflate-into-a-window transition. Loaded on EVERY skin now, because
+     the bubble marks "this is a door into a {one}" rather than decorating the page.
+     Degrades silently: no canvas / reduced motion → plain cards, plain navigation. -->
 <script src="<?= kasset('kbubble.js') ?>"></script>
+<script src="<?= kasset('kbubbleopen.js') ?>"></script>
 <script>
 // ENTRY-BUBBLE1 — user tuning, revision 2 (2026-07-29, exported verbatim from
 // kdemo/bubble.html): near-whole-element response (spread .75), fast wave with light
 // smoothing (iters 8 / smooth .3), gentle puff (6), heavily damped (6) — a fine
-// 0.9px line with a soft 4px blur, filled at .2. Update this ONE object to retune;
-// per-element bits (style/colour) stay at the call sites.
+// 0.9px line with a soft 4px blur, filled at .2. This is the RESTRAINED tuning, used
+// by the bubble-everything skin where many elements carry it at once.
 // The connect CARD gets NO bubble — it's a panel of options, not a button (user).
 const KB_TUNED = { spread: 0.75, iters: 8, smooth: 0.3, tension: 25, spring: 28,
                    damp: 6, puff: 6, ambient: 0.3, width: 0.9, blur: 4,
                    fill: "auto", fillAlpha: 0.2 }
+
+// ENTRY-CIRCLES1 (user 2026-07-30): "the 2 welcome circles can have more bubbly
+// settings than the 'bubble' skin, since it's now focussed on the circles options
+// only not all buttons." Restraint was a crowding tax — with only two elements
+// carrying it, the effect can breathe: bigger puff (14 vs 6), much lighter damping
+// (3.8 vs 6) so the wobble actually persists, livelier idle drift (ambient .9 vs .3),
+// and a thicker, softer line with more presence (1.5px/blur 8 vs 0.9px/blur 4).
+const KB_CIRCLE = { spread: 0.85, iters: 9, smooth: 0.34, tension: 22, spring: 34,
+                    damp: 3.8, puff: 14, ambient: 0.9, width: 1.5, blur: 8,
+                    fill: "auto", fillAlpha: 0.22 }
+
+// The click-through transition. ms:800 is the user's call (2026-07-30) — the lib
+// default of 1400 is lab-slow; 800 keeps the gesture readable without making people
+// wait for it. A tester's own localStorage tuning overrides this per-browser
+// (kbubbleOpen.setUserTuning — the nerd box above).
+const KBO_CIRCLE = { ms: 800, style: "iridescent", width: 1.6, coverage: 1.22,
+                     fill: "auto", fillAlpha: 0.22, backdrop: "auto" }
+
 window.addEventListener("load", () => {
-  if(!window.kbubble) return
-  document.querySelectorAll(".landing-card").forEach(el =>
-    kbubble.attach(el, Object.assign({ style: "iridescent" }, KB_TUNED)))
-  const create = document.querySelector(".landing-create")
-  if(create) kbubble.attach(create, Object.assign({ style: "glow", color: "rgba(47,124,74,.9)" }, KB_TUNED))
-  const btn = document.getElementById("landingConnectBtn")
-  if(btn) kbubble.attach(btn, Object.assign({ style: "glow", color: "rgba(47,85,120,.9)" }, KB_TUNED))
+  const cards = [...document.querySelectorAll(".landing-card")]
+
+  // living border on the two entry cards, on every skin
+  if(window.kbubble){
+    cards.forEach(el => kbubble.attach(el, Object.assign({ style: "iridescent" }, KB_CIRCLE)))
+  }
+
+  // click → inflate into the board. bind() intercepts the click itself and navigates
+  // at the end, so the <a href> stays the real, crawlable, middle-clickable target and
+  // is what runs if this script never loads.
+  if(window.kbubbleOpen){
+    cards.forEach(el => kbubbleOpen.bind(el, Object.assign({}, KBO_CIRCLE, { target: el.getAttribute("href") })))
+  }
+
+  // ENTRY-CIRCLES1: the bubble-everything skin additionally dresses the administrative
+  // buttons — restrained tuning, and NO kbubbleOpen (they're not {one} entries).
+  if(window.kbubble && document.body.classList.contains("lskin-bubble")){
+    const create = document.querySelector(".landing-create")
+    if(create) kbubble.attach(create, Object.assign({ style: "glow", color: "rgba(47,124,74,.9)" }, KB_TUNED))
+    const btn = document.getElementById("landingConnectBtn")
+    if(btn) kbubble.attach(btn, Object.assign({ style: "glow", color: "rgba(47,85,120,.9)" }, KB_TUNED))
+  }
 })
+
+// ── nerd-mode per-user transition tuning (localStorage, this browser only) ──
+{
+  const box = document.getElementById("landingTuneBox")
+  const msg = document.getElementById("landingTuneMsg")
+  const say = (t, warn) => { msg.textContent = t; msg.classList.toggle("warn", !!warn) }
+
+  const load = () => {
+    let raw = null
+    try { raw = localStorage.getItem(window.kbubbleOpen?.TUNE_KEY || "katomia.kbubbleopen.tuning.v1") } catch {}
+    box.value = raw ? raw : ""
+  }
+  load()
+
+  document.getElementById("landingTuneApply").onclick = () => {
+    const txt = box.value.trim()
+    if(!txt){ window.kbubbleOpen?.setUserTuning(null); say("Cleared — using site defaults."); return }
+    let obj
+    // Tolerate the lab's copy-paste forms: a bare object, or trailing commas.
+    try { obj = JSON.parse(txt) }
+    catch {
+      try { obj = JSON.parse(txt.replace(/,\s*([}\]])/g, "$1")) }
+      catch { say("Not valid JSON — expected something like { \"ms\": 800 }", true); return }
+    }
+    if(!obj || typeof obj !== "object" || Array.isArray(obj)){ say("Expected a JSON object.", true); return }
+    const known = Object.keys(window.kbubbleOpen?.DEF || {})
+    const ignored = Object.keys(obj).filter(k => !known.includes(k))
+    if(!window.kbubbleOpen?.setUserTuning(obj)){ say("Couldn't save — localStorage is blocked in this browser.", true); return }
+    say(ignored.length
+      ? `Saved. Ignored unknown key${ignored.length > 1 ? "s" : ""}: ${ignored.join(", ")}`
+      : "Saved — click a " + (window.KTERMS?.one || "circle") + " to see it.", ignored.length)
+  }
+
+  document.getElementById("landingTuneClear").onclick = () => {
+    window.kbubbleOpen?.setUserTuning(null); box.value = ""; say("Cleared — using site defaults.")
+  }
+}
 </script>
-<?php endif; ?>
 
 <script><?php require_once('config.php'); ?>
   window.CONFIG = {

@@ -40,6 +40,14 @@ RewriteRule ^welcome/?$ landing.php [L,QSA]
 # landing.php bare); the games list moved to this explicit route.
 RewriteRule ^markets/?$ ?page=markets [L,QSA]
 
+# ENTRY-CIRCLES1 (2026-07-30): the normal-mode index — proposal-mode games only, card
+# view (circles.php). Distinct from /markets, which keeps the unfiltered grid behind
+# the nerd-only link. The PATH is deliberately fixed even though the displayed word is
+# a config parameter (site-config.json terms.space): renaming the term must not 404
+# links people have already shared. If a rename ever wants a matching URL, add an alias
+# line here pointing at the same target — don't move this one.
+RewriteRule ^circles/?$ ?page=circles [L,QSA]
+
 
 RewriteRule ^kea/?$ KEA [L,QSA]
 

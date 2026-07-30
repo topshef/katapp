@@ -1,12 +1,22 @@
 {
   "_comment": "KATOMIA-CONFIG1 (2026-07-14): site-wide, non-secret config. Not build/deploy secrets — deliberately git-tracked (see .gitignore's narrow negation of the blanket *.json rule for this one file) so it's administrable/reviewable like any other code. Lives inside m/katomia/ on purpose: the user wants everything Katomia-related self-contained in this one folder so a future white-label deploy (a separate site, its own config) or a relocation/bundle only ever has to carry this folder. Extend this file (not a second one) for future site-wide settings — default skin, branding, etc.",
+  "terms": {
+    "_comment": "ENTRY-CIRCLES1 (user 2026-07-30): the user-facing name for the space people meet in is a PARAMETER, not a hardcoded word. Internally it stays a 'proposal' game (tradingMode:proposal) — that name is untouched and remains the code/API vocabulary. Only the display word changes. Why: the same product is pitched differently per audience — 'circle' for the launch/community framing (non-hierarchical, organic, matches the liquidity/bubble branding), but 'game' when playful, or 'market'/'boardroom' for a business or white-label deploy where hippy language would land badly. 'Ring' was rejected by the user this day: it reads as a fight, or worse. Change the four forms here and every surface follows. Any string in this file may use {one}/{One}/{many}/{Many} placeholders; katomiaTerm()/katomiaTermFill() in site-config.php do the substitution, and window.KTERMS exposes them to JS.",
+    "space": {
+      "one": "circle",
+      "One": "Circle",
+      "many": "circles",
+      "Many": "Circles"
+    }
+  },
   "landing": {
     "title": "Katomia",
-    "tagline": "Swap things, not prices.",
-    "_curatedNote": "ENTRY-WELCOME1 R2 (user 2026-07-29): 'Silk Road' dropped from the welcome cards — placeholder with darknet-market baggage. Neutral ring/circle-flavoured names for now (the board IS a ring; Kabila's plaza = place-you-come-to idea, ours is round); naming iteration to follow. The m-prop GAME's own profile name still says Silk Road backend-side — separate rename when naming settles.",
+    "tagline": "Liquidity reinvented.",
+    "_taglineNote": "ENTRY-CIRCLES1 (user 2026-07-30): replaced 'Swap things, not prices.' The bubble branding is all about liquidity — the bubble reads as liquid, the circle as collaboration and connection, the organic movement as natural rather than rigid. Prime candidate for the variant/carousel idea (ENTRY-VARIANTS1): HashPack crowdsourced their straplines from the community and rotate them, which the user liked.",
+    "_curatedNote": "ENTRY-CIRCLES1 R1 (user 2026-07-30): say plainly what each one is — 'Testnet Circle' / 'Mainnet Circle' — with the flavour demoted to muted note text. The launch audience is Hedera users who know exactly what testnet and mainnet mean; inventing cute names for them only obscures it. Dropped 'Practice/Open Ring': 'ring' reads as a fight, and 'practice' is wrong because people may play for real on testnet AND practise on mainnet (there are play tokens there) — that split is not cleanly defined, so don't imply it. 🟠/🟣 mirror HashScan's network colours and the network chips already in contents.php (and note the circle-emoji convention bars circles in PLAYER names, not network chips). UNRESOLVED (user, same day): whether the titles stay literal or return to flavour names, and whether the emoji stay as network dots or become something play-flavoured — a test tube was rejected because labs environments exist on mainnet too. Tracked in ENTRY-WELCOME1 notes; the user will iterate.",
     "curatedGames": [
-      { "id": "t-prop", "network": "Hedera testnet", "label": "🧪 Practice Ring — play money" },
-      { "id": "m-prop", "network": "Hedera mainnet", "label": "💠 The Open Ring — the real thing" }
+      { "id": "t-prop", "network": "Hedera testnet", "label": "🟠 Testnet {One}", "note": "Play money — nothing at stake." },
+      { "id": "m-prop", "network": "Hedera mainnet", "label": "🟣 Mainnet {One}", "note": "The real thing — live value." }
     ]
   }
 }

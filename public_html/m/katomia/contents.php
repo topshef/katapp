@@ -5,6 +5,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<!-- ENTRY-FADES1 (user 2026-07-30): quiet cross-fade page transition. Must be in
+     <head> — it arms the fade-in before first paint. -->
+<script src="<?= kasset('kfade.js') ?>"></script>
 <link rel="stylesheet" href="<?= kasset('katomia.css') ?>">
 
 

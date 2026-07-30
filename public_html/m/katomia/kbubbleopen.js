@@ -93,8 +93,44 @@
 
   let uid = 0, running = null
 
+  // ── per-user tuning override (ENTRY-CIRCLES1, user 2026-07-30) ──────────────
+  // "nerd option to apply alternative settings would be amazing (local to the user)".
+  // A tuning object in localStorage that rides OVER every call site, so a tester can
+  // retune the real transition on the real pages — not just in the kdemo lab — and it
+  // sticks for them alone without touching anyone else or the deployed defaults.
+  //
+  // Structural keys are deliberately NOT overridable: target/swap/onDone/px/py decide
+  // WHERE the click goes and how it hands over. Letting a stored blob redirect
+  // navigation would turn a cosmetic preference into a broken (or hijackable) link.
+  const TUNE_KEY = "katomia.kbubbleopen.tuning.v1"
+  const TUNE_LOCKED = ["target", "swap", "onDone", "px", "py"]
+
+  function userTuning(){
+    let raw = null
+    try { raw = localStorage.getItem(TUNE_KEY) } catch { return null }   // private mode / blocked
+    if(!raw) return null
+    let obj = null
+    try { obj = JSON.parse(raw) } catch { return null }                  // corrupt → ignore, don't throw
+    if(!obj || typeof obj !== "object" || Array.isArray(obj)) return null
+    const out = {}
+    for(const k of Object.keys(obj)){
+      if(TUNE_LOCKED.includes(k)) continue
+      if(!(k in DEF)) continue                                           // unknown key → ignore
+      out[k] = obj[k]
+    }
+    return Object.keys(out).length ? out : null
+  }
+
+  function setUserTuning(obj){
+    try {
+      if(obj == null){ localStorage.removeItem(TUNE_KEY); return true }
+      localStorage.setItem(TUNE_KEY, JSON.stringify(obj)); return true
+    } catch { return false }
+  }
+
   function play(el, opts = {}){
-    const o = Object.assign({}, DEF, opts), url = o.target
+    // DEF < call-site opts < this user's stored tuning.
+    const o = Object.assign({}, DEF, opts, userTuning() || {}), url = o.target
     if(!url) return null
     const done = () => { o.onDone?.(); if(o.swap === "navigate") location.href = url }
     if(reduced || !document.createElement("canvas").getContext?.("2d")){ done(); return null }
@@ -281,6 +317,7 @@
     return h
   }
 
-  window.kbubbleOpen = { bind, play, prefetch, DEF, get running(){ return running } }
+  window.kbubbleOpen = { bind, play, prefetch, DEF, userTuning, setUserTuning, TUNE_KEY,
+                         get running(){ return running } }
   if(window.kbubble) window.kbubble.open = play   // convenience for pages already using the border
 })()

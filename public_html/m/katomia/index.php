@@ -19,6 +19,13 @@ if ($page == 'markets') {
 	exit;
 }
 
+// ENTRY-CIRCLES1 (user 2026-07-30): the normal-mode index — proposal-mode only, card
+// view. contents.php above is untouched and stays the nerd-only full grid.
+if ($page == 'circles') {
+	require_once("circles.php");
+	exit;
+}
+
 
 $gameId = $_GET['game'] ?? false;
 if ($gameId) {
