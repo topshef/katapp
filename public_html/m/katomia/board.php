@@ -44,6 +44,14 @@ require_once __DIR__ . '/kasset.php';
      #game (legacy layer) — here it's a fixed passthrough over the board -->
 <div id="game" class="board-linelayer"></div>
 
+<!-- BOARD-CHAT1 (user 2026-07-30): chat surfaces live OUTSIDE #boardRoot on purpose.
+     renderRingBoard does root.replaceChildren() on every paint, so anything parked
+     inside the board root is wiped the moment a new message triggers a re-render —
+     which is exactly when a bubble needs to appear. Same reasoning as the
+     #game.board-linelayer passthrough above; both are fixed overlays over the board. -->
+<div id="boardChatLayer" class="kchat-layer"></div>
+<div id="boardChatPanel" class="kchat-panel"></div>
+
 <!-- Same asset modal as game.php — openAssetModal() (helpers) is the tap-to-offer
      path for chips; board taps reuse it verbatim. -->
 <div id="assetModal" class="asset-modal hidden">
@@ -124,6 +132,10 @@ require_once __DIR__ . '/kasset.php';
 <script src="<?= kasset('katomia-modals.js') ?>"></script>
 <script src="<?= kasset('katomia-render.js') ?>"></script>
 <script src="<?= kasset('katomia-board.js') ?>"></script>
+<!-- BOARD-CHAT1 (user 2026-07-30): renders state.chat — speech bubbles on the
+     speaker's wedge + a glassy transcript. Must load AFTER katomia-board.js,
+     which owns the _boardChatAnchors this reads. -->
+<script src="<?= kasset('katomia-chat.js') ?>"></script>
 
 <!-- BOARD-HEADERINT1 follow-up (2026-07-14): board.php gained header.php +
      profile-modal.php but these two were missed — profile-modal.php's own

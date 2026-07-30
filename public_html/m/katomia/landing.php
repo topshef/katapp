@@ -37,6 +37,22 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
      not compete with the two entry cards for attention. */
   .landing-learn{ font-size: 13px; color: #7a8595; text-decoration: none; margin-left: 8px; white-space: nowrap; }
   .landing-learn:hover{ color: #2f6fed; text-decoration: underline; }
+  /* DEMO-TRIO1: the watch-only demo card. Deliberately quieter than the two real
+     entries — it's an aside, not a third door into trading. The pulsing dot says
+     "happening right now", which is the actual draw. */
+  .landing-card--watch{ border-style: dashed; }
+  .landing-watch-badge{
+    display: inline-flex; align-items: center; gap: 5px; margin-left: 7px;
+    padding: 1px 8px 1px 6px; border-radius: 999px; vertical-align: 2px;
+    background: #eef3fb; color: #4a6a94; font-size: 10.5px; font-weight: 600;
+    letter-spacing: .02em; text-transform: uppercase;
+  }
+  .landing-watch-badge::before{
+    content: ""; width: 6px; height: 6px; border-radius: 50%; background: #e8563f;
+    animation: landingLive 1.9s ease-in-out infinite;
+  }
+  @keyframes landingLive{ 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:.35; transform:scale(.8); } }
+  @media (prefers-reduced-motion: reduce){ .landing-watch-badge::before{ animation: none; } }
   .landing-what{ margin: 14px 0 0; font-size: 13px; }
   .landing-what a{ color: #7a8595; text-decoration: none; }
   .landing-what a:hover{ color: #2f6fed; text-decoration: underline; }
@@ -225,9 +241,16 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
       // not the network — the network moved up into the title where the user wants it.
       // Falls back to the old network line for any config not yet carrying a note.
       $note = $g['note'] ?? ($g['network'] ?? '');
+      // DEMO-TRIO1 (user 2026-07-30): a card flagged "watch" is the running bot demo —
+      // you go in to observe, not to play. Badged so that's clear BEFORE the click,
+      // which is also the first hint that watching and joining are different rights.
+      $watch = !empty($g['watch']);
     ?>
-      <a class="landing-card" data-kbubble-open href="/m/katomia/board/<?= rawurlencode($id) ?>">
-        <div class="landing-card-label"><?= katomiaTermEsc($label) ?></div>
+      <a class="landing-card<?= $watch ? ' landing-card--watch' : '' ?>" data-kbubble-open href="/m/katomia/board/<?= rawurlencode($id) ?>">
+        <div class="landing-card-label">
+          <?= katomiaTermEsc($label) ?>
+          <?php if ($watch): ?><span class="landing-watch-badge" title="A demo running right now, played by bots. You can watch it live — there is nothing to join.">live · watch only</span><?php endif; ?>
+        </div>
         <?php if ($note): ?><div class="landing-card-net"><?= katomiaTermEsc($note) ?></div><?php endif; ?>
       </a>
     <?php endforeach; ?>

@@ -16,7 +16,8 @@
     "_curatedNote": "ENTRY-CIRCLES1 R1 (user 2026-07-30): say plainly what each one is — 'Testnet Circle' / 'Mainnet Circle' — with the flavour demoted to muted note text. The launch audience is Hedera users who know exactly what testnet and mainnet mean; inventing cute names for them only obscures it. Dropped 'Practice/Open Ring': 'ring' reads as a fight, and 'practice' is wrong because people may play for real on testnet AND practise on mainnet (there are play tokens there) — that split is not cleanly defined, so don't imply it. 🟠/🟣 mirror HashScan's network colours and the network chips already in contents.php (and note the circle-emoji convention bars circles in PLAYER names, not network chips). UNRESOLVED (user, same day): whether the titles stay literal or return to flavour names, and whether the emoji stay as network dots or become something play-flavoured — a test tube was rejected because labs environments exist on mainnet too. Tracked in ENTRY-WELCOME1 notes; the user will iterate.",
     "curatedGames": [
       { "id": "t-prop", "network": "Hedera testnet", "label": "🟠 Testnet {One}", "note": "Play money — nothing at stake." },
-      { "id": "m-prop", "network": "Hedera mainnet", "label": "🟣 Mainnet {One}", "note": "The real thing — live value." }
+      { "id": "m-prop", "network": "Hedera mainnet", "label": "🟣 Mainnet {One}", "note": "The real thing — live value." },
+      { "id": "t-trio", "network": "Hedera testnet", "label": "📺 Watch a live demo", "note": "Three people, one loop — a swap none of them could do in pairs. Running now.", "watch": true }
     ]
   }
 }

@@ -835,6 +835,10 @@ async function render(){
 
   renderBoard()
 
+  // BOARD-CHAT1: after the board paints, so _boardChatAnchors is fresh. Guarded —
+  // katomia-chat.js is only loaded on the board page.
+  try { window.boardRenderChat?.() } catch(e){ console.warn("[chat] render failed", e) }
+
   // renderBoard() (via renderRingBoard) has just recomputed boardSigning —
   // start/stop the per-account signing-status poll (SIGN-STATUSLANG1) and the
   // per-tx result socket (BOARD-SUCCESS1) to match
@@ -929,7 +933,14 @@ function renderBoard(){
 // hourglass in the signing phase (stage 2, with per-segment lock arcs on the
 // oval line itself; for now locks are glyphs on the account label).
 
+// BOARD-CHAT1: account id -> { x, y, am, mine, playerId } in board pixels, refilled
+// on every ring paint. Stale entries would strand bubbles on a re-laid-out board, so
+// the map is cleared per paint rather than merged.
+var _boardChatAnchors = {}
+
 function renderRingBoard(root){
+
+  _boardChatAnchors = {}
 
   // join order — shared board for all; filters preserve join order
   // (getVisibleAccounts sorts mine-first, which would reseat the shared board)
@@ -1189,6 +1200,17 @@ function renderRingBoard(root){
 
     const chord = fr => Math.max(0.001, 2 * fr * Math.sin(rad(step / 2)))
     const rOval = ovalR(am), rEdge = edgeR(am)
+
+    // BOARD-CHAT1 (user 2026-07-30): record where this account actually sits, so
+    // katomia-chat.js can hang a speech bubble off it. Deliberately recorded HERE
+    // rather than recomputed there — the angle/radius solve (rotation, wheel glide,
+    // organic vs box skins, per-angle oval/edge radii) lives in this function and
+    // must not be duplicated. One line in, no behaviour changed.
+    _boardChatAnchors[account.id] = {
+      x: geo.cx + (rOval + (rEdge - rOval) * 0.55) * Math.cos(am),
+      y: geo.cy + (rOval + (rEdge - rOval) * 0.55) * Math.sin(am),
+      am, mine, playerId: account.playerId,
+    }
 
     if(ring16()){
       // BOARD-ORGANIC1: no boxes — chips settle individually into the wedge's
