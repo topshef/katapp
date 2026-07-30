@@ -690,6 +690,24 @@
   opacity:0;
 }
 
+/* BOARD-TOASTLINK1: the optional trailing link (e.g. "View on HashScan ↗"). Sits between
+   the message and the ✕, so it never displaces the close control. Inherits the toast's
+   own colour rather than a link blue — the toast backgrounds are pale and per-type, and a
+   fixed blue reads as broken on the error variant. margin-left:auto keeps it hard against
+   the ✕ while the message stays left, whatever the toast's width. */
+.notice-link{
+  margin-left:auto;
+  padding:0 10px;
+  color:inherit;
+  font-weight:600;
+  font-size:.92em;
+  white-space:nowrap;
+  text-decoration:underline;
+  text-underline-offset:2px;
+  opacity:.85;
+}
+.notice-link:hover{ opacity:1; }
+
 .notice.error{
   background:#F8D7DA;
   color:#842029;

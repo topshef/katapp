@@ -62,7 +62,21 @@
 
 			close.onclick = () => removeNotice(el)
 
-			el.append(text, close)
+			// BOARD-TOASTLINK1: an optional trailing link, {href, text}. Built as a real
+			// element rather than by letting `message` carry markup — the text above is set
+			// with textContent on purpose (toast text includes server-supplied ids) and that
+			// must stay true. Any toast can use this; the success verdict is the first.
+			let link = null
+			if(opts.link?.href){
+				link = document.createElement("a")
+				link.className = "notice-link"
+				link.href = opts.link.href
+				link.target = "_blank"
+				link.rel = "noopener noreferrer"
+				link.textContent = opts.link.text || "View"
+			}
+
+			el.append(text, ...(link ? [link] : []), close)
 			container.appendChild(el)
 
 			if(timeout){

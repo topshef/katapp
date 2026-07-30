@@ -575,8 +575,20 @@ function boardShowResult(txid, ok){
   // The alert() is gone: the wiper/confetti + toast carry the moment, and
   // the real result MODAL (Try again etc.) is KAT-PROPRECALL1's design.
   try {
+    // BOARD-TOASTLINK1 (user 2026-07-16, re-raised 2026-07-30 after a mainnet HashPack
+    // test: "the success toast shows the transaction id, which is correct — it should also
+    // link"). Success only: an expired or failed transaction was never submitted, so there
+    // is nothing on HashScan to link TO and the link would 404 on the unhappy path.
+    // HashScan takes the native 0.0.x@secs.nanos id; encode it, the @ and . are not safe.
+    // (The green tick AND green square together is deliberate for now — the tick is the
+    // toast type icon, the square is Hedera consensus status. User said leave it.)
+    const net = window.__katomiaNetwork
+    const link = (ok && txid && (net === "mainnet" || net === "testnet"))
+      ? { href: `https://hashscan.io/${net}/transaction/${encodeURIComponent(txid)}`,
+          text: "View on HashScan ↗" }
+      : null
     notify((ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired") + ` · ${txid}`,
-      ok ? "success" : "error", { timeout: 0 })
+      ok ? "success" : "error", { timeout: 0, link })
   } catch {}
 }
 
@@ -884,7 +896,7 @@ function renderBoard(){
 
   const accounts = getVisibleAccounts(getAccounts())
   const accountMap = getAccountMap()
-  const reservedByAccount = buildReservedByAccount(accounts)
+  const reservedByAccount = boardReserved(accounts)   // SIGN-GHOSTPREVIEW1: signing-phase ghosts merged in
 
   const mine = accounts.filter(a => isMyAccount(a))
   const others = accounts.filter(a => !isMyAccount(a))
@@ -987,7 +999,7 @@ function renderRingBoard(root){
   const accounts = _boardPartyAnim
     ? _boardPartyAnim.entities.filter(en => en.slot.type === "account").map(en => en.slot.account)
     : boardFilteredAccounts()
-  const reservedByAccount = buildReservedByAccount(accounts)
+  const reservedByAccount = boardReserved(accounts)   // SIGN-GHOSTPREVIEW1: signing-phase ghosts merged in
   const etched = ringEtched()
 
   const W = root.clientWidth, H = root.clientHeight
@@ -1469,7 +1481,7 @@ function renderSusanBoard(root){
 
   const accounts = boardFilteredAccounts()
   const accountMap = getAccountMap()
-  const reservedByAccount = buildReservedByAccount(accounts)
+  const reservedByAccount = boardReserved(accounts)   // SIGN-GHOSTPREVIEW1: signing-phase ghosts merged in
   const mine = accounts.filter(a => isMyAccount(a))
   const others = accounts.filter(a => !isMyAccount(a))
   const ctx = { reservedByAccount, accountMap }
@@ -2883,12 +2895,20 @@ function boardTxLegs(tx){
   const by = {}
   const ent = id => (by[id] ||= { recv: [], send: [] })
   const senders = {}
+  // SIGN-GHOSTPREVIEW1: the mirror image of `senders`. recv legs have always carried
+  // `from` so a receiving chip knows who gave it; send legs now carry `to` so the GIVER's
+  // side can be reconstructed too — which is what restores the counter ghosts and their
+  // dotted lines during signing. Same ambiguity rule: two senders of one asset = null.
+  const receivers = {}
   const flow = (acct, assetId, amt) => {
     if(!acct || !amt) return
     if(amt < 0){
       ent(acct).send.push({ assetId, amount: -amt })
       senders[assetId] = (assetId in senders) ? null : acct   // null = ambiguous
-    } else ent(acct).recv.push({ assetId, amount: amt })
+    } else {
+      ent(acct).recv.push({ assetId, amount: amt })
+      receivers[assetId] = (assetId in receivers) ? null : acct
+    }
   }
   hbar.forEach(x => flow(x.accountId, "HBAR", Number(x.amount ?? x.value ?? 0)))
   toks.forEach(x => flow(x.accountId, x.tokenId, Number(x.amount ?? x.value ?? 0)))
@@ -2898,10 +2918,58 @@ function boardTxLegs(tx){
     const from = x.senderAccountId || x.sender || null
     const to = x.receiverAccountId || x.receiver || null
     if(from){ ent(from).send.push({ assetId: id, amount: 1 }); senders[id] = from }
-    if(to) ent(to).recv.push({ assetId: id, amount: 1 })
+    if(to){ ent(to).recv.push({ assetId: id, amount: 1 }); receivers[id] = to }
   })
-  Object.values(by).forEach(e => e.recv.forEach(r => { r.from = senders[r.assetId] || null }))
+  Object.values(by).forEach(e => {
+    e.recv.forEach(r => { r.from = senders[r.assetId] || null })
+    e.send.forEach(s => { s.to = receivers[s.assetId] || null })   // SIGN-GHOSTPREVIEW1
+  })
   return by
+}
+
+/**
+ * SIGN-GHOSTPREVIEW1 (user 2026-07-30): rebuild the counter ghosts for the signing phase.
+ *
+ * buildReservedByAccount() derives every ghost from account.basket — but the STRIKE CLEARS
+ * THE BASKETS server-side, so the moment a deal composes there is nothing left to derive
+ * from and the givers' counters go empty. The receiving side was already compensated
+ * (boardTxChips paints the recv legs back in), but the giving side never was: you could see
+ * what you were getting and not what you were giving, exactly when you most want to check.
+ *
+ * So synthesise the giving side from the tx legs, in the same shape buildReservedByAccount
+ * produces, and let boardReservedChips render it unchanged — including the dotted
+ * hover line, which is why send legs now carry `to`.
+ */
+function boardSigningReserved(legs, accounts){
+  const out = {}
+  const fullId = hac => accounts.find(a => (a.id.split(":")[1] || a.id) === hac)?.id || null
+  for(const [hac, entry] of Object.entries(legs || {})){
+    const fromId = fullId(hac)
+    if(!fromId) continue
+    for(const leg of entry.send || []){
+      (out[fromId] ||= []).push({
+        assetId: leg.assetId,
+        amount: leg.amount,
+        toAccountId: (leg.to && fullId(leg.to)) || ""
+      })
+    }
+  }
+  return out
+}
+
+/**
+ * The reserved map every render should use. Normally just buildReservedByAccount; during
+ * signing, accounts whose baskets the strike emptied get their ghosts back from the tx.
+ * Merged per-account and only where the real map is empty, so a still-populated basket
+ * always wins and nothing is ever drawn twice.
+ */
+function boardReserved(accounts){
+  const base = buildReservedByAccount(accounts)
+  if(!boardSigning) return base
+  const extra = boardSigningReserved(boardSigning.legs, accounts)
+  for(const [id, items] of Object.entries(extra))
+    if(!base[id]?.length) base[id] = items
+  return base
 }
 
 // SIGN-STATUSLANG1 (still open — user 2026-07-11): the lock arcs' `sign` field
@@ -3661,7 +3729,16 @@ function playTransfers(){
     document.querySelectorAll(".board-txchip").forEach(chip => {
       const fromHac = chip.dataset.fromHac
       if(!fromHac) return
-      const giverBox = [...document.querySelectorAll(".ring-avail")]
+      // SIGN-GHOSTPREVIEW1 (user 2026-07-30: "the preview button doesn't do anything once
+      // you're in signing mode"). It looked ONLY for a .ring-avail box — which exists in
+      // the box layout but NOT in the organic/ring12 skin the demo runs, where store chips
+      // live loose in the zone wrap. So giverBox was undefined, `from` was null, and every
+      // chip bailed out: the button genuinely did nothing on exactly the skin in use.
+      // Now fly from the giver's restored GHOST when there is one — a truer source anyway,
+      // since that is the chip the asset is leaving — and keep the box as the fallback.
+      const ghost = [...document.querySelectorAll(".board-ghost")]
+        .find(g => (g.dataset.ownerAccount || "").endsWith(":" + fromHac))
+      const giverBox = ghost || [...document.querySelectorAll(".ring-avail")]
         .find(b => (b.dataset.dropAccount || "").endsWith(":" + fromHac))
       const from = giverBox ? giverBox.getBoundingClientRect() : null
       if(!from) return
