@@ -317,10 +317,15 @@ $brand = $siteConfig['landing']['title'] ?? 'Katomia';
       <li>They accept, reject, or counter by putting something into <span class="term">your basket</span>.</li>
       <li>When the shape is right, everyone involved <span class="term">locks</span>. The
           <span class="term">table</span> shows that agreement building.</li>
-      <li>On the last lock it all executes at once, and the items move for real.</li>
+      <li>The last lock doesn't move anything by itself. It closes the negotiation and composes the
+          transaction; the required parties then <span class="term">sign</span> it in their own wallets,
+          and only when every needed signature is in — and the
+          <span class="term">strike time</span> arrives — does it go to Hedera and the items actually
+          move.</li>
     </ul>
-    <p class="small muted">Nothing leaves your account until that final step, and if any part of the
-       agreement fails, none of it happens.</p>
+    <p class="small muted">Agreement and fulfilment are two separate steps, and it's worth keeping them
+       apart in your head: locking is everyone saying yes, signing is everyone actually doing it.
+       Nothing leaves your account until that last step, and if any part fails, none of it happens.</p>
 
     <div data-kfb="sec-areas" data-kfb-scope="section" data-kfb-target="#areas" data-kfb-label="Learn section: The areas" class="kfb-section"></div>
   </section>
