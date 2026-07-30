@@ -17,6 +17,11 @@ require_once __DIR__ . '/site-config.php';
 //     ("Many items might be tbc as we develop the app"), and a confident invented
 //     answer on a page like this is worse than an honest gap.
 //
+// SOURCES: the pitch deck (katomia.com/h26), and the canonical hbarlive-backend docs
+// katomia-readme.md + katomia-FAQ.md — those two are the authority for the narrative,
+// the swap-mode/lock mechanics, external signing, RWA-as-tokenised-commitment, and the
+// "not a marketplace" line. Reconcile against them before rewriting answers here.
+//
 // Later (user, same day, explicitly deferred): a short video walking through the
 // layouts, and a first-run in-game coach pointing at each area on the real board.
 // Both tracked on ENTRY-LEARN1 — this page is the text version that comes first.
@@ -58,6 +63,8 @@ $brand = $siteConfig['landing']['title'] ?? 'Katomia';
   .tbc{ display:inline-block; padding:1px 7px; border-radius:999px; background:#fff4e0; color:#8a5a12;
         font-size:11.5px; font-weight:600; vertical-align:middle; margin-left:6px; }
   .term{ font-weight:600; }
+  .pull{ margin: 14px 0 0; padding-left: 13px; border-left: 3px solid #b9c8e6;
+         font-size: 15px; font-style: italic; color:#3a5680; }
 
   /* Zone diagram — deliberately schematic, not a screenshot of one skin: the areas
      are the concept, the ring geometry is just today's clearest way to draw them. */
@@ -137,13 +144,31 @@ $brand = $siteConfig['landing']['title'] ?? 'Katomia';
 
     <div class="card">
       <h3>The problem, plainly</h3>
-      <p>Coordination is hard. A deal between more than two parties usually needs intermediaries, trust
-         in those intermediaries, several sequential steps, and it can still fall over halfway through
-         and leave someone exposed.</p>
-      <p class="small muted">And because most systems reduce everything to price, the interesting
-         agreements — the multi-sided, conditional, "only if everyone else does too" ones — are
-         difficult to even write down, let alone execute.</p>
+      <p>The problem money actually solved is <span class="term">coordination</span> — the classic
+         <em>coincidence of wants</em> problem in bartering. You have apples and want a chair; the person
+         with a chair doesn't want apples. Money breaks that deadlock by giving everyone a thing they'll
+         all accept.</p>
+      <p>It works, but the deadlock has another solution: find the chain. Someone wants your apples,
+         you want the chair, and a third person closes the loop. That needs everybody to see the whole
+         picture at once and commit together — which is exactly the hard part.</p>
+      <p class="small muted">A deal between more than two parties normally needs intermediaries, trust in
+         those intermediaries, several sequential steps, and it can still fall over halfway and leave
+         someone exposed. And because most systems reduce everything to price, the interesting
+         agreements — multi-sided, conditional, "only if everyone else does too" — are difficult to even
+         write down, let alone execute.</p>
       <div data-kfb="learn-problem" data-kfb-scope="item" data-kfb-label="Learn: the problem, plainly" class="kfb-item"></div>
+    </div>
+
+    <div class="card">
+      <h3>How this differs from a normal exchange</h3>
+      <p>Traditional trading — order books, automated market makers, liquidity pools — works by
+         <em>price</em>. You trade against a pair or a pool, and the mechanism finds you a counterparty
+         and a number.</p>
+      <p>Here you build a <span class="term">graph</span> instead: who is giving what to whom, directly,
+         possibly several people deep. It's executed all at once, so the chain either completes or it
+         doesn't exist. No pairs, no pools, no spread.</p>
+      <p class="pull">Katomia is not a marketplace — it's infrastructure for new kinds of markets.</p>
+      <div data-kfb="learn-different" data-kfb-scope="item" data-kfb-label="Learn: how this differs from an exchange" class="kfb-item"></div>
     </div>
 
     <h3>Peer-to-peer, and what we mean by it</h3>
@@ -311,9 +336,33 @@ $brand = $siteConfig['landing']['title'] ?? 'Katomia';
           in front of everybody.</li>
       <li>When the group is happy, participants <span class="term">lock</span> — the signal that says
           "this is agreed as far as I'm concerned".</li>
-      <li>Once the lock rule is satisfied it's signed and executed as a
-          <span class="term">single atomic transaction</span> on Hedera. All of it, or none of it.</li>
+      <li>Once the lock rule is satisfied, the agreed transfers are composed into a
+          <span class="term">single atomic transaction</span> on Hedera, ready for the required parties
+          to sign.</li>
+      <li>Once the signatures are in and the transaction reaches its <span class="term">strike time</span>,
+          it goes to Hedera for consensus. If it succeeds, everyone's holdings update. If it fails,
+          basket items go back to their original owners and proposing resumes.</li>
     </ol>
+
+    <div class="card">
+      <h3>Locking isn't a point of no return</h3>
+      <p>Everyone starts in <span class="term">swap mode</span> — free to make and take proposals.
+         Locking says "I agree with the board as it stands right now".</p>
+      <p>Because it's agreement with a <em>specific</em> arrangement, it can't survive that arrangement
+         changing: if anyone moves an asset after a lock, the locks come off and everybody returns to
+         swap mode. You can also reject something in your basket, or recall something you put in
+         someone else's, at any time before execution.</p>
+      <div data-kfb="learn-swapmode" data-kfb-scope="item" data-kfb-label="Learn: locking is not a point of no return" class="kfb-item"></div>
+    </div>
+
+    <div class="card">
+      <h3>Signing happens in your wallet, not here</h3>
+      <p><?= htmlspecialchars($brand, ENT_QUOTES, 'UTF-8') ?> composes the transaction; it does not sign
+         it for you and never holds your keys. Signing and submitting happen with your own wallet or
+         signing tool outside the <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> — our demos use
+         Kpool and Kpay, and other Hedera ecosystem tools exist.</p>
+      <div data-kfb="learn-signing" data-kfb-scope="item" data-kfb-label="Learn: signing happens in your wallet" class="kfb-item"></div>
+    </div>
 
     <div class="card">
       <h3>Locking, and who has to agree</h3>
@@ -335,12 +384,14 @@ $brand = $siteConfig['landing']['title'] ?? 'Katomia';
 
     <div class="card">
       <h3>Strike delay</h3>
-      <p>A <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> can be set to execute immediately once
-         agreement is reached, or to wait a set time first — a window in which the deal is agreed but has
+      <p>The <span class="term">strike time</span> is when the signed transaction actually goes to
+         Hedera — it's the transaction's start time on the network. A
+         <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> can strike immediately once agreement is
+         reached, or after a set delay, leaving a window in which the deal is agreed and signed but has
          not yet fired.</p>
-      <p class="small muted">Exactly how a pending strike can be interrupted, and by whom, is still being
-         worked out. <span class="tbc">TBC</span></p>
-      <div data-kfb="learn-strike" data-kfb-scope="item" data-kfb-label="Learn: strike delay" class="kfb-item"></div>
+      <p class="small muted">What can still be done during that window, and by whom, is not fully pinned
+         down yet. <span class="tbc">TBC</span></p>
+      <div data-kfb="learn-strike" data-kfb-scope="item" data-kfb-label="Learn: strike time and delay" class="kfb-item"></div>
     </div>
 
     <div data-kfb="sec-how" data-kfb-scope="section" data-kfb-target="#how" data-kfb-label="Learn section: How a deal happens" class="kfb-section"></div>
@@ -372,7 +423,68 @@ $brand = $siteConfig['landing']['title'] ?? 'Katomia';
       <summary>What if one person backs out at the last moment?</summary>
       <p>Then nothing happens. Execution is atomic: either the whole agreed set of transfers goes through
          as one transaction, or none of it does. Nobody ends up half-swapped.</p>
+      <p>Before execution, backing out is simply part of negotiating — moving an asset after people have
+         locked just takes the locks off and returns everyone to swap mode. If a transaction fails at
+         Hedera, basket items go back to their original owners and proposing carries on.</p>
       <div data-kfb="faq-backout" data-kfb-scope="item" data-kfb-label="FAQ: someone backs out" class="kfb-item"></div>
+    </details>
+
+    <details>
+      <summary>What if I've signed, but the assets aren't in my account at strike time?</summary>
+      <p>The transaction won't submit, or it will fail. Either way it's on each participant to make sure
+         what they've promised is actually there when the deal strikes.</p>
+      <p>That kind of event can affect how others see you: depending on how the
+         <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> was set up, events can be broadcast for
+         reputation tooling to pick up, which is what lets organisers and participants build up a picture
+         of who is reliable. The details of that reputation layer are still developing.
+         <span class="tbc">TBC</span></p>
+      <div data-kfb="faq-missing-assets" data-kfb-scope="item" data-kfb-label="FAQ: assets missing at strike time" class="kfb-item"></div>
+    </details>
+
+    <details>
+      <summary>Is this a marketplace?</summary>
+      <p>Not on its own. It's infrastructure for a new kind of market — real-time, multi-dimensional
+         proposals between humans and agents. Marketplaces can be built on top of it; this isn't one.</p>
+      <div data-kfb="faq-marketplace" data-kfb-scope="item" data-kfb-label="FAQ: is this a marketplace" class="kfb-item"></div>
+    </details>
+
+    <details>
+      <summary>Is it a game?</summary>
+      <p>Not on its own, though games could certainly be built with it. The code and some of the
+         interface use words like "game" and "player" to encourage play and experimentation — the ideas
+         being explored are serious, but we'd rather people felt free to poke at them.</p>
+      <p>That tension is exactly why the name of the space is a setting rather than a fixed word.</p>
+      <div data-kfb="faq-isgame" data-kfb-scope="item" data-kfb-label="FAQ: is it a game" class="kfb-item"></div>
+    </details>
+
+    <details>
+      <summary>What about real-world things? You can't swap a house atomically.</summary>
+      <p>Correct — and we don't try to. What gets swapped is a tokenised <em>commitment</em>: a promise,
+         represented as a token. "I promise to pay the bearer on demand the sum of twelve coconuts", or
+         "I will pay X by date Y provided Z has happened".</p>
+      <p>The promise moves atomically. Honouring it happens in the world, as it always did — but now
+         there's a precise, timestamped record of who promised what to whom.</p>
+      <div data-kfb="faq-rwa" data-kfb-scope="item" data-kfb-label="FAQ: real-world assets and commitments" class="kfb-item"></div>
+    </details>
+
+    <details>
+      <summary>Is any of this legally binding?</summary>
+      <p>Not by default. You can put legal contracts on top where you need them, and the events and
+         transactions recorded on Hedera make a good anchor for that — an agreed, timestamped account of
+         what was exchanged and when.</p>
+      <p class="small muted">The first focus is frictionless flow, not legal machinery.</p>
+      <div data-kfb="faq-legal" data-kfb-scope="item" data-kfb-label="FAQ: is it legally binding" class="kfb-item"></div>
+    </details>
+
+    <details>
+      <summary>What if nobody ever agrees and it just sits there?</summary>
+      <p>Then it sits there — that's mostly a question of politics and conversation rather than software.
+         What the organiser can do is shape the space: who's in it, which lock rule applies, what's
+         visible to whom, and use what happened last time to try something different.</p>
+      <p class="small muted">More tools for unsticking a stalled
+         <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> are a likely future addition.
+         <span class="tbc">TBC</span></p>
+      <div data-kfb="faq-stuck" data-kfb-scope="item" data-kfb-label="FAQ: nobody agrees / stuck" class="kfb-item"></div>
     </details>
 
     <details>
