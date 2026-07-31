@@ -984,6 +984,18 @@ function renderRingBoard(root){
         }
       }, 500)
     }
+    // BOARD-TRAILORPHAN1 (user 2026-07-31, spotted on the live demo; confirmed with
+    // Playwright over a full cycle). After-glow trails are PERSISTENT by design —
+    // boardFlyRect fades them to 0.75 * boardTrailResidual and leaves them until either
+    // the next playTransfers wipes the layer or the offer they map is WITHDRAWN. But a
+    // STRIKE is not a withdraw: boardAnimateNewOffers explicitly bails out with
+    // `if(boardSigning) return`, deferring the cleanup to "the success/failure settlement
+    // flights" — the chips-to-store sweep that was never built (BOARD-SWEEPWIN1). So
+    // nothing ever removed them: measured 3 lines surviving the signing phase, the board
+    // reset AND into the next round, drawn over a board with no chips left to anchor to.
+    // Wipe them at the same moment everything else clears — when the tx leaves signing.
+    if(_boardLastSigningTxid && !nowTxid)
+      document.querySelectorAll(".board-trailline").forEach(l => l.remove())
     _boardLastSigningTxid = nowTxid
   }
   // party collapse/expand mid-tween: paint the merged entity list (leavers
