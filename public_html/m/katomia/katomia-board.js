@@ -321,7 +321,7 @@ function boardSavePrefs(){
       maxSegments: boardMaxSegments, animSpeed: boardAnimSpeed,
       trailResidual: boardTrailResidual, layoutMode: boardLayoutMode,
       zoneWalls: boardZoneWalls, hugRing: boardHugRing,
-      stickyChips: boardStickyChips
+      stickyChips: boardStickyChips, chipScale: boardChipScale
     }))
   } catch {}
 }
@@ -367,6 +367,24 @@ let boardHugRing = _bp.hugRing ?? false
 // finds space around them). Walls still apply (geometry changes must clamp).
 // The footer 🧹 button clears stickiness and re-runs the layout.
 let boardStickyChips = _bp.stickyChips ?? false
+
+// BOARD-CHIPSIZE1 (user 2026-07-31): chips start bigger on phones (the CSS
+// clamp floors were raised) and only shrink when a zone actually gets
+// crowded. Rendered size = CSS clamp × --chip-scale, where --chip-scale =
+// boardChipScale (user multiplier, 🧪 Settings) × _boardChipFit (auto crowd
+// fit, computed per boardOrganicApply from the fullest zone). Quantised with
+// hysteresis so the physics isn't re-excited by ±1px churn.
+let boardChipScale = Number(_bp.chipScale) || 1
+let _boardChipFit = 1
+let _boardChipScaleApplied = null
+function boardApplyChipScale(){
+  const s = Math.round(boardChipScale * _boardChipFit * 100) / 100
+  if(s === _boardChipScaleApplied) return false
+  _boardChipScaleApplied = s
+  document.body.style.setProperty("--chip-scale", s)
+  return true
+}
+boardApplyChipScale()
 
 // BOARD-WHEEL1 (user 2026-07-11): Lazy Susan is retired (scope, not code —
 // still in git history / renderSusanBoard if ever needed). Its job — "too
@@ -742,6 +760,19 @@ function boardSyncPrefsUI(){
     if(animSpeed.selectedIndex < 0) animSpeed.value = "1"
     animSpeed.onchange = () => { boardAnimSpeed = Number(animSpeed.value) || 1; boardSavePrefs() }
   }
+  const chipScaleSel = document.getElementById("boardPrefChipScale")
+  if(chipScaleSel){
+    chipScaleSel.value = String(boardChipScale)
+    if(chipScaleSel.selectedIndex < 0) chipScaleSel.value = "1"
+    chipScaleSel.onchange = () => {
+      boardChipScale = Number(chipScaleSel.value) || 1
+      boardSavePrefs()
+      // deliberately NOT applied here — render → boardOrganicApply applies the
+      // var, re-measures every chip at the new size and re-excites the sim
+      // (applying early would skip that stale-size sweep)
+      render()
+    }
+  }
   const trailRes = document.getElementById("boardPrefTrailResidual")
   if(trailRes){
     trailRes.value = String(boardTrailResidual)
@@ -879,6 +910,17 @@ function boardTightenChips(){
   })
 }
 
+// BOARD-BRANDMARK1 (user 2026-07-31): the KATOMIA wordmark, etched into the
+// felt under the chips — the banner h2 (wordmark + 💱🐫) is hidden on board
+// pages (CSS), so each board renderer appends this instead. Non-interactive
+// on purpose: the action plays over it; 🏠 Home lives in the hamburger.
+function boardBrandmark(){
+  const brand = document.createElement("div")
+  brand.className = "board-brandmark"
+  brand.textContent = "KATOMIA"
+  return brand
+}
+
 function renderBoard(){
 
   const root = document.getElementById("boardRoot")
@@ -928,6 +970,7 @@ function renderBoard(){
   frag.appendChild(makeCenterOval(mine, accounts, geo, { accountMap }))
   frag.appendChild(makeDock(mine, { reservedByAccount, accountMap }))
 
+  frag.appendChild(boardBrandmark())
   root.replaceChildren(frag)
 }
 
@@ -1455,6 +1498,7 @@ function renderRingBoard(root){
 
   if(etched) frag.appendChild(ringFooter(accounts.filter(a => isMyAccount(a))))
 
+  frag.appendChild(boardBrandmark())
   root.replaceChildren(frag)
   boardUpdateBanner()   // signing status / tap-to-offer hint / hidden
 
@@ -1544,6 +1588,7 @@ function renderSusanBoard(root){
 
   frag.appendChild(wrap)
   frag.appendChild(ringFooter(mine))
+  frag.appendChild(boardBrandmark())
   root.replaceChildren(frag)
 
   boardAnimateNewOffers()
@@ -2401,6 +2446,44 @@ function boardOrganicApply(cx, cy, W, H, oval){
       b.h = b.el.offsetHeight || 24
       b.cr = Math.max(b.w, b.h) / 2 + 3
     })
+  }
+
+  // ── BOARD-CHIPSIZE1: crowd fit ──────────────────────────────────────────
+  // Compare each zone's chip area against its wedge area; the FULLEST zone
+  // sets one global shrink factor (uniform — mixed chip sizes across
+  // segments read as broken). Bodies were measured at the OLD scale, so
+  // areas are normalised by it before choosing the new one. Skipped during
+  // tweens (a mid-collapse wedge is momentarily "crowded" — don't pump the
+  // size). If the applied scale moves, every cached size is stale: re-apply
+  // the var, re-measure everything, and let the sim relax to the new sizes.
+  if(!tween){
+    const prev = _boardChipScaleApplied || 1
+    let worst = 1
+    zoneChips.forEach(({ zrec, recs }) => {
+      if(!recs.length) return
+      const inner = zrec.isBasket ? zrec.rMin : zrec.rMin + (zrec.band || 40)
+      const outer = Math.max(inner + 20, zrec.rMax)
+      const wedgeArea = (Math.min(zrec.halfDeg, 80) / 180) * Math.PI * (outer * outer - inner * inner)
+      const chipArea = recs.reduce((t, b) => t + (b.w || 40) * (b.h || 24), 0) / (prev * prev)
+      if(chipArea > 0 && wedgeArea > 0)
+        worst = Math.min(worst, Math.sqrt((wedgeArea * 0.5) / chipArea))   // chips may claim ~half the zone
+    })
+    const target = Math.max(0.65, Math.min(1, Math.round(worst * 20) / 20))
+    if(Math.abs(target - _boardChipFit) >= 0.1) _boardChipFit = target
+    if(boardApplyChipScale()){
+      if(ring9()){
+        // boardTightenChips PINS style.width in px — stale at the new scale;
+        // release before re-tightening so text re-wraps at the new font size
+        document.querySelectorAll(".board-chip:not(.thumb-only)").forEach(el => { el.style.width = "" })
+        boardTightenChips()
+      }
+      zoneChips.forEach(({ recs }) => recs.forEach(b => {
+        b.w = b.el.offsetWidth || 40
+        b.h = b.el.offsetHeight || 24
+        b.cr = Math.max(b.w, b.h) / 2 + 3
+      }))
+      changed = true
+    }
   }
 
   // ── sync pass 2: per-zone derived geometry, shelf targets, spawns ───────

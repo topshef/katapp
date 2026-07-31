@@ -90,6 +90,29 @@ body.nerd hr.board-settings-nerd-only{ display: block; }
    still win if they ever overlap. Also cancels the banner's -16px bleed trick
    — that's sized for the 16px body padding other pages carry; board-page's
    padding is 0, so the bleed isn't needed here. */
+/* BOARD-BRANDMARK1 (user 2026-07-31): on board pages the KATOMIA wordmark
+   leaves the banner and is etched into the felt instead — rendered by the
+   board (a .board-brandmark div inside #boardRoot) at z4, the labels layer,
+   so the chips and action play OVER the brand. The banner keeps only the
+   hamburger row; the h2 (wordmark + 💱🐫 icons — dropped per the same call)
+   hides here. Other pages keep the full banner untouched. */
+body.board-page .app-banner h2{ display: none; }
+.board-brandmark{
+  position: fixed;
+  top: 10px;
+  left: 16px;
+  z-index: 4;                 /* under .ring-organic (z5), with the etched labels */
+  font-family: 'Poppins', sans-serif;
+  font-size: 42px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  line-height: 1.1;
+  color: #888;
+  opacity: .30;               /* same etch strength as .ring-etchlabel */
+  pointer-events: none;
+  user-select: none;
+}
+
 body.board-page .app-banner{
   position: relative;
   z-index: 70;
@@ -492,14 +515,19 @@ body.board-page .app-banner{
 }
 
 /* viewport-responsive sizing: ~⅔ … ~1.3× of the old fixed size
-   (12.5px/40px at ~800 vmin). Resize-jank smoothing = BOARD-POLISH1. */
+   (12.5px/40px at ~800 vmin). Resize-jank smoothing = BOARD-POLISH1.
+   BOARD-CHIPSIZE1 (user 2026-07-31): clamp FLOORS raised (~+30%) so phones
+   start at a readable size instead of the old minimum; --chip-scale
+   (boardChipScale user pref × crowd fit, set by JS on body) shrinks chips
+   back down ONLY when a zone actually gets crowded. Padding scales too so
+   the box shrinks with the text. */
 [data-board-fam~="v8"] .board-chip{
-  font-size: clamp(8.5px, 1.05vmin + 4.1px, 16.5px);
-  padding: 3px 7px;
+  font-size: calc(clamp(11px, 1.05vmin + 4.1px, 16.5px) * var(--chip-scale, 1));
+  padding: calc(3px * var(--chip-scale, 1)) calc(7px * var(--chip-scale, 1));
 }
 [data-board-fam~="v8"] .board-chip .asset-thumb{
-  width: clamp(26px, 3.4vmin + 13px, 52px);
-  height: clamp(26px, 3.4vmin + 13px, 52px);
+  width: calc(clamp(34px, 3.4vmin + 13px, 52px) * var(--chip-scale, 1));
+  height: calc(clamp(34px, 3.4vmin + 13px, 52px) * var(--chip-scale, 1));
 }
 
 /* inverted boundary language: your own arc has NO line (your space flows

@@ -152,6 +152,19 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
       <input type="checkbox" id="boardPrefNet" title="Net is the standard view (the transaction nets exactly like this). 🧪 escape hatch: untick to see every individual offer un-netted — dev/testing only, likely to be removed.">
       🧪 Net
     </label>
+    <!-- BOARD-CHIPSIZE1 (user 2026-07-31): base chip size multiplier — the
+         crowd auto-shrink still applies on top of whatever is picked here -->
+    <label class="board-settings-label board-settings-nerd-only">
+      🧪 Chip size
+      <select id="boardPrefChipScale" title="Base chip size multiplier. Chips auto-shrink below this only when a segment actually gets crowded.">
+        <option value="0.8">80%</option>
+        <option value="0.9">90%</option>
+        <option value="1">100%</option>
+        <option value="1.15">115%</option>
+        <option value="1.3">130%</option>
+        <option value="1.5">150%</option>
+      </select>
+    </label>
     <label class="board-settings-label board-settings-nerd-only">
       Anim speed
       <select id="boardPrefAnimSpeed" title="Animation speed — slow everything down to inspect the choreography">
