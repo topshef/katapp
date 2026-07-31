@@ -160,7 +160,75 @@
     return null;
   }
 
-  function place(el, a) {
+  /* BOARD-CHAT2 — one-way bubble physics (user 2026-07-30).
+   *
+   * "The bubbles work quite well, but on desktop where there's plenty of room they
+   * could do with sitting away from the actual chips, so they're not cluttering the
+   * board or covering up the chips." His proposed mechanism, and the important detail:
+   * let the CHIPS influence where a bubble settles, but let the bubble have NO effect
+   * on the chips — "they still place as they would, even if there were no speech
+   * bubble". That asymmetry is the whole idea.
+   *
+   * Implemented against RECTS rather than by adding bodies to the chip sim. Same
+   * one-way result, and deliberately so: putting a bubble into the sim risks
+   * destabilising chip layout, which is exactly what the user said must not happen.
+   * The chips here are read-only — we never write to a chip, only measure it.
+   *
+   * Resolution pushes the bubble RADIALLY OUTWARD from the board centre first. That is
+   * the direction with room in it (chips live on the felt, the margin does not), it
+   * matches "sit a little bit away", and it keeps the tail pointing sensibly back at
+   * the speaker instead of the bubble drifting sideways across other players' wedges.
+   *
+   * Also fixes the overlap defect already recorded on this task: three concurrent
+   * bubbles on a three-player board could land on each other, because clamping happens
+   * per bubble with no knowledge of the others. Bubbles placed earlier in the same pass
+   * are treated as obstacles too, so later ones step around them.
+   */
+  function obstacleRects() {
+    // Chips only — read, never write. Ghosts included: covering the counter is the
+    // specific complaint ("covering up the chips").
+    var out = [];
+    var els = document.querySelectorAll(".board-chip");
+    for (var i = 0; i < els.length; i++) {
+      var r = els[i].getBoundingClientRect();
+      if (r.width && r.height) out.push(r);
+    }
+    return out;
+  }
+
+  function overlaps(a, b, pad) {
+    pad = pad || 0;
+    return !(a.right + pad <= b.left || a.left - pad >= b.right ||
+             a.bottom + pad <= b.top || a.top - pad >= b.bottom);
+  }
+
+  /* Nudge {l,t,w,h} outward from (cx,cy) until it clears `obs`, or we run out of room.
+   * Bounded iterations — this runs on every reposition, so it must be cheap and must
+   * never be able to spin. Returns the adjusted {l,t}. */
+  function pushClear(box, obs, cx, cy, bounds, pad) {
+    var dx = box.l + box.w / 2 - cx, dy = box.t + box.h / 2 - cy;
+    var len = Math.sqrt(dx * dx + dy * dy) || 1;
+    var ux = dx / len, uy = dy / len;          // unit vector, board centre → bubble
+    var STEP = 10, MAX = 14;                   // ≤140px of travel; beyond that give up
+
+    for (var i = 0; i < MAX; i++) {
+      var rect = { left: box.l, top: box.t, right: box.l + box.w, bottom: box.t + box.h };
+      var hit = false;
+      for (var j = 0; j < obs.length; j++) {
+        if (overlaps(rect, obs[j], pad)) { hit = true; break; }
+      }
+      if (!hit) break;                         // clear — done
+
+      var nl = box.l + ux * STEP, nt = box.t + uy * STEP;
+      // Refuse a step that would leave the board box; the clamp would only undo it and
+      // we would loop against our own boundary for the remaining iterations.
+      if (nl < bounds.l || nl + box.w > bounds.r || nt < bounds.t || nt + box.h > bounds.b) break;
+      box.l = nl; box.t = nt;
+    }
+    return box;
+  }
+
+  function place(el, a, obs) {
     // Bubbles sit outside the oval at the speaker's angle. With only two players the
     // wedge midpoints land at 3 and 9 o'clock, i.e. hard against the board edges — so
     // the anchor alone is not enough: a 270px bubble centred on x=99 hangs 36px off
@@ -193,6 +261,21 @@
     var l = Math.max(o.x + PAD, Math.min(wantL, o.x + o.w - w - PAD));
     var t = Math.max(topGuard, Math.min(wantT, o.y + o.h - ht - PAD));
 
+    // BOARD-CHAT2: step outward off any chip (and off bubbles already placed this
+    // pass). Skipped when there is genuinely nowhere to go — on a phone the board
+    // fills the viewport and pushing out would only fight the clamp, so the bubble
+    // stays exactly where it used to be. Degrades to the old behaviour by design.
+    if (obs && obs.length && o.w > 620) {
+      var bounds = { l: o.x + PAD, r: o.x + o.w - PAD, t: topGuard, b: o.y + o.h - PAD };
+      var box = pushClear({ l: l, t: t, w: w, h: ht }, obs,
+                          o.x + o.w / 2, o.y + o.h / 2, bounds, 6);
+      l = box.l; t = box.t;
+      // Re-clamp: pushClear refuses out-of-bounds steps, but topGuard can move between
+      // passes (the banner appearing mid-deal) so this stays honest.
+      l = Math.max(bounds.l, Math.min(l, bounds.r - w));
+      t = Math.max(bounds.t, Math.min(t, bounds.b - ht));
+    }
+
     // Switch off the centring transform and position by corner, so the clamp is exact.
     el.style.setProperty("--kchat-dx", "0px");
     el.style.left = l + "px";
@@ -205,9 +288,19 @@
   }
 
   function reposition() {
+    // BOARD-CHAT2: measure the chips ONCE per pass, not per bubble — with a crowded
+    // board and several bubbles the per-bubble query was the expensive part, and this
+    // runs on every board paint. Each bubble's final box joins the obstacle list so the
+    // next one steps around it, which is what fixes three-bubble overlap.
+    var obs = obstacleRects();
     live.forEach(function (b) {
       var a = anchorFor(b.playerId);
-      if (a) { place(b.el, a); b.el.classList.remove("kchat-bub--orphan"); }
+      if (a) {
+        place(b.el, a, obs);
+        b.el.classList.remove("kchat-bub--orphan");
+        var r = b.el.getBoundingClientRect();
+        if (r.width && r.height) obs.push(r);
+      }
       else b.el.classList.add("kchat-bub--orphan");   // speaker has no visible segment
     });
   }
@@ -229,8 +322,13 @@
     tx.className = "kchat-bub-text";
     tx.textContent = msg.text;
     el.append(nm, tx);
-    place(el, a);
+    // BOARD-CHAT2: the element must be IN the document before place() can measure it
+    // (offsetWidth is 0 while detached, and place() bails on that), so append first and
+    // place after — the original order worked only because place() then no-op'd and the
+    // next reposition() tidied up. With chip avoidance that would show as a bubble
+    // landing on a chip and then hopping off it.
     h.appendChild(el);
+    place(el, a, obstacleRects());
 
     // one frame later so the entry transition actually runs
     requestAnimationFrame(function () { el.classList.add("kchat-bub--in"); });
