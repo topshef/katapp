@@ -1476,6 +1476,14 @@ function renderRingBoard(root){
     if(txid && window.__boardStruckTx !== txid) setTimeout(playTransfers, 80)
     window.__boardStruckTx = txid
   }
+
+  // BOARD-TRAILORPHAN1 R2: the DOM above is now authoritative — drop any after-glow
+  // line whose anchor ghost did not survive this paint (playnet instant resolve,
+  // player exit, or any future path that removes chips without a withdraw).
+  boardPruneOrphanTrails()
+
+  // DEMO-NARRATE1 (first slice): the step timeline along the bottom.
+  boardRenderNarrate()
 }
 
 /* ── Lazy Susan v1 (review 7) ───────────────────────────────────────────────
@@ -3934,6 +3942,81 @@ function boardReanchorTrails(){
   })
 }
 
+// BOARD-TRAILORPHAN1 R2 (user feedback 4e22838f, 2026-07-31: "still seeing the ghost
+// dotted lines" — on q-crowd). R1 wiped trails when the SIGNING phase ended, which was
+// the only orphaning path on t-trio. But q-crowd is PLAYNET: deals resolve instantly
+// (resolveTxSuccess at post time), so a signing phase may never be observed across a
+// render — and its players EXIT each cycle, which also removes chips with no withdraw
+// and no strike. Three ways a chip can vanish; R1 covered one, withdraw covers another,
+// and this covers ALL of them by construction: after each paint, any after-glow line
+// whose anchor GHOST no longer exists in the fresh DOM is removed. The ghost is the
+// right liveness test — it exists exactly while the offer is on the table (including
+// through signing, via SIGN-GHOSTPREVIEW1's restored ghosts), so a line outlives it
+// only when the thing it points at is genuinely gone. Runs post-render, when the DOM
+// is authoritative — never mid-tween.
+// ── DEMO-NARRATE1, first slice: the step timeline (user 2026-07-31) ──────────
+// "Where we've got the 'You're watching' banner... a bit like a presentation where
+// you show your steps in summary, and you're highlighting the one that you're on."
+// A narrator (the demo bot, for now) publishes {v, kind:"timeline", steps, current}
+// via game_narrate; every viewer — spectators included — sees the same strip.
+//
+// FORMAT DISCIPLINE: this is the first consumer of the DEMO-NARRATE1 payload format,
+// and the task's method is collect-use-cases-before-building because the format is
+// the expensive part. So the renderer checks `v` and `kind` and renders NOTHING it
+// does not recognise — an old client on a new payload degrades to no strip, never to
+// a broken one. Anything beyond kind:"timeline" (banners, callouts, avatars, links)
+// is a LATER kind, not a growth of this one.
+//
+// Placement: directly above whichever bottom bar is visible (the spectator ribbon or
+// the footer), measured rather than hard-coded — same reasoning as the chat bubbles'
+// topGuard: no magic offsets, keeps working when the bars change height.
+function boardRenderNarrate(){
+  const host = document.body
+  let strip = document.getElementById("boardNarrate")
+  const n = state?.narrate
+  const ok = n && n.v === 1 && n.kind === "timeline" && Array.isArray(n.steps) && n.steps.length
+  if(!ok){ strip?.remove(); return }
+
+  if(!strip){
+    strip = document.createElement("div")
+    strip.id = "boardNarrate"
+    strip.className = "knarr"
+    host.appendChild(strip)
+  }
+
+  // sit on top of the visible bottom bar (ribbon beats footer when both exist)
+  const bar = document.querySelector("body.spectating .kspec-ribbon") ||
+              document.querySelector(".ring-footer")
+  const h = bar ? bar.getBoundingClientRect().height : 0
+  strip.style.bottom = h + "px"
+
+  // Rebuild only when the payload changes — this runs on every paint, and the strip
+  // animates via CSS on the --on class flip, which a full rebuild would defeat.
+  const sig = JSON.stringify([n.steps.map(s => s?.label ?? s), n.current])
+  if(strip.dataset.sig === sig) return
+  strip.dataset.sig = sig
+
+  strip.replaceChildren(...n.steps.map((s, i) => {
+    const el = document.createElement("span")
+    el.className = "knarr-step" +
+      (i < n.current ? " knarr-step--done" : i === n.current ? " knarr-step--on" : "")
+    el.textContent = String(s?.label ?? s)
+    return el
+  }))
+}
+
+function boardPruneOrphanTrails(){
+  document.querySelectorAll(".board-trailline[data-pair-key]").forEach(line => {
+    const parts = (line.dataset.pairKey || "").split("|")
+    if(parts.length < 3) return
+    const to = parts[0], from = parts[1], asset = parts.slice(2).join("|")
+    const ghost = document.querySelector(
+      `.asset.reserved[data-owner-account="${CSS.escape(from)}"]` +
+      `[data-asset-id="${CSS.escape(asset)}"][data-to-account="${CSS.escape(to)}"]`)
+    if(!ghost) line.remove()
+  })
+}
+
 // trailing line: DOTTED in the giver's colour (review 7 — was solid with a
 // draw-in; the dash channel now carries the dot pattern), fades out slowly
 function boardTrail(a, b, colour, { key, persist = true, seg } = {}){
@@ -4429,6 +4512,38 @@ function ringFelt(segs, g){
         const dim = document.createElementNS(NS, "path")
         dim.setAttribute("d", ringStoreZonePath(seg, g))
         dim.setAttribute("class", "ring-storedim")
+        // BOARD-SHADEQUAD1 (contact sheet's first capture, 2026-07-31): this dim is
+        // CORRECT geometry — the wedge fans to beyond the viewport like every felt
+        // zone — but on a wedge whose boundary spokes happen to sit at 12 and 9
+        // o'clock it reads as a hard-edged quarter-page SLAB, because v16's
+        // reviewed darkness (.38, "assets barely visible") runs undiminished all
+        // the way to the screen corner. Keep that darkness where the assets
+        // actually are and FADE it radially toward the edge, so the lock reads as
+        // a dimmed store rather than a rendering error. v16 only; earlier
+        // families keep their flat lighter dim. Inline style, not attribute —
+        // the family CSS fill rule would beat a presentation attribute.
+        if(ring16()){
+          const R = Math.max(g.W, g.H) * 1.6
+          let grad = svg.querySelector("#ringLockFade")
+          if(!grad){
+            const defs = document.createElementNS(NS, "defs")
+            grad = document.createElementNS(NS, "radialGradient")
+            grad.setAttribute("id", "ringLockFade")
+            grad.setAttribute("gradientUnits", "userSpaceOnUse")
+            grad.setAttribute("cx", g.cx); grad.setAttribute("cy", g.cy); grad.setAttribute("r", R)
+            const f0 = ((g.rx + g.ry) / 2) / R          // the oval edge, as a gradient offset
+            ;[[0, .38], [f0, .38], [Math.min(1, f0 * 2.4), .14], [1, .10]].forEach(([off, a]) => {
+              const stop = document.createElementNS(NS, "stop")
+              stop.setAttribute("offset", off)
+              stop.setAttribute("stop-color", "rgb(45,35,15)")
+              stop.setAttribute("stop-opacity", a)
+              grad.appendChild(stop)
+            })
+            defs.appendChild(grad)
+            svg.insertBefore(defs, svg.firstChild)
+          }
+          dim.style.fill = "url(#ringLockFade)"
+        }
         segTop(seg).appendChild(dim)
         // v11 (review 10): BIG 🔒 at the store centroid, on top of the dim —
         // third lock cue alongside the orange arc + darkened store
