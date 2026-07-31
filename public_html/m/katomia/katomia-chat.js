@@ -209,22 +209,46 @@
     var dx = box.l + box.w / 2 - cx, dy = box.t + box.h / 2 - cy;
     var len = Math.sqrt(dx * dx + dy * dy) || 1;
     var ux = dx / len, uy = dy / len;          // unit vector, board centre → bubble
-    var STEP = 10, MAX = 14;                   // ≤140px of travel; beyond that give up
+    var STEP = 10, MAX = 18;
 
-    for (var i = 0; i < MAX; i++) {
-      var rect = { left: box.l, top: box.t, right: box.l + box.w, bottom: box.t + box.h };
-      var hit = false;
-      for (var j = 0; j < obs.length; j++) {
-        if (overlaps(rect, obs[j], pad)) { hit = true; break; }
+    // Direction priority. Radial-out is the one we WANT — it is where the room is and
+    // it keeps the tail honest. But a bubble the clamp has already pinned to the board
+    // edge has no outward left, and the first cut of this gave up there and left the
+    // overlap in place (measured: bubble-on-bubble fixed, one bubble-on-chip surviving).
+    // So fall back to sliding ALONG the edge, which is free, before ever considering
+    // moving inward over the felt.
+    var dirs = [
+      [ ux,  uy],                              // out
+      [-uy,  ux],                              // tangential, one way
+      [ uy, -ux],                              // tangential, the other
+      [-ux, -uy]                               // inward — last resort, still better than sitting on a chip
+    ];
+
+    var hitCount = function (b) {
+      var rect = { left: b.l, top: b.t, right: b.l + b.w, bottom: b.t + b.h };
+      var n = 0;
+      for (var j = 0; j < obs.length; j++) if (overlaps(rect, obs[j], pad)) n++;
+      return n;
+    };
+    var inBounds = function (b) {
+      return b.l >= bounds.l && b.l + b.w <= bounds.r && b.t >= bounds.t && b.t + b.h <= bounds.b;
+    };
+
+    var best = { l: box.l, t: box.t }, bestHits = hitCount(box);
+    if (!bestHits) return box;
+
+    for (var d = 0; d < dirs.length && bestHits; d++) {
+      var cur = { l: box.l, t: box.t, w: box.w, h: box.h };
+      for (var i = 0; i < MAX; i++) {
+        var nxt = { l: cur.l + dirs[d][0] * STEP, t: cur.t + dirs[d][1] * STEP, w: box.w, h: box.h };
+        if (!inBounds(nxt)) break;             // this direction is exhausted; try the next
+        cur = nxt;
+        var h = hitCount(cur);
+        if (h < bestHits) { bestHits = h; best = { l: cur.l, t: cur.t }; }
+        if (!h) break;                         // fully clear — take it
       }
-      if (!hit) break;                         // clear — done
-
-      var nl = box.l + ux * STEP, nt = box.t + uy * STEP;
-      // Refuse a step that would leave the board box; the clamp would only undo it and
-      // we would loop against our own boundary for the remaining iterations.
-      if (nl < bounds.l || nl + box.w > bounds.r || nt < bounds.t || nt + box.h > bounds.b) break;
-      box.l = nl; box.t = nt;
     }
+    box.l = best.l; box.t = best.t;
     return box;
   }
 
