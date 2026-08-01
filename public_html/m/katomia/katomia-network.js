@@ -368,6 +368,13 @@ function connect(onOpenAction){
 		if(data.type !== "game_state") glog(`websocket data IGNORED for type=${data.type}`, data)
 		if(data.type !== "game_state") return
 
+    // FEEDBACK-DEMOLOAD1 (user 2026-08-01): while the feedback widget is capturing a
+    // screenshot, DON'T re-render — html-to-image clones the live DOM and a mutation
+    // mid-clone throws/hangs, which is how sending feedback on a running demo circle
+    // crashed the page. Skipping is lossless here: every broadcast carries the FULL
+    // state, so the next one (seconds away on a demo board) repaints everything.
+    if(window.__kfwCapturing){ glog("state skipped — feedback screenshot in progress"); return }
+
     // KFLOW1: first-state marker — the moment the game is actually usable. Once
     // per pageload (kflow collapses consecutive dups anyway; this keeps it clean).
     if(!window.__kflowStateSeen){ window.__kflowStateSeen = true; window.kflow?.("game:state", "first", { gameId }) }
@@ -471,3 +478,18 @@ function exitGame(){
 }
 
 
+
+// FEEDBACK-DEMOLOAD1: the feedback widget announces its screenshot capture window
+// (kfw:capture-start/-end, added to feedback-widget.js the same day) so this page can
+// hold state re-renders while the DOM is being cloned — see the guard in the game_state
+// handler above. The flag self-clears on a safety timer too, in case an old widget
+// build fires start without end.
+window.addEventListener('kfw:capture-start', () => {
+	window.__kfwCapturing = true
+	clearTimeout(window.__kfwCaptureSafety)
+	window.__kfwCaptureSafety = setTimeout(() => { window.__kfwCapturing = false }, 12000)
+})
+window.addEventListener('kfw:capture-end', () => {
+	window.__kfwCapturing = false
+	clearTimeout(window.__kfwCaptureSafety)
+})
