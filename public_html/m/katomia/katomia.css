@@ -2453,7 +2453,10 @@ body.nerd .profile-nerd-only{ display:block; }
    own absolutely-placed chips and badges use. */
 /* fixed, not absolute: these are siblings of #boardRoot (see board.php) because the
    board wipes its own root on every paint. Bubbles carry viewport coords. */
-.kchat-layer{ position:fixed; inset:0; pointer-events:none; z-index:24; }
+/* z27 (user 2026-08-01): bubbles paint ABOVE the 👀 audience pill (.kaud, z26) —
+   a speech bubble is the live story, the counter is ambient chrome. Also clears the
+   💬 panel (25) and bottom ribbon/narration strips (25/26), all deliberate. */
+.kchat-layer{ position:fixed; inset:0; pointer-events:none; z-index:27; }
 
 .kchat-bub{
   position:absolute; transform:translate(-50%,-50%) scale(.9); transform-origin:50% 50%;

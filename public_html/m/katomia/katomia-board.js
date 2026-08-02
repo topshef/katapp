@@ -600,13 +600,19 @@ function boardShowResult(txid, ok){
     // HashScan takes the native 0.0.x@secs.nanos id; encode it, the @ and . are not safe.
     // (The green tick AND green square together is deliberate for now — the tick is the
     // toast type icon, the square is Hedera consensus status. User said leave it.)
+    // BOARD-TOASTLINK2 (user 2026-08-01): the txid IS the link — the separate
+    // "View on HashScan" text was clutter. The txid rides as link.text (a real
+    // element, textContent — the no-markup-in-message rule holds); on the
+    // unhappy path there is no link so the txid stays in the message. Explicit
+    // opts.key: with the txid out of the success message, two different
+    // successes would otherwise coalesce into one toast.
     const net = window.__katomiaNetwork
     const link = (ok && txid && (net === "mainnet" || net === "testnet"))
       ? { href: `https://hashscan.io/${net}/transaction/${encodeURIComponent(txid)}`,
-          text: "View on HashScan ↗" }
+          text: `${txid} ↗` }
       : null
-    notify((ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired") + ` · ${txid}`,
-      ok ? "success" : "error", { timeout: 0, link })
+    notify((ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired") + (link ? " ·" : ` · ${txid}`),
+      ok ? "success" : "error", { timeout: 0, link, key: `txresult:${txid}` })
   } catch {}
 }
 
@@ -3860,7 +3866,13 @@ function playTransfers(){
       + `[data-asset-id="${CSS.escape(assetId)}"]`
       + `[data-to-account="${CSS.escape(toAccount)}"]`
     const ghost = document.querySelector(`.asset.reserved${sel}`)
-    if(!ghost) return
+    // KAT-FOCUSANIM1 (user 2026-08-01: "not sure all basket chips are animating —
+    // if that's evident from kdiag please fix"): it wasn't evident — this skip was
+    // silent. Now every basket chip that can't animate for want of its reserved
+    // ghost says so in diagnostics. (Live audit 2026-08-02 on t-duo found no
+    // orphans once the Goodwin treat-float outage was fixed — the "missing"
+    // animations were chips that never existed.)
+    if(!ghost){ boardDiag("board:focus:ghostmiss", { ownerAccount, assetId, toAccount }); return }
     // same pair key shape as boardAnimateNewOffers (to|from|asset) so a
     // withdraw clears replay after-glow too
     const k = `${toAccount}|${ownerAccount}|${assetId}`
