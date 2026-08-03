@@ -75,6 +75,9 @@
       if (logOpen) {
         var list = p.querySelector(".kchat-panel-list");
         list.scrollTop = list.scrollHeight;
+        // BOARD-CHATMODE1: open panel = message mode — the live bubbles step aside
+        // (they return for new messages once the panel is closed again)
+        live.slice().forEach(retire);
       }
     });
     return p;
@@ -101,6 +104,69 @@
   }
   window.katomiaAvatarKey = avatarKey;
 
+  /* BOARD-CHATMODE1 (user 2026-08-03): "bubbles" or "panel". The pref lives with the
+   * board (boardChatMode, Settings toggle); defaults phone=panel / desktop=bubbles.
+   * Panel mode = no bubbles at all; messages live in the docked strip (mobile) and
+   * the floating panel is hidden. On desktop with bubbles, OPENING the 💬 panel also
+   * switches to message mode for as long as it's open (user: "press the speech
+   * bubble → it switches to message mode instead and the bubbles go away"). */
+  function chatMode() {
+    try { if (typeof boardChatMode !== "undefined" && boardChatMode) return boardChatMode; } catch (e) {}
+    return "bubbles";
+  }
+  function bubblesAllowed() { return chatMode() !== "panel" && !logOpen; }
+
+  // A new message pulses the speaker's board avatar (scale up, settle back) — the
+  // "someone is talking" cue that survives whichever chat surface is active.
+  function pulseAvatar(playerId) {
+    if (!playerId) return;
+    var sel = '.ring-avatar[data-player-id="' + (window.CSS && CSS.escape ? CSS.escape(playerId) : playerId) + '"]';
+    document.querySelectorAll(sel).forEach(function (g) {
+      g.classList.remove("ring-avatar--pulse");
+      void g.getBoundingClientRect();
+      g.classList.add("ring-avatar--pulse");
+    });
+  }
+
+  /* The mobile dock — a bottom strip of scrolling chat above the footer/ribbon.
+   * v1 fixed-height slice; the fuller layout (square board + draggable divider +
+   * toasts folded into chat + a send box) is BOARD-CHATLAYOUT1. */
+  function syncDock() {
+    document.body.dataset.kchatMode = chatMode();
+    var on = chatMode() === "panel";
+    var d = document.getElementById("boardChatDock");
+    if (on && !d) {
+      d = document.createElement("div");
+      d.id = "boardChatDock";
+      d.className = "kchat-dock";
+      d.innerHTML = '<div class="kchat-dock-list"></div>';
+      document.body.appendChild(d);
+    }
+    if (d) {
+      d.style.display = on ? "" : "none";
+      if (on) {
+        // sit above whatever bottom bar is currently visible — measured, not guessed
+        var off = 0;
+        [".kspec-ribbon", ".ring-footer", ".knarr"].forEach(function (s) {
+          var el = document.querySelector(s);
+          if (!el) return;
+          var r = el.getBoundingClientRect();
+          if (r.height && r.top < innerHeight && getComputedStyle(el).display !== "none")
+            off = Math.max(off, innerHeight - r.top);
+        });
+        d.style.bottom = (off + 4) + "px";
+      }
+    }
+    return d;
+  }
+
+  function setMode(m) {
+    if (m === "panel") live.slice().forEach(retire);   // bubbles leave when the panel takes over
+    syncDock();
+    var st = (typeof state !== "undefined" && state) || null;
+    if (st && Array.isArray(st.chat)) renderLog(st.chat);
+  }
+
   function colourFor(playerId) {
     // Reuse the board's own player colours so a bubble matches its wedge. If the board
     // hasn't defined one (non-ring view), fall through to the CSS default.
@@ -118,6 +184,7 @@
     // stream. Both get the same rows; CSS decides which one the device can see.
     renderInto(p && p.querySelector(".kchat-panel-list"), chat);
     renderInto(document.getElementById("boardChatFullList"), chat);
+    renderInto(document.querySelector("#boardChatDock .kchat-dock-list"), chat);
     var sub = document.getElementById("boardChatFullSub");
     if (sub) sub.textContent = chat.length ? chat.length + " so far" : "nothing said yet";
   }
@@ -134,16 +201,24 @@
       return;
     }
     chat.slice(-MAX_LOG).forEach(function (m) {
+      // Row anatomy R2 (user 2026-08-03): full-height colour BAR (not a dot — same
+      // ownership cue as chip sleeves and bubble bars), the player's AVATAR on their
+      // colour (the fruit emoji is gone from display names everywhere), then bold
+      // name + time + the text INLINE, wrapping — compact, chat-app familiar.
       var row = document.createElement("div");
       row.className = "kchat-row";
       var c = colourFor(m.playerId);
       var t = new Date(m.ts);
       var hh = String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0");
-      var dot = document.createElement("span");
-      dot.className = "kchat-row-dot";
-      if (c) dot.style.background = c;
+      var bar = document.createElement("span");
+      bar.className = "kchat-row-bar";
+      if (c) bar.style.background = c;
+      row.appendChild(bar);
+      if (typeof kemojiEl === "function") row.appendChild(kemojiEl(avatarKey(m.playerId), { size: 16, bg: c }));
+      var main = document.createElement("span");
+      main.className = "kchat-row-main";
       var nm = document.createElement("b");
-      nm.textContent = who(m);
+      nm.textContent = displayName(m);
       var tm = document.createElement("i");
       tm.textContent = hh;
       var tx = document.createElement("span");
@@ -155,7 +230,8 @@
         to.textContent = "→ " + m.to;
         nm.appendChild(to);
       }
-      row.append(dot, nm, tm, tx);
+      main.append(nm, " ", tm, " ", tx);
+      row.appendChild(main);
       list.appendChild(row);
     });
     if (atBottom) list.scrollTop = list.scrollHeight;
@@ -296,6 +372,16 @@
     // occupying the top lane and start below it, so this keeps working if another
     // banner is added later.
     var vx = o.x + a.x, vy = o.y + a.y;
+
+    // Centrifuge bias (user 2026-08-03): during SIGNING the centre of the board is
+    // the story — bubbles drift outward toward the rim so the middle stays readable.
+    // Mild push only; the clamp below still owns the final position.
+    if (typeof boardSigning !== "undefined" && boardSigning) {
+      var ccx = o.x + o.w / 2, ccy = o.y + o.h / 2;
+      var odx = vx - ccx, ody = vy - ccy, olen = Math.sqrt(odx * odx + ody * ody) || 1;
+      var opush = Math.min(o.w, o.h) * 0.18;
+      vx += odx / olen * opush; vy += ody / olen * opush;
+    }
     var topGuard = o.y + PAD;
     var bn = document.getElementById("boardBanner");
     if (bn) {
@@ -385,6 +471,7 @@
   }
 
   function pop(msg) {
+    if (!bubblesAllowed()) return;      // panel mode / panel open — the dock has it
     var h = host();
     if (!h) return;
     var a = anchorFor(msg.playerId);
@@ -478,6 +565,7 @@
     chat.forEach(function (m) {
       if (seen.has(m.id)) return;
       seen.add(m.id);
+      pulseAvatar(m.playerId);   // the face flickers alive whichever surface shows the text
       pop(m);
     });
     lastCount = chat.length;
@@ -518,10 +606,11 @@
     why.textContent = window.katomiaSpectator ? "— you can follow along, but not take part." : "";
   }
 
-  window.boardRenderChat = function(){ boardRenderChat(); syncSpectatorRibbon(); syncAudience(); };
+  window.boardRenderChat = function(){ syncDock(); boardRenderChat(); syncSpectatorRibbon(); syncAudience(); };
   window.katomiaChat = {
     render: boardRenderChat,
     reposition: reposition,
+    setMode: setMode,
     get live() { return live.length; },
     openLog: function (on) {
       logOpen = on !== false;

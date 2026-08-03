@@ -321,7 +321,8 @@ function boardSavePrefs(){
       maxSegments: boardMaxSegments, animSpeed: boardAnimSpeed,
       trailResidual: boardTrailResidual, layoutMode: boardLayoutMode,
       zoneWalls: boardZoneWalls, hugRing: boardHugRing,
-      stickyChips: boardStickyChips, chipScale: boardChipScale
+      stickyChips: boardStickyChips, chipScale: boardChipScale,
+      chatMode: boardChatMode, avatarPos: boardAvatarPos
     }))
   } catch {}
 }
@@ -344,6 +345,15 @@ let boardAnimSpeed = Number(_bp.animSpeed) || 1
 // residual lines are wiped at the start of the next replay. A design-tuning
 // knob, not a planned user feature.
 let boardTrailResidual = _bp.trailResidual ?? 0.5
+// BOARD-CHATMODE1 (user 2026-08-03): where speech lives — "bubbles" over the board or
+// a docked message "panel". Defaults split by form factor: phones drown in bubbles →
+// panel; desktop keeps bubbles for now (user: "worth giving it a bit more chance").
+// The Settings toggle lets anyone flip; katomia-chat.js reads this live.
+let boardChatMode = _bp.chatMode || (Math.min(innerWidth, innerHeight) <= 600 ? "panel" : "bubbles")
+// DEMO-NARRATE1 avatar placement experiment (R2 spoke → R3 arc, user 2026-08-03):
+// "arc" = centred on the segment along the ring inside the coin-lettered id (default);
+// "spoke" = the R2 boundary-spoke position, kept as a 🧪 switch for comparison.
+let boardAvatarPos = _bp.avatarPos === "spoke" ? "spoke" : "arc"
 // boardPrefsOpen (⚙ popover open/closed) retired BOARD-HEADERINT1 — Preferences
 // now lives in profile-modal.php, opened via the normal Profile menu item.
 // 🧪 chip layout (BOARD-LAYOUT1, user 2026-07-14): "shelves" = deterministic
@@ -585,10 +595,12 @@ function boardShowResult(txid, ok){
   // the wiper's shorter timing and dousing the spotlight mid-confetti.
   window.__boardLastResultOk = ok
   boardCelebrate(ok)
-  // BOARD-SWEEPWIN1: confetti first, then the chips head home — staggered so the
-  // two moments read separately (user 2026-08-03: "so that we don't have too many
-  // things happening at the same time").
-  if(ok) setTimeout(boardSettleFlights, 700)
+  // BOARD-SWEEPWIN1 R2: capture SYNCHRONOUSLY — R1 delayed the whole call 700ms, by
+  // which time the settle broadcast had already re-painted the board and the txchips
+  // were gone, so there was nothing to fly (user: "just seeing the confetti"). Now the
+  // clones are taken this instant (they stand in for the wiped chips through the
+  // confetti beat) and only the MOVEMENT waits 700ms.
+  if(ok) boardSettleFlights()
   // PERSISTENT, CLOSABLE TOAST (user 2026-07-15): the verdict used to be a
   // banner bubble + a blocking alert(); now it's a toast that stays until
   // the user closes it (timeout 0 = persistent, ✕ per GM-TOAST-X1) — the
@@ -743,6 +755,22 @@ let boardStartAngle = 180
 // katomia-profile.js calls this by name if it exists (same optional-hook
 // pattern as katomiaAuthOnProfileOpen) whenever the profile modal opens.
 function boardSyncPrefsUI(){
+  // BOARD-CHATMODE1: bubbles ⇄ docked message panel
+  const chatPanel = document.getElementById("boardPrefChatPanel")
+  if(chatPanel){
+    chatPanel.checked = boardChatMode === "panel"
+    chatPanel.onchange = () => {
+      boardChatMode = chatPanel.checked ? "panel" : "bubbles"
+      boardSavePrefs()
+      window.katomiaChat?.setMode?.(boardChatMode)
+    }
+  }
+  // DEMO-NARRATE1 placement experiment: R3 arc (default) vs R2 spoke
+  const avSpoke = document.getElementById("boardPrefAvatarSpoke")
+  if(avSpoke){
+    avSpoke.checked = boardAvatarPos === "spoke"
+    avSpoke.onchange = () => { boardAvatarPos = avSpoke.checked ? "spoke" : "arc"; boardSavePrefs(); render() }
+  }
   const net = document.getElementById("boardPrefNet")
   if(net){
     net.checked = boardNetView
@@ -898,6 +926,11 @@ async function render(){
   // BOARD-CHAT1: after the board paints, so _boardChatAnchors is fresh. Guarded —
   // katomia-chat.js is only loaded on the board page.
   try { window.boardRenderChat?.() } catch(e){ console.warn("[chat] render failed", e) }
+
+  // BOARD-SWEEPWIN1 R2: while a tx is signing, remember where the txchips sit (after
+  // the organic sim has settled them) so the success flights survive the settle
+  // broadcast wiping the DOM before the receipt arrives.
+  if(boardSigning) setTimeout(boardSnapTxChips, 600)
 
   // renderBoard() (via renderRingBoard) has just recomputed boardSigning —
   // start/stop the per-account signing-status poll (SIGN-STATUSLANG1) and the
@@ -3298,37 +3331,63 @@ function boardTxChips(legs, container, accounts, toAccountId){
 // sleeve tweens from the GIVER's colour to the NEW OWNER's: consensus is the moment
 // ownership changes, and the colour change rides the move. CLONES on a fixed layer,
 // because the next state paint owns the real chips and may wipe them mid-flight.
+// Rolling snapshot of the on-screen txchips while signing — the settle broadcast can
+// wipe the DOM before (or in the same tick as) the success receipt lands, so the
+// flight builder needs a memory of where the chips WERE. Refreshed per paint, 600ms
+// after, once the organic sim has settled the positions.
+let _boardTxChipSnap = []
+function boardSnapTxChips(){
+  const snap = []
+  document.querySelectorAll(".board-txchip").forEach(el => {
+    const r = el.getBoundingClientRect()
+    if(r.width) snap.push({ toAccount: el.dataset.toAccount, rect: { left: r.left, top: r.top, width: r.width, height: r.height }, html: el.outerHTML })
+  })
+  if(snap.length) _boardTxChipSnap = snap
+}
 function boardSettleFlights(){
   try{
-    const chips = document.querySelectorAll(".board-txchip")
     const root = document.getElementById("boardRoot")
-    if(!chips.length || !root) return
+    if(!root) return
     const rb = root.getBoundingClientRect()
     const accountMap = getAccountMap()
+    // live chips first; fall back to the rolling snapshot when the paint beat us
+    let items = []
+    document.querySelectorAll(".board-txchip").forEach(el => {
+      const r = el.getBoundingClientRect()
+      if(!r.width) return
+      items.push({ toAccount: el.dataset.toAccount, rect: r, el })
+    })
+    const fromSnap = !items.length
+    if(fromSnap) items = _boardTxChipSnap.map(s => ({ ...s }))
+    boardDiag("board:settleflights", { count: items.length, fromSnap })
+    if(!items.length) return
     const layer = document.createElement("div")
     layer.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:40"
     document.body.appendChild(layer)
     let i = 0
-    chips.forEach(el => {
-      const toId = el.dataset.toAccount
+    items.forEach(it => {
+      const toId = it.toAccount
       const a = toId && _boardChatAnchors[toId]          // store-band point for that segment
       if(!a) return
-      const r = el.getBoundingClientRect()
-      if(!r.width) return
-      const clone = el.cloneNode(true)
+      const r = it.rect
+      let clone
+      if(it.el){ clone = it.el.cloneNode(true); it.el.style.visibility = "hidden" }
+      else { const tmp = document.createElement("div"); tmp.innerHTML = it.html; clone = tmp.firstElementChild }
+      if(!clone) return
       clone.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;margin:0;z-index:40;transition:transform 1.15s cubic-bezier(.45,0,.22,1), border-left-color 1.15s ease, opacity .35s ease 1.15s;opacity:1`
       layer.appendChild(clone)
-      el.style.visibility = "hidden"                     // no doubles; next paint wipes it anyway
       const dx = (rb.left + a.x) - (r.left + r.width / 2)
       const dy = (rb.top + a.y) - (r.top + r.height / 2)
       const newOwner = getPlayerColour(accountMap[toId]?.playerId)
+      // movement starts AFTER the confetti beat (700ms), staggered — a procession
       setTimeout(() => {
         clone.style.transform = `translate(${dx}px, ${dy}px) scale(.92)`
         if(newOwner) clone.style.borderLeftColor = newOwner
         clone.style.opacity = "0"                        // settles into the store as the paint catches up
-      }, 60 + i++ * 110)                                 // slight stagger — reads as a procession
+      }, 700 + i++ * 110)
     })
-    setTimeout(() => layer.remove(), 60 + i * 110 + 1700)
+    _boardTxChipSnap = []
+    setTimeout(() => layer.remove(), 700 + i * 110 + 1700)
   } catch(e){ boardDiag("board:settleflights:error", { e: String(e) }) }
 }
 
@@ -5074,27 +5133,47 @@ function ringStoreZonePath(seg, g){
 const _boardEtchSide = new Map()   // account id → which boundary its etched id last wrote along (hysteresis)
 const _boardAvatarPts = {}         // account id → {x,y} of its avatar (chat tails aim here); persists across paints deliberately
 
-// DEMO-NARRATE1 use case 3, position R2 (user 2026-08-03 feedback on lab1): R1 put
-// the avatar on the spoke OPPOSITE the etched id — but that parks it right next to
-// the NEIGHBOUR's account id across the boundary, which reads as the wrong person's
-// face on the wrong number. R2: SAME spoke as the id, but INSIDE the basket zone —
-// walking the spoke inward you read: account id (store) → across the oval → the
-// player's face (basket, near the hub). Bonus: the avatar stays visible through the
-// signing phase when focus pulls to the centre. Still a placement experiment.
+// DEMO-NARRATE1 use case 3 — placement exploration log (keep; the user asked for it):
+//   R1: boundary spoke OPPOSITE the etched id — rejected, sat beside the NEIGHBOUR's
+//       account id across the seam (wrong face next to wrong number).
+//   R2: same spoke as the id, inside the basket zone — better, but off-axis.
+//   R3 (user 2026-08-03, current default): board-game symmetric — the account id
+//       already runs curved along the basket rim (ringHubCoinLabel); the avatar sits
+//       CENTRED on the segment on the next concentric ring inward, ROTATED to match
+//       the curved id's orientation (upright-flipped per hemisphere like the coin
+//       lettering). That inner ring is also the future home of xproof names /
+//       identity labels. R2 kept behind 🧪 "Avatar on spoke" (boardAvatarPos) so the
+//       two can be compared live; one wins and the switch goes.
 // KEMOJI-COLORLESS1: the face is colourless line art; the player's in-game colour
 // fills the frame (bg), so segment colour and identity read as one mark.
 function ringAvatar(seg, g, NS){
   if(typeof _keFaceSvg !== "function" || typeof kemojiBytesForKey !== "function") return null
-  const sideDeg = _boardEtchSide.get(seg.account.id) === "a1" ? seg.a1 : seg.a0
-  const ab = g.rad(sideDeg)
   const size = Math.max(26, Math.min(40, ringLabelFontSize(g) * 1.7))
-  // inside the basket zone: between the hub and the oval, nearer the oval
-  const rt = g.rc + (g.ovalR(ab) - g.rc) * 0.62
-  // perpendicular nudge INTO the segment — same convention as the etch label
-  const inwardSign = sideDeg === seg.a0 ? 1 : -1
-  const perp = ab + Math.PI / 2
-  const x = g.cx + rt * Math.cos(ab) + inwardSign * size * 0.62 * Math.cos(perp)
-  const y = g.cy + rt * Math.sin(ab) + inwardSign * size * 0.62 * Math.sin(perp)
+  let x, y, rot = 0
+  if(boardAvatarPos === "spoke"){
+    // R2: same spoke as the etched id, inside the basket zone
+    const sideDeg = _boardEtchSide.get(seg.account.id) === "a1" ? seg.a1 : seg.a0
+    const ab = g.rad(sideDeg)
+    const rt = g.rc + (g.ovalR(ab) - g.rc) * 0.62
+    const inwardSign = sideDeg === seg.a0 ? 1 : -1
+    const perp = ab + Math.PI / 2
+    x = g.cx + rt * Math.cos(ab) + inwardSign * size * 0.62 * Math.cos(perp)
+    y = g.cy + rt * Math.sin(ab) + inwardSign * size * 0.62 * Math.sin(perp)
+  } else {
+    // R3: segment-centred, one concentric step inside the coin-lettered id ring.
+    // The coin label's baseline sits ~fs·0.85+6 inside the oval; drop the avatar a
+    // further label-height + half its own size so the two never collide.
+    const am = g.rad(seg.am)
+    const fs = ringLabelFontSize(g)
+    const inset = fs * 0.85 + 6 + fs * 0.9 + size * 0.55
+    const irx = Math.max(g.rc + size * 0.6, g.rx - inset), iry = Math.max(g.rc + size * 0.6, g.ry - inset)
+    const rt = (irx * iry) / Math.hypot(iry * Math.cos(am), irx * Math.sin(am))
+    x = g.cx + rt * Math.cos(am)
+    y = g.cy + rt * Math.sin(am)
+    // rotate with the arc, hemisphere-flipped so the face is never upside down —
+    // same orientation rule as the coin lettering
+    rot = Math.sin(am) > 0 ? seg.am - 90 : seg.am + 90
+  }
   _boardAvatarPts[seg.account.id] = { x, y }
   const key = typeof katomiaAvatarKey === "function" ? katomiaAvatarKey(seg.account.playerId) : seg.account.playerId
   const bg = getPlayerColour(seg.account.playerId)
@@ -5104,6 +5183,8 @@ function ringAvatar(seg, g, NS){
   if(!face){ face = _keFaceSvg(kemojiBytesForKey(key), String(key || "").slice(-12), "circle", bg); _boardAvatarFaces.set(faceKey, face) }
   const wrap = document.createElementNS(NS, "g")
   wrap.setAttribute("class", "ring-avatar")
+  wrap.dataset.playerId = seg.account.playerId || ""   // chat pulses the speaker's face
+  if(rot) wrap.setAttribute("transform", `rotate(${rot.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})`)
   if(seg.weight != null && seg.weight < 1) wrap.setAttribute("opacity", seg.weight)
   // nested <svg> so the face keeps its own 0 0 256 256 viewBox at any size
   wrap.innerHTML = face.replace("<svg ", `<svg x="${x - size / 2}" y="${y - size / 2}" width="${size}" height="${size}" `)

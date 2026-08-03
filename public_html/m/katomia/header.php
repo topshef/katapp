@@ -148,6 +148,12 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
       <input type="checkbox" id="boardPrefPickable" title="Allow other players to pick assets straight from your store (they shop, you agreed in advance)">
       Pickable
     </label>
+    <!-- BOARD-CHATMODE1 (user 2026-08-03): bubbles ⇄ docked message panel. Defaults:
+         phones = panel (bubbles drown a small board), desktop = bubbles (for now). -->
+    <label class="board-settings-label">
+      <input type="checkbox" id="boardPrefChatPanel" title="Show player messages in a docked panel instead of speech bubbles on the board">
+      💬 Message panel
+    </label>
 
     <!-- MVP-SETTINGSDECLUTTER1: dev/lab knobs (self-labeled 🧪/Debug/Lab below) — nerd-mode
          only, same mechanism as everywhere else (body.nerd, katomia-profile.js). Reverses the
@@ -190,6 +196,10 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
     <label class="board-settings-label board-settings-nerd-only">
       <input type="checkbox" id="boardPrefHugRing" title="Lab: organic store blobs home slightly closer to the ring — a mild inward bias; the reserved rim band still keeps chips off the ring itself">
       🧪 Chips hug the ring
+    </label>
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefAvatarSpoke" title="Lab: avatar placement experiment — ticked returns faces to the boundary spoke (R2); default centres them on the arc inside the account id (R3). One will win and this switch will go.">
+      🧪 Avatar on spoke
     </label>
     <label class="board-settings-label board-settings-nerd-only">
       <input type="checkbox" id="boardPrefZoneWalls" title="Debug: draw each zone's physics walls — where chip edges may exist (solid), the ghost-only rim band (dashed), and the safe screen rect. On an obtuse segment the walls are visibly narrower than the wedge: that's the real ±80° clamp, not a drawing bug">

@@ -215,6 +215,23 @@ h3{
     <div class="explain" id="tradingModeExplain"></div>
   </div>
 
+  <!-- BOARD-PLAYERCOLOR1 (user 2026-08-03): the first personalisation knob — a THEME
+       for the circle. Today it only drives the player-colour pack (backend PALETTES,
+       config.palette), but the label says "theme" on purpose: the plan is for it to
+       grow into a broader mood (felt, chrome) for the game. Default = the status-safe
+       Option A palette. -->
+  <div class="field">
+    <label>🎨 Theme</label>
+    <p class="explain">Sets the colours players are dealt. More theming to come.</p>
+    <select id="gameTheme">
+      <option value="" selected>Classic (default)</option>
+      <option value="botanical">🌿 Botanical — natural, muted</option>
+      <option value="gemstone">💎 Gemstone — rich, jewel tones</option>
+      <option value="nebula">🌌 Nebula — spacey blues &amp; violets</option>
+      <option value="harvest">🌾 Harvest — countryside warmth</option>
+    </select>
+  </div>
+
   <div class="field field-visibility">
     <label>Visibility</label>
 
@@ -389,7 +406,9 @@ const payload = {
     // (INVALID_TRANSACTION_DURATION); backend clamps too, this just keeps
     // the game config honest about what will actually be built.
     validDurationSeconds: validDurationSeconds.value === "" ? 40
-      : Math.max(15, Math.min(180, Number(validDurationSeconds.value) || 40))
+      : Math.max(15, Math.min(180, Number(validDurationSeconds.value) || 40)),
+    // BOARD-PLAYERCOLOR1: named player-colour pack; omitted = backend default palette
+    ...(document.getElementById("gameTheme")?.value ? { palette: document.getElementById("gameTheme").value } : {})
   },
 
 }
