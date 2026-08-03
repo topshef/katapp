@@ -140,7 +140,7 @@
 
   // Katomia (the system) speaking: entry into the stream + the hub K swells.
   function system(text, opts) {
-    systemMsgs.push({ id: "sys" + (++_sysN), ts: Date.now(), text: String(text || ""), link: (opts && opts.link) || null, system: true });
+    systemMsgs.push({ id: "sys" + (++_sysN), ts: Date.now(), text: String(text || ""), link: (opts && opts.link) || null, linkText: (opts && opts.linkText) || null, system: true });
     if (systemMsgs.length > 100) systemMsgs.shift();
     var hub = document.querySelector(".ring-hub");
     if (hub) {
@@ -200,23 +200,31 @@
           clearR = Math.round(Math.min(380, Math.max(250, innerWidth * 0.25)));
           d.style.width = clearR + "px";
           d.style.bottom = "0px";
+          d.style.height = "";        // side variant sizes via CSS (top/bottom pinned)
         } else {
           d.style.width = "";
-          // sit above whatever bottom bar is currently visible — measured, not guessed
-          var off = 0;
-          [".kspec-ribbon", ".ring-footer", ".knarr"].forEach(function (s) {
+          // R4 (user 2026-08-03): SQUARE CARVE — the board keeps a ~width×width square
+          // at the top (the ring is circle-locked to match), the board's OWN bottom
+          // bars (footer/ribbon, and the narrate strip that stacks on them) sit at the
+          // FOOT OF THE BOARD (they follow --kchat-clear-b up via CSS), and everything
+          // below is messaging: board → board footer → messages.
+          var stackH = 0;
+          [".ring-footer", ".kspec-ribbon"].forEach(function (s) {
             var el = document.querySelector(s);
-            if (!el) return;
-            var r = el.getBoundingClientRect();
-            if (r.height && r.top < innerHeight && getComputedStyle(el).display !== "none")
-              off = Math.max(off, innerHeight - r.top);
+            if (el && getComputedStyle(el).display !== "none") stackH += el.getBoundingClientRect().height;
           });
-          d.style.bottom = (off + 4) + "px";
-          clearB = Math.round(Math.max(0, innerHeight - d.getBoundingClientRect().top));
+          clearB = Math.round(Math.max(140, Math.min(innerHeight * 0.55, innerHeight - innerWidth - stackH)));
+          d.style.bottom = "0px";
+          // height comes from the SAME --kchat-clear-b var the board yields (CSS), so
+          // the pair can never disagree by a measurement race
+          d.style.height = "";
         }
       }
     }
     var rootStyle = document.documentElement.style;
+    // snap to a 10px grid: the bar-height measurements wobble a few px between passes
+    // (ribbon appearing, safe-area padding) and would otherwise churn the var
+    clearB = Math.round(clearB / 10) * 10;
     var wantB = clearB + "px", wantR = clearR + "px";
     if (rootStyle.getPropertyValue("--kchat-clear-b") !== wantB ||
         rootStyle.getPropertyValue("--kchat-clear-r") !== wantR) {
@@ -312,9 +320,10 @@
       }
       main.append(nm, " ", tm, " ", tx);
       if (m.system && m.link) {
+        // the WHOLE payload (e.g. the txid) is the link, not a fiddly arrow (user 2026-08-03)
         var a2 = document.createElement("a");
         a2.href = m.link; a2.target = "_blank"; a2.rel = "noopener noreferrer";
-        a2.textContent = "↗";
+        a2.textContent = m.linkText || "↗";
         main.append(" ", a2);
       }
       row.appendChild(main);

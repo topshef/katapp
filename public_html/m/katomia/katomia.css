@@ -2596,6 +2596,8 @@ body.nerd .profile-nerd-only{ display:block; }
   border-top:1px solid rgba(20,28,45,.12);
 }
 .kchat-dock-list{ overflow-y:auto; flex:1; }
+/* bottom-dock height IS the board's yielded clearance — one var, no disagreement */
+body[data-kchat-mode="panel"] .kchat-dock:not(.kchat-dock--side){ height: var(--kchat-clear-b, min(30dvh, 240px)); }
 /* landscape: the dock is a full-height RIGHT-hand panel (~quarter width, set by JS);
    the board yields that width (user 2026-08-03: "board shifted over, more square,
    a proper rectangular panel that divides the viewport"). Later candidates for this
@@ -2611,6 +2613,15 @@ body[data-kchat-mode="panel"] .kchat-panel{ display:none !important; }  /* the d
    (the footer/board pair live in katomia-board.css; these two live here) */
 body[data-kchat-mode="panel"] .kspec-ribbon,
 body[data-kchat-mode="panel"] .knarr{ right: var(--kchat-clear-r, 0px); }
+/* R4: the board's own bottom bars belong to the BOARD — on the mobile square carve
+   they ride up to the foot of the board, with the message dock below them
+   (board → board footer → messages). The narrate strip measures and stacks on them,
+   so it follows for free. */
+body[data-kchat-mode="panel"] .kspec-ribbon{ bottom: var(--kchat-clear-b, 0px); }
+/* the hamburger dropdown eases in — no snap (user 2026-08-03: "keep the flow of the
+   screen smooth"; a funkier treatment may replace it later) */
+.app-menu:not(.hidden){ animation: kmenu-in .16s ease-out; }
+@keyframes kmenu-in{ from{ opacity:0; transform:translateY(-6px); } to{ opacity:1; transform:none; } }
 body[data-kchat-mode="panel"] .kaud{ left: calc((100vw - var(--kchat-clear-r, 0px)) / 2); }
 /* the send box (BOARD-CHATSEND1): one line, plain — type or dictate, hit send */
 .kchat-send{

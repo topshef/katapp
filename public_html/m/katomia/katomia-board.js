@@ -634,8 +634,11 @@ function boardShowResult(txid, ok){
     // keeps the TOASTLINK2 toast (txid as the HashScan link, wrap via detail).
     if(typeof boardChatMode !== "undefined" && boardChatMode === "panel" && window.katomiaChat?.system)
       window.katomiaChat.system(
-        (ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired") + ` · ${txid}`,
-        { link: link?.href || null })
+        // EMOJI SEMANTICS (user 2026-08-03): ✅ tick = consensus reached; an expired/
+        // failed tx never made the chain, so NO square there — ⌛. The txid itself is
+        // the clickable link (linkText), not a tiny arrow after it.
+        ok ? "✅ Transaction successful" : `⌛ Transaction failed or expired · ${txid}`,
+        { link: link?.href || null, linkText: ok ? txid : null })
     else
       notify(ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired",
         ok ? "success" : "error",
@@ -1147,8 +1150,16 @@ function renderRingBoard(root){
   const rc = Math.max(24, Math.min(W, H) * 0.045)          // center pivot
   // basket oval — capped so east/west segments keep ≥ ~95px of available-space
   // outside it (portrait phones squeezed chips across the line otherwise)
-  const rx = Math.max(92, Math.min(W * 0.30, W / 2 - 95))
-  const ry = Math.max(100, Math.min(H * 0.27, H / 2 - 120))
+  let rx = Math.max(92, Math.min(W * 0.30, W / 2 - 95))
+  let ry = Math.max(100, Math.min(H * 0.27, H / 2 - 120))
+  // CIRCLE LOCK (user 2026-08-03): in panel mode the ring is a true CIRCLE — "we're
+  // calling these circles; an oval breaks that a little". The oval geometry stays
+  // fully wired (bubbles mode keeps it, and it once flushed out a real bug) — a nerd
+  // setting can re-expose elongation later (BOARD-CHATLAYOUT1).
+  if(typeof boardChatMode !== "undefined" && boardChatMode === "panel"){
+    const rr = Math.min(rx, ry)
+    rx = ry = rr
+  }
 
   const rad = deg => deg * Math.PI / 180
   const ovalR = a => (rx * ry) / Math.hypot(ry * Math.cos(a), rx * Math.sin(a))
@@ -4264,11 +4275,14 @@ function boardRenderNarrate(){
     host.appendChild(strip)
   }
 
-  // sit on top of the visible bottom bar (ribbon beats footer when both exist)
+  // sit on top of the visible bottom bar (ribbon beats footer when both exist).
+  // R4: MEASURE the bar's actual top rather than assuming it's viewport-bottom-
+  // anchored — in panel mode the bars ride up to the foot of the board
+  // (--kchat-clear-b) and the height-only math parked this strip inside the dock.
   const bar = document.querySelector("body.spectating .kspec-ribbon") ||
               document.querySelector(".ring-footer")
-  const h = bar ? bar.getBoundingClientRect().height : 0
-  strip.style.bottom = h + "px"
+  const barTop = bar ? bar.getBoundingClientRect().top : innerHeight
+  strip.style.bottom = Math.max(0, innerHeight - barTop) + "px"
 
   // Rebuild only when the payload changes — this runs on every paint, and the strip
   // animates via CSS on the --on class flip, which a full rebuild would defeat.
@@ -4722,14 +4736,32 @@ function ringFelt(segs, g){
   const segLabels = seg => fadeWrap((seg?.wclip && labelClipG) ? labelClipG : (labels || svg), seg)
   const _deferredSignArcs = []   // signing arcs render after the focus shade (lights over darkness)
 
-  const mkLine = (a, r0, r1, cls, layer = svg) => {
+  const mkLine = (a, r0, r1, cls, layer = svg, tint = null) => {
     const line = document.createElementNS(NS, "line")
     line.setAttribute("x1", g.cx + r0 * Math.cos(a))
     line.setAttribute("y1", g.cy + r0 * Math.sin(a))
     line.setAttribute("x2", g.cx + r1 * Math.cos(a))
     line.setAttribute("y2", g.cy + r1 * Math.sin(a))
     line.setAttribute("class", cls)
+    if(tint) line.style.stroke = tint   // inline style — presentation attrs lose to the class CSS
     layer.appendChild(line)
+  }
+
+  // BOARD-DIVIDERTINT1 (user 2026-08-03, invited judgment — the subtle version): flat
+  // grey boundaries read artificial against coloured felts. Each boundary now carries
+  // a whisper of its two neighbours — their wash colours averaged, pulled ~⅔ of the
+  // way back toward the old neutral (#cfc6b2) and nudged darker, like two felts
+  // overlapping. A boundary WITHIN one player's run therefore reads as a darker shade
+  // of their own colour; a boundary BETWEEN players blends the pair — a quiet tonal
+  // distinction, deliberately shy of a "third hue" (the BOARD-ARCLANG1 lesson). Lock
+  // arcs keep their status colours untouched (user: don't vary those per player).
+  const ringDividerTint = (c1, c2) => {
+    const px = h => (typeof h === "string" && /^#[0-9a-fA-F]{6}$/.test(h)) ? [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)) : null
+    const a = px(c1), b = px(c2)
+    if(!a || !b) return null
+    const base = [0xcf, 0xc6, 0xb2]
+    const out = a.map((v, i) => Math.round((base[i] * .62 + ((v + b[i]) / 2) * .38) * .93))
+    return `rgb(${out[0]},${out[1]},${out[2]})`
   }
 
   segs.forEach((seg, i) => {
@@ -4742,12 +4774,15 @@ function ringFelt(segs, g){
     // stores. Inside the circle it stays a light boundary (all baskets are
     // droppable — no wall through them).
     const prev = segs[(i + segs.length - 1) % segs.length]
+    const tint = segs.length > 1
+      ? ringDividerTint(getPlayerColour(seg.account.playerId), getPlayerColour(prev.account.playerId))
+      : null
     if(ring8() && segs.length > 1 && (seg.mine !== prev.mine)){
       const rOvalHere = (g.rx * g.ry) / Math.hypot(g.ry * Math.cos(a), g.rx * Math.sin(a))
-      mkLine(a, g.rc, rOvalHere, "ring-boundary", segBase(seg))
-      mkLine(a, rOvalHere, rE, "ring-divider", segBase(seg))
+      mkLine(a, g.rc, rOvalHere, "ring-boundary", segBase(seg), tint)
+      mkLine(a, rOvalHere, rE, "ring-divider", segBase(seg), tint)
     } else {
-      mkLine(a, g.rc, rE, "ring-boundary", segBase(seg))
+      mkLine(a, g.rc, rE, "ring-boundary", segBase(seg), tint)
     }
   })
 
