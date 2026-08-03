@@ -4765,6 +4765,15 @@ function ringFelt(segs, g){
       // dark shadow covering the store". Deferred and appended after the
       // shade below; plain lock arcs keep the normal (base) layering.
       if(seg.sign) _deferredSignArcs.push({ arc, seg })
+      // LOCKED arcs join the TOP layer on the dimming skins (user 2026-08-03, w/
+      // screenshot): the lock dim (ring-storedim, z6) paints over the store INCLUDING
+      // the outer half of a base-layer arc — that was the lingering "two-tone orange"
+      // (light inner / dark outer), the same family of artefact the v16 CSS rounds
+      // killed for opacity. The orange must SIT ON TOP: one solid tone, same
+      // thickness as the neighbouring strip. Dim appends before arcs in this same
+      // pass, so the arc lands above it. Tap-to-unlock unaffected — pointer-events:
+      // stroke is per-element and both felt svgs are pointer-events:none containers.
+      else if(locked && (boardSkin === "ring7" || ring8())) segTop(seg).appendChild(arc)
       else segBase(seg).appendChild(arc)
     })
   } else {
