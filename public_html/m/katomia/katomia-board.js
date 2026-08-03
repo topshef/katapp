@@ -1446,10 +1446,14 @@ function renderRingBoard(root){
       // BOARD-PHYSICS1: no more endpoint solves — during the party tween these
       // zones carry the per-frame interpolated angles, and the sim's bodies
       // simply follow the moving walls (the wedge clip above covers the squeeze)
+      // halfDegFull (user 2026-08-03, BOARD-COUNTER1 R2): the segment's TRUE half
+      // width, divider to divider — drawing only. The physics keep the shaved,
+      // ±80°-clamped halfDeg; the counter band uses this so adjacent arcs butt up.
+      const halfDegFull = (a1 - a0) / 2
       _boardOrganicZones.push(
-        { chips: basketChips, midDeg, halfDeg, rMin: rc + 10, rMax: rOval - 6,
+        { chips: basketChips, midDeg, halfDeg, halfDegFull, rMin: rc + 10, rMax: rOval - 6,
           key: account.id + "|basket" },
-        { chips: storeChips, midDeg, halfDeg, rMin: rOval + 8, rMax: Math.max(rOval + 40, rEdge - 14),
+        { chips: storeChips, midDeg, halfDeg, halfDegFull, rMin: rOval + 8, rMax: Math.max(rOval + 40, rEdge - 14),
           key: account.id + "|store" })
       return
     }
@@ -2372,7 +2376,10 @@ function boardDrawCounterShade(){
     const rgb = boardHexToRgb(getPlayerColour(playerId)) || [153, 153, 153]
     const mix = k => rgb.map((v, i) => Math.round(v * (1 - k) + dark[i] * k)).join(",")
     const band = z.band || 52
-    const half = Math.min(z.halfDeg, 80)
+    // R2 (user 2026-08-03): full divider-to-divider sweep — the physics' shaved,
+    // ±80°-clamped half left a visible gap between adjacent counters (huge with
+    // two players, where 90° of arc fell to the clamp). Drawing only.
+    const half = z.halfDegFull || Math.min(z.halfDeg, 80)
     const steps = 24
     const pts = []
     for(let i = 0; i <= steps; i++){
@@ -2544,6 +2551,7 @@ function boardOrganicApply(cx, cy, W, H, oval){
     zrec.midRad = midRad   // oval-true walls evaluate rim/edge at absolute angles
     zrec.cos = Math.cos(midRad); zrec.sin = Math.sin(midRad)
     zrec.halfDeg = z.halfDeg
+    zrec.halfDegFull = z.halfDegFull || z.halfDeg   // drawing-only, see BOARD-COUNTER1 R2
     zrec.tanHalf = Math.tan(Math.min(z.halfDeg, 80) * Math.PI / 180)
     zrec.rMin = z.rMin; zrec.rMax = z.rMax
     zrec.isBasket = /\|basket$/.test(z.key)
