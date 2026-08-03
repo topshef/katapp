@@ -125,13 +125,26 @@ body.board-page .app-banner h2{ display: none; }
    The hub K already carries the brand. */
 @media (max-width: 600px){ .board-brandmark{ display: none; } }
 
-/* a new chat message pulses the speaker's avatar — alive-but-brief (BOARD-CHATMODE1) */
+/* a new chat message pulses the speaker's avatar — R2 (user 2026-08-03): GENTLE, over
+   ~1.4s ("could even be over a second"), smaller swell; the repaint-survival window in
+   ringAvatar stops it reading as a flick when broadcasts land mid-pulse. */
 .ring-avatar--pulse{
-  animation: ring-avpulse .9s ease;
+  animation: ring-avpulse 1.4s ease-in-out;
   transform-box: fill-box;
   transform-origin: center;
 }
-@keyframes ring-avpulse{ 0%,100%{ transform: scale(1); } 30%{ transform: scale(1.22); } }
+@keyframes ring-avpulse{ 0%,100%{ transform: scale(1); } 45%{ transform: scale(1.12); } }
+/* the hub K swells the same way when KATOMIA (the system) speaks in the stream */
+.ring-hub--pulse{ animation: ring-hubpulse 1.4s ease-in-out; }
+@keyframes ring-hubpulse{ 0%,100%{ transform: scale(1); } 45%{ transform: scale(1.1); } }
+
+/* BOARD-CHATMODE1 R3 (user 2026-08-03): in panel mode the whole BOARD COLUMN — footer,
+   progress strip, ribbon, banner, counters, toasts — shrinks/centres to the board's
+   width, so the side panel reads as its own thing ("almost as if it was outside the
+   window"). --kchat-clear-r is 0 whenever the dock is off or at the bottom. */
+body[data-kchat-mode="panel"] .ring-footer{ right: var(--kchat-clear-r, 0px); }
+body[data-kchat-mode="panel"] #boardBanner{ left: calc((100vw - var(--kchat-clear-r, 0px)) / 2); }
+body[data-kchat-mode="panel"] #notifications{ left: calc((100vw - var(--kchat-clear-r, 0px)) / 2); }
 
 body.board-page .app-banner{
   position: relative;

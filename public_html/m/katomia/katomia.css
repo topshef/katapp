@@ -2607,6 +2607,33 @@ body.nerd .profile-nerd-only{ display:block; }
   padding-top:52px;   /* clear the transparent header strip (hamburger) */
 }
 body[data-kchat-mode="panel"] .kchat-panel{ display:none !important; }  /* the dock replaces the floating panel */
+/* panel mode: bottom bars + centred chrome follow the BOARD column, not the viewport
+   (the footer/board pair live in katomia-board.css; these two live here) */
+body[data-kchat-mode="panel"] .kspec-ribbon,
+body[data-kchat-mode="panel"] .knarr{ right: var(--kchat-clear-r, 0px); }
+body[data-kchat-mode="panel"] .kaud{ left: calc((100vw - var(--kchat-clear-r, 0px)) / 2); }
+/* the send box (BOARD-CHATSEND1): one line, plain — type or dictate, hit send */
+.kchat-send{
+  display:flex; gap:6px; flex:none; padding:6px 2px 8px; border-top:1px solid rgba(20,28,45,.1);
+}
+.kchat-send input{
+  flex:1; min-width:0; font-size:13px; padding:7px 10px; border-radius:9px;
+  border:1px solid rgba(20,28,45,.18); background:rgba(255,255,255,.9); color:#1f2733;
+}
+.kchat-send button{
+  flex:none; border:none; border-radius:9px; padding:0 13px; font-size:15px;
+  background:#2f6fed; color:#fff; cursor:pointer;
+}
+.kchat-send button:disabled{ opacity:.4; cursor:default; }
+body.spectating .kchat-send{ display:none; }   /* watchers can't message — server enforces too */
+/* system entries — 🤖 Katomia announcing (toasts folded into the stream) */
+.kchat-row--sys .kchat-row-bar{ background:#c9b458; }
+.kchat-row--sys b{ color:#8a7a3f; }
+.kchat-sys-emoji{ font-size:15px; line-height:1; margin-top:1px; flex:none; }
+.kchat-row--sys a{ color:#2f6fed; overflow-wrap:anywhere; }
+@media (prefers-color-scheme: dark){
+  .kchat-send input{ background:rgba(30,38,50,.9); color:#e7ecf4; border-color:rgba(255,255,255,.16); }
+}
 @media (prefers-color-scheme: dark){
   .kchat-dock{ background:rgba(22,28,38,.9); border-top-color:rgba(255,255,255,.12); }
   .kchat-dock--side{ border-left-color:rgba(255,255,255,.12); }

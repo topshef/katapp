@@ -61,6 +61,17 @@
 				return
 			}
 
+			// BOARD-CHATMODE1 R3 (user 2026-08-03): with the message panel on, every toast
+			// ALSO lands in the stream as a 🤖 Katomia entry — "so and so joined", refusals,
+			// all system talk in one place. New toasts only (this sits below the dupe path,
+			// so coalescing bursts can't spam the stream). Toasts themselves stay for now —
+			// they're still the only surface in bubbles mode — cull later.
+			try {
+				if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system)
+					window.katomiaChat.system(`${icon} ${message}`.trim() + (opts.detail ? ` · ${opts.detail}` : ""),
+						{ link: opts.link?.href || null })
+			} catch {}
+
 			const el = document.createElement("div")
 			el.className = `notice ${type}`
 			el.dataset.key = key

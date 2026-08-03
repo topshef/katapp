@@ -38,6 +38,12 @@
   var MAX_LOG = 80;
   var seen = new Set();    // chat ids already animated in — state.chat resends everything
   var live = [];           // { id, playerId, el, until }
+  // BOARD-CHATMODE1 R3 (user 2026-08-03): system/toast announcements folded into the
+  // stream as "🤖 Katomia" entries — LOCAL only (not in state.chat, not broadcast),
+  // merged into the render by timestamp. Toasts still show alongside for now except
+  // the tx verdict, which lives only here in panel mode.
+  var systemMsgs = [];
+  var _sysN = 0;
   var booted = false;
   var logOpen = false;
   var lastCount = 0;
@@ -117,15 +123,33 @@
   function bubblesAllowed() { return chatMode() !== "panel" && !logOpen; }
 
   // A new message pulses the speaker's board avatar (scale up, settle back) — the
-  // "someone is talking" cue that survives whichever chat surface is active.
+  // "someone is talking" cue that survives whichever chat surface is active. The
+  // window in _kavPulse lets ringAvatar re-join the pulse after a repaint (the felt
+  // repaints per broadcast, which used to kill the animation and read as a flick).
   function pulseAvatar(playerId) {
     if (!playerId) return;
+    window._kavPulse = window._kavPulse || {};
+    window._kavPulse[playerId] = Date.now() + 1400;
     var sel = '.ring-avatar[data-player-id="' + (window.CSS && CSS.escape ? CSS.escape(playerId) : playerId) + '"]';
     document.querySelectorAll(sel).forEach(function (g) {
       g.classList.remove("ring-avatar--pulse");
       void g.getBoundingClientRect();
       g.classList.add("ring-avatar--pulse");
     });
+  }
+
+  // Katomia (the system) speaking: entry into the stream + the hub K swells.
+  function system(text, opts) {
+    systemMsgs.push({ id: "sys" + (++_sysN), ts: Date.now(), text: String(text || ""), link: (opts && opts.link) || null, system: true });
+    if (systemMsgs.length > 100) systemMsgs.shift();
+    var hub = document.querySelector(".ring-hub");
+    if (hub) {
+      hub.classList.remove("ring-hub--pulse");
+      void hub.offsetWidth;
+      hub.classList.add("ring-hub--pulse");
+    }
+    var st = (typeof state !== "undefined" && state) || null;
+    renderLog((st && Array.isArray(st.chat)) ? st.chat : []);
   }
 
   /* The mobile dock — a bottom strip of scrolling chat above the footer/ribbon.
@@ -139,7 +163,27 @@
       d = document.createElement("div");
       d.id = "boardChatDock";
       d.className = "kchat-dock";
-      d.innerHTML = '<div class="kchat-dock-list"></div>';
+      // BOARD-CHATSEND1 (user 2026-08-03): the first in-game chat input — plain text,
+      // broadcast to the group (game_chat, the same action the demo bots use). WHO MAY
+      // SEND is the server's call and is already enforced there: spectators get the
+      // action-refused message; being an eligible PLAYER is enough (no account needs
+      // adding — "get permission to play, don't add the account, and commentate").
+      // @mention bumping is logged on BOARD-CHATLAYOUT1, not built.
+      d.innerHTML = '<div class="kchat-dock-list"></div>'
+        + '<form class="kchat-send" autocomplete="off">'
+        + '<input type="text" maxlength="280" placeholder="Message the table…" aria-label="Message">'
+        + '<button type="submit" title="Send">➤</button></form>';
+      d.querySelector(".kchat-send").addEventListener("submit", function (e) {
+        e.preventDefault();
+        var inp = d.querySelector(".kchat-send input");
+        var text = (inp.value || "").trim();
+        if (!text) return;
+        var gid = (typeof gameId !== "undefined" && gameId) || (typeof getGameId === "function" ? getGameId() : null);
+        var sk = (typeof socket !== "undefined" && socket) || null;
+        if (!gid || !sk || sk.readyState !== 1) return;
+        sk.send(JSON.stringify({ type: "game_chat", gameId: gid, text: text }));
+        inp.value = "";
+      });
       document.body.appendChild(d);
     }
     // R2 (user 2026-08-03, seeing v1 live): the dock is a SIDE panel on landscape —
@@ -203,6 +247,9 @@
   }
 
   function renderLog(chat) {
+    // system entries ride along, ordered by time
+    if (systemMsgs.length)
+      chat = chat.concat(systemMsgs).sort(function (a, b) { return new Date(a.ts) - new Date(b.ts); });
     var p = panel();
     var count = p && p.querySelector(".kchat-panel-count");
     if (count) count.textContent = chat.length ? String(chat.length) : "";
@@ -232,19 +279,26 @@
       // colour (the fruit emoji is gone from display names everywhere), then bold
       // name + time + the text INLINE, wrapping — compact, chat-app familiar.
       var row = document.createElement("div");
-      row.className = "kchat-row";
-      var c = colourFor(m.playerId);
+      row.className = "kchat-row" + (m.system ? " kchat-row--sys" : "");
+      var c = m.system ? null : colourFor(m.playerId);
       var t = new Date(m.ts);
       var hh = String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0");
       var bar = document.createElement("span");
       bar.className = "kchat-row-bar";
       if (c) bar.style.background = c;
       row.appendChild(bar);
-      if (typeof kemojiEl === "function") row.appendChild(kemojiEl(avatarKey(m.playerId), { size: 16, bg: c }));
+      if (m.system) {
+        var bot = document.createElement("span");
+        bot.className = "kchat-sys-emoji";
+        bot.textContent = "🤖";
+        row.appendChild(bot);
+      } else if (typeof kemojiEl === "function") {
+        row.appendChild(kemojiEl(avatarKey(m.playerId), { size: 16, bg: c }));
+      }
       var main = document.createElement("span");
       main.className = "kchat-row-main";
       var nm = document.createElement("b");
-      nm.textContent = displayName(m);
+      nm.textContent = m.system ? "Katomia" : displayName(m);
       var tm = document.createElement("i");
       tm.textContent = hh;
       var tx = document.createElement("span");
@@ -257,6 +311,12 @@
         nm.appendChild(to);
       }
       main.append(nm, " ", tm, " ", tx);
+      if (m.system && m.link) {
+        var a2 = document.createElement("a");
+        a2.href = m.link; a2.target = "_blank"; a2.rel = "noopener noreferrer";
+        a2.textContent = "↗";
+        main.append(" ", a2);
+      }
       row.appendChild(main);
       list.appendChild(row);
     });
@@ -641,6 +701,7 @@
     render: boardRenderChat,
     reposition: reposition,
     setMode: setMode,
+    system: system,
     get live() { return live.length; },
     openLog: function (on) {
       logOpen = on !== false;

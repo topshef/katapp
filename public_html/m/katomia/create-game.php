@@ -224,10 +224,10 @@ h3{
     <label>🎨 Theme</label>
     <p class="explain">Sets the colours players are dealt. More theming to come.</p>
     <select id="gameTheme">
-      <option value="" selected>Classic (default)</option>
+      <option value="" selected>🌌 Nebula (default)</option>
+      <option value="classic">🎩 Classic — soft, subdued</option>
       <option value="botanical">🌿 Botanical — natural, muted</option>
       <option value="gemstone">💎 Gemstone — rich, jewel tones</option>
-      <option value="nebula">🌌 Nebula — spacey blues &amp; violets</option>
       <option value="harvest">🌾 Harvest — countryside warmth</option>
     </select>
   </div>

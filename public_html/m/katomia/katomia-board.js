@@ -628,15 +628,18 @@ function boardShowResult(txid, ok){
       ? { href: `https://hashscan.io/${net}/transaction/${encodeURIComponent(txid)}`,
           text: `${txid} ↗` }
       : null
-    // MERGE 2026-08-03 (lab1's TOASTLINK2 × kswap's wrap fix): the txid stays the LINK
-    // text on success (TOASTLINK2, user 2026-08-01) — and the CSS now lets that link
-    // wrap under the message when the row runs out of room (user 2026-08-03: two lines
-    // on mobile, one on desktop). On the unhappy path there is no link, so the txid
-    // rides as opts.detail — the wrappable inline span. Explicit key kept: with the
-    // txid out of the message, distinct successes would otherwise coalesce.
-    notify(ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired",
-      ok ? "success" : "error",
-      { timeout: 0, link, key: `txresult:${txid}`, ...(link ? {} : { detail: txid }) })
+    // BOARD-CHATMODE1 R3 (user 2026-08-03): with the message panel on (the default),
+    // the verdict lives IN THE STREAM as a Katomia system entry — the toast version
+    // wrapped awkwardly and duplicates what the stream carries better. Bubbles mode
+    // keeps the TOASTLINK2 toast (txid as the HashScan link, wrap via detail).
+    if(typeof boardChatMode !== "undefined" && boardChatMode === "panel" && window.katomiaChat?.system)
+      window.katomiaChat.system(
+        (ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired") + ` · ${txid}`,
+        { link: link?.href || null })
+    else
+      notify(ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired",
+        ok ? "success" : "error",
+        { timeout: 0, link, key: `txresult:${txid}`, ...(link ? {} : { detail: txid }) })
   } catch {}
 }
 
@@ -5175,10 +5178,9 @@ function ringAvatar(seg, g, NS){
     const rt = (irx * iry) / Math.hypot(iry * Math.cos(am), irx * Math.sin(am))
     x = g.cx + rt * Math.cos(am)
     y = g.cy + rt * Math.sin(am)
-    // rotate with the arc, hemisphere-flipped so the face is never upside down —
-    // same orientation rule as the coin lettering
-    const amDeg = ((am * 180 / Math.PI) % 360 + 360) % 360
-    rot = Math.sin(am) > 0 ? amDeg - 90 : amDeg + 90
+    // R4 (user 2026-08-03): UPRIGHT, no arc rotation — the ids rotate only because
+    // text wouldn't fit along the arc otherwise; a circular face fits fine, and the
+    // rotation was suspected in animation weirdness. rot stays 0.
   }
   _boardAvatarPts[seg.account.id] = { x, y }
   const key = typeof katomiaAvatarKey === "function" ? katomiaAvatarKey(seg.account.playerId) : seg.account.playerId
@@ -5191,6 +5193,10 @@ function ringAvatar(seg, g, NS){
   wrap.setAttribute("class", "ring-avatar")
   wrap.dataset.playerId = seg.account.playerId || ""   // chat pulses the speaker's face
   if(rot) wrap.setAttribute("transform", `rotate(${rot.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})`)
+  // pulse survival: the felt repaints on every broadcast, which used to KILL the pulse
+  // animation mid-flight (user: "it seems like it's just flicking") — a fresh element
+  // re-joins the pulse while the speaker's window (set by katomia-chat) is open
+  if((window._kavPulse || {})[seg.account.playerId] > Date.now()) wrap.classList.add("ring-avatar--pulse")
   if(seg.weight != null && seg.weight < 1) wrap.setAttribute("opacity", seg.weight)
   // nested <svg> so the face keeps its own 0 0 256 256 viewBox at any size
   wrap.innerHTML = face.replace("<svg ", `<svg x="${x - size / 2}" y="${y - size / 2}" width="${size}" height="${size}" `)
