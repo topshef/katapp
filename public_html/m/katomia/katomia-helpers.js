@@ -39,12 +39,23 @@
 			// collapse into ONE toast that updates in place, instead of stacking dozens.
 			// A caller can force grouping via opts.key; otherwise identical text dedupes.
 			const om = /Order #(\d+)/.exec(message)
-			const key = opts.key || (om ? `${type}:order#${om[1]}` : `${type}:${message}`)
+			const key = opts.key || (om ? `${type}:order#${om[1]}` : `${type}:${message}:${opts.detail || ""}`)
+
+			// Toast detail (user 2026-08-03): long ids (tx ids) used to be glued into the
+			// message string, where they couldn't wrap — now an inline child span that drops
+			// to its own line only when the row runs out of room (mobile: two lines).
+			const addDetail = t => {
+				if(!opts.detail) return
+				const d = document.createElement("span")
+				d.className = "notice-detail"
+				d.textContent = opts.detail
+				t.appendChild(d)
+			}
 
 			const dupe = [...container.children].find(n => !n.classList.contains("fade-out") && n.dataset.key === key)
 			if(dupe){
 				const t = dupe.querySelector("span")
-				if(t) t.textContent = `${icon} ${message}`   // show the latest state
+				if(t){ t.textContent = `${icon} ${message}`; addDetail(t) }   // show the latest state
 				clearTimeout(dupe._timer)
 				if(timeout) dupe._timer = setTimeout(()=>removeNotice(dupe), timeout)
 				return
@@ -56,6 +67,7 @@
 
 			const text = document.createElement("span")
 			text.textContent = `${icon} ${message}`
+			addDetail(text)
 
 			const close = document.createElement("button")
 			close.textContent = "×"

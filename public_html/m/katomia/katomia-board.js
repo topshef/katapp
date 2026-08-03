@@ -611,8 +611,15 @@ function boardShowResult(txid, ok){
       ? { href: `https://hashscan.io/${net}/transaction/${encodeURIComponent(txid)}`,
           text: `${txid} ↗` }
       : null
-    notify((ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired") + (link ? " ·" : ` · ${txid}`),
-      ok ? "success" : "error", { timeout: 0, link, key: `txresult:${txid}` })
+    // MERGE 2026-08-03 (lab1's TOASTLINK2 × kswap's wrap fix): the txid stays the LINK
+    // text on success (TOASTLINK2, user 2026-08-01) — and the CSS now lets that link
+    // wrap under the message when the row runs out of room (user 2026-08-03: two lines
+    // on mobile, one on desktop). On the unhappy path there is no link, so the txid
+    // rides as opts.detail — the wrappable inline span. Explicit key kept: with the
+    // txid out of the message, distinct successes would otherwise coalesce.
+    notify(ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired",
+      ok ? "success" : "error",
+      { timeout: 0, link, key: `txresult:${txid}`, ...(link ? {} : { detail: txid }) })
   } catch {}
 }
 
@@ -923,7 +930,9 @@ function boardTightenChips(){
 function boardBrandmark(){
   const brand = document.createElement("div")
   brand.className = "board-brandmark"
-  brand.textContent = "KATOMIA"
+  // R2 (user 2026-08-03): "Katomia" — capital K only — and small (hamburger-height);
+  // the darkening treatment lives in the CSS.
+  brand.textContent = "Katomia"
   return brand
 }
 
@@ -1063,6 +1072,35 @@ function renderRingBoard(root){
   const reservedByAccount = boardReserved(accounts)   // SIGN-GHOSTPREVIEW1: signing-phase ghosts merged in
   const etched = ringEtched()
 
+  // BOARD-SEGANIM1 (user 2026-08-03): a player ARRIVING (or leaving) used to snap the
+  // ring from N to N+1 segments in a single paint. Reuse the party-toggle tween: when
+  // the account set changes between paints, interpolate from the previous paint's REAL
+  // slot layout to the new one — the newcomer's segment grows out of its seam (width
+  // from 0, which on a spectator board is the empty south point) while the others
+  // compress to make room. Departures shrink out the same way. The task's fuller
+  // choreography (my-run width reservation, explicit south-wedge birth) stays open —
+  // this is the arrive/leave slice. Known limit inherited from the toggle tween: a
+  // second membership change landing MID-tween snaps (entities are a snapshot).
+  if(!_boardPartyAnim && ring16()){
+    const ids = accounts.map(a => a.id).join("|")
+    if(_boardLastMemberIds != null && ids !== _boardLastMemberIds && _boardLastSlotLayout){
+      const newL = boardComputeSlotLayout(accounts)
+      const entities = boardMergeSlotLayouts(_boardLastSlotLayout, newL)
+      if(entities.some(en => Math.abs(en.wOld - en.wNew) > 0.01)){
+        _boardScrollCancel?.(); _boardScrollCancel = null; _boardOthersRotate = 0
+        _boardPartyCancel?.()
+        _boardPartyAnim = { entities, e: 0 }
+        boardDiag("board:memberanim:start", { count: accounts.length })
+        _boardPartyCancel = boardAnimate(550, (e, done) => {
+          if(_boardPartyAnim) _boardPartyAnim.e = e
+          if(done){ _boardPartyAnim = null; _boardPartyCancel = null; boardDiag("board:memberanim:end", {}) }
+          render()
+        })
+      }
+    }
+    _boardLastMemberIds = ids
+  }
+
   const W = root.clientWidth, H = root.clientHeight
   const cx = W / 2, cy = H / 2
   const rc = Math.max(24, Math.min(W, H) * 0.045)          // center pivot
@@ -1105,6 +1143,7 @@ function renderRingBoard(root){
     step = acctSlotCount ? (360 - dividerCount * BOARD_DIVIDER_DEG) / acctSlotCount : 360
     widths = slots.map(s => s.type === "divider" ? BOARD_DIVIDER_DEG : step)
     _boardLastStepDeg = step                           // wheel-scroll glide distance
+    _boardLastSlotLayout = { slots, widths, step }     // BOARD-SEGANIM1: arrival tween's "before"
   }
   const cumStart = []
   { let acc = 0; widths.forEach(w => { cumStart.push(acc); acc += w }) }
@@ -1283,6 +1322,12 @@ function renderRingBoard(root){
       x: geo.cx + (rOval + (rEdge - rOval) * 0.55) * Math.cos(am),
       y: geo.cy + (rOval + (rEdge - rOval) * 0.55) * Math.sin(am),
       am, mine, playerId: account.playerId,
+      // DEMO-NARRATE1 avatars (user 2026-08-03): where this account's avatar sits, so
+      // the speech-bubble tail can aim at the person. Written by ringAvatar() — felt
+      // may paint after this line, in which case these are last paint's coordinates,
+      // which is fine (they only move when the layout does, and the next paint's
+      // reposition() re-aims the tails anyway).
+      avx: _boardAvatarPts[account.id]?.x, avy: _boardAvatarPts[account.id]?.y,
     }
 
     if(ring16()){
@@ -2687,6 +2732,9 @@ function boardSectorPolygon(a0, a1, geo, steps = 6){
 // which is exactly the eating look).
 let _boardPartyAnim = null    // { accounts, removed:Set, added:Set, e }
 let _boardPartyCancel = null
+// BOARD-SEGANIM1: previous paint's membership + layout, so an arrival/leave can tween
+let _boardLastMemberIds = null
+let _boardLastSlotLayout = null
 
 // v2 (user 2026-07-12): v1 tweened raw account widths and BYPASSED the wheel
 // windowing — so over the segment cap, the divider wedges vanished at tap and
@@ -2723,6 +2771,11 @@ function boardTogglePartyOnly(v){
   _boardScrollCancel?.(); _boardScrollCancel = null; _boardOthersRotate = 0
   _boardPartyCancel?.()
   _boardPartyAnim = { entities, e: 0 }
+  // BOARD-SEGANIM1: sync the membership tween's baseline to the post-toggle world, or
+  // the first paint after this tween ends would see "changed ids" against a stale
+  // layout and replay the whole toggle as a second, bogus animation.
+  _boardLastMemberIds = boardFilteredAccounts().map(a => a.id).join("|")
+  _boardLastSlotLayout = newL
   // animation forensics (user 2026-07-12): the full entity plan up front +
   // a completion marker, so a quoted ktag window shows exactly which slots
   // were collapsing/expanding and to what widths when a glitch was seen
@@ -4730,6 +4783,11 @@ function ringFelt(segs, g){
   // kept side by side with the etched label above per the user's ask.
   // Both label kinds route via segLabels → the z4 labels svg (under chips).
   if(g.etched) segs.forEach(seg => segLabels(seg).appendChild(ringHubCoinLabel(seg, g, NS)))
+  // DEMO-NARRATE1 use case 3 (user 2026-08-03): player avatars on the segments.
+  // MUST run after ringEtchLabel — it takes whichever boundary spoke the etched id
+  // did NOT take this paint (the id prefers the most horizontal; the avatar gets
+  // the more vertical one).
+  if(g.etched) segs.forEach(seg => { const av = ringAvatar(seg, g, NS); if(av) segLabels(seg).appendChild(av) })
 
   if(ring11()){
     // v11 (review 10): party + identity cues moved to the HUB's doorstep —
@@ -4936,6 +4994,40 @@ function ringStoreZonePath(seg, g){
 // colour. ring2: written along the segment's most-horizontal boundary line
 // (nudged into the segment); ring3: horizontal at the outer zone's centroid.
 const _boardEtchSide = new Map()   // account id → which boundary its etched id last wrote along (hysteresis)
+const _boardAvatarPts = {}         // account id → {x,y} of its avatar (chat tails aim here); persists across paints deliberately
+
+// DEMO-NARRATE1 use case 3 (user 2026-08-03): the player's generated avatar — the
+// order page's identity mark (kemoji) — sits ON the segment, on the boundary spoke
+// OPPOSITE the etched account id. The id takes the most horizontal spoke
+// (_boardEtchSide, set by ringEtchLabel — call this AFTER it), so the avatar gets the
+// more vertical one, and the two never fight over the same corner. Speech bubbles aim
+// their tails at the recorded point. Placement may move after a first look — this is
+// the "let's try that" position.
+function ringAvatar(seg, g, NS){
+  if(typeof _keFaceSvg !== "function" || typeof kemojiBytesForKey !== "function") return null
+  const otherDeg = _boardEtchSide.get(seg.account.id) === "a0" ? seg.a1 : seg.a0
+  const ab = g.rad(otherDeg)
+  const size = Math.max(26, Math.min(40, ringLabelFontSize(g) * 1.7))
+  const rt = Math.max(g.ovalR(ab) + size * 0.6,
+    Math.min((g.ovalR(ab) + g.edgeR(ab)) / 2, g.edgeR(ab) - size * 0.7))
+  // perpendicular nudge INTO the segment — same convention as the etch label
+  const inwardSign = otherDeg === seg.a0 ? 1 : -1
+  const perp = ab + Math.PI / 2
+  const x = g.cx + rt * Math.cos(ab) + inwardSign * size * 0.62 * Math.cos(perp)
+  const y = g.cy + rt * Math.sin(ab) + inwardSign * size * 0.62 * Math.sin(perp)
+  _boardAvatarPts[seg.account.id] = { x, y }
+  const key = typeof katomiaAvatarKey === "function" ? katomiaAvatarKey(seg.account.playerId) : seg.account.playerId
+  // face string cached — this runs every paint, including tween frames
+  let face = _boardAvatarFaces.get(key)
+  if(!face){ face = _keFaceSvg(kemojiBytesForKey(key), String(key || "").slice(-12), "circle"); _boardAvatarFaces.set(key, face) }
+  const wrap = document.createElementNS(NS, "g")
+  wrap.setAttribute("class", "ring-avatar")
+  if(seg.weight != null && seg.weight < 1) wrap.setAttribute("opacity", seg.weight)
+  // nested <svg> so the face keeps its own 0 0 256 256 viewBox at any size
+  wrap.innerHTML = face.replace("<svg ", `<svg x="${x - size / 2}" y="${y - size / 2}" width="${size}" height="${size}" `)
+  return wrap
+}
+const _boardAvatarFaces = new Map()
 
 // shared by ringEtchLabel + ringHubCoinLabel (BOARD-IDCOIN1)
 function ringLabelFontSize(g){
