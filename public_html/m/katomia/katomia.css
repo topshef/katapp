@@ -2588,6 +2588,7 @@ body.nerd .profile-nerd-only{ display:block; }
    into the stream and a send box is BOARD-CHATLAYOUT1. */
 .kchat-dock{
   position:fixed; left:0; right:0; bottom:0; z-index:25;
+  box-sizing:border-box;   /* height:var(--kchat-clear-b) must mean TOTAL height, padding in */
   height:min(30dvh, 240px);
   padding:4px 8px 2px;
   overflow:hidden; display:flex; flex-direction:column;
