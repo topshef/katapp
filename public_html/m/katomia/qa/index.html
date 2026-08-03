@@ -21,6 +21,12 @@
 </head>
 <body>
 
+<!-- QA-PUBLICSPLIT1 (user 2026-08-03): this page is now linked from the app's hamburger
+     menu under nerd mode, i.e. effectively PUBLIC. Nothing here is gated yet — if parts
+     of the QA layer turn out to need an internal/external split (e.g. raw kflow-admin
+     links, seat internals), do a deliberate pass: layer the page into public + internal
+     sections and filter, rather than ad-hoc hiding. Tracked in katomia task
+     QA-PUBLICSPLIT1. -->
 <h1>Katomia QA</h1>
 <p class="note">The QA tool embedded in the app (task <b>QA-UXGRID1</b>). Three layers: <b>documentation</b> explains the
 process (static-ish), <b>configuration</b> defines what we test (slow-moving, git change-controlled JSON), <b>results</b>

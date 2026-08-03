@@ -708,6 +708,17 @@
 }
 .notice-link:hover{ opacity:1; }
 
+/* Toast detail (user 2026-08-03): long ids (tx ids) ride in their own inline span so
+   they can wrap onto a second line when the row runs out of room (mobile), instead of
+   forcing the message and id side by side. min-width:0 lets the flexed text span wrap. */
+.notice > span{ min-width:0; }
+.notice-detail{
+  overflow-wrap:anywhere;
+  margin-left:.45em;
+  opacity:.85;
+  font-size:.93em;
+}
+
 .notice.error{
   background:#F8D7DA;
   color:#842029;
@@ -2475,17 +2486,40 @@ body.nerd .profile-nerd-only{ display:block; }
 .kchat-bub--placed{ transform:scale(.9); }
 .kchat-bub--placed.kchat-bub--in{ transform:scale(1); }
 .kchat-bub--placed.kchat-bub--out{ transform:translateY(-8px) scale(.94); }
-/* the tail: a small square rotated 45°, tucked under the bubble. --kchat-tail is set by
-   JS to keep it pointing at the speaker even when the bubble has been clamped inward. */
+/* the tail: a small square rotated 45°, tucked under the bubble. --kchat-tail(/-taily)
+   is set by JS to slide it along the edge nearest the speaker's avatar, and
+   --kchat-tailrot angles the protruding corner to point AT the avatar (R3, user
+   2026-08-03). No data attribute = the original bottom-edge behaviour. */
 .kchat-bub::after{
   content:""; position:absolute; width:9px; height:9px; background:inherit;
   border-right:1px solid rgba(20,28,45,.1); border-bottom:1px solid rgba(20,28,45,.1);
-  bottom:-5px; left:var(--kchat-tail,22px); margin-left:-4px; transform:rotate(45deg);
+  bottom:-5px; left:var(--kchat-tail,22px); margin-left:-4px;
+  transform:rotate(var(--kchat-tailrot,45deg));
 }
+.kchat-bub[data-kchat-tail-edge="top"]::after{ bottom:auto; top:-5px; }
+.kchat-bub[data-kchat-tail-edge="left"]::after{
+  left:-5px; margin-left:0; bottom:auto; top:var(--kchat-taily,50%); margin-top:-4px;
+}
+.kchat-bub[data-kchat-tail-edge="right"]::after{
+  left:auto; right:-5px; margin-left:0; bottom:auto; top:var(--kchat-taily,50%); margin-top:-4px;
+}
+/* R3 (user 2026-08-03): the name is no longer WRITTEN in the player colour (too dark
+   against the glass) — it reads in the bubble's own text colour, with the colour moved
+   into a small vertical bar (same ownership cue as the chip sleeves) and the player's
+   generated avatar in place of the cast emoji. */
 .kchat-bub-who{
-  display:block; font-size:10.5px; font-weight:700; letter-spacing:.03em;
-  text-transform:uppercase; color:var(--kchat-accent); filter:saturate(1.5) brightness(.72);
-  margin-bottom:2px;
+  display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700;
+  letter-spacing:.03em; text-transform:uppercase; color:inherit; margin-bottom:2px;
+}
+.kchat-bub-bar{
+  width:4px; height:12px; border-radius:1px; flex:none;
+  background:var(--kchat-accent);
+}
+/* gentle early fade-out (user 2026-08-03): starts FADE_MS before expiry, total
+   lifetime unchanged — overrides the .3s opacity transition while it runs */
+.kchat-bub--in.kchat-bub--fading{
+  opacity:0;
+  transition:opacity 4.5s linear, transform .34s cubic-bezier(.22,1.2,.36,1);
 }
 .kchat-bub-text{ display:block; overflow-wrap:anywhere; }
 /* your own messages lean the other way so you can spot yourself instantly */
@@ -2672,8 +2706,11 @@ body.spectating .board-wedge{ pointer-events: none; }
    spectator ribbon so the two never collide, and stays out of the way of the board's
    own controls (the mistake the 💬 panel made on mobile). Shown to everyone, not just
    spectators — a live audience is part of what makes a demo feel live. */
+/* R2 (user 2026-08-03): moved off the board into the HEADER, centre — its own pill
+   between the brandmark (left) and the hamburger (right), where it never contests
+   the bubbles' space. z above the banner (70) so the transparent strip can't eat it. */
 .kaud{
-  position: fixed; top: 78px; right: 12px; z-index: 26;
+  position: fixed; top: 12px; left: 50%; right: auto; transform: translateX(-50%); z-index: 71;
   display: inline-flex; align-items: center; gap: 7px;
   padding: 5px 11px; border-radius: 999px; font-size: 12.5px; line-height: 1;
   background: rgba(255,255,255,.82); color: #3b4757;
@@ -2687,4 +2724,4 @@ body.spectating .board-wedge{ pointer-events: none; }
 @media (prefers-color-scheme: dark){
   .kaud{ background: rgba(22,28,38,.82); color: #dfe6f0; border-color: rgba(255,255,255,.14); }
 }
-@media (max-width: 600px){ .kaud{ top: 72px; right: 8px; font-size: 11.5px; padding: 4px 9px; } }
+@media (max-width: 600px){ .kaud{ top: 10px; font-size: 11.5px; padding: 4px 9px; } }

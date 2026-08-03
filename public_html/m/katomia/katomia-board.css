@@ -99,16 +99,19 @@ body.nerd hr.board-settings-nerd-only{ display: block; }
 body.board-page .app-banner h2{ display: none; }
 .board-brandmark{
   position: fixed;
-  top: 10px;
+  top: 12px;
   left: 16px;
   z-index: 4;                 /* under .ring-organic (z5), with the etched labels */
   font-family: 'Poppins', sans-serif;
-  font-size: 42px;
+  /* R2 (user 2026-08-03): small — no taller than the hamburger glyph — and it DARKENS
+     the felt rather than greying it: black at low opacity keeps the felt's own hue,
+     as if that patch of felt were simply in shadow. */
+  font-size: 24px;
   font-weight: 800;
-  letter-spacing: .12em;
+  letter-spacing: .1em;
   line-height: 1.1;
-  color: #888;
-  opacity: .30;               /* same etch strength as .ring-etchlabel */
+  color: #000;
+  opacity: .22;
   pointer-events: none;
   user-select: none;
 }

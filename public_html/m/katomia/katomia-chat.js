@@ -31,6 +31,10 @@
   "use strict";
 
   var BUBBLE_MS = 14000;   // how long a bubble stays up. Long: demo narration is the point.
+  // Gentler exit (user 2026-08-03): same TOTAL lifetime, but the fade starts this much
+  // before expiry and runs long, instead of the late .3s blink-out. Hard-coded for now —
+  // promote to the catrun/board config alongside BUBBLE_MS if demos want their own pacing.
+  var FADE_MS = 4500;
   var MAX_LOG = 80;
   var seen = new Set();    // chat ids already animated in — state.chat resends everything
   var live = [];           // { id, playerId, el, until }
@@ -79,6 +83,23 @@
   function who(msg) {
     return msg.playerName || ("player " + String(msg.playerId || "?").slice(0, 6));
   }
+
+  // Bubble display name (user 2026-08-03): the cast emoji that leads demo names is
+  // replaced in the bubble by the player's generated avatar, so strip any leading
+  // pictographs here. The transcript panel keeps the full name untouched.
+  function displayName(msg) {
+    return who(msg).replace(/^(?:[\p{Extended_Pictographic}️‍]|\s)+/u, "") || who(msg);
+  }
+
+  // One identity key for avatar faces, shared with the board's segment avatars —
+  // pubkey when the player has one (matches the order page), else the player id.
+  function avatarKey(playerId) {
+    try {
+      var p = (typeof state !== "undefined" && state && state.players) ? state.players[playerId] : null;
+      return (p && (p.intentPublicKey || p.pubkeyHex)) || playerId;
+    } catch (e) { return playerId; }
+  }
+  window.katomiaAvatarKey = avatarKey;
 
   function colourFor(playerId) {
     // Reuse the board's own player colours so a bubble matches its wedge. If the board
@@ -252,7 +273,7 @@
     return box;
   }
 
-  function place(el, a, obs) {
+  function place(el, a, obs, same) {
     // Bubbles sit outside the oval at the speaker's angle. With only two players the
     // wedge midpoints land at 3 and 9 o'clock, i.e. hard against the board edges — so
     // the anchor alone is not enough: a 270px bubble centred on x=99 hangs 36px off
@@ -286,10 +307,11 @@
     var t = Math.max(topGuard, Math.min(wantT, o.y + o.h - ht - PAD));
 
     // BOARD-CHAT2: step outward off any chip (and off bubbles already placed this
-    // pass). Skipped when there is genuinely nowhere to go — on a phone the board
-    // fills the viewport and pushing out would only fight the clamp, so the bubble
-    // stays exactly where it used to be. Degrades to the old behaviour by design.
-    if (obs && obs.length && o.w > 620) {
+    // pass). R3 (user 2026-08-03): the <620px skip is GONE — on a phone, opposite
+    // players' bubbles land side by side and overlap, which is worse than a bounded
+    // nudge fighting the clamp. pushClear keeps the best position it finds, so when
+    // there is genuinely no room the bubble stays put and overlap is accepted.
+    if (obs && obs.length) {
       var bounds = { l: o.x + PAD, r: o.x + o.w - PAD, t: topGuard, b: o.y + o.h - PAD };
       var box = pushClear({ l: l, t: t, w: w, h: ht }, obs,
                           o.x + o.w / 2, o.y + o.h / 2, bounds, 6);
@@ -300,15 +322,44 @@
       t = Math.max(bounds.t, Math.min(t, bounds.b - ht));
     }
 
+    // Same-speaker stacking (user 2026-08-03): a repeat line used to land ON its
+    // predecessor (same anchor), a partial inset that read as a glitch. When the new
+    // box collides with the speaker's own earlier bubbles, lift it to sit ABOVE their
+    // topmost one instead — a vertical thread per player. No headroom → overlap stands.
+    if (same && same.length) {
+      var mine = { left: l, top: t, right: l + w, bottom: t + ht };
+      var minTop = Infinity, hitOwn = false;
+      for (var s = 0; s < same.length; s++) {
+        if (overlaps(mine, same[s], 4)) hitOwn = true;
+        if (same[s].top < minTop) minTop = same[s].top;
+      }
+      if (hitOwn) t = Math.max(topGuard, minTop - ht - 6);
+    }
+
     // Switch off the centring transform and position by corner, so the clamp is exact.
     el.style.setProperty("--kchat-dx", "0px");
     el.style.left = l + "px";
     el.style.top = t + "px";
     el.classList.add("kchat-bub--placed");
 
-    // tail x within the bubble, tracking the speaker even after clamping
-    var tail = Math.max(12, Math.min(vx - l, w - 12));
-    el.style.setProperty("--kchat-tail", tail + "px");
+    // Tail placement. Historically: bottom edge, x tracking the speaker's anchor.
+    // R3 (user 2026-08-03): when the board has registered an AVATAR for the speaker
+    // (a.avx/avy, see ringEtchLabel), the tail instead slides around the bubble to the
+    // edge point nearest the avatar and rotates to aim at it — the bubble visibly
+    // comes FROM the person, not vaguely from a wedge.
+    var tgx = a.avx != null ? o.x + a.avx : vx, tgy = a.avy != null ? o.y + a.avy : vy;
+    var px = Math.max(l + 12, Math.min(tgx, l + w - 12));
+    var py = Math.max(t + 8, Math.min(tgy, t + ht - 8));
+    var dl = px - l, dr = l + w - px, dt = py - t, db = t + ht - py;
+    var m = Math.min(dl, dr, dt, db);
+    var edge = m === db ? "bottom" : m === dt ? "top" : m === dl ? "left" : "right";
+    el.dataset.kchatTailEdge = edge;
+    el.style.setProperty("--kchat-tail", Math.max(12, Math.min(px - l, w - 12)) + "px");
+    el.style.setProperty("--kchat-taily", Math.max(8, Math.min(py - t, ht - 8)) + "px");
+    // angle from the tail's edge point to the target; the square's protruding corner
+    // sits at rotate(45deg) when aimed straight down, so offset by -45.
+    var ang = Math.atan2(tgy - py, tgx - px) * 180 / Math.PI;
+    el.style.setProperty("--kchat-tailrot", (ang - 45) + "deg");
   }
 
   function reposition() {
@@ -317,13 +368,17 @@
     // runs on every board paint. Each bubble's final box joins the obstacle list so the
     // next one steps around it, which is what fixes three-bubble overlap.
     var obs = obstacleRects();
+    var byPlayer = {};   // rects already placed this pass, per speaker — feeds stacking
     live.forEach(function (b) {
       var a = anchorFor(b.playerId);
       if (a) {
-        place(b.el, a, obs);
+        place(b.el, a, obs, byPlayer[b.playerId] || []);
         b.el.classList.remove("kchat-bub--orphan");
         var r = b.el.getBoundingClientRect();
-        if (r.width && r.height) obs.push(r);
+        if (r.width && r.height) {
+          obs.push(r);
+          (byPlayer[b.playerId] = byPlayer[b.playerId] || []).push(r);
+        }
       }
       else b.el.classList.add("kchat-bub--orphan");   // speaker has no visible segment
     });
@@ -339,9 +394,19 @@
     el.className = "kchat-bub";
     var c = colourFor(msg.playerId);
     if (c) el.style.setProperty("--kchat-accent", c);
+    // Name row, R3 (user 2026-08-03): the name was WRITTEN in the player colour, which
+    // is too dark to read on the glass. The colour moves into a small vertical bar —
+    // the same ownership cue as the chip sleeves — the name renders in the bubble's
+    // normal text colour, and the leading cast emoji is replaced by the player's
+    // generated avatar (the order page's identity mark).
     var nm = document.createElement("b");
     nm.className = "kchat-bub-who";
-    nm.textContent = who(msg);
+    var bar = document.createElement("span");
+    bar.className = "kchat-bub-bar";
+    if (c) bar.style.background = c;
+    nm.appendChild(bar);
+    if (typeof kemojiEl === "function") nm.appendChild(kemojiEl(avatarKey(msg.playerId), { size: 14 }));
+    nm.appendChild(document.createTextNode(displayName(msg)));
     var tx = document.createElement("span");
     tx.className = "kchat-bub-text";
     tx.textContent = msg.text;
@@ -352,7 +417,18 @@
     // next reposition() tidied up. With chip avoidance that would show as a bubble
     // landing on a chip and then hopping off it.
     h.appendChild(el);
-    place(el, a, obstacleRects());
+    // Live bubbles join the obstacle list at pop() time too (R3): the first placement
+    // used to see only chips, so a new bubble landed ON an existing one and only
+    // separated at the next reposition — visible as a double-exposure flash.
+    var obs = obstacleRects(), same = [];
+    live.forEach(function (b) {
+      var r = b.el.getBoundingClientRect();
+      if (r.width && r.height) {
+        obs.push(r);
+        if (b.playerId === msg.playerId) same.push(r);
+      }
+    });
+    place(el, a, obs, same);
 
     // one frame later so the entry transition actually runs
     requestAnimationFrame(function () { el.classList.add("kchat-bub--in"); });
@@ -374,7 +450,10 @@
 
   function sweep() {
     var now = Date.now();
-    live.slice().forEach(function (r) { if (r.until <= now) retire(r); });
+    live.slice().forEach(function (r) {
+      if (r.until <= now) retire(r);
+      else if (r.until - now <= FADE_MS) r.el.classList.add("kchat-bub--fading");
+    });
   }
 
   /* ── entry point, called from render() after the board paints ─────────────── */
@@ -433,10 +512,10 @@
   function syncSpectatorRibbon(){
     var why = document.getElementById("boardSpectatorWhy");
     if(!why) return;
-    var r = window.katomiaSpectatorReason;
-    why.textContent = window.katomiaSpectator
-      ? (r ? "— " + r + ". You can follow along, but not take part." : "— you can follow along, but not take part.")
-      : "";
+    // R2 (user 2026-08-03): watching IS the point — no call-to-action about raising a
+    // commitment down here. The server's reason still drives the action-refused toast;
+    // when/how to teach raising one is a separate flow, not this footer's job.
+    why.textContent = window.katomiaSpectator ? "— you can follow along, but not take part." : "";
   }
 
   window.boardRenderChat = function(){ boardRenderChat(); syncSpectatorRibbon(); syncAudience(); };

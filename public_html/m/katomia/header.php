@@ -50,7 +50,7 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
   <div class="app-banner-inner">
     <h2>
       <a class="app-home-link" href="/m/katomia/" title="Katomia — home">
-        <span class="app-title">KATOMIA</span>
+        <span class="app-title">Katomia</span>
         <span class="app-icons">💱 🐫</span>
       </a>
     </h2>
@@ -73,6 +73,11 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
     <a class="app-menu-item" href="/m/katomia/circles">⭕ <?= htmlspecialchars($katomiaTerms['Many'], ENT_QUOTES, 'UTF-8') ?></a>
     <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
     <a class="app-menu-item nerd-only" href="/m/katomia/markets">🏛️ All markets (raw)</a>
+    <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
+         results — in the main menu rather than behind the admin gate; the pages are
+         effectively public anyway. If parts of QA later need gating, do a split pass
+         (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
+    <a class="app-menu-item nerd-only" href="/m/katomia/qa/">🧪 QA</a>
     <!-- ENTRY-MENUKEA1 (user 2026-07-29): the 🤖 Execution agent menu item is GONE from
          the hamburger — not used for a while, and the profile section (still nerd-gated,
          data-feature=kea) remains the one door. Declutter; reposition another time. -->

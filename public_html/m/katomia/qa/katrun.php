@@ -34,7 +34,7 @@ ksort($BACKENDS);
 $DEMO_LOOPS = [
   'board-demo-loop.js'  => ['label' => '📺 two-party demo (chicken⇄ℏ replay)', 'game' => 't-kat-demo'],
   'trio-demo-loop.js'   => ['label' => '📺 three-way swap demo',               'game' => 't-trio'],
-  'treats-demo-loop.js' => ['label' => '🎁 triangle treats (reward bot)',      'game' => 't-treats'],
+  'treats-demo-loop.js' => ['label' => '🎁 triangle rewards (reward bot)',      'game' => 't-treats'],
   'treats-duo-loop.js'  => ['label' => '🎁 first swap (reward bot)',           'game' => 't-duo'],
 ];
 
