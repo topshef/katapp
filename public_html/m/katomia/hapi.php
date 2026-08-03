@@ -12,6 +12,12 @@ $hapi_base = get_hapi_base();
 
 $target = "https://$hapi_base/katomia/$action";
 
+// Forward remaining query params (everything except action) — GET endpoints like
+// /katomia/bindings?network=…&accountId=… need them (BIND-PAGE1, 2026-08-03).
+$qs = $_GET;
+unset($qs['action']);
+if($qs) $target .= (strpos($action, '?') === false ? '?' : '&') . http_build_query($qs);
+
 $ch = curl_init($target);
 
 $headers = [];

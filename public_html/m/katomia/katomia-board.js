@@ -367,6 +367,11 @@ let boardLayoutMode = _bp.layoutMode === "organic" ? "organic" : "shelves"
 // plus the safe drawing rect. The felt shows none of these truthfully; when
 // chips land oddly this shows whether the walls or the physics are wrong.
 let boardZoneWalls = _bp.zoneWalls ?? false
+// Lock-button hover preview re-arm gate (user 2026-08-03): after a click the
+// footer rebuilds under a stationary cursor, mouseenter re-fires, and the
+// preview used to re-apply OVER the fresh lock — reading as "it hasn't locked".
+// Armed again only when the pointer genuinely leaves the button.
+let boardLockPreviewArmed = true
 // 🧪 lab (user 2026-07-16, "clustering towards the outside — chips could
 // come in a bit more, without touching the ring; keep it mild"): biases the
 // organic anchor inward in STORE zones (0.38 of the radial band instead of
@@ -2344,6 +2349,56 @@ function boardDrawZoneWalls(){
   document.getElementById("boardRoot")?.appendChild(svg)
 }
 
+// BOARD-COUNTER1 (user 2026-08-03): make the counter — the ghost-only band between
+// the basket rim and the store — VISIBLY its own region instead of an invisible
+// rule chips obey. Three tones per segment: light basket, darkest counter, current
+// store wash. Painted from the sim's own band geometry (the exact walls the 🧪
+// overlay shows), tinted per player so the barrier still belongs to that player's
+// colour scheme; the edge stroke is a darker blend of the same colour rather than
+// a neutral grey (same idea as ringDividerTint). Rebuilt every apply, under the
+// chips, independent of the zone-walls debug toggle.
+function boardDrawCounterShade(){
+  document.querySelector(".board-countershade")?.remove()
+  const env = _boardSimEnv
+  if(!env || !ring16()) return
+  const NS = "http://www.w3.org/2000/svg"
+  const svg = document.createElementNS(NS, "svg")
+  svg.setAttribute("class", "board-countershade")
+  const dark = [60, 48, 22]   // the storeshade brown — keeps the tones one family
+  _boardSimZones.forEach((z, key) => {
+    if(z.isBasket || !z.midRad) return
+    const acctId = String(key).replace(/\|store$/, "")
+    const playerId = (typeof state !== "undefined" && state?.accounts?.[acctId]?.playerId) || null
+    const rgb = boardHexToRgb(getPlayerColour(playerId)) || [153, 153, 153]
+    const mix = k => rgb.map((v, i) => Math.round(v * (1 - k) + dark[i] * k)).join(",")
+    const band = z.band || 52
+    const half = Math.min(z.halfDeg, 80)
+    const steps = 24
+    const pts = []
+    for(let i = 0; i <= steps; i++){
+      const a = (-half + 2 * half * i / steps) * Math.PI / 180
+      const r = boardRimAt(env, z.midRad + a) + 8
+      pts.push([r * Math.cos(a), r * Math.sin(a)])
+    }
+    for(let i = steps; i >= 0; i--){
+      const a = (-half + 2 * half * i / steps) * Math.PI / 180
+      const r = boardRimAt(env, z.midRad + a) + 8 + band
+      pts.push([r * Math.cos(a), r * Math.sin(a)])
+    }
+    const d = pts.map(([lx, ly], i) =>
+      (i ? "L" : "M")
+      + (env.cx + lx * z.cos - ly * z.sin).toFixed(1) + " "
+      + (env.cy + lx * z.sin + ly * z.cos).toFixed(1)).join(" ") + " Z"
+    const p = document.createElementNS(NS, "path")
+    p.setAttribute("d", d)
+    p.setAttribute("class", "board-counterband")
+    p.setAttribute("fill", `rgba(${mix(0.35)},.16)`)
+    p.setAttribute("stroke", `rgba(${mix(0.55)},.45)`)
+    svg.appendChild(p)
+  })
+  document.getElementById("boardRoot")?.appendChild(svg)
+}
+
 // BOARD-LAYOUT1 (user 2026-07-14, planning pass → 🧪 toggle): deterministic
 // "SHELF" layout, the alternative to the organic relax above. The screenshot
 // critique — chips read as ERRATIC — has three concrete causes in the relax:
@@ -2446,6 +2501,7 @@ function boardOrganicApply(cx, cy, W, H, oval){
     if(_boardSimRaf){ cancelAnimationFrame(_boardSimRaf); _boardSimRaf = 0 }
     _boardSimBodies.clear(); _boardSimZones.clear(); _boardSimEnv = null
     boardDrawZoneWalls()   // removes the 🧪 overlay (no env)
+    boardDrawCounterShade()   // removes the counter band (no env)
     return
   }
 
@@ -2706,6 +2762,7 @@ function boardOrganicApply(cx, cy, W, H, oval){
   _boardChipPrevPos = next
 
   boardDrawZoneWalls()   // 🧪 debug overlay — no-op unless enabled in Settings
+  boardDrawCounterShade()   // BOARD-COUNTER1 — always-on counter band tint
 }
 
 /* ── rotate animation for "You at bottom" (user 2026-07-12) ──────────────────
@@ -3851,13 +3908,22 @@ function ringFooter(mine){
       lockBtn.disabled = !cur
       lockBtn.onclick = () => { const a = selected(); if(a) boardToggleLock(a) }
       if(ring16() && cur){
-        // hover previews WHICH arc this would lock — thin dashed orange, not
-        // the locked look (the click thickens it). No asset highlighting:
-        // a lock commits the whole ring, not just your legs.
+        // hover previews WHICH arc this would lock — SAME pale orange as hovering
+        // the arc itself (user 2026-08-03; was a thin dashed line). No asset
+        // highlighting: a lock commits the whole ring, not just your legs.
+        // Armed gate: see boardLockPreviewArmed — no preview re-applied between a
+        // click and the pointer actually leaving the button.
         const arcOf = () => document.querySelector(
           `.ring-lockarc[data-account-id="${CSS.escape(boardSelectedAccount || "")}"]`)
-        lockBtn.onmouseenter = () => arcOf()?.classList.add("ring-lockpreview")
-        lockBtn.onmouseleave = () => arcOf()?.classList.remove("ring-lockpreview")
+        lockBtn.onmouseenter = () => { if(boardLockPreviewArmed) arcOf()?.classList.add("ring-lockpreview") }
+        lockBtn.onmouseleave = () => { boardLockPreviewArmed = true; arcOf()?.classList.remove("ring-lockpreview") }
+        lockBtn.onclick = () => {
+          const a = selected()
+          if(!a) return
+          boardLockPreviewArmed = false
+          arcOf()?.classList.remove("ring-lockpreview")
+          boardToggleLock(a)
+        }
       }
     }
     bar.appendChild(lockBtn)
@@ -4354,6 +4420,14 @@ function boardTrail(a, b, colour, { key, persist = true, seg } = {}){
 // PROP-LOCKSIGN1 commitment flow, shared by the v1 label glyph + footer buttons
 async function boardToggleLock(account){
   const locking = account.mode !== "lock"
+  // Optimistic paint (user 2026-08-03): the commitment build below is async crypto
+  // and the class only really flips on the server's game_state echo — so a click
+  // used to leave the arc looking un-locked (hover pale) for a beat. Flip the class
+  // NOW; the next repaint is authoritative either way.
+  const arcNow = document.querySelector(
+    `.ring-lockarc[data-account-id="${CSS.escape(account.id)}"]`)
+  arcNow?.classList.remove("ring-lockpreview")
+  arcNow?.classList.toggle("ring-lockarc--locked", locking)
   let commitment = null
   if(locking && typeof buildLockCommitment === "function")
     commitment = await buildLockCommitment()
@@ -5245,6 +5319,17 @@ function ringLabelFontSize(g){
   return 20 * vScale
 }
 
+// BIND-BADGE1 (user 2026-08-03): suffix every board account id with its binding
+// status — 💠 the account has a published verified binding for this player (the
+// same mark order mode uses, katomia-render.js createAccountAuthMarker), △ no
+// binding (a subtle warning). Only meaningful on real networks — playnet has no
+// binding concept, so no badge there.
+function ringBindBadge(account){
+  const net = (typeof gameMeta !== "undefined" && gameMeta?.network) || window.__katomiaNetwork || ""
+  if(net !== "testnet" && net !== "mainnet") return ""
+  return account?.authBound ? " 💠" : " △"
+}
+
 function ringEtchLabel(seg, g, NS){
 
   const text = document.createElementNS(NS, "text")
@@ -5257,6 +5342,7 @@ function ringEtchLabel(seg, g, NS){
   // whose player allows picking
   const pickBadge = (ring11() && playerAllowsPick(seg.account.playerId) && !seg.mine) ? " ◀" : ""
   text.textContent = lockPrefix + (seg.account.id.split(":")[1] || seg.account.id)
+    + ringBindBadge(seg.account)
     + (seg.mine && !ring11() ? " ·you" : "") + pickBadge
 
   // CONSTANT size (user 2026-07-12): was g.step*0.24 — proportional to
@@ -5422,7 +5508,7 @@ function ringHubCoinLabel(seg, g, NS){
   textPath.setAttributeNS("http://www.w3.org/1999/xlink", "href", "#" + pathId)
   textPath.setAttribute("startOffset", "50%")
   textPath.setAttribute("text-anchor", "middle")
-  textPath.textContent = hac
+  textPath.textContent = hac + ringBindBadge(seg.account)
   text.appendChild(textPath)
 
   const grp = document.createElementNS(NS, "g")
@@ -5498,7 +5584,8 @@ function makeSeatCard(account, midAngle, geo, seatCount, ctx){
   head.className = "board-seat-head"
   const player = state.players?.[account.playerId]
   const label = account.id.split(":")[1] || account.id
-  head.textContent = (player?.name && player.name !== "anon" ? player.name + " · " : "") + label
+  head.textContent = (player?.name && player.name !== "anon" ? player.name + " · " : "")
+    + label + ringBindBadge(account)
   if(account.mode === "lock") head.textContent += " 🔒"
   el.appendChild(head)
 

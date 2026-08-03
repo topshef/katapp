@@ -89,8 +89,36 @@
     return p;
   }
 
+  // CHAT-IDENTITY1 (user 2026-08-03): a player holding at least one bound (verified)
+  // account speaks as that Hedera account instead of "anon" — lowest account id wins
+  // when several are bound. Display-only, resolved from live board state per render;
+  // players with a real name (demo cast etc.) keep it.
+  function accountLess(a, b) {
+    var pa = String(a).split(".").map(Number), pb = String(b).split(".").map(Number);
+    for (var i = 0; i < 3; i++) { if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) < (pb[i] || 0); }
+    return false;
+  }
+  function boundAccountFor(playerId) {
+    try {
+      var accs = (typeof state !== "undefined" && state && state.accounts) ? state.accounts : null;
+      if (!accs || !playerId) return null;
+      var best = null;
+      Object.keys(accs).forEach(function (k) {
+        var a = accs[k];
+        if (!a || a.playerId !== playerId || !a.authBound) return;
+        var id = a.accountId || a.label || String(a.id || k).split(":")[1];
+        if (id && (!best || accountLess(id, best))) best = id;
+      });
+      return best;
+    } catch (e) { return null; }
+  }
   function who(msg) {
-    return msg.playerName || ("player " + String(msg.playerId || "?").slice(0, 6));
+    var n = msg.playerName;
+    if (!n || n === "anon") {
+      var bound = boundAccountFor(msg.playerId);
+      if (bound) return bound;
+    }
+    return n || ("player " + String(msg.playerId || "?").slice(0, 6));
   }
 
   // Bubble display name (user 2026-08-03): the cast emoji that leads demo names is

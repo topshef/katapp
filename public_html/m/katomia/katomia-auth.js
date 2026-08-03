@@ -488,7 +488,13 @@ async function publishKatomiaAuthEnvelope(envelope){
       return false
     }
     kauthDiag("publish", { ok: true, network: json.network, accountId: json.accountId, authed: json.authed, weight: json.weight })
-    notify?.("Binding published", "success", { timeout: 2500 })
+    // User 2026-08-03: say WHICH account was bound (a player can hold several), and
+    // link the page that lets anyone inspect/re-verify the published binding.
+    const boundAcct = json.accountId || envelope?.accountId || null
+    const boundNet = json.network || null
+    notify?.(boundAcct
+      ? `Binding published — ${boundAcct}${boundNet ? " on " + boundNet : ""}. <a href="/m/katomia/binding.php?network=${encodeURIComponent(boundNet || "")}&accountId=${encodeURIComponent(boundAcct)}" target="_blank" rel="noopener">Inspect it</a>`
+      : "Binding published", "success", { timeout: 6000 })
     // KAT-PROFILE-COMMITSTATUS1 (feedback 64b17b22): remember the published commitment
     // locally so the profile can show current status instead of leaving the user to
     // re-raise "just in case". Local record only (no backend revoke exists today) —
