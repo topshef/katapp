@@ -585,6 +585,10 @@ function boardShowResult(txid, ok){
   // the wiper's shorter timing and dousing the spotlight mid-confetti.
   window.__boardLastResultOk = ok
   boardCelebrate(ok)
+  // BOARD-SWEEPWIN1: confetti first, then the chips head home — staggered so the
+  // two moments read separately (user 2026-08-03: "so that we don't have too many
+  // things happening at the same time").
+  if(ok) setTimeout(boardSettleFlights, 700)
   // PERSISTENT, CLOSABLE TOAST (user 2026-07-15): the verdict used to be a
   // banner bubble + a blocking alert(); now it's a toast that stays until
   // the user closes it (timeout 0 = persistent, ✕ per GM-TOAST-X1) — the
@@ -1361,7 +1365,7 @@ function renderRingBoard(root){
       // board keeps the picture — receiving legs render as tx chips in place
       if(boardSigning){
         const legs = boardSigning.legs[hac]
-        if(legs && !basketCont.querySelector(".asset")) boardTxChips(legs, basketCont, accounts)
+        if(legs && !basketCont.querySelector(".asset")) boardTxChips(legs, basketCont, accounts, account.id)
       }
       const storeCont = document.createElement("div")
       boardStoreChips(account, storeCont)
@@ -3043,6 +3047,29 @@ function boardEnsureSignStatusPoll(){
 }
 
 function boardTxLegs(tx){
+  // BOARD-TXNETVIS1 (user 2026-08-03, lab1 t-duo): pchbasis is the NETTED on-chain
+  // list — one line per (token, account) — so rebuilding the board scene from it
+  // DESTROYS per-offer provenance. Measured on t-duo at last lock: Alice's 0.1 KUSD
+  // reward netted into her 0.5 KUSD send and her reward chip VANISHED; Bob's two
+  // KUSD chips (0.5 from Alice + 0.1 from Goodwin) merged into one sleeveless 0.6.
+  // The chain tx was always correct — only the display lied.
+  // The pending record already broadcasts the PRE-NET lines as source.offers
+  // ({fromId,toId,assetId,amount}, "publicId:0.0.x" form, katomia.js postCluster) —
+  // use those for the display scene when present; the netted pchbasis path below
+  // remains the fallback (old records, sandbox fixtures) and the signing truth.
+  const offers = tx?.source?.offers
+  if(Array.isArray(offers) && offers.length){
+    const by = {}
+    const ent = id => (by[id] ||= { recv: [], send: [] })
+    const hac = id => String(id || "").split(":")[1] || String(id || "")
+    offers.forEach(o => {
+      const from = hac(o.fromId), to = hac(o.toId), amount = Number(o.amount ?? 1)
+      if(!from || !to || !amount) return
+      ent(to).recv.push({ assetId: o.assetId, amount, from })
+      ent(from).send.push({ assetId: o.assetId, amount, to })
+    })
+    return by
+  }
   let basis = tx?.pchbasis
   try { if(typeof basis === "string") basis = JSON.parse(basis) } catch { basis = null }
   basis ||= {}
@@ -3243,7 +3270,7 @@ function boardSigningWindowDiag(sig){
 
 // paint a party's receiving legs as basket chips (static in this slice —
 // withdraw/reject don't apply to a struck tx; sleeve = giver where unique)
-function boardTxChips(legs, container, accounts){
+function boardTxChips(legs, container, accounts, toAccountId){
   legs.recv.forEach(leg => {
     const giver = leg.from
       ? accounts.find(a => (a.id.split(":")[1] || a.id) === leg.from)
@@ -3258,9 +3285,51 @@ function boardTxChips(legs, container, accounts){
     applyAssetClasses(el, leg.assetId, leg.amount)
     el.classList.add("board-chip", "board-txchip")
     if(leg.from) el.dataset.fromHac = leg.from
+    if(toAccountId) el.dataset.toAccount = toAccountId   // BOARD-SWEEPWIN1: settle flight target
     el.title = "Pending transaction leg — awaiting signatures"
     container.appendChild(el)
   })
+}
+
+// BOARD-SWEEPWIN1 first slice (user 2026-08-03): on consensus SUCCESS the incoming
+// chips visibly move home. Confetti fires first; a beat later each pending-leg chip
+// flies from the basket where it sits into its receiving account's own STORE zone —
+// easing in and out (clear start, clear end, user's spec) — while the ownership
+// sleeve tweens from the GIVER's colour to the NEW OWNER's: consensus is the moment
+// ownership changes, and the colour change rides the move. CLONES on a fixed layer,
+// because the next state paint owns the real chips and may wipe them mid-flight.
+function boardSettleFlights(){
+  try{
+    const chips = document.querySelectorAll(".board-txchip")
+    const root = document.getElementById("boardRoot")
+    if(!chips.length || !root) return
+    const rb = root.getBoundingClientRect()
+    const accountMap = getAccountMap()
+    const layer = document.createElement("div")
+    layer.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:40"
+    document.body.appendChild(layer)
+    let i = 0
+    chips.forEach(el => {
+      const toId = el.dataset.toAccount
+      const a = toId && _boardChatAnchors[toId]          // store-band point for that segment
+      if(!a) return
+      const r = el.getBoundingClientRect()
+      if(!r.width) return
+      const clone = el.cloneNode(true)
+      clone.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;margin:0;z-index:40;transition:transform 1.15s cubic-bezier(.45,0,.22,1), border-left-color 1.15s ease, opacity .35s ease 1.15s;opacity:1`
+      layer.appendChild(clone)
+      el.style.visibility = "hidden"                     // no doubles; next paint wipes it anyway
+      const dx = (rb.left + a.x) - (r.left + r.width / 2)
+      const dy = (rb.top + a.y) - (r.top + r.height / 2)
+      const newOwner = getPlayerColour(accountMap[toId]?.playerId)
+      setTimeout(() => {
+        clone.style.transform = `translate(${dx}px, ${dy}px) scale(.92)`
+        if(newOwner) clone.style.borderLeftColor = newOwner
+        clone.style.opacity = "0"                        // settles into the store as the paint catches up
+      }, 60 + i++ * 110)                                 // slight stagger — reads as a procession
+    })
+    setTimeout(() => layer.remove(), 60 + i * 110 + 1700)
+  } catch(e){ boardDiag("board:settleflights:error", { e: String(e) }) }
 }
 
 // review 17: the direct WalletConnect signing flow — mirrors the widget's
@@ -5005,30 +5074,34 @@ function ringStoreZonePath(seg, g){
 const _boardEtchSide = new Map()   // account id → which boundary its etched id last wrote along (hysteresis)
 const _boardAvatarPts = {}         // account id → {x,y} of its avatar (chat tails aim here); persists across paints deliberately
 
-// DEMO-NARRATE1 use case 3 (user 2026-08-03): the player's generated avatar — the
-// order page's identity mark (kemoji) — sits ON the segment, on the boundary spoke
-// OPPOSITE the etched account id. The id takes the most horizontal spoke
-// (_boardEtchSide, set by ringEtchLabel — call this AFTER it), so the avatar gets the
-// more vertical one, and the two never fight over the same corner. Speech bubbles aim
-// their tails at the recorded point. Placement may move after a first look — this is
-// the "let's try that" position.
+// DEMO-NARRATE1 use case 3, position R2 (user 2026-08-03 feedback on lab1): R1 put
+// the avatar on the spoke OPPOSITE the etched id — but that parks it right next to
+// the NEIGHBOUR's account id across the boundary, which reads as the wrong person's
+// face on the wrong number. R2: SAME spoke as the id, but INSIDE the basket zone —
+// walking the spoke inward you read: account id (store) → across the oval → the
+// player's face (basket, near the hub). Bonus: the avatar stays visible through the
+// signing phase when focus pulls to the centre. Still a placement experiment.
+// KEMOJI-COLORLESS1: the face is colourless line art; the player's in-game colour
+// fills the frame (bg), so segment colour and identity read as one mark.
 function ringAvatar(seg, g, NS){
   if(typeof _keFaceSvg !== "function" || typeof kemojiBytesForKey !== "function") return null
-  const otherDeg = _boardEtchSide.get(seg.account.id) === "a0" ? seg.a1 : seg.a0
-  const ab = g.rad(otherDeg)
+  const sideDeg = _boardEtchSide.get(seg.account.id) === "a1" ? seg.a1 : seg.a0
+  const ab = g.rad(sideDeg)
   const size = Math.max(26, Math.min(40, ringLabelFontSize(g) * 1.7))
-  const rt = Math.max(g.ovalR(ab) + size * 0.6,
-    Math.min((g.ovalR(ab) + g.edgeR(ab)) / 2, g.edgeR(ab) - size * 0.7))
+  // inside the basket zone: between the hub and the oval, nearer the oval
+  const rt = g.rc + (g.ovalR(ab) - g.rc) * 0.62
   // perpendicular nudge INTO the segment — same convention as the etch label
-  const inwardSign = otherDeg === seg.a0 ? 1 : -1
+  const inwardSign = sideDeg === seg.a0 ? 1 : -1
   const perp = ab + Math.PI / 2
   const x = g.cx + rt * Math.cos(ab) + inwardSign * size * 0.62 * Math.cos(perp)
   const y = g.cy + rt * Math.sin(ab) + inwardSign * size * 0.62 * Math.sin(perp)
   _boardAvatarPts[seg.account.id] = { x, y }
   const key = typeof katomiaAvatarKey === "function" ? katomiaAvatarKey(seg.account.playerId) : seg.account.playerId
+  const bg = getPlayerColour(seg.account.playerId)
   // face string cached — this runs every paint, including tween frames
-  let face = _boardAvatarFaces.get(key)
-  if(!face){ face = _keFaceSvg(kemojiBytesForKey(key), String(key || "").slice(-12), "circle"); _boardAvatarFaces.set(key, face) }
+  const faceKey = key + ":" + (bg || "")
+  let face = _boardAvatarFaces.get(faceKey)
+  if(!face){ face = _keFaceSvg(kemojiBytesForKey(key), String(key || "").slice(-12), "circle", bg); _boardAvatarFaces.set(faceKey, face) }
   const wrap = document.createElementNS(NS, "g")
   wrap.setAttribute("class", "ring-avatar")
   if(seg.weight != null && seg.weight < 1) wrap.setAttribute("opacity", seg.weight)

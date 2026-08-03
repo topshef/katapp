@@ -115,6 +115,10 @@ body.board-page .app-banner h2{ display: none; }
   pointer-events: none;
   user-select: none;
 }
+/* mobile (user 2026-08-03): no wordmark on the board at all — the centre header pill
+   sits over it anyway, and that board space is wanted for player labelling work.
+   The hub K already carries the brand. */
+@media (max-width: 600px){ .board-brandmark{ display: none; } }
 
 body.board-page .app-banner{
   position: relative;

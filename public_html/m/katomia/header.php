@@ -77,7 +77,7 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
          results — in the main menu rather than behind the admin gate; the pages are
          effectively public anyway. If parts of QA later need gating, do a split pass
          (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
-    <a class="app-menu-item nerd-only" href="/m/katomia/qa/">🧪 QA</a>
+    <a class="app-menu-item nerd-only" href="/m/katomia/qa/" target="_blank" rel="noopener">🧪 QA</a>
     <!-- ENTRY-MENUKEA1 (user 2026-07-29): the 🤖 Execution agent menu item is GONE from
          the hamburger — not used for a while, and the profile section (still nerd-gated,
          data-feature=kea) remains the one door. Declutter; reposition another time. -->

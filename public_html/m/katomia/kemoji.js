@@ -109,16 +109,20 @@ function _keEar(type,x,y,rx,ry,side,fill,stroke,sw,bytes){
 
 // ── main SVG generator ────────────────────────────────────────────────────────
 
-function _keFaceSvg(bytes, label, shape){
+function _keFaceSvg(bytes, label, shape, bg){
   const n=_keNum, b=_keByte, bit=_keBit, r=_keRange
 
-  const hue        = b(bytes,0)*360/256
-  const hue2       = (hue+r(bytes,1,48,145))%360
-  const bg1        = `hsl(${n(hue)} 72% 66%)`
-  const bg2        = `hsl(${n(hue2)} 76% 74%)`
-  const faceFill   = `hsl(${n((hue+28)%360)} 74% 96%)`
-  const stroke     = `hsl(${n((hue+210)%360)} 48% 18%)`
-  const blush      = `hsl(${n((hue+330)%360)} 80% 74%)`
+  // KEMOJI-COLORLESS1 (user 2026-08-03): identity is COLOURLESS line art — colour
+  // belongs to the game, not the face. Board-game dynamics: "I'm Bob — blue in this
+  // game, red in that one." The frame fills with the caller's `bg` (the in-game
+  // player colour) or a neutral grey where there's no game context; the face keeps
+  // fixed ink-and-paper tones so the same person reads the same in every circle.
+  // kemojiHue/kemojiSleeveColor still expose the old deterministic hue for callers
+  // that want it — the FACE just no longer uses it.
+  const bgFill     = bg || "#d8dce2"
+  const faceFill   = "#fdfdf9"
+  const stroke     = "#2a323c"
+  const blush      = "#000"
   const sw         = r(bytes,2,4.2,7.6)
   const cx         = 128+r(bytes,3,-5,5)
   const cy         = 130+r(bytes,4,-5,5)
@@ -140,10 +144,12 @@ function _keFaceSvg(bytes, label, shape){
   const tilt       = r(bytes,19,-18,18)
   const mouthY     = cy+r(bytes,20,30,45)*fSpreadY+fDrop
   const mouthW     = r(bytes,21,25,48)
-  const smile      = r(bytes,22,-25,29)
+  // mood bias → happy (user 2026-08-03): was -25..29, a coin-flip on grumpy.
+  // Slight negative still possible (deadpan is character), but the weight is smiles.
+  const smile      = r(bytes,22,-6,32)
   const noseLen    = r(bytes,23,12,28)
   const noseBend   = r(bytes,24,-8,8)
-  const browTilt   = r(bytes,25,-21,21)
+  const browTilt   = r(bytes,25,-12,20)   // softened: hard inward brows read angry
   const hairStyle  = b(bytes,26)%5
   const ear        = bit(bytes,27,1)
   const earType    = b(bytes,27)%5
@@ -159,12 +165,11 @@ function _keFaceSvg(bytes, label, shape){
   // Include shape char in clipId so circle and square variants don't collide in DOM.
   const sc = shape==="circle" ? "c" : shape==="squircle" ? "q" : "s"
   const clipId = `ke${sc}${bytes[0].toString(16).padStart(2,"0")}${bytes[1].toString(16).padStart(2,"0")}${bytes[2].toString(16).padStart(2,"0")}`
-  const gradId = `keg${bytes[3].toString(16).padStart(2,"0")}${bytes[4].toString(16).padStart(2,"0")}${bytes[5].toString(16).padStart(2,"0")}`
 
   let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="${_keEsc(String(label).slice(0,40))}">`
-  s += `<defs><clipPath id="${clipId}">${_keClipEl(shape)}</clipPath><linearGradient id="${gradId}" x1="30" y1="20" x2="226" y2="236"><stop stop-color="${bg1}"/><stop offset="1" stop-color="${bg2}"/></linearGradient></defs>`
+  s += `<defs><clipPath id="${clipId}">${_keClipEl(shape)}</clipPath></defs>`
   s += `<g clip-path="url(#${clipId})">`
-  s += _keFrameEl(shape,`url(#${gradId})`)
+  s += _keFrameEl(shape,bgFill)
   s += `<circle cx="${n(74+r(bytes,5,-18,18))}" cy="${n(64+r(bytes,6,-10,18))}" r="${n(r(bytes,7,22,52))}" fill="white" opacity=".18"/>`
   s += `<circle cx="${n(197+r(bytes,8,-20,18))}" cy="${n(203+r(bytes,9,-22,12))}" r="${n(r(bytes,10,18,44))}" fill="black" opacity=".06"/>`
 
@@ -192,8 +197,9 @@ function _keFaceSvg(bytes, label, shape){
   s += `<path d="M ${n(cx+noseBend*.2)} ${n(eyeY+15)} C ${n(cx+noseBend)} ${n(eyeY+noseLen)}, ${n(cx-noseBend*.8)} ${n(eyeY+noseLen+10)}, ${n(cx+r(bytes,15,-8,8))} ${n(eyeY+noseLen+16)}" fill="none" stroke="${stroke}" stroke-width="${n(sw*.58)}" stroke-linecap="round" opacity=".72"/>`
 
   if(cheekOn){
-    s += `<ellipse cx="${n(lx-15)}" cy="${n(mouthY-10)}" rx="14" ry="8" fill="${blush}" opacity=".33"/>`
-    s += `<ellipse cx="${n(rx+15)}" cy="${n(mouthY-10)}" rx="14" ry="8" fill="${blush}" opacity=".33"/>`
+    // colourless blush: a soft shadow, not a pink (KEMOJI-COLORLESS1)
+    s += `<ellipse cx="${n(lx-15)}" cy="${n(mouthY-10)}" rx="14" ry="8" fill="${blush}" opacity=".1"/>`
+    s += `<ellipse cx="${n(rx+15)}" cy="${n(mouthY-10)}" rx="14" ry="8" fill="${blush}" opacity=".1"/>`
   }
 
   for(let i=0;i<freckles;i++){
@@ -205,7 +211,7 @@ function _keFaceSvg(bytes, label, shape){
   if(mouthType===1) s += `<path d="M ${n(cx-mouthW*.75)} ${n(mouthY)} C ${n(cx-mouthW*.3)} ${n(mouthY+smile)}, ${n(cx+mouthW*.3)} ${n(mouthY+smile)}, ${n(cx+mouthW*.75)} ${n(mouthY)}" fill="none" stroke="${stroke}" stroke-width="${n(sw)}" stroke-linecap="round"/>`
   if(mouthType===2) s += `<ellipse cx="${n(cx)}" cy="${n(mouthY+Math.max(0,smile*.35))}" rx="${n(mouthW*.36)}" ry="${n(r(bytes,17,7,16))}" fill="none" stroke="${stroke}" stroke-width="${n(sw)}"/>`
   if(mouthType===3) s += `<path d="M ${n(cx-mouthW*.55)} ${n(mouthY)} L ${n(cx+mouthW*.55)} ${n(mouthY)}" stroke="${stroke}" stroke-width="${n(sw)}" stroke-linecap="round"/>`
-  if(mouthType===4) s += `<path d="M ${n(cx-mouthW*.7)} ${n(mouthY)} Q ${n(cx)} ${n(mouthY-Math.abs(smile)*.75-5)} ${n(cx+mouthW*.7)} ${n(mouthY)}" fill="none" stroke="${stroke}" stroke-width="${n(sw)}" stroke-linecap="round"/>`
+  if(mouthType===4) s += `<path d="M ${n(cx-mouthW*.7)} ${n(mouthY)} Q ${n(cx)} ${n(mouthY+Math.abs(smile)*.75+5)} ${n(cx+mouthW*.7)} ${n(mouthY)}" fill="none" stroke="${stroke}" stroke-width="${n(sw)}" stroke-linecap="round"/>`   // was ∩ (a frown type) — flipped to a wide grin (happy bias)
 
   s += `</g></svg>`
   return s
@@ -229,11 +235,12 @@ function kemojiEl(key, opts){
   const size   = opts?.size   ?? 24
   const shape  = opts?.shape  ?? "circle"
   const isSelf = opts?.isSelf ?? false
+  const bg     = opts?.bg     ?? null    // KEMOJI-COLORLESS1: in-game player colour fills the frame
 
-  const cacheKey = `${key}:${shape}`
+  const cacheKey = `${key}:${shape}:${bg || ""}`
   if(!_kemojiCache.has(cacheKey)){
     const bytes = kemojiBytesForKey(key)
-    _kemojiCache.set(cacheKey, _keFaceSvg(bytes, String(key || "").slice(-12), shape))
+    _kemojiCache.set(cacheKey, _keFaceSvg(bytes, String(key || "").slice(-12), shape, bg))
   }
 
   const svgStr = _kemojiCache.get(cacheKey)

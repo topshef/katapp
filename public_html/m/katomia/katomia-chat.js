@@ -405,7 +405,7 @@
     bar.className = "kchat-bub-bar";
     if (c) bar.style.background = c;
     nm.appendChild(bar);
-    if (typeof kemojiEl === "function") nm.appendChild(kemojiEl(avatarKey(msg.playerId), { size: 14 }));
+    if (typeof kemojiEl === "function") nm.appendChild(kemojiEl(avatarKey(msg.playerId), { size: 14, bg: c }));
     nm.appendChild(document.createTextNode(displayName(msg)));
     var tx = document.createElement("span");
     tx.className = "kchat-bub-text";

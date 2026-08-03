@@ -669,14 +669,19 @@
 }
 
 .notice{
-  padding:10px 14px;
+  /* R2 (user 2026-08-03): content CENTRED, ✕ absolute in the corner — the flexed ✕
+     used to claim row space and push the wrapped txid onto a needless third line.
+     One line on desktop when it fits; message + txid centre-wrap when it doesn't. */
+  position:relative;
+  padding:10px 32px;
   border-radius:6px;
   font-family:sans-serif;
   color:white;
   display:flex;
   flex-wrap:wrap;             /* long txid link/detail drops to its own line when needed */
-  justify-content:space-between;
+  justify-content:center;
   align-items:center;
+  text-align:center;
   backdrop-filter:blur(4px);
 
   zzopacity:0.95; /* slightly translucent */
@@ -697,8 +702,8 @@
    fixed blue reads as broken on the error variant. margin-left:auto keeps it hard against
    the ✕ while the message stays left, whatever the toast's width. */
 .notice-link{
-  margin-left:auto;
-  padding:0 10px;
+  margin-left:.45em;   /* was auto (hard right) — centred layout now, R2 2026-08-03 */
+  padding:0 4px;
   color:inherit;
   font-weight:600;
   font-size:.92em;
@@ -750,12 +755,15 @@
   color:#41464B;
 }
 .notice button{
+  position:absolute;   /* corner pin (R2 2026-08-03) — takes no row space */
+  top:4px;
+  right:8px;
   background:none;
   border:none;
   color:inherit;
   font-size:16px;
   cursor:pointer;
-  margin-left:10px;
+  margin-left:0;
 }
 
 .notice{
@@ -2498,11 +2506,16 @@ body.nerd .profile-nerd-only{ display:block; }
    --kchat-tailrot angles the protruding corner to point AT the avatar (R3, user
    2026-08-03). No data attribute = the original bottom-edge behaviour. */
 .kchat-bub::after{
-  content:""; position:absolute; width:9px; height:9px; background:inherit;
+  content:""; position:absolute; width:9px; height:9px;
+  /* SOLID, not background:inherit (user 2026-08-03): the bubble fill is translucent,
+     so the tail's inside half composited darker THROUGH the bubble and read as a
+     stray square. Solid paint = only the protruding half is visible. */
+  background:#fff;
   border-right:1px solid rgba(20,28,45,.1); border-bottom:1px solid rgba(20,28,45,.1);
   bottom:-5px; left:var(--kchat-tail,22px); margin-left:-4px;
   transform:rotate(var(--kchat-tailrot,45deg));
 }
+.kchat-bub--mine::after{ background:#ecf3fe; }
 .kchat-bub[data-kchat-tail-edge="top"]::after{ bottom:auto; top:-5px; }
 .kchat-bub[data-kchat-tail-edge="left"]::after{
   left:-5px; margin-left:0; bottom:auto; top:var(--kchat-taily,50%); margin-top:-4px;
@@ -2570,7 +2583,8 @@ body[data-board-fam~="v16"] .kchat-bub{ /* light ring felt — defaults are fine
 @media (prefers-color-scheme: dark){
   .kchat-bub{ background:rgba(22,28,38,.82); border-color:rgba(255,255,255,.14); color:#e7ecf4; }
   .kchat-bub--mine{ background:rgba(30,48,78,.86); border-color:rgba(120,165,240,.4); }
-  .kchat-bub::after{ border-color:rgba(255,255,255,.14); }
+  .kchat-bub::after{ border-color:rgba(255,255,255,.14); background:#1c2330; }
+  .kchat-bub--mine::after{ background:#243a5e; }
   .kchat-panel-tab,.kchat-panel-body{ background:rgba(22,28,38,.82); border-color:rgba(255,255,255,.14); color:#e7ecf4; }
   .kchat-row b{ color:#c3cde0; } .kchat-row-text{ color:#e7ecf4; }
   .kchat-row{ border-bottom-color:rgba(255,255,255,.08); }
