@@ -30,6 +30,11 @@ body.board-page{
 #boardRoot{
   position: fixed;
   inset: 0;
+  /* BOARD-CHATMODE1 R2: in panel mode the board YIELDS the dock's space instead of
+     running underneath it — bottom slice on portrait, right panel on landscape.
+     The vars are set by katomia-chat.js syncDock(), 0 when the dock is off. */
+  bottom: var(--kchat-clear-b, 0px);
+  right: var(--kchat-clear-r, 0px);
   /* review 7 root cause: fixed elements are their own stacking contexts, so
      without a z-index here the pair/trail hosts (later siblings, z4) painted
      OVER the chips regardless of the boxes' z5. Root above hosts = lines

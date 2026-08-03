@@ -346,10 +346,11 @@ let boardAnimSpeed = Number(_bp.animSpeed) || 1
 // knob, not a planned user feature.
 let boardTrailResidual = _bp.trailResidual ?? 0.5
 // BOARD-CHATMODE1 (user 2026-08-03): where speech lives — "bubbles" over the board or
-// a docked message "panel". Defaults split by form factor: phones drown in bubbles →
-// panel; desktop keeps bubbles for now (user: "worth giving it a bit more chance").
-// The Settings toggle lets anyone flip; katomia-chat.js reads this live.
-let boardChatMode = _bp.chatMode || (Math.min(innerWidth, innerHeight) <= 600 ? "panel" : "bubbles")
+// a docked message "panel". R2 (same day, seeing it live): PANEL IS THE DEFAULT
+// EVERYWHERE — "the initial brief was basically: you either have speech bubbles, or
+// you have a message panel on the right-hand side" — bubbles are the opt-in via the
+// Settings toggle. katomia-chat.js reads this live.
+let boardChatMode = _bp.chatMode || "panel"
 // DEMO-NARRATE1 avatar placement experiment (R2 spoke → R3 arc, user 2026-08-03):
 // "arc" = centred on the segment along the ring inside the coin-lettered id (default);
 // "spoke" = the R2 boundary-spoke position, kept as a 🧪 switch for comparison.
@@ -5163,7 +5164,11 @@ function ringAvatar(seg, g, NS){
     // R3: segment-centred, one concentric step inside the coin-lettered id ring.
     // The coin label's baseline sits ~fs·0.85+6 inside the oval; drop the avatar a
     // further label-height + half its own size so the two never collide.
-    const am = g.rad(seg.am)
+    // UNIT TRAP (bug 2026-08-03, avatars stacked east on their sides): segs carry
+    // a0/a1 in DEGREES but am ALREADY IN RADIANS (the chat-anchor code uses it raw
+    // with Math.cos) — running it through g.rad() again collapsed every mid-angle
+    // to ~0-7° and the whole cast piled up at 3 o'clock.
+    const am = seg.am
     const fs = ringLabelFontSize(g)
     const inset = fs * 0.85 + 6 + fs * 0.9 + size * 0.55
     const irx = Math.max(g.rc + size * 0.6, g.rx - inset), iry = Math.max(g.rc + size * 0.6, g.ry - inset)
@@ -5172,7 +5177,8 @@ function ringAvatar(seg, g, NS){
     y = g.cy + rt * Math.sin(am)
     // rotate with the arc, hemisphere-flipped so the face is never upside down —
     // same orientation rule as the coin lettering
-    rot = Math.sin(am) > 0 ? seg.am - 90 : seg.am + 90
+    const amDeg = ((am * 180 / Math.PI) % 360 + 360) % 360
+    rot = Math.sin(am) > 0 ? amDeg - 90 : amDeg + 90
   }
   _boardAvatarPts[seg.account.id] = { x, y }
   const key = typeof katomiaAvatarKey === "function" ? katomiaAvatarKey(seg.account.playerId) : seg.account.playerId

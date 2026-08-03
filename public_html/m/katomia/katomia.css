@@ -2596,9 +2596,20 @@ body.nerd .profile-nerd-only{ display:block; }
   border-top:1px solid rgba(20,28,45,.12);
 }
 .kchat-dock-list{ overflow-y:auto; flex:1; }
+/* landscape: the dock is a full-height RIGHT-hand panel (~quarter width, set by JS);
+   the board yields that width (user 2026-08-03: "board shifted over, more square,
+   a proper rectangular panel that divides the viewport"). Later candidates for this
+   panel: settings, controls — messages only for now. */
+.kchat-dock--side{
+  top:0; bottom:0 !important; left:auto; right:0;
+  height:auto; max-height:none;
+  border-top:none; border-left:1px solid rgba(20,28,45,.12);
+  padding-top:52px;   /* clear the transparent header strip (hamburger) */
+}
 body[data-kchat-mode="panel"] .kchat-panel{ display:none !important; }  /* the dock replaces the floating panel */
 @media (prefers-color-scheme: dark){
   .kchat-dock{ background:rgba(22,28,38,.9); border-top-color:rgba(255,255,255,.12); }
+  .kchat-dock--side{ border-left-color:rgba(255,255,255,.12); }
 }
 
 /* dark board skins: the glass has to invert or it glows like a lightbox */
@@ -2625,12 +2636,16 @@ body[data-board-fam~="v16"] .kchat-bub{ /* light ring felt — defaults are fine
   .kchat-panel{ display:none !important; }
 }
 
-/* full-screen transcript (mobile, opened from ☰) */
+/* full-screen transcript (mobile, opened from ☰). z2000 + banner hidden while open
+   (R2 2026-08-03): at z60 the transparent banner (z70) floated the hamburger exactly
+   over the ✕ and the user couldn't leave. Kept ~97% solid deliberately — a hint of
+   the game moving underneath (user: "you could have it 90-95% solid"). */
 .kchat-full{
-  position:fixed; inset:0; z-index:60; display:none; flex-direction:column;
+  position:fixed; inset:0; z-index:2000; display:none; flex-direction:column;
   background:rgba(247,249,252,.97);
   backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
 }
+body.kchat-fullopen .app-banner{ visibility:hidden; }
 .kchat-full.open{ display:flex; }
 .kchat-full-head{
   display:flex; align-items:center; justify-content:space-between; gap:10px;

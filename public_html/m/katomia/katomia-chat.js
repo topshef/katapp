@@ -142,20 +142,46 @@
       d.innerHTML = '<div class="kchat-dock-list"></div>';
       document.body.appendChild(d);
     }
+    // R2 (user 2026-08-03, seeing v1 live): the dock is a SIDE panel on landscape —
+    // full height, right-hand edge, ~quarter width — and a bottom slice on portrait.
+    // Either way the BOARD YIELDS the space ("it shouldn't be covering up the board")
+    // via the --kchat-clear-* vars that #boardRoot's panel-mode override consumes.
+    var side = on && innerWidth > innerHeight && innerWidth >= 700;
+    var clearB = 0, clearR = 0;
     if (d) {
       d.style.display = on ? "" : "none";
+      d.classList.toggle("kchat-dock--side", side);
       if (on) {
-        // sit above whatever bottom bar is currently visible — measured, not guessed
-        var off = 0;
-        [".kspec-ribbon", ".ring-footer", ".knarr"].forEach(function (s) {
-          var el = document.querySelector(s);
-          if (!el) return;
-          var r = el.getBoundingClientRect();
-          if (r.height && r.top < innerHeight && getComputedStyle(el).display !== "none")
-            off = Math.max(off, innerHeight - r.top);
-        });
-        d.style.bottom = (off + 4) + "px";
+        if (side) {
+          clearR = Math.round(Math.min(380, Math.max(250, innerWidth * 0.25)));
+          d.style.width = clearR + "px";
+          d.style.bottom = "0px";
+        } else {
+          d.style.width = "";
+          // sit above whatever bottom bar is currently visible — measured, not guessed
+          var off = 0;
+          [".kspec-ribbon", ".ring-footer", ".knarr"].forEach(function (s) {
+            var el = document.querySelector(s);
+            if (!el) return;
+            var r = el.getBoundingClientRect();
+            if (r.height && r.top < innerHeight && getComputedStyle(el).display !== "none")
+              off = Math.max(off, innerHeight - r.top);
+          });
+          d.style.bottom = (off + 4) + "px";
+          clearB = Math.round(Math.max(0, innerHeight - d.getBoundingClientRect().top));
+        }
       }
+    }
+    var rootStyle = document.documentElement.style;
+    var wantB = clearB + "px", wantR = clearR + "px";
+    if (rootStyle.getPropertyValue("--kchat-clear-b") !== wantB ||
+        rootStyle.getPropertyValue("--kchat-clear-r") !== wantR) {
+      rootStyle.setProperty("--kchat-clear-b", wantB);
+      rootStyle.setProperty("--kchat-clear-r", wantR);
+      // the board must re-solve its geometry for the smaller box. Deferred + guarded:
+      // render() calls back into syncDock, but the vars are unchanged on that pass,
+      // so this fires exactly once per real change.
+      if (typeof render === "function") setTimeout(function () { try { render(); } catch (e) {} }, 0);
     }
     return d;
   }
@@ -242,6 +268,10 @@
     var el = document.getElementById("boardChatFull");
     if (!el) return;
     el.classList.toggle("open", on !== false);
+    // R2 (user 2026-08-03, got STUCK in here on mobile): the banner (z70) sat on top
+    // of this overlay (was z60), parking the hamburger exactly over the ✕. The
+    // overlay now outranks the banner (CSS z2000) and the banner hides while open.
+    document.body.classList.toggle("kchat-fullopen", on !== false);
     if (on !== false) {
       var l = document.getElementById("boardChatFullList");
       if (l) l.scrollTop = l.scrollHeight;
@@ -639,6 +669,7 @@
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") openFull(false); });
 
-  // Rotation and resize move wedges without a state change — follow them.
-  window.addEventListener("resize", function () { setTimeout(reposition, 60); });
+  // Rotation and resize move wedges without a state change — follow them. The dock
+  // re-decides side-vs-bottom on resize too (landscape ⇄ portrait).
+  window.addEventListener("resize", function () { setTimeout(function () { syncDock(); reposition(); }, 60); });
 })();

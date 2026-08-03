@@ -188,7 +188,11 @@ window.addEventListener("load", () => {
     params.delete("created")
     history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params.toString() : ""))
     const link = location.origin + location.pathname
-    notify?.(`New game created — share this link for others to join: ${link}`, "success", { timeout: 15000 })
+    // R2 (user 2026-08-03): the link is CLICKABLE (notify's link element) and rides as
+    // detail so it wraps cleanly. Folding this into the message stream as the circle's
+    // first entry is part of BOARD-CHATLAYOUT1 (toasts-into-chat).
+    notify?.(`New game created — share this link for others to join`, "success",
+      { timeout: 15000, detail: link, link: { href: link, text: "Open ↗" } })
   }
 })
 </script>
