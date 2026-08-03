@@ -348,8 +348,27 @@ function connect(onOpenAction){
     onOpenAction && onOpenAction()
   }
 
-  socket.onclose = () => { glog("ws onclose"); scheduleWsReconnect() }
-  socket.onerror = (e) => { glog("ws onerror", { msg: String(e?.message || "") }); try { socket.close() } catch {} }
+  socket.onclose = () => {
+    glog("ws onclose")
+    // WS-SIGNDIAG1 (user 2026-08-03, t-prop): sporadic "signature not picked up"
+    // traced to sockets dying silently mid-signing (backend OOM storm that
+    // afternoon). Every close is now a kdiag event, and a close DURING an active
+    // signing window gets a visible toast — the state the user was staring at
+    // is stale until the reconnect lands.
+    let signingNow = false
+    try { signingNow = typeof boardSigning !== "undefined" && !!boardSigning } catch(e){}
+    try { window.kdiag?.("ws:close", { signing: signingNow, gameId: typeof gameId !== "undefined" ? gameId : null }) } catch(e){}
+    try {
+      if(signingNow && typeof notify === "function")
+        notify("Connection dropped — reconnecting… sign status may lag a moment", "warning", { timeout: 4000 })
+    } catch(e){}
+    scheduleWsReconnect()
+  }
+  socket.onerror = (e) => {
+    glog("ws onerror", { msg: String(e?.message || "") })
+    try { window.kdiag?.("ws:error", { msg: String(e?.message || "") }) } catch(_){}
+    try { socket.close() } catch {}
+  }
 
 	
 	const alertTimeouts = {warning: 3000, error: 0, info: 3000, success: 4000, event: 3000}

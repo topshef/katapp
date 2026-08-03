@@ -2380,11 +2380,16 @@ function boardDrawCounterShade(){
     // ±80°-clamped half left a visible gap between adjacent counters (huge with
     // two players, where 90° of arc fell to the clamp). Drawing only.
     const half = z.halfDegFull || Math.min(z.halfDeg, 80)
-    const steps = 24
+    // R3 (user 2026-08-03, w/ screenshot): a fixed 24 samples reads as a POLYGON
+    // once one segment spans most of the circle — sample per ~1.5° of arc instead
+    // (360° ≈ 240 points) so the counter is a circle, not a icositetragon.
+    const steps = Math.max(24, Math.ceil(half * 2 / 1.5))
+    // R3: inner edge at rim+7 = flush with the 14px lock tube's outer edge
+    // (centreline is the rim), so the counter butts the lock ring, no sliver gap.
     const pts = []
     for(let i = 0; i <= steps; i++){
       const a = (-half + 2 * half * i / steps) * Math.PI / 180
-      const r = boardRimAt(env, z.midRad + a) + 8
+      const r = boardRimAt(env, z.midRad + a) + 7
       pts.push([r * Math.cos(a), r * Math.sin(a)])
     }
     for(let i = steps; i >= 0; i--){
@@ -3565,7 +3570,23 @@ async function boardDirectSign(account){
     if(!bytes) bytes = await boardReadTxBytes(network, tx.txid)
     if(!bytes) throw new Error("transaction bytes unavailable")
     const signAs = (await wc.getAccount?.()) || accountId
-    const { signedTransactionHex } = await wc.signTx({ accountId: signAs, transactionBytes: bytes })
+    // WS-SIGNDIAG1 (user 2026-08-03, t-prop): "wallet said done, board never got the
+    // signature" — the WC RELAY socket can die silently and signTx then just never
+    // resolves. Watchdogs (diagnosis + user cue only — a late response still saves):
+    // 25s in, note it in kdiag; 60s, tell the user what to try. The real fix
+    // (relay health-check/re-subscribe inside the KWC bundle) is WC-RELAYHEALTH1.
+    const signT0 = Date.now()
+    const wd1 = setTimeout(() => {
+      boardDiag("board:sign:slow", { txid: tx.txid, accountId: signAs, waitedMs: Date.now() - signT0 })
+    }, 25000)
+    const wd2 = setTimeout(() => {
+      boardDiag("board:sign:stalled", { txid: tx.txid, accountId: signAs, waitedMs: Date.now() - signT0 })
+      notify("Still waiting for the wallet's response — if you already approved, the connection may have dropped: try Sign again or refresh", "warning", { timeout: 8000 })
+    }, 60000)
+    let signedTransactionHex
+    try {
+      ({ signedTransactionHex } = await wc.signTx({ accountId: signAs, transactionBytes: bytes }))
+    } finally { clearTimeout(wd1); clearTimeout(wd2) }
     const save = await fetch("/future/?action=txSave", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -4859,12 +4880,17 @@ function ringFelt(segs, g){
     const tint = segs.length > 1
       ? ringDividerTint(getPlayerColour(seg.account.playerId), getPlayerColour(prev.account.playerId))
       : null
+    // spoke inner end (user 2026-08-03, w/ screenshot): stop at the players'
+    // colour ring around the hub, not through it onto the K logo's own ring —
+    // the K sits separate in its little ring of colour, spokes end at the
+    // doorstep with a visible gap.
+    const rIn = g.rc + 6
     if(ring8() && segs.length > 1 && (seg.mine !== prev.mine)){
       const rOvalHere = (g.rx * g.ry) / Math.hypot(g.ry * Math.cos(a), g.rx * Math.sin(a))
-      mkLine(a, g.rc, rOvalHere, "ring-boundary", segBase(seg), tint)
+      mkLine(a, rIn, rOvalHere, "ring-boundary", segBase(seg), tint)
       mkLine(a, rOvalHere, rE, "ring-divider", segBase(seg), tint)
     } else {
-      mkLine(a, g.rc, rE, "ring-boundary", segBase(seg), tint)
+      mkLine(a, rIn, rE, "ring-boundary", segBase(seg), tint)
     }
   })
 

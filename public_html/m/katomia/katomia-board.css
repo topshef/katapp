@@ -1458,9 +1458,15 @@ body.board-page .app-banner{
    --open's transparent default, similar specificity); --locked and the
    :hover rule carry their own !important + higher specificity and win over
    this live, as intended. */
+/* ONE thickness for the whole lock-ring tube (user 2026-08-03, w/ screenshot):
+   resting strip, hover, locked orange and signing light all read as the same
+   14px tube on the same centreline — the resting 12 vs hover 14 vs locked 12
+   mismatch showed as "the orange doesn't quite reach the counter" and a band
+   whose middle looked offset. 14 = the proven hover/tap width; nothing fatter. */
+[data-board-fam~="v16"] .ring-lockarc{ stroke-width: 14; }
 [data-board-fam~="v16"] .ring-lockarc--target{
   stroke: var(--tstrip, #eeeae0) !important;
-  stroke-width: 12;
+  stroke-width: 14;
   stroke-dasharray: none;
   opacity: 1;
 }
@@ -1471,7 +1477,13 @@ body.board-page .app-banner{
 /* locked = the SAME strip filled in orange (not a thin line over the strip).
    opacity 1 (user round 4): the v8 rule's .85 let the two zones show through
    the orange — the same two-tone artefact again. Solid paint, everywhere. */
-[data-board-fam~="v16"] .ring-lockarc--locked{ stroke-width: 12; opacity: 1; }
+[data-board-fam~="v16"] .ring-lockarc--locked{ stroke-width: 14; opacity: 1; }
+/* signing light matches the tube too (user 2026-08-03): glow at the full 14,
+   the white bed reduced from a visible border to a HAIRLINE (15 = 0.5px per
+   side), and butt caps — the round ends were sticking little white semicircles
+   past the segment boundary; the light must cut clean at the divider. */
+[data-board-fam~="v16"] .ring-lockarc.ring-signarc{ stroke-width: 14; }
+[data-board-fam~="v16"] .ring-signarc-under{ stroke-width: 15; stroke-linecap: butt; }
 /* hover preview, v16: SOLID pale orange (user round 4, w/ screenshot: the
    inherited v10 hover is rgba(...,.35) — TRANSLUCENT, so it composited
    differently over the light inner and darker outer zones = a two-tone
@@ -1541,7 +1553,7 @@ body.board-page .app-banner{
    selector so it also previews an unlock over the full --locked orange. */
 .ring-lockarc.ring-lockpreview{
   stroke: #f8d5a5 !important;
-  stroke-width: 12 !important;
+  stroke-width: 14 !important;
   stroke-dasharray: none !important;
   opacity: 1 !important;
 }
