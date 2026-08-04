@@ -1410,6 +1410,20 @@ body.board-page .app-banner{
   stroke-dasharray: none;
   filter: drop-shadow(0 0 6px #35b06f) drop-shadow(0 0 18px rgba(53,176,111,.75));
 }
+/* SIGN-BOUNDARY1 (user 2026-08-04): the no-man's-land tint. Past the window's
+   nominal end but before the backend's verdict, EVERY signed arc goes DARK
+   green — "the lights are going out, but it's still green: you still signed."
+   Green stays strictly the SIGNING status (never a success predictor); the
+   dimmed glow fades the expectation of the tx going through while the fact of
+   the signature stands. Applies to all signed arcs at once, however early they
+   signed — the whole board has entered the uncertainty window together. These
+   two (green / dark green) are the ONLY signed states the arc shows: once truly
+   expired the board resets, so no third state is needed. Flag set by
+   boardUpdateBanner (katomia-board.js). */
+body[data-signtwilight="1"] .ring-signarc--signed{
+  stroke: #1e7047 !important;
+  filter: drop-shadow(0 0 4px #1e7047) drop-shadow(0 0 10px rgba(30,112,71,.5));
+}
 .ring-signarc--failed{
   stroke: #d64541 !important;
   /* !important on BOTH (2026-07-15, round 2 — the linecap-only fix below
@@ -1552,6 +1566,8 @@ body.board-page .app-banner{
   padding: 1px 7px;
 }
 .ring-hub-count--signed{ color: #2e8f5b; }
+/* SIGN-BOUNDARY1: hub count's signed green dims with the arcs in the no-man's-land */
+body[data-signtwilight="1"] .ring-hub-count--signed{ color: #1e7047; }
 .ring-hub-count--failed{ color: #d64541; }
 
 /* pending tx legs sitting on the table */

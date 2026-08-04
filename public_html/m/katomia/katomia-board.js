@@ -596,6 +596,19 @@ function boardSetBanner(html){
 }
 
 function boardUpdateBanner(){
+  // SIGN-BOUNDARY1 (user 2026-08-04): the no-man's-land — past our idea of the
+  // window's end but before the backend's verdict lands ("Expired?" grace). The
+  // arc GREEN always means SIGNED, nothing else; in this uncertainty window every
+  // signed green dims to DARK green ("the lights are going out, but it's still
+  // green — you still signed"), fading the expectation of success without ever
+  // un-saying the signature. Signing is NOT blocked here — if someone can still
+  // sign, they may; the tint is the only cue. Toggled from this function because
+  // it runs on every render AND every countdown tick, so the flip lands within a
+  // second of crossing the boundary with no extra timer; CSS does the recolour
+  // live on the already-painted arcs (see .ring-signarc--signed twilight rule).
+  const twilight = !!(boardSigning && boardSigning.expiry && Date.now() > boardSigning.expiry)
+  if(twilight) document.body.dataset.signtwilight = "1"
+  else delete document.body.dataset.signtwilight
   if(boardSigning){
     const txid = boardSigning.tx?.txid || ""
     const txSpan = txid ? ` · <span class="board-banner-tx">${txid}</span>` : ""
