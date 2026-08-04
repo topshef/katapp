@@ -606,7 +606,16 @@ function boardUpdateBanner(){
   // it runs on every render AND every countdown tick, so the flip lands within a
   // second of crossing the boundary with no extra timer; CSS does the recolour
   // live on the already-painted arcs (see .ring-signarc--signed twilight rule).
-  const twilight = !!(boardSigning && boardSigning.expiry && Date.now() > boardSigning.expiry)
+  // SIGN-BOUNDARY1 R5 (user 2026-08-04): the no-man's-land starts 10s BEFORE
+  // nominal expiry, not at it. Measured on both networks (SDK debug log, 16:21
+  // UTC): nodes answer TRANSACTION_EXPIRED at INGEST once a tx has ~<=10s of
+  // validity left (refused instantly with 8.6s and 4.6s remaining; accepted
+  // cleanly at ~37s; borderline at ~10s) — the last ~10 seconds of every window
+  // are dead on arrival at the node, so signatures landing there "keep failing
+  // at the last minute" by rule, not coincidence. Signing stays enabled
+  // throughout — dark green is a forecast, never a lock.
+  const SIGN_NOMANSLAND_MS = 10_000
+  const twilight = !!(boardSigning && boardSigning.expiry && Date.now() > boardSigning.expiry - SIGN_NOMANSLAND_MS)
   if(twilight) document.body.dataset.signtwilight = "1"
   else delete document.body.dataset.signtwilight
   if(boardSigning){
@@ -3831,7 +3840,11 @@ async function boardDirectSign(account){
     }, 25000)
     const wd2 = setTimeout(() => {
       boardDiag("board:sign:stalled", { txid: tx.txid, accountId: signAs, waitedMs: Date.now() - signT0 })
-      notify("Still waiting for the wallet's response — if you already approved, the connection may have dropped: try Sign again or refresh", "warning", { timeout: 8000 })
+      // WC-SESSIONWEDGE1 (user 2026-08-04): a wedged WalletConnect session survives
+      // page reloads (it lives in this site's localStorage), so "refresh" alone is
+      // useless advice — the fix that actually worked was disconnecting this site in
+      // the wallet app and re-pairing. Say so explicitly; users can't guess this.
+      notify("Still waiting for the wallet's response — if you already approved, the connection is likely stuck. Fix: open your wallet app, disconnect this site, then Sign again to reconnect.", "warning", { timeout: 12000 })
     }, 60000)
     let signedTransactionHex
     try {
