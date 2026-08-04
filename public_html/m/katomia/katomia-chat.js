@@ -98,27 +98,37 @@
     for (var i = 0; i < 3; i++) { if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) < (pb[i] || 0); }
     return false;
   }
-  function boundAccountFor(playerId) {
+  // bound=true → verified accounts only (the preferred identity); bound=false →
+  // any account this player holds, the fallback added 2026-08-04 (see who()).
+  function accountFor(playerId, bound) {
     try {
       var accs = (typeof state !== "undefined" && state && state.accounts) ? state.accounts : null;
       if (!accs || !playerId) return null;
       var best = null;
       Object.keys(accs).forEach(function (k) {
         var a = accs[k];
-        if (!a || a.playerId !== playerId || !a.authBound) return;
+        if (!a || a.playerId !== playerId) return;
+        if (bound && !a.authBound) return;
         var id = a.accountId || a.label || String(a.id || k).split(":")[1];
         if (id && (!best || accountLess(id, best))) best = id;
       });
       return best;
     } catch (e) { return null; }
   }
+  function boundAccountFor(playerId) { return accountFor(playerId, true); }
+  // CHAT-IDENTITY1 follow-up (user 2026-08-04: "let's not use the player labels
+  // p1, p2, p3 — that's not used anywhere, so let's not display that at all").
+  // The old last resort printed exactly that, and it was NOT an edge case: web
+  // players join as `anon` (katomia-network.js), so any unnamed player without a
+  // VERIFIED binding fell straight through to "player p1". Now an unverified
+  // account id is preferred over the raw player id, and the id is only ever a
+  // silent "—" if the player somehow holds no account at all.
   function who(msg) {
     var n = msg.playerName;
     if (!n || n === "anon") {
-      var bound = boundAccountFor(msg.playerId);
-      if (bound) return bound;
+      return boundAccountFor(msg.playerId) || accountFor(msg.playerId, false) || "—";
     }
-    return n || ("player " + String(msg.playerId || "?").slice(0, 6));
+    return n;
   }
 
   // Bubble display name (user 2026-08-03): the cast emoji that leads demo names is
