@@ -70,7 +70,10 @@ export default defineConfig(({ command }) => {
     ...baseConfig,
 
     build: {
-      sourcemap: true,
+      // KWC_SOURCEMAP=0 skips sourcemaps — they roughly double rollup's memory
+      // and the 8GB box (no swap) OOM-killed two builds at ~830MB available
+      // (WC-RELAYHEALTH1 build, 2026-08-04). Default stays on.
+      sourcemap: process.env.KWC_SOURCEMAP !== '0',
       emptyOutDir: true,
 
       lib: {
