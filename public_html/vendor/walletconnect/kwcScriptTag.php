@@ -22,7 +22,7 @@ function getKwc($in) {
   // new value on every change, never hand-patch an already-served snapshot in place
   // (incident 2026-07-24: mobile cached a mid-session copy of aa0fdbc forever).
   // Roll back to de29cb6 (= hand-patched pre-guard state) if ever needed.
-  $kwc_version = $in['kwc_version'] ?? '30c3fd9';  //prev de29cb6 / aa0fdbc / 64c41ba / 17f774f / 4c7696e / 4f74b48 / 53216ab — override via ?kwc_version=… for A/B comparison
+  $kwc_version = $in['kwc_version'] ?? 'a99a66e';  //prev 30c3fd9 / de29cb6 / aa0fdbc / 64c41ba / 17f774f / 4c7696e / 4f74b48 / 53216ab — override via ?kwc_version=… for A/B comparison. a99a66e = WC-RELAYHEALTH1 (relay watch, session-ping preflight, in-flight guard; built via build:lite/esbuild — vite OOM-blocked, see builder/build-lite.mjs header)
 
   if (preg_match('/^[0-9a-fA-F]+$/', $kwc_version)) { // hex.. it's a commit snapshot
     $commit = $kwc_version;
