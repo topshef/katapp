@@ -308,6 +308,148 @@
     if (sub) sub.textContent = chat.length ? chat.length + " so far" : "nothing said yet";
   }
 
+  /* ── BOARD-ACTIONMSG1 action rendering (user 2026-08-04) ───────────────────
+     The backend now sends {v:1, kind, actor, from, to, assetId, amount, ts}
+     alongside the prose comment (katomiaHelpers.js → Ctx.act). Identity arrives
+     as PUBLIC ids and everything displayable — account label, verified marker,
+     player colour, asset name — is resolved HERE from live state, so a row can
+     never show a stale label the message happened to be built with.
+
+     FORMAT DISCIPLINE, inherited from DEMO-NARRATE1 and restated in the doc: we
+     render only what we recognise. An unknown v or kind falls back to the
+     prose, which is exactly why the user asked for it to keep being sent. */
+
+  var ACTION_VERBS = {
+    offer:    { verb: "offers",     joiner: "→" },
+    pick:     { verb: "picked",     joiner: "from" },
+    withdraw: { verb: "took back",  joiner: "from" },
+    reject:   { verb: "returned",   joiner: "to" },
+    lock:     { verb: "locked",     solo: true },
+    unlock:   { verb: "unlocked",   solo: true }
+  };
+
+  function actionRenderable(a) {
+    return !!(a && a.v === 1 && ACTION_VERBS[a.kind]);
+  }
+
+  function accountObj(publicId) {
+    try { return (state && state.accounts && state.accounts[publicId]) || null; } catch (e) { return null; }
+  }
+  function accountLabel(publicId) {
+    var a = accountObj(publicId);
+    return (a && (a.label || a.accountId)) || String(publicId || "").split(":")[1] || String(publicId || "");
+  }
+  // 🔷 verified / △ not — only on networks where binding means something, the
+  // same gate the board's ringBindBadge uses (playnet shows neither).
+  function verifyMark(publicId) {
+    var net = "";
+    try { net = (typeof gameMeta !== "undefined" && gameMeta && gameMeta.network) || ""; } catch (e) {}
+    if (net !== "testnet" && net !== "mainnet") return null;
+    var a = accountObj(publicId);
+    return a && a.authBound ? "\u{1F537}" : "△";
+  }
+  function appendAccount(host, publicId) {
+    var el = document.createElement("span");
+    el.className = "kchat-act-acct";
+    el.textContent = accountLabel(publicId);
+    var mk = verifyMark(publicId);
+    if (mk) {
+      var m = document.createElement("span");
+      m.className = "kchat-act-mark" + (mk === "△" ? " kchat-act-mark--un" : "");
+      m.textContent = mk;
+      el.appendChild(document.createTextNode(" "));
+      el.appendChild(m);
+    }
+    host.appendChild(el);
+  }
+  // the actor's OWN account marker, appended after their display name
+  function appendVerifyMark(host, playerId) {
+    var best = null;
+    try {
+      Object.keys((state && state.accounts) || {}).forEach(function (k) {
+        var a = state.accounts[k];
+        if (a && a.playerId === playerId && (!best || accountLess(a.label || "", best.label || ""))) best = a;
+      });
+    } catch (e) {}
+    if (!best) return;
+    var mk = verifyMark(best.id);
+    if (!mk) return;
+    var m = document.createElement("span");
+    m.className = "kchat-act-mark" + (mk === "△" ? " kchat-act-mark--un" : "");
+    m.textContent = " " + mk;
+    host.appendChild(m);
+  }
+  // the asset as a mini CHIP — same object, same look as on the felt: the
+  // giver's colour on the sleeve, the amount inside it rather than in the
+  // sentence (the doc's open question, settled that way for exactly this
+  // reason — the chip on the board reads "10 USDC" too)
+  function appendAssetChip(host, a) {
+    var chip = document.createElement("span");
+    chip.className = "kchat-act-chip";
+    var owner = accountObj(a.from);
+    var colour = owner ? colourFor(owner.playerId) : null;
+    if (colour) chip.style.borderLeftColor = colour;
+    var text = String(a.assetId || "");
+    try {
+      if (typeof boardAssetText === "function") text = boardAssetText(a.assetId, a.amount || 1);
+    } catch (e) {}
+    chip.textContent = text;
+    host.appendChild(chip);
+  }
+  function appendWord(host, w) {
+    var s = document.createElement("span");
+    s.className = "kchat-act-verb";
+    s.textContent = w;
+    host.appendChild(s);
+  }
+
+  function renderActionText(host, a) {
+    var spec = ACTION_VERBS[a.kind];
+    if (!spec) return;
+    appendWord(host, spec.verb);
+    host.appendChild(document.createTextNode(" "));
+    if (spec.solo) {                       // lock / unlock: one account, no asset
+      appendAccount(host, a.account);
+      if (a.kind === "lock") host.appendChild(document.createTextNode(" \u{1F512}"));
+      return;
+    }
+    appendAssetChip(host, a);
+    host.appendChild(document.createTextNode(" "));
+    appendWord(host, spec.joiner);
+    host.appendChild(document.createTextNode(" "));
+    // who the OTHER end is depends on which way the asset travelled
+    appendAccount(host, a.kind === "offer" ? a.to
+                      : a.kind === "reject" ? a.from
+                      : a.kind === "pick" ? a.from
+                      : a.to);
+    // hovering the row lights the same pair on the board — the chips already
+    // carry this exact triple, so no board change was needed (doc §5)
+    if (a.from && a.to && a.assetId) {
+      host.dataset.actFrom = a.from;
+      host.dataset.actTo = a.to;
+      host.dataset.actAsset = a.assetId;
+    }
+  }
+
+  // action rows arriving off the wire — merged into the same local stream the
+  // toasts use. NOT persisted server-side (the actions ride the message pool,
+  // not game.chat), so this is a live feed, same lifetime as a toast.
+  function action(msg) {
+    if (!actionRenderable(msg && msg.action)) return false;
+    systemMsgs.push({
+      id: "act" + (++_sysN),
+      ts: msg.action.ts || Date.now(),
+      text: msg.message || "",
+      action: msg.action,
+      playerId: msg.action.actor
+    });
+    if (systemMsgs.length > 100) systemMsgs.shift();
+    pulseAvatar(msg.action.actor);           // the actor's wedge avatar swells
+    var st = (typeof state !== "undefined" && state) || null;
+    renderLog((st && Array.isArray(st.chat)) ? st.chat : []);   // renderLog folds systemMsgs in
+    return true;
+  }
+
   function renderInto(list, chat) {
     if (!list) return;
     var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 24;
@@ -324,16 +466,24 @@
       // ownership cue as chip sleeves and bubble bars), the player's AVATAR on their
       // colour (the fruit emoji is gone from display names everywhere), then bold
       // name + time + the text INLINE, wrapping — compact, chat-app familiar.
+      // BOARD-ACTIONMSG1: a THIRD row variant. `system` (🤖 Katomia, gold bar) is
+      // the machine talking; an ACTION is a player doing something, so it keeps
+      // the actor's colour and avatar exactly like their speech — the difference
+      // is carried by the wording, not by demoting them to a system notice.
       var row = document.createElement("div");
-      row.className = "kchat-row" + (m.system ? " kchat-row--sys" : "");
-      var c = m.system ? null : colourFor(m.playerId);
+      row.className = "kchat-row" + (m.system ? " kchat-row--sys" : "")
+        + (m.action ? " kchat-row--act" : "");
+      var c = m.action ? colourFor(m.action.actor) : (m.system ? null : colourFor(m.playerId));
       var t = new Date(m.ts);
       var hh = String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0");
       var bar = document.createElement("span");
       bar.className = "kchat-row-bar";
       if (c) bar.style.background = c;
       row.appendChild(bar);
-      if (m.system) {
+      if (m.action) {
+        if (typeof kemojiEl === "function")
+          row.appendChild(kemojiEl(avatarKey(m.action.actor), { size: 16, bg: c }));
+      } else if (m.system) {
         var bot = document.createElement("span");
         bot.className = "kchat-sys-emoji";
         bot.textContent = "🤖";
@@ -345,11 +495,26 @@
       main.className = "kchat-row-main";
       var nm = document.createElement("b");
       nm.textContent = m.system ? "Katomia" : displayName(m);
+      // BOARD-ACTIONMSG1: the sender's own account carries the verified marker,
+      // same glyph vocabulary as the board (🔷 verified / △ not). Actions only —
+      // a typed message is about the person, an action is about the account.
+      if (m.action) appendVerifyMark(nm, m.action.actor);
       var tm = document.createElement("i");
       tm.textContent = hh;
       var tx = document.createElement("span");
       tx.className = "kchat-row-text";
-      tx.textContent = m.text;                      // textContent — chat is user input
+      if (m.action) renderActionText(tx, m.action);  // structured → elements
+      else if (m.system) tx.textContent = m.text;    // textContent — chat is user input
+      else {
+        // BOARD-ACTIONMSG1: mark SPEECH, not actions — with actions expected to
+        // dominate the stream, the typed message is the rarer thing and so the
+        // cheaper one to flag (user's own lean, agreed in the design doc)
+        var q = document.createElement("span");
+        q.className = "kchat-row-say";
+        q.textContent = "\u{1F4AC} ";
+        tx.appendChild(q);
+        tx.appendChild(document.createTextNode(m.text));
+      }
       if (m.to) {
         var to = document.createElement("em");
         to.className = "kchat-row-to";
@@ -363,6 +528,16 @@
         a2.href = m.link; a2.target = "_blank"; a2.rel = "noopener noreferrer";
         a2.textContent = m.linkText || "↗";
         main.append(" ", a2);
+      }
+      // BOARD-ACTIONMSG1 (doc §5): hovering an action row lights the same pair on
+      // the board. Free — the chips already carry this exact triple, so this is
+      // the board's own highlightTradePair with no board-side change at all.
+      if (m.action && m.action.from && m.action.to && m.action.assetId
+          && typeof highlightTradePair === "function") {
+        var act = m.action;
+        row.classList.add("kchat-row--linked");
+        row.onmouseenter = function () { try { highlightTradePair(act.assetId, act.from, act.to, true); } catch (e) {} };
+        row.onmouseleave = function () { try { highlightTradePair(act.assetId, act.from, act.to, false); } catch (e) {} };
       }
       row.appendChild(main);
       list.appendChild(row);
@@ -749,6 +924,8 @@
     reposition: reposition,
     setMode: setMode,
     system: system,
+    action: action,                 // BOARD-ACTIONMSG1 — structured player actions
+    canRender: actionRenderable,    // …so the network layer knows to suppress the toast
     get live() { return live.length; },
     openLog: function (on) {
       logOpen = on !== false;

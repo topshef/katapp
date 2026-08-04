@@ -378,9 +378,18 @@ function connect(onOpenAction){
 		console.log("websocket data received", data)
 		
 			
+		// BOARD-ACTIONMSG1 (user 2026-08-04): a message carrying a STRUCTURED
+		// `action` the chat can render becomes a proper action row in the stream —
+		// the actor's colour, avatar, account ids with the verified marker, and the
+		// asset as a chip — instead of a prose toast. The prose still rides along
+		// as the fallback comment the user asked the backend to keep sending: if
+		// this client doesn't know the action's version or kind (canRender says no),
+		// or the panel isn't loaded at all, it falls straight through to notify().
 		if (data.messages)
-			for (const m of data.messages) 
-				notify(m.message,m.type, { timeout: alertTimeouts[m.type] ?? 0 }) // persistent
+			for (const m of data.messages){
+				if(m.action && window.katomiaChat?.canRender?.(m.action) && window.katomiaChat.action(m)) continue
+				notify(m.message, m.type, { timeout: alertTimeouts[m.type] ?? 0 }) // persistent
+			}
 		if(data.type === "game_error") return  // errors included in notify
 				
 		
