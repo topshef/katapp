@@ -61,7 +61,9 @@ fi
 # Run Clean Build
 # --------------------------------------------------
 
-npm run build 2>&1 | tee "$BUILD_LOG"
+# WC-RELAYHEALTH1 (2026-08-04): KWC_BUILD=build:lite selects the esbuild fallback
+# (build-lite.mjs) when the box can't feed vite/rollup ~2GB. Default unchanged.
+npm run "${KWC_BUILD:-build}" 2>&1 | tee "$BUILD_LOG"
 
 # --------------------------------------------------
 # Create Snapshot Folder
