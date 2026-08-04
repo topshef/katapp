@@ -197,6 +197,17 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
       <input type="checkbox" id="boardPrefHugRing" title="Lab: organic store blobs home slightly closer to the ring — a mild inward bias; the reserved rim band still keeps chips off the ring itself">
       🧪 Chips hug the ring
     </label>
+    <!-- BOARD-CHIPART1 (user 2026-08-04): chip face styling, three variants up
+         for live comparison. NFTs never get their artwork recoloured — in the
+         non-plain variants they keep the picture and gain a fat owner tag. -->
+    <label class="board-settings-label board-settings-nerd-only">
+      🧪 Chip style
+      <select id="boardPrefChipStyle" title="Lab: how chips are painted. Plain = white face + thin owner sleeve (current). Colour = fungible chips take the owner's colour with contrast-picked text, NFTs keep their art and gain a wide owner tag. Dark = charcoal face, white text, owner colour as a rim — highest contrast against the felt, best on phones.">
+        <option value="plain">⬜ Plain</option>
+        <option value="colour">🎨 Owner colour</option>
+        <option value="dark">🌑 Dark</option>
+      </select>
+    </label>
     <!-- BOARD-COUNTERMODE1 (user 2026-08-04): simple is the new default — no
          counter band, partial fungible offers move the decremented remainder
          stack to the rim instead of leaving a ghost. This 🧪 switch restores

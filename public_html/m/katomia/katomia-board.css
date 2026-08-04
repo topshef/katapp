@@ -1687,3 +1687,46 @@ body.board-page .app-banner{
 .board-zonewall--basket{ stroke: rgba(25,113,194,.55); stroke-width: 1.5; fill: rgba(25,113,194,.05); }
 .board-zonewall--band{ stroke: rgba(217,72,15,.35); stroke-width: 1; stroke-dasharray: 4 4; }
 .board-zonewall--safe{ stroke: rgba(80,80,80,.5); stroke-width: 1.5; stroke-dasharray: 8 6; }
+
+/* ── BOARD-CHIPART1: chip face variants (user 2026-08-04) ──────────────────
+   Comparison set for "chips look a bit basic". Precedent is the poker chip:
+   the BODY colour carries identity at table distance, and an edge mark reads
+   in a stack — but an NFT's artwork is its identity, so art is never
+   recoloured or wrapped (user's explicit call: a full wrap "could detract
+   from the artwork"). Instead the owner bar widens into a proper TAG.
+   Every rule keys off the per-chip --own / --own-ink pair that ringTint
+   publishes, so no variant needs its own JS. `plain` = untouched status quo. */
+
+/* fungible faces take the owner's colour; ink is luminance-picked in JS */
+[data-chip-style="colour"] .board-chip:not(.thumb-only){
+  background: var(--own, #fff);
+  color: var(--own-ink, #fff);
+  border-left-color: color-mix(in srgb, var(--own, #fff) 55%, #000);
+}
+/* dark: charcoal body, owner colour demoted to the sleeve + a hairline rim —
+   the highest-contrast option against the light felt (phones) */
+[data-chip-style="dark"] .board-chip:not(.thumb-only){
+  background: #2c2820;
+  color: #fdfbf4;
+  box-shadow: 0 1px 1.5px rgba(0,0,0,.3), 0 2px 6px rgba(0,0,0,.16),
+              inset 0 0 0 1px color-mix(in srgb, var(--own, #fff) 70%, transparent);
+}
+/* NFTs in BOTH new variants: artwork untouched, owner bar → tag at 3× the
+   4px sleeve (user: "at least double, maybe even three times") */
+/* !important: applyOwnerSleeve writes an INLINE `border-left` shorthand
+   (4px solid <colour>), which outranks any stylesheet rule — the tag stayed
+   4px until this won. The colour still comes from that inline value, only the
+   width is overridden here. */
+:is([data-chip-style="colour"], [data-chip-style="dark"]) .board-chip.thumb-only{
+  border-left-width: 12px !important;
+}
+
+/* ghosts must still read as ghosts under a coloured/dark face — the pale
+   wash + hard dashed outline is the language, so wash the face back out and
+   let the outline do the work (the caution from the counterless pass: a
+   saturated body needs its ghost designed alongside it, not after) */
+:is([data-chip-style="colour"], [data-chip-style="dark"]) .board-ghost:not(.thumb-only){
+  background: #efe9dc;
+  color: #a89f8d;
+  box-shadow: none;
+}

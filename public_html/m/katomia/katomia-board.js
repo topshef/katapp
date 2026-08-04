@@ -323,7 +323,7 @@ function boardSavePrefs(){
       zoneWalls: boardZoneWalls, hugRing: boardHugRing,
       stickyChips: boardStickyChips, chipScale: boardChipScale,
       chatMode: boardChatMode, avatarPos: boardAvatarPos,
-      counterMode: boardCounterMode
+      counterMode: boardCounterMode, chipStyle: boardChipStyle
     }))
   } catch {}
 }
@@ -396,6 +396,19 @@ let boardStickyChips = _bp.stickyChips ?? false
 // The counter GEOMETRY (ghost-only rim band the physics reserves) stays in
 // BOTH modes: the spatial separation is what makes the spotlight read.
 let boardCounterMode = _bp.counterMode === "classic" ? "classic" : "simple"
+// BOARD-CHIPART1 (user 2026-08-04): chip face styling, up for comparison —
+// "they look a bit basic at the moment… on mobile a dark on light might look
+// better". Three variants, board-game/poker-chip precedent (body colour reads
+// at distance, edge marks read in a stack):
+//   plain  — status quo: white face, 4px owner sleeve
+//   colour — FUNGIBLES take the owner's colour as the whole face with
+//            contrast-picked ink; NFTs keep their artwork untouched and get a
+//            fat owner TAG instead (the user's call: a full wrap would fight
+//            the art, so widen the left bar to ~3× and leave the picture alone)
+//   dark   — charcoal face, white text, owner colour as a rim + the same fat
+//            NFT tag; maximum contrast against the light felt, most "casino"
+// Nerd-only while being compared; the winner becomes the default.
+let boardChipStyle = ["colour", "dark"].includes(_bp.chipStyle) ? _bp.chipStyle : "plain"
 const boardCounterSimple = () => boardCounterMode === "simple"
 // helpers.js (highlightTradePair) needs this across the closure seam; absent
 // (legacy game.php grid) it reads undefined → classic behaviour there
@@ -901,6 +914,19 @@ function boardSyncPrefsUI(){
       boardSavePrefs()
     }
   }
+  // BOARD-CHIPART1: chip face variant (plain / colour / dark)
+  const chipStyle = document.getElementById("boardPrefChipStyle")
+  if(chipStyle){
+    chipStyle.value = boardChipStyle
+    if(chipStyle.selectedIndex < 0) chipStyle.value = "plain"
+    chipStyle.onchange = () => {
+      boardChipStyle = chipStyle.value
+      boardDiag("board:pref:chipStyle", { value: boardChipStyle })
+      boardSavePrefs()
+      // sizes change with the padding/tag width — let the apply re-measure
+      render()
+    }
+  }
   // BOARD-COUNTERMODE1: classic counter (ring + ghost pile) ⇄ simple (default)
   const classicCounter = document.getElementById("boardPrefClassicCounter")
   if(classicCounter){
@@ -955,6 +981,7 @@ async function render(){
     susan2() && "susan2p", susan3() && "susan3p", susan4() && "susan4p",
     susan5() && "susan5p",
   ].filter(Boolean).join(" ")
+  document.body.dataset.chipStyle = boardChipStyle   // BOARD-CHIPART1 variant under comparison
   if(gameMeta?.network)
     document.body.dataset.network = gameMeta.network.toLowerCase()
 
@@ -6043,10 +6070,31 @@ function ringTint(el, playerId){
   if(!ringEtched() || !playerId) return
   if(ringSleeved()){
     applyOwnerSleeve(el, playerId)
+    // BOARD-CHIPART1 (user 2026-08-04): every chip also publishes its owner's
+    // colour + a readable ink for it, so the chip-style variants below can
+    // paint the FACE without any of them needing their own JS. Ink is picked
+    // by luminance, not assumed white — half the palette (amber, teal) is far
+    // too light to carry white text, which is exactly how "coloured chips"
+    // usually goes wrong.
+    const colour = getPlayerColour(playerId)
+    el.style.setProperty("--own", colour)
+    el.style.setProperty("--own-ink", boardInkFor(colour))
     return
   }
   el.classList.add("chip-owned")
   el.style.background = `color-mix(in srgb, ${getPlayerColour(playerId)} 24%, #fff)`
+}
+
+// relative luminance (sRGB, gamma-corrected) → black or white ink. Threshold
+// .55 rather than the naive .5: on the mid-tone players white text on colour
+// reads better than black, and the board's felt is light so a dark chip has
+// more contrast against it anyway.
+function boardInkFor(hex){
+  const [r, g, b] = boardHexToRgb(hex).map(c => {
+    const s = c / 255
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4)
+  })
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) > 0.55 ? "#1d1a12" : "#ffffff"
 }
 
 function boardStoreChips(account, container, reservedByAccount){
