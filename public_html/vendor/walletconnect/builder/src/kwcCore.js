@@ -307,6 +307,7 @@ async function buildConnectorForNetwork(net) {
   await c.init()
   const _t2 = (typeof performance !== 'undefined' ? performance : Date).now()
   try { window.kdiag?.('wc:build', { net, loadConfigMs: Math.round(_t1 - _t0), initMs: Math.round(_t2 - _t1) }) } catch {}
+  watchRelayer(c)   // WC-RELAYHEALTH1: health flag + auto transport restart + in-flight guard
   // keep walletConfig.hedera.network in sync with the connector we actually built,
   // so getNetwork() reports the live network (not just the load-time config).
   walletConfig = { ...config, hedera: { ...config.hedera, network: net } }
@@ -327,6 +328,96 @@ async function initializeWalletConnect() {
   })()
 
   return wcInitPromise
+}
+
+// ── WC-RELAYHEALTH1 (2026-08-04) ─────────────────────────────────────────────
+// The relay websocket can die silently (2026-08-03 OOM storm; 2026-08-04 wedged
+// testnet session that ate every t-prop sign for 3 hours): wc.signTx then never
+// resolves — no error, no event; the board's 25s/60s watchdogs were the only
+// visibility. Three defences, all in-bundle:
+//   1. watchRelayer — subscribe to the core relayer's lifecycle events, keep a
+//      health flag (WC.relayHealthy()), kdiag every transition, and auto
+//      restartTransport() on disconnect/stall (backoff, capped at 10s).
+//   2. pingSession — wc_sessionPing round-trips dApp→relay→wallet→back; a wedged
+//      link fails in seconds instead of hanging a sign forever. signTx runs it
+//      as a preflight (restart + retry once), so a stale session surfaces BEFORE
+//      the wallet prompt as a real error naming the actual fix (disconnect the
+//      site in the wallet, re-pair — reloads don't help, the session persists in
+//      localStorage).
+//   3. in-flight guard — a sign in flight when the transport drops gets 15s for
+//      the auto-restart to recover (the relay mailboxes responses, so a late
+//      answer still lands after reconnect), then rejects with a real error; a
+//      2-minute absolute cap kills the eternal await for good.
+let relayHealth = { healthy: null, lastEvent: null, lastChangeAt: 0, restarts: 0 }
+const _wcInFlight = new Set()
+
+function _khealth(ev, healthy, extra) {
+  relayHealth = { ...relayHealth, healthy, lastEvent: ev, lastChangeAt: Date.now() }
+  try { window.kdiag?.("wc:relay:" + ev, { net: currentNetwork, inFlight: _wcInFlight.size, restarts: relayHealth.restarts, ...extra }) } catch {}
+}
+
+function watchRelayer(c) {
+  const relayer = c?.walletConnectClient?.core?.relayer
+  if (!relayer || relayer.__kwcWatched) return
+  relayer.__kwcWatched = true
+  relayHealth.healthy = !!relayer.connected
+  relayer.on("relayer_connect", () => {
+    _khealth("connect", true)
+    for (const g of _wcInFlight) { clearTimeout(g.lossTimer); g.lossTimer = null }
+  })
+  const onLoss = ev => () => {
+    _khealth(ev, false)
+    _scheduleRelayRestart(relayer)
+    for (const g of _wcInFlight)
+      if (!g.lossTimer) g.lossTimer = setTimeout(() =>
+        g.reject(new Error("KWC-RELAY-LOST: the wallet relay connection dropped mid-request and did not recover — open your wallet app, disconnect this site, then reconnect and try again.")), 15_000)
+  }
+  relayer.on("relayer_disconnect", onLoss("disconnect"))
+  relayer.on("relayer_connection_stalled", onLoss("stalled"))
+  relayer.on("relayer_error", e => { try { window.kdiag?.("wc:relay:error", { net: currentNetwork, error: String(e?.message || e) }) } catch {} })
+}
+
+let _relayRestartTimer = null
+function _scheduleRelayRestart(relayer, delayMs = 800) {
+  if (_relayRestartTimer) return
+  _relayRestartTimer = setTimeout(async () => {
+    _relayRestartTimer = null
+    if (relayer.connected) return
+    relayHealth.restarts++
+    try {
+      await relayer.restartTransport()
+      _khealth("restarted", !!relayer.connected)
+    } catch (e) {
+      try { window.kdiag?.("wc:relay:restart-fail", { error: String(e?.message || e) }) } catch {}
+      _scheduleRelayRestart(relayer, Math.min(delayMs * 2, 10_000))
+    }
+  }, delayMs)
+}
+
+function _guardInFlight(label) {
+  const g = { label, lossTimer: null }
+  g.promise = new Promise((_, rej) => { g.reject = rej })
+  g.done = () => { clearTimeout(g.lossTimer); _wcInFlight.delete(g) }
+  _wcInFlight.add(g)
+  return g
+}
+
+// wc_sessionPing the ACTIVE session — proves the whole dApp→relay→wallet loop,
+// which is exactly the loop that goes silently dead. ok:false + reason in ~4s.
+async function pingSession({ timeoutMs = 4000 } = {}) {
+  await initializeWalletConnect()
+  const topic = getSigner()?.topic
+  if (!topic) return { ok: false, reason: "no-session" }
+  const t0 = Date.now()
+  try {
+    await Promise.race([
+      dappConnector.walletConnectClient.ping({ topic }),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("ping timeout")), timeoutMs))
+    ])
+    return { ok: true, ms: Date.now() - t0 }
+  } catch (e) {
+    return { ok: false, ms: Date.now() - t0, reason: String(e?.message || e) }
+  }
 }
 
 // ensureNetwork (step 5) — scope the connector to the transaction's network.
@@ -1145,6 +1236,23 @@ async function signTxCoreV2 ({
   if (activeAccountId !== accountId)
     throw new Error("Active wallet account does not match accountId")
 
+  // WC-RELAYHEALTH1 preflight: surface a dead link BEFORE the wallet prompt.
+  // Session ping round-trips to the wallet in ~100-500ms when healthy; a wedged
+  // session fails in 4s. One restart+retry, then a real error naming the fix —
+  // instead of the old behaviour (request sent into the void, eternal await,
+  // user watches orange until the window dies). "no-session" doesn't hard-fail:
+  // older signers may not expose .topic and signing must not regress for them.
+  const relayer = dappConnector?.walletConnectClient?.core?.relayer
+  if (relayer && !relayer.connected) { try { await relayer.restartTransport() } catch {} }
+  let ping = await pingSession()
+  if (!ping.ok && ping.reason !== "no-session") {
+    try { await relayer?.restartTransport() } catch {}
+    ping = await pingSession()
+  }
+  try { window.kdiag?.("wc:session:ping", { ok: ping.ok, ms: ping.ms, reason: ping.reason, accountId }) } catch {}
+  if (!ping.ok && ping.reason !== "no-session")
+    throw new Error("KWC-STALE: your wallet link is not responding (session ping failed) — open your wallet app, disconnect this site, then reconnect and try again.")
+
   // Rebuild transaction from bytes
   const transaction =
     Transaction.fromBytes(transactionBytes)
@@ -1154,9 +1262,18 @@ async function signTxCoreV2 ({
     await transaction.freezeWithSigner(signer)
   }
 
-  // WalletConnect signature request (NO execution)
-  const signedTransaction =
-    await signer.signTransaction(transaction)
+  // WalletConnect signature request (NO execution) — guarded (WC-RELAYHEALTH1):
+  // transport loss mid-request rejects after a 15s recovery grace; 120s absolute
+  // cap ends the eternal await either way.
+  const g = _guardInFlight(`signTx:${accountId}`)
+  const _cap = setTimeout(() => g.reject(new Error("KWC-TIMEOUT: no response from the wallet after 120s — if you approved, the link is stuck: open your wallet app, disconnect this site, then reconnect and try again.")), 120_000)
+  let signedTransaction
+  try {
+    signedTransaction = await Promise.race([signer.signTransaction(transaction), g.promise])
+  } finally {
+    clearTimeout(_cap)
+    g.done()
+  }
 
 	// dont save.. let the client do it (affects reporting on "new" signatures)
   // const saveResult = await saveSignedTransaction(signedTransaction)
@@ -1554,6 +1671,11 @@ const exposeHeadlessAPI = () => {
     authenticate: authenticateCore,   // step 4: sign a challenge (HIP-820 signMessage)
     getNetwork: getWalletNetwork,     // step 0: enables the kpool signer mismatch guard
     ensureNetwork: ensureNetwork,     // step 5: scope the connector to a tx's network
+
+    // WC-RELAYHEALTH1: relay/session health surface
+    relayHealthy: () => relayHealth.healthy,                        // true | false | null (unknown)
+    relayInfo: () => ({ ...relayHealth, inFlight: _wcInFlight.size }),
+    pingSession,                                                     // active-session round-trip check
 
     // build provenance — so host pages (kdiag) can record which bundle is live.
     // __BUILD_META__ is injected by vite at build time ({commit,status,built}).
