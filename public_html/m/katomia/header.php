@@ -197,6 +197,15 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
       <input type="checkbox" id="boardPrefHugRing" title="Lab: organic store blobs home slightly closer to the ring — a mild inward bias; the reserved rim band still keeps chips off the ring itself">
       🧪 Chips hug the ring
     </label>
+    <!-- BOARD-COUNTERMODE1 (user 2026-08-04): simple is the new default — no
+         counter band, partial fungible offers move the decremented remainder
+         stack to the rim instead of leaving a ghost. This 🧪 switch restores
+         the status quo (counter ring + ghost pile) for live comparison;
+         the loser gets removed. -->
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefClassicCounter" title="Lab: bring back the classic counter — visible counter band plus a ghost pile for partial offers. Off (default) = simplified: the remaining stack moves to the ring edge, decremented; only whole-item offers leave a ghost.">
+      🧪 Classic counter
+    </label>
     <label class="board-settings-label board-settings-nerd-only">
       <input type="checkbox" id="boardPrefAvatarSpoke" title="Lab: avatar placement experiment — ticked returns faces to the boundary spoke (R2); default centres them on the arc inside the account id (R3). One will win and this switch will go.">
       🧪 Avatar on spoke

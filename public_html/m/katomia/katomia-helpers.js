@@ -413,14 +413,20 @@
 				`.asset:not(.basket):not(.reserved)` +
 				`[data-owner-account="${CSS.escape(fromAccountId)}"]` +
 				`[data-asset-id="${CSS.escape(assetId)}"]`)
+			// BOARD-COUNTERMODE1 (2026-08-04): the board's simple counter mode has
+			// no ghost for a partial fungible offer — the rim-pinned remainder pile
+			// anchors the line instead (window seam: absent on the legacy grid page,
+			// where reservedEl always exists and nothing changes)
+			const anchorEl = reservedEl ||
+				(window.boardCounterSimple?.() ? pileEl : null)
 
-			if(reservedEl) applyHoverHighlight(reservedEl, on)
+			if(anchorEl) applyHoverHighlight(anchorEl, on)
 			if(basketEl) applyHoverHighlight(basketEl, on)
 
-			if(on && reservedEl && basketEl){
+			if(on && anchorEl && basketEl){
 				_activeTradePair = { assetId, fromAccountId, toAccountId }
-				drawTradeLine(reservedEl, basketEl)
-				if(pileEl) drawTradeLine(reservedEl, pileEl, true)
+				drawTradeLine(anchorEl, basketEl)
+				if(pileEl && pileEl !== anchorEl) drawTradeLine(anchorEl, pileEl, true)
 			}
 			else{
 				_activeTradePair = null

@@ -322,7 +322,8 @@ function boardSavePrefs(){
       trailResidual: boardTrailResidual, layoutMode: boardLayoutMode,
       zoneWalls: boardZoneWalls, hugRing: boardHugRing,
       stickyChips: boardStickyChips, chipScale: boardChipScale,
-      chatMode: boardChatMode, avatarPos: boardAvatarPos
+      chatMode: boardChatMode, avatarPos: boardAvatarPos,
+      counterMode: boardCounterMode
     }))
   } catch {}
 }
@@ -383,6 +384,22 @@ let boardHugRing = _bp.hugRing ?? false
 // finds space around them). Walls still apply (geometry changes must clamp).
 // The footer 🧹 button clears stickiness and re-runs the layout.
 let boardStickyChips = _bp.stickyChips ?? false
+// BOARD-COUNTERMODE1 (user 2026-08-04): "simple" is the DEFAULT — no counter
+// band, no ghost for a PARTIAL fungible offer; instead the remaining stack
+// itself moves to the rim (the old ghost spot), decremented ("show what the
+// giver ends up with" — 100 offered 10 shows 90 at the rim + 10 in the
+// basket; the table still adds up). Ghosts remain ONLY where nothing stays
+// behind (NFTs, whole-stack fungible offers) — without one you'd have no idea
+// where the basket chip came from. "classic" = the status quo (counter band
+// tint + ghost pile + remainder in place), kept as a 🧪 nerd toggle for live
+// comparison; evolutionary — if simple wins, classic falls by the wayside.
+// The counter GEOMETRY (ghost-only rim band the physics reserves) stays in
+// BOTH modes: the spatial separation is what makes the spotlight read.
+let boardCounterMode = _bp.counterMode === "classic" ? "classic" : "simple"
+const boardCounterSimple = () => boardCounterMode === "simple"
+// helpers.js (highlightTradePair) needs this across the closure seam; absent
+// (legacy game.php grid) it reads undefined → classic behaviour there
+window.boardCounterSimple = boardCounterSimple
 
 // BOARD-CHIPSIZE1 (user 2026-07-31): chips start bigger on phones (the CSS
 // clamp floors were raised) and only shrink when a zone actually gets
@@ -882,6 +899,18 @@ function boardSyncPrefsUI(){
         boardSimExcite()                                    // let the layout relax again
       }
       boardSavePrefs()
+    }
+  }
+  // BOARD-COUNTERMODE1: classic counter (ring + ghost pile) ⇄ simple (default)
+  const classicCounter = document.getElementById("boardPrefClassicCounter")
+  if(classicCounter){
+    classicCounter.checked = boardCounterMode === "classic"
+    classicCounter.onchange = () => {
+      boardCounterMode = classicCounter.checked ? "classic" : "simple"
+      boardDiag("board:pref:counterMode", { value: boardCounterMode })
+      boardClearTrails()   // pile/ghost anchors all move — drawn trails go stale
+      boardSavePrefs()
+      render()
     }
   }
   const partyOnly = document.getElementById("boardPrefPartyOnly")
@@ -1421,7 +1450,7 @@ function renderRingBoard(root){
         if(legs && !basketCont.querySelector(".asset")) boardTxChips(legs, basketCont, accounts, account.id)
       }
       const storeCont = document.createElement("div")
-      boardStoreChips(account, storeCont)
+      boardStoreChips(account, storeCont, reservedByAccount)
       boardReservedChips(account, storeCont, reservedByAccount)
 
       const basketChips = [...basketCont.children]
@@ -1506,7 +1535,7 @@ function renderRingBoard(root){
     }
     const chips = document.createElement("div")
     chips.className = "board-band"
-    boardStoreChips(account, chips)
+    boardStoreChips(account, chips, reservedByAccount)
     boardReservedChips(account, chips, reservedByAccount)
     outer.appendChild(chips)
     boardDropTarget(outer, account)
@@ -1740,7 +1769,7 @@ function susanCard(account, ctx, mine = false){
   const store = document.createElement("div")
   store.className = "board-band susan-store"
   store.title = mine ? "Your store" : "Their store (available)"
-  boardStoreChips(account, store)
+  boardStoreChips(account, store, ctx.reservedByAccount)
   boardReservedChips(account, store, ctx.reservedByAccount)
 
   const basket = document.createElement("div")
@@ -1777,7 +1806,7 @@ function susanMineRow(account, ctx){
   const store = document.createElement("div")
   store.className = "board-band susan-store"
   store.title = "Your store"
-  boardStoreChips(account, store)
+  boardStoreChips(account, store, ctx.reservedByAccount)
   boardReservedChips(account, store, ctx.reservedByAccount)
   row.appendChild(store)
 
@@ -2233,6 +2262,7 @@ function boardSimPaint(){
   })
   const pairSeen = new Map()   // net-off duplicates of a pair fan along the line's normal
   ghosts.forEach(({ b, z }) => {
+    b._aligned = false
     // rim pin, oval-true: project the ghost radially onto the rim band at
     // its OWN angle (the old scalar z.rMin pinned it to the mid-angle
     // CIRCLE — visibly off the ellipse at N/S on portrait screens)
@@ -2274,12 +2304,41 @@ function boardSimPaint(){
             }
             b.x = (gx - env.cx) * z.cos + (gy - env.cy) * z.sin
             b.y = -(gx - env.cx) * z.sin + (gy - env.cy) * z.cos
+            b._aligned = true
           }
         }
       }
     }
-    place(b, z)
   })
+  // BOARD-COUNTERMODE1: the rim band can now hold several UNPAIRED items per
+  // zone — rim piles (simple mode's decremented remainder stacks) alongside
+  // NFT ghosts — and radial pinning preserves each one's own angle, so two
+  // that started near the same angle sat on top of each other (QA screenshot:
+  // the 250-USDC pile under the Kat ghost). Tangential de-overlap sweep, per
+  // zone: sort by local y, push apart to chip-width + 6px, never moving a
+  // line-ALIGNED ghost (its spot IS the pile→basket line). Idempotent — once
+  // separated, later paints find no overlap and change nothing.
+  {
+    const byZone = new Map()
+    ghosts.forEach(g => {
+      const list = byZone.get(g.b.zoneKey) || []
+      list.push(g.b)
+      byZone.set(g.b.zoneKey, list)
+    })
+    byZone.forEach(list => {
+      if(list.length < 2) return
+      list.sort((a, b) => a.y - b.y)
+      for(let i = 1; i < list.length; i++){
+        const p = list[i - 1], c = list[i]
+        const need = (p.w + c.w) / 2 + 6
+        if(c.y - p.y < need){
+          if(!c._aligned) c.y = p.y + need
+          else if(!p._aligned) p.y = c.y - need
+        }
+      }
+    })
+  }
+  ghosts.forEach(({ b, z }) => place(b, z))
   if(movedAny){
     window.__boardRefreshTradeLine?.()   // hover line tracks the chips
     boardReanchorTrails()                // after-glow lines track them too
@@ -2365,6 +2424,11 @@ function boardDrawCounterShade(){
   document.querySelector(".board-countershade")?.remove()
   const env = _boardSimEnv
   if(!env || !ring16()) return
+  // BOARD-COUNTERMODE1 (user 2026-08-04): simple mode drops the visible
+  // counter band — the rim band's GEOMETRY (physics reservation) stays, but
+  // nothing is drawn; the counter idea survives as spatial separation only.
+  // The classic 🧪 toggle brings the tint back.
+  if(boardCounterSimple()) return
   const NS = "http://www.w3.org/2000/svg"
   const svg = document.createElementNS(NS, "svg")
   svg.setAttribute("class", "board-countershade")
@@ -2562,14 +2626,28 @@ function boardOrganicApply(cx, cy, W, H, oval){
     zrec.isBasket = /\|basket$/.test(z.key)
     const recs = z.chips.map(el => {
       const isGhost = el.classList.contains("board-ghost")
+      // BOARD-COUNTERMODE1: a rim pile (simple mode's decremented remainder
+      // stack) is an INNER body — rim-pinned like a ghost — but keeps its
+      // store ident (|s#N): it IS the store chip, so flight-origin lookups
+      // (`…|s#1` in boardAnimateNewOffers) and the withdraw-return glide
+      // keep working unchanged.
+      const isInner = isGhost || el.classList.contains("board-rimpile")
       const ident0 = z.key + "|" + (el.dataset.assetId || "") + "|" + (isGhost ? "g" : "s")
       const ident = ident0 + "#" + (occ[ident0] = (occ[ident0] || 0) + 1)
       seen.add(ident)
       let b = _boardSimBodies.get(ident)
       if(!b){
-        b = { ident, zoneKey: z.key, inner: isGhost, x: null, y: null }
+        b = { ident, zoneKey: z.key, inner: isInner, x: null, y: null }
         _boardSimBodies.set(ident, b)
         fresh.push(b)
+        changed = true
+      }
+      if(b.inner !== isInner){
+        // store⇄rim transition (offer made / withdrawn, or the 🧪 mode
+        // toggled): outbound snaps to the rim pin next paint (the clone
+        // flight covers the move); inbound becomes a mover again and the
+        // springs glide it back into the store rows
+        b.inner = isInner
         changed = true
       }
       if(b.el !== el){
@@ -3778,6 +3856,22 @@ function boardAnimateNewOffers(){
           if(oldStore) boardFlyNftOffer(oldStore, ghost, basket, colour, k)
           else boardFlyLeg(ghost, basket, colour, 0, k)
         }
+      } else if(basket && boardCounterSimple()){
+        // BOARD-COUNTERMODE1 partial fungible: no ghost — the remainder pile
+        // itself has just rim-pinned where the ghost would have stood. Same
+        // choreography as the NFT offer, with the PILE as the rim waypoint:
+        // clone launches from where the full stack stood last frame, arcs to
+        // the rim (tangent construction unchanged), "drops off" the
+        // decremented pile there and continues straight into the basket.
+        const [, fromId, assetId] = k.split("|")
+        const colour = getPlayerColour(fromAccount.playerId)
+        const pile = document.querySelector(
+          `.asset:not(.basket):not(.reserved)[data-owner-account="${CSS.escape(fromId)}"][data-asset-id="${CSS.escape(assetId)}"]`)
+        if(pile){
+          const oldStore = _boardChipPrevPosOld.get(`${fromId}|store|${assetId}|s#1`)
+          if(oldStore) boardFlyNftOffer(oldStore, pile, basket, colour, k)
+          else boardFlyLeg(pile, basket, colour, 0, k)
+        }
       }
     })
 
@@ -4138,7 +4232,11 @@ function playTransfers(){
       // since that is the chip the asset is leaving — and keep the box as the fallback.
       const ghost = [...document.querySelectorAll(".board-ghost")]
         .find(g => (g.dataset.ownerAccount || "").endsWith(":" + fromHac))
-      const giverBox = ghost || [...document.querySelectorAll(".ring-avail")]
+      // BOARD-COUNTERMODE1: simple mode may have no ghost (partial fungible)
+      // — the rim-pinned remainder pile is the truthful source instead
+      const rimPile = ghost || [...document.querySelectorAll(".board-rimpile")]
+        .find(p => (p.dataset.ownerAccount || "").endsWith(":" + fromHac))
+      const giverBox = rimPile || [...document.querySelectorAll(".ring-avail")]
         .find(b => (b.dataset.dropAccount || "").endsWith(":" + fromHac))
       const from = giverBox ? giverBox.getBoundingClientRect() : null
       if(!from) return
@@ -4156,19 +4254,25 @@ function playTransfers(){
     const sel = `[data-owner-account="${CSS.escape(ownerAccount)}"]`
       + `[data-asset-id="${CSS.escape(assetId)}"]`
       + `[data-to-account="${CSS.escape(toAccount)}"]`
+    // BOARD-COUNTERMODE1: simple mode suppresses the ghost for a partial
+    // fungible — replay from the rim-pinned remainder pile instead (it sits
+    // exactly where the ghost would have; no separate pile→ghost segment
+    // needed, the anchor IS the pile)
     const ghost = document.querySelector(`.asset.reserved${sel}`)
+    const anchor = ghost || (boardCounterSimple() ? document.querySelector(
+      `.board-rimpile[data-owner-account="${CSS.escape(ownerAccount)}"][data-asset-id="${CSS.escape(assetId)}"]`) : null)
     // KAT-FOCUSANIM1 (user 2026-08-01: "not sure all basket chips are animating —
     // if that's evident from kdiag please fix"): it wasn't evident — this skip was
     // silent. Now every basket chip that can't animate for want of its reserved
     // ghost says so in diagnostics. (Live audit 2026-08-02 on t-duo found no
     // orphans once the Goodwin treat-float outage was fixed — the "missing"
     // animations were chips that never existed.)
-    if(!ghost){ boardDiag("board:focus:ghostmiss", { ownerAccount, assetId, toAccount }); return }
+    if(!anchor){ boardDiag("board:focus:ghostmiss", { ownerAccount, assetId, toAccount }); return }
     // same pair key shape as boardAnimateNewOffers (to|from|asset) so a
     // withdraw clears replay after-glow too
     const k = `${toAccount}|${ownerAccount}|${assetId}`
-    boardFlyLeg(ghost, basketEl, getPlayerColour(ownerPlayer), i++ * 220, k)
-    boardTrailPileSegment(ownerAccount, assetId, ghost, getPlayerColour(ownerPlayer), k)
+    boardFlyLeg(anchor, basketEl, getPlayerColour(ownerPlayer), i++ * 220, k)
+    if(ghost) boardTrailPileSegment(ownerAccount, assetId, ghost, getPlayerColour(ownerPlayer), k)
   })
 }
 
@@ -5626,7 +5730,7 @@ function makeSeatCard(account, midAngle, geo, seatCount, ctx){
   // outer band: what they show as available — reserved stays here as ghosts
   const avail = document.createElement("div")
   avail.className = "board-band board-band-avail"
-  boardStoreChips(account, avail)
+  boardStoreChips(account, avail, ctx.reservedByAccount)
   boardReservedChips(account, avail, ctx.reservedByAccount)
   el.appendChild(avail)
 
@@ -5733,7 +5837,7 @@ function makeDock(mine, ctx){
 
     const chips = document.createElement("div")
     chips.className = "board-band board-dock-chips"
-    boardStoreChips(account, chips)
+    boardStoreChips(account, chips, ctx.reservedByAccount)
     boardReservedChips(account, chips, ctx.reservedByAccount)
     if(boardSkin === "table")
       boardBasketChips(account, chips, ctx.accountMap)
@@ -5832,7 +5936,7 @@ function ringTint(el, playerId){
   el.style.background = `color-mix(in srgb, ${getPlayerColour(playerId)} 24%, #fff)`
 }
 
-function boardStoreChips(account, container){
+function boardStoreChips(account, container, reservedByAccount){
   const mine = isMyAccount(account)
 
   Object.entries(account.assets || {}).forEach(([assetId, amount]) => {
@@ -5846,6 +5950,22 @@ function boardStoreChips(account, container){
     })
     applyAssetClasses(el, assetId, amount)
     el.classList.add("board-chip")
+    // BOARD-COUNTERMODE1 (simple mode): part of this stack is offered out —
+    // the ghost is suppressed (boardReservedChips) and the REMAINDER PILE
+    // itself moves to the rim, where the ghost would have sat. board-rimpile
+    // makes the sim treat it as an inner (rim-pinned) body; NOT ghost-styled
+    // — there really are 90 still in the store, show them solid. Hover shows
+    // the draft line to the basket, same as the ghost used to (first
+    // destination only when one asset fans to several recipients — rare, and
+    // each basket chip still lights its own line back).
+    const reservedHere = boardCounterSimple() && (amount || 0) > 0
+      ? (reservedByAccount?.[account.id] || []).filter(r => r.assetId === assetId)
+      : []
+    if(reservedHere.length){
+      el.classList.add("board-rimpile")
+      el.onmouseenter = () => highlightTradePair(assetId, account.id, reservedHere[0].toAccountId, true)
+      el.onmouseleave = () => highlightTradePair(assetId, account.id, reservedHere[0].toAccountId, false)
+    }
     ringTint(el, account.playerId)
     if((ring13() || susan4()) && account.mode === "lock")
       el.classList.add("board-lockdim")   // assets leave the light on lock
@@ -5912,6 +6032,12 @@ function boardReservedChips(account, container, reservedByAccount){
   const mine = isMyAccount(account)
 
   ;(reservedByAccount[account.id] || []).forEach(item => {
+    // BOARD-COUNTERMODE1 (simple mode): no ghost while the store still holds
+    // a remainder of this asset — the remainder pile itself sits at the rim
+    // (see boardStoreChips). Ghosts survive only for whole-item offers
+    // (NFTs, full-stack fungibles), where nothing remains to mark the origin.
+    // Withdraw stays reachable via the basket chip (tap/drag-home).
+    if(boardCounterSimple() && (account.assets?.[item.assetId] || 0) > 0) return
     const el = makeAssetEl({
       text: boardAssetText(item.assetId, item.amount || 1),
       assetId: item.assetId,

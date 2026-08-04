@@ -1462,18 +1462,29 @@ body.board-page .app-banner{
    resting strip, hover, locked orange and signing light all read as the same
    14px tube on the same centreline — the resting 12 vs hover 14 vs locked 12
    mismatch showed as "the orange doesn't quite reach the counter" and a band
-   whose middle looked offset. 14 = the proven hover/tap width; nothing fatter. */
-[data-board-fam~="v16"] .ring-lockarc{ stroke-width: 14; }
-[data-board-fam~="v16"] .ring-lockarc--target{
-  stroke: var(--tstrip, #eeeae0) !important;
-  stroke-width: 14;
+   whose middle looked offset. 14 = the proven hover/tap width; nothing fatter.
+   R4 (user 2026-08-04): butt caps for EVERYTHING — --wall's inherited round
+   linecap made other players' arcs protrude past the spokes into their
+   neighbours'; every state now cuts clean at the segment dividers. */
+[data-board-fam~="v16"] .ring-lockarc{ stroke-width: 14; stroke-linecap: butt; }
+/* ── R4 resting ring (user 2026-08-04): ONE clean muted-gray line, full tube
+   width, all the way round, from the very start — no thickness differences,
+   no dotted walls, no protruding rounded ends. The only distinction allowed:
+   other players sit a tone darker than the current player (useful, subtle).
+   This RETIRES the v16 per-player computed target strip (--tstrip /
+   boardTargetStripColour — the "yak-shaved past proportion" block): party
+   membership no longer changes the resting arc; the class + JS stay for a
+   cheap revive if uniform-gray loses the comparison. Lock orange, hover
+   preview, and the signing lights keep their own higher-priority rules. */
+[data-board-fam~="v16"] .ring-lockarc--wall{
+  stroke: #cbc4b3;               /* others: a tone darker than mine */
   stroke-dasharray: none;
   opacity: 1;
 }
-/* non-party others: the dotted wall reads unclean (user) — SOLID, same
-   thickness. Party others graduate to the target strip above; the frozen
-   v8-15 skins keep their dotted look. */
-[data-board-fam~="v16"] .ring-lockarc--wall{ stroke-dasharray: none; }
+[data-board-fam~="v16"] .ring-lockarc--open:not(.ring-lockarc--locked){
+  stroke: #e8e3d5;               /* mine: the muted light gray, now full tube */
+  opacity: 1;
+}
 /* locked = the SAME strip filled in orange (not a thin line over the strip).
    opacity 1 (user round 4): the v8 rule's .85 let the two zones show through
    the orange — the same two-tone artefact again. Solid paint, everywhere. */
@@ -1484,6 +1495,9 @@ body.board-page .app-banner{
    past the segment boundary; the light must cut clean at the divider. */
 [data-board-fam~="v16"] .ring-lockarc.ring-signarc{ stroke-width: 14; }
 [data-board-fam~="v16"] .ring-signarc-under{ stroke-width: 15; stroke-linecap: butt; }
+/* R4: the resting rules above push opacity to 1 — keep the "light that isn't
+   lit" (signarc--none) at its deliberate half-dim over them */
+[data-board-fam~="v16"] .ring-lockarc.ring-signarc--none{ opacity: .5; }
 /* hover preview, v16: SOLID pale orange (user round 4, w/ screenshot: the
    inherited v10 hover is rgba(...,.35) — TRANSLUCENT, so it composited
    differently over the light inner and darker outer zones = a two-tone
@@ -1556,6 +1570,18 @@ body.board-page .app-banner{
   stroke-width: 14 !important;
   stroke-dasharray: none !important;
   opacity: 1 !important;
+}
+
+/* BOARD-COUNTERMODE1 ghost polish (user 2026-08-04): the ghost cue must be
+   UNMISTAKABLE — "definitely a ghost, not my eyes failing or the screen
+   dimming". The chip body stays pale (v13 opaque-pale language) but the
+   dashed border becomes the loud part: hard-edged, thicker, clearly drawn.
+   v16 only — frozen skins keep their look. In simple counter mode the only
+   ghosts left are whole-item offers (NFTs, full stacks), where this cue
+   carries all the "it's still yours, just promised" meaning. */
+[data-board-fam~="v16"] .board-ghost{
+  outline: 2px dashed #8f8770;
+  outline-offset: 2px;
 }
 
 /* BOARD-COUNTER1 (user 2026-08-03): the counter band tint — per-player darkened
