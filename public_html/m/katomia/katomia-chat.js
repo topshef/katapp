@@ -537,7 +537,17 @@
       // there — see the note on who() about the possible future player label.
       var subj = m.action ? actionSubject(m.action) : null;
       if (subj) {
-        nm.textContent = accountLabel(subj);
+        // R4 (user 2026-08-04, watching the t-duo demo): when the player HAS a
+        // name (demo cast — Alice, Bob, Goodwin; the same state.players[].name
+        // field speech already uses, set at join and by catrun), it reads
+        // friendlier in front of the account id: "Ada 0.0.2002 🔷 offers…".
+        // Web players join as "anon", so a normal game keeps the bare account
+        // id — nothing here is demo-gated, names simply appear where they exist.
+        var subjAcc = accountObj(subj);
+        var pn = subjAcc && state && state.players && state.players[subjAcc.playerId]
+          ? (state.players[subjAcc.playerId].name || null) : null;
+        if (pn && pn !== "anon") pn = pn.replace(/^(?:[\p{Extended_Pictographic}️‍]|\s)+/u, "") || pn;
+        nm.textContent = (pn && pn !== "anon" ? pn + " " : "") + accountLabel(subj);
         appendMarkFor(nm, subj);
       } else {
         nm.textContent = m.system ? "Katomia" : displayName(m);

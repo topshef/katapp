@@ -1181,7 +1181,7 @@ function renderRingBoard(root){
     // reset AND into the next round, drawn over a board with no chips left to anchor to.
     // Wipe them at the same moment everything else clears — when the tx leaves signing.
     if(_boardLastSigningTxid && !nowTxid)
-      document.querySelectorAll(".board-trailline").forEach(l => l.remove())
+      boardTrailLines().forEach(l => l.remove())   // BOARD-TRAILSTUCK1: layer query, works detached
     _boardLastSigningTxid = nowTxid
   }
   // party collapse/expand mid-tween: paint the merged entity list (leavers
@@ -2680,6 +2680,9 @@ function boardOrganicApply(cx, cy, W, H, oval){
     _boardSimBodies.clear(); _boardSimZones.clear(); _boardSimEnv = null
     boardDrawZoneWalls()   // removes the 🧪 overlay (no env)
     boardDrawCounterShade()   // removes the counter band (no env)
+    boardTrailLayer(true)  // BOARD-TRAILSTUCK1: keep the trail layer attached on an
+                           // empty board too, so its lines stay wipeable AND visible-
+                           // state never diverges from what the queries see
     return
   }
 
@@ -4039,7 +4042,7 @@ function boardAnimateNewOffers(){
       if(boardSigning) return
       // withdrawn offer: its after-glow trail is now redundant (user
       // 2026-07-14) — clear it, and the return flight leaves none
-      document.querySelectorAll(".board-trailline").forEach(l => {
+      boardTrailLines().forEach(l => {
         if(l.dataset.pairKey === k) l.remove()
       })
       const snap = _prevOfferRects.get(k)
@@ -4373,7 +4376,7 @@ function hubProgressRing(lp, rc){
 function playTransfers(){
   // fresh slate per replay — persistent after-glow trails (boardTrailResidual)
   // from the previous run would double up under the new ones
-  document.querySelectorAll(".board-trailline").forEach(l => l.remove())
+  boardTrailLines().forEach(l => l.remove())   // BOARD-TRAILSTUCK1: layer query
   // signing phase (review 17): there are no ghost/basket pairs any more —
   // the legs fly from their GIVER's store zone to where they now sit
   if(boardSigning){
@@ -4554,7 +4557,7 @@ function boardFlyRect(html, a, b, colour, delay, opts){
 // seg marker now ALSO re-anchor live — boardReanchorTrails below — so these
 // clears are belt-and-braces for the big layout tweens.)
 function boardClearTrails(){
-  document.querySelectorAll(".board-trailline").forEach(l => l.remove())
+  boardTrailLines().forEach(l => l.remove())
 }
 
 // LIVE TRAILS (user 2026-07-16: "the dotted line is just sitting where it
@@ -4581,7 +4584,7 @@ function boardTrailAnchorEl(from, asset, to){
 
 function boardReanchorTrails(){
   boardTrailLayer(true)   // re-adopt after a render wiped the host (BOARD-TRAILZ1)
-  const lines = document.querySelectorAll(".board-trailline[data-seg]")
+  const lines = boardTrailLines(".board-trailline[data-seg]")
   if(!lines.length) return
   const centre = el => {
     const r = boardChipRect(el)
@@ -4673,7 +4676,7 @@ function boardRenderNarrate(){
 }
 
 function boardPruneOrphanTrails(){
-  document.querySelectorAll(".board-trailline[data-pair-key]").forEach(line => {
+  boardTrailLines(".board-trailline[data-pair-key]").forEach(line => {
     const parts = (line.dataset.pairKey || "").split("|")
     if(parts.length < 3) return
     const to = parts[0], from = parts[1], asset = parts.slice(2).join("|")
@@ -4701,6 +4704,18 @@ function boardPruneOrphanTrails(){
 // layer can't be rebuilt per paint — root.replaceChildren() detaches it and we
 // re-ADOPT the same element, lines and all, on the next paint.
 let _boardTrailSvg = null
+// EVERY trail query goes through here, never document.querySelectorAll —
+// BOARD-TRAILSTUCK1 (user 2026-08-04, t-duo 14:18/14:21 BST): while the board
+// is EMPTY (demo players exited mid-signing) boardOrganicApply early-returns,
+// the layer stays DETACHED after replaceChildren, and detached nodes are
+// invisible to document queries — so the tx-vanish wipe and the orphan prune
+// both silently missed, and the rejoining round re-adopted the svg complete
+// with the dead round's lines ("four dotted lines all over the screen, no
+// chips"). Querying the layer element itself sees its lines either way.
+function boardTrailLines(sel){
+  if(!_boardTrailSvg) return []
+  return [..._boardTrailSvg.querySelectorAll(sel || ".board-trailline")]
+}
 function boardTrailLayer(adoptOnly){
   if(!_boardTrailSvg){
     if(adoptOnly) return null
