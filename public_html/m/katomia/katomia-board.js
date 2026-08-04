@@ -3866,7 +3866,14 @@ async function boardDirectSign(account){
     let raw
     try { raw = JSON.parse(JSON.stringify(e)) } catch {}
     boardDiag("board:sign:error", { error: boardWcErrStr(e), code: e?.code, raw })
-    notify(`Signing failed: ${boardWcErrStr(e)}`, "error", { timeout: 6000 })
+    // WC-RELAYHEALTH1: the bundle now throws typed KWC-* errors (KWC-STALE stale
+    // session preflight, KWC-RELAY-LOST transport death mid-request, KWC-TIMEOUT
+    // 120s cap) whose messages already carry the actual fix (disconnect the site
+    // in the wallet app, re-pair) — show them prominently instead of the generic
+    // wrapper, and give them time to be read.
+    const _em = boardWcErrStr(e)
+    if(/^KWC-/.test(_em)) notify("⚠ " + _em.replace(/^KWC-[A-Z-]+: /, ""), "error", { timeout: 15000 })
+    else notify(`Signing failed: ${_em}`, "error", { timeout: 6000 })
   }
 }
 
