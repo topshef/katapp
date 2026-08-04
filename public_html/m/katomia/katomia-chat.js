@@ -242,7 +242,18 @@
       d.classList.toggle("kchat-dock--side", side);
       if (on) {
         if (side) {
-          clearR = Math.round(Math.min(380, Math.max(250, innerWidth * 0.25)));
+          // BOARD-DESKRATIO1 (user 2026-08-04): the board column caps at 5:4
+          // (width : height) and may COLLAPSE TO SQUARE before the circle ever
+          // shrinks — the old quarter-width panel left the board "quite wide,
+          // wasting board space" while action rows wrapped in a squashed panel.
+          // The panel takes everything past the board's 5:4 cap, prefers ~420px
+          // (one-line action rows) by squeezing the board down toward square,
+          // and never dips below 250px. Capped at 560px so an ultrawide gives
+          // the excess back to the board margins, not an absurd chat column.
+          var minBoard = Math.min(innerHeight, innerWidth - 250);       // square, if it fits
+          var maxBoard = Math.round(innerHeight * 1.25);                // the 5:4 cap
+          var boardW = Math.max(minBoard, Math.min(innerWidth - 420, maxBoard));
+          clearR = Math.min(560, Math.max(250, innerWidth - boardW));
           d.style.width = clearR + "px";
           d.style.bottom = "0px";
           d.style.height = "";        // side variant sizes via CSS (top/bottom pinned)
@@ -332,7 +343,8 @@
     withdraw: { verb: "took back",  joiner: "from" },
     reject:   { verb: "returned",   joiner: "to" },
     lock:     { verb: "locked",     solo: true },
-    unlock:   { verb: "unlocked",   solo: true }
+    unlock:   { verb: "unlocked",   solo: true },
+    sign:     { verb: "signed",     solo: true }   // R3: subject + "signed", no green tick
   };
 
   function actionRenderable(a) {
@@ -353,7 +365,8 @@
       case "reject":   return a.to;       // the basket account handing it back
       case "pick":     return a.to;       // the account doing the shopping
       case "lock":
-      case "unlock":   return a.account;  // the account changing mode
+      case "unlock":                      // the account changing mode
+      case "sign":     return a.account;  // the account whose key signed (R3)
     }
     return null;
   }

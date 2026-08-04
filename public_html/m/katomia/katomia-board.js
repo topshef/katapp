@@ -361,7 +361,18 @@ let boardAvatarPos = _bp.avatarPos === "spoke" ? "spoke" : "arc"
 // 🧪 chip layout (BOARD-LAYOUT1, user 2026-07-14): "shelves" = deterministic
 // concentric rows clustered at the rim; "organic" = the original relax
 // solver. Toggle kept so both can be compared live; loser gets removed.
-let boardLayoutMode = _bp.layoutMode === "organic" ? "organic" : "shelves"
+// DEFAULT FLIPPED to organic (user 2026-08-04): shelves re-flowed chips on
+// every crowding change, which is much of the mobile jitter/font-churn the
+// feedback keeps hitting (f0c418e5); organic moves chips only when something
+// actually pushes them. Shelves stays selectable while the comparison runs.
+let boardLayoutMode = _bp.layoutMode === "shelves" ? "shelves" : "organic"
+// Chip breathing room (user 2026-08-04, feedback f0c418e5 jitter + a3d808c1
+// "too huggy" after 🧹 on desktop): the sim's collision radius beyond the
+// chip's own half-size. Was 3px — chips could sit nearly edge-to-edge, so any
+// re-measure ripple re-collided the whole cluster (visible jitter) and Tidy
+// packed them tight. 8px reads looser and gives the solver slack before
+// contact. One knob so a future "hugginess" setting has a single place to bind.
+const BOARD_CHIP_PAD = 8
 // 🧪 debug (user 2026-07-16): draw each zone's PHYSICS WALLS — the actual
 // region the sim lets chip edges occupy (inner wall past the ghost band,
 // soft outer wall, the ±80°-clamped angular walls, basket coin-band inset)
@@ -2793,7 +2804,7 @@ function boardOrganicApply(cx, cy, W, H, oval){
     fresh.forEach(b => {
       b.w = b.el.offsetWidth || 40
       b.h = b.el.offsetHeight || 24
-      b.cr = Math.max(b.w, b.h) / 2 + 3
+      b.cr = Math.max(b.w, b.h) / 2 + BOARD_CHIP_PAD
     })
   }
 
@@ -2829,7 +2840,7 @@ function boardOrganicApply(cx, cy, W, H, oval){
       zoneChips.forEach(({ recs }) => recs.forEach(b => {
         b.w = b.el.offsetWidth || 40
         b.h = b.el.offsetHeight || 24
-        b.cr = Math.max(b.w, b.h) / 2 + 3
+        b.cr = Math.max(b.w, b.h) / 2 + BOARD_CHIP_PAD
       }))
       changed = true
     }
@@ -3323,6 +3334,7 @@ async function boardRefreshSignStatus(){
     // — the exact number the user asked to "get from the raw protobuf on
     // the front end". Riding along on boardSignStatus so boardDetectSigning
     // can prefer it over the BOARD_TX_EXPIRY_MS guess once this poll lands.
+    boardAnnounceSigned(tx.txid, byAccount)   // BOARD-ACTIONMSG1 R3: "signed" rows
     boardSignStatus = { txid: tx.txid, byAccount, validDurationSeconds: data?.validDurationSeconds || null }
     const sig = JSON.stringify(byAccount)
     boardDiag("board:signstatus", { txid: tx.txid, byAccount, signedKeys: signedPubkeys.length,
@@ -3332,6 +3344,39 @@ async function boardRefreshSignStatus(){
   } catch(e){
     boardDiag("board:signstatus:error", { error: String(e) })
   }
+}
+
+// BOARD-ACTIONMSG1 R3 (user 2026-08-04): "signed" joins the action vocabulary,
+// same shape as lock — the SUBJECT account + its own 🔷/△ + the word "signed",
+// no green tick ("it's just an event"). The 🔷/△ carries real meaning here: a
+// signature proves the ACCOUNT's key acted, not that this PLAYER holds it —
+// with a commitment (🔷) we know it's them; without (△) they may be an agent
+// for a signer acting behind the scenes. Derived CLIENT-SIDE from the
+// signstatus threshold flip (the same signal the arcs/modal use) rather than
+// emitted by the backend: signatures land through the kpool subsystem, not a
+// game action, so there is no Ctx to ride — every client polls the same
+// signstatus and converges on the same rows. Live-only, like every action row.
+// Announced when an account's threshold BECOMES satisfied — multisig partials
+// (a key short of threshold) stay silent by construction; per-key partial
+// announcements would need kpool's per-signature push and are out of scope.
+let _boardSignAnnounced = new Set()   // `${txid}|${hac}` — once per account per tx
+function boardAnnounceSigned(txid, byAccount){
+  if(document.body.dataset.kchatMode !== "panel") return   // same gate as the other action rows
+  if(!window.katomiaChat?.action) return
+  for(const [hac, st] of Object.entries(byAccount || {})){
+    if(st !== "signed") continue
+    const k = txid + "|" + hac
+    if(_boardSignAnnounced.has(k)) continue
+    _boardSignAnnounced.add(k)
+    const acc = Object.values(state?.accounts || {}).find(a => (a.id.split(":")[1] || a.id) === hac)
+    if(!acc) continue
+    window.katomiaChat.action({
+      type: "event",
+      message: `${hac} signed`,   // prose fallback, same convention as the backend's
+      action: { v: 1, kind: "sign", actor: acc.playerId, account: acc.id, ts: Date.now() }
+    })
+  }
+  if(_boardSignAnnounced.size > 400) _boardSignAnnounced = new Set()
 }
 
 // start/stop the signing-status poll with the signing phase. Called from render()
@@ -3587,6 +3632,10 @@ function boardTxChips(legs, container, accounts, toAccountId){
     })
     applyAssetClasses(el, leg.assetId, leg.amount)
     el.classList.add("board-chip", "board-txchip")
+    // BOARD-CHIPART1 fix (user 2026-08-04): tx legs were the one chip built
+    // WITHOUT ringTint, so the colour variant had no --own/--own-ink and they
+    // rendered blank white (white ink fallback on white face) on the demo
+    ringTint(el, giver?.playerId)
     if(leg.from) el.dataset.fromHac = leg.from
     if(toAccountId) el.dataset.toAccount = toAccountId   // BOARD-SWEEPWIN1: settle flight target
     el.title = "Pending transaction leg — awaiting signatures"
@@ -6487,6 +6536,21 @@ function boardDemoApply(msg){
 
   const acc = id => state.accounts[id]
 
+  // BOARD-ACTIONMSG1 (user 2026-08-04: "I'm not sure in the demo mode we're
+  // getting the action messages" — correct, the sandbox reducer emitted
+  // nothing). Synthesize the SAME action payloads the backend now sends, fed
+  // through the same katomiaChat.action path, so the demo exercises the whole
+  // rendering surface offline. Same panel-mode gate as the network route.
+  const demoAct = (kind, fields, message) => {
+    if(document.body.dataset.kchatMode !== "panel") return
+    // actor = the SUBJECT account's player (mirrors actionSubject in chat):
+    // reject/pick act from the basket side, everything else from the giver
+    const subjId = fields.account || (kind === "reject" || kind === "pick" ? fields.to : fields.from)
+    const actor = String(subjId || "").split(":")[0] || null
+    window.katomiaChat?.action?.({ type: "event", message,
+      action: { v: 1, kind, actor, ts: Date.now(), ...fields } })
+  }
+
   if(msg.type === "game_offer"){
     const from = acc(msg.fromId), to = acc(msg.toId)
     if(!from || !to) return
@@ -6496,6 +6560,8 @@ function boardDemoApply(msg){
     if(have - amount <= 0) delete from.assets[msg.assetId]
     else from.assets[msg.assetId] = have - amount
     to.basket.push({ assetId: msg.assetId, amount, fromId: msg.fromId })
+    demoAct("offer", { from: msg.fromId, to: msg.toId, assetId: msg.assetId, amount },
+      `${msg.fromId} placed ${msg.assetId}`)
   }
 
   if(msg.type === "game_withdraw" || msg.type === "game_reject"){
@@ -6507,11 +6573,19 @@ function boardDemoApply(msg){
     const [item] = holder.basket.splice(i, 1)
     const owner = acc(item.fromId)
     if(owner) owner.assets[item.assetId] = (owner.assets[item.assetId] || 0) + (item.amount || 1)
+    if(msg.type === "game_reject")
+      demoAct("reject", { from: item.fromId, to: holder.id, assetId: item.assetId, amount: item.amount || 1 },
+        `${holder.id} rejected ${item.assetId}`)
+    else
+      demoAct("withdraw", { from: item.fromId, to: holder.id, assetId: item.assetId, amount: item.amount || 1 },
+        `${item.fromId} withdrew ${item.assetId}`)
   }
 
   if(msg.type === "game_toggleLock"){
     const a = acc(msg.accountId)
     if(a) a.mode = a.mode === "lock" ? "shop" : "lock"
+    if(a) demoAct(a.mode === "lock" ? "lock" : "unlock", { account: a.id },
+      `${a.id} ${a.mode === "lock" ? "locked" : "unlocked"}`)
 
     // sandbox STRIKE: when every active account is locked, synthesize a
     // pending tx exactly in the backend record's shape (txid/pch/pchbasis/

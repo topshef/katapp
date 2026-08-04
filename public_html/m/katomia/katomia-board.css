@@ -1704,7 +1704,11 @@ body.board-page .app-banner{
 /* fungible faces take the owner's colour; ink is luminance-picked in JS */
 [data-chip-style="colour"] .board-chip:not(.thumb-only){
   background: var(--own, #fff);
-  color: var(--own-ink, #fff);
+  /* ink fallback must be DARK (user 2026-08-04, "blank white chips in the
+     demo"): any chip built without ringTint's --own/--own-ink pair — the tx
+     legs were one — fell back to white ink on the white background fallback,
+     i.e. an invisible label. Missing vars now degrade to the plain look. */
+  color: var(--own-ink, #1d1a12);
   border-left-color: color-mix(in srgb, var(--own, #fff) 55%, #000);
 }
 /* dark: charcoal body, owner colour demoted to the sleeve + a hairline rim —
