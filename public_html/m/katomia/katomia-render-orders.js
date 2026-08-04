@@ -2101,7 +2101,7 @@ function makeAccountAuthMarker(entry){
   const nerd = document.body.classList.contains("nerd")
   const el = document.createElement("span")
   el.className = "order-auth-badge " + (entry.verified ? "auth-verified" : "auth-unverified")
-  el.textContent = entry.verified ? "💠" : "△"
+  el.textContent = entry.verified ? "🔷" : "△"
   el.title = entry.verified
     ? (nerd
         ? `${entry.accountId}: reputation-bound & verified — this account published a wallet binding for the order's signing key, verified on the backend.`
@@ -2150,7 +2150,7 @@ function makeTxAuthBadge(txAuth){
   const nerd = document.body.classList.contains("nerd")
   const badge = document.createElement("span")
   badge.className = "order-auth-badge tx-auth-badge"
-  badge.textContent = "💠"
+  badge.textContent = "🔷"
   const list = [...txAuth.verifiedAccts].join(", ")
   badge.title = nerd
     ? `${txAuth.verifiedCount} of ${txAuth.contributorCount} contributing account(s) reputation-verified: ${list}. Each contributed an order signed by a wallet-bound & verified key.`

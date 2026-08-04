@@ -385,6 +385,15 @@ body.board-page .app-banner{
   background: none;
 }
 
+/* BOARD-LINEZ1 (user 2026-08-04): the pair line is hosted inside #boardRoot on
+   board pages (see tradeLineHost in katomia-helpers.js) so it shares a stacking
+   context with the felt and the chips. z4 = above the base felt and the resting
+   lock arcs (z3), below the chips (z5) — the line runs over the ring and
+   disappears behind the chips it joins. (Locked-orange and signing arcs live on
+   the z6 top felt and still cross it; that only happens once the deal is struck
+   and the spotlight is up.) */
+#boardRoot > .trade-line-layer{ z-index: 4; }
+
 /* the hover/tap pair line was drawn but invisible over the coloured felt —
    thicker + darker on the board page */
 .board-page .trade-line-layer line{
@@ -841,17 +850,23 @@ body.board-page .app-banner{
 
 /* board-side hub cues (inside → out): hub grey border · player-colour arc ·
    party STRIP-LIGHT (white — "the light comes on"; gold stays with LOCK) */
+/* BOARD-HUBARCCUT1 (user 2026-08-04): BUTT caps on both hub arcs. The round
+   ones overhung each end by half the stroke width, and the JS insets (2deg /
+   3deg) that existed to hide that overhang are gone too - together they gave
+   the "rounded ends that slightly peak onto the border but don't quite meet"
+   look. Square ends, full segment span, clean stop at the spokes - same rule
+   the lock ring got in R4. */
 .ring-playerarc{
   fill: none;
   stroke-width: 4;
-  stroke-linecap: round;
+  stroke-linecap: butt;
   opacity: .85;
 }
 .ring-partylight{
   fill: none;
   stroke: #ffffff;
   stroke-width: 5;
-  stroke-linecap: round;
+  stroke-linecap: butt;
   opacity: .95;
 }
 
@@ -1475,14 +1490,21 @@ body.board-page .app-banner{
    boardTargetStripColour — the "yak-shaved past proportion" block): party
    membership no longer changes the resting arc; the class + JS stay for a
    cheap revive if uniform-gray loses the comparison. Lock orange, hover
-   preview, and the signing lights keep their own higher-priority rules. */
-[data-board-fam~="v16"] .ring-lockarc--wall{
-  stroke: #cbc4b3;               /* others: a tone darker than mine */
-  stroke-dasharray: none;
-  opacity: 1;
-}
+   preview, and the signing lights keep their own higher-priority rules.
+   R5 (same day, second pass — supersedes the grey above): the ring is NOT
+   grey, it's the player's own colour on the tonal ladder the retired counter
+   band established. --tstrip is now set on EVERY arc by boardRingToneColour():
+   resting = one tone darker than that player's store wash (all players alike —
+   contrast between segments comes from their colours, not a mine/theirs rule);
+   active = one tone lighter than their basket, applied when the segment is
+   party to the live proposal, i.e. it needs to lock. That active tone RESTORES
+   the "these must lock" cue R4 dropped when it retired the white party strip,
+   and keeps it in palette — orange (hover/locked) and the signing lights stay
+   the only off-palette states, which is the point of them. */
+[data-board-fam~="v16"] .ring-lockarc--wall,
 [data-board-fam~="v16"] .ring-lockarc--open:not(.ring-lockarc--locked){
-  stroke: #e8e3d5;               /* mine: the muted light gray, now full tube */
+  stroke: var(--tstrip, #d9d3c4);
+  stroke-dasharray: none;
   opacity: 1;
 }
 /* locked = the SAME strip filled in orange (not a thin line over the strip).

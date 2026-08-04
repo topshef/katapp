@@ -444,22 +444,45 @@
 				_activeTradePair.fromAccountId, _activeTradePair.toAccountId, true)
 		}
 
+		// BOARD-TRADELINESTALE1 (user 2026-08-04): dragging a chip left its hover
+		// line drawn from the OLD position and stranded there — the pointer never
+		// fires mouseleave on an element the drag replaces, so _activeTradePair
+		// stayed set and every paint faithfully redrew the stale pair (only ▶,
+		// which wipes the layer, cleared it). Any drag start now drops the pair.
+		window.__boardDropTradeLine = () => {
+			_activeTradePair = null
+			clearTradeLine()
+		}
+
+
+		// BOARD-LINEZ1 (user 2026-08-04: the line ran UNDER the lock ring — "the
+		// asset chips and their dotted lines are primary"). #game and #boardRoot
+		// are separate stacking contexts (#game z4, #boardRoot z5), so nothing
+		// drawn inside #game can ever rise above ANY part of the board — z-index
+		// on the layer itself was inert. Hosting the layer INSIDE #boardRoot puts
+		// it in the same context as the felt and the chips, where its own z4 lands
+		// it above the base felt + resting lock arcs (z3) and still below the
+		// chips (z5), which is the read the user wants: line emerges from behind
+		// the chips, over the ring. Board pages only — the legacy grid keeps #game.
+		function tradeLineHost(){
+			return document.getElementById("boardRoot") || gameEl
+		}
 
 		function getTradeLineLayer(){
-			let svg = gameEl.querySelector(".trade-line-layer")
+			const host = tradeLineHost()
+			let svg = host.querySelector(":scope > .trade-line-layer")
 
 			if(!svg){
 				svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
 				svg.classList.add("trade-line-layer")
-				gameEl.appendChild(svg)
+				host.appendChild(svg)
 			}
 
 			return svg
 		}
 
 		function clearTradeLine(){
-			const svg = gameEl.querySelector(".trade-line-layer")
-			if(svg) svg.innerHTML = ""
+			document.querySelectorAll(".trade-line-layer").forEach(svg => { svg.innerHTML = "" })
 		}
 
 		function drawTradeLine(elA, elB, append){
@@ -468,7 +491,7 @@
 			const svg = getTradeLineLayer()
 			if(!append) svg.innerHTML = ""
 
-			const gameRect = gameEl.getBoundingClientRect()
+			const gameRect = (svg.parentElement || gameEl).getBoundingClientRect()
 			const a = elA.getBoundingClientRect()
 			const b = elB.getBoundingClientRect()
 

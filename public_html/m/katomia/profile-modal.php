@@ -109,7 +109,7 @@
         <!-- Plain-English statement of what the user is committing to. -->
         <p id="authStatement" class="profile-auth-statement hidden"></p>
 
-        <button id="authBtn" type="button">💠 Raise commitment</button>
+        <button id="authBtn" type="button">🔷 Raise commitment</button>
         <div id="authStatus" class="profile-auth-status subtle"></div>
         <!-- PROFILE-TIDY1: the signed envelope + copy button are tech detail — nerd-only,
              and collapsed even then. Normal mode just gets the status line above. -->

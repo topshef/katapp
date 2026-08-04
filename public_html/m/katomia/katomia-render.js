@@ -877,7 +877,7 @@ function getFastThumb(url, imgEl){
       const nerd = document.body.classList.contains("nerd")
       const el = document.createElement("span")
       el.className = "order-auth-badge" + (account.authBound ? "" : " auth-unverified")
-      el.textContent = account.authBound ? "💠" : "△"
+      el.textContent = account.authBound ? "🔷" : "△"
       const frac = (account.authThreshold && account.authThreshold > 1)
         ? ` (${account.authWeight}/${account.authThreshold} multisig weight)` : ""
       el.title = account.authBound

@@ -95,7 +95,7 @@ async function load(net, acct){
   if(c){
     const exp = c.expiresAt ? new Date(c.expiresAt) : null
     const live = !exp || exp > new Date()
-    html += `<div class="card"><b class="${live ? "ok" : "warn"}">${live ? "💠 Currently bound" : "△ Binding expired"}</b>
+    html += `<div class="card"><b class="${live ? "ok" : "warn"}">${live ? "🔷 Currently bound" : "△ Binding expired"}</b>
       <dl class="kv">
         <dt>account</dt><dd>${esc(acct)} (${esc(net)}) — <a href="${mirror}" target="_blank" rel="noopener">HashScan</a> · <a href="${mirrorApi}" target="_blank" rel="noopener">mirror keys</a></dd>
         <dt>verified</dt><dd>${c.verified ? "yes — signature checked against mirror keys before storing" : "stored pre-verification era"}</dd>

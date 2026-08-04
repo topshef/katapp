@@ -476,8 +476,8 @@ async function updateCreateOrderAuthHint(){
   if((document.getElementById("createOrderAccount")?.value || "") !== val) return
   if(keyMatch){
     el.textContent = nerd
-      ? `💠 Reputation-bound & verified — this account published a wallet binding for your intent key (verified on the backend). Signed weight ${auth.weight}/${auth.threshold}.`
-      : "💠 Reputation-bound & verified"
+      ? `🔷 Reputation-bound & verified — this account published a wallet binding for your intent key (verified on the backend). Signed weight ${auth.weight}/${auth.threshold}.`
+      : "🔷 Reputation-bound & verified"
     el.className = "create-order-auth-hint bound"
   } else {
     el.textContent = nerd

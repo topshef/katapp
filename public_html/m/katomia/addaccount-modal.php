@@ -32,7 +32,7 @@
 				<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">none</button></span>
 			</div>
 			<div id="addAcctAssets" class="addacct-assets"></div>
-			<p id="addAcctHint" class="subtle addacct-hint hidden">💠 Not bound yet — you can join anyway; bind this account in <button id="addAcctProfileLink" type="button" class="addacct-link">Profile → Wallet binding</button> to carry reputation.</p>
+			<p id="addAcctHint" class="subtle addacct-hint hidden">🔷 Not bound yet — you can join anyway; bind this account in <button id="addAcctProfileLink" type="button" class="addacct-link">Profile → Wallet binding</button> to carry reputation.</p>
 		</div>
 
 		<div id="addAcctStatus" class="subtle addacct-status"></div>

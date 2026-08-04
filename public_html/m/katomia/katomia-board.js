@@ -2001,17 +2001,55 @@ function boardArrangeAt(srcEl, x, y){
   if(!env || !srcEl) return false
   let body = null
   _boardSimBodies.forEach(b => { if(b.el === srcEl) body = b })
-  if(!body || body.inner) return false
+  if(!body) return false
   const z = _boardSimZones.get(body.zoneKey)
   if(!z) return false
   const gx = x - env.cx, gy = y - env.cy
   const lx = gx * z.cos + gy * z.sin, ly = -gx * z.sin + gy * z.cos
+  // BOARD-RIMARRANGE1 (user 2026-08-04): an on-offer chip — simple mode's rim
+  // pile, or a ghost — may be REARRANGED ALONG THE COUNTER RING. Before the
+  // counterless change you moved a reservation by moving its store pile and
+  // the ghost followed; with one chip doing both jobs there was no way left to
+  // tidy it, short of withdraw → move → re-offer (which redraws the line from
+  // somewhere else — "obviously not satisfactory"). Two zones, as the user put
+  // it: chips AUTO-place in the store rows, but a chip that's on offer may
+  // also be hand-placed anywhere in the counter band — and only an on-offer
+  // chip may be there ("you can only put an asset there if it's on offer",
+  // which is what makes the spotlight read).
+  if(body.inner) return boardArrangeRim(body, z, lx, ly)
   const p = boardWallClamp(env, z, body, lx, ly, false)
   if(Math.hypot(p.x - lx, p.y - ly) > 48) return false
   body.x = p.x; body.y = p.y
   body.pin = true
   boardPinRecord(body)
   boardSimExcite()   // neighbours make room; the pinned chip itself won't budge
+  return true
+}
+
+// BOARD-RIMARRANGE1: hand-place an on-offer chip along the counter ring. Only
+// the ANGLE of the release is taken — the paint's radial pin already holds
+// every inner body on the rim band, so writing the raw local drop point and
+// letting the pin normalise the radius keeps the two in agreement by
+// construction. Releases outside the band fall through (return false) so the
+// existing ghost gestures still work: drag home into the store = withdraw,
+// drag onto another segment = redirect.
+function boardArrangeRim(body, z, lx, ly){
+  const env = _boardSimEnv
+  const r = Math.hypot(lx, ly)
+  if(!r) return false
+  const off = Math.atan2(ly, lx)                       // angle within the segment
+  const halfRad = Math.min(z.halfDeg, 80) * Math.PI / 180
+  if(Math.abs(off) > halfRad) return false             // another segment's air
+  const rim = boardRimAt(env, z.midRad + off)
+  const band = z.band || 52
+  // generous radial tolerance: the finger lands where the chip LOOKS, and the
+  // chip straddles the rim by half its own height
+  if(r < rim - 24 || r > rim + band + 24) return false
+  body.x = lx; body.y = ly
+  body.pin = true
+  body.rimpin = true      // paint: respect this angle, skip the pile→basket alignment
+  boardPinRecord(body)
+  boardSimExcite()
   return true
 }
 
@@ -2023,6 +2061,7 @@ document.addEventListener("dragstart", e => {
   const chip = e.target?.closest?.(".board-chip")
   window.__boardDragEl = chip || null
   window.__boardDropHandled = false
+  if(chip) window.__boardDropTradeLine?.()   // BOARD-TRADELINESTALE1
 }, true)
 document.addEventListener("drop", () => { window.__boardDropHandled = true }, true)
 document.addEventListener("dragend", e => {
@@ -2275,6 +2314,10 @@ function boardSimPaint(){
       b.y = b.y / rr * pin
     }
     const d = b.el.dataset
+    // BOARD-RIMARRANGE1: hand-placed on the ring — the user's angle wins over
+    // the pile→basket alignment below (that alignment IS the thing they were
+    // overriding). The hover line re-aims to wherever they put it.
+    if(b.rimpin){ b._aligned = true; return }
     if(env.oval && !env.party && d.ownerAccount && d.assetId && d.toAccount){
       const P = piles.get(d.ownerAccount + "|" + d.assetId)
       const B = baskets.get(d.ownerAccount + "|" + d.assetId + "|" + d.toAccount)
@@ -2332,17 +2375,21 @@ function boardSimPaint(){
         const p = list[i - 1], c = list[i]
         const need = (p.w + c.w) / 2 + 6
         if(c.y - p.y < need){
-          if(!c._aligned) c.y = p.y + need
-          else if(!p._aligned) p.y = c.y - need
+          // never shove a HAND-PLACED chip (rimpin) or a line-aligned ghost —
+          // both positions are meaningful; the free one yields
+          if(!c._aligned && !c.rimpin) c.y = p.y + need
+          else if(!p._aligned && !p.rimpin) p.y = c.y - need
         }
       }
     })
   }
   ghosts.forEach(({ b, z }) => place(b, z))
-  if(movedAny){
-    window.__boardRefreshTradeLine?.()   // hover line tracks the chips
-    boardReanchorTrails()                // after-glow lines track them too
-  }
+  // BOARD-LINEZ1: the hover line now lives inside #boardRoot, which
+  // root.replaceChildren() wipes on every render — so redraw it EVERY paint,
+  // not only when something moved (a no-op with no pair on show). Trails keep
+  // the movement-gated reanchor; their layer is a body-level sibling.
+  window.__boardRefreshTradeLine?.()
+  if(movedAny) boardReanchorTrails()
 }
 
 // 🧪 zone-walls debug overlay (user 2026-07-16): the sim's REAL constraint
@@ -2648,6 +2695,14 @@ function boardOrganicApply(cx, cy, W, H, oval){
         // flight covers the move); inbound becomes a mover again and the
         // springs glide it back into the store rows
         b.inner = isInner
+        // BOARD-RIMARRANGE1: a ring placement is only meaningful while the
+        // chip IS on offer — coming home, drop it so the chip rejoins the
+        // shelf flow instead of sticking to the rim it no longer belongs on
+        if(!isInner && b.rimpin){
+          b.rimpin = false; b.pin = false
+          delete boardPins()[b.ident]
+          boardPinsSave()
+        }
         changed = true
       }
       if(b.el !== el){
@@ -2796,6 +2851,14 @@ function boardOrganicApply(cx, cy, W, H, oval){
         }
       }
       if(b.inner){
+        // BOARD-RIMARRANGE1: a hand-placed ring position is restored the same
+        // way store pins are — paint re-pins the radius, so the stored angle
+        // is what actually carries
+        const pin = boardPins()[b.ident]
+        if(pin && pin.lx != null){
+          b.x = pin.lx; b.y = pin.ly; b.pin = true; b.rimpin = true
+          return
+        }
         // ghost spawns at the rim beside its own store pile ("out for sale —
         // near the counter"); the paint alignment settles it onto the line
         const sib = _boardSimBodies.get(b.ident.replace(/\|g#(\d+)$/, "|s#$1")) ||
@@ -4712,6 +4775,7 @@ function boardTouchDrag(el, payload){
         halo.className = "board-touchhalo"
         document.body.appendChild(halo)
         el.classList.add("board-dragsrc")
+        window.__boardDropTradeLine?.()   // BOARD-TRADELINESTALE1 (touch path)
         // a drag must not ALSO fire the chip's tap action on release
         const swallow = c => { c.stopImmediatePropagation(); c.preventDefault() }
         el.addEventListener("click", swallow, { capture: true, once: true })
@@ -4867,6 +4931,33 @@ const boardMixRgb = (base, tint, alpha) => base.map((c, i) => Math.round(c * (1 
 function boardTargetStripColour(playerHex){
   const washed = boardMixRgb(BOARD_FELT_RGB, boardHexToRgb(playerHex), BOARD_WASH_ALPHA)
   const [r, gC, b] = boardMixRgb(washed, [255, 255, 255], BOARD_LIGHTEN_ALPHA)
+  return "#" + [r, gC, b].map(c => c.toString(16).padStart(2, "0")).join("")
+}
+
+// BOARD-RINGTONE1 (user 2026-08-04): the ring stops being GREY and joins the
+// per-player tonal ladder the retired counter band used — "the tones a function
+// of the player colours would just look neater, and state rides the tonality".
+// Per segment, over that player's own washed felt:
+//   rest   = ONE TONE DARKER than their store wash — the resting ring for
+//            everybody, current player included (contrast between players comes
+//            from their colours, not from a mine/theirs rule)
+//   active = ONE TONE LIGHTER than their basket (which is itself the wash
+//            lightened halfway, = boardTargetStripColour) — the segment "lights
+//            up" the moment it's party to the live proposal, i.e. needs to lock.
+//            This REPLACES the white party strip: same signal, same colour
+//            family, so nothing on the ring is off-palette until the genuinely
+//            different states — hover/locked orange, then the signing lights.
+const BOARD_STORESHADE_RGB = [60, 48, 22]   // the .ring-storeshade brown — the counter band's dark end
+const BOARD_RING_DARKEN_ALPHA = 0.20   // toward the storeshade brown
+// toward white. The basket sits at .5, so this is genuinely "one tone lighter
+// than the basket" — .78 was tried first and read as plain white on the paler
+// player colours, throwing away the identity the whole ladder exists to carry.
+const BOARD_RING_ACTIVE_ALPHA = 0.68
+function boardRingToneColour(playerHex, active){
+  const washed = boardMixRgb(BOARD_FELT_RGB, boardHexToRgb(playerHex), BOARD_WASH_ALPHA)
+  const [r, gC, b] = active
+    ? boardMixRgb(washed, [255, 255, 255], BOARD_RING_ACTIVE_ALPHA)
+    : boardMixRgb(washed, BOARD_STORESHADE_RGB, BOARD_RING_DARKEN_ALPHA)
   return "#" + [r, gC, b].map(c => c.toString(16).padStart(2, "0")).join("")
 }
 
@@ -5099,6 +5190,12 @@ function ringFelt(segs, g){
       // and the bed the lock-orange later FILLS (instead of orange over a
       // bare line, which read harsh). Applied to mine AND other players'
       // party arcs alike, per the user.
+      // BOARD-RINGTONE1: `party` = this segment is in the live proposal, i.e.
+      // it needs to lock — the state that used to paint the arc WHITE (and
+      // which the 2026-08-04 uniform-grey pass accidentally dropped). It now
+      // rides the tonal ladder instead: the same player-coloured ring, one
+      // tone LIGHTER than their basket. Kept on the --target class so the
+      // (now tone-based) resting/active pair keeps one selector.
       const party = ring16() && !seg.sign && !locked
         && boardInMyParty(seg.account, segs.map(s => s.account))
       const arc = document.createElementNS(NS, "path")
@@ -5131,7 +5228,11 @@ function ringFelt(segs, g){
       // affordance strip — candidate to simplify/cull later (a flat
       // per-player CSS variable would do 90% of this for far less code) if
       // it ever becomes a maintenance snag.
-      if(party) arc.style.setProperty("--tstrip", boardTargetStripColour(getPlayerColour(seg.account.playerId)))
+      // BOARD-RINGTONE1: every arc carries its player's tone — resting (darker
+      // than their store wash) or active (lighter than their basket). Still a
+      // custom property, never an inline stroke, for the override reasons the
+      // block above documents at length.
+      arc.style.setProperty("--tstrip", boardRingToneColour(getPlayerColour(seg.account.playerId), party))
       if(seg.mine){
         arc.onclick = () => boardToggleLock(seg.account)
         const t = document.createElementNS(NS, "title")
@@ -5201,10 +5302,15 @@ function ringFelt(segs, g){
         // v12 (review 11): board-side hub cues, inside→out: hub grey border,
         // PLAYER-COLOUR arc (always), PARTY STRIP-LIGHT (white — gold was
         // clashing with the lock orange; this is "the light comes on")
-        circArc(g.rc + 6, seg.a0 + 2, seg.a1 - 2, "ring-playerarc",
+        // BOARD-HUBARCCUT1 (user 2026-08-04): full segment span, no inset —
+        // with butt caps (CSS) the arcs now cut CLEAN at the spokes. The old
+        // 2°/3° insets existed to hide round caps that overhung the boundary
+        // anyway; the result read as "rounded ends that slightly peak onto the
+        // border but don't quite meet".
+        circArc(g.rc + 6, seg.a0, seg.a1, "ring-playerarc",
           getPlayerColour(seg.account.playerId), segTop(seg))
         if(boardInMyParty(seg.account, allAccounts))
-          circArc(g.rc + 12, seg.a0 + 3, seg.a1 - 3, "ring-partylight", null, segTop(seg))
+          circArc(g.rc + 12, seg.a0, seg.a1, "ring-partylight", null, segTop(seg))
       } else if(boardInMyParty(seg.account, allAccounts))
         circArc(g.rc + 5, seg.a0 + 3, seg.a1 - 3, "ring-partyarc", null, segTop(seg))
       if(seg.mine){
@@ -5222,10 +5328,14 @@ function ringFelt(segs, g){
         you.setAttribute("dominant-baseline", "central")
         you.setAttribute("transform", `rotate(${rot} ${x} ${y})`)
         you.textContent = "you"
-        // segTop, not labelLayer (user 2026-07-12): the "you" label was the
-        // one element outside the fade/clip scope — it overhung its
-        // collapsing segment and popped instead of fading in/out with it
-        segTop(seg).appendChild(you)
+        // BOARD-YOUFELT1 (user 2026-08-04): "you" belongs ON THE FELT, under
+        // the chips — at segTop (z6) it painted over them, reading as a label
+        // floating above the table. segLabels (z4) is the layer the etched
+        // account ids already use for exactly this reason (2026-07-15), and it
+        // carries the identical wheel-clip + fade wrapper, so the 2026-07-12
+        // fade/clip bug that put this on segTop in the first place — the
+        // labels layer didn't exist yet — does not come back.
+        segLabels(seg).appendChild(you)
       }
     })
   }
@@ -5458,14 +5568,17 @@ function ringLabelFontSize(g){
 }
 
 // BIND-BADGE1 (user 2026-08-03): suffix every board account id with its binding
-// status — 💠 the account has a published verified binding for this player (the
+// status — 🔷 the account has a published verified binding for this player (the
+// glyph was 💠 until 2026-08-04; the user found it too washed out to register
+// at chip size — "it kind of doesn't really show up very well" — so every
+// verified marker in the app is now the plain blue diamond. △ = not verified.
 // same mark order mode uses, katomia-render.js createAccountAuthMarker), △ no
 // binding (a subtle warning). Only meaningful on real networks — playnet has no
 // binding concept, so no badge there.
 function ringBindBadge(account){
   const net = (typeof gameMeta !== "undefined" && gameMeta?.network) || window.__katomiaNetwork || ""
   if(net !== "testnet" && net !== "mainnet") return ""
-  return account?.authBound ? " 💠" : " △"
+  return account?.authBound ? " 🔷" : " △"
 }
 
 function ringEtchLabel(seg, g, NS){

@@ -2366,7 +2366,7 @@ body.nerd .profile-nerd-only{ display:block; }
    .tx-row so the shared .asset chip is unaffected elsewhere. ::before (not ::after — the
    asset hover tooltip owns ::after). */
 .tx-row .asset.tx-asset-verified::before{
-  content:"💠";
+  content:"🔷";
   font-size:9px;
   margin-right:2px;
   vertical-align:top;
