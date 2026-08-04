@@ -116,6 +116,13 @@
     } catch (e) { return null; }
   }
   function boundAccountFor(playerId) { return accountFor(playerId, true); }
+  // SPEECH-ONLY default (BOARD-ACTIONMSG1 R2, user 2026-08-04): this canonical
+  // pick — the player's first verified account, then any account — applies to
+  // TYPED MESSAGES only, where no account is the action's subject. Action rows
+  // never come here; they show the account acted on (actionSubject). The user
+  // has flagged this default as provisional: a proper player label may replace
+  // it later (a typed message isn't really "from" one account), possibly with
+  // account @-mentions in the body. Keep that in mind before building on it.
   // CHAT-IDENTITY1 follow-up (user 2026-08-04: "let's not use the player labels
   // p1, p2, p3 — that's not used anywhere, so let's not display that at all").
   // The old last resort printed exactly that, and it was NOT an edge case: web
@@ -332,6 +339,25 @@
     return !!(a && a.v === 1 && ACTION_VERBS[a.kind]);
   }
 
+  // BOARD-ACTIONMSG1 R2 (user 2026-08-04): the SUBJECT of an action row is the
+  // ACCOUNT the action concerns — never the player's canonical/bound account.
+  // A player's verified account must not lend its verification stamp to an
+  // action performed on a DIFFERENT, unverified account; and for lock/unlock
+  // it is the account that locks, not one account locking another. The
+  // canonical-account rule survives only for SPEECH, where no account is the
+  // subject (see who()).
+  function actionSubject(a) {
+    switch (a.kind) {
+      case "offer":                       // the account the asset leaves
+      case "withdraw": return a.from;     // the account taking it back
+      case "reject":   return a.to;       // the basket account handing it back
+      case "pick":     return a.to;       // the account doing the shopping
+      case "lock":
+      case "unlock":   return a.account;  // the account changing mode
+    }
+    return null;
+  }
+
   function accountObj(publicId) {
     try { return (state && state.accounts && state.accounts[publicId]) || null; } catch (e) { return null; }
   }
@@ -362,17 +388,11 @@
     }
     host.appendChild(el);
   }
-  // the actor's OWN account marker, appended after their display name
-  function appendVerifyMark(host, playerId) {
-    var best = null;
-    try {
-      Object.keys((state && state.accounts) || {}).forEach(function (k) {
-        var a = state.accounts[k];
-        if (a && a.playerId === playerId && (!best || accountLess(a.label || "", best.label || ""))) best = a;
-      });
-    } catch (e) {}
-    if (!best) return;
-    var mk = verifyMark(best.id);
+  // R2: the marker for a SPECIFIC account — the action's subject wears its own
+  // verification state, nobody else's (the R1 version looked up the player's
+  // best bound account, which is exactly the stamp-borrowing the user vetoed)
+  function appendMarkFor(host, publicId) {
+    var mk = verifyMark(publicId);
     if (!mk) return;
     var m = document.createElement("span");
     m.className = "kchat-act-mark" + (mk === "△" ? " kchat-act-mark--un" : "");
@@ -408,9 +428,11 @@
     if (!spec) return;
     appendWord(host, spec.verb);
     host.appendChild(document.createTextNode(" "));
-    if (spec.solo) {                       // lock / unlock: one account, no asset
-      appendAccount(host, a.account);
-      if (a.kind === "lock") host.appendChild(document.createTextNode(" \u{1F512}"));
+    if (spec.solo) {
+      // lock / unlock (R2): the subject account is already the row's sender —
+      // repeating it here read as one account locking ANOTHER. The doc's
+      // wording was right all along: "<account> locked their side 🔒".
+      if (a.kind === "lock") appendWord(host, "their side \u{1F512}");
       return;
     }
     appendAssetChip(host, a);
@@ -494,11 +516,19 @@
       var main = document.createElement("span");
       main.className = "kchat-row-main";
       var nm = document.createElement("b");
-      nm.textContent = m.system ? "Katomia" : displayName(m);
-      // BOARD-ACTIONMSG1: the sender's own account carries the verified marker,
-      // same glyph vocabulary as the board (🔷 verified / △ not). Actions only —
-      // a typed message is about the person, an action is about the account.
-      if (m.action) appendVerifyMark(nm, m.action.actor);
+      // BOARD-ACTIONMSG1 R2 (user 2026-08-04): an action row's sender IS the
+      // subject account — the one the action concerns — wearing that account's
+      // own 🔷/△, even when the same player holds a verified account elsewhere.
+      // Speech keeps the canonical-account display name (displayName → who()):
+      // a typed message doesn't pertain to an account, so a default is fine
+      // there — see the note on who() about the possible future player label.
+      var subj = m.action ? actionSubject(m.action) : null;
+      if (subj) {
+        nm.textContent = accountLabel(subj);
+        appendMarkFor(nm, subj);
+      } else {
+        nm.textContent = m.system ? "Katomia" : displayName(m);
+      }
       var tm = document.createElement("i");
       tm.textContent = hh;
       var tx = document.createElement("span");

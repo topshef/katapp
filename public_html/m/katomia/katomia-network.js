@@ -387,7 +387,11 @@ function connect(onOpenAction){
 		// or the panel isn't loaded at all, it falls straight through to notify().
 		if (data.messages)
 			for (const m of data.messages){
-				if(m.action && window.katomiaChat?.canRender?.(m.action) && window.katomiaChat.action(m)) continue
+				// panel mode only (R2): in bubbles mode the panel lists are hidden, so a
+				// routed action would be invisible AND its toast suppressed — the same
+				// mode gate notify()'s own chat mirror uses.
+				if(m.action && document.body.dataset.kchatMode === "panel"
+					&& window.katomiaChat?.canRender?.(m.action) && window.katomiaChat.action(m)) continue
 				notify(m.message, m.type, { timeout: alertTimeouts[m.type] ?? 0 }) // persistent
 			}
 		if(data.type === "game_error") return  // errors included in notify
