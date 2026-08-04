@@ -15,6 +15,7 @@
 // edge cases — verify a lite bundle loads and signs before promoting anywhere.
 import { execSync } from 'child_process'
 import { readFileSync } from 'fs'
+import { resolve } from 'path'
 import { build } from 'esbuild'
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf8'))
@@ -41,6 +42,14 @@ await build({
   outfile: `dist/${pkg.name}.iife.js`,
   minify: true,
   logLevel: 'info',
+  platform: 'browser',
+  // @hashgraph/sdk's exports map resolves "." to the NODE build (lib/index.js →
+  // fs/tls/grpc imports) and its top-level "browser" path-remap object is not
+  // applied on top of exports resolution by esbuild — alias straight to the
+  // browser entry, the same file vite/rollup ends up using.
+  alias: {
+    '@hashgraph/sdk': resolve('node_modules/@hashgraph/sdk/lib/browser.js')
+  },
   define: {
     __BUILD_META__: JSON.stringify(buildMeta),
     'process.env': '{}'
