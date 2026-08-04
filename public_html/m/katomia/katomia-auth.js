@@ -492,9 +492,21 @@ async function publishKatomiaAuthEnvelope(envelope){
     // link the page that lets anyone inspect/re-verify the published binding.
     const boundAcct = json.accountId || envelope?.accountId || null
     const boundNet = json.network || null
+    // BOARD-TOASTLINK1 (fixed 2026-08-04, user saw the raw markup in the message
+    // stream): this used to glue an <a> into the message STRING. Both surfaces set
+    // text with textContent on purpose — server-supplied ids must never be parsed
+    // as markup — so the toast and the chat row both printed the tag literally.
+    // The structured {link:{href,text}} option is what carries a link; it renders
+    // as a real element in the toast and as a real anchor in the panel.
     notify?.(boundAcct
-      ? `Binding published — ${boundAcct}${boundNet ? " on " + boundNet : ""}. <a href="/m/katomia/binding.php?network=${encodeURIComponent(boundNet || "")}&accountId=${encodeURIComponent(boundAcct)}" target="_blank" rel="noopener">Inspect it</a>`
-      : "Binding published", "success", { timeout: 6000 })
+      ? `Binding published — ${boundAcct}${boundNet ? " on " + boundNet : ""}`
+      : "Binding published", "success", {
+        timeout: 6000,
+        link: boundAcct ? {
+          href: `/m/katomia/binding.php?network=${encodeURIComponent(boundNet || "")}&accountId=${encodeURIComponent(boundAcct)}`,
+          text: "Inspect it"
+        } : null
+      })
     // KAT-PROFILE-COMMITSTATUS1 (feedback 64b17b22): remember the published commitment
     // locally so the profile can show current status instead of leaving the user to
     // re-raise "just in case". Local record only (no backend revoke exists today) —

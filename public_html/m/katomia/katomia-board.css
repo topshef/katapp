@@ -393,6 +393,10 @@ body.board-page .app-banner{
    the z6 top felt and still cross it; that only happens once the deal is struck
    and the spotlight is up.) */
 #boardRoot > .trade-line-layer{ z-index: 4; }
+/* BOARD-TRAILZ1 (user 2026-08-04): the persistent after-glow trails join the
+   hover line inside #boardRoot, for the same reason and at the same depth —
+   over the felt and the resting ring, under the chips. */
+#boardRoot > .board-traillayer{ z-index: 4; }
 
 /* the hover/tap pair line was drawn but invisible over the coloured felt —
    thicker + darker on the board page */
@@ -1730,3 +1734,10 @@ body.board-page .app-banner{
   color: #a89f8d;
   box-shadow: none;
 }
+
+/* BOARD-SIGNREADONLY1 (user 2026-08-04): in the signing phase the lock cannot
+   be undone, so the arcs stop being controls — no pointer events means no
+   peach hover preview and no tap-to-unlock. The signing LIGHTS (glow, colour)
+   are unaffected; they're status, not affordance. The footer's hover preview
+   is guarded in JS for the same reason. */
+body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: default; }

@@ -408,7 +408,10 @@ let boardCounterMode = _bp.counterMode === "classic" ? "classic" : "simple"
 //   dark   — charcoal face, white text, owner colour as a rim + the same fat
 //            NFT tag; maximum contrast against the light felt, most "casino"
 // Nerd-only while being compared; the winner becomes the default.
-let boardChipStyle = ["colour", "dark"].includes(_bp.chipStyle) ? _bp.chipStyle : "plain"
+// DEFAULT = colour (user 2026-08-04, after seeing the three live: "let's move
+// the default to owner colour for now, I think that's probably going to be the
+// default"). plain/dark stay selectable while the comparison finishes.
+let boardChipStyle = ["plain", "dark"].includes(_bp.chipStyle) ? _bp.chipStyle : "colour"
 const boardCounterSimple = () => boardCounterMode === "simple"
 // helpers.js (highlightTradePair) needs this across the closure seam; absent
 // (legacy game.php grid) it reads undefined → classic behaviour there
@@ -1121,6 +1124,15 @@ function renderRingBoard(root){
   // (getVisibleAccounts sorts mine-first, which would reseat the shared board)
   boardSigning = boardDetectSigning()
   boardSigningWindowDiag(boardSigning)   // KATOMIA-VALIDDUR1: log window changes
+  // BOARD-SIGNREADONLY1 (user 2026-08-04): once a tx is struck the board is
+  // READ-ONLY — a lock can't be undone — so the arcs stop offering the
+  // hover/tap affordance (a peach preview for something you cannot do is a lie
+  // about the state). CSS kills pointer events on the arcs while this is set.
+  // Set HERE, not in render()'s preamble: that runs before this line, so the
+  // flag would carry the PREVIOUS paint's signing state and the first paint of
+  // the signing phase would still offer the hover.
+  if(boardSigning) document.body.dataset.signing = "1"
+  else delete document.body.dataset.signing
   // SIGNAL-DRIVEN expiry/failure verdict (replaces the 2026-07-14 client-
   // timer guesses, removed 2026-07-15 for disagreeing with the real backend
   // deadline — see BOARD_TX_EXPIRY_MS above). boardDetectSigning() only
@@ -2416,7 +2428,12 @@ function boardSimPaint(){
   // not only when something moved (a no-op with no pair on show). Trails keep
   // the movement-gated reanchor; their layer is a body-level sibling.
   window.__boardRefreshTradeLine?.()
-  if(movedAny) boardReanchorTrails()
+  // BOARD-TRAILANCHOR1: reanchor EVERY paint, not only when a chip moved. The
+  // movement gate was fine when trails were only redrawn to follow chips, but
+  // it also gated the layer re-adoption and the stale-leg cleanup above — a
+  // render that rebuilt the DOM without moving anything left the lines
+  // detached and pointing at the previous layout.
+  boardReanchorTrails()
 }
 
 // 🧪 zone-walls debug overlay (user 2026-07-16): the sim's REAL constraint
@@ -4128,7 +4145,9 @@ function ringFooter(mine){
         // click and the pointer actually leaving the button.
         const arcOf = () => document.querySelector(
           `.ring-lockarc[data-account-id="${CSS.escape(boardSelectedAccount || "")}"]`)
-        lockBtn.onmouseenter = () => { if(boardLockPreviewArmed) arcOf()?.classList.add("ring-lockpreview") }
+        // BOARD-SIGNREADONLY1: no preview during signing — the button is the
+        // Sign action then, and the lock it would "preview" can't be changed
+        lockBtn.onmouseenter = () => { if(boardLockPreviewArmed && !boardSigning) arcOf()?.classList.add("ring-lockpreview") }
         lockBtn.onmouseleave = () => { boardLockPreviewArmed = true; arcOf()?.classList.remove("ring-lockpreview") }
         lockBtn.onclick = () => {
           const a = selected()
@@ -4498,7 +4517,21 @@ function boardClearTrails(){
 // are re-queried by selector each time, so the lines also survive the DOM
 // being rebuilt by a re-render. A line whose endpoint chip is GONE keeps
 // its last geometry — the withdraw path removes those lines itself.
+// BOARD-TRAILANCHOR1 (user 2026-08-04, lab1): the giver's-side anchor for an
+// after-glow line. Every trail was keyed to the GHOST — which simple counter
+// mode deliberately no longer creates for a partial fungible offer, so the
+// line could neither re-aim (below) nor be pruned (boardPruneOrphanTrails):
+// "drag $1 into a basket, move the residual pile along the ring, and the old
+// dotted line just stays where it was". The rim pile IS that anchor now, so
+// both passes resolve it the same way, in one place.
+function boardTrailAnchorEl(from, asset, to){
+  const sel = `[data-owner-account="${CSS.escape(from)}"][data-asset-id="${CSS.escape(asset)}"]`
+  return document.querySelector(`.asset.reserved${sel}[data-to-account="${CSS.escape(to)}"]`)
+    || document.querySelector(`.board-rimpile${sel}`)
+}
+
 function boardReanchorTrails(){
+  boardTrailLayer(true)   // re-adopt after a render wiped the host (BOARD-TRAILZ1)
   const lines = document.querySelectorAll(".board-trailline[data-seg]")
   if(!lines.length) return
   const centre = el => {
@@ -4510,13 +4543,15 @@ function boardReanchorTrails(){
     if(parts.length < 3) return
     const to = parts[0], from = parts[1], asset = parts.slice(2).join("|")
     const sel = `[data-owner-account="${CSS.escape(from)}"][data-asset-id="${CSS.escape(asset)}"]`
-    const ghost = document.querySelector(`.asset.reserved${sel}[data-to-account="${CSS.escape(to)}"]`)
-    if(!ghost) return
+    const anchor = boardTrailAnchorEl(from, asset, to)
+    if(!anchor) return
     const other = line.dataset.seg === "pg"
       ? document.querySelector(`.asset:not(.basket):not(.reserved)${sel}`)
       : document.querySelector(`.asset.basket${sel}[data-to-account="${CSS.escape(to)}"]`)
-    if(!other) return
-    const g = centre(ghost), o = centre(other)
+    // a "pg" (pile→ghost) leg has no meaning once the pile IS the anchor —
+    // simple mode draws only the anchor→basket leg, so drop a stale one
+    if(!other || other === anchor){ line.remove(); return }
+    const g = centre(anchor), o = centre(other)
     line.setAttribute("x1", g.x); line.setAttribute("y1", g.y)
     line.setAttribute("x2", o.x); line.setAttribute("y2", o.y)
   })
@@ -4593,22 +4628,43 @@ function boardPruneOrphanTrails(){
     const parts = (line.dataset.pairKey || "").split("|")
     if(parts.length < 3) return
     const to = parts[0], from = parts[1], asset = parts.slice(2).join("|")
-    const ghost = document.querySelector(
-      `.asset.reserved[data-owner-account="${CSS.escape(from)}"]` +
+    // BOARD-TRAILANCHOR1: liveness = the giver's anchor (ghost OR rim pile) or
+    // the basket chip still being on the table. The ghost alone was the test,
+    // which in simple mode is absent by design — that made a live line look
+    // orphaned (sporadic disappearances) while a genuinely dead one could
+    // linger. Either endpoint surviving means the offer is still real.
+    const anchor = boardTrailAnchorEl(from, asset, to)
+    const basket = document.querySelector(
+      `.asset.basket[data-owner-account="${CSS.escape(from)}"]` +
       `[data-asset-id="${CSS.escape(asset)}"][data-to-account="${CSS.escape(to)}"]`)
-    if(!ghost) line.remove()
+    if(!anchor && !basket) line.remove()
   })
 }
 
 // trailing line: DOTTED in the giver's colour (review 7 — was solid with a
 // draw-in; the dash channel now carries the dot pattern), fades out slowly
-function boardTrail(a, b, colour, { key, persist = true, seg } = {}){
-  let svg = document.querySelector(".board-traillayer")
-  if(!svg){
-    svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
-    svg.setAttribute("class", "board-traillayer")
-    document.body.appendChild(svg)
+// BOARD-TRAILZ1 (user 2026-08-04): the after-glow lines must sit over the lock
+// ring like the hover line does — "the semi-transparent one that stays when you
+// drop an asset in the basket is still sitting underneath". Same fix as
+// BOARD-LINEZ1: host the layer INSIDE #boardRoot, where its z4 lands above the
+// felt and the resting arcs but below the chips. The catch the hover line
+// doesn't have is that these lines are STATEFUL (fading, persistent), so the
+// layer can't be rebuilt per paint — root.replaceChildren() detaches it and we
+// re-ADOPT the same element, lines and all, on the next paint.
+let _boardTrailSvg = null
+function boardTrailLayer(adoptOnly){
+  if(!_boardTrailSvg){
+    if(adoptOnly) return null
+    _boardTrailSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+    _boardTrailSvg.setAttribute("class", "board-traillayer")
   }
+  const host = document.getElementById("boardRoot") || document.body
+  if(_boardTrailSvg.parentElement !== host) host.appendChild(_boardTrailSvg)
+  return _boardTrailSvg
+}
+
+function boardTrail(a, b, colour, { key, persist = true, seg } = {}){
+  const svg = boardTrailLayer()
   svg.setAttribute("viewBox", `0 0 ${innerWidth} ${innerHeight}`)
   const line = document.createElementNS("http://www.w3.org/2000/svg", "line")
   line.setAttribute("x1", a.left + a.width / 2); line.setAttribute("y1", a.top + a.height / 2)

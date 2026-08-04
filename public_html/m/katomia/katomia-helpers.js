@@ -10,6 +10,17 @@
 		// stack unbounded and cover the page — now the oldest are flushed past the cap.
 		const NOTICE_MAX = 4
 
+		// markup → the text a human would read. Parsed, not regexed, so a malformed
+		// or nested tag can't survive by slipping past a pattern. Used only on the
+		// chat mirror below; the toast itself has always been textContent.
+		function stripTags(s){
+			const t = String(s ?? "")
+			if(!/[<>]/.test(t)) return t
+			const d = document.createElement("div")
+			d.innerHTML = t
+			return (d.textContent || "").replace(/\s+/g, " ").trim()
+		}
+
 		function notify(message, type="info", opts={}){
 
 			let { timeout=4000 } = opts
@@ -68,8 +79,13 @@
 			// they're still the only surface in bubbles mode — cull later.
 			try {
 				if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system)
-					window.katomiaChat.system(`${icon} ${message}`.trim() + (opts.detail ? ` · ${opts.detail}` : ""),
-						{ link: opts.link?.href || null })
+					// linkText forwarded too (2026-08-04) so the panel shows the caller's own
+					// wording ("Inspect it") instead of the bare ↗ fallback. stripTags is a
+					// belt-and-braces sweep: a caller that puts markup in the MESSAGE (as the
+					// binding notice used to) should degrade to clean prose in the stream, not
+					// print a literal tag — links belong in opts.link, which renders properly.
+					window.katomiaChat.system(stripTags(`${icon} ${message}`.trim() + (opts.detail ? ` · ${opts.detail}` : "")),
+						{ link: opts.link?.href || null, linkText: opts.link?.text || null })
 			} catch {}
 
 			const el = document.createElement("div")
