@@ -55,6 +55,10 @@ once per settled tx) · <b>end</b> = when the result was shown to the player.</p
   <b class="note">Outcome:</b>
   <button data-f="all" class="on">All</button><button data-f="settled">✓ Settled</button><button data-f="failed">✗ Failed</button><button data-f="abandoned">– Abandoned</button>
 </div>
+<div class="filters" id="flagFilter">
+  <b class="note">Flags:</b>
+  <button data-f="all" class="on">All</button><button data-f="mismatch">⚠ Wrong-account only</button>
+</div>
 
 <div class="gridwrap">
 <table id="grid"></table>
@@ -64,7 +68,7 @@ once per settled tx) · <b>end</b> = when the result was shown to the player.</p
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
 const $ = s => document.querySelector(s)
 
-let ROWS = [], NETF = "all", OUTF = "all", SORT_KEY = "startAt", SORT_DIR = -1
+let ROWS = [], NETF = "all", OUTF = "all", FLAGF = "all", SORT_KEY = "startAt", SORT_DIR = -1
 
 const COLS = [
   { key: "startAt",   label: "Start",           fmt: r => fmtT(r.startAt) },
@@ -78,6 +82,7 @@ const COLS = [
   { key: "drift",     label: "clock drift",     fmt: r => driftCell(r) },
   { key: "receiptStatus", label: "receipt",     fmt: r => esc(r.receiptStatus || "—") },
   { key: "noReceiptPolls", label: "timeouts",   fmt: r => r.noReceiptPolls ? `<span class="warn">${r.noReceiptPolls}</span>` : "0" },
+  { key: "accountMismatch", label: "flags",     fmt: r => mismatchCell(r) },
 ]
 
 const GLYPHS = { settled: "✓", failed: "✗", abandoned: "–" }
@@ -108,6 +113,11 @@ function fmtMs(ms){
   return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`
 }
 function durCell(a, b){ return `<span class="dur">${fmtMs(msBetween(a, b))}</span>` }
+function mismatchCell(r){
+  const m = r.accountMismatch
+  if(!m) return ""
+  return `<span class="warn" title="wallet stayed active as ${esc(m.active)}, this tx needed ${esc(m.needed)}">⚠ wrong account (needed ${esc(m.needed)}, wallet was ${esc(m.active)})</span>`
+}
 function driftCell(r){
   // on-chain consensus_timestamp isn't always captured (best-effort mirror
   // lookup, only runs once per settled tx) — blank rather than a fake 0,
@@ -119,7 +129,8 @@ function driftCell(r){
 function applyFilters(){
   return ROWS.filter(r =>
     (NETF === "all" || r.network === NETF) &&
-    (OUTF === "all" || r.outcome === OUTF))
+    (OUTF === "all" || r.outcome === OUTF) &&
+    (FLAGF === "all" || !!r.accountMismatch))
 }
 function sortRows(rows){
   const col = COLS.find(c => c.key === SORT_KEY)
@@ -170,6 +181,7 @@ function wireFilters(id, apply){
 }
 wireFilters("netFilter", f => NETF = f)
 wireFilters("outFilter", f => OUTF = f)
+wireFilters("flagFilter", f => FLAGF = f)
 
 async function load(){
   const res = await (await fetch("txdata.php?days=30", { cache: "no-store" })).json()

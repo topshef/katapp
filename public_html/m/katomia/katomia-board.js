@@ -3830,6 +3830,23 @@ async function boardDirectSign(account){
     if(!bytes) bytes = await boardReadTxBytes(network, tx.txid)
     if(!bytes) throw new Error("transaction bytes unavailable")
     const signAs = (await wc.getAccount?.()) || accountId
+    if(signAs !== accountId){
+      // WS-ACCTMISMATCH1 (user 2026-08-05, live testnet failure — t-prop, needed
+      // 0.0.1879, wallet stayed active as 0.0.1532): wc.setActiveAccount above can
+      // resolve without throwing yet not actually switch anything — many WC/Hedera
+      // wallet sessions are fixed to one account per pairing, so "switching" is a
+      // no-op the SDK doesn't surface as an error. Without this check, signTx below
+      // would silently sign with whatever account the wallet actually has active —
+      // NOT the account this tx needs — burning the entire signing window on a
+      // signature that can never satisfy the lock rule, then failing ~40s later
+      // with no clue why ("mainnet works, testnet doesn't" — mainnet games only
+      // ever involve one account, so this mismatch can't occur there). Hard-stop
+      // here instead: tell the user exactly which account to switch to, immediately.
+      boardDiag("board:sign:account-mismatch", { txid: tx.txid, network, needed: accountId, active: signAs })
+      notify(`Wallet is connected as ${signAs} but this needs ${accountId} to sign — switch accounts in your wallet (or disconnect and reconnect as ${accountId}), then tap Sign again.`,
+        "error", { timeout: 15000 })
+      return
+    }
     // WS-SIGNDIAG1 (user 2026-08-03, t-prop): "wallet said done, board never got the
     // signature" — the WC RELAY socket can die silently and signTx then just never
     // resolves. Watchdogs (diagnosis + user cue only — a late response still saves):

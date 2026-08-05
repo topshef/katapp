@@ -129,8 +129,18 @@ async function main(){
   log("in-page wedge click dispatched:", clicked)
   await pageA.waitForTimeout(2000)
 
+  // BOARD-COUNTERMODE1 (2026-08-04, "simple counter" now the default): when
+  // part of a stack is offered but some remains in the store, the .reserved
+  // ghost chip is suppressed and the remainder pile gets .board-rimpile
+  // instead (see boardStoreChips/boardReservedChips in katomia-board.js) —
+  // check both, since a fresh automated player has no saved counterMode
+  // pref and lands in "simple" mode. Found 2026-08-05: this harness only
+  // checked .reserved and had been silently erroring every 2h since the
+  // mode-default flip landed (~08:01 UTC 2026-08-04), unnoticed for a day.
   const offered = await pageA.evaluate((senderId) =>
-    !!document.querySelector(`.asset.reserved[data-owner-account="${senderId}"][data-asset-id="HBAR"]`), acctA)
+    !!document.querySelector(
+      `.asset.reserved[data-owner-account="${senderId}"][data-asset-id="HBAR"], ` +
+      `.asset.board-rimpile[data-owner-account="${senderId}"][data-asset-id="HBAR"]`), acctA)
   log("offer ghost present:", offered)
   if(!offered) throw new Error("offer never registered")
 
