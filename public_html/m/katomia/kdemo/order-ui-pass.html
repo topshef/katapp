@@ -1,0 +1,197 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Order mode UI pass — design suggestions (ORDER-UIPASS1)</title>
+<style>
+  body{ margin:0 auto; max-width:880px; padding:28px 20px 90px; font:16px/1.65 system-ui,sans-serif; color:#1f2733; background:#fbfaf6; }
+  h1{ font-size:26px; line-height:1.25; } h2{ margin-top:44px; font-size:20px; border-bottom:2px solid #eee4d4; padding-bottom:6px; }
+  h3{ font-size:16px; margin-top:26px; }
+  .meta{ color:#8b95a5; font-size:13px; }
+  img.shot{ max-width:100%; border:1px solid #ddd; border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,.08); }
+  .duo{ display:flex; gap:14px; flex-wrap:wrap; } .duo > div{ flex:1 1 300px; }
+  .crit{ background:#fff2f0; border-left:4px solid #e07a6a; padding:10px 14px; border-radius:0 8px 8px 0; margin:12px 0; font-size:15px; }
+  .good{ background:#eef4ee; border-left:4px solid #7aa87a; padding:10px 14px; border-radius:0 8px 8px 0; margin:12px 0; font-size:15px; }
+  .rule{ background:#fff8e8; border-left:4px solid #e7b95c; padding:10px 14px; border-radius:0 8px 8px 0; margin:12px 0; }
+  li{ margin:6px 0; }
+  .mock{ background:#f4f5f7; border:1px solid #e3e0d6; border-radius:12px; padding:18px; margin:14px 0; }
+  .mocklabel{ font-size:12px; color:#8b95a5; text-transform:uppercase; letter-spacing:.06em; margin-bottom:10px; }
+  /* ── proposed card styles (live mocks) ── */
+  .ocard{ background:#fff; border:1px solid #e5e2d9; border-radius:12px; padding:10px 14px; max-width:460px;
+    display:grid; grid-template-columns:auto 1fr auto; gap:4px 12px; align-items:center; margin-bottom:10px;
+    box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .side{ font:700 12px system-ui; padding:3px 9px; border-radius:8px; letter-spacing:.04em; }
+  .side.buy{ background:#e7f5ea; color:#177245; } .side.sell{ background:#fdeaea; color:#b3282d; }
+  .num{ font-variant-numeric:tabular-nums; }
+  .ocard .price{ font:600 17px system-ui; } .ocard .price small{ font-weight:400; color:#8b95a5; font-size:12px; }
+  .ocard .qty{ color:#52525b; font-size:14px; }
+  .ocard .who{ grid-column:1 / -1; display:flex; align-items:center; gap:7px; font-size:12.5px; color:#71717a; }
+  .av{ width:18px; height:18px; border-radius:50%; background:#c9b6ef; display:inline-block; text-align:center; font-size:11px; line-height:18px; }
+  .fillbar{ grid-column:1 / -1; height:5px; border-radius:3px; background:#eee9de; overflow:hidden; }
+  .fillbar i{ display:block; height:100%; width:63%; background:#177245; border-radius:3px; }
+  .statuschip{ font-size:11.5px; padding:2px 8px; border-radius:9px; white-space:nowrap; }
+  .st-open{ background:#e8effc; color:#274b8f; } .st-filled{ background:#d1e7dd; color:#0f5132; }
+  .st-req{ background:#fff3cd; color:#664d03; } .st-fail{ background:#f8d7da; color:#842029; }
+  .tcard{ background:#fff; border:1px solid #e5e2d9; border-left:4px solid #177245; border-radius:12px; padding:10px 14px;
+    max-width:460px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.06); font-size:14px; }
+  .tcard.sell{ border-left-color:#b3282d; }
+  .tcard .row1{ display:flex; align-items:center; gap:8px; }
+  .tcard .swapline{ display:flex; align-items:center; gap:8px; margin-top:7px; font-size:15px; }
+  .tcard .amt{ font:600 15px system-ui; } .tcard .sym{ color:#71717a; font-weight:400; }
+  .tcard .arrow{ color:#a1a1aa; }
+  .tcard .foot{ display:flex; gap:10px; margin-top:7px; font-size:12px; color:#8b95a5; align-items:center; }
+  .hdr{ background:#fff; border:1px solid #e5e2d9; border-radius:12px; padding:12px 16px; display:flex; gap:22px;
+    align-items:baseline; flex-wrap:wrap; max-width:640px; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  .hdr .pair{ font:700 19px system-ui; } .hdr .last{ font:600 22px system-ui; }
+  .hdr .chg{ font:600 14px system-ui; color:#177245; } .hdr .kv{ font-size:12px; color:#8b95a5; }
+  .hdr .kv b{ display:block; font:600 14px system-ui; color:#1f2733; }
+  table.gram{ border-collapse:collapse; width:100%; font-size:14px; }
+  table.gram td, table.gram th{ border:1px solid #e8e2d4; padding:7px 10px; text-align:left; vertical-align:top; }
+  table.gram th{ background:#f6f2e8; }
+  .slice{ background:#eef4ee; border-left:4px solid #7aa87a; padding:10px 14px; border-radius:0 8px 8px 0; margin:12px 0; }
+  code{ background:#f1ede3; padding:1px 5px; border-radius:4px; font-size:14px; }
+</style></head><body>
+
+<h1>📈 Order mode — UI/UX design pass</h1>
+<p class="meta">KATMAN · 2026-08-05 · requested after ORDER-AUTOSIGN1 landed ("auto-sign works — bump up the order UX") · task ORDER-UIPASS1</p>
+
+<h2>1 · Where we are</h2>
+<div class="duo">
+  <div><img class="shot" src="shot-order-desktop.png" alt="desktop current"><p class="meta">Desktop: chart top-left, Orders | Transactions columns.</p></div>
+  <div><img class="shot" src="shot-order-tx-mobile.png" alt="mobile current"><p class="meta">Mobile: orders + transactions stacked.</p></div>
+</div>
+<div class="crit"><b>The honest read:</b> everything a trader needs is <i>present</i>, but it's presented as
+diagnostic output, not as a market. The cards are sentences of monospace ("<code>0.0.2154537 USDC 0.014784 →
+0.0.2154537 KGBP 0.011</code>") where the account id — the least decision-relevant token — is visually the loudest.
+Side (buy/sell) is a word inside italic prose instead of a colour signal. Glyph clusters (△ ⇄ 🏦 ⏳ ❓) carry real
+meaning but no legend or hierarchy. The chart floats without axes, last price, or a header; the pair selector is a
+small underlined link. Numbers don't align, so nothing can be compared by scanning down a column.</div>
+<div class="good"><b>What's already right:</b> maker avatars + 🔷/△ reputation marks (a genuine differentiator —
+no exchange shows counterparty reputation), red/green tx edge, relative timestamps, the new ✍ auto-sign pill, the
+hide-expired/only-mine filters, and green/red buy/sell in the chart bars.</div>
+
+<h2>2 · Principles (what regular traders expect)</h2>
+<ul>
+  <li><b>Price is the hero.</b> Every order row leads with price; size second; everything else recedes. Traders scan a price column, not sentences.</li>
+  <li><b>Side is a colour + badge, never prose.</b> Green BUY / red SELL, always in the same position.</li>
+  <li><b>Monospace is for numerals only.</b> Use <code>font-variant-numeric: tabular-nums</code> on numbers inside a proportional UI font. Full-monospace prose is what makes the current cards read as logs.</li>
+  <li><b>Alignment beats labels.</b> A column of right-aligned prices with aligned decimals needs no "price:" label.</li>
+  <li><b>Accounts are identity chrome, not content.</b> Avatar + short id + 🔷 in small type; full id on tap (the player modal is now the home for that).</li>
+  <li><b>Status is a chip in a fixed corner</b> — open / partial / filled / expired / ✍ requested / ✍ signed — one vocabulary everywhere, same colours as the signing glow (green settled, orange pending, red failed).</li>
+</ul>
+
+<h2>3 · The order card, redesigned</h2>
+<div class="mock"><div class="mocklabel">proposed — live HTML mock</div>
+  <div class="ocard">
+    <span class="side buy">BUY</span>
+    <span class="price num">1.344 <small>USDC / KGBP</small></span>
+    <span class="statuschip st-open">open · 63% filled</span>
+    <span></span>
+    <span class="qty num">0.011 KGBP &nbsp;·&nbsp; 0.014784 USDC total</span>
+    <span class="qty num" style="text-align:right">⏳ 2h</span>
+    <div class="fillbar"><i></i></div>
+    <div class="who"><span class="av">🐰</span> 0.0.215…537 🔷 · placed 1m ago</div>
+  </div>
+  <div class="ocard">
+    <span class="side sell">SELL</span>
+    <span class="price num">1.340 <small>USDC / KGBP</small></span>
+    <span class="statuschip st-filled">filled</span>
+    <span></span>
+    <span class="qty num">0.012 KGBP &nbsp;·&nbsp; 0.01608 USDC total</span>
+    <span class="qty num" style="text-align:right"></span>
+    <div class="who"><span class="av">🦊</span> 0.0.742…530 △ · 1m ago</div>
+  </div>
+</div>
+<ul>
+  <li>Grid, not prose: side badge → price (large, tabular) → status chip; second line quantity; a <b>fill progress bar</b> replaces the fraction-in-text (minFill/partial fills become visible at a glance).</li>
+  <li>Maker identity drops to the footer line: avatar + shortened id + 🔷/△. Tapping it opens the <b>player modal</b> — the explorer work plugs straight in.</li>
+  <li>Expiry as a compact ⏳ countdown chip, right-aligned (it already exists as a glyph — give it a number).</li>
+  <li>Book view: when "sort by price" is on, collapse cards to <b>one-line rows</b> (side · price · size · fill%) — cards for browsing, rows for the ladder. Same DOM, a density toggle.</li>
+</ul>
+
+<h2>4 · The transaction card, redesigned</h2>
+<div class="mock"><div class="mocklabel">proposed — live HTML mock</div>
+  <div class="tcard">
+    <div class="row1"><span class="av">🐰</span> <b style="font-size:13px">0.0.215…537</b> <span style="color:#2f6fed">🔷</span>
+      <span class="statuschip st-req" style="margin-left:auto">✍ signature requested</span><span class="meta">just now</span></div>
+    <div class="swapline">
+      <span class="amt num">0.018508 <span class="sym">USDC</span></span>
+      <span class="arrow">⇄</span>
+      <span class="amt num">0.014 <span class="sym">KGBP</span></span>
+      <span class="meta num" style="margin-left:auto">@1.322</span>
+    </div>
+    <div class="foot">matched from 2 orders · <a href="#" style="color:inherit">0.0.2154537@178…000</a></div>
+  </div>
+  <div class="tcard sell">
+    <div class="row1"><span class="av">🦊</span> <b style="font-size:13px">0.0.101…400</b> <span style="color:#b0b4b8">△</span>
+      <span class="statuschip st-filled" style="margin-left:auto">✅ settled</span><span class="meta">6m ago</span></div>
+    <div class="swapline">
+      <span class="amt num">0.005 <span class="sym">KGBP</span></span>
+      <span class="arrow">⇄</span>
+      <span class="amt num">0.006645 <span class="sym">USDC</span></span>
+      <span class="meta num" style="margin-left:auto">@1.329</span>
+    </div>
+  </div>
+</div>
+<ul>
+  <li>The transfer prose becomes one <b>swap line</b>: amount+symbol ⇄ amount+symbol, with the <b>effective rate</b> right-aligned — the number a trader actually wants and currently has to compute in their head.</li>
+  <li>Status chip top-right in the shared vocabulary; the ✍ auto-sign pill slots in as one of its states (requested → signed → settled ✅ / failed ⌛), so the card tells the whole lifecycle without opening the modal.</li>
+  <li>Multi-leg baskets (3+ accounts): show the viewer's own legs on the swap line and fold the rest behind "+2 more legs" — the signing modal remains the full picture.</li>
+  <li>The red "❓ empty card" in the current list (visible in the screenshots) is a bug-shaped artefact — a tx row rendering with no payload; worth a look while in here.</li>
+</ul>
+
+<h2>5 · Market header + metrics strip</h2>
+<div class="mock"><div class="mocklabel">proposed — live HTML mock</div>
+  <div class="hdr">
+    <span class="pair">KGBP / USDC ▾</span>
+    <span class="last num">1.329</span>
+    <span class="chg num">▲ +0.6%</span>
+    <span class="kv"><b class="num">1.322 / 1.344</b>bid / ask</span>
+    <span class="kv"><b class="num">1.7%</b>spread</span>
+    <span class="kv"><b class="num">14</b>trades</span>
+    <span class="kv"><b class="num">3</b>my open orders</span>
+  </div>
+</div>
+<ul>
+  <li>The pair link becomes a proper <b>market header</b>: pair picker ▾, last price large, change vs first trade of the session, best bid/ask, spread, trade count, my-open-orders count. All computable from state already held client-side.</li>
+  <li>This is the anchor traders look for first on any exchange — it also gives the chart its missing context (the last-price line).</li>
+</ul>
+
+<h2>6 · Chart pass</h2>
+<ul>
+  <li>Keep the SVG, give it <b>axes</b>: price gridlines + labels on the right (exchange convention), time ticks below.</li>
+  <li>Explain the encodings or drop them: solid green/red = filled buys/sells is good; the dashed outlines (open orders?) need either a two-item legend or removal. One unexplained encoding costs more trust than it adds information.</li>
+  <li>Add a <b>last-price horizontal line</b> tied to the header number, and my-order markers (small ▸ at my prices) — the two overlays traders actually use.</li>
+  <li>Hover/touch crosshair with price+time readout. Candles/depth chart are later luxuries; axes + last-price line are the 80%.</li>
+</ul>
+
+<h2>7 · Layout</h2>
+<ul>
+  <li><b>Desktop:</b> header strip full-width → chart left (bigger, ~60%) with the metrics beside it → below: Orders (book) left | Transactions right, as now but with the new cards. Messages dock right (ORDER-CHATDOCK1) when it lands.</li>
+  <li><b>Mobile:</b> header strip → chart (collapsible) → tabs <b>Book · Mine · Trades</b> instead of stacked accordions — tabs keep one list on screen with its filters, which is how every mobile exchange resolves this space.</li>
+  <li>The + / − order buttons become a single prominent <b>“＋ New order”</b> button in the header strip (side chosen inside the modal); − (remove account) moved to the account row per KAT-ACCTNORM1's "management lives in the profile".</li>
+</ul>
+
+<h2>8 · Shared grammar with proposal mode</h2>
+<table class="gram">
+  <tr><th>Element</th><th>Proposal mode today</th><th>Order mode proposal</th></tr>
+  <tr><td>Identity</td><td>kemoji avatar on player colour + 🔷/△</td><td>same avatar/colour/marks on cards (already partial) — tap → player modal (shipped)</td></tr>
+  <tr><td>Asset display</td><td>chips with symbol + amount</td><td>same chip styling for amounts on cards (drop the raw monospace)</td></tr>
+  <tr><td>Status colours</td><td>signing glow: orange pending / green signed / red failed</td><td>identical chip palette for order + tx statuses (shipped for card borders in the signing modal)</td></tr>
+  <tr><td>Messages</td><td>docked chat panel, drag split</td><td>same dock (ORDER-CHATDOCK1)</td></tr>
+  <tr><td>Detail surfaces</td><td>asset card ⇄ player modal</td><td>identical modals reused — orders/txs link into them</td></tr>
+  <tr><td>Lifecycle cue</td><td>board arcs pulse → green</td><td>status chips + ✍ pill progress through the same states</td></tr>
+</table>
+<p>The deeper mode-bridge (MODE-BRIDGE1) stays parked as agreed — this table is only about the two screens
+<i>feeling</i> like one product while the machinery stays separate.</p>
+
+<h2>9 · Suggested slices</h2>
+<div class="slice"><b>1 · Typography & cards (biggest win, pure frontend):</b> proportional font + tabular numerals,
+order card grid (side badge, price hero, fill bar, footer identity), tx swap-line card with rate + status chip.
+Kills the "log output" feel in one pass.</div>
+<div class="slice"><b>2 · Market header strip:</b> pair picker, last, change, bid/ask/spread, my-orders count.
+All client-side data.</div>
+<div class="slice"><b>3 · Chart: axes + last-price line + legend</b> (or dashed-encoding removal).</div>
+<div class="slice"><b>4 · Mobile tabs</b> (Book · Mine · Trades) replacing stacked accordions.</div>
+<div class="slice"><b>5 · Shared dock + polish:</b> ORDER-CHATDOCK1, one-line ladder density toggle, my-order
+markers on the chart. Investigate the empty ❓ tx card while in the code.</div>
+
+</body></html>
