@@ -77,12 +77,17 @@
           </select>
         </div>
 
-        <!-- Account picker — WalletConnect-connected accounts + connect-another +
-             disconnect, mirroring the tx-signer picklist (window.WC add/disconnect). -->
+        <!-- Account picker — KAT-ACCTNORM1 (user 2026-08-05): ONE list, everywhere.
+             Union of WC-connected accounts and this game's manually-added ones (tagged
+             ⌨️); WC is the untagged default. One button, "Remove", for both kinds —
+             "disconnect" is retired as user-facing language, since a connection never
+             proved ownership anyway (ids can be spoofed; only the signed commitment
+             below proves control). Removing a WC account disconnects the wallet
+             session AND takes it off the board. List logic: kauthRenderAccounts. -->
         <div id="authAccountRow" class="profile-auth-account">
           <span class="profile-label">Account</span>
           <select id="authAccount" class="profile-auth-select"></select>
-          <button id="authAccountRemove" type="button" class="profile-auth-x hidden" title="Disconnect this wallet account">Disconnect</button>
+          <button id="authAccountRemove" type="button" class="profile-auth-x hidden" title="Remove this account — disconnects the wallet session (if connected) and removes it from the game">Remove</button>
         </div>
 
         <!-- Commitment options — shown once an account is chosen. Flat grid items (not

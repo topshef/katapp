@@ -4226,7 +4226,10 @@ function ringFooter(mine){
     bar.appendChild(check("Active only", showActiveOnly, v => { showActiveOnly = v; render() }))
 
   if(ring8()){
-    // account dropdown: pick → Lock/Unlock + 🗑 Delete act on it; ➕ Add last.
+    // account dropdown: pick → Lock/Unlock acts on it; ➕ Add last. The 🗑
+    // delete button is GONE (KAT-ACCTNORM1, user 2026-08-05): account removal
+    // lives in Profile → account list → Remove, the ONE management surface —
+    // the footer is the play surface (lock/sign only).
     // When all-locked, the Lock slot becomes the SIGN button (same checkpoint,
     // next phase) — see the scene/tx notes at the bottom of this file.
     // user 2026-07-14 (UX polish): a newly-landed account becomes the
@@ -4254,7 +4257,7 @@ function ringFooter(mine){
       // existed). An empty list gets a plain button instead.
       const addBtn = document.createElement("button")
       addBtn.className = "ring-footer-accsel"
-      addBtn.textContent = "➕ Add account…"
+      addBtn.textContent = "➕ Add account"   // short form fits mobile (user 2026-08-05)
       addBtn.onclick = openAdd
       bar.appendChild(addBtn)
     } else {
@@ -4269,7 +4272,7 @@ function ringFooter(mine){
     })
     const add = document.createElement("option")
     add.value = "__add"
-    add.textContent = "➕ Add account…"
+    add.textContent = "➕ Add account"
     sel.appendChild(add)
     if(boardSelectedAccount) sel.value = boardSelectedAccount
     sel.onchange = () => {
@@ -4339,17 +4342,6 @@ function ringFooter(mine){
       }
     }
     bar.appendChild(lockBtn)
-
-    const delBtn = document.createElement("button")
-    delBtn.className = "ring-footer-del"
-    delBtn.textContent = "🗑"
-    delBtn.title = "Remove the selected account from the game"
-    delBtn.disabled = !cur
-    delBtn.onclick = () => {
-      const a = selected()
-      if(a && typeof removeAccount === "function") removeAccount(a.id)  // KAT-AUTOLOAD2-safe path
-    }
-    bar.appendChild(delBtn)
   } else {
     mine.forEach(account => {
       const b = document.createElement("button")

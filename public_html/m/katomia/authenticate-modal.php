@@ -35,7 +35,7 @@
       <div class="profile-auth-account">
         <span class="profile-label">Account</span>
         <select id="kamAccount" class="profile-auth-select"></select>
-        <button id="kamRemove" type="button" class="profile-auth-x hidden" title="Disconnect this wallet account">Disconnect</button>
+        <button id="kamRemove" type="button" class="profile-auth-x hidden" title="Remove this account — disconnects the wallet session and removes it from the game">Remove</button>
       </div>
 
       <!-- Plain-English statement — deliberately NOT the commitment wording: you are

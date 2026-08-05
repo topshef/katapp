@@ -144,19 +144,21 @@ function addAccounts(raw){
   connect(sendAll)
 }
 
-function removeAccount(accountId){
+function removeAccount(accountId, opts = {}){
 
   const account =
     getAccounts().find(x => x.id == accountId)
 
   if(!account) return
 
-  const ok = confirm(
+  // opts.confirmed: the caller already asked (profile Remove confirms with the
+  // full disconnect+remove consequence, KAT-ACCTNORM1) — don't double-confirm
+  const ok = opts.confirmed || confirm(
     `Remove account ${account.label}?\n\nAll assets and offers will be removed.`
   )
 
   if(!ok) return
-  
+
   forgetAccountLabel(account.label)
 
   socket.send(JSON.stringify({
@@ -393,6 +395,11 @@ function connect(onOpenAction){
 				if(m.action && document.body.dataset.kchatMode === "panel"
 					&& window.katomiaChat?.canRender?.(m.action) && window.katomiaChat.action(m)) continue
 				notify(m.message, m.type, { timeout: alertTimeouts[m.type] ?? 0 }) // persistent
+				// ADDACCT-ROBUST1 (user 2026-08-05): a modal mid-action (add-account stuck
+				// on "Adding…") never heard the backend's failure toast — mirror every
+				// backend message as a DOM event so open modals can show it in their own
+				// status line instead of leaving the user staring at a dead spinner.
+				try { document.dispatchEvent(new CustomEvent("katomia:gamemsg", { detail: m })) } catch(_){}
 			}
 		if(data.type === "game_error") return  // errors included in notify
 				

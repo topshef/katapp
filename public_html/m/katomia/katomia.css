@@ -662,7 +662,9 @@
   left:50%;
   transform:translateX(-50%);
   width:min(600px,90%);
-  z-index:9999;
+  /* ABOVE the WC modal bump (2147483000) — a failure toast must never hide
+     behind an open modal (user 2026-08-05, add-account failure went unseen) */
+  z-index:2147483100;
   display:flex;
   flex-direction:column;
   gap:8px;

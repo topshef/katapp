@@ -241,11 +241,29 @@ function kauthScopeLabel(){
 function updateAuthStatement(){
   const el   = document.getElementById("authStatement")
   const opts = document.getElementById("authOptions")
+  const btn  = document.getElementById("authBtn")
   if(!el) return
   const account = kauthActiveAccount()
-  if(!account){ el.classList.add("hidden"); opts?.classList.add("hidden"); return }
-  opts?.classList.remove("hidden")
+  if(!account){ el.classList.add("hidden"); opts?.classList.add("hidden"); if(btn) btn.disabled = false; return }
+  // ⌨️ manually-added account: no wallet session to sign with, so Raise commitment
+  // is greyed with the reason shown — never a phantom control (grey + explain, don't
+  // decorate). ALSO the degraded state of a WC account whose session was wiped/
+  // re-paired mid-game (user edge case 2026-08-05): the board account survives a WC
+  // wedge repair untouched and simply shows ⌨️ here until the wallet reconnects —
+  // nothing about the deal is lost. FUTURE: binding routes that don't need a live WC
+  // session — WhatsApp, KSIG, an offline-signed envelope — plug in via the
+  // PROFILE-AUTH4 channel-adapter seam and would re-enable this button per channel.
+  const isWc = !window.__kauthWcSet || window.__kauthWcSet.has(account)
+  if(btn) btn.disabled = !isWc
   el.classList.remove("hidden")
+  if(!isWc){
+    opts?.classList.add("hidden")
+    el.textContent = kauthNetwork() === "playnet"
+      ? `⌨️ ${account} is a playnet account — playnet has no wallets, so bindings don't apply here.`
+      : `⌨️ ${account} was added without a wallet connection, so a commitment can't be raised for it here yet. Connect it via WalletConnect (➕ Add account) to bind it.`
+    return
+  }
+  opts?.classList.remove("hidden")
   // Statement wording will vary once we branch binding vs. plain authenticate (nerd
   // mode). For now it reflects the key-binding intent. Display copy only — the SIGNED
   // challenge JSON is untouched (INTENT-RENAME1 keeps wire names for compat).
@@ -254,24 +272,36 @@ function updateAuthStatement(){
     `to place and sign orders on my behalf. Scope: ${kauthScopeLabel()}; ${kauthExpiryLabel()}.`
 }
 
-// ── Account picker (WalletConnect-connected accounts) ────────────────────────
-// Mirrors the tx-signer picklist: all connected accounts + a "connect another"
-// sentinel + a ✕ to disconnect the selected one (window.WC.disconnectAccount, WC-PICKDEL1).
-// These are WC-connected wallet accounts because only a connected wallet can sign the
-// challenge — distinct from the orders modal's list of game accounts, but the same UX.
+// ── Account picker — the ONE account list (KAT-ACCTNORM1, user 2026-08-05) ───
+// Union of WC-connected accounts and this game's accounts I hold that AREN'T
+// WC-connected (manually-added). Manual entries are tagged ⌨️; WC is the untagged
+// default. In a game the list is inherently network-filtered (WC accounts are
+// listed per-network, game accounts are the game's network); outside a game only
+// WC accounts exist to list — manual accounts are per-game state and there's no
+// game to read them from. The same union should eventually drive every account
+// list in the app (board footer, order composer) — see KAT-ACCTNORM1.
+function kauthGameAccounts(){
+  return (typeof getAccounts === "function" && typeof isMyAccount === "function" && typeof currentPlayerId !== "undefined")
+    ? getAccounts().filter(a => isMyAccount(a)) : []
+}
+
 function kauthRenderAccounts(accounts){
   const select = document.getElementById("authAccount")
   const remove = document.getElementById("authAccountRemove")
   if(!select) return
 
   const net = kauthNetwork()
-  const label = id => (net && !/mainnet/.test(net)) ? `${net}:${id}` : id
+  const wc = accounts || []
+  window.__kauthWcSet = new Set(wc)
+  const manual = [...new Set(kauthGameAccounts().map(a => a.label))].filter(id => !window.__kauthWcSet.has(id))
+  const all = [...wc, ...manual]
+  const label = id => ((net && !/mainnet/.test(net)) ? `${net}:${id}` : id) + (window.__kauthWcSet.has(id) ? "" : " ⌨️")
   const active = kauthActiveAccount()
 
-  let html = accounts.length
-    ? accounts.map(a => `<option value="${a}"${a === active ? " selected" : ""}>${label(a)}</option>`).join("")
-    : `<option value="" selected>— no wallet connected —</option>`
-  html += `<option value="${KAUTH_ADD_NEW}">➕ Connect another account…</option>`
+  let html = all.length
+    ? all.map(a => `<option value="${a}"${a === active ? " selected" : ""}>${label(a)}</option>`).join("")
+    : `<option value="" selected>— no accounts yet —</option>`
+  html += `<option value="${KAUTH_ADD_NEW}">➕ Add account</option>`
   select.innerHTML = html
 
   const cur = kauthActiveAccount()
@@ -311,23 +341,51 @@ async function kauthOnAccountChange(){
 
   if(val){
     window.__kauthActive = val
-    try { window.WC?.setActiveAccount?.(val) } catch(e){ kauthDiag("setActive-fail", { accountId: val, error: String(e) }) }
+    // manual (⌨️) accounts don't exist in the WC connector — don't poke it
+    if(!window.__kauthWcSet || window.__kauthWcSet.has(val)){
+      try { window.WC?.setActiveAccount?.(val) } catch(e){ kauthDiag("setActive-fail", { accountId: val, error: String(e) }) }
+    }
   }
   const remove = document.getElementById("authAccountRemove")
   if(remove) remove.classList.toggle("hidden", !val || val === KAUTH_ADD_NEW)
   updateAuthStatement()
 }
 
-// ✕ disconnects the selected account, keeping the others (falls back to disconnect-all).
+// ONE Remove for every account (KAT-ACCTNORM1, user 2026-08-05): "disconnect" is
+// retired as a user-facing action — connecting never proved ownership (an account
+// id can be spoofed; only the signed commitment proves control), so WC-connected
+// and manual accounts get the same button. A WC account is disconnected from the
+// wallet session AND removed from the current game in one step; a manual account
+// just leaves the game. NERD-MODE OPTION, considered and parked (user 2026-08-05,
+// no clear answer yet): keep the two actions SEPARATE in nerd mode — first press
+// disconnects only, the row stays listed as a now-manual ⌨️ account, second press
+// removes it from the game. Cleaner for debugging WC session issues; extra step
+// for everyone else. To resurrect: gate the removeAccount() call below on
+// !document.body.classList.contains("nerd") when the account was WC-connected,
+// and let kauthRenderAccounts re-tag it ⌨️ on the re-render.
 async function kauthRemoveAccount(){
   const account = kauthActiveAccount()
   const network = kauthNetwork()
   if(!account) return
-  kauthDiag("disconnect:click", { account })
-  try {
-    if(window.WC?.disconnectAccount) await window.WC.disconnectAccount(account)
-    else if(window.WC?.disconnect) await window.WC.disconnect()
-  } catch(e){ kauthDiag("disconnect:error", { account, error: String(e) }); notify?.("Disconnect failed", "error", { timeout: 3000 }) }
+  const isWc = !window.__kauthWcSet || window.__kauthWcSet.has(account)
+  const gameAcct = kauthGameAccounts().find(a => a.label === account) || null
+  const steps = [isWc && "disconnect its wallet session", gameAcct && "remove it from this game (its assets and offers clear from the board)"].filter(Boolean).join(" and ")
+  if(!confirm(`Remove account ${account}?\n\nThis will ${steps}.`)) return
+  kauthDiag("remove:click", { account, isWc, inGame: !!gameAcct })
+  if(isWc){
+    try {
+      if(window.WC?.disconnectAccount) await window.WC.disconnectAccount(account)
+      else if(window.WC?.disconnect) await window.WC.disconnect()
+    } catch(e){ kauthDiag("disconnect:error", { account, error: String(e) }); notify?.("Disconnect failed", "error", { timeout: 3000 }) }
+  }
+  if(gameAcct && typeof removeAccount === "function"){
+    removeAccount(gameAcct.id, { confirmed: true })
+    // the game list updates on the next broadcast — re-render when it lands so the
+    // row actually vanishes instead of lingering until the modal reopens
+    if(typeof pollUntil === "function")
+      pollUntil(() => !kauthGameAccounts().some(a => a.id == gameAcct.id),
+        async () => kauthRenderAccounts(await kauthWCAccounts(network, false)), 200, 8000)
+  }
   window.__kauthActive = null
   const accounts = await kauthWCAccounts(network, true)
   if(accounts.length) window.__kauthActive = accounts[0]
@@ -392,6 +450,11 @@ async function runKatomiaRaiseCommitment(){
   if(!accountId){
     notify?.("Choose or connect an account first", "info", { timeout: 3500 })
     kauthRenderAccounts(await kauthWCAccounts(network, true))
+    return
+  }
+  // belt-and-braces behind the greyed button: a ⌨️ manual account can't sign
+  if(window.__kauthWcSet && !window.__kauthWcSet.has(accountId)){
+    notify?.("This account has no wallet connection — connect it (➕ Add account) to raise a commitment", "info", { timeout: 4000 })
     return
   }
 
@@ -651,7 +714,7 @@ function kamRenderAccounts(accounts){
   let html = accounts.length
     ? accounts.map(a => `<option value="${a}"${a === active ? " selected" : ""}>${label(a)}</option>`).join("")
     : `<option value="" selected>— no wallet connected —</option>`
-  html += `<option value="${KAUTH_ADD_NEW}">➕ Connect another account…</option>`
+  html += `<option value="${KAUTH_ADD_NEW}">➕ Add account</option>`
   select.innerHTML = html
   const cur = kamActiveAccount()
   if(cur) window.__kamActive = cur
@@ -687,13 +750,20 @@ async function kamOnAccountChange(){
   kamUpdateStatement()
 }
 
+// Same one-Remove semantics as kauthRemoveAccount (KAT-ACCTNORM1): disconnect
+// the wallet session AND leave the game in one confirmed step. This list is
+// WC-only (only a connected wallet can authenticate) so there's no manual branch.
 async function kamRemoveAccount(){
   const account = kamActiveAccount()
   if(!account) return
+  const gameAcct = kauthGameAccounts().find(a => a.label === account) || null
+  const steps = ["disconnect its wallet session", gameAcct && "remove it from this game (its assets and offers clear from the board)"].filter(Boolean).join(" and ")
+  if(!confirm(`Remove account ${account}?\n\nThis will ${steps}.`)) return
   try {
     if(window.WC?.disconnectAccount) await window.WC.disconnectAccount(account)
     else if(window.WC?.disconnect) await window.WC.disconnect()
   } catch(e){ kamDiag("disconnect:error", { account, error: String(e) }) }
+  if(gameAcct && typeof removeAccount === "function") removeAccount(gameAcct.id, { confirmed: true })
   window.__kamActive = null
   const accounts = await kauthWCAccounts(kamNetworkVal(), true)
   if(accounts.length) window.__kamActive = accounts[0]

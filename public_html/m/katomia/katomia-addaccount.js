@@ -192,6 +192,22 @@ function addAcctSelectAll(on){
   updateAddAcctJoinCount()
 }
 
+// ADDACCT-ROBUST1 (user 2026-08-05, "Adding… stuck / failure toast buried"): while a
+// join is in flight, backend error messages (which only surfaced as toasts — and a
+// toast can sit unseen behind/away from the modal) now land IN the modal's status
+// line and re-arm the buttons for a retry. katomia-network.js mirrors every backend
+// message as a katomia:gamemsg DOM event.
+let addAcctInFlight = false
+document.addEventListener("katomia:gamemsg", e => {
+  const m = e.detail
+  if(!addAcctInFlight || !m || (m.type !== "error" && m.type !== "warning")) return
+  if(document.getElementById("addAccountModal")?.classList.contains("hidden")) return
+  addAcctInFlight = false
+  addAcctStatus(String(m.message || "Add failed — try again"), true)
+  document.getElementById("addAcctJoinAll").disabled = false
+  updateAddAcctJoinCount()
+})
+
 function addAcctJoinGame(all){
   if(!addAcctLabel) return
   let label = addAcctLabel
@@ -217,8 +233,10 @@ function addAcctJoinGame(all){
   // first window, and the timeout no longer asserts failure: it softens the
   // message and keeps polling in the background, converting a late land into
   // a late success instead of a lie.
+  addAcctInFlight = true
   const landed = () => getAccounts().some(a => isMyAccount(a) && a.label === addAcctLabel)
   const onLanded = late => {
+    addAcctInFlight = false
     window.kflow?.("acct:add:done", late ? "ok-late" : "ok", { label: addAcctLabel })
     if(late) window.katomiaDiagSend?.("acct:add:late-land", { label: addAcctLabel })
     closeAddAccountModal()

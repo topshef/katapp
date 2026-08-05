@@ -1118,15 +1118,9 @@ body.board-page .app-banner{
   white-space: nowrap;
   z-index: 13;
 }
-.ring-footer-del{
-  border: 1px solid #ddd6c6;
-  border-radius: 16px;
-  background: #fff;
-  padding: 4px 8px;
-  font-size: 12px;
-  cursor: pointer;
-}
-.ring-footer-lock:disabled, .ring-footer-del:disabled{ opacity: .4; cursor: default; }
+/* .ring-footer-del retired with the footer 🗑 button (KAT-ACCTNORM1, 2026-08-05):
+   account removal lives in Profile → account list → Remove */
+.ring-footer-lock:disabled{ opacity: .4; cursor: default; }
 
 /* dev rotation spinner */
 .ring-footer-rot{
