@@ -197,6 +197,13 @@ function removeAccount(accountId, opts = {}){
   }))
 }
 
+// GAME-ASSETREMOVE1 (user 2026-08-05, board tap→detail card): take one asset
+// off the table — STORE only; the backend withdraws standing offers of it back
+// first, so nobody's basket is falsified. Nothing on-chain changes.
+function removeAssetFromTable(accountId, assetId){
+  socket.send(JSON.stringify({ type: "game_removeAsset", gameId, accountId, assetId }))
+}
+
 // PROP-ADDACCT1: the button opens the add-account modal (katomia-addaccount.js);
 // prompt() fallback keeps the game usable if the modal script ever fails to load.
 // Guarded: absent on board.php (BOARD-UI1).
@@ -425,6 +432,13 @@ function connect(onOpenAction){
 				// a nerd-mode "show user actions" toggle (the inverted-option idea from
 				// the same session) rather than un-suppressing globally.
 				if(m.action && (m.action.kind === "lock" || m.action.kind === "unlock")) continue
+				// CHAT-COMMITGATE1 R2 (user 2026-08-05): the authenticate pop-up IS the
+				// alert — no toast and no stream row on top of it (three tellings of one
+				// thing). The DOM event still fires so the modal opens + text restores.
+				if(m.code === "chat-identity"){
+					try { document.dispatchEvent(new CustomEvent("katomia:gamemsg", { detail: m })) } catch(_){}
+					continue
+				}
 				// panel mode only (R2): in bubbles mode the panel lists are hidden, so a
 				// routed action would be invisible AND its toast suppressed — the same
 				// mode gate notify()'s own chat mirror uses.

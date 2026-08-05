@@ -812,18 +812,9 @@ body.board-page .app-banner{
   pointer-events: none;
 }
 
-/* touch-drag halo: dotted ring under the finger while the chip floats above */
-.board-touchhalo{
-  position: fixed;
-  z-index: 59;
-  width: 92px;                 /* review 14: ×2 — the finger covered the small one */
-  height: 92px;
-  margin: -46px 0 0 -46px;
-  border: 2px dotted #777;
-  border-radius: 50%;
-  pointer-events: none;
-  opacity: .7;
-}
+/* touch-drag halo retired (BOARD-DRAGUX1, 2026-08-05): the dotted ring was a
+   second drag locus; the chip itself is the cursor now (24px lift, wedge
+   under the chip lights via .drag-over) */
 
 /* susan5: my accounts as side-by-side cards (bands flipped in JS) */
 .susan-mine--cards{
@@ -1756,3 +1747,14 @@ body[data-signtwilight="1"] .ring-hub-count--signed{ color: #1e7047; }
    are unaffected; they're status, not affordance. The footer's hover preview
    is guarded in JS for the same reason. */
 body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: default; }
+
+/* ── asset detail card (tap-to-inspect, 2026-08-05) ───────────────────────── */
+.board-assetdetail-card{ max-width: 340px; text-align: center; }
+.board-assetdetail-art{ max-width: 160px; max-height: 160px; border-radius: 10px; margin: 6px auto; display: block; }
+.board-assetdetail-rows{ text-align: left; margin: 10px 0 4px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.board-assetdetail-rows a{ color: inherit; border-bottom: 1px dotted rgba(31,39,51,.35); text-decoration: none; }
+.board-assetdetail-remove{
+  margin-top: 10px; padding: 7px 12px; border-radius: 10px; cursor: pointer;
+  border: 1px solid #e3b9b9; background: #fff4f4; color: #a33;
+}
+.board-assetdetail-remove:hover{ background: #ffe9e9; }

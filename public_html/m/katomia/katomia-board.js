@@ -373,6 +373,11 @@ let boardLayoutMode = _bp.layoutMode === "shelves" ? "shelves" : "organic"
 // packed them tight. 8px reads looser and gives the solver slack before
 // contact. One knob so a future "hugginess" setting has a single place to bind.
 const BOARD_CHIP_PAD = 8
+// BOARD-CROWDFAIR1 (user-approved 2026-08-05): past the shrink floor chips
+// OVERLAP instead of miniaturising — collision radii squash (≤1) so the pile
+// stays local to the crowded wedge, like a real table.
+let _boardCrowdSquash = 1
+const boardChipCr = b => (Math.max(b.w, b.h) / 2 + BOARD_CHIP_PAD) * _boardCrowdSquash
 // 🧪 debug (user 2026-07-16): draw each zone's PHYSICS WALLS — the actual
 // region the sim lets chip edges occupy (inner wall past the ghost band,
 // soft outer wall, the ±80°-clamped angular walls, basket coin-band inset)
@@ -457,6 +462,11 @@ let boardUiSize = (() => {
 })()
 const boardSmallScreen = () =>
   matchMedia("(pointer: coarse)").matches || Math.min(innerWidth, innerHeight) <= 500
+// Mobile id shortening (user 2026-08-05): board labels drop leading ZERO
+// shard/realm components — "0.0.123" → "123", a future "0.1.5" keeps its "1.5".
+// Mobile only (ring + spoke labels); desktop has room for the full id.
+const boardShortAcctId = label =>
+  boardSmallScreen() ? String(label).replace(/^(?:0\.)+/, "") : String(label)
 function boardUiSizeChip(){
   const m = boardSmallScreen()
   return { small: m ? 1 : 0.9, normal: m ? 1.3 : 1, large: m ? 1.5 : 1.3 }[boardUiSize] || 1
@@ -2889,7 +2899,7 @@ function boardOrganicApply(cx, cy, W, H, oval){
     fresh.forEach(b => {
       b.w = b.el.offsetWidth || 40
       b.h = b.el.offsetHeight || 24
-      b.cr = Math.max(b.w, b.h) / 2 + BOARD_CHIP_PAD
+      b.cr = boardChipCr(b)
     })
   }
 
@@ -2936,8 +2946,21 @@ function boardOrganicApply(cx, cy, W, H, oval){
     zoneChips.forEach(({ zrec, recs }) => {
       if(recs.length) worst = Math.min(worst, pressure(zrec, recs, boardBandAt(zrec)) / want)
     })
-    const target = Math.max(0.65, Math.min(1, Math.round(worst * 20) / 20))
+    // BOARD-CROWDFAIR1 (user-approved 2026-08-05): shrink only absorbs MILD
+    // crowding — floor raised 0.65 → 0.85 so one chip-heavy player can't
+    // miniaturise the whole table. Past the floor chips overlap instead: the
+    // collision radii squash (to 0.6× at worst) so the pile stays inside the
+    // crowded wedge — a real table lets chips pile; sticky-drag + 🧹 tidy are
+    // the recovery tools. Fewer scale re-applies also means fewer sim
+    // re-excitements (the suspected jitter source, BOARD-JITTER1).
+    const target = Math.max(0.85, Math.min(1, Math.round(worst * 20) / 20))
     if(Math.abs(target - _boardChipFit) >= 0.1) _boardChipFit = target
+    const squash = worst >= 0.85 ? 1 : Math.max(0.6, Math.round((worst / 0.85) * 20) / 20)
+    if(squash !== _boardCrowdSquash){
+      _boardCrowdSquash = squash
+      zoneChips.forEach(({ recs }) => recs.forEach(b => { b.cr = boardChipCr(b) }))
+      changed = true
+    }
     if(boardApplyChipScale()){
       if(ring9()){
         // boardTightenChips PINS style.width in px — stale at the new scale;
@@ -2948,7 +2971,7 @@ function boardOrganicApply(cx, cy, W, H, oval){
       zoneChips.forEach(({ recs }) => recs.forEach(b => {
         b.w = b.el.offsetWidth || 40
         b.h = b.el.offsetHeight || 24
-        b.cr = Math.max(b.w, b.h) / 2 + BOARD_CHIP_PAD
+        b.cr = boardChipCr(b)
       }))
       changed = true
     }
@@ -5038,7 +5061,7 @@ function boardTouchDrag(el, payload){
   el.addEventListener("pointerdown", e => {
     if(e.pointerType === "mouse") return    // mouse keeps native dnd
     const startX = e.clientX, startY = e.clientY
-    let fly = null, halo = null
+    let fly = null, dropWedge = null
 
     const move = ev => {
       if(!fly){
@@ -5049,13 +5072,6 @@ function boardTouchDrag(el, payload){
         fly.style.left = r.left + "px"
         fly.style.top = r.top + "px"
         document.body.appendChild(fly)
-        // review 13: the clone tracked the finger EXACTLY — i.e. it sat
-        // hidden under the fingertip. It now rides LIFTED above the touch
-        // point, and a dotted halo ring marks the touch itself (the user's
-        // tap-oval idea) so the drag is always visible.
-        halo = document.createElement("div")
-        halo.className = "board-touchhalo"
-        document.body.appendChild(halo)
         el.classList.add("board-dragsrc")
         window.__boardDropTradeLine?.()   // BOARD-TRADELINESTALE1 (touch path)
         // a drag must not ALSO fire the chip's tap action on release
@@ -5063,10 +5079,21 @@ function boardTouchDrag(el, payload){
         el.addEventListener("click", swallow, { capture: true, once: true })
         setTimeout(() => el.removeEventListener("click", swallow, { capture: true }), 600)
       }
-      const lift = 54   // chip floats clear above the fingertip, projected larger
-      fly.style.transform = `translate(${ev.clientX - startX}px, ${ev.clientY - startY - lift}px) scale(1.3)`
-      halo.style.left = ev.clientX + "px"
-      halo.style.top = ev.clientY + "px"
+      // BOARD-DRAGUX1 (user-approved 2026-08-05): ONE locus — the chip IS the
+      // drag cursor, sliding under your finger like a real piece. Slight lift
+      // (24px, the OS-drag convention) only so the fingertip doesn't fully
+      // hide it. The old 54px float + dotted halo made two competing loci
+      // ("is the drop my finger or the chip?" — halo retired). The wedge
+      // under the CHIP lights as the target; drop point = the chip's centre.
+      const lift = 24
+      fly.style.transform = `translate(${ev.clientX - startX}px, ${ev.clientY - startY - lift}px) scale(1.1)`
+      const c = fly.getBoundingClientRect()
+      const over = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2)?.closest?.("[data-drop-account]")
+      if(over !== dropWedge){
+        dropWedge?.classList.remove("drag-over")
+        over?.classList.add("drag-over")
+        dropWedge = over
+      }
     }
 
     const up = ev => {
@@ -5074,15 +5101,19 @@ function boardTouchDrag(el, payload){
       window.removeEventListener("pointerup", up)
       window.removeEventListener("pointercancel", up)
       el.classList.remove("board-dragsrc")
+      dropWedge?.classList.remove("drag-over")
+      dropWedge = null
       if(!fly) return                        // plain tap — click proceeds
+      // one locus: the drop lands where the CHIP is, not where the finger is
+      const c = fly.getBoundingClientRect()
+      const dx = c.left + c.width / 2, dy = c.top + c.height / 2
       fly.remove()
-      halo?.remove()
       // BOARD-ARRANGE1: released inside the chip's OWN zone = arrange, not
       // an offer — the chip moves to the release point and pins there
-      if(boardArrangeAt(el, ev.clientX, ev.clientY)) return
-      const hit = document.elementFromPoint(ev.clientX, ev.clientY)
+      if(boardArrangeAt(el, dx, dy)) return
+      const hit = document.elementFromPoint(dx, dy)
       const target = hit?.closest?.("[data-drop-account]")
-      if(target?.__dropAccount) boardExecuteDrop(payload, target.__dropAccount, { x: ev.clientX, y: ev.clientY })
+      if(target?.__dropAccount) boardExecuteDrop(payload, target.__dropAccount, { x: dx, y: dy })
     }
 
     window.addEventListener("pointermove", move)
@@ -5885,7 +5916,7 @@ function ringEtchLabel(seg, g, NS){
   // v11: ·you moved to the hub doorstep (angled label); 🛍 marks a store
   // whose player allows picking
   const pickBadge = (ring11() && playerAllowsPick(seg.account.playerId) && !seg.mine) ? " ◀" : ""
-  text.textContent = lockPrefix + (seg.account.id.split(":")[1] || seg.account.id)
+  text.textContent = lockPrefix + boardShortAcctId(seg.account.id.split(":")[1] || seg.account.id)
     + ringBindBadge(seg.account)
     + (seg.mine && !ring11() ? " ·you" : "") + pickBadge
 
@@ -6016,7 +6047,7 @@ function ringEtchLabel(seg, g, NS){
 // there but get covered by the signing spotlight. Likely future: suppress
 // the coin variant in portrait and/or rethink which id renders when.
 function ringHubCoinLabel(seg, g, NS){
-  const hac = seg.account.id.split(":")[1] || seg.account.id
+  const hac = boardShortAcctId(seg.account.id.split(":")[1] || seg.account.id)
   const fs = ringLabelFontSize(g)
   // full-circle single account (hubPlayersRing guards the same case): an SVG
   // arc can't have coincident start/end points, so cap the sweep just short.
@@ -6025,7 +6056,9 @@ function ringHubCoinLabel(seg, g, NS){
   // baseline inset from the oval: textPath glyphs grow "up" from the baseline
   // — toward the rim on top-half arcs (clear the full cap height), toward the
   // hub on bottom-half ones (only descenders reach rimward, less clearance).
-  const inset = (bottomHalf ? fs * 0.3 : fs * 0.85) + 6
+  // Top-half +5 (user 2026-08-05): the thickened lock ring left the top arcs
+  // "almost no gap" — bottom (dip) arcs were fine and keep their inset.
+  const inset = (bottomHalf ? fs * 0.3 + 6 : fs * 0.85 + 11)
   const irx = Math.max(20, g.rx - inset), iry = Math.max(20, g.ry - inset)
   // radius of the inset oval at a true angle — same form as g.ovalR
   const ir = a => (irx * iry) / Math.hypot(iry * Math.cos(a), irx * Math.sin(a))
@@ -6403,19 +6436,13 @@ function boardStoreChips(account, container, reservedByAccount){
         el.classList.add("board-pickchip")
         el.style.setProperty("--pickflag", getPlayerColour(account.playerId))
       }
-      // TAP-TO-OFFER (user 2026-07-15): tap selects the chip (legacy grid's
-      // own setSelectedAsset machinery — setupDropTarget's click handler on
-      // every wedge already completes the offer via offerSelectedToAccount,
-      // amount prompt included), replacing the old openAssetModal popup which
-      // the user found confusing on the board. Tap the chip again to cancel.
-      // The legacy game.php page keeps its modal. FUTURE: multi-tap selection
-      // (several chips → one destination) — the state is single-asset today.
+      // TAP = INSPECT (user 2026-08-05, replaces the 2026-07-15 tap-to-offer):
+      // dragging covers offering now (BOARD-DRAGUX1 one-locus slide), so a tap
+      // opens the asset DETAIL card instead — art, token link, owner, and for
+      // your own store chips a "Remove from table" action (GAME-ASSETREMOVE1).
+      // The legacy (non-ring8) page keeps its offer modal.
       el.onclick = () => {
-        if(ring8()){
-          if(isSelected(assetId, account.id, null)){ clearSelection(); render() }
-          else setSelectedAsset(assetId, account.id, null)
-          return
-        }
+        if(ring8()){ boardAssetDetail(assetId, account, amount); return }
         openAssetModal(assetId, account.id, amount)
       }
       el.draggable = true
@@ -6446,8 +6473,85 @@ function boardStoreChips(account, container, reservedByAccount){
       }
       boardTouchDrag(el, { pick: true, assetId, available: amount || 1, pickFrom: account.id })
     }
+    // tap-to-inspect works on EVERYONE's store chips (user 2026-08-05: "if you
+    // want to examine their assets, you can just tap on them")
+    if(!mine && ring8()) el.onclick = () => boardAssetDetail(assetId, account, amount)
     container.appendChild(el)
   })
+}
+
+// ── asset detail card (user 2026-08-05) ──────────────────────────────────────
+// Tap a store chip — yours or theirs — to inspect it: art, display label,
+// token id (HashScan-linked on real networks), owner. Your own chips add
+// "Remove from table": game_removeAsset takes it out of the STORE only —
+// standing offers of it are withdrawn back server-side first, the wallet is
+// untouched (it changes the game selection, nothing on-chain).
+function boardAssetDetail(assetId, account, amount){
+  document.getElementById("boardAssetDetail")?.remove()
+  const modal = document.createElement("div")
+  modal.id = "boardAssetDetail"
+  modal.className = "asset-modal"
+  modal.onclick = e => { if(e.target === modal) modal.remove() }
+  const card = document.createElement("div")
+  card.className = "asset-modal-card board-assetdetail-card"
+  modal.appendChild(card)
+  const close = document.createElement("div")
+  close.className = "asset-modal-close"
+  close.textContent = "✕"
+  close.onclick = () => modal.remove()
+  card.appendChild(close)
+
+  const meta = typeof getAssetMeta === "function" ? getAssetMeta(assetId) : null
+  const thumb = meta && typeof getAssetThumb === "function" ? getAssetThumb(meta) : null
+  if(thumb){
+    const img = document.createElement("img")
+    img.src = thumb
+    img.className = "board-assetdetail-art"
+    card.appendChild(img)
+  }
+  const name = document.createElement("div")
+  name.className = "asset-modal-name"
+  name.textContent = typeof getAssetDisplay === "function" ? getAssetDisplay(assetId, amount) : assetId
+  card.appendChild(name)
+
+  const rows = document.createElement("div")
+  rows.className = "board-assetdetail-rows subtle"
+  const addRow = (k, v) => {
+    const r = document.createElement("div")
+    const b = document.createElement("b")
+    b.textContent = k + ": "
+    r.appendChild(b)
+    r.appendChild(typeof v === "string" ? document.createTextNode(v) : v)
+    rows.appendChild(r)
+  }
+  const net = gameMeta?.network || ""
+  if(String(assetId).toUpperCase() !== "HBAR" && (net === "testnet" || net === "mainnet")){
+    const a = document.createElement("a")
+    a.href = `https://hashscan.io/${net}/token/${String(assetId).split("#")[0]}`
+    a.target = "_blank"; a.rel = "noopener noreferrer"
+    a.textContent = String(assetId).replace("#", " #")
+    addRow("Token", a)
+  } else {
+    addRow("Token", String(assetId))
+  }
+  const ownerHac = account.id.split(":")[1] || account.id
+  addRow("Owner", ownerHac + (isMyAccount(account) ? " (you)" : ""))
+  if(meta?.token_class?.name) addRow("Name", meta.token_class.name)
+  card.appendChild(rows)
+
+  if(isMyAccount(account)){
+    const btn = document.createElement("button")
+    btn.className = "board-assetdetail-remove"
+    btn.textContent = "🗑 Remove from table"
+    btn.title = "Take this asset off the board. Standing offers of it are withdrawn; your wallet is untouched."
+    btn.onclick = () => {
+      if(!confirm(`Remove ${name.textContent} from the table?\n\nStanding offers of it are withdrawn. This only changes what you're playing — your wallet is untouched.`)) return
+      if(typeof removeAssetFromTable === "function") removeAssetFromTable(account.id, assetId)
+      modal.remove()
+    }
+    card.appendChild(btn)
+  }
+  document.body.appendChild(modal)
 }
 
 // does this player allow others to pick from their stores? (KAT-PLAYERPREF1)
