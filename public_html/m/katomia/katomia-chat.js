@@ -198,8 +198,32 @@
   }
 
   /* The mobile dock — a bottom strip of scrolling chat above the footer/ribbon.
-   * v1 fixed-height slice; the fuller layout (square board + draggable divider +
-   * toasts folded into chat + a send box) is BOARD-CHATLAYOUT1. */
+   * R5: board-first split — see the portrait branch in syncDock. */
+
+  // R5 (feedback 08568c88): the portrait split's shared bounds, used by both the
+  // default layout and the drag bar. min = one row + the send box; def = ~3 rows
+  // + send box; max = the larger of 55% of the viewport and what the 4:5 board
+  // cap leaves over (a very tall phone gives the surplus to messages, not to a
+  // board stretched past 4:5).
+  function dockLimits() {
+    var stackH = 0;
+    [".ring-footer", ".kspec-ribbon"].forEach(function (s) {
+      var el = document.querySelector(s);
+      if (el && getComputedStyle(el).display !== "none") stackH += el.getBoundingClientRect().height;
+    });
+    // Cap 1.8×w: the wedge layout genuinely uses portrait height (probe: no dead
+    // space at 1.25 — chips and counters fill the taller wedges), so the cap only
+    // guards absurd stretch on very tall screens. At 1.25 the cap BOUND typical
+    // phones and forced a ~270px dock — the opposite of the "~3 lines" default.
+    var boardCap = Math.round(innerWidth * 1.8);
+    var minFromCap = Math.max(0, innerHeight - stackH - boardCap);
+    return {
+      min: Math.max(64, minFromCap),
+      def: Math.max(120, minFromCap),
+      max: Math.max(Math.round(innerHeight * 0.55), minFromCap)
+    };
+  }
+
   function syncDock() {
     document.body.dataset.kchatMode = chatMode();
     var on = chatMode() === "panel";
@@ -214,10 +238,39 @@
       // action-refused message; being an eligible PLAYER is enough (no account needs
       // adding — "get permission to play, don't add the account, and commentate").
       // @mention bumping is logged on BOARD-CHATLAYOUT1, not built.
-      d.innerHTML = '<div class="kchat-dock-list"></div>'
+      // R5 (feedback 08568c88): a grab bar on the dock's top edge — drag up/down
+      // to trade message space against board space. Portrait only (the side
+      // panel keeps its width logic); the chosen height persists per device.
+      d.innerHTML = '<div class="kchat-drag" title="Drag to resize messages"></div>'
+        + '<div class="kchat-dock-list"></div>'
         + '<form class="kchat-send" autocomplete="off">'
         + '<input type="text" maxlength="280" placeholder="Message the table…" aria-label="Message">'
         + '<button type="submit" title="Send">➤</button></form>';
+      var drag = d.querySelector(".kchat-drag");
+      drag.addEventListener("pointerdown", function (e) {
+        if (d.classList.contains("kchat-dock--side")) return;
+        e.preventDefault();
+        drag.setPointerCapture(e.pointerId);
+        var startY = e.clientY;
+        var startB = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--kchat-clear-b")) || d.getBoundingClientRect().height;
+        var lim = dockLimits();
+        var move = function (ev) {
+          var b = Math.max(lim.min, Math.min(lim.max, startB + (startY - ev.clientY)));
+          document.documentElement.style.setProperty("--kchat-clear-b", Math.round(b) + "px");
+        };
+        var up = function (ev) {
+          drag.removeEventListener("pointermove", move);
+          drag.removeEventListener("pointerup", up);
+          drag.removeEventListener("pointercancel", up);
+          var b = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--kchat-clear-b")) || startB;
+          try { localStorage.setItem("katomiaChatSplit", String(b)); } catch (e2) {}
+          // one geometry re-solve at rest — dragging only moves the CSS var
+          if (typeof render === "function") setTimeout(function () { try { render(); } catch (e3) {} }, 0);
+        };
+        drag.addEventListener("pointermove", move);
+        drag.addEventListener("pointerup", up);
+        drag.addEventListener("pointercancel", up);
+      });
       d.querySelector(".kchat-send").addEventListener("submit", function (e) {
         e.preventDefault();
         var inp = d.querySelector(".kchat-send input");
@@ -259,17 +312,18 @@
           d.style.height = "";        // side variant sizes via CSS (top/bottom pinned)
         } else {
           d.style.width = "";
-          // R4 (user 2026-08-03): SQUARE CARVE — the board keeps a ~width×width square
-          // at the top (the ring is circle-locked to match), the board's OWN bottom
-          // bars (footer/ribbon, and the narrate strip that stacks on them) sit at the
-          // FOOT OF THE BOARD (they follow --kchat-clear-b up via CSS), and everything
-          // below is messaging: board → board footer → messages.
-          var stackH = 0;
-          [".ring-footer", ".kspec-ribbon"].forEach(function (s) {
-            var el = document.querySelector(s);
-            if (el && getComputedStyle(el).display !== "none") stackH += el.getBoundingClientRect().height;
-          });
-          clearB = Math.round(Math.max(140, Math.min(innerHeight * 0.55, innerHeight - innerWidth - stackH)));
+          // R4 (user 2026-08-03): SQUARE CARVE — board on top, its own bottom bars at
+          // the foot of the board, messages below: board → board footer → messages.
+          // R5 (feedback 08568c88, user 2026-08-05): the board is TALLER than square
+          // now — it takes everything the messages don't, capped at 4:5 (w:h, the
+          // portrait mirror of desktop's 5:4 BOARD-DESKRATIO1 cap). The ring stays a
+          // circle (width-bound); the extra height is outside-ring room for the top
+          // and bottom players. Messages default to ~3 rows + the send box, and the
+          // drag bar (kchat-drag above) lets the user move the split; their choice
+          // persists (localStorage katomiaChatSplit) and wins within the limits.
+          var lim = dockLimits();
+          var saved = +(localStorage.getItem("katomiaChatSplit") || 0);
+          clearB = Math.round(Math.max(lim.min, Math.min(lim.max, saved || lim.def)));
           d.style.bottom = "0px";
           // height comes from the SAME --kchat-clear-b var the board yields (CSS), so
           // the pair can never disagree by a measurement race
@@ -488,6 +542,13 @@
   function renderInto(list, chat) {
     if (!list) return;
     var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 24;
+    // BOARD-MSGANIM1 (feedback f8a34f4c, user 2026-08-05): new messages animate
+    // into place instead of popping. The list is rebuilt wholesale each render,
+    // so "new" = rows past the UNTRIMMED chat length this list saw last time
+    // (untrimmed so the cap-full list keeps animating); recreated old rows
+    // appear instantly. First render (backfill) animates nothing.
+    var prevTotal = +(list.dataset.kcount || 0);
+    var prevScroll = list.scrollTop;
     list.innerHTML = "";
     if (!chat.length) {
       var e = document.createElement("div");
@@ -496,7 +557,8 @@
       list.appendChild(e);
       return;
     }
-    chat.slice(-MAX_LOG).forEach(function (m) {
+    var shown = Math.min(chat.length, MAX_LOG);
+    chat.slice(-MAX_LOG).forEach(function (m, idx) {
       // Row anatomy R2 (user 2026-08-03): full-height colour BAR (not a dot — same
       // ownership cue as chip sleeves and bubble bars), the player's AVATAR on their
       // colour (the fruit emoji is gone from display names everywhere), then bold
@@ -593,9 +655,24 @@
         row.onmouseleave = function () { try { highlightTradePair(act.assetId, act.from, act.to, false); } catch (e) {} };
       }
       row.appendChild(main);
+      if (prevTotal && (chat.length - shown + idx) >= prevTotal) row.classList.add("kchat-row--in");
       list.appendChild(row);
     });
-    if (atBottom) list.scrollTop = list.scrollHeight;
+    list.dataset.kcount = chat.length;
+    // Scroll: restore the pre-rebuild position instantly (innerHTML wipe zeroed
+    // it), then glide to the bottom so the stream visibly moves up as the new
+    // row is revealed (smooth only when pinned to the bottom and something new
+    // actually arrived — reader scrolled up = don't yank them).
+    if (atBottom) {
+      if (prevTotal && chat.length > prevTotal && list.scrollTo) {
+        list.scrollTop = Math.min(prevScroll, list.scrollHeight);
+        requestAnimationFrame(function () { list.scrollTo({ top: list.scrollHeight, behavior: "smooth" }); });
+      } else {
+        list.scrollTop = list.scrollHeight;
+      }
+    } else {
+      list.scrollTop = prevScroll;
+    }
   }
 
   // BOARD-CHAT1 R2: full-screen transcript for phones, opened from ☰ → 💬 Messages.

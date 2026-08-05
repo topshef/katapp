@@ -2585,6 +2585,11 @@ html.ksize-large{ --ui-scale: 1.45; }
 .kchat-panel-list{ max-height:min(44vh,300px); overflow-y:auto; padding:9px 11px; }
 /* Row anatomy R2 (user 2026-08-03): full-height colour bar (chip-sleeve cue, not a
    dot) · avatar on the player colour · bold name + time + text inline, wrapping. */
+/* BOARD-MSGANIM1: entry animation for rows newly arrived this render —
+   slides in with the smooth scroll glide (renderInto) instead of popping */
+.kchat-row--in{ animation: kchatRowIn .3s ease both; }
+@keyframes kchatRowIn{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce){ .kchat-row--in{ animation:none; } }
 .kchat-row{ display:flex; align-items:flex-start; gap:7px;
   font-size:calc(12.5px * var(--ui-scale)); line-height:1.4; padding:4px 0; border-bottom:1px solid rgba(20,28,45,.07); }
 .kchat-row:last-child{ border-bottom:0; }
@@ -2610,6 +2615,13 @@ html.ksize-large{ --ui-scale: 1.45; }
   border-top:1px solid rgba(20,28,45,.12);
 }
 .kchat-dock-list{ overflow-y:auto; flex:1; }
+/* R5 drag bar (feedback 08568c88): grab the dock's top edge to move the
+   board/messages split. touch-action:none so the drag never fights the
+   list's scroll; hidden on the landscape side panel (width logic there). */
+.kchat-drag{ height:14px; margin:-4px -8px 0; cursor:ns-resize; touch-action:none;
+  display:flex; align-items:center; justify-content:center; flex:none; }
+.kchat-drag::before{ content:""; width:44px; height:4px; border-radius:2px; background:rgba(20,28,45,.25); }
+.kchat-dock--side .kchat-drag{ display:none; }
 /* bottom-dock height IS the board's yielded clearance — one var, no disagreement */
 body[data-kchat-mode="panel"] .kchat-dock:not(.kchat-dock--side){ height: var(--kchat-clear-b, min(30dvh, 240px)); }
 /* landscape: the dock is a full-height RIGHT-hand panel (~quarter width, set by JS);
