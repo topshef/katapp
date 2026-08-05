@@ -174,14 +174,15 @@ body.board-page .app-banner{
   border-radius: 999px;
   background: rgba(40, 34, 22, .82);
   color: #fff;
-  font-size: 13px;
+  /* BOARD-UISIZE1: banner text follows the Size preference */
+  font-size: calc(13px * var(--ui-scale, 1));
   text-align: center;
   pointer-events: none;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-#boardBanner .board-banner-tx{ opacity: .65; font-size: 11px; }
+#boardBanner .board-banner-tx{ opacity: .65; font-size: calc(11px * var(--ui-scale, 1)); }
 
 /* tap-to-offer: candidate destination segments lift while a chip is selected */
 .board-wedge--offertarget{ filter: saturate(1.5) brightness(1.04); }

@@ -435,16 +435,52 @@ window.boardCounterSimple = boardCounterSimple
 // fit, computed per boardOrganicApply from the fullest zone). Quantised with
 // hysteresis so the physics isn't re-excited by ±1px churn.
 let boardChipScale = Number(_bp.chipScale) || 1
+// BOARD-UISIZE1 (user 2026-08-05): ONE display-size preference — Small /
+// Normal / Large — for ordinary humans, instead of "fiddle the chip % if you
+// can't read it". Deliberately a GLOBAL key (site-wide, applied as html
+// .ksize-* by header.php before first paint; CSS surfaces consume
+// --ui-scale), not a katomiaBoardPrefs field. Here it feeds the CHIP
+// multiplier with its own matrix: "the chips need to be readable, simple as
+// that" — on a phone the old 130% is the new Normal; Small keeps the
+// pre-change compact look; the nerd 🧪 Chip size stays a dev multiplier on
+// top of whatever this resolves to.
+const UISIZE_KEY = "katomiaUiSize"
+let boardUiSize = (() => {
+  try {
+    const v = localStorage.getItem(UISIZE_KEY)
+    return ["small", "normal", "large"].includes(v) ? v : "normal"
+  } catch { return "normal" }
+})()
+const boardSmallScreen = () =>
+  matchMedia("(pointer: coarse)").matches || Math.min(innerWidth, innerHeight) <= 500
+function boardUiSizeChip(){
+  const m = boardSmallScreen()
+  return { small: m ? 1 : 0.9, normal: m ? 1.3 : 1, large: m ? 1.5 : 1.3 }[boardUiSize] || 1
+}
 let _boardChipFit = 1
 let _boardChipScaleApplied = null
 function boardApplyChipScale(){
-  const s = Math.round(boardChipScale * _boardChipFit * 100) / 100
+  const s = Math.round(boardChipScale * _boardChipFit * boardUiSizeChip() * 100) / 100
   if(s === _boardChipScaleApplied) return false
   _boardChipScaleApplied = s
   document.body.style.setProperty("--chip-scale", s)
   return true
 }
 boardApplyChipScale()
+
+// Counter flex (feedback 061041a3, user 2026-08-05): "when board space is in
+// short supply, reduce the counter space to allow chips to consume more of
+// that space". The reserved rim band gives way BEFORE chips shrink: 1 = the
+// full classic reservation, 0 = collapsed to what its occupants (ghosts /
+// rim piles) actually need — or a sliver when empty. Desktop keeps the full
+// counter by construction: no pressure, no squeeze. Quantised to ¼ steps so
+// the physics isn't re-excited by trembling pressure readings.
+let _boardBandFlex = 1
+function boardBandAt(z){
+  if(z.isBasket) return 0
+  const full = z.bandFull ?? 40, min = z.bandMin ?? 12
+  return Math.round(min + (full - min) * _boardBandFlex)
+}
 
 // BOARD-WHEEL1 (user 2026-07-11): Lazy Susan is retired (scope, not code —
 // still in git history / renderSusanBoard if ever needed). Its job — "too
@@ -893,6 +929,23 @@ function boardSyncPrefsUI(){
       // deliberately NOT applied here — render → boardOrganicApply applies the
       // var, re-measures every chip at the new size and re-excites the sim
       // (applying early would skip that stale-size sweep)
+      render()
+    }
+  }
+  // BOARD-UISIZE1: Small / Normal / Large — global (localStorage, html
+  // .ksize-* class), not a board pref; chips re-measure via the same render
+  // path as the nerd chip-size knob, text surfaces follow --ui-scale in CSS
+  const uiSizeSel = document.getElementById("boardPrefUiSize")
+  if(uiSizeSel){
+    uiSizeSel.value = boardUiSize
+    if(uiSizeSel.selectedIndex < 0) uiSizeSel.value = "normal"
+    uiSizeSel.onchange = () => {
+      boardUiSize = ["small", "large"].includes(uiSizeSel.value) ? uiSizeSel.value : "normal"
+      try { localStorage.setItem(UISIZE_KEY, boardUiSize) } catch {}
+      const html = document.documentElement
+      html.classList.remove("ksize-small", "ksize-normal", "ksize-large")
+      html.classList.add("ksize-" + boardUiSize)
+      boardDiag("board:pref:uiSize", { value: boardUiSize })
       render()
     }
   }
@@ -2657,7 +2710,10 @@ function boardShelfZone(sizes, keys, zone, inners, isBasket){
   // 0 with no ghosts) while removing the shrink. Residual, deliberately left: if the item
   // offered was itself the tallest chip in the store, the band can still ease down to the
   // next-tallest — the band is genuinely reserving less at that point. See the task.
-  const band = Math.max(40, ghostBandH, ...chipIdx.map(i => sizes[i].h)) + 12
+  // counter flex: prefer the zone's already-flexed band (set in apply pass 2
+  // before this is called) so shelves and walls agree; the formula below is
+  // the standalone fallback only
+  const band = zone.band ?? (Math.max(40, ghostBandH, ...chipIdx.map(i => sizes[i].h)) + 12)
   let cursor = isBasket ? zone.rMax - 34 : zone.rMin + band
   let i = 0
   while(i < order.length){
@@ -2843,15 +2899,27 @@ function boardOrganicApply(cx, cy, W, H, oval){
   // the var, re-measure everything, and let the sim relax to the new sizes.
   if(!tween){
     const prev = _boardChipScaleApplied || 1
-    let worst = 1
-    zoneChips.forEach(({ zrec, recs }) => {
-      if(!recs.length) return
-      const inner = zrec.isBasket ? zrec.rMin : zrec.rMin + (zrec.band || 40)
+    const pressure = (zrec, recs, band) => {
+      const inner = zrec.isBasket ? zrec.rMin : zrec.rMin + band
       const outer = Math.max(inner + 20, zrec.rMax)
       const wedgeArea = (Math.min(zrec.halfDeg, 80) / 180) * Math.PI * (outer * outer - inner * inner)
       const chipArea = recs.reduce((t, b) => t + (b.w || 40) * (b.h || 24), 0) / (prev * prev)
-      if(chipArea > 0 && wedgeArea > 0)
-        worst = Math.min(worst, Math.sqrt((wedgeArea * 0.5) / chipArea))   // chips may claim ~half the zone
+      return chipArea > 0 && wedgeArea > 0 ? Math.sqrt((wedgeArea * 0.5) / chipArea) : 1   // chips may claim ~half the zone
+    }
+    // counter flex, pass A: pressure at the FULL band decides how much
+    // counter space to surrender (bandFull/bandMin cached from the previous
+    // apply's pass 2 — one-frame lag, same as the old zrec.band read).
+    // worstFull ≥ 1 → roomy, keep the whole counter; ≤ 0.7 → give it all up.
+    let worstFull = 1
+    zoneChips.forEach(({ zrec, recs }) => {
+      if(recs.length) worstFull = Math.min(worstFull, pressure(zrec, recs, zrec.bandFull ?? 40))
+    })
+    _boardBandFlex = Math.round(Math.max(0, Math.min(1, (worstFull - 0.7) / 0.3)) * 4) / 4
+    // pass B: chip crowd fit at the FLEXED band — chips only shrink for what
+    // the surrendered counter space couldn't absorb
+    let worst = 1
+    zoneChips.forEach(({ zrec, recs }) => {
+      if(recs.length) worst = Math.min(worst, pressure(zrec, recs, boardBandAt(zrec)))
     })
     const target = Math.max(0.65, Math.min(1, Math.round(worst * 20) / 20))
     if(Math.abs(target - _boardChipFit) >= 0.1) _boardChipFit = target
@@ -2879,8 +2947,17 @@ function boardOrganicApply(cx, cy, W, H, oval){
     // open even before any ghost exists so the two rings read as distinct
     // BOARD-RIMBAND1: same max-of-both fix as the shelf pass above — these two must agree
     // or the sim's walls and the shelf layout disagree about where the counter ends.
-    zrec.band = zrec.isBasket ? 0 :
+    // Counter flex: bandFull is that classic reservation; bandMin is what the
+    // band's occupants actually need (tallest ghost/rim pile + breathing room,
+    // or a 12px sliver when empty); _boardBandFlex slides between them under
+    // space pressure. A real band move re-excites the sim so walls take hold.
+    zrec.bandFull = zrec.isBasket ? 0 :
       Math.max(40, ...ghostsIn.map(b => b.h), ...movers.map(b => b.h)) + 12
+    zrec.bandMin = zrec.isBasket ? 0 :
+      (ghostsIn.length ? Math.max(...ghostsIn.map(b => b.h)) + 8 : 12)
+    const bandWas = zrec.band
+    zrec.band = boardBandAt(zrec)
+    if(bandWas != null && Math.abs(zrec.band - bandWas) >= 4) changed = true
     // anchor: the blob's home, centred in the radial band (BOARD-ORGANIC4 —
     // wedge-angle-independent, unlike the old tan-based spread)
     const area = movers.reduce((t, b) => t + b.w * b.h, 0)

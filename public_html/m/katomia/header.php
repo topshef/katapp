@@ -154,6 +154,20 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
       <input type="checkbox" id="boardPrefChatPanel" title="Show player messages in a docked panel instead of speech bubbles on the board">
       💬 Message panel
     </label>
+    <!-- BOARD-UISIZE1 (user 2026-08-05): one display-size preference for
+         ordinary humans — chips, messages and labels scale together. Small =
+         the pre-change compact look; Normal = readable-on-a-phone default;
+         Large = low-vision (A11Y-LOWVISION1 first slice). Site-wide
+         (localStorage katomiaUiSize → html.ksize-* → CSS --ui-scale); the
+         nerd 🧪 Chip size below stays a dev multiplier on top. -->
+    <label class="board-settings-label">
+      Size
+      <select id="boardPrefUiSize" title="Overall display size — chips, messages and labels together. Normal is tuned to be readable on a phone; Large helps if you'd rather not squint.">
+        <option value="small">Small</option>
+        <option value="normal">Normal</option>
+        <option value="large">Large</option>
+      </select>
+    </label>
 
     <!-- MVP-SETTINGSDECLUTTER1: dev/lab knobs (self-labeled 🧪/Debug/Lab below) — nerd-mode
          only, same mechanism as everywhere else (body.nerd, katomia-profile.js). Reverses the
@@ -244,6 +258,13 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
 </div>
 
 <script>
+// BOARD-UISIZE1: apply the Size preference (Small/Normal/Large) as an html
+// class as early as the header runs, so --ui-scale surfaces don't flash at
+// the wrong size. Default = normal.
+try {
+  var _ks = localStorage.getItem("katomiaUiSize")
+  document.documentElement.classList.add("ksize-" + (["small","normal","large"].indexOf(_ks) >= 0 ? _ks : "normal"))
+} catch(e){ document.documentElement.classList.add("ksize-normal") }
 // Feature flags (AUTH-LANG1 note, 2026-07-06): KEA will NOT be user-visible in the
 // first release — every KEA affordance is tagged data-feature="kea" and hidden
 // wholesale when the flag is off. Flip here (or pre-set window.KATOMIA_FEATURES

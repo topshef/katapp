@@ -2479,6 +2479,17 @@ body.nerd .profile-nerd-only{ display:block; }
 /* z27 (user 2026-08-01): bubbles paint ABOVE the 👀 audience pill (.kaud, z26) —
    a speech bubble is the live story, the counter is ambient chrome. Also clears the
    💬 panel (25) and bottom ribbon/narration strips (25/26), all deliberate. */
+/* BOARD-UISIZE1 (user 2026-08-05): --ui-scale follows the Size preference
+   (header.php stamps html.ksize-* from localStorage before paint). Small = 1
+   — the pre-2026-08-05 sizes, which the user rates "small"; Normal is the
+   default and a step up (WhatsApp-ish message text); Large = low-vision
+   (A11Y-LOWVISION1 first slice). Text surfaces consume it via
+   calc(<old px> * var(--ui-scale)); board chips get their own matrix in
+   katomia-board.js (boardUiSizeChip) — do NOT also multiply chip rules here. */
+:root{ --ui-scale: 1; }
+html.ksize-normal{ --ui-scale: 1.2; }
+html.ksize-large{ --ui-scale: 1.45; }
+
 .kchat-layer{ position:fixed; inset:0; pointer-events:none; z-index:27; }
 
 .kchat-bub{
@@ -2490,7 +2501,7 @@ body.nerd .profile-nerd-only{ display:block; }
   background:rgba(255,255,255,.95); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
   border:1px solid rgba(20,28,45,.1);
   box-shadow:0 2px 6px rgba(20,28,45,.16), 0 10px 28px rgba(20,28,45,.26);
-  font-size:12.5px; line-height:1.42; color:#1f2733;
+  font-size:calc(12.5px * var(--ui-scale)); line-height:1.42; color:#1f2733;
   opacity:0; transition:opacity .3s ease, transform .34s cubic-bezier(.22,1.2,.36,1);
   pointer-events:auto; --kchat-accent:#7b8ba6;
 }
@@ -2573,13 +2584,13 @@ body.nerd .profile-nerd-only{ display:block; }
 /* Row anatomy R2 (user 2026-08-03): full-height colour bar (chip-sleeve cue, not a
    dot) · avatar on the player colour · bold name + time + text inline, wrapping. */
 .kchat-row{ display:flex; align-items:flex-start; gap:7px;
-  font-size:12.5px; line-height:1.4; padding:4px 0; border-bottom:1px solid rgba(20,28,45,.07); }
+  font-size:calc(12.5px * var(--ui-scale)); line-height:1.4; padding:4px 0; border-bottom:1px solid rgba(20,28,45,.07); }
 .kchat-row:last-child{ border-bottom:0; }
 .kchat-row-bar{ width:4px; border-radius:1px; align-self:stretch; background:#9aa6b8; flex:none; }
 .kchat-row .kemoji{ margin-top:1px; }
 .kchat-row-main{ flex:1; min-width:0; }
-.kchat-row b{ font-size:11.5px; font-weight:700; color:#3b4757; }
-.kchat-row i{ font-size:10.5px; color:#8b95a5; font-style:normal; }
+.kchat-row b{ font-size:calc(11.5px * var(--ui-scale)); font-weight:700; color:#3b4757; }
+.kchat-row i{ font-size:calc(10.5px * var(--ui-scale)); color:#8b95a5; font-style:normal; }
 .kchat-row-text{ color:#1f2733; overflow-wrap:anywhere; }
 .kchat-row-to{ font-style:normal; font-weight:600; color:#2f6fed; margin-left:5px; }
 
@@ -2697,7 +2708,7 @@ body[data-board-fam~="v16"] .kchat-bub{ /* light ring felt — defaults are fine
    consequence — with websockets you can watch the board on one device and the story on
    another, so a dedicated stream is a feature, not a compromise. */
 @media (max-width:600px){
-  .kchat-bub{ max-width:56vw; font-size:12px; }
+  .kchat-bub{ max-width:56vw; font-size:calc(12px * var(--ui-scale)); }
   .kchat-panel{ display:none !important; }
 }
 
@@ -2723,7 +2734,7 @@ body.kchat-fullopen .app-banner{ visibility:hidden; }
   padding:6px 13px; font-size:14px; line-height:1;
 }
 .kchat-full-list{ flex:1; overflow-y:auto; padding:10px 14px 28px; -webkit-overflow-scrolling:touch; }
-.kchat-full-list .kchat-row{ font-size:14px; padding:7px 0; }
+.kchat-full-list .kchat-row{ font-size:calc(14px * var(--ui-scale)); padding:7px 0; }
 .kchat-full-empty{ color:#8b95a5; font-style:italic; padding:16px 2px; }
 @media (prefers-color-scheme: dark){
   .kchat-full{ background:rgba(16,20,28,.97); }
