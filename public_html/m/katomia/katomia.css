@@ -18,7 +18,7 @@
 			/* Build marker — bump on every CSS edit. Read at runtime via
 			   getComputedStyle(documentElement).getPropertyValue('--katomia-css-build')
 			   to detect whether the browser applied a stale (cached) stylesheet. */
-			--katomia-css-build: "20260805-playermodal1";
+			--katomia-css-build: "20260805-orderui1";
 
 			--bg-color: #f5f5f5;
 
@@ -2896,3 +2896,116 @@ body.spectating .board-wedge{ pointer-events: none; }
 .tx-autosign--requesting{ background:#fff3cd; color:#664d03; }
 .tx-autosign--signed{ background:#d1e7dd; color:#0f5132; }
 .tx-autosign--failed{ background:#f8d7da; color:#842029; }
+
+/* ═══ ORDER-UIPASS1 (2026-08-05): order-mode UI pass ═══════════════════════ */
+
+/* slice 1 · typography: proportional UI font; monospace survives only as
+   tabular NUMERALS (and the nerd meta). Kills the log-output feel. */
+#ordersSection .orders-list,
+#transactionsSection .transactions-list{
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 13px;
+}
+.num{ font-variant-numeric: tabular-nums; }
+
+/* shared lifecycle chips — same palette as the signing glow states */
+.kchip{ font-size:11.5px; padding:2px 8px; border-radius:9px; white-space:nowrap; font-weight:600; }
+.kchip--open{ background:#e8effc; color:#274b8f; }
+.kchip--ok{ background:#d1e7dd; color:#0f5132; }
+.kchip--pend{ background:#fff3cd; color:#664d03; }
+.kchip--req{ background:#fff3cd; color:#664d03; }
+.kchip--fail{ background:#f8d7da; color:#842029; }
+.kchip--muted{ background:#eceef1; color:#6b7280; }
+
+/* order card grid: hero / legs / footer */
+.order-hero{ display:flex; align-items:center; gap:8px; }
+.order-hero .kchip{ margin-left:auto; }
+.order-side-badge{ font:700 11px system-ui; letter-spacing:.04em; padding:3px 8px; border-radius:8px; }
+.order-side-badge--buy{ background:#e7f5ea; color:#177245; }
+.order-side-badge--sell{ background:#fdeaea; color:#b3282d; }
+.order-price{ font-size:16px; font-weight:600; color:#1f2733; }
+.order-price-pair{ font-size:11.5px; font-weight:400; color:#8b95a5; }
+.order-price--label{ font-size:13.5px; font-weight:500; }
+.order-legs{ display:flex; align-items:center; gap:8px; margin-top:5px; flex-wrap:wrap; }
+.order-qty{ color:#52525b; }
+.order-qty-acct{ color:#8b95a5; font-size:12px; }
+.order-foot{ display:flex; align-items:center; gap:7px; margin-top:6px; font-size:11.5px; color:#8b95a5; flex-wrap:wrap; }
+.order-foot .order-time{ margin-left:0; }
+.order-minfill{ color:#8b95a5; }
+.order-mine-tag{ background:#f0ecff; color:#5b3fc4; border-radius:8px; padding:1px 7px; font-weight:600; }
+
+/* tx card: hero row + swap lines */
+.tx-row{ display:block; }
+.tx-hero{ display:flex; align-items:center; gap:7px; }
+.tx-hero .tx-rate{ margin-left:auto; font-weight:600; color:#374151; }
+.tx-hero .tx-time{ margin-left:8px; }
+.tx-hero .kchip{ margin-left:2px; }
+.tx-assets--lines{ display:flex; flex-direction:column; gap:3px; margin-top:6px; }
+.tx-swapline{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.tx-acct{ font-weight:600; color:#374151; font-size:12.5px; }
+.tx-give{ color:#b3282d; }
+.tx-get{ color:#177245; }
+.tx-swaparrow{ color:#a1a1aa; }
+.tx-row--stub{ opacity:.6; }
+.tx-stub{ font-size:12.5px; }
+/* 💠/△ overlays keep working on the swap-line account spans */
+.tx-swapline .tx-acct.tx-asset-verified::after{ content:" 🔷"; font-size:10px; }
+.tx-swapline .tx-acct.tx-asset-unverified::after{ content:" △"; color:#b0b4b8; font-size:10px; }
+
+/* slice 2 · market header strip */
+.market-header{
+  display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;
+  background:#fff; border:1px solid #e6e6e6; border-radius:10px;
+  padding:10px 14px; margin-bottom:8px;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.market-pair-select{ font:700 16px system-ui; border:none; background:transparent; cursor:pointer; padding:0; }
+.market-kv{ display:flex; flex-direction:column; line-height:1.25; }
+.market-kv-val{ font:600 14px system-ui; color:#1f2733; }
+.market-kv--last .market-kv-val{ font-size:19px; }
+.market-kv--up .market-kv-val{ color:#177245; }
+.market-kv--down .market-kv-val{ color:#b3282d; }
+.market-kv-label{ font-size:10.5px; color:#8b95a5; text-transform:uppercase; letter-spacing:.05em; }
+.market-neworder-btn{
+  margin-left:auto; font:600 13px system-ui; padding:7px 13px; border-radius:9px;
+  border:1px solid #2f6fed; background:#2f6fed; color:#fff; cursor:pointer;
+}
+.market-neworder-btn:hover{ background:#255cc9; }
+
+/* slice 3 · chart axes, last line, legend */
+.market-axis-label{ font:10.5px system-ui; fill:#8b95a5; }
+.market-lastline-label{ fill:#4a6fb5; }
+.market-mine-marker{ font:12px system-ui; fill:#5b3fc4; }
+.market-legend{ display:flex; gap:14px; flex-wrap:wrap; font-size:11px; margin:2px 0 6px; }
+.market-legend span{ display:inline-flex; align-items:center; gap:4px; }
+.mleg{ display:inline-block; width:10px; height:10px; border-radius:2px; }
+.mleg-buy{ background:rgba(46,204,113,.5); }
+.mleg-sell{ background:rgba(231,76,60,.5); }
+.mleg-orig{ border:1px solid #999; background:transparent; }
+.mleg-last{ width:2px; height:12px; border-radius:0; background:#4a6fb5; }
+
+/* slice 5 · ladder density: price-sorted list compresses to one-line rows */
+.orders-ladder .order-row{ padding:4px 10px; }
+.orders-ladder .order-legs{ display:inline-flex; margin:0 0 0 8px; }
+.orders-ladder .order-hero{ display:inline-flex; }
+.orders-ladder .order-foot{ display:none; }
+.orders-ladder .order-fill-bar{ margin-top:2px; }
+
+/* slice 4 · mobile tabs (order mode only; desktop keeps two columns).
+   Selector matches the generic mode-order display rule's specificity so the
+   hide WINS on desktop (that rule sets display:block on .mode-order). */
+body .ktabs,
+body[data-trading-mode="orderBook"] .ktabs.mode-order{ display:none; }
+@media (max-width:899px){
+  body[data-trading-mode="orderBook"] .ktabs.mode-order{
+    display:flex; gap:8px; margin:6px 0 10px;
+  }
+  .ktabs button{
+    flex:1; font:600 13px system-ui; padding:8px 0; border-radius:10px;
+    border:1px solid #ddd6c6; background:#fff; color:#52525b; cursor:pointer;
+  }
+  .ktabs button.on{ background:#2f6fed; border-color:#2f6fed; color:#fff; }
+  body[data-trading-mode="orderBook"][data-ktab="book"] #transactionsSection,
+  body[data-trading-mode="orderBook"][data-ktab="mine"] #transactionsSection{ display:none; }
+  body[data-trading-mode="orderBook"][data-ktab="trades"] #ordersSection{ display:none; }
+}

@@ -44,6 +44,15 @@
   <div class="orders-market-summary subtle"></div>
 </div>
 
+<!-- ORDER-UIPASS1 slice 4: mobile tabs (Book · Mine · Trades) replace the
+     stacked accordions — one list on screen at a time, the way every mobile
+     exchange resolves this space. Desktop keeps the two columns (CSS-gated). -->
+<div class="ktabs mode-order">
+  <button type="button" data-ktab="book">Book</button>
+  <button type="button" data-ktab="mine">Mine</button>
+  <button type="button" data-ktab="trades">Trades</button>
+</div>
+
 <!-- ORDERS-UI1: orders | tx sit side-by-side on desktop (auto-fit grid), and
      wrap to a single column on narrower viewports. -->
 <div class="trade-cols">

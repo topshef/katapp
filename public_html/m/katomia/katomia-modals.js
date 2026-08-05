@@ -11,7 +11,7 @@ window.pendingCreateOrderAccount = null
 // every user-visible ship — they went un-bumped for weeks, so the kdiag
 // katomia:build event couldn't distinguish a stale device from a fresh one
 // (2026-08-05 counter-flex incident: device reported July markers and proved nothing).
-const KATOMIA_JS_BUILD = "20260805-playermodal1"
+const KATOMIA_JS_BUILD = "20260805-orderui1"
 
 // Self-contained diagnostics sender. window.kdiag (from the kpool widget) is
 // lazy-loaded only when the signing widget mounts, so it is NOT available when

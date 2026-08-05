@@ -285,6 +285,23 @@ function createTxAssets(tx, orderType){
 
 function createGenericTxAssets(transfers){
 
+  // ORDER-UIPASS1: same swap-line treatment as simple fx — one line per
+  // account groups a basket tx's legs by who, instead of a chip soup.
+  const grouped = {}
+  transfers.filter(x => !HEDERA_FEE_ACCOUNTS.has(x.accountId)).forEach(x => {
+    (grouped[x.accountId] ||= { neg: [], pos: [] })[x.amount < 0 ? "neg" : "pos"]
+      .push(getAssetDisplay(x.tokenId, Math.abs(x.amount)))
+  })
+  if(Object.keys(grouped).length){
+    const el = document.createElement("div")
+    el.className = "tx-assets tx-assets--lines"
+    Object.entries(grouped).forEach(([accountId, v]) =>
+      el.appendChild(makeTxSwapLine(accountId,
+        v.neg.length ? "−" + v.neg.join(", ") : "",
+        v.pos.length ? "+" + v.pos.join(", ") : "")))
+    return el
+  }
+
   const el = document.createElement("span")
   el.className = "tx-assets"
 
@@ -369,10 +386,26 @@ function createNftTxAssets(nftTransfers, ftTransfers){
 }
 
 
+// ORDER-UIPASS1 slice 1: swap LINES, not prose chips — per account (full id,
+// never shortened): id · −gives (red) ⇄ +gets (green). Amounts in tabular
+// numerals; the account span carries data-owner-account for the 💠/△ overlay.
+function makeTxSwapLine(accountId, gives, gets){
+  const line = document.createElement("div")
+  line.className = "tx-swapline"
+  const acct = makeSpan("tx-acct num", accountId)
+  acct.dataset.ownerAccount = accountId
+  line.appendChild(acct)
+  const giveEl = makeSpan("tx-give num", gives)
+  const arrow = makeSpan("tx-swaparrow", "⇄")
+  const getEl = makeSpan("tx-get num", gets)
+  line.append(giveEl, arrow, getEl)
+  return line
+}
+
 function createSimpleFxTxAssets(transfers){
 
-  const el = document.createElement("span")
-  el.className = "tx-assets"
+  const el = document.createElement("div")
+  el.className = "tx-assets tx-assets--lines"
 
   const byAccount = {}
 
@@ -394,25 +427,9 @@ function createSimpleFxTxAssets(transfers){
   })
 
   Object.entries(byAccount).forEach(([accountId,v]) => {
-
-    const neg =
-      v.neg
-        .map(x => getAssetDisplay(x.tokenId,x.amount))
-        .join(", ")
-
-    const pos =
-      v.pos
-        .map(x => getAssetDisplay(x.tokenId,x.amount))
-        .join(", ")
-
-    const chip = makeAssetEl({
-      text:`${accountId} ${neg} → ${pos}`
-    })
-
-    chip.classList.add("tx-fx-chip")
-
-    el.appendChild(chip)
-
+    const neg = v.neg.map(x => getAssetDisplay(x.tokenId, x.amount)).join(", ")
+    const pos = v.pos.map(x => getAssetDisplay(x.tokenId, x.amount)).join(", ")
+    el.appendChild(makeTxSwapLine(accountId, neg ? "−" + neg : "", pos ? "+" + pos : ""))
   })
 
   return el
@@ -470,6 +487,28 @@ function getTxPair(tx){
   return enrichOrder(getTxMainOrder(tx))?.market?.pair || ""
 }
 
+// ORDER-UIPASS1: effective rate actually paid — quote received / base received
+// across the tx's non-fee transfers, oriented by the pair the main order trades.
+// The number a trader otherwise computes in their head from the swap line.
+function txAssetDecimals(tokenId){
+  return String(tokenId).toUpperCase() === "HBAR" ? 8
+    : Number((typeof getAssetMeta === "function" && getAssetMeta(tokenId))?.token_class?.decimals || 0)
+}
+function computeTxRate(tx){
+  const pairLabel = getTxPair(tx)
+  if(!pairLabel) return null
+  const p = (typeof getAcceptedPairs === "function" ? getAcceptedPairs() : [])
+    .find(x => x.label === pairLabel || `${x.base}/${x.quote}` === pairLabel)
+  if(!p) return null
+  const b = tx.pchbasis?.transfers || {}
+  const fts = [...(b.tokenTransfers || []), ...(b.hbarTransfers || []).map(x => ({ ...x, tokenId: "HBAR" }))]
+    .filter(x => !HEDERA_FEE_ACCOUNTS.has(x.accountId))
+  const sum = id => fts.filter(x => x.tokenId === id && x.amount > 0).reduce((t, x) => t + x.amount, 0)
+    / (10 ** txAssetDecimals(id))
+  const bv = sum(p.base), qv = sum(p.quote)
+  return bv > 0 && qv > 0 ? qv / bv : null
+}
+
 
 
 function createTxRow(tx){
@@ -508,60 +547,56 @@ function createTxRow(tx){
 
   row.dataset.orderSide = market?.side || ""
 
-  // ORDER-AUTOSIGN1: live request-state pill — the visual cue that a signature
-  // is being requested / has been pushed to the wallet, right on the compact card
-  const autoState = _txAutoSign.get(tx.txid)
-  if(autoState && autoState !== "checking"){
-    const pill = document.createElement("span")
-    pill.className = "tx-autosign tx-autosign--" + autoState
-    pill.textContent = autoState === "requesting" ? "✍ signature requested…"
-                     : autoState === "signed" ? "✍ signed"
-                     : "✍ auto-request failed — tap to sign"
-    row.appendChild(pill)
-  }
-
+  // ── ORDER-UIPASS1 slice 1: hero row + swap lines ─────────────────────────────
+  // row1: avatar · 💠 · type icon · lifecycle status chip (✍ auto-sign folded in
+  //       as states of ONE vocabulary) · time right
+  // row2+: one swap line per account — FULL account id (user: Hedera ids are
+  //       short, never shorten), −gives ⇄ +gets, effective @rate right-aligned
+  // nerd: full txid link (complete, per the user) + pch trailer as before
   const txMeta = getTxMeta(tx)
   const makerPubkey = order?.intentSignature?.pubkeyHex || null
-
   if(makerPubkey) row.dataset.kemojiKey = makerPubkey.slice(-12)
 
-  // Avatar — always visible (maker identity)
+  const heroRow = document.createElement("div")
+  heroRow.className = "tx-hero"
   if(typeof kemojiEl === "function" && makerPubkey)
-    row.appendChild(kemojiEl(makerPubkey, { size: 24 }))
-
-  // ORDER-AUTHBADGE3: aggregate reputation marker — 💠 when ≥1 contributing account to
-  // this tx placed a verified-bound order. Tooltip gives the N/M + list.
+    heroRow.appendChild(kemojiEl(makerPubkey, { size: 18 }))
   const txAuth = getTxContributorAuth(tx)
-  if(txAuth.verifiedCount > 0) row.appendChild(makeTxAuthBadge(txAuth))
+  if(txAuth.verifiedCount > 0) heroRow.appendChild(makeTxAuthBadge(txAuth))
+  heroRow.appendChild(orderTypeIconEl(orderType))
 
-  // Type icon — always visible
-  row.appendChild(orderTypeIconEl(orderType))
+  // lifecycle chip: settled > expired > auto-sign state > pending
+  const autoState = _txAutoSign.get(tx.txid)
+  const settled = isTxSuccessStatus(getTxStatus(tx))
+  const chip = settled ? makeSpan("kchip kchip--ok", "settled ✓")
+    : isTxExpired(tx) ? makeSpan("kchip kchip--fail", "expired ⌛")
+    : autoState === "requesting" ? makeSpan("kchip kchip--req", "✍ signature requested…")
+    : autoState === "signed" ? makeSpan("kchip kchip--ok", "✍ signed")
+    : autoState === "failed" ? makeSpan("kchip kchip--fail", "✍ request failed — tap to sign")
+    : makeSpan("kchip kchip--pend", "pending ⏳")
+  heroRow.appendChild(chip)
 
-  // Status emoji — always visible
-  const statusEl = makeSpan("tx-status", txMeta.statusText + " ")
+  const rateInfo = computeTxRate(tx)
+  if(rateInfo){
+    const r = makeSpan("tx-rate num", "@" + formatRate(rateInfo))
+    r.title = "Effective rate"
+    heroRow.appendChild(r)
+  }
 
-  // Nerd: txid link + pch + type bracket
-  const nerdEl = makeSpan("nerd-only tx-nerd-meta", "")
-  nerdEl.innerHTML =
-    `<a href="${txMeta.url}" target="_blank">${txMeta.txid}</a>` +
-    ` &nbsp;pch#${txMeta.pch} [${orderType}${side}${sourceText}] `
-
-  // Relative time — always visible, subtle
   const txSeconds = getTxStartSeconds(tx)
   const timeEl = makeSpan("tx-time", "")
   if(txSeconds){
     timeEl.textContent = formatRelativeTime(txSeconds * 1000)
     timeEl.title = new Date(txSeconds * 1000).toISOString()
   }
+  heroRow.appendChild(timeEl)
+  row.appendChild(heroRow)
 
-  row.appendChild(statusEl)
-  row.appendChild(timeEl)
   const assetsEl = createTxAssets(tx, orderType)
-  // ORDER-AUTHBADGE3: per-account overlay on transfer chips (chips carry data-owner-account).
-  // Contributor accounts (placed an offer-side order in this tx) get 💠 verified / △ not;
-  // pure counterparties (received assets, no signed order) get neither. Scoped to .tx-row.
+  // ORDER-AUTHBADGE3: per-account overlay — contributor accounts (placed an
+  // offer-side order) get 💠 verified / △ not; counterparties neither.
   if(txAuth.contributorCount > 0){
-    assetsEl.querySelectorAll?.(".asset[data-owner-account]")?.forEach(chip => {
+    assetsEl.querySelectorAll?.("[data-owner-account]")?.forEach(chip => {
       const a = chip.dataset.ownerAccount
       if(txAuth.verifiedAccts.has(a)){
         chip.classList.add("tx-asset-verified")
@@ -573,8 +608,21 @@ function createTxRow(tx){
     })
   }
   row.appendChild(assetsEl)
-  // Nerd meta (txid/pch) trails the row on its own wrapped line in nerd mode, so the
-  // primary card flow is identical in both modes (ORDERS-UI1).
+
+  // ORDER-UIPASS1: the bare ❓ card (settled stub with no payload — flagged in
+  // the design capture) renders as an honest muted one-liner instead of an
+  // empty frame; the diag beacon below still fires so the data gap stays visible.
+  if(!assetsEl.childElementCount && !settled){
+    row.classList.add("tx-row--stub")
+    const stub = makeSpan("tx-stub subtle", tx.txid ? "transaction — details unavailable" : "transaction record without payload")
+    assetsEl.appendChild(stub)
+  }
+
+  // Nerd: FULL txid link + pch + type bracket (txid complete, per the user)
+  const nerdEl = makeSpan("nerd-only tx-nerd-meta", "")
+  nerdEl.innerHTML =
+    `<a href="${txMeta.url}" target="_blank">${txMeta.txid}</a>` +
+    ` &nbsp;pch#${txMeta.pch} [${orderType}${side}${sourceText}] `
   row.appendChild(nerdEl)
 
   // KAT-TXLIST1 diagnostic: settled txs sometimes render bare (no transfer chips),
@@ -821,6 +869,25 @@ async function renderTransactions(){
 
   listEl.replaceChildren(frag)
 
+  // ORDER-UIPASS1 slice 2: per-pair trade stats feed the market header — txs is
+  // newest-first, so the first settled rate seen is "last" and the running
+  // assignment leaves "first" at the session's oldest. Header re-renders after.
+  const stats = {}
+  for(const tx of txs){
+    if(!isTxSuccessStatus(getTxStatus(tx))) continue
+    const pair = getTxPair(tx)
+    if(!pair) continue
+    const rate = computeTxRate(tx)
+    if(!rate) continue
+    const s = (stats[pair] ||= { count: 0 })
+    s.count++
+    if(s.last === undefined) s.last = rate
+    s.first = rate
+  }
+  const statsChanged = JSON.stringify(stats) !== JSON.stringify(window.__ktxStats || {})
+  window.__ktxStats = stats
+  if(statsChanged && typeof renderOrderMarketSummary === "function") renderOrderMarketSummary()
+
   // ORDER-AUTOSIGN1: push signature requests for fresh matched txs — order
   // mode only, pref-gated, quiet (see maybeAutoSignTx). Fire-and-forget.
   // R2 fix (user 2026-08-05, "auto sign not working"): the mode value is
@@ -997,12 +1064,62 @@ function renderMarketHeatmap(pair,heatmap,opts={}){
   svg.setAttribute("height",height + chartH + 4)
   renderHeatmapGrid(svg,width,height,pad)
 
+  // ORDER-UIPASS1 slice 3: RATE AXIS labels — the x axis is price (this chart is
+  // the order book over rate, not time); min/mid/max anchor it. SVG text via NS.
+  const NS = "http://www.w3.org/2000/svg"
+  // axis ticks stay short — computed midpoints carry float noise formatRate
+  // passes through (seen live: "1.33951569064" on the axis)
+  const shortRate = v => { const s = String(formatRate(v)); return s.length > 8 ? Number(v).toPrecision(4) : s }
+  const axisLabel = (x, txt, anchor) => {
+    const t = document.createElementNS(NS, "text")
+    t.setAttribute("x", x); t.setAttribute("y", height - pad + 14)
+    t.setAttribute("class", "market-axis-label")
+    t.setAttribute("text-anchor", anchor)
+    t.textContent = txt
+    svg.appendChild(t)
+  }
+  if(isFinite(minRate) && isFinite(maxRate)){
+    axisLabel(pad, shortRate(minRate), "start")
+    if(maxRate > minRate){
+      axisLabel(pad + chartW / 2, shortRate((minRate + maxRate) / 2), "middle")
+      axisLabel(pad + chartW, shortRate(maxRate), "end")
+    }
+  }
+
+  // last-trade price line (from the tx stats the header uses) — dashed vertical
+  const last = window.__ktxStats?.[pair]?.last
+  if(last && maxRate > minRate && last >= minRate && last <= maxRate){
+    const lx = pad + ((last - minRate) / (maxRate - minRate)) * chartW
+    const line = createHeatmapLine(lx, pad, lx, height - pad, {
+      stroke: "#4a6fb5", "stroke-width": "1", "stroke-dasharray": "3 3", "stroke-opacity": "0.75"
+    })
+    svg.appendChild(line)
+    const t = document.createElementNS(NS, "text")
+    t.setAttribute("x", Math.min(lx + 3, width - pad - 30)); t.setAttribute("y", pad + 9)
+    t.setAttribute("class", "market-axis-label market-lastline-label")
+    t.textContent = "last " + formatRate(last)
+    svg.appendChild(t)
+  }
+
   heatmap.rows.forEach(row => {
     const layout = getHeatmapLayout(row,{minRate,maxRate,maxVolume,chartW,chartH,height,pad,barWidth,jitter})
     renderHeatmapBar(svg,row,layout,opacity)
     renderHeatmapFillLines(svg,row,layout)
     renderPendingFillStack(svg,row,layout)
     renderSettledFillStack(svg,row,layout)
+    // slice 5: my-order marker — ▾ above my own bars, the overlay traders use
+    if(row.playerId === currentPlayerId){
+      const m = document.createElementNS(NS, "text")
+      m.setAttribute("x", layout.x + barWidth / 2)
+      m.setAttribute("y", Math.max(10, layout.originalY - 4))
+      m.setAttribute("text-anchor", "middle")
+      m.setAttribute("class", "market-mine-marker")
+      m.textContent = "▾"
+      const mt = document.createElementNS(NS, "title")
+      mt.textContent = `your order #${row.orderId}`
+      m.appendChild(mt)
+      svg.appendChild(m)
+    }
   })
 
   return svg
@@ -1649,34 +1766,58 @@ function renderOrderMarketSummary(){
     if(selectedPair && pair != selectedPair)
       return
 
-    const row = document.createElement("div")
-    row.className = "market-summary-row"
+    // ── ORDER-UIPASS1 slice 2: market header strip ───────────────────────────
+    // The anchor traders look for first: pair picker · last · session change ·
+    // bid/ask · spread · trades · my open orders · ＋ New order. All client-side
+    // (order rows here, trade stats cached by renderTransactions).
+    const stats = window.__ktxStats?.[pair] || {}
+    const buys = rows.filter(r => r.side === "buy").map(r => r.displayRate)
+    const sells = rows.filter(r => r.side === "sell").map(r => r.displayRate)
+    const bid = buys.length ? Math.max(...buys) : null
+    const ask = sells.length ? Math.min(...sells) : null
+    const spread = bid && ask && ask > 0 ? ((ask - bid) / ask) * 100 : null
+    const myOpen = rows.filter(r => r.playerId === currentPlayerId).length
+    const chg = stats.last && stats.first ? ((stats.last - stats.first) / stats.first) * 100 : null
 
-    const summary = rows
-      .map(row => {
+    const hdr = document.createElement("div")
+    hdr.className = "market-header"
 
-      return (
-        `#${row.orderId} ` +
-        `${row.side} ` +
-        `${row.originalDisplayBaseAmount} ` +
-        `@ ${row.displayRate}`
-      )
-      })
-      .join(" | ")
+    const pairSel = document.createElement("select")
+    pairSel.className = "market-pair-select"
+    const allPairs = Object.keys(markets)
+    ;(allPairs.length ? allPairs : [pair]).forEach(pk => {
+      const o = document.createElement("option")
+      o.value = pk; o.textContent = pk; o.selected = pk === pair
+      pairSel.appendChild(o)
+    })
+    pairSel.onchange = () => { location.search = "?pair=" + encodeURIComponent(pairSel.value) }
+    hdr.appendChild(pairSel)
 
+    const kv = (val, label, cls = "") => {
+      const w = document.createElement("span")
+      w.className = "market-kv " + cls
+      const b = makeSpan("market-kv-val num", val)
+      const l = makeSpan("market-kv-label", label)
+      w.append(b, l)
+      return w
+    }
+    if(stats.last) hdr.appendChild(kv(formatRate(stats.last), "last", "market-kv--last"))
+    if(chg !== null && isFinite(chg))
+      hdr.appendChild(kv((chg >= 0 ? "▲ +" : "▼ ") + chg.toFixed(1) + "%", "session", chg >= 0 ? "market-kv--up" : "market-kv--down"))
+    if(bid !== null || ask !== null)
+      hdr.appendChild(kv(`${bid !== null ? formatRate(bid) : "—"} / ${ask !== null ? formatRate(ask) : "—"}`, "bid / ask"))
+    if(spread !== null && isFinite(spread) && spread >= 0)
+      hdr.appendChild(kv(spread.toFixed(1) + "%", "spread"))
+    hdr.appendChild(kv(String(stats.count || 0), "trades"))
+    hdr.appendChild(kv(String(myOpen), "my orders"))
 
-    const text = document.createElement("span")
-
-    text.innerHTML =
-      `<a class="market-pair-label" href="?pair=${encodeURIComponent(pair)}">${pair}</a> ` +
-      `(${rows.length}) ` +
-      `<span class="debug-only">${summary}</span>`
-      
-      
-    row.appendChild(createTradeBtn(pair))
-    row.appendChild(text)
-
-    el.appendChild(row)
+    const newBtn = document.createElement("button")
+    newBtn.className = "market-neworder-btn"
+    newBtn.textContent = "＋ New order"
+    newBtn.onclick = () => openCreateOrderModal()
+    hdr.appendChild(newBtn)
+    hdr.appendChild(createTradeBtn(pair))   // debug-only "Take" keeps its home
+    el.appendChild(hdr)
 
 
     const heatmap =
@@ -1698,6 +1839,18 @@ function renderOrderMarketSummary(){
         }
       )
     el.appendChild(chart)
+
+    // slice 3: two-line legend — every encoding on the chart, spelled out once
+    // (the dashed originals were the "one unexplained encoding" complaint)
+    const legend = document.createElement("div")
+    legend.className = "market-legend subtle"
+    legend.innerHTML =
+      `<span><i class="mleg mleg-buy"></i>buy</span>` +
+      `<span><i class="mleg mleg-sell"></i>sell</span>` +
+      `<span><i class="mleg mleg-orig"></i>original size (outline) vs remaining (solid)</span>` +
+      `<span><i class="mleg mleg-last"></i>last trade</span>` +
+      `<span>▾ your orders</span>`
+    el.appendChild(legend)
   })
 }
 
@@ -1720,7 +1873,11 @@ function renderOrderMarketSummary(){
 
       const sortByPrice =
         document.getElementById("sortOrdersByPrice")?.checked
-        
+
+      // ORDER-UIPASS1 slice 5: price-sorted = LADDER density — cards compress
+      // to one line each (CSS .orders-ladder) so the list scans like a book
+      listEl.classList.toggle("orders-ladder", !!sortByPrice)
+
       orders.sort((a,b) => {
 
         const ea = enrichOrder(a.order)
@@ -2321,29 +2478,94 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
   if(!ghost)
     row.onclick = makeOrderRowOnClick(orderId, playerId, enriched, order)
 
-  const prefix = buildOrderPrefix(orderId, playerId, mine, order, orderType, marketLabel, fillStatus)
-  const arrow  = document.createElement("span")
-  arrow.textContent = " → "
+  // ── ORDER-UIPASS1 slice 1 (user-approved 2026-08-05): price-hero card grid ──
+  // row1: side badge · price hero (@rate + pair) · status chip
+  // row2: the offer → request legs (chips, full account ids — user: Hedera ids
+  //       are short, never ellipsise them)
+  // row3: avatar + 💠/△ + #id + time + TIF/expiry footer (identity is chrome,
+  //       not content). buildOrderPrefix retired in favour of this structure.
+  const fxRow = enriched.market?.type === "simple-ft"
+    ? enrichSimpleFxMarketRow({ orderId, playerId, market: enriched.market }) : null
 
-  const inner = document.createElement("div")
-  inner.className = "order-row-inner"
+  const hero = document.createElement("div")
+  hero.className = "order-hero"
 
-  if(typeof kemojiEl === "function"){
-    const avatarKey = pubkeyHex || playerId || "unknown"
-    inner.appendChild(kemojiEl(avatarKey, { size: 24, isSelf: mine }))
+  const sideVal = enriched.market?.side || ""
+  if(sideVal){
+    const badge = makeSpan("order-side-badge order-side-badge--" + sideVal, sideVal.toUpperCase())
+    hero.appendChild(badge)
+  } else {
+    hero.appendChild(orderTypeIconEl(orderType))
   }
 
+  const priceEl = document.createElement("span")
+  priceEl.className = "order-price num"
+  if(fxRow){
+    priceEl.textContent = formatRate(fxRow.displayRate)
+    const pairEl = makeSpan("order-price-pair", " " + fxRow.pair)
+    priceEl.appendChild(pairEl)
+  } else {
+    // non-fx orders (NFT / LE / baskets): the derived label is the hero
+    priceEl.textContent = marketLabel || enriched.derivedLabel || ""
+    priceEl.classList.add("order-price--label")
+  }
+  hero.appendChild(priceEl)
+
+  // status chip — one lifecycle vocabulary (shared palette with the signing glow)
+  const chip = ghost
+    ? makeSpan("kchip kchip--muted", "clearing")
+    : fillStatus.fullySettled
+      ? makeSpan("kchip kchip--ok", "filled ✓")
+      : fillStatus.pendingText
+        ? makeSpan("kchip kchip--pend", "matching ⏳")
+        : makeSpan("kchip kchip--open", "open")
+  if(fillStatus.pendingText) chip.title = fillStatus.pendingText.replace(/ \|$/, "")
+  hero.appendChild(chip)
+  row.appendChild(hero)
+
+  const legs = document.createElement("div")
+  legs.className = "order-legs"
+  if(fxRow){
+    // simple fx: one quantity line beats repeating the account per leg
+    const qty = makeSpan("order-qty num", `${fxRow.originalDisplayBaseAmount} ${fxRow.pair.split("/")[0]}`)
+    legs.appendChild(qty)
+    const acct = makeSpan("order-qty-acct num", fxRow.accountId || "")
+    legs.appendChild(acct)
+  } else {
+    legs.appendChild(createOrderSide(offer, "order-offer"))
+    legs.appendChild(makeSpan("tx-arrow", "→"))
+    legs.appendChild(createOrderSide(request, "order-request"))
+  }
+  row.appendChild(legs)
+
+  const foot = document.createElement("div")
+  foot.className = "order-foot"
+  if(typeof kemojiEl === "function"){
+    const avatarKey = pubkeyHex || playerId || "unknown"
+    foot.appendChild(kemojiEl(avatarKey, { size: 18, isSelf: mine }))
+  }
   // ORDER-AUTHBADGE1/2/3: one reputation marker per offer-side account (💠 verified / △
-  // not) — a complex/pro order with several offering accounts shows several markers, each
-  // per its own binding. Simple single-account order → a single 💠 or △.
-  getOrderAccountAuthList(order).forEach(entry => inner.appendChild(makeAccountAuthMarker(entry)))
-
-  inner.appendChild(prefix)
-  inner.appendChild(createOrderSide(offer, "order-offer"))
-  inner.appendChild(arrow)
-  inner.appendChild(createOrderSide(request, "order-request"))
-
-  row.appendChild(inner)
+  // not) — a complex/pro order with several offering accounts shows several markers.
+  getOrderAccountAuthList(order).forEach(entry => foot.appendChild(makeAccountAuthMarker(entry)))
+  if(order.issuedAt){
+    const timeEl = makeSpan("order-time", formatRelativeTime(order.issuedAt))
+    timeEl.title = new Date(order.issuedAt).toISOString()
+    foot.appendChild(timeEl)
+  }
+  const tif = order.timeInForce || "GTC"
+  const tifEl = makeSpan("order-tif", getTifIcon(tif) + " " + tif)
+  tifEl.title = tif
+  foot.appendChild(tifEl)
+  if(order.minFill)
+    foot.appendChild(makeSpan("order-minfill", `min ${order.minFill.numerator}/${order.minFill.denominator}`))
+  if(mine) foot.appendChild(makeSpan("order-mine-tag", "you"))
+  // nerd trailers (same detail set as before, footer-resident now)
+  foot.appendChild(makeSpan("nerd-only order-nerd-type", `[${orderType}]`))
+  const keySuffix = getOrderSignerSuffix(order)
+  foot.appendChild(makeSpan("nerd-only order-nerd-id", `#${orderId} (${playerId}${keySuffix}${mine ? "=you" : ""})`))
+  if(document.body.dataset.tradingMode == "debug")
+    foot.appendChild(makeSpan("nerd-only order-fill-debug", `proposed ${fillStatus.fill.numerator}/${fillStatus.fill.denominator}`))
+  row.appendChild(foot)
 
   // Fill bar — 3px track at the bottom of the row; hidden when 0% filled
   const settledRatio = fillStatus.settled.numerator / (fillStatus.settled.denominator || 1)
@@ -2686,3 +2908,25 @@ function normaliseOrder(input){
     }
   }
 }
+// ── ORDER-UIPASS1 slice 4: mobile tab behaviour ───────────────────────────────
+// Tabs are display-gated to narrow viewports by CSS; this only tracks the
+// active tab (body[data-ktab]) and keeps Book/Mine in sync with the existing
+// "Only mine" filter so the two controls can never disagree.
+document.addEventListener("click", e => {
+  const b = e.target.closest?.("[data-ktab]")
+  if(!b) return
+  document.body.dataset.ktab = b.dataset.ktab
+  try { sessionStorage.setItem("katomiaKtab", b.dataset.ktab) } catch {}
+  document.querySelectorAll(".ktabs [data-ktab]").forEach(x => x.classList.toggle("on", x === b))
+  const mineCb = document.getElementById("showMyOrdersOnly")
+  if(b.dataset.ktab === "book" && mineCb?.checked){ mineCb.checked = false; renderOrders() }
+  if(b.dataset.ktab === "mine" && mineCb && !mineCb.checked){ mineCb.checked = true; renderOrders() }
+})
+window.addEventListener("load", () => {
+  if(!document.querySelector(".ktabs")) return
+  let tab = null
+  try { tab = sessionStorage.getItem("katomiaKtab") } catch {}
+  tab = tab || "book"
+  document.body.dataset.ktab = tab
+  document.querySelectorAll(".ktabs [data-ktab]").forEach(x => x.classList.toggle("on", x.dataset.ktab === tab))
+})
