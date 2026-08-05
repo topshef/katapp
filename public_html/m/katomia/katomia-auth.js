@@ -435,6 +435,7 @@ async function katomiaAuthOnProfileOpen(){
   const accounts = await kauthWCAccounts(network, true)
   if(accounts.length && !window.__kauthActive) window.__kauthActive = accounts[0]
   kauthRenderAccounts(accounts)
+  kauthRenderCurrentCommitment()   // network-scoped (a7218b) — re-evaluate per open
 }
 
 // Raise a key-binding commitment: sign the challenge (naming the intent key, with the
@@ -618,6 +619,19 @@ function kauthRenderCurrentCommitment(){
   const exp = rec.expiresAt ? new Date(rec.expiresAt) : null
   const live = exp && exp.getTime() > Date.now()
   const who = (rec.accountId || "?") + (rec.network ? " · " + rec.network : "")
+  // Network scoping (user feedback a7218bc5, 2026-08-05: a TESTNET commitment showed
+  // '✓ Commitment live' on a MAINNET game): the record is a single last-published
+  // slot, so on a different network it must not render as a green tick. Shown as a
+  // neutral pointer instead — raising here overwrites the slot (known limitation:
+  // one record, not per-network; make it a map keyed by network when it matters).
+  const curNet = kauthNetwork()
+  if(curNet && rec.network && rec.network !== curNet){
+    el.style.color = "#555"
+    el.textContent = live
+      ? `Your last commitment is for ${rec.network} (${rec.accountId || "?"}) — none raised for ${curNet} yet.`
+      : `No commitment for ${curNet} yet.`
+    return
+  }
   if(live){
     el.style.color = "#16a34a"
     el.textContent = "✓ Commitment live: " + who + " — valid until " + exp.toLocaleString()
@@ -660,6 +674,7 @@ function initKatomiaAuth(){
     window.__kauthActive = null
     kauthSetStatus("Switching network…")
     kauthRenderAccounts(await kauthWCAccounts(kauthNetwork(), true))
+    kauthRenderCurrentCommitment()   // network-scoped (a7218b)
     kauthSetStatus("")
   }
 }
