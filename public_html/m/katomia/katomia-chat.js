@@ -279,9 +279,28 @@
         var gid = (typeof gameId !== "undefined" && gameId) || (typeof getGameId === "function" ? getGameId() : null);
         var sk = (typeof socket !== "undefined" && socket) || null;
         if (!gid || !sk || sk.readyState !== 1) return;
+        window.__kchatLastSent = { text: text, ts: Date.now() };   // CHAT-COMMITGATE1: recoverable on refusal
         sk.send(JSON.stringify({ type: "game_chat", gameId: gid, text: text }));
         inp.value = "";
       });
+      // CHAT-COMMITGATE1 (user 2026-08-05): a chat refused for missing commitment
+      // used to be silently LOST with no path to the fix. On the backend's
+      // chat-identity refusal: put the text back in the box and open the
+      // authenticate modal (one wallet signature) with the resend explained.
+      if (!window.__kchatGateInit) {
+        window.__kchatGateInit = true;
+        document.addEventListener("katomia:gamemsg", function (e) {
+          var m = e.detail;
+          if (!m || m.code !== "chat-identity") return;
+          var last = window.__kchatLastSent;
+          var inp2 = document.querySelector("#boardChatDock .kchat-send input");
+          if (inp2 && last && Date.now() - last.ts < 15000 && !inp2.value) inp2.value = last.text;
+          if (window.katomiaAuthenticateModal) window.katomiaAuthenticateModal.open({
+            message: "Your message wasn't sent — messaging needs a verified account. Authenticate with one wallet signature; your message is back in the box, just hit send again after.",
+            onDone: function () { try { if (inp2) inp2.focus(); } catch (e2) {} }
+          });
+        });
+      }
       document.body.appendChild(d);
     }
     // R2 (user 2026-08-03, seeing v1 live): the dock is a SIDE panel on landscape —
@@ -441,10 +460,24 @@
     var a = accountObj(publicId);
     return a && a.authBound ? "\u{1F537}" : "△";
   }
+  // Feedback 01a1ed32: account ids link out for more info — HashScan for now
+  // (the link target may change; one helper, one place to change it).
+  function acctLinkEl(label) {
+    var net = (typeof gameMeta !== "undefined" && gameMeta && gameMeta.network) || "";
+    if ((net === "mainnet" || net === "testnet") && /^0\.0\.\d+$/.test(label)) {
+      var a = document.createElement("a");
+      a.href = "https://hashscan.io/" + net + "/account/" + label;
+      a.target = "_blank"; a.rel = "noopener noreferrer";
+      a.className = "kchat-acct-link";
+      a.textContent = label;
+      return a;
+    }
+    return document.createTextNode(label);
+  }
   function appendAccount(host, publicId) {
     var el = document.createElement("span");
     el.className = "kchat-act-acct";
-    el.textContent = accountLabel(publicId);
+    el.appendChild(acctLinkEl(accountLabel(publicId)));
     var mk = verifyMark(publicId);
     if (mk) {
       var m = document.createElement("span");
@@ -493,21 +526,27 @@
   function renderActionText(host, a) {
     var spec = ACTION_VERBS[a.kind];
     if (!spec) return;
-    appendWord(host, spec.verb);
-    host.appendChild(document.createTextNode(" "));
+    // Feedback 01a1ed32 (user 2026-08-05): the verb + asset + joiner + account is
+    // ONE meaningful chunk — inline-block moves the whole phrase to the next line
+    // when it fits there, instead of stranding "→ 0.0.x" alone on line two.
+    var ph = document.createElement("span");
+    ph.className = "kchat-act-phrase";
+    host.appendChild(ph);
+    appendWord(ph, spec.verb);
+    ph.appendChild(document.createTextNode(" "));
     if (spec.solo) {
       // lock / unlock (R2): the subject account is already the row's sender —
       // repeating it here read as one account locking ANOTHER. The doc's
       // wording was right all along: "<account> locked their side 🔒".
-      if (a.kind === "lock") appendWord(host, "their side \u{1F512}");
+      if (a.kind === "lock") appendWord(ph, "their side \u{1F512}");
       return;
     }
-    appendAssetChip(host, a);
-    host.appendChild(document.createTextNode(" "));
-    appendWord(host, spec.joiner);
-    host.appendChild(document.createTextNode(" "));
+    appendAssetChip(ph, a);
+    ph.appendChild(document.createTextNode(" "));
+    appendWord(ph, spec.joiner);
+    ph.appendChild(document.createTextNode(" "));
     // who the OTHER end is depends on which way the asset travelled
-    appendAccount(host, a.kind === "offer" ? a.to
+    appendAccount(ph, a.kind === "offer" ? a.to
                       : a.kind === "reject" ? a.from
                       : a.kind === "pick" ? a.from
                       : a.to);
@@ -541,7 +580,24 @@
 
   function renderInto(list, chat) {
     if (!list) return;
-    var atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 24;
+    // Pinned-to-bottom is now a TRACKED state, not a measurement (user 2026-08-05:
+    // "messages appearing off screen, not scrolling to the bottom"). Measuring at
+    // render time broke under the smooth glide: a render landing MID-GLIDE saw the
+    // scroll far from the bottom and concluded the reader had scrolled up — then
+    // never followed again. Only USER scroll gestures (wheel/touch, 800ms window)
+    // change pinnedness; programmatic scrolls can't unpin.
+    if (!list._kpinInit) {
+      list._kpinInit = true;
+      list._kpinned = true;
+      var mark = function () { list._kuser = Date.now(); };
+      list.addEventListener("wheel", mark, { passive: true });
+      list.addEventListener("touchmove", mark, { passive: true });
+      list.addEventListener("scroll", function () {
+        if (Date.now() - (list._kuser || 0) > 800) return;   // programmatic — ignore
+        list._kpinned = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+      }, { passive: true });
+    }
+    var atBottom = list._kpinned !== false;
     // BOARD-MSGANIM1 (feedback f8a34f4c, user 2026-08-05): new messages animate
     // into place instead of popping. The list is rebuilt wholesale each render,
     // so "new" = rows past the UNTRIMMED chat length this list saw last time
@@ -609,7 +665,13 @@
         var pn = subjAcc && state && state.players && state.players[subjAcc.playerId]
           ? (state.players[subjAcc.playerId].name || null) : null;
         if (pn && pn !== "anon") pn = pn.replace(/^(?:[\p{Extended_Pictographic}️‍]|\s)+/u, "") || pn;
-        nm.textContent = (pn && pn !== "anon" ? pn + " " : "") + accountLabel(subj);
+        // 01a1ed32: the sender's account id renders through the same .kchat-act-acct
+        // styling (and HashScan link) as in-phrase ids — consistent ids everywhere
+        nm.textContent = (pn && pn !== "anon" ? pn + " " : "");
+        var idsp = document.createElement("span");
+        idsp.className = "kchat-act-acct";
+        idsp.appendChild(acctLinkEl(accountLabel(subj)));
+        nm.appendChild(idsp);
         appendMarkFor(nm, subj);
       } else {
         nm.textContent = m.system ? "Katomia" : displayName(m);
@@ -658,6 +720,23 @@
       if (prevTotal && (chat.length - shown + idx) >= prevTotal) row.classList.add("kchat-row--in");
       list.appendChild(row);
     });
+    // 01a1ed32: a wrapped (multi-line) row promotes its avatar to double height —
+    // more prominent where there's more row to own. Measured post-append; a
+    // hidden list measures 0 and just skips (re-applied on the next visible render).
+    if (list.offsetParent) {
+      for (var ri = 0; ri < list.children.length; ri++) {
+        var r = list.children[ri];
+        if (!r.classList || !r.classList.contains("kchat-row")) continue;
+        // measure the CONTENT span, not the padded row, and derive a line height
+        // even when computed line-height is "normal" (parseFloat → NaN)
+        var main = r.querySelector(".kchat-row-main");
+        if (!main) continue;
+        var cs = getComputedStyle(main);
+        var lh = parseFloat(cs.lineHeight);
+        if (!lh || isNaN(lh)) lh = (parseFloat(cs.fontSize) || 13) * 1.5;
+        if (main.offsetHeight > lh * 1.6) r.classList.add("kchat-row--tall");
+      }
+    }
     list.dataset.kcount = chat.length;
     // Scroll: restore the pre-rebuild position instantly (innerHTML wipe zeroed
     // it), then glide to the bottom so the stream visibly moves up as the new

@@ -29,7 +29,13 @@ function addAcctStatus(msg, isError){
   el.classList.toggle("addacct-error", !!isError)
 }
 
-function openAddAccountModal(){
+// opts.skipAssets (ORDER-ADDACCT1, user 2026-08-05): stripped-down variant for
+// order mode — pick/connect/type the account and it joins with ALL assets, no
+// asset-picking step (orders reference assets directly; the account just needs
+// to be in the game).
+let addAcctSkipAssets = false
+function openAddAccountModal(opts){
+  addAcctSkipAssets = !!(opts && opts.skipAssets)
   window.kflow?.("acct:add:open", addAcctNet() === "playnet" ? "playnet" : "chain")
   addAcctLabel = null
   addAcctList = []
@@ -39,7 +45,9 @@ function openAddAccountModal(){
   document.getElementById("addAcctStepAssets").classList.add("hidden")
   document.getElementById("addAcctActions").classList.add("hidden")
   document.getElementById("addAcctStepAccount").classList.remove("hidden")
-  document.getElementById("addAccountModal").classList.remove("hidden")
+  const modal = document.getElementById("addAccountModal")
+  modal.style.zIndex = 2100   // above whichever modal opened it (order modal shares z2000)
+  modal.classList.remove("hidden")
   renderAddAcctWcList()
 }
 
@@ -94,6 +102,12 @@ async function chooseAddAcct(raw, src){
   if((net === "testnet" || net === "mainnet") && /^\d+$/.test(label)) label = "0.0." + label
 
   addAcctLabel = label
+  if(addAcctSkipAssets){
+    // stripped-down (order mode): account chosen = join with everything, now
+    document.getElementById("addAcctStepAccount").classList.add("hidden")
+    addAcctJoinGame(true)
+    return
+  }
   document.getElementById("addAcctChosen").textContent = label
   document.getElementById("addAcctStepAccount").classList.add("hidden")
   document.getElementById("addAcctStepAssets").classList.remove("hidden")

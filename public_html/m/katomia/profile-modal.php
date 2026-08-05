@@ -150,6 +150,14 @@
     <details class="profile-section profile-debug-section">
       <summary class="profile-section-title">Preferences &amp; diagnostics</summary>
       <div class="profile-debug">
+        <!-- ENTRY-AUTOADD1 (user-approved 2026-08-05): normal-mode preference, ON by
+             default — connected accounts join a game automatically with all assets.
+             Unticked, the ➕ Add account composer stays the only path (connected
+             accounts are already listed there as one-tap candidates). -->
+        <label class="profile-debug-label">
+          <input type="checkbox" id="kprefAutoAdd">
+          Automatically add my connected accounts when I join a game
+        </label>
         <label class="profile-debug-label nerd-control">
           <input type="checkbox" id="katomia-nerd-toggle" class="nerd-toggle-input">
           🤓 Nerd mode

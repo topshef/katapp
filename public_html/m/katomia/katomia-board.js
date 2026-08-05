@@ -394,7 +394,11 @@ let boardHugRing = _bp.hugRing ?? false
 // collisions can't move them (a newcomer takes the whole separation push and
 // finds space around them). Walls still apply (geometry changes must clamp).
 // The footer 🧹 button clears stickiness and re-runs the layout.
-let boardStickyChips = _bp.stickyChips ?? false
+// Default ON (user 2026-08-05, voice + feedback 64d2d521): "wherever you drag a
+// chip, it lands and stays" is the norm now that players arrange their own
+// board. The Settings toggle survives for a while ("we're probably going to
+// take away that option") — remove it once nobody unticks it.
+let boardStickyChips = _bp.stickyChips ?? true
 // BOARD-COUNTERMODE1 (user 2026-08-04): "simple" is the DEFAULT — no counter
 // band, no ghost for a PARTIAL fungible offer; instead the remaining stack
 // itself moves to the rim (the old ghost spot), decremented ("show what the
@@ -5554,7 +5558,14 @@ function ringFelt(segs, g){
   // MUST run after ringEtchLabel — it takes whichever boundary spoke the etched id
   // did NOT take this paint (the id prefers the most horizontal; the avatar gets
   // the more vertical one).
-  if(g.etched) segs.forEach(seg => { const av = ringAvatar(seg, g, NS); if(av) segLabels(seg).appendChild(av) })
+  // Feedback 478527e8 (user 2026-08-05, mobile hub crowding): the CURRENT player
+  // gets no avatar — the "you" label (ring11+) is the identity mark that matters
+  // ("the current player knows who they are"); avatars are for recognising OTHERS.
+  // Also clears the you/avatar pile-up in the cramped mobile hub.
+  if(g.etched) segs.forEach(seg => {
+    if(seg.mine && ring11()) return
+    const av = ringAvatar(seg, g, NS); if(av) segLabels(seg).appendChild(av)
+  })
 
   if(ring11()){
     // v11 (review 10): party + identity cues moved to the HUB's doorstep —
@@ -5585,10 +5596,14 @@ function ringFelt(segs, g){
         // 2°/3° insets existed to hide round caps that overhung the boundary
         // anyway; the result read as "rounded ends that slightly peak onto the
         // border but don't quite meet".
+        // Feedback 0222f750 (user 2026-08-05): these hub-doorstep cues painted OVER
+        // the asset chips (segTop z6 > chips z5) — "chips should always be on top".
+        // Same call as BOARD-YOUFELT1: felt cues belong on the labels layer (z4),
+        // visible on the felt but under the chips.
         circArc(g.rc + 6, seg.a0, seg.a1, "ring-playerarc",
-          getPlayerColour(seg.account.playerId), segTop(seg))
+          getPlayerColour(seg.account.playerId), segLabels(seg))
         if(boardInMyParty(seg.account, allAccounts))
-          circArc(g.rc + 12, seg.a0, seg.a1, "ring-partylight", null, segTop(seg))
+          circArc(g.rc + 12, seg.a0, seg.a1, "ring-partylight", null, segLabels(seg))
       } else if(boardInMyParty(seg.account, allAccounts))
         circArc(g.rc + 5, seg.a0 + 3, seg.a1 - 3, "ring-partyarc", null, segTop(seg))
       if(seg.mine){

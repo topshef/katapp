@@ -106,6 +106,35 @@ function restoreCachedAccounts(){
   if(missing.length) addAccounts(missing.join(","))
 }
 
+// ENTRY-AUTOADD1 (user-approved 2026-08-05): connected wallet accounts join the
+// game automatically with ALL assets — no add-account ceremony on the happy path.
+// Preference: profile → Preferences "Automatically add my connected accounts…",
+// ON by default (absent key = on; katomiaAutoAdd="0" disables), normal-mode
+// visible. Passive WC read only (ensure=false) — never rebuilds the connector at
+// page load; until kwcEarlyScope has the connector on this game's network the
+// read returns [] and the next broadcast retries (bounded). The composer stays
+// the curated path; spectators are refused server-side, skipped here for quiet.
+let _autoAddTries = 0
+async function maybeAutoAddAccounts(){
+  if(window.__kautoAddDone || _autoAddTries > 6) return
+  const net = gameMeta?.network
+  if(net !== "testnet" && net !== "mainnet") return
+  if(window.katomiaSpectator) return
+  if(localStorage.getItem("katomiaAutoAdd") === "0") return
+  if(typeof kauthWCAccounts !== "function") return
+  _autoAddTries++
+  let wc = []
+  try { wc = await kauthWCAccounts(net, false) } catch { return }
+  if(!wc.length) return
+  window.__kautoAddDone = true
+  const mine = new Set(getAccounts().filter(a => isMyAccount(a)).map(a => a.label))
+  const missing = wc.filter(id => !mine.has(id))
+  if(!missing.length) return
+  window.kflow?.("acct:autoadd", "go", { count: missing.length })
+  try { notify?.(`Adding your connected account${missing.length > 1 ? "s" : ""} to the game — turn this off in Profile → Preferences`, "info", { timeout: 4000 }) } catch {}
+  addAccounts(missing.join(","))
+}
+
 function addAccounts(raw){
 
   raw = raw.trim()
@@ -389,6 +418,13 @@ function connect(onOpenAction){
 		// or the panel isn't loaded at all, it falls straight through to notify().
 		if (data.messages)
 			for (const m of data.messages){
+				// User 2026-08-05 ("I've gone full circle — the noise was the lock/unlock
+				// events, take them off, comment them out for now"): lock state is fully
+				// visible on the board (arcs, 🔒 in the footer list), so these rows and
+				// toasts carry no read value — dropped entirely. If missed, resurrect as
+				// a nerd-mode "show user actions" toggle (the inverted-option idea from
+				// the same session) rather than un-suppressing globally.
+				if(m.action && (m.action.kind === "lock" || m.action.kind === "unlock")) continue
 				// panel mode only (R2): in bubbles mode the panel lists are hidden, so a
 				// routed action would be invisible AND its toast suppressed — the same
 				// mode gate notify()'s own chat mirror uses.
@@ -450,6 +486,7 @@ function connect(onOpenAction){
     window.katomiaPlaying = Number.isFinite(data.playing) ? data.playing : null
 
     restoreCachedAccounts()
+    maybeAutoAddAccounts()
 
     if(window.pendingAutoload){
       // PROP-ADDACCT1: autoload adds directly — the old path staged it via the

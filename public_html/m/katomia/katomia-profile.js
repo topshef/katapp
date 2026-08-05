@@ -68,6 +68,14 @@ function initKatomiaProfile(){
     t.onchange = () => applyNerdMode(t.checked)
   )
 
+  // ENTRY-AUTOADD1: absent key = ON (the tested-with-alpha default); only an
+  // explicit "0" disables. Consumed by maybeAutoAddAccounts (katomia-network.js).
+  const autoAdd = document.getElementById("kprefAutoAdd")
+  if(autoAdd){
+    autoAdd.checked = localStorage.getItem("katomiaAutoAdd") !== "0"
+    autoAdd.onchange = () => { try { localStorage.setItem("katomiaAutoAdd", autoAdd.checked ? "1" : "0") } catch {} }
+  }
+
   loadNerdMode()
 }
 

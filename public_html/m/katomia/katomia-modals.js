@@ -11,7 +11,7 @@ window.pendingCreateOrderAccount = null
 // every user-visible ship — they went un-bumped for weeks, so the kdiag
 // katomia:build event couldn't distinguish a stale device from a fresh one
 // (2026-08-05 counter-flex incident: device reported July markers and proved nothing).
-const KATOMIA_JS_BUILD = "20260805-cachefresh1"
+const KATOMIA_JS_BUILD = "20260805-feedbatch2"
 
 // Self-contained diagnostics sender. window.kdiag (from the kpool widget) is
 // lazy-loaded only when the signing widget mounts, so it is NOT available when
@@ -539,7 +539,7 @@ async function mergeWcAccountsIntoOrderPicklist(accountSelect){
     if(present.has(id)) continue
     const opt = document.createElement("option")
     opt.value = WC_ORDER_ADD_PREFIX + id
-    opt.textContent = `${id} — add to game`
+    opt.textContent = `➕ ${id}`   // pick = joins the game (user 2026-08-05: "add to game" wording retired)
     opt.dataset.wcOnly = "1"
     accountSelect.appendChild(opt)
   }
@@ -555,21 +555,25 @@ document.addEventListener("click", e => {
   if(id == "createOrderRateDown") return stepOrderRate(-1)
 
   if(id == "createOrderAccountAdd"){
-    const input = prompt("Enter account ID")
-    if(!input) return
+    // ORDER-ADDACCT1 (user 2026-08-05): the raw prompt() is retired — the shared
+    // add-account composer opens in stripped-down mode (WC pick / connect / type;
+    // no asset step — the account joins with everything). The picklist refreshes
+    // and selects the newcomer when it lands; generous window because the user
+    // may be pairing a wallet inside the composer.
     const idsBefore = new Set(getAccounts().filter(a => isMyAccount(a)).map(a => a.id))
-    addAccounts(input)
-    try { notify?.(`Adding account ${input}…`, "info", { timeout: 2500 }) } catch {}
-    pollUntil(
-      () => getAccounts().filter(a => isMyAccount(a)).length > idsBefore.size,
-      () => {
-        const newAccount = getAccounts().find(a => isMyAccount(a) && !idsBefore.has(a.id))
-        refreshCreateOrderAccounts(newAccount?.id)
-      },
-      200,
-      10000,
-      () => { try { notify?.(`Couldn't add account ${input} — check the ID and connection, then try again`, "error", { timeout: 0 }) } catch {} }
-    )
+    if(typeof openAddAccountModal === "function"){
+      openAddAccountModal({ skipAssets: true })
+      pollUntil(
+        () => getAccounts().filter(a => isMyAccount(a)).length > idsBefore.size,
+        () => {
+          const newAccount = getAccounts().find(a => isMyAccount(a) && !idsBefore.has(a.id))
+          refreshCreateOrderAccounts(newAccount?.id)
+        },
+        300, 120000)
+    } else {
+      const input = prompt("Enter account ID")   // fallback if the composer script failed to load
+      if(input) addAccounts(input)
+    }
     return
   }
 
