@@ -1,0 +1,4 @@
+# build-standalone byproducts: site-level dep copies for serving build/ locally
+/pagevisit.php
+/logEvent.php
+/data/

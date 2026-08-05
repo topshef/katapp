@@ -27,16 +27,18 @@ KWC_SNAPSHOT="${KWC_SNAPSHOT:-30c3fd9}"
 mkdir -p "$BUILD"
 
 # 1. The app itself → build root. Protect (P) everything this script adds
-#    afterwards so --delete doesn't sweep it on rebuild.
+#    afterwards so --delete doesn't sweep it on rebuild. 'P /*.php' is broad
+#    (covers the whole shop-root PHP layer, step 2e) — if an APP root php file
+#    is ever deleted upstream, rm -rf build/ once for a from-scratch rebuild.
 rsync -a --delete \
   --exclude '/build' --exclude '/ops' --exclude '/logs' \
   --exclude '/.env_hapi' --exclude '/.htaccess' \
   --exclude 'node_modules' --exclude '*.bak' \
   --filter='P /vendor' --filter='P /m' \
-  --filter='P /assets/php' --filter='P /future' \
-  --filter='P /elog.php' --filter='P /readenv.php' \
-  --filter='P /hapi_base.php' --filter='P /kmon.php' \
-  --filter='P /kflow.php' --filter='P /diag.php' \
+  --filter='P /assets' --filter='P /future' \
+  --filter='P /*.php' \
+  --filter='P /content' --filter='P /download' \
+  --filter='P /cache' --filter='P /_site' \
   --filter='P /.env' --filter='P /.htaccess' \
   --filter='P /build-info.json' \
   "$APP/" "$BUILD/"
@@ -75,6 +77,68 @@ cp "$ROOT/assets/php/getCachedData.php" "$BUILD/assets/php/"
 # 2c. writable log dirs beside the docroot (kflow/diag/elog write ../logs/*)
 mkdir -p "$APP/logs/kflow" "$APP/logs/kdiag"
 chown -R www-data:www-data "$APP/logs"
+
+# 2e. SHOP LAYER — makes the bundle gameplay-complete (KAT-DEPLOY1, 2026-08-05).
+#     Asset enrichment is same-origin: Kache.getData("/m", {format:json, productId})
+#     → m/index.php → product-details.php → product-details-OG2022.php, whose
+#     include chain reaches most of the shop root (auth/config/constants/gatekeep/
+#     query/products/headheader/footer/botblock/pagecache/cookieConsent, plus
+#     assets/php cards+functions, vendor/kpay, vendor/hashconnect, download/,
+#     content/ catalogue). The OPS-GCE1 rehearsal proved a bundle without this
+#     layer can never resolve asset metadata ("still loading asset details").
+#     Strategy: copy the layer wholesale rather than cherry-pick — robustness
+#     over minimalism (~60M, rsync delta-transfers on push anyway).
+#
+# 2e-i. shop root PHP, except: index.php (the app's must win at docroot),
+#       config.php (merged below), phpinfo.php (never ship).
+find "$ROOT" -maxdepth 1 -name '*.php' \
+  ! -name index.php ! -name config.php ! -name phpinfo.php \
+  -exec cp {} "$BUILD/" \;
+#
+# 2e-ii. config.php COLLISION MERGE: the app ships a 6-line config.php
+#        (hapi_base) while the shop chain expects the root config.php
+#        (gatekeep/constants/loadcontent/getUserProfile). Both include it as
+#        DOCUMENT_ROOT/config.php, so the bundle's single config.php is the
+#        shop config with the app's lines appended (require_once dedupes;
+#        gatekeep passes with the bundled .env ip_allowed=any).
+{
+  printf '<?php\n// GENERATED MERGE by ops/build-standalone.sh: shop root config.php\n// + app (m/katomia) config.php — see step 2e-ii.\n'
+  sed -e '1s/^<?php//' -e '/^?>[[:space:]]*$/d' "$ROOT/config.php"
+  sed -e '1s/^<?php//' "$APP/config.php"
+} > "$BUILD/config.php"
+#
+# 2e-iii. shop assets + catalogue + small vendors + download. The app's own
+#         assets/ (kpay-k.svg) has no path overlap with the shop's — verified
+#         2026-08-05 — so no --delete and both coexist.
+rsync -a --exclude 'node_modules' "$ROOT/assets/" "$BUILD/assets/"
+rsync -a --delete "$ROOT/content/" "$BUILD/content/"
+rsync -a --delete "$ROOT/download/" "$BUILD/download/"
+rsync -a --delete --exclude 'node_modules' "$ROOT/vendor/kpay/" "$BUILD/vendor/kpay/"
+rsync -a --delete --exclude 'node_modules' "$ROOT/vendor/hashconnect/" "$BUILD/vendor/hashconnect/"
+#
+# 2e-iv. the /m module itself (router + local cache + ipfs proxy + feedback
+#        fallback). NOT the whole /m tree — api/go/sign stay swap-hosted.
+cp "$ROOT/m/index.php" "$BUILD/m/"
+cp "$ROOT/m/ipfs-proxy.php" "$BUILD/m/" 2>/dev/null || true
+mkdir -p "$BUILD/m/cache" "$BUILD/m/feedback"
+cp "$ROOT/m/cache/index.php" "$BUILD/m/cache/" 2>/dev/null || true
+cp "$ROOT/m/feedback/index.php" "$BUILD/m/feedback/" 2>/dev/null || true
+#
+# 2e-v. writable caches (getCachedData writes DOCROOT/cache/, product cache
+#       in m/cache/) — perms set by the final chown; deploy must keep them
+#       www-data-writable.
+mkdir -p "$BUILD/cache"
+#
+# 2e-vi. site-level deps: root config includes dirname(docroot)/pagevisit.php
+#        + logEvent.php (live layout). Ship copies in _site/ (web-denied via
+#        the generated .htaccess) so the deploy script can install them beside
+#        the docroot; also place them at $APP for Lincoln-local serving of
+#        build/ (pat-on-Lincoln pattern), where dirname(docroot) = m/katomia.
+mkdir -p "$BUILD/_site"
+cp "$SITE/pagevisit.php" "$SITE/logEvent.php" "$BUILD/_site/"
+cp "$SITE/pagevisit.php" "$SITE/logEvent.php" "$APP/"
+mkdir -p "$APP/data/pagevisit"
+chown -R www-data:www-data "$APP/data"
 
 # 3. Vendor subset (vendor/walletconnect on main is 1.5G — take only the served bits)
 mkdir -p "$BUILD/vendor/walletconnect/builder/snapshots"
@@ -123,6 +187,9 @@ RewriteRule ^ - [F]
 <FilesMatch "^\.(env|envpath)">
   Require all denied
 </FilesMatch>
+
+# _site/ carries site-level deploy files (pagevisit/logEvent) — not web content
+RewriteRule ^_site(/|$) - [F]
 
 # Legacy absolute /m/katomia/* references → same file at docroot
 RewriteRule ^m/katomia/?$ index.php [L,QSA]
