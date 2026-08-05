@@ -101,9 +101,18 @@ find "$ROOT" -maxdepth 1 -name '*.php' \
 #        DOCUMENT_ROOT/config.php, so the bundle's single config.php is the
 #        shop config with the app's lines appended (require_once dedupes;
 #        gatekeep passes with the bundled .env ip_allowed=any).
+#        Site-level includes (pagevisit/logEvent) are rewritten from
+#        __DIR__/../ to dirname(DOCUMENT_ROOT) — same convention hapi_base
+#        uses for .env_hapi — because deploy layouts put the docroot deeper
+#        than live does (releases/<slot>); a logEvent stub keeps config.php
+#        from fataling if a deploy misses them.
 {
   printf '<?php\n// GENERATED MERGE by ops/build-standalone.sh: shop root config.php\n// + app (m/katomia) config.php — see step 2e-ii.\n'
-  sed -e '1s/^<?php//' -e '/^?>[[:space:]]*$/d' "$ROOT/config.php"
+  sed -e '1s/^<?php//' -e '/^?>[[:space:]]*$/d' \
+      -e "s#include __DIR__ . '/\.\./#@include dirname(\$_SERVER['DOCUMENT_ROOT']) . '/#" \
+      "$ROOT/config.php" \
+  | sed -e "/@include dirname(\$_SERVER\['DOCUMENT_ROOT'\]) . '\/logEvent.php';/a\\
+if (!function_exists('logEvent')) { function logEvent(\$m = null, \$f = null, \$i = null) { return false; } }"
   sed -e '1s/^<?php//' "$APP/config.php"
 } > "$BUILD/config.php"
 #
