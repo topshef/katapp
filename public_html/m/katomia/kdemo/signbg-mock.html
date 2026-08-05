@@ -1,0 +1,102 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Signing modal background mock — SIGN-MODALBG1</title>
+<style>
+  body{ margin:0; font:15px/1.5 system-ui,sans-serif; background:#3a3f4a; padding:18px; min-height:100vh; }
+  .bar{ display:flex; gap:10px; justify-content:center; margin-bottom:16px; flex-wrap:wrap; }
+  .bar button{ font:600 14px system-ui; padding:8px 16px; border-radius:10px; border:1px solid rgba(255,255,255,.25);
+    background:rgba(255,255,255,.10); color:#fff; cursor:pointer; }
+  .bar button.on{ background:#fff; color:#222; }
+  .stage{ display:flex; justify-content:center; }
+  .modal{ width:min(560px,96vw); border-radius:14px; padding:16px; box-shadow:0 12px 40px rgba(0,0,0,.35);
+    transition:background .25s ease; }
+  .modal.bg-a{ background:#ffffff; }
+  .modal.bg-b{ background:linear-gradient(160deg,#fafbfc 0%,#eef0f4 55%,#e6e9ee 100%); }
+  .modal.bg-c{ background:
+    linear-gradient(160deg,rgba(255,255,255,.65),rgba(255,255,255,0) 40%),
+    repeating-linear-gradient(45deg, rgba(120,128,140,.05) 0 2px, transparent 2px 6px),
+    linear-gradient(160deg,#f2f3f6 0%,#e6e9ee 60%,#dde0e7 100%); }
+  .head{ display:flex; align-items:center; gap:8px; margin-bottom:12px; font-weight:600; color:#374151; height:28px; }
+  .dot{ width:10px; height:10px; border-radius:50%; background:#f5a623; flex:none; }
+  .head .sp{ margin-left:auto; display:flex; align-items:center; gap:6px; }
+  .head .emo{ font-size:16px; border:none; background:transparent; cursor:pointer; width:28px; height:28px; line-height:1; }
+  .head .x{ color:#6b7280; font-size:22px; width:28px; text-align:center; cursor:pointer; }
+  .head .x:hover{ color:#dc2626; }
+  .netchip{ display:inline-block; font-size:13px; padding:4px 12px; border-radius:12px; color:#555; margin-bottom:14px;
+    background:rgba(255,255,255,.72); border:1px solid rgba(20,28,45,.10); backdrop-filter:blur(4px); }
+  .bg-a .netchip{ background:#f3f4f6; }
+  .cards{ display:flex; flex-direction:column; gap:18px; padding:8px 0; }
+  .card{ background:#fff; border:1px solid #56c857; border-radius:12px; padding:0;
+    box-shadow:0 0 0 1px #56c857, 0 0 12px 2px rgba(86,200,87,.45); overflow:hidden; }
+  .card.pend{ border-color:#f5a623; box-shadow:0 0 0 1px #f5a623, 0 0 12px 2px rgba(245,166,35,.45); }
+  .chead{ display:flex; gap:8px; align-items:baseline; padding:8px 13px; background:#fafafa; border-bottom:1px solid #ececec;
+    font-size:14px; color:#52525b; font-weight:500; }
+  .chead i{ color:#a1a1aa; font-style:normal; font-size:13px; }
+  .cbody{ padding:11px 13px; }
+  .chip{ display:inline-block; border:1px solid #d8dbe2; background:#fbfbfd; border-radius:9px;
+    padding:4px 10px; margin:2px 4px 2px 0; font-size:13px; color:#374151; }
+  .sig{ font-size:12px; color:#71717a; margin-top:8px; }
+  .opts{ margin-top:16px; }
+  .optcard{ border-radius:12px; padding:12px 14px; font-size:14px; color:#444; cursor:pointer; }
+  .bg-a .optcard{ background:#f8f9fa; border:1px solid #eceef2; }
+  .bg-b .optcard,.bg-c .optcard{ background:rgba(255,255,255,.66); border:1px solid rgba(20,28,45,.08); backdrop-filter:blur(4px); }
+  .optbody{ display:none; margin-top:12px; }
+  .optcard.open .optbody{ display:block; }
+  .methods{ display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
+  .method{ flex:1 1 120px; text-align:center; border-radius:10px; padding:14px 8px; font-size:13px; cursor:pointer;
+    background:rgba(255,255,255,.85); border:1px solid rgba(20,28,45,.12); }
+  .method.sel{ border-color:#2f6fed; box-shadow:0 0 0 1px #2f6fed; }
+  .pane{ margin-top:12px; border-radius:10px; padding:14px; font-size:13px; color:#555; text-align:center;
+    background:rgba(255,255,255,.9); border:1px dashed rgba(20,28,45,.18); }
+  .signbtn{ margin-top:12px; width:100%; padding:11px; font:600 15px system-ui; border-radius:10px; border:none;
+    background:#2f6fed; color:#fff; cursor:pointer; }
+  .note{ color:#cbd2dd; font-size:13px; text-align:center; margin-top:14px; max-width:560px; margin-left:auto; margin-right:auto; }
+</style></head><body>
+<div class="bar">
+  <button data-bg="a">A — plain white (today)</button>
+  <button data-bg="b" class="on">B — gentle grey gradient</button>
+  <button data-bg="c">C — silver + fine grain</button>
+</div>
+<div class="stage">
+  <div class="modal bg-b" id="modal">
+    <div class="head"><span class="dot"></span> Collecting signatures
+      <span class="sp"><button class="emo" id="emo">🙂</button><span class="x">✕</span></span></div>
+    <span class="netchip">Hedera testnet</span>
+    <div class="cards">
+      <div class="card"><div class="chead">0.0.9556348 <i>(you) · signed ✓</i></div>
+        <div class="cbody"><span class="chip">−12.35 USDC</span><span class="chip">+81 ℏ</span>
+        <div class="sig">1 of 1 keys signed</div></div></div>
+      <div class="card pend"><div class="chead">0.0.1532 <i>· awaiting signature</i></div>
+        <div class="cbody"><span class="chip">+12.35 USDC</span><span class="chip">−81 ℏ</span>
+        <div class="sig">0 of 1 keys signed</div></div></div>
+    </div>
+    <div class="opts"><div class="optcard" id="opt">▸ Signing options — WhatsApp · Wallet · KSIG <span style="float:right;color:#999">tap to expand</span>
+      <div class="optbody">
+        <div class="methods">
+          <div class="method sel">🔗<br>Wallet</div>
+          <div class="method">💬<br>WhatsApp</div>
+          <div class="method">🔏<br>KSIG</div>
+        </div>
+        <div class="pane">Approve the request in your connected wallet. The prompt appears in the wallet app — nothing pops over this page.</div>
+        <button class="signbtn">✍ Sign with wallet</button>
+      </div>
+    </div></div>
+  </div>
+</div>
+<p class="note">Tap the variant buttons to switch backgrounds live · tap “Signing options” to expand (the case in question) ·
+the 🙂 toggles to 🤓 in a fixed box (no header jitter) · bare elements ride on frosted strips in B/C.</p>
+<script>
+  const modal = document.getElementById("modal")
+  document.querySelectorAll(".bar button").forEach(b => b.onclick = () => {
+    document.querySelectorAll(".bar button").forEach(x => x.classList.remove("on"))
+    b.classList.add("on")
+    modal.className = "modal bg-" + b.dataset.bg
+  })
+  document.getElementById("opt").onclick = e => {
+    if(e.target.closest(".method")){ document.querySelectorAll(".method").forEach(m => m.classList.remove("sel")); e.target.closest(".method").classList.add("sel"); return }
+    if(e.target.closest(".signbtn")) return
+    e.currentTarget.classList.toggle("open")
+  }
+  document.getElementById("emo").onclick = e => { e.stopPropagation(); e.target.textContent = e.target.textContent === "🙂" ? "🤓" : "🙂" }
+</script>
+</body></html>

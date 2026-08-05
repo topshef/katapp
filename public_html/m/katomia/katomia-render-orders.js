@@ -712,8 +712,22 @@ async function maybeAutoSignTx(tx){
     active = await wc.getAccount?.()
   } catch { return }
   if(!active || !party.has(active) || !mine.has(active)) return
+  // R2 frontend sanity gate (user 2026-08-05: "the backend's doing the checks,
+  // but we should do the checks on the frontend as well"): every contributing
+  // order must at least CARRY an intent signature. Deep re-verification here —
+  // and whether reputation-verified 💠 should be REQUIRED before auto-signing —
+  // is an open question on ORDER-AUTOSIGN1; the auth ratio rides the kflow
+  // event so that call can be made from data.
+  const _orders = tx.source?.orders || {}
+  const _oids = getTxOrderIds(tx)
+  if(!_oids.length || _oids.some(oid => !_orders[oid]?.intentSignature?.pubkeyHex)){
+    try { window.kflow?.("order:autosign", "skip-unsigned-intent", { txid }) } catch {}
+    return
+  }
+  let _auth = null
+  try { const a = getTxContributorAuth(tx); _auth = { verified: a.verifiedAccts?.size ?? a.verifiedCount, contributors: a.contributorAccts?.size } } catch {}
   _txAutoSign.set(txid, "requesting")
-  try { window.kflow?.("order:autosign", "request", { txid, account: active }) } catch {}
+  try { window.kflow?.("order:autosign", "request", { txid, account: active, auth: _auth }) } catch {}
   renderTransactions()
   try {
     let bytes = tx.txhex ? orderHexToBytes(tx.txhex) : null
@@ -804,7 +818,10 @@ async function renderTransactions(){
 
   // ORDER-AUTOSIGN1: push signature requests for fresh matched txs — order
   // mode only, pref-gated, quiet (see maybeAutoSignTx). Fire-and-forget.
-  if(gameMeta?.config?.tradingMode === "order" && localStorage.getItem("katomiaAutoSignReq") !== "0")
+  // R2 fix (user 2026-08-05, "auto sign not working"): the mode value is
+  // "orderBook" (the only order value the backend ever writes) — the v1 gate
+  // checked "order" and never matched, so the hook never fired at all.
+  if(gameMeta?.config?.tradingMode === "orderBook" && localStorage.getItem("katomiaAutoSignReq") !== "0")
     visible.forEach(tx => { maybeAutoSignTx(tx) })
 
 }

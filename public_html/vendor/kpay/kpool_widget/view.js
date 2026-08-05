@@ -2083,7 +2083,10 @@ export function injectTxReadCSS() {
 		#account-keys .ksubtitle { display:none; }   /* Status tab + description replace this heading */
 
 		/* ── cards view (TX-CARDS3) ──────────────────────────────────────────── */
-		.txcards { display:flex; flex-direction:column; gap:10px; max-width:640px; margin:0 auto; position:relative; }
+		/* gap 10→18 + breathing top/bottom (user 2026-08-05): the status GLOW
+		   protrudes ~12px past the border — cards need room so halos don't clip
+		   or collide */
+		.txcards { display:flex; flex-direction:column; gap:18px; max-width:640px; margin:0 auto; padding:8px 0; position:relative; }
 		.txcard {
 			display:flex; flex-direction:column;
 			border:1px solid #e4e4e7; border-radius:10px; overflow:hidden;

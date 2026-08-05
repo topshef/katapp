@@ -517,6 +517,12 @@ function connect(onOpenAction){
 		if(typeof maybeRefreshLockCommitment === "function")
 			maybeRefreshLockCommitment().catch(e => console.error("[lock] re-sign failed", e))
 
+		// BOARD-DRAGFLICKER1 (user 2026-08-05): a broadcast repaint MID-DRAG redraws
+		// the whole board under the finger — visible flicker, and this handler paints
+		// twice per broadcast (render → enrich → render) which doubles it. While a
+		// touch drag is live the state above still updates but the repaint is
+		// deferred; boardTouchDrag runs it once on release.
+		if(window.__boardDragging){ window.__boardRenderPending = true; return }
 		await render()
     await enrichAccountLabels()
 		await enrichAccountAssets()

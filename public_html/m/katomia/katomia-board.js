@@ -5072,6 +5072,7 @@ function boardTouchDrag(el, payload){
         fly.style.left = r.left + "px"
         fly.style.top = r.top + "px"
         document.body.appendChild(fly)
+        window.__boardDragging = true   // BOARD-DRAGFLICKER1: broadcasts defer repaint until release
         el.classList.add("board-dragsrc")
         window.__boardDropTradeLine?.()   // BOARD-TRADELINESTALE1 (touch path)
         // a drag must not ALSO fire the chip's tap action on release
@@ -5079,14 +5080,14 @@ function boardTouchDrag(el, payload){
         el.addEventListener("click", swallow, { capture: true, once: true })
         setTimeout(() => el.removeEventListener("click", swallow, { capture: true }), 600)
       }
-      // BOARD-DRAGUX1 (user-approved 2026-08-05): ONE locus — the chip IS the
-      // drag cursor, sliding under your finger like a real piece. Slight lift
-      // (24px, the OS-drag convention) only so the fingertip doesn't fully
-      // hide it. The old 54px float + dotted halo made two competing loci
-      // ("is the drop my finger or the chip?" — halo retired). The wedge
-      // under the CHIP lights as the target; drop point = the chip's centre.
-      const lift = 24
-      fly.style.transform = `translate(${ev.clientX - startX}px, ${ev.clientY - startY - lift}px) scale(1.1)`
+      // BOARD-DRAGUX1 R2 (user 2026-08-05 review): NO lift at all — the chip
+      // stays exactly where it was grabbed and slides with the finger, like a
+      // real piece. The 24px lift read as a jump (and, grabbed near the top
+      // edge, the chip body sat BELOW the fingertip — "the opposite"): "we're
+      // trying to be too clever, and it's just fucking up". Depth comes from
+      // the drag shadow instead (.board-touchfly CSS). Wedge under the chip
+      // lights as the target; drop point = the chip's centre.
+      fly.style.transform = `translate(${ev.clientX - startX}px, ${ev.clientY - startY}px) scale(1.05)`
       const c = fly.getBoundingClientRect()
       const over = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2)?.closest?.("[data-drop-account]")
       if(over !== dropWedge){
@@ -5103,6 +5104,13 @@ function boardTouchDrag(el, payload){
       el.classList.remove("board-dragsrc")
       dropWedge?.classList.remove("drag-over")
       dropWedge = null
+      // BOARD-DRAGFLICKER1: release the repaint hold; catch up on any broadcast
+      // that arrived mid-drag with ONE repaint now
+      window.__boardDragging = false
+      if(window.__boardRenderPending){
+        window.__boardRenderPending = false
+        setTimeout(() => { try { render() } catch(e){} }, 0)
+      }
       if(!fly) return                        // plain tap — click proceeds
       // one locus: the drop lands where the CHIP is, not where the finger is
       const c = fly.getBoundingClientRect()

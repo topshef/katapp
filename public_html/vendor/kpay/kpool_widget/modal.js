@@ -88,9 +88,13 @@ function injectModalCSS() {
 
 		/* Nerd toggle relocated into the header (ORDERS-UI1) — the widget styles it
 		   position:absolute for its inline top-right corner; neutralise that here so
-		   it flows in the header action row, sitting just left of the close ✕. */
+		   it flows in the header action row, sitting just left of the close ✕.
+		   Fixed 28px box + line-height 1 (user 2026-08-05): 🙂 and 🤓 rasterise at
+		   slightly different heights, which was nudging the whole header as it
+		   toggled — clamp the box so the glyph swap can't move anything. */
 		.kpm-head-actions .txread-nerd-toggle {
-			position: static; background: transparent; padding: 4px 6px; color: inherit;
+			position: static; background: transparent; color: inherit;
+			width: 28px; height: 28px; padding: 0; line-height: 1; overflow: hidden;
 		}
 
 		/* Open-in-new-tab (MODAL-URL1) — nerd mode only. Matches the close button's

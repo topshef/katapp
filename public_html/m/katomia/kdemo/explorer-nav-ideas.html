@@ -1,0 +1,90 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Katomia as explorer — navigation ideas (EXPLORER-NAV1)</title>
+<style>
+  body{ margin:0 auto; max-width:820px; padding:28px 20px 80px; font:16px/1.65 system-ui,sans-serif; color:#1f2733; background:#fbfaf6; }
+  h1{ font-size:26px; line-height:1.25; } h2{ margin-top:38px; font-size:20px; border-bottom:2px solid #eee4d4; padding-bottom:6px; }
+  h3{ font-size:16px; margin-top:26px; }
+  .meta{ color:#8b95a5; font-size:13px; }
+  .card{ background:#fff; border:1px solid #e8e2d4; border-radius:12px; padding:14px 18px; margin:14px 0; }
+  .flow{ font-family:ui-monospace,monospace; font-size:14px; background:#20242c; color:#e7ecf4; border-radius:10px; padding:16px 18px; overflow-x:auto; white-space:pre; }
+  .q{ background:#fff8e8; border-left:4px solid #e7b95c; padding:10px 14px; border-radius:0 8px 8px 0; margin:12px 0; }
+  .slice{ background:#eef4ee; border-left:4px solid #7aa87a; padding:10px 14px; border-radius:0 8px 8px 0; margin:12px 0; }
+  li{ margin:6px 0; }
+  em.who{ font-style:normal; color:#8b6ad0; font-weight:600; }
+</style></head><body>
+
+<h1>🧭 Katomia as explorer — navigation &amp; player-modal ideas</h1>
+<p class="meta">KATMAN · 2026-08-05 · from the user's lab1 feedback pass ("turn the game into a mini explorer") · tasks: PLAYER-MODAL1, BOARD-CURATE1, EXPLORER-NAV1</p>
+
+<h2>The core idea</h2>
+<p>The board today is a <b>deal surface</b>. But everything on it — players, accounts, assets, tokens — is an entity
+worth inspecting in its own right. If every tap opens a small, consistent detail surface with onward links, the game
+becomes a <b>browsable graph</b>: a mini-explorer of the accounts and assets sitting inside it, with the deal circle as
+just one view of that graph. That's a retention story too — you can wander, look things up, follow people between
+circles, even when you're not actively trading.</p>
+
+<h2>The navigation graph</h2>
+<div class="flow">tap CHIP            → Asset card        (shipped 2026-08-05: art · HashScan token · owner · remove-from-table)
+tap FELT/segment    → Player modal      (NEW — "overdue": identity + assets + reputation + games)
+Asset card ▸ owner  → Player modal      (swap in place — same overlay, new subject)
+Asset card ▸ token  → Token view        (later: holders of this token, in-game / beyond)
+Player modal ▸ game → another circle    (deep link: jump to a game this player is also in)
+Player modal ▸ ⋯    → invite · message · block (context actions, some exist as tasks already)</div>
+<p>One rule keeps it learnable: <b>tap an asset → asset; tap empty felt in a wedge → its player.</b>
+Every surface shows its subject's links to the other two entity types.</p>
+
+<h2>The player modal (PLAYER-MODAL1)</h2>
+<div class="card">
+<b>Header:</b> avatar (kemoji) on player colour · name (if any) · account id(s) with 🔷/△ binding marks · "you" when self.<br>
+<b>Assets:</b> full scrollable list of their store (and basket?) — each row tappable through to the asset card.<br>
+<b>Reputation &amp; identity:</b> published bindings (link to binding.php), XProof records, later reputation facets (MVP-REPUTE1).<br>
+<b>History:</b> their transactions in this game (BOARD-TXHISTORY1 feeds this), later cross-game.<br>
+<b>Games:</b> which other circles this player is in → tap to jump (see deep links below).<br>
+<b>Actions:</b> invite-to-game · message (chat @) · block (BOARD-BLOCK1) — greyed where not wired yet, per the no-phantom-controls rule.
+</div>
+
+<h3>Curation lives here (BOARD-CURATE1 fold-in)</h3>
+<ul>
+  <li>The asset list in the player modal is where <b>swipe left = hide / swipe right = restore</b> works naturally —
+      a scrollable list is the right home for a Tinder-style gesture (on the felt it would fight drag-to-offer).</li>
+  <li>Hidden = greyed out + dropped to the bottom of the list, and the chip leaves <em class="who">your</em> board only
+      (per-viewer, localStorage). Always reversible from the same list — no invisible state.</li>
+  <li>The board wedge shows a small "3 hidden · show" pill so hidden state is always discoverable.</li>
+  <li>Contrast (already shipped): removing <em class="who">your own</em> asset via the asset card is global
+      (game_removeAsset) — different verb, different scope, and the copy should keep saying so.</li>
+</ul>
+
+<h2>Deep links &amp; the explorer angle</h2>
+<ul>
+  <li>Give player / asset / token views URL forms (e.g. <code>/m/katomia/game/&lt;id&gt;?player=p3</code>,
+      <code>?asset=0.0.x</code>) so they're shareable and the back button works — the explorer becomes linkable tissue
+      <b>between</b> circles, not a page you leave the game for.</li>
+  <li>"Also in: 🐫 t-prop · 🧵 Silk Road" on the player modal = the jump between circles. The same component on a
+      landing page is "follow this trader".</li>
+  <li>Token view (later): holders of this token in the game, then beyond it (mirror query) — from there,
+      <b>invite a holder</b> is the natural growth loop: the explorer finds the counterparty, the invite pulls them in.</li>
+  <li>Spectator mode already proves the browse-without-playing posture; the explorer gives spectators something rich to do.</li>
+</ul>
+
+<h2>Multi-device / multi-view</h2>
+<p>Joining the same game from two devices already yields two live views (it's all websockets). Worth making that a
+feature rather than an accident: e.g. phone as your hand (your store/basket + chat), desktop as the table. No new
+plumbing — mostly a preset of existing view options per device. Park as an idea until the explorer basics exist.</p>
+
+<h2>Open questions</h2>
+<div class="q">Does the player modal show their <b>basket</b> too, or store only? (Baskets are semi-private-feeling
+but fully public state — showing them is honest, might feel intrusive.)</div>
+<div class="q">Hide-scope: per game or global-per-player? Suggest per-game first (matches "this table is cluttered"),
+global later if asked for.</div>
+<div class="q">Does 🧹 tidy clear hides? Suggest no — tidy re-lays-out, curation is a different intent.</div>
+
+<h2>Suggested slices</h2>
+<div class="slice"><b>1 · PLAYER-MODAL1 (stone/rock):</b> tap felt → modal with header + asset list + binding/XProof
+row + tap-through to asset cards; asset card "owner" row becomes a link that swaps to it.</div>
+<div class="slice"><b>2 · BOARD-CURATE1:</b> swipe hide/restore in that asset list + per-wedge hidden pill
+(per-viewer, localStorage, per-game).</div>
+<div class="slice"><b>3 · EXPLORER-NAV1:</b> deep-link URLs, "also in" games row + circle jumping, then the token
+view + invite-a-holder loop.</div>
+
+</body></html>

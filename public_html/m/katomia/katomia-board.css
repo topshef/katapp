@@ -551,7 +551,9 @@ body.board-page .app-banner{
 [data-board-fam~="v8"] .board-chip{
   background: #fff;
   border-radius: 0 9px 9px 0;
-  box-shadow: 0 1px 1.5px rgba(0,0,0,.20), 0 2px 6px rgba(0,0,0,.09);
+  /* deeper shadow (user 2026-08-05, with BOARD-CROWDFAIR1 overlap): chips now
+     legitimately PILE — a stronger drop reads the stack order at a glance */
+  box-shadow: 0 1px 2px rgba(0,0,0,.30), 0 4px 10px rgba(0,0,0,.22);
 }
 [data-board-fam~="v8"] .board-ghost{ box-shadow: none; }
 [data-board-fam~="v8"] .board-chip.thumb-only{
