@@ -122,6 +122,7 @@ if (!function_exists('logEvent')) { function logEvent(\$m = null, \$f = null, \$
 rsync -a --exclude 'node_modules' "$ROOT/assets/" "$BUILD/assets/"
 rsync -a --delete "$ROOT/content/" "$BUILD/content/"
 rsync -a --delete "$ROOT/download/" "$BUILD/download/"
+mkdir -p "$BUILD/vendor"
 rsync -a --delete --exclude 'node_modules' "$ROOT/vendor/kpay/" "$BUILD/vendor/kpay/"
 rsync -a --delete --exclude 'node_modules' "$ROOT/vendor/hashconnect/" "$BUILD/vendor/hashconnect/"
 #
