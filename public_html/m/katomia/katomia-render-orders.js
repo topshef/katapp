@@ -511,7 +511,7 @@ function createTxRow(tx){
   // ORDER-AUTOSIGN1: live request-state pill — the visual cue that a signature
   // is being requested / has been pushed to the wallet, right on the compact card
   const autoState = _txAutoSign.get(tx.txid)
-  if(autoState){
+  if(autoState && autoState !== "checking"){
     const pill = document.createElement("span")
     pill.className = "tx-autosign tx-autosign--" + autoState
     pill.textContent = autoState === "requesting" ? "✍ signature requested…"
@@ -705,13 +705,18 @@ async function maybeAutoSignTx(tx){
   const party = txPartyAccounts(tx)
   if(!party.size) return
   const mine = new Set(getAccounts().filter(a => isMyAccount(a)).map(a => a.accountId || a.label))
+  // claim the txid BEFORE any await — overlapping renderTransactions calls both
+  // passed the has() check during the wc awaits and double-fired the request
+  // (seen live 2026-08-05 18:46, two order:autosign:error 70ms apart). Quiet
+  // ineligible paths release the claim so a later eligible state can retry.
+  _txAutoSign.set(txid, "checking")
   let active = null
   try {
     const liveNet = await wc.ensureNetwork?.()   // no-arg: reads, never rebuilds
-    if(network && liveNet !== network) return
+    if(network && liveNet !== network){ _txAutoSign.delete(txid); return }
     active = await wc.getAccount?.()
-  } catch { return }
-  if(!active || !party.has(active) || !mine.has(active)) return
+  } catch { _txAutoSign.delete(txid); return }
+  if(!active || !party.has(active) || !mine.has(active)){ _txAutoSign.delete(txid); return }
   // R2 frontend sanity gate (user 2026-08-05: "the backend's doing the checks,
   // but we should do the checks on the frontend as well"): every contributing
   // order must at least CARRY an intent signature. Deep re-verification here —
