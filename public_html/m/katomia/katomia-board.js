@@ -722,10 +722,10 @@ let _boardTxSocketId = null
 const BOARD_NO_RECEIPT_MS = 45000   // honest timeout: "unresolved", never a confident false failure guess
 
 function boardHandleTxUpdate(txid, update){
-  boardDiag("board:txsocket:update", { txid, type: update?.type, hasReceipt: !!update?.receipt, hasSigs: !!update?.sigs })
+  const receiptStatus = update?.receipt ? (update.receipt.status?._code || update.receipt.status || null) : null
+  boardDiag("board:txsocket:update", { txid, type: update?.type, hasReceipt: !!update?.receipt, hasSigs: !!update?.sigs, status: receiptStatus })
   if(update?.type === "tx_receipt" && update.receipt){
-    const status = update.receipt.status?._code || update.receipt.status
-    boardShowResult(txid, status === "SUCCESS")
+    boardShowResult(txid, receiptStatus === "SUCCESS")
   }
   if(update?.sigs) boardRefreshSignStatus()   // event-driven — don't wait for the poll tick
 }
@@ -3631,6 +3631,7 @@ function boardSigningWindowDiag(sig){
   _boardWindowLogged = key
   boardDiag("board:signing:window", {
     txid: sig.tx?.txid,
+    network: gameMeta?.network || null,
     validStartMs: sig.validStartMs,
     validStartIso: sig.validStartMs ? new Date(sig.validStartMs).toISOString() : null,
     expiry: sig.expiry,
