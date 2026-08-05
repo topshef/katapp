@@ -198,7 +198,7 @@ h2{
 
 <script>
 
-const API_URL = "/m/katomia/hapi/games"
+const API_URL = (location.pathname.startsWith("/m/katomia") ? "/m/katomia" : "") + "/hapi/games"
 //const API_URL = "https://hapi2.hbar.live/live/katomia/games"
 
 const displayLookup = {

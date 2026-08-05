@@ -108,7 +108,7 @@ async function chooseAddAcct(raw, src){
   updateAddAcctJoinCount()
 
   try {
-    const res = await fetch("/m/katomia/hapi.php?action=assets", {
+    const res = await fetch((window.KBASE||"") + "/hapi.php?action=assets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ network: net, account: label })

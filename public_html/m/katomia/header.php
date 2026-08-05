@@ -1,8 +1,8 @@
 <?php
 // header.php — the ONE app header (HEADER-UNIFY / PROFILE-INDEX1).
 // Include right after <body> on every page (index/games list, create, game).
-// Links are absolute (/m/katomia/) because the game page lives at a rewritten
-// depth (/m/katomia/game/XYZ) — same convention as the hapi/keakonnect paths.
+// Links are absolute, prefixed with $katomiaBase (site-config.php): the game page
+// lives at a rewritten depth, and on bundle domains (KAT-DEPLOY1b) the base is ''.
 
 // KATOMIA-ADMIN1: site-wide operator-admin check, modeled on gomint's
 // auth.php IP-admin pattern (shop.gomint.me, same repo family, same IP
@@ -18,7 +18,7 @@ $katomiaTerms = katomiaTerms();
 $katomiaIpAdmin = '130.185.251.53 176.126.78.48 ';
 $katomiaIsAdmin = strpos($katomiaIpAdmin, $_SERVER['REMOTE_ADDR'] ?? '') !== false;
 $katomiaGameId = $_GET['game'] ?? '';
-$katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($katomiaGameId) : '/m/katomia/';
+$katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode($katomiaGameId) : $katomiaBase . '/';
 ?>
 <style>
   /* Page harmonizer: every page that carries this header gets the same body inset
@@ -49,7 +49,7 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
 <div class="app-banner">
   <div class="app-banner-inner">
     <h2>
-      <a class="app-home-link" href="/m/katomia/" title="Katomia — home">
+      <a class="app-home-link" href="<?= $katomiaBase ?>/" title="Katomia — home">
         <span class="app-title">Katomia</span>
         <span class="app-icons">💱 🐫</span>
       </a>
@@ -65,19 +65,19 @@ $katomiaLegacyGameHref = $katomiaGameId ? '/m/katomia/game/' . rawurlencode($kat
   <nav id="appMenu" class="app-menu hidden">
     <!-- ENTRY-DEFAULTROOT1 (user 2026-07-29): Home first — always a way back to the
          welcome page (which is now the default root); Markets moved to /markets. -->
-    <a class="app-menu-item" href="/m/katomia/">🏠 Home</a>
+    <a class="app-menu-item" href="<?= $katomiaBase ?>/">🏠 Home</a>
     <!-- ENTRY-CIRCLES1 (user 2026-07-30): the everyday destination is now the
          proposal-only index, labelled with the configured term. 🏛️ Markets kept the
          bank emoji and the word "markets" — both wrong once the product calls these
          circles — so it moves behind nerd mode as the raw, unfiltered grid. -->
-    <a class="app-menu-item" href="/m/katomia/circles">⭕ <?= htmlspecialchars($katomiaTerms['Many'], ENT_QUOTES, 'UTF-8') ?></a>
+    <a class="app-menu-item" href="<?= $katomiaBase ?>/circles">⭕ <?= htmlspecialchars($katomiaTerms['Many'], ENT_QUOTES, 'UTF-8') ?></a>
     <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
-    <a class="app-menu-item nerd-only" href="/m/katomia/markets">🏛️ All markets (raw)</a>
+    <a class="app-menu-item nerd-only" href="<?= $katomiaBase ?>/markets">🏛️ All markets (raw)</a>
     <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
          results — in the main menu rather than behind the admin gate; the pages are
          effectively public anyway. If parts of QA later need gating, do a split pass
          (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
-    <a class="app-menu-item nerd-only" href="/m/katomia/qa/" target="_blank" rel="noopener">🧪 QA</a>
+    <a class="app-menu-item nerd-only" href="<?= $katomiaBase ?>/qa/" target="_blank" rel="noopener">🧪 QA</a>
     <!-- ENTRY-MENUKEA1 (user 2026-07-29): the 🤖 Execution agent menu item is GONE from
          the hamburger — not used for a while, and the profile section (still nerd-gated,
          data-feature=kea) remains the one door. Declutter; reposition another time. -->

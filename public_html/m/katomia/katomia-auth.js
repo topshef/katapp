@@ -474,7 +474,7 @@ async function publishKatomiaAuthEnvelope(envelope){
   const env = envelope || window.__lastAuthEnvelope
   if(!env){ notify?.("Nothing to publish yet", "info", { timeout: 2000 }); return false }
   try {
-    const res = await fetch("/m/katomia/hapi.php?action=authenticate", {
+    const res = await fetch((window.KBASE||"") + "/hapi.php?action=authenticate", {
       method: "POST",
       headers: { "content-type": "application/json", "x-player-token": getOrCreatePlayerToken() },
       body: JSON.stringify({ envelope: env })
@@ -503,7 +503,7 @@ async function publishKatomiaAuthEnvelope(envelope){
       : "Binding published", "success", {
         timeout: 6000,
         link: boundAcct ? {
-          href: `/m/katomia/binding.php?network=${encodeURIComponent(boundNet || "")}&accountId=${encodeURIComponent(boundAcct)}`,
+          href: `${window.KBASE||""}/binding.php?network=${encodeURIComponent(boundNet || "")}&accountId=${encodeURIComponent(boundAcct)}`,
           text: "Inspect it"
         } : null
       })

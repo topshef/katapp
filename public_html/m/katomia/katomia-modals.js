@@ -275,8 +275,8 @@ function katomiaModalDiag(label = "manual", withCacheCheck = true){
   // async caching check — compare applied markers vs fresh server copies
   ;(async () => {
     const [css, js] = await Promise.all([
-      fetchFreshMarker("/m/katomia/katomia.css", /--katomia-css-build:\s*["']([^"']+)["']/),
-      fetchFreshMarker("/m/katomia/katomia-modals.js", /KATOMIA_JS_BUILD\s*=\s*["']([^"']+)["']/)
+      fetchFreshMarker((window.KBASE||"") + "/katomia.css", /--katomia-css-build:\s*["']([^"']+)["']/),
+      fetchFreshMarker((window.KBASE||"") + "/katomia-modals.js", /KATOMIA_JS_BUILD\s*=\s*["']([^"']+)["']/)
     ])
     const report = {
       label,

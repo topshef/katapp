@@ -200,9 +200,13 @@ RewriteRule ^ - [F]
 # _site/ carries site-level deploy files (pagevisit/logEvent) — not web content
 RewriteRule ^_site(/|$) - [F]
 
-# Legacy absolute /m/katomia/* references → same file at docroot
-RewriteRule ^m/katomia/?$ index.php [L,QSA]
-RewriteRule ^m/katomia/(.*)$ $1 [L,QSA]
+# Legacy /m/katomia/* URLs → EXTERNAL 308 to the clean root path (KAT-DEPLOY1b:
+# an internal rewrite kept the ugly URL in the address bar — the point of the
+# bundle is clean URLs, and old shared links should normalize). 308 not 301:
+# method-preserving, so any stale cached JS POSTing to /m/katomia/hapi.php
+# still works instead of degrading to GET.
+RewriteRule ^m/katomia/?$ / [R=308,L]
+RewriteRule ^m/katomia/(.*)$ /$1 [R=308,L,QSA]
 
 # diagnostics endpoints (extensionless, same as the swap site root's rules)
 RewriteRule ^kflow$ kflow.php [L,QSA]

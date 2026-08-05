@@ -81,7 +81,7 @@ async function load(net, acct){
   $("out").innerHTML = '<p class="muted">Loading…</p>'
   let j
   try {
-    const r = await fetch(`/m/katomia/hapi.php?action=bindings&network=${encodeURIComponent(net)}&accountId=${encodeURIComponent(acct)}`)
+    const r = await fetch(`${location.pathname.startsWith("/m/katomia") ? "/m/katomia" : ""}/hapi.php?action=bindings&network=${encodeURIComponent(net)}&accountId=${encodeURIComponent(acct)}`)
     j = await r.json()
   } catch(e){ $("out").innerHTML = '<p class="bad">Fetch failed: ' + esc(e.message) + '</p>'; return }
   if(!j?.ok){ $("out").innerHTML = '<p class="bad">' + esc(j?.error || "lookup failed") + '</p>'; return }

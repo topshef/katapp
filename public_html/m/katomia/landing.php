@@ -222,7 +222,7 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
   <?php if ($tagline): ?>
   <p class="landing-tagline">
     <?= katomiaTermEsc($tagline) ?>
-    <a class="landing-learn" href="/m/katomia/learn">Learn more →</a>
+    <a class="landing-learn" href="<?= $katomiaBase ?>/learn">Learn more →</a>
   </p>
   <?php endif; ?>
 
@@ -246,7 +246,7 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
       // which is also the first hint that watching and joining are different rights.
       $watch = !empty($g['watch']);
     ?>
-      <a class="landing-card<?= $watch ? ' landing-card--watch' : '' ?>" data-kbubble-open href="/m/katomia/board/<?= rawurlencode($id) ?>">
+      <a class="landing-card<?= $watch ? ' landing-card--watch' : '' ?>" data-kbubble-open href="<?= $katomiaBase ?>/board/<?= rawurlencode($id) ?>">
         <div class="landing-card-label">
           <?= katomiaTermEsc($label) ?>
           <?php if ($watch): ?><span class="landing-watch-badge" title="A demo running right now, played by bots. You can watch it live — there is nothing to join.">live · watch only</span><?php endif; ?>
@@ -262,15 +262,15 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
        It points at /{many} (proposal-mode only, card view), NOT the full markets grid;
        the grid stays behind the nerd-only link below. -->
   <div class="landing-actions">
-    <a class="landing-create kbtn kbtn-green" href="/m/katomia/create?skin=basic">➕ Create your own <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?></a>
+    <a class="landing-create kbtn kbtn-green" href="<?= $katomiaBase ?>/create?skin=basic">➕ Create your own <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?></a>
     <!-- The PATH is fixed infrastructure (/circles); only the LABEL is the parameter.
          Renaming the term must not 404 a URL people have bookmarked or shared. If a
          rename ever needs a matching URL too, that's one extra alias line in .htaccess. -->
-    <a class="landing-morelink" href="/m/katomia/circles">More <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?> →</a>
+    <a class="landing-morelink" href="<?= $katomiaBase ?>/circles">More <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?> →</a>
   </div>
 
   <p class="landing-what">
-    <a href="/m/katomia/learn#what-is-it">What is a <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>?</a>
+    <a href="<?= $katomiaBase ?>/learn#what-is-it">What is a <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>?</a>
   </p>
 
   <!-- ENTRY-WELCOME1 (user 2026-07-29): connect directly from the welcome page — a
@@ -298,7 +298,7 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
 
   <!-- ENTRY-CIRCLES1: nerd mode keeps the raw markets grid (every game, every mode,
        every column). Normal mode never sees the word "markets". -->
-  <p class="landing-more"><a href="/m/katomia/markets">See all markets →</a></p>
+  <p class="landing-more"><a href="<?= $katomiaBase ?>/markets">See all markets →</a></p>
 
   <!-- ENTRY-SKINS1: nerd-mode-only skin picker — reloads with ?skin= so each variant
        initialises cleanly (the bubble skin attaches canvases at load). -->
@@ -319,7 +319,7 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
   <details class="landing-tuner">
     <summary>⚙ Entry transition — my settings</summary>
     <p style="margin:8px 0 0">Overrides the <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>-entry bubble <b>for this browser only</b>. Same knob names as the
-      <a href="/m/katomia/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
+      <a href="<?= $katomiaBase ?>/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
     <textarea id="landingTuneBox" spellcheck="false" placeholder='{ "ms": 800, "style": "iridescent" }'></textarea>
     <div class="landing-tuner-row">
       <button type="button" id="landingTuneApply">▶ Apply</button>

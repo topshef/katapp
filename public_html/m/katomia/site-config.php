@@ -14,6 +14,14 @@ if (!function_exists('katomiaSiteConfig')) {
   }
 }
 
+// ═══ KAT-DEPLOY1b (2026-08-05): app base path is DYNAMIC, not a literal ═══
+// On swap/labs the app lives at /m/katomia; on a standalone bundle domain
+// (app/pat.katomia.com) the app IS the docroot and links must be root-clean —
+// the whole point of the bundle. Never hardcode '/m/katomia' in an href/fetch:
+// PHP uses $katomiaBase, JS uses KBASE (katomia-core.js) or the same
+// location.pathname test inline on core-less pages.
+$katomiaBase = (realpath($_SERVER['DOCUMENT_ROOT'] ?? '') === __DIR__) ? '' : '/m/katomia';
+
 // ═══ ENTRY-CIRCLES1 (user 2026-07-30): parameterised product vocabulary ═══
 // The word for "the space people meet in" is config, not code. Internally it is
 // always a proposal game; only the DISPLAY word moves. See site-config.json's

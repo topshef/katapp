@@ -571,7 +571,7 @@ $brand = $siteConfig['landing']['title'] ?? 'Katomia';
   <!-- ═══ CTA ═══ -->
   <div class="cta">
     <p class="cta-note">Anything here unclear, wrong, or missing? Tell us — especially now.</p>
-    <a class="kbtn kbtn-green" href="/m/katomia/">← Back to home</a>
+    <a class="kbtn kbtn-green" href="<?= $katomiaBase ?>/">← Back to home</a>
     <button type="button" class="kbtn kbtn-blue"
             onclick="if(window.KFeedbackWidget){KFeedbackWidget.open()}else{location.href='/m/feedback/?product=katomia'}">💬 Send feedback</button>
     <a class="kbtn" href="https://x.com/kpaylive" target="_blank" rel="noopener">Follow us on X ↗</a>

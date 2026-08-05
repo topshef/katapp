@@ -1637,7 +1637,7 @@ function renderRingBoard(root){
     // only rewrites .js/.css, not images, and browsers resolve relative URLs
     // against the CURRENT PATH, not the server-rewritten one. Absolute path
     // sidesteps the whole class of bug instead of chasing every extension.
-    kimg.src = "/m/katomia/assets/kpay-k.svg"
+    kimg.src = (window.KBASE||"") + "/assets/kpay-k.svg"
     kimg.alt = ""
     hub.appendChild(kimg)
   } else if(boardSkin === "ring11"){

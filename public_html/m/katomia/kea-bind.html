@@ -55,7 +55,7 @@
     const message = `kea watch ${domain} ${gameId} ${orderPubkey}`  // network is set separately
     kpayUrl.searchParams.set("message", message)
 
-    const keaUrl = new URL("/m/katomia/kea/", location.origin)
+    const keaUrl = new URL((location.pathname.startsWith("/m/katomia") ? "/m/katomia" : "") + "/kea/", location.origin)
     keaUrl.searchParams.set("domain", domain)
     keaUrl.searchParams.set("network", network)
     keaUrl.searchParams.set("gameId", gameId)

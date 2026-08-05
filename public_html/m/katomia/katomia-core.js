@@ -3,6 +3,11 @@
        MODEL / APP STATE
     ========================= */
 
+    // KAT-DEPLOY1b: app base path — "/m/katomia" on swap/labs, "" on a
+    // standalone bundle domain where the app is the docroot. Use for every
+    // absolute app URL (PHP twin: $katomiaBase in site-config.php).
+    window.KBASE = location.pathname.startsWith("/m/katomia") ? "/m/katomia" : ""
+
 
 		function getGameId(){
 

@@ -96,9 +96,9 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
   </div>
 
   <div class="circles-actions">
-    <a class="kbtn kbtn-green" href="/m/katomia/create?skin=basic">➕ Create your own <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?></a>
+    <a class="kbtn kbtn-green" href="<?= $katomiaBase ?>/create?skin=basic">➕ Create your own <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?></a>
     <!-- Nerd-only escape hatch to the unfiltered grid, mirroring the welcome page. -->
-    <a class="circles-morelink" href="/m/katomia/markets">See all markets →</a>
+    <a class="circles-morelink" href="<?= $katomiaBase ?>/markets">See all markets →</a>
   </div>
 </div>
 
@@ -109,7 +109,7 @@ window.KTERMS = <?= json_encode($T, JSON_UNESCAPED_UNICODE) ?>;
 // local copy rather than shared: this page is an explicit playground for renaming and
 // re-presenting, and the user does NOT want that experimentation reaching the markets
 // grid. If the two ever settle on the same presentation, factor it out then.
-const API_URL = "/m/katomia/hapi/games"
+const API_URL = "<?= $katomiaBase ?>/hapi/games"
 
 const displayLookup = {
   tradingMode: { proposal: "💡 Proposal", orderBook: "📊 Order Book", debug: "🛠️ debug" },
@@ -185,7 +185,7 @@ async function loadCircles(){
     ].filter(c => c.text)
 
     list.insertAdjacentHTML("beforeend", `
-      <a class="circle-card" data-kbubble-open href="/m/katomia/board/${encodeURIComponent(g.id)}">
+      <a class="circle-card" data-kbubble-open href="<?= $katomiaBase ?>/board/${encodeURIComponent(g.id)}">
         <div class="circle-top">
           <span class="circle-name">${esc(g.profile?.name || g.id)}</span>
           <span class="circle-id">${esc(g.id)}</span>
