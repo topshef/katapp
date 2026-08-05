@@ -10,4 +10,16 @@ if (!function_exists('kasset')) {
     $v = is_file($p) ? filemtime($p) : false;
     return htmlspecialchars($v ? "$file?v=$v" : $file, ENT_QUOTES, 'UTF-8');
   }
+
+  // CACHE-FRESH1 (user 2026-08-05): ?v=mtime only busts caches if the HTML that
+  // carries the stamps is itself fresh — and these PHP pages sent NO Cache-Control,
+  // so mobile browsers could heuristically serve a stale page whose old ?v= values
+  // then pin every asset stale too (counter-flex "fix not visible" incident; a
+  // mobile can't hard-refresh, so this must never rely on the user). no-cache =
+  // store allowed but MUST revalidate; PHP sends no validators, so a navigation
+  // refetches the few-KB HTML and the ?v= stamps do the rest. Runs at include
+  // time — kasset.php is required before any output on every page that uses it.
+  if (!headers_sent()) {
+    header('Cache-Control: no-cache, must-revalidate');
+  }
 }

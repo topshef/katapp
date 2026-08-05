@@ -2910,16 +2910,27 @@ function boardOrganicApply(cx, cy, W, H, oval){
     // counter space to surrender (bandFull/bandMin cached from the previous
     // apply's pass 2 — one-frame lag, same as the old zrec.band read).
     // worstFull ≥ 1 → roomy, keep the whole counter; ≤ 0.7 → give it all up.
+    // UISIZE-aware (user 2026-08-05, "counter doesn't shrink on mobile"):
+    // pressure() returns the max BASE-scale the wedge affords, but chips render
+    // at fit × uiSize (mobile Normal = 1.3) — judged in base units the wedge
+    // reported "roomy" while the 1.3× chips crowded it and the band never
+    // yielded. Divide by the DESIRED multiplier so both passes answer "can the
+    // chips fit at the size we actually want to draw them?".
+    const want = boardUiSizeChip() || 1
     let worstFull = 1
     zoneChips.forEach(({ zrec, recs }) => {
-      if(recs.length) worstFull = Math.min(worstFull, pressure(zrec, recs, zrec.bandFull ?? 40))
+      if(recs.length) worstFull = Math.min(worstFull, pressure(zrec, recs, zrec.bandFull ?? 40) / want)
     })
+    const flexWas = _boardBandFlex
     _boardBandFlex = Math.round(Math.max(0, Math.min(1, (worstFull - 0.7) / 0.3)) * 4) / 4
+    if(_boardBandFlex !== flexWas)
+      boardDiag("board:bandflex", { flex: _boardBandFlex, worstFull: Math.round(worstFull * 100) / 100, want, fit: _boardChipFit })
     // pass B: chip crowd fit at the FLEXED band — chips only shrink for what
-    // the surrendered counter space couldn't absorb
+    // the surrendered counter space couldn't absorb. worst = fraction of the
+    // DESIRED size we can afford; applied scale = base × fit × uiSize.
     let worst = 1
     zoneChips.forEach(({ zrec, recs }) => {
-      if(recs.length) worst = Math.min(worst, pressure(zrec, recs, boardBandAt(zrec)))
+      if(recs.length) worst = Math.min(worst, pressure(zrec, recs, boardBandAt(zrec)) / want)
     })
     const target = Math.max(0.65, Math.min(1, Math.round(worst * 20) / 20))
     if(Math.abs(target - _boardChipFit) >= 0.1) _boardChipFit = target

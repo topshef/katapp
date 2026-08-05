@@ -7,7 +7,11 @@ window.pendingCreateOrderAccount = null
 // katomia.css (:root --katomia-css-build). Both are surfaced in the diagnostics
 // so we can tell, from the server-side kdiag logs, exactly which version of the
 // code a given browser is running — and whether a cached (stale) asset is in play.
-const KATOMIA_JS_BUILD = "20260712-ktag-1"
+// CACHE-FRESH1: bump BOTH markers (this + katomia.css --katomia-css-build) with
+// every user-visible ship — they went un-bumped for weeks, so the kdiag
+// katomia:build event couldn't distinguish a stale device from a fresh one
+// (2026-08-05 counter-flex incident: device reported July markers and proved nothing).
+const KATOMIA_JS_BUILD = "20260805-cachefresh1"
 
 // Self-contained diagnostics sender. window.kdiag (from the kpool widget) is
 // lazy-loaded only when the signing widget mounts, so it is NOT available when
