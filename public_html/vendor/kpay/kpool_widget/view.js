@@ -2107,10 +2107,13 @@ export function injectTxReadCSS() {
 		.txcard-you { font-size:12px; font-weight:600; color:#0891b2; }   /* "(you)" — a connected account of yours */
 
 		/* per-account signing state (TX-CARDS7): border matches the pie — orange = signature
-		   pending, green = threshold met; header summary shows reason glyphs + m-of-n signed */
-		.txcard--sign-pending   { border-color:#f5a623; box-shadow:0 0 0 1px #f5a623; }
-		.txcard--sign-ready     { border-color:#56c857; box-shadow:0 0 0 1px #56c857; }
-		.txcard--balance-short  { border-color:#e5484d; box-shadow:0 0 0 1px #e5484d; }   /* overdraft — hard blocker, wins the ring */
+		   pending, green = threshold met; header summary shows reason glyphs + m-of-n signed.
+		   R2 (user 2026-08-05, borrowed from proposal mode's signing glow): the line keeps
+		   its weight but gains a soft coloured GLOW — a border that glows reads as live
+		   status that can change, not a fixed style. */
+		.txcard--sign-pending   { border-color:#f5a623; box-shadow:0 0 0 1px #f5a623, 0 0 12px 2px rgba(245,166,35,.45); }
+		.txcard--sign-ready     { border-color:#56c857; box-shadow:0 0 0 1px #56c857, 0 0 12px 2px rgba(86,200,87,.45); }
+		.txcard--balance-short  { border-color:#e5484d; box-shadow:0 0 0 1px #e5484d, 0 0 12px 2px rgba(229,72,77,.5); }   /* overdraft — hard blocker, wins the ring */
 		.txcard-head-right { margin-left:auto; display:flex; align-items:center; gap:8px; }
 		.txcard-sign { font-size:12px; color:#71717a; white-space:nowrap; font-weight:500; }
 		/* per-asset overdraft: solid red ring on the specific SEND chip that's short */
@@ -2256,13 +2259,14 @@ export function injectTxReadCSS() {
 		/* nerd-view toggle — top-right of the widget, out of the way of the modal close/toast.
 		   dev affordance to flip cards (normal) ↔ line-item table (nerd) without the profile panel. */
 		.txread-wrapper { position:relative; }
+		/* emoji toggle 🙂↔🤓 (user 2026-08-05) — a button now, no checkbox */
 		.txread-nerd-toggle {
 			position:absolute; top:0; right:0; z-index:5;
-			display:inline-flex; align-items:center; gap:4px;
-			font-size:12px; color:#9ca3af; cursor:pointer; user-select:none;
+			display:inline-flex; align-items:center;
+			font-size:16px; cursor:pointer; user-select:none; border:none;
 			background:rgba(255,255,255,.85); padding:1px 5px; border-radius:6px;
 		}
-		.txread-nerd-toggle input { cursor:pointer; margin:0; }
+		.txread-nerd-toggle:hover { filter:brightness(1.08); }
 
 
 	`

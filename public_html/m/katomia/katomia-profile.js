@@ -76,6 +76,13 @@ function initKatomiaProfile(){
     autoAdd.onchange = () => { try { localStorage.setItem("katomiaAutoAdd", autoAdd.checked ? "1" : "0") } catch {} }
   }
 
+  // ORDER-AUTOSIGN1: same absent-key-means-ON pattern
+  const autoSign = document.getElementById("kprefAutoSignReq")
+  if(autoSign){
+    autoSign.checked = localStorage.getItem("katomiaAutoSignReq") !== "0"
+    autoSign.onchange = () => { try { localStorage.setItem("katomiaAutoSignReq", autoSign.checked ? "1" : "0") } catch {} }
+  }
+
   loadNerdMode()
 }
 

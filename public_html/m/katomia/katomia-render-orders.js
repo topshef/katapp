@@ -508,6 +508,18 @@ function createTxRow(tx){
 
   row.dataset.orderSide = market?.side || ""
 
+  // ORDER-AUTOSIGN1: live request-state pill — the visual cue that a signature
+  // is being requested / has been pushed to the wallet, right on the compact card
+  const autoState = _txAutoSign.get(tx.txid)
+  if(autoState){
+    const pill = document.createElement("span")
+    pill.className = "tx-autosign tx-autosign--" + autoState
+    pill.textContent = autoState === "requesting" ? "✍ signature requested…"
+                     : autoState === "signed" ? "✍ signed"
+                     : "✍ auto-request failed — tap to sign"
+    row.appendChild(pill)
+  }
+
   const txMeta = getTxMeta(tx)
   const makerPubkey = order?.intentSignature?.pubkeyHex || null
 
@@ -641,6 +653,90 @@ let _txRenderToken = 0
 // grows without limit. Show the most-recent TX_LIST_MAX after filtering.
 const TX_LIST_MAX = 50
 
+// ── ORDER-AUTOSIGN1 (user 2026-08-05, the HashPack auto-approval era) ─────────
+// A matched order already carries the trader's SIGNED INTENT — that intent is
+// the justification for execution. So when a raised tx involves my wallet's
+// active account, the signature request is PUSHED straight to the wallet
+// (WC.signTx, headless): no pop-up here — the wallet app shows its own prompt
+// (a separate window, never over the trading page), or approves silently if
+// the user enabled the wallet's auto-approval, and P2P trades settle
+// hands-free. QUIET by design: fires only when the WC session is already live
+// on the right network with a party account active — it never opens pairing
+// UI; the manual click-the-row path is unchanged. We can't ask HashPack
+// whether auto-approval is on (not exposed over WC) — pushing is safe either
+// way, worst case it's a normal wallet prompt. Preference: profile →
+// "Auto-request signatures for matched orders" (katomiaAutoSignReq, absent =
+// ON). Row shows the request state via the ✍ pill (createTxRow).
+// Local hex/txRead helpers: katomia-board.js has twins but is not loaded on
+// this (game.php) page — small dup over a new shared file (rapid-iteration).
+const _txAutoSign = new Map()   // txid → "requesting" | "signed" | "failed"
+
+function orderHexToBytes(hex){
+  const out = new Uint8Array(hex.length / 2)
+  for(let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16)
+  return out
+}
+
+async function orderReadTxBytes(network, txid){
+  const r = await fetch(`/future/?action=txRead&network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`)
+  let j = null
+  try { j = JSON.parse(await r.text()) } catch {}
+  const hex2 = j?.result?.hex2 ?? j?.hex2   // kpool wraps as {result:{hex2}} (KDIAG-TXBYTES2)
+  return hex2 ? orderHexToBytes(hex2) : null
+}
+
+function txPartyAccounts(tx){
+  const b = tx.pchbasis?.transfers
+  if(!b) return new Set()
+  return new Set([
+    ...(b.tokenTransfers || []).map(x => x.accountId),
+    ...(b.hbarTransfers || []).map(x => x.accountId),
+    ...(b.nftTransfers || []).flatMap(t => [t.senderAccountId, t.receiverAccountId])
+  ].filter(Boolean))
+}
+
+async function maybeAutoSignTx(tx){
+  const txid = tx?.txid
+  if(!txid || _txAutoSign.has(txid)) return
+  if(isTxExpired(tx) || isTxSuccessStatus(getTxStatus(tx))) return
+  const wc = window.WC
+  if(!wc?.signTx) return
+  const network = tx.network || tx.pchbasis?.network || gameMeta?.network || ""
+  const party = txPartyAccounts(tx)
+  if(!party.size) return
+  const mine = new Set(getAccounts().filter(a => isMyAccount(a)).map(a => a.accountId || a.label))
+  let active = null
+  try {
+    const liveNet = await wc.ensureNetwork?.()   // no-arg: reads, never rebuilds
+    if(network && liveNet !== network) return
+    active = await wc.getAccount?.()
+  } catch { return }
+  if(!active || !party.has(active) || !mine.has(active)) return
+  _txAutoSign.set(txid, "requesting")
+  try { window.kflow?.("order:autosign", "request", { txid, account: active }) } catch {}
+  renderTransactions()
+  try {
+    let bytes = tx.txhex ? orderHexToBytes(tx.txhex) : null
+    if(!bytes) bytes = await orderReadTxBytes(network, txid)
+    if(!bytes) throw new Error("transaction bytes unavailable")
+    const { signedTransactionHex } = await wc.signTx({ accountId: active, transactionBytes: bytes })
+    const save = await fetch("/future/?action=txSave", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ network, comment: "order auto-sign",
+        response: { signedTransaction: Array.from(orderHexToBytes(signedTransactionHex)) } })
+    })
+    if(!save.ok) throw new Error(`signature save failed (${save.status})`)
+    _txAutoSign.set(txid, "signed")
+    try { window.kflow?.("order:autosign", "signed", { txid, account: active }) } catch {}
+  } catch(e){
+    _txAutoSign.set(txid, "failed")
+    try { window.kflow?.("order:autosign", "fail", { txid, error: String(e?.message || e) }) } catch {}
+    try { katomiaDiagSend?.("order:autosign:error", { txid, error: String(e?.message || e) }) } catch {}
+  }
+  renderTransactions()
+}
+
 async function renderTransactions(){
 
   const listEl = document.querySelector("#transactionsSection .transactions-list")
@@ -706,6 +802,10 @@ async function renderTransactions(){
 
   listEl.replaceChildren(frag)
 
+  // ORDER-AUTOSIGN1: push signature requests for fresh matched txs — order
+  // mode only, pref-gated, quiet (see maybeAutoSignTx). Fire-and-forget.
+  if(gameMeta?.config?.tradingMode === "order" && localStorage.getItem("katomiaAutoSignReq") !== "0")
+    visible.forEach(tx => { maybeAutoSignTx(tx) })
 
 }
 

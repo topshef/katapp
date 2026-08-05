@@ -500,17 +500,17 @@ function buildOpenInNewTab(txState) {
 }
 
 function buildNerdToggle(txState) {
-	const label = document.createElement('label')
-	label.className = 'txread-nerd-toggle'
-	label.title = 'Nerd view — show the line-item table instead of the account cards (dev)'
-	const cb = document.createElement('input')
-	cb.type = 'checkbox'
-	cb.checked = resolveTxView() === 'table'
-	cb.onchange = () => { setNerd(cb.checked); rerenderTransferView(txState) }
-	const txt = document.createElement('span')
-	txt.textContent = '🤓'
-	label.append(cb, txt)
-	return label
+	// Emoji toggle (user 2026-08-05): 🙂 tap ↔ 🤓, replacing the checkbox — more
+	// fun, and one fixed-width glyph beside the ✕ so toggling never shifts the row.
+	const btn = document.createElement('button')
+	btn.type = 'button'
+	btn.className = 'txread-nerd-toggle'
+	btn.title = 'Nerd view — show the line-item table instead of the account cards (dev)'
+	let on = resolveTxView() === 'table'
+	const paint = () => { btn.textContent = on ? '🤓' : '🙂' }
+	paint()
+	btn.onclick = () => { on = !on; setNerd(on); paint(); rerenderTransferView(txState) }
+	return btn
 }
 
 // Swap just the transfer block (cards ↔ table) in place from cached flow/transfers,
@@ -843,9 +843,11 @@ async function renderTxView(txState) {
   const nerdToggle = buildNerdToggle(txState)
   const headActions = container.closest?.('.kpm-card')?.querySelector('.kpm-head-actions')
   if(headActions){
-    // header order (left→right): nerd toggle · open-in-new-tab (nerd) · close ✕
-    headActions.insertBefore(buildOpenInNewTab(txState), headActions.firstChild)
+    // header order (left→right): open-in-new-tab (nerd) · nerd toggle · close ✕
+    // (user 2026-08-05: the arrow lives leftmost so toggling nerd — which shows/
+    // hides it — never makes the emoji or the ✕ jump)
     headActions.insertBefore(nerdToggle, headActions.firstChild)
+    headActions.insertBefore(buildOpenInNewTab(txState), headActions.firstChild)
   } else txState.view.el.appendChild(nerdToggle)
 
   // signing panel: a clean method picker (WhatsApp · Wallet · KSIG). Choosing a

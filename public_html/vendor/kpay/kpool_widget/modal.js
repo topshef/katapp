@@ -77,16 +77,14 @@ function injectModalCSS() {
 		}
 		.kpm-diag { font-size: 12px; opacity: .75; }
 		.kpm-diag:hover { background: rgba(0,0,0,.08); opacity: 1; }
-		/* SIGN-HEADERSNAG1: conventional close button — a fixed square hit area, the ✕
-		   vertically centred to match the status dot / nerd toggle / open-tab icon in the
-		   same row (all now 28px tall, align-items:center). Hover = subtle CIRCLE that
-		   tints red (the familiar "close" affordance), not the old square grey bubble. */
+		/* SIGN-HEADERSNAG1 R2 (user 2026-08-05): hover = the ✕ ITSELF tints red,
+		   nothing else — the hover circle read as "weird" (and sat off-centre). */
 		.kpm-head-actions > * { display: inline-flex; align-items: center; justify-content: center; height: 28px; }
 		.kpm-close {
 			width: 28px; height: 28px; padding: 0; font-size: 22px;
-			border-radius: 50%; color: #6b7280; transition: background .12s, color .12s;
+			color: #6b7280; transition: color .12s;
 		}
-		.kpm-close:hover { background: rgba(220,38,38,.12); color: #dc2626; }
+		.kpm-close:hover { color: #dc2626; }
 
 		/* Nerd toggle relocated into the header (ORDERS-UI1) — the widget styles it
 		   position:absolute for its inline top-right corner; neutralise that here so

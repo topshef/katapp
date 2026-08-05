@@ -20,8 +20,14 @@ $origin = "$scheme://$host";
 // NB wallets stamp metadata at PAIR time — an existing pairing keeps its old name
 // until the user disconnects and re-pairs.
 $brand = ['name' => 'KPAY', 'description' => 'Hello future payments'];
+// Katomia (user 2026-08-05): pairings from any katomia domain brand as Katomia —
+// the kpay.live test hosts keep KPAY for now ("we'll probably move the test ones
+// to Katomia as well, but can't be bothered right now"). Wallets stamp metadata
+// at PAIR time (note above), so existing pairings rename only on re-pair.
 $brandMap = [
-    'gomint.me' => ['name' => 'GoMint', 'description' => 'Tokenizing the future'],
+    'gomint.me'   => ['name' => 'GoMint',  'description' => 'Tokenizing the future'],
+    'katomia.com' => ['name' => 'Katomia', 'description' => 'Multi-party value exchange on Hedera'],
+    'katomic.org' => ['name' => 'Katomia', 'description' => 'Multi-party value exchange on Hedera'],
 ];
 foreach ($brandMap as $suffix => $b) {
     if (substr($host, -strlen($suffix)) === $suffix) { $brand = $b; break; }

@@ -158,6 +158,13 @@
           <input type="checkbox" id="kprefAutoAdd">
           Automatically add my connected accounts when I join a game
         </label>
+        <!-- ORDER-AUTOSIGN1 (user 2026-08-05): matched orders push the signature
+             request straight to the wallet (no pop-up here; the wallet prompts, or
+             auto-approves if the user enabled that wallet-side). Default ON. -->
+        <label class="profile-debug-label">
+          <input type="checkbox" id="kprefAutoSignReq">
+          Auto-request signatures for matched orders
+        </label>
         <label class="profile-debug-label nerd-control">
           <input type="checkbox" id="katomia-nerd-toggle" class="nerd-toggle-input">
           🤓 Nerd mode
