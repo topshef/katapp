@@ -1760,3 +1760,27 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
   border: 1px solid #e3b9b9; background: #fff4f4; color: #a33;
 }
 .board-assetdetail-remove:hover{ background: #ffe9e9; }
+
+/* ── player modal (PLAYER-MODAL1, 2026-08-05) ─────────────────────────────── */
+.board-playercard{ max-width: 380px; width: min(380px, 94vw); max-height: 82vh; overflow-y: auto; }
+.board-playercard-head{ display: flex; align-items: center; gap: 12px; margin: 2px 0 10px; }
+.board-playercard-name{ font-size: 18px; font-weight: 700; }
+.board-playercard-sub{ font-size: 12px; }
+.board-playercard-acct{ margin-top: 12px; }
+.board-playercard-acctid{ font: 600 13px ui-monospace, monospace; color: #52525b; margin-bottom: 6px; }
+.board-playercard-assets{ display: flex; flex-direction: column; gap: 4px; }
+.board-playercard-asset{ display: flex; align-items: center; gap: 8px; }
+.board-playercard-assetbtn{
+  flex: 1; text-align: left; border: 1px solid #e3ddcd; background: #fff;
+  border-radius: 9px; padding: 6px 10px; font-size: 13px; cursor: pointer;
+}
+.board-playercard-assetbtn:hover{ background: #faf7ef; }
+.board-playercard-curate{ border: none; background: transparent; font-size: 15px; cursor: pointer; width: 30px; }
+.board-playercard-asset--out .board-playercard-assetbtn{ opacity: .45; }
+.board-playercard-outcap{ margin: 10px 0 4px; font-size: 12px; }
+.board-playercard-asset--offtable{
+  opacity: .5; font-size: 13px; padding: 4px 10px;
+  border: 1px dashed #d8d2c2; border-radius: 9px; background: #fbfaf6;
+}
+/* the viewer's "not interested" mute on the board itself */
+.board-chip--mutedout{ opacity: .3; filter: saturate(.4); }

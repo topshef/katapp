@@ -255,6 +255,11 @@
 
       el.onclick = e => {
         if(e.target !== el) return
-        offerSelectedToAccount(targetAccount.id)
+        // legacy tap-to-offer completes a selection when one is armed; with no
+        // selection (the board retired tap-to-offer, 2026-08-05) a bare felt
+        // tap zooms into the player instead (PLAYER-MODAL1 — guarded: the
+        // modal only exists where katomia-board.js is loaded).
+        if(selectedAssetId){ offerSelectedToAccount(targetAccount.id); return }
+        if(typeof boardPlayerModal === "function") boardPlayerModal(targetAccount.playerId)
       }
     }

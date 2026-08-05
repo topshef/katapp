@@ -6114,6 +6114,10 @@ function makeWedge(account, a0, a1, geo, isMine = false){
   el.dataset.accountId = account.id
   el.style.clipPath = boardSectorPolygon(a0, a1, geo)
   el.style.background = getPlayerColour(account.playerId)
+  // PLAYER-MODAL1 (user 2026-08-05): tap the FELT anywhere in a segment —
+  // not a chip; chips live on a higher layer and keep their own tap —
+  // zooms into that player. Drag/drop paths don't synthesise wedge clicks.
+  el.onclick = () => { if(typeof boardPlayerModal === "function") boardPlayerModal(account.playerId) }
   // TAP-TO-OFFER cue: while a chip is selected, candidate destination
   // segments lift a touch so "tap a segment" reads as the next move
   if(typeof selectedAssetId !== "undefined" && selectedAssetId && account.id !== selectedFromAccountId)
@@ -6484,6 +6488,9 @@ function boardStoreChips(account, container, reservedByAccount){
     // tap-to-inspect works on EVERYONE's store chips (user 2026-08-05: "if you
     // want to examine their assets, you can just tap on them")
     if(!mine && ring8()) el.onclick = () => boardAssetDetail(assetId, account, amount)
+    // BOARD-CURATE1: this viewer marked it "not interested" (player modal
+    // toggle) — mute it on THEIR board only; the row un-mutes it any time
+    if(!mine && boardCurateGet(account.id, assetId) === "out") el.classList.add("board-chip--mutedout")
     container.appendChild(el)
   })
 }
@@ -6542,8 +6549,15 @@ function boardAssetDetail(assetId, account, amount){
   } else {
     addRow("Token", String(assetId))
   }
+  // PLAYER-MODAL1: the Owner row is the door to the player modal — asset ⇄
+  // player browsing (tap owner here; tap an asset there). Swap, not stack.
   const ownerHac = account.id.split(":")[1] || account.id
-  addRow("Owner", ownerHac + (isMyAccount(account) ? " (you)" : ""))
+  const ownerBtn = document.createElement("button")
+  ownerBtn.className = "addacct-link"
+  ownerBtn.textContent = ownerHac + (isMyAccount(account) ? " (you)" : "") + " ›"
+  ownerBtn.title = "View this player — their accounts, assets and bindings"
+  ownerBtn.onclick = () => { modal.remove(); boardPlayerModal(account.playerId) }
+  addRow("Owner", ownerBtn)
   if(meta?.token_class?.name) addRow("Name", meta.token_class.name)
   card.appendChild(rows)
 
@@ -6559,6 +6573,152 @@ function boardAssetDetail(assetId, account, amount){
     }
     card.appendChild(btn)
   }
+  document.body.appendChild(modal)
+}
+
+// ── PLAYER-MODAL1 slice 1 (user-approved 2026-08-05; explorer-nav-ideas doc) ──
+// Tap the FELT anywhere in a player's wedge → this modal; tap Owner on the
+// asset card → this modal. It's the player half of the asset ⇄ player browse
+// loop: header (avatar/colour/name/you), then per account (id + 🔷/△ binding
+// mark) the asset list. Each in-play row taps through to the asset card.
+//
+// CURATION (BOARD-CURATE1 first slice, toggle-not-swipe — the user's own
+// fallback: "prove out the case first, switch to a swipe gesture later"): each
+// of ANOTHER player's in-play assets carries a 3-state cycle ○ no-opinion →
+// ⭐ interested → 🚫 not interested → ○. "Not interested" mutes that chip on
+// YOUR board only (per-viewer, per-game, localStorage) — always reversible
+// right here, never invisible state. Own assets get no toggle (Remove from
+// table on the asset card is the global sibling).
+//
+// OUT-OF-PLAY assets (user 2026-08-05): what the account holds on-chain but
+// hasn't brought to the table — fetched via the same hapi.php?action=assets
+// the add-account preview uses (real networks only), rendered greyed. Not
+// something the viewer can toggle; it's the owner's choice.
+function boardCurateKey(){ return "katomiaCurate." + (gameId || gameMeta?.id || "") }
+function boardCurateMap(){ try { return JSON.parse(localStorage.getItem(boardCurateKey()) || "{}") } catch { return {} } }
+function boardCurateGet(accountId, assetId){ return boardCurateMap()[accountId + "|" + assetId] || null }
+function boardCurateSet(accountId, assetId, v){
+  const m = boardCurateMap()
+  if(v) m[accountId + "|" + assetId] = v
+  else delete m[accountId + "|" + assetId]
+  try { localStorage.setItem(boardCurateKey(), JSON.stringify(m)) } catch {}
+}
+
+function boardPlayerModal(playerId){
+  document.getElementById("boardAssetDetail")?.remove()
+  document.getElementById("boardPlayerModal")?.remove()
+  const player = state?.players?.[playerId]
+  const accounts = getAccounts().filter(a => a.playerId === playerId)
+  if(!player && !accounts.length) return
+  const self = playerId === currentPlayerId
+
+  const modal = document.createElement("div")
+  modal.id = "boardPlayerModal"
+  modal.className = "asset-modal"
+  modal.onclick = e => { if(e.target === modal) modal.remove() }
+  const card = document.createElement("div")
+  card.className = "asset-modal-card board-playercard"
+  modal.appendChild(card)
+  const close = document.createElement("div")
+  close.className = "asset-modal-close"
+  close.textContent = "✕"
+  close.onclick = () => modal.remove()
+  card.appendChild(close)
+
+  const head = document.createElement("div")
+  head.className = "board-playercard-head"
+  const colour = getPlayerColour(playerId)
+  if(typeof kemojiEl === "function"){
+    const key = typeof katomiaAvatarKey === "function" ? katomiaAvatarKey(playerId) : playerId
+    head.appendChild(kemojiEl(key, { size: 44, bg: colour, isSelf: self }))
+  }
+  const who = document.createElement("div")
+  const nm = document.createElement("div")
+  nm.className = "board-playercard-name"
+  nm.textContent = (player?.name && player.name !== "anon" ? player.name : (player?.publicId || playerId)) + (self ? " · you" : "")
+  nm.style.color = colour
+  const sub = document.createElement("div")
+  sub.className = "subtle board-playercard-sub"
+  sub.textContent = accounts.length + " account" + (accounts.length === 1 ? "" : "s") + " in this game"
+  who.append(nm, sub)
+  head.appendChild(who)
+  card.appendChild(head)
+
+  const net = gameMeta?.network || ""
+  accounts.forEach(account => {
+    const sec = document.createElement("div")
+    sec.className = "board-playercard-acct"
+    const h = document.createElement("div")
+    h.className = "board-playercard-acctid"
+    h.textContent = (account.id.split(":")[1] || account.id) + " " + (account.authBound ? "🔷" : "△")
+    h.title = account.authBound ? "Reputation-bound & verified" : "No verified binding"
+    sec.appendChild(h)
+
+    const list = document.createElement("div")
+    list.className = "board-playercard-assets"
+    Object.entries(account.assets || {}).forEach(([assetId, amount]) => {
+      const row = document.createElement("div")
+      row.className = "board-playercard-asset"
+      const label = document.createElement("button")
+      label.className = "board-playercard-assetbtn"
+      label.textContent = (typeof getAssetDisplay === "function") ? getAssetDisplay(assetId, amount) : assetId
+      label.onclick = () => { modal.remove(); boardAssetDetail(assetId, account, amount) }
+      row.appendChild(label)
+      if(!self){
+        const st = boardCurateGet(account.id, assetId)
+        if(st === "out") row.classList.add("board-playercard-asset--out")
+        const tog = document.createElement("button")
+        tog.className = "board-playercard-curate"
+        const paint = v => {
+          tog.textContent = v === "in" ? "⭐" : v === "out" ? "🚫" : "○"
+          tog.title = v === "in" ? "Interested — tap: not interested"
+                    : v === "out" ? "Not interested (muted on your board) — tap: clear"
+                    : "No opinion — tap: interested"
+        }
+        paint(st)
+        tog.onclick = () => {
+          const cur = boardCurateGet(account.id, assetId)
+          const nxt = cur === null ? "in" : cur === "in" ? "out" : null
+          boardCurateSet(account.id, assetId, nxt)
+          paint(nxt)
+          row.classList.toggle("board-playercard-asset--out", nxt === "out")
+          render()   // the board mutes/unmutes the chip immediately
+        }
+        row.appendChild(tog)
+      }
+      list.appendChild(row)
+    })
+    sec.appendChild(list)
+
+    // out-of-play: on-chain holdings not brought to the table (async, greyed)
+    const hac = account.label || (account.id.split(":")[1] || account.id)
+    if((net === "testnet" || net === "mainnet") && /^0\.0\.\d+$/.test(hac)){
+      fetch((window.KBASE || "") + "/hapi.php?action=assets", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ network: net, account: hac })
+      }).then(r => r.json()).then(data => {
+        if(!data?.ok || !document.getElementById("boardPlayerModal")) return
+        const inPlay = new Set(Object.keys(account.assets || {}))
+        const out = Object.entries(data.assets || {}).filter(([id]) => !inPlay.has(id))
+        if(!out.length) return
+        const cap = document.createElement("div")
+        cap.className = "subtle board-playercard-outcap"
+        cap.textContent = "Not in play (" + out.length + ")"
+        sec.appendChild(cap)
+        out.slice(0, 30).forEach(([assetId, amount]) => {
+          const row = document.createElement("div")
+          row.className = "board-playercard-asset board-playercard-asset--offtable"
+          row.title = self ? "In your wallet, not on the table — ➕ Add account brings it in" : "This player holds it but hasn't brought it to the table"
+          const s = document.createElement("span")
+          s.textContent = (typeof getAssetDisplay === "function") ? getAssetDisplay(assetId, amount) : assetId
+          row.appendChild(s)
+          sec.appendChild(row)
+        })
+      }).catch(() => {})
+    }
+    card.appendChild(sec)
+  })
+
   document.body.appendChild(modal)
 }
 
