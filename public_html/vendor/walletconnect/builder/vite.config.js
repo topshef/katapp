@@ -37,6 +37,11 @@ const buildMeta = {
   commit: git.commit,
   status: git.status,
   built: new Date().toISOString(),
+  // Which builder produced this snapshot. build-lite.mjs stamps 'esbuild-lite';
+  // without the matching stamp here a vite build reported builder:undefined in
+  // kdiag wc:version, so "is this the full build or the OOM fallback?" — the exact
+  // question the WC-RELAYHEALTH1 notes tell you to check — was unanswerable.
+  builder: 'vite',
 }
 
 
