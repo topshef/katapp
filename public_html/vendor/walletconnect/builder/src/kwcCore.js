@@ -628,13 +628,23 @@ async function connectWalletCore() {
 // That is the ghost behind the "Record was recently deleted - session: <topic>" errors
 // (kdiag 2026-08-05 23:41:20). Our own storage is ours to clean: do it unconditionally,
 // never gated on the peer acknowledging.
+// R2a (2026-08-06): kept deliberately NARROW. It removes exactly the one session
+// topic it is given, and nothing else — no pairing deletes (a session topic is not a
+// pairing topic anyway, so that call was a no-op reaching into a store it had no
+// business touching), no sweeping of anything the caller did not name. Only ever
+// called from an explicit user-initiated disconnect.
 async function _purgeLocalSession(topic) {
-  if (!topic) return
+  if (!topic) return false
   const client = dappConnector?.walletConnectClient
-  const reason = { code: 6000, message: "USER_DISCONNECTED" }
-  try { if (client?.session?.keys?.includes(topic)) await client.session.delete(topic, reason) } catch (e) {}
-  try { await client?.core?.pairing?.pairings?.delete(topic, reason) } catch (e) {}
-  try { window.kdiag?.("wc:session:purged", { topic }) } catch (e) {}
+  if (!client?.session?.keys?.includes(topic)) return false
+  try {
+    await client.session.delete(topic, { code: 6000, message: "USER_DISCONNECTED" })
+    try { window.kdiag?.("wc:session:purged", { topic }) } catch (e) {}
+    return true
+  } catch (e) {
+    console.warn("[WC] local session purge failed for", topic, e)
+    return false
+  }
 }
 
 async function disconnectWalletCore() {
@@ -647,8 +657,14 @@ async function disconnectWalletCore() {
     } catch (error) {
       console.warn("[WC] Error during wallet disconnect:", error)
     }
+    // R2a: prune only the signers whose session we actually got rid of — either the
+    // library dropped it on a clean disconnectAll(), or we purged it locally because
+    // the peer was already gone. R2 blanket-cleared `signers` here, which threw away
+    // live sessions whenever disconnectAll() half-failed.
     for (const t of topics) await _purgeLocalSession(t)
-    dappConnector.signers = []
+    const gone = new Set(topics.filter(t => !dappConnector.walletConnectClient?.session?.keys?.includes(t)))
+    if (Array.isArray(dappConnector.signers))
+      dappConnector.signers = dappConnector.signers.filter(s => !gone.has(s.topic))
   }
 
   activeAccountId = null   // step 2: drop the selection so it can't go stale
@@ -1344,24 +1360,25 @@ async function signTxCoreV2 ({
   }
 
   // WalletConnect signature request (NO execution) — guarded (WC-RELAYHEALTH1):
-  // transport loss mid-request rejects after a 15s recovery grace; an absolute cap
-  // ends the eternal await either way (120s normally, ~30s if the advisory ping says
-  // the link looks dead).
+  // transport loss mid-request rejects after a 15s recovery grace; a 120s absolute
+  // cap ends the eternal await.
+  //
+  // R2a (2026-08-06): the ping is now PURELY a kdiag signal — it does not shorten
+  // this cap and it cannot fail a sign. R2's first cut let a failed ping pull the cap
+  // in to 30s, which repeated R1's mistake in a quieter way: the ping ALWAYS fails on
+  // mobile (that is the whole finding above), so on a phone the cap was always 30s,
+  // and any user who took longer than that to switch apps and approve had their sign
+  // killed while the wallet was still showing them the request — the board then sat
+  // out the 40s validity window and the wiper cleared everything. The working phone
+  // that day approved in 13.7s and squeaked under it; a slower one did not. Nothing
+  // may kill an in-flight request except an ACTUAL transport failure (the in-flight
+  // guard) or the 120s backstop.
   const g = _guardInFlight(`signTx:${accountId}`)
-  const _t0 = Date.now()
-  let _cap = setTimeout(() => g.reject(new Error(
+  const _cap = setTimeout(() => g.reject(new Error(
     "KWC-TIMEOUT: no response from the wallet after 120s — if you approved, the link is stuck: open your wallet app, disconnect this site, then reconnect and try again.")), 120_000)
 
   pingSession().then(ping => {
     try { window.kdiag?.("wc:session:ping", { ok: ping.ok, ms: ping.ms, reason: ping.reason, accountId, advisory: true }) } catch {}
-    // ok → healthy, keep the full cap. "no-session" → older signers may not expose
-    // .topic; never penalise them. Anything else → the link MIGHT be dead, so stop
-    // waiting once the tx window has gone rather than at 120s.
-    if (g.settled || ping.ok || ping.reason === "no-session") return
-    clearTimeout(_cap)
-    _cap = setTimeout(() => g.reject(new Error(
-      "KWC-STALE: your wallet did not respond — open your wallet app and approve the request there. If nothing is waiting, disconnect this site in the wallet, then reconnect.")),
-      Math.max(5_000, 30_000 - (Date.now() - _t0)))
   }).catch(() => {})
 
   let signedTransaction
