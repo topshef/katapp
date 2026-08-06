@@ -395,9 +395,12 @@ function _scheduleRelayRestart(relayer, delayMs = 800) {
 }
 
 function _guardInFlight(label) {
-  const g = { label, lossTimer: null }
+  const g = { label, lossTimer: null, settled: false }
   g.promise = new Promise((_, rej) => { g.reject = rej })
-  g.done = () => { clearTimeout(g.lossTimer); _wcInFlight.delete(g) }
+  // `settled` lets late async work (e.g. signTx's advisory ping, which resolves ~4s
+  // in and may land after the wallet already answered) see that the request is over
+  // and skip arming any further timers.
+  g.done = () => { g.settled = true; clearTimeout(g.lossTimer); _wcInFlight.delete(g) }
   _wcInFlight.add(g)
   return g
 }
@@ -565,6 +568,16 @@ async function connectWalletCore() {
   const _c0 = Date.now()
   await initializeWalletConnect()
   const _c1 = Date.now()
+
+  // WC-RELAYHEALTH1 R2: snapshot the topics that already exist so we can tell a signer
+  // created by THIS pairing from one DAppConnector.init() rehydrated out of storage.
+  // Diagnostic only — openModal() awaits the wallet's approval internally and calls
+  // onSessionConnected() before it resolves, so `reused:true` here would mean connect()
+  // returned an account nobody just approved. (Note for whoever reads the old kdiag:
+  // approvalWaitMs:0 is NORMAL and is not evidence of that — the approval wait is
+  // counted inside openModalMs, not in the loop below.)
+  const preTopics = new Set(getSignersList().map(s => s.topic))
+
   await dappConnector.openModal()
   const _c2 = Date.now()
   const started = Date.now()
@@ -580,7 +593,8 @@ async function connectWalletCore() {
 
     await new Promise(r => setTimeout(r, 100))
   }
-  try { window.kdiag?.('wc:connect-phases', { ensureInitMs: _c1 - _c0, openModalMs: _c2 - _c1, approvalWaitMs: Date.now() - _c2 }) } catch {}
+  const _fresh = getSignersList().filter(s => !preTopics.has(s.topic)).length
+  try { window.kdiag?.('wc:connect-phases', { ensureInitMs: _c1 - _c0, openModalMs: _c2 - _c1, approvalWaitMs: Date.now() - _c2, preSigners: preTopics.size, freshSigners: _fresh, reused: _fresh === 0 }) } catch {}
 
   // Step 2: select the newest signer as active (mirrors the old trim-to-last
   // intent) without discarding the others — getAccounts() still sees them all.
@@ -604,18 +618,73 @@ async function connectWalletCore() {
 // disconnectWalletCore
 // Headless intent: clear wallet session and disconnect active connector
 // const disconnectWalletCore = async () => {
+// WC-RELAYHEALTH1 R2 (2026-08-06) — purge a session/pairing from our OWN storage.
+//
+// SignClient.disconnect() only prunes local Core storage on a SUCCESSFUL round-trip to
+// the peer. When the wallet has already dropped the session (the user cleared it in
+// HashPack, or the relay lost it), that round-trip throws, DAppConnector swallows it,
+// and the dead session stays in localStorage under "wc@2:*" — where DAppConnector.init()
+// unconditionally rehydrates a signer for it on the next page load, no liveness check.
+// That is the ghost behind the "Record was recently deleted - session: <topic>" errors
+// (kdiag 2026-08-05 23:41:20). Our own storage is ours to clean: do it unconditionally,
+// never gated on the peer acknowledging.
+async function _purgeLocalSession(topic) {
+  if (!topic) return
+  const client = dappConnector?.walletConnectClient
+  const reason = { code: 6000, message: "USER_DISCONNECTED" }
+  try { if (client?.session?.keys?.includes(topic)) await client.session.delete(topic, reason) } catch (e) {}
+  try { await client?.core?.pairing?.pairings?.delete(topic, reason) } catch (e) {}
+  try { window.kdiag?.("wc:session:purged", { topic }) } catch (e) {}
+}
+
 async function disconnectWalletCore() {
   if (dappConnector) {
+    // Snapshot the topics BEFORE the round-trip — disconnectAll() empties `signers`
+    // on success, and on failure we still need to know what to purge locally.
+    const topics = [...new Set((dappConnector.signers || []).map(s => s.topic).filter(Boolean))]
     try {
       await dappConnector.disconnectAll()
     } catch (error) {
       console.warn("[WC] Error during wallet disconnect:", error)
     }
+    for (const t of topics) await _purgeLocalSession(t)
+    dappConnector.signers = []
   }
 
   activeAccountId = null   // step 2: drop the selection so it can't go stale
 
   return true
+}
+
+
+// resetWalletLinkCore (WC-RELAYHEALTH1 R2, 2026-08-06)
+// Last-resort escape hatch: wipe every WalletConnect Core key this origin holds, so the
+// next connect() is guaranteed a genuinely fresh pairing rather than a rehydrated ghost.
+// Blunt on purpose — it drops ALL sessions for this site, and the connector has to be
+// rebuilt afterwards (init() reads storage once). Reachable from the UI so a wedged user
+// has something that always works without clearing site data by hand.
+async function resetWalletLinkCore() {
+  try { await disconnectWalletCore() } catch (e) {}
+
+  let removed = 0
+  try {
+    for (const k of Object.keys(window.localStorage))
+      if (k.startsWith("wc@2:")) { window.localStorage.removeItem(k); removed++ }
+  } catch (e) {
+    console.warn("[WC] resetWalletLink: localStorage wipe failed", e)
+  }
+
+  // Drop the connector too — a live DAppConnector keeps the wiped sessions in memory
+  // and would just write them back. Next call to initializeWalletConnect() rebuilds.
+  try { dappConnector?.walletConnectClient?.core?.relayer?.transportClose?.() } catch (e) {}
+  dappConnector = null
+  wcInitPromise = null
+  currentNetwork = null
+  activeAccountId = null
+
+  try { window.kdiag?.("wc:link:reset", { removed }) } catch (e) {}
+  console.log("[WC] wallet link reset —", removed, "wc@2:* keys removed")
+  return { removed }
 }
 
 
@@ -639,6 +708,11 @@ async function disconnectAccountCore(accountId) {
   } catch (error) {
     console.warn("[WC] Error disconnecting account", accountId, error)
   }
+
+  // WC-RELAYHEALTH1 R2: prune OUR copy whether or not the peer acknowledged — see
+  // _purgeLocalSession. Without this a wallet-side clear leaves the session in
+  // localStorage and DAppConnector.init() resurrects a dead signer on the next load.
+  await _purgeLocalSession(topic)
 
   // WC-PICKDEL1: dappConnector.disconnect(topic) deletes the session on the relay but
   // does NOT prune dappConnector.signers — that array is only filtered by the library's
@@ -1236,22 +1310,29 @@ async function signTxCoreV2 ({
   if (activeAccountId !== accountId)
     throw new Error("Active wallet account does not match accountId")
 
-  // WC-RELAYHEALTH1 preflight: surface a dead link BEFORE the wallet prompt.
-  // Session ping round-trips to the wallet in ~100-500ms when healthy; a wedged
-  // session fails in 4s. One restart+retry, then a real error naming the fix —
-  // instead of the old behaviour (request sent into the void, eternal await,
-  // user watches orange until the window dies). "no-session" doesn't hard-fail:
-  // older signers may not expose .topic and signing must not regress for them.
+  // WC-RELAYHEALTH1 R2 (2026-08-06): the session ping is ADVISORY — never a gate.
+  //
+  // R1 (a99a66e) awaited pingSession() here and threw KWC-STALE when it failed. On a
+  // real phone that broke signing outright. wc_sessionPing only round-trips while the
+  // wallet app is in the FOREGROUND; the moment the user switches back to the browser —
+  // i.e. every moment they are actually looking at the board — HashPack stops answering
+  // it. Measured (kdiag 2026-08-05): the phone failed the preflight on 31 of 32 signs,
+  // every failure at exactly our 4000ms timeout, while the desktop (wallet always
+  // foregrounded) passed 43 of 49. The single mobile pass was at 07:26:19, one second
+  // after returning from the wallet app — same session, same topic, and 14s later the
+  // very same session timed out again. A ping timeout therefore says almost nothing
+  // about session health on mobile, and gating on it turned a perfectly live link into
+  // "disconnect this site and re-pair" — advice that could not possibly work, which is
+  // exactly the loop the user was stuck in all evening (23:41-23:44: re-pair, approve
+  // in the wallet, ping still times out 4s later, KWC-STALE again).
+  //
+  // The sign request is itself what wakes a backgrounded wallet (it deep-links/pushes),
+  // so it must go out FIRST. The ping now runs alongside it purely as a health signal:
+  // if it comes back bad we shorten the stall cap from 120s to ~30s — past the tx
+  // validity window anyway (board:signing:window is 40s) — so a genuinely dead link
+  // still surfaces a real error quickly instead of blocking the sign up front.
   const relayer = dappConnector?.walletConnectClient?.core?.relayer
   if (relayer && !relayer.connected) { try { await relayer.restartTransport() } catch {} }
-  let ping = await pingSession()
-  if (!ping.ok && ping.reason !== "no-session") {
-    try { await relayer?.restartTransport() } catch {}
-    ping = await pingSession()
-  }
-  try { window.kdiag?.("wc:session:ping", { ok: ping.ok, ms: ping.ms, reason: ping.reason, accountId }) } catch {}
-  if (!ping.ok && ping.reason !== "no-session")
-    throw new Error("KWC-STALE: your wallet link is not responding (session ping failed) — open your wallet app, disconnect this site, then reconnect and try again.")
 
   // Rebuild transaction from bytes
   const transaction =
@@ -1263,16 +1344,32 @@ async function signTxCoreV2 ({
   }
 
   // WalletConnect signature request (NO execution) — guarded (WC-RELAYHEALTH1):
-  // transport loss mid-request rejects after a 15s recovery grace; 120s absolute
-  // cap ends the eternal await either way.
+  // transport loss mid-request rejects after a 15s recovery grace; an absolute cap
+  // ends the eternal await either way (120s normally, ~30s if the advisory ping says
+  // the link looks dead).
   const g = _guardInFlight(`signTx:${accountId}`)
-  const _cap = setTimeout(() => g.reject(new Error("KWC-TIMEOUT: no response from the wallet after 120s — if you approved, the link is stuck: open your wallet app, disconnect this site, then reconnect and try again.")), 120_000)
+  const _t0 = Date.now()
+  let _cap = setTimeout(() => g.reject(new Error(
+    "KWC-TIMEOUT: no response from the wallet after 120s — if you approved, the link is stuck: open your wallet app, disconnect this site, then reconnect and try again.")), 120_000)
+
+  pingSession().then(ping => {
+    try { window.kdiag?.("wc:session:ping", { ok: ping.ok, ms: ping.ms, reason: ping.reason, accountId, advisory: true }) } catch {}
+    // ok → healthy, keep the full cap. "no-session" → older signers may not expose
+    // .topic; never penalise them. Anything else → the link MIGHT be dead, so stop
+    // waiting once the tx window has gone rather than at 120s.
+    if (g.settled || ping.ok || ping.reason === "no-session") return
+    clearTimeout(_cap)
+    _cap = setTimeout(() => g.reject(new Error(
+      "KWC-STALE: your wallet did not respond — open your wallet app and approve the request there. If nothing is waiting, disconnect this site in the wallet, then reconnect.")),
+      Math.max(5_000, 30_000 - (Date.now() - _t0)))
+  }).catch(() => {})
+
   let signedTransaction
   try {
     signedTransaction = await Promise.race([signer.signTransaction(transaction), g.promise])
   } finally {
+    g.done()          // sets settled FIRST, so a late ping callback can't re-arm the cap
     clearTimeout(_cap)
-    g.done()
   }
 
 	// dont save.. let the client do it (affects reporting on "new" signatures)
@@ -1676,6 +1773,9 @@ const exposeHeadlessAPI = () => {
     relayHealthy: () => relayHealth.healthy,                        // true | false | null (unknown)
     relayInfo: () => ({ ...relayHealth, inFlight: _wcInFlight.size }),
     pingSession,                                                     // active-session round-trip check
+    // R2: advisory only — a ping timeout does NOT mean the session is dead. Mobile
+    // wallets stop answering pings the moment they are backgrounded (see signTxCoreV2).
+    resetWalletLink: resetWalletLinkCore,                            // wipe wc@2:* → forced fresh pairing
 
     // build provenance — so host pages (kdiag) can record which bundle is live.
     // __BUILD_META__ is injected by vite at build time ({commit,status,built}).
