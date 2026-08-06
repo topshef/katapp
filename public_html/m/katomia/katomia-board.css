@@ -2085,7 +2085,46 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
 }
 .board-playercard-curate:hover{ background: rgba(0,0,0,.05); border-radius: 8px; }
 .board-playercard-asset--out .board-playercard-assetbtn{ opacity: .45; }
+/* the ✕ rides a zero-height sticky strip so it survives the scroll (R4, user
+   2026-08-06: "when you scroll, the little close button disappears off the
+   screen"). The strip pins to the top of the CARD's scrollport — i.e. the card's
+   padding box, 22px inside the border (.asset-modal-card padding) — so the ✕'s
+   own absolute offsets are pulled back by that padding to land exactly where it
+   used to sit: 22-14 = 8px down, 22-12 = 10px in from the card's edge. The pill
+   backdrop keeps it readable over whatever list row scrolls beneath it. */
+.board-playercard-closewrap{ position: sticky; top: 0; height: 0; z-index: 3; }
+.board-playercard-closewrap .asset-modal-close{
+  top: -14px; right: -12px;
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: rgba(255,255,255,.92);
+  box-shadow: 0 1px 4px rgba(0,0,0,.10);
+}
+/* LE = limited edition (R4). A font badge, not an icon, per the user — it reads
+   at any size and costs nothing; NFTs already say what they are with the thumb. */
+.board-playercard-le{
+  flex: 0 0 auto;
+  font: 700 9px/1 ui-monospace, monospace;
+  letter-spacing: .06em;
+  padding: 3px 4px;
+  border: 1px solid #d8d0bd;
+  border-radius: 4px;
+  color: #8a7f66;
+  background: #fbf8f1;
+}
 .board-playercard-outcap{ margin: 10px 0 4px; font-size: 12px; }
+/* collapsed-by-default off-table list (R4) */
+.board-playercard-outbox > summary{
+  cursor: pointer; list-style: none; user-select: none;
+  display: flex; align-items: center; gap: 5px;
+}
+.board-playercard-outbox > summary::-webkit-details-marker{ display: none; }
+.board-playercard-outbox > summary::before{
+  content: "▸"; font-size: 10px; transition: transform .15s ease;
+}
+.board-playercard-outbox[open] > summary::before{ transform: rotate(90deg); }
+.board-playercard-outbox > summary:hover{ color: #52525b; }
 .board-playercard-asset--offtable{
   opacity: .5; font-size: 13px; padding: 6px 8px;
   min-height: 30px; display: flex; align-items: center;
