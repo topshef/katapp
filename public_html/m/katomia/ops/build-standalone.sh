@@ -159,6 +159,28 @@ cp "$ROOT/vendor/walletconnect/kwcScriptTag.php" \
    "$ROOT/vendor/walletconnect/config.json" \
    "$ROOT/vendor/walletconnect/.htaccess" \
    "$BUILD/vendor/walletconnect/"
+# KWC snapshots are built inside a SEAT and published to the shared store, then pinned in
+# kwcScriptTag.php — so the pinned snapshot is routinely absent from main's own local
+# snapshots dir and this rsync dies with "No such file or directory". That has now broken
+# two deployments in a row (a99a66e on 2026-08-05, dd98ee1 on 2026-08-06), each time
+# needing the same manual copy. Hydrate it from the shared store instead: the artifacts are
+# immutable and content-addressed by commit, so pulling the pinned one is exactly what the
+# manual fix did. Still fails loudly if the snapshot is nowhere to be found — shipping a
+# bundle whose wallet layer is missing is worse than not shipping.
+if [ ! -d "$ROOT/vendor/walletconnect/builder/snapshots/$KWC_SNAPSHOT" ]; then
+  if [ -d "/var/www/kwc-snapshots/$KWC_SNAPSHOT" ]; then
+    echo "kwc snapshot $KWC_SNAPSHOT not local — hydrating from shared store"
+    mkdir -p "$ROOT/vendor/walletconnect/builder/snapshots/$KWC_SNAPSHOT"
+    rsync -a "/var/www/kwc-snapshots/$KWC_SNAPSHOT/" \
+             "$ROOT/vendor/walletconnect/builder/snapshots/$KWC_SNAPSHOT/"
+    chown -R www-data:www-data "$ROOT/vendor/walletconnect/builder/snapshots/$KWC_SNAPSHOT" 2>/dev/null || true
+  else
+    echo "FATAL: kwc snapshot $KWC_SNAPSHOT (pinned in kwcScriptTag.php) is neither in" >&2
+    echo "       $ROOT/vendor/walletconnect/builder/snapshots/ nor /var/www/kwc-snapshots/" >&2
+    echo "       Build it in the seat that pinned it, or correct the pin." >&2
+    exit 1
+  fi
+fi
 rsync -a --delete "$ROOT/vendor/walletconnect/builder/snapshots/$KWC_SNAPSHOT/" \
    "$BUILD/vendor/walletconnect/builder/snapshots/$KWC_SNAPSHOT/"
 # lazy-hydrate: catchall for snapshot artifacts missing locally (e.g. the bundle's
