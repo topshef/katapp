@@ -2257,6 +2257,50 @@ function boardPendingSpawnTake(b, z){
 // the chip wander and silently snapping it back.
 // Returns null when there's nothing to clamp against (no body/zone, or an inner
 // rim body, which has its own angular rules) — callers then leave the drag alone.
+// ── BOARD-ARRANGEFENCE1 R4 (user 2026-08-06) ────────────────────────────────
+// "I was able to drop the chip into the middle logo where the K is, but I haven't
+// managed to reproduce it since."
+// Reproducible, and it is the SPOKE LEAK ONE WALL OVER. boardWallClamp applies
+// the radial floor and the angular wall first, then BOARD-SAFEAREA1's box clamp
+// rewrites the position in SCREEN space — and never re-checks either wall. From a
+// point near the far screen edge that box step lands the chip near the board
+// CENTRE. Measured before this fix, sweeping every zone at 8px: a reachable
+// radius of 2px (the middle of the hub) and 212-504 of 5610 points per zone
+// finishing inside the hub.
+// The cure is the same shape as R2's, generalised: SETTLE the constraints instead
+// of applying them once. A second pass converges because the point is already
+// inside the safe rect by then, so the box step is a no-op and only the walls
+// act. The angular re-assert (R2) stays as the final guarantee, and now covers
+// both arrange entry points instead of only the drag.
+// Still deliberately OUTSIDE boardWallClamp — that is the physics' per-frame
+// solver, where safe-area-wins is the correct precedence (a chip must never be
+// parked off-screen). This is the hand-placement fence, where the walls win.
+function boardFenceClamp(env, z, body, lx, ly){
+  const p = boardWallClamp(env, z, body, lx, ly, false)
+  // Re-assert the walls AFTER the box clamp, angular first so the radial floor is
+  // measured along a legal direction. Not a second boardWallClamp pass: that just
+  // re-runs the box step and the two constraints trade the point back and forth
+  // (measured — a re-run still reached radius 2px, and made basket zones worse).
+  // Here the walls simply win, which is safe on this path because a chip sitting
+  // in its own band at a legal angle is on-screen by construction.
+  const halfRad = ((z.halfDegFull ?? z.halfDeg) * Math.PI) / 180
+  let off = Math.atan2(p.y, p.x)
+  let r = Math.hypot(p.x, p.y) || 1
+  if(Math.abs(off) > halfRad) off = halfRad * (off < 0 ? -1 : 1)
+  // radial floor, mirroring boardWallClamp's own: the basket clears the hub, the
+  // store clears the rim + counter band, both by the chip's half-extent along the
+  // ray. THIS is the wall that the box clamp was bypassing to land chips on the K.
+  const thS = z.midRad + off
+  const he = (Math.abs(Math.cos(thS)) * body.w + Math.abs(Math.sin(thS)) * body.h) / 2
+  const minR = z.isBasket ? z.rMin + he : boardRimAt(env, thS) + 8 + (z.band ?? 52) + he
+  if(r < minR) r = minR
+  const out = { x: r * Math.cos(off), y: r * Math.sin(off) }
+  // and keep the chip's BOX inside the angular wall, the same way the clamp does
+  const maxY = Math.max(2, out.x * z.tanHalf - body.w / 2)
+  out.y = Math.max(-maxY, Math.min(maxY, out.y))
+  return out
+}
+
 function boardArrangeClamp(srcEl, x, y){
   const env = _boardSimEnv
   if(!env || !srcEl) return null
@@ -2267,33 +2311,8 @@ function boardArrangeClamp(srcEl, x, y){
   if(!z) return null
   const gx = x - env.cx, gy = y - env.cy
   const lx = gx * z.cos + gy * z.sin, ly = -gx * z.sin + gy * z.cos
-  const p = boardWallClamp(env, z, body, lx, ly, false)
+  const p = boardFenceClamp(env, z, body, lx, ly)
 
-  // ── BOARD-ARRANGEFENCE1 R2 (user 2026-08-06) ─────────────────────────────
-  // "If you follow the SPOKE you can kind of sneak it down and then across — it
-  // kind of follows the spoke and you can get it out the other side. It doesn't
-  // stay there, it just bounces back, but the drag action allows you to pull it."
-  // The leak is the ORDER of constraints inside boardWallClamp: the BOARD-SAFEAREA1
-  // box clamp runs LAST and rewrites x/y in SCREEN space, with no re-check against
-  // the angular wall. So riding the spoke out to a screen edge hands you to the
-  // edge clamp, which then happily slides you along that edge and across the
-  // divider. Re-assert the wall here, after the fact.
-  // Deliberately fixed in the DRAG fence rather than inside boardWallClamp: the
-  // clamp is the physics' own constraint solver, used by every chip every frame,
-  // and safe-area-wins is a deliberate choice there (a chip must never be parked
-  // off-screen). This path has no such conflict — it only decides where a finger
-  // may drag someone else's chip — so the wall can simply win.
-  const halfRad = ((z.halfDegFull ?? z.halfDeg) * Math.PI) / 180
-  const off = Math.atan2(p.y, p.x)
-  if(Math.abs(off) > halfRad){
-    const r = Math.hypot(p.x, p.y) || 1
-    const a = halfRad * (off < 0 ? -1 : 1)
-    p.x = r * Math.cos(a)
-    p.y = r * Math.sin(a)
-    // and keep the chip's BOX inside the wall, the same way the clamp does
-    const maxY = Math.max(2, p.x * z.tanHalf - body.w / 2)
-    p.y = Math.max(-maxY, Math.min(maxY, p.y))
-  }
   // How far did the finger have to be corrected? Measured ONCE, at the end, over
   // every constraint together. Small corrections are normal tracking (the chip's
   // box being kept inside the band); a large one means the finger has genuinely
@@ -2368,7 +2387,7 @@ function boardArrangeAt(srcEl, x, y){
   const off = Math.atan2(ly, lx)
   const halfRad = (z.halfDegFull ?? z.halfDeg) * Math.PI / 180
   if(Math.abs(off) > halfRad) return false          // another segment's air
-  const p = boardWallClamp(env, z, body, lx, ly, false)
+  const p = boardFenceClamp(env, z, body, lx, ly)
   if(Math.hypot(p.x - lx, p.y - ly) > 48) return false
   body.x = p.x; body.y = p.y
   body.pin = true
