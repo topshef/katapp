@@ -2382,10 +2382,16 @@ function boardSimFrame(){
   if(_boardSimQuiet < 3 && !givenUp) _boardSimRaf = requestAnimationFrame(boardSimFrame)
   else {
     // Stopping the rAF loop IS the fix — no frames, no jitter, the chips stay
-    // exactly where the last tick left them. The stick flags below only bite
-    // in 🧪 sticky mode (boardSimTick ignores them otherwise); they're set on
-    // a give-up too so that mode doesn't re-enter the same unsolvable fight.
-    if(boardStickyChips || givenUp) _boardSimBodies.forEach(b => { b.stick = true })
+    // exactly where the last tick left them.
+    // R2 (user 2026-08-06, "my own chips glitch a little bit and then they get
+    // stuck"): a give-up must NOT set the sticky flags. 🧪 sticky defaults ON,
+    // and boardSimTick skips springs entirely for a stuck body — so sticking
+    // every chip after an unconverged run froze the whole layout permanently,
+    // which is the opposite of what sticky means ("everything found its place,
+    // freeze it there"). On a give-up nothing found its place. kdiag showed this
+    // firing 332 times in 45 minutes on a live board, so it was near-permanent.
+    // Only a CLEAN settle sticks, exactly as before BOARD-SIMGIVEUP1.
+    if(!givenUp && boardStickyChips) _boardSimBodies.forEach(b => { b.stick = true })
     if(givenUp) boardDiag("board:sim:giveup", { bodies: _boardSimBodies.size, moved: Math.round(moved * 100) / 100 })
   }
 }
