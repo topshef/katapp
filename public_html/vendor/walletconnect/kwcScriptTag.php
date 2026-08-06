@@ -22,7 +22,14 @@ function getKwc($in) {
   // new value on every change, never hand-patch an already-served snapshot in place
   // (incident 2026-07-24: mobile cached a mid-session copy of aa0fdbc forever).
   // Roll back to de29cb6 (= hand-patched pre-guard state) if ever needed.
-  $kwc_version = $in['kwc_version'] ?? 'e31d3b7';  //prev a99a66e / 30c3fd9 / de29cb6 / aa0fdbc / 64c41ba / 17f774f / 4c7696e / 4f74b48 / 53216ab — override via ?kwc_version=… for A/B comparison. e31d3b7 = WC-RELAYHEALTH1 R2 (session ping demoted to advisory — a99a66e's hard preflight gate failed 31/32 mobile signs because wallets stop answering wc_sessionPing once backgrounded; + local wc@2:* purge on disconnect, WC.resetWalletLink() escape hatch). a99a66e = WC-RELAYHEALTH1 R1 (relay watch, session-ping preflight, in-flight guard) — do NOT roll back to it for mobile, that is the broken gate. Built via build:lite/esbuild — vite OOM-blocked, see builder/build-lite.mjs header
+  $kwc_version = $in['kwc_version'] ?? '2bae073';  //prev e31d3b7 / a99a66e / 30c3fd9 / de29cb6 / aa0fdbc / 64c41ba / 17f774f / 4c7696e / 4f74b48 / 53216ab — override via ?kwc_version=… for A/B comparison.
+  // 2bae073 = WC-RELAYHEALTH1 R2b, built with VITE (full build; the box had ~3.9GB free, no OOM — the build:lite/esbuild fallback is no longer forced).
+  //   Signer liveness now comes from the SDK's own session store (topic present in session.keys + not past expiry), never from a wallet ping:
+  //   dead signers are reaped on every getSigner(), duplicate accountIds resolve to the freshest LIVE session instead of signers[0], and a
+  //   "no matching key"/"record was recently deleted" rejection re-signs once on a live session before giving up (KWC-GONE).
+  // DO NOT roll back past 2bae073 for mobile:
+  //   e31d3b7 = R2 — fixed R1's gate but let a failed ping cut the in-flight cap to 30s, which killed any sign the user took >30s to approve.
+  //   a99a66e = R1 — hard session-ping preflight; failed 31/32 mobile signs because wallets stop answering pings once backgrounded.
 
   if (preg_match('/^[0-9a-fA-F]+$/', $kwc_version)) { // hex.. it's a commit snapshot
     $commit = $kwc_version;
