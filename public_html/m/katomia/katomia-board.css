@@ -219,25 +219,25 @@ body.board-page .app-banner{
    "It flickers only if I'm trying to drop it on top of another asset. If I'm
    just sliding over blank felt it correctly animates… but passing other asset
    chips, the whole board goes white and blanks out to repaint."
-   That clue found a real bug, not just a paint cost. Each account's chips live
-   in a FULL-VIEWPORT container (.ring-organic, inset:0) that carries that
-   account's data-drop-account; the container is pointer-events:none but its
-   chips are pointer-events:auto. So the drag's hit test —
-   elementFromPoint(...).closest("[data-drop-account]") — resolves to whichever
-   CHIP is under the pointer and therefore to THAT CHIP'S OWNER, not to the
-   segment you are over. Two consequences, both reported:
-     · the highlight flapped between wedge and container as you crossed chips,
-       re-running the opacity transition on full-viewport elements — the "goes
-       white while passing chips" repaint storm;
-     · a release over someone else's chip offered to THAT chip's owner rather
-       than the segment you released in — a strong candidate for
-       BOARD-PLAYERSCOPE1's "my chip landed in the other player's store".
-   Fix: chips stop being hit-test targets for the duration of a drag, so the
-   test falls through to the WEDGE — which is what makeWedge intended all along
-   ("dropping anywhere in a player's wedge is dropping on that player;
-   direction beats distance on touch"). Covers native dnd too: dragover targets
-   obey pointer-events the same way. */
-body.board-dragging .board-chip{ pointer-events: none; }
+   The clue found a real bug. Each account's chips live in a FULL-VIEWPORT
+   container (.ring-organic, inset:0) carrying that account's
+   data-drop-account; the container is pointer-events:none but its chips are
+   pointer-events:auto. So elementFromPoint(...).closest("[data-drop-account]")
+   resolved to whichever CHIP was under the pointer — i.e. to THAT CHIP'S
+   OWNER, not the segment being hovered. Measured on t-duo:
+   "DIV.asset > p110:0.0.9556348". Consequences: the highlight flapped between
+   wedge and container while crossing chips (the repaint storm), and a release
+   over someone else's chip offered to that chip's owner.
+
+   R2 (user 2026-08-06, same day): the first fix took the CHIPS out of hit
+   testing during a drag (body.board-dragging .board-chip{pointer-events:none}).
+   It fixed touch — and BROKE DESKTOP COMPLETELY: native HTML5 dnd resolves its
+   source and its targets through hit testing too, so making the dragged element
+   non-interactive mid-dragstart killed the drag outright ("none of the desktop
+   dragging is working, it's completely broken"). REVERTED — the rule is gone.
+   The resolution now happens in JS instead, in boardWedgeAt(): read the whole
+   stack at the point with elementsFromPoint and pick the WEDGE out of it, so
+   chips can stay fully interactive and nothing about dnd changes. */
 
 /* a chip is a thing you PICK UP, not a region you select — the default dnd
    marquee cursor "looks like a selection tool, but you're not selecting,
