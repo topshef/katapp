@@ -2295,6 +2295,16 @@ function boardArrangeAt(srcEl, x, y){
   // also be hand-placed anywhere in the counter band — and only an on-offer
   // chip may be there ("you can only put an asset there if it's on offer",
   // which is what makes the spotlight read).
+  // BOARD-PLAYERSCOPE1 guard: never pin a chip into a zone that isn't its own.
+  // Cheap, and it makes the reported symptom ("my chip stays in their store")
+  // structurally impossible from this path whatever the root cause turns out to
+  // be. Logged rather than silent, so it shows up if it ever does fire.
+  const zoneAcct = body.zoneKey.slice(0, body.zoneKey.lastIndexOf("|"))
+  const owner = srcEl.dataset?.ownerAccount
+  if(owner && !body.zoneKey.endsWith("|basket") && owner !== zoneAcct){
+    boardDiag("board:arrange:refused-zone", { zone: zoneAcct, chipOwner: owner })
+    return false
+  }
   if(body.inner) return boardArrangeRim(body, z, lx, ly)
   const p = boardWallClamp(env, z, body, lx, ly, false)
   if(Math.hypot(p.x - lx, p.y - ly) > 48) return false
@@ -3015,6 +3025,25 @@ function boardOrganicApply(cx, cy, W, H, oval){
     zrec.tanHalf = Math.tan(Math.min(z.halfDeg, 80) * Math.PI / 180)
     zrec.rMin = z.rMin; zrec.rMax = z.rMax
     zrec.isBasket = /\|basket$/.test(z.key)
+    // ── BOARD-PLAYERSCOPE1 invariant (2026-08-06) ──────────────────────────
+    // The user's hypothesis for "my chip is sitting in their store, and it stays
+    // there": something is matching on the ACCOUNT ID and ignoring the PLAYER, so
+    // with one account held by two players the two collapse into each other.
+    // Everything on this path is keyed on the PUBLIC id (player:label) and audits
+    // clean by reading — so rather than keep guessing, assert it and let the next
+    // occurrence produce evidence instead of a description.
+    // Store zones only: a STORE chip must belong to the account whose store it is.
+    // (Basket zones legitimately hold other people's chips — the giver owns them —
+    // and ghosts carry their owner's id, which is the store they left.)
+    if(!z.key.endsWith("|basket")){
+      const zoneAcct = z.key.slice(0, z.key.lastIndexOf("|"))
+      const stray = z.chips.find(el => el.dataset.ownerAccount && el.dataset.ownerAccount !== zoneAcct)
+      if(stray) boardDiag("board:paint:zonemismatch", {
+        zone: zoneAcct, chipOwner: stray.dataset.ownerAccount, assetId: stray.dataset.assetId || "",
+        // the specific collision the user suspects: same account id, different player
+        sameLabel: String(stray.dataset.ownerAccount).split(":")[1] === String(zoneAcct).split(":")[1]
+      })
+    }
     const recs = z.chips.map(el => {
       const isGhost = el.classList.contains("board-ghost")
       // BOARD-COUNTERMODE1: a rim pile (simple mode's decremented remainder
@@ -5681,6 +5710,14 @@ async function boardExecuteDrop(p, account, pt){
 
   const amount = await boardAskAmount(p.assetId, p.available || 1)
   if(amount === null) return
+  // BOARD-PLAYERSCOPE1: record what the drop actually resolved to, so a
+  // "it went to the wrong player" report can be checked instead of reasoned
+  // about. sameLabel flags the exact collision the user suspects.
+  boardDiag("board:drop:resolve", {
+    from: p.fromAccountId, to: account.id, assetId: p.assetId, amount,
+    sameLabel: String(p.fromAccountId || "").split(":")[1] === String(account.id).split(":")[1],
+    samePlayer: getAccountMap()[p.fromAccountId]?.playerId === account.playerId
+  })
   if(pt) boardNotePendingSpawn(account.id, p.assetId, pt.x, pt.y)
   boardNoteLocalMove(account.id, p.fromAccountId, p.assetId)
   if(p.fromBasketToAccountId)
