@@ -496,12 +496,77 @@ function signerOnCurrentNetwork(s) {
   try { return s.getLedgerId?.()?.toString?.() === currentNetwork } catch { return true }
 }
 
-function getSignersList() {
-  return (dappConnector?.signers || []).filter(signerOnCurrentNetwork)
+// ── WC-RELAYHEALTH1 R2b (2026-08-06): liveness from the SESSION STORE ────────
+//
+// The recurring failure is a ghost signer. DAppConnector.init() recreates a signer
+// for EVERY session in WalletConnect Core storage with no liveness check, so a
+// session the user killed wallet-side comes back on the next page load looking
+// connected. Re-pairing does not help: the ghost and the fresh signer carry the
+// SAME accountId, and findSigner()/getSigner() used to take the FIRST match — the
+// ghost, forever, no matter how many times the user reconnected.
+//
+// R1 tried to detect this with a wallet ping and got it badly wrong (mobile wallets
+// stop answering pings the moment they are backgrounded). But we do not need to ask
+// the wallet anything: the SDK's own session store already knows. A topic that is
+// absent from walletConnectClient.session.keys has been deleted, and one whose
+// record has expired is over. Both are local, instant and reliable — no network, no
+// guessing, nothing to time out. Use those, and prefer the longest-lived session
+// when a real duplicate exists, so the freshest pairing always wins.
+// The wallet/SDK's vocabulary for "that session no longer exists". Matched loosely
+// on purpose — these strings come from three different layers (sign-client, core
+// pairing, the wallet itself) and have changed wording between versions.
+function _isSessionGoneError(e) {
+  const m = String(e?.message || e || "")
+  // Deliberately NOT matching bare "expired" or "no session": a Hedera TRANSACTION_
+  // EXPIRED is a completely different failure and must not trigger a re-sign.
+  return /no matching key|record was recently deleted|session topic doesn'?t exist|missing or invalid.*session: [0-9a-f]{32,}/i.test(m)
+}
+
+function _sessionRecord(topic) {
+  try { return topic ? dappConnector?.walletConnectClient?.session?.get(topic) : null } catch (e) { return null }
+}
+
+function signerIsLive(s) {
+  const topic = s?.topic
+  if (!topic) return true                    // older signers may not expose one — never penalise them
+  const keys = dappConnector?.walletConnectClient?.session?.keys
+  if (Array.isArray(keys) && !keys.includes(topic)) return false   // deleted out from under us
+  const rec = _sessionRecord(topic)
+  if (rec?.expiry && rec.expiry * 1000 <= Date.now()) return false // expired
+  return true
+}
+
+// Sort key: the session that expires furthest out is the most recently established
+// (WC sets expiry = now + TTL at approval), so it is the pairing the user just made.
+function _signerFreshness(s) {
+  return _sessionRecord(s?.topic)?.expiry || 0
+}
+
+function getSignersList({ includeDead = false } = {}) {
+  const list = (dappConnector?.signers || []).filter(signerOnCurrentNetwork)
+  return includeDead ? list : list.filter(signerIsLive)
 }
 
 function findSigner(accountId) {
-  return getSignersList().find(s => s.getAccountId().toString() === accountId) || null
+  // Several signers can share an accountId (ghost + fresh re-pair). Take the live
+  // one with the newest session rather than whichever happens to sit first.
+  const matches = getSignersList().filter(s => s.getAccountId().toString() === accountId)
+  if (!matches.length) return null
+  return matches.reduce((a, b) => (_signerFreshness(b) > _signerFreshness(a) ? b : a))
+}
+
+// Drop signers whose session is gone, so a ghost cannot linger in the picker or be
+// handed to a sign. Returns how many were removed. Cheap and safe to call often —
+// it only ever removes signers the SDK's own store says no longer exist.
+function reapDeadSigners() {
+  if (!Array.isArray(dappConnector?.signers)) return 0
+  const before = dappConnector.signers.length
+  const dead = dappConnector.signers.filter(s => !signerIsLive(s))
+  if (!dead.length) return 0
+  dappConnector.signers = dappConnector.signers.filter(signerIsLive)
+  try { window.kdiag?.("wc:signers:reaped", { removed: before - dappConnector.signers.length, topics: dead.map(s => s.topic) }) } catch (e) {}
+  if (activeAccountId && !findSigner(activeAccountId)) activeAccountId = null
+  return before - dappConnector.signers.length
 }
 
 // getSigner — the signer for the active account, else the first available.
@@ -511,6 +576,7 @@ function findSigner(accountId) {
 // gone; account selection is now explicit via activeAccountId. With one account
 // (or no selection) behaviour is identical to before — returns signers[0].
 function getSigner() {
+  reapDeadSigners()                 // R2b: never hand back a signer whose session is gone
   const signers = getSignersList()
   if (!signers.length) return null
 
@@ -522,7 +588,9 @@ function getSigner() {
     activeAccountId = null
   }
 
-  return signers[0]
+  // R2b: freshest live session, not signers[0] — with a ghost present, index 0 is
+  // the dead one and every sign went to it.
+  return signers.reduce((a, b) => (_signerFreshness(b) > _signerFreshness(a) ? b : a))
 }
 
 // setActiveWalletAccount — choose which connected account signs. Throws if the
@@ -1384,6 +1452,30 @@ async function signTxCoreV2 ({
   let signedTransaction
   try {
     signedTransaction = await Promise.race([signer.signTransaction(transaction), g.promise])
+  } catch (e) {
+    // R2b: self-heal instead of dead-ending. If the wallet says this session is gone
+    // ("No matching key", "Record was recently deleted", "session topic doesn't
+    // exist"), that is the ghost — the user disconnected us wallet-side. Bin that
+    // signer and, if a live session for the same account is still standing (the usual
+    // case after they have already re-paired), sign again on it once. Otherwise say
+    // plainly that the link is gone and needs reconnecting, rather than leaving the
+    // user re-tapping Sign against a corpse.
+    if (!_isSessionGoneError(e)) throw e
+    const deadTopic = signer.topic
+    try { window.kdiag?.("wc:sign:session-gone", { accountId, topic: deadTopic, error: String(e?.message || e) }) } catch {}
+    await _purgeLocalSession(deadTopic)
+    if (Array.isArray(dappConnector?.signers))
+      dappConnector.signers = dappConnector.signers.filter(s => s.topic !== deadTopic)
+    if (activeAccountId && !findSigner(activeAccountId)) activeAccountId = null
+
+    const retrySigner = findSigner(accountId)
+    if (!retrySigner)
+      throw new Error("KWC-GONE: your wallet has disconnected this site — tap Connect to pair again, then Sign.")
+
+    try { window.kdiag?.("wc:sign:retry-live-session", { accountId, topic: retrySigner.topic }) } catch {}
+    const tx2 = Transaction.fromBytes(transactionBytes)
+    if (!tx2.isFrozen()) await tx2.freezeWithSigner(retrySigner)
+    signedTransaction = await retrySigner.signTransaction(tx2)
   } finally {
     g.done()          // sets settled FIRST, so a late ping callback can't re-arm the cap
     clearTimeout(_cap)
