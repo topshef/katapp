@@ -2268,6 +2268,7 @@ function boardArrangeClamp(srcEl, x, y){
   const gx = x - env.cx, gy = y - env.cy
   const lx = gx * z.cos + gy * z.sin, ly = -gx * z.sin + gy * z.cos
   const p = boardWallClamp(env, z, body, lx, ly, false)
+
   // ── BOARD-ARRANGEFENCE1 R2 (user 2026-08-06) ─────────────────────────────
   // "If you follow the SPOKE you can kind of sneak it down and then across — it
   // kind of follows the spoke and you can get it out the other side. It doesn't
@@ -2293,10 +2294,18 @@ function boardArrangeClamp(srcEl, x, y){
     const maxY = Math.max(2, p.x * z.tanHalf - body.w / 2)
     p.y = Math.max(-maxY, Math.min(maxY, p.y))
   }
+  // How far did the finger have to be corrected? Measured ONCE, at the end, over
+  // every constraint together. Small corrections are normal tracking (the chip's
+  // box being kept inside the band); a large one means the finger has genuinely
+  // left the space this chip may occupy, which is what the freeze keys off.
+  // 20px ≈ a third of a chip: past that it is unambiguous, and below it the chip
+  // still slides naturally into the corner rather than stopping short.
+  const outside = Math.hypot(p.x - lx, p.y - ly) > 20
   // local (radial/tangential) → screen, the inverse of the projection above
   return {
     x: env.cx + p.x * z.cos - p.y * z.sin,
-    y: env.cy + p.x * z.sin + p.y * z.cos
+    y: env.cy + p.x * z.sin + p.y * z.cos,
+    outside
   }
 }
 
@@ -5407,6 +5416,7 @@ function boardTouchDrag(el, payload){
     // (BOARD-DRAGFLICKER1's __boardDragging repaint hold is a different lever —
     // it defers BROADCAST-driven re-renders; this is the drag's own cost.)
     let moveRaf = 0, at = null
+    let lastFree = null   // arrange-only: last position the finger legitimately asked for
 
     const applyMove = () => {
       moveRaf = 0
@@ -5420,9 +5430,24 @@ function boardTouchDrag(el, payload){
       // lights as the target; drop point = the chip's centre.
       let ax = at.x, ay = at.y
       if(payload?.arrangeOnly){
-        // fenced: the chip stops at its owner's walls while the finger keeps going
+        // Fenced: the chip stops at its owner's walls while the finger keeps going.
+        // R2 (user 2026-08-06): and once the finger is OUTSIDE the allowed space it
+        // stops influencing the chip at all — "the chip is kind of jumping around,
+        // wondering what's going on, where it should really just stay still on the
+        // edge of where it's allowed to be". Sliding along the wall as the finger
+        // wanders outside is the clamp faithfully reporting a projection nobody
+        // asked to see. So we hold the LAST ALLOWED position instead.
+        // The user's own caveat is why this isn't a "cancel the drag": "you might
+        // drag over the edge, find it's not going any further, and then move your
+        // finger back, and you would want it to follow your finger back". Bring the
+        // finger back inside and the chip picks it up again — the drag is never
+        // ended, only ignored while it has nothing legal to say.
         const p = boardArrangeClamp(el, at.x, at.y)
-        if(p){ ax = p.x; ay = p.y }
+        if(p){
+          if(!p.outside) lastFree = p          // finger is somewhere the chip may go
+          const hold = p.outside ? (lastFree || p) : p
+          ax = hold.x; ay = hold.y
+        }
       }
       fly.style.transform = `translate(${ax - startX}px, ${ay - startY}px) scale(1.05)`
       const c = fly.getBoundingClientRect()
