@@ -1,0 +1,565 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fast Uniform Felt Texture</title>
+<style>
+  :root {
+    color-scheme: dark;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #17191c;
+    color: #f3f4f6;
+  }
+
+  * { box-sizing: border-box }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #17191c;
+  }
+
+  button, input, select { font: inherit }
+
+  .app {
+    display: grid;
+    grid-template-columns: minmax(290px, 350px) 1fr;
+    min-height: 100vh;
+  }
+
+  aside {
+    padding: 22px;
+    border-right: 1px solid #32363b;
+    background: #1d2024;
+    overflow: auto;
+  }
+
+  main {
+    display: grid;
+    place-items: center;
+    padding: clamp(20px, 4vw, 52px);
+  }
+
+  h1 {
+    margin: 0 0 7px;
+    font-size: 1.3rem;
+  }
+
+  .intro {
+    margin: 0 0 20px;
+    color: #adb5bd;
+    line-height: 1.45;
+    font-size: .9rem;
+  }
+
+  .important {
+    margin: 0 0 18px;
+    padding: 11px 12px;
+    border-radius: 8px;
+    background: #282d32;
+    color: #dce1e6;
+    line-height: 1.4;
+    font-size: .86rem;
+  }
+
+  .important strong { color: #fff }
+
+  .group {
+    padding: 14px 0;
+    border-top: 1px solid #30343a;
+  }
+
+  .control {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 5px 12px;
+    align-items: center;
+    margin: 12px 0;
+  }
+
+  .control label {
+    font-size: .88rem;
+    color: #e0e4e8;
+  }
+
+  .value {
+    min-width: 55px;
+    text-align: right;
+    color: #98a2ac;
+    font-size: .8rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  input[type="range"] {
+    grid-column: 1 / -1;
+    width: 100%;
+    accent-color: #9fb4a3;
+  }
+
+  input[type="color"] {
+    width: 48px;
+    height: 30px;
+    padding: 2px;
+    border: 1px solid #4c535b;
+    border-radius: 6px;
+    background: #282d32;
+  }
+
+  select, button {
+    border: 1px solid #464d55;
+    border-radius: 7px;
+    background: #282d32;
+    color: #f3f4f6;
+    padding: 8px 10px;
+  }
+
+  button { cursor: pointer }
+  button:hover { background: #343a40 }
+
+  details {
+    border-top: 1px solid #30343a;
+    padding-top: 14px;
+  }
+
+  summary {
+    cursor: pointer;
+    color: #cbd1d7;
+    font-weight: 650;
+    font-size: .88rem;
+  }
+
+  .buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .preview { width: min(1050px, 100%) }
+
+  .status {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+    color: #a7b0b9;
+    font-size: .84rem;
+  }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border: 11px solid #59422f;
+    border-radius: 16px;
+    background: #202428;
+    box-shadow:
+      0 28px 70px rgba(0, 0, 0, .42),
+      inset 0 0 0 2px rgba(255, 255, 255, .1);
+  }
+
+  .felt {
+    position: relative;
+    background-color: var(--felt-color);
+    overflow: hidden;
+  }
+
+  .felt::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: var(--felt-texture);
+    background-repeat: repeat;
+    background-size: var(--tile-size) var(--tile-size);
+    opacity: var(--felt-opacity);
+    mix-blend-mode: soft-light;
+    pointer-events: none;
+  }
+
+  .felt + .felt {
+    border-left: 2px solid rgba(255, 255, 255, .12);
+    box-shadow: inset 1px 0 rgba(0, 0, 0, .28);
+  }
+
+  .piece {
+    position: absolute;
+    width: 34%;
+    aspect-ratio: 1;
+    left: 33%;
+    top: 34%;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #f8dfa0, #a56d20);
+    border: 3px solid rgba(77, 46, 9, .72);
+    box-shadow:
+      0 9px 15px rgba(0, 0, 0, .3),
+      inset 0 2px 3px rgba(255, 255, 255, .6);
+  }
+
+  .explanation {
+    margin-top: 13px;
+    color: #9099a2;
+    font-size: .8rem;
+    line-height: 1.45;
+  }
+
+  code { color: #d6e4d9 }
+
+  @media (max-width: 780px) {
+    .app { grid-template-columns: 1fr }
+
+    aside {
+      border-right: 0;
+      border-bottom: 1px solid #32363b;
+    }
+
+    .board {
+      grid-template-columns: repeat(2, 1fr);
+      aspect-ratio: 1.15;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>Fast uniform felt</h1>
+    <p class="intro">A deliberately simplified version for rapidly changing game-board segments.</p>
+
+    <p class="important">
+      <strong>Patchiness is the broad mottle layer.</strong>
+      Keep Patchiness at zero for an even surface. Texture strength controls only the fine felt effect.
+    </p>
+
+    <div class="group">
+      <div class="control">
+        <label for="baseColor">Selected segment colour</label>
+        <input id="baseColor" type="color" value="#365e74">
+      </div>
+
+      <div class="control">
+        <label for="strength">Texture strength</label>
+        <span class="value" id="strengthOut"></span>
+        <input id="strength" type="range" min="0" max="40" value="13">
+      </div>
+
+      <div class="control">
+        <label for="grain">Grain size</label>
+        <span class="value" id="grainOut"></span>
+        <input id="grain" type="range" min="1" max="5" step="1" value="2">
+      </div>
+
+      <div class="control">
+        <label for="patchiness">Patchiness</label>
+        <span class="value" id="patchinessOut"></span>
+        <input id="patchiness" type="range" min="0" max="30" value="0">
+      </div>
+    </div>
+
+    <details>
+      <summary>Advanced</summary>
+
+      <div class="control">
+        <label for="fibres">Visible fibres</label>
+        <span class="value" id="fibresOut"></span>
+        <input id="fibres" type="range" min="0" max="1200" value="280">
+      </div>
+
+      <div class="control">
+        <label for="fibreLength">Fibre length</label>
+        <span class="value" id="fibreLengthOut"></span>
+        <input id="fibreLength" type="range" min="1" max="8" value="3">
+      </div>
+
+      <div class="control">
+        <label for="patchSize">Patch size</label>
+        <span class="value" id="patchSizeOut"></span>
+        <input id="patchSize" type="range" min="12" max="90" value="48">
+      </div>
+
+      <div class="control">
+        <label for="tileSize">Texture tile</label>
+        <select id="tileSize">
+          <option value="64">64 px — fastest</option>
+          <option value="128" selected>128 px — recommended</option>
+          <option value="256">256 px — finer</option>
+        </select>
+      </div>
+
+      <div class="control">
+        <label for="seed">Seed</label>
+        <span class="value" id="seedOut"></span>
+        <input id="seed" type="range" min="1" max="9999" value="1847">
+      </div>
+    </details>
+
+    <div class="buttons">
+      <button id="newSeed">New texture</button>
+      <button id="download">Download tile</button>
+      <button id="changeColours">Change colours</button>
+      <button id="reset">Reset</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="preview">
+      <div class="status">
+        <span>Shared texture, four independently coloured segments</span>
+        <span id="renderStatus">Texture generated once</span>
+      </div>
+
+      <div class="board" id="board">
+        <div class="felt" style="--felt-color:#365e74"><div class="piece"></div></div>
+        <div class="felt" style="--felt-color:#7a4857"></div>
+        <div class="felt" style="--felt-color:#6b633d"></div>
+        <div class="felt" style="--felt-color:#3e6654"></div>
+      </div>
+
+      <p class="explanation">
+        Colour changes update only <code>background-color</code>. The texture tile is regenerated only when a texture control changes, so adding segments or changing their colours is cheap.
+      </p>
+    </div>
+  </main>
+</div>
+
+<script>
+const board = document.querySelector('#board')
+const textureControls = [
+  'strength',
+  'grain',
+  'patchiness',
+  'fibres',
+  'fibreLength',
+  'patchSize',
+  'tileSize',
+  'seed'
+]
+
+const defaults = {
+  baseColor: '#365e74',
+  strength: 13,
+  grain: 2,
+  patchiness: 0,
+  fibres: 280,
+  fibreLength: 3,
+  patchSize: 48,
+  tileSize: 128,
+  seed: 1847
+}
+
+const textureCanvas = document.createElement('canvas')
+const textureContext = textureCanvas.getContext('2d')
+const status = document.querySelector('#renderStatus')
+
+function numberValue(id) {
+  return Number(document.querySelector(`#${id}`).value)
+}
+
+function mulberry32(seed) {
+  return function() {
+    let t = seed += 0x6D2B79F5
+    t = Math.imul(t ^ t >>> 15, t | 1)
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61)
+    return ((t ^ t >>> 14) >>> 0) / 4294967296
+  }
+}
+
+function gaussian(rng) {
+  const a = Math.max(rng(), 1e-9)
+  const b = rng()
+  return Math.sqrt(-2 * Math.log(a)) * Math.cos(2 * Math.PI * b)
+}
+
+function makePeriodicMottle(size, x, y, phases) {
+  const scale = numberValue('patchSize')
+  const nx = x / size * Math.PI * 2
+  const ny = y / size * Math.PI * 2
+  const frequency = Math.max(1, Math.round(size / scale))
+
+  return (
+    Math.sin(nx * frequency + phases[0]) +
+    Math.cos(ny * frequency + phases[1]) +
+    Math.sin((nx + ny) * Math.max(1, Math.round(frequency / 1.7)) + phases[2])
+  ) / 3
+}
+
+function drawWrappedFibre(x, y, dx, dy, size, alpha, light) {
+  const offsetsX = [0]
+  const offsetsY = [0]
+  const margin = Math.max(Math.abs(dx), Math.abs(dy)) + 2
+
+  if (x < margin)
+    offsetsX.push(size)
+
+  if (x > size - margin)
+    offsetsX.push(-size)
+
+  if (y < margin)
+    offsetsY.push(size)
+
+  if (y > size - margin)
+    offsetsY.push(-size)
+
+  textureContext.strokeStyle = light
+    ? `rgba(255,255,255,${alpha})`
+    : `rgba(0,0,0,${alpha})`
+
+  textureContext.lineWidth = .7
+
+  for (const offsetX of offsetsX)
+    for (const offsetY of offsetsY) {
+      textureContext.beginPath()
+      textureContext.moveTo(x + offsetX - dx / 2, y + offsetY - dy / 2)
+      textureContext.lineTo(x + offsetX + dx / 2, y + offsetY + dy / 2)
+      textureContext.stroke()
+    }
+}
+
+function generateTexture() {
+  const start = performance.now()
+  const size = numberValue('tileSize')
+  const grainSize = numberValue('grain')
+  const strength = numberValue('strength')
+  const patchiness = numberValue('patchiness')
+  const fibreCount = numberValue('fibres')
+  const fibreLength = numberValue('fibreLength')
+  const rng = mulberry32(numberValue('seed'))
+  const phases = [rng() * 6.28, rng() * 6.28, rng() * 6.28]
+
+  textureCanvas.width = size
+  textureCanvas.height = size
+
+  const image = textureContext.createImageData(size, size)
+  const data = image.data
+  const columns = Math.ceil(size / grainSize)
+  const rows = Math.ceil(size / grainSize)
+  const grainValues = new Float32Array(columns * rows)
+
+  for (let i = 0; i < grainValues.length; i++)
+    grainValues[i] = gaussian(rng)
+
+  for (let y = 0; y < size; y++)
+    for (let x = 0; x < size; x++) {
+      const index = (y * size + x) * 4
+      const grainIndex = Math.floor(y / grainSize) * columns + Math.floor(x / grainSize)
+      const fineNoise = grainValues[grainIndex] * strength
+      const broadNoise = makePeriodicMottle(size, x, y, phases) * patchiness
+      const grey = Math.max(0, Math.min(255, 128 + fineNoise + broadNoise))
+
+      data[index] = grey
+      data[index + 1] = grey
+      data[index + 2] = grey
+      data[index + 3] = 255
+    }
+
+  textureContext.putImageData(image, 0, 0)
+  textureContext.save()
+  textureContext.globalCompositeOperation = 'soft-light'
+
+  for (let i = 0; i < fibreCount; i++) {
+    const x = rng() * size
+    const y = rng() * size
+    const angle = rng() * Math.PI
+    const length = fibreLength * (.35 + rng())
+    const dx = Math.cos(angle) * length
+    const dy = Math.sin(angle) * length
+    const alpha = .03 + rng() * .06
+
+    drawWrappedFibre(x, y, dx, dy, size, alpha, rng() > .5)
+  }
+
+  textureContext.restore()
+
+  const textureUrl = `url(${textureCanvas.toDataURL('image/png')})`
+  const opacity = Math.min(.42, .08 + strength / 100)
+
+  board.style.setProperty('--felt-texture', textureUrl)
+  board.style.setProperty('--felt-opacity', opacity)
+  board.style.setProperty('--tile-size', `${size}px`)
+
+  const elapsed = performance.now() - start
+  status.textContent = `Texture rebuilt in ${elapsed.toFixed(1)} ms`
+}
+
+function updateSelectedColour() {
+  document.querySelector('.felt').style.setProperty(
+    '--felt-color',
+    document.querySelector('#baseColor').value
+  )
+}
+
+function updateLabels() {
+  const labels = {
+    strength: '%',
+    grain: ' px',
+    patchiness: '%',
+    fibres: '',
+    fibreLength: ' px',
+    patchSize: ' px',
+    seed: ''
+  }
+
+  for (const [id, suffix] of Object.entries(labels))
+    document.querySelector(`#${id}Out`).textContent =
+      `${document.querySelector(`#${id}`).value}${suffix}`
+}
+
+let renderTimer
+
+function scheduleTextureRender() {
+  clearTimeout(renderTimer)
+
+  renderTimer = setTimeout(() => {
+    generateTexture()
+    updateLabels()
+  }, 30)
+}
+
+document.querySelector('#baseColor').addEventListener('input', updateSelectedColour)
+
+for (const id of textureControls)
+  document.querySelector(`#${id}`).addEventListener('input', scheduleTextureRender)
+
+document.querySelector('#newSeed').addEventListener('click', () => {
+  document.querySelector('#seed').value = Math.floor(Math.random() * 9999) + 1
+  generateTexture()
+  updateLabels()
+})
+
+document.querySelector('#changeColours').addEventListener('click', () => {
+  const colours = ['#365e74', '#7a4857', '#6b633d', '#3e6654', '#704d39', '#554c74']
+
+  for (const segment of document.querySelectorAll('.felt'))
+    segment.style.setProperty(
+      '--felt-color',
+      colours[Math.floor(Math.random() * colours.length)]
+    )
+
+  status.textContent = 'Colours changed — texture was not rebuilt'
+})
+
+document.querySelector('#download').addEventListener('click', () => {
+  const link = document.createElement('a')
+  link.download = `uniform-felt-${numberValue('seed')}.png`
+  link.href = textureCanvas.toDataURL('image/png')
+  link.click()
+})
+
+document.querySelector('#reset').addEventListener('click', () => {
+  for (const [id, value] of Object.entries(defaults))
+    document.querySelector(`#${id}`).value = value
+
+  updateSelectedColour()
+  generateTexture()
+  updateLabels()
+})
+
+generateTexture()
+updateLabels()
+updateSelectedColour()
+</script>
+</body>
+</html>
