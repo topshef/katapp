@@ -47,6 +47,8 @@ rsync -a --delete \
 #    diagnostics"; without them beacons 404 and a failed session leaves no trace)
 cp "$ROOT/readenv.php" "$ROOT/hapi_base.php" "$ROOT/kmon.php" \
    "$ROOT/kflow.php" "$ROOT/diag.php" "$BUILD/"
+mkdir -p "$BUILD/lib"
+cp "$ROOT/lib/qatx.php" "$BUILD/lib/"
 # root elog.php is a RELATIVE SYMLINK to assets/php/elog.php on live — recreate it
 # as one (require_once dedupes by realpath; two real copies = redeclare fatal)
 ln -sfn assets/php/elog.php "$BUILD/elog.php"
