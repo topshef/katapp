@@ -1815,6 +1815,43 @@ body[data-signtwilight="1"] .ring-hub-count--signed{ color: #1e7047; }
 [data-chip-style="dark"] .board-chip:not(.thumb-only){
   text-shadow: 0 1px 0 rgba(0,0,0,.5), 0 -1px 0 rgba(255,255,255,.10);
 }
+/* ── BOARD-CHIPDEPTH1 R2 (user 2026-08-06) ────────────────────────────────
+   With the chip faces now lit, "the sidebar… is looking a bit flat now compared
+   to the chips". The owner sleeve should read as a piece stuck ONTO the chip,
+   with the same lit-top / shaded-bottom logic. Two changes:
+   (1) ONE WIDTH for every chip — "let's make it the same for NFTs and for
+       fungible tokens, so it's the same wider width like the NFTs have got".
+       applyOwnerSleeve writes an inline `border-left: 4px solid <colour>`
+       shorthand, and BOARD-CHIPART1 already needed !important to widen NFT
+       sleeves past it; same trick, now for all chips.
+   (2) the gradient rides on border-image, which is the one way to shade a
+       border without turning it into a positioned pseudo-element — and a
+       positioned pseudo-element on a chip is exactly what caused the 2026-07-15
+       pickable-scatter incident, so it is worth avoiding on purpose.
+       border-image ignores border-radius, which costs nothing here: the v8 chip
+       is already square on its LEFT corners (border-radius: 0 9px 9px 0).
+       The player colour comes from --own, published on every chip by ringTint.
+       Chips without --own (tx legs) fall back to their inline border colour
+       because the fallback keeps the gradient neutral. */
+[data-board-fam~="v16"] .board-chip{
+  border-left-width: 12px !important;
+  border-image: linear-gradient(180deg,
+    color-mix(in srgb, var(--own, #8a8a8a) 78%, #fff) 0%,
+    var(--own, #8a8a8a) 45%,
+    color-mix(in srgb, var(--own, #8a8a8a) 82%, #000) 100%) 1;
+}
+/* the pick flag gets the same treatment, and has to clear the WIDER sleeve —
+   at left:-11px it was sitting inside a 12px NFT sleeve, which is why the
+   triangle "is only showing on the FTs at the moment". -19px = 7px flag + the
+   12px sleeve, so it ends flush against the sleeve's outer edge on every chip. */
+[data-board-fam~="v16"] .board-pickchip::before{
+  left: -19px;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--pickflag, #888) 78%, #fff),
+    var(--pickflag, #888) 55%,
+    color-mix(in srgb, var(--pickflag, #888) 84%, #000));
+}
+
 /* ghosts stay flat — depth on a ghost reads as a real chip. Selector matched
    to the depth rules above (same specificity, later in the file) so it wins
    back the background-image and the shadow the v8 ghost rule already killed. */
@@ -1846,6 +1883,15 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
 .board-assetdetail-art{ max-width: 160px; max-height: 160px; border-radius: 10px; margin: 6px auto; display: block; }
 .board-assetdetail-rows{ text-align: left; margin: 10px 0 4px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .board-assetdetail-rows a{ color: inherit; border-bottom: 1px dotted rgba(31,39,51,.35); text-decoration: none; }
+/* BOARD-ASSETACTIONS1 (2026-08-06): the card now carries whatever action the
+   asset's STATE allows — withdraw / return while it's in play, remove only once
+   it isn't. Stacked full-width so the list can be one button or three (one per
+   recipient you've offered to) without the row re-flowing. ENTRY-KBTN1 colours:
+   blue = flow (withdraw/return), red = destructive (remove). */
+.board-assetdetail-state{ font-size: 12.5px; margin: 8px 0 2px; }
+.board-assetdetail-actions{ display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.board-assetdetail-act{ width: 100%; text-align: center; }
+/* superseded by .board-assetdetail-act — kept until nothing references it */
 .board-assetdetail-remove{
   margin-top: 10px; padding: 7px 12px; border-radius: 10px; cursor: pointer;
   border: 1px solid #e3b9b9; background: #fff4f4; color: #a33;
@@ -1857,7 +1903,14 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
    trading screen: one number, one slider, two chips. Room is left under the
    slider for the later "assistant" line (suggested amounts / accepting an
    ask), which is why the scale caption is its own row. */
-.board-amountcard{ max-width: 340px; width: min(340px, 92vw); }
+/* R2 (user 2026-08-06): the SIGN-MODALBG1 variant-B background gets its first
+   real outing here — "a very subtle gray gradient… I think it would be a good
+   place to test it". Same stops as the signbg mock's .bg-b, so whatever we
+   learn from this modal transfers straight to the signing modal. */
+.board-amountcard{
+  max-width: 340px; width: min(340px, 92vw);
+  background: linear-gradient(160deg, #fafbfc 0%, #eef0f4 55%, #e6e9ee 100%);
+}
 .board-amount-head{ font-size: 17px; font-weight: 700; }
 .board-amount-sub{ font-size: 12px; margin: 2px 0 12px; }
 .board-amount-input{
@@ -1865,22 +1918,51 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
   font: 700 22px/1.2 system-ui, sans-serif;
   text-align: center;
   padding: 8px 10px;
-  border: 1px solid #e3ddcd; border-radius: 10px; background: #fff;
+  /* frosted strip on the gradient — the mock's answer for border-less elements */
+  border: 1px solid rgba(0,0,0,.08); border-radius: 10px;
+  background: rgba(255,255,255,.72);
 }
-.board-amount-slider{ width: 100%; margin: 14px 0 2px; accent-color: #b07b12; }
+/* Blue, matching the Offer button — "the slider for the amount can follow the
+   blue theme of the offer button" (user 2026-08-06).
+   Hand-rolled track rather than accent-color: with the native one the fill stops
+   at the THUMB'S CENTRE, so at maximum a stub of empty track stays visible to
+   the right — "seeing a little gap at the top of the slider suggests that you
+   could slide it further, but you can't, we're already at the max". The fill is
+   a gradient driven by --fill (set in JS on every value change), so 100% means
+   edge to edge. */
+.board-amount-slider{
+  width: 100%; margin: 16px 0 4px;
+  -webkit-appearance: none; appearance: none;
+  height: 8px; border-radius: 999px; cursor: pointer;
+  background: linear-gradient(90deg,
+    #6d8fb3 0%, #6d8fb3 var(--fill, 0%),
+    rgba(0,0,0,.10) var(--fill, 0%), rgba(0,0,0,.10) 100%);
+}
+.board-amount-slider::-webkit-slider-thumb{
+  -webkit-appearance: none; appearance: none;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #fff; border: 2px solid #6d8fb3;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
+}
+.board-amount-slider::-moz-range-thumb{
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; border: 2px solid #6d8fb3;
+  box-shadow: 0 1px 3px rgba(0,0,0,.25);
+}
+.board-amount-slider::-moz-range-track{ height: 8px; border-radius: 999px; background: transparent; }
 .board-amount-scale{ font-size: 11px; text-align: center; }
 .board-amount-chips{ display: flex; gap: 8px; justify-content: center; margin: 12px 0 2px; }
 .board-amount-chip{
-  border: 1px solid #e3ddcd; background: #fff; border-radius: 999px;
+  border: 1px solid rgba(0,0,0,.1); background: rgba(255,255,255,.6); border-radius: 999px;
   padding: 5px 14px; font-size: 12px; cursor: pointer;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
 }
-.board-amount-chip:hover{ background: #faf7ef; }
+.board-amount-chip:hover{ background: rgba(255,255,255,.85); }
 .board-amount-actions{ display: flex; gap: 8px; margin-top: 14px; }
-.board-amount-btn{
-  flex: 1; padding: 9px 12px; border-radius: 10px; cursor: pointer;
-  border: 1px solid #e3ddcd; background: #fff; font-size: 14px;
-}
-.board-amount-btn--go{ background: #f5a623; border-color: #e09a1f; font-weight: 700; }
+/* .kbtn carries the look (ENTRY-KBTN1); this only makes the pair share the row.
+   text-align is restated because .kbtn is inline-block and the board's own
+   button reset elsewhere left these left-aligned (user: "just center the text"). */
+.board-amount-btn{ flex: 1; text-align: center; }
 
 /* ── player modal (PLAYER-MODAL1, 2026-08-05) ─────────────────────────────── */
 .board-playercard{ max-width: 380px; width: min(380px, 94vw); max-height: 82vh; overflow-y: auto; }
@@ -1907,9 +1989,22 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
 .board-playercard-asset:hover{ background: #faf7ef; }
 .board-playercard-assetbtn{
   flex: 1; text-align: left; border: none; background: transparent;
-  border-radius: 8px; padding: 6px 8px; font-size: 13px; cursor: pointer;
+  border-radius: 8px; padding: 5px 8px; font-size: 13px; cursor: pointer;
   color: inherit;
+  display: flex; align-items: center; gap: 8px;
 }
+/* NFT artwork in the list (R3) — small on purpose: the row height is the
+   constraint (it must not grow the row and reintroduce the jumping the R2 pass
+   fixed — 22px + the label's 2×5px padding = 32 < the 34px row), and the asset
+   card behind the tap is where you go to see the art properly. */
+.board-playercard-thumb{
+  width: 22px; height: 22px; border-radius: 5px; object-fit: cover;
+  flex: 0 0 22px; background: #f2f2f2;
+}
+/* swipe (R3): the row follows the finger, then snaps back under a transition
+   the drag itself suppresses */
+.board-playercard-asset{ transition: transform .18s ease; touch-action: pan-y; }
+.board-playercard-asset--swiping{ transition: none; }
 .board-playercard-assetbtn:hover{ text-decoration: underline; }
 /* the 3-state curate toggle: no grey box, dead-centred, fixed box so the
    glyph swap ⭐⇄🚫⇄○ never moves anything (user: "get rid of the gray square…

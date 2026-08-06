@@ -313,34 +313,62 @@ const KB_LIST = { spread: 0.75, iters: 8, smooth: 0.3, tension: 25, spring: 28,
 const KBO_CIRCLE = { ms: 800, style: "iridescent", width: 1.6, coverage: 1.22,
                      fill: "auto", fillAlpha: 0.22, backdrop: "auto" }
 
-// kbubble runs an unconditional requestAnimationFrame loop per attached element and has
-// no idle/visibility throttle of its own, so attaching to every card would leave 24
-// animation loops burning forever — most of them scrolled out of sight, on a page that
-// is very likely to be opened on a phone. Attach only what's on screen and destroy on
-// the way out; destroy() removes the canvas and the .kbubble-on class, so the plain CSS
-// border comes straight back and the card looks correct either way.
-// kbubbleOpen.bind() is bound once and left alone — it's only event listeners, no loop.
-const seen = new WeakMap()
-const io = "IntersectionObserver" in window ? new IntersectionObserver(entries => {
-  entries.forEach(e => {
-    const el = e.target
-    if(e.isIntersecting){
-      if(!seen.get(el) && window.kbubble)
-        seen.set(el, kbubble.attach(el, Object.assign({ style: "iridescent" }, KB_LIST)))
-    } else {
-      const h = seen.get(el)
-      if(h){ h.destroy(); seen.delete(el) }
-    }
-  })
-}, { rootMargin: "200px 0px" }) : null      // start a little before it scrolls in
+// ── CIRCLES-BUBBLECOST1 (user 2026-08-06) ──────────────────────────────────
+// "I can hear my laptop fan spinning now, and I'm wondering if that page is
+// generating too much noise due to the processing needed for the bubble effect."
+// It was: kbubble runs an unconditional rAF loop PER attached element, and the
+// previous IntersectionObserver policy kept one running for every card on screen
+// — a dozen idling simulations, forever, on a page you mostly sit and read.
+//
+// New policy, which is the user's own proposal: "there's a way to optimize the
+// animation to prevent it doing anything until you actually hover on it… so they
+// don't really oscillate until you get a hover, and then only that particular one
+// has the animation, and then once it settles down, if you hover away it finishes
+// its bounce and then it switches back to being static again."
+//   · resting state = the plain CSS rounded-rect border. Zero JS, zero rAF.
+//   · hover/focus = attach ONE bubble, puff it, let it live while the pointer is
+//     there. At most one loop on the page, and only while you are pointing at it.
+//   · leaving = a settle delay, then destroy — the bounce finishes, then the card
+//     goes back to being a static rectangle.
+//   · touch (no hover at all) = never ambient. The click still runs kbubbleOpen's
+//     full 800ms entry gesture, untouched — the loud bit was never the problem.
+// The user also floated keeping a bubble or two "in memory" to avoid attach cost;
+// not needed — with one live at a time, attach is a canvas + a point loop, and it
+// happens under the pointer where a few ms is invisible.
+//
+// And because only one runs at a time we can afford a much finer outline: the
+// corners looked "slightly Jaggedy" because kbubble distributes its points evenly
+// by perimeter LENGTH, so on a long, wide card the short corner arcs got barely
+// one sample each. points: 320 (default 140) puts real samples on the corners.
+const KB_HOVER = Object.assign({}, KB_LIST, { style: "iridescent", points: 320, ambient: 0.5 })
+const SETTLE_MS = 900
+
+const live = new WeakMap()
+function bubbleOn(el){
+  if(live.get(el) || !window.kbubble) return
+  clearTimeout(el.__kbOff)
+  const h = kbubble.attach(el, KB_HOVER)
+  if(!h) return                    // prefers-reduced-motion: kbubble opts out
+  live.set(el, h)
+  try { h.puff?.() } catch(e){}
+}
+function bubbleOff(el){
+  clearTimeout(el.__kbOff)
+  el.__kbOff = setTimeout(() => {
+    const h = live.get(el)
+    if(h){ h.destroy(); live.delete(el) }
+  }, SETTLE_MS)
+}
 
 function dressCards(){
   document.querySelectorAll(".circle-card").forEach(el => {
     if(el.dataset.kbDressed) return          // loadCircles() is re-entrant
     el.dataset.kbDressed = "1"
     window.kbubbleOpen?.bind(el, Object.assign({}, KBO_CIRCLE, { target: el.getAttribute("href") }))
-    if(io) io.observe(el)
-    else window.kbubble?.attach(el, Object.assign({ style: "iridescent" }, KB_LIST))
+    el.addEventListener("mouseenter", () => bubbleOn(el))
+    el.addEventListener("mouseleave", () => bubbleOff(el))
+    el.addEventListener("focus", () => bubbleOn(el))       // keyboard parity
+    el.addEventListener("blur", () => bubbleOff(el))
   })
 }
 

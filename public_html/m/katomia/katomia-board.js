@@ -906,12 +906,16 @@ function boardSetView(mode){
   const cb = document.getElementById("boardPrefChatPanel")   // keep ⚙ Settings honest
   if(cb) cb.checked = boardChatMode === "panel"
   boardMarkView()
+  // close the menu — it sits over the board you just switched to. (The messages
+  // view closes it via openFull already; this covers board/split.)
+  document.getElementById("appMenu")?.classList.add("hidden")
+  document.getElementById("appMenuBtn")?.setAttribute("aria-expanded", "false")
 }
 
 function boardMarkView(){
   const cur = boardCurrentView()
   document.querySelectorAll("[data-menu-view]").forEach(b => {
-    b.classList.toggle("app-menu-item--on", b.dataset.menuView === cur)
+    b.classList.toggle("app-menu-viewbtn--on", b.dataset.menuView === cur)
   })
 }
 
@@ -3862,7 +3866,7 @@ function boardTxChips(legs, container, accounts, toAccountId){
     ringTint(el, giver?.playerId)
     if(leg.from) el.dataset.fromHac = leg.from
     if(toAccountId) el.dataset.toAccount = toAccountId   // BOARD-SWEEPWIN1: settle flight target
-    el.title = "Pending transaction leg — awaiting signatures"
+    boardTip(el, "Pending transaction leg — awaiting signatures")
     container.appendChild(el)
   })
 }
@@ -5326,7 +5330,9 @@ function boardNiceAmount(v, decimals){
   return Number(snapped.toFixed(places))
 }
 
-function boardAskAmount(assetId, available){
+// verb: "offer" (default) or "take" — a PICK is you taking from a store that
+// allows it, and calling that "Offer" would be plainly wrong.
+function boardAskAmount(assetId, available, verb){
   // whole-item moves (NFTs, single units) never had a prompt and don't get one
   if(available <= 1) return Promise.resolve(getTransferAmount(assetId, available))
 
@@ -5354,7 +5360,9 @@ function boardAskAmount(assetId, available){
 
     const head = document.createElement("div")
     head.className = "board-amount-head"
-    head.textContent = "Move how much?"
+    // "Offer", not "Move" (user 2026-08-06): move "implies a transaction at that
+    // time, which is not the case — we're just putting stuff into a basket".
+    head.textContent = verb === "take" ? "Take how much?" : "Offer how much?"
     const sub = document.createElement("div")
     sub.className = "subtle board-amount-sub"
     // the chip's own text, not getAssetDisplay's raw precision — "6603.87826651
@@ -5381,11 +5389,16 @@ function boardAskAmount(assetId, available){
     const ratio = Math.max(max / dust, 1.0001)
     const posToVal = p => boardNiceAmount(dust * Math.pow(ratio, p / 1000), decimals)
     const valToPos = v => Math.round(1000 * Math.log(Math.max(v, dust) / dust) / Math.log(ratio))
-    slider.value = valToPos(Math.min(1, max))
-    slider.oninput = () => { input.value = fmt(Math.min(max, posToVal(Number(slider.value)))) }
+    // --fill drives the hand-rolled track (see CSS): the native accent fill stops
+    // at the thumb's centre and leaves a stub of empty track at maximum, which
+    // reads as "there's more slider left" when there isn't.
+    const paintFill = () => slider.style.setProperty("--fill", (Number(slider.value) / 10) + "%")
+    const setPos = v => { slider.value = valToPos(v); paintFill() }
+    setPos(Math.min(1, max))
+    slider.oninput = () => { input.value = fmt(Math.min(max, posToVal(Number(slider.value)))); paintFill() }
     input.oninput = () => {
       const n = parseFloat(input.value)
-      if(Number.isFinite(n)) slider.value = valToPos(Math.min(n, max))
+      if(Number.isFinite(n)) setPos(Math.min(n, max))
     }
     card.appendChild(slider)
 
@@ -5403,7 +5416,7 @@ function boardAskAmount(assetId, available){
         b.className = "board-amount-chip"
         b.textContent = label
         b.title = title
-        b.onclick = () => { input.value = fmt(v); slider.value = valToPos(v) }
+        b.onclick = () => { input.value = fmt(v); setPos(v) }
         chips.appendChild(b)
       })
     card.appendChild(chips)
@@ -5412,13 +5425,15 @@ function boardAskAmount(assetId, available){
     row.className = "board-amount-actions"
     const no = document.createElement("button")
     no.type = "button"
-    no.className = "board-amount-btn"
+    no.className = "kbtn board-amount-btn"
     no.textContent = "Cancel"
     no.onclick = cancel
     const go = document.createElement("button")
     go.type = "button"
-    go.className = "board-amount-btn board-amount-btn--go"
-    go.textContent = "Move"
+    // ENTRY-KBTN1 vocabulary (user 2026-08-06: "standardize the buttons across the
+    // app… we can use blue in this case because it's kind of like the idea of flow")
+    go.className = "kbtn kbtn-blue board-amount-btn"
+    go.textContent = verb === "take" ? "Take" : "Offer"
     go.onclick = () => {
       const n = parseFloat(input.value)
       if(!Number.isFinite(n) || n <= 0) return
@@ -5451,7 +5466,7 @@ async function boardExecuteDrop(p, account, pt){
   if(p.pick){
     // picks land only in YOUR space; the backend re-checks allowPick
     if(!isMyAccount(account)) return
-    const amount = await boardAskAmount(p.assetId, p.available || 1)
+    const amount = await boardAskAmount(p.assetId, p.available || 1, "take")
     if(amount === null) return
     if(pt) boardNotePendingSpawn(account.id, p.assetId, pt.x, pt.y)
     boardNoteLocalMove(account.id, p.pickFrom, p.assetId)
@@ -6769,6 +6784,18 @@ function boardInkFor(hex){
   return (0.2126 * r + 0.7152 * g + 0.0722 * b) > 0.55 ? "#1d1a12" : "#ffffff"
 }
 
+// BOARD-TIPTOUCH1 (user 2026-08-06): chip tooltips are "fine on desktop, but on
+// touch screen they're kind of distracting because they don't really make any
+// sense — and if you want information, you can just tap on it". Native title
+// tooltips on touch fire on long-press, competing with the drag gesture and the
+// tap-to-inspect card that already answers the question properly. So: hover
+// devices only. One helper rather than a per-site media query, and it degrades
+// to "no tooltip" rather than to a broken one.
+function boardCanHover(){
+  try { return !window.matchMedia("(hover: none)").matches } catch { return true }
+}
+function boardTip(el, text){ if(boardCanHover()) el.title = text }
+
 function boardStoreChips(account, container, reservedByAccount){
   const mine = isMyAccount(account)
 
@@ -6841,7 +6868,7 @@ function boardStoreChips(account, container, reservedByAccount){
       // shift when Pickable toggles)
       el.classList.add("board-pickchip")
       el.style.setProperty("--pickflag", getPlayerColour(account.playerId))
-      el.title = "Pickable — drag into your space to take it"
+      boardTip(el, "Pickable — drag into your space to take it")
       el.draggable = true
       el.ondragstart = e => {
         e.dataTransfer.setData("assetId", assetId)
@@ -6864,7 +6891,7 @@ function boardStoreChips(account, container, reservedByAccount){
 // "Remove from table": game_removeAsset takes it out of the STORE only —
 // standing offers of it are withdrawn back server-side first, the wallet is
 // untouched (it changes the game selection, nothing on-chain).
-function boardAssetDetail(assetId, account, amount){
+function boardAssetDetail(assetId, account, amount, offer){
   document.getElementById("boardAssetDetail")?.remove()
   const modal = document.createElement("div")
   modal.id = "boardAssetDetail"
@@ -6924,18 +6951,92 @@ function boardAssetDetail(assetId, account, amount){
   if(meta?.token_class?.name) addRow("Name", meta.token_class.name)
   card.appendChild(rows)
 
-  if(isMyAccount(account)){
-    const btn = document.createElement("button")
-    btn.className = "board-assetdetail-remove"
-    btn.textContent = "🗑 Remove from table"
-    btn.title = "Take this asset off the board. Standing offers of it are withdrawn; your wallet is untouched."
-    btn.onclick = () => {
-      if(!confirm(`Remove ${name.textContent} from the table?\n\nStanding offers of it are withdrawn. This only changes what you're playing — your wallet is untouched.`)) return
-      if(typeof removeAssetFromTable === "function") removeAssetFromTable(account.id, assetId)
-      modal.remove()
-    }
-    card.appendChild(btn)
+  // ── BOARD-ASSETACTIONS1 (user 2026-08-06) ────────────────────────────────
+  // "It's consistent that when you tap on an asset, you ALWAYS get the detail
+  // modal, and then the options or actions that you can perform against it,
+  // where relevant, show up." The confirm() pop-ups that used to fire straight
+  // off a basket/ghost tap are gone — they raced this card and won, which is
+  // how the offer modal ended up "clashing a bit with the remove feature".
+  //
+  // The ordering rule is the user's: "if something's in play and you want to
+  // take it off the board, you have to withdraw first, and then once you've
+  // withdrawn it you can tap on it again to take it off the table". So Remove
+  // from table is NOT offered while anything is offered out — one action at a
+  // time, in the order that can't lose anything.
+  const actions = document.createElement("div")
+  actions.className = "board-assetdetail-actions"
+  const addAction = (cls, text, title, fn) => {
+    const b = document.createElement("button")
+    b.className = "kbtn " + cls + " board-assetdetail-act"
+    b.textContent = text
+    if(title) boardTip(b, title)
+    b.onclick = fn
+    actions.appendChild(b)
+    return b
   }
+  const say = text => {
+    const p = document.createElement("div")
+    p.className = "subtle board-assetdetail-state"
+    p.textContent = text
+    card.appendChild(p)
+  }
+  const nameOf = accId => {
+    const a = getAccountMap()[accId]
+    const pl = a ? state?.players?.[a.playerId] : null
+    return (pl?.name && pl.name !== "anon" ? pl.name : null) || (accId || "").split(":")[1] || accId
+  }
+
+  if(offer){
+    // opened from a BASKET chip: this leg is the subject of the card
+    const legs = boardNetLegCount(offer.fromAccountId, offer.toAccountId, assetId)
+    if(offer.kind === "withdraw"){
+      say(`You have offered this to ${nameOf(offer.toAccountId)}.`)
+      addAction("kbtn-blue", "↩ Withdraw offer", "Take it back out of their basket — nothing has moved on-chain yet", () => {
+        for(let i = 0; i < legs; i++) socket.send(JSON.stringify({
+          type: "game_withdraw", gameId,
+          fromId: offer.fromAccountId, toId: offer.toAccountId, assetId
+        }))
+        clearSelection()
+        modal.remove()
+      })
+    } else {
+      say(`${nameOf(offer.fromAccountId)} has offered this to you.`)
+      addAction("kbtn-red", "↩ Return to giver", "Hand it back — it returns to their store", () => {
+        for(let i = 0; i < legs; i++) socket.send(JSON.stringify({
+          type: "game_reject", gameId,
+          accountId: offer.toAccountId, assetId
+        }))
+        clearSelection()
+        modal.remove()
+      })
+    }
+  }
+  else if(isMyAccount(account)){
+    // opened from YOUR store chip (or its ghost): what's outstanding on it?
+    const out = (boardReserved(getAccounts())[account.id] || []).filter(i => String(i.assetId) === String(assetId))
+    if(out.length){
+      const to = [...new Set(out.map(i => nameOf(i.toAccountId)))].join(", ")
+      say(`Offered out to ${to} — withdraw it before you can take it off the table.`)
+      out.forEach(i => {
+        const legs = boardNetLegCount(account.id, i.toAccountId, assetId)
+        addAction("kbtn-blue", `↩ Withdraw from ${nameOf(i.toAccountId)}`, null, () => {
+          for(let k = 0; k < legs; k++) socket.send(JSON.stringify({
+            type: "game_withdraw", gameId,
+            fromId: account.id, toId: i.toAccountId, assetId
+          }))
+          clearSelection()
+          modal.remove()
+        })
+      })
+    } else {
+      addAction("kbtn-red", "🗑 Remove from table", "Take this asset off the board. Your wallet is untouched.", () => {
+        if(!confirm(`Remove ${name.textContent} from the table?\n\nThis only changes what you're playing — your wallet is untouched.`)) return
+        if(typeof removeAssetFromTable === "function") removeAssetFromTable(account.id, assetId)
+        modal.remove()
+      })
+    }
+  }
+  if(actions.children.length) card.appendChild(actions)
   document.body.appendChild(modal)
 }
 
@@ -6965,6 +7066,36 @@ function boardCurateSet(accountId, assetId, v){
   if(v) m[accountId + "|" + assetId] = v
   else delete m[accountId + "|" + assetId]
   try { localStorage.setItem(boardCurateKey(), JSON.stringify(m)) } catch {}
+}
+
+// BOARD-CURATE1 R3 (user 2026-08-06): swipe a player-modal asset row — left =
+// 🚫 not interested, right = ⭐ interested. Deliberately a thin gesture layer over
+// the same setter the tap uses: no state of its own, no threshold cleverness, and
+// it gives up the moment the drag looks vertical so the modal can still scroll.
+function boardCurateSwipe(row, set){
+  let x0 = 0, y0 = 0, dx = 0, live = false
+  row.addEventListener("pointerdown", e => {
+    if(e.pointerType === "mouse") return          // desktop keeps the tap toggle
+    x0 = e.clientX; y0 = e.clientY; dx = 0; live = true
+    row.classList.add("board-playercard-asset--swiping")
+  })
+  row.addEventListener("pointermove", e => {
+    if(!live) return
+    const ax = e.clientX - x0, ay = e.clientY - y0
+    if(Math.abs(ay) > Math.abs(ax) + 6){ live = false; row.style.transform = ""; row.classList.remove("board-playercard-asset--swiping"); return }
+    dx = Math.max(-90, Math.min(90, ax))
+    row.style.transform = `translateX(${dx}px)`
+  })
+  const end = () => {
+    if(!live) return
+    live = false
+    row.style.transform = ""
+    row.classList.remove("board-playercard-asset--swiping")
+    if(dx <= -40) set("out")
+    else if(dx >= 40) set("in")
+  }
+  row.addEventListener("pointerup", end)
+  row.addEventListener("pointercancel", end)
 }
 
 function boardPlayerModal(playerId){
@@ -7022,11 +7153,9 @@ function boardPlayerModal(playerId){
     Object.entries(account.assets || {}).forEach(([assetId, amount]) => {
       const row = document.createElement("div")
       row.className = "board-playercard-asset"
-      const label = document.createElement("button")
-      label.className = "board-playercard-assetbtn"
-      label.textContent = (typeof getAssetDisplay === "function") ? getAssetDisplay(assetId, amount) : assetId
-      label.onclick = () => { modal.remove(); boardAssetDetail(assetId, account, amount) }
-      row.appendChild(label)
+      // R3 (user 2026-08-06): the ⭐/🚫/○ toggle moves to the LEFT EDGE — "perhaps
+      // that could go at the start, so it's kind of like a bullet list initially,
+      // and then you tap on the dots". Built first so it IS the bullet.
       if(!self){
         const st = boardCurateGet(account.id, assetId)
         if(st === "out") row.classList.add("board-playercard-asset--out")
@@ -7038,17 +7167,48 @@ function boardPlayerModal(playerId){
                     : v === "out" ? "Not interested (muted on your board) — tap: clear"
                     : "No opinion — tap: interested"
         }
+        const set = v => {
+          boardCurateSet(account.id, assetId, v)
+          paint(v)
+          row.classList.toggle("board-playercard-asset--out", v === "out")
+          render()   // the board hides/unhides the chip immediately
+        }
         paint(st)
         tog.onclick = () => {
           const cur = boardCurateGet(account.id, assetId)
-          const nxt = cur === null ? "in" : cur === "in" ? "out" : null
-          boardCurateSet(account.id, assetId, nxt)
-          paint(nxt)
-          row.classList.toggle("board-playercard-asset--out", nxt === "out")
-          render()   // the board mutes/unmutes the chip immediately
+          set(cur === null ? "in" : cur === "in" ? "out" : null)
         }
         row.appendChild(tog)
+        // …and the same three states by SWIPE (user: "if you're feeling
+        // adventurous — slide left activates the no entry, slide right turns it
+        // to star, and obviously you can still tap it to change the mode"). The
+        // row tracks the finger and snaps back; the tap path above is untouched,
+        // so nothing depends on the gesture being discoverable.
+        boardCurateSwipe(row, v => set(v))
       }
+      const label = document.createElement("button")
+      label.className = "board-playercard-assetbtn"
+      // NFTs show their artwork in the list (user 2026-08-06: "if the token's an
+      // NFT we should show a little thumbnail, so you can basically see them in
+      // the list — I guess they'll be quite small, but that's okay"). Same
+      // meta/thumb pair the asset card and the chips use; silently absent for
+      // fungibles and for NFTs whose metadata hasn't enriched yet.
+      const thumb = (typeof getAssetMeta === "function" && typeof getAssetThumb === "function")
+        ? getAssetThumb(getAssetMeta(assetId)) : null
+      if(thumb){
+        const img = document.createElement("img")
+        img.className = "board-playercard-thumb"
+        img.src = (typeof getFastThumb === "function") ? getFastThumb(thumb, img) : thumb
+        img.decoding = "async"
+        img.alt = ""
+        img.onerror = () => img.remove()
+        label.appendChild(img)
+      }
+      const txt = document.createElement("span")
+      txt.textContent = (typeof getAssetDisplay === "function") ? getAssetDisplay(assetId, amount) : assetId
+      label.appendChild(txt)
+      label.onclick = () => { modal.remove(); boardAssetDetail(assetId, account, amount) }
+      row.appendChild(label)
       list.appendChild(row)
     })
     sec.appendChild(list)
@@ -7113,7 +7273,7 @@ function boardReservedChips(account, container, reservedByAccount){
     })
     applyAssetClasses(el, item.assetId, item.amount || 1)
     el.classList.add("board-chip", "board-ghost")
-    el.title = "Reserved — already offered out"
+    boardTip(el, "Reserved — already offered out")
     ringTint(el, account.playerId)
     if((ring13() || susan4()) && account.mode === "lock")
       el.classList.add("board-lockdim")
@@ -7125,17 +7285,13 @@ function boardReservedChips(account, container, reservedByAccount){
     el.onmouseleave = () => highlightTradePair(item.assetId, account.id, item.toAccountId, false)
 
     if(mine){
-      el.onclick = () => {
-        const ok = confirm("Withdraw " + boardAssetText(item.assetId, item.amount || 1) + " from " + item.toAccountId + "?")
-        if(!ok) return
-        // net view: the chip is the whole netted stack — withdraw every leg
-        const n = boardNetLegCount(account.id, item.toAccountId, item.assetId)
-        for(let i = 0; i < n; i++) socket.send(JSON.stringify({
-          type: "game_withdraw", gameId,
-          fromId: account.id, toId: item.toAccountId, assetId: item.assetId
-        }))
-        clearSelection()
-      }
+      // BOARD-ASSETACTIONS1 (user 2026-08-06): the ghost opens the same card as
+      // every other asset tap, carrying its withdraw action — the point of
+      // tapping a ghost was always "withdraw without hunting for where it went",
+      // and that still works in one extra tap, now with the leg spelled out
+      // ("You have offered this to Bob") instead of an account id in a confirm().
+      el.onclick = () => boardAssetDetail(item.assetId, account, item.amount || 1,
+        { kind: "withdraw", fromAccountId: account.id, toAccountId: item.toAccountId })
       // drag the ghost home = withdraw; onto another segment = redirect
       // (boardDropTarget routes the home case to a plain withdraw)
       el.draggable = true
@@ -7184,18 +7340,11 @@ function boardBasketChips(account, container, accountMap){
     }
 
     if(senderIsMine){
-      el.title = "Your offer — tap to withdraw, drag to redirect"
-      el.onclick = () => {
-        const ok = confirm("Withdraw " + boardAssetText(item.assetId, item.amount || 1) + " from " + account.id + "?")
-        if(!ok) return
-        // net view: the chip is the whole netted stack — withdraw every leg
-        const n = boardNetLegCount(fromAccountId, account.id, item.assetId)
-        for(let i = 0; i < n; i++) socket.send(JSON.stringify({
-          type: "game_withdraw", gameId,
-          fromId: fromAccountId, toId: account.id, assetId: item.assetId
-        }))
-        clearSelection()
-      }
+      boardTip(el, "Your offer — tap for details and to withdraw, drag to redirect")
+      // BOARD-ASSETACTIONS1: one door for every asset tap — the card, carrying
+      // the withdraw action (was: a bare confirm(), which raced the detail card)
+      el.onclick = () => boardAssetDetail(item.assetId, fromAccount || account, item.amount || 1,
+        { kind: "withdraw", fromAccountId, toAccountId: account.id })
       el.draggable = true
       el.ondragstart = e => {
         e.dataTransfer.setData("assetId", item.assetId)
@@ -7206,18 +7355,9 @@ function boardBasketChips(account, container, accountMap){
       }
       boardTouchDrag(el, { assetId: item.assetId, available: item.amount || 1, fromAccountId, fromBasketToAccountId: account.id })
     } else if(receiverIsMine){
-      el.title = "Offered to you — tap to return it, or drag it back to its giver"
-      el.onclick = () => {
-        const ok = confirm("Return " + boardAssetText(item.assetId, item.amount || 1) + " to " + fromAccountId + "?")
-        if(!ok) return
-        // net view: same all-legs treatment as withdraw
-        const n = boardNetLegCount(fromAccountId, account.id, item.assetId)
-        for(let i = 0; i < n; i++) socket.send(JSON.stringify({
-          type: "game_reject", gameId,
-          accountId: account.id, assetId: item.assetId
-        }))
-        clearSelection()
-      }
+      boardTip(el, "Offered to you — tap for details and to return it, or drag it back to its giver")
+      el.onclick = () => boardAssetDetail(item.assetId, fromAccount || account, item.amount || 1,
+        { kind: "return", fromAccountId, toAccountId: account.id })
       // drag-back-to-giver = reject; any other landing snaps back (re-render)
       if(fromAccountId){
         el.draggable = true

@@ -95,10 +95,26 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
          only." Frequently toggled (different device, different view), which is
          exactly what earns a slot in the hamburger rather than in Settings.
          Wired by katomia-board.js (boardSetView); the ✓ marks the live one. -->
-    <div class="app-menu-group" data-menu-viewgroup>
-      <button type="button" class="app-menu-item" data-menu-view="board">🎲 Board</button>
-      <button type="button" class="app-menu-item" data-menu-view="split">🎲💬 Split</button>
-      <button type="button" class="app-menu-item" data-menu-view="messages" data-menu-chat>💬 Messages</button>
+    <!-- R2 (user 2026-08-06): three full-width rows was "quite a lot of space on
+         the menu… and it's not really navigation, it's changing the view mode —
+         a little bit like the idea of a layout view". So: ONE row, labelled, with
+         three icon buttons — the label says what the control is (the thing a
+         submenu would have given us) without costing a second tap or three rows.
+         Icons are hand-rolled inline SVG per the user's own sketch: board = a
+         frame with the ring in it; split = a frame divided; messages = a frame
+         of text lines. currentColor throughout so the active state is one CSS
+         rule. -->
+    <div class="app-menu-viewrow" data-menu-viewgroup>
+      <span class="app-menu-viewlabel">View</span>
+      <button type="button" class="app-menu-viewbtn" data-menu-view="board" title="Board only" aria-label="Board only">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="12" cy="12" r="4"/></svg>
+      </button>
+      <button type="button" class="app-menu-viewbtn" data-menu-view="split" title="Split — board and messages" aria-label="Split view">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="3" y1="14" x2="21" y2="14"/><line x1="7" y1="17.5" x2="14" y2="17.5"/></svg>
+      </button>
+      <button type="button" class="app-menu-viewbtn" data-menu-view="messages" data-menu-chat title="Messages only" aria-label="Messages only">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="12.5" x2="17" y2="12.5"/><line x1="7" y1="16" x2="13" y2="16"/></svg>
+      </button>
     </div>
     <button type="button" class="app-menu-item" data-menu-settings>⚙ Settings</button>
     <?php endif; ?>
