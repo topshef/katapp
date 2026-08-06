@@ -2306,6 +2306,34 @@ function boardArrangeAt(srcEl, x, y){
     return false
   }
   if(body.inner) return boardArrangeRim(body, z, lx, ly)
+  // ── BOARD-ARRANGEFENCE1 (user 2026-08-06, and the actual BOARD-PLAYERSCOPE1
+  // root cause) ─────────────────────────────────────────────────────────────
+  // "I took one of my assets from 25200 and dropped it into the OTHER player's
+  // store area, also 25200… it got stuck in the other player's store. I know
+  // it's not just a placement issue, because when I drop it there it doesn't ask
+  // me if I want to offer that amount — it just literally moves the chip."
+  // No amount prompt means it never reached the drop path: this function claimed
+  // the release as an ARRANGE and pinned it.
+  //
+  // Why it could: this used to be fenced only by the wall clamp's TANGENTIAL
+  // limit, maxY = x·tan(halfDeg) − w/2, with halfDeg capped at 80° to stop tan
+  // blowing up near 90°. That cap is exactly what breaks it. With TWO segments
+  // each is 180° wide, so halfDeg 89 → capped to 80 → tan 5.67, and at any real
+  // radius maxY is larger than the screen — the fence is simply not there, and a
+  // release anywhere in the safe rect gets pinned. Two players sharing one
+  // account id is precisely the configuration that produces a two-segment board,
+  // which is why it looked like an account-scoping bug: the chip stayed in ITS
+  // OWN zone (the paint invariant never fired, correctly) but that zone is half
+  // the board, and both segments carry the same etched account id.
+  // Also explains the spatial signature: dropping in the MIDDLE worked because
+  // the basket radius is outside the store zone's radial band, so the clamp moved
+  // the point >48px and this function declined — falling through to the offer.
+  // Fix: fence on the TRUE segment angle, the way boardArrangeRim always has.
+  // halfDegFull is the real divider-to-divider half width (the physics' halfDeg
+  // is deliberately shaved), so this matches the wedge you can actually see.
+  const off = Math.atan2(ly, lx)
+  const halfRad = (z.halfDegFull ?? z.halfDeg) * Math.PI / 180
+  if(Math.abs(off) > halfRad) return false          // another segment's air
   const p = boardWallClamp(env, z, body, lx, ly, false)
   if(Math.hypot(p.x - lx, p.y - ly) > 48) return false
   body.x = p.x; body.y = p.y
