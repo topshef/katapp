@@ -1124,6 +1124,38 @@ window.addEventListener("resize", () => {
 async function render(){
   if(!state) return
 
+  // ── BOARD-DRAGREPAINT1 R2 (user 2026-08-06) ────────────────────────────────
+  // "If I drag slowly on DESKTOP, the whole screen is blank until I let go, and
+  // it flickers even on mobile as well."
+  //
+  // The blanking is not a rasterisation problem — it is this function. render()
+  // tears the board's DOM down and rebuilds it, and the broadcast handler runs it
+  // TWICE per state (once immediately, once after enrichment). On a live board
+  // that is several full rebuilds a second; catch one mid-frame and the screen is
+  // genuinely empty, which is exactly what "blank until I let go" describes.
+  //
+  // BOARD-DRAGFLICKER1 already had the right idea but guarded only ONE call site
+  // (the broadcast handler in katomia-network.js) and only for TOUCH drags. So:
+  //  · desktop native dnd never set the flag at all — hence "blank on desktop",
+  //    which the rAF work in R1 could not have helped, because desktop never runs
+  //    that handler. The flag is now set from the document-level dragstart /
+  //    dragend pair as well.
+  //  · renders driven by anything OTHER than a broadcast — the 550ms member
+  //    animation, wheel glide, curate toggles — walked straight past the guard.
+  //    Hence the residual mobile flicker.
+  // Moving the hold INTO render() covers every caller by construction, which is
+  // the only version of this that can't be bypassed by the next new caller.
+  // Nothing is lost by deferring: a drag changes no board state, the flying chip
+  // is a clone, and the release runs exactly one repaint with the latest state.
+  // WATCHDOG: a hold that never lifts would freeze the board permanently, which
+  // is a far worse failure than the flicker it prevents. A drag that has been
+  // "live" for more than 12s is a lost dragend/pointercancel, not a drag.
+  if(window.__boardDragging && Date.now() - (window.__boardDragSince || 0) > 12000){
+    window.__boardDragging = false
+    boardDiag("board:drag:hold-expired", {})
+  }
+  if(window.__boardDragging){ window.__boardRenderPending = true; return }
+
   boardCheckJustSucceeded()
 
   document.body.dataset.viewMode = "board"
@@ -2265,15 +2297,29 @@ document.addEventListener("dragstart", e => {
   const chip = e.target?.closest?.(".board-chip")
   window.__boardDragEl = chip || null
   window.__boardDropHandled = false
+  // BOARD-DRAGREPAINT1 R2: hold repaints for the DESKTOP drag too — this is the
+  // half BOARD-DRAGFLICKER1 never covered, and the reason the board went blank
+  // under a mouse drag while the touch path had been quiet since 2026-08-05.
+  if(chip){ window.__boardDragging = true; window.__boardDragSince = Date.now() }
   if(chip) window.__boardDropTradeLine?.()   // BOARD-TRADELINESTALE1
 }, true)
 document.addEventListener("drop", () => { window.__boardDropHandled = true }, true)
 document.addEventListener("dragend", e => {
   const el = window.__boardDragEl
   window.__boardDragEl = null
+  boardReleaseRepaintHold()
   if(!el || window.__boardDropHandled) return
   if(e.clientX || e.clientY) boardArrangeAt(el, e.clientX, e.clientY)
 })
+
+// one place owns lifting the hold + catching up, so the touch path, the desktop
+// path and any future one can't drift apart
+function boardReleaseRepaintHold(){
+  window.__boardDragging = false
+  if(!window.__boardRenderPending) return
+  window.__boardRenderPending = false
+  setTimeout(() => { try { render() } catch(e){} }, 0)
+}
 
 function boardSimExcite(){
   _boardSimCalm = 0
@@ -5171,7 +5217,10 @@ function boardTouchDrag(el, payload){
   el.style.touchAction = "none"
 
   el.addEventListener("pointerdown", e => {
-    if(e.pointerType === "mouse") return    // mouse keeps native dnd
+    // mouse keeps native dnd — EXCEPT for arrange-only chips (BOARD-ARRANGEOTHERS1),
+    // which have no dnd payload at all, so this pointer path is their only drag on
+    // either input.
+    if(e.pointerType === "mouse" && !payload?.arrangeOnly) return
     const startX = e.clientX, startY = e.clientY
     let fly = null, dropWedge = null
     // BOARD-DRAGREPAINT1 (user 2026-08-06): "if I drag the chip very, very
@@ -5217,7 +5266,8 @@ function boardTouchDrag(el, payload){
         fly.style.left = r.left + "px"
         fly.style.top = r.top + "px"
         document.body.appendChild(fly)
-        window.__boardDragging = true   // BOARD-DRAGFLICKER1: broadcasts defer repaint until release
+        window.__boardDragging = true   // BOARD-DRAGFLICKER1: repaints defer until release
+        window.__boardDragSince = Date.now()   // …with a watchdog in render(), see BOARD-DRAGREPAINT1 R2
         el.classList.add("board-dragsrc")
         window.__boardDropTradeLine?.()   // BOARD-TRADELINESTALE1 (touch path)
         // a drag must not ALSO fire the chip's tap action on release
@@ -5236,13 +5286,9 @@ function boardTouchDrag(el, payload){
       el.classList.remove("board-dragsrc")
       dropWedge?.classList.remove("drag-over")
       dropWedge = null
-      // BOARD-DRAGFLICKER1: release the repaint hold; catch up on any broadcast
-      // that arrived mid-drag with ONE repaint now
-      window.__boardDragging = false
-      if(window.__boardRenderPending){
-        window.__boardRenderPending = false
-        setTimeout(() => { try { render() } catch(e){} }, 0)
-      }
+      // BOARD-DRAGFLICKER1: release the repaint hold; catch up on anything that
+      // arrived mid-drag with ONE repaint now (shared with the desktop path)
+      boardReleaseRepaintHold()
       if(!fly) return                        // plain tap — click proceeds
       // one locus: the drop lands where the CHIP is, not where the finger is
       const c = fly.getBoundingClientRect()
@@ -5251,6 +5297,11 @@ function boardTouchDrag(el, payload){
       // BOARD-ARRANGE1: released inside the chip's OWN zone = arrange, not
       // an offer — the chip moves to the release point and pins there
       if(boardArrangeAt(el, dx, dy)) return
+      // BOARD-ARRANGEOTHERS1: someone else's non-pickable chip. Arranging is the
+      // ONLY thing this drag can do; a release anywhere else is a no-op and the
+      // chip stays where it was. That refusal IS the feature — a chip that
+      // visibly cannot leave its owner's wedge reads as tidying, not taking.
+      if(payload?.arrangeOnly) return
       const hit = document.elementFromPoint(dx, dy)
       const target = hit?.closest?.("[data-drop-account]")
       if(target?.__dropAccount) boardExecuteDrop(payload, target.__dropAccount, { x: dx, y: dy })
@@ -6881,6 +6932,21 @@ function boardStoreChips(account, container, reservedByAccount){
     // tap-to-inspect works on EVERYONE's store chips (user 2026-08-05: "if you
     // want to examine their assets, you can just tap on them")
     if(!mine && ring8()) el.onclick = () => boardAssetDetail(assetId, account, amount)
+    // BOARD-ARRANGEOTHERS1 (user-approved 2026-08-06): "it might be helpful to be
+    // able to move them around so that you can see them better, even though you're
+    // not actually allowed to pull them into your basket… although maybe that gives
+    // a kind of sense of control that you don't have."
+    // Resolution: allow it, FENCED to the owner's own wedge. boardArrangeAt already
+    // clamps to the body's OWN zone and refuses a release more than 48px outside it,
+    // so the fence is the existing geometry, not a new rule — and the chip visibly
+    // refusing to cross the boundary is what keeps "tidying" from reading as
+    // "taking". The pin is per-viewer (localStorage), exactly like your own
+    // arranging: nobody else's board moves. Skipped when the chip is already
+    // draggable for a real reason (pickable), which keeps that gesture intact.
+    if(!mine && ring8() && !el.classList.contains("board-pickchip")){
+      boardTouchDrag(el, { arrangeOnly: true })
+      boardTip(el, "Not yours — but you can slide it around their space to see the board better")
+    }
     container.appendChild(el)
   })
 }
