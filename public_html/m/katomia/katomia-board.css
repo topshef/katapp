@@ -204,8 +204,40 @@ body.board-page .app-banner{
 /* drop-target cue. BOARD-DRAGCUE1 (user 2026-08-06): the touch path already
    lights the wedge under the chip ("that's a really good effect") — desktop
    drag-and-drop lights the SAME way and a touch stronger, since a mouse drag
-   gives no other feedback about where it can land. */
-.board-wedge.drag-over{ opacity: .34; }
+   gives no other feedback about where it can land.
+   R2 (user 2026-08-06): "it should appear on not just other people's accounts,
+   but your own as well — it doesn't matter whose account it is, it's useful to
+   see where you're dropping." It wasn't, and the reason was pure CSS cascade:
+   [data-board-fam~="v10"] .board-wedge--mine{opacity:.12} has the same
+   specificity as this rule and sits LATER in the file, so it won over the
+   highlight on your own segments only. !important is the honest fix here — the
+   highlight is a transient state that must beat every resting opacity rule,
+   whoever owns the wedge. */
+.board-wedge.drag-over{ opacity: .34 !important; }
+
+/* ── BOARD-DROPHIT1 (user 2026-08-06) ──────────────────────────────────────
+   "It flickers only if I'm trying to drop it on top of another asset. If I'm
+   just sliding over blank felt it correctly animates… but passing other asset
+   chips, the whole board goes white and blanks out to repaint."
+   That clue found a real bug, not just a paint cost. Each account's chips live
+   in a FULL-VIEWPORT container (.ring-organic, inset:0) that carries that
+   account's data-drop-account; the container is pointer-events:none but its
+   chips are pointer-events:auto. So the drag's hit test —
+   elementFromPoint(...).closest("[data-drop-account]") — resolves to whichever
+   CHIP is under the pointer and therefore to THAT CHIP'S OWNER, not to the
+   segment you are over. Two consequences, both reported:
+     · the highlight flapped between wedge and container as you crossed chips,
+       re-running the opacity transition on full-viewport elements — the "goes
+       white while passing chips" repaint storm;
+     · a release over someone else's chip offered to THAT chip's owner rather
+       than the segment you released in — a strong candidate for
+       BOARD-PLAYERSCOPE1's "my chip landed in the other player's store".
+   Fix: chips stop being hit-test targets for the duration of a drag, so the
+   test falls through to the WEDGE — which is what makeWedge intended all along
+   ("dropping anywhere in a player's wedge is dropping on that player;
+   direction beats distance on touch"). Covers native dnd too: dragover targets
+   obey pointer-events the same way. */
+body.board-dragging .board-chip{ pointer-events: none; }
 
 /* a chip is a thing you PICK UP, not a region you select — the default dnd
    marquee cursor "looks like a selection tool, but you're not selecting,
@@ -1807,12 +1839,26 @@ body[data-signtwilight="1"] .ring-hub-count--signed{ color: #1e7047; }
     inset 0 -1px 0 rgba(0,0,0,.14),               /* shaded bottom edge */
     0 1px 2px rgba(0,0,0,.30), 0 4px 10px rgba(0,0,0,.22);
 }
-/* engraved lettering: light faces get the classic emboss (white below the
-   glyph, shadow above); the dark variant inverts it or it reads as fog */
-[data-board-fam~="v8"] .board-chip:not(.thumb-only){
+/* Engraved lettering — OPT-IN since R3 (user 2026-08-06), 🧪 Chip emboss,
+   default OFF. "It actually works nicely on small font, like on mobile… but on
+   desktop it kind of looks like it's blurred."
+   That is a real effect, not eyesight: the emboss is a 1px light shadow below
+   the glyph and a 1px dark one above it. On a phone, 1 CSS px is 2-3 device
+   pixels, so each shadow lands as a crisp sub-pixel edge on a glyph only a few
+   px tall — it reads as a bevel. On a 1× desktop monitor the same shadows are
+   ONE device pixel each, sitting either side of a much larger glyph: too far
+   apart to fuse into an edge, so they read as a soft duplicate of the letter —
+   i.e. blur. Scaling the offsets with font-size would be the "fix", but the
+   effect's whole appeal is that it is barely there, so it is a preference
+   instead: on where it convinces, off where it doesn't.
+   Only the LETTERING is gated. The face gradient and the lit/shaded rims above
+   stay on for everyone — those are what the user liked. */
+/* both flags live on <body> (data-board-fam, data-chip-style, .chip-emboss),
+   so these compound on the same element — not a descendant selector. */
+body.chip-emboss[data-board-fam~="v8"] .board-chip:not(.thumb-only){
   text-shadow: 0 1px 0 rgba(255,255,255,.5), 0 -1px 0 rgba(0,0,0,.16);
 }
-[data-chip-style="dark"] .board-chip:not(.thumb-only){
+body.chip-emboss[data-chip-style="dark"] .board-chip:not(.thumb-only){
   text-shadow: 0 1px 0 rgba(0,0,0,.5), 0 -1px 0 rgba(255,255,255,.10);
 }
 /* ── BOARD-CHIPDEPTH1 R2 (user 2026-08-06) ────────────────────────────────

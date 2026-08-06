@@ -240,6 +240,18 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
         <option value="dark">🌑 Dark</option>
       </select>
     </label>
+    <!-- BOARD-CHIPDEPTH1 R3 (user 2026-08-06): the ENGRAVED LETTERING is now
+         opt-in, default OFF. It reads well at phone size ("when I zoom in, yes,
+         it's got like a shadow") but on a desktop monitor the same 1px
+         double-shadow at a larger glyph size reads as blur, not depth — the
+         user's own call: "maybe just take it off on desktop… how about we put
+         it on the settings, default off, and I can try it either way, on nerd
+         mode anyway". The chip FACE gradient and the lit/shaded rims are NOT
+         affected — those were liked as-is and stay on for everyone. -->
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefEmboss" title="Lab: engrave the chip lettering (a 1px light/dark shadow pair, like stamped text). Convincing at phone pixel densities; at desktop sizes the same shadows can read as blur rather than depth.">
+      🧪 Chip emboss
+    </label>
     <!-- BOARD-COUNTERMODE1 (user 2026-08-04): simple is the new default — no
          counter band, partial fungible offers move the decremented remainder
          stack to the rim instead of leaving a ghost. This 🧪 switch restores
