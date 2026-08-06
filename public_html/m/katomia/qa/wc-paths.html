@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WalletConnect — every path, and whether the code handles it</title>
+<style>
+  :root{
+    --bg:#fbfbfa; --fg:#1a1a19; --mut:#6b6b66; --line:#e3e3df; --card:#fff;
+    --ok:#1f7a45; --okbg:#e8f5ed; --warn:#8a5a00; --warnbg:#fdf3e0; --bad:#a12a2a; --badbg:#fbe9e9;
+    --code:#f4f4f1; --accent:#3b5bdb;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#16161a; --fg:#e8e8e4; --mut:#9a9a94; --line:#2c2c32; --card:#1d1d22;
+      --ok:#5fd08a; --okbg:#12301f; --warn:#e0ae5a; --warnbg:#33270f; --bad:#f08a8a; --badbg:#331717;
+      --code:#232329; --accent:#8aa2ff;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#16161a; --fg:#e8e8e4; --mut:#9a9a94; --line:#2c2c32; --card:#1d1d22;
+    --ok:#5fd08a; --okbg:#12301f; --warn:#e0ae5a; --warnbg:#33270f; --bad:#f08a8a; --badbg:#331717;
+    --code:#232329; --accent:#8aa2ff;
+  }
+  :root[data-theme="light"]{
+    --bg:#fbfbfa; --fg:#1a1a19; --mut:#6b6b66; --line:#e3e3df; --card:#fff;
+    --ok:#1f7a45; --okbg:#e8f5ed; --warn:#8a5a00; --warnbg:#fdf3e0; --bad:#a12a2a; --badbg:#fbe9e9;
+    --code:#f4f4f1; --accent:#3b5bdb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+       padding:28px 20px 80px}
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{font-size:26px;line-height:1.2;margin:0 0 6px;letter-spacing:-.01em}
+  h2{font-size:19px;margin:38px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  h3{font-size:15px;margin:24px 0 8px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+  p{margin:0 0 12px;max-width:74ch}
+  .sub{color:var(--mut);margin-bottom:22px}
+  code,kbd{background:var(--code);padding:1px 5px;border-radius:4px;
+        font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 18px;
+          border:1px solid var(--line);border-radius:10px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;min-width:900px;font-size:13.5px}
+  th,td{text-align:left;vertical-align:top;padding:9px 11px;border-bottom:1px solid var(--line)}
+  th{background:var(--code);font-weight:600;font-size:12px;text-transform:uppercase;
+     letter-spacing:.04em;color:var(--mut);position:sticky;top:0}
+  tr:last-child td{border-bottom:0}
+  td.id{font:12px ui-monospace,monospace;color:var(--mut);white-space:nowrap}
+  .tag{display:inline-block;padding:2px 7px;border-radius:20px;font-size:11px;
+       font-weight:600;white-space:nowrap}
+  .ok{background:var(--okbg);color:var(--ok)}
+  .warn{background:var(--warnbg);color:var(--warn)}
+  .bad{background:var(--badbg);color:var(--bad)}
+  .note{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--accent);
+        border-radius:8px;padding:13px 16px;margin:0 0 18px}
+  .note.bad{border-left-color:var(--bad);background:var(--badbg)}
+  .note.warn{border-left-color:var(--warn);background:var(--warnbg)}
+  .note p:last-child{margin-bottom:0}
+  ul{margin:0 0 12px;padding-left:22px;max-width:74ch} li{margin-bottom:5px}
+  .key{display:flex;flex-wrap:wrap;gap:14px;margin:0 0 22px;font-size:13px;color:var(--mut)}
+  .src{font:11.5px ui-monospace,monospace;color:var(--mut);display:block;margin-top:3px}
+  .lede{font-size:16px;max-width:74ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>WalletConnect — every path, and whether the code handles it</h1>
+<p class="sub">katomia · lab1 · bundle <code>3c7e7c3</code> · WC-RELAYHEALTH1 R2b · 2026-08-06</p>
+
+<p class="lede">Every branch a user can take through connect / sign / disconnect, what the code
+does with it today, and what is actually proven. Two separate columns on purpose: <b>Code</b> is
+"is there a path for this", <b>Proven</b> is "has anyone ever seen it work". Almost everything is
+green on the first and thin on the second — that gap is the honest state of things.</p>
+
+<div class="key">
+  <span><span class="tag ok">HANDLED</span> code path exists, cited</span>
+  <span><span class="tag warn">PARTIAL</span> handled but with a known hole</span>
+  <span><span class="tag bad">TODO</span> not handled</span>
+</div>
+
+<div class="note bad">
+  <p><b>Correction first.</b> I told you to hard-reload both phones. That was wrong advice and you
+  are right to push back — CACHE-FRESH1 (<code>bf014c6</code>, 2026-08-05) exists precisely so users
+  never have to. What I should have said: <b>the pin bump reaches you on any fresh navigation, and a
+  reload should never be something a user has to know about.</b> There is still a real hole
+  (<b>D2</b>) where a tab that is resumed rather than navigated keeps its old bundle, and the fix for
+  that is code, not instructions. It is listed as TODO below, not as a thing you should do by hand.</p>
+</div>
+
+<h2>The scenario you described</h2>
+<p>Clear connections in HashPack (accounts left alone) → back into katomia → tap Sign → connection
+options appear → connects → wallet asks to sign → signs fine → back in katomia → everything wipes.</p>
+<p>That is row <b>A5</b>, and the mechanism was exact:</p>
+<ul>
+  <li>Clearing wallet-side leaves the session in <i>our</i> localStorage. On the next load
+      <code>DAppConnector.init()</code> rebuilds a signer for it — a <b>ghost</b>.</li>
+  <li>The sign path opens with <code>if(!active) active = await wc.getAccount()</code>. The ghost
+      answered, truthy, so <b>the connect branch never ran</b> — you were never actually re-paired,
+      whatever the wallet showed you.</li>
+  <li>The sign then went to the ghost's dead topic. The wallet you had just approved in was a
+      different session entirely.</li>
+  <li>Sign throws → tx sits out its 40s window → backend returns a failure verdict →
+      <code>boardShowResult(txid,false)</code> → wiper. The wipe is downstream and correct; the
+      sign failing is the bug.</li>
+</ul>
+<p>R2b breaks the chain at step one: a signer whose topic is absent from
+<code>walletConnectClient.session.keys</code> is dead, gets reaped, so <code>getAccount()</code>
+returns null, so <b>the connect branch runs</b> and you get a genuine pairing.
+<b>Code: handled. Proven: not yet</b> — see the harness section, this is the first case to automate.</p>
+
+<h2>A · Connect</h2>
+<div class="scroll"><table>
+<thead><tr><th style="width:52px">#</th><th style="width:26%">Scenario</th><th>Expected</th><th style="width:30%">What the code does</th><th style="width:92px">Code</th><th style="width:92px">Proven</th></tr></thead>
+<tbody>
+<tr><td class="id">A1</td><td>No session, tap Connect</td><td>QR/deep-link, wallet approves, one signer</td>
+<td><code>connectWalletCore</code> → <code>openModal()</code> → poll <code>getSigner()</code> 8s<span class="src">kwcCore.js:633</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">smoke ✓</span></td></tr>
+
+<tr><td class="id">A2</td><td>No session, tap Sign</td><td>Sign auto-connects first</td>
+<td><code>if(!active) active = await wc.connect()</code><span class="src">katomia-board.js:3938</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">smoke ✓</span></td></tr>
+
+<tr><td class="id">A3</td><td>Live session, tap Connect again</td><td>No duplicate signer for the same account</td>
+<td>SDK <code>onSessionConnected</code> disconnects + drops same-accountId dupes before pushing</td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">A4</td><td>Ghost session, tap Connect</td><td>Fresh pairing; ghost gone</td>
+<td>Ghost reaped by <code>reapDeadSigners()</code>; A3 dedupe also fires<span class="src">kwcCore.js:561</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id"><b>A5</b></td><td><b>Ghost session, tap Sign</b> — your scenario</td><td>Detect dead session, force real pairing, sign</td>
+<td><code>getAccount()</code>→<code>getSigner()</code>→reap→null→connect branch runs<span class="src">kwcCore.js:578</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">A6</td><td>Game is testnet, connector built mainnet</td><td>Rebuild for the tx network before pairing</td>
+<td><code>ensureNetwork()</code> called before any WC call<span class="src">kwcCore.js:432 · board:3930</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag warn">once, 07-07</span></td></tr>
+
+<tr><td class="id">A7</td><td>User closes the WC modal without approving</td><td>Clean error, no half state</td>
+<td><code>openModal()</code> rejects only if <code>throwErrorOnReject</code>; we pass <b>false</b>, so it hangs until the 8s poll throws "Wallet connection timeout"</td>
+<td><span class="tag warn">PARTIAL</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">A8</td><td>User rejects in the wallet</td><td>"Rejected", offer retry</td>
+<td>Rejection surfaces as a generic connect throw; no typed error, no retry affordance</td>
+<td><span class="tag warn">PARTIAL</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">A9</td><td>Pairing proposal expires (user wanders off)</td><td>Say so, re-offer pairing</td>
+<td>Throws from <code>approval()</code>; board shows <code>Signing failed: …</code> — accurate but opaque</td>
+<td><span class="tag warn">PARTIAL</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">A10</td><td>Stacked <code>&lt;wcm-modal&gt;</code> after a network switch</td><td>One live modal only</td>
+<td>kwcCore removes all on rebuild; <code>kauthPruneWcModals()</code> keeps the last<span class="src">kwcCore.js:452 · katomia-auth.js:48</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag warn">fixed 07-07</span></td></tr>
+
+<tr><td class="id">A11</td><td><b>The QR / connection-string popup that lingers</b></td><td>Modal closes itself once paired</td>
+<td><b>Undiagnosed.</b> SDK closes it in <code>openModal</code>'s <code>finally</code>, so a lingering one means the promise never settled — or it is an orphan from a rebuild that pruning missed. No kdiag on modal open/close, so there is nothing to read.</td>
+<td><span class="tag bad">TODO</span></td><td><span class="tag bad">no</span></td></tr>
+</tbody></table></div>
+
+<div class="note warn">
+<p><b>A11 — what that popup actually is.</b> It is WalletConnect's own <code>&lt;wcm-modal&gt;</code>,
+not ours and not HashPack's. The "connection string" is the pairing URI
+(<code>wc:…@2?relay-protocol=…&amp;symKey=…</code>) — the thing a QR encodes. It is <i>supposed</i> to
+be on screen only while a pairing is in flight, and the SDK closes it in a <code>finally</code> when
+<code>openModal()</code> settles. That you can approve and sign underneath it and everything works
+means the pairing succeeded and the modal simply never got closed — cosmetic, but it is also the
+visible symptom of a promise that never settled, which is worth knowing. I have <b>not</b> diagnosed
+it and I am not going to guess: the first step is a kdiag line on every modal open/close plus a count
+of live <code>&lt;wcm-modal&gt;</code> elements, which would make it self-explaining next time.</p>
+</div>
+
+<h2>B · Sign</h2>
+<div class="scroll"><table>
+<thead><tr><th style="width:52px">#</th><th style="width:26%">Scenario</th><th>Expected</th><th style="width:30%">What the code does</th><th style="width:92px">Code</th><th style="width:92px">Proven</th></tr></thead>
+<tbody>
+<tr><td class="id">B1</td><td>Live session, desktop</td><td>Signs</td><td>Straight through</td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">yes</span></td></tr>
+
+<tr><td class="id">B2</td><td>Mobile, wallet backgrounded</td><td>Request wakes the wallet</td>
+<td>Request sent first; ping is a kdiag line only and cannot fail a sign<span class="src">kwcCore.js:1420</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">smoke ✓ both phones</span></td></tr>
+
+<tr><td class="id">B3</td><td>Slow approval, 30–120s</td><td>Still succeeds</td>
+<td>R2a removed the 30s cap that killed exactly this. Only the 120s backstop remains.</td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no — needs a deliberate slow approval</span></td></tr>
+
+<tr><td class="id">B4</td><td>Approval &gt; 120s</td><td>Clear timeout error</td>
+<td><code>KWC-TIMEOUT</code>. Note the tx is dead at 40s anyway, so this only ends the await.</td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">B5</td><td>Sign hits a dead session, live one exists</td><td>Re-sign on the live session, no user action</td>
+<td><code>_isSessionGoneError</code> → purge → <code>findSigner()</code> → sign again once<span class="src">kwcCore.js:518</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">B6</td><td>Sign hits a dead session, nothing live</td><td>"Reconnect" — not a retry loop</td>
+<td><code>KWC-GONE: tap Connect to pair again</code></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">B7</td><td>Relay drops mid-sign, recovers &lt;15s</td><td>Late answer still lands</td>
+<td>Loss timer armed on <code>relayer_disconnect</code>, cleared on reconnect; relay mailboxes the reply<span class="src">kwcCore.js:359</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag warn">observed in the wild, never forced</span></td></tr>
+
+<tr><td class="id">B8</td><td>Relay drops mid-sign, never recovers</td><td>Real error at 15s</td>
+<td><code>KWC-RELAY-LOST</code>. Never once fired in production logs.</td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">B9</td><td>Wallet active on the wrong account</td><td>Hard stop, name both accounts</td>
+<td>WS-ACCTMISMATCH1 pre-check before bytes are fetched<span class="src">katomia-board.js:3947</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">yes, 08-05</span></td></tr>
+
+<tr><td class="id">B10</td><td>Only a wrong-network signer connected</td><td>Name the mismatch</td>
+<td>WC-ACCTFILTER1 stray check<span class="src">kwcCore.js:1367+</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag warn">once</span></td></tr>
+
+<tr><td class="id">B11</td><td>tx expires during approval</td><td>Honest "expired", wipe</td>
+<td>Backend verdict drives <code>boardShowResult(false)</code> → wiper. Correct behaviour.</td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">seen often</span></td></tr>
+
+<tr><td class="id">B12</td><td>Ghost + fresh signer share one accountId</td><td>Freshest live one wins</td>
+<td><code>findSigner</code> picks max session expiry, not <code>[0]</code><span class="src">kwcCore.js:550</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no — the core case to automate</span></td></tr>
+
+<tr><td class="id">B13</td><td>Double sign request race</td><td>One request only</td>
+<td>ORDER-AUTOSIGN1 R3 claims the txid before any await<span class="src">78086ae</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">fixed after live 18:46 repro</span></td></tr>
+
+<tr><td class="id">B14</td><td>Wallet approves but reply is lost</td><td>Don't claim failure if the sig lands late</td>
+<td>Backend is the source of truth via txsocket, so a late sig still settles. UI may already have shown an error.</td>
+<td><span class="tag warn">PARTIAL</span></td><td><span class="tag bad">no</span></td></tr>
+</tbody></table></div>
+
+<h2>C · Disconnect</h2>
+<div class="scroll"><table>
+<thead><tr><th style="width:52px">#</th><th style="width:26%">Scenario</th><th>Expected</th><th style="width:30%">What the code does</th><th style="width:92px">Code</th><th style="width:92px">Proven</th></tr></thead>
+<tbody>
+<tr><td class="id">C1</td><td>dApp-side disconnect, peer alive</td><td>Session dropped both ends</td>
+<td><code>disconnectAccountCore</code> → SDK disconnect → prune by topic<span class="src">kwcCore.js:781</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">yes</span></td></tr>
+
+<tr><td class="id">C2</td><td>dApp-side disconnect, peer already gone</td><td>Local state still cleaned</td>
+<td>Round-trip throws, swallowed; <code>_purgeLocalSession</code> removes our copy regardless<span class="src">kwcCore.js:704</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">C3</td><td><b>Wallet-side clear, then page reload</b></td><td>Not shown as connected</td>
+<td>Rehydrated signer fails <code>signerIsLive</code>, reaped before any read<span class="src">kwcCore.js:529</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">C4</td><td>Wallet-side clear, no reload (live tab)</td><td>Same</td>
+<td>SDK <code>session_delete</code> handler fires on the peer's delete; if the relay was down when it happened, the reap catches it on the next <code>getSigner()</code></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">C5</td><td>Escape hatch</td><td>Guaranteed fresh pairing</td>
+<td><code>WC.resetWalletLink()</code> wipes <code>wc@2:*</code> + drops the connector. <b>Console only — no UI control</b> (deliberately: no phantom buttons until it earns one)<span class="src">kwcCore.js:750</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">headless ✓</span></td></tr>
+
+<tr><td class="id">C6</td><td><code>disconnectAll()</code> half-fails with 2 accounts</td><td>Live account survives</td>
+<td>R2a: only signers whose session is verifiably gone are dropped<span class="src">kwcCore.js:718</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">C7</td><td>Disconnect one of two accounts</td><td>The other keeps working</td>
+<td>Per-topic disconnect + WC-PICKDEL1 local prune</td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag warn">single-account only so far</span></td></tr>
+</tbody></table></div>
+
+<h2>D · Freshness &amp; lifecycle</h2>
+<div class="scroll"><table>
+<thead><tr><th style="width:52px">#</th><th style="width:26%">Scenario</th><th>Expected</th><th style="width:30%">What the code does</th><th style="width:92px">Code</th><th style="width:92px">Proven</th></tr></thead>
+<tbody>
+<tr><td class="id">D1</td><td>New pin, user navigates</td><td>New bundle, no user action</td>
+<td>CACHE-FRESH1: HTML is <code>no-cache, must-revalidate</code>, so the script tag carries the new hash<span class="src">kasset.php:14</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">verified by header</span></td></tr>
+
+<tr><td class="id"><b>D2</b></td><td><b>New pin, tab resumed rather than navigated</b></td><td>App pulls the update through itself</td>
+<td><b>Nothing does this.</b> On 08-06 at 07:21:02 a phone was still running <code>a99a66e</code>, 7h after the pin moved, then loaded <code>e31d3b7</code> 4s later. Back/forward and restored tabs can skip revalidation. <code>modal:cachecheck</code> compares running vs fresh markers but <b>only logs, never acts</b>, and only when a modal opens.<span class="src">katomia-modals.js:279</span></td>
+<td><span class="tag bad">TODO</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">D3</td><td>bfcache restore mid-session</td><td>State intact or refreshed cleanly</td>
+<td>No <code>pageshow(persisted)</code> handler anywhere</td>
+<td><span class="tag bad">TODO</span></td><td><span class="tag bad">no</span></td></tr>
+
+<tr><td class="id">D4</td><td>Reload with a genuinely live session</td><td>Stays connected</td>
+<td>Rehydrated, passes <code>signerIsLive</code>, kept</td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">yes</span></td></tr>
+
+<tr><td class="id">D5</td><td>Session expires by TTL while the tab sits open</td><td>Shown as disconnected</td>
+<td>Reap checks <code>expiry * 1000 &lt;= now</code><span class="src">kwcCore.js:529</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no — needs a clock-shifted test</span></td></tr>
+</tbody></table></div>
+
+<div class="note bad">
+<p><b>D2 is the one that matters to you and it is genuinely not done.</b> It is fixable in code and
+does not need anything from the user: on <code>visibilitychange</code> and
+<code>pageshow(persisted)</code>, re-fetch the build marker, and if it moved, reload — suppressed
+while a sign is in flight so it can never interrupt a trade. That is roughly twenty lines. It is
+listed as TODO rather than done because I have not written it yet, not because it is impossible.</p>
+</div>
+
+<h2>E · Network &amp; relay</h2>
+<div class="scroll"><table>
+<thead><tr><th style="width:52px">#</th><th style="width:26%">Scenario</th><th>Expected</th><th style="width:30%">What the code does</th><th style="width:92px">Code</th><th style="width:92px">Proven</th></tr></thead>
+<tbody>
+<tr><td class="id">E1</td><td>mainnet → testnet switch</td><td>Re-pair on the new network, old modal gone</td>
+<td>WC-NETSWITCH1 + WC-SESSIONDISPOSE1: rebuild, close old modal, close old relay only<span class="src">kwcCore.js:432</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">yes, 07-07/07-08</span></td></tr>
+<tr><td class="id">E2</td><td>Relay drops while idle</td><td>Silent auto-recover</td>
+<td><code>restartTransport()</code> with backoff to 10s<span class="src">kwcCore.js:381</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">seen constantly on mobile</span></td></tr>
+<tr><td class="id">E3</td><td>Backgrounding flaps the relay repeatedly</td><td>No user-visible effect</td>
+<td>Reconnects in ~100ms; no in-flight request so no loss timer</td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">yes</span></td></tr>
+<tr><td class="id">E4</td><td>Airplane mode mid-sign</td><td>Real error, not a hang</td>
+<td>B8 path</td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no</span></td></tr>
+</tbody></table></div>
+
+<h2>Can kWallet drive these instead of HashPack?</h2>
+<p><b>Mostly yes — and that is the answer to your question.</b> kWallet already exists as a real
+WalletConnect <i>wallet</i> peer (KWALLET1, done 2026-07-15): <code>/opt/kwallet</code>, pm2
+<code>kwallet</code> + <code>kwallet-mainnet</code>, both online now, hosted UI at
+<code>kpay.uk/devtools/kwallet/</code>. It pairs over the real relay, approves sessions and signs
+Hedera transactions — proven on-chain without HashPack.</p>
+<p>What it can drive today, unattended: <b>A1–A4, A6, B1, B3, B4, B9, B10, B12, C1, C7, D4, D5, E1</b>
+— via <code>POST /api/pair</code>, <code>/api/approve</code>, <code>/api/reject</code>, and
+<code>/api/mode</code> for auto vs manual.</p>
+<div class="note">
+<p><b>One primitive is missing, and it is the one your scenario needs.</b> kWallet has no
+disconnect endpoint — <code>kwallet-service.cjs</code> exposes pair / approve / reject / state /
+mode / log and nothing else. "Clear the connection in the wallet" is therefore the single thing it
+cannot yet simulate, which is exactly A5, B5, B6, C3 and C4.</p>
+<p>Fix: add <code>POST /api/disconnect</code> calling the wallet peer's
+<code>disconnectSession({topic, reason})</code>. Small, and it unlocks the whole ghost-session
+family as automated regression tests — the difference between "I reasoned it through" and "it is
+proven and stays proven".</p>
+</div>
+<p>Deliberate approval delay (<b>B3</b>) also needs a knob — approve after <i>N</i> seconds — to
+regression-test the 30s cap bug that I introduced and removed. Without it, nothing stops that class
+of mistake coming back.</p>
+
+<h2>What I would do next, in order</h2>
+<ol>
+  <li><b>kWallet <code>/api/disconnect</code></b> — unlocks A5/B5/B6/C3/C4, the family that has burned you repeatedly.</li>
+  <li><b>D2 freshness check</b> — so a pin bump reaches a resumed tab without anyone being told to reload.</li>
+  <li><b>A11 modal kdiag</b> — open/close/live-count, so the lingering QR popup stops being folklore.</li>
+  <li><b>kWallet approval delay knob</b> — locks in B3 against regression.</li>
+  <li><b>A7/A8/A9 typed errors</b> — "you closed the pairing window", "you rejected it", "the pairing expired" instead of one generic throw.</li>
+</ol>
+
+<p class="sub" style="margin-top:34px">Source of truth for every citation:
+<code>public_html/vendor/walletconnect/builder/src/kwcCore.js</code> at <code>3c7e7c3</code>,
+<code>public_html/m/katomia/katomia-board.js</code>, <code>katomia-auth.js</code>,
+<code>katomia-modals.js</code>, <code>kasset.php</code>. Line numbers move — grep the marker names.</p>
+
+</div>
+</body>
+</html>
