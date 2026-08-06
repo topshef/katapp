@@ -188,6 +188,15 @@
           Remote diagnostic logging
         </label>
         <button id="profileCopyDiagBtn" type="button" title="Copy local diagnostics to clipboard">⧉ Copy local diagnostics</button>
+        <!-- KAT-BUILDSTAMP1 (user 2026-08-06): "when I'm inspecting the app through profile
+             or nerd settings, I can see exactly what build we're on". Deploys are a
+             blue/green symlink flip, so "did my change actually land, and is this slot the
+             one I just pushed?" was previously only answerable by curling build-info.json
+             from a terminal. Reads the same file the deploy writes, so it cannot drift from
+             what was shipped. Unbundled (swap/labs) has no build-info.json — say so plainly
+             rather than showing a blank or a stale value. -->
+        <div class="profile-debug-label profile-build-stamp" id="profileBuildStamp"
+             title="Which bundle this browser is actually running">build …</div>
       </div>
     </details>
   </div>

@@ -45,6 +45,26 @@ function initKatomiaProfile(){
   if(copyBtn)
     copyBtn.onclick = () => copyKatomiaProfileLink()
 
+  // KAT-BUILDSTAMP1: show which bundle this browser is actually running. Deploys flip a
+  // blue/green symlink, so without this the only way to answer "did my push land, and am I
+  // looking at it or a cached slot?" was curling build-info.json from a terminal. Reads the
+  // very file the deploy writes, so it cannot drift from what shipped. Cache-busted because
+  // the whole point is to catch a stale slot.
+  const buildStamp = document.getElementById("profileBuildStamp")
+  if(buildStamp)
+    fetch(`${window.KBASE ?? ""}/build-info.json?_=${Date.now()}`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(String(r.status))))
+      .then(b => {
+        const built = (b.built || "").replace("T", " ").replace("Z", " UTC")
+        buildStamp.textContent = `build ${b.source_sha || "?"} · kwc ${b.kwc_snapshot || "?"} · ${built}`
+        buildStamp.title = JSON.stringify(b, null, 1)
+      })
+      .catch(() => {
+        // No build-info.json means this is not a deployed bundle (swap.kpay.live, a lab
+        // seat, a dev checkout). Saying so beats a blank line or a misleading dash.
+        buildStamp.textContent = "build: unbundled (dev / lab)"
+      })
+
   // Copy local diagnostics (the window.kdiag ring buffer) — moved here from the kpool
   // widget modal (DIAG-MOVE1) so all diagnostics controls live together in the profile.
   const copyDiagBtn = document.getElementById("profileCopyDiagBtn")
