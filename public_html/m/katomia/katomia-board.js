@@ -1352,12 +1352,30 @@ function renderRingBoard(root){
       // fire "pretty much immediately"): still enough for a same-moment
       // success receipt push to win the race, and the shade's synced fade
       // (ring-focusshade--wipe, below) covers the remaining offset.
-      setTimeout(() => {
-        if(!boardSuccessAcked.has(vanished)){
-          boardDiag("board:result:vanished-from-pending", { txid: vanished })
-          boardShowResult(vanished, false)
+      //
+      // BOARD-VANISHRACE1 (user 2026-08-06, USDC send — same false verdict on
+      // pat/app/lab1): the main socket AND the tx-receipt socket (createTxSocket)
+      // both hit the same backend host, so a reconnect blip drops both at once.
+      // kdiag showed the exact race: signature saved + arc green, then ws:close
+      // right as the backend resolved the tx (that's WHY it vanished from
+      // pending), and the 500ms fired while the receipt socket was still
+      // reconnecting — guessing "failed or expired" on a transaction that had
+      // already succeeded. Don't guess while the connection is down; wait for
+      // it to come back and give the receipt the same 500ms it would've had,
+      // capped by BOARD_NO_RECEIPT_MS so a genuinely dead backend still gets an
+      // honest verdict instead of hanging forever.
+      const giveUpAt = Date.now() + BOARD_NO_RECEIPT_MS
+      const maybeDeclare = () => {
+        if(boardSuccessAcked.has(vanished)) return
+        if((!socket || socket.readyState !== WebSocket.OPEN) && Date.now() < giveUpAt){
+          boardDiag("board:result:vanished-await-reconnect", { txid: vanished })
+          setTimeout(maybeDeclare, 500)
+          return
         }
-      }, 500)
+        boardDiag("board:result:vanished-from-pending", { txid: vanished })
+        boardShowResult(vanished, false)
+      }
+      setTimeout(maybeDeclare, 500)
     }
     // BOARD-TRAILORPHAN1 (user 2026-07-31, spotted on the live demo; confirmed with
     // Playwright over a full cycle). After-glow trails are PERSISTENT by design —
