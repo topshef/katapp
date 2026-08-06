@@ -352,11 +352,28 @@ function bubbleOn(el){
   live.set(el, h)
   try { h.puff?.() } catch(e){}
 }
+// R2 (user 2026-08-06): "if you leave it and let them fade out, they suddenly pop
+// away — I think we should have them fade out." The bubble still gets its full
+// settle (the bounce finishes, as before); what changed is the END: the canvas
+// dissolves instead of vanishing, and the card's own CSS border is restored at
+// the START of that dissolve so the two cross-fade — there is never a frame with
+// no border at all, which is what the pop actually was.
+// (The user's preferred alternative — a resting border that IS the bubble's
+// iridescent colouring, just not moving — is logged on CIRCLES-BUBBLECOST1: it
+// needs kbubble's palette expressed as a CSS gradient, and guessing at it would
+// land somewhere between "close" and "wrong".)
+const FADE_MS = 420
 function bubbleOff(el){
   clearTimeout(el.__kbOff)
   el.__kbOff = setTimeout(() => {
     const h = live.get(el)
-    if(h){ h.destroy(); live.delete(el) }
+    if(!h) return
+    const cv = el.querySelector("canvas")
+    if(!cv){ h.destroy(); live.delete(el); return }
+    el.classList.remove("kbubble-on", "kbubble-filled")   // CSS border back, under the fading canvas
+    cv.style.transition = `opacity ${FADE_MS}ms ease`
+    cv.style.opacity = "0"
+    el.__kbOff = setTimeout(() => { h.destroy(); live.delete(el) }, FADE_MS)
   }, SETTLE_MS)
 }
 
