@@ -2329,11 +2329,12 @@ document.addEventListener("dragend", e => {
 })
 
 // one place owns entering/leaving the drag state, so the touch path, the desktop
-// path and any future one can't drift apart. Two things ride on it:
-//  · the repaint hold (BOARD-DRAGREPAINT1)
-//  · body.board-dragging, which takes the CHIPS out of hit testing so the drop
-//    resolves to the segment you're over rather than the chip you're crossing
-//    (BOARD-DROPHIT1 — see the CSS for why that was wrong and what it broke)
+// path and any future one can't drift apart. It carries the repaint hold
+// (BOARD-DRAGREPAINT1) and sets body.board-dragging as a state hook.
+// NOTE: that class must NEVER be used to disable pointer-events on chips —
+// BOARD-DROPHIT1 R1 did exactly that and killed native HTML5 dnd outright, since
+// dnd resolves its source and targets through the same hit test. Segment
+// resolution belongs in boardWedgeAt(), which reads the hit STACK instead.
 function boardEnterDrag(){
   window.__boardDragging = true
   window.__boardDragSince = Date.now()
@@ -2341,6 +2342,7 @@ function boardEnterDrag(){
 }
 function boardReleaseRepaintHold(){
   window.__boardDragging = false
+  window.__boardDragPayload = null   // the source-segment check must not see a stale drag
   document.body.classList.remove("board-dragging")
   if(!window.__boardRenderPending) return
   window.__boardRenderPending = false
@@ -5108,6 +5110,8 @@ function boardDropValid(p, account){
   return true
 }
 
+let _boardLitWedge = null   // BOARD-DROPHIT1 R2: the one wedge lit by a desktop drag
+
 function boardDropTarget(el, account){
 
   // touch-drag hit test target (elementFromPoint → closest [data-drop-account])
@@ -5144,17 +5148,39 @@ function boardDropTarget(el, account){
     // dragleave on the wedge and the highlight dropped out mid-drag. dragover
     // re-lights it, and the leave is deferred (below) so crossing a chip
     // doesn't strobe the wedge.
+    // BOARD-DROPHIT1 R2: light the WEDGE under the cursor, resolved from the
+    // whole hit stack — not `el`, which may be the chip container of whoever
+    // owns the chip you happen to be crossing.
     clearTimeout(el.__dragLeaveT)
-    el.classList.add("drag-over")
+    const w = boardWedgeAt(e.clientX, e.clientY) || el
+    if(!boardIsDragSource(w.__dropAccount)){
+      if(_boardLitWedge && _boardLitWedge !== w) _boardLitWedge.classList.remove("drag-over")
+      w.classList.add("drag-over")
+      _boardLitWedge = w
+    }
   }
 
   const coreLeave = el.ondragleave
   el.ondragleave = e => {
     clearTimeout(el.__dragLeaveT)
-    el.__dragLeaveT = setTimeout(() => { coreLeave && coreLeave(e); el.classList.remove("drag-over") }, 140)
+    el.__dragLeaveT = setTimeout(() => {
+      coreLeave && coreLeave(e)
+      el.classList.remove("drag-over")
+      _boardLitWedge?.classList.remove("drag-over")
+      _boardLitWedge = null
+    }, 140)
   }
 
   el.ondrop = e => {
+    // BOARD-DROPHIT1 R2: this handler may be on the chip CONTAINER of whoever
+    // owns the chip that happened to be under the cursor. Resolve the segment
+    // from the hit stack and, if it's a different one, hand the whole drop to
+    // that wedge's identical handler rather than reproducing the semantics here.
+    const w = boardWedgeAt(e.clientX, e.clientY)
+    if(w && w !== el && w.__dropAccount && w.__dropAccount !== account && typeof w.ondrop === "function"){
+      w.ondrop(e)
+      return
+    }
 
     // BOARD-ARRANGE1: a drop landing in the dragged chip's OWN zone is an
     // arrange — the chip pins where it fell; no offer/reject/withdraw fires
@@ -5243,10 +5269,15 @@ function boardTouchDrag(el, payload){
   el.style.touchAction = "none"
 
   el.addEventListener("pointerdown", e => {
-    // mouse keeps native dnd — EXCEPT for arrange-only chips (BOARD-ARRANGEOTHERS1),
-    // which have no dnd payload at all, so this pointer path is their only drag on
-    // either input.
-    if(e.pointerType === "mouse" && !payload?.arrangeOnly) return
+    // mouse keeps native dnd.
+    // BOARD-ARRANGEOTHERS1 R2 (user 2026-08-06): arrange-only chips briefly got an
+    // exception here so they'd be draggable with a mouse too. That was a mistake —
+    // on desktop it gave every other player's chip a pointer-driven fly clone that
+    // followed the cursor and lit every segment, while landing nowhere ("I can
+    // actually drag assets from the other player to anywhere; they don't actually
+    // land"). Touch only again; arranging someone else's chips with a mouse can
+    // come back later on the native-dnd path, where it belongs.
+    if(e.pointerType === "mouse") return
     const startX = e.clientX, startY = e.clientY
     let fly = null, dropWedge = null
     // BOARD-DRAGREPAINT1 (user 2026-08-06): "if I drag the chip very, very
@@ -5274,7 +5305,8 @@ function boardTouchDrag(el, payload){
       // lights as the target; drop point = the chip's centre.
       fly.style.transform = `translate(${at.x - startX}px, ${at.y - startY}px) scale(1.05)`
       const c = fly.getBoundingClientRect()
-      const over = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2)?.closest?.("[data-drop-account]")
+      let over = boardWedgeAt(c.left + c.width / 2, c.top + c.height / 2)
+      if(over && boardIsDragSource(over.__dropAccount)) over = null   // not a destination
       if(over !== dropWedge){
         dropWedge?.classList.remove("drag-over")
         over?.classList.add("drag-over")
@@ -5292,7 +5324,8 @@ function boardTouchDrag(el, payload){
         fly.style.left = r.left + "px"
         fly.style.top = r.top + "px"
         document.body.appendChild(fly)
-        boardEnterDrag()   // repaint hold + chips out of hit testing (see boardEnterDrag)
+        boardEnterDrag()   // repaint hold (see boardEnterDrag)
+        window.__boardDragPayload = payload   // so the source-segment check sees it on touch too
         el.classList.add("board-dragsrc")
         window.__boardDropTradeLine?.()   // BOARD-TRADELINESTALE1 (touch path)
         // a drag must not ALSO fire the chip's tap action on release
@@ -5327,8 +5360,7 @@ function boardTouchDrag(el, payload){
       // chip stays where it was. That refusal IS the feature — a chip that
       // visibly cannot leave its owner's wedge reads as tidying, not taking.
       if(payload?.arrangeOnly) return
-      const hit = document.elementFromPoint(dx, dy)
-      const target = hit?.closest?.("[data-drop-account]")
+      const target = boardWedgeAt(dx, dy)
       if(target?.__dropAccount) boardExecuteDrop(payload, target.__dropAccount, { x: dx, y: dy })
     }
 
@@ -5359,6 +5391,7 @@ if(!window.__boardDragCueInit){
     } catch {}
   }, true)
   document.addEventListener("dragend", () => {
+    _boardLitWedge = null
     document.querySelectorAll(".drag-over").forEach(n => {
       clearTimeout(n.__dragLeaveT)
       n.classList.remove("drag-over")
@@ -6521,6 +6554,32 @@ function ringHubCoinLabel(seg, g, NS){
 // modal, so tapping someone's lock ring never teaches the wrong association
 // and stays free for a future action (signing history etc.).
 let _boardRingGeo = null
+
+// ── BOARD-DROPHIT1 R2 (user 2026-08-06) ─────────────────────────────────────
+// Which SEGMENT is under this point? elementsFromPoint returns the whole stack at
+// the coordinate, so the wedge is found even with a chip painted on top of it —
+// which is the entire fix, and it needs no pointer-events games. (R1 disabled hit
+// testing on chips instead; that killed native HTML5 dnd, whose source and target
+// resolution goes through the same hit test. Never take the dragged element out of
+// hit testing.)
+// Falls back to the old closest() walk if elementsFromPoint is unavailable.
+// the segment a drag STARTED from is not a destination — "you don't highlight the
+// segment that you've come from, you only highlight the segments that you're
+// hovering over as destinations" (user 2026-08-06). Reads the same window-scoped
+// payload the desktop dropEffect check uses, so it works on both input paths.
+function boardIsDragSource(account){
+  const p = window.__boardDragPayload
+  if(!p || !account) return false
+  return account.id === p.fromAccountId || account.id === p.pickFrom
+}
+
+function boardWedgeAt(x, y){
+  const stack = document.elementsFromPoint?.(x, y) || []
+  for(const el of stack){
+    if(el.classList?.contains?.("board-wedge") && el.__dropAccount) return el
+  }
+  return document.elementFromPoint(x, y)?.closest?.("[data-drop-account]") || null
+}
 
 // visible lock-tube thickness — the CSS width for the family in play
 // ([data-board-fam~="v16"] .ring-lockarc{ stroke-width: 14 }); earlier
