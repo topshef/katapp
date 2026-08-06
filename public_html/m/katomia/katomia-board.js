@@ -323,7 +323,7 @@ function boardSavePrefs(){
       zoneWalls: boardZoneWalls, hugRing: boardHugRing,
       stickyChips: boardStickyChips, chipScale: boardChipScale,
       chatMode: boardChatMode, avatarPos: boardAvatarPos,
-      counterMode: boardCounterMode, chipStyle: boardChipStyle
+      counterMode: boardCounterMode, chipStyle: boardChipStyle, chipEmboss: boardChipEmboss
     }))
   } catch {}
 }
@@ -432,6 +432,9 @@ let boardCounterMode = _bp.counterMode === "classic" ? "classic" : "simple"
 // the default to owner colour for now, I think that's probably going to be the
 // default"). plain/dark stay selectable while the comparison finishes.
 let boardChipStyle = ["plain", "dark"].includes(_bp.chipStyle) ? _bp.chipStyle : "colour"
+// BOARD-CHIPDEPTH1 R3 (user 2026-08-06): engraved lettering, opt-in. Default OFF —
+// it convinces at phone pixel density and reads as blur at desktop glyph sizes.
+let boardChipEmboss = _bp.chipEmboss === true
 const boardCounterSimple = () => boardCounterMode === "simple"
 // helpers.js (highlightTradePair) needs this across the closure seam; absent
 // (legacy game.php grid) it reads undefined → classic behaviour there
@@ -1082,6 +1085,17 @@ function boardSyncPrefsUI(){
       render()
     }
   }
+  // BOARD-CHIPDEPTH1 R3: engraved lettering on/off
+  const emboss = document.getElementById("boardPrefEmboss")
+  if(emboss){
+    emboss.checked = !!boardChipEmboss
+    emboss.onchange = () => {
+      boardChipEmboss = emboss.checked
+      boardDiag("board:pref:chipEmboss", { value: boardChipEmboss })
+      boardSavePrefs()
+      document.body.classList.toggle("chip-emboss", boardChipEmboss)
+    }
+  }
   // BOARD-COUNTERMODE1: classic counter (ring + ghost pile) ⇄ simple (default)
   const classicCounter = document.getElementById("boardPrefClassicCounter")
   if(classicCounter){
@@ -1152,6 +1166,7 @@ async function render(){
   // "live" for more than 12s is a lost dragend/pointercancel, not a drag.
   if(window.__boardDragging && Date.now() - (window.__boardDragSince || 0) > 12000){
     window.__boardDragging = false
+    document.body.classList.remove("board-dragging")
     boardDiag("board:drag:hold-expired", {})
   }
   if(window.__boardDragging){ window.__boardRenderPending = true; return }
@@ -1169,6 +1184,7 @@ async function render(){
     susan5() && "susan5p",
   ].filter(Boolean).join(" ")
   document.body.dataset.chipStyle = boardChipStyle   // BOARD-CHIPART1 variant under comparison
+  document.body.classList.toggle("chip-emboss", !!boardChipEmboss)   // BOARD-CHIPDEPTH1 R3
   if(gameMeta?.network)
     document.body.dataset.network = gameMeta.network.toLowerCase()
 
@@ -2300,7 +2316,7 @@ document.addEventListener("dragstart", e => {
   // BOARD-DRAGREPAINT1 R2: hold repaints for the DESKTOP drag too — this is the
   // half BOARD-DRAGFLICKER1 never covered, and the reason the board went blank
   // under a mouse drag while the touch path had been quiet since 2026-08-05.
-  if(chip){ window.__boardDragging = true; window.__boardDragSince = Date.now() }
+  if(chip) boardEnterDrag()
   if(chip) window.__boardDropTradeLine?.()   // BOARD-TRADELINESTALE1
 }, true)
 document.addEventListener("drop", () => { window.__boardDropHandled = true }, true)
@@ -2312,10 +2328,20 @@ document.addEventListener("dragend", e => {
   if(e.clientX || e.clientY) boardArrangeAt(el, e.clientX, e.clientY)
 })
 
-// one place owns lifting the hold + catching up, so the touch path, the desktop
-// path and any future one can't drift apart
+// one place owns entering/leaving the drag state, so the touch path, the desktop
+// path and any future one can't drift apart. Two things ride on it:
+//  · the repaint hold (BOARD-DRAGREPAINT1)
+//  · body.board-dragging, which takes the CHIPS out of hit testing so the drop
+//    resolves to the segment you're over rather than the chip you're crossing
+//    (BOARD-DROPHIT1 — see the CSS for why that was wrong and what it broke)
+function boardEnterDrag(){
+  window.__boardDragging = true
+  window.__boardDragSince = Date.now()
+  document.body.classList.add("board-dragging")
+}
 function boardReleaseRepaintHold(){
   window.__boardDragging = false
+  document.body.classList.remove("board-dragging")
   if(!window.__boardRenderPending) return
   window.__boardRenderPending = false
   setTimeout(() => { try { render() } catch(e){} }, 0)
@@ -5266,8 +5292,7 @@ function boardTouchDrag(el, payload){
         fly.style.left = r.left + "px"
         fly.style.top = r.top + "px"
         document.body.appendChild(fly)
-        window.__boardDragging = true   // BOARD-DRAGFLICKER1: repaints defer until release
-        window.__boardDragSince = Date.now()   // …with a watchdog in render(), see BOARD-DRAGREPAINT1 R2
+        boardEnterDrag()   // repaint hold + chips out of hit testing (see boardEnterDrag)
         el.classList.add("board-dragsrc")
         window.__boardDropTradeLine?.()   // BOARD-TRADELINESTALE1 (touch path)
         // a drag must not ALSO fire the chip's tap action on release
