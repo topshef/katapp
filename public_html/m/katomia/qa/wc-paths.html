@@ -67,7 +67,7 @@
 <div class="wrap">
 
 <h1>WalletConnect — every path, and whether the code handles it</h1>
-<p class="sub">katomia · lab1 · bundle <code>3c7e7c3</code> · WC-RELAYHEALTH1 R2b · 2026-08-06</p>
+<p class="sub">katomia · lab1 · bundle <code>dd98ee1</code> · WC-RELAYHEALTH1 R2c · 2026-08-06 · daily testnet cron: WCPATHS class on the <a href="results.php" style="color:inherit">QA grid</a></p>
 
 <p class="lede">Every branch a user can take through connect / sign / disconnect, what the code
 does with it today, and what is actually proven. Two separate columns on purpose: <b>Code</b> is
@@ -105,10 +105,24 @@ options appear → connects → wallet asks to sign → signs fine → back in k
       <code>boardShowResult(txid,false)</code> → wiper. The wipe is downstream and correct; the
       sign failing is the bug.</li>
 </ul>
-<p>R2b breaks the chain at step one: a signer whose topic is absent from
-<code>walletConnectClient.session.keys</code> is dead, gets reaped, so <code>getAccount()</code>
-returns null, so <b>the connect branch runs</b> and you get a genuine pairing.
-<b>Code: handled. Proven: not yet</b> — see the harness section, this is the first case to automate.</p>
+<p>R2b breaks that chain <b>when the wallet's delete actually reaches us</b>: the signer is
+removed, <code>getAccount()</code> returns null, the connect branch runs, you get a genuine
+pairing. That path is now automated and green (A5a, 8/8).</p>
+
+<div class="note bad">
+<p><b>But there is a second half, and it is still broken.</b> If you clear HashPack while katomia
+is closed — or the relay drops the notification — the delete never lands, the session stays in our
+IndexedDB, and <code>signerIsLive()</code> reads that <i>same</i> store, so it happily reports the
+corpse as alive. Reproduced mechanically on 2026-08-06 (A5b): the sign goes to the dead topic, the
+wallet has no such session and never replies, and katomia waits the <b>full 120 seconds</b> before
+giving up. Your transaction expires at 40. So the board wipes, exactly as you described.</p>
+<p>What R2b did fix is real, and recovery works — re-pairing gets you out and the next sign lands on
+the new session (A5b.6/A5b.7 pass). What is not fixed is the 120-second wait against a session that
+was never going to answer. <b>The fix is to bound the wait by the transaction's own validity
+window</b>, which the bundle can read straight out of the tx bytes — there is no point waiting 120s
+for something that dies at 40s. That is a real deadline, not the unreliable ping signal that caused
+the earlier regressions.</p>
+</div>
 
 <h2>A · Connect</h2>
 <div class="scroll"><table>
@@ -130,9 +144,13 @@ returns null, so <b>the connect branch runs</b> and you get a genuine pairing.
 <td>Ghost reaped by <code>reapDeadSigners()</code>; A3 dedupe also fires<span class="src">kwcCore.js:561</span></td>
 <td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no</span></td></tr>
 
-<tr><td class="id"><b>A5</b></td><td><b>Ghost session, tap Sign</b> — your scenario</td><td>Detect dead session, force real pairing, sign</td>
-<td><code>getAccount()</code>→<code>getSigner()</code>→reap→null→connect branch runs<span class="src">kwcCore.js:578</span></td>
-<td><span class="tag ok">HANDLED</span></td><td><span class="tag bad">no</span></td></tr>
+<tr><td class="id"><b>A5a</b></td><td><b>Wallet cleared while katomia is OPEN</b></td><td>Detect dead session, force real pairing, sign</td>
+<td>SDK's <code>session_delete</code> arrives, signer removed; <code>getAccount()</code> returns null so the connect branch runs<span class="src">kwcCore.js:578</span></td>
+<td><span class="tag ok">HANDLED</span></td><td><span class="tag ok">auto 8/8</span></td></tr>
+
+<tr><td class="id"><b>A5b</b></td><td><b>Wallet cleared while katomia is CLOSED</b> — the true ghost</td><td>Same</td>
+<td><b>NOT handled.</b> The delete never reaches us, so the session is still in our IndexedDB and <code>signerIsLive()</code> — which reads that same store — says it is alive. The sign goes to the dead topic, the wallet has no such session and never answers, and we wait the full <b>120s</b> before <code>KWC-TIMEOUT</code>. The tx expires at 40s, so the board wipes long before that.</td>
+<td><span class="tag bad">TODO</span></td><td><span class="tag ok">reproduced 08-06</span></td></tr>
 
 <tr><td class="id">A6</td><td>Game is testnet, connector built mainnet</td><td>Rebuild for the tx network before pairing</td>
 <td><code>ensureNetwork()</code> called before any WC call<span class="src">kwcCore.js:432 · board:3930</span></td>
