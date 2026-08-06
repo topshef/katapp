@@ -747,8 +747,43 @@ async function disconnectWalletCore() {
 // Blunt on purpose — it drops ALL sessions for this site, and the connector has to be
 // rebuilt afterwards (init() reads storage once). Reachable from the UI so a wedged user
 // has something that always works without clearing site data by hand.
+// WC-RELAYHEALTH1 R2c (2026-08-06): this used to wipe localStorage "wc@2:*" keys and
+// report how many it removed. It removed nothing, ever. WalletConnect v2 keeps all of
+// its state — sessions, pairings, keychain — in INDEXEDDB, in the object store
+// WALLET_CONNECT_V2_INDEXED_DB/keyvaluestorage; localStorage holds only the modal's
+// WCM_VERSION. Verified by enumerating both stores on a live page. So the escape
+// hatch shipped in R2 was a no-op that reported success, and the task notes that said
+// the ghost "lives in localStorage wc@2:*" were wrong from the start. Clear the real
+// store. The localStorage sweep is kept only because older SDK versions did use it.
+const WC_IDB = "WALLET_CONNECT_V2_INDEXED_DB"
+const WC_IDB_STORE = "keyvaluestorage"
+
+function _clearWcIndexedDb() {
+  return new Promise(resolve => {
+    let done = false
+    const finish = (cleared, error) => { if (!done) { done = true; resolve({ cleared, error }) } }
+    setTimeout(() => finish(false, "timeout"), 4000)
+    try {
+      const req = indexedDB.open(WC_IDB)
+      req.onerror = () => finish(false, String(req.error?.message || "open failed"))
+      req.onsuccess = () => {
+        const db = req.result
+        if (!db.objectStoreNames.contains(WC_IDB_STORE)) { db.close(); return finish(false, "no store") }
+        try {
+          const tx = db.transaction(WC_IDB_STORE, "readwrite")
+          tx.objectStore(WC_IDB_STORE).clear()
+          tx.oncomplete = () => { db.close(); finish(true) }
+          tx.onerror = () => { db.close(); finish(false, String(tx.error?.message || "tx failed")) }
+        } catch (e) { db.close(); finish(false, String(e?.message || e)) }
+      }
+    } catch (e) { finish(false, String(e?.message || e)) }
+  })
+}
+
 async function resetWalletLinkCore() {
   try { await disconnectWalletCore() } catch (e) {}
+
+  const idb = await _clearWcIndexedDb()
 
   let removed = 0
   try {
@@ -766,9 +801,9 @@ async function resetWalletLinkCore() {
   currentNetwork = null
   activeAccountId = null
 
-  try { window.kdiag?.("wc:link:reset", { removed }) } catch (e) {}
-  console.log("[WC] wallet link reset —", removed, "wc@2:* keys removed")
-  return { removed }
+  try { window.kdiag?.("wc:link:reset", { idbCleared: idb.cleared, idbError: idb.error, lsRemoved: removed }) } catch (e) {}
+  console.log("[WC] wallet link reset — IndexedDB cleared:", idb.cleared, idb.error || "", "| localStorage keys:", removed)
+  return { idbCleared: idb.cleared, idbError: idb.error || null, lsRemoved: removed }
 }
 
 

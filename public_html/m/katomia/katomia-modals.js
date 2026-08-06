@@ -11,7 +11,7 @@ window.pendingCreateOrderAccount = null
 // every user-visible ship — they went un-bumped for weeks, so the kdiag
 // katomia:build event couldn't distinguish a stale device from a fresh one
 // (2026-08-05 counter-flex incident: device reported July markers and proved nothing).
-const KATOMIA_JS_BUILD = "20260805-orderui2"
+const KATOMIA_JS_BUILD = "20260806-kdiagbridge1"
 
 // Self-contained diagnostics sender. window.kdiag (from the kpool widget) is
 // lazy-loaded only when the signing widget mounts, so it is NOT available when
@@ -94,11 +94,38 @@ if(KTAG_ON){
   katomiaDiagSend("ktag:on", { dev: ktagSlug(), tag: ktagNow(), href: location.href })
 }
 
+// ── KDIAG-BUNDLEBLIND1 (2026-08-06) ──────────────────────────────────────────
+// The KWC bundle reports everything through window.kdiag?.() — wc:connect-phases,
+// wc:session:ping, wc:signers:reaped, wc:sign:session-gone, wc:relay:*. But
+// window.kdiag is defined by the kpool widget's diag.js, which loads LAZILY, so on
+// any page where the widget never initialises those calls are silent no-ops and the
+// bundle's entire diagnostic surface is lost.
+//
+// That is not theoretical: the user's 2026-08-06 08:28 mainnet test of the
+// wallet-side-clear recovery (WC-RELAYHEALTH1 A5) ran on /m/katomia/board/m-prop and
+// left ZERO bundle events. The board events prove the transaction succeeded; nothing
+// shows whether the ghost signer was reaped or a fresh pairing happened — so the
+// mechanism could not be confirmed from the logs. Same failure shape as
+// KDIAG-BOARDBLIND1 (board.php missing katomia-modals.js entirely), one layer down.
+//
+// Bridge it: window.kdiag always exists and always reaches /diag via
+// katomiaDiagSend. The widget's real kdiag is captured through the setter if/when it
+// loads, so its buffer keeps working too. katomiaDiagSend calls _widgetKdiag
+// directly rather than window.kdiag, so there is no recursion and no double-send.
+let _widgetKdiag = (typeof window.kdiag === "function") ? window.kdiag : null
+try {
+  Object.defineProperty(window, "kdiag", {
+    configurable: true,
+    get(){ return katomiaDiagSend },
+    set(fn){ _widgetKdiag = (typeof fn === "function") ? fn : null }
+  })
+} catch(e){ /* a non-configurable kdiag already exists — leave it alone */ }
+
 function katomiaDiagSend(msg, data){
   // always mirror locally for live debugging
   try { console.debug("[katomiaDiag]", msg, data ?? "") } catch {}
   try { window.glog?.(msg, data) } catch {}
-  try { window.kdiag?.(msg, data) } catch {}   // also feed widget buffer if present
+  try { _widgetKdiag?.(msg, data) } catch {}   // also feed widget buffer if present
 
   if(!katomiaDiagRemoteOn()) return
 
