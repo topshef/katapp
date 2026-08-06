@@ -7432,7 +7432,23 @@ function boardAssetDetail(assetId, account, amount, offer){
 // OUT-OF-PLAY assets (user 2026-08-05): what the account holds on-chain but
 // hasn't brought to the table — fetched via the same hapi.php?action=assets
 // the add-account preview uses (real networks only), rendered greyed. Not
-// something the viewer can toggle; it's the owner's choice.
+// something the viewer can toggle; it's the owner's choice. R4: collapsed
+// behind a <details> by default — the count is the summary line.
+//
+// DESIGN TENSION, PARKED (user 2026-08-06, thought through out loud and then
+// explicitly dropped — "I think I might be overcooking this… let's leave it as
+// it is, we can always put some comments in the code"): you arrive here by
+// tapping ONE segment, which is one ACCOUNT, but the modal answers with the
+// whole PLAYER — every account they hold, one long scroll. The alternative
+// shape they sketched: filter to the tapped account by default, keep the player
+// header, and turn the "3 accounts in this game" sub-line into either a
+// call-to-action that expands to all accounts, or a list of the other accounts
+// you can jump between — "so you can jump from one view to another, rather than
+// having it as one long scroll list". Worth revisiting IF the scroll gets long
+// in real games (the R4 collapse of Not-in-play is the cheap half of the same
+// fix); the cost of doing it is that boardPlayerModal(playerId) grows a second
+// argument and a view state, and every caller (felt tap, Owner link on the asset
+// card) has to decide which view it means. Not done on purpose.
 function boardCurateKey(){ return "katomiaCurate." + (gameId || gameMeta?.id || "") }
 function boardCurateMap(){ try { return JSON.parse(localStorage.getItem(boardCurateKey()) || "{}") } catch { return {} } }
 function boardCurateGet(accountId, assetId){ return boardCurateMap()[accountId + "|" + assetId] || null }
@@ -7488,11 +7504,22 @@ function boardPlayerModal(playerId){
   const card = document.createElement("div")
   card.className = "asset-modal-card board-playercard"
   modal.appendChild(card)
+  // PLAYER-MODAL1 R4 (user 2026-08-06): "when you scroll, the little close button
+  // disappears off the screen — just leave the X so it's available to close the
+  // window anytime". The CARD is the scroll container, so the shared
+  // .asset-modal-close (position:absolute) scrolls away with the content. A
+  // zero-height STICKY strip pinned to the top of the scroll box carries it
+  // instead — no layout footprint, header untouched, and no restructuring of the
+  // card into a fixed-header/scrolling-body pair (which would have cost ~60px of
+  // a phone-height modal for a change the user didn't ask for).
+  const closeWrap = document.createElement("div")
+  closeWrap.className = "board-playercard-closewrap"
   const close = document.createElement("div")
   close.className = "asset-modal-close"
   close.textContent = "✕"
   close.onclick = () => modal.remove()
-  card.appendChild(close)
+  closeWrap.appendChild(close)
+  card.appendChild(closeWrap)
 
   const head = document.createElement("div")
   head.className = "board-playercard-head"
@@ -7582,6 +7609,19 @@ function boardPlayerModal(playerId){
       const txt = document.createElement("span")
       txt.textContent = (typeof getAssetDisplay === "function") ? getAssetDisplay(assetId, amount) : assetId
       label.appendChild(txt)
+      // LE mark (user 2026-08-06: "if it's limited edition, maybe a little icon to
+      // indicate that — just a little LE in a box or something like that… just do
+      // it as a font"). Same getAssetType the orders view classifies with, so the
+      // two surfaces can never disagree about what counts as limited edition
+      // (zero-decimal fungible, ≤10K held). NFTs say it with their thumbnail; this
+      // is for the collectible that has no artwork to show.
+      if(typeof getAssetType === "function" && getAssetType(assetId, amount) === "LE"){
+        const le = document.createElement("span")
+        le.className = "board-playercard-le"
+        le.textContent = "LE"
+        le.title = "Limited edition"
+        label.appendChild(le)
+      }
       label.onclick = () => { modal.remove(); boardAssetDetail(assetId, account, amount) }
       row.appendChild(label)
       list.appendChild(row)
@@ -7599,18 +7639,48 @@ function boardPlayerModal(playerId){
         const inPlay = new Set(Object.keys(account.assets || {}))
         const out = Object.entries(data.assets || {}).filter(([id]) => !inPlay.has(id))
         if(!out.length) return
-        const cap = document.createElement("div")
+        // COLLAPSED BY DEFAULT (user 2026-08-06): "let's make that collapsible —
+        // in fact, default collapsed; if you tap it, it expands to show you the
+        // not-in-play items". A native <details> does exactly that: the count
+        // stays as the summary line, so the information "they hold 12 other
+        // things" survives without 12 rows of scroll between you and the next
+        // account.
+        const det = document.createElement("details")
+        det.className = "board-playercard-outbox"
+        const cap = document.createElement("summary")
         cap.className = "subtle board-playercard-outcap"
         cap.textContent = "Not in play (" + out.length + ")"
-        sec.appendChild(cap)
+        det.appendChild(cap)
+        sec.appendChild(det)
         out.slice(0, 30).forEach(([assetId, amount]) => {
           const row = document.createElement("div")
           row.className = "board-playercard-asset board-playercard-asset--offtable"
           row.title = self ? "In your wallet, not on the table — ➕ Add account brings it in" : "This player holds it but hasn't brought it to the table"
+          // same 22px thumb as the in-play rows when we happen to know the art —
+          // off-table assets are outside the game's enrichment, so this is
+          // best-effort by design and simply absent when the meta isn't cached
+          const othumb = (typeof getAssetMeta === "function" && typeof getAssetThumb === "function")
+            ? getAssetThumb(getAssetMeta(assetId)) : null
+          if(othumb){
+            const oimg = document.createElement("img")
+            oimg.className = "board-playercard-thumb"
+            oimg.src = (typeof getFastThumb === "function") ? getFastThumb(othumb, oimg) : othumb
+            oimg.decoding = "async"
+            oimg.alt = ""
+            oimg.onerror = () => oimg.remove()
+            row.appendChild(oimg)
+          }
           const s = document.createElement("span")
           s.textContent = (typeof getAssetDisplay === "function") ? getAssetDisplay(assetId, amount) : assetId
           row.appendChild(s)
-          sec.appendChild(row)
+          if(typeof getAssetType === "function" && getAssetType(assetId, amount) === "LE"){
+            const le = document.createElement("span")
+            le.className = "board-playercard-le"
+            le.textContent = "LE"
+            le.title = "Limited edition"
+            row.appendChild(le)
+          }
+          det.appendChild(row)
         })
       }).catch(() => {})
     }
