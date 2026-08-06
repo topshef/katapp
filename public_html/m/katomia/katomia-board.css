@@ -603,6 +603,16 @@ body.board-page .app-banner{
    as floating above the table. z4 < the chips' z5. */
 .ring-felt--labels{ z-index: 4; }
 .ring-organic{ z-index: 5; }   /* explicit — the labels/chips ordering above depends on it */
+/* OVER layer — the one part of the felt that outranks the chips (BOARD-SHADEOVER1,
+   user 2026-08-06): the ▶/signing focus spotlight and the big 🔒. The chips-on-top
+   rule is about information — a covered chip loses its asset, a covered ring does
+   not — but a blackout that the chips shine through is not information, it is a
+   broken blackout: on a segment sitting out the round the un-shaded chips became
+   the BRIGHTEST thing on the board, the exact inverse of what the spotlight means.
+   z8: above the chips (z5), still under the countdown (.ring-hub--counting z7 sits
+   in the lit hole so order there is moot), the flight clone (z60), footer (z12),
+   banner (z78) and toasts (z80) — chrome stays lit, the board goes dark. */
+.ring-felt--over{ z-index: 8; }
 
 /* chip faces WHITE — grey faces vanished against the shading washes; OG
    square-cornered sleeve + lift shadow carried over from v5-7 */

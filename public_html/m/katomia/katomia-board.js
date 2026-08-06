@@ -5941,6 +5941,19 @@ function ringFelt(segs, g){
     labels.setAttribute("class", "ring-felt ring-felt--labels")
     labels.setAttribute("viewBox", `0 0 ${g.W} ${g.H}`)
   }
+  // BOARD-SHADEOVER1 (user 2026-08-06, same day as BOARD-CHIPSONTOP1): a THIRD
+  // felt svg, this one ABOVE the chips (z8). Chips-on-top was right for the felt
+  // linework, but it also dropped the two things that are meant to cover the
+  // board wholesale: the ▶/signing focus spotlight (a chip in a store now painted
+  // THROUGH the blackout — worst on segments not in the round, where the shade
+  // did the opposite of its job and made their chips the brightest thing on the
+  // board) and the big 🔒 (which the chips it is supposed to be shading over
+  // covered instead). Those two move here; everything else stays under the chips.
+  const over = ring8() ? document.createElementNS(NS, "svg") : null
+  if(over){
+    over.setAttribute("class", "ring-felt ring-felt--over")
+    over.setAttribute("viewBox", `0 0 ${g.W} ${g.H}`)
+  }
   const labelLayer = labels || top || svg
   const dimLayer = top || svg
 
@@ -5949,7 +5962,7 @@ function ringFelt(segs, g){
   // inside an SVG clipPath cut to the fixed sector between the dividers —
   // the same window the DOM-side wedge/chip containers use, so the whole
   // segment crosses the threshold as one piece.
-  let baseClipG = null, topClipG = null, labelClipG = null
+  let baseClipG = null, topClipG = null, labelClipG = null, overClipG = null
   if(g.wheelClip){
     const sectorD = (host, id) => {
       const R = Math.max(g.W, g.H) * 1.6
@@ -5973,6 +5986,7 @@ function ringFelt(segs, g){
     baseClipG = sectorD(svg, "kwheelclip-base")
     topClipG = top ? sectorD(top, "kwheelclip-top") : baseClipG
     labelClipG = labels ? sectorD(labels, "kwheelclip-labels") : baseClipG
+    overClipG = over ? sectorD(over, "kwheelclip-over") : baseClipG
   }
   // party-tween fade (user 2026-07-12: the collapsing segment's account id
   // "flickers away right at the end" — everything that's going to disappear
@@ -5989,6 +6003,7 @@ function ringFelt(segs, g){
   const segBase = seg => fadeWrap((seg?.wclip && baseClipG) ? baseClipG : svg, seg)
   const segTop = seg => fadeWrap((seg?.wclip && topClipG) ? topClipG : (top || svg), seg)
   const segLabels = seg => fadeWrap((seg?.wclip && labelClipG) ? labelClipG : (labels || svg), seg)
+  const segOver = seg => fadeWrap((seg?.wclip && overClipG) ? overClipG : (over || top || svg), seg)
   const _deferredSignArcs = []   // signing arcs render after the focus shade (lights over darkness)
 
   const mkLine = (a, r0, r1, cls, layer = svg, tint = null) => {
@@ -6121,7 +6136,10 @@ function ringFelt(segs, g){
         }
         segTop(seg).appendChild(dim)
         // v11 (review 10): BIG 🔒 at the store centroid, on top of the dim —
-        // third lock cue alongside the orange arc + darkened store
+        // third lock cue alongside the orange arc + darkened store.
+        // BOARD-SHADEOVER1: on the OVER layer (z8), not segTop — the lock dim
+        // shades the chips (via .board-lockdim on the chip itself) and the 🔒 is
+        // the cue that says why, so it has to read over them, not from beneath.
         if(ring11()){
           const rl = (g.ovalR(seg.am) + g.edgeR(seg.am)) / 2
           const big = document.createElementNS(NS, "text")
@@ -6132,7 +6150,7 @@ function ringFelt(segs, g){
           big.setAttribute("dominant-baseline", "central")
           big.setAttribute("font-size", Math.min(58, Math.max(34, g.step * 0.5)))
           big.textContent = "🔒"
-          segTop(seg).appendChild(big)
+          segOver(seg).appendChild(big)
         }
       }
       // arc visibility matrix — ring8 INVERTS the ownership marking: other
@@ -6353,7 +6371,7 @@ function ringFelt(segs, g){
       `a ${hrx} ${hry} 0 1 0 ${-hrx * 2} 0 Z`)
     shade.setAttribute("fill-rule", "evenodd")
     shade.setAttribute("class", "ring-focusshade" + (window.__boardShadeOn ? "" : " ring-focusshade--in"))
-    ;(top || svg).appendChild(shade)
+    ;(over || top || svg).appendChild(shade)
     window.__boardWipeUntil = 0   // spotlight is back on — any pending wipe is moot
   } else if(wipeActive || window.__boardShadeOn){
     // shade was on last paint and turned off THIS render (signing resolved /
@@ -6386,7 +6404,7 @@ function ringFelt(segs, g){
     fade.setAttribute("fill-rule", "evenodd")
     fade.setAttribute("class", "ring-focusshade " + window.__boardWipeClass)
     fade.style.animationDelay = `-${elapsedMs}ms`   // resume mid-fade, not restart opaque
-    ;(top || svg).appendChild(fade)
+    ;(over || top || svg).appendChild(fade)
   } else {
     window.__boardWipeUntil = 0
   }
@@ -6402,7 +6420,12 @@ function ringFelt(segs, g){
   // sit inside topClipG, which was appended before the shade) — signing +
   // glide simultaneously is rare; revisit if it ever shows.
   _deferredSignArcs.forEach(({ arc, seg }) => {
-    const layer = fadeWrap(top || svg, seg)
+    // BOARD-SHADEOVER1: follow the shade. It now lives on the OVER layer (z8,
+    // above the chips), so the arcs have to join it there or the "light over
+    // the darkness" they exist for would be buried under the very shade they
+    // are meant to glow through. With no shade painted this render they stay on
+    // the felt's top layer, under the chips (BOARD-CHIPSONTOP1).
+    const layer = fadeWrap((shadeOn || wipeActive) ? (over || top || svg) : (top || svg), seg)
     const under = document.createElementNS(NS, "path")
     under.setAttribute("d", arc.getAttribute("d"))
     under.setAttribute("class", "ring-signarc-under")
@@ -6411,11 +6434,12 @@ function ringFelt(segs, g){
   })
   _deferredSignArcs.length = 0
 
-  if(top || labels){
+  if(top || labels || over){
     const both = document.createDocumentFragment()
     both.appendChild(svg)
     if(labels) both.appendChild(labels)
     if(top) both.appendChild(top)
+    if(over) both.appendChild(over)
     return both
   }
   return svg
