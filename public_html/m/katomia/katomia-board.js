@@ -1754,7 +1754,9 @@ function renderRingBoard(root){
     if(boardSigning){
       const hac = account.id.split(":")[1] || account.id
       const legs = boardSigning.legs[hac]
-      if(legs && !inner.querySelector(".asset")) boardTxChips(legs, inner, accounts)
+      // 5th arg = whose basket this is (SIGN-DUPEACCT1); the 4th stays undefined
+      // here on purpose — this path never fed the settle flight
+      if(legs && !inner.querySelector(".asset")) boardTxChips(legs, inner, accounts, undefined, account.id)
     }
     boardDropTarget(inner, account)
     chipDest.appendChild(inner)
@@ -3854,11 +3856,22 @@ function boardTxLegs(tx){
     const by = {}
     const ent = id => (by[id] ||= { recv: [], send: [] })
     const hac = id => String(id || "").split(":")[1] || String(id || "")
+    // SIGN-DUPEACCT1 (user 2026-08-06, live on mainnet): two PLAYERS can hold the
+    // same hedera account — the user added 0.0.x that another player had already
+    // added — and this map is keyed by hedera id, so one leg lands in both
+    // segments: "it introduces the other account as like, oh hang on, there's the
+    // other account that's also getting a cent, but it's not, it's the same
+    // account". Pre-lock the board is right (offers carry the segment's own
+    // account id); only the signing repaint collapses them. The offers path — and
+    // ONLY the offers path — still knows the full ids, so carry them onto the leg
+    // and let the renderers claim their own. The netted pchbasis fallback below
+    // genuinely cannot know (it is on-chain lines, where the two ARE one account),
+    // so it keeps today's duplicated behaviour rather than guessing.
     offers.forEach(o => {
       const from = hac(o.fromId), to = hac(o.toId), amount = Number(o.amount ?? 1)
       if(!from || !to || !amount) return
-      ent(to).recv.push({ assetId: o.assetId, amount, from })
-      ent(from).send.push({ assetId: o.assetId, amount, to })
+      ent(to).recv.push({ assetId: o.assetId, amount, from, toId: o.toId, fromId: o.fromId })
+      ent(from).send.push({ assetId: o.assetId, amount, to, fromId: o.fromId, toId: o.toId })
     })
     return by
   }
@@ -3924,14 +3937,20 @@ function boardTxLegs(tx){
 function boardSigningReserved(legs, accounts){
   const out = {}
   const fullId = hac => accounts.find(a => (a.id.split(":")[1] || a.id) === hac)?.id || null
+  // SIGN-DUPEACCT1: fullId() resolves a hedera id to the FIRST account holding
+  // it, which is a coin toss when two players have added the same one. Where the
+  // leg carries its own full ids (offers path), they win — same both-guards rule
+  // as boardTxChips: only when that id really names an account in this game.
+  const known = id => !!(id && accounts.some(a => a.id === id))
   for(const [hac, entry] of Object.entries(legs || {})){
     const fromId = fullId(hac)
     if(!fromId) continue
     for(const leg of entry.send || []){
-      (out[fromId] ||= []).push({
+      const owner = known(leg.fromId) ? leg.fromId : fromId
+      ;(out[owner] ||= []).push({
         assetId: leg.assetId,
         amount: leg.amount,
-        toAccountId: (leg.to && fullId(leg.to)) || ""
+        toAccountId: known(leg.toId) ? leg.toId : ((leg.to && fullId(leg.to)) || "")
       })
     }
   }
@@ -4063,8 +4082,20 @@ function boardSigningWindowDiag(sig){
 
 // paint a party's receiving legs as basket chips (static in this slice —
 // withdraw/reject don't apply to a struck tx; sleeve = giver where unique)
-function boardTxChips(legs, container, accounts, toAccountId){
+// ownerId = whose basket this container IS. Separate from toAccountId (which is
+// BOARD-SWEEPWIN1's flight target and is deliberately absent on the ring-box
+// path) purely so adding the SIGN-DUPEACCT1 filter can't switch the settle
+// flight on for a call site that never had it.
+function boardTxChips(legs, container, accounts, toAccountId, ownerId = toAccountId){
   legs.recv.forEach(leg => {
+    // SIGN-DUPEACCT1: this legs entry is keyed by hedera id, so when two players
+    // have added the same account BOTH their segments land here. A leg that knows
+    // its full destination id belongs to exactly one of them. Guarded twice over:
+    // no filtering unless the leg carries a full id AND that id actually names an
+    // account in this game — if the record's id namespace ever stops matching
+    // account.id, this silently degrades to the old duplicated-but-harmless paint
+    // rather than dropping a chip that has nowhere else to appear.
+    if(ownerId && leg.toId && leg.toId !== ownerId && accounts.some(a => a.id === leg.toId)) return
     const giver = leg.from
       ? accounts.find(a => (a.id.split(":")[1] || a.id) === leg.from)
       : null
