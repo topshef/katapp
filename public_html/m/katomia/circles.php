@@ -64,6 +64,23 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
   .circle-chip.net-testnet{ background:#fdf0e2; color:#8a5a12; }
   .circle-chip.net-mainnet{ background:#f2ecfb; color:#5a3a91; }
 
+  /* ── CIRCLES-FILTER1 (user 2026-08-06) ─────────────────────────────────────
+     "The list is getting too long, especially the cron ones… at very least we
+     should have testnet, mainnet filter." Two rows of chips, client-side over
+     the list already fetched — no API change, nothing to keep in sync.
+     Rows only render when they'd actually cut something (one network in the
+     list = no network row), so a small estate never sees the chrome. */
+  .circles-filters{ display:flex; flex-direction:column; gap:8px; margin: 0 0 16px; }
+  .circles-filterrow{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .circles-filterlabel{ font-size:12px; color:#98a0ad; margin-right:2px; }
+  .circles-filter{
+    border:1px solid #e3e7ee; background:#fff; border-radius:999px;
+    padding:5px 12px; font-size:12.5px; color:#4a5462; cursor:pointer;
+  }
+  .circles-filter:hover{ border-color:#c9d2e0; }
+  .circles-filter--on{ background:#2f6fed; border-color:#2f6fed; color:#fff; font-weight:600; }
+  .circles-filtercount{ opacity:.65; margin-left:5px; font-size:11px; }
+
   .circles-empty, .circles-error{ color:#888; font-style:italic; padding:8px 0; }
   .circles-error{ color:#b4690e; font-style:normal; }
 
@@ -88,6 +105,7 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
   <h2 class="circles-head"><?= htmlspecialchars($T['Many'], ENT_QUOTES, 'UTF-8') ?></h2>
   <p class="circles-sub">Open <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?> you can join. Tap one to step inside.</p>
 
+  <div id="circlesFilters" class="circles-filters"></div>
   <div id="circlesList" class="circles-list"></div>
 
   <div class="gated-hint" id="gatedHint" hidden>
@@ -166,11 +184,78 @@ async function loadCircles(){
 
   const all = Object.values(data.games || {})
   // THE filter that makes this page different from the markets grid: proposal mode only.
-  const games = all.filter(g => (g.config?.tradingMode || g.tradingMode) === "proposal")
+  _circles = all.filter(g => (g.config?.tradingMode || g.tradingMode) === "proposal")
+  _circlesGated = all.some(g => g.joinRule && g.joinRule !== "*")
+  renderCircles()
+}
+
+// ── CIRCLES-FILTER1 (user 2026-08-06) ───────────────────────────────────────
+// Network is a REAL field, so that row is trustworthy. "Kind" is not: the user
+// asked for house-vs-public and demo-vs-live too, and was right about why we
+// can't have them properly — "I don't think those are actual tags that's wired
+// in, I think that's just the naming that's being used". So this row classifies
+// by NAMING CONVENTION and says so, as an explicit stopgap that stops the QA
+// cron rows drowning the list today. The real fix is a first-class field on the
+// game config (origin: house|public, kind: demo|live|qa) — raised as a task, and
+// when it lands this function reads it instead and the heuristic goes away.
+let _circles = [], _circlesGated = false
+const _circlesFilter = { network: "all", kind: "all" }
+
+function circleKind(g){
+  const id = String(g.id || "")
+  const name = String(g.profile?.name || "")
+  if(/^(kqa-|q-)/i.test(id) || /\bQA\b|cron|automated|canary/i.test(name)) return "qa"
+  if(/demo|view.?only|watch.?only/i.test(name)) return "demo"
+  return "open"
+}
+
+function renderCircles(){
+  const list = document.getElementById("circlesList")
+  const bar = document.getElementById("circlesFilters")
+  const netOf = g => g.config?.network || g.network || ""
+
+  const rows = [
+    { key: "network", label: "Network", of: netOf,
+      order: ["mainnet", "testnet", "playnet"],
+      text: v => displayValue("network", v) },
+    { key: "kind", label: "Type", of: circleKind,
+      order: ["open", "demo", "qa"],
+      text: v => ({ open: "⭕ Open", demo: "📺 Demos", qa: "🧪 QA / cron" }[v] || v) },
+  ]
+
+  bar.innerHTML = ""
+  rows.forEach(row => {
+    // count against the OTHER row's active filter, so each chip's number is what
+    // you would actually get by pressing it
+    const pool = _circles.filter(g => rows.every(r =>
+      r.key === row.key || _circlesFilter[r.key] === "all" || r.of(g) === _circlesFilter[r.key]))
+    const values = row.order.filter(v => pool.some(g => row.of(g) === v))
+    if(values.length < 2) return                    // nothing to choose between
+    const el = document.createElement("div")
+    el.className = "circles-filterrow"
+    const lab = document.createElement("span")
+    lab.className = "circles-filterlabel"
+    lab.textContent = row.label
+    el.appendChild(lab)
+    ;[["all", "All"], ...values.map(v => [v, row.text(v)])].forEach(([v, text]) => {
+      const b = document.createElement("button")
+      b.type = "button"
+      b.className = "circles-filter" + (_circlesFilter[row.key] === v ? " circles-filter--on" : "")
+      const n = v === "all" ? pool.length : pool.filter(g => row.of(g) === v).length
+      b.innerHTML = esc(text) + `<span class="circles-filtercount">${n}</span>`
+      b.onclick = () => { _circlesFilter[row.key] = v; renderCircles() }
+      el.appendChild(b)
+    })
+    bar.appendChild(el)
+  })
+
+  const games = _circles.filter(g =>
+    (_circlesFilter.network === "all" || netOf(g) === _circlesFilter.network) &&
+    (_circlesFilter.kind === "all" || circleKind(g) === _circlesFilter.kind))
 
   list.innerHTML = ""
   if(!games.length){
-    list.innerHTML = `<p class="circles-empty">No open ${esc(KTERMS.many)} yet — create the first one.</p>`
+    list.innerHTML = `<p class="circles-empty">No open ${esc(KTERMS.many)} match that filter.</p>`
   }
 
   games.forEach(g => {
@@ -196,8 +281,7 @@ async function loadCircles(){
       </a>`)
   })
 
-  document.getElementById("gatedHint").hidden =
-    all.some(g => g.joinRule && g.joinRule !== "*")
+  document.getElementById("gatedHint").hidden = !_circlesGated
 
   dressCards()
 }
