@@ -4873,12 +4873,25 @@ function playTransfers(){
       // chip bailed out: the button genuinely did nothing on exactly the skin in use.
       // Now fly from the giver's restored GHOST when there is one — a truer source anyway,
       // since that is the chip the asset is leaving — and keep the box as the fallback.
-      const ghost = [...document.querySelectorAll(".board-ghost")]
-        .find(g => (g.dataset.ownerAccount || "").endsWith(":" + fromHac))
+      // SIGN-GHOSTFAN1 (user 2026-08-06, kdiag zulu-uniform-61 / zulu-india-66 on
+      // lab2 — three NFTs from ONE store to three different accounts): this
+      // matched on the OWNER ALONE, so every chip a giver sent flew from, and
+      // drew its line back to, whichever of that giver's ghosts happened to be
+      // first in the DOM — "all three NFTs link back to the same ghost". Match
+      // the ASSET too (and the destination when both sides know it), which is
+      // what makes each leg its own; owner-only stays as the fallback so a leg
+      // whose exact ghost doesn't exist (netting merged it, ghost suppressed)
+      // still animates from somewhere sane rather than not at all.
+      const ownedBy = el => (el.dataset.ownerAccount || "").endsWith(":" + fromHac)
+      const sameLeg = el => el.dataset.assetId === chip.dataset.assetId
+        && (!chip.dataset.toAccount || !el.dataset.toAccount
+            || el.dataset.toAccount === chip.dataset.toAccount)
+      const ghosts = [...document.querySelectorAll(".board-ghost")].filter(ownedBy)
+      const ghost = ghosts.find(sameLeg) || ghosts[0]
       // BOARD-COUNTERMODE1: simple mode may have no ghost (partial fungible)
       // — the rim-pinned remainder pile is the truthful source instead
-      const rimPile = ghost || [...document.querySelectorAll(".board-rimpile")]
-        .find(p => (p.dataset.ownerAccount || "").endsWith(":" + fromHac))
+      const piles = ghost ? null : [...document.querySelectorAll(".board-rimpile")].filter(ownedBy)
+      const rimPile = ghost || piles.find(sameLeg) || piles[0]
       const giverBox = rimPile || [...document.querySelectorAll(".ring-avail")]
         .find(b => (b.dataset.dropAccount || "").endsWith(":" + fromHac))
       const from = giverBox ? giverBox.getBoundingClientRect() : null
@@ -7392,6 +7405,22 @@ function boardAssetDetail(assetId, account, amount, offer){
     return (pl?.name && pl.name !== "anon" ? pl.name : null) || (accId || "").split(":")[1] || accId
   }
 
+  // SIGN-GHOSTTAP1 (user 2026-08-06, same round as SIGN-GHOSTFAN1): once the
+  // deal is struck the ghosts and legs on the board are a PICTURE of a
+  // transaction, not live offers — "you tap on any of it, it invites you to
+  // withdraw the offer, but we're already in signing mode so that's not
+  // possible. I don't think anything happens though if you try." Keep the card
+  // (the token/owner detail is still worth seeing) and drop every action,
+  // saying why instead of showing a button that cannot work.
+  if(boardSigning){
+    if(offer) say(offer.kind === "withdraw"
+      ? `You have offered this to ${nameOf(offer.toAccountId)}.`
+      : `${nameOf(offer.fromAccountId)} has offered this to you.`)
+    say("The deal is signing — nothing can move until this transaction resolves.")
+    document.body.appendChild(modal)
+    return
+  }
+
   if(offer){
     // opened from a BASKET chip: this leg is the subject of the card
     const legs = boardNetLegCount(offer.fromAccountId, offer.toAccountId, assetId)
@@ -7770,6 +7799,11 @@ function boardReservedChips(account, container, reservedByAccount){
         { kind: "withdraw", fromAccountId: account.id, toAccountId: item.toAccountId })
       // drag the ghost home = withdraw; onto another segment = redirect
       // (boardDropTarget routes the home case to a plain withdraw)
+      // SIGN-GHOSTTAP1: not while signing — these ghosts are synthesised from a
+      // struck tx (boardSigningReserved), so a drag-home would be a withdraw
+      // against a deal that has already left the table. The card explains the
+      // same thing on tap; this is the gesture half of it.
+      if(boardSigning){ container.appendChild(el); return }
       el.draggable = true
       el.ondragstart = e => {
         e.dataTransfer.setData("assetId", item.assetId)
