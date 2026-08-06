@@ -401,9 +401,16 @@ const KB_TUNED = { spread: 0.75, iters: 8, smooth: 0.3, tension: 25, spring: 28,
 // carrying it, the effect can breathe: bigger puff (14 vs 6), much lighter damping
 // (3.8 vs 6) so the wobble actually persists, livelier idle drift (ambient .9 vs .3),
 // and a thicker, softer line with more presence (1.5px/blur 8 vs 0.9px/blur 4).
+// CIRCLES-BUBBLECOST1 (user 2026-08-06): "I notice on the homepage, if I look
+// closely, it's got the same issue that the corners are slightly Jaggedy."
+// Cause: kbubble spaces its points evenly by PERIMETER LENGTH, so on a wide card
+// the short corner arcs get barely a sample each and read as cut corners.
+// points: 320 (default 140) puts real samples on them. Only TWO cards carry this
+// on the welcome page, so the extra points are affordable here — the circles
+// index, with a dozen, instead only animates the card under the pointer.
 const KB_CIRCLE = { spread: 0.85, iters: 9, smooth: 0.34, tension: 22, spring: 34,
                     damp: 3.8, puff: 14, ambient: 0.9, width: 1.5, blur: 8,
-                    fill: "auto", fillAlpha: 0.22 }
+                    points: 320, fill: "auto", fillAlpha: 0.22 }
 
 // The click-through transition. ms:800 is the user's call (2026-07-30) — the lib
 // default of 1400 is lab-slow; 800 keeps the gesture readable without making people

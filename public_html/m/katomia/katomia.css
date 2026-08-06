@@ -1046,15 +1046,31 @@ zz-distracting-body[data-network="playnet"]{
 .app-menu-item:hover{ background:#f3f3f3; transform:none; box-shadow:none; }
 .app-menu-item input{ cursor:pointer; margin:0; }
 
-/* BOARD-VIEWSWITCH1 (user 2026-08-06): the Board / Split / Messages trio reads
-   as ONE control, not three unrelated destinations — hairline rules top and
-   bottom, and the live view carries a ✓. */
-.app-menu-group{
-  margin:4px 0;
-  padding:4px 0;
-  border-top:1px solid #eee;
-  border-bottom:1px solid #eee;
+/* BOARD-VIEWSWITCH1 R2 (user 2026-08-06): Board / Split / Messages on ONE row —
+   a labelled segmented control, not three menu destinations. Three full-width
+   rows was "quite a lot of space on the menu… and it's not really navigation". */
+.app-menu-viewrow{
+  display:flex; align-items:center; gap:4px;
+  margin:4px 0; padding:6px 12px;
+  border-top:1px solid #eee; border-bottom:1px solid #eee;
 }
+.app-menu-viewlabel{ font-size:15px; color:#333; margin-right:auto; }
+.app-menu-viewbtn{
+  width:38px; height:34px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  background:transparent; border:1px solid transparent; border-radius:8px;
+  color:#8b93a0; cursor:pointer; box-shadow:none;
+}
+.app-menu-viewbtn:hover{ background:#f3f3f3; color:#333; }
+.app-menu-viewbtn svg{
+  width:22px; height:22px;
+  fill:none; stroke:currentColor; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round;
+}
+.app-menu-viewbtn--on{
+  color:#2f6fed; border-color:#c7d8fb; background:#eef4ff;
+}
+/* kept for any menu item that still wants a ✓ (none today) */
 .app-menu-item--on{ font-weight:700; color:#111; }
 .app-menu-item--on::after{ content:"✓"; margin-left:auto; opacity:.7; }
 
