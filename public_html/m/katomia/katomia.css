@@ -141,32 +141,40 @@
 			margin:0;
 		}
 		
-    .asset:hover::after{
-      content: attr(data-asset-name) " 🪙 " attr(data-asset-id);
+    /* BOARD-TIPTOUCH1 R2 (user 2026-08-06, second report): "on mobile I'm still
+       seeing the tooltips on the asset chips — we should get rid of those."
+       R1 only stopped the `title` ATTRIBUTES. This one is a CSS :hover tooltip,
+       and on touch :hover STICKS to the last-tapped element, so the black label
+       just sat there. Gated on a real hovering pointer; touch gets the
+       tap-to-inspect card instead, which answers the same question properly. */
+    @media (hover: hover) and (pointer: fine){
+      .asset:hover::after{
+        content: attr(data-asset-name) " 🪙 " attr(data-asset-id);
 
-      position:absolute;
-      left:0;
-      bottom:100%;
+        position:absolute;
+        left:0;
+        bottom:100%;
 
-      display:block;
+        display:block;
 
-      background:#222;
-      color:#fff;
+        background:#222;
+        color:#fff;
 
-      padding:6px 8px;
-      font-size:11px;
-      line-height:1.2;
+        padding:6px 8px;
+        font-size:11px;
+        line-height:1.2;
 
-      white-space:nowrap;
+        white-space:nowrap;
 
-      border-radius:6px;                /* softer corners */
-      box-shadow:0 4px 10px rgba(0,0,0,0.18);  /* floating feel */
+        border-radius:6px;                /* softer corners */
+        box-shadow:0 4px 10px rgba(0,0,0,0.18);  /* floating feel */
 
-      transform:translateY(-4px);       /* slight lift */
+        transform:translateY(-4px);       /* slight lift */
 
-      zzbackground:#2a2a2a;
+        zzbackground:#2a2a2a;
 
-      z-index:1000;
+        z-index:1000;
+      }
     }
 
     /* Clamp horizontal overflow at the document level. Diagnostics proved the

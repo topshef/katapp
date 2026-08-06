@@ -2248,6 +2248,33 @@ function boardPendingSpawnTake(b, z){
 // point lies in the chip's own zone (judged by the wall clamp — a point
 // whose clamped position is far away wasn't really in the zone). Returns
 // true when the arrange happened (callers then skip drop semantics).
+// BOARD-ARRANGEOTHERS1 R3 (user 2026-08-06): where would this chip actually be
+// allowed to sit, in SCREEN coordinates, if released at (x,y)? Used to fence the
+// drag itself rather than only the release: "let's not allow the asset to move
+// out of that segment — it just stops dead in the store area, and your finger can
+// carry on sliding, but you're not going to be able to get the asset out, because
+// it's not your asset". Teaching the rule by making it unreachable beats letting
+// the chip wander and silently snapping it back.
+// Returns null when there's nothing to clamp against (no body/zone, or an inner
+// rim body, which has its own angular rules) — callers then leave the drag alone.
+function boardArrangeClamp(srcEl, x, y){
+  const env = _boardSimEnv
+  if(!env || !srcEl) return null
+  let body = null
+  _boardSimBodies.forEach(b => { if(b.el === srcEl) body = b })
+  if(!body || body.inner) return null
+  const z = _boardSimZones.get(body.zoneKey)
+  if(!z) return null
+  const gx = x - env.cx, gy = y - env.cy
+  const lx = gx * z.cos + gy * z.sin, ly = -gx * z.sin + gy * z.cos
+  const p = boardWallClamp(env, z, body, lx, ly, false)
+  // local (radial/tangential) → screen, the inverse of the projection above
+  return {
+    x: env.cx + p.x * z.cos - p.y * z.sin,
+    y: env.cy + p.x * z.sin + p.y * z.cos
+  }
+}
+
 function boardArrangeAt(srcEl, x, y){
   const env = _boardSimEnv
   if(!env || !srcEl) return false
@@ -5309,9 +5336,18 @@ function boardTouchDrag(el, payload){
       // trying to be too clever, and it's just fucking up". Depth comes from
       // the drag shadow instead (.board-touchfly CSS). Wedge under the chip
       // lights as the target; drop point = the chip's centre.
-      fly.style.transform = `translate(${at.x - startX}px, ${at.y - startY}px) scale(1.05)`
+      let ax = at.x, ay = at.y
+      if(payload?.arrangeOnly){
+        // fenced: the chip stops at its owner's walls while the finger keeps going
+        const p = boardArrangeClamp(el, at.x, at.y)
+        if(p){ ax = p.x; ay = p.y }
+      }
+      fly.style.transform = `translate(${ax - startX}px, ${ay - startY}px) scale(1.05)`
       const c = fly.getBoundingClientRect()
-      let over = boardWedgeAt(c.left + c.width / 2, c.top + c.height / 2)
+      // no destination cue on an arrange — "the colouring in of the segment is
+      // useful if you're going to be able to drop the asset there; if you can't,
+      // it doesn't make sense" (user 2026-08-06)
+      let over = payload?.arrangeOnly ? null : boardWedgeAt(c.left + c.width / 2, c.top + c.height / 2)
       if(over && boardIsDragSource(over.__dropAccount)) over = null   // not a destination
       if(over !== dropWedge){
         dropWedge?.classList.remove("drag-over")
@@ -5459,6 +5495,10 @@ function boardAskAmount(assetId, available, verb){
   // smallest unit — never a value the token can't express.
   const dust = Math.min(max, Math.max(unit, decimals >= 2 ? 0.01 : unit))
   const fmt = v => decimals ? Number(v).toFixed(Math.min(decimals, 2)) : String(v)
+  // "All" is the one case where readability must lose to truth: rounding a max of
+  // 0.415028 to "0.42" is how the offer came to be rejected in the first place
+  // (kdiag tango-hotel-17, 15:32:06 — scaled 420000 vs available 415028).
+  const fmtAll = v => decimals ? String(Number(Number(v).toFixed(Math.min(decimals, 8)))) : String(v)
 
   return new Promise(resolve => {
     document.getElementById("boardAmountModal")?.remove()
@@ -5507,11 +5547,21 @@ function boardAskAmount(assetId, available, verb){
     // --fill drives the hand-rolled track (see CSS): the native accent fill stops
     // at the thumb's centre and leaves a stub of empty track at maximum, which
     // reads as "there's more slider left" when there isn't.
+    // "all" is an INTENT, not a number: fmt() rounds for readability, so the
+    // displayed maximum can sit either side of the true one. Tracking the intent
+    // means All and a full slider always send the exact available amount, while
+    // a hand-typed number is still taken literally. (BOARD-AMOUNTMAX1)
+    let wantAll = false
     const paintFill = () => slider.style.setProperty("--fill", (Number(slider.value) / 10) + "%")
     const setPos = v => { slider.value = valToPos(v); paintFill() }
     setPos(Math.min(1, max))
-    slider.oninput = () => { input.value = fmt(Math.min(max, posToVal(Number(slider.value)))); paintFill() }
+    slider.oninput = () => {
+      wantAll = Number(slider.value) >= Number(slider.max)
+      input.value = fmt(Math.min(max, posToVal(Number(slider.value))))
+      paintFill()
+    }
     input.oninput = () => {
+      wantAll = false
       const n = parseFloat(input.value)
       if(Number.isFinite(n)) setPos(Math.min(n, max))
     }
@@ -5531,7 +5581,7 @@ function boardAskAmount(assetId, available, verb){
         b.className = "board-amount-chip"
         b.textContent = label
         b.title = title
-        b.onclick = () => { input.value = fmt(v); setPos(v) }
+        b.onclick = () => { wantAll = (v === max); input.value = wantAll ? fmtAll(v) : fmt(v); setPos(v) }
         chips.appendChild(b)
       })
     card.appendChild(chips)
@@ -5552,6 +5602,17 @@ function boardAskAmount(assetId, available, verb){
     go.onclick = () => {
       const n = parseFloat(input.value)
       if(!Number.isFinite(n) || n <= 0) return
+      // BOARD-AMOUNTMAX1 (user 2026-08-06): "when you offer the maximum it
+      // sometimes doesn't work — I think because of rounding errors."
+      // Exactly right, and it failed SILENTLY. The display value is rounded for
+      // readability (6603.87826651 ℏ → "6603.88"); scaling that back up gives
+      // 660388000000 raw against an available of 660387826651, and
+      // getTransferAmount's `if(scaled > available) return null` dropped the
+      // offer with nothing said. Any amount at or above the displayed maximum
+      // now bypasses the round-trip and sends `available` verbatim — the exact
+      // integer the backend holds. "When you click max or all, it just
+      // automatically pushes the full amount instead of trying to round it."
+      if(wantAll || n >= max){ done(available); return }
       modalAmountOverride = n
       const raw = getTransferAmount(assetId, available)   // one place owns decimals scaling
       modalAmountOverride = null

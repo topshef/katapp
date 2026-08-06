@@ -1880,18 +1880,30 @@ body.chip-emboss[data-chip-style="dark"] .board-chip:not(.thumb-only){
        Chips without --own (tx legs) fall back to their inline border colour
        because the fallback keeps the gradient neutral. */
 [data-board-fam~="v16"] .board-chip{
-  border-left-width: 12px !important;
+  --sleeve: 12px;
+  border-left-width: var(--sleeve) !important;
   border-image: linear-gradient(180deg,
     color-mix(in srgb, var(--own, #8a8a8a) 78%, #fff) 0%,
     var(--own, #8a8a8a) 45%,
     color-mix(in srgb, var(--own, #8a8a8a) 82%, #000) 100%) 1;
 }
+/* R3 (user 2026-08-06): in OWNER COLOUR style the whole face already carries the
+   owner's colour, so the sleeve is saying it twice and costing width on a phone.
+   Collapsed to zero — "don't get rid of it, but collapse it to zero width,
+   because we still need to show the little triangle if it becomes pickable".
+   Hence a width variable rather than removing the border: the pick flag hangs off
+   --sleeve (below) and keeps working at any width, zero included.
+   NFTs are excluded: their artwork is never recoloured (BOARD-CHIPART1), so on a
+   thumb-only chip the sleeve is the ONLY ownership mark and has to stay. */
+[data-chip-style="colour"] .board-chip:not(.thumb-only){ --sleeve: 0px; }
 /* the pick flag gets the same treatment, and has to clear the WIDER sleeve —
    at left:-11px it was sitting inside a 12px NFT sleeve, which is why the
    triangle "is only showing on the FTs at the moment". -19px = 7px flag + the
    12px sleeve, so it ends flush against the sleeve's outer edge on every chip. */
 [data-board-fam~="v16"] .board-pickchip::before{
-  left: -19px;
+  /* 7px flag, sitting immediately outside whatever the sleeve currently is —
+     tracks --sleeve so a collapsed sleeve doesn't leave the flag floating */
+  left: calc(-7px - var(--sleeve, 12px));
   background: linear-gradient(180deg,
     color-mix(in srgb, var(--pickflag, #888) 78%, #fff),
     var(--pickflag, #888) 55%,
