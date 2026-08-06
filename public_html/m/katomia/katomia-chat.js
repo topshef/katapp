@@ -254,6 +254,15 @@
         var startY = e.clientY;
         var startB = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--kchat-clear-b")) || d.getBoundingClientRect().height;
         var lim = dockLimits();
+        // BOARD-SPLITDRAG1 (user 2026-08-06): while the divider moves, the BOARD
+        // MUST NOT RESIZE. It used to yield live — "the whole board scales down
+        // and then it redraws to go big again… it squashes everything up and
+        // grows bigger again, which is weird". The dock simply grows OVER the
+        // board during the drag ("you're just covering it up"), and the board
+        // re-solves once, at rest. --kchat-clear-b0 pins the board's bottom to
+        // where it was when the drag started; the CSS override reads it.
+        document.documentElement.style.setProperty("--kchat-clear-b0", startB + "px");
+        document.body.classList.add("kchat-dragging");
         var move = function (ev) {
           var b = Math.max(lim.min, Math.min(lim.max, startB + (startY - ev.clientY)));
           document.documentElement.style.setProperty("--kchat-clear-b", Math.round(b) + "px");
@@ -262,6 +271,7 @@
           drag.removeEventListener("pointermove", move);
           drag.removeEventListener("pointerup", up);
           drag.removeEventListener("pointercancel", up);
+          document.body.classList.remove("kchat-dragging");   // BOARD-SPLITDRAG1: board yields again, then re-solves below
           var b = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--kchat-clear-b")) || startB;
           try { localStorage.setItem("katomiaChatSplit", String(b)); } catch (e2) {}
           // one geometry re-solve at rest — dragging only moves the CSS var

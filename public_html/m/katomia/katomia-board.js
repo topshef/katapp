@@ -882,6 +882,54 @@ let boardStartAngle = 180
 // syncing on load + on profile-open covers it — no per-render cost needed.
 // katomia-profile.js calls this by name if it exists (same optional-hook
 // pattern as katomiaAuthOnProfileOpen) whenever the profile modal opens.
+// ── BOARD-VIEWSWITCH1 (user 2026-08-06) ─────────────────────────────────────
+// Board / Split / Messages, straight off the hamburger. These were already
+// three real states, just reachable in two steps through different doors
+// (Settings → Message panel for the split; a menu item + Close for the
+// stream). One tap each now; the current one carries a ✓.
+//   board    = no dock, board owns the viewport (bubbles still float on it)
+//   split    = docked panel, draggable divider (BOARD-SPLITDRAG1)
+//   messages = full-screen stream over the board
+// Not persisted beyond the existing chatMode pref, deliberately: the user
+// wants a different view per DEVICE, and chatMode is already per-device.
+function boardCurrentView(){
+  if(document.body.classList.contains("kchat-fullopen")) return "messages"
+  return boardChatMode === "panel" ? "split" : "board"
+}
+
+function boardSetView(mode){
+  if(mode === "messages"){ window.katomiaChat?.openFull?.(true); boardMarkView(); return }
+  window.katomiaChat?.openFull?.(false)
+  boardChatMode = mode === "split" ? "panel" : "bubbles"
+  boardSavePrefs()
+  window.katomiaChat?.setMode?.(boardChatMode)
+  const cb = document.getElementById("boardPrefChatPanel")   // keep ⚙ Settings honest
+  if(cb) cb.checked = boardChatMode === "panel"
+  boardMarkView()
+}
+
+function boardMarkView(){
+  const cur = boardCurrentView()
+  document.querySelectorAll("[data-menu-view]").forEach(b => {
+    b.classList.toggle("app-menu-item--on", b.dataset.menuView === cur)
+  })
+}
+
+if(!window.__boardViewSwitchInit){
+  window.__boardViewSwitchInit = true
+  document.addEventListener("click", e => {
+    const b = e.target.closest?.("[data-menu-view]")
+    if(!b) return
+    e.preventDefault()
+    boardSetView(b.dataset.menuView)
+  })
+  // the hamburger opening is the moment the ✓ has to be right
+  document.addEventListener("click", e => {
+    if(e.target.closest?.("#appMenuBtn")) setTimeout(boardMarkView, 0)
+  })
+  document.addEventListener("DOMContentLoaded", boardMarkView)
+}
+
 function boardSyncPrefsUI(){
   // BOARD-CHATMODE1: bubbles ⇄ docked message panel
   const chatPanel = document.getElementById("boardPrefChatPanel")
@@ -1374,6 +1422,12 @@ function renderRingBoard(root){
   { let acc = 0; widths.forEach(w => { cumStart.push(acc); acc += w }) }
 
   const geo = { W, H, cx, cy }
+  // BOARD-LOCKBAND1 (user 2026-08-06): the felt tap (→ player modal) and the
+  // lock-arc tap live on the same pixels, so a near-miss on your own arc used
+  // to open YOUR OWN player modal instead of locking. The wedge click handler
+  // needs the oval geometry to tell "meant the ring" from "meant the felt" —
+  // stashed here, where the solve already happens, rather than recomputed.
+  _boardRingGeo = { cx, cy, rx, ry }
   const bottomPad = etched ? 76 : 48        // keep boxes clear of the footer bar
   const segs = []                           // geometry handed to the felt layer (accounts only)
 
@@ -1688,7 +1742,14 @@ function renderRingBoard(root){
   // (ring5/6) the hub rim doubles as the cluster progress ring: the lockbar
   // bent into a circle, orange filling with each required lock.
   const hub = document.createElement("div")
+  // BOARD-CHIPSONTOP1 (user 2026-08-06): the hub sits at the BACK — "the chips
+  // are on the board, they cover everything… it just feels weird floating that
+  // middle point above everything else". The one exception the user allowed is
+  // the countdown, which keeps its own pill and rides above the chips: while
+  // signing, BOARD-HUBCLEAR1 has already stripped the K, so raising the whole
+  // (transparent, --counting) hub raises the counter and nothing else.
   hub.className = "ring-hub" + (ringArcs() ? " ring-hub--ringed" : "")
+    + (boardSigning ? " ring-hub--counting" : "")
   hub.style.left = cx + "px"
   hub.style.top = cy + "px"
   hub.style.width = hub.style.height = rc * 2 + "px"
@@ -2213,20 +2274,42 @@ document.addEventListener("dragend", e => {
 function boardSimExcite(){
   _boardSimCalm = 0
   _boardSimQuiet = 0
+  _boardSimFrames = 0
   if(!_boardSimRaf) _boardSimRaf = requestAnimationFrame(boardSimFrame)
 }
+
+// BOARD-SIMGIVEUP1 (user 2026-08-06): "if I squash the board up to a really
+// small space it's jittering crazily… some way to make the assets give up
+// their movement and just sit still instead of thrashing — we need some way to
+// terminate the animation early."
+// The settle test (movement under threshold) can never fire when the space is
+// genuinely over-subscribed: the walls and the collisions have no solution, so
+// the bodies oscillate between two impossible states forever. A frame budget
+// is the honest answer — after ~2.5s of not converging the sim STOPS where it
+// is and pins every body, so a cramped board is merely imperfect rather than
+// alive. Any real change (new chip, resize, layout toggle) calls boardSimExcite
+// and gets a fresh budget.
+const BOARD_SIM_MAX_FRAMES = 150
+let _boardSimFrames = 0
 
 function boardSimFrame(){
   _boardSimRaf = 0
   if(!_boardSimEnv || !_boardSimBodies.size) return
   const moved = boardSimTick(2)
   boardSimPaint()
+  _boardSimFrames++
   if(moved < 0.15) _boardSimQuiet++
   else _boardSimQuiet = 0
-  if(_boardSimQuiet < 3) _boardSimRaf = requestAnimationFrame(boardSimFrame)
-  // 🧪 sticky: the sim just went to sleep — everything on the board has
-  // found its place; freeze it there (new arrivals start unstuck)
-  else if(boardStickyChips) _boardSimBodies.forEach(b => { b.stick = true })
+  const givenUp = _boardSimFrames >= BOARD_SIM_MAX_FRAMES
+  if(_boardSimQuiet < 3 && !givenUp) _boardSimRaf = requestAnimationFrame(boardSimFrame)
+  else {
+    // Stopping the rAF loop IS the fix — no frames, no jitter, the chips stay
+    // exactly where the last tick left them. The stick flags below only bite
+    // in 🧪 sticky mode (boardSimTick ignores them otherwise); they're set on
+    // a give-up too so that mode doesn't re-enter the same unsolvable fight.
+    if(boardStickyChips || givenUp) _boardSimBodies.forEach(b => { b.stick = true })
+    if(givenUp) boardDiag("board:sim:giveup", { bodies: _boardSimBodies.size, moved: Math.round(moved * 100) / 100 })
+  }
 }
 
 // ── OVAL-TRUE WALLS (user 2026-07-16 — the zone-walls overlay's "massive
@@ -4420,22 +4503,11 @@ function ringFooter(mine){
     }
     bar.appendChild(play)
 
-    // 🧹 tidy (user 2026-07-16, board-game feel): re-run the chip layout on
-    // demand — clears 🧪 sticky positions and re-excites the sim (organic
-    // re-blobs, shelves re-shelves), all as visible motion. Ring16 only —
-    // it's a chip-physics affordance.
-    if(ring16()){
-      const tidy = document.createElement("button")
-      tidy.className = "ring-footer-play"
-      tidy.textContent = "🧹"
-      tidy.title = "Tidy up: re-run the chip layout (clears sticky positions and hand-placed pins)"
-      tidy.onclick = () => {
-        _boardSimBodies.forEach(b => { b.stick = false; b.pin = false })
-        boardPinsClear()
-        boardSimExcite()
-      }
-      bar.appendChild(tidy)
-    }
+    // 🧹 tidy RETIRED (user 2026-08-06): "players can move their assets around
+    // by hand — if they do that, they just carry on moving them around by
+    // hand. We don't want a sweep button to clean up." The machinery it drove
+    // (sticky clear + boardPinsClear + boardSimExcite) is untouched and still
+    // runs on layout changes; only the footer affordance is gone.
   }
 
   if(susan()){
@@ -4967,7 +5039,21 @@ function boardDropTarget(el, account){
   el.__dropAccount = account
 
   setupDropTarget(el, account)
-  const coreDrop = el.ondrop
+  // BOARD-LOCKBAND1: setupDropTarget installs core's felt-tap → player modal.
+  // Wrap it so taps landing on (or just off) the lock ring belong to the RING,
+  // not the modal — the near-miss that used to open your own player card.
+  // Wrapped rather than re-assigned in makeWedge because this call is what runs
+  // last on the ring board, and it must stay the single owner of the handler.
+  const coreClick = el.onclick
+  el.onclick = e => {
+    const band = boardLockBandAt(e.clientX, e.clientY)
+    if(band === "dead") return
+    if(band === "lock"){
+      if(isMyAccount(account) && !boardSigning) boardToggleLock(account)
+      return
+    }
+    coreClick && coreClick(e)
+  }
   const coreOver = el.ondragover
 
   el.ondragover = e => {
@@ -4976,6 +5062,20 @@ function boardDropTarget(el, account){
     // the window-scoped copy set at dragstart
     if(window.__boardDragPayload)
       e.dataTransfer.dropEffect = boardDropValid(window.__boardDragPayload, account) ? "move" : "none"
+    // BOARD-DRAGCUE1 (user 2026-08-06): keep the destination wedge lit on
+    // DESKTOP the way it is on touch. dragenter alone wasn't enough — the
+    // chips sit on their own higher layer, so dragging across one fires
+    // dragleave on the wedge and the highlight dropped out mid-drag. dragover
+    // re-lights it, and the leave is deferred (below) so crossing a chip
+    // doesn't strobe the wedge.
+    clearTimeout(el.__dragLeaveT)
+    el.classList.add("drag-over")
+  }
+
+  const coreLeave = el.ondragleave
+  el.ondragleave = e => {
+    clearTimeout(el.__dragLeaveT)
+    el.__dragLeaveT = setTimeout(() => { coreLeave && coreLeave(e); el.classList.remove("drag-over") }, 140)
   }
 
   el.ondrop = e => {
@@ -5040,10 +5140,18 @@ function boardDropTarget(el, account){
     if(fromId && !fromBasketTo && account.id === fromId) return
     if(fromBasketTo && account.id === fromBasketTo) return
 
-    // a real offer via mouse dnd — remember the drop point so the arriving
-    // basket chip spawns where it was dropped (BOARD-ARRANGE1)
-    boardNotePendingSpawn(account.id, e.dataTransfer.getData("assetId"), e.clientX, e.clientY)
-    coreDrop(e)
+    // a real offer via mouse dnd. BOARD-AMOUNT1 (user 2026-08-06): routed
+    // through boardExecuteDrop rather than coreDrop, so mouse and touch share
+    // ONE path — and therefore one (now asynchronous, modal) amount step.
+    // coreDrop's semantics are reproduced exactly by the executor's non-pick
+    // branch (optional withdraw, then game_offer); the drop point it needs is
+    // read here, synchronously, before dataTransfer is sealed.
+    boardExecuteDrop({
+      assetId: e.dataTransfer.getData("assetId"),
+      available: parseInt(e.dataTransfer.getData("available") || "1", 10),
+      fromAccountId: fromId,
+      fromBasketToAccountId: fromBasketTo
+    }, account, { x: e.clientX, y: e.clientY })
   }
 }
 
@@ -5062,8 +5170,41 @@ function boardTouchDrag(el, payload){
     if(e.pointerType === "mouse") return    // mouse keeps native dnd
     const startX = e.clientX, startY = e.clientY
     let fly = null, dropWedge = null
+    // BOARD-DRAGREPAINT1 (user 2026-08-06): "if I drag the chip very, very
+    // slowly in one direction, the page basically stays completely white and
+    // then it only paints when I slow down." A touch digitizer fires
+    // pointermove far faster than the display refreshes, and this handler did
+    // a getBoundingClientRect + elementFromPoint on EVERY one — two forced
+    // synchronous layouts per event, against a full-viewport SVG felt. The
+    // browser spends the frame re-laying-out and never gets to rasterise, so
+    // whole tiles show blank. Coalescing to one rAF caps that work at one pass
+    // per painted frame, which is all a drag can actually show.
+    // (BOARD-DRAGFLICKER1's __boardDragging repaint hold is a different lever —
+    // it defers BROADCAST-driven re-renders; this is the drag's own cost.)
+    let moveRaf = 0, at = null
+
+    const applyMove = () => {
+      moveRaf = 0
+      if(!fly || !at) return
+      // BOARD-DRAGUX1 R2 (user 2026-08-05 review): NO lift at all — the chip
+      // stays exactly where it was grabbed and slides with the finger, like a
+      // real piece. The 24px lift read as a jump (and, grabbed near the top
+      // edge, the chip body sat BELOW the fingertip — "the opposite"): "we're
+      // trying to be too clever, and it's just fucking up". Depth comes from
+      // the drag shadow instead (.board-touchfly CSS). Wedge under the chip
+      // lights as the target; drop point = the chip's centre.
+      fly.style.transform = `translate(${at.x - startX}px, ${at.y - startY}px) scale(1.05)`
+      const c = fly.getBoundingClientRect()
+      const over = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2)?.closest?.("[data-drop-account]")
+      if(over !== dropWedge){
+        dropWedge?.classList.remove("drag-over")
+        over?.classList.add("drag-over")
+        dropWedge = over
+      }
+    }
 
     const move = ev => {
+      at = { x: ev.clientX, y: ev.clientY }
       if(!fly){
         if(Math.hypot(ev.clientX - startX, ev.clientY - startY) < 6) return
         fly = el.cloneNode(true)
@@ -5080,27 +5221,14 @@ function boardTouchDrag(el, payload){
         el.addEventListener("click", swallow, { capture: true, once: true })
         setTimeout(() => el.removeEventListener("click", swallow, { capture: true }), 600)
       }
-      // BOARD-DRAGUX1 R2 (user 2026-08-05 review): NO lift at all — the chip
-      // stays exactly where it was grabbed and slides with the finger, like a
-      // real piece. The 24px lift read as a jump (and, grabbed near the top
-      // edge, the chip body sat BELOW the fingertip — "the opposite"): "we're
-      // trying to be too clever, and it's just fucking up". Depth comes from
-      // the drag shadow instead (.board-touchfly CSS). Wedge under the chip
-      // lights as the target; drop point = the chip's centre.
-      fly.style.transform = `translate(${ev.clientX - startX}px, ${ev.clientY - startY}px) scale(1.05)`
-      const c = fly.getBoundingClientRect()
-      const over = document.elementFromPoint(c.left + c.width / 2, c.top + c.height / 2)?.closest?.("[data-drop-account]")
-      if(over !== dropWedge){
-        dropWedge?.classList.remove("drag-over")
-        over?.classList.add("drag-over")
-        dropWedge = over
-      }
+      if(!moveRaf) moveRaf = requestAnimationFrame(applyMove)
     }
 
     const up = ev => {
       window.removeEventListener("pointermove", move)
       window.removeEventListener("pointerup", up)
       window.removeEventListener("pointercancel", up)
+      if(moveRaf){ cancelAnimationFrame(moveRaf); moveRaf = 0 }   // BOARD-DRAGREPAINT1: no stray frame after release
       el.classList.remove("board-dragsrc")
       dropWedge?.classList.remove("drag-over")
       dropWedge = null
@@ -5130,17 +5258,200 @@ function boardTouchDrag(el, payload){
   })
 }
 
+// BOARD-DRAGCUE1 (user 2026-08-06): desktop drag polish, wired once for every
+// chip instead of at each of the six dragstart handlers.
+//  · drag image = the chip itself, centred under the pointer. The browser's
+//    default ghost is an offset translucent RECTANGLE of the element — the
+//    "dotted rectangle… looks like a selection tool, but you're not selecting"
+//    the user reported. (The cursor glyph itself is OS-owned during native
+//    dnd and can't be made a hand; the grab/grabbing cursors in CSS cover
+//    hover and the touch path.)
+//  · dragend sweeps any wedge highlight left behind by a cancelled drag.
+if(!window.__boardDragCueInit){
+  window.__boardDragCueInit = true
+  document.addEventListener("dragstart", e => {
+    const el = e.target?.closest?.(".board-chip")
+    if(!el || !e.dataTransfer) return
+    try {
+      e.dataTransfer.effectAllowed = "move"
+      const r = el.getBoundingClientRect()
+      e.dataTransfer.setDragImage(el, r.width / 2, r.height / 2)
+    } catch {}
+  }, true)
+  document.addEventListener("dragend", () => {
+    document.querySelectorAll(".drag-over").forEach(n => {
+      clearTimeout(n.__dragLeaveT)
+      n.classList.remove("drag-over")
+    })
+  }, true)
+}
+
+// ── BOARD-AMOUNT1: "how much?" modal (user 2026-08-06) ──────────────────────
+// Replaces the browser prompt() that a drop used to raise. What the user
+// asked for, and the reasoning they talked themselves into:
+//  · still typeable — the box is the primary control, not a decoration;
+//  · a DUST chip ("you might just want to do a dust check test") and All;
+//  · NO 25/50/75% chips. Their own steer: percentage chips "kind of give the
+//    feel of like a trading thing, but that's not really — we're in a proposal
+//    mode here". A slider "gives you more control without having to type";
+//  · the slider is LOGARITHMIC, not linear: "if you've got a very large
+//    amount then as you slide you get more granularity on the lower amounts,
+//    but on the higher amounts you get bigger jumps" — and it lands on round
+//    numbers ("sensible steps given the range that's available"), so you can't
+//    accidentally propose 51.8347. The scale is labelled as log, per the user.
+// Seam kept deliberately open: this modal is where the assistant lives later
+// (suggested amounts from what's on the table, or "accept what they asked
+// for"). Nothing is wired to that yet — the layout just leaves it room.
+//
+// Returns a Promise of RAW units (or null if cancelled) by handing the typed
+// display value to getTransferAmount via modalAmountOverride — decimals
+// scaling, the unknown-meta guard and the audit log all stay in that one
+// place (AMOUNT-SCALE1).
+function boardAmountDecimals(assetId){
+  if(String(assetId).toUpperCase() === "HBAR") return 8
+  if(String(assetId).includes("#")) return 0
+  return Number(window.assetDisplayCache?.[assetId]?.token_class?.decimals || 0)
+}
+
+// round to a "sensible stop" for its own magnitude: thousands step in 100s,
+// hundreds in 10s/50s, ones in whole units — the user's "as you get lower and
+// lower, the stops are different"
+function boardNiceAmount(v, decimals){
+  if(!(v > 0)) return 0
+  const mag = Math.pow(10, Math.floor(Math.log10(v)))
+  const lead = v / mag
+  const step = lead >= 5 ? mag : lead >= 2 ? mag / 2 : mag / 5
+  const snapped = Math.round(v / step) * step
+  const places = Math.min(decimals, 6)
+  return Number(snapped.toFixed(places))
+}
+
+function boardAskAmount(assetId, available){
+  // whole-item moves (NFTs, single units) never had a prompt and don't get one
+  if(available <= 1) return Promise.resolve(getTransferAmount(assetId, available))
+
+  const decimals = boardAmountDecimals(assetId)
+  const max = decimals ? available / (10 ** decimals) : available
+  const unit = decimals ? 1 / (10 ** decimals) : 1
+  // dust = the smallest amount worth sending as a test. 0.01 where the token
+  // is that divisible (the user's own example), otherwise the token's own
+  // smallest unit — never a value the token can't express.
+  const dust = Math.min(max, Math.max(unit, decimals >= 2 ? 0.01 : unit))
+  const fmt = v => decimals ? Number(v).toFixed(Math.min(decimals, 2)) : String(v)
+
+  return new Promise(resolve => {
+    document.getElementById("boardAmountModal")?.remove()
+    const modal = document.createElement("div")
+    modal.id = "boardAmountModal"
+    modal.className = "asset-modal"
+    const card = document.createElement("div")
+    card.className = "asset-modal-card board-amountcard"
+    modal.appendChild(card)
+
+    const done = value => { modal.remove(); resolve(value) }
+    const cancel = () => done(null)
+    modal.onclick = e => { if(e.target === modal) cancel() }
+
+    const head = document.createElement("div")
+    head.className = "board-amount-head"
+    head.textContent = "Move how much?"
+    const sub = document.createElement("div")
+    sub.className = "subtle board-amount-sub"
+    // the chip's own text, not getAssetDisplay's raw precision — "6603.87826651
+    // available" is noise when you're choosing a round number to send
+    sub.textContent = boardAssetText(assetId, available) + " available"
+    card.append(head, sub)
+
+    const input = document.createElement("input")
+    input.className = "board-amount-input"
+    input.type = "number"
+    input.min = 0
+    input.max = max
+    input.step = unit
+    input.value = fmt(Math.min(1, max))
+    input.inputMode = "decimal"
+    card.appendChild(input)
+
+    // log mapping: slider 0…1000 ⇄ dust…max, geometric. Equal slider travel =
+    // equal RATIO, which is what "bigger jumps at the top" means.
+    const slider = document.createElement("input")
+    slider.className = "board-amount-slider"
+    slider.type = "range"
+    slider.min = 0; slider.max = 1000; slider.step = 1
+    const ratio = Math.max(max / dust, 1.0001)
+    const posToVal = p => boardNiceAmount(dust * Math.pow(ratio, p / 1000), decimals)
+    const valToPos = v => Math.round(1000 * Math.log(Math.max(v, dust) / dust) / Math.log(ratio))
+    slider.value = valToPos(Math.min(1, max))
+    slider.oninput = () => { input.value = fmt(Math.min(max, posToVal(Number(slider.value)))) }
+    input.oninput = () => {
+      const n = parseFloat(input.value)
+      if(Number.isFinite(n)) slider.value = valToPos(Math.min(n, max))
+    }
+    card.appendChild(slider)
+
+    const scale = document.createElement("div")
+    scale.className = "subtle board-amount-scale"
+    scale.textContent = "Logarithmic scale — fine at the bottom, coarse at the top"
+    card.appendChild(scale)
+
+    const chips = document.createElement("div")
+    chips.className = "board-amount-chips"
+    ;[["Dust", dust, "A tiny test amount"], ["All", max, "Everything available"]]
+      .forEach(([label, v, title]) => {
+        const b = document.createElement("button")
+        b.type = "button"
+        b.className = "board-amount-chip"
+        b.textContent = label
+        b.title = title
+        b.onclick = () => { input.value = fmt(v); slider.value = valToPos(v) }
+        chips.appendChild(b)
+      })
+    card.appendChild(chips)
+
+    const row = document.createElement("div")
+    row.className = "board-amount-actions"
+    const no = document.createElement("button")
+    no.type = "button"
+    no.className = "board-amount-btn"
+    no.textContent = "Cancel"
+    no.onclick = cancel
+    const go = document.createElement("button")
+    go.type = "button"
+    go.className = "board-amount-btn board-amount-btn--go"
+    go.textContent = "Move"
+    go.onclick = () => {
+      const n = parseFloat(input.value)
+      if(!Number.isFinite(n) || n <= 0) return
+      modalAmountOverride = n
+      const raw = getTransferAmount(assetId, available)   // one place owns decimals scaling
+      modalAmountOverride = null
+      if(raw === null) return                             // it already explained why
+      done(raw)
+    }
+    row.append(no, go)
+    card.appendChild(row)
+
+    document.body.appendChild(modal)
+    setTimeout(() => { try { input.focus(); input.select() } catch {} }, 30)
+    input.onkeydown = e => {
+      if(e.key === "Enter"){ e.preventDefault(); go.click() }
+      if(e.key === "Escape"){ e.preventDefault(); cancel() }
+    }
+  })
+}
+
 // the drop semantics, shared by mouse dnd (boardDropTarget wraps the legacy
 // handler) and touch drag (executed directly from the payload). pt (optional
 // {x,y} screen coords of the release) feeds spawn-at-drop-point — the chip
 // the backend echoes back materialises where the user dropped it.
-function boardExecuteDrop(p, account, pt){
+// async since BOARD-AMOUNT1: the amount step is a modal, not a prompt().
+async function boardExecuteDrop(p, account, pt){
   if(!account || !p?.assetId) return
 
   if(p.pick){
     // picks land only in YOUR space; the backend re-checks allowPick
     if(!isMyAccount(account)) return
-    const amount = getTransferAmount(p.assetId, p.available || 1)
+    const amount = await boardAskAmount(p.assetId, p.available || 1)
     if(amount === null) return
     if(pt) boardNotePendingSpawn(account.id, p.assetId, pt.x, pt.y)
     boardNoteLocalMove(account.id, p.pickFrom, p.assetId)
@@ -5177,7 +5488,7 @@ function boardExecuteDrop(p, account, pt){
     return
   }
 
-  const amount = getTransferAmount(p.assetId, p.available || 1)
+  const amount = await boardAskAmount(p.assetId, p.available || 1)
   if(amount === null) return
   if(pt) boardNotePendingSpawn(account.id, p.assetId, pt.x, pt.y)
   boardNoteLocalMove(account.id, p.fromAccountId, p.assetId)
@@ -6104,6 +6415,45 @@ function ringHubCoinLabel(seg, g, NS){
 
 /* ── layout pieces ──────────────────────────────────────────────────────── */
 
+// ── BOARD-LOCKBAND1 (user 2026-08-06) ───────────────────────────────────────
+// The lock ring and the felt share pixels: tap the arc = lock, tap the felt =
+// open that player's modal. A slightly-off tap on your OWN arc therefore
+// opened your own modal — "that's not good". The fix is a graded band around
+// the arc's centreline, in multiples of the visible tube thickness T:
+//
+//   |Δr| ≤ T          → LOCK  (a 2T-wide target: double the visible ring)
+//   T < |Δr| ≤ 2T     → NO MAN'S LAND: nothing happens, on purpose
+//   |Δr| > 2T         → felt: open the player modal
+//
+// Other players' arcs can't be locked by you, so their whole band (|Δr| ≤ T)
+// is dead too — per the user, deliberately reserved rather than wired to the
+// modal, so tapping someone's lock ring never teaches the wrong association
+// and stays free for a future action (signing history etc.).
+let _boardRingGeo = null
+
+// visible lock-tube thickness — the CSS width for the family in play
+// ([data-board-fam~="v16"] .ring-lockarc{ stroke-width: 14 }); earlier
+// families run the 12px base rule.
+function boardLockTubeW(){ return ring16() ? 14 : 12 }
+
+// Where did this click land relative to the lock ring? → "lock" | "dead" | null
+function boardLockBandAt(clientX, clientY){
+  const g = _boardRingGeo
+  const root = document.getElementById("boardRoot")
+  if(!g || !root) return null
+  const r = root.getBoundingClientRect()
+  const x = clientX - r.left - g.cx, y = clientY - r.top - g.cy
+  const dist = Math.hypot(x, y)
+  if(!dist) return null
+  // radius of the basket ellipse in THIS direction (same solve as ovalR)
+  const a = Math.atan2(y, x)
+  const rOval = (g.rx * g.ry) / Math.hypot(g.ry * Math.cos(a), g.rx * Math.sin(a))
+  const d = Math.abs(dist - rOval), T = boardLockTubeW()
+  if(d <= T) return "lock"
+  if(d <= T * 2) return "dead"
+  return null
+}
+
 // Fat pie-slice drop target + low-alpha colour wash, clipped from the board
 // center out past the screen edge — dropping anywhere in a player's wedge is
 // dropping on that player (direction beats distance on touch).
@@ -6117,7 +6467,18 @@ function makeWedge(account, a0, a1, geo, isMine = false){
   // PLAYER-MODAL1 (user 2026-08-05): tap the FELT anywhere in a segment —
   // not a chip; chips live on a higher layer and keep their own tap —
   // zooms into that player. Drag/drop paths don't synthesise wedge clicks.
-  el.onclick = () => { if(typeof boardPlayerModal === "function") boardPlayerModal(account.playerId) }
+  // BOARD-LOCKBAND1: …except near the lock ring, where the tap belongs to the
+  // ring (mine: lock; anyone's: dead band, never the modal). See
+  // boardLockBandAt for the T / 2T geometry.
+  el.onclick = e => {
+    const band = boardLockBandAt(e.clientX, e.clientY)
+    if(band === "dead") return
+    if(band === "lock"){
+      if(isMine && !boardSigning) boardToggleLock(account)
+      return                                  // others' ring: reserved, does nothing
+    }
+    if(typeof boardPlayerModal === "function") boardPlayerModal(account.playerId)
+  }
   // TAP-TO-OFFER cue: while a chip is selected, candidate destination
   // segments lift a touch so "tap a segment" reads as the next move
   if(typeof selectedAssetId !== "undefined" && selectedAssetId && account.id !== selectedFromAccountId)
@@ -6412,6 +6773,11 @@ function boardStoreChips(account, container, reservedByAccount){
   const mine = isMyAccount(account)
 
   Object.entries(account.assets || {}).forEach(([assetId, amount]) => {
+    // BOARD-CURATE1 R2 (user 2026-08-06): this viewer marked it "not interested"
+    // in the player modal — HIDE means gone, not ghosted ("you don't want to see
+    // it at all on the board, not as ghosts, not as nothing"). Checked before the
+    // chip is built; the modal's ⭐/🚫/○ toggle un-hides it any time.
+    if(!mine && boardCurateGet(account.id, assetId) === "out") return
     const el = makeAssetEl({
       text: boardAssetText(assetId, amount),
       assetId,
@@ -6488,9 +6854,6 @@ function boardStoreChips(account, container, reservedByAccount){
     // tap-to-inspect works on EVERYONE's store chips (user 2026-08-05: "if you
     // want to examine their assets, you can just tap on them")
     if(!mine && ring8()) el.onclick = () => boardAssetDetail(assetId, account, amount)
-    // BOARD-CURATE1: this viewer marked it "not interested" (player modal
-    // toggle) — mute it on THEIR board only; the row un-mutes it any time
-    if(!mine && boardCurateGet(account.id, assetId) === "out") el.classList.add("board-chip--mutedout")
     container.appendChild(el)
   })
 }
@@ -6737,6 +7100,9 @@ function boardReservedChips(account, container, reservedByAccount){
     // (NFTs, full-stack fungibles), where nothing remains to mark the origin.
     // Withdraw stays reachable via the basket chip (tap/drag-home).
     if(boardCounterSimple() && (account.assets?.[item.assetId] || 0) > 0) return
+    // BOARD-CURATE1 R2: hidden means hidden — a curated-out asset leaves no
+    // ghost behind either (user 2026-08-06)
+    if(!mine && boardCurateGet(account.id, item.assetId) === "out") return
     const el = makeAssetEl({
       text: boardAssetText(item.assetId, item.amount || 1),
       assetId: item.assetId,

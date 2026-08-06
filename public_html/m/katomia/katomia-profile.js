@@ -92,6 +92,26 @@ async function openKatomiaProfile(){
 
   modal.classList.remove("hidden")
 
+  // BOARD-UISIZE1 (moved here 2026-08-06): the display-size preference lives in
+  // this modal now. On the board, boardSyncPrefsUI owns the same control (it
+  // re-renders chips on change); everywhere else — home, circles, learn — this
+  // is the only wiring, so the preference is settable off a board too. Guarded
+  // so it never double-binds: the board's handler, when present, wins because
+  // it also drives render().
+  const uiSize = document.getElementById("boardPrefUiSize")
+  if(uiSize && typeof boardSyncPrefsUI !== "function"){
+    const cur = (() => { try { return localStorage.getItem("katomiaUiSize") } catch { return null } })()
+    uiSize.value = ["small", "normal", "large"].includes(cur) ? cur : "normal"
+    uiSize.onchange = () => {
+      const v = ["small", "large"].includes(uiSize.value) ? uiSize.value : "normal"
+      try { localStorage.setItem("katomiaUiSize", v) } catch {}
+      const html = document.documentElement
+      html.classList.remove("ksize-small", "ksize-normal", "ksize-large")
+      html.classList.add("ksize-" + v)
+      katomiaDiagSend?.("pref:uiSize", { value: v })
+    }
+  }
+
   const diagToggle = document.getElementById("kdiagRemoteToggle")
   if(diagToggle){
     // Reflect the EFFECTIVE remote-logging state, not the raw key. While DIAG_DEFAULT_ON

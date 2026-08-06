@@ -1046,6 +1046,18 @@ zz-distracting-body[data-network="playnet"]{
 .app-menu-item:hover{ background:#f3f3f3; transform:none; box-shadow:none; }
 .app-menu-item input{ cursor:pointer; margin:0; }
 
+/* BOARD-VIEWSWITCH1 (user 2026-08-06): the Board / Split / Messages trio reads
+   as ONE control, not three unrelated destinations — hairline rules top and
+   bottom, and the live view carries a ✓. */
+.app-menu-group{
+  margin:4px 0;
+  padding:4px 0;
+  border-top:1px solid #eee;
+  border-bottom:1px solid #eee;
+}
+.app-menu-item--on{ font-weight:700; color:#111; }
+.app-menu-item--on::after{ content:"✓"; margin-left:auto; opacity:.7; }
+
 /* placeholder logo */
 .app-logo{
   height:32px;

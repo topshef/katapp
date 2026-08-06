@@ -88,10 +88,18 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
          any page can drive it, and a stored preference is re-applied on load. -->
 
     <?php if (defined('KATOMIA_BOARD_CONTEXT')): ?>
-    <!-- BOARD-CHAT1 R2 (user feedback 2026-07-30): the floating 💬 panel is hidden on
-         mobile because it covered the board controls. This is its replacement there —
-         a full-screen message stream. Hidden on desktop, where the panel still works. -->
-    <button type="button" class="app-menu-item mobile-only" data-menu-chat>💬 Messages</button>
+    <!-- BOARD-VIEWSWITCH1 (user 2026-08-06): the three board views are picked
+         DIRECTLY here, one tap, instead of the old single "💬 Messages" item that
+         opened the stream and made you hit Close to get back. "It's kind of your
+         view — it's either board full screen, it's split screen, or it's messages
+         only." Frequently toggled (different device, different view), which is
+         exactly what earns a slot in the hamburger rather than in Settings.
+         Wired by katomia-board.js (boardSetView); the ✓ marks the live one. -->
+    <div class="app-menu-group" data-menu-viewgroup>
+      <button type="button" class="app-menu-item" data-menu-view="board">🎲 Board</button>
+      <button type="button" class="app-menu-item" data-menu-view="split">🎲💬 Split</button>
+      <button type="button" class="app-menu-item" data-menu-view="messages" data-menu-chat>💬 Messages</button>
+    </div>
     <button type="button" class="app-menu-item" data-menu-settings>⚙ Settings</button>
     <?php endif; ?>
     <!-- KAT-FEEDBACK1-ENTRYPOINT1: explicit route to the feedback modal for users who
@@ -154,20 +162,14 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
       <input type="checkbox" id="boardPrefChatPanel" title="Show player messages in a docked panel instead of speech bubbles on the board">
       💬 Message panel
     </label>
-    <!-- BOARD-UISIZE1 (user 2026-08-05): one display-size preference for
-         ordinary humans — chips, messages and labels scale together. Small =
-         the pre-change compact look; Normal = readable-on-a-phone default;
-         Large = low-vision (A11Y-LOWVISION1 first slice). Site-wide
-         (localStorage katomiaUiSize → html.ksize-* → CSS --ui-scale); the
-         nerd 🧪 Chip size below stays a dev multiplier on top. -->
-    <label class="board-settings-label">
-      Size
-      <select id="boardPrefUiSize" title="Overall display size — chips, messages and labels together. Normal is tuned to be readable on a phone; Large helps if you'd rather not squint.">
-        <option value="small">Small</option>
-        <option value="normal">Normal</option>
-        <option value="large">Large</option>
-      </select>
-    </label>
+    <!-- BOARD-UISIZE1's Size select MOVED to Profile → Preferences (user
+         2026-08-06, IA pass): this panel is scoped to THIS GAME's board, and
+         Size is neither — it's a device-wide display preference ("within a
+         device, I don't think it makes sense to have different size
+         preferences across different games"). Same control, same id
+         (#boardPrefUiSize), same storage; boardSyncPrefsUI still wires it
+         wherever it renders, and katomia-profile.js wires it on the pages that
+         don't load the board. -->
 
     <!-- MVP-SETTINGSDECLUTTER1: dev/lab knobs (self-labeled 🧪/Debug/Lab below) — nerd-mode
          only, same mechanism as everywhere else (body.nerd, katomia-profile.js). Reverses the

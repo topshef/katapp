@@ -150,6 +150,20 @@
     <details class="profile-section profile-debug-section">
       <summary class="profile-section-title">Preferences &amp; diagnostics</summary>
       <div class="profile-debug">
+        <!-- BOARD-UISIZE1, relocated 2026-08-06 (user): display size is a
+             DEVICE preference, not a per-game board setting — it belongs with
+             the other app-wide preferences, not in the board's ⚙ popover.
+             Same id/storage as before the move (localStorage katomiaUiSize →
+             html.ksize-* → CSS --ui-scale); the nerd 🧪 Chip size knob stays on
+             the board panel as a dev multiplier on top of this. -->
+        <label class="profile-debug-label">
+          Size
+          <select id="boardPrefUiSize" title="Overall display size — chips, messages and labels together. Normal is tuned to be readable on a phone; Large helps if you'd rather not squint.">
+            <option value="small">Small</option>
+            <option value="normal">Normal</option>
+            <option value="large">Large</option>
+          </select>
+        </label>
         <!-- ENTRY-AUTOADD1 (user-approved 2026-08-05): normal-mode preference, ON by
              default — connected accounts join a game automatically with all assets.
              Unticked, the ➕ Add account composer stays the only path (connected
