@@ -1,0 +1,54 @@
+{
+  "_about": "WCPATHS class -- regression coverage for WC-RELAYHEALTH1's ghost-session family, the failure the user hit repeatedly: clear the connection in HashPack (accounts left alone), return to katomia, tap Sign, the wallet connects and signs happily, and the board then reports failure and wipes. Root cause was a signer rehydrated from a session the wallet had destroyed. Driven by kWallet (KWALLET1) as a real WalletConnect wallet peer, so it needs no phone and no HashPack -- kWallet gained POST /api/disconnect on 2026-08-06 specifically to make this testable. Runs against qa/wc-fixture.php, a bare page with the pinned bundle and no board logic (a real game page owns the network and races the harness). Full path enumeration: qa/wc-paths.html.",
+  "id": "WCPATHS",
+  "title": "WalletConnect survives the user clearing the connection wallet-side",
+  "status": "partial",
+  "task": "WC-RELAYHEALTH1",
+  "updated": "2026-08-06",
+  "oracle": {
+    "hard_assertions": [
+      "WC-A5-ONLINE: after the wallet disconnects while the dApp is online, the dApp reports no connected account (getAccount() null, getAccounts() empty)",
+      "WC-A5-ONLINE: no sign request is sent on the destroyed session's topic",
+      "WC-A5-ONLINE: signTx fails with an actionable error rather than hanging or resolving falsely",
+      "WC-A5-ONLINE: re-pairing works and the next sign arrives on the NEW topic",
+      "WC-A5B-GHOST: a true ghost can be constructed (session present in the dApp's IndexedDB, absent from the wallet)",
+      "WC-A5B-GHOST: signing against that ghost does not hang and never reports success"
+    ],
+    "benchmark": "WC-A5-ONLINE first ran green 2026-08-06 08:39 on bundle 3c7e7c3 (8/8). IMPORTANT CAVEAT: it also runs 8/8 on the PRE-FIX bundle e31d3b7, because disconnecting while the dApp is online lets the SDK's session_delete through and no ghost is ever created. It is therefore a health check, NOT evidence that the ghost fix works. WC-A5B-GHOST is the discriminating test and is not yet reliable -- see its instance note."
+  },
+  "dimensions": {
+    "network": {
+      "ref": "network",
+      "values": ["testnet"],
+      "note": "testnet only -- nothing of value moves, so this can run daily for free. The wallet answers every sign request with KWALLET-TEST-ACK; nothing is ever submitted to consensus."
+    },
+    "delete_delivery": {
+      "ref": null,
+      "name": "did the wallet's session_delete reach the dApp?",
+      "values": ["delivered", "never-delivered"],
+      "note": "The whole bug lives in the second value. If the delete arrives, the SDK cleans up and there is nothing to test."
+    }
+  },
+  "constraints": [],
+  "cartesian_size": 2,
+  "pairwise_target": "n/a -- both instances run every cycle, exhaustive",
+  "instances": [
+    {
+      "id": "WC-A5-ONLINE",
+      "vector": { "network": "testnet", "delete_delivery": "delivered" },
+      "run": "auto",
+      "why_manual": null,
+      "status": "pass",
+      "benchmark": "8/8 on 2026-08-06 08:39, bundle 3c7e7c3. Sign after recovery landed on new topic 9a4cec98, not the destroyed a1ea7deb. Read with the caveat above: this instance cannot distinguish a fixed bundle from a broken one."
+    },
+    {
+      "id": "WC-A5B-GHOST",
+      "vector": { "network": "testnet", "delete_delivery": "never-delivered" },
+      "run": "auto",
+      "why_manual": null,
+      "status": "unreliable",
+      "benchmark": "NOT YET GREEN as of 2026-08-06. First cut snapshotted localStorage and captured nothing -- WalletConnect v2 keeps its state in IndexedDB (WALLET_CONNECT_V2_INDEXED_DB/keyvaluestorage), which is also how resetWalletLink() was found to have been a silent no-op since R2. Rewritten against IndexedDB; the next run then stalled in ensureNetwork after a reset+reload and was killed by the outer timeout with no report. Per-step timeouts added so a stall now reports an error verdict instead of vanishing. Left on the daily cron deliberately: an error on the grid is information, and this is the instance that actually matters."
+    }
+  ],
+  "automation": "qa/harness/wc-paths-cron.sh (daily 04:35 UTC, testnet) runs /opt/kwallet/a5-ghost-recovery.cjs then /opt/kwallet/a5b-storage-ghost.cjs. Both report test:start/test:verdict through the usual kflow door, so they appear on the retest grid with every other class. Skips the run entirely if a human has pending items in kWallet, and restores its mode afterwards. On demand: KWALLET_NETWORK=testnet node /opt/kwallet/a5-ghost-recovery.cjs (env from /opt/kwallet/.env). Point either at another bundle with KWC_VERSION=<hash> to A/B against an older snapshot."
+}
