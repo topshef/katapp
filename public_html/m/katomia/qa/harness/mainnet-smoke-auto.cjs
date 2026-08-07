@@ -80,6 +80,7 @@ async function run(){
   const browser = await chromium.launch()
   const pageA = await (await browser.newContext()).newPage()
   pageA.on("dialog", d => d.accept(AMOUNT))
+  await pageA.addInitScript(() => { window.__katomiaTestHooks = true })   // QA-TESTHOOKS1
   await pageA.goto(BOARD, { waitUntil: "domcontentloaded" })
   await pageA.waitForTimeout(2000)
   await pageA.locator("button.ring-footer-accsel").first().click()
@@ -96,6 +97,7 @@ async function run(){
   if(!acctA || !acctA.includes(SENDER)) throw new Error(`sender join failed (got ${acctA})`)
 
   const pageB = await (await browser.newContext()).newPage()
+  await pageB.addInitScript(() => { window.__katomiaTestHooks = true })   // QA-TESTHOOKS1
   await pageB.goto(BOARD, { waitUntil: "domcontentloaded" })
   await pageB.waitForTimeout(2000)
   await pageB.locator("button.ring-footer-accsel").first().click()

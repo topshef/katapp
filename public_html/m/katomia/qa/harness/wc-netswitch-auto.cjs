@@ -84,6 +84,7 @@ async function runReloadThenSign(browser){
   pageA.on("dialog", d => d.accept("0.01"))
   const consoleLines = []
   pageA.on("console", m => consoleLines.push(m.text()))
+  await pageA.addInitScript(() => { window.__katomiaTestHooks = true })   // QA-TESTHOOKS1
   await pageA.goto(BOARD, { waitUntil: "domcontentloaded" })
   await pageA.waitForTimeout(2000)
   await pageA.locator("button.ring-footer-accsel").first().click()
@@ -100,6 +101,7 @@ async function runReloadThenSign(browser){
   if(!acctA) throw new Error("01: sender never joined")
 
   const pageB = await (await browser.newContext()).newPage()
+  await pageB.addInitScript(() => { window.__katomiaTestHooks = true })   // QA-TESTHOOKS1
   await pageB.goto(BOARD, { waitUntil: "domcontentloaded" })
   await pageB.waitForTimeout(2000)
   await pageB.locator("button.ring-footer-accsel").first().click()
@@ -177,6 +179,7 @@ async function runEarlyScope(browser){
   const BOARD = `https://lab1.katlab.kpay.live/m/katomia/board/${GAME}?skin=ring16`
   log("02: game", GAME)
   const page = await (await browser.newContext()).newPage()
+  await page.addInitScript(() => { window.__katomiaTestHooks = true })   // QA-TESTHOOKS1
   await page.goto(BOARD, { waitUntil: "domcontentloaded" })
   await page.waitForTimeout(2000)
   await page.locator("button.ring-footer-accsel").first().click()
