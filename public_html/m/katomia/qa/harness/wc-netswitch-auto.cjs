@@ -122,7 +122,15 @@ async function runReloadThenSign(browser){
   const _offered = await pageA.evaluate(([senderId, targetId, assetId, amt]) => {
     const chip = document.querySelector(
       `[data-testid="chip"][data-chip-role="store"][data-owner-account="${senderId}"][data-asset-id="${assetId}"]`)
-    if(!chip) return "no store chip for sender"
+    if(!chip){
+      // Self-explaining failure: distinguish "this environment predates the test
+      // hooks" from "the board genuinely has no chip". Without this the run just
+      // says "no chip" and the next person goes looking for a product bug.
+      const legacy = document.querySelector(`.asset[data-owner-account="${senderId}"][data-asset-id="${assetId}"]`)
+      return legacy
+        ? "BUNDLE TOO OLD: chips render, but without data-testid — this environment predates QA-TESTHOOKS1 (2b07c1c). Ship the hooks here before running board tests."
+        : "no store chip for sender"
+    }
     chip.click()
     const act = document.querySelector('[data-testid="asset-offer"]')
     if(!act) return "offer action missing — is the bundle new enough?"
