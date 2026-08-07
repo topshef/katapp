@@ -1353,29 +1353,79 @@ function renderRingBoard(root){
       // success receipt push to win the race, and the shade's synced fade
       // (ring-focusshade--wipe, below) covers the remaining offset.
       //
-      // BOARD-VANISHRACE1 (user 2026-08-06, USDC send — same false verdict on
-      // pat/app/lab1): the main socket AND the tx-receipt socket (createTxSocket)
-      // both hit the same backend host, so a reconnect blip drops both at once.
-      // kdiag showed the exact race: signature saved + arc green, then ws:close
-      // right as the backend resolved the tx (that's WHY it vanished from
-      // pending), and the 500ms fired while the receipt socket was still
-      // reconnecting — guessing "failed or expired" on a transaction that had
-      // already succeeded. Don't guess while the connection is down; wait for
-      // it to come back and give the receipt the same 500ms it would've had,
-      // capped by BOARD_NO_RECEIPT_MS so a genuinely dead backend still gets an
-      // honest verdict instead of hanging forever.
-      const giveUpAt = Date.now() + BOARD_NO_RECEIPT_MS
-      const maybeDeclare = () => {
+      // BOARD-TXTRUTH1 (2026-08-07) — NEVER GUESS A FAILURE. ASK THE CHAIN.
+      //
+      // History, because this got fixed wrong once already: BOARD-VANISHRACE1
+      // (2026-08-06) assumed the false "failed" verdict was a race against the main
+      // socket reconnecting, and waited for socket.readyState === OPEN before
+      // declaring. That fix DID NOT WORK — proved on the user's own device at
+      // 07:48:06 on 2026-08-07 running the fixed bundle: tx …1786088873.259000000
+      // SUCCEEDED on chain and the board still told the user it failed. The main
+      // socket had already reconnected by the time the guess fired, so the guard
+      // waved it through.
+      //
+      // The actual mechanism: the RECEIPT arrives on a SEPARATE socket built by
+      // createTxSocket (kpool_widget/websocket.js), and that socket HAS NO RECONNECT
+      // — its close handler only logs. So if it drops between "signature saved" and
+      // "receipt pushed", the tx_receipt for that txid is lost FOREVER, and this
+      // fallback then reports failure for a transaction that actually succeeded.
+      // Compare 07:50:44 (no ws:close in the gap → tx_receipt SUCCESS arrived →
+      // correct) with 07:48:06 (ws:close at 07:48:10 in the gap → no receipt ever →
+      // wrong verdict).
+      //
+      // Why this class of bug is the worst one we have (user, 2026-08-07): telling
+      // someone their payment failed when it succeeded makes them send it again.
+      // That already happened — the user re-sent 0.01 USDC at 07:50:40 after being
+      // told the 07:48:06 send failed, and BOTH are on chain. A double spend.
+      //
+      // So: the verdict no longer depends on any socket being alive. Before
+      // declaring failure we ask the mirror node, which is the authoritative record
+      // and is reachable independently of our backend. Only a definitive on-chain
+      // answer — or the tx being genuinely absent well past its expiry — ends this.
+      const _net = window.__katomiaNetwork || "mainnet"
+      const _mirror = _net === "mainnet"
+        ? "https://mainnet-public.mirrornode.hedera.com"
+        : `https://${_net}.mirrornode.hedera.com`
+      // 0.0.x@sec.nanos → 0.0.x-sec-nanos (mirror's path form). Split on "@" first:
+      // a blanket .replace(".","-") corrupts the ACCOUNT's dots (0.0.x → 0-0.x) and
+      // every lookup 404s, which would silently reinstate the exact false-failure
+      // bug this code exists to kill. Only the sec/nanos separator changes.
+      const _mirrorId = (() => {
+        const [acct, stamp] = String(vanished).split("@")
+        return stamp ? `${acct}-${stamp.replace(".", "-")}` : String(vanished)
+      })()
+      // Keep asking until the chain answers or the window is definitively past.
+      // Mirror ingest lags consensus by a few seconds, so absence is only
+      // meaningful AFTER expiry + grace — never treat an early 404 as failure.
+      const _expiryMs = boardSigning?.expiry || 0
+      const giveUpAt = Math.max(Date.now() + BOARD_NO_RECEIPT_MS,
+                                (_expiryMs || Date.now()) + BOARD_NO_RECEIPT_MS)
+      const confirmFromChain = async () => {
         if(boardSuccessAcked.has(vanished)) return
-        if((!socket || socket.readyState !== WebSocket.OPEN) && Date.now() < giveUpAt){
-          boardDiag("board:result:vanished-await-reconnect", { txid: vanished })
-          setTimeout(maybeDeclare, 500)
+        let onChain = null
+        try {
+          const r = await fetch(`${_mirror}/api/v1/transactions/${_mirrorId}`, { cache: "no-store" })
+          if(r.ok){
+            const j = await r.json()
+            const t = (j.transactions || [])[0]
+            if(t?.result) onChain = t.result
+          }
+        } catch(e){ /* network hiccup — indistinguishable from "not yet", so retry */ }
+        if(onChain){
+          const ok = onChain === "SUCCESS"
+          boardDiag("board:result:chain-confirmed", { txid: vanished, result: onChain, ok })
+          boardShowResult(vanished, ok)
           return
         }
-        boardDiag("board:result:vanished-from-pending", { txid: vanished })
+        if(Date.now() < giveUpAt){
+          setTimeout(confirmFromChain, 2000)
+          return
+        }
+        // Genuinely absent from the chain well past expiry → it really did not land.
+        boardDiag("board:result:vanished-from-pending", { txid: vanished, chainChecked: true })
         boardShowResult(vanished, false)
       }
-      setTimeout(maybeDeclare, 500)
+      setTimeout(confirmFromChain, 500)
     }
     // BOARD-TRAILORPHAN1 (user 2026-07-31, spotted on the live demo; confirmed with
     // Playwright over a full cycle). After-glow trails are PERSISTENT by design —
