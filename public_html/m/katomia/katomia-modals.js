@@ -121,6 +121,12 @@ try {
   })
 } catch(e){ /* a non-configurable kdiag already exists — leave it alone */ }
 
+// Declared ahead of katomiaDiagSend deliberately: window.kdiag is live from the
+// defineProperty above, so a caller during this file's own evaluation would hit the
+// let/const temporal dead zone if these sat below.
+const DIAG_FLUSH_MS = 250, DIAG_MAX_BATCH = 25
+let _diagQueue = [], _diagTimer = null
+
 function katomiaDiagSend(msg, data){
   // always mirror locally for live debugging
   try { console.debug("[katomiaDiag]", msg, data ?? "") } catch {}
@@ -136,9 +142,25 @@ function katomiaDiagSend(msg, data){
   // the session slug, so a narrated session threads every diagnostic under it.
   try { const s = JSON.parse(localStorage.getItem("kfw_session") || "null"); if(s?.slug) ev.session = s.slug } catch {}
 
+  // KDIAG-BATCH1 (2026-08-07): queue, don't send. This used to be one HTTP request
+  // per diagnostic event; a board page was measured at 30 POST /diag in a single
+  // second, which tripped mod_evasive on the GCP boxes (default 2 req/URI/sec) and
+  // 403'd the whole session — pages, assets and JSON alike — for as long as the page
+  // kept polling. The wire format already took an array, so batching is server-side
+  // free. Flush is short enough to stay useful for live debugging.
+  _diagQueue.push({ ev, page: location.pathname })
+  if(_diagQueue.length >= DIAG_MAX_BATCH) return katomiaDiagFlush()
+  if(!_diagTimer) _diagTimer = setTimeout(katomiaDiagFlush, DIAG_FLUSH_MS)
+}
+
+function katomiaDiagFlush(){
+  if(_diagTimer){ clearTimeout(_diagTimer); _diagTimer = null }
+  if(!_diagQueue.length) return
+  const batch = _diagQueue; _diagQueue = []
+
   const payload = JSON.stringify({
-    events: [ev],
-    page:   location.pathname,
+    events: batch.map(q => q.ev),
+    page:   batch[0].page,          // per-event page, captured at queue time
     ua:     navigator.userAgent.slice(0, 200)
   })
   try {
@@ -147,6 +169,15 @@ function katomiaDiagSend(msg, data){
     fetch("/diag", { method: "POST", body: blob, keepalive: true }).catch(() => {})
   } catch {}
 }
+
+// Buffering means a navigation could drop the tail — flush on the way out. Both
+// events fire on mobile backgrounding, where pagehide alone is not reliable.
+try {
+  addEventListener("pagehide", katomiaDiagFlush)
+  document.addEventListener("visibilitychange", () => {
+    if(document.visibilityState === "hidden") katomiaDiagFlush()
+  })
+} catch {}
 
 // Pull the build string the browser ACTUALLY applied from the loaded stylesheet.
 function readAppliedCssBuild(){

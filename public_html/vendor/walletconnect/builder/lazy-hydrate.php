@@ -79,6 +79,17 @@ $selfHost = strtolower($_SERVER['HTTP_HOST'] ?? '');
 $requiredFile  = "$appFilename.js";
 $optionalFiles = ["$appFilename.js.map", 'build.md', 'build.json', "$appName.tar.gz"];
 
+// WC-HYDRATE404 (2026-08-07) — what was ACTUALLY asked for. Previously this script
+// assumed every request routed here wanted the .js, hydrated the set and served
+// kwc.iife.js regardless of the filename in the URI. The kwc bundle probes for a
+// release.json that only 6 of 48 snapshots have, so that probe fell through to here
+// and got back the 3.2MB bundle as 'application/javascript' with an immutable
+// year-long cache header — twice per board page load, and a fat contributor to the
+// request bursts that were tripping mod_evasive.
+$requestedFile = basename(parse_url($reqPath, PHP_URL_PATH) ?: '');
+if (!in_array($requestedFile, array_merge([$requiredFile], $optionalFiles), true))
+    hydrate_fail(404, "DW39245 '$requestedFile' is not a kwc artifact — not hydrating");
+
 $isSuccess = false;
 $debug = [];
 
@@ -109,16 +120,28 @@ if (!$isSuccess) {
 elog("lazy-hydrate: hydrated $buildDir into $localDir");
 
 // -------------------------------
-// Serve the hydrated js
+// Serve the file that was requested — not always the js (WC-HYDRATE404)
 // -------------------------------
-$jsPath = "$localDir/$requiredFile";
-if (!file_exists($jsPath) || !($size = filesize($jsPath)))
+$servePath = "$localDir/$requestedFile";
+if (!file_exists($servePath) || !($size = filesize($servePath))) {
+    // The required .js hydrated, but this optional member does not exist at the
+    // origin either. It genuinely is not in this snapshot — say so, and say it
+    // cheaply, so the caller stops asking.
+    if ($requestedFile !== $requiredFile)
+        hydrate_fail(404, "DW39246 '$requestedFile' not present in $buildDir at any origin");
     hydrate_fail(500, 'JS94833 hydrated js missing/empty after success');
+}
 
-header('Content-Type: application/javascript');
+$types = [
+    'js'  => 'application/javascript', 'map' => 'application/json',
+    'json' => 'application/json',      'md'  => 'text/markdown; charset=utf-8',
+    'gz'  => 'application/gzip',
+];
+$ext = strtolower(pathinfo($requestedFile, PATHINFO_EXTENSION));
+header('Content-Type: ' . ($types[$ext] ?? 'application/octet-stream'));
 header('Content-Length: ' . $size);
 header('Cache-Control: public, max-age=31536000, immutable'); // only immutable versions reach this point
-readfile($jsPath);
+readfile($servePath);
 exit;
 
 
