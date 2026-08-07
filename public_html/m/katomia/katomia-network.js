@@ -410,6 +410,14 @@ function connect(onOpenAction){
 
 	
 	const alertTimeouts = {warning: 3000, error: 0, info: 3000, success: 4000, event: 3000}
+
+	// KAT-DUPEQUIET1 (user 2026-08-07): backend notices with NOTHING for the user
+	// to do about them. No toast, ever — but not deleted either ("I'm mindful
+	// there might be some weird edge case where we want to know that"), so nerd
+	// mode still gets the row in the message stream. Add a code here to quieten a
+	// new class of no-action notice; the backend tags it via ctx.info(msg, code).
+	const QUIET_CODES = new Set(["asset-dupe"])
+
 	socket.onmessage = async msg => {
 
 		const data = JSON.parse(msg.data)
@@ -435,6 +443,14 @@ function connect(onOpenAction){
 				// CHAT-COMMITGATE1 R2 (user 2026-08-05): the authenticate pop-up IS the
 				// alert — no toast and no stream row on top of it (three tellings of one
 				// thing). The DOM event still fires so the modal opens + text restores.
+				// KAT-DUPEQUIET1: quiet codes never toast. Nerd mode keeps them as a
+				// stream row (panel mode only — that's where the stream is); normal
+				// mode drops them entirely.
+				if(m.code && QUIET_CODES.has(m.code)){
+					if(document.body.classList.contains("nerd") && document.body.dataset.kchatMode === "panel")
+						try { window.katomiaChat?.system?.("ℹ️ " + m.message) } catch(_){}
+					continue
+				}
 				if(m.code === "chat-identity"){
 					try { document.dispatchEvent(new CustomEvent("katomia:gamemsg", { detail: m })) } catch(_){}
 					continue
