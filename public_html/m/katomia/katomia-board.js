@@ -788,6 +788,16 @@ function boardShowResult(txid, ok){
   } catch {}
 }
 
+// TXSTATUS-CONSOLIDATE1 S1: verdicts now flow reporter → katomiaTxStatus →
+// this subscriber → boardShowResult. Reporters call boardReportTx instead of
+// boardShowResult directly; the fallback keeps the old direct path if the
+// controller script ever fails to load. Behaviour-identical at this stage.
+const boardReportTx = (txid, ok, source, detail) =>
+  window.katomiaTxStatus
+    ? window.katomiaTxStatus.report(txid, { source, kind: ok ? "success" : "failure", detail })
+    : boardShowResult(txid, ok)
+window.katomiaTxStatus?.subscribe(ev => { if(ev.type === "verdict") boardShowResult(ev.txid, ev.ok) })
+
 let _boardTxSocket = null
 let _boardTxSocketId = null
 const BOARD_NO_RECEIPT_MS = 45000   // honest timeout: "unresolved", never a confident false failure guess
@@ -796,7 +806,7 @@ function boardHandleTxUpdate(txid, update){
   const receiptStatus = update?.receipt ? (update.receipt.status?._code || update.receipt.status || null) : null
   boardDiag("board:txsocket:update", { txid, type: update?.type, hasReceipt: !!update?.receipt, hasSigs: !!update?.sigs, status: receiptStatus })
   if(update?.type === "tx_receipt" && update.receipt){
-    boardShowResult(txid, receiptStatus === "SUCCESS")
+    boardReportTx(txid, receiptStatus === "SUCCESS", "socket", { status: receiptStatus })
   }
   if(update?.sigs) boardRefreshSignStatus()   // event-driven — don't wait for the poll tick
 }
@@ -811,6 +821,9 @@ function boardEnsureTxSocket(){
   if(_boardTxSocket){ try { _boardTxSocket.close() } catch {} ; _boardTxSocket = null }
   _boardTxSocketId = txid
   if(!txid || boardSuccessAcked.has(txid)) return
+  // TXSTATUS-CONSOLIDATE1 S1: register the tx with the controller as it enters
+  // signing — expiry comes from the backend's boardSigning, never guessed.
+  window.katomiaTxStatus?.watch(txid, { network: window.__katomiaNetwork || null, expiry: boardSigning?.expiry || null })
   // preload the confetti lib now, while signing is underway — at result time
   // the burst then fires synchronously, before the alert() blocks the thread
   boardLoadConfetti()
@@ -859,8 +872,8 @@ function boardCheckJustSucceeded(){
     if(!t.lifecycle?.isFinalStatus) return
     const vs = Number(String(t.txid).split("@")[1]?.split(".")[0]) * 1000
     if(!vs || Date.now() - vs > 5 * 60 * 1000) return   // recent only — don't resurrect old history on reload
-    if(st === "SUCCESS" || st === "SIGNED") boardShowResult(t.txid, true)
-    else if(/FAIL|ERROR|EXPIRE|INVALID/.test(st)) boardShowResult(t.txid, false)
+    if(st === "SUCCESS" || st === "SIGNED") boardReportTx(t.txid, true, "backend-state", { status: st })
+    else if(/FAIL|ERROR|EXPIRE|INVALID/.test(st)) boardReportTx(t.txid, false, "backend-state", { status: st })
   })
 
   // diagnostic only now. The expiry/failure VERDICT used to be a client-side
@@ -1445,7 +1458,7 @@ function renderRingBoard(root){
         if(onChain){
           const ok = onChain === "SUCCESS"
           boardDiag("board:result:chain-confirmed", { txid: vanished, result: onChain, ok })
-          boardShowResult(vanished, ok)
+          boardReportTx(vanished, ok, "mirror", { result: onChain })
           return
         }
         if(Date.now() < giveUpAt){
@@ -1454,7 +1467,7 @@ function renderRingBoard(root){
         }
         // Genuinely absent from the chain well past expiry → it really did not land.
         boardDiag("board:result:vanished-from-pending", { txid: vanished, chainChecked: true })
-        boardShowResult(vanished, false)
+        boardReportTx(vanished, false, "mirror", { chainChecked: true })
       }
       setTimeout(confirmFromChain, 500)
     }

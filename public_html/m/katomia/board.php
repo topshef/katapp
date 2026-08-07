@@ -152,6 +152,10 @@ require_once __DIR__ . '/kasset.php';
      no-ops. Ring16 direct-sign attempts left zero trace in kdiag. -->
 <script src="<?= kasset('katomia-modals.js') ?>"></script>
 <script src="<?= kasset('katomia-render.js') ?>"></script>
+<!-- TXSTATUS-CONSOLIDATE1: the tx/wallet status controller. Must load BEFORE
+     katomia-board.js, whose reporters feed it and whose boardShowResult
+     subscribes to it at module top level. -->
+<script src="<?= kasset('katomia-txstatus.js') ?>"></script>
 <script src="<?= kasset('katomia-board.js') ?>"></script>
 <!-- BOARD-CHAT1 (user 2026-07-30): renders state.chat — speech bubbles on the
      speaker's wedge + a glassy transcript. Must load AFTER katomia-board.js,
