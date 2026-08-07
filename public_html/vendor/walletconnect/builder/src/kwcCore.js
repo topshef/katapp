@@ -286,6 +286,24 @@ async function loadConfig() {
 let wcInitPromise = null
 let currentNetwork = null   // the Hedera network the live dappConnector is built for
 
+// WC-DOUBLEINIT1 (2026-08-07, traced from kdiag on lab2): every page load emitted TWO
+// `wc:build` events ~3ms apart — i.e. TWO DAppConnectors, each with its own SignClient
+// and relay socket, sharing ONE localStorage store. They then delete each other's
+// records, which is the source of the whole "endless WC shit" symptom cluster seen in
+// the same logs: "No matching key. proposal: …", "Pending session not found for topic
+// …", "emitting session_ping:… without any listeners", and finally "User disconnected."
+// mid-sign. Recovering from that costs a full re-pair (~20-40s measured), which is
+// LONGER than a Hedera tx's 40s validity window — so every affected transaction expired
+// before its signature landed (three mainnet txs on 2026-08-07 never reached consensus).
+//
+// Cause: initializeWalletConnect() was memoised via wcInitPromise, but ensureNetwork()
+// was NOT — its `dappConnector && currentNetwork === network` check runs BEFORE the
+// await, so two concurrent callers (katomia-auth.js on page init and the kpool widget's
+// signer-walletconnect.js both call ensureNetwork(net)) each saw no connector and each
+// built one. This chain serialises ALL connector construction and re-checks inside the
+// critical section, so the second caller reuses what the first built.
+let wcBuildChain = Promise.resolve()
+
 console.log("WIP HG38472")
 
 // Build (and init) a DAppConnector for a specific Hedera network.
@@ -317,15 +335,17 @@ async function buildConnectorForNetwork(net) {
 async function initializeWalletConnect() {
 
   if (wcInitPromise) return wcInitPromise
-  wcInitPromise = (async () => {
+  // WC-DOUBLEINIT1: queue behind any build already in flight (an ensureNetwork() may be
+  // mid-construction), then re-check — it may have produced the connector we need.
+  wcInitPromise = wcBuildChain.then(async () => {
+    if (dappConnector) return dappConnector
     const config = await loadConfig()
     const net = config.hedera.network
-    if (!dappConnector) {
-      dappConnector = await buildConnectorForNetwork(net)
-      currentNetwork = net
-    }
+    dappConnector = await buildConnectorForNetwork(net)
+    currentNetwork = net
     return dappConnector
-  })()
+  })
+  wcBuildChain = wcInitPromise.catch(() => {})
 
   return wcInitPromise
 }
@@ -434,6 +454,20 @@ async function ensureNetwork(network) {
   if (!network) { await initializeWalletConnect(); return currentNetwork }
 
   // Already on the right network → nothing to do.
+  if (dappConnector && currentNetwork === network) return currentNetwork
+
+  // WC-DOUBLEINIT1: everything below CONSTRUCTS a connector, so it must not run
+  // concurrently with another construction. Serialise on wcBuildChain and re-check the
+  // fast path INSIDE the critical section — the check above is not enough on its own,
+  // because it is evaluated before any await and so cannot see a build that a
+  // concurrent caller has already started (that is exactly the two-client bug).
+  const _run = wcBuildChain.then(() => ensureNetworkLocked(network))
+  wcBuildChain = _run.catch(() => {})
+  return _run
+}
+
+async function ensureNetworkLocked(network) {
+  // re-check now that we hold the lock: a concurrent caller may have just built this
   if (dappConnector && currentNetwork === network) return currentNetwork
 
   // WC1/double-init fix: build DIRECTLY for the requested network. The old code did
