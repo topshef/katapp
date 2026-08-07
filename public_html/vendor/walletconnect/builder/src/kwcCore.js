@@ -425,6 +425,22 @@ function _guardInFlight(label) {
   return g
 }
 
+// TXSTATUS-CONSOLIDATE1 S4: the external abort handle. A superseding Sign tap
+// or a transaction reaching terminal state cancels the prior in-flight wallet
+// request instead of leaving its timer to fire minutes later (the 2026-08-07
+// 08:11 ghost toasts were exactly such leaked timers). Rejects with
+// KWC-CANCELLED, which callers treat as deliberate silence, not an error toast.
+function cancelInFlight({ label, reason } = {}) {
+  let n = 0
+  for (const g of [..._wcInFlight]) {
+    if (label && g.label !== label) continue
+    n++
+    g.reject(new Error("KWC-CANCELLED: " + (reason || "superseded")))
+  }
+  try { window.kdiag?.("wc:sign:cancelled", { label: label || "*", reason: reason || "superseded", count: n }) } catch {}
+  return n
+}
+
 // wc_sessionPing the ACTIVE session — proves the whole dApp→relay→wallet loop,
 // which is exactly the loop that goes silently dead. ok:false + reason in ~4s.
 async function pingSession({ timeoutMs = 4000 } = {}) {
@@ -1510,9 +1526,33 @@ async function signTxCoreV2 ({
   // that day approved in 13.7s and squeaked under it; a slower one did not. Nothing
   // may kill an in-flight request except an ACTUAL transport failure (the in-flight
   // guard) or the 120s backstop.
+  // TXSTATUS-CONSOLIDATE1 S4: the cap is bounded by the transaction's OWN
+  // validity window (+10s grace for a node answer already in flight). Past
+  // validStart+validDuration the network refuses the tx at ingest, so no
+  // signature arriving later can ever land — ending the wait there can never
+  // kill a viable sign, which is what R1/R2's heuristic caps got wrong (see
+  // above: nothing may kill an in-flight request except transport failure,
+  // the backstop, or — now — the physics of the window itself). 120s stays
+  // as the backstop when the window can't be decoded from the bytes.
+  // Measured motivation: a sign against a ghost session hung the full 120s
+  // while its tx died at 40s (A5b.4, 2026-08-07, lab1 AND production).
+  let _capMs = 120_000, _windowBound = false
+  try {
+    const _vs = transaction.transactionId?.validStart
+    const _vdRaw = transaction.transactionValidDuration
+    const _vd = typeof _vdRaw === "number" ? _vdRaw : Number(_vdRaw?.seconds ?? 0)
+    if (_vs && _vd) {
+      const _deadline = _vs.toDate().getTime() + _vd * 1000 + 10_000
+      const _bounded = Math.max(5_000, Math.min(120_000, _deadline - Date.now()))
+      _windowBound = _bounded < 120_000
+      _capMs = _bounded
+    }
+  } catch {}
+  try { window.kdiag?.("wc:sign:cap", { accountId, capMs: _capMs, windowBound: _windowBound }) } catch {}
   const g = _guardInFlight(`signTx:${accountId}`)
-  const _cap = setTimeout(() => g.reject(new Error(
-    "KWC-TIMEOUT: no response from the wallet after 120s — if you approved, the link is stuck: open your wallet app, disconnect this site, then reconnect and try again.")), 120_000)
+  const _cap = setTimeout(() => g.reject(new Error(_windowBound
+    ? `KWC-TIMEOUT: no response from the wallet within the transaction's validity window (${Math.round(_capMs / 1000)}s) — this transaction can no longer land; if you approved, the link is stuck: open your wallet app, disconnect this site, then reconnect and try again.`
+    : "KWC-TIMEOUT: no response from the wallet after 120s — if you approved, the link is stuck: open your wallet app, disconnect this site, then reconnect and try again.")), _capMs)
 
   pingSession().then(ping => {
     try { window.kdiag?.("wc:session:ping", { ok: ping.ok, ms: ping.ms, reason: ping.reason, accountId, advisory: true }) } catch {}
@@ -1544,7 +1584,9 @@ async function signTxCoreV2 ({
     try { window.kdiag?.("wc:sign:retry-live-session", { accountId, topic: retrySigner.topic }) } catch {}
     const tx2 = Transaction.fromBytes(transactionBytes)
     if (!tx2.isFrozen()) await tx2.freezeWithSigner(retrySigner)
-    signedTransaction = await retrySigner.signTransaction(tx2)
+    // S4: the retry rides the SAME guard/cap — previously it was a bare await,
+    // an eternal-hang hole the module's own doctrine forbids.
+    signedTransaction = await Promise.race([retrySigner.signTransaction(tx2), g.promise])
   } finally {
     g.done()          // sets settled FIRST, so a late ping callback can't re-arm the cap
     clearTimeout(_cap)
@@ -1950,6 +1992,7 @@ const exposeHeadlessAPI = () => {
     // WC-RELAYHEALTH1: relay/session health surface
     relayHealthy: () => relayHealth.healthy,                        // true | false | null (unknown)
     relayInfo: () => ({ ...relayHealth, inFlight: _wcInFlight.size }),
+    cancelInFlight,                   // S4: abort in-flight sign requests (supersede/terminal)
     pingSession,                                                     // active-session round-trip check
     // R2: advisory only — a ping timeout does NOT mean the session is dead. Mobile
     // wallets stop answering pings the moment they are backgrounded (see signTxCoreV2).

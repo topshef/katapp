@@ -4482,10 +4482,19 @@ async function boardDirectSign(account){
       // the wallet app and re-pairing. Say so explicitly; users can't guess this.
       boardReportTxAdvice(tx.txid, "watchdog", { message: "Still waiting for the wallet's response — if you already approved, the connection is likely stuck. Fix: open your wallet app, disconnect this site, then Sign again to reconnect.", level: "warning", timeout: 12000 })
     }, 60000)
+    // S4 / rule 4: register the attempt with the controller. A superseding Sign
+    // tap on the same tx, or the tx reaching terminal, fires this abort — the
+    // watchdogs die AND the in-flight KWC request is cancelled (KWC-CANCELLED,
+    // handled silently below) instead of leaking a timer that fires at +120s.
+    const attemptId = window.katomiaTxStatus?.attempt(tx.txid, { accountId: signAs,
+      abort: () => { clearTimeout(wd1); clearTimeout(wd2); try { wc.cancelInFlight?.({ label: `signTx:${signAs}`, reason: "superseded or terminal" }) } catch {} } })
     let signedTransactionHex
     try {
       ({ signedTransactionHex } = await wc.signTx({ accountId: signAs, transactionBytes: bytes }))
-    } finally { clearTimeout(wd1); clearTimeout(wd2) }
+    } finally {
+      clearTimeout(wd1); clearTimeout(wd2)
+      if(attemptId) window.katomiaTxStatus?.attemptDone(attemptId)
+    }
     const save = await fetch("/future/?action=txSave", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -4504,6 +4513,9 @@ async function boardDirectSign(account){
     // S2 / TXS-2: the payload now names its transaction — this event carrying
     // no txid was why the 08:11 ghost toasts could not be attributed in kdiag.
     boardDiag("board:sign:error", { txid: tx.txid, accountId, error: boardWcErrStr(e), code: e?.code, raw })
+    // S4: a cancelled attempt (superseded by a new tap, or its tx reached
+    // terminal) is deliberate silence — logged above, never toasted.
+    if(/^KWC-CANCELLED/.test(boardWcErrStr(e))) return
     // WC-RELAYHEALTH1: the bundle now throws typed KWC-* errors (KWC-STALE stale
     // session preflight, KWC-RELAY-LOST transport death mid-request, KWC-TIMEOUT
     // 120s cap) whose messages already carry the actual fix (disconnect the site

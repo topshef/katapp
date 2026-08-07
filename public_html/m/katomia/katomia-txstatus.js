@@ -78,6 +78,9 @@
     t.phase = "terminal"
     t.verdict = { ok, at: Date.now(), provenance: source || null, detail: detail || null }
     clearNegatives(t)
+    // S4 / rule 4: terminal aborts any still-in-flight attempts on this tx
+    t.attempts.forEach((a, id) => { try { a.abort?.() } catch {} ; diag("txstatus:attempt-aborted-terminal", { txid: t.txid, attemptId: id }) })
+    t.attempts.clear()
     // rule 5: tier at emit time. Stale if the user has visibly moved on — a
     // newer signing window opened since this tx was watched — or the tx left
     // pending more than STALE_MS ago (a receipt mid-window never leaves pending
@@ -100,9 +103,15 @@
       if(!t.watchSeq){ t.watchSeq = ++watchSeq; lastWatch = txid }   // first watch only — re-watches don't reset staleness
       diag("txstatus:watch", { txid, network: t.network, expiry: t.expiry })
     },
-    attempt(txid, opts = {}){                     // a Sign tap; abort handle arrives in S4
+    attempt(txid, opts = {}){                     // a Sign tap
+      const t = tx(txid)
+      // S4 / rule 4: a new attempt on a txid supersedes the previous ones —
+      // their watchdogs and in-flight wallet requests are aborted via the
+      // handle each attempt registered, not left to fire minutes later.
+      t.attempts.forEach((a, id) => { try { a.abort?.() } catch {} ; diag("txstatus:attempt-superseded", { txid, attemptId: id }) })
+      t.attempts.clear()
       const id = "a" + (++seq)
-      tx(txid).attempts.set(id, { startedAt: Date.now(), accountId: opts.accountId || null, abort: opts.abort || null })
+      t.attempts.set(id, { startedAt: Date.now(), accountId: opts.accountId || null, abort: opts.abort || null })
       diag("txstatus:attempt", { txid, attemptId: id, accountId: opts.accountId || null })
       return id
     },
