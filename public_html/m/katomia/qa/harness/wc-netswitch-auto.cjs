@@ -111,21 +111,37 @@ async function runReloadThenSign(browser){
   await pageB.waitForTimeout(2000)
 
   await pageA.waitForTimeout(1500)
-  const clicked = await pageA.evaluate((senderId) => {
-    const chip = [...document.querySelectorAll(".asset")].find(el =>
-      el.dataset.assetId === "HBAR" && el.dataset.ownerAccount === senderId &&
-      !el.classList.contains("basket") && !el.classList.contains("reserved") && !el.classList.contains("board-ghost"))
-    if(!chip) return false
-    chip.click(); return true
-  }, acctA)
-  if(!clicked) throw new Error("01: no HBAR store chip for sender")
-  await pageA.waitForTimeout(500)
+  const ASSET_ID = "HBAR", OFFER_AMOUNT = "0.01"
   const acctB = await pageA.evaluate(() => getAccounts().filter(a => !isMyAccount(a))[0]?.id)
-  await pageA.evaluate((accountId) => document.querySelector(`.board-wedge[data-drop-account="${accountId}"]`).click(), acctB)
+  if(!acctB) throw new Error("recipient never landed on the sender's board")
+  // QA-TESTHOOKS1 (2026-08-07): non-gestural offer. Tap-to-offer was retired on
+  // 2026-08-05 (a tap now INSPECTS; dragging offers) and a felt tap opens the
+  // player modal, which then intercepts every later click — that is what broke
+  // this harness. Drive the hidden "Offer to a player…" action on the asset card
+  // instead: same code path as a drop, no hit-testing, no prompt().
+  const _offered = await pageA.evaluate(([senderId, targetId, assetId, amt]) => {
+    const chip = document.querySelector(
+      `[data-testid="chip"][data-chip-role="store"][data-owner-account="${senderId}"][data-asset-id="${assetId}"]`)
+    if(!chip) return "no store chip for sender"
+    chip.click()
+    const act = document.querySelector('[data-testid="asset-offer"]')
+    if(!act) return "offer action missing — is the bundle new enough?"
+    act.click()
+    const input = document.getElementById("assetModalAmount")
+    if(!input) return "amount input missing"
+    input.value = amt
+    input.dispatchEvent(new Event("input", { bubbles: true }))
+    const target = document.querySelector(
+      `[data-testid="offer-target"][data-target-account="${targetId}"]`)
+    if(!target) return "no offer target for recipient"
+    target.click()
+    return true
+  }, [acctA, acctB, ASSET_ID, OFFER_AMOUNT])
+  if(_offered !== true) throw new Error("offer failed: " + _offered)
   await pageA.waitForTimeout(2000)
-  await pageA.locator("button.ring-footer-lock").first().click()
+  await pageA.locator('[data-testid="lock"], [data-testid="sign"]').first().click()
   await pageA.waitForTimeout(1200)
-  await pageB.locator("button.ring-footer-lock").first().click()
+  await pageB.locator('[data-testid="lock"], [data-testid="sign"]').first().click()
   await pageA.waitForFunction(() => { try { return !!boardSigning } catch { return false } }, { timeout: 20000 })
 
   await pageA.reload({ waitUntil: "domcontentloaded" })
@@ -138,7 +154,7 @@ async function runReloadThenSign(browser){
 
   await pageA.waitForFunction(() => { try { return !!boardSigning } catch { return false } }, { timeout: 15000 }).catch(() => {})
   await pageA.waitForTimeout(500)
-  await pageA.locator("button.ring-footer-lock").first().click().catch(() => {})
+  await pageA.locator('[data-testid="lock"], [data-testid="sign"]').first().click().catch(() => {})
   await pageA.waitForTimeout(6000)
 
   const netCorrect = postReload.network === "testnet"

@@ -638,6 +638,13 @@ function openAssetModal(assetId, fromAccountId, available){
 
 		const el = document.createElement("div")
 		el.className = "asset-modal-target"
+		// QA-TESTHOOKS1 (2026-08-07): stable address for the harness. The
+		// account id is the only thing here that is stable across renders —
+		// labels, colours and xproof lines all move. Paired with
+		// data-testid="asset-offer" on the asset card, this is the whole
+		// non-gestural offer route: open card → offer → set amount → pick target.
+		el.dataset.testid = "offer-target"
+		el.dataset.targetAccount = acc.id
 
 		const locked = acc.mode === "lock"
 		const self = acc.id === fromAccountId

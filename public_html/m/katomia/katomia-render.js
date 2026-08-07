@@ -265,6 +265,14 @@ function getFastThumb(url, imgEl){
 			el.dataset.ownerAccount = ownerAccountId || ""
 			el.dataset.ownerPlayer = ownerPlayerId || ""
 
+			// QA-TESTHOOKS1 (2026-08-07): one stable name for "a chip", so a harness
+			// never has to encode which of .reserved / .basket / .board-rimpile the
+			// current counter-mode happens to produce — that exact coupling silently
+			// broke HBARXFER for a day on 2026-08-04. Role is a separate attribute so
+			// the harness can still be specific when it means to be.
+			el.dataset.testid = "chip"
+			el.dataset.chipRole = basket ? "basket" : (reserved ? "reserved" : "store")
+
 			if(reserved) el.classList.add("reserved")
 			if(basket) {
 				el.classList.add("basket")
