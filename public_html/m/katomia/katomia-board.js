@@ -7516,25 +7516,58 @@ function boardAssetDetail(assetId, account, amount, offer){
   // modalAmountOverride and calls offerSelectedToAccount — no prompt(), no
   // hit-testing, no clip-path.
   //
-  // HIDDEN, NOT ABSENT (user: "for now, just we would leave it hidden, and it
-  // can be available as a test hook"). It is real, working functionality — not
-  // a phantom control — and the user's own suggestion is that it may later
-  // become a visible ACCESSIBILITY route for anyone who cannot drag. Reveal it
-  // without a code change with ?offerhook=1 or
-  // localStorage.katomiaOfferHook="1", so that trial costs nothing.
-  const offerHookVisible = (() => {
-    try {
-      if(new URLSearchParams(location.search).get("offerhook") === "1") return true
-      return localStorage.getItem("katomiaOfferHook") === "1"
-    } catch { return false }
-  })()
+  // ── QA-TESTHOOKS1: TEST-ONLY, NOT RENDERED IN NORMAL USE ──────────────────
+  // A non-gestural route to offering an asset — pick a player, pick an amount —
+  // so a harness never has to synthesise a drag. It exists ONLY when a test
+  // harness has set window.__katomiaTestHooks; in every normal session the
+  // button is not created, so there is nothing hidden in the DOM, nothing in the
+  // tab order, and no query param or setting that can reveal it.
+  //
+  // The user asked twice for this to stay out of the UI and was right both
+  // times: "I said don't show it. Let's not show it. It's bad UI... I don't
+  // wanna bloat the code or fuck things up."
+  //
+  // The flag is set by the harness via Playwright addInitScript, so it cannot be
+  // turned on from a browser the way a URL or localStorage flag could.
+  //
+  // ── IF WE EVER DO WANT TO OPEN THIS UP ───────────────────────────────────
+  // Worth recording, because the idea has merit and the reasoning should not
+  // have to be rebuilt from scratch. The case FOR: drag is currently the only
+  // way to offer anything, which is a genuine accessibility gap — anyone who
+  // cannot drag (motor impairment, switch access, keyboard-only, a trackpad on
+  // a bad day) has no route at all. This hook is already that route.
+  //
+  // The case for keeping it hidden TODAY, which is the decision in force: it
+  // would be a second way to do the one thing the board is built around, and a
+  // second way needs to be as good as the first or it reads as a leftover. The
+  // honest reason is cleanliness and simplicity, not that the feature is wrong.
+  //
+  // Two paths were sketched with the user on 2026-08-07 and both were parked:
+  //   (a) NERD MODE ONLY. Cheapest — swap the flag test below for
+  //       document.body.classList.contains("nerd"). Rejected for now because it
+  //       leaves the button pointing at openAssetModal, the PRE-ring8 offer
+  //       sheet, whose UI has been superseded by the drop-style "offer how much"
+  //       sheet. Shipping a visible control that opens the old sheet is worse
+  //       than not shipping it.
+  //   (b) DO IT PROPERLY. Give the CURRENT drop-style amount sheet an optional
+  //       "who to?" step — a player/account picker shown only when no target is
+  //       already implied (a drag implies one; this entry point does not) — and
+  //       point this button at that instead. Then there is ONE offer sheet with
+  //       one look, reached two ways, and the accessibility route is real rather
+  //       than a debug door. This is the right shape if it is ever wanted.
+  // Either way it is deliberate design work, not a flag flip. Do not add a
+  // user-reachable reveal to the version below.
+  //
+  // It routes to openAssetModal (the pre-ring8 offer sheet) — not dead code being
+  // resurrected: that is still the live offer path on the legacy non-ring8 board
+  // (see ~7357). If it is ever deleted this hook must move with it, and the
+  // harnesses will fail loudly on [data-testid="offer-target"], which is the alarm.
   const addOfferAction = () => {
-    const b = addAction("kbtn-blue", "➤ Offer to a player…",
-      "Choose who to offer this to, and how much — the same as dragging it onto their space",
+    if(window.__katomiaTestHooks !== true) return null
+    return addAction("kbtn-blue", "➤ Offer to a player…",
+      "Test hook — choose who to offer this to, and how much",
       () => { modal.remove(); openAssetModal(assetId, account.id, amount) },
       "asset-offer")
-    if(!offerHookVisible) b.hidden = true
-    return b
   }
   const say = text => {
     const p = document.createElement("div")

@@ -76,6 +76,7 @@ async function main(){
   pageA.on("dialog", d => d.accept(AMOUNT_H))
   pageA.on("pageerror", e => log("A PAGEERROR", String(e).slice(0, 200)))
   log("[A] open board")
+  await pageA.addInitScript(() => { window.__katomiaTestHooks = true })   // QA-TESTHOOKS1
   await pageA.goto(BOARD, { waitUntil: "domcontentloaded" })
   await pageA.waitForTimeout(2000)
   await pageA.locator("button.ring-footer-accsel").first().click({ timeout: 10000 })
@@ -97,6 +98,7 @@ async function main(){
   const pageB = await (await browser.newContext()).newPage()
   pageB.on("pageerror", e => log("B PAGEERROR", String(e).slice(0, 200)))
   log("[B] open board (second player)")
+  await pageB.addInitScript(() => { window.__katomiaTestHooks = true })   // QA-TESTHOOKS1
   await pageB.goto(BOARD, { waitUntil: "domcontentloaded" })
   await pageB.waitForTimeout(2000)
   await pageB.locator("button.ring-footer-accsel").first().click({ timeout: 10000 })
