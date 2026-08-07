@@ -727,23 +727,29 @@ function boardUpdateBanner(){
   boardSetBanner(null)
 }
 
-function boardShowResult(txid, ok){
+function boardShowResult(txid, ok, tier){
   if(boardSuccessAcked.has(txid)) return
   boardSuccessAcked.add(txid)
   boardSaveAckedTx(boardSuccessAcked)
-  boardDiag("board:result:shown", { txid, ok })
+  boardDiag("board:result:shown", { txid, ok, ...(tier ? { tier } : {}) })
   // read by the wipe branch below (~4442) so the spotlight lift can match
   // whichever celebration is actually playing — confetti (~4.25s) on
   // success vs the wiper sweep (~1.5s) on failure, instead of always using
   // the wiper's shorter timing and dousing the spotlight mid-confetti.
   window.__boardLastResultOk = ok
-  boardCelebrate(ok)
-  // BOARD-SWEEPWIN1 R2: capture SYNCHRONOUSLY — R1 delayed the whole call 700ms, by
-  // which time the settle broadcast had already re-painted the board and the txchips
-  // were gone, so there was nothing to fly (user: "just seeing the confetti"). Now the
-  // clones are taken this instant (they stand in for the wiped chips through the
-  // confetti beat) and only the MOVEMENT waits 700ms.
-  if(ok) boardSettleFlights()
+  // S3 / rule 5 (D4: quiet): a STALE verdict — the user has moved on, or the tx
+  // left pending >5s ago — keeps the toast/feed entry below but plays NO
+  // full-board animation: no wiper sweeping a board that is showing a
+  // different trade, no confetti for a trade nobody is looking at.
+  if(tier !== "stale"){
+    boardCelebrate(ok)
+    // BOARD-SWEEPWIN1 R2: capture SYNCHRONOUSLY — R1 delayed the whole call 700ms, by
+    // which time the settle broadcast had already re-painted the board and the txchips
+    // were gone, so there was nothing to fly (user: "just seeing the confetti"). Now the
+    // clones are taken this instant (they stand in for the wiped chips through the
+    // confetti beat) and only the MOVEMENT waits 700ms.
+    if(ok) boardSettleFlights()
+  }
   // PERSISTENT, CLOSABLE TOAST (user 2026-07-15): the verdict used to be a
   // banner bubble + a blocking alert(); now it's a toast that stays until
   // the user closes it (timeout 0 = persistent, ✕ per GM-TOAST-X1) — the
@@ -806,7 +812,7 @@ const boardReportTxAdvice = (txid, source, d) =>
     ? window.katomiaTxStatus.report(txid, { source, kind: "advice", detail: d })
     : notify(d.message, d.level || "warning", { timeout: d.timeout ?? 6000 })
 window.katomiaTxStatus?.subscribe(ev => {
-  if(ev.type === "verdict") boardShowResult(ev.txid, ev.ok)
+  if(ev.type === "verdict") boardShowResult(ev.txid, ev.ok, ev.tier)
   // advice toasts carry their txid as detail text — every message names its tx
   else if(ev.type === "advice" && ev.detail?.message)
     notify(ev.detail.message, ev.detail.level || "warning", { timeout: ev.detail.timeout ?? 6000, detail: ev.txid })
@@ -814,7 +820,66 @@ window.katomiaTxStatus?.subscribe(ev => {
 
 let _boardTxSocket = null
 let _boardTxSocketId = null
-const BOARD_NO_RECEIPT_MS = 45000   // honest timeout: "unresolved", never a confident false failure guess
+// S3 / D3 (user 2026-08-07): 45s → 12s. BOARD-TXTRUTH1's guarantee is "never
+// declare failure before the chain has had a fair chance", not "wait 45s" —
+// mirror ingest lag is a few seconds, so 12s past expiry preserves the
+// guarantee while removing most of the measured 57-62s verdict lateness.
+const BOARD_NO_RECEIPT_MS = 12000   // honest timeout: "unresolved", never a confident false failure guess
+
+// TXSTATUS-CONSOLIDATE1 S3: the mirror-node confirm loop, extracted from the
+// vanish branch so it can ALSO be armed at expiry+2s (boardEnsureTxSocket) —
+// the backend takes ~10-13s to drop an expired tx from pending, and waiting
+// for that drop before even STARTING the confirm re-added the lag on top of
+// the 12s grace (measured 19-25s verdicts with a 12s window). Same giveUpAt,
+// same never-guess rule, earlier start; one confirm loop per txid per page.
+const _boardConfirming = new Set()
+function boardConfirmTxFromChain(txid, expiryMs){
+  if(_boardConfirming.has(txid) || boardSuccessAcked.has(txid)) return
+  _boardConfirming.add(txid)
+  const _net = window.__katomiaNetwork || "mainnet"
+  const _mirror = _net === "mainnet"
+    ? "https://mainnet-public.mirrornode.hedera.com"
+    : `https://${_net}.mirrornode.hedera.com`
+  // 0.0.x@sec.nanos → 0.0.x-sec-nanos (mirror's path form). Split on "@" first:
+  // a blanket .replace(".","-") corrupts the ACCOUNT's dots (0.0.x → 0-0.x) and
+  // every lookup 404s, which would silently reinstate the exact false-failure
+  // bug this code exists to kill. Only the sec/nanos separator changes.
+  const _mirrorId = (() => {
+    const [acct, stamp] = String(txid).split("@")
+    return stamp ? `${acct}-${stamp.replace(".", "-")}` : String(txid)
+  })()
+  // Mirror ingest lags consensus by a few seconds, so absence is only
+  // meaningful AFTER expiry + grace — never treat an early 404 as failure.
+  // Anchored to the tx's OWN expiry; short floor so very-late detection
+  // still gets ≥2 mirror polls before declaring.
+  const giveUpAt = Math.max(Date.now() + 4000, (expiryMs || Date.now()) + BOARD_NO_RECEIPT_MS)
+  const confirmFromChain = async () => {
+    if(boardSuccessAcked.has(txid)) return
+    let onChain = null
+    try {
+      const r = await fetch(`${_mirror}/api/v1/transactions/${_mirrorId}`, { cache: "no-store" })
+      if(r.ok){
+        const j = await r.json()
+        const t = (j.transactions || [])[0]
+        if(t?.result) onChain = t.result
+      }
+    } catch(e){ /* network hiccup — indistinguishable from "not yet", so retry */ }
+    if(onChain){
+      const ok = onChain === "SUCCESS"
+      boardDiag("board:result:chain-confirmed", { txid, result: onChain, ok })
+      boardReportTx(txid, ok, "mirror", { result: onChain })
+      return
+    }
+    if(Date.now() < giveUpAt){
+      setTimeout(confirmFromChain, 2000)
+      return
+    }
+    // Genuinely absent from the chain well past expiry → it really did not land.
+    boardDiag("board:result:vanished-from-pending", { txid, chainChecked: true })
+    boardReportTx(txid, false, "mirror", { chainChecked: true })
+  }
+  setTimeout(confirmFromChain, 500)
+}
 
 function boardHandleTxUpdate(txid, update){
   const receiptStatus = update?.receipt ? (update.receipt.status?._code || update.receipt.status || null) : null
@@ -854,13 +919,22 @@ function boardEnsureTxSocket(){
         onTxUpdate: update => boardHandleTxUpdate(txid, update)
       })
       boardDiag("board:txsocket:open", { txid })
-      // honest fallback: if 45s pass with no receipt push at all (socket down,
-      // backend hiccup), say so — do NOT guess success or failure
+      // honest fallback: if the grace passes with no receipt push at all (socket
+      // down, backend hiccup), say so — do NOT guess success or failure
       setTimeout(() => {
         if(_boardTxSocketId === txid && !boardSuccessAcked.has(txid)){
           boardDiag("board:txsocket:no-receipt", { txid })
         }
       }, BOARD_NO_RECEIPT_MS)
+      // S3: start the chain confirm at expiry+2s WITHOUT waiting for the tx to
+      // vanish from pending (backend drop lag is ~10-13s; the banner has said
+      // "Expired? — confirming with the network" since 07-15 — now it's true).
+      // Skipped if the tx settled (acked) or was superseded (_boardTxSocketId
+      // moved on — the vanish branch owns the old tx then). Same giveUpAt.
+      const _exp = boardSigning?.expiry || 0
+      if(_exp) setTimeout(() => {
+        if(_boardTxSocketId === txid && !boardSuccessAcked.has(txid)) boardConfirmTxFromChain(txid, _exp)
+      }, Math.max(0, _exp - Date.now()) + 2000)
     } catch(e){
       boardDiag("board:txsocket:error", { txid, error: String(e) })
     }
@@ -1406,6 +1480,9 @@ function renderRingBoard(root){
     const nowTxid = boardSigning?.tx?.txid || null
     if(_boardLastSigningTxid && _boardLastSigningTxid !== nowTxid && !boardSuccessAcked.has(_boardLastSigningTxid)){
       const vanished = _boardLastSigningTxid
+      // S3: tell the controller the tx left pending — verdicts landing more
+      // than a few seconds after this moment present quietly (rule 5).
+      window.katomiaTxStatus?.report(vanished, { source: "board", kind: "progress", detail: { event: "left-pending" } })
       // 500ms (was 2000, user 2026-07-15: the wiper lagged the shade lift —
       // fire "pretty much immediately"): still enough for a same-moment
       // success receipt push to win the race, and the shade's synced fade
@@ -1440,50 +1517,12 @@ function renderRingBoard(root){
       // declaring failure we ask the mirror node, which is the authoritative record
       // and is reachable independently of our backend. Only a definitive on-chain
       // answer — or the tx being genuinely absent well past its expiry — ends this.
-      const _net = window.__katomiaNetwork || "mainnet"
-      const _mirror = _net === "mainnet"
-        ? "https://mainnet-public.mirrornode.hedera.com"
-        : `https://${_net}.mirrornode.hedera.com`
-      // 0.0.x@sec.nanos → 0.0.x-sec-nanos (mirror's path form). Split on "@" first:
-      // a blanket .replace(".","-") corrupts the ACCOUNT's dots (0.0.x → 0-0.x) and
-      // every lookup 404s, which would silently reinstate the exact false-failure
-      // bug this code exists to kill. Only the sec/nanos separator changes.
-      const _mirrorId = (() => {
-        const [acct, stamp] = String(vanished).split("@")
-        return stamp ? `${acct}-${stamp.replace(".", "-")}` : String(vanished)
-      })()
-      // Keep asking until the chain answers or the window is definitively past.
-      // Mirror ingest lags consensus by a few seconds, so absence is only
-      // meaningful AFTER expiry + grace — never treat an early 404 as failure.
-      const _expiryMs = boardSigning?.expiry || 0
-      const giveUpAt = Math.max(Date.now() + BOARD_NO_RECEIPT_MS,
-                                (_expiryMs || Date.now()) + BOARD_NO_RECEIPT_MS)
-      const confirmFromChain = async () => {
-        if(boardSuccessAcked.has(vanished)) return
-        let onChain = null
-        try {
-          const r = await fetch(`${_mirror}/api/v1/transactions/${_mirrorId}`, { cache: "no-store" })
-          if(r.ok){
-            const j = await r.json()
-            const t = (j.transactions || [])[0]
-            if(t?.result) onChain = t.result
-          }
-        } catch(e){ /* network hiccup — indistinguishable from "not yet", so retry */ }
-        if(onChain){
-          const ok = onChain === "SUCCESS"
-          boardDiag("board:result:chain-confirmed", { txid: vanished, result: onChain, ok })
-          boardReportTx(vanished, ok, "mirror", { result: onChain })
-          return
-        }
-        if(Date.now() < giveUpAt){
-          setTimeout(confirmFromChain, 2000)
-          return
-        }
-        // Genuinely absent from the chain well past expiry → it really did not land.
-        boardDiag("board:result:vanished-from-pending", { txid: vanished, chainChecked: true })
-        boardReportTx(vanished, false, "mirror", { chainChecked: true })
-      }
-      setTimeout(confirmFromChain, 500)
+      // S3: loop extracted to boardConfirmTxFromChain (also armed at expiry+2s
+      // by boardEnsureTxSocket, so the verdict no longer waits on the backend's
+      // ~10-13s drop lag). Expiry comes from the controller — boardSigning at
+      // this point is the NEXT tx or null, so reading .expiry off it silently
+      // anchored the deadline to vanish-detection time instead.
+      boardConfirmTxFromChain(vanished, window.katomiaTxStatus?.snapshot(vanished)?.expiry || 0)
     }
     // BOARD-TRAILORPHAN1 (user 2026-07-31, spotted on the live demo; confirmed with
     // Playwright over a full cycle). After-glow trails are PERSISTENT by design —

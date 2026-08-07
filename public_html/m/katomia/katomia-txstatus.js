@@ -28,10 +28,22 @@
 //      txid are dropped silently and logged (txstatus:dropped-terminal), which
 //      is what kills the "no response / SUCCESS / no response" ghost-toast
 //      sequence: those were KWC-TIMEOUTs for an already-dead transaction.
+// S3: rule 5 — PRESENTATION IS TIERED, SEPARATELY FROM DETERMINATION. Deciding
+//      a verdict late is fine; playing a full-board wiper/confetti for a tx the
+//      user has visibly moved on from is not (2026-08-07 08:09:14: the wiper
+//      landed 1s into a NEW signing window, 62s after the tx it described).
+//      Verdicts are classified at emit time:
+//        live  — no newer signing window has opened since this tx was watched,
+//                AND the tx left pending less than STALE_MS ago (or never did —
+//                e.g. a receipt landing mid-window) → full celebration, as today
+//        stale — anything else → quiet feed entry + toast, no board animation
+//      (D4, user 2026-08-07: quiet, not loud-but-labelled.)
 (() => {
   const diag = (msg, data) => { try { (typeof katomiaDiagSend === "function" ? katomiaDiagSend : (window.kdiag || (() => {})))(msg, data) } catch {} }
   const ACK_KEY = "katomia_board_success_acked"   // boardShowResult's persisted ack set — the cross-instance truth
   const SETTLE_MS = 1200
+  const STALE_MS = 5000   // verdict landing this long after its tx left pending → quiet presentation
+  let watchSeq = 0, lastWatch = null              // which txid most recently entered signing
   const txs = new Map()   // txid -> { txid, network, expiry, phase, attempts, verdict, pendingNegatives }
   const subs = new Set()
   let seq = 0
@@ -66,8 +78,16 @@
     t.phase = "terminal"
     t.verdict = { ok, at: Date.now(), provenance: source || null, detail: detail || null }
     clearNegatives(t)
+    // rule 5: tier at emit time. Stale if the user has visibly moved on — a
+    // newer signing window opened since this tx was watched — or the tx left
+    // pending more than STALE_MS ago (a receipt mid-window never leaves pending
+    // first, so the normal fast paths stay live).
+    const superseded = lastWatch && lastWatch !== t.txid && (t.watchSeq || 0) < watchSeq
+    const lingering = t.leftPendingAt && Date.now() - t.leftPendingAt > STALE_MS
+    const tier = (superseded || lingering) ? "stale" : "live"
+    diag("txstatus:verdict", { txid: t.txid, ok, source: source || null, tier, superseded: !!superseded, lingering: !!lingering })
     try { bc?.postMessage({ type: "verdict", txid: t.txid, ok, source: source || null }) } catch {}
-    emit({ type: "verdict", txid: t.txid, ok, source: source || null, detail: detail || null })
+    emit({ type: "verdict", txid: t.txid, ok, tier, source: source || null, detail: detail || null })
   }
 
   window.katomiaTxStatus = {
@@ -77,6 +97,7 @@
       if(opts.network) t.network = opts.network
       if(opts.expiry) t.expiry = opts.expiry
       if(t.phase === "idle") t.phase = "signing"
+      if(!t.watchSeq){ t.watchSeq = ++watchSeq; lastWatch = txid }   // first watch only — re-watches don't reset staleness
       diag("txstatus:watch", { txid, network: t.network, expiry: t.expiry })
     },
     attempt(txid, opts = {}){                     // a Sign tap; abort handle arrives in S4
@@ -90,7 +111,10 @@
       if(!txid){ diag("txstatus:report-no-txid", { source, kind }); return }
       const t = tx(txid)
       diag("txstatus:report", { txid, source, kind, ...(detail ? { detail } : {}) })
-      if(kind === "progress") return                          // recorded only
+      if(kind === "progress"){                                // recorded only
+        if(detail?.event === "left-pending" && !t.leftPendingAt) t.leftPendingAt = Date.now()
+        return
+      }
       if(isTerminal(t)){ diag("txstatus:dropped-terminal", { txid, source, kind }); return }
       if(kind === "success"){ settleVerdict(t, true, source, detail); return }
       if(kind !== "failure" && kind !== "advice") return
