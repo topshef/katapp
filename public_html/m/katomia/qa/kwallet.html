@@ -1,0 +1,183 @@
+<!doctype html>
+<!--
+  qa/kwallet.html — "is the wallet/signing path green right now?", on one screen.
+
+  QA-TESTHOOKS1 / KAT-QA-BENCHMARK (user 2026-08-07): "I have no idea why... it's
+  just noise everywhere. There's, like, hundreds of runs. The reason why stuff goes
+  silent is because I'm not paying attention to any of this. Right now I am paying
+  attention to kWallet, and I need to see the QA on that."
+
+  results.html is a HISTORY GRID — every case against every commit. That is the right
+  tool for "when did this start failing" and the wrong tool for "is it OK now": the
+  answer is in there, spread across hundreds of cells. This page answers only the
+  second question, for only the signing/wallet tests, and it is deliberately boring.
+
+  THE THIRD STATE IS THE POINT. A test that stops reporting looks identical to a test
+  that was never there, and that is exactly how WC-A5-ONLINE hid for seven days. So
+  SILENT is a first-class verdict here, ranked as bad as FAIL — each instance declares
+  how often it is supposed to run, and going quiet past that is a failure of the test,
+  not an absence of news.
+
+  Reads qa/results.php (same feed as the grid). No build step, no dependencies.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kWallet / signing — QA status</title>
+<style>
+  :root{
+    --bg:#fbfbfa; --fg:#1a1a19; --mut:#6b6b66; --line:#e3e3df; --card:#fff;
+    --ok:#1f7a45; --okbg:#e8f5ed; --bad:#a12a2a; --badbg:#fbe9e9;
+    --warn:#8a5a00; --warnbg:#fdf3e0; --code:#f4f4f1;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#16161a; --fg:#e8e8e4; --mut:#9a9a94; --line:#2c2c32; --card:#1d1d22;
+      --ok:#5fd08a; --okbg:#12301f; --bad:#f08a8a; --badbg:#331717;
+      --warn:#e0ae5a; --warnbg:#33270f; --code:#232329;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);padding:24px 16px 70px;
+       font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:820px;margin:0 auto}
+  h1{font-size:21px;margin:0 0 2px}
+  .sub{color:var(--mut);font-size:13px;margin-bottom:20px}
+  .sub a{color:inherit}
+  .headline{border-radius:12px;padding:16px 18px;margin:0 0 22px;font-size:17px;font-weight:600;
+            border:1px solid var(--line)}
+  .headline small{display:block;font-weight:400;font-size:13px;margin-top:4px;opacity:.85}
+  .h-ok{background:var(--okbg);color:var(--ok);border-color:transparent}
+  .h-bad{background:var(--badbg);color:var(--bad);border-color:transparent}
+  .row{background:var(--card);border:1px solid var(--line);border-radius:10px;
+       padding:13px 15px;margin-bottom:10px;display:flex;gap:14px;align-items:flex-start}
+  .row.bad{border-left:4px solid var(--bad)}
+  .row.ok{border-left:4px solid var(--ok)}
+  .row.warn{border-left:4px solid var(--warn)}
+  .badge{flex:0 0 auto;font-size:11px;font-weight:700;letter-spacing:.05em;
+         padding:4px 9px;border-radius:20px;white-space:nowrap;margin-top:2px}
+  .b-ok{background:var(--okbg);color:var(--ok)}
+  .b-bad{background:var(--badbg);color:var(--bad)}
+  .b-warn{background:var(--warnbg);color:var(--warn)}
+  .meat{flex:1 1 auto;min-width:0}
+  .what{font-weight:600;margin-bottom:2px}
+  .plain{color:var(--mut);font-size:13.5px}
+  .meta{color:var(--mut);font-size:12px;margin-top:6px;font-family:ui-monospace,monospace;
+        word-break:break-word}
+  .note{font-size:12.5px;margin-top:5px;color:var(--bad)}
+  h2{font-size:15px;margin:34px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line);
+     text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
+  ul{padding-left:20px;margin:0} li{margin-bottom:6px;font-size:14px}
+  .muted{color:var(--mut);font-size:13px}
+  code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:12.5px}
+</style>
+
+<div class="wrap">
+<h1>kWallet / signing — QA status</h1>
+<div class="sub">Only the wallet and signing tests, only their current state.
+For history — when something started failing — use the
+<a href="results.html">retest grid</a>. Scenario definitions:
+<a href="wc-paths.html">every WalletConnect path</a>. <a href="./">QA home</a></div>
+
+<div id="headline" class="headline">loading…</div>
+<div id="rows"></div>
+
+<h2>What automation cannot cover</h2>
+<ul>
+  <li><b>Signing with the wallet backgrounded on a phone.</b> kWallet is always awake, so
+      it can never fail this — a green here would mean nothing. Needs a real device.</li>
+  <li><b>A deliberately slow approval</b> (sit on it ~45s). Guards a timeout cap that was
+      wrong once already.</li>
+  <li><b>HashPack's own session lifecycle</b> — clearing connections by hand, extension vs
+      mobile app.</li>
+  <li><b>Animation and timing judgement</b> — whether the wiper/confetti lands at the right
+      moment.</li>
+</ul>
+
+<script>
+// Each entry declares what it means in plain English and how often it is SUPPOSED to
+// run. That cadence is what makes SILENT detectable — see the header comment.
+const TESTS = [
+  { id: "HBARXFER-01", every: 2.5,
+    what: "The whole thing, end to end",
+    plain: "Two players join a board, one offers HBAR, both lock, the deal strikes, kWallet signs, it settles on Hedera." },
+  { id: "WC-A5B-GHOST", every: 26,
+    what: "The wallet killed the session and never told us",
+    plain: "You clear connections in HashPack while katomia is CLOSED. Signing must fail fast and honestly instead of hanging. This is the one that finds the real bug." },
+  { id: "WC-A5-ONLINE", every: 26,
+    what: "The wallet was cleared while katomia was open",
+    plain: "Same, but with the page in front of you — the wallet's delete reaches us, so we should detect it and re-pair cleanly." },
+  { id: "WCNETSWITCH-01", every: 2.5,
+    what: "Game is testnet, connector was built mainnet",
+    plain: "Rebuild for the right network, re-pair, sign — then reload and confirm it stayed right." },
+  { id: "WCNETSWITCH-02", every: 2.5,
+    what: "Nothing stale survives a network switch",
+    plain: "After switching, only the correct account is connected and the old session is gone." },
+  { id: "MAINNETSMOKE-01", every: 26,
+    what: "The same board flow, on mainnet",
+    plain: "Real value, real network, once a day — the only test here that is not free to run." }
+]
+
+const ago = ms => {
+  const m = Math.round(ms / 60000)
+  if(m < 60) return m + "m ago"
+  const h = m / 60
+  return h < 48 ? h.toFixed(1) + "h ago" : Math.round(h / 24) + "d ago"
+}
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]))
+
+;(async () => {
+  let data
+  try { data = await (await fetch("results.php?days=14", { cache: "no-store" })).json() }
+  catch(e){ document.getElementById("headline").textContent = "could not load results.php"; return }
+
+  const verdicts = (data.events || []).filter(e => e.checkpoint === "test:verdict")
+  const now = Date.now()
+
+  const rows = TESTS.map(t => {
+    const mine = verdicts
+      .filter(e => (e.detail || {}).instance === t.id)
+      .sort((a, b) => String(a.t).localeCompare(String(b.t)))
+    const last = mine[mine.length - 1]
+    const age = last ? now - Date.parse(last.t) : Infinity
+    // SILENT is ranked with FAIL on purpose: a test that stopped reporting tells you
+    // nothing, and looks exactly like one that never existed.
+    const silent = !last || age > t.every * 3600 * 1000 * 1.6
+    const v = silent ? "silent" : last.v
+    // how many consecutive non-passes, so a one-off flake reads differently to a wall
+    let streak = 0
+    for(let i = mine.length - 1; i >= 0 && mine[i].v !== "pass"; i--) streak++
+    return { t, last, age, v, streak,
+             rank: v === "pass" ? 2 : (v === "silent" ? 0 : 1) }
+  }).sort((a, b) => a.rank - b.rank)
+
+  const bad = rows.filter(r => r.v !== "pass")
+  const hl = document.getElementById("headline")
+  hl.className = "headline " + (bad.length ? "h-bad" : "h-ok")
+  hl.innerHTML = bad.length
+    ? `${bad.length} of ${rows.length} wallet tests are not green`
+      + `<small>${esc(bad.map(r => r.t.id).join(" · "))}</small>`
+    : `All ${rows.length} wallet tests green`
+      + `<small>most recent run ${esc(ago(Math.min(...rows.map(r => r.age))))}</small>`
+
+  document.getElementById("rows").innerHTML = rows.map(r => {
+    const cls   = r.v === "pass" ? "ok" : (r.v === "silent" ? "warn" : "bad")
+    const badge = r.v === "pass" ? "b-ok" : (r.v === "silent" ? "b-warn" : "b-bad")
+    const label = r.v === "silent" ? "SILENT" : String(r.v || "?").toUpperCase()
+    const note  = (r.last?.detail || {}).note
+    return `<div class="row ${cls}">
+      <span class="badge ${badge}">${esc(label)}</span>
+      <div class="meat">
+        <div class="what">${esc(r.t.what)}</div>
+        <div class="plain">${esc(r.t.plain)}</div>
+        ${r.v === "silent"
+          ? `<div class="note">No verdict in ${r.last ? esc(ago(r.age)) : "the last 14 days"} —
+             this test runs every ~${r.t.every}h, so it has stopped reporting. That is a broken
+             test, not good news.</div>`
+          : (r.v !== "pass" && note ? `<div class="note">${esc(String(note).slice(0, 220))}</div>` : "")}
+        <div class="meta">${esc(r.t.id)}
+          ${r.last ? " · last " + esc(ago(r.age)) + " · commit " + esc(r.last.commit || "?") : ""}
+          ${r.streak > 1 ? " · " + r.streak + " consecutive non-passes" : ""}</div>
+      </div></div>`
+  }).join("")
+})()
+</script>
