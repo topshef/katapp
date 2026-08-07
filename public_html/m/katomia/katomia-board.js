@@ -321,7 +321,7 @@ function boardSavePrefs(){
       maxSegments: boardMaxSegments, animSpeed: boardAnimSpeed,
       trailResidual: boardTrailResidual, layoutMode: boardLayoutMode,
       zoneWalls: boardZoneWalls, hugRing: boardHugRing,
-      stickyChips: boardStickyChips, chipScale: boardChipScale,
+      stickyChips: boardStickyChips, autoArrange: boardAutoArrange, chipScale: boardChipScale,
       chatMode: boardChatMode, avatarPos: boardAvatarPos,
       counterMode: boardCounterMode, chipStyle: boardChipStyle, chipEmboss: boardChipEmboss
     }))
@@ -404,6 +404,24 @@ let boardHugRing = _bp.hugRing ?? false
 // board. The Settings toggle survives for a while ("we're probably going to
 // take away that option") — remove it once nobody unticks it.
 let boardStickyChips = _bp.stickyChips ?? true
+// BOARD-AUTOARRANGE1 (user 2026-08-07): let the player turn the TIDYING OFF and
+// stack chips wherever they like — "I can see an advantage that if someone's got
+// a lot of assets, they might just want to arrange them completely manually and
+// not have them auto adjust when you move them around". Off = the organic
+// anchor spring and the chip↔chip collision pass both stop, so chips stay
+// exactly where they were put and may freely overlap; chips still SPAWN at
+// their scattered organic positions on first load ("they just auto place on
+// first load, they sit there, then it's up to you"). Everything that isn't
+// chip-vs-chip tidying keeps running: walls, the safe-area clamp and the
+// spoke-label keep-out are all still inside the tick, so you can never drag or
+// stack a chip out of its own segment and into someone's basket.
+// Shelves is untouched — an explicitly chosen deterministic layout IS
+// auto-arrangement, so the toggle would contradict the mode.
+// Default ON (status quo). The user weighed making it off by default —
+// "I'm inclined to have it off because it's more intuitive to have control...
+// actually, no, let's leave it checked" — so this is a settled default, not an
+// oversight. NORMAL mode, not nerd: it's a real player preference.
+let boardAutoArrange = _bp.autoArrange ?? true
 // BOARD-COUNTERMODE1 (user 2026-08-04): "simple" is the DEFAULT — no counter
 // band, no ghost for a PARTIAL fungible offer; instead the remaining stack
 // itself moves to the rim (the old ghost spot), decremented ("show what the
@@ -1056,6 +1074,19 @@ function boardSyncPrefsUI(){
       boardSavePrefs()
       boardSimExcite()   // the anchor moved — wake the sim so blobs re-home
       render()
+    }
+  }
+  // BOARD-AUTOARRANGE1: normal-mode player preference — tidy chips vs stack them
+  // freely. Turning it back ON re-excites the sim so the board tidies immediately
+  // rather than at the next unrelated change (the same "wake it up" move the hug-ring
+  // toggle makes); turning it off just stops the tidying, nothing needs to move.
+  const autoArrange = document.getElementById("boardPrefAutoArrange")
+  if(autoArrange){
+    autoArrange.checked = boardAutoArrange
+    autoArrange.onchange = () => {
+      boardAutoArrange = autoArrange.checked
+      boardSavePrefs()
+      if(boardAutoArrange) boardSimExcite()
     }
   }
   const sticky = document.getElementById("boardPrefSticky")
@@ -2672,7 +2703,7 @@ function boardSimTick(iters){
         if(boardStickyChips && b.stick) return   // 🧪 sticky: settled chips feel no springs
         if(shelves){
           if(b.tx != null){ b.x += (b.tx - b.x) * 0.22 * speed; b.y += (b.ty - b.y) * 0.22 * speed }
-        } else {
+        } else if(boardAutoArrange){             // BOARD-AUTOARRANGE1: off = chips don't re-home
           b.x += (z.ax - b.x) * 0.03 * speed * damp
           b.y -= b.y * 0.03 * speed * damp
         }
@@ -2688,7 +2719,10 @@ function boardSimTick(iters){
       // rotation — lengths survive). 60% of the separation per iteration
       // keeps the motion smooth; the iterations finish the job, so settled
       // chips end fully apart (4px seam). cr circles stay as the broadphase.
-      if(!shelves) for(let a = 0; a < movers.length; a++) for(let c = a + 1; c < movers.length; c++){
+      // BOARD-AUTOARRANGE1: with auto-arrange off the chips are no longer solid
+      // to each other — they stack, which is the whole point of the setting.
+      // The wall/label passes below are deliberately OUTSIDE this gate.
+      if(!shelves && boardAutoArrange) for(let a = 0; a < movers.length; a++) for(let c = a + 1; c < movers.length; c++){
         const A = movers[a], B = movers[c]
         const dx = B.x - A.x, dy = B.y - A.y
         if(Math.hypot(dx, dy) > A.cr + B.cr) continue      // broadphase: rects can't touch

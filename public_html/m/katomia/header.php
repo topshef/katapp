@@ -172,6 +172,13 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
       <input type="checkbox" id="boardPrefPickable" title="Allow other players to pick assets straight from your store (they shop, you agreed in advance)">
       Pickable
     </label>
+    <!-- BOARD-AUTOARRANGE1 (user 2026-08-07): normal-mode, default ON. Off lets
+         chips sit on top of each other so a player with a lot of assets can lay
+         the board out entirely by hand. Walls still apply either way. -->
+    <label class="board-settings-label">
+      <input type="checkbox" id="boardPrefAutoArrange" title="On: chips shuffle apart so they never overlap. Off: chips stay exactly where you put them and may stack — arrange the board yourself. Either way a chip can't leave its own segment.">
+      Auto-arrange chips
+    </label>
     <!-- BOARD-CHATMODE1 (user 2026-08-03): bubbles ⇄ docked message panel. Defaults:
          phones = panel (bubbles drown a small board), desktop = bubbles (for now). -->
     <label class="board-settings-label">
