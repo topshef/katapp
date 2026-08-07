@@ -20,6 +20,7 @@
 // Keep diagnostics rich here (kdiag(...)) so any of the above is debuggable.
 
 import { kdiag } from './diag.js?v=20260628c'  // shared version tag — keep in sync with ksig.js so both share one diag instance
+import { decodeTransaction } from './protobuf.js'  // SIGN-DEADTX1: read the tx's own validity window
 
 const glog = globalThis.glog ?? (() => {})
 
@@ -70,6 +71,34 @@ async function readHex2(url) {
 
 // Returns { bytes, src } — src ('local' | 'kpos') tells saveSignedTransaction which pool
 // to write the signature back to, so it joins the same collection the tx came from.
+// SIGN-DEADTX1 (user 2026-08-07, order mode: "it signed ok but didn't go thru").
+// The Sign button had no validity check at all, so a transaction whose window had
+// already closed was signed, saved, and reported as a success — while the network
+// could never accept it. Measured in the same session: a sign click at validStart+79s
+// on a 40s window (tx 0.0.9940704@1786086795.736000000), reported success, absent from
+// the mirror node. Telling someone their signature worked when the transaction is
+// already dead is worse than telling them nothing.
+//
+// Both facts come from authoritative sources, never guessed: validStart is encoded in
+// the txid itself, and validDurationSeconds is decoded from the SIGNED BYTES we just
+// fetched (VALIDD1). If either is unavailable we say so and let the sign proceed —
+// this must never block a legitimate signature on missing metadata.
+function txValidity(txid, bytes) {
+	let validStartMs = null, durationS = null
+	try {
+		const m = /@(\d+)(?:\.(\d+))?/.exec(String(txid || ''))
+		if (m) validStartMs = Number(m[1]) * 1000 + Math.floor(Number('0.' + (m[2] || '0')) * 1000)
+	} catch {}
+	try { durationS = decodeTransaction(bytes)?.validDurationSeconds ?? null } catch {}
+	if (!validStartMs || !durationS) return { known: false, validStartMs, durationS }
+	const expiresAtMs = validStartMs + durationS * 1000
+	return {
+		known: true, validStartMs, durationS, expiresAtMs,
+		msLeft: expiresAtMs - Date.now(),
+		expired: Date.now() > expiresAtMs
+	}
+}
+
 async function fetchTransactionBytes({ network, txid, readUrl }) {
 	const primary = readUrl({ network, txid })
 	kdiag('signer:bytes:fetch', { url: primary })
@@ -400,6 +429,21 @@ export function renderWalletConnectSigner(container, {
 				const fetched = await fetchTransactionBytes({ network, txid, readUrl })
 				if (!fetched) return
 				const { bytes: transactionBytes, src: poolSrc } = fetched
+
+				// SIGN-DEADTX1: refuse a transaction whose window has already closed, rather
+				// than collecting a signature the network can never accept and calling it a
+				// success. Only blocks when BOTH validity facts are known (see txValidity).
+				const _v = txValidity(txid, transactionBytes)
+				kdiag('signer:sign:validity', {
+					txid, known: _v.known, durationS: _v.durationS,
+					msLeft: _v.msLeft ?? null, expired: _v.expired ?? null
+				})
+				if (_v.known && _v.expired) {
+					const agoS = Math.round(-_v.msLeft / 1000)
+					alert(`This transaction expired ${agoS}s ago — its ${_v.durationS}s signing window has closed.\n\n` +
+						`Signing now would produce a signature the network cannot accept. Ask for a new transaction and sign that one.`)
+					return
+				}
 
 				const result = await wc.signTx({ accountId, transactionBytes, submitNow: false })
 				kdiag('signer:sign:signed', { accountId, poolSrc })
