@@ -188,7 +188,12 @@ rsync -a --delete "$ROOT/vendor/walletconnect/builder/snapshots/$KWC_SNAPSHOT/" 
 # hydrate from swap.kpay.live (in its $origins). Needs assets/php/elog.php (2. above).
 cp "$ROOT/vendor/walletconnect/builder/lazy-hydrate.php" "$BUILD/vendor/walletconnect/builder/"
 # same-box only: link the shared snapshot store if present
-[ -d /var/www/kwc-snapshots ] && ln -sfn /var/www/kwc-snapshots "$BUILD/vendor/walletconnect/builder/snapshots-shared"
+# `[ -d x ] && cmd` as a bare statement is a set -e landmine: on a build host with
+# no local snapshot store the test fails, the list returns non-zero, and the whole
+# build aborts here with no message. Only Lincoln has this path.
+if [ -d /var/www/kwc-snapshots ]; then
+  ln -sfn /var/www/kwc-snapshots "$BUILD/vendor/walletconnect/builder/snapshots-shared"
+fi
 mkdir -p "$BUILD/vendor/kpay/kpool_widget"
 rsync -a --delete --exclude 'node_modules' \
    "$ROOT/vendor/kpay/kpool_widget/" "$BUILD/vendor/kpay/kpool_widget/"
@@ -200,7 +205,9 @@ rsync -aL --delete --exclude 'node_modules' --exclude 'src' \
 
 # 5. hapi_base reads dirname(DOCUMENT_ROOT)/.env_hapi → for docroot=build that
 #    is m/katomia/.env_hapi (web access denied in m/katomia/.htaccess)
-[ -f "$SITE/.env_hapi" ] && cp "$SITE/.env_hapi" "$APP/.env_hapi"
+# Same set -e landmine. A deploy host supplies its own .env_hapi beside the
+# docroot, so its absence in a build tree is normal, not fatal.
+if [ -f "$SITE/.env_hapi" ]; then cp "$SITE/.env_hapi" "$APP/.env_hapi"; fi
 
 # 6. Generated .htaccess: host gate + env deny + legacy path rewrite, then the
 #    app's live routes verbatim
