@@ -796,7 +796,21 @@ const boardReportTx = (txid, ok, source, detail) =>
   window.katomiaTxStatus
     ? window.katomiaTxStatus.report(txid, { source, kind: ok ? "success" : "failure", detail })
     : boardShowResult(txid, ok)
-window.katomiaTxStatus?.subscribe(ev => { if(ev.type === "verdict") boardShowResult(ev.txid, ev.ok) })
+// S2: attempt-level negatives (watchdog nudges, KWC error toasts) also go via
+// the controller — they get the settle window and are dropped once their txid
+// is terminal (rule 3; this is what killed the 08:11 ghost-toast sequence).
+// The toast copy stays board-owned: it rides in detail, the controller never
+// composes user-facing text.
+const boardReportTxAdvice = (txid, source, d) =>
+  window.katomiaTxStatus
+    ? window.katomiaTxStatus.report(txid, { source, kind: "advice", detail: d })
+    : notify(d.message, d.level || "warning", { timeout: d.timeout ?? 6000 })
+window.katomiaTxStatus?.subscribe(ev => {
+  if(ev.type === "verdict") boardShowResult(ev.txid, ev.ok)
+  // advice toasts carry their txid as detail text — every message names its tx
+  else if(ev.type === "advice" && ev.detail?.message)
+    notify(ev.detail.message, ev.detail.level || "warning", { timeout: ev.detail.timeout ?? 6000, detail: ev.txid })
+})
 
 let _boardTxSocket = null
 let _boardTxSocketId = null
@@ -4427,7 +4441,7 @@ async function boardDirectSign(account){
       // page reloads (it lives in this site's localStorage), so "refresh" alone is
       // useless advice — the fix that actually worked was disconnecting this site in
       // the wallet app and re-pairing. Say so explicitly; users can't guess this.
-      notify("Still waiting for the wallet's response — if you already approved, the connection is likely stuck. Fix: open your wallet app, disconnect this site, then Sign again to reconnect.", "warning", { timeout: 12000 })
+      boardReportTxAdvice(tx.txid, "watchdog", { message: "Still waiting for the wallet's response — if you already approved, the connection is likely stuck. Fix: open your wallet app, disconnect this site, then Sign again to reconnect.", level: "warning", timeout: 12000 })
     }, 60000)
     let signedTransactionHex
     try {
@@ -4448,15 +4462,18 @@ async function boardDirectSign(account){
     // (not a string) so the next incident is self-explaining in kdiag.
     let raw
     try { raw = JSON.parse(JSON.stringify(e)) } catch {}
-    boardDiag("board:sign:error", { error: boardWcErrStr(e), code: e?.code, raw })
+    // S2 / TXS-2: the payload now names its transaction — this event carrying
+    // no txid was why the 08:11 ghost toasts could not be attributed in kdiag.
+    boardDiag("board:sign:error", { txid: tx.txid, accountId, error: boardWcErrStr(e), code: e?.code, raw })
     // WC-RELAYHEALTH1: the bundle now throws typed KWC-* errors (KWC-STALE stale
     // session preflight, KWC-RELAY-LOST transport death mid-request, KWC-TIMEOUT
     // 120s cap) whose messages already carry the actual fix (disconnect the site
     // in the wallet app, re-pair) — show them prominently instead of the generic
-    // wrapper, and give them time to be read.
+    // wrapper, and give them time to be read. S2: routed via the controller, so
+    // a KWC-TIMEOUT landing after its tx is already settled is dropped, not shown.
     const _em = boardWcErrStr(e)
-    if(/^KWC-/.test(_em)) notify("⚠ " + _em.replace(/^KWC-[A-Z-]+: /, ""), "error", { timeout: 15000 })
-    else notify(`Signing failed: ${_em}`, "error", { timeout: 6000 })
+    if(/^KWC-/.test(_em)) boardReportTxAdvice(tx.txid, "wallet", { message: "⚠ " + _em.replace(/^KWC-[A-Z-]+: /, ""), level: "error", timeout: 15000 })
+    else boardReportTxAdvice(tx.txid, "wallet", { message: `Signing failed: ${_em}`, level: "error", timeout: 6000 })
   }
 }
 
