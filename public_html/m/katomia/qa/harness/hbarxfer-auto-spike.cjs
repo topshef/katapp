@@ -7,7 +7,16 @@
 const { chromium } = require("/opt/kwallet/node_modules/playwright")
 
 const GAME = process.env.GAME
-const BOARD = `https://lab1.katlab.kpay.live/m/katomia/board/${GAME}?skin=ring16`
+// QA-BENCHFREEZE1 (2026-08-07): the target is a parameter now. This was hardcoded
+// to lab1, which is why the only end-to-end signing test could never be pointed at
+// pat or production — even though the same suite pointed at app.katomia.com returns
+// identical results (proved with the WC harnesses on 2026-08-07). BASE is the site
+// root; the board path differs between the seat (/m/katomia/board/x) and the
+// standalone bundle (/board/x), so it is derived, not assumed.
+//   BASE=https://app.katomia.com node hbarxfer-auto-spike.cjs
+const BASE   = (process.env.BASE || "https://lab1.katlab.kpay.live").replace(/\/+$/, "")
+const PREFIX = process.env.BOARD_PREFIX || (/katlab|swap\.kpay\.live/.test(BASE) ? "/m/katomia" : "")
+const BOARD  = `${BASE}${PREFIX}/board/${GAME}?skin=ring16`
 const KWALLET_BASE = "http://127.0.0.1:8790"
 const KWALLET_TOKEN = process.env.KWALLET_TOKEN
 const RECIPIENT = process.env.RECIPIENT || "0.0.5200540"
@@ -50,9 +59,9 @@ async function kwallet(path, body){
 let RUN_ID = null, SITE_COMMIT = null
 async function reportKflow(checkpoint, v, detail){
   if(!RUN_ID) RUN_ID = "hbarxfer-" + Date.now().toString(36)
-  if(SITE_COMMIT === null) SITE_COMMIT = await fetch("https://lab1.katlab.kpay.live/m/katomia/qa/results.php?days=1")
+  if(SITE_COMMIT === null) SITE_COMMIT = await fetch(`${BASE}${PREFIX}/qa/results.php?days=1`)
     .then(r => r.json()).then(j => j.commit || "").catch(() => "")
-  await fetch("https://lab1.katlab.kpay.live/kflow", { method: "POST",
+  await fetch(`${BASE}/kflow`, { method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ events: [{ t: new Date().toISOString(), run: RUN_ID,
       seq: checkpoint === "test:start" ? 1 : 2, tier: "fe", checkpoint, v, commit: SITE_COMMIT, detail }] }) })
@@ -104,53 +113,60 @@ async function main(){
 
   // ── A sees B (a real other player now) -- offer AMOUNT_H HBAR ──
   await pageA.waitForTimeout(1500)   // let A's board pick up B's broadcasted join
-  log("[A] tap HBAR chip")
-  await pageA.evaluate((senderId) => {
-    const chip = [...document.querySelectorAll(".asset")].find(el =>
-      el.dataset.assetId === "HBAR" && el.dataset.ownerAccount === senderId &&
-      !el.classList.contains("basket") && !el.classList.contains("reserved"))
-    if(!chip) throw new Error("no HBAR store chip for sender")
+  // ── OFFER: the non-gestural route (QA-TESTHOOKS1, user-approved 2026-08-07) ──
+  // Tap-to-offer was retired on 2026-08-05 (BOARD-DRAGUX1: a tap now INSPECTS,
+  // dragging offers), which broke this harness silently for two days. Synthesising
+  // a drag is both fiddly and beside the point — what is under test here is the
+  // signing mechanics, not the pointer choreography. So the board now carries a
+  // hidden, real "Offer to a player…" action on the asset card, and the harness
+  // drives that: tap chip → asset card → Offer → amount → target. Same code path
+  // as a drop (offerSelectedToAccount), no hit-testing, no prompt().
+  log("[A] open the asset card for the HBAR store chip")
+  const opened = await pageA.evaluate(senderId => {
+    const chip = document.querySelector(
+      `[data-testid="chip"][data-chip-role="store"][data-owner-account="${senderId}"][data-asset-id="HBAR"]`)
+    if(!chip) return "no HBAR store chip for sender"
     chip.click()
-  }, acctA)
-  await pageA.waitForTimeout(500)
-  log("[A] tap B's wedge (now a real drop target -- setupDropTarget only binds for !isMine)")
-  // coordinate-based clicking kept missing the wedge's clip-path polygon
-  // (a wide pie slice's bounding-BOX corners often sit OUTSIDE the actual
-  // clipped sector, and the box centre sits on the intercepting hub) --
-  // .click() called IN-PAGE on the element itself dispatches a MouseEvent
-  // with target===el directly, satisfying the handler's `e.target !== el`
-  // guard with no hit-testing/clip-path/z-order involved at all.
-  const clicked = await pageA.evaluate((accountId) => {
-    const el = document.querySelector(`.board-wedge[data-drop-account="${accountId}"]`)
-    if(!el) return false
-    el.click()
     return true
-  }, acctB)
-  log("in-page wedge click dispatched:", clicked)
+  }, acctA)
+  if(opened !== true) throw new Error(String(opened))
+  await pageA.waitForSelector('[data-testid="asset-offer"]', { state: "attached", timeout: 10000 })
+
+  log("[A] Offer to a player… → amount → B")
+  const clicked = await pageA.evaluate(([targetId, amt]) => {
+    document.querySelector('[data-testid="asset-offer"]')?.click()   // hidden by design — click it directly
+    const input = document.getElementById("assetModalAmount")
+    if(!input) return "amount input missing"
+    input.value = amt
+    input.dispatchEvent(new Event("input", { bubbles: true }))
+    const target = document.querySelector(
+      `[data-testid="offer-target"][data-target-account="${targetId}"]`)
+    if(!target) return "no offer target for recipient"
+    target.click()
+    return true
+  }, [acctB, AMOUNT_H])
+  if(clicked !== true) throw new Error(String(clicked))
   await pageA.waitForTimeout(2000)
 
-  // BOARD-COUNTERMODE1 (2026-08-04, "simple counter" now the default): when
-  // part of a stack is offered but some remains in the store, the .reserved
-  // ghost chip is suppressed and the remainder pile gets .board-rimpile
-  // instead (see boardStoreChips/boardReservedChips in katomia-board.js) —
-  // check both, since a fresh automated player has no saved counterMode
-  // pref and lands in "simple" mode. Found 2026-08-05: this harness only
-  // checked .reserved and had been silently erroring every 2h since the
-  // mode-default flip landed (~08:01 UTC 2026-08-04), unnoticed for a day.
-  const offered = await pageA.evaluate((senderId) =>
+  // BOARD-COUNTERMODE1: which of .reserved / .board-rimpile appears depends on the
+  // viewer's counter-mode preference, and that coupling silently broke this harness
+  // for a day on 2026-08-04. data-chip-role is the stable question: is any of the
+  // sender's HBAR now committed rather than sitting free in the store?
+  const offered = await pageA.evaluate(senderId =>
     !!document.querySelector(
-      `.asset.reserved[data-owner-account="${senderId}"][data-asset-id="HBAR"], ` +
-      `.asset.board-rimpile[data-owner-account="${senderId}"][data-asset-id="HBAR"]`), acctA)
+      `[data-testid="chip"][data-owner-account="${senderId}"][data-asset-id="HBAR"][data-chip-role="reserved"]`)
+    || !!document.querySelector(
+      `.board-rimpile[data-owner-account="${senderId}"][data-asset-id="HBAR"]`), acctA)
   log("offer ghost present:", offered)
   if(!offered) throw new Error("offer never registered")
 
   // ── lock both accounts (local intent key, no wallet on either side) ──
   log("[A] lock")
-  await pageA.locator("button.ring-footer-lock").first().click()
+  await pageA.locator('[data-testid="lock"]').first().click()
   await pageA.waitForTimeout(1000)
   log("[B] lock")
   await pageB.waitForTimeout(1000)   // let B's board pick up the offer first
-  await pageB.locator("button.ring-footer-lock").first().click()
+  await pageB.locator('[data-testid="lock"]').first().click()
   await pageB.waitForTimeout(1500)
 
   // ── strike auto-fires (txDelaySeconds:0) once BOTH are locked. Finding
@@ -163,7 +179,7 @@ async function main(){
   log("[A] waiting for the signing phase, then clicking Sign")
   await pageA.waitForFunction(() => window.boardSigning, { timeout: 15000 }).catch(() => {})
   await pageA.waitForTimeout(500)
-  await pageA.locator("button.ring-footer-lock").first().click()
+  await pageA.locator('[data-testid="sign"]').first().click()
   log("[A] Sign clicked")
 
   // ── poll A's toast for the verdict ──
@@ -176,7 +192,7 @@ async function main(){
     await pageA.waitForTimeout(1000)
   }
   log("success:", success, "elapsed s:", Math.round((Date.now() - t0) / 1000))
-  await pageA.screenshot({ path: "/tmp/claude-0/-var-www-swap-kpay-live-katlab-lab1/b5bfcda0-bcef-438f-9776-811088e67443/scratchpad/hbarxfer-final.png" })
+  await pageA.screenshot({ path: "/var/www/swap.kpay.live-katlab/lab1/logs/qa/hbarxfer-final.png" })
 
   const verdict = success === true ? "pass" : success === false ? "fail" : "error"
   await reportKflow("test:start", "HBARXFER-01", { source: "auto", instance: "HBARXFER-01" })

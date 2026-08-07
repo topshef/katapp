@@ -4779,6 +4779,7 @@ function ringFooter(mine){
       // carries the distinction, no extra visual complexity).
       const party = !!boardSigning.legs[curHac]
       lockBtn.className = "ring-footer-lock ring-footer-sign"
+      lockBtn.dataset.testid = "sign"          // QA-TESTHOOKS1
       lockBtn.textContent = "✍ Sign"
       lockBtn.title = party
         ? "Sign this transaction with the selected account"
@@ -4792,6 +4793,7 @@ function ringFooter(mine){
       lockBtn.onclick = () => boardDirectSign(cur)
     } else {
       lockBtn.className = "ring-footer-lock" + (cur?.mode === "lock" ? " locked" : "")
+      lockBtn.dataset.testid = "lock"          // QA-TESTHOOKS1
       lockBtn.textContent = cur?.mode === "lock" ? "🔓 Unlock" : "🔒 Lock"
       lockBtn.disabled = !cur
       lockBtn.onclick = () => { const a = selected(); if(a) boardToggleLock(a) }
@@ -4821,6 +4823,8 @@ function ringFooter(mine){
     mine.forEach(account => {
       const b = document.createElement("button")
       b.className = "ring-footer-lock" + (account.mode === "lock" ? " locked" : "")
+      b.dataset.testid = "lock"                // QA-TESTHOOKS1
+      b.dataset.account = account.id
       b.textContent = (account.mode === "lock" ? "🔒 " : "🔁 ") + (account.id.split(":")[1] || account.id)
       b.title = account.mode === "lock" ? "Locked — tap to unlock" : "Trading — tap to lock"
       b.onclick = () => boardToggleLock(account)
@@ -7486,13 +7490,50 @@ function boardAssetDetail(assetId, account, amount, offer){
   // time, in the order that can't lose anything.
   const actions = document.createElement("div")
   actions.className = "board-assetdetail-actions"
-  const addAction = (cls, text, title, fn) => {
+  const addAction = (cls, text, title, fn, testid) => {
     const b = document.createElement("button")
     b.className = "kbtn " + cls + " board-assetdetail-act"
     b.textContent = text
     if(title) boardTip(b, title)
+    if(testid) b.dataset.testid = testid
     b.onclick = fn
     actions.appendChild(b)
+    return b
+  }
+  // ── QA-TESTHOOKS1 (user-approved 2026-08-07) ─────────────────────────────
+  // A NON-GESTURAL route to offering an asset: pick a player, pick an amount,
+  // done — the same two steps a drag performs, without the drag.
+  //
+  // Why it exists: every automated board harness drove the board by TAPPING,
+  // and when tap-to-offer was retired for the one-locus drag on 2026-08-05
+  // (see ~7350) four harnesses broke silently and the end-to-end signing test
+  // was dark for two days before anyone noticed. Synthesising a drag from a
+  // test is both messy and beside the point — the thing under test is the
+  // WalletConnect/signing mechanics, not the pointer choreography, and a
+  // gesture-shaped test failure is hard to read. So the harness gets a stable,
+  // semantic door instead: data-testid="asset-offer" here, then the existing
+  // #assetModal (target list + amount box) which already sets
+  // modalAmountOverride and calls offerSelectedToAccount — no prompt(), no
+  // hit-testing, no clip-path.
+  //
+  // HIDDEN, NOT ABSENT (user: "for now, just we would leave it hidden, and it
+  // can be available as a test hook"). It is real, working functionality — not
+  // a phantom control — and the user's own suggestion is that it may later
+  // become a visible ACCESSIBILITY route for anyone who cannot drag. Reveal it
+  // without a code change with ?offerhook=1 or
+  // localStorage.katomiaOfferHook="1", so that trial costs nothing.
+  const offerHookVisible = (() => {
+    try {
+      if(new URLSearchParams(location.search).get("offerhook") === "1") return true
+      return localStorage.getItem("katomiaOfferHook") === "1"
+    } catch { return false }
+  })()
+  const addOfferAction = () => {
+    const b = addAction("kbtn-blue", "➤ Offer to a player…",
+      "Choose who to offer this to, and how much — the same as dragging it onto their space",
+      () => { modal.remove(); openAssetModal(assetId, account.id, amount) },
+      "asset-offer")
+    if(!offerHookVisible) b.hidden = true
     return b
   }
   const say = text => {
@@ -7551,6 +7592,12 @@ function boardAssetDetail(assetId, account, amount, offer){
   else if(isMyAccount(account)){
     // opened from YOUR store chip (or its ghost): what's outstanding on it?
     const out = (boardReserved(getAccounts())[account.id] || []).filter(i => String(i.assetId) === String(assetId))
+    // QA-TESTHOOKS1: offered FIRST, so it is the first action in both branches
+    // and a harness never has to care which one it landed in. Offering more of
+    // something you have already offered some of is legal, so it belongs in
+    // both — unlike Remove from table, which the user's ordering rule keeps
+    // behind a withdraw.
+    addOfferAction()
     if(out.length){
       const to = [...new Set(out.map(i => nameOf(i.toAccountId)))].join(", ")
       say(`Offered out to ${to} — withdraw it before you can take it off the table.`)
