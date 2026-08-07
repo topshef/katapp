@@ -267,6 +267,32 @@ h3{
 
 	</div>
 
+	<!-- GAME-ORPHAN1 / KAT-IDLE1 (user 2026-08-07): the eviction timeout was a backend
+	     constant with a per-game override nobody could reach — "if that's something the
+	     game organizer can adjust then we probably want to include that in the create
+	     game form... the longer version, not the noddy short one... maybe just a dropdown
+	     with some common values rather than any amount." Hence: adv-only, a fixed value
+	     list, 1 hour preselected to match the backend default. Fractional hours are fine —
+	     katomia.js does hours * 3600 * 1000, and 0 disables the sweep entirely. -->
+	<div class="field adv-only">
+		<label>🍂 Remove inactive players after</label>
+		<p class="explain">
+			A player who has done nothing for this long has their accounts, assets and
+			offers swept off the board. Players with an open connection never count as
+			inactive, and a circle is skipped entirely while a transaction is mid-signing.
+		</p>
+		<select id="idleAccountHours">
+			<option value="0.25">15 minutes</option>
+			<option value="0.5">30 minutes</option>
+			<option value="1" selected>1 hour (default)</option>
+			<option value="3">3 hours</option>
+			<option value="12">12 hours</option>
+			<option value="24">24 hours</option>
+			<option value="168">1 week</option>
+			<option value="0">Never — leave them on the board</option>
+		</select>
+	</div>
+
   <label class="adv-only">Transaction settings</label>
   <div class="field adv-only">
     <div class="explain">
@@ -407,6 +433,10 @@ const payload = {
     // the game config honest about what will actually be built.
     validDurationSeconds: validDurationSeconds.value === "" ? 40
       : Math.max(15, Math.min(180, Number(validDurationSeconds.value) || 40)),
+    // GAME-ORPHAN1: idle-eviction timeout in hours; 0 = never. Always sent (including
+    // the basic skin, which leaves the select at its 1h default) so the game config
+    // states the rule outright rather than relying on the backend's `?? 1` fallback.
+    idleAccountHours: Number(document.getElementById("idleAccountHours")?.value ?? 1),
     // BOARD-PLAYERCOLOR1: named player-colour pack; omitted = backend default palette
     ...(document.getElementById("gameTheme")?.value ? { palette: document.getElementById("gameTheme").value } : {})
   },

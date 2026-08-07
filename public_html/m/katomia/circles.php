@@ -343,14 +343,53 @@ const KBO_CIRCLE = { ms: 800, style: "iridescent", width: 1.6, coverage: 1.22,
 const KB_HOVER = Object.assign({}, KB_LIST, { style: "iridescent", points: 320, ambient: 0.5 })
 const SETTLE_MS = 900
 
+// ── CIRCLES-BUBBLEHOLD1 (user 2026-08-07) ──────────────────────────────────
+// "when you hover on a circle it does the animation thing, but if you keep
+// hovering on it the animation disappears — it just times out. If the mouse is
+// still over the button area that animation should persist. It should keep
+// going until you exit, and then it fades away."
+// Not a timeout — nothing was cancelling it. kbubble's ONLY sustained forcing is
+// the `ambient` term (0.5 · 0.05 · sin), which against damp:6 settles to a
+// sub-pixel shimmer, so the entry puff visibly decays to a still outline in
+// about a second. Movement hid it: kbubble impulses on pointermove, so the
+// border only died when you held the mouse still — exactly the "keep hovering"
+// case being reported.
+// Fix is a STIR: while the pointer is on the card, keep feeding the same gentle
+// impulses the pointer would. Strength and interval are jittered so it reads as
+// a living border rather than a metronome. Costs nothing extra — the rAF loop is
+// already running (that IS the hover state, per CIRCLES-BUBBLECOST1); we are
+// only stopping it from converging. On leave the stir stops first, so the last
+// wave still gets its full SETTLE_MS bounce before the FADE_MS dissolve — the
+// "keep going until you exit, then fade away" shape, unchanged.
+const STIR_MIN_MS = 420, STIR_MAX_MS = 760
+function stirOn(el, h){
+  stirOff(el)
+  const tick = () => {
+    if(!live.get(el)) return
+    try { h.puff?.(KB_HOVER.puff * (0.22 + Math.random() * 0.26)) } catch(e){}
+    el.__kbStir = setTimeout(tick, STIR_MIN_MS + Math.random() * (STIR_MAX_MS - STIR_MIN_MS))
+  }
+  el.__kbStir = setTimeout(tick, STIR_MIN_MS)
+}
+function stirOff(el){ clearTimeout(el.__kbStir); el.__kbStir = null }
+
 const live = new WeakMap()
 function bubbleOn(el){
-  if(live.get(el) || !window.kbubble) return
+  if(!window.kbubble) return
   clearTimeout(el.__kbOff)
+  const existing = live.get(el)
+  if(existing){                                  // re-entered during the settle/fade: revive, don't re-attach
+    const cv = el.querySelector("canvas")
+    if(cv){ cv.style.transition = ""; cv.style.opacity = "" }   // undo a fade already in flight
+    el.classList.add("kbubble-on")
+    stirOn(el, existing)
+    return
+  }
   const h = kbubble.attach(el, KB_HOVER)
   if(!h) return                    // prefers-reduced-motion: kbubble opts out
   live.set(el, h)
   try { h.puff?.() } catch(e){}
+  stirOn(el, h)
 }
 // R2 (user 2026-08-06): "if you leave it and let them fade out, they suddenly pop
 // away — I think we should have them fade out." The bubble still gets its full
@@ -364,6 +403,7 @@ function bubbleOn(el){
 // land somewhere between "close" and "wrong".)
 const FADE_MS = 420
 function bubbleOff(el){
+  stirOff(el)                        // stop feeding it; the last wave still gets its full settle
   clearTimeout(el.__kbOff)
   el.__kbOff = setTimeout(() => {
     const h = live.get(el)
