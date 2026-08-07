@@ -1167,6 +1167,19 @@
     };
   }
 
+  // KAT-FEEDMANUAL1 (user 2026-08-07): a sent piece of feedback leaves a durable
+  // trace in the message stream, not just a toast that fades. The row carries the
+  // reference tag (readable aloud) and links to the record's own permalink page on
+  // the backend that stored it — "we just generate the link in the message stream,
+  // and if you click on it the user can save that link". Detail comes from the
+  // feedback widget's kfw:sent event; every field is optional, so a widget older
+  // than this still degrades to a plain thank-you row.
+  document.addEventListener("kfw:sent", function (e) {
+    var d = (e && e.detail) || {};
+    system("Feedback sent — thank you." + (d.tag ? " Reference " + d.tag + "." : ""),
+      d.url ? { link: d.url, linkText: "View your feedback" } : null);
+  });
+
   document.addEventListener("click", function (e) {
     if (e.target.closest("[data-menu-chat]")) { e.preventDefault(); openFull(true); }
     else if (e.target.closest("#boardChatFullClose")) { e.preventDefault(); openFull(false); }
