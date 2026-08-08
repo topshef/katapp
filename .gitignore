@@ -34,6 +34,11 @@ zz*
 # BOARD-ARRANGE1 (2026-07-17): harness move scripts (scripted demo/replay
 # inputs) are authored test content — same source-of-truth rationale.
 !/public_html/m/katomia/qa/harness/moves/*.json
+# 2026-08-08: the test-index viewer. Caught by the blanket `test*` rule above
+# (meant for scratch files), which would have silently left the page untracked
+# and un-deployable — the same class of miss as the unpublished kwc snapshot
+# earlier today: present on the box, invisible everywhere else.
+!/public_html/m/katomia/qa/tests.html
 *.lock
 *.bak
 #login
