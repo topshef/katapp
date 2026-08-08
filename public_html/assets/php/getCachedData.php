@@ -29,6 +29,9 @@
         if (!$cachePath) {
             $hash = hash('SHA1', $path);
 			$basefolder = ($isCLI) ? __DIR__ : $_SERVER['DOCUMENT_ROOT'];
+			// ENRICH-COLDPATH1: see getCacheData below — a missing dir makes every
+			// cache write fail silently, so the cache is simply never populated.
+			if (!is_dir("$basefolder/cache")) @mkdir("$basefolder/cache", 0775, true);
             $cachePath = "$basefolder/cache/autocache.$hash.txt";
         }
 		
@@ -100,6 +103,10 @@
 		//exit("$hash<BR>$url $timeoutseconds");
 		//if ($cachefolder == null) $cachefolder = __DIR__ . "/cache";
 		if ($cachefolder == null) $cachefolder = "{$_SERVER['DOCUMENT_ROOT']}/cache";
+		// ENRICH-COLDPATH1: never let a missing cache dir silently swallow every
+		// write (file_put_contents just warns and returns false, so the site keeps
+		// "working" at full upstream cost with no cache, invisibly).
+		if (!is_dir($cachefolder)) @mkdir($cachefolder, 0775, true);
 		elog($cachefolder);
         
 		$cachefile = "autocache.$hash.txt";
