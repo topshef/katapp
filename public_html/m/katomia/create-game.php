@@ -263,8 +263,24 @@ h3{
 		<input id="admin" placeholder="Hedera account / public key">
 		<div class="explain">
 			Hedera account or public key. Leave blank to prevent game edit or deletion.
-		</div>    
+		</div>
 
+	</div>
+
+	<!-- CHAT-WELCOME1 (user feedback 9a79276d, 2026-08-08): "when a player joins a circle
+	     they might not know what to do ... the Welcome message might be a part of the game
+	     configuration". adv-only, like every other organizer knob — the basic skin stays
+	     fixed to happy-path defaults by design (ENTRY-CREATEBASIC1). Blank = the platform
+	     default; the greeting is addressed to the joining player only, not broadcast. -->
+	<div class="field adv-only">
+		<div class="explain">
+			Welcome message (optional)
+		</div>
+		<input id="welcomeMessage" placeholder="Welcome to my circle — say hello!">
+		<div class="explain">
+			Shown once to each player as they join, from Katomia, visible only to them.
+			Leave blank for the default greeting.
+		</div>
 	</div>
 
 	<!-- GAME-ORPHAN1 / KAT-IDLE1 (user 2026-08-07): the eviction timeout was a backend
@@ -438,7 +454,12 @@ const payload = {
     // states the rule outright rather than relying on the backend's `?? 1` fallback.
     idleAccountHours: Number(document.getElementById("idleAccountHours")?.value ?? 1),
     // BOARD-PLAYERCOLOR1: named player-colour pack; omitted = backend default palette
-    ...(document.getElementById("gameTheme")?.value ? { palette: document.getElementById("gameTheme").value } : {})
+    ...(document.getElementById("gameTheme")?.value ? { palette: document.getElementById("gameTheme").value } : {}),
+    // CHAT-WELCOME1: only sent when the organizer actually typed one. Omitted (not "")
+    // when blank, because the backend treats an explicit empty string as "greet nobody"
+    // — sending "" from an untouched field would silently disable the default greeting.
+    ...(document.getElementById("welcomeMessage")?.value.trim()
+        ? { welcomeMessage: document.getElementById("welcomeMessage").value.trim() } : {})
   },
 
 }

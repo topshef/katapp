@@ -702,7 +702,11 @@
         tx.appendChild(q);
         tx.appendChild(document.createTextNode(m.text));
       }
-      if (m.to) {
+      // CHAT-WELCOME1: `to` on a PLAYER message is meaningful addressing ("→ p3" tells the
+      // room who you were talking to). On a SYSTEM message it is just the privacy filter
+      // doing its job — you are the only one who can see the row, so "→ p3" is noise
+      // telling you what you already know. Only system messages use `to` this way today.
+      if (m.to && !m.system) {
         var to = document.createElement("em");
         to.className = "kchat-row-to";
         to.textContent = "→ " + m.to;
