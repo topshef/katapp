@@ -1699,6 +1699,22 @@ function renderRingBoard(root){
       // the divider pair brackets an empty south seat instead of drifting.
       start = 90
     }
+  } else if(ring8() && !_boardPartyAnim && accounts.length <= boardMaxSegments){
+    // BOARD-ORDERCANON1 follow-up (user, live 3-browser test, 2026-08-08):
+    // "you at bottom" OFF must draw the SAME ring for every viewer, not just
+    // the same cycle starting wherever each viewer's own block happens to
+    // sit. boardRingLayoutSlots still rotates the array to put mine first
+    // (BOARD-WHEEL4 needs one consistent shape in both branches) — so under
+    // the cap, undo exactly that rotation here in angle space: shift start by
+    // (my canonical join-order index) * step, which is the inverse of the
+    // rotation the slots array just applied. Every viewer's own rotation
+    // cancels out and everyone lands on the same drawn positions — no
+    // dividers under the cap, so `step` is uniform and this is exact. Over
+    // the cap this doesn't apply: mine has to stay fixed+whole regardless of
+    // the toggle (BOARD-WHEEL1), so that path stays viewer-dependent on
+    // purpose (Option C in the BOARD-ORDERCANON1 advisory doc, parked).
+    const canonicalMineIdx = accounts.findIndex(a => isMyAccount(a))
+    if(canonicalMineIdx > 0) start = boardStartAngle + canonicalMineIdx * step
   }
 
   // rotate animation: the toggle just flipped — seed the offset so this frame
@@ -3791,10 +3807,12 @@ function boardRingLayoutSlots(accounts){
   // boardMergeSlotLayouts orphaned the accounts whose relative position
   // flipped (they lost their wNew and popped in at the end of the tween —
   // the "suddenly appearing segments" + the end jolt of the recenter). One
-  // consistent order kills the whole family. This does make the layout
-  // viewer-dependent below the cap too (it already was above it) — accepted:
-  // "you at bottom will become the standard... the dividing and rotating
-  // means there's no unified view for everyone anyway" (user, verbatim).
+  // consistent order kills the whole family. This does make the ARRAY
+  // viewer-dependent below the cap too (it already was above it) — but as of
+  // BOARD-ORDERCANON1 follow-up (2026-08-08) that's fine: the array is always
+  // a rotation of the same canonical cycle, and renderRingBoard's start-angle
+  // math (below) compensates for exactly that rotation when "you at bottom"
+  // is off, so the DRAWN result is still byte-identical across viewers.
   if(accounts.length <= boardMaxSegments)
     return rotated.map(account => ({ type: "account", account }))
 
