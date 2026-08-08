@@ -224,7 +224,7 @@
       },
       "schedule": "cron, daily 05:20",
       "reports": "kflow test:verdict → QA grid + kwallet.html",
-      "state": "ERROR — 'sender join failed (got undefined)'. Pre-dates TXSTATUS-CONSOLIDATE1; not caused by it. Needs its own look.",
+      "state": "PASSING again as of 2026-08-08 08:20 (real mainnet transfer, consensus 1786177210.454269104). It was never a product failure: a failed run on 08-07 left its own unanswered pairing proposal in kwallet-mainnet, and the cron's 'skip if any pending item' guard then muted the test entirely — the grid showed '2 consecutive non-passes' when the truth was 'not run since'. Guard now ages pending items (only items <30m old block a run). Two older reds were harness flakes, not product: a #boardPlayerModal pointer-intercept on the lock click (08-06) and the #addAcctJoinAll account-landing race (08-07), both QA-HARNESSREPAIR1.",
       "dimension": "MAINNET · full stack — a different dimension from everything else here",
       "cost": "0.01 real HBAR per run (~£0.002). The only test on this page that spends real money.",
       "what_it_does": [

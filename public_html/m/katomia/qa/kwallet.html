@@ -61,6 +61,8 @@
   .meat{flex:1 1 auto;min-width:0}
   .what{font-weight:600;margin-bottom:2px}
   .plain{color:var(--mut);font-size:13.5px}
+  .tid{color:inherit;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+  .tid:hover{text-decoration-style:solid}
   .meta{color:var(--mut);font-size:12px;margin-top:6px;font-family:ui-monospace,monospace;
         word-break:break-word}
   .note{font-size:12.5px;margin-top:5px;color:var(--bad)}
@@ -75,7 +77,9 @@
 <h1>kWallet / signing — QA status</h1>
 <div class="sub">Only the wallet and signing tests, only their current state.
 For history — when something started failing — use the
-<a href="results.html">retest grid</a>. Scenario definitions:
+<a href="results.html">retest grid</a>. What each test actually does:
+<a href="tests.html">the test index</a> (ids below are <code>T:</code>-prefixed and link there —
+bare capitals mean a task, not a test). Scenario definitions:
 <a href="wc-paths.html">every WalletConnect path</a>. <a href="./">QA home</a></div>
 
 <div id="headline" class="headline">loading…</div>
@@ -117,6 +121,13 @@ const TESTS = [
     plain: "Real value, real network, once a day — the only test here that is not free to run." }
 ]
 
+// PROTOCOL.md reference convention (2026-08-08): bare CAPITALS mean a kPad TASK,
+// so a raw "MAINNETSMOKE-01" on this page read as one and sent the user hunting
+// through the task board for something that was never there. Test ids are written
+// T:<id> and link to their entry in the test index, which says what the test
+// actually does.
+const tlink = id => `<a class="tid" href="tests.html#${encodeURIComponent(id)}">T:${esc(id)}</a>`
+
 const ago = ms => {
   const m = Math.round(ms / 60000)
   if(m < 60) return m + "m ago"
@@ -155,7 +166,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt
   hl.className = "headline " + (bad.length ? "h-bad" : "h-ok")
   hl.innerHTML = bad.length
     ? `${bad.length} of ${rows.length} wallet tests are not green`
-      + `<small>${esc(bad.map(r => r.t.id).join(" · "))}</small>`
+      + `<small>${bad.map(r => tlink(r.t.id)).join(" · ")}</small>`
     : `All ${rows.length} wallet tests green`
       + `<small>most recent run ${esc(ago(Math.min(...rows.map(r => r.age))))}</small>`
 
@@ -174,7 +185,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt
              this test runs every ~${r.t.every}h, so it has stopped reporting. That is a broken
              test, not good news.</div>`
           : (r.v !== "pass" && note ? `<div class="note">${esc(String(note).slice(0, 220))}</div>` : "")}
-        <div class="meta">${esc(r.t.id)}
+        <div class="meta">${tlink(r.t.id)}
           ${r.last ? " · last " + esc(ago(r.age)) + " · commit " + esc(r.last.commit || "?") : ""}
           ${r.streak > 1 ? " · " + r.streak + " consecutive non-passes" : ""}</div>
       </div></div>`
