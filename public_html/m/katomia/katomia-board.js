@@ -3769,8 +3769,20 @@ function boardTogglePartyOnly(v){
 // either divider advances it by one and loops (infinite wheel, per the user's
 // spec: "keep it basic for now, just get the concept working").
 function boardRingLayoutSlots(accounts){
-  const mine = accounts.filter(a => isMyAccount(a))
-  const others = accounts.filter(a => !isMyAccount(a))
+  // BOARD-ORDERCANON1 (2026-08-08): rotate to my block's start instead of
+  // partitioning into mine+others. A partition ([...mine, ...others]) splices
+  // players who joined before me past the players who joined after me, so
+  // different viewers see genuinely different rings, not just different start
+  // points — e.g. join order [B1,A1,A2,C1]: Alice's partition gives
+  // [A1,A2,B1,C1] (B1 before C1), Bob's gives [B1,A1,A2,C1] which cyclically
+  // is [A1,A2,C1,B1] (C1 before B1). A rotation preserves the one canonical
+  // cycle; every viewer just starts reading it at a different point. Safe
+  // because boardGroupByPlayer already guarantees "mine" is one contiguous
+  // run, which is exactly the precondition a rotation needs.
+  const mineIdx = accounts.findIndex(a => isMyAccount(a))
+  const rotated = mineIdx > 0 ? [...accounts.slice(mineIdx), ...accounts.slice(0, mineIdx)] : accounts
+  const mine = rotated.filter(a => isMyAccount(a))
+  const others = rotated.filter(a => !isMyAccount(a))
 
   // BOARD-WHEEL4 (user 2026-07-12): mine-first in BOTH branches. The
   // under-cap path used to keep raw join-grouped order (mine wherever it
@@ -3784,7 +3796,7 @@ function boardRingLayoutSlots(accounts){
   // "you at bottom will become the standard... the dividing and rotating
   // means there's no unified view for everyone anyway" (user, verbatim).
   if(accounts.length <= boardMaxSegments)
-    return [...mine, ...others].map(account => ({ type: "account", account }))
+    return rotated.map(account => ({ type: "account", account }))
 
   const visibleOthersCount = Math.max(0, boardMaxSegments - mine.length)
 
