@@ -647,9 +647,14 @@
         if (typeof kemojiEl === "function")
           row.appendChild(kemojiEl(avatarKey(m.action.actor), { size: 16, bg: c }));
       } else if (m.system) {
+        // CHAT-WELCOME1 R2: a system row now says WHO is speaking. `speaker:"host"` is the
+        // circle's organizer talking through Katomia's machinery (their own configured
+        // copy); anything else — including every pre-existing system row, which carries no
+        // speaker at all — is Katomia itself. Never label organizer-written words as
+        // Katomia: a circle can be created by anyone and say anything.
         var bot = document.createElement("span");
         bot.className = "kchat-sys-emoji";
-        bot.textContent = "🤖";
+        bot.textContent = m.speaker === "host" ? "🎪" : "🤖";
         row.appendChild(bot);
       } else if (typeof kemojiEl === "function") {
         row.appendChild(kemojiEl(avatarKey(m.playerId), { size: 16, bg: c }));
@@ -684,7 +689,7 @@
         nm.appendChild(idsp);
         appendMarkFor(nm, subj);
       } else {
-        nm.textContent = m.system ? "Katomia" : displayName(m);
+        nm.textContent = m.system ? (m.speaker === "host" ? "Host" : "Katomia") : displayName(m);
       }
       var tm = document.createElement("i");
       tm.textContent = hh;

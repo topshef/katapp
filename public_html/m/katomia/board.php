@@ -118,7 +118,12 @@ require_once __DIR__ . '/kasset.php';
      the board (user 2026-07-16) — this page is where the QA narration happens. -->
 <!-- KPAD-SELFFEED1: served from the backend (its canonical home) — no local copy -->
 <script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
-        data-product="katomia-board"></script>
+        data-product="katomia-board"
+        data-screenshot="0"><!-- KAT-FEEDSHOT-BROKEN1 (user 2026-08-08): attach-screenshot never
+     succeeds on these pages, so the checkbox is a control for a feature that does not
+     work — offering it is worse than not having it. Turned OFF here rather than in the
+     widget, which kPad also uses and where capture DOES work. Re-enable by deleting this
+     attribute once the capture is fixed. --></script>
 
 <script src="/m/bid/localbase.min.js"></script>
 <script type="module" data-global src="/m/tools/glog/latest/glog.js"></script>

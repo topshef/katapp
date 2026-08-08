@@ -437,7 +437,12 @@ fetch("./footer.html")
      works here and the header menu's Send feedback opens in place instead of falling
      back to /m/feedback (backend-served canonical copy, KPAD-SELFFEED1) -->
 <script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
-        data-product="katomia-home"></script>
+        data-product="katomia-home"
+        data-screenshot="0"><!-- KAT-FEEDSHOT-BROKEN1 (user 2026-08-08): attach-screenshot never
+     succeeds on these pages, so the checkbox is a control for a feature that does not
+     work — offering it is worse than not having it. Turned OFF here rather than in the
+     widget, which kPad also uses and where capture DOES work. Re-enable by deleting this
+     attribute once the capture is fixed. --></script>
 
 </body>
 </html>
