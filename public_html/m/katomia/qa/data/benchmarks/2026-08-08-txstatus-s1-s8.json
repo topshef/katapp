@@ -1,0 +1,59 @@
+{
+  "_about": "Post-TXSTATUS-CONSOLIDATE1 benchmark: the S1-S8 release measured on lab1 AND pat, after the user promoted to kswap and deployed pat. Compare against 2026-08-07-baseline.json (the frozen floor). The floor file itself is NOT edited — it stays frozen; this is the new reading. Recorded by KATUI (seat lab1) from real runs.",
+  "recorded": "2026-08-08T08:05:00Z",
+  "release": {
+    "frontend_sha": "d8772df8",
+    "kwc_snapshot": "33993b7",
+    "note": "lab1 == kswap == pat. Production (app.katomia.com) is STILL on the previous release 0096a476 / kwc 8e6255c — deliberately not promoted."
+  },
+  "targets": {
+    "lab1": "https://lab1.katlab.kpay.live/m/katomia",
+    "pat": "https://pat.katomia.com",
+    "production": "https://app.katomia.com — previous release, used here only as the control for the probe finding below"
+  },
+  "vs_floor": {
+    "pass_floor_shrank": false,
+    "expected_fail_grew": false,
+    "allowed_change": "T:A5b.4 moved from expected_fail to PASS — the declared success criterion for TXSTATUS-CONSOLIDATE1 S4. WC-A5B-GHOST is now 8/8 on both lab1 and pat."
+  },
+  "results": [
+    { "id": "HBARXFER-01", "target": "lab1", "result": "pass", "detail": "59s, offer→lock→strike→Sign→kWallet→settle" },
+    { "id": "HBARXFER-01", "target": "pat", "result": "pass", "detail": "59s. FIRST pat board e2e signing pass on record. Game created on pat's own backend (hapi7) — see qa/harness/hbarxfer-pat-cron.sh." },
+    { "id": "WC-A5B-GHOST", "target": "lab1", "result": "8/8", "detail": "A5b.4 now passes — ghost sign gives up inside the tx validity window, not at 120s" },
+    { "id": "WC-A5B-GHOST", "target": "pat", "result": "8/8", "detail": "identical to lab1 on the deployed bundle — environment equivalence holds" },
+    { "id": "WCNETSWITCH-01", "target": "lab1", "result": "pass" },
+    { "id": "WCNETSWITCH-02", "target": "lab1", "result": "pass" },
+    { "id": "journey", "target": "pat", "result": "pass", "detail": "landing→card→board, clean URLs" },
+    { "id": "validdur-decode-matrix", "target": "backend-alpha", "result": "12/12" },
+    { "id": "S2-mechanics", "target": "lab1", "result": "6/6", "detail": "synthetic: settle window, failure-lands, terminal-drop, advice-live, cross-tab, storage-fallback" },
+    { "id": "S3-tiering", "target": "lab1", "result": "4/4", "detail": "synthetic: live / superseded / lingering / fast-vanish" },
+    { "id": "S3-expiry-e2e", "target": "lab1", "result": "pass", "detail": "failure verdict at expiry+14.0s (pre-S3: 57-62s)" },
+    { "id": "S6-reconnect", "target": "lab1", "result": "pass", "detail": "synthetic: socket drop → fresh OPEN in ~1s; deliberate close → no reconnect" },
+    { "id": "S8-repair", "target": "lab1", "result": "pass", "detail": "e2e with kWallet: busy-refusal holds; full repair cycle restores an identical WC+manual account list" }
+  ],
+  "not_run": [
+    { "id": "WCNETSWITCH-01/02", "target": "pat", "why": "wc-netswitch-auto.cjs hardcodes lab1 in five places (game create, board URL ×2, kflow, results.php) — it has no BASE parameter, unlike hbarxfer-auto-spike.cjs. NOT run on pat rather than silently claimed. Parameterising it is QA-BENCHFREEZE1 item 1." },
+    { "id": "MAINNETSMOKE-01", "target": "any", "why": "left to its own 05:20 cron; currently ERRORing — see below." }
+  ],
+  "findings": [
+    {
+      "id": "probe-baseline-discrepancy",
+      "severity": "benchmark-accuracy, not a product regression",
+      "what": "The frozen baseline records `probe | production | clean | no failed requests`. Re-running probe.cjs today against BOTH pat (new release) and production (OLD release 0096a476) gives 6 identical net::ERR_ABORTED failures — relative-path asset requests under /board/<id>/ (katomia.css, kflow.js, katomia-init.js, katomia-core.js, katomia-localdb.js, katomia-board.css).",
+      "conclusion": "Production on the PREVIOUS release reproduces it exactly, so this is pre-existing and NOT caused by TXSTATUS-CONSOLIDATE1. What it does show is that the frozen baseline's 'probe clean' line is not reproducible as written — the exact command/URL was never recorded alongside the verdict, so it cannot be established what was actually measured.",
+      "lesson": "A benchmark entry must record the command that produced it, not just the verdict. Same class of gap as test ids that resolve to nothing.",
+      "followup": "Worth its own look: whether those aborted relative-path requests are benign (cancelled by a clean-URL redirect — the board does load and sign successfully on both targets) or a real waste on every board load."
+    },
+    {
+      "id": "MAINNETSMOKE-01",
+      "severity": "pre-existing, unrelated",
+      "what": "ERROR — 'sender join failed (got undefined)', 2 consecutive non-passes, last run on commit 405abe9. Pre-dates this work.",
+      "followup": "Needs its own investigation; not touched here."
+    },
+    {
+      "id": "WC-A5-ONLINE",
+      "severity": "pre-existing test infrastructure",
+      "what": "SILENT — harness hangs in its own pairing step. Bundle exonerated by isolated probe. QA-HARNESSREPAIR1."
+    }
+  ]
+}
