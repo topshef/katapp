@@ -1,6 +1,6 @@
 {
   "_about": "Post-TXSTATUS-CONSOLIDATE1 benchmark: the S1-S8 release measured on lab1 AND pat, after the user promoted to kswap and deployed pat. Compare against 2026-08-07-baseline.json (the frozen floor). The floor file itself is NOT edited — it stays frozen; this is the new reading. Recorded by KATUI (seat lab1) from real runs. UPDATED 09:10Z after the user promoted 343e87a (S8 Repair button removed) to kswap+pat and asked for the suite to be re-run against pat.",
-  "recorded": "2026-08-08T08:05:00Z",
+  "recorded": "2026-08-08T09:10:00Z",
   "release": {
     "frontend_sha": "343e87a9",
     "kwc_snapshot": "33993b7",
@@ -89,8 +89,8 @@
     {
       "id": "S8-repair",
       "target": "lab1",
-      "result": "pass",
-      "detail": "e2e with kWallet: busy-refusal holds; full repair cycle restores an identical WC+manual account list"
+      "result": "withdrawn",
+      "detail": "The S8 Repair button was REMOVED on 2026-08-08 (343e87a) at the user's instruction, so this result no longer describes anything shippable. Kept for the record: at the time it did pass (busy-refusal held; a full repair cycle restored an identical WC+manual account list). Superseded by WC-RESETWEDGE1, which owns the automatic self-heal."
     },
     {
       "id": "HBARXFER-01",
@@ -143,11 +143,6 @@
     },
     {
       "id": "MAINNETSMOKE-01",
-      "target": "any",
-      "why": "left to its own 05:20 cron; currently ERRORing — see below."
-    },
-    {
-      "id": "MAINNETSMOKE-01",
       "target": "pat",
       "why": "mainnet-smoke-auto.cjs is hardcoded to the lab1 board (same limitation as WCNETSWITCH). It is a MAINNET-dimension test and currently only runs against lab1."
     }
@@ -163,14 +158,15 @@
     },
     {
       "id": "MAINNETSMOKE-01",
-      "severity": "pre-existing, unrelated",
-      "what": "ERROR — 'sender join failed (got undefined)', 2 consecutive non-passes, last run on commit 405abe9. Pre-dates this work.",
-      "followup": "Needs its own investigation; not touched here."
+      "severity": "RESOLVED 2026-08-08",
+      "what": "Looked like 'ERROR, 2 consecutive non-passes'. It was NOT failing: a failed run on 08-07 left its own unanswered pairing proposal in kwallet-mainnet, and the cron's 'skip if any pending item' guard then muted the test entirely. The grid said non-passes; the truth was 'not run since'.",
+      "followup": "Fixed: all four cron guards now age pending items (only <30m blocks). Re-ran: PASS, real mainnet transfer, consensus 1786177210.454269104. Two older reds were harness flakes (boardPlayerModal pointer-intercept; #addAcctJoinAll landing race) — QA-HARNESSREPAIR1."
     },
     {
       "id": "WC-A5-ONLINE",
-      "severity": "pre-existing test infrastructure",
-      "what": "SILENT — harness hangs in its own pairing step. Bundle exonerated by isolated probe. QA-HARNESSREPAIR1."
+      "severity": "RESOLVED 2026-08-08 — and it was hiding a real product bug",
+      "what": "Reported SILENT. Root cause was not a flaky pairing step: window.WC.ensureNetwork() after a resetWalletLink()+reload NEVER SETTLES (no resolve, no reject, no error), and the harness had no step ceiling, so the cron's outer timeout killed it and it reported nothing for 14 days.",
+      "followup": "Harness fixed (ceilings; the redundant reset removed from the main flow — chromium.launch already gives a clean profile — and re-expressed as isolated assertion A5.0). Now 8/9 on lab1 AND pat, with A5.1-A5.8 green. The single red A5.0 is a genuine product defect: WC-RESETWEDGE1."
     }
   ]
 }
