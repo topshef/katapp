@@ -71,6 +71,11 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
          bank emoji and the word "markets" — both wrong once the product calls these
          circles — so it moves behind nerd mode as the raw, unfiltered grid. -->
     <a class="app-menu-item" href="<?= $katomiaBase ?>/circles">⭕ <?= htmlspecialchars($katomiaTerms['Many'], ENT_QUOTES, 'UTF-8') ?></a>
+    <!-- CIRCLE-HOSTPAGE1 (user 2026-08-08): "we might even have this as something on the
+         hamburger menu actually because it's kind of a call to action for people to
+         host." Sits next to the circles list because that is the pair: browse what
+         exists, or run one yourself. Not nerd-gated — hosting is the product. -->
+    <a class="app-menu-item" href="<?= $katomiaBase ?>/host">🎪 Host</a>
     <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
     <a class="app-menu-item nerd-only" href="<?= $katomiaBase ?>/markets">🏛️ All markets (raw)</a>
     <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,

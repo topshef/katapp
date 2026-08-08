@@ -51,6 +51,10 @@ RewriteRule ^circles/?$ ?page=circles [L,QSA]
 # path for the same reason as /circles — the displayed term is a parameter, shared
 # links must not 404 when it changes.
 RewriteRule ^learn/?$ ?page=learn [L,QSA]
+# CIRCLE-HOSTPAGE1 (2026-08-08): the host console — edit the circles you own. Fixed path
+# for the same reason as /circles and /learn: the displayed term is a config parameter,
+# shared links must not 404 when it changes.
+RewriteRule ^host/?$ ?page=host [L,QSA]
 
 
 
@@ -62,6 +66,13 @@ RewriteRule ^keakonnect/?$ kea-bind.html [L,QSA]
 
 
 #hapi api router
-RewriteRule ^hapi/([a-z]+)/?$ hapi.php?action=$1 [L,QSA,E=TRACE:DE73672]
+# CIRCLE-HOSTPAGE1 (2026-08-08): widened from ^hapi/([a-z]+)/?$ — that matched a SINGLE
+# all-lowercase segment, so any nested or id-bearing backend route was unreachable
+# through the proxy (hapi/circle/update 404'd, and so did hapi/game/<ID>, since game ids
+# are mixed case). Now allows letters, digits, / _ and -.
+# SAFE BY OMISSION: hapi.php interpolates this straight into
+# https://<hapi_base>/katomia/$action, and the class below has NO DOT — so "..", hidden
+# files and traversal out of /katomia/ are all unexpressible. Do not add "." here.
+RewriteRule ^hapi/([a-zA-Z0-9/_-]+)/?$ hapi.php?action=$1 [L,QSA,E=TRACE:DE73672]
 
 #RewriteRule ^game/([^/]+)/?$ ?game=$1 [R=302,L]
