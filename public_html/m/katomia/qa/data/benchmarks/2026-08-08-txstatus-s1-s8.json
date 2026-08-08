@@ -1,10 +1,10 @@
 {
-  "_about": "Post-TXSTATUS-CONSOLIDATE1 benchmark: the S1-S8 release measured on lab1 AND pat, after the user promoted to kswap and deployed pat. Compare against 2026-08-07-baseline.json (the frozen floor). The floor file itself is NOT edited — it stays frozen; this is the new reading. Recorded by KATUI (seat lab1) from real runs.",
+  "_about": "Post-TXSTATUS-CONSOLIDATE1 benchmark: the S1-S8 release measured on lab1 AND pat, after the user promoted to kswap and deployed pat. Compare against 2026-08-07-baseline.json (the frozen floor). The floor file itself is NOT edited — it stays frozen; this is the new reading. Recorded by KATUI (seat lab1) from real runs. UPDATED 09:10Z after the user promoted 343e87a (S8 Repair button removed) to kswap+pat and asked for the suite to be re-run against pat.",
   "recorded": "2026-08-08T08:05:00Z",
   "release": {
-    "frontend_sha": "d8772df8",
+    "frontend_sha": "343e87a9",
     "kwc_snapshot": "33993b7",
-    "note": "lab1 == kswap == pat. Production (app.katomia.com) is STILL on the previous release 0096a476 / kwc 8e6255c — deliberately not promoted."
+    "note": "lab1 == kswap == pat, all on 343e87a9 / kwc 33993b7. Production (app.katomia.com) is STILL on 0096a476 / 8e6255c — deliberately not promoted."
   },
   "targets": {
     "lab1": "https://lab1.katlab.kpay.live/m/katomia",
@@ -17,23 +17,140 @@
     "allowed_change": "T:A5b.4 moved from expected_fail to PASS — the declared success criterion for TXSTATUS-CONSOLIDATE1 S4. WC-A5B-GHOST is now 8/8 on both lab1 and pat."
   },
   "results": [
-    { "id": "HBARXFER-01", "target": "lab1", "result": "pass", "detail": "59s, offer→lock→strike→Sign→kWallet→settle" },
-    { "id": "HBARXFER-01", "target": "pat", "result": "pass", "detail": "59s. FIRST pat board e2e signing pass on record. Game created on pat's own backend (hapi7) — see qa/harness/hbarxfer-pat-cron.sh." },
-    { "id": "WC-A5B-GHOST", "target": "lab1", "result": "8/8", "detail": "A5b.4 now passes — ghost sign gives up inside the tx validity window, not at 120s" },
-    { "id": "WC-A5B-GHOST", "target": "pat", "result": "8/8", "detail": "identical to lab1 on the deployed bundle — environment equivalence holds" },
-    { "id": "WCNETSWITCH-01", "target": "lab1", "result": "pass" },
-    { "id": "WCNETSWITCH-02", "target": "lab1", "result": "pass" },
-    { "id": "journey", "target": "pat", "result": "pass", "detail": "landing→card→board, clean URLs" },
-    { "id": "validdur-decode-matrix", "target": "backend-alpha", "result": "12/12" },
-    { "id": "S2-mechanics", "target": "lab1", "result": "6/6", "detail": "synthetic: settle window, failure-lands, terminal-drop, advice-live, cross-tab, storage-fallback" },
-    { "id": "S3-tiering", "target": "lab1", "result": "4/4", "detail": "synthetic: live / superseded / lingering / fast-vanish" },
-    { "id": "S3-expiry-e2e", "target": "lab1", "result": "pass", "detail": "failure verdict at expiry+14.0s (pre-S3: 57-62s)" },
-    { "id": "S6-reconnect", "target": "lab1", "result": "pass", "detail": "synthetic: socket drop → fresh OPEN in ~1s; deliberate close → no reconnect" },
-    { "id": "S8-repair", "target": "lab1", "result": "pass", "detail": "e2e with kWallet: busy-refusal holds; full repair cycle restores an identical WC+manual account list" }
+    {
+      "id": "HBARXFER-01",
+      "target": "lab1",
+      "result": "pass",
+      "detail": "59s, offer→lock→strike→Sign→kWallet→settle"
+    },
+    {
+      "id": "HBARXFER-01",
+      "target": "pat",
+      "result": "pass",
+      "detail": "59s. FIRST pat board e2e signing pass on record. Game created on pat's own backend (hapi7) — see qa/harness/hbarxfer-pat-cron.sh."
+    },
+    {
+      "id": "WC-A5B-GHOST",
+      "target": "lab1",
+      "result": "8/8",
+      "detail": "A5b.4 now passes — ghost sign gives up inside the tx validity window, not at 120s"
+    },
+    {
+      "id": "WC-A5B-GHOST",
+      "target": "pat",
+      "result": "8/8",
+      "detail": "identical to lab1 on the deployed bundle — environment equivalence holds"
+    },
+    {
+      "id": "WCNETSWITCH-01",
+      "target": "lab1",
+      "result": "pass"
+    },
+    {
+      "id": "WCNETSWITCH-02",
+      "target": "lab1",
+      "result": "pass"
+    },
+    {
+      "id": "journey",
+      "target": "pat",
+      "result": "pass",
+      "detail": "landing→card→board, clean URLs"
+    },
+    {
+      "id": "validdur-decode-matrix",
+      "target": "backend-alpha",
+      "result": "12/12"
+    },
+    {
+      "id": "S2-mechanics",
+      "target": "lab1",
+      "result": "6/6",
+      "detail": "synthetic: settle window, failure-lands, terminal-drop, advice-live, cross-tab, storage-fallback"
+    },
+    {
+      "id": "S3-tiering",
+      "target": "lab1",
+      "result": "4/4",
+      "detail": "synthetic: live / superseded / lingering / fast-vanish"
+    },
+    {
+      "id": "S3-expiry-e2e",
+      "target": "lab1",
+      "result": "pass",
+      "detail": "failure verdict at expiry+14.0s (pre-S3: 57-62s)"
+    },
+    {
+      "id": "S6-reconnect",
+      "target": "lab1",
+      "result": "pass",
+      "detail": "synthetic: socket drop → fresh OPEN in ~1s; deliberate close → no reconnect"
+    },
+    {
+      "id": "S8-repair",
+      "target": "lab1",
+      "result": "pass",
+      "detail": "e2e with kWallet: busy-refusal holds; full repair cycle restores an identical WC+manual account list"
+    },
+    {
+      "id": "HBARXFER-01",
+      "target": "pat",
+      "result": "pass",
+      "detail": "59s on 343e87a9 — re-run after the Repair-button removal. Second consecutive pat e2e signing pass."
+    },
+    {
+      "id": "WC-A5B-GHOST",
+      "target": "pat",
+      "result": "8/8",
+      "detail": "re-run on 343e87a9, incl. A5b.4"
+    },
+    {
+      "id": "WC-A5-ONLINE",
+      "target": "pat",
+      "result": "8/9",
+      "detail": "A5.1-A5.8 pass; the single red is A5.0, the known WC-RESETWEDGE1 product defect. IDENTICAL to lab1 — environment equivalence holds on the newly-instrumented harness too."
+    },
+    {
+      "id": "WC-A5-ONLINE",
+      "target": "lab1",
+      "result": "8/9",
+      "detail": "was SILENT for 14 days before 2026-08-08; harness given step ceilings, now reports"
+    },
+    {
+      "id": "MAINNETSMOKE-01",
+      "target": "lab1",
+      "result": "pass",
+      "detail": "real mainnet transfer, consensus 1786177210.454269104. Was muted since 08-07 by the stale-pending cron guard, not failing."
+    },
+    {
+      "id": "journey",
+      "target": "pat",
+      "result": "pass",
+      "detail": "re-run on 343e87a9"
+    },
+    {
+      "id": "repair-button-absent",
+      "target": "pat",
+      "result": "pass",
+      "detail": "the promoted removal verified in the real profile modal: no button, no kauthRepairConnection, no 'repair' text anywhere; Remove still present and wired; zero page errors"
+    }
   ],
   "not_run": [
-    { "id": "WCNETSWITCH-01/02", "target": "pat", "why": "wc-netswitch-auto.cjs hardcodes lab1 in five places (game create, board URL ×2, kflow, results.php) — it has no BASE parameter, unlike hbarxfer-auto-spike.cjs. NOT run on pat rather than silently claimed. Parameterising it is QA-BENCHFREEZE1 item 1." },
-    { "id": "MAINNETSMOKE-01", "target": "any", "why": "left to its own 05:20 cron; currently ERRORing — see below." }
+    {
+      "id": "WCNETSWITCH-01/02",
+      "target": "pat",
+      "why": "wc-netswitch-auto.cjs hardcodes lab1 in five places (game create, board URL ×2, kflow, results.php) — it has no BASE parameter, unlike hbarxfer-auto-spike.cjs. NOT run on pat rather than silently claimed. Parameterising it is QA-BENCHFREEZE1 item 1."
+    },
+    {
+      "id": "MAINNETSMOKE-01",
+      "target": "any",
+      "why": "left to its own 05:20 cron; currently ERRORing — see below."
+    },
+    {
+      "id": "MAINNETSMOKE-01",
+      "target": "pat",
+      "why": "mainnet-smoke-auto.cjs is hardcoded to the lab1 board (same limitation as WCNETSWITCH). It is a MAINNET-dimension test and currently only runs against lab1."
+    }
   ],
   "findings": [
     {
