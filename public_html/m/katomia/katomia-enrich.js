@@ -29,7 +29,9 @@ async function getTokenMeta(network, tokenId, serial){
 		productId
 	}
 
-	return await Kache.getData("/m", params, 86400)
+	// ENRICH-COLDPATH1: "/m" (no trailing slash) 301-redirects to "/m/", so every
+	// asset lookup paid two round trips — 12 wasted redirects on a 13-asset board.
+	return await Kache.getData("/m/", params, 86400)
 }
 
 
