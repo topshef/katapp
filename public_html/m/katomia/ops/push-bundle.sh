@@ -54,8 +54,17 @@ rsync $RSYNC_FLAGS -e "$SSH" "$BUILD/" "$REMOTE:$DEST/"
 $SSH $REMOTE bash -s </dev/null <<EOF
 set -euo pipefail
 cp "$DEST/_site/pagevisit.php" "$DEST/_site/logEvent.php" "$SITE/"
-chown -R www-data:www-data "$SITE/data" "$SITE/logs" "$DEST/cache" "$DEST/m/cache" "$DEST/logs" 2>/dev/null || true
-chown -R www-data:www-data "$DEST"
+# ENRICH-COLDPATH1 (2026-08-08): the upstream-metadata caches must OUTLIVE a
+# deploy. They used to live inside the release dir, so every flip handed users an
+# empty cache and the next visitor re-paid the full upstream fetch for every asset
+# on the board — exactly the "it's slow again after a deployment" report. Point
+# them at persistent site-level dirs (same idea as data/ and logs/).
+mkdir -p "$SITE/cache" "$SITE/m-cache"
+rm -rf "$DEST/cache" "$DEST/m/cache"
+ln -sfnT "$SITE/cache"   "$DEST/cache"
+ln -sfnT "$SITE/m-cache" "$DEST/m/cache"
+chown -R www-data:www-data "$SITE/data" "$SITE/logs" "$SITE/cache" "$SITE/m-cache" "$DEST/logs" 2>/dev/null || true
+chown -R --no-dereference www-data:www-data "$DEST"
 if [ ! -f "$SITE/.env_hapi" ]; then
   echo "FATAL: $SITE/.env_hapi missing — create it (HAPI_BASE=<backend host>),"
   echo "chmod 644 root:www-data (OPS-GCE1 L-fix4: 600 = silent dead-backend fallback)."
