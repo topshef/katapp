@@ -22,9 +22,23 @@ set -a; source /opt/kwallet/.env; set +a
 
 STATE=$(curl -s "http://127.0.0.1:8790/api/state?token=$KWALLET_TOKEN")
 MODE=$(echo "$STATE" | python3 -c "import json,sys;print(json.load(sys.stdin)['mode'])")
-PENDING=$(echo "$STATE" | python3 -c "import json,sys;print(len(json.load(sys.stdin)['pending']))")
-if [ "$PENDING" != "0" ]; then
-  echo "kWallet has $PENDING pending item(s) — skipping this run (don't interrupt a human)."
+# STALE-PENDING FIX (2026-08-08): a FAILED run leaves its own unanswered pairing
+# proposal behind, and the old "skip on ANY pending" guard then muted the test
+# indefinitely — three HBARXFER runs were skipped overnight 2026-08-07 for exactly
+# this, and MAINNETSMOKE-01 had been mute since 08-07. Only RECENT items count as
+# "a human is mid-approval"; stale ones are reported and ignored.
+STALE_MIN="${STALE_MIN:-30}"
+read -r PENDING FRESH STALE <<<"$(echo "$STATE" | STALE_MIN="$STALE_MIN" python3 -c "
+import json,sys,time,os
+p=json.load(sys.stdin).get('pending',[])
+cut=time.time()*1000-float(os.environ['STALE_MIN'])*60000
+fresh=[x for x in p if x.get('createdAt',0)>=cut]
+print(len(p),len(fresh),len(p)-len(fresh))")"
+if [ "$STALE" != "0" ]; then
+  echo "WARNING: kWallet holds $STALE pending item(s) older than ${STALE_MIN}m — abandoned by a previous failed run. NOT skipping for those."
+fi
+if [ "$FRESH" != "0" ]; then
+  echo "kWallet has $FRESH recent pending item(s) — skipping this run (don't interrupt a human)."
   exit 0
 fi
 
