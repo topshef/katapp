@@ -17,6 +17,11 @@
   .section li{ margin: 3px 0; }
   .stat{ font-size: 12px; color: #555; background: #f1ede2; border-radius: 8px; padding: 6px 10px; margin-top: 10px; }
   .stat b{ color: #222; }
+  .banner{ background: #fff8e1; border: 1px solid #f0d9a0; border-left: 5px solid #e0a800; border-radius: 10px;
+           padding: 12px 16px; margin: 0 0 18px; font-size: 13px; line-height: 1.5; }
+  .banner b{ color: #222; }
+  .banner a{ font-weight: 600; margin-left: 6px; }
+  .banner span{ display: block; color: #6b5b32; margin-top: 5px; }
 </style>
 </head>
 <body>
@@ -27,6 +32,18 @@
      links, seat internals), do a deliberate pass: layer the page into public + internal
      sections and filter, rather than ad-hoc hiding. Tracked in katomia task
      QA-PUBLICSPLIT1. -->
+<!-- QA-REORG1 banner (user 2026-08-08: "put a link to the reorg plan as a banner at
+     the top of the QA page so I remember to pick that up"). Deliberately a pinned
+     reminder, not a dismissible notice — it comes down when the reorg is done. -->
+<div class="banner">
+  <b>📋 This page is due a reorganisation.</b>
+  <a href="https://kpay.uk/devtools/kpad/file?p=servers/lincoln/docs/QA-REORG1-PLAN.html&amp;proj=katomia" target="_blank">QA-REORG1 — the plan</a>
+  <span>Measured 2026-08-08: 578 verdicts in 30 days from only <b>7 distinct tests</b>, 94% of them three crons repeating;
+  0 manual runs ever recorded; 19 instances declared vs 7 that report. Five of the seven are wallet/signing —
+  board, order mode, auth and mobile have no tests at all. The plan covers what to keep, merge and drop here,
+  plus the work plan. Not started.</span>
+</div>
+
 <h1>Katomia QA</h1>
 <p class="note">The QA tool embedded in the app (task <b>QA-UXGRID1</b>). Three layers: <b>documentation</b> explains the
 process (static-ish), <b>configuration</b> defines what we test (slow-moving, git change-controlled JSON), <b>results</b>

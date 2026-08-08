@@ -139,6 +139,11 @@
     },
     subscribe(fn){ subs.add(fn); return () => subs.delete(fn) },
     snapshot(txid){ return txs.get(txid) || null },
-    busy(){ for(const t of txs.values()) if(t.attempts.size) return t.txid; return null }   // S8: "is a sign in flight?"
+    // "is a sign in flight?" — kept deliberately though nothing calls it today:
+    // the S8 Repair button that used it was removed 2026-08-08, and the automatic
+    // self-heal that replaces it (WC-RESETWEDGE1) has the same hard requirement —
+    // never touch the wallet link mid-signature. One line, and it is the only
+    // place that can answer the question.
+    busy(){ for(const t of txs.values()) if(t.attempts.size) return t.txid; return null }
   }
 })()

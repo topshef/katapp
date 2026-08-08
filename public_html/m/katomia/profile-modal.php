@@ -90,14 +90,23 @@
           <button id="authAccountRemove" type="button" class="profile-auth-x hidden" title="Remove this account — disconnects the wallet session (if connected) and removes it from the game">Remove</button>
         </div>
 
-        <!-- TXSTATUS-CONSOLIDATE1 S8 (D1: manual, no auto-trigger): the stuck-link
-             recovery recipe as one button — snapshot accounts, remove, clear the
-             wallet link, re-pair, re-add (manual ⌨️ accounts included). Refused
-             while a signature request is in flight. Logic: kauthRepairConnection. -->
-        <div class="profile-auth-account">
-          <span class="profile-label"></span>
-          <button id="authRepairConnection" type="button" class="profile-auth-x" title="Fix a stuck wallet connection — removes and re-adds your accounts around a fresh pairing (the recovery that works when signing hangs)">🔧 Repair connection</button>
-        </div>
+        <!-- NO "Repair connection" BUTTON HERE — REMOVED 2026-08-08, and this comment
+             exists so nobody re-adds it. TXSTATUS-CONSOLIDATE1 S8 shipped one (D1:
+             "manual button first"); the user reversed that decision on sight of it,
+             and was right on three counts:
+               1. It was ALWAYS visible, with no idea whether anything was wrong —
+                  a mainnet transaction succeeded on pat and the menu still offered
+                  to "repair". A control that is permanently lit says nothing.
+               2. It asks the USER to fix OUR bug, by destroying their session and
+                  re-adding every account. Remove already exists for the thing a
+                  user legitimately wants to do.
+               3. It called WC.resetWalletLink(), which we have since PROVEN can
+                  wedge WC init permanently with no error (WC-RESETWEDGE1) — so the
+                  repair could leave someone worse off than the fault it treats.
+             The recovery recipe itself is real and stays documented in
+             WC-RESETWEDGE1; the right home for it is an automatic self-heal behind
+             a proven-safe reset, not a button. -->
+
 
         <!-- Commitment options — shown once an account is chosen. Flat grid items (not
              wrapping <label>s) so Expiry sits in the same 64px label column as
