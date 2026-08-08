@@ -53,6 +53,11 @@
       "id": "hbarxfer",
       "file": "data/classes/hbarxfer.json",
       "what": "HBAR transfer end-to-end (offer/lock/sign/execute) -- born from a live user test; automation blocked on QA-WCTEST1"
+    },
+    {
+      "id": "tests",
+      "file": "data/tests.json",
+      "what": "the TEST ID INDEX — every test id, what it asserts, where it runs, plus the T: naming convention. Viewer: tests.html"
     }
   ],
   "classes": [
@@ -62,6 +67,11 @@
     "chiparrange"
   ],
   "decisions": [
+    {
+      "date": "2026-08-08",
+      "what": "Test ids get a NAMING PREFIX and a HOME. Bare CAPS = a kPad task; T:<id> = a test case; T:<suite>.<n> = one assertion. Every test id mentioned in chat comes with its URL, same rule as the doc-link convention for tasks. The index is data/tests.json (viewer tests.html). Trigger: MAINNETSMOKE-01 and TXS-1 were quoted in chat as if they were tasks — they were neither tasks nor in the plan doc, and TXS-* existed only as prose inside QA-XFAIL1.json's `next` field, so no search could find them. Also fixed the same day: kwallet.html was linked from nowhere on the QA home.",
+      "by": "user"
+    },
     {
       "date": "2026-07-16",
       "what": "Harness options: A (static pairwise suite) + C (vision-assert benchmarks) adopted; B (agent-generated nightly instances) deferred until A is green and boring. Reporting: kflow test:start/test:verdict onto the shared retest grid.",

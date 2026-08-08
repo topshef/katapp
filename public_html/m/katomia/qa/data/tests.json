@@ -1,0 +1,152 @@
+{
+  "_about": "THE TEST ID INDEX — every test identifier we use, what it asserts, where it runs, and how to run it. Created 2026-08-08 (user) after MAINNETSMOKE-01 and TXS-1 were quoted in chat and could not be found anywhere: they were not tasks, and TXS-* existed only as prose inside QA-XFAIL1.json's `next` field. A test id must resolve to something you can open — that is what this file is for. Viewer: tests.html. Naming convention (PROTOCOL.md): a bare CAPITALISED reference is a kPad TASK; a test id is written T:<id> in prose and chat, and must come with its URL.",
+  "updated": "2026-08-08",
+  "convention": {
+    "task": "BARE CAPS — a kPad task, e.g. TXSTATUS-CONSOLIDATE1. Look it up in kPad.",
+    "test": "T:<id> — a test case, e.g. T:HBARXFER-01. Defined in this file; results on the QA grid.",
+    "assertion": "T:<suite>.<n> — one assertion inside a suite, e.g. T:A5b.4. Never a task."
+  },
+  "suites": [
+    {
+      "id": "HBARXFER-01",
+      "title": "The whole thing, end to end",
+      "asserts": "Two players join a board, one offers HBAR, both lock, the deal strikes, kWallet signs, it settles on Hedera.",
+      "kind": "e2e-signing",
+      "network": "testnet",
+      "harness": "qa/harness/hbarxfer-auto-spike.cjs",
+      "run": {
+        "lab1": "qa/harness/hbarxfer-cron.sh",
+        "pat": "qa/harness/hbarxfer-pat-cron.sh",
+        "any": "BASE=<site> GAME=<id> KWALLET_TOKEN=… node hbarxfer-auto-spike.cjs"
+      },
+      "schedule": "cron, every 2h (lab1)",
+      "reports": "kflow test:verdict → QA grid + kwallet.html",
+      "notes": "Needs a game created on the TARGET's own backend — a board can only play a game its backend knows about, so pointing BASE elsewhere is not sufficient on its own."
+    },
+    {
+      "id": "WCNETSWITCH-01",
+      "title": "Game is testnet, connector was built mainnet",
+      "asserts": "Rebuild for the right network, re-pair, sign — then reload and confirm it stayed right.",
+      "kind": "walletconnect",
+      "network": "testnet",
+      "harness": "qa/harness/wc-netswitch-auto.cjs",
+      "run": { "lab1": "qa/harness/wc-netswitch-cron.sh" },
+      "schedule": "cron, every 2h at :45 (offset from HBARXFER so they don't contend for kWallet)",
+      "reports": "kflow test:verdict → QA grid + kwallet.html"
+    },
+    {
+      "id": "WCNETSWITCH-02",
+      "title": "Nothing stale survives a network switch",
+      "asserts": "After switching, only the correct account is connected and the old session is gone.",
+      "kind": "walletconnect",
+      "network": "testnet",
+      "harness": "qa/harness/wc-netswitch-auto.cjs",
+      "run": { "lab1": "qa/harness/wc-netswitch-cron.sh" },
+      "schedule": "cron, every 2h at :45",
+      "reports": "kflow test:verdict → QA grid + kwallet.html"
+    },
+    {
+      "id": "WC-A5B-GHOST",
+      "title": "The wallet killed the session and never told us",
+      "asserts": "You clear connections in HashPack while katomia is CLOSED. Signing must fail fast and honestly instead of hanging. Eight assertions, A5b.1-A5b.8.",
+      "kind": "walletconnect",
+      "network": "testnet",
+      "harness": "/opt/kwallet/a5b-storage-ghost.cjs",
+      "run": {
+        "lab1": "qa/harness/wc-paths-cron.sh",
+        "any": "PAGE_URL=<site>/qa/wc-fixture.php?network=testnet node /opt/kwallet/a5b-storage-ghost.cjs"
+      },
+      "schedule": "cron, daily 04:35",
+      "reports": "kflow → QA grid + kwallet.html",
+      "assertions": [
+        { "id": "A5b.1", "asserts": "session established" },
+        { "id": "A5b.2", "asserts": "captured dApp session storage (IndexedDB)" },
+        { "id": "A5b.3", "asserts": "GHOST successfully created (dApp believes, wallet does not)" },
+        { "id": "A5b.4", "asserts": "sign against a ghost does not hang — must give up inside the tx's validity window, not at the 120s cap",
+          "history": "FAILED at exactly 120.0s on lab1 AND production (2026-08-07); the frozen benchmark's only expected_fail. FIXED by TXSTATUS-CONSOLIDATE1 S4 (KWC snapshot 33993b7) — passes on lab1 and pat 2026-08-08. Fixture also corrected to a 40s validity window, matching the board's real one; the SDK default 120s made the <60s assertion unreachable regardless of bundle behaviour." },
+        { "id": "A5b.5", "asserts": "sign against a ghost fails loudly, never silently succeeds" },
+        { "id": "A5b.6", "asserts": "user can re-pair out of the ghost state" },
+        { "id": "A5b.7", "asserts": "sign after re-pair reaches the wallet on the NEW session" },
+        { "id": "A5b.8", "asserts": "no uncaught page errors" }
+      ]
+    },
+    {
+      "id": "WC-A5-ONLINE",
+      "title": "The wallet was cleared while katomia was open",
+      "asserts": "The wallet's delete reaches us, so we should detect it and re-pair cleanly.",
+      "kind": "walletconnect",
+      "network": "testnet",
+      "harness": "/opt/kwallet/a5-ghost-recovery.cjs",
+      "run": { "lab1": "qa/harness/wc-paths-cron.sh" },
+      "schedule": "cron, daily 04:35",
+      "state": "SILENT — the harness hangs in its own pairing step before reporting. The bundle is exonerated (isolated probe, 1.1s). A test that stops reporting is ranked as badly as a failure on kwallet.html. Fix tracked in QA-HARNESSREPAIR1.",
+      "notes": "Passes on pre-fix bundles too, so treat it as a health check, NOT as proof the ghost fix works. T:WC-A5B-GHOST is the discriminating one."
+    },
+    {
+      "id": "MAINNETSMOKE-01",
+      "title": "The same board flow, on mainnet",
+      "asserts": "Real value, real network, once a day — the only test here that is not free to run.",
+      "kind": "e2e-signing",
+      "network": "mainnet",
+      "harness": "qa/harness/mainnet-smoke-auto.cjs",
+      "run": { "lab1": "qa/harness/mainnet-smoke-cron.sh" },
+      "schedule": "cron, daily 05:20",
+      "reports": "kflow test:verdict → QA grid + kwallet.html",
+      "state": "ERROR — 'sender join failed (got undefined)'. Pre-dates TXSTATUS-CONSOLIDATE1; not caused by it. Needs its own look."
+    },
+    {
+      "id": "CHIPARRANGE-01",
+      "title": "Chip arrangement / visual layout",
+      "kind": "visual",
+      "harness": "qa/harness/board-arrange.cjs",
+      "run": { "lab1": "node board-arrange.cjs" },
+      "schedule": "manual",
+      "state": "not assessed in the 2026-08-07 benchmark pass — visual class, not a signing test."
+    },
+    {
+      "id": "DOMAIN-SEND-01",
+      "title": "Domain send flow",
+      "kind": "e2e",
+      "harness": "qa/harness/domain-send.cjs",
+      "run": { "lab1": "node domain-send.cjs" },
+      "schedule": "manual"
+    },
+    {
+      "id": "validdur-decode-matrix",
+      "title": "Transaction validity-duration decode matrix",
+      "asserts": "12 cases: Long int64 decode, SignedTransaction wrapper, cross-shape misuse fallbacks, absent field, garbage, real production fixture bytes, expiry arithmetic.",
+      "kind": "backend-unit",
+      "harness": "qa-validdur-tests.js (backend repo root)",
+      "run": { "backend": "cd /home/hbarlive_hts && node qa-validdur-tests.js" },
+      "schedule": "manual",
+      "reports": "stdout only — not on the grid"
+    }
+  ],
+  "expected_fail": {
+    "_about": "QA-XFAIL1: assertions written to FAIL today, each mapped to the stage of TXSTATUS-CONSOLIDATE1 that should turn it green, so a red does not read as a regression. Only A5b.4 was ever automated; the TXS-* below are specified but NOT YET IMPLEMENTED as harnesses — that is the open half of QA-XFAIL1.",
+    "cases": [
+      { "id": "TXS-1", "asserts": "An abandoned Sign tap never produces a user-visible message after the transaction it belonged to is dead. (Tap Sign, abandon, complete a DIFFERENT tx, wait past 120s.)", "stage": "S2", "runnable_by_hand": true, "status": "specified, not automated; behaviour fixed by S2 — mechanics covered by the S2 synthetic suite" },
+      { "id": "TXS-2", "asserts": "Every transaction message names its txid, including board:sign:error's kdiag payload.", "stage": "S2", "status": "specified, not automated; fixed by S2 (txid+accountId added)" },
+      { "id": "TXS-3", "asserts": "Two board tabs: a verdict shown in one can never be re-declared by the other.", "stage": "S2", "runnable_by_hand": true, "status": "specified, not automated; fixed by S2 (localStorage re-read + BroadcastChannel)" },
+      { "id": "TXS-4", "asserts": "A failure verdict arrives within 15s of expiry. Measured pre-fix: 57-62s.", "stage": "S3", "runnable_by_hand": true, "status": "fixed by S3 — measured 14.0s e2e on lab1 2026-08-07" },
+      { "id": "TXS-5", "asserts": "No full-board wiper plays for a verdict older than a few seconds, or once a newer signing window has opened.", "stage": "S3", "runnable_by_hand": true, "status": "fixed by S3 — tiering suite 4/4" },
+      { "id": "TXS-6", "asserts": "A negative signal followed by a positive one within ~1.2s shows success only (the settle window).", "stage": "S2", "status": "fixed by S2 — covered by the S2 synthetic suite" },
+      { "id": "TXS-7", "asserts": "A success verdict records its provenance — mirror node vs socket.", "stage": "S5", "status": "implemented by S5 (⚡ socket / ⛓ mirror / 🛰 backend glyph); no automated assertion yet" },
+      { "id": "ORD-1", "asserts": "Order-mode expiry comes from the backend window, not a hardcoded 2m30s client clock.", "stage": "S7", "status": "fixed by S7 — guess deleted; no automated assertion yet" },
+      { "id": "A5b.4", "asserts": "A sign against a dead session gives up inside the transaction's validity window, not at 120s.", "stage": "S4", "status": "AUTOMATED and now PASSING — see T:WC-A5B-GHOST above" }
+    ]
+  },
+  "not_covered_by_automation": [
+    "mobile sign with the wallet backgrounded (kWallet is always awake — it cannot fail this)",
+    "deliberately slow approval ~45s",
+    "HashPack's own session lifecycle by hand (extension vs mobile app)",
+    "animation and timing judgement — whether the wiper/confetti lands at the right moment"
+  ],
+  "related_tasks": {
+    "QA-XFAIL1": "the expected-fail set above",
+    "QA-HARNESSREPAIR1": "T:WC-A5-ONLINE silence + the #addAcctJoinAll visibility flake",
+    "QA-BENCHFREEZE1": "the frozen do-not-go-backwards floor (data/benchmarks/) + a target-parameterised runner",
+    "QA-GRIDWATCH1": "repeated-failure watcher over the grid",
+    "TXSTATUS-CONSOLIDATE1": "the S1-S8 work the TXS-* cases were written for"
+  }
+}

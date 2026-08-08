@@ -46,6 +46,9 @@ shows testing happening (live). </p>
     catalogue, decisions. Designing tests and fixing bugs updates this layer — every change is a git commit.</p>
     <ul>
       <li><a href="config.html">Dimensions · canaries · classes · decisions</a></li>
+      <!-- 2026-08-08 (user): a test id must resolve to something you can open —
+           MAINNETSMOKE-01 and TXS-1 were quoted in chat and findable nowhere. -->
+      <li><a href="tests.html">Test index — every test id, what it asserts, how to run it</a></li>
     </ul>
     <div class="stat" id="cfgStat">loading…</div>
   </div>
@@ -55,6 +58,11 @@ shows testing happening (live). </p>
     <p class="blurb">Testing happening: the retest grid (commits across, cases down — same idea as the backend's
     kflow-admin), the manual-run recorder, recent runs.</p>
     <ul>
+      <!-- 2026-08-08 (user): kwallet.html existed but was linked from nowhere on this
+           page — the one screen that answers "is signing healthy right now" was only
+           reachable if you already knew the filename. It goes FIRST. -->
+      <li><a href="kwallet.html"><b>kWallet / signing — current status</b></a> — one screen, the wallet
+          and signing tests only; a silent test is ranked as badly as a failing one</li>
       <li><a href="results.html">Results dashboard + run recorder</a></li>
       <li><a href="tx.html">Transaction log — every mainnet/testnet tx attempted, start→lock→consensus→end</a></li>
       <li><a href="katrun.php">katrun index — scripted runs, demo loops, live status, spec shape</a></li>
