@@ -4,7 +4,8 @@
   "convention": {
     "task": "BARE CAPS — a kPad task, e.g. TXSTATUS-CONSOLIDATE1. Look it up in kPad.",
     "test": "T:<id> — a test case, e.g. T:HBARXFER-01. Defined in this file; results on the QA grid.",
-    "assertion": "T:<suite>.<n> — one assertion inside a suite, e.g. T:A5b.4. Never a task."
+    "assertion": "T:<suite>.<n> — one assertion inside a suite, e.g. T:A5b.4. Never a task.",
+    "reproduction": "A FAILING TEST MUST SAY HOW TO REPRODUCE IT. No red is reported — here, in chat, or on the dashboard — without concrete steps someone can follow. If the only way to trigger it is inside a harness, it is a harness artefact and must not be reported as a product failure (WC-RESETWEDGE1, 2026-08-08)."
   },
   "suites": [
     {
@@ -35,7 +36,8 @@
       ],
       "pass_means": "A '🟩 Transaction successful' verdict appears on the board and the transfer is real on Hedera testnet. This is the only test that exercises the whole chain — board UI, lock rule, strike, WalletConnect, signing, submission, settlement, verdict.",
       "fails_when": "Any link in that chain breaks. Historically its most common failure is harness fragility, not product breakage (see QA-HARNESSREPAIR1).",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/hbarxfer-auto-spike.cjs"
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/hbarxfer-auto-spike.cjs",
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
     },
     {
       "id": "WCNETSWITCH-01",
@@ -59,7 +61,8 @@
       ],
       "pass_means": "The connector ends up on testnet with the right account, and STAYS there after a reload.",
       "fails_when": "The bundle signs on a mainnet-scoped pairing — wrong-network signers, which is what WC-NETSCOPE1 fixed.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/wc-netswitch-auto.cjs"
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/wc-netswitch-auto.cjs",
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
     },
     {
       "id": "WCNETSWITCH-02",
@@ -81,7 +84,8 @@
       ],
       "pass_means": "Only the correct account is connected; the old session is gone.",
       "fails_when": "A stale session from the previous network survives the switch.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/wc-netswitch-auto.cjs"
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/wc-netswitch-auto.cjs",
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
     },
     {
       "id": "WC-A5B-GHOST",
@@ -144,7 +148,8 @@
       "fails_when": "It hangs (was 120s until TXSTATUS-CONSOLIDATE1 S4), or worse, resolves as if it worked.",
       "why_it_matters": "This is the discriminating ghost test — it reproduces the exact scenario where a user clears connections in HashPack while katomia is closed. T:WC-A5-ONLINE passes even on broken bundles; this one does not.",
       "harness_url": null,
-      "harness_note": "lives on the box at /opt/kwallet/ (not web-served — it runs its own in-process wallet peer)"
+      "harness_note": "lives on the box at /opt/kwallet/ (not web-served — it runs its own in-process wallet peer)",
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
     },
     {
       "id": "WC-A5-ONLINE",
@@ -157,7 +162,7 @@
         "lab1": "qa/harness/wc-paths-cron.sh"
       },
       "schedule": "cron, daily 04:35",
-      "state": "8/9 — A5.1-A5.8 all PASS (the ghost-recovery scenario itself is healthy). The single red is the newly-added A5.0, which is a genuine product defect (WC-RESETWEDGE1). Was SILENT for 14 days until 2026-08-08: an unbounded ensureNetwork hang ate the whole run, so it reported nothing — the silence was hiding BOTH a passing test and a real bug.",
+      "state": "8/8 — healthy. Was SILENT for 14 days until 2026-08-08 (an unbounded hang ate the whole run and it reported nothing); harness given step ceilings, and a redundant resetWalletLink removed from its main flow. An A5.0 assertion added the same day was WITHDRAWN hours later: it failed only on accumulated harness state, not on any user path — see WC-RESETWEDGE1 for the full correction.",
       "dimension": "testnet · WalletConnect",
       "cost": "free",
       "what_it_does": [
@@ -173,11 +178,6 @@
       "harness_url": null,
       "harness_note": "lives on the box at /opt/kwallet/ (not web-served — it runs its own in-process wallet peer)",
       "assertions": [
-        {
-          "id": "A5.0",
-          "asserts": "wallet link resets cleanly — ensureNetwork settles after resetWalletLink()+reload",
-          "history": "ADDED 2026-08-08. Currently FAILS: ensureNetwork never settles (45s ceiling hit). This is a REAL PRODUCT DEFECT, not a harness issue — reproduced in isolation. Tracked as WC-RESETWEDGE1. Runs LAST and in its own page so a wedge cannot take A5.1-A5.8 down with it."
-        },
         {
           "id": "A5.1",
           "asserts": "initial connect"
@@ -210,7 +210,9 @@
           "id": "A5.8",
           "asserts": "no uncaught page errors throughout"
         }
-      ]
+      ],
+      "user_confirmed": "2026-08-08: the user ran this scenario by hand on pat — cleared every connection in HashPack, left the accounts in katomia, then traded. It re-paired and presented the transaction for approval without a stumble. Matches A5.1-A5.8.",
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
     },
     {
       "id": "MAINNETSMOKE-01",
@@ -237,7 +239,8 @@
       "pass_means": "A real transfer reaches consensus on Hedera mainnet, with a real consensus timestamp.",
       "fails_when": "Anything testnet cannot tell us about: mainnet node behaviour, real fees, the mainnet account's own state (e.g. the payer running dry), mainnet-only config.",
       "why_it_matters": "Everything else here runs on testnet, where the system is thoroughly exercised and free. This test exists for the things that are only true on mainnet. A testnet-green / mainnet-red split is meaningful information, not a duplicate.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/mainnet-smoke-auto.cjs"
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/mainnet-smoke-auto.cjs",
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
     },
     {
       "id": "CHIPARRANGE-01",
@@ -257,7 +260,8 @@
       ],
       "pass_means": "Chips land where the layout rules say they should.",
       "fails_when": "A layout or arrangement regression. Not a signing test — it does not belong on the kWallet page.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/board-arrange.cjs"
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/board-arrange.cjs",
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
     },
     {
       "id": "DOMAIN-SEND-01",
@@ -275,7 +279,8 @@
       ],
       "pass_means": "The send completes.",
       "fails_when": "The flow breaks.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/domain-send.cjs"
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/domain-send.cjs",
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
     },
     {
       "id": "validdur-decode-matrix",
@@ -295,7 +300,8 @@
       ],
       "pass_means": "All 12 decode to the right duration or fall back safely.",
       "fails_when": "A decoder silently returns the wrong window — which is how a transaction's real deadline and the UI's idea of it drift apart.",
-      "harness_note": "backend repo root, not web-served"
+      "harness_note": "backend repo root, not web-served",
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
     }
   ],
   "expected_fail": {
