@@ -258,8 +258,12 @@ async function getAccountLabelXProof(network, accountId){
   // https://xproof.live/domain/query/0.0.27500
   // https://xproof.live/api/?accountId=0.0.27500
   // return await Kache.getData("https://xproof.live/api/", params, 86400)
-  return await Kache.getData(`https://xproof.live/domain/query/${accountId}`, params, 86400)
-  
+  // ENRICH-COLDPATH1: 5s cap. This is a third-party lookup for a COSMETIC label;
+  // a hung query here used to stall the whole enrich pass (measured: one account
+  // never responded in 30s). On abort getData throws and the caller's catch drops
+  // the label — the board just shows the account id, which is the pre-label state.
+  return await Kache.getData(`https://xproof.live/domain/query/${accountId}`, params, 86400, 5000)
+
 }
 
 async function enrichAccountLabel(network, accountId){

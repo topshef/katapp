@@ -540,8 +540,19 @@ function connect(onOpenAction){
 		// deferred; boardTouchDrag runs it once on release.
 		if(window.__boardDragging){ window.__boardRenderPending = true; return }
 		await render()
-    await enrichAccountLabels()
-		await enrichAccountAssets()
+		// ENRICH-COLDPATH1 (2026-08-08): these two were awaited in SERIES, labels
+		// first. enrichAccountLabels calls a THIRD PARTY (xproof.live) once per
+		// mainnet account, so any slow or hung account query blocked every asset
+		// name and thumbnail on the board — and since enrichment only runs on a
+		// state broadcast, a quiet board then stayed unenriched indefinitely.
+		// Measured live: xproof /domain/query/0.0.9940704 never responded (>30s)
+		// while 0.0.25200 answered in 33ms, and assets NEVER enriched.
+		// Assets are the visible thing and are independent of labels — run both
+		// concurrently, and never let either one's failure sink the other.
+		await Promise.all([
+			enrichAccountAssets().catch(e => console.error("[enrich] assets failed", e)),
+			enrichAccountLabels().catch(e => console.error("[enrich] labels failed", e))
+		])
 		await loadThumbCache()
 		render()
 
