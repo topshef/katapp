@@ -51,6 +51,12 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
   .circle-top{ display:flex; align-items:baseline; gap:9px; margin-bottom:9px; flex-wrap:wrap; }
   .circle-name{ font-size:16.5px; font-weight:600; }
   .circle-id{ font-size:12px; color:#8b93a0; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  /* CIRCLE-HOSTPAGE1 R2 (user 2026-08-08): "it would be okay to put an emoji onto the
+     games that you own ... perhaps on the right hand edge of the button to indicate
+     that you are the host". A CUE ONLY — this page stays pure navigation, the user was
+     explicit that admin actions live on the host page and nowhere else. margin-left:auto
+     pushes it to the far edge of the flex row. */
+  .circle-host{ margin-left:auto; font-size:14px; line-height:1; }
 
   /* Every chip the markets grid shows is shown here too (user: "we can still show all
      the chips because that indicates how there are future possibilities to change
@@ -210,6 +216,8 @@ function circleKind(g){
 }
 
 function renderCircles(){
+  // read once per render, not per card — it parses JSON out of localStorage
+  const MY_KEY = typeof katomiaMyIntentKeyHex === "function" ? katomiaMyIntentKeyHex() : ""
   const list = document.getElementById("circlesList")
   const bar = document.getElementById("circlesFilters")
   const netOf = g => g.config?.network || g.network || ""
@@ -274,6 +282,7 @@ function renderCircles(){
         <div class="circle-top">
           <span class="circle-name">${esc(g.profile?.name || g.id)}</span>
           <span class="circle-id">${esc(g.id)}</span>
+          ${katomiaIsHostOf(g, MY_KEY) ? `<span class="circle-host" title="You host this ${esc(KTERMS.one)}">🎪</span>` : ""}
         </div>
         <div class="circle-chips">
           ${chips.map(c => `<span class="circle-chip ${c.cls || ""}">${esc(c.text)}</span>`).join("")}

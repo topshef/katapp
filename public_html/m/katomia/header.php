@@ -71,11 +71,6 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
          bank emoji and the word "markets" — both wrong once the product calls these
          circles — so it moves behind nerd mode as the raw, unfiltered grid. -->
     <a class="app-menu-item" href="<?= $katomiaBase ?>/circles">⭕ <?= htmlspecialchars($katomiaTerms['Many'], ENT_QUOTES, 'UTF-8') ?></a>
-    <!-- CIRCLE-HOSTPAGE1 (user 2026-08-08): "we might even have this as something on the
-         hamburger menu actually because it's kind of a call to action for people to
-         host." Sits next to the circles list because that is the pair: browse what
-         exists, or run one yourself. Not nerd-gated — hosting is the product. -->
-    <a class="app-menu-item" href="<?= $katomiaBase ?>/host">🎪 Host</a>
     <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
     <a class="app-menu-item nerd-only" href="<?= $katomiaBase ?>/markets">🏛️ All markets (raw)</a>
     <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
@@ -122,6 +117,19 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
       </button>
     </div>
     <button type="button" class="app-menu-item" data-menu-settings>⚙ Settings</button>
+    <?php endif; ?>
+    <?php if ($katomiaGameId): ?>
+    <!-- CIRCLE-HOSTPAGE1 R2 (user 2026-08-08, revising the previous global entry): "when
+         you are in a game, let's have the host menu only available ... if you are the
+         host, then the hamburger can show host options. But if you're not the host of
+         that game, don't show that option." So this is the ONLY route into the host
+         console from the UI, it is game-scoped, and it deep-links to this circle.
+         Rendered hidden and revealed by the script below — host-ness is a client-side
+         key comparison, so PHP cannot know it. Failing closed (hidden) is the right
+         default: a non-host who never sees it loses nothing, and the page + backend
+         both re-check ownership anyway. -->
+    <a class="app-menu-item" id="katomiaHostOptions" hidden
+       href="<?= $katomiaBase ?>/host?game=<?= rawurlencode($katomiaGameId) ?>">🎪 Host options</a>
     <?php endif; ?>
     <!-- KAT-FEEDBACK1-ENTRYPOINT1: explicit route to the feedback modal for users who
          don't know the long-press (falls back to the standalone page if the widget
@@ -405,3 +413,50 @@ document.addEventListener("DOMContentLoaded", () => {
   })
 })()
 </script>
+
+<?php if ($katomiaGameId): ?>
+<script>
+// ── CIRCLE-HOSTPAGE1 R2: reveal "🎪 Host options" only to this circle's host ─────────
+// Host-ness is a comparison between the circle's admin identifier and a key held in
+// THIS browser's localStorage, so the server cannot render this decision — the item ships
+// hidden and is revealed here, or never.
+//
+// TWO SOURCES, because neither covers every case on its own:
+//   gameMeta  — set from the WS payload (katomia-network.js) and carries meta.admin.
+//               The ONLY source that works for a PRIVATE circle, but it arrives async,
+//               hence the short poll rather than a single read.
+//   /hapi/game — works on any page with no websocket (game.php), for public + unlisted.
+//               Returns 403 for private, which is exactly the gap gameMeta closes.
+// Either saying "you're the host" is enough. Neither answering leaves it hidden, which is
+// the safe direction: the host page and the backend both re-check ownership regardless,
+// so a false negative costs discoverability, never access.
+(() => {
+  const item = document.getElementById("katomiaHostOptions")
+  if(!item) return
+  const gameId = <?= json_encode($katomiaGameId, JSON_UNESCAPED_SLASHES) ?>;
+
+  const reveal = () => { item.hidden = false }
+  const mine = () => (typeof katomiaMyIntentKeyHex === "function" ? katomiaMyIntentKeyHex() : "")
+  const isHost = g => (typeof katomiaIsHostOf === "function" ? katomiaIsHostOf(g, mine()) : false)
+
+  window.addEventListener("load", () => {
+    if(!mine()) return                       // no key in this browser: owns nothing
+
+    // A: poll for the WS meta (covers private circles). ~6s at 400ms, then give up —
+    // if the socket hasn't delivered by then the page has bigger problems than a menu.
+    let tries = 0
+    const t = setInterval(() => {
+      const meta = (typeof gameMeta !== "undefined") ? gameMeta : null
+      if(meta && isHost(meta)){ clearInterval(t); reveal(); return }
+      if(++tries > 15) clearInterval(t)
+    }, 400)
+
+    // B: API check in parallel (covers pages with no socket)
+    fetch("<?= $katomiaBase ?>/hapi/game/" + encodeURIComponent(gameId))
+      .then(r => r.json())
+      .then(d => { if(d?.ok && isHost(d.game)){ clearInterval(t); reveal() } })
+      .catch(() => {})
+  })
+})()
+</script>
+<?php endif; ?>

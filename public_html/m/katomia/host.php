@@ -76,6 +76,40 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' — host';
   .host-status.ok{ color:#1d8a44; }
   .host-status.bad{ color:#b3261e; }
 
+  /* Open-the-circle link (user: "trivially at the bottom of the page offer a link to the
+     game itself ... once you've edited the game you can just link directly to it"). */
+  .host-open{ display:inline-block; margin:2px 0 18px; font-size:14px; color:#2f6fed; text-decoration:none; }
+  .host-open:hover{ text-decoration:underline; }
+
+  /* ── Future actions, MOCKED (user asked to "mock up a bit of the UI ... we can always
+     wire that up later"). Rendered visibly INERT — greyed, cursor default, labelled
+     "not wired up yet" — rather than as working-looking controls with fake defaults.
+     A control that looks live and does nothing is worse than no control. */
+  .host-soon{ margin-top:26px; border-top:1px solid #eceff4; padding-top:18px; }
+  .host-soon h3{ font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:#98a0ad; margin:0 0 4px; }
+  .host-soon .host-hint{ margin:0 0 14px; }
+  .host-soonrow{
+    display:flex; align-items:center; gap:12px; padding:11px 13px; margin-bottom:9px;
+    border:1px dashed #d8dee8; border-radius:9px; background:#fbfcfe; opacity:.72;
+  }
+  .host-soonrow .ic{ font-size:17px; }
+  .host-soonrow b{ font-size:13.5px; color:#556; display:block; }
+  .host-soonrow span{ font-size:12.5px; color:#98a0ad; }
+  .host-soontag{
+    margin-left:auto; font-size:11px; font-weight:600; color:#98a0ad;
+    border:1px solid #dfe4ec; border-radius:999px; padding:2px 9px; background:#fff; white-space:nowrap;
+  }
+
+  /* ── Danger zone. Deliberately last, separated, and NOT the same shape as Save. */
+  .host-danger{ margin-top:26px; border-top:1px solid #f3d9d6; padding-top:18px; }
+  .host-danger h3{ font-size:13px; text-transform:uppercase; letter-spacing:.05em; color:#b3261e; margin:0 0 4px; }
+  .host-delete{
+    padding:9px 18px; border-radius:8px; border:1px solid #e5b5b0; background:#fff;
+    color:#b3261e; font-size:14px; cursor:pointer;
+  }
+  .host-delete:hover{ background:#fdf3f2; }
+  .host-delete[disabled]{ opacity:.5; cursor:default; }
+
   .host-empty{ background:#fff; border:1px solid #e3e7ee; border-radius:12px; padding:26px 20px; text-align:center; }
   .host-empty p{ color:#667; font-size:14.5px; margin:0 0 18px; }
   .host-cta{
@@ -103,6 +137,8 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' — host';
 const HOST_API = "<?= $katomiaBase ?>/hapi"
 const KTERMS = <?= json_encode($T, JSON_UNESCAPED_UNICODE) ?>;
 const CREATE_HREF = "<?= $katomiaBase ?>/create"
+const BOARD_HREF  = "<?= $katomiaBase ?>/board/"
+const CIRCLES_HREF = "<?= $katomiaBase ?>/circles"
 
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]))
@@ -222,9 +258,46 @@ function render(){
       <button id="fSave" class="host-save">Save changes</button>
       <span id="fStatus" class="host-status"></span>
     </div>
+
+    <a class="host-open" href="${esc(BOARD_HREF)}${encodeURIComponent(c.id)}">Open this ${esc(KTERMS.one)} →</a>
+
+    <div class="host-soon">
+      <h3>Coming to this panel</h3>
+      <p class="host-hint">Sketched so the shape is visible — none of these do anything yet.</p>
+      <div class="host-soonrow">
+        <span class="ic">🤝</span>
+        <span><b>Sponsorship</b><span>Approve who pays for this ${esc(KTERMS.one)}; their name shows in the welcome.</span></span>
+        <span class="host-soontag">not wired up</span>
+      </div>
+      <div class="host-soonrow">
+        <span class="ic">🚪</span>
+        <span><b>Players</b><span>Remove an account or a player from the board.</span></span>
+        <span class="host-soontag">not wired up</span>
+      </div>
+      <div class="host-soonrow">
+        <span class="ic">🔑</span>
+        <span><b>Transfer ownership</b><span>Hand this ${esc(KTERMS.one)} to another key or account.</span></span>
+        <span class="host-soontag">not wired up</span>
+      </div>
+      <div class="host-soonrow">
+        <span class="ic">🔒</span>
+        <span><b>Access</b><span>Change who may join or see it.</span></span>
+        <span class="host-soontag">not wired up</span>
+      </div>
+    </div>
+
+    <div class="host-danger">
+      <h3>Danger zone</h3>
+      <p class="host-hint">Deleting removes the ${esc(KTERMS.one)} and everything on its board, for everyone. It cannot be undone.</p>
+      <div class="host-actions">
+        <button id="fDelete" class="host-delete">Delete this ${esc(KTERMS.one)}</button>
+        <span id="fDelStatus" class="host-status"></span>
+      </div>
+    </div>
   </div>`
 
   document.getElementById("fSave").onclick = () => save(c)
+  document.getElementById("fDelete").onclick = () => remove(c)
 }
 
 async function save(c){
@@ -288,6 +361,70 @@ async function save(c){
     status.textContent = "Couldn't save — " + (err?.message || err)
   } finally {
     const b = document.getElementById("fSave")
+    if(b) b.disabled = false
+  }
+}
+
+// ── Delete (CIRCLE-HOSTPAGE1 R2) ────────────────────────────────────────────────────
+// Reuses the EXISTING signed katomia_deleteGame endpoint — the original admin verb, built
+// long before this page. Nothing new server-side.
+//
+// TYPE-TO-CONFIRM rather than a plain OK/Cancel: this is the one irreversible action on
+// the page, it destroys other people's boards as well as the host's, and the user asked
+// for "a more severe sort of red button with a warning, the confirmation that you know
+// that's irreversible". A confirm() dismissed by reflex is not that.
+async function remove(c){
+  const btn = document.getElementById("fDelete")
+  const status = document.getElementById("fDelStatus")
+  const label = c.profile?.name || c.id
+
+  const typed = prompt(
+    `Delete "${label}" permanently?\n\n` +
+    `Everything on its board goes with it, for every player, and it cannot be undone.\n\n` +
+    `Type the ${KTERMS.one} id to confirm:\n${c.id}`)
+  if(typed === null) return                                  // cancelled
+  if(String(typed).trim() !== c.id){
+    status.className = "host-status bad"
+    status.textContent = "That didn't match — nothing deleted."
+    return
+  }
+
+  btn.disabled = true
+  status.className = "host-status"
+  status.textContent = "Signing…"
+
+  try {
+    const { privateKey, publicKeyJwk } = await getOrCreatePlayerKeypair()
+    const payload = { type:"katomia_deleteGame", gameId: c.id, issuedAt: Date.now() }
+    const sigRaw = await crypto.subtle.sign("Ed25519", privateKey,
+      new TextEncoder().encode(JSON.stringify(payload)))
+
+    const res = await fetch(HOST_API + "/delete", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        payload,
+        signature: { alg:"Ed25519", pubkeyHex: jwkXToHex(publicKeyJwk.x), sig: bytesToBase64(new Uint8Array(sigRaw)) }
+      })
+    })
+    const data = await res.json()
+    if(!res.ok || !data?.ok) throw new Error(data?.error || ("HTTP " + res.status))
+
+    // drop it locally too, or the host page keeps re-fetching a dead id every load
+    try {
+      const seen = JSON.parse(localStorage.getItem("katomiaMyCircles") || "[]")
+      localStorage.setItem("katomiaMyCircles", JSON.stringify(seen.filter(x => x !== c.id)))
+    } catch(e){}
+
+    CIRCLES = CIRCLES.filter(x => x.id !== c.id)
+    SELECTED = CIRCLES.length ? CIRCLES[0].id : null
+    history.replaceState(null, "", SELECTED ? "?game=" + encodeURIComponent(SELECTED) : location.pathname)
+    render()
+  } catch(err){
+    console.error("[host] delete failed", err)
+    status.className = "host-status bad"
+    status.textContent = "Couldn't delete — " + (err?.message || err)
+    const b = document.getElementById("fDelete")
     if(b) b.disabled = false
   }
 }
