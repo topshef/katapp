@@ -402,6 +402,11 @@
 <script src="<?= kasset('katomia-network.js') ?>"></script>
 <script src="<?= kasset('katomia-modals.js') ?>"></script>
 <script src="<?= kasset('katomia-render.js') ?>"></script>
+<!-- TXSTATUS-CONSOLIDATE1 S7: the tx/wallet status controller, so order-mode
+     auto-sign reports through it (terminal dedup + settle window + a real
+     user-visible surface) instead of kdiag-only. Must load BEFORE
+     katomia-render-orders.js, which subscribes at module top level. -->
+<script src="<?= kasset('katomia-txstatus.js') ?>"></script>
 <script src="<?= kasset('katomia-render-orders.js') ?>"></script>
 <script src="<?= kasset('katomia-market.js') ?>"></script>
 <!-- QR: davidshimjs build already bundled with kpool_widget — same file the offline

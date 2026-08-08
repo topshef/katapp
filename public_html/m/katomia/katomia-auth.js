@@ -392,6 +392,61 @@ async function kauthRemoveAccount(){
   kauthRenderAccounts(accounts)
 }
 
+// TXSTATUS-CONSOLIDATE1 S8 (D1: manual button first): the 2026-08-07 desktop
+// recovery, mechanised. The wedge that evening survived relay restarts,
+// transport reconnects and re-pairing on its own — it only cleared when the
+// GAME-SIDE account state was also discarded (four auth:remove:clicks, fresh
+// pairing, ping 4001ms-timeout -> 631ms OK, signature 1.9s later). Sequence:
+// snapshot accounts FIRST (three of the four removed that night were manual
+// ⌨️ accounts that a naive reset would simply lose), remove them from the
+// game, wipe the WC link (resetWalletLink -> forced fresh pairing), re-pair,
+// re-add the snapshot. Refused while a sign is in flight — txstatus.busy()
+// is the reason this stage sits after the controller. Auto-trigger after N
+// ping timeouts: deliberately NOT built (D1 — manual until seen working in
+// the wild). Known limitation, stated in the confirm: accounts re-join with
+// ALL their assets; an asset-subset join is not reproduced.
+async function kauthRepairConnection(){
+  const network = kauthNetwork()
+  const busyTx = window.katomiaTxStatus?.busy?.()
+  if(busyTx){
+    kauthDiag("repair:refused-busy", { txid: busyTx })
+    notify?.("A signature request is in flight — wait for it to finish, then repair.", "warning", { timeout: 6000 })
+    return
+  }
+  if(!window.WC){ notify?.("WalletConnect not loaded yet", "error", { timeout: 3000 }); return }
+  let wcAccts = []
+  try { wcAccts = await kauthWCAccounts(network, false) } catch {}
+  const wcSet = new Set(wcAccts)
+  const snapshot = kauthGameAccounts().map(a => ({ id: a.id, label: a.label, isWc: wcSet.has(a.label) }))
+  if(!snapshot.length && !wcAccts.length){ notify?.("Nothing to repair — no accounts connected or in this game.", "info", { timeout: 4000 }); return }
+  if(!confirm(`Repair the wallet connection?\n\nThis removes ${snapshot.length} account(s) from this game, clears the wallet link, re-pairs (approve in your wallet), then re-adds the same accounts with all their assets.`)) return
+  kauthDiag("repair:start", { count: snapshot.length, wc: wcAccts.length, network })
+  const btn = document.getElementById("authRepairConnection")
+  if(btn) btn.disabled = true
+  try {
+    for(const a of snapshot)
+      if(typeof removeAccount === "function") removeAccount(a.id, { confirmed: true })
+    kauthSetStatus("Clearing wallet link…")
+    try { await window.WC.resetWalletLink?.() } catch(e){ kauthDiag("repair:reset-error", { error: String(e) }) }
+    kauthSetStatus("Re-pairing — approve in your wallet…")
+    document.documentElement.style.setProperty("--wcm-z-index", "2147483000")
+    try { if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network) } catch {}
+    window.kauthPruneWcModals?.()
+    let paired = null
+    try { paired = await window.WC.connect?.() } catch(e){ kauthDiag("repair:pair-error", { error: String(e) }) }
+    kauthSetStatus("Re-adding accounts…")
+    for(const a of snapshot)
+      if(typeof addAccounts === "function") addAccounts(a.label)
+    kauthDiag("repair:done", { paired, readded: snapshot.length })
+    notify?.(paired
+      ? `Connection repaired — re-paired as ${paired}, ${snapshot.length} account(s) re-adding.`
+      : `${snapshot.length} account(s) re-adding — pairing was not completed; use ➕ Add account → Connect wallet to pair.`,
+      paired ? "success" : "warning", { timeout: 8000 })
+    kauthSetStatus("")
+    kauthRenderAccounts(await kauthWCAccounts(network, false))
+  } finally { if(btn) btn.disabled = false }
+}
+
 // Reads the expiry dropdown: "" (No expiry) -> null; a ms offset -> ISO string;
 // no control -> undefined so buildAuthChallenge falls back to its +24h default.
 function kauthReadExpiry(){
@@ -659,6 +714,9 @@ function initKatomiaAuth(){
 
   const remove = document.getElementById("authAccountRemove")
   if(remove) remove.onclick = () => kauthRemoveAccount()
+
+  const repair = document.getElementById("authRepairConnection")
+  if(repair) repair.onclick = () => kauthRepairConnection()
 
   // Re-render the live commitment statement when an option changes.
   for(const id of ["authExpiry", "authScope"]){

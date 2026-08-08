@@ -138,6 +138,7 @@
       diag("txstatus:negative-queued", { txid, source, kind, settleMs: SETTLE_MS })
     },
     subscribe(fn){ subs.add(fn); return () => subs.delete(fn) },
-    snapshot(txid){ return txs.get(txid) || null }
+    snapshot(txid){ return txs.get(txid) || null },
+    busy(){ for(const t of txs.values()) if(t.attempts.size) return t.txid; return null }   // S8: "is a sign in flight?"
   }
 })()

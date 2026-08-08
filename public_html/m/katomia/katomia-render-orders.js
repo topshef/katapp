@@ -678,6 +678,18 @@ function getTxStartSeconds(tx){
 
 
 
+// TXSTATUS-CONSOLIDATE1 S7: the tx's REAL validity window. Priority mirrors the
+// board's (KATOMIA-VALIDDUR1 round 3): the backend-broadcast validDurationSeconds
+// stamped on pending records by postCluster (the same number handed to
+// setTransactionValidDuration), else the pchbasis decode. Returns null when
+// neither is present (legacy stored records).
+function getTxValidDurationSeconds(tx){
+  if(tx?.validDurationSeconds) return Number(tx.validDurationSeconds)
+  const d = tx?.pchbasis?.transactionValidDuration
+  const s = typeof d === "object" ? Number(d?.seconds || 0) : Number(d || 0)
+  return s || null
+}
+
 function isTxExpired(tx){
 
   if(isTxSuccessStatus(getTxStatus(tx))) return false
@@ -685,9 +697,16 @@ function isTxExpired(tx){
   const seconds = getTxStartSeconds(tx)
   if(!seconds) return false
 
-  const ageMs = Date.now() - (seconds * 1000)
+  // S7: was a HARDCODED 2m30s client-clock guess vs the board's real 40s
+  // window — the exact class of independently-guessed deadline ripped out of
+  // the board on 2026-07-15 for disagreeing with the backend, still live here
+  // and gating auto-sign (it would happily request a signature for a tx dead
+  // for a minute and a half). Real window + 10s ingest grace (matches the
+  // bundle's own S4 bound); 180s only as the ceiling for legacy records
+  // that carry no duration at all.
+  const durS = getTxValidDurationSeconds(tx) || 180
 
-  return ageMs > ((2 * 60 + 30) * 1000)
+  return Date.now() - (seconds * 1000) > (durS + 10) * 1000
 
 }
 
@@ -718,6 +737,19 @@ const TX_LIST_MAX = 50
 // Local hex/txRead helpers: katomia-board.js has twins but is not loaded on
 // this (game.php) page — small dup over a new shared file (rapid-iteration).
 const _txAutoSign = new Map()   // txid → "requesting" | "signed" | "failed"
+
+// TXSTATUS-CONSOLIDATE1 S7: order mode's user-visible surface — auto-sign
+// outcomes were kflow/kdiag-only ("a sixth surface that reports nothing to
+// the user", plan §2 row 6). Signals route through the controller, so they
+// inherit terminal dedup and the settle window; toast copy stays here.
+window.katomiaTxStatus?.subscribe(ev => {
+  if(ev.type === "advice" && ev.detail?.message)
+    notify(ev.detail.message, ev.detail.level || "warning", { timeout: ev.detail.timeout ?? 6000, detail: ev.txid })
+})
+const orderReportAdvice = (txid, d) =>
+  window.katomiaTxStatus
+    ? window.katomiaTxStatus.report(txid, { source: "wallet", kind: "advice", detail: d })
+    : notify(d.message, d.level || "warning", { timeout: d.timeout ?? 6000 })
 
 function orderHexToBytes(hex){
   const out = new Uint8Array(hex.length / 2)
@@ -782,11 +814,24 @@ async function maybeAutoSignTx(tx){
   _txAutoSign.set(txid, "requesting")
   try { window.kflow?.("order:autosign", "request", { txid, account: active, auth: _auth }) } catch {}
   renderTransactions()
+  // S7: register with the controller — real expiry (validStart+duration) for
+  // watch, and an attempt whose abort cancels the in-flight KWC request on
+  // supersede/terminal (rule 4, same shape as the board path).
+  const _vsSec = getTxStartSeconds(tx)
+  window.katomiaTxStatus?.watch(txid, { network,
+    expiry: _vsSec && getTxValidDurationSeconds(tx) ? (_vsSec + getTxValidDurationSeconds(tx)) * 1000 : null })
+  const _attemptId = window.katomiaTxStatus?.attempt(txid, { accountId: active,
+    abort: () => { try { wc.cancelInFlight?.({ label: `signTx:${active}`, reason: "superseded or terminal" }) } catch {} } })
   try {
     let bytes = tx.txhex ? orderHexToBytes(tx.txhex) : null
     if(!bytes) bytes = await orderReadTxBytes(network, txid)
     if(!bytes) throw new Error("transaction bytes unavailable")
     const { signedTransactionHex } = await wc.signTx({ accountId: active, transactionBytes: bytes })
+    // S7 / SIGN-DEADTX1 item 1: expiry was only checked at ENTRY; the WC
+    // round-trip can outlive the window, and saving a signature for a dead tx
+    // reports "signed" for something that can never land. The S4 bundle bound
+    // makes a very late return rare; this closes the boundary case.
+    if(isTxExpired(tx)) throw new Error("expired during wallet round-trip — signature not saved")
     const save = await fetch("/future/?action=txSave", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -796,10 +841,17 @@ async function maybeAutoSignTx(tx){
     if(!save.ok) throw new Error(`signature save failed (${save.status})`)
     _txAutoSign.set(txid, "signed")
     try { window.kflow?.("order:autosign", "signed", { txid, account: active }) } catch {}
+    orderReportAdvice(txid, { message: `✍ Order matched — signed as ${active}`, level: "success", timeout: 5000 })
   } catch(e){
     _txAutoSign.set(txid, "failed")
     try { window.kflow?.("order:autosign", "fail", { txid, error: String(e?.message || e) }) } catch {}
     try { katomiaDiagSend?.("order:autosign:error", { txid, error: String(e?.message || e) }) } catch {}
+    // S4/S7: cancelled = superseded/terminal, deliberate silence
+    const _em = String(e?.message || e)
+    if(!/^KWC-CANCELLED/.test(_em))
+      orderReportAdvice(txid, { message: /^KWC-/.test(_em) ? "⚠ " + _em.replace(/^KWC-[A-Z-]+: /, "") : `Order auto-sign failed: ${_em}`, level: "error", timeout: 10000 })
+  } finally {
+    if(_attemptId) window.katomiaTxStatus?.attemptDone(_attemptId)
   }
   renderTransactions()
 }

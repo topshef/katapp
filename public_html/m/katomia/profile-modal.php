@@ -90,6 +90,15 @@
           <button id="authAccountRemove" type="button" class="profile-auth-x hidden" title="Remove this account — disconnects the wallet session (if connected) and removes it from the game">Remove</button>
         </div>
 
+        <!-- TXSTATUS-CONSOLIDATE1 S8 (D1: manual, no auto-trigger): the stuck-link
+             recovery recipe as one button — snapshot accounts, remove, clear the
+             wallet link, re-pair, re-add (manual ⌨️ accounts included). Refused
+             while a signature request is in flight. Logic: kauthRepairConnection. -->
+        <div class="profile-auth-account">
+          <span class="profile-label"></span>
+          <button id="authRepairConnection" type="button" class="profile-auth-x" title="Fix a stuck wallet connection — removes and re-adds your accounts around a fresh pairing (the recovery that works when signing hangs)">🔧 Repair connection</button>
+        </div>
+
         <!-- Commitment options — shown once an account is chosen. Flat grid items (not
              wrapping <label>s) so Expiry sits in the same 64px label column as
              Network/Account, with Scope beside it getting the wider share. -->

@@ -727,11 +727,18 @@ function boardUpdateBanner(){
   boardSetBanner(null)
 }
 
-function boardShowResult(txid, ok, tier){
+// S5 / rule 6 (user: "some very subtle visual cue as to how that success was
+// reported, whether it came through mirror node or WebSocket"): one glyph,
+// appended to the verdict text. ⚡ receipt pushed on the per-tx socket ·
+// ⛓ asked the chain (mirror node) · 🛰 backend game-state broadcast.
+const BOARD_PROVENANCE_GLYPH = { socket: "⚡", mirror: "⛓", "backend-state": "🛰" }
+
+function boardShowResult(txid, ok, tier, source){
   if(boardSuccessAcked.has(txid)) return
   boardSuccessAcked.add(txid)
   boardSaveAckedTx(boardSuccessAcked)
-  boardDiag("board:result:shown", { txid, ok, ...(tier ? { tier } : {}) })
+  boardDiag("board:result:shown", { txid, ok, ...(tier ? { tier } : {}), ...(source ? { source } : {}) })
+  const prov = BOARD_PROVENANCE_GLYPH[source] ? ` ${BOARD_PROVENANCE_GLYPH[source]}` : ""
   // read by the wipe branch below (~4442) so the spotlight lift can match
   // whichever celebration is actually playing — confetti (~4.25s) on
   // success vs the wiper sweep (~1.5s) on failure, instead of always using
@@ -785,10 +792,10 @@ function boardShowResult(txid, ok, tier){
         // EMOJI SEMANTICS (user 2026-08-03): ✅ tick = consensus reached; an expired/
         // failed tx never made the chain, so NO square there — ⌛. The txid itself is
         // the clickable link (linkText), not a tiny arrow after it.
-        ok ? "✅ Transaction successful" : `⌛ Transaction failed or expired · ${txid}`,
+        ok ? `✅ Transaction successful${prov}` : `⌛ Transaction failed or expired${prov} · ${txid}`,
         { link: link?.href || null, linkText: ok ? txid : null })
     else
-      notify(ok ? "🟩 Transaction successful" : "🟥 Transaction failed or expired",
+      notify(ok ? `🟩 Transaction successful${prov}` : `🟥 Transaction failed or expired${prov}`,
         ok ? "success" : "error",
         { timeout: 0, link, key: `txresult:${txid}`, ...(link ? {} : { detail: txid }) })
   } catch {}
@@ -812,7 +819,7 @@ const boardReportTxAdvice = (txid, source, d) =>
     ? window.katomiaTxStatus.report(txid, { source, kind: "advice", detail: d })
     : notify(d.message, d.level || "warning", { timeout: d.timeout ?? 6000 })
 window.katomiaTxStatus?.subscribe(ev => {
-  if(ev.type === "verdict") boardShowResult(ev.txid, ev.ok, ev.tier)
+  if(ev.type === "verdict") boardShowResult(ev.txid, ev.ok, ev.tier, ev.source)
   // advice toasts carry their txid as detail text — every message names its tx
   else if(ev.type === "advice" && ev.detail?.message)
     notify(ev.detail.message, ev.detail.level || "warning", { timeout: ev.detail.timeout ?? 6000, detail: ev.txid })
@@ -890,6 +897,34 @@ function boardHandleTxUpdate(txid, update){
   if(update?.sigs) boardRefreshSignStatus()   // event-driven — don't wait for the poll tick
 }
 
+// S6 / D2 (user 2026-08-07): reconnect lives HERE, the vendor websocket.js
+// stays untouched (shared with the kpool widget). Correctness no longer
+// depends on this socket (BOARD-TXTRUTH1 asks the chain) but every drop cost
+// a mirror round-trip and up to the full absence window — the 07:48 double
+// spend started exactly this way. Backoff 1s·2·4·8 capped at 10s; stops when
+// this txid is superseded or terminal. Re-subscribe is free: the vendor's own
+// open handler always sends the subscribe frame.
+async function boardCreateTxSocket(txid){
+  const { createTxSocket } = await import("/vendor/kpay/kpool_widget/websocket.js")
+  let closed = false, attempt = 0
+  const wrapper = { socket: null, close(){ closed = true; try { wrapper.socket?.close() } catch {} } }
+  const open = () => {
+    if(closed) return
+    const s = createTxSocket({ baseUrl: window.CONFIG?.HAPI_BASE || "", txid,
+      onTxUpdate: update => boardHandleTxUpdate(txid, update) })
+    wrapper.socket = s
+    s.addEventListener("open", () => { attempt = 0 })
+    s.addEventListener("close", () => {
+      if(closed || _boardTxSocketId !== txid || boardSuccessAcked.has(txid)) return
+      const delay = Math.min(1000 * 2 ** attempt++, 10_000)
+      boardDiag("board:txsocket:reconnect", { txid, attempt, delayMs: delay })
+      setTimeout(open, delay)
+    })
+  }
+  open()
+  return wrapper
+}
+
 // One socket per txid entering the signing phase; torn down when it leaves.
 // Runs alongside boardEnsureSignStatusPoll (poll is now just a safety net —
 // the socket is primary, matching how the widget itself is documented: "WS is
@@ -911,13 +946,9 @@ function boardEnsureTxSocket(){
   // pending watch is now the only source of an expiry/failure verdict.
   ;(async () => {
     try {
-      const { createTxSocket } = await import("/vendor/kpay/kpool_widget/websocket.js")
-      if(_boardTxSocketId !== txid) return   // superseded while the import was in flight
-      _boardTxSocket = createTxSocket({
-        baseUrl: window.CONFIG?.HAPI_BASE || "",
-        txid,
-        onTxUpdate: update => boardHandleTxUpdate(txid, update)
-      })
+      const sock = await boardCreateTxSocket(txid)
+      if(_boardTxSocketId !== txid){ sock.close(); return }   // superseded while the import was in flight
+      _boardTxSocket = sock
       boardDiag("board:txsocket:open", { txid })
       // honest fallback: if the grace passes with no receipt push at all (socket
       // down, backend hiccup), say so — do NOT guess success or failure
