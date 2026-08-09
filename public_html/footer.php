@@ -10,8 +10,8 @@
             <p>Follow us</p>
             <ul class="social-icons">
               <!-- <li><a rel="nofollow" href="#" target="_blank"><i class="fa fa-facebook"></i></a></li> -->
-              <li><a href="https://x.com/<?php echo $twitter_handle; ?>"><i class="fa-brands fa-x-twitter"></i></a></li>
               <li><a href="https://www.instagram.com/gomint.co" target="_blank"><i class="fa-brands fa-instagram"></i></a></li>
+              <li><a href="https://x.com/<?php echo $twitter_handle; ?>"><i class="fa-brands fa-x-twitter"></i></a></li>
               <!-- <li><a href="#"><i class="fa fa-linkedin"></i></a></li> -->
             </ul>
           </div>
