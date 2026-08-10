@@ -445,32 +445,46 @@ export function renderWalletConnectSigner(container, {
 					return
 				}
 
-				// GM-SIGNSUBMIT-DIAG1 (user 2026-08-10): the user expects that when THIS
-				// signature completes the whole threshold (the last one), HashPack should
-				// sign-AND-execute directly rather than handing the signed bytes back to
-				// the server to submit. Right now submitNow is hardcoded false — the wallet
-				// only signs, and saveSignedTransaction() posts the bytes back for the
-				// server (GoMint/hapi) to broadcast. computeSignerPreview already knows
-				// whether this account 'completes' the threshold; log it so we can see, on
-				// the next real sign, whether the code even detects the last-signer case
-				// and confirm the current behaviour is "return to server, never wallet-exec".
+				// GM-SIGNSUBMIT1 (user 2026-08-10): AUTO mode — when THIS signature
+				// completes the whole threshold (the last one), let the wallet sign AND
+				// submit directly instead of handing the bytes back to the server. The
+				// bundle (signTxCoreV2) re-checks completeness against the actual tx bytes
+				// and downgrades to sign-only if any other required sig is missing, so an
+				// incomplete multisig can never be broadcast. submitServerSide overrides
+				// mirror the deal-flow's three states: on = always return to server,
+				// off = always wallet-submit, absent/auto = last-signer decides (default).
 				let _preview = null
 				try { _preview = (typeof signerPreview === 'function') ? signerPreview(accountId) : null } catch (e) {}
 				const _completesThreshold = _preview?.state === 'completes'
-				const _submitNow = false   // ← current hardcoded behaviour (server submits)
+				let _sseMode = 'auto'
+				try {
+					const _raw = new URLSearchParams(location.search).get('submitServerSide')
+					const _v = _raw === null ? 'auto' : String(_raw).trim().toLowerCase()
+					_sseMode = (_v === '' || _v === 'auto' || _v === 'null') ? 'auto'
+						: (_v === '0' || _v === 'false' || _v === 'off') ? 'off' : 'on'
+				} catch (e) {}
+				const _submitNow = _sseMode === 'off' ? true
+					: _sseMode === 'on' ? false
+					: _completesThreshold   // auto: wallet-submit only when this sig completes the set
 				kdiag('signer:sign:submit-decision', {
 					accountId, txid,
 					previewState: _preview?.state ?? null,   // 'completes' == this is the last needed signature
 					completesThreshold: _completesThreshold,
+					sseMode: _sseMode,
 					submitNow: _submitNow,
-					behaviour: _submitNow ? 'wallet signs AND executes' : 'wallet signs only → bytes returned to server to submit',
-					note: _completesThreshold && !_submitNow
-						? 'LAST SIGNER but still returning to server — this is the flow the user flagged'
-						: null
+					behaviour: _submitNow ? 'wallet signs AND submits (last signer)' : 'wallet signs only → bytes returned to server to submit'
 				})
 
 				const result = await wc.signTx({ accountId, transactionBytes, submitNow: _submitNow })
-				kdiag('signer:sign:signed', { accountId, poolSrc })
+				kdiag('signer:sign:signed', { accountId, poolSrc, resultStatus: result?.status ?? 'signed_only' })
+
+				// GM-SIGNSUBMIT1: wallet already broadcast — nothing to save, just surface
+				// success and let polling/WS reconcile the on-chain status into the modal.
+				if (result?.status === 'submitted') {
+					kdiag('signer:sign:wallet-submitted', { accountId, txid, transactionId: result.transactionId })
+					onSigned?.({ success: true, submitted: true, result: { transactionId: result.transactionId } })
+					return
+				}
 
 				const saveResult = await saveSignedTransaction({
 					network,

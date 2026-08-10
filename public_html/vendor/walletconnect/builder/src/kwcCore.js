@@ -1451,8 +1451,15 @@ async function signTxCore ({
 
 async function signTxCoreV2 ({
   accountId,
-  transactionBytes
+  transactionBytes,
+  submitNow    // GM-SIGNSUBMIT1: when true AND this signature completes the set,
+               // the wallet SIGNS+SUBMITS (executeWithSigner) instead of returning
+               // bytes to the server. Guarded: if any other required signer's sig
+               // is missing from the bytes we downgrade to sign-only, so an
+               // incomplete multisig is never broadcast. Absent/false = legacy
+               // sign-only (unchanged).
 }) {
+  let _submit = !!submitNow
   if (!accountId)
     throw new Error("Missing accountId")
 
@@ -1512,6 +1519,27 @@ async function signTxCoreV2 ({
     await transaction.freezeWithSigner(signer)
   }
 
+  // GM-SIGNSUBMIT1: last-signer submit guard. Only relevant when the caller asked
+  // to submit (auto mode decided this signature completes the threshold). Reuse the
+  // deal-flow's completeness check: if any OTHER required signer's signature is not
+  // already present in these bytes, DON'T let the wallet broadcast (that would reach
+  // consensus and fail INVALID_SIGNATURE, burning the payer's fee) — fall back to
+  // sign-only and let the server collect/submit. Guard error ⇒ safe fallback too.
+  if (_submit) {
+    try {
+      const _verdict = await assessSignatureCompleteness(transaction, accountId)
+      try { window.kdiag?.("wc:sign:submit-guard", { accountId, submitRequested: true, block: _verdict.block, missing: _verdict.missing, requiredOthers: _verdict.requiredOthers, sigCount: _verdict.sigCount }) } catch {}
+      if (_verdict.block) _submit = false
+    } catch (e) {
+      try { window.kdiag?.("wc:sign:submit-guard-error", { accountId, error: String(e) }) } catch {}
+      _submit = false
+    }
+  }
+  // The wallet action for this tx: execute (sign+submit) when _submit survived the
+  // guard, else sign-only. Shared by the primary attempt and the self-heal retry so
+  // both ride the SAME validity-window cap / in-flight guard below.
+  const _walletAct = (txn, sgnr) => _submit ? txn.executeWithSigner(sgnr) : sgnr.signTransaction(txn)
+
   // WalletConnect signature request (NO execution) — guarded (WC-RELAYHEALTH1):
   // transport loss mid-request rejects after a 15s recovery grace; a 120s absolute
   // cap ends the eternal await.
@@ -1560,7 +1588,7 @@ async function signTxCoreV2 ({
 
   let signedTransaction
   try {
-    signedTransaction = await Promise.race([signer.signTransaction(transaction), g.promise])
+    signedTransaction = await Promise.race([_walletAct(transaction, signer), g.promise])
   } catch (e) {
     // R2b: self-heal instead of dead-ending. If the wallet says this session is gone
     // ("No matching key", "Record was recently deleted", "session topic doesn't
@@ -1585,8 +1613,9 @@ async function signTxCoreV2 ({
     const tx2 = Transaction.fromBytes(transactionBytes)
     if (!tx2.isFrozen()) await tx2.freezeWithSigner(retrySigner)
     // S4: the retry rides the SAME guard/cap — previously it was a bare await,
-    // an eternal-hang hole the module's own doctrine forbids.
-    signedTransaction = await Promise.race([retrySigner.signTransaction(tx2), g.promise])
+    // an eternal-hang hole the module's own doctrine forbids. GM-SIGNSUBMIT1: same
+    // sign-vs-execute choice as the primary attempt (_submit already guard-resolved).
+    signedTransaction = await Promise.race([_walletAct(tx2, retrySigner), g.promise])
   } finally {
     g.done()          // sets settled FIRST, so a late ping callback can't re-arm the cap
     clearTimeout(_cap)
@@ -1595,6 +1624,14 @@ async function signTxCoreV2 ({
 	// dont save.. let the client do it (affects reporting on "new" signatures)
   // const saveResult = await saveSignedTransaction(signedTransaction)
 
+  // GM-SIGNSUBMIT1: in submit mode the wallet already broadcast — `signedTransaction`
+  // here is the execute RESULT (has transactionId), not a signable tx. Return the
+  // submitted shape; the caller must NOT save bytes to the server (already on chain).
+  if (_submit) {
+    const _txId = signedTransaction?.transactionId?.toString?.() || String(signedTransaction?.transactionId || "")
+    try { window.kdiag?.("wc:sign:submitted", { accountId, transactionId: _txId }) } catch {}
+    return { status: "submitted", transactionId: _txId }
+  }
 
   // Encode for transport
   const signedBytes =
