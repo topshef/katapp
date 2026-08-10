@@ -315,11 +315,21 @@ function verifyTransfersAgainstBytes(data, transfers) {
 	// network fee INTO the payer's own hbar line (bytes: payer -35000000; mirror:
 	// payer -36541133 + fee row to 0.0.802), so the payer's byte-row finds no 1:1
 	// match and a plain subset check false-alarms on every settled tx (live case
-	// 2026-07-24, tx 0.0.10177400@1784851229). Accept the residual ONLY when it is
-	// exactly fee-shaped: hbar-only, the payer is the only account paying more
-	// than the bytes said, the excess lands only on accounts outside the tx body
-	// (node/fee collectors), and the whole thing nets to zero. Any token/NFT drift
-	// or a non-payer account short still fails loudly.
+	// 2026-07-24, tx 0.0.10177400@1784851229). A second settlement artifact
+	// (user feedback 2f3f224b, 2026-08-10, tx 0.0.657983@1786348260.004285748):
+	// pending STAKING REWARDS pay out inside the same record — 0.0.800 shows a
+	// large debit and an in-body account (payer/participant) nets MORE than the
+	// bytes said, sometimes ending net-positive overall. Neither leg was in the
+	// signed bytes and neither is a red flag after consensus.
+	// Accept the residual ONLY when it is settlement-shaped: hbar-only; the only
+	// accounts paying beyond the bytes are the payer (fees) and the network's
+	// settlement accounts (0.0.98 fee collection, 0.0.800 staking rewards,
+	// 0.0.801/0.0.802 node/fee accounts); an in-body account may net extra ONLY
+	// when a settlement account is paying out (that's a staking reward, and the
+	// zero-sum check pins its funding source); and the whole thing nets to zero.
+	// Any token/NFT drift or a non-payer, non-settlement account short still
+	// fails loudly.
+	const SETTLEMENT_ACCOUNTS = new Set(['0.0.98', '0.0.800', '0.0.801', '0.0.802'])
 	let feeNetted = false
 	if (settled && (missingFromDisplay.length || extraInDisplay.length)) {
 		const residualRows = [...missingFromDisplay, ...extraInDisplay]
@@ -332,12 +342,15 @@ function verifyTransfersAgainstBytes(data, transfers) {
 			const canonNet = netOf(canon.filter(k => k.startsWith('HBAR|')))
 			const shownNet = netOf(shown.filter(k => k.startsWith('HBAR|')))
 			const payer = String(data?.txid || decoded.transactionId || '').split('@')[0]
-			let sum = 0, feeShaped = true
-			for (const ac of new Set([...Object.keys(canonNet), ...Object.keys(shownNet)])) {
-				const r = (shownNet[ac] || 0) - (canonNet[ac] || 0)
-				sum += r
-				if (r < 0 && ac !== payer) feeShaped = false          // only the payer may pay extra
-				if (r > 0 && canonNet[ac] !== undefined) feeShaped = false // fee collectors live outside the tx body
+			const res = {}
+			for (const ac of new Set([...Object.keys(canonNet), ...Object.keys(shownNet)]))
+				res[ac] = (shownNet[ac] || 0) - (canonNet[ac] || 0)
+			const sum = Object.values(res).reduce((a, b) => a + b, 0)
+			const rewardsPaid = Object.entries(res).some(([ac, r]) => r < 0 && SETTLEMENT_ACCOUNTS.has(ac))
+			let feeShaped = true
+			for (const [ac, r] of Object.entries(res)) {
+				if (r < 0 && ac !== payer && !SETTLEMENT_ACCOUNTS.has(ac)) feeShaped = false // only payer (fees) or settlement accts (rewards) pay extra
+				if (r > 0 && canonNet[ac] !== undefined && !rewardsPaid) feeShaped = false   // in-body extra credit needs a reward payout funding it
 			}
 			feeNetted = feeShaped && sum === 0
 		}
