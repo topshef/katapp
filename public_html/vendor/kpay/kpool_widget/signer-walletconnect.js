@@ -445,7 +445,31 @@ export function renderWalletConnectSigner(container, {
 					return
 				}
 
-				const result = await wc.signTx({ accountId, transactionBytes, submitNow: false })
+				// GM-SIGNSUBMIT-DIAG1 (user 2026-08-10): the user expects that when THIS
+				// signature completes the whole threshold (the last one), HashPack should
+				// sign-AND-execute directly rather than handing the signed bytes back to
+				// the server to submit. Right now submitNow is hardcoded false — the wallet
+				// only signs, and saveSignedTransaction() posts the bytes back for the
+				// server (GoMint/hapi) to broadcast. computeSignerPreview already knows
+				// whether this account 'completes' the threshold; log it so we can see, on
+				// the next real sign, whether the code even detects the last-signer case
+				// and confirm the current behaviour is "return to server, never wallet-exec".
+				let _preview = null
+				try { _preview = (typeof signerPreview === 'function') ? signerPreview(accountId) : null } catch (e) {}
+				const _completesThreshold = _preview?.state === 'completes'
+				const _submitNow = false   // ← current hardcoded behaviour (server submits)
+				kdiag('signer:sign:submit-decision', {
+					accountId, txid,
+					previewState: _preview?.state ?? null,   // 'completes' == this is the last needed signature
+					completesThreshold: _completesThreshold,
+					submitNow: _submitNow,
+					behaviour: _submitNow ? 'wallet signs AND executes' : 'wallet signs only → bytes returned to server to submit',
+					note: _completesThreshold && !_submitNow
+						? 'LAST SIGNER but still returning to server — this is the flow the user flagged'
+						: null
+				})
+
+				const result = await wc.signTx({ accountId, transactionBytes, submitNow: _submitNow })
 				kdiag('signer:sign:signed', { accountId, poolSrc })
 
 				const saveResult = await saveSignedTransaction({

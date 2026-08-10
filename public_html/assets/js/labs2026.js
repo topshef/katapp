@@ -189,7 +189,18 @@ async function renderRecentSseToasts(currentDealId) {
       ` — ${status}` +
       (isFinal ? '' : ` &nbsp;<a href="#" class="gm-toast-resume">resume signing</a>`) +
       `<button type="button" class="btn-close" aria-label="Close"></button>`
-    el.querySelector('.btn-close')?.addEventListener('click', () => el.remove())
+    el.querySelector('.btn-close')?.addEventListener('click', () => {
+      // GM-SSETOAST-DISMISS1 (user 2026-08-10): closing the toast should FORGET the
+      // tx, not just hide it — otherwise it re-toasts on every reload for 24h. Drop
+      // this txid from gm_sse_recent so dismissal is permanent.
+      try {
+        const kept = (JSON.parse(localStorage.getItem('gm_sse_recent') || '[]') || [])
+          .filter(x => !(x && x.txid === t.txid && x.network === t.network))
+        localStorage.setItem('gm_sse_recent', JSON.stringify(kept))
+        window.kdiag?.('gm:recent:dismiss', { txid: t.txid, remaining: kept.length })
+      } catch (e) { window.kdiag?.('gm:recent:dismiss-error', { error: String(e) }) }
+      el.remove()
+    })
     el.querySelector('.gm-toast-resume')?.addEventListener('click', e => {
       e.preventDefault()
       if (typeof window.KPaySign === 'function') window.KPaySign({ network: t.network, txid: t.txid })
