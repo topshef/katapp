@@ -22,7 +22,7 @@ function getKwc($in) {
   // new value on every change, never hand-patch an already-served snapshot in place
   // (incident 2026-07-24: mobile cached a mid-session copy of aa0fdbc forever).
   // Roll back to de29cb6 (= hand-patched pre-guard state) if ever needed.
-  $kwc_version = $in['kwc_version'] ?? 'b9f4db1';  //prev 8e6255c / dd98ee1 / 3c7e7c3 / 2bae073 / e31d3b7 / a99a66e / 30c3fd9 / de29cb6 / aa0fdbc / 64c41ba / 17f774f / 4c7696e / 4f74b48 / 53216ab — override via ?kwc_version=… for A/B comparison.
+  $kwc_version = $in['kwc_version'] ?? '33993b7';  //prev 8e6255c / dd98ee1 / 3c7e7c3 / 2bae073 / e31d3b7 / a99a66e / 30c3fd9 / de29cb6 / aa0fdbc / 64c41ba / 17f774f / 4c7696e / 4f74b48 / 53216ab — override via ?kwc_version=… for A/B comparison.
   // 8e6255c = WC-DOUBLEINIT1 (lab2, 2026-08-07): ONE connector per page. ensureNetwork() had no
   //   in-flight guard — its dappConnector check ran before the await — so two concurrent callers
   //   (katomia-auth.js page init + kpool signer-walletconnect.js) each built a DAppConnector.

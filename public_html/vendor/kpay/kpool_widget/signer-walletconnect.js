@@ -445,46 +445,8 @@ export function renderWalletConnectSigner(container, {
 					return
 				}
 
-				// GM-SIGNSUBMIT1 (user 2026-08-10): AUTO mode — when THIS signature
-				// completes the whole threshold (the last one), let the wallet sign AND
-				// submit directly instead of handing the bytes back to the server. The
-				// bundle (signTxCoreV2) re-checks completeness against the actual tx bytes
-				// and downgrades to sign-only if any other required sig is missing, so an
-				// incomplete multisig can never be broadcast. submitServerSide overrides
-				// mirror the deal-flow's three states: on = always return to server,
-				// off = always wallet-submit, absent/auto = last-signer decides (default).
-				let _preview = null
-				try { _preview = (typeof signerPreview === 'function') ? signerPreview(accountId) : null } catch (e) {}
-				const _completesThreshold = _preview?.state === 'completes'
-				let _sseMode = 'auto'
-				try {
-					const _raw = new URLSearchParams(location.search).get('submitServerSide')
-					const _v = _raw === null ? 'auto' : String(_raw).trim().toLowerCase()
-					_sseMode = (_v === '' || _v === 'auto' || _v === 'null') ? 'auto'
-						: (_v === '0' || _v === 'false' || _v === 'off') ? 'off' : 'on'
-				} catch (e) {}
-				const _submitNow = _sseMode === 'off' ? true
-					: _sseMode === 'on' ? false
-					: _completesThreshold   // auto: wallet-submit only when this sig completes the set
-				kdiag('signer:sign:submit-decision', {
-					accountId, txid,
-					previewState: _preview?.state ?? null,   // 'completes' == this is the last needed signature
-					completesThreshold: _completesThreshold,
-					sseMode: _sseMode,
-					submitNow: _submitNow,
-					behaviour: _submitNow ? 'wallet signs AND submits (last signer)' : 'wallet signs only → bytes returned to server to submit'
-				})
-
-				const result = await wc.signTx({ accountId, transactionBytes, submitNow: _submitNow })
-				kdiag('signer:sign:signed', { accountId, poolSrc, resultStatus: result?.status ?? 'signed_only' })
-
-				// GM-SIGNSUBMIT1: wallet already broadcast — nothing to save, just surface
-				// success and let polling/WS reconcile the on-chain status into the modal.
-				if (result?.status === 'submitted') {
-					kdiag('signer:sign:wallet-submitted', { accountId, txid, transactionId: result.transactionId })
-					onSigned?.({ success: true, submitted: true, result: { transactionId: result.transactionId } })
-					return
-				}
+				const result = await wc.signTx({ accountId, transactionBytes, submitNow: false })
+				kdiag('signer:sign:signed', { accountId, poolSrc })
 
 				const saveResult = await saveSignedTransaction({
 					network,
