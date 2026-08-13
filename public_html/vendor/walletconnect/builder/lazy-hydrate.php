@@ -77,7 +77,7 @@ $selfHost = strtolower($_SERVER['HTTP_HOST'] ?? '');
 
 // must match the naming in build.sh — the .js is the artifact, the rest is best-effort
 $requiredFile  = "$appFilename.js";
-$optionalFiles = ["$appFilename.js.map", 'build.md', 'build.json', "$appName.tar.gz"];
+$optionalFiles = ["$appFilename.js.map", 'build.md', 'build.json', 'release.json', "$appName.tar.gz"];
 
 // WC-HYDRATE404 (2026-08-07) — what was ACTUALLY asked for. Previously this script
 // assumed every request routed here wanted the .js, hydrated the set and served

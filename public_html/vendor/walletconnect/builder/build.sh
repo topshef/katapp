@@ -134,6 +134,11 @@ cat > "${SNAPSHOT_PATH}/build.json" <<EOF
 }
 EOF
 
+# The bundle's buildInfo probe fetches release.json next to the .js on every page
+# load; release.sh writes it for releases but snapshots never had one, so every
+# snapshot-served page logged a 404 (twice). Same schema as build.json — alias it.
+cp "${SNAPSHOT_PATH}/build.json" "${SNAPSHOT_PATH}/release.json"
+
 # --------------------------------------------------
 # Create Compressed Artifact (.tar.gz)
 # --------------------------------------------------
