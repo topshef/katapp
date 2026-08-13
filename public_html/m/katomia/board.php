@@ -71,6 +71,13 @@ require_once __DIR__ . '/kasset.php';
     <button type="button" class="kchat-full-close" id="boardChatFullClose">Close</button>
   </div>
   <div class="kchat-full-list"><div class="kchat-panel-list" id="boardChatFullList"></div></div>
+  <!-- GCP feedback 2026-08-08 ("the messages view should be the same like the messages
+       in the split view"): the full-screen stream gets the SAME send box as the split
+       dock — wired by the shared handler in katomia-chat.js (wireChatSend). -->
+  <form class="kchat-send" autocomplete="off">
+    <input type="text" maxlength="280" placeholder="Message the table…" aria-label="Message">
+    <button type="submit" title="Send">➤</button>
+  </form>
 </div>
 
 <!-- Same asset modal as game.php — openAssetModal() (helpers) is the tap-to-offer
