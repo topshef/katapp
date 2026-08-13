@@ -414,6 +414,37 @@ function updateExplain(){
   visibilityExplain.textContent  = explain.visibility[getRadio("visibility")]
   lockExplain.textContent        = explain.lock[getRadio("lockRule")]
   tradingModeExplain.textContent = explain.tradingMode[getRadio("tradingMode")]
+
+  // GCP feedback 2026-08-13: "Private visibility option makes no sense without
+  // joining rule" — the basic skin hides the joinRule field, so Private there is a
+  // door with no lock. When Private is picked on the basic form, offer the full
+  // form (name/network/visibility carried over via query, prefilled below).
+  if(document.querySelector(".form").classList.contains("skin-basic")){
+    let a = document.getElementById("visibilityFullFormLink")
+    if(getRadio("visibility") === "private"){
+      if(!a){
+        a = document.createElement("a")
+        a.id = "visibilityFullFormLink"
+        a.style.display = "block"
+        a.style.marginTop = "6px"
+        visibilityExplain.after(a)
+      }
+      const qs = new URLSearchParams({ visibility: "private", name: gameName.value || "", network: getRadio("network") })
+      a.href = "create?" + qs
+      a.textContent = "Private needs a joining rule — set one on the full form →"
+    } else if(a) a.remove()
+  }
+}
+
+// Prefill from query params (the basic→full handoff above; harmless direct-links too)
+{
+  const qs = new URLSearchParams(location.search)
+  if(qs.get("name")) gameName.value = qs.get("name")
+  for(const f of ["network", "visibility"]){
+    const v = qs.get(f)
+    const el = v && document.querySelector(`input[name=${f}][value="${v}"]`)
+    if(el) el.checked = true
+  }
 }
 
 document.querySelectorAll("input[name=network]").forEach(el => el.onchange = updateExplain)
