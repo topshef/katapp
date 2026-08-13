@@ -436,7 +436,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // live metrics readout the user can screenshot. Outline (not border) so nothing moves.
 // Tap the readout to dismiss. Zero cost when not enabled — remove once the crop is fixed.
 (() => {
-  let on = /[?&]kdebug/.test(location.search)
+  let on = /[?&]kdebug\b/.test(location.search)
   try { on = on || localStorage.getItem("katomiaDebug") === "1" } catch(e){}
   if(!on) return
 
@@ -527,8 +527,7 @@ document.addEventListener("DOMContentLoaded", () => {
       row1 ? `row1 ${r(row1)} clipped-top=${row1.getBoundingClientRect().top < list.getBoundingClientRect().top - 0.5}` : "",
       `wc@2 keys=${(() => { try { return Object.keys(localStorage).filter(k => k.startsWith("wc@2:")).length } catch(e){ return "?" } })()} WC=${window.WC ? "up" : "absent"}`,
     ].filter(Boolean)
-    txt.textContent = lines.join("
-")
+    txt.textContent = lines.join("\n")
   }
   const start = () => { document.body.appendChild(box); upd(); setInterval(upd, 1000) }
   document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", start) : start()
