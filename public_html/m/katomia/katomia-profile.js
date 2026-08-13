@@ -24,6 +24,7 @@ function initKatomiaProfile(){
     el.addEventListener("click", () => openKatomiaProfile())
   )
 
+  /* KBUNDLE-STRIP:kea */
   // AUTH-LANG1: the menu's 🤖 Execution agent item is a second door to the SAME
   // modal, landed on the KEA section (expanded + scrolled). One home, two doors —
   // when KEA graduates to its own page/app this handler just repoints.
@@ -36,6 +37,7 @@ function initKatomiaProfile(){
       kea.scrollIntoView({ behavior: "smooth", block: "start" })
     })
   )
+  /* /KBUNDLE-STRIP:kea */
 
   close.onclick = () => modal.classList.add("hidden")
   modal.onclick = e => {
@@ -169,10 +171,16 @@ async function renderKatomiaProfile(){
 
   renderKatomiaKvac()   // public prepaid-access handle (nerd only, stubbed)
 
-  const link = buildKatomiaProfileLink(pubkey)
-  setProfileLink(link)
+  /* KBUNDLE-STRIP:kea */
+  // Runtime-guarded too (kea flag off since 2026-08-13): no point building a QR
+  // into a section the viewer can never see.
+  if(window.KATOMIA_FEATURES?.kea !== false){
+    const link = buildKatomiaProfileLink(pubkey)
+    setProfileLink(link)
 
-  await renderKatomiaQr(link)
+    await renderKatomiaQr(link)
+  }
+  /* /KBUNDLE-STRIP:kea */
 
   // PROFILE-AUTH1: populate the Authenticate account row (no forced connect).
   if(typeof katomiaAuthOnProfileOpen === "function")
@@ -244,6 +252,8 @@ function getKatomiaKpoolDomain(){
   return location.host
 }
 
+/* KBUNDLE-STRIP:kea — the keakonnect link + QR exist only for the KEA pairing
+   section of the profile modal */
 function buildKatomiaProfileLink(pubkey){
   const url = new URL((window.KBASE||"") + "/keakonnect", location.origin)
 
@@ -289,6 +299,7 @@ async function copyKatomiaProfileLink(){
   await navigator.clipboard.writeText(link)
   notify?.("Profile link copied", "success", { timeout: 2000 })
 }
+/* /KBUNDLE-STRIP:kea */
 
 function zzzgetKatomiaProfileTitle(){
   const label = localStorage.getItem("katomiaPlayerName") || ""
@@ -312,6 +323,7 @@ function setText(id, value){
   if(el) el.textContent = value
 }
 
+/* KBUNDLE-STRIP:kea */
 function setProfileLink(link){
   const el = document.getElementById("profileQrLink")
   if(!el) return
@@ -321,6 +333,7 @@ function setProfileLink(link){
   el.title = "Open KEA link"
   el.target = "KEA"
 }
+/* /KBUNDLE-STRIP:kea */
 
 
 async function renderGameAdminTools(){

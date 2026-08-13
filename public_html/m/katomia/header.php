@@ -33,7 +33,9 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
      section, both tagged data-feature="kea"). Deliberately overrides the earlier
      "nerd mode shouldn't gate features" stance: it's a noise-gate for now, cheap to
      revert. KATOMIA_FEATURES.kea stays the hard off-switch underneath. */
+  /* KBUNDLE-STRIP:kea */
   body:not(.nerd) [data-feature="kea"] { display: none !important; }
+  /* /KBUNDLE-STRIP:kea */
 
   /* Generic hook for future nerd-only menu items (the dark-mode toggle used to be one;
      it now lives solely on the welcome theme-test row — ENTRY-DARKMODE1 R2). */
@@ -320,7 +322,10 @@ try {
 // wholesale when the flag is off. Flip here (or pre-set window.KATOMIA_FEATURES
 // before this script) — no other code changes needed. Longer term the KEA code
 // should also be excludable from the bundle (BUNDLE1).
-window.KATOMIA_FEATURES = Object.assign({ kea: true }, window.KATOMIA_FEATURES || {})
+// kea OFF (user 2026-08-13): Execution agent is gone for the alpha launch. The flag
+// hides every data-feature="kea" affordance today; the code itself is tagged with
+// KBUNDLE-STRIP:kea markers (see BUNDLE1) so the bundle build can remove it outright.
+window.KATOMIA_FEATURES = Object.assign({ kea: false }, window.KATOMIA_FEATURES || {})
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-feature]").forEach(el => {
     if(window.KATOMIA_FEATURES[el.dataset.feature] === false) el.style.display = "none"

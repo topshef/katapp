@@ -2516,17 +2516,27 @@ body.nerd .profile-nerd-only{ display:block; }
 
   .profile-card{
     width:100vw;
+    /* GCP feedback 2026-08-13 ("can't scroll to the bottom, stuck at Execution
+       agent"): 100vh on mobile Chrome includes the strip behind the URL bar, so
+       the card's last rows rendered off-screen and the scroll limit hit before
+       they appeared. dvh tracks the REAL visible viewport (vh kept as fallback);
+       overscroll-behavior stops the hidden page behind from stealing the scroll
+       at the limit; safe-area padding clears gesture bars. */
     height:100vh;
+    height:100dvh;
     max-width:none;
     max-height:none;
 
     margin:0;
     padding:18px;
+    padding-bottom:calc(24px + env(safe-area-inset-bottom, 0px));
     box-sizing:border-box;
 
     border-radius:0;
     box-shadow:none;
     overflow:auto;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
   }
 
   .profile-close{
