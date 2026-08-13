@@ -460,7 +460,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const box = document.createElement("div")
   box.id = "kdebugReadout"
-  box.onclick = () => box.remove()
+  const txt = document.createElement("div")
+  txt.onclick = () => box.remove()
+  box.appendChild(txt)
+
+  // 🧟 Ghost-maker (user 2026-08-13, WC-RELAYHEALTH1): manufacture the lab1 ghost-session
+  // state ON DEMAND — the deterministic repro for "wallet opens, no signing request".
+  // Mechanism: snapshot the page's wc@2:* session storage, do a POLITE disconnect (the
+  // wallet is notified and genuinely forgets), then restore the snapshot and reload —
+  // page remembers a session the wallet no longer has. One tap replaces the fragile
+  // clear-in-wallet-while-offline choreography.
+  const ghost = document.createElement("button")
+  ghost.textContent = "🧟 Ghost wallet link"
+  ghost.style.cssText = "display:block;margin-top:6px;font:11px monospace;padding:5px 9px;border-radius:5px;border:1px solid #6c6;background:#233;color:#9f9"
+  ghost.onclick = async ev => {
+    ev.stopPropagation()
+    try {
+      if(!window.WC?.disconnect){ ghost.textContent = "WC not loaded yet — try again"; return }
+      const keys = Object.keys(localStorage).filter(k => k.startsWith("wc@2:"))
+      if(!keys.length){ ghost.textContent = "no stored session — Connect first, then ghost"; return }
+      const snap = {}
+      keys.forEach(k => { snap[k] = localStorage.getItem(k) })
+      ghost.textContent = "disconnecting (wallet forgets)…"
+      await window.WC.disconnect()
+      Object.entries(snap).forEach(([k, v]) => localStorage.setItem(k, v))
+      ghost.textContent = "👻 ghost armed — reloading"
+      setTimeout(() => location.reload(), 800)
+    } catch(e){ ghost.textContent = ("ghost failed: " + e).slice(0, 70) }
+  }
+  box.appendChild(ghost)
   const r = el => { if(!el) return null; const b = el.getBoundingClientRect(); return `${Math.round(b.width)}x${Math.round(b.height)}@${Math.round(b.left)},${Math.round(b.top)}` }
   const upd = () => {
     const t = document.querySelector(".app-title"), h2 = document.querySelector(".app-banner h2"),
@@ -478,8 +506,9 @@ document.addEventListener("DOMContentLoaded", () => {
       dock ? `dock ${r(dock)} clear-b=${getComputedStyle(document.documentElement).getPropertyValue("--kchat-clear-b") || "unset"}` : "dock: none",
       list ? `list ${r(list)} scrollH=${list.scrollHeight} clientH=${list.clientHeight} scrollTop=${Math.round(list.scrollTop)} rows=${list.querySelectorAll(".kchat-row").length}` : "",
       row1 ? `row1 ${r(row1)} clipped-top=${row1.getBoundingClientRect().top < list.getBoundingClientRect().top - 0.5}` : "",
+      `wc@2 keys=${(() => { try { return Object.keys(localStorage).filter(k => k.startsWith("wc@2:")).length } catch(e){ return "?" } })()} WC=${window.WC ? "up" : "absent"}`,
     ].filter(Boolean)
-    box.textContent = lines.join("\n")
+    txt.textContent = lines.join("\n")
   }
   const start = () => { document.body.appendChild(box); upd(); setInterval(upd, 1000) }
   document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", start) : start()
