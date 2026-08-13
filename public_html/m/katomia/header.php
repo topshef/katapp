@@ -411,6 +411,15 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("click", e => {
     if(!menu.classList.contains("hidden") && !menu.contains(e.target)) setOpen(false)
   })
+
+  // HEADER-UNIFY2 (user 2026-08-13): pin the ☰ top-right once the banner scrolls out —
+  // threshold is the banner's real bottom edge, not a magic number, so any banner
+  // height (wrapped title, future rows) works. Pages that never scroll never stick.
+  const banner = document.querySelector(".app-banner")
+  const stuck = () => document.body.classList.toggle("hdr-stuck",
+    banner ? banner.getBoundingClientRect().bottom <= 0 : window.scrollY > 72)
+  addEventListener("scroll", stuck, { passive: true })
+  stuck()
 })()
 </script>
 

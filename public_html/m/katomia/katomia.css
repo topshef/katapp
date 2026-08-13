@@ -1008,6 +1008,22 @@ zz-distracting-body[data-network="playnet"]{
   cursor:pointer;
 }
 .app-menu-btn:hover{ background:transparent; color:#222; transform:none; }
+
+/* HEADER-UNIFY2 (user 2026-08-13, GCP feedback): the ☰ must survive scrolling — once
+   the banner leaves the viewport the button pins top-right as a floating puck and the
+   dropdown pins beneath it. body.hdr-stuck comes from the scroll handler in header.php;
+   pages that don't scroll never get the class, so the board's own chrome is untouched. */
+body.hdr-stuck .app-menu-btn{
+  position:fixed; top:8px; right:8px; z-index:1490;
+  width:42px; height:42px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(232,232,232,.92);
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+  border:1px solid rgba(20,28,45,.12); border-radius:50%;
+  box-shadow:0 1px 6px rgba(20,28,45,.18);
+}
+body.hdr-stuck .app-menu-btn:hover{ background:rgba(232,232,232,.98); }
+body.hdr-stuck .app-menu{ position:fixed; top:56px; right:8px; }
 .app-menu-btn:active{ transform:none; }
 
 .app-menu{
@@ -2467,6 +2483,24 @@ body.nerd .profile-nerd-only{ display:block; }
   color:#888;
   cursor:pointer;
   user-select:none;
+}
+/* Mobile-friendly profile (GCP feedback 2026-08-13: "check boxes too close together").
+   Fingers, not cursors: on touch/small screens every checkbox row becomes a ≥44px
+   full-width touch target with real separation, and the box itself grows to 20px.
+   pointer:coarse catches big-screen tablets; max-width catches small desktop windows. */
+@media (pointer:coarse), (max-width:640px){
+  .profile-debug-label,
+  .profile-auth-publish{
+    min-height:44px;
+    padding:5px 4px;
+    gap:12px;
+    font-size:14px;
+  }
+  .profile-debug-label input[type=checkbox],
+  .profile-auth-publish input[type=checkbox]{
+    width:20px; height:20px; flex:none; margin:0;
+  }
+  .profile-auth-publish{ display:flex; align-items:center; }
 }
 @media (max-width:640px){
   .profile-btn{
