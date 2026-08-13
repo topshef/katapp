@@ -489,6 +489,25 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch(e){ ghost.textContent = ("ghost failed: " + e).slice(0, 70) }
   }
   box.appendChild(ghost)
+
+  // 🔄 Page-side reset (user 2026-08-13): the bundle's own resetWalletLink — wipe this
+  // ORIGIN's wc@2:* storage, forced fresh pairing on next Connect. The one-tap unwedge
+  // for any stuck link: never touches the wallet app. Falls back to deleting the keys
+  // directly if the API isn't up yet.
+  const reset = document.createElement("button")
+  reset.textContent = "🔄 Reset wallet link (page side)"
+  reset.style.cssText = ghost.style.cssText
+  reset.onclick = async ev => {
+    ev.stopPropagation()
+    try {
+      reset.textContent = "resetting…"
+      if(window.WC?.resetWalletLink) await window.WC.resetWalletLink()
+      else Object.keys(localStorage).filter(k => k.startsWith("wc@2:")).forEach(k => localStorage.removeItem(k))
+      reset.textContent = "reset — reloading (then Connect fresh)"
+      setTimeout(() => location.reload(), 800)
+    } catch(e){ reset.textContent = ("reset failed: " + e).slice(0, 70) }
+  }
+  box.appendChild(reset)
   const r = el => { if(!el) return null; const b = el.getBoundingClientRect(); return `${Math.round(b.width)}x${Math.round(b.height)}@${Math.round(b.left)},${Math.round(b.top)}` }
   const upd = () => {
     const t = document.querySelector(".app-title"), h2 = document.querySelector(".app-banner h2"),
