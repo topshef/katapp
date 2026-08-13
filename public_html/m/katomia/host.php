@@ -437,5 +437,11 @@ window.addEventListener("load", () => {
   })
 })
 </script>
+<!-- GCP feedback 2026-08-13: widget in place so Send feedback never navigates away
+     (see circles.php note). data-screenshot off per KAT-FEEDSHOT-BROKEN1. -->
+<?php require_once "{$_SERVER['DOCUMENT_ROOT']}/hapi_base.php"; $katomiaFwBase = get_hapi_base(); ?>
+<script src="https://<?= htmlspecialchars($katomiaFwBase, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
+        data-product="katomia-host"
+        data-screenshot="0"></script>
 </body>
 </html>

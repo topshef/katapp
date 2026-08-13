@@ -454,5 +454,13 @@ window.addEventListener("load", loadCircles)
 <script src="<?= kasset('katomia-profile.js') ?>"></script>
 <script src="<?= kasset('katomia-auth.js') ?>"></script>
 <?php require_once($_SERVER['DOCUMENT_ROOT'] . "/vendor/walletconnect/kwcScriptTag.php"); ?>
+<!-- GCP feedback 2026-08-13 ("mobile after feedback flow breaks"): this page had no
+     widget, so the header menu's Send feedback NAVIGATED to /m/feedback — and coming
+     back later restored that page from bfcache as a dead, already-used form. Load the
+     widget here (KPAD-SELFFEED1 canonical backend copy) so the modal opens in place,
+     same as contents.php. data-screenshot off per KAT-FEEDSHOT-BROKEN1. -->
+<script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
+        data-product="katomia-circles"
+        data-screenshot="0"></script>
 </body>
 </html>

@@ -495,5 +495,10 @@ window.addEventListener("load", () => {
 <script src="<?= kasset('katomia-profile.js') ?>"></script>
 <script src="<?= kasset('katomia-auth.js') ?>"></script>
 <?php require_once($_SERVER['DOCUMENT_ROOT'] . "/vendor/walletconnect/kwcScriptTag.php"); ?>
+<!-- GCP feedback 2026-08-13: widget in place so Send feedback never navigates away
+     (see circles.php note). data-screenshot off per KAT-FEEDSHOT-BROKEN1. -->
+<script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
+        data-product="katomia-welcome"
+        data-screenshot="0"></script>
 </body>
 </html>
