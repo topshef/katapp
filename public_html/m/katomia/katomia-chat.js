@@ -224,6 +224,32 @@
     };
   }
 
+  // First-screen fit (lab1 seat 2026-08-13, chat first-row clip): with no user-chosen
+  // split, the 3-line welcome message overflows the ~120px default dock by a few px and
+  // bottom-anchoring slices its top line mid-glyph — on the opening screen that reads
+  // as a rendering bug, not a scrolled chat. Once, at the first non-empty render, grow
+  // the dock just enough to fit the opening rows (≤3 — a longer history IS a scrolled
+  // chat and keeps the default) up to the drag limits. A user-dragged split (saved)
+  // always wins; autoFitB feeds syncDock so later passes don't fight the fit.
+  var autoFitB = 0, autoFitDone = false;
+  function autoFitDock() {
+    if (autoFitDone) return;
+    var d = document.getElementById("boardChatDock");
+    var list = d && !d.classList.contains("kchat-dock--side") && d.querySelector(".kchat-dock-list");
+    if (!list) return;
+    var rows = list.querySelectorAll(".kchat-row").length;
+    if (!rows) return;
+    autoFitDone = true;
+    var saved = 0;
+    try { saved = +(localStorage.getItem("katomiaChatSplit") || 0); } catch (e) {}
+    if (saved || rows > 3) return;
+    var overflow = list.scrollHeight - list.clientHeight;
+    if (overflow <= 0) return;
+    var cur = d.getBoundingClientRect().height;
+    autoFitB = Math.min(dockLimits().max, Math.ceil((cur + overflow) / 10) * 10);
+    syncDock();
+  }
+
   function syncDock() {
     document.body.dataset.kchatMode = chatMode();
     var on = chatMode() === "panel";
@@ -352,7 +378,7 @@
           // persists (localStorage katomiaChatSplit) and wins within the limits.
           var lim = dockLimits();
           var saved = +(localStorage.getItem("katomiaChatSplit") || 0);
-          clearB = Math.round(Math.max(lim.min, Math.min(lim.max, saved || lim.def)));
+          clearB = Math.round(Math.max(lim.min, Math.min(lim.max, saved || autoFitB || lim.def)));
           d.style.bottom = "0px";
           // height comes from the SAME --kchat-clear-b var the board yields (CSS), so
           // the pair can never disagree by a measurement race
@@ -405,6 +431,7 @@
     renderInto(p && p.querySelector(".kchat-panel-list"), chat);
     renderInto(document.getElementById("boardChatFullList"), chat);
     renderInto(document.querySelector("#boardChatDock .kchat-dock-list"), chat);
+    autoFitDock();
     var sub = document.getElementById("boardChatFullSub");
     if (sub) sub.textContent = chat.length ? chat.length + " so far" : "nothing said yet";
   }

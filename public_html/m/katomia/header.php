@@ -414,6 +414,64 @@ document.addEventListener("DOMContentLoaded", () => {
 })()
 </script>
 
+<script>
+// ── kdebug overlay (lab1 seat note, 2026-08-13): the KATOMIA header crop + chat-dock
+// first-row clip reproduce on the user's device but not in headless probes, so the
+// diagnosis has to happen ON the device. Add ?kdebug to any page URL (or set
+// localStorage.katomiaDebug=1) to outline the header and chat-dock boxes and float a
+// live metrics readout the user can screenshot. Outline (not border) so nothing moves.
+// Tap the readout to dismiss. Zero cost when not enabled — remove once the crop is fixed.
+(() => {
+  let on = /[?&]kdebug\b/.test(location.search)
+  try { on = on || localStorage.getItem("katomiaDebug") === "1" } catch(e){}
+  if(!on) return
+
+  const style = document.createElement("style")
+  style.textContent = `
+    .app-banner{ outline:2px solid #e02020 !important; outline-offset:-2px; }
+    .app-banner-inner{ outline:2px dashed #f08c00 !important; }
+    .app-banner h2{ outline:2px solid #c2a500 !important; }
+    .app-title{ outline:2px dashed #0a8a2a !important; background:rgba(40,200,90,.12) !important; }
+    .app-icons{ outline:2px dotted #0a8a8a !important; }
+    .kchat-dock{ outline:2px solid #e02020 !important; outline-offset:-2px; }
+    .kchat-drag{ outline:2px solid #f08c00 !important; background:rgba(240,140,0,.15) !important; }
+    .kchat-dock-list{ outline:2px solid #2050e0 !important; }
+    .kchat-dock-list .kchat-row:first-child{ outline:2px dashed #8020c0 !important; }
+    .kchat-send{ outline:2px solid #0a8a2a !important; }
+    #kdebugReadout{ position:fixed; top:130px; left:4px; z-index:9999; max-width:75vw;
+      font:10px/1.5 monospace; background:rgba(0,0,0,.78); color:#9f9;
+      padding:6px 8px; border-radius:6px; white-space:pre-wrap; pointer-events:auto; }
+  `
+  document.head.appendChild(style)
+
+  const box = document.createElement("div")
+  box.id = "kdebugReadout"
+  box.onclick = () => box.remove()
+  const r = el => { if(!el) return null; const b = el.getBoundingClientRect(); return `${Math.round(b.width)}x${Math.round(b.height)}@${Math.round(b.left)},${Math.round(b.top)}` }
+  const upd = () => {
+    const t = document.querySelector(".app-title"), h2 = document.querySelector(".app-banner h2"),
+          ban = document.querySelector(".app-banner"), dock = document.getElementById("boardChatDock"),
+          list = dock && dock.querySelector(".kchat-dock-list"),
+          row1 = list && list.querySelector(".kchat-row")
+    const cs = t && getComputedStyle(t)
+    let poppins = "?"
+    try { poppins = document.fonts.check('800 42px Poppins') ? "yes" : "NO" } catch(e){}
+    const lines = [
+      "kdebug " + innerWidth + "x" + innerHeight + " dpr" + devicePixelRatio,
+      t ? `title ${r(t)} font=${cs.fontSize}/${cs.lineHeight} ${cs.fontFamily.split(",")[0]} poppins-loaded=${poppins}` : "title: none",
+      h2 ? `h2 ${r(h2)} banner ${r(ban)}` : "",
+      t && ban ? `title-vs-banner top∆=${Math.round(t.getBoundingClientRect().top - ban.getBoundingClientRect().top)} bot∆=${Math.round(ban.getBoundingClientRect().bottom - t.getBoundingClientRect().bottom)}` : "",
+      dock ? `dock ${r(dock)} clear-b=${getComputedStyle(document.documentElement).getPropertyValue("--kchat-clear-b") || "unset"}` : "dock: none",
+      list ? `list ${r(list)} scrollH=${list.scrollHeight} clientH=${list.clientHeight} scrollTop=${Math.round(list.scrollTop)} rows=${list.querySelectorAll(".kchat-row").length}` : "",
+      row1 ? `row1 ${r(row1)} clipped-top=${row1.getBoundingClientRect().top < list.getBoundingClientRect().top - 0.5}` : "",
+    ].filter(Boolean)
+    box.textContent = lines.join("\n")
+  }
+  const start = () => { document.body.appendChild(box); upd(); setInterval(upd, 1000) }
+  document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", start) : start()
+})()
+</script>
+
 <?php if ($katomiaGameId): ?>
 <script>
 // ── CIRCLE-HOSTPAGE1 R2: reveal "🎪 Host options" only to this circle's host ─────────
