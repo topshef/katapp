@@ -402,6 +402,32 @@
       "fails_when": "Gap goes undetected (silent divergence — the worst failure mode of the whole refactor), refresh floods (no in-flight guard), the reply leaks to other sockets, or the client fails to resume deltas after recovery.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
       "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — 03.x assertion lines; DEBUG=1 prints the probe's per-message seq trace."
+    },
+    {
+      "id": "STATSYNC-04",
+      "title": "The real board on deltas renders the same game as on full states",
+      "asserts": "Two headless board pages on one fresh playnet game — one plain, one ?delta=1 — stay state-identical through actions; the delta page provably runs on patches, self-heals a forced seq corruption via game_refresh, and throws zero page errors.",
+      "kind": "frontend",
+      "network": "playnet",
+      "harness": "qa/harness/statsync-frontend.cjs",
+      "run": {
+        "lab1": "cd qa/harness && node statsync-frontend.cjs",
+        "any": "BASE=<site> API=<backend> node statsync-frontend.cjs"
+      },
+      "schedule": "on demand — re-run before flipping delta default (P6) and after any state-handling change",
+      "reports": "console assertions T:STATSYNC-04.1–.6, exit code",
+      "dimension": "playnet · real board · Playwright",
+      "cost": "free",
+      "what_it_does": [
+        "Create a fresh playnet game; a protocol driver client joins and owns two accounts.",
+        "Open the board twice headless (Playwright): plain URL and ?delta=1, both with __katomiaTestHooks so __qaGetState exposes state read-only.",
+        "Driver performs chats, add-account, an offer, a lock; after each settle the pages' accounts/players/tx and visible chat must match.",
+        "Then window.__stateSeq is forcibly corrupted on the delta page; the next broadcast must trigger one game_refresh and full reconvergence."
+      ],
+      "pass_means": "All six assertions green — first green 2026-08-14 (caught a real bug on the way: onmessage declared `const data`, so delta normalisation threw 'Assignment to constant variable' on every delta; states still converged, which is why the zero-page-errors assertion exists).",
+      "fails_when": "The delta page diverges from the full page, never actually consumes deltas, fails to self-heal a gap, or any page error fires.",
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-frontend.cjs",
+      "how_to_reproduce": "cd qa/harness && node statsync-frontend.cjs — assertion lines print pass/fail; page errors are dumped verbatim on failure."
     }
   ],
   "expected_fail": {

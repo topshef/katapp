@@ -279,6 +279,15 @@ if(showTradedAssets) showTradedAssets.onchange = e => {
 // handshake and feel slow/flaky ("took ages, finally went through"). We now
 // reconnect on close and when the tab/network comes back, so the socket stays
 // warm and actions fire instantly.
+// STATSYNC1 P5: incremental updates, explicit opt-in while proving out — ?delta=1
+// (or localStorage katomiaDelta="1") makes this client join with wantDelta and
+// consume game_delta patches. Default stays full-state until P6 flips it.
+const wantDelta = new URLSearchParams(location.search).get("delta") === "1" || localStorage.getItem("katomiaDelta") === "1"
+
+// QA-TESTHOOKS1: read-only state peek for the statsync harnesses — same gate as the
+// board's offer hook, inert unless a harness sets __katomiaTestHooks before load.
+window.__qaGetState = () => window.__katomiaTestHooks === true ? { state, gameMeta } : null
+
 let wsShouldRun = true
 let wsReconnectDelay = 1000
 const WS_RECONNECT_MAX = 15000
@@ -368,7 +377,8 @@ function connect(onOpenAction){
       // KFLOW1: thread the frontend run + visit ids so backend checkpoints on this
       // socket join the same flow fingerprint (stored on the socket server-side)
       ...(window.kflow ? { kflowRun: window.kflow.run, kflowVisit: window.kflow.visit } : {}),
-      ...(intentPublicKey ? { intentPublicKey } : {})
+      ...(intentPublicKey ? { intentPublicKey } : {}),
+      ...(wantDelta ? { wantDelta: true } : {})   // STATSYNC1 P5
     }
 
     window.kflow?.("game:join", intentPublicKey ? "keyed" : "plain", { gameId })
@@ -411,6 +421,44 @@ function connect(onOpenAction){
 	
 	const alertTimeouts = {warning: 3000, error: 0, info: 3000, success: 4000, event: 3000}
 
+	// STATSYNC1 P5: mirror of backend kdiff.js kpatch + the gap protocol proven by
+	// T:STATSYNC-03. A game_delta whose baseSeq matches the last applied seq is
+	// COMMITTED here (state/gameMeta mutated directly — so a delta stays lossless
+	// even when the render below is skipped, e.g. during a feedback screenshot),
+	// then returned as a normalised game_state-shaped payload for the untouched
+	// render path. On any gap: ONE game_refresh, deltas ignored until it lands.
+	let __refreshPending = false
+	const kpatch = (obj, ops) => {
+		for(const { op, path, value } of ops){
+			let t = obj
+			for(const k of path.slice(0, -1)) t = t[k] ?? (t[k] = {})
+			const last = path[path.length - 1]
+			if(op === "remove") delete t[last]
+			else t[last] = value
+		}
+		return obj
+	}
+	const kdeltaApply = d => {
+		if(!state || d.baseSeq !== window.__stateSeq || __refreshPending){
+			if(!__refreshPending){
+				__refreshPending = true
+				glog("delta gap — requesting refresh", { baseSeq: d.baseSeq, have: window.__stateSeq })
+				try { window.kdiag?.("statsync:gap", { baseSeq: d.baseSeq, have: window.__stateSeq }) } catch(_){}
+				try { socket.send(JSON.stringify({ type: "game_refresh", gameId })) } catch(_){}
+			}
+			return null
+		}
+		const root = { meta: gameMeta, accounts: state.accounts, players: state.players, tx: state.tx, narrate: state.narrate }
+		kpatch(root, d.patch || [])
+		const chat = [...(state.chat || []), ...(d.chatAppend || [])]
+		if(chat.length > 150) chat.splice(0, chat.length - 150)
+		gameMeta = root.meta
+		Object.assign(state, { accounts: root.accounts, players: root.players, tx: root.tx, narrate: root.narrate, chat })
+		window.__stateSeq = d.seq
+		window.__deltaApplied = (window.__deltaApplied || 0) + 1   // QA counter (T:STATSYNC-04)
+		return { ...d, type: "game_state", meta: gameMeta, state }
+	}
+
 	// KAT-DUPEQUIET1 (user 2026-08-07): backend notices with NOTHING for the user
 	// to do about them. No toast, ever — but not deleted either ("I'm mindful
 	// there might be some weird edge case where we want to know that"), so nerd
@@ -420,7 +468,7 @@ function connect(onOpenAction){
 
 	socket.onmessage = async msg => {
 
-		const data = JSON.parse(msg.data)
+		let data = JSON.parse(msg.data)   // let: a game_delta is normalised into a game_state below (STATSYNC1 P5)
 		console.log("websocket data received", data)
 		
 			
@@ -468,8 +516,15 @@ function connect(onOpenAction){
 				try { document.dispatchEvent(new CustomEvent("katomia:gamemsg", { detail: m })) } catch(_){}
 			}
 		if(data.type === "game_error") return  // errors included in notify
-				
-		
+
+		// STATSYNC1 P5: normalise an incremental update into a full game_state (or
+		// bail while a gap refresh is in flight) — everything below stays unchanged.
+		if(data.type === "game_delta"){
+			const normalised = kdeltaApply(data)
+			if(!normalised) return
+			data = normalised
+		}
+
 		if(data.type !== "game_state") glog(`websocket data IGNORED for type=${data.type}`, data)
 		if(data.type !== "game_state") return
 
@@ -486,6 +541,10 @@ function connect(onOpenAction){
 
     gameMeta = data.meta || null
     state = data.state
+    // STATSYNC1 P5: track the broadcast seq (delta base) and clear any pending
+    // gap-refresh — a full game_state (broadcast or refresh reply) is a clean base.
+    if(data.seq != null) window.__stateSeq = data.seq
+    __refreshPending = false
     // PROP-ADDACCT1: survives exitGame() (which nulls gameMeta) so the add-account
     // modal still knows the game's network when re-adding after a 🗑️ exit.
     if(gameMeta?.network) window.__katomiaNetwork = gameMeta.network
