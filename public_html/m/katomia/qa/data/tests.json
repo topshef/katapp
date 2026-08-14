@@ -314,7 +314,7 @@
         "lab1": "cd qa/harness && node statsync-baseline.cjs",
         "any": "API=<backend> node statsync-baseline.cjs"
       },
-      "schedule": "on demand — re-run at every STATSYNC1 phase",
+      "schedule": "cron, daily 04:10 UTC (statsync-cron.sh) + on demand at every STATSYNC1-affecting change",
       "reports": "console assertions T:STATSYNC-01.1–.7, exit code",
       "dimension": "playnet · websocket protocol",
       "cost": "free",
@@ -364,7 +364,7 @@
       "run": {
         "lab1": "cd qa/harness && node statsync-baseline.cjs"
       },
-      "schedule": "on demand — same run as T:STATSYNC-01 (assertions 02.1-02.4 activate when the backend answers the opt-in)",
+      "schedule": "cron, daily 04:10 UTC (statsync-cron.sh) + on demand at every STATSYNC1-affecting change",
       "reports": "console assertions T:STATSYNC-02.1–.4, exit code",
       "dimension": "playnet · websocket protocol · delta path",
       "cost": "free",
@@ -388,7 +388,7 @@
       "run": {
         "lab1": "cd qa/harness && node statsync-baseline.cjs"
       },
-      "schedule": "on demand — same run as T:STATSYNC-01/-02",
+      "schedule": "cron, daily 04:10 UTC (statsync-cron.sh) + on demand at every STATSYNC1-affecting change",
       "reports": "console assertions T:STATSYNC-03.1–.3, exit code",
       "dimension": "playnet · websocket protocol · catch-up",
       "cost": "free",
@@ -414,7 +414,7 @@
         "lab1": "cd qa/harness && node statsync-frontend.cjs",
         "any": "BASE=<site> API=<backend> node statsync-frontend.cjs"
       },
-      "schedule": "on demand — re-run before flipping delta default (P6) and after any state-handling change",
+      "schedule": "cron, daily 04:10 UTC (statsync-cron.sh) + before any delta-default promotion",
       "reports": "console assertions T:STATSYNC-04.1–.6, exit code",
       "dimension": "playnet · real board · Playwright",
       "cost": "free",
