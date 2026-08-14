@@ -580,3 +580,110 @@ document.addEventListener("DOMContentLoaded", () => {
 })()
 </script>
 <?php endif; ?>
+
+<script>
+// ── kdebug overlay (lab1 seat note, 2026-08-13): the KATOMIA header crop + chat-dock
+// first-row clip reproduce on the user's device but not in headless probes, so the
+// diagnosis has to happen ON the device. Add ?kdebug to any page URL (or set
+// localStorage.katomiaDebug=1) to outline the header and chat-dock boxes and float a
+// live metrics readout the user can screenshot. Outline (not border) so nothing moves.
+// Tap the readout to dismiss. Zero cost when not enabled — remove once the crop is fixed.
+(() => {
+  let on = /[?&]kdebug/.test(location.search)
+  try { on = on || localStorage.getItem("katomiaDebug") === "1" } catch(e){}
+  if(!on) return
+
+  const style = document.createElement("style")
+  style.textContent = `
+    .app-banner{ outline:2px solid #e02020 !important; outline-offset:-2px; }
+    .app-banner-inner{ outline:2px dashed #f08c00 !important; }
+    .app-banner h2{ outline:2px solid #c2a500 !important; }
+    .app-title{ outline:2px dashed #0a8a2a !important; background:rgba(40,200,90,.12) !important; }
+    .app-icons{ outline:2px dotted #0a8a8a !important; }
+    .kchat-dock{ outline:2px solid #e02020 !important; outline-offset:-2px; }
+    .kchat-drag{ outline:2px solid #f08c00 !important; background:rgba(240,140,0,.15) !important; }
+    .kchat-dock-list{ outline:2px solid #2050e0 !important; }
+    .kchat-dock-list .kchat-row:first-child{ outline:2px dashed #8020c0 !important; }
+    .kchat-send{ outline:2px solid #0a8a2a !important; }
+    #kdebugReadout{ position:fixed; top:130px; left:4px; z-index:9999; max-width:75vw;
+      font:10px/1.5 monospace; background:rgba(0,0,0,.78); color:#9f9;
+      padding:6px 8px; border-radius:6px; white-space:pre-wrap; pointer-events:auto; }
+  `
+  document.head.appendChild(style)
+
+  const box = document.createElement("div")
+  box.id = "kdebugReadout"
+  const txt = document.createElement("div")
+  txt.onclick = () => box.remove()
+  box.appendChild(txt)
+
+  // 🧟 Ghost-maker (user 2026-08-13, WC-RELAYHEALTH1): manufacture the lab1 ghost-session
+  // state ON DEMAND — the deterministic repro for "wallet opens, no signing request".
+  // Mechanism: snapshot the page's wc@2:* session storage, do a POLITE disconnect (the
+  // wallet is notified and genuinely forgets), then restore the snapshot and reload —
+  // page remembers a session the wallet no longer has. One tap replaces the fragile
+  // clear-in-wallet-while-offline choreography.
+  const ghost = document.createElement("button")
+  ghost.textContent = "🧟 Ghost wallet link"
+  ghost.style.cssText = "display:block;margin-top:6px;font:11px monospace;padding:5px 9px;border-radius:5px;border:1px solid #6c6;background:#233;color:#9f9"
+  ghost.onclick = async ev => {
+    ev.stopPropagation()
+    try {
+      if(!window.WC?.disconnect){ ghost.textContent = "WC not loaded yet — try again"; return }
+      const keys = Object.keys(localStorage).filter(k => k.startsWith("wc@2:"))
+      if(!keys.length){ ghost.textContent = "no stored session — Connect first, then ghost"; return }
+      const snap = {}
+      keys.forEach(k => { snap[k] = localStorage.getItem(k) })
+      ghost.textContent = "disconnecting (wallet forgets)…"
+      await window.WC.disconnect()
+      Object.entries(snap).forEach(([k, v]) => localStorage.setItem(k, v))
+      ghost.textContent = "👻 ghost armed — reloading"
+      setTimeout(() => location.reload(), 800)
+    } catch(e){ ghost.textContent = ("ghost failed: " + e).slice(0, 70) }
+  }
+  box.appendChild(ghost)
+
+  // 🔄 Page-side reset (user 2026-08-13): the bundle's own resetWalletLink — wipe this
+  // ORIGIN's wc@2:* storage, forced fresh pairing on next Connect. The one-tap unwedge
+  // for any stuck link: never touches the wallet app. Falls back to deleting the keys
+  // directly if the API isn't up yet.
+  const reset = document.createElement("button")
+  reset.textContent = "🔄 Reset wallet link (page side)"
+  reset.style.cssText = ghost.style.cssText
+  reset.onclick = async ev => {
+    ev.stopPropagation()
+    try {
+      reset.textContent = "resetting…"
+      if(window.WC?.resetWalletLink) await window.WC.resetWalletLink()
+      else Object.keys(localStorage).filter(k => k.startsWith("wc@2:")).forEach(k => localStorage.removeItem(k))
+      reset.textContent = "reset — reloading (then Connect fresh)"
+      setTimeout(() => location.reload(), 800)
+    } catch(e){ reset.textContent = ("reset failed: " + e).slice(0, 70) }
+  }
+  box.appendChild(reset)
+  const r = el => { if(!el) return null; const b = el.getBoundingClientRect(); return `${Math.round(b.width)}x${Math.round(b.height)}@${Math.round(b.left)},${Math.round(b.top)}` }
+  const upd = () => {
+    const t = document.querySelector(".app-title"), h2 = document.querySelector(".app-banner h2"),
+          ban = document.querySelector(".app-banner"), dock = document.getElementById("boardChatDock"),
+          list = dock && dock.querySelector(".kchat-dock-list"),
+          row1 = list && list.querySelector(".kchat-row")
+    const cs = t && getComputedStyle(t)
+    let poppins = "?"
+    try { poppins = document.fonts.check('800 42px Poppins') ? "yes" : "NO" } catch(e){}
+    const lines = [
+      "kdebug " + innerWidth + "x" + innerHeight + " dpr" + devicePixelRatio,
+      t ? `title ${r(t)} font=${cs.fontSize}/${cs.lineHeight} ${cs.fontFamily.split(",")[0]} poppins-loaded=${poppins}` : "title: none",
+      h2 ? `h2 ${r(h2)} banner ${r(ban)}` : "",
+      t && ban ? `title-vs-banner top∆=${Math.round(t.getBoundingClientRect().top - ban.getBoundingClientRect().top)} bot∆=${Math.round(ban.getBoundingClientRect().bottom - t.getBoundingClientRect().bottom)}` : "",
+      dock ? `dock ${r(dock)} clear-b=${getComputedStyle(document.documentElement).getPropertyValue("--kchat-clear-b") || "unset"}` : "dock: none",
+      list ? `list ${r(list)} scrollH=${list.scrollHeight} clientH=${list.clientHeight} scrollTop=${Math.round(list.scrollTop)} rows=${list.querySelectorAll(".kchat-row").length}` : "",
+      row1 ? `row1 ${r(row1)} clipped-top=${row1.getBoundingClientRect().top < list.getBoundingClientRect().top - 0.5}` : "",
+      `wc@2 keys=${(() => { try { return Object.keys(localStorage).filter(k => k.startsWith("wc@2:")).length } catch(e){ return "?" } })()} WC=${window.WC ? "up" : "absent"}`,
+    ].filter(Boolean)
+    txt.textContent = lines.join("
+")
+  }
+  const start = () => { document.body.appendChild(box); upd(); setInterval(upd, 1000) }
+  document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", start) : start()
+})()
+</script>
