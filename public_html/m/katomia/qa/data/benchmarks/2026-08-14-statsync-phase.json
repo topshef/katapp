@@ -1,10 +1,10 @@
 {
   "_about": "STATSYNC1 wire benchmark (T:STATSYNC-BENCH-01). Full-state broadcast measurements — correctness (T:STATSYNC-01) must never regress across phases; bytes must fall by P6.",
-  "ts": "2026-08-14T01:45:52.020Z",
+  "ts": "2026-08-14T01:53:40.520Z",
   "api": "https://alpha.katlab.kpay.live",
   "scripted": {
     "kind": "scripted",
-    "gameId": "KTJGS2",
+    "gameId": "VJESRR",
     "actions": 12,
     "perClient": [
       {
@@ -33,11 +33,11 @@
     "latencyMs": [
       {
         "label": "addAccount alice",
-        "ms": 5
+        "ms": 3
       },
       {
         "label": "addAccount bob",
-        "ms": 4
+        "ms": 8
       },
       {
         "label": "offer apple alice→bob",
@@ -45,35 +45,35 @@
       },
       {
         "label": "offer banana bob→alice",
-        "ms": 3
+        "ms": 2
       },
       {
         "label": "public chat",
-        "ms": 3
+        "ms": 4
       },
       {
         "label": "targeted chat B→A",
-        "ms": 3
+        "ms": 4
       },
       {
         "label": "toggleLock alice",
-        "ms": 3
+        "ms": 6
       },
       {
         "label": "toggleLock alice off",
-        "ms": 5
+        "ms": 14
       },
       {
         "label": "withdraw banana",
-        "ms": 3
-      },
-      {
-        "label": "gap: delta dropped on probe",
         "ms": 7
       },
       {
+        "label": "gap: delta dropped on probe",
+        "ms": 3
+      },
+      {
         "label": "gap detected next delta",
-        "ms": 4
+        "ms": 3
       },
       {
         "label": "post-refresh delta applies",
@@ -99,11 +99,11 @@
     "kind": "passive",
     "game": "q-crowd",
     "secs": 30,
-    "states": 10,
-    "bytes": 34320,
-    "avgBytes": 3432,
-    "maxBytes": 6184,
-    "perMinute": 20
+    "states": 1,
+    "bytes": 6820,
+    "avgBytes": 6820,
+    "maxBytes": 6820,
+    "perMinute": 2
   },
   "failures": []
 }

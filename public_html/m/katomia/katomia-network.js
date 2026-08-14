@@ -279,10 +279,13 @@ if(showTradedAssets) showTradedAssets.onchange = e => {
 // handshake and feel slow/flaky ("took ages, finally went through"). We now
 // reconnect on close and when the tab/network comes back, so the socket stays
 // warm and actions fire instantly.
-// STATSYNC1 P5: incremental updates, explicit opt-in while proving out — ?delta=1
-// (or localStorage katomiaDelta="1") makes this client join with wantDelta and
-// consume game_delta patches. Default stays full-state until P6 flips it.
-const wantDelta = new URLSearchParams(location.search).get("delta") === "1" || localStorage.getItem("katomiaDelta") === "1"
+// STATSYNC1 P6: incremental updates are the DEFAULT — the board joins with
+// wantDelta and consumes game_delta patches (proven by T:STATSYNC-01…04; ~90%
+// wire saving on the probe). Full-state broadcast is demoted to a dev/debug
+// opt-out: ?fullstate=1 (or localStorage katomiaFullState="1") restores the old
+// behaviour — the task's end state. Protocol clients (bots, KEA) never send
+// wantDelta and are untouched.
+const wantDelta = !(new URLSearchParams(location.search).get("fullstate") === "1" || localStorage.getItem("katomiaFullState") === "1")
 
 // QA-TESTHOOKS1: read-only state peek for the statsync harnesses — same gate as the
 // board's offer hook, inert unless a harness sets __katomiaTestHooks before load.

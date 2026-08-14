@@ -54,8 +54,9 @@ async function main(){
     await page.goto(`${BASE}/m/katomia/board/${gameId}?skin=ring16${q}`, { waitUntil: "domcontentloaded" })
     return page
   }
-  log("opening full-state page and ?delta=1 page")
-  const [full, delta] = await Promise.all([mk(""), mk("&delta=1")])
+  // P6: delta is the default — the control page forces the legacy full-state path
+  log("opening ?fullstate=1 control page and default (delta) page")
+  const [full, delta] = await Promise.all([mk("&fullstate=1"), mk("")])
   await Promise.all([full, delta].map(p => p.waitForFunction(() => !!window.__qaGetState?.()?.state, null, { timeout: 20000 })))
 
   const act = async (label, msg, settle = 900) => {
