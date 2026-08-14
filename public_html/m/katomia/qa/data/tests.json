@@ -353,6 +353,30 @@
       "fails_when": "A phase re-run shows correctness failures, or (from P3 on) delta-path bytes fail to undercut the full-state baseline.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
       "how_to_reproduce": "cd qa/harness && SAMPLE_GAME=q-crowd node statsync-baseline.cjs --record — summary JSON printed and written to qa/data/benchmarks/."
+    },
+    {
+      "id": "STATSYNC-02",
+      "title": "A delta client sees exactly what a full-state client sees",
+      "asserts": "A probe client opted into game_delta (wantDelta:true at join) reconstructs state purely by patch application + chatAppend; at every seq its reconstruction is byte-identical to a full-state control client, and deltas undercut full states on the wire.",
+      "kind": "protocol",
+      "network": "playnet",
+      "harness": "qa/harness/statsync-baseline.cjs",
+      "run": {
+        "lab1": "cd qa/harness && node statsync-baseline.cjs"
+      },
+      "schedule": "on demand — same run as T:STATSYNC-01 (assertions 02.1-02.4 activate when the backend answers the opt-in)",
+      "reports": "console assertions T:STATSYNC-02.1–.4, exit code",
+      "dimension": "playnet · websocket protocol · delta path",
+      "cost": "free",
+      "what_it_does": [
+        "Client D joins with wantDelta:true after three full-state clients; its first broadcast is full, all subsequent are game_delta {seq, baseSeq, patch, chatAppend}.",
+        "D applies each patch (kpatch mirror of backend kdiff.js) and appends chat rows by monotonic id, trimming at 150 like the server.",
+        "After every broadcast, D's reconstructed shared view is compared against control client C's full game_state at the same seq."
+      ],
+      "pass_means": "One full state then only deltas; reconstruction ≡ control at every overlapping seq; visible chat matches (welcome rows excluded — legitimately per-viewer); delta bytes < full bytes. First green 2026-08-14: 39 deltas, 40/40 seqs identical, 374B vs 3696B avg (~90% saving).",
+      "fails_when": "Any patch mis-describes a change (reconstruction diverges), chatAppend leaks or drops a row, or a delta is sent to a socket without the right base seq.",
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
+      "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — 02.x assertion lines print pass/fail; a seq mismatch names the exact seq."
     }
   ],
   "expected_fail": {
