@@ -1,6 +1,6 @@
 {
   "_about": "THE TEST ID INDEX — every test identifier we use, what it asserts, where it runs, and how to run it. Created 2026-08-08 (user) after MAINNETSMOKE-01 and TXS-1 were quoted in chat and could not be found anywhere: they were not tasks, and TXS-* existed only as prose inside QA-XFAIL1.json's `next` field. A test id must resolve to something you can open — that is what this file is for. Viewer: tests.html. Naming convention (PROTOCOL.md): a bare CAPITALISED reference is a kPad TASK; a test id is written T:<id> in prose and chat, and must come with its URL. Each suite records what_it_does (the actual steps), pass_means, fails_when, its dimension and its cost — added 2026-08-08 after the user pointed out that 'real value, real network, once a day' does not tell anyone what the test IS.",
-  "updated": "2026-08-08",
+  "updated": "2026-08-14",
   "convention": {
     "task": "BARE CAPS — a kPad task, e.g. TXSTATUS-CONSOLIDATE1. Look it up in kPad.",
     "test": "T:<id> — a test case, e.g. T:HBARXFER-01. Defined in this file; results on the QA grid.",
@@ -302,6 +302,57 @@
       "fails_when": "A decoder silently returns the wrong window — which is how a transaction's real deadline and the UI's idea of it drift apart.",
       "harness_note": "backend repo root, not web-served",
       "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
+    },
+    {
+      "id": "STATSYNC-01",
+      "title": "Everyone at the table sees the same game",
+      "asserts": "Three scripted protocol-level clients on a fresh playnet game (joins, add accounts, offers, public + targeted chat, lock toggles): shared state converges identically on every client; per-socket fields (myPlayerId, targeted chat visibility) correctly differ.",
+      "kind": "protocol",
+      "network": "playnet",
+      "harness": "qa/harness/statsync-baseline.cjs",
+      "run": {
+        "lab1": "cd qa/harness && node statsync-baseline.cjs",
+        "any": "API=<backend> node statsync-baseline.cjs"
+      },
+      "schedule": "on demand — re-run at every STATSYNC1 phase",
+      "reports": "console assertions T:STATSYNC-01.1–.7, exit code",
+      "dimension": "playnet · websocket protocol",
+      "cost": "free",
+      "what_it_does": [
+        "Create a fresh public playnet game via POST /katomia/create.",
+        "Connect clients A, B, C over plain WebSocket (no browser) with distinct playerTokens.",
+        "A and B add playnet accounts (alice, bob); C stays a joined-but-accountless watcher.",
+        "Cross-offers (apple, banana), one public chat, one TARGETED chat B→A, lock on/off, a reject.",
+        "After quiescing, compare each client's final game_state."
+      ],
+      "pass_means": "Shared state (accounts/players/tx) is byte-identical across all three clients; myPlayerId is distinct per socket; the targeted chat reached A and its sender but never C.",
+      "fails_when": "Any client misses a broadcast, states diverge, or targeted chat leaks — exactly the properties an incremental-update refactor (STATSYNC1) could silently break.",
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
+      "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — assertion lines print pass/fail with detail."
+    },
+    {
+      "id": "STATSYNC-BENCH-01",
+      "title": "What the full-state broadcast costs on the wire",
+      "asserts": "Message counts, bytes per broadcast, action→broadcast latency for a scripted sequence, plus a 30-chat growth probe showing broadcast size compounding with chat history. Recorded per STATSYNC1 phase; correctness may never regress, bytes must fall by P6.",
+      "kind": "benchmark",
+      "network": "playnet",
+      "harness": "qa/harness/statsync-baseline.cjs",
+      "run": {
+        "lab1": "cd qa/harness && SAMPLE_GAME=q-crowd node statsync-baseline.cjs --record"
+      },
+      "schedule": "once per STATSYNC1 phase",
+      "reports": "qa/data/benchmarks/<date>-statsync-*.json",
+      "dimension": "playnet · wire cost",
+      "cost": "free",
+      "what_it_does": [
+        "Same scripted run as T:STATSYNC-01, with every websocket frame measured (bytes, latency).",
+        "Then 30 chat messages in a row, recording how each broadcast grows (full chat history rides every broadcast today).",
+        "Optionally spectates a live demo game passively (SAMPLE_GAME) for real-traffic sizes."
+      ],
+      "pass_means": "Baseline 2026-08-14: ~1.7-1.9KB/broadcast on a tiny 2-account game, ~2ms latency, growth probe 2071B→6525B over 30 chats (~154B per chat row, compounding). Later phases are judged against this file's benchmarks.",
+      "fails_when": "A phase re-run shows correctness failures, or (from P3 on) delta-path bytes fail to undercut the full-state baseline.",
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
+      "how_to_reproduce": "cd qa/harness && SAMPLE_GAME=q-crowd node statsync-baseline.cjs --record — summary JSON printed and written to qa/data/benchmarks/."
     }
   ],
   "expected_fail": {
