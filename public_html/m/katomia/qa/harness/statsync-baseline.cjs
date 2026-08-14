@@ -145,6 +145,11 @@ async function scripted(){
   assert(5, all.every(c => chatOf(c).includes("hello table")), "public chat visible to all")
   assert(6, chatOf(A).includes("psst alice") && chatOf(B).includes("psst alice") && !chatOf(C).includes("psst alice"), "targeted chat: A+sender see it, C does not")
   assert(7, all.every(c => c.msgs.filter(m => m.type === "game_state").every(m => m.bytes > 0)), "all broadcasts non-empty")
+  // P2+: once the backend stamps seq, it must be strictly increasing per client
+  // (gaps allowed — a client can miss broadcasts it wasn't subscribed for yet).
+  const seqs = c => c.msgs.filter(m => m.type === "game_state" && m.seq != null).map(m => m.seq)
+  if(all.some(c => seqs(c).length))
+    assert(8, all.every(c => seqs(c).every((s, i, a) => i === 0 || s > a[i - 1])), "seq strictly increasing on every client")
 
   const perClient = all.map(c => ({ name: c.name, states: c.states, bytes: c.bytes, avgBytes: Math.round(c.bytes / c.states), maxBytes: Math.max(...c.msgs.filter(m => m.type === "game_state").map(m => m.bytes)) }))
   const lat = timings.map(t => t.ms).sort((a, b) => a - b)
