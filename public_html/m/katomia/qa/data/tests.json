@@ -377,6 +377,31 @@
       "fails_when": "Any patch mis-describes a change (reconstruction diverges), chatAppend leaks or drops a row, or a delta is sent to a socket without the right base seq.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
       "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — 02.x assertion lines print pass/fail; a seq mismatch names the exact seq."
+    },
+    {
+      "id": "STATSYNC-03",
+      "title": "A client that misses a delta catches up and converges",
+      "asserts": "A delta client with a simulated lost broadcast detects the seq gap on the next delta, sends game_refresh exactly once (suppressing duplicates while the reply is in flight), receives a targeted full state, and converges with a full-state control client.",
+      "kind": "protocol",
+      "network": "playnet",
+      "harness": "qa/harness/statsync-baseline.cjs",
+      "run": {
+        "lab1": "cd qa/harness && node statsync-baseline.cjs"
+      },
+      "schedule": "on demand — same run as T:STATSYNC-01/-02",
+      "reports": "console assertions T:STATSYNC-03.1–.3, exit code",
+      "dimension": "playnet · websocket protocol · catch-up",
+      "cost": "free",
+      "what_it_does": [
+        "The delta probe silently drops one incoming game_delta (simulated network loss).",
+        "The next delta's baseSeq mismatches its local seq → it sends {type:'game_refresh', gameId} — once, with an in-flight guard, ignoring further deltas meanwhile.",
+        "The backend replies with a targeted full game_state (refresh:true) to that socket only and resets its delta base markers.",
+        "One more action confirms deltas apply cleanly again and the reconstruction matches control."
+      ],
+      "pass_means": "Exactly one refresh round-trip; no other client receives the refresh reply; post-recovery reconstruction is byte-identical to control. First green 2026-08-14.",
+      "fails_when": "Gap goes undetected (silent divergence — the worst failure mode of the whole refactor), refresh floods (no in-flight guard), the reply leaks to other sockets, or the client fails to resume deltas after recovery.",
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
+      "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — 03.x assertion lines; DEBUG=1 prints the probe's per-message seq trace."
     }
   ],
   "expected_fail": {

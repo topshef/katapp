@@ -57,7 +57,7 @@ class Client {
         const t = Date.now(), bytes = raw.length
         let data = {}
         try { data = JSON.parse(raw.toString()) } catch {}
-        this.msgs.push({ t, bytes, type: data.type, seq: data.seq ?? null })
+        this.msgs.push({ t, bytes, type: data.type, seq: data.seq ?? null, refresh: data.refresh || undefined })
         if(data.type === "game_state"){
           this.states++; this.bytes += bytes; this.last = data
           if(data.seq != null) this.stateViews[data.seq] = JSON.stringify({ accounts: data.state.accounts, players: data.state.players, tx: data.state.tx, narrate: data.state.narrate })
@@ -98,25 +98,41 @@ class DeltaProbe extends Client {
   constructor(name){
     super(name)
     this.model = null           // {meta, accounts, players, tx, narrate, chat}
-    this.views = {}             // seq → shared-view JSON
+    this.seq = null             // last APPLIED seq — the delta base
+    this.views = {}             // seq → shared-view JSON (only seqs actually applied)
     this.deltas = 0; this.fulls = 0; this.deltaBytes = 0; this.fullBytes = 0
+    this.dropNext = false       // T:STATSYNC-03 — simulate one lost delta
+    this.dropped = 0; this.gaps = 0; this.refreshed = 0
+    this.refreshPending = false // gap protocol: ONE refresh in flight, ignore deltas meanwhile
+    this.requests = 0
   }
   connect(){
     return super.connect().then(() => {
       this.ws.on("message", raw => {
         let d = {}
         try { d = JSON.parse(raw.toString()) } catch {}
+        if(process.env.DEBUG && (d.type === "game_state" || d.type === "game_delta")) log(`  [probe] recv ${d.type}${d.refresh ? "(refresh)" : ""} seq=${d.seq} baseSeq=${d.baseSeq ?? "-"} local=${this.seq}`)
         if(d.type === "game_state"){
           this.fulls++; this.fullBytes += raw.length
+          if(d.refresh){ this.refreshed++; this.refreshPending = false }
           this.model = { meta: d.meta, accounts: d.state.accounts, players: d.state.players, tx: d.state.tx, narrate: d.state.narrate, chat: d.state.chat || [] }
+          this.seq = d.seq
         }
         if(d.type === "game_delta"){
           this.deltas++; this.deltaBytes += raw.length
+          if(this.dropNext){ this.dropNext = false; this.dropped++; return }   // simulated network loss
+          if(d.baseSeq !== this.seq || this.refreshPending){   // gap → ask for a full picture, ignore deltas until it lands
+            this.gaps++
+            if(process.env.DEBUG) log(`  [probe] gap: delta seq=${d.seq} baseSeq=${d.baseSeq} local seq=${this.seq} pending=${this.refreshPending}`)
+            if(!this.refreshPending){ this.refreshPending = true; this.requests++; this.send({ type: "game_refresh", gameId: d.gameId }) }
+            return
+          }
           kpatch(this.model, d.patch)
           this.model.chat = [...this.model.chat, ...(d.chatAppend || [])]
           if(this.model.chat.length > 150) this.model.chat.splice(0, this.model.chat.length - 150)
+          this.seq = d.seq
         }
-        if(d.seq != null) this.views[d.seq] = JSON.stringify({ accounts: this.model.accounts, players: this.model.players, tx: this.model.tx, narrate: this.model.narrate })
+        if(d.seq != null && d.seq === this.seq) this.views[d.seq] = JSON.stringify({ accounts: this.model.accounts, players: this.model.players, tx: this.model.tx, narrate: this.model.narrate })
       })
     })
   }
@@ -174,13 +190,23 @@ async function scripted(){
   // growth probe: chat history rides EVERY broadcast today, so bytes/broadcast
   // grows linearly with table talk — the cost curve STATSYNC1 exists to flatten.
   for(let i = 0; i < 30; i++){
-    const w = C.next()
+    const w = C.next(), wd = D.next()
     A.send({ type: "game_chat", gameId, text: `bench filler message number ${i} — some plausible table talk padding` })
-    await w
+    await w; await wd
   }
   const cSizes = C.msgs.filter(m => m.type === "game_state").map(m => m.bytes)
   const growth = { first: cSizes[cSizes.length - 30], last: cSizes[cSizes.length - 1], perChatBytes: Math.round((cSizes[cSizes.length - 1] - cSizes[cSizes.length - 30]) / 29) }
   log(`  growth probe: broadcast ${growth.first}B → ${growth.last}B over 30 chats (~${growth.perChatBytes}B per chat row, compounding on every broadcast)`)
+
+  // T:STATSYNC-03 — gap → catch-up → convergence. Drop one delta on the probe,
+  // let the next delta expose the gap (baseSeq mismatch), watch it refresh, then
+  // confirm it applies deltas cleanly again.
+  D.dropNext = true
+  await step("gap: delta dropped on probe", A, { type: "game_chat", gameId, text: "message the probe will lose" }, everyone, timings)
+  const refreshReply = D.next(d => d.type === "game_state" && d.refresh, 8000)
+  await step("gap detected next delta", A, { type: "game_chat", gameId, text: "message that exposes the gap" }, everyone, timings)
+  await refreshReply
+  await step("post-refresh delta applies", A, { type: "game_chat", gameId, text: "message after recovery" }, everyone, timings)
 
   await new Promise(r => setTimeout(r, 800))   // quiesce
 
@@ -204,7 +230,7 @@ async function scripted(){
   let deltaStats = null
   if(D.deltas){
     log("assertions (T:STATSYNC-02 — delta equivalence):")
-    assert("02.1", D.fulls === 1 && D.deltas >= 8, `probe got exactly one full state then deltas (fulls=${D.fulls} deltas=${D.deltas})`)
+    assert("02.1", D.fulls - D.refreshed === 1 && D.deltas >= 8, `probe got exactly one broadcast full state, rest deltas (fulls=${D.fulls} refreshReplies=${D.refreshed} deltas=${D.deltas})`)
     const overlap = Object.keys(D.views).filter(s => C.stateViews[s])
     const mismatch = overlap.filter(s => D.views[s] !== C.stateViews[s])
     assert("02.2", overlap.length >= 8 && mismatch.length === 0, `patch-reconstructed state ≡ full-state control at ${overlap.length} seqs${mismatch.length ? " — MISMATCH at seq " + mismatch.join(",") : ""}`)
@@ -213,6 +239,12 @@ async function scripted(){
     const dAvg = Math.round(D.deltaBytes / D.deltas), cAvg = Math.round(C.bytes / C.states)
     assert("02.4", dAvg < cAvg, `delta avg ${dAvg}B/broadcast < full-state avg ${cAvg}B/broadcast`)
     deltaStats = { deltas: D.deltas, fulls: D.fulls, deltaAvgBytes: dAvg, fullAvgBytes: cAvg, savingPct: Math.round(100 - dAvg * 100 / cAvg) }
+
+    log("assertions (T:STATSYNC-03 — gap → catch-up):")
+    assert("03.1", D.dropped === 1 && D.gaps >= 1 && D.requests === 1 && D.refreshed === 1, `one drop, gap detected, ONE refresh round-trip despite deltas in flight (dropped=${D.dropped} gaps=${D.gaps} requests=${D.requests} replies=${D.refreshed})`)
+    assert("03.2", all.every(c => !c.msgs.some(m => m.refresh)), "refresh reply reached only the requester")
+    const lastSeq = Math.max(...Object.keys(C.stateViews).map(Number))
+    assert("03.3", D.views[lastSeq] && D.views[lastSeq] === C.stateViews[lastSeq], `probe converged with control after recovery (seq ${lastSeq})`)
   }
 
   const perClient = all.map(c => ({ name: c.name, states: c.states, bytes: c.bytes, avgBytes: Math.round(c.bytes / c.states), maxBytes: Math.max(...c.msgs.filter(m => m.type === "game_state").map(m => m.bytes)) }))

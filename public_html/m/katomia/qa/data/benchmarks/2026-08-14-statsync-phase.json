@@ -1,0 +1,109 @@
+{
+  "_about": "STATSYNC1 wire benchmark (T:STATSYNC-BENCH-01). Full-state broadcast measurements — correctness (T:STATSYNC-01) must never regress across phases; bytes must fall by P6.",
+  "ts": "2026-08-14T01:45:52.020Z",
+  "api": "https://alpha.katlab.kpay.live",
+  "scripted": {
+    "kind": "scripted",
+    "gameId": "KTJGS2",
+    "actions": 12,
+    "perClient": [
+      {
+        "name": "A",
+        "states": 46,
+        "bytes": 176947,
+        "avgBytes": 3847,
+        "maxBytes": 7038
+      },
+      {
+        "name": "B",
+        "states": 45,
+        "bytes": 176284,
+        "avgBytes": 3917,
+        "maxBytes": 7038
+      },
+      {
+        "name": "C",
+        "states": 44,
+        "bytes": 172034,
+        "avgBytes": 3910,
+        "maxBytes": 6943
+      }
+    ],
+    "latencyMsMedian": 4,
+    "latencyMs": [
+      {
+        "label": "addAccount alice",
+        "ms": 5
+      },
+      {
+        "label": "addAccount bob",
+        "ms": 4
+      },
+      {
+        "label": "offer apple alice→bob",
+        "ms": 4
+      },
+      {
+        "label": "offer banana bob→alice",
+        "ms": 3
+      },
+      {
+        "label": "public chat",
+        "ms": 3
+      },
+      {
+        "label": "targeted chat B→A",
+        "ms": 3
+      },
+      {
+        "label": "toggleLock alice",
+        "ms": 3
+      },
+      {
+        "label": "toggleLock alice off",
+        "ms": 5
+      },
+      {
+        "label": "withdraw banana",
+        "ms": 3
+      },
+      {
+        "label": "gap: delta dropped on probe",
+        "ms": 7
+      },
+      {
+        "label": "gap detected next delta",
+        "ms": 4
+      },
+      {
+        "label": "post-refresh delta applies",
+        "ms": 4
+      }
+    ],
+    "seqPresent": true,
+    "finalStateBytes": 1377,
+    "growth": {
+      "first": 2153,
+      "last": 6608,
+      "perChatBytes": 154
+    },
+    "deltaStats": {
+      "deltas": 42,
+      "fulls": 2,
+      "deltaAvgBytes": 369,
+      "fullAvgBytes": 3910,
+      "savingPct": 91
+    }
+  },
+  "passive": {
+    "kind": "passive",
+    "game": "q-crowd",
+    "secs": 30,
+    "states": 10,
+    "bytes": 34320,
+    "avgBytes": 3432,
+    "maxBytes": 6184,
+    "perMinute": 20
+  },
+  "failures": []
+}
