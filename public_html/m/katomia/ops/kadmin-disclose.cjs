@@ -29,12 +29,25 @@ const pw = (() => {
     disclosed: document.querySelectorAll('.kadmin-disclosed').length,
     flag: window.KATOMIA_FEATURES && window.KATOMIA_FEATURES.kea === true,
   }))
-  await browser.close()
   out.admin = admin
   if (!admin.kadmin) out.fails.push('admin: body.kadmin missing')
   if (!admin.menuItem) out.fails.push('admin: disclosed menu item missing')
   if (!admin.chips) out.fails.push('admin: no 🛠 admin chips rendered')
   if (!admin.flag) out.fails.push('admin: feature flag not pre-set true')
+
+  // Visibility (not just DOM presence) — checked on the home page: inside a
+  // proposal-mode game the pre-existing KATOMIA-CONFIG1 rule hides KEA
+  // (.hide-in-proposal), which is correct and not what this test judges.
+  await page.goto(BASE + '/m/katomia/', { waitUntil: 'networkidle' })
+  const home = await page.evaluate(() => {
+    const el = document.querySelector('[data-menu-kea]')
+    return { menuItemVisible: !!(el && el.offsetParent !== null || el && getComputedStyle(el).display !== 'none'),
+             chipVisible: !!document.querySelector('[data-menu-kea] .kadmin-chip') }
+  })
+  await browser.close()
+  out.adminHome = home
+  if (!home.menuItemVisible) out.fails.push('admin home: disclosed menu item not visible')
+  if (!home.chipVisible) out.fails.push('admin home: 🛠 chip missing on menu item')
 
   // ── non-admin vantage: same vhost via loopback (REMOTE_ADDR=127.0.0.1) ──
   const host = new URL(BASE).host
