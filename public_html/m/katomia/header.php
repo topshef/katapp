@@ -357,8 +357,8 @@ try {
 // Feature flags (AUTH-LANG1 note, 2026-07-06): a launch-excluded feature's every
 // affordance is tagged data-feature="<name>" and hidden wholesale when its flag is
 // off. Flip here (or pre-set window.KATOMIA_FEATURES before this script) — no other
-// code changes needed. Per-feature defaults sit between KBUNDLE-STRIP markers so a
-// production bundle carries neither the code nor the flag (BUNDLE-STRIP1).
+// code changes needed. Per-feature defaults are individually wrapped so a
+// production build can ship without the code or the flag (BUNDLE-STRIP1).
 window.KATOMIA_FEATURES = Object.assign({
   /* KBUNDLE-STRIP:kea */
   // kea OFF (user 2026-08-13): Execution agent is out for the alpha launch; on the

@@ -22,6 +22,12 @@ for FEAT in $FEATURES; do
   hits="$(grep -rnIiE "$T|KBUNDLE-STRIP[-A-Z]*:$FEAT" "$DIR" --exclude-dir=node_modules 2>/dev/null)"
   [ -n "$hits" ] && { echo "── feature '$FEAT' traces:"; echo "$hits"; fail=1; }
 done
+# The marker convention's NAME must not ship either (a comment saying "KBUNDLE-STRIP"
+# reveals that the build prunes things — caught live on pat 2026-08-15). Today every
+# tagged feature is in the default strip list, so ANY occurrence is a leak; if a
+# partially-stripped build ever becomes a real mode, scope this to stripped features.
+mhits="$(grep -rnI "KBUNDLE-STRIP" "$DIR" --exclude-dir=node_modules 2>/dev/null)"
+[ -n "$mhits" ] && { echo "── marker-name traces:"; echo "$mhits"; fail=1; }
 [ -d "$DIR/KEA" ] && { echo "── KEA/ directory present in build"; fail=1; }
 
 if [ "$fail" = 1 ]; then
