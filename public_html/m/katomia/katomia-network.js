@@ -283,8 +283,8 @@ if(showTradedAssets) showTradedAssets.onchange = e => {
 // wantDelta and consumes game_delta patches (proven by T:STATSYNC-01…04; ~90%
 // wire saving on the probe). Full-state broadcast is demoted to a dev/debug
 // opt-out: ?fullstate=1 (or localStorage katomiaFullState="1") restores the old
-// behaviour — the task's end state. Protocol clients (bots, KEA) never send
-// wantDelta and are untouched.
+// behaviour — the task's end state. Protocol clients (bots, external agents) never
+// send wantDelta and are untouched.
 const wantDelta = !(new URLSearchParams(location.search).get("fullstate") === "1" || localStorage.getItem("katomiaFullState") === "1")
 
 // QA-TESTHOOKS1: read-only state peek for the statsync harnesses — same gate as the

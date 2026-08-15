@@ -58,6 +58,7 @@
     body[data-trading-mode="debug"] .mode-order,
     body[data-trading-mode="orderBook"] .mode-order{ display:block; }
 
+    /* KBUNDLE-STRIP:kea */
     /* KATOMIA-CONFIG1 (user 2026-07-14): "execution agent... it's not
        relevant for proposal mode" — a NEGATIVE gate, not the positive
        .mode-order above. .mode-order defaults to display:none and only
@@ -66,13 +67,14 @@
        all — wrong here: KEA is a cross-game profile feature that should
        stay visible everywhere EXCEPT specifically inside a proposal-mode
        game. */
+    /* /KBUNDLE-STRIP:kea */
     body[data-trading-mode="proposal"] .hide-in-proposal{ display:none; }
 
 
     .debug-only{ display:none; }
     body[data-trading-mode="debug"] .debug-only{ display:inline-flex; }
 
-    /* Nerd mode — user-facing detail toggle (mirrors KEA pro mode) */
+    /* Nerd mode — user-facing detail toggle */
     .nerd-only{ display:none !important; }
     body.nerd .nerd-only{ display:inline !important; }
     body.nerd .nerd-hide{ display:none !important; }
@@ -2345,7 +2347,7 @@ button.profile-auth-x{
 }
 
 /* ── Profile sections (PROFILE-AUTH-PURPOSE1 reshuffle) ───────────────────────
-   Identity / Reputation binding are always shown; KEA + Preferences collapse via
+   Identity / Reputation binding are always shown; the optional sections collapse via
    native <details>. Keeps the WalletConnect flow visually primary. */
 .profile-section{
   margin-top:16px;

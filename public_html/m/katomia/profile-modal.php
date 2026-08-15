@@ -17,7 +17,7 @@
     <div id="profileAvatar" class="profile-avatar"></div>
 
     <!-- ═══ IDENTITY — your public/private identifiers. The intent public key is NOT
-         KEA-specific; it's your core profile identity, so it lives at the top.
+         agent-specific; it's your core profile identity, so it lives at the top.
          (INTENT-RENAME1: display copy says "intent" — the key signs orders AND proposal
          commitments; wire params/JS names still say orderPubkey pending the compat pass.) ═══ -->
     <div class="profile-section profile-identity">
@@ -57,7 +57,7 @@
          consumers: reputation on your orders AND members-only market access
          (GAME-JOINRULE1). "Reputation binding" was under-scoped once gating went live.
          WIREFRAME — options (expiry/scope/publish) are exposed to feel the UX. ═══ -->
-    <!-- PROFILE-TIDY1: now a collapsible <details> like KEA/Preferences (open by
+    <!-- PROFILE-TIDY1: now a collapsible <details> like the optional sections (open by
          default — it stays the priority section) so the modal's organisation can be
          played with. Kept the name "Wallet binding": the binding IS the authorisation
          (one signed commitment covers both), and AUTH-LANG1 pinned this word. -->
@@ -144,6 +144,7 @@
       </div>
     </details>
 
+    <!-- KBUNDLE-STRIP:kea -->
     <!-- ═══ EXECUTION AGENT — KEA (QR → link → copy). Collapsed by default so the
          wallet-binding flow gets priority. AUTH-LANG1: this is the DELEGATION act —
          approval happens BEFORE the transaction (a standing policy), not after (a
@@ -151,8 +152,11 @@
          data-feature="kea": hidden wholesale when KATOMIA_FEATURES.kea is off — the
          first release ships without KEA visible; later this whole section should be
          excludable from the bundle (BUNDLE1). ═══ -->
-    <!-- KBUNDLE-STRIP:kea (BUNDLE1, user 2026-08-13: KEA is out for alpha — flag off in
-         header.php today; the bundle build strips everything between these markers) -->
+    <!-- (BUNDLE1, user 2026-08-13: KEA is out for alpha — flag off in header.php
+         today; the bundle build strips everything between the markers above/below) -->
+    <!-- BUNDLE-STRIP1: PHP admin gate on top of the flag — non-admin visitors get
+         nothing in the DOM at all on the dev estate; admins (VPN) see it badged. -->
+    <?php if (!empty($katomiaIsAdmin)): ?>
     <details class="profile-section profile-kea hide-in-proposal" id="profileKeaSection" data-feature="kea">
       <summary class="profile-section-title" title="KEA flips approval around: instead of approving each transaction after it appears (WalletConnect / WhatsApp / offline signing), you approve a policy up front. KEA watches for transactions that match orders your intent key has already signed, verifies them, and signs automatically — so it never needs to prompt you. Fastest way to settle; still self-custody.">🤖 Execution agent — KEA <span class="profile-tag" title="Pre-approve, then let KEA settle automatically. The opposite of a signing prompt: you authorise the policy before the transaction exists.">auto</span></summary>
       <p class="subtle">Pair the KEA app to watch and auto-settle orders your intent key has already signed — approve the policy once, no per-transaction prompts.</p>
@@ -161,6 +165,7 @@
       <a id="profileQrLink" class="profile-link" href="#"></a>
       <button id="profileCopyLinkBtn">Copy KEA link</button>
     </details>
+    <?php endif; ?>
     <!-- /KBUNDLE-STRIP:kea -->
 
     <!-- Board preferences lived here briefly (BOARD-HEADERINT1) — moved same

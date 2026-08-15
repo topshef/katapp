@@ -58,10 +58,12 @@ RewriteRule ^host/?$ ?page=host [L,QSA]
 
 
 
+# KBUNDLE-STRIP:kea
 RewriteRule ^kea/?$ KEA [L,QSA]
 
 
 RewriteRule ^keakonnect/?$ kea-bind.html [L,QSA]
+# /KBUNDLE-STRIP:kea
 
 
 

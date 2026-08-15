@@ -28,13 +28,15 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
   body { margin: 0; padding: 16px; box-sizing: border-box; }
   .app-banner { width: auto; margin: -16px -16px 12px -16px; position: relative; }
 
+  /* KBUNDLE-STRIP:kea */
   /* ENTRY-KEANERD1 (user 2026-07-29): KEA affordances are nerd-mode-only for the
      closed alpha — non-nerd users never see the Execution agent (menu item + profile
      section, both tagged data-feature="kea"). Deliberately overrides the earlier
      "nerd mode shouldn't gate features" stance: it's a noise-gate for now, cheap to
      revert. KATOMIA_FEATURES.kea stays the hard off-switch underneath. */
-  /* KBUNDLE-STRIP:kea */
-  body:not(.nerd) [data-feature="kea"] { display: none !important; }
+  /* :not(.kadmin) — BUNDLE-STRIP1: admin disclosure overrides the nerd gate; the
+     admin-disclose block below badges what it reveals. */
+  body:not(.nerd):not(.kadmin) [data-feature="kea"] { display: none !important; }
   /* /KBUNDLE-STRIP:kea */
 
   /* Generic hook for future nerd-only menu items (the dark-mode toggle used to be one;
@@ -61,9 +63,7 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
 
   <!-- MENU-TIDY1 (user 2026-07-07): the menu holds DESTINATIONS only. Removed:
        "Create market" (a button on the Markets page — contextual, not navigation)
-       and "Nerd mode" (a preference — lives in Profile → Preferences & diagnostics).
-       The KEA entry (AUTH-LANG1 second door to the modal's collapsed section) stays
-       while the kea feature flag is on; it disappears wholesale at release. -->
+       and "Nerd mode" (a preference — lives in Profile → Preferences & diagnostics). -->
   <nav id="appMenu" class="app-menu hidden">
     <!-- ENTRY-DEFAULTROOT1 (user 2026-07-29): Home first — always a way back to the
          welcome page (which is now the default root); Markets moved to /markets. -->
@@ -74,15 +74,23 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
          circles — so it moves behind nerd mode as the raw, unfiltered grid. -->
     <a class="app-menu-item" href="<?= $katomiaBase ?>/circles">⭕ <?= htmlspecialchars($katomiaTerms['Many'], ENT_QUOTES, 'UTF-8') ?></a>
     <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
+    <!-- KBUNDLE-STRIP:kea -->
+    <!-- BUNDLE-STRIP1 (user 2026-08-14): the 🤖 Execution agent item is back in its old
+         spot, but PHP-gated to the admin IPs — launch-excluded features stay reachable
+         on the dev estate from the admin VPN, badged by the admin-disclose block below,
+         and absent from everyone else's DOM. Supersedes ENTRY-MENUKEA1's removal for
+         the dev boxes; production bundles strip this block (and all of KEA) outright. -->
+    <?php if ($katomiaIsAdmin): ?>
+    <button type="button" class="app-menu-item hide-in-proposal" data-menu-kea data-feature="kea"
+            title="Pre-approve a policy and let KEA auto-settle orders your intent key has signed — no per-transaction prompts.">🤖 Execution agent</button>
+    <?php endif; ?>
+    <!-- /KBUNDLE-STRIP:kea -->
     <a class="app-menu-item nerd-only" href="<?= $katomiaBase ?>/markets">🏛️ All markets (raw)</a>
     <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
          results — in the main menu rather than behind the admin gate; the pages are
          effectively public anyway. If parts of QA later need gating, do a split pass
          (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
     <a class="app-menu-item nerd-only" href="<?= $katomiaBase ?>/qa/" target="_blank" rel="noopener">🧪 QA</a>
-    <!-- ENTRY-MENUKEA1 (user 2026-07-29): the 🤖 Execution agent menu item is GONE from
-         the hamburger — not used for a while, and the profile section (still nerd-gated,
-         data-feature=kea) remains the one door. Declutter; reposition another time. -->
     <!-- ENTRY-DARKMODE1 R2 (user 2026-07-29): the dark-mode toggle is NOT in this menu —
          it belongs only to the welcome page's nerd-mode theme-test row (landing.php),
          since that's the one place it's actually useful. The engine (window.kdarkToggle,
@@ -309,6 +317,35 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
   <?php endif; ?>
 </div>
 
+<?php /* KBUNDLE-STRIP:admin-disclose */ if ($katomiaIsAdmin): ?>
+<!-- BUNDLE-STRIP1: admin disclosure — on the dev estate, launch-excluded features
+     (KATOMIA_FEATURES flags that ship off) stay visible from the admin IPs only,
+     unmistakably badged so they can't be mistaken for launch surface. Server-side,
+     per request: off the VPN, the next page load hides them again. Production
+     bundles strip this whole block AND the feature code itself (STRIP_FEATURES in
+     ops/build-standalone.sh), so neither survives into the served artifact. -->
+<style>
+  body.kadmin .kadmin-disclosed{ outline:2px dashed #f90; outline-offset:2px; }
+  .kadmin-chip{ font:600 10px/1 system-ui,sans-serif; background:#f90; color:#fff;
+    border-radius:6px; padding:2px 5px; margin-left:6px; vertical-align:middle; }
+</style>
+<script>
+// Runs BEFORE the feature-flags default below — Object.assign there keeps this pre-set.
+window.KATOMIA_FEATURES = Object.assign({}, window.KATOMIA_FEATURES, { kea: true })
+window.KATOMIA_ADMIN_DISCLOSED = ["kea"]
+document.body.classList.add("kadmin")
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("[data-feature]").forEach(el => {
+    if(!window.KATOMIA_ADMIN_DISCLOSED.includes(el.dataset.feature)) return
+    el.classList.add("kadmin-disclosed")
+    const chip = Object.assign(document.createElement("span"), { className: "kadmin-chip",
+      textContent: "🛠 admin", title: "Visible only from the admin VPN — stripped from production bundles entirely (BUNDLE-STRIP1)." })
+    ;(el.querySelector("summary") || el).appendChild(chip)
+  })
+})
+</script>
+<?php endif; /* /KBUNDLE-STRIP:admin-disclose */ ?>
+
 <script>
 // BOARD-UISIZE1: apply the Size preference (Small/Normal/Large) as an html
 // class as early as the header runs, so --ui-scale surfaces don't flash at
@@ -317,15 +354,18 @@ try {
   var _ks = localStorage.getItem("katomiaUiSize")
   document.documentElement.classList.add("ksize-" + (["small","normal","large"].indexOf(_ks) >= 0 ? _ks : "normal"))
 } catch(e){ document.documentElement.classList.add("ksize-normal") }
-// Feature flags (AUTH-LANG1 note, 2026-07-06): KEA will NOT be user-visible in the
-// first release — every KEA affordance is tagged data-feature="kea" and hidden
-// wholesale when the flag is off. Flip here (or pre-set window.KATOMIA_FEATURES
-// before this script) — no other code changes needed. Longer term the KEA code
-// should also be excludable from the bundle (BUNDLE1).
-// kea OFF (user 2026-08-13): Execution agent is gone for the alpha launch. The flag
-// hides every data-feature="kea" affordance today; the code itself is tagged with
-// KBUNDLE-STRIP:kea markers (see BUNDLE1) so the bundle build can remove it outright.
-window.KATOMIA_FEATURES = Object.assign({ kea: false }, window.KATOMIA_FEATURES || {})
+// Feature flags (AUTH-LANG1 note, 2026-07-06): a launch-excluded feature's every
+// affordance is tagged data-feature="<name>" and hidden wholesale when its flag is
+// off. Flip here (or pre-set window.KATOMIA_FEATURES before this script) — no other
+// code changes needed. Per-feature defaults sit between KBUNDLE-STRIP markers so a
+// production bundle carries neither the code nor the flag (BUNDLE-STRIP1).
+window.KATOMIA_FEATURES = Object.assign({
+  /* KBUNDLE-STRIP:kea */
+  // kea OFF (user 2026-08-13): Execution agent is out for the alpha launch; on the
+  // dev estate the admin-disclose block above pre-sets it true for admin IPs.
+  kea: false,
+  /* /KBUNDLE-STRIP:kea */
+}, window.KATOMIA_FEATURES || {})
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-feature]").forEach(el => {
     if(window.KATOMIA_FEATURES[el.dataset.feature] === false) el.style.display = "none"

@@ -5,7 +5,7 @@
     { "id": "device", "name": "Device / input", "values": ["desktop-mouse", "tablet-touch", "phone-touch-small"], "boundaries": [], "notes": "touch-drag vs mouse-drag vs tap-to-offer paths differ; known device-dependent snags live here" },
     { "id": "browser", "name": "Browser", "values": ["chrome", "edge", "firefox", "android-webview-samsung", "ios-safari"], "boundaries": [], "notes": "thumb-render inconsistencies logged in BOARD-POLISH1 (3)(4)(6)" },
     { "id": "network", "name": "Network", "values": ["playnet", "testnet", "mainnet"], "boundaries": ["mainnet"], "notes": "playnet: no WC, manual labels only; mainnet: real-value guard rails" },
-    { "id": "trading-mode", "name": "Trading mode", "values": ["proposal-board", "orderBook", "debug"], "boundaries": [], "notes": "board = proposal only today; KEA gated off in proposal" },
+    { "id": "trading-mode", "name": "Trading mode", "values": ["proposal-board", "orderBook", "debug"], "boundaries": [], "notes": "board = proposal only today" },
     { "id": "chip-layout", "name": "Chip layout 🧪", "values": ["shelves", "organic", "organic-sticky"], "boundaries": [], "notes": "both live until the desktop verdict (BOARD-LAYOUT1); sticky added 2026-07-16 (BOARD-ARRANGE1 slice 1)" },
     { "id": "net-view", "name": "Net view 🧪", "values": ["on", "off"], "boundaries": [], "notes": "on is standard; off is the escape hatch; withdraw-all only applies when on" },
     { "id": "account-source", "name": "Account source", "values": ["walletconnect", "manual-entry", "mixed"], "boundaries": [], "notes": "profile WC list vs game accounts are separate stores (KAT-ACCTNORM1)" },

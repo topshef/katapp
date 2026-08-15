@@ -431,44 +431,44 @@
     },
     {
       "id": "KSTRIP-01",
-      "title": "Source tag audit — every KEA affordance is strip-tagged",
+      "title": "Source tag audit — launch-excluded features are strip-tagged",
       "kind": "static",
-      "harness": "qa/harness/kstrip-audit.sh",
+      "harness": "ops/kstrip-audit.sh",
       "run": {
-        "lab1": "bash qa/harness/kstrip-audit.sh"
+        "lab1": "bash ops/kstrip-audit.sh"
       },
-      "schedule": "per-build (once built)",
-      "state": "planned 2026-08-14 (BUNDLE-STRIP1 phase 0) — harness not yet written",
+      "schedule": "per-build",
+      "state": "live 2026-08-15 (BUNDLE-STRIP1 phase 0)",
       "dimension": "build hygiene",
       "cost": "free",
       "what_it_does": [
-        "Grep the source tree against a KEA-reference inventory (kea identifiers, dealEngine/dealPorts, kea-bind, profileKeaSection, Execution agent strings).",
-        "Assert each hit is inside a KBUNDLE-STRIP marker, carries data-feature=\"kea\", or lives under KEA/."
+        "Grep the source tree against the reference inventory of each launch-excluded feature (see STRIP_FEATURES in ops/build-standalone.sh).",
+        "Assert every hit sits inside a KBUNDLE-STRIP marker block, a KBUNDLE-STRIP-FILE file, or the feature's own directory."
       ],
-      "pass_means": "A KEA reference cannot exist in the source untagged — the strip step will always catch it.",
-      "fails_when": "Someone adds a KEA affordance without tagging it for bundle-time removal.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/kstrip-audit.sh",
+      "pass_means": "A launch-excluded feature reference cannot exist in the source untagged — the bundle strip step will always catch it.",
+      "fails_when": "Someone adds an affordance for a launch-excluded feature without tagging it for bundle-time removal.",
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/ops/kstrip-audit.sh",
       "how_to_reproduce": "Run the harness; the failure output lists each untagged reference with file:line."
     },
     {
       "id": "KSTRIP-02",
-      "title": "Bundle purity — no KEA trace in the build output",
+      "title": "Bundle purity — no trace of stripped features in the build output",
       "kind": "static",
-      "harness": "qa/harness/kstrip-purity.sh",
+      "harness": "ops/kstrip-purity.sh",
       "run": {
         "build": "runs inside ops/build-standalone.sh as a hard gate",
-        "any": "bash qa/harness/kstrip-purity.sh <build-dir>"
+        "any": "bash ops/kstrip-purity.sh <build-dir>"
       },
       "schedule": "every build",
-      "state": "planned 2026-08-14 (BUNDLE-STRIP1 phase 0) — harness not yet written; pre-strip baseline expected to FAIL (KEA currently bundled)",
+      "state": "live 2026-08-15 (BUNDLE-STRIP1 phase 2) — pre-strip baseline measured FAILING as expected",
       "dimension": "build hygiene / launch scope",
       "cost": "free",
       "what_it_does": [
-        "Grep the finished build tree for KEA identifiers, leftover KBUNDLE-STRIP markers, and the KEA/ directory."
+        "Grep the finished build tree for stripped-feature identifiers, leftover KBUNDLE-STRIP markers, and excluded directories."
       ],
-      "pass_means": "Inspecting the bundle (or the served site built from it) cannot reveal the KEA feature — the user's launch bar.",
-      "fails_when": "The strip step missed a block/file, or a new untagged KEA reference reached the bundle.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/kstrip-purity.sh",
+      "pass_means": "Inspecting the bundle (or the site served from it) cannot reveal a launch-excluded feature — the launch bar.",
+      "fails_when": "The strip step missed a block/file, or a new untagged reference reached the bundle.",
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/ops/kstrip-purity.sh",
       "how_to_reproduce": "Build with ops/build-standalone.sh, then run the harness against the build dir; failures list surviving references."
     },
     {
@@ -480,38 +480,38 @@
         "lincoln": "node journey.cjs https://pat.katomia.com clean"
       },
       "schedule": "per staged release during BUNDLE-STRIP1; then per release checklist",
-      "state": "planned 2026-08-14 (BUNDLE-STRIP1 phase 3) — baseline run on current pat release comes first (phase 0)",
+      "state": "baseline PASS recorded 2026-08-15 on pat (pre-strip, 0 console errors)",
       "dimension": "regression",
       "cost": "free",
       "what_it_does": [
         "Run the existing click-through journey against pat serving a stripped bundle.",
-        "Compare console errors / 404s against the phase-0 baseline run."
+        "Compare console errors / 404s against the pre-strip baseline run."
       ],
-      "pass_means": "Pruning KEA left no dangling references — 0 console errors, no new 404s, journey behaviour unchanged.",
-      "fails_when": "A stripped block was load-bearing for non-KEA code (e.g. a shared helper cut too broadly).",
+      "pass_means": "Pruning left no dangling references — 0 console errors, no new 404s, journey behaviour unchanged.",
+      "fails_when": "A stripped block was load-bearing for the launch surface (e.g. a shared helper cut too broadly).",
       "harness_url": "https://github.com/topshef/kdeploy",
       "how_to_reproduce": "Stage the release to pat via kdeploy, run journey.cjs as above, diff console output vs baseline."
     },
     {
       "id": "KADMIN-01",
-      "title": "Admin disclosure — KEA visible only from admin VPN, clearly badged",
+      "title": "Admin disclosure — launch-excluded features visible only to admin, clearly badged",
       "kind": "visual",
-      "harness": "qa/harness/kadmin-disclose.cjs",
+      "harness": "ops/kadmin-disclose.cjs",
       "run": {
-        "lab1": "node qa/harness/kadmin-disclose.cjs"
+        "lab1": "node ops/kadmin-disclose.cjs"
       },
       "schedule": "manual + after header.php changes",
-      "state": "planned 2026-08-14 (BUNDLE-STRIP1 phases 0/1) — harness not yet written",
+      "state": "live 2026-08-15 (BUNDLE-STRIP1 phase 1)",
       "dimension": "access gating / UI",
       "cost": "free",
       "what_it_does": [
-        "From an admin IP (130.185.251.53 VPN / 176.126.78.48 Lincoln): assert KEA affordances render with the admin-only treatment (body.kadmin, 🛠 admin chip).",
-        "From a non-admin vantage: assert the affordances are absent."
+        "From an admin IP (the header.php $katomiaIpAdmin list): assert the disclosed affordances render with the admin-only treatment (body.kadmin, 🛠 admin chip).",
+        "From a non-admin vantage (loopback): assert the affordances are absent from the served HTML."
       ],
-      "pass_means": "Admin-VPN users see launch-excluded features clearly marked admin-only; everyone else sees nothing (server-side, per request — VPN off = gone next load).",
-      "fails_when": "Disclosure leaks to non-admin IPs, or the admin view lacks the visual marker distinguishing admin-only items.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/kadmin-disclose.cjs",
-      "how_to_reproduce": "Load lab1 board/profile from an admin IP and a non-admin IP; compare presence + badging of the 🤖 Execution agent menu item and profile section."
+      "pass_means": "Admin users see launch-excluded features clearly marked admin-only; everyone else gets nothing in the DOM (server-side, per request — off the admin network = gone next load).",
+      "fails_when": "Disclosure leaks to non-admin requests, or the admin view lacks the visual marker distinguishing admin-only items.",
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/ops/kadmin-disclose.cjs",
+      "how_to_reproduce": "Load a lab1 page from an admin IP and via 127.0.0.1 with the Host header; compare presence + badging of the disclosed menu/profile items."
     }
   ],
   "expected_fail": {

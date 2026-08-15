@@ -500,8 +500,8 @@ function formatFungibleAmount(rawValue, tokenClass) {
 }
 
 // {var} tokens and the bare "buyer" placeholder both render as mono chips -
-// "buyer" is a reserved word substituted server-side at signing time (see
-// hbarlive_hts/dealEngine.js injectString()), so it's not a real account id
+// "buyer" is a reserved word substituted server-side at signing time (the
+// backend deal engine's injectString()), so it's not a real account id
 // yet at display time; showing it as a chip like any other unresolved
 // variable is clearer than a "You send/receive" guess this early.
 function chipify(text) {
