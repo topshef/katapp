@@ -443,7 +443,7 @@
       "cost": "free",
       "what_it_does": [
         "Grep the source tree against the reference inventory of each launch-excluded feature (see STRIP_FEATURES in ops/build-standalone.sh).",
-        "Assert every hit sits inside a KBUNDLE-STRIP marker block, a KBUNDLE-STRIP-FILE file, or the feature's own directory."
+        "Assert every hit sits inside a strip marker block, a strip-marked file file, or the feature's own directory."
       ],
       "pass_means": "A launch-excluded feature reference cannot exist in the source untagged — the bundle strip step will always catch it.",
       "fails_when": "Someone adds an affordance for a launch-excluded feature without tagging it for bundle-time removal.",
@@ -464,7 +464,7 @@
       "dimension": "build hygiene / launch scope",
       "cost": "free",
       "what_it_does": [
-        "Grep the finished build tree for stripped-feature identifiers, leftover KBUNDLE-STRIP markers, and excluded directories."
+        "Grep the finished build tree for stripped-feature identifiers, leftover strip markers, and excluded directories."
       ],
       "pass_means": "Inspecting the bundle (or the site served from it) cannot reveal a launch-excluded feature — the launch bar.",
       "fails_when": "The strip step missed a block/file, or a new untagged reference reached the bundle.",
