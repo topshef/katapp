@@ -1,0 +1,153 @@
+<!doctype html>
+<!--
+  qa/coverage-2026-08-16.html — point-in-time REVIEW: bugs reported/fixed
+  (window ~2026-06-21 → 2026-08-16) cross-checked against what the continuous
+  regression suite would actually catch. Produced for QA-REGGAPS1 (user ask
+  2026-08-16: "review the bugs and issues we've received and fixed and check if
+  they're covered by continuous regression testing; recommend new tests").
+  Sources: tasks/*.json, feedback inbox, git logs, tests.json, root crontab.
+  A bug counts as covered only if an existing test would catch a REGRESSION of
+  it, not merely touch the same subsystem.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QA coverage review — 2026-08-16</title>
+<style>
+  :root{
+    --bg:#fbfbfa; --fg:#1a1a19; --mut:#6b6b66; --line:#e3e3df; --card:#fff;
+    --ok:#1f7a45; --okbg:#e8f5ed; --bad:#a12a2a; --badbg:#fbe9e9;
+    --warn:#8a5a00; --warnbg:#fdf3e0; --code:#f4f4f1;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#16161a; --fg:#e8e8e4; --mut:#9a9a94; --line:#2c2c32; --card:#1d1d22;
+      --ok:#5fd08a; --okbg:#12301f; --bad:#f08a8a; --badbg:#331717;
+      --warn:#e0ae5a; --warnbg:#33270f; --code:#232329;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);padding:24px 16px 70px;
+       font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:900px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 2px}
+  h2{font-size:16px;margin:34px 0 10px;padding-bottom:5px;border-bottom:1px solid var(--line);
+     text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
+  .sub{color:var(--mut);font-size:13px;margin-bottom:20px}
+  .sub a{color:inherit}
+  p{margin:0 0 12px}
+  code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:12.5px}
+  .gridwrap{overflow-x:auto}
+  table{border-collapse:collapse;font-size:13.5px;margin:12px 0;min-width:640px}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--code)}
+  .gap{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--bad);
+       border-radius:10px;padding:13px 15px;margin:0 0 10px}
+  .gap h3{margin:0 0 4px;font-size:14.5px}
+  .gap .why{font-size:13.5px;color:var(--mut);margin:0 0 6px}
+  .gap .test{font-size:13.5px}
+  .lvl{float:right;font-size:12px;color:var(--mut)}
+  .headline{border-radius:12px;padding:14px 18px;margin:0 0 20px;font-size:15px;
+            background:var(--warnbg);border:1px solid transparent}
+  ol{padding-left:22px;margin:0 0 12px} li{margin-bottom:6px}
+</style>
+
+<div class="wrap">
+<h1>Bug history × regression coverage</h1>
+<div class="sub">Review of 2026-08-16 · window ≈ 2026-06-21 → 2026-08-16 ·
+<a href="tests.html">test index</a> · <a href="results.html">retest grid</a> ·
+<a href="kwallet.html">kWallet status</a> · <a href="healthmap.html">health-map design</a></div>
+
+<div class="headline">Of ~25 distinct bug classes reported or fixed in the window,
+<b>~8 are genuinely covered</b> by the continuous suite, 3–4 partially, and
+<b>~13 have no automated regression at all</b>. The starkest gap is
+<b>transaction-status truth</b> — the family that produced the period's only real
+financial harm.</div>
+
+<h2>What runs continuously (verified in crontab)</h2>
+<p>T:HBARXFER-01 every 2h · T:WCNETSWITCH-01/-02 every 2h · T:WC-A5-ONLINE +
+T:WC-A5B-GHOST daily · T:MAINNETSMOKE-01 daily (mainnet, real value) ·
+T:STATSYNC-01…04 daily · gridwatch repeated-failure watcher every 30m ·
+qa-shots contact sheet every 4h (screenshots, no assertions) · KSTRIP-01/02 +
+KADMIN-01 per build. As of 2026-08-16: HBARXFER also daily against
+<b>kswap</b> (01:15) and <b>PAT</b> (03:15). <code>validdur-decode-matrix</code>
+(12 backend decoder cases) is manual-only.</p>
+
+<h2>Covered — a regression would be caught</h2>
+<div class="gridwrap"><table>
+<tr><th>Bug class</th><th>Source</th><th>Covered by</th></tr>
+<tr><td>WC ghost sessions (wallet kills session, dApp keeps believing; hang / sign-into-void)</td><td>WC-RELAYHEALTH1, inbox 07-17, TXSTATUS-CONSOLIDATE1 S4</td><td>T:WC-A5B-GHOST (discriminating), T:WC-A5-ONLINE, daily</td></tr>
+<tr><td>Network-switch staleness (mainnet connector on testnet game; stale session survives)</td><td>WC-NETSCOPE1 / WC-NETSWITCH1 / WC-SESSIONDISPOSE1 / WC-ACCTFILTER1</td><td>T:WCNETSWITCH-01/-02, every 2h</td></tr>
+<tr><td>Ghost-sign hang exceeding tx validity (was exactly 120.0s)</td><td>TXSTATUS-CONSOLIDATE1 S4, frozen benchmark 08-07</td><td>T:WC-A5B-GHOST assertion A5b.4</td></tr>
+<tr><td>State-sync divergence (missed broadcasts, delta drift, chat leaks) — caught a real bug 08-14</td><td>STATSYNC1 refactor</td><td>T:STATSYNC-01…04 daily — strongest coverage in the estate</td></tr>
+<tr><td>Gross whole-chain breakage (backend down, pipeline dead, pairing dead)</td><td>BACKEND-CRASHLOOP1 class</td><td>T:HBARXFER-01 12×/day + T:MAINNETSMOKE-01 daily (e2e canaries)</td></tr>
+<tr><td>addAccount crash from unregistered player</td><td>ADDACCT-ROBUST1 (done 08-05)</td><td>T:HBARXFER-01 (B joins walletless) + T:STATSYNC-01</td></tr>
+<tr><td>Harness rot going silent (A5-ONLINE silent 14d; smoke muted by own guard)</td><td>QA-HARNESSREPAIR1, QA-RIMPILECHECK1</td><td>gridwatch 30m + cadence-aware SILENT verdicts (meta-coverage)</td></tr>
+<tr><td>Mainnet-only failures (node behaviour, fees, payer state) — <b>partial</b></td><td>SIGN-BOUNDARY1</td><td>T:MAINNETSMOKE-01 — once daily, happy-path only</td></tr>
+</table></div>
+
+<h2>Not covered — recommended new tests</h2>
+
+<div class="gap"><span class="lvl">⛏ rock</span><h3>1 · TXTRUTH-01 — never guess a FAILED verdict</h3>
+<div class="why">BOARD-TXTRUTH1 (08-07): three false FAILURE verdicts on successful txs → user re-sent 0.01 USDC, <b>real mainnet double spend</b> — the only realized money harm of the period. Receipt socket has no reconnect; a drop between sig-save and receipt made the fallback guess FAILED. Fix 79858f4 ("confirm on chain, never guess") has zero regression protection.</div>
+<div class="test">Playwright fork of hbarxfer-auto-spike: sever the tx-receipt websocket between sign and receipt; assert the board still reaches SUCCESS sourced from chain confirmation, and FAILED is never shown for a mirror-confirmed tx. Absorbs the TXS-1/-3/-6 verdict-lifecycle cases (orphaned toasts, two-tab re-declare).</div></div>
+
+<div class="gap"><span class="lvl">🪨 stone</span><h3>2 · SIGNDEADTX-01 — refuse to sign an expired transaction</h3>
+<div class="why">SIGN-DEADTX1 (08-07): Sign clicked 39s after window close → sig saved, success logged, mirror shows no consensus ever possible. The txValidity() gate's decoder matrix exists but is manual-only and doesn't test the gate.</div>
+<div class="test">Playwright on qa/wc-fixture.php (40s validity): wait out the window, tap Sign; assert refusal + expiry message, no signer:sign:saved success, no wallet round-trip. Also promote validdur-decode-matrix onto a cron.</div></div>
+
+<div class="gap"><span class="lvl">🪨 stone</span><h3>3 · ENRICHCOLD-01 — asset-enrich cold path stays fast, cached, parallel</h3>
+<div class="why">ENRICH-COLDPATH1 (08-08→08-13, four defects/commits): never cached, session-lock serialised, 301 per call, one hung xproof blocking all assets; Kache.getData timeout deliberately deferred = known live hole. Recurring, confusion-prone subsystem (two enrich paths); nothing in QA touches it.</div>
+<div class="test">(a) backend script: enrich endpoint answers 200 not 301; cold &lt; ~2.5s, warm &lt; ~0.5s; two concurrent calls ≈ 1× not 2× (serialisation probe). (b) Playwright cold-profile board load: all chips enriched, no bare 0.0.x names, &lt; 3s.</div></div>
+
+<div class="gap"><span class="lvl">🪨 stone</span><h3>4 · AMTSCALE-01 — settled amount is verified on the mirror</h3>
+<div class="why">AMOUNT-SCALE1 (critical incident 07-07): display-unit leak → signed mainnet tx with 0-amount transfer. Guards shipped, but HBARXFER asserts a toast, never the on-chain amount — a scaling regression settling the wrong amount would pass green. Silent by construction.</div>
+<div class="test">(a) protocol script posting a display-unit offer for a decimals&gt;0 token, asserting the backend FR/FS guards reject; (b) one-line hardening of hbarxfer-auto-spike: fetch the mirror transfer after the verdict, assert exactly 1,000,000 tinybar. Near-free on a harness already running 12×/day.</div></div>
+
+<div class="gap"><span class="lvl">🪨 stone</span><h3>5 · GOODWIN-FLOAT-01 — demo economy solvency, mirror-truthed</h3>
+<div class="why">Three recurrences (GOODWIN-DEMO1/2/4; 18–19h public outages): payer deadlock → bot narrates rewards it cannot pay, logging SUCCESS throughout. Only detectable by chain cross-check, which nothing automates. Memory rule: verify on the mirror transfer list, never the SUCCESS log.</div>
+<div class="test">Daily backend script: mirror balance check on the Goodwin payer + treat-float 0.0.9862254 vs precheck threshold; take the last narrated reward round from the bot log and assert matching legs on the mirror transfer list. Red = run kbot/goodwin-topup.cjs --go.</div></div>
+
+<div class="gap"><span class="lvl">🪨 stone</span><h3>6 · ACCTMISMATCH-01 — wrong-active-account sign aborts loudly</h3>
+<div class="why">WS-ACCTMISMATCH1 (08-05): WC signed with the wrong account silently, burning the 40s window. Fix added a hard abort + kdiag event — monitoring, not a test. (Rock if kWallet can't hold two accounts yet.)</div>
+<div class="test">Pair kWallet with two testnet accounts, wrong one active, tap Sign: assert abort toast + board:sign:account-mismatch kdiag, no signTx reaches the wallet.</div></div>
+
+<div class="gap"><span class="lvl">⏳ sand</span><h3>7 · WCSINGLEINIT-01 — exactly one WC client per page load</h3>
+<div class="why">WC-DOUBLEINIT1 (08-07): two clients sharing a store destroyed each other's sessions → on-chain-confirmed expired tx. Fixed 8e6255c; nothing asserts single-init.</div>
+<div class="test">One assertion inside an existing harness: count wc:build kdiag events per load == 1.</div></div>
+
+<div class="gap"><span class="lvl">⏳ sand / 🪨 stone</span><h3>8 · PRIVJOIN-01 — private-game join delivers frames</h3>
+<div class="why">GAMEPRIVATE-JOINSTUCK1 (07-16, fixed 07-30): join returned zero frames, permanently blank board. The t-private fixture was kept "as a permanent regression fixture" — but no cron probes it.</div>
+<div class="test">WS protocol script (statsync-baseline pattern): fresh join to t-private gets game_state + playerId &lt; 5s; spectator probe stays invisible.</div></div>
+
+<div class="gap"><span class="lvl">🪨 stone</span><h3>9 · NODEPIN-01 — frozen tx carries ≥3 nodes, fresh speed rows</h3>
+<div class="why">SIGN-BOUNDARY1 R2/R3: tx pinned to ONE mainnet node from 36h-old speed rows → retry loop → TRANSACTION_EXPIRED; sig-store/rebuild collapses to copy[0] (known single-node memory). MAINNETSMOKE only fails on this probabilistically.</div>
+<div class="test">Backend unit script: build/rebuild a mainnet tx through the sign pipeline; assert ≥3 frozen node ids survive the rebuild and speed rows &gt; 6h old are excluded.</div></div>
+
+<div class="gap"><span class="lvl">🪨 stone</span><h3>10 · ACTSELF-01 — action rows reach my own stream</h3>
+<div class="why">CHAT-ACTIONSELF1 (08-06, unfixed): actions on my assets never reach my stream, view-mode dependent; "needs a two-client reproduction" — which statsync-baseline already is.</div>
+<div class="test">Extend statsync-baseline: after B rejects A's offer, assert the row lands in A's bucket in both kchatMode paths.</div></div>
+
+<div class="gap"><span class="lvl">🪨 stone</span><h3>11 · CHIPCANARY-01 — bank the geometry canaries</h3>
+<div class="why">Board geometry/drag family (BOARD-DROPHIT1, ARRANGEFENCE1, PICKSCATTER1, TRAILSTUCK1; inbox 08-06 "chip in someone else's basket"). canaries.json specifies the checks but they live as a never-banked scratchpad; CHIPARRANGE-01 is manual and currently erroring. Visual class — user-noticeable, not money-losing; lower urgency.</div>
+<div class="test">Move CANARY-COSMETIC-STABILITY + CANARY-GEOMETRY-TRUTH into qa/harness/ on a daily cron.</div></div>
+
+<h2>Build order (top 5)</h2>
+<ol>
+<li><b>TXTRUTH-01</b> — the class that already cost real money, mis-fixed once, zero protection today.</li>
+<li><b>SIGNDEADTX-01</b> — actively-lying success on the path every user hits; only a manual unit matrix guards it.</li>
+<li><b>ENRICHCOLD-01</b> — four defects in one recurring subsystem with a known unshipped timeout hole; cheapest high-value backend test.</li>
+<li><b>AMTSCALE-01</b> — critical incident class, silent by construction; near-free hardening of an existing 12×/day harness.</li>
+<li><b>GOODWIN-FLOAT-01</b> — three recurrences, publicly dishonest when down; the mirror-truth pattern is a small script.</li>
+</ol>
+<p>Zero-cost adds alongside any of the above: WCSINGLEINIT-01, PRIVJOIN-01 (sand-grade).</p>
+
+<h2>Shape of coverage</h2>
+<p>The continuous suite is concentrated on the WalletConnect session lifecycle and the
+statsync protocol — where it is genuinely excellent and discriminating — plus two e2e
+canaries that catch gross outages within hours. What it does not watch is whether the
+app <i>tells the truth about money</i>: verdict provenance, expiry refusal, settled
+amounts, and demo-economy solvency all regress silently today. On the
+<a href="healthmap.html">body diagram</a>: hands and memory are well-tested, the gut
+(enrich) and the truth-telling nervous system have no cells at all.</p>
+
+</div>
