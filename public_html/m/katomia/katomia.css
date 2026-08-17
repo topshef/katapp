@@ -2059,17 +2059,40 @@ textarea:focus{
   opacity:0.7;
 
   /* its own backdrop, so content scrolling underneath never makes it illegible */
-  width:32px;
-  height:32px;
+  width:36px;
+  height:36px;
   display:flex;
   align-items:center;
   justify-content:center;
   border-radius:50%;
   background:rgba(255,255,255,0.92);
   box-shadow:0 1px 4px rgba(0,0,0,0.14);
+
+  /* R6: a touch that starts here must NEVER be read as a card scroll — that's what
+     was eating the user's first taps (no click synthesised, "takes a second to
+     close"). Pairs with the pointerdown close in katomia-profile.js. */
+  touch-action:none;
+  position:relative;
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* R6: generous invisible hit area (~56px effective) — the visible 36px ring is
+   below comfortable thumb size and edge taps were landing on the card. */
+.profile-close::after{
+  content:"";
+  position:absolute;
+  inset:-10px;
 }
 
 .profile-close:hover{ opacity:1; }
+
+/* R6: immediate pressed feedback — the "is it doing anything" cue for the tap
+   itself; fires on touch contact now that touch-action:none applies. */
+.profile-close:active{
+  opacity:1;
+  transform:scale(0.9);
+  background:#eceff3;
+}
 
 /* Busy pill — shown by katomia-auth.js (kauthBusy) while a WalletConnect /
    mirror-node operation is in flight. Sticky beside the ✕: connectivity trouble

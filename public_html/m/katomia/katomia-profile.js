@@ -125,6 +125,7 @@ function initKatomiaProfile(){
   // profile:close kdiag carries queuedMs (how long the tap waited for the main
   // thread) so the next mobile report is measurable instead of anecdotal.
   const doClose = e => {
+    if(modal.classList.contains("hidden")) return   // R6: pointerdown + click both wired — run once
     modal.classList.add("hidden")
     kprofTapShield()   // R4: stacked frustration-taps must not reach the page beneath
     window.boardModalHold?.(false)
@@ -134,6 +135,17 @@ function initKatomiaProfile(){
     if(window.kauthNetBusy?.())
       notify?.("Still talking to the wallet network in the background — it'll finish on its own.", "info", { timeout: 3500 })
   }
+  // R6 (user 2026-08-17, home-page telemetry): closes PAINTED in 22-26ms once a
+  // click landed — but the felt "~1 second" was taps that never became clicks at
+  // all. The ✕ lives in the scrollable card, and a touch with any finger wobble is
+  // classified as a SCROLL START: no click synthesised, no handler, no cue — the
+  // user hammers until one tap lands still (each close was followed by 2 shield-
+  // swallowed extras). So: close on POINTERDOWN — it fires the instant the finger
+  // lands, before scroll interpretation can eat it — with touch-action:none on the
+  // ✕ (CSS) so a wobble can't become a scroll, and the ghost click that follows
+  // the DOM hide dies on the R4 shield. onclick stays as the keyboard/fallback
+  // path; doClose's already-hidden guard keeps the pair single-fire.
+  close.addEventListener("pointerdown", doClose)
   close.onclick = doClose
   modal.onclick = e => {
     if(e.target === modal) doClose(e)
