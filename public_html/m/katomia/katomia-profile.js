@@ -1,5 +1,37 @@
 const NERD_KEY = "katomia.nerd.v1"
 
+// ── KATUI3 R3 (user 2026-08-17, third mobile report) — measure the PAINT, not the
+// handler. R2's queuedMs proved the ✕ handler runs in ~10ms on the user's phone yet
+// the freeze persists — so the stall is between our class flip and the frame the
+// user actually sees (or on OPEN, which had no telemetry at all). Two probes:
+//  · kprofPaintMs(cb): double-rAF — the first rAF runs before the next paint, the
+//    second can only run after that frame was COMMITTED, so the delta ≈ how long the
+//    user waited to SEE the change.
+//  · a PerformanceObserver("longtask") logging every main-thread task ≥300ms with
+//    whether the modal was open — catches the blocker regardless of whose code it
+//    is (WC crypto, enrichment, chat, our render, an extension…).
+function kprofPaintMs(label, extra){
+  const t0 = performance.now()
+  requestAnimationFrame(() => requestAnimationFrame(() =>
+    katomiaDiagSend?.(label, Object.assign({ paintMs: Math.round(performance.now() - t0) }, extra || {}))))
+}
+try {
+  if(typeof PerformanceObserver !== "undefined" && PerformanceObserver.supportedEntryTypes?.includes("longtask")){
+    new PerformanceObserver(list => {
+      for(const e of list.getEntries()){
+        if(e.duration < 300) continue
+        const modal = document.getElementById("profileModal")
+        katomiaDiagSend?.("perf:longtask", {
+          durMs: Math.round(e.duration),
+          at: Math.round(e.startTime),
+          modalOpen: !!modal && !modal.classList.contains("hidden"),
+          attribution: e.attribution?.[0]?.containerType || null
+        })
+      }
+    }).observe({ entryTypes: ["longtask"] })
+  }
+} catch {}
+
 function loadNerdMode(){
   applyNerdMode(localStorage.getItem(NERD_KEY) === "1")
 }
@@ -51,6 +83,7 @@ function initKatomiaProfile(){
     window.boardModalHold?.(false)
     katomiaDiagSend?.("profile:close", { queuedMs: e ? Math.round(performance.now() - e.timeStamp) : null,
       wcBusy: !!window.kauthNetBusy?.() })
+    kprofPaintMs("profile:close-painted")   // R3: how long until the user SAW it close
     if(window.kauthNetBusy?.())
       notify?.("Still talking to the wallet network in the background — it'll finish on its own.", "info", { timeout: 3500 })
   }
@@ -141,8 +174,12 @@ async function openKatomiaProfile(){
   const modal = document.getElementById("profileModal")
   if(!modal) return
 
+  const t0 = performance.now()
   modal.classList.remove("hidden")
   window.boardModalHold?.(true)   // board pages: stop full rebuilds behind the modal (KATUI3 R2)
+  // R3: the OPEN path had no telemetry at all — if the felt freeze is here (modal
+  // slow to appear/populate), these two events will say so and how long.
+  kprofPaintMs("profile:open-painted")
 
   // BOARD-UISIZE1 (moved here 2026-08-06): the display-size preference lives in
   // this modal now. On the board, boardSyncPrefsUI owns the same control (it
@@ -185,6 +222,7 @@ async function openKatomiaProfile(){
   }
 
   await renderKatomiaProfile()
+  katomiaDiagSend?.("profile:open", { totalMs: Math.round(performance.now() - t0) })
 }
 
 async function renderKatomiaProfile(){

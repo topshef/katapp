@@ -97,6 +97,17 @@ function kauthBusy(on, label){
 }
 async function kauthTracked(label, fn){
   kauthBusy(true, label)
+  // R3 (user 2026-08-17: "no visual cue showing up"): if fn starts with SYNCHRONOUS
+  // heavy work (a WC connector rebuild does CPU-bound crypto), the pill's textContent
+  // change above never gets a frame to paint before the thread blocks — the cue
+  // exists but is invisible, exactly what was reported. Yield one painted frame
+  // first so the pill is on screen before the work starts. The 100ms timer is the
+  // hidden-tab escape: rAF never fires on a backgrounded page, and a passive
+  // account peek loading in a background tab must not hang on it.
+  await new Promise(r => {
+    const t = setTimeout(r, 100)
+    requestAnimationFrame(() => { clearTimeout(t); setTimeout(r, 0) })
+  })
   try { return await fn() } finally { kauthBusy(false) }
 }
 window.kauthNetBusy = () => _kauthBusyN > 0

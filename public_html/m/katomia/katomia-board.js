@@ -2686,11 +2686,21 @@ function boardReleaseRepaintHold(){
 // KATUI3 R2: render hold while a full-screen modal covers the board — see the guard
 // in render(). On window (not a bare function) because katomia-profile.js loads on
 // EVERY page and must be able to call it optionally (`window.boardModalHold?.()`).
+// R3 (third mobile report): the catch-up used setTimeout(0), which Chrome runs
+// BEFORE the next paint — so the full board rebuild could block the very frame that
+// hides the modal, re-creating the freeze the hold was built to kill. Now rAF →
+// setTimeout: the rAF fires just before the close frame, the timeout lands AFTER it
+// was committed, so the modal visibly closes first and the rebuild follows. Timed
+// (board:modalhold:catchup) so a slow rebuild on a phone shows up in kdiag.
 window.boardModalHold = on => {
   window.__boardModalHold = !!on
   if(on || !window.__boardRenderPending) return
   window.__boardRenderPending = false
-  setTimeout(() => { try { render() } catch(e){} }, 0)
+  requestAnimationFrame(() => setTimeout(async () => {
+    const t0 = performance.now()
+    try { await render() } catch(e){}
+    boardDiag("board:modalhold:catchup", { renderMs: Math.round(performance.now() - t0) })
+  }, 0))
 }
 
 function boardSimExcite(){
