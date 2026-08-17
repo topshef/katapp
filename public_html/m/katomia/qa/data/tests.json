@@ -688,15 +688,21 @@
       "id": "PRIVJOIN-01",
       "title": "Private-game join delivers frames",
       "asserts": "A fresh join to the t-private fixture receives game_state + playerId in < 5s; a spectator probe stays invisible.",
-      "kind": "specified",
+      "kind": "protocol",
       "network": "testnet",
       "modules": [
         "backend",
         "statsync"
       ],
-      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
-      "harness": "(planned) WS protocol script, statsync-baseline pattern",
-      "why_it_matters": "GAMEPRIVATE-JOINSTUCK1 (2026-07-16): join returned zero frames — permanently blank board. The fixture was kept as a permanent regression fixture; nothing probes it."
+      "state": "LIVE since 2026-08-17 — join-delivers-frames core. playerId presence is recorded informationally (field name unconfirmed); spectator-invisibility half still to add.",
+      "harness": "qa/harness/privjoin-check.cjs",
+      "why_it_matters": "GAMEPRIVATE-JOINSTUCK1 (2026-07-16): join returned zero frames — permanently blank board. The fixture was kept as a permanent regression fixture; nothing probes it.",
+      "run": {
+        "lab1": "qa/harness/quickchecks-cron.sh",
+        "any": "API=<backend> node privjoin-check.cjs"
+      },
+      "schedule": "cron, daily 04:50 (lab1)",
+      "reports": "kflow test:verdict → QA grid"
     },
     {
       "id": "NODEPIN-01",
@@ -728,15 +734,21 @@
     {
       "id": "CHIPCANARY-01",
       "title": "Board geometry canaries, banked and scheduled",
-      "asserts": "CANARY-COSMETIC-STABILITY and CANARY-GEOMETRY-TRUTH (canaries.json) run daily from qa/harness/ instead of living as a never-banked scratchpad.",
-      "kind": "specified",
+      "asserts": "On the demo board at landscape AND portrait: every chip painted and positioned (none at top-left default), zero movement after settle, all chips inside the viewport, basket chips inside the rim ellipse and store chips outside it.",
+      "kind": "ui-canary",
       "network": "testnet",
       "modules": [
         "frontend-ui"
       ],
-      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
-      "harness": "(planned) bank the existing scratchpad canaries",
-      "why_it_matters": "BOARD-DROPHIT1 / ARRANGEFENCE1 / PICKSCATTER1 / TRAILSTUCK1 family + inbox 08-06 \"chip in someone else’s basket\" — the visual class regresses user-visibly with zero automation."
+      "state": "LIVE since 2026-08-17 — banks 4 of the 6 live-scratchpad canary categories (paint, settle, containment, rim-geometry centre-test v1) at landscape+portrait. Follow-ups: full corner test vs env.oval, cosmetic-stability toggle, attached-artifact tracking.",
+      "harness": "qa/harness/chip-canary.cjs",
+      "why_it_matters": "BOARD-DROPHIT1 / ARRANGEFENCE1 / PICKSCATTER1 / TRAILSTUCK1 family + inbox 08-06 \"chip in someone else’s basket\" — the visual class regresses user-visibly with zero automation.",
+      "run": {
+        "lab1": "qa/harness/quickchecks-cron.sh",
+        "any": "BASE=<site> node chip-canary.cjs"
+      },
+      "schedule": "cron, daily 04:50 (lab1)",
+      "reports": "kflow test:verdict → QA grid"
     }
   ],
   "expected_fail": {

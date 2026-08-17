@@ -99,6 +99,16 @@ let MODF = new URLSearchParams(location.search).get("module") || "all"
         .map(s => suiteCard(s)).join("") || `<p class="note">No suites tagged for this module yet — that IS the finding.</p>`
     }
     bar.onclick = e => { if(e.target.dataset?.f){ MODF = e.target.dataset.f; renderSuites() } }
+    // DEEP-LINK FIX (user 2026-08-17): suites render async, so the browser's own
+    // #anchor jump has already happened (and found nothing) by the time the cards
+    // exist — scroll manually once they do. Works for suite ids and assertion ids.
+    const jumpToHash = () => {
+      const id = decodeURIComponent((location.hash || "").slice(1))
+      if(!id) return
+      const el = document.getElementById(id)
+      if(el) el.scrollIntoView()
+    }
+    window.addEventListener("hashchange", jumpToHash)
     document.querySelector("#conv").innerHTML =
       `<b>Naming convention.</b> ${Object.entries(d.convention).map(([k, v]) => `<br><b>${esc(k)}</b> — ${esc(v)}`).join("")}`
     const suiteCard = s => `
@@ -129,6 +139,7 @@ let MODF = new URLSearchParams(location.search).get("module") || "all"
         </div>
       </div>`
     renderSuites()
+    jumpToHash()
 
     document.querySelector("#xfAbout").textContent = ""
     document.querySelector("#xfail").innerHTML =
