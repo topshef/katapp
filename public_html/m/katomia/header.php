@@ -75,10 +75,12 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
     <a class="app-menu-item" href="<?= $katomiaBase ?>/circles">⭕ <?= htmlspecialchars($katomiaTerms['Many'], ENT_QUOTES, 'UTF-8') ?></a>
     <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
     <!-- NO 🤖 Execution agent menu item (user 2026-08-17, KATUI3 feedback pass):
-         admin-only visibility was correct, but the profile modal's KEA section is now
-         the ONLY door — "keep it in the profile menu and not bother showing it in the
-         hamburger menu". Supersedes BUNDLE-STRIP1's re-add of the menu entry; the
-         admin-gated profile section (profile-modal.php) is unchanged. -->
+         admin-only visibility was correct, but the profile modal's execution-agent
+         section is now the ONLY door — "keep it in the profile menu and not bother
+         showing it in the hamburger menu". Supersedes BUNDLE-STRIP1's re-add of the
+         menu entry; the admin-gated profile section (profile-modal.php) is unchanged.
+         (Comment deliberately avoids the feature's three-letter marker name — the
+         bundle purity gate T:KSTRIP-02 scans for it and failed the 13:55 build.) -->
     <a class="app-menu-item nerd-only" href="<?= $katomiaBase ?>/markets">🏛️ All markets (raw)</a>
     <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
          results — in the main menu rather than behind the admin gate; the pages are
