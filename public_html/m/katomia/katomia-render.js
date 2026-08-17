@@ -1212,8 +1212,34 @@ function getFastThumb(url, imgEl){
 
     let _mainRenderToken = 0
 
+    // KATUI3 R5 (user 2026-08-17, /game/m-order retest): the modal render-hold
+    // shipped in katomia-board.js's render() — which the LEGACY game page never
+    // runs (game.php loads only this file; board.php loads both and board.js's
+    // render wins). So on legacy pages the full rebuild kept running behind the
+    // covering profile modal, and the freeze the hold was built to kill was
+    // still alive exactly there. Same guard + defer/catch-up, same self-healing
+    // (hold only honoured while the modal is actually open).
+    // window.boardModalHold: assigned here too, so profile.js's release runs the
+    // catch-up on legacy pages; on board pages katomia-board.js loads AFTER this
+    // file and its assignment wins — no conflict, one owner per page.
+    window.boardModalHold = on => {
+      window.__boardModalHold = !!on
+      if(on || !window.__boardRenderPending) return
+      window.__boardRenderPending = false
+      requestAnimationFrame(() => setTimeout(async () => {
+        const t0 = performance.now()
+        try { await render() } catch(e){}
+        window.katomiaDiagSend?.("render:modalhold:catchup", { renderMs: Math.round(performance.now() - t0), legacy: true })
+      }, 0))
+    }
+
     async function render(){
       if(!state) return
+      if(window.__boardModalHold){
+        if(document.getElementById("profileModal")?.classList.contains("hidden") !== false)
+          window.__boardModalHold = false
+        else { window.__boardRenderPending = true; return }
+      }
       const token = ++_mainRenderToken
 
       document.body.dataset.viewMode = viewMode

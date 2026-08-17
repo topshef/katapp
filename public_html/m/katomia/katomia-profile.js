@@ -10,6 +10,26 @@ const NERD_KEY = "katomia.nerd.v1"
 //  · a PerformanceObserver("longtask") logging every main-thread task ≥300ms with
 //    whether the modal was open — catches the blocker regardless of whose code it
 //    is (WC crypto, enrichment, chat, our render, an extension…).
+// R5: pages that don't load katomia-modals.js (home, circles) had NO diag sender at
+// all — the user's profile-freeze repro on the HOME page was completely invisible
+// in kdiag while the board pages reported fine. Minimal fallback: same wire shape
+// (diag.php accepts {events,page,ua}), sendBeacon fire-and-forget, defined only
+// when the real sender is absent (on game/board pages katomia-modals.js loads
+// first and this never runs).
+if(typeof window.katomiaDiagSend !== "function"){
+  window.katomiaDiagSend = (msg, data) => {
+    try { console.debug("[katomiaDiag]", msg, data ?? "") } catch {}
+    try {
+      const payload = JSON.stringify({
+        events: [{ t: new Date().toISOString(), msg, data }],
+        page: location.pathname,
+        ua: navigator.userAgent.slice(0, 200)
+      })
+      navigator.sendBeacon?.("/diag", new Blob([payload], { type: "application/json" }))
+    } catch {}
+  }
+}
+
 function kprofPaintMs(label, extra){
   const t0 = performance.now()
   requestAnimationFrame(() => requestAnimationFrame(() =>
