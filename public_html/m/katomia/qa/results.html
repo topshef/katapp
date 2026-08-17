@@ -38,6 +38,22 @@
   .gridwrap{ overflow-x: auto; position: relative; }
   .gridToolbar{ display: flex; justify-content: space-between; align-items: center; margin: 6px 0; flex-wrap: wrap; gap: 8px; }
   .gridToolbar button{ font-size: 12px; padding: 4px 12px; border-radius: 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; }
+  /* page-wide filter bar (user 2026-08-17): filters apply to EVERYTHING below
+     (diagram, grid, recent runs), so they live at the top and stay there —
+     previously they sat inside the grid toolbar and scrolled away with it. */
+  .filterbar{ position: sticky; top: 0; z-index: 5; background: #fffdf8; border: 1px solid #e3ddcc;
+              border-radius: 10px; padding: 8px 12px; margin: 14px 0; display: flex; gap: 18px;
+              flex-wrap: wrap; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.05); }
+  .filterbar .fgroup{ display: inline-flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+  .filterbar button{ font-size: 12px; padding: 3px 10px; border-radius: 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; }
+  .filterbar button.on{ background: #2a5a78; color: #fff; border-color: #2a5a78; }
+  .filterbar select{ font-size: 12px; padding: 3px 6px; border-radius: 8px; border: 1px solid #bbb; }
+  .envtag{ font-size: 12px; background: #e8eef7; color: #2a5a78; border-radius: 6px; padding: 2px 8px; vertical-align: 4px; }
+  .caselink{ color: inherit; text-decoration: none; border-bottom: 1px dotted #999; }
+  .caselink:hover{ border-bottom-style: solid; }
+  .modchip{ display: inline-block; font-size: 10.5px; background: #f1ede2; color: #5a4a2a; border-radius: 6px; padding: 0 6px; margin: 1px 3px 1px 0; white-space: nowrap; }
+  #diagram svg{ width: 100%; height: auto; }
+  #diagram .cellrect{ cursor: pointer; }
   /* fullscreen (user 2026-07-17): body's max-width/padding otherwise crop the
      grid even when the browser window itself is fullscreen — put the Fullscreen
      API target on .gridwrap itself so it gets the *entire* viewport, independent
@@ -73,61 +89,37 @@
 </head>
 <body>
 
-<h1>Katomia QA — results</h1>
+<h1>Katomia QA — results <span class="envtag" id="envtag"></span></h1>
 <p><a href="./">← QA home</a> · <a href="config.html">Configuration</a>
 <span class="note" style="float:right">current frontend commit: <b id="curCommit">…</b> · auto-refreshes</span></p>
 <p class="note">The retest grid, kflow-admin style: <b>commits across the top, test cases down the side</b>. Every cell
 is real recorded evidence — kflow <code>test:*</code> checkpoints in this seat's stream (the same convention the
 backend's katrun robot uses). <b>Tap any cell or row for the full run detail.</b></p>
 
-<details class="recorder" id="recorder">
-  <summary style="cursor:pointer; font-weight:600;">🎬 Record a run / give feedback — <span style="color:#a33">deprecated</span>
-    <span class="note" style="font-weight:400">(kept for reference; superseded by feedback sessions — see <a href="https://kpay.uk/devtools/kpad/?task=QA-UXGRID1" target="_blank">QA-UXGRID1</a> and <a href="https://kpay.uk/devtools/kpad/?task=FEEDBACK-COMMENTARY1" target="_blank">FEEDBACK-COMMENTARY1</a>)</span></summary>
-  <div id="recIdle">
-    <label>Test case:
-      <select id="recCase"></select>
-    </label>
-    <button class="primary" id="recStart">▶ Start</button>
-    <div class="steps" id="recSteps"></div>
-    <p class="note">Start stamps <code>test:start</code>, then do the test on the board (any tab). While recording you
-    can <b>💬 log notes as you go</b> — each lands as its own timestamped checkpoint inside the run — then close with a
-    verdict. kdiag captures your board activity in between under the same time window.</p>
-  </div>
-  <div id="recActive" style="display:none">
-    <div class="active">Recording <b id="recWhat"></b> — started <span id="recWhen"></span> <span id="noteCount" class="logged"></span></div>
-    <div style="margin-top:10px">
-      <textarea id="recNote" placeholder="notes — write freely, full length is kept (this is the feedback channel; severity below if it's a finding)…"></textarea>
-    </div>
-    <div style="margin-top:6px">
-      <label class="note">Severity (for findings — the task taxonomy):
-        <select id="recSev">
-          <option value="">— none / just commentary —</option>
-          <option value="sand">⏳ sand — cosmetic, in passing</option>
-          <option value="stone">🪨 stone — real but contained</option>
-          <option value="rock">⛏ rock — needs proper attention</option>
-        </select>
-      </label>
-    </div>
-    <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
-      <button class="notebtn" id="recLog">💬 Log note (keep going)</button>
-      <span style="flex:1"></span>
-      <button class="primary" id="recPass">✓ Pass</button>
-      <button class="mehbtn" id="recMeh">～ Meh</button>
-      <button class="failbtn" id="recFail">✗ Fail</button>
-      <button id="recAbandon">Abandon</button>
-    </div>
-    <p class="note">Pass = as expected · Meh = works, but noted wrinkles (severity says how much they matter) ·
-    Fail = the behaviour is wrong. If it's all just observations, log notes and close with whatever fits — the notes
-    are the value.</p>
-  </div>
-</details>
+<!-- The in-page run recorder that lived here (test:start/note/verdict with severity,
+     QA-UXGRID1) was REMOVED 2026-08-17 (user): deprecated since feedback sessions
+     (long-press → Start session) superseded it, and it was a standing distraction at
+     the top of the page. Its kflow test:* checkpoint vocabulary remains the recording
+     convention for every harness. Footnote at the bottom of the page keeps the trail. -->
+<div class="filterbar" id="topFilters">
+  <span class="fgroup" id="srcFilter"><b class="note">Source:</b><button data-f="all" class="on">All</button><button data-f="human">🖐 Human</button><button data-f="auto">🤖 Automated</button><button data-f="feedback">📝 Feedback</button></span>
+  <span class="fgroup" id="dayFilter"><b class="note">Window:</b><button data-f="1">24h</button><button data-f="3">3d</button><button data-f="7">7d</button><button data-f="14">14d</button><button data-f="30" class="on">30d</button></span>
+  <span class="fgroup"><b class="note">Module:</b> <select id="modSelect"><option value="all">all modules</option></select></span>
+  <span class="fgroup" id="caseChip" style="display:none"></span>
+</div>
+
+<h2>System diagram</h2>
+<p class="note">First cut (user 2026-08-17): the system as a <b>building</b> — player-facing UI at the top,
+Hedera as the foundation, build scaffolding below ground. Each box is a module (<code>data/modules.json</code>);
+each cell is a test case's <b>latest verdict inside the current filters</b>. A case tagged to several modules is
+end-to-end and drawn as a <b>riser</b> spanning the layers it touches. Dashed = specified but never run in this
+window — a drawn gap, not a hidden one. Tap a cell for the run; tap a dashed cell for the definition.</p>
+<div id="diagram"></div>
 
 <h2>Retest grid</h2>
 <div class="gridwrap" id="gridWrap">
   <div class="gridToolbar">
-    <div class="filters" id="filters">
-      <button data-f="all" class="on">All sources</button><button data-f="human">Human 🖐</button><button data-f="auto">Automated 🤖</button><button data-f="feedback">Feedback 📝</button>
-    </div>
+    <span class="note">filters apply from the bar at the top of the page</span>
     <button type="button" id="fsToggle">⛶ Fullscreen</button>
   </div>
   <table id="grid"></table>
@@ -137,7 +129,13 @@ detail. The full configured case list lives in <a href="config.html">Configurati
 pinned while scrolling; use ⛶ to review the full grid without the page's own margins cropping it.</p>
 
 <h2>Recent runs</h2>
-<div class="gridwrap"><table id="recent"><tr><th>When</th><th>Case</th><th>Verdict</th><th>Source</th><th>Commit</th><th>Notes</th></tr></table></div>
+<div class="gridwrap"><table id="recent"></table></div>
+<p class="note" id="recorderFootnote" style="margin-top:36px">ℹ️ The in-page run recorder ("Record a run / give
+feedback") was retired 2026-08-17 — superseded by feedback sessions (long-press → Start session on the board; see
+QA-UXGRID1 / FEEDBACK-COMMENTARY1). To run an indexed test by hand, open its <a href="tests.html">definition</a>
+and follow "what it does" — observations go through feedback, which lands on this grid as 📝. The
+<code>test:start/note/verdict</code> kflow vocabulary the recorder introduced remains the convention every harness
+reports in.</p>
 
 <div id="modalBack"></div>
 <div id="modal">
@@ -148,82 +146,34 @@ pinned while scrolling; use ⛶ to review the full grid without the page's own m
 <script>
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
 const $ = s => document.querySelector(s)
-let COMMIT = "", FILTER = "all", INSTANCES = new Map(), EVENTS = [], SESSIONS = []
-let seq = 0, noteCount = 0
+let COMMIT = "", FILTER = "all", EVENTS = [], SESSIONS = []
+// page-wide filter state (user 2026-08-17): source + time window + module/case.
+// ?case=<id> (from a tests.html "runs →" link) pre-filters to one case.
+let DAYS = 30, MODF = "all", CASEF = new URLSearchParams(location.search).get("case") || null
+let TESTS_META = new Map(), MODULES = []   // data/tests.json + data/modules.json
+const caseModules = id => (TESTS_META.get(id) || {}).modules || []
 
-const rand = () => Array.from(crypto.getRandomValues(new Uint8Array(5)), b => b.toString(16).padStart(2, "0")).join("")
+document.getElementById("envtag").textContent = "env: " + location.hostname
+document.title += " — " + location.hostname
 
-async function emit(run, checkpoint, v, detail){
-  const ev = { t: new Date().toISOString(), run, seq: ++seq, tier: "fe", checkpoint, v,
-    commit: COMMIT, page: location.pathname, detail }
-  await fetch("/kflow", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ events: [ev] }) })
-}
-// full-length notes (the 300-char slice ate the user's rim narrative on day one
-// — never again). kflow.php's body cap is 64KB; 8000 chars is plenty of essay.
-const noteVal = () => ($("#recNote").value || "").slice(0, 8000)
-const sevVal = () => $("#recSev").value || ""
-
-// ── recorder state (survives reload via sessionStorage) ──────────────────────
-const recState = () => { try { return JSON.parse(sessionStorage.getItem("qa_rec") || "null") } catch { return null } }
-const setRec = s => { s ? sessionStorage.setItem("qa_rec", JSON.stringify(s)) : sessionStorage.removeItem("qa_rec") }
-
-function renderRecorder(){
-  const s = recState()
-  $("#recIdle").style.display = s ? "none" : ""
-  $("#recActive").style.display = s ? "" : "none"
-  if(s){
-    $("#recWhat").textContent = s.instance
-    $("#recWhen").textContent = new Date(s.t).toLocaleTimeString()
-    $("#noteCount").textContent = s.notes ? `· ${s.notes} note${s.notes > 1 ? "s" : ""} logged` : ""
-  } else {
-    const inst = INSTANCES.get($("#recCase").value)
-    $("#recSteps").textContent = inst ? (inst.steps || "(no scripted steps — freeform)") : ""
-  }
-}
-
-async function startRun(){
-  const instance = $("#recCase").value
-  const s = { run: rand(), instance, t: Date.now(), notes: 0 }
-  setRec(s)
-  renderRecorder()
-  await emit(s.run, "test:start", instance, { source: "human", instance })
-  refresh()
-}
-async function logNote(){
-  const s = recState()
-  if(!s || !noteVal()) return
-  s.notes = (s.notes || 0) + 1
-  setRec(s)
-  await emit(s.run, "test:note", sevVal() || "note", {
-    source: "human", instance: s.instance, note: noteVal(), sev: sevVal() })
-  $("#recNote").value = ""; $("#recSev").value = ""
-  renderRecorder(); refresh()
-}
-async function verdict(v){
-  const s = recState()
-  if(!s) return
-  await emit(s.run, "test:verdict", v, {
-    source: "human", instance: s.instance, note: noteVal(), sev: sevVal(),
-    secs: Math.round((Date.now() - s.t) / 1000)
-  })
-  setRec(null); $("#recNote").value = ""; $("#recSev").value = ""
-  renderRecorder(); refresh()
-}
-$("#recStart").onclick = startRun
-$("#recLog").onclick = logNote
-$("#recPass").onclick = () => verdict("pass")
-$("#recMeh").onclick = () => verdict("meh")
-$("#recFail").onclick = () => verdict("fail")
-$("#recAbandon").onclick = () => verdict("abandon")
-$("#recCase").onchange = renderRecorder
-
-// ── filters ──────────────────────────────────────────────────────────────────
-document.querySelectorAll("#filters button").forEach(b => b.onclick = () => {
+// ── filters (top bar — applies to diagram + grid + recent runs alike) ────────
+document.querySelectorAll("#srcFilter button").forEach(b => b.onclick = () => {
   FILTER = b.dataset.f
-  document.querySelectorAll("#filters button").forEach(x => x.classList.toggle("on", x === b))
+  document.querySelectorAll("#srcFilter button").forEach(x => x.classList.toggle("on", x === b))
   refresh()
 })
+document.querySelectorAll("#dayFilter button").forEach(b => b.onclick = () => {
+  DAYS = +b.dataset.f
+  document.querySelectorAll("#dayFilter button").forEach(x => x.classList.toggle("on", x === b))
+  refresh()
+})
+function syncCaseChip(){
+  const chip = $("#caseChip")
+  chip.style.display = CASEF ? "" : "none"
+  chip.innerHTML = CASEF ? `<b class="note">Case:</b> <button class="on">${esc(CASEF)} ✕</button>` : ""
+  if(CASEF) chip.querySelector("button").onclick = () => { CASEF = null; history.replaceState(null, "", location.pathname); syncCaseChip(); refresh() }
+}
+$("#modSelect").onchange = e => { MODF = e.target.value; refresh() }
 
 // ── grid fullscreen (user 2026-07-17): Fullscreen API on #gridWrap itself, not
 // the whole page — body's max-width/padding otherwise still crop it even once
@@ -266,7 +216,12 @@ function openRun(run){
   if(!evs.length) return
   const start = evs.find(e => e.checkpoint === "test:start")
   const inst = start?.detail?.instance || start?.v || evs[0].detail?.instance || "(unknown)"
-  $("#modalBody").innerHTML = `<h2>${esc(inst)} <span class="note">run <code>${esc(run)}</code> · commit <code>${esc(evs[0].commit)}</code></h2>` +
+  const def = TESTS_META.get(inst)
+  const defBlock = def ? `<div class="ev" style="background:#f6f4ee;border-radius:8px;padding:8px 10px">
+      <b>${esc(def.title || "")}</b> — ${esc(def.asserts || "")}
+      ${(def.modules || []).length ? `<br>${def.modules.map(m => `<span class="modchip">${esc(m)}</span>`).join("")}` : ""}
+      <a href="tests.html#${encodeURIComponent(inst)}">full definition →</a></div>` : ""
+  $("#modalBody").innerHTML = `<h2>${esc(inst)} <span class="note">run <code>${esc(run)}</code> · commit <code>${esc(evs[0].commit)}</code></h2>` + defBlock +
     evs.map(e => {
       const d = e.detail || {}
       const kind = e.checkpoint.replace("test:", "")
@@ -284,24 +239,19 @@ $("#modalBack").onclick = closeModal
 $("#modalClose").onclick = closeModal
 
 // ── config + data ─────────────────────────────────────────────────────────────
-async function loadConfig(){
-  const reg = await (await fetch("data/registry.json", { cache: "no-store" })).json()
-  const sel = $("#recCase")
-  sel.innerHTML = ""
-  for(const id of reg.classes || []){
-    try {
-      const cl = await (await fetch(`data/classes/${id}.json`, { cache: "no-store" })).json()
-      for(const [kind, glyph] of [["manual", "🖐"], ["auto", "🤖"]]){
-        cl.instances.filter(i => i.run === kind).forEach(i => {
-          INSTANCES.set(i.id, { steps: i.steps || cl.steps_hint || "", cls: cl.id })
-          sel.insertAdjacentHTML("beforeend",
-            `<option value="${esc(i.id)}">${glyph} ${esc(i.id)}${i.why_manual ? " — " + esc(i.why_manual) : ""}</option>`)
-        })
-      }
-    } catch {}
-  }
-  sel.insertAdjacentHTML("beforeend", `<option value="FREEFORM">🖐 FREEFORM — unscripted exploratory session</option>`)
-  INSTANCES.set("FREEFORM", { steps: "Explore freely; log notes as you go (💬 keeps the run open). Close with whatever verdict fits — the notes are the value." })
+async function loadMeta(){
+  // module registry + test definitions: the grouping layer (user 2026-08-17)
+  try {
+    const [tests, mods] = await Promise.all([
+      (await fetch("data/tests.json", { cache: "no-store" })).json(),
+      (await fetch("data/modules.json", { cache: "no-store" })).json(),
+    ])
+    TESTS_META = new Map((tests.suites || []).map(t => [t.id, t]))
+    MODULES = (mods.modules || []).sort((a, b) => b.layer - a.layer)
+    const sel = $("#modSelect")
+    MODULES.forEach(m => sel.insertAdjacentHTML("beforeend", `<option value="${esc(m.id)}">${esc(m.name)}</option>`))
+  } catch {}
+  syncCaseChip()
 }
 
 const GLYPH = { pass: "✓", meh: "～", fail: "✗", error: "⚠", abandon: "–", done: "✓", open: "○", noted: "📝" }
@@ -321,7 +271,7 @@ function guessCase(text){
 }
 let COMMIT_TIMES = {}
 async function refresh(){
-  const res = await (await fetch("results.php?days=30", { cache: "no-store" })).json()
+  const res = await (await fetch(`results.php?days=${DAYS}`, { cache: "no-store" })).json()
   COMMIT = res.commit
   EVENTS = res.events
   SESSIONS = res.sessions || []
@@ -354,6 +304,8 @@ async function refresh(){
       v: s.abandoned ? "abandon" : "noted", note: noteList.join(" ⁋ "), notes: noteList }
   }))
   if(FILTER !== "all") rows = rows.filter(r => r.source === FILTER)
+  if(CASEF) rows = rows.filter(r => r.instance === CASEF)
+  else if(MODF !== "all") rows = rows.filter(r => caseModules(r.instance).includes(MODF))
 
   // commit columns ordered OLDEST -> NEWEST left-to-right (a pseudo timeline —
   // not linear/even spacing, but time genuinely increases rightward), by each
@@ -374,7 +326,7 @@ async function refresh(){
   grid.innerHTML = "<tr><th>case \\ commit</th>" + commits.map(c =>
     `<th${c === COMMIT ? ' style="background:#e8f0e8"' : ""}><code>${esc(c)}</code><br><span class="note">${esc(fmtCommitTime(c))}</span>${c === COMMIT ? "<br><span class='note'>current</span>" : ""}</th>`).join("") + "</tr>"
   for(const cs of cases){
-    let tr = `<tr><td><b>${esc(cs)}</b></td>`
+    let tr = `<tr><td><b><a class="caselink" href="tests.html#${encodeURIComponent(cs)}" title="test definition">${esc(cs)}</a></b></td>`
     for(const cm of commits){
       const cell = rows.filter(r => r.instance === cs && r.commit === cm).sort((a, b) => a.t.localeCompare(b.t))
       if(!cell.length){ tr += "<td></td>"; continue }
@@ -389,21 +341,101 @@ async function refresh(){
   if(firstGridRender || nearRight) gridWrap.scrollLeft = gridWrap.scrollWidth
   firstGridRender = false
 
+  // per-cell semantics (user 2026-08-17): case → definition, verdict → run
+  // detail modal, trigger → the commit on GitHub (or the source kind when no
+  // commit was stamped). The whole-row click is gone — each cell owns its link.
+  const ghCommit = c => c ? `<a href="https://github.com/topshef/phpjabbers/commit/${encodeURIComponent(c)}" target="_blank"><code>${esc(c)}</code></a>` : ""
+  const modChips = id => caseModules(id).map(m => `<span class="modchip">${esc((MODULES.find(x => x.id === m) || { name: m }).name)}</span>`).join("")
   const recent = $("#recent")
-  recent.innerHTML = "<tr><th>When</th><th>Case</th><th>Verdict</th><th>Source</th><th>Commit</th><th>Notes</th></tr>" +
+  recent.innerHTML = "<tr><th>When</th><th>Case</th><th>Modules</th><th>Verdict</th><th>Trigger</th><th>Notes</th></tr>" +
     rows.sort((a, b) => (b.vt || b.t).localeCompare(a.vt || a.t)).slice(0, 30).map(r => {
       const trunc = r.note.length > 90 ? esc(r.note.slice(0, 90)) + "&hellip;" : esc(r.note)
-      return `<tr class="clickable" data-run="${esc(r.run)}"><td class="note">${esc((r.vt || r.t).slice(5, 19).replace("T", " "))}</td>
-       <td>${esc(r.instance)}</td><td class="cell ${esc(r.v)}">${esc(r.v)}</td>
-       <td>${r.source === "human" ? "🖐 human" : r.source === "feedback" ? "📝 feedback" : "🤖 " + esc(r.source)}</td>
-       <td><code>${esc(r.commit)}</code></td><td class="noted note">${trunc}${r.notes.length > 1 ? ` <b>(${r.notes.length} notes)</b>` : ""}</td></tr>`
+      const trig = (r.source === "human" ? "🖐 manual" : r.source === "feedback" ? "📝 feedback" : "🤖 cron/harness") + " " + ghCommit(r.commit)
+      return `<tr><td class="note">${esc((r.vt || r.t).slice(5, 19).replace("T", " "))}</td>
+       <td><a class="caselink" href="tests.html#${encodeURIComponent(r.instance)}" title="test definition">${esc(r.instance)}</a></td>
+       <td>${modChips(r.instance)}</td>
+       <td class="cell ${esc(r.v)} clickable" data-run="${esc(r.run)}" title="tap for run detail">${esc(r.v)}</td>
+       <td class="note">${trig}</td><td class="noted note">${trunc}${r.notes.length > 1 ? ` <b>(${r.notes.length} notes)</b>` : ""}</td></tr>`
     }).join("")
-  recent.querySelectorAll("tr[data-run]").forEach(tr => tr.onclick = () => openRun(tr.dataset.run))
+  recent.querySelectorAll("td[data-run]").forEach(td => td.onclick = () => openRun(td.dataset.run))
+  renderDiagram(rows)
+}
+
+// ── system diagram (user 2026-08-17): the building, first cut ─────────────────
+// Modules stack by layer (modules.json) — facade at the top, Hedera foundation
+// at the bottom. A case's HOME is the first entry in its modules array; cases
+// touching 3+ modules are end-to-end and drawn as risers (the "pipework")
+// spanning the layers they touch. Latest verdict inside the current filters;
+// dashed = no run in this window (drawn gap, not a hidden one).
+const DIAG_FILL = { pass: ["#e6f4ea", "#34a853"], done: ["#e6f4ea", "#34a853"],
+  meh: ["#fff3cd", "#7a5c00"], fail: ["#fdeaea", "#a11a1a"], error: ["#fdeaea", "#a11a1a"],
+  abandon: ["#eee", "#888"], open: ["#eee", "#888"], noted: ["#eef3ff", "#4a6fd4"] }
+function renderDiagram(rows){
+  const host = $("#diagram")
+  if(!MODULES.length || !TESTS_META.size){ host.innerHTML = ""; return }
+  const latest = new Map()
+  for(const r of rows){
+    const prev = latest.get(r.instance)
+    if(!prev || (r.vt || r.t) > (prev.vt || prev.t)) latest.set(r.instance, r)
+  }
+  const homeCases = new Map(), risers = []
+  for(const [id, t] of TESTS_META){
+    const mods = t.modules || []
+    if(!mods.length) continue
+    if(mods.length >= 3) risers.push({ id, mods, run: latest.get(id) })
+    else {
+      if(!homeCases.has(mods[0])) homeCases.set(mods[0], [])
+      homeCases.get(mods[0]).push({ id, run: latest.get(id) })
+    }
+  }
+  const layers = [...new Set(MODULES.map(m => m.layer))].sort((a, b) => b - a)
+  const ROWH = 62, GAP = 10, LEFTW = 640, W = 900, PAD = 4
+  const layerY = new Map(layers.map((l, i) => [l, i * (ROWH + GAP) + 24]))
+  const H = layers.length * (ROWH + GAP) + 30
+  let svg = ""
+  for(const l of layers){
+    const inLayer = MODULES.filter(m => m.layer === l)
+    const bw = (LEFTW - (inLayer.length - 1) * GAP) / inLayer.length
+    inLayer.forEach((m, i) => {
+      const x = i * (bw + GAP), y = layerY.get(l)
+      const cases = homeCases.get(m.id) || []
+      svg += `<rect x="${x}" y="${y}" width="${bw}" height="${ROWH}" rx="8" fill="#fbfaf6" stroke="#cfcabb"/>`
+      svg += `<text x="${x + 8}" y="${y + 14}" font-size="10.5" fill="#6b6b66">${esc(m.name)}</text>`
+      if(!cases.length)
+        svg += `<text x="${x + 8}" y="${y + 34}" font-size="9.5" fill="#a99" font-style="italic">no direct tests</text>`
+      cases.forEach((c, j) => {
+        const cx = x + 8 + j * 22, cy = y + 22
+        const v = c.run ? c.run.v : null
+        const [fill, stroke] = v ? (DIAG_FILL[v] || ["#eee", "#888"]) : ["#fff", "#bbb"]
+        svg += `<rect class="cellrect" x="${cx}" y="${cy}" width="18" height="18" rx="4" fill="${fill}" stroke="${stroke}"
+          ${v ? "" : `stroke-dasharray="3 2"`} data-case="${esc(c.id)}" ${c.run ? `data-run="${esc(c.run.run)}"` : ""}>
+          <title>${esc(c.id)}${v ? " — " + esc(v) : " — no run in window (tap for definition)"}</title></rect>`
+        svg += `<text x="${cx + 9}" y="${cy + 13.5}" font-size="10" text-anchor="middle" fill="${stroke}" pointer-events="none">${v ? (GLYPH[v] || "⚠") : "·"}</text>`
+      })
+    })
+  }
+  risers.forEach((r, i) => {
+    const touched = r.mods.map(id => (MODULES.find(m => m.id === id) || {}).layer).filter(l => l !== undefined)
+    const top = layerY.get(Math.max(...touched)), bot = layerY.get(Math.min(...touched))
+    const x = LEFTW + 24 + i * 58
+    const v = r.run ? r.run.v : null
+    const [fill, stroke] = v ? (DIAG_FILL[v] || ["#eee", "#888"]) : ["#fff", "#bbb"]
+    svg += `<rect class="cellrect" x="${x}" y="${top}" width="22" height="${bot - top + ROWH}" rx="8" fill="${fill}" stroke="${stroke}"
+      ${v ? "" : `stroke-dasharray="3 2"`} data-case="${esc(r.id)}" ${r.run ? `data-run="${esc(r.run.run)}"` : ""}>
+      <title>${esc(r.id)} — end-to-end (${esc(r.mods.join(", "))})${v ? " — " + esc(v) : " — no run in window"}</title></rect>`
+    svg += `<text x="${x + 11}" y="${top + 16}" font-size="11" text-anchor="middle" fill="${stroke}" pointer-events="none">${v ? (GLYPH[v] || "⚠") : "·"}</text>`
+    svg += `<text x="${x + 30}" y="${top + 8}" font-size="9" fill="#6b6b66" transform="rotate(90 ${x + 30} ${top + 8})">${esc(r.id)}</text>`
+  })
+  svg += `<text x="${LEFTW + 24}" y="12" font-size="10" fill="#6b6b66">end-to-end risers</text>`
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="system module diagram with test-case cells">${svg}</svg>`
+  host.querySelectorAll(".cellrect").forEach(el => el.onclick = () => {
+    if(el.dataset.run) openRun(el.dataset.run)
+    else location.href = `tests.html#${encodeURIComponent(el.dataset.case)}`
+  })
 }
 
 ;(async () => {
-  await loadConfig()
-  renderRecorder()
+  await loadMeta()
   await refresh()
   setInterval(refresh, 20000)
 })()

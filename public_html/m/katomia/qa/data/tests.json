@@ -1,6 +1,6 @@
 {
   "_about": "THE TEST ID INDEX — every test identifier we use, what it asserts, where it runs, and how to run it. Created 2026-08-08 (user) after MAINNETSMOKE-01 and TXS-1 were quoted in chat and could not be found anywhere: they were not tasks, and TXS-* existed only as prose inside QA-XFAIL1.json's `next` field. A test id must resolve to something you can open — that is what this file is for. Viewer: tests.html. Naming convention (PROTOCOL.md): a bare CAPITALISED reference is a kPad TASK; a test id is written T:<id> in prose and chat, and must come with its URL. Each suite records what_it_does (the actual steps), pass_means, fails_when, its dimension and its cost — added 2026-08-08 after the user pointed out that 'real value, real network, once a day' does not tell anyone what the test IS.",
-  "updated": "2026-08-14",
+  "updated": "2026-08-17",
   "convention": {
     "task": "BARE CAPS — a kPad task, e.g. TXSTATUS-CONSOLIDATE1. Look it up in kPad.",
     "test": "T:<id> — a test case, e.g. T:HBARXFER-01. Defined in this file; results on the QA grid.",
@@ -37,7 +37,14 @@
       "pass_means": "A '🟩 Transaction successful' verdict appears on the board and the transfer is real on Hedera testnet. This is the only test that exercises the whole chain — board UI, lock rule, strike, WalletConnect, signing, submission, settlement, verdict.",
       "fails_when": "Any link in that chain breaks. Historically its most common failure is harness fragility, not product breakage (see QA-HARNESSREPAIR1).",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/hbarxfer-auto-spike.cjs",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+      "modules": [
+        "frontend-ui",
+        "walletconnect",
+        "signing-widget",
+        "backend",
+        "hedera"
+      ]
     },
     {
       "id": "WCNETSWITCH-01",
@@ -62,7 +69,11 @@
       "pass_means": "The connector ends up on testnet with the right account, and STAYS there after a reload.",
       "fails_when": "The bundle signs on a mainnet-scoped pairing — wrong-network signers, which is what WC-NETSCOPE1 fixed.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/wc-netswitch-auto.cjs",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+      "modules": [
+        "walletconnect",
+        "frontend-ui"
+      ]
     },
     {
       "id": "WCNETSWITCH-02",
@@ -85,7 +96,10 @@
       "pass_means": "Only the correct account is connected; the old session is gone.",
       "fails_when": "A stale session from the previous network survives the switch.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/wc-netswitch-auto.cjs",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+      "modules": [
+        "walletconnect"
+      ]
     },
     {
       "id": "WC-A5B-GHOST",
@@ -149,7 +163,11 @@
       "why_it_matters": "This is the discriminating ghost test — it reproduces the exact scenario where a user clears connections in HashPack while katomia is closed. T:WC-A5-ONLINE passes even on broken bundles; this one does not.",
       "harness_url": null,
       "harness_note": "lives on the box at /opt/kwallet/ (not web-served — it runs its own in-process wallet peer)",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+      "modules": [
+        "walletconnect",
+        "signing-widget"
+      ]
     },
     {
       "id": "WC-A5-ONLINE",
@@ -212,7 +230,10 @@
         }
       ],
       "user_confirmed": "2026-08-08: the user ran this scenario by hand on pat — cleared every connection in HashPack, left the accounts in katomia, then traded. It re-paired and presented the transaction for approval without a stumble. Matches A5.1-A5.8.",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+      "modules": [
+        "walletconnect"
+      ]
     },
     {
       "id": "MAINNETSMOKE-01",
@@ -240,7 +261,14 @@
       "fails_when": "Anything testnet cannot tell us about: mainnet node behaviour, real fees, the mainnet account's own state (e.g. the payer running dry), mainnet-only config.",
       "why_it_matters": "Everything else here runs on testnet, where the system is thoroughly exercised and free. This test exists for the things that are only true on mainnet. A testnet-green / mainnet-red split is meaningful information, not a duplicate.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/mainnet-smoke-auto.cjs",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+      "modules": [
+        "frontend-ui",
+        "walletconnect",
+        "signing-widget",
+        "backend",
+        "hedera"
+      ]
     },
     {
       "id": "CHIPARRANGE-01",
@@ -261,7 +289,10 @@
       "pass_means": "Chips land where the layout rules say they should.",
       "fails_when": "A layout or arrangement regression. Not a signing test — it does not belong on the kWallet page.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/board-arrange.cjs",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+      "modules": [
+        "frontend-ui"
+      ]
     },
     {
       "id": "DOMAIN-SEND-01",
@@ -280,7 +311,12 @@
       "pass_means": "The send completes.",
       "fails_when": "The flow breaks.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/domain-send.cjs",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+      "modules": [
+        "frontend-ui",
+        "backend",
+        "hedera"
+      ]
     },
     {
       "id": "validdur-decode-matrix",
@@ -301,7 +337,11 @@
       "pass_means": "All 12 decode to the right duration or fall back safely.",
       "fails_when": "A decoder silently returns the wrong window — which is how a transaction's real deadline and the UI's idea of it drift apart.",
       "harness_note": "backend repo root, not web-served",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent."
+      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+      "modules": [
+        "backend",
+        "hedera-sdk"
+      ]
     },
     {
       "id": "STATSYNC-01",
@@ -328,7 +368,11 @@
       "pass_means": "Shared state (accounts/players/tx) is byte-identical across all three clients; myPlayerId is distinct per socket; the targeted chat reached A and its sender but never C.",
       "fails_when": "Any client misses a broadcast, states diverge, or targeted chat leaks — exactly the properties an incremental-update refactor (STATSYNC1) could silently break.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
-      "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — assertion lines print pass/fail with detail."
+      "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — assertion lines print pass/fail with detail.",
+      "modules": [
+        "statsync",
+        "backend"
+      ]
     },
     {
       "id": "STATSYNC-BENCH-01",
@@ -352,7 +396,11 @@
       "pass_means": "Baseline 2026-08-14: ~1.7-1.9KB/broadcast on a tiny 2-account game, ~2ms latency, growth probe 2071B→6525B over 30 chats (~154B per chat row, compounding). Later phases are judged against this file's benchmarks.",
       "fails_when": "A phase re-run shows correctness failures, or (from P3 on) delta-path bytes fail to undercut the full-state baseline.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
-      "how_to_reproduce": "cd qa/harness && SAMPLE_GAME=q-crowd node statsync-baseline.cjs --record — summary JSON printed and written to qa/data/benchmarks/."
+      "how_to_reproduce": "cd qa/harness && SAMPLE_GAME=q-crowd node statsync-baseline.cjs --record — summary JSON printed and written to qa/data/benchmarks/.",
+      "modules": [
+        "statsync",
+        "backend"
+      ]
     },
     {
       "id": "STATSYNC-02",
@@ -376,7 +424,11 @@
       "pass_means": "One full state then only deltas; reconstruction ≡ control at every overlapping seq; visible chat matches (welcome rows excluded — legitimately per-viewer); delta bytes < full bytes. First green 2026-08-14: 39 deltas, 40/40 seqs identical, 374B vs 3696B avg (~90% saving).",
       "fails_when": "Any patch mis-describes a change (reconstruction diverges), chatAppend leaks or drops a row, or a delta is sent to a socket without the right base seq.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
-      "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — 02.x assertion lines print pass/fail; a seq mismatch names the exact seq."
+      "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — 02.x assertion lines print pass/fail; a seq mismatch names the exact seq.",
+      "modules": [
+        "statsync",
+        "backend"
+      ]
     },
     {
       "id": "STATSYNC-03",
@@ -401,7 +453,11 @@
       "pass_means": "Exactly one refresh round-trip; no other client receives the refresh reply; post-recovery reconstruction is byte-identical to control. First green 2026-08-14.",
       "fails_when": "Gap goes undetected (silent divergence — the worst failure mode of the whole refactor), refresh floods (no in-flight guard), the reply leaks to other sockets, or the client fails to resume deltas after recovery.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
-      "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — 03.x assertion lines; DEBUG=1 prints the probe's per-message seq trace."
+      "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — 03.x assertion lines; DEBUG=1 prints the probe's per-message seq trace.",
+      "modules": [
+        "statsync",
+        "backend"
+      ]
     },
     {
       "id": "STATSYNC-04",
@@ -427,7 +483,11 @@
       "pass_means": "All six assertions green — first green 2026-08-14 (caught a real bug on the way: onmessage declared `const data`, so delta normalisation threw 'Assignment to constant variable' on every delta; states still converged, which is why the zero-page-errors assertion exists).",
       "fails_when": "The delta page diverges from the full page, never actually consumes deltas, fails to self-heal a gap, or any page error fires.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-frontend.cjs",
-      "how_to_reproduce": "cd qa/harness && node statsync-frontend.cjs — assertion lines print pass/fail; page errors are dumped verbatim on failure."
+      "how_to_reproduce": "cd qa/harness && node statsync-frontend.cjs — assertion lines print pass/fail; page errors are dumped verbatim on failure.",
+      "modules": [
+        "statsync",
+        "backend"
+      ]
     },
     {
       "id": "KSTRIP-01",
@@ -448,7 +508,10 @@
       "pass_means": "A launch-excluded feature reference cannot exist in the source untagged — the bundle strip step will always catch it.",
       "fails_when": "Someone adds an affordance for a launch-excluded feature without tagging it for bundle-time removal.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/ops/kstrip-audit.sh",
-      "how_to_reproduce": "Run the harness; the failure output lists each untagged reference with file:line."
+      "how_to_reproduce": "Run the harness; the failure output lists each untagged reference with file:line.",
+      "modules": [
+        "build-pipeline"
+      ]
     },
     {
       "id": "KSTRIP-02",
@@ -469,7 +532,10 @@
       "pass_means": "Inspecting the bundle (or the site served from it) cannot reveal a launch-excluded feature — the launch bar.",
       "fails_when": "The strip step missed a block/file, or a new untagged reference reached the bundle.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/ops/kstrip-purity.sh",
-      "how_to_reproduce": "Build with ops/build-standalone.sh, then run the harness against the build dir; failures list surviving references."
+      "how_to_reproduce": "Build with ops/build-standalone.sh, then run the harness against the build dir; failures list surviving references.",
+      "modules": [
+        "build-pipeline"
+      ]
     },
     {
       "id": "KSTRIP-03",
@@ -490,7 +556,10 @@
       "pass_means": "Pruning left no dangling references — 0 console errors, no new 404s, journey behaviour unchanged.",
       "fails_when": "A stripped block was load-bearing for the launch surface (e.g. a shared helper cut too broadly).",
       "harness_url": "https://github.com/topshef/kdeploy",
-      "how_to_reproduce": "Stage the release to pat via kdeploy, run journey.cjs as above, diff console output vs baseline."
+      "how_to_reproduce": "Stage the release to pat via kdeploy, run journey.cjs as above, diff console output vs baseline.",
+      "modules": [
+        "build-pipeline"
+      ]
     },
     {
       "id": "KADMIN-01",
@@ -511,7 +580,163 @@
       "pass_means": "Admin users see launch-excluded features clearly marked admin-only; everyone else gets nothing in the DOM (server-side, per request — off the admin network = gone next load).",
       "fails_when": "Disclosure leaks to non-admin requests, or the admin view lacks the visual marker distinguishing admin-only items.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/ops/kadmin-disclose.cjs",
-      "how_to_reproduce": "Load a lab1 page from an admin IP and via 127.0.0.1 with the Host header; compare presence + badging of the disclosed menu/profile items."
+      "how_to_reproduce": "Load a lab1 page from an admin IP and via 127.0.0.1 with the Host header; compare presence + badging of the disclosed menu/profile items.",
+      "modules": [
+        "frontend-ui",
+        "build-pipeline"
+      ]
+    },
+    {
+      "id": "TXTRUTH-01",
+      "title": "Never guess a FAILED verdict — confirm on chain",
+      "asserts": "With the tx-receipt socket severed between sign and receipt, the board still reaches a SUCCESS verdict sourced from chain confirmation; FAILED is never shown for a tx the mirror confirms.",
+      "kind": "specified",
+      "network": "testnet",
+      "modules": [
+        "signing-widget",
+        "backend",
+        "hedera"
+      ],
+      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
+      "harness": "(planned) Playwright fork of hbarxfer-auto-spike.cjs with CDP socket kill",
+      "why_it_matters": "BOARD-TXTRUTH1 (2026-08-07): three false FAILURE verdicts on successful txs led to a real mainnet double spend — the only realized money harm to date. The fix (79858f4, confirm-on-chain) has no regression protection."
+    },
+    {
+      "id": "SIGNDEADTX-01",
+      "title": "Refuse to sign an expired transaction",
+      "asserts": "Tapping Sign after the validity window closes is refused with an expiry message: no signer:sign:saved success, no wallet round-trip.",
+      "kind": "specified",
+      "network": "testnet",
+      "modules": [
+        "signing-widget",
+        "hedera-sdk"
+      ],
+      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
+      "harness": "(planned) Playwright on qa/wc-fixture.php (40s validity), wait out the window; also promote validdur-decode-matrix onto a cron",
+      "why_it_matters": "SIGN-DEADTX1 (2026-08-07): Sign clicked 39s after window close saved the sig and logged success; the network could never accept it."
+    },
+    {
+      "id": "ENRICHCOLD-01",
+      "title": "Asset-enrich cold path: cached, parallel, bounded",
+      "asserts": "Enrich endpoint answers 200 (not 301); cold call < ~2.5s, warm < ~0.5s; two concurrent calls complete in ~1x not 2x (no session-lock serialisation); cold-profile board load shows no bare 0.0.x chip names after 3s.",
+      "kind": "specified",
+      "network": "testnet",
+      "modules": [
+        "enrich",
+        "backend"
+      ],
+      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
+      "harness": "(planned) curl/node timing script + small Playwright cold-profile check",
+      "why_it_matters": "ENRICH-COLDPATH1 (2026-08-08..13): four defects in one recurring subsystem; Kache.getData timeout deliberately deferred — a known live hole nothing watches."
+    },
+    {
+      "id": "AMTSCALE-01",
+      "title": "Settled amount is verified on the mirror, not assumed",
+      "asserts": "(a) backend FR/FS guards reject a display-unit offer for a decimals>0 token; (b) after an HBARXFER verdict, the mirror transfer shows exactly the intended tinybar amount.",
+      "kind": "specified",
+      "network": "testnet",
+      "modules": [
+        "backend",
+        "hedera"
+      ],
+      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
+      "harness": "(planned) protocol script + one-line mirror assertion added to hbarxfer-auto-spike.cjs",
+      "why_it_matters": "AMOUNT-SCALE1 (critical, 2026-07-07): display-unit leak produced a signed mainnet tx with a 0-amount transfer. A scaling regression today would pass green — the harness asserts a toast, never the on-chain amount."
+    },
+    {
+      "id": "GOODWIN-FLOAT-01",
+      "title": "Demo economy solvency — narrated rewards exist on chain",
+      "asserts": "Goodwin payer + treat-float (0.0.9862254) balances are above the precheck floor, AND the last narrated reward round has matching legs on the mirror transfer list.",
+      "kind": "specified",
+      "network": "mainnet",
+      "modules": [
+        "demo-economy",
+        "hedera"
+      ],
+      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
+      "harness": "(planned) daily backend script, kflow-reported; red = run kbot/goodwin-topup.cjs --go",
+      "why_it_matters": "GOODWIN-DEMO1/2/4: three recurrences of the payer deadlock, 18-19h public outages, SUCCESS logged throughout. Chain cross-check is the only honest detector."
+    },
+    {
+      "id": "ACCTMISMATCH-01",
+      "title": "Wrong-active-account sign aborts loudly",
+      "asserts": "With two accounts paired and the wrong one active, Sign aborts with the mismatch toast + board:sign:account-mismatch kdiag; no signTx reaches the wallet.",
+      "kind": "specified",
+      "network": "testnet",
+      "modules": [
+        "walletconnect",
+        "signing-widget"
+      ],
+      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
+      "harness": "(planned) kWallet two-account variant of the WC harnesses",
+      "why_it_matters": "WS-ACCTMISMATCH1 (2026-08-05): silent wrong-account signing burned the whole signing window; current protection is monitoring, not a test."
+    },
+    {
+      "id": "WCSINGLEINIT-01",
+      "title": "Exactly one WalletConnect client per page load",
+      "asserts": "wc:build kdiag fires exactly once per page load.",
+      "kind": "specified",
+      "network": "testnet",
+      "modules": [
+        "walletconnect"
+      ],
+      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
+      "harness": "(planned) one assertion inside an existing Playwright harness",
+      "why_it_matters": "WC-DOUBLEINIT1 (2026-08-07): two clients sharing one store destroyed each other’s sessions — produced an on-chain-confirmed expired tx. Fixed 8e6255c, unasserted."
+    },
+    {
+      "id": "PRIVJOIN-01",
+      "title": "Private-game join delivers frames",
+      "asserts": "A fresh join to the t-private fixture receives game_state + playerId in < 5s; a spectator probe stays invisible.",
+      "kind": "specified",
+      "network": "testnet",
+      "modules": [
+        "backend",
+        "statsync"
+      ],
+      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
+      "harness": "(planned) WS protocol script, statsync-baseline pattern",
+      "why_it_matters": "GAMEPRIVATE-JOINSTUCK1 (2026-07-16): join returned zero frames — permanently blank board. The fixture was kept as a permanent regression fixture; nothing probes it."
+    },
+    {
+      "id": "NODEPIN-01",
+      "title": "Frozen tx carries multiple nodes and fresh speed data",
+      "asserts": "A mainnet tx built/rebuilt through the sign pipeline keeps >= 3 frozen node ids through the rebuild, and node-speed rows older than 6h are excluded from selection.",
+      "kind": "specified",
+      "network": "mainnet",
+      "modules": [
+        "backend",
+        "hedera-sdk"
+      ],
+      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
+      "harness": "(planned) backend unit script (no submission needed)",
+      "why_it_matters": "SIGN-BOUNDARY1 R2/R3: single-node pinning from 36h-old speed rows caused a retry loop into TRANSACTION_EXPIRED; sig-store/rebuild collapses to copy[0]. MAINNETSMOKE only catches this probabilistically."
+    },
+    {
+      "id": "ACTSELF-01",
+      "title": "Action rows reach my own stream",
+      "asserts": "After B rejects A’s offer, the action row lands in A’s bucket in both kchatMode paths.",
+      "kind": "specified",
+      "network": "testnet",
+      "modules": [
+        "statsync"
+      ],
+      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
+      "harness": "(planned) extension to statsync-baseline (already two-client)",
+      "why_it_matters": "CHAT-ACTIONSELF1 (2026-08-06, unfixed): actions on my assets never reach my stream, view-mode dependent."
+    },
+    {
+      "id": "CHIPCANARY-01",
+      "title": "Board geometry canaries, banked and scheduled",
+      "asserts": "CANARY-COSMETIC-STABILITY and CANARY-GEOMETRY-TRUTH (canaries.json) run daily from qa/harness/ instead of living as a never-banked scratchpad.",
+      "kind": "specified",
+      "network": "testnet",
+      "modules": [
+        "frontend-ui"
+      ],
+      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
+      "harness": "(planned) bank the existing scratchpad canaries",
+      "why_it_matters": "BOARD-DROPHIT1 / ARRANGEFENCE1 / PICKSCATTER1 / TRAILSTUCK1 family + inbox 08-06 \"chip in someone else’s basket\" — the visual class regresses user-visibly with zero automation."
     }
   ],
   "expected_fail": {
@@ -590,5 +815,6 @@
     "QA-GRIDWATCH1": "repeated-failure watcher over the grid",
     "TXSTATUS-CONSOLIDATE1": "the S1-S8 work the TXS-* cases were written for",
     "WC-RESETWEDGE1": "resetWalletLink()+reload can wedge WC init forever — no timeout, no error. Found via T:WC-A5-ONLINE A5.0."
-  }
+  },
+  "_modules_note": "Suites carry a `modules` array of ids from modules.json (user 2026-08-17): one id = unit-scoped, several = end-to-end (drawn as a riser across layers in the system diagram). kind:\"specified\" suites are sketch definitions from the coverage review — they exist so the id resolves and the module has a declared shape before the harness lands."
 }

@@ -5,17 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Katomia QA — tx log</title>
 <style>
-  body{ font-family: system-ui, sans-serif; margin: 0 auto; max-width: 1300px; padding: 24px 16px 80px; color: #222; line-height: 1.5; }
+  /* full-width (user 2026-08-17): no nested scroll box — the table fills the
+     window and the WINDOW scrolls, so the scrollbar isn't hidden at the bottom
+     of a cropped inner box. Prose keeps a readable measure via .prose. */
+  body{ font-family: system-ui, sans-serif; margin: 0; padding: 24px 16px 80px; color: #222; line-height: 1.5; }
+  .prose{ max-width: 1300px; }
   h1{ font-size: 22px; } h2{ font-size: 17px; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
   .note{ color: #777; font-size: 12px; }
   a{ color: #2a5a78; }
   table{ border-collapse: collapse; font-size: 13px; margin: 10px 0; width: 100%; }
   th, td{ border: 1px solid #ddd; padding: 5px 9px; text-align: left; vertical-align: top; white-space: nowrap; }
-  th{ background: #f5f2ea; cursor: pointer; user-select: none; }
+  th{ background: #f5f2ea; cursor: pointer; user-select: none;
+      /* sticky header (user 2026-08-17): survives scrolling the long list */
+      position: sticky; top: 0; z-index: 2; box-shadow: 0 1px 0 #ddd; }
   th:hover{ background: #efe9db; }
   th.sorted::after{ content: " " attr(data-arrow); color: #a33; }
   code{ background: #f3f3f3; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
-  .gridwrap{ overflow-x: auto; }
+  a.tx{ text-decoration: none; color: #2a5a78; font-family: ui-monospace, monospace; font-size: 12px; }
+  a.tx:hover{ text-decoration: underline; }
+
   .filters{ display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; align-items: center; }
   .filters button{ font-size: 12px; padding: 3px 10px; border-radius: 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; }
   .filters button.on{ background: #2a5a78; color: #fff; border-color: #2a5a78; }
@@ -34,14 +42,16 @@
 </head>
 <body>
 
-<h1>Katomia QA — transaction log</h1>
-<p><a href="./">← QA home</a></p>
-<p class="note">Every Hedera transaction katomia has <b>attempted</b> (submitted for consensus) — mainnet and testnet,
+<h1>Katomia QA — transaction log <span class="netbadge net-testnet" id="envtag"></span></h1>
+<p class="prose"><a href="./">← QA home</a></p>
+<p class="note prose">Every Hedera transaction katomia has <b>attempted</b> (submitted for consensus) — mainnet and testnet,
 reverse-chronological. Built from the client-side lifecycle telemetry (kdiag) but written to its own durable daily
 JSONL store (<code>logs/qa-tx/qa-tx.&lt;date&gt;.jsonl</code>, task <b>QA-TXLOG1</b>) — kdiag itself is a rolling
 per-IP ring buffer that gets trimmed/pruned, so this is the thing to check if the backend or kdiag gets wiped.
 <b>Start</b> = the tx's broadcast valid-start time · <b>lock</b> = the last signature that satisfied the lock rule
-(client-observed) · <b>consensus recv</b> = when this client's socket got the receipt · <b>on-chain consensus</b> =
+(client-observed) · <b>submit</b> = the backend announcing it is handing the tx to Hedera (tx_submitted socket frame —
+hook-driven, so lock→submit should be near-instant; a delay there is a finding) · <b>consensus recv</b> = when this
+client's socket got the receipt · <b>on-chain consensus</b> =
 the real Hedera consensus_timestamp from the public mirror node (best-effort, may be blank — a mirror lookup runs
 once per settled tx) · <b>end</b> = when the result was shown to the player.</p>
 
@@ -60,9 +70,7 @@ once per settled tx) · <b>end</b> = when the result was shown to the player.</p
   <button data-f="all" class="on">All</button><button data-f="mismatch">⚠ Wrong-account only</button>
 </div>
 
-<div class="gridwrap">
 <table id="grid"></table>
-</div>
 
 <script>
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
@@ -74,15 +82,21 @@ const COLS = [
   { key: "startAt",   label: "Start",           fmt: r => fmtT(r.startAt) },
   { key: "network",   label: "Net",             fmt: r => netBadge(r.network) },
   { key: "outcome",   label: "Outcome",         fmt: r => `<span class="badge ${esc(r.outcome)}">${glyph(r.outcome)} ${esc(r.outcome)}</span>` },
-  { key: "accountIds",label: "Account(s)",      fmt: r => esc((r.accountIds || []).join(", ")) },
   { key: "txid",      label: "txid",            fmt: r => txLink(r) },
   { key: "startToLock",     label: "start→lock",      fmt: r => durCell(r.startAt, r.lockAt) },
-  { key: "lockToConsensus", label: "lock→consensus", fmt: r => durCell(r.lockAt, r.consensusReceivedAt) },
+  // lock→consensus split (user 2026-08-17): lock→submit should be ~instant
+  // (hook-driven backend submission) — a visible delay there is its own signal;
+  // submit→consensus is Hedera's share. submitAt exists only for rows written
+  // after the backend's tx_submitted frame shipped (2026-08-17) — older rows
+  // show "—", a real gap, not a zero.
+  { key: "lockToSubmit",      label: "lock→submit",      fmt: r => durCell(r.lockAt, r.submitAt) },
+  { key: "submitToConsensus", label: "submit→consensus", fmt: r => durCell(r.submitAt, r.consensusReceivedAt) },
   { key: "consensusToEnd",  label: "consensus→end",  fmt: r => durCell(r.consensusReceivedAt, r.endAt) },
   { key: "drift",     label: "clock drift",     fmt: r => driftCell(r) },
   { key: "receiptStatus", label: "receipt",     fmt: r => esc(r.receiptStatus || "—") },
   { key: "noReceiptPolls", label: "timeouts",   fmt: r => r.noReceiptPolls ? `<span class="warn">${r.noReceiptPolls}</span>` : "0" },
-  { key: "accountMismatch", label: "flags",     fmt: r => mismatchCell(r) },
+  // accounts + flags merged into one trailing narrative column (user 2026-08-17)
+  { key: "comments", label: "comments", fmt: r => commentsCell(r) },
 ]
 
 const GLYPHS = { settled: "✓", failed: "✗", abandoned: "–" }
@@ -99,8 +113,8 @@ function netBadge(n){
 function txLink(r){
   if(!r.txid) return "—"
   if(r.network === "mainnet" || r.network === "testnet")
-    return `<a href="https://hashscan.io/${r.network}/transaction/${encodeURIComponent(r.txid)}" target="_blank"><code>${esc(r.txid)}</code></a>`
-  return `<code>${esc(r.txid)}</code>`
+    return `<a class="tx" href="https://hashscan.io/${r.network}/transaction/${encodeURIComponent(r.txid)}" target="_blank">${esc(r.txid)}</a>`
+  return `<span class="dur">${esc(r.txid)}</span>`
 }
 function msBetween(a, b){
   if(!a || !b) return null
@@ -113,10 +127,12 @@ function fmtMs(ms){
   return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`
 }
 function durCell(a, b){ return `<span class="dur">${fmtMs(msBetween(a, b))}</span>` }
-function mismatchCell(r){
+function commentsCell(r){
+  const bits = []
+  if((r.accountIds || []).length) bits.push(esc(r.accountIds.join(", ")))
   const m = r.accountMismatch
-  if(!m) return ""
-  return `<span class="warn" title="wallet stayed active as ${esc(m.active)}, this tx needed ${esc(m.needed)}">⚠ wrong account (needed ${esc(m.needed)}, wallet was ${esc(m.active)})</span>`
+  if(m) bits.push(`<span class="warn" title="wallet stayed active as ${esc(m.active)}, this tx needed ${esc(m.needed)}">⚠ wrong account (needed ${esc(m.needed)}, wallet was ${esc(m.active)})</span>`)
+  return bits.join(" · ")
 }
 function driftCell(r){
   // on-chain consensus_timestamp isn't always captured (best-effort mirror
@@ -136,10 +152,11 @@ function sortRows(rows){
   const col = COLS.find(c => c.key === SORT_KEY)
   const val = r => {
     if(SORT_KEY === "startToLock") return msBetween(r.startAt, r.lockAt)
-    if(SORT_KEY === "lockToConsensus") return msBetween(r.lockAt, r.consensusReceivedAt)
+    if(SORT_KEY === "lockToSubmit") return msBetween(r.lockAt, r.submitAt)
+    if(SORT_KEY === "submitToConsensus") return msBetween(r.submitAt, r.consensusReceivedAt)
     if(SORT_KEY === "consensusToEnd") return msBetween(r.consensusReceivedAt, r.endAt)
     if(SORT_KEY === "drift") return msBetween(r.consensusTimestamp, r.consensusReceivedAt)
-    if(SORT_KEY === "accountIds") return (r.accountIds || []).join(",")
+    if(SORT_KEY === "comments") return (r.accountIds || []).join(",")
     return r[SORT_KEY]
   }
   return [...rows].sort((a, b) => {
@@ -188,6 +205,8 @@ async function load(){
   ROWS = res.rows || []
   render()
 }
+document.getElementById("envtag").textContent = "env: " + location.hostname
+document.title += " — " + location.hostname
 load()
 setInterval(load, 30000)
 </script>

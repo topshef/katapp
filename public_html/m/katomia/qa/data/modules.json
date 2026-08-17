@@ -1,0 +1,16 @@
+{
+  "_about": "THE MODULE REGISTRY (user 2026-08-17): the grouping layer over test cases. Every suite in tests.json carries a `modules` array of ids from here; a test tagging ONE module is unit-ish, a test tagging several is end-to-end and is drawn as a riser/pipe connecting the layers it touches. Visual analogy is a BUILDING, not a body (user dropped the body metaphor 2026-08-17): layer order is vertical position in the system diagram — what the player sees at the top, Hedera as the foundation. This file is deliberately data: editing the taxonomy must never require touching a renderer. Environment is NOT a module — it is an attribute of a run (each environment's QA folder is self-scoped; an external tool may later merge environments).",
+  "updated": "2026-08-17",
+  "modules": [
+    { "id": "frontend-ui",    "name": "Board UI",             "layer": 6, "notes": "what the player sees and touches — chips, wheel, motion, layout, settings. The facade of the building." },
+    { "id": "signing-widget", "name": "Signing widget (kpool)", "layer": 5, "notes": "the separate kpool_widget — signing modal, sig collection, tx socket, verdict presentation" },
+    { "id": "walletconnect",  "name": "WalletConnect / kWC",  "layer": 5, "notes": "pairing, sessions, network scoping — where the app touches an external wallet" },
+    { "id": "statsync",       "name": "State sync",           "layer": 4, "notes": "game-state broadcast/delta protocol, chat/action streams, reconnection" },
+    { "id": "backend",        "name": "Backend Node.js",      "layer": 3, "notes": "hapi game engine + kpool signing pipeline: locks, phases, submission, receipts" },
+    { "id": "enrich",         "name": "Asset enrich",         "layer": 3, "notes": "token metadata ingestion — two cache paths (signing vs display), xproof, Kache" },
+    { "id": "hedera-sdk",     "name": "Hedera JS SDK",        "layer": 2, "notes": "dependency: tx building/freezing/decoding, node selection — our usage of it, not the SDK itself" },
+    { "id": "hedera",         "name": "Hedera network",       "layer": 1, "notes": "the foundation: consensus, mirror nodes, ingest windows, real fees and balances" },
+    { "id": "build-pipeline", "name": "Build / release",      "layer": 0, "notes": "bundle build, feature-strip purity, deploy integrity — scaffolding, not the building itself" },
+    { "id": "demo-economy",   "name": "Demo economy (kbot)",  "layer": 3, "notes": "public demo bots + their float accounts (Goodwin etc.) — narrated value must match chain truth" }
+  ]
+}

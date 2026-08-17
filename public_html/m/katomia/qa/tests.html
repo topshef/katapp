@@ -38,6 +38,13 @@
   td,th{ border: 1px solid #ddd; padding: .4em .6em; text-align: left; vertical-align: top; }
   th{ background: #fafafa; }
   ul.plain{ font-size: 13px; }
+  /* module grouping (user 2026-08-17): registry in data/modules.json */
+  .filters{ display:flex; gap:6px; flex-wrap:wrap; margin:10px 0; align-items:center; }
+  .filters button{ font-size:12px; padding:3px 10px; border-radius:10px; border:1px solid #bbb; background:#fff; cursor:pointer; }
+  .filters button.on{ background:#2a5a78; color:#fff; border-color:#2a5a78; }
+  .mod{ display:inline-block; font-size:11px; background:#f1ede2; color:#5a4a2a; border-radius:6px; padding:1px 7px; margin-right:4px; }
+  .runs{ font-size:12px; }
+  .envtag{ font-size:12px; background:#e8eef7; color:#2a5a78; border-radius:6px; padding:2px 8px; vertical-align:4px; }
 </style>
 </head>
 <body>
@@ -47,7 +54,7 @@
      the task board nor the plan doc — TXS-* existed only as prose inside another
      task's `next` field. Static viewer over data/tests.json, same pattern as the
      rest of qa/: JSON is the source of truth, HTML just displays it. -->
-<h1>Test index</h1>
+<h1>Test index <span class="envtag" id="envtag"></span></h1>
 <p class="note">Every test id we use, what it asserts, and how to run it. Source of truth:
 <code>data/tests.json</code> (git-tracked). · <a href="index.html">QA home</a> ·
 <a href="kwallet.html">kWallet/signing status</a> · <a href="results.html">retest grid</a></p>
@@ -55,6 +62,10 @@
 <div class="conv" id="conv"></div>
 
 <h2>Suites</h2>
+<!-- module filter (user 2026-08-17): tests are grouped by tags, not nesting —
+     an e2e suite legitimately touches several modules, so a single-parent
+     hierarchy would lie about it. Registry: data/modules.json -->
+<div class="filters" id="modFilter"><b class="note">Module:</b></div>
 <div id="suites"><p class="note">loading…</p></div>
 
 <h2>Expected-fail set <span class="note" id="xfAbout"></span></h2>
@@ -69,15 +80,32 @@
 <script>
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
 const stateClass = s => /SILENT|ERROR|FAILED/.test(s || "") ? "bad" : "warn"
+document.getElementById("envtag").textContent = "env: " + location.hostname
+document.title += " — " + location.hostname
+let MODF = new URLSearchParams(location.search).get("module") || "all"
 ;(async () => {
   try {
     const d = await (await fetch("data/tests.json", { cache: "no-store" })).json()
+    const reg = await (await fetch("data/modules.json", { cache: "no-store" })).json()
+    const MODS = new Map((reg.modules || []).map(m => [m.id, m]))
+    const modName = id => (MODS.get(id) || { name: id }).name
+    const bar = document.querySelector("#modFilter")
+    bar.insertAdjacentHTML("beforeend", `<button data-f="all">All</button>` +
+      (reg.modules || []).map(m => `<button data-f="${esc(m.id)}" title="${esc(m.notes || "")}">${esc(m.name)}</button>`).join(""))
+    const renderSuites = () => {
+      document.querySelectorAll("#modFilter button").forEach(b => b.classList.toggle("on", b.dataset.f === MODF))
+      document.querySelector("#suites").innerHTML = d.suites
+        .filter(s => MODF === "all" || (s.modules || []).includes(MODF))
+        .map(s => suiteCard(s)).join("") || `<p class="note">No suites tagged for this module yet — that IS the finding.</p>`
+    }
+    bar.onclick = e => { if(e.target.dataset?.f){ MODF = e.target.dataset.f; renderSuites() } }
     document.querySelector("#conv").innerHTML =
       `<b>Naming convention.</b> ${Object.entries(d.convention).map(([k, v]) => `<br><b>${esc(k)}</b> — ${esc(v)}`).join("")}`
-
-    document.querySelector("#suites").innerHTML = d.suites.map(s => `
+    const suiteCard = s => `
       <div class="t" id="${esc(s.id)}">
-        <h3><a class="anchor" href="#${esc(s.id)}">T:${esc(s.id)}</a>${s.state ? `<span class="state ${stateClass(s.state)}">${esc((s.state.split("—")[0] || "").trim())}</span>` : ""}</h3>
+        <h3><a class="anchor" href="#${esc(s.id)}">T:${esc(s.id)}</a>${s.state ? `<span class="state ${stateClass(s.state)}">${esc((s.state.split("—")[0] || "").trim())}</span>` : ""}
+          <span class="note" style="float:right;font-weight:400"><a class="runs" href="results.html?case=${encodeURIComponent(s.id)}">runs →</a></span></h3>
+        ${(s.modules || []).length ? `<div>${s.modules.map(m => `<a class="mod anchor" href="?module=${encodeURIComponent(m)}">${esc(modName(m))}</a>`).join("")}${(s.modules || []).length > 1 ? `<span class="note"> — end-to-end: touches ${s.modules.length} modules</span>` : ""}</div>` : ""}
         <div class="ttl">${esc(s.title || "")}</div>
         ${s.asserts ? `<div class="as">${esc(s.asserts)}</div>` : ""}
         ${s.dimension ? `<div class="dim">${esc(s.dimension)}${s.cost ? ` · <b>cost:</b> ${esc(s.cost)}` : ""}</div>` : ""}
@@ -99,7 +127,8 @@ const stateClass = s => /SILENT|ERROR|FAILED/.test(s || "") ? "bad" : "warn"
           ${s.run ? `<br>${Object.entries(s.run).map(([k, v]) => `<span>${esc(k)}: <code>${esc(v)}</code></span>`).join("")}` : ""}
           ${s.reports ? `<br><span>reports: ${esc(s.reports)}</span>` : ""}
         </div>
-      </div>`).join("")
+      </div>`
+    renderSuites()
 
     document.querySelector("#xfAbout").textContent = ""
     document.querySelector("#xfail").innerHTML =

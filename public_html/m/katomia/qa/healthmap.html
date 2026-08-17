@@ -64,7 +64,32 @@
 <a href="./">QA home</a> · <a href="results.html">retest grid</a> ·
 <a href="kwallet.html">kWallet status</a> · <a href="dimensions.html">dimensions</a></div>
 
-<p><b>The idea:</b> stop reading QA as a spreadsheet and start reading it as a body.
+<div class="callout"><b>Decisions (user, 2026-08-17)</b> — this doc's open questions are answered;
+sections below are kept for the record but superseded where they conflict:
+<ul style="margin-top:6px">
+<li><b>Not a literal body.</b> The analogy doesn't map cleanly — the visual is a
+<b>building</b> (facade at the top, Hedera foundation at the bottom) or simply "a diagram".
+First cut now live on <a href="results.html">results.html</a>, driven by
+<code>data/modules.json</code>.</li>
+<li><b>Grouping = tags, not nesting.</b> A suite carries a <code>modules</code> array; one
+module = unit-scoped, several = end-to-end, drawn as a riser/pipe across the layers it
+touches. Registry: <code>data/modules.json</code>; suite tags in <code>data/tests.json</code>.</li>
+<li><b>z = timestamp, always.</b> Not commit-granular: every run sits at its real time;
+staggered sequential runs read as a staircase when rotated. Commits (and other non-test
+events: crons, restarts) layer onto the same timeline as events, so "commit → boom boom
+boom tests" is visible structurally — a run needs no assigned commit, though the run row
+keeps a <b>trigger</b> (commit / cron / manual) that links to the thing itself.</li>
+<li><b>Environment is a run attribute, not a page.</b> Each environment's QA folder stays
+self-scoped and self-aware (pages now show their hostname); a separate, generic tool —
+possibly its own repo — ingests the JSON from several environments and renders the 3D/WebGL
+(and Quest/WebXR) views. The repo owns its shape and tests; visualization is external.</li>
+<li><b>Assertion-level cells:</b> keep the data granular, decide at render time (cluster
+→ expand on approach, like the task cluster graph / a flower reading sad from a distance).</li>
+<li><b>Sequencing:</b> list + grid first, reviewed and confirmed, before any further view.
+The 3D volume is parked until the data model has settled.</li>
+</ul></div>
+
+<p><b>The original idea (2026-08-16):</b> stop reading QA as a spreadsheet and start reading it as a body.
 Modules are limbs and organs; each organ is a small heat map whose cells are individual
 test instances; the whole figure is the health of the application at a glance. History
 is the same figure repeated backwards through time — first as a filmstrip, ultimately as
