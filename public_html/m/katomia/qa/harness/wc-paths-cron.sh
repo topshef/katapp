@@ -29,6 +29,7 @@ exec >> "$LOG" 2>&1
 echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) wc-paths-cron start ==="
 
 set -a; source /opt/kwallet/.env; set +a
+export TRIGGER="cron:wc-paths-cron.sh"
 
 STATE=$(curl -s "http://127.0.0.1:8790/api/state?token=$KWALLET_TOKEN")
 if [ -z "$STATE" ]; then echo "kwallet not answering on 8790 — skipping"; exit 0; fi

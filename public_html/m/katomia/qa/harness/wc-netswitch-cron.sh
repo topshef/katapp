@@ -16,6 +16,7 @@ exec >> "$LOG" 2>&1
 echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) wc-netswitch-cron start ==="
 
 set -a; source /opt/kwallet/.env; set +a
+export TRIGGER="cron:wc-netswitch-cron.sh"
 
 STATE=$(curl -s "http://127.0.0.1:8790/api/state?token=$KWALLET_TOKEN")
 MODE=$(echo "$STATE" | python3 -c "import json,sys;print(json.load(sys.stdin)['mode'])")

@@ -322,6 +322,7 @@ async function refresh(){
     const d = e.detail || {}
     r.instance = r.instance || d.instance || (e.checkpoint === "test:start" ? e.v : null)
     r.source = r.source || d.source
+    r.trigger = r.trigger || d.trigger
     if(e.checkpoint === "test:note" && d.note) r.notes.push(d.note)
     if(e.checkpoint === "test:verdict"){ r.verdict = e.v; r.vt = e.t; if(d.note) r.notes.push(d.note) }
   }
@@ -389,7 +390,11 @@ async function refresh(){
   recent.innerHTML = "<tr><th>When</th><th>Case</th><th>Modules</th><th>Verdict</th><th>Trigger</th><th>Notes</th></tr>" +
     rows.sort((a, b) => (b.vt || b.t).localeCompare(a.vt || a.t)).slice(0, 30).map(r => {
       const trunc = r.note.length > 90 ? esc(r.note.slice(0, 90)) + "&hellip;" : esc(r.note)
-      const trig = (r.source === "human" ? "🖐 manual" : r.source === "feedback" ? "📝 feedback" : "🤖 cron/harness") + " " + ghCommit(r.commit)
+      // first-class trigger when the harness stamped one (detail.trigger, since
+      // 2026-08-17); source-derived label as the fallback for older rows
+      const tlabel = r.trigger ? (r.trigger.startsWith("cron:") ? "🤖 " + esc(r.trigger.slice(5)) : "🖐 " + esc(r.trigger))
+        : (r.source === "human" ? "🖐 manual" : r.source === "feedback" ? "📝 feedback" : "🤖 cron/harness")
+      const trig = tlabel + " " + ghCommit(r.commit)
       return `<tr><td class="note">${esc((r.vt || r.t).slice(5, 19).replace("T", " "))}</td>
        <td><a class="caselink" href="tests.html#${encodeURIComponent(r.instance)}" title="test definition">${esc(r.instance)}</a></td>
        <td>${modChips(r.instance)}</td>

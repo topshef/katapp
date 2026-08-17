@@ -66,9 +66,10 @@
       "rule": "A button must not move between the moment you aim and the moment you click — async loading may never grow the page under your finger.",
       "incident": "SIGN-LAYOUTJUMP1 — the signing modal grew during enrichment and a mainnet Sign click landed on a hashtag link instead. The dangerous category: mis-clicks with real value at stake.",
       "assertion": "the Sign button's bounding box is identical from first paint through full enrichment (Playwright bounding-box watch over the hydration window)",
-      "status": "to-build",
+      "status": "live-suite",
       "priority": "HIGH",
-      "fixture": "signing modal (needs backend or recorded tx fixture)"
+      "fixture": "signing modal (needs backend or recorded tx fixture)",
+      "suite": "SIGNSTABLE-01 v1 (rides hbarxfer-auto-spike — board sign button; the signing-modal-through-enrichment variant still needs a recorded-tx fixture)"
     },
     {
       "id": "CANARY-AFFORDANCE-PRESENCE",

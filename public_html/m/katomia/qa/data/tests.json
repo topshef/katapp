@@ -590,30 +590,40 @@
       "id": "TXTRUTH-01",
       "title": "Never guess a FAILED verdict — confirm on chain",
       "asserts": "With the tx-receipt socket severed between sign and receipt, the board still reaches a SUCCESS verdict sourced from chain confirmation; FAILED is never shown for a tx the mirror confirms.",
-      "kind": "specified",
+      "kind": "e2e-signing",
       "network": "testnet",
       "modules": [
         "signing-widget",
         "backend",
         "hedera"
       ],
-      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
-      "harness": "(planned) Playwright fork of hbarxfer-auto-spike.cjs with CDP socket kill",
-      "why_it_matters": "BOARD-TXTRUTH1 (2026-08-07): three false FAILURE verdicts on successful txs led to a real mainnet double spend — the only realized money harm to date. The fix (79858f4, confirm-on-chain) has no regression protection."
+      "state": "LIVE since 2026-08-17 — verified green: per-tx receipt socket severed post-sign (_boardTxSocket.close(), which also stops its reconnect — the incident's no-reconnect shape); board reached truthful success via source \"mirror\" (⛓), never a guessed FAILED.",
+      "harness": "qa/harness/txtruth-check.cjs",
+      "why_it_matters": "BOARD-TXTRUTH1 (2026-08-07): three false FAILURE verdicts on successful txs led to a real mainnet double spend — the only realized money harm to date. The fix (79858f4, confirm-on-chain) has no regression protection.",
+      "run": {
+        "lab1": "qa/harness/txtruth-cron.sh"
+      },
+      "schedule": "cron, daily 02:25 (lab1)",
+      "reports": "kflow test:verdict → QA grid"
     },
     {
       "id": "SIGNDEADTX-01",
       "title": "Refuse to sign an expired transaction",
       "asserts": "Tapping Sign after the validity window closes is refused with an expiry message: no signer:sign:saved success, no wallet round-trip.",
-      "kind": "specified",
+      "kind": "e2e-signing",
       "network": "testnet",
       "modules": [
         "signing-widget",
         "hedera-sdk"
       ],
-      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
-      "harness": "(planned) Playwright on qa/wc-fixture.php (40s validity), wait out the window; also promote validdur-decode-matrix onto a cron",
-      "why_it_matters": "SIGN-DEADTX1 (2026-08-07): Sign clicked 39s after window close saved the sig and logged success; the network could never accept it."
+      "state": "LIVE since 2026-08-17 — verified green: 40s window expired unsigned, external sign page (same paired context as the incident) refused with \"expired Ns ago — window has closed\"; zero signTx requests reached kWallet (kept manual so a slipped request parks as pending = fail).",
+      "harness": "qa/harness/signdeadtx-check.cjs",
+      "why_it_matters": "SIGN-DEADTX1 (2026-08-07): Sign clicked 39s after window close saved the sig and logged success; the network could never accept it.",
+      "run": {
+        "lab1": "qa/harness/signdeadtx-cron.sh"
+      },
+      "schedule": "cron, daily 03:40 (lab1)",
+      "reports": "kflow test:verdict → QA grid"
     },
     {
       "id": "ENRICHCOLD-01",
@@ -625,9 +635,15 @@
         "enrich",
         "backend"
       ],
-      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
-      "harness": "(planned) curl/node timing script + small Playwright cold-profile check",
-      "why_it_matters": "ENRICH-COLDPATH1 (2026-08-08..13): four defects in one recurring subsystem; Kache.getData timeout deliberately deferred — a known live hole nothing watches."
+      "state": "LIVE since 2026-08-17 — and currently RED with a real finding: 6-asset server-cold burst took 19.4s (gate 2.5s; warm 294ms), and a cold-profile t-kat-demo board showed 10/22 chips as bare token ids after 3s. Matches the GCP \"all end up white\" feedback; evidence noted on ENRICH-COLDPATH1.",
+      "harness": "qa/harness/enrichcold-check.cjs",
+      "why_it_matters": "ENRICH-COLDPATH1 (2026-08-08..13): four defects in one recurring subsystem; Kache.getData timeout deliberately deferred — a known live hole nothing watches.",
+      "run": {
+        "lab1": "qa/harness/quickchecks-cron.sh",
+        "any": "BASE=<site> node enrichcold-check.cjs"
+      },
+      "schedule": "cron, daily 04:50 (lab1)",
+      "reports": "kflow test:verdict → QA grid"
     },
     {
       "id": "AMTSCALE-01",
@@ -639,9 +655,14 @@
         "backend",
         "hedera"
       ],
-      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
-      "harness": "(planned) protocol script + one-line mirror assertion added to hbarxfer-auto-spike.cjs",
-      "why_it_matters": "AMOUNT-SCALE1 (critical, 2026-07-07): display-unit leak produced a signed mainnet tx with a 0-amount transfer. A scaling regression today would pass green — the harness asserts a toast, never the on-chain amount."
+      "state": "PART (b) LIVE since 2026-08-17 — verified green: mirror shows exactly 1,000,000 tinybar received. Part (a), the backend FR/FS display-unit guard probe, is still a specified follow-up.",
+      "harness": "qa/harness/hbarxfer-auto-spike.cjs (rider)",
+      "why_it_matters": "AMOUNT-SCALE1 (critical, 2026-07-07): display-unit leak produced a signed mainnet tx with a 0-amount transfer. A scaling regression today would pass green — the harness asserts a toast, never the on-chain amount.",
+      "run": {
+        "lab1": "rides every hbarxfer run (12x/day + kswap/PAT daily)"
+      },
+      "schedule": "rides HBARXFER-01",
+      "reports": "kflow test:verdict (own run id) → QA grid"
     },
     {
       "id": "GOODWIN-FLOAT-01",
@@ -653,9 +674,14 @@
         "demo-economy",
         "hedera"
       ],
-      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
-      "harness": "(planned) daily backend script, kflow-reported; red = run kbot/goodwin-topup.cjs --go",
-      "why_it_matters": "GOODWIN-DEMO1/2/4: three recurrences of the payer deadlock, 18-19h public outages, SUCCESS logged throughout. Chain cross-check is the only honest detector."
+      "state": "LIVE since 2026-08-17 — and currently RED with a real finding: Goodwin is SOLVENT (740 KUSD, 4.5 ℏ) and the treats demo is ONLINE, yet the mirror shows ZERO outbound KUSD legs in his last 100 transactions — rewards are not settling on-chain at all. New shape of the GOODWIN-DEMO class (not underfunding).",
+      "harness": "qa/harness/goodwin-float-check.cjs",
+      "why_it_matters": "GOODWIN-DEMO1/2/4: three recurrences of the payer deadlock, 18-19h public outages, SUCCESS logged throughout. Chain cross-check is the only honest detector.",
+      "run": {
+        "lab1": "qa/harness/quickchecks-cron.sh"
+      },
+      "schedule": "cron, daily 04:50 (lab1)",
+      "reports": "kflow test:verdict → QA grid"
     },
     {
       "id": "ACCTMISMATCH-01",
@@ -680,9 +706,14 @@
       "modules": [
         "walletconnect"
       ],
-      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
-      "harness": "(planned) one assertion inside an existing Playwright harness",
-      "why_it_matters": "WC-DOUBLEINIT1 (2026-08-07): two clients sharing one store destroyed each other’s sessions — produced an on-chain-confirmed expired tx. Fixed 8e6255c, unasserted."
+      "state": "LIVE since 2026-08-17 — verified green: one wc:build per load. Fails only on the DOUBLEINIT signature (near-simultaneous builds <3s apart); later network-scope rebuilds (WC-NETSCOPE) are legitimate.",
+      "harness": "qa/harness/wc-singleinit-check.cjs",
+      "why_it_matters": "WC-DOUBLEINIT1 (2026-08-07): two clients sharing one store destroyed each other’s sessions — produced an on-chain-confirmed expired tx. Fixed 8e6255c, unasserted.",
+      "run": {
+        "lab1": "qa/harness/quickchecks-cron.sh"
+      },
+      "schedule": "cron, daily 04:50 (lab1)",
+      "reports": "kflow test:verdict → QA grid"
     },
     {
       "id": "PRIVJOIN-01",
@@ -694,7 +725,7 @@
         "backend",
         "statsync"
       ],
-      "state": "LIVE since 2026-08-17 — join-delivers-frames core. playerId presence is recorded informationally (field name unconfirmed); spectator-invisibility half still to add.",
+      "state": "LIVE since 2026-08-17 — join-delivers-frames core, green. The spectator-invisibility half has NO surface to probe yet (no game-listing endpoint exists); it becomes buildable when a lobby/list API lands.",
       "harness": "qa/harness/privjoin-check.cjs",
       "why_it_matters": "GAMEPRIVATE-JOINSTUCK1 (2026-07-16): join returned zero frames — permanently blank board. The fixture was kept as a permanent regression fixture; nothing probes it.",
       "run": {
@@ -749,6 +780,25 @@
       },
       "schedule": "cron, daily 04:50 (lab1)",
       "reports": "kflow test:verdict → QA grid"
+    },
+    {
+      "id": "SIGNSTABLE-01",
+      "title": "The sign affordance must not move between aiming and clicking",
+      "asserts": "The sign button's bounding box is watched for 3s before the harness clicks it; drift > 1px fails.",
+      "kind": "ui-canary",
+      "network": "testnet",
+      "modules": [
+        "frontend-ui",
+        "signing-widget"
+      ],
+      "harness": "qa/harness/hbarxfer-auto-spike.cjs (rider)",
+      "run": {
+        "lab1": "rides every hbarxfer run"
+      },
+      "schedule": "rides HBARXFER-01",
+      "reports": "kflow test:verdict (own run id) → QA grid",
+      "state": "LIVE since 2026-08-17 (v1 = the board's sign button; verified 0.0px). CANARY-HYDRATION-CLICK's full shape — the signing MODAL's button through enrichment — still needs a recorded-tx fixture.",
+      "why_it_matters": "SIGN-LAYOUTJUMP1: async modal growth put a hashtag link under a real-value mainnet Sign tap."
     }
   ],
   "expected_fail": {

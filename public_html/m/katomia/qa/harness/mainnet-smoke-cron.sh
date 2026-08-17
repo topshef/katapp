@@ -14,6 +14,7 @@ LOG="/var/www/swap.kpay.live-katlab/lab1/logs/qa/mainnet-smoke-cron.log"
 mkdir -p "$(dirname "$LOG")"
 exec >> "$LOG" 2>&1
 
+export TRIGGER="cron:mainnet-smoke-cron.sh"
 echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) mainnet-smoke-cron start ==="
 
 set -a; source /opt/kwallet-mainnet/.env; set +a
