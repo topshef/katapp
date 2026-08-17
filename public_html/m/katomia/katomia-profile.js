@@ -24,10 +24,12 @@ function initKatomiaProfile(){
     el.addEventListener("click", () => openKatomiaProfile())
   )
 
-  // (the hamburger's second door — its data-menu execution-agent item — was removed
-  // 2026-08-17, KATUI3 feedback pass; the admin-gated profile section is the execution
-  // agent's only home now. Wording avoids the feature's marker name: the bundle purity
-  // gate T:KSTRIP-02 scans stripped builds for it and failed the 13:55 build on it.)
+  /* KBUNDLE-STRIP:kea */
+  // (the hamburger's [data-menu-kea] second door was removed 2026-08-17, KATUI3
+  // feedback pass — the admin-gated profile section is KEA's only home now. This
+  // comment lives inside strip markers: the purity gate rejects a bundle carrying
+  // ANY mention of the feature, marker name or plain words alike.)
+  /* /KBUNDLE-STRIP:kea */
 
   // KATUI3 (user 2026-08-17): closing must be INSTANT and honest. The handler was
   // already synchronous — the reported "takes a while / freezes" is main-thread jank
