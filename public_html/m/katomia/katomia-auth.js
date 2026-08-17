@@ -13,6 +13,20 @@
 
 function kauthDiag(event, data){ try { window.kdiag?.("auth:" + event, data) } catch {} }
 
+// ── Ladder markers (WALLET-CONNECT-IA1, user 2026-08-17) — PARAMETERIZED: every
+// surface that marks an account's ladder state reads these, so the symbols can be
+// swapped app-wide in one place (a custom symbol may replace them in due course).
+//   auth   ◆ U+25C6 BLACK DIAMOND — authenticated ("solid diamond is authenticate")
+//   commit ◈ U+25C8 (dec 9672) WHITE DIAMOND CONTAINING BLACK SMALL DIAMOND — a
+//          live commitment ("when it's got a dot in the middle, it's commitment" —
+//          the dot reads as reputation/a target, and a commitment COUNTS as
+//          authenticated too, so an account never shows both marks).
+// Considered and parked (user, same session): ❖ U+2756 (dec 10070) BLACK DIAMOND
+// MINUS WHITE X; ⬖ U+2B16 / ⬗ U+2B17 half-black diamonds (could mark in-between
+// states in due course); 🔷 dropped — black & white is deliberate, it can't
+// interact with any player's colour.
+window.KAUTH_MARKS = window.KAUTH_MARKS || { auth: "◆", commit: "◈" }
+
 // WCM-ZINDEX1 (2026-07-08): WalletConnect's ThemeUtil.setTheme() writes --wcm-z-index:"89"
 // INLINE on <html> and re-applies it ASYNC through the modal lifecycle, clobbering our
 // one-shot bump and dropping the WC modal UNDER our profile/signing modals (reported
@@ -241,6 +255,46 @@ function kauthActiveAccount(){
   return (typeof window.__kauthActive === "string") ? window.__kauthActive : ""
 }
 
+// ── Local ladder records — per network+account (Q8.4, user-confirmed 2026-08-17) ──
+// Replaces the single-slot katomiaLastCommitment (whose one record was exactly the
+// bug the user hit: flip the dropdown to another account and the OLD account's
+// commitment message stayed up). Keyed "<network>:<accountId>", each record
+// { kind: "auth"|"commit", accountId, network, expiresAt, publishedAt }. Written at
+// publish time; device-local; the backend binding stays authoritative. The legacy
+// slot migrates in on first read and is then removed.
+function kauthRecords(){
+  try {
+    const map = JSON.parse(localStorage.getItem("katomiaAuthRecords") || "null") || {}
+    const legacy = JSON.parse(localStorage.getItem("katomiaLastCommitment") || "null")
+    if(legacy?.accountId && legacy?.network){
+      const k = legacy.network + ":" + legacy.accountId
+      if(!map[k]){ map[k] = { kind: "commit", ...legacy }; localStorage.setItem("katomiaAuthRecords", JSON.stringify(map)) }
+      localStorage.removeItem("katomiaLastCommitment")
+    }
+    return map
+  } catch { return {} }
+}
+function kauthRecordSet(network, accountId, rec){
+  try {
+    const m = kauthRecords()
+    m[network + ":" + accountId] = rec
+    localStorage.setItem("katomiaAuthRecords", JSON.stringify(m))
+  } catch {}
+}
+function kauthRecordFor(network, accountId){ return kauthRecords()[network + ":" + accountId] || null }
+function kauthRecordLive(rec){
+  if(!rec) return false
+  if(!rec.expiresAt) return true
+  try { return new Date(rec.expiresAt).getTime() > Date.now() } catch { return false }
+}
+// The mark an account wears in pickers ("" when it has no live record). A live
+// commitment shows ONLY ◈ — it counts as authenticated, never both marks.
+function kauthAccountMark(network, accountId){
+  const rec = kauthRecordFor(network, accountId)
+  if(!kauthRecordLive(rec)) return ""
+  return rec.kind === "commit" ? window.KAUTH_MARKS.commit : window.KAUTH_MARKS.auth
+}
+
 // ── Commitment option readers ────────────────────────────────────────────────
 
 function kauthReadScope(){
@@ -273,38 +327,91 @@ function kauthScopeLabel(){
   return scope.kind === "game" ? `this game only (${scope.gameId || "?"})` : "all games (global)"
 }
 
+// The commitment fold's internals (options grid + plain-English statement + Raise
+// button state). Ladder-level concerns — the status line, the Authenticate button,
+// the ⌨️/playnet explainer, hiding the fold for unsignable accounts — moved to
+// kauthRenderLadder (WALLET-CONNECT-IA1); the disabled Raise here is belt-and-braces
+// for the hidden-fold case. (⌨️ background, unchanged: a manually-added account has
+// no wallet session to sign with; a future WhatsApp/KSIG/offline channel would
+// re-enable per channel via the PROFILE-AUTH4 adapter seam.)
 function updateAuthStatement(){
   const el   = document.getElementById("authStatement")
   const opts = document.getElementById("authOptions")
   const btn  = document.getElementById("authBtn")
   if(!el) return
   const account = kauthActiveAccount()
-  if(!account){ el.classList.add("hidden"); opts?.classList.add("hidden"); if(btn) btn.disabled = false; return }
-  // ⌨️ manually-added account: no wallet session to sign with, so Raise commitment
-  // is greyed with the reason shown — never a phantom control (grey + explain, don't
-  // decorate). ALSO the degraded state of a WC account whose session was wiped/
-  // re-paired mid-game (user edge case 2026-08-05): the board account survives a WC
-  // wedge repair untouched and simply shows ⌨️ here until the wallet reconnects —
-  // nothing about the deal is lost. FUTURE: binding routes that don't need a live WC
-  // session — WhatsApp, KSIG, an offline-signed envelope — plug in via the
-  // PROFILE-AUTH4 channel-adapter seam and would re-enable this button per channel.
-  const isWc = !window.__kauthWcSet || window.__kauthWcSet.has(account)
+  const isWc = account && (!window.__kauthWcSet || window.__kauthWcSet.has(account))
   if(btn) btn.disabled = !isWc
-  el.classList.remove("hidden")
-  if(!isWc){
-    opts?.classList.add("hidden")
-    el.textContent = kauthNetwork() === "playnet"
-      ? `⌨️ ${account} is a playnet account — playnet has no wallets, so bindings don't apply here.`
-      : `⌨️ ${account} was added without a wallet connection, so a commitment can't be raised for it here yet. Connect it via WalletConnect (➕ Add account) to bind it.`
-    return
-  }
+  if(!isWc){ el.classList.add("hidden"); opts?.classList.add("hidden"); return }
   opts?.classList.remove("hidden")
-  // Statement wording will vary once we branch binding vs. plain authenticate (nerd
-  // mode). For now it reflects the key-binding intent. Display copy only — the SIGNED
-  // challenge JSON is untouched (INTENT-RENAME1 keeps wire names for compat).
+  el.classList.remove("hidden")
+  // Display copy only — the SIGNED challenge JSON is untouched (INTENT-RENAME1
+  // keeps wire names for compat).
   el.textContent =
     `I control account ${account} and I authorise my intent key ${kauthShortKey(window.__kauthIntentKey)} ` +
     `to place and sign orders on my behalf. Scope: ${kauthScopeLabel()}; ${kauthExpiryLabel()}.`
+}
+
+// ── The ladder (WALLET-CONNECT-IA1 Mock A, user-approved 2026-08-17) ──────────
+// One renderer owns the section's state so it can never disagree with itself:
+// status line (#authRungStatus), the Authenticate button, the commitment fold's
+// visibility, and — via updateAuthStatement — the fold's internals. Re-run on
+// profile open, account change, network change and publish, which is the fix for
+// "I flip to another account and it still shows the old commitment message":
+// state is looked up per network+account (kauthRecordFor), never from a single slot.
+function kauthRenderLadder(){
+  const rung = document.getElementById("authRungStatus")
+  const authBtn = document.getElementById("authAuthenticateBtn")
+  const fold = document.getElementById("profileCommitSection")
+  updateAuthStatement()
+  if(!rung || !authBtn) return
+  const account = kauthActiveAccount()
+  const network = kauthNetwork()
+  const isWc = account && (!window.__kauthWcSet || window.__kauthWcSet.has(account))
+
+  if(!account){
+    rung.textContent = ""
+    authBtn.classList.add("hidden")
+    fold?.classList.add("hidden")
+    return
+  }
+  if(!isWc){
+    // ⌨️ explainer replaces the whole ladder — no phantom Authenticate for an
+    // account that cannot sign here (Q8.5: playnet gets the plain explainer).
+    rung.style.color = "#555"
+    rung.textContent = network === "playnet"
+      ? `⌨️ ${account} is a playnet account — playnet has no wallets, so authentication doesn't apply here.`
+      : `⌨️ ${account} was added without a wallet connection, so it can't sign here yet. Connect it via WalletConnect (➕ Add account) to authenticate.`
+    authBtn.classList.add("hidden")
+    fold?.classList.add("hidden")
+    return
+  }
+  fold?.classList.remove("hidden")
+  const M = window.KAUTH_MARKS
+  const rec = kauthRecordFor(network, account)
+  const live = kauthRecordLive(rec)
+  rung.title = "Recorded on this device when you last signed — the backend stays authoritative."
+  if(live && rec.kind === "commit"){
+    rung.style.color = "#16a34a"
+    const exp = rec.expiresAt ? " — valid until " + new Date(rec.expiresAt).toLocaleString() : ""
+    rung.textContent = `${M.commit} Commitment live${exp}`
+    rung.title = "A commitment counts as authenticated too. " + rung.title
+    authBtn.classList.add("hidden")   // both rungs climbed — nothing to demand
+  } else if(live){
+    // Q8.3 (user 2026-08-17): a plain authentication's expiry stays SILENT — it is
+    // Katomia's retention call and can change backend-side without UI churn.
+    rung.style.color = "#16a34a"
+    rung.textContent = `${M.auth} Authenticated — members-only access is open to this account.`
+    authBtn.classList.add("hidden")
+  } else if(rec){
+    rung.style.color = "#b45309"
+    rung.textContent = `⚠ ${rec.kind === "commit" ? "Commitment" : "Authentication"} expired — authenticate again.`
+    authBtn.classList.remove("hidden")
+  } else {
+    rung.style.color = "#555"
+    rung.textContent = "Not authenticated yet."
+    authBtn.classList.remove("hidden")
+  }
 }
 
 // ── Account picker — the ONE account list (KAT-ACCTNORM1, user 2026-08-05) ───
@@ -330,7 +437,11 @@ function kauthRenderAccounts(accounts){
   window.__kauthWcSet = new Set(wc)
   const manual = [...new Set(kauthGameAccounts().map(a => a.label))].filter(id => !window.__kauthWcSet.has(id))
   const all = [...wc, ...manual]
-  const label = id => ((net && !/mainnet/.test(net)) ? `${net}:${id}` : id) + (window.__kauthWcSet.has(id) ? "" : " ⌨️")
+  // ◆/◈ ladder mark per account (WALLET-CONNECT-IA1) — the dropdown shows at a
+  // glance which accounts are authenticated (◆) or hold a live commitment (◈).
+  const label = id => ((net && !/mainnet/.test(net)) ? `${net}:${id}` : id)
+    + (window.__kauthWcSet.has(id) ? "" : " ⌨️")
+    + (kauthAccountMark(net, id) ? " " + kauthAccountMark(net, id) : "")
   const active = kauthActiveAccount()
 
   let html = all.length
@@ -342,7 +453,7 @@ function kauthRenderAccounts(accounts){
   const cur = kauthActiveAccount()
   if(cur) window.__kauthActive = cur
   if(remove) remove.classList.toggle("hidden", !cur)
-  updateAuthStatement()
+  kauthRenderLadder()
 }
 
 // Dropdown change: "connect another" opens WC and re-lists; otherwise set active signer.
@@ -385,7 +496,9 @@ async function kauthOnAccountChange(){
   }
   const remove = document.getElementById("authAccountRemove")
   if(remove) remove.classList.toggle("hidden", !val || val === KAUTH_ADD_NEW)
-  updateAuthStatement()
+  // per-account ladder state — THE fix for the stale "commitment live" message
+  // lingering after flipping the dropdown to a different account (user 2026-08-17)
+  kauthRenderLadder()
 }
 
 // ONE Remove for every account (KAT-ACCTNORM1, user 2026-08-05): "disconnect" is
@@ -487,12 +600,84 @@ async function katomiaAuthOnProfileOpen(){
   const accounts = await kauthWCAccounts(network, true)
   if(accounts.length && !window.__kauthActive) window.__kauthActive = accounts[0]
   kauthRenderAccounts(accounts)
-  kauthRenderCurrentCommitment()   // network-scoped (a7218b) — re-evaluate per open
+  kauthRenderLadder()   // per network+account — re-evaluate per open
 }
 
-// Raise a key-binding commitment: sign the challenge (naming the intent key, with the
-// chosen expiry + scope) and, if the Publish checkbox is ticked, POST it in one action.
-// The account is chosen up front in the picker — no connect-then-guess here.
+// ── Shared signing core (WALLET-CONNECT-IA1) ─────────────────────────────────
+// One challenge→sign→snapshot→envelope[→publish] pipeline for all three consumers:
+// profile Authenticate, profile Raise commitment, and the kam popup — they differ
+// only in DEFAULTS (expiry/scope/publish) and display copy, and had drifted into
+// three near-identical copies. `kind` ("auth" | "commit") tags the local record.
+// Returns { envelope, published } or null on any user-visible failure (already
+// notified + status cleared).
+async function kauthSignPublish({ network, accountId, expiresAt, scope, publish, kind, status, diag }){
+  const say = status || kauthSetStatus
+  const dg = (ev, data) => kauthDiag((diag || "") + ev, data)
+  // ensureNetwork can REBUILD the shared connector, so it's done here (on the
+  // deliberate action) rather than on passive profile open.
+  try { if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network) }
+  catch(e){ dg("ensureNetwork-fail", { network, error: String(e) }) }
+  try { window.WC.setActiveAccount?.(accountId) } catch(e){ dg("setActive-fail", { accountId, error: String(e) }) }
+
+  const intentPublicKey = window.__kauthIntentKey || await getKatomiaOrderPubkeyHex()
+  if(!intentPublicKey){ say(""); notify?.("Intent key not ready", "error", { timeout: 3000 }); return null }
+
+  const challenge = buildAuthChallenge({ network, intentPublicKey, accountId, expiresAt, scope })
+  const message = JSON.stringify(challenge)
+  dg("challenge", { accountId, network, kind, intentPublicKey, scope: challenge.scope, expiresAt: challenge.validity.expiresAt, id: challenge.id })
+
+  say("Approve the signature in your wallet…")
+  let signResult
+  try { signResult = await kauthWCSign(accountId, message) }
+  catch(e){ dg("sign-fail", { accountId, error: String(e) }); say(""); notify?.("Signing failed or was rejected", "error", { timeout: 4000 }); return null }
+
+  const signedAccount = signResult?.accountId || accountId
+  // Snapshot + signedKeys are observational (§4.2/§4.3) — log loudly on failure but
+  // still emit the envelope so the signature is never lost.
+  let snapshot = null, signedKeys = []
+  try { snapshot = await buildAccountKeySnapshot(network, signedAccount) }
+  catch(e){ dg("snapshot-fail", { accountId: signedAccount, network, error: String(e) }) }
+  try { signedKeys = await kauthResolveSignedKeys(signResult?.signatureMap, snapshot?.keys || []) }
+  catch(e){ dg("signedkeys-fail", { error: String(e) }) }
+
+  const envelope = assembleAuthEnvelope({ challenge, message, signResult, snapshot, signedKeys })
+  dg("envelope", { accountId: signedAccount, network, kind, signedKeys, scope: challenge.scope, keyStructure: snapshot?.keyStructure, threshold: snapshot?.threshold })
+
+  let published = false
+  if(publish){
+    say("Publishing…")
+    published = await publishKatomiaAuthEnvelope(envelope, { kind })
+  }
+  return { envelope, published, signedAccount }
+}
+
+// Plain AUTHENTICATE from the profile section (Mock A's headline button): the kam
+// defaults — expiry is Katomia's retention call (silent, Q8.3), global scope,
+// always published (an unpublished authentication has nothing else to do).
+async function runKatomiaAuthenticate(){
+  const btn = document.getElementById("authAuthenticateBtn")
+  const network = kauthNetwork()
+  if(!network){ notify?.("No network selected", "error", { timeout: 3000 }); return }
+  if(!window.WC){ notify?.("WalletConnect not loaded yet — try again in a moment", "error", { timeout: 3000 }); return }
+  const accountId = kauthActiveAccount()
+  if(!accountId){ notify?.("Choose or connect an account first", "info", { timeout: 3500 }); return }
+  if(window.__kauthWcSet && !window.__kauthWcSet.has(accountId)){
+    notify?.("This account has no wallet connection — connect it (➕ Add account) to authenticate", "info", { timeout: 4000 })
+    return
+  }
+  if(btn) btn.disabled = true
+  try {
+    const expiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString()
+    const r = await kauthSignPublish({ network, accountId, expiresAt, scope: { kind: "global" }, publish: true, kind: "auth" })
+    if(r) kauthSetStatus(r.published ? "Authenticated ✓" : "Signed ✓ — publish failed (see console)")
+  } finally {
+    if(btn) btn.disabled = false
+    kauthRenderLadder()
+  }
+}
+
+// Raise a key-binding COMMITMENT (the fold's action): user-chosen expiry + scope,
+// publish via the checkbox — same pipeline, "commit" record.
 async function runKatomiaRaiseCommitment(){
   const btn = document.getElementById("authBtn")
   const network = kauthNetwork()
@@ -513,48 +698,17 @@ async function runKatomiaRaiseCommitment(){
 
   if(btn) btn.disabled = true
   try {
-    // ensureNetwork can REBUILD the shared connector, so it's done here (on the deliberate
-    // action) rather than on passive profile open.
-    try { if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network) }
-    catch(e){ kauthDiag("ensureNetwork-fail", { network, error: String(e) }) }
-    try { window.WC.setActiveAccount?.(accountId) } catch(e){ kauthDiag("setActive-fail", { accountId, error: String(e) }) }
-
-    const intentPublicKey = window.__kauthIntentKey || await getKatomiaOrderPubkeyHex()
-    if(!intentPublicKey){ kauthSetStatus(""); notify?.("Intent key not ready", "error", { timeout: 3000 }); return }
-
-    const challenge = buildAuthChallenge({ network, intentPublicKey, accountId, expiresAt: kauthReadExpiry(), scope: kauthReadScope() })
-    const message = JSON.stringify(challenge)
-    kauthDiag("challenge", { accountId, network, intentPublicKey, scope: challenge.scope, expiresAt: challenge.validity.expiresAt, id: challenge.id })
-
-    kauthSetStatus("Approve the signature in your wallet…")
-    let signResult
-    try { signResult = await kauthWCSign(accountId, message) }
-    catch(e){ kauthDiag("sign-fail", { accountId, error: String(e) }); kauthSetStatus(""); notify?.("Signing failed or was rejected", "error", { timeout: 4000 }); return }
-
-    const signedAccount = signResult?.accountId || accountId
-
-    // Snapshot + signedKeys are observational (§4.2/§4.3) — log loudly on failure but
-    // still emit the envelope so the signature is never lost.
-    let snapshot = null, signedKeys = []
-    try { snapshot = await buildAccountKeySnapshot(network, signedAccount) }
-    catch(e){ kauthDiag("snapshot-fail", { accountId: signedAccount, network, error: String(e) }) }
-    try { signedKeys = await kauthResolveSignedKeys(signResult?.signatureMap, snapshot?.keys || []) }
-    catch(e){ kauthDiag("signedkeys-fail", { error: String(e) }) }
-
-    const envelope = assembleAuthEnvelope({ challenge, message, signResult, snapshot, signedKeys })
-    kauthRenderEnvelope(envelope)
-    kauthDiag("envelope", { accountId: signedAccount, network, signedKeys, scope: challenge.scope, keyStructure: snapshot?.keyStructure, threshold: snapshot?.threshold })
-
-    // Publish is folded into this one action via the checkbox (no separate button).
-    if(document.getElementById("authPublish")?.checked){
-      kauthSetStatus("Publishing binding…")
-      const ok = await publishKatomiaAuthEnvelope(envelope)
-      kauthSetStatus(ok ? "Commitment raised & published ✓" : "Raised ✓ — publish failed (see console)")
-    } else {
-      kauthSetStatus("Commitment raised ✓ — not published (copy below)")
-    }
+    const wantPublish = document.getElementById("authPublish")?.checked
+    const r = await kauthSignPublish({ network, accountId, expiresAt: kauthReadExpiry(), scope: kauthReadScope(),
+      publish: wantPublish, kind: "commit" })
+    if(!r) return
+    kauthRenderEnvelope(r.envelope)
+    kauthSetStatus(wantPublish
+      ? (r.published ? "Commitment raised & published ✓" : "Raised ✓ — publish failed (see console)")
+      : "Commitment raised ✓ — not published (copy below)")
   } finally {
     if(btn) btn.disabled = false
+    kauthRenderLadder()
   }
 }
 
@@ -584,9 +738,10 @@ async function copyKatomiaAuthEnvelope(){
 // "Publish failed" with the request never reaching any backend. Same absolute-path
 // convention as the games fetch (/m/katomia/hapi/games).
 // v1 UX: publishing == making the binding public (privacy is hard-coded server-side).
-// Called by the single "Raise commitment" action when Publish is ticked (no separate
-// button). Returns true on success. Takes an explicit envelope; falls back to the last.
-async function publishKatomiaAuthEnvelope(envelope){
+// Called by kauthSignPublish for all three flows (opts.kind tags the local record
+// "auth" | "commit"). Returns true on success. Takes an explicit envelope; falls
+// back to the last.
+async function publishKatomiaAuthEnvelope(envelope, opts){
   const env = envelope || window.__lastAuthEnvelope
   if(!env){ notify?.("Nothing to publish yet", "info", { timeout: 2000 }); return false }
   try {
@@ -623,19 +778,22 @@ async function publishKatomiaAuthEnvelope(envelope){
           text: "Inspect it"
         } : null
       })
-    // KAT-PROFILE-COMMITSTATUS1 (feedback 64b17b22): remember the published commitment
-    // locally so the profile can show current status instead of leaving the user to
-    // re-raise "just in case". Local record only (no backend revoke exists today) —
-    // the backend binding stays authoritative.
+    // KAT-PROFILE-COMMITSTATUS1 (feedback 64b17b22) → WALLET-CONNECT-IA1: remember
+    // the published act locally so the profile shows current status per
+    // network+account (Q8.4 map, not the old single slot). Local record only (no
+    // backend revoke exists today) — the backend binding stays authoritative.
     try {
       const c = env.challenge || {}
-      localStorage.setItem("katomiaLastCommitment", JSON.stringify({
-        accountId: json.accountId || c.accountId || null,
-        network: json.network || c.network || null,
+      const acct = json.accountId || c.issuer?.accountId || null
+      const net = json.network || c.network || null
+      if(acct && net) kauthRecordSet(net, acct, {
+        kind: opts?.kind || "commit",
+        accountId: acct,
+        network: net,
         expiresAt: c.validity?.expiresAt || null,
         publishedAt: new Date().toISOString()
-      }))
-      kauthRenderCurrentCommitment()
+      })
+      kauthRenderLadder()
     } catch(_){}
     // GAME-JOINRULE1: pages can react to a fresh commitment (index refreshes the now-
     // larger games list; a gated game page retries its rejected join).
@@ -649,59 +807,19 @@ async function publishKatomiaAuthEnvelope(envelope){
   }
 }
 
-// KAT-PROFILE-COMMITSTATUS1 (feedback 64b17b22): show the last published commitment's
-// status on the profile — "valid until <date>" while live, "expired <date>" after — so
-// the user can see at a glance whether they're already committed instead of re-raising
-// just in case. Reads the local record written at publish time (the user's own
-// suggested baby step); re-raising to EXTEND expiry still works exactly as before.
-function kauthRenderCurrentCommitment(){
-  const btn = document.getElementById("authBtn")
-  if(!btn || !btn.parentNode) return
-  let rec = null
-  try { rec = JSON.parse(localStorage.getItem("katomiaLastCommitment") || "null") } catch(_){}
-  let el = document.getElementById("authCurrentCommitment")
-  if(!rec){ if(el) el.remove(); return }
-  if(!el){
-    el = document.createElement("div")
-    el.id = "authCurrentCommitment"
-    el.style.cssText = "font-size:12px;margin:4px 0 8px"
-    el.title = "Recorded on this device when you last published — the backend binding is authoritative. Raise again any time to extend the expiry."
-    btn.parentNode.insertBefore(el, btn)
-  }
-  const exp = rec.expiresAt ? new Date(rec.expiresAt) : null
-  const live = exp && exp.getTime() > Date.now()
-  const who = (rec.accountId || "?") + (rec.network ? " · " + rec.network : "")
-  // Network scoping (user feedback a7218bc5, 2026-08-05: a TESTNET commitment showed
-  // '✓ Commitment live' on a MAINNET game): the record is a single last-published
-  // slot, so on a different network it must not render as a green tick. Shown as a
-  // neutral pointer instead — raising here overwrites the slot (known limitation:
-  // one record, not per-network; make it a map keyed by network when it matters).
-  const curNet = kauthNetwork()
-  if(curNet && rec.network && rec.network !== curNet){
-    el.style.color = "#555"
-    el.textContent = live
-      ? `Your last commitment is for ${rec.network} (${rec.accountId || "?"}) — none raised for ${curNet} yet.`
-      : `No commitment for ${curNet} yet.`
-    return
-  }
-  if(live){
-    el.style.color = "#16a34a"
-    el.textContent = "✓ Commitment live: " + who + " — valid until " + exp.toLocaleString()
-  } else if(exp){
-    el.style.color = "#b45309"
-    el.textContent = "⚠ Last commitment (" + who + ") expired " + exp.toLocaleString() + " — raise again to re-authenticate."
-  } else {
-    el.style.color = "#555"
-    el.textContent = "Commitment published " + new Date(rec.publishedAt).toLocaleString() + " (" + who + ") — no expiry recorded."
-  }
-}
+// (kauthRenderCurrentCommitment — KAT-PROFILE-COMMITSTATUS1's single-slot status
+// line, including its 2026-08-05 wrong-network special case — is REPLACED by
+// kauthRenderLadder + the per network+account records above, which make both the
+// wrong-network and the wrong-account staleness impossible by construction.)
 
 function initKatomiaAuth(){
   kauthInstallWcmZGuard()   // document-level; install even if this page has no profile modal
   const btn = document.getElementById("authBtn")
   if(!btn) return
   btn.onclick = () => runKatomiaRaiseCommitment()
-  kauthRenderCurrentCommitment()
+  const authBtn = document.getElementById("authAuthenticateBtn")
+  if(authBtn) authBtn.onclick = () => runKatomiaAuthenticate()
+  kauthRenderLadder()
 
   const copy = document.getElementById("authCopyBtn")
   if(copy) copy.onclick = () => copyKatomiaAuthEnvelope()
@@ -726,7 +844,7 @@ function initKatomiaAuth(){
     window.__kauthActive = null
     kauthSetStatus("Switching network…")
     kauthRenderAccounts(await kauthWCAccounts(kauthNetwork(), true))
-    kauthRenderCurrentCommitment()   // network-scoped (a7218b)
+    kauthRenderLadder()   // per network+account
     kauthSetStatus("")
   }
 }
@@ -776,7 +894,8 @@ function kamRenderAccounts(accounts){
   const remove = document.getElementById("kamRemove")
   if(!select) return
   const net = kamNetworkVal()
-  const label = id => (net && !/mainnet/.test(net)) ? `${net}:${id}` : id
+  const label = id => ((net && !/mainnet/.test(net)) ? `${net}:${id}` : id)
+    + (kauthAccountMark(net, id) ? " " + kauthAccountMark(net, id) : "")   // ◆/◈ ladder marks here too
   const active = kamActiveAccount()
   let html = accounts.length
     ? accounts.map(a => `<option value="${a}"${a === active ? " selected" : ""}>${label(a)}</option>`).join("")
@@ -837,9 +956,9 @@ async function kamRemoveAccount(){
   kamRenderAccounts(accounts)
 }
 
-// The signing act. Same challenge/envelope/publish plumbing as the binding flow;
-// only the DEFAULTS differ (30-day expiry, global scope, always published — an
-// unpublished authentication would be pointless, there's nothing else to do with it).
+// The signing act — kauthSignPublish with the kam defaults (30-day expiry is
+// Katomia's retention call, global scope, always published — an unpublished
+// authentication would be pointless, there's nothing else to do with it).
 async function kamAuthenticate(){
   const btn = document.getElementById("kamBtn")
   const network = kamNetworkVal()
@@ -849,33 +968,13 @@ async function kamAuthenticate(){
 
   if(btn) btn.disabled = true
   try {
-    try { if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network) } catch(e){ kamDiag("ensureNetwork-fail", { network, error: String(e) }) }
-    try { window.WC.setActiveAccount?.(accountId) } catch(e){}
-
-    const intentPublicKey = window.__kauthIntentKey || await getKatomiaOrderPubkeyHex()
-    if(!intentPublicKey){ notify?.("Intent key not ready", "error", { timeout: 3000 }); return }
-
-    const expiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString()   // Katomia's retention call, not a user option
-    const challenge = buildAuthChallenge({ network, intentPublicKey, accountId, expiresAt, scope: { kind: "global" } })
-    const message = JSON.stringify(challenge)
-    kamDiag("challenge", { accountId, network, id: challenge.id })
-
-    kamSetStatus("Approve the signature in your wallet…")
-    let signResult
-    try { signResult = await kauthWCSign(accountId, message) }
-    catch(e){ kamDiag("sign-fail", { error: String(e) }); kamSetStatus(""); notify?.("Signing failed or was rejected", "error", { timeout: 4000 }); return }
-
-    const signedAccount = signResult?.accountId || accountId
-    let snapshot = null, signedKeys = []
-    try { snapshot = await buildAccountKeySnapshot(network, signedAccount) } catch(e){ kamDiag("snapshot-fail", { error: String(e) }) }
-    try { signedKeys = await kauthResolveSignedKeys(signResult?.signatureMap, snapshot?.keys || []) } catch(e){ kamDiag("signedkeys-fail", { error: String(e) }) }
-
-    const envelope = assembleAuthEnvelope({ challenge, message, signResult, snapshot, signedKeys })
-    kamSetStatus("Publishing…")
-    const ok = await publishKatomiaAuthEnvelope(envelope)
-    kamSetStatus(ok ? "Authenticated ✓" : "Signed ✓ — publish failed (see console)")
-    kamDiag("done", { ok, accountId: signedAccount, network })
-    if(ok){
+    const expiresAt = new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString()
+    const r = await kauthSignPublish({ network, accountId, expiresAt, scope: { kind: "global" },
+      publish: true, kind: "auth", status: kamSetStatus, diag: "modal:" })
+    if(!r) return
+    kamSetStatus(r.published ? "Authenticated ✓" : "Signed ✓ — publish failed (see console)")
+    kamDiag("done", { ok: r.published, accountId: r.signedAccount, network })
+    if(r.published){
       const onDone = window.__kamOnDone
       setTimeout(() => { window.katomiaAuthenticateModal.close(); try { onDone?.() } catch(_){} }, 1200)
     }
@@ -884,15 +983,12 @@ async function kamAuthenticate(){
   }
 }
 
-// Is there a live published commitment/authentication from this browser? Local
-// record only (written at publish time) — the backend stays authoritative.
+// Is there a live published commitment/authentication from this browser — ANY
+// network+account (WALLET-CONNECT-IA1: reads the records map; either kind counts,
+// since a commitment includes authentication). Local records only — the backend
+// stays authoritative. Consumer: the kam feedback-attribution offer.
 function kauthHasLiveCommitment(){
-  try {
-    const rec = JSON.parse(localStorage.getItem("katomiaLastCommitment") || "null")
-    if(!rec) return false
-    if(!rec.expiresAt) return true
-    return new Date(rec.expiresAt).getTime() > Date.now()
-  } catch { return false }
+  try { return Object.values(kauthRecords()).some(kauthRecordLive) } catch { return false }
 }
 
 window.katomiaAuthenticateModal = {

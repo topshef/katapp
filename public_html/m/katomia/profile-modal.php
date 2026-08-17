@@ -26,54 +26,17 @@
 
     <div id="profileAvatar" class="profile-avatar"></div>
 
-    <!-- ═══ IDENTITY — your public/private identifiers. The intent public key is NOT
-         agent-specific; it's your core profile identity, so it lives at the top.
-         (INTENT-RENAME1: display copy says "intent" — the key signs orders AND proposal
-         commitments; wire params/JS names still say orderPubkey pending the compat pass.) ═══ -->
-    <div class="profile-section profile-identity">
-      <div class="profile-list">
-        <div class="profile-label">Intent public key <span class="profile-tag profile-tag-public" title="Public. Your intent key — every order or proposal you place is signed by it, so others can recognise your intents across games.">public</span></div>
-        <div id="profilePubkey" class="profile-mono" title="Your session's Ed25519 intent key. Signs your orders and proposal commitments — it says WHAT you want. A wallet can stand behind it (see Wallet binding below)."></div>
-        <!-- One-line visible explainer (user 2026-07-07) — the tooltips carry the depth,
-             this anchors the storyline language: intent key = WHAT you want.
-             KEY ROTATION — deliberately NOT a feature (user talked themselves out,
-             2026-07-07): the key lives in this browser's localStorage
-             (katomiaPlayerKeypair, see katomia-core.js getOrCreatePlayerKeypair);
-             clearing site data rotates it naturally — a fresh key is minted on next
-             load. Anonymous identity churn is self-serve; bound users wouldn't want it. -->
-        <p class="subtle profile-section-sub">This browser's signing identity: every order or proposal you place is signed with it, so others can recognise your intents. It says <em>what</em> you want — the wallet binding below says <em>who</em> you are.</p>
-
-        <!-- KVAC / prepaid access id — NERD ONLY, STUBBED. HKSAT = SHA256(player token):
-             the PUBLIC handle for prepaid fees (KSAT/KVAC model — see kpay.uk/kvac). The
-             player token (KSAT) itself stays private in the browser. Balance + top-up are
-             display-only stubs for now; wiring is FEE1 / a backend HKSAT balance lookup. -->
-        <div class="profile-nerd-only">
-          <div class="profile-label">Access token · KVAC <span class="profile-tag profile-tag-public" title="Public hash (HKSAT = SHA256 of your player token). The handle you'd top up to prepay fees. Your player token itself stays private in this browser.">public</span></div>
-          <div id="profileKvac" class="profile-mono" title="HKSAT — public hash of your player token (KSAT). Used as a prepaid balance handle (KSAT/KVAC fee model). STUB: balance + top-up not wired yet."></div>
-          <div class="profile-kvac-balance subtle">
-            Balance: <span id="profileKvacBalance">— (stub)</span>
-            <button id="profileKvacTopupBtn" type="button" class="profile-ghost" disabled title="Prepaid top-up — not wired yet (KSAT/KVAC, FEE1)">Top up…</button>
-          </div>
-        </div>
-
-        <div class="profile-label">Scope</div>
-        <div id="profileScope" class="profile-scope" title="Where this intent key operates: domain | network | game."></div>
-      </div>
-    </div>
-
-    <!-- ═══ WALLET BINDING (WalletConnect) — priority section. Optional: sign with a
-         wallet to bind your intent key to a real account. AUTH-LANG1: this is the
-         IDENTITY act ("who stands behind this key") — one signed commitment, two
-         consumers: reputation on your orders AND members-only market access
-         (GAME-JOINRULE1). "Reputation binding" was under-scoped once gating went live.
-         WIREFRAME — options (expiry/scope/publish) are exposed to feel the UX. ═══ -->
-    <!-- PROFILE-TIDY1: now a collapsible <details> like the optional sections (open by
-         default — it stays the priority section) so the modal's organisation can be
-         played with. Kept the name "Wallet binding": the binding IS the authorisation
-         (one signed commitment covers both), and AUTH-LANG1 pinned this word. -->
-    <details class="profile-section profile-repute" id="profileBindSection" open>
-      <summary class="profile-section-title" title="One signed commitment, two uses: your orders can carry reputation, and members-only markets unlock for your accounts. Your intent key says WHAT you want; a binding says WHO you are.">🔗 Wallet binding <span class="profile-tag profile-tag-optional" title="Optional. Bind your intent key to a wallet account so your orders carry reputation and members-only markets open up. Nobody has to do this.">optional</span></summary>
-      <p class="subtle profile-section-sub">Prove who you are: sign once with a wallet to put a real account behind your intent key — your orders can carry reputation, and members-only markets unlock. Publishing makes the binding public.</p>
+    <!-- ═══ WALLET CONNECTION — WALLET-CONNECT-IA1 Mock A (user-approved 2026-08-17).
+         The three wallet acts as a LADDER, always offering the next rung:
+           Connect (rows below) → Authenticate (headline button) → Commitment (fold).
+         Supersedes the "🔗 Wallet binding" framing: the advanced act no longer wears
+         the section title, and 🔗 survives only on the commitment fold (the binding).
+         The intent-key identity block moved from the top of the modal into that fold
+         (that's where the key↔account binding actually happens); nerd mode keeps the
+         full identity readout in its own section further down. -->
+    <div class="profile-section profile-repute" id="profileBindSection">
+      <div class="profile-section-title">Wallet connection</div>
+      <p class="subtle profile-section-sub">Connect a wallet, then authenticate — one signature that proves the account is yours and unlocks members-only <?= htmlspecialchars(katomiaTerms()['many'], ENT_QUOTES, 'UTF-8') ?>.</p>
 
       <div class="profile-auth">
 
@@ -118,41 +81,105 @@
              a proven-safe reset, not a button. -->
 
 
-        <!-- Commitment options — shown once an account is chosen. Flat grid items (not
-             wrapping <label>s) so Expiry sits in the same 64px label column as
-             Network/Account, with Scope beside it getting the wider share. -->
-        <div id="authOptions" class="profile-auth-options hidden">
-          <span class="profile-label">Expiry</span>
-          <select id="authExpiry">
-            <option value="86400000">24 hours</option>
-            <option value="604800000">7 days</option>
-            <option value="2592000000">30 days</option>
-            <option value="">No expiry</option>
-          </select>
-          <span class="profile-label">Scope</span>
-          <select id="authScope">
-            <option value="global">Global — all games</option>
-            <option value="game">This game only</option>
-          </select>
-          <label class="profile-auth-publish">
-            <input type="checkbox" id="authPublish" checked> Publish this binding (public)
-          </label>
-        </div>
-
-        <!-- Plain-English statement of what the user is committing to. -->
-        <p id="authStatement" class="profile-auth-statement hidden"></p>
-
-        <button id="authBtn" type="button">🔷 Raise commitment</button>
+        <!-- ── Ladder status + the next rung's one button (Mock A) ──
+             kauthRenderLadder (katomia-auth.js) drives all three: the status line
+             (nothing / ◆ authenticated / ◈ commitment live — markers from
+             KAUTH_MARKS), the Authenticate button's visibility, and the ⌨️/playnet
+             explainer for accounts that can't sign here. Expiry of a plain
+             authentication is deliberately NOT surfaced (user 2026-08-17, Q8.3 —
+             Katomia's retention call, changeable backend-side without UI noise). -->
+        <div id="authRungStatus" class="profile-auth-status"></div>
+        <button id="authAuthenticateBtn" type="button" class="hidden">◆ Authenticate</button>
         <div id="authStatus" class="profile-auth-status subtle"></div>
-        <!-- PROFILE-TIDY1: the signed envelope + copy button are tech detail — nerd-only,
-             and collapsed even then. Normal mode just gets the status line above. -->
-        <details id="authResultDetails" class="profile-nerd-only profile-auth-result hidden">
-          <summary>Signed envelope (technical detail)</summary>
-          <pre id="authOutput" class="profile-auth-output"></pre>
-          <button id="authCopyBtn" type="button">⧉ Copy envelope</button>
+
+        <!-- ── Commitment — the optional upgrade rung (Mock A fold) ──
+             LAUNCH-PRUNE CANDIDATE (user 2026-08-17): "we might prune it" — the
+             user-facing commitment extras (chosen expiry/scope/publish, reputation
+             framing) lean mostly on ORDER MODE (ORDER-AUTHBADGE*) and the KEA flow;
+             proposal mode consumes the intent-key BINDING, which a plain
+             authentication also creates (same challenge shape, same store). If order
+             mode stays hidden at launch, this fold can be feature-flagged off without
+             breaking proposal-mode gating or signed locks. Kept in for now — the
+             Mock A structure is worth having settled either way. -->
+        <details class="profile-commit" id="profileCommitSection">
+          <summary class="profile-section-title" title="Go further than authenticating: put this account behind your intent key for a period you choose. Published commitments let others see who stands behind your intents.">🔗 Raise a commitment <span class="profile-tag profile-tag-optional" title="Optional. Adds reputation to your intents — authenticating alone already unlocks members-only access.">optional</span></summary>
+          <p class="subtle profile-section-sub">A commitment goes further than authenticating: you put this account behind your <b>intent key</b> — the key this browser signs your proposals with — for a period you choose. Publishing lets others see who stands behind your intents.</p>
+
+          <!-- Commitment options — shown once a signable account is chosen. Flat grid
+               items (not wrapping <label>s) so Expiry sits in the same 64px label
+               column as Network/Account, with Scope beside it getting the wider share. -->
+          <div id="authOptions" class="profile-auth-options hidden">
+            <span class="profile-label">Expiry</span>
+            <select id="authExpiry">
+              <option value="86400000">24 hours</option>
+              <option value="604800000">7 days</option>
+              <option value="2592000000">30 days</option>
+              <option value="">No expiry</option>
+            </select>
+            <span class="profile-label">Scope</span>
+            <select id="authScope">
+              <option value="global">Global — all games</option>
+              <option value="game">This game only</option>
+            </select>
+            <label class="profile-auth-publish">
+              <input type="checkbox" id="authPublish" checked> Publish this binding (public)
+            </label>
+          </div>
+
+          <!-- Plain-English statement of what the user is committing to. -->
+          <p id="authStatement" class="profile-auth-statement hidden"></p>
+
+          <button id="authBtn" type="button">◈ Raise commitment</button>
+          <!-- PROFILE-TIDY1: the signed envelope + copy button are tech detail — nerd-only,
+               and collapsed even then. Normal mode just gets the status line above. -->
+          <details id="authResultDetails" class="profile-nerd-only profile-auth-result hidden">
+            <summary>Signed envelope (technical detail)</summary>
+            <pre id="authOutput" class="profile-auth-output"></pre>
+            <button id="authCopyBtn" type="button">⧉ Copy envelope</button>
+          </details>
+
+          <!-- Intent key, compact — INSIDE the fold (Mock A): this is the key the
+               statement above quotes, i.e. exactly where the key↔account binding is
+               made. The order-mode-flavoured "every order…" copy is retired from
+               normal mode; nerd mode's identity section below keeps the full story. -->
+          <div class="profile-commit-key">
+            <div class="profile-label">Intent key <span class="profile-tag profile-tag-public" title="Public. This browser's signing identity — the commitment binds your account to it.">public</span></div>
+            <div id="profileCommitPubkey" class="profile-mono" title="Your session's Ed25519 intent key. It says WHAT you want — the commitment says WHO you are."></div>
+            <p class="subtle profile-section-sub">This browser's signing identity — it says <em>what</em> you want; the commitment says <em>who</em> you are.</p>
+          </div>
         </details>
       </div>
-    </details>
+    </div>
+
+    <!-- ═══ IDENTITY — nerd-only since WALLET-CONNECT-IA1 (was the modal's opening
+         section): full intent-key/KVAC/scope readout for the design-curious. The
+         normal-mode home of the intent key is the commitment fold above.
+         (INTENT-RENAME1: display copy says "intent" — the key signs orders AND proposal
+         commitments; wire params/JS names still say orderPubkey pending the compat pass.
+         KEY ROTATION — deliberately NOT a feature, user 2026-07-07: the key lives in
+         localStorage katomiaPlayerKeypair; clearing site data rotates it naturally.) ═══ -->
+    <div class="profile-section profile-identity profile-nerd-only">
+      <div class="profile-list">
+        <div class="profile-label">Intent public key <span class="profile-tag profile-tag-public" title="Public. Your intent key — everything you sign in Katomia (proposals, orders, feedback) carries it, so others can recognise your intents across games.">public</span></div>
+        <div id="profilePubkey" class="profile-mono" title="Your session's Ed25519 intent key. It says WHAT you want — a wallet commitment says WHO you are."></div>
+
+        <!-- KVAC / prepaid access id — NERD ONLY, STUBBED. HKSAT = SHA256(player token):
+             the PUBLIC handle for prepaid fees (KSAT/KVAC model — see kpay.uk/kvac). The
+             player token (KSAT) itself stays private in the browser. Balance + top-up are
+             display-only stubs for now; wiring is FEE1 / a backend HKSAT balance lookup. -->
+        <div class="profile-nerd-only">
+          <div class="profile-label">Access token · KVAC <span class="profile-tag profile-tag-public" title="Public hash (HKSAT = SHA256 of your player token). The handle you'd top up to prepay fees. Your player token itself stays private in this browser.">public</span></div>
+          <div id="profileKvac" class="profile-mono" title="HKSAT — public hash of your player token (KSAT). Used as a prepaid balance handle (KSAT/KVAC fee model). STUB: balance + top-up not wired yet."></div>
+          <div class="profile-kvac-balance subtle">
+            Balance: <span id="profileKvacBalance">— (stub)</span>
+            <button id="profileKvacTopupBtn" type="button" class="profile-ghost" disabled title="Prepaid top-up — not wired yet (KSAT/KVAC, FEE1)">Top up…</button>
+          </div>
+        </div>
+
+        <div class="profile-label">Scope</div>
+        <div id="profileScope" class="profile-scope" title="Where this intent key operates: domain | network | game."></div>
+      </div>
+    </div>
 
     <!-- KBUNDLE-STRIP:kea -->
     <!-- ═══ EXECUTION AGENT — KEA (QR → link → copy). Collapsed by default so the

@@ -1316,6 +1316,19 @@ async function render(){
   }
   if(window.__boardDragging){ window.__boardRenderPending = true; return }
 
+  // KATUI3 R2 (user 2026-08-17, mobile): the profile modal covers the board, yet a
+  // live board (bots trading) kept full-rebuild rendering behind it — on a phone
+  // that saturates the main thread and the modal's ✕ tap queues for SECONDS. Same
+  // defer/catch-up as the drag hold above; window.boardModalHold() (below, by
+  // boardEnterDrag) flips it and runs the one catch-up repaint on release.
+  // Self-healing in place of a watchdog: the hold is only honoured while the modal
+  // is actually open, so a lost release can never freeze the board.
+  if(window.__boardModalHold){
+    if(document.getElementById("profileModal")?.classList.contains("hidden") !== false)
+      window.__boardModalHold = false
+    else { window.__boardRenderPending = true; return }
+  }
+
   boardCheckJustSucceeded()
 
   document.body.dataset.viewMode = "board"
@@ -2666,6 +2679,16 @@ function boardReleaseRepaintHold(){
   window.__boardDragPayload = null   // the source-segment check must not see a stale drag
   document.body.classList.remove("board-dragging")
   if(!window.__boardRenderPending) return
+  window.__boardRenderPending = false
+  setTimeout(() => { try { render() } catch(e){} }, 0)
+}
+
+// KATUI3 R2: render hold while a full-screen modal covers the board — see the guard
+// in render(). On window (not a bare function) because katomia-profile.js loads on
+// EVERY page and must be able to call it optionally (`window.boardModalHold?.()`).
+window.boardModalHold = on => {
+  window.__boardModalHold = !!on
+  if(on || !window.__boardRenderPending) return
   window.__boardRenderPending = false
   setTimeout(() => { try { render() } catch(e){} }, 0)
 }
