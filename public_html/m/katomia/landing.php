@@ -362,8 +362,17 @@ const KBO_CIRCLE = { ms: 800, style: "iridescent", width: 1.6, coverage: 1.22,
 window.addEventListener("load", () => {
   const cards = [...document.querySelectorAll(".landing-card")]
 
-  // living border on the two entry cards, on every skin
-  if(window.kbubble){
+  // living border on the two entry cards — HOVER-CAPABLE DEVICES ONLY since
+  // KATUI3 R8 (user 2026-08-17). These two ambient loops (320 points, blur 8,
+  // every frame, forever) were measured crushing a phone to ~217ms/frame
+  // (~4.6fps) under CPU-throttled emulation — tap-to-visually-closed on the
+  // profile modal was 1.7s WITH them and 173ms WITHOUT. That page-wide display
+  // lag was the user's week-long "modal takes seconds to close": the close ran
+  // in ms, the SCREEN was seconds behind. Same cost problem CIRCLES-BUBBLECOST1
+  // solved on the circles page with hover-only — a hover-less device can't even
+  // trigger that, so phones get calm static cards; the kbubbleOpen entry
+  // transition below is transient and stays for everyone.
+  if(window.kbubble && !matchMedia("(hover: none)").matches){
     cards.forEach(el => kbubble.attach(el, Object.assign({ style: "iridescent" }, KB_CIRCLE)))
   }
 
