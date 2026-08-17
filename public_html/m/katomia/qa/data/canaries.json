@@ -1,6 +1,6 @@
 {
   "_about": "The regression catalogue: failure CATEGORIES learned from real incidents. Each category gets a named canary — a test that recreates the incident's conditions and asserts the fix holds, forever. 'status' tracks the canary, not the bug (all listed bugs are fixed). status values: live-scratchpad (working check exists but lives in a session scratchpad — needs banking into qa/), to-build, live-suite (in the versioned suite; none yet), retired.",
-  "updated": "2026-07-16",
+  "updated": "2026-08-17",
   "canaries": [
     {
       "id": "CANARY-COSMETIC-STABILITY",
@@ -17,8 +17,9 @@
       "rule": "The walls the physics enforces must be the shapes the player sees (rim ellipse, hub circle, screen edge) — not approximations that only match on some screens.",
       "incident": "Circular walls vs oval rim, 2026-07-16 — every radial wall was a circle sampled at the segment mid-angle; square screens hid it, portrait exposed it. Found by the 🧪 zone-walls overlay.",
       "assertion": "at portrait AND landscape: every basket chip fully inside the rim ellipse, every store chip fully outside it (corner test against env.oval)",
-      "status": "live-scratchpad",
-      "fixture": "board.php?demo=1"
+      "status": "live-suite",
+      "fixture": "board.php?demo=1",
+      "suite": "CHIPCANARY-01 — centre-test v1 (full corner test vs env.oval still to build)"
     },
     {
       "id": "CANARY-VISIBLE-CONTAINMENT",
@@ -26,8 +27,9 @@
       "rule": "Nothing interactive may sit off-screen or under the floating banner/footer.",
       "incident": "Chips cut off the visible screen in both layouts (BOARD-SAFEAREA1, 2026-07-15).",
       "assertion": "0 chips outside the measured safe rect (banner bottom / footer top / side margins) in any tested state",
-      "status": "live-scratchpad",
-      "fixture": "board.php?demo=1"
+      "status": "live-suite",
+      "fixture": "board.php?demo=1",
+      "suite": "CHIPCANARY-01 (qa/harness/chip-canary.cjs, daily cron)"
     },
     {
       "id": "CANARY-ATTACHED-TRACKING",
@@ -44,8 +46,9 @@
       "rule": "Every animation must terminate: after the board settles, nothing moves until something real changes.",
       "incident": "Jitter reports on tablet, 2026-07-16 — one cause was shelf targets fighting the wall clamp every frame.",
       "assertion": "max chip movement 0.0px/frame over a 30-frame watch after settle, in shelves AND organic",
-      "status": "live-scratchpad",
-      "fixture": "board.php?demo=1"
+      "status": "live-suite",
+      "fixture": "board.php?demo=1",
+      "suite": "CHIPCANARY-01 (qa/harness/chip-canary.cjs, daily cron)"
     },
     {
       "id": "CANARY-PAINT-COMPLETENESS",
@@ -53,8 +56,9 @@
       "rule": "Every chip the game says exists must be drawn, positioned, on every render — including mid- and post-animation.",
       "incident": "Ghost NFTs vanishing / spotlight wiping everything to top-left, 2026-07-16 — re-rendered elements never received their position when the body hadn't moved.",
       "assertion": "0 unplaced elements (no style.left), 0 elements at the top-left default, ghosts + NFT ghosts present; checked static, mid-replay and post-replay",
-      "status": "live-scratchpad",
-      "fixture": "board.php?demo=1"
+      "status": "live-suite",
+      "fixture": "board.php?demo=1",
+      "suite": "CHIPCANARY-01 (qa/harness/chip-canary.cjs, daily cron)"
     },
     {
       "id": "CANARY-HYDRATION-CLICK",

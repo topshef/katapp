@@ -47,7 +47,7 @@
   .filterbar .fgroup{ display: inline-flex; gap: 5px; align-items: center; flex-wrap: wrap; }
   .filterbar button{ font-size: 12px; padding: 3px 10px; border-radius: 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; }
   .filterbar button.on{ background: #2a5a78; color: #fff; border-color: #2a5a78; }
-  .filterbar select{ font-size: 12px; padding: 3px 6px; border-radius: 8px; border: 1px solid #bbb; }
+  .filterbar button.master{ border-style: dashed; color: #666; }
   .envtag{ font-size: 12px; background: #e8eef7; color: #2a5a78; border-radius: 6px; padding: 2px 8px; vertical-align: 4px; }
   .caselink{ color: inherit; text-decoration: none; border-bottom: 1px dotted #999; }
   .caselink:hover{ border-bottom-style: solid; }
@@ -104,7 +104,8 @@ backend's katrun robot uses). <b>Tap any cell or row for the full run detail.</b
 <div class="filterbar" id="topFilters">
   <span class="fgroup" id="srcFilter"><b class="note">Source:</b><button data-f="all" class="on">All</button><button data-f="human">🖐 Human</button><button data-f="auto">🤖 Automated</button><button data-f="feedback">📝 Feedback</button></span>
   <span class="fgroup" id="dayFilter"><b class="note">Window:</b><button data-f="1">24h</button><button data-f="3">3d</button><button data-f="7">7d</button><button data-f="14">14d</button><button data-f="30" class="on">30d</button></span>
-  <span class="fgroup"><b class="note">Module:</b> <select id="modSelect"><option value="all">all modules</option></select></span>
+  <span class="fgroup" id="verdFilter"><b class="note">Verdict:</b><button data-v="__all" class="master">all</button><button data-v="__none" class="master">none</button></span>
+  <span class="fgroup" id="modFilter"><b class="note">Modules:</b><button data-m="__all" class="master">all</button><button data-m="__none" class="master">none</button></span>
   <span class="fgroup" id="caseChip" style="display:none"></span>
 </div>
 
@@ -149,7 +150,13 @@ const $ = s => document.querySelector(s)
 let COMMIT = "", FILTER = "all", EVENTS = [], SESSIONS = []
 // page-wide filter state (user 2026-08-17): source + time window + module/case.
 // ?case=<id> (from a tests.html "runs →" link) pre-filters to one case.
-let DAYS = 30, MODF = "all", CASEF = new URLSearchParams(location.search).get("case") || null
+let DAYS = 30, CASEF = new URLSearchParams(location.search).get("case") || null
+// multi-select chip filters (user 2026-08-17): window stays single-select (the
+// options are mutually exclusive); verdict + module are kPad-style chip sets
+// with all/none masters. "untagged" catches cases with no module tags yet.
+const VERDS = ["pass", "meh", "fail", "error", "open", "noted", "abandon"]
+let VERDSEL = new Set(VERDS)
+let MODALL = [], MODSEL = new Set()
 let TESTS_META = new Map(), MODULES = []   // data/tests.json + data/modules.json
 const caseModules = id => (TESTS_META.get(id) || {}).modules || []
 
@@ -173,7 +180,28 @@ function syncCaseChip(){
   chip.innerHTML = CASEF ? `<b class="note">Case:</b> <button class="on">${esc(CASEF)} ✕</button>` : ""
   if(CASEF) chip.querySelector("button").onclick = () => { CASEF = null; history.replaceState(null, "", location.pathname); syncCaseChip(); refresh() }
 }
-$("#modSelect").onchange = e => { MODF = e.target.value; refresh() }
+const syncChips = () => {
+  document.querySelectorAll("#verdFilter button[data-v]").forEach(b => {
+    if(!b.classList.contains("master")) b.classList.toggle("on", VERDSEL.has(b.dataset.v)) })
+  document.querySelectorAll("#modFilter button[data-m]").forEach(b => {
+    if(!b.classList.contains("master")) b.classList.toggle("on", MODSEL.has(b.dataset.m)) })
+}
+$("#verdFilter").onclick = e => {
+  const v = e.target.dataset?.v
+  if(!v) return
+  if(v === "__all") VERDSEL = new Set(VERDS)
+  else if(v === "__none") VERDSEL = new Set()
+  else VERDSEL.has(v) ? VERDSEL.delete(v) : VERDSEL.add(v)
+  syncChips(); refresh()
+}
+$("#modFilter").onclick = e => {
+  const m = e.target.dataset?.m
+  if(!m) return
+  if(m === "__all") MODSEL = new Set(MODALL)
+  else if(m === "__none") MODSEL = new Set()
+  else MODSEL.has(m) ? MODSEL.delete(m) : MODSEL.add(m)
+  syncChips(); refresh()
+}
 
 // ── grid fullscreen (user 2026-07-17): Fullscreen API on #gridWrap itself, not
 // the whole page — body's max-width/padding otherwise still crop it even once
@@ -248,8 +276,15 @@ async function loadMeta(){
     ])
     TESTS_META = new Map((tests.suites || []).map(t => [t.id, t]))
     MODULES = (mods.modules || []).sort((a, b) => b.layer - a.layer)
-    const sel = $("#modSelect")
-    MODULES.forEach(m => sel.insertAdjacentHTML("beforeend", `<option value="${esc(m.id)}">${esc(m.name)}</option>`))
+    MODALL = MODULES.map(m => m.id).concat(["untagged"])
+    MODSEL = new Set(MODALL)
+    const bar = $("#modFilter")
+    MODULES.forEach(m => bar.insertAdjacentHTML("beforeend",
+      `<button data-m="${esc(m.id)}" title="${esc(m.notes || "")}">${esc(m.name)}</button>`))
+    bar.insertAdjacentHTML("beforeend", `<button data-m="untagged" title="cases with no module tags yet">untagged</button>`)
+    const vbar = $("#verdFilter")
+    VERDS.forEach(v => vbar.insertAdjacentHTML("beforeend", `<button data-v="${esc(v)}">${GLYPH[v] || ""} ${esc(v)}</button>`))
+    syncChips()
   } catch {}
   syncCaseChip()
 }
@@ -304,8 +339,12 @@ async function refresh(){
       v: s.abandoned ? "abandon" : "noted", note: noteList.join(" ⁋ "), notes: noteList }
   }))
   if(FILTER !== "all") rows = rows.filter(r => r.source === FILTER)
+  if(VERDSEL.size < VERDS.length) rows = rows.filter(r => VERDSEL.has(r.v))
   if(CASEF) rows = rows.filter(r => r.instance === CASEF)
-  else if(MODF !== "all") rows = rows.filter(r => caseModules(r.instance).includes(MODF))
+  else if(MODALL.length && MODSEL.size < MODALL.length) rows = rows.filter(r => {
+    const ms = caseModules(r.instance)
+    return ms.length ? ms.some(m => MODSEL.has(m)) : MODSEL.has("untagged")
+  })
 
   // commit columns ordered OLDEST -> NEWEST left-to-right (a pseudo timeline —
   // not linear/even spacing, but time genuinely increases rightward), by each
