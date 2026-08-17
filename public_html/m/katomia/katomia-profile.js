@@ -36,31 +36,10 @@ function kprofPaintMs(label, extra){
     window.katomiaDiagSend?.(label, Object.assign({ paintMs: Math.round(performance.now() - t0) }, extra || {}))))
 }
 
-// ── KATUI3 R4 (user 2026-08-17): tap shield on close. The ✕ sits top-right of the
-// MODAL and the ☰ hamburger sits top-right of the PAGE — same spot. When a close is
-// slow to paint, an impatient second tap queues up and, the instant the modal's DOM
-// hides, punches through to the hamburger ("tapping twice… did lead to a tap on the
-// main page of the hamburger menu"). Stacked taps must die with the surface they
-// were aimed at: a transparent full-viewport div swallows every queued/stray tap
-// from the moment of close until one frame has PAINTED plus a short grace. Being in
-// the DOM is enough — queued events are hit-tested when the thread frees, so the
-// shield catches them even though it was added mid-block. Swallowed taps are
-// kdiag'd so the stacking behaviour stays visible in the logs.
-function kprofTapShield(graceMs = 250){
-  if(document.getElementById("kprofTapShield")) return
-  const s = document.createElement("div")
-  s.id = "kprofTapShield"
-  s.style.cssText = "position:fixed;inset:0;z-index:2147483600;background:transparent"
-  let swallowed = 0
-  const swallow = ev => { swallowed++; ev.stopPropagation(); ev.preventDefault() }
-  ;["pointerdown", "pointerup", "touchstart", "touchend", "mousedown", "click"]
-    .forEach(t => s.addEventListener(t, swallow, { passive: false }))
-  document.body.appendChild(s)
-  requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
-    s.remove()
-    if(swallowed) window.katomiaDiagSend?.("profile:shield-swallowed", { taps: swallowed })
-  }, graceMs)))
-}
+// (R4's timed tap shield and R6's pointerdown close were REMOVED in R9 at the
+// user's instruction once R8 fixed the real cause — no timing patches. The clean
+// dead-tap fix is CSS: touch-action:none on the ✕ and ☰, so a touch starting on
+// them can never be classified as a scroll and the plain click always fires.)
 try {
   if(typeof PerformanceObserver !== "undefined" && PerformanceObserver.supportedEntryTypes?.includes("longtask")){
     new PerformanceObserver(list => {
@@ -109,51 +88,22 @@ function initKatomiaProfile(){
   // ANY mention of the feature, marker name or plain words alike.)
   /* /KBUNDLE-STRIP:kea */
 
-  // KATUI3 (user 2026-08-17): closing must be INSTANT and honest. The handler was
-  // already synchronous — the reported "takes a while / freezes" is main-thread jank.
-  // TWO sources, two fixes:
-  //  · WalletConnect operations (ensureNetwork can rebuild the connector) — surfaced
-  //    in #profileBusy while in flight (katomia-auth.js kauthBusy); closing while one
-  //    runs explains itself with a toast.
-  //  · R2 (mobile retest, same day): on a LIVE board (bots trading — the t-trio kdiag
-  //    window shows memberanim + full repaints every ~150ms) the board kept doing
-  //    full DOM rebuilds BEHIND the covering modal, so the ✕ tap sat in a saturated
-  //    input queue for seconds with no auth op in flight — which is why the busy pill
-  //    (rightly) never lit. Fix: hold board renders while the modal is open
-  //    (window.boardModalHold, katomia-board.js — same defer/catch-up as the drag
-  //    hold); the board repaints once, with the latest state, on close.
-  // profile:close kdiag carries queuedMs (how long the tap waited for the main
-  // thread) so the next mobile report is measurable instead of anecdotal.
+  // R9 (final shape after the KATUI3 saga, user 2026-08-17): a plain click closes the modal —
+  // nothing else. The felt "slow close" was never here: it was the landing page's
+  // always-on card animations holding the phone at ~5fps (fixed in R8), plus taps
+  // on the ✕ being eaten as scroll-starts (fixed cleanly by touch-action:none in
+  // CSS — the click now always fires, so no pointerdown wiring, no tap shield, no
+  // suppression timers). Telemetry (queuedMs/paintMs) stays: it is how the real
+  // causes were found and how any regression will be seen.
   const doClose = e => {
-    if(modal.classList.contains("hidden")) return   // R6: pointerdown + click both wired — run once
     modal.classList.add("hidden")
-    // R7: the ✕ (modal) and the ☰ (page) occupy the SAME pixels — measured on a
-    // 393px viewport: ✕ at (337,18) 38×38, ☰ at (338,20) 39×30. A repeat tap in
-    // that spot after close therefore opens the hamburger MENU, whose panel top-
-    // right reads as "the modal still hasn't closed" — the reported multi-second
-    // "freeze" in every round since R1. The 250ms shield can't cover a human
-    // re-tap (300-600ms), so header.php additionally holds the ☰ inert for 1.5s
-    // after this timestamp.
-    window.__kprofModalClosedAt = performance.now()
-    kprofTapShield()   // R4: stacked frustration-taps must not reach the page beneath
     window.boardModalHold?.(false)
     window.katomiaDiagSend?.("profile:close", { queuedMs: e ? Math.round(performance.now() - e.timeStamp) : null,
       wcBusy: !!window.kauthNetBusy?.() })
-    kprofPaintMs("profile:close-painted")   // R3: how long until the user SAW it close
+    kprofPaintMs("profile:close-painted")
     if(window.kauthNetBusy?.())
       notify?.("Still talking to the wallet network in the background — it'll finish on its own.", "info", { timeout: 3500 })
   }
-  // R6 (user 2026-08-17, home-page telemetry): closes PAINTED in 22-26ms once a
-  // click landed — but the felt "~1 second" was taps that never became clicks at
-  // all. The ✕ lives in the scrollable card, and a touch with any finger wobble is
-  // classified as a SCROLL START: no click synthesised, no handler, no cue — the
-  // user hammers until one tap lands still (each close was followed by 2 shield-
-  // swallowed extras). So: close on POINTERDOWN — it fires the instant the finger
-  // lands, before scroll interpretation can eat it — with touch-action:none on the
-  // ✕ (CSS) so a wobble can't become a scroll, and the ghost click that follows
-  // the DOM hide dies on the R4 shield. onclick stays as the keyboard/fallback
-  // path; doClose's already-hidden guard keeps the pair single-fire.
-  close.addEventListener("pointerdown", doClose)
   close.onclick = doClose
   modal.onclick = e => {
     if(e.target === modal) doClose(e)

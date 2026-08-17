@@ -39,6 +39,13 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
   body:not(.nerd):not(.kadmin) [data-feature="kea"] { display: none !important; }
   /* /KBUNDLE-STRIP:kea */
 
+  /* KATUI3 R9 (user 2026-08-17): the ☰ gets the same dead-tap immunity as the
+     modal's ✕ — a touch starting on it can never be classified as a page-scroll
+     start (which silently eats the tap: no click, no cue), and :active gives
+     on-contact feedback. */
+  .app-menu-btn { touch-action: none; -webkit-tap-highlight-color: transparent; }
+  .app-menu-btn:active { transform: scale(0.9); opacity: 0.7; }
+
   /* Generic hook for future nerd-only menu items (the dark-mode toggle used to be one;
      it now lives solely on the welcome theme-test row — ENTRY-DARKMODE1 R2). */
   .app-menu-item.nerd-only { display: none; }
@@ -393,6 +400,37 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 
 <script>
+// ── KPERF (KATUI3 R9, user 2026-08-17): "we need some kind of switch that if the
+// CPU is low we don't do the animation." Samples real frame cadence ~2.5s after
+// load (past load-time jank); a median rAF gap ≥24ms (≤~42fps) flags the device:
+// body.kperf-low + window.KPERF_LOW + a one-shot "kperf:low" event any animation
+// surface can subscribe to (first consumer: landing.php tears down its ambient
+// card bubbles). Background: the always-on landing bubbles held a phone at
+// ~4.6fps and made a 25ms modal close FEEL like seconds (KATUI3-FEEDBACK1 R8) —
+// hover-incapable devices are excluded statically; this catches weak devices
+// that DO hover (old laptops, cheap tablets with mice). Bails when the tab is
+// hidden (rAF stalls would false-positive).
+window.KPERF_LOW = false
+addEventListener("load", () => setTimeout(() => {
+  if(document.hidden) return
+  const gaps = []; let last = performance.now(); let n = 0
+  const tick = t => {
+    gaps.push(t - last); last = t
+    if(++n < 24){ requestAnimationFrame(tick); return }
+    if(document.hidden) return
+    gaps.sort((a, b) => a - b)
+    const median = Math.round(gaps[12])
+    if(median < 24) return
+    window.KPERF_LOW = true
+    document.body.classList.add("kperf-low")
+    document.dispatchEvent(new CustomEvent("kperf:low", { detail: { medianFrameMs: median } }))
+    window.katomiaDiagSend?.("perf:low-mode", { medianFrameMs: median })
+  }
+  requestAnimationFrame(tick)
+}, 2500))
+</script>
+
+<script>
 // Menu behaviour — self-contained, no dependencies on the page's other scripts.
 // Profile opening itself is wired by katomia-profile.js ([data-menu-profile]).
 (() => {
@@ -421,18 +459,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   btn.onclick = e => {
     e.stopPropagation()
-    // KATUI3 R7 (user 2026-08-17): the ☰ sits on the SAME pixels as the profile
-    // modal's ✕ (measured: ☰ 338,20 vs ✕ 337,18 on a 393px phone). A repeat
-    // frustration-tap after closing the modal therefore landed HERE and opened
-    // the menu — whose panel then read as "the modal never closed". Hold the ☰
-    // inert for 1.5s after any modal close (human re-taps arrive at 300-600ms,
-    // beyond the 250ms tap shield); a deliberate menu open that soon after
-    // closing the profile is rare enough to trade away.
-    if(performance.now() - (window.__kprofModalClosedAt ?? -1e9) < 1500){
-      window.katomiaDiagSend?.("menu:suppressed-postclose",
-        { msSinceClose: Math.round(performance.now() - window.__kprofModalClosedAt) })
-      return
-    }
+    // R7's 1.5s post-modal-close suppression REMOVED (R9, user 2026-08-17): it
+    // guarded against frustration re-taps punching through a SLOW close, but R8
+    // fixed the slowness (closes paint in 10-17ms on the user's phone) and the
+    // kdiag showed the guard then eating DELIBERATE menu taps at 630-1425ms —
+    // "there's a delay before the hamburger menu opens" was this very guard.
+    // No timing guards remain anywhere on this path (user's instruction): dead
+    // taps are prevented at the source by touch-action:none on ✕ and ☰.
     if(settings && !settings.classList.contains("hidden")){ settingsOpen(false); return }
     setOpen(menu.classList.contains("hidden"))
   }

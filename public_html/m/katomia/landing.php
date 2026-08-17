@@ -373,7 +373,11 @@ window.addEventListener("load", () => {
   // trigger that, so phones get calm static cards; the kbubbleOpen entry
   // transition below is transient and stays for everyone.
   if(window.kbubble && !matchMedia("(hover: none)").matches){
-    cards.forEach(el => kbubble.attach(el, Object.assign({ style: "iridescent" }, KB_CIRCLE)))
+    const handles = cards.map(el => kbubble.attach(el, Object.assign({ style: "iridescent" }, KB_CIRCLE))).filter(Boolean)
+    // KPERF (R9): a hover-capable but WEAK device (old laptop, cheap tablet with a
+    // mouse) gets the animations torn down the moment the header's frame-cadence
+    // sampler flags it — same reasoning as the phone exclusion above.
+    document.addEventListener("kperf:low", () => handles.forEach(h => { try { h.destroy() } catch(e){} }), { once: true })
   }
 
   // click → inflate into the board. bind() intercepts the click itself and navigates
