@@ -2314,6 +2314,42 @@ textarea:focus{
   /* now nested inside .profile-section (.profile-repute), which owns the divider */
   margin-top:8px;
 }
+
+/* ── WALLET-CONNECT-IA1 Mock A (user-approved 2026-08-17) ──────────────────── */
+/* The ladder's headline action — the one primary button in the section. */
+#profileModal button#authAuthenticateBtn{
+  background:#2f6fed;
+  color:#fff;
+  border:1px solid #2f6fed;
+  border-radius:8px;
+  padding:9px 16px;
+  font-size:14px;
+  cursor:pointer;
+}
+#profileModal button#authAuthenticateBtn:hover{ filter:brightness(1.08); }
+#profileModal button#authAuthenticateBtn:disabled{ opacity:.55; cursor:default; }
+
+#authRungStatus{ font-size:12.5px; margin-top:10px; }
+#authRungStatus:empty{ display:none; }
+
+/* Commitment fold — the optional upgrade rung. */
+details.profile-commit{
+  margin-top:14px;
+  border-top:1px dashed var(--line, #e3e0d8);
+  padding-top:10px;
+}
+details.profile-commit > summary{ cursor:pointer; }
+
+/* Intent key, compact, inside the fold (moved from the top of the modal). */
+.profile-commit-key{
+  margin-top:14px;
+  border-top:1px dashed #e8e6df;
+  padding-top:8px;
+}
+
+/* Expanding a section scrolls it to the top of the card (katomia-profile.js) —
+   keep the sticky ✕ row clear of the section title. */
+.profile-card details{ scroll-margin-top:10px; }
 /* .profile-debug select added 2026-08-17 (KATUI3 feedback pass): the Size dropdown
    in Preferences & diagnostics wore the browser default — same clean control style
    as the auth panel's selects now. */
@@ -2406,8 +2442,10 @@ button.profile-auth-x{
 }
 .profile-section-sub{ margin:4px 0 8px; }
 
-/* collapsible sections */
-details.profile-section > summary{
+/* collapsible sections (.profile-commit added 2026-08-17 — the Mock A commitment
+   fold shares the section-summary look without being a top-level section) */
+details.profile-section > summary,
+details.profile-commit > summary{
   cursor:pointer;
   list-style:none;
   display:flex;
@@ -2415,12 +2453,16 @@ details.profile-section > summary{
   gap:8px;
   padding:2px 0;
 }
-details.profile-section > summary::-webkit-details-marker{ display:none; }
-details.profile-section > summary::before{
+details.profile-section > summary::-webkit-details-marker,
+details.profile-commit > summary::-webkit-details-marker{ display:none; }
+details.profile-section > summary::before,
+details.profile-commit > summary::before{
   content:"▸"; color:#9aa0a6; font-size:11px; transition:transform .12s;
 }
-details.profile-section[open] > summary::before{ content:"▾"; }
-details.profile-section > *:not(summary){ margin-top:10px; }
+details.profile-section[open] > summary::before,
+details.profile-commit[open] > summary::before{ content:"▾"; }
+details.profile-section > *:not(summary),
+details.profile-commit > *:not(summary){ margin-top:10px; }
 
 /* public / private / optional pills — make it clear what others can see */
 .profile-tag{

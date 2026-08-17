@@ -28,20 +28,46 @@ function initKatomiaProfile(){
   // feedback pass — the admin-gated profile section is KEA's only home now)
 
   // KATUI3 (user 2026-08-17): closing must be INSTANT and honest. The handler was
-  // already synchronous — the reported "takes a while / freezes" is main-thread jank
-  // from WalletConnect operations (ensureNetwork can rebuild the connector) queued
-  // by the profile open. Those are now surfaced in #profileBusy while in flight
-  // (katomia-auth.js kauthBusy); if one is still running when the user closes, say
-  // so once, so background activity doesn't read as a crash.
-  const doClose = () => {
+  // already synchronous — the reported "takes a while / freezes" is main-thread jank.
+  // TWO sources, two fixes:
+  //  · WalletConnect operations (ensureNetwork can rebuild the connector) — surfaced
+  //    in #profileBusy while in flight (katomia-auth.js kauthBusy); closing while one
+  //    runs explains itself with a toast.
+  //  · R2 (mobile retest, same day): on a LIVE board (bots trading — the t-trio kdiag
+  //    window shows memberanim + full repaints every ~150ms) the board kept doing
+  //    full DOM rebuilds BEHIND the covering modal, so the ✕ tap sat in a saturated
+  //    input queue for seconds with no auth op in flight — which is why the busy pill
+  //    (rightly) never lit. Fix: hold board renders while the modal is open
+  //    (window.boardModalHold, katomia-board.js — same defer/catch-up as the drag
+  //    hold); the board repaints once, with the latest state, on close.
+  // profile:close kdiag carries queuedMs (how long the tap waited for the main
+  // thread) so the next mobile report is measurable instead of anecdotal.
+  const doClose = e => {
     modal.classList.add("hidden")
+    window.boardModalHold?.(false)
+    katomiaDiagSend?.("profile:close", { queuedMs: e ? Math.round(performance.now() - e.timeStamp) : null,
+      wcBusy: !!window.kauthNetBusy?.() })
     if(window.kauthNetBusy?.())
       notify?.("Still talking to the wallet network in the background — it'll finish on its own.", "info", { timeout: 3500 })
   }
   close.onclick = doClose
   modal.onclick = e => {
-    if(e.target === modal) doClose()
+    if(e.target === modal) doClose(e)
   }
+
+  // KATUI3 R2 (user, pre-existing ask): expanding any collapsed section scrolls it
+  // into view — on mobile the tap landed mid-card and the freshly-opened content
+  // stayed below the fold the FIRST time (native browsers only keep it visible on a
+  // RE-open because the scroll position happens to be right by then). rAF first: the
+  // toggle event fires before the opened content has laid out, and scrolling in the
+  // same frame measures the collapsed height — the very "works the second time" the
+  // user described. scroll-margin-top in CSS keeps the sticky ✕ clear.
+  modal.querySelectorAll("details").forEach(d =>
+    d.addEventListener("toggle", () => {
+      if(!d.open) return
+      requestAnimationFrame(() => d.scrollIntoView({ behavior: "smooth", block: "start" }))
+    })
+  )
 
   if(copyBtn)
     copyBtn.onclick = () => copyKatomiaProfileLink()
@@ -112,6 +138,7 @@ async function openKatomiaProfile(){
   if(!modal) return
 
   modal.classList.remove("hidden")
+  window.boardModalHold?.(true)   // board pages: stop full rebuilds behind the modal (KATUI3 R2)
 
   // BOARD-UISIZE1 (moved here 2026-08-06): the display-size preference lives in
   // this modal now. On the board, boardSyncPrefsUI owns the same control (it
@@ -164,6 +191,7 @@ async function renderKatomiaProfile(){
 
   setText("profileTitle", getKatomiaProfileTitle())
   setText("profilePubkey", pubkey || "not ready")
+  setText("profileCommitPubkey", pubkey || "not ready")   // Mock A: the fold's copy of the key
   setText("profileScope", [domain, network, gid].filter(Boolean).join(" | "))
 
   renderKatomiaAvatar(pubkey)
