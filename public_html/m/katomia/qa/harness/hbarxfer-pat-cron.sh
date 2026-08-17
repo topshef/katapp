@@ -22,6 +22,7 @@ BASE="${BASE:-https://pat.katomia.com}"
 echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) hbarxfer-pat start ($BASE) ==="
 
 set -a; source /opt/kwallet/.env; set +a
+export TRIGGER="cron:hbarxfer-pat-cron.sh"
 
 STATE=$(curl -s "http://127.0.0.1:8790/api/state?token=$KWALLET_TOKEN")
 MODE=$(echo "$STATE" | python3 -c "import json,sys;print(json.load(sys.stdin)['mode'])")

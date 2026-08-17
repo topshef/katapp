@@ -22,6 +22,7 @@ LOG="/var/www/swap.kpay.live-katlab/lab1/logs/qa/statsync-cron.log"
 mkdir -p "$(dirname "$LOG")"
 exec >> "$LOG" 2>&1
 
+export TRIGGER="cron:statsync-cron.sh"
 echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) statsync-cron start ==="
 
 RUN="statsync-$(date +%s | xargs printf '%x')"

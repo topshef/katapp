@@ -31,7 +31,7 @@ async function reportKflow(checkpoint, v, detail){
   await fetch(BASE + "/kflow", { method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ events: [{ t: new Date().toISOString(), run: RUN_ID,
-      seq: checkpoint === "test:start" ? 1 : 2, tier: "fe", checkpoint, v, commit, detail }] }) })
+      seq: checkpoint === "test:start" ? 1 : 2, tier: "fe", checkpoint, v, commit, detail: { trigger: process.env.TRIGGER || "manual", ...detail } }] }) })
 }
 
 ;(async () => {
