@@ -421,6 +421,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   btn.onclick = e => {
     e.stopPropagation()
+    // KATUI3 R7 (user 2026-08-17): the ☰ sits on the SAME pixels as the profile
+    // modal's ✕ (measured: ☰ 338,20 vs ✕ 337,18 on a 393px phone). A repeat
+    // frustration-tap after closing the modal therefore landed HERE and opened
+    // the menu — whose panel then read as "the modal never closed". Hold the ☰
+    // inert for 1.5s after any modal close (human re-taps arrive at 300-600ms,
+    // beyond the 250ms tap shield); a deliberate menu open that soon after
+    // closing the profile is rare enough to trade away.
+    if(performance.now() - (window.__kprofModalClosedAt ?? -1e9) < 1500){
+      window.katomiaDiagSend?.("menu:suppressed-postclose",
+        { msSinceClose: Math.round(performance.now() - window.__kprofModalClosedAt) })
+      return
+    }
     if(settings && !settings.classList.contains("hidden")){ settingsOpen(false); return }
     setOpen(menu.classList.contains("hidden"))
   }

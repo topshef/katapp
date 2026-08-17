@@ -127,6 +127,14 @@ function initKatomiaProfile(){
   const doClose = e => {
     if(modal.classList.contains("hidden")) return   // R6: pointerdown + click both wired — run once
     modal.classList.add("hidden")
+    // R7: the ✕ (modal) and the ☰ (page) occupy the SAME pixels — measured on a
+    // 393px viewport: ✕ at (337,18) 38×38, ☰ at (338,20) 39×30. A repeat tap in
+    // that spot after close therefore opens the hamburger MENU, whose panel top-
+    // right reads as "the modal still hasn't closed" — the reported multi-second
+    // "freeze" in every round since R1. The 250ms shield can't cover a human
+    // re-tap (300-600ms), so header.php additionally holds the ☰ inert for 1.5s
+    // after this timestamp.
+    window.__kprofModalClosedAt = performance.now()
     kprofTapShield()   // R4: stacked frustration-taps must not reach the page beneath
     window.boardModalHold?.(false)
     window.katomiaDiagSend?.("profile:close", { queuedMs: e ? Math.round(performance.now() - e.timeStamp) : null,
@@ -150,6 +158,19 @@ function initKatomiaProfile(){
   modal.onclick = e => {
     if(e.target === modal) doClose(e)
   }
+
+  // R7: tap-position telemetry — every pointerdown while the modal is open logs
+  // where it landed relative to the ✕ centre and what it hit, so any "dead tap"
+  // (a miss, an overlap, an unexpected target) is visible in kdiag instead of
+  // being reconstructed from guesswork.
+  modal.addEventListener("pointerdown", ev => {
+    const c = close.getBoundingClientRect()
+    window.katomiaDiagSend?.("profile:tap", {
+      dxFromClose: Math.round(ev.clientX - (c.x + c.width / 2)),
+      dyFromClose: Math.round(ev.clientY - (c.y + c.height / 2)),
+      target: (ev.target.id || ev.target.className || ev.target.tagName || "").toString().slice(0, 40)
+    })
+  }, { capture: true, passive: true })
 
   // KATUI3 R2 (user, pre-existing ask): expanding any collapsed section scrolls it
   // into view — on mobile the tap landed mid-card and the freshly-opened content
