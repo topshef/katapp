@@ -13,7 +13,33 @@ const NERD_KEY = "katomia.nerd.v1"
 function kprofPaintMs(label, extra){
   const t0 = performance.now()
   requestAnimationFrame(() => requestAnimationFrame(() =>
-    katomiaDiagSend?.(label, Object.assign({ paintMs: Math.round(performance.now() - t0) }, extra || {}))))
+    window.katomiaDiagSend?.(label, Object.assign({ paintMs: Math.round(performance.now() - t0) }, extra || {}))))
+}
+
+// ── KATUI3 R4 (user 2026-08-17): tap shield on close. The ✕ sits top-right of the
+// MODAL and the ☰ hamburger sits top-right of the PAGE — same spot. When a close is
+// slow to paint, an impatient second tap queues up and, the instant the modal's DOM
+// hides, punches through to the hamburger ("tapping twice… did lead to a tap on the
+// main page of the hamburger menu"). Stacked taps must die with the surface they
+// were aimed at: a transparent full-viewport div swallows every queued/stray tap
+// from the moment of close until one frame has PAINTED plus a short grace. Being in
+// the DOM is enough — queued events are hit-tested when the thread frees, so the
+// shield catches them even though it was added mid-block. Swallowed taps are
+// kdiag'd so the stacking behaviour stays visible in the logs.
+function kprofTapShield(graceMs = 250){
+  if(document.getElementById("kprofTapShield")) return
+  const s = document.createElement("div")
+  s.id = "kprofTapShield"
+  s.style.cssText = "position:fixed;inset:0;z-index:2147483600;background:transparent"
+  let swallowed = 0
+  const swallow = ev => { swallowed++; ev.stopPropagation(); ev.preventDefault() }
+  ;["pointerdown", "pointerup", "touchstart", "touchend", "mousedown", "click"]
+    .forEach(t => s.addEventListener(t, swallow, { passive: false }))
+  document.body.appendChild(s)
+  requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
+    s.remove()
+    if(swallowed) window.katomiaDiagSend?.("profile:shield-swallowed", { taps: swallowed })
+  }, graceMs)))
 }
 try {
   if(typeof PerformanceObserver !== "undefined" && PerformanceObserver.supportedEntryTypes?.includes("longtask")){
@@ -21,7 +47,7 @@ try {
       for(const e of list.getEntries()){
         if(e.duration < 300) continue
         const modal = document.getElementById("profileModal")
-        katomiaDiagSend?.("perf:longtask", {
+        window.katomiaDiagSend?.("perf:longtask", {
           durMs: Math.round(e.duration),
           at: Math.round(e.startTime),
           modalOpen: !!modal && !modal.classList.contains("hidden"),
@@ -80,8 +106,9 @@ function initKatomiaProfile(){
   // thread) so the next mobile report is measurable instead of anecdotal.
   const doClose = e => {
     modal.classList.add("hidden")
+    kprofTapShield()   // R4: stacked frustration-taps must not reach the page beneath
     window.boardModalHold?.(false)
-    katomiaDiagSend?.("profile:close", { queuedMs: e ? Math.round(performance.now() - e.timeStamp) : null,
+    window.katomiaDiagSend?.("profile:close", { queuedMs: e ? Math.round(performance.now() - e.timeStamp) : null,
       wcBusy: !!window.kauthNetBusy?.() })
     kprofPaintMs("profile:close-painted")   // R3: how long until the user SAW it close
     if(window.kauthNetBusy?.())
@@ -139,11 +166,11 @@ function initKatomiaProfile(){
         window.kdiag?.dom?.(modal, "profile-modal")   // snapshot the modal so UI issues survive in the copy
         await (window.kdiag?.copy?.() ?? Promise.reject(new Error("kdiag.copy unavailable")))
         copyDiagBtn.textContent = "✓ copied"
-        katomiaDiagSend?.("diag:copy-local", { ok: true })
+        window.katomiaDiagSend?.("diag:copy-local", { ok: true })
       }catch(err){
         copyDiagBtn.textContent = "see console"
         console.error("[diag] copy local failed", err)
-        katomiaDiagSend?.("diag:copy-local", { ok: false, error: String(err) })
+        window.katomiaDiagSend?.("diag:copy-local", { ok: false, error: String(err) })
       }
       setTimeout(() => { copyDiagBtn.textContent = original }, 1500)
     }
@@ -197,7 +224,7 @@ async function openKatomiaProfile(){
       const html = document.documentElement
       html.classList.remove("ksize-small", "ksize-normal", "ksize-large")
       html.classList.add("ksize-" + v)
-      katomiaDiagSend?.("pref:uiSize", { value: v })
+      window.katomiaDiagSend?.("pref:uiSize", { value: v })
     }
   }
 
@@ -217,12 +244,12 @@ async function openKatomiaProfile(){
       // DIAG_DEFAULT_ON=true an absent key falls back to ON — so unchecking would NOT
       // actually disable. Re-assert the explicit value here so the toggle is authoritative.
       try { localStorage.setItem("kdiag_remote", on ? "1" : "0") } catch {}
-      katomiaDiagSend?.("diag:remote-toggle", { on })
+      window.katomiaDiagSend?.("diag:remote-toggle", { on })
     }
   }
 
   await renderKatomiaProfile()
-  katomiaDiagSend?.("profile:open", { totalMs: Math.round(performance.now() - t0) })
+  window.katomiaDiagSend?.("profile:open", { totalMs: Math.round(performance.now() - t0) })
 }
 
 async function renderKatomiaProfile(){
