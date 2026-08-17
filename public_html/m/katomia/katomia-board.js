@@ -323,7 +323,7 @@ function boardSavePrefs(){
       zoneWalls: boardZoneWalls, hugRing: boardHugRing,
       stickyChips: boardStickyChips, autoArrange: boardAutoArrange, chipScale: boardChipScale,
       chatMode: boardChatMode, avatarPos: boardAvatarPos,
-      counterMode: boardCounterMode, chipStyle: boardChipStyle, chipEmboss: boardChipEmboss
+      counterMode: boardCounterMode, chipStyle: boardChipStyle
     }))
   } catch {}
 }
@@ -450,9 +450,10 @@ let boardCounterMode = _bp.counterMode === "classic" ? "classic" : "simple"
 // the default to owner colour for now, I think that's probably going to be the
 // default"). plain/dark stay selectable while the comparison finishes.
 let boardChipStyle = ["plain", "dark"].includes(_bp.chipStyle) ? _bp.chipStyle : "colour"
-// BOARD-CHIPDEPTH1 R3 (user 2026-08-06): engraved lettering, opt-in. Default OFF —
-// it convinces at phone pixel density and reads as blur at desktop glyph sizes.
-let boardChipEmboss = _bp.chipEmboss === true
+// Chip emboss RETIRED (user 2026-08-17, KATUI3 feedback pass) — the BOARD-CHIPDEPTH1
+// R3 engraved-lettering lab pref was default-off and causing problems; control,
+// wiring, pref and body-class toggle all removed. CSS rules keyed on .chip-emboss
+// are now unreachable.
 const boardCounterSimple = () => boardCounterMode === "simple"
 // helpers.js (highlightTradePair) needs this across the closure seam; absent
 // (legacy game.php grid) it reads undefined → classic behaviour there
@@ -1056,8 +1057,8 @@ function boardSetView(mode){
   boardChatMode = mode === "split" ? "panel" : "bubbles"
   boardSavePrefs()
   window.katomiaChat?.setMode?.(boardChatMode)
-  const cb = document.getElementById("boardPrefChatPanel")   // keep ⚙ Settings honest
-  if(cb) cb.checked = boardChatMode === "panel"
+  // (no ⚙ Settings checkbox to sync any more — the Message panel alias was removed
+  // 2026-08-17, KATUI3 feedback pass; the View row is the one control)
   boardMarkView()
   // close the menu — it sits over the board you just switched to. (The messages
   // view closes it via openFull already; this covers board/split.)
@@ -1088,16 +1089,8 @@ if(!window.__boardViewSwitchInit){
 }
 
 function boardSyncPrefsUI(){
-  // BOARD-CHATMODE1: bubbles ⇄ docked message panel
-  const chatPanel = document.getElementById("boardPrefChatPanel")
-  if(chatPanel){
-    chatPanel.checked = boardChatMode === "panel"
-    chatPanel.onchange = () => {
-      boardChatMode = chatPanel.checked ? "panel" : "bubbles"
-      boardSavePrefs()
-      window.katomiaChat?.setMode?.(boardChatMode)
-    }
-  }
+  // (BOARD-CHATMODE1's ⚙ Message panel checkbox removed 2026-08-17 — it duplicated
+  // the hamburger View row, BOARD-VIEWSWITCH1; boardSetView owns chatMode now)
   // DEMO-NARRATE1 placement experiment: R3 arc (default) vs R2 spoke
   const avSpoke = document.getElementById("boardPrefAvatarSpoke")
   if(avSpoke){
@@ -1248,17 +1241,6 @@ function boardSyncPrefsUI(){
       render()
     }
   }
-  // BOARD-CHIPDEPTH1 R3: engraved lettering on/off
-  const emboss = document.getElementById("boardPrefEmboss")
-  if(emboss){
-    emboss.checked = !!boardChipEmboss
-    emboss.onchange = () => {
-      boardChipEmboss = emboss.checked
-      boardDiag("board:pref:chipEmboss", { value: boardChipEmboss })
-      boardSavePrefs()
-      document.body.classList.toggle("chip-emboss", boardChipEmboss)
-    }
-  }
   // BOARD-COUNTERMODE1: classic counter (ring + ghost pile) ⇄ simple (default)
   const classicCounter = document.getElementById("boardPrefClassicCounter")
   if(classicCounter){
@@ -1347,7 +1329,7 @@ async function render(){
     susan5() && "susan5p",
   ].filter(Boolean).join(" ")
   document.body.dataset.chipStyle = boardChipStyle   // BOARD-CHIPART1 variant under comparison
-  document.body.classList.toggle("chip-emboss", !!boardChipEmboss)   // BOARD-CHIPDEPTH1 R3
+  // (chip-emboss body class gone — pref retired 2026-08-17, nothing sets it now)
   if(gameMeta?.network)
     document.body.dataset.network = gameMeta.network.toLowerCase()
 
@@ -2300,7 +2282,14 @@ function boardFilteredAccounts(){
     if(boardSigning || rule !== "all"){
       const partOf = a => boardInMyParty(a, all)
       const party = all.filter(a => ring10() ? partOf(a) : (isMyAccount(a) || partOf(a)))
-      if(party.some(a => !isMyAccount(a))) accounts = party
+      // "no party yet → show everyone" gate. Was `party.some(a => !isMyAccount(a))`,
+      // which ALSO no-opd when the party was entirely my own accounts (two of my
+      // accounts trading each other in a cluster) — the tprop case the user hit on
+      // 2026-08-17: "when I toggle party only, I'm not seeing any change to the UI,
+      // even though I've got only two accounts involved in a cluster". Gate on real
+      // party membership instead: any account actually IN a party means the filter
+      // has something true to say, mine-only or not.
+      if(party.some(partOf)) accounts = party
     }
   } else if(!ring8() && showActiveOnly){
     const vis = new Set(getVisibleAccounts(all).map(a => a.id))
@@ -5722,15 +5711,15 @@ function boardTouchDrag(el, payload){
   el.style.touchAction = "none"
 
   el.addEventListener("pointerdown", e => {
-    // mouse keeps native dnd.
-    // BOARD-ARRANGEOTHERS1 R2 (user 2026-08-06): arrange-only chips briefly got an
-    // exception here so they'd be draggable with a mouse too. That was a mistake —
-    // on desktop it gave every other player's chip a pointer-driven fly clone that
-    // followed the cursor and lit every segment, while landing nowhere ("I can
-    // actually drag assets from the other player to anywhere; they don't actually
-    // land"). Touch only again; arranging someone else's chips with a mouse can
-    // come back later on the native-dnd path, where it belongs.
-    if(e.pointerType === "mouse") return
+    // mouse keeps native dnd — EXCEPT arrange-only chips (user 2026-08-17, KATUI3
+    // feedback pass: "align the mobile and desktop functionality"). R2 (2026-08-06)
+    // had banned mouse here because back then the fly clone followed the cursor
+    // anywhere and lit every segment; both halves are since fixed IN THIS PATH —
+    // applyMove clamps arrange-only chips to the owner's walls (holds at the fence,
+    // boardArrangeClamp) and draws no destination cue. So the mouse now gets the
+    // same fenced tidy-their-space drag the finger has, and the accidental
+    // native-image NFT drag (see makeAssetEl img.draggable=false) is retired.
+    if(e.pointerType === "mouse" && !payload?.arrangeOnly) return
     const startX = e.clientX, startY = e.clientY
     let fly = null, dropWedge = null
     // BOARD-DRAGREPAINT1 (user 2026-08-06): "if I drag the chip very, very

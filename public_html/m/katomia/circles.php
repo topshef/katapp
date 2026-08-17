@@ -100,17 +100,10 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
   .gated-hint{ margin-top:16px; font-size:13px; color:#777; }
   .gated-hint a{ cursor:pointer; text-decoration:underline; }
 
-  /* connect widget — same look as landing.php's .landing-connect */
-  .circles-connect{
-    margin-top:28px; padding:16px; border-radius:10px;
-    background:#fff; border:1px solid #e5e0d4; box-shadow:0 1px 3px rgba(0,0,0,.05);
-  }
-  .circles-connect h3{ margin:0 0 6px; font-size:15px; }
-  .circles-connect .subtle{ font-size:13px; color:#777; margin:0 0 12px; }
-  .circles-connect-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-  .circles-connect-row select{ padding:8px; border-radius:6px; border:1px solid #ccc; }
-  .circles-connected{ margin-top:10px; font-size:13px; color:#2e7d32; }
-  .circles-connected:empty{ display:none; }
+  /* Connect widget REMOVED (user 2026-08-17, KATUI3 feedback pass): "we can declutter
+     the circles page and get rid of the connect your wallet from there as well…
+     consolidate to the profile modal as the place to do that." The gated-hint below
+     (which opens the profile modal) is the one remaining connect route here. */
 </style>
 </head>
 <body>
@@ -126,9 +119,13 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
   <div id="circlesFilters" class="circles-filters"></div>
   <div id="circlesList" class="circles-list"></div>
 
+  <!-- Copy change (user 2026-08-17, KATUI3 feedback pass): "authenticate" replaces
+       "raise a commitment" — authenticating is enough to prove who you are for
+       access; the commitment is a reputation bonus, not the entry ticket. Still
+       opens the profile modal ([data-menu-profile]). -->
   <div class="gated-hint" id="gatedHint" hidden>
     🔐 Some <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?> are members-only.
-    <a data-menu-profile>Connect a wallet &amp; raise a commitment</a> to see the ones your accounts unlock.
+    <a data-menu-profile>Connect a wallet and authenticate</a> to see the ones your accounts unlock.
   </div>
 
   <div class="circles-actions">
@@ -137,23 +134,8 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
     <a class="circles-morelink" href="<?= $katomiaBase ?>/markets">See all markets →</a>
   </div>
 
-  <!-- GCP feedback 2026-08-13 ("move connect wallet to the full index page — advance
-       users to preauth for private games"): same connect widget as the welcome page
-       (landing.php), so a wallet can be connected BEFORE tapping into a members-only
-       circle instead of bouncing off its gate. Complements the gated-hint above,
-       which routes to the profile for the commitment step. -->
-  <div class="circles-connect">
-    <h3>🔗 Connect your wallet</h3>
-    <p class="subtle">Optional — connect now and you're ready to trade (or enter members-only <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?>) the moment you step inside.</p>
-    <div class="circles-connect-row">
-      <select id="circlesNet" title="Which Hedera network to connect on">
-        <option value="mainnet">🟣 Hedera mainnet</option>
-        <option value="testnet">🟠 Hedera testnet</option>
-      </select>
-      <button id="circlesConnectBtn" class="kbtn kbtn-blue" type="button">Connect wallet</button>
-    </div>
-    <div id="circlesConnected" class="circles-connected"></div>
-  </div>
+  <!-- The 2026-08-13 connect widget was REMOVED on 2026-08-17 (KATUI3 feedback pass):
+       one place to connect — the profile modal, reached via the gated-hint above. -->
 </div>
 
 <script>
@@ -234,8 +216,45 @@ async function loadCircles(){
 // cron rows drowning the list today. The real fix is a first-class field on the
 // game config (origin: house|public, kind: demo|live|qa) — raised as a task, and
 // when it lands this function reads it instead and the heuristic goes away.
+//
+// R2 (user 2026-08-17, KATUI3 feedback pass):
+//  · Type is MULTI-SELECT toggles now — single-select made "open + demos without
+//    the QA cron noise" impossible, and the QA rows are "not really meant for
+//    customer consumption". DEFAULT hides qa; All / None both reachable.
+//  · Every selection mirrors into the URL (?network=…&type=…, replaceState) so a
+//    filtered view deep-links — e.g. /circles?type=demos sends someone straight
+//    to the demos list. Absent params = the defaults, so plain /circles is clean.
 let _circles = [], _circlesGated = false
-const _circlesFilter = { network: "all", kind: "all" }
+const CIRCLE_KINDS = ["open", "demo", "qa"]
+const KIND_URL = { open: "open", demo: "demos", qa: "qa" }   // "demo" reads as "demos" in URLs
+const KIND_FROM_URL = { open: "open", demo: "demo", demos: "demo", qa: "qa" }
+const KIND_DEFAULT = ["open", "demo"]
+const _circlesFilter = { network: "all", kinds: new Set(KIND_DEFAULT) }
+
+function circlesReadUrl(){
+  const p = new URLSearchParams(location.search)
+  const net = p.get("network")
+  if(["mainnet", "testnet", "playnet"].includes(net)) _circlesFilter.network = net
+  const t = (p.get("type") || "").toLowerCase()
+  if(t === "all") _circlesFilter.kinds = new Set(CIRCLE_KINDS)
+  else if(t === "none") _circlesFilter.kinds = new Set()
+  else if(t){
+    const ks = t.split(",").map(s => KIND_FROM_URL[s.trim()]).filter(Boolean)
+    if(ks.length) _circlesFilter.kinds = new Set(ks)
+  }
+}
+
+function circlesWriteUrl(){
+  const p = new URLSearchParams(location.search)
+  _circlesFilter.network === "all" ? p.delete("network") : p.set("network", _circlesFilter.network)
+  const sel = CIRCLE_KINDS.filter(k => _circlesFilter.kinds.has(k))
+  const isDefault = sel.length === KIND_DEFAULT.length && KIND_DEFAULT.every(k => _circlesFilter.kinds.has(k))
+  if(isDefault) p.delete("type")
+  else if(sel.length === CIRCLE_KINDS.length) p.set("type", "all")
+  else if(!sel.length) p.set("type", "none")
+  else p.set("type", sel.map(k => KIND_URL[k]).join(","))
+  history.replaceState(null, "", location.pathname + (p.toString() ? "?" + p.toString() : "") + location.hash)
+}
 
 function circleKind(g){
   const id = String(g.id || "")
@@ -252,44 +271,67 @@ function renderCircles(){
   const bar = document.getElementById("circlesFilters")
   const netOf = g => g.config?.network || g.network || ""
 
-  const rows = [
-    { key: "network", label: "Network", of: netOf,
-      order: ["mainnet", "testnet", "playnet"],
-      text: v => displayValue("network", v) },
-    { key: "kind", label: "Type", of: circleKind,
-      order: ["open", "demo", "qa"],
-      text: v => ({ open: "⭕ Open", demo: "📺 Demos", qa: "🧪 QA / cron" }[v] || v) },
-  ]
+  const kindText = v => ({ open: "⭕ Open", demo: "📺 Demos", qa: "🧪 QA / cron" }[v] || v)
+  // With only one kind on the estate there's no Type row to change the selection
+  // with, so the kind filter must not silently hide the whole list — bypass it.
+  const kindsPresent = CIRCLE_KINDS.filter(v => _circles.some(g => circleKind(g) === v))
+  const netOk = g => _circlesFilter.network === "all" || netOf(g) === _circlesFilter.network
+  const kindOk = g => kindsPresent.length < 2 || _circlesFilter.kinds.has(circleKind(g))
 
   bar.innerHTML = ""
-  rows.forEach(row => {
-    // count against the OTHER row's active filter, so each chip's number is what
-    // you would actually get by pressing it
-    const pool = _circles.filter(g => rows.every(r =>
-      r.key === row.key || _circlesFilter[r.key] === "all" || r.of(g) === _circlesFilter[r.key]))
-    const values = row.order.filter(v => pool.some(g => row.of(g) === v))
-    if(values.length < 2) return                    // nothing to choose between
+  const makeRow = label => {
     const el = document.createElement("div")
     el.className = "circles-filterrow"
     const lab = document.createElement("span")
     lab.className = "circles-filterlabel"
-    lab.textContent = row.label
+    lab.textContent = label
     el.appendChild(lab)
-    ;[["all", "All"], ...values.map(v => [v, row.text(v)])].forEach(([v, text]) => {
-      const b = document.createElement("button")
-      b.type = "button"
-      b.className = "circles-filter" + (_circlesFilter[row.key] === v ? " circles-filter--on" : "")
-      const n = v === "all" ? pool.length : pool.filter(g => row.of(g) === v).length
-      b.innerHTML = esc(text) + `<span class="circles-filtercount">${n}</span>`
-      b.onclick = () => { _circlesFilter[row.key] = v; renderCircles() }
-      el.appendChild(b)
-    })
-    bar.appendChild(el)
-  })
+    return el
+  }
+  const makeChip = (row, text, on, n, onclick) => {
+    const b = document.createElement("button")
+    b.type = "button"
+    b.className = "circles-filter" + (on ? " circles-filter--on" : "")
+    b.innerHTML = esc(text) + `<span class="circles-filtercount">${n}</span>`
+    b.onclick = () => { onclick(); circlesWriteUrl(); renderCircles() }
+    row.appendChild(b)
+  }
 
-  const games = _circles.filter(g =>
-    (_circlesFilter.network === "all" || netOf(g) === _circlesFilter.network) &&
-    (_circlesFilter.kind === "all" || circleKind(g) === _circlesFilter.kind))
+  // Network row — single-select, counts taken against the live Type selection so
+  // each chip's number is what you'd actually get by pressing it
+  {
+    const pool = _circles.filter(kindOk)
+    const values = ["mainnet", "testnet", "playnet"].filter(v => pool.some(g => netOf(g) === v))
+    if(values.length >= 2){
+      const row = makeRow("Network")
+      makeChip(row, "All", _circlesFilter.network === "all", pool.length,
+        () => { _circlesFilter.network = "all" })
+      values.forEach(v => makeChip(row, displayValue("network", v), _circlesFilter.network === v,
+        pool.filter(g => netOf(g) === v).length, () => { _circlesFilter.network = v }))
+      bar.appendChild(row)
+    }
+  }
+
+  // Type row — multi-select toggles (R2), counts against the live Network selection
+  {
+    const pool = _circles.filter(netOk)
+    const values = CIRCLE_KINDS.filter(v => pool.some(g => circleKind(g) === v))
+    if(values.length >= 2){
+      const row = makeRow("Type")
+      const allOn = values.every(v => _circlesFilter.kinds.has(v))
+      makeChip(row, "All", allOn, pool.length, () => {
+        // All ⇄ None: pressing All again clears the selection (the "all and none" pair)
+        _circlesFilter.kinds = allOn ? new Set() : new Set(CIRCLE_KINDS)
+      })
+      values.forEach(v => makeChip(row, kindText(v), _circlesFilter.kinds.has(v),
+        pool.filter(g => circleKind(g) === v).length, () => {
+          _circlesFilter.kinds.has(v) ? _circlesFilter.kinds.delete(v) : _circlesFilter.kinds.add(v)
+        }))
+      bar.appendChild(row)
+    }
+  }
+
+  const games = _circles.filter(g => netOk(g) && kindOk(g))
 
   list.innerHTML = ""
   if(!games.length){
@@ -468,37 +510,10 @@ function dressCards(){
   })
 }
 
-window.addEventListener("load", loadCircles)
+window.addEventListener("load", () => { circlesReadUrl(); loadCircles() })
 
-// GCP feedback 2026-08-13: connect widget — same thin glue as landing.php's
-// (passive account peek on load, explicit connect on click via the shared WC
-// connector + kauthWCAccounts from katomia-auth.js).
-function circlesRenderConnected(accounts){
-  const el = document.getElementById("circlesConnected")
-  if(el) el.textContent = accounts.length
-    ? `✓ Connected: ${accounts.join(", ")} — you're ready to trade in any ${KTERMS.one}.`
-    : ""
-}
-async function circlesRefreshAccounts(ensure){
-  try { circlesRenderConnected(await kauthWCAccounts(document.getElementById("circlesNet").value, ensure)) }
-  catch(e){ console.warn("[circles] account list failed", e) }
-}
-document.getElementById("circlesConnectBtn").onclick = async () => {
-  const btn = document.getElementById("circlesConnectBtn")
-  const network = document.getElementById("circlesNet").value
-  if(!window.WC){ notify?.("WalletConnect still loading — try again in a moment", "info", { timeout: 3000 }); return }
-  btn.disabled = true; btn.textContent = "Connecting…"
-  try {
-    document.documentElement.style.setProperty("--wcm-z-index", "2147483000")
-    if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network)
-    window.kauthPruneWcModals?.()
-    await window.WC.connect?.()
-  } catch(e){ console.warn("[circles] connect failed", e) }
-  btn.disabled = false; btn.textContent = "Connect wallet"
-  circlesRefreshAccounts(true)
-}
-document.getElementById("circlesNet").onchange = () => circlesRefreshAccounts(true)
-window.addEventListener("load", () => circlesRefreshAccounts(false))
+// (the page's connect widget and its glue were removed 2026-08-17 — KATUI3 feedback
+// pass; wallet connection is consolidated into the profile modal)
 </script>
 
 <script><?php require_once('config.php'); ?>

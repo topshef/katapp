@@ -82,26 +82,11 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
   .landing-create{ margin-top: 0; }
   .landing-morelink{ font-size: 13px; color: #7a8595; text-decoration: none; }
   .landing-morelink:hover{ color: #2f6fed; text-decoration: underline; }
-  /* ENTRY-WELCOME1 (user 2026-07-29): connect-from-welcome card. Convenience, not a
-     gate — you can walk into any {one} without it; connecting here just means you're
-     ready to trade the moment you join (and later feeds the auto-add-accounts-on-join
-     idea, ENTRY-AUTOADD1).
-     TENSION (user 2026-07-30, deliberately left as-is for now): offering "connect your
-     wallet" BELOW the two entry doors reads backwards — you pick a door, then you're
-     asked to do setup. It is a leftover of the original plan to ask people to connect
-     up front, which is NOT the plan any more. Kept for now; revisit when the entry flow
-     is next opened up. See ENTRY-WELCOME1 notes. */
-  .landing-connect{
-    margin-top: 28px; padding: 16px; border-radius: 10px;
-    background: #fff; border: 1px solid #e5e0d4; box-shadow: 0 1px 3px rgba(0,0,0,.05);
-  }
-  .landing-connect h3{ margin: 0 0 6px; font-size: 15px; }
-  .landing-connect .subtle{ font-size: 13px; color: #777; margin: 0 0 12px; }
-  .landing-connect-row{ display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .landing-connect-row select{ padding: 8px; border-radius: 6px; border: 1px solid #ccc; }
-  .landing-connect-btn{ padding: 9px 16px; font-size: 14px; }
-  .landing-connected{ margin-top: 10px; font-size: 13px; color: #2e7d32; }
-  .landing-connected:empty{ display: none; }
+  /* ENTRY-WELCOME1's connect-from-welcome card REMOVED (user 2026-08-17, KATUI3
+     feedback pass): "on the homepage, let's get rid of the connect your wallet
+     option completely… let's not have lots of places to connect your wallet —
+     consolidate to the profile modal." This resolves the 2026-07-30 TENSION note
+     (connect-below-the-doors read backwards) in favour of removal. */
 
   /* ═══ ENTRY-CIRCLES1 — the two entry cards carry the bubble in EVERY skin ═══
      User ruling 2026-07-30: keep the default page 'paper', but give the bubble
@@ -273,28 +258,9 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
     <a href="<?= $katomiaBase ?>/learn#what-is-it">What is a <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>?</a>
   </p>
 
-  <!-- ENTRY-WELCOME1 (user 2026-07-29): connect directly from the welcome page — a
-       convenience flow, NOT a gate. Deliberately connect-only: no signing at the door
-       (authentication/bindings stay in the profile + the authenticate modal; the
-       "check-in signs a statement" idea was considered and parked — too much load at
-       first entry). Site-wide access levers / group gating: ENTRY-GATING1. -->
-  <div class="landing-connect">
-    <h3>🔗 Connect your wallet</h3>
-    <!-- ENTRY-CIRCLES1 (user 2026-07-30): the old copy sent people to the PROFILE MENU
-         to add accounts later. That's the long way round — accounts are added from the
-         control bar at the bottom of the board itself (Add account, bottom-left), which
-         is where you'll actually be when you want one. Don't route people to a more
-         complicated path than the one in front of them. -->
-    <p class="subtle">Optional — connect now and you're ready to trade the moment you join a <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>. You can also add accounts later, from the bar at the bottom of any <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>.</p>
-    <div class="landing-connect-row">
-      <select id="landingNet" title="Which Hedera network to connect on">
-        <option value="mainnet">🟣 Hedera mainnet</option>
-        <option value="testnet">🟠 Hedera testnet</option>
-      </select>
-      <button id="landingConnectBtn" class="landing-connect-btn kbtn kbtn-blue" type="button">Connect wallet</button>
-    </div>
-    <div id="landingConnected" class="landing-connected"></div>
-  </div>
+  <!-- Connect-your-wallet card REMOVED here (user 2026-08-17, KATUI3 feedback pass) —
+       wallet connection is consolidated into the profile modal; in a game the board's
+       Add account bar covers it. -->
 
   <!-- ENTRY-CIRCLES1: nerd mode keeps the raw markets grid (every game, every mode,
        every column). Normal mode never sees the word "markets". -->
@@ -337,33 +303,7 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
 // don't hardcode "circle" either.
 window.KTERMS = <?= json_encode($T, JSON_UNESCAPED_UNICODE) ?>;
 
-async function landingRenderConnected(accounts){
-  const el = document.getElementById("landingConnected")
-  if(!el) return
-  el.textContent = accounts.length
-    ? `✓ Connected: ${accounts.join(", ")} — you're ready to trade in any ${KTERMS.one}.`
-    : ""
-}
-async function landingRefreshAccounts(ensure){
-  try { landingRenderConnected(await kauthWCAccounts(document.getElementById("landingNet").value, ensure)) }
-  catch(e){ console.warn("[landing] account list failed", e) }
-}
-document.getElementById("landingConnectBtn").onclick = async () => {
-  const btn = document.getElementById("landingConnectBtn")
-  const network = document.getElementById("landingNet").value
-  if(!window.WC){ notify?.("WalletConnect still loading — try again in a moment", "info", { timeout: 3000 }); return }
-  btn.disabled = true; btn.textContent = "Connecting…"
-  try {
-    document.documentElement.style.setProperty("--wcm-z-index", "2147483000")
-    if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network)
-    window.kauthPruneWcModals?.()
-    await window.WC.connect?.()
-  } catch(e){ console.warn("[landing] connect failed", e) }
-  btn.disabled = false; btn.textContent = "Connect wallet"
-  landingRefreshAccounts(true)
-}
-document.getElementById("landingNet").onchange = () => landingRefreshAccounts(true)
-window.addEventListener("load", () => landingRefreshAccounts(false))
+// (welcome-page connect widget removed 2026-08-17 — see the card's removal note above)
 
 // ENTRY-SKINS1: picker → reload with the chosen skin in the URL.
 {
@@ -436,11 +376,10 @@ window.addEventListener("load", () => {
 
   // ENTRY-CIRCLES1: the bubble-everything skin additionally dresses the administrative
   // buttons — restrained tuning, and NO kbubbleOpen (they're not {one} entries).
+  // (the connect button's attach went with the connect card, 2026-08-17)
   if(window.kbubble && document.body.classList.contains("lskin-bubble")){
     const create = document.querySelector(".landing-create")
     if(create) kbubble.attach(create, Object.assign({ style: "glow", color: "rgba(47,124,74,.9)" }, KB_TUNED))
-    const btn = document.getElementById("landingConnectBtn")
-    if(btn) kbubble.attach(btn, Object.assign({ style: "glow", color: "rgba(47,85,120,.9)" }, KB_TUNED))
   }
 })
 

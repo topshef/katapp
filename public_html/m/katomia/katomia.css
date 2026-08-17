@@ -2036,16 +2036,55 @@ textarea:focus{
   margin-left:0;
 }
 
-.profile-close{
-  position:absolute;
-  top:14px;
-  right:16px;
-  z-index:2;
+/* KATUI3 feedback pass (2026-08-17): the ✕ was position:absolute inside the
+   scrolling card, so it scrolled away with the header — closing a long profile
+   meant scrolling back up. Now a zero-height sticky row pins it (and the busy
+   pill) to the top of the card's scrollport on every viewport. */
+.profile-stickyrow{
+  position:sticky;
+  top:0;
+  z-index:6;
+  height:0;
 
+  display:flex;
+  justify-content:flex-end;
+  align-items:flex-start;
+  gap:8px;
+}
+
+.profile-close{
   cursor:pointer;
-  font-size:24px;
+  font-size:22px;
   line-height:1;
-  opacity:0.65;
+  opacity:0.7;
+
+  /* its own backdrop, so content scrolling underneath never makes it illegible */
+  width:32px;
+  height:32px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:50%;
+  background:rgba(255,255,255,0.92);
+  box-shadow:0 1px 4px rgba(0,0,0,0.14);
+}
+
+.profile-close:hover{ opacity:1; }
+
+/* Busy pill — shown by katomia-auth.js (kauthBusy) while a WalletConnect /
+   mirror-node operation is in flight. Sticky beside the ✕: connectivity trouble
+   stays visible wherever the card is scrolled. */
+.profile-busy{
+  align-self:center;
+  max-width:70%;
+  padding:5px 11px;
+  border-radius:999px;
+  background:#fff7e8;
+  border:1px solid #f0d9ae;
+  color:#8a5a12;
+  font-size:12px;
+  line-height:1.35;
+  box-shadow:0 1px 4px rgba(0,0,0,0.10);
 }
 
 .profile-list{
@@ -2275,7 +2314,11 @@ textarea:focus{
   /* now nested inside .profile-section (.profile-repute), which owns the divider */
   margin-top:8px;
 }
-.profile-auth select{
+/* .profile-debug select added 2026-08-17 (KATUI3 feedback pass): the Size dropdown
+   in Preferences & diagnostics wore the browser default — same clean control style
+   as the auth panel's selects now. */
+.profile-auth select,
+.profile-debug select{
   appearance:none;
   -webkit-appearance:none;
   background:#fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239aa0a6' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
@@ -2286,7 +2329,8 @@ textarea:focus{
   color:#222;
   line-height:1.3;
 }
-.profile-auth select:focus{
+.profile-auth select:focus,
+.profile-debug select:focus{
   outline:none;
   border-color:#9aa6b2;
   box-shadow:0 0 0 2px rgba(0,0,0,.05);
@@ -2541,11 +2585,12 @@ body.nerd .profile-nerd-only{ display:block; }
     -webkit-overflow-scrolling:touch;
   }
 
+  /* KATUI3 2026-08-17: was position:fixed here — the sticky row now covers mobile
+     too (the card is its own scroll container), so only the size differs. */
   .profile-close{
-    position:fixed;
-    top:12px;
-    right:30px;
-    font-size:28px;
+    font-size:26px;
+    width:38px;
+    height:38px;
   }
 
   .profile-card h2{

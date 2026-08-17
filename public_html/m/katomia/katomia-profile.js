@@ -24,24 +24,23 @@ function initKatomiaProfile(){
     el.addEventListener("click", () => openKatomiaProfile())
   )
 
-  /* KBUNDLE-STRIP:kea */
-  // AUTH-LANG1: the menu's 🤖 Execution agent item is a second door to the SAME
-  // modal, landed on the KEA section (expanded + scrolled). One home, two doors —
-  // when KEA graduates to its own page/app this handler just repoints.
-  document.querySelectorAll("[data-menu-kea]").forEach(el =>
-    el.addEventListener("click", async () => {
-      await openKatomiaProfile()
-      const kea = document.getElementById("profileKeaSection")
-      if(!kea) return
-      kea.open = true
-      kea.scrollIntoView({ behavior: "smooth", block: "start" })
-    })
-  )
-  /* /KBUNDLE-STRIP:kea */
+  // (the hamburger's [data-menu-kea] second door was removed 2026-08-17, KATUI3
+  // feedback pass — the admin-gated profile section is KEA's only home now)
 
-  close.onclick = () => modal.classList.add("hidden")
+  // KATUI3 (user 2026-08-17): closing must be INSTANT and honest. The handler was
+  // already synchronous — the reported "takes a while / freezes" is main-thread jank
+  // from WalletConnect operations (ensureNetwork can rebuild the connector) queued
+  // by the profile open. Those are now surfaced in #profileBusy while in flight
+  // (katomia-auth.js kauthBusy); if one is still running when the user closes, say
+  // so once, so background activity doesn't read as a crash.
+  const doClose = () => {
+    modal.classList.add("hidden")
+    if(window.kauthNetBusy?.())
+      notify?.("Still talking to the wallet network in the background — it'll finish on its own.", "info", { timeout: 3500 })
+  }
+  close.onclick = doClose
   modal.onclick = e => {
-    if(e.target === modal) modal.classList.add("hidden")
+    if(e.target === modal) doClose()
   }
 
   if(copyBtn)
@@ -301,19 +300,15 @@ async function copyKatomiaProfileLink(){
 }
 /* /KBUNDLE-STRIP:kea */
 
-function zzzgetKatomiaProfileTitle(){
-  const label = localStorage.getItem("katomiaPlayerName") || ""
-  const id = currentPlayerId || "Player"
-
-  if(label) return `${id}: ${label}`
-  return `👤 ${id}`
-}
-
+// KATUI3 (user 2026-08-17): header shows the assigned player NAME or nothing at all.
+// The old "🔗 Player" was doubly wrong — the 🔗 belongs to the wallet-binding section
+// (the modal outgrew its binding origins), and "Player" was a placeholder posing as
+// content. "anon" is the join default, not an assigned name, so it renders blank too.
 function getKatomiaProfileTitle(){
-  // let label = `🔗 bind`
-  let label = currentPlayerId || "Player"
-  label = `🔗 ${label}`
-  return label
+  let stored = ""
+  try { stored = localStorage.getItem("katomiaPlayerName") || "" } catch {}
+  const name = state?.players?.[currentPlayerId]?.name || stored
+  return (name && name !== "anon") ? name : ""
 }
 
 

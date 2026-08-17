@@ -74,17 +74,11 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
          circles — so it moves behind nerd mode as the raw, unfiltered grid. -->
     <a class="app-menu-item" href="<?= $katomiaBase ?>/circles">⭕ <?= htmlspecialchars($katomiaTerms['Many'], ENT_QUOTES, 'UTF-8') ?></a>
     <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
-    <!-- KBUNDLE-STRIP:kea -->
-    <!-- BUNDLE-STRIP1 (user 2026-08-14): the 🤖 Execution agent item is back in its old
-         spot, but PHP-gated to the admin IPs — launch-excluded features stay reachable
-         on the dev estate from the admin VPN, badged by the admin-disclose block below,
-         and absent from everyone else's DOM. Supersedes ENTRY-MENUKEA1's removal for
-         the dev boxes; production bundles strip this block (and all of KEA) outright. -->
-    <?php if ($katomiaIsAdmin): ?>
-    <button type="button" class="app-menu-item hide-in-proposal" data-menu-kea data-feature="kea"
-            title="Pre-approve a policy and let KEA auto-settle orders your intent key has signed — no per-transaction prompts.">🤖 Execution agent</button>
-    <?php endif; ?>
-    <!-- /KBUNDLE-STRIP:kea -->
+    <!-- NO 🤖 Execution agent menu item (user 2026-08-17, KATUI3 feedback pass):
+         admin-only visibility was correct, but the profile modal's KEA section is now
+         the ONLY door — "keep it in the profile menu and not bother showing it in the
+         hamburger menu". Supersedes BUNDLE-STRIP1's re-add of the menu entry; the
+         admin-gated profile section (profile-modal.php) is unchanged. -->
     <a class="app-menu-item nerd-only" href="<?= $katomiaBase ?>/markets">🏛️ All markets (raw)</a>
     <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
          results — in the main menu rather than behind the admin gate; the pages are
@@ -167,7 +161,9 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
        desyncing them from the JS variables — prime suspect for the layout
        select silently flipping organic→shelves and rearranging every chip. -->
   <form id="boardSettingsPanel" class="board-settings-panel hidden" autocomplete="off" onsubmit="return false">
-    <label class="board-settings-label">
+    <!-- NERD-ONLY since 2026-08-17 (KATUI3 feedback pass): only one skin exists and
+         none are planned soon — a one-item dropdown is noise in normal mode. -->
+    <label class="board-settings-label board-settings-nerd-only">
       Board skin
       <!-- KATOMIA-CONFIG1: option text is the public-facing theme name only
            ("Round Table") — no ring16/mode internals in the label; value="ring16"
@@ -202,12 +198,11 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
       <input type="checkbox" id="boardPrefAutoArrange" title="On: chips shuffle apart so they never overlap. Off: chips stay exactly where you put them and may stack — arrange the board yourself. Either way a chip can't leave its own segment.">
       Auto-arrange chips
     </label>
-    <!-- BOARD-CHATMODE1 (user 2026-08-03): bubbles ⇄ docked message panel. Defaults:
-         phones = panel (bubbles drown a small board), desktop = bubbles (for now). -->
-    <label class="board-settings-label">
-      <input type="checkbox" id="boardPrefChatPanel" title="Show player messages in a docked panel instead of speech bubbles on the board">
-      💬 Message panel
-    </label>
+    <!-- NO 💬 Message panel checkbox (user 2026-08-17, KATUI3 feedback pass): it was an
+         alias for the hamburger's View row (BOARD-VIEWSWITCH1 split view) — the same
+         state reachable two ways. Declutter: the View row is the one control.
+         boardChatMode + the chat-mode machinery are untouched. -->
+    <!-- BOARD-CHATMODE1 (user 2026-08-03) context lives on in the View row wiring. -->
     <!-- BOARD-UISIZE1's Size select MOVED to Profile → Preferences (user
          2026-08-06, IA pass): this panel is scoped to THIS GAME's board, and
          Size is neither — it's a device-wide display preference ("within a
@@ -270,18 +265,11 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
         <option value="dark">🌑 Dark</option>
       </select>
     </label>
-    <!-- BOARD-CHIPDEPTH1 R3 (user 2026-08-06): the ENGRAVED LETTERING is now
-         opt-in, default OFF. It reads well at phone size ("when I zoom in, yes,
-         it's got like a shadow") but on a desktop monitor the same 1px
-         double-shadow at a larger glyph size reads as blur, not depth — the
-         user's own call: "maybe just take it off on desktop… how about we put
-         it on the settings, default off, and I can try it either way, on nerd
-         mode anyway". The chip FACE gradient and the lit/shaded rims are NOT
-         affected — those were liked as-is and stay on for everyone. -->
-    <label class="board-settings-label board-settings-nerd-only">
-      <input type="checkbox" id="boardPrefEmboss" title="Lab: engrave the chip lettering (a 1px light/dark shadow pair, like stamped text). Convincing at phone pixel densities; at desktop sizes the same shadows can read as blur rather than depth.">
-      🧪 Chip emboss
-    </label>
+    <!-- NO 🧪 Chip emboss checkbox (user 2026-08-17, KATUI3 feedback pass): "let's get
+         rid of that. It's default off anyway, but it was causing problems." The whole
+         pref is retired — wiring and the body-class toggle are gone from
+         katomia-board.js too, so a previously-ticked browser reverts to plain.
+         History: BOARD-CHIPDEPTH1 R3 made it opt-in default-off on 2026-08-06. -->
     <!-- BOARD-COUNTERMODE1 (user 2026-08-04): simple is the new default — no
          counter band, partial fungible offers move the decremented remainder
          stack to the rim instead of leaving a ghost. This 🧪 switch restores

@@ -246,6 +246,12 @@ function getFastThumb(url, imgEl){
           img.className = "asset-thumb"
           img.src = getFastThumb(thumb, img)
           img.decoding = "async"
+          // Browsers make <img> natively draggable by default — on desktop that gave
+          // OTHER players' NFT chips an accidental drag (wedges lit as if a drop were
+          // allowed, then nothing landed) while their FT chips had none (user
+          // 2026-08-17, KATUI3 feedback pass). Chip drags opt in at the CHIP level
+          // (el.draggable) and still work with this off.
+          img.draggable = false
 
           img.onerror = () => {
             img.onerror = null   // prevent loop

@@ -10,9 +10,19 @@
 <div id="profileModal" class="profile-modal hidden">
 
   <div class="profile-card">
-    <div id="profileModalClose" class="profile-close">✕</div>
+    <!-- KATUI3 feedback pass (user 2026-08-17): the ✕ rides a sticky zero-height row so
+         it stays reachable however far the card scrolls; #profileBusy sits beside it —
+         katomia-auth.js lights it while wallet/network operations are in flight, so a
+         slow connection reads as "working", not "crashed". -->
+    <div class="profile-stickyrow">
+      <div id="profileBusy" class="profile-busy hidden" role="status"></div>
+      <div id="profileModalClose" class="profile-close" title="Close">✕</div>
+    </div>
 
-    <h2 id="profileTitle">Player</h2>
+    <!-- Title is the player's NAME if one is assigned, otherwise blank (user
+         2026-08-17: the old "🔗 Player" header is gone — the 🔗 belonged to the
+         binding section specifically, not to the modal). -->
+    <h2 id="profileTitle"></h2>
 
     <div id="profileAvatar" class="profile-avatar"></div>
 

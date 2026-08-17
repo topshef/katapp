@@ -55,6 +55,38 @@ window.kauthPruneWcModals = function kauthPruneWcModals(){
 
 function kauthSetStatus(msg){ const el = document.getElementById("authStatus"); if(el) el.textContent = msg || "" }
 
+// ── KATUI3 (user 2026-08-17): make network work VISIBLE ──────────────────────
+// WalletConnect operations (ensureNetwork can rebuild the connector; connect,
+// getAccounts, publish all hit the network) can stall for seconds on a bad
+// connection — which the user experiences as "the modal freezes / takes ages to
+// close" and reads as a crash. Every tracked operation lights the sticky
+// #profileBusy pill (profile-modal.php); past 5s the label admits the connection
+// is slow. window.kauthNetBusy lets the modal's close handler explain any work
+// still running in the background. Counter-based: overlapping ops share one pill.
+let _kauthBusyN = 0, _kauthBusySlowT = null
+function kauthBusy(on, label){
+  _kauthBusyN = Math.max(0, _kauthBusyN + (on ? 1 : -1))
+  const el = document.getElementById("profileBusy")
+  if(!el) return
+  if(_kauthBusyN > 0){
+    if(on) el.textContent = "⏳ " + (label || "Contacting the wallet network…")
+    el.classList.remove("hidden")
+    clearTimeout(_kauthBusySlowT)
+    _kauthBusySlowT = setTimeout(() => {
+      if(_kauthBusyN > 0) el.textContent = "🐢 Slow connection — still trying. Nothing has crashed."
+    }, 5000)
+  } else {
+    clearTimeout(_kauthBusySlowT)
+    _kauthBusySlowT = null
+    el.classList.add("hidden")
+  }
+}
+async function kauthTracked(label, fn){
+  kauthBusy(true, label)
+  try { return await fn() } finally { kauthBusy(false) }
+}
+window.kauthNetBusy = () => _kauthBusyN > 0
+
 // Effective network for the binding flow. In a game the game's network wins (row
 // hidden); outside one (index page — PROFILE-INDEX1) the modal's #authNetwork picker
 // decides, defaulting to its first option (mainnet).
@@ -71,6 +103,9 @@ function kauthNetwork(){
 // it just lists accounts, and only if the connector is already on the game's network.
 async function kauthWCAccounts(network, ensure){
   if(!window.WC) return []
+  return kauthTracked("Checking wallet accounts…", () => kauthWCAccountsInner(network, ensure))
+}
+async function kauthWCAccountsInner(network, ensure){
   if(ensure){
     try { if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network) }
     catch(e){ kauthDiag("ensureNetwork-fail", { network, error: String(e) }) }
@@ -324,9 +359,11 @@ async function kauthOnAccountChange(){
       // render the WalletConnect modal UNDERNEATH the profile modal (invisible to the
       // user). Bump it just before connect — mirrors signer-walletconnect.js.
       document.documentElement.style.setProperty("--wcm-z-index", "2147483000")
-      if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network)
-      window.kauthPruneWcModals()   // drop the stale modal a network-switch rebuild left
-      await window.WC.connect?.()
+      await kauthTracked("Connecting wallet…", async () => {
+        if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network)
+        window.kauthPruneWcModals()   // drop the stale modal a network-switch rebuild left
+        await window.WC.connect?.()
+      })
       kauthDiag("connect:add:done", { network })
     } catch(e){
       kauthDiag("connect:add:error", { error: String(e) })
@@ -553,11 +590,11 @@ async function publishKatomiaAuthEnvelope(envelope){
   const env = envelope || window.__lastAuthEnvelope
   if(!env){ notify?.("Nothing to publish yet", "info", { timeout: 2000 }); return false }
   try {
-    const res = await fetch((window.KBASE||"") + "/hapi.php?action=authenticate", {
+    const res = await kauthTracked("Publishing…", () => fetch((window.KBASE||"") + "/hapi.php?action=authenticate", {
       method: "POST",
       headers: { "content-type": "application/json", "x-player-token": getOrCreatePlayerToken() },
       body: JSON.stringify({ envelope: env })
-    })
+    }))
     const text = await res.text()
     let json; try { json = JSON.parse(text) } catch {}
     if(!res.ok || !json?.ok){
