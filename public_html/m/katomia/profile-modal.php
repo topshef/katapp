@@ -95,7 +95,9 @@
         <!-- ── Commitment — the optional upgrade rung (Mock A fold) ──
              LAUNCH-PRUNE CANDIDATE (user 2026-08-17): "we might prune it" — the
              user-facing commitment extras (chosen expiry/scope/publish, reputation
-             framing) lean mostly on ORDER MODE (ORDER-AUTHBADGE*) and the KEA flow;
+             framing) lean mostly on ORDER MODE (ORDER-AUTHBADGE*) and the auto-settle
+             agent flow (see the tagged section below — T:KSTRIP-01 keeps its name out
+             of untagged prose like this);
              proposal mode consumes the intent-key BINDING, which a plain
              authentication also creates (same challenge shape, same store). If order
              mode stays hidden at launch, this fold can be feature-flagged off without
