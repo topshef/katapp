@@ -28,6 +28,13 @@ $product = isset($_GET['product']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET[
 
   <script>
     window.CONFIG = { HAPI_BASE: "<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>" }
+    // GCP feedback 2026-08-13 ("click to open form goes back to form already sent"):
+    // returning here via back/forward restores this page from bfcache with the OLD
+    // DOM — the auto-open never re-runs and the visitor sees the spent form. On a
+    // bfcache restore, open a fresh modal (openModal rebuilds from scratch).
+    addEventListener('pageshow', e => {
+      if(e.persisted && window.KFeedbackWidget) window.KFeedbackWidget.open()
+    })
   </script>
   <!-- KPAD-SELFFEED1: served from the backend (its canonical home) — no local copy -->
   <script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"

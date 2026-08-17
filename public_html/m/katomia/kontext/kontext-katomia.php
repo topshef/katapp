@@ -14,7 +14,9 @@ $sources=[
 // 'backend js'=>['/home/hbarlive_hts/web*.js'],
 'backend js'=>['/home/hbarlive_hts/{kat,kpool,deal,websocket}*.js'],
 // 'kbot'=>['/home/hbarlive_hts/kbot/swarms/*.js'],  //nope - just zip it
+/* KBUNDLE-STRIP:kea */
 'KEA webapp'=>["/var/www/$domain/public_html/m/katomia/KEA/*.{html,js,css}"],
+/* /KBUNDLE-STRIP:kea */
 'frontend katomia'=>["/var/www/$domain/public_html/m/katomia/*.{html,js,css,php}"],
 'frontend kpay widget'=>["/var/www/$domain/public_html/vendor/kpay/kpool_widget/*.{html,js,css,php}"],
 'og signing page'=>["/var/www/$domain/public_html/future/*.{html,js,css,php}"],

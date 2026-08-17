@@ -33,9 +33,23 @@ set -a; source /opt/kwallet/.env; set +a
 STATE=$(curl -s "http://127.0.0.1:8790/api/state?token=$KWALLET_TOKEN")
 if [ -z "$STATE" ]; then echo "kwallet not answering on 8790 — skipping"; exit 0; fi
 MODE=$(echo "$STATE"    | python3 -c "import json,sys;print(json.load(sys.stdin)['mode'])" 2>/dev/null || echo manual)
-PENDING=$(echo "$STATE" | python3 -c "import json,sys;print(len(json.load(sys.stdin)['pending']))" 2>/dev/null || echo 0)
-if [ "$PENDING" != "0" ]; then
-  echo "kwallet has $PENDING pending item(s) — skipping this run (don't interrupt a human)."
+# STALE-PENDING FIX (2026-08-16): this script missed the 2026-08-08 fix the other
+# three crons got, and the same trap bit again — a 2-day-old abandoned pairing
+# proposal muted WC-A5-ONLINE + WC-A5B-GHOST for two nights (skipped 08-15, 08-16;
+# kwallet.html showed them SILENT). Only RECENT pending items count as "a human is
+# mid-approval"; stale ones are reported loudly and ignored, never auto-rejected.
+STALE_MIN="${STALE_MIN:-30}"
+read -r PENDING FRESH STALE <<<"$(echo "$STATE" | STALE_MIN="$STALE_MIN" python3 -c "
+import json,sys,time,os
+p=json.load(sys.stdin).get('pending',[])
+cut=time.time()*1000-float(os.environ['STALE_MIN'])*60000
+fresh=[x for x in p if x.get('createdAt',0)>=cut]
+print(len(p),len(fresh),len(p)-len(fresh))")"
+if [ "$STALE" != "0" ]; then
+  echo "WARNING: kwallet holds $STALE pending item(s) older than ${STALE_MIN}m — abandoned by a previous failed run. NOT skipping for those."
+fi
+if [ "$FRESH" != "0" ]; then
+  echo "kwallet has $FRESH recent pending item(s) — skipping this run (don't interrupt a human)."
   exit 0
 fi
 

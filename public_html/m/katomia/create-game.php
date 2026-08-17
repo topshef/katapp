@@ -263,8 +263,24 @@ h3{
 		<input id="admin" placeholder="Hedera account / public key">
 		<div class="explain">
 			Hedera account or public key. Leave blank to prevent game edit or deletion.
-		</div>    
+		</div>
 
+	</div>
+
+	<!-- CHAT-WELCOME1 (user feedback 9a79276d, 2026-08-08): "when a player joins a circle
+	     they might not know what to do ... the Welcome message might be a part of the game
+	     configuration". adv-only, like every other organizer knob — the basic skin stays
+	     fixed to happy-path defaults by design (ENTRY-CREATEBASIC1). Blank = the platform
+	     default; the greeting is addressed to the joining player only, not broadcast. -->
+	<div class="field adv-only">
+		<div class="explain">
+			Welcome message (optional)
+		</div>
+		<input id="welcomeMessage" placeholder="Welcome to my circle — say hello!">
+		<div class="explain">
+			Shown once to each player as they join, from Katomia, visible only to them.
+			Leave blank for the default greeting.
+		</div>
 	</div>
 
 	<!-- GAME-ORPHAN1 / KAT-IDLE1 (user 2026-08-07): the eviction timeout was a backend
@@ -398,6 +414,37 @@ function updateExplain(){
   visibilityExplain.textContent  = explain.visibility[getRadio("visibility")]
   lockExplain.textContent        = explain.lock[getRadio("lockRule")]
   tradingModeExplain.textContent = explain.tradingMode[getRadio("tradingMode")]
+
+  // GCP feedback 2026-08-13: "Private visibility option makes no sense without
+  // joining rule" — the basic skin hides the joinRule field, so Private there is a
+  // door with no lock. When Private is picked on the basic form, offer the full
+  // form (name/network/visibility carried over via query, prefilled below).
+  if(document.querySelector(".form").classList.contains("skin-basic")){
+    let a = document.getElementById("visibilityFullFormLink")
+    if(getRadio("visibility") === "private"){
+      if(!a){
+        a = document.createElement("a")
+        a.id = "visibilityFullFormLink"
+        a.style.display = "block"
+        a.style.marginTop = "6px"
+        visibilityExplain.after(a)
+      }
+      const qs = new URLSearchParams({ visibility: "private", name: gameName.value || "", network: getRadio("network") })
+      a.href = "create?" + qs
+      a.textContent = "Private needs a joining rule — set one on the full form →"
+    } else if(a) a.remove()
+  }
+}
+
+// Prefill from query params (the basic→full handoff above; harmless direct-links too)
+{
+  const qs = new URLSearchParams(location.search)
+  if(qs.get("name")) gameName.value = qs.get("name")
+  for(const f of ["network", "visibility"]){
+    const v = qs.get(f)
+    const el = v && document.querySelector(`input[name=${f}][value="${v}"]`)
+    if(el) el.checked = true
+  }
 }
 
 document.querySelectorAll("input[name=network]").forEach(el => el.onchange = updateExplain)
@@ -438,11 +485,20 @@ const payload = {
     // states the rule outright rather than relying on the backend's `?? 1` fallback.
     idleAccountHours: Number(document.getElementById("idleAccountHours")?.value ?? 1),
     // BOARD-PLAYERCOLOR1: named player-colour pack; omitted = backend default palette
-    ...(document.getElementById("gameTheme")?.value ? { palette: document.getElementById("gameTheme").value } : {})
+    ...(document.getElementById("gameTheme")?.value ? { palette: document.getElementById("gameTheme").value } : {}),
+    // CHAT-WELCOME1: only sent when the organizer actually typed one. Omitted (not "")
+    // when blank, because the backend treats an explicit empty string as "greet nobody"
+    // — sending "" from an untouched field would silently disable the default greeting.
+    ...(document.getElementById("welcomeMessage")?.value.trim()
+        ? { welcomeMessage: document.getElementById("welcomeMessage").value.trim() } : {})
   },
 
 }
 
+// Belt to the load-handler's braces: if the field is still blank (load handler raced, or
+// the key mint was slow) fill it NOW, before the circle exists. A circle created with no
+// adminAccount can never be edited or deleted by anyone — worth one await to avoid.
+await defaultAdminAccount()
 const adminValue = admin.value.trim()
 if(adminValue) payload.adminAccount = adminValue
 
@@ -466,6 +522,23 @@ return
 
 const id = data.gameId || data.game?.id
 
+// CIRCLE-HOSTPAGE1 (2026-08-08): remember what we created so the Host page can list it.
+// Needed because /games only returns PUBLIC circles — an unlisted one would otherwise be
+// invisible to its own owner. The alternative (a backend "circles by admin key" lookup)
+// would let anyone holding a public circle's admin key enumerate that admin's UNLISTED
+// circles, which defeats the point of unlisted. This costs nothing in privacy: the intent
+// key IS the admin credential and lives in the same localStorage, so losing one already
+// means losing the other. The Host page re-checks every remembered id against the backend
+// before trusting it — this list is a hint, never an authority.
+try {
+  const seen = JSON.parse(localStorage.getItem("katomiaMyCircles") || "[]")
+  if(id && !seen.includes(id)){
+    seen.push(id)
+    // keep it bounded; oldest out first
+    localStorage.setItem("katomiaMyCircles", JSON.stringify(seen.slice(-200)))
+  }
+} catch(e){ /* private mode / quota — the page still works, the circle just isn't remembered */ }
+
 status.textContent = "Game created. Redirecting..."
 
 // ENTRY-CREATEBASIC1: the basic flow lands on the BOARD (the default view) with
@@ -485,12 +558,32 @@ status.textContent = "Error creating game"
 
 
 
-function defaultAdminAccount(){
+// CIRCLE-HOSTPAGE1 fix (2026-08-08): this used to READ localStorage and give up when no
+// keypair existed yet — so on a genuinely fresh browser (no keypair minted, which is the
+// case for anyone creating their FIRST circle) the admin field stayed blank and the
+// circle was created with adminAccount:null. A circle with no admin can never be edited
+// or deleted BY ANYONE, ever: verifyAdminAction refuses it with "game has no admin
+// identifier". Found while testing the host page — a first-time host's first circle was
+// silently unownable, which is the worst case rather than an edge case.
+//
+// getOrCreatePlayerKeypair() MINTS one if absent (same helper the profile, ordering and
+// delete paths already use, so this creates nothing new — it just stops being the only
+// caller that refused to). Async, hence the awaited call at the bottom of this script.
+async function defaultAdminAccount(){
   const el = document.getElementById("admin")
   if(!el || el.value.trim()) return
 
-  const pubkey = getLocalOrderPubkeyHex()
-  if(pubkey) el.value = pubkey
+  try {
+    const { publicKeyJwk } = await getOrCreatePlayerKeypair()
+    const pubkey = jwkXToHex(publicKeyJwk?.x)
+    if(pubkey) el.value = pubkey
+  } catch(err){
+    // Fall back to the old read-only path rather than blocking the form. If this also
+    // yields nothing the user can still type an admin key in by hand.
+    console.warn("[create] could not mint an intent key for the admin field", err)
+    const pubkey = getLocalOrderPubkeyHex()
+    if(pubkey) el.value = pubkey
+  }
 }
 
 function getLocalOrderPubkeyHex(){
@@ -508,7 +601,10 @@ function jwkXToHex(x){
   return [...bin].map(c => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
 }
 
-defaultAdminAccount()
+// Deferred to load: katomia-core.js (which defines getOrCreatePlayerKeypair) is included
+// BELOW this inline script, so calling it here at parse time would hit a ReferenceError —
+// which is precisely why the original read localStorage directly and silently gave up.
+window.addEventListener("load", () => { defaultAdminAccount() })
 
 
 </script>
@@ -542,5 +638,10 @@ defaultAdminAccount()
 		})
 </script>
 
+<!-- GCP feedback 2026-08-13: widget in place so Send feedback never navigates away
+     (see circles.php note). data-screenshot off per KAT-FEEDSHOT-BROKEN1. -->
+<script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
+        data-product="katomia-create"
+        data-screenshot="0"></script>
 </body>
 </html>

@@ -28,12 +28,16 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
   body { margin: 0; padding: 16px; box-sizing: border-box; }
   .app-banner { width: auto; margin: -16px -16px 12px -16px; position: relative; }
 
+  /* KBUNDLE-STRIP:kea */
   /* ENTRY-KEANERD1 (user 2026-07-29): KEA affordances are nerd-mode-only for the
      closed alpha — non-nerd users never see the Execution agent (menu item + profile
      section, both tagged data-feature="kea"). Deliberately overrides the earlier
      "nerd mode shouldn't gate features" stance: it's a noise-gate for now, cheap to
      revert. KATOMIA_FEATURES.kea stays the hard off-switch underneath. */
-  body:not(.nerd) [data-feature="kea"] { display: none !important; }
+  /* :not(.kadmin) — BUNDLE-STRIP1: admin disclosure overrides the nerd gate; the
+     admin-disclose block below badges what it reveals. */
+  body:not(.nerd):not(.kadmin) [data-feature="kea"] { display: none !important; }
+  /* /KBUNDLE-STRIP:kea */
 
   /* Generic hook for future nerd-only menu items (the dark-mode toggle used to be one;
      it now lives solely on the welcome theme-test row — ENTRY-DARKMODE1 R2). */
@@ -59,9 +63,7 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
 
   <!-- MENU-TIDY1 (user 2026-07-07): the menu holds DESTINATIONS only. Removed:
        "Create market" (a button on the Markets page — contextual, not navigation)
-       and "Nerd mode" (a preference — lives in Profile → Preferences & diagnostics).
-       The KEA entry (AUTH-LANG1 second door to the modal's collapsed section) stays
-       while the kea feature flag is on; it disappears wholesale at release. -->
+       and "Nerd mode" (a preference — lives in Profile → Preferences & diagnostics). -->
   <nav id="appMenu" class="app-menu hidden">
     <!-- ENTRY-DEFAULTROOT1 (user 2026-07-29): Home first — always a way back to the
          welcome page (which is now the default root); Markets moved to /markets. -->
@@ -72,15 +74,23 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
          circles — so it moves behind nerd mode as the raw, unfiltered grid. -->
     <a class="app-menu-item" href="<?= $katomiaBase ?>/circles">⭕ <?= htmlspecialchars($katomiaTerms['Many'], ENT_QUOTES, 'UTF-8') ?></a>
     <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
+    <!-- KBUNDLE-STRIP:kea -->
+    <!-- BUNDLE-STRIP1 (user 2026-08-14): the 🤖 Execution agent item is back in its old
+         spot, but PHP-gated to the admin IPs — launch-excluded features stay reachable
+         on the dev estate from the admin VPN, badged by the admin-disclose block below,
+         and absent from everyone else's DOM. Supersedes ENTRY-MENUKEA1's removal for
+         the dev boxes; production bundles strip this block (and all of KEA) outright. -->
+    <?php if ($katomiaIsAdmin): ?>
+    <button type="button" class="app-menu-item hide-in-proposal" data-menu-kea data-feature="kea"
+            title="Pre-approve a policy and let KEA auto-settle orders your intent key has signed — no per-transaction prompts.">🤖 Execution agent</button>
+    <?php endif; ?>
+    <!-- /KBUNDLE-STRIP:kea -->
     <a class="app-menu-item nerd-only" href="<?= $katomiaBase ?>/markets">🏛️ All markets (raw)</a>
     <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
          results — in the main menu rather than behind the admin gate; the pages are
          effectively public anyway. If parts of QA later need gating, do a split pass
          (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
     <a class="app-menu-item nerd-only" href="<?= $katomiaBase ?>/qa/" target="_blank" rel="noopener">🧪 QA</a>
-    <!-- ENTRY-MENUKEA1 (user 2026-07-29): the 🤖 Execution agent menu item is GONE from
-         the hamburger — not used for a while, and the profile section (still nerd-gated,
-         data-feature=kea) remains the one door. Declutter; reposition another time. -->
     <!-- ENTRY-DARKMODE1 R2 (user 2026-07-29): the dark-mode toggle is NOT in this menu —
          it belongs only to the welcome page's nerd-mode theme-test row (landing.php),
          since that's the one place it's actually useful. The engine (window.kdarkToggle,
@@ -117,6 +127,19 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
       </button>
     </div>
     <button type="button" class="app-menu-item" data-menu-settings>⚙ Settings</button>
+    <?php endif; ?>
+    <?php if ($katomiaGameId): ?>
+    <!-- CIRCLE-HOSTPAGE1 R2 (user 2026-08-08, revising the previous global entry): "when
+         you are in a game, let's have the host menu only available ... if you are the
+         host, then the hamburger can show host options. But if you're not the host of
+         that game, don't show that option." So this is the ONLY route into the host
+         console from the UI, it is game-scoped, and it deep-links to this circle.
+         Rendered hidden and revealed by the script below — host-ness is a client-side
+         key comparison, so PHP cannot know it. Failing closed (hidden) is the right
+         default: a non-host who never sees it loses nothing, and the page + backend
+         both re-check ownership anyway. -->
+    <a class="app-menu-item" id="katomiaHostOptions" hidden
+       href="<?= $katomiaBase ?>/host?game=<?= rawurlencode($katomiaGameId) ?>">🎪 Host options</a>
     <?php endif; ?>
     <!-- KAT-FEEDBACK1-ENTRYPOINT1: explicit route to the feedback modal for users who
          don't know the long-press (falls back to the standalone page if the widget
@@ -294,6 +317,35 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
   <?php endif; ?>
 </div>
 
+<?php /* KBUNDLE-STRIP:admin-disclose */ if ($katomiaIsAdmin): ?>
+<!-- BUNDLE-STRIP1: admin disclosure — on the dev estate, launch-excluded features
+     (KATOMIA_FEATURES flags that ship off) stay visible from the admin IPs only,
+     unmistakably badged so they can't be mistaken for launch surface. Server-side,
+     per request: off the VPN, the next page load hides them again. Production
+     bundles strip this whole block AND the feature code itself (STRIP_FEATURES in
+     ops/build-standalone.sh), so neither survives into the served artifact. -->
+<style>
+  body.kadmin .kadmin-disclosed{ outline:2px dashed #f90; outline-offset:2px; }
+  .kadmin-chip{ font:600 10px/1 system-ui,sans-serif; background:#f90; color:#fff;
+    border-radius:6px; padding:2px 5px; margin-left:6px; vertical-align:middle; }
+</style>
+<script>
+// Runs BEFORE the feature-flags default below — Object.assign there keeps this pre-set.
+window.KATOMIA_FEATURES = Object.assign({}, window.KATOMIA_FEATURES, { kea: true })
+window.KATOMIA_ADMIN_DISCLOSED = ["kea"]
+document.body.classList.add("kadmin")
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("[data-feature]").forEach(el => {
+    if(!window.KATOMIA_ADMIN_DISCLOSED.includes(el.dataset.feature)) return
+    el.classList.add("kadmin-disclosed")
+    const chip = Object.assign(document.createElement("span"), { className: "kadmin-chip",
+      textContent: "🛠 admin", title: "Visible only from the admin VPN — stripped from production bundles entirely (BUNDLE-STRIP1)." })
+    ;(el.querySelector("summary") || el).appendChild(chip)
+  })
+})
+</script>
+<?php endif; /* /KBUNDLE-STRIP:admin-disclose */ ?>
+
 <script>
 // BOARD-UISIZE1: apply the Size preference (Small/Normal/Large) as an html
 // class as early as the header runs, so --ui-scale surfaces don't flash at
@@ -302,12 +354,18 @@ try {
   var _ks = localStorage.getItem("katomiaUiSize")
   document.documentElement.classList.add("ksize-" + (["small","normal","large"].indexOf(_ks) >= 0 ? _ks : "normal"))
 } catch(e){ document.documentElement.classList.add("ksize-normal") }
-// Feature flags (AUTH-LANG1 note, 2026-07-06): KEA will NOT be user-visible in the
-// first release — every KEA affordance is tagged data-feature="kea" and hidden
-// wholesale when the flag is off. Flip here (or pre-set window.KATOMIA_FEATURES
-// before this script) — no other code changes needed. Longer term the KEA code
-// should also be excludable from the bundle (BUNDLE1).
-window.KATOMIA_FEATURES = Object.assign({ kea: true }, window.KATOMIA_FEATURES || {})
+// Feature flags (AUTH-LANG1 note, 2026-07-06): a launch-excluded feature's every
+// affordance is tagged data-feature="<name>" and hidden wholesale when its flag is
+// off. Flip here (or pre-set window.KATOMIA_FEATURES before this script) — no other
+// code changes needed. Per-feature defaults are individually wrapped so a
+// production build can ship without the code or the flag (BUNDLE-STRIP1).
+window.KATOMIA_FEATURES = Object.assign({
+  /* KBUNDLE-STRIP:kea */
+  // kea OFF (user 2026-08-13): Execution agent is out for the alpha launch; on the
+  // dev estate the admin-disclose block above pre-sets it true for admin IPs.
+  kea: false,
+  /* /KBUNDLE-STRIP:kea */
+}, window.KATOMIA_FEATURES || {})
 document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-feature]").forEach(el => {
     if(window.KATOMIA_FEATURES[el.dataset.feature] === false) el.style.display = "none"
@@ -398,5 +456,168 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("click", e => {
     if(!menu.classList.contains("hidden") && !menu.contains(e.target)) setOpen(false)
   })
+
+  // HEADER-UNIFY2 (user 2026-08-13): pin the ☰ top-right once the banner scrolls out —
+  // threshold is the banner's real bottom edge, not a magic number, so any banner
+  // height (wrapped title, future rows) works. Pages that never scroll never stick.
+  const banner = document.querySelector(".app-banner")
+  const stuck = () => document.body.classList.toggle("hdr-stuck",
+    banner ? banner.getBoundingClientRect().bottom <= 0 : window.scrollY > 72)
+  addEventListener("scroll", stuck, { passive: true })
+  stuck()
 })()
 </script>
+
+<script>
+// ── kdebug overlay (lab1 seat note, 2026-08-13): the KATOMIA header crop + chat-dock
+// first-row clip reproduce on the user's device but not in headless probes, so the
+// diagnosis has to happen ON the device. Add ?kdebug to any page URL (or set
+// localStorage.katomiaDebug=1) to outline the header and chat-dock boxes and float a
+// live metrics readout the user can screenshot. Outline (not border) so nothing moves.
+// Tap the readout to dismiss. Zero cost when not enabled — remove once the crop is fixed.
+(() => {
+  let on = /[?&]kdebug\b/.test(location.search)
+  try { on = on || localStorage.getItem("katomiaDebug") === "1" } catch(e){}
+  if(!on) return
+
+  const style = document.createElement("style")
+  style.textContent = `
+    .app-banner{ outline:2px solid #e02020 !important; outline-offset:-2px; }
+    .app-banner-inner{ outline:2px dashed #f08c00 !important; }
+    .app-banner h2{ outline:2px solid #c2a500 !important; }
+    .app-title{ outline:2px dashed #0a8a2a !important; background:rgba(40,200,90,.12) !important; }
+    .app-icons{ outline:2px dotted #0a8a8a !important; }
+    .kchat-dock{ outline:2px solid #e02020 !important; outline-offset:-2px; }
+    .kchat-drag{ outline:2px solid #f08c00 !important; background:rgba(240,140,0,.15) !important; }
+    .kchat-dock-list{ outline:2px solid #2050e0 !important; }
+    .kchat-dock-list .kchat-row:first-child{ outline:2px dashed #8020c0 !important; }
+    .kchat-send{ outline:2px solid #0a8a2a !important; }
+    #kdebugReadout{ position:fixed; top:130px; left:4px; z-index:9999; max-width:75vw;
+      font:10px/1.5 monospace; background:rgba(0,0,0,.78); color:#9f9;
+      padding:6px 8px; border-radius:6px; white-space:pre-wrap; pointer-events:auto; }
+  `
+  document.head.appendChild(style)
+
+  const box = document.createElement("div")
+  box.id = "kdebugReadout"
+  const txt = document.createElement("div")
+  txt.onclick = () => box.remove()
+  box.appendChild(txt)
+
+  // 🧟 Ghost-maker (user 2026-08-13, WC-RELAYHEALTH1): manufacture the lab1 ghost-session
+  // state ON DEMAND — the deterministic repro for "wallet opens, no signing request".
+  // Mechanism: snapshot the page's wc@2:* session storage, do a POLITE disconnect (the
+  // wallet is notified and genuinely forgets), then restore the snapshot and reload —
+  // page remembers a session the wallet no longer has. One tap replaces the fragile
+  // clear-in-wallet-while-offline choreography.
+  const ghost = document.createElement("button")
+  ghost.textContent = "🧟 Ghost wallet link"
+  ghost.style.cssText = "display:block;margin-top:6px;font:11px monospace;padding:5px 9px;border-radius:5px;border:1px solid #6c6;background:#233;color:#9f9"
+  ghost.onclick = async ev => {
+    ev.stopPropagation()
+    try {
+      if(!window.WC?.disconnect){ ghost.textContent = "WC not loaded yet — try again"; return }
+      const keys = Object.keys(localStorage).filter(k => k.startsWith("wc@2:"))
+      if(!keys.length){ ghost.textContent = "no stored session — Connect first, then ghost"; return }
+      const snap = {}
+      keys.forEach(k => { snap[k] = localStorage.getItem(k) })
+      ghost.textContent = "disconnecting (wallet forgets)…"
+      await window.WC.disconnect()
+      Object.entries(snap).forEach(([k, v]) => localStorage.setItem(k, v))
+      ghost.textContent = "👻 ghost armed — reloading"
+      setTimeout(() => location.reload(), 800)
+    } catch(e){ ghost.textContent = ("ghost failed: " + e).slice(0, 70) }
+  }
+  box.appendChild(ghost)
+
+  // 🔄 Page-side reset (user 2026-08-13): the bundle's own resetWalletLink — wipe this
+  // ORIGIN's wc@2:* storage, forced fresh pairing on next Connect. The one-tap unwedge
+  // for any stuck link: never touches the wallet app. Falls back to deleting the keys
+  // directly if the API isn't up yet.
+  const reset = document.createElement("button")
+  reset.textContent = "🔄 Reset wallet link (page side)"
+  reset.style.cssText = ghost.style.cssText
+  reset.onclick = async ev => {
+    ev.stopPropagation()
+    try {
+      reset.textContent = "resetting…"
+      if(window.WC?.resetWalletLink) await window.WC.resetWalletLink()
+      else Object.keys(localStorage).filter(k => k.startsWith("wc@2:")).forEach(k => localStorage.removeItem(k))
+      reset.textContent = "reset — reloading (then Connect fresh)"
+      setTimeout(() => location.reload(), 800)
+    } catch(e){ reset.textContent = ("reset failed: " + e).slice(0, 70) }
+  }
+  box.appendChild(reset)
+  const r = el => { if(!el) return null; const b = el.getBoundingClientRect(); return `${Math.round(b.width)}x${Math.round(b.height)}@${Math.round(b.left)},${Math.round(b.top)}` }
+  const upd = () => {
+    const t = document.querySelector(".app-title"), h2 = document.querySelector(".app-banner h2"),
+          ban = document.querySelector(".app-banner"), dock = document.getElementById("boardChatDock"),
+          list = dock && dock.querySelector(".kchat-dock-list"),
+          row1 = list && list.querySelector(".kchat-row")
+    const cs = t && getComputedStyle(t)
+    let poppins = "?"
+    try { poppins = document.fonts.check('800 42px Poppins') ? "yes" : "NO" } catch(e){}
+    const lines = [
+      "kdebug " + innerWidth + "x" + innerHeight + " dpr" + devicePixelRatio,
+      t ? `title ${r(t)} font=${cs.fontSize}/${cs.lineHeight} ${cs.fontFamily.split(",")[0]} poppins-loaded=${poppins}` : "title: none",
+      h2 ? `h2 ${r(h2)} banner ${r(ban)}` : "",
+      t && ban ? `title-vs-banner top∆=${Math.round(t.getBoundingClientRect().top - ban.getBoundingClientRect().top)} bot∆=${Math.round(ban.getBoundingClientRect().bottom - t.getBoundingClientRect().bottom)}` : "",
+      dock ? `dock ${r(dock)} clear-b=${getComputedStyle(document.documentElement).getPropertyValue("--kchat-clear-b") || "unset"}` : "dock: none",
+      list ? `list ${r(list)} scrollH=${list.scrollHeight} clientH=${list.clientHeight} scrollTop=${Math.round(list.scrollTop)} rows=${list.querySelectorAll(".kchat-row").length}` : "",
+      row1 ? `row1 ${r(row1)} clipped-top=${row1.getBoundingClientRect().top < list.getBoundingClientRect().top - 0.5}` : "",
+      `wc@2 keys=${(() => { try { return Object.keys(localStorage).filter(k => k.startsWith("wc@2:")).length } catch(e){ return "?" } })()} WC=${window.WC ? "up" : "absent"}`,
+    ].filter(Boolean)
+    txt.textContent = lines.join("\n")
+  }
+  const start = () => { document.body.appendChild(box); upd(); setInterval(upd, 1000) }
+  document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", start) : start()
+})()
+</script>
+
+<?php if ($katomiaGameId): ?>
+<script>
+// ── CIRCLE-HOSTPAGE1 R2: reveal "🎪 Host options" only to this circle's host ─────────
+// Host-ness is a comparison between the circle's admin identifier and a key held in
+// THIS browser's localStorage, so the server cannot render this decision — the item ships
+// hidden and is revealed here, or never.
+//
+// TWO SOURCES, because neither covers every case on its own:
+//   gameMeta  — set from the WS payload (katomia-network.js) and carries meta.admin.
+//               The ONLY source that works for a PRIVATE circle, but it arrives async,
+//               hence the short poll rather than a single read.
+//   /hapi/game — works on any page with no websocket (game.php), for public + unlisted.
+//               Returns 403 for private, which is exactly the gap gameMeta closes.
+// Either saying "you're the host" is enough. Neither answering leaves it hidden, which is
+// the safe direction: the host page and the backend both re-check ownership regardless,
+// so a false negative costs discoverability, never access.
+(() => {
+  const item = document.getElementById("katomiaHostOptions")
+  if(!item) return
+  const gameId = <?= json_encode($katomiaGameId, JSON_UNESCAPED_SLASHES) ?>;
+
+  const reveal = () => { item.hidden = false }
+  const mine = () => (typeof katomiaMyIntentKeyHex === "function" ? katomiaMyIntentKeyHex() : "")
+  const isHost = g => (typeof katomiaIsHostOf === "function" ? katomiaIsHostOf(g, mine()) : false)
+
+  window.addEventListener("load", () => {
+    if(!mine()) return                       // no key in this browser: owns nothing
+
+    // A: poll for the WS meta (covers private circles). ~6s at 400ms, then give up —
+    // if the socket hasn't delivered by then the page has bigger problems than a menu.
+    let tries = 0
+    const t = setInterval(() => {
+      const meta = (typeof gameMeta !== "undefined") ? gameMeta : null
+      if(meta && isHost(meta)){ clearInterval(t); reveal(); return }
+      if(++tries > 15) clearInterval(t)
+    }, 400)
+
+    // B: API check in parallel (covers pages with no socket)
+    fetch("<?= $katomiaBase ?>/hapi/game/" + encodeURIComponent(gameId))
+      .then(r => r.json())
+      .then(d => { if(d?.ok && isHost(d.game)){ clearInterval(t); reveal() } })
+      .catch(() => {})
+  })
+})()
+</script>
+<?php endif; ?>
+

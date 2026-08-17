@@ -32,6 +32,14 @@ if ($page == 'learn') {
 	exit;
 }
 
+// CIRCLE-HOSTPAGE1 (user 2026-08-08): the host console — pick a circle you own and edit
+// it. Also the "become a host" call to action, hence the menu entry: with no circles it
+// shows the create CTA rather than an empty list.
+if ($page == 'host') {
+	require_once("host.php");
+	exit;
+}
+
 
 $gameId = $_GET['game'] ?? false;
 if ($gameId) {

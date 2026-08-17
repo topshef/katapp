@@ -236,6 +236,12 @@ fsToggle.onclick = () => {
   else gridWrap.requestFullscreen?.()
 }
 document.addEventListener("fullscreenchange", syncFsLabel)
+// ── grid auto-scroll (user 2026-08-16): the commit timeline grows rightward, so
+// the interesting edge is the far RIGHT (latest runs) — land there on load
+// instead of making the user drag across weeks of history every visit. On the
+// 20s refresh, stay pinned to the newest column only if the user was already at
+// (or near) that edge; never yank them back while they're reading history. ────
+let firstGridRender = true
 
 // ── run-detail modal ──────────────────────────────────────────────────────────
 const SEVG = { sand: "⏳ sand", stone: "🪨 stone", rock: "⛏ rock" }
@@ -363,6 +369,7 @@ async function refresh(){
       d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
   }
   const cases = [...new Set(rows.map(r => r.instance))].sort()
+  const nearRight = gridWrap.scrollLeft >= gridWrap.scrollWidth - gridWrap.clientWidth - 40
   const grid = $("#grid")
   grid.innerHTML = "<tr><th>case \\ commit</th>" + commits.map(c =>
     `<th${c === COMMIT ? ' style="background:#e8f0e8"' : ""}><code>${esc(c)}</code><br><span class="note">${esc(fmtCommitTime(c))}</span>${c === COMMIT ? "<br><span class='note'>current</span>" : ""}</th>`).join("") + "</tr>"
@@ -379,6 +386,8 @@ async function refresh(){
   }
   if(!cases.length) grid.innerHTML = "<tr><td class='note'>No runs recorded yet — record one above and it appears here.</td></tr>"
   grid.querySelectorAll("td[data-run]").forEach(td => td.onclick = () => openRun(td.dataset.run))
+  if(firstGridRender || nearRight) gridWrap.scrollLeft = gridWrap.scrollWidth
+  firstGridRender = false
 
   const recent = $("#recent")
   recent.innerHTML = "<tr><th>When</th><th>Case</th><th>Verdict</th><th>Source</th><th>Commit</th><th>Notes</th></tr>" +

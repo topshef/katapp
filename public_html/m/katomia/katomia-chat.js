@@ -224,6 +224,54 @@
     };
   }
 
+  // Shared send-box wiring (GCP feedback 2026-08-08, messages-view parity): the split
+  // dock and the full-screen messages view carry the SAME .kchat-send form; both are
+  // wired here so send behaviour (and CHAT-COMMITGATE1 recovery) can't drift apart.
+  function wireChatSend(form) {
+    if (!form || form._kwired) return;
+    form._kwired = true;
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var inp = form.querySelector("input");
+      var text = (inp.value || "").trim();
+      if (!text) return;
+      var gid = (typeof gameId !== "undefined" && gameId) || (typeof getGameId === "function" ? getGameId() : null);
+      var sk = (typeof socket !== "undefined" && socket) || null;
+      if (!gid || !sk || sk.readyState !== 1) return;
+      window.__kchatLastSent = { text: text, ts: Date.now() };   // CHAT-COMMITGATE1: recoverable on refusal
+      sk.send(JSON.stringify({ type: "game_chat", gameId: gid, text: text }));
+      inp.value = "";
+    });
+  }
+  // the full-screen view's form is static markup (board.php) — wire it now if present
+  wireChatSend(document.querySelector("#boardChatFull .kchat-send"));
+
+  // First-screen fit (lab1 seat 2026-08-13, chat first-row clip): with no user-chosen
+  // split, the 3-line welcome message overflows the ~120px default dock by a few px and
+  // bottom-anchoring slices its top line mid-glyph — on the opening screen that reads
+  // as a rendering bug, not a scrolled chat. Once, at the first non-empty render, grow
+  // the dock just enough to fit the opening rows (≤3 — a longer history IS a scrolled
+  // chat and keeps the default) up to the drag limits. A user-dragged split (saved)
+  // always wins; autoFitB feeds syncDock so later passes don't fight the fit.
+  var autoFitB = 0, autoFitDone = false;
+  function autoFitDock() {
+    if (autoFitDone) return;
+    var d = document.getElementById("boardChatDock");
+    var list = d && !d.classList.contains("kchat-dock--side") && d.querySelector(".kchat-dock-list");
+    if (!list) return;
+    var rows = list.querySelectorAll(".kchat-row").length;
+    if (!rows) return;
+    autoFitDone = true;
+    var saved = 0;
+    try { saved = +(localStorage.getItem("katomiaChatSplit") || 0); } catch (e) {}
+    if (saved || rows > 3) return;
+    var overflow = list.scrollHeight - list.clientHeight;
+    if (overflow <= 0) return;
+    var cur = d.getBoundingClientRect().height;
+    autoFitB = Math.min(dockLimits().max, Math.ceil((cur + overflow) / 10) * 10);
+    syncDock();
+  }
+
   function syncDock() {
     document.body.dataset.kchatMode = chatMode();
     var on = chatMode() === "panel";
@@ -281,18 +329,7 @@
         drag.addEventListener("pointerup", up);
         drag.addEventListener("pointercancel", up);
       });
-      d.querySelector(".kchat-send").addEventListener("submit", function (e) {
-        e.preventDefault();
-        var inp = d.querySelector(".kchat-send input");
-        var text = (inp.value || "").trim();
-        if (!text) return;
-        var gid = (typeof gameId !== "undefined" && gameId) || (typeof getGameId === "function" ? getGameId() : null);
-        var sk = (typeof socket !== "undefined" && socket) || null;
-        if (!gid || !sk || sk.readyState !== 1) return;
-        window.__kchatLastSent = { text: text, ts: Date.now() };   // CHAT-COMMITGATE1: recoverable on refusal
-        sk.send(JSON.stringify({ type: "game_chat", gameId: gid, text: text }));
-        inp.value = "";
-      });
+      wireChatSend(d.querySelector(".kchat-send"));
       // CHAT-COMMITGATE1 (user 2026-08-05): a chat refused for missing commitment
       // used to be silently LOST with no path to the fix. On the backend's
       // chat-identity refusal: put the text back in the box and open the
@@ -303,7 +340,10 @@
           var m = e.detail;
           if (!m || m.code !== "chat-identity") return;
           var last = window.__kchatLastSent;
-          var inp2 = document.querySelector("#boardChatDock .kchat-send input");
+          // refill whichever send box the player is actually looking at (the
+          // full-screen messages view has its own since the parity fix)
+          var inp2 = document.querySelector("#boardChatFull.open .kchat-send input")
+                  || document.querySelector("#boardChatDock .kchat-send input");
           if (inp2 && last && Date.now() - last.ts < 15000 && !inp2.value) inp2.value = last.text;
           if (window.katomiaAuthenticateModal) window.katomiaAuthenticateModal.open({
             message: "Your message wasn't sent — messaging needs a verified account. Authenticate with one wallet signature; your message is back in the box, just hit send again after.",
@@ -352,7 +392,7 @@
           // persists (localStorage katomiaChatSplit) and wins within the limits.
           var lim = dockLimits();
           var saved = +(localStorage.getItem("katomiaChatSplit") || 0);
-          clearB = Math.round(Math.max(lim.min, Math.min(lim.max, saved || lim.def)));
+          clearB = Math.round(Math.max(lim.min, Math.min(lim.max, saved || autoFitB || lim.def)));
           d.style.bottom = "0px";
           // height comes from the SAME --kchat-clear-b var the board yields (CSS), so
           // the pair can never disagree by a measurement race
@@ -405,6 +445,7 @@
     renderInto(p && p.querySelector(".kchat-panel-list"), chat);
     renderInto(document.getElementById("boardChatFullList"), chat);
     renderInto(document.querySelector("#boardChatDock .kchat-dock-list"), chat);
+    autoFitDock();
     var sub = document.getElementById("boardChatFullSub");
     if (sub) sub.textContent = chat.length ? chat.length + " so far" : "nothing said yet";
   }
@@ -647,9 +688,14 @@
         if (typeof kemojiEl === "function")
           row.appendChild(kemojiEl(avatarKey(m.action.actor), { size: 16, bg: c }));
       } else if (m.system) {
+        // CHAT-WELCOME1 R2: a system row now says WHO is speaking. `speaker:"host"` is the
+        // circle's organizer talking through Katomia's machinery (their own configured
+        // copy); anything else — including every pre-existing system row, which carries no
+        // speaker at all — is Katomia itself. Never label organizer-written words as
+        // Katomia: a circle can be created by anyone and say anything.
         var bot = document.createElement("span");
         bot.className = "kchat-sys-emoji";
-        bot.textContent = "🤖";
+        bot.textContent = m.speaker === "host" ? "🎪" : "🤖";
         row.appendChild(bot);
       } else if (typeof kemojiEl === "function") {
         row.appendChild(kemojiEl(avatarKey(m.playerId), { size: 16, bg: c }));
@@ -684,7 +730,7 @@
         nm.appendChild(idsp);
         appendMarkFor(nm, subj);
       } else {
-        nm.textContent = m.system ? "Katomia" : displayName(m);
+        nm.textContent = m.system ? (m.speaker === "host" ? "Host" : "Katomia") : displayName(m);
       }
       var tm = document.createElement("i");
       tm.textContent = hh;
@@ -702,7 +748,11 @@
         tx.appendChild(q);
         tx.appendChild(document.createTextNode(m.text));
       }
-      if (m.to) {
+      // CHAT-WELCOME1: `to` on a PLAYER message is meaningful addressing ("→ p3" tells the
+      // room who you were talking to). On a SYSTEM message it is just the privacy filter
+      // doing its job — you are the only one who can see the row, so "→ p3" is noise
+      // telling you what you already know. Only system messages use `to` this way today.
+      if (m.to && !m.system) {
         var to = document.createElement("em");
         to.className = "kchat-row-to";
         to.textContent = "→ " + m.to;

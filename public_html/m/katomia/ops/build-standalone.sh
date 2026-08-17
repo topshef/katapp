@@ -249,6 +249,50 @@ EOF
 cat "$APP/.htaccess"
 } > "$BUILD/.htaccess"
 
+# 6b. STRIP LAUNCH-EXCLUDED FEATURES (BUNDLE-STRIP1, user 2026-08-14/15): the
+#     production bundle must carry no trace of features excluded from launch —
+#     not hidden, REMOVED, so inspecting the served artifact reveals nothing.
+#     Convention (BUNDLE1): '<!-- KBUNDLE-STRIP:<f> -->…<!-- /KBUNDLE-STRIP:<f> -->'
+#     HTML / '/* KBUNDLE-STRIP:<f> */…/* /KBUNDLE-STRIP:<f> */' JS+CSS+PHP /
+#     '# KBUNDLE-STRIP:<f>' shell+htaccess — the cut is LINE-based (start line
+#     through end line inclusive), so any comment syntax works. Whole files carry
+#     'KBUNDLE-STRIP-FILE:<f>' in their first 3 lines. Feature homes (whole dirs)
+#     are removed by name below. Override the list per build: STRIP_FEATURES=""
+#     builds unstripped (dev), or name a different set. The strip list is logged,
+#     deliberately NOT written into build-info.json — that file is web-readable
+#     and naming the pruned features there would leak exactly what the strip
+#     hides. The purity gate (ops/kstrip-purity.sh, T:KSTRIP-02) then fails the
+#     build loudly if any trace survives.
+STRIP_FEATURES="${STRIP_FEATURES-kea admin-disclose}"
+TOUCHED=""
+for FEAT in $STRIP_FEATURES; do
+  case "$FEAT" in kea) rm -rf "$BUILD/KEA";; esac
+  while IFS= read -r f; do
+    # bare 'test && cmd' is a set -e landmine (see 2b2 note) — if-form on purpose
+    if head -3 "$f" | grep -q "KBUNDLE-STRIP-FILE:$FEAT"; then rm -f "$f"; fi
+  done < <(grep -rlI "KBUNDLE-STRIP-FILE:$FEAT" "$BUILD" 2>/dev/null || true)
+  while IFS= read -r f; do
+    awk -v m="KBUNDLE-STRIP:$FEAT" '
+      { if (index($0, "/" m)) { inb=0; next }
+        if (index($0, m))     { inb=1; next }
+        if (!inb) print }' "$f" > "$f.kstrip"
+    mv "$f.kstrip" "$f"
+    TOUCHED="$TOUCHED$f"$'\n'
+  done < <(grep -rlI "KBUNDLE-STRIP:$FEAT" "$BUILD" 2>/dev/null || true)
+done
+if [ -n "$STRIP_FEATURES" ]; then
+  echo "stripped features: $STRIP_FEATURES"
+  # syntax sanity on the files the cut touched, then the purity gate
+  while IFS= read -r f; do
+    case "$f" in
+      *.php) php -l "$f" >/dev/null || { echo "FATAL: post-strip php syntax error in $f" >&2; exit 1; };;
+      *.js)  node --check "$f"      || { echo "FATAL: post-strip js syntax error in $f" >&2; exit 1; };;
+    esac
+  done < <(printf '%s' "$TOUCHED" | sort -u)
+  STRIP_FEATURES="$STRIP_FEATURES" bash "$APP/ops/kstrip-purity.sh" "$BUILD" || {
+    echo "FATAL: bundle purity gate failed (T:KSTRIP-02) — see traces above" >&2; exit 1; }
+fi
+
 # 7. Build stamp
 SHA="$(git -C "$SITE" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 printf '{"source_sha":"%s","kwc_snapshot":"%s","built":"%s"}\n' \

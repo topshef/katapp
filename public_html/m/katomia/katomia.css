@@ -58,6 +58,7 @@
     body[data-trading-mode="debug"] .mode-order,
     body[data-trading-mode="orderBook"] .mode-order{ display:block; }
 
+    /* KBUNDLE-STRIP:kea */
     /* KATOMIA-CONFIG1 (user 2026-07-14): "execution agent... it's not
        relevant for proposal mode" — a NEGATIVE gate, not the positive
        .mode-order above. .mode-order defaults to display:none and only
@@ -66,13 +67,14 @@
        all — wrong here: KEA is a cross-game profile feature that should
        stay visible everywhere EXCEPT specifically inside a proposal-mode
        game. */
+    /* /KBUNDLE-STRIP:kea */
     body[data-trading-mode="proposal"] .hide-in-proposal{ display:none; }
 
 
     .debug-only{ display:none; }
     body[data-trading-mode="debug"] .debug-only{ display:inline-flex; }
 
-    /* Nerd mode — user-facing detail toggle (mirrors KEA pro mode) */
+    /* Nerd mode — user-facing detail toggle */
     .nerd-only{ display:none !important; }
     body.nerd .nerd-only{ display:inline !important; }
     body.nerd .nerd-hide{ display:none !important; }
@@ -1008,6 +1010,22 @@ zz-distracting-body[data-network="playnet"]{
   cursor:pointer;
 }
 .app-menu-btn:hover{ background:transparent; color:#222; transform:none; }
+
+/* HEADER-UNIFY2 (user 2026-08-13, GCP feedback): the ☰ must survive scrolling — once
+   the banner leaves the viewport the button pins top-right as a floating puck and the
+   dropdown pins beneath it. body.hdr-stuck comes from the scroll handler in header.php;
+   pages that don't scroll never get the class, so the board's own chrome is untouched. */
+body.hdr-stuck .app-menu-btn{
+  position:fixed; top:8px; right:8px; z-index:1490;
+  width:42px; height:42px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(232,232,232,.92);
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+  border:1px solid rgba(20,28,45,.12); border-radius:50%;
+  box-shadow:0 1px 6px rgba(20,28,45,.18);
+}
+body.hdr-stuck .app-menu-btn:hover{ background:rgba(232,232,232,.98); }
+body.hdr-stuck .app-menu{ position:fixed; top:56px; right:8px; }
 .app-menu-btn:active{ transform:none; }
 
 .app-menu{
@@ -2329,7 +2347,7 @@ button.profile-auth-x{
 }
 
 /* ── Profile sections (PROFILE-AUTH-PURPOSE1 reshuffle) ───────────────────────
-   Identity / Reputation binding are always shown; KEA + Preferences collapse via
+   Identity / Reputation binding are always shown; the optional sections collapse via
    native <details>. Keeps the WalletConnect flow visually primary. */
 .profile-section{
   margin-top:16px;
@@ -2468,6 +2486,24 @@ body.nerd .profile-nerd-only{ display:block; }
   cursor:pointer;
   user-select:none;
 }
+/* Mobile-friendly profile (GCP feedback 2026-08-13: "check boxes too close together").
+   Fingers, not cursors: on touch/small screens every checkbox row becomes a ≥44px
+   full-width touch target with real separation, and the box itself grows to 20px.
+   pointer:coarse catches big-screen tablets; max-width catches small desktop windows. */
+@media (pointer:coarse), (max-width:640px){
+  .profile-debug-label,
+  .profile-auth-publish{
+    min-height:44px;
+    padding:5px 4px;
+    gap:12px;
+    font-size:14px;
+  }
+  .profile-debug-label input[type=checkbox],
+  .profile-auth-publish input[type=checkbox]{
+    width:20px; height:20px; flex:none; margin:0;
+  }
+  .profile-auth-publish{ display:flex; align-items:center; }
+}
 @media (max-width:640px){
   .profile-btn{
     top:90px;
@@ -2482,17 +2518,27 @@ body.nerd .profile-nerd-only{ display:block; }
 
   .profile-card{
     width:100vw;
+    /* GCP feedback 2026-08-13 ("can't scroll to the bottom, stuck at Execution
+       agent"): 100vh on mobile Chrome includes the strip behind the URL bar, so
+       the card's last rows rendered off-screen and the scroll limit hit before
+       they appeared. dvh tracks the REAL visible viewport (vh kept as fallback);
+       overscroll-behavior stops the hidden page behind from stealing the scroll
+       at the limit; safe-area padding clears gesture bars. */
     height:100vh;
+    height:100dvh;
     max-width:none;
     max-height:none;
 
     margin:0;
     padding:18px;
+    padding-bottom:calc(24px + env(safe-area-inset-bottom, 0px));
     box-sizing:border-box;
 
     border-radius:0;
     box-shadow:none;
     overflow:auto;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
   }
 
   .profile-close{
@@ -2793,6 +2839,9 @@ body.kchat-fullopen .app-banner{ visibility:hidden; }
   padding:6px 13px; font-size:14px; line-height:1;
 }
 .kchat-full-list{ flex:1; overflow-y:auto; padding:10px 14px 28px; -webkit-overflow-scrolling:touch; }
+/* messages-view parity (GCP feedback 2026-08-08): the full-screen stream carries the
+   same send box as the split dock; safe-area padding keeps it clear of gesture bars */
+.kchat-full .kchat-send{ flex:none; margin:0 10px; padding:8px 4px calc(10px + env(safe-area-inset-bottom, 0px)); }
 .kchat-full-list .kchat-row{ font-size:calc(14px * var(--ui-scale)); padding:7px 0; }
 .kchat-full-empty{ color:#8b95a5; font-style:italic; padding:16px 2px; }
 @media (prefers-color-scheme: dark){

@@ -596,7 +596,12 @@ window.KTERMS = <?= json_encode($T, JSON_UNESCAPED_UNICODE) ?>;
 <!-- KAT-FEEDBACK1: the modal (long-press anywhere, or the buttons above). Served from
      the backend, its canonical home — the 💬 bits below hand off to it. -->
 <script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
-        data-product="katomia"></script>
+        data-product="katomia"
+        data-screenshot="0"><!-- KAT-FEEDSHOT-BROKEN1 (user 2026-08-08): attach-screenshot never
+     succeeds on these pages, so the checkbox is a control for a feature that does not
+     work — offering it is worse than not having it. Turned OFF here rather than in the
+     widget, which kPad also uses and where capture DOES work. Re-enable by deleting this
+     attribute once the capture is fixed. --></script>
 <!-- ENTRY-VARIANTS1: 👍/👎/💬 bits. Loaded AFTER the widget so 💬 finds it. -->
 <script src="<?= kasset('kfeedbits.js') ?>"></script>
 </body>

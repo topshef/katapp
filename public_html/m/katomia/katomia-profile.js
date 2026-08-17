@@ -24,6 +24,7 @@ function initKatomiaProfile(){
     el.addEventListener("click", () => openKatomiaProfile())
   )
 
+  /* KBUNDLE-STRIP:kea */
   // AUTH-LANG1: the menu's 🤖 Execution agent item is a second door to the SAME
   // modal, landed on the KEA section (expanded + scrolled). One home, two doors —
   // when KEA graduates to its own page/app this handler just repoints.
@@ -36,6 +37,7 @@ function initKatomiaProfile(){
       kea.scrollIntoView({ behavior: "smooth", block: "start" })
     })
   )
+  /* /KBUNDLE-STRIP:kea */
 
   close.onclick = () => modal.classList.add("hidden")
   modal.onclick = e => {
@@ -169,10 +171,16 @@ async function renderKatomiaProfile(){
 
   renderKatomiaKvac()   // public prepaid-access handle (nerd only, stubbed)
 
-  const link = buildKatomiaProfileLink(pubkey)
-  setProfileLink(link)
+  /* KBUNDLE-STRIP:kea */
+  // Runtime-guarded too (kea flag off since 2026-08-13): no point building a QR
+  // into a section the viewer can never see.
+  if(window.KATOMIA_FEATURES?.kea !== false){
+    const link = buildKatomiaProfileLink(pubkey)
+    setProfileLink(link)
 
-  await renderKatomiaQr(link)
+    await renderKatomiaQr(link)
+  }
+  /* /KBUNDLE-STRIP:kea */
 
   // PROFILE-AUTH1: populate the Authenticate account row (no forced connect).
   if(typeof katomiaAuthOnProfileOpen === "function")
@@ -214,11 +222,38 @@ function jwkXToHex(x){
   return [...raw].map(ch => ch.charCodeAt(0).toString(16).padStart(2, "0")).join("")
 }
 
+// ── CIRCLE-HOSTPAGE1 R2: "am I the host of this circle?" ────────────────────────────
+// Shared because three surfaces now ask it: the circles index (ownership cue), the
+// in-game hamburger (whether to offer Host options at all), and the host page itself.
+//
+// READS the key, never MINTS one — deliberately not getOrCreatePlayerKeypair(). These are
+// all read-only "should I show this" checks, and a browser with no key owns nothing, so
+// the honest answer is already "no". Minting on a passive page view would create identity
+// as a side effect of looking at a list. Signing paths still use the minting helper.
+function katomiaMyIntentKeyHex(){
+  try{
+    const kp = JSON.parse(localStorage.getItem("katomiaPlayerKeypair") || "{}")
+    return kp.publicKeyJwk?.x ? jwkXToHex(kp.publicKeyJwk.x).toLowerCase() : ""
+  }catch{ return "" }
+}
+
+// `game` may be a full game object (adminAccount) or a WS meta (admin.value) — the board
+// only ever has the latter, and it is the only form available for a PRIVATE circle.
+// A circle with no admin is owned by nobody, so it is never "mine": that is what makes
+// house circles fall out for free without a special case.
+function katomiaIsHostOf(game, myKeyHex){
+  const admin = String(game?.adminAccount ?? game?.admin?.value ?? "").trim().toLowerCase()
+  const mine = String(myKeyHex ?? katomiaMyIntentKeyHex()).trim().toLowerCase()
+  return !!admin && !!mine && admin === mine
+}
+
 function getKatomiaKpoolDomain(){
   if(window.CONFIG?.HAPI_BASE) return window.CONFIG.HAPI_BASE
   return location.host
 }
 
+/* KBUNDLE-STRIP:kea — the keakonnect link + QR exist only for the KEA pairing
+   section of the profile modal */
 function buildKatomiaProfileLink(pubkey){
   const url = new URL((window.KBASE||"") + "/keakonnect", location.origin)
 
@@ -264,6 +299,7 @@ async function copyKatomiaProfileLink(){
   await navigator.clipboard.writeText(link)
   notify?.("Profile link copied", "success", { timeout: 2000 })
 }
+/* /KBUNDLE-STRIP:kea */
 
 function zzzgetKatomiaProfileTitle(){
   const label = localStorage.getItem("katomiaPlayerName") || ""
@@ -287,6 +323,7 @@ function setText(id, value){
   if(el) el.textContent = value
 }
 
+/* KBUNDLE-STRIP:kea */
 function setProfileLink(link){
   const el = document.getElementById("profileQrLink")
   if(!el) return
@@ -296,6 +333,7 @@ function setProfileLink(link){
   el.title = "Open KEA link"
   el.target = "KEA"
 }
+/* /KBUNDLE-STRIP:kea */
 
 
 async function renderGameAdminTools(){

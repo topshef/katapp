@@ -4584,6 +4584,24 @@ async function boardDirectSign(account){
     // wrapper, and give them time to be read. S2: routed via the controller, so
     // a KWC-TIMEOUT landing after its tx is already settled is dropped, not shown.
     const _em = boardWcErrStr(e)
+    // WC-RELAYHEALTH1 R3 (user 2026-08-13, lab1 ghost-session incident): a KWC-TIMEOUT
+    // means the tx's validity window is already dead — there is nothing viable left to
+    // kill — and kdiag showed the flow re-using a wallet-side-cleared session forever
+    // (7 attempts, ping dead in 4s each time, request published into a dead topic,
+    // HashPack opens showing nothing, no error ever comes back). Self-heal HERE:
+    // disconnectAccount bins this account's signer AND purges the localStorage session
+    // (so init can't resurrect the corpse on reload) — the NEXT Sign tap finds no
+    // signer and takes the connect path: fresh pairing modal, then sign. That is the
+    // exact behaviour the user praised on lab2, which simply had no stored signer.
+    // Cost if the user merely dawdled past the window on a LIVE session: one
+    // re-approval tap. The R1 lesson stands — nothing gates or kills an in-flight
+    // sign on ping evidence; this acts only after the window has already expired.
+    if(/^KWC-TIMEOUT/.test(_em)){
+      boardDiag("wc:heal:purge-on-timeout", { txid: tx.txid, accountId })
+      try { await wc.disconnectAccount?.(accountId) } catch(e2){ boardDiag("wc:heal:purge-failed", { accountId, error: boardWcErrStr(e2) }) }
+      boardReportTxAdvice(tx.txid, "wallet", { message: "⚠ No response from the wallet — that connection was dead and has been reset automatically. On your next Sign you'll be asked to approve a fresh connection, then signing works as normal.", level: "error", timeout: 15000 })
+      return
+    }
     if(/^KWC-/.test(_em)) boardReportTxAdvice(tx.txid, "wallet", { message: "⚠ " + _em.replace(/^KWC-[A-Z-]+: /, ""), level: "error", timeout: 15000 })
     else boardReportTxAdvice(tx.txid, "wallet", { message: `Signing failed: ${_em}`, level: "error", timeout: 6000 })
   }

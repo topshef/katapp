@@ -51,6 +51,12 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
   .circle-top{ display:flex; align-items:baseline; gap:9px; margin-bottom:9px; flex-wrap:wrap; }
   .circle-name{ font-size:16.5px; font-weight:600; }
   .circle-id{ font-size:12px; color:#8b93a0; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  /* CIRCLE-HOSTPAGE1 R2 (user 2026-08-08): "it would be okay to put an emoji onto the
+     games that you own ... perhaps on the right hand edge of the button to indicate
+     that you are the host". A CUE ONLY — this page stays pure navigation, the user was
+     explicit that admin actions live on the host page and nowhere else. margin-left:auto
+     pushes it to the far edge of the flex row. */
+  .circle-host{ margin-left:auto; font-size:14px; line-height:1; }
 
   /* Every chip the markets grid shows is shown here too (user: "we can still show all
      the chips because that indicates how there are future possibilities to change
@@ -93,6 +99,18 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
      until this player token carries a commitment. */
   .gated-hint{ margin-top:16px; font-size:13px; color:#777; }
   .gated-hint a{ cursor:pointer; text-decoration:underline; }
+
+  /* connect widget — same look as landing.php's .landing-connect */
+  .circles-connect{
+    margin-top:28px; padding:16px; border-radius:10px;
+    background:#fff; border:1px solid #e5e0d4; box-shadow:0 1px 3px rgba(0,0,0,.05);
+  }
+  .circles-connect h3{ margin:0 0 6px; font-size:15px; }
+  .circles-connect .subtle{ font-size:13px; color:#777; margin:0 0 12px; }
+  .circles-connect-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .circles-connect-row select{ padding:8px; border-radius:6px; border:1px solid #ccc; }
+  .circles-connected{ margin-top:10px; font-size:13px; color:#2e7d32; }
+  .circles-connected:empty{ display:none; }
 </style>
 </head>
 <body>
@@ -117,6 +135,24 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
     <a class="kbtn kbtn-green" href="<?= $katomiaBase ?>/create?skin=basic">➕ Create your own <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?></a>
     <!-- Nerd-only escape hatch to the unfiltered grid, mirroring the welcome page. -->
     <a class="circles-morelink" href="<?= $katomiaBase ?>/markets">See all markets →</a>
+  </div>
+
+  <!-- GCP feedback 2026-08-13 ("move connect wallet to the full index page — advance
+       users to preauth for private games"): same connect widget as the welcome page
+       (landing.php), so a wallet can be connected BEFORE tapping into a members-only
+       circle instead of bouncing off its gate. Complements the gated-hint above,
+       which routes to the profile for the commitment step. -->
+  <div class="circles-connect">
+    <h3>🔗 Connect your wallet</h3>
+    <p class="subtle">Optional — connect now and you're ready to trade (or enter members-only <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?>) the moment you step inside.</p>
+    <div class="circles-connect-row">
+      <select id="circlesNet" title="Which Hedera network to connect on">
+        <option value="mainnet">🟣 Hedera mainnet</option>
+        <option value="testnet">🟠 Hedera testnet</option>
+      </select>
+      <button id="circlesConnectBtn" class="kbtn kbtn-blue" type="button">Connect wallet</button>
+    </div>
+    <div id="circlesConnected" class="circles-connected"></div>
   </div>
 </div>
 
@@ -210,6 +246,8 @@ function circleKind(g){
 }
 
 function renderCircles(){
+  // read once per render, not per card — it parses JSON out of localStorage
+  const MY_KEY = typeof katomiaMyIntentKeyHex === "function" ? katomiaMyIntentKeyHex() : ""
   const list = document.getElementById("circlesList")
   const bar = document.getElementById("circlesFilters")
   const netOf = g => g.config?.network || g.network || ""
@@ -274,6 +312,7 @@ function renderCircles(){
         <div class="circle-top">
           <span class="circle-name">${esc(g.profile?.name || g.id)}</span>
           <span class="circle-id">${esc(g.id)}</span>
+          ${katomiaIsHostOf(g, MY_KEY) ? `<span class="circle-host" title="You host this ${esc(KTERMS.one)}">🎪</span>` : ""}
         </div>
         <div class="circle-chips">
           ${chips.map(c => `<span class="circle-chip ${c.cls || ""}">${esc(c.text)}</span>`).join("")}
@@ -430,6 +469,36 @@ function dressCards(){
 }
 
 window.addEventListener("load", loadCircles)
+
+// GCP feedback 2026-08-13: connect widget — same thin glue as landing.php's
+// (passive account peek on load, explicit connect on click via the shared WC
+// connector + kauthWCAccounts from katomia-auth.js).
+function circlesRenderConnected(accounts){
+  const el = document.getElementById("circlesConnected")
+  if(el) el.textContent = accounts.length
+    ? `✓ Connected: ${accounts.join(", ")} — you're ready to trade in any ${KTERMS.one}.`
+    : ""
+}
+async function circlesRefreshAccounts(ensure){
+  try { circlesRenderConnected(await kauthWCAccounts(document.getElementById("circlesNet").value, ensure)) }
+  catch(e){ console.warn("[circles] account list failed", e) }
+}
+document.getElementById("circlesConnectBtn").onclick = async () => {
+  const btn = document.getElementById("circlesConnectBtn")
+  const network = document.getElementById("circlesNet").value
+  if(!window.WC){ notify?.("WalletConnect still loading — try again in a moment", "info", { timeout: 3000 }); return }
+  btn.disabled = true; btn.textContent = "Connecting…"
+  try {
+    document.documentElement.style.setProperty("--wcm-z-index", "2147483000")
+    if(window.WC.ensureNetwork) await window.WC.ensureNetwork(network)
+    window.kauthPruneWcModals?.()
+    await window.WC.connect?.()
+  } catch(e){ console.warn("[circles] connect failed", e) }
+  btn.disabled = false; btn.textContent = "Connect wallet"
+  circlesRefreshAccounts(true)
+}
+document.getElementById("circlesNet").onchange = () => circlesRefreshAccounts(true)
+window.addEventListener("load", () => circlesRefreshAccounts(false))
 </script>
 
 <script><?php require_once('config.php'); ?>
@@ -445,5 +514,13 @@ window.addEventListener("load", loadCircles)
 <script src="<?= kasset('katomia-profile.js') ?>"></script>
 <script src="<?= kasset('katomia-auth.js') ?>"></script>
 <?php require_once($_SERVER['DOCUMENT_ROOT'] . "/vendor/walletconnect/kwcScriptTag.php"); ?>
+<!-- GCP feedback 2026-08-13 ("mobile after feedback flow breaks"): this page had no
+     widget, so the header menu's Send feedback NAVIGATED to /m/feedback — and coming
+     back later restored that page from bfcache as a dead, already-used form. Load the
+     widget here (KPAD-SELFFEED1 canonical backend copy) so the modal opens in place,
+     same as contents.php. data-screenshot off per KAT-FEEDSHOT-BROKEN1. -->
+<script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
+        data-product="katomia-circles"
+        data-screenshot="0"></script>
 </body>
 </html>

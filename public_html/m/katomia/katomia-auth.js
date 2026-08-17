@@ -8,7 +8,7 @@
 // ADAPTER SEAM (PROFILE-AUTH4): everything WalletConnect-specific lives in the
 // kauthWC* helpers below. buildAuthChallenge / buildAccountKeySnapshot /
 // assembleAuthEnvelope are channel-agnostic — a future channel (WhatsApp / KSIG /
-// KEA) plugs in by producing { accountId, network, message, signatureMap, raw }
+// auto-settle agents) plugs in by producing { accountId, network, message, signatureMap, raw }
 // without touching the challenge/envelope assembly.
 
 function kauthDiag(event, data){ try { window.kdiag?.("auth:" + event, data) } catch {} }
@@ -104,7 +104,7 @@ function buildAuthChallenge({ network, intentPublicKey, accountId, expiresAt, sc
   // expiresAt: an ISO string sets it; null means "no expiry"; undefined falls back to +24h.
   const exp = expiresAt === undefined ? new Date(now.getTime() + 24 * 3600 * 1000).toISOString() : expiresAt
   // Field order IS the canonical order — message = JSON.stringify(challenge), matching
-  // kea-utils canonicalJson. WIREFRAME: shape is still moving (scope added; expiry now
+  // the verifier's canonicalJson. WIREFRAME: shape is still moving (scope added; expiry now
   // UI-driven) and nothing verifies the signature yet, so version stays 1 — LOCK + bump
   // the version before any verifier ships, since reordering would break byte-for-byte checks.
   return {
@@ -545,7 +545,7 @@ async function copyKatomiaAuthEnvelope(){
 // ABSOLUTE path (PROFILE-INDEX1 regression fix): the modal now opens on EVERY page, and
 // the old game-page-relative "../hapi.php" resolved to /m/hapi.php (404) from the index —
 // "Publish failed" with the request never reaching any backend. Same absolute-path
-// convention as the games fetch (/m/katomia/hapi/games) and the keakonnect link.
+// convention as the games fetch (/m/katomia/hapi/games).
 // v1 UX: publishing == making the binding public (privacy is hard-coded server-side).
 // Called by the single "Raise commitment" action when Publish is ticked (no separate
 // button). Returns true on success. Takes an explicit envelope; falls back to the last.
