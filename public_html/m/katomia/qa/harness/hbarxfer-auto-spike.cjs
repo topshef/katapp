@@ -20,6 +20,9 @@ const BOARD  = `${BASE}${PREFIX}/board/${GAME}?skin=ring16`
 const KWALLET_BASE = "http://127.0.0.1:8790"
 const KWALLET_TOKEN = process.env.KWALLET_TOKEN
 const RECIPIENT = process.env.RECIPIENT || "0.0.5200540"
+// first-class trigger provenance (user 2026-08-17): cron wrappers export
+// TRIGGER="cron:<script>"; anything else is a manual invocation.
+const TRIGGER = process.env.TRIGGER || "manual"
 const AMOUNT_H = "0.01"
 const log = (...a) => console.log(new Date().toISOString(), "[hbarxfer]", ...a)
 
@@ -64,7 +67,21 @@ async function reportKflow(checkpoint, v, detail){
   await fetch(`${BASE}/kflow`, { method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ events: [{ t: new Date().toISOString(), run: RUN_ID,
-      seq: checkpoint === "test:start" ? 1 : 2, tier: "fe", checkpoint, v, commit: SITE_COMMIT, detail }] }) })
+      seq: checkpoint === "test:start" ? 1 : 2, tier: "fe", checkpoint, v, commit: SITE_COMMIT,
+      detail: { trigger: TRIGGER, ...detail } }] }) })
+}
+// sibling instances that ride this run (AMTSCALE-01, SIGNSTABLE-01) get their
+// OWN run ids — the grid keys a row per run, so sharing RUN_ID would collapse
+// them into the HBARXFER row.
+async function reportInstance(instance, v, note, extra){
+  const rid = instance.toLowerCase().replace(/[^a-z0-9]/g, "") + "-" + Date.now().toString(36)
+  const ev = (checkpoint, vv, detail) => fetch(`${BASE}/kflow`, { method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ events: [{ t: new Date().toISOString(), run: rid,
+      seq: checkpoint === "test:start" ? 1 : 2, tier: "fe", checkpoint, v: vv, commit: SITE_COMMIT,
+      detail: { source: "auto", instance, trigger: TRIGGER, ...detail } }] }) })
+  await ev("test:start", instance, {})
+  await ev("test:verdict", v, { note, ...(extra || {}) })
 }
 
 async function main(){
@@ -77,6 +94,20 @@ async function main(){
   pageA.on("pageerror", e => log("A PAGEERROR", String(e).slice(0, 200)))
   log("[A] open board")
   await pageA.addInitScript(() => { window.__katomiaTestHooks = true })   // QA-TESTHOOKS1
+  // capture the board's diag stream node-side via its console.debug mirror
+  // (boardDiag is a const — window rebinds can't intercept it): gives us the
+  // txid for the AMTSCALE-01 mirror check without touching product code.
+  const DIAG = []
+  pageA.on("console", async m => {
+    try {
+      if(m.type() !== "debug") return
+      const args = m.args()
+      if(!args.length || !(await args[0].jsonValue()).startsWith?.("[katomiaDiag]")) return
+      const msg = args[1] ? await args[1].jsonValue() : ""
+      const data = args[2] ? await args[2].jsonValue().catch(() => null) : null
+      DIAG.push({ t: Date.now(), m: msg, d: data })
+    } catch {}
+  })
   await pageA.goto(BOARD, { waitUntil: "domcontentloaded" })
   await pageA.waitForTimeout(2000)
   await pageA.locator("button.ring-footer-accsel").first().click({ timeout: 10000 })
@@ -190,8 +221,25 @@ async function main(){
   log("[A] waiting for the signing phase, then clicking Sign")
   await pageA.waitForFunction(() => window.boardSigning, { timeout: 15000 }).catch(() => {})
   await pageA.waitForTimeout(500)
+  // SIGNSTABLE-01 (CANARY-HYDRATION-CLICK v1, user 2026-08-17): the affordance
+  // you are about to click must not move between aiming and clicking — the
+  // SIGN-LAYOUTJUMP1 class, where async growth put a different element under a
+  // real-value tap. Watch the sign button's box for 3s before the click.
+  let signDrift = null
+  try {
+    const btn = pageA.locator('[data-testid="sign"]').first()
+    const first = await btn.boundingBox()
+    let maxD = 0
+    for(let i = 0; i < 20; i++){
+      await pageA.waitForTimeout(150)
+      const b = await btn.boundingBox()
+      if(first && b) maxD = Math.max(maxD, Math.abs(b.x - first.x), Math.abs(b.y - first.y),
+        Math.abs(b.width - first.width), Math.abs(b.height - first.height))
+    }
+    signDrift = maxD
+  } catch(e){ log("signstable watch error:", e.message) }
   await pageA.locator('[data-testid="sign"]').first().click()
-  log("[A] Sign clicked")
+  log("[A] Sign clicked" + (signDrift !== null ? ` (sign button drift over 3s: ${signDrift.toFixed(1)}px)` : ""))
 
   // ── poll A's toast for the verdict ──
   log("waiting for kWallet auto-sign -> result toast")
@@ -214,6 +262,43 @@ async function main(){
     secs: Math.round((Date.now() - t0) / 1000)
   })
   log("reported test:verdict", verdict)
+
+  if(signDrift !== null)
+    await reportInstance("SIGNSTABLE-01", signDrift <= 1 ? "pass" : "fail",
+      `sign button drift ${signDrift.toFixed(1)}px over 3s pre-click (gate: <=1px)`).catch(e => log("signstable report failed:", e.message))
+
+  // AMTSCALE-01 (b) (user 2026-08-17): the toast is not the truth — after a
+  // success verdict, confirm ON THE MIRROR that exactly the intended amount
+  // settled. A display-unit scaling regression would otherwise pass green.
+  if(success === true){
+    try {
+      const txid = DIAG.find(e => e.m === "board:sign:click")?.d?.txid || null
+      const idA = (acctA || "").split(":").pop(), idB = (acctB || "").split(":").pop()
+      const wantTiny = Math.round(parseFloat(AMOUNT_H) * 1e8)
+      if(!txid) await reportInstance("AMTSCALE-01", "error", "no txid captured from board:sign:click — cannot mirror-check")
+      else {
+        const m = txid.match(/^(\d+\.\d+\.\d+)@(\d+)\.(\d+)$/)
+        const mirrorId = m ? `${m[1]}-${m[2]}-${m[3]}` : null
+        let tx = null
+        for(let i = 0; i < 15 && !tx; i++){
+          await new Promise(r => setTimeout(r, 3000))
+          tx = await fetch(`https://testnet.mirrornode.hedera.com/api/v1/transactions/${encodeURIComponent(mirrorId)}`)
+            .then(r => r.json()).then(j => (j.transactions || [])[0] || null).catch(() => null)
+        }
+        if(!tx) await reportInstance("AMTSCALE-01", "error", `mirror never returned ${mirrorId} within 45s`)
+        else {
+          const amt = a => (tx.transfers || []).filter(t => t.account === a).reduce((s, t) => s + t.amount, 0)
+          const fromA = amt(idA), toB = amt(idB)
+          const ok = tx.result === "SUCCESS" && toB === wantTiny && fromA <= -wantTiny
+          await reportInstance("AMTSCALE-01", ok ? "pass" : "fail",
+            `mirror ${mirrorId}: result=${tx.result}, ${idB} received ${toB} tiny (want ${wantTiny}), ${idA} net ${fromA} (amount+fees)`,
+            { txid })
+          log("AMTSCALE-01:", ok ? "pass" : "FAIL", `B got ${toB} tinybar (want ${wantTiny})`)
+        }
+      }
+    } catch(e){ await reportInstance("AMTSCALE-01", "error", String(e.message).slice(0, 200)).catch(() => {}) }
+  }
+
   await browser.close()
   process.exit(success === true ? 0 : 1)
 }
