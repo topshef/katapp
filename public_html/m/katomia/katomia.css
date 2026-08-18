@@ -1940,6 +1940,29 @@ textarea:focus{
   box-shadow:none;
 }
 
+/* UI-SELECTROUND1 (feedback 3172c7ca, 2026-08-17): selects were restyled per-surface
+   (PROFILE-TIDY1 auth panel, then the profile Size dropdown) and never once across the
+   site, so every new form re-inherited the square browser default — reported live on
+   /create?skin=basic's theme dropdown. This is the BASELINE: same clean rounded look
+   as .profile-auth select. Bare-element selector on purpose — every existing
+   surface-specific select rule out-specifies it and keeps its own look. Sits AFTER the
+   :focus outline-reset block above so the focus border/shadow here wins the cascade. */
+select{
+  appearance:none;
+  -webkit-appearance:none;
+  background:#fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239aa0a6' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  border:1px solid #dcdfe4;
+  border-radius:10px;
+  padding:8px 28px 8px 10px;
+  font-size:14px;
+  color:#222;
+  line-height:1.3;
+}
+select:focus{
+  border-color:#9aa6b2;
+  box-shadow:0 0 0 2px rgba(0,0,0,.05);
+}
+
 *{
   -webkit-tap-highlight-color:transparent !important;
 }

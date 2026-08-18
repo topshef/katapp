@@ -79,6 +79,10 @@ h2{
 }
 .form input:not([type=radio]):not([type=checkbox]):focus{ border-color:rgba(47,111,237,.45); }
 
+/* UI-SELECTROUND1 (feedback 3172c7ca): the selects ride the new katomia.css baseline
+   (rounded, chevron); here they just fill the row like the text inputs do. */
+.form select{ width:100%; box-sizing:border-box; }
+
 .options{
   display:flex;
   flex-wrap:wrap;
