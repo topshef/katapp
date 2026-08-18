@@ -4149,6 +4149,12 @@ function boardAnnounceSigned(txid, byAccount){
 // auto-associate tier never enters boardBalanceIssues so this cannot cry wolf.
 // Delivery follows the verdict precedent (BOARD-CHATMODE1 R3): panel mode → a system
 // row in the stream; bubbles mode → a persistent ⚠️ toast (closable, ✕).
+// ENRICHMENT considered and PARKED (user 2026-08-18, verifying this live): an inline
+// asset CHIP in the row would be nicer than a bare symbol — but the raw token ID must
+// stay visible either way, because it's what you copy-paste into a wallet to do the
+// association ("that's currently how you associate"). A chip for NFTs was floated and
+// scrubbed in the same breath: association is per COLLECTION, not per serial, so a
+// serial-specific chip would misstate what needs associating. Verdict: keep it simple.
 let _boardIssueAnnounced = new Set()   // `${txid}|${hac}|${asset}|${reason}` — once per instance
 function boardAnnounceIssues(txid, short, unassoc){
   const label = a => String(a).toLowerCase() === "hbar" ? "HBAR"
