@@ -6,6 +6,10 @@ require_once __DIR__ . '/kasset.php';
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- KAT-BREAKOUT1 P1: quiet cross-fade for the board→side-circle handoff (same
+       ENTRY-FADES1 treatment the entry pages carry; must be in <head> to arm the
+       fade-in before first paint). -->
+  <script src="<?= kasset('kfade.js') ?>"></script>
   <link rel="stylesheet" href="<?= kasset('katomia.css') ?>" />
   <link rel="stylesheet" href="<?= kasset('katomia-board.css') ?>" />
   <title>katomia — board</title>

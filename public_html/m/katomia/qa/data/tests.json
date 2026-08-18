@@ -818,6 +818,26 @@
    "reports": "stdout JSON verdict + screenshots beside the harness",
    "state": "LIVE since 2026-08-18 (BOARD-LOCKREDRAW1 R2 verification; first PASS on game MR4QRH: 1 fire, 1 line, endpoints within 1px)",
    "why_it_matters": "BOARD-LOCKREDRAW1: with Party-only on, the lock rotation stranded the offer trail at the wrong angle; R1's fix doubled the strike animation instead. This pins both."
+  },
+  {
+   "id": "BREAKOUT-01",
+   "title": "A struck deal in an on-lock game moves to a side circle; off games are byte-identical",
+   "asserts": "Drives a real testnet round (fresh basic-form game = Auto on-lock, 3 manual accounts incl. a bystander): B2 movers auto-land on <parent>~1; B3 membership + basket conservation (cluster accounts + pending tx in child, bystander stays, none lost); B4 ceremony renders in the child only (parent unfrozen); B5 three linked rows (child digest→parent, child strike row, parent moved row) + B5b public-keyed moved breadcrumb in parent state; B6 expiry verdict fires IN THE CHILD (resolution paths are pch-keyed + game-scanning). B7 = run LOCKREDRAW-01 (pins breakout=off) as the no-breakout regression.",
+   "kind": "e2e",
+   "network": "testnet",
+   "modules": [
+    "backend-game",
+    "frontend-ui",
+    "breakout"
+   ],
+   "harness": "qa/harness/breakout-check.cjs",
+   "run": {
+    "lab1": "node qa/harness/breakout-check.cjs (WAIT_EXPIRY=0 skips the ~60s B6 wait)"
+   },
+   "schedule": "manual — run after touching splitGame/postCluster/state broadcast",
+   "reports": "stdout JSON verdict + breakout-child.png / breakout-parent.png",
+   "state": "LIVE since 2026-08-18 (KAT-BREAKOUT1 P0/P1 verification; first ALL PASS on ZNWANZ→ZNWANZ~1). Its first live run caught a real playerToken leak in the moved breadcrumbs before any real on-lock strike.",
+   "why_it_matters": "KAT-BREAKOUT1: the split must be atomic and invisible-when-off; this is the falsifier the spec promised before user retest."
   }
  ],
  "expected_fail": {

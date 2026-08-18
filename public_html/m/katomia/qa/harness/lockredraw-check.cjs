@@ -60,7 +60,10 @@ const auditJs = `(TOL => {
 
   // ── create a fresh unlisted testnet game via the basic form
   const pgA = await mk(true)
-  await pgA.goto(BASE + "/create?skin=basic", { waitUntil: "networkidle" })
+  // breakout=off (KAT-BREAKOUT1 test hook): this suite audits the IN-PLACE signing
+  // ceremony — an on-lock game would split at strike and navigate away mid-audit.
+  // Running it against an off game is also exactly spec B7's regression guarantee.
+  await pgA.goto(BASE + "/create?skin=basic&breakout=off", { waitUntil: "networkidle" })
   await pgA.evaluate(() => { document.querySelector('input[name="visibility"][value="unlisted"]')?.click() })
   await pgA.click(".create-btn")
   await pgA.waitForURL(/\/board\//, { timeout: 20000 })

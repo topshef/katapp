@@ -262,6 +262,20 @@ h3{
 
     <div class="explain" id="visibilityExplain"></div>
   </div>
+
+  <!-- KAT-BREAKOUT1 P0 (spec §2): full form only — the basic skin applies the Auto
+       rule silently (public/unlisted → on lock, private → off). Encoded as a VALUE,
+       not a boolean, for future modes. -->
+  <div class="field adv-only">
+    <label>🚪 Breakout</label>
+    <p class="explain">When a group locks a deal, it moves to its own side circle to settle — this
+       circle stays open for everyone else.</p>
+    <select id="gameBreakout">
+      <option value="" selected>Auto — on lock for public &amp; unlisted circles</option>
+      <option value="on-lock">On lock — deals settle in a side circle</option>
+      <option value="off">Off — deals settle here (circle is busy while signing)</option>
+    </select>
+  </div>
 	
 
 	<div class="field adv-only">
@@ -477,12 +491,26 @@ createBtn.onclick = async () => {
 
 status.textContent = "Creating game..."
 
+// KAT-BREAKOUT1 P0: breakout resolves at submit — explicit choice wins, else the Auto
+// rule (public/unlisted → on-lock, private → off/omitted). The server stays neutral
+// (absent = off) so scripted/API creators and demo fixtures are untouched. ?breakout=
+// query override is a test hook for harnesses that drive this form.
+const breakoutValue = (() => {
+  const q = new URLSearchParams(location.search).get("breakout")
+  if(q === "on-lock" || q === "off") return q
+  const sel = document.getElementById("gameBreakout")?.value
+  if(sel) return sel
+  const vis = getRadio("visibility")
+  return (vis === "public" || vis === "unlisted") ? "on-lock" : ""
+})()
+
 const payload = {
 
   //id: gameName.value.trim() || undefined,
   profile: {
     name: gameName.value.trim() || ""
   },
+  ...(breakoutValue ? { breakout: breakoutValue } : {}),
   network: getRadio("network"),
   visibility: getRadio("visibility"),
   joinRule: parseJoinRule(joinRule.value),

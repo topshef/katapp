@@ -1511,6 +1511,22 @@ function renderRingBoard(root){
   // removed; the real fix is that signing-phase trails now carry seg:"tx" and are
   // re-anchored (or pruned) every paint by boardReanchorTrails, so the built-in
   // early draw self-corrects once the tween/organic sim settles the chips.
+
+  // KAT-BREAKOUT1 P1 (spec §5.4, absent movers): a returning player whose account
+  // was moved to a side circle while they were away finds a breadcrumb row — the
+  // parent state carries moved[accountId] → childId. Once per side circle.
+  if(state?.moved && typeof currentPlayerId !== "undefined" && currentPlayerId){
+    for(const [accId, childId] of Object.entries(state.moved)){
+      if(accId.split(":")[0] !== currentPlayerId) continue
+      if(_boardMovedNotified.has(childId)) continue
+      _boardMovedNotified.add(childId)
+      try {
+        window.katomiaChat?.system?.(
+          `Your deal moved to side circle ${childId} while you were away — it settles there.`,
+          { link: childId, linkText: childId })
+      } catch(_){}
+    }
+  }
   // SIGNAL-DRIVEN expiry/failure verdict (replaces the 2026-07-14 client-
   // timer guesses, removed 2026-07-15 for disagreeing with the real backend
   // deadline — see BOARD_TX_EXPIRY_MS above). boardDetectSigning() only
@@ -3970,6 +3986,7 @@ function boardScrollOthers(step){
 // giver when uniquely attributable — a netted tx usually has one sender per
 // asset); send legs reserved for the ghost side later.
 let boardSigning = null   // set per render; footer reads it
+let _boardMovedNotified = new Set()   // KAT-BREAKOUT1: side-circle breadcrumbs already shown
 let _boardLastSigningTxid = null   // previous render's watched txid — vanish-from-pending expiry verdict (2026-07-15)
 
 // ── SIGN-STATUSLANG1 first pass: per-account signing status on the arcs ──────

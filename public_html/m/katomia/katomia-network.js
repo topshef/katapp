@@ -451,12 +451,17 @@ function connect(onOpenAction){
 			}
 			return null
 		}
-		const root = { meta: gameMeta, accounts: state.accounts, players: state.players, tx: state.tx, narrate: state.narrate }
+		// field list mirrors the server's broadcast snap — KAT-BREAKOUT1 added moved/
+		// parent to both ends (the twin whitelists silently dropped them; found by
+		// T:BREAKOUT-01 B5b: full-state sockets saw the breadcrumbs, delta sockets never did)
+		const root = { meta: gameMeta, accounts: state.accounts, players: state.players, tx: state.tx, narrate: state.narrate,
+			moved: state.moved || null, parent: state.parent || null }
 		kpatch(root, d.patch || [])
 		const chat = [...(state.chat || []), ...(d.chatAppend || [])]
 		if(chat.length > 150) chat.splice(0, chat.length - 150)
 		gameMeta = root.meta
-		Object.assign(state, { accounts: root.accounts, players: root.players, tx: root.tx, narrate: root.narrate, chat })
+		Object.assign(state, { accounts: root.accounts, players: root.players, tx: root.tx, narrate: root.narrate, chat,
+			moved: root.moved, parent: root.parent })
 		window.__stateSeq = d.seq
 		window.__deltaApplied = (window.__deltaApplied || 0) + 1   // QA counter (T:STATSYNC-04)
 		return { ...d, type: "game_state", meta: gameMeta, state }
@@ -518,6 +523,22 @@ function connect(onOpenAction){
 				// status line instead of leaving the user staring at a dead spinner.
 				try { document.dispatchEvent(new CustomEvent("katomia:gamemsg", { detail: m })) } catch(_){}
 			}
+		// KAT-BREAKOUT1 P1 (spec §5): your cluster struck a deal and the game broke it
+		// out — follow it. The side circle contains exactly the ceremony members, so
+		// the landing board is the collapsed view the strike would have shown here;
+		// kfade masks the page swap (the spec's soft in-page swap remains an upgrade
+		// path — hard navigation was chosen for reliability, the user's #1 concern).
+		// Guarded once per target: a re-broadcast must not double-navigate.
+		if(data.type === "game_moved"){
+			if(data.to && window.__kMovedTo !== data.to){
+				window.__kMovedTo = data.to
+				const url = location.pathname.replace(/\/board\/[^/]+/, "/board/" + data.to) + location.search
+				try { window.katomiaChat?.system?.("Your deal moved to side circle " + data.to + " — taking you there…") } catch(_){}
+				const go = () => { location.href = url }
+				if(window.kfade?.enabled) kfade.leave(go); else go()
+			}
+			return
+		}
 		if(data.type === "game_error") return  // errors included in notify
 
 		// STATSYNC1 P5: normalise an incremental update into a full game_state (or
