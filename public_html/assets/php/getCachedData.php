@@ -124,13 +124,25 @@
 		
 
 		if (file_exists($cachepath)) {
-			if ($timeoutseconds === null) return file_get_contents($cachepath); // never timeout
-			$ageseconds = time() - filemtime($cachepath);
-			if ($ageseconds < $timeoutseconds) {
-				$data = file_get_contents($cachepath);
-				$isDataValid = ($data != null && $data != "\t");
+			$data = file_get_contents($cachepath);
+			$isDataValid = ($data != null && $data != "\t");
+			// ENRICH-CACHEPOISON1 (2026-08-18): the never-timeout branch used to return
+			// $data unconditionally, so an empty file written during a bad upstream call
+			// (e.g. the KDIAG-CACHELOCK1 incident, 2026-07-11) was cached FOREVER — proven
+			// live: autocache.8705eaf4...txt (KUSD 0.0.2341021, the most-used token in the
+			// demo economy) sat at 0 bytes for 5+ weeks, served on every request, while the
+			// same upstream URL answered fine in <1s when called directly. Apply the same
+			// isDataValid check here too, so a poisoned cache self-heals on the next call
+			// instead of needing a manual cache-file delete to notice.
+			if ($timeoutseconds === null) {
 				if ($isDataValid) return $data;
-				else elog("warning: cache data was empty $cachepath");
+				else elog("warning: cache data was empty (never-timeout branch) $cachepath");
+			} else {
+				$ageseconds = time() - filemtime($cachepath);
+				if ($ageseconds < $timeoutseconds) {
+					if ($isDataValid) return $data;
+					else elog("warning: cache data was empty $cachepath");
+				}
 			}
 		}
 		
