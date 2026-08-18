@@ -10,11 +10,15 @@
 set -uo pipefail
 
 APP="$(cd "$(dirname "$0")/.." && pwd)"
-FEATURES="${STRIP_FEATURES:-kea admin-disclose}"
+FEATURES="${STRIP_FEATURES:-kea admin-disclose extsign}"
 
 tokens_for(){ case "$1" in
   kea) echo '\bkea\b|kea[-_./]|keakonnect|deal(engine|ports)|execution[ -]agent|profilekeasection|data-menu-kea';;
   admin-disclose) echo 'kadmin[-_]?(chip|disclosed)|katomia_admin_disclosed';;
+  # extsign: only the FUNCTIONAL jump-offs (URL construction with a query string) —
+  # prose mentions of /m/sign/ in comments are fine to ship-strip silently, this
+  # feature hides a dead link, not a secret (unlike kea/admin-disclose).
+  extsign) echo 'm/sign/\?';;
   *) echo '';;
 esac }
 

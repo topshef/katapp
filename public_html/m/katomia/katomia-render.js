@@ -611,15 +611,19 @@ function getFastThumb(url, imgEl){
       a.style.fontSize = "12px"
       a.style.textDecoration = "none"
 
+      /* KBUNDLE-STRIP:extsign */
       // KDIAG-BOARDSIGNDOT1: was raw-interpolated + unguarded — a tx without a
       // txid yet produced a literal "...?txid=undefined" link to /m/sign/,
       // landing on an empty sign page (no hex2 in txRead payload)
+      // SIGN-HUBLINKPRUNE1: the external sign page isn't in standalone bundles —
+      // stripped builds leave this dot an inert emoji (no href, no target).
       a.href = tx.txid
         ? `/m/sign/?network=${encodeURIComponent(tx.network || "")}` +
           `&txid=${encodeURIComponent(tx.txid)}&pch=${encodeURIComponent(tx.pch || "")}`
         : "#"
       if(!tx.txid) a.style.pointerEvents = "none"
       a.target = "_blank"
+      /* /KBUNDLE-STRIP:extsign */
       
       a.dataset.txid = tx.txid
       a.__tx = tx

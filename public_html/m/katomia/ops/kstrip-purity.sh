@@ -8,11 +8,13 @@
 set -uo pipefail
 
 DIR="${1:?usage: kstrip-purity.sh <build-dir>}"
-FEATURES="${STRIP_FEATURES:-kea admin-disclose}"
+FEATURES="${STRIP_FEATURES:-kea admin-disclose extsign}"
 
 tokens_for(){ case "$1" in
   kea) echo '\bkea\b|kea[-_./]|keakonnect|deal(engine|ports)|execution[ -]agent|profilekeasection|data-menu-kea';;
   admin-disclose) echo 'kadmin[-_]?(chip|disclosed)|katomia_admin_disclosed';;
+  # extsign (SIGN-HUBLINKPRUNE1): functional /m/sign/?… jump-offs only — see audit.
+  extsign) echo 'm/sign/\?';;
   *) echo '';;
 esac }
 

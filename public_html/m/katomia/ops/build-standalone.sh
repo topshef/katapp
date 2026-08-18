@@ -263,7 +263,10 @@ cat "$APP/.htaccess"
 #     and naming the pruned features there would leak exactly what the strip
 #     hides. The purity gate (ops/kstrip-purity.sh, T:KSTRIP-02) then fails the
 #     build loudly if any trace survives.
-STRIP_FEATURES="${STRIP_FEATURES-kea admin-disclose}"
+#     extsign (SIGN-HUBLINKPRUNE1, feedback c8dbd94c 2026-08-17): jump-offs to the
+#     external /m/sign/ page — it lives outside m/katomia so bundles never ship it
+#     and every link to it 404s in pat/production.
+STRIP_FEATURES="${STRIP_FEATURES-kea admin-disclose extsign}"
 TOUCHED=""
 for FEAT in $STRIP_FEATURES; do
   case "$FEAT" in kea) rm -rf "$BUILD/KEA";; esac

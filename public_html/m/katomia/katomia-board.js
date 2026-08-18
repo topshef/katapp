@@ -2070,6 +2070,13 @@ function renderRingBoard(root){
       count.className = "ring-hub-count ring-hub-count--" + boardSigning.status
       hub.appendChild(count)
       boardStartCountdown(count)
+      /* KBUNDLE-STRIP:extsign */
+      // SIGN-HUBLINKPRUNE1 (feedback c8dbd94c, 2026-08-17): the external signing page
+      // lives OUTSIDE m/katomia, so standalone bundles (pat/production) don't ship it
+      // and this tap landed on a 404 — "you just takes you to a broken link which
+      // doesn't look good". Strip-tagged: dev estate keeps the external route ("we do
+      // need a way for testing at least to be able to go external"), bundles cut it
+      // and the hub stays a plain countdown.
       if(ring16()){
         hub.style.cursor = "pointer"
         hub.title += " — tap for the full signing page (all wallet options)"
@@ -2078,6 +2085,7 @@ function renderRingBoard(root){
           `&txid=${encodeURIComponent(boardSigning.tx.txid)}&pch=${encodeURIComponent(boardSigning.tx.pch || "")}`,
           "_blank")
       }
+      /* /KBUNDLE-STRIP:extsign */
     }
   } else if(ring10()){
     // v10 HUB RING (review 9): per-account arcs in each player's colour (the
@@ -4501,8 +4509,13 @@ async function boardDirectSign(account){
   if(!tx) return
   const network = gameMeta?.network || ""
   if(!wc?.signTx){
-    // bundle missing → the external page still signs (never dead-ends)
+    /* KBUNDLE-STRIP:extsign */
+    // bundle missing → the external page still signs (never dead-ends). In stripped
+    // bundles (SIGN-HUBLINKPRUNE1) the external page doesn't exist, so this branch
+    // just returns — the WC bundle ships in those builds, so reaching here at all
+    // means something else is broken.
     window.open(`/m/sign/?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(tx.txid)}&pch=${encodeURIComponent(tx.pch || "")}`, "_blank")
+    /* /KBUNDLE-STRIP:extsign */
     return
   }
   const accountId = account.id.split(":")[1] || account.id

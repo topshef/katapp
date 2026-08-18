@@ -1,5 +1,6 @@
 // signdeadtx-check.cjs — SIGNDEADTX-01: refuse to sign an expired transaction.
-//
+// KBUNDLE-STRIP-FILE:extsign — drives the external /m/sign/ page, which stripped
+// bundles don't ship (SIGN-HUBLINKPRUNE1); the harness is dev-estate-only.
 // SIGN-DEADTX1 (2026-08-07, mainnet): the widget's 'Sign now' handler had no
 // validity check — Sign clicked 39s AFTER the window closed still signed,
 // saved, and logged success; the network could never accept it. The fix is the
