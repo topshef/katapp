@@ -204,12 +204,12 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
        to the explainer/FAQ. "What is a circle?" under the entry cards points at the same
        page's top section — same destination, but it answers the question a newcomer
        actually has at the moment they're staring at two unfamiliar doors. -->
-  <?php if ($tagline): ?>
+  <!-- Feedback a8977343 (2026-08-18): tagline emptied ("trader-style wording") — the
+       Learn more link must survive an empty tagline, so it renders unconditionally. -->
   <p class="landing-tagline">
-    <?= katomiaTermEsc($tagline) ?>
+    <?php if ($tagline): ?><?= katomiaTermEsc($tagline) ?><?php endif; ?>
     <a class="landing-learn" href="<?= $katomiaBase ?>/learn">Learn more →</a>
   </p>
-  <?php endif; ?>
 
   <!-- ENTRY-CIRCLES1: the two curated doors. These are the ONLY elements on the page
        that get the bubble — the gesture is reserved for "entering a {one}" (user
