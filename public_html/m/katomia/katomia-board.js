@@ -1502,14 +1502,15 @@ function renderRingBoard(root){
   // wipe the stale lines now and replay the preview once the layout tween has
   // settled — "it shows everyone where they are in one go and fixes the UI and
   // leaves the dotted line in the right place."
-  {
-    const sigTx = boardSigning?.tx?.txid || null
-    if(_boardSignPrevTx === null && sigTx){
-      boardClearTrails()
-      setTimeout(() => { if(boardSigning?.tx?.txid === sigTx) playTransfers() }, 700)
-    }
-    _boardSignPrevTx = sigTx
-  }
+  // BOARD-LOCKREDRAW1 R2 (user retest 2026-08-18: "double animation … two dotted
+  // lines"): R1's auto-replay here was a DUPLICATE — the strike moment has ALWAYS
+  // auto-played the choreography (review 17, ~renderRingBoard end: __boardStruckTx
+  // guard + setTimeout(playTransfers, 80)), so R1 literally played it twice: the
+  // built-in 80ms run drew its (then-unkeyed) trails mid relayout-tween — the line
+  // in the WRONG place — and R1's 700ms run drew the RIGHT one beside it. R1 block
+  // removed; the real fix is that signing-phase trails now carry seg:"tx" and are
+  // re-anchored (or pruned) every paint by boardReanchorTrails, so the built-in
+  // early draw self-corrects once the tween/organic sim settles the chips.
   // SIGNAL-DRIVEN expiry/failure verdict (replaces the 2026-07-14 client-
   // timer guesses, removed 2026-07-15 for disagreeing with the real backend
   // deadline — see BOARD_TX_EXPIRY_MS above). boardDetectSigning() only
@@ -3969,7 +3970,6 @@ function boardScrollOthers(step){
 // giver when uniquely attributable — a netted tx usually has one sender per
 // asset); send legs reserved for the ghost side later.
 let boardSigning = null   // set per render; footer reads it
-let _boardSignPrevTx      // BOARD-LOCKREDRAW1: last paint's signing txid (undefined = no paint witnessed yet)
 let _boardLastSigningTxid = null   // previous render's watched txid — vanish-from-pending expiry verdict (2026-07-15)
 
 // ── SIGN-STATUSLANG1 first pass: per-account signing status on the arcs ──────
@@ -5297,8 +5297,13 @@ function playTransfers(){
       if(!from) return
       const giver = Object.values(state?.accounts || {})
         .find(a => (a.id.split(":")[1] || a.id) === fromHac)
+      // BOARD-LOCKREDRAW1 R2: these trails used to be UNKEYED, so once the organic
+      // sim nudged the txchips after the flight, boardReanchorTrails had no handle
+      // on them and they stranded at the wrong angle — the user's "one line in the
+      // wrong place". seg:"tx" gives the re-anchor pass (and its prune) ownership.
       boardFlyRect(chip.outerHTML, from, chip.getBoundingClientRect(),
-        getPlayerColour(giver?.playerId), i++ * 220)
+        getPlayerColour(giver?.playerId), i++ * 220,
+        { key: `${chip.dataset.toAccount || ""}|${fromHac}|${chip.dataset.assetId}`, seg: "tx" })
     })
     return
   }
@@ -5488,6 +5493,34 @@ function boardReanchorTrails(){
     const parts = (line.dataset.pairKey || "").split("|")
     if(parts.length < 3) return
     const to = parts[0], from = parts[1], asset = parts.slice(2).join("|")
+    // BOARD-LOCKREDRAW1 R2: signing-phase replay trails ("tx") live in a different
+    // DOM — giver GHOST/rimpile → .board-txchip — so the .asset selectors below can
+    // never resolve them. Re-aim against that DOM; endpoint gone → REMOVE the line
+    // (prune beats strand — the wrong-angle leftover was the reported bug).
+    if(line.dataset.seg === "tx"){
+      const ownedBy = el => {
+        const o = el.dataset.ownerAccount || ""
+        return o === from || o.endsWith(":" + from) || (o.split(":")[1] || o) === from
+      }
+      const sameAsset = el => el.dataset.assetId === asset
+      const ghosts = [...document.querySelectorAll(".board-ghost")].filter(ownedBy)
+      // same anchor ladder as playTransfers' signing branch, ring-avail fallback
+      // included — pruning a line whose flight legitimately anchored to the store
+      // zone box would delete every line on ghost-less boards (found by harness)
+      const anchor = ghosts.find(sameAsset) || ghosts[0]
+        || [...document.querySelectorAll(".board-rimpile")].filter(ownedBy).find(sameAsset)
+        || [...document.querySelectorAll(".ring-avail")].find(b => {
+             const d = b.dataset.dropAccount || ""
+             return d === from || d.endsWith(":" + from)
+           })
+      const chips = [...document.querySelectorAll(".board-txchip")].filter(sameAsset)
+      const other = (to && chips.find(c => c.dataset.toAccount === to)) || chips[0]
+      if(!anchor || !other){ line.remove(); return }
+      const g = centre(anchor), o = centre(other)
+      line.setAttribute("x1", g.x); line.setAttribute("y1", g.y)
+      line.setAttribute("x2", o.x); line.setAttribute("y2", o.y)
+      return
+    }
     const sel = `[data-owner-account="${CSS.escape(from)}"][data-asset-id="${CSS.escape(asset)}"]`
     const anchor = boardTrailAnchorEl(from, asset, to)
     if(!anchor) return
@@ -5574,6 +5607,11 @@ function boardPruneOrphanTrails(){
     const parts = (line.dataset.pairKey || "").split("|")
     if(parts.length < 3) return
     const to = parts[0], from = parts[1], asset = parts.slice(2).join("|")
+    // BOARD-LOCKREDRAW1 R2: signing-phase replay lines ("tx") live in the txchip
+    // DOM, not the .asset DOM this liveness test reads — boardReanchorTrails owns
+    // their pruning (endpoint gone → removed there). Testing them here killed
+    // every keyed signing line one paint after it was drawn (found by harness).
+    if(line.dataset.seg === "tx") return
     // BOARD-TRAILANCHOR1: liveness = the giver's anchor (ghost OR rim pile) or
     // the basket chip still being on the table. The ghost alone was the test,
     // which in simple mode is absent by design — that made a live line look
