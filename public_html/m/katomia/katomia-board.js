@@ -4040,6 +4040,7 @@ async function boardRefreshSignStatus(){
     // the front end". Riding along on boardSignStatus so boardDetectSigning
     // can prefer it over the BOARD_TX_EXPIRY_MS guess once this poll lands.
     boardAnnounceSigned(tx.txid, byAccount)   // BOARD-ACTIONMSG1 R3: "signed" rows
+    boardAnnounceIssues(tx.txid, short, unassoc)   // BOARD-ASSOCWARN1: red arcs say WHY
     boardSignStatus = { txid: tx.txid, byAccount, validDurationSeconds: data?.validDurationSeconds || null }
     const sig = JSON.stringify(byAccount)
     boardDiag("board:signstatus", { txid: tx.txid, byAccount, signedKeys: signedPubkeys.length,
@@ -4082,6 +4083,44 @@ function boardAnnounceSigned(txid, byAccount){
     })
   }
   if(_boardSignAnnounced.size > 400) _boardSignAnnounced = new Set()
+}
+
+// BOARD-ASSOCWARN1 (feedback c8dbd94c, 2026-08-17): "a dotted red line … I think that
+// means that the tokens not associated but there's no visual cue other than that no
+// explanation". The arc's red already derives from boardBalanceIssues (precheck fails +
+// negative forecasts — the same signal as the modal's red ring), so when it paints we
+// say WHY, in the message stream, in SIGN-EXPLAIN1's plain words ("not associated",
+// "insufficient balance"). One row per instance (txid|account|asset|reason), per the
+// submitter: "probably one for each instance because they shouldn't be many" — and per
+// KAT-DUPEQUIET1 these are real actionable failures, not decoration; the benign
+// auto-associate tier never enters boardBalanceIssues so this cannot cry wolf.
+// Delivery follows the verdict precedent (BOARD-CHATMODE1 R3): panel mode → a system
+// row in the stream; bubbles mode → a persistent ⚠️ toast (closable, ✕).
+let _boardIssueAnnounced = new Set()   // `${txid}|${hac}|${asset}|${reason}` — once per instance
+function boardAnnounceIssues(txid, short, unassoc){
+  const label = a => String(a).toLowerCase() === "hbar" ? "HBAR"
+    : (typeof getAssetMeta === "function"
+        && (getAssetMeta(a)?.token_class?.symbol || getAssetMeta(a)?.token_class?.name)) || a
+  const rows = []
+  for(const [reason, map] of [["unassoc", unassoc], ["short", short]])
+    for(const [acct, assets] of Object.entries(map || {})){
+      const hac = String(acct).split(":")[1] || String(acct)
+      for(const asset of assets || []){
+        const k = `${txid}|${hac}|${asset}|${reason}`
+        if(_boardIssueAnnounced.has(k)) continue
+        _boardIssueAnnounced.add(k)
+        rows.push(reason === "unassoc"
+          ? `⚠️ ${hac} — ${label(asset)} not associated, the transfer can't settle`
+          : `⚠️ ${hac} — insufficient ${label(asset)} balance`)
+      }
+    }
+  if(_boardIssueAnnounced.size > 400) _boardIssueAnnounced = new Set()
+  for(const msg of rows){
+    if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system)
+      window.katomiaChat.system(msg)
+    else
+      notify(msg, "warning", { timeout: 0 })
+  }
 }
 
 // start/stop the signing-status poll with the signing phase. Called from render()
