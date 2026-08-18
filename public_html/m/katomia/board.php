@@ -209,6 +209,17 @@ window.addEventListener("load", () => {
     // first entry is part of BOARD-CHATLAYOUT1 (toasts-into-chat).
     notify?.(`New game created — share this link for others to join`, "success",
       { timeout: 15000, detail: link, link: { href: link, text: "Open ↗" } })
+    // R3 (user 2026-08-18): the toast evaporates, so the link also lands as a Katomia
+    // entry in the message stream where it PERSISTS (for this session — system rows are
+    // a local live feed, not server-side chat; a server-persisted home for it would be
+    // the CHAT-WELCOME1 welcome message). Yes, it's the same link as the address bar —
+    // being explicit is the point. NOTED TENSION, same conversation: the user floated
+    // making the game name in the welcome message clickable as an invite affordance,
+    // then talked themselves out of it ("you're already in the game — linking to
+    // yourself is silly") but asked to keep the idea on record in case a wordless
+    // share-this affordance is wanted later.
+    window.katomiaChat?.system?.("Share this link for others to join",
+      { link, linkText: link.replace(/^https?:\/\//, "") })
   }
 })
 </script>
