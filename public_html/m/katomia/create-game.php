@@ -83,6 +83,12 @@ h2{
    (rounded, chevron); here they just fill the row like the text inputs do. */
 .form select{ width:100%; box-sizing:border-box; }
 
+/* BOARD-PLAYERCOLOR1 addendum: theme pie wheel to the right of the dropdown. */
+.theme-row{ display:flex; align-items:center; gap:14px; }
+.theme-row select{ flex:1; min-width:0; }
+#themeWheel{ width:52px; height:52px; flex:none; margin:-8px -4px; filter:drop-shadow(0 1px 2px rgba(0,0,0,.15)); transition:transform .25s ease; }
+#themeWheel.spin{ transform:rotate(40deg); }
+
 .options{
   display:flex;
   flex-wrap:wrap;
@@ -227,13 +233,22 @@ h3{
   <div class="field">
     <label>🎨 Theme</label>
     <p class="explain">Sets the colours players are dealt. More theming to come.</p>
-    <select id="gameTheme">
-      <option value="" selected>🌌 Nebula (default)</option>
-      <option value="classic">🎩 Classic — soft, subdued</option>
-      <option value="botanical">🌿 Botanical — natural, muted</option>
-      <option value="gemstone">💎 Gemstone — rich, jewel tones</option>
-      <option value="harvest">🌾 Harvest — countryside warmth</option>
-    </select>
+    <!-- BOARD-PLAYERCOLOR1 addendum (feedback 3172c7ca, 2026-08-17): "illustrate that
+         theme dynamically on the page … a small wheel sitting to the right of the drop
+         down … a pie chart with seven colors according to the theme selected". The
+         wheel deliberately rides a bit proud of the row (overlap is fine per the
+         feedback — "it can overlap the other things on the page … it's like just an
+         effect"). -->
+    <div class="theme-row">
+      <select id="gameTheme">
+        <option value="" selected>🌌 Nebula (default)</option>
+        <option value="classic">🎩 Classic — soft, subdued</option>
+        <option value="botanical">🌿 Botanical — natural, muted</option>
+        <option value="gemstone">💎 Gemstone — rich, jewel tones</option>
+        <option value="harvest">🌾 Harvest — countryside warmth</option>
+      </select>
+      <svg id="themeWheel" viewBox="-1 -1 2 2" aria-hidden="true"></svg>
+    </div>
   </div>
 
   <div class="field field-visibility">
@@ -610,6 +625,33 @@ function jwkXToHex(x){
 // which is precisely why the original read localStorage directly and silently gave up.
 window.addEventListener("load", () => { defaultAdminAccount() })
 
+// BOARD-PLAYERCOLOR1 addendum (feedback 3172c7ca): live theme wheel beside the 🎨
+// dropdown — a 7-slice pie of the selected pack ("six or seven … so it's not too
+// regular looking"). DISPLAY-ONLY duplicate of the backend PALETTES map
+// (katomiaHelpers.js, BOARD-PLAYERCOLOR1) — the backend stays the source of truth
+// for the colours actually dealt; the feedback's own suggestion of a palette-fetch
+// API is logged on the task and would replace this map when it exists.
+const THEME_PALETTES = {
+  "":        ["#5865c2", "#8b5bb0", "#3d7a99", "#b05b8a", "#4a5a8f", "#7a6ab5", "#2f6b7a"],
+  classic:   ["#4477aa", "#7b5fb0", "#c2588f", "#5aa9c9", "#3d8f83", "#8a6d4a", "#a0669f"],
+  botanical: ["#5c7a4e", "#7a5c3e", "#9c7bb5", "#4e7a8a", "#b58a5c", "#8a4e6b", "#6b8f71"],
+  gemstone:  ["#3f5fbf", "#7d4ea8", "#2e8a99", "#a8547d", "#6e6a9e", "#946b3d", "#4a7ab5"],
+  harvest:   ["#a8763d", "#7a8a4e", "#8a5c3e", "#b5985c", "#6b7a8f", "#9e5c4e", "#77894e"],
+}
+function drawThemeWheel(){
+  const svg = document.getElementById("themeWheel")
+  const colours = THEME_PALETTES[document.getElementById("gameTheme")?.value || ""] || THEME_PALETTES[""]
+  if(!svg) return
+  const n = colours.length, seg = (2 * Math.PI) / n
+  svg.innerHTML = colours.map((c, i) => {
+    const a0 = i * seg - Math.PI / 2, a1 = a0 + seg
+    return `<path d="M0 0 L${Math.cos(a0).toFixed(4)} ${Math.sin(a0).toFixed(4)} A1 1 0 0 1 ${Math.cos(a1).toFixed(4)} ${Math.sin(a1).toFixed(4)} Z" fill="${c}"/>`
+  }).join("")
+  svg.classList.remove("spin"); void svg.getBoundingClientRect(); svg.classList.add("spin")
+  setTimeout(() => svg.classList.remove("spin"), 300)
+}
+document.getElementById("gameTheme")?.addEventListener("change", drawThemeWheel)
+drawThemeWheel()
 
 </script>
 
