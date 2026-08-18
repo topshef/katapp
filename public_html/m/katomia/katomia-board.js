@@ -788,15 +788,18 @@ function boardShowResult(txid, ok, tier, source){
     // the verdict lives IN THE STREAM as a Katomia system entry — the toast version
     // wrapped awkwardly and duplicates what the stream carries better. Bubbles mode
     // keeps the TOASTLINK2 toast (txid as the HashScan link, wrap via detail).
+    // SIGN-FAILREASON1 (user 2026-08-18): the unhappy verdict names its reasons
+    // (missing signatures, balances, associations) from the last signing snapshot.
+    const why = ok ? "" : boardFailureReasons(txid)
     if(typeof boardChatMode !== "undefined" && boardChatMode === "panel" && window.katomiaChat?.system)
       window.katomiaChat.system(
         // EMOJI SEMANTICS (user 2026-08-03): ✅ tick = consensus reached; an expired/
         // failed tx never made the chain, so NO square there — ⌛. The txid itself is
         // the clickable link (linkText), not a tiny arrow after it.
-        ok ? `✅ Transaction successful${prov}` : `⌛ Transaction failed or expired${prov} · ${txid}`,
+        ok ? `✅ Transaction successful${prov}` : `⌛ Transaction failed or expired${prov}${why} · ${txid}`,
         { link: link?.href || null, linkText: ok ? txid : null })
     else
-      notify(ok ? `🟩 Transaction successful${prov}` : `🟥 Transaction failed or expired${prov}`,
+      notify(ok ? `🟩 Transaction successful${prov}` : `🟥 Transaction failed or expired${prov}${why}`,
         ok ? "success" : "error",
         { timeout: 0, link, key: `txresult:${txid}`, ...(link ? {} : { detail: txid }) })
   } catch {}
@@ -3985,6 +3988,34 @@ let boardSignStatus = null   // { txid, byAccount: { hac: 'signed'|'pending'|'lo
 let _boardSignMod = null
 let _boardSignPoll = null
 let _boardSignLast = ""
+// SIGN-FAILREASON1 (user 2026-08-18): last signing snapshot, kept past poll cleanup
+let _boardSignForensics = null   // { txid, byAccount, short, unassoc }
+
+// SIGN-FAILREASON1 (user 2026-08-18): "currently we just say transaction failed or
+// expired, but we could report all the reasons why". Built from the last poll's
+// picture of THIS tx: who never satisfied their signing threshold, plus the balance/
+// association failures the arcs were already red for. Returns "" when we have nothing
+// honest to say (no snapshot, different tx, or everything looked fine — e.g. a node-
+// side failure we never saw coming): never invent a reason. Deliberately separate
+// from any abort notice (SIGN-ABORT1 design): "they're different events at different
+// times — we don't need to fold them into each other."
+function boardFailureReasons(txid){
+  const f = _boardSignForensics
+  if(!f || f.txid !== txid) return ""
+  const label = a => String(a).toLowerCase() === "hbar" ? "HBAR"
+    : (typeof getAssetMeta === "function"
+        && (getAssetMeta(a)?.token_class?.symbol || getAssetMeta(a)?.token_class?.name)) || a
+  const parts = []
+  const unsigned = Object.entries(f.byAccount || {})
+    .filter(([, s]) => s === "pending" || s === "loading").map(([h]) => h)
+  if(unsigned.length) parts.push(`not signed by ${unsigned.join(", ")}`)
+  const hac = id => String(id).split(":")[1] || String(id)
+  for(const [acct, assets] of Object.entries(f.unassoc || {}))
+    for(const a of assets || []) parts.push(`${label(a)} not associated for ${hac(acct)}`)
+  for(const [acct, assets] of Object.entries(f.short || {}))
+    for(const a of assets || []) parts.push(`${hac(acct)} short of ${label(a)}`)
+  return parts.length ? ` — ${[...new Set(parts)].join(" · ")}` : ""
+}
 
 async function boardSignModule(){
   if(_boardSignMod) return _boardSignMod
@@ -4058,6 +4089,11 @@ async function boardRefreshSignStatus(){
     // can prefer it over the BOARD_TX_EXPIRY_MS guess once this poll lands.
     boardAnnounceSigned(tx.txid, byAccount)   // BOARD-ACTIONMSG1 R3: "signed" rows
     boardAnnounceIssues(tx.txid, short, unassoc)   // BOARD-ASSOCWARN1: red arcs say WHY
+    // SIGN-FAILREASON1: keep the last-known signing picture PAST the poll's own
+    // cleanup (boardEnsureSignStatusPoll nulls boardSignStatus when signing ends,
+    // which is exactly when the failure verdict needs it) — boardFailureReasons
+    // reads this to say WHY a tx failed or expired.
+    _boardSignForensics = { txid: tx.txid, byAccount, short, unassoc }
     boardSignStatus = { txid: tx.txid, byAccount, validDurationSeconds: data?.validDurationSeconds || null }
     const sig = JSON.stringify(byAccount)
     boardDiag("board:signstatus", { txid: tx.txid, byAccount, signedKeys: signedPubkeys.length,
