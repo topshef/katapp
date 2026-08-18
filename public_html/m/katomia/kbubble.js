@@ -156,8 +156,17 @@
     el.addEventListener("pointerdown", onDown)
 
     function frame(now){
-      window.__kbFrames = (window.__kbFrames || 0) + 1   // debug probe
       if(st.dead) return
+      // CIRCLES-BUBBLECOST1 R3 (feedback 6d5da2a7, 2026-08-18: homepage "uses a lot of
+      // local processing - i hear my laptop fan kicking in"): at rest the loop is pure
+      // ambient drift (sin at ~1.3rad/s) — 60fps buys nothing visible there, it just
+      // burns the physics + blur-heavy redraw twice as often. Idle renders at idleFps
+      // (default 30); any pointer presence goes straight back to full rate, so
+      // interaction feel is untouched. opt idleFps:0 disables the throttle.
+      const idleMs = st.hover ? 0 : 1000 / (o.idleFps ?? 30)
+      if(idleMs && st.lastDraw && now - st.lastDraw < idleMs - 1){ st.raf = requestAnimationFrame(frame); return }
+      st.lastDraw = now
+      window.__kbFrames = (window.__kbFrames || 0) + 1   // debug probe
       const dt = Math.min((now - (st.last || now)) / 1000, 1 / 30)
       st.last = now
       const { d, v, pts, o: op } = st
