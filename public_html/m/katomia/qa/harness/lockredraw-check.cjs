@@ -128,12 +128,24 @@ const auditJs = `(TOL => {
   audit2.playStacks = await pgA.evaluate(() => window.__playStacks || [])
   await pgA.screenshot({ path: __dirname + "/lockredraw-2.png" })
 
+  // C5 (SIGN-STRIKEMSG1): the strike leaves a persistent 🔒 Deal-struck system row in
+  // the stream. Lock-row presence is REPORTED (not gated) — backend emits lock acts
+  // (BOARD-ACTIONMSG1) but whether the panel renders them is under observation.
+  const stream = await pgA.evaluate(() =>
+    (document.querySelector("#kchatPanel, .kchat-panel, [class*=kchat]")?.closest("body") ? document.body.innerText : "").slice(0, 8000))
+  const streamChecks = {
+    strikeRow: /Deal struck — transaction .* awaiting signatures/.test(stream),
+    lockRowsSeen: /locked their side|locked 0\.0\./.test(stream),
+  }
+
   const pass = {
     C1_singleFire: audit2.playCount === 1,
     C2_oneLinePerLeg: audit1.visible === audit1.txchips && audit2.visible === audit2.txchips,
     C3_noStranded_t6: audit1.stranded === 0,
     C4_noStranded_t11: audit2.stranded === 0,
+    C5_strikeRow: streamChecks.strikeRow,
   }
+  console.log("stream checks:", JSON.stringify(streamChecks))
   console.log(JSON.stringify({ gameId, audit1, audit2, pass }, null, 2))
   const ok = Object.values(pass).every(Boolean)
   log(ok ? "ALL PASS" : "FAIL")

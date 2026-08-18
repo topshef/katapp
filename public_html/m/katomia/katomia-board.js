@@ -5707,7 +5707,13 @@ async function boardToggleLock(account){
   if(locking && typeof buildLockCommitment === "function")
     commitment = await buildLockCommitment()
   socket.send(JSON.stringify({
+    // KAT-TRANSPORT1 B9 ("kill the toggle", user-approved 2026-08-18): `to` names the
+    // DESIRED end state, making the most transport-fragile message idempotent — a
+    // replayed/duplicated frame can no longer invert the player's intent or re-fire
+    // settlement. The backend treats presence of `to` as an absolute set; omitting it
+    // keeps old toggle behaviour for old clients.
     type: "game_toggleLock", gameId, accountId: account.id,
+    to: locking ? "lock" : "shop",
     ...(commitment ? { commitment } : {})
   }))
   window.__lastLockBasisSent = locking ? (commitment?.payload?.basisHash ?? null) : null
