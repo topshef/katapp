@@ -2903,6 +2903,8 @@ body.spectating .kchat-send{ display:none; }   /* watchers can't message — ser
 .kchat-acct-link{ color:inherit; text-decoration:none; border-bottom:1px dotted rgba(31,39,51,.35); }
 .kchat-acct-link:hover{ border-bottom-style:solid; }
 .kchat-act-acct{ font-variant-numeric:tabular-nums; font-weight:600; font-size:inherit; color:#1f2733; white-space:nowrap; }
+/* BOARD-OFFERASSOC1: muted, deliberately un-warning-like — proposal mode has no timing pressure */
+.kchat-act-assoc{ opacity:.6; font-size:.92em; white-space:nowrap; }
 .kchat-act-mark{ color:#2f6fed; }
 .kchat-act-mark--un{ color:#b0b4b8; font-size:11px; }
 /* the asset as a MINI CHIP — deliberately the same object language as the felt

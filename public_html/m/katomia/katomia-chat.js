@@ -513,6 +513,44 @@
   }
   // Feedback 01a1ed32: account ids link out for more info — HashScan for now
   // (the link target may change; one helper, one place to change it).
+  // BOARD-OFFERASSOC1 (user 2026-08-18, follow-on from BOARD-ASSOCWARN1): the signing
+  // phase now says why an arc is red, but the receiver should hear about a missing
+  // association WHEN THE OFFER LANDS, not at signing. Deliberately NOT a warning —
+  // "during proposal mode it's not a warning because no one has locked, so there's no
+  // timing pressure" — just a muted "(not yet associated)" suffix on the offer row.
+  // Nerd-UI placeholder by the user's own call; a friendlier treatment (and maybe an
+  // inline associate affordance) is the enrichment to do later. Association is
+  // per token CLASS, so NFT serials strip to their collection id first.
+  // Answered by the mirror node (same per-network bases as boardConfirmTxFromChain);
+  // cached per account|token for the session — "not YET associated" wording covers
+  // the receiver associating later without us re-checking every paint. Unknown
+  // (fetch failed / playnet / non-token) stays silent: never claim what we didn't see.
+  var _assocCache = {};
+  function appendAssocHint(host, publicId, assetId) {
+    var net = "";
+    try { net = (typeof gameMeta !== "undefined" && gameMeta && gameMeta.network) || ""; } catch (e) {}
+    if (net !== "testnet" && net !== "mainnet") return;
+    var token = String(assetId || "").split("#")[0];
+    if (!/^0\.0\.\d+$/.test(token)) return;              // hbar / playnet assets: no association concept
+    var acct = accountObj(publicId);
+    var hedId = (acct && acct.accountId) || String(publicId || "").split(":")[1] || "";
+    if (!/^0\.0\.\d+$/.test(hedId)) return;
+    var key = net + "|" + hedId + "|" + token;
+    if (!(key in _assocCache)) {
+      var mirror = net === "mainnet" ? "https://mainnet-public.mirrornode.hedera.com"
+                                     : "https://" + net + ".mirrornode.hedera.com";
+      _assocCache[key] = fetch(mirror + "/api/v1/accounts/" + hedId + "/tokens?token.id=" + token + "&limit=1")
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) { return j ? !!(j.tokens && j.tokens.length) : null; })
+        .catch(function () { return null; });
+    }
+    var el = document.createElement("span");
+    el.className = "kchat-act-assoc";
+    host.appendChild(el);
+    _assocCache[key].then(function (assoc) {
+      if (assoc === false) el.textContent = " (not yet associated)";
+    });
+  }
   function acctLinkEl(label) {
     var net = (typeof gameMeta !== "undefined" && gameMeta && gameMeta.network) || "";
     if ((net === "mainnet" || net === "testnet") && /^0\.0\.\d+$/.test(label)) {
@@ -601,6 +639,8 @@
                       : a.kind === "reject" ? a.from
                       : a.kind === "pick" ? a.from
                       : a.to);
+    // BOARD-OFFERASSOC1: "(not yet associated)" after the receiving account
+    if (a.kind === "offer") appendAssocHint(ph, a.to, a.assetId);
     // hovering the row lights the same pair on the board — the chips already
     // carry this exact triple, so no board change was needed (doc §5)
     if (a.from && a.to && a.assetId) {
