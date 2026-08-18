@@ -1491,6 +1491,22 @@ function renderRingBoard(root){
   // the signing phase would still offer the hover.
   if(boardSigning) document.body.dataset.signing = "1"
   else delete document.body.dataset.signing
+  // BOARD-LOCKREDRAW1 (user 2026-08-18, on lab1): with Party-only on, the last lock
+  // rotates/collapses the ring but the offer trail lines kept their old screen
+  // geometry — "a weird dotted line at the wrong angle", fixable only by pressing ▶.
+  // The user's own fix, automated: at the WITNESSED moment locking completes (prev
+  // paint not signing → this paint signing; a mid-signing page load never fires),
+  // wipe the stale lines now and replay the preview once the layout tween has
+  // settled — "it shows everyone where they are in one go and fixes the UI and
+  // leaves the dotted line in the right place."
+  {
+    const sigTx = boardSigning?.tx?.txid || null
+    if(_boardSignPrevTx === null && sigTx){
+      boardClearTrails()
+      setTimeout(() => { if(boardSigning?.tx?.txid === sigTx) playTransfers() }, 700)
+    }
+    _boardSignPrevTx = sigTx
+  }
   // SIGNAL-DRIVEN expiry/failure verdict (replaces the 2026-07-14 client-
   // timer guesses, removed 2026-07-15 for disagreeing with the real backend
   // deadline — see BOARD_TX_EXPIRY_MS above). boardDetectSigning() only
@@ -3950,6 +3966,7 @@ function boardScrollOthers(step){
 // giver when uniquely attributable — a netted tx usually has one sender per
 // asset); send legs reserved for the ghost side later.
 let boardSigning = null   // set per render; footer reads it
+let _boardSignPrevTx      // BOARD-LOCKREDRAW1: last paint's signing txid (undefined = no paint witnessed yet)
 let _boardLastSigningTxid = null   // previous render's watched txid — vanish-from-pending expiry verdict (2026-07-15)
 
 // ── SIGN-STATUSLANG1 first pass: per-account signing status on the arcs ──────
