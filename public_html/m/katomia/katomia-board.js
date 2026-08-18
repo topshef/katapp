@@ -6149,6 +6149,19 @@ function boardAskAmount(assetId, available, verb){
 async function boardExecuteDrop(p, account, pt){
   if(!account || !p?.assetId) return
 
+  // SIGN-BOARDFREEZE1 (user 2026-08-18, on lab1): the click route already refuses
+  // ("SIGN-GHOSTTAP1: the board is a PICTURE during signing") but a desktop DRAG
+  // sailed straight past it — an offered asset could be dropped into another basket
+  // mid-signing and the offer went through while the table was locked. Same freeze,
+  // same words, at the drop gate. Arrange-only drops never reach here (the ondrop
+  // wrapper intercepts them first), so this blocks exactly the mutating verbs:
+  // pick / reject / withdraw / offer.
+  if(boardSigning){
+    notify("The deal is signing — nothing can move until this transaction resolves.", "warning")
+    clearSelection(); render()
+    return
+  }
+
   if(p.pick){
     // picks land only in YOUR space; the backend re-checks allowPick
     if(!isMyAccount(account)) return
