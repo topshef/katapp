@@ -91,6 +91,16 @@ const gameJson = id => fetch(`${BASE.replace(/\/m\/katomia$/, "")}/m/katomia/hap
   log("locking…")
   await pgA.locator('[data-testid="lock"]').first().click()
   await pgA.waitForTimeout(1200)
+  // FRAMES=1: capture the mover's screen through the handoff (transition forensics —
+  // user 2026-08-18: "some kind of jump as you go to the side circle")
+  let framer = null
+  if(process.env.FRAMES === "1"){
+    let n = 0
+    framer = setInterval(() => {
+      pgA.screenshot({ path: `${__dirname}/breakout-frame-${String(n++).padStart(2, "0")}.png` }).catch(() => {})
+    }, 350)
+    setTimeout(() => clearInterval(framer), 8000)
+  }
   await pgB.locator('[data-testid="lock"]').first().click()
 
   // tilde delimiter (user 2026-08-18): house ids carry hyphens, so children are ~N

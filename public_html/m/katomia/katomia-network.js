@@ -117,6 +117,13 @@ function restoreCachedAccounts(){
 let _autoAddTries = 0
 async function maybeAutoAddAccounts(){
   if(window.__kautoAddDone || _autoAddTries > 6) return
+  // KAT-BREAKOUT1 (user report 2026-08-18, t-prop~2): a SIDE CIRCLE starts as exactly
+  // the settling cluster — auto-add then quietly poured the player's OTHER connected
+  // accounts in ("I did a test with two accounts… it revealed four in the side
+  // circle"), and the 2→4 membership repaint moments after arrival read as a
+  // transition glitch. A settlement room keeps only the accounts that walked in;
+  // the composer/manual add stays available if more are genuinely wanted.
+  if(state?.parent) return
   const net = gameMeta?.network
   if(net !== "testnet" && net !== "mainnet") return
   if(window.katomiaSpectator) return
@@ -539,6 +546,11 @@ function connect(onOpenAction){
 			}
 			return
 		}
+		// KAT-BREAKOUT1 (transition polish, user 2026-08-18 "some kind of jump"): once
+		// we're leaving for the side circle, the PARENT's post-split broadcast (our
+		// accounts removed → membership tween) races the 170ms fade — freeze the board
+		// on its last frame instead of repainting a world we're already leaving.
+		if(window.__kMovedTo && (data.type === "game_state" || data.type === "game_delta")) return
 		if(data.type === "game_error") return  // errors included in notify
 
 		// STATSYNC1 P5: normalise an incremental update into a full game_state (or
