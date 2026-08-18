@@ -371,8 +371,16 @@ $brand = $siteConfig['landing']['title'] ?? 'Katomia';
 
     <div class="card">
       <h3>Locking, and who has to agree</h3>
-      <p>How much of the room has to agree before a deal can go through is set per
-         <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>:</p>
+      <!-- ENTRY-LEARN1 (feedback fbbc961b, 2026-08-17): "It seems like there's 3 answers
+           to the same question and they contradict each other … the explanation should
+           make it clear that the game was set up according to ONE of those three options,
+           not something the user, when you're playing, can choose." Say the setting-ness
+           outright, before the list. -->
+      <p>How much of the room has to agree before a deal can go through is a
+         <span class="term">lock rule</span> — a setting the organizer picks when the
+         <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> is created. Every
+         <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> runs under exactly one of
+         these three rules; it isn't something you choose while playing:</p>
       <ul>
         <li><span class="term">Any connected cluster</span> — any group whose swaps interlock can settle
             on its own, without waiting for people they aren't trading with. This is the usual setting.</li>
