@@ -1,6 +1,6 @@
 {
  "_about": "THE TEST ID INDEX — every test identifier we use, what it asserts, where it runs, and how to run it. Created 2026-08-08 (user) after MAINNETSMOKE-01 and TXS-1 were quoted in chat and could not be found anywhere: they were not tasks, and TXS-* existed only as prose inside QA-XFAIL1.json's `next` field. A test id must resolve to something you can open — that is what this file is for. Viewer: tests.html. Naming convention (PROTOCOL.md): a bare CAPITALISED reference is a kPad TASK; a test id is written T:<id> in prose and chat, and must come with its URL. Each suite records what_it_does (the actual steps), pass_means, fails_when, its dimension and its cost — added 2026-08-08 after the user pointed out that 'real value, real network, once a day' does not tell anyone what the test IS.",
- "updated": "2026-08-18",
+ "updated": "2026-08-19",
  "convention": {
   "task": "BARE CAPS — a kPad task, e.g. TXSTATUS-CONSOLIDATE1. Look it up in kPad.",
   "test": "T:<id> — a test case, e.g. T:HBARXFER-01. Defined in this file; results on the QA grid.",
@@ -822,7 +822,7 @@
   {
    "id": "BREAKOUT-01",
    "title": "A struck deal in an on-lock game moves to a side circle; off games are byte-identical",
-   "asserts": "Drives a real testnet round (fresh basic-form game = Auto on-lock, 3 manual accounts incl. a bystander): B2 movers auto-land on <parent>~1; B3 membership + basket conservation (cluster accounts + pending tx in child, bystander stays, none lost); B4 ceremony renders in the child only (parent unfrozen); B5 three linked rows (child digest→parent, child strike row, parent moved row) + B5b public-keyed moved breadcrumb in parent state; B6 expiry verdict fires IN THE CHILD (resolution paths are pch-keyed + game-scanning). B7 = run LOCKREDRAW-01 (pins breakout=off) as the no-breakout regression.",
+   "asserts": "Drives a real testnet round (fresh basic-form game = Auto on-lock, 3 manual accounts incl. a bystander): B2 movers auto-land on <parent>~1; B3 membership + basket conservation; B4 ceremony in the child only (parent unfrozen); B5 three linked rows + B5b public-keyed moved breadcrumb; B5c ✍️ signers row names the sender (computed by the signing modal's own calcAccountsThatSign, not a backend guess); B6 expiry verdict fires IN THE CHILD; B6b the failed deal AUTO-RELOADS as a draft (basket repopulated, no locks, 🔁 row). FRAMES=1 dumps a 350ms screenshot series through the handoff for transition forensics. B7 = run LOCKREDRAW-01 (pins breakout=off) as the no-breakout regression.",
    "kind": "e2e",
    "network": "testnet",
    "modules": [
@@ -836,8 +836,27 @@
    },
    "schedule": "manual — run after touching splitGame/postCluster/state broadcast",
    "reports": "stdout JSON verdict + breakout-child.png / breakout-parent.png",
-   "state": "LIVE since 2026-08-18 (KAT-BREAKOUT1 P0/P1 verification; first ALL PASS on ZNWANZ→ZNWANZ~1). Its first live run caught a real playerToken leak in the moved breadcrumbs before any real on-lock strike.",
+   "state": "LIVE since 2026-08-18; extended 2026-08-19 with B5c signers row + B6b auto-reload. Caught live: playerToken leak in moved memo, twin state-field whitelists, ENTRY-AUTOADD1 side-circle pollution.",
    "why_it_matters": "KAT-BREAKOUT1: the split must be atomic and invisible-when-off; this is the falsifier the spec promised before user retest."
+  },
+  {
+   "id": "BREAKOUT-02",
+   "title": "Two disjoint clusters strike in one sweep — two side circles, both correct, in parallel",
+   "asserts": "PLANNED (sketch): 4+ accounts, two disjoint offers (A→B, C→D), lock all four in quick succession. Expect: two children <parent>~1 and <parent>~2 (order by strike), each with exactly its own cluster + pending tx + ceremony; parent keeps bystanders + both moved rows; both txs resolve independently in their own child (stagger the validity windows to prove independence); moved memo carries all four accounts across two child ids.",
+   "kind": "e2e",
+   "network": "testnet",
+   "modules": [
+    "backend-game",
+    "breakout"
+   ],
+   "harness": "qa/harness/breakout-check.cjs (PARALLEL=1 mode — NOT YET BUILT)",
+   "run": {
+    "lab1": "planned"
+   },
+   "schedule": "build next — the user names parallel breakouts the top untested scenario",
+   "reports": "—",
+   "state": "PLANNED 2026-08-19 (KAT-BREAKOUT1 QA sketch). The postClusters loop + PROP-LOCKSIGN1 shared basis say this works; nothing has proven it.",
+   "why_it_matters": "Concurrent settlement is the flow the one-ceremony board could never render; breakout is supposed to make it just work."
   }
  ],
  "expected_fail": {
@@ -907,7 +926,13 @@
   "mobile sign with the wallet backgrounded (kWallet is always awake — it cannot fail this)",
   "deliberately slow approval ~45s",
   "HashPack's own session lifecycle by hand (extension vs mobile app)",
-  "animation and timing judgement — whether the wiper/confetti lands at the right moment"
+  "animation and timing judgement — whether the wiper/confetti lands at the right moment",
+  "BREAKOUT gaps (2026-08-19 sketch, KAT-BREAKOUT1): receiver-signature-required deals — no fixture account with receiverSigRequired, so the ✍️ signers row's receiver case is unproven",
+  "BREAKOUT: side-circle SUCCESS animation sequencing (user report: board clears, then confetti+verdict late, K logo dips low-right — child-specific, intermittent; a replayed failure animated fine) — timing judgement needs eyes",
+  "BREAKOUT: mover with additional non-cluster accounts left in the parent (E3) — multi-account UX after the split",
+  "BREAKOUT: absent mover returning later via the parent URL (breadcrumb row path) — needs a second browser session joining late",
+  "BREAKOUT: reload loop hygiene — repeated fail→reload→fail cycles in one side circle (assets conserved every round?)",
+  "BREAKOUT: unlisted/private parent → who can see/follow the side-circle links (scoping ladder pass pending)"
  ],
  "related_tasks": {
   "QA-XFAIL1": "the expected-fail set above",

@@ -119,6 +119,8 @@ const gameJson = id => fetch(`${BASE.replace(/\/m\/katomia$/, "")}/m/katomia/hap
     baskets: Object.values(state?.accounts || {}).reduce((n, a) => n + (a.basket || []).length, 0),
     parentRow: /Side circle of/.test(document.body.innerText),
     strikeRow: /awaiting signatures/.test(document.body.innerText),
+    // SIGN-STRIKEMSG1 R2: authoritative ✍️ signer row from the signstatus poll
+    signersRow: (document.body.innerText.match(/✍️ Signatures needed from ([^\n]+)/) || [])[1] || null,
   }))
   const parentView = await pgC.evaluate(() => ({
     accounts: Object.keys(state?.accounts || {}),
@@ -140,6 +142,9 @@ const gameJson = id => fetch(`${BASE.replace(/\/m\/katomia$/, "")}/m/katomia/hap
     B4_ceremony_in_child_only: childView.signing === true && parentView.signing === false,
     B5_links: childView.parentRow && childView.strikeRow && parentView.movedRow,
     B5b_moved_memo: !!(parentView.moved && Object.values(parentView.moved).includes(childId)),
+    // sender must be named; the harness can't assert receiver-sig cases (no such
+    // account in the fixture set) — that stays a listed QA gap
+    B5c_signers_row: !!(childView.signersRow && childView.signersRow.includes(hac(accA))),
   }
 
   // ── B6: let the window die — verdict must fire in the CHILD
@@ -152,8 +157,13 @@ const gameJson = id => fetch(`${BASE.replace(/\/m\/katomia$/, "")}/m/katomia/hap
     b6 = await pgA.evaluate(() => ({
       verdictRow: /failed or expired/.test(document.body.innerText),
       signing: !!(typeof boardSigning !== "undefined" && boardSigning),
+      // KAT-BREAKOUT1 P2 slice: side-circle failure auto-reloads the deal as a draft
+      reloadRow: /Deal reloaded/.test(document.body.innerText),
+      basketsAfterReload: Object.values(state?.accounts || {}).reduce((n, a) => n + (a.basket || []).length, 0),
+      locksAfterReload: Object.values(state?.accounts || {}).filter(a => a.mode === "lock").length,
     }))
     pass.B6_verdict_in_child = b6.verdictRow === true && b6.signing === false
+    pass.B6b_deal_reloaded = b6.reloadRow === true && b6.basketsAfterReload === 1 && b6.locksAfterReload === 0
   }
 
   console.log(JSON.stringify({ parentId, childId, preCounts, childView, parentView, b6, pass }, null, 2))

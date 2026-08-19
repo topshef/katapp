@@ -3987,6 +3987,7 @@ function boardScrollOthers(step){
 // asset); send legs reserved for the ghost side later.
 let boardSigning = null   // set per render; footer reads it
 let _boardMovedNotified = new Set()   // KAT-BREAKOUT1: side-circle breadcrumbs already shown
+let _boardSignersAnnounced = new Set()   // SIGN-STRIKEMSG1 R2: txids whose ✍️ signer row posted
 let _boardLastSigningTxid = null   // previous render's watched txid — vanish-from-pending expiry verdict (2026-07-15)
 
 // ── SIGN-STATUSLANG1 first pass: per-account signing status on the arcs ──────
@@ -4104,6 +4105,21 @@ async function boardRefreshSignStatus(){
     // — the exact number the user asked to "get from the raw protobuf on
     // the front end". Riding along on boardSignStatus so boardDetectSigning
     // can prefer it over the BOARD_TX_EXPIRY_MS guess once this poll lands.
+    // SIGN-STRIKEMSG1 R2 (user 2026-08-19): the authoritative "who must sign" list —
+    // REUSES the signing modal's own machinery (calcAccountsThatSign + account info,
+    // receiverSigRequired included) instead of any backend guess from transfer
+    // direction; the backend strike row deliberately names nobody. One row per txid,
+    // as soon as the first poll knows.
+    if(!_boardSignersAnnounced.has(tx.txid)){
+      const req = Object.entries(accounts).filter(([, a]) => a.mustSign)
+        .map(([id]) => id.split(":")[1] || id)
+      if(req.length){
+        _boardSignersAnnounced.add(tx.txid)
+        if(_boardSignersAnnounced.size > 200) _boardSignersAnnounced = new Set([tx.txid])
+        if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system)
+          window.katomiaChat.system(`✍️ Signatures needed from ${req.join(", ")}.`)
+      }
+    }
     boardAnnounceSigned(tx.txid, byAccount)   // BOARD-ACTIONMSG1 R3: "signed" rows
     boardAnnounceIssues(tx.txid, short, unassoc)   // BOARD-ASSOCWARN1: red arcs say WHY
     // SIGN-FAILREASON1: keep the last-known signing picture PAST the poll's own
