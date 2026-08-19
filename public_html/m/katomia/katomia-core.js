@@ -32,6 +32,15 @@
 		}
 		
 		const gameId = getGameId() //|| "demo-playnet"
+
+		// TABTARGET1 R2 (user 2026-08-19, retest fail): chat links target a tab by circle
+		// name (a.target = <circle id>, katomia-chat.js) — but named targeting only finds
+		// a tab whose window.name MATCHES, and no board tab ever named itself, so every
+		// click still opened a fresh tab ("t-prop opening a second time"). Name the tab
+		// after its circle on EVERY load: set unconditionally, because window.name
+		// survives same-tab navigations (the game_moved hop reuses the tab), so a stale
+		// name would both miss reuse and let the wrong circle's link hijack this tab.
+		if(gameId) try { window.name = decodeURIComponent(gameId) } catch { window.name = gameId }
 		
 
 		// if(!gameId)  window.location.href = "contents.html"    // href    → adds history entry
