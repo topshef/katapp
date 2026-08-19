@@ -817,7 +817,14 @@
       if (m.system && m.link) {
         // the WHOLE payload (e.g. the txid) is the link, not a fiddly arrow (user 2026-08-03)
         var a2 = document.createElement("a");
-        a2.href = m.link; a2.target = "_blank"; a2.rel = "noopener noreferrer";
+        a2.href = m.link; a2.rel = "noopener noreferrer";
+        // TABTARGET1 (user 2026-08-19): circle-to-circle links (KAT-BREAKOUT1's parent<->
+        // child breadcrumbs, always a RELATIVE circle id) were opening a fresh "_blank" tab
+        // on every click — dozens of tabs for the same circle after a few hops. Target the
+        // tab by circle NAME instead, so repeat clicks reuse it. External links (HashScan
+        // tx/account, feedback URL — always absolute) keep "_blank": each is a genuinely
+        // different destination, not a circle you'd hop back to.
+        a2.target = /^https?:\/\//i.test(m.link) ? "_blank" : m.link;
         a2.textContent = m.linkText || "↗";
         main.append(" ", a2);
       }
