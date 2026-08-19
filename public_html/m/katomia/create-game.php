@@ -1,4 +1,5 @@
 <?php require_once __DIR__ . '/kasset.php';
+require_once __DIR__ . '/site-config.php';
 // ENTRY-CREATEBASIC1 (user 2026-07-29): ?skin=basic renders the noddy version of this
 // form — name + network (Hedera testnet/mainnet only) + visibility (default unlisted),
 // everything else fixed to happy-path defaults (proposal, cluster lock, joinRule *,
@@ -6,7 +7,11 @@
 // only changes what's SHOWN, mirroring how other controls take render options. The
 // welcome page's "Create your own game" button links here with skin=basic; /create
 // bare stays the full form.
+// CIRCLE-TERM1 (user 2026-08-19): "game"/"market" copy rationalised to the configured
+// term ({one} = circle) — title, name label, button, statuses. Same vocabulary
+// parameter every other page uses (ENTRY-CIRCLES1, site-config.php).
 $skinBasic = ($_GET['skin'] ?? '') === 'basic';
+$T = katomiaTerms();
 ?>
 <!DOCTYPE html>
 <html>
@@ -19,7 +24,7 @@ $skinBasic = ($_GET['skin'] ?? '') === 'basic';
 <script src="<?= kasset('kfade.js') ?>"></script>
 <link rel="stylesheet" href="<?= kasset('katomia.css') ?>">
 <?= kicon() ?>
-<title>Create Katomia Game</title>
+<title>Create your own <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> — Katomia</title>
 
 <style>
 /* see above imported css todo organiase*/
@@ -179,52 +184,13 @@ h3{
 
 <div class="form<?= $skinBasic ? ' skin-basic' : '' ?>">
 
-  <h3 class="page-title"><?= $skinBasic ? 'Create your own game' : 'Create your own market' ?></h3>
+  <h3 class="page-title">Create your own <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?></h3>
 
-  <div class="field field-name">
-    <label>Game name <span class="explain">(optional)</span></label>
-    <input id="gameName" placeholder="ABC demo">
-
-  </div>
-
-  <div class="field field-network">
-    <label>Network</label>
-
-    <div class="options">
-      <label class="option net-playnet"><input type="radio" name="network" value="playnet" checked> Playnet</label>
-      <label class="option"><input type="radio" name="network" value="testnet">         Hedera Testnet</label>
-      <label class="option"><input type="radio" name="network" value="mainnet">         Hedera Mainnet</label>
-    </div>
-
-    <div class="explain" id="networkExplain"></div>
-  </div>
-	
-
-	
-  <div class="field adv-only">
-    <label>🔁/🔒 Swap/Lock Rule</label>
-    <p class="explain">Initiate swaps once agreed between...</p>
-
-    <div class="options">
-      <label class="option"><input type="radio" name="lockRule" value="all">             All players</label>
-      <label class="option"><input type="radio" name="lockRule" value="active">          Active players</label>
-      <label class="option"><input type="radio" name="lockRule" value="cluster" checked> Any connected cluster</label>
-    </div>
-
-    <div class="explain" id="lockExplain"></div>
-  </div>
-
-  <div class="field adv-only">
-    <label>Trading mode</label>
-
-    <div class="options">
-      <label class="option"><input type="radio" name="tradingMode" value="proposal" checked> Proposal</label>
-      <label class="option"><input type="radio" name="tradingMode" value="orderBook"> Order Book</label>
-      <label class="option"><input type="radio" name="tradingMode" value="debug"> Debug</label>
-    </div>
-
-    <div class="explain" id="tradingModeExplain"></div>
-  </div>
+  <!-- FORM-ORDER1 (user 2026-08-19): the full form opens in the SAME order the basic
+       skin renders (theme, network, name, visibility) so the two forms feel like one
+       form at two depths; the advanced fields follow. Swap/Lock rule moved down to sit
+       just above Breakout — both are "how deals settle" knobs. The basic skin's CSS
+       flex order still governs its own layout, unchanged. -->
 
   <!-- BOARD-PLAYERCOLOR1 (user 2026-08-03): the first personalisation knob — a THEME
        for the circle. Today it only drives the player-colour pack (backend PALETTES,
@@ -252,6 +218,24 @@ h3{
     </div>
   </div>
 
+  <div class="field field-network">
+    <label>Network</label>
+
+    <div class="options">
+      <label class="option net-playnet"><input type="radio" name="network" value="playnet" checked> Playnet</label>
+      <label class="option"><input type="radio" name="network" value="testnet">         Hedera Testnet</label>
+      <label class="option"><input type="radio" name="network" value="mainnet">         Hedera Mainnet</label>
+    </div>
+
+    <div class="explain" id="networkExplain"></div>
+  </div>
+
+  <div class="field field-name">
+    <label><?= htmlspecialchars($T['One'], ENT_QUOTES, 'UTF-8') ?> name <span class="explain">(optional)</span></label>
+    <input id="gameName" placeholder="ABC demo">
+
+  </div>
+
   <div class="field field-visibility">
     <label>Visibility</label>
 
@@ -262,6 +246,31 @@ h3{
     </div>
 
     <div class="explain" id="visibilityExplain"></div>
+  </div>
+
+  <div class="field adv-only">
+    <label>Trading mode</label>
+
+    <div class="options">
+      <label class="option"><input type="radio" name="tradingMode" value="proposal" checked> Proposal</label>
+      <label class="option"><input type="radio" name="tradingMode" value="orderBook"> Order Book</label>
+      <label class="option"><input type="radio" name="tradingMode" value="debug"> Debug</label>
+    </div>
+
+    <div class="explain" id="tradingModeExplain"></div>
+  </div>
+
+  <div class="field adv-only">
+    <label>🔁/🔒 Swap/Lock Rule</label>
+    <p class="explain">Initiate swaps once agreed between...</p>
+
+    <div class="options">
+      <label class="option"><input type="radio" name="lockRule" value="all">             All players</label>
+      <label class="option"><input type="radio" name="lockRule" value="active">          Active players</label>
+      <label class="option"><input type="radio" name="lockRule" value="cluster" checked> Any connected cluster</label>
+    </div>
+
+    <div class="explain" id="lockExplain"></div>
   </div>
 
   <!-- KAT-BREAKOUT1 P0 (spec §2): full form only — the basic skin applies the Auto
@@ -280,13 +289,23 @@ h3{
 	
 
 	<div class="field adv-only">
+		<label>🔐 Access control</label>
+		<!-- Copy pass (user 2026-08-19): token gating is live (backend b4ddbe6) so say so;
+		     internal task ids and the group:/accountIdRange() forms are OUT of the user-facing
+		     copy ("too obscure") — both still parse below, they're just not advertised.
+		     The human-proof paragraph is the user's own framing for the anti-bot story. -->
 		<div class="explain">
-			Access control (GAME-JOINRULE1). Leave blank to allow anyone. Or restrict entry to
-			committed accounts: a comma-separated allowlist (<code>0.0.123, 0.0.456</code>),
-			a group (<code>group:admin</code>), or a rule (<code>accountIdRange(0,500000)</code>).
-			Players need a verified profile commitment from a matching account to see and enter the game.
+			Leave blank to allow anyone. Or restrict who can take part with a comma-separated
+			list of Hedera account IDs and/or token IDs (<code>0.0.123, 0.0.456</code>).
+			A <b>token ID</b> admits anyone holding at least one of that token — so an NFT
+			collection or community token works as a membership pass. Matching any one entry
+			is enough; players prove ownership by connecting and authenticating their account.
 		</div>
-		<input id="joinRule" value="" placeholder="e.g. 0.0.123, 0.0.456 · group:admin · accountIdRange(0,500000)">
+		<input id="joinRule" value="" placeholder="e.g. 0.0.123, 0.0.456 — account and/or token IDs">
+		<div class="explain">
+			💡 Humans only? Gate on a token that is only ever issued to verified people —
+			any third-party proof-of-personhood token works as the pass.
+		</div>
 
 	</div>
 
@@ -296,7 +315,7 @@ h3{
 		</div>
 		<input id="admin" placeholder="Hedera account / public key">
 		<div class="explain">
-			Hedera account or public key. Leave blank to prevent game edit or deletion.
+			Hedera account or public key. Leave blank to prevent any later edit or deletion.
 		</div>
 
 	</div>
@@ -368,7 +387,7 @@ h3{
   </div>
 
 
-<button class="create-btn kbtn kbtn-green" id="createBtn">Create Game</button>
+<button class="create-btn kbtn kbtn-green" id="createBtn">Create <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?></button>
 
 <div class="status" id="status"></div>
 
@@ -377,6 +396,7 @@ h3{
 <script>
 
 const API_URL = "./hapi/create"
+window.KTERMS = <?= json_encode($T, JSON_UNESCAPED_UNICODE) ?>;   // CIRCLE-TERM1: statuses speak the configured word too
 
 // ENTRY-CREATEBASIC1: the basic skin's happy-path defaults. The hidden controls stay
 // the single source of truth — we just SET them, so the existing payload build below
@@ -398,9 +418,9 @@ const explain = {
 	},
 
 	visibility:{
-		public:"Public games appear in listings.",
-		unlisted:"Unlisted games are hidden from listings but accessible via shared link.",
-		private:"Private games require specific join rules or permissions."
+		public:`Public ${KTERMS.many} appear in listings.`,
+		unlisted:`Unlisted ${KTERMS.many} are hidden from listings but accessible via shared link.`,
+		private:`Private ${KTERMS.many} require specific join rules or permissions.`
 	},
 
   tradingMode:{
@@ -410,7 +430,7 @@ const explain = {
   },
 
 	lock:{
-		all:"Every player in the entire game must agree for a swap to proceed. eg for private games when all parties are expected to participate",
+		all:`Every player in the entire ${KTERMS.one} must agree for a swap to proceed. eg for private ${KTERMS.many} when all parties are expected to participate`,
 		active:"All active players must agree for a swap to proceed. Disconnected clusters can be executed atomically. eg Alice to pay Bob if Carol pays Dave",
 		cluster:"Any connected group of accounts can swap independently.",
 	}
@@ -490,7 +510,7 @@ updateExplain()
 
 createBtn.onclick = async () => {
 
-status.textContent = "Creating game..."
+status.textContent = `Creating your ${KTERMS.one}...`
 
 // KAT-BREAKOUT1 P0: breakout resolves at submit — explicit choice wins, else the Auto
 // rule (public/unlisted → on-lock, private → off/omitted). The server stays neutral
@@ -564,7 +584,7 @@ body:JSON.stringify(payload)
 const data = await res.json()
 
 if(!data.ok){
-status.textContent = "Failed to create game"
+status.textContent = `Failed to create the ${KTERMS.one}`
 return
 }
 
@@ -587,18 +607,18 @@ try {
   }
 } catch(e){ /* private mode / quota — the page still works, the circle just isn't remembered */ }
 
-status.textContent = "Game created. Redirecting..."
+status.textContent = `${KTERMS.One} created. Redirecting...`
 
-// ENTRY-CREATEBASIC1: the basic flow lands on the BOARD (the default view) with
-// ?created=1 so board.php can toast the share-this-link hint. Full form keeps the
-// legacy game view it always had.
-window.location.href = SKIN_BASIC ? ("./board/" + id + "?created=1") : ("./game/" + id)
+// ENTRY-CREATEBASIC1: land on the BOARD (the default view) with ?created=1 so
+// board.php can toast the share-this-link hint. Snag fix (user 2026-08-19): the
+// FULL form used to land on the legacy game.php view — both skins go to the board now.
+window.location.href = "./board/" + id + "?created=1"
 
 }
 catch(err){
 
 console.error(err)
-status.textContent = "Error creating game"
+status.textContent = `Error creating the ${KTERMS.one}`
 
 }
 

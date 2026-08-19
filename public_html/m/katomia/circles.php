@@ -116,6 +116,14 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
 <div class="circles-wrap">
   <h2 class="circles-head"><?= htmlspecialchars($T['Many'], ENT_QUOTES, 'UTF-8') ?></h2>
   <p class="circles-sub">Open <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?> you can join. Tap one to step inside.</p>
+  <?php if ($katomiaIsAdmin): ?>
+  <!-- ADMIN-VIEW disclosure (user 2026-08-19, "why is Edge showing QA?"): from an admin
+       IP (VPN) the BACKEND's /games returns every game raw — unlisted, QA fixtures, the
+       lot (katomiaApi.js ADMIN_IPS) — so two browsers routing differently through the
+       VPN genuinely see different lists. Say so on the page instead of leaving the
+       difference to be puzzled over. Server-side per request, same as the 🛠 menu item. -->
+  <p class="circles-sub" style="color:#b4690e">🛠 Admin IP view — this list may include raw/unlisted/QA <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?> other visitors never see. Off the VPN it looks different.</p>
+  <?php endif; ?>
 
   <div id="circlesFilters" class="circles-filters"></div>
   <div id="circlesList" class="circles-list"></div>
@@ -153,19 +161,18 @@ const displayLookup = {
   network:     { playnet: "🧸 Playnet", testnet: "🟠 Testnet", mainnet: "🟣 Mainnet" },
   visibility:  { public: "🌍 Public", unlisted: "🔗 Unlisted", private: "🔒 Private" },
   lockRule:    { cluster: "☆ cluster", active: "☆☆ active", all: "🌍 all" },
-  joinRule:    { '*': "🙌 anyone" },
 }
 const displayValue = (group, value) => displayLookup[group]?.[value] || value || ""
 
+// WATCH vs PLAY (user 2026-08-19): "public doesn't mean anyone can join … it's the
+// visibility that's public". Two different rights, two chips — the visibility chip
+// (🌍/🔗/🔒) says who can SEE the circle, this one says who can TAKE PART; the pairing
+// is spelled out in each chip's tooltip. "listed accounts" retired: since
+// GAME-JOINRULE2a an allowlist entry can be a TOKEN (hold ≥1 to get in), so the
+// honest umbrella word is "members".
 function formatJoinRule(rule){
-  if(typeof rule === "string") return displayValue("joinRule", rule)
-  if(Array.isArray(rule)) return "🔐 listed accounts"
-  if(rule && rule.rule){
-    const params = rule.params || []
-    if(rule.rule === "accountGroup") return "🔐 " + (params[0] || "group") + " group"
-    if(rule.rule === "accountIdRange") return "🔐 account " + (params[0] ?? "0") + "–" + (params[1] ?? "∞")
-    return "🔐 " + rule.rule + (params.length ? "(" + params.join(",") + ")" : "")
-  }
+  if(!rule || rule === "*") return "🙌 anyone plays"
+  if(typeof rule === "string" || Array.isArray(rule) || rule.rule) return "🎟 members"
   return ""
 }
 
@@ -341,10 +348,16 @@ function renderCircles(){
 
   games.forEach(g => {
     const net = g.config?.network || g.network || ""
+    const joinRule = g.config?.joinRule ?? g.joinRule
+    const gatedJoin = joinRule && joinRule !== "*"
     const chips = [
       { cls: "net-" + net, text: displayValue("network", net) },
-      { text: displayValue("visibility", g.config?.visibility || g.visibility) },
-      { text: formatJoinRule(g.config?.joinRule ?? g.joinRule) },
+      { text: displayValue("visibility", g.config?.visibility || g.visibility),
+        title: "Visibility — who can find and watch this " + KTERMS.one },
+      { text: formatJoinRule(joinRule),
+        title: gatedJoin
+          ? "Participation — members only: you need a listed account, or to hold a qualifying token, to play (watching may still be open)"
+          : "Participation — anyone can play, no membership needed" },
       { text: displayValue("tradingMode", g.config?.tradingMode) },
       { text: displayValue("lockRule", g.config?.lockRule || g.lockRule) },
       { text: formatStrike(g.config?.txDelaySeconds) },
@@ -358,7 +371,7 @@ function renderCircles(){
           ${katomiaIsHostOf(g, MY_KEY) ? `<span class="circle-host" title="You host this ${esc(KTERMS.one)}">🎪</span>` : ""}
         </div>
         <div class="circle-chips">
-          ${chips.map(c => `<span class="circle-chip ${c.cls || ""}">${esc(c.text)}</span>`).join("")}
+          ${chips.map(c => `<span class="circle-chip ${c.cls || ""}"${c.title ? ` title="${esc(c.title)}"` : ""}>${esc(c.text)}</span>`).join("")}
         </div>
       </a>`)
   })

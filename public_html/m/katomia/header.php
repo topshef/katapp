@@ -80,7 +80,12 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
          bank emoji and the word "markets" — both wrong once the product calls these
          circles — so it moves behind nerd mode as the raw, unfiltered grid. -->
     <a class="app-menu-item" href="<?= $katomiaBase ?>/circles">⭕ <?= htmlspecialchars($katomiaTerms['Many'], ENT_QUOTES, 'UTF-8') ?></a>
-    <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
+    <!-- MENU-ORDER1 (user 2026-08-19): "profile, then view, then settings, then host
+         options … feels off". New order groups by what the rows ARE:
+           places (Home, Circles) → this-circle controls (View, Settings, Host options)
+           → you (Profile, Send feedback) → internal (nerd + admin rows, bottom).
+         Profile moved DOWN next to Send feedback — both are about the person, not the
+         place — and the nerd/admin diagnostics sink below everything a normal user sees. -->
     <!-- KBUNDLE-STRIP:kea -->
     <!-- NO 🤖 Execution agent menu item (user 2026-08-17, KATUI3 feedback pass):
          admin-only visibility was correct, but the profile modal's KEA section is now
@@ -91,12 +96,6 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
          of the feature (incl. the words "execution agent"), so it must not ship —
          failed builds 13:55 and 14:2x taught this the hard way. -->
     <!-- /KBUNDLE-STRIP:kea -->
-    <a class="app-menu-item nerd-only" href="<?= $katomiaBase ?>/markets">🏛️ All markets (raw)</a>
-    <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
-         results — in the main menu rather than behind the admin gate; the pages are
-         effectively public anyway. If parts of QA later need gating, do a split pass
-         (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
-    <a class="app-menu-item nerd-only" href="<?= $katomiaBase ?>/qa/" target="_blank" rel="noopener">🧪 QA</a>
     <!-- ENTRY-DARKMODE1 R2 (user 2026-07-29): the dark-mode toggle is NOT in this menu —
          it belongs only to the welcome page's nerd-mode theme-test row (landing.php),
          since that's the one place it's actually useful. The engine (window.kdarkToggle,
@@ -147,12 +146,19 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
     <a class="app-menu-item" id="katomiaHostOptions" hidden
        href="<?= $katomiaBase ?>/host?game=<?= rawurlencode($katomiaGameId) ?>">🎪 Host options</a>
     <?php endif; ?>
+    <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
     <!-- KAT-FEEDBACK1-ENTRYPOINT1: explicit route to the feedback modal for users who
          don't know the long-press (falls back to the standalone page if the widget
          script isn't on this page for any reason) -->
     <button type="button" class="app-menu-item"
             onclick="if(window.KFeedbackWidget){KFeedbackWidget.open()}else{location.href='/m/feedback/?product=katomia'}"
             title="Tell us anything — you can also long-press anywhere on the page.">💬 Send feedback</button>
+    <a class="app-menu-item nerd-only" href="<?= $katomiaBase ?>/markets">🏛️ All markets (raw)</a>
+    <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
+         results — in the main menu rather than behind the admin gate; the pages are
+         effectively public anyway. If parts of QA later need gating, do a split pass
+         (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
+    <a class="app-menu-item nerd-only" href="<?= $katomiaBase ?>/qa/" target="_blank" rel="noopener">🧪 QA</a>
     <?php if ($katomiaIsAdmin): ?>
     <a class="app-menu-item" href="<?= htmlspecialchars($katomiaLegacyGameHref) ?>"
        title="Site admin — visible because you are on the admin IP (KATOMIA-ADMIN1). Opens the legacy game.php view for cross-comparison.">🛠 Admin</a>

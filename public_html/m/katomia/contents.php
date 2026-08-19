@@ -241,8 +241,9 @@ function formatJoinRule(rule){
 
   if(typeof rule === "string") return displayValue("joinRule", rule)
 
-  // allowlist array or {rule,params} object → members-only chip (GAME-JOINRULE1)
-  if(Array.isArray(rule)) return "🔐 listed accounts"
+  // GAME-JOINRULE2a (2026-08-19): allowlist entries may be TOKENS now (hold ≥1),
+  // so "listed accounts" is no longer accurate — the umbrella word is members.
+  if(Array.isArray(rule)) return "🎟 members"
 
   if(rule && rule.rule){
     const params = rule.params || []
