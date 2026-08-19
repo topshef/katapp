@@ -573,6 +573,127 @@ $brand = $siteConfig['landing']['title'] ?? 'Katomia';
       <div data-kfb="faq-video" data-kfb-scope="item" data-kfb-label="FAQ: video walkthrough" class="kfb-item"></div>
     </details>
 
+    <!-- ═══ Side circles (KAT-BREAKOUT1 / KAT-SIDESCOPE1) — promoted 2026-08-19 from
+         the side-circle-scoping design doc §4 with the user's blessing. One draft
+         answer was deliberately DROPPED here: the auto-add-toggle-vs-cache-restore
+         question, because since the R3 fix NOTHING is ever auto-added or restored
+         into a side circle, so the confusion it explained can no longer occur there.
+         Its normal-circle half lives on in the alpha/restarts group below. -->
+    <h3 id="faq-side">Side <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?></h3>
+
+    <details>
+      <summary>What is a side <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>?</summary>
+      <p>When everyone in a deal locks, the deal moves to its own small
+         <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> — a side
+         <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> — to be signed and settled. Think of a
+         group at a market stepping aside to shake hands: the main
+         <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> stays open for everyone else, and your
+         deal gets a quiet table of its own.</p>
+      <div data-kfb="faq-side-what" data-kfb-scope="item" data-kfb-label="FAQ: what is a side circle" class="kfb-item"></div>
+    </details>
+
+    <details>
+      <summary>Why did I suddenly move to a new <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>?</summary>
+      <p>Your cluster locked — agreement was reached, so the deal (and everyone in it) stepped aside to
+         settle. The <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> you came from is linked in
+         the first message of your side <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>, and a
+         message back in the original links to you.</p>
+      <div data-kfb="faq-side-why" data-kfb-scope="item" data-kfb-label="FAQ: why did I move to a side circle" class="kfb-item"></div>
+    </details>
+
+    <details>
+      <summary>Can I go back?</summary>
+      <p>Any time — the link back is in your side
+         <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>'s first message. Your deal keeps settling
+         whether you're watching or not.</p>
+      <div data-kfb="faq-side-back" data-kfb-scope="item" data-kfb-label="FAQ: returning from a side circle" class="kfb-item"></div>
+    </details>
+
+    <details>
+      <summary>Who can see my side <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>?</summary>
+      <p>It inherits the parent's visibility: born from a public
+         <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>, it's public (anyone can watch the
+         ceremony); from an unlisted or private one, it stays unlisted or private.</p>
+      <div data-kfb="faq-side-visibility" data-kfb-scope="item" data-kfb-label="FAQ: side circle visibility" class="kfb-item"></div>
+    </details>
+
+    <details>
+      <summary>The transaction failed — now what?</summary>
+      <p>The deal reloads itself: every offer goes back into the baskets exactly as before, unlocked.
+         If something was wrong — a missing token association, a short balance — the same messages appear
+         again so you can fix it. Lock again when everyone's ready, or reject anything you no longer want.</p>
+      <div data-kfb="faq-side-failed" data-kfb-scope="item" data-kfb-label="FAQ: side circle transaction failed" class="kfb-item"></div>
+    </details>
+
+    <details>
+      <summary>It succeeded — what do we do with the empty <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>?</summary>
+      <p>Whatever you like: trade again with the same group, or head back to the
+         <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> you came from. An abandoned side
+         <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> tidies itself away after a while.</p>
+      <div data-kfb="faq-side-success" data-kfb-scope="item" data-kfb-label="FAQ: side circle after success" class="kfb-item"></div>
+    </details>
+
+    <details>
+      <summary>Why didn't my other accounts follow me in?</summary>
+      <p>A side <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> starts with exactly the accounts
+         that were in the deal — nothing else, on purpose. Nothing is ever added automatically: not your
+         wallet-connected accounts, and not accounts your browser remembers from other
+         <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?>. You can add any of your other accounts
+         manually if you need them.</p>
+      <div data-kfb="faq-side-accounts" data-kfb-scope="item" data-kfb-label="FAQ: side circle account membership" class="kfb-item"></div>
+    </details>
+
+    <!-- ═══ Alpha state model (user 2026-08-19): "let's have a bit of a section on how
+         the front end and back end kind of state interacts if there's edge cases" —
+         restarts, the browser-side continuity helpers, and cleared local data. The
+         answers must stay TRUE TO THE CODE: server games are memory-only; the
+         invalid-game message is restart-aware within a 30-min window and house
+         circles carry a 🔄 reset row at boot (GAME-RESTARTMSG1); the per-circle
+         account cache never applies to side circles (KAT-BREAKOUT1 R3). -->
+    <h3 id="faq-alpha">During alpha — restarts, memory and your browser</h3>
+    <p class="small muted">While we're in alpha, <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?>
+       live in the server's memory and the system restarts fairly often as we build. These answers
+       explain the odd effects that can have. Once we're past alpha, restarts will be rare.</p>
+
+    <details>
+      <summary>It says the <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> isn't running any more. What happened?</summary>
+      <p>Two possibilities. Either it was tidied away after sitting idle, or the system restarted —
+         during alpha, <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?> that were in progress
+         don't survive a restart. If a restart happened recently, the message says so; the house
+         <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?> also start their fresh history with a
+         🔄 note when they've been reset.</p>
+      <p class="small muted">Your assets are never affected by any of this — they only ever move when a
+         signed transaction executes on Hedera.</p>
+      <div data-kfb="faq-alpha-notrunning" data-kfb-scope="item" data-kfb-label="FAQ: circle isn't running / restart" class="kfb-item"></div>
+    </details>
+
+    <details>
+      <summary>After a reset, my accounts came back by themselves — even with auto-add turned off. Why?</summary>
+      <p>Two different helpers are at work. The <em>auto-add</em> toggle controls whether your
+         wallet-connected accounts join a <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>
+         automatically when you visit. Separately, your browser remembers which accounts
+         <em>you yourself added</em> to each specific <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>,
+         and quietly re-adds them if that <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> resets —
+         continuity, not auto-add. Remove an account and it stays removed.</p>
+      <p>Side <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?> are the exception: neither helper
+         ever touches them — they always start with exactly the deal's accounts.</p>
+      <div data-kfb="faq-alpha-restore" data-kfb-scope="item" data-kfb-label="FAQ: accounts reappearing after a reset" class="kfb-item"></div>
+    </details>
+
+    <details>
+      <summary>What happens if I clear my browser data, or switch to another browser or device?</summary>
+      <p>Your identity here lives in your browser: who you are in each
+         <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>, your name, and which accounts you've
+         added are all remembered locally, not in an account you log into. Clear your site data — or
+         arrive from a different browser or device — and you're a new participant: you'll get a fresh
+         identity, and anything the old one had added won't be recognized as yours.</p>
+      <p>Your Hedera accounts and assets are completely untouched by this — they live on the network,
+         not in the browser — and you can simply add your accounts again.</p>
+      <p class="small muted">Carrying one identity across devices is on the list.
+         <span class="tbc">TBC</span></p>
+      <div data-kfb="faq-alpha-cleared" data-kfb-scope="item" data-kfb-label="FAQ: cleared local data / new device" class="kfb-item"></div>
+    </details>
+
     <div data-kfb="sec-faq" data-kfb-scope="section" data-kfb-target="#faq" data-kfb-label="Learn section: FAQ" class="kfb-section"></div>
   </section>
 
