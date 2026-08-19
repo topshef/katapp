@@ -857,6 +857,24 @@
    "reports": "—",
    "state": "PLANNED 2026-08-19 (KAT-BREAKOUT1 QA sketch). The postClusters loop + PROP-LOCKSIGN1 shared basis say this works; nothing has proven it.",
    "why_it_matters": "Concurrent settlement is the flow the one-ceremony board could never render; breakout is supposed to make it just work."
+  },
+  {
+   "id": "JOINGATE-01",
+   "title": "Token-gated join rule (account-or-token allowlist)",
+   "asserts": "A joinRule allowlist entry that is a TOKEN id admits exactly the accounts holding ≥1 of it (NFT or fungible), account entries still direct-match, raw CSV string equals the array form, playnet token entries never match, and a live gated game reports eligible true/false/false for committed holder / committed non-holder / anonymous.",
+   "kind": "protocol",
+   "network": "testnet",
+   "modules": [
+    "backend"
+   ],
+   "state": "LIVE since 2026-08-19 — 11 assertions, all green on alpha at ship time (GAME-JOINRULE2a).",
+   "harness": "qa/harness/joingate-check.cjs",
+   "why_it_matters": "GAME-JOINRULE2(a): community membership tokens as circle gates. The classification (mirror /tokens 404 = account) and the holder check both lean on mirror behaviour — a mirror API change or cast rotation (fixture NFT 0.0.3626892 held by alice 0.0.9556348, not by carol) breaks gating silently without this probe.",
+   "run": {
+    "any": "API=https://alpha.katlab.kpay.live BACKEND_DIR=/home/hbarlive_hts-alpha node joingate-check.cjs"
+   },
+   "schedule": "manual (candidate for quickchecks-cron once soaked)",
+   "reports": "kflow test:verdict → QA grid"
   }
  ],
  "expected_fail": {
