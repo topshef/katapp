@@ -185,7 +185,9 @@
 
   // Katomia (the system) speaking: entry into the stream + the hub K swells.
   function system(text, opts) {
-    systemMsgs.push({ id: "sys" + (++_sysN), ts: Date.now(), text: String(text || ""), link: (opts && opts.link) || null, linkText: (opts && opts.linkText) || null, system: true });
+    // SIGN-STRIKEMSG1 R3: opts.txid marks a tx-verdict echo — renderLog retires it
+    // once the backend's persisted verdict row for the same txid is in state.chat.
+    systemMsgs.push({ id: "sys" + (++_sysN), ts: Date.now(), text: String(text || ""), link: (opts && opts.link) || null, linkText: (opts && opts.linkText) || null, txid: (opts && opts.txid) || null, system: true });
     if (systemMsgs.length > 100) systemMsgs.shift();
     var hub = document.querySelector(".ring-hub");
     if (hub) {
@@ -434,9 +436,22 @@
   }
 
   function renderLog(chat) {
-    // system entries ride along, ordered by time
-    if (systemMsgs.length)
-      chat = chat.concat(systemMsgs).sort(function (a, b) { return new Date(a.ts) - new Date(b.ts); });
+    // system entries ride along, ordered by time.
+    // SIGN-STRIKEMSG1 R3: the backend persists the ✅/⌛ tx verdict into game.chat —
+    // once that row is in the broadcast state, the instant local echo (tagged with its
+    // txid by boardShowResult) retires so the verdict shows exactly once. Only rows
+    // that LEAD with the verdict emoji count: strike rows also carry the txid in
+    // their text and must not suppress a verdict still in flight.
+    if (systemMsgs.length) {
+      var verdictRows = chat.filter(function (m) { return m.system && /^[✅⌛]/.test(m.text || ""); });
+      var sys = !verdictRows.length ? systemMsgs : systemMsgs.filter(function (s) {
+        return !(s.txid && verdictRows.some(function (m) {
+          return (m.linkText || "").indexOf(s.txid) >= 0 || (m.text || "").indexOf(s.txid) >= 0;
+        }));
+      });
+      if (sys.length)
+        chat = chat.concat(sys).sort(function (a, b) { return new Date(a.ts) - new Date(b.ts); });
+    }
     var p = panel();
     var count = p && p.querySelector(".kchat-panel-count");
     if (count) count.textContent = chat.length ? String(chat.length) : "";

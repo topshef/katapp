@@ -797,7 +797,11 @@ function boardShowResult(txid, ok, tier, source){
         // failed tx never made the chain, so NO square there — ⌛. The txid itself is
         // the clickable link (linkText), not a tiny arrow after it.
         ok ? `✅ Transaction successful${prov}` : `⌛ Transaction failed or expired${prov}${why} · ${txid}`,
-        { link: link?.href || null, linkText: ok ? txid : null })
+        // SIGN-STRIKEMSG1 R3: txid tags this row as a LOCAL verdict echo — the backend
+        // now persists the verdict into game.chat, and katomia-chat retires this echo
+        // when the persisted twin arrives in a broadcast (one verdict on screen, and
+        // the one that survives a board navigation is the persisted one).
+        { link: link?.href || null, linkText: ok ? txid : null, txid })
     else
       notify(ok ? `🟩 Transaction successful${prov}` : `🟥 Transaction failed or expired${prov}${why}`,
         ok ? "success" : "error",
