@@ -41,6 +41,12 @@
 		// survives same-tab navigations (the game_moved hop reuses the tab), so a stale
 		// name would both miss reuse and let the wrong circle's link hijack this tab.
 		if(gameId) try { window.name = decodeURIComponent(gameId) } catch { window.name = gameId }
+
+		// TABTITLE1 (user 2026-08-19): the tab TITLE leads with the circle name too —
+		// "katomia — board" told you nothing with several circles open. Circle name
+		// first so narrow tabs keep the useful part; the favicon (kicon(), the donut
+		// mark) carries the brand, so no emoji and no brand prefix here.
+		if(gameId) try { document.title = window.name + " · katomia" } catch {}
 		
 
 		// if(!gameId)  window.location.href = "contents.html"    // href    → adds history entry

@@ -24,6 +24,7 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
 <!-- ENTRY-FADES1: must be in <head> — it arms the fade-IN before first paint. -->
 <script src="<?= kasset('kfade.js') ?>"></script>
 <link rel="stylesheet" href="<?= kasset('katomia.css') ?>">
+<?= kicon() ?>
 <title><?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?></title>
 <style>
   /* KATOMIA-LANDING1: intentionally tiny — a hand-picked jumping-off point,

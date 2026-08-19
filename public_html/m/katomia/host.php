@@ -35,6 +35,7 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' — host';
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="<?= kasset('kfade.js') ?>"></script>
 <link rel="stylesheet" href="<?= kasset('katomia.css') ?>">
+<?= kicon() ?>
 <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
 <style>
   *{ -webkit-tap-highlight-color: transparent; }

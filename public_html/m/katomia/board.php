@@ -11,6 +11,7 @@ require_once __DIR__ . '/kasset.php';
        fade-in before first paint). -->
   <script src="<?= kasset('kfade.js') ?>"></script>
   <link rel="stylesheet" href="<?= kasset('katomia.css') ?>" />
+<?= kicon() ?>
   <link rel="stylesheet" href="<?= kasset('katomia-board.css') ?>" />
   <title>katomia — board</title>
 </head>

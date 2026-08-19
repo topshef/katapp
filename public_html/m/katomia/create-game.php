@@ -18,6 +18,7 @@ $skinBasic = ($_GET['skin'] ?? '') === 'basic';
      <head> — it arms the fade-in before first paint. -->
 <script src="<?= kasset('kfade.js') ?>"></script>
 <link rel="stylesheet" href="<?= kasset('katomia.css') ?>">
+<?= kicon() ?>
 <title>Create Katomia Game</title>
 
 <style>

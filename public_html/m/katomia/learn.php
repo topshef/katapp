@@ -36,6 +36,7 @@ $brand = $siteConfig['landing']['title'] ?? 'Katomia';
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="<?= kasset('kfade.js') ?>"></script>
 <link rel="stylesheet" href="<?= kasset('katomia.css') ?>">
+<?= kicon() ?>
 <title><?= htmlspecialchars($brand, ENT_QUOTES, 'UTF-8') ?> — what is a <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>?</title>
 <style>
   body{ background:#f7f9fc; color:#2b3038; }

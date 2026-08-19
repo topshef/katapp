@@ -11,6 +11,18 @@ if (!function_exists('kasset')) {
     return htmlspecialchars($v ? "$file?v=$v" : $file, ENT_QUOTES, 'UTF-8');
   }
 
+  // TABTITLE1 (user 2026-08-19): the shared favicon link — the Katomia placeholder
+  // mark (assets/katomia-ring.svg, the detachable bubble-O from the brand sketches
+  // as a multicolour donut). One helper so every page head carries the same tag.
+  // href is ABSOLUTE via SCRIPT_NAME's dirname: the /board/<id> and /game/<id>
+  // rewrites make relative asset paths route-dependent (the /game/ rule only
+  // rewrites js|css back to siblings — a relative svg there would 404, the same
+  // trap BOARD-CLEANUP3 hit with the ring hub's K logo).
+  function kicon() {
+    $base = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
+    return '<link rel="icon" type="image/svg+xml" href="' . $base . '/' . kasset('assets/katomia-ring.svg') . '">';
+  }
+
   // CACHE-FRESH1 (user 2026-08-05): ?v=mtime only busts caches if the HTML that
   // carries the stamps is itself fresh — and these PHP pages sent NO Cache-Control,
   // so mobile browsers could heuristically serve a stale page whose old ?v= values

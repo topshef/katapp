@@ -25,6 +25,7 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
 <!-- ENTRY-FADES1: in <head> — arms the fade-in before first paint. -->
 <script src="<?= kasset('kfade.js') ?>"></script>
 <link rel="stylesheet" href="<?= kasset('katomia.css') ?>">
+<?= kicon() ?>
 <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
 <style>
   *{ -webkit-tap-highlight-color: transparent; }
