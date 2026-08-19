@@ -50,6 +50,16 @@ const gameJson = id => fetch(`${BASE.replace(/\/m\/katomia$/, "")}/m/katomia/hap
   await pgA.waitForTimeout(2500)
 
   const accA = await addManual(pgA, SENDER); log("A:", accA)
+
+  // B9 (user 2026-08-19, second four-accounts report): pre-seed a STALE per-game
+  // account cache for the PREDICTED child id — exactly what happens live when a
+  // backend restart resets breakoutSeq and a fresh side circle reuses an old id
+  // whose cache still lists accounts from the previous circle of the same name.
+  // The restore must NOT replay it into the side circle.
+  await pgA.evaluate(([pid, stale]) => {
+    const tok = getOrCreatePlayerToken()
+    localStorage.setItem(`katomiaAccounts:${pid}~1:${tok}`, JSON.stringify(stale))
+  }, [parentId, [BYSTANDER, "0.0.7787715"]])
   const pgB = await mk()
   await pgB.goto(parentUrl, { waitUntil: "domcontentloaded" }); await pgB.waitForTimeout(2000)
   const accB = await addManual(pgB, RECEIVER); log("B:", accB)
@@ -145,6 +155,8 @@ const gameJson = id => fetch(`${BASE.replace(/\/m\/katomia$/, "")}/m/katomia/hap
     // sender must be named; the harness can't assert receiver-sig cases (no such
     // account in the fixture set) — that stays a listed QA gap
     B5c_signers_row: !!(childView.signersRow && childView.signersRow.includes(hac(accA))),
+    // B9: the stale cache seeded pre-strike must NOT have replayed into the child
+    B9_no_cache_restore: childView.accounts.length === 2,
   }
 
   // ── B6: let the window die — verdict must fire in the CHILD

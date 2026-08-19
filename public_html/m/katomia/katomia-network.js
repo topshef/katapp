@@ -97,6 +97,13 @@ function forgetAccountLabel(label){
 }
 
 function restoreCachedAccounts(){
+  // KAT-BREAKOUT1 R3 (user 2026-08-19, second four-accounts report): NEVER restore
+  // into a side circle — it starts as exactly the deal's accounts, full stop. The
+  // cache is doubly wrong here: after a backend restart breakoutSeq resets, so a
+  // fresh side circle REUSES an id (t-prop~1 again) and this per-game cache then
+  // replays accounts written by a PREVIOUS circle that merely shared the name.
+  // Normal games keep the restore (continuity after a backend restart).
+  if(state?.parent) return
   if(window.katomiaAccountsRestored) return
   window.katomiaAccountsRestored = true
 
