@@ -297,6 +297,12 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
       <input type="checkbox" id="boardPrefClassicCounter" title="Lab: bring back the classic counter — visible counter band plus a ghost pile for partial offers. Off (default) = simplified: the remaining stack moves to the ring edge, decremented; only whole-item offers leave a ghost.">
       🧪 Classic counter
     </label>
+    <!-- PROP-TICKETS1 phase-5a (user 2026-08-20): lab switch for priced tickets in
+         proposal circles — same effect as the ?tickets=1 dev flag, default off. -->
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefTickets" title="Lab: allow priced tickets in proposal circles — price an asset from its card, anyone can take the ticket. Same as the ?tickets=1 URL flag; default off.">
+      🎟 Allow tickets
+    </label>
     <label class="board-settings-label board-settings-nerd-only">
       <input type="checkbox" id="boardPrefAvatarSpoke" title="Lab: avatar placement experiment — ticked returns faces to the boundary spoke (R2); default centres them on the arc inside the account id (R3). One will win and this switch will go.">
       🧪 Avatar on spoke

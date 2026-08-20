@@ -2139,6 +2139,10 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
 body.feat-tickets .board-ticket{
   background:#fff8dc; color:#1d232a; border:1px solid #c9b96a; border-left:4px solid #c9b96a;
   border-radius:8px 0 0 8px; cursor:pointer; padding:4px 10px 4px 8px;
+  /* one line, capped: a wrapped ticket becomes the tallest chip in its zone and
+     inflates the counter band (bandFull = tallest chip + 12), shoving store chips
+     off small screens. Tap opens the sheet with the full legs, so ellipsis is safe. */
+  white-space:nowrap; max-width:150px; overflow:hidden; text-overflow:ellipsis;
   -webkit-mask:radial-gradient(circle at 100% 6px, transparent 4px, #000 4.5px) 0 0/100% 12px;
   mask:radial-gradient(circle at 100% 6px, transparent 4px, #000 4.5px) 0 0/100% 12px;
 }

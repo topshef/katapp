@@ -9,8 +9,15 @@
 // only the felt-facing vocabulary differs. v1 tickets are strict all-or-nothing
 // (minFill 1/1, GTC, no expiry) — partial takes are a later phase.
 
-// ── phase 0: flag rail ───────────────────────────────────────────────────────
-window.KTICKETS = new URLSearchParams(location.search).get("tickets") === "1"
+// ── phase 0/5a: flag rail ────────────────────────────────────────────────────
+// ?tickets=1 forces ON, ?tickets=0 forces OFF (dev overrides); otherwise the
+// nerd-mode "🎟 Allow tickets" setting (localStorage, set via board settings) decides.
+window.KTICKETS = (() => {
+  const p = new URLSearchParams(location.search).get("tickets")
+  if(p === "1") return true
+  if(p === "0") return false
+  try { return localStorage.getItem("katomiaTickets") === "1" } catch { return false }
+})()
 if(window.KTICKETS) document.body?.classList.add("feat-tickets")
 
 // ── signing — copied from katomia-render-orders.js:2751-2790, not imported:

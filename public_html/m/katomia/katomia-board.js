@@ -1262,6 +1262,25 @@ function boardSyncPrefsUI(){
       render()
     }
   }
+  // PROP-TICKETS1 phase-5a: nerd-mode lab switch, same effect as ?tickets=1.
+  // Own localStorage key (not the _bp snapshot) so katomia-tickets.js can read it
+  // at boot on every page without coupling to board prefs. Live-applies.
+  const ticketsPref = document.getElementById("boardPrefTickets")
+  if(ticketsPref){
+    // read the sources directly — this wiring parses BEFORE katomia-tickets.js
+    // computes window.KTICKETS, so the flag itself isn't set yet here
+    const _tq = new URLSearchParams(location.search).get("tickets")
+    ticketsPref.checked = _tq === "1" || (_tq !== "0" &&
+      (() => { try { return localStorage.getItem("katomiaTickets") === "1" } catch { return false } })())
+    ticketsPref.onchange = () => {
+      const on = ticketsPref.checked
+      try { on ? localStorage.setItem("katomiaTickets", "1") : localStorage.removeItem("katomiaTickets") } catch {}
+      window.KTICKETS = on
+      document.body.classList.toggle("feat-tickets", on)
+      boardDiag("board:pref:tickets", { value: on })
+      render()
+    }
+  }
   const partyOnly = document.getElementById("boardPrefPartyOnly")
   if(partyOnly){
     partyOnly.checked = boardPartyOnly
@@ -1384,7 +1403,11 @@ async function render(){
 // shrink-to-wrapped-text: walk the rendered line boxes via Range rects and
 // cap the chip's width at the widest actual line (plus its own padding)
 function boardTightenChips(){
-  document.querySelectorAll(".board-chip:not(.thumb-only)").forEach(el => {
+  // :not(.board-ticket) — PROP-TICKETS1: ticket chips are nowrap+ellipsis by CSS;
+  // squeezing them would wrap the long give⇢want text into a tall chip, and the
+  // tallest chip in a zone sets the counter band (bandFull) — a wrapped ticket
+  // inflated the band and shoved store chips off small screens.
+  document.querySelectorAll(".board-chip:not(.thumb-only):not(.board-ticket)").forEach(el => {
     if(!el.firstChild || el.firstChild.nodeType !== 3) return
     const range = document.createRange()
     range.selectNodeContents(el)
