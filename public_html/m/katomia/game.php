@@ -410,6 +410,8 @@
 <script src="<?= kasset('katomia-txstatus.js') ?>"></script>
 <script src="<?= kasset('katomia-render-orders.js') ?>"></script>
 <script src="<?= kasset('katomia-market.js') ?>"></script>
+<script src="<?= kasset('katomia-tickets.js') ?>"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
+
 <!-- QR: davidshimjs build already bundled with kpool_widget — same file the offline
      signing widget uses. CDN removed to keep all assets in-house.
      TODO(bundling): when kpool_widget is rolled into a proper JS bundle, fold

@@ -7797,6 +7797,9 @@ function boardStoreChips(account, container, reservedByAccount){
     }
     container.appendChild(el)
   })
+  // PROP-TICKETS1 (?tickets=1 only): the account's open priced tickets render
+  // alongside its store chips — dark unless the flag set window.KTICKETS
+  if(window.KTICKETS && typeof tktRenderStoreTickets === "function") tktRenderStoreTickets(account, container)
 }
 
 // ── asset detail card (user 2026-08-05) ──────────────────────────────────────
@@ -7989,26 +7992,34 @@ function boardAssetDetail(assetId, account, amount, offer){
   if(offer){
     // opened from a BASKET chip: this leg is the subject of the card
     const legs = boardNetLegCount(offer.fromAccountId, offer.toAccountId, assetId)
+    // PROP-TICKETS1 (?tickets=1 only): a ticket/order fill leg recalls as a GROUP
+    // server-side (removeFillGroup — both sides, ticket reopens), so ONE message,
+    // and the label says what really happens. Flag off: behaviour unchanged.
+    const fillLeg = window.KTICKETS && offer.fillId
     if(offer.kind === "withdraw"){
       say(`You have offered this to ${nameOf(offer.toAccountId)}.`)
-      addAction("kbtn-blue", "↩ Withdraw offer", "Take it back out of their basket — nothing has moved on-chain yet", () => {
-        for(let i = 0; i < legs; i++) socket.send(JSON.stringify({
+      if(fillLeg) say("Part of a ticket fill — recalling it returns BOTH sides and reopens the ticket.")
+      addAction("kbtn-blue", fillLeg ? "↩ Recall ticket fill (both sides)" : "↩ Withdraw offer",
+        "Take it back out of their basket — nothing has moved on-chain yet", () => {
+        for(let i = 0; i < (fillLeg ? 1 : legs); i++) socket.send(JSON.stringify({
           type: "game_withdraw", gameId,
           fromId: offer.fromAccountId, toId: offer.toAccountId, assetId
         }))
         clearSelection()
         modal.remove()
-      })
+      }, fillLeg ? "tkt-recall" : undefined)
     } else {
       say(`${nameOf(offer.fromAccountId)} has offered this to you.`)
-      addAction("kbtn-red", "↩ Return to giver", "Hand it back — it returns to their store", () => {
-        for(let i = 0; i < legs; i++) socket.send(JSON.stringify({
+      if(fillLeg) say("Part of a ticket fill — returning it undoes BOTH sides and reopens the ticket.")
+      addAction("kbtn-red", fillLeg ? "↩ Return ticket fill (both sides)" : "↩ Return to giver",
+        "Hand it back — it returns to their store", () => {
+        for(let i = 0; i < (fillLeg ? 1 : legs); i++) socket.send(JSON.stringify({
           type: "game_reject", gameId,
           accountId: offer.toAccountId, assetId
         }))
         clearSelection()
         modal.remove()
-      })
+      }, fillLeg ? "tkt-return" : undefined)
     }
   }
   else if(isMyAccount(account)){
@@ -8020,6 +8031,13 @@ function boardAssetDetail(assetId, account, amount, offer){
     // both — unlike Remove from table, which the user's ordering rule keeps
     // behind a withdraw.
     addOfferAction()
+    // PROP-TICKETS1 (?tickets=1 only): price this asset — opens the ticket
+    // builder prefilled with the tapped stack as the give-line
+    if(window.KTICKETS && typeof tktBuilder === "function")
+      addAction("kbtn-blue", "🎟 Price it…", "Create a priced ticket anyone in the circle can take", () => {
+        modal.remove()
+        tktBuilder(account, { give: [{ asset: assetId, amount: amount || 1 }] })
+      }, "tkt-price-it")
     if(out.length){
       const to = [...new Set(out.map(i => nameOf(i.toAccountId)))].join(", ")
       say(`Offered out to ${to} — withdraw it before you can take it off the table.`)
@@ -8411,6 +8429,9 @@ function boardBasketChips(account, container, accountMap){
     applyAssetClasses(el, item.assetId, item.amount || 1)
     el.classList.add("board-chip")
     ringTint(el, fromAccount?.playerId)
+    // PROP-TICKETS1 (?tickets=1 only): this row is one leg of a ticket/order fill —
+    // cue the pairing; recall semantics are handled on the detail card
+    if(window.KTICKETS && item.fillId) el.classList.add("board-fillrow")
 
     // hover shows the dotted line back to the giver's ghost (legacy pair rules)
     el.dataset.assetId = item.assetId
@@ -8425,7 +8446,7 @@ function boardBasketChips(account, container, accountMap){
       // BOARD-ASSETACTIONS1: one door for every asset tap — the card, carrying
       // the withdraw action (was: a bare confirm(), which raced the detail card)
       el.onclick = () => boardAssetDetail(item.assetId, fromAccount || account, item.amount || 1,
-        { kind: "withdraw", fromAccountId, toAccountId: account.id })
+        { kind: "withdraw", fromAccountId, toAccountId: account.id, fillId: item.fillId ?? null })
       el.draggable = true
       el.ondragstart = e => {
         e.dataTransfer.setData("assetId", item.assetId)
@@ -8438,7 +8459,7 @@ function boardBasketChips(account, container, accountMap){
     } else if(receiverIsMine){
       boardTip(el, "Offered to you — tap for details and to return it, or drag it back to its giver")
       el.onclick = () => boardAssetDetail(item.assetId, fromAccount || account, item.amount || 1,
-        { kind: "return", fromAccountId, toAccountId: account.id })
+        { kind: "return", fromAccountId, toAccountId: account.id, fillId: item.fillId ?? null })
       // drag-back-to-giver = reject; any other landing snaps back (re-render)
       if(fromAccountId){
         el.draggable = true
