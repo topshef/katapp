@@ -65,6 +65,18 @@ function tktFilledRatio(order, orderId){
   return f
 }
 
+// uncommitted stock: store balance minus the give-legs of the account's other open
+// tickets (plain offers already left the store at drop; ticket fills debit nothing
+// until settlement — the escrow-vs-claim gap, design doc §2). Negative = oversold.
+function tktFreeAmount(account, assetId){
+  let free = account.assets?.[assetId] || 0
+  for(const [oid, o] of tktOrdersFor(account)){
+    if(tktFilledRatio(o, oid) >= 1) continue
+    for(const l of o.bundle) if(l.amount < 0 && l.asset === assetId) free += l.amount
+  }
+  return free
+}
+
 const tktLegText = legs => legs.map(l =>
   typeof boardAssetText === "function" ? boardAssetText(l.asset, Math.abs(l.amount)) : Math.abs(l.amount) + " " + l.asset).join(" + ")
 
@@ -174,6 +186,9 @@ function tktSheet(orderId, order, account, filled){
     card.appendChild(sel)
   }
   say("Taking swaps the whole ticket: their gives land in your basket, your side lands in theirs. Nobody locks automatically.")
+  const short = order.bundle.filter(l => l.amount < 0 && tktFreeAmount(account, l.asset) < 0)
+  if(short.length) say("⚠ Their stall may not cover this ticket — " + [...new Set(short.map(l => l.asset))].join(", ")
+    + " is promised on other tickets too. On a real network an oversold deal fails at signing.")
   addAction("kbtn-blue", "Take it 🎟", () => {
     socket.send(JSON.stringify({ type: "game_orderFill", gameId, orderId,
       numerator: 1, denominator: 1, fillerAccountId: tktHac(filler) }))
@@ -233,6 +248,9 @@ function tktBuilder(account, prefill){
   addAction("kbtn-blue", "Create ticket 🎟", async () => {
     const give = lines.give.filter(l => l.asset), want = lines.want.filter(l => l.asset)
     if(!give.length || !want.length) return alert("A ticket needs at least one asset on each side")
+    const over = [...new Set(give.filter(l => l.amount > tktFreeAmount(account, l.asset)).map(l => l.asset))]
+    if(over.length && !confirm("Your stall may not cover this ticket: " + over.join(", ")
+      + " is already promised on other tickets (or short in your store). Tickets don't reserve stock — an oversold deal fails at signing on a real network.\n\nCreate anyway?")) return
     const hac = tktHac(account)
     const bundle = [...give.map(l => ({ accountId: hac, asset: l.asset, amount: -l.amount })),
                     ...want.map(l => ({ accountId: hac, asset: l.asset, amount: l.amount }))]
