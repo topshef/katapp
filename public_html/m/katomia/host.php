@@ -440,8 +440,11 @@ window.addEventListener("load", () => {
 </script>
 <!-- GCP feedback 2026-08-13: widget in place so Send feedback never navigates away
      (see circles.php note). data-screenshot off per KAT-FEEDSHOT-BROKEN1. -->
-<?php require_once "{$_SERVER['DOCUMENT_ROOT']}/hapi_base.php"; $katomiaFwBase = get_hapi_base(); ?>
-<script src="https://<?= htmlspecialchars($katomiaFwBase, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
+<?php /* KAT-SAMEORIGIN-FE1: was a direct get_hapi_base() bypass — config.php's
+        $hapi_widget_src carries the same-origin switch (page-relative when
+        KAT_SAMEORIGIN=1, backend origin otherwise) */
+      require_once __DIR__ . "/config.php"; ?>
+<script src="<?= htmlspecialchars($hapi_widget_src, ENT_QUOTES, 'UTF-8') ?>"
         data-product="katomia-host"
         data-screenshot="0"></script>
 </body>

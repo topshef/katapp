@@ -919,7 +919,11 @@ async function loadSigningState(txState, tx) {
 
 function startTxSocket(txState) {
 	txState.socket = createTxSocket({
-		baseUrl: CONFIG.HAPI_BASE || 'hapi2.hbar.live/live',
+		// KAT-SAMEORIGIN-FE1: empty HAPI_BASE = same-origin mode — ride the page
+		// origin's /hapi/ws (htaccess wstunnel on Lincoln labs, vhost ProxyPass on
+		// GCP). The old 'hapi2.hbar.live/live' hardcode only ever fired in this
+		// empty case and pointed at legacy prod — wrong for every current deploy.
+		baseUrl: CONFIG.HAPI_BASE || (location.host + '/hapi'),
 		txid: txState.txid,
 		onTxUpdate: async function onTxUpdate(update) {
 			await handleTxUpdate(txState, update)

@@ -17,7 +17,9 @@ const { chromium } = require("/opt/kwallet/node_modules/playwright")
 const API  = (process.env.API  || "https://bravo.katlab.kpay.live").replace(/\/+$/, "")
 const BASE = (process.env.BASE || "https://lab2.katlab.kpay.live").replace(/\/+$/, "")
 const INSTANCE = "TICKETS-BASE-01"
-const HAPIQ = "hapi_base=" + API.replace(/^https?:\/\//, "")   // KAT-SAMEORIGIN-FE1: force cross-origin until the /hapi/ proxy lands
+// KAT-SAMEORIGIN-FE1: default = same-origin (no param). CROSS=1 forces the
+// ?hapi_base= admin override so the legacy cross-origin path stays covered too.
+const HAPIQ = process.env.CROSS === "1" ? "hapi_base=" + API.replace(/^https?:\/\//, "") : "x=1"
 const RUN_ID = "tktbase-" + Date.now().toString(36)
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), "[tktbase]", ...a)
 
