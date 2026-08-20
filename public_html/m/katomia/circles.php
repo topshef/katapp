@@ -548,7 +548,7 @@ window.addEventListener("load", () => { circlesReadUrl(); loadCircles() })
      back later restored that page from bfcache as a dead, already-used form. Load the
      widget here (KPAD-SELFFEED1 canonical backend copy) so the modal opens in place,
      same as contents.php. data-screenshot off per KAT-FEEDSHOT-BROKEN1. -->
-<script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
+<script src="<?= htmlspecialchars($hapi_widget_src, ENT_QUOTES, 'UTF-8') ?>"
         data-product="katomia-circles"
         data-screenshot="0"></script>
 </body>

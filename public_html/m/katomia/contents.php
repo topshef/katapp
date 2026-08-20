@@ -438,7 +438,7 @@ fetch("./footer.html")
 <!-- KAT-FEEDBACK1-ENTRYPOINT1: widget on the welcome/games-list page too — long-press
      works here and the header menu's Send feedback opens in place instead of falling
      back to /m/feedback (backend-served canonical copy, KPAD-SELFFEED1) -->
-<script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
+<script src="<?= htmlspecialchars($hapi_widget_src, ENT_QUOTES, 'UTF-8') ?>"
         data-product="katomia-home"
         data-screenshot="0"><!-- KAT-FEEDSHOT-BROKEN1 (user 2026-08-08): attach-screenshot never
      succeeds on these pages, so the checkbox is a control for a feature that does not

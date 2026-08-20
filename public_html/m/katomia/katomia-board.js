@@ -918,7 +918,9 @@ async function boardCreateTxSocket(txid){
   const wrapper = { socket: null, close(){ closed = true; try { wrapper.socket?.close() } catch {} } }
   const open = () => {
     if(closed) return
-    const s = createTxSocket({ baseUrl: window.CONFIG?.HAPI_BASE || "", txid,
+    // KAT-SAMEORIGIN-FE1: empty HAPI_BASE = same-origin — ride the vhost /hapi/ proxy
+    // (toWss('') would hand WebSocket a relative URL, which older engines reject)
+    const s = createTxSocket({ baseUrl: window.CONFIG?.HAPI_BASE || (location.host + "/hapi"), txid,
       onTxUpdate: update => boardHandleTxUpdate(txid, update) })
     wrapper.socket = s
     s.addEventListener("open", () => { attempt = 0 })

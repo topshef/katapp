@@ -422,7 +422,7 @@
 <!-- KAT-FEEDBACK1 dogfooding: long-press anywhere on the game page (2s) opens
      a "Send Feedback" modal. Signs with the intent keypair above if present. -->
 <!-- KPAD-SELFFEED1: served from the backend (its canonical home) — no local copy -->
-<script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
+<script src="<?= htmlspecialchars($hapi_widget_src, ENT_QUOTES, 'UTF-8') ?>"
         data-product="katomia"
         data-screenshot="0"><!-- KAT-FEEDSHOT-BROKEN1 (user 2026-08-08): attach-screenshot never
      succeeds on these pages, so the checkbox is a control for a feature that does not
