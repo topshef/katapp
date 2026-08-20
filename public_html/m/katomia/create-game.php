@@ -389,6 +389,10 @@ h3{
 
 <button class="create-btn kbtn kbtn-green" id="createBtn">Create <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?></button>
 
+<!-- CREATE-DEEPLINK1: save this exact setup as a prefilled URL — a form template. -->
+<div class="explain" style="margin-top:12px"><a href="#" id="templateLink"
+   title="Copies a URL that reopens this form with everything prefilled — save it as a template for future <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?>.">🔗 Copy this setup as a template link</a></div>
+
 <div class="status" id="status"></div>
 
 </div>
@@ -490,15 +494,66 @@ function updateExplain(){
   }
 }
 
-// Prefill from query params (the basic→full handoff above; harmless direct-links too)
+// ── CREATE-DEEPLINK1 (user 2026-08-20): EVERY field prefills from query params, so a
+// filled form's URL is a reusable TEMPLATE ("save prefilled forms for new ones") — see
+// the 🔗 template-link builder below, which emits exactly these params. Grew out of
+// the basic→full private-visibility handoff, which still works unchanged.
+// Short names are canonical (mode/lock/access…); the long field names are accepted as
+// aliases so hand-written links can use either. ?admin= is honoured here but NEVER
+// emitted by the link builder: a shared template carrying someone's admin key would
+// make strangers create circles that key controls — fine done knowingly by hand,
+// wrong as a default.
 {
   const qs = new URLSearchParams(location.search)
-  if(qs.get("name")) gameName.value = qs.get("name")
-  for(const f of ["network", "visibility"]){
-    const v = qs.get(f)
-    const el = v && document.querySelector(`input[name=${f}][value="${v}"]`)
-    if(el) el.checked = true
-  }
+  const first = (...keys) => { for(const k of keys){ const v = qs.get(k); if(v != null && v !== "") return v } return null }
+  const setRadio = (name, v) => { const el = v && document.querySelector(`input[name=${name}][value="${v}"]`); if(el) el.checked = true }
+  const setVal = (el, v) => { if(el && v != null) el.value = v }
+  const setSel = (el, v) => { if(el && v != null && [...el.options].some(o => o.value === v)) el.value = v }
+
+  if(first("name")) gameName.value = first("name")
+  setRadio("network",     first("network"))
+  setRadio("visibility",  first("visibility"))
+  setRadio("tradingMode", first("mode", "tradingMode"))
+  setRadio("lockRule",    first("lock", "lockRule"))
+  setSel(document.getElementById("gameTheme"),        first("theme"))
+  setSel(document.getElementById("gameBreakout"),     first("breakout"))
+  setSel(document.getElementById("idleAccountHours"), first("idle"))
+  setVal(joinRule,             first("access", "joinRule"))
+  setVal(document.getElementById("welcomeMessage"), first("welcome"))
+  setVal(txDelaySeconds,       first("delay"))
+  setVal(validDurationSeconds, first("valid"))
+  setVal(document.getElementById("admin"), first("admin"))
+}
+
+// CREATE-DEEPLINK1: the other half — turn the CURRENT form state into a shareable
+// prefilled URL. Only non-defaults are included so links stay short; skin rides along
+// so a basic-skin template reopens as the basic form. Clipboard write, with the URL
+// dropped into the status line as the no-clipboard fallback.
+function buildTemplateLink(){
+  const p = new URLSearchParams()
+  if(gameName.value.trim()) p.set("name", gameName.value.trim())
+  p.set("network", getRadio("network"))
+  p.set("visibility", getRadio("visibility"))
+  const defaults = { mode: "proposal", lock: "cluster" }
+  if(getRadio("tradingMode") !== defaults.mode) p.set("mode", getRadio("tradingMode"))
+  if(getRadio("lockRule") !== defaults.lock) p.set("lock", getRadio("lockRule"))
+  const sel = (id, dflt) => { const v = document.getElementById(id)?.value; if(v != null && v !== dflt) return v }
+  if(sel("gameTheme", "")) p.set("theme", sel("gameTheme", ""))
+  if(sel("gameBreakout", "")) p.set("breakout", sel("gameBreakout", ""))
+  if(sel("idleAccountHours", "1")) p.set("idle", sel("idleAccountHours", "1"))
+  if(joinRule.value.trim()) p.set("access", joinRule.value.trim())
+  if(document.getElementById("welcomeMessage")?.value.trim()) p.set("welcome", document.getElementById("welcomeMessage").value.trim())
+  if(txDelaySeconds.value !== "" && txDelaySeconds.value !== "60") p.set("delay", txDelaySeconds.value)
+  if(validDurationSeconds.value !== "" && validDurationSeconds.value !== "40") p.set("valid", validDurationSeconds.value)
+  if(SKIN_BASIC) p.set("skin", "basic")
+  return location.origin + location.pathname + "?" + p.toString()
+}
+
+document.getElementById("templateLink").onclick = async e => {
+  e.preventDefault()
+  const url = buildTemplateLink()
+  try { await navigator.clipboard.writeText(url); status.textContent = "🔗 Template link copied — open it to start a new " + KTERMS.one + " with these settings." }
+  catch { status.textContent = url }   // clipboard blocked (permissions/http): show it to copy by hand
 }
 
 document.querySelectorAll("input[name=network]").forEach(el => el.onchange = updateExplain)
@@ -724,6 +779,12 @@ drawThemeWheel()
 </script>
 <script src="<?= kasset('katomia-profile.js') ?>"></script>
 <script src="<?= kasset('katomia-auth.js') ?>"></script>
+<!-- JOINRULE-COMPOSER1 phase 1: ⋯ quick-pick beside the access-control input. Loaded
+     after katomia-auth.js — the composer reads kauthRecords() for "your accounts". -->
+<script src="<?= kasset('katomia-composer.js') ?>"></script>
+<script>
+  katomiaComposer.attach({ input: document.getElementById("joinRule"), getNetwork: () => getRadio("network") })
+</script>
 
 <script>
 	fetch("./footer.html")

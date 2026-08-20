@@ -1,6 +1,6 @@
 {
  "_about": "THE TEST ID INDEX — every test identifier we use, what it asserts, where it runs, and how to run it. Created 2026-08-08 (user) after MAINNETSMOKE-01 and TXS-1 were quoted in chat and could not be found anywhere: they were not tasks, and TXS-* existed only as prose inside QA-XFAIL1.json's `next` field. A test id must resolve to something you can open — that is what this file is for. Viewer: tests.html. Naming convention (PROTOCOL.md): a bare CAPITALISED reference is a kPad TASK; a test id is written T:<id> in prose and chat, and must come with its URL. Each suite records what_it_does (the actual steps), pass_means, fails_when, its dimension and its cost — added 2026-08-08 after the user pointed out that 'real value, real network, once a day' does not tell anyone what the test IS.",
- "updated": "2026-08-19",
+ "updated": "2026-08-20",
  "convention": {
   "task": "BARE CAPS — a kPad task, e.g. TXSTATUS-CONSOLIDATE1. Look it up in kPad.",
   "test": "T:<id> — a test case, e.g. T:HBARXFER-01. Defined in this file; results on the QA grid.",
@@ -872,6 +872,25 @@
    "why_it_matters": "GAME-JOINRULE2(a): community membership tokens as circle gates. The classification (mirror /tokens 404 = account) and the holder check both lean on mirror behaviour — a mirror API change or cast rotation (fixture NFT 0.0.3626892 held by alice 0.0.9556348, not by carol) breaks gating silently without this probe.",
    "run": {
     "any": "API=https://alpha.katlab.kpay.live BACKEND_DIR=/home/hbarlive_hts-alpha node joingate-check.cjs"
+   },
+   "schedule": "manual (candidate for quickchecks-cron once soaked)",
+   "reports": "kflow test:verdict → QA grid"
+  },
+  {
+   "id": "COMPOSER-01",
+   "title": "Access-rule composer quick pick + create-form template deep links",
+   "asserts": "Every create-form field prefills from URL params and the 🔗 template link reproduces them (never carrying admin); the ⋯ composer round-trips the input CSV into mirror-classified chips (named token + account), lists the connected account's held tokens, auto-classifies a pasted token ID, and writes the CSV back; a deep-linked gated form creates a circle, lands on /board/<id>?created=1, and the circle really gates (anonymous eligible:false).",
+   "kind": "browser",
+   "network": "testnet",
+   "modules": [
+    "frontend",
+    "backend"
+   ],
+   "state": "LIVE since 2026-08-20 — 8 assertions, all green at ship time (JOINRULE-COMPOSER1 phase 1 + CREATE-DEEPLINK1).",
+   "harness": "qa/harness/composer-check.cjs",
+   "why_it_matters": "The composer leans on two new backend lookups (/entities classify, /held-tokens) and the deep-link surface is now the documented way to save form templates — a param rename or a classify regression breaks saved template links users hold, silently.",
+   "run": {
+    "any": "BASE=https://lab1.katlab.kpay.live API=https://alpha.katlab.kpay.live node composer-check.cjs"
    },
    "schedule": "manual (candidate for quickchecks-cron once soaked)",
    "reports": "kflow test:verdict → QA grid"
