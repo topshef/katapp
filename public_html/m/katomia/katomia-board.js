@@ -4850,7 +4850,11 @@ function boardNetAccounts(accounts){
   accounts.forEach(acc => {
     (acc.basket || []).forEach(item => {
       const id = String(item.assetId)
-      if(id.includes("#") || !item.fromId){ nfts.push({ to: acc.id, item }); return }
+      // PROP-TICKETS1 (?tickets=1 only): a ticket/order fill leg bypasses netting
+      // like NFTs do — netting rebuilds rows as bare {assetId,amount,fromId}, which
+      // strips the orderId/fillId provenance the fill cue + group recall need, and
+      // a fill leg is one side of a signed group, not a nettable loose offer
+      if(id.includes("#") || !item.fromId || (window.KTICKETS && item.fillId)){ nfts.push({ to: acc.id, item }); return }
       const [lo, hi] = [item.fromId, acc.id].sort()
       const key = id + "|" + lo + "|" + hi
       const sign = item.fromId === lo ? 1 : -1
