@@ -259,6 +259,116 @@ function tktLightFillers(open, on){
   })
 }
 
+// ── the unsourced ticket ─────────────────────────────────────────────────────
+// A ticket whose give-leg has no store behind it any more — because it was
+// offered out (B3), spent, or priced without ever holding it. Without this the
+// ticket would simply VANISH from the felt: no store amount means no chip, and
+// the stub rides a chip. An invisible promise is the worst outcome of all, so it
+// gets a chip of its own, drawn in the red "this leg needs filling" vocabulary.
+// Appended after the store chips, so it reads as an extra rather than a holding.
+function tktUnsourcedChips(account, container){
+  const held = account.assets || {}
+  const seen = new Set()
+  for(const [orderId, o] of tktOrdersFor(account)){
+    if(tktFilledRatio(o, orderId) >= 1) continue
+    for(const l of o.bundle){
+      if(l.amount >= 0) continue
+      const id = String(l.asset)
+      if((held[id] || 0) > 0) continue     // still backed — the store chip wears the stub
+      if(seen.has(id)) continue
+      seen.add(id)
+      const el = makeAssetEl({
+        text: typeof boardAssetText === "function" ? boardAssetText(id, Math.abs(l.amount)) : id,
+        assetId: id, ownerAccountId: account.id, ownerPlayerId: account.playerId,
+        clickable: isMyAccount(account)
+      })
+      el.classList.add("board-chip", "board-ticketed", "board-tkt-unsourced")
+      el.dataset.tktChip = "1"
+      el.dataset.orderId = orderId
+      el.dataset.tktUnsourced = "1"
+      if(typeof ringTint === "function") ringTint(el, account.playerId)
+      if(typeof boardTip === "function") boardTip(el, isMyAccount(account)
+        ? "Unsourced — this ticket promises something your store no longer holds"
+        : "Unsourced — their store no longer holds what this ticket promises")
+      el.onclick = () => boardAssetDetail(id, account, 0)
+      container.appendChild(el)
+    }
+  }
+}
+
+// ── phase B2: wanted slots, revealed only while you are dragging ─────────────
+// The design pass had these as permanent red ghosts in the maker's basket zone,
+// which doubles a ticket's footprint — the exact thing phase A is undoing. So
+// they appear at the one moment they are useful: pick up a carrot and every
+// ticket in the circle that wants a carrot lights up as a drop target.
+//
+// The slot IS the maker's own priced chip, not a new element. That matters for
+// more than tidiness: chips in the organic layout are positioned by the physics
+// sim, and injecting a node mid-drag would land it unplaced. It also makes the
+// gesture legible — you drop your carrot ONTO the apple that is priced for
+// carrots. Dropping anywhere else in the same segment stays an ordinary offer,
+// which is what keeps "give it to them" and "sell it to them" apart.
+function tktShowSlots(assetId, fromAccountId){
+  tktHidePeek()
+  const map = getAccountMap ? getAccountMap() : {}
+  document.querySelectorAll(".board-chip.board-ticketed[data-order-id]").forEach(chip => {
+    const acc = map[chip.dataset.ownerAccount]
+    if(!acc || isMyAccount(acc)) return               // your own ticket can't want your own drop
+    const order = state?.players?.[acc.playerId]?.orders?.[chip.dataset.orderId]
+    if(!order) return
+    if(!order.bundle.some(l => l.amount > 0 && String(l.asset) === String(assetId))) return
+    chip.classList.add("board-tkt-slot")
+    chip.dataset.tktSlotFrom = fromAccountId
+    chip.dataset.tktSlotAsset = assetId
+  })
+}
+
+function tktHideSlots(){
+  document.querySelectorAll(".board-tkt-slot").forEach(c => {
+    c.classList.remove("board-tkt-slot")
+    delete c.dataset.tktSlotFrom
+    delete c.dataset.tktSlotAsset
+  })
+}
+
+// called from the wedge's ondrop BEFORE the segment re-route. Returns true if the
+// drop landed on a wanted slot and was handled as a take.
+function tktSlotDrop(e){
+  const slot = document.elementFromPoint(e.clientX, e.clientY)?.closest?.(".board-tkt-slot")
+  if(!slot) return false
+  const from = getAccountMap()[slot.dataset.tktSlotFrom]
+  tktHideSlots()
+  if(!from || !isMyAccount(from)) return false
+  tktSendFill(slot.dataset.orderId, from)
+  if(typeof clearSelection === "function") clearSelection()
+  if(typeof render === "function") render()
+  return true
+}
+
+// ── phase B3: offering out something you have already priced ─────────────────
+// A plain offer DEBITS the store; a ticket debits nothing. So dropping your
+// priced chicken into someone's basket doesn't just double-promise it — it
+// leaves the store, and the ticket is then backed by nothing. Name that outcome
+// rather than discovering it at signing.
+//
+// The complication: there is a drop modal, but not always. boardAskAmount
+// returns immediately without prompting when available <= 1 — NFTs and single
+// units, which is exactly the chicken. So this asks in its own right, before the
+// amount step, and is suppressible for anyone who finds it noisy.
+async function tktConfirmOfferOut(fromAccountId, assetId){
+  const acc = getAccountMap()[fromAccountId]
+  if(!acc || !isMyAccount(acc)) return true
+  const open = tktOpenOrdersForAsset(acc, assetId)
+  if(!open.length) return true
+  try { if(localStorage.getItem("katomiaTicketsQuietDragWarn") === "1") return true } catch {}
+  const label = typeof boardAssetText === "function" ? boardAssetText(assetId, 1) : assetId
+  return confirm(
+    `You have priced ${label} on a ticket.\n\n`
+    + `Offering it here hands it over now — a ticket reserves nothing, so the ticket stays open `
+    + `and becomes UNSOURCED: you would owe something you no longer hold.\n\n`
+    + `OK to offer it anyway (the ticket turns red), or Cancel and tear up the ticket first.`)
+}
+
 // ── the ticket section of the asset card ─────────────────────────────────────
 // Called from boardAssetDetail. Renders one block per open ticket on this asset:
 // the legs, the status, and the maker's or taker's actions.

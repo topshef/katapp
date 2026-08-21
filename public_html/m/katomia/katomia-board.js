@@ -5883,6 +5883,10 @@ async function boardToggleLock(account){
 // desktop no-drop cursor — review 12 nice-to-have)
 function boardDropValid(p, account){
   if(!p || !account) return true                     // unknown → don't block
+  // PROP-TICKETS1 phase B1: a ticket take lands only in YOUR space, same shape
+  // as a pick — the difference is that the permission came from the ticket
+  // rather than from the owner's allowPick pref.
+  if(p.tktTake) return isMyAccount(account)
   if(p.pick) return isMyAccount(account)
   // BOARD-ARRANGE1: the previously-dead own-zone drops are now valid — they
   // arrange the chip where it lands (the ondrop wrapper intercepts them
@@ -5956,6 +5960,16 @@ function boardDropTarget(el, account){
   }
 
   el.ondrop = e => {
+    // PROP-TICKETS1 phase B2: dropping YOUR asset directly onto a ticket that
+    // wants it is a take, not an offer. Checked before the wedge re-route below,
+    // because the target here is a CHIP, not a segment — dropping anywhere else
+    // in the same segment stays an ordinary offer, which is what keeps "give it
+    // to them" and "sell it to them" distinguishable.
+    if(window.KTICKETS && typeof tktSlotDrop === "function" && tktSlotDrop(e)){
+      e.preventDefault()
+      el.classList.remove("drag-over")
+      return
+    }
     // BOARD-DROPHIT1 R2: this handler may be on the chip CONTAINER of whoever
     // owns the chip that happened to be under the cursor. Resolve the segment
     // from the hit stack and, if it's a different one, hand the whole drop to
@@ -5972,6 +5986,16 @@ function boardDropTarget(el, account){
       e.preventDefault()
       el.classList.remove("drag-over")
       window.__boardDragEl = null
+      return
+    }
+
+    // PROP-TICKETS1 phase B1: their priced chip dragged into your space
+    const tktOrderId = e.dataTransfer.getData("tktTake")
+    if(tktOrderId){
+      e.preventDefault()
+      el.classList.remove("drag-over")
+      boardExecuteDrop({ tktTake: true, orderId: tktOrderId,
+        assetId: e.dataTransfer.getData("assetId") }, account, { x: e.clientX, y: e.clientY })
       return
     }
 
@@ -6048,7 +6072,11 @@ function boardDropTarget(el, account){
 // getTransferAmount. Tap (no movement) still fires the chip's click handler
 // (modal etc.). Chips get touch-action:none, so page/carousel scrolling has
 // to start OFF a chip — acceptable board-game trade-off, noted.
-function boardTouchDrag(el, payload){
+// hooks (optional): { onStart, onEnd } — fired when the finger drag actually
+// begins and when it ends, so features that reveal drag-time affordances (the
+// ticket wanted slots, PROP-TICKETS1 B2) behave the same on touch as they do on
+// desktop, where native dragstart/dragend already provide this.
+function boardTouchDrag(el, payload, hooks){
 
   el.style.touchAction = "none"
 
@@ -6141,11 +6169,13 @@ function boardTouchDrag(el, payload){
         const swallow = c => { c.stopImmediatePropagation(); c.preventDefault() }
         el.addEventListener("click", swallow, { capture: true, once: true })
         setTimeout(() => el.removeEventListener("click", swallow, { capture: true }), 600)
+        try { hooks?.onStart?.() } catch {}
       }
       if(!moveRaf) moveRaf = requestAnimationFrame(applyMove)
     }
 
     const up = ev => {
+      try { hooks?.onEnd?.() } catch {}
       window.removeEventListener("pointermove", move)
       window.removeEventListener("pointerup", up)
       window.removeEventListener("pointercancel", up)
@@ -6419,6 +6449,16 @@ async function boardExecuteDrop(p, account, pt){
     return
   }
 
+  // PROP-TICKETS1 phase B1: the take, as a drag. Same verb the asset card sends
+  // (tktSendFill), so the two routes cannot drift apart.
+  if(p.tktTake){
+    if(!isMyAccount(account)) return
+    if(pt) boardNotePendingSpawn(account.id, p.assetId, pt.x, pt.y)
+    tktSendFill(p.orderId, account)
+    clearSelection(); render()
+    return
+  }
+
   if(p.pick){
     // picks land only in YOUR space; the backend re-checks allowPick
     if(!isMyAccount(account)) return
@@ -6458,6 +6498,13 @@ async function boardExecuteDrop(p, account, pt){
     clearSelection(); render()
     return
   }
+
+  // PROP-TICKETS1 phase B3: this asset is priced on one of your open tickets,
+  // and a plain offer DEBITS THE STORE while a ticket debits nothing — so the
+  // moment it lands in their basket the ticket is backed by nothing. Ask, and
+  // name that outcome, rather than letting the same chicken be promised twice.
+  if(window.KTICKETS && typeof tktConfirmOfferOut === "function"
+     && !(await tktConfirmOfferOut(p.fromAccountId, p.assetId))) return
 
   const amount = await boardAskAmount(p.assetId, p.available || 1)
   if(amount === null) return
@@ -7908,8 +7955,37 @@ function boardStoreChips(account, container, reservedByAccount){
         e.dataTransfer.setData("fromAccountId", account.id)
         e.dataTransfer.setData("fromBasketToAccountId", "")
         window.__boardDragPayload = { assetId, fromAccountId: account.id, fromBasketToAccountId: "" }
+        // PROP-TICKETS1 phase B2: wanted slots exist ONLY during a drag. At rest
+        // they would double a ticket's footprint, which is the whole thing this
+        // phase is undoing; at the moment you pick something up they are exactly
+        // the affordance you need.
+        if(window.KTICKETS && typeof tktShowSlots === "function") tktShowSlots(assetId, account.id)
       }
-      boardTouchDrag(el, { assetId, available: sliceAmount || 1, fromAccountId: account.id, fromBasketToAccountId: "" })
+      el.addEventListener("dragend", () => {
+        if(window.KTICKETS && typeof tktHideSlots === "function") tktHideSlots()
+      })
+      boardTouchDrag(el, { assetId, available: sliceAmount || 1, fromAccountId: account.id, fromBasketToAccountId: "" },
+        { onStart: () => window.KTICKETS && typeof tktShowSlots === "function" && tktShowSlots(assetId, account.id),
+          onEnd: () => window.KTICKETS && typeof tktHideSlots === "function" && tktHideSlots() })
+    } else if(slice.priced && window.KTICKETS && ring8() && getAccounts().some(a => isMyAccount(a))){
+      // PROP-TICKETS1 phase B1: THE TICKET IS THE PERMISSION. Their priced chip
+      // is draggable into your space whether or not they allow picking — a
+      // ticket is a per-asset, per-price grant, strictly narrower than the
+      // all-or-nothing allowPick pref.
+      // Deliberate precedence over the pick wiring below: if a store is BOTH
+      // pickable and priced, dragging means TAKE AT THE PRICE, never "help
+      // yourself for free". A priced asset is not free, and the safe reading of
+      // a contradictory pair of permissions is the narrower one.
+      el.classList.add("board-tkt-drag")
+      el.draggable = true
+      const oid = String((tktOpenOrdersForAsset(account, assetId)[0] || [])[0] || "")
+      el.ondragstart = e => {
+        e.dataTransfer.setData("assetId", assetId)
+        e.dataTransfer.setData("tktTake", oid)
+        window.__boardDragPayload = { tktTake: true, orderId: oid, assetId }
+      }
+      boardTouchDrag(el, { tktTake: true, orderId: oid, assetId })
+      boardTip(el, "Priced — drag it into your space to take it at this price")
     } else if((ring11() || susan3()) && playerAllowsPick(account.playerId) && getAccounts().some(a => isMyAccount(a))){
       // PICK (review 10 / KAT-PICK1): their player allows picking — grab the
       // chip and drop it into any of YOUR regions; game_pick lands it in
@@ -7955,6 +8031,11 @@ function boardStoreChips(account, container, reservedByAccount){
     container.appendChild(el)
     })
   })
+  // PROP-TICKETS1: a ticket whose give-leg has no store behind it any more still
+  // has to be visible — see tktUnsourcedChips. This is the ONLY thing tickets
+  // append to the felt themselves, and it exists because the alternative is an
+  // invisible promise.
+  if(window.KTICKETS && typeof tktUnsourcedChips === "function") tktUnsourcedChips(account, container)
 }
 
 // ── asset detail card (user 2026-08-05) ──────────────────────────────────────
