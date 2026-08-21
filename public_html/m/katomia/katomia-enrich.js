@@ -253,20 +253,32 @@ window.accountXProofCache ||= {}
 async function getAccountLabelXProof(network, accountId){
 
   if (network != 'mainnet') return
-  const params = {
-    network,
-    // accountId
-  }
+  const params = { network, accountId }   // XPROOF-ROUTE1: /api/ keys on accountId
 
-  // 2 types shoudl be same but shape differs
-  // https://xproof.live/domain/query/0.0.27500
-  // https://xproof.live/api/?accountId=0.0.27500
-  // return await Kache.getData("https://xproof.live/api/", params, 86400)
-  // ENRICH-COLDPATH1: 5s cap. This is a third-party lookup for a COSMETIC label;
-  // a hung query here used to stall the whole enrich pass (measured: one account
-  // never responded in 30s). On abort getData throws and the caller's catch drops
-  // the label — the board just shows the account id, which is the pre-label state.
-  return await Kache.getData(`https://xproof.live/domain/query/${accountId}`, params, 86400, 5000)
+  // XPROOF-ROUTE1 (user 2026-08-21, "I'm not seeing it working"): switched from
+  // /domain/query/<id> to /api/. The two endpoints answer the same question from
+  // DIFFERENT sources and only one of them still works:
+  //   /domain/query/<id> → api_query_domain.php → https://explore.hbar.live/DG/
+  //                        …which is DEAD. Verified: no response in 20s+ for every
+  //                        account tried, so this route hangs 100% of the time.
+  //   /api/?accountId=   → a LOCAL sqlite db (xproof api/db_xproof.db) that
+  //                        db_update.php fills straight from the Hedera mirror
+  //                        node. Answers in ~30ms. Verified live: 0.0.27500 →
+  //                        kpay.live, attested by verifier 0.0.26027.
+  //
+  // TIMEOUT, FOR REAL THIS TIME. The old line passed 5000 as Kache.getData's 4th
+  // argument under a comment calling it a "5s cap" — but that argument is
+  // staleSeconds. Kache.getData has no timeout and no AbortController; its fetch
+  // is unguarded. So it was really an 83-minute STALE WINDOW and the hung lookup
+  // went on stalling the enrich pass exactly as it did before that fix. A cosmetic
+  // label must never be able to do that, so the cap is applied here, where it
+  // actually binds. Losing the race rejects, the caller's catch drops the label,
+  // and the board shows the bare account id — the honest pre-label state.
+  const XPROOF_TIMEOUT_MS = 5000
+  return await Promise.race([
+    Kache.getData("https://xproof.live/api/", params, 86400),
+    new Promise((_, rej) => setTimeout(() => rej(new Error("xproof timeout")), XPROOF_TIMEOUT_MS))
+  ])
 
 }
 
@@ -275,6 +287,27 @@ async function enrichAccountLabel(network, accountId){
   if(network != "mainnet") return {label:null}
 
   const data = await getAccountLabelXProof(network, accountId)
+  // XPROOF-ROUTE1: /api/ answers {"<acct>": [events…], "latest": {"<acct>": {<type>: {…}}}}
+  // — latest is keyed by IDENTITY TYPE ("domain", and whatever xproof adds later).
+  // Prefer an attested domain; otherwise take whatever attested identity exists, so
+  // a future twitter/github attestation shows up without another code change.
+  // (The old /domain/query shape was data.links[0] with .domain/.name — kept below
+  // as a fallback so a revived route still parses.)
+  const byType = data?.latest?.[accountId]
+  const attested = byType ? (byType.domain || Object.values(byType)[0]) : null
+  if(attested?.linked_identity){
+    return {
+      label: attested.linked_identity,
+      domain: attested.linked_identity,
+      kind: attested.identity_type || "domain",
+      // xproof's attestation carries no self-chosen label today; the field is read
+      // anyway so that if one is ever added it lands in the secondary slot rather
+      // than being mistaken for the attested part.
+      name: attested.name || null,
+      verifiedAt: attested.verified_at || null
+    }
+  }
+
   const latest = data?.links?.[0]
 
   if(!latest) return {label:null}

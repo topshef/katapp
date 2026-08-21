@@ -1129,6 +1129,15 @@ body.board-page .app-banner{
 }
 
 .ring-etchsub{ opacity: .55; font-weight: 600; }
+/* XPROOF-FELT1 (user 2026-08-21, option B): the ATTESTED domain is the only part
+   that gets the verified colour and full opacity — the holder-chosen name stays in
+   the faint owner-coloured etch so it reads as an annotation, not as proof. Fill is
+   set on the tspan so it wins over the parent text's owner colour. */
+.ring-etchxp-domain{ fill: #1f7a45 !important; fill-opacity: 1; font-weight: 800; }
+.ring-etchxp-name{ fill-opacity: .75; font-weight: 600; }
+@media (prefers-color-scheme: dark){
+  .ring-etchxp-domain{ fill: #5fd08a !important; }
+}
 .ring-etchlock{ opacity: .9; }
 
 .ring-footer-accsel{

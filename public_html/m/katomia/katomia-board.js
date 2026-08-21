@@ -7336,14 +7336,39 @@ function ringEtchLabel(seg, g, NS){
   const hac = seg.account.id.split(":")[1] || seg.account.id
   const xLabel = window.accountLabelCache?.[hac]
   if(xLabel){
+    // XPROOF-FELT1 (user 2026-08-21, chose option B from the design pass): the etch
+    // used to render "domain | name" in one uniform grey, which let a SELF-CHOSEN
+    // name borrow the credibility of the ATTESTED domain — "anyone could just put
+    // some dodgy domain name and stick a label on top", so the two must not look
+    // alike. Now the domain leads in verified-green with a ✓, and the name recedes
+    // into the existing faint etch tone as a plain annotation.
+    const xp = window.accountXProofCache?.[hac]
+    const domain = xp?.domain || String(xLabel).split(" | ")[0]
+    const name   = xp?.name   || String(xLabel).split(" | ").slice(1).join(" | ") || null
     const sub = document.createElementNS(NS, "text")
     sub.setAttribute("class", "ring-etchlabel ring-etchsub")
-    sub.setAttribute("fill", getPlayerColour(seg.account.playerId))
     sub.setAttribute("x", x)
     sub.setAttribute("y", y + fs * 0.78)
     sub.setAttribute("text-anchor", "middle")
     sub.setAttribute("font-size", fs * 0.52)
-    sub.textContent = xLabel
+
+    const dom = document.createElementNS(NS, "tspan")
+    dom.setAttribute("class", "ring-etchxp-domain")
+    dom.textContent = "✓ " + domain
+    sub.appendChild(dom)
+
+    // MOBILE: at ring scale this sub-line is only a few px tall, so the name is
+    // dropped on narrow screens and the domain — the part that must never be
+    // truncated or half-shown — keeps the whole line to itself.
+    const roomForName = name && window.innerWidth >= 700
+    if(roomForName){
+      const nm = document.createElementNS(NS, "tspan")
+      nm.setAttribute("class", "ring-etchxp-name")
+      nm.setAttribute("fill", getPlayerColour(seg.account.playerId))
+      nm.textContent = "  ·  " + name
+      sub.appendChild(nm)
+    }
+    sub.setAttribute("fill", getPlayerColour(seg.account.playerId))
     grp.appendChild(sub)
   }
 
