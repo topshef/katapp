@@ -2258,6 +2258,25 @@ body.feat-tickets .board-chip.board-ticketed{
 }
 /* a take is on the table — the ticket is spoken for but not yet settled */
 body.feat-tickets .board-chip.board-ticketed-inplay{ opacity:.72; }
+/* B1 — their priced chip is draggable into your space (the ticket is the
+   permission, so this does not depend on their allowPick) */
+body.feat-tickets .board-chip.board-tkt-drag{ cursor:grab; }
+/* B2 — a wanted slot: live ONLY during a drag of something the ticket wants.
+   Outline, not border/padding, so revealing a slot moves nothing. */
+body.feat-tickets .board-chip.board-tkt-slot{
+  outline:3px dashed #1d8a44; outline-offset:3px;
+  animation:tkt-slot-pulse 1.1s ease-in-out infinite;
+}
+@keyframes tkt-slot-pulse{ 50%{ outline-color:#7ed49f; } }
+@media (prefers-reduced-motion: reduce){
+  body.feat-tickets .board-chip.board-tkt-slot{ animation:none; }
+}
+/* the ticket promises something the store no longer holds — the red
+   "this leg needs filling" vocabulary, borrowed ahead of phase F */
+body.feat-tickets .board-chip.board-tkt-unsourced{
+  background:transparent !important; color:#b3261e !important;
+  box-shadow:inset 0 0 0 2px #b3261e;
+}
 /* A3 hover peek — a popover, never a growth of the chip (height is the
    constraint; see the mask note above). pointer-events:none so it can never
    swallow the drag that starts on the chip underneath it. */

@@ -1002,6 +1002,36 @@
       "fails_when": "A cue is added that grows the chip; the mask clipping rule is weakened and the pennant silently disappears; or the asset card loses its ticket section.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-quiet-check.cjs",
       "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-QUIET-01.n) prints PASS/FAIL with detail."
+    },
+    {
+      "id": "TICKETS-GESTURE-01",
+      "title": "The take as a gesture — drag both ways, and the double-promise guard",
+      "asserts": "B1: someone else's priced chip is draggable into your own space and lands the take EVEN THOUGH their store is not pickable (the ticket is the permission), producing the same fill group the asset-card button produces, with no auto-lock. B2: dragging an asset a ticket wants reveals exactly one wanted slot — the maker's own priced chip, not a new node — and dropping on it takes the ticket; the slot exists only during the drag. B3: offering out an asset you have priced asks first, names the unsourced outcome, and the ticket stays open and VISIBLY unsourced on both boards rather than vanishing.",
+      "kind": "e2e-feature",
+      "network": "playnet",
+      "harness": "qa/harness/tickets-gesture-check.cjs",
+      "run": {
+        "lab1": "node tickets-gesture-check.cjs",
+        "any": "API=<backend> BASE=<site> node tickets-gesture-check.cjs"
+      },
+      "schedule": "manual (run with every tickets phase)",
+      "reports": "kflow test:verdict → QA grid",
+      "notes": "Phase B of docs/tickets-build-plan-20260821.html. Requires ?tickets=1. HTML5 drag-and-drop cannot be driven by synthetic mouse events, so the gestures are exercised through the same dataTransfer contract the real drag uses — the chip's own ondragstart builds the payload and the target's ondrop consumes it. That covers what phase B adds (payload shape, drop routing, verb); the browser's dnd plumbing is not under test. B3 is driven at boardExecuteDrop directly, because a pie-slice hit test aimed at a bounding-box centre resolves to whichever wedge contains that point — drag plumbing, not the guard. Screenshot at qa/harness/tickets-gesture-unsourced.png.",
+      "dimension": "playnet · ticket gestures",
+      "cost": "free",
+      "what_it_does": [
+        "Fresh playnet circle, two flagged players, both with a manual account. Alice prices her apple for a banana and leaves her store NOT pickable.",
+        "Assert her priced chip is draggable for Bob anyway, and that an unpriced chip of hers is not.",
+        "B1: drag the priced chip into Bob's own zone; assert two fill-cued rows on both boards and no auto-lock.",
+        "Recall to reopen the ticket.",
+        "B2: assert no wanted slot at rest; start dragging Bob's banana and assert exactly one slot appears, on the maker's priced chip; drop on it and assert the take; assert the slot clears.",
+        "Recall again.",
+        "B3: offer the priced apple out to Bob. Assert the confirm was raised, that it named the unsourced outcome, that the apple really left the store, that the ticket is still open, and that it renders as a visible unsourced chip on BOTH boards."
+      ],
+      "pass_means": "One verb, two directions, and the collision between offering and pricing the same asset is surfaced rather than discovered at signing.",
+      "fails_when": "The take drag starts depending on allowPick again; wanted slots leak outside a drag; or an unsourced ticket becomes invisible because its give-leg has no store chip to hang on.",
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-gesture-check.cjs",
+      "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-GESTURE-01.n) prints PASS/FAIL with detail."
     }
   ],
   "expected_fail": {
