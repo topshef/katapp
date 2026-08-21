@@ -10,7 +10,9 @@ $action = $_GET['action'] ?? 'create';
 require_once "{$_SERVER['DOCUMENT_ROOT']}/hapi_base.php";
 $hapi_base = get_hapi_base();
 
-$target = "https://$hapi_base/katomia/$action";
+// OPS-GCE1 option A: origin via get_hapi_origin() so HAPI_INTERNAL can point this at
+// loopback and keep server-side calls on the box once the origin firewall closes.
+$target = get_hapi_origin() . "/katomia/$action";
 
 // Forward remaining query params (everything except action) — GET endpoints like
 // /katomia/bindings?network=…&accountId=… need them (BIND-PAGE1, 2026-08-03).

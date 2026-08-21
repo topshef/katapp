@@ -12,6 +12,39 @@ const HAPI_BASE_ALLOWED_OVERRIDES = [
   'charlie.katlab.kpay.live',
 ];
 
+// OPS-GCE1 option A (2026-08-21): the origin the SERVER uses to reach the backend,
+// returned as a full "scheme://host[:port]" prefix. Defaults to https://<HAPI_BASE>,
+// which is exactly what every server-side caller used to build by hand.
+//
+// WHY IT EXISTS. On the GCE box the frontend and backend share a machine, but
+// HAPI_BASE is the backend's PUBLIC hostname — so hapi.php's curl left the box, went
+// out to the internet and came back in to our own external IP. The moment the origin
+// firewall narrows to Cloudflare ranges that hairpin is refused and every server-side
+// API call breaks. Set HAPI_INTERNAL in .env_hapi (e.g. http://127.0.0.1:8030) and the
+// call never leaves the box, so the firewall simply cannot affect it.
+//
+// DELIBERATELY SEPARATE FROM HAPI_BASE, not a replacement for it: HAPI_BASE is the
+// value the BROWSER may be handed (config.php), and a loopback address there would
+// break every client on the internet. HAPI_INTERNAL is read only here and is never
+// emitted to a page.
+//
+// Scheme rule: honour an explicit http:// or https://; otherwise assume http, because
+// the only sane reason to set this is a loopback/private target that has no
+// certificate matching its address — https to 127.0.0.1 would fail verification,
+// which is the whole reason the plain get_hapi_base() path could not be reused.
+function get_hapi_origin() {
+  $envPath = dirname($_SERVER['DOCUMENT_ROOT']) . '/.env_hapi';
+  $env = is_readable($envPath) ? parse_ini_file($envPath) : [];
+  $internal = trim($env['HAPI_INTERNAL'] ?? '');
+
+  if ($internal !== '') {
+    if (!preg_match('~^https?://~i', $internal)) $internal = 'http://' . $internal;
+    return rtrim($internal, '/');
+  }
+
+  return 'https://' . get_hapi_base();
+}
+
 function get_hapi_base($network = null, $multiNode = false, $override = null) {
   require_once "{$_SERVER['DOCUMENT_ROOT']}/elog.php";
   require_once "{$_SERVER['DOCUMENT_ROOT']}/kmon.php";
