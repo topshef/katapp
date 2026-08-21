@@ -2086,6 +2086,40 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
 .board-playercard-removewhy{
   font-size: 11.5px; line-height: 1.45; margin-top: 7px; text-align: center;
 }
+
+/* ── PLAYER-MODAL3 (user 2026-08-21) ───────────────────────────────────────── */
+
+/* NFT rows carry their token id + serial so two of the same collection are
+   tellable apart without opening either. Muted and monospace — an identifier to
+   scan down, not a second title competing with the name. */
+.board-playercard-assetid{
+  font: 11px ui-monospace, monospace; color: #a1a1aa; margin-left: 7px; white-space: nowrap;
+}
+
+/* In the filtered view the id links out to the explorer instead of filtering */
+.board-playercard-acctid--link{ display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.board-playercard-acctid--link:hover{ color: #3f6ea3; }
+.board-playercard-acctext{ margin-left: auto; color: #a1a1aa; font-size: 11px; }
+
+/* xproof: the attested DOMAIN leads, the self-chosen NAME follows in quieter
+   type. Never the name alone — see boardXProofRow(). */
+.board-playercard-xproof{
+  display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+  margin: -2px 0 7px; font-size: 12px;
+}
+.board-playercard-xpmark{ color: #1f7a45; font-size: 11px; }
+.board-playercard-xpdomain{ color: #27272a; font-weight: 600; }
+.board-playercard-xpname{ color: #71717a; font-size: 11.5px; }
+.board-playercard-xpname::before{ content: "· "; color: #c4c4cc; }
+
+@media (prefers-color-scheme: dark){
+  .board-playercard-assetid{ color: #8b8b96; }
+  .board-playercard-xpdomain{ color: #e7ecf4; }
+  .board-playercard-xpname{ color: #a9adb8; }
+  .board-playercard-xpmark{ color: #5fd08a; }
+  .board-playercard-acctid--tappable:hover{ background: rgba(255,255,255,.07); }
+  .board-playercard-removewhy{ color: #a9adb8; }
+}
 .board-playercard-assets{ display: flex; flex-direction: column; gap: 2px; }
 /* ── PLAYER-MODAL1 R2 (user 2026-08-06): fewer lines ──────────────────────
    "I think we've got too many kind of borders and stuff. Each asset chip is

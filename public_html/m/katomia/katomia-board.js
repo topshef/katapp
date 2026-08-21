@@ -8360,8 +8360,28 @@ function boardPlayerModal(playerId, focusAccountId = null){
       chev.textContent = "›"
       h.appendChild(chev)
       h.onclick = () => { modal.remove(); boardPlayerModal(playerId, account.id) }
+    } else if(net === "testnet" || net === "mainnet"){
+      // PLAYER-MODAL3: once you're looking at ONE account the id has no filtering
+      // job left, so it becomes the link out to the explorer (user 2026-08-21:
+      // "the account ID itself doesn't do anything… make that clickable to jump to
+      // hashscan"). Only where an explorer exists — playnet has no chain.
+      const hacId = account.id.split(":")[1] || account.id
+      h.classList.add("board-playercard-acctid--link")
+      h.title = "Open " + hacId + " on HashScan"
+      h.onclick = () => window.open("https://hashscan.io/" + net + "/account/" + encodeURIComponent(hacId), "_blank", "noopener")
+      const ext = document.createElement("span")
+      ext.className = "board-playercard-acctext"
+      ext.textContent = "↗"
+      h.appendChild(ext)
     }
     sec.appendChild(h)
+    // xproof identity, in BOTH views (user: "I think we might do that for the full
+    // unfiltered list as well… if we've got it, load it up"). Nothing is fetched
+    // here — enrichAccountLabels already populates the cache on mainnet, so this
+    // renders only when the data is genuinely present and stays silent on testnet,
+    // which is the honest empty state rather than a placeholder.
+    const xp = boardXProofRow(account)
+    if(xp) sec.appendChild(xp)
 
     const list = document.createElement("div")
     list.className = "board-playercard-assets"
@@ -8422,6 +8442,18 @@ function boardPlayerModal(playerId, focusAccountId = null){
       const txt = document.createElement("span")
       txt.textContent = (typeof getAssetDisplay === "function") ? getAssetDisplay(assetId, amount) : assetId
       label.appendChild(txt)
+      // PLAYER-MODAL3 (user 2026-08-21): NFTs showed only thumbnail + name, so two
+      // serials of the same collection were indistinguishable at a glance — "mainly
+      // so that we know which serial number we're talking about when we've got
+      // multiple NFTs of the same thing… so people can see it all on one modal
+      // without having to click into the detail". Token id + serial, small and muted.
+      if(String(assetId).includes("#")){
+        const [tok, ser] = String(assetId).split("#")
+        const idl = document.createElement("span")
+        idl.className = "board-playercard-assetid"
+        idl.textContent = tok + " #" + ser
+        label.appendChild(idl)
+      }
       // LE mark (user 2026-08-06: "if it's limited edition, maybe a little icon to
       // indicate that — just a little LE in a box or something like that… just do
       // it as a font"). Same getAssetType the orders view classifies with, so the
@@ -8528,6 +8560,46 @@ function boardPlayerModal(playerId, focusAccountId = null){
     card.appendChild(boardRemoveAccountBlock(actionAcct, modal, allAccounts.length === 1))
 
   document.body.appendChild(modal)
+}
+
+// xproof identity for an account, or null when we simply don't have one.
+//
+// TWO FACTS, DELIBERATELY UNEQUAL (user 2026-08-21): xproof attests control of a
+// DOMAIN; the NAME on top of it is chosen by whoever holds that domain. "You
+// wouldn't just show the label without showing the domain name, because anyone
+// could just put some dodgy domain name and stick a label on top." So the domain
+// is the prominent half and always present when we claim anything at all; the
+// name is secondary and never renders alone. A name with no domain behind it is
+// treated as no identity — that is the whole point of the check.
+function boardXProofRow(account){
+  const id = account.id.split(":")[1] || account.id
+  const parts = window.accountXProofCache?.[id]
+  const joined = window.accountLabelCache?.[id]
+  // fall back to splitting the legacy joined label so this works even for
+  // accounts enriched before the structured cache existed
+  const domain = parts?.domain || (joined ? String(joined).split(" | ")[0] : null)
+  const name   = parts?.name   || (joined ? String(joined).split(" | ").slice(1).join(" | ") || null : null)
+  if(!domain) return null
+
+  const row = document.createElement("div")
+  row.className = "board-playercard-xproof"
+  const mark = document.createElement("span")
+  mark.className = "board-playercard-xpmark"
+  mark.textContent = "✓"
+  mark.title = "Identity attested via xproof"
+  const dom = document.createElement("span")
+  dom.className = "board-playercard-xpdomain"
+  dom.textContent = domain
+  row.append(mark, dom)
+  if(name){
+    const nm = document.createElement("span")
+    nm.className = "board-playercard-xpname"
+    nm.textContent = name
+    nm.title = "Label chosen by the holder of " + domain + " — the domain is the attested part"
+    row.appendChild(nm)
+  }
+  row.title = "xproof: " + domain + (name ? " · labelled “" + name + "”" : "")
+  return row
 }
 
 // What is this account actually caught up in right now? Removing an idle account

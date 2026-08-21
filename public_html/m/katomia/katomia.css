@@ -1556,6 +1556,23 @@ svg .svg-sell{
   -webkit-backdrop-filter:blur(2px) saturate(.5);
 }
 
+/* MODAL-MUTE1 R2 — the dark board (user asked for my judgement here).
+   Counter-intuitively the answer is LESS dimming, not more. The modal card is
+   #fff with no dark-mode override, so on a dark felt it already separates by
+   sheer luminance — it is a lit panel on a dark ground. Stacking a heavier black
+   scrim on top of an already-dark board buys almost no extra separation and
+   spends what little legibility the felt had, which is the exact complaint this
+   whole change set exists to fix. So: lighter scrim, same gentle blur, keep the
+   desaturation doing the muting. If the card ever gains a dark variant this
+   should be revisited — a dark card on a dark board WOULD need the scrim back. */
+@media (prefers-color-scheme: dark){
+  .asset-modal{
+    background:rgba(0,0,0,0.28);
+    backdrop-filter:blur(2px) saturate(.55);
+    -webkit-backdrop-filter:blur(2px) saturate(.55);
+  }
+}
+
 .asset-modal-card{
   max-width:460px;
   padding:22px;

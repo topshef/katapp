@@ -245,6 +245,10 @@ async function enrichAccountAssets(){
 // simple cache (same pattern as assets)
 window.accountLabelCache ||= {}
 window.accountLabelPending ||= new Set()
+// PLAYER-MODAL3: structured sibling of accountLabelCache — {domain, name} per
+// account id, for surfaces that render the attested domain and the self-chosen
+// label with different weight. Same keys, same lifetime.
+window.accountXProofCache ||= {}
 
 async function getAccountLabelXProof(network, accountId){
 
@@ -282,7 +286,13 @@ async function enrichAccountLabel(network, accountId){
 
   if(label) glog(`getAccountLabelXProof|${latest.domain || accountId}`, {label, data})
 
-  return {label}
+  // PLAYER-MODAL3 (user 2026-08-21): keep the PARTS, not just the joined string.
+  // The two are not equal in weight — the DOMAIN is the attested half (xproof
+  // proves control of it), the NAME is a self-chosen label anyone could put on
+  // top of a lookalike domain. Surfaces that have room must be able to render
+  // them with different prominence, which a pre-joined "a | b" forbids. Additive:
+  // the existing label consumers (felt etch, chat, render) are untouched.
+  return { label, domain: latest.domain || null, name: latest.name || null }
 }
 
 async function enrichAccountLabels(){
@@ -310,6 +320,8 @@ async function enrichAccountLabels(){
         try{
           const enriched = await enrichAccountLabel(gameMeta.network, id)
           window.accountLabelCache[id] = enriched.label
+          if(enriched.domain || enriched.name)
+            window.accountXProofCache[id] = { domain: enriched.domain, name: enriched.name }
         }catch(err){
           console.error("account label enrichment failed", id, err)
         }finally{
