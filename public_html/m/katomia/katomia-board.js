@@ -1403,11 +1403,12 @@ async function render(){
 // shrink-to-wrapped-text: walk the rendered line boxes via Range rects and
 // cap the chip's width at the widest actual line (plus its own padding)
 function boardTightenChips(){
-  // :not(.board-ticket) — PROP-TICKETS1: ticket chips are nowrap+ellipsis by CSS;
-  // squeezing them would wrap the long give⇢want text into a tall chip, and the
-  // tallest chip in a zone sets the counter band (bandFull) — a wrapped ticket
-  // inflated the band and shoved store chips off small screens.
-  document.querySelectorAll(".board-chip:not(.thumb-only):not(.board-ticket)").forEach(el => {
+  // (the :not(.board-ticket) exclusion added in P5a is gone with the standalone
+  // ticket chip it protected — phase A1. A ticketed chip is now an ordinary chip
+  // carrying a mask, so its text is short and it wants tightening like any other.
+  // The band-inflation lesson stands as a constraint on ticket cues, not as an
+  // exclusion here: nothing about the stub may change a chip's height.)
+  document.querySelectorAll(".board-chip:not(.thumb-only)").forEach(el => {
     if(!el.firstChild || el.firstChild.nodeType !== 3) return
     const range = document.createRange()
     range.selectNodeContents(el)
@@ -7969,11 +7970,12 @@ function boardStoreChips(account, container, reservedByAccount){
       boardTouchDrag(el, { arrangeOnly: true })
       boardTip(el, "Not yours — but you can slide it around their space to see the board better")
     }
+    // PROP-TICKETS1 phase A1 (?tickets=1 only): a priced asset wears a perforated
+    // right edge on its OWN chip — no separate ticket object on the felt any more.
+    // Class + tooltip only: nothing here may change the chip's height (bandFull).
+    if(window.KTICKETS && typeof tktMarkStoreChip === "function") tktMarkStoreChip(el, account, assetId)
     container.appendChild(el)
   })
-  // PROP-TICKETS1 (?tickets=1 only): the account's open priced tickets render
-  // alongside its store chips — dark unless the flag set window.KTICKETS
-  if(window.KTICKETS && typeof tktRenderStoreTickets === "function") tktRenderStoreTickets(account, container)
 }
 
 // ── asset detail card (user 2026-08-05) ──────────────────────────────────────
@@ -8147,6 +8149,14 @@ function boardAssetDetail(assetId, account, amount, offer){
     const pl = a ? state?.players?.[a.playerId] : null
     return (pl?.name && pl.name !== "anon" ? pl.name : null) || (accId || "").split(":")[1] || accId
   }
+
+  // PROP-TICKETS1 phase A1 (?tickets=1 only): if this asset carries an open
+  // ticket, the card grows a ticket section — legs, status, and manage/take.
+  // This is where the retired standalone ticket modal went. Rendered before the
+  // signing early-return below so a frozen board still SHOWS the ticket; the
+  // section itself drops its buttons when frozen.
+  if(window.KTICKETS && typeof tktAssetCardSection === "function")
+    tktAssetCardSection({ card, addAction, account, assetId, modal, frozen: !!boardSigning })
 
   // SIGN-GHOSTTAP1 (user 2026-08-06, same round as SIGN-GHOSTFAN1): once the
   // deal is struck the ghosts and legs on the board are a PICTURE of a
