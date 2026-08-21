@@ -8279,6 +8279,11 @@ function boardPlayerModal(playerId, focusAccountId = null){
     ? allAccounts.find(a => a.id === focusAccountId) || null
     : null
   const accounts = focus ? [focus] : allAccounts
+  // The account whose per-account actions belong on this card. A one-account
+  // player is ALREADY looking at a single account, so it gets the actions too —
+  // without it the "this is your only account, you'll leave the circle" case
+  // could never appear, which is precisely the case that matters most.
+  const actionAcct = focus || (allAccounts.length === 1 ? allAccounts[0] : null)
 
   const modal = document.createElement("div")
   modal.id = "boardPlayerModal"
@@ -8499,7 +8504,7 @@ function boardPlayerModal(playerId, focusAccountId = null){
     // "jump from one view to another, rather than having it as one long scroll
     // list" (user 2026-08-06) — the siblings stay one tap away.
     const others = allAccounts.filter(a => a.id !== focus.id)
-    if(others.length){
+    if(others.length){   // always true here, but harmless and cheap to keep honest
       const jump = document.createElement("div")
       jump.className = "subtle board-playercard-jump"
       jump.appendChild(document.createTextNode("Jump to · "))
@@ -8513,69 +8518,84 @@ function boardPlayerModal(playerId, focusAccountId = null){
       })
       card.appendChild(jump)
     }
-    // REMOVE THIS ACCOUNT (PLAYER-MODAL2, user 2026-08-21). Own accounts only —
-    // the backend's removeAccount is guarded by canActOnAccount, so this button
-    // simply must not be offered where it would be refused.
-    if(self && isMyAccount(focus)) card.appendChild(boardRemoveAccountBlock(focus, modal))
   }
+
+  // REMOVE THIS ACCOUNT (PLAYER-MODAL2, user 2026-08-21). Own accounts only — the
+  // backend's removeAccount is guarded by canActOnAccount, so this button simply
+  // must not be offered where it would be refused. Outside the focus block so a
+  // single-account player still gets it (see actionAcct).
+  if(actionAcct && self && isMyAccount(actionAcct))
+    card.appendChild(boardRemoveAccountBlock(actionAcct, modal, allAccounts.length === 1))
 
   document.body.appendChild(modal)
 }
 
-// Confirmation for "remove this account from the circle". The user's steer
-// (2026-08-21): "that confirmation step is a good place to echo the explainer…
-// it's not removing your connection or affecting any other circles. It's only the
-// current circle… but it removes the account from and any associated offers…
-// it doesn't really need to be so much as a warning. It's just a reminder."
-// So: plain-language reminder, not a red alarm, and the destructive verb stays on
-// the button rather than in a scare line.
-function boardRemoveAccountBlock(account, parentModal){
+// What is this account actually caught up in right now? Removing an idle account
+// is trivial (add it straight back); removing one mid-trade unwinds live offers,
+// and removing your only account drops you out of the circle entirely. The UI says
+// which of those you're about to do rather than warning the same way every time
+// (user 2026-08-21: "we adapt the UI based on the context of what's happening").
+// getFromAccountId is the shared reader — basket lines carry fromId on the wire but
+// from/fromAccountId elsewhere, so never test the raw field here.
+function boardAccountEngagement(account){
+  const received = (account.basket || []).length
+  let made = 0
+  ;(typeof getAccounts === "function" ? getAccounts() : []).forEach(a =>
+    (a.basket || []).forEach(item => {
+      if((typeof getFromAccountId === "function" ? getFromAccountId(item) : item.fromId) === account.id) made++
+    }))
+  const locked = account.mode === "lock"
+  return { offers: received + made, locked, busy: (received + made) > 0 || locked }
+}
+
+// "Remove this account from the circle" + its muted explainer, sitting UNDER the
+// button (user 2026-08-21). Confirmation is the NATIVE confirm() on purpose —
+// "don't do a custom CSS thing because on mobile it'll render much more cleanly
+// if we're using the native OK/Cancel" — so the wording carries the meaning and
+// the platform carries the chrome.
+function boardRemoveAccountBlock(account, parentModal, isLastAccount){
   const hac = account.id.split(":")[1] || account.id
+  const eng = boardAccountEngagement(account)
   const wrap = document.createElement("div")
   wrap.className = "board-playercard-danger"
 
   const btn = document.createElement("button")
   btn.className = "board-playercard-removebtn"
-  btn.textContent = "Remove this account from the circle"
+  // The button names the actual consequence: your last account means you leave.
+  btn.textContent = isLastAccount ? "Remove account and leave the circle"
+                                  : "Remove this account from the circle"
+
+  const why = document.createElement("div")
+  why.className = "subtle board-playercard-removewhy"
+  const bits = ["Leaves this circle only — your wallet stays connected, and you can add it back any time."]
+  if(eng.offers) bits.push(eng.offers === 1 ? "It has 1 open offer, which unwinds back to its owner."
+                                            : "It has " + eng.offers + " open offers, which unwind back to their owners.")
+  if(eng.locked) bits.push("It is currently locked — removing it unlocks and withdraws it.")
+  if(isLastAccount) bits.push("It's your only account here, so you'll leave the circle.")
+  why.textContent = bits.join(" ")
+
   btn.onclick = () => {
+    // Deliberately short: the detail is already on screen underneath the button,
+    // and a long native dialog reads as a scare on a phone.
+    const lines = ["Remove " + hac + " from this circle?"]
+    // Locked is the most committed state there is — if it makes the explainer it
+    // belongs in the confirm too, otherwise the dialog under-states the moment.
+    if(eng.locked) lines.push("It's locked right now — this unlocks and withdraws it.")
+    if(eng.offers) lines.push(eng.offers + " open offer" + (eng.offers === 1 ? "" : "s") + " will unwind back.")
+    if(isLastAccount) lines.push("This is your only account here — you'll leave the circle.")
+    lines.push("You can add it back any time.")
+    if(!confirm(lines.join("\n\n"))) return
     btn.disabled = true
-    const box = document.createElement("div")
-    box.className = "board-playercard-confirm"
-    const q = document.createElement("div")
-    q.className = "board-playercard-confirm-q"
-    q.textContent = "Remove " + hac + " from this circle?"
-    const why = document.createElement("div")
-    why.className = "subtle board-playercard-confirm-why"
-    why.innerHTML =
-      "It leaves <b>this circle only</b>, along with any offers it has made or received — " +
-      "those unwind back to whoever owns them.<br>" +
-      "Your wallet connection stays, and any other circles you're in are unaffected. " +
-      "You can add it back at any time."
-    const row = document.createElement("div")
-    row.className = "board-playercard-confirm-row"
-    const cancel = document.createElement("button")
-    cancel.className = "board-playercard-confirm-cancel"
-    cancel.textContent = "Cancel"
-    cancel.onclick = () => { box.remove(); btn.disabled = false }
-    const go = document.createElement("button")
-    go.className = "board-playercard-confirm-go"
-    go.textContent = "Remove"
-    go.onclick = () => {
-      go.disabled = cancel.disabled = true
-      go.textContent = "Removing…"
-      boardDiag("board:account:remove", { accountId: account.id })
-      // websocketserver.js strips the "game_" prefix and calls gameManager
-      // .removeAccount(ctx, data) — which reads accountId and takes the actor
-      // from the socket's own playerToken. The board re-renders from the
-      // broadcast that follows, so there is nothing to patch locally.
-      socket.send(JSON.stringify({ type: "game_removeAccount", gameId, accountId: account.id }))
-      setTimeout(() => parentModal.remove(), 350)
-    }
-    row.append(cancel, go)
-    box.append(q, why, row)
-    wrap.appendChild(box)
+    btn.textContent = "Removing…"
+    boardDiag("board:account:remove", { accountId: account.id, offers: eng.offers, locked: eng.locked, last: !!isLastAccount })
+    // websocketserver.js strips the "game_" prefix and calls gameManager
+    // .removeAccount(ctx, data) — which reads accountId and takes the actor
+    // from the socket's own playerToken. The board re-renders from the
+    // broadcast that follows, so there is nothing to patch locally.
+    socket.send(JSON.stringify({ type: "game_removeAccount", gameId, accountId: account.id }))
+    setTimeout(() => parentModal.remove(), 350)
   }
-  wrap.appendChild(btn)
+  wrap.append(btn, why)
   return wrap
 }
 

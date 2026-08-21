@@ -282,6 +282,9 @@
         // tap zooms into the player instead (PLAYER-MODAL1 — guarded: the
         // modal only exists where katomia-board.js is loaded).
         if(selectedAssetId){ offerSelectedToAccount(targetAccount.id); return }
-        if(typeof boardPlayerModal === "function") boardPlayerModal(targetAccount.playerId)
+        // PLAYER-MODAL2: this drop-target felt tap is the OTHER way into the modal
+        // (setupDropTarget, shared with non-board views) and it names one account —
+        // pass it so you land filtered, same as the ring's own felt tap.
+        if(typeof boardPlayerModal === "function") boardPlayerModal(targetAccount.playerId, targetAccount.id)
       }
     }

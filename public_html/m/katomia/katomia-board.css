@@ -2079,23 +2079,13 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
 .board-playercard-removebtn:hover{ background: #fbeaea; }
 .board-playercard-removebtn:disabled{ opacity: .5; cursor: default; }
 
-/* The confirm is a REMINDER, not an alarm (user: "it doesn't really need to be so
-   much as a warning… just a reminder") — neutral surface, the red stays on the
-   verb button alone. */
-.board-playercard-confirm{
-  margin-top: 10px; padding: 12px 13px; border-radius: 10px;
-  background: #f7f7f9; border: 1px solid #e4e4e8;
+/* The explainer sits UNDER the button (user 2026-08-21) and adapts to what the
+   account is actually caught up in. Confirmation itself is the NATIVE confirm() —
+   no custom dialog CSS, because the platform sheet renders far better on a phone
+   than anything we'd hand-roll. */
+.board-playercard-removewhy{
+  font-size: 11.5px; line-height: 1.45; margin-top: 7px; text-align: center;
 }
-.board-playercard-confirm-q{ font-size: 13.5px; font-weight: 600; margin-bottom: 5px; }
-.board-playercard-confirm-why{ font-size: 12px; line-height: 1.45; }
-.board-playercard-confirm-row{ display: flex; gap: 8px; margin-top: 11px; }
-.board-playercard-confirm-cancel,
-.board-playercard-confirm-go{
-  flex: 1; padding: 8px 10px; border-radius: 8px; font-size: 13px; cursor: pointer;
-}
-.board-playercard-confirm-cancel{ border: 1px solid #d4d4d8; background: #fff; color: #3f3f46; }
-.board-playercard-confirm-go{ border: 1px solid #c0392b; background: #c0392b; color: #fff; font-weight: 600; }
-.board-playercard-confirm-go:disabled{ opacity: .6; cursor: default; }
 .board-playercard-assets{ display: flex; flex-direction: column; gap: 2px; }
 /* ── PLAYER-MODAL1 R2 (user 2026-08-06): fewer lines ──────────────────────
    "I think we've got too many kind of borders and stuff. Each asset chip is
