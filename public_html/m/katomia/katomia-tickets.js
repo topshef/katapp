@@ -84,6 +84,27 @@ function tktFreeAmount(account, assetId){
   return free
 }
 
+// display↔raw scaling (feedback 21b2355b, 2026-08-21: HBAR entered as tinybar).
+// Mirrors AMOUNT-SCALE1 (katomia-helpers.js getTransferAmount): HBAR = 8 dp,
+// NFTs 0, tokens from the metadata cache — and NEVER scale a real token whose
+// meta hasn't loaded (returns null → caller asks the user to retry). Playnet
+// word-assets (apple…) have no meta and are correctly 0 dp.
+function tktDecimals(assetId){
+  const id = String(assetId)
+  if(id.toUpperCase() === "HBAR") return 8
+  if(id.includes("#")) return 0
+  const meta = window.assetDisplayCache?.[id]
+  if(!meta && /^0\.0\.\d+$/.test(id)) return null   // real token, meta not loaded yet
+  return Number(meta?.token_class?.decimals || 0)
+}
+function tktToRaw(assetId, display){
+  const d = tktDecimals(assetId)
+  if(d === null) return null
+  const raw = Math.round(Number(display) * 10 ** d)
+  return Math.abs(Number(display) * 10 ** d - raw) > 1e-6 ? NaN : raw   // finer than the token allows
+}
+const tktToDisplay = (assetId, raw) => Number(raw) / 10 ** (tktDecimals(assetId) ?? 0)
+
 const tktLegText = legs => legs.map(l =>
   typeof boardAssetText === "function" ? boardAssetText(l.asset, Math.abs(l.amount)) : Math.abs(l.amount) + " " + l.asset).join(" + ")
 
@@ -211,8 +232,8 @@ function tktSheet(orderId, order, account, filled){
 function tktBuilder(account, prefill){
   const { modal, card, say, addAction } = tktModal("🎟 New ticket")
   const lines = { give: [], want: [] }
-  if(prefill?.bundle) for(const l of prefill.bundle) lines[l.amount < 0 ? "give" : "want"].push({ asset: l.asset, amount: Math.abs(l.amount) })
-  else if(prefill?.give) lines.give = prefill.give.map(l => ({ asset: l.asset, amount: l.amount }))
+  if(prefill?.bundle) for(const l of prefill.bundle) lines[l.amount < 0 ? "give" : "want"].push({ asset: l.asset, amount: tktToDisplay(l.asset, Math.abs(l.amount)) })
+  else if(prefill?.give) lines.give = prefill.give.map(l => ({ asset: l.asset, amount: tktToDisplay(l.asset, l.amount) }))
   if(!lines.give.length) lines.give.push({ asset: "", amount: 1 })
   if(!lines.want.length) lines.want.push({ asset: "", amount: 1 })
 
@@ -236,9 +257,9 @@ function tktBuilder(account, prefill){
         const asset = Object.assign(document.createElement("input"), { value: l.asset, placeholder: "token id (0.0.x, 0.0.x#serial, HBAR) or playnet name" })
         asset.setAttribute("list", "tktAssetOptions")
         asset.oninput = () => l.asset = asset.value.trim()
-        const amt = Object.assign(document.createElement("input"), { type: "number", min: "1", step: "1", value: l.amount })
+        const amt = Object.assign(document.createElement("input"), { type: "number", min: "0", step: "any", value: l.amount })
         amt.className = "tkt-amt"
-        amt.oninput = () => l.amount = Math.max(1, Math.floor(+amt.value || 1))
+        amt.oninput = () => l.amount = Math.max(0, +amt.value || 0)
         const del = Object.assign(document.createElement("button"), { textContent: "✕", className: "tkt-del" })
         del.onclick = () => { lines[side].splice(i, 1); render() }
         r.append(asset, amt, del)
@@ -255,12 +276,20 @@ function tktBuilder(account, prefill){
   addAction("kbtn-blue", "Create ticket 🎟", async () => {
     const give = lines.give.filter(l => l.asset), want = lines.want.filter(l => l.asset)
     if(!give.length || !want.length) return alert("A ticket needs at least one asset on each side")
-    const over = [...new Set(give.filter(l => l.amount > tktFreeAmount(account, l.asset)).map(l => l.asset))]
+    // display -> raw units per leg (feedback 21b2355b): meta race and
+    // finer-than-decimals inputs abort with a plain reason, never mis-scale
+    for(const l of [...give, ...want]){
+      l.raw = tktToRaw(l.asset, l.amount)
+      if(l.raw === null) return alert("Still loading " + l.asset + "'s details (decimals) — try again in a second")
+      if(Number.isNaN(l.raw)) return alert(l.amount + " is finer than " + l.asset + " allows (" + tktDecimals(l.asset) + " decimal places)")
+      if(l.raw < 1) return alert("Amount for " + l.asset + " is too small")
+    }
+    const over = [...new Set(give.filter(l => l.raw > tktFreeAmount(account, l.asset)).map(l => l.asset))]
     if(over.length && !confirm("Your stall may not cover this ticket: " + over.join(", ")
       + " is already promised on other tickets (or short in your store). Tickets don't reserve stock — an oversold deal fails at signing on a real network.\n\nCreate anyway?")) return
     const hac = tktHac(account)
-    const bundle = [...give.map(l => ({ accountId: hac, asset: l.asset, amount: -l.amount })),
-                    ...want.map(l => ({ accountId: hac, asset: l.asset, amount: l.amount }))]
+    const bundle = [...give.map(l => ({ accountId: hac, asset: l.asset, amount: -l.raw })),
+                    ...want.map(l => ({ accountId: hac, asset: l.asset, amount: l.raw }))]
     const orderType = bundle.length === 2 ? (bundle.some(l => String(l.asset).includes("#")) ? "simple-nft" : "simple-ft") : "exotic"
     const order = await tktBuildOrder(bundle)
     socket.send(JSON.stringify({ type: "game_orderCreate", gameId, order: { ...order, orderType } }))
