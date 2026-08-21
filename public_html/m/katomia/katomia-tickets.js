@@ -171,6 +171,92 @@ function tktMarkStoreChip(el, account, assetId){
   if(typeof boardTip === "function") boardTip(el, isMyAccount(account)
     ? "Priced — your ticket is on this. Tap to see it."
     : "Priced — tap to see the ticket and take it.")
+  tktHoverPeek(el, open)
+}
+
+// ── phase A3: the hover peek, and "who could fill this?" ─────────────────────
+// Glance = the stub · hover = the legs · tap = the card. The peek is a POPOVER
+// anchored to the chip, never a growth of the chip: anything that changes a
+// chip's height inflates the counter band (see the mask note in the CSS).
+//
+// The second half is the more useful one and nearly free: hovering a ticket
+// lights every chip on the felt that could fill it, which answers the maker's
+// actual question — is there anyone here who can take this? It reuses the
+// board's existing "draw a relationship across the felt" idea (highlightTradePair)
+// rather than inventing a second visual language.
+//
+// Hover-capable devices only, same rule as boardTip (BOARD-TIPTOUCH1): on touch
+// this would fire on long-press and fight the drag.
+function tktHoverPeek(el, open){
+  if(typeof boardCanHover === "function" && !boardCanHover()) return
+  el.onmouseenter = () => {
+    if(window.__boardDragPayload) return   // mid-drag: the drag owns the board
+    tktShowPeek(el, open)
+    tktLightFillers(open, true)
+  }
+  el.onmouseleave = () => { tktHidePeek(); tktLightFillers(open, false) }
+}
+
+// The board re-renders on every state update, so a hovered chip can be replaced
+// out from under the pointer and its mouseleave never fires. One delegated
+// listener retires an orphaned peek instead of a per-peek observer.
+let tktPeekWired = false
+function tktWirePeekReaper(){
+  if(tktPeekWired) return
+  tktPeekWired = true
+  document.addEventListener("mouseover", e => {
+    const box = document.getElementById("tktPeek")
+    if(!box) return
+    const a = box.__anchor
+    if(!a || !a.isConnected || !(e.target === a || a.contains(e.target))){ tktHidePeek(); tktLightFillers(box.__open || [], false) }
+  }, true)
+  document.addEventListener("dragstart", () => tktHidePeek(), true)
+}
+
+function tktShowPeek(el, open){
+  tktHidePeek()
+  tktWirePeekReaper()
+  const box = document.createElement("div")
+  box.id = "tktPeek"
+  box.dataset.testid = "tkt-peek"
+  box.__anchor = el
+  box.__open = open
+  for(const [orderId, order] of open){
+    const line = document.createElement("div")
+    line.className = "tkt-peek-line"
+    const give = document.createElement("b")
+    give.textContent = tktLegText(order.bundle.filter(l => l.amount < 0))
+    line.appendChild(give)
+    line.appendChild(document.createTextNode(" ⇢ "))
+    const want = document.createElement("b")
+    want.textContent = tktLegText(order.bundle.filter(l => l.amount > 0))
+    line.appendChild(want)
+    if(tktFilledRatio(order, orderId) > 0){
+      const st = document.createElement("span")
+      st.className = "tkt-peek-state"
+      st.textContent = " · a take is on the table"
+      line.appendChild(st)
+    }
+    box.appendChild(line)
+  }
+  document.body.appendChild(box)
+  // anchor above the chip, nudged back inside the viewport rather than clipped
+  const r = el.getBoundingClientRect(), b = box.getBoundingClientRect()
+  const left = Math.max(6, Math.min(window.innerWidth - b.width - 6, r.left + r.width / 2 - b.width / 2))
+  const top = r.top - b.height - 8 < 6 ? r.bottom + 8 : r.top - b.height - 8
+  box.style.left = Math.round(left) + "px"
+  box.style.top = Math.round(top) + "px"
+}
+
+const tktHidePeek = () => document.getElementById("tktPeek")?.remove()
+
+// light every chip anywhere on the felt that could satisfy a want-leg
+function tktLightFillers(open, on){
+  const wants = new Set(open.flatMap(([, o]) => o.bundle.filter(l => l.amount > 0).map(l => String(l.asset))))
+  document.querySelectorAll(".board-chip[data-asset-id]").forEach(c => {
+    if(!wants.has(String(c.dataset.assetId))) return
+    c.classList.toggle("board-tkt-wanted", !!on)
+  })
 }
 
 // ── the ticket section of the asset card ─────────────────────────────────────

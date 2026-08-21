@@ -200,6 +200,39 @@ const chipHeight = (page, assetId) => page.evaluate(a => {
     t("the split costs no height either", after.every(c => Math.abs(c.h - bare) < 0.6), JSON.stringify(after.map(c => c.h)))
     await bob.screenshot({ path: __dirname + "/tickets-quiet-split.png", fullPage: false })
 
+    // ── A3: hover peek + "who could fill this?" ─────────────────────────────
+    // Desktop only by design (BOARD-TIPTOUCH1), so this runs in a hover-capable
+    // wide context rather than the 390px phone above.
+    const deskCtx = await br.newContext({ viewport: { width: 1200, height: 900 }, ignoreHTTPSErrors: true })
+    const desk = await deskCtx.newPage()
+    desk.on("dialog", d => d.accept())
+    await desk.goto(`${BASE}/m/katomia/board/${gid}?${HAPIQ}&tickets=1`, { waitUntil: "domcontentloaded" })
+    await desk.waitForTimeout(2600)
+    const stub = desk.locator(".board-chip.board-ticketed").first()
+    t("a priced chip is visible to a third viewer", await stub.count() === 1)
+    await stub.hover({ force: true })
+    await desk.waitForTimeout(500)
+    const peek = desk.locator('[data-testid="tkt-peek"]')
+    t("hovering a priced chip opens the peek", await peek.count() === 1)
+    const peekText = (await peek.textContent().catch(() => "")) || ""
+    t("the peek states both legs", /apple/.test(peekText) && /carrot/.test(peekText), JSON.stringify(peekText.slice(0, 60)))
+    t("the peek never covers the chip it explains", await desk.evaluate(() => {
+      const b = document.getElementById("tktPeek")?.getBoundingClientRect()
+      const c = document.querySelector(".board-chip.board-ticketed")?.getBoundingClientRect()
+      return !!b && !!c && (b.bottom <= c.top + 1 || b.top >= c.bottom - 1)
+    }))
+    t("the peek cannot swallow a drag (pointer-events none)",
+      await desk.evaluate(() => getComputedStyle(document.getElementById("tktPeek")).pointerEvents === "none"))
+    // the want leg is carrot — every carrot on the felt should light up
+    const lit = await desk.evaluate(() => [...document.querySelectorAll(".board-tkt-wanted")].map(e => e.dataset.assetId))
+    t("hovering lights every chip that could fill it", lit.length > 0 && lit.every(a => a === "carrot"), JSON.stringify(lit))
+    await desk.screenshot({ path: __dirname + "/tickets-quiet-peek.png", fullPage: false })
+    await desk.mouse.move(5, 5)
+    await desk.waitForTimeout(400)
+    t("the peek and the highlight clear on leave",
+      await desk.locator('[data-testid="tkt-peek"]').count() === 0
+      && await desk.locator(".board-tkt-wanted").count() === 0)
+
     await reportKflow("test:verdict", INSTANCE, { pass: !fails.length, asserts: n, fails })
     log(fails.length ? `FAILED ${fails.length}/${n}: ` + fails.join(" | ") : `all ${n} assertions green`)
     log("verdict:", fails.length ? "fail" : "pass")
