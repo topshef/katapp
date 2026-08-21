@@ -375,7 +375,15 @@ async function tktConfirmOfferOut(fromAccountId, assetId){
 function tktAssetCardSection({ card, addAction, account, assetId, modal, frozen }){
   const open = tktOpenOrdersForAsset(account, assetId)
   if(!open.length) return
+  // PROP-TICKETS1 phase C1 (user review 2026-08-21). "mine" is per PLAYER, which
+  // is why a ticket on your account A read as yours from account B and the take
+  // branch never rendered. Two accounts under one player does not mean one entity
+  // owns both — they may be representing one of them — and even when it is you,
+  // taking your own ticket is the cheapest possible demo of the whole loop.
+  // So the two halves are decided separately: your player MADE it (manage), and
+  // you hold some OTHER account that could fill it (take). Both can be true.
   const mine = isMyAccount(account)
+  const fillers = getAccounts().filter(a => isMyAccount(a) && a.id !== account.id)
 
   for(const [orderId, order] of open){
     const filled = tktFilledRatio(order, orderId)
@@ -410,18 +418,20 @@ function tktAssetCardSection({ card, addAction, account, assetId, modal, frozen 
           socket.send(JSON.stringify({ type: "game_orderCancel", gameId, orderId }))
           modal.remove()
         }, "tkt-cancel")
-      continue
     }
 
     if(filled > 0) continue   // in play — no second take while a fill is on the table
-    tktAddTakeAction({ box, addAction, order, orderId, account, modal })
+    if(mine && !fillers.length) continue   // only the maker's own account is here
+    tktAddTakeAction({ box, addAction, order, orderId, account, modal, fillers, mine })
   }
 }
 
 // the taker half — shared so the drag-take gesture (phase B) can reuse the same
 // filler resolution and the same warnings without duplicating them.
-function tktAddTakeAction({ box, addAction, order, orderId, account, modal }){
-  const myAccounts = getAccounts().filter(a => isMyAccount(a))
+function tktAddTakeAction({ box, addAction, order, orderId, account, modal, fillers, mine }){
+  // never offer the maker's own account as the filler: the backend skips a leg
+  // whose giver and receiver are the same account, so it would be a silent no-op
+  const myAccounts = fillers || getAccounts().filter(a => isMyAccount(a) && a.id !== account.id)
   if(!myAccounts.length){
     const p = document.createElement("div")
     p.className = "tkt-cardsec-state"
@@ -446,7 +456,15 @@ function tktAddTakeAction({ box, addAction, order, orderId, account, modal }){
       + " is promised on other tickets too. On a real network an oversold deal fails at signing."
     box.appendChild(w)
   }
-  addAction("kbtn-blue", "Take it 🎟", "Their gives land in your basket, your side lands in theirs. Nobody locks automatically.", () => {
+  if(mine){
+    const p = document.createElement("div")
+    p.className = "tkt-cardsec-state"
+    p.textContent = "This is your own ticket — taking it with another of your accounts trades between them. "
+      + "Useful for trying a ticket out; it is a real trade, not a rehearsal."
+    box.appendChild(p)
+  }
+  addAction("kbtn-blue", mine ? "Take it with another account 🎟" : "Take it 🎟",
+    "Their gives land in your basket, your side lands in theirs. Nobody locks automatically.", () => {
     tktSendFill(orderId, filler)
     modal?.remove()
   }, "tkt-take")

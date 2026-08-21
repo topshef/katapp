@@ -1032,6 +1032,35 @@
       "fails_when": "The take drag starts depending on allowPick again; wanted slots leak outside a drag; or an unsourced ticket becomes invisible because its give-leg has no store chip to hang on.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-gesture-check.cjs",
       "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-GESTURE-01.n) prints PASS/FAIL with detail."
+    },
+    {
+      "id": "TICKETS-MULTIACCT-01",
+      "title": "Taking your own ticket with another account — allowed, and recorded as facts",
+      "asserts": "One player holding two accounts can take a ticket made on the other: the card offers BOTH tear-up and take, the take names the account, the maker's own account is never offered as the filler, and the fill settles like any other. The fill row carries provenance — sameInstigator plus each side's bound state at fill time — and nothing anywhere labels it a self-fill or a wash trade.",
+      "kind": "e2e-feature",
+      "network": "playnet",
+      "harness": "qa/harness/tickets-multiacct-check.cjs",
+      "run": {
+        "lab1": "node tickets-multiacct-check.cjs",
+        "any": "API=<backend> BASE=<site> node tickets-multiacct-check.cjs"
+      },
+      "schedule": "manual (run with every tickets phase)",
+      "reports": "kflow test:verdict → QA grid",
+      "notes": "Phase C of docs/tickets-build-plan-20260821.html. Requires ?tickets=1, and a BACKEND change (katomiaActions.js writes prov on fill rows, katomia.js projects it) — run against a backend carrying both. The framing matters as much as the mechanics: two accounts under one player does NOT mean one entity owns both, because a player may be representing an account, so 'same player on both sides' is not evidence of self-dealing and the product must not assert that it is. Assertion 12 is the guard on that: the provenance object may contain no key that renders a verdict.",
+      "dimension": "playnet · multi-account take + fill provenance",
+      "cost": "free",
+      "what_it_does": [
+        "Fresh playnet circle; ONE flagged player adds TWO manual accounts (the footer control is a button with no accounts and a select once you hold one — the harness handles both).",
+        "Price the apple on the first account for a banana.",
+        "Open the priced chip's card and assert it offers tear-up AND take, that the take names the other account, and that the maker's own account is not a filler option.",
+        "Take it and assert a real two-row fill group.",
+        "Read the fill row's prov and assert it records sameInstigator and each side's bound state — and that it contains no self/wash/suspicion verdict.",
+        "Lock both accounts and assert the apple actually moved between them."
+      ],
+      "pass_means": "A player can try a ticket out end to end on their own, and the facts needed to judge such a fill later are captured at the moment it happens.",
+      "fails_when": "The take branch closes again because isMyAccount is per player; the maker's own account leaks into the filler list (a silent no-op fill); provenance stops being written or projected; or something starts calling it a self-fill.",
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-multiacct-check.cjs",
+      "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-MULTIACCT-01.n) prints PASS/FAIL with detail."
     }
   ],
   "expected_fail": {
