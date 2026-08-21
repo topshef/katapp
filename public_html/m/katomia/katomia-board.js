@@ -7359,7 +7359,29 @@ function ringEtchLabel(seg, g, NS){
     const _rr = rot * Math.PI / 180
     const awayIsDown = inwardSign * (Math.cos(perp) * Math.cos(_rr + Math.PI / 2)
                                    + Math.sin(perp) * Math.sin(_rr + Math.PI / 2)) > 0
-    sub.setAttribute("y", y + (awayIsDown ? 1 : -1) * fs * 0.78)
+    // EVEN SPACING (user 2026-08-21: "it's too close to the account ID when it's
+    // above… tweak it so that the spacing is the same, whether it's above or
+    // below"). One offset cannot serve both sides, because SVG positions text by
+    // BASELINE and the two directions present different glyph parts to the gap:
+    //   below → the id's DESCENDERS face the label's CAPS
+    //   above → the id's CAPS (much taller) face the label's DESCENDERS
+    // With a single 0.78em the above case actually overlapped slightly, which is
+    // what the screenshot showed. So solve for the VISUAL gap instead and let the
+    // two offsets differ, derived rather than eyeballed — if the sub-label's
+    // relative size changes, the spacing stays even automatically.
+    // ASC/DESC are the text box's ascent and descent as a fraction of its own
+    // font-size, MEASURED off this very board (getBBox: ascent 0.894em, total
+    // height 1.176em) rather than assumed — an earlier pass guessed cap/descender
+    // values and still left the two sides ~0.8px apart.
+    const XP_ASC = 0.894, XP_DESC = 0.282
+    const SUB = 0.52             // sub-label size relative to the id (font-size below)
+    const XP_GAP = -0.02         // wanted gap between the text boxes, in id em
+                                 // (slightly negative: the boxes carry leading, so
+                                 // this reads as a comfortable ink gap and pulls the
+                                 // BELOW case a touch closer, as asked)
+    const dBelow = XP_GAP + XP_ASC * SUB + XP_DESC   // ≈ 0.73em
+    const dAbove = XP_GAP + XP_ASC + XP_DESC * SUB   // ≈ 1.02em — the room it needed
+    sub.setAttribute("y", y + (awayIsDown ? dBelow : -dAbove) * fs)
     sub.setAttribute("text-anchor", "middle")
     sub.setAttribute("font-size", fs * 0.52)
 
