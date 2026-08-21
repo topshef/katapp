@@ -55,7 +55,10 @@ const isBackendHost = h => h === BACKEND || BACKEND_SHAPES.some(re => re.test(h)
   })
 
   try {
-    await page.goto(BASE + PAGE, { waitUntil: "networkidle", timeout: 45000 })
+    // domcontentloaded, NOT networkidle: these pages hold a live websocket and poll
+    // WalletConnect's explorer API, so networkidle never fires and the harness timed
+    // out against a page that was in fact perfectly healthy (pat, 2026-08-21).
+    await page.goto(BASE + PAGE, { waitUntil: "domcontentloaded", timeout: 45000 })
   } catch (e) {
     console.error(`FAIL(harness): page load — ${e.message}`); process.exit(2)
   }
@@ -63,12 +66,15 @@ const isBackendHost = h => h === BACKEND || BACKEND_SHAPES.some(re => re.test(h)
 
   // the game socket must actually be up, and up on the PAGE origin — otherwise
   // "no backend traffic" could just mean "nothing worked at all"
-  const wsState = await page.evaluate(() =>
-    (window.CONFIG ? { base: window.CONFIG.HAPI_BASE } : { base: "<no CONFIG>" }))
+  const wsState = await page.evaluate(() => ({
+    base: window.CONFIG ? window.CONFIG.HAPI_BASE : "<no CONFIG>",
+    widget: typeof window.KFeedbackWidget,
+  }))
 
   console.log(`page:      ${BASE}${PAGE}`)
   console.log(`CONFIG.HAPI_BASE: ${JSON.stringify(wsState.base)}`)
   console.log(`websockets seen:  ${sockets.length ? sockets.join(" · ") : "none"}`)
+  console.log(`feedback widget:  window.KFeedbackWidget = ${wsState.widget}`)
   console.log(`external (non-backend) hosts: ${[...external].map(([h, n]) => `${h}(${n})`).join(" ") || "none"}`)
 
   await browser.close()
@@ -76,6 +82,11 @@ const isBackendHost = h => h === BACKEND || BACKEND_SHAPES.some(re => re.test(h)
   if (leaks.length) {
     console.error(`\nFAIL — backend origin reached ${leaks.length}x:`)
     leaks.forEach(l => console.error("  " + l))
+    process.exit(1)
+  }
+  if (wsState.widget !== "object") {
+    console.error("\nFAIL: the feedback widget did not execute (window.KFeedbackWidget = " + wsState.widget +
+      ") — classic symptom of a double-gzipped /feedback-widget.js reaching the browser as garbage")
     process.exit(1)
   }
   if (!sameOriginWs) {
