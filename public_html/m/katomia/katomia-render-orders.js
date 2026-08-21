@@ -1094,8 +1094,17 @@ function getSettledFillItems(orderId){
 
 // ┬─┐┌─┐┌┐┌┌┬┐┌─┐┬─┐  ╔╦╗┌─┐┬─┐┬┌─┌─┐┌┬┐  ╦ ╦┌─┐┌─┐┌┬┐┌┬┐┌─┐┌─┐
 // ├┬┘├┤ │││ ││├┤ ├┬┘  ║║║├─┤├┬┘├┴┐├┤  │   ╠═╣├┤ ├─┤ │ │││├─┤├─┘
-// ┴└─└─┘┘└┘─┴┘└─┘┴└─  ╩ ╩┴ ┴┴└─┴ ┴└─┘ ┴   ╩ ╩└─┘┴ ┴ ┴ ┴ ┴┴ ┴┴  
+// ┴└─└─┘┘└┘─┴┘└─┘┴└─  ╩ ╩┴ ┴┴└─┴ ┴└─┘ ┴   ╩ ╩└─┘┴ ┴ ┴ ┴ ┴┴ ┴┴
 // render Market Heatmap
+
+// KAT-CHARTSETTLED1: the settled-fill stack below the baseline reads as noise to
+// a newcomer expecting a plain order book — default OFF, revealed by a nerd-mode
+// pref. Own localStorage key (per browser), not a board pref: order pages have no
+// settings surface of their own yet, so the nerd row appended after the chart
+// legend is deliberately the order page's settings home — future simplification
+// experiments gate there too.
+const chartSettledOn = () => { try { return localStorage.getItem("katomiaChartSettled") === "1" } catch { return false } }
+
 function renderMarketHeatmap(pair,heatmap,opts={}){
 
   const width = opts.width ?? Math.min(window.innerWidth - 24,420)
@@ -1113,7 +1122,10 @@ function renderMarketHeatmap(pair,heatmap,opts={}){
   const chartW = width - (pad * 2)
   const chartH = height - (pad * 2)
 
-  svg.setAttribute("height",height + chartH + 4)
+  // settled stack lives below the baseline — only reserve that space when shown
+  // (+4 keeps the axis-label row, drawn at height - pad + 14 with pad 12)
+  const showSettled = chartSettledOn()
+  svg.setAttribute("height",showSettled ? height + chartH + 4 : height + 4)
   renderHeatmapGrid(svg,width,height,pad)
 
   // ORDER-UIPASS1 slice 3: RATE AXIS labels — the x axis is price (this chart is
@@ -1158,7 +1170,7 @@ function renderMarketHeatmap(pair,heatmap,opts={}){
     renderHeatmapBar(svg,row,layout,opacity)
     renderHeatmapFillLines(svg,row,layout)
     renderPendingFillStack(svg,row,layout)
-    renderSettledFillStack(svg,row,layout)
+    if(showSettled) renderSettledFillStack(svg,row,layout)
     // slice 5: my-order marker — ▾ above my own bars, the overlay traders use
     if(row.playerId === currentPlayerId){
       const m = document.createElementNS(NS, "text")
@@ -1903,6 +1915,20 @@ function renderOrderMarketSummary(){
       `<span><i class="mleg mleg-last"></i>last trade</span>` +
       `<span>▾ your orders</span>`
     el.appendChild(legend)
+
+    // KAT-CHARTSETTLED1: order-page nerd settings home — a single gated row for
+    // now (see chartSettledOn above); more rows join here, not a full panel
+    const nerdRow = document.createElement("label")
+    nerdRow.className = "nerd-only market-nerd-settings subtle"
+    const settledCb = document.createElement("input")
+    settledCb.type = "checkbox"
+    settledCb.checked = chartSettledOn()
+    settledCb.onchange = () => {
+      try { settledCb.checked ? localStorage.setItem("katomiaChartSettled","1") : localStorage.removeItem("katomiaChartSettled") } catch {}
+      renderOrderMarketSummary()
+    }
+    nerdRow.append(settledCb, document.createTextNode(" show settled fills on chart"))
+    el.appendChild(nerdRow)
   })
 }
 
