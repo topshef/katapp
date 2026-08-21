@@ -254,6 +254,39 @@ const chipHeight = (page, assetId) => page.evaluate(a => {
       await desk.locator('[data-testid="tkt-peek"]').count() === 0
       && await desk.locator(".board-tkt-wanted").count() === 0)
 
+    // ── two tickets on one asset: ONE at a time, and no duplicated buttons ──
+    // Tickets reserve nothing, so pricing the same asset twice is legal. The
+    // first cut drew every ticket's actions into the one card and every button
+    // appeared once per ticket (user, 2026-08-21) — the cost of collapsing the
+    // ticket back onto the asset, fixed by collapsing the VIEW too.
+    await desk.close()
+    await bob.locator("#boardAssetDetail .asset-modal-close").click().catch(() => {})
+    await bob.waitForTimeout(400)
+    await bob.locator('[data-chip-role="store"][data-asset-id="apple"]').first().click({ force: true })
+    await bob.locator('[data-testid="tkt-price-it"]').click({ timeout: 8000 })
+    await bob.locator("#tktModal .tkt-line").first().locator(".tkt-amt").fill("1")
+    await bob.locator("#tktModal .tkt-line").nth(1).locator("input").first().fill("banana")
+    await bob.locator('[data-testid="tkt-create"]').click()
+    await bob.waitForTimeout(2000)
+
+    await bob.locator(".board-chip.board-ticketed").first().click({ force: true })
+    await bob.waitForTimeout(700)
+    t("two tickets on one asset show a tab each", await bob.locator(".tkt-tab").count() === 2)
+    t("only ONE ticket's actions are drawn", await bob.locator('[data-testid="tkt-clone"]').count() === 1
+      && await bob.locator('[data-testid="tkt-cancel"]').count() === 1,
+      `clone=${await bob.locator('[data-testid="tkt-clone"]').count()} cancel=${await bob.locator('[data-testid="tkt-cancel"]').count()}`)
+    const firstOrder = await bob.evaluate(() => document.querySelector(".tkt-cardsec > div:last-child")?.dataset.orderId)
+    await bob.locator(".tkt-tab").nth(1).click()
+    await bob.waitForTimeout(400)
+    const secondOrder = await bob.evaluate(() => document.querySelector(".tkt-cardsec > div:last-child")?.dataset.orderId)
+    t("switching tab switches which ticket is shown", firstOrder && secondOrder && firstOrder !== secondOrder,
+      `${firstOrder} -> ${secondOrder}`)
+    t("still exactly one set of actions after switching", await bob.locator('[data-testid="tkt-clone"]').count() === 1)
+    t("Remove from table is withheld while a ticket exists",
+      !/Remove from table/i.test((await bob.locator("#boardAssetDetail").textContent()) || ""))
+    t("and it says why", /tear the ticket up/i.test((await bob.locator("#boardAssetDetail").textContent()) || ""))
+    await bob.screenshot({ path: __dirname + "/tickets-quiet-twotickets.png", fullPage: false })
+
     await reportKflow("test:verdict", INSTANCE, { pass: !fails.length, asserts: n, fails })
     log(fails.length ? `FAILED ${fails.length}/${n}: ` + fails.join(" | ") : `all ${n} assertions green`)
     log("verdict:", fails.length ? "fail" : "pass")
