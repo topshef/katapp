@@ -1295,9 +1295,22 @@
   // and if you click on it the user can save that link". Detail comes from the
   // feedback widget's kfw:sent event; every field is optional, so a widget older
   // than this still degrades to a plain thank-you row.
+  // KAT-FEEDACK1: this listener covers EVERY entry path (menu, long-press) because
+  // both now open the widget IN PLACE on this page — the menu's old navigate-to-
+  // /m/feedback fallback only fires if the widget script truly failed to load
+  // (which is what happened while the double-gzip proxy bug had it dead).
+  // GLOBAL-FEED STUB: pages with no circle feed (home, circles list, learn…) have
+  // nowhere to drop this row — a general-level message feed is planned; when it
+  // exists, deliverAck below should route there ("push that message to wherever
+  // the user is"), instead of relying on the widget's own toast. Keep the ack
+  // payload shape (text + link/linkText) so that hand-over is a one-liner.
+  function deliverAck(text, opts) {
+    // future: if (!inCircleFeed) globalFeed.post(text, opts)
+    system(text, opts);
+  }
   document.addEventListener("kfw:sent", function (e) {
     var d = (e && e.detail) || {};
-    system("Feedback sent — thank you." + (d.tag ? " Reference " + d.tag + "." : ""),
+    deliverAck("Feedback sent — thank you." + (d.tag ? " Reference " + d.tag + "." : ""),
       d.url ? { link: d.url, linkText: "View your feedback" } : null);
   });
 
