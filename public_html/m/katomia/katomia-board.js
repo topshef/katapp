@@ -2797,10 +2797,28 @@ function boardSimExcite(){
 const BOARD_SIM_MAX_FRAMES = 150
 let _boardSimFrames = 0
 
+// BOARD-SETTLEFLICKER1 (feedback f983bfb7): on a crowded board a single tick
+// could move a chip an arbitrary distance (collision chains — one arrival jolts
+// the whole blob), which painted as aggressive flash/teleport frames. Visible
+// ticks are now governed: no body may move more than this many px per tick
+// (2 ticks/frame ≈ ≤20px/frame — fast glide, never a flash). Off-screen
+// pre-settle ticks (boardOrganicApply's spawn-wave unwind) run UNgoverned so
+// pile-ups resolve before they are ever painted.
+const BOARD_SIM_STEP_CAP = 10
+let _boardSimLastTotal = 0   // sum of per-body displacement in the last tick (motion energy)
+
 function boardSimFrame(){
   _boardSimRaf = 0
   if(!_boardSimEnv || !_boardSimBodies.size) return
-  const moved = boardSimTick(2)
+  let moved = boardSimTick(2, BOARD_SIM_STEP_CAP)
+  // BOARD-SETTLEFLICKER1 paint-hold (the user's fallback, kept as a complement
+  // to the governed ticks): when the tick's AGGREGATE energy is still high —
+  // a crowded zone boiling — burn the motion off-screen with ungoverned ticks
+  // inside this same frame and paint only the calmed state. "if we detect
+  // there's too much movement we simply don't paint while there's a lot of
+  // movement and just paint once things have settled" (feedback f983bfb7).
+  let held = 0
+  while(_boardSimLastTotal > 250 && held++ < 12) moved = boardSimTick(3)
   boardSimPaint()
   _boardSimFrames++
   if(moved < 0.15) _boardSimQuiet++
@@ -2887,7 +2905,7 @@ function boardWallClamp(env, z, b, x, y, soft){
 // time-since-excitement so the organic equilibrium (spring-in vs push-apart)
 // provably converges instead of oscillating at the blob's edge; collision
 // resolution stays undamped — overlaps always resolve.
-function boardSimTick(iters){
+function boardSimTick(iters, cap){
   const env = _boardSimEnv
   if(!env) return 0
   const speed = Math.min(1, boardAnimSpeed || 1)   // Prefs debug throttle rides the sim too
@@ -2994,10 +3012,30 @@ function boardSimTick(iters){
       }
     })
   })
-  let maxMove = 0
+  // BOARD-SETTLEFLICKER1 governor: on visible (capped) ticks, back a body off
+  // along its net displacement so no single tick reads as a jump; the wall
+  // clamp re-runs on the shortened move so the backed-off point stays legal.
+  // Deviations this leaves (e.g. a wall shove partially deferred) are ≤cap px
+  // and self-correct over the next frames as the same capped glide.
+  if(cap) byZone.forEach((movers, zk) => {
+    const z = _boardSimZones.get(zk)
+    if(!z) return
+    movers.forEach(b => {
+      const dx = b.x - b.px0, dy = b.y - b.py0
+      const d = Math.hypot(dx, dy)
+      if(d <= cap) return
+      const s = cap / d
+      const p = boardWallClamp(env, z, b, b.px0 + dx * s, b.py0 + dy * s, true)
+      b.x = p.x; b.y = p.y
+    })
+  })
+  let maxMove = 0, totalMove = 0
   byZone.forEach(movers => movers.forEach(b => {
-    maxMove = Math.max(maxMove, Math.hypot(b.x - b.px0, b.y - b.py0))
+    const d = Math.hypot(b.x - b.px0, b.y - b.py0)
+    maxMove = Math.max(maxMove, d)
+    totalMove += d
   }))
+  _boardSimLastTotal = totalMove   // BOARD-SETTLEFLICKER1: aggregate energy, read by the paint-hold
   return maxMove
 }
 
@@ -3013,7 +3051,9 @@ function boardSimPaint(){
   if(!env) return
   const piles = new Map(), baskets = new Map(), ghosts = []
   let movedAny = false
+  let ghostGliding = false   // BOARD-SETTLEFLICKER1: a ghost mid-glide to its line
   const place = (b, z) => {
+    b._painted = true   // BOARD-SETTLEFLICKER1: survives rebinds (b.pl does not)
     const left = env.cx + b.x * z.cos - b.y * z.sin - b.w / 2
     const top = env.cy + b.x * z.sin + b.y * z.cos - b.h / 2
     if(b.pl !== left || b.pt !== top){
@@ -3081,8 +3121,21 @@ function boardSimPaint(){
               gx += (-(B.y - P.y) / len) * n * (b.h + 4)
               gy += ((B.x - P.x) / len) * n * (b.h + 4)
             }
-            b.x = (gx - env.cx) * z.cos + (gy - env.cy) * z.sin
-            b.y = -(gx - env.cx) * z.sin + (gy - env.cy) * z.cos
+            // BOARD-SETTLEFLICKER1: this used to SNAP to the line — a ~60px
+            // flash whenever the basket endpoint landed or moved. Approach at
+            // the governed rate instead (snap only on first paint, b.pl null);
+            // the paint tail below keeps frames coming until the glide lands.
+            const gtx = (gx - env.cx) * z.cos + (gy - env.cy) * z.sin
+            const gty = -(gx - env.cx) * z.sin + (gy - env.cy) * z.cos
+            const gdx = gtx - b.x, gdy = gty - b.y
+            const gd = Math.hypot(gdx, gdy)
+            const gstep = BOARD_SIM_STEP_CAP * 2
+            // b._painted, NOT b.pl: every render rebinds elements and resets
+            // pl/pt, which made this snap on each re-render — the flash again
+            if(gd > gstep && b._painted){
+              b.x += gdx / gd * gstep; b.y += gdy / gd * gstep
+              ghostGliding = true
+            } else { b.x = gtx; b.y = gty }
             b._aligned = true
           }
         }
@@ -3112,9 +3165,21 @@ function boardSimPaint(){
         const need = (p.w + c.w) / 2 + 6
         if(c.y - p.y < need){
           // never shove a HAND-PLACED chip (rimpin) or a line-aligned ghost —
-          // both positions are meaningful; the free one yields
-          if(!c._aligned && !c.rimpin) c.y = p.y + need
-          else if(!p._aligned && !p.rimpin) p.y = c.y - need
+          // both positions are meaningful; the free one yields.
+          // BOARD-SETTLEFLICKER1: the shove is chip-width-sized (~60px) and used
+          // to land in ONE paint — the biggest single flash in the crowded-board
+          // repro. Governed now: an already-painted ghost walks to its slot at
+          // the same capped rate as everything else; a brand-new one (never
+          // painted) still snaps, invisibly, before its first frame.
+          const shove = (b2, ty) => {
+            const dy2 = ty - b2.y
+            if(b2._painted && Math.abs(dy2) > BOARD_SIM_STEP_CAP * 2){
+              b2.y += Math.sign(dy2) * BOARD_SIM_STEP_CAP * 2
+              ghostGliding = true
+            } else b2.y = ty
+          }
+          if(!c._aligned && !c.rimpin) shove(c, p.y + need)
+          else if(!p._aligned && !p.rimpin) shove(p, c.y - need)
         }
       }
     })
@@ -3124,6 +3189,10 @@ function boardSimPaint(){
   // root.replaceChildren() wipes on every render — so redraw it EVERY paint,
   // not only when something moved (a no-op with no pair on show). Trails keep
   // the movement-gated reanchor; their layer is a body-level sibling.
+  // BOARD-SETTLEFLICKER1 paint tail: a ghost still gliding toward its line
+  // needs more painted frames even if the sim itself has quieted (the glide
+  // happens here in paint, so the tick's settle test can't see it)
+  if(ghostGliding && !_boardSimRaf) _boardSimRaf = requestAnimationFrame(boardSimFrame)
   window.__boardRefreshTradeLine?.()
   // BOARD-TRAILANCHOR1: reanchor EVERY paint, not only when a chip moved. The
   // movement gate was fine when trails were only redrawn to follow chips, but
@@ -3698,7 +3767,25 @@ function boardOrganicApply(cx, cy, W, H, oval){
   if(changed){
     _boardSimCalm = 0
     _boardSimQuiet = 0
-    if(fresh.length) boardSimTick(3)   // pre-settle: new chips paint near-home this frame
+    if(fresh.length){
+      // BOARD-SETTLEFLICKER1 root cause: a spawn WAVE (settlement or a burst of
+      // offers re-zones many chips at once, each hash-jittered into an already
+      // crowded anchor disk) used to unwind its pile-up ON SCREEN — ~a second
+      // of aggressive chip flash while the collision chains resolved. A wave
+      // now buys UNgoverned pre-settle ticks so it unwinds before first paint;
+      // 1-2 fresh chips keep the old 3 ticks (a single arrival's push stays
+      // visible motion, per the physics model's "every push is visible").
+      const wave = fresh.filter(b => !b.inner).length
+      // >6: only a real wave unwinds off-screen (paint-once-settled); small
+      // bursts (a donor's 3 offers landing in one broadcast) glide governed
+      if(wave > 6){
+        let pre = 0
+        while(pre++ < 20 && boardSimTick(3) > 0.5){}
+        boardDiag("board:sim:wavesettle", { fresh: wave, preTicks: pre })
+      } else boardSimTick(1, BOARD_SIM_STEP_CAP)   // pre-settle: ONE governed tick —
+        // the arrival paints near its spawn and glides home; the shove it gives
+        // its neighbours (and any wall snap) paints as motion, never as a jump
+    }
     if(!_boardSimRaf) _boardSimRaf = requestAnimationFrame(boardSimFrame)
   }
   boardSimPaint()
