@@ -568,6 +568,10 @@ body.board-page .app-banner{
   box-shadow: 0 -3px 12px rgba(0,0,0,.07);
   font-size: 12px;
   overflow-x: auto;
+  /* BOARD-CTRLBAR-DRAG1: keep horizontal panning native, but let vertical
+     touches keep firing pointermoves so blank-space drags can claim the
+     chat-split gesture (katomia-chat.js delegated starter) */
+  touch-action: pan-x;
 }
 .ring-footer-filter{ display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .ring-footer-lock{

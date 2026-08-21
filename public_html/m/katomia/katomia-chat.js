@@ -297,12 +297,17 @@
         + '<input type="text" maxlength="280" placeholder="Message the table…" aria-label="Message">'
         + '<button type="submit" title="Send">➤</button></form>';
       var drag = d.querySelector(".kchat-drag");
-      drag.addEventListener("pointerdown", function (e) {
-        if (d.classList.contains("kchat-dock--side")) return;
-        e.preventDefault();
-        drag.setPointerCapture(e.pointerId);
-        var startY = e.clientY;
-        var startB = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--kchat-clear-b")) || d.getBoundingClientRect().height;
+      // BOARD-CTRLBAR-DRAG1: the drag core, shared by the grab bar (claims the
+      // gesture at pointerdown, as before) and the control bar's blank space
+      // (claims only after vertical intent — see the delegated starter below).
+      // startY is the claim point so the split tracks the finger, not the jump.
+      var startSplitDrag = function (e, capEl, startY) {
+        capEl.setPointerCapture && capEl.setPointerCapture(e.pointerId);
+        if (startY == null) startY = e.clientY;
+        // dock looked up fresh — the delegated starter below outlives d's closure
+        // (the dock is torn down and rebuilt when chat mode toggles)
+        var dockNow = document.getElementById("boardChatDock") || d;
+        var startB = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--kchat-clear-b")) || dockNow.getBoundingClientRect().height;
         var lim = dockLimits();
         // BOARD-SPLITDRAG1 (user 2026-08-06): while the divider moves, the BOARD
         // MUST NOT RESIZE. It used to yield live — "the whole board scales down
@@ -318,19 +323,57 @@
           document.documentElement.style.setProperty("--kchat-clear-b", Math.round(b) + "px");
         };
         var up = function (ev) {
-          drag.removeEventListener("pointermove", move);
-          drag.removeEventListener("pointerup", up);
-          drag.removeEventListener("pointercancel", up);
+          capEl.removeEventListener("pointermove", move);
+          capEl.removeEventListener("pointerup", up);
+          capEl.removeEventListener("pointercancel", up);
           document.body.classList.remove("kchat-dragging");   // BOARD-SPLITDRAG1: board yields again, then re-solves below
           var b = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--kchat-clear-b")) || startB;
           try { localStorage.setItem("katomiaChatSplit", String(b)); } catch (e2) {}
           // one geometry re-solve at rest — dragging only moves the CSS var
           if (typeof render === "function") setTimeout(function () { try { render(); } catch (e3) {} }, 0);
         };
-        drag.addEventListener("pointermove", move);
-        drag.addEventListener("pointerup", up);
-        drag.addEventListener("pointercancel", up);
+        capEl.addEventListener("pointermove", move);
+        capEl.addEventListener("pointerup", up);
+        capEl.addEventListener("pointercancel", up);
+      };
+      drag.addEventListener("pointerdown", function (e) {
+        if (d.classList.contains("kchat-dock--side")) return;
+        e.preventDefault();
+        startSplitDrag(e, drag);
       });
+      // BOARD-CTRLBAR-DRAG1 (feedback 44050cee): "extend that gesture to include
+      // any blank area of the control bar… provided it doesn't conflict with
+      // tapping sign". Delegated (the footer is rebuilt every render) and
+      // vertical-intent gated: a touch on blank bar space claims the split drag
+      // only once it has moved ≥8px predominantly vertically — taps on Lock /
+      // account select / ▶ never enter here (interactive targets are excluded at
+      // pointerdown), and horizontal swipes stay the bar's native overflow-x pan
+      // (CSS touch-action: pan-x keeps those events native on touch).
+      if (!window.__kbarDragInit) {
+        window.__kbarDragInit = true;
+        document.addEventListener("pointerdown", function (e) {
+          var bar = e.target.closest(".ring-footer");
+          if (!bar) return;
+          if (e.target.closest("button, input, select, textarea, a, label, [role=button]")) return;
+          var dock = document.getElementById("boardChatDock");
+          if (!dock || dock.classList.contains("kchat-dock--side")) return;
+          var sx = e.clientX, sy = e.clientY, pid = e.pointerId;
+          var probe = function (ev) {
+            if (ev.pointerId !== pid) return;
+            var dx = ev.clientX - sx, dy = ev.clientY - sy;
+            if (Math.abs(dy) >= 8 && Math.abs(dy) > Math.abs(dx)) { cleanup(); startSplitDrag(ev, bar, sy); }
+            else if (Math.abs(dx) >= 12) cleanup();   // horizontal — the bar's own scroll, not ours
+          };
+          var cleanup = function () {
+            document.removeEventListener("pointermove", probe);
+            document.removeEventListener("pointerup", cleanup);
+            document.removeEventListener("pointercancel", cleanup);
+          };
+          document.addEventListener("pointermove", probe);
+          document.addEventListener("pointerup", cleanup);
+          document.addEventListener("pointercancel", cleanup);
+        });
+      }
       wireChatSend(d.querySelector(".kchat-send"));
       // CHAT-COMMITGATE1 (user 2026-08-05): a chat refused for missing commitment
       // used to be silently LOST with no path to the fix. On the backend's
