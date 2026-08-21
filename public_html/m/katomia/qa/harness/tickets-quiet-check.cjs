@@ -58,6 +58,8 @@ async function addManual(page, acct){
   return id
 }
 
+const send = (page, msg) => page.evaluate(m => socket.send(JSON.stringify({ ...m, gameId })), msg)
+
 // height of a named store chip, rounded — the number bandFull is computed from
 const chipHeight = (page, assetId) => page.evaluate(a => {
   const el = document.querySelector(`.board-chip[data-asset-id="${a}"]`)
@@ -149,6 +151,54 @@ const chipHeight = (page, assetId) => page.evaluate(a => {
     t("the maker gets tear-up in the card", await alice.locator('[data-testid="tkt-cancel"]').count() === 1)
     await alice.screenshot({ path: SHOT, fullPage: false })
     log("screenshot", SHOT)
+    await alice.locator("#boardAssetDetail .asset-modal-close").click().catch(() => {})
+    await alice.waitForTimeout(400)
+
+    // ── A2: the priced stack SPLITS ─────────────────────────────────────────
+    // Needs a stack of more than one, and playnet seeds exactly one of each — so
+    // earn it: run the ticket to settlement and the taker ends up holding two
+    // apples. Then price ONE of them and the stack must show as 1 + 1, with the
+    // stub on exactly one chip.
+    const bobCtx = await br.newContext({ viewport: { width: 390, height: 844 }, ignoreHTTPSErrors: true })
+    const bob = await bobCtx.newPage()
+    bob.on("dialog", d => d.accept())
+    await bob.goto(`${BASE}/m/katomia/board/${gid}?${HAPIQ}&tickets=1`, { waitUntil: "domcontentloaded" })
+    await bob.waitForTimeout(2500)
+    await addManual(bob, "0.0.222")
+    await bob.waitForTimeout(1500)
+
+    await bob.locator('[data-tkt-chip]').first().click({ force: true, timeout: 10000 })
+    await bob.locator('[data-testid="tkt-take"]').click({ timeout: 8000 })
+    await bob.waitForTimeout(1500)
+    const accA = await alice.evaluate(() => getAccounts().filter(a => isMyAccount(a))[0]?.id)
+    const accB = await bob.evaluate(() => getAccounts().filter(a => isMyAccount(a))[0]?.id)
+    await send(alice, { type: "game_toggleLock", accountId: accA })
+    await send(bob, { type: "game_toggleLock", accountId: accB })
+    await bob.waitForTimeout(3200)
+    const bApples = await bob.evaluate(() => getAccounts().filter(a => isMyAccount(a))[0]?.assets?.apple)
+    t("settled — the taker now holds a stack of two", bApples === 2, "apple=" + bApples)
+
+    const appleChips = () => bob.evaluate(() => [...document.querySelectorAll('.board-chip[data-asset-id="apple"]')]
+      .map(e => ({ text: (e.textContent || "").trim(), stub: e.classList.contains("board-ticketed"),
+                   ghost: e.classList.contains("board-ghost"),
+                   h: Math.round(e.getBoundingClientRect().height * 10) / 10 })))
+    const beforeSplit = await appleChips()
+    t("one chip before pricing", beforeSplit.length === 1, JSON.stringify(beforeSplit))
+
+    await bob.locator('[data-chip-role="store"][data-asset-id="apple"]').first().click({ force: true })
+    await bob.locator('[data-testid="tkt-price-it"]').click({ timeout: 8000 })
+    await bob.locator("#tktModal .tkt-line").first().locator(".tkt-amt").fill("1")
+    await bob.locator("#tktModal .tkt-line").nth(1).locator("input").first().fill("carrot")
+    await bob.locator('[data-testid="tkt-create"]').click()
+    await bob.waitForTimeout(2000)
+
+    const after = await appleChips()
+    t("the priced stack splits in two", after.length === 2, JSON.stringify(after))
+    t("exactly one slice wears the stub", after.filter(c => c.stub).length === 1, JSON.stringify(after.map(c => c.stub)))
+    // D12: nothing has left the store, so neither slice may be drawn as a ghost
+    t("neither slice is a dashed ghost", after.every(c => !c.ghost))
+    t("the split costs no height either", after.every(c => Math.abs(c.h - bare) < 0.6), JSON.stringify(after.map(c => c.h)))
+    await bob.screenshot({ path: __dirname + "/tickets-quiet-split.png", fullPage: false })
 
     await reportKflow("test:verdict", INSTANCE, { pass: !fails.length, asserts: n, fails })
     log(fails.length ? `FAILED ${fails.length}/${n}: ` + fails.join(" | ") : `all ${n} assertions green`)

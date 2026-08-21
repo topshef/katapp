@@ -7879,15 +7879,25 @@ function boardStoreChips(account, container, reservedByAccount){
     // it at all on the board, not as ghosts, not as nothing"). Checked before the
     // chip is built; the modal's ⭐/🚫/○ toggle un-hides it any time.
     if(!mine && boardCurateGet(account.id, assetId) === "out") return
+    // PROP-TICKETS1 phase A2 (?tickets=1 only): a ticket promises part of this
+    // stack, so the stack splits — $100 becomes $95 and a $5 wearing the stub.
+    // BOTH stay solid chips: nothing has left the store (a ticket reserves
+    // nothing server-side), and dashed already means "gone". Remainder renders
+    // FIRST so it keeps the |s#1 sim ident the flight-origin lookups use.
+    const slices = (window.KTICKETS && typeof tktStoreSlices === "function")
+      ? tktStoreSlices(account, assetId, amount, reservedByAccount)
+      : [{ amount, priced: false }]
+    slices.forEach(slice => {
+    const sliceAmount = slice.amount
     const el = makeAssetEl({
-      text: boardAssetText(assetId, amount),
+      text: boardAssetText(assetId, sliceAmount),
       assetId,
       ownerAccountId: account.id,
       ownerPlayerId: account.playerId,
       clickable: mine,
       selected: mine && isSelected(assetId, account.id, null)
     })
-    applyAssetClasses(el, assetId, amount)
+    applyAssetClasses(el, assetId, sliceAmount)
     el.classList.add("board-chip")
     // BOARD-COUNTERMODE1 (simple mode): part of this stack is offered out —
     // the ghost is suppressed (boardReservedChips) and the REMAINDER PILE
@@ -7897,7 +7907,7 @@ function boardStoreChips(account, container, reservedByAccount){
     // the draft line to the basket, same as the ghost used to (first
     // destination only when one asset fans to several recipients — rare, and
     // each basket chip still lights its own line back).
-    const reservedHere = boardCounterSimple() && (amount || 0) > 0
+    const reservedHere = boardCounterSimple() && (sliceAmount || 0) > 0 && !slice.priced
       ? (reservedByAccount?.[account.id] || []).filter(r => r.assetId === assetId)
       : []
     if(reservedHere.length){
@@ -7921,18 +7931,18 @@ function boardStoreChips(account, container, reservedByAccount){
       // your own store chips a "Remove from table" action (GAME-ASSETREMOVE1).
       // The legacy (non-ring8) page keeps its offer modal.
       el.onclick = () => {
-        if(ring8()){ boardAssetDetail(assetId, account, amount); return }
-        openAssetModal(assetId, account.id, amount)
+        if(ring8()){ boardAssetDetail(assetId, account, sliceAmount); return }
+        openAssetModal(assetId, account.id, sliceAmount)
       }
       el.draggable = true
       el.ondragstart = e => {
         e.dataTransfer.setData("assetId", assetId)
-        e.dataTransfer.setData("available", amount || 1)
+        e.dataTransfer.setData("available", sliceAmount || 1)
         e.dataTransfer.setData("fromAccountId", account.id)
         e.dataTransfer.setData("fromBasketToAccountId", "")
         window.__boardDragPayload = { assetId, fromAccountId: account.id, fromBasketToAccountId: "" }
       }
-      boardTouchDrag(el, { assetId, available: amount || 1, fromAccountId: account.id, fromBasketToAccountId: "" })
+      boardTouchDrag(el, { assetId, available: sliceAmount || 1, fromAccountId: account.id, fromBasketToAccountId: "" })
     } else if((ring11() || susan3()) && playerAllowsPick(account.playerId) && getAccounts().some(a => isMyAccount(a))){
       // PICK (review 10 / KAT-PICK1): their player allows picking — grab the
       // chip and drop it into any of YOUR regions; game_pick lands it in
@@ -7946,15 +7956,15 @@ function boardStoreChips(account, container, reservedByAccount){
       el.draggable = true
       el.ondragstart = e => {
         e.dataTransfer.setData("assetId", assetId)
-        e.dataTransfer.setData("available", amount || 1)
+        e.dataTransfer.setData("available", sliceAmount || 1)
         e.dataTransfer.setData("pickFrom", account.id)
         window.__boardDragPayload = { pick: true, assetId, pickFrom: account.id }
       }
-      boardTouchDrag(el, { pick: true, assetId, available: amount || 1, pickFrom: account.id })
+      boardTouchDrag(el, { pick: true, assetId, available: sliceAmount || 1, pickFrom: account.id })
     }
     // tap-to-inspect works on EVERYONE's store chips (user 2026-08-05: "if you
     // want to examine their assets, you can just tap on them")
-    if(!mine && ring8()) el.onclick = () => boardAssetDetail(assetId, account, amount)
+    if(!mine && ring8()) el.onclick = () => boardAssetDetail(assetId, account, sliceAmount)
     // BOARD-ARRANGEOTHERS1 (user-approved 2026-08-06): "it might be helpful to be
     // able to move them around so that you can see them better, even though you're
     // not actually allowed to pull them into your basket… although maybe that gives
@@ -7973,8 +7983,10 @@ function boardStoreChips(account, container, reservedByAccount){
     // PROP-TICKETS1 phase A1 (?tickets=1 only): a priced asset wears a perforated
     // right edge on its OWN chip — no separate ticket object on the felt any more.
     // Class + tooltip only: nothing here may change the chip's height (bandFull).
-    if(window.KTICKETS && typeof tktMarkStoreChip === "function") tktMarkStoreChip(el, account, assetId)
+    if(slice.priced && window.KTICKETS && typeof tktMarkStoreChip === "function")
+      tktMarkStoreChip(el, account, assetId)
     container.appendChild(el)
+    })
   })
 }
 

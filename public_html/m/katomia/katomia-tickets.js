@@ -130,6 +130,32 @@ function tktOpenOrdersForAsset(account, assetId){
     tktFilledRatio(o, oid) < 1 && o.bundle.some(l => l.amount < 0 && String(l.asset) === String(assetId)))
 }
 
+// ── phase A2: the priced stack splits ────────────────────────────────────────
+// "$100 where $5 is reserved for a chicken… you'd still see just those two chips."
+// Returns the slices a store stack should render as, remainder FIRST (it keeps the
+// |s#1 sim ident that the flight-origin and withdraw-glide lookups key on).
+//
+// Both slices are SOLID. The dashed ghost already means "this has left your store
+// and is promised elsewhere" — an escrow. A ticket reserves nothing: the $5 is
+// still in the store and still spendable, which is exactly why dragging it out
+// needs a guard (phase B3). Drawing it as reserved would make that guard read as
+// a surprise instead of a reminder. (User review 2026-08-21, D12.)
+function tktStoreSlices(account, assetId, amount, reservedByAccount){
+  const open = tktOpenOrdersForAsset(account, assetId)
+  if(!open.length) return [{ amount, priced: false }]
+  // don't compound two split mechanisms: if part of this stack is already offered
+  // out, the rimpile/ghost path owns that split — leave the stack whole and stub it
+  if((reservedByAccount?.[account.id] || []).some(r => String(r.assetId) === String(assetId)))
+    return [{ amount, priced: true }]
+  let priced = 0
+  for(const [, o] of open) for(const l of o.bundle)
+    if(l.amount < 0 && String(l.asset) === String(assetId)) priced += Math.abs(l.amount)
+  priced = Math.min(priced, amount)
+  // whole stack spoken for (selling the chicken) — one chip, and it wears the stub
+  if(!(priced > 0) || priced >= amount) return [{ amount, priced: true }]
+  return [{ amount: amount - priced, priced: false }, { amount: priced, priced: true }]
+}
+
 // called per store chip from boardStoreChips (flag-guarded). Adds a class and a
 // tooltip; never adds a node, never changes the chip's height — a taller chip
 // becomes the tallest in its zone and inflates the counter band, which is the

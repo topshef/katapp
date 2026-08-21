@@ -970,7 +970,7 @@
     {
       "id": "TICKETS-QUIET-01",
       "title": "The quiet ticket — stub on the chip, no object on the felt",
-      "asserts": "A priced asset's OWN chip wears the perforated right edge and no standalone ticket object exists; the cue costs zero chip height (measured at 390x844, the viewport the counter-band regression appeared on); the CSS mask does not clip the pick pennant off a pickable priced chip; tapping the priced chip opens its asset card carrying the ticket section and the maker's tear-up.",
+      "asserts": "A priced asset's OWN chip wears the perforated right edge and no standalone ticket object exists; the cue costs zero chip height (measured at 390x844, the viewport the counter-band regression appeared on); the CSS mask does not clip the pick pennant off a pickable priced chip; tapping the priced chip opens its asset card carrying the ticket section and the maker's tear-up. A2: a stack with more than one unit splits when part of it is priced — two SOLID chips, the stub on exactly one, neither drawn as a dashed ghost (a ticket reserves nothing, so nothing has left the store), and no height cost.",
       "kind": "e2e-feature",
       "network": "playnet",
       "harness": "qa/harness/tickets-quiet-check.cjs",
@@ -980,7 +980,7 @@
       },
       "schedule": "manual (run with every tickets phase)",
       "reports": "kflow test:verdict → QA grid",
-      "notes": "Phase A1 of docs/tickets-build-plan-20260821.html. Requires ?tickets=1. Guards three things that fail SILENTLY: (1) the standalone .board-ticket chip is gone — its whole job moved onto the give-leg's chip; (2) chip height must not change, because bandFull = tallest chip + 12 and a taller chip pushes store chips off a small screen (the P5a regression); (3) the mask must keep mask-clip:no-clip and a tile that reaches 24px left, or it eats the ::before pick pennant — which is invisible to every DOM and computed-style check, and did happen on the first cut. Screenshot artifact at qa/harness/tickets-quiet-last.png.",
+      "notes": "Phase A1 of docs/tickets-build-plan-20260821.html. Requires ?tickets=1. Guards three things that fail SILENTLY: (1) the standalone .board-ticket chip is gone — its whole job moved onto the give-leg's chip; (2) chip height must not change, because bandFull = tallest chip + 12 and a taller chip pushes store chips off a small screen (the P5a regression); (3) the mask must keep mask-clip:no-clip and a tile that reaches 24px left, or it eats the ::before pick pennant — which is invisible to every DOM and computed-style check, and did happen on the first cut. Screenshot artifact at qa/harness/tickets-quiet-last.png. A2 asserts D12 (the priced slice is solid, not a dashed ghost) — dashed already means 'gone from the store', and drawing a still-spendable slice as reserved would make the phase-B drag-out guard read as a surprise. Second screenshot at qa/harness/tickets-quiet-split.png.",
       "dimension": "playnet · quiet-ticket rendering",
       "cost": "free",
       "what_it_does": [
@@ -992,7 +992,9 @@
         "Re-measure both chip heights and assert neither moved.",
         "Assert the chip is both pickable and masked, that mask-clip is no-clip, and that the mask tile reaches further left than the pennant.",
         "Tap the priced chip and assert the asset card opens carrying the ticket section and the tear-up action.",
-        "Save a screenshot for eyeball confirmation of the stub + pennant together."
+        "Save a screenshot for eyeball confirmation of the stub + pennant together.",
+        "Bring in a second player, run the ticket to settlement so the taker holds a stack of two apples (playnet seeds only one of each, so the stack has to be earned).",
+        "Price ONE apple and assert the stack renders as two chips, exactly one wearing the stub, neither ghosted, neither taller."
       ],
       "pass_means": "The ticket reads as a property of the item rather than an object beside it, without costing layout or eating another chip cue.",
       "fails_when": "A cue is added that grows the chip; the mask clipping rule is weakened and the pennant silently disappears; or the asset card loses its ticket section.",
