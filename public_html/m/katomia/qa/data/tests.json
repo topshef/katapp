@@ -969,8 +969,8 @@
     },
     {
       "id": "TICKETS-QUIET-01",
-      "title": "The quiet ticket — stub on the chip, split stack, hover peek",
-      "asserts": "A priced asset's OWN chip wears the perforated right edge and no standalone ticket object exists; the cue costs zero chip height (measured at 390x844, the viewport the counter-band regression appeared on); the CSS mask does not clip the pick pennant off a pickable priced chip; tapping the priced chip opens its asset card carrying the ticket section and the maker's tear-up. A2: a stack with more than one unit splits when part of it is priced — two SOLID chips, the stub on exactly one, neither drawn as a dashed ghost (a ticket reserves nothing, so nothing has left the store), and no height cost. A3: hovering a priced chip opens a peek popover stating both legs, placed clear of the chip and pointer-events:none so it cannot swallow a drag, and lights every chip on the felt that could fill the ticket; both clear on leave. NFT snag: a thumb-only chip's ticket gutter is PAINTED and wide enough for the notch — the v8 skin gives thumb-only chips background:none and padding:0, so the mask was notching transparent air and the cue was invisible on NFTs.",
+      "title": "The quiet ticket — stub on the chip, split stack, hover peek, one ticket at a time",
+      "asserts": "A priced asset's OWN chip wears the perforated right edge and no standalone ticket object exists; the cue costs zero chip height (measured at 390x844, the viewport the counter-band regression appeared on); the CSS mask does not clip the pick pennant off a pickable priced chip; tapping the priced chip opens its asset card carrying the ticket section and the maker's tear-up. A2: a stack with more than one unit splits when part of it is priced — two SOLID chips, the stub on exactly one, neither drawn as a dashed ghost (a ticket reserves nothing, so nothing has left the store), and no height cost. A3: hovering a priced chip opens a peek popover stating both legs, placed clear of the chip and pointer-events:none so it cannot swallow a drag, and lights every chip on the felt that could fill the ticket; both clear on leave. NFT snag: a thumb-only chip's ticket gutter is PAINTED and wide enough for the notch — the v8 skin gives thumb-only chips background:none and padding:0, so the mask was notching transparent air and the cue was invisible on NFTs. Multi-ticket: an asset carrying two tickets shows a tab per ticket and draws only ONE ticket's actions; switching tab switches which ticket is shown; and Remove from table is withheld while any ticket exists, saying why.",
       "kind": "e2e-feature",
       "network": "playnet",
       "harness": "qa/harness/tickets-quiet-check.cjs",
@@ -997,10 +997,11 @@
         "Price ONE apple and assert the stack renders as two chips, exactly one wearing the stub, neither ghosted, neither taller.",
         "Open a third, hover-capable 1200px viewer and hover the priced chip: assert the peek appears, states both legs, sits clear of the chip, is pointer-events:none, and lights exactly the chips matching the WANT leg.",
         "Move the pointer away and assert both the peek and the highlight clear.",
-        "Add the thumb-only class cascade a real NFT gets and assert the ticket gutter is painted, wide enough, and still masked (playnet has no NFTs, so this is emulated — worth one eyeball on testnet)."
+        "Add the thumb-only class cascade a real NFT gets and assert the ticket gutter is painted, wide enough, and still masked (playnet has no NFTs, so this is emulated — worth one eyeball on testnet).",
+        "Price the same asset a SECOND time and assert two tabs appear, exactly one set of ticket actions is drawn, switching tabs switches the ticket, and Remove from table is withheld with a reason."
       ],
       "pass_means": "The ticket reads as a property of the item rather than an object beside it, without costing layout or eating another chip cue.",
-      "fails_when": "A cue is added that grows the chip; the mask clipping rule is weakened and the pennant silently disappears; or the asset card loses its ticket section.",
+      "fails_when": "A cue is added that grows the chip; the mask clipping rule is weakened and the pennant silently disappears; or the asset card loses its ticket section. Or an asset with two tickets duplicates its action buttons again.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-quiet-check.cjs",
       "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-QUIET-01.n) prints PASS/FAIL with detail."
     },

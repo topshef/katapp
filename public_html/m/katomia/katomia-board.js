@@ -8216,7 +8216,7 @@ function boardAssetDetail(assetId, account, amount, offer){
   // signing early-return below so a frozen board still SHOWS the ticket; the
   // section itself drops its buttons when frozen.
   if(window.KTICKETS && typeof tktAssetCardSection === "function")
-    tktAssetCardSection({ card, addAction, account, assetId, modal, frozen: !!boardSigning })
+    tktAssetCardSection({ card, account, assetId, modal, frozen: !!boardSigning })
 
   // SIGN-GHOSTTAP1 (user 2026-08-06, same round as SIGN-GHOSTFAN1): once the
   // deal is struck the ghosts and legs on the board are a PICTURE of a
@@ -8279,7 +8279,7 @@ function boardAssetDetail(assetId, account, amount, offer){
     // PROP-TICKETS1 (?tickets=1 only): price this asset — opens the ticket
     // builder prefilled with the tapped stack as the give-line
     if(window.KTICKETS && typeof tktBuilder === "function")
-      addAction("kbtn-blue", "🎟 Price it…", "Create a priced ticket anyone in the circle can take", () => {
+      addAction("kbtn-blue", "🎟 Price it…", "Start a NEW ticket on this asset, blank. (Clone, inside a ticket below, opens the same builder pre-filled from that ticket.)", () => {
         modal.remove()
         tktBuilder(account, { give: [{ asset: assetId, amount: amount || 1 }] })
       }, "tkt-price-it")
@@ -8297,6 +8297,14 @@ function boardAssetDetail(assetId, account, amount, offer){
           modal.remove()
         })
       })
+    } else if(window.KTICKETS && typeof tktOpenOrdersForAsset === "function"
+              && tktOpenOrdersForAsset(account, assetId).length){
+      // PROP-TICKETS1 (user 2026-08-21): "you need to go through stages — tear up
+      // the ticket, and then you can remove the asset, so we don't give the user
+      // too many options in one go." Exactly the ordering rule already in force
+      // for offered-out assets a few lines up: one action at a time, in the order
+      // that cannot lose anything.
+      say("Priced on a ticket — tear the ticket up before you can take this off the table.")
     } else {
       addAction("kbtn-red", "🗑 Remove from table", "Take this asset off the board. Your wallet is untouched.", () => {
         if(!confirm(`Remove ${name.textContent} from the table?\n\nThis only changes what you're playing — your wallet is untouched.`)) return

@@ -2342,3 +2342,17 @@ body.feat-tickets .tkt-dial-opt{
 body.feat-tickets .tkt-dial-opt:last-child{ border-right:0; }
 body.feat-tickets .tkt-dial-opt.on{ background:#eef4ff; box-shadow:inset 0 -3px 0 #2f6fed; font-weight:600; }
 body.feat-tickets .tkt-dial-opt.off{ opacity:.42; cursor:not-allowed; }
+
+/* one ticket at a time — a chip per ticket when an asset carries several.
+   Tickets reserve nothing, so pricing the same asset twice is legal; drawing
+   every ticket's actions at once duplicated every button (user, 2026-08-21). */
+body.feat-tickets .tkt-tabs{ display:flex; flex-wrap:wrap; gap:5px; margin:6px 0 8px; }
+body.feat-tickets .tkt-tab{
+  font-size:11.5px; padding:3px 9px 3px 8px; cursor:pointer; color:inherit;
+  background:#fff8dc; border:1px solid #c9b96a; border-radius:7px 0 0 7px;
+  -webkit-mask:radial-gradient(circle at 100% 5px, transparent 3px, #000 3.5px) 0 0/100% 10px;
+  mask:radial-gradient(circle at 100% 5px, transparent 3px, #000 3.5px) 0 0/100% 10px;
+  padding-right:12px;
+}
+body.feat-tickets .tkt-tab.on{ background:#c9b96a; color:#2b2200; font-weight:600; }
+body.feat-tickets .tkt-act{ margin-top:6px; }

@@ -526,7 +526,13 @@
     reject:   { verb: "returned",   joiner: "to" },
     lock:     { verb: "locked",     solo: true },
     unlock:   { verb: "unlocked",   solo: true },
-    sign:     { verb: "signed",     solo: true }   // R3: subject + "signed", no green tick
+    sign:     { verb: "signed",     solo: true },  // R3: subject + "signed", no green tick
+    // PROP-TICKETS1 (user 2026-08-21): ticket moves were silent here. A ticket
+    // names TWO sides, so these use `pair` — give chips, "for", want chips —
+    // rather than the single-asset shape the other verbs share.
+    ticketPost:   { verb: "priced",         pair: true },
+    ticketTake:   { verb: "took the ticket", pair: true, joiner: "from" },
+    ticketTearUp: { verb: "tore up the ticket for", pair: "giveOnly" }
   };
 
   function actionRenderable(a) {
@@ -549,6 +555,9 @@
       case "lock":
       case "unlock":                      // the account changing mode
       case "sign":     return a.account;  // the account whose key signed (R3)
+      case "ticketPost":
+      case "ticketTearUp": return a.account;  // the stall the ticket sits on
+      case "ticketTake":   return a.to;       // the account doing the taking
     }
     return null;
   }
@@ -663,6 +672,14 @@
     chip.textContent = text;
     host.appendChild(chip);
   }
+  // one chip per leg, "+" between them — a ticket may name several either side
+  function appendLegChips(host, legs, ownerId) {
+    (legs || []).forEach(function (l, i) {
+      if (i) { appendWord(host, "+"); host.appendChild(document.createTextNode(" ")); }
+      appendAssetChip(host, { assetId: l.assetId, amount: l.amount, from: ownerId });
+      host.appendChild(document.createTextNode(" "));
+    });
+  }
   function appendWord(host, w) {
     var s = document.createElement("span");
     s.className = "kchat-act-verb";
@@ -686,6 +703,22 @@
       // repeating it here read as one account locking ANOTHER. The doc's
       // wording was right all along: "<account> locked their side 🔒".
       if (a.kind === "lock") appendWord(ph, "their side \u{1F512}");
+      return;
+    }
+    // PROP-TICKETS1: a ticket has two sides, so it renders as
+    // "<verb> <give chips> for <want chips> [from <account>]"
+    if (spec.pair) {
+      appendLegChips(ph, a.gives, a.from || a.account);
+      if (spec.pair !== "giveOnly") {
+        appendWord(ph, "for");
+        ph.appendChild(document.createTextNode(" "));
+        appendLegChips(ph, a.wants, a.to || a.account);
+      }
+      if (spec.joiner) {
+        appendWord(ph, spec.joiner);
+        ph.appendChild(document.createTextNode(" "));
+        appendAccount(ph, a.from);
+      }
       return;
     }
     appendAssetChip(ph, a);

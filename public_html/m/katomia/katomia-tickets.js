@@ -413,112 +413,168 @@ async function tktConfirmOfferOut(fromAccountId, assetId){
 }
 
 // ── the ticket section of the asset card ─────────────────────────────────────
-// Called from boardAssetDetail. Renders one block per open ticket on this asset:
-// the legs, the status, and the maker's or taker's actions.
-function tktAssetCardSection({ card, addAction, account, assetId, modal, frozen }){
+// An asset can carry SEVERAL tickets — tickets reserve nothing, so pricing the
+// same carrot twice is legal and occasionally what you want. The first cut drew
+// every ticket's actions into the one card and you got Clone/Tear up/Take
+// repeated per ticket: "the buttons are all duplicated… it's not good UI"
+// (user, 2026-08-21). That is the cost of collapsing the ticket back onto the
+// asset, and the fix is to collapse the VIEW too: one ticket shown at a time,
+// with a chip per ticket to switch between them.
+//
+// The section owns its own buttons rather than pushing them into the card's
+// shared action list, for two reasons: switching tickets has to rebuild only
+// this block, and it keeps the ticket actions visually with the ticket they act
+// on instead of scattered among "Price it…" and "Remove from table".
+function tktAssetCardSection({ card, account, assetId, modal, frozen }){
   const open = tktOpenOrdersForAsset(account, assetId)
   if(!open.length) return
-  // PROP-TICKETS1 phase C1 (user review 2026-08-21). "mine" is per PLAYER, which
-  // is why a ticket on your account A read as yours from account B and the take
-  // branch never rendered. Two accounts under one player does not mean one entity
-  // owns both — they may be representing one of them — and even when it is you,
-  // taking your own ticket is the cheapest possible demo of the whole loop.
-  // So the two halves are decided separately: your player MADE it (manage), and
-  // you hold some OTHER account that could fill it (take). Both can be true.
   const mine = isMyAccount(account)
   const fillers = getAccounts().filter(a => isMyAccount(a) && a.id !== account.id)
 
-  for(const [orderId, order] of open){
-    const filled = tktFilledRatio(order, orderId)
-    const box = document.createElement("div")
-    box.className = "board-assetdetail-rows subtle tkt-cardsec"
-    box.dataset.testid = "tkt-section"
-    box.dataset.orderId = orderId
+  const box = document.createElement("div")
+  box.className = "board-assetdetail-rows subtle tkt-cardsec"
+  box.dataset.testid = "tkt-section"
+  card.appendChild(box)
 
-    const head = document.createElement("div")
-    head.className = "tkt-cardsec-head"
-    head.textContent = "🎟 " + (mine ? "Your ticket" : "Priced ticket")
-    box.appendChild(head)
-    tktLegRows(box, order)
+  const head = document.createElement("div")
+  head.className = "tkt-cardsec-head"
+  head.textContent = (mine ? "🎟 Your ticket" : "🎟 Priced ticket") + (open.length > 1 ? "s · " + open.length : "")
+  box.appendChild(head)
+
+  let sel = 0
+  const one = document.createElement("div")
+
+  if(open.length > 1){
+    const tabs = document.createElement("div")
+    tabs.className = "tkt-tabs"
+    tabs.dataset.testid = "tkt-tabs"
+    open.forEach(([orderId, order], i) => {
+      const b = document.createElement("button")
+      b.className = "tkt-tab"
+      b.dataset.orderId = orderId
+      b.textContent = tktLegText(order.bundle.filter(l => l.amount < 0))
+        + " ⇢ " + tktLegText(order.bundle.filter(l => l.amount > 0))
+      b.onclick = () => { sel = i; paintTabs(); paintOne() }
+      tabs.appendChild(b)
+    })
+    box.appendChild(tabs)
+    var paintTabs = () => [...tabs.children].forEach((b, i) => b.classList.toggle("on", i === sel))
+    paintTabs()
+  } else {
+    var paintTabs = () => {}
+  }
+
+  box.appendChild(one)
+
+  function paintOne(){
+    one.innerHTML = ""
+    const [orderId, order] = open[sel]
+    const filled = tktFilledRatio(order, orderId)
+    one.dataset.orderId = orderId
+
+    tktLegRows(one, order)
 
     const st = document.createElement("div")
     st.className = "tkt-cardsec-state"
     st.textContent = filled > 0
       ? "A take is on the table — locks decide it now."
       : "Open — anyone in the circle can take it."
-    box.appendChild(st)
-    card.appendChild(box)
+    one.appendChild(st)
 
-    if(frozen) continue   // signing: the card still informs, but nothing can act
+    if(frozen) return   // signing: the card still informs, but nothing can act
+
+    const act = (cls, text, title, fn, testid) => {
+      const b = document.createElement("button")
+      b.className = "kbtn " + cls + " board-assetdetail-act tkt-act"
+      b.textContent = text
+      if(title && typeof boardTip === "function") boardTip(b, title)
+      if(testid) b.dataset.testid = testid
+      b.onclick = fn
+      one.appendChild(b)
+      return b
+    }
+
+    // 1. TAKE — offered to anyone holding an account that isn't the maker's.
+    //    On your own ticket that means another of your accounts (phase C).
+    if(filled === 0 && fillers.length) tktTakeControls({ one, act, order, orderId, account, modal, fillers, mine })
 
     if(mine){
-      addAction("kbtn-blue", "⧉ Clone to new ticket", "Start a new ticket from this one", () => {
+      // 2. CLONE — the same builder "Price it…" opens, but PREFILLED from this
+      //    ticket. That is the only difference between the two, and it is worth
+      //    keeping both: clone is "another like this one", price is "start fresh".
+      act("kbtn-blue", "⧉ Clone to a new ticket",
+        "Opens the builder filled in from this ticket — same thing as Price it…, but pre-filled.", () => {
         modal.remove(); tktBuilder(account, order)
       }, "tkt-clone")
+
+      // 3. TEAR UP — last, deliberately: it is the destructive one, and it is
+      //    also the gate on removing the asset from the table (see boardAssetDetail).
       if(filled === 0)
-        addAction("kbtn-red", "✂ Tear up ticket", "Withdraw this price. Nothing already in a basket is touched.", () => {
+        act("kbtn-red", "✂ Tear up this ticket",
+          "Withdraw this price. Nothing already in a basket is touched.", () => {
           if(!confirm("Tear up this ticket? Anything already in baskets is untouched.")) return
           socket.send(JSON.stringify({ type: "game_orderCancel", gameId, orderId }))
           modal.remove()
         }, "tkt-cancel")
+      else {
+        const p = document.createElement("div")
+        p.className = "tkt-cardsec-state"
+        p.textContent = "Recall the fill from the basket before you can tear this up."
+        one.appendChild(p)
+      }
     }
-
-    if(filled > 0) continue   // in play — no second take while a fill is on the table
-    if(mine && !fillers.length) continue   // only the maker's own account is here
-    tktAddTakeAction({ box, addAction, order, orderId, account, modal, fillers, mine })
   }
+  paintOne()
 }
 
-// the taker half — shared so the drag-take gesture (phase B) can reuse the same
-// filler resolution and the same warnings without duplicating them.
-function tktAddTakeAction({ box, addAction, order, orderId, account, modal, fillers, mine }){
-  // never offer the maker's own account as the filler: the backend skips a leg
-  // whose giver and receiver are the same account, so it would be a silent no-op
-  const myAccounts = fillers || getAccounts().filter(a => isMyAccount(a) && a.id !== account.id)
-  if(!myAccounts.length){
-    const p = document.createElement("div")
-    p.className = "tkt-cardsec-state"
-    p.textContent = "Add one of your accounts to the circle first — the take needs somewhere to land."
-    box.appendChild(p)
-    return
-  }
-  let filler = myAccounts[0]
-  if(myAccounts.length > 1){
+// the taker half — shared so the drag gesture and the card resolve the filler
+// and warn about the same things.
+function tktTakeControls({ one, act, order, orderId, account, modal, fillers, mine }){
+  let filler = fillers[0]
+  if(fillers.length > 1){
+    // the dropdown confused a tester ("what's the drop down? is it to push it to
+    // someone else?"), so it says what it is rather than floating unlabelled
+    const lbl = document.createElement("div")
+    lbl.className = "tkt-cardsec-state"
+    lbl.textContent = "Take it into which of your accounts?"
+    one.appendChild(lbl)
     const sel = document.createElement("select")
     sel.className = "tkt-fillersel"
-    myAccounts.forEach(a => sel.appendChild(Object.assign(document.createElement("option"),
+    fillers.forEach(a => sel.appendChild(Object.assign(document.createElement("option"),
       { value: a.id, textContent: tktHac(a) })))
-    sel.onchange = () => filler = myAccounts.find(a => a.id === sel.value) || myAccounts[0]
-    box.appendChild(sel)
+    sel.onchange = () => filler = fillers.find(a => a.id === sel.value) || fillers[0]
+    one.appendChild(sel)
   }
+
   const short = order.bundle.filter(l => l.amount < 0 && tktFreeAmount(account, l.asset) < 0)
   if(short.length){
     const w = document.createElement("div")
     w.className = "tkt-cardsec-state tkt-warn"
     w.textContent = "⚠ Their stall may not cover this ticket — " + [...new Set(short.map(l => l.asset))].join(", ")
       + " is promised on other tickets too. On a real network an oversold deal fails at signing."
-    box.appendChild(w)
+    one.appendChild(w)
   }
+
   if(mine){
     const p = document.createElement("div")
     p.className = "tkt-cardsec-state"
     p.textContent = "This is your own ticket — taking it with another of your accounts trades between them. "
       + "Useful for trying a ticket out; it is a real trade, not a rehearsal."
-    box.appendChild(p)
+    one.appendChild(p)
   }
+
   // THE DIAL'S REAL UI IS THIS LABEL. The maker decided; the taker consents by
   // taking; so the button has to say what taking will do.
   const dial = tktDialOf(order)
-  const say2 = txt => { const p = document.createElement("div"); p.className = "tkt-cardsec-state"; p.textContent = txt; box.appendChild(p) }
-  if(dial === "both") say2("This ticket settles the moment you take it — no locking step.")
-  else if(dial === "maker") say2("The maker's side is already committed. You take it, review, and lock.")
-  addAction("kbtn-blue", mine ? "Take it with another account 🎟" : tktTakeLabel(order),
+  const note = txt => { const p = document.createElement("div"); p.className = "tkt-cardsec-state"; p.textContent = txt; one.appendChild(p) }
+  if(dial === "both") note("This ticket settles the moment you take it — no locking step.")
+  else if(dial === "maker") note("The maker's side is already committed. You take it, review, and lock.")
+
+  act("kbtn-blue", mine ? "Take it with another account 🎟" : tktTakeLabel(order),
     dial === "both" ? "Taking this settles immediately."
       : dial === "maker" ? "The maker has pre-committed; you still lock."
-      : "Their gives land in your basket, your side lands in theirs. Nobody locks automatically.", () => {
-    tktSendFill(orderId, filler)
-    modal?.remove()
-  }, "tkt-take")
+      : "Their gives land in your basket, your side lands in theirs. Nobody locks automatically.",
+    () => { tktSendFill(orderId, filler); modal?.remove() }, "tkt-take")
 }
 
 // one place that speaks game_orderFill, so the card and the drag gesture cannot drift
