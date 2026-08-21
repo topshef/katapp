@@ -2223,20 +2223,48 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
 .board-chip--mutedout{ opacity: .3; filter: saturate(.4); }
 
 /* ── PROP-TICKETS1: priced tickets (?tickets=1 only — body.feat-tickets) ──────
-   Ticket = a new silhouette on the felt (stub with a perforated right edge):
-   a conditional intent, not an asset, so it must not read as a chip. Fill rows
-   keep the normal chip face and gain a gold inset seam = "part of a ticket". */
-body.feat-tickets .board-ticket{
-  background:#fff8dc; color:#1d232a; border:1px solid #c9b96a; border-left:4px solid #c9b96a;
-  border-radius:8px 0 0 8px; cursor:pointer; padding:4px 10px 4px 8px;
-  /* one line, capped: a wrapped ticket becomes the tallest chip in its zone and
-     inflates the counter band (bandFull = tallest chip + 12), shoving store chips
-     off small screens. Tap opens the sheet with the full legs, so ellipsis is safe. */
-  white-space:nowrap; max-width:150px; overflow:hidden; text-overflow:ellipsis;
-  -webkit-mask:radial-gradient(circle at 100% 6px, transparent 4px, #000 4.5px) 0 0/100% 12px;
-  mask:radial-gradient(circle at 100% 6px, transparent 4px, #000 4.5px) 0 0/100% 12px;
+   PHASE A1 (2026-08-21): the ticket is no longer an object on the felt. v1 drew a
+   separate stub-shaped chip with the whole exchange on its face; that is gone. The
+   GIVE-LEG'S OWN CHIP now wears the perforated right edge — "the item remains
+   primary… you'd see some visual cue that it's actually got a ticketing on it".
+
+   Why a mask and not a badge, a border or a pseudo-element:
+   · ZERO HEIGHT COST is a hard constraint — bandFull = tallest chip + 12, so any
+     cue that grows a chip inflates the whole counter band and pushes store chips
+     off a 390px screen (the regression P5a had to fix). A mask changes no layout.
+   · ::before is already taken by the pick flag, and adding position:relative to a
+     chip class is the documented PICKABLE SCATTER trap (see ~870): organic chips
+     are absolutely positioned children, so a relative rule makes them fly.
+   · The right edge is genuinely free — the sleeve and the pick pennant both live
+     on the LEFT — so nothing is displaced.
+   Padding-right buys room so glyphs don't sit in the notches (width, never height).
+
+   THE MASK MUST REACH PAST THE CHIP ON THE LEFT — measured, not theorised. A mask
+   clips everything the element paints to the mask's painting area, and the pick
+   pennant is a ::before at left:calc(-7px - var(--sleeve)) — i.e. OUTSIDE the
+   border box. The first cut of this rule (mask 0 0/100% 10px) silently ate the
+   pennant: a priced chip in a pickable store lost its pickable cue entirely, and
+   nothing in the DOM showed it (computed style still reports the ::before box —
+   masking is paint-time). So: mask-clip:no-clip to stop clipping at the border
+   box, and the tile is widened LEFT by 24px with repeat-y, so the pennant sits in
+   an opaque part of the mask. The gradient's "100%" is the tile's right edge,
+   which the offset keeps exactly on the chip's right edge, so the notches don't
+   move. Guarded by T:TICKETS-QUIET-01. */
+body.feat-tickets .board-chip.board-ticketed{
+  padding-right:11px;
+  border-top-right-radius:0; border-bottom-right-radius:0;
+  -webkit-mask:radial-gradient(circle at 100% 5px, transparent 3px, #000 3.5px) -24px 0/calc(100% + 24px) 10px repeat-y;
+  mask:radial-gradient(circle at 100% 5px, transparent 3px, #000 3.5px) -24px 0/calc(100% + 24px) 10px repeat-y;
+  -webkit-mask-clip:no-clip;
+  mask-clip:no-clip;
 }
-body.feat-tickets .board-ticket-inplay{ opacity:.55; }
+/* a take is on the table — the ticket is spoken for but not yet settled */
+body.feat-tickets .board-chip.board-ticketed-inplay{ opacity:.72; }
+/* the card's ticket section */
+body.feat-tickets .tkt-cardsec{ border-top:1px solid #ece7d8; margin-top:8px; padding-top:8px; }
+body.feat-tickets .tkt-cardsec-head{ font-weight:600; margin-bottom:4px; }
+body.feat-tickets .tkt-cardsec-state{ margin:4px 0; font-size:12.5px; }
+body.feat-tickets .tkt-warn{ color:#b45309; }
 body.feat-tickets .asset.board-fillrow{ box-shadow:inset 0 0 0 2px #c9b96a; }
 body.feat-tickets .tkt-card .tkt-say{ margin:6px 0; font-size:13px; }
 body.feat-tickets .tkt-seclbl{ margin:8px 0 2px; text-transform:uppercase; font-size:11px; letter-spacing:.05em; }

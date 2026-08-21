@@ -2,7 +2,10 @@
 //
 // Two flagged players (?tickets=1) on a fresh playnet circle:
 //  P1 builder  — alice taps her apple → "🎟 Price it…" → builder → ticket exists
-//                in state and renders as a 🎟 chip on BOTH boards
+//                in state and her APPLE CHIP wears the stub on BOTH boards
+//                (phase A1: the standalone ticket object is gone — the cue is a
+//                 perforated right edge on the give-leg's own chip, and manage/
+//                 take live in that chip's asset card)
 //  P2 manage   — tear up (game_orderCancel) removes it everywhere; re-create
 //  P3 take     — bob takes it (game_orderFill 1/1): both legs land as fill-cued
 //                basket rows; alice recalls (group recall — both sides vanish,
@@ -87,14 +90,14 @@ const openTickets = (page) => page.evaluate(() =>
     await alice.locator('[data-testid="tkt-create"]').click()
     await alice.waitForTimeout(1800)
     t("ticket exists in state", (await openTickets(alice)) === 1)
-    t("ticket chip renders (maker)", await alice.locator('[data-testid="tkt-chip"]').count() === 1)
-    t("ticket chip renders (other player)", await bob.locator('[data-testid="tkt-chip"]').count() === 1)
+    t("priced chip wears the stub (maker)", await alice.locator('[data-tkt-chip]').count() === 1)
+    t("priced chip wears the stub (other player)", await bob.locator('[data-tkt-chip]').count() === 1)
 
     // ── P2: tear up, then re-create ─────────────────────────────────────────
-    await alice.locator('[data-testid="tkt-chip"]').click({ force: true })
+    await alice.locator('[data-tkt-chip]').click({ force: true })
     await alice.locator('[data-testid="tkt-cancel"]').click()
     await alice.waitForTimeout(1500)
-    t("tear-up removes it everywhere", (await openTickets(bob)) === 0 && await bob.locator('[data-testid="tkt-chip"]').count() === 0)
+    t("tear-up removes it everywhere", (await openTickets(bob)) === 0 && await bob.locator('[data-tkt-chip]').count() === 0)
 
     await alice.locator('[data-chip-role="store"][data-asset-id="apple"]').first().click({ force: true })
     await alice.locator('[data-testid="tkt-price-it"]').click()
@@ -103,7 +106,7 @@ const openTickets = (page) => page.evaluate(() =>
     await alice.waitForTimeout(1800)
 
     // ── P3: bob takes it ────────────────────────────────────────────────────
-    await bob.locator('[data-testid="tkt-chip"]').click({ force: true, timeout: 8000 })
+    await bob.locator('[data-tkt-chip]').click({ force: true, timeout: 8000 })
     await bob.locator('[data-testid="tkt-take"]').click({ timeout: 8000 })
     await bob.waitForTimeout(1800)
     const fillRows = async page => page.evaluate(() => document.querySelectorAll(".board-fillrow").length)
@@ -117,10 +120,10 @@ const openTickets = (page) => page.evaluate(() =>
     await recall.first().click({ timeout: 8000 })
     await alice.waitForTimeout(1800)
     t("recall tears out BOTH sides", (await fillRows(alice)) === 0 && (await fillRows(bob)) === 0)
-    t("ticket reopens on the stall", await bob.locator('[data-testid="tkt-chip"]').count() === 1)
+    t("ticket reopens on the stall", await bob.locator('[data-tkt-chip]').count() === 1)
 
     // re-take, lock both → instant playnet settlement
-    await bob.locator('[data-testid="tkt-chip"]').click({ force: true })
+    await bob.locator('[data-tkt-chip]').click({ force: true })
     await bob.locator('[data-testid="tkt-take"]').click()
     await bob.waitForTimeout(1500)
     const accA = await alice.evaluate(() => getAccounts().filter(a => isMyAccount(a))[0]?.id)
@@ -132,7 +135,7 @@ const openTickets = (page) => page.evaluate(() =>
     const bApp = await bob.evaluate(() => getAccounts().filter(a => isMyAccount(a))[0]?.assets?.apple)
     t("settled: maker got the banana", aBan === 2, "banana=" + aBan)
     t("settled: taker got the apple", bApp === 2, "apple=" + bApp)
-    t("settled ticket leaves the stall", await alice.locator('[data-testid="tkt-chip"]').count() === 0)
+    t("settled ticket leaves the stall", await alice.locator('[data-tkt-chip]').count() === 0)
   } catch(e){ fails.push("harness: " + String(e.message).slice(0, 200)) }
   await br.close()
 

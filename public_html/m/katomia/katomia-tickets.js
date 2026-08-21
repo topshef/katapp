@@ -110,22 +110,130 @@ const tktLegText = legs => legs.map(l =>
 
 const tktKnownAssets = () => [...new Set(getAccounts().flatMap(a => Object.keys(a.assets || {})))]
 
-// ── phase 2: felt render (called from boardStoreChips under flag guard) ──────
-function tktRenderStoreTickets(account, container){
-  for(const [orderId, o] of tktOrdersFor(account)){
-    const f = tktFilledRatio(o, orderId)
-    if(f >= 1) continue   // fully taken/settled — nothing left on the stall
-    const gives = o.bundle.filter(l => l.amount < 0), wants = o.bundle.filter(l => l.amount > 0)
-    const el = document.createElement("div")
-    el.className = "asset board-chip board-ticket" + (f > 0 ? " board-ticket-inplay" : "")
-    el.dataset.testid = "tkt-chip"
-    el.dataset.orderId = orderId
-    el.textContent = "🎟 " + tktLegText(gives) + " ⇢ " + tktLegText(wants)
-    if(typeof boardTip === "function") boardTip(el, f > 0 ? "Ticket — a take is on the table"
-      : isMyAccount(account) ? "Your priced ticket — tap to manage" : "Priced ticket — tap to take")
-    el.onclick = e => { e.stopPropagation(); tktSheet(orderId, o, account, f) }
-    container.appendChild(el)
+// ── phase A1: the QUIET ticket ───────────────────────────────────────────────
+// (build plan tickets-build-plan-20260821.html §8 · design tickets-quiet-levers-20260821.html §2)
+//
+// v1 drew a ticket as a SEPARATE object on the felt — a second class of chip with
+// the whole exchange printed across its face. The user's steer: "the price is not
+// primary to the display, the item remains primary… you'd still see the chicken
+// and you'd see some visual cue that it's actually got a ticketing on it. Make
+// them ticket-ended." So the standalone chip is GONE. The give-leg's own chip
+// wears a perforated right edge, and everything else lives in the asset card,
+// which already opens on any chip, yours or theirs.
+//
+// What went away is a new KIND of object, not necessarily a second chip: pricing
+// part of a stack still splits $100 into $95 + $5 (phase A2) — but both are money.
+
+// open (not fully filled) tickets whose GIVE side includes this asset on this account
+function tktOpenOrdersForAsset(account, assetId){
+  return tktOrdersFor(account).filter(([oid, o]) =>
+    tktFilledRatio(o, oid) < 1 && o.bundle.some(l => l.amount < 0 && String(l.asset) === String(assetId)))
+}
+
+// called per store chip from boardStoreChips (flag-guarded). Adds a class and a
+// tooltip; never adds a node, never changes the chip's height — a taller chip
+// becomes the tallest in its zone and inflates the counter band, which is the
+// regression P5a had to fix (katomia-board.css bandFull note).
+function tktMarkStoreChip(el, account, assetId){
+  const open = tktOpenOrdersForAsset(account, assetId)
+  if(!open.length) return
+  el.classList.add("board-ticketed")
+  if(open.some(([oid, o]) => tktFilledRatio(o, oid) > 0)) el.classList.add("board-ticketed-inplay")
+  el.dataset.tktChip = "1"                    // stable door for the QA harness
+  el.dataset.orderId = open[0][0]
+  if(open.length > 1) el.dataset.tktCount = open.length
+  if(typeof boardTip === "function") boardTip(el, isMyAccount(account)
+    ? "Priced — your ticket is on this. Tap to see it."
+    : "Priced — tap to see the ticket and take it.")
+}
+
+// ── the ticket section of the asset card ─────────────────────────────────────
+// Called from boardAssetDetail. Renders one block per open ticket on this asset:
+// the legs, the status, and the maker's or taker's actions.
+function tktAssetCardSection({ card, addAction, account, assetId, modal, frozen }){
+  const open = tktOpenOrdersForAsset(account, assetId)
+  if(!open.length) return
+  const mine = isMyAccount(account)
+
+  for(const [orderId, order] of open){
+    const filled = tktFilledRatio(order, orderId)
+    const box = document.createElement("div")
+    box.className = "board-assetdetail-rows subtle tkt-cardsec"
+    box.dataset.testid = "tkt-section"
+    box.dataset.orderId = orderId
+
+    const head = document.createElement("div")
+    head.className = "tkt-cardsec-head"
+    head.textContent = "🎟 " + (mine ? "Your ticket" : "Priced ticket")
+    box.appendChild(head)
+    tktLegRows(box, order)
+
+    const st = document.createElement("div")
+    st.className = "tkt-cardsec-state"
+    st.textContent = filled > 0
+      ? "A take is on the table — locks decide it now."
+      : "Open — anyone in the circle can take it."
+    box.appendChild(st)
+    card.appendChild(box)
+
+    if(frozen) continue   // signing: the card still informs, but nothing can act
+
+    if(mine){
+      addAction("kbtn-blue", "⧉ Clone to new ticket", "Start a new ticket from this one", () => {
+        modal.remove(); tktBuilder(account, order)
+      }, "tkt-clone")
+      if(filled === 0)
+        addAction("kbtn-red", "✂ Tear up ticket", "Withdraw this price. Nothing already in a basket is touched.", () => {
+          if(!confirm("Tear up this ticket? Anything already in baskets is untouched.")) return
+          socket.send(JSON.stringify({ type: "game_orderCancel", gameId, orderId }))
+          modal.remove()
+        }, "tkt-cancel")
+      continue
+    }
+
+    if(filled > 0) continue   // in play — no second take while a fill is on the table
+    tktAddTakeAction({ box, addAction, order, orderId, account, modal })
   }
+}
+
+// the taker half — shared so the drag-take gesture (phase B) can reuse the same
+// filler resolution and the same warnings without duplicating them.
+function tktAddTakeAction({ box, addAction, order, orderId, account, modal }){
+  const myAccounts = getAccounts().filter(a => isMyAccount(a))
+  if(!myAccounts.length){
+    const p = document.createElement("div")
+    p.className = "tkt-cardsec-state"
+    p.textContent = "Add one of your accounts to the circle first — the take needs somewhere to land."
+    box.appendChild(p)
+    return
+  }
+  let filler = myAccounts[0]
+  if(myAccounts.length > 1){
+    const sel = document.createElement("select")
+    sel.className = "tkt-fillersel"
+    myAccounts.forEach(a => sel.appendChild(Object.assign(document.createElement("option"),
+      { value: a.id, textContent: tktHac(a) })))
+    sel.onchange = () => filler = myAccounts.find(a => a.id === sel.value) || myAccounts[0]
+    box.appendChild(sel)
+  }
+  const short = order.bundle.filter(l => l.amount < 0 && tktFreeAmount(account, l.asset) < 0)
+  if(short.length){
+    const w = document.createElement("div")
+    w.className = "tkt-cardsec-state tkt-warn"
+    w.textContent = "⚠ Their stall may not cover this ticket — " + [...new Set(short.map(l => l.asset))].join(", ")
+      + " is promised on other tickets too. On a real network an oversold deal fails at signing."
+    box.appendChild(w)
+  }
+  addAction("kbtn-blue", "Take it 🎟", "Their gives land in your basket, your side lands in theirs. Nobody locks automatically.", () => {
+    tktSendFill(orderId, filler)
+    modal?.remove()
+  }, "tkt-take")
+}
+
+// one place that speaks game_orderFill, so the card and the drag gesture cannot drift
+function tktSendFill(orderId, fillerAccount){
+  socket.send(JSON.stringify({ type: "game_orderFill", gameId, orderId,
+    numerator: 1, denominator: 1, fillerAccountId: tktHac(fillerAccount) }))
 }
 
 // ── sheets (shared skeleton mirrors boardAssetDetail's modal) ────────────────
@@ -183,46 +291,10 @@ function tktLegRows(card, order){
   return rows
 }
 
-// ── phase 2 (manage) + phase 3 (take) ────────────────────────────────────────
-function tktSheet(orderId, order, account, filled){
-  const mine = isMyAccount(account)
-  const { modal, card, say, addAction } = tktModal(mine ? "🎟 Your ticket" : "🎟 Ticket")
-  tktLegRows(card, order)
-  say(filled > 0 ? "Status: a take is on the table — locks decide it now." : "Status: open — anyone in the circle can take it.")
-
-  if(mine){
-    addAction("kbtn-blue", "⧉ Clone to new ticket", () => { modal.remove(); tktBuilder(account, order) }, "tkt-clone")
-    if(filled === 0) addAction("kbtn-red", "✂ Tear up ticket", () => {
-      if(!confirm("Tear up this ticket? Anything already in baskets is untouched.")) return
-      socket.send(JSON.stringify({ type: "game_orderCancel", gameId, orderId }))
-      modal.remove()
-    }, "tkt-cancel")
-    else say("Recall the fill from the basket first if you want to tear it up.")
-    return
-  }
-
-  // taker view — v1 tickets are all-or-nothing, so the take is always 1/1
-  const myAccounts = getAccounts().filter(a => isMyAccount(a))
-  if(!myAccounts.length){ say("Add one of your accounts to the circle first — the take needs somewhere to land."); return }
-  if(filled > 0) return   // in play — no second take while a fill is on the table
-  let filler = myAccounts[0]
-  if(myAccounts.length > 1){
-    const sel = document.createElement("select")
-    sel.className = "tkt-fillersel"
-    myAccounts.forEach(a => sel.appendChild(Object.assign(document.createElement("option"), { value: a.id, textContent: tktHac(a) })))
-    sel.onchange = () => filler = myAccounts.find(a => a.id === sel.value) || myAccounts[0]
-    card.appendChild(sel)
-  }
-  say("Taking swaps the whole ticket: their gives land in your basket, your side lands in theirs. Nobody locks automatically.")
-  const short = order.bundle.filter(l => l.amount < 0 && tktFreeAmount(account, l.asset) < 0)
-  if(short.length) say("⚠ Their stall may not cover this ticket — " + [...new Set(short.map(l => l.asset))].join(", ")
-    + " is promised on other tickets too. On a real network an oversold deal fails at signing.")
-  addAction("kbtn-blue", "Take it 🎟", () => {
-    socket.send(JSON.stringify({ type: "game_orderFill", gameId, orderId,
-      numerator: 1, denominator: 1, fillerAccountId: tktHac(filler) }))
-    modal.remove()
-  }, "tkt-take")
-}
+// (phase A1: tktSheet — the standalone ticket modal — retired with the standalone
+// ticket chip that was its only caller. Manage and take now live in the asset
+// card's ticket section above, which is the "variant of the modal" the steer asked
+// for. tktModal/tktLegRows stay: the builder still uses them.)
 
 // ── phase 1: builder ─────────────────────────────────────────────────────────
 // Slim two-stack form (give / want) in the join-rule-composer spirit. Amounts are
