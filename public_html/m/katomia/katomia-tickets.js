@@ -50,6 +50,49 @@ async function tktBuildOrder(bundle){
   return { bundle, minFill, timeInForce: "GTC", expiresAt: 0, clientOrderId, issuedAt, matchConditions: null, intentSignature }
 }
 
+// ── phase D: the dial ────────────────────────────────────────────────────────
+// Negotiable · Firm · Instant — one maker-set control, not a matrix of booleans,
+// and the whole sliding scale from proposal to order lives on it.
+//
+// Firm is the default because a ticket exists for ASYNCHRONY: one that needs the
+// maker to come back and lock is an appointment, not a ticket. Instant is nerd
+// mode only, permanently (D8) — it is the position that most turns a circle into
+// a shop.
+//
+// NOT IN THE SIGNED PAYLOAD YET, and that is an interlock rather than an
+// oversight: the dial changes WHEN VALUE MOVES, so it is execution semantics and
+// belongs inside the signature (a new SIG_SPECS id, phase I, riding
+// SOURCE-UNIFY1). Until then anything other than Negotiable is refused off
+// playnet — disabled here with the reason on it, and refused again by the
+// backend so the guarantee does not depend on this file.
+const TKT_DIAL = [
+  { v: "none",  label: "Negotiable", blurb: "A take lays both sides out. Nobody locks — haggle from there." },
+  { v: "maker", label: "Firm",       blurb: "Your side locks when someone takes it. They still review and lock." },
+  { v: "both",  label: "Instant",    blurb: "Both sides lock and it settles straight away. A vending machine." },
+]
+const TKT_DIAL_DEFAULT = "maker"
+
+const tktIsPlaynet = () => (gameMeta?.network || "playnet") === "playnet"
+// Instant can only be instant where a connected pair may settle on its own.
+// Under "active"/"all" the circle waits for people who are not in this trade, so
+// the position would be a promise the circle cannot keep — disabled, and said,
+// rather than silently downgraded.
+const tktLockRule = () => gameMeta?.lockRule || "cluster"
+function tktDialAvailable(v){
+  if(v === "none") return { ok: true }
+  if(!tktIsPlaynet()) return { ok: false, why: "playnet only until the dial is inside the signed payload (SOURCE-UNIFY1)" }
+  if(v === "both" && tktLockRule() !== "cluster")
+    return { ok: false, why: "this circle settles only when everyone agrees, so a take can't settle on its own" }
+  return { ok: true }
+}
+const tktDialOf = order => String(order?.autoLock || "none")
+function tktTakeLabel(order){
+  const d = tktDialOf(order)
+  if(d === "both")  return "Buy now — settles instantly 🎟"
+  if(d === "maker") return "Take at this price 🎟"
+  return "Take it — you'll both haggle 🎟"
+}
+
 // ── model helpers ────────────────────────────────────────────────────────────
 const tktHac = acc => acc?.hac ?? (String(acc?.id || "").split(":")[1] || acc?.label || acc?.id)
 
@@ -463,8 +506,16 @@ function tktAddTakeAction({ box, addAction, order, orderId, account, modal, fill
       + "Useful for trying a ticket out; it is a real trade, not a rehearsal."
     box.appendChild(p)
   }
-  addAction("kbtn-blue", mine ? "Take it with another account 🎟" : "Take it 🎟",
-    "Their gives land in your basket, your side lands in theirs. Nobody locks automatically.", () => {
+  // THE DIAL'S REAL UI IS THIS LABEL. The maker decided; the taker consents by
+  // taking; so the button has to say what taking will do.
+  const dial = tktDialOf(order)
+  const say2 = txt => { const p = document.createElement("div"); p.className = "tkt-cardsec-state"; p.textContent = txt; box.appendChild(p) }
+  if(dial === "both") say2("This ticket settles the moment you take it — no locking step.")
+  else if(dial === "maker") say2("The maker's side is already committed. You take it, review, and lock.")
+  addAction("kbtn-blue", mine ? "Take it with another account 🎟" : tktTakeLabel(order),
+    dial === "both" ? "Taking this settles immediately."
+      : dial === "maker" ? "The maker has pre-committed; you still lock."
+      : "Their gives land in your basket, your side lands in theirs. Nobody locks automatically.", () => {
     tktSendFill(orderId, filler)
     modal?.remove()
   }, "tkt-take")
@@ -583,6 +634,47 @@ function tktBuilder(account, prefill){
     }
   }
   render()
+
+  // ── the dial, nerd mode only ───────────────────────────────────────────────
+  // Normal mode never sees this: it gets Firm and no control at all (§6 of the
+  // design). document.body.nerd is the same gate every other lab knob uses.
+  let autoLock = TKT_DIAL_DEFAULT
+  if(document.body.classList.contains("nerd")){
+    const lbl = document.createElement("div")
+    lbl.className = "tkt-seclbl subtle"
+    lbl.textContent = "When someone takes it"
+    card.appendChild(lbl)
+    const dial = document.createElement("div")
+    dial.className = "tkt-dial"
+    dial.dataset.testid = "tkt-dial"
+    const blurb = document.createElement("div")
+    blurb.className = "tkt-cardsec-state"
+    const paint = () => {
+      dial.innerHTML = ""
+      for(const opt of TKT_DIAL){
+        const avail = tktDialAvailable(opt.v)
+        const b = document.createElement("button")
+        b.className = "tkt-dial-opt" + (autoLock === opt.v ? " on" : "") + (avail.ok ? "" : " off")
+        b.textContent = opt.label
+        b.dataset.dial = opt.v
+        if(!avail.ok){ b.disabled = true; b.title = avail.why }
+        b.onclick = () => { if(!avail.ok) return; autoLock = opt.v; paint() }
+        dial.appendChild(b)
+      }
+      const cur = TKT_DIAL.find(o => o.v === autoLock)
+      const bad = tktDialAvailable(autoLock)
+      blurb.textContent = cur ? cur.blurb : ""
+      if(!bad.ok) blurb.textContent += "  ⚠ " + bad.why
+    }
+    // never open on a position this circle cannot honour
+    if(!tktDialAvailable(autoLock).ok) autoLock = "none"
+    paint()
+    card.appendChild(dial)
+    card.appendChild(blurb)
+  } else if(!tktDialAvailable(TKT_DIAL_DEFAULT).ok){
+    autoLock = "none"
+  }
+
   say("Anyone in the circle can take this ticket — all-or-nothing. You can tear it up any time before it's taken.")
 
   addAction("kbtn-blue", "Create ticket 🎟", async () => {
@@ -604,7 +696,10 @@ function tktBuilder(account, prefill){
                     ...want.map(l => ({ accountId: hac, asset: l.asset, amount: l.raw }))]
     const orderType = bundle.length === 2 ? (bundle.some(l => String(l.asset).includes("#")) ? "simple-nft" : "simple-ft") : "exotic"
     const order = await tktBuildOrder(bundle)
-    socket.send(JSON.stringify({ type: "game_orderCreate", gameId, order: { ...order, orderType } }))
+    // last word on the interlock: never post a dial this circle/network cannot
+    // honour, whatever the form happened to be showing
+    const dialOut = tktDialAvailable(autoLock).ok ? autoLock : "none"
+    socket.send(JSON.stringify({ type: "game_orderCreate", gameId, order: { ...order, orderType, autoLock: dialOut } }))
     modal.remove()
   }, "tkt-create")
 }

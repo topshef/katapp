@@ -130,7 +130,7 @@ const fillRows = page => page.evaluate(() => document.querySelectorAll(".board-f
 
     // and it settles like any other fill
     const ids = await solo.evaluate(() => getAccounts().filter(a => isMyAccount(a)).map(a => a.id))
-    for(const id of ids) await solo.evaluate(i => socket.send(JSON.stringify({ type: "game_toggleLock", gameId, accountId: i })), id)
+    for(const id of ids) await solo.evaluate(i => socket.send(JSON.stringify({ type: "game_toggleLock", gameId, accountId: i, to: "lock" })), id)
     await solo.waitForTimeout(3200)
     const after = await solo.evaluate(() => getAccounts().filter(a => isMyAccount(a)).map(a => ({ id: a.id, apple: a.assets?.apple || 0, banana: a.assets?.banana || 0 })))
     t("it settles like any other fill — the apple moved between the accounts",

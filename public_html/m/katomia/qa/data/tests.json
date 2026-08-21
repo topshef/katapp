@@ -940,7 +940,7 @@
     {
       "id": "TICKETS-01",
       "title": "The ticket loop, end to end on playnet",
-      "asserts": "Two flagged players: build a ticket from the asset card (Price it… → builder), it renders on both boards; tear-up removes it; a take posts both legs as fill-cued basket rows with no auto-lock; recalling one leg tears out both sides and reopens the ticket; re-take + both lock settles instantly and the ticket leaves the stall.",
+      "asserts": "Two flagged players: build a ticket from the asset card (Price it… → builder), it renders on both boards; tear-up removes it; a take posts both legs as fill-cued basket rows and (phase D, Firm default) commits the maker's side only; recalling one leg tears out both sides and reopens the ticket; re-take + both lock settles instantly and the ticket leaves the stall.",
       "kind": "e2e-feature",
       "network": "playnet",
       "harness": "qa/harness/tickets-check.cjs",
@@ -950,7 +950,7 @@
       },
       "schedule": "manual (run after every tickets phase lands)",
       "reports": "kflow test:verdict → QA grid",
-      "notes": "Phases 1-3 of docs/tickets-phased-plan-20260820.html in one sweep: builder (P1), render+manage (P2), take ceremony + group recall + settlement (P3). Requires ?tickets=1. v1 tickets are all-or-nothing (minFill 1/1). Uses ?hapi_base= like TICKETS-BASE-01.",
+      "notes": "Phases 1-3 of docs/tickets-phased-plan-20260820.html in one sweep: builder (P1), render+manage (P2), take ceremony + group recall + settlement (P3). Requires ?tickets=1. v1 tickets are all-or-nothing (minFill 1/1). Uses ?hapi_base= like TICKETS-BASE-01. UPDATED phase D 2026-08-21: the default dial is now Firm, so a take auto-locks the MAKER. This suite locks with the absolute to:'lock' form — the legacy toggle would UNLOCK an already-committed maker and nothing would settle.",
       "dimension": "playnet · full ticket loop",
       "cost": "free",
       "what_it_does": [
@@ -1061,6 +1061,36 @@
       "fails_when": "The take branch closes again because isMyAccount is per player; the maker's own account leaks into the filler list (a silent no-op fill); provenance stops being written or projected; or something starts calling it a self-fill.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-multiacct-check.cjs",
       "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-MULTIACCT-01.n) prints PASS/FAIL with detail."
+    },
+    {
+      "id": "TICKETS-DIAL-01",
+      "title": "The settlement dial — Negotiable · Firm · Instant, and both interlocks",
+      "asserts": "Normal mode never sees the dial; nerd mode shows three positions with Firm selected. Negotiable leaves nobody locked. Firm locks the MAKER's side only and one taker action then settles it. Instant settles with no locking step at all. On a table where someone else is already locked, an Instant take STANDS DOWN — it neither settles nor leaves anyone auto-locked. Under lock rule 'all' the Instant position is disabled and says why, while Firm stays. Off playnet every position but Negotiable is refused, with a reason naming the signed-payload gap.",
+      "kind": "e2e-feature",
+      "network": "playnet",
+      "harness": "qa/harness/tickets-dial-check.cjs",
+      "run": {
+        "lab1": "node tickets-dial-check.cjs",
+        "any": "API=<backend> BASE=<site> node tickets-dial-check.cjs"
+      },
+      "schedule": "manual (run with every tickets phase)",
+      "reports": "kflow test:verdict → QA grid",
+      "notes": "Phase D of docs/tickets-build-plan-20260821.html. Requires ?tickets=1 and a BACKEND carrying the orderFill wrapper in katomia.js. The dial is the whole proposal-to-order sliding scale on one maker-set control, and its real UI is the TAKE BUTTON'S LABEL — the maker decides, the taker consents by taking, so the button must state what taking does; the labels are asserted here. Two interlocks are safety, not polish: off playnet the dial is unsigned execution semantics (it is outside the signed payload AND an auto-lock carries no signed board basis, because it bypasses toggleLock), and Instant cannot be instant unless a connected pair may settle alone. Both are refused in the UI and again in the backend. The stand-down rule exists because resetLocksIfNeeded clears EVERY lock in the circle on any fill — auto-locking on a table someone else was mid-agreement on would be consenting to a board nobody has seen. PROP-LOCKSCOPE1 is the properly engineered fix, after which this can relax to 'this cluster is quiet'.",
+      "dimension": "playnet · settlement dial + interlocks",
+      "cost": "free",
+      "what_it_does": [
+        "Assert the dial is absent in normal mode and present with three positions and Firm preselected in nerd mode.",
+        "Negotiable: create, take, assert nobody locked and the button said 'haggle'.",
+        "Firm (fresh circle): assert the button says 'at this price', the maker's side locks, the taker's does not, nothing settled yet, and ONE taker lock then settles it.",
+        "Instant (fresh circle): assert the button says it settles instantly, and that it settles with no locking step.",
+        "Stand-down (fresh circle): lock someone else first, then take an Instant ticket — assert it did NOT settle and left nobody auto-locked.",
+        "Lock rule 'all': assert Instant is disabled with a reason and Firm still offered.",
+        "Drive the availability rule with a stubbed mainnet gameMeta and assert only Negotiable survives, with a reason naming the signing gap."
+      ],
+      "pass_means": "The maker can choose how far along the proposal-to-order scale a ticket sits, the taker is never surprised by it, and the lever cannot produce unsigned execution semantics or an unkeepable promise.",
+      "fails_when": "A dial position stops matching its button label; the stand-down rule regresses and a take auto-locks over someone else's torn-up lock; or either interlock is weakened so a non-Negotiable ticket can be posted off playnet or under a lock rule that cannot honour it.",
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-dial-check.cjs",
+      "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-DIAL-01.n) prints PASS/FAIL with detail."
     }
   ],
   "expected_fail": {

@@ -2308,3 +2308,13 @@ body.feat-tickets .tkt-line .tkt-del{ flex:0 0 auto; background:none; border:non
 body.feat-tickets .tkt-addline{ display:block; margin:2px 0 6px; background:none; border:none; cursor:pointer; }
 body.feat-tickets .tkt-fillersel{ margin:6px 0; width:100%; }
 body.feat-tickets .tkt-act{ margin-top:8px; }
+
+/* D — the settlement dial (nerd mode only; normal mode gets Firm and no control) */
+body.feat-tickets .tkt-dial{ display:flex; gap:0; margin:6px 0 2px; border:1px solid #d8d2c0; border-radius:9px; overflow:hidden; }
+body.feat-tickets .tkt-dial-opt{
+  flex:1; padding:7px 6px; font-size:12.5px; background:#fff; border:0;
+  border-right:1px solid #e6e1d2; cursor:pointer; color:inherit;
+}
+body.feat-tickets .tkt-dial-opt:last-child{ border-right:0; }
+body.feat-tickets .tkt-dial-opt.on{ background:#eef4ff; box-shadow:inset 0 -3px 0 #2f6fed; font-weight:600; }
+body.feat-tickets .tkt-dial-opt.off{ opacity:.42; cursor:not-allowed; }
