@@ -2883,6 +2883,11 @@ body.spectating .kchat-send{ display:none; }   /* watchers can't message — ser
 .kchat-row--sys b{ color:#8a7a3f; }
 .kchat-sys-emoji{ font-size:15px; line-height:1; margin-top:1px; flex:none; }
 .kchat-row--sys a{ color:#2f6fed; overflow-wrap:anywhere; }
+/* KATO-PERSONA1: Kato (the official voice, brand-ring badge) gets a soft tint so
+   system rows read differently from players/bots at a glance — visual channel on
+   top of the name, per the impersonation-mitigation steer (user 2026-08-21).
+   Host rows (🎪) deliberately NOT tinted: host words are not Katomia's. */
+.kchat-row--kato{ background:rgba(201,180,88,.10); border-radius:6px; }
 
 /* ── BOARD-ACTIONMSG1 action rows (user 2026-08-04) ────────────────────────
    A player DOING something, not saying it. Same colour bar and avatar as their

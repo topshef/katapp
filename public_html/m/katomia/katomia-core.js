@@ -120,6 +120,13 @@
 
       localStorage.setItem(PLAYER_KEY_STORAGE, JSON.stringify({ publicKeyJwk, privateKeyJwk }))
 
+      // KATO-PERSONA1: a freshly minted keypair = a brand-new user (key scope IS
+      // user scope here — see the rotation note above). Flag Kato's one-time
+      // self-intro; katomia-chat.js delivers it in the first circle feed they
+      // land in and sets katoIntroSeen. Existing browsers never enter this
+      // branch, so no backfill (user decision 2026-08-21: new users only).
+      try { if (localStorage.getItem("katoIntroSeen") !== "1") localStorage.setItem("katoIntroPending", "1") } catch (e) {}
+
       return { publicKey: keypair.publicKey, privateKey: keypair.privateKey, publicKeyJwk }
     }
     

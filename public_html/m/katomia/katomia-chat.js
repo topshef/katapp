@@ -793,7 +793,28 @@
         // Katomia: a circle can be created by anyone and say anything.
         var bot = document.createElement("span");
         bot.className = "kchat-sys-emoji";
-        bot.textContent = m.speaker === "host" ? "🎪" : "🤖";
+        // KATO-PERSONA1 (user 2026-08-21): Kato rows drop the generic 🤖 for the
+        // brand ring — a simplified inline copy of assets/katomia-ring.svg (the
+        // TABTITLE1 favicon donut), so the official voice is visually distinct
+        // from any future bot at a glance, not just by name. The row also gets
+        // a .kchat-row--kato tint below. Host rows keep the 🎪 tent. Inline SVG
+        // (no asset path — the /board/<id> rewrite makes relative paths route-
+        // dependent, the BOARD-CLEANUP3 trap). aria-hidden: "Kato" is already
+        // the row's visible speaker text.
+        if (m.speaker === "host") bot.textContent = "🎪";
+        else {
+          bot.innerHTML =
+            '<svg viewBox="0 0 64 64" width="15" height="15" aria-hidden="true" style="display:block">' +
+            '<g fill="none" stroke-width="11">' +
+            '<path d="M32 10A22 22 0 0 1 51 21" stroke="#f0754c"/>' +
+            '<path d="M51 21A22 22 0 0 1 51 43" stroke="#c7f04c"/>' +
+            '<path d="M51 43A22 22 0 0 1 32 54" stroke="#4cf09e"/>' +
+            '<path d="M32 54A22 22 0 0 1 13 43" stroke="#4c9ef0"/>' +
+            '<path d="M13 43A22 22 0 0 1 13 21" stroke="#9e4cf0"/>' +
+            '<path d="M13 21A22 22 0 0 1 32 10" stroke="#f04c9e"/>' +
+            '</g></svg>';
+          row.classList.add("kchat-row--kato");
+        }
         row.appendChild(bot);
       } else if (typeof kemojiEl === "function") {
         row.appendChild(kemojiEl(avatarKey(m.playerId), { size: 16, bg: c }));
@@ -1356,6 +1377,31 @@
     deliverAck("Feedback sent — thank you." + (d.tag ? " Reference " + d.tag + "." : ""),
       d.url ? { link: d.url, linkText: "View your feedback" } : null);
   });
+
+  // ── KATO-PERSONA1: Kato's one-time self-intro ──────────────────────────────
+  // Flagged by katomia-core.js when a brand-new intent keypair is minted;
+  // delivered here because this script only loads where a circle feed exists —
+  // so "the first circle feed the user is in" falls out for free. Local rows
+  // (never broadcast, same channel as the feedback ack). Copy notes (user,
+  // 2026-08-21): Kato REPRESENTS Katomia — the app personified, not an employee
+  // ("the voice of Katomia", not "I work here"); keeps users INFORMED, not
+  // "explains" (patronising to those who know); promises nothing interactive —
+  // Kato can't answer yet (NORA1 unbuilt), so the only invitation is the
+  // long-press feedback path, which moved HERE from the per-circle welcome so
+  // joining every circle no longer repeats it. The 1.8s delay lets the host's
+  // welcome land first: host greets the circle, then Kato jumps in — once ever.
+  // When the general-level feed exists, deliver there instead (deliverAck seam).
+  // The flag test lives INSIDE the timeout: the keypair mints asynchronously
+  // after this script's init, so a check at init time ran before the flag
+  // existed and the intro slipped to the user's SECOND circle (probe-caught).
+  setTimeout(function () {
+    try {
+      if (localStorage.getItem("katoIntroPending") !== "1" || localStorage.getItem("katoIntroSeen") === "1") return;
+      system("Hi, I'm Kato — the voice of Katomia. I'll keep you posted here in the feed as things happen.");
+      system("Your intent key is set up — it's what signs your agreements. If anything's unclear, long-press anywhere to ask a question or send feedback.");
+      localStorage.setItem("katoIntroSeen", "1"); localStorage.removeItem("katoIntroPending");
+    } catch (e2) {}
+  }, 1800);
 
   document.addEventListener("click", function (e) {
     if (e.target.closest("[data-menu-chat]")) { e.preventDefault(); openFull(true); }
