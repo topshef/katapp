@@ -12,6 +12,32 @@ const HAPI_BASE_ALLOWED_OVERRIDES = [
   'charlie.katlab.kpay.live',
 ];
 
+// Shared reader for .env_hapi. Exists because a MALFORMED env file is otherwise
+// silent and catastrophic: parse_ini_file() returns FALSE, every lookup below yields
+// '', HAPI_BASE falls back to the hard-coded hapi4.hbar.live, and because that host is
+// unreachable the page's synchronous widget <script> tag HANGS the browser — a total
+// outage presenting as "the site is slow". Lived through on pat 2026-08-21.
+//
+// THE TRAP: '#' is NOT a comment character in PHP ini files (support was dropped in
+// PHP 7) — only ';' is. A '#' line is parsed as a key/value, so one containing a
+// reserved character such as '(' is a hard syntax error that voids the WHOLE file.
+// Several .env_hapi files across the estate still carry '#' comments that happen to
+// parse; treat them as landmines and write ';' when you edit one.
+function read_hapi_env() {
+  $envPath = dirname($_SERVER['DOCUMENT_ROOT']) . '/.env_hapi';
+  if (!is_readable($envPath)) return [];
+
+  $env = @parse_ini_file($envPath);
+  if ($env === false) {
+    // Loud, not silent: this is a config outage, not a missing optional value.
+    if (function_exists('kmon'))
+      kmon("{$_SERVER['SERVER_NAME']} .env_hapi UNPARSEABLE (ini syntax; '#' is not a comment, use ';') PJ87554", 'fail', $_SERVER);
+    error_log("hapi_base: .env_hapi at $envPath failed to parse — falling back, expect a dead backend host");
+    return [];
+  }
+  return $env;
+}
+
 // OPS-GCE1 option A (2026-08-21): the origin the SERVER uses to reach the backend,
 // returned as a full "scheme://host[:port]" prefix. Defaults to https://<HAPI_BASE>,
 // which is exactly what every server-side caller used to build by hand.
@@ -33,9 +59,8 @@ const HAPI_BASE_ALLOWED_OVERRIDES = [
 // certificate matching its address — https to 127.0.0.1 would fail verification,
 // which is the whole reason the plain get_hapi_base() path could not be reused.
 function get_hapi_origin() {
-  $envPath = dirname($_SERVER['DOCUMENT_ROOT']) . '/.env_hapi';
-  $env = is_readable($envPath) ? parse_ini_file($envPath) : [];
-  $internal = trim($env['HAPI_INTERNAL'] ?? '');
+  require_once "{$_SERVER['DOCUMENT_ROOT']}/kmon.php";
+  $internal = trim(read_hapi_env()['HAPI_INTERNAL'] ?? '');
 
   if ($internal !== '') {
     if (!preg_match('~^https?://~i', $internal)) $internal = 'http://' . $internal;
@@ -54,8 +79,7 @@ function get_hapi_base($network = null, $multiNode = false, $override = null) {
   if ($override && in_array($override, HAPI_BASE_ALLOWED_OVERRIDES, true)) {
     $base = $override;
   } else {
-    $envPath = dirname($_SERVER['DOCUMENT_ROOT']) . '/.env_hapi';
-    $env = is_readable($envPath) ? parse_ini_file($envPath) : [];
+    $env = read_hapi_env();
 
     elog($env);
 
