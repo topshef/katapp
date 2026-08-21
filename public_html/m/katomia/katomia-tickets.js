@@ -23,8 +23,8 @@ if(window.KTICKETS) document.body?.classList.add("feat-tickets")
 // ── signing — copied from katomia-render-orders.js:2751-2790, not imported:
 // board.php doesn't load render-orders (same copy-not-import precedent as
 // formatJoinRule, katomia-render.js:1150). TKT_SIG_FIELDS must stay byte-identical
-// to SIG_SPEC_FIELDS there or the spec hash (049f1b69) diverges and the backend/KEA
-// reject the signature.
+// to SIG_SPEC_FIELDS there or the spec hash (049f1b69) diverges and every verifier
+// rejects the signature.
 const TKT_SIG_FIELDS = ["specVersion","gameId","network","clientOrderId","issuedAt","bundleHash","timeInForce","minFill"]
 
 const TKT_SIG_SPEC = (async () => {
