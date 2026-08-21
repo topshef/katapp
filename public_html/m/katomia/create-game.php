@@ -796,7 +796,7 @@ drawThemeWheel()
 
 <!-- GCP feedback 2026-08-13: widget in place so Send feedback never navigates away
      (see circles.php note). data-screenshot off per KAT-FEEDSHOT-BROKEN1. -->
-<script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
+<script src="<?= htmlspecialchars($hapi_widget_src, ENT_QUOTES, 'UTF-8') ?>"
         data-product="katomia-create"
         data-screenshot="0"></script>
 </body>

@@ -364,7 +364,11 @@ function connect(onOpenAction){
     return
   }
 
-  const WS_URL = "wss://" + window.CONFIG.HAPI_BASE + "/ws"
+  // KAT-SAMEORIGIN-FE1: empty HAPI_BASE = same-origin mode — the vhost's /hapi/
+  // reverse proxy carries the socket, so the backend host never reaches the browser
+  const WS_URL = window.CONFIG.HAPI_BASE
+    ? "wss://" + window.CONFIG.HAPI_BASE + "/ws"
+    : "wss://" + location.host + "/hapi/ws"
   console.log({WS_URL})
   socket = new WebSocket(WS_URL)
 

@@ -785,7 +785,11 @@
         nm.appendChild(idsp);
         appendMarkFor(nm, subj);
       } else {
-        nm.textContent = m.system ? (m.speaker === "host" ? "Host" : "Katomia") : displayName(m);
+        // "Kato" (feedback b20e8fa1, 2026-08-21): Katomia is the infrastructure; KATO
+        // is the resident character/educator (2023 lineage) — shorter, sayable, and a
+        // clean subset of the word. Full persona (self-intro for new users, global
+        // feed presence) is the KATO-PERSONA1 task; this is just the speaker label.
+        nm.textContent = m.system ? (m.speaker === "host" ? "Host" : "Kato") : displayName(m);
       }
       var tm = document.createElement("i");
       tm.textContent = hh;

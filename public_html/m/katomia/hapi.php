@@ -22,15 +22,23 @@ $ch = curl_init($target);
 
 $headers = [];
 foreach(getallheaders() as $name => $value){
-  if(strtolower($name) !== "host"){
+  // accept-encoding stripped + CURLOPT_ENCODING '' — same double-gzip fix as
+  // hapi-proxy.php (2026-08-21): forwarding it re-compressed an already-gzipped
+  // body via this host's mod_deflate and garbled large responses.
+  if(!in_array(strtolower($name), ["host", "accept-encoding"], true)){
     $headers[] = "$name: $value";
   }
 }
+// page host forwarded so backend-built permalinks (kfeedback view links etc.)
+// point at THIS origin, not the backend: express takes split(',')[0] of
+// x-forwarded-host, and the backend's own Apache appends after ours.
+$headers[] = 'X-Forwarded-Host: ' . ($_SERVER['HTTP_HOST'] ?? '');
 
 curl_setopt_array($ch, [
   CURLOPT_CUSTOMREQUEST => $_SERVER['REQUEST_METHOD'],
   CURLOPT_HTTPHEADER => $headers,
   CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_ENCODING => '',
   CURLOPT_POSTFIELDS => file_get_contents("php://input")
 ]);
 

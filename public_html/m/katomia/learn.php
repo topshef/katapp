@@ -725,7 +725,7 @@ window.KTERMS = <?= json_encode($T, JSON_UNESCAPED_UNICODE) ?>;
 <script src="<?= kasset('katomia-profile.js') ?>"></script>
 <!-- KAT-FEEDBACK1: the modal (long-press anywhere, or the buttons above). Served from
      the backend, its canonical home — the 💬 bits below hand off to it. -->
-<script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
+<script src="<?= htmlspecialchars($hapi_widget_src, ENT_QUOTES, 'UTF-8') ?>"
         data-product="katomia"
         data-screenshot="0"><!-- KAT-FEEDSHOT-BROKEN1 (user 2026-08-08): attach-screenshot never
      succeeds on these pages, so the checkbox is a control for a feature that does not

@@ -129,7 +129,7 @@ require_once __DIR__ . '/kasset.php';
      → send & close through the normal signed /kfeedback route). Activated on
      the board (user 2026-07-16) — this page is where the QA narration happens. -->
 <!-- KPAD-SELFFEED1: served from the backend (its canonical home) — no local copy -->
-<script src="https://<?= htmlspecialchars($hapi_base, ENT_QUOTES, 'UTF-8') ?>/feedback-widget.js"
+<script src="<?= htmlspecialchars($hapi_widget_src, ENT_QUOTES, 'UTF-8') ?>"
         data-product="katomia-board"
         data-screenshot="0"><!-- KAT-FEEDSHOT-BROKEN1 (user 2026-08-08): attach-screenshot never
      succeeds on these pages, so the checkbox is a control for a feature that does not
@@ -174,6 +174,8 @@ require_once __DIR__ . '/kasset.php';
      subscribes to it at module top level. -->
 <script src="<?= kasset('katomia-txstatus.js') ?>"></script>
 <script src="<?= kasset('katomia-board.js') ?>"></script>
+<script src="<?= kasset('katomia-tickets.js') ?>"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
+
 <!-- BOARD-CHAT1 (user 2026-07-30): renders state.chat — speech bubbles on the
      speaker's wedge + a glassy transcript. Must load AFTER katomia-board.js,
      which owns the _boardChatAnchors this reads. -->

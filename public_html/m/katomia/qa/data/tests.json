@@ -894,6 +894,78 @@
    },
    "schedule": "manual (candidate for quickchecks-cron once soaked)",
    "reports": "kflow test:verdict → QA grid"
+  },
+  {
+   "id": "SAMEORIGIN-01",
+   "title": "Backend origin never reaches the browser",
+   "asserts": "A real board page makes zero requests (http or websocket) to any backend-shaped host; the game socket opens on the page's own origin via the /hapi/ws proxy. Proves KAT-SAMEORIGIN-FE1 + PROXY1 actually hide the backend.",
+   "kind": "security-network",
+   "network": "any",
+   "harness": "qa/harness/sameorigin-check.cjs",
+   "run": {
+    "lab2": "BASE=https://lab2.katlab.kpay.live BACKEND=bravo.katlab.kpay.live node qa/harness/sameorigin-check.cjs",
+    "any": "BASE=<site> BACKEND=<paired backend host> node sameorigin-check.cjs [pagePath]"
+   },
+   "notes": "Requires the vhost /hapi/ + /hapi/ws reverse proxy (KAT-SAMEORIGIN-PROXY1) and KAT_SAMEORIGIN=1 in the seat's .env_hapi. Exit 2 = harness/infra (proxy or flag missing), exit 1 = real leak. Added 2026-08-20, KAT-SAMEORIGIN-FE1."
+  },
+  {
+   "id": "TICKETS-BASE-01",
+   "title": "Tickets flag-off parity + proposal baseline",
+   "asserts": "With the PROP-TICKETS1 code deployed and ?tickets=1 ABSENT, the app is byte-identical (no feat-tickets class, no ticket DOM, KTICKETS false) and the plain proposal flow still works end to end on playnet (join, offer, withdraw, lock both, instant settlement). With the flag ON and no tickets, only the body class appears.",
+   "kind": "regression-parity",
+   "network": "playnet",
+   "harness": "qa/harness/tickets-baseline-check.cjs",
+   "run": {
+    "lab2": "node tickets-baseline-check.cjs",
+    "any": "API=<backend> BASE=<site> node tickets-baseline-check.cjs"
+   },
+   "schedule": "manual (run after every tickets phase lands)",
+   "reports": "kflow test:verdict → QA grid",
+   "notes": "The phase-0 gate from docs/tickets-phased-plan-20260820.html: no tickets phase ships unless this is green. Probe drives offers/locks via the socket and asserts via the DOM. Uses ?hapi_base= to force cross-origin while the lab2 /hapi/ proxy (KAT-SAMEORIGIN-PROXY1) is pending.",
+   "dimension": "playnet · parity",
+   "cost": "free",
+   "what_it_does": [
+    "Create a fresh unlisted playnet circle via /katomia/create.",
+    "Open the board WITHOUT the flag: assert no feat-tickets class, no ticket DOM, window.KTICKETS false.",
+    "Two players join by adding manual accounts (playnet auto-seeds apple/banana/carrot).",
+    "Offer apple A→B, assert basket chips both sides; withdraw, assert cleared; re-offer.",
+    "Both lock; assert instant playnet settlement moved the apple.",
+    "Open a third page WITH ?tickets=1: assert exactly the body class appears and no ticket DOM while no tickets exist."
+   ],
+   "pass_means": "The tickets code is provably dark when the flag is off, and the pre-tickets proposal flow is unregressed.",
+   "fails_when": "Any tickets code path leaks into the unflagged app, or the plain proposal flow breaks.",
+   "harness_url": "https://lab2.katlab.kpay.live/m/katomia/qa/harness/tickets-baseline-check.cjs",
+   "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-BASE-01.n) prints PASS/FAIL with detail."
+  },
+  {
+   "id": "TICKETS-01",
+   "title": "The ticket loop, end to end on playnet",
+   "asserts": "Two flagged players: build a ticket from the asset card (Price it… → builder), it renders on both boards; tear-up removes it; a take posts both legs as fill-cued basket rows with no auto-lock; recalling one leg tears out both sides and reopens the ticket; re-take + both lock settles instantly and the ticket leaves the stall.",
+   "kind": "e2e-feature",
+   "network": "playnet",
+   "harness": "qa/harness/tickets-check.cjs",
+   "run": {
+    "lab2": "node tickets-check.cjs",
+    "any": "API=<backend> BASE=<site> node tickets-check.cjs"
+   },
+   "schedule": "manual (run after every tickets phase lands)",
+   "reports": "kflow test:verdict → QA grid",
+   "notes": "Phases 1-3 of docs/tickets-phased-plan-20260820.html in one sweep: builder (P1), render+manage (P2), take ceremony + group recall + settlement (P3). Requires ?tickets=1. v1 tickets are all-or-nothing (minFill 1/1). Uses ?hapi_base= like TICKETS-BASE-01.",
+   "dimension": "playnet · full ticket loop",
+   "cost": "free",
+   "what_it_does": [
+    "Create a fresh unlisted playnet circle; alice and bob join flagged (?tickets=1), each adds a manual account.",
+    "Alice taps her apple chip → 🎟 Price it… → builder prefilled with apple; sets want=banana; Create ticket (signed game_orderCreate).",
+    "Assert the order exists in state and a 🎟 chip renders on BOTH boards.",
+    "Alice tears it up (game_orderCancel) — assert gone everywhere; re-creates it.",
+    "Bob taps the ticket → Take it (game_orderFill 1/1) — assert both legs land as .board-fillrow basket rows and nobody auto-locked.",
+    "Alice taps her fill leg → Recall ticket fill (both sides) — assert both rows vanish and the ticket reopens.",
+    "Bob re-takes; both lock via socket; assert instant playnet settlement (fruit swapped) and the settled ticket no longer renders."
+   ],
+   "pass_means": "The whole priced-ticket loop — create, render, manage, take, group recall, settle — works in a proposal circle with zero backend changes.",
+   "fails_when": "Any step of the loop breaks; historically the first failure was net view stripping fillId from basket rows (fixed by the flag-gated netting bypass in boardNetAccounts).",
+   "harness_url": "https://lab2.katlab.kpay.live/m/katomia/qa/harness/tickets-check.cjs",
+   "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-01.n) prints PASS/FAIL with detail."
   }
  ],
  "expected_fail": {
