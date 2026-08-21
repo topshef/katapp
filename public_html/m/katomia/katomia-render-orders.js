@@ -2794,17 +2794,9 @@ async function buildSigPayload(data) {
 }
 
 
-async function signOrder(signingPayload, privateKey, publicKeyJwk, includePubkey = true) {
-  const sigBytes = new TextEncoder().encode(JSON.stringify(signingPayload))
-  const sigRaw   = await crypto.subtle.sign("Ed25519", privateKey, sigBytes)
-  const sig      = btoa(String.fromCharCode(...new Uint8Array(sigRaw)))
-  const out      = { alg: "Ed25519", spec: signingPayload.specVersion, sig }
-  if (includePubkey) {
-    out.pubkeyHex = atob(publicKeyJwk.x.replace(/-/g, "+").replace(/_/g, "/"))
-      .split("").map(c => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
-  }
-  return out
-}
+// signOrder moved to katomia-core.js (2026-08-21) — it was only reachable on
+// game.php from here, and board.php needs it too: see the note there. Every page
+// that loads this file loads core first, so nothing changes for the order book.
 
 async function hashBundle(bundle) {
   const bytes  = new TextEncoder().encode(JSON.stringify(bundle))

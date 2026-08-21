@@ -819,7 +819,15 @@ function getFastThumb(url, imgEl){
     // (public ids), each JSON-encoded, lexicographically sorted, joined into an array
     // string; basisHash = sha256 hex. Signed payload mirrors the order sig convention:
     // {specVersion, gameId, network, basisHash}, ed25519 via signOrder().
-    const PROP_SIG_SPEC_FIELDS = ["specVersion","gameId","network","basisHash"]
+    // PROP-LOCKSCOPE1 (2026-08-21): the frame narrowed from the whole board to the
+    // SETTLEMENT UNIT, and the two halves — what invalidates a lock, and what a lock
+    // signs — moved together, because either one alone is worse than the blunt version
+    // (a lock that looks valid and settles unsigned, or the reverse). The frame is now
+    // named in the signed bytes as `basisScope`, so the spec id changes with it and an
+    // old-frame photo can never be read as a new-frame one. v1 stays valid.
+    // Must match the backend exactly (katomia.js basisScopeLabel / computeProposalBasis).
+    const PROP_SIG_SPEC_FIELDS_V1 = ["specVersion","gameId","network","basisHash"]
+    const PROP_SIG_SPEC_FIELDS = ["specVersion","gameId","network","basisScope","basisHash"]
     const PROP_SIG_SPEC = (async () => {
       const bytes  = new TextEncoder().encode(JSON.stringify(PROP_SIG_SPEC_FIELDS))
       const digest = await crypto.subtle.digest("SHA-256", bytes)
@@ -832,10 +840,57 @@ function getFastThumb(url, imgEl){
       return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("")
     }
 
-    async function computeProposalBasisHash(){
+    // Connected components over basket edges — the same graph computeLockProgressMap
+    // draws its bar from, factored out so the frame and the bar can never disagree
+    // about who is in a cluster.
+    function tradeClusters(){
+      const accounts = Object.values(state?.accounts || {})
+      const graph = {}
+      accounts.forEach(a => graph[a.id] = new Set())
+      for(const a of accounts)
+        for(const item of a.basket || []){
+          if(!item.fromId) continue
+          graph[a.id].add(item.fromId)
+          graph[item.fromId]?.add(a.id)
+        }
+      const seen = new Set(), out = []
+      for(const id of Object.keys(graph)){
+        if(seen.has(id)) continue
+        const stack = [id], comp = []
+        while(stack.length){
+          const n = stack.pop()
+          if(seen.has(n)) continue
+          seen.add(n); comp.push(n)
+          for(const m of graph[n]) if(!seen.has(m)) stack.push(m)
+        }
+        out.push(comp)
+      }
+      return out
+    }
+
+    // The settlement unit around a set of accounts — null means "the whole board",
+    // which is the honest frame under lockRule active/all (there the unit IS the
+    // active mega-cluster, so a change anywhere really can invalidate you).
+    function lockScopeIdsFor(accountIds){
+      if((gameMeta?.lockRule || "cluster") !== "cluster") return null
+      const wanted = new Set((accountIds || []).filter(Boolean))
+      if(!wanted.size) return null
+      const scope = new Set(wanted)
+      for(const cluster of tradeClusters())
+        if(cluster.some(id => wanted.has(id)))
+          for(const id of cluster) scope.add(id)
+      return scope
+    }
+
+    const basisScopeLabel = scopeIds =>
+      scopeIds ? "cluster:" + [...scopeIds].sort().join(",") : "board"
+
+    async function computeProposalBasisHash(scopeIds){
       const lines = []
       for(const account of Object.values(state?.accounts || {})){
+        if(scopeIds && !scopeIds.has(account.id)) continue
         for(const item of account.basket || []){
+          if(scopeIds && !scopeIds.has(item.fromId)) continue
           // key order matters (JSON.stringify preserves it) — amount, assetId, from, to
           lines.push({ amount: item.amount ?? 1, assetId: item.assetId, from: item.fromId, to: account.id })
         }
@@ -846,15 +901,18 @@ function getFastThumb(url, imgEl){
 
     // Build {payload, signature} or null (no key / helpers unavailable → unsigned lock,
     // the pre-PROP-LOCKSIGN1 status quo — visibility, never gating).
-    async function buildLockCommitment(basisHash){
+    // `accountIds` names whose lock this is; the frame is derived from it.
+    async function buildLockCommitment(accountIds){
       try {
         if(typeof signOrder !== "function" || typeof getOrCreatePlayerKeypair !== "function") return null
         const { privateKey, publicKeyJwk } = await getOrCreatePlayerKeypair()
+        const scopeIds = lockScopeIdsFor(accountIds)
         const payload = {
           specVersion: await PROP_SIG_SPEC,
           gameId,
           network: gameMeta?.network ?? null,
-          basisHash: basisHash || await computeProposalBasisHash()
+          basisScope: basisScopeLabel(scopeIds),
+          basisHash: await computeProposalBasisHash(scopeIds)
         }
         const signature = await signOrder(payload, privateKey, publicKeyJwk)
         return { payload, signature }
@@ -865,25 +923,60 @@ function getFastThumb(url, imgEl){
       }
     }
 
+    // The re-sign guard is per FRAME now, so the toggle sites record what they sent
+    // the same way (a bare hash would make the next refresh think every frame was
+    // stale, or worse, that a different frame's was fresh).
+    window.noteLockBasisSent = function(locking, commitment){
+      const label = commitment?.payload?.basisScope ?? "board"
+      const hash  = commitment?.payload?.basisHash ?? null
+      const cur = (window.__lastLockBasisSent && typeof window.__lastLockBasisSent === "object")
+        ? window.__lastLockBasisSent : {}
+      // Unlocking clears the whole guard rather than one frame: any other frame this
+      // player still holds gets re-signed on the next state update, which is cheap and
+      // never wrong. Dropping one entry could leave a frame the unlock has reshaped.
+      window.__lastLockBasisSent = (locking && hash) ? { ...cur, [label]: hash } : {}
+    }
+
     // Auto-re-sign while locked: the board can change WITHOUT unlocking you (someone
     // offers elsewhere), which would silently stale your signature by settlement. Since
     // a persisting lock is already the game's consent model and the intent key signs
     // silently (local key, no wallet prompt), we re-sign the new basis on every state
     // update while any of my accounts is locked. Hash-guard prevents re-send loops.
+    //
+    // PROP-LOCKSCOPE1: ONE COMMITMENT PER FRAME. Accounts of mine sitting in two
+    // unrelated clusters settle separately, so each needs its own photo — a single
+    // photo of both would match neither at settlement. In the ordinary case (one
+    // cluster) this is exactly one commitment, as before. The narrower frame also
+    // means far fewer re-signs: activity in someone else's corner no longer moves
+    // your hash at all.
     let _lockResignBusy = false
     async function maybeRefreshLockCommitment(){
       if(_lockResignBusy) return
       _lockResignBusy = true
       try {
-        const mine = Object.values(state?.accounts || {}).filter(a => isMyAccount(a))
-        if(!mine.some(a => a.mode === "lock")){ window.__lastLockBasisSent = null; return }
-        const basisHash = await computeProposalBasisHash()
-        if(basisHash === window.__lastLockBasisSent) return
-        const commitment = await buildLockCommitment(basisHash)
-        if(!commitment) return
-        window.__lastLockBasisSent = basisHash
-        socket.send(JSON.stringify({ type: "game_lockCommitment", gameId, commitment }))
-        try { window.kdiag?.("lock:commitment-refresh", { basisHash: basisHash.slice(0,12) }) } catch {}
+        const locked = Object.values(state?.accounts || {})
+          .filter(a => isMyAccount(a) && a.mode === "lock")
+        if(!locked.length){ window.__lastLockBasisSent = null; return }
+
+        const frames = new Map()
+        for(const a of locked){
+          const ids = lockScopeIdsFor([a.id])
+          frames.set(basisScopeLabel(ids), ids)
+        }
+
+        const sent = (window.__lastLockBasisSent && typeof window.__lastLockBasisSent === "object")
+          ? window.__lastLockBasisSent : {}
+        const next = {}
+        for(const [label, ids] of frames){
+          const basisHash = await computeProposalBasisHash(ids)
+          next[label] = basisHash
+          if(sent[label] === basisHash) continue
+          const commitment = await buildLockCommitment(ids ? [...ids] : locked.map(a => a.id))
+          if(!commitment) continue
+          socket.send(JSON.stringify({ type: "game_lockCommitment", gameId, commitment }))
+          try { window.kdiag?.("lock:commitment-refresh", { scope: label, basisHash: basisHash.slice(0,12) }) } catch {}
+        }
+        window.__lastLockBasisSent = next
       } finally { _lockResignBusy = false }
     }
 
@@ -953,26 +1046,10 @@ function getFastThumb(url, imgEl){
         return map
       }
 
-      // cluster: connected components over basket edges
-      const graph = {}
-      accounts.forEach(a => graph[a.id] = new Set())
-      for(const a of accounts)
-        for(const item of a.basket || []){
-          if(!item.fromId) continue
-          graph[a.id].add(item.fromId)
-          graph[item.fromId]?.add(a.id)
-        }
-      const seen = new Set()
-      for(const id of Object.keys(graph)){
-        if(seen.has(id)) continue
-        const stack = [id], comp = []
-        while(stack.length){
-          const n = stack.pop()
-          if(seen.has(n)) continue
-          seen.add(n)
-          comp.push(n)
-          for(const m of graph[n]) if(!seen.has(m)) stack.push(m)
-        }
+      // cluster: connected components over basket edges (PROP-LOCKSCOPE1 — the graph
+      // is shared with the lock-commitment frame now, so the bar and the signature
+      // cannot disagree about who is in a cluster)
+      for(const comp of tradeClusters()){
         const members = comp.filter(cid => active.has(cid))
         if(members.length < 2) continue   // singleton / not participating — no bar
         // groupId keys the hover cross-highlight (stable per broadcast: the lowest member id)
@@ -1003,16 +1080,17 @@ function getFastThumb(url, imgEl){
         modeEl.onclick = async () => {
           // PROP-LOCKSIGN1: locking signs the board basis; unlocking sends plain (the
           // backend discards the stored commitment on unlock).
+          // PROP-LOCKSCOPE1: the basis is framed on THIS account's settlement unit.
           const locking = account.mode !== "lock"
           let commitment = null
-          if(locking) commitment = await buildLockCommitment()
+          if(locking) commitment = await buildLockCommitment([account.id])
           socket.send(JSON.stringify({
             type: "game_toggleLock",
             gameId,
             accountId: account.id,
             ...(commitment ? { commitment } : {})
           }))
-          window.__lastLockBasisSent = locking ? (commitment?.payload?.basisHash ?? null) : null
+          noteLockBasisSent(locking, commitment)
         }
       }
 

@@ -1,1183 +1,1244 @@
 {
-  "_about": "THE TEST ID INDEX — every test identifier we use, what it asserts, where it runs, and how to run it. Created 2026-08-08 (user) after MAINNETSMOKE-01 and TXS-1 were quoted in chat and could not be found anywhere: they were not tasks, and TXS-* existed only as prose inside QA-XFAIL1.json's `next` field. A test id must resolve to something you can open — that is what this file is for. Viewer: tests.html. Naming convention (PROTOCOL.md): a bare CAPITALISED reference is a kPad TASK; a test id is written T:<id> in prose and chat, and must come with its URL. Each suite records what_it_does (the actual steps), pass_means, fails_when, its dimension and its cost — added 2026-08-08 after the user pointed out that 'real value, real network, once a day' does not tell anyone what the test IS.",
-  "updated": "2026-08-20",
-  "convention": {
-    "task": "BARE CAPS — a kPad task, e.g. TXSTATUS-CONSOLIDATE1. Look it up in kPad.",
-    "test": "T:<id> — a test case, e.g. T:HBARXFER-01. Defined in this file; results on the QA grid.",
-    "assertion": "T:<suite>.<n> — one assertion inside a suite, e.g. T:A5b.4. Never a task.",
-    "reproduction": "A FAILING TEST MUST SAY HOW TO REPRODUCE IT. No red is reported — here, in chat, or on the dashboard — without concrete steps someone can follow. If the only way to trigger it is inside a harness, it is a harness artefact and must not be reported as a product failure (WC-RESETWEDGE1, 2026-08-08)."
+ "_about": "THE TEST ID INDEX — every test identifier we use, what it asserts, where it runs, and how to run it. Created 2026-08-08 (user) after MAINNETSMOKE-01 and TXS-1 were quoted in chat and could not be found anywhere: they were not tasks, and TXS-* existed only as prose inside QA-XFAIL1.json's `next` field. A test id must resolve to something you can open — that is what this file is for. Viewer: tests.html. Naming convention (PROTOCOL.md): a bare CAPITALISED reference is a kPad TASK; a test id is written T:<id> in prose and chat, and must come with its URL. Each suite records what_it_does (the actual steps), pass_means, fails_when, its dimension and its cost — added 2026-08-08 after the user pointed out that 'real value, real network, once a day' does not tell anyone what the test IS.",
+ "updated": "2026-08-21",
+ "convention": {
+  "task": "BARE CAPS — a kPad task, e.g. TXSTATUS-CONSOLIDATE1. Look it up in kPad.",
+  "test": "T:<id> — a test case, e.g. T:HBARXFER-01. Defined in this file; results on the QA grid.",
+  "assertion": "T:<suite>.<n> — one assertion inside a suite, e.g. T:A5b.4. Never a task.",
+  "reproduction": "A FAILING TEST MUST SAY HOW TO REPRODUCE IT. No red is reported — here, in chat, or on the dashboard — without concrete steps someone can follow. If the only way to trigger it is inside a harness, it is a harness artefact and must not be reported as a product failure (WC-RESETWEDGE1, 2026-08-08)."
+ },
+ "suites": [
+  {
+   "id": "HBARXFER-01",
+   "title": "The whole thing, end to end",
+   "asserts": "Two players join a board, one offers HBAR, both lock, the deal strikes, kWallet signs, it settles on Hedera.",
+   "kind": "e2e-signing",
+   "network": "testnet",
+   "harness": "qa/harness/hbarxfer-auto-spike.cjs",
+   "run": {
+    "lab1": "qa/harness/hbarxfer-cron.sh",
+    "pat": "qa/harness/hbarxfer-pat-cron.sh",
+    "any": "BASE=<site> GAME=<id> KWALLET_TOKEN=… node hbarxfer-auto-spike.cjs"
+   },
+   "schedule": "cron, every 2h (lab1)",
+   "reports": "kflow test:verdict → QA grid + kwallet.html",
+   "notes": "Needs a game created on the TARGET's own backend — a board can only play a game its backend knows about, so pointing BASE elsewhere is not sufficient on its own.",
+   "dimension": "testnet · full stack",
+   "cost": "0.01 test HBAR (free)",
+   "what_it_does": [
+    "Create a fresh public testnet game (own-to-own offers don't work, so every run needs a clean game two real players can join).",
+    "Player A opens the board and connects a wallet over WalletConnect — kWallet, our headless test wallet, does the pairing.",
+    "Player B opens the SAME board in a separate browser context and joins by typing an account (no wallet — a real second player).",
+    "A offers 0.01 HBAR to B via the asset card.",
+    "Both players lock. The deal strikes and the signing phase opens.",
+    "A taps Sign. kWallet auto-approves. The signature is saved and submitted.",
+    "The harness watches A's screen for the verdict toast."
+   ],
+   "pass_means": "A '🟩 Transaction successful' verdict appears on the board and the transfer is real on Hedera testnet. This is the only test that exercises the whole chain — board UI, lock rule, strike, WalletConnect, signing, submission, settlement, verdict.",
+   "fails_when": "Any link in that chain breaks. Historically its most common failure is harness fragility, not product breakage (see QA-HARNESSREPAIR1).",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/hbarxfer-auto-spike.cjs",
+   "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+   "modules": [
+    "frontend-ui",
+    "walletconnect",
+    "signing-widget",
+    "backend",
+    "hedera"
+   ]
   },
-  "suites": [
+  {
+   "id": "WCNETSWITCH-01",
+   "title": "Game is testnet, connector was built mainnet",
+   "asserts": "Rebuild for the right network, re-pair, sign — then reload and confirm it stayed right.",
+   "kind": "walletconnect",
+   "network": "testnet",
+   "harness": "qa/harness/wc-netswitch-auto.cjs",
+   "run": {
+    "lab1": "qa/harness/wc-netswitch-cron.sh"
+   },
+   "schedule": "cron, every 2h at :45 (offset from HBARXFER so they don't contend for kWallet)",
+   "reports": "kflow test:verdict → QA grid + kwallet.html",
+   "dimension": "testnet · WalletConnect",
+   "cost": "free",
+   "what_it_does": [
+    "Open a TESTNET game while the WC bundle has initialised for mainnet (its config default).",
+    "Tap Sign, forcing the bundle to rebuild the connector for the right network.",
+    "Re-pair and sign.",
+    "Reload the page and re-check."
+   ],
+   "pass_means": "The connector ends up on testnet with the right account, and STAYS there after a reload.",
+   "fails_when": "The bundle signs on a mainnet-scoped pairing — wrong-network signers, which is what WC-NETSCOPE1 fixed.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/wc-netswitch-auto.cjs",
+   "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+   "modules": [
+    "walletconnect",
+    "frontend-ui"
+   ]
+  },
+  {
+   "id": "WCNETSWITCH-02",
+   "title": "Nothing stale survives a network switch",
+   "asserts": "After switching, only the correct account is connected and the old session is gone.",
+   "kind": "walletconnect",
+   "network": "testnet",
+   "harness": "qa/harness/wc-netswitch-auto.cjs",
+   "run": {
+    "lab1": "qa/harness/wc-netswitch-cron.sh"
+   },
+   "schedule": "cron, every 2h at :45",
+   "reports": "kflow test:verdict → QA grid + kwallet.html",
+   "dimension": "testnet · WalletConnect",
+   "cost": "free",
+   "what_it_does": [
+    "Switch networks with an existing session live.",
+    "Inspect the connected account list afterwards."
+   ],
+   "pass_means": "Only the correct account is connected; the old session is gone.",
+   "fails_when": "A stale session from the previous network survives the switch.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/wc-netswitch-auto.cjs",
+   "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+   "modules": [
+    "walletconnect"
+   ]
+  },
+  {
+   "id": "WC-A5B-GHOST",
+   "title": "The wallet killed the session and never told us",
+   "asserts": "You clear connections in HashPack while katomia is CLOSED. Signing must fail fast and honestly instead of hanging. Eight assertions, A5b.1-A5b.8.",
+   "kind": "walletconnect",
+   "network": "testnet",
+   "harness": "/opt/kwallet/a5b-storage-ghost.cjs",
+   "run": {
+    "lab1": "qa/harness/wc-paths-cron.sh",
+    "any": "PAGE_URL=<site>/qa/wc-fixture.php?network=testnet node /opt/kwallet/a5b-storage-ghost.cjs"
+   },
+   "schedule": "cron, daily 04:35",
+   "reports": "kflow → QA grid + kwallet.html",
+   "assertions": [
     {
-      "id": "HBARXFER-01",
-      "title": "The whole thing, end to end",
-      "asserts": "Two players join a board, one offers HBAR, both lock, the deal strikes, kWallet signs, it settles on Hedera.",
-      "kind": "e2e-signing",
-      "network": "testnet",
-      "harness": "qa/harness/hbarxfer-auto-spike.cjs",
-      "run": {
-        "lab1": "qa/harness/hbarxfer-cron.sh",
-        "pat": "qa/harness/hbarxfer-pat-cron.sh",
-        "any": "BASE=<site> GAME=<id> KWALLET_TOKEN=… node hbarxfer-auto-spike.cjs"
-      },
-      "schedule": "cron, every 2h (lab1)",
-      "reports": "kflow test:verdict → QA grid + kwallet.html",
-      "notes": "Needs a game created on the TARGET's own backend — a board can only play a game its backend knows about, so pointing BASE elsewhere is not sufficient on its own.",
-      "dimension": "testnet · full stack",
-      "cost": "0.01 test HBAR (free)",
-      "what_it_does": [
-        "Create a fresh public testnet game (own-to-own offers don't work, so every run needs a clean game two real players can join).",
-        "Player A opens the board and connects a wallet over WalletConnect — kWallet, our headless test wallet, does the pairing.",
-        "Player B opens the SAME board in a separate browser context and joins by typing an account (no wallet — a real second player).",
-        "A offers 0.01 HBAR to B via the asset card.",
-        "Both players lock. The deal strikes and the signing phase opens.",
-        "A taps Sign. kWallet auto-approves. The signature is saved and submitted.",
-        "The harness watches A's screen for the verdict toast."
-      ],
-      "pass_means": "A '🟩 Transaction successful' verdict appears on the board and the transfer is real on Hedera testnet. This is the only test that exercises the whole chain — board UI, lock rule, strike, WalletConnect, signing, submission, settlement, verdict.",
-      "fails_when": "Any link in that chain breaks. Historically its most common failure is harness fragility, not product breakage (see QA-HARNESSREPAIR1).",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/hbarxfer-auto-spike.cjs",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
-      "modules": [
-        "frontend-ui",
-        "walletconnect",
-        "signing-widget",
-        "backend",
-        "hedera"
-      ]
+     "id": "A5b.1",
+     "asserts": "session established"
     },
     {
-      "id": "WCNETSWITCH-01",
-      "title": "Game is testnet, connector was built mainnet",
-      "asserts": "Rebuild for the right network, re-pair, sign — then reload and confirm it stayed right.",
-      "kind": "walletconnect",
-      "network": "testnet",
-      "harness": "qa/harness/wc-netswitch-auto.cjs",
-      "run": {
-        "lab1": "qa/harness/wc-netswitch-cron.sh"
-      },
-      "schedule": "cron, every 2h at :45 (offset from HBARXFER so they don't contend for kWallet)",
-      "reports": "kflow test:verdict → QA grid + kwallet.html",
-      "dimension": "testnet · WalletConnect",
-      "cost": "free",
-      "what_it_does": [
-        "Open a TESTNET game while the WC bundle has initialised for mainnet (its config default).",
-        "Tap Sign, forcing the bundle to rebuild the connector for the right network.",
-        "Re-pair and sign.",
-        "Reload the page and re-check."
-      ],
-      "pass_means": "The connector ends up on testnet with the right account, and STAYS there after a reload.",
-      "fails_when": "The bundle signs on a mainnet-scoped pairing — wrong-network signers, which is what WC-NETSCOPE1 fixed.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/wc-netswitch-auto.cjs",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
-      "modules": [
-        "walletconnect",
-        "frontend-ui"
-      ]
+     "id": "A5b.2",
+     "asserts": "captured dApp session storage (IndexedDB)"
     },
     {
-      "id": "WCNETSWITCH-02",
-      "title": "Nothing stale survives a network switch",
-      "asserts": "After switching, only the correct account is connected and the old session is gone.",
-      "kind": "walletconnect",
-      "network": "testnet",
-      "harness": "qa/harness/wc-netswitch-auto.cjs",
-      "run": {
-        "lab1": "qa/harness/wc-netswitch-cron.sh"
-      },
-      "schedule": "cron, every 2h at :45",
-      "reports": "kflow test:verdict → QA grid + kwallet.html",
-      "dimension": "testnet · WalletConnect",
-      "cost": "free",
-      "what_it_does": [
-        "Switch networks with an existing session live.",
-        "Inspect the connected account list afterwards."
-      ],
-      "pass_means": "Only the correct account is connected; the old session is gone.",
-      "fails_when": "A stale session from the previous network survives the switch.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/wc-netswitch-auto.cjs",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
-      "modules": [
-        "walletconnect"
-      ]
+     "id": "A5b.3",
+     "asserts": "GHOST successfully created (dApp believes, wallet does not)"
     },
     {
-      "id": "WC-A5B-GHOST",
-      "title": "The wallet killed the session and never told us",
-      "asserts": "You clear connections in HashPack while katomia is CLOSED. Signing must fail fast and honestly instead of hanging. Eight assertions, A5b.1-A5b.8.",
-      "kind": "walletconnect",
-      "network": "testnet",
-      "harness": "/opt/kwallet/a5b-storage-ghost.cjs",
-      "run": {
-        "lab1": "qa/harness/wc-paths-cron.sh",
-        "any": "PAGE_URL=<site>/qa/wc-fixture.php?network=testnet node /opt/kwallet/a5b-storage-ghost.cjs"
-      },
-      "schedule": "cron, daily 04:35",
-      "reports": "kflow → QA grid + kwallet.html",
-      "assertions": [
-        {
-          "id": "A5b.1",
-          "asserts": "session established"
-        },
-        {
-          "id": "A5b.2",
-          "asserts": "captured dApp session storage (IndexedDB)"
-        },
-        {
-          "id": "A5b.3",
-          "asserts": "GHOST successfully created (dApp believes, wallet does not)"
-        },
-        {
-          "id": "A5b.4",
-          "asserts": "sign against a ghost does not hang — must give up inside the tx's validity window, not at the 120s cap",
-          "history": "FAILED at exactly 120.0s on lab1 AND production (2026-08-07); the frozen benchmark's only expected_fail. FIXED by TXSTATUS-CONSOLIDATE1 S4 (KWC snapshot 33993b7) — passes on lab1 and pat 2026-08-08. Fixture also corrected to a 40s validity window, matching the board's real one; the SDK default 120s made the <60s assertion unreachable regardless of bundle behaviour."
-        },
-        {
-          "id": "A5b.5",
-          "asserts": "sign against a ghost fails loudly, never silently succeeds"
-        },
-        {
-          "id": "A5b.6",
-          "asserts": "user can re-pair out of the ghost state"
-        },
-        {
-          "id": "A5b.7",
-          "asserts": "sign after re-pair reaches the wallet on the NEW session"
-        },
-        {
-          "id": "A5b.8",
-          "asserts": "no uncaught page errors"
-        }
-      ],
-      "dimension": "testnet · WalletConnect",
-      "cost": "free",
-      "what_it_does": [
-        "Pair with the wallet and establish a real session.",
-        "Snapshot the dApp's WalletConnect storage (IndexedDB).",
-        "Destroy the session WALLET-SIDE, then restore the snapshot — so the dApp still believes it is connected but the wallet has no record. This is a true 'ghost'.",
-        "Attempt to sign against that ghost.",
-        "Re-pair and sign again."
-      ],
-      "pass_means": "The ghost sign gives up quickly and loudly, inside the transaction's own validity window — never hangs, never silently 'succeeds'. Then the user can re-pair and sign normally.",
-      "fails_when": "It hangs (was 120s until TXSTATUS-CONSOLIDATE1 S4), or worse, resolves as if it worked.",
-      "why_it_matters": "This is the discriminating ghost test — it reproduces the exact scenario where a user clears connections in HashPack while katomia is closed. T:WC-A5-ONLINE passes even on broken bundles; this one does not.",
-      "harness_url": null,
-      "harness_note": "lives on the box at /opt/kwallet/ (not web-served — it runs its own in-process wallet peer)",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
-      "modules": [
-        "walletconnect",
-        "signing-widget"
-      ]
+     "id": "A5b.4",
+     "asserts": "sign against a ghost does not hang — must give up inside the tx's validity window, not at the 120s cap",
+     "history": "FAILED at exactly 120.0s on lab1 AND production (2026-08-07); the frozen benchmark's only expected_fail. FIXED by TXSTATUS-CONSOLIDATE1 S4 (KWC snapshot 33993b7) — passes on lab1 and pat 2026-08-08. Fixture also corrected to a 40s validity window, matching the board's real one; the SDK default 120s made the <60s assertion unreachable regardless of bundle behaviour."
     },
     {
-      "id": "WC-A5-ONLINE",
-      "title": "The wallet was cleared while katomia was open",
-      "asserts": "The wallet's delete reaches us, so we should detect it and re-pair cleanly.",
-      "kind": "walletconnect",
-      "network": "testnet",
-      "harness": "/opt/kwallet/a5-ghost-recovery.cjs",
-      "run": {
-        "lab1": "qa/harness/wc-paths-cron.sh"
-      },
-      "schedule": "cron, daily 04:35",
-      "state": "8/8 — healthy. Was SILENT for 14 days until 2026-08-08 (an unbounded hang ate the whole run and it reported nothing); harness given step ceilings, and a redundant resetWalletLink removed from its main flow. An A5.0 assertion added the same day was WITHDRAWN hours later: it failed only on accumulated harness state, not on any user path — see WC-RESETWEDGE1 for the full correction.",
-      "dimension": "testnet · WalletConnect",
-      "cost": "free",
-      "what_it_does": [
-        "Pair, and sign once to prove the baseline works.",
-        "The USER CLEARS THE CONNECTION IN THEIR WALLET APP while the page is still open (simulated by a real wallet-side disconnect).",
-        "Try to sign again WITHOUT reloading and WITHOUT tapping Connect.",
-        "Re-pair and sign again.",
-        "Separately and last: call resetWalletLink(), reload, and re-initialise (assertion A5.0)."
-      ],
-      "pass_means": "Step 3 detects the dead session, refuses to sign against it, and either self-heals onto a live session or reports KWC-GONE — never a silent wrong-session sign, never a hang.",
-      "fails_when": "The killed session survives in the dApp's storage and gets handed to every later sign (the pre-R2b bug: 'wallet says signed' then a wiped board).",
-      "why_it_matters": "Note this one passes on pre-fix bundles too, so treat it as a health check rather than proof the ghost handling works.",
-      "harness_url": null,
-      "harness_note": "lives on the box at /opt/kwallet/ (not web-served — it runs its own in-process wallet peer)",
-      "assertions": [
-        {
-          "id": "A5.1",
-          "asserts": "initial connect"
-        },
-        {
-          "id": "A5.2",
-          "asserts": "baseline sign reaches the wallet"
-        },
-        {
-          "id": "A5.3",
-          "asserts": "dApp no longer reports a connected account after the wallet-side clear"
-        },
-        {
-          "id": "A5.4",
-          "asserts": "no sign sent to the dead session"
-        },
-        {
-          "id": "A5.5",
-          "asserts": "dApp surfaces an actionable error rather than hanging or lying"
-        },
-        {
-          "id": "A5.6",
-          "asserts": "re-pair after a wallet-side clear"
-        },
-        {
-          "id": "A5.7",
-          "asserts": "sign after recovery reaches the wallet on the NEW session"
-        },
-        {
-          "id": "A5.8",
-          "asserts": "no uncaught page errors throughout"
-        }
-      ],
-      "user_confirmed": "2026-08-08: the user ran this scenario by hand on pat — cleared every connection in HashPack, left the accounts in katomia, then traded. It re-paired and presented the transaction for approval without a stumble. Matches A5.1-A5.8.",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
-      "modules": [
-        "walletconnect"
-      ]
+     "id": "A5b.5",
+     "asserts": "sign against a ghost fails loudly, never silently succeeds"
     },
     {
-      "id": "MAINNETSMOKE-01",
-      "title": "The same board flow, on mainnet",
-      "asserts": "Real value, real network, once a day — the only test here that is not free to run.",
-      "kind": "e2e-signing",
-      "network": "mainnet",
-      "harness": "qa/harness/mainnet-smoke-auto.cjs",
-      "run": {
-        "lab1": "qa/harness/mainnet-smoke-cron.sh"
-      },
-      "schedule": "cron, daily 05:20",
-      "reports": "kflow test:verdict → QA grid + kwallet.html",
-      "state": "PASSING again as of 2026-08-08 08:20 (real mainnet transfer, consensus 1786177210.454269104). It was never a product failure: a failed run on 08-07 left its own unanswered pairing proposal in kwallet-mainnet, and the cron's 'skip if any pending item' guard then muted the test entirely — the grid showed '2 consecutive non-passes' when the truth was 'not run since'. Guard now ages pending items (only items <30m old block a run). Two older reds were harness flakes, not product: a #boardPlayerModal pointer-intercept on the lock click (08-06) and the #addAcctJoinAll account-landing race (08-07), both QA-HARNESSREPAIR1.",
-      "dimension": "MAINNET · full stack — a different dimension from everything else here",
-      "cost": "0.01 real HBAR per run (~£0.002). The only test on this page that spends real money.",
-      "what_it_does": [
-        "Create a real mainnet game.",
-        "Connect the mainnet wallet (kwallet-mainnet, a SEPARATE instance from the testnet one, on port 8791).",
-        "A second player joins by account id.",
-        "Offer 0.01 real HBAR, both lock, strike, sign, submit.",
-        "Confirm the result against the chain."
-      ],
-      "pass_means": "A real transfer reaches consensus on Hedera mainnet, with a real consensus timestamp.",
-      "fails_when": "Anything testnet cannot tell us about: mainnet node behaviour, real fees, the mainnet account's own state (e.g. the payer running dry), mainnet-only config.",
-      "why_it_matters": "Everything else here runs on testnet, where the system is thoroughly exercised and free. This test exists for the things that are only true on mainnet. A testnet-green / mainnet-red split is meaningful information, not a duplicate.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/mainnet-smoke-auto.cjs",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
-      "modules": [
-        "frontend-ui",
-        "walletconnect",
-        "signing-widget",
-        "backend",
-        "hedera"
-      ]
+     "id": "A5b.6",
+     "asserts": "user can re-pair out of the ghost state"
     },
     {
-      "id": "CHIPARRANGE-01",
-      "title": "Chip arrangement / visual layout",
-      "kind": "visual",
-      "harness": "qa/harness/board-arrange.cjs",
-      "run": {
-        "lab1": "node board-arrange.cjs"
-      },
-      "schedule": "manual",
-      "state": "not assessed in the 2026-08-07 benchmark pass — visual class, not a signing test.",
-      "dimension": "visual / layout",
-      "cost": "free",
-      "what_it_does": [
-        "Drive the board through a scripted set of chip moves.",
-        "Compare the resulting layout."
-      ],
-      "pass_means": "Chips land where the layout rules say they should.",
-      "fails_when": "A layout or arrangement regression. Not a signing test — it does not belong on the kWallet page.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/board-arrange.cjs",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
-      "modules": [
-        "frontend-ui"
-      ]
+     "id": "A5b.7",
+     "asserts": "sign after re-pair reaches the wallet on the NEW session"
     },
     {
-      "id": "DOMAIN-SEND-01",
-      "title": "Domain send flow",
-      "kind": "e2e",
-      "harness": "qa/harness/domain-send.cjs",
-      "run": {
-        "lab1": "node domain-send.cjs"
-      },
-      "schedule": "manual",
-      "dimension": "testnet · flow",
-      "cost": "free",
-      "what_it_does": [
-        "Exercise the domain send flow end to end."
-      ],
-      "pass_means": "The send completes.",
-      "fails_when": "The flow breaks.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/domain-send.cjs",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
-      "modules": [
-        "frontend-ui",
-        "backend",
-        "hedera"
-      ]
-    },
-    {
-      "id": "validdur-decode-matrix",
-      "title": "Transaction validity-duration decode matrix",
-      "asserts": "12 cases: Long int64 decode, SignedTransaction wrapper, cross-shape misuse fallbacks, absent field, garbage, real production fixture bytes, expiry arithmetic.",
-      "kind": "backend-unit",
-      "harness": "qa-validdur-tests.js (backend repo root)",
-      "run": {
-        "backend": "cd /home/hbarlive_hts && node qa-validdur-tests.js"
-      },
-      "schedule": "manual",
-      "reports": "stdout only — not on the grid",
-      "dimension": "backend · unit",
-      "cost": "free",
-      "what_it_does": [
-        "Feed 12 shapes of transaction bytes to the validity-duration decoders: Long int64, SignedTransaction wrapper, cross-shape misuse, absent field, garbage, real production fixture bytes, and the expiry arithmetic."
-      ],
-      "pass_means": "All 12 decode to the right duration or fall back safely.",
-      "fails_when": "A decoder silently returns the wrong window — which is how a transaction's real deadline and the UI's idea of it drift apart.",
-      "harness_note": "backend repo root, not web-served",
-      "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
-      "modules": [
-        "backend",
-        "hedera-sdk"
-      ]
-    },
-    {
-      "id": "STATSYNC-01",
-      "title": "Everyone at the table sees the same game",
-      "asserts": "Three scripted protocol-level clients on a fresh playnet game (joins, add accounts, offers, public + targeted chat, lock toggles): shared state converges identically on every client; per-socket fields (myPlayerId, targeted chat visibility) correctly differ.",
-      "kind": "protocol",
-      "network": "playnet",
-      "harness": "qa/harness/statsync-baseline.cjs",
-      "run": {
-        "lab1": "cd qa/harness && node statsync-baseline.cjs",
-        "any": "API=<backend> node statsync-baseline.cjs"
-      },
-      "schedule": "cron, daily 04:10 UTC (statsync-cron.sh) + on demand at every STATSYNC1-affecting change",
-      "reports": "console assertions T:STATSYNC-01.1–.7, exit code",
-      "dimension": "playnet · websocket protocol",
-      "cost": "free",
-      "what_it_does": [
-        "Create a fresh public playnet game via POST /katomia/create.",
-        "Connect clients A, B, C over plain WebSocket (no browser) with distinct playerTokens.",
-        "A and B add playnet accounts (alice, bob); C stays a joined-but-accountless watcher.",
-        "Cross-offers (apple, banana), one public chat, one TARGETED chat B→A, lock on/off, a reject.",
-        "After quiescing, compare each client's final game_state."
-      ],
-      "pass_means": "Shared state (accounts/players/tx) is byte-identical across all three clients; myPlayerId is distinct per socket; the targeted chat reached A and its sender but never C.",
-      "fails_when": "Any client misses a broadcast, states diverge, or targeted chat leaks — exactly the properties an incremental-update refactor (STATSYNC1) could silently break.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
-      "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — assertion lines print pass/fail with detail.",
-      "modules": [
-        "statsync",
-        "backend"
-      ]
-    },
-    {
-      "id": "STATSYNC-BENCH-01",
-      "title": "What the full-state broadcast costs on the wire",
-      "asserts": "Message counts, bytes per broadcast, action→broadcast latency for a scripted sequence, plus a 30-chat growth probe showing broadcast size compounding with chat history. Recorded per STATSYNC1 phase; correctness may never regress, bytes must fall by P6.",
-      "kind": "benchmark",
-      "network": "playnet",
-      "harness": "qa/harness/statsync-baseline.cjs",
-      "run": {
-        "lab1": "cd qa/harness && SAMPLE_GAME=q-crowd node statsync-baseline.cjs --record"
-      },
-      "schedule": "once per STATSYNC1 phase",
-      "reports": "qa/data/benchmarks/<date>-statsync-*.json",
-      "dimension": "playnet · wire cost",
-      "cost": "free",
-      "what_it_does": [
-        "Same scripted run as T:STATSYNC-01, with every websocket frame measured (bytes, latency).",
-        "Then 30 chat messages in a row, recording how each broadcast grows (full chat history rides every broadcast today).",
-        "Optionally spectates a live demo game passively (SAMPLE_GAME) for real-traffic sizes."
-      ],
-      "pass_means": "Baseline 2026-08-14: ~1.7-1.9KB/broadcast on a tiny 2-account game, ~2ms latency, growth probe 2071B→6525B over 30 chats (~154B per chat row, compounding). Later phases are judged against this file's benchmarks.",
-      "fails_when": "A phase re-run shows correctness failures, or (from P3 on) delta-path bytes fail to undercut the full-state baseline.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
-      "how_to_reproduce": "cd qa/harness && SAMPLE_GAME=q-crowd node statsync-baseline.cjs --record — summary JSON printed and written to qa/data/benchmarks/.",
-      "modules": [
-        "statsync",
-        "backend"
-      ]
-    },
-    {
-      "id": "STATSYNC-02",
-      "title": "A delta client sees exactly what a full-state client sees",
-      "asserts": "A probe client opted into game_delta (wantDelta:true at join) reconstructs state purely by patch application + chatAppend; at every seq its reconstruction is byte-identical to a full-state control client, and deltas undercut full states on the wire.",
-      "kind": "protocol",
-      "network": "playnet",
-      "harness": "qa/harness/statsync-baseline.cjs",
-      "run": {
-        "lab1": "cd qa/harness && node statsync-baseline.cjs"
-      },
-      "schedule": "cron, daily 04:10 UTC (statsync-cron.sh) + on demand at every STATSYNC1-affecting change",
-      "reports": "console assertions T:STATSYNC-02.1–.4, exit code",
-      "dimension": "playnet · websocket protocol · delta path",
-      "cost": "free",
-      "what_it_does": [
-        "Client D joins with wantDelta:true after three full-state clients; its first broadcast is full, all subsequent are game_delta {seq, baseSeq, patch, chatAppend}.",
-        "D applies each patch (kpatch mirror of backend kdiff.js) and appends chat rows by monotonic id, trimming at 150 like the server.",
-        "After every broadcast, D's reconstructed shared view is compared against control client C's full game_state at the same seq."
-      ],
-      "pass_means": "One full state then only deltas; reconstruction ≡ control at every overlapping seq; visible chat matches (welcome rows excluded — legitimately per-viewer); delta bytes < full bytes. First green 2026-08-14: 39 deltas, 40/40 seqs identical, 374B vs 3696B avg (~90% saving).",
-      "fails_when": "Any patch mis-describes a change (reconstruction diverges), chatAppend leaks or drops a row, or a delta is sent to a socket without the right base seq.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
-      "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — 02.x assertion lines print pass/fail; a seq mismatch names the exact seq.",
-      "modules": [
-        "statsync",
-        "backend"
-      ]
-    },
-    {
-      "id": "STATSYNC-03",
-      "title": "A client that misses a delta catches up and converges",
-      "asserts": "A delta client with a simulated lost broadcast detects the seq gap on the next delta, sends game_refresh exactly once (suppressing duplicates while the reply is in flight), receives a targeted full state, and converges with a full-state control client.",
-      "kind": "protocol",
-      "network": "playnet",
-      "harness": "qa/harness/statsync-baseline.cjs",
-      "run": {
-        "lab1": "cd qa/harness && node statsync-baseline.cjs"
-      },
-      "schedule": "cron, daily 04:10 UTC (statsync-cron.sh) + on demand at every STATSYNC1-affecting change",
-      "reports": "console assertions T:STATSYNC-03.1–.3, exit code",
-      "dimension": "playnet · websocket protocol · catch-up",
-      "cost": "free",
-      "what_it_does": [
-        "The delta probe silently drops one incoming game_delta (simulated network loss).",
-        "The next delta's baseSeq mismatches its local seq → it sends {type:'game_refresh', gameId} — once, with an in-flight guard, ignoring further deltas meanwhile.",
-        "The backend replies with a targeted full game_state (refresh:true) to that socket only and resets its delta base markers.",
-        "One more action confirms deltas apply cleanly again and the reconstruction matches control."
-      ],
-      "pass_means": "Exactly one refresh round-trip; no other client receives the refresh reply; post-recovery reconstruction is byte-identical to control. First green 2026-08-14.",
-      "fails_when": "Gap goes undetected (silent divergence — the worst failure mode of the whole refactor), refresh floods (no in-flight guard), the reply leaks to other sockets, or the client fails to resume deltas after recovery.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
-      "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — 03.x assertion lines; DEBUG=1 prints the probe's per-message seq trace.",
-      "modules": [
-        "statsync",
-        "backend"
-      ]
-    },
-    {
-      "id": "STATSYNC-04",
-      "title": "The real board on deltas renders the same game as on full states",
-      "asserts": "Two headless board pages on one fresh playnet game — one plain, one ?delta=1 — stay state-identical through actions; the delta page provably runs on patches, self-heals a forced seq corruption via game_refresh, and throws zero page errors.",
-      "kind": "frontend",
-      "network": "playnet",
-      "harness": "qa/harness/statsync-frontend.cjs",
-      "run": {
-        "lab1": "cd qa/harness && node statsync-frontend.cjs",
-        "any": "BASE=<site> API=<backend> node statsync-frontend.cjs"
-      },
-      "schedule": "cron, daily 04:10 UTC (statsync-cron.sh) + before any delta-default promotion",
-      "reports": "console assertions T:STATSYNC-04.1–.6, exit code",
-      "dimension": "playnet · real board · Playwright",
-      "cost": "free",
-      "what_it_does": [
-        "Create a fresh playnet game; a protocol driver client joins and owns two accounts.",
-        "Open the board twice headless (Playwright): plain URL and ?delta=1, both with __katomiaTestHooks so __qaGetState exposes state read-only.",
-        "Driver performs chats, add-account, an offer, a lock; after each settle the pages' accounts/players/tx and visible chat must match.",
-        "Then window.__stateSeq is forcibly corrupted on the delta page; the next broadcast must trigger one game_refresh and full reconvergence."
-      ],
-      "pass_means": "All six assertions green — first green 2026-08-14 (caught a real bug on the way: onmessage declared `const data`, so delta normalisation threw 'Assignment to constant variable' on every delta; states still converged, which is why the zero-page-errors assertion exists).",
-      "fails_when": "The delta page diverges from the full page, never actually consumes deltas, fails to self-heal a gap, or any page error fires.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-frontend.cjs",
-      "how_to_reproduce": "cd qa/harness && node statsync-frontend.cjs — assertion lines print pass/fail; page errors are dumped verbatim on failure.",
-      "modules": [
-        "statsync",
-        "backend"
-      ]
-    },
-    {
-      "id": "KSTRIP-01",
-      "title": "Source tag audit — launch-excluded features are strip-tagged",
-      "kind": "static",
-      "harness": "ops/kstrip-audit.sh",
-      "run": {
-        "lab1": "bash ops/kstrip-audit.sh"
-      },
-      "schedule": "per-build",
-      "state": "live 2026-08-15 (BUNDLE-STRIP1 phase 0)",
-      "dimension": "build hygiene",
-      "cost": "free",
-      "what_it_does": [
-        "Grep the source tree against the reference inventory of each launch-excluded feature (see STRIP_FEATURES in ops/build-standalone.sh).",
-        "Assert every hit sits inside a strip marker block, a strip-marked file file, or the feature's own directory."
-      ],
-      "pass_means": "A launch-excluded feature reference cannot exist in the source untagged — the bundle strip step will always catch it.",
-      "fails_when": "Someone adds an affordance for a launch-excluded feature without tagging it for bundle-time removal.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/ops/kstrip-audit.sh",
-      "how_to_reproduce": "Run the harness; the failure output lists each untagged reference with file:line.",
-      "modules": [
-        "build-pipeline"
-      ]
-    },
-    {
-      "id": "KSTRIP-02",
-      "title": "Bundle purity — no trace of stripped features in the build output",
-      "kind": "static",
-      "harness": "ops/kstrip-purity.sh",
-      "run": {
-        "build": "runs inside ops/build-standalone.sh as a hard gate",
-        "any": "bash ops/kstrip-purity.sh <build-dir>"
-      },
-      "schedule": "every build",
-      "state": "live 2026-08-15 (BUNDLE-STRIP1 phase 2) — pre-strip baseline measured FAILING as expected",
-      "dimension": "build hygiene / launch scope",
-      "cost": "free",
-      "what_it_does": [
-        "Grep the finished build tree for stripped-feature identifiers, leftover strip markers, and excluded directories."
-      ],
-      "pass_means": "Inspecting the bundle (or the site served from it) cannot reveal a launch-excluded feature — the launch bar.",
-      "fails_when": "The strip step missed a block/file, or a new untagged reference reached the bundle.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/ops/kstrip-purity.sh",
-      "how_to_reproduce": "Build with ops/build-standalone.sh, then run the harness against the build dir; failures list surviving references.",
-      "modules": [
-        "build-pipeline"
-      ]
-    },
-    {
-      "id": "KSTRIP-03",
-      "title": "Stripped-bundle journey — pat clean after pruning",
-      "kind": "journey",
-      "harness": "journey.cjs (existing, KAT-DEPLOY1)",
-      "run": {
-        "lincoln": "node journey.cjs https://pat.katomia.com clean"
-      },
-      "schedule": "per staged release during BUNDLE-STRIP1; then per release checklist",
-      "state": "baseline PASS recorded 2026-08-15 on pat (pre-strip, 0 console errors)",
-      "dimension": "regression",
-      "cost": "free",
-      "what_it_does": [
-        "Run the existing click-through journey against pat serving a stripped bundle.",
-        "Compare console errors / 404s against the pre-strip baseline run."
-      ],
-      "pass_means": "Pruning left no dangling references — 0 console errors, no new 404s, journey behaviour unchanged.",
-      "fails_when": "A stripped block was load-bearing for the launch surface (e.g. a shared helper cut too broadly).",
-      "harness_url": "https://github.com/topshef/kdeploy",
-      "how_to_reproduce": "Stage the release to pat via kdeploy, run journey.cjs as above, diff console output vs baseline.",
-      "modules": [
-        "build-pipeline"
-      ]
-    },
-    {
-      "id": "KADMIN-01",
-      "title": "Admin disclosure — launch-excluded features visible only to admin, clearly badged",
-      "kind": "visual",
-      "harness": "ops/kadmin-disclose.cjs",
-      "run": {
-        "lab1": "node ops/kadmin-disclose.cjs"
-      },
-      "schedule": "manual + after header.php changes",
-      "state": "live 2026-08-15 (BUNDLE-STRIP1 phase 1)",
-      "dimension": "access gating / UI",
-      "cost": "free",
-      "what_it_does": [
-        "From an admin IP (the header.php $katomiaIpAdmin list): assert the disclosed affordances render with the admin-only treatment (body.kadmin, 🛠 admin chip).",
-        "From a non-admin vantage (loopback): assert the affordances are absent from the served HTML."
-      ],
-      "pass_means": "Admin users see launch-excluded features clearly marked admin-only; everyone else gets nothing in the DOM (server-side, per request — off the admin network = gone next load).",
-      "fails_when": "Disclosure leaks to non-admin requests, or the admin view lacks the visual marker distinguishing admin-only items.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/ops/kadmin-disclose.cjs",
-      "how_to_reproduce": "Load a lab1 page from an admin IP and via 127.0.0.1 with the Host header; compare presence + badging of the disclosed menu/profile items.",
-      "modules": [
-        "frontend-ui",
-        "build-pipeline"
-      ]
-    },
-    {
-      "id": "TXTRUTH-01",
-      "title": "Never guess a FAILED verdict — confirm on chain",
-      "asserts": "With the tx-receipt socket severed between sign and receipt, the board still reaches a SUCCESS verdict sourced from chain confirmation; FAILED is never shown for a tx the mirror confirms.",
-      "kind": "e2e-signing",
-      "network": "testnet",
-      "modules": [
-        "signing-widget",
-        "backend",
-        "hedera"
-      ],
-      "state": "LIVE since 2026-08-17 — verified green: per-tx receipt socket severed post-sign (_boardTxSocket.close(), which also stops its reconnect — the incident's no-reconnect shape); board reached truthful success via source \"mirror\" (⛓), never a guessed FAILED.",
-      "harness": "qa/harness/txtruth-check.cjs",
-      "why_it_matters": "BOARD-TXTRUTH1 (2026-08-07): three false FAILURE verdicts on successful txs led to a real mainnet double spend — the only realized money harm to date. The fix (79858f4, confirm-on-chain) has no regression protection.",
-      "run": {
-        "lab1": "qa/harness/txtruth-cron.sh"
-      },
-      "schedule": "cron, daily 02:25 (lab1)",
-      "reports": "kflow test:verdict → QA grid"
-    },
-    {
-      "id": "SIGNDEADTX-01",
-      "title": "Refuse to sign an expired transaction",
-      "asserts": "Tapping Sign after the validity window closes is refused with an expiry message: no signer:sign:saved success, no wallet round-trip.",
-      "kind": "e2e-signing",
-      "network": "testnet",
-      "modules": [
-        "signing-widget",
-        "hedera-sdk"
-      ],
-      "state": "LIVE since 2026-08-17 — verified green: 40s window expired unsigned, external sign page (same paired context as the incident) refused with \"expired Ns ago — window has closed\"; zero signTx requests reached kWallet (kept manual so a slipped request parks as pending = fail).",
-      "harness": "qa/harness/signdeadtx-check.cjs",
-      "why_it_matters": "SIGN-DEADTX1 (2026-08-07): Sign clicked 39s after window close saved the sig and logged success; the network could never accept it.",
-      "run": {
-        "lab1": "qa/harness/signdeadtx-cron.sh"
-      },
-      "schedule": "cron, daily 03:40 (lab1)",
-      "reports": "kflow test:verdict → QA grid"
-    },
-    {
-      "id": "ENRICHCOLD-01",
-      "title": "Asset-enrich cold path: cached, parallel, bounded",
-      "asserts": "Enrich endpoint answers 200 (not 301); cold call < ~2.5s, warm < ~0.5s; two concurrent calls complete in ~1x not 2x (no session-lock serialisation); cold-profile board load shows no bare 0.0.x chip names after 3s.",
-      "kind": "specified",
-      "network": "testnet",
-      "modules": [
-        "enrich",
-        "backend"
-      ],
-      "state": "LIVE since 2026-08-17 — and currently RED with a real finding: 6-asset server-cold burst took 19.4s (gate 2.5s; warm 294ms), and a cold-profile t-kat-demo board showed 10/22 chips as bare token ids after 3s. Matches the GCP \"all end up white\" feedback; evidence noted on ENRICH-COLDPATH1.",
-      "harness": "qa/harness/enrichcold-check.cjs",
-      "why_it_matters": "ENRICH-COLDPATH1 (2026-08-08..13): four defects in one recurring subsystem; Kache.getData timeout deliberately deferred — a known live hole nothing watches.",
-      "run": {
-        "lab1": "qa/harness/quickchecks-cron.sh",
-        "any": "BASE=<site> node enrichcold-check.cjs"
-      },
-      "schedule": "cron, daily 04:50 (lab1)",
-      "reports": "kflow test:verdict → QA grid"
-    },
-    {
-      "id": "AMTSCALE-01",
-      "title": "Settled amount is verified on the mirror, not assumed",
-      "asserts": "(a) backend FR/FS guards reject a display-unit offer for a decimals>0 token; (b) after an HBARXFER verdict, the mirror transfer shows exactly the intended tinybar amount.",
-      "kind": "specified",
-      "network": "testnet",
-      "modules": [
-        "backend",
-        "hedera"
-      ],
-      "state": "PART (b) LIVE since 2026-08-17 — verified green: mirror shows exactly 1,000,000 tinybar received. Part (a), the backend FR/FS display-unit guard probe, is still a specified follow-up.",
-      "harness": "qa/harness/hbarxfer-auto-spike.cjs (rider)",
-      "why_it_matters": "AMOUNT-SCALE1 (critical, 2026-07-07): display-unit leak produced a signed mainnet tx with a 0-amount transfer. A scaling regression today would pass green — the harness asserts a toast, never the on-chain amount.",
-      "run": {
-        "lab1": "rides every hbarxfer run (12x/day + kswap/PAT daily)"
-      },
-      "schedule": "rides HBARXFER-01",
-      "reports": "kflow test:verdict (own run id) → QA grid"
-    },
-    {
-      "id": "GOODWIN-FLOAT-01",
-      "title": "Demo economy solvency — narrated rewards exist on chain",
-      "asserts": "Goodwin payer + treat-float (0.0.9862254) balances are above the precheck floor, AND the last narrated reward round has matching legs on the mirror transfer list.",
-      "kind": "specified",
-      "network": "mainnet",
-      "modules": [
-        "demo-economy",
-        "hedera"
-      ],
-      "state": "LIVE since 2026-08-17 — and currently RED with a real finding: Goodwin is SOLVENT (740 KUSD, 4.5 ℏ) and the treats demo is ONLINE, yet the mirror shows ZERO outbound KUSD legs in his last 100 transactions — rewards are not settling on-chain at all. New shape of the GOODWIN-DEMO class (not underfunding).",
-      "harness": "qa/harness/goodwin-float-check.cjs",
-      "why_it_matters": "GOODWIN-DEMO1/2/4: three recurrences of the payer deadlock, 18-19h public outages, SUCCESS logged throughout. Chain cross-check is the only honest detector.",
-      "run": {
-        "lab1": "qa/harness/quickchecks-cron.sh"
-      },
-      "schedule": "cron, daily 04:50 (lab1)",
-      "reports": "kflow test:verdict → QA grid"
-    },
-    {
-      "id": "ACCTMISMATCH-01",
-      "title": "Wrong-active-account sign aborts loudly",
-      "asserts": "With two accounts paired and the wrong one active, Sign aborts with the mismatch toast + board:sign:account-mismatch kdiag; no signTx reaches the wallet.",
-      "kind": "specified",
-      "network": "testnet",
-      "modules": [
-        "walletconnect",
-        "signing-widget"
-      ],
-      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
-      "harness": "(planned) kWallet two-account variant of the WC harnesses",
-      "why_it_matters": "WS-ACCTMISMATCH1 (2026-08-05): silent wrong-account signing burned the whole signing window; current protection is monitoring, not a test."
-    },
-    {
-      "id": "WCSINGLEINIT-01",
-      "title": "Exactly one WalletConnect client per page load",
-      "asserts": "wc:build kdiag fires exactly once per page load.",
-      "kind": "specified",
-      "network": "testnet",
-      "modules": [
-        "walletconnect"
-      ],
-      "state": "LIVE since 2026-08-17 — verified green: one wc:build per load. Fails only on the DOUBLEINIT signature (near-simultaneous builds <3s apart); later network-scope rebuilds (WC-NETSCOPE) are legitimate.",
-      "harness": "qa/harness/wc-singleinit-check.cjs",
-      "why_it_matters": "WC-DOUBLEINIT1 (2026-08-07): two clients sharing one store destroyed each other’s sessions — produced an on-chain-confirmed expired tx. Fixed 8e6255c, unasserted.",
-      "run": {
-        "lab1": "qa/harness/quickchecks-cron.sh"
-      },
-      "schedule": "cron, daily 04:50 (lab1)",
-      "reports": "kflow test:verdict → QA grid"
-    },
-    {
-      "id": "PRIVJOIN-01",
-      "title": "Private-game join delivers frames",
-      "asserts": "A fresh join to the t-private fixture receives game_state + playerId in < 5s; a spectator probe stays invisible.",
-      "kind": "protocol",
-      "network": "testnet",
-      "modules": [
-        "backend",
-        "statsync"
-      ],
-      "state": "LIVE since 2026-08-17 — join-delivers-frames core, green. The spectator-invisibility half has NO surface to probe yet (no game-listing endpoint exists); it becomes buildable when a lobby/list API lands.",
-      "harness": "qa/harness/privjoin-check.cjs",
-      "why_it_matters": "GAMEPRIVATE-JOINSTUCK1 (2026-07-16): join returned zero frames — permanently blank board. The fixture was kept as a permanent regression fixture; nothing probes it.",
-      "run": {
-        "lab1": "qa/harness/quickchecks-cron.sh",
-        "any": "API=<backend> node privjoin-check.cjs"
-      },
-      "schedule": "cron, daily 04:50 (lab1)",
-      "reports": "kflow test:verdict → QA grid"
-    },
-    {
-      "id": "NODEPIN-01",
-      "title": "Frozen tx carries multiple nodes and fresh speed data",
-      "asserts": "A mainnet tx built/rebuilt through the sign pipeline keeps >= 3 frozen node ids through the rebuild, and node-speed rows older than 6h are excluded from selection.",
-      "kind": "specified",
-      "network": "mainnet",
-      "modules": [
-        "backend",
-        "hedera-sdk"
-      ],
-      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
-      "harness": "(planned) backend unit script (no submission needed)",
-      "why_it_matters": "SIGN-BOUNDARY1 R2/R3: single-node pinning from 36h-old speed rows caused a retry loop into TRANSACTION_EXPIRED; sig-store/rebuild collapses to copy[0]. MAINNETSMOKE only catches this probabilistically."
-    },
-    {
-      "id": "ACTSELF-01",
-      "title": "Action rows reach my own stream",
-      "asserts": "After B rejects A’s offer, the action row lands in A’s bucket in both kchatMode paths.",
-      "kind": "specified",
-      "network": "testnet",
-      "modules": [
-        "statsync"
-      ],
-      "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
-      "harness": "(planned) extension to statsync-baseline (already two-client)",
-      "why_it_matters": "CHAT-ACTIONSELF1 (2026-08-06, unfixed): actions on my assets never reach my stream, view-mode dependent."
-    },
-    {
-      "id": "CHIPCANARY-01",
-      "title": "Board geometry canaries, banked and scheduled",
-      "asserts": "On the demo board at landscape AND portrait: every chip painted and positioned (none at top-left default), zero movement after settle, all chips inside the viewport, basket chips inside the rim ellipse and store chips outside it.",
-      "kind": "ui-canary",
-      "network": "testnet",
-      "modules": [
-        "frontend-ui"
-      ],
-      "state": "LIVE since 2026-08-17 — banks 4 of the 6 live-scratchpad canary categories (paint, settle, containment, rim-geometry centre-test v1) at landscape+portrait. Follow-ups: full corner test vs env.oval, cosmetic-stability toggle, attached-artifact tracking.",
-      "harness": "qa/harness/chip-canary.cjs",
-      "why_it_matters": "BOARD-DROPHIT1 / ARRANGEFENCE1 / PICKSCATTER1 / TRAILSTUCK1 family + inbox 08-06 \"chip in someone else’s basket\" — the visual class regresses user-visibly with zero automation.",
-      "run": {
-        "lab1": "qa/harness/quickchecks-cron.sh",
-        "any": "BASE=<site> node chip-canary.cjs"
-      },
-      "schedule": "cron, daily 04:50 (lab1)",
-      "reports": "kflow test:verdict → QA grid"
-    },
-    {
-      "id": "SIGNSTABLE-01",
-      "title": "The sign affordance must not move between aiming and clicking",
-      "asserts": "The sign button's bounding box is watched for 3s before the harness clicks it; drift > 1px fails.",
-      "kind": "ui-canary",
-      "network": "testnet",
-      "modules": [
-        "frontend-ui",
-        "signing-widget"
-      ],
-      "harness": "qa/harness/hbarxfer-auto-spike.cjs (rider)",
-      "run": {
-        "lab1": "rides every hbarxfer run"
-      },
-      "schedule": "rides HBARXFER-01",
-      "reports": "kflow test:verdict (own run id) → QA grid",
-      "state": "LIVE since 2026-08-17 (v1 = the board's sign button; verified 0.0px). CANARY-HYDRATION-CLICK's full shape — the signing MODAL's button through enrichment — still needs a recorded-tx fixture.",
-      "why_it_matters": "SIGN-LAYOUTJUMP1: async modal growth put a hashtag link under a real-value mainnet Sign tap."
-    },
-    {
-      "id": "LOCKREDRAW-01",
-      "title": "Strike-moment trail lines follow the chips — no stranded dotted line, no double animation",
-      "asserts": "Drives a fresh testnet game (3 manual accounts, Party-only on for the viewer, one bystander so the lock collapses/rotates the ring), offers HBAR, locks the cluster, then audits: playTransfers auto-fired exactly once (C1); exactly one visible trail line per pending tx leg (C2); every visible line's endpoints within 48px of a live chip centre at strike+6s (C3) and strike+11s (C4).",
-      "kind": "ui-canary",
-      "network": "testnet",
-      "modules": [
-        "frontend-ui",
-        "board-trails"
-      ],
-      "harness": "qa/harness/lockredraw-check.cjs",
-      "run": {
-        "lab1": "node qa/harness/lockredraw-check.cjs (BASE defaults to lab1)"
-      },
-      "schedule": "manual — run after touching trails/strike choreography",
-      "reports": "stdout JSON verdict + screenshots beside the harness",
-      "state": "LIVE since 2026-08-18 (BOARD-LOCKREDRAW1 R2 verification; first PASS on game MR4QRH: 1 fire, 1 line, endpoints within 1px)",
-      "why_it_matters": "BOARD-LOCKREDRAW1: with Party-only on, the lock rotation stranded the offer trail at the wrong angle; R1's fix doubled the strike animation instead. This pins both."
-    },
-    {
-      "id": "BREAKOUT-01",
-      "title": "A struck deal in an on-lock game moves to a side circle; off games are byte-identical",
-      "asserts": "Drives a real testnet round (fresh basic-form game = Auto on-lock, 3 manual accounts incl. a bystander): B2 movers auto-land on <parent>~1; B3 membership + basket conservation; B4 ceremony in the child only (parent unfrozen); B5 three linked rows + B5b public-keyed moved breadcrumb; B5c ✍️ signers row names the sender (computed by the signing modal's own calcAccountsThatSign, not a backend guess); B6 expiry verdict fires IN THE CHILD; B6b the failed deal AUTO-RELOADS as a draft (basket repopulated, no locks, 🔁 row). FRAMES=1 dumps a 350ms screenshot series through the handoff for transition forensics. B7 = run LOCKREDRAW-01 (pins breakout=off) as the no-breakout regression.",
-      "kind": "e2e",
-      "network": "testnet",
-      "modules": [
-        "backend-game",
-        "frontend-ui",
-        "breakout"
-      ],
-      "harness": "qa/harness/breakout-check.cjs",
-      "run": {
-        "lab1": "node qa/harness/breakout-check.cjs (WAIT_EXPIRY=0 skips the ~60s B6 wait)"
-      },
-      "schedule": "manual — run after touching splitGame/postCluster/state broadcast",
-      "reports": "stdout JSON verdict + breakout-child.png / breakout-parent.png",
-      "state": "LIVE since 2026-08-18; extended 2026-08-19 with B5c signers row + B6b auto-reload. Caught live: playerToken leak in moved memo, twin state-field whitelists, ENTRY-AUTOADD1 side-circle pollution.",
-      "why_it_matters": "KAT-BREAKOUT1: the split must be atomic and invisible-when-off; this is the falsifier the spec promised before user retest."
-    },
-    {
-      "id": "BREAKOUT-02",
-      "title": "Two disjoint clusters strike in one sweep — two side circles, both correct, in parallel",
-      "asserts": "PLANNED (sketch): 4+ accounts, two disjoint offers (A→B, C→D), lock all four in quick succession. Expect: two children <parent>~1 and <parent>~2 (order by strike), each with exactly its own cluster + pending tx + ceremony; parent keeps bystanders + both moved rows; both txs resolve independently in their own child (stagger the validity windows to prove independence); moved memo carries all four accounts across two child ids.",
-      "kind": "e2e",
-      "network": "testnet",
-      "modules": [
-        "backend-game",
-        "breakout"
-      ],
-      "harness": "qa/harness/breakout-check.cjs (PARALLEL=1 mode — NOT YET BUILT)",
-      "run": {
-        "lab1": "planned"
-      },
-      "schedule": "build next — the user names parallel breakouts the top untested scenario",
-      "reports": "—",
-      "state": "PLANNED 2026-08-19 (KAT-BREAKOUT1 QA sketch). The postClusters loop + PROP-LOCKSIGN1 shared basis say this works; nothing has proven it.",
-      "why_it_matters": "Concurrent settlement is the flow the one-ceremony board could never render; breakout is supposed to make it just work."
-    },
-    {
-      "id": "JOINGATE-01",
-      "title": "Token-gated join rule (account-or-token allowlist)",
-      "asserts": "A joinRule allowlist entry that is a TOKEN id admits exactly the accounts holding ≥1 of it (NFT or fungible), account entries still direct-match, raw CSV string equals the array form, playnet token entries never match, and a live gated game reports eligible true/false/false for committed holder / committed non-holder / anonymous.",
-      "kind": "protocol",
-      "network": "testnet",
-      "modules": [
-        "backend"
-      ],
-      "state": "LIVE since 2026-08-19 — 11 assertions, all green on alpha at ship time (GAME-JOINRULE2a).",
-      "harness": "qa/harness/joingate-check.cjs",
-      "why_it_matters": "GAME-JOINRULE2(a): community membership tokens as circle gates. The classification (mirror /tokens 404 = account) and the holder check both lean on mirror behaviour — a mirror API change or cast rotation (fixture NFT 0.0.3626892 held by alice 0.0.9556348, not by carol) breaks gating silently without this probe.",
-      "run": {
-        "any": "API=https://alpha.katlab.kpay.live BACKEND_DIR=/home/hbarlive_hts-alpha node joingate-check.cjs"
-      },
-      "schedule": "manual (candidate for quickchecks-cron once soaked)",
-      "reports": "kflow test:verdict → QA grid"
-    },
-    {
-      "id": "COMPOSER-01",
-      "title": "Access-rule composer quick pick + create-form template deep links",
-      "asserts": "Every create-form field prefills from URL params and the 🔗 template link reproduces them (never carrying admin); the ⋯ composer round-trips the input CSV into mirror-classified chips (named token + account), lists the connected account's held tokens, auto-classifies a pasted token ID, and writes the CSV back; a deep-linked gated form creates a circle, lands on /board/<id>?created=1, and the circle really gates (anonymous eligible:false).",
-      "kind": "browser",
-      "network": "testnet",
-      "modules": [
-        "frontend",
-        "backend"
-      ],
-      "state": "LIVE since 2026-08-20 — 8 assertions, all green at ship time (JOINRULE-COMPOSER1 phase 1 + CREATE-DEEPLINK1).",
-      "harness": "qa/harness/composer-check.cjs",
-      "why_it_matters": "The composer leans on two new backend lookups (/entities classify, /held-tokens) and the deep-link surface is now the documented way to save form templates — a param rename or a classify regression breaks saved template links users hold, silently.",
-      "run": {
-        "any": "BASE=https://lab1.katlab.kpay.live API=https://alpha.katlab.kpay.live node composer-check.cjs"
-      },
-      "schedule": "manual (candidate for quickchecks-cron once soaked)",
-      "reports": "kflow test:verdict → QA grid"
-    },
-    {
-      "id": "SAMEORIGIN-01",
-      "title": "Backend origin never reaches the browser",
-      "asserts": "A real board page makes zero requests (http or websocket) to any backend-shaped host; the game socket opens on the page's own origin via the /hapi/ws proxy. Proves KAT-SAMEORIGIN-FE1 + PROXY1 actually hide the backend.",
-      "kind": "security-network",
-      "network": "any",
-      "harness": "qa/harness/sameorigin-check.cjs",
-      "run": {
-        "lab2": "BASE=https://lab2.katlab.kpay.live BACKEND=bravo.katlab.kpay.live node qa/harness/sameorigin-check.cjs",
-        "any": "BASE=<site> BACKEND=<paired backend host> node sameorigin-check.cjs [pagePath]"
-      },
-      "notes": "Requires the vhost /hapi/ + /hapi/ws reverse proxy (KAT-SAMEORIGIN-PROXY1) and KAT_SAMEORIGIN=1 in the seat's .env_hapi. Exit 2 = harness/infra (proxy or flag missing), exit 1 = real leak. Added 2026-08-20, KAT-SAMEORIGIN-FE1."
-    },
-    {
-      "id": "TICKETS-BASE-01",
-      "title": "Tickets flag-off parity + proposal baseline",
-      "asserts": "With the PROP-TICKETS1 code deployed and ?tickets=1 ABSENT, the app is byte-identical (no feat-tickets class, no ticket DOM, KTICKETS false) and the plain proposal flow still works end to end on playnet (join, offer, withdraw, lock both, instant settlement). With the flag ON and no tickets, only the body class appears.",
-      "kind": "regression-parity",
-      "network": "playnet",
-      "harness": "qa/harness/tickets-baseline-check.cjs",
-      "run": {
-        "lab2": "node tickets-baseline-check.cjs",
-        "any": "API=<backend> BASE=<site> node tickets-baseline-check.cjs"
-      },
-      "schedule": "manual (run after every tickets phase lands)",
-      "reports": "kflow test:verdict → QA grid",
-      "notes": "The phase-0 gate from docs/tickets-phased-plan-20260820.html: no tickets phase ships unless this is green. Probe drives offers/locks via the socket and asserts via the DOM. Uses ?hapi_base= to force cross-origin while the lab2 /hapi/ proxy (KAT-SAMEORIGIN-PROXY1) is pending.",
-      "dimension": "playnet · parity",
-      "cost": "free",
-      "what_it_does": [
-        "Create a fresh unlisted playnet circle via /katomia/create.",
-        "Open the board WITHOUT the flag: assert no feat-tickets class, no ticket DOM, window.KTICKETS false.",
-        "Two players join by adding manual accounts (playnet auto-seeds apple/banana/carrot).",
-        "Offer apple A→B, assert basket chips both sides; withdraw, assert cleared; re-offer.",
-        "Both lock; assert instant playnet settlement moved the apple.",
-        "Open a third page WITH ?tickets=1: assert exactly the body class appears and no ticket DOM while no tickets exist."
-      ],
-      "pass_means": "The tickets code is provably dark when the flag is off, and the pre-tickets proposal flow is unregressed.",
-      "fails_when": "Any tickets code path leaks into the unflagged app, or the plain proposal flow breaks.",
-      "harness_url": "https://lab2.katlab.kpay.live/m/katomia/qa/harness/tickets-baseline-check.cjs",
-      "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-BASE-01.n) prints PASS/FAIL with detail."
-    },
-    {
-      "id": "TICKETS-01",
-      "title": "The ticket loop, end to end on playnet",
-      "asserts": "Two flagged players: build a ticket from the asset card (Price it… → builder), it renders on both boards; tear-up removes it; a take posts both legs as fill-cued basket rows and (phase D, Firm default) commits the maker's side only; recalling one leg tears out both sides and reopens the ticket; re-take + both lock settles instantly and the ticket leaves the stall.",
-      "kind": "e2e-feature",
-      "network": "playnet",
-      "harness": "qa/harness/tickets-check.cjs",
-      "run": {
-        "lab2": "node tickets-check.cjs",
-        "any": "API=<backend> BASE=<site> node tickets-check.cjs"
-      },
-      "schedule": "manual (run after every tickets phase lands)",
-      "reports": "kflow test:verdict → QA grid",
-      "notes": "Phases 1-3 of docs/tickets-phased-plan-20260820.html in one sweep: builder (P1), render+manage (P2), take ceremony + group recall + settlement (P3). Requires ?tickets=1. v1 tickets are all-or-nothing (minFill 1/1). Uses ?hapi_base= like TICKETS-BASE-01. UPDATED phase D 2026-08-21: the default dial is now Firm, so a take auto-locks the MAKER. This suite locks with the absolute to:'lock' form — the legacy toggle would UNLOCK an already-committed maker and nothing would settle.",
-      "dimension": "playnet · full ticket loop",
-      "cost": "free",
-      "what_it_does": [
-        "Create a fresh unlisted playnet circle; alice and bob join flagged (?tickets=1), each adds a manual account.",
-        "Alice taps her apple chip → 🎟 Price it… → builder prefilled with apple; sets want=banana; Create ticket (signed game_orderCreate).",
-        "Assert the order exists in state and a 🎟 chip renders on BOTH boards.",
-        "Alice tears it up (game_orderCancel) — assert gone everywhere; re-creates it.",
-        "Bob taps the ticket → Take it (game_orderFill 1/1) — assert both legs land as .board-fillrow basket rows and nobody auto-locked.",
-        "Alice taps her fill leg → Recall ticket fill (both sides) — assert both rows vanish and the ticket reopens.",
-        "Bob re-takes; both lock via socket; assert instant playnet settlement (fruit swapped) and the settled ticket no longer renders."
-      ],
-      "pass_means": "The whole priced-ticket loop — create, render, manage, take, group recall, settle — works in a proposal circle with zero backend changes.",
-      "fails_when": "Any step of the loop breaks; historically the first failure was net view stripping fillId from basket rows (fixed by the flag-gated netting bypass in boardNetAccounts).",
-      "harness_url": "https://lab2.katlab.kpay.live/m/katomia/qa/harness/tickets-check.cjs",
-      "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-01.n) prints PASS/FAIL with detail."
-    },
-    {
-      "id": "TICKETS-QUIET-01",
-      "title": "The quiet ticket — stub on the chip, split stack, hover peek, one ticket at a time",
-      "asserts": "A priced asset's OWN chip wears the perforated right edge and no standalone ticket object exists; the cue costs zero chip height (measured at 390x844, the viewport the counter-band regression appeared on); the CSS mask does not clip the pick pennant off a pickable priced chip; tapping the priced chip opens its asset card carrying the ticket section and the maker's tear-up. A2: a stack with more than one unit splits when part of it is priced — two SOLID chips, the stub on exactly one, neither drawn as a dashed ghost (a ticket reserves nothing, so nothing has left the store), and no height cost. A3: hovering a priced chip opens a peek popover stating both legs, placed clear of the chip and pointer-events:none so it cannot swallow a drag, and lights every chip on the felt that could fill the ticket; both clear on leave. NFT snag: a thumb-only chip's ticket gutter is PAINTED and wide enough for the notch — the v8 skin gives thumb-only chips background:none and padding:0, so the mask was notching transparent air and the cue was invisible on NFTs. Multi-ticket: an asset carrying two tickets shows a tab per ticket and draws only ONE ticket's actions; switching tab switches which ticket is shown; and Remove from table is withheld while any ticket exists, saying why.",
-      "kind": "e2e-feature",
-      "network": "playnet",
-      "harness": "qa/harness/tickets-quiet-check.cjs",
-      "run": {
-        "lab1": "node tickets-quiet-check.cjs",
-        "any": "API=<backend> BASE=<site> node tickets-quiet-check.cjs"
-      },
-      "schedule": "manual (run with every tickets phase)",
-      "reports": "kflow test:verdict → QA grid",
-      "notes": "Phase A1 of docs/tickets-build-plan-20260821.html. Requires ?tickets=1. Guards three things that fail SILENTLY: (1) the standalone .board-ticket chip is gone — its whole job moved onto the give-leg's chip; (2) chip height must not change, because bandFull = tallest chip + 12 and a taller chip pushes store chips off a small screen (the P5a regression); (3) the mask must keep mask-clip:no-clip and a tile that reaches 24px left, or it eats the ::before pick pennant — which is invisible to every DOM and computed-style check, and did happen on the first cut. Screenshot artifact at qa/harness/tickets-quiet-last.png. A2 asserts D12 (the priced slice is solid, not a dashed ghost) — dashed already means 'gone from the store', and drawing a still-spendable slice as reserved would make the phase-B drag-out guard read as a surprise. Second screenshot at qa/harness/tickets-quiet-split.png. A3 is desktop-only by design (BOARD-TIPTOUCH1: on touch a hover cue fires on long-press and fights the drag). Third screenshot at qa/harness/tickets-quiet-peek.png.",
-      "dimension": "playnet · quiet-ticket rendering",
-      "cost": "free",
-      "what_it_does": [
-        "Create a fresh unlisted playnet circle at 390x844; alice joins flagged (?tickets=1) and adds a manual account.",
-        "Turn Pickable ON first, so the pennant is already on the chip that is about to be masked.",
-        "Measure the apple and carrot chip heights before anything is priced.",
-        "Tap apple → 🎟 Price it… → want=banana → Create ticket.",
-        "Assert the apple chip carries .board-ticketed, no .board-ticket object exists anywhere, and the carrot chip is untouched.",
-        "Re-measure both chip heights and assert neither moved.",
-        "Assert the chip is both pickable and masked, that mask-clip is no-clip, and that the mask tile reaches further left than the pennant.",
-        "Tap the priced chip and assert the asset card opens carrying the ticket section and the tear-up action.",
-        "Save a screenshot for eyeball confirmation of the stub + pennant together.",
-        "Bring in a second player, run the ticket to settlement so the taker holds a stack of two apples (playnet seeds only one of each, so the stack has to be earned).",
-        "Price ONE apple and assert the stack renders as two chips, exactly one wearing the stub, neither ghosted, neither taller.",
-        "Open a third, hover-capable 1200px viewer and hover the priced chip: assert the peek appears, states both legs, sits clear of the chip, is pointer-events:none, and lights exactly the chips matching the WANT leg.",
-        "Move the pointer away and assert both the peek and the highlight clear.",
-        "Add the thumb-only class cascade a real NFT gets and assert the ticket gutter is painted, wide enough, and still masked (playnet has no NFTs, so this is emulated — worth one eyeball on testnet).",
-        "Price the same asset a SECOND time and assert two tabs appear, exactly one set of ticket actions is drawn, switching tabs switches the ticket, and Remove from table is withheld with a reason."
-      ],
-      "pass_means": "The ticket reads as a property of the item rather than an object beside it, without costing layout or eating another chip cue.",
-      "fails_when": "A cue is added that grows the chip; the mask clipping rule is weakened and the pennant silently disappears; or the asset card loses its ticket section. Or an asset with two tickets duplicates its action buttons again.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-quiet-check.cjs",
-      "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-QUIET-01.n) prints PASS/FAIL with detail."
-    },
-    {
-      "id": "TICKETS-GESTURE-01",
-      "title": "The take as a gesture — drag both ways, and the double-promise guard",
-      "asserts": "B1: someone else's priced chip is draggable into your own space and lands the take EVEN THOUGH their store is not pickable (the ticket is the permission), producing the same fill group the asset-card button produces, with no auto-lock. B2: dragging an asset a ticket wants reveals exactly one wanted slot — the maker's own priced chip, not a new node — and dropping on it takes the ticket; the slot exists only during the drag. B3: offering out an asset you have priced asks first, names the unsourced outcome, and the ticket stays open and VISIBLY unsourced on both boards rather than vanishing. The unsourced ticket must read as an ABSENCE — red dashed and dimmed, distinct from the neutral offered-away ghost — not as a solid chip you still own.",
-      "kind": "e2e-feature",
-      "network": "playnet",
-      "harness": "qa/harness/tickets-gesture-check.cjs",
-      "run": {
-        "lab1": "node tickets-gesture-check.cjs",
-        "any": "API=<backend> BASE=<site> node tickets-gesture-check.cjs"
-      },
-      "schedule": "manual (run with every tickets phase)",
-      "reports": "kflow test:verdict → QA grid",
-      "notes": "Phase B of docs/tickets-build-plan-20260821.html. Requires ?tickets=1. HTML5 drag-and-drop cannot be driven by synthetic mouse events, so the gestures are exercised through the same dataTransfer contract the real drag uses — the chip's own ondragstart builds the payload and the target's ondrop consumes it. That covers what phase B adds (payload shape, drop routing, verb); the browser's dnd plumbing is not under test. B3 is driven at boardExecuteDrop directly, because a pie-slice hit test aimed at a bounding-box centre resolves to whichever wedge contains that point — drag plumbing, not the guard. Screenshot at qa/harness/tickets-gesture-unsourced.png.",
-      "dimension": "playnet · ticket gestures",
-      "cost": "free",
-      "what_it_does": [
-        "Fresh playnet circle, two flagged players, both with a manual account. Alice prices her apple for a banana and leaves her store NOT pickable.",
-        "Assert her priced chip is draggable for Bob anyway, and that an unpriced chip of hers is not.",
-        "B1: drag the priced chip into Bob's own zone; assert two fill-cued rows on both boards and no auto-lock.",
-        "Recall to reopen the ticket.",
-        "B2: assert no wanted slot at rest; start dragging Bob's banana and assert exactly one slot appears, on the maker's priced chip; drop on it and assert the take; assert the slot clears.",
-        "Recall again.",
-        "B3: offer the priced apple out to Bob. Assert the confirm was raised, that it named the unsourced outcome, that the apple really left the store, that the ticket is still open, and that it renders as a visible unsourced chip on BOTH boards.",
-        "Assert the unsourced chip is dashed and dimmed in RED, and that the ordinary offered-away ghost is still the neutral dashed one."
-      ],
-      "pass_means": "One verb, two directions, and the collision between offering and pricing the same asset is surfaced rather than discovered at signing.",
-      "fails_when": "The take drag starts depending on allowPick again; wanted slots leak outside a drag; or an unsourced ticket becomes invisible because its give-leg has no store chip to hang on.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-gesture-check.cjs",
-      "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-GESTURE-01.n) prints PASS/FAIL with detail."
-    },
-    {
-      "id": "TICKETS-MULTIACCT-01",
-      "title": "Taking your own ticket with another account — allowed, and recorded as facts",
-      "asserts": "One player holding two accounts can take a ticket made on the other: the card offers BOTH tear-up and take, the take names the account, the maker's own account is never offered as the filler, and the fill settles like any other. The fill row carries provenance — sameInstigator plus each side's bound state at fill time — and nothing anywhere labels it a self-fill or a wash trade.",
-      "kind": "e2e-feature",
-      "network": "playnet",
-      "harness": "qa/harness/tickets-multiacct-check.cjs",
-      "run": {
-        "lab1": "node tickets-multiacct-check.cjs",
-        "any": "API=<backend> BASE=<site> node tickets-multiacct-check.cjs"
-      },
-      "schedule": "manual (run with every tickets phase)",
-      "reports": "kflow test:verdict → QA grid",
-      "notes": "Phase C of docs/tickets-build-plan-20260821.html. Requires ?tickets=1, and a BACKEND change (katomiaActions.js writes prov on fill rows, katomia.js projects it) — run against a backend carrying both. The framing matters as much as the mechanics: two accounts under one player does NOT mean one entity owns both, because a player may be representing an account, so 'same player on both sides' is not evidence of self-dealing and the product must not assert that it is. Assertion 12 is the guard on that: the provenance object may contain no key that renders a verdict.",
-      "dimension": "playnet · multi-account take + fill provenance",
-      "cost": "free",
-      "what_it_does": [
-        "Fresh playnet circle; ONE flagged player adds TWO manual accounts (the footer control is a button with no accounts and a select once you hold one — the harness handles both).",
-        "Price the apple on the first account for a banana.",
-        "Open the priced chip's card and assert it offers tear-up AND take, that the take names the other account, and that the maker's own account is not a filler option.",
-        "Take it and assert a real two-row fill group.",
-        "Read the fill row's prov and assert it records sameInstigator and each side's bound state — and that it contains no self/wash/suspicion verdict.",
-        "Lock both accounts and assert the apple actually moved between them."
-      ],
-      "pass_means": "A player can try a ticket out end to end on their own, and the facts needed to judge such a fill later are captured at the moment it happens.",
-      "fails_when": "The take branch closes again because isMyAccount is per player; the maker's own account leaks into the filler list (a silent no-op fill); provenance stops being written or projected; or something starts calling it a self-fill.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-multiacct-check.cjs",
-      "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-MULTIACCT-01.n) prints PASS/FAIL with detail."
-    },
-    {
-      "id": "TICKETS-DIAL-01",
-      "title": "The settlement dial — Negotiable · Firm · Instant, and both interlocks",
-      "asserts": "Normal mode never sees the dial; nerd mode shows three positions with Firm selected. Negotiable leaves nobody locked. Firm locks the MAKER's side only and one taker action then settles it. Instant settles with no locking step at all. On a table where someone else is already locked, an Instant take STANDS DOWN — it neither settles nor leaves anyone auto-locked. Under lock rule 'all' the Instant position is disabled and says why, while Firm stays. Off playnet every position but Negotiable is refused, with a reason naming the signed-payload gap.",
-      "kind": "e2e-feature",
-      "network": "playnet",
-      "harness": "qa/harness/tickets-dial-check.cjs",
-      "run": {
-        "lab1": "node tickets-dial-check.cjs",
-        "any": "API=<backend> BASE=<site> node tickets-dial-check.cjs"
-      },
-      "schedule": "manual (run with every tickets phase)",
-      "reports": "kflow test:verdict → QA grid",
-      "notes": "Phase D of docs/tickets-build-plan-20260821.html. Requires ?tickets=1 and a BACKEND carrying the orderFill wrapper in katomia.js. The dial is the whole proposal-to-order sliding scale on one maker-set control, and its real UI is the TAKE BUTTON'S LABEL — the maker decides, the taker consents by taking, so the button must state what taking does; the labels are asserted here. Two interlocks are safety, not polish: off playnet the dial is unsigned execution semantics (it is outside the signed payload AND an auto-lock carries no signed board basis, because it bypasses toggleLock), and Instant cannot be instant unless a connected pair may settle alone. Both are refused in the UI and again in the backend. The stand-down rule exists because resetLocksIfNeeded clears EVERY lock in the circle on any fill — auto-locking on a table someone else was mid-agreement on would be consenting to a board nobody has seen. PROP-LOCKSCOPE1 is the properly engineered fix, after which this can relax to 'this cluster is quiet'.",
-      "dimension": "playnet · settlement dial + interlocks",
-      "cost": "free",
-      "what_it_does": [
-        "Assert the dial is absent in normal mode and present with three positions and Firm preselected in nerd mode.",
-        "Negotiable: create, take, assert nobody locked and the button said 'haggle'.",
-        "Firm (fresh circle): assert the button says 'at this price', the maker's side locks, the taker's does not, nothing settled yet, and ONE taker lock then settles it.",
-        "Instant (fresh circle): assert the button says it settles instantly, and that it settles with no locking step.",
-        "Stand-down (fresh circle): lock someone else first, then take an Instant ticket — assert it did NOT settle and left nobody auto-locked.",
-        "Lock rule 'all': assert Instant is disabled with a reason and Firm still offered.",
-        "Drive the availability rule with a stubbed mainnet gameMeta and assert only Negotiable survives, with a reason naming the signing gap."
-      ],
-      "pass_means": "The maker can choose how far along the proposal-to-order scale a ticket sits, the taker is never surprised by it, and the lever cannot produce unsigned execution semantics or an unkeepable promise.",
-      "fails_when": "A dial position stops matching its button label; the stand-down rule regresses and a take auto-locks over someone else's torn-up lock; or either interlock is weakened so a non-Negotiable ticket can be posted off playnet or under a lock rule that cannot honour it.",
-      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-dial-check.cjs",
-      "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-DIAL-01.n) prints PASS/FAIL with detail."
+     "id": "A5b.8",
+     "asserts": "no uncaught page errors"
     }
-  ],
-  "expected_fail": {
-    "_about": "QA-XFAIL1: assertions written to FAIL today, each mapped to the stage of TXSTATUS-CONSOLIDATE1 that should turn it green, so a red does not read as a regression. Only A5b.4 was ever automated; the TXS-* below are specified but NOT YET IMPLEMENTED as harnesses — that is the open half of QA-XFAIL1.",
-    "cases": [
-      {
-        "id": "TXS-1",
-        "asserts": "An abandoned Sign tap never produces a user-visible message after the transaction it belonged to is dead. (Tap Sign, abandon, complete a DIFFERENT tx, wait past 120s.)",
-        "stage": "S2",
-        "runnable_by_hand": true,
-        "status": "specified, not automated; behaviour fixed by S2 — mechanics covered by the S2 synthetic suite"
-      },
-      {
-        "id": "TXS-2",
-        "asserts": "Every transaction message names its txid, including board:sign:error's kdiag payload.",
-        "stage": "S2",
-        "status": "specified, not automated; fixed by S2 (txid+accountId added)"
-      },
-      {
-        "id": "TXS-3",
-        "asserts": "Two board tabs: a verdict shown in one can never be re-declared by the other.",
-        "stage": "S2",
-        "runnable_by_hand": true,
-        "status": "specified, not automated; fixed by S2 (localStorage re-read + BroadcastChannel)"
-      },
-      {
-        "id": "TXS-4",
-        "asserts": "A failure verdict arrives within 15s of expiry. Measured pre-fix: 57-62s.",
-        "stage": "S3",
-        "runnable_by_hand": true,
-        "status": "fixed by S3 — measured 14.0s e2e on lab1 2026-08-07"
-      },
-      {
-        "id": "TXS-5",
-        "asserts": "No full-board wiper plays for a verdict older than a few seconds, or once a newer signing window has opened.",
-        "stage": "S3",
-        "runnable_by_hand": true,
-        "status": "fixed by S3 — tiering suite 4/4"
-      },
-      {
-        "id": "TXS-6",
-        "asserts": "A negative signal followed by a positive one within ~1.2s shows success only (the settle window).",
-        "stage": "S2",
-        "status": "fixed by S2 — covered by the S2 synthetic suite"
-      },
-      {
-        "id": "TXS-7",
-        "asserts": "A success verdict records its provenance — mirror node vs socket.",
-        "stage": "S5",
-        "status": "implemented by S5 (⚡ socket / ⛓ mirror / 🛰 backend glyph); no automated assertion yet"
-      },
-      {
-        "id": "ORD-1",
-        "asserts": "Order-mode expiry comes from the backend window, not a hardcoded 2m30s client clock.",
-        "stage": "S7",
-        "status": "fixed by S7 — guess deleted; no automated assertion yet"
-      },
-      {
-        "id": "A5b.4",
-        "asserts": "A sign against a dead session gives up inside the transaction's validity window, not at 120s.",
-        "stage": "S4",
-        "status": "AUTOMATED and now PASSING — see T:WC-A5B-GHOST above"
-      }
-    ]
+   ],
+   "dimension": "testnet · WalletConnect",
+   "cost": "free",
+   "what_it_does": [
+    "Pair with the wallet and establish a real session.",
+    "Snapshot the dApp's WalletConnect storage (IndexedDB).",
+    "Destroy the session WALLET-SIDE, then restore the snapshot — so the dApp still believes it is connected but the wallet has no record. This is a true 'ghost'.",
+    "Attempt to sign against that ghost.",
+    "Re-pair and sign again."
+   ],
+   "pass_means": "The ghost sign gives up quickly and loudly, inside the transaction's own validity window — never hangs, never silently 'succeeds'. Then the user can re-pair and sign normally.",
+   "fails_when": "It hangs (was 120s until TXSTATUS-CONSOLIDATE1 S4), or worse, resolves as if it worked.",
+   "why_it_matters": "This is the discriminating ghost test — it reproduces the exact scenario where a user clears connections in HashPack while katomia is closed. T:WC-A5-ONLINE passes even on broken bundles; this one does not.",
+   "harness_url": null,
+   "harness_note": "lives on the box at /opt/kwallet/ (not web-served — it runs its own in-process wallet peer)",
+   "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+   "modules": [
+    "walletconnect",
+    "signing-widget"
+   ]
   },
-  "not_covered_by_automation": [
-    "mobile sign with the wallet backgrounded (kWallet is always awake — it cannot fail this)",
-    "deliberately slow approval ~45s",
-    "HashPack's own session lifecycle by hand (extension vs mobile app)",
-    "animation and timing judgement — whether the wiper/confetti lands at the right moment",
-    "BREAKOUT gaps (2026-08-19 sketch, KAT-BREAKOUT1): receiver-signature-required deals — no fixture account with receiverSigRequired, so the ✍️ signers row's receiver case is unproven",
-    "BREAKOUT: side-circle SUCCESS animation sequencing (user report: board clears, then confetti+verdict late, K logo dips low-right — child-specific, intermittent; a replayed failure animated fine) — timing judgement needs eyes",
-    "BREAKOUT: mover with additional non-cluster accounts left in the parent (E3) — multi-account UX after the split",
-    "BREAKOUT: absent mover returning later via the parent URL (breadcrumb row path) — needs a second browser session joining late",
-    "BREAKOUT: reload loop hygiene — repeated fail→reload→fail cycles in one side circle (assets conserved every round?)",
-    "BREAKOUT: unlisted/private parent → who can see/follow the side-circle links (scoping ladder pass pending)"
-  ],
-  "related_tasks": {
-    "QA-XFAIL1": "the expected-fail set above",
-    "QA-HARNESSREPAIR1": "T:WC-A5-ONLINE silence + the #addAcctJoinAll visibility flake",
-    "QA-BENCHFREEZE1": "the frozen do-not-go-backwards floor (data/benchmarks/) + a target-parameterised runner",
-    "QA-GRIDWATCH1": "repeated-failure watcher over the grid",
-    "TXSTATUS-CONSOLIDATE1": "the S1-S8 work the TXS-* cases were written for",
-    "WC-RESETWEDGE1": "resetWalletLink()+reload can wedge WC init forever — no timeout, no error. Found via T:WC-A5-ONLINE A5.0."
+  {
+   "id": "WC-A5-ONLINE",
+   "title": "The wallet was cleared while katomia was open",
+   "asserts": "The wallet's delete reaches us, so we should detect it and re-pair cleanly.",
+   "kind": "walletconnect",
+   "network": "testnet",
+   "harness": "/opt/kwallet/a5-ghost-recovery.cjs",
+   "run": {
+    "lab1": "qa/harness/wc-paths-cron.sh"
+   },
+   "schedule": "cron, daily 04:35",
+   "state": "8/8 — healthy. Was SILENT for 14 days until 2026-08-08 (an unbounded hang ate the whole run and it reported nothing); harness given step ceilings, and a redundant resetWalletLink removed from its main flow. An A5.0 assertion added the same day was WITHDRAWN hours later: it failed only on accumulated harness state, not on any user path — see WC-RESETWEDGE1 for the full correction.",
+   "dimension": "testnet · WalletConnect",
+   "cost": "free",
+   "what_it_does": [
+    "Pair, and sign once to prove the baseline works.",
+    "The USER CLEARS THE CONNECTION IN THEIR WALLET APP while the page is still open (simulated by a real wallet-side disconnect).",
+    "Try to sign again WITHOUT reloading and WITHOUT tapping Connect.",
+    "Re-pair and sign again.",
+    "Separately and last: call resetWalletLink(), reload, and re-initialise (assertion A5.0)."
+   ],
+   "pass_means": "Step 3 detects the dead session, refuses to sign against it, and either self-heals onto a live session or reports KWC-GONE — never a silent wrong-session sign, never a hang.",
+   "fails_when": "The killed session survives in the dApp's storage and gets handed to every later sign (the pre-R2b bug: 'wallet says signed' then a wiped board).",
+   "why_it_matters": "Note this one passes on pre-fix bundles too, so treat it as a health check rather than proof the ghost handling works.",
+   "harness_url": null,
+   "harness_note": "lives on the box at /opt/kwallet/ (not web-served — it runs its own in-process wallet peer)",
+   "assertions": [
+    {
+     "id": "A5.1",
+     "asserts": "initial connect"
+    },
+    {
+     "id": "A5.2",
+     "asserts": "baseline sign reaches the wallet"
+    },
+    {
+     "id": "A5.3",
+     "asserts": "dApp no longer reports a connected account after the wallet-side clear"
+    },
+    {
+     "id": "A5.4",
+     "asserts": "no sign sent to the dead session"
+    },
+    {
+     "id": "A5.5",
+     "asserts": "dApp surfaces an actionable error rather than hanging or lying"
+    },
+    {
+     "id": "A5.6",
+     "asserts": "re-pair after a wallet-side clear"
+    },
+    {
+     "id": "A5.7",
+     "asserts": "sign after recovery reaches the wallet on the NEW session"
+    },
+    {
+     "id": "A5.8",
+     "asserts": "no uncaught page errors throughout"
+    }
+   ],
+   "user_confirmed": "2026-08-08: the user ran this scenario by hand on pat — cleared every connection in HashPack, left the accounts in katomia, then traded. It re-paired and presented the transaction for approval without a stumble. Matches A5.1-A5.8.",
+   "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+   "modules": [
+    "walletconnect"
+   ]
   },
-  "_modules_note": "Suites carry a `modules` array of ids from modules.json (user 2026-08-17): one id = unit-scoped, several = end-to-end (drawn as a riser across layers in the system diagram). kind:\"specified\" suites are sketch definitions from the coverage review — they exist so the id resolves and the module has a declared shape before the harness lands."
+  {
+   "id": "MAINNETSMOKE-01",
+   "title": "The same board flow, on mainnet",
+   "asserts": "Real value, real network, once a day — the only test here that is not free to run.",
+   "kind": "e2e-signing",
+   "network": "mainnet",
+   "harness": "qa/harness/mainnet-smoke-auto.cjs",
+   "run": {
+    "lab1": "qa/harness/mainnet-smoke-cron.sh"
+   },
+   "schedule": "cron, daily 05:20",
+   "reports": "kflow test:verdict → QA grid + kwallet.html",
+   "state": "PASSING again as of 2026-08-08 08:20 (real mainnet transfer, consensus 1786177210.454269104). It was never a product failure: a failed run on 08-07 left its own unanswered pairing proposal in kwallet-mainnet, and the cron's 'skip if any pending item' guard then muted the test entirely — the grid showed '2 consecutive non-passes' when the truth was 'not run since'. Guard now ages pending items (only items <30m old block a run). Two older reds were harness flakes, not product: a #boardPlayerModal pointer-intercept on the lock click (08-06) and the #addAcctJoinAll account-landing race (08-07), both QA-HARNESSREPAIR1.",
+   "dimension": "MAINNET · full stack — a different dimension from everything else here",
+   "cost": "0.01 real HBAR per run (~£0.002). The only test on this page that spends real money.",
+   "what_it_does": [
+    "Create a real mainnet game.",
+    "Connect the mainnet wallet (kwallet-mainnet, a SEPARATE instance from the testnet one, on port 8791).",
+    "A second player joins by account id.",
+    "Offer 0.01 real HBAR, both lock, strike, sign, submit.",
+    "Confirm the result against the chain."
+   ],
+   "pass_means": "A real transfer reaches consensus on Hedera mainnet, with a real consensus timestamp.",
+   "fails_when": "Anything testnet cannot tell us about: mainnet node behaviour, real fees, the mainnet account's own state (e.g. the payer running dry), mainnet-only config.",
+   "why_it_matters": "Everything else here runs on testnet, where the system is thoroughly exercised and free. This test exists for the things that are only true on mainnet. A testnet-green / mainnet-red split is meaningful information, not a duplicate.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/mainnet-smoke-auto.cjs",
+   "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+   "modules": [
+    "frontend-ui",
+    "walletconnect",
+    "signing-widget",
+    "backend",
+    "hedera"
+   ]
+  },
+  {
+   "id": "CHIPARRANGE-01",
+   "title": "Chip arrangement / visual layout",
+   "kind": "visual",
+   "harness": "qa/harness/board-arrange.cjs",
+   "run": {
+    "lab1": "node board-arrange.cjs"
+   },
+   "schedule": "manual",
+   "state": "not assessed in the 2026-08-07 benchmark pass — visual class, not a signing test.",
+   "dimension": "visual / layout",
+   "cost": "free",
+   "what_it_does": [
+    "Drive the board through a scripted set of chip moves.",
+    "Compare the resulting layout."
+   ],
+   "pass_means": "Chips land where the layout rules say they should.",
+   "fails_when": "A layout or arrangement regression. Not a signing test — it does not belong on the kWallet page.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/board-arrange.cjs",
+   "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+   "modules": [
+    "frontend-ui"
+   ]
+  },
+  {
+   "id": "DOMAIN-SEND-01",
+   "title": "Domain send flow",
+   "kind": "e2e",
+   "harness": "qa/harness/domain-send.cjs",
+   "run": {
+    "lab1": "node domain-send.cjs"
+   },
+   "schedule": "manual",
+   "dimension": "testnet · flow",
+   "cost": "free",
+   "what_it_does": [
+    "Exercise the domain send flow end to end."
+   ],
+   "pass_means": "The send completes.",
+   "fails_when": "The flow breaks.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/domain-send.cjs",
+   "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+   "modules": [
+    "frontend-ui",
+    "backend",
+    "hedera"
+   ]
+  },
+  {
+   "id": "validdur-decode-matrix",
+   "title": "Transaction validity-duration decode matrix",
+   "asserts": "12 cases: Long int64 decode, SignedTransaction wrapper, cross-shape misuse fallbacks, absent field, garbage, real production fixture bytes, expiry arithmetic.",
+   "kind": "backend-unit",
+   "harness": "qa-validdur-tests.js (backend repo root)",
+   "run": {
+    "backend": "cd /home/hbarlive_hts && node qa-validdur-tests.js"
+   },
+   "schedule": "manual",
+   "reports": "stdout only — not on the grid",
+   "dimension": "backend · unit",
+   "cost": "free",
+   "what_it_does": [
+    "Feed 12 shapes of transaction bytes to the validity-duration decoders: Long int64, SignedTransaction wrapper, cross-shape misuse, absent field, garbage, real production fixture bytes, and the expiry arithmetic."
+   ],
+   "pass_means": "All 12 decode to the right duration or fall back safely.",
+   "fails_when": "A decoder silently returns the wrong window — which is how a transaction's real deadline and the UI's idea of it drift apart.",
+   "harness_note": "backend repo root, not web-served",
+   "how_to_reproduce": "Run the harness listed above. If it fails, the run log names the failing assertion; the steps under 'What it does' are the manual equivalent.",
+   "modules": [
+    "backend",
+    "hedera-sdk"
+   ]
+  },
+  {
+   "id": "STATSYNC-01",
+   "title": "Everyone at the table sees the same game",
+   "asserts": "Three scripted protocol-level clients on a fresh playnet game (joins, add accounts, offers, public + targeted chat, lock toggles): shared state converges identically on every client; per-socket fields (myPlayerId, targeted chat visibility) correctly differ.",
+   "kind": "protocol",
+   "network": "playnet",
+   "harness": "qa/harness/statsync-baseline.cjs",
+   "run": {
+    "lab1": "cd qa/harness && node statsync-baseline.cjs",
+    "any": "API=<backend> node statsync-baseline.cjs"
+   },
+   "schedule": "cron, daily 04:10 UTC (statsync-cron.sh) + on demand at every STATSYNC1-affecting change",
+   "reports": "console assertions T:STATSYNC-01.1–.7, exit code",
+   "dimension": "playnet · websocket protocol",
+   "cost": "free",
+   "what_it_does": [
+    "Create a fresh public playnet game via POST /katomia/create.",
+    "Connect clients A, B, C over plain WebSocket (no browser) with distinct playerTokens.",
+    "A and B add playnet accounts (alice, bob); C stays a joined-but-accountless watcher.",
+    "Cross-offers (apple, banana), one public chat, one TARGETED chat B→A, lock on/off, a reject.",
+    "After quiescing, compare each client's final game_state."
+   ],
+   "pass_means": "Shared state (accounts/players/tx) is byte-identical across all three clients; myPlayerId is distinct per socket; the targeted chat reached A and its sender but never C.",
+   "fails_when": "Any client misses a broadcast, states diverge, or targeted chat leaks — exactly the properties an incremental-update refactor (STATSYNC1) could silently break.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
+   "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — assertion lines print pass/fail with detail.",
+   "modules": [
+    "statsync",
+    "backend"
+   ]
+  },
+  {
+   "id": "STATSYNC-BENCH-01",
+   "title": "What the full-state broadcast costs on the wire",
+   "asserts": "Message counts, bytes per broadcast, action→broadcast latency for a scripted sequence, plus a 30-chat growth probe showing broadcast size compounding with chat history. Recorded per STATSYNC1 phase; correctness may never regress, bytes must fall by P6.",
+   "kind": "benchmark",
+   "network": "playnet",
+   "harness": "qa/harness/statsync-baseline.cjs",
+   "run": {
+    "lab1": "cd qa/harness && SAMPLE_GAME=q-crowd node statsync-baseline.cjs --record"
+   },
+   "schedule": "once per STATSYNC1 phase",
+   "reports": "qa/data/benchmarks/<date>-statsync-*.json",
+   "dimension": "playnet · wire cost",
+   "cost": "free",
+   "what_it_does": [
+    "Same scripted run as T:STATSYNC-01, with every websocket frame measured (bytes, latency).",
+    "Then 30 chat messages in a row, recording how each broadcast grows (full chat history rides every broadcast today).",
+    "Optionally spectates a live demo game passively (SAMPLE_GAME) for real-traffic sizes."
+   ],
+   "pass_means": "Baseline 2026-08-14: ~1.7-1.9KB/broadcast on a tiny 2-account game, ~2ms latency, growth probe 2071B→6525B over 30 chats (~154B per chat row, compounding). Later phases are judged against this file's benchmarks.",
+   "fails_when": "A phase re-run shows correctness failures, or (from P3 on) delta-path bytes fail to undercut the full-state baseline.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
+   "how_to_reproduce": "cd qa/harness && SAMPLE_GAME=q-crowd node statsync-baseline.cjs --record — summary JSON printed and written to qa/data/benchmarks/.",
+   "modules": [
+    "statsync",
+    "backend"
+   ]
+  },
+  {
+   "id": "STATSYNC-02",
+   "title": "A delta client sees exactly what a full-state client sees",
+   "asserts": "A probe client opted into game_delta (wantDelta:true at join) reconstructs state purely by patch application + chatAppend; at every seq its reconstruction is byte-identical to a full-state control client, and deltas undercut full states on the wire.",
+   "kind": "protocol",
+   "network": "playnet",
+   "harness": "qa/harness/statsync-baseline.cjs",
+   "run": {
+    "lab1": "cd qa/harness && node statsync-baseline.cjs"
+   },
+   "schedule": "cron, daily 04:10 UTC (statsync-cron.sh) + on demand at every STATSYNC1-affecting change",
+   "reports": "console assertions T:STATSYNC-02.1–.4, exit code",
+   "dimension": "playnet · websocket protocol · delta path",
+   "cost": "free",
+   "what_it_does": [
+    "Client D joins with wantDelta:true after three full-state clients; its first broadcast is full, all subsequent are game_delta {seq, baseSeq, patch, chatAppend}.",
+    "D applies each patch (kpatch mirror of backend kdiff.js) and appends chat rows by monotonic id, trimming at 150 like the server.",
+    "After every broadcast, D's reconstructed shared view is compared against control client C's full game_state at the same seq."
+   ],
+   "pass_means": "One full state then only deltas; reconstruction ≡ control at every overlapping seq; visible chat matches (welcome rows excluded — legitimately per-viewer); delta bytes < full bytes. First green 2026-08-14: 39 deltas, 40/40 seqs identical, 374B vs 3696B avg (~90% saving).",
+   "fails_when": "Any patch mis-describes a change (reconstruction diverges), chatAppend leaks or drops a row, or a delta is sent to a socket without the right base seq.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
+   "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — 02.x assertion lines print pass/fail; a seq mismatch names the exact seq.",
+   "modules": [
+    "statsync",
+    "backend"
+   ]
+  },
+  {
+   "id": "STATSYNC-03",
+   "title": "A client that misses a delta catches up and converges",
+   "asserts": "A delta client with a simulated lost broadcast detects the seq gap on the next delta, sends game_refresh exactly once (suppressing duplicates while the reply is in flight), receives a targeted full state, and converges with a full-state control client.",
+   "kind": "protocol",
+   "network": "playnet",
+   "harness": "qa/harness/statsync-baseline.cjs",
+   "run": {
+    "lab1": "cd qa/harness && node statsync-baseline.cjs"
+   },
+   "schedule": "cron, daily 04:10 UTC (statsync-cron.sh) + on demand at every STATSYNC1-affecting change",
+   "reports": "console assertions T:STATSYNC-03.1–.3, exit code",
+   "dimension": "playnet · websocket protocol · catch-up",
+   "cost": "free",
+   "what_it_does": [
+    "The delta probe silently drops one incoming game_delta (simulated network loss).",
+    "The next delta's baseSeq mismatches its local seq → it sends {type:'game_refresh', gameId} — once, with an in-flight guard, ignoring further deltas meanwhile.",
+    "The backend replies with a targeted full game_state (refresh:true) to that socket only and resets its delta base markers.",
+    "One more action confirms deltas apply cleanly again and the reconstruction matches control."
+   ],
+   "pass_means": "Exactly one refresh round-trip; no other client receives the refresh reply; post-recovery reconstruction is byte-identical to control. First green 2026-08-14.",
+   "fails_when": "Gap goes undetected (silent divergence — the worst failure mode of the whole refactor), refresh floods (no in-flight guard), the reply leaks to other sockets, or the client fails to resume deltas after recovery.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-baseline.cjs",
+   "how_to_reproduce": "cd qa/harness && node statsync-baseline.cjs — 03.x assertion lines; DEBUG=1 prints the probe's per-message seq trace.",
+   "modules": [
+    "statsync",
+    "backend"
+   ]
+  },
+  {
+   "id": "STATSYNC-04",
+   "title": "The real board on deltas renders the same game as on full states",
+   "asserts": "Two headless board pages on one fresh playnet game — one plain, one ?delta=1 — stay state-identical through actions; the delta page provably runs on patches, self-heals a forced seq corruption via game_refresh, and throws zero page errors.",
+   "kind": "frontend",
+   "network": "playnet",
+   "harness": "qa/harness/statsync-frontend.cjs",
+   "run": {
+    "lab1": "cd qa/harness && node statsync-frontend.cjs",
+    "any": "BASE=<site> API=<backend> node statsync-frontend.cjs"
+   },
+   "schedule": "cron, daily 04:10 UTC (statsync-cron.sh) + before any delta-default promotion",
+   "reports": "console assertions T:STATSYNC-04.1–.6, exit code",
+   "dimension": "playnet · real board · Playwright",
+   "cost": "free",
+   "what_it_does": [
+    "Create a fresh playnet game; a protocol driver client joins and owns two accounts.",
+    "Open the board twice headless (Playwright): plain URL and ?delta=1, both with __katomiaTestHooks so __qaGetState exposes state read-only.",
+    "Driver performs chats, add-account, an offer, a lock; after each settle the pages' accounts/players/tx and visible chat must match.",
+    "Then window.__stateSeq is forcibly corrupted on the delta page; the next broadcast must trigger one game_refresh and full reconvergence."
+   ],
+   "pass_means": "All six assertions green — first green 2026-08-14 (caught a real bug on the way: onmessage declared `const data`, so delta normalisation threw 'Assignment to constant variable' on every delta; states still converged, which is why the zero-page-errors assertion exists).",
+   "fails_when": "The delta page diverges from the full page, never actually consumes deltas, fails to self-heal a gap, or any page error fires.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/statsync-frontend.cjs",
+   "how_to_reproduce": "cd qa/harness && node statsync-frontend.cjs — assertion lines print pass/fail; page errors are dumped verbatim on failure.",
+   "modules": [
+    "statsync",
+    "backend"
+   ]
+  },
+  {
+   "id": "KSTRIP-01",
+   "title": "Source tag audit — launch-excluded features are strip-tagged",
+   "kind": "static",
+   "harness": "ops/kstrip-audit.sh",
+   "run": {
+    "lab1": "bash ops/kstrip-audit.sh"
+   },
+   "schedule": "per-build",
+   "state": "live 2026-08-15 (BUNDLE-STRIP1 phase 0)",
+   "dimension": "build hygiene",
+   "cost": "free",
+   "what_it_does": [
+    "Grep the source tree against the reference inventory of each launch-excluded feature (see STRIP_FEATURES in ops/build-standalone.sh).",
+    "Assert every hit sits inside a strip marker block, a strip-marked file file, or the feature's own directory."
+   ],
+   "pass_means": "A launch-excluded feature reference cannot exist in the source untagged — the bundle strip step will always catch it.",
+   "fails_when": "Someone adds an affordance for a launch-excluded feature without tagging it for bundle-time removal.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/ops/kstrip-audit.sh",
+   "how_to_reproduce": "Run the harness; the failure output lists each untagged reference with file:line.",
+   "modules": [
+    "build-pipeline"
+   ]
+  },
+  {
+   "id": "KSTRIP-02",
+   "title": "Bundle purity — no trace of stripped features in the build output",
+   "kind": "static",
+   "harness": "ops/kstrip-purity.sh",
+   "run": {
+    "build": "runs inside ops/build-standalone.sh as a hard gate",
+    "any": "bash ops/kstrip-purity.sh <build-dir>"
+   },
+   "schedule": "every build",
+   "state": "live 2026-08-15 (BUNDLE-STRIP1 phase 2) — pre-strip baseline measured FAILING as expected",
+   "dimension": "build hygiene / launch scope",
+   "cost": "free",
+   "what_it_does": [
+    "Grep the finished build tree for stripped-feature identifiers, leftover strip markers, and excluded directories."
+   ],
+   "pass_means": "Inspecting the bundle (or the site served from it) cannot reveal a launch-excluded feature — the launch bar.",
+   "fails_when": "The strip step missed a block/file, or a new untagged reference reached the bundle.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/ops/kstrip-purity.sh",
+   "how_to_reproduce": "Build with ops/build-standalone.sh, then run the harness against the build dir; failures list surviving references.",
+   "modules": [
+    "build-pipeline"
+   ]
+  },
+  {
+   "id": "KSTRIP-03",
+   "title": "Stripped-bundle journey — pat clean after pruning",
+   "kind": "journey",
+   "harness": "journey.cjs (existing, KAT-DEPLOY1)",
+   "run": {
+    "lincoln": "node journey.cjs https://pat.katomia.com clean"
+   },
+   "schedule": "per staged release during BUNDLE-STRIP1; then per release checklist",
+   "state": "baseline PASS recorded 2026-08-15 on pat (pre-strip, 0 console errors)",
+   "dimension": "regression",
+   "cost": "free",
+   "what_it_does": [
+    "Run the existing click-through journey against pat serving a stripped bundle.",
+    "Compare console errors / 404s against the pre-strip baseline run."
+   ],
+   "pass_means": "Pruning left no dangling references — 0 console errors, no new 404s, journey behaviour unchanged.",
+   "fails_when": "A stripped block was load-bearing for the launch surface (e.g. a shared helper cut too broadly).",
+   "harness_url": "https://github.com/topshef/kdeploy",
+   "how_to_reproduce": "Stage the release to pat via kdeploy, run journey.cjs as above, diff console output vs baseline.",
+   "modules": [
+    "build-pipeline"
+   ]
+  },
+  {
+   "id": "KADMIN-01",
+   "title": "Admin disclosure — launch-excluded features visible only to admin, clearly badged",
+   "kind": "visual",
+   "harness": "ops/kadmin-disclose.cjs",
+   "run": {
+    "lab1": "node ops/kadmin-disclose.cjs"
+   },
+   "schedule": "manual + after header.php changes",
+   "state": "live 2026-08-15 (BUNDLE-STRIP1 phase 1)",
+   "dimension": "access gating / UI",
+   "cost": "free",
+   "what_it_does": [
+    "From an admin IP (the header.php $katomiaIpAdmin list): assert the disclosed affordances render with the admin-only treatment (body.kadmin, 🛠 admin chip).",
+    "From a non-admin vantage (loopback): assert the affordances are absent from the served HTML."
+   ],
+   "pass_means": "Admin users see launch-excluded features clearly marked admin-only; everyone else gets nothing in the DOM (server-side, per request — off the admin network = gone next load).",
+   "fails_when": "Disclosure leaks to non-admin requests, or the admin view lacks the visual marker distinguishing admin-only items.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/ops/kadmin-disclose.cjs",
+   "how_to_reproduce": "Load a lab1 page from an admin IP and via 127.0.0.1 with the Host header; compare presence + badging of the disclosed menu/profile items.",
+   "modules": [
+    "frontend-ui",
+    "build-pipeline"
+   ]
+  },
+  {
+   "id": "TXTRUTH-01",
+   "title": "Never guess a FAILED verdict — confirm on chain",
+   "asserts": "With the tx-receipt socket severed between sign and receipt, the board still reaches a SUCCESS verdict sourced from chain confirmation; FAILED is never shown for a tx the mirror confirms.",
+   "kind": "e2e-signing",
+   "network": "testnet",
+   "modules": [
+    "signing-widget",
+    "backend",
+    "hedera"
+   ],
+   "state": "LIVE since 2026-08-17 — verified green: per-tx receipt socket severed post-sign (_boardTxSocket.close(), which also stops its reconnect — the incident's no-reconnect shape); board reached truthful success via source \"mirror\" (⛓), never a guessed FAILED.",
+   "harness": "qa/harness/txtruth-check.cjs",
+   "why_it_matters": "BOARD-TXTRUTH1 (2026-08-07): three false FAILURE verdicts on successful txs led to a real mainnet double spend — the only realized money harm to date. The fix (79858f4, confirm-on-chain) has no regression protection.",
+   "run": {
+    "lab1": "qa/harness/txtruth-cron.sh"
+   },
+   "schedule": "cron, daily 02:25 (lab1)",
+   "reports": "kflow test:verdict → QA grid"
+  },
+  {
+   "id": "SIGNDEADTX-01",
+   "title": "Refuse to sign an expired transaction",
+   "asserts": "Tapping Sign after the validity window closes is refused with an expiry message: no signer:sign:saved success, no wallet round-trip.",
+   "kind": "e2e-signing",
+   "network": "testnet",
+   "modules": [
+    "signing-widget",
+    "hedera-sdk"
+   ],
+   "state": "LIVE since 2026-08-17 — verified green: 40s window expired unsigned, external sign page (same paired context as the incident) refused with \"expired Ns ago — window has closed\"; zero signTx requests reached kWallet (kept manual so a slipped request parks as pending = fail).",
+   "harness": "qa/harness/signdeadtx-check.cjs",
+   "why_it_matters": "SIGN-DEADTX1 (2026-08-07): Sign clicked 39s after window close saved the sig and logged success; the network could never accept it.",
+   "run": {
+    "lab1": "qa/harness/signdeadtx-cron.sh"
+   },
+   "schedule": "cron, daily 03:40 (lab1)",
+   "reports": "kflow test:verdict → QA grid"
+  },
+  {
+   "id": "ENRICHCOLD-01",
+   "title": "Asset-enrich cold path: cached, parallel, bounded",
+   "asserts": "Enrich endpoint answers 200 (not 301); cold call < ~2.5s, warm < ~0.5s; two concurrent calls complete in ~1x not 2x (no session-lock serialisation); cold-profile board load shows no bare 0.0.x chip names after 3s.",
+   "kind": "specified",
+   "network": "testnet",
+   "modules": [
+    "enrich",
+    "backend"
+   ],
+   "state": "LIVE since 2026-08-17 — and currently RED with a real finding: 6-asset server-cold burst took 19.4s (gate 2.5s; warm 294ms), and a cold-profile t-kat-demo board showed 10/22 chips as bare token ids after 3s. Matches the GCP \"all end up white\" feedback; evidence noted on ENRICH-COLDPATH1.",
+   "harness": "qa/harness/enrichcold-check.cjs",
+   "why_it_matters": "ENRICH-COLDPATH1 (2026-08-08..13): four defects in one recurring subsystem; Kache.getData timeout deliberately deferred — a known live hole nothing watches.",
+   "run": {
+    "lab1": "qa/harness/quickchecks-cron.sh",
+    "any": "BASE=<site> node enrichcold-check.cjs"
+   },
+   "schedule": "cron, daily 04:50 (lab1)",
+   "reports": "kflow test:verdict → QA grid"
+  },
+  {
+   "id": "AMTSCALE-01",
+   "title": "Settled amount is verified on the mirror, not assumed",
+   "asserts": "(a) backend FR/FS guards reject a display-unit offer for a decimals>0 token; (b) after an HBARXFER verdict, the mirror transfer shows exactly the intended tinybar amount.",
+   "kind": "specified",
+   "network": "testnet",
+   "modules": [
+    "backend",
+    "hedera"
+   ],
+   "state": "PART (b) LIVE since 2026-08-17 — verified green: mirror shows exactly 1,000,000 tinybar received. Part (a), the backend FR/FS display-unit guard probe, is still a specified follow-up.",
+   "harness": "qa/harness/hbarxfer-auto-spike.cjs (rider)",
+   "why_it_matters": "AMOUNT-SCALE1 (critical, 2026-07-07): display-unit leak produced a signed mainnet tx with a 0-amount transfer. A scaling regression today would pass green — the harness asserts a toast, never the on-chain amount.",
+   "run": {
+    "lab1": "rides every hbarxfer run (12x/day + kswap/PAT daily)"
+   },
+   "schedule": "rides HBARXFER-01",
+   "reports": "kflow test:verdict (own run id) → QA grid"
+  },
+  {
+   "id": "GOODWIN-FLOAT-01",
+   "title": "Demo economy solvency — narrated rewards exist on chain",
+   "asserts": "Goodwin payer + treat-float (0.0.9862254) balances are above the precheck floor, AND the last narrated reward round has matching legs on the mirror transfer list.",
+   "kind": "specified",
+   "network": "mainnet",
+   "modules": [
+    "demo-economy",
+    "hedera"
+   ],
+   "state": "LIVE since 2026-08-17 — and currently RED with a real finding: Goodwin is SOLVENT (740 KUSD, 4.5 ℏ) and the treats demo is ONLINE, yet the mirror shows ZERO outbound KUSD legs in his last 100 transactions — rewards are not settling on-chain at all. New shape of the GOODWIN-DEMO class (not underfunding).",
+   "harness": "qa/harness/goodwin-float-check.cjs",
+   "why_it_matters": "GOODWIN-DEMO1/2/4: three recurrences of the payer deadlock, 18-19h public outages, SUCCESS logged throughout. Chain cross-check is the only honest detector.",
+   "run": {
+    "lab1": "qa/harness/quickchecks-cron.sh"
+   },
+   "schedule": "cron, daily 04:50 (lab1)",
+   "reports": "kflow test:verdict → QA grid"
+  },
+  {
+   "id": "ACCTMISMATCH-01",
+   "title": "Wrong-active-account sign aborts loudly",
+   "asserts": "With two accounts paired and the wrong one active, Sign aborts with the mismatch toast + board:sign:account-mismatch kdiag; no signTx reaches the wallet.",
+   "kind": "specified",
+   "network": "testnet",
+   "modules": [
+    "walletconnect",
+    "signing-widget"
+   ],
+   "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
+   "harness": "(planned) kWallet two-account variant of the WC harnesses",
+   "why_it_matters": "WS-ACCTMISMATCH1 (2026-08-05): silent wrong-account signing burned the whole signing window; current protection is monitoring, not a test."
+  },
+  {
+   "id": "WCSINGLEINIT-01",
+   "title": "Exactly one WalletConnect client per page load",
+   "asserts": "wc:build kdiag fires exactly once per page load.",
+   "kind": "specified",
+   "network": "testnet",
+   "modules": [
+    "walletconnect"
+   ],
+   "state": "LIVE since 2026-08-17 — verified green: one wc:build per load. Fails only on the DOUBLEINIT signature (near-simultaneous builds <3s apart); later network-scope rebuilds (WC-NETSCOPE) are legitimate.",
+   "harness": "qa/harness/wc-singleinit-check.cjs",
+   "why_it_matters": "WC-DOUBLEINIT1 (2026-08-07): two clients sharing one store destroyed each other’s sessions — produced an on-chain-confirmed expired tx. Fixed 8e6255c, unasserted.",
+   "run": {
+    "lab1": "qa/harness/quickchecks-cron.sh"
+   },
+   "schedule": "cron, daily 04:50 (lab1)",
+   "reports": "kflow test:verdict → QA grid"
+  },
+  {
+   "id": "PRIVJOIN-01",
+   "title": "Private-game join delivers frames",
+   "asserts": "A fresh join to the t-private fixture receives game_state + playerId in < 5s; a spectator probe stays invisible.",
+   "kind": "protocol",
+   "network": "testnet",
+   "modules": [
+    "backend",
+    "statsync"
+   ],
+   "state": "LIVE since 2026-08-17 — join-delivers-frames core, green. The spectator-invisibility half has NO surface to probe yet (no game-listing endpoint exists); it becomes buildable when a lobby/list API lands.",
+   "harness": "qa/harness/privjoin-check.cjs",
+   "why_it_matters": "GAMEPRIVATE-JOINSTUCK1 (2026-07-16): join returned zero frames — permanently blank board. The fixture was kept as a permanent regression fixture; nothing probes it.",
+   "run": {
+    "lab1": "qa/harness/quickchecks-cron.sh",
+    "any": "API=<backend> node privjoin-check.cjs"
+   },
+   "schedule": "cron, daily 04:50 (lab1)",
+   "reports": "kflow test:verdict → QA grid"
+  },
+  {
+   "id": "NODEPIN-01",
+   "title": "Frozen tx carries multiple nodes and fresh speed data",
+   "asserts": "A mainnet tx built/rebuilt through the sign pipeline keeps >= 3 frozen node ids through the rebuild, and node-speed rows older than 6h are excluded from selection.",
+   "kind": "specified",
+   "network": "mainnet",
+   "modules": [
+    "backend",
+    "hedera-sdk"
+   ],
+   "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
+   "harness": "(planned) backend unit script (no submission needed)",
+   "why_it_matters": "SIGN-BOUNDARY1 R2/R3: single-node pinning from 36h-old speed rows caused a retry loop into TRANSACTION_EXPIRED; sig-store/rebuild collapses to copy[0]. MAINNETSMOKE only catches this probabilistically."
+  },
+  {
+   "id": "ACTSELF-01",
+   "title": "Action rows reach my own stream",
+   "asserts": "After B rejects A’s offer, the action row lands in A’s bucket in both kchatMode paths.",
+   "kind": "specified",
+   "network": "testnet",
+   "modules": [
+    "statsync"
+   ],
+   "state": "SPECIFIED — not yet automated. From the 2026-08-16 regression-coverage review (task QA-REGGAPS1, doc qa/coverage-2026-08-16.html).",
+   "harness": "(planned) extension to statsync-baseline (already two-client)",
+   "why_it_matters": "CHAT-ACTIONSELF1 (2026-08-06, unfixed): actions on my assets never reach my stream, view-mode dependent."
+  },
+  {
+   "id": "CHIPCANARY-01",
+   "title": "Board geometry canaries, banked and scheduled",
+   "asserts": "On the demo board at landscape AND portrait: every chip painted and positioned (none at top-left default), zero movement after settle, all chips inside the viewport, basket chips inside the rim ellipse and store chips outside it.",
+   "kind": "ui-canary",
+   "network": "testnet",
+   "modules": [
+    "frontend-ui"
+   ],
+   "state": "LIVE since 2026-08-17 — banks 4 of the 6 live-scratchpad canary categories (paint, settle, containment, rim-geometry centre-test v1) at landscape+portrait. Follow-ups: full corner test vs env.oval, cosmetic-stability toggle, attached-artifact tracking.",
+   "harness": "qa/harness/chip-canary.cjs",
+   "why_it_matters": "BOARD-DROPHIT1 / ARRANGEFENCE1 / PICKSCATTER1 / TRAILSTUCK1 family + inbox 08-06 \"chip in someone else’s basket\" — the visual class regresses user-visibly with zero automation.",
+   "run": {
+    "lab1": "qa/harness/quickchecks-cron.sh",
+    "any": "BASE=<site> node chip-canary.cjs"
+   },
+   "schedule": "cron, daily 04:50 (lab1)",
+   "reports": "kflow test:verdict → QA grid"
+  },
+  {
+   "id": "SIGNSTABLE-01",
+   "title": "The sign affordance must not move between aiming and clicking",
+   "asserts": "The sign button's bounding box is watched for 3s before the harness clicks it; drift > 1px fails.",
+   "kind": "ui-canary",
+   "network": "testnet",
+   "modules": [
+    "frontend-ui",
+    "signing-widget"
+   ],
+   "harness": "qa/harness/hbarxfer-auto-spike.cjs (rider)",
+   "run": {
+    "lab1": "rides every hbarxfer run"
+   },
+   "schedule": "rides HBARXFER-01",
+   "reports": "kflow test:verdict (own run id) → QA grid",
+   "state": "LIVE since 2026-08-17 (v1 = the board's sign button; verified 0.0px). CANARY-HYDRATION-CLICK's full shape — the signing MODAL's button through enrichment — still needs a recorded-tx fixture.",
+   "why_it_matters": "SIGN-LAYOUTJUMP1: async modal growth put a hashtag link under a real-value mainnet Sign tap."
+  },
+  {
+   "id": "LOCKREDRAW-01",
+   "title": "Strike-moment trail lines follow the chips — no stranded dotted line, no double animation",
+   "asserts": "Drives a fresh testnet game (3 manual accounts, Party-only on for the viewer, one bystander so the lock collapses/rotates the ring), offers HBAR, locks the cluster, then audits: playTransfers auto-fired exactly once (C1); exactly one visible trail line per pending tx leg (C2); every visible line's endpoints within 48px of a live chip centre at strike+6s (C3) and strike+11s (C4).",
+   "kind": "ui-canary",
+   "network": "testnet",
+   "modules": [
+    "frontend-ui",
+    "board-trails"
+   ],
+   "harness": "qa/harness/lockredraw-check.cjs",
+   "run": {
+    "lab1": "node qa/harness/lockredraw-check.cjs (BASE defaults to lab1)"
+   },
+   "schedule": "manual — run after touching trails/strike choreography",
+   "reports": "stdout JSON verdict + screenshots beside the harness",
+   "state": "LIVE since 2026-08-18 (BOARD-LOCKREDRAW1 R2 verification; first PASS on game MR4QRH: 1 fire, 1 line, endpoints within 1px)",
+   "why_it_matters": "BOARD-LOCKREDRAW1: with Party-only on, the lock rotation stranded the offer trail at the wrong angle; R1's fix doubled the strike animation instead. This pins both."
+  },
+  {
+   "id": "BREAKOUT-01",
+   "title": "A struck deal in an on-lock game moves to a side circle; off games are byte-identical",
+   "asserts": "Drives a real testnet round (fresh basic-form game = Auto on-lock, 3 manual accounts incl. a bystander): B2 movers auto-land on <parent>~1; B3 membership + basket conservation; B4 ceremony in the child only (parent unfrozen); B5 three linked rows + B5b public-keyed moved breadcrumb; B5c ✍️ signers row names the sender (computed by the signing modal's own calcAccountsThatSign, not a backend guess); B6 expiry verdict fires IN THE CHILD; B6b the failed deal AUTO-RELOADS as a draft (basket repopulated, no locks, 🔁 row). FRAMES=1 dumps a 350ms screenshot series through the handoff for transition forensics. B7 = run LOCKREDRAW-01 (pins breakout=off) as the no-breakout regression.",
+   "kind": "e2e",
+   "network": "testnet",
+   "modules": [
+    "backend-game",
+    "frontend-ui",
+    "breakout"
+   ],
+   "harness": "qa/harness/breakout-check.cjs",
+   "run": {
+    "lab1": "node qa/harness/breakout-check.cjs (WAIT_EXPIRY=0 skips the ~60s B6 wait)"
+   },
+   "schedule": "manual — run after touching splitGame/postCluster/state broadcast",
+   "reports": "stdout JSON verdict + breakout-child.png / breakout-parent.png",
+   "state": "LIVE since 2026-08-18; extended 2026-08-19 with B5c signers row + B6b auto-reload. Caught live: playerToken leak in moved memo, twin state-field whitelists, ENTRY-AUTOADD1 side-circle pollution.",
+   "why_it_matters": "KAT-BREAKOUT1: the split must be atomic and invisible-when-off; this is the falsifier the spec promised before user retest."
+  },
+  {
+   "id": "BREAKOUT-02",
+   "title": "Two disjoint clusters strike in one sweep — two side circles, both correct, in parallel",
+   "asserts": "PLANNED (sketch): 4+ accounts, two disjoint offers (A→B, C→D), lock all four in quick succession. Expect: two children <parent>~1 and <parent>~2 (order by strike), each with exactly its own cluster + pending tx + ceremony; parent keeps bystanders + both moved rows; both txs resolve independently in their own child (stagger the validity windows to prove independence); moved memo carries all four accounts across two child ids.",
+   "kind": "e2e",
+   "network": "testnet",
+   "modules": [
+    "backend-game",
+    "breakout"
+   ],
+   "harness": "qa/harness/breakout-check.cjs (PARALLEL=1 mode — NOT YET BUILT)",
+   "run": {
+    "lab1": "planned"
+   },
+   "schedule": "build next — the user names parallel breakouts the top untested scenario",
+   "reports": "—",
+   "state": "PLANNED 2026-08-19 (KAT-BREAKOUT1 QA sketch). The postClusters loop + PROP-LOCKSIGN1 shared basis say this works; nothing has proven it.",
+   "why_it_matters": "Concurrent settlement is the flow the one-ceremony board could never render; breakout is supposed to make it just work."
+  },
+  {
+   "id": "JOINGATE-01",
+   "title": "Token-gated join rule (account-or-token allowlist)",
+   "asserts": "A joinRule allowlist entry that is a TOKEN id admits exactly the accounts holding ≥1 of it (NFT or fungible), account entries still direct-match, raw CSV string equals the array form, playnet token entries never match, and a live gated game reports eligible true/false/false for committed holder / committed non-holder / anonymous.",
+   "kind": "protocol",
+   "network": "testnet",
+   "modules": [
+    "backend"
+   ],
+   "state": "LIVE since 2026-08-19 — 11 assertions, all green on alpha at ship time (GAME-JOINRULE2a).",
+   "harness": "qa/harness/joingate-check.cjs",
+   "why_it_matters": "GAME-JOINRULE2(a): community membership tokens as circle gates. The classification (mirror /tokens 404 = account) and the holder check both lean on mirror behaviour — a mirror API change or cast rotation (fixture NFT 0.0.3626892 held by alice 0.0.9556348, not by carol) breaks gating silently without this probe.",
+   "run": {
+    "any": "API=https://alpha.katlab.kpay.live BACKEND_DIR=/home/hbarlive_hts-alpha node joingate-check.cjs"
+   },
+   "schedule": "manual (candidate for quickchecks-cron once soaked)",
+   "reports": "kflow test:verdict → QA grid"
+  },
+  {
+   "id": "COMPOSER-01",
+   "title": "Access-rule composer quick pick + create-form template deep links",
+   "asserts": "Every create-form field prefills from URL params and the 🔗 template link reproduces them (never carrying admin); the ⋯ composer round-trips the input CSV into mirror-classified chips (named token + account), lists the connected account's held tokens, auto-classifies a pasted token ID, and writes the CSV back; a deep-linked gated form creates a circle, lands on /board/<id>?created=1, and the circle really gates (anonymous eligible:false).",
+   "kind": "browser",
+   "network": "testnet",
+   "modules": [
+    "frontend",
+    "backend"
+   ],
+   "state": "LIVE since 2026-08-20 — 8 assertions, all green at ship time (JOINRULE-COMPOSER1 phase 1 + CREATE-DEEPLINK1).",
+   "harness": "qa/harness/composer-check.cjs",
+   "why_it_matters": "The composer leans on two new backend lookups (/entities classify, /held-tokens) and the deep-link surface is now the documented way to save form templates — a param rename or a classify regression breaks saved template links users hold, silently.",
+   "run": {
+    "any": "BASE=https://lab1.katlab.kpay.live API=https://alpha.katlab.kpay.live node composer-check.cjs"
+   },
+   "schedule": "manual (candidate for quickchecks-cron once soaked)",
+   "reports": "kflow test:verdict → QA grid"
+  },
+  {
+   "id": "SAMEORIGIN-01",
+   "title": "Backend origin never reaches the browser",
+   "asserts": "A real board page makes zero requests (http or websocket) to any backend-shaped host; the game socket opens on the page's own origin via the /hapi/ws proxy. Proves KAT-SAMEORIGIN-FE1 + PROXY1 actually hide the backend.",
+   "kind": "security-network",
+   "network": "any",
+   "harness": "qa/harness/sameorigin-check.cjs",
+   "run": {
+    "lab2": "BASE=https://lab2.katlab.kpay.live BACKEND=bravo.katlab.kpay.live node qa/harness/sameorigin-check.cjs",
+    "any": "BASE=<site> BACKEND=<paired backend host> node sameorigin-check.cjs [pagePath]"
+   },
+   "notes": "Requires the vhost /hapi/ + /hapi/ws reverse proxy (KAT-SAMEORIGIN-PROXY1) and KAT_SAMEORIGIN=1 in the seat's .env_hapi. Exit 2 = harness/infra (proxy or flag missing), exit 1 = real leak. Added 2026-08-20, KAT-SAMEORIGIN-FE1."
+  },
+  {
+   "id": "TICKETS-BASE-01",
+   "title": "Tickets flag-off parity + proposal baseline",
+   "asserts": "With the PROP-TICKETS1 code deployed and ?tickets=1 ABSENT, the app is byte-identical (no feat-tickets class, no ticket DOM, KTICKETS false) and the plain proposal flow still works end to end on playnet (join, offer, withdraw, lock both, instant settlement). With the flag ON and no tickets, only the body class appears.",
+   "kind": "regression-parity",
+   "network": "playnet",
+   "harness": "qa/harness/tickets-baseline-check.cjs",
+   "run": {
+    "lab2": "node tickets-baseline-check.cjs",
+    "any": "API=<backend> BASE=<site> node tickets-baseline-check.cjs"
+   },
+   "schedule": "manual (run after every tickets phase lands)",
+   "reports": "kflow test:verdict → QA grid",
+   "notes": "The phase-0 gate from docs/tickets-phased-plan-20260820.html: no tickets phase ships unless this is green. Probe drives offers/locks via the socket and asserts via the DOM. Uses ?hapi_base= to force cross-origin while the lab2 /hapi/ proxy (KAT-SAMEORIGIN-PROXY1) is pending.",
+   "dimension": "playnet · parity",
+   "cost": "free",
+   "what_it_does": [
+    "Create a fresh unlisted playnet circle via /katomia/create.",
+    "Open the board WITHOUT the flag: assert no feat-tickets class, no ticket DOM, window.KTICKETS false.",
+    "Two players join by adding manual accounts (playnet auto-seeds apple/banana/carrot).",
+    "Offer apple A→B, assert basket chips both sides; withdraw, assert cleared; re-offer.",
+    "Both lock; assert instant playnet settlement moved the apple.",
+    "Open a third page WITH ?tickets=1: assert exactly the body class appears and no ticket DOM while no tickets exist."
+   ],
+   "pass_means": "The tickets code is provably dark when the flag is off, and the pre-tickets proposal flow is unregressed.",
+   "fails_when": "Any tickets code path leaks into the unflagged app, or the plain proposal flow breaks.",
+   "harness_url": "https://lab2.katlab.kpay.live/m/katomia/qa/harness/tickets-baseline-check.cjs",
+   "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-BASE-01.n) prints PASS/FAIL with detail."
+  },
+  {
+   "id": "TICKETS-01",
+   "title": "The ticket loop, end to end on playnet",
+   "asserts": "Two flagged players: build a ticket from the asset card (Price it… → builder), it renders on both boards; tear-up removes it; a take posts both legs as fill-cued basket rows and (phase D, Firm default) commits the maker's side only; recalling one leg tears out both sides and reopens the ticket; re-take + both lock settles instantly and the ticket leaves the stall.",
+   "kind": "e2e-feature",
+   "network": "playnet",
+   "harness": "qa/harness/tickets-check.cjs",
+   "run": {
+    "lab2": "node tickets-check.cjs",
+    "any": "API=<backend> BASE=<site> node tickets-check.cjs"
+   },
+   "schedule": "manual (run after every tickets phase lands)",
+   "reports": "kflow test:verdict → QA grid",
+   "notes": "Phases 1-3 of docs/tickets-phased-plan-20260820.html in one sweep: builder (P1), render+manage (P2), take ceremony + group recall + settlement (P3). Requires ?tickets=1. v1 tickets are all-or-nothing (minFill 1/1). Uses ?hapi_base= like TICKETS-BASE-01. UPDATED phase D 2026-08-21: the default dial is now Firm, so a take auto-locks the MAKER. This suite locks with the absolute to:'lock' form — the legacy toggle would UNLOCK an already-committed maker and nothing would settle.",
+   "dimension": "playnet · full ticket loop",
+   "cost": "free",
+   "what_it_does": [
+    "Create a fresh unlisted playnet circle; alice and bob join flagged (?tickets=1), each adds a manual account.",
+    "Alice taps her apple chip → 🎟 Price it… → builder prefilled with apple; sets want=banana; Create ticket (signed game_orderCreate).",
+    "Assert the order exists in state and a 🎟 chip renders on BOTH boards.",
+    "Alice tears it up (game_orderCancel) — assert gone everywhere; re-creates it.",
+    "Bob taps the ticket → Take it (game_orderFill 1/1) — assert both legs land as .board-fillrow basket rows and nobody auto-locked.",
+    "Alice taps her fill leg → Recall ticket fill (both sides) — assert both rows vanish and the ticket reopens.",
+    "Bob re-takes; both lock via socket; assert instant playnet settlement (fruit swapped) and the settled ticket no longer renders."
+   ],
+   "pass_means": "The whole priced-ticket loop — create, render, manage, take, group recall, settle — works in a proposal circle with zero backend changes.",
+   "fails_when": "Any step of the loop breaks; historically the first failure was net view stripping fillId from basket rows (fixed by the flag-gated netting bypass in boardNetAccounts).",
+   "harness_url": "https://lab2.katlab.kpay.live/m/katomia/qa/harness/tickets-check.cjs",
+   "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-01.n) prints PASS/FAIL with detail."
+  },
+  {
+   "id": "TICKETS-QUIET-01",
+   "title": "The quiet ticket — stub on the chip, split stack, hover peek, one ticket at a time",
+   "asserts": "A priced asset's OWN chip wears the perforated right edge and no standalone ticket object exists; the cue costs zero chip height (measured at 390x844, the viewport the counter-band regression appeared on); the CSS mask does not clip the pick pennant off a pickable priced chip; tapping the priced chip opens its asset card carrying the ticket section and the maker's tear-up. A2: a stack with more than one unit splits when part of it is priced — two SOLID chips, the stub on exactly one, neither drawn as a dashed ghost (a ticket reserves nothing, so nothing has left the store), and no height cost. A3: hovering a priced chip opens a peek popover stating both legs, placed clear of the chip and pointer-events:none so it cannot swallow a drag, and lights every chip on the felt that could fill the ticket; both clear on leave. NFT snag: a thumb-only chip's ticket gutter is PAINTED and wide enough for the notch — the v8 skin gives thumb-only chips background:none and padding:0, so the mask was notching transparent air and the cue was invisible on NFTs. Multi-ticket: an asset carrying two tickets shows a tab per ticket and draws only ONE ticket's actions; switching tab switches which ticket is shown; and Remove from table is withheld while any ticket exists, saying why.",
+   "kind": "e2e-feature",
+   "network": "playnet",
+   "harness": "qa/harness/tickets-quiet-check.cjs",
+   "run": {
+    "lab1": "node tickets-quiet-check.cjs",
+    "any": "API=<backend> BASE=<site> node tickets-quiet-check.cjs"
+   },
+   "schedule": "manual (run with every tickets phase)",
+   "reports": "kflow test:verdict → QA grid",
+   "notes": "Phase A1 of docs/tickets-build-plan-20260821.html. Requires ?tickets=1. Guards three things that fail SILENTLY: (1) the standalone .board-ticket chip is gone — its whole job moved onto the give-leg's chip; (2) chip height must not change, because bandFull = tallest chip + 12 and a taller chip pushes store chips off a small screen (the P5a regression); (3) the mask must keep mask-clip:no-clip and a tile that reaches 24px left, or it eats the ::before pick pennant — which is invisible to every DOM and computed-style check, and did happen on the first cut. Screenshot artifact at qa/harness/tickets-quiet-last.png. A2 asserts D12 (the priced slice is solid, not a dashed ghost) — dashed already means 'gone from the store', and drawing a still-spendable slice as reserved would make the phase-B drag-out guard read as a surprise. Second screenshot at qa/harness/tickets-quiet-split.png. A3 is desktop-only by design (BOARD-TIPTOUCH1: on touch a hover cue fires on long-press and fights the drag). Third screenshot at qa/harness/tickets-quiet-peek.png.",
+   "dimension": "playnet · quiet-ticket rendering",
+   "cost": "free",
+   "what_it_does": [
+    "Create a fresh unlisted playnet circle at 390x844; alice joins flagged (?tickets=1) and adds a manual account.",
+    "Turn Pickable ON first, so the pennant is already on the chip that is about to be masked.",
+    "Measure the apple and carrot chip heights before anything is priced.",
+    "Tap apple → 🎟 Price it… → want=banana → Create ticket.",
+    "Assert the apple chip carries .board-ticketed, no .board-ticket object exists anywhere, and the carrot chip is untouched.",
+    "Re-measure both chip heights and assert neither moved.",
+    "Assert the chip is both pickable and masked, that mask-clip is no-clip, and that the mask tile reaches further left than the pennant.",
+    "Tap the priced chip and assert the asset card opens carrying the ticket section and the tear-up action.",
+    "Save a screenshot for eyeball confirmation of the stub + pennant together.",
+    "Bring in a second player, run the ticket to settlement so the taker holds a stack of two apples (playnet seeds only one of each, so the stack has to be earned).",
+    "Price ONE apple and assert the stack renders as two chips, exactly one wearing the stub, neither ghosted, neither taller.",
+    "Open a third, hover-capable 1200px viewer and hover the priced chip: assert the peek appears, states both legs, sits clear of the chip, is pointer-events:none, and lights exactly the chips matching the WANT leg.",
+    "Move the pointer away and assert both the peek and the highlight clear.",
+    "Add the thumb-only class cascade a real NFT gets and assert the ticket gutter is painted, wide enough, and still masked (playnet has no NFTs, so this is emulated — worth one eyeball on testnet).",
+    "Price the same asset a SECOND time and assert two tabs appear, exactly one set of ticket actions is drawn, switching tabs switches the ticket, and Remove from table is withheld with a reason."
+   ],
+   "pass_means": "The ticket reads as a property of the item rather than an object beside it, without costing layout or eating another chip cue.",
+   "fails_when": "A cue is added that grows the chip; the mask clipping rule is weakened and the pennant silently disappears; or the asset card loses its ticket section. Or an asset with two tickets duplicates its action buttons again.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-quiet-check.cjs",
+   "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-QUIET-01.n) prints PASS/FAIL with detail."
+  },
+  {
+   "id": "TICKETS-GESTURE-01",
+   "title": "The take as a gesture — drag both ways, and the double-promise guard",
+   "asserts": "B1: someone else's priced chip is draggable into your own space and lands the take EVEN THOUGH their store is not pickable (the ticket is the permission), producing the same fill group the asset-card button produces, with no auto-lock. B2: dragging an asset a ticket wants reveals exactly one wanted slot — the maker's own priced chip, not a new node — and dropping on it takes the ticket; the slot exists only during the drag. B3: offering out an asset you have priced asks first, names the unsourced outcome, and the ticket stays open and VISIBLY unsourced on both boards rather than vanishing. The unsourced ticket must read as an ABSENCE — red dashed and dimmed, distinct from the neutral offered-away ghost — not as a solid chip you still own.",
+   "kind": "e2e-feature",
+   "network": "playnet",
+   "harness": "qa/harness/tickets-gesture-check.cjs",
+   "run": {
+    "lab1": "node tickets-gesture-check.cjs",
+    "any": "API=<backend> BASE=<site> node tickets-gesture-check.cjs"
+   },
+   "schedule": "manual (run with every tickets phase)",
+   "reports": "kflow test:verdict → QA grid",
+   "notes": "Phase B of docs/tickets-build-plan-20260821.html. Requires ?tickets=1. HTML5 drag-and-drop cannot be driven by synthetic mouse events, so the gestures are exercised through the same dataTransfer contract the real drag uses — the chip's own ondragstart builds the payload and the target's ondrop consumes it. That covers what phase B adds (payload shape, drop routing, verb); the browser's dnd plumbing is not under test. B3 is driven at boardExecuteDrop directly, because a pie-slice hit test aimed at a bounding-box centre resolves to whichever wedge contains that point — drag plumbing, not the guard. Screenshot at qa/harness/tickets-gesture-unsourced.png.",
+   "dimension": "playnet · ticket gestures",
+   "cost": "free",
+   "what_it_does": [
+    "Fresh playnet circle, two flagged players, both with a manual account. Alice prices her apple for a banana and leaves her store NOT pickable.",
+    "Assert her priced chip is draggable for Bob anyway, and that an unpriced chip of hers is not.",
+    "B1: drag the priced chip into Bob's own zone; assert two fill-cued rows on both boards and no auto-lock.",
+    "Recall to reopen the ticket.",
+    "B2: assert no wanted slot at rest; start dragging Bob's banana and assert exactly one slot appears, on the maker's priced chip; drop on it and assert the take; assert the slot clears.",
+    "Recall again.",
+    "B3: offer the priced apple out to Bob. Assert the confirm was raised, that it named the unsourced outcome, that the apple really left the store, that the ticket is still open, and that it renders as a visible unsourced chip on BOTH boards.",
+    "Assert the unsourced chip is dashed and dimmed in RED, and that the ordinary offered-away ghost is still the neutral dashed one."
+   ],
+   "pass_means": "One verb, two directions, and the collision between offering and pricing the same asset is surfaced rather than discovered at signing.",
+   "fails_when": "The take drag starts depending on allowPick again; wanted slots leak outside a drag; or an unsourced ticket becomes invisible because its give-leg has no store chip to hang on.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-gesture-check.cjs",
+   "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-GESTURE-01.n) prints PASS/FAIL with detail."
+  },
+  {
+   "id": "TICKETS-MULTIACCT-01",
+   "title": "Taking your own ticket with another account — allowed, and recorded as facts",
+   "asserts": "One player holding two accounts can take a ticket made on the other: the card offers BOTH tear-up and take, the take names the account, the maker's own account is never offered as the filler, and the fill settles like any other. The fill row carries provenance — sameInstigator plus each side's bound state at fill time — and nothing anywhere labels it a self-fill or a wash trade.",
+   "kind": "e2e-feature",
+   "network": "playnet",
+   "harness": "qa/harness/tickets-multiacct-check.cjs",
+   "run": {
+    "lab1": "node tickets-multiacct-check.cjs",
+    "any": "API=<backend> BASE=<site> node tickets-multiacct-check.cjs"
+   },
+   "schedule": "manual (run with every tickets phase)",
+   "reports": "kflow test:verdict → QA grid",
+   "notes": "Phase C of docs/tickets-build-plan-20260821.html. Requires ?tickets=1, and a BACKEND change (katomiaActions.js writes prov on fill rows, katomia.js projects it) — run against a backend carrying both. The framing matters as much as the mechanics: two accounts under one player does NOT mean one entity owns both, because a player may be representing an account, so 'same player on both sides' is not evidence of self-dealing and the product must not assert that it is. Assertion 12 is the guard on that: the provenance object may contain no key that renders a verdict.",
+   "dimension": "playnet · multi-account take + fill provenance",
+   "cost": "free",
+   "what_it_does": [
+    "Fresh playnet circle; ONE flagged player adds TWO manual accounts (the footer control is a button with no accounts and a select once you hold one — the harness handles both).",
+    "Price the apple on the first account for a banana.",
+    "Open the priced chip's card and assert it offers tear-up AND take, that the take names the other account, and that the maker's own account is not a filler option.",
+    "Take it and assert a real two-row fill group.",
+    "Read the fill row's prov and assert it records sameInstigator and each side's bound state — and that it contains no self/wash/suspicion verdict.",
+    "Lock both accounts and assert the apple actually moved between them."
+   ],
+   "pass_means": "A player can try a ticket out end to end on their own, and the facts needed to judge such a fill later are captured at the moment it happens.",
+   "fails_when": "The take branch closes again because isMyAccount is per player; the maker's own account leaks into the filler list (a silent no-op fill); provenance stops being written or projected; or something starts calling it a self-fill.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-multiacct-check.cjs",
+   "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-MULTIACCT-01.n) prints PASS/FAIL with detail."
+  },
+  {
+   "id": "TICKETS-DIAL-01",
+   "title": "The settlement dial — Negotiable · Firm · Instant, and both interlocks",
+   "asserts": "Normal mode never sees the dial; nerd mode shows three positions with Firm selected. Negotiable leaves nobody locked. Firm locks the MAKER's side only and one taker action then settles it. Instant settles with no locking step at all. On a table where someone else in THAT CLUSTER is already locked, an Instant take STANDS DOWN — it neither settles nor leaves anyone auto-locked. Under lock rule 'all' the Instant position is disabled and says why, while Firm stays. Off playnet Firm is now OFFERED (phase I: the dial is inside the signed payload, spec 1dcbd8c4, and the backend verifies it), Instant still tracks the LOCK RULE rather than the network, a real ticket carries spec 1dcbd8c4 with sigOk true, and a dial edited after signing is not marked verified.",
+   "kind": "e2e-feature",
+   "network": "playnet",
+   "harness": "qa/harness/tickets-dial-check.cjs",
+   "run": {
+    "lab1": "node tickets-dial-check.cjs",
+    "any": "API=<backend> BASE=<site> node tickets-dial-check.cjs"
+   },
+   "schedule": "manual (run with every tickets phase)",
+   "reports": "kflow test:verdict → QA grid",
+   "notes": "Phases D and I of docs/tickets-build-plan-20260821.html. Requires ?tickets=1 and a BACKEND carrying the orderFill wrapper in katomia.js plus katomiaOrderSig.js. The dial is the whole proposal-to-order sliding scale on one maker-set control, and its real UI is the TAKE BUTTON'S LABEL — the maker decides, the taker consents by taking, so the button must state what taking does; the labels are asserted here. ONE interlock survives: Instant cannot be instant unless a connected pair may settle alone (lockRule cluster). The OFF-PLAYNET refusal is gone as of phase I — it was standing in for 'the dial is unsigned execution semantics', and the dial now rides inside the intent signature which the backend verifies on the way in. Tamper cases live in T:ORDERSIG-01, which can edit a signed field; a browser cannot. The stand-down rule narrowed with PROP-LOCKSCOPE1: it asks whether THIS CLUSTER was mid-agreement, not the whole circle.",
+   "dimension": "playnet · settlement dial + interlocks",
+   "cost": "free",
+   "what_it_does": [
+    "Assert the dial is absent in normal mode and present with three positions and Firm preselected in nerd mode.",
+    "Negotiable: create, take, assert nobody locked and the button said 'haggle'.",
+    "Firm (fresh circle): assert the button says 'at this price', the maker's side locks, the taker's does not, nothing settled yet, and ONE taker lock then settles it.",
+    "Instant (fresh circle): assert the button says it settles instantly, and that it settles with no locking step.",
+    "Stand-down (fresh circle): lock someone else first, then take an Instant ticket — assert it did NOT settle and left nobody auto-locked.",
+    "Lock rule 'all': assert Instant is disabled with a reason and Firm still offered.",
+    "Drive the availability rule with a stubbed mainnet gameMeta and assert Firm is now offered, no reason mentions the old signing gap, and Instant still tracks the lock rule.",
+    "Create a real ticket and assert it carries spec 1dcbd8c4 with sigOk true; then post an order whose dial was edited after signing and assert the backend marks it unverified."
+   ],
+   "pass_means": "The maker can choose how far along the proposal-to-order scale a ticket sits, the taker is never surprised by it, and the lever cannot produce unsigned execution semantics or an unkeepable promise.",
+   "fails_when": "A dial position stops matching its button label; the stand-down rule regresses and a take auto-locks over someone else's torn-up lock in the same cluster; the lock-rule interlock is weakened so Instant can be posted where a pair cannot settle alone; or the dial stops being covered by a verified signature, which would silently return it to playnet-only.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-dial-check.cjs",
+   "how_to_reproduce": "Run the harness. Each numbered assertion (T:TICKETS-DIAL-01.n) prints PASS/FAIL with detail."
+  },
+  {
+   "id": "ORDERSIG-01",
+   "title": "Order intent signatures — the registry, and what the signature actually covers",
+   "asserts": "The two spec ids are derived from their field lists and pinned (049f1b69 v1, 1dcbd8c4 v2); v2 is v1 plus expiresAt, matchConditions and autoLock, in that order, leaving v1's bytes untouched. A v2-signed ticket verifies and its dial is covered; a v1-signed order verifies and its dial is NOT. Editing the dial, the expiry, the match conditions or the bundle AFTER signing fails verification. Refusals are specific and never throw. kpoolKea exposes no second spec registry, and the KEA mandate payload carries the dial the maker signed.",
+   "kind": "unit",
+   "network": "n/a",
+   "harness": "qa/harness/ordersig-check.cjs",
+   "run": {
+    "lab1": "node ordersig-check.cjs",
+    "any": "BACKEND=<backend dir> node ordersig-check.cjs"
+   },
+   "schedule": "manual (run with any change to a signing spec, and with every tickets phase)",
+   "reports": "kflow test:verdict → QA grid",
+   "notes": "Phase I of docs/tickets-build-plan-20260821.html. A NODE UNIT SUITE against the backend's own katomiaOrderSig.js, deliberately not a browser gate: the property under test is which bytes the maker signed, and the only honest way to test that is to sign something, change one field and watch verification fail. A browser cannot — every order it builds is self-consistent, so a UI test would pass just as happily if the dial were outside the signature, which is the exact bug this phase closes. The two spec ids are pinned here because they are the wire contract with every client and verifier: changing one should require editing this line on purpose.",
+   "dimension": "backend · signing correctness",
+   "cost": "free",
+   "what_it_does": [
+    "Load the backend's katomiaOrderSig.js and assert both spec ids and their field lists.",
+    "Sign a ticket under v2 and an order under v1; assert both verify and that only v2 covers autoLock.",
+    "Sign 'Negotiable' and post 'Instant' — assert verification fails and the dial is not covered.",
+    "Repeat the edit-after-signing test for expiresAt, matchConditions and the bundle.",
+    "Assert unsigned / unknown-spec / garbage / wrong-game / wrong-network all refuse quietly with a reason.",
+    "Assert kpoolKea holds no second registry and its mandate payload carries the signed dial."
+   ],
+   "pass_means": "A ticket's settlement behaviour cannot be changed by anyone but the maker, and the backend can tell the difference between a field the maker signed and a field that merely arrived.",
+   "fails_when": "A spec id drifts from its field list; a signed field can be edited in flight without detection; v1 stops verifying (old orders would become unverifiable); or a second spec registry appears anywhere, which would let the verifier and the mandate builder disagree about the bytes.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/ordersig-check.cjs",
+   "how_to_reproduce": "Run the harness. Each numbered assertion (T:ORDERSIG-01.n) prints PASS/FAIL with the verifier's own reason string as detail."
+  },
+  {
+   "id": "LOCKSCOPE-01",
+   "title": "Lock scope — invalidation and the signed board basis narrow together",
+   "asserts": "Under lockRule cluster: a change in one cluster does NOT unlock a locked account in another; merging two clusters DOES unlock the newly-stale side; splitting a cluster unlocks BOTH halves; the lock commitment is signed on board.php at all, verifies (so the two codebases agree on the frame byte-for-byte), and stores under the cluster frame rather than 'board'; a settlement carries that signed commitment with basisScope naming the cluster, and drops nothing as stale; a v1 whole-board commitment still verifies; and under lockRule active the blunt whole-circle sweep and the whole-board frame both survive unchanged.",
+   "kind": "e2e-correctness",
+   "network": "playnet",
+   "harness": "qa/harness/lockscope-check.cjs",
+   "run": {
+    "lab1": "node lockscope-check.cjs",
+    "any": "API=<backend> BASE=<site> ELOG_PATH=<backend>/log/elog_error_log.txt node lockscope-check.cjs"
+   },
+   "schedule": "manual (run with any change to resetLocksIfNeeded, computeProposalBasis or the lock rules)",
+   "reports": "kflow test:verdict → QA grid",
+   "notes": "PROP-LOCKSCOPE1 / phase E of docs/tickets-build-plan-20260821.html. NOT a ticket gate — this is a correctness fix to the lock model that stands on its own and does not use tickets at all. THE PROPERTY IT HOLDS is that the two halves move together: narrowing invalidation alone leaves an account that still reads as locked whose signature is silently dropped at settlement, and narrowing the basis alone gives the reverse. Three asserts read alpha's elog because commitments are held backend-side on purpose and have no client projection; they SKIP loudly, never pass quietly, when the harness is not on the backend's box (set ELOG_PATH). This suite found a pre-existing defect on its first run: signOrder lived in katomia-render-orders.js, which only game.php loads, so on board.php — the proposal-mode page PROP-LOCKSIGN1 was built for — buildLockCommitment had been silently returning null and every lock was unsigned. Fixed by moving signOrder into katomia-core.js; assert .6 is the regression guard.",
+   "dimension": "playnet · lock model correctness",
+   "cost": "free",
+   "what_it_does": [
+    "Put four accounts of one player on a board and build two disjoint clusters (111→222, 333→444).",
+    "Lock ONE member of cluster B (so it cannot settle and the lock stays observable), then offer inside cluster A and assert B is still locked.",
+    "Read the elog delta for that lock: a commitment reached the backend, it verified, and it stored under cluster B's frame.",
+    "Offer across the two clusters to MERGE them and assert the stale lock drops.",
+    "Lock both ends of the merged cluster, withdraw the joining edge to SPLIT it, and assert both halves unlock.",
+    "Lock both members of cluster B so it settles; assert the tx source carries a non-null intentPublicKey, a cluster-shaped basisScope, and no stale-drop.",
+    "Hand-roll a v1 (whole-board) commitment with the old field list and assert the backend still accepts it.",
+    "Repeat the two-cluster setup in a lockRule:active circle and assert the blunt sweep and the board frame both survive."
+   ],
+   "pass_means": "A lock means 'I agree to the deal I am in', and stays true exactly as long as that deal is unchanged — no wider, no narrower. Signatures and locks go stale at the same moment.",
+   "fails_when": "Activity in an unrelated cluster tears up a lock again (the change regressed); a merge or split leaves a stale lock standing; the frontend and backend disagree about the frame (every commitment logs REJECTED); a settlement records unsigned participants where a signed commitment existed; or an old-spec commitment stops verifying, which would make the spec bump a one-way door with no way back.",
+   "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/lockscope-check.cjs",
+   "how_to_reproduce": "Run the harness on the backend's own box. Each numbered assertion (T:LOCKSCOPE-01.n) prints PASS/FAIL with detail; log-backed asserts print SKIP with the reason when the elog is unreadable."
+  }
+ ],
+ "expected_fail": {
+  "_about": "QA-XFAIL1: assertions written to FAIL today, each mapped to the stage of TXSTATUS-CONSOLIDATE1 that should turn it green, so a red does not read as a regression. Only A5b.4 was ever automated; the TXS-* below are specified but NOT YET IMPLEMENTED as harnesses — that is the open half of QA-XFAIL1.",
+  "cases": [
+   {
+    "id": "TXS-1",
+    "asserts": "An abandoned Sign tap never produces a user-visible message after the transaction it belonged to is dead. (Tap Sign, abandon, complete a DIFFERENT tx, wait past 120s.)",
+    "stage": "S2",
+    "runnable_by_hand": true,
+    "status": "specified, not automated; behaviour fixed by S2 — mechanics covered by the S2 synthetic suite"
+   },
+   {
+    "id": "TXS-2",
+    "asserts": "Every transaction message names its txid, including board:sign:error's kdiag payload.",
+    "stage": "S2",
+    "status": "specified, not automated; fixed by S2 (txid+accountId added)"
+   },
+   {
+    "id": "TXS-3",
+    "asserts": "Two board tabs: a verdict shown in one can never be re-declared by the other.",
+    "stage": "S2",
+    "runnable_by_hand": true,
+    "status": "specified, not automated; fixed by S2 (localStorage re-read + BroadcastChannel)"
+   },
+   {
+    "id": "TXS-4",
+    "asserts": "A failure verdict arrives within 15s of expiry. Measured pre-fix: 57-62s.",
+    "stage": "S3",
+    "runnable_by_hand": true,
+    "status": "fixed by S3 — measured 14.0s e2e on lab1 2026-08-07"
+   },
+   {
+    "id": "TXS-5",
+    "asserts": "No full-board wiper plays for a verdict older than a few seconds, or once a newer signing window has opened.",
+    "stage": "S3",
+    "runnable_by_hand": true,
+    "status": "fixed by S3 — tiering suite 4/4"
+   },
+   {
+    "id": "TXS-6",
+    "asserts": "A negative signal followed by a positive one within ~1.2s shows success only (the settle window).",
+    "stage": "S2",
+    "status": "fixed by S2 — covered by the S2 synthetic suite"
+   },
+   {
+    "id": "TXS-7",
+    "asserts": "A success verdict records its provenance — mirror node vs socket.",
+    "stage": "S5",
+    "status": "implemented by S5 (⚡ socket / ⛓ mirror / 🛰 backend glyph); no automated assertion yet"
+   },
+   {
+    "id": "ORD-1",
+    "asserts": "Order-mode expiry comes from the backend window, not a hardcoded 2m30s client clock.",
+    "stage": "S7",
+    "status": "fixed by S7 — guess deleted; no automated assertion yet"
+   },
+   {
+    "id": "A5b.4",
+    "asserts": "A sign against a dead session gives up inside the transaction's validity window, not at 120s.",
+    "stage": "S4",
+    "status": "AUTOMATED and now PASSING — see T:WC-A5B-GHOST above"
+   }
+  ]
+ },
+ "not_covered_by_automation": [
+  "mobile sign with the wallet backgrounded (kWallet is always awake — it cannot fail this)",
+  "deliberately slow approval ~45s",
+  "HashPack's own session lifecycle by hand (extension vs mobile app)",
+  "animation and timing judgement — whether the wiper/confetti lands at the right moment",
+  "BREAKOUT gaps (2026-08-19 sketch, KAT-BREAKOUT1): receiver-signature-required deals — no fixture account with receiverSigRequired, so the ✍️ signers row's receiver case is unproven",
+  "BREAKOUT: side-circle SUCCESS animation sequencing (user report: board clears, then confetti+verdict late, K logo dips low-right — child-specific, intermittent; a replayed failure animated fine) — timing judgement needs eyes",
+  "BREAKOUT: mover with additional non-cluster accounts left in the parent (E3) — multi-account UX after the split",
+  "BREAKOUT: absent mover returning later via the parent URL (breadcrumb row path) — needs a second browser session joining late",
+  "BREAKOUT: reload loop hygiene — repeated fail→reload→fail cycles in one side circle (assets conserved every round?)",
+  "BREAKOUT: unlisted/private parent → who can see/follow the side-circle links (scoping ladder pass pending)"
+ ],
+ "related_tasks": {
+  "QA-XFAIL1": "the expected-fail set above",
+  "QA-HARNESSREPAIR1": "T:WC-A5-ONLINE silence + the #addAcctJoinAll visibility flake",
+  "QA-BENCHFREEZE1": "the frozen do-not-go-backwards floor (data/benchmarks/) + a target-parameterised runner",
+  "QA-GRIDWATCH1": "repeated-failure watcher over the grid",
+  "TXSTATUS-CONSOLIDATE1": "the S1-S8 work the TXS-* cases were written for",
+  "WC-RESETWEDGE1": "resetWalletLink()+reload can wedge WC init forever — no timeout, no error. Found via T:WC-A5-ONLINE A5.0."
+ },
+ "_modules_note": "Suites carry a `modules` array of ids from modules.json (user 2026-08-17): one id = unit-scoped, several = end-to-end (drawn as a riser across layers in the system diagram). kind:\"specified\" suites are sketch definitions from the coverage review — they exist so the id resolves and the module has a declared shape before the harness lands."
 }

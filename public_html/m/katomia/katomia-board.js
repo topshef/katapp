@@ -5858,8 +5858,10 @@ async function boardToggleLock(account){
   arcNow?.classList.remove("ring-lockpreview")
   arcNow?.classList.toggle("ring-lockarc--locked", locking)
   let commitment = null
+  // PROP-LOCKSCOPE1: the basis is framed on THIS account's settlement unit, not the
+  // whole board, so the account has to be named.
   if(locking && typeof buildLockCommitment === "function")
-    commitment = await buildLockCommitment()
+    commitment = await buildLockCommitment([account.id])
   socket.send(JSON.stringify({
     // KAT-TRANSPORT1 B9 ("kill the toggle", user-approved 2026-08-18): `to` names the
     // DESIRED end state, making the most transport-fragile message idempotent — a
@@ -5870,7 +5872,7 @@ async function boardToggleLock(account){
     to: locking ? "lock" : "shop",
     ...(commitment ? { commitment } : {})
   }))
-  window.__lastLockBasisSent = locking ? (commitment?.payload?.basisHash ?? null) : null
+  window.noteLockBasisSent?.(locking, commitment)
 }
 
 // ring drop targets wrap the shared setupDropTarget with the two drag-back

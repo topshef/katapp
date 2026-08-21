@@ -22,10 +22,17 @@ if(window.KTICKETS) document.body?.classList.add("feat-tickets")
 
 // ── signing — copied from katomia-render-orders.js:2751-2790, not imported:
 // board.php doesn't load render-orders (same copy-not-import precedent as
-// formatJoinRule, katomia-render.js:1150). TKT_SIG_FIELDS must stay byte-identical
-// to SIG_SPEC_FIELDS there or the spec hash (049f1b69) diverges and every verifier
-// rejects the signature.
-const TKT_SIG_FIELDS = ["specVersion","gameId","network","clientOrderId","issuedAt","bundleHash","timeInForce","minFill"]
+// formatJoinRule, katomia-render.js:1150).
+//
+// PHASE I (2026-08-21). Tickets now sign a DIFFERENT spec from the order book, on
+// purpose. Three fields rode outside the signature: expiresAt and matchConditions
+// (a known gap since day one) and, since phase D, autoLock — the settlement dial,
+// which decides WHEN VALUE MOVES. Execution semantics outside the signed bytes is
+// exactly why the dial was refused off playnet. The field list below hashes to
+// 1dcbd8c4; the order book's eight-field list still hashes to 049f1b69 and both are
+// in the backend registry (katomiaOrderSig.js), so an order signed under either
+// verifies. Field ORDER is the wire format — do not reorder.
+const TKT_SIG_FIELDS = ["specVersion","gameId","network","clientOrderId","issuedAt","bundleHash","timeInForce","minFill","expiresAt","matchConditions","autoLock"]
 
 const TKT_SIG_SPEC = (async () => {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(TKT_SIG_FIELDS)))
@@ -37,17 +44,21 @@ async function tktHashBundle(bundle){
   return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, "0")).join("")
 }
 
-async function tktBuildOrder(bundle){
+// The values signed here are the values sent — the caller must not add or reshape a
+// signed field afterwards, or the backend's rebuild of the payload will not match.
+async function tktBuildOrder(bundle, autoLock = "none"){
   const { privateKey, publicKeyJwk } = await getOrCreatePlayerKeypair()
   const clientOrderId = crypto.randomUUID(), issuedAt = Date.now(), minFill = { numerator: 1, denominator: 1 }
+  const expiresAt = 0, matchConditions = null
   const full = { gameId, network: gameMeta?.network ?? null, clientOrderId, issuedAt,
-    bundleHash: await tktHashBundle(bundle), timeInForce: "GTC", minFill, specVersion: await TKT_SIG_SPEC }
+    bundleHash: await tktHashBundle(bundle), timeInForce: "GTC", minFill,
+    expiresAt, matchConditions, autoLock, specVersion: await TKT_SIG_SPEC }
   const payload = Object.fromEntries(TKT_SIG_FIELDS.map(k => [k, full[k]]))
   const sigRaw = await crypto.subtle.sign("Ed25519", privateKey, new TextEncoder().encode(JSON.stringify(payload)))
   const pubkeyHex = atob(publicKeyJwk.x.replace(/-/g, "+").replace(/_/g, "/"))
     .split("").map(c => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
   const intentSignature = { alg: "Ed25519", spec: payload.specVersion, sig: btoa(String.fromCharCode(...new Uint8Array(sigRaw))), pubkeyHex }
-  return { bundle, minFill, timeInForce: "GTC", expiresAt: 0, clientOrderId, issuedAt, matchConditions: null, intentSignature }
+  return { bundle, minFill, timeInForce: "GTC", expiresAt, clientOrderId, issuedAt, matchConditions, autoLock, intentSignature }
 }
 
 // ── phase D: the dial ────────────────────────────────────────────────────────
@@ -59,12 +70,12 @@ async function tktBuildOrder(bundle){
 // mode only, permanently (D8) — it is the position that most turns a circle into
 // a shop.
 //
-// NOT IN THE SIGNED PAYLOAD YET, and that is an interlock rather than an
-// oversight: the dial changes WHEN VALUE MOVES, so it is execution semantics and
-// belongs inside the signature (a new SIG_SPECS id, phase I, riding
-// SOURCE-UNIFY1). Until then anything other than Negotiable is refused off
-// playnet — disabled here with the reason on it, and refused again by the
-// backend so the guarantee does not depend on this file.
+// PHASE I: the dial is now INSIDE the signed payload (spec 1dcbd8c4, see
+// TKT_SIG_FIELDS above) and the backend verifies that signature on the way in, so
+// the playnet-only refusal is gone — an autoLock the maker actually signed is the
+// maker's instruction on any network. The backend still refuses an unsigned or
+// unverified dial off playnet, so the guarantee does not depend on this file.
+// What remains network-independent is the lock-rule interlock below.
 const TKT_DIAL = [
   { v: "none",  label: "Negotiable", blurb: "A take lays both sides out. Nobody locks — haggle from there." },
   { v: "maker", label: "Firm",       blurb: "Your side locks when someone takes it. They still review and lock." },
@@ -72,15 +83,18 @@ const TKT_DIAL = [
 ]
 const TKT_DIAL_DEFAULT = "maker"
 
-const tktIsPlaynet = () => (gameMeta?.network || "playnet") === "playnet"
 // Instant can only be instant where a connected pair may settle on its own.
 // Under "active"/"all" the circle waits for people who are not in this trade, so
 // the position would be a promise the circle cannot keep — disabled, and said,
 // rather than silently downgraded.
 const tktLockRule = () => gameMeta?.lockRule || "cluster"
+// Phase I: without an intent key there is nothing to sign the dial with, so it goes
+// back to being an unsigned instruction — refuse it rather than post a ticket whose
+// promise the backend will decline to keep.
+const tktCanSignDial = () => typeof getOrCreatePlayerKeypair === "function"
 function tktDialAvailable(v){
   if(v === "none") return { ok: true }
-  if(!tktIsPlaynet()) return { ok: false, why: "playnet only until the dial is inside the signed payload (SOURCE-UNIFY1)" }
+  if(!tktCanSignDial()) return { ok: false, why: "no intent key in this session, so the price can't be signed" }
   if(v === "both" && tktLockRule() !== "cluster")
     return { ok: false, why: "this circle settles only when everyone agrees, so a take can't settle on its own" }
   return { ok: true }
@@ -570,6 +584,18 @@ function tktTakeControls({ one, act, order, orderId, account, modal, fillers, mi
   if(dial === "both") note("This ticket settles the moment you take it — no locking step.")
   else if(dial === "maker") note("The maker's side is already committed. You take it, review, and lock.")
 
+  // Phase I diagnostics, nerd mode only. A dial only binds where the backend
+  // verified the signature that carries it, and there is no other way to see that
+  // from the felt — a Firm ticket whose signature failed looks identical to one that
+  // passed until the moment it doesn't auto-lock.
+  if(dial !== "none" && document.body.classList.contains("nerd")){
+    const okSig = order.sigOk === true && order.sigSpec === "1dcbd8c4"
+    note(okSig
+      ? `🔏 dial signed and verified (spec ${order.sigSpec})`
+      : `⚠ dial NOT inside a verified signature (sigOk=${order.sigOk ?? "—"}, spec=${order.sigSpec ?? "—"}) — `
+        + `it will be honoured on playnet and ignored anywhere else`)
+  }
+
   act("kbtn-blue", mine ? "Take it with another account 🎟" : tktTakeLabel(order),
     dial === "both" ? "Taking this settles immediately."
       : dial === "maker" ? "The maker has pre-committed; you still lock."
@@ -751,11 +777,13 @@ function tktBuilder(account, prefill){
     const bundle = [...give.map(l => ({ accountId: hac, asset: l.asset, amount: -l.raw })),
                     ...want.map(l => ({ accountId: hac, asset: l.asset, amount: l.raw }))]
     const orderType = bundle.length === 2 ? (bundle.some(l => String(l.asset).includes("#")) ? "simple-nft" : "simple-ft") : "exotic"
-    const order = await tktBuildOrder(bundle)
-    // last word on the interlock: never post a dial this circle/network cannot
-    // honour, whatever the form happened to be showing
+    // last word on the interlock: never post a dial this circle cannot honour,
+    // whatever the form happened to be showing. Phase I: this has to be decided
+    // BEFORE signing, because the dial is inside the signed payload now — setting it
+    // afterwards would post a ticket whose signature covers a different promise.
     const dialOut = tktDialAvailable(autoLock).ok ? autoLock : "none"
-    socket.send(JSON.stringify({ type: "game_orderCreate", gameId, order: { ...order, orderType, autoLock: dialOut } }))
+    const order = await tktBuildOrder(bundle, dialOut)
+    socket.send(JSON.stringify({ type: "game_orderCreate", gameId, order: { ...order, orderType } }))
     modal.remove()
   }, "tkt-create")
 }

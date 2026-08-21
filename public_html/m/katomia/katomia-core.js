@@ -129,6 +129,29 @@
 
       return { publicKey: keypair.publicKey, privateKey: keypair.privateKey, publicKeyJwk }
     }
+
+
+    // ed25519 over JSON.stringify(payload) — the one signing primitive every signed
+    // artifact in Katomia uses (order intent signatures, PROP-LOCKSIGN1 lock
+    // commitments). It lives HERE, beside the key it signs with, because of a bug
+    // found by T:LOCKSCOPE-01 (2026-08-21): it used to live in
+    // katomia-render-orders.js, which only game.php loads. buildLockCommitment
+    // returns null when signOrder is missing — the deliberate "unsigned locks are
+    // still allowed" fallback — so on board.php, the PROPOSAL-MODE page that
+    // PROP-LOCKSIGN1 was built for, every lock had been silently unsigned since it
+    // shipped. Nothing was broken loudly enough to notice: settlements carried
+    // null-signature participants and looked like the pre-signing status quo.
+    async function signOrder(signingPayload, privateKey, publicKeyJwk, includePubkey = true) {
+      const sigBytes = new TextEncoder().encode(JSON.stringify(signingPayload))
+      const sigRaw   = await crypto.subtle.sign("Ed25519", privateKey, sigBytes)
+      const sig      = btoa(String.fromCharCode(...new Uint8Array(sigRaw)))
+      const out      = { alg: "Ed25519", spec: signingPayload.specVersion, sig }
+      if (includePubkey) {
+        out.pubkeyHex = atob(publicKeyJwk.x.replace(/-/g, "+").replace(/_/g, "/"))
+          .split("").map(c => c.charCodeAt(0).toString(16).padStart(2, "0")).join("")
+      }
+      return out
+    }
     
 
 

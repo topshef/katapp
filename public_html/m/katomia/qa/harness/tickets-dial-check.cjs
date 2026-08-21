@@ -8,20 +8,22 @@
 // the button says what taking will do — so the button label is asserted here as
 // carefully as the mechanics.
 //
-// TWO INTERLOCKS, both asserted, because both are safety rather than polish:
-//  · off playnet, anything other than Negotiable is refused. The dial is not
-//    inside the signed payload yet AND an auto-lock carries no signed board basis
-//    (it bypasses toggleLock), so it would be unsigned execution semantics on a
-//    real network. Refused in the UI *and* in the backend, so the guarantee does
-//    not depend on the frontend.
+// ONE INTERLOCK SURVIVES, and it is safety rather than polish:
 //  · Instant needs lockRule "cluster". Under "active"/"all" the circle waits for
 //    people who are not in this trade, so "instant" would be a promise the circle
 //    cannot keep. Disabled with the reason, never silently downgraded.
 //
-// AND THE STAND-DOWN RULE: any fill clears EVERY lock in the circle
-// (resetLocksIfNeeded), so auto-locking on a table where someone else was
-// mid-agreement would be consenting to a board nobody has seen. It stands down
-// and notifies instead.
+// THE OTHER ONE IS GONE (phase I, 2026-08-21). Off playnet, anything but Negotiable
+// used to be refused, because the dial rode OUTSIDE the signed payload — unsigned
+// execution semantics on a real network. It is inside the signature now (spec
+// 1dcbd8c4) and the backend verifies that signature on the way in, so §7 asserts the
+// refusal has genuinely lifted and §8 asserts the wiring that replaced it. The
+// tamper cases live in T:ORDERSIG-01, which can edit a signed field; a browser can't.
+//
+// AND THE STAND-DOWN RULE: a fill tears up the locks it invalidates, so auto-locking
+// on top of one would be consenting to a board nobody has seen. Since PROP-LOCKSCOPE1
+// that question is asked of THIS CLUSTER rather than the whole circle — a negotiation
+// in a far corner no longer stands the dial down. It stands down and notifies instead.
 //
 //   node tickets-dial-check.cjs
 //   API=https://alpha.katlab.kpay.live BASE=https://lab1.katlab.kpay.live node tickets-dial-check.cjs
@@ -224,11 +226,15 @@ async function priceIt(page, giveAsset, wantAsset, dial){
         typeof tktDialAvailable === "function" && tktDialAvailable("both").ok === (tktLockRule() === "cluster")))
     }
 
-    // ══ 7. interlock — off playnet nothing but Negotiable is offered ══════════
-    // Asserted by driving the availability rule with a stubbed network rather
-    // than standing up a testnet circle: the rule is the thing under test, and
-    // the BACKEND refuses independently anyway (katomia.js orderFill), so the
-    // guarantee does not rest on this check.
+    // ══ 7. the network interlock is GONE — phase I ════════════════════════════
+    // It was standing in for "the dial is unsigned execution semantics". The dial is
+    // inside the signed payload now (spec 1dcbd8c4) and the backend verifies that
+    // signature on the way in, so the maker's instruction travels with its proof and
+    // the network no longer decides. What survives is the LOCK-RULE interlock, which
+    // was never about signing: under active/all a connected pair cannot settle on its
+    // own, so "instant" would be a promise the circle cannot keep.
+    // Driven with a stubbed network rather than a testnet circle — the rule is the
+    // thing under test, and the backend refuses independently either way.
     const offnet = await a5.evaluate(() => {
       const real = gameMeta.network
       try {
@@ -237,10 +243,53 @@ async function priceIt(page, giveAsset, wantAsset, dial){
       } finally { gameMeta.network = real }
     })
     t("off playnet: Negotiable stays available", offnet.none === true)
-    t("off playnet: Firm is refused", offnet.maker.ok === false, JSON.stringify(offnet.maker))
-    t("off playnet: Instant is refused", offnet.both.ok === false)
-    t("off playnet: and the reason names the signing gap", /signed payload|SOURCE-UNIFY1/i.test(offnet.maker.why || ""),
-      JSON.stringify(offnet.maker.why))
+    t("off playnet: Firm is now OFFERED — the dial is signed", offnet.maker.ok === true, JSON.stringify(offnet.maker))
+    t("off playnet: no reason mentions the old signing gap",
+      !/SOURCE-UNIFY1|playnet only/i.test(JSON.stringify(offnet)), JSON.stringify(offnet.maker.why || ""))
+    if(rule === "all"){
+      t("off playnet: Instant is still refused, on the LOCK RULE not the network",
+        offnet.both.ok === false && /everyone agrees/i.test(offnet.both.why || ""), JSON.stringify(offnet.both))
+    } else {
+      t("off playnet: Instant tracks the lock rule, not the network",
+        offnet.both.ok === (rule === "cluster"), JSON.stringify({ rule, both: offnet.both }))
+    }
+
+    // ══ 8. the dial rides the signature — phase I ═════════════════════════════
+    // The mechanics of "which bytes are signed" are covered properly by the unit
+    // suite T:ORDERSIG-01, which can tamper. What is asserted here is the wiring: a
+    // ticket built by the real UI carries the new spec, and the backend says it
+    // verified it. If either half of that is wrong the dial silently degrades to
+    // playnet-only again, and nothing else in this suite would notice.
+    const g6 = (await mkCircle()).gameId
+    const a6 = await mkPage(g6, true)
+    await addManual(a6, "0.0.111")
+    await a6.waitForTimeout(1000)
+    await priceIt(a6, "apple", "banana", "maker")
+    const posted = await a6.evaluate(() => {
+      const o = Object.values(Object.values(state?.players || {}).find(p => Object.keys(p.orders || {}).length)?.orders || {})[0]
+      return o ? { spec: o.intentSignature?.spec ?? null, sigOk: o.sigOk ?? null, sigSpec: o.sigSpec ?? null, autoLock: o.autoLock ?? null } : null
+    })
+    t("the ticket is signed under the new spec", posted?.spec === "1dcbd8c4", JSON.stringify(posted))
+    t("the backend verified it on the way in", posted?.sigOk === true, JSON.stringify(posted))
+    t("…under that same spec", posted?.sigSpec === "1dcbd8c4", JSON.stringify(posted))
+    t("and the dial it signed is the one that arrived", posted?.autoLock === "maker", JSON.stringify(posted))
+
+    // sign one dial, post another — the backend must refuse to call it verified
+    await a6.evaluate(async () => {
+      const acc = getAccounts().filter(a => isMyAccount(a))[0]
+      const hac = acc.label
+      const bundle = [{ accountId: hac, asset: "carrot", amount: -1 }, { accountId: hac, asset: "banana", amount: 1 }]
+      const order = await tktBuildOrder(bundle, "none")          // signs Negotiable…
+      socket.send(JSON.stringify({ type: "game_orderCreate", gameId,
+        order: { ...order, orderType: "simple-ft", autoLock: "both" } }))   // …posts Instant
+    })
+    await a6.waitForTimeout(1800)
+    const tampered = await a6.evaluate(() => {
+      const orders = Object.values(state?.players || {}).flatMap(p => Object.values(p.orders || {}))
+      const o = orders.find(x => (x.bundle || []).some(l => l.asset === "carrot"))
+      return o ? { sigOk: o.sigOk ?? null, autoLock: o.autoLock ?? null } : null
+    })
+    t("a dial edited after signing is NOT marked verified", tampered?.sigOk === false, JSON.stringify(tampered))
 
     await reportKflow("test:verdict", INSTANCE, { pass: !fails.length, asserts: n, fails })
   } catch(e){ fails.push("harness: " + String(e.message).slice(0, 250)) }
