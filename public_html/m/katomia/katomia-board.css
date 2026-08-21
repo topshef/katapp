@@ -2260,6 +2260,20 @@ body.feat-tickets .board-chip.board-ticketed{
 }
 /* a take is on the table — the ticket is spoken for but not yet settled */
 body.feat-tickets .board-chip.board-ticketed-inplay{ opacity:.72; }
+/* A3 hover peek — a popover, never a growth of the chip (height is the
+   constraint; see the mask note above). pointer-events:none so it can never
+   swallow the drag that starts on the chip underneath it. */
+body.feat-tickets #tktPeek{
+  position:fixed; z-index:9000; pointer-events:none;
+  background:#fff8dc; color:#1d232a; border:1px solid #c9b96a; border-radius:8px;
+  padding:6px 9px; font-size:12px; line-height:1.45; max-width:230px;
+  box-shadow:0 6px 18px rgba(0,0,0,.18);
+}
+body.feat-tickets #tktPeek .tkt-peek-state{ color:#7a5d00; }
+/* "who could fill this?" — hovering a ticket lights every chip that would */
+body.feat-tickets .board-chip.board-tkt-wanted{
+  outline:2px solid #c9b96a; outline-offset:2px;
+}
 /* the card's ticket section */
 body.feat-tickets .tkt-cardsec{ border-top:1px solid #ece7d8; margin-top:8px; padding-top:8px; }
 body.feat-tickets .tkt-cardsec-head{ font-weight:600; margin-bottom:4px; }
