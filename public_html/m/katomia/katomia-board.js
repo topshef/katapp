@@ -7336,25 +7336,36 @@ function ringEtchLabel(seg, g, NS){
   const hac = seg.account.id.split(":")[1] || seg.account.id
   const xLabel = window.accountLabelCache?.[hac]
   if(xLabel){
-    // XPROOF-FELT1 (user 2026-08-21, chose option B from the design pass): the etch
-    // used to render "domain | name" in one uniform grey, which let a SELF-CHOSEN
-    // name borrow the credibility of the ATTESTED domain — "anyone could just put
-    // some dodgy domain name and stick a label on top", so the two must not look
-    // alike. Now the domain leads in verified-green with a ✓, and the name recedes
-    // into the existing faint etch tone as a plain annotation.
+    // XPROOF-FELT1 R2 (user 2026-08-21). The felt is the OWNER's own lettering, so
+    // the domain wears the player colour exactly like the account id above it — no
+    // separate verified-green, no tick. The attested/self-chosen distinction is
+    // carried by weight and opacity alone here; the ✓ and the explicit split live
+    // in the player modal, which has the room to explain itself.
     const xp = window.accountXProofCache?.[hac]
     const domain = xp?.domain || String(xLabel).split(" | ")[0]
     const name   = xp?.name   || String(xLabel).split(" | ").slice(1).join(" | ") || null
     const sub = document.createElementNS(NS, "text")
     sub.setAttribute("class", "ring-etchlabel ring-etchsub")
     sub.setAttribute("x", x)
-    sub.setAttribute("y", y + fs * 0.78)
+    // SIDE-MIRRORING (user 2026-08-21): "you'd only put the label underneath the
+    // account ID if the account ID is underneath the spoke line. But if the account
+    // ID is above the spoke line, then you'd need to put the label above" — else the
+    // second line crosses the spoke into the NEIGHBOUR's segment, which is the bug
+    // they saw. The id is nudged off its boundary by inwardSign along `perp`; this
+    // asks whether the rotated frame's local +y points the SAME way (i.e. the id
+    // sits below the line) and stacks the label further out on that same side, so
+    // the pair always fans away from the spoke. Same test ring9 already uses for
+    // its own glyph padding, so the two can never disagree about which side is out.
+    const _rr = rot * Math.PI / 180
+    const awayIsDown = inwardSign * (Math.cos(perp) * Math.cos(_rr + Math.PI / 2)
+                                   + Math.sin(perp) * Math.sin(_rr + Math.PI / 2)) > 0
+    sub.setAttribute("y", y + (awayIsDown ? 1 : -1) * fs * 0.78)
     sub.setAttribute("text-anchor", "middle")
     sub.setAttribute("font-size", fs * 0.52)
 
     const dom = document.createElementNS(NS, "tspan")
     dom.setAttribute("class", "ring-etchxp-domain")
-    dom.textContent = "✓ " + domain
+    dom.textContent = domain
     sub.appendChild(dom)
 
     // MOBILE: at ring scale this sub-line is only a few px tall, so the name is
@@ -8588,6 +8599,20 @@ function boardPlayerModal(playerId, focusAccountId = null){
 }
 
 // xproof identity for an account, or null when we simply don't have one.
+//
+// FUTURE (user 2026-08-21, deliberately NOT built yet): the modal's ✓ + domain is
+// the natural place to carry a reference back to the attestation itself — the
+// verifying account, the consensus timestamp, the transaction — and to become a
+// hyperlink out to it. enrichAccountLabel already returns verifiedAt, and the
+// /api/ response carries verifier + transaction_id + consensus_timestamp
+// alongside, so nothing new needs fetching to do it.
+// Reference implementation to copy from: the kpay signing widget, which already
+// renders xproof identity in its modal — vendor/kpay/kpool_widget/xproof.js
+// (getAccountLabel, plus its hard-coded names for well-known Hedera system
+// accounts, which we do NOT have here) consumed via model.js and modal.js. Note
+// when borrowing from it: that file still fetches the DEAD /domain/query/<id>
+// route, so it has the same silent failure this file was just fixed for — see
+// XPROOF-ROUTE1 above and misc:XPROOF-EXPLOREDEAD1.
 //
 // TWO FACTS, DELIBERATELY UNEQUAL (user 2026-08-21): xproof attests control of a
 // DOMAIN; the NAME on top of it is chosen by whoever holds that domain. "You
