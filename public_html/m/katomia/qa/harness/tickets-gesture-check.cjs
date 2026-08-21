@@ -210,6 +210,25 @@ const openTickets = page => page.evaluate(() =>
       await alice.locator("[data-tkt-unsourced]").count() === 1)
     t("the other player sees the unsourced ticket too",
       await bob.locator("[data-tkt-unsourced]").count() === 1)
+    // it must read as an ABSENCE, not as a solid chip you still own (user snag,
+    // 2026-08-21). Red-dashed rather than the neutral ghost, because the two
+    // absences differ: neutral = promised away and sitting in a basket, red =
+    // promised and gone. Distinct from D12, where the PRICED slice stays solid
+    // precisely because it is still in your store.
+    const uns = await alice.evaluate(() => {
+      const e = document.querySelector("[data-tkt-unsourced]")
+      const s = getComputedStyle(e)
+      return { outline: s.outlineStyle, opacity: parseFloat(s.opacity), colour: s.outlineColor }
+    })
+    t("the unsourced ticket is drawn as a ghost, not a solid chip",
+      uns.outline === "dashed" && uns.opacity < 0.8, JSON.stringify(uns))
+    t("and it is the RED ghost, distinct from the ordinary offered-away one",
+      /179|b3261e/i.test(uns.colour), JSON.stringify(uns.colour))
+    t("the ordinary offered-away ghost is still the neutral one",
+      await alice.evaluate(() => {
+        const g = [...document.querySelectorAll(".board-ghost")].find(e => !e.dataset.tktUnsourced)
+        return !!g && getComputedStyle(g).outlineStyle === "dashed"
+      }))
     await alice.screenshot({ path: __dirname + "/tickets-gesture-unsourced.png", fullPage: false })
 
     await reportKflow("test:verdict", INSTANCE, { pass: !fails.length, asserts: n, fails })

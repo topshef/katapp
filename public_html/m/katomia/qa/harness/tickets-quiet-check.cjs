@@ -227,6 +227,27 @@ const chipHeight = (page, assetId) => page.evaluate(a => {
     const lit = await desk.evaluate(() => [...document.querySelectorAll(".board-tkt-wanted")].map(e => e.dataset.assetId))
     t("hovering lights every chip that could fill it", lit.length > 0 && lit.every(a => a === "carrot"), JSON.stringify(lit))
     await desk.screenshot({ path: __dirname + "/tickets-quiet-peek.png", fullPage: false })
+
+    // ── the NFT case ────────────────────────────────────────────────────────
+    // A thumb-only chip gets background:none and padding:0 from the v8 skin, so
+    // the mask notches a TRANSPARENT gutter and the ticket cue is invisible —
+    // which is exactly what shipped in A1 and what the user hit. The fix paints
+    // the gutter, giving the perforation something to bite into. Emulated by
+    // adding the class cascade a real NFT gets, because playnet has no NFTs;
+    // still worth eyeballing on testnet once.
+    const nft = await desk.evaluate(() => {
+      const c = document.querySelector(".board-chip.board-ticketed")
+      c.classList.add("thumb-only")
+      const s = getComputedStyle(c)
+      const out = { pad: parseFloat(s.paddingRight) || 0, bg: s.backgroundColor,
+                    masked: (s.maskImage || s.webkitMaskImage || "none") !== "none" }
+      c.classList.remove("thumb-only")
+      return out
+    })
+    t("NFT: the ticket gutter is painted, not transparent",
+      nft.bg !== "rgba(0, 0, 0, 0)" && nft.bg !== "transparent", JSON.stringify(nft))
+    t("NFT: there is a gutter for the notch to bite into", nft.pad >= 10, "padding-right=" + nft.pad)
+    t("NFT: and it is still masked", nft.masked === true)
     await desk.mouse.move(5, 5)
     await desk.waitForTimeout(400)
     t("the peek and the highlight clear on leave",

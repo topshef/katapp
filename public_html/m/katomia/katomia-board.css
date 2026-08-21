@@ -2258,6 +2258,22 @@ body.feat-tickets .board-chip.board-ticketed{
   -webkit-mask-clip:no-clip;
   mask-clip:no-clip;
 }
+/* NFT / thumb-only chips need the bar the mask can bite into (user snag,
+   2026-08-21: "for NFTs I'm not seeing that pattern... maybe we widen the NFT by
+   putting a bar on the right hand side with the ticketing formatting on it").
+   The rule above alone does nothing on an NFT: [data-board-fam~="v8"]
+   .board-chip.thumb-only sets background:none and padding:0, so the 11px gutter
+   the mask notches is TRANSPARENT and the perforation cuts empty air. Measured,
+   not guessed — computed background was rgba(0,0,0,0).
+   So the gutter gets painted in the ticket gold. It can only ever show in the
+   padding strip, because the artwork fills the content box — BOARD-CHIPART1's
+   "art is never recoloured" is respected: this frames the art, it does not tint
+   it. */
+body.feat-tickets .board-chip.board-ticketed.thumb-only{
+  padding-right:12px;
+  background:#c9b96a;
+  background-image:none;
+}
 /* a take is on the table — the ticket is spoken for but not yet settled */
 body.feat-tickets .board-chip.board-ticketed-inplay{ opacity:.72; }
 /* B1 — their priced chip is draggable into your space (the ticket is the
@@ -2273,11 +2289,19 @@ body.feat-tickets .board-chip.board-tkt-slot{
 @media (prefers-reduced-motion: reduce){
   body.feat-tickets .board-chip.board-tkt-slot{ animation:none; }
 }
-/* the ticket promises something the store no longer holds — the red
-   "this leg needs filling" vocabulary, borrowed ahead of phase F */
+/* the ticket promises something the store no longer holds. Drawn as a GHOST —
+   dashed and dimmed — not as a solid chip (user snag, 2026-08-21: "the part
+   that's remaining should be ghosted, because the NFT only exists once").
+   Right: dashed already means "not really here", and an unsourced leg is the
+   most not-here thing on the felt. It is a RED ghost rather than the neutral
+   one because the two absences differ — the neutral ghost is "promised away and
+   sitting in someone's basket", this is "promised and gone". Note this does NOT
+   contradict D12: the PRICED slice of a stack stays solid because it is still in
+   your store and still spendable. Ghost = you no longer have it. */
 body.feat-tickets .board-chip.board-tkt-unsourced{
-  background:transparent !important; color:#b3261e !important;
-  box-shadow:inset 0 0 0 2px #b3261e;
+  background:transparent !important; background-image:none !important;
+  color:#b3261e !important; box-shadow:none;
+  opacity:.62; outline:2px dashed #b3261e; outline-offset:-1px;
 }
 /* A3 hover peek — a popover, never a growth of the chip (height is the
    constraint; see the mask note above). pointer-events:none so it can never
