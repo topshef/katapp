@@ -133,7 +133,13 @@ const openTickets = page => page.evaluate(() =>
     await bob.waitForTimeout(1800)
     t("B1 drag lands the take", r1 === "ok" && (await fillRows(bob)) === 2, `drag=${r1} rows=${await fillRows(bob)}`)
     t("B1 take is the same fill group the button makes", (await fillRows(alice)) === 2)
-    t("B1 did not auto-lock anyone", await alice.evaluate(() => getAccounts().every(a => a.mode !== "lock")))
+    // phase D: the default dial is Firm, so the drag-take commits the maker's
+    // side exactly as the button does — the point here is that the GESTURE and
+    // the button produce identical outcomes, not that nothing locks.
+    const afterDrag = await alice.evaluate(() => getAccounts().map(a => ({ mine: isMyAccount(a), mode: a.mode })))
+    t("B1 drag auto-locks exactly like the button (Firm default)",
+      afterDrag.some(a => a.mine && a.mode === "lock") && afterDrag.some(a => !a.mine && a.mode !== "lock"),
+      JSON.stringify(afterDrag))
 
     // unwind: recall so the ticket reopens, ready for B2
     await alice.locator(".board-fillrow").first().click({ force: true })

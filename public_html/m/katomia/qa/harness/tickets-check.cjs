@@ -112,7 +112,13 @@ const openTickets = (page) => page.evaluate(() =>
     const fillRows = async page => page.evaluate(() => document.querySelectorAll(".board-fillrow").length)
     t("take posts both legs as fill-cued rows (maker view)", (await fillRows(alice)) === 2, "rows=" + await fillRows(alice))
     t("take posts both legs as fill-cued rows (taker view)", (await fillRows(bob)) === 2)
-    t("nobody auto-locked", await alice.evaluate(() => getAccounts().every(a => a.mode !== "lock")))
+    // PHASE D changed this: the default dial is now Firm, so a take commits the
+    // MAKER's side and leaves the taker to review and lock. Negotiable (nobody
+    // locks) is still available, and is asserted in T:TICKETS-DIAL-01.
+    const afterTake = await alice.evaluate(() => getAccounts().map(a => ({ mine: isMyAccount(a), mode: a.mode })))
+    t("Firm default: the maker's side locked, the taker's did not",
+      afterTake.some(a => a.mine && a.mode === "lock") && afterTake.some(a => !a.mine && a.mode !== "lock"),
+      JSON.stringify(afterTake))
 
     // maker recalls her leg (the apple she owes, sitting in bob's basket) → group recall
     await alice.locator(".board-fillrow").first().click({ force: true })
@@ -128,8 +134,8 @@ const openTickets = (page) => page.evaluate(() =>
     await bob.waitForTimeout(1500)
     const accA = await alice.evaluate(() => getAccounts().filter(a => isMyAccount(a))[0]?.id)
     const accB = await bob.evaluate(() => getAccounts().filter(a => isMyAccount(a))[0]?.id)
-    await send(alice, { type: "game_toggleLock", accountId: accA })
-    await send(bob, { type: "game_toggleLock", accountId: accB })
+    await send(alice, { type: "game_toggleLock", accountId: accA, to: "lock" })
+    await send(bob, { type: "game_toggleLock", accountId: accB, to: "lock" })
     await alice.waitForTimeout(3000)
     const aBan = await alice.evaluate(() => getAccounts().filter(a => isMyAccount(a))[0]?.assets?.banana)
     const bApp = await bob.evaluate(() => getAccounts().filter(a => isMyAccount(a))[0]?.assets?.apple)
