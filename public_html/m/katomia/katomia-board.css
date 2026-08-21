@@ -2043,6 +2043,59 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
 .board-playercard-sub{ font-size: 12px; }
 .board-playercard-acct{ margin-top: 12px; }
 .board-playercard-acctid{ font: 600 13px ui-monospace, monospace; color: #52525b; margin-bottom: 6px; }
+
+/* ── PLAYER-MODAL2 (user 2026-08-21): per-account view + remove ─────────────
+   The account id doubles as the door into its own filtered view, so it needs a
+   hit area and a chevron; everything else here is the filtered view's furniture.
+   Deliberately quiet — per BOARD-CURATE1's "fewer lines and borders" steer, the
+   only strong shape on the card is the destructive button. */
+.board-playercard-acctid--tappable{
+  display: flex; align-items: center; gap: 6px; cursor: pointer;
+  margin: 0 -8px 6px; padding: 5px 8px; border-radius: 7px;
+}
+.board-playercard-acctid--tappable:hover{ background: #eef4fb; }
+.board-playercard-acctchev{ margin-left: auto; color: #a1a1aa; font-size: 13px; }
+
+/* "a fairly muted link to show all" — a link-shaped button, not a chip */
+.board-playercard-showall,
+.board-playercard-jumplink{
+  border: 0; background: none; padding: 0; cursor: pointer;
+  color: #3f6ea3; font-size: inherit; font-family: inherit;
+}
+.board-playercard-showall{ border-bottom: 1px dotted currentColor; }
+.board-playercard-showall:hover,
+.board-playercard-jumplink:hover{ color: #2c5580; }
+.board-playercard-jumplink{ font-family: ui-monospace, monospace; }
+.board-playercard-jump{
+  margin-top: 12px; padding-top: 9px; border-top: 1px solid #ececf0; font-size: 12px;
+}
+
+.board-playercard-danger{ margin-top: 13px; padding-top: 11px; border-top: 1px solid #ececf0; }
+.board-playercard-removebtn{
+  display: block; width: 100%; text-align: center; padding: 9px 12px; border-radius: 9px;
+  border: 1px solid #e6b3b3; background: #fdf5f5; color: #a33;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.board-playercard-removebtn:hover{ background: #fbeaea; }
+.board-playercard-removebtn:disabled{ opacity: .5; cursor: default; }
+
+/* The confirm is a REMINDER, not an alarm (user: "it doesn't really need to be so
+   much as a warning… just a reminder") — neutral surface, the red stays on the
+   verb button alone. */
+.board-playercard-confirm{
+  margin-top: 10px; padding: 12px 13px; border-radius: 10px;
+  background: #f7f7f9; border: 1px solid #e4e4e8;
+}
+.board-playercard-confirm-q{ font-size: 13.5px; font-weight: 600; margin-bottom: 5px; }
+.board-playercard-confirm-why{ font-size: 12px; line-height: 1.45; }
+.board-playercard-confirm-row{ display: flex; gap: 8px; margin-top: 11px; }
+.board-playercard-confirm-cancel,
+.board-playercard-confirm-go{
+  flex: 1; padding: 8px 10px; border-radius: 8px; font-size: 13px; cursor: pointer;
+}
+.board-playercard-confirm-cancel{ border: 1px solid #d4d4d8; background: #fff; color: #3f3f46; }
+.board-playercard-confirm-go{ border: 1px solid #c0392b; background: #c0392b; color: #fff; font-weight: 600; }
+.board-playercard-confirm-go:disabled{ opacity: .6; cursor: default; }
 .board-playercard-assets{ display: flex; flex-direction: column; gap: 2px; }
 /* ── PLAYER-MODAL1 R2 (user 2026-08-06): fewer lines ──────────────────────
    "I think we've got too many kind of borders and stuff. Each asset chip is

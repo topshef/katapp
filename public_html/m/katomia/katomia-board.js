@@ -7505,7 +7505,9 @@ function makeWedge(account, a0, a1, geo, isMine = false){
       if(isMine && !boardSigning) boardToggleLock(account)
       return                                  // others' ring: reserved, does nothing
     }
-    if(typeof boardPlayerModal === "function") boardPlayerModal(account.playerId)
+    // PLAYER-MODAL2: the felt tap always knew WHICH account's segment was hit —
+    // it just wasn't passing it on. Now it does, so you land on that account.
+    if(typeof boardPlayerModal === "function") boardPlayerModal(account.playerId, account.id)
   }
   // TAP-TO-OFFER cue: while a chip is selected, candidate destination
   // segments lift a touch so "tap a segment" reads as the next move
@@ -7977,7 +7979,8 @@ function boardAssetDetail(assetId, account, amount, offer){
   ownerBtn.className = "addacct-link"
   ownerBtn.textContent = ownerHac + (isMyAccount(account) ? " (you)" : "") + " ›"
   ownerBtn.title = "View this player — their accounts, assets and bindings"
-  ownerBtn.onclick = () => { modal.remove(); boardPlayerModal(account.playerId) }
+  // PLAYER-MODAL2: the Owner row names ONE account, so it opens that account's view
+  ownerBtn.onclick = () => { modal.remove(); boardPlayerModal(account.playerId, account.id) }
   addRow("Owner", ownerBtn)
   if(meta?.token_class?.name) addRow("Name", meta.token_class.name)
   card.appendChild(rows)
@@ -8198,20 +8201,30 @@ function boardAssetDetail(assetId, account, amount, offer){
 // something the viewer can toggle; it's the owner's choice. R4: collapsed
 // behind a <details> by default — the count is the summary line.
 //
-// DESIGN TENSION, PARKED (user 2026-08-06, thought through out loud and then
-// explicitly dropped — "I think I might be overcooking this… let's leave it as
-// it is, we can always put some comments in the code"): you arrive here by
-// tapping ONE segment, which is one ACCOUNT, but the modal answers with the
-// whole PLAYER — every account they hold, one long scroll. The alternative
-// shape they sketched: filter to the tapped account by default, keep the player
-// header, and turn the "3 accounts in this game" sub-line into either a
-// call-to-action that expands to all accounts, or a list of the other accounts
-// you can jump between — "so you can jump from one view to another, rather than
-// having it as one long scroll list". Worth revisiting IF the scroll gets long
-// in real games (the R4 collapse of Not-in-play is the cheap half of the same
-// fix); the cost of doing it is that boardPlayerModal(playerId) grows a second
-// argument and a view state, and every caller (felt tap, Owner link on the asset
-// card) has to decide which view it means. Not done on purpose.
+// DESIGN TENSION, RESOLVED IN R5 (PLAYER-MODAL2, user 2026-08-21). It was parked
+// on 2026-08-06 — "I think I might be overcooking this… let's leave it as it is,
+// we can always put some comments in the code" — with the shape already sketched:
+// you arrive by tapping ONE segment, which is one ACCOUNT, but the modal answered
+// with the whole PLAYER, every account in one long scroll; the fix being to filter
+// to the tapped account, keep the player header, and turn the "3 accounts in this
+// game" sub-line into the way back out to all of them.
+//
+// What un-parked it: the ask for a per-account action ("remove this account from
+// the circle"). A destructive button cannot live in a player-wide modal — it would
+// be ambiguous across three accounts — so the filtered view stopped being a
+// scroll-length nicety and became the CARRIER for account-scoped actions. The cost
+// noted back then was real and is paid here: this function takes a second argument
+// and holds a view state, and both callers (felt tap, Owner link on the asset card)
+// now say which account they mean. The felt tap always knew — it just wasn't
+// passing it on.
+//
+//   boardPlayerModal(playerId)              → all accounts (the old view)
+//   boardPlayerModal(playerId, accountId)   → filtered to that account
+//
+// User's steer on the default (2026-08-21): "let's change the default arrival as a
+// filtered view, but make it quite clear at the top… showing one of three accounts,
+// [with] a fairly muted link to show all, which would then convert the modal into
+// the full list that we see at the moment."
 function boardCurateKey(){ return "katomiaCurate." + (gameId || gameMeta?.id || "") }
 function boardCurateMap(){ try { return JSON.parse(localStorage.getItem(boardCurateKey()) || "{}") } catch { return {} } }
 function boardCurateGet(accountId, assetId){ return boardCurateMap()[accountId + "|" + assetId] || null }
@@ -8252,13 +8265,20 @@ function boardCurateSwipe(row, set){
   row.addEventListener("pointercancel", end)
 }
 
-function boardPlayerModal(playerId){
+function boardPlayerModal(playerId, focusAccountId = null){
   document.getElementById("boardAssetDetail")?.remove()
   document.getElementById("boardPlayerModal")?.remove()
   const player = state?.players?.[playerId]
-  const accounts = getAccounts().filter(a => a.playerId === playerId)
-  if(!player && !accounts.length) return
+  const allAccounts = getAccounts().filter(a => a.playerId === playerId)
+  if(!player && !allAccounts.length) return
   const self = playerId === currentPlayerId
+  // The filter only means anything when the account is really this player's and
+  // there is more than one to choose between — a single-account player gets the
+  // plain view with no "1 of 1" noise and no Show-all link.
+  const focus = (focusAccountId && allAccounts.length > 1)
+    ? allAccounts.find(a => a.id === focusAccountId) || null
+    : null
+  const accounts = focus ? [focus] : allAccounts
 
   const modal = document.createElement("div")
   modal.id = "boardPlayerModal"
@@ -8298,7 +8318,20 @@ function boardPlayerModal(playerId){
   nm.style.color = colour
   const sub = document.createElement("div")
   sub.className = "subtle board-playercard-sub"
-  sub.textContent = accounts.length + " account" + (accounts.length === 1 ? "" : "s") + " in this game"
+  if(focus){
+    // "make it quite clear at the top… showing one of three accounts, [with] a
+    // fairly muted link to show all" — the link re-opens this same modal with no
+    // focus, which IS the old full-list view.
+    sub.textContent = "Showing 1 of " + allAccounts.length + " accounts · "
+    const showAll = document.createElement("button")
+    showAll.className = "board-playercard-showall"
+    showAll.textContent = "Show all"
+    showAll.title = "Show every account this player has in this game"
+    showAll.onclick = () => { modal.remove(); boardPlayerModal(playerId) }
+    sub.appendChild(showAll)
+  } else {
+    sub.textContent = allAccounts.length + " account" + (allAccounts.length === 1 ? "" : "s") + " in this game"
+  }
   who.append(nm, sub)
   head.appendChild(who)
   card.appendChild(head)
@@ -8311,6 +8344,18 @@ function boardPlayerModal(playerId){
     h.className = "board-playercard-acctid"
     h.textContent = (account.id.split(":")[1] || account.id) + " " + (account.authBound ? "🔷" : "△")
     h.title = account.authBound ? "Reputation-bound & verified" : "No verified binding"
+    // In the full list the account id is the door INTO its own filtered view —
+    // the chevron is the affordance. Not shown when already filtered (nowhere to
+    // go) or when the player only has the one account (nothing to filter).
+    if(!focus && allAccounts.length > 1){
+      h.classList.add("board-playercard-acctid--tappable")
+      h.title = (h.title || "") + " · tap to view just this account"
+      const chev = document.createElement("span")
+      chev.className = "board-playercard-acctchev"
+      chev.textContent = "›"
+      h.appendChild(chev)
+      h.onclick = () => { modal.remove(); boardPlayerModal(playerId, account.id) }
+    }
     sec.appendChild(h)
 
     const list = document.createElement("div")
@@ -8450,7 +8495,88 @@ function boardPlayerModal(playerId){
     card.appendChild(sec)
   })
 
+  if(focus){
+    // "jump from one view to another, rather than having it as one long scroll
+    // list" (user 2026-08-06) — the siblings stay one tap away.
+    const others = allAccounts.filter(a => a.id !== focus.id)
+    if(others.length){
+      const jump = document.createElement("div")
+      jump.className = "subtle board-playercard-jump"
+      jump.appendChild(document.createTextNode("Jump to · "))
+      others.forEach((a, i) => {
+        if(i) jump.appendChild(document.createTextNode(" · "))
+        const b = document.createElement("button")
+        b.className = "board-playercard-jumplink"
+        b.textContent = a.id.split(":")[1] || a.id
+        b.onclick = () => { modal.remove(); boardPlayerModal(playerId, a.id) }
+        jump.appendChild(b)
+      })
+      card.appendChild(jump)
+    }
+    // REMOVE THIS ACCOUNT (PLAYER-MODAL2, user 2026-08-21). Own accounts only —
+    // the backend's removeAccount is guarded by canActOnAccount, so this button
+    // simply must not be offered where it would be refused.
+    if(self && isMyAccount(focus)) card.appendChild(boardRemoveAccountBlock(focus, modal))
+  }
+
   document.body.appendChild(modal)
+}
+
+// Confirmation for "remove this account from the circle". The user's steer
+// (2026-08-21): "that confirmation step is a good place to echo the explainer…
+// it's not removing your connection or affecting any other circles. It's only the
+// current circle… but it removes the account from and any associated offers…
+// it doesn't really need to be so much as a warning. It's just a reminder."
+// So: plain-language reminder, not a red alarm, and the destructive verb stays on
+// the button rather than in a scare line.
+function boardRemoveAccountBlock(account, parentModal){
+  const hac = account.id.split(":")[1] || account.id
+  const wrap = document.createElement("div")
+  wrap.className = "board-playercard-danger"
+
+  const btn = document.createElement("button")
+  btn.className = "board-playercard-removebtn"
+  btn.textContent = "Remove this account from the circle"
+  btn.onclick = () => {
+    btn.disabled = true
+    const box = document.createElement("div")
+    box.className = "board-playercard-confirm"
+    const q = document.createElement("div")
+    q.className = "board-playercard-confirm-q"
+    q.textContent = "Remove " + hac + " from this circle?"
+    const why = document.createElement("div")
+    why.className = "subtle board-playercard-confirm-why"
+    why.innerHTML =
+      "It leaves <b>this circle only</b>, along with any offers it has made or received — " +
+      "those unwind back to whoever owns them.<br>" +
+      "Your wallet connection stays, and any other circles you're in are unaffected. " +
+      "You can add it back at any time."
+    const row = document.createElement("div")
+    row.className = "board-playercard-confirm-row"
+    const cancel = document.createElement("button")
+    cancel.className = "board-playercard-confirm-cancel"
+    cancel.textContent = "Cancel"
+    cancel.onclick = () => { box.remove(); btn.disabled = false }
+    const go = document.createElement("button")
+    go.className = "board-playercard-confirm-go"
+    go.textContent = "Remove"
+    go.onclick = () => {
+      go.disabled = cancel.disabled = true
+      go.textContent = "Removing…"
+      boardDiag("board:account:remove", { accountId: account.id })
+      // websocketserver.js strips the "game_" prefix and calls gameManager
+      // .removeAccount(ctx, data) — which reads accountId and takes the actor
+      // from the socket's own playerToken. The board re-renders from the
+      // broadcast that follows, so there is nothing to patch locally.
+      socket.send(JSON.stringify({ type: "game_removeAccount", gameId, accountId: account.id }))
+      setTimeout(() => parentModal.remove(), 350)
+    }
+    row.append(cancel, go)
+    box.append(q, why, row)
+    wrap.appendChild(box)
+  }
+  wrap.appendChild(btn)
+  return wrap
 }
 
 // does this player allow others to pick from their stores? (KAT-PLAYERPREF1)

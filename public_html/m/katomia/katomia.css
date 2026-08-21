@@ -559,7 +559,7 @@
 .asset-modal{
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,0.45);
+  background:rgba(0,0,0,0.38);   /* MODAL-MUTE1 — was .45; see the backdrop-filter rule below */
   display:flex;
 	align-items:flex-start;
   justify-content:center;
@@ -1542,8 +1542,18 @@ svg .svg-sell{
 
 
 
+/* MODAL-MUTE1 (user 2026-08-21): "the background of the board is very blurry, you
+   basically can't read anything… blur a little bit, but mainly reduce saturation.
+   We're just muting the background." blur(6px) made the board unreadable, which
+   costs you the context you opened the modal ABOUT. Desaturation does the
+   sending-to-the-back job that blur was being asked to do, so the board stays
+   legible behind the card. The -webkit- prefix matters: iOS Safari needs it, and
+   without it those devices would get NO backdrop effect at all (the scrim below
+   still carries the dimming, so it degrades safely). Scrim eased 0.45 → 0.38 to
+   match — see .asset-modal above. */
 .asset-modal{
-  backdrop-filter:blur(6px);
+  backdrop-filter:blur(2px) saturate(.5);
+  -webkit-backdrop-filter:blur(2px) saturate(.5);
 }
 
 .asset-modal-card{
