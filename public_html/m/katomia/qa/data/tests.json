@@ -1155,6 +1155,26 @@
    "fails_when": "Activity in an unrelated cluster tears up a lock again (the change regressed); a merge or split leaves a stale lock standing; the frontend and backend disagree about the frame (every commitment logs REJECTED); a settlement records unsigned participants where a signed commitment existed; or an old-spec commitment stops verifying, which would make the spec bump a one-way door with no way back.",
    "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/lockscope-check.cjs",
    "how_to_reproduce": "Run the harness on the backend's own box. Each numbered assertion (T:LOCKSCOPE-01.n) prints PASS/FAIL with detail; log-backed asserts print SKIP with the reason when the elog is unreadable."
+  },
+  {
+   "id": "MAN-*",
+   "title": "Tickets — the manual (by-hand, multi-device) test guide",
+   "asserts": "Twelve scenarios a person runs on real devices: T:MAN-A1..A4 the quiet ticket and how it renders (incl. the NFT gutter bar on testnet), T:MAN-B1..B3 the drag gestures and the double-promise guard, T:MAN-C1 taking your own ticket with another account, T:MAN-D1..D2 the settlement dial and the busy-table stand-down, T:MAN-E1 two conversations on one board (PROP-LOCKSCOPE1), T:MAN-Z1 flag-off parity.",
+   "kind": "manual",
+   "network": "playnet (T:MAN-A4 testnet)",
+   "harness": "docs/tickets-manual-tests-20260821.html — NOT automated; a human runs these",
+   "run": {
+    "any": "Open the guide and follow a scenario. Most need ?tickets=1; several need two devices."
+   },
+   "schedule": "by hand, when the user wants to exercise a phase on real devices",
+   "reports": "nothing automatic — findings come back as feedback or a snag list",
+   "notes": "Registered here so T:MAN-* ids resolve to something openable, per the PROTOCOL.md reference convention. The individual scenario ids live in the guide, which is the index for them; each carries its steps, what to expect, and the trap most likely to be mistaken for a bug. These exist because the ticket work is full of things a DOM assert cannot see — the CSS mask that ate the pick pennant was invisible to every automated check and was only found by looking at rendered pixels.",
+   "dimension": "human · device testing",
+   "cost": "free (the user's time)",
+   "pass_means": "The felt reads correctly on real hardware and the flows behave the way the guide says they will.",
+   "fails_when": "Anything in the guide's 'Expect' lines does not happen, or something in 'Reading the felt' cannot be told apart at a glance on a phone.",
+   "harness_url": "https://kpay.uk/devtools/kpad/file?p=docs/tickets-manual-tests-20260821.html&proj=katomia",
+   "how_to_reproduce": "Each scenario is numbered steps in the guide. Report the circle id with any failure."
   }
  ],
  "expected_fail": {
@@ -1230,7 +1250,8 @@
   "BREAKOUT: mover with additional non-cluster accounts left in the parent (E3) — multi-account UX after the split",
   "BREAKOUT: absent mover returning later via the parent URL (breadcrumb row path) — needs a second browser session joining late",
   "BREAKOUT: reload loop hygiene — repeated fail→reload→fail cycles in one side circle (assets conserved every round?)",
-  "BREAKOUT: unlisted/private parent → who can see/follow the side-circle links (scoping ladder pass pending)"
+  "BREAKOUT: unlisted/private parent → who can see/follow the side-circle links (scoping ladder pass pending)",
+  "PROP-TICKETS1 phase I: a Firm ticket settling END-TO-END on a real testnet circle. The rule (the dial is honoured wherever it is signed) is asserted on both sides — T:ORDERSIG-01 for the bytes, T:TICKETS-DIAL-01 §7-8 for the wiring — but the round trip needs funded testnet accounts holding matching assets, which no fixture provides."
  ],
  "related_tasks": {
   "QA-XFAIL1": "the expected-fail set above",
