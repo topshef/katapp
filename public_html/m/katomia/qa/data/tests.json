@@ -1099,7 +1099,7 @@
     {
       "id": "ORDERSIG-01",
       "title": "Order intent signatures — the registry, and what the signature actually covers",
-      "asserts": "The two spec ids are derived from their field lists and pinned (049f1b69 v1, 1dcbd8c4 v2); v2 is v1 plus expiresAt, matchConditions and autoLock, in that order, leaving v1's bytes untouched. A v2-signed ticket verifies and its dial is covered; a v1-signed order verifies and its dial is NOT. Editing the dial, the expiry, the match conditions or the bundle AFTER signing fails verification. Refusals are specific and never throw. kpoolKea exposes no second spec registry, and the KEA mandate payload carries the dial the maker signed.",
+      "asserts": "The two spec ids are derived from their field lists and pinned (049f1b69 v1, 1dcbd8c4 v2); v2 is v1 plus expiresAt, matchConditions and autoLock, in that order, leaving v1's bytes untouched. A v2-signed ticket verifies and its dial is covered; a v1-signed order verifies and its dial is NOT. Editing the dial, the expiry, the match conditions or the bundle AFTER signing fails verification. Refusals are specific and never throw. the exported-artifact builder holds no second spec registry of its own, and the mandate payload it rebuilds carries the dial the maker signed.",
       "kind": "unit",
       "network": "n/a",
       "harness": "qa/harness/ordersig-check.cjs",
@@ -1118,10 +1118,10 @@
         "Sign 'Negotiable' and post 'Instant' — assert verification fails and the dial is not covered.",
         "Repeat the edit-after-signing test for expiresAt, matchConditions and the bundle.",
         "Assert unsigned / unknown-spec / garbage / wrong-game / wrong-network all refuse quietly with a reason.",
-        "Assert kpoolKea holds no second registry and its mandate payload carries the signed dial."
+        "Assert the artifact builder holds no second registry and its mandate payload carries the signed dial."
       ],
       "pass_means": "A ticket's settlement behaviour cannot be changed by anyone but the maker, and the backend can tell the difference between a field the maker signed and a field that merely arrived.",
-      "fails_when": "A spec id drifts from its field list; a signed field can be edited in flight without detection; v1 stops verifying (old orders would become unverifiable); or a second spec registry appears anywhere, which would let the verifier and the mandate builder disagree about the bytes.",
+      "fails_when": "A spec id drifts from its field list; a signed field can be edited in flight without detection; v1 stops verifying (old orders would become unverifiable); or a second spec registry appears anywhere, which would let the verifier and the artifact builder disagree about the bytes.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/ordersig-check.cjs",
       "how_to_reproduce": "Run the harness. Each numbered assertion (T:ORDERSIG-01.n) prints PASS/FAIL with the verifier's own reason string as detail."
     },

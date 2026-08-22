@@ -26,12 +26,23 @@ KWC_SNAPSHOT="${KWC_SNAPSHOT:-30c3fd9}"
 
 mkdir -p "$BUILD"
 
+# qa/harness is EXCLUDED (2026-08-22): those are node scripts that can only ever be
+# run from a shell on the dev estate — nothing serves them and tests.html links to
+# their Lincoln URLs, not to the bundle's own copies. They were shipping anyway, and
+# they are a standing trap for the purity gate: a harness has to NAME the feature it
+# tests, so the first test to touch a stripped feature fails the build (T:KSTRIP-02
+# caught exactly that on ordersig-check.cjs, which asserts kpoolKea holds no second
+# signing-spec registry). Excluding them removes the trap and shrinks the served
+# surface, which is what the strip is for. The QA VIEWER (qa/index.php, tests.html,
+# data/tests.json) still ships — it is a deliberate nerd-only menu item.
+#
 # 1. The app itself → build root. Protect (P) everything this script adds
 #    afterwards so --delete doesn't sweep it on rebuild. 'P /*.php' is broad
 #    (covers the whole shop-root PHP layer, step 2e) — if an APP root php file
 #    is ever deleted upstream, rm -rf build/ once for a from-scratch rebuild.
 rsync -a --delete \
   --exclude '/build' --exclude '/ops' --exclude '/logs' \
+  --exclude '/qa/harness' \
   --exclude '/.env_hapi' --exclude '/.htaccess' \
   --exclude 'node_modules' --exclude '*.bak' \
   --filter='P /vendor' --filter='P /m' \

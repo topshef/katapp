@@ -969,11 +969,14 @@ function getFastThumb(url, imgEl){
         const next = {}
         for(const [label, ids] of frames){
           const basisHash = await computeProposalBasisHash(ids)
-          next[label] = basisHash
-          if(sent[label] === basisHash) continue
+          if(sent[label] === basisHash){ next[label] = basisHash; continue }
           const commitment = await buildLockCommitment(ids ? [...ids] : locked.map(a => a.id))
+          // Only a commitment that was actually SENT counts as sent. Recording the hash
+          // regardless would mark a failed build as done, and nothing would try that
+          // frame again until the board moved — leaving the lock silently unsigned.
           if(!commitment) continue
           socket.send(JSON.stringify({ type: "game_lockCommitment", gameId, commitment }))
+          next[label] = basisHash
           try { window.kdiag?.("lock:commitment-refresh", { scope: label, basisHash: basisHash.slice(0,12) }) } catch {}
         }
         window.__lastLockBasisSent = next

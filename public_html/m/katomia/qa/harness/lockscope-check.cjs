@@ -262,6 +262,43 @@ const elogSince = (whole, mark) => {
         (sinceV1.match(/lock commitment refresh[^\n]{0,160}/g) || []).join(" | ").slice(0, 220))
     }
 
+    // ══ 5b. TWO CLUSTERS SETTLING IN ONE SWEEP, one player in both ═══════════
+    // Found by review, not by this suite's first draft. Commitments are keyed per
+    // (player, frame) precisely so a player in two unrelated deals can sign each one —
+    // but postCluster consumed the player's WHOLE bucket when a cluster settled, so the
+    // first cluster in a sweep destroyed the second one's consent and that settlement
+    // recorded an unsigned participant. Both frames must survive to their own settlement.
+    const g3 = (await mkCircle()).gameId
+    const p3 = await mkPage(g3)
+    for(const a of ["0.0.111", "0.0.222", "0.0.333", "0.0.444"]) await addManual(p3, a)
+    await p3.waitForTimeout(1200)
+    await offer(p3, "0.0.111", "0.0.222", "apple")     // cluster A
+    await offer(p3, "0.0.333", "0.0.444", "banana")    // cluster B, unrelated
+    const markSweep = elogMark()
+    for(const a of ["0.0.111", "0.0.222", "0.0.333", "0.0.444"]) await lockIt(p3, a)
+    await p3.waitForTimeout(4000)
+
+    const sinceSweep = elogNew(markSweep)
+    if(sinceSweep === null) skip("both clusters settled with a signed commitment", "elog not readable from here")
+    else {
+      // MUST be scoped to this circle. The demo circles settle into the same log, and a
+      // time-window match happily counted four of THEIR proposals as ours (seen: 6
+      // proposals, 2 signed, including a cluster with accounts this test never created).
+      // `context` carries the gameId and sits immediately before `proposal` in the same
+      // source object, so split there and keep only our own.
+      const mine = sinceSweep.split('"context": {')
+        .filter(chunk => chunk.slice(0, 200).includes(`"gameId": "${g3}"`))
+      const proposals = mine.map(c => (c.match(/"proposal":[\s\S]{0,2500}?\n\s{4}\}/) || [])[0]).filter(Boolean)
+      t("both of THIS circle's clusters settled in the sweep", proposals.length >= 2,
+        `proposals=${proposals.length} in ${mine.length} settlement(s) for ${g3}`)
+      const signed = proposals.filter(b => /"intentPublicKey": "[0-9a-f]{10}/.test(b))
+      t("EVERY settlement in the sweep carried a signed commitment",
+        proposals.length >= 2 && signed.length === proposals.length,
+        `signed ${signed.length} of ${proposals.length} — the second cluster losing its signature is the bucket-wipe bug`)
+      const scopes = [...new Set(proposals.flatMap(b => b.match(/"basisScope": "cluster:[^"]*"/g) || []))]
+      t("…each under its own frame", scopes.length >= 2, JSON.stringify(scopes))
+    }
+
     // ══ 6. lockRule "active" keeps the blunt sweep ════════════════════════════
     // Under active/all the settlement unit IS the active mega-cluster, so a change
     // anywhere really can invalidate anyone — narrowing there would be the bug.
