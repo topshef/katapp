@@ -1,6 +1,6 @@
 {
   "_about": "THE TEST ID INDEX — every test identifier we use, what it asserts, where it runs, and how to run it. Created 2026-08-08 (user) after MAINNETSMOKE-01 and TXS-1 were quoted in chat and could not be found anywhere: they were not tasks, and TXS-* existed only as prose inside QA-XFAIL1.json's `next` field. A test id must resolve to something you can open — that is what this file is for. Viewer: tests.html. Naming convention (PROTOCOL.md): a bare CAPITALISED reference is a kPad TASK; a test id is written T:<id> in prose and chat, and must come with its URL. Each suite records what_it_does (the actual steps), pass_means, fails_when, its dimension and its cost — added 2026-08-08 after the user pointed out that 'real value, real network, once a day' does not tell anyone what the test IS.",
-  "updated": "2026-08-21",
+  "updated": "2026-08-22",
   "convention": {
     "task": "BARE CAPS — a kPad task, e.g. TXSTATUS-CONSOLIDATE1. Look it up in kPad.",
     "test": "T:<id> — a test case, e.g. T:HBARXFER-01. Defined in this file; results on the QA grid.",
@@ -1175,6 +1175,37 @@
       "fails_when": "Anything in the guide's 'Expect' lines does not happen, or something in 'Reading the felt' cannot be told apart at a glance on a phone.",
       "harness_url": "https://kpay.uk/devtools/kpad/file?p=docs/tickets-manual-tests-20260821.html&proj=katomia",
       "how_to_reproduce": "Each scenario is numbered steps in the guide. Report the circle id with any failure."
+    },
+    {
+      "id": "TICKETS-DIALNET-01",
+      "title": "The settlement dial on a REAL network (phase I, testnet)",
+      "asserts": "On a testnet circle with two real Hedera accounts: Firm and Instant are offered (the old playnet-only refusal is gone), a ticket built by the real UI carries spec 1dcbd8c4 and the backend marks it verified, the maker's card says so in nerd mode, and A FIRM TAKE AUTO-LOCKS THE MAKER ON TESTNET — the behaviour the whole phase exists for. Then, honestly: the fully-locked cluster moves no value, because a ticket cluster carries no source.offers and the proposal signer has nothing to authorise (SOURCE-UNIFY1).",
+      "kind": "e2e-feature",
+      "network": "testnet (real accounts, real balances — moves NO value)",
+      "harness": "qa/harness/tickets-dialnet-check.cjs",
+      "run": {
+        "lab1": "node tickets-dialnet-check.cjs",
+        "watched": "GAME=<a circle listed in kbot/prop-sign.watches.json> node tickets-dialnet-check.cjs  # to see the signer's own refusal in its log",
+        "any": "MAKER=<acct> TAKER=<acct> GIVE=<token> WANT=<token> node tickets-dialnet-check.cjs"
+      },
+      "schedule": "manual (run with any change to the dial, the order signature or the network interlocks)",
+      "reports": "kflow test:verdict → QA grid",
+      "notes": "The claim no playnet gate can make. Uses the Lincoln demo cast — alice 0.0.9556348 and bob 0.0.1532, both holding KUSD 0.0.2341021 and KBRL 0.0.2340890 — and deliberately never settles, so it costs nothing and moves nothing. TWO THINGS IT FOUND. (1) The signed-dial diagnostic was in the wrong place: it hung off the take button, so the MAKER (who set the dial and most wants to know it bound) never saw it, and it vanished the moment a ticket was taken. Moved into the ticket card itself. (2) The honest limit, captured verbatim from the signer's own log: 'skip … tx has orders/fills — order mode, kbot-sign territory'. CAVEAT: circles live in memory, so a hapi restart kills the GAME id and any watches entry naming it goes stale.",
+      "dimension": "testnet · signed execution semantics",
+      "cost": "free (no settlement; a few mirror reads)",
+      "what_it_does": [
+        "Create a testnet circle and join two real accounts, one per browser context.",
+        "Read tktDialAvailable off the live testnet gameMeta — not a stub — and assert Firm/Instant are offered and no reason mentions playnet.",
+        "Build a Firm ticket through the real builder; assert the posted order carries spec 1dcbd8c4 with sigOk true and the dial that was signed.",
+        "Assert the maker's own card shows the nerd-mode signed-and-verified note.",
+        "Take it from the other account and assert the MAKER auto-locked and the taker did not.",
+        "Assert a fully-taken ticket stops wearing the stub.",
+        "Lock the taker too, wait, and assert NO value moved — the tx is built and expires unsigned."
+      ],
+      "pass_means": "A maker's chosen settlement behaviour travels with its proof and is honoured on a real network, and the one thing that still cannot happen there fails closed instead of quietly.",
+      "fails_when": "The dial is refused off playnet again (the interlock crept back, or the signature stopped being verified); a Firm take stops auto-locking on testnet; or — most seriously — value moves on a real network from a transaction nobody signed.",
+      "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-dialnet-check.cjs",
+      "how_to_reproduce": "Run the harness. It prints the circle URL and leaves it in place for inspection. Each numbered assertion (T:TICKETS-DIALNET-01.n) prints PASS/FAIL with detail."
     }
   ],
   "expected_fail": {
@@ -1251,7 +1282,7 @@
     "BREAKOUT: absent mover returning later via the parent URL (breadcrumb row path) — needs a second browser session joining late",
     "BREAKOUT: reload loop hygiene — repeated fail→reload→fail cycles in one side circle (assets conserved every round?)",
     "BREAKOUT: unlisted/private parent → who can see/follow the side-circle links (scoping ladder pass pending)",
-    "PROP-TICKETS1 phase I: a Firm ticket settling END-TO-END on a real testnet circle. The rule (the dial is honoured wherever it is signed) is asserted on both sides — T:ORDERSIG-01 for the bytes, T:TICKETS-DIAL-01 §7-8 for the wiring — but the round trip needs funded testnet accounts holding matching assets, which no fixture provides."
+    "PROP-TICKETS1 phase I: a ticket SETTLING on a real network. T:TICKETS-DIALNET-01 now covers the dial end-to-end on testnet — a Firm take really does auto-lock the maker there — but the resulting transaction cannot be signed: ticket legs land in source.orders/source.fills, the proposal signer authorises against source.proposal (offers only) and skips with 'tx has orders/fills — order mode, kbot-sign territory'. That is SOURCE-UNIFY1 and it predates this phase. The gate asserts no value moves, which is the safe half."
   ],
   "related_tasks": {
     "QA-XFAIL1": "the expected-fail set above",

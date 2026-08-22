@@ -100,6 +100,25 @@ function tktDialAvailable(v){
   return { ok: true }
 }
 const tktDialOf = order => String(order?.autoLock || "none")
+
+// Phase I: the dial is only binding where the backend VERIFIED the signature carrying
+// it (spec 1dcbd8c4). A Firm ticket whose signature failed looks identical on the felt
+// to one that passed, right up to the moment it does not auto-lock — so nerd mode says
+// which it is. Nothing in normal mode: a maker who never set a dial has nothing to read.
+const TKT_SIG_SPEC_ID = "1dcbd8c4"
+function tktDialSignatureNote(host, order){
+  if(tktDialOf(order) === "none") return
+  if(!document.body.classList.contains("nerd")) return
+  const ok = order.sigOk === true && order.sigSpec === TKT_SIG_SPEC_ID
+  const p = document.createElement("div")
+  p.className = "tkt-cardsec-state" + (ok ? "" : " tkt-warn")
+  p.dataset.testid = "tkt-sigstate"
+  p.textContent = ok
+    ? `🔏 dial signed and verified (spec ${order.sigSpec})`
+    : `⚠ dial NOT inside a verified signature (sigOk=${order.sigOk ?? "—"}, spec=${order.sigSpec ?? "—"}) — `
+      + `it will be honoured on playnet and ignored anywhere else`
+  host.appendChild(p)
+}
 function tktTakeLabel(order){
   const d = tktDialOf(order)
   if(d === "both")  return "Buy now — settles instantly 🎟"
@@ -495,6 +514,15 @@ function tktAssetCardSection({ card, account, assetId, modal, frozen }){
       : "Open — anyone in the circle can take it."
     one.appendChild(st)
 
+    // Phase I diagnostic, nerd mode only. A dial only binds where the backend verified
+    // the signature carrying it, and there is no other way to see that from the felt.
+    // It belongs HERE rather than beside the take button (where it first went): the
+    // MAKER is the one who set the dial and most wants to know it stuck, and once a
+    // ticket is filled or the card is frozen there is no take button to hang it on —
+    // found by T:TICKETS-DIALNET-01.15, which looked for it after a take and found
+    // nothing at all.
+    tktDialSignatureNote(one, order)
+
     if(frozen) return   // signing: the card still informs, but nothing can act
 
     const act = (cls, text, title, fn, testid) => {
@@ -584,17 +612,6 @@ function tktTakeControls({ one, act, order, orderId, account, modal, fillers, mi
   if(dial === "both") note("This ticket settles the moment you take it — no locking step.")
   else if(dial === "maker") note("The maker's side is already committed. You take it, review, and lock.")
 
-  // Phase I diagnostics, nerd mode only. A dial only binds where the backend
-  // verified the signature that carries it, and there is no other way to see that
-  // from the felt — a Firm ticket whose signature failed looks identical to one that
-  // passed until the moment it doesn't auto-lock.
-  if(dial !== "none" && document.body.classList.contains("nerd")){
-    const okSig = order.sigOk === true && order.sigSpec === "1dcbd8c4"
-    note(okSig
-      ? `🔏 dial signed and verified (spec ${order.sigSpec})`
-      : `⚠ dial NOT inside a verified signature (sigOk=${order.sigOk ?? "—"}, spec=${order.sigSpec ?? "—"}) — `
-        + `it will be honoured on playnet and ignored anywhere else`)
-  }
 
   act("kbtn-blue", mine ? "Take it with another account 🎟" : tktTakeLabel(order),
     dial === "both" ? "Taking this settles immediately."
