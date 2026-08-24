@@ -24,14 +24,19 @@ async function getTokenMeta(network, tokenId, serial){
 	let productId = `${network};${tokenId}`
 	if(serial) productId += `-${serial}`
 
+	// KFUND-LOCAL1 (2026-08-24): enrichment now comes from our own backend node service
+	// (/katomia/enrich) via the same-origin hapi.php proxy, replacing the down external
+	// gmws2 /explore/NFT API. The response contract is unchanged — { token_class,
+	// token_instance_name, token_asset_image_URL } — so every downstream consumer here
+	// (formatAssetDisplay, getAssetThumb, getDisplayDecimals) is untouched. The browser's
+	// 24h Kache still fronts it; the backend caches too (Stok/Redis 24h) and sources
+	// token_class from the Hedera mirror + thumbnails from IPFS.
 	const params = {
-		format: "json",
+		action: "enrich",
 		productId
 	}
 
-	// ENRICH-COLDPATH1: "/m" (no trailing slash) 301-redirects to "/m/", so every
-	// asset lookup paid two round trips — 12 wasted redirects on a 13-asset board.
-	return await Kache.getData("/m/", params, 86400)
+	return await Kache.getData((window.KBASE || "") + "/hapi.php", params, 86400)
 }
 
 
