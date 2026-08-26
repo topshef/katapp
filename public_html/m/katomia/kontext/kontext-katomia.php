@@ -1,5 +1,14 @@
 <?php
 
+// SECURITY (audit F3): this developer tool discloses front- and back-end source
+// and logs every visitor's full $_SERVER. It must never be publicly reachable.
+// Gate to the operator/admin source IPs (same allowlist used elsewhere in the app).
+$ip_admin = '130.185.251.53 176.126.78.48 ';
+if (strpos($ip_admin, ($_SERVER['REMOTE_ADDR'] ?? 'x') . ' ') === false) {
+    http_response_code(404);
+    exit('not found');
+}
+
 date_default_timezone_set('UTC');
 
 $ip=preg_replace('/[^a-zA-Z0-9._-]/','_',$_SERVER['REMOTE_ADDR'] ?? 'unknown');
