@@ -32,7 +32,27 @@ if (preg_match('#^ref:\s*(.+)#', $khead, $km)) {
 }
 $commit = preg_match('/^[0-9a-f]{40}$/', $khead) ? substr($khead, 0, 7) : '';
 
-$dir  = dirname($_SERVER['DOCUMENT_ROOT']) . '/logs/kflow';
+// QA-ENVCOVERAGE1 (2026-08-26): resolve the kflow log dir ROBUSTLY across deploy layouts.
+// On Lincoln (lab1/prod) dirname(DOCUMENT_ROOT)/logs/kflow is correct. On the GCP kdeploy
+// release layout the docroot is a symlink one level above the real release tree, while
+// kflow.php writes via dirname(__DIR__) (real realpath) into releases/logs/kflow — so
+// reader and writer diverged and pat's grid stayed empty despite events being logged.
+// The qa/ dir sits at a different depth in the two layouts, so don't count dirnames: walk
+// up from BOTH the docroot and this file's real path and take the first logs/kflow that
+// actually holds kflow files. Falls back to the classic docroot-relative path.
+$default = dirname($_SERVER['DOCUMENT_ROOT']) . '/logs/kflow';
+$dir = $default;
+$bases = [$_SERVER['DOCUMENT_ROOT'] ?? '', __DIR__];
+$found = null;
+foreach ($bases as $b) {
+    $p = $b;
+    for ($up = 0; $up < 5 && $p && $p !== '/' && $p !== '.'; $up++) {
+        $cand = $p . '/logs/kflow';
+        if (glob("$cand/kflow.*.jsonl")) { $found = $cand; break 2; }
+        $p = dirname($p);
+    }
+}
+if ($found) $dir = $found;
 $days = min(60, max(1, (int)($_GET['days'] ?? 30)));
 $events = [];
 $sessionsRaw = []; // slug => {slug, id, startedAt, briefing, commit, t}
