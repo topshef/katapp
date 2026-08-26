@@ -131,5 +131,11 @@ if ($commits) {
     }
 }
 
-echo json_encode(['commit' => $commit, 'events' => $events, 'sessions' => $sessions, 'commitTimes' => $commitTimes],
+// QA-ENVCOVERAGE1: include the paused-test map (same persistent dir as the kflow logs, $dir
+// already resolved above -> its parent holds qa-paused.json) so the grid and gridwatch get
+// pause state in the one fetch they already make.
+$pausedFile = dirname($dir) . '/qa-paused.json';   // $dir is <logs>/kflow → <logs>/qa-paused.json
+$paused = is_file($pausedFile) ? (json_decode((string)@file_get_contents($pausedFile), true) ?: []) : [];
+
+echo json_encode(['commit' => $commit, 'events' => $events, 'sessions' => $sessions, 'commitTimes' => $commitTimes, 'paused' => $paused],
     JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);

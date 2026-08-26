@@ -16,6 +16,13 @@
   .cell{ text-align: center; font-weight: 700; cursor: pointer; }
   .pass{ background: #e2f2e2; color: #2c7a2c; }
   .fail{ background: #fde5e0; color: #a33; }
+  /* QA-ENVCOVERAGE1 pause controls */
+  .pausebtn{ font-size: 10px; padding: 1px 7px; border-radius: 9px; border: 1px solid #ccc; background: #fafafa; color: #777; cursor: pointer; vertical-align: middle; }
+  .pausebtn:hover{ border-color: #999; color: #333; }
+  .pausebtn.paused{ background: #fff3d6; border-color: #d9a94a; color: #8a6a10; font-weight: 600; }
+  .pausereason{ font-size: 10px; color: #8a6a10; font-style: italic; }
+  tr.pausedrow td:first-child{ background: #fffdf5; }
+  tr.pausedrow .cell{ opacity: .45; }   /* de-emphasise a parked test's cells so reds don't alarm */
   .meh{ background: #fdf3d0; color: #8a6100; }
   .error{ background: #fdeecd; color: #8a6100; }
   .abandon, .open{ background: #eee; color: #777; }
@@ -305,6 +312,23 @@ function guessCase(text){
   return "FREEFORM"
 }
 let COMMIT_TIMES = {}
+let PAUSED = {}   // QA-ENVCOVERAGE1: { INSTANCE: {reason,at,by} } — tests intentionally parked
+async function togglePause(instance, pause){
+  let reason = ""
+  if(pause){
+    reason = prompt(`Pause "${instance}" — reason?\n(gridwatch stops alerting; the grid shows it parked)`, "")
+    if(reason === null) return   // cancelled
+  }
+  try{
+    const r = await fetch("pause.php", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ instance, paused: !!pause, reason }) })
+    const j = await r.json()
+    if(!r.ok){ alert("Could not change pause state: " + (j.error || r.status)); return }
+    PAUSED = j.paused || {}
+    refresh()
+  }catch(e){ alert("Pause request failed: " + e.message) }
+}
+
 async function refresh(){
   const res = await (await fetch(`results.php?days=${DAYS}`, { cache: "no-store" })).json()
   COMMIT = res.commit
@@ -312,6 +336,7 @@ async function refresh(){
   SESSIONS = res.sessions || []
   COMMIT_TIMES = res.commitTimes || {}
   $("#curCommit").textContent = res.commit
+  PAUSED = res.paused || {}
 
   const byRun = new Map()
   for(const e of EVENTS){
@@ -366,7 +391,11 @@ async function refresh(){
   grid.innerHTML = "<tr><th>case \\ commit</th>" + commits.map(c =>
     `<th${c === COMMIT ? ' style="background:#e8f0e8"' : ""}><code>${esc(c)}</code><br><span class="note">${esc(fmtCommitTime(c))}</span>${c === COMMIT ? "<br><span class='note'>current</span>" : ""}</th>`).join("") + "</tr>"
   for(const cs of cases){
-    let tr = `<tr><td><b><a class="caselink" href="tests.html#${encodeURIComponent(cs)}" title="test definition">${esc(cs)}</a></b></td>`
+    const pz = PAUSED[cs] || null
+    const pauseBtn = pz
+      ? `<button class="pausebtn paused" title="Paused: ${esc(pz.reason || "")} (by ${esc(pz.by||"?")} ${esc((pz.at||"").slice(0,10))}) — click to resume" onclick="togglePause('${esc(cs)}', false)">⏸ paused</button>`
+      : `<button class="pausebtn" title="Pause this test — stops gridwatch alerts" onclick="togglePause('${esc(cs)}', true)">pause</button>`
+    let tr = `<tr class="${pz ? 'pausedrow' : ''}"><td><b><a class="caselink" href="tests.html#${encodeURIComponent(cs)}" title="test definition">${esc(cs)}</a></b> ${pauseBtn}${pz && pz.reason ? `<br><span class="pausereason">⏸ ${esc(pz.reason)}</span>` : ""}</td>`
     for(const cm of commits){
       const cell = rows.filter(r => r.instance === cs && r.commit === cm).sort((a, b) => a.t.localeCompare(b.t))
       if(!cell.length){ tr += "<td></td>"; continue }
