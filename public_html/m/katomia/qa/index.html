@@ -21,6 +21,7 @@
   .chip.fail, .chip.error{ background: #fdecea; border-color: #f2b8b5; font-weight: 600; }
   .chip.silent{ background: #fff3cd; border-color: #ecd699; }
   .chip.ondemand{ background: #f4f4f4; color: #777; }
+  .chip.paused{ background: #fff3d6; border-color: #d9a94a; color: #8a6a10; }
   .chip .age{ color: #888; font-weight: 400; }
   /* question sections */
   .sections{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin: 18px 0; }
@@ -151,25 +152,30 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "
       const h = (Date.now() - new Date(t)) / 36e5
       return h < 1.5 ? `${Math.round(h * 60)}m` : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`
     }
+    const PAUSED = res.paused || {}   // QA-ENVCOVERAGE1: intentionally-parked tests
     const suites = (tests.suites || []).filter(s => s.id !== "STATSYNC-BENCH-01")   // benchmarks aren't pass/fail
-    let green = 0, red = 0, silent = 0
+    let green = 0, red = 0, silent = 0, paused = 0
     for(const s of suites){
       const cron = /cron/i.test(s.schedule || "")
       const L = latest[s.id]
+      const pz = PAUSED[s.id] || null
       let cls, label
-      if(L && (L.v === "pass")){ cls = "pass"; label = "✓"; green++ }
+      // A paused test is intentionally out of action — shown ⏸, never counted as failing/silent.
+      if(pz){ cls = "paused"; label = "⏸"; paused++ }
+      else if(L && (L.v === "pass")){ cls = "pass"; label = "✓"; green++ }
       else if(L){ cls = L.v === "fail" ? "fail" : "error"; label = "✗"; red++ }
       else if(cron){ cls = "silent"; label = "silent"; silent++ }
       else { cls = "ondemand"; label = "on demand" }
       const a = document.createElement("a")
       a.className = "chip " + cls
       a.href = "tests.html"
-      a.innerHTML = `${esc(s.id)} ${label}` + (L ? ` <span class="age">${esc(ago(L.t))}</span>` : "")
-      a.title = esc(s.title || "")
+      a.innerHTML = `${esc(s.id)} ${label}` + (pz ? "" : (L ? ` <span class="age">${esc(ago(L.t))}</span>` : ""))
+      a.title = pz ? "Paused: " + esc(pz.reason || "") : esc(s.title || "")
       box.appendChild(a)
     }
-    head.innerHTML = `<b>${green}</b> green · <b>${red}</b> failing · <b>${silent}</b> silent (scheduled but not reporting)
-      — last 7 days, ${(res.events || []).filter(e => e.checkpoint === "test:verdict").length} verdicts, site commit <code>${esc(res.commit || "?")}</code>.
+    head.innerHTML = `<b>${green}</b> green · <b>${red}</b> failing · <b>${silent}</b> silent (scheduled but not reporting)`
+      + (paused ? ` · <b>${paused}</b> paused` : "")
+      + ` — last 7 days, ${(res.events || []).filter(e => e.checkpoint === "test:verdict").length} verdicts, site commit <code>${esc(res.commit || "?")}</code>.
       Silent is a failure mode, not a neutral state.`
   } catch(e){
     head.textContent = "live status unavailable — " + e.message

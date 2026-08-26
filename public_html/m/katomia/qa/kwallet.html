@@ -53,6 +53,8 @@
   .row.bad{border-left:4px solid var(--bad)}
   .row.ok{border-left:4px solid var(--ok)}
   .row.warn{border-left:4px solid var(--warn)}
+  .row.paused{border-left:4px solid #d9a94a;opacity:.72}
+  .b-paused{background:#fff3d6;color:#8a6a10}
   .badge{flex:0 0 auto;font-size:11px;font-weight:700;letter-spacing:.05em;
          padding:4px 9px;border-radius:20px;white-space:nowrap;margin-top:2px}
   .b-ok{background:var(--okbg);color:var(--ok)}
@@ -142,6 +144,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt
   catch(e){ document.getElementById("headline").textContent = "could not load results.php"; return }
 
   const verdicts = (data.events || []).filter(e => e.checkpoint === "test:verdict")
+  const PAUSED = data.paused || {}   // QA-ENVCOVERAGE1: intentionally-parked tests
   const now = Date.now()
 
   const rows = TESTS.map(t => {
@@ -150,18 +153,20 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt
       .sort((a, b) => String(a.t).localeCompare(String(b.t)))
     const last = mine[mine.length - 1]
     const age = last ? now - Date.parse(last.t) : Infinity
-    // SILENT is ranked with FAIL on purpose: a test that stopped reporting tells you
-    // nothing, and looks exactly like one that never existed.
-    const silent = !last || age > t.every * 3600 * 1000 * 1.6
-    const v = silent ? "silent" : last.v
+    const pz = PAUSED[t.id] || null
+    // A paused test is intentionally out of action — never SILENT/FAIL, never counted bad.
+    // SILENT is otherwise ranked with FAIL on purpose: a test that stopped reporting tells
+    // you nothing, and looks exactly like one that never existed.
+    const silent = !pz && (!last || age > t.every * 3600 * 1000 * 1.6)
+    const v = pz ? "paused" : (silent ? "silent" : (last ? last.v : "silent"))
     // how many consecutive non-passes, so a one-off flake reads differently to a wall
     let streak = 0
     for(let i = mine.length - 1; i >= 0 && mine[i].v !== "pass"; i--) streak++
-    return { t, last, age, v, streak,
-             rank: v === "pass" ? 2 : (v === "silent" ? 0 : 1) }
+    return { t, last, age, v, streak, pz,
+             rank: v === "paused" ? 3 : (v === "pass" ? 2 : (v === "silent" ? 0 : 1)) }
   }).sort((a, b) => a.rank - b.rank)
 
-  const bad = rows.filter(r => r.v !== "pass")
+  const bad = rows.filter(r => r.v !== "pass" && r.v !== "paused")
   const hl = document.getElementById("headline")
   hl.className = "headline " + (bad.length ? "h-bad" : "h-ok")
   hl.innerHTML = bad.length
@@ -171,16 +176,18 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt
       + `<small>most recent run ${esc(ago(Math.min(...rows.map(r => r.age))))}</small>`
 
   document.getElementById("rows").innerHTML = rows.map(r => {
-    const cls   = r.v === "pass" ? "ok" : (r.v === "silent" ? "warn" : "bad")
-    const badge = r.v === "pass" ? "b-ok" : (r.v === "silent" ? "b-warn" : "b-bad")
-    const label = r.v === "silent" ? "SILENT" : String(r.v || "?").toUpperCase()
+    const cls   = r.v === "paused" ? "paused" : r.v === "pass" ? "ok" : (r.v === "silent" ? "warn" : "bad")
+    const badge = r.v === "paused" ? "b-paused" : r.v === "pass" ? "b-ok" : (r.v === "silent" ? "b-warn" : "b-bad")
+    const label = r.v === "paused" ? "⏸ PAUSED" : r.v === "silent" ? "SILENT" : String(r.v || "?").toUpperCase()
     const note  = (r.last?.detail || {}).note
     return `<div class="row ${cls}">
       <span class="badge ${badge}">${esc(label)}</span>
       <div class="meat">
         <div class="what">${esc(r.t.what)}</div>
         <div class="plain">${esc(r.t.plain)}</div>
-        ${r.v === "silent"
+        ${r.v === "paused"
+          ? `<div class="note">⏸ Paused: ${esc(r.pz.reason || "(no reason given)")} — gridwatch alerts suppressed${r.pz.at ? ", since " + esc(String(r.pz.at).slice(0,10)) : ""}.</div>`
+          : r.v === "silent"
           ? `<div class="note">No verdict in ${r.last ? esc(ago(r.age)) : "the last 14 days"} —
              this test runs every ~${r.t.every}h, so it has stopped reporting. That is a broken
              test, not good news.</div>`
