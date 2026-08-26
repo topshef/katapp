@@ -611,22 +611,32 @@ function boardLoadConfetti(){
   })
 }
 
-async function boardCelebrate(ok){
+function boardCelebrate(ok){
   if(ok){
-    const confetti = await boardLoadConfetti()
-    if(!confetti?.create) return
-    const hub = document.querySelector(".ring-hub")?.getBoundingClientRect()
-    const origin = {
-      x: hub ? (hub.left + hub.width / 2) / innerWidth : 0.5,
-      y: hub ? (hub.top + hub.height / 2) / innerHeight : 0.5
+    // BOARD-CONFETTISYNC1 (user 2026-08-26): the confetti must fire in the SAME beat as
+    // the spotlight lifts / board clears — not a beat later, which reads as "board's gone…
+    // hang on… oh, confetti". The preload (boardLoadConfetti at signing time) normally has
+    // window.confetti ready by result time, so fire it SYNCHRONOUSLY here: awaiting it —
+    // even an already-resolved promise — pushed the burst to a later microtask/frame while
+    // the wipe (synchronous, same render) had already doused the board. Only fall back to
+    // the async load if the preload genuinely hasn't finished (slow device / cold CDN).
+    const burst = confetti => {
+      if(!confetti?.create) return
+      const hub = document.querySelector(".ring-hub")?.getBoundingClientRect()
+      const origin = {
+        x: hub ? (hub.left + hub.width / 2) / innerWidth : 0.5,
+        y: hub ? (hub.top + hub.height / 2) / innerHeight : 0.5
+      }
+      const canvas = document.createElement("canvas")
+      canvas.style.cssText = "position:fixed;inset:0;width:100%;height:100%;z-index:2147483647;pointer-events:none"
+      document.body.appendChild(canvas)
+      const fire = confetti.create(canvas, { resize: true, useWorker: true })
+      fire({ particleCount: 120, spread: 70, origin })
+      setTimeout(() => fire({ particleCount: 80, spread: 100, origin }), 250)
+      setTimeout(() => { fire.reset(); canvas.remove() }, 4250)
     }
-    const canvas = document.createElement("canvas")
-    canvas.style.cssText = "position:fixed;inset:0;width:100%;height:100%;z-index:2147483647;pointer-events:none"
-    document.body.appendChild(canvas)
-    const fire = confetti.create(canvas, { resize: true, useWorker: true })
-    fire({ particleCount: 120, spread: 70, origin })
-    setTimeout(() => fire({ particleCount: 80, spread: 100, origin }), 250)
-    setTimeout(() => { fire.reset(); canvas.remove() }, 4250)
+    if(window.confetti) burst(window.confetti)          // ready → same beat as the wipe
+    else boardLoadConfetti().then(burst)                // cold → fire as soon as it lands
     return
   }
   // FAILURE: windscreen-wiper sweep (user 2026-07-15 — the earlier ash rain

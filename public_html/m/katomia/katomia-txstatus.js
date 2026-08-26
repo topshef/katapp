@@ -144,6 +144,12 @@
     // self-heal that replaces it (WC-RESETWEDGE1) has the same hard requirement —
     // never touch the wallet link mid-signature. One line, and it is the only
     // place that can answer the question.
-    busy(){ for(const t of txs.values()) if(t.attempts.size) return t.txid; return null }
+    busy(){ for(const t of txs.values()) if(t.attempts.size) return t.txid; return null },
+    // TXSTATUS-MSGORDER1 (user 2026-08-26, "messages come through out of sequence —
+    // successful, then network issue / sign delayed"): is there a tx the user is GENUINELY
+    // still waiting on — watched, in the signing phase, and NOT yet terminal? Out-of-band
+    // status toasts that don't flow through report() (the WS-drop "sign status may lag"
+    // hedge, etc.) gate on this so they can never surface AFTER the verdict already landed.
+    signingLive(){ for(const t of txs.values()) if(t.phase === "signing" && !isTerminal(t)) return t.txid; return null }
   }
 })()

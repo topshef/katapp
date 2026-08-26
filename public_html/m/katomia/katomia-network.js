@@ -428,7 +428,14 @@ function connect(onOpenAction){
     try { signingNow = typeof boardSigning !== "undefined" && !!boardSigning } catch(e){}
     try { window.kdiag?.("ws:close", { signing: signingNow, gameId: typeof gameId !== "undefined" ? gameId : null }) } catch(e){}
     try {
-      if(signingNow && typeof notify === "function")
+      // TXSTATUS-MSGORDER1: only warn if a signature is GENUINELY still outstanding.
+      // boardSigning can lag terminal (the WS often drops at the very moment a tx settles),
+      // so gating on it alone surfaced "sign status may lag" AFTER "Transaction successful".
+      // The controller knows terminality; if it says nothing is live, stay quiet.
+      const stillWaiting = window.katomiaTxStatus?.signingLive
+        ? !!window.katomiaTxStatus.signingLive()
+        : signingNow
+      if(signingNow && stillWaiting && typeof notify === "function")
         notify("Connection dropped — reconnecting… sign status may lag a moment", "warning", { timeout: 4000 })
     } catch(e){}
     scheduleWsReconnect()
