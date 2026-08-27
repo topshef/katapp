@@ -66,3 +66,6 @@ scratchpad
 # docroot) — a generated artifact, rebuild via m/katomia/ops/build-standalone.sh
 /public_html/m/katomia/build/
 /public_html/m/katomia/logs/
+
+# nested vendor checkout of topshef/ksig (branch lab22) — its own repo, never committed here
+public_html/vendor/ksig/app/
