@@ -732,7 +732,10 @@ https://dweb.link/ipfs/
 //https://kpos.uk/pool/?network=mainnet&noddy=1&&tokenId=0.0.878200&&serial=5428
 
 async function fetchPoolTx(parms) {
-    const baseUrl = 'https://kpos.uk/pool/'
+    // SECURITY 2026-08-27: kpos.uk = 176.126.78.48 (breached box) — neutralised to a dead
+    // .invalid host. Offline-tx/pool fetch is KEA-adjacent WIP; FOLLOW-UP: bring in-house in
+    // the katomia rebuild (own /pool endpoint) rather than restoring this external call.
+    const baseUrl = 'https://kpos.uk.invalid/pool/'
     const queryParams = new URLSearchParams(parms).toString()
     const url = `${baseUrl}?${queryParams}`
     

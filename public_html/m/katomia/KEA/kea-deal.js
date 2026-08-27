@@ -66,9 +66,14 @@ export function clearDealCache(dealId) {
 export async function fetchAndVerifyDeal(dealId, baseUrl) {
   if (!dealId) throw new Error('No dealId to fetch')
 
-  // STUB: endpoint path — adjust when confirmed.
-  // const url = `${baseUrl}/kpool/deal?dealId=${encodeURIComponent(dealId)}`  // todo add wrapper to backend ahead of migrating deals
-  const url = `https://kpos.uk/deal/query/?dealId=${encodeURIComponent(dealId)}`
+  // SECURITY 2026-08-27: kpos.uk resolves to 176.126.78.48 (breached box) — egress
+  // neutralised to a guaranteed-dead .invalid host so nothing reaches it.
+  // WIP FEATURE — KEA (deal-execution agent) deal-logic reference: promising, due in a
+  // later phase. FOLLOW-UP (katomia rebuild): audit the kpos.uk codebase and bring this
+  // deal fetch/verify in-house behind our own backend endpoint, rather than restoring
+  // the external call. Endpoint path is still a STUB — adjust when the in-house API lands.
+  // const url = `${baseUrl}/kpool/deal?dealId=${encodeURIComponent(dealId)}`  // in-house target when migrated
+  const url = `https://kpos.uk.invalid/deal/query/?dealId=${encodeURIComponent(dealId)}`
   console.debug('[kea-deal] fetching deal template', { dealId, url })
 
   const res = await fetch(url)

@@ -66,7 +66,10 @@ $parms->keysafe[] = compact('publicKey', 'escrowKey');
 
 $querystring = http_build_query($parms);
 
-$url = "https://kpos.uk/deal/bytes/?$querystring";
+// SECURITY 2026-08-27: kpos.uk = 176.126.78.48 (breached box) — egress neutralised to a
+// dead .invalid host. Deal-bytes is KEA (deal-execution agent) WIP; FOLLOW-UP: audit
+// kpos.uk and bring deal-bytes in-house in the katomia rebuild rather than restoring this call.
+$url = "https://kpos.uk.invalid/deal/bytes/?$querystring";
 
 // echo "<PRE>";
 // exit("<PRE>$url");
