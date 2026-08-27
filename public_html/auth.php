@@ -7,10 +7,10 @@
 	$ip_tester = $env['ip_tester'];
 	$is_tester_based_on_ip = strpos($ip_tester, $ip) !== false;
 	
-	// GMADMINMENU1: added Lincoln server IP (176.126.78.48) so the server itself
-	// — and headless/agent requests originating from it — count as admin and can
-	// see the admin menu + admin-only surfaces. (self = 130.185.251.53; not admin 194.35.12.127)
-	$ip_admin = '130.185.251.53 176.126.78.48 ';
+	// GMADMINMENU1 (revised 2026-08-27): Lincoln server IP (176.126.78.48) REMOVED —
+	// that host (kpay.uk) was compromised in the Aug 2026 breach and must not be
+	// trusted. Admin = the sole VPN admin IP only.
+	$ip_admin = '130.185.251.53 ';
 	$isAdmin = strpos($ip_admin, $ip) !== false;
 	if (!defined('IS_ADMIN')) define('IS_ADMIN', $isAdmin);
 	if ($isAdmin) $_SESSION['flags']['isAdmin'] = true;

@@ -11,7 +11,7 @@ $action = $parms['action'] ?? 'txList';
 unset($parms['action']);
 
 // admin-only hapi_base override (mirrors auth.php's $ip_admin / future/kpool.php — keep in sync)
-$hapi_admin_ips = '130.185.251.53 176.126.78.48 ';
+$hapi_admin_ips = '130.185.251.53 ';
 $isAdmin = strpos($hapi_admin_ips, $_SERVER['REMOTE_ADDR']) !== false;
 
 $hapi_override = $isAdmin ? trim($parms['hapi_base'] ?? '') : '';

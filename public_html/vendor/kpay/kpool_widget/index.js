@@ -391,13 +391,10 @@ function buildWcPane(txState) {
 }
 
 function buildWhatsAppPane(network, txid, pch) {
+	// SECURITY 2026-08-27: kpay.uk is compromised — do not iframe it or hand it
+	// txid/pch. Pane disabled until the WhatsApp signer moves to a trusted host.
 	const pane = document.createElement('div')
-	const url = whatsAppUrl(network, txid, pch)
-	pane.appendChild(makeDesc('Sign from your phone via KPAY on WhatsApp.', url))
-	// iframe carries embed=1 so the target page can later detect it's framed and
-	// render an embedded layout, without changing this widget. The "open in new
-	// tab" link above stays plain (full page).
-	pane.appendChild(lazyFrame(url + '&embed=1'))
+	pane.appendChild(makeDesc('WhatsApp signing is temporarily disabled.'))
 	return pane
 }
 
@@ -736,19 +733,9 @@ function createSigningDetails(network, txid) {
 
 
 function createKpayWhatsAppLink(network, txid, pch) {
+	// SECURITY 2026-08-27: kpay.uk is compromised — link disabled (was leaking txid+pch).
 	const p = document.createElement('p')
-	const a = document.createElement('a')
-	const url = new URL('https://kpay.uk/message/')
-
-	url.searchParams.set('network', network)
-	url.searchParams.set('channel', 'WhatsApp')
-	url.searchParams.set('message', `sign ${txid} #${pch}`)
-
-	a.href = url.toString()
-	a.target = 'KPAYWHATSAPP'
-	a.textContent = 'Sign with WhatsApp'
-
-	p.appendChild(a)
+	p.textContent = 'WhatsApp signing is temporarily disabled.'
 	return p
 }
 

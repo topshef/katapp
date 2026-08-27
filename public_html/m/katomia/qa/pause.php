@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // Light dev-phase gate: known admin IPs may toggle; others are refused. This is QA-alert
 // config, not a security boundary — it just stops randoms muting your alerts.
 $ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '')[0]);
-$ADMIN_IPS = ['130.185.251.53', '84.66.200.207', '127.0.0.1', '::1', '176.126.78.48'];
+$ADMIN_IPS = ['130.185.251.53', '84.66.200.207', '127.0.0.1', '::1'];
 if (!in_array($ip, $ADMIN_IPS, true)) {
     http_response_code(403);
     echo json_encode(['error' => 'not authorised to change pause state', 'ip' => $ip]);

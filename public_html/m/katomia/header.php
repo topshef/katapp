@@ -15,7 +15,7 @@
 require_once __DIR__ . '/site-config.php';
 $katomiaTerms = katomiaTerms();
 
-$katomiaIpAdmin = '130.185.251.53 176.126.78.48 ';
+$katomiaIpAdmin = '130.185.251.53 ';
 $katomiaIsAdmin = strpos($katomiaIpAdmin, $_SERVER['REMOTE_ADDR'] ?? '') !== false;
 $katomiaGameId = $_GET['game'] ?? '';
 $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode($katomiaGameId) : $katomiaBase . '/';

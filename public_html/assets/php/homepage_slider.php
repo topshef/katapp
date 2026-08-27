@@ -174,7 +174,7 @@ BEFORE
 	
 AFTER
 <div class="page-heading header-text" style="position: relative; height: 500px;">
-  <iframe src="https://kpay.live/matrix/" style="position: absolute; width: 200%; height: 200%; z-index: -1; top: -100%; left: -50%;"></iframe>
+  <!-- SECURITY 2026-08-27: kpay.live matrix iframe removed — host compromised -->
   <div class="container" style="position: relative; background: rgba(255,255,255,0); height: 100%;">
     <div class="row">
       <div class="col-md-12">

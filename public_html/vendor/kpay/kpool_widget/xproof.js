@@ -26,6 +26,10 @@ const XPROOF_TIMEOUT_MS=5000
 
 async function getAccountLabelXProof(network,accountId){
 
+	// SECURITY 2026-08-27: xproof.live resolves to 176.126.78.48 — the same
+	// compromised box as kpay.uk. No account ids go there until it's rebuilt.
+	return null
+
 	if(network!='mainnet')
 		return null
 
