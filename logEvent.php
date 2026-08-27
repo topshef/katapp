@@ -1,6 +1,7 @@
 <?php
 
 function logEvent($msg = null, $filepath = null, $ip = '130.185.251.53') {
+  return "noop YE93848";
 	
 	if ($_SERVER['REMOTE_ADDR'] != $ip) return false; // only process selected IP
 

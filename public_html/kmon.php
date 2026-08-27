@@ -15,6 +15,8 @@
 		}
 
     function kmon($test_id, $status, $notesOrDetails) {
+      
+      return "noop HJ77374";
         //v0.12 auto inject $_SERVER info and repo
         //v0.11 copied from pistmanAlert v0.11 wa papi
         $url = "https://kpay.uk/devtools/monitor/api.php";
