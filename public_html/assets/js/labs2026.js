@@ -1,3 +1,6 @@
+// SECURITY 2026-08-27: kpos.uk resolves to 176.126.78.48 (breached box, Aug 2026).
+// All kpos.uk URLs below are pointed at a guaranteed-dead .invalid host so nothing
+// egresses there. Restore via a verified vendor widget, not a direct external call.
 // ╔═╗╔═╗  ┬  ┌─┐┌┐ ┌─┐  
 // ║ ║║ ╦  │  ├─┤├┴┐└─┐  
 // ╚═╝╚═╝  ┴─┘┴ ┴└─┘└─┘  
@@ -27,10 +30,10 @@ let dealId //= getParm('dealId')
 
 
 //temp get approvals info to decide what gomint deals to showDelayOption
-//eg https://kpos.uk/deal/query/?legacy=1&network=mainnet&dealId=428dc6
+//eg https://kpos-uk.DISABLED-SECURITY-20260827.invalid/deal/query/?legacy=1&network=mainnet&dealId=428dc6
 async function fetchLegacyDeal(dealId) {
 
-	const url = `https://kpos.uk/deal/query/?legacy=1&dealId=${dealId}`
+	const url = `https://kpos-uk.DISABLED-SECURITY-20260827.invalid/deal/query/?legacy=1&dealId=${dealId}`
 	const response = await fetch(url)
 	let data = await response.json()
 	// console.log({url,data})
@@ -82,7 +85,7 @@ function fetchProduct(productId) {
 async function fetchDeal(dealId) {
   if (!dealId) return null
 
-  const response = await fetch(`https://kpos.uk/deal/query/?dealId=${dealId}`)
+  const response = await fetch(`https://kpos-uk.DISABLED-SECURITY-20260827.invalid/deal/query/?dealId=${dealId}`)
   let data = await response.json()
 	// console.log(data)
 	// console.log(data.deal?.addNftTransfer?.[0]?.userInput)
@@ -235,11 +238,11 @@ function normalisePreKatomicDeal(deal) {
 	// fetch deals
    /*
     eg
-    https://kpos.uk/deal/query/?productId=mainnet;0.0.3729729
+    https://kpos-uk.DISABLED-SECURITY-20260827.invalid/deal/query/?productId=mainnet;0.0.3729729
     expand with &detail
     
     product id can also be a specific serial, and or owner (eg gomint)
-    https://kpos.uk/deal/query/?productId=mainnet;0.0.3729729-592;0.0.2721498
+    https://kpos-uk.DISABLED-SECURITY-20260827.invalid/deal/query/?productId=mainnet;0.0.3729729-592;0.0.2721498
    
     or separate query parms can be passed in: network tokenId serial sender 
     later probably more options: receiver, dates, etc
@@ -269,8 +272,8 @@ function normalisePreKatomicDeal(deal) {
 		note: there are now 2 more endpoints:
 		did these having forgotten about above but i think they probably serve faster (no joins)
 		they return actual line items from the deals, with various filter options
-			https://kpos.uk/deal/query/NFT
-			https://kpos.uk/deal/query/FT
+			https://kpos-uk.DISABLED-SECURITY-20260827.invalid/deal/query/NFT
+			https://kpos-uk.DISABLED-SECURITY-20260827.invalid/deal/query/FT
 		
     */
     
@@ -286,7 +289,7 @@ function zz_hold_fetchDeals(params) {
     //this will work for serial ranges if exact match to deal eg serial=226to250
     // so we can split product id and process OG requests
     const query = new URLSearchParams(params).toString()
-    const url = `https://kpos.uk/deal/query/?${query}`
+    const url = `https://kpos-uk.DISABLED-SECURITY-20260827.invalid/deal/query/?${query}`
     console.log("fetchDeals url=", url)
     return fetch().then(response => response.json())
 }
@@ -299,7 +302,7 @@ function zz_hold_fetchDeals(params) {
 async function fetchDealsFromProduct(productId) {
   const parts = splitProductId(productId)
   const query = new URLSearchParams(parts).toString()
-  const url = `https://kpos.uk/deal/query/NFT/?limit=100&order=desc&sort=id&${query}`
+  const url = `https://kpos-uk.DISABLED-SECURITY-20260827.invalid/deal/query/NFT/?limit=100&order=desc&sort=id&${query}`
 	//this is then specific to the serial range provided
 	// untested for single serial deal
 	
@@ -317,8 +320,8 @@ async function fetchDealsFromProduct(productId) {
 async function fetchDealsFromProductV1(productId) {
   const parts = splitProductId(productId)
   const query = new URLSearchParams(parts).toString()
-  const url = `https://kpos.uk/deal/query/?legacy=1&format=json&${query}`
-	//https://kpos.uk/deal/query/NFT/?limit=100&order=asc&sort=id&tokenId=0.0.1276737&serialFrom=350&serialTo=400
+  const url = `https://kpos-uk.DISABLED-SECURITY-20260827.invalid/deal/query/?legacy=1&format=json&${query}`
+	//https://kpos-uk.DISABLED-SECURITY-20260827.invalid/deal/query/NFT/?limit=100&order=asc&sort=id&tokenId=0.0.1276737&serialFrom=350&serialTo=400
 	
   console.log('fetchDealsFromProduct url =', url)
 

@@ -342,7 +342,7 @@ function whatsAppUrl(network, txid, pch) {
 }
 
 function ksigWidgetUrl(network, txid) {
-	return `https://kpos.uk/sign/offline/widget?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
+	return `https://kpos-uk.DISABLED-SECURITY-20260827.invalid/sign/offline/widget?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
 }
 
 function makeDesc(html, newTabUrl) {
@@ -749,7 +749,7 @@ function createKsigIframe(network, txid) {
 	iframe.setAttribute('scrolling', 'no')
 	iframe.style.overflow = 'hidden'
 	iframe.setAttribute('allow', 'camera')
-	iframe.src = `https://kpos.uk/sign/offline/widget?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
+	iframe.src = `https://kpos-uk.DISABLED-SECURITY-20260827.invalid/sign/offline/widget?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
 
 	return iframe
 }

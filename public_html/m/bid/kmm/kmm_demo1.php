@@ -1,4 +1,5 @@
 <?php
+// SECURITY 2026-08-27: kpos.uk URLs neutralised to .invalid — breached box 176.126.78.48. See repo commit for context.
 
 // #KMM kpay market maker
 
@@ -31,7 +32,7 @@ $parms->keysafe[] = compact('publicKey', 'escrowKey');
 
 $querystring = http_build_query($parms);
 
-$url = "https://kpos.uk/deal/bytes/?$querystring";
+$url = "https://kpos-uk.DISABLED-SECURITY-20260827.invalid/deal/bytes/?$querystring";
 
 // echo "<PRE>";
 // echo $url;

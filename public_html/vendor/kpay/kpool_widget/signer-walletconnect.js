@@ -1,3 +1,6 @@
+// SECURITY 2026-08-27: kpos.uk resolves to 176.126.78.48 (breached box, Aug 2026).
+// All kpos.uk URLs below are pointed at a guaranteed-dead .invalid host so nothing
+// egresses there. Restore via a verified vendor widget, not a direct external call.
 // signer-walletconnect.js
 //
 // The WalletConnect connect / sign / disconnect controls, relocated out of
@@ -55,7 +58,7 @@ const defaultSaveUrl = () => location.pathname + `?action=txSave${hapiBaseQS()}`
 // via kpos.uk/pool (which proxies to the hapi2 backend), not this site's local kpool.
 // When the local pool doesn't have the tx, read AND save through kpos so those signings
 // work here too. Normal Katomia txs are found locally and never touch this path.
-const KPOS_POOL = 'https://kpos.uk/pool'
+const KPOS_POOL = 'https://kpos-uk.DISABLED-SECURITY-20260827.invalid/pool'
 const kposReadUrl = ({ network, txid }) =>
 	`${KPOS_POOL}/txRead?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}`
 const kposSaveUrl = ({ network }) =>
