@@ -67,11 +67,34 @@ $localDir = $appVersion ? __DIR__ . "/releases/$appVersion" : "$snapRoot/$gitCom
 // Origins (no trailing slash). Self is skipped at fetch time, so the same list
 // can ship everywhere. Cross-server: append other castles' builder URLs here.
 // -------------------------------
+// ┌─────────────────────────────────────────────────────────────────────────┐
+// │ SECURITY 2026-08-28 (KWC-HYDRATE-KILL1): AUTO-HYDRATION DISABLED.       │
+// │                                                                         │
+// │ Every origin below resolves to 176.126.78.48 — the box breached in the  │
+// │ Aug 2026 incident. This script fetched a WALLET-SIGNING BUNDLE from     │
+// │ them with NO hash/signature check (looks_valid() only tests size and a  │
+// │ stub prefix), persisted it to disk, and served it under a 1-year        │
+// │ `immutable` Cache-Control. That is a trojaned-bundle / wallet-drainer   │
+// │ path that silently defeats the whole clean-rebuild + pin-by-hash        │
+// │ process, and it triggers precisely when a pinned bundle is MISSING.     │
+// │                                                                         │
+// │ Snapshots are now placed deliberately and verified by SHA256 before     │
+// │ serving (see the KWC deploy handover). A missing bundle must FAIL LOUD, │
+// │ never self-heal from an untrusted origin.                               │
+// │                                                                         │
+// │ Do NOT re-enable by re-adding hosts. If cross-seat hydration is ever    │
+// │ wanted again it must: (1) fetch only from trusted, post-breach-verified │
+// │ origins, and (2) verify a published SHA256 before persisting.           │
+// └─────────────────────────────────────────────────────────────────────────┘
+hydrate_fail(404, 'KWC-HYDRATE-KILL1: auto-hydration disabled (untrusted origins). '
+    . 'Place the verified snapshot manually — see the KWC deploy handover.');
+
 $origins = [
-    'https://swap.kpay.live/vendor/walletconnect/builder',
-    'https://lab1.katlab.kpay.live/vendor/walletconnect/builder',
-    'https://lab2.katlab.kpay.live/vendor/walletconnect/builder',
-    'https://lab3.katlab.kpay.live/vendor/walletconnect/builder',
+    // DISABLED — all of these are 176.126.78.48 (breached box). Kept for reference only.
+    // 'https://swap.kpay.live/vendor/walletconnect/builder',
+    // 'https://lab1.katlab.kpay.live/vendor/walletconnect/builder',
+    // 'https://lab2.katlab.kpay.live/vendor/walletconnect/builder',
+    // 'https://lab3.katlab.kpay.live/vendor/walletconnect/builder',
 ];
 $selfHost = strtolower($_SERVER['HTTP_HOST'] ?? '');
 
