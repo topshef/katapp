@@ -1726,8 +1726,14 @@ async function executeDealFlowCore ({
   submitNow,
   guardIncomplete = false // GM-SSEAUTO1: true in auto mode — block instead of submitting incomplete
 }) {
+  // SECURITY 2026-08-28: kpos.uk = 176.126.78.48 (breached box) — egress neutralised to
+  // a guaranteed-dead .invalid host in SOURCE (the prior neutralisation only patched the
+  // compiled artifacts, so a from-source rebuild reintroduced it). This is the GoMint
+  // deal flow (executeDealFlow); katomia does NOT use it (katomia signs via boardDirectSign
+  // → same-origin /future/?action=txRead → wc.signTx). FOLLOW-UP: re-home to an in-house
+  // /deal/* endpoint when GoMint is revived (KEA fold-in), not by restoring kpos.uk.
   const apiUrl =
-    `https://kpos.uk/deal/bytes/?dealId=${dealId}` +
+    `https://kpos.uk.invalid/deal/bytes/?dealId=${dealId}` +
     `&${userParamsString}` +
     `&userAccountId=${accountId}`
 

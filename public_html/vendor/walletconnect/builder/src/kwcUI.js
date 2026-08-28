@@ -50,8 +50,11 @@ const Utils = {
 const API = {
   async fetchDealData(dealId) {
     try {
+      // SECURITY 2026-08-28: kpos.uk = 176.126.78.48 (breached box) — neutralised to a
+      // dead .invalid host in source. GoMint deal-query flow; katomia does not use it.
+      // Re-home to an in-house endpoint (KEA fold-in) when GoMint is revived.
       const response = await fetch(
-        `https://kpos.uk/deal/query/?locate&dealId=${dealId}`
+        `https://kpos.uk.invalid/deal/query/?locate&dealId=${dealId}`
       );
       if (!response.ok) throw new Error("Failed to fetch deal data.");
       return await response.json();
