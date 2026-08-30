@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<!-- Katomia placeholder mark: the detachable bubble-O from the brand sketches
+     (brand-identity-20260730.html D3 — "the bubble alone can become the favicon"),
+     coloured as a frozen frame of kbubble.js's iridescent soap-film hue walk.
+     Generated geometry — regenerate rather than hand-edit (TABTITLE1). -->
+<g fill="none" stroke-width="9.0">
+<path d="M32.00 10.00A22.0 22.0 0 0 1 39.07 11.17" stroke="#f04c4c"/>
+<path d="M37.69 10.75A22.0 22.0 0 0 1 44.22 13.71" stroke="#f0754c"/>
+<path d="M43.00 12.95A22.0 22.0 0 0 1 48.54 17.49" stroke="#f09e4c"/>
+<path d="M47.56 16.44A22.0 22.0 0 0 1 51.73 22.27" stroke="#f0c74c"/>
+<path d="M51.05 21.00A22.0 22.0 0 0 1 53.58 27.71" stroke="#f0f04c"/>
+<path d="M53.25 26.31A22.0 22.0 0 0 1 53.95 33.44" stroke="#c7f04c"/>
+<path d="M54.00 32.00A22.0 22.0 0 0 1 52.83 39.07" stroke="#9ef04c"/>
+<path d="M53.25 37.69A22.0 22.0 0 0 1 50.29 44.22" stroke="#75f04c"/>
+<path d="M51.05 43.00A22.0 22.0 0 0 1 46.51 48.54" stroke="#4cf04c"/>
+<path d="M47.56 47.56A22.0 22.0 0 0 1 41.73 51.73" stroke="#4cf075"/>
+<path d="M43.00 51.05A22.0 22.0 0 0 1 36.29 53.58" stroke="#4cf09e"/>
+<path d="M37.69 53.25A22.0 22.0 0 0 1 30.56 53.95" stroke="#4cf0c7"/>
+<path d="M32.00 54.00A22.0 22.0 0 0 1 24.93 52.83" stroke="#4cf0f0"/>
+<path d="M26.31 53.25A22.0 22.0 0 0 1 19.78 50.29" stroke="#4cc7f0"/>
+<path d="M21.00 51.05A22.0 22.0 0 0 1 15.46 46.51" stroke="#4c9ef0"/>
+<path d="M16.44 47.56A22.0 22.0 0 0 1 12.27 41.73" stroke="#4c75f0"/>
+<path d="M12.95 43.00A22.0 22.0 0 0 1 10.42 36.29" stroke="#4c4cf0"/>
+<path d="M10.75 37.69A22.0 22.0 0 0 1 10.05 30.56" stroke="#754cf0"/>
+<path d="M10.00 32.00A22.0 22.0 0 0 1 11.17 24.93" stroke="#9e4cf0"/>
+<path d="M10.75 26.31A22.0 22.0 0 0 1 13.71 19.78" stroke="#c74cf0"/>
+<path d="M12.95 21.00A22.0 22.0 0 0 1 17.49 15.46" stroke="#f04cf0"/>
+<path d="M16.44 16.44A22.0 22.0 0 0 1 22.27 12.27" stroke="#f04cc7"/>
+<path d="M21.00 12.95A22.0 22.0 0 0 1 27.71 10.42" stroke="#f04c9e"/>
+<path d="M26.31 10.75A22.0 22.0 0 0 1 33.44 10.05" stroke="#f04c75"/>
+</g>
+</svg>

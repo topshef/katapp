@@ -1,0 +1,244 @@
+
+
+
+
+body {
+  background-color: #d3d3d3;
+  zzmargin: 0; /* Removes default margin */
+  zzpadding: 0; /* Removes default padding */
+}
+
+
+.poolNFT {
+    border: 1px solid #4ee28a;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { box-shadow: 0 0 5px #bdf4d3; }
+    50% { box-shadow: 0 0 10px #4ee28a; }
+}
+
+
+/* Header token search */
+.token-search {
+  max-width: 12ch;
+  font-size: 85%;
+  padding: 4px 6px;
+  border-radius: 8px; /* slightly softer than default */
+}
+
+
+.user_input {
+  border: 1px solid #d3d3d3; 
+  border-radius: 5px; /* Rounded corners */
+  padding: 5px; /* Optional: Adds some padding inside the input */
+  outline: none; /* Removes default focus outline */
+}
+
+.sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000; /* Ensure it stays above other elements */
+    background-color: #f5f5f5;
+    border-bottom: 1px solid #ddd;
+    width: 100%;
+    padding: 10px 0;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+.sticky-header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+
+
+
+@media (max-width: 576px) {
+
+  .sticky-header .container {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+  }
+
+  .sticky-header img {
+    height: 36px;
+  }
+
+  .token-search {
+    max-width: 100%;
+    text-align: center;
+  }
+
+  /* wallet / account area */
+  #before-pair,
+  #paired {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* dropdown + buttons inside paired state */
+  #paired > div {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+
+
+.zzubid-container {
+  display: flex; /* Use flexbox for alignment */
+  flex-wrap: wrap; /* Allow wrapping */
+  gap: 7px; /* Space between cards */
+  justify-content: center; /* Center horizontally */
+  align-items: center; /* Center vertically */
+  align-content: center; 
+  height: 100vh; /* Optional: Set a height for vertical centering */
+  margin-top: 20px;
+}
+
+.ubid-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px; /* Space between cards */
+  justify-content: center; /* Center the group of cards horizontally */
+  align-items: flex-start; /* Align cards to the top */
+  align-content: flex-start; /* Ensure wrapping starts at the top */
+  margin-top: 20px;
+  padding: 20px; /* Optional: Add padding around the container */
+}
+
+
+/* Basic card styling */
+.ubid-card {
+  border: 0px solid blue;
+  border-radius: 5px; /* something obscuring this*/
+  padding: 10px;
+  background-color: #f9f9f9;
+  display: inline-block;
+  margin: 0px;
+  vertical-align: top;
+  font-size: 80%;
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out; 
+}
+
+
+.ubid-card img {
+  border-radius: 5px;
+}
+
+
+
+.ubid-card:hover {
+  transform: scale(1.03); /* Slightly enlarge the card on hover */
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+}
+
+/* Modal Background */
+.modal {
+  display: none; /* Hidden by default */
+  position: fixed; /* Stay in place */
+  z-index: 1000; /* On top */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: hidden;
+  align-items: center;      /* requires display: flex set with js */
+  justify-content: center;  /* requires display: flex set with js */
+  background-color: rgba(0,0,0,0.5); /* Black with opacity */
+}
+
+/* Modal Content */
+.modal-content {
+  background-color: #fefefe;
+  margin: 0; 
+  padding: 20px;
+  padding-top: 5px;
+  border: 1px solid #888;
+  max-width: 500px; /* Max width */
+  max-height: 700px; /* Max height */
+  width: calc(100% - 20px); /* Full width minus margin */
+  height: auto;
+  position: relative;
+  opacity: 95%;
+  overflow: auto; 
+}
+
+.modal-content p {
+  margin: 5px 0; /* Reduced vertical spacing */
+}
+
+
+#modal-body img {
+  display: block;
+  margin: 0 auto;
+}
+
+
+#modal-body .field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+}
+
+#modal-body .field label {
+  flex: 0 0 100px;
+  text-align: right;
+  margin: 0;
+  font-weight: bold;
+}
+
+
+#modal-body .field input {
+  flex: 1;
+  min-width: 0;
+  max-width: 25ch;
+}
+
+#modal-body .field button {
+  max-width: 25ch;
+}
+
+
+/* Close Button */
+.close-button {
+  position: sticky;
+  top: 0px;
+  right: 5px;
+  margin-left: auto;
+  margin-bottom: -20px;
+  z-index: 1100; /* Higher than modal to ensure visibility */
+  
+  color: #aaa;
+  zzposition: absolute;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.close-button:hover,
+.close-button:focus {
+  color: black;
+  text-decoration: none;
+}
+
+
+.show-more-button {
+    background: none;
+
+    border: none;
+    margin: 0;
+    padding: 0;
+}

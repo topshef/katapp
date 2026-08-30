@@ -1,0 +1,24 @@
+{
+    "projectId": "53db41bfb52ee26d9a304025f741ee18",
+    "relayUrl": "wss://relay.walletconnect.com",
+    "metadata": {
+        "name": "KPAY",
+        "description": "Hello future payments",
+        "url": "https://lab22.kpay.uk",
+        "icons": []
+    },
+    "requiredNamespaces": {
+        "hedera": {
+            "chains": [
+                "hedera:mainnet",
+                "hedera:testnet"
+            ],
+            "methods": [
+                "hedera_signMessage",
+                "hedera_signTransaction",
+                "hedera_executeTransaction"
+            ],
+            "events": []
+        }
+    }
+}

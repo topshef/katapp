@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- KAT-BREAKOUT1 P1: quiet cross-fade for the board→side-circle handoff (same
+       ENTRY-FADES1 treatment the entry pages carry; must be in <head> to arm the
+       fade-in before first paint). -->
+  <script src="kfade.js?v=1787795946"></script>
+  <link rel="stylesheet" href="katomia.css?v=1787795946" />
+<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1787795946">  <link rel="stylesheet" href="katomia-board.css?v=1787795946" />
+  <title>katomia — board</title>
+</head>
+
+<body class="board-page">
+
+<!-- BOARD-UI1: standalone full-screen board view of PROPOSAL mode. Deliberately a
+     separate page from game.php (user 2026-07-09): the legacy page stays untouched
+     as the stable reference while board skins are kicked around here. Same data,
+     same socket join, same chips — only render() is replaced (katomia-board.js
+     loads after katomia-render.js, so its render() declaration wins).
+     URL: /m/katomia/board/<id>?skin=<ring16|susan5>  (also reachable directly as
+     board.php?game=<id>&skin=…)   ·   ?demo=1 = local fixture, no socket — a
+     sandbox for skin work and screenshots. -->
+
+<style>
+  /* Page harmonizer: every page that carries this header gets the same body inset
+     and full-bleed banner (the KATLAB clip-safe pattern from game.php: pad the body,
+     let the banner bleed into the padding with negative margins). Lives here rather
+     than katomia.css so it only applies to pages that actually include the header. */
+  body { margin: 0; padding: 16px; box-sizing: border-box; }
+  .app-banner { width: auto; margin: -16px -16px 12px -16px; position: relative; }
+
+  /* KBUNDLE-STRIP:kea */
+  /* ENTRY-KEANERD1 (user 2026-07-29): KEA affordances are nerd-mode-only for the
+     closed alpha — non-nerd users never see the Execution agent (menu item + profile
+     section, both tagged data-feature="kea"). Deliberately overrides the earlier
+     "nerd mode shouldn't gate features" stance: it's a noise-gate for now, cheap to
+     revert. KATOMIA_FEATURES.kea stays the hard off-switch underneath. */
+  /* :not(.kadmin) — BUNDLE-STRIP1: admin disclosure overrides the nerd gate; the
+     admin-disclose block below badges what it reveals. */
+  body:not(.nerd):not(.kadmin) [data-feature="kea"] { display: none !important; }
+  /* /KBUNDLE-STRIP:kea */
+
+  /* KATUI3 R9 (user 2026-08-17): the ☰ gets the same dead-tap immunity as the
+     modal's ✕ — a touch starting on it can never be classified as a page-scroll
+     start (which silently eats the tap: no click, no cue), and :active gives
+     on-contact feedback. */
+  .app-menu-btn { touch-action: none; -webkit-tap-highlight-color: transparent; }
+  .app-menu-btn:active { transform: scale(0.9); opacity: 0.7; }
+
+  /* Generic hook for future nerd-only menu items (the dark-mode toggle used to be one;
+     it now lives solely on the welcome theme-test row — ENTRY-DARKMODE1 R2). */
+  .app-menu-item.nerd-only { display: none; }
+  /* BOARD-CHAT1 R2: menu entries that only make sense on a phone */
+  .app-menu-item.mobile-only { display: none; }
+  @media (max-width: 600px){ .app-menu-item.mobile-only { display: block; width: 100%; } }
+  body.nerd .app-menu-item.nerd-only { display: block; width: 100%; }
+</style>
+
+<div id="notifications"></div>
+
+<div class="app-banner">
+  <div class="app-banner-inner">
+    <h2>
+      <a class="app-home-link" href="/m/katomia/" title="Katomia — home">
+        <span class="app-title">Katomia</span>
+        <span class="app-icons">💱 🐫</span>
+      </a>
+    </h2>
+    <button id="appMenuBtn" class="app-menu-btn" aria-label="Menu" aria-expanded="false" title="Menu">☰</button>
+  </div>
+
+  <!-- MENU-TIDY1 (user 2026-07-07): the menu holds DESTINATIONS only. Removed:
+       "Create market" (a button on the Markets page — contextual, not navigation)
+       and "Nerd mode" (a preference — lives in Profile → Preferences & diagnostics). -->
+  <nav id="appMenu" class="app-menu hidden">
+    <!-- ENTRY-DEFAULTROOT1 (user 2026-07-29): Home first — always a way back to the
+         welcome page (which is now the default root); Markets moved to /markets. -->
+    <a class="app-menu-item" href="/m/katomia/">🏠 Home</a>
+    <!-- ENTRY-CIRCLES1 (user 2026-07-30): the everyday destination is now the
+         proposal-only index, labelled with the configured term. 🏛️ Markets kept the
+         bank emoji and the word "markets" — both wrong once the product calls these
+         circles — so it moves behind nerd mode as the raw, unfiltered grid. -->
+    <a class="app-menu-item" href="/m/katomia/circles">⭕ Circles</a>
+    <!-- MENU-ORDER1 (user 2026-08-19): "profile, then view, then settings, then host
+         options … feels off". New order groups by what the rows ARE:
+           places (Home, Circles) → this-circle controls (View, Settings, Host options)
+           → you (Profile, Send feedback) → internal (nerd + admin rows, bottom).
+         Profile moved DOWN next to Send feedback — both are about the person, not the
+         place — and the nerd/admin diagnostics sink below everything a normal user sees. -->
+    <!-- KBUNDLE-STRIP:kea -->
+    <!-- NO 🤖 Execution agent menu item (user 2026-08-17, KATUI3 feedback pass):
+         admin-only visibility was correct, but the profile modal's KEA section is now
+         the ONLY door — "keep it in the profile menu and not bother showing it in the
+         hamburger menu". Supersedes BUNDLE-STRIP1's re-add of the menu entry; the
+         admin-gated profile section (profile-modal.php) is unchanged. Comment sits
+         inside strip markers: the purity gate scans shipped bundles for ANY mention
+         of the feature (incl. the words "execution agent"), so it must not ship —
+         failed builds 13:55 and 14:2x taught this the hard way. -->
+    <!-- /KBUNDLE-STRIP:kea -->
+    <!-- ENTRY-DARKMODE1 R2 (user 2026-07-29): the dark-mode toggle is NOT in this menu —
+         it belongs only to the welcome page's nerd-mode theme-test row (landing.php),
+         since that's the one place it's actually useful. The engine (window.kdarkToggle,
+         a DarkReader wrapper matching kpay.uk's log.php widget) still loads from here so
+         any page can drive it, and a stored preference is re-applied on load. -->
+
+        <!-- BOARD-VIEWSWITCH1 (user 2026-08-06): the three board views are picked
+         DIRECTLY here, one tap, instead of the old single "💬 Messages" item that
+         opened the stream and made you hit Close to get back. "It's kind of your
+         view — it's either board full screen, it's split screen, or it's messages
+         only." Frequently toggled (different device, different view), which is
+         exactly what earns a slot in the hamburger rather than in Settings.
+         Wired by katomia-board.js (boardSetView); the ✓ marks the live one. -->
+    <!-- R2 (user 2026-08-06): three full-width rows was "quite a lot of space on
+         the menu… and it's not really navigation, it's changing the view mode —
+         a little bit like the idea of a layout view". So: ONE row, labelled, with
+         three icon buttons — the label says what the control is (the thing a
+         submenu would have given us) without costing a second tap or three rows.
+         Icons are hand-rolled inline SVG per the user's own sketch: board = a
+         frame with the ring in it; split = a frame divided; messages = a frame
+         of text lines. currentColor throughout so the active state is one CSS
+         rule. -->
+    <div class="app-menu-viewrow" data-menu-viewgroup>
+      <span class="app-menu-viewlabel">View</span>
+      <button type="button" class="app-menu-viewbtn" data-menu-view="board" title="Board only" aria-label="Board only">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="12" cy="12" r="4"/></svg>
+      </button>
+      <button type="button" class="app-menu-viewbtn" data-menu-view="split" title="Split — board and messages" aria-label="Split view">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="3" y1="14" x2="21" y2="14"/><line x1="7" y1="17.5" x2="14" y2="17.5"/></svg>
+      </button>
+      <button type="button" class="app-menu-viewbtn" data-menu-view="messages" data-menu-chat title="Messages only" aria-label="Messages only">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="12.5" x2="17" y2="12.5"/><line x1="7" y1="16" x2="13" y2="16"/></svg>
+      </button>
+    </div>
+    <button type="button" class="app-menu-item" data-menu-settings>⚙ Settings</button>
+            <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
+    <!-- KAT-FEEDBACK1-ENTRYPOINT1: explicit route to the feedback modal for users who
+         don't know the long-press (falls back to the standalone page if the widget
+         script isn't on this page for any reason) -->
+    <button type="button" class="app-menu-item"
+            onclick="if(window.KFeedbackWidget){KFeedbackWidget.open()}else{location.href='/m/feedback/?product=katomia'}"
+            title="Tell us anything — you can also long-press anywhere on the page.">💬 Send feedback</button>
+    <a class="app-menu-item nerd-only" href="/m/katomia/markets">🏛️ All markets (raw)</a>
+    <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
+         results — in the main menu rather than behind the admin gate; the pages are
+         effectively public anyway. If parts of QA later need gating, do a split pass
+         (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
+    <a class="app-menu-item nerd-only" href="/m/katomia/qa/" target="_blank" rel="noopener">🧪 QA</a>
+      </nav>
+
+    <!-- BOARD-HEADERINT1 round 2 (user 2026-07-14): board Preferences moved OUT
+       of the profile modal (too tucked away, too much noise there) into this
+       compact popover that REPLACES the hamburger menu in place — small on
+       purpose so setting changes are visible on the board behind it. Opens
+       via the ⚙ Settings menu item; closes via the hamburger button (no ✕ —
+       user's call). Deliberately does NOT close on outside click: you want to
+       poke the board while it's open to see the effect. Controls are wired by
+       katomia-board.js boardSyncPrefsUI() (same ids as before the move). -->
+  <!-- autocomplete=off (2026-07-15 forensics): Chrome form-state restore can
+       repopulate these controls with STALE values after a soft reload,
+       desyncing them from the JS variables — prime suspect for the layout
+       select silently flipping organic→shelves and rearranging every chip. -->
+  <form id="boardSettingsPanel" class="board-settings-panel hidden" autocomplete="off" onsubmit="return false">
+    <!-- NERD-ONLY since 2026-08-17 (KATUI3 feedback pass): only one skin exists and
+         none are planned soon — a one-item dropdown is noise in normal mode. -->
+    <label class="board-settings-label board-settings-nerd-only">
+      Board skin
+      <!-- KATOMIA-CONFIG1: option text is the public-facing theme name only
+           ("Round Table") — no ring16/mode internals in the label; value="ring16"
+           stays the dev-facing id. BOARD-SKINLABEL1: to add a new skin, add
+           another <option value="...">Label</option> here, and register the
+           same value in BOARD_SKINS in katomia-board.js. -->
+      <select id="boardSkinSelect" title="Board skin">
+        <option value="ring16">⭕ Round Table</option>
+      </select>
+    </label>
+    <label class="board-settings-label">
+      <input type="checkbox" id="boardPrefSelfBottom" title="On: the board rotates so your accounts face you (default). Off: everyone sees the identical layout (screen-share / spectator)">
+      You at bottom
+    </label>
+    <label class="board-settings-label">
+      Max on ring
+      <input type="number" id="boardPrefMaxSeg" min="2" max="24" class="board-settings-num" title="Maximum players shown on the ring at once (yours + others). Above this, the rest scroll behind a tap-to-advance divider.">
+    </label>
+    <hr>
+    <label class="board-settings-label">
+      <input type="checkbox" id="boardPrefPartyOnly" title="Show only accounts party to your proposal (follows the game's lock rule)">
+      Party only
+    </label>
+    <label class="board-settings-label">
+      <input type="checkbox" id="boardPrefPickable" title="Allow other players to pick assets straight from your store (they shop, you agreed in advance)">
+      Pickable
+    </label>
+    <!-- BOARD-AUTOARRANGE1 (user 2026-08-07): normal-mode, default ON. Off lets
+         chips sit on top of each other so a player with a lot of assets can lay
+         the board out entirely by hand. Walls still apply either way. -->
+    <label class="board-settings-label">
+      <input type="checkbox" id="boardPrefAutoArrange" title="On: chips shuffle apart so they never overlap. Off: chips stay exactly where you put them and may stack — arrange the board yourself. Either way a chip can't leave its own segment.">
+      Auto-arrange chips
+    </label>
+    <!-- NO 💬 Message panel checkbox (user 2026-08-17, KATUI3 feedback pass): it was an
+         alias for the hamburger's View row (BOARD-VIEWSWITCH1 split view) — the same
+         state reachable two ways. Declutter: the View row is the one control.
+         boardChatMode + the chat-mode machinery are untouched. -->
+    <!-- BOARD-CHATMODE1 (user 2026-08-03) context lives on in the View row wiring. -->
+    <!-- BOARD-UISIZE1's Size select MOVED to Profile → Preferences (user
+         2026-08-06, IA pass): this panel is scoped to THIS GAME's board, and
+         Size is neither — it's a device-wide display preference ("within a
+         device, I don't think it makes sense to have different size
+         preferences across different games"). Same control, same id
+         (#boardPrefUiSize), same storage; boardSyncPrefsUI still wires it
+         wherever it renders, and katomia-profile.js wires it on the pages that
+         don't load the board. -->
+
+    <!-- MVP-SETTINGSDECLUTTER1: dev/lab knobs (self-labeled 🧪/Debug/Lab below) — nerd-mode
+         only, same mechanism as everywhere else (body.nerd, katomia-profile.js). Reverses the
+         2026-07-12 "NOT nerd-gated" call now the panel's grown past its original 4 controls. -->
+    <hr class="board-settings-nerd-only">
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefNet" title="Net is the standard view (the transaction nets exactly like this). 🧪 escape hatch: untick to see every individual offer un-netted — dev/testing only, likely to be removed.">
+      🧪 Net
+    </label>
+    <!-- BOARD-CHIPSIZE1 (user 2026-07-31): base chip size multiplier — the
+         crowd auto-shrink still applies on top of whatever is picked here -->
+    <label class="board-settings-label board-settings-nerd-only">
+      🧪 Chip size
+      <select id="boardPrefChipScale" title="Base chip size multiplier. Chips auto-shrink below this only when a segment actually gets crowded.">
+        <option value="0.8">80%</option>
+        <option value="0.9">90%</option>
+        <option value="1">100%</option>
+        <option value="1.15">115%</option>
+        <option value="1.3">130%</option>
+        <option value="1.5">150%</option>
+      </select>
+    </label>
+    <label class="board-settings-label board-settings-nerd-only">
+      Anim speed
+      <select id="boardPrefAnimSpeed" title="Animation speed — slow everything down to inspect the choreography">
+        <option value="2">2×</option>
+        <option value="1">1×</option>
+        <option value="0.5">½×</option>
+        <option value="0.25">¼×</option>
+        <option value="0.1">⅒×</option>
+      </select>
+    </label>
+    <label class="board-settings-label board-settings-nerd-only">
+      🧪 Chip layout
+      <select id="boardPrefLayout" title="Dev design knob: how chips arrange inside each segment. Shelves = tidy concentric rows clustered at the rim; Organic = the physics relax. Comparing live — the loser gets removed.">
+        <option value="shelves">🗄 Shelves</option>
+        <option value="organic">🫧 Organic</option>
+      </select>
+    </label>
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefHugRing" title="Lab: organic store blobs home slightly closer to the ring — a mild inward bias; the reserved rim band still keeps chips off the ring itself">
+      🧪 Chips hug the ring
+    </label>
+    <!-- BOARD-CHIPART1 (user 2026-08-04): chip face styling, three variants up
+         for live comparison. NFTs never get their artwork recoloured — in the
+         non-plain variants they keep the picture and gain a fat owner tag. -->
+    <label class="board-settings-label board-settings-nerd-only">
+      🧪 Chip style
+      <select id="boardPrefChipStyle" title="Lab: how chips are painted. Plain = white face + thin owner sleeve (current). Colour = fungible chips take the owner's colour with contrast-picked text, NFTs keep their art and gain a wide owner tag. Dark = charcoal face, white text, owner colour as a rim — highest contrast against the felt, best on phones.">
+        <option value="plain">⬜ Plain</option>
+        <option value="colour">🎨 Owner colour</option>
+        <option value="dark">🌑 Dark</option>
+      </select>
+    </label>
+    <!-- NO 🧪 Chip emboss checkbox (user 2026-08-17, KATUI3 feedback pass): "let's get
+         rid of that. It's default off anyway, but it was causing problems." The whole
+         pref is retired — wiring and the body-class toggle are gone from
+         katomia-board.js too, so a previously-ticked browser reverts to plain.
+         History: BOARD-CHIPDEPTH1 R3 made it opt-in default-off on 2026-08-06. -->
+    <!-- BOARD-COUNTERMODE1 (user 2026-08-04): simple is the new default — no
+         counter band, partial fungible offers move the decremented remainder
+         stack to the rim instead of leaving a ghost. This 🧪 switch restores
+         the status quo (counter ring + ghost pile) for live comparison;
+         the loser gets removed. -->
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefClassicCounter" title="Lab: bring back the classic counter — visible counter band plus a ghost pile for partial offers. Off (default) = simplified: the remaining stack moves to the ring edge, decremented; only whole-item offers leave a ghost.">
+      🧪 Classic counter
+    </label>
+    <!-- PROP-TICKETS1 phase-5a (user 2026-08-20): lab switch for priced tickets in
+         proposal circles — same effect as the ?tickets=1 dev flag, default off. -->
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefTickets" title="Lab: allow priced tickets in proposal circles — price an asset from its card, anyone can take the ticket. Same as the ?tickets=1 URL flag; default off.">
+      🎟 Allow tickets
+    </label>
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefAvatarSpoke" title="Lab: avatar placement experiment — ticked returns faces to the boundary spoke (R2); default centres them on the arc inside the account id (R3). One will win and this switch will go.">
+      🧪 Avatar on spoke
+    </label>
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefZoneWalls" title="Debug: draw each zone's physics walls — where chip edges may exist (solid), the ghost-only rim band (dashed), and the safe screen rect. On an obtuse segment the walls are visibly narrower than the wedge: that's the real ±80° clamp, not a drawing bug">
+      🧪 Show zone walls
+    </label>
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefSticky" title="Lab: chips stay where they settle, board-game style — new arrivals find space without moving them. The footer 🧹 re-runs the layout on demand">
+      🧪 Sticky chips
+    </label>
+    <label class="board-settings-label board-settings-nerd-only">
+      🧪 Trail after-glow
+      <select id="boardPrefTrailResidual" title="Dev design knob: after the ▶ replay trail fades, this fraction of its opacity persists as a burn-in showing where each asset came from. Wiped on the next replay.">
+        <option value="0">off</option>
+        <option value="0.25">25%</option>
+        <option value="0.5">50%</option>
+        <option value="0.75">75%</option>
+        <option value="1">100%</option>
+      </select>
+    </label>
+  </form>
+  </div>
+
+
+<script>
+// BOARD-UISIZE1: apply the Size preference (Small/Normal/Large) as an html
+// class as early as the header runs, so --ui-scale surfaces don't flash at
+// the wrong size. Default = normal.
+try {
+  var _ks = localStorage.getItem("katomiaUiSize")
+  document.documentElement.classList.add("ksize-" + (["small","normal","large"].indexOf(_ks) >= 0 ? _ks : "normal"))
+} catch(e){ document.documentElement.classList.add("ksize-normal") }
+// Feature flags (AUTH-LANG1 note, 2026-07-06): a launch-excluded feature's every
+// affordance is tagged data-feature="<name>" and hidden wholesale when its flag is
+// off. Flip here (or pre-set window.KATOMIA_FEATURES before this script) — no other
+// code changes needed. Per-feature defaults are individually wrapped so a
+// production build can ship without the code or the flag (BUNDLE-STRIP1).
+window.KATOMIA_FEATURES = Object.assign({
+  /* KBUNDLE-STRIP:kea */
+  // kea OFF (user 2026-08-13): Execution agent is out for the alpha launch; on the
+  // dev estate the admin-disclose block above pre-sets it true for admin IPs.
+  kea: false,
+  /* /KBUNDLE-STRIP:kea */
+}, window.KATOMIA_FEATURES || {})
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("[data-feature]").forEach(el => {
+    if(window.KATOMIA_FEATURES[el.dataset.feature] === false) el.style.display = "none"
+  })
+})
+</script>
+
+<script>
+// ENTRY-DARKMODE1: DarkReader loader + toggle. Lazy — the CDN script only loads on
+// first use (or at startup when a stored preference says dark). No system-pref
+// auto-follow while this is a test instrument: explicit toggles only.
+(() => {
+  const KEY = "dark-mode"   // shared with the kpay.uk darkmode.js widget
+  let loading = null
+  const load = () => loading ||= new Promise((res, rej) => {
+    if(window.DarkReader) return res()
+    const s = document.createElement("script")
+    s.src = "https://cdn.jsdelivr.net/npm/darkreader@4.9.95/darkreader.min.js"
+    s.onload = res; s.onerror = rej
+    document.head.appendChild(s)
+  })
+  const apply = on => load().then(() => {
+    on ? DarkReader.enable() : DarkReader.disable()
+    document.querySelectorAll("[data-kdark-btn]").forEach(b => { b.textContent = on ? "☀️" : "🌗" })
+    try { localStorage.setItem(KEY, on ? "1" : "0") } catch {}
+  }).catch(() => notify?.("Dark-mode engine failed to load", "error", { timeout: 3000 }))
+  window.kdarkToggle = () => apply(localStorage.getItem(KEY) !== "1")
+  document.addEventListener("DOMContentLoaded", () => {
+    if(localStorage.getItem(KEY) === "1") apply(true)
+  })
+})()
+</script>
+
+<script>
+// ── KPERF (KATUI3 R9, user 2026-08-17): "we need some kind of switch that if the
+// CPU is low we don't do the animation." Samples real frame cadence ~2.5s after
+// load (past load-time jank); a median rAF gap ≥24ms (≤~42fps) flags the device:
+// body.kperf-low + window.KPERF_LOW + a one-shot "kperf:low" event any animation
+// surface can subscribe to (first consumer: landing.php tears down its ambient
+// card bubbles). Background: the always-on landing bubbles held a phone at
+// ~4.6fps and made a 25ms modal close FEEL like seconds (KATUI3-FEEDBACK1 R8) —
+// hover-incapable devices are excluded statically; this catches weak devices
+// that DO hover (old laptops, cheap tablets with mice). Bails when the tab is
+// hidden (rAF stalls would false-positive).
+window.KPERF_LOW = false
+addEventListener("load", () => setTimeout(() => {
+  if(document.hidden) return
+  const gaps = []; let last = performance.now(); let n = 0
+  const tick = t => {
+    gaps.push(t - last); last = t
+    if(++n < 24){ requestAnimationFrame(tick); return }
+    if(document.hidden) return
+    gaps.sort((a, b) => a - b)
+    const median = Math.round(gaps[12])
+    if(median < 24) return
+    window.KPERF_LOW = true
+    document.body.classList.add("kperf-low")
+    document.dispatchEvent(new CustomEvent("kperf:low", { detail: { medianFrameMs: median } }))
+    window.katomiaDiagSend?.("perf:low-mode", { medianFrameMs: median })
+  }
+  requestAnimationFrame(tick)
+}, 2500))
+</script>
+
+<script>
+// Menu behaviour — self-contained, no dependencies on the page's other scripts.
+// Profile opening itself is wired by katomia-profile.js ([data-menu-profile]).
+(() => {
+  const btn = document.getElementById("appMenuBtn")
+  const menu = document.getElementById("appMenu")
+  if(!btn || !menu) return
+
+  const setOpen = open => {
+    menu.classList.toggle("hidden", !open)
+    btn.setAttribute("aria-expanded", String(open))
+  }
+
+  // Board settings popover (BOARD-HEADERINT1 round 2): the ⚙ Settings menu
+  // item swaps the menu for the settings panel in the same spot; the
+  // hamburger button closes it again (acts as the panel's dismiss while
+  // it's open — no ✕). Panel markup only exists on board.php.
+  const settings = document.getElementById("boardSettingsPanel")
+  const settingsOpen = open => {
+    if(!settings) return
+    settings.classList.toggle("hidden", !open)
+    if(open && typeof boardSyncPrefsUI === "function") boardSyncPrefsUI()
+  }
+  document.querySelectorAll("[data-menu-settings]").forEach(el =>
+    el.addEventListener("click", () => settingsOpen(true))
+  )
+
+  btn.onclick = e => {
+    e.stopPropagation()
+    // R7's 1.5s post-modal-close suppression REMOVED (R9, user 2026-08-17): it
+    // guarded against frustration re-taps punching through a SLOW close, but R8
+    // fixed the slowness (closes paint in 10-17ms on the user's phone) and the
+    // kdiag showed the guard then eating DELIBERATE menu taps at 630-1425ms —
+    // "there's a delay before the hamburger menu opens" was this very guard.
+    // No timing guards remain anywhere on this path (user's instruction): dead
+    // taps are prevented at the source by touch-action:none on ✕ and ☰.
+    if(settings && !settings.classList.contains("hidden")){ settingsOpen(false); return }
+    setOpen(menu.classList.contains("hidden"))
+  }
+
+  // any item click closes the menu (MENU-TIDY1: the nerd toggle moved out, so the old
+  // stay-open special case for it is gone)
+  menu.addEventListener("click", e => {
+    if(e.target.closest(".app-menu-item")) setOpen(false)
+  })
+
+  // Diagnostic tripwire (2026-07-14, after board.php shipped without
+  // katomia-profile.js and Profile silently no-op'd — same failure shape as
+  // KDIAG-BOARDBLIND1: a page missing a script it depends on, no trace of
+  // why). This ALWAYS attaches (header.php loads everywhere); it only ever
+  // fires kdiag when the real listener (installed by initKatomiaProfile in
+  // katomia-profile.js) never showed up, so a future "Profile does nothing"
+  // report has something to check instead of starting from zero.
+  document.querySelectorAll("[data-menu-profile]").forEach(el =>
+    el.addEventListener("click", () => {
+      if(typeof openKatomiaProfile !== "function")
+        window.katomiaDiagSend?.("profile:open-failed",
+          { reason: "openKatomiaProfile undefined — katomia-profile.js not loaded on this page", path: location.pathname })
+    })
+  )
+
+  document.addEventListener("click", e => {
+    if(!menu.classList.contains("hidden") && !menu.contains(e.target)) setOpen(false)
+  })
+
+  // HEADER-UNIFY2 (user 2026-08-13): pin the ☰ top-right once the banner scrolls out —
+  // threshold is the banner's real bottom edge, not a magic number, so any banner
+  // height (wrapped title, future rows) works. Pages that never scroll never stick.
+  const banner = document.querySelector(".app-banner")
+  const stuck = () => document.body.classList.toggle("hdr-stuck",
+    banner ? banner.getBoundingClientRect().bottom <= 0 : window.scrollY > 72)
+  addEventListener("scroll", stuck, { passive: true })
+  stuck()
+})()
+</script>
+
+<script>
+// ── kdebug overlay (lab1 seat note, 2026-08-13): the KATOMIA header crop + chat-dock
+// first-row clip reproduce on the user's device but not in headless probes, so the
+// diagnosis has to happen ON the device. Add ?kdebug to any page URL (or set
+// localStorage.katomiaDebug=1) to outline the header and chat-dock boxes and float a
+// live metrics readout the user can screenshot. Outline (not border) so nothing moves.
+// Tap the readout to dismiss. Zero cost when not enabled — remove once the crop is fixed.
+(() => {
+  let on = /[?&]kdebug\b/.test(location.search)
+  try { on = on || localStorage.getItem("katomiaDebug") === "1" } catch(e){}
+  if(!on) return
+
+  const style = document.createElement("style")
+  style.textContent = `
+    .app-banner{ outline:2px solid #e02020 !important; outline-offset:-2px; }
+    .app-banner-inner{ outline:2px dashed #f08c00 !important; }
+    .app-banner h2{ outline:2px solid #c2a500 !important; }
+    .app-title{ outline:2px dashed #0a8a2a !important; background:rgba(40,200,90,.12) !important; }
+    .app-icons{ outline:2px dotted #0a8a8a !important; }
+    .kchat-dock{ outline:2px solid #e02020 !important; outline-offset:-2px; }
+    .kchat-drag{ outline:2px solid #f08c00 !important; background:rgba(240,140,0,.15) !important; }
+    .kchat-dock-list{ outline:2px solid #2050e0 !important; }
+    .kchat-dock-list .kchat-row:first-child{ outline:2px dashed #8020c0 !important; }
+    .kchat-send{ outline:2px solid #0a8a2a !important; }
+    #kdebugReadout{ position:fixed; top:130px; left:4px; z-index:9999; max-width:75vw;
+      font:10px/1.5 monospace; background:rgba(0,0,0,.78); color:#9f9;
+      padding:6px 8px; border-radius:6px; white-space:pre-wrap; pointer-events:auto; }
+  `
+  document.head.appendChild(style)
+
+  const box = document.createElement("div")
+  box.id = "kdebugReadout"
+  const txt = document.createElement("div")
+  txt.onclick = () => box.remove()
+  box.appendChild(txt)
+
+  // 🧟 Ghost-maker (user 2026-08-13, WC-RELAYHEALTH1): manufacture the lab1 ghost-session
+  // state ON DEMAND — the deterministic repro for "wallet opens, no signing request".
+  // Mechanism: snapshot the page's wc@2:* session storage, do a POLITE disconnect (the
+  // wallet is notified and genuinely forgets), then restore the snapshot and reload —
+  // page remembers a session the wallet no longer has. One tap replaces the fragile
+  // clear-in-wallet-while-offline choreography.
+  const ghost = document.createElement("button")
+  ghost.textContent = "🧟 Ghost wallet link"
+  ghost.style.cssText = "display:block;margin-top:6px;font:11px monospace;padding:5px 9px;border-radius:5px;border:1px solid #6c6;background:#233;color:#9f9"
+  ghost.onclick = async ev => {
+    ev.stopPropagation()
+    try {
+      if(!window.WC?.disconnect){ ghost.textContent = "WC not loaded yet — try again"; return }
+      const keys = Object.keys(localStorage).filter(k => k.startsWith("wc@2:"))
+      if(!keys.length){ ghost.textContent = "no stored session — Connect first, then ghost"; return }
+      const snap = {}
+      keys.forEach(k => { snap[k] = localStorage.getItem(k) })
+      ghost.textContent = "disconnecting (wallet forgets)…"
+      await window.WC.disconnect()
+      Object.entries(snap).forEach(([k, v]) => localStorage.setItem(k, v))
+      ghost.textContent = "👻 ghost armed — reloading"
+      setTimeout(() => location.reload(), 800)
+    } catch(e){ ghost.textContent = ("ghost failed: " + e).slice(0, 70) }
+  }
+  box.appendChild(ghost)
+
+  // 🔄 Page-side reset (user 2026-08-13): the bundle's own resetWalletLink — wipe this
+  // ORIGIN's wc@2:* storage, forced fresh pairing on next Connect. The one-tap unwedge
+  // for any stuck link: never touches the wallet app. Falls back to deleting the keys
+  // directly if the API isn't up yet.
+  const reset = document.createElement("button")
+  reset.textContent = "🔄 Reset wallet link (page side)"
+  reset.style.cssText = ghost.style.cssText
+  reset.onclick = async ev => {
+    ev.stopPropagation()
+    try {
+      reset.textContent = "resetting…"
+      if(window.WC?.resetWalletLink) await window.WC.resetWalletLink()
+      else Object.keys(localStorage).filter(k => k.startsWith("wc@2:")).forEach(k => localStorage.removeItem(k))
+      reset.textContent = "reset — reloading (then Connect fresh)"
+      setTimeout(() => location.reload(), 800)
+    } catch(e){ reset.textContent = ("reset failed: " + e).slice(0, 70) }
+  }
+  box.appendChild(reset)
+  const r = el => { if(!el) return null; const b = el.getBoundingClientRect(); return `${Math.round(b.width)}x${Math.round(b.height)}@${Math.round(b.left)},${Math.round(b.top)}` }
+  const upd = () => {
+    const t = document.querySelector(".app-title"), h2 = document.querySelector(".app-banner h2"),
+          ban = document.querySelector(".app-banner"), dock = document.getElementById("boardChatDock"),
+          list = dock && dock.querySelector(".kchat-dock-list"),
+          row1 = list && list.querySelector(".kchat-row")
+    const cs = t && getComputedStyle(t)
+    let poppins = "?"
+    try { poppins = document.fonts.check('800 42px Poppins') ? "yes" : "NO" } catch(e){}
+    const lines = [
+      "kdebug " + innerWidth + "x" + innerHeight + " dpr" + devicePixelRatio,
+      t ? `title ${r(t)} font=${cs.fontSize}/${cs.lineHeight} ${cs.fontFamily.split(",")[0]} poppins-loaded=${poppins}` : "title: none",
+      h2 ? `h2 ${r(h2)} banner ${r(ban)}` : "",
+      t && ban ? `title-vs-banner top∆=${Math.round(t.getBoundingClientRect().top - ban.getBoundingClientRect().top)} bot∆=${Math.round(ban.getBoundingClientRect().bottom - t.getBoundingClientRect().bottom)}` : "",
+      dock ? `dock ${r(dock)} clear-b=${getComputedStyle(document.documentElement).getPropertyValue("--kchat-clear-b") || "unset"}` : "dock: none",
+      list ? `list ${r(list)} scrollH=${list.scrollHeight} clientH=${list.clientHeight} scrollTop=${Math.round(list.scrollTop)} rows=${list.querySelectorAll(".kchat-row").length}` : "",
+      row1 ? `row1 ${r(row1)} clipped-top=${row1.getBoundingClientRect().top < list.getBoundingClientRect().top - 0.5}` : "",
+      `wc@2 keys=${(() => { try { return Object.keys(localStorage).filter(k => k.startsWith("wc@2:")).length } catch(e){ return "?" } })()} WC=${window.WC ? "up" : "absent"}`,
+    ].filter(Boolean)
+    txt.textContent = lines.join("\n")
+  }
+  const start = () => { document.body.appendChild(box); upd(); setInterval(upd, 1000) }
+  document.readyState === "loading" ? document.addEventListener("DOMContentLoaded", start) : start()
+})()
+</script>
+
+
+<div id="profileModal" class="profile-modal hidden">
+
+  <div class="profile-card">
+    <!-- KATUI3 feedback pass (user 2026-08-17): the ✕ rides a sticky zero-height row so
+         it stays reachable however far the card scrolls; #profileBusy sits beside it —
+         katomia-auth.js lights it while wallet/network operations are in flight, so a
+         slow connection reads as "working", not "crashed". -->
+    <div class="profile-stickyrow">
+      <div id="profileBusy" class="profile-busy hidden" role="status"></div>
+      <div id="profileModalClose" class="profile-close" title="Close">✕</div>
+    </div>
+
+    <!-- Title is the player's NAME if one is assigned, otherwise blank (user
+         2026-08-17: the old "🔗 Player" header is gone — the 🔗 belonged to the
+         binding section specifically, not to the modal). -->
+    <h2 id="profileTitle"></h2>
+
+    <div id="profileAvatar" class="profile-avatar"></div>
+
+    <!-- ═══ WALLET CONNECTION — WALLET-CONNECT-IA1 Mock A (user-approved 2026-08-17).
+         The three wallet acts as a LADDER, always offering the next rung:
+           Connect (rows below) → Authenticate (headline button) → Commitment (fold).
+         Supersedes the "🔗 Wallet binding" framing: the advanced act no longer wears
+         the section title, and 🔗 survives only on the commitment fold (the binding).
+         The intent-key identity block moved from the top of the modal into that fold
+         (that's where the key↔account binding actually happens); nerd mode keeps the
+         full identity readout in its own section further down. -->
+    <div class="profile-section profile-repute" id="profileBindSection">
+      <div class="profile-section-title">Wallet connection</div>
+      <p class="subtle profile-section-sub">Connect a wallet, then authenticate — one signature that proves the account is yours and unlocks members-only circles.</p>
+
+      <div class="profile-auth">
+
+        <!-- Network picker — ONLY outside a game (no gameMeta to inherit from);
+             inside a game the game's network wins and this row stays hidden. -->
+        <div id="authNetworkRow" class="profile-auth-account hidden">
+          <span class="profile-label">Network</span>
+          <select id="authNetwork" class="profile-auth-select">
+            <option value="mainnet">🟣 Mainnet</option>
+            <option value="testnet">🟠 Testnet</option>
+          </select>
+        </div>
+
+        <!-- Account picker — KAT-ACCTNORM1 (user 2026-08-05): ONE list, everywhere.
+             Union of WC-connected accounts and this game's manually-added ones (tagged
+             ⌨️); WC is the untagged default. One button, "Remove", for both kinds —
+             "disconnect" is retired as user-facing language, since a connection never
+             proved ownership anyway (ids can be spoofed; only the signed commitment
+             below proves control). Removing a WC account disconnects the wallet
+             session AND takes it off the board. List logic: kauthRenderAccounts. -->
+        <div id="authAccountRow" class="profile-auth-account">
+          <span class="profile-label">Account</span>
+          <select id="authAccount" class="profile-auth-select"></select>
+          <button id="authAccountRemove" type="button" class="profile-auth-x hidden" title="Remove this account — disconnects the wallet session (if connected) and removes it from the game">Remove</button>
+        </div>
+
+        <!-- NO "Repair connection" BUTTON HERE — REMOVED 2026-08-08, and this comment
+             exists so nobody re-adds it. TXSTATUS-CONSOLIDATE1 S8 shipped one (D1:
+             "manual button first"); the user reversed that decision on sight of it,
+             and was right on three counts:
+               1. It was ALWAYS visible, with no idea whether anything was wrong —
+                  a mainnet transaction succeeded on pat and the menu still offered
+                  to "repair". A control that is permanently lit says nothing.
+               2. It asks the USER to fix OUR bug, by destroying their session and
+                  re-adding every account. Remove already exists for the thing a
+                  user legitimately wants to do.
+               3. It called WC.resetWalletLink(), which we have since PROVEN can
+                  wedge WC init permanently with no error (WC-RESETWEDGE1) — so the
+                  repair could leave someone worse off than the fault it treats.
+             The recovery recipe itself is real and stays documented in
+             WC-RESETWEDGE1; the right home for it is an automatic self-heal behind
+             a proven-safe reset, not a button. -->
+
+
+        <!-- ── Ladder status + the next rung's one button (Mock A) ──
+             kauthRenderLadder (katomia-auth.js) drives all three: the status line
+             (nothing / ◆ authenticated / ◈ commitment live — markers from
+             KAUTH_MARKS), the Authenticate button's visibility, and the ⌨️/playnet
+             explainer for accounts that can't sign here. Expiry of a plain
+             authentication is deliberately NOT surfaced (user 2026-08-17, Q8.3 —
+             Katomia's retention call, changeable backend-side without UI noise). -->
+        <div id="authRungStatus" class="profile-auth-status"></div>
+        <button id="authAuthenticateBtn" type="button" class="hidden">◆ Authenticate</button>
+        <div id="authStatus" class="profile-auth-status subtle"></div>
+
+        <!-- ── Commitment — the optional upgrade rung (Mock A fold) ──
+             LAUNCH-PRUNE CANDIDATE (user 2026-08-17): "we might prune it" — the
+             user-facing commitment extras (chosen expiry/scope/publish, reputation
+             framing) lean mostly on ORDER MODE (ORDER-AUTHBADGE*) and the auto-settle
+             agent flow (see the tagged section below — T:KSTRIP-01 keeps its name out
+             of untagged prose like this);
+             proposal mode consumes the intent-key BINDING, which a plain
+             authentication also creates (same challenge shape, same store). If order
+             mode stays hidden at launch, this fold can be feature-flagged off without
+             breaking proposal-mode gating or signed locks. Kept in for now — the
+             Mock A structure is worth having settled either way. -->
+        <details class="profile-commit" id="profileCommitSection">
+          <summary class="profile-section-title" title="Go further than authenticating: put this account behind your intent key for a period you choose. Published commitments let others see who stands behind your intents.">🔗 Raise a commitment <span class="profile-tag profile-tag-optional" title="Optional. Adds reputation to your intents — authenticating alone already unlocks members-only access.">optional</span></summary>
+          <p class="subtle profile-section-sub">A commitment goes further than authenticating: you put this account behind your <b>intent key</b> — the key this browser signs your proposals with — for a period you choose. Publishing lets others see who stands behind your intents.</p>
+
+          <!-- Commitment options — shown once a signable account is chosen. Flat grid
+               items (not wrapping <label>s) so Expiry sits in the same 64px label
+               column as Network/Account, with Scope beside it getting the wider share. -->
+          <div id="authOptions" class="profile-auth-options hidden">
+            <span class="profile-label">Expiry</span>
+            <select id="authExpiry">
+              <option value="86400000">24 hours</option>
+              <option value="604800000">7 days</option>
+              <option value="2592000000">30 days</option>
+              <option value="">No expiry</option>
+            </select>
+            <span class="profile-label">Scope</span>
+            <select id="authScope">
+              <option value="global">Global — all games</option>
+              <option value="game">This game only</option>
+            </select>
+            <label class="profile-auth-publish">
+              <input type="checkbox" id="authPublish" checked> Publish this binding (public)
+            </label>
+          </div>
+
+          <!-- Plain-English statement of what the user is committing to. -->
+          <p id="authStatement" class="profile-auth-statement hidden"></p>
+
+          <button id="authBtn" type="button">◈ Raise commitment</button>
+          <!-- PROFILE-TIDY1: the signed envelope + copy button are tech detail — nerd-only,
+               and collapsed even then. Normal mode just gets the status line above. -->
+          <details id="authResultDetails" class="profile-nerd-only profile-auth-result hidden">
+            <summary>Signed envelope (technical detail)</summary>
+            <pre id="authOutput" class="profile-auth-output"></pre>
+            <button id="authCopyBtn" type="button">⧉ Copy envelope</button>
+          </details>
+
+          <!-- Intent key, compact — INSIDE the fold (Mock A): this is the key the
+               statement above quotes, i.e. exactly where the key↔account binding is
+               made. The order-mode-flavoured "every order…" copy is retired from
+               normal mode; nerd mode's identity section below keeps the full story. -->
+          <div class="profile-commit-key">
+            <div class="profile-label">Intent key <span class="profile-tag profile-tag-public" title="Public. This browser's signing identity — the commitment binds your account to it.">public</span></div>
+            <div id="profileCommitPubkey" class="profile-mono" title="Your session's Ed25519 intent key. It says WHAT you want — the commitment says WHO you are."></div>
+            <p class="subtle profile-section-sub">This browser's signing identity — it says <em>what</em> you want; the commitment says <em>who</em> you are.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- ═══ IDENTITY — nerd-only since WALLET-CONNECT-IA1 (was the modal's opening
+         section): full intent-key/KVAC/scope readout for the design-curious. The
+         normal-mode home of the intent key is the commitment fold above.
+         (INTENT-RENAME1: display copy says "intent" — the key signs orders AND proposal
+         commitments; wire params/JS names still say orderPubkey pending the compat pass.
+         KEY ROTATION — deliberately NOT a feature, user 2026-07-07: the key lives in
+         localStorage katomiaPlayerKeypair; clearing site data rotates it naturally.) ═══ -->
+    <div class="profile-section profile-identity profile-nerd-only">
+      <div class="profile-list">
+        <div class="profile-label">Intent public key <span class="profile-tag profile-tag-public" title="Public. Your intent key — everything you sign in Katomia (proposals, orders, feedback) carries it, so others can recognise your intents across games.">public</span></div>
+        <div id="profilePubkey" class="profile-mono" title="Your session's Ed25519 intent key. It says WHAT you want — a wallet commitment says WHO you are."></div>
+
+        <!-- KVAC / prepaid access id — NERD ONLY, STUBBED. HKSAT = SHA256(player token):
+             the PUBLIC handle for prepaid fees (KSAT/KVAC model — see kpay.uk/kvac). The
+             player token (KSAT) itself stays private in the browser. Balance + top-up are
+             display-only stubs for now; wiring is FEE1 / a backend HKSAT balance lookup. -->
+        <div class="profile-nerd-only">
+          <div class="profile-label">Access token · KVAC <span class="profile-tag profile-tag-public" title="Public hash (HKSAT = SHA256 of your player token). The handle you'd top up to prepay fees. Your player token itself stays private in this browser.">public</span></div>
+          <div id="profileKvac" class="profile-mono" title="HKSAT — public hash of your player token (KSAT). Used as a prepaid balance handle (KSAT/KVAC fee model). STUB: balance + top-up not wired yet."></div>
+          <div class="profile-kvac-balance subtle">
+            Balance: <span id="profileKvacBalance">— (stub)</span>
+            <button id="profileKvacTopupBtn" type="button" class="profile-ghost" disabled title="Prepaid top-up — not wired yet (KSAT/KVAC, FEE1)">Top up…</button>
+          </div>
+        </div>
+
+        <div class="profile-label">Scope</div>
+        <div id="profileScope" class="profile-scope" title="Where this intent key operates: domain | network | game."></div>
+      </div>
+    </div>
+
+    <!-- KBUNDLE-STRIP:kea -->
+    <!-- ═══ EXECUTION AGENT — KEA (QR → link → copy). Collapsed by default so the
+         wallet-binding flow gets priority. AUTH-LANG1: this is the DELEGATION act —
+         approval happens BEFORE the transaction (a standing policy), not after (a
+         signing prompt) — which is why KEA never appears on the signing modal.
+         data-feature="kea": hidden wholesale when KATOMIA_FEATURES.kea is off — the
+         first release ships without KEA visible; later this whole section should be
+         excludable from the bundle (BUNDLE1). ═══ -->
+    <!-- (BUNDLE1, user 2026-08-13: KEA is out for alpha — flag off in header.php
+         today; the bundle build strips everything between the markers above/below) -->
+    <!-- BUNDLE-STRIP1: PHP admin gate on top of the flag — non-admin visitors get
+         nothing in the DOM at all on the dev estate; admins (VPN) see it badged. -->
+        <!-- /KBUNDLE-STRIP:kea -->
+
+    <!-- Board preferences lived here briefly (BOARD-HEADERINT1) — moved same
+         day to header.php's #boardSettingsPanel popover (user: too tucked
+         away in the modal, and the modal covered the board it was adjusting). -->
+
+    <!-- ═══ PREFERENCES & DIAGNOSTICS — dev controls. Collapsed by default. ═══ -->
+    <details class="profile-section profile-debug-section">
+      <summary class="profile-section-title">Preferences &amp; diagnostics</summary>
+      <div class="profile-debug">
+        <!-- BOARD-UISIZE1, relocated 2026-08-06 (user): display size is a
+             DEVICE preference, not a per-game board setting — it belongs with
+             the other app-wide preferences, not in the board's ⚙ popover.
+             Same id/storage as before the move (localStorage katomiaUiSize →
+             html.ksize-* → CSS --ui-scale); the nerd 🧪 Chip size knob stays on
+             the board panel as a dev multiplier on top of this. -->
+        <label class="profile-debug-label">
+          Size
+          <select id="boardPrefUiSize" title="Overall display size — chips, messages and labels together. Normal is tuned to be readable on a phone; Large helps if you'd rather not squint.">
+            <option value="small">Small</option>
+            <option value="normal">Normal</option>
+            <option value="large">Large</option>
+          </select>
+        </label>
+        <!-- ENTRY-AUTOADD1 (user-approved 2026-08-05): normal-mode preference, ON by
+             default — connected accounts join a game automatically with all assets.
+             Unticked, the ➕ Add account composer stays the only path (connected
+             accounts are already listed there as one-tap candidates). -->
+        <label class="profile-debug-label">
+          <input type="checkbox" id="kprefAutoAdd">
+          Automatically add my connected accounts when I join a game
+        </label>
+        <!-- ORDER-AUTOSIGN1 (user 2026-08-05): matched orders push the signature
+             request straight to the wallet (no pop-up here; the wallet prompts, or
+             auto-approves if the user enabled that wallet-side). Default ON. -->
+        <label class="profile-debug-label">
+          <input type="checkbox" id="kprefAutoSignReq">
+          Auto-request signatures for matched orders
+        </label>
+        <label class="profile-debug-label nerd-control">
+          <input type="checkbox" id="katomia-nerd-toggle" class="nerd-toggle-input">
+          🤓 Nerd mode
+        </label>
+        <label class="profile-debug-label">
+          <input type="checkbox" id="kdiagRemoteToggle">
+          Remote diagnostic logging
+        </label>
+        <button id="profileCopyDiagBtn" type="button" title="Copy local diagnostics to clipboard">⧉ Copy local diagnostics</button>
+        <!-- KAT-BUILDSTAMP1 (user 2026-08-06): "when I'm inspecting the app through profile
+             or nerd settings, I can see exactly what build we're on". Deploys are a
+             blue/green symlink flip, so "did my change actually land, and is this slot the
+             one I just pushed?" was previously only answerable by curling build-info.json
+             from a terminal. Reads the same file the deploy writes, so it cannot drift from
+             what was shipped. Unbundled (swap/labs) has no build-info.json — say so plainly
+             rather than showing a blank or a stale value. -->
+        <div class="profile-debug-label profile-build-stamp" id="profileBuildStamp"
+             title="Which bundle this browser is actually running">build …</div>
+      </div>
+    </details>
+  </div>
+
+</div>
+<div id="kamModal" class="profile-modal hidden">
+  <div class="profile-card">
+    <div id="kamClose" class="profile-close">✕</div>
+
+    <h2>🔐 Authenticate</h2>
+
+    <p id="kamMessage" class="subtle hidden"></p>
+
+    <div class="profile-auth">
+
+      <!-- Network picker — only outside a game (same rule as the binding section). -->
+      <div id="kamNetworkRow" class="profile-auth-account hidden">
+        <span class="profile-label">Network</span>
+        <select id="kamNetwork" class="profile-auth-select">
+          <option value="mainnet">🟣 Mainnet</option>
+          <option value="testnet">🟠 Testnet</option>
+        </select>
+      </div>
+
+      <div class="profile-auth-account">
+        <span class="profile-label">Account</span>
+        <select id="kamAccount" class="profile-auth-select"></select>
+        <button id="kamRemove" type="button" class="profile-auth-x hidden" title="Remove this account — disconnects the wallet session and removes it from the game">Remove</button>
+      </div>
+
+      <!-- Plain-English statement — deliberately NOT the commitment wording: you are
+           confirming control of the account, not authorising the intent key to trade. -->
+      <p id="kamStatement" class="profile-auth-statement hidden"></p>
+
+      <button id="kamBtn" type="button">🔐 Authenticate</button>
+      <div id="kamStatus" class="profile-auth-status subtle"></div>
+    </div>
+  </div>
+</div>
+<div id="addAccountModal" class="asset-modal hidden">
+	<div class="asset-modal-card addacct-card">
+		<div id="addAcctClose" class="asset-modal-close">✕</div>
+
+		<div class="asset-modal-name">Add account</div>
+
+		<div id="addAcctStepAccount">
+			<label id="addAcctWcLabel">Connected wallet accounts</label>
+			<div id="addAcctWcList" class="addacct-wc-list subtle"></div>
+			<button id="addAcctConnect" type="button">🔗 Connect wallet…</button>
+
+			<label class="addacct-manual-label">Or enter an account</label>
+			<div class="addacct-manual">
+				<input id="addAcctManual" placeholder="Account eg 12345" />
+				<button id="addAcctManualUse" type="button">Use</button>
+			</div>
+		</div>
+
+		<div id="addAcctStepAssets" class="hidden">
+			<div class="addacct-chosen"><span id="addAcctChosen" class="addacct-chosen-id"></span> <button id="addAcctBack" type="button" class="addacct-link">change</button></div>
+			<div class="addacct-assets-head">
+				<label>Assets to bring in</label>
+				<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">none</button></span>
+			</div>
+			<div id="addAcctAssets" class="addacct-assets"></div>
+			<p id="addAcctHint" class="subtle addacct-hint hidden">🔷 Not bound yet — you can join anyway; bind this account in <button id="addAcctProfileLink" type="button" class="addacct-link">Profile → Wallet binding</button> to carry reputation.</p>
+		</div>
+
+		<div id="addAcctStatus" class="subtle addacct-status"></div>
+
+		<div id="addAcctActions" class="addacct-actions hidden">
+			<button id="addAcctJoinAll" type="button">Join with all assets</button>
+			<button id="addAcctJoin" type="button">Join with selected (<span id="addAcctJoinCount">0</span>)</button>
+		</div>
+	</div>
+</div>
+
+<div id="boardRoot"></div>
+
+<!-- hover trade-line host: drawTradeLine() draws its dotted pair line into
+     #game (legacy layer) — here it's a fixed passthrough over the board -->
+<div id="game" class="board-linelayer"></div>
+
+<!-- BOARD-CHAT1 (user 2026-07-30): chat surfaces live OUTSIDE #boardRoot on purpose.
+     renderRingBoard does root.replaceChildren() on every paint, so anything parked
+     inside the board root is wiped the moment a new message triggers a re-render —
+     which is exactly when a bubble needs to appear. Same reasoning as the
+     #game.board-linelayer passthrough above; both are fixed overlays over the board. -->
+<!-- DEMO-SPECTATE1: shown only when the backend says this socket is a spectator
+     (body.spectating, set in katomia-network.js from the game_state payload). -->
+<div id="boardSpectatorRibbon" class="kspec-ribbon">
+  <span>👀 <b>You're watching.</b></span>
+  <span class="kspec-why" id="boardSpectatorWhy"></span>
+</div>
+<!-- DEMO-WATCHERS1 (user 2026-07-30): live audience counter. Server-counted from open
+     sockets, split playing vs watching. -->
+<div id="boardAudience" class="kaud" hidden></div>
+<div id="boardChatLayer" class="kchat-layer"></div>
+<div id="boardChatPanel" class="kchat-panel"></div>
+
+<!-- BOARD-CHAT1 R2: mobile transcript, opened from ☰ (the floating panel is
+     desktop-only — on a phone it covered the board controls). Full screen because
+     there is no room for board + transcript on a phone; two devices side by side is
+     the intended way to watch both. -->
+<div id="boardChatFull" class="kchat-full" role="dialog" aria-modal="true" aria-label="Messages">
+  <div class="kchat-full-head">
+    <b>💬 Messages<span class="sub" id="boardChatFullSub"></span></b>
+    <button type="button" class="kchat-full-close" id="boardChatFullClose">Close</button>
+  </div>
+  <div class="kchat-full-list"><div class="kchat-panel-list" id="boardChatFullList"></div></div>
+  <!-- GCP feedback 2026-08-08 ("the messages view should be the same like the messages
+       in the split view"): the full-screen stream gets the SAME send box as the split
+       dock — wired by the shared handler in katomia-chat.js (wireChatSend). -->
+  <form class="kchat-send" autocomplete="off">
+    <input type="text" maxlength="280" placeholder="Message the table…" aria-label="Message">
+    <button type="submit" title="Send">➤</button>
+  </form>
+</div>
+
+<!-- Same asset modal as game.php — openAssetModal() (helpers) is the tap-to-offer
+     path for chips; board taps reuse it verbatim. -->
+<div id="assetModal" class="asset-modal hidden">
+  <div class="asset-modal-card">
+    <div id="assetModalClose" class="asset-modal-close">✕</div>
+    <div id="assetModalPreview" class="asset-modal-preview"></div>
+    <div id="assetModalName" class="asset-modal-name"></div>
+    <div class="asset-modal-amount-row">
+      <span class="asset-modal-input">
+        <label>Send amount</label>
+        <input id="assetModalAmount" type="number" value="1" min="1">
+      </span>
+    </div>
+    <br>
+    <div>Choose a basket 🧺🛒</div>
+    <div id="assetModalTargets" class="asset-modal-targets"></div>
+  </div>
+</div>
+
+<script>  window.CONFIG = {
+    HAPI_BASE: "kpay-api-alias.tayloa17.workers.dev/hapi"
+  }
+  window.KFLOW_COMMIT = "c6861f5"
+</script>
+<!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
+<script src="kflow.js?v=1787795946"></script>
+<!-- KAT-FEEDBACK1 + FEEDBACK-COMMENTARY1: long-press feedback, now WITH
+     session mode (start → REC pill top-left → stop → paste transcript/debrief
+     → send & close through the normal signed /kfeedback route). Activated on
+     the board (user 2026-07-16) — this page is where the QA narration happens. -->
+<!-- KPAD-SELFFEED1: served from the backend (its canonical home) — no local copy -->
+<script src="https://kpay-api-alias.tayloa17.workers.dev/hapi/feedback-widget.js"
+        data-product="katomia-board"
+        data-screenshot="0"><!-- KAT-FEEDSHOT-BROKEN1 (user 2026-08-08): attach-screenshot never
+     succeeds on these pages, so the checkbox is a control for a feature that does not
+     work — offering it is worse than not having it. Turned OFF here rather than in the
+     widget, which kPad also uses and where capture DOES work. Re-enable by deleting this
+     attribute once the capture is fixed. --></script>
+
+<script src="/m/bid/localbase.min.js"></script>
+<script type="module" data-global src="/m/tools/glog/latest/glog.js"></script>
+<script type="module" src="/m/bid/localCacheDB.js"></script>
+<script src="/m/bid/localCacheIFPS.js"></script>
+<script src="/m/bid/localCacheArweave.js"></script>
+
+<!-- ring16 (corrected review 17): the WC bundle is here for DIRECT signing —
+     ✍ Sign calls the headless WC.signTx (the modal's Sign action, no modal;
+     board IS the signing surface). The kpay-embed stays loaded only as the
+     hash deep-link path (#sign=…) — effectively hidden; the widget modal
+     remains reachable via the tx list outside the ring, and the hub tap
+     opens the external all-wallets page for comparison. -->
+<script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
+
+<script>window.KPAY_SIGN_HASH = true</script>
+<script src="/vendor/kpay/kpool_widget/kpay-embed.js" defer></script>
+<script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
+
+<script type="module" src="katomia-init.js?v=1787795946"></script>
+<script src="katomia-core.js?v=1787795946"></script>
+<script src="katomia-localdb.js?v=1787795946"></script>
+<script src="kemoji.js?v=1787795946"></script>
+<script src="katomia-helpers.js?v=1787795946"></script>
+<script src="katomia-enrich.js?v=1787795946"></script>
+<script src="katomia-network.js?v=1787795946"></script>
+<!-- KDIAG-BOARDBLIND1: board.php never loaded this, so katomiaDiagSend()
+     (the self-contained /diag sender — the create-order-modal comment in this
+     file explains window.kdiag from the kpool widget is lazy and NOT reliably
+     present here) didn't exist on the board page at all: no katomia:build, no
+     wc:version, and boardDirectSign()'s window.kdiag?.() calls were silent
+     no-ops. Ring16 direct-sign attempts left zero trace in kdiag. -->
+<script src="katomia-modals.js?v=1787795946"></script>
+<script src="katomia-render.js?v=1787795946"></script>
+<!-- TXSTATUS-CONSOLIDATE1: the tx/wallet status controller. Must load BEFORE
+     katomia-board.js, whose reporters feed it and whose boardShowResult
+     subscribes to it at module top level. -->
+<script src="katomia-txstatus.js?v=1787795946"></script>
+<script src="katomia-board.js?v=1787795946"></script>
+<script src="katomia-tickets.js?v=1787795946"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
+
+<!-- BOARD-CHAT1 (user 2026-07-30): renders state.chat — speech bubbles on the
+     speaker's wedge + a glassy transcript. Must load AFTER katomia-board.js,
+     which owns the _boardChatAnchors this reads. -->
+<script src="katomia-chat.js?v=1787795946"></script>
+
+<!-- BOARD-HEADERINT1 follow-up (2026-07-14): board.php gained header.php +
+     profile-modal.php but these two were missed — profile-modal.php's own
+     top comment lists them as required, and without katomia-profile.js the
+     [data-menu-profile] click listener never gets attached, so Profile
+     silently no-ops (same failure shape as KDIAG-BOARDBLIND1 above: a page
+     missing a script it now depends on, with nothing to say why).
+     katomia-addaccount.js joined later the same day: the footer's ➕ Add
+     account now opens the shared composer modal (addaccount-modal.php)
+     instead of the prompt() stopgap. -->
+<script src="katomia-profile.js?v=1787795946"></script>
+<script src="katomia-auth.js?v=1787795946"></script>
+<script src="katomia-addaccount.js?v=1787795946"></script>
+
+<script>
+window.addEventListener("load", () => {
+  const params = new URLSearchParams(location.search)
+  if(params.get("demo")){
+    boardDemoInit()
+    return
+  }
+  if(typeof connect === "function") connect()
+
+  // ENTRY-CREATEBASIC1: fresh arrival from the basic create form (?created=1) —
+  // toast the share hint WITH the link visible in it (the address bar has it too,
+  // but showing it makes "share this" concrete). Param is stripped so a reload or
+  // a copied URL doesn't re-toast for the next person.
+  if(params.get("created")){
+    params.delete("created")
+    history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params.toString() : ""))
+    const link = location.origin + location.pathname
+    // R2 (user 2026-08-03): the link is CLICKABLE (notify's link element) and rides as
+    // detail so it wraps cleanly. Folding this into the message stream as the circle's
+    // first entry is part of BOARD-CHATLAYOUT1 (toasts-into-chat).
+    notify?.(`New game created — share this link for others to join`, "success",
+      { timeout: 15000, detail: link, link: { href: link, text: "Open ↗" } })
+    // R3 (user 2026-08-18): the toast evaporates, so the link also lands as a Katomia
+    // entry in the message stream where it PERSISTS (for this session — system rows are
+    // a local live feed, not server-side chat; a server-persisted home for it would be
+    // the CHAT-WELCOME1 welcome message). Yes, it's the same link as the address bar —
+    // being explicit is the point. NOTED TENSION, same conversation: the user floated
+    // making the game name in the welcome message clickable as an invite affordance,
+    // then talked themselves out of it ("you're already in the game — linking to
+    // yourself is silly") but asked to keep the idea on record in case a wordless
+    // share-this affordance is wanted later.
+    window.katomiaChat?.system?.("Share this link for others to join",
+      { link, linkText: link.replace(/^https?:\/\//, "") })
+  }
+})
+</script>
+
+</body>
+</html>

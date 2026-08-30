@@ -1,0 +1,3266 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&display=swap');
+
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600;700&display=swap');
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap');
+
+
+
+
+		:root{
+			/* Build marker — bump on every CSS edit. Read at runtime via
+			   getComputedStyle(documentElement).getPropertyValue('--katomia-css-build')
+			   to detect whether the browser applied a stale (cached) stylesheet. */
+			--katomia-css-build: "20260806-kdiagbridge1";
+
+			--bg-color: #f5f5f5;
+
+			--thumb-size: 48px;
+			--thumb-overlap-ratio: 0.85;
+			--asset-gap: 3px;
+
+			--thumb-collapse-left: calc(var(--asset-gap) - (var(--thumb-size) * var(--thumb-overlap-ratio)));
+
+      --font-main: 'Inter', system-ui, sans-serif;
+      --zzfont-main: 'Work Sans', system-ui, sans-serif;
+      --zzfont-main: 'Nunito', system-ui, sans-serif;
+      --zzfont-main: 'Plus Jakarta Sans', system-ui, sans-serif;
+      --zz-font-main: 'Manrope', system-ui, sans-serif;
+      --zz-font-main: 'DM Sans', system-ui, sans-serif;
+      --zznope-font-main: 'Outfit', system-ui, sans-serif;
+      --zzfont-main: 'Source Sans 3', system-ui, sans-serif;
+
+      --font-mono: 'JetBrains Mono', monospace;
+
+  
+			/* examples not in use */
+			--text-color: #222;
+			--accent: #4a90e2;
+			--gap: 12px;
+		}
+
+
+    
+    body .mode-debug, body .mode-order, body .mode-proposal{ display:none; }
+
+    body[data-trading-mode="proposal"] .mode-proposal,
+    body[data-trading-mode="debug"] .mode-proposal{ display:block; }
+
+    body[data-trading-mode="debug"] .mode-debug{ display:block; }
+
+    body[data-trading-mode="debug"] .mode-order,
+    body[data-trading-mode="orderBook"] .mode-order{ display:block; }
+
+    /* KBUNDLE-STRIP:kea */
+    /* KATOMIA-CONFIG1 (user 2026-07-14): "execution agent... it's not
+       relevant for proposal mode" — a NEGATIVE gate, not the positive
+       .mode-order above. .mode-order defaults to display:none and only
+       switches on inside a game, which would also hide something like KEA
+       on the index/profile/landing pages where there's no game context at
+       all — wrong here: KEA is a cross-game profile feature that should
+       stay visible everywhere EXCEPT specifically inside a proposal-mode
+       game. */
+    /* /KBUNDLE-STRIP:kea */
+    body[data-trading-mode="proposal"] .hide-in-proposal{ display:none; }
+
+
+    .debug-only{ display:none; }
+    body[data-trading-mode="debug"] .debug-only{ display:inline-flex; }
+
+    /* Nerd mode — user-facing detail toggle */
+    .nerd-only{ display:none !important; }
+    body.nerd .nerd-only{ display:inline !important; }
+    body.nerd .nerd-hide{ display:none !important; }
+
+    .account-xproof-label{
+      font-size:11px;
+      color:#666;
+      opacity:0.8;
+      margin-top:2px;
+    }
+
+
+    body[data-network="mainnet"]{
+      --network-color: #7A1B80;
+    }
+
+    body[data-network="testnet"]{
+      --network-color: #FF4D00;
+    }
+
+    body[data-network="playnet"]{
+      --network-color: #F4B400;
+    }
+
+
+    .tx-pending{
+      display:flex;
+      gap:4px;
+      margin-top:2px;
+      align-items:center;
+    }
+
+    .tx-pending a{
+      font-size:12px;
+      line-height:1;
+    }
+
+
+    .tx-pending{
+      margin-top:0;
+    }
+
+
+    .tx-pending{
+      margin-top:0;
+    }
+
+
+
+		.asset.thumb-only{
+			padding:0;
+			margin:2px;
+			background:none;
+			line-height:0;
+		}
+
+		.asset.thumb-only{
+			padding-left:0;
+		}
+
+		.asset.thumb-only .asset-thumb{
+			display:block;
+			width:var(--thumb-size);
+			height:var(--thumb-size);
+			object-fit:cover;
+			margin:0;
+		}
+		
+    /* BOARD-TIPTOUCH1 R2 (user 2026-08-06, second report): "on mobile I'm still
+       seeing the tooltips on the asset chips — we should get rid of those."
+       R1 only stopped the `title` ATTRIBUTES. This one is a CSS :hover tooltip,
+       and on touch :hover STICKS to the last-tapped element, so the black label
+       just sat there. Gated on a real hovering pointer; touch gets the
+       tap-to-inspect card instead, which answers the same question properly. */
+    @media (hover: hover) and (pointer: fine){
+      .asset:hover::after{
+        content: attr(data-asset-name) " 🪙 " attr(data-asset-id);
+
+        position:absolute;
+        left:0;
+        bottom:100%;
+
+        display:block;
+
+        background:#222;
+        color:#fff;
+
+        padding:6px 8px;
+        font-size:11px;
+        line-height:1.2;
+
+        white-space:nowrap;
+
+        border-radius:6px;                /* softer corners */
+        box-shadow:0 4px 10px rgba(0,0,0,0.18);  /* floating feel */
+
+        transform:translateY(-4px);       /* slight lift */
+
+        zzbackground:#2a2a2a;
+
+        z-index:1000;
+      }
+    }
+
+    /* Clamp horizontal overflow at the document level. Diagnostics proved the
+       page sometimes overflows horizontally (docOverflowX up to ~180px), which
+       inflates the layout viewport; the fixed full-screen create-order modal
+       then sizes to that inflated width and looks "too wide" before snapping
+       back. Clipping page-level x-overflow keeps the layout viewport == visible
+       width so the modal is always correct. (overflow-x:hidden, not clip, for
+       widest mobile support.) */
+    html{ overflow-x:hidden; }
+
+    body{
+      background: var(--bg-color);
+      font-family: var(--font-main);
+      margin:16px;
+      overflow-x:hidden;
+    }
+
+    label:has(#showTradingAccounts){ display:none; }
+    body[data-trading-mode="debug"] label:has(#showTradingAccounts){ display:flex; }
+
+
+
+    .section-controls{ display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin:0 0 10px 18px; font-size:12px; color:#666; }
+    .section-controls-title{ font-size:11px; font-weight:600; opacity:.7; text-transform:uppercase; letter-spacing:.4px; }
+    .section-controls label{ display:flex; align-items:center; gap:5px; cursor:pointer; }
+    .section-controls input{ margin:0; }
+
+    .section-controls button{
+      min-width:26px;
+      min-height:26px;
+      padding:3px 7px;
+      background:#eee;
+      color:#555;
+      border:none;
+      border-radius:6px;
+      font-size:12px;
+    }
+
+    .section-controls button:hover{
+      background:#ddd;
+    }
+
+    @media (max-width:699px){ .section-controls-title{ width:100%; } }
+
+
+    h2{
+      margin-top:0;
+      margin-bottom:10px;
+    }
+
+
+    .game-meta{
+      margin:0 0 13px 0;
+      font-size:10px;
+      color:#555;
+    }
+		
+		
+    .controls{
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+      align-items:center;
+      margin-bottom:12px;
+    }
+
+
+    .header{
+      display:grid;
+      grid-template-columns:1.4fr 0.8fr 3fr 3fr 3fr;
+      gap:10px;
+      font-weight:bold;
+			border-bottom:2px solid #bbb;
+      zzmargin-bottom:6px;
+			
+			margin-left:-16px;
+			margin-right:-16px;
+			padding-left:16px;
+			padding-right:16px;
+	
+    }
+
+    .header > div{
+      padding:8px 10px;
+			color:#666;
+			font-weight:600;
+    }
+
+    .account-row{
+      border-top:1px solid #ddd;
+      padding:8px 0;
+			zzborder-top:none;
+			zzmargin-bottom:3px;
+    }
+
+		.account-row{
+			margin-left:-16px;
+			margin-right:-16px;
+			padding-left:16px;
+			padding-right:16px;
+		}
+
+		.account-row{
+			border-top:1px solid #ddd;
+			padding:8px 16px;
+			margin-left:-16px;
+			margin-right:-16px;
+		}
+
+		.account-row[data-mode="lock"]{
+			zzpink_background:#ffe9ec;
+		}
+
+		/* LOCK-PROGRESS1: consensus progress line under the Trading/Locked mode — one
+		   segment per required locker (blue = still trading, orange = locked), count
+		   scoped by the game's lockRule. Echoes the trading-blue / locked-orange
+		   semantics; plain classes so themes (THEME1) can restyle. */
+		.lockbar{ display:flex; gap:2px; margin-top:3px; height:3px; width:100%; max-width:76px; }
+		.lockbar-seg{ flex:1 1 0; background:#a9c9ec; border-radius:2px; transition:background .15s ease; }
+		.lockbar-seg--locked{ background:#f5a623; }
+
+		/* Hovering a mode toggle cross-highlights its whole lock group (.lockgroup-hl is
+		   applied by JS to every member sharing the data-lockgroup): the bars deepen a
+		   shade (same hues, just darker — subtle by intent) and the mode word thickens
+		   via sub-pixel text-shadow, which unlike bold cannot widen the text and shove
+		   the DOM around. */
+		.lockgroup-hl .lockbar-seg{ background:#84aedd; }
+		.lockgroup-hl .lockbar-seg--locked{ background:#dd8f0e; }
+		.lockgroup-hl .mode{ text-shadow:0 0 .45px currentColor; }
+
+		.account-row[data-mode="shop"]{
+			background:#e6f2ff;
+		}
+
+
+		.account-row[data-mode="lock"]{
+			zzbackground:#ffe9ec;   /* pale pink */
+			zzbackground:#fad098;   /* pale amber */
+			background:#fde9ce; 
+			opacity:0.72;
+		}
+
+
+    body[data-view-mode="columns"][data-show-traded-only="true"] 
+    .account-row > :nth-child(3){
+      max-height:52px;
+      overflow:hidden;
+    }
+
+    body[data-view-mode="columns"][data-show-traded-only="true"] 
+    .account-row > :nth-child(3) .asset{
+      opacity:0.12;
+    }
+
+    body[data-view-mode="columns"][data-show-traded-only="true"] 
+    .account-row > :nth-child(3){
+      --thumb-size: 24px;
+    }
+
+
+    body[data-view-mode="columns"] .hint-mobile{
+      display:none;
+    }
+
+    body[data-view-mode="merged"] .hint-desktop{
+      display:none;
+    }
+
+    .account-row.columns{
+      display:grid;
+      grid-template-columns:1.4fr 0.8fr 3fr 3fr 3fr;
+      gap:10px;
+      align-items:stretch;
+    }
+
+    .account-row.merged{
+      display:block;
+    }
+
+		.account-row[data-mine="true"]:has(+ .account-row[data-mine="false"]),
+		.account-row[data-mine="true"]:last-child{
+			zzborder-bottom:3px solid #000;
+			border-bottom:6px solid #bbb;
+			zzmargin-bottom:8px;
+			padding-bottom:12px;
+		}
+
+
+    .settings{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:center;
+      margin-bottom:8px;
+      font-weight:bold;
+    }
+
+		.settings .mode{
+			margin-left:auto;
+		}
+
+		.account-row.columns > .name {
+			cursor:pointer;
+		}
+
+
+		.name{
+			display:flex;
+			flex-direction:column;
+			padding-left:8px;
+		}
+
+
+		.fill-btn{
+			cursor:pointer;
+			margin-left:6px;
+			margin-bottom:6px;
+			margin-top:auto;
+      font-size:1.4em;
+
+		}
+
+    .fill-btn::before{
+      content:"🚰";
+    }
+        
+		.exit-btn{
+			cursor:pointer;
+			margin-left:6px;
+			margin-bottom:6px;
+			margin-top:auto;
+		}
+
+
+    .mode{
+      font-size:0.8em;
+      font-weight:300;
+      padding:2px 6px;
+      line-height:1.3;
+      text-align:center;
+      opacity:0.8;
+
+      display:flex;
+      justify-content:center;
+    }
+
+		.mode.clickable{
+			cursor:pointer;
+		}
+
+
+
+    .column,
+    .assets{
+      min-height:68px;
+      padding:6px;
+      border:1px dashed #aaa;
+      background:#fff;
+    }
+
+
+    .drop-target.drag-over{
+      background:#f5f5f5;
+    }
+
+		.zzasset{
+			display:inline-block;
+			margin:3px;
+			padding:4px 8px;
+			background:#eee;
+			user-select:none;
+			vertical-align:top;
+			position:relative;
+			z-index:10;
+		}
+		
+		.asset{
+			border-radius:8px;
+      overflow:visible;
+			display:inline-block;
+			margin:3px;
+			padding:4px 8px;
+			background:#eee;
+			user-select:none;
+			vertical-align:top;
+			position:relative;
+		}
+
+    .asset.thumb-only{
+      background:none;
+    }
+    
+		.asset.basket{
+			border-top-left-radius:0;
+			border-bottom-left-radius:0;
+		}
+
+    .asset.clickable{
+      cursor:pointer;
+    }
+
+		
+    .asset.reserved{
+      opacity:0.4;
+    }
+
+    .asset.basket{
+      zzbackground:#dff6ff;
+    }
+
+    .asset.selected{
+      outline:2px solid #000;
+      outline-offset:1px;
+    }
+
+    .hint{
+      font-size:12px;
+      color:#555;
+      margin-bottom:10px;
+    }
+
+    .subtle{
+      color:#666;
+      font-weight:normal;
+      font-size:12px;
+      margin-left:6px;
+    }
+
+
+    .orders-details > summary{
+      font-size:13px;
+      font-weight:600;
+      opacity:.7;
+      text-transform:uppercase;
+      letter-spacing:.4px;
+      cursor:pointer;
+      margin-bottom:8px;
+    }
+
+    .muted{
+      color:#666;
+    }
+
+    @media (max-width: 699px){
+      .header{
+        display:none !important;
+      }
+
+      .account-row.columns{
+        display:block;
+      }
+
+      .account-row.columns > .name,
+      .account-row.columns > .mode{
+        display:none;
+      }
+    }
+				
+				
+		#game{
+			position:relative;
+		}
+
+		.trade-line-layer{
+			position:absolute;
+			inset:0;
+			width:100%;
+			height:100%;
+			pointer-events:none;
+			z-index:5;
+		}
+
+		.trade-line-layer line{
+			stroke:#999;
+			stroke-width:1;
+			stroke-dasharray:4 4;
+		}
+
+.asset-modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.38);   /* MODAL-MUTE1 — was .45; see the backdrop-filter rule below */
+  display:flex;
+	align-items:flex-start;
+  justify-content:center;
+  z-index:2000;
+	padding-top:20px;
+	padding-bottom:20px;
+}
+
+.asset-modal.hidden{
+  display:none;
+}
+
+.asset-modal-card{
+  position:relative;
+}
+
+.asset-modal-close{
+  position:absolute;
+  top:8px;
+  right:10px;
+  font-size:18px;
+  cursor:pointer;
+  opacity:0.6;
+}
+
+.asset-modal-close:hover{
+  opacity:1;
+}
+
+.asset-modal-card{
+  background:#fff;
+  border-radius:8px;
+  padding:16px;
+  width:90%;
+  max-width:360px;
+  max-height:90vh;
+  overflow-y:auto;
+}
+
+.asset-modal-preview img{
+  width:72px;
+  height:72px;
+  object-fit:cover;
+}
+
+.asset-modal-target{
+  padding:6px 8px;
+  border:1px solid #ddd;
+  border-left-width:8px;
+  margin-top:6px;
+  cursor:pointer;
+}
+
+
+.asset-modal-amount-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-top:8px;
+}
+
+.asset-modal-input input{
+  width:80px;
+}
+
+.asset-modal-stop:hover{
+  color:#000;
+}
+
+/* BOARD-UI1: was display:none under 700px when this only held the desktop-view
+   checkbox — the view dropdown now carries the board skins, which are FOR mobile,
+   so it stays visible at every width. */
+.desktop-toggle{
+  cursor:pointer;
+}
+.asset.thumb-stack-item{
+  position: relative;
+}
+
+.asset.thumb-stack-collapsed{
+  margin:3px 3px 3px var(--thumb-collapse-left);
+}
+
+.asset.thumb-stack-first{
+  margin-left: 3px;
+}
+
+.asset.thumb-stack-last{
+  margin-right: 6px;
+}
+
+
+
+.asset-thumb{
+  border-radius:6px;
+  box-shadow:0 0 2px rgba(0,0,0,0.18);
+}
+
+.asset.thumb-stack-item .asset-thumb{
+  border:2px solid #fff;
+  box-sizing:border-box;
+  background:#fff;
+}
+
+
+
+#notifications{
+  position:fixed;
+  top:10px;
+  left:50%;
+  transform:translateX(-50%);
+  width:min(600px,90%);
+  /* ABOVE the WC modal bump (2147483000) — a failure toast must never hide
+     behind an open modal (user 2026-08-05, add-account failure went unseen) */
+  z-index:2147483100;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.notice{
+  /* R2 (user 2026-08-03): content CENTRED, ✕ absolute in the corner — the flexed ✕
+     used to claim row space and push the wrapped txid onto a needless third line.
+     One line on desktop when it fits; message + txid centre-wrap when it doesn't. */
+  position:relative;
+  padding:10px 32px;
+  border-radius:6px;
+  font-family:sans-serif;
+  color:white;
+  display:flex;
+  flex-wrap:wrap;             /* long txid link/detail drops to its own line when needed */
+  justify-content:center;
+  align-items:center;
+  text-align:center;
+  backdrop-filter:blur(4px);
+
+  zzopacity:0.95; /* slightly translucent */
+
+  box-shadow:0 4px 10px rgba(0,0,0,0.15); /* gentle lift */
+  border:1px solid rgba(0,0,0,0.08); /* subtle edge */
+
+  transition:opacity .4s ease;
+}
+
+.notice.fade-out{
+  opacity:0;
+}
+
+/* BOARD-TOASTLINK1: the optional trailing link (e.g. "View on HashScan ↗"). Sits between
+   the message and the ✕, so it never displaces the close control. Inherits the toast's
+   own colour rather than a link blue — the toast backgrounds are pale and per-type, and a
+   fixed blue reads as broken on the error variant. margin-left:auto keeps it hard against
+   the ✕ while the message stays left, whatever the toast's width. */
+.notice-link{
+  margin-left:.45em;   /* was auto (hard right) — centred layout now, R2 2026-08-03 */
+  padding:0 4px;
+  color:inherit;
+  font-weight:600;
+  font-size:.92em;
+  /* was white-space:nowrap — but since TOASTLINK2 the link text IS the txid, and the
+     user (2026-08-03) wants long ids to wrap under the message when the row runs out
+     of room rather than forcing one unbreakable line. flex-wrap on .notice pairs. */
+  overflow-wrap:anywhere;
+  text-decoration:underline;
+  text-underline-offset:2px;
+  opacity:.85;
+}
+.notice-link:hover{ opacity:1; }
+
+/* Toast detail (user 2026-08-03): long ids (tx ids) ride in their own inline span so
+   they can wrap onto a second line when the row runs out of room (mobile), instead of
+   forcing the message and id side by side. min-width:0 lets the flexed text span wrap. */
+.notice > span{ min-width:0; }
+.notice-detail{
+  overflow-wrap:anywhere;
+  margin-left:.45em;
+  opacity:.85;
+  font-size:.93em;
+}
+
+.notice.error{
+  background:#F8D7DA;
+  color:#842029;
+}
+
+.notice.warning{
+  background:#FFF3CD;
+  color:#664D03;
+}
+
+.notice.info,
+.notice.event{
+  background:#CFE2FF;
+  color:#084298;
+}
+
+
+.notice.success{
+  background:#D1E7DD;
+  color:#0F5132;
+}
+
+.notice.debug{
+  background:#E2E3E5;
+  color:#41464B;
+}
+.notice button{
+  position:absolute;   /* corner pin (R2 2026-08-03) — takes no row space */
+  top:4px;
+  right:8px;
+  background:none;
+  border:none;
+  color:inherit;
+  font-size:16px;
+  cursor:pointer;
+  margin-left:0;
+}
+
+.notice{
+  animation:slideIn .2s ease;
+}
+
+@keyframes slideIn{
+  from{ transform:translateY(-8px); opacity:0 }
+  to{ transform:translateY(0); opacity:1 }
+}
+
+
+
+body[data-view-mode="merged"] .name{
+  flex-direction:row;
+  align-items:center;
+  gap:6px;
+}
+
+body[data-view-mode="merged"] .tx-pending{
+  margin-top:0;
+}
+
+
+body[data-view-mode="merged"] .exit-btn{
+  display:none;
+}
+
+.exit-game-btn{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  margin:16px auto;
+
+  font-size:20px;
+  cursor:pointer;
+
+  width:40px;
+  height:40px;
+
+  border-radius:6px;
+  zzbackground:#eee;
+}
+
+body[data-view-mode="columns"] .exit-game-btn{
+  display:none;
+}
+
+.exit-game-btn:hover{
+  background:#ddd;
+}
+
+.asset-modal-name{
+  font-weight:bold;
+}
+
+
+.game-meta{
+  margin-bottom:14px;
+}
+
+.game-title-row{
+  display:flex;
+  align-items:baseline;
+  gap:8px;   /* space between title + pill */
+}
+
+.game-title{
+  font-size:20px;
+  font-weight:700;
+  color:#444;   /* softer than #000 */
+}
+
+/* network badge */
+.game-network{
+  font-size:16px;          /* bigger, closer to title */
+  font-weight:700;
+
+  padding:6px 10px;        /* more height */
+  border-radius:8px;
+
+  display:inline-flex;
+  align-items:center;
+
+  background: var(--network-color);
+  color:#fff;
+
+  line-height:1;           /* keeps it tight */
+  letter-spacing:0.2px;
+
+  box-shadow:0 1px 2px rgba(0,0,0,0.08);
+  opacity:0.8;
+}
+
+
+/* small meta row */
+.game-meta-row{
+  margin-top:4px;
+  font-size:11px;
+  color:#666;
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  row-gap:0;
+
+}
+
+/* GAME-LABELS1: mirrors contents.php's (games-list index page) desktop-vs-mobile
+   split for these same attribute chips — plain inline text on wide viewports,
+   rounded pills on narrow ones. Same 700px breakpoint and pill style as
+   contents.php's mobile .cell. ID (like contents.php's id/gamename cells) is left
+   unstyled, not a .meta-chip, so it stays plain text on both viewports. */
+@media (max-width:700px){
+  .game-meta-row .meta-chip{
+    display:inline-flex;
+    align-items:center;
+    padding:4px 10px 4px 8px;
+    background:#f3f3f3;
+    border-radius:999px;
+  }
+}
+
+/* default */
+body{
+  background:#f5f5f5;
+}
+
+
+body[data-network]{
+  position:relative;
+}
+
+zz-distracting-body[data-network="playnet"]{
+  background-color:#f5f5f5;
+  background-image:
+    url("data:image/svg+xml;utf8,\
+<svg xmlns='http://www.w3.org/2000/svg' width='160' height='120' text-rendering='geometricPrecision'>\
+<g transform='rotate(-30 80 60)' fill='rgba(0,0,0,0.06)' font-size='18' font-weight='700' font-family='Arial, Helvetica, sans-serif'>\
+<text x='10' y='40'>playnet</text>\
+<text x='90' y='80'>playnet</text>\
+</g>\
+</svg>");
+}
+
+.app-banner{
+  background:#e8e8e8;
+  border-bottom:1px solid #d8d8d8;
+
+  /* Full-bleed to top/left/right. box-sizing:border-box + negative margins that
+     exactly match the body's 16px margin: the banner's border-box width resolves
+     to the viewport width (no vw/scrollbar guesswork), so it reaches all 3 edges
+     while the 16px padding keeps the title off the edge. overflow:visible so the
+     42px caps are never clipped. */
+  box-sizing:border-box;
+  margin:-16px -16px 12px -16px;
+  padding:12px 16px;
+  overflow:visible;
+}
+
+
+.app-banner h2{
+  margin:0;
+
+  display:flex;
+  align-items:center;
+  gap:10px;
+
+  line-height:1;
+}
+
+.app-title{
+  font-family:'Poppins', sans-serif;
+  font-size:42px;
+  font-weight:800;
+  letter-spacing:0.12em;
+  line-height:1.1;      /* was clipping the caps top/bottom at line-height:1 */
+  color:#888;
+}
+
+.app-icons{
+  font-size:24px;
+  line-height:1;
+
+  position:relative;
+  top:-1px;
+}
+
+/* inner layout */
+.app-banner-inner{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;   /* so the nerd toggle can sit hard-right via margin-left:auto */
+}
+
+/* nerd toggle mirrored into the header (ORDERS-UI1) */
+.banner-nerd{
+  margin-left:auto;
+  margin-right:36px;   /* clear the fixed 🔗 profile button (right:14px) */
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  font-size:16px;
+  color:#888;
+  cursor:pointer;
+  user-select:none;
+}
+.banner-nerd input{ cursor:pointer; margin:0; }
+
+/* ── shared header (HEADER-UNIFY): home link + hamburger menu ─────────────── */
+.app-home-link{
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  color:inherit;
+  text-decoration:none;
+}
+
+.app-menu-btn{
+  margin-left:auto;
+
+  /* neutralise the global button chrome — this is a bare glyph */
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  padding:2px 8px;
+
+  font-size:26px;
+  line-height:1;
+  color:#666;
+  cursor:pointer;
+}
+.app-menu-btn:hover{ background:transparent; color:#222; transform:none; }
+
+/* HEADER-UNIFY2 (user 2026-08-13, GCP feedback): the ☰ must survive scrolling — once
+   the banner leaves the viewport the button pins top-right as a floating puck and the
+   dropdown pins beneath it. body.hdr-stuck comes from the scroll handler in header.php;
+   pages that don't scroll never get the class, so the board's own chrome is untouched. */
+body.hdr-stuck .app-menu-btn{
+  position:fixed; top:8px; right:8px; z-index:1490;
+  width:42px; height:42px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(232,232,232,.92);
+  -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
+  border:1px solid rgba(20,28,45,.12); border-radius:50%;
+  box-shadow:0 1px 6px rgba(20,28,45,.18);
+}
+body.hdr-stuck .app-menu-btn:hover{ background:rgba(232,232,232,.98); }
+body.hdr-stuck .app-menu{ position:fixed; top:56px; right:8px; }
+.app-menu-btn:active{ transform:none; }
+
+.app-menu{
+  position:absolute;
+  top:100%;
+  right:8px;
+  z-index:1500;
+
+  min-width:230px;
+  padding:6px;
+
+  display:flex;
+  flex-direction:column;
+
+  background:#fff;
+  border:1px solid #ddd;
+  border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,0.18);
+}
+.app-menu.hidden{ display:none; }
+
+.app-menu-item{
+  display:flex;
+  align-items:center;
+  gap:8px;
+
+  padding:10px 12px;
+  border-radius:8px;
+
+  font-size:15px;
+  color:#333;
+  text-decoration:none;
+  text-align:left;
+  cursor:pointer;
+  user-select:none;
+
+  /* neutralise global button/label chrome for button-based items */
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  width:100%;
+  box-sizing:border-box;
+}
+.app-menu-item:hover{ background:#f3f3f3; transform:none; box-shadow:none; }
+.app-menu-item input{ cursor:pointer; margin:0; }
+
+/* BOARD-VIEWSWITCH1 R2 (user 2026-08-06): Board / Split / Messages on ONE row —
+   a labelled segmented control, not three menu destinations. Three full-width
+   rows was "quite a lot of space on the menu… and it's not really navigation". */
+.app-menu-viewrow{
+  display:flex; align-items:center; gap:4px;
+  margin:4px 0; padding:6px 12px;
+  border-top:1px solid #eee; border-bottom:1px solid #eee;
+}
+.app-menu-viewlabel{ font-size:15px; color:#333; margin-right:auto; }
+.app-menu-viewbtn{
+  width:38px; height:34px; padding:0;
+  display:flex; align-items:center; justify-content:center;
+  background:transparent; border:1px solid transparent; border-radius:8px;
+  color:#8b93a0; cursor:pointer; box-shadow:none;
+}
+.app-menu-viewbtn:hover{ background:#f3f3f3; color:#333; }
+.app-menu-viewbtn svg{
+  width:22px; height:22px;
+  fill:none; stroke:currentColor; stroke-width:1.6;
+  stroke-linecap:round; stroke-linejoin:round;
+}
+.app-menu-viewbtn--on{
+  color:#2f6fed; border-color:#c7d8fb; background:#eef4ff;
+}
+/* kept for any menu item that still wants a ✓ (none today) */
+.app-menu-item--on{ font-weight:700; color:#111; }
+.app-menu-item--on::after{ content:"✓"; margin-left:auto; opacity:.7; }
+
+/* placeholder logo */
+.app-logo{
+  height:32px;
+  min-width:32px;
+  background:#ddd;
+  border-radius:4px;
+}
+
+
+
+button{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+
+  padding:6px 12px;
+  font-size:13px;
+  font-weight:600;
+
+  background:#fff;
+  color:#333;
+
+  border:1px solid #ccc;
+  border-radius:6px;
+
+  cursor:pointer;
+  transition:all .12s ease;
+}
+
+/* hover */
+button:hover{
+  background:#f3f3f3;
+  border-color:#bbb;
+}
+
+/* active */
+button:active{
+  transform:translateY(1px);
+}
+/* UI-HOVERCOLOR1: the duplicate "fresh green" (#4CAF50) button block that used to sit
+   here overrode the subtle white/gray default above — removed so katomia's default
+   button + hover stays neutral (border/gray). Action-specific colors live on the
+   per-button rules (#createOrderSubmit etc.). */
+
+/* icon */
+button i{
+  font-size:11px;
+  opacity:0.9;
+}
+
+/* ── PROP-ADDACCT1: add-account modal (replaces the old inline #accountLabelInput,
+     whose green focus ring went with it — UI-HOVERCOLOR1) ── */
+.addacct-card{ max-width:420px; }
+
+/* there is NO global .hidden rule in this sheet (only per-component ones), and the
+   .asset-modal-card label/input rules outrank bare classes — both scoped here. */
+#addAccountModal .hidden{ display:none; }
+.asset-modal-card .addacct-manual input{ width:auto; }
+
+.addacct-wc-list{ display:flex; flex-direction:column; gap:6px; margin:6px 0 10px; }
+.addacct-wc-row{
+  justify-content:flex-start;
+  font-family:monospace;
+  font-weight:500;
+}
+.addacct-wc-row:disabled{ opacity:.5; cursor:default; }
+
+.addacct-manual-label{ display:block; margin-top:14px; }
+.addacct-manual{ display:flex; gap:6px; margin-top:4px; }
+.addacct-manual input{
+  flex:1;
+  padding:7px 10px;
+  font-size:13px;
+  border:1px solid #ccc;
+  border-radius:8px;
+  outline:none;
+  transition:border .12s ease, box-shadow .12s ease;
+}
+.addacct-manual input:focus{
+  border-color:#888;
+  box-shadow:0 0 0 2px rgba(0,0,0,.06);
+}
+
+.addacct-chosen{ margin-bottom:8px; }
+.addacct-chosen-id{ font-family:monospace; font-weight:600; }
+
+.addacct-assets-head{ display:flex; justify-content:space-between; align-items:baseline; }
+.addacct-assets{
+  max-height:40vh;
+  overflow-y:auto;
+  margin:6px 0;
+}
+/* game-style chips; tap = ghost out (excluded). Mirrors the basket ghost look. */
+.addacct-chip{ cursor:pointer; font-size:13px; }
+.addacct-chip.addacct-ghost{
+  opacity:.4;
+  background:#fff;
+  border:1px dashed #bbb;
+  padding:3px 7px;   /* border compensates padding so chips don't jiggle */
+}
+
+.addacct-link{
+  background:none; border:none; padding:0;
+  color:#4a7dbd; cursor:pointer;
+  font-size:inherit; font-weight:500;
+}
+.addacct-link:hover{ background:none; text-decoration:underline; }
+
+.addacct-hint{ font-size:12px; margin:8px 0 0; }
+.addacct-status{ min-height:18px; margin-top:8px; }
+.addacct-error{ color:#b0413e; }
+
+.addacct-actions{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+#addAcctJoinAll{ background:#6ea875; color:#fff; border:none; }
+#addAcctJoinAll:hover{ background:#639a69; }
+#addAcctJoin:disabled{ opacity:.5; cursor:default; }
+
+
+
+/* LE = horizontal stack only */
+.asset.asset-le{
+  position: relative;
+}
+
+/* base image */
+.asset.asset-le .asset-thumb{
+  position: relative;
+  z-index: 3;
+}
+
+/* ≥2 (base layer always present) */
+.asset.asset-le[data-qty]:not([data-qty="1"]) .asset-thumb{
+  box-shadow:
+    -6px 2px 0 rgba(0,0,0,0.15);
+}
+
+/* ≥3 → add second layer */
+.asset.asset-le[data-qty]:not([data-qty="1"]):not([data-qty="2"]) .asset-thumb{
+  box-shadow:
+    -6px 2px 0 rgba(0,0,0,0.15),
+    -12px 4px 0 rgba(0,0,0,0.10);
+}
+
+/* ≥4 → add third layer (cap here) */
+.asset.asset-le[data-qty]:not([data-qty="1"]):not([data-qty="2"]):not([data-qty="3"]) .asset-thumb{
+  box-shadow:
+    -6px 2px 0 rgba(0,0,0,0.15),
+    -12px 4px 0 rgba(0,0,0,0.10),
+    -18px 6px 0 rgba(0,0,0,0.06);
+}
+
+/* force LE assets to occupy more layout width */
+
+.asset.asset-le[data-qty="2"]{
+  width: calc(var(--thumb-size) + 8px);
+}
+
+.asset.asset-le[data-qty="3"]{
+  width: calc(var(--thumb-size) + 14px);
+}
+
+.asset.asset-le[data-qty="4"]{
+  width: calc(var(--thumb-size) + 20px);
+}
+
+.zzasset.asset-le{
+  outline: 2px solid red;
+  background: rgba(255,0,0,0.05);
+}
+
+.asset.asset-le{
+  margin-left: 20px !important;
+}
+
+#ordersSection{
+  --thumb-size: 24px;
+}
+
+#ordersSection .orders-list,
+#transactionsSection .transactions-list{
+  font-family: monospace;
+  font-size: 12px;
+
+  /* ORDERS-UI1: soft-card lists — vertical stack with consistent gap so each row
+     reads as its own card rather than a dense table line. */
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+/* ── soft cards: order + tx rows (ORDERS-UI1 Phase B) ────────────────────────
+   Hairline border + subtle radius + white fill. The per-row identity colour is
+   applied inline as a 4px left border (applyOwnerSleeve for orders), which wins
+   over the hairline on the left edge and reads as an accent stripe. */
+#ordersSection .order-row,
+#transactionsSection .tx-row{
+  border:1px solid #e6e6e6;
+  border-left:4px solid #d8d8d8;   /* neutral by default; buy/sell colour it below */
+  border-radius:7px;
+  background:#fff;
+  padding:7px 10px;
+  transition:box-shadow .12s ease, border-color .12s ease, background .12s ease;
+}
+
+/* Left stripe = buy/sell side (green/red). Replaces the old per-player identity
+   colour — the avatar already carries identity. Rows with no side (bare/settled
+   txs, invalid orders) keep the neutral grey stripe. */
+#ordersSection .order-row[data-order-side="buy"],
+#transactionsSection .tx-row[data-order-side="buy"]{ border-left-color:#2ecc71; }
+#ordersSection .order-row[data-order-side="sell"],
+#transactionsSection .tx-row[data-order-side="sell"]{ border-left-color:#e74c3c; }
+
+/* Nerd mode (ORDERS-UI1): the extra detail is revealed in-flow as a muted
+   annotation — same card layout as normal mode, just more information. */
+body.nerd .order-nerd-id,
+body.nerd .order-nerd-type,
+body.nerd .order-nerd-minfill,
+body.nerd .order-fill-pending-detail,
+body.nerd .order-fill-debug{ color:#9aa0a6; font-size:0.92em; }
+
+/* The tx txid/pch link is a direct flex child of the row, so drop it onto its own
+   wrapped line beneath the transfer chips — a long link never breaks the flow. */
+body.nerd #transactionsSection .tx-row .tx-nerd-meta{
+  display:block !important;
+  flex-basis:100%;
+  margin-top:3px;
+  color:#9aa0a6;
+  font-size:0.92em;
+  word-break:break-all;
+}
+body.nerd .tx-nerd-meta a{ color:inherit; }
+
+.order-tif{ opacity:0.6; font-size:0.9em; }
+.order-market{ font-weight:500; }
+.order-time{ font-size:0.82em; color:#aaa; margin-left:2px; }
+.order-fill-settled{ font-size:0.9em; color:#888; }
+.order-fill-pending{ font-size:0.9em; }
+.tx-time{ font-size:0.82em; color:#aaa; }
+
+/* Order type icon — inline SVG, inherits text colour, no status meaning */
+.order-type-icon{
+  display:inline-flex;
+  align-items:center;
+  vertical-align:middle;
+  opacity:0.55;
+  margin-right:2px;
+  flex-shrink:0;
+}
+.order-type-icon svg{ display:block; }
+
+/* Fill bar — 3px track beneath each order row */
+.order-fill-bar{
+  position:relative;
+  height:3px;
+  margin:2px 0 0;
+  border-radius:2px;
+  overflow:hidden;
+  background:transparent;
+}
+.order-fill-bar-settled{
+  position:absolute;
+  left:0; top:0; height:100%;
+  background:#4caf50;
+  opacity:0.35;
+  transition:width 0.4s;
+}
+.order-fill-bar-pending{
+  position:absolute;
+  top:0; height:100%;
+  background:#ff9800;
+  opacity:0.25;
+  transition:width 0.4s, left 0.4s;
+}
+
+/* NFT chip in transaction rows */
+.tx-nft-chip{
+  font-variant-numeric:tabular-nums;
+}
+
+#ordersSection .order-row{
+  margin-bottom: 0;   /* row separation now via the list's flex gap */
+}
+
+#ordersSection .order-row.order-fully-settled{
+  color:#999;
+  opacity:0.6;
+}
+
+/* Ghost: order cleared while its transaction is still pending; shown read-only
+   from tx source for context. Dashed + dimmed to distinguish from live orders. */
+#ordersSection .order-row.order-ghost{
+  opacity:0.55;
+  border:1px dashed #b0b0b0;
+  border-radius:4px;
+  cursor:default;
+  font-style:italic;
+}
+
+
+#ordersSection .order-row-inner{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+#ordersSection .order-offer,
+#ordersSection .order-request{
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+
+
+
+#marketHeatmapTooltip{
+  position:absolute;
+
+  display:none;
+
+  pointer-events:none;
+
+  z-index:9999;
+
+  background:#222;
+  color:#fff;
+
+  padding:8px 10px;
+
+  border-radius:6px;
+
+  font-size:12px;
+  line-height:1.4;
+
+  font-family:monospace;
+
+  box-shadow:
+    0 4px 12px rgba(0,0,0,0.25);
+
+  white-space:nowrap;
+}
+
+@media (max-width:699px){
+  #marketHeatmapTooltip{
+    display:none !important;
+  }
+}
+
+
+.market-pair-label{
+  font-size: 1.1em;
+  font-weight: 700;
+}
+
+.multifill-btn{
+  font-size: 0.9em;
+  padding: 2px 6px;
+  margin-right: 6px;
+}
+
+.tx-row{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  margin-bottom:0;   /* spacing via the list's flex gap */
+  cursor:pointer;
+}
+
+.tx-row > *{
+  display:flex;
+  align-items:center;
+}
+
+.tx-assets{
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+
+.tx-assets .asset{
+  margin-top:0;
+  margin-bottom:0;
+}
+
+.tx-arrow{
+  display:flex;
+  align-items:center;
+  opacity:0.6;
+}
+
+.tx-row:hover,
+.tx-row.tx-highlight{
+  border-color:#cfcfcf;
+  box-shadow:0 2px 8px rgba(0,0,0,0.10);
+}
+
+.tx-row *{
+  cursor:pointer;
+}
+
+.tx-highlight.tx-buy{
+  box-shadow: inset 4px 0 #2ecc71;
+}
+
+.tx-highlight.tx-sell{
+  box-shadow: inset 4px 0 #e74c3c;
+}
+
+.tx-fx-chip{
+  transition:all .12s ease;
+}
+
+.tx-chip-buy{
+  outline:2px solid #2ecc71;
+  background:rgba(46,204,113,.12);
+}
+
+.tx-chip-sell{
+  outline:2px solid #e74c3c;
+  background:rgba(231,76,60,.12);
+}
+
+svg .svg-buy{
+  filter:drop-shadow(0 0 3px rgba(46,204,113,.9));
+}
+
+svg .svg-sell{
+  filter:drop-shadow(0 0 3px rgba(231,76,60,.9));
+}
+
+.tx-row:has(.tx-highlight):has(a[href*="success"]) .tx-fx-chip,
+.tx-row.success .tx-fx-chip{
+  border-radius:1px;
+}
+
+.tx-row.success .tx-fx-chip{
+  border-radius:1px;
+}
+
+
+
+
+/* MODAL-MUTE1 (user 2026-08-21): "the background of the board is very blurry, you
+   basically can't read anything… blur a little bit, but mainly reduce saturation.
+   We're just muting the background." blur(6px) made the board unreadable, which
+   costs you the context you opened the modal ABOUT. Desaturation does the
+   sending-to-the-back job that blur was being asked to do, so the board stays
+   legible behind the card. The -webkit- prefix matters: iOS Safari needs it, and
+   without it those devices would get NO backdrop effect at all (the scrim below
+   still carries the dimming, so it degrades safely). Scrim eased 0.45 → 0.38 to
+   match — see .asset-modal above. */
+.asset-modal{
+  backdrop-filter:blur(2px) saturate(.5);
+  -webkit-backdrop-filter:blur(2px) saturate(.5);
+}
+
+/* MODAL-MUTE1 R2 — the dark board (user asked for my judgement here).
+   Counter-intuitively the answer is LESS dimming, not more. The modal card is
+   #fff with no dark-mode override, so on a dark felt it already separates by
+   sheer luminance — it is a lit panel on a dark ground. Stacking a heavier black
+   scrim on top of an already-dark board buys almost no extra separation and
+   spends what little legibility the felt had, which is the exact complaint this
+   whole change set exists to fix. So: lighter scrim, same gentle blur, keep the
+   desaturation doing the muting. If the card ever gains a dark variant this
+   should be revisited — a dark card on a dark board WOULD need the scrim back. */
+@media (prefers-color-scheme: dark){
+  .asset-modal{
+    background:rgba(0,0,0,0.28);
+    backdrop-filter:blur(2px) saturate(.55);
+    -webkit-backdrop-filter:blur(2px) saturate(.55);
+  }
+}
+
+.asset-modal-card{
+  max-width:460px;
+  padding:22px;
+  border-radius:14px;
+
+  box-shadow:
+    0 18px 50px rgba(0,0,0,.15),
+    0 2px 8px rgba(0,0,0,.08);
+
+  border:1px solid rgba(0,0,0,.06);
+}
+
+.asset-modal-card label{
+  display:block;
+  margin-bottom:6px;
+  font-size:12px;
+  color:#666;
+  font-weight:600;
+}
+
+.asset-modal-card input:not([type="radio"]):not([type="checkbox"]),
+.asset-modal-card select,
+.asset-modal-card textarea{
+  width:100%;
+  box-sizing:border-box;
+
+  padding:10px 12px;
+
+  border:1px solid #ddd;
+  border-radius:8px;
+
+  background:#fafafa;
+
+  outline:none;
+
+  transition:.12s;
+}
+
+.asset-modal-card input:not([type="radio"]):not([type="checkbox"]):focus,
+.asset-modal-card select:focus,
+.asset-modal-card textarea:focus{
+  background:#fff;
+  border-color:#4CAF50;
+
+  box-shadow:
+    0 0 0 3px rgba(76,175,80,.15);
+}
+
+
+
+
+
+.dev-help{
+  margin-top:8px;
+  font-size:11px;
+  color:#777;
+  line-height:1.5;
+  font-family:var(--font-mono);
+}
+
+
+.order-context{
+  margin-left:8px;
+  font-size:11px;
+  color:#999;
+  font-weight:normal;
+}
+
+.order-action{
+  cursor:pointer;
+  margin-right:6px;
+  opacity:0.5;
+}
+
+.order-action:hover{
+  opacity:1;
+}
+
+
+.asset{
+  border-radius:8px;
+  overflow:visible;
+  display:inline-block;
+  margin:0;
+  padding:1px 5px;
+}
+
+.order-row{
+  margin:0 !important;   /* spacing handled by the list's flex gap */
+  cursor:pointer;        /* padding now comes from the soft-card rule */
+}
+
+
+.order-row-inner{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  flex-wrap:wrap;      /* let the asset chips wrap below the icon/time header */
+  line-height:1;
+  min-height:22px;
+}
+
+
+#ordersSection .order-row:hover,
+#ordersSection .order-row.tx-highlight{
+  border-color:#cfcfcf;
+  box-shadow:0 2px 8px rgba(0,0,0,0.10);
+}
+.order-actions{
+  display:flex;
+  gap:8px;
+  margin-top:4px;
+}
+
+.order-actions button{
+  flex:1;
+  justify-content:center;
+  text-align:center;
+
+  /* UI-BUTTONMODERN1: glassy base — translucent tint (per-button below) over a
+     blurred backdrop, soft edge instead of the old flat #ccc border */
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  border:1px solid rgba(0,0,0,.06);
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
+}
+
+/* ── ENTRY-KBTN1 (user 2026-07-29): the order-modal glassy vocabulary above, made a
+   REUSABLE library so the whole site converges on it (UI-BUTTONMODERN1 site-wide).
+   Same recipe: translucent hue tint (.22, hover .34), matching-hue text, blurred
+   backdrop, thin soft edge. Use `kbtn` + a colour; first consumers: welcome page
+   (create/connect) + both create-game skins. New buttons should use these instead
+   of minting solid fills. ── */
+.kbtn{
+  display:inline-block;
+  padding:11px 18px;
+  font-size:15px; font-weight:600;
+  border-radius:10px;
+  cursor:pointer; text-decoration:none; text-align:center;
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  background:rgba(255,255,255,.55); color:#3a4450;
+  border:1px solid rgba(0,0,0,.1);
+  box-shadow:0 1px 3px rgba(0,0,0,.06);
+  transition:background .15s ease, border-color .15s ease;
+}
+.kbtn:hover{ background:rgba(255,255,255,.8); }
+.kbtn-green{ background:rgba(110,168,117,.22); color:#2f6b3a; border-color:rgba(110,168,117,.4); }
+.kbtn-green:hover{ background:rgba(110,168,117,.34); }
+.kbtn-blue{ background:rgba(109,143,179,.22); color:#2f5578; border-color:rgba(109,143,179,.4); }
+.kbtn-blue:hover{ background:rgba(109,143,179,.34); }
+.kbtn-red{ background:rgba(183,131,131,.22); color:#8a3d3d; border-color:rgba(183,131,131,.4); }
+.kbtn-red:hover{ background:rgba(183,131,131,.34); }
+
+#createOrderDev{
+  margin-top:18px;
+  zzborder-top:1px solid #eee;
+  padding-top:14px;
+}
+
+#createOrderDev summary{
+  cursor:pointer;
+  color:#666;
+  font-size:13px;
+  user-select:none;
+}
+
+#createOrderDev textarea{
+  margin-top:10px;
+  font-family:var(--font-mono);
+}
+
+
+
+
+#createOrderModal .order-side{
+  display:flex;
+  gap:24px;
+  align-items:center;
+  margin:10px 0 18px 0;
+}
+
+#createOrderModal .order-side label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:0;
+  cursor:pointer;
+}
+
+#createOrderModal .order-side input{
+  width:auto;
+  margin:0;
+  flex:none;
+}
+
+/* tiny +/- nudge under the rate input — subtle, no layout impact */
+.rate-steps{ margin-top:4px; display:flex; gap:6px; }
+.rate-steps button{
+  padding:1px 6px;
+  justify-content:center;
+  font-size:10px; line-height:1.4; font-weight:400;
+  color:#333; background:#eee;
+  border:1px solid #ccc; border-radius:4px;
+  cursor:pointer; user-select:none;
+}
+.rate-steps button:hover{ background:#e2e2e2; }
+
+/* Collectible modal inline pairs */
+.collectible-token-row,
+.collectible-price-row{
+  display:flex;
+  gap:8px;
+  align-items:flex-start;
+  margin-bottom:10px;
+}
+.collectible-token-id{
+  flex:2;
+  min-width:0;
+}
+.collectible-serial{
+  flex:1;
+  min-width:0;
+}
+.collectible-price{
+  flex:3;
+  min-width:0;
+}
+.collectible-currency{
+  flex:2;
+  min-width:0;
+}
+.collectible-token-row input,
+.collectible-token-row select,
+.collectible-price-row input,
+.collectible-price-row select{
+  width:100%;
+  box-sizing:border-box;
+  margin:0;
+}
+.collectible-hint{
+  font-size:11px;
+  min-height:14px;
+  margin-top:3px;
+}
+.collectible-label-note{
+  font-weight:normal;
+  font-size:11px;
+  color:#999;
+}
+
+#createOrderExit{
+  margin-top:10px;
+  width:100%;
+
+  background:rgba(0,0,0,.04);
+  color:#555;
+  border-color:rgba(0,0,0,.06);
+}
+
+
+#createOrderExit:hover{
+  background:rgba(0,0,0,.07);
+}
+
+/* UI-BUTTONMODERN1: these used to be flat deep fills (#6ea875/#6d8fb3/#b78383/#999)
+   with the global button rule's dark #333 text on top — confirmed via playwright as
+   illegible ("dark text on deep colour"). Now a light glass tint of the same hue,
+   with matching-hue text instead of the inherited dark default, so contrast holds
+   without abandoning the green/blue/red/gray semantics (create/edit/delete/truncate). */
+#createOrderSubmit{
+  background:rgba(110,168,117,.22);
+  color:#2f6b3a;
+  border-color:rgba(110,168,117,.4);
+}
+
+#createOrderEdit{
+  background:rgba(109,143,179,.22);
+  color:#2f5578;
+  border-color:rgba(109,143,179,.4);
+}
+
+#createOrderDelete{
+  background:rgba(183,131,131,.22);
+  color:#7a3a3a;
+  border-color:rgba(183,131,131,.4);
+}
+
+#createOrderTruncate{
+  background:rgba(153,153,153,.22);
+  color:#555;
+  border-color:rgba(153,153,153,.35);
+}
+
+#createOrderSubmit:hover{
+  background:rgba(110,168,117,.34);
+}
+
+#createOrderEdit:hover{
+  background:rgba(109,143,179,.34);
+}
+
+#createOrderDelete:hover{
+  background:rgba(183,131,131,.34);
+}
+
+#createOrderTruncate:hover{
+  background:rgba(153,153,153,.34);
+}
+
+@media (max-width:768px){
+  #createOrderModal{
+    padding:0;
+    align-items:stretch;
+  }
+
+  #createOrderModal .modal-content,
+  #createOrderModal .asset-modal-card{
+    box-sizing:border-box;
+    width:100%;
+    height:100vh;
+    max-width:none;
+    max-height:none;
+    margin:0;
+    border-radius:0;
+    overflow:auto;
+  }
+}
+
+
+#createOrderModal .account-picker{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+
+#createOrderModal .account-picker select{
+  flex:1;
+  min-width:0;
+}
+
+#createOrderModal .account-picker button{
+  min-width:26px;
+  min-height:26px;
+
+  padding:3px 7px;
+
+  background:#eee;
+  color:#555;
+
+  border:none;
+  border-radius:6px;
+
+  font-size:12px;
+
+  flex:none;
+}
+
+#createOrderModal .account-picker button:hover{
+  background:#ddd;
+}
+
+
+
+.order-action-help{
+  margin-bottom:10px;
+  min-height:16px;
+
+  font-size:11px;
+  color:#777;
+
+  text-align:center;
+}
+
+.order-actions + .order-action-help{
+  order:-1;
+}
+
+button,
+input,
+select,
+textarea{
+  outline:none;
+  -webkit-tap-highlight-color:transparent;
+}
+
+button:focus,
+input:focus,
+select:focus,
+textarea:focus{
+  outline:none;
+  box-shadow:none;
+}
+
+/* UI-SELECTROUND1 (feedback 3172c7ca, 2026-08-17): selects were restyled per-surface
+   (PROFILE-TIDY1 auth panel, then the profile Size dropdown) and never once across the
+   site, so every new form re-inherited the square browser default — reported live on
+   /create?skin=basic's theme dropdown. This is the BASELINE: same clean rounded look
+   as .profile-auth select. Bare-element selector on purpose — every existing
+   surface-specific select rule out-specifies it and keeps its own look. Sits AFTER the
+   :focus outline-reset block above so the focus border/shadow here wins the cascade. */
+select{
+  appearance:none;
+  -webkit-appearance:none;
+  background:#fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239aa0a6' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  border:1px solid #dcdfe4;
+  border-radius:10px;
+  padding:8px 28px 8px 10px;
+  font-size:14px;
+  color:#222;
+  line-height:1.3;
+}
+select:focus{
+  border-color:#9aa6b2;
+  box-shadow:0 0 0 2px rgba(0,0,0,.05);
+}
+
+*{
+  -webkit-tap-highlight-color:transparent !important;
+}
+
+*:focus,
+*:focus-visible,
+*:active{
+  outline:none !important;
+  box-shadow:none !important;
+  -webkit-box-shadow:none !important;
+}
+
+
+/* account asset spacing only */
+
+.account-row.columns .asset,
+.account-row.columns .asset-thumb,
+.account-row.merged .asset,
+.account-row.merged .asset-thumb{
+  margin:2px 4px;
+}
+
+
+.profile-btn{
+  position:fixed;
+  top:20px;
+  right:14px;
+  z-index:1200;
+
+  display:block;
+  width:auto;
+  height:auto;
+  min-width:0;
+  min-height:0;
+
+  padding:0;
+  margin:0;
+
+  background:transparent;
+  color:#555;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+
+  font-size:24px;
+  line-height:1;
+  cursor:pointer;
+}
+
+.profile-btn:hover{
+  background:transparent;
+  color:#222;
+}
+
+.profile-btn:active{
+  transform:none;
+}
+
+.profile-modal{
+  position:fixed;
+  inset:0;
+  z-index:2000;
+
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  background:rgba(0,0,0,0.42);
+  padding:18px;
+}
+
+.profile-modal.hidden{
+  display:none;
+}
+
+.profile-card{
+  position:relative;
+
+  width:min(520px, 100%);
+  max-height:88vh;
+  overflow:auto;
+
+  background:white;
+  color:#222;
+
+  border-radius:16px;
+  padding:20px;
+
+  box-shadow:0 18px 50px rgba(0,0,0,0.32);
+}
+
+.profile-card .subtle{
+  text-align:center;
+  margin-left:0;
+}
+
+/* KATUI3 feedback pass (2026-08-17): the ✕ was position:absolute inside the
+   scrolling card, so it scrolled away with the header — closing a long profile
+   meant scrolling back up. Now a zero-height sticky row pins it (and the busy
+   pill) to the top of the card's scrollport on every viewport. */
+.profile-stickyrow{
+  position:sticky;
+  top:0;
+  z-index:6;
+  height:0;
+
+  display:flex;
+  justify-content:flex-end;
+  align-items:flex-start;
+  gap:8px;
+}
+
+.profile-close{
+  cursor:pointer;
+  font-size:22px;
+  line-height:1;
+  opacity:0.7;
+
+  /* its own backdrop, so content scrolling underneath never makes it illegible */
+  width:36px;
+  height:36px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:50%;
+  background:rgba(255,255,255,0.92);
+  box-shadow:0 1px 4px rgba(0,0,0,0.14);
+
+  /* R6: a touch that starts here must NEVER be read as a card scroll — that's what
+     was eating the user's first taps (no click synthesised, "takes a second to
+     close"). Pairs with the pointerdown close in katomia-profile.js. */
+  touch-action:none;
+  position:relative;
+  -webkit-tap-highlight-color:transparent;
+}
+
+/* R6: generous invisible hit area (~56px effective) — the visible 36px ring is
+   below comfortable thumb size and edge taps were landing on the card. */
+.profile-close::after{
+  content:"";
+  position:absolute;
+  inset:-10px;
+}
+
+.profile-close:hover{ opacity:1; }
+
+/* R6: immediate pressed feedback — the "is it doing anything" cue for the tap
+   itself; fires on touch contact now that touch-action:none applies. */
+.profile-close:active{
+  opacity:1;
+  transform:scale(0.9);
+  background:#eceff3;
+}
+
+/* Busy pill — shown by katomia-auth.js (kauthBusy) while a WalletConnect /
+   mirror-node operation is in flight. Sticky beside the ✕: connectivity trouble
+   stays visible wherever the card is scrolled. */
+.profile-busy{
+  align-self:center;
+  max-width:70%;
+  padding:5px 11px;
+  border-radius:999px;
+  background:#fff7e8;
+  border:1px solid #f0d9ae;
+  color:#8a5a12;
+  font-size:12px;
+  line-height:1.35;
+  box-shadow:0 1px 4px rgba(0,0,0,0.10);
+}
+
+.profile-list{
+  margin:14px 0;
+}
+
+.profile-label{
+  margin-top:12px;
+  font-weight:700;
+  font-size:13px;
+  opacity:0.75;
+}
+
+.profile-scope{
+  margin-top:3px;
+  color:#777;
+  font-size:12px;
+  word-break:break-word;
+}
+
+.profile-mono,
+.profile-link{
+  font-family:var(--font-mono);
+  word-break:break-all;
+  font-size:12px;
+}
+
+.profile-link{
+  display:block;
+  color:#777;
+  text-decoration:none;
+  cursor:pointer;
+  padding:6px 8px;
+  border-radius:8px;
+  transition:background .12s ease, color .12s ease;
+}
+
+.profile-link:hover{
+  color:#222;
+  background:#f1f1f1;
+}
+
+.profile-qr-link{
+  display:inline-block;
+  line-height:0;
+  border-radius:10px;
+  transition:transform .12s ease, box-shadow .12s ease;
+}
+
+.profile-qr-link:hover{
+  transform:translateY(-1px);
+  box-shadow:0 4px 14px rgba(0,0,0,0.12);
+}
+
+.profile-qr{
+  display:flex;
+  justify-content:center;
+  margin:18px 0 10px;
+}
+
+.profile-card button{
+  margin-top:12px;
+}
+/* ── kemoji face avatars ─────────────────────────────────────────────────── */
+
+.kemoji{
+  display:inline-flex;
+  flex-shrink:0;
+  vertical-align:middle;
+}
+
+.kemoji svg{
+  display:block;
+}
+
+/* Own avatar — square SVG shape + a clean hairline ring. The heavy 3px blue
+   halo read as clunky and duplicated the per-row identity sleeve; a 1.5px ring
+   + soft shadow is enough to say "this is you". */
+.kemoji-self{
+  border-radius:7px;
+  box-shadow:0 0 0 1.5px rgba(74,144,226,0.9), 0 1px 4px rgba(0,0,0,0.12);
+}
+
+/* In the profile modal the avatar is the hero element, so give it a touch more
+   presence than the inline list version. */
+.profile-avatar .kemoji-self{
+  box-shadow:0 0 0 2px rgba(74,144,226,0.9), 0 2px 8px rgba(0,0,0,0.14);
+}
+
+.profile-avatar{
+  display:flex;
+  justify-content:center;
+  margin:10px 0 4px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── two-column game layout: trading left, chat right ───────────────────── */
+
+.game-layout{
+  /* padding-right reserves space for the fixed chat panel (260px + 16px gap) */
+  padding-right:276px;
+}
+
+.game-left{
+  min-width:0;
+}
+
+/* ORDERS-LAYOUT1: the market chart is a full-width band above the orders/tx columns
+   (mode-order gates it to order mode via the shared display rules). */
+.market-chart-section{ margin-bottom:16px; }
+.market-chart-section .orders-market-summary{ margin:0; }
+
+/* ORDERS-UI1: orders | transactions side-by-side on desktop, auto-wrapping to a
+   single column when there isn't room for two ~360px tracks. align-items:start so
+   the two columns don't stretch each other's height. */
+.trade-cols{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(360px, 1fr));
+  gap:16px;
+  align-items:start;
+}
+.trade-cols > div{ min-width:0; }
+.trade-cols #transactionsSection{ margin-top:0; }
+
+/* fixed panel: out of flow entirely so it can never cause page overflow.
+   top/height are set by positionChatPanel() in JS after first render. */
+#chatSection{
+  position:fixed;
+  top:0;
+  right:16px;
+  width:260px;
+  height:100vh;
+  overflow:hidden;
+  visibility:hidden; /* hidden until JS positions it */
+}
+
+#chatSection.chat-ready{
+  visibility:visible;
+}
+
+#chatSection .orders-details{
+  height:100%;
+  overflow:hidden;
+}
+
+#chatSection .chat-list{
+  overflow-y:auto;
+  padding:2px 0;
+}
+
+@media (max-width:899px){
+  .game-layout{
+    padding-right:0;
+  }
+  #chatSection{
+    position:static;
+    width:100%;
+    height:auto;
+    margin-top:8px;
+  }
+  #chatSection .chat-list{
+    height:auto;
+    max-height:300px;
+  }
+}
+
+/* ── chat messages ─────────────────────────────────────────────────────────── */
+
+.chat-msg{
+  display:flex;
+  gap:7px;
+  align-items:flex-start;
+  padding:5px 6px 5px 8px;
+  margin-bottom:2px;
+  border-radius:4px;
+}
+
+.chat-msg:hover{
+  background:#f0f0f0;
+}
+
+.chat-body{
+  flex:1;
+  min-width:0;
+}
+
+.chat-meta{
+  display:flex;
+  gap:6px;
+  align-items:baseline;
+  margin-bottom:1px;
+}
+
+.chat-who{
+  font-size:11px;
+  font-weight:600;
+  color:#444;
+}
+
+.chat-time{
+  font-size:10px;
+  color:#aaa;
+  white-space:nowrap;
+}
+
+.chat-text{
+  font-size:12px;
+  color:#333;
+  word-break:break-word;
+  line-height:1.4;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+/* PROFILE-AUTH1 — wallet Authenticate panel.
+   PROFILE-TIDY1 (2026-07-07): modernised — one control style (rounded, consistent
+   heights, custom chevron), label column so Network/Account rows line up, options as
+   an aligned grid. ALSO the load-bearing fix: there was NO .hidden rule on these
+   pages at all (lost when the modal left game.php for the shared partial), so the
+   network row / options / statement showed unconditionally — the "clutter". */
+/* ENTRY-AUTHMODAL1: #kamModal (the generic authenticate modal) reuses this whole
+   panel family, so it needs the same scoped .hidden rule. */
+#profileModal .hidden, #kamModal .hidden{ display:none; }
+
+.profile-auth{
+  /* now nested inside .profile-section (.profile-repute), which owns the divider */
+  margin-top:8px;
+}
+
+/* ── WALLET-CONNECT-IA1 Mock A (user-approved 2026-08-17) ──────────────────── */
+/* The ladder's headline action — the one primary button in the section. */
+#profileModal button#authAuthenticateBtn{
+  background:#2f6fed;
+  color:#fff;
+  border:1px solid #2f6fed;
+  border-radius:8px;
+  padding:9px 16px;
+  font-size:14px;
+  cursor:pointer;
+}
+#profileModal button#authAuthenticateBtn:hover{ filter:brightness(1.08); }
+#profileModal button#authAuthenticateBtn:disabled{ opacity:.55; cursor:default; }
+
+#authRungStatus{ font-size:12.5px; margin-top:10px; }
+#authRungStatus:empty{ display:none; }
+
+/* Commitment fold — the optional upgrade rung. */
+details.profile-commit{
+  margin-top:14px;
+  border-top:1px dashed var(--line, #e3e0d8);
+  padding-top:10px;
+}
+details.profile-commit > summary{ cursor:pointer; }
+
+/* Intent key, compact, inside the fold (moved from the top of the modal). */
+.profile-commit-key{
+  margin-top:14px;
+  border-top:1px dashed #e8e6df;
+  padding-top:8px;
+}
+
+/* Expanding a section scrolls it to the top of the card (katomia-profile.js) —
+   keep the sticky ✕ row clear of the section title. */
+.profile-card details{ scroll-margin-top:10px; }
+/* .profile-debug select added 2026-08-17 (KATUI3 feedback pass): the Size dropdown
+   in Preferences & diagnostics wore the browser default — same clean control style
+   as the auth panel's selects now. */
+.profile-auth select,
+.profile-debug select{
+  appearance:none;
+  -webkit-appearance:none;
+  background:#fff url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239aa0a6' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  border:1px solid #dcdfe4;
+  border-radius:8px;
+  padding:7px 28px 7px 10px;
+  font-size:12px;
+  color:#222;
+  line-height:1.3;
+}
+.profile-auth select:focus,
+.profile-debug select:focus{
+  outline:none;
+  border-color:#9aa6b2;
+  box-shadow:0 0 0 2px rgba(0,0,0,.05);
+}
+.profile-auth-account{
+  margin-top:8px;
+  display:grid;
+  grid-template-columns:64px minmax(0,1fr) auto;
+  gap:8px;
+  align-items:center;
+}
+.profile-auth-account > .profile-label{ margin:0; }
+.profile-auth-account select,
+.profile-auth-select{
+  min-width:0;
+  font-family:var(--font-mono);
+}
+/* "Disconnect" account button — a clear labelled ghost button (was a cryptic ✕).
+   Padding matches the selects (7px block) so it centres level with the account id.
+   button.-prefixed to outrank ".profile-card button"'s margin-top:12px (same
+   specificity, later in the sheet wins). */
+button.profile-auth-x{
+  padding:7px 10px;
+  margin:0;
+  align-self:center;
+  border:1px solid #e3e6ea;
+  border-radius:8px;
+  background:#fff;
+  cursor:pointer;
+  line-height:1.3;
+  font-size:11px;
+  color:#b00020;
+}
+.profile-auth-x:hover{ background:#fbe9ec; border-color:#f2c2cc; }
+/* Commitment options (expiry / scope / publish) — one row aligned with the account
+   rows: Expiry label shares the 64px label column, Scope's select gets the wider
+   share (its option text is the longest); publish spans the full row below. */
+.profile-auth-options{
+  margin-top:8px;
+  display:grid;
+  grid-template-columns:64px minmax(0, 0.8fr) auto minmax(0, 1.2fr);
+  gap:8px;
+  align-items:center;
+  font-size:12px;
+}
+.profile-auth-options > .profile-label{ margin:0; }
+.profile-auth-options select{ min-width:0; }
+.profile-auth-publish{ grid-column:1 / -1; display:flex; align-items:center; gap:6px; }
+.profile-auth-statement{
+  margin-top:10px;
+  padding:8px 10px;
+  background:#f6f7f9;
+  border:1px solid #e3e6ea;
+  border-radius:8px;
+  font-size:12px;
+  line-height:1.4;
+  color:#333;
+}
+
+/* ── Profile sections (PROFILE-AUTH-PURPOSE1 reshuffle) ───────────────────────
+   Identity / Reputation binding are always shown; the optional sections collapse via
+   native <details>. Keeps the WalletConnect flow visually primary. */
+.profile-section{
+  margin-top:16px;
+  padding-top:12px;
+  border-top:1px solid #eee;
+}
+.profile-section-head{ display:flex; align-items:center; gap:8px; }
+.profile-section-title{
+  font-weight:600;
+  font-size:13px;
+  color:#222;
+}
+.profile-section-sub{ margin:4px 0 8px; }
+
+/* collapsible sections (.profile-commit added 2026-08-17 — the Mock A commitment
+   fold shares the section-summary look without being a top-level section) */
+details.profile-section > summary,
+details.profile-commit > summary{
+  cursor:pointer;
+  list-style:none;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:2px 0;
+}
+details.profile-section > summary::-webkit-details-marker,
+details.profile-commit > summary::-webkit-details-marker{ display:none; }
+details.profile-section > summary::before,
+details.profile-commit > summary::before{
+  content:"▸"; color:#9aa0a6; font-size:11px; transition:transform .12s;
+}
+details.profile-section[open] > summary::before,
+details.profile-commit[open] > summary::before{ content:"▾"; }
+details.profile-section > *:not(summary),
+details.profile-commit > *:not(summary){ margin-top:10px; }
+
+/* public / private / optional pills — make it clear what others can see */
+.profile-tag{
+  display:inline-block;
+  font-size:10px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+  padding:1px 6px;
+  border-radius:10px;
+  background:#eef0f3;
+  color:#5f6368;
+  vertical-align:middle;
+  cursor:help;
+}
+.profile-tag-public{ background:#e6f4ea; color:#137333; }
+.profile-tag-private{ background:#fce8e6; color:#a50e0e; }
+.profile-tag-optional{ background:#e8f0fe; color:#1a56c4; }
+
+/* nerd-only profile rows (KVAC etc.) — hidden unless body.nerd */
+.profile-nerd-only{ display:none; margin-top:6px; }
+body.nerd .profile-nerd-only{ display:block; }
+.profile-kvac-balance{ margin-top:4px; display:flex; align-items:center; gap:8px; }
+.profile-ghost{
+  padding:3px 8px; font-size:11px; border:1px solid #e3e6ea; border-radius:6px;
+  background:#fff; cursor:pointer;
+}
+.profile-ghost:disabled{ opacity:.5; cursor:not-allowed; }
+
+/* ── ORDER-AUTHBADGE1/2: reputation-verified indicator ───────────────────────────
+   Just the 💠 glyph — no chip. The element stays inline (tiny padding) purely as a
+   convenient hover target for the tooltip; background transparent so nothing is drawn. */
+.order-auth-badge{
+  display:inline-flex; align-items:center;
+  font-size:12px;
+  padding:0 2px;
+  background:transparent;
+  white-space:nowrap; cursor:help;
+}
+/* unverified marker: a small, muted hollow triangle (△) — one per un-bound account */
+.order-auth-badge.auth-unverified{ color:#b0b4b8; font-size:11px; }
+/* ORDER-AUTHBADGE3: per-account verification overlay on tx transfer chips. Scoped to
+   .tx-row so the shared .asset chip is unaffected elsewhere. ::before (not ::after — the
+   asset hover tooltip owns ::after). */
+.tx-row .asset.tx-asset-verified::before{
+  content:"🔷";
+  font-size:9px;
+  margin-right:2px;
+  vertical-align:top;
+}
+.tx-row .asset.tx-asset-unverified::before{
+  content:"△";
+  color:#b0b4b8;
+  font-size:9px;
+  margin-right:2px;
+  vertical-align:top;
+}
+.create-order-auth-hint{ margin-top:6px; font-size:12px; line-height:1.3; }
+.create-order-auth-hint.bound{ color:#137333; }
+.create-order-auth-hint.unbound{ color:#9aa0a6; }
+.create-order-auth-hint.warn{ color:#8a6d00; }
+.profile-auth-status{
+  margin-top:8px;
+  min-height:1em;
+  font-size:12px;
+}
+/* PROFILE-TIDY1: primary action styling for Raise commitment (generic buttons went
+   neutral in UI-HOVERCOLOR1 — this one deserves emphasis) */
+#authBtn{
+  margin-top:12px;
+  background:#4a7dbd;
+  color:#fff;
+  border:none;
+  border-radius:8px;
+  padding:8px 16px;
+  font-size:13px;
+}
+#authBtn:hover{ background:#426fa8; }
+/* nerd-only collapsed envelope after a raise */
+.profile-auth-result{ margin-top:8px; font-size:12px; }
+.profile-auth-result > summary{ cursor:pointer; color:#5f6368; }
+.profile-auth-result button{ margin-top:8px; }
+.profile-auth-output{
+  margin-top:10px;
+  max-height:240px;
+  overflow:auto;
+  padding:10px;
+  background:#f6f7f9;
+  border:1px solid #e3e6ea;
+  border-radius:8px;
+  font-family:var(--font-mono);
+  font-size:11px;
+  white-space:pre-wrap;
+  word-break:break-all;
+}
+
+.profile-debug{
+  /* now nested inside <details class="profile-section">, which owns the divider */
+  margin-top:6px;
+}
+.profile-debug-label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:12px;
+  color:#888;
+  cursor:pointer;
+  user-select:none;
+}
+/* Mobile-friendly profile (GCP feedback 2026-08-13: "check boxes too close together").
+   Fingers, not cursors: on touch/small screens every checkbox row becomes a ≥44px
+   full-width touch target with real separation, and the box itself grows to 20px.
+   pointer:coarse catches big-screen tablets; max-width catches small desktop windows. */
+@media (pointer:coarse), (max-width:640px){
+  .profile-debug-label,
+  .profile-auth-publish{
+    min-height:44px;
+    padding:5px 4px;
+    gap:12px;
+    font-size:14px;
+  }
+  .profile-debug-label input[type=checkbox],
+  .profile-auth-publish input[type=checkbox]{
+    width:20px; height:20px; flex:none; margin:0;
+  }
+  .profile-auth-publish{ display:flex; align-items:center; }
+}
+@media (max-width:640px){
+  .profile-btn{
+    top:90px;
+    right:30px;
+  }
+
+  .profile-modal{
+    display:block;
+    padding:0;
+    background:white;
+  }
+
+  .profile-card{
+    width:100vw;
+    /* GCP feedback 2026-08-13 ("can't scroll to the bottom, stuck at Execution
+       agent"): 100vh on mobile Chrome includes the strip behind the URL bar, so
+       the card's last rows rendered off-screen and the scroll limit hit before
+       they appeared. dvh tracks the REAL visible viewport (vh kept as fallback);
+       overscroll-behavior stops the hidden page behind from stealing the scroll
+       at the limit; safe-area padding clears gesture bars. */
+    height:100vh;
+    height:100dvh;
+    max-width:none;
+    max-height:none;
+
+    margin:0;
+    padding:18px;
+    padding-bottom:calc(24px + env(safe-area-inset-bottom, 0px));
+    box-sizing:border-box;
+
+    border-radius:0;
+    box-shadow:none;
+    overflow:auto;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  /* KATUI3 2026-08-17: was position:fixed here — the sticky row now covers mobile
+     too (the card is its own scroll container), so only the size differs. */
+  .profile-close{
+    font-size:26px;
+    width:38px;
+    height:38px;
+  }
+
+  .profile-card h2{
+    padding-right:34px;
+  }
+}
+/* ═══ BOARD-CHAT1 (user 2026-07-30) — players' messages on the board ═══════════
+   Two surfaces: speech bubbles anchored to the speaker's wedge (the default — a
+   bubble says WHO is speaking in a way a transcript can't), and a collapsible
+   glassy transcript for history and for speakers with no visible segment.
+   Positioned inside #boardRoot, which is the same positioned ancestor the board's
+   own absolutely-placed chips and badges use. */
+/* fixed, not absolute: these are siblings of #boardRoot (see board.php) because the
+   board wipes its own root on every paint. Bubbles carry viewport coords. */
+/* z27 (user 2026-08-01): bubbles paint ABOVE the 👀 audience pill (.kaud, z26) —
+   a speech bubble is the live story, the counter is ambient chrome. Also clears the
+   💬 panel (25) and bottom ribbon/narration strips (25/26), all deliberate. */
+/* BOARD-UISIZE1 (user 2026-08-05): --ui-scale follows the Size preference
+   (header.php stamps html.ksize-* from localStorage before paint). Small = 1
+   — the pre-2026-08-05 sizes, which the user rates "small"; Normal is the
+   default and a step up (WhatsApp-ish message text); Large = low-vision
+   (A11Y-LOWVISION1 first slice). Text surfaces consume it via
+   calc(<old px> * var(--ui-scale)); board chips get their own matrix in
+   katomia-board.js (boardUiSizeChip) — do NOT also multiply chip rules here. */
+:root{ --ui-scale: 1; }
+html.ksize-normal{ --ui-scale: 1.2; }
+html.ksize-large{ --ui-scale: 1.45; }
+
+.kchat-layer{ position:fixed; inset:0; pointer-events:none; z-index:27; }
+
+.kchat-bub{
+  position:absolute; transform:translate(-50%,-50%) scale(.9); transform-origin:50% 50%;
+  max-width:min(46vw,270px); padding:8px 11px 9px; border-radius:13px;
+  /* R2 (user): bubbles sit ON TOP of players' asset chips, so they need to win that
+     contrast fight — heavier, tighter shadow plus a near-opaque fill and a defined
+     edge. The old soft 22px/.18 wash let chips read straight through. */
+  background:rgba(255,255,255,.95); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  border:1px solid rgba(20,28,45,.1);
+  box-shadow:0 2px 6px rgba(20,28,45,.16), 0 10px 28px rgba(20,28,45,.26);
+  font-size:calc(12.5px * var(--ui-scale)); line-height:1.42; color:#1f2733;
+  opacity:0; transition:opacity .3s ease, transform .34s cubic-bezier(.22,1.2,.36,1);
+  pointer-events:auto; --kchat-accent:#7b8ba6;
+}
+.kchat-bub--in{ opacity:1; transform:translate(-50%,-50%) scale(1); }
+.kchat-bub--out{ opacity:0; transform:translate(-50%,-58%) scale(.94); }
+/* Once JS has clamped the box into the board it positions by CORNER, so the centring
+   transform must come off — otherwise the clamp is off by half the bubble. */
+.kchat-bub--placed{ transform:scale(.9); }
+.kchat-bub--placed.kchat-bub--in{ transform:scale(1); }
+.kchat-bub--placed.kchat-bub--out{ transform:translateY(-8px) scale(.94); }
+/* the tail: a small square rotated 45°, tucked under the bubble. --kchat-tail(/-taily)
+   is set by JS to slide it along the edge nearest the speaker's avatar, and
+   --kchat-tailrot angles the protruding corner to point AT the avatar (R3, user
+   2026-08-03). No data attribute = the original bottom-edge behaviour. */
+.kchat-bub::after{
+  content:""; position:absolute; width:8px; height:8px;
+  /* SOLID, not background:inherit (user 2026-08-03): the bubble fill is translucent,
+     so the tail's inside half composited darker THROUGH the bubble and read as a
+     stray square. Solid paint = only the protruding half is visible.
+     R2: tucked in a step further (-3px on an 8px square) — at odd rotations two
+     corners were peeking and it still read diamond-ish; now just the tip shows. */
+  background:#fff;
+  border-right:1px solid rgba(20,28,45,.1); border-bottom:1px solid rgba(20,28,45,.1);
+  bottom:-3px; left:var(--kchat-tail,22px); margin-left:-4px;
+  transform:rotate(var(--kchat-tailrot,45deg));
+}
+.kchat-bub--mine::after{ background:#ecf3fe; }
+.kchat-bub[data-kchat-tail-edge="top"]::after{ bottom:auto; top:-3px; }
+.kchat-bub[data-kchat-tail-edge="left"]::after{
+  left:-3px; margin-left:0; bottom:auto; top:var(--kchat-taily,50%); margin-top:-4px;
+}
+.kchat-bub[data-kchat-tail-edge="right"]::after{
+  left:auto; right:-3px; margin-left:0; bottom:auto; top:var(--kchat-taily,50%); margin-top:-4px;
+}
+/* R3 (user 2026-08-03): the name is no longer WRITTEN in the player colour (too dark
+   against the glass) — it reads in the bubble's own text colour, with the colour moved
+   into a small vertical bar (same ownership cue as the chip sleeves) and the player's
+   generated avatar in place of the cast emoji. */
+.kchat-bub-who{
+  display:flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700;
+  letter-spacing:.03em; text-transform:uppercase; color:inherit; margin-bottom:2px;
+}
+.kchat-bub-bar{
+  width:4px; height:12px; border-radius:1px; flex:none;
+  background:var(--kchat-accent);
+}
+/* gentle early fade-out (user 2026-08-03): starts FADE_MS before expiry, total
+   lifetime unchanged — overrides the .3s opacity transition while it runs */
+.kchat-bub--in.kchat-bub--fading{
+  opacity:0;
+  transition:opacity 4.5s linear, transform .34s cubic-bezier(.22,1.2,.36,1);
+}
+.kchat-bub-text{ display:block; overflow-wrap:anywhere; }
+/* your own messages lean the other way so you can spot yourself instantly */
+.kchat-bub--mine{ background:rgba(235,243,255,.96); border-color:rgba(150,190,250,.7); }
+/* speaker went off-board mid-bubble — park it top-centre rather than strand it
+   at a stale coordinate (the divider-wedge treatment is a follow-up) */
+.kchat-bub--orphan{ left:50% !important; top:70px !important; }
+
+/* ── transcript panel ───────────────────────────────────────────────────────── */
+.kchat-panel{ position:fixed; right:10px; bottom:64px; z-index:25; display:flex;
+  flex-direction:column; align-items:flex-end; gap:6px; pointer-events:auto; }
+.kchat-panel-tab{
+  display:inline-flex; align-items:center; gap:5px; padding:6px 11px; cursor:pointer;
+  border-radius:999px; border:1px solid rgba(255,255,255,.6);
+  background:rgba(255,255,255,.7); backdrop-filter:blur(9px); -webkit-backdrop-filter:blur(9px);
+  box-shadow:0 3px 14px rgba(20,28,45,.16); font-size:13px; color:#2b3444;
+}
+.kchat-panel-tab:hover{ border-color:#2f6fed; }
+.kchat-panel-count{ font-size:11px; font-weight:700; color:#5b6779; }
+.kchat-panel-body{
+  width:min(78vw,320px); max-height:0; overflow:hidden;
+  transition:max-height .28s ease, opacity .22s ease; opacity:0;
+  border-radius:13px; background:rgba(255,255,255,.8);
+  backdrop-filter:blur(11px); -webkit-backdrop-filter:blur(11px);
+  border:1px solid rgba(255,255,255,.7); box-shadow:0 8px 26px rgba(20,28,45,.2);
+}
+.kchat-panel--open .kchat-panel-body{ max-height:min(44vh,300px); opacity:1; }
+.kchat-panel-list{ max-height:min(44vh,300px); overflow-y:auto; padding:9px 11px; }
+/* Row anatomy R2 (user 2026-08-03): full-height colour bar (chip-sleeve cue, not a
+   dot) · avatar on the player colour · bold name + time + text inline, wrapping. */
+/* BOARD-MSGANIM1: entry animation for rows newly arrived this render —
+   slides in with the smooth scroll glide (renderInto) instead of popping */
+.kchat-row--in{ animation: kchatRowIn .3s ease both; }
+@keyframes kchatRowIn{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:none; } }
+@media (prefers-reduced-motion: reduce){ .kchat-row--in{ animation:none; } }
+.kchat-row{ display:flex; align-items:flex-start; gap:7px;
+  font-size:calc(12.5px * var(--ui-scale)); line-height:1.4; padding:4px 0; border-bottom:1px solid rgba(20,28,45,.07); }
+.kchat-row:last-child{ border-bottom:0; }
+.kchat-row-bar{ width:4px; border-radius:1px; align-self:stretch; background:#9aa6b8; flex:none; }
+.kchat-row .kemoji{ margin-top:1px; }
+.kchat-row-main{ flex:1; min-width:0; }
+.kchat-row b{ font-size:calc(11.5px * var(--ui-scale)); font-weight:700; color:#3b4757; }
+.kchat-row i{ font-size:calc(10.5px * var(--ui-scale)); color:#8b95a5; font-style:normal; }
+.kchat-row-text{ color:#1f2733; overflow-wrap:anywhere; }
+.kchat-row-to{ font-style:normal; font-weight:600; color:#2f6fed; margin-left:5px; }
+
+/* BOARD-CHATMODE1 — the docked message strip (panel mode; mobile default). v1 is a
+   fixed-height slice; the square-board layout with a draggable divider, toasts folded
+   into the stream and a send box is BOARD-CHATLAYOUT1. */
+.kchat-dock{
+  position:fixed; left:0; right:0; bottom:0; z-index:25;
+  box-sizing:border-box;   /* height:var(--kchat-clear-b) must mean TOTAL height, padding in */
+  height:min(30dvh, 240px);
+  padding:4px 8px 2px;
+  overflow:hidden; display:flex; flex-direction:column;
+  background:rgba(251,250,246,.92);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  border-top:1px solid rgba(20,28,45,.12);
+}
+.kchat-dock-list{ overflow-y:auto; flex:1; }
+/* R5 drag bar (feedback 08568c88): grab the dock's top edge to move the
+   board/messages split. touch-action:none so the drag never fights the
+   list's scroll; hidden on the landscape side panel (width logic there). */
+.kchat-drag{ height:14px; margin:-4px -8px 0; cursor:ns-resize; touch-action:none;
+  display:flex; align-items:center; justify-content:center; flex:none; }
+.kchat-drag::before{ content:""; width:44px; height:4px; border-radius:2px; background:rgba(20,28,45,.25); }
+.kchat-dock--side .kchat-drag{ display:none; }
+/* bottom-dock height IS the board's yielded clearance — one var, no disagreement */
+body[data-kchat-mode="panel"] .kchat-dock:not(.kchat-dock--side){ height: var(--kchat-clear-b, min(30dvh, 240px)); }
+/* landscape: the dock is a full-height RIGHT-hand panel (~quarter width, set by JS);
+   the board yields that width (user 2026-08-03: "board shifted over, more square,
+   a proper rectangular panel that divides the viewport"). Later candidates for this
+   panel: settings, controls — messages only for now. */
+.kchat-dock--side{
+  top:0; bottom:0 !important; left:auto; right:0;
+  height:auto; max-height:none;
+  border-top:none; border-left:1px solid rgba(20,28,45,.12);
+  padding-top:52px;   /* clear the transparent header strip (hamburger) */
+}
+body[data-kchat-mode="panel"] .kchat-panel{ display:none !important; }  /* the dock replaces the floating panel */
+/* panel mode: bottom bars + centred chrome follow the BOARD column, not the viewport
+   (the footer/board pair live in katomia-board.css; these two live here) */
+body[data-kchat-mode="panel"] .kspec-ribbon,
+body[data-kchat-mode="panel"] .knarr{ right: var(--kchat-clear-r, 0px); }
+/* R4: the board's own bottom bars belong to the BOARD — on the mobile square carve
+   they ride up to the foot of the board, with the message dock below them
+   (board → board footer → messages). The narrate strip measures and stacks on them,
+   so it follows for free. */
+body[data-kchat-mode="panel"] .kspec-ribbon{ bottom: var(--kchat-clear-b, 0px); }
+/* the hamburger dropdown eases in — no snap (user 2026-08-03: "keep the flow of the
+   screen smooth"; a funkier treatment may replace it later) */
+.app-menu:not(.hidden){ animation: kmenu-in .16s ease-out; }
+@keyframes kmenu-in{ from{ opacity:0; transform:translateY(-6px); } to{ opacity:1; transform:none; } }
+body[data-kchat-mode="panel"] .kaud{ left: calc((100vw - var(--kchat-clear-r, 0px)) / 2); }
+/* the send box (BOARD-CHATSEND1): one line, plain — type or dictate, hit send */
+.kchat-send{
+  display:flex; gap:6px; flex:none; padding:6px 2px 8px; border-top:1px solid rgba(20,28,45,.1);
+}
+.kchat-send input{
+  flex:1; min-width:0; font-size:13px; padding:7px 10px; border-radius:9px;
+  border:1px solid rgba(20,28,45,.18); background:rgba(255,255,255,.9); color:#1f2733;
+}
+.kchat-send button{
+  flex:none; border:none; border-radius:9px; padding:0 13px; font-size:15px;
+  background:#2f6fed; color:#fff; cursor:pointer;
+}
+.kchat-send button:disabled{ opacity:.4; cursor:default; }
+body.spectating .kchat-send{ display:none; }   /* watchers can't message — server enforces too */
+/* system entries — 🤖 Katomia announcing (toasts folded into the stream) */
+.kchat-row--sys .kchat-row-bar{ background:#c9b458; }
+.kchat-row--sys b{ color:#8a7a3f; }
+.kchat-sys-emoji{ font-size:15px; line-height:1; margin-top:1px; flex:none; }
+.kchat-row--sys a{ color:#2f6fed; overflow-wrap:anywhere; }
+/* KATO-PERSONA1: Kato (the official voice, brand-ring badge) gets a soft tint so
+   system rows read differently from players/bots at a glance — visual channel on
+   top of the name, per the impersonation-mitigation steer (user 2026-08-21).
+   Host rows (🎪) deliberately NOT tinted: host words are not Katomia's. */
+.kchat-row--kato{ background:rgba(201,180,88,.10); border-radius:6px; }
+
+/* ── BOARD-ACTIONMSG1 action rows (user 2026-08-04) ────────────────────────
+   A player DOING something, not saying it. Same colour bar and avatar as their
+   speech — the action belongs to them, not to Katomia — with the difference
+   carried by the wording: the VERB is muted so the nouns (accounts, assets) sit
+   at full contrast and the row scans as a caption rather than a typed sentence.
+   Speech gets the 💬 prefix instead, per the design doc: once actions dominate
+   the stream, the action IS the status quo and marking speech is the cheaper
+   signal. */
+.kchat-act-verb{ color:#8b95a5; }
+/* 01a1ed32: the action phrase wraps as ONE meaningful chunk — inline-block
+   jumps the whole "offers [asset] to [account]" to the next line when it fits
+   there, instead of stranding "→ 0.0.x" alone */
+.kchat-act-phrase{ display:inline-block; max-width:100%; }
+/* 01a1ed32: wrapped rows promote the avatar (kemoji sizes inline, hence !important) */
+.kchat-row--tall .kemoji{ width:30px !important; height:30px !important; }
+/* account-id links (HashScan): keep the id's own styling, just affordance on hover */
+.kchat-acct-link{ color:inherit; text-decoration:none; border-bottom:1px dotted rgba(31,39,51,.35); }
+.kchat-acct-link:hover{ border-bottom-style:solid; }
+.kchat-act-acct{ font-variant-numeric:tabular-nums; font-weight:600; font-size:inherit; color:#1f2733; white-space:nowrap; }
+/* BOARD-OFFERASSOC1: muted, deliberately un-warning-like — proposal mode has no timing pressure */
+.kchat-act-assoc{ opacity:.6; font-size:.92em; white-space:nowrap; }
+.kchat-act-mark{ color:#2f6fed; }
+.kchat-act-mark--un{ color:#b0b4b8; font-size:11px; }
+/* the asset as a MINI CHIP — deliberately the same object language as the felt
+   (square-butted owner sleeve on the left, amount inside the chip rather than in
+   the sentence), so the thing you moved looks like the thing you moved */
+.kchat-act-chip{
+  display:inline-flex; align-items:center;
+  background:#fff; border:1px solid #d8d2c2; border-left:4px solid #9aa6b8;
+  border-radius:0 6px 6px 0; padding:0 5px;
+  font-size:11.5px; font-weight:600; color:#1f2733; white-space:nowrap;
+}
+@media (prefers-color-scheme: dark){
+  .kchat-act-acct{ color:#e7ecf4; }
+  .kchat-act-chip{ background:rgba(30,38,50,.9); color:#e7ecf4; border-color:rgba(255,255,255,.16); }
+}
+@media (prefers-color-scheme: dark){
+  .kchat-send input{ background:rgba(30,38,50,.9); color:#e7ecf4; border-color:rgba(255,255,255,.16); }
+}
+@media (prefers-color-scheme: dark){
+  .kchat-dock{ background:rgba(22,28,38,.9); border-top-color:rgba(255,255,255,.12); }
+  .kchat-dock--side{ border-left-color:rgba(255,255,255,.12); }
+}
+
+/* dark board skins: the glass has to invert or it glows like a lightbox */
+body[data-board-skin^="ring"] .kchat-bub,
+body[data-board-fam~="v16"] .kchat-bub{ /* light ring felt — defaults are fine */ }
+@media (prefers-color-scheme: dark){
+  .kchat-bub{ background:rgba(22,28,38,.82); border-color:rgba(255,255,255,.14); color:#e7ecf4; }
+  .kchat-bub--mine{ background:rgba(30,48,78,.86); border-color:rgba(120,165,240,.4); }
+  .kchat-bub::after{ border-color:rgba(255,255,255,.14); background:#1c2330; }
+  .kchat-bub--mine::after{ background:#243a5e; }
+  .kchat-panel-tab,.kchat-panel-body{ background:rgba(22,28,38,.82); border-color:rgba(255,255,255,.14); color:#e7ecf4; }
+  .kchat-row b{ color:#c3cde0; } .kchat-row-text{ color:#e7ecf4; }
+  .kchat-row{ border-bottom-color:rgba(255,255,255,.08); }
+}
+/* BOARD-CHAT1 R2 (user feedback 2026-07-30, raised in-app): on mobile the 💬 tab sat
+   ON TOP of the board's own controls and interfered with play. The panel is desktop-only
+   now; on a phone the same history opens FULL SCREEN from the hamburger instead.
+   Full-screen is the right call rather than a smaller floating panel: there isn't room
+   for both board and transcript on a phone, and the user pointed out the genuinely nice
+   consequence — with websockets you can watch the board on one device and the story on
+   another, so a dedicated stream is a feature, not a compromise. */
+@media (max-width:600px){
+  .kchat-bub{ max-width:56vw; font-size:calc(12px * var(--ui-scale)); }
+  .kchat-panel{ display:none !important; }
+}
+
+/* full-screen transcript (mobile, opened from ☰). z2000 + banner hidden while open
+   (R2 2026-08-03): at z60 the transparent banner (z70) floated the hamburger exactly
+   over the ✕ and the user couldn't leave. Kept ~97% solid deliberately — a hint of
+   the game moving underneath (user: "you could have it 90-95% solid"). */
+.kchat-full{
+  position:fixed; inset:0; z-index:2000; display:none; flex-direction:column;
+  background:rgba(247,249,252,.97);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+}
+body.kchat-fullopen .app-banner{ visibility:hidden; }
+.kchat-full.open{ display:flex; }
+.kchat-full-head{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:14px 16px; border-bottom:1px solid rgba(20,28,45,.1); flex:none;
+}
+.kchat-full-head b{ font-size:15px; }
+.kchat-full-head .sub{ font-size:12px; color:#6b7482; display:block; font-weight:400; }
+.kchat-full-close{
+  border:1px solid #dde3ec; background:#fff; border-radius:999px; cursor:pointer;
+  padding:6px 13px; font-size:14px; line-height:1;
+}
+.kchat-full-list{ flex:1; overflow-y:auto; padding:10px 14px 28px; -webkit-overflow-scrolling:touch; }
+/* messages-view parity (GCP feedback 2026-08-08): the full-screen stream carries the
+   same send box as the split dock; safe-area padding keeps it clear of gesture bars */
+.kchat-full .kchat-send{ flex:none; margin:0 10px; padding:8px 4px calc(10px + env(safe-area-inset-bottom, 0px)); }
+.kchat-full-list .kchat-row{ font-size:calc(14px * var(--ui-scale)); padding:7px 0; }
+.kchat-full-empty{ color:#8b95a5; font-style:italic; padding:16px 2px; }
+@media (prefers-color-scheme: dark){
+  .kchat-full{ background:rgba(16,20,28,.97); }
+  .kchat-full-head{ border-bottom-color:rgba(255,255,255,.12); }
+  .kchat-full-close{ background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.18); color:#e7ecf4; }
+}
+
+/* ═══ DEMO-SPECTATE1 (user 2026-07-30) — you are watching, not playing ═════════
+   The backend now separates MAY VIEW (visibility) from MAY PARTICIPATE (joinRule)
+   and stamps each broadcast with the caller's role. Every mutating action is
+   refused server-side for a spectator, so the job here is to not OFFER controls
+   whose only outcome is an error toast — and to say plainly why.
+
+   Deliberately a ribbon rather than a modal: it must not interrupt watching, which
+   is the entire point of being here. The user's richer idea — a spectator's own
+   "you are not playing" wedge due south, hover-explained — is BOARD-CHAT2. */
+.kspec-ribbon{
+  /* R2 (user 2026-07-30, watching live): this began top-centre and collided with BOTH
+     the players' speech bubbles and #boardBanner ("Ready to submit…", also top-centre).
+     Moved to the BOTTOM, which is free precisely because a spectator's footer controls
+     are hidden — and made a slim full-width line rather than a pill, so it reads as
+     persistent status rather than competing with the transient story above it. */
+  position: fixed; left: 0; right: 0; bottom: 0; transform: none; z-index: 26;
+  display: none; align-items: center; justify-content: center; flex-wrap: wrap;
+  gap: 3px 8px; text-align: center; max-width: none;
+  /* R3 (user 2026-07-30): the ribbon was SHORTER than .ring-footer it stands in for,
+     so the board showed through as a stripe above it. Match the footer's box exactly —
+     same bottom padding including the safe-area inset, and a min-height equal to the
+     footer's (7px padding + ~26px control row + 7px). box-sizing so the min-height is
+     the outer box, not the content. */
+  box-sizing: border-box;
+  padding: 7px 15px calc(7px + env(safe-area-inset-bottom));
+  min-height: calc(40px + env(safe-area-inset-bottom));
+  border-radius: 0; font-size: 12.5px; line-height: 1.3;
+  background: rgba(255,255,255,.9); color: #2b3444;
+  border: 0; border-top: 1px solid rgba(20,28,45,.1);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 -3px 16px rgba(20,28,45,.1);
+}
+body.spectating .kspec-ribbon{ display: flex; }
+.kspec-ribbon b{ font-weight: 700; }
+.kspec-ribbon .kspec-why{ color: #6b7482; font-size: 12.5px; }
+
+/* Participation controls: gone for a spectator. Not merely disabled — a greyed
+   control still reads as "something I could unlock", and there is nothing to
+   unlock here without a commitment. (No phantom controls.) */
+body.spectating .ring-footer-accsel,
+body.spectating .ring-footer-lock,
+body.spectating .ring-footer-play,
+body.spectating .board-addaccount,
+body.spectating [data-board-action]{ display: none !important; }
+
+/* Chips stay visible and readable, but stop pretending to be interactive:
+   a spectator dragging a chip that can never move is a promise the board can't keep. */
+body.spectating .board-chip{ cursor: default; }
+body.spectating .board-wedge{ pointer-events: none; }
+
+@media (prefers-color-scheme: dark){
+  .kspec-ribbon{ background: rgba(22,28,38,.86); color: #e7ecf4; border-color: rgba(255,255,255,.14); }
+  .kspec-ribbon .kspec-why{ color: #9aa6b8; }
+}
+@media (max-width: 600px){
+  .kspec-ribbon{ font-size: 12px; padding: 6px 11px calc(6px + env(safe-area-inset-bottom)); }
+}
+
+/* ═══ DEMO-NARRATE1 (user 2026-07-31) — the step timeline strip ═══════════════
+   First slice of the narration format: a presentation-style step summary along the
+   bottom, current step highlighted. Sits directly ON TOP of whichever bottom bar is
+   visible (spectator ribbon or footer) — bottom offset is measured in JS, not here.
+   Same visual language as the ribbon (blurred light bar, thin top border) so the two
+   stack into what reads as one two-line banner, which is exactly the user's sketch. */
+.knarr{
+  position: fixed; left: 0; right: 0; z-index: 25;
+  display: flex; align-items: center; justify-content: center;
+  gap: 4px; padding: 5px 10px; box-sizing: border-box;
+  background: rgba(255,255,255,.82);
+  border-top: 1px solid rgba(20,28,45,.08);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  font-size: 11.5px; line-height: 1.2; color: #6b7482;
+  overflow-x: auto; white-space: nowrap; scrollbar-width: none;
+}
+.knarr::-webkit-scrollbar{ display: none; }
+.knarr-step{
+  padding: 3px 9px; border-radius: 999px; flex: 0 0 auto;
+  transition: background .35s ease, color .35s ease, opacity .35s ease;
+  opacity: .62;
+}
+.knarr-step:not(:first-child)::before{
+  content: "›"; margin-right: 8px; opacity: .45;
+}
+.knarr-step--done{ opacity: .8; color: #2b3444; }
+.knarr-step--done::after{ content: " ✓"; color: #1d8a44; font-weight: 700; }
+.knarr-step--on{
+  opacity: 1; background: #2b3444; color: #fff; font-weight: 600;
+}
+@media (prefers-color-scheme: dark){
+  .knarr{ background: rgba(22,28,38,.8); color: #9aa6b8; border-color: rgba(255,255,255,.12); }
+  .knarr-step--done{ color: #e7ecf4; }
+  .knarr-step--on{ background: #e7ecf4; color: #16202c; }
+}
+@media (max-width: 600px){ .knarr{ font-size: 10.5px; padding: 4px 6px; } }
+
+/* ═══ DEMO-WATCHERS1 (user 2026-07-30) — live audience counter ════════════════
+   "let's also implement a visible counter for number watching". Sits opposite the
+   spectator ribbon so the two never collide, and stays out of the way of the board's
+   own controls (the mistake the 💬 panel made on mobile). Shown to everyone, not just
+   spectators — a live audience is part of what makes a demo feel live. */
+/* R2 (user 2026-08-03): moved off the board into the HEADER, centre — its own pill
+   between the brandmark (left) and the hamburger (right), where it never contests
+   the bubbles' space. z above the banner (70) so the transparent strip can't eat it. */
+.kaud{
+  position: fixed; top: 12px; left: 50%; right: auto; transform: translateX(-50%); z-index: 71;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 11px; border-radius: 999px; font-size: 12.5px; line-height: 1;
+  background: rgba(255,255,255,.82); color: #3b4757;
+  border: 1px solid rgba(255,255,255,.7);
+  backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px);
+  box-shadow: 0 3px 14px rgba(20,28,45,.14);
+}
+.kaud[hidden]{ display: none; }
+.kaud b{ font-weight: 700; }
+.kaud .kaud-sep{ opacity: .35; }
+@media (prefers-color-scheme: dark){
+  .kaud{ background: rgba(22,28,38,.82); color: #dfe6f0; border-color: rgba(255,255,255,.14); }
+}
+@media (max-width: 600px){ .kaud{ top: 10px; font-size: 11.5px; padding: 4px 9px; } }
+
+/* BOARD-ACTIONMSG1: an action row whose pair is still on the board is hoverable
+   — it lights the same two chips the board's own hover does. */
+.kchat-row--linked{ cursor: default; }
+.kchat-row--linked:hover{ background: rgba(20,28,45,.04); }
+.kchat-row-say{ opacity:.75; }
+
+/* ORDER-AUTOSIGN1: signature-request state pill on the compact tx card */
+.tx-autosign{ font-size:11px; padding:1px 7px; border-radius:9px; margin-left:6px; white-space:nowrap; }
+.tx-autosign--requesting{ background:#fff3cd; color:#664d03; }
+.tx-autosign--signed{ background:#d1e7dd; color:#0f5132; }
+.tx-autosign--failed{ background:#f8d7da; color:#842029; }
+
+/* ═══ ORDER-UIPASS1 (2026-08-05): order-mode UI pass ═══════════════════════ */
+
+/* slice 1 · typography: proportional UI font; monospace survives only as
+   tabular NUMERALS (and the nerd meta). Kills the log-output feel. */
+#ordersSection .orders-list,
+#transactionsSection .transactions-list{
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 13px;
+}
+.num{ font-variant-numeric: tabular-nums; }
+
+/* shared lifecycle chips — same palette as the signing glow states */
+.kchip{ font-size:11.5px; padding:2px 8px; border-radius:9px; white-space:nowrap; font-weight:600; }
+.kchip--open{ background:#e8effc; color:#274b8f; }
+.kchip--ok{ background:#d1e7dd; color:#0f5132; }
+.kchip--pend{ background:#fff3cd; color:#664d03; }
+.kchip--req{ background:#fff3cd; color:#664d03; }
+.kchip--fail{ background:#f8d7da; color:#842029; }
+.kchip--muted{ background:#eceef1; color:#6b7280; }
+
+/* order card grid: hero / legs / footer */
+.order-hero{ display:flex; align-items:center; gap:8px; }
+.order-hero .kchip{ margin-left:auto; }
+.order-side-badge{ font:700 11px system-ui; letter-spacing:.04em; padding:3px 8px; border-radius:8px; }
+.order-side-badge--buy{ background:#e7f5ea; color:#177245; }
+.order-side-badge--sell{ background:#fdeaea; color:#b3282d; }
+.order-price{ font-size:16px; font-weight:600; color:#1f2733; }
+.order-price-pair{ font-size:11.5px; font-weight:400; color:#8b95a5; }
+.order-price--label{ font-size:13.5px; font-weight:500; }
+.order-legs{ display:flex; align-items:center; gap:8px; margin-top:5px; flex-wrap:wrap; }
+.order-qty{ color:#52525b; }
+.order-qty-acct{ color:#8b95a5; font-size:12px; }
+.order-foot{ display:flex; align-items:center; gap:7px; margin-top:6px; font-size:11.5px; color:#8b95a5; flex-wrap:wrap; }
+.order-foot .order-time{ margin-left:0; }
+.order-minfill{ color:#8b95a5; }
+.order-mine-tag{ background:#f0ecff; color:#5b3fc4; border-radius:8px; padding:1px 7px; font-weight:600; }
+
+/* tx card: hero row + swap lines */
+.tx-row{ display:block; }
+.tx-hero{ display:flex; align-items:center; gap:7px; }
+.tx-hero .tx-rate{ margin-left:auto; font-weight:600; color:#374151; }
+.tx-hero .tx-time{ margin-left:8px; }
+.tx-hero .kchip{ margin-left:2px; }
+.tx-assets--lines{ display:flex; flex-direction:column; gap:3px; margin-top:6px; }
+.tx-swapline{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.tx-acct{ font-weight:600; color:#374151; font-size:12.5px; }
+.tx-give{ color:#b3282d; }
+.tx-get{ color:#177245; }
+.tx-swaparrow{ color:#a1a1aa; }
+.tx-row--stub{ opacity:.6; }
+.tx-stub{ font-size:12.5px; }
+/* 💠/△ overlays keep working on the swap-line account spans */
+.tx-swapline .tx-acct.tx-asset-verified::after{ content:" 🔷"; font-size:10px; }
+.tx-swapline .tx-acct.tx-asset-unverified::after{ content:" △"; color:#b0b4b8; font-size:10px; }
+
+/* slice 2 · market header strip */
+.market-header{
+  display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;
+  background:#fff; border:1px solid #e6e6e6; border-radius:10px;
+  padding:10px 14px; margin-bottom:8px;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.market-pair-select{ font:700 16px system-ui; border:none; background:transparent; cursor:pointer; padding:0; }
+.market-kv{ display:flex; flex-direction:column; line-height:1.25; }
+.market-kv-val{ font:600 14px system-ui; color:#1f2733; }
+.market-kv--last .market-kv-val{ font-size:19px; }
+.market-kv--up .market-kv-val{ color:#177245; }
+.market-kv--down .market-kv-val{ color:#b3282d; }
+.market-kv-label{ font-size:10.5px; color:#8b95a5; text-transform:uppercase; letter-spacing:.05em; }
+.market-neworder-btn{
+  margin-left:auto; font:600 13px system-ui; padding:7px 13px; border-radius:9px;
+  border:1px solid #2f6fed; background:#2f6fed; color:#fff; cursor:pointer;
+}
+.market-neworder-btn:hover{ background:#255cc9; }
+
+/* slice 3 · chart axes, last line, legend */
+.market-axis-label{ font:10.5px system-ui; fill:#8b95a5; }
+.market-lastline-label{ fill:#4a6fb5; }
+.market-mine-marker{ font:12px system-ui; fill:#5b3fc4; }
+.market-legend{ display:flex; gap:14px; flex-wrap:wrap; font-size:11px; margin:2px 0 6px; }
+.market-legend span{ display:inline-flex; align-items:center; gap:4px; }
+.mleg{ display:inline-block; width:10px; height:10px; border-radius:2px; }
+.mleg-buy{ background:rgba(46,204,113,.5); }
+.mleg-sell{ background:rgba(231,76,60,.5); }
+.mleg-orig{ border:1px solid #999; background:transparent; }
+.mleg-last{ width:2px; height:12px; border-radius:0; background:#4a6fb5; }
+
+/* slice 5 · ladder density: price-sorted list compresses to one-line rows */
+.orders-ladder .order-row{ padding:4px 10px; }
+.orders-ladder .order-legs{ display:inline-flex; margin:0 0 0 8px; }
+.orders-ladder .order-hero{ display:inline-flex; }
+.orders-ladder .order-foot{ display:none; }
+.orders-ladder .order-fill-bar{ margin-top:2px; }
+
+/* slice 4 · mobile tabs (order mode only; desktop keeps two columns).
+   Selector matches the generic mode-order display rule's specificity so the
+   hide WINS on desktop (that rule sets display:block on .mode-order). */
+body .ktabs,
+body[data-trading-mode="orderBook"] .ktabs.mode-order{ display:none; }
+@media (max-width:899px){
+  /* segmented-control look (user 2026-08-05: 'styling needs cleaning up') */
+  body[data-trading-mode="orderBook"] .ktabs.mode-order{
+    display:flex; gap:3px; margin:6px 0 10px;
+    background:#eceef1; border-radius:12px; padding:3px;
+  }
+  .ktabs button{
+    flex:1; font:600 13px system-ui; padding:8px 0; border-radius:9px;
+    border:none; background:transparent; color:#52525b; cursor:pointer;
+    transition:background .12s, color .12s, box-shadow .12s;
+  }
+  .ktabs button.on{ background:#fff; color:#1f2733; box-shadow:0 1px 3px rgba(0,0,0,.14); }
+  body[data-trading-mode="orderBook"][data-ktab="book"] #transactionsSection,
+  body[data-trading-mode="orderBook"][data-ktab="mine"] #transactionsSection{ display:none; }
+  body[data-trading-mode="orderBook"][data-ktab="trades"] #ordersSection{ display:none; }
+}

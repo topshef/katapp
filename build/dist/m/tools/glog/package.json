@@ -1,0 +1,5 @@
+{
+  "name": "glog",
+  "description": "group logging tool within console log glog(label, ...anystuff)",
+  "version": "0.0.24",
+}
