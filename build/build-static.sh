@@ -43,11 +43,24 @@ cp /var/www/kwc-snapshots/4a3351b/* "$DIST/vendor/walletconnect/snapshots/4a3351
 copytree m/tools/glog 2>/dev/null || true
 
 echo "→ wrangler.toml (assets-only Worker, so the Workers&Pages flow serves the folder)"
+cat > "$DIST/router.js" <<'RT'
+const BOARD = /^\/m\/katomia\/board(\/[^/]+)?\/?$/;
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    if (BOARD.test(url.pathname)) return env.ASSETS.fetch(new Request(new URL('/m/katomia/board.html', url), request));
+    return env.ASSETS.fetch(request);
+  }
+};
+RT
 cat > "$DIST/wrangler.toml" <<WT
 name = "katui"
+main = "router.js"
 compatibility_date = "2026-08-01"
 [assets]
 directory = "."
+binding = "ASSETS"
+html_handling = "none"
 WT
 
 echo "→ Cloudflare Pages routing (_redirects): /board/<id> → the shell"

@@ -1,4 +1,8 @@
 name = "katui"
+main = "router.js"
 compatibility_date = "2026-08-01"
+
 [assets]
 directory = "."
+binding = "ASSETS"
+html_handling = "none"
