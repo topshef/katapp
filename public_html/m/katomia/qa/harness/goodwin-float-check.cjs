@@ -17,8 +17,8 @@
 //   node goodwin-float-check.cjs
 const { execSync } = require("child_process")
 
-const BASE = (process.env.BASE || "https://lab1.katlab.kpay.live").replace(/\/+$/, "")
-const PREFIX = process.env.BOARD_PREFIX || (/katlab|swap\.kpay\.live/.test(BASE) ? "/m/katomia" : "")
+const BASE = (process.env.BASE || "https://lab22.kpay.uk").replace(/\/+$/, "")
+const PREFIX = process.env.BOARD_PREFIX || (/katlab|swap\.kpay\.live|lab22\.kpay\.uk/.test(BASE) ? "/m/katomia" : "")
 const TRIGGER = process.env.TRIGGER || "manual"
 const INSTANCE = "GOODWIN-FLOAT-01"
 const MIRROR = "https://testnet.mirrornode.hedera.com"

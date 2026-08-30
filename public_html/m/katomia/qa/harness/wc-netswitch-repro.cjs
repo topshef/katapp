@@ -37,7 +37,7 @@ const kstate = () => fetch(`${KWALLET_BASE}/api/state?token=${KWALLET_TOKEN}`).t
 
 async function main(){
   // fresh public testnet game
-  const gr = await fetch("https://lab1.katlab.kpay.live/m/katomia/hapi.php?action=create", {
+  const gr = await fetch("https://lab22.kpay.uk/m/katomia/hapi.php?action=create", {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ profile: { name: "WC netswitch repro" }, network: "testnet",
       visibility: "public", joinRule: "*", lockRule: "all",
@@ -46,7 +46,7 @@ async function main(){
   const GAME = gr.gameId
   if(!GAME) throw new Error("game create failed: " + JSON.stringify(gr))
   log("game:", GAME)
-  const BOARD = `https://lab1.katlab.kpay.live/m/katomia/board/${GAME}?skin=ring16`
+  const BOARD = `https://lab22.kpay.uk/m/katomia/board/${GAME}?skin=ring16`
 
   await kwallet("/api/mode", { mode: "auto" })
   const browser = await chromium.launch()

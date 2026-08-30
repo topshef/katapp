@@ -8,7 +8,7 @@
 //
 //   node statsync-baseline.cjs                 # run assertions + print summary
 //   node statsync-baseline.cjs --record        # also write qa/data/benchmarks/<date>-statsync-*.json
-//   API=https://alpha.katlab.kpay.live SAMPLE_GAME=t-kat-demo SAMPLE_SECS=60 node statsync-baseline.cjs
+//   API=https://hapi2.hbar.live/live SAMPLE_GAME=t-kat-demo SAMPLE_SECS=60 node statsync-baseline.cjs
 //
 // SAMPLE_GAME adds a passive spectator sample of a live demo game (real-world
 // broadcast traffic) alongside the scripted run. Skipped if the game is absent.
@@ -17,12 +17,12 @@
 // summary shape is what each phase's re-run is compared against.
 
 let WebSocket
-for(const p of ["/home/hbarlive_hts-alpha/node_modules/ws", "/opt/kwallet/node_modules/ws", "ws"]){
+for(const p of ["/home/hbarlive/live/node_modules/ws", "/opt/kwallet/node_modules/ws", "ws"]){
   try { WebSocket = require(p); break } catch {}
 }
 if(!WebSocket){ console.error("no ws module found"); process.exit(2) }
 
-const API  = (process.env.API || "https://alpha.katlab.kpay.live").replace(/\/+$/, "")
+const API  = (process.env.API || "https://hapi2.hbar.live/live").replace(/\/+$/, "")
 const WS   = process.env.WS || API.replace(/^http/, "ws") + "/ws"
 const SAMPLE_GAME = process.env.SAMPLE_GAME ?? "t-kat-demo"
 const SAMPLE_SECS = Number(process.env.SAMPLE_SECS || 60)

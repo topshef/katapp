@@ -56,16 +56,16 @@ async function clickJoinAllIfPresent(page, tries = 12, delayMs = 500){
 let RUN_ID = null, SITE_COMMIT = null
 async function reportKflow(checkpoint, v, detail){
   if(!RUN_ID) RUN_ID = "wcnetswitch-" + Date.now().toString(36)
-  if(SITE_COMMIT === null) SITE_COMMIT = await fetch("https://lab1.katlab.kpay.live/m/katomia/qa/results.php?days=1")
+  if(SITE_COMMIT === null) SITE_COMMIT = await fetch("https://lab22.kpay.uk/m/katomia/qa/results.php?days=1")
     .then(r => r.json()).then(j => j.commit || "").catch(() => "")
-  await fetch("https://lab1.katlab.kpay.live/kflow", { method: "POST",
+  await fetch("https://lab22.kpay.uk/kflow", { method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ events: [{ t: new Date().toISOString(), run: RUN_ID,
       seq: checkpoint === "test:start" ? 1 : 2, tier: "fe", checkpoint, v, commit: SITE_COMMIT, detail }] }) })
 }
 
 async function createGame(){
-  const gr = await fetch("https://lab1.katlab.kpay.live/m/katomia/hapi.php?action=create", {
+  const gr = await fetch("https://lab22.kpay.uk/m/katomia/hapi.php?action=create", {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ profile: { name: "QA cron: WCNETSWITCH" }, network: "testnet",
       visibility: "public", joinRule: "*", lockRule: "all",
@@ -78,7 +78,7 @@ async function createGame(){
 // ── WCNETSWITCH-01: reload mid-signing, then Sign ───────────────────────────
 async function runReloadThenSign(browser){
   const GAME = await createGame()
-  const BOARD = `https://lab1.katlab.kpay.live/m/katomia/board/${GAME}?skin=ring16`
+  const BOARD = `https://lab22.kpay.uk/m/katomia/board/${GAME}?skin=ring16`
   log("01: game", GAME)
   const pageA = await (await browser.newContext()).newPage()
   pageA.on("dialog", d => d.accept("0.01"))
@@ -176,7 +176,7 @@ async function runReloadThenSign(browser){
 // ── WCNETSWITCH-02: reload right after pairing, no user action ─────────────
 async function runEarlyScope(browser){
   const GAME = await createGame()
-  const BOARD = `https://lab1.katlab.kpay.live/m/katomia/board/${GAME}?skin=ring16`
+  const BOARD = `https://lab22.kpay.uk/m/katomia/board/${GAME}?skin=ring16`
   log("02: game", GAME)
   const page = await (await browser.newContext()).newPage()
   await page.addInitScript(() => { window.__katomiaTestHooks = true })   // QA-TESTHOOKS1

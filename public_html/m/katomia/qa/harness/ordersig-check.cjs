@@ -12,12 +12,12 @@
 // whether a settlement dial is honoured — not a re-implementation of it.
 //
 //   node ordersig-check.cjs
-//   BACKEND=/home/hbarlive_hts-alpha node ordersig-check.cjs
+//   BACKEND=/home/hbarlive/live node ordersig-check.cjs
 const crypto = require("crypto")
-const BACKEND = process.env.BACKEND || "/home/hbarlive_hts-alpha"
+const BACKEND = process.env.BACKEND || "/home/hbarlive/live"
 const INSTANCE = "ORDERSIG-01"
 const RUN_ID = "osig-" + Date.now().toString(36)
-const BASE = (process.env.BASE || "https://lab1.katlab.kpay.live").replace(/\/+$/, "")
+const BASE = (process.env.BASE || "https://lab22.kpay.uk").replace(/\/+$/, "")
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), "[ordersig]", ...a)
 
 const fails = []

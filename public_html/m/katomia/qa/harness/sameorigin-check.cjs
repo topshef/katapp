@@ -7,7 +7,7 @@
 // backend through its own origin (/hapi/* proxy, /kfeedback, hapi.php) — proving
 // the KAT-SAMEORIGIN-PROXY1 vhost + FE1 frontend changes actually hide the backend.
 //
-//   BASE=https://lab2.katlab.kpay.live BACKEND=bravo.katlab.kpay.live \
+//   BASE=https://lab22.kpay.uk BACKEND=hapi2.hbar.live \
 //     node sameorigin-check.cjs [pagePath]
 //
 // pagePath default: /m/katomia/board/m-prop (the page the original feedback 73fd3870
@@ -19,8 +19,8 @@
 
 const { chromium } = require("/opt/kwallet/node_modules/playwright")
 
-const BASE = process.env.BASE || "https://lab2.katlab.kpay.live"
-const BACKEND = (process.env.BACKEND || "bravo.katlab.kpay.live").toLowerCase()
+const BASE = process.env.BASE || "https://lab22.kpay.uk"
+const BACKEND = (process.env.BACKEND || "hapi2.hbar.live").toLowerCase()
 const PAGE = process.argv[2] || "/m/katomia/board/m-prop"
 const SETTLE_MS = Number(process.env.SETTLE_MS || 10000)
 

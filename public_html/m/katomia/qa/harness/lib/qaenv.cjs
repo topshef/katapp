@@ -13,11 +13,11 @@
 //   await reportKflow('test:verdict', 'pass', { note })
 
 module.exports = function qaenv(instance) {
-  const BASE = (process.env.BASE || 'https://lab1.katlab.kpay.live').replace(/\/+$/, '')
+  const BASE = (process.env.BASE || 'https://lab22.kpay.uk').replace(/\/+$/, '')
   // /m/katomia on the Lincoln layout, "" on the GCP root layout. Override with BOARD_PREFIX.
   const PREFIX = process.env.BOARD_PREFIX != null
     ? process.env.BOARD_PREFIX
-    : (/katlab|swap\.kpay\.live/.test(BASE) ? '/m/katomia' : '')
+    : (/katlab|swap\.kpay\.live|lab22\.kpay\.uk/.test(BASE) ? '/m/katomia' : '')
   const TRIGGER = process.env.TRIGGER || 'manual'
   const INSTANCE = instance || process.env.QA_INSTANCE || 'UNKNOWN-01'
 

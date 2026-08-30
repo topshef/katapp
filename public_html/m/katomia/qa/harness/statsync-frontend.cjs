@@ -10,11 +10,11 @@
 
 const { chromium } = require("/opt/kwallet/node_modules/playwright")
 let WebSocket
-for(const p of ["/home/hbarlive_hts-alpha/node_modules/ws", "/opt/kwallet/node_modules/ws", "ws"]){
+for(const p of ["/home/hbarlive/live/node_modules/ws", "/opt/kwallet/node_modules/ws", "ws"]){
   try { WebSocket = require(p); break } catch {}
 }
-const BASE = (process.env.BASE || "https://lab1.katlab.kpay.live").replace(/\/+$/, "")
-const API  = (process.env.API || "https://alpha.katlab.kpay.live").replace(/\/+$/, "")
+const BASE = (process.env.BASE || "https://lab22.kpay.uk").replace(/\/+$/, "")
+const API  = (process.env.API || "https://hapi2.hbar.live/live").replace(/\/+$/, "")
 const WS   = API.replace(/^http/, "ws") + "/ws"
 const log = (...a) => console.log(new Date().toISOString(), "[statsync-fe]", ...a)
 

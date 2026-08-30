@@ -19,7 +19,7 @@
 //   BASE=<site> node chip-canary.cjs
 const { chromium } = require("/opt/kwallet/node_modules/playwright")
 
-const BASE = (process.env.BASE || "https://lab1.katlab.kpay.live").replace(/\/+$/, "")
+const BASE = (process.env.BASE || "https://lab22.kpay.uk").replace(/\/+$/, "")
 const BOARD = BASE + "/m/katomia/board/demo?demo=1&skin=ring16"
 const INSTANCE = "CHIPCANARY-01"
 const log = (...a) => console.log(new Date().toISOString(), "[canary]", ...a)

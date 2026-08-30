@@ -12,10 +12,10 @@
 // katomiaHelpers.js:328) and settlement resolves instantly with no signer.
 //
 //   node tickets-baseline-check.cjs
-//   API=https://bravo.katlab.kpay.live BASE=https://lab2.katlab.kpay.live node tickets-baseline-check.cjs
+//   API=https://hapi2.hbar.live/live BASE=https://lab22.kpay.uk node tickets-baseline-check.cjs
 const { chromium } = require("/opt/kwallet/node_modules/playwright")
-const API  = (process.env.API  || "https://bravo.katlab.kpay.live").replace(/\/+$/, "")
-const BASE = (process.env.BASE || "https://lab2.katlab.kpay.live").replace(/\/+$/, "")
+const API  = (process.env.API  || "https://hapi2.hbar.live/live").replace(/\/+$/, "")
+const BASE = (process.env.BASE || "https://lab22.kpay.uk").replace(/\/+$/, "")
 const INSTANCE = "TICKETS-BASE-01"
 // KAT-SAMEORIGIN-FE1: default = same-origin (no param). CROSS=1 forces the
 // ?hapi_base= admin override so the legacy cross-origin path stays covered too.

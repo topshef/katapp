@@ -19,10 +19,10 @@
 //                          it is invisible to any DOM-only check.
 //
 //   node tickets-quiet-check.cjs
-//   API=https://alpha.katlab.kpay.live BASE=https://lab1.katlab.kpay.live node tickets-quiet-check.cjs
+//   API=https://hapi2.hbar.live/live BASE=https://lab22.kpay.uk node tickets-quiet-check.cjs
 const { chromium } = require("/opt/kwallet/node_modules/playwright")
-const API  = (process.env.API  || "https://alpha.katlab.kpay.live").replace(/\/+$/, "")
-const BASE = (process.env.BASE || "https://lab1.katlab.kpay.live").replace(/\/+$/, "")
+const API  = (process.env.API  || "https://hapi2.hbar.live/live").replace(/\/+$/, "")
+const BASE = (process.env.BASE || "https://lab22.kpay.uk").replace(/\/+$/, "")
 const INSTANCE = "TICKETS-QUIET-01"
 const HAPIQ = process.env.CROSS === "1" ? "hapi_base=" + API.replace(/^https?:\/\//, "") : "x=1"
 const RUN_ID = "tktq-" + Date.now().toString(36)

@@ -10,16 +10,16 @@
 // Asserts a fresh join receives game_state WITH a playerId within 5s.
 //
 //   node privjoin-check.cjs
-//   API=https://alpha.katlab.kpay.live node privjoin-check.cjs
+//   API=https://hapi2.hbar.live/live node privjoin-check.cjs
 let WebSocket
-for(const p of ["/home/hbarlive_hts-alpha/node_modules/ws", "/opt/kwallet/node_modules/ws", "ws"]){
+for(const p of ["/home/hbarlive/live/node_modules/ws", "/opt/kwallet/node_modules/ws", "ws"]){
   try { WebSocket = require(p); break } catch {}
 }
 if(!WebSocket){ console.error("no ws module found"); process.exit(2) }
 
-const API  = (process.env.API || "https://alpha.katlab.kpay.live").replace(/\/+$/, "")
+const API  = (process.env.API || "https://hapi2.hbar.live/live").replace(/\/+$/, "")
 const WS   = process.env.WS || API.replace(/^http/, "ws") + "/ws"
-const BASE = (process.env.BASE || "https://lab1.katlab.kpay.live").replace(/\/+$/, "")
+const BASE = (process.env.BASE || "https://lab22.kpay.uk").replace(/\/+$/, "")
 const GAME = process.env.GAME || "t-private"
 const INSTANCE = "PRIVJOIN-01"
 const log = (...a) => console.log(new Date().toISOString(), "[privjoin]", ...a)

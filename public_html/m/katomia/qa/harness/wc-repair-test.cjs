@@ -31,7 +31,7 @@ async function kwallet(path, body){
   const lines = []
   p.on("console", m => { const t = m.text(); if(/\[WC\]|error|Error|mainnet|testnet/.test(t)) lines.push(t.slice(0,220)) })
   // fresh context = no storage; a TESTNET game page
-  await p.goto("https://lab1.katlab.kpay.live/m/katomia/board/QFLPTQ?skin=ring16", { waitUntil: "domcontentloaded" })
+  await p.goto("https://lab22.kpay.uk/m/katomia/board/QFLPTQ?skin=ring16", { waitUntil: "domcontentloaded" })
   await p.waitForTimeout(2500)
   const pre = await p.evaluate(async () => ({ net0: window.WC?.getNetwork?.(), acct: await window.WC?.getAccount?.(), net1: window.WC?.getNetwork?.() }))
   log("fresh load on testnet game:", JSON.stringify(pre))

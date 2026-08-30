@@ -29,7 +29,7 @@ async function kwallet(path, body){
 }
 
 async function main(){
-  const gr = await fetch("https://lab1.katlab.kpay.live/m/katomia/hapi.php?action=create", {
+  const gr = await fetch("https://lab22.kpay.uk/m/katomia/hapi.php?action=create", {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ profile: { name: "WC earlyscope test" }, network: "testnet",
       visibility: "public", joinRule: "*", lockRule: "all",
@@ -38,7 +38,7 @@ async function main(){
   const GAME = gr.gameId
   if(!GAME) throw new Error("game create failed: " + JSON.stringify(gr))
   log("game:", GAME)
-  const BOARD = `https://lab1.katlab.kpay.live/m/katomia/board/${GAME}?skin=ring16`
+  const BOARD = `https://lab22.kpay.uk/m/katomia/board/${GAME}?skin=ring16`
 
   await kwallet("/api/mode", { mode: "auto" })
   const browser = await chromium.launch()

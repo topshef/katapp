@@ -27,12 +27,12 @@
 // They SKIP loudly rather than passing quietly when it doesn't.
 //
 //   node lockscope-check.cjs
-//   API=https://alpha.katlab.kpay.live BASE=https://lab1.katlab.kpay.live node lockscope-check.cjs
+//   API=https://hapi2.hbar.live/live BASE=https://lab22.kpay.uk node lockscope-check.cjs
 const { chromium } = require("/opt/kwallet/node_modules/playwright")
 const fs = require("fs")
-const API  = (process.env.API  || "https://alpha.katlab.kpay.live").replace(/\/+$/, "")
-const BASE = (process.env.BASE || "https://lab1.katlab.kpay.live").replace(/\/+$/, "")
-const ELOG = process.env.ELOG_PATH || "/home/hbarlive_hts-alpha/log/elog_error_log.txt"
+const API  = (process.env.API  || "https://hapi2.hbar.live/live").replace(/\/+$/, "")
+const BASE = (process.env.BASE || "https://lab22.kpay.uk").replace(/\/+$/, "")
+const ELOG = process.env.ELOG_PATH || "/home/hbarlive/live/log/elog_error_log.txt"
 const INSTANCE = "LOCKSCOPE-01"
 const HAPIQ = process.env.CROSS === "1" ? "hapi_base=" + API.replace(/^https?:\/\//, "") : "x=1"
 const RUN_ID = "lsc-" + Date.now().toString(36)

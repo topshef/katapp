@@ -17,8 +17,8 @@
 //   node enrichcold-check.cjs        BASE=<site> TRIGGER=... supported
 const { chromium } = require("/opt/kwallet/node_modules/playwright")
 
-const BASE = (process.env.BASE || "https://lab1.katlab.kpay.live").replace(/\/+$/, "")
-const PREFIX = process.env.BOARD_PREFIX || (/katlab|swap\.kpay\.live/.test(BASE) ? "/m/katomia" : "")
+const BASE = (process.env.BASE || "https://lab22.kpay.uk").replace(/\/+$/, "")
+const PREFIX = process.env.BOARD_PREFIX || (/katlab|swap\.kpay\.live|lab22\.kpay\.uk/.test(BASE) ? "/m/katomia" : "")
 const TRIGGER = process.env.TRIGGER || "manual"
 const INSTANCE = "ENRICHCOLD-01"
 const DEMO_GAME = process.env.DEMO_GAME || "t-kat-demo"

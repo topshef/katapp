@@ -15,15 +15,15 @@
 // (same fixtures as T:JOINGATE-01 — if the cast rotates, both suites flip together).
 //
 //   node composer-check.cjs
-//   BASE=https://lab1.katlab.kpay.live API=https://alpha.katlab.kpay.live node composer-check.cjs
+//   BASE=https://lab22.kpay.uk API=https://hapi2.hbar.live/live node composer-check.cjs
 let chromium
 for(const p of ["/opt/kwallet/node_modules/playwright", "playwright"]){
   try { ({ chromium } = require(p)); break } catch {}
 }
 if(!chromium){ console.error("no playwright module found"); process.exit(2) }
 
-const BASE = (process.env.BASE || "https://lab1.katlab.kpay.live").replace(/\/+$/, "")
-const API  = (process.env.API || "https://alpha.katlab.kpay.live").replace(/\/+$/, "")
+const BASE = (process.env.BASE || "https://lab22.kpay.uk").replace(/\/+$/, "")
+const API  = (process.env.API || "https://hapi2.hbar.live/live").replace(/\/+$/, "")
 const NFT = process.env.NFT || "0.0.3626892"
 const HOLDER = process.env.HOLDER || "0.0.9556348"
 const INSTANCE = "COMPOSER-01"

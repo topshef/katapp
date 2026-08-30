@@ -8,7 +8,7 @@
 //      (ghost/rimpile/store on one end, txchip on the other) — no stranded line
 //   C4 re-audit 5s later (post-settle drift): still true
 const { chromium } = require("/opt/kwallet/node_modules/playwright")
-const BASE = "https://lab1.katlab.kpay.live/m/katomia"
+const BASE = "https://lab22.kpay.uk/m/katomia"
 const SENDER = process.env.SENDER || "0.0.5200540"
 const RECEIVER = process.env.RECEIVER || "0.0.23456"
 const BYSTANDER = process.env.BYSTANDER || "0.0.1532"

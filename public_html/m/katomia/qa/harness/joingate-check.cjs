@@ -17,14 +17,14 @@
 // (KAT-KBOTENV1) or alice's chicken moves, .4/.9 flip — re-pick a held token first.
 //
 //   node joingate-check.cjs
-//   API=https://alpha.katlab.kpay.live BACKEND_DIR=/home/hbarlive_hts-alpha node joingate-check.cjs
+//   API=https://hapi2.hbar.live/live BACKEND_DIR=/home/hbarlive/live node joingate-check.cjs
 const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
 
-const API  = (process.env.API || "https://alpha.katlab.kpay.live").replace(/\/+$/, "")
-const BASE = (process.env.BASE || "https://lab1.katlab.kpay.live").replace(/\/+$/, "")
-const BACKEND_DIR = process.env.BACKEND_DIR || "/home/hbarlive_hts-alpha"
+const API  = (process.env.API || "https://hapi2.hbar.live/live").replace(/\/+$/, "")
+const BASE = (process.env.BASE || "https://lab22.kpay.uk").replace(/\/+$/, "")
+const BACKEND_DIR = process.env.BACKEND_DIR || "/home/hbarlive/live"
 const NFT = process.env.NFT || "0.0.3626892"
 const HOLDER = process.env.HOLDER || "0.0.9556348"       // alice
 const NONHOLDER = process.env.NONHOLDER || "0.0.9846467" // carol

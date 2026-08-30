@@ -13,7 +13,7 @@
 // Flags:
 //   --video         record a .webm of the run into qa/harness/runs/
 //   --slow          2.5x pauses between moves (watchable demos)
-//   --base <url>    default https://lab1.katlab.kpay.live
+//   --base <url>    default https://lab22.kpay.uk
 //
 // The moves file is the demo/replay facility (QA-UXGRID1 "simulate and replay
 // particular user moves"): an array of steps the player executes in order --
@@ -33,7 +33,7 @@ const path = require("path")
 const args = process.argv.slice(2)
 const flag = n => args.includes(n)
 const opt = (n, d) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : d }
-const BASE = opt("--base", "https://lab1.katlab.kpay.live")
+const BASE = opt("--base", "https://lab22.kpay.uk")
 const BOARD = BASE + "/m/katomia/board/demo?demo=1&skin=ring16"
 const MOVES_FILE = opt("--moves", null)
 const SLOW = flag("--slow") ? 2.5 : 1

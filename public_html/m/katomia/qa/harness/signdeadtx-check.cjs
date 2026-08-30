@@ -16,8 +16,8 @@
 const { chromium } = require("/opt/kwallet/node_modules/playwright")
 
 const GAME = process.env.GAME
-const BASE   = (process.env.BASE || "https://lab1.katlab.kpay.live").replace(/\/+$/, "")
-const PREFIX = process.env.BOARD_PREFIX || (/katlab|swap\.kpay\.live/.test(BASE) ? "/m/katomia" : "")
+const BASE   = (process.env.BASE || "https://lab22.kpay.uk").replace(/\/+$/, "")
+const PREFIX = process.env.BOARD_PREFIX || (/katlab|swap\.kpay\.live|lab22\.kpay\.uk/.test(BASE) ? "/m/katomia" : "")
 const BOARD  = `${BASE}${PREFIX}/board/${GAME}?skin=ring16`
 const KWALLET_BASE = "http://127.0.0.1:8790"
 const KWALLET_TOKEN = process.env.KWALLET_TOKEN
