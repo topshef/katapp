@@ -42,6 +42,14 @@ mkdir -p "$DIST/vendor/walletconnect/snapshots/4a3351b"
 cp /var/www/kwc-snapshots/4a3351b/* "$DIST/vendor/walletconnect/snapshots/4a3351b/"
 copytree m/tools/glog 2>/dev/null || true
 
+echo "→ wrangler.toml (assets-only Worker, so the Workers&Pages flow serves the folder)"
+cat > "$DIST/wrangler.toml" <<WT
+name = "katui"
+compatibility_date = "2026-08-01"
+[assets]
+directory = "."
+WT
+
 echo "→ Cloudflare Pages routing (_redirects): /board/<id> → the shell"
 cat > "$DIST/_redirects" <<EOF
 /m/katomia/board/*   /m/katomia/board.html   200
