@@ -1,8 +1,12 @@
 name = "katui"
 main = "router.js"
 compatibility_date = "2026-08-01"
-
 [assets]
 directory = "."
 binding = "ASSETS"
 html_handling = "none"
+
+# hapi.php / future shim route through the API alias Worker (same account), see router.js
+[[services]]
+binding = "HAPI"
+service = "kpay-api-alias"

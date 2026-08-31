@@ -42,15 +42,39 @@ mkdir -p "$DIST/vendor/walletconnect/snapshots/4a3351b"
 cp /var/www/kwc-snapshots/4a3351b/* "$DIST/vendor/walletconnect/snapshots/4a3351b/"
 copytree m/tools/glog 2>/dev/null || true
 
-echo "→ wrangler.toml (assets-only Worker, so the Workers&Pages flow serves the folder)"
+echo "→ router.js + wrangler.toml (Worker with assets; router adds the PHP shims)"
 cat > "$DIST/router.js" <<'RT'
-// katui router. Mirrors lab22's board .htaccess sibling rule:
-//  · /m/katomia/board/<id>            → board.html shell (URL kept → getGameId() reads <id>)
+// katui router. Mirrors lab22's board .htaccess sibling rule, plus shims for the
+// lab22 PHP endpoints the static bundle lost (KATUI-SHIMS1, 2026-08-31):
+//  · /m/katomia/board/<id>             → board.html shell (URL kept → getGameId() reads <id>)
 //  · /m/katomia/board/<anything>.<ext> → /m/katomia/<anything>.<ext>
 //    (board.html uses RELATIVE asset paths; under /board/<id> the browser resolves them
 //     against /m/katomia/board/, so they must be rewritten back to the /m/katomia/ siblings)
+//  · /m/katomia/hapi.php?action=X&<qs> → alias /hapi/katomia/X?<qs>   (lab22 hapi.php)
+//  · /future/?action=X&<qs>            → alias /hapi/kpool/X?<qs>     (lab22 future/kpool.php;
+//    board signing reads tx bytes from /future/?action=txRead)
+//  · /diag, /kflow                     → 204. These are lab22-LOCAL log drops (diag.php/
+//    kflow.php → logs/); the backend has no equivalent (probed 404, 2026-08-31), and lab22
+//    itself is admin-IP-only so the Worker cannot forward there. Swallow the beacons so the
+//    console stays clean; client-side kdiag (profile → Copy diagnostics) is unaffected.
+//  · /m/tools/glog/latest/*            → /m/tools/glog/src/*  (glog ships no dist/ build;
+//    same file the lab22 .htaccess "working/" dev alias serves)
+// The alias is reached via a SERVICE BINDING (env.HAPI): Workers cannot fetch sibling
+// *.workers.dev URLs on the same account (error 1042) — bindings are the sanctioned path.
 const ASSET = /^\/m\/katomia\/board\/(.+\.[^/]+)$/;   // anything after board/ ending in .ext
 const PAGE  = /^\/m\/katomia\/board(\/[^/.]+)?\/?$/;  // board, or board/<id> (no dot)
+const GLOG  = /^\/m\/tools\/glog\/latest\/(.+)$/;
+// Translate lab22's ?action= proxy convention to the alias Worker's path convention.
+// Action is restricted to the alias's own allowlist alphabet so no path tricks pass.
+function toAlias(request, url, base, defAction, env) {
+  const q = new URLSearchParams(url.search);
+  const action = q.get('action') || defAction;
+  q.delete('action');
+  if (!/^[A-Za-z0-9_-]+$/.test(action)) return new Response('bad action', { status: 400 });
+  const qs = q.toString();
+  const target = 'https://kpay-api-alias.tayloa17.workers.dev/hapi' + base + action + (qs ? '?' + qs : '');
+  return env.HAPI.fetch(new Request(target, request));
+}
 export default {
   async fetch(request, env) {
     const url = new URL(request.url); let m;
@@ -58,6 +82,14 @@ export default {
       return env.ASSETS.fetch(new Request(new URL('/m/katomia/' + m[1] + url.search, url), request));
     if (PAGE.test(url.pathname))
       return env.ASSETS.fetch(new Request(new URL('/m/katomia/board.html', url), request));
+    if (url.pathname === '/m/katomia/hapi.php')
+      return toAlias(request, url, '/katomia/', 'create', env);   // 'create' = hapi.php's own default
+    if (/^\/future\/(index\.php)?$/.test(url.pathname) && url.searchParams.has('action'))
+      return toAlias(request, url, '/kpool/', '', env);
+    if (url.pathname === '/diag' || url.pathname === '/kflow')
+      return new Response(null, { status: 204 });
+    if ((m = url.pathname.match(GLOG)))
+      return env.ASSETS.fetch(new Request(new URL('/m/tools/glog/src/' + m[1] + url.search, url), request));
     return env.ASSETS.fetch(request);
   }
 };
@@ -70,12 +102,37 @@ compatibility_date = "2026-08-01"
 directory = "."
 binding = "ASSETS"
 html_handling = "none"
+
+# hapi.php / future shim route through the API alias Worker (same account), see router.js
+[[services]]
+binding = "HAPI"
+service = "kpay-api-alias"
 WT
 
-echo "→ Cloudflare Pages routing (_redirects): /board/<id> → the shell"
-cat > "$DIST/_redirects" <<EOF
-/m/katomia/board/*   /m/katomia/board.html   200
-EOF
+echo "→ .assetsignore (keep Worker config + wrangler's own droppings out of the PUBLIC bundle:"
+echo "   a deploy run from inside dist/ once uploaded .wrangler/cache/wrangler-account.json"
+echo "   — account id + name — as a public asset, KATUI-LEAK1 2026-08-31)"
+cat > "$DIST/.assetsignore" <<AI
+.wrangler
+router.js
+wrangler.toml
+.assetsignore
+AI
+
+echo "→ build-info.json (KAT-BUILDSTAMP1: the profile build stamp reads this)"
+cat > "$DIST/m/katomia/build-info.json" <<BI
+{
+  "source_sha": "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)",
+  "kwc_snapshot": "4a3351b",
+  "built": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+BI
+
+# NOTE: no _redirects file. Workers static assets DO honor _redirects, and asset
+# routing runs BEFORE the Worker script -- so a /m/katomia/board/* catch-all here
+# hijacks board/katomia.css etc. and serves the HTML shell instead of letting
+# router.js rewrite them to the /m/katomia/ siblings (KATUI-CSS1, 2026-08-31).
+# router.js alone handles both the shell rewrite and the asset rewrite.
 
 echo "✓ dist ready: $DIST"
 echo "  files: $(find "$DIST" -type f | wc -l), size: $(du -sh "$DIST" | cut -f1)"
