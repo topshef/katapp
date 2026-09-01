@@ -4,6 +4,7 @@
 
 // admin-only override via ?hapi_base= — see kpool.php for the IP gate
 const HAPI_BASE_ALLOWED_OVERRIDES = [
+  'hapi3.hbar.live',            // Katomia Pilot GCP backend (KATOMIA-GCP1)
   'hapi4.hbar.live',
   'hapi2.hbar.live/live',
   'api.gomint.me/live',

@@ -5,9 +5,28 @@
 # Config is repointed from same-origin "" to the API alias so HTTP + WS go through the Worker.
 set -euo pipefail
 SRC="https://127.0.0.1"; HOST="lab22.kpay.uk"
-ALIAS="kpay-api-alias.tayloa17.workers.dev/hapi"     # host+path, scheme-less (HAPI_BASE convention)
+
+# KATOMIA-GCP1 (2026-09-02): two deployable variants for comparison testing.
+#   ./build-static.sh        → katui      via kpay-api-alias      → hapi2 backend
+#   ./build-static.sh gcp    → katui-gcp  via kpay-api-alias-gcp  → GCP pilot backend
+# Same page renders, same router — only the worker name, alias target and dist dir
+# differ, so a front-end-vs-backend issue can be bisected across the four pairings
+# (either katui × either backend; lab22 flips via backend-switch.sh).
+VARIANT="${1:-}"
+if [ "$VARIANT" = "gcp" ]; then
+  NAME="katui-gcp"
+  ALIAS="kpay-api-alias-gcp.tayloa17.workers.dev/hapi"
+  ALIAS_SERVICE="kpay-api-alias-gcp"
+  DIST_NAME="dist-gcp"
+else
+  NAME="katui"
+  ALIAS="kpay-api-alias.tayloa17.workers.dev/hapi"   # host+path, scheme-less (HAPI_BASE convention)
+  ALIAS_SERVICE="kpay-api-alias"
+  DIST_NAME="dist"
+fi
+ALIAS_HOST="${ALIAS%%/*}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PUB="$ROOT/public_html"; DIST="$ROOT/build/dist"
+PUB="$ROOT/public_html"; DIST="$ROOT/build/$DIST_NAME"
 get(){ curl -s -k -H "Host: $HOST" "$SRC$1"; }
 # rewrite the same-origin config to the alias (works for both HAPI_BASE:"" and config.js)
 repoint(){ sed "s#HAPI_BASE: *\"\"#HAPI_BASE: \"$ALIAS\"#g"; }
@@ -123,8 +142,11 @@ export default {
   }
 };
 RT
+# repoint the router's alias references for this variant (heredoc above is quoted,
+# so substitution happens here; kfeedback uses the bare host, the rest host+/hapi)
+sed -i "s#kpay-api-alias\.tayloa17\.workers\.dev#$ALIAS_HOST#g" "$DIST/router.js"
 cat > "$DIST/wrangler.toml" <<WT
-name = "katui"
+name = "$NAME"
 main = "router.js"
 compatibility_date = "2026-08-01"
 [assets]
@@ -137,7 +159,7 @@ html_handling = "auto-trailing-slash"
 # hapi.php / future shim route through the API alias Worker (same account), see router.js
 [[services]]
 binding = "HAPI"
-service = "kpay-api-alias"
+service = "$ALIAS_SERVICE"
 WT
 
 echo "→ .assetsignore (keep Worker config + wrangler's own droppings out of the PUBLIC bundle:"
@@ -165,5 +187,5 @@ BI
 # router.js rewrite them to the /m/katomia/ siblings (KATUI-CSS1, 2026-08-31).
 # router.js alone handles both the shell rewrite and the asset rewrite.
 
-echo "✓ dist ready: $DIST"
+echo "✓ dist ready: $DIST  (variant: $NAME → $ALIAS_SERVICE)"
 echo "  files: $(find "$DIST" -type f | wc -l), size: $(du -sh "$DIST" | cut -f1)"
