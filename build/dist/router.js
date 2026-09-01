@@ -18,6 +18,10 @@
 const ASSET = /^\/m\/katomia\/board\/(.+\.[^/]+)$/;   // anything after board/ ending in .ext
 const PAGE  = /^\/m\/katomia\/board(\/[^/.]+)?\/?$/;  // board, or board/<id> (no dot)
 const GLOG  = /^\/m\/tools\/glog\/latest\/(.+)$/;
+// KATUI-HOME1: clean backend route — mirrors lab22's .htaccess
+// ^hapi/([a-zA-Z0-9/_-]+)$ → hapi.php?action=$1. Same no-dot class, same reason:
+// traversal/hidden files are unexpressible. Client JS calls e.g. /m/katomia/hapi/games.
+const KHAPI = /^\/m\/katomia\/hapi\/([A-Za-z0-9/_-]+)$/;
 // Translate lab22's ?action= proxy convention to the alias Worker's path convention.
 // Action is restricted to the alias's own allowlist alphabet so no path tricks pass.
 function toAlias(request, url, base, defAction, env) {
@@ -34,14 +38,22 @@ export default {
     const url = new URL(request.url); let m;
     if ((m = url.pathname.match(ASSET)))
       return env.ASSETS.fetch(new Request(new URL('/m/katomia/' + m[1] + url.search, url), request));
-    if (PAGE.test(url.pathname))
-      return env.ASSETS.fetch(new Request(new URL('/m/katomia/board.html', url), request));
+    if (PAGE.test(url.pathname))   // extensionless: ASSETS 307-canonicalizes *.html under auto-trailing-slash
+      return env.ASSETS.fetch(new Request(new URL('/m/katomia/board-shell', url), request));
     if (url.pathname === '/m/katomia/hapi.php')
       return toAlias(request, url, '/katomia/', 'create', env);   // 'create' = hapi.php's own default
     if (/^\/future\/(index\.php)?$/.test(url.pathname) && url.searchParams.has('action'))
       return toAlias(request, url, '/kpool/', '', env);
+    if ((m = url.pathname.match(KHAPI)))
+      return env.HAPI.fetch(new Request('https://kpay-api-alias.tayloa17.workers.dev/hapi/katomia/' + m[1] + url.search, request));
+    // feedback widget same-origin fallback (pages without window.CONFIG, e.g. host):
+    // the alias routes /kfeedback* to the backend verbatim
+    if (url.pathname.startsWith('/kfeedback'))
+      return env.HAPI.fetch(new Request('https://kpay-api-alias.tayloa17.workers.dev' + url.pathname + url.search, request));
     if (url.pathname === '/diag' || url.pathname === '/kflow')
       return new Response(null, { status: 204 });
+    if (url.pathname === '/')
+      return Response.redirect(new URL('/m/katomia/', url), 302);
     if ((m = url.pathname.match(GLOG)))
       return env.ASSETS.fetch(new Request(new URL('/m/tools/glog/src/' + m[1] + url.search, url), request));
     return env.ASSETS.fetch(request);

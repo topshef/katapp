@@ -4,7 +4,9 @@ compatibility_date = "2026-08-01"
 [assets]
 directory = "."
 binding = "ASSETS"
-html_handling = "none"
+# auto-trailing-slash: /m/katomia/ serves index.html, /m/katomia/circles serves
+# circles.html — no per-page router mapping needed (KATUI-HOME1)
+html_handling = "auto-trailing-slash"
 
 # hapi.php / future shim route through the API alias Worker (same account), see router.js
 [[services]]

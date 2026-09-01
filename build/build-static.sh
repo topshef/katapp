@@ -13,10 +13,27 @@ get(){ curl -s -k -H "Host: $HOST" "$SRC$1"; }
 repoint(){ sed "s#HAPI_BASE: *\"\"#HAPI_BASE: \"$ALIAS\"#g"; }
 
 rm -rf "$DIST"; mkdir -p "$DIST/m/katomia"
-echo "→ rendering board shell (empty game = game-agnostic)"
-get "/m/katomia/board.php" | repoint \
+# KATUI-HOME1 (2026-09-01): render the whole entry surface, not just the board.
+# Same one-shot logic as the board shell: none of these pages carries per-user
+# server state — only HAPI_BASE is injected (repoint rewrites it) and the
+# feedback widget src is pinned to the alias (its canonical home is the backend).
+# Clean URLs (/circles etc.) are served by html_handling=auto-trailing-slash.
+render(){ get "$1" | repoint \
   | sed "s#/feedback-widget.js#https://$ALIAS/feedback-widget.js#g" \
-  > "$DIST/m/katomia/board.html"
+  > "$DIST/m/katomia/$2"; }
+echo "→ rendering board shell (empty game = game-agnostic)"
+# board-SHELL, not board.html: with html_handling=auto-trailing-slash an asset named
+# board.html OWNS the /board path and 307-normalizes /board/<id> → /board, stripping
+# the game id before the Worker ever runs. A name no URL uses keeps /board/* with
+# router.js (KATUI-HOME1).
+render "/m/katomia/board.php" board-shell.html
+echo "→ rendering entry pages (KATUI-HOME1)"
+render "/m/katomia/"        index.html     # landing — the default root (ENTRY-DEFAULTROOT1)
+render "/m/katomia/welcome" welcome.html   # same landing at its opt-in path
+render "/m/katomia/circles" circles.html
+render "/m/katomia/markets" markets.html
+render "/m/katomia/learn"   learn.html
+render "/m/katomia/host"    host.html
 
 echo "→ rendering widget config.js (config.js.php → static, alias-pinned)"
 mkdir -p "$DIST/vendor/kpay/kpool_widget"
@@ -64,6 +81,10 @@ cat > "$DIST/router.js" <<'RT'
 const ASSET = /^\/m\/katomia\/board\/(.+\.[^/]+)$/;   // anything after board/ ending in .ext
 const PAGE  = /^\/m\/katomia\/board(\/[^/.]+)?\/?$/;  // board, or board/<id> (no dot)
 const GLOG  = /^\/m\/tools\/glog\/latest\/(.+)$/;
+// KATUI-HOME1: clean backend route — mirrors lab22's .htaccess
+// ^hapi/([a-zA-Z0-9/_-]+)$ → hapi.php?action=$1. Same no-dot class, same reason:
+// traversal/hidden files are unexpressible. Client JS calls e.g. /m/katomia/hapi/games.
+const KHAPI = /^\/m\/katomia\/hapi\/([A-Za-z0-9/_-]+)$/;
 // Translate lab22's ?action= proxy convention to the alias Worker's path convention.
 // Action is restricted to the alias's own allowlist alphabet so no path tricks pass.
 function toAlias(request, url, base, defAction, env) {
@@ -80,14 +101,22 @@ export default {
     const url = new URL(request.url); let m;
     if ((m = url.pathname.match(ASSET)))
       return env.ASSETS.fetch(new Request(new URL('/m/katomia/' + m[1] + url.search, url), request));
-    if (PAGE.test(url.pathname))
-      return env.ASSETS.fetch(new Request(new URL('/m/katomia/board.html', url), request));
+    if (PAGE.test(url.pathname))   // extensionless: ASSETS 307-canonicalizes *.html under auto-trailing-slash
+      return env.ASSETS.fetch(new Request(new URL('/m/katomia/board-shell', url), request));
     if (url.pathname === '/m/katomia/hapi.php')
       return toAlias(request, url, '/katomia/', 'create', env);   // 'create' = hapi.php's own default
     if (/^\/future\/(index\.php)?$/.test(url.pathname) && url.searchParams.has('action'))
       return toAlias(request, url, '/kpool/', '', env);
+    if ((m = url.pathname.match(KHAPI)))
+      return env.HAPI.fetch(new Request('https://kpay-api-alias.tayloa17.workers.dev/hapi/katomia/' + m[1] + url.search, request));
+    // feedback widget same-origin fallback (pages without window.CONFIG, e.g. host):
+    // the alias routes /kfeedback* to the backend verbatim
+    if (url.pathname.startsWith('/kfeedback'))
+      return env.HAPI.fetch(new Request('https://kpay-api-alias.tayloa17.workers.dev' + url.pathname + url.search, request));
     if (url.pathname === '/diag' || url.pathname === '/kflow')
       return new Response(null, { status: 204 });
+    if (url.pathname === '/')
+      return Response.redirect(new URL('/m/katomia/', url), 302);
     if ((m = url.pathname.match(GLOG)))
       return env.ASSETS.fetch(new Request(new URL('/m/tools/glog/src/' + m[1] + url.search, url), request));
     return env.ASSETS.fetch(request);
@@ -101,7 +130,9 @@ compatibility_date = "2026-08-01"
 [assets]
 directory = "."
 binding = "ASSETS"
-html_handling = "none"
+# auto-trailing-slash: /m/katomia/ serves index.html, /m/katomia/circles serves
+# circles.html — no per-page router mapping needed (KATUI-HOME1)
+html_handling = "auto-trailing-slash"
 
 # hapi.php / future shim route through the API alias Worker (same account), see router.js
 [[services]]
