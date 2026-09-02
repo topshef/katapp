@@ -9,11 +9,13 @@ check(){ # path  expected-status  [needle in body]
   local path="$1" want="$2" needle="${3:-}" tmp; tmp=$(mktemp)
   local code; code=$(curl -sS -m 20 -o "$tmp" -w '%{http_code}' "$ORIGIN$path" 2>/dev/null || echo 000)
   local ok=1; [ "$code" = "$want" ] || ok=0
-  [ -n "$needle" ] && ! grep -q -- "$needle" "$tmp" && ok=0
+  [ -n "$needle" ] && ! grep -qF -- "$needle" "$tmp" && ok=0
   printf '%s  %-40s %s%s\n' "$([ $ok = 1 ] && echo '  ok ' || echo 'FAIL')" "$path" "$code" "${needle:+  ~ $needle}"
   [ $ok = 1 ] || fail=1; rm -f "$tmp"
 }
 echo "smoke: $ORIGIN"
+# the API hop first: a 521/5xx here means the alias cannot reach its backend (not a page problem)
+check /m/katomia/hapi/games                      200 '['        # same-origin API → alias → backend /katomia/games
 check /                                          302
 check /m/katomia/                                200 'Katomia'
 check /m/katomia/create                          200 'Create your own'
@@ -33,7 +35,6 @@ check /m/katomia/qa/data/tests.json              200 'suites'
 check /vendor/walletconnect/config.json          200 "\"url\": \"$ORIGIN\""
 check /vendor/kpay/kpool_widget/config.js        200 'HAPI_BASE'
 check /vendor/walletconnect/snapshots/4a3351b/kwc.iife.js 200
-check /m/katomia/hapi/games                      200 '['        # same-origin API → alias → backend /katomia/games
 check /diag                                      204
 check /m/katomia/build-info.json                 200 'source_sha'
 check /m/katomia/nope                            404
