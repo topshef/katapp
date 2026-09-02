@@ -1,0 +1,38 @@
+{
+  "_about": "SMOKE class — deliberately tiny, no dimension derivation: two hand-runnable scenes for tire-kicking the record→dashboard loop itself. When the process feels right, real classes (CHIPDROP etc.) take over and SMOKE stays as the 30-second 'is the board basically alive' check.",
+  "id": "SMOKE",
+  "title": "Board smoke checks — quick hand-run scenes to exercise the QA loop",
+  "status": "defined",
+  "task": "QA-UXGRID1",
+  "updated": "2026-07-16",
+  "oracle": {
+    "hard_assertions": ["your eyes, following the steps — this class exists to exercise the recording loop, not the automation"],
+    "trace_shape": "kdiag captures the board activity between your test:start and test:verdict automatically",
+    "benchmark": "none — pass/fail is your judgement"
+  },
+  "dimensions": {},
+  "constraints": [],
+  "cartesian_size": 1,
+  "pairwise_target": "n/a — hand-authored",
+  "instances": [
+    {
+      "id": "SMOKE-01",
+      "title": "Board loads clean",
+      "run": "manual",
+      "status": "unrun",
+      "benchmark": null,
+      "steps": "1. Open a live game board (e.g. lab1 /m/katomia/game/t-prop) on any device.\n2. Wait ~3 seconds for the chips to settle.\n3. Check: every chip visible (none off-screen, none under the header or footer); no two chips heavily overlapping; ghosts sitting on the rim; hub + footer present; board perfectly STILL once settled.\n4. Pass if all true. Note anything odd even on a pass."
+    },
+    {
+      "id": "SMOKE-02",
+      "title": "Drop one chip to a neighbour (and take it back)",
+      "run": "manual",
+      "status": "unrun",
+      "benchmark": null,
+      "steps": "1. On the same board, drag a fungible chip (e.g. some ℏ) from your store onto a NEIGHBOURING player's segment; give an amount.\n2. Check: a pale ghost appears on YOUR rim; the chip lands in their basket; hovering shows the dotted pile→ghost→basket line, all three points ON their chips.\n3. Nudge test: watch 5 seconds — nothing else on the board should have jumped.\n4. Withdraw the offer (drag it back / withdraw). Check everything returns and the lines clear.\n5. Pass if all true."
+    }
+  ],
+  "fixtures": {
+    "manual": "any live board on lab1; kdiag records around your run automatically"
+  }
+}

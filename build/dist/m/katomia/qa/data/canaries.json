@@ -1,0 +1,102 @@
+{
+  "_about": "The regression catalogue: failure CATEGORIES learned from real incidents. Each category gets a named canary — a test that recreates the incident's conditions and asserts the fix holds, forever. 'status' tracks the canary, not the bug (all listed bugs are fixed). status values: live-scratchpad (working check exists but lives in a session scratchpad — needs banking into qa/), to-build, live-suite (in the versioned suite; none yet), retired.",
+  "updated": "2026-08-17",
+  "canaries": [
+    {
+      "id": "CANARY-COSMETIC-STABILITY",
+      "category": "Cosmetic-change stability",
+      "rule": "Changing how a chip LOOKS (pickable flag, lock dim, selection outline) must never change where anything SITS.",
+      "incident": "Pickable scatter — four rounds of fixes, 2026-07-15; root causes ranged from cache-key churn to a CSS position flip. Tasks: BOARD-PICKSCATTER1.",
+      "assertion": "toggle pickable/lock/selection on the demo board → 0 of N chips move (style.left/top byte-identical)",
+      "status": "live-scratchpad",
+      "fixture": "board.php?demo=1"
+    },
+    {
+      "id": "CANARY-GEOMETRY-TRUTH",
+      "category": "Geometry truth",
+      "rule": "The walls the physics enforces must be the shapes the player sees (rim ellipse, hub circle, screen edge) — not approximations that only match on some screens.",
+      "incident": "Circular walls vs oval rim, 2026-07-16 — every radial wall was a circle sampled at the segment mid-angle; square screens hid it, portrait exposed it. Found by the 🧪 zone-walls overlay.",
+      "assertion": "at portrait AND landscape: every basket chip fully inside the rim ellipse, every store chip fully outside it (corner test against env.oval)",
+      "status": "live-suite",
+      "fixture": "board.php?demo=1",
+      "suite": "CHIPCANARY-01 — centre-test v1 (full corner test vs env.oval still to build)"
+    },
+    {
+      "id": "CANARY-VISIBLE-CONTAINMENT",
+      "category": "Visible-area containment",
+      "rule": "Nothing interactive may sit off-screen or under the floating banner/footer.",
+      "incident": "Chips cut off the visible screen in both layouts (BOARD-SAFEAREA1, 2026-07-15).",
+      "assertion": "0 chips outside the measured safe rect (banner bottom / footer top / side margins) in any tested state",
+      "status": "live-suite",
+      "fixture": "board.php?demo=1",
+      "suite": "CHIPCANARY-01 (qa/harness/chip-canary.cjs, daily cron)"
+    },
+    {
+      "id": "CANARY-ATTACHED-TRACKING",
+      "category": "Attached-artifact tracking",
+      "rule": "Anything attached to a chip (dotted trade lines, after-glow trails, ghost alignment) must move WITH the chip, always.",
+      "incident": "Stale dotted lines after chips moved, 2026-07-16 (and the earlier kinked-trails bug, 2026-07-14). Fixed with per-frame re-anchoring.",
+      "assertion": "after a forced re-layout, every trail/trade-line endpoint sits within 4px of its chip's centre",
+      "status": "live-scratchpad",
+      "fixture": "board.php?demo=1"
+    },
+    {
+      "id": "CANARY-SETTLE-DISCIPLINE",
+      "category": "Settle discipline",
+      "rule": "Every animation must terminate: after the board settles, nothing moves until something real changes.",
+      "incident": "Jitter reports on tablet, 2026-07-16 — one cause was shelf targets fighting the wall clamp every frame.",
+      "assertion": "max chip movement 0.0px/frame over a 30-frame watch after settle, in shelves AND organic",
+      "status": "live-suite",
+      "fixture": "board.php?demo=1",
+      "suite": "CHIPCANARY-01 (qa/harness/chip-canary.cjs, daily cron)"
+    },
+    {
+      "id": "CANARY-PAINT-COMPLETENESS",
+      "category": "Paint completeness",
+      "rule": "Every chip the game says exists must be drawn, positioned, on every render — including mid- and post-animation.",
+      "incident": "Ghost NFTs vanishing / spotlight wiping everything to top-left, 2026-07-16 — re-rendered elements never received their position when the body hadn't moved.",
+      "assertion": "0 unplaced elements (no style.left), 0 elements at the top-left default, ghosts + NFT ghosts present; checked static, mid-replay and post-replay",
+      "status": "live-suite",
+      "fixture": "board.php?demo=1",
+      "suite": "CHIPCANARY-01 (qa/harness/chip-canary.cjs, daily cron)"
+    },
+    {
+      "id": "CANARY-HYDRATION-CLICK",
+      "category": "Hydration click-integrity",
+      "rule": "A button must not move between the moment you aim and the moment you click — async loading may never grow the page under your finger.",
+      "incident": "SIGN-LAYOUTJUMP1 — the signing modal grew during enrichment and a mainnet Sign click landed on a hashtag link instead. The dangerous category: mis-clicks with real value at stake.",
+      "assertion": "the Sign button's bounding box is identical from first paint through full enrichment (Playwright bounding-box watch over the hydration window)",
+      "status": "live-suite",
+      "priority": "HIGH",
+      "fixture": "signing modal (needs backend or recorded tx fixture)",
+      "suite": "SIGNSTABLE-01 v1 (rides hbarxfer-auto-spike — board sign button; the signing-modal-through-enrichment variant still needs a recorded-tx fixture)"
+    },
+    {
+      "id": "CANARY-AFFORDANCE-PRESENCE",
+      "category": "Affordance presence",
+      "rule": "If a thing can be dismissed/expanded/acted on, its control must be visibly present.",
+      "incident": "GM-TOAST-X1 — toasts had no visible close ✕.",
+      "assertion": "every toast shows a visible ✕ within its bounds",
+      "status": "to-build",
+      "fixture": "any page that toasts; demo board can trigger them"
+    },
+    {
+      "id": "CANARY-CHOREOGRAPHY-ORIGIN",
+      "category": "Choreography origins",
+      "rule": "Flight animations must start where the thing actually was, and end where it actually lands.",
+      "incident": "NFT offers 'flying in from nowhere' (ghost origin had spilled off-screen); kinked trail lines from mid-glide rects (2026-07-14).",
+      "assertion": "every flight's start rect within Npx of the source chip's last painted rect; end rect within Npx of the destination chip",
+      "status": "to-build",
+      "fixture": "board.php?demo=1"
+    },
+    {
+      "id": "CANARY-FORMAT-REGRESSION",
+      "category": "Width/format regressions",
+      "rule": "Key containers keep their intended proportions — a refactor elsewhere must not silently shrink them.",
+      "incident": "SIGN-CARDWIDTH1 — account cards went narrow around the protobuf change.",
+      "assertion": "named containers ≥ expected fraction of their parent's width at desktop viewport",
+      "status": "to-build",
+      "fixture": "signing modal"
+    }
+  ]
+}

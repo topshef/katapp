@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="katomia.css?v=1788180897">
+<title>Katomia — binding inspector</title>
+<style>
+  body{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        max-width: 880px; margin: 0 auto; padding: 16px; background: #faf8f3; color: #2b2620; }
+  h1{ font-size: 1.3em; } h2{ font-size: 1.05em; margin-top: 1.6em; }
+  .card{ border: 1px solid #d8d2c4; border-radius: 8px; padding: 12px 14px; margin: 10px 0; background: #fff; }
+  .ok{ color: #1a7f37; } .warn{ color: #b35900; } .bad{ color: #b3261e; }
+  .kv{ display: grid; grid-template-columns: 160px 1fr; gap: 2px 10px; font-size: .85em; }
+  .kv dt{ color: #7a715f; } .kv dd{ margin: 0; word-break: break-all; }
+  pre{ background: #f4f1e8; border: 1px solid #e2dccc; border-radius: 6px; padding: 10px;
+       overflow-x: auto; font-size: .78em; white-space: pre-wrap; word-break: break-all; }
+  form{ display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0; }
+  input, select, button{ font: inherit; padding: 6px 10px; border: 1px solid #c9c2b2; border-radius: 6px; }
+  details{ margin: 8px 0; } summary{ cursor: pointer; color: #5a5344; }
+  .muted{ color: #7a715f; font-size: .85em; }
+  a{ color: #1a5fa8; }
+  ol li{ margin: 6px 0; }
+</style>
+</head>
+<body>
+<h1>🔏 Binding inspector</h1>
+<p class="muted">A <b>binding</b> is a signed statement, made by a Hedera account's own wallet key,
+that says: “this account vouches for this Katomia player key (intent key)”. Katomia verifies the
+signature against the account's <i>real</i> keys on the Hedera mirror node before storing it —
+nothing here is taken on trust, and everything below is enough to re-check it yourself.</p>
+
+<form id="q">
+  <select name="network" id="fNet">
+    <option value="testnet">testnet</option>
+    <option value="mainnet">mainnet</option>
+  </select>
+  <input name="accountId" id="fAcct" placeholder="0.0.12345" pattern="\d+\.\d+\.\d+" required>
+  <button>Inspect</button>
+</form>
+
+<div id="out"><p class="muted">Enter an account above, or arrive via a “Binding published” link.</p></div>
+
+<h2>How verification works (and how to do it yourself)</h2>
+<div class="card">
+<ol>
+  <li>The wallet signs the <b>challenge message</b> (shown verbatim per record below) using
+      HIP-820 <code>signMessage</code>. The actual signed bytes are the message with the standard
+      prefix: <code>"\x19Hedera Signed Message:\n" + message.length + message</code>.</li>
+  <li>The signature(s) arrive as a Hedera protobuf <code>SignatureMap</code> (base64 below):
+      pairs of <code>pubKeyPrefix</code> + signature.</li>
+  <li>Katomia fetches the account's key(s) from the <b>public mirror node</b> —
+      <code>/api/v1/accounts/&lt;id&gt;</code> — never from anything the client sent.</li>
+  <li>A binding is stored only if at least one signature verifies (Ed25519/ECDSA) over the
+      prefixed message bytes against a key the account actually controls. The signed message
+      itself names the <b>intent key</b> being vouched for, the account, network and expiry —
+      so the binding can't be replayed for a different key or account.</li>
+  <li>To re-verify independently: take <code>message</code> and <code>signatureMap</code> from a
+      record below, the account keys from the mirror link, apply the prefix, and run an
+      Ed25519 verify in the tool of your choice.</li>
+</ol>
+</div>
+
+<script>
+const $ = id => document.getElementById(id)
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]))
+
+async function load(net, acct){
+  $("fNet").value = net; $("fAcct").value = acct
+  $("out").innerHTML = '<p class="muted">Loading…</p>'
+  let j
+  try {
+    const r = await fetch(`${location.pathname.startsWith("/m/katomia") ? "/m/katomia" : ""}/hapi.php?action=bindings&network=${encodeURIComponent(net)}&accountId=${encodeURIComponent(acct)}`)
+    j = await r.json()
+  } catch(e){ $("out").innerHTML = '<p class="bad">Fetch failed: ' + esc(e.message) + '</p>'; return }
+  if(!j?.ok){ $("out").innerHTML = '<p class="bad">' + esc(j?.error || "lookup failed") + '</p>'; return }
+
+  const mirror = net === "mainnet" ? "https://hashscan.io/mainnet/account/" + acct
+                                   : "https://hashscan.io/testnet/account/" + acct
+  const mirrorApi = (net === "mainnet" ? "https://mainnet-public.mirrornode.hedera.com"
+                                       : "https://testnet.mirrornode.hedera.com") + "/api/v1/accounts/" + acct
+  let html = ""
+  const c = j.current
+  if(c){
+    const exp = c.expiresAt ? new Date(c.expiresAt) : null
+    const live = !exp || exp > new Date()
+    html += `<div class="card"><b class="${live ? "ok" : "warn"}">${live ? "🔷 Currently bound" : "△ Binding expired"}</b>
+      <dl class="kv">
+        <dt>account</dt><dd>${esc(acct)} (${esc(net)}) — <a href="${mirror}" target="_blank" rel="noopener">HashScan</a> · <a href="${mirrorApi}" target="_blank" rel="noopener">mirror keys</a></dd>
+        <dt>verified</dt><dd>${c.verified ? "yes — signature checked against mirror keys before storing" : "stored pre-verification era"}</dd>
+        <dt>key weight</dt><dd>${esc(c.weight)} of ${esc(c.threshold)} (${esc(c.keyStructure || "?")})</dd>
+        <dt>intent key</dt><dd>${esc(c.intentKey || "—")}</dd>
+        <dt>signed by</dt><dd>${(c.signedKeys || []).map(esc).join("<br>") || "—"}</dd>
+        <dt>expires</dt><dd>${esc(c.expiresAt || "no expiry")}</dd>
+      </dl></div>`
+  } else {
+    html += `<div class="card"><b class="warn">△ No live binding</b> — this account has no current
+      published binding on ${esc(net)}. <a href="${mirror}" target="_blank" rel="noopener">HashScan</a></div>`
+  }
+
+  html += `<h2>Published records (${j.count})</h2>`
+  if(!j.count) html += '<p class="muted">None.</p>'
+  j.records.slice().reverse().forEach((r, i) => {
+    const env = r.envelope || {}
+    html += `<div class="card">
+      <b>#${j.count - i}</b> · received ${esc(r.receivedAt || "?")} ·
+      <span class="${r.verified ? "ok" : "warn"}">${r.verified ? "verified" : "unverified"}</span>
+      <dl class="kv">
+        <dt>intent key</dt><dd>${esc(r.intentKey || "—")}</dd>
+        <dt>signed keys</dt><dd>${(r.signedKeys || []).map(esc).join("<br>") || "—"}</dd>
+        <dt>expires</dt><dd>${esc(r.expiresAt || "—")}</dd>
+      </dl>
+      <details><summary>signed message (the challenge, verbatim)</summary>
+        <pre>${esc((() => { try { return JSON.stringify(JSON.parse(env.message), null, 2) } catch(e){ return env.message || "—" } })())}</pre></details>
+      <details><summary>signatureMap (base64 protobuf)</summary><pre>${esc(env.signatureMap || "—")}</pre></details>
+      <details><summary>account key snapshot at signing time</summary>
+        <pre>${esc(JSON.stringify(env.accountKeySnapshot || null, null, 2))}</pre></details>
+      <details><summary>full envelope</summary><pre>${esc(JSON.stringify(env, null, 2))}</pre></details>
+    </div>`
+  })
+  $("out").innerHTML = html
+}
+
+$("q").onsubmit = e => { e.preventDefault(); load($("fNet").value, $("fAcct").value.trim()) }
+const p = new URLSearchParams(location.search)
+if(/^(mainnet|testnet)$/.test(p.get("network") || "") && /^\d+\.\d+\.\d+$/.test(p.get("accountId") || ""))
+  load(p.get("network"), p.get("accountId"))
+</script>
+</body>
+</html>

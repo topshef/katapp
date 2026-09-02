@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Katomia QA</title>
+<style>
+  body{ font-family: system-ui, sans-serif; margin: 0 auto; max-width: 900px; padding: 24px 16px 80px; color: #222; line-height: 1.5; background: #fff; }
+  h1{ font-size: 24px; margin-bottom: 4px; }
+  h2{ font-size: 17px; margin: 0 0 4px; }
+  .note{ color: #777; font-size: 12px; }
+  a{ color: #2a5a78; }
+  .intro{ font-size: 14px; color: #444; margin: 6px 0 18px; max-width: 62em; }
+  /* status strip */
+  .strip{ border: 1px solid #ddd; border-radius: 12px; padding: 12px 16px; background: #fbfaf6; margin-bottom: 18px; }
+  .strip .head{ font-size: 13px; color: #555; margin-bottom: 8px; }
+  .strip .head b{ color: #222; }
+  .chips{ display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip{ font-size: 12px; border-radius: 999px; padding: 3px 10px; border: 1px solid #ddd; background: #fff; color: #333; text-decoration: none; }
+  .chip.pass{ background: #e6f4ea; border-color: #b7dfc2; }
+  .chip.fail, .chip.error{ background: #fdecea; border-color: #f2b8b5; font-weight: 600; }
+  .chip.silent{ background: #fff3cd; border-color: #ecd699; }
+  .chip.ondemand{ background: #f4f4f4; color: #777; }
+  .chip.paused{ background: #fff3d6; border-color: #d9a94a; color: #8a6a10; }
+  .chip .age{ color: #888; font-weight: 400; }
+  /* question sections */
+  .sections{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin: 18px 0; }
+  .section{ border: 1px solid #ddd; border-radius: 12px; padding: 16px 18px; background: #fbfaf6; }
+  .section p.blurb{ margin: 4px 0 10px; font-size: 13px; color: #666; }
+  .section ul{ margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
+  .section li{ margin: 5px 0; }
+  .demoted{ color: #888; }
+  .gaps{ border: 1px solid #ecd699; border-left: 5px solid #e0a800; border-radius: 10px; background: #fffdf4; padding: 12px 16px; font-size: 13px; margin: 18px 0; }
+  .gaps b{ color: #222; }
+  .gaps ul{ margin: 6px 0 0; padding-left: 18px; }
+  .gaps li{ margin: 3px 0; }
+</style>
+</head>
+<body>
+
+<!-- QA-PUBLICSPLIT1 (user 2026-08-03): this page is linked from the app's hamburger menu
+     under nerd mode, i.e. effectively PUBLIC. Nothing here is gated yet — if parts of the
+     QA layer need an internal/external split, do a deliberate pass (tracked QA-PUBLICSPLIT1). -->
+<!-- QA-REORG1 (built 2026-08-14): home reorganised by VISITOR QUESTION per the plan —
+     status strip, four question sections, explicit known-gaps block, and the rule that
+     every page under qa/ is linked from here or it does not exist. The old three-layer
+     documentation/configuration/results split is gone (librarian's taxonomy). -->
+
+<h1>Katomia QA</h1>
+<p class="intro">This is the testing home for Katomia. <b>New here?</b> The strip below is the live
+pulse — one chip per test, green/red, greyed if it only runs on demand. Below it, four sections in
+the order you'll actually ask the questions: is it working, what do we test, when did it break, and
+how testing works here. What we <i>don't</i> test is stated plainly at the bottom — this page should
+never look like more coverage than it is.</p>
+
+<div class="strip">
+  <div class="head" id="stripHead">loading live status…</div>
+  <div class="chips" id="stripChips"></div>
+</div>
+
+<div class="sections">
+
+  <div class="section">
+    <h2>🩺 Is it working right now?</h2>
+    <p class="blurb">Current health, one screen per area. Testnet runs constantly (free — "does the
+    logic work"); mainnet runs daily at real cost ("is it true with real money") — a
+    testnet-green/mainnet-red split is information, not a duplicate.</p>
+    <ul>
+      <li><a href="kwallet.html"><b>Signing health</b></a> — the wallet/signing tests on one screen;
+          a silent test is ranked as badly as a failing one</li>
+      <li><b>State sync</b> — the incremental-update layer (STATSYNC1) is guarded daily by
+          <a href="tests.html">T:STATSYNC-01…04</a>; its verdicts appear in the strip above and the grid</li>
+      <li><a href="tx.html">Transaction log</a> — every mainnet/testnet tx attempted, start→lock→consensus→end</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>🔬 What do we test — and what does each test actually do?</h2>
+    <p class="blurb">Every test id resolves here: what it asserts, step by step, how to run it, what
+    a failure means. If an id isn't in the index, it doesn't exist.</p>
+    <ul>
+      <li><a href="tests.html"><b>Test index</b></a> — every suite and assertion, with runners and repro steps</li>
+      <li><a href="wc-paths.html">WalletConnect scenario grid</a> — WC path definitions
+          <span class="note">(to be absorbed into the test index)</span></li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>📉 When did it start failing?</h2>
+    <p class="blurb">History: verdicts against commits, so a regression points at the change that
+    caused it.</p>
+    <ul>
+      <li><a href="results.html"><b>Retest grid</b></a> — commits across, tests down</li>
+      <li><a href="https://alpha.katlab.kpay.live/kflow-admin" target="_blank">Backend kflow-admin</a> —
+          full event stream (access-controlled)</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>📚 How do we test, and why?</h2>
+    <p class="blurb">The process and its reasoning. The first two are current practice; the rest is
+    planning material — it describes ambition, not coverage.</p>
+    <ul>
+      <li><a href="guide.html"><b>Plain-language guide</b></a> — how testing works here, no jargon</li>
+      <li><a href="config.html">Decisions &amp; configuration</a> — why things are the way they are</li>
+      <li class="demoted"><a href="strategy.html">Testing strategy</a> — the aspiration (planning doc)</li>
+      <li class="demoted"><a href="dimensions.html">Test dimensions</a> — the axes a full suite would cover (planning doc)</li>
+      <li class="demoted"><a href="katrun.php">katrun index</a> — scripted runs / demo loops
+          <span class="note">(closer to demo tooling than QA — status to be decided)</span></li>
+    </ul>
+  </div>
+
+</div>
+
+<div class="gaps">
+  <b>⚠️ Known gaps — what is NOT tested.</b> Read this before trusting a green strip:
+  <ul>
+    <li><b>Board interaction</b> — no automated test drives offers/withdraw/lock through the real UI
+        (the statsync suites verify board <i>state &amp; rendering equivalence</i>, added 2026-08-14, but not gestures).</li>
+    <li><b>Order-book mode</b> — no test at all.</li>
+    <li><b>Auth / commitment flows</b> — no test.</li>
+    <li><b>Mobile layout</b> — no automated eyes; manual passes are not being recorded.</li>
+    <li>The planning docs above describe more instances/dimensions than have ever reported a verdict —
+        taxonomy is not coverage.</li>
+  </ul>
+  <span class="note">Work plan to close these: <a href="https://kpay.uk/devtools/kpad/file?p=servers/lincoln/docs/QA-REORG1-PLAN.html&amp;proj=katomia" target="_blank">QA-REORG1 plan</a> §5.</span>
+</div>
+
+<p class="note">Rule of this page: every page under <code>qa/</code> is linked from here, or it does
+not exist. Data lives in <code>qa/data/</code> (git-tracked); pages only display it. All testing —
+cron, scripted, manual — reports the same <code>test:start</code>/<code>test:verdict</code> kflow
+language. Home reorganised 2026-08-14 (QA-REORG1).</p>
+
+<script>
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
+;(async () => {
+  const head = document.getElementById("stripHead"), box = document.getElementById("stripChips")
+  try {
+    const [tests, res] = await Promise.all([
+      fetch("data/tests.json").then(r => r.json()),
+      fetch("results.php?days=7").then(r => r.json())
+    ])
+    // latest verdict per suite id from 7 days of kflow events
+    const latest = {}
+    for(const e of res.events || []){
+      if(e.checkpoint !== "test:verdict") continue
+      const id = e.detail?.instance || null
+      if(!id) continue
+      if(!latest[id] || e.t > latest[id].t) latest[id] = { v: e.v, t: e.t }
+    }
+    const ago = t => {
+      const h = (Date.now() - new Date(t)) / 36e5
+      return h < 1.5 ? `${Math.round(h * 60)}m` : h < 48 ? `${Math.round(h)}h` : `${Math.round(h / 24)}d`
+    }
+    const PAUSED = res.paused || {}   // QA-ENVCOVERAGE1: intentionally-parked tests
+    const suites = (tests.suites || []).filter(s => s.id !== "STATSYNC-BENCH-01")   // benchmarks aren't pass/fail
+    let green = 0, red = 0, silent = 0, paused = 0
+    for(const s of suites){
+      const cron = /cron/i.test(s.schedule || "")
+      const L = latest[s.id]
+      const pz = PAUSED[s.id] || null
+      let cls, label
+      // A paused test is intentionally out of action — shown ⏸, never counted as failing/silent.
+      if(pz){ cls = "paused"; label = "⏸"; paused++ }
+      else if(L && (L.v === "pass")){ cls = "pass"; label = "✓"; green++ }
+      else if(L){ cls = L.v === "fail" ? "fail" : "error"; label = "✗"; red++ }
+      else if(cron){ cls = "silent"; label = "silent"; silent++ }
+      else { cls = "ondemand"; label = "on demand" }
+      const a = document.createElement("a")
+      a.className = "chip " + cls
+      a.href = "tests.html"
+      a.innerHTML = `${esc(s.id)} ${label}` + (pz ? "" : (L ? ` <span class="age">${esc(ago(L.t))}</span>` : ""))
+      a.title = pz ? "Paused: " + esc(pz.reason || "") : esc(s.title || "")
+      box.appendChild(a)
+    }
+    head.innerHTML = `<b>${green}</b> green · <b>${red}</b> failing · <b>${silent}</b> silent (scheduled but not reporting)`
+      + (paused ? ` · <b>${paused}</b> paused` : "")
+      + ` — last 7 days, ${(res.events || []).filter(e => e.checkpoint === "test:verdict").length} verdicts, site commit <code>${esc(res.commit || "?")}</code>.
+      Silent is a failure mode, not a neutral state.`
+  } catch(e){
+    head.textContent = "live status unavailable — " + e.message
+  }
+})()
+</script>
+
+</body>
+</html>

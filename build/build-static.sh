@@ -1,67 +1,113 @@
 #!/bin/bash
-# build-static.sh — P3: render the katomia app to a static bundle for Cloudflare Pages.
-# The katomia pages have no per-user server state, so each is rendered ONCE (empty game
-# = game-agnostic shell; the client reads the real gameId from the URL via getGameId()).
-# Config is repointed from same-origin "" to the API alias so HTTP + WS go through the Worker.
+# build-static.sh — render the katomia app to a static bundle for Cloudflare Workers
+# (assets + the router Worker in build/router.js).
+#
+# STATIC-BUILD2 (2026-09-02): renders from THIS CHECKOUT with the PHP CLI dev server —
+# no lab22, no live site, no network. GitHub is the source of truth: anyone with php
+# (>= 8) can regenerate build/dist from the repo alone, which is what lets the dev
+# server retire. The katomia pages carry no per-user server state, so each route is
+# rendered ONCE as a game-agnostic shell; the client reads the real gameId from the
+# URL (getGameId() in katomia-core.js). Config is rendered straight to the API alias
+# via a build-time .env_hapi, so HTTP + WS go through the Worker.
+#
+# Usage:  build/build-static.sh            # dist → build/dist (committed)
+#   ALIAS=host/path  override the API alias (host+path, scheme-less — HAPI_BASE convention)
+#   SITE_HOST=…      Host header used for the render (only affects nothing the router
+#                    doesn't already patch per-request; kept for parity with lab22 renders)
 set -euo pipefail
-SRC="https://127.0.0.1"; HOST="lab22.kpay.uk"
-ALIAS="kpay-api-alias.tayloa17.workers.dev/hapi"     # host+path, scheme-less (HAPI_BASE convention)
+ALIAS="${ALIAS:-kpay-api-alias.tayloa17.workers.dev/hapi}"
+SITE_HOST="${SITE_HOST:-katui.tayloa17.workers.dev}"
+PORT="${PORT:-8099}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PUB="$ROOT/public_html"; DIST="$ROOT/build/dist"
-get(){ curl -s -k -H "Host: $HOST" "$SRC$1"; }
-# rewrite the same-origin config to the alias (works for both HAPI_BASE:"" and config.js)
-repoint(){ sed "s#HAPI_BASE: *\"\"#HAPI_BASE: \"$ALIAS\"#g"; }
+PUB="$ROOT/public_html"; DIST="$ROOT/build/dist"; SRC="http://127.0.0.1:$PORT"
+KWC_SNAP="4a3351b"   # KWC-CLEANBUILD1 bundle (see vendor/walletconnect/kwcScriptTag.php)
 
+command -v php >/dev/null || { echo "php CLI required (>= 8.0)"; exit 1; }
+
+# ── build-time env: hapi_base.php reads dirname(DOCUMENT_ROOT)/.env_hapi ──────────
+# Never clobber a real one (lab22 / a GCP checkout serving PHP): stash + restore.
+ENV_FILE="$ROOT/.env_hapi"; ENV_BAK=""
+if [ -e "$ENV_FILE" ]; then ENV_BAK="$(mktemp)"; cp "$ENV_FILE" "$ENV_BAK"; fi
+cleanup(){
+  [ -n "${PHP_PID:-}" ] && kill "$PHP_PID" 2>/dev/null || true
+  if [ -n "$ENV_BAK" ]; then cp "$ENV_BAK" "$ENV_FILE"; rm -f "$ENV_BAK"; else rm -f "$ENV_FILE"; fi
+}
+trap cleanup EXIT
+printf 'HAPI_BASE=%s\n' "$ALIAS" > "$ENV_FILE"
+mkdir -p "$ROOT/logs"   # elog.php writes here; must exist or the render dies noisily
+
+# ── local PHP server over public_html (DOCUMENT_ROOT = public_html, as on lab22) ──
+php -S "127.0.0.1:$PORT" -t "$PUB" >"$ROOT/logs/build-static-php.log" 2>&1 &
+PHP_PID=$!
+for i in $(seq 1 30); do curl -s -o /dev/null "$SRC/" && break; sleep 0.2; done
+
+get(){ # $1 = path (+query) under the docroot
+  local out; out="$(curl -s -f -H "Host: $SITE_HOST" "$SRC$1")" || { echo "render FAILED: $1" >&2; exit 1; }
+  printf '%s' "$out"
+}
+render(){ # $1 = source path, $2 = dist file
+  mkdir -p "$DIST/$(dirname "$2")"
+  get "$1" > "$DIST/$2"
+  grep -q "Fatal error\|Parse error" "$DIST/$2" && { echo "PHP error in $1" >&2; exit 1; }
+  echo "   $2  ← $1"
+}
+
+# ── keep the committed KWC bundle when the shared store isn't on this box ─────────
+STASH="$(mktemp -d)"
+[ -d "$DIST/vendor/walletconnect/snapshots/$KWC_SNAP" ] && cp -r "$DIST/vendor/walletconnect/snapshots/$KWC_SNAP" "$STASH/"
 rm -rf "$DIST"; mkdir -p "$DIST/m/katomia"
-echo "→ rendering board shell (empty game = game-agnostic)"
-get "/m/katomia/board.php" | repoint \
-  | sed "s#/feedback-widget.js#https://$ALIAS/feedback-widget.js#g" \
-  > "$DIST/m/katomia/board.html"
 
-echo "→ rendering widget config.js (config.js.php → static, alias-pinned)"
-mkdir -p "$DIST/vendor/kpay/kpool_widget"
-get "/vendor/kpay/kpool_widget/config.js" | repoint > "$DIST/vendor/kpay/kpool_widget/config.js"
+echo "→ rendering page shells (one per route; see router.js for the URL map)"
+K=/m/katomia
+render "$K/index.php"                        m/katomia/index.html          # welcome (default root)
+for skin in liquid clay bubble; do                                          # ENTRY-SKINS1 (nerd-mode picker)
+  render "$K/index.php?skin=$skin"           "m/katomia/index-$skin.html"
+done
+render "$K/index.php?page=markets"           m/katomia/markets.html
+render "$K/index.php?page=circles"           m/katomia/circles.html
+render "$K/index.php?page=learn"             m/katomia/learn.html
+render "$K/index.php?page=host"              m/katomia/host.html
+render "$K/index.php?page=create"            m/katomia/create.html
+render "$K/index.php?page=create&skin=basic" m/katomia/create-basic.html   # ENTRY-CREATEBASIC1
+render "$K/game.php?game="                   m/katomia/game.html           # shell: id from URL
+render "$K/board.php"                        m/katomia/board.html          # shell: id from URL
+render "$K/binding.php"                      m/katomia/binding.html
 
-echo "→ rendering walletconnect config.json (config.php → static)"
-mkdir -p "$DIST/vendor/walletconnect"
-get "/vendor/walletconnect/config.json" > "$DIST/vendor/walletconnect/config.json"
+echo "→ rendering widget config.js (config.js.php) + walletconnect config.json (config.php)"
+render /vendor/kpay/kpool_widget/config.js.php vendor/kpay/kpool_widget/config.js
+render /vendor/walletconnect/config.php        vendor/walletconnect/config.json
+kill "$PHP_PID"; PHP_PID=""
 
 echo "→ copying static asset trees (js/css/assets/images/wasm — no .php)"
-copytree(){ # $1 = path under public_html
-  cd "$PUB"
-  find "$1" -type f \( -name '*.js' -o -name '*.css' -o -name '*.svg' -o -name '*.png' -o -name '*.jpg' -o -name '*.gif' -o -name '*.ico' -o -name '*.json' -o -name '*.wasm' -o -name '*.webmanifest' -o -name '*.woff2' \) \
-    -not -path '*/qa/*' -not -path '*/.git/*' | while read -r f; do
-      mkdir -p "$DIST/$(dirname "$f")"; cp "$f" "$DIST/$f"
-  done
+copytree(){ # $1 = path under public_html, $2 = extra find args (optional)
+  ( cd "$PUB" && find "$1" -type f \( -name '*.js' -o -name '*.css' -o -name '*.svg' -o -name '*.png' -o -name '*.jpg' -o -name '*.gif' -o -name '*.ico' -o -name '*.json' -o -name '*.wasm' -o -name '*.webmanifest' -o -name '*.woff2' \) \
+      -not -path '*/qa/*' -not -path '*/.git/*' -not -name '*.test.*' -print0 ) \
+  | while IFS= read -r -d '' f; do mkdir -p "$DIST/$(dirname "$f")"; cp "$PUB/$f" "$DIST/$f"; done
 }
 copytree m/katomia
 copytree m/bid
 copytree vendor/kpay/kpool_widget
-# KWC bundle lives in the shared store (symlinked on lab22), copy it directly
-mkdir -p "$DIST/vendor/walletconnect/snapshots/4a3351b"
-cp /var/www/kwc-snapshots/4a3351b/* "$DIST/vendor/walletconnect/snapshots/4a3351b/"
 copytree m/tools/glog 2>/dev/null || true
+# the two HTML fragments pages fetch at runtime (footer) / link to (keakonnect → kea-bind.html)
+cp "$PUB/m/katomia/footer.html" "$PUB/m/katomia/kea-bind.html" "$DIST/m/katomia/"
 
-echo "→ wrangler.toml (assets-only Worker, so the Workers&Pages flow serves the folder)"
-cat > "$DIST/router.js" <<'RT'
-// katui router. Mirrors lab22's board .htaccess sibling rule:
-//  · /m/katomia/board/<id>            → board.html shell (URL kept → getGameId() reads <id>)
-//  · /m/katomia/board/<anything>.<ext> → /m/katomia/<anything>.<ext>
-//    (board.html uses RELATIVE asset paths; under /board/<id> the browser resolves them
-//     against /m/katomia/board/, so they must be rewritten back to the /m/katomia/ siblings)
-const ASSET = /^\/m\/katomia\/board\/(.+\.[^/]+)$/;   // anything after board/ ending in .ext
-const PAGE  = /^\/m\/katomia\/board(\/[^/.]+)?\/?$/;  // board, or board/<id> (no dot)
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url); let m;
-    if ((m = url.pathname.match(ASSET)))
-      return env.ASSETS.fetch(new Request(new URL('/m/katomia/' + m[1] + url.search, url), request));
-    if (PAGE.test(url.pathname))
-      return env.ASSETS.fetch(new Request(new URL('/m/katomia/board.html', url), request));
-    return env.ASSETS.fetch(request);
-  }
-};
-RT
+echo "→ QA dashboard: static pages + git-tracked data (the .php feeds need a server; pages degrade)"
+( cd "$PUB" && find m/katomia/qa -maxdepth 1 -type f -name '*.html' -print0; find m/katomia/qa/data -type f -name '*.json' -print0 ) \
+  | while IFS= read -r -d '' f; do mkdir -p "$DIST/$(dirname "$f")"; cp "$PUB/$f" "$DIST/$f"; done
+
+echo "→ KWC bundle $KWC_SNAP"
+mkdir -p "$DIST/vendor/walletconnect/snapshots"
+if [ -d "/var/www/kwc-snapshots/$KWC_SNAP" ]; then
+  cp -r "/var/www/kwc-snapshots/$KWC_SNAP" "$DIST/vendor/walletconnect/snapshots/"
+elif [ -d "$STASH/$KWC_SNAP" ]; then
+  cp -r "$STASH/$KWC_SNAP" "$DIST/vendor/walletconnect/snapshots/"
+else
+  echo "   !! no KWC snapshot $KWC_SNAP available (shared store absent, dist had none)"; exit 1
+fi
+rm -rf "$STASH"
+
+echo "→ router Worker + wrangler.toml (assets-only Worker; router mirrors lab22's .htaccess)"
+cp "$ROOT/build/router.js" "$DIST/router.js"
 cat > "$DIST/wrangler.toml" <<WT
 name = "katui"
 main = "router.js"
@@ -70,12 +116,14 @@ compatibility_date = "2026-08-01"
 directory = "."
 binding = "ASSETS"
 html_handling = "none"
-WT
+not_found_handling = "none"
 
-echo "→ Cloudflare Pages routing (_redirects): /board/<id> → the shell"
-cat > "$DIST/_redirects" <<EOF
-/m/katomia/board/*   /m/katomia/board.html   200
-EOF
+# Same-origin API path: /m/katomia/hapi/* (and /hapi/*, /kfeedback*, /feedback-widget.js)
+# are forwarded by router.js to the API alias Worker at ALIAS_ORIGIN (Worker-to-Worker
+# fetch; a [[services]] binding named ALIAS would be used instead if one is added).
+[vars]
+ALIAS_ORIGIN = "https://${ALIAS%%/*}"
+WT
 
 echo "✓ dist ready: $DIST"
 echo "  files: $(find "$DIST" -type f | wc -l), size: $(du -sh "$DIST" | cut -f1)"

@@ -1,8 +1,14 @@
 name = "katui"
 main = "router.js"
 compatibility_date = "2026-08-01"
-
 [assets]
 directory = "."
 binding = "ASSETS"
 html_handling = "none"
+not_found_handling = "none"
+
+# Same-origin API path: /m/katomia/hapi/* (and /hapi/*, /kfeedback*, /feedback-widget.js)
+# are forwarded by router.js to the API alias Worker at ALIAS_ORIGIN (Worker-to-Worker
+# fetch; a [[services]] binding named ALIAS would be used instead if one is added).
+[vars]
+ALIAS_ORIGIN = "https://kpay-api-alias.tayloa17.workers.dev"

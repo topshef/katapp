@@ -1,0 +1,40 @@
+{
+  "_about": "QA-BENCHFREEZE1: the frozen do-not-go-backwards floor, recorded immediately after the user promoted lab1 -> kswap -> pat + production (all three now serve the same triple). Any future run that shrinks the pass set or grows the expected-fail set is a regression. Recorded by KATUI (seat lab1) from real runs, not assumptions — raw logs summarised in the ops event referencing this file.",
+  "frozen": "2026-08-07T22:45:44Z",
+  "release": {
+    "frontend_sha": "0096a476",
+    "kwc_snapshot": "8e6255c",
+    "note": "lab1 == kswap == pat == app at freeze time; backend alpha (lab1) / hapi7 (pat) / hapi6 (app)"
+  },
+  "targets": {
+    "lab1": "https://lab1.katlab.kpay.live/m/katomia",
+    "production": "https://app.katomia.com",
+    "pat": "deliberately excluded — user is running their own tests there (2026-08-07)"
+  },
+  "pass_floor": [
+    { "id": "HBARXFER-01", "target": "lab1", "result": "pass", "detail": "offer->lock->strike->Sign->kWallet->settle, 58s" },
+    { "id": "HBARXFER-01", "target": "production", "result": "pass", "detail": "FIRST EVER production board e2e pass; testnet game PAJDPN on the production bundle, 60s. The flaky #addAcctJoinAll step did not bite this run — it remains a known intermittent (QA-HARNESSREPAIR1)." },
+    { "id": "WCNETSWITCH-01", "target": "lab1", "result": "pass" },
+    { "id": "WCNETSWITCH-02", "target": "lab1", "result": "pass" },
+    { "id": "WC-A5B-GHOST", "target": "lab1", "result": "7/8", "detail": "all assertions pass EXCEPT A5b.4 (expected-fail, see below)" },
+    { "id": "WC-A5B-GHOST", "target": "production", "result": "7/8", "detail": "identical to lab1 — environment equivalence holds" },
+    { "id": "journey", "target": "production", "result": "pass", "detail": "landing->card->board, clean URLs, legacy 308" },
+    { "id": "probe", "target": "production", "result": "clean", "detail": "no failed requests; 2 console 404s are the KWC bundle's optional release.json probe (buildInfo.js), identical on lab1, pre-existing and benign" },
+    { "id": "validdur-decode-matrix", "target": "backend-alpha", "result": "12/12" }
+  ],
+  "expected_fail": [
+    { "id": "A5b.4", "why": "sign against a ghost session hangs the full 120s KWC-TIMEOUT while the tx dies at 40s — measured 120.0s on lab1 AND production. THE known product bug; fix is TXSTATUS-CONSOLIDATE1 S4 (bound the wait by the tx's own validity window). This entry moving to pass_floor is the success criterion for that stage." }
+  ],
+  "known_broken_tests": [
+    { "id": "WC-A5-ONLINE", "state": "silent — harness hangs in its own pairing step before reporting; bundle exonerated by isolated probe (1.1s). QA-HARNESSREPAIR1 item 3." },
+    { "id": "MAINNETSMOKE-01", "state": "carries the tap-fix but unverified — moves real value, left to its 05:20 cron. Check the next cron result." },
+    { "id": "CHIPARRANGE-01", "state": "not assessed in this pass — visual/arrange class, not a signing test." }
+  ],
+  "not_covered_by_automation": [
+    "mobile sign with the wallet backgrounded (kWallet cannot fail this)",
+    "deliberately slow approval ~45s",
+    "HashPack's own session lifecycle by hand",
+    "animation/timing judgement"
+  ],
+  "dashboard": "qa/kwallet.html — one-screen current status, SILENT ranked as failure"
+}

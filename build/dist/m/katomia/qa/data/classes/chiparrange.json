@@ -1,0 +1,82 @@
+{
+  "_about": "Test CLASS file — machine-readable source for the qa/ viewer pages and the automated runner. Covers BOARD-ARRANGE1: drag-to-arrange, stays-where-dropped, spawn-at-drop-point, per-game persistence, tidy-on-demand. The automated instances run against the ?demo=1 sandbox (no backend, no wallet) via qa/harness/board-arrange.cjs; the same harness replays scripted move files (qa/harness/moves/) as narrated demos with video.",
+  "id": "CHIPARRANGE",
+  "title": "Chip arrangement — hand-placed chips stay where dropped; layout only re-flows on demand",
+  "status": "automated",
+  "task": "BOARD-ARRANGE1",
+  "updated": "2026-07-17",
+  "oracle": {
+    "hard_assertions": [
+      "drag-to-arrange within a chip's own zone moves it to the release point and flags it user-pinned (body.pin)",
+      "a pinned chip does not move through a sim re-excite (0px drift over settle)",
+      "a pinned chip does not move when other chips arrive/leave its zone or the board re-renders",
+      "an offered/picked chip spawns AT the drop point in the target zone, pinned",
+      "pinned arrangements restore after a page reload (localStorage per game, zone-local coords)",
+      "🧹 tidy clears every pin (bodies + storage) and the auto-layout re-flows as visible motion",
+      "pinned chips remain solid: arrivals take the whole collision separation and route around them",
+      "walls still clamp pinned chips — a resize never strands one off the felt",
+      "cross-zone drops still route to offer/pick/reject/withdraw semantics untouched",
+      "no console errors"
+    ],
+    "trace_shape": "gesture → arrange (no socket send) vs gesture → offer (socket send + pending-spawn note) — an arrange must never emit a game message",
+    "benchmark": "qa/harness/runs/chiparrange-demo.webm — the scripted-move demo replay, 2026-07-17"
+  },
+  "dimensions": {
+    "G": {
+      "ref": null,
+      "name": "gesture path",
+      "values": ["touch-pointer", "mouse-native-dnd"],
+      "boundaries": ["mouse-native-dnd"]
+    },
+    "Z": {
+      "ref": null,
+      "name": "zone kind",
+      "values": ["own-store", "own-basket", "offered-chip-in-their-basket"]
+    },
+    "L": {
+      "ref": "layout",
+      "values": ["organic", "shelves"],
+      "boundaries": ["shelves"]
+    },
+    "P": {
+      "ref": null,
+      "name": "persistence event",
+      "values": ["same-session", "reload", "tidy"]
+    }
+  },
+  "instances": [
+    {
+      "id": "CHIPARRANGE-01",
+      "vector": { "gesture": "touch-pointer", "zone": "own-store", "layout": "organic", "persistence": "reload+tidy" },
+      "run": "auto",
+      "why_manual": null,
+      "status": "pass",
+      "benchmark": "first green run 2026-07-17 00:22 (kflow run chiparrange-*, all 6 assertions A1-A6); screenshot qa/harness/chiparrange-last.png",
+      "steps": "Automated: node qa/harness/board-arrange.cjs — arrange a store chip (A1), re-excite (A2), foreign offer lands elsewhere (A3), offered chip spawns pinned at drop point (A4), reload restores (A5), tidy clears (A6)."
+    },
+    {
+      "id": "CHIPARRANGE-02",
+      "vector": { "gesture": "mouse-native-dnd", "zone": "own-store", "layout": "organic", "persistence": "same-session" },
+      "run": "manual",
+      "why_manual": "HTML5 native drag (dragstart/drop/dragend) needs a real OS drag pipeline — headless synthetic events don't drive it faithfully",
+      "status": "unrun",
+      "benchmark": null,
+      "steps": "1. Desktop, ring16, any game (or ?demo=1).\n2. Mouse-drag one of your OWN store chips a short way within your own wedge and release — it must stay exactly there (no snap-back, no re-blob), cursor must NOT show 🚫 over your own wedge.\n3. Drag it again onto empty felt near the hub edge of your wedge — releases just outside the walls snap back; releases inside stick.\n4. Offer a chip to another account by mouse — the chip should appear in their basket where you dropped it.\n5. 🧹 tidy — everything re-flows."
+    },
+    {
+      "id": "CHIPARRANGE-03",
+      "vector": { "gesture": "touch-pointer", "zone": "offered-chip-in-their-basket", "layout": "shelves", "persistence": "reload" },
+      "run": "manual",
+      "why_manual": "shelves + pins coexistence is a judgement call (pinned chips sit outside the shelf rows) — needs an eyeball on whether it reads as intentional",
+      "status": "unrun",
+      "benchmark": null,
+      "steps": "1. Settings → Chip layout → shelves.\n2. Arrange one chip by hand — it must hold its spot while the others shelve around it (they may overlap the pinned one: acceptable? judge).\n3. Offer into a basket at a specific point — spawns there even in shelves mode.\n4. Reload — the pinned chip restores; the rest re-shelve."
+    }
+  ],
+  "demo": {
+    "what": "scripted-move replay: the harness executes a JSON move script through the real gesture handlers and records video — 'playing a game from a script'",
+    "run": "node qa/harness/board-arrange.cjs --moves qa/harness/moves/chiparrange-demo.json --video --slow",
+    "artifact": "qa/harness/runs/chiparrange-demo.webm",
+    "vocabulary": "arrange / offer / tidy / reload / pause — see the moves file header; extendable toward lock/sign for full-game katrun-style demos"
+  }
+}

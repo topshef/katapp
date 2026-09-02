@@ -1,0 +1,90 @@
+{
+  "_about": "STATSYNC1 wire benchmark (T:STATSYNC-BENCH-01). Full-state broadcast measurements — correctness (T:STATSYNC-01) must never regress across phases; bytes must fall by P6.",
+  "ts": "2026-08-14T01:31:51.761Z",
+  "api": "https://alpha.katlab.kpay.live",
+  "scripted": {
+    "kind": "scripted",
+    "gameId": "DWSBCU",
+    "actions": 9,
+    "perClient": [
+      {
+        "name": "A",
+        "states": 42,
+        "bytes": 152037,
+        "avgBytes": 3620,
+        "maxBytes": 6620
+      },
+      {
+        "name": "B",
+        "states": 41,
+        "bytes": 151382,
+        "avgBytes": 3692,
+        "maxBytes": 6620
+      },
+      {
+        "name": "C",
+        "states": 40,
+        "bytes": 147425,
+        "avgBytes": 3686,
+        "maxBytes": 6525
+      }
+    ],
+    "latencyMsMedian": 3,
+    "latencyMs": [
+      {
+        "label": "addAccount alice",
+        "ms": 3
+      },
+      {
+        "label": "addAccount bob",
+        "ms": 5
+      },
+      {
+        "label": "offer apple alice→bob",
+        "ms": 2
+      },
+      {
+        "label": "offer banana bob→alice",
+        "ms": 3
+      },
+      {
+        "label": "public chat",
+        "ms": 5
+      },
+      {
+        "label": "targeted chat B→A",
+        "ms": 9
+      },
+      {
+        "label": "toggleLock alice",
+        "ms": 1
+      },
+      {
+        "label": "toggleLock alice off",
+        "ms": 2
+      },
+      {
+        "label": "withdraw banana",
+        "ms": 2
+      }
+    ],
+    "seqPresent": false,
+    "finalStateBytes": 1304,
+    "growth": {
+      "first": 2071,
+      "last": 6525,
+      "perChatBytes": 154
+    }
+  },
+  "passive": {
+    "kind": "passive",
+    "game": "q-crowd",
+    "secs": 30,
+    "states": 1,
+    "bytes": 3859,
+    "avgBytes": 3859,
+    "maxBytes": 3859,
+    "perMinute": 2
+  },
+  "failures": []
+}

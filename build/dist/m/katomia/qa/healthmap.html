@@ -1,0 +1,265 @@
+<!doctype html>
+<!--
+  qa/healthmap.html — DESIGN DOCUMENT for the system health map (QA-HEALTHMAP1).
+
+  User ask (2026-08-16, voice): "imagine it a bit like a body — arms, legs, head —
+  modules, and we show the health of each module, each cell being a different test
+  case, so you have a heat map within a particular module. For history, show the
+  same diagram in the z-index — in three-dimensional space you can see the health
+  of the application going back in time... connects to the Meta Quest 3 thing on
+  kPad. This also doubles as a design document because it's visually showing
+  what's going on. Keep it in grid format to start with."
+
+  This page is the scoping doc, not the implementation. It ships alongside the QA
+  pages it will grow out of, so the design stays next to the data it projects.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System health map — design (QA-HEALTHMAP1)</title>
+<style>
+  :root{
+    --bg:#fbfbfa; --fg:#1a1a19; --mut:#6b6b66; --line:#e3e3df; --card:#fff;
+    --ok:#1f7a45; --okbg:#e8f5ed; --bad:#a12a2a; --badbg:#fbe9e9;
+    --warn:#8a5a00; --warnbg:#fdf3e0; --code:#f4f4f1;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#16161a; --fg:#e8e8e4; --mut:#9a9a94; --line:#2c2c32; --card:#1d1d22;
+      --ok:#5fd08a; --okbg:#12301f; --bad:#f08a8a; --badbg:#331717;
+      --warn:#e0ae5a; --warnbg:#33270f; --code:#232329;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);padding:24px 16px 70px;
+       font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:860px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 2px}
+  h2{font-size:16px;margin:36px 0 10px;padding-bottom:5px;border-bottom:1px solid var(--line);
+     text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
+  h3{font-size:15px;margin:22px 0 6px}
+  .sub{color:var(--mut);font-size:13px;margin-bottom:22px}
+  .sub a{color:inherit}
+  p{margin:0 0 12px}
+  code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:12.5px}
+  table{border-collapse:collapse;font-size:13.5px;margin:12px 0;width:100%}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:var(--code)}
+  .stage{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--mut);
+         border-radius:10px;padding:14px 16px;margin:0 0 12px}
+  .stage.now{border-left-color:var(--ok)}
+  .stage .lvl{float:right;font-size:12px;color:var(--mut)}
+  .callout{background:var(--warnbg);color:var(--fg);border-radius:10px;padding:12px 15px;
+           margin:12px 0;font-size:14px}
+  .callout b{color:var(--warn)}
+  figure{margin:18px 0;text-align:center}
+  figcaption{font-size:12.5px;color:var(--mut);margin-top:6px}
+  svg text{font-family:ui-sans-serif,system-ui,sans-serif}
+  ul{padding-left:20px;margin:0 0 12px} li{margin-bottom:6px}
+  .q{font-weight:600}
+</style>
+
+<div class="wrap">
+<h1>System health map — the body diagram</h1>
+<div class="sub">Design doc / scoping · QA-HEALTHMAP1 · 2026-08-16 ·
+<a href="./">QA home</a> · <a href="results.html">retest grid</a> ·
+<a href="kwallet.html">kWallet status</a> · <a href="dimensions.html">dimensions</a></div>
+
+<div class="callout"><b>Decisions (user, 2026-08-17)</b> — this doc's open questions are answered;
+sections below are kept for the record but superseded where they conflict:
+<ul style="margin-top:6px">
+<li><b>Not a literal body.</b> The analogy doesn't map cleanly — the visual is a
+<b>building</b> (facade at the top, Hedera foundation at the bottom) or simply "a diagram".
+First cut now live on <a href="results.html">results.html</a>, driven by
+<code>data/modules.json</code>.</li>
+<li><b>Grouping = tags, not nesting.</b> A suite carries a <code>modules</code> array; one
+module = unit-scoped, several = end-to-end, drawn as a riser/pipe across the layers it
+touches. Registry: <code>data/modules.json</code>; suite tags in <code>data/tests.json</code>.</li>
+<li><b>z = timestamp, always.</b> Not commit-granular: every run sits at its real time;
+staggered sequential runs read as a staircase when rotated. Commits (and other non-test
+events: crons, restarts) layer onto the same timeline as events, so "commit → boom boom
+boom tests" is visible structurally — a run needs no assigned commit, though the run row
+keeps a <b>trigger</b> (commit / cron / manual) that links to the thing itself.</li>
+<li><b>Environment is a run attribute, not a page.</b> Each environment's QA folder stays
+self-scoped and self-aware (pages now show their hostname); a separate, generic tool —
+possibly its own repo — ingests the JSON from several environments and renders the 3D/WebGL
+(and Quest/WebXR) views. The repo owns its shape and tests; visualization is external.</li>
+<li><b>Assertion-level cells:</b> keep the data granular, decide at render time (cluster
+→ expand on approach, like the task cluster graph / a flower reading sad from a distance).</li>
+<li><b>Sequencing:</b> list + grid first, reviewed and confirmed, before any further view.
+The 3D volume is parked until the data model has settled.</li>
+</ul></div>
+
+<p><b>The original idea (2026-08-16):</b> stop reading QA as a spreadsheet and start reading it as a body.
+Modules are limbs and organs; each organ is a small heat map whose cells are individual
+test instances; the whole figure is the health of the application at a glance. History
+is the same figure repeated backwards through time — first as a filmstrip, ultimately as
+a navigable 3D volume (z&nbsp;=&nbsp;time), which is where the kPad Meta&nbsp;Quest&nbsp;3 thread
+connects. The diagram doubles as a living architecture document: the shape of the body
+<i>is</i> the module map, and a limb with no cells is a module with no tests — visible
+by construction.</p>
+
+<h2>What the data already supports</h2>
+<p>No new instrumentation is needed for stages 1–2. Every scheduled harness reports
+<code>test:verdict</code> events into the target environment's kflow log, and
+<code>results.php</code> already serves them per environment with commit stamps and
+timestamps. A health map is a pure projection of
+<code>(test&nbsp;instance × time) → verdict</code> — the same feed the retest grid and
+kwallet.html read today. The one genuinely new piece of data is the
+<b>module mapping</b>: a small <code>modules.json</code> assigning every test id to a
+body region (and every region to a place on the figure). Tests not yet mapped land in
+an explicit <i>unassigned</i> region — nothing is allowed to hide.</p>
+
+<p>SILENT stays a first-class verdict, exactly as on kwallet.html: each test declares
+its cadence, and a test that stops reporting renders as decayed/faded tissue, ranked
+with FAIL. On a body metaphor this is natural — numbness is a symptom, not an absence
+of news.</p>
+
+<h2>The body — proposed module anatomy</h2>
+<p>Grounded in how katomia is actually built. First-pass mapping (the point of
+<code>modules.json</code> is that this is data, editable without touching the renderer):</p>
+
+<table>
+<tr><th>Region</th><th>Module</th><th>Tests that live there today</th></tr>
+<tr><td>Head / face</td><td>Board UI — what the player sees and touches (chips, wheel, motion, layout)</td><td>T:CHIPARRANGE-01 (currently erroring), the whole visual/board-motion dimension (mostly unautomated)</td></tr>
+<tr><td>Hands</td><td>WalletConnect / signing — where the app touches the outside world</td><td>T:WC-A5-ONLINE, T:WC-A5B-GHOST, T:WCNETSWITCH-01/02</td></tr>
+<tr><td>Spine / nervous system</td><td>Backend game state (hapi) — locks, phases, resolution</td><td>exercised implicitly by T:HBARXFER-01, T:DOMAIN-SEND-01; no direct tests</td></tr>
+<tr><td>Legs / feet</td><td>Hedera settlement — the ground the app stands on (ingest windows, receipts, expiry)</td><td>T:HBARXFER-01, T:MAINNETSMOKE-01</td></tr>
+<tr><td>Gut</td><td>Asset enrich / metadata — ingests external token data (two cache paths)</td><td>none yet — a known gap (ENRICH-COLDPATH1 family)</td></tr>
+<tr><td>Memory</td><td>Stats / persistence sync</td><td>T:STATSYNC-01…04</td></tr>
+<tr><td>Immune system</td><td>The QA harness itself — crons reporting on schedule</td><td>derived: any region going SILENT is an immune finding, surfaced on the figure's outline</td></tr>
+</table>
+
+<figure>
+<svg viewBox="0 0 560 330" width="100%" style="max-width:560px" role="img"
+     aria-label="Mockup: organism figure with module regions, each containing a small grid of test cells">
+  <defs>
+    <pattern id="hatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <rect width="6" height="6" fill="var(--warnbg)"/><line x1="0" y1="0" x2="0" y2="6" stroke="var(--warn)" stroke-width="1.4"/>
+    </pattern>
+  </defs>
+  <!-- head: board UI -->
+  <ellipse cx="280" cy="52" rx="52" ry="38" fill="var(--card)" stroke="var(--line)"/>
+  <text x="280" y="30" text-anchor="middle" font-size="10" fill="var(--mut)">BOARD UI</text>
+  <rect x="256" y="40" width="16" height="16" rx="3" fill="url(#hatch)" stroke="var(--warn)"/>
+  <text x="264" y="52.5" text-anchor="middle" font-size="9" fill="var(--warn)">◌</text>
+  <rect x="276" y="40" width="16" height="16" rx="3" fill="var(--badbg)" stroke="var(--bad)"/>
+  <text x="284" y="52.5" text-anchor="middle" font-size="9" fill="var(--bad)">✗</text>
+  <!-- torso: backend spine -->
+  <rect x="238" y="96" width="84" height="120" rx="18" fill="var(--card)" stroke="var(--line)"/>
+  <text x="280" y="112" text-anchor="middle" font-size="10" fill="var(--mut)">BACKEND</text>
+  <rect x="252" y="122" width="16" height="16" rx="3" fill="var(--okbg)" stroke="var(--ok)"/>
+  <text x="260" y="134.5" text-anchor="middle" font-size="9" fill="var(--ok)">✓</text>
+  <rect x="272" y="122" width="16" height="16" rx="3" fill="var(--okbg)" stroke="var(--ok)"/>
+  <text x="280" y="134.5" text-anchor="middle" font-size="9" fill="var(--ok)">✓</text>
+  <!-- gut region inside torso -->
+  <text x="280" y="168" text-anchor="middle" font-size="10" fill="var(--mut)">ENRICH (gut)</text>
+  <rect x="262" y="176" width="16" height="16" rx="3" fill="none" stroke="var(--mut)" stroke-dasharray="3 3"/>
+  <text x="270" y="205" text-anchor="middle" font-size="9" fill="var(--mut)">no tests</text>
+  <!-- left arm/hand: signing -->
+  <rect x="130" y="106" width="92" height="52" rx="16" fill="var(--card)" stroke="var(--line)"/>
+  <text x="176" y="100" text-anchor="middle" font-size="10" fill="var(--mut)">SIGNING / WC</text>
+  <rect x="140" y="122" width="16" height="16" rx="3" fill="var(--okbg)" stroke="var(--ok)"/>
+  <text x="148" y="134.5" text-anchor="middle" font-size="9" fill="var(--ok)">✓</text>
+  <rect x="160" y="122" width="16" height="16" rx="3" fill="var(--okbg)" stroke="var(--ok)"/>
+  <text x="168" y="134.5" text-anchor="middle" font-size="9" fill="var(--ok)">✓</text>
+  <rect x="180" y="122" width="16" height="16" rx="3" fill="var(--okbg)" stroke="var(--ok)"/>
+  <text x="188" y="134.5" text-anchor="middle" font-size="9" fill="var(--ok)">✓</text>
+  <rect x="200" y="122" width="16" height="16" rx="3" fill="var(--okbg)" stroke="var(--ok)"/>
+  <text x="208" y="134.5" text-anchor="middle" font-size="9" fill="var(--ok)">✓</text>
+  <!-- right arm: memory/stats -->
+  <rect x="338" y="106" width="92" height="52" rx="16" fill="var(--card)" stroke="var(--line)"/>
+  <text x="384" y="100" text-anchor="middle" font-size="10" fill="var(--mut)">STATS SYNC</text>
+  <rect x="348" y="122" width="16" height="16" rx="3" fill="var(--okbg)" stroke="var(--ok)"/>
+  <text x="356" y="134.5" text-anchor="middle" font-size="9" fill="var(--ok)">✓</text>
+  <rect x="368" y="122" width="16" height="16" rx="3" fill="var(--okbg)" stroke="var(--ok)"/>
+  <text x="376" y="134.5" text-anchor="middle" font-size="9" fill="var(--ok)">✓</text>
+  <rect x="388" y="122" width="16" height="16" rx="3" fill="var(--okbg)" stroke="var(--ok)"/>
+  <text x="396" y="134.5" text-anchor="middle" font-size="9" fill="var(--ok)">✓</text>
+  <rect x="408" y="122" width="16" height="16" rx="3" fill="var(--okbg)" stroke="var(--ok)"/>
+  <text x="416" y="134.5" text-anchor="middle" font-size="9" fill="var(--ok)">✓</text>
+  <!-- legs: settlement -->
+  <rect x="240" y="228" width="36" height="70" rx="14" fill="var(--card)" stroke="var(--line)"/>
+  <rect x="284" y="228" width="36" height="70" rx="14" fill="var(--card)" stroke="var(--line)"/>
+  <text x="280" y="320" text-anchor="middle" font-size="10" fill="var(--mut)">HEDERA SETTLEMENT</text>
+  <rect x="250" y="246" width="16" height="16" rx="3" fill="var(--okbg)" stroke="var(--ok)"/>
+  <text x="258" y="258.5" text-anchor="middle" font-size="9" fill="var(--ok)">✓</text>
+  <rect x="294" y="246" width="16" height="16" rx="3" fill="var(--okbg)" stroke="var(--ok)"/>
+  <text x="302" y="258.5" text-anchor="middle" font-size="9" fill="var(--ok)">✓</text>
+</svg>
+<figcaption>Stage-1 mockup: each region is a module, each cell a test instance.
+✓ pass · ✗ fail · ◌ silent (hatched) · dashed outline = module with no automated tests —
+the gap is drawn, not hidden.</figcaption>
+</figure>
+
+<h2>Encoding rules (from the dataviz pass)</h2>
+<ul>
+<li><b>Status is never color alone.</b> The house QA palette's warn/bad pair
+(<code>#8a5a00</code>/<code>#a12a2a</code>) measures ΔE&nbsp;4.1 under deuteranopia —
+effectively identical to red-green colorblind readers. Every cell therefore carries a
+glyph (✓ ✗ ◌) and SILENT additionally gets the hatch texture + fade. This is a hard
+rule for every stage, including WebGL.</li>
+<li><b>Cell order is stable.</b> Cells sit at fixed positions per module (declared in
+<code>modules.json</code>), so the eye learns where each test lives — same reason the
+grid pins its first column.</li>
+<li><b>Module health = worst-of its cells</b>, with SILENT ranked as bad as FAIL
+(kwallet.html's rule, promoted to the whole body). No averaging — an organ with one
+failing test is not "80% healthy".</li>
+<li><b>Empty modules render as dashed outlines.</b> The body doubles as the coverage
+map: a limb with no cells is the to-do list.</li>
+<li><b>Environments are parallel bodies</b>, not merged: lab1 / kswap / PAT /
+production side by side, each fed by its own <code>results.php</code>. Same organism,
+different beds — kswap pale next to a green lab1 says "promotion base isn't being
+exercised" in one glance (exactly today's finding).</li>
+</ul>
+
+<h2>Stages</h2>
+
+<div class="stage now"><span class="lvl">⏳ done / existing</span>
+<b>Stage 0 — the grid (now).</b> results.html (history × commit, now auto-scrolled to
+newest) and kwallet.html (current wallet status). These stay; the health map is a lens
+over the same feed, not a replacement.</div>
+
+<div class="stage"><span class="lvl">⛏ rock</span>
+<b>Stage 1 — the 2D body.</b> <code>healthmap-live.html</code>: inline-SVG figure, regions
++ cells from a new <code>modules.json</code>, verdicts from <code>results.php?days=14</code>
+per environment, four bodies side by side. Tap a cell → the same run-detail modal the grid
+uses. No build step, no dependencies — house style.</div>
+
+<div class="stage"><span class="lvl">🪨 stone, after stage 1</span>
+<b>Stage 2 — time as a filmstrip.</b> A scrubber (day or commit granularity) replays the
+body's state from kflow history; a strip of small-multiple bodies for the last N days
+gives the "health going back in time" read without any 3D. This is where most of the
+diagnostic value of the z-axis lands, cheaply.</div>
+
+<div class="stage"><span class="lvl">🧗 boulder — needs a conversation</span>
+<b>Stage 3 — the volume.</b> WebGL (three.js): extrude each cell along z&nbsp;=&nbsp;time
+into a column of verdicts; the body becomes a tunnel you fly through, scars visible as
+red/hatched strata. WebXR variant is the Meta&nbsp;Quest&nbsp;3 connection (kPad thread).
+Open questions below must be settled first; the 2D stages generate the data shapes and
+the module taxonomy this consumes.</div>
+
+<h2>Open questions (for the stage-3 conversation)</h2>
+<ul>
+<li><span class="q">Granularity of z.</span> Commit, day, or run? Commits are uneven in
+time; days are even but blur multi-commit days. The grid already fights this ("pseudo
+timeline"); the volume makes it structural.</li>
+<li><span class="q">One body or per-environment volumes?</span> Four tunnels side by side,
+or one body with environment as a 4th encoding (the user's "fourth dimension" thought
+cuts either way — time is the natural z; environment may be the walls).</li>
+<li><span class="q">Assertion-level cells?</span> A5 suites carry 8 assertions per
+instance — do cells subdivide on zoom (body → organ → tissue), or stay instance-level?
+Zoom-subdivision is the natural VR interaction but multiplies the mapping work.</li>
+<li><span class="q">Does the body become the design document of record?</span> If yes,
+<code>modules.json</code> wants to live next to the architecture docs and be reviewed
+like one — the diagram is then load-bearing, not decorative.</li>
+</ul>
+
+<h2>Immediate next steps</h2>
+<ul>
+<li>Agree the module taxonomy above (or edit it — it's one table).</li>
+<li>Build <code>modules.json</code> + stage-1 page (one rock).</li>
+<li>Grow cell count per organ as the regression suite expands — the coverage review
+(running separately) feeds directly into which organs get cells next.</li>
+</ul>
+
+</div>

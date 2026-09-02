@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How we test Katomia — the plain-language guide</title>
+<style>
+  body{ font-family: Georgia, "Times New Roman", serif; margin: 0 auto; max-width: 720px; padding: 28px 18px 90px; color: #222; line-height: 1.65; font-size: 17px; }
+  h1{ font-family: system-ui, sans-serif; font-size: 26px; line-height: 1.25; }
+  h2{ font-family: system-ui, sans-serif; font-size: 19px; margin-top: 40px; }
+  .note{ color: #777; font-size: 13px; font-family: system-ui, sans-serif; }
+  .story{ background: #f7f4ec; border-left: 4px solid #b8963e; padding: 12px 18px; margin: 18px 0; font-size: 16px; }
+  .term{ background: #eef3f7; border-left: 4px solid #4a7ba6; padding: 10px 16px; margin: 14px 0; font-size: 15px; font-family: system-ui, sans-serif; }
+  .term b{ color: #2a5a78; }
+  a{ color: #2a5a78; }
+  table{ border-collapse: collapse; width: 100%; font-size: 14px; font-family: system-ui, sans-serif; margin: 12px 0; }
+  th, td{ border: 1px solid #ddd; padding: 6px 9px; text-align: left; vertical-align: top; }
+  th{ background: #f5f2ea; }
+</style>
+</head>
+<body>
+
+<h1>How we test Katomia<br><span style="font-size:17px; font-weight:normal; color:#666;">— the plain-language guide, for anyone who'd like to understand or help</span></h1>
+<p class="note">No technical background needed. If you play the game and want to help make it better, this is for you.
+The detailed working documents live alongside this one on the <a href="./">QA home page</a>. Written 2026-07-16 (task QA-UXGRID1).</p>
+
+<h2>Why testing is a thing at all</h2>
+<p>Software rarely breaks with a bang. The dangerous failures are the quiet ones — the app <i>looks</i> fine while
+quietly doing the wrong thing, or nothing at all. Testing is the craft of making failures <b>loud, fast and specific</b>
+instead of quiet, slow and vague.</p>
+<div class="story">
+<b>A true story.</b> One morning in July, our robot traders silently failed to register their accounts after a routine
+server restart. For hours, the market cheerfully announced "there's a match!" on trades that could never actually
+complete. Nobody's screen showed an error. Nothing crashed. It just… didn't work, quietly. That incident shaped how we
+test now: every fix leaves a <i>guard</i> in the code (it now refuses, loudly, to match an unregistered account) and a
+<i>robot</i> that recreates the broken situation every ten minutes, forever, to prove the guard still holds.
+</div>
+
+<h2>The cast of characters</h2>
+<p>Our testing world has a small cast. Once you know them, everything else follows.</p>
+
+<div class="term"><b>The flight recorder ("kflow").</b> Every meaningful step anyone takes in the app — joining a game,
+offering an asset, a trade completing — drops a small breadcrumb into a log. Like a plane's black box, it means that when
+something goes wrong we can replay exactly what happened, in order, on which version of the software.</div>
+
+<div class="term"><b>The robot users ("katrun").</b> Scripts that play the game like actors rehearsing a scene: "Alice
+offers to buy, Bob offers to sell, exactly one trade should happen." A robot performs this scene against the real system
+every two minutes, around the clock. If any part of the machinery breaks, the scene fails within minutes — not whenever
+a human next happens to look.</div>
+
+<div class="term"><b>Canaries.</b> Named after the canaries coal miners carried: a small thing that notices poison first.
+Whenever we fix a bug, we don't just fix it — we write a small test that recreates the <i>exact</i> conditions of that
+bug and checks the fix still holds. It runs forever. Every old bug gets a permanent guard standing on its grave, so it
+can never quietly sneak back.</div>
+
+<div class="term"><b>Benchmarks.</b> Some things a machine can check alone ("did the balance go down by 5?"). Others need
+human eyes ("does this animation feel right?"). For those, a person plays through a short scene once, carefully, and
+says: <i>"yes — this is what right looks like."</i> We record that blessed run — the steps, the diagnostics, the
+screenshots — and from then on, the machine compares every future run against it and raises a hand when something
+looks materially different.</div>
+
+<div class="term"><b>The dimensions and the grid.</b> Explained in the next section — the heart of how we decide
+<i>what</i> to test.</div>
+
+<h2>The combinations problem (and the party trick that solves it)</h2>
+<p>Here's the problem. Take one simple action: dragging a little asset chip from your account onto another player's.
+Whether that works can depend on… how many players are on the board. Whether your screen is tall or wide. Whether you're
+on a phone, a tablet, or a computer with a mouse. Whether you're dropping onto a neighbour or someone across the board.
+Whether the thing you're dragging is money or a collectible. Whether the board was just rotated. And so on.</p>
+<p>Each of those is a <b>dimension</b> — an axis with a few meaningfully-different values. Ours are listed (and kept
+up to date) in a <a href="dimensions.html">registry</a>. The trouble: if you multiply the options together, this ONE
+action has <b>7,776</b> distinct situations. Test them all by hand? Absurd. Test just one and hope? That's how bugs hide.</p>
+<div class="story">
+<b>How bugs hide in combinations — a true story.</b> For weeks, chips sometimes scattered to strange places on the board,
+but only for some people. The reason turned out to be geometric: the invisible "walls" that chips obey were perfect
+<i>circles</i>, while the board's visible ring is an <i>oval</i>. On a roughly <b>square</b> screen, a circle and an oval
+are nearly the same shape — so on the developer's window, everything looked perfect. On a tall tablet screen, they're
+very different — chaos. The bug didn't live in any single setting; it lived in the <i>combination</i> "oval board ×
+non-square screen". Testing that action on one screen shape could never have found it.
+</div>
+<p>The trick that tames the explosion is called <b>pairwise testing</b>, and it rests on a well-studied fact: the vast
+majority of real bugs are triggered by the interaction of just <i>two</i> factors — like "oval × tall screen" — almost
+never five at once. So instead of all 7,776 combinations, you pick a clever couple of dozen such that <b>every pair of
+values gets to meet at least once</b>. Think of seating a party so that every guest shares a table with every other
+guest at least once over the evening — you don't need every possible full seating plan, just enough rounds that every
+pair meets. Two dozen careful tests catch nearly everything eight thousand would.</p>
+<p>On top of those, we always include the <b>turning points</b> — the values where behaviour changes shape. Six players
+fit on our board; the seventh causes scroll-wedges to appear. So "6" and "7" are always in the test set, because
+edges are where bugs live.</p>
+
+<h2>Humans and machines: who does what</h2>
+<p>From those couple of dozen situations, a handful are <b>cherry-picked for humans</b> — the ones needing judgement and
+feel: is the everyday drag pleasant? Does the collectible's arc flight look right? Does "sticky" mode feel like a real
+board game? A person plays those once, blesses them, and they become the benchmarks.</p>
+<p>Everything else runs <b>automated</b>: a robot browser performs the same drags in every remaining combination, checks
+the machine-checkable facts (did the chip land inside the lines? did the balance change? is anything hidden off-screen?
+did the animation actually stop?), compares screenshots against the blessed benchmark, and posts a green or red mark
+onto a shared <b>results grid</b> — journeys down the side, software versions across the top. One glance answers:
+what's been re-proven on today's version, and what's red.</p>
+
+<h2>What this looks like when YOU help test</h2>
+<p>If you're playing the game and helping test — formally or just by caring — the process is deliberately simple:</p>
+<table>
+<tr><th>You do</th><th>What happens behind the scenes</th></tr>
+<tr><td>Play a short, named scene — e.g. <i>"CHIPDROP-01: two players, tablet, drag some money to your neighbour"</i> — and say whether it felt right</td><td>the flight recorder captures the diagnostics of your run; if you bless it, it becomes the benchmark other runs are compared against</td></tr>
+<tr><td>Spot something odd and report it (the in-app feedback button)</td><td>your report carries its breadcrumb trail with it, so we can replay what you saw without asking you twenty questions</td></tr>
+<tr><td>Nothing — just play normally</td><td>even ordinary play exercises the flows the robots also watch; unusual patterns surface on the grid</td></tr>
+</table>
+<p>And the promise in the other direction: when a bug you reported is fixed, it doesn't just get fixed — it gets a
+<b>canary</b>, so the thing that annoyed you once can't come back quietly. Several of our current canaries were born
+exactly this way. A sample, in plain words:</p>
+<table>
+<tr><th>The rule the canary enforces</th><th>The incident that taught us</th></tr>
+<tr><td>Changing how a chip <i>looks</i> must never change where anything <i>sits</i></td><td>toggling one innocent setting used to scatter every chip on the board</td></tr>
+<tr><td>The walls the physics obeys must be the shapes you can see</td><td>the circle-vs-oval story above</td></tr>
+<tr><td>Nothing may end up off-screen or hidden under the header</td><td>chips used to vanish past the screen edge on tall screens</td></tr>
+<tr><td>Dotted connection lines must move <i>with</i> their chips</td><td>lines used to stay where they were first drawn while the chips wandered off</td></tr>
+<tr><td>When the board settles, it must be <i>still</i></td><td>chips used to tremble forever on some tablets</td></tr>
+<tr><td>A button must not move between your aim and your tap</td><td>a signing screen once grew mid-tap and a click landed on the wrong thing — with real money on the line. The most important canary on the list</td></tr>
+</table>
+
+<h2>Where everything lives</h2>
+<p>All of this — the dimension registry, the test scenes, the canary catalogue, the strategy — lives in this
+<a href="./">QA folder inside the app itself</a>, in two layers: <b>data files</b> (the actual lists, under proper
+change-tracking, so every edit to a test is as visible as every edit to the code) and <b>web pages like this one</b>
+that simply display them. When a bug is fixed, the fix and its new canary land in the same change — you can literally
+see them side by side in the history.</p>
+<p class="note">Want the working detail behind all this — the actual dimension tables, the worked example with its
+7,776→25→4 derivation, the harness choices? Read the <a href="strategy.html">strategy document</a> next. The
+company-wide QA overview (the backend robots, alerts and dashboards) is a separate read, maintained from the QA seat.</p>
+
+</body>
+</html>

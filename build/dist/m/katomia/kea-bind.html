@@ -1,0 +1,71 @@
+<!doctype html>
+<!-- KBUNDLE-STRIP-FILE:kea (BUNDLE1) — whole file is KEA-only; the bundle build drops it -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>KEA Bind</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    body{ font-family:system-ui, sans-serif; max-width:720px; margin:32px auto; padding:0 18px; color:#222; }
+    h1{ margin-bottom:6px; }
+    .subtitle{ color:#666; margin-top:0; }
+    .options{ display:grid; gap:12px; margin:24px 0; }
+    .option{ display:block; padding:16px 18px; border:1px solid #ddd; border-radius:14px; text-decoration:none; color:#222; background:#fff; }
+    .option:hover{ background:#f3f3f3; border-color:#ccc; }
+    .option-title{ display:block; font-size:18px; font-weight:800; margin-bottom:4px; }
+    .option-note{ display:block; color:#666; font-size:13px; }
+    pre{ background:#111; color:#ddd; padding:12px; white-space:pre-wrap; word-break:break-all; border-radius:10px; font-size:12px; }
+  </style>
+</head>
+
+<body>
+  <h1>🦜 KEA Bind</h1>
+  <p class="subtitle">Choose an app to watch this Katomia trader intent key.</p>
+
+  <div class="options">
+    <a id="kpayLink" class="option" href="#">
+      <span class="option-title">💬 KPay WhatsApp</span>
+      <span class="option-note">Add this KEA watch via KPay WhatsApp</span>
+    </a>
+
+    <a id="keaWebLink" class="option" href="#" target="KEA-app">
+      <span class="option-title">🦜 KEA web app</span>
+      <span class="option-note">Add this watch to the KEA prototype app</span>
+    </a>
+  </div>
+
+  <details>
+    <summary>Debug params</summary>
+    <pre id="out"></pre>
+  </details>
+
+  <script>
+    const params = new URLSearchParams(location.search)
+    const data = Object.fromEntries(params)
+
+    const domain = params.get("domain") || location.host
+    const network = params.get("network") || "mainnet"
+    const gameId = params.get("gameId") || params.get("game") || ""
+    const orderPubkey = params.get("orderPubkey") || params.get("intentPubkey") || params.get("watchPubkey") || ""
+
+
+    const kpayUrl = new URL("https://kpay.uk/message/")
+    kpayUrl.searchParams.set("network", network)
+    kpayUrl.searchParams.set("channel", "WhatsApp")
+    const message = `kea watch ${domain} ${gameId} ${orderPubkey}`  // network is set separately
+    kpayUrl.searchParams.set("message", message)
+
+    const keaUrl = new URL((location.pathname.startsWith("/m/katomia") ? "/m/katomia" : "") + "/kea/", location.origin)
+    keaUrl.searchParams.set("domain", domain)
+    keaUrl.searchParams.set("network", network)
+    keaUrl.searchParams.set("gameId", gameId)
+    keaUrl.searchParams.set("orderPubkey", orderPubkey)
+    keaUrl.searchParams.set("mode", "doorbell")
+
+    document.getElementById("kpayLink").href = kpayUrl.toString()
+    document.getElementById("keaWebLink").href = keaUrl.toString()
+    document.getElementById("out").textContent = JSON.stringify(data, null, 2)
+  </script>
+</body>
+</html>
