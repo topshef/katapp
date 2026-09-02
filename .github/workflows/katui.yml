@@ -1,0 +1,54 @@
+# katui — the static katomia bundle on Cloudflare Workers.
+#
+#   router   — route map + Worker contract over build/dist (node, no deps, no network)
+#   fresh    — rebuilds build/dist from the repo with the runner's php and fails if the
+#              committed dist is stale: dist is a checked-in artifact (the git-connected
+#              Cloudflare deploy ships it as-is), so a source edit without a rebuild would
+#              silently deploy the old page. Run build/build-static.sh and commit.
+#   smoke    — after a push, waits for the Cloudflare build then curls the live routes
+#              (the 404s this whole exercise started with). Origin comes from the
+#              repository VARIABLE KATUI_ORIGIN (Settings → Secrets and variables →
+#              Actions → Variables), default the workers.dev preview host.
+name: katui
+on:
+  push:
+    branches: [pilot, 'claude/**']
+    paths: [build/**, public_html/**, .github/workflows/katui.yml]
+  schedule:
+    - cron: '41 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      origin:
+        description: site origin to smoke-test (overrides KATUI_ORIGIN)
+        required: false
+
+jobs:
+  router:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node build/router.test.mjs
+      - run: node build/router.e2e.mjs
+
+  fresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: php available?
+        run: php -v | head -1
+      - name: committed dist == rebuilt dist (modulo mtime cache stamps + commit hash)
+        run: bash build/dist-fresh.sh
+
+  smoke:
+    runs-on: ubuntu-latest
+    needs: [router]
+    env:
+      ORIGIN: ${{ inputs.origin || vars.KATUI_ORIGIN || 'https://katui.tayloa17.workers.dev' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: wait for the Cloudflare git-connected build
+        if: github.event_name == 'push'
+        run: sleep 120
+      - run: bash build/smoke.sh "$ORIGIN"

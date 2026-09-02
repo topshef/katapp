@@ -138,7 +138,10 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "
   try {
     const [tests, res] = await Promise.all([
       fetch("data/tests.json").then(r => r.json()),
-      fetch("results.php?days=7").then(r => r.json())
+      // STATIC-BUILD2 (2026-09-02): on the static Cloudflare bundle there is no PHP, so the
+      // live feed 404s — degrade to "no verdicts" rather than blanking the whole strip.
+      fetch("results.php?days=7").then(r => r.ok ? r.json() : { events: [], unavailable: true })
+        .catch(() => ({ events: [], unavailable: true }))
     ])
     // latest verdict per suite id from 7 days of kflow events
     const latest = {}
@@ -177,6 +180,7 @@ const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "
       + (paused ? ` · <b>${paused}</b> paused` : "")
       + ` — last 7 days, ${(res.events || []).filter(e => e.checkpoint === "test:verdict").length} verdicts, site commit <code>${esc(res.commit || "?")}</code>.
       Silent is a failure mode, not a neutral state.`
+      + (res.unavailable ? ` <i>(no live results feed on this host — verdicts are written by the QA runners' seat, not the static site)</i>` : "")
   } catch(e){
     head.textContent = "live status unavailable — " + e.message
   }
