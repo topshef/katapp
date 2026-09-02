@@ -133,6 +133,10 @@ binding = "ASSETS"
 # /board/<id> (that bit KATUI-HOME1 under auto-trailing-slash); router.js maps every clean URL
 html_handling = "none"
 not_found_handling = "none"
+# Assets are normally served BEFORE the Worker runs (the same ordering that let _redirects
+# hijack CSS in KATUI-CSS1). The walletconnect config is a real file that router.js must
+# patch per request (metadata.url = serving origin), so route just that path Worker-first.
+run_worker_first = ["/vendor/walletconnect/config.json"]
 
 # Same-origin API path: /m/katomia/hapi/*, /hapi/*, /kfeedback*, /feedback-widget.js and the
 # hapi.php / future shims are forwarded by router.js to the API alias Worker over this
