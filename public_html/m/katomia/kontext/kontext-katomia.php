@@ -3,8 +3,11 @@
 // SECURITY (audit F3): this developer tool discloses front- and back-end source
 // and logs every visitor's full $_SERVER. It must never be publicly reachable.
 // Gate to the operator/admin source IPs (same allowlist used elsewhere in the app).
-$ip_admin = '130.185.251.53 ';
-if (strpos($ip_admin, ($_SERVER['REMOTE_ADDR'] ?? 'x') . ' ') === false) {
+// SECURITY (audit F6): exact match. The previous space-delimited strpos() blocked the
+// truncated-IP bypass, but an EMPTY-STRING REMOTE_ADDR produced the needle ' ', which
+// IS a substring of the allowlist, so it passed. See SECURITY_AUDIT.md.
+$ip_admin = '130.185.251.53';
+if (!in_array($_SERVER['REMOTE_ADDR'] ?? '', preg_split('/[\s,]+/', $ip_admin, -1, PREG_SPLIT_NO_EMPTY), true)) {
     http_response_code(404);
     exit('not found');
 }
