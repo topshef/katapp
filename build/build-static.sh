@@ -10,16 +10,28 @@
 # URL (getGameId() in katomia-core.js). Config is rendered straight to the API alias
 # via a build-time .env_hapi, so HTTP + WS go through the Worker.
 #
-# Usage:  build/build-static.sh            # dist → build/dist (committed)
+# Usage:  build/build-static.sh          → katui      via kpay-api-alias      (build/dist)
+#         build/build-static.sh gcp      → katui-gcp  via kpay-api-alias-gcp  (build/dist-gcp)
+# KATOMIA-GCP1: two deployable variants for comparison testing — same page renders, same
+# router; only the Worker name, alias target and dist dir differ, so a front-end-vs-backend
+# issue can be bisected across the pairings. Both dist trees are committed.
 #   ALIAS=host/path  override the API alias (host+path, scheme-less — HAPI_BASE convention)
-#   SITE_HOST=…      Host header used for the render (only affects nothing the router
-#                    doesn't already patch per-request; kept for parity with lab22 renders)
+#   SITE_HOST=…      Host header used for the render (router patches the WC config per request
+#                    anyway; kept for parity with lab22 renders)
 set -euo pipefail
-ALIAS="${ALIAS:-kpay-api-alias.tayloa17.workers.dev/hapi}"
-SITE_HOST="${SITE_HOST:-katui.tayloa17.workers.dev}"
+VARIANT="${1:-}"
+if [ "$VARIANT" = "gcp" ]; then
+  NAME="katui-gcp"; ALIAS="${ALIAS:-kpay-api-alias-gcp.tayloa17.workers.dev/hapi}"; DIST_NAME="dist-gcp"
+elif [ -z "$VARIANT" ]; then
+  NAME="katui";     ALIAS="${ALIAS:-kpay-api-alias.tayloa17.workers.dev/hapi}";     DIST_NAME="dist"
+else
+  echo "unknown variant '$VARIANT' (expected: none | gcp)"; exit 1
+fi
+ALIAS_SERVICE="${ALIAS%%.*}"          # the alias Worker's name = first label of its workers.dev host
+SITE_HOST="${SITE_HOST:-$NAME.tayloa17.workers.dev}"
 PORT="${PORT:-8099}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PUB="$ROOT/public_html"; DIST="$ROOT/build/dist"; SRC="http://127.0.0.1:$PORT"
+PUB="$ROOT/public_html"; DIST="$ROOT/build/$DIST_NAME"; SRC="http://127.0.0.1:$PORT"
 KWC_SNAP="4a3351b"   # KWC-CLEANBUILD1 bundle (see vendor/walletconnect/kwcScriptTag.php)
 
 command -v php >/dev/null || { echo "php CLI required (>= 8.0)"; exit 1; }
@@ -54,7 +66,9 @@ render(){ # $1 = source path, $2 = dist file
 
 # ── keep the committed KWC bundle when the shared store isn't on this box ─────────
 STASH="$(mktemp -d)"
-[ -d "$DIST/vendor/walletconnect/snapshots/$KWC_SNAP" ] && cp -r "$DIST/vendor/walletconnect/snapshots/$KWC_SNAP" "$STASH/"
+for d in "$DIST" "$ROOT/build/dist" "$ROOT/build/dist-gcp"; do
+  if [ -d "$d/vendor/walletconnect/snapshots/$KWC_SNAP" ]; then cp -r "$d/vendor/walletconnect/snapshots/$KWC_SNAP" "$STASH/"; break; fi
+done
 rm -rf "$DIST"; mkdir -p "$DIST/m/katomia"
 
 echo "→ rendering page shells (one per route; see router.js for the URL map)"
@@ -106,24 +120,51 @@ else
 fi
 rm -rf "$STASH"
 
-echo "→ router Worker + wrangler.toml (assets-only Worker; router mirrors lab22's .htaccess)"
+echo "→ router Worker + wrangler.toml ($NAME → $ALIAS_SERVICE); router mirrors lab22's .htaccess"
 cp "$ROOT/build/router.js" "$DIST/router.js"
 cat > "$DIST/wrangler.toml" <<WT
-name = "katui"
+name = "$NAME"
 main = "router.js"
 compatibility_date = "2026-08-01"
 [assets]
 directory = "."
 binding = "ASSETS"
+# none: no automatic .html redirects, so an asset named board.html can never capture
+# /board/<id> (that bit KATUI-HOME1 under auto-trailing-slash); router.js maps every clean URL
 html_handling = "none"
 not_found_handling = "none"
 
-# Same-origin API path: /m/katomia/hapi/* (and /hapi/*, /kfeedback*, /feedback-widget.js)
-# are forwarded by router.js to the API alias Worker at ALIAS_ORIGIN (Worker-to-Worker
-# fetch; a [[services]] binding named ALIAS would be used instead if one is added).
+# Same-origin API path: /m/katomia/hapi/*, /hapi/*, /kfeedback*, /feedback-widget.js and the
+# hapi.php / future shims are forwarded by router.js to the API alias Worker over this
+# SERVICE BINDING — Workers cannot fetch sibling *.workers.dev URLs on the same account
+# (error 1042). ALIAS_ORIGIN is the plain-fetch fallback for local harnesses only.
+[[services]]
+binding = "HAPI"
+service = "$ALIAS_SERVICE"
+
 [vars]
 ALIAS_ORIGIN = "https://${ALIAS%%/*}"
 WT
 
-echo "✓ dist ready: $DIST"
+echo "→ .assetsignore (keep Worker config + wrangler's own droppings out of the PUBLIC bundle:"
+echo "   a deploy run from inside dist/ once uploaded .wrangler/cache/wrangler-account.json — KATUI-LEAK1)"
+cat > "$DIST/.assetsignore" <<AI
+.wrangler
+router.js
+wrangler.toml
+.assetsignore
+AI
+
+echo "→ build-info.json (KAT-BUILDSTAMP1: the profile build stamp reads this)"
+cat > "$DIST/m/katomia/build-info.json" <<BI
+{
+  "source_sha": "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)",
+  "variant": "$NAME",
+  "alias": "$ALIAS",
+  "kwc_snapshot": "$KWC_SNAP",
+  "built": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+BI
+
+echo "✓ dist ready: $DIST  (variant: $NAME → $ALIAS_SERVICE)"
 echo "  files: $(find "$DIST" -type f | wc -l), size: $(du -sh "$DIST" | cut -f1)"

@@ -4,11 +4,18 @@ compatibility_date = "2026-08-01"
 [assets]
 directory = "."
 binding = "ASSETS"
+# none: no automatic .html redirects, so an asset named board.html can never capture
+# /board/<id> (that bit KATUI-HOME1 under auto-trailing-slash); router.js maps every clean URL
 html_handling = "none"
 not_found_handling = "none"
 
-# Same-origin API path: /m/katomia/hapi/* (and /hapi/*, /kfeedback*, /feedback-widget.js)
-# are forwarded by router.js to the API alias Worker at ALIAS_ORIGIN (Worker-to-Worker
-# fetch; a [[services]] binding named ALIAS would be used instead if one is added).
+# Same-origin API path: /m/katomia/hapi/*, /hapi/*, /kfeedback*, /feedback-widget.js and the
+# hapi.php / future shims are forwarded by router.js to the API alias Worker over this
+# SERVICE BINDING — Workers cannot fetch sibling *.workers.dev URLs on the same account
+# (error 1042). ALIAS_ORIGIN is the plain-fetch fallback for local harnesses only.
+[[services]]
+binding = "HAPI"
+service = "kpay-api-alias"
+
 [vars]
 ALIAS_ORIGIN = "https://kpay-api-alias.tayloa17.workers.dev"

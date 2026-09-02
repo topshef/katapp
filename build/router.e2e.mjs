@@ -25,7 +25,7 @@ const ASSETS = { async fetch(req) {
 
 const forwarded = [];
 const env = { ASSETS, ALIAS_ORIGIN: 'https://kpay-api-alias.tayloa17.workers.dev',
-  ALIAS: { async fetch(req) { forwarded.push({ url: req.url, method: req.method, body: await req.text(), xfh: req.headers.get('x-forwarded-host') });
+  HAPI: { async fetch(req) { forwarded.push({ url: req.url, method: req.method, body: await req.text(), xfh: req.headers.get('x-forwarded-host') });
            return new Response('{"stub":true}', { headers: { 'content-type': 'application/json' } }); } } };
 
 const call = (p, init, origin = 'https://katui.example') => worker.fetch(new Request(origin + p, init), env);
@@ -71,12 +71,20 @@ if (process.argv.includes('--serve')) {
   // domain-aware walletconnect config
   const wc = await (await call('/vendor/walletconnect/config.json')).json();
   assert.equal(wc.metadata.url, 'https://katui.example');
-  // same-origin API: the create form POSTs ./hapi/create → alias /hapi/create, body intact
+  // same-origin API: the create form POSTs ./hapi/create → alias /hapi/katomia/create (= backend
+  // /katomia/create), body intact, over the HAPI service binding
   r = await call('/m/katomia/hapi/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"name":"qa"}' });
   assert.equal(r.status, 200);
-  assert.deepEqual(forwarded.at(-1), { url: 'https://kpay-api-alias.tayloa17.workers.dev/hapi/create', method: 'POST', body: '{"name":"qa"}', xfh: 'katui.example' });
+  assert.deepEqual(forwarded.at(-1), { url: 'https://kpay-api-alias.tayloa17.workers.dev/hapi/katomia/create', method: 'POST', body: '{"name":"qa"}', xfh: 'katui.example' });
   await call('/m/katomia/hapi/entities?network=testnet');
-  assert.equal(forwarded.at(-1).url, 'https://kpay-api-alias.tayloa17.workers.dev/hapi/entities?network=testnet');
+  assert.equal(forwarded.at(-1).url, 'https://kpay-api-alias.tayloa17.workers.dev/hapi/katomia/entities?network=testnet');
+  await call('/m/katomia/hapi.php?action=games');
+  assert.equal(forwarded.at(-1).url, 'https://kpay-api-alias.tayloa17.workers.dev/hapi/katomia/games');
+  await call('/future/?action=txRead&txid=0.0.1@2');
+  assert.equal(forwarded.at(-1).url, 'https://kpay-api-alias.tayloa17.workers.dev/hapi/kpool/txRead?txid=0.0.1%402');
+  r = await call('/m/katomia/hapi.php?action=..'); assert.equal(r.status, 400);
+  r = await call('/diag', { method: 'POST', body: '{}' }); assert.equal(r.status, 204);
+  r = await call('/m/katomia/build-info.json'); assert.equal(r.status, 200); assert.ok((await r.json()).source_sha);
   await call('/feedback-widget.js');
   assert.equal(forwarded.at(-1).url, 'https://kpay-api-alias.tayloa17.workers.dev/feedback-widget.js');
   r = await call('/m/katomia/hapi/../x'); assert.equal(r.status, 404);

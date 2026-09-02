@@ -33,6 +33,8 @@ check /m/katomia/qa/data/tests.json              200 'suites'
 check /vendor/walletconnect/config.json          200 "\"url\": \"$ORIGIN\""
 check /vendor/kpay/kpool_widget/config.js        200 'HAPI_BASE'
 check /vendor/walletconnect/snapshots/4a3351b/kwc.iife.js 200
-check /m/katomia/hapi/nodes                      200            # same-origin API → alias → backend
+check /m/katomia/hapi/games                      200 '['        # same-origin API → alias → backend /katomia/games
+check /diag                                      204
+check /m/katomia/build-info.json                 200 'source_sha'
 check /m/katomia/nope                            404
 exit $fail
