@@ -22,6 +22,7 @@
 //   /m/katomia/hapi.php?action=X&qs    → /hapi/katomia/X?qs  (lab22 hapi.php convention, default create)
 //   /future/?action=X&qs               → /hapi/kpool/X?qs    (lab22 future/kpool.php; board signing
 //                                                             reads tx bytes from /future/?action=txRead)
+//   /m/bid/explore/kpool?action=X&qs   → /hapi/kpool/X?qs    (the kpool WIDGET's own txRead path)
 //   /hapi/<x>                          → /hapi/<x>           (root vhost /hapi/ reverse proxy: /hapi/ws,
 //                                                             used when a page runs with HAPI_BASE "")
 //   /kfeedback…, /feedback-widget.js   → same paths          (clean aliases on the alias Worker)
@@ -45,6 +46,11 @@ const RHAPI = /^\/hapi\/([A-Za-z0-9/_-]+)\/?$/;
 const ACTION = /^[A-Za-z0-9_-]+$/;
 const SIBLING = /^\/m\/katomia\/(?:game|board)\/(.+\.[^/]+)$/;       // …/game/<any>.<ext>
 const IDPAGE = /^\/m\/katomia\/(game|board)(?:\/([^/.]+))?\/?$/;     // game, board, or …/<id>
+// The kpool widget's txRead is hardcoded to this absolute path (model.js), which lab22
+// served via m/bid/explore/.htaccess `^kpool$ -> kpool.php` -> <backend>/kpool/<action>.
+// Missing it cost a real signing flow: the tx signs and submits fine, but the status
+// readback 404s, so the board never repaints the signature green (2026-09-03).
+const KPOOL = /^\/m\/bid\/explore\/kpool(\.php)?$/;
 const GLOG = /^\/m\/tools\/glog\/latest\/(.+)$/;
 const BRANDS = [
   ['gomint.me',   { name: 'GoMint',  description: 'Tokenizing the future' }],
@@ -71,6 +77,7 @@ function actionRoute(url, base, defAction) {
   const q = new URLSearchParams(url.search);
   const action = q.get('action') || defAction;
   q.delete('action');
+  q.delete('hapi_base');   // admin-only override; kpool.php never forwarded it upstream either
   if (!ACTION.test(action)) return { kind: 'bad' };
   const qs = q.toString();
   return { kind: 'alias', path: base + action, search: qs ? '?' + qs : '' };
@@ -109,6 +116,7 @@ export function route(url) {
   if ((m = p.match(KHAPI))) return { kind: 'alias', path: '/hapi/katomia/' + m[1] };
   if (p === K + '/hapi.php') return actionRoute(url, '/hapi/katomia/', 'create');   // 'create' = hapi.php's own default
   if (/^\/future\/(index\.php)?$/.test(p) && url.searchParams.has('action')) return actionRoute(url, '/hapi/kpool/', '');
+  if (KPOOL.test(p)) return actionRoute(url, '/hapi/kpool/', 'txList');
   if ((m = p.match(RHAPI))) return { kind: 'alias', path: '/hapi/' + m[1] };
   if (p === '/feedback-widget.js' || p.startsWith('/kfeedback')) return { kind: 'alias', path: p };
   if (p === '/diag' || p === '/kflow') return { kind: 'empty' };
