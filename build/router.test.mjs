@@ -48,6 +48,16 @@ const cases = [
   ['/m/katomia/hapi.php?action=bindings&network=testnet', { kind: 'alias', path: '/hapi/katomia/bindings', search: '?network=testnet' }],
   ['/m/katomia/hapi.php?action=a.b',      { kind: 'bad' }],
   ['/future/?action=txRead&txid=1',       { kind: 'alias', path: '/hapi/kpool/txRead', search: '?txid=1' }],
+  // the kpool widget's own hardcoded txRead path (model.js) — lab22 served it via
+  // m/bid/explore/.htaccess -> kpool.php. Its absence stalled board signing on orange.
+  ['/m/bid/explore/kpool?action=txRead&network=testnet&txid=0.0.1-2-3&detail=1',
+                                          { kind: 'alias', path: '/hapi/kpool/txRead', search: '?network=testnet&txid=0.0.1-2-3&detail=1' }],
+  ['/m/bid/explore/kpool.php?action=txRead&txid=1', { kind: 'alias', path: '/hapi/kpool/txRead', search: '?txid=1' }],
+  ['/m/bid/explore/kpool',                { kind: 'alias', path: '/hapi/kpool/txList', search: '' }],
+  ['/m/bid/explore/kpool?action=a.b',     { kind: 'bad' }],
+  // the admin-only override is never forwarded upstream (kpool.php stripped it too)
+  ['/m/bid/explore/kpool?action=txRead&txid=1&hapi_base=evil.example',
+                                          { kind: 'alias', path: '/hapi/kpool/txRead', search: '?txid=1' }],
   ['/future/index.php?action=txList',     { kind: 'alias', path: '/hapi/kpool/txList', search: '' }],
   ['/future/',                            null],
   ['/diag',                               { kind: 'empty' }],
