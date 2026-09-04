@@ -142,7 +142,13 @@ body.board-page .app-banner h2{ display: none; }
 @keyframes ring-avpulse{ 0%,100%{ transform: scale(1); } 45%{ transform: scale(1.12); } }
 /* the hub K swells the same way when KATOMIA (the system) speaks in the stream */
 .ring-hub--pulse{ animation: ring-hubpulse .7s ease-in-out; }
-@keyframes ring-hubpulse{ 0%,100%{ transform: scale(1); } 45%{ transform: scale(1.1); } }
+/* BOARD-HUBJUMP1 (user 2026-09-04: "the K logo jumps down-right and back"): .ring-hub is
+   centred with transform: translate(-50%,-50%) — a keyframe that sets a BARE scale()
+   replaces that translate for the 0.7s of the pulse, so the whole hub (K, or the countdown
+   while signing) lurched half its width right and half its height down, then snapped back.
+   katomia-chat.js pulses the hub on every system message, which is why it looked random.
+   Keep the translate in the keyframe. */
+@keyframes ring-hubpulse{ 0%,100%{ transform: translate(-50%, -50%) scale(1); } 45%{ transform: translate(-50%, -50%) scale(1.1); } }
 
 /* BOARD-CHATMODE1 R3 (user 2026-08-03): in panel mode the whole BOARD COLUMN — footer,
    progress strip, ribbon, banner, counters, toasts — shrinks/centres to the board's

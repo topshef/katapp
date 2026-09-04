@@ -1,0 +1,222 @@
+a { text-decoration: none; }
+
+a:hover {
+  text-decoration: underline 2px rgba(190, 212, 244) !important;
+}
+	.success {color: green;}
+
+	.notsigned {color: orange;}
+
+	.signed {color: green;} 
+	
+	pre {
+    text-align: left;
+	}
+
+	
+
+#katomicList {
+    font-size: 70%;
+}
+
+.bidtable {
+  display: grid;
+  grid-template-columns: repeat(1, 1fr);
+  grid-gap: 10px;
+  /* margin: 0 5px 10px 5px;  */
+  margin: 0 auto;  /* Center the container horizontally */
+  max-width: 100%; /* Set a maximum width for the container */
+
+
+}
+
+.bidrow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  /* grid-template-columns: repeat(4, 25%);  */
+  grid-gap: 10px;
+  align-items: center;
+  align-items: flex-start;
+  border-top: 6px solid white;
+ 
+}
+
+.bidcell {
+  text-align: left;
+  padding: 10px;
+}
+
+.bidcell img {
+    /* CSS properties here */
+    max-width: 20vw;
+    height: auto; /* maintains the aspect ratio of the image */
+}
+
+
+
+@media only screen and (max-width: 600px) {
+
+	/*
+	.bidtable {
+		margin: 0 0px;
+	  }
+	  
+	  */
+     
+     
+    .bidcell img {
+        /* CSS properties here */
+        max-width: 250px; 
+        height: auto; /* maintains the aspect ratio of the image */
+    }
+
+
+    #katomicList {
+        font-size: 100%;
+    }
+
+          
+	.bidrow {
+		grid-template-columns: repeat(1, 1fr); /* Set a single column for smaller screens */
+
+		border-bottom: 1px solid #ccc; /* Add a border to the bottom of each row */
+		padding-bottom: 10px; /* Add padding to the bottom of each row */
+	  }
+
+	.bidcell {
+		/* width: 100% !important; */
+		/* padding: 5px; */
+		grid-column: 1 / -1; /* Set each bidcell to span the full width of the row */
+		/* border-bottom: 5px solid red;  test only */
+	}
+
+}
+/*
+#bidinfo p {
+  margin: 0;
+  display: flex;
+  justify-content: space-between;
+}
+
+#zzbidinfo p span:first-child {
+  min-width: 80px;
+  text-align: right;
+  padding-right: 10px;
+}
+
+#bidinfo p span:last-child {
+    text-align: left !important;
+    flex: 1;
+    line-height: 1.4;
+
+}
+
+#bidinfo p span {
+    vertical-align: middle;
+    line-height: 1.4;
+    margin-right: 10px;
+}
+*/
+
+#bidinfo p {
+  margin: 0;
+  display: flex;
+  justify-content: flex-start; /* Align items to the start */
+  align-items: center; /* Aligns vertically in the middle */
+}
+
+#bidinfo p span:first-child {
+  min-width: 80px; /* Adjust this value as needed */
+  text-align: right;
+  padding-right: 10px;
+  flex-shrink: 0; /* Prevents the first span from shrinking */
+}
+
+#bidinfo p span:last-child {
+  text-align: left;
+  flex-grow: 1; /* Allows the second span to take up remaining space */
+  line-height: 1.4;
+}
+
+#bidinfo p span {
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
+#bidinfo p span:last-child {
+  flex-grow: 1;
+  min-width: 0; /* allow shrinking */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+#bidinfo p {
+  margin: 0;
+  line-height: 1.2;    /* tighter than default */
+}
+
+#bidinfo span {
+  display: inline;     /* don’t force block or flex */
+  white-space: normal; 
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+#bidinfo {
+  min-width: 0;              /* let it shrink inside grid */
+  overflow-wrap: anywhere;   /* break long hashes */
+  word-break: break-word;
+  white-space: normal;
+}
+
+/* force 2nd column to wrap long text */
+#bidinfo {
+  min-width: 0;                /* allow grid cell to shrink */
+  white-space: normal;         /* allow wrapping */
+  overflow-wrap: anywhere;     /* break long words/hashes */
+  word-break: break-word;
+}
+
+/* and its flex children */
+#bidinfo p {
+  display: block;              /* stop using flex here */
+}
+
+#bidinfo span {
+  min-width: 0;                /* critical: flex shrink allowed */
+  white-space: normal !important;
+}
+
+
+
+
+.bidrow:has(.bidcell:first-child:empty) {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.bidrow .bidcell:first-child img,
+.bidrow .bidcell:first-child video {
+  border-radius: 12px;  /* adjust to taste */
+  overflow: hidden;
+}
+
+
+.code {
+    font-family: monospace;
+    background-color: #f6f8fa; /* Light gray background */
+    padding: 1px 3px; 
+    margin: 0 2px;
+    border-radius: 5px;
+    border: 0.5px solid #ddd;
+    display: inline-block;
+}
+
+
+
+.bidrow .bidcell:nth-child(1) {
+  text-align: center;
+  padding: 10px;
+}
+
+

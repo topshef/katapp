@@ -1,0 +1,66 @@
+
+
+.alert .btn-close {
+  float: right;
+  margin-left: 0.5rem;
+}
+
+.wallet-text {
+    position: relative;
+    top: 2px;
+}
+
+									.wallet-button {
+                                        border-radius: 30px;
+										border-color: #4ee38a;
+										//background-color: #a7f1c5;
+										background-color: white;
+										border: 1px solid #4ee38a;
+										margin-bottom: 10px;
+										padding: 5px 10px; 
+									}
+
+									.wallet-button:hover {
+										background-color: #e9fcf0;
+									}
+
+									.hide {
+										display: none !important;
+									}
+
+									.show {
+										display: block !important;
+									}
+
+									/* Tooltip container */
+									.tooltip-p {
+										position: relative;
+										display: inline-block;
+										/* border-bottom: 1px dotted black; */
+										/* If you want dots under the hoverable text */
+									}
+
+									/* Tooltip text */
+									.tooltip-p .tooltiptext-p {
+										visibility: hidden;
+										width: 120px;
+										background-color: black;
+										color: #fff;
+										text-align: center;
+										padding: 5px 0;
+										border-radius: 6px;
+
+										/* Position the tooltip text - see examples below! */
+										position: absolute;
+										z-index: 1;
+										width: 120px;
+										top: 120%;
+										left: 50%;
+										margin-left: -60px;
+										/* Use half of the width (120/2 = 60), to center the tooltip */
+									}
+
+									/* Show the tooltip text when you mouse over the tooltip container */
+									.tooltip-p:hover .tooltiptext-p {
+										visibility: visible;
+									}

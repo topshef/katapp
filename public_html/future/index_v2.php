@@ -317,10 +317,13 @@ window.showHapiDebug = function(res, label) {
 
 ;(() => {
 
+  // SIGNPAGE-STATIC1: on the static bundle this shell is rendered ONCE with no query string,
+  // so PHP saw nothing — fall back to the live URL (the board opens /m/sign/?network=&txid=&pch=).
+  const _qs = new URLSearchParams(location.search)
   const DEEP = {
-    txid:    <?php echo json_encode($txid); ?>,
-    network: <?php echo json_encode($network); ?>,
-    pch:     <?php echo json_encode($pch); ?>
+    txid:    <?php echo json_encode($txid); ?>    || _qs.get('txid')    || null,
+    network: <?php echo json_encode($network); ?> || _qs.get('network') || null,
+    pch:     <?php echo json_encode($pch); ?>     || _qs.get('pch')     || null
   }
 
   const els = {

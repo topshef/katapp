@@ -57,6 +57,14 @@ if (process.argv.includes('--serve')) {
     ['/m/katomia/katomia-core.js', 'getGameId'],
     ['/m/katomia/footer.html',    ''],
     ['/vendor/kpay/kpool_widget/config.js', 'HAPI_BASE: "kpay-api-alias.tayloa17.workers.dev/hapi"'],
+    // SIGNPAGE-STATIC1: the external signing page + the site chrome it pulls in
+    ['/m/sign/?network=testnet&txid=0.0.1@2.3&pch=abc', '<base href="/">'],
+    ['/future/',                  'kpool_widget/bootstrap.js'],
+    ['/m/katomia/binding.php?network=testnet&accountId=0.0.1879', 'hapi.php?action=bindings'],
+    ['/assets/css/style.css.php?1', ''],
+    ['/future/future.css',        ''],
+    ['/vendor/bootstrap/css/bootstrap.min.css', ''],
+    ['/vendor/jquery/jquery.min.js', ''],
   ]) {
     r = await call(p); const body = await r.text();
     assert.equal(r.status, 200, `${p} → ${r.status}`);
@@ -64,9 +72,9 @@ if (process.argv.includes('--serve')) {
     assert.ok(!/<\?php|<\?=/.test(body), `${p}: unrendered PHP`);
   }
   // every page shell references the alias, never a backend host and never lab22
-  for (const p of ['/m/katomia/', '/m/katomia/create', '/m/katomia/board/x', '/m/katomia/game/x', '/m/katomia/circles', '/m/katomia/host']) {
+  for (const p of ['/m/katomia/', '/m/katomia/create', '/m/katomia/board/x', '/m/katomia/game/x', '/m/katomia/circles', '/m/katomia/host', '/m/sign/']) {
     const body = await (await call(p)).text();
-    assert.ok(!/hapi2\.hbar\.live|lab22\.kpay\.uk/.test(body), `${p}: leaks a backend/lab host`);
+    assert.ok(!/hapi2\.hbar\.live|lab22\.kpay\.uk|127\.0\.0\.1/.test(body), `${p}: leaks a backend/lab/render host`);
   }
   // domain-aware walletconnect config
   const wc = await (await call('/vendor/walletconnect/config.json')).json();
@@ -80,6 +88,11 @@ if (process.argv.includes('--serve')) {
   assert.equal(forwarded.at(-1).url, 'https://kpay-api-alias.tayloa17.workers.dev/hapi/katomia/entities?network=testnet');
   await call('/m/katomia/hapi.php?action=games');
   assert.equal(forwarded.at(-1).url, 'https://kpay-api-alias.tayloa17.workers.dev/hapi/katomia/games');
+  await call('/m/sign/?action=txList&network=testnet&since=600&until=600');
+  assert.equal(forwarded.at(-1).url, 'https://kpay-api-alias.tayloa17.workers.dev/hapi/kpool/txList?network=testnet&since=600&until=600');
+  r = await call('/m/sign/?action=txSave', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"network":"testnet"}' });
+  assert.equal(forwarded.at(-1).url, 'https://kpay-api-alias.tayloa17.workers.dev/hapi/kpool/txSave');
+  assert.equal(forwarded.at(-1).body, '{"network":"testnet"}');
   await call('/future/?action=txRead&txid=0.0.1@2');
   assert.equal(forwarded.at(-1).url, 'https://kpay-api-alias.tayloa17.workers.dev/hapi/kpool/txRead?txid=0.0.1%402');
   // the widget's hardcoded txRead path must reach the same backend route, or a signed tx

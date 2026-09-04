@@ -1,0 +1,358 @@
+/* Side Bar */
+aside .catalog-filter {
+	margin-top: 140px;
+	margin-bottom: 1rem;
+}
+
+aside .catalog-session {
+	margin: 0;
+	margin-bottom: 1rem;
+}
+
+@media screen and (min-width: 576px) and (max-width: 991px) {
+	aside .catalog-filter-group,
+	aside .catalog-session {
+		display: flex;
+	}
+
+	aside .catalog-filter {
+		width: 33.33%;
+	}
+
+	aside .catalog-session-pinned,
+	aside .catalog-session-seen {
+		width: 50%;
+	}
+}
+
+aside .catalog-filter .catalog-filter-price,
+aside .catalog-filter .catalog-filter-supplier,
+aside .catalog-filter .catalog-filter-attribute {
+	width: 100%;
+	max-width: 100%;
+	border: 1px solid #efefef;
+}
+
+aside .catalog-session-pinned > h2,
+aside .catalog-session-seen > h2 {
+	font-size: 100%;
+	margin-bottom: 0rem;
+	text-align: start;
+	padding: .5rem .75rem;
+	letter-spacing: 1.5px;
+}
+
+aside .catalog-session-seen > h2 {
+	cursor: pointer;
+}
+
+aside .catalog-session{
+	padding-top: 0;
+}
+
+aside .catalog-session-seen .seen-items,
+aside .catalog-session-pinned .pinned-items {
+	display: none;
+}
+
+
+
+@media screen and (min-width: 992px) {
+
+	aside .catalog-session-seen .seen-items,
+	aside .catalog-session-pinned .pinned-items {
+		display: block;
+	}
+
+	aside .catalog-session-seen .name,
+	aside .catalog-session-pinned .name {
+		margin: 0 0 .25rem;
+		font-size: 80%;
+		text-align: start;
+	}
+
+	aside .catalog-session-pinned > h2,
+	aside .catalog-session-seen > h2 {
+		font-size: 130%;
+	}
+
+	aside .pinned-item .price-item.default .value,
+	aside .seen-item .price-item.default .value {
+		vertical-align: middle;
+		font-size: 110%;
+	}
+
+	/*last seen*/
+
+	aside .catalog-session-seen {
+		width: 100%;
+	}
+
+	aside .catalog-session-seen .seen-item,
+	aside .catalog-session-pinned .pinned-item {
+		width: 100%;
+	}
+
+	aside .catalog-session-seen .seen-item .media-item,
+	aside .catalog-session-pinned .pinned-item .media-item {
+		float: left;
+		width: 60px;
+		height: 80px;
+		margin-bottom: .5rem;
+		margin-inline-end: 1rem;
+		background-position: top left;
+	}
+
+	[dir="rtl"] aside .catalog-session-seen .seen-item .media-item,
+	[dir="rtl"] aside .catalog-session-pinned .pinned-item .media-item {
+		float: right;
+	}
+
+	aside .catalog-session-seen .seen-item .price-list,
+	aside .catalog-session-pinned .pinned-item .price-list {
+		font-weight: normal;
+		text-align: start;
+		padding: 0;
+		margin: 0;
+	}
+
+	aside .aimeos .price-item .rebatepercent {
+		position: relative;
+		font-size: 80%;
+	}
+
+	.catalog-session-pinned .name {
+		margin-inline-end: 3rem;
+	}
+}
+
+
+/* Catalog filter, attribute and supplier section */
+
+.catalog-filter-attribute .attribute-lists,
+.catalog-filter-supplier .supplier-lists,
+.catalog-filter-tree .category-lists,
+.catalog-filter-price .price-lists {
+	text-align: start;
+	display: block;
+}
+
+html.no-js .catalog-filter-attribute:hover .attribute-lists,
+html.no-js .catalog-filter-supplier:hover .supplier-lists,
+html.no-js .catalog-filter-tree:hover .category-lists,
+html.no-js .catalog-filter-price:hover .price-lists {
+	display: block;
+}
+
+.catalog-filter-attribute legend {
+	border: none;
+	cursor: pointer;
+	font-size: 100%;
+	padding: 0;
+	width: auto;
+	margin-bottom: .75rem;
+	position: relative;
+	letter-spacing: 1.5px;
+}
+
+.catalog-filter-attribute legend:before {
+	content: "▼ ";
+	font-size: 80%;
+	display: inline-block;
+	vertical-align: middle;
+	margin-inline-end: .2rem;
+}
+
+.catalog-filter-attribute fieldset,
+.catalog-filter-supplier fieldset {
+	background-color: #FFF;
+	display: inline-block;
+	vertical-align: top;
+	font-weight: normal;
+	text-align: start;
+	width: 100%;
+	color: #555;
+	line-height: 1;
+}
+
+.catalog-filter-attribute .fieldsets {
+	padding: 0.25rem 0;
+}
+
+.catalog-filter-attribute fieldset {
+	margin: 0;
+}
+
+.catalog-filter-attribute .attr-list {
+	display: none;
+}
+
+.catalog-filter-supplier .attribute-lists .attr-list {
+	overflow: auto;
+	height: 15rem;
+}
+
+.catalog-filter-attribute .attribute-lists .attr-item,
+.catalog-filter-supplier .supplier-lists .attr-item {
+	display: block;
+	padding: 0.25rem 0;
+	margin: 0;
+}
+
+.catalog-filter-supplier .supplier-lists .attr-item {
+	display: block;
+}
+
+.catalog-filter-supplier .supplier-lists .attr-item label {
+	display: inline-block;
+}
+
+.catalog-filter-attribute input.attr-item,
+.catalog-filter-supplier input.attr-item {
+	border: 1px solid #D0D0D0;
+}
+
+.catalog-filter-attribute input.attr-item[type=checkbox],
+.catalog-filter-supplier input.attr-item[type=checkbox] {
+	display: none;
+}
+
+.catalog-filter-attribute input.attr-item[type=checkbox]:checked + label:before,
+.catalog-filter-supplier input.attr-item[type=checkbox]:checked + label:before {
+	content: "\2713";
+}
+
+.catalog-filter-attribute .attribute-selected {
+	clear: both;
+}
+
+.catalog-filter-attribute .attribute-selected .selected-intro:after {
+	content: ":";
+}
+
+.catalog-filter-attribute .attribute-selected .attr-list,
+.catalog-filter-attribute .attribute-selected .attr-item {
+	display: inline-block;
+	min-width: auto;
+}
+
+.catalog-filter-attribute .attribute-selected .selected-all,
+.catalog-filter-attribute .attribute-selected .attr-name {
+	border: solid 1px #D0D0D0;
+	display: inline-block;
+	margin: 0.5rem;
+	padding: 0 0.25rem;
+}
+
+.catalog-filter-attribute .attribute-selected .selected-all:after,
+.catalog-filter-attribute .attribute-selected .attr-name:after {
+	content: " ×";
+}
+
+.catalog-filter-attribute .attribute-selected,
+.catalog-filter-supplier .supplier-selected {
+	display: block;
+	/*margin: auto;*/
+}
+
+.catalog-filter-attribute label:before,
+.catalog-filter-supplier label:before {
+	border: solid 1px #555;
+	display: inline-block;
+	vertical-align: top;
+	cursor: pointer;
+	content: "";
+	width: 1rem;
+	height: 1rem;
+	margin-inline-end: 0.25rem;
+	vertical-align: middle;
+}
+
+.catalog-filter-attribute .media-list,
+.catalog-filter-supplier .media-list {
+	display: inline-block;
+}
+
+.catalog-filter-attribute .media-item img,
+.catalog-filter-supplier .media-item img {
+	border-radius: 50%;
+	height: 1rem;
+	width: 1rem;
+}
+
+.catalog-filter-attribute .attr-name,
+.catalog-filter-attribute .attr-count,
+.catalog-filter-supplier .attr-name,
+.catalog-filter-supplier .attr-count {
+	font-weight: normal;
+	cursor: pointer;
+}
+
+.catalog-filter-attribute .attr-name,
+.catalog-filter-supplier .attr-name,
+.catalog-filter-attribute .attr-name span,
+.catalog-filter-supplier .attr-name span {
+	vertical-align: middle;
+	letter-spacing: 1.5px;
+}
+
+
+.catalog-filter-attribute .attr-name,
+.catalog-filter-supplier label{
+	margin-bottom: .5rem;
+}
+
+.catalog-filter-attribute .attr-count,
+.catalog-filter-supplier .attr-count {
+	margin-bottom: .5rem;
+	display: inline-block;
+	vertical-align: middle;
+}
+
+.catalog-filter-price .btn {
+	display: block;
+	margin: .5rem auto;
+	width: 100%;
+	max-width: 12rem;
+}
+
+.catalog-filter-price fieldset {
+	text-align: center;
+}
+
+.catalog-filter-price .price-input {
+	margin: 0;
+}
+
+.catalog-filter-price .price-low {
+	margin-bottom: -0.5rem;
+	text-align: center;
+	float: left;
+}
+
+[dir="rtl"] .catalog-filter-price .price-low {
+	float: right;
+}
+
+.catalog-filter-price .price-high {
+	margin-bottom: -0.5rem;
+	text-align: center;
+	float: right;
+}
+
+[dir="rtl"] .catalog-filter-price .price-high {
+	float: left;
+}
+
+.catalog-filter-attribute > h2,
+.catalog-filter-tree > h2,
+.catalog-filter-price > h2,
+.catalog-filter-supplier > h2 {
+	text-align: left;
+	font-size: 130%;
+	cursor: pointer;
+	width: 100%;
+	display: block;
+	padding: 0.5rem;
+	margin: 0;
+}

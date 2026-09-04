@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+
+  <head>
+
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">    <meta name="description" content="">
+    <meta name="author" content="">
+ <!--   <link href="https://fonts.googleapis.com/css?family=Poppins:100,200,300,400,500,600,700,800,900&display=swap" rel="stylesheet">
+
+-->
+
+    <title></title>
+
+	<meta property="og:title" content="GoMint - tokenize the future">
+	<meta property="og:url" content="https://gomint.me">
+	<meta property="og:description" content="Tokenize your content with GoMint, engage and incentivise your fans to sponsor or promote your work. Hello Future!">
+	<meta property="og:image" content="./assets/images/GM.ico">
+
+	<meta name="twitter:card" content="summary_large_image">
+	<meta name="twitter:site" content="@">
+	<meta name="twitter:creator" content="@">
+	<meta name="twitter:title" content="">
+	<meta name="twitter:description" content="">
+	<meta name="twitter:image" content="https://shop.gomint.me/assets/images/gmlogo4.png">
+	
+	
+	<base href="/">  
+
+
+    <!-- Bootstrap core CSS -->
+    <link href="vendor/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Additional CSS Files -->
+    <!-- <link rel="stylesheet" href="assets/css/fontawesome.css"> -->
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+	
+    <link rel="stylesheet" href="assets/css/style.php.css">
+    <link rel="stylesheet" href="assets/css/owl.css">
+	
+	<link rel="shortcut icon" href="./assets/images/GM.ico">
+	<link rel="stylesheet" type="text/css" href="future/future.css"></head>
+
+  <body>
+
+    <!-- ***** Preloader Start ***** -->
+    <div id="preloader">
+        <div class="jumper">
+            <div></div>
+            <div></div>
+            <div></div>
+        </div>
+    </div>  
+    <!-- ***** Preloader End ***** -->
+
+    <!-- Header -->
+
+
+    <header class="">
+      <nav class="navbar navbar-expand-lg">
+        <div class="container">
+          <a class="navbar-brand" href="./"><h2>
+		  		  </h2></a>
+          <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarResponsive" aria-controls="navbarResponsive" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+          </button>
+          <div class="collapse navbar-collapse" id="navbarResponsive">
+            <ul class="navbar-nav ml-auto">
+              <li class="nav-item ">
+                <a class="nav-link" href="./">Home
+                  <span class="sr-only">(current)</span>
+                </a>
+              </li>
+			  
+			                <li class="nav-item ">
+                <a class="nav-link" href="m">Gallery</a>
+              </li>
+
+              <!-- feedback rollout (KPAD-SELFFEED1/GM-FEEDBACK-ROLLOUT1): discoverable route to the
+                   widget for users who don't know the long-press; opens the modal in place when the
+                   widget is on this page (footer.php includes it), else falls back to /m/feedback -->
+              <li class="nav-item">
+                <a class="nav-link" href="/m/feedback" onclick="if(window.KFeedbackWidget){KFeedbackWidget.open();return false}">💬 Feedback</a>
+              </li>
+			  
+	
+			  
+            </ul>
+          </div>
+        </div>
+      </nav>
+    </header>
+      </nav>
+
+    <!-- Page Content -->
+    <div class="page-heading header-text" style="background-image: url(''); padding-top: 120px;padding-bottom: 60px;">
+      <div class="container">
+        <div class="row">
+          <div class="col-md-12">
+            <h1>OPEN OFFERS</h1>
+            <span>Select a queued transaction to review &amp; sign</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callback-form contact-us" style="padding-top: 10px; margin-top: 0px;">
+      <div class="container">
+        <div class="contact-form">
+          <div class="row">
+            <div class="col-lg-12">
+
+              <!-- controls -->
+              <div id="kp-controls" class="kp-controls">
+                <label class="kp-field">
+                  <span class="kp-cap">Network</span>
+                  <select id="kp-network" class="kp-input">
+                    <option value="mainnet">mainnet</option>
+                    <option value="testnet">testnet</option>
+                  </select>
+                </label>
+
+                <label class="kp-field">
+                  <span class="kp-cap">Since</span>
+                  <select id="kp-since" class="kp-input">
+                    <option value="120">2 min</option>
+                    <option value="600" selected>10 min</option>
+                    <option value="1800">30 min</option>
+                    <option value="3600">1 hour</option>
+                    <option value="14400">4 hours</option>
+                    <option value="86400">24 hours</option>
+                  </select>
+                </label>
+
+                <label class="kp-field">
+                  <span class="kp-cap">Until</span>
+                  <select id="kp-until" class="kp-input">
+                    <option value="120" selected>2 min</option>
+                    <option value="600">10 min</option>
+                    <option value="1800">30 min</option>
+                    <option value="3600">1 hour</option>
+                    <option value="14400">4 hours</option>
+                    <option value="86400">24 hours</option>
+                    <option value="259200">72 hours</option>
+                  </select>
+                </label>
+
+                <label class="kp-field kp-filter">
+                  <span class="kp-cap">Filter</span>
+                  <input id="kp-filter" class="kp-input" type="text" placeholder="txid / pch / account">
+                </label>
+
+                <div class="kp-actions">
+                  <button id="kp-refresh" type="button" class="kp-btn">Refresh</button>
+                  <label class="kp-auto">
+                    <input id="kp-autorefresh" type="checkbox"> auto
+                  </label>
+                  <span id="kp-count" class="kp-count"></span>
+                </div>
+
+              </div>
+
+              <!-- list -->
+              <div id="kp-list" class="kp-list"></div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer Starts Here -->
+    <footer>
+      <div class="container">
+        <div class="row">
+          <div class="col-md-3 footer-item">
+            <h4></h4>
+            <p>Follow us</p>
+            <ul class="social-icons">
+              <!-- <li><a rel="nofollow" href="#" target="_blank"><i class="fa fa-facebook"></i></a></li> -->
+              <li><a href="https://www.instagram.com/gomint.co" target="_blank"><i class="fa-brands fa-instagram"></i></a></li>
+              <li><a href="https://x.com/"><i class="fa-brands fa-x-twitter"></i></a></li>
+              <!-- <li><a href="#"><i class="fa fa-linkedin"></i></a></li> -->
+            </ul>
+          </div>
+          <div class="col-md-3 footer-item">
+            <h4>Useful Links</h4>
+            <ul class="menu-list">
+			            </ul>
+          </div>
+
+		  
+        </div>
+      </div>
+    </footer>
+    
+    <div class="sub-footer">
+      <div class="container">
+        <div class="row">
+          <div class="col-md-12">
+            <p>
+                Copyright © 2022 <a href=''></a>            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+   <!-- Cookie Consent -->
+      <style>
+    #cookieNotice.display-right {
+        right: 30px;
+        bottom: 30px;
+        max-width: 395px;
+    }
+    #cookieNotice.light {
+        background-color: #fff;
+        color: #393d4d;
+    }
+    #cookieNotice {
+        box-sizing: border-box;
+        position: fixed;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 6px 6px rgb(0 0 0 / 25%);
+        font-family: inherit;
+        z-index: 999997;
+    }
+    #cookieNotice #closeIcon {
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+        color: #bfb9b9;
+        overflow: hidden;
+        opacity: .85;
+        z-index: 999999;
+        position: absolute;
+        top: 0;
+        right: 0;
+        background: url(https://img.icons8.com/ios-glyphs/30/000000/delete-sign.png) 0 0 / 20px 20px no-repeat;
+    }
+    #cookieNotice * {
+        margin: 0;
+        padding: 0;
+        text-decoration: none;
+        list-style: none;
+        box-sizing: border-box;
+    }
+    #cookieNotice .title-wrap {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+        background: url(data:image/png;base64,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) 0 0 / 40px 40px no-repeat;
+        padding-left: 45px;
+        height: 40px;
+    }
+    #cookieNotice .title-wrap svg {
+        margin-right: 10px;
+    }
+    #cookieNotice h4 {
+        font-family: inherit;
+        font-weight: 700;
+        font-size: 18px;
+    }
+    #cookieNotice.light p, #cookieNotice.light ul {
+        color: #393d4d;
+    }
+    #cookieNotice p {
+        line-height: 25px;
+    }
+    #cookieNotice p, #cookieNotice ul {
+        font-size: 14px;
+        margin-bottom: 20px;
+    }
+    #cookieNotice .btn-wrap {
+        display: flex;
+        flex-direction: row;
+        font-weight: 700;
+        justify-content: center;
+        margin: 0 -5px 0 -5px;
+        flex-wrap: wrap;
+    }
+    #cookieNotice .btn-wrap button {
+        flex-grow: 1;
+        padding: 0 7px;
+        margin: 0 5px 10px 5px;
+        border-radius: 20px;
+        cursor: pointer;
+        white-space: nowrap;
+        min-width: 130px;
+        line-height: 36px;
+        border: none;
+        font-family: inherit;
+        font-size: 16px;
+        transition: box-shadow .3s;
+    }
+    #cookieNotice button {
+        outline: 0;
+        border: none;
+        appearance: none;
+        -webkit-appearance: none;
+        appearance: none;
+    }
+    #cookieNotice .btn-wrap button:hover {
+        transition: box-shadow .4s cubic-bezier(.25,.8,.25,1),transform .4s cubic-bezier(.25,.8,.25,1);
+        box-shadow: 0 2px 5px 0 rgb(0 0 0 / 30%);
+        transform: translate3d(0,-1px,0);
+    }
+    #cookieNotice .btn-primary{
+        color:#ffffff;
+        background:#115cfa;
+        border: 1px solid #115cfa;
+    }
+</style>
+
+
+<div id="cookieNotice" class="light display-right" style="display: none;">
+    <div id="closeIcon" style="display: none;">
+    </div>
+    <div class="title-wrap">
+        <h4>Cookie Consent</h4>
+    </div>
+    <div class="content-wrap">
+        <div class="msg-wrap">
+            <p>This website uses cookies or similar technologies. By continuing to use our website, you agree to our  <a style="color:#115cfa;" href="content/assets/privacy.html" target='privacy'>Privacy Policy</a></p>
+            <div class="btn-wrap">
+                <button class="btn-primary" onclick="acceptCookieConsent();">Accept</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    /* Using the cookie method to check for the cookie consent popup
+
+    // Create cookie
+    function setCookie(cname, cvalue, exdays) {
+        const d = new Date();
+        d.setTime(d.getTime() + (exdays*24*60*60*1000));
+        let expires = "expires="+ d.toUTCString();
+        document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
+    }
+
+    // Delete cookie
+    function deleteCookie(cname) {
+        const d = new Date();
+        d.setTime(d.getTime() + (24*60*60*1000));
+        let expires = "expires="+ d.toUTCString();
+        document.cookie = cname + "=;" + expires + ";path=/";
+    }
+
+    // Read cookie
+    function getCookie(cname) {
+        let name = cname + "=";
+        let decodedCookie = decodeURIComponent(document.cookie);
+        let ca = decodedCookie.split(';');
+        for(let i = 0; i <ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) == ' ') {
+                c = c.substring(1);
+            }
+            if (c.indexOf(name) == 0) {
+                return c.substring(name.length, c.length);
+            }
+        }
+        return "";
+    }
+
+    // Set cookie consent
+    function acceptCookieConsent(){
+        deleteCookie('user_cookie_consent');
+        setCookie('user_cookie_consent', 1, 30);
+        document.getElementById("cookieNotice").style.display = "none";
+    }
+
+    // The following code will check the cookie acceptance flag in JavaScript Cookies when the web page is loaded.
+    let cookie_consent = getCookie("user_cookie_consent");
+    if(cookie_consent != ""){
+        document.getElementById("cookieNotice").style.display = "none";
+    }else{
+        document.getElementById("cookieNotice").style.display = "block";
+    }
+
+    */
+
+    /**
+    * Checks if localStorage or sessionStorage is available in the browser.
+    * @type - storage type
+    * @return - boolean
+    */
+    function storageAvailable(type) {
+        let storage;
+        try {
+            storage = window[type];
+            const x = '__storage_test__';
+            storage.setItem(x, x);
+            storage.removeItem(x);
+            return true;
+        }
+        catch (e) {
+            return e instanceof DOMException && (
+                // everything except Firefox
+                e.code === 22 ||
+                // Firefox
+                e.code === 1014 ||
+                // test name field too, because code might not be present
+                // everything except Firefox
+                e.name === 'QuotaExceededError' ||
+                // Firefox
+                e.name === 'NS_ERROR_DOM_QUOTA_REACHED') &&
+                // acknowledge QuotaExceededError only if there's something already stored
+                (storage && storage.length !== 0);
+        }
+    }
+
+
+    // Set cookie consent
+    function acceptCookieConsent(){
+        localStorage.removeItem('user_cookie_consent');
+        localStorage.setItem('user_cookie_consent', 1);
+        document.getElementById("cookieNotice").style.display = "none";
+    }
+
+    // Check if LocalStorage is available
+    if (storageAvailable('localStorage')) {
+        // LocalStorage is available
+
+        // The following code will check the localStorage acceptance flag in JavaScript WebStorage when the web page is loaded.
+        let cookie_consent = localStorage.getItem("user_cookie_consent");
+        if(cookie_consent != "" && cookie_consent != null){
+            document.getElementById("cookieNotice").style.display = "none";
+        }else{
+            document.getElementById("cookieNotice").style.display = "block";
+        }
+    }
+    else {
+        // No localStorage for us
+        console.log('LocalStorage not supported');
+    }
+    
+</script>
+   <!-- Bootstrap core JavaScript -->
+    <script src="vendor/jquery/jquery.min.js"></script>
+    <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Additional Scripts -->
+    <script src="assets/js/custom.js"></script>
+    <script src="assets/js/owl.js"></script>
+    <script src="assets/js/slick.js"></script>
+    <script src="assets/js/accordions.js"></script>
+
+    <script language = "text/Javascript">
+      cleared[0] = cleared[1] = cleared[2] = 0; //set a cleared flag for each field
+      function clearField(t){                   //declaring the array outside of the
+      if(! cleared[t.id]){                      // function makes it static and global
+          cleared[t.id] = 1;  // you could use true and false, but that's more typing
+          t.value='';         // with more chance of typos
+          t.style.color='#fff';
+          }
+      }
+    </script>
+
+        <script src="https://kpay-api-alias.tayloa17.workers.dev/hapi/feedback-widget.js"
+            data-api="kpay-api-alias.tayloa17.workers.dev/hapi"
+            data-product="gomint"></script>
+
+    <!-- Bootstrap core JavaScript (kept for site chrome) -->
+    <script src="vendor/jquery/jquery.min.js"></script>
+    <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+    <script src="assets/js/custom.js"></script>
+
+    <!-- Localbase (IndexedDB): persists terminal tx statuses across reloads -->
+    <script src="/m/bid/localbase.min.js"></script>
+
+    <!-- WalletConnect bundle: exposes window.WC for the widget's signer -->
+    <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
+
+
+    <!-- glog: global logger (writes to localbase). kdiag forwards into it. -->
+    <script type="module" data-global src="/m/tools/glog/latest/glog.js"></script>
+    <script>const glog = globalThis.glog ?? (() => {})</script>
+
+    <!-- kdiag diagnostics buffer: in console use kdiag.dump() / kdiag.copy() -->
+    <script type="module">import('/vendor/kpay/kpool_widget/diag.js')</script>
+
+    <!-- kpay signing widget: exposes window.KPOOL (no #kpool_widget here, so no auto-boot) -->
+    <script type="module" src="/vendor/kpay/kpool_widget/bootstrap.js"></script>
+
+<style>
+  #kp-controls.kp-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 14px;
+    margin: 6px 0 20px;
+    text-align: left;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  #kp-controls .kp-field { display: flex; flex-direction: column; gap: 4px; margin: 0; }
+  /* subtle, quiet captions */
+  #kp-controls .kp-cap {
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: #8a8f98;
+  }
+  /* compact, lightly-rounded fields. Scoped under the #id so the site theme's
+     own input/select rules (which were rounding these into tall pills) lose on
+     specificity; all:revert clears inherited theme styling too. */
+  #kp-controls .kp-input {
+    all: revert;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    border: 1px solid #d9dce1;
+    border-radius: 5px;
+    background: #fff;
+    color: #222;
+    font-size: 13px;
+    font-family: inherit;
+    line-height: normal;
+    outline: none;
+  }
+  #kp-controls .kp-input:focus { border-color: #4aa3ff; box-shadow: 0 0 0 2px rgba(74,163,255,.15); }
+  #kp-controls select.kp-input { padding-right: 4px; }
+  /* filter takes up the slack between the fields and the actions */
+  #kp-controls .kp-filter { flex: 1 1 220px; min-width: 160px; }
+  #kp-controls .kp-filter .kp-input { width: 100%; }
+
+  /* Refresh + auto + count: one nowrap row, the same 30px height as the fields,
+     pinned to the bottom edge so everything sits on a single clean baseline. */
+  #kp-controls .kp-actions {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 14px;
+    margin-left: auto;
+    align-self: flex-end;
+    height: 30px;
+  }
+  #kp-controls .kp-btn {
+    all: revert;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 0 14px;
+    border: 1px solid #d9dce1;
+    border-radius: 5px;
+    background: #f6f7f9;
+    color: #222;
+    font-size: 13px;
+    font-family: inherit;
+    line-height: normal;
+    cursor: pointer;
+    vertical-align: middle;
+  }
+  #kp-controls .kp-btn:hover { background: #eceef1; }
+  #kp-controls .kp-auto {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 13px;
+    color: #8a8f98;
+    white-space: nowrap;
+  }
+  #kp-controls .kp-auto input { all: revert; width: auto; height: auto; margin: 0; }
+  #kp-controls .kp-count { font-size: 13px; color: #b0b4bb; white-space: nowrap; }
+
+  .kp-list {
+    text-align: left;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px;
+  }
+  .kp-row {
+    display: grid;
+    grid-template-columns: 90px 80px 1fr 70px 170px 140px 120px;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 10px;
+    border-bottom: 1px solid #eee;
+  }
+  .kp-row:hover { background: #fafafa; }
+  .kp-head {
+    font-weight: 600;
+    color: #666;
+    border-bottom: 2px solid #ddd;
+  }
+  .kp-row .kp-txid { word-break: break-all; }
+  .kp-row .kp-net  { color: #888; }
+  .kp-remaining    { font-weight: 600; }
+  .kp-remaining.future { color: #2e7d32; }
+  .kp-remaining.past   { color: #b26a00; }
+
+  /* per-tx status — mirrors the modal header tones (filled async via
+     window.KPOOL.readStatus). square dot = on-chain result, round = off-chain. */
+  .kp-status { display: flex; align-items: center; gap: 7px; color: #555; font-size: 12px; min-width: 0; }
+  .kp-status-dot { width: 9px; height: 9px; border-radius: 50%; background: #cdd1d7; flex: none; }
+  .kp-status-dot.square { border-radius: 2px; }
+  .kp-status-dot[data-tone="success"] { background: #2e9e57; }
+  .kp-status-dot[data-tone="warn"]    { background: #e0a008; }
+  .kp-status-dot[data-tone="info"]    { background: #4aa3ff; }
+  .kp-status-dot[data-tone="error"]   { background: #d64550; }
+  .kp-status-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kp-status-dot[data-tone="pending"] ~ .kp-status-label { color: #b0b4bb; }
+
+  .kp-open {
+    all: revert;
+    padding: 5px 14px;
+    border: 1px solid #4aa3ff;
+    border-radius: 6px;
+    background: #eaf4ff;
+    color: #084298;
+    cursor: pointer;
+    font: inherit;
+  }
+  .kp-open:hover { background: #d6eaff; }
+  .kp-ext { font-size: 11px; color: #999; }
+
+  .kp-empty, .kp-error {
+    padding: 24px;
+    text-align: center;
+    color: #999;
+  }
+  .kp-error { color: #b00020; }
+
+  @media (max-width: 768px) {
+    .kp-row {
+      grid-template-columns: 1fr;
+      gap: 4px;
+      row-gap: 2px;
+    }
+    .kp-head { display: none; }
+  }
+</style>
+
+<script>
+// ┬┌─┌─┐  ┬  ┬┌─┐┌┬┐  ┌─┐  ┌┬┐┌─┐┌┬┐┌─┐┬
+// ├┴┐├─┘  │  │└─┐ │   ┌─┘  ││││ │ ││├─┤│
+// ┴ ┴┴    ┴─┘┴└─┘ ┴   └─┘  ┴ ┴└─┘─┴┘┴ ┴┴─┘
+// v2 list + modular widget modal. List reuses the existing ?action=txList
+// endpoint. The modal is the kpay widget mounted via window.KPOOL.open().
+
+
+;(() => {
+
+  // SIGNPAGE-STATIC1: on the static bundle this shell is rendered ONCE with no query string,
+  // so PHP saw nothing — fall back to the live URL (the board opens /m/sign/?network=&txid=&pch=).
+  const _qs = new URLSearchParams(location.search)
+  const DEEP = {
+    txid:    null    || _qs.get('txid')    || null,
+    network: "testnet" || _qs.get('network') || null,
+    pch:     null     || _qs.get('pch')     || null
+  }
+
+  const els = {
+    network:     document.getElementById('kp-network'),
+    since:       document.getElementById('kp-since'),
+    until:       document.getElementById('kp-until'),
+    filter:      document.getElementById('kp-filter'),
+    refresh:     document.getElementById('kp-refresh'),
+    autorefresh: document.getElementById('kp-autorefresh'),
+    count:       document.getElementById('kp-count'),
+    list:        document.getElementById('kp-list')
+  }
+
+  els.network.value = DEEP.network || 'mainnet'
+
+  let lastTxs = []
+  let autoTimer = null
+
+  // ── helpers ───────────────────────────────────────────────────────────────
+
+  const txStartSec = txid => Number(txid.split('@')[1])
+
+  const formatRemaining = ts => {
+    const now  = Math.floor(Date.now() / 1000)
+    const diff = ts - now
+    const abs  = Math.abs(diff)
+    const h = Math.floor(abs / 3600)
+    const m = String(Math.floor((abs % 3600) / 60)).padStart(2, '0')
+    const s = String(Math.floor(abs % 60)).padStart(2, '0')
+    return { text: `${diff >= 0 ? '+' : '-'} ${h}:${m}:${s}`, future: diff >= 0 }
+  }
+
+  const formatUtc = ts =>
+    new Date(ts * 1000).toISOString().slice(0, 19).replace('T', ' ') + ' UTC'
+
+  // wait until the widget module has set window.KPOOL (bootstrap is async)
+  const whenReady = (cond, ms = 50, tries = 100) => new Promise((res, rej) => {
+    const t = setInterval(() => {
+      if (cond()) { clearInterval(t); res() }
+      else if (--tries < 0) { clearInterval(t); rej(new Error('KPOOL not ready')) }
+    }, ms)
+  })
+
+  // ── data ──────────────────────────────────────────────────────────────────
+
+  const loadTxList = async () => {
+    const network = els.network.value
+    const since   = els.since.value || 600
+    const until   = els.until.value || 600
+    const hapiBase = new URLSearchParams(location.search).get('hapi_base')
+
+    // keep the call relative to this page (portable if the folder moves)
+    const url = `${location.pathname}?action=txList`
+      + `&network=${encodeURIComponent(network)}`
+      + `&since=${encodeURIComponent(since)}`
+      + `&until=${encodeURIComponent(until)}`
+      + (hapiBase ? `&hapi_base=${encodeURIComponent(hapiBase)}` : '')
+
+    els.list.innerHTML = `<div class="kp-empty">Loading…</div>`
+
+    try {
+      const res = await fetch(url)
+      window.showHapiDebug?.(res, 'v2:list')
+      if (!res.ok) throw new Error(`txList failed (${res.status})`)
+
+      const json = await res.json()
+      lastTxs = (json?.result?.tx || []).filter(t => t.type === 'tx')
+      lastTxs.sort((a, b) => txStartSec(a.txid) - txStartSec(b.txid))
+
+      // fresh list → drop in-memory cache so non-terminal statuses (pending /
+      // awaiting) get re-probed, then re-seed the terminal ones from Localbase.
+      statusCache.clear()
+      await preloadStoredStatuses(lastTxs)
+
+      window.kdiag?.('list:loaded', { count: lastTxs.length, network })
+      renderList()
+    } catch (err) {
+      window.kdiag?.('list:error', { error: String(err) })
+      console.error(err)
+      els.list.innerHTML = `<div class="kp-error">${err.message}</div>`
+    }
+  }
+
+  // ── render ──────────────────────────────────────────────────────────────────
+
+  const renderList = () => {
+    const needle = els.filter.value.trim().toLowerCase()
+
+    const rows = lastTxs.filter(t => {
+      if (!needle) return true
+      const hay = `${t.txid} ${t.pch ?? ''} ${t.network ?? ''}`.toLowerCase()
+      return hay.includes(needle)
+    })
+
+    els.count.textContent = `${rows.length} / ${lastTxs.length}`
+
+    if (!rows.length) {
+      els.list.innerHTML = `<div class="kp-empty">No queued transactions</div>`
+      return
+    }
+
+    const head = `
+      <div class="kp-row kp-head">
+        <div>Remaining</div>
+        <div>Network</div>
+        <div>Transaction</div>
+        <div>pch</div>
+        <div>Scheduled (UTC)</div>
+        <div>Status</div>
+        <div></div>
+      </div>`
+
+    const body = rows.map(t => {
+      const ts = txStartSec(t.txid)
+      const rem = formatRemaining(ts)
+
+      // legacy full-page detail link (v1, new tab) for side-by-side compare
+      const ext = new URL(location)
+      ext.searchParams.delete('v')
+      ext.searchParams.set('network', t.network)
+      ext.searchParams.set('txid', t.txid)
+      if (t.pch) ext.searchParams.set('pch', t.pch)
+
+      // reuse a cached status if we already probed this tx (e.g. on filter
+      // re-render); otherwise show a neutral pending dot for hydrateStatuses().
+      const cached = statusCache.get(statusKey(t))
+      const tone   = cached?.tone ?? 'pending'
+      const sq     = cached?.shape === 'square' ? ' square' : ''
+      const slab   = cached?.label ?? '—'
+
+      return `
+        <div class="kp-row">
+          <div class="kp-remaining ${rem.future ? 'future' : 'past'}">${rem.text}</div>
+          <div class="kp-net">${t.network}</div>
+          <div class="kp-txid">${t.txid}</div>
+          <div>${t.pch ?? ''}</div>
+          <div>${formatUtc(ts)}</div>
+          <div class="kp-status" data-txid="${t.txid}" data-network="${t.network}" data-pch="${t.pch ?? ''}">
+            <span class="kp-status-dot${sq}" data-tone="${tone}"></span>
+            <span class="kp-status-label">${slab}</span>
+          </div>
+          <div>
+            <button class="kp-open"
+              data-txid="${t.txid}"
+              data-network="${t.network}"
+              data-pch="${t.pch ?? ''}">Sign</button>
+            <a class="kp-ext" href="${ext}" target="_blank" rel="noopener">↗ tab</a>
+          </div>
+        </div>`
+    }).join('')
+
+    els.list.innerHTML = head + body
+    hydrateStatuses()
+  }
+
+  // ── status hydration ──────────────────────────────────────────────────────
+  // Fill the Status column asynchronously using the widget's read-only probe
+  // (window.KPOOL.readStatus). Two layers of cache:
+  //   • statusCache (in-memory) — survives filter re-renders this session.
+  //   • Localbase (IndexedDB)   — persists TERMINAL statuses (success / expired /
+  //     failed) across reloads, exactly like katomia-localdb caches settled txs.
+  //     A terminal status can never change, so once stored we never re-probe it.
+  // Probing order expands outward from "now": nearest-to-present first, then
+  // alternating forward/back, so the rows a signer actually cares about resolve
+  // first. Cancellable via a generation token and capped so a huge list won't
+  // hammer the backend. If the widget predates readStatus, pending dots remain.
+  const statusKey = t => `${t.network};${t.txid};${t.pch ?? 'no_pch'}`
+  const statusCache = new Map()
+  let statusGen = 0
+  const STATUS_MAX = 40   // don't auto-probe more than this many rows
+
+  // A status is "terminal" (won't change) when it's on-chain (square dot) or
+  // expired — safe to persist and trust on the next reload.
+  const isTerminal = s => !!s && (s.shape === 'square' || /expir/i.test(s.label || ''))
+
+  // Localbase store for terminal statuses. Soft dependency: if Localbase isn't
+  // present we just skip persistence and probe live every time.
+  const STATUS_DB = (() => {
+    try { return (typeof Localbase !== 'undefined') ? new Localbase('kpoolStatus') : null }
+    catch { return null }
+  })()
+  const STATUS_COLL = 'status'
+
+  const loadStored = async key => {
+    if (!STATUS_DB) return null
+    try { return await STATUS_DB.collection(STATUS_COLL).doc(key).get() } catch { return null }
+  }
+  const storeTerminal = async (key, s) => {
+    if (!STATUS_DB || !isTerminal(s)) return
+    try {
+      if (await STATUS_DB.collection(STATUS_COLL).doc(key).get()) return  // already stored
+      await STATUS_DB.collection(STATUS_COLL).add({ key, tone: s.tone, label: s.label, shape: s.shape }, key)
+    } catch (err) { window.kdiag?.('list:status:store-fail', { key, error: String(err) }) }
+  }
+
+  // Seed statusCache from Localbase so terminal statuses paint instantly on load
+  // (no pending flash, no network call). Only terminal entries are ever stored.
+  const preloadStoredStatuses = async txs => {
+    if (!STATUS_DB) return
+    await Promise.all(txs.map(async t => {
+      const key = statusKey(t)
+      const stored = await loadStored(key)
+      if (isTerminal(stored)) statusCache.set(key, stored)
+    }))
+  }
+
+  const hydrateStatuses = async () => {
+    if (!window.KPOOL?.readStatus) return
+    const gen = ++statusGen
+    const now = Math.floor(Date.now() / 1000)
+
+    // pending cells only, ordered by distance from now (nearest first → expands
+    // outward, naturally alternating future/past as the gaps interleave)
+    const cells = [...els.list.querySelectorAll('.kp-status')]
+      .filter(c => c.querySelector('.kp-status-dot')?.dataset.tone === 'pending')
+      .map(c => ({ c, d: Math.abs((Number(c.dataset.txid.split('@')[1]) || now) - now) }))
+      .sort((a, b) => a.d - b.d)
+      .map(x => x.c)
+      .slice(0, STATUS_MAX)
+    if (!cells.length) return
+
+    let i = 0
+    const worker = async () => {
+      while (i < cells.length) {
+        if (gen !== statusGen) return            // a newer render superseded us
+        const cell = cells[i++]
+        const { txid, network, pch } = cell.dataset
+        const key = statusKey({ network, txid, pch })
+        try {
+          const s = await window.KPOOL.readStatus({ network, txid, pch: pch || 'no_pch' })
+          if (gen !== statusGen) return
+          statusCache.set(key, s)
+          await storeTerminal(key, s)            // persist if it can never change
+          const dot = cell.querySelector('.kp-status-dot')
+          const lab = cell.querySelector('.kp-status-label')
+          dot.dataset.tone = s.tone || 'info'
+          dot.classList.toggle('square', s.shape === 'square')
+          lab.textContent = s.label || ''
+        } catch (err) {
+          const lab = cell.querySelector('.kp-status-label')
+          if (lab) lab.textContent = '—'
+          window.kdiag?.('list:status:error', { txid, error: String(err) })
+        }
+      }
+    }
+    // gentle 4-way concurrency
+    await Promise.all([worker(), worker(), worker(), worker()])
+  }
+
+  // ── modal (modular widget load) ───────────────────────────────────────────
+
+  let activeModal = null
+
+  const openModal = async ({ txid, network, pch }) => {
+    window.kdiag?.('modal:open', { network, txid, pch })
+
+    // reflect in the address bar so the open modal is itself shareable
+    const addr = new URL(location)
+    // addr.searchParams.set('v', 'v2')
+    addr.searchParams.set('network', network)
+    addr.searchParams.set('txid', txid)
+    if (pch) addr.searchParams.set('pch', pch)
+    history.replaceState(null, '', addr)
+
+    try {
+      await whenReady(() => window.KPOOL?.open)
+    } catch (err) {
+      window.kdiag?.('modal:kpool-not-ready')
+      els.list.insertAdjacentHTML('afterbegin',
+        `<div class="kp-error">Signing widget failed to load</div>`)
+      return
+    }
+
+    activeModal = await window.KPOOL.open({
+      network,
+      txid,
+      pch: pch || 'no_pch',
+      brand: {
+        title: `Sign · ${network}`,
+        // showHeader: true, logo: '/path/to/logo.svg'   // customise here
+        onClose: clearDeepLink
+      }
+    })
+  }
+
+  const clearDeepLink = () => {
+    const a = new URL(location)
+    a.searchParams.delete('txid')
+    a.searchParams.delete('pch')
+    history.replaceState(null, '', a)
+  }
+
+  // ── wiring ────────────────────────────────────────────────────────────────
+
+  els.list.addEventListener('click', e => {
+    const btn = e.target.closest('.kp-open')
+    if (!btn) return
+    openModal({
+      txid:    btn.dataset.txid,
+      network: btn.dataset.network,
+      pch:     btn.dataset.pch || null
+    })
+  })
+
+  els.refresh.addEventListener('click', loadTxList)
+  els.network.addEventListener('change', loadTxList)
+  els.filter.addEventListener('input', renderList)
+
+
+  els.autorefresh.addEventListener('change', () => {
+    clearInterval(autoTimer)
+    if (els.autorefresh.checked) autoTimer = setInterval(loadTxList, 5000)
+  })
+
+  // ── boot ────────────────────────────────────────────────────────────────────
+
+  loadTxList()
+
+  // deep link: ?txid=… auto-opens the modal (backward-compatible popup)
+  if (DEEP.txid) {
+    openModal({ txid: DEEP.txid, network: DEEP.network, pch: DEEP.pch })
+  }
+
+})()
+</script>
+
+  </body>
+</html>

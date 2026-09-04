@@ -40,12 +40,19 @@ command -v php >/dev/null || { echo "php CLI required (>= 8.0)"; exit 1; }
 # Never clobber a real one (lab22 / a GCP checkout serving PHP): stash + restore.
 ENV_FILE="$ROOT/.env_hapi"; ENV_BAK=""
 if [ -e "$ENV_FILE" ]; then ENV_BAK="$(mktemp)"; cp "$ENV_FILE" "$ENV_BAK"; fi
+# SIGNPAGE-STATIC1: the site chrome (config.php → gatekeep.php) refuses to render without
+# ip_allowed in public_html/.env ("code YF723"). The static bundle has no IP gate — Cloudflare
+# serves it to everyone — so the build renders with ip_allowed=any. Same stash/restore rule.
+GK_FILE="$PUB/.env"; GK_BAK=""
+if [ -e "$GK_FILE" ]; then GK_BAK="$(mktemp)"; cp "$GK_FILE" "$GK_BAK"; fi
 cleanup(){
   [ -n "${PHP_PID:-}" ] && kill "$PHP_PID" 2>/dev/null || true
   if [ -n "$ENV_BAK" ]; then cp "$ENV_BAK" "$ENV_FILE"; rm -f "$ENV_BAK"; else rm -f "$ENV_FILE"; fi
+  if [ -n "$GK_BAK" ]; then cp "$GK_BAK" "$GK_FILE"; rm -f "$GK_BAK"; else rm -f "$GK_FILE"; fi
 }
 trap cleanup EXIT
 printf 'HAPI_BASE=%s\n' "$ALIAS" > "$ENV_FILE"
+printf 'ip_allowed=any\n' > "$GK_FILE"
 mkdir -p "$ROOT/logs"   # elog.php writes here; must exist or the render dies noisily
 
 # ── local PHP server over public_html (DOCUMENT_ROOT = public_html, as on lab22) ──
@@ -87,6 +94,18 @@ render "$K/game.php?game="                   m/katomia/game.html           # she
 render "$K/board.php"                        m/katomia/board.html          # shell: id from URL
 render "$K/binding.php"                      m/katomia/binding.html
 
+echo "→ external signing page: /m/sign = future/index.php → index_v2.php (SIGNPAGE-STATIC1)"
+# One game-agnostic shell; ?network=&txid=&pch= are read client-side (index_v2.php falls back
+# to the URL when PHP saw none). The chrome's <base> is built from SERVER_NAME (127.0.0.1 under
+# the dev server, the vhost on lab22): rewrite it root-relative so the same shell serves on
+# every origin (katui, katui-gcp, a custom domain) — the reason the katomia pages never used it.
+render /m/sign/                              m/sign/index.html
+render /assets/css/style.css.php             assets/css/style.php.css     # chrome stylesheet (PHP: theme vars)
+sed -i -e 's#<base href="[^"]*">#<base href="/">#' \
+       -e 's#assets/css/style\.css\.php?[0-9]*#assets/css/style.php.css#' "$DIST/m/sign/index.html"
+grep -q '<base href="/">' "$DIST/m/sign/index.html" || { echo "sign page: <base> rewrite failed" >&2; exit 1; }
+grep -q 'code YF72' "$DIST/m/sign/index.html" && { echo "sign page: gatekeep refused the render" >&2; exit 1; }
+
 echo "→ rendering widget config.js (config.js.php) + walletconnect config.json (config.php)"
 render /vendor/kpay/kpool_widget/config.js.php vendor/kpay/kpool_widget/config.js
 render /vendor/walletconnect/config.php        vendor/walletconnect/config.json
@@ -102,6 +121,10 @@ copytree m/katomia
 copytree m/bid
 copytree vendor/kpay/kpool_widget
 copytree m/tools/glog 2>/dev/null || true
+# SIGNPAGE-STATIC1: the site chrome the signing page inherits from headheader.php/footer.php
+# (bootstrap, jquery, owl/slick, fontawesome, GM.ico) + the page's own future.css
+copytree assets/css; copytree assets/js; copytree assets/images
+copytree vendor/bootstrap; copytree vendor/jquery; copytree future
 # the two HTML fragments pages fetch at runtime (footer) / link to (keakonnect → kea-bind.html)
 cp "$PUB/m/katomia/footer.html" "$PUB/m/katomia/kea-bind.html" "$DIST/m/katomia/"
 

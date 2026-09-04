@@ -21,7 +21,13 @@
 //   /m/katomia/hapi/<x>                → /hapi/katomia/<x>   (.htaccess ^hapi/… → hapi.php → /katomia/<x>)
 //   /m/katomia/hapi.php?action=X&qs    → /hapi/katomia/X?qs  (lab22 hapi.php convention, default create)
 //   /future/?action=X&qs               → /hapi/kpool/X?qs    (lab22 future/kpool.php; board signing
-//                                                             reads tx bytes from /future/?action=txRead)
+//   /m/sign/?action=X&qs                                       reads tx bytes from /future/?action=txRead;
+//                                                             the sign page lists via /m/sign/?action=txList)
+//   /m/sign/, /future/ (no action)     → m/sign/index.html  (SIGNPAGE-STATIC1: the external signing page,
+//                                                             future/index_v2.php rendered at build; deep-link
+//                                                             ?network=&txid=&pch= is read client-side)
+//   /m/katomia/binding.php?…           → binding.html        (katomia-auth.js links the .php name)
+//   /assets/css/style.css.php?ts       → /assets/css/style.php.css (site chrome, rendered at build)
 //   /m/bid/explore/kpool?action=X&qs   → /hapi/kpool/X?qs    (the kpool WIDGET's own txRead path)
 //   /hapi/<x>                          → /hapi/<x>           (root vhost /hapi/ reverse proxy: /hapi/ws,
 //                                                             used when a page runs with HAPI_BASE "")
@@ -51,6 +57,9 @@ const IDPAGE = /^\/m\/katomia\/(game|board)(?:\/([^/.]+))?\/?$/;     // game, bo
 // Missing it cost a real signing flow: the tx signs and submits fine, but the status
 // readback 404s, so the board never repaints the signature green (2026-09-03).
 const KPOOL = /^\/m\/bid\/explore\/kpool(\.php)?$/;
+// SIGNPAGE-STATIC1: /m/sign/ is lab22's `require /future/index.php` shim, so both spellings are
+// the same page AND the same ?action= proxy (future/index.php dispatches to kpool.php on action).
+const SIGNPAGE = /^\/(?:m\/sign|future)(?:\/|\/index\.php)?$/;
 const GLOG = /^\/m\/tools\/glog\/latest\/(.+)$/;
 const BRANDS = [
   ['gomint.me',   { name: 'GoMint',  description: 'Tokenizing the future' }],
@@ -115,7 +124,9 @@ export function route(url) {
   if (p === K + '/qa/') return { kind: 'asset', path: K + '/qa/index.html' };
   if ((m = p.match(KHAPI))) return { kind: 'alias', path: '/hapi/katomia/' + m[1] };
   if (p === K + '/hapi.php') return actionRoute(url, '/hapi/katomia/', 'create');   // 'create' = hapi.php's own default
-  if (/^\/future\/(index\.php)?$/.test(p) && url.searchParams.has('action')) return actionRoute(url, '/hapi/kpool/', '');
+  if (SIGNPAGE.test(p)) return url.searchParams.has('action') ? actionRoute(url, '/hapi/kpool/', '') : { kind: 'asset', path: '/m/sign/index.html' };
+  if (p === K + '/binding.php') return { kind: 'asset', path: K + '/binding.html' };
+  if (p === '/assets/css/style.css.php') return { kind: 'asset', path: '/assets/css/style.php.css' };
   if (KPOOL.test(p)) return actionRoute(url, '/hapi/kpool/', 'txList');
   if ((m = p.match(RHAPI))) return { kind: 'alias', path: '/hapi/' + m[1] };
   if (p === '/feedback-widget.js' || p.startsWith('/kfeedback')) return { kind: 'alias', path: p };

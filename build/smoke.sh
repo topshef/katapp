@@ -25,6 +25,11 @@ check /m/katomia/host                            200 'Katomia'
 check /m/katomia/learn                           200 'Katomia'
 check /m/katomia/markets                         200 'Katomia'
 check /m/katomia/board/SMOKE1                    200 'HAPI_BASE'
+check '/m/sign/?network=testnet&txid=0.0.1@2.3&pch=x' 200 '<base href="/">'   # SIGNPAGE-STATIC1 external signing page
+check '/m/sign/?action=txList&network=testnet&since=60&until=60' 200 'tx'     # its own ?action= proxy → backend /kpool/txList
+check '/m/katomia/binding.php?network=testnet&accountId=0.0.1879' 200 'bindings'
+check /future/future.css                         200
+check /vendor/bootstrap/css/bootstrap.min.css    200
 check /m/katomia/game/SMOKE1                     200 'HAPI_BASE'
 check /m/katomia/board/kemoji.js                 200
 check /m/katomia/katomia-core.js                 200 'getGameId'

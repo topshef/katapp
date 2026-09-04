@@ -617,11 +617,14 @@ function getFastThumb(url, imgEl){
       // landing on an empty sign page (no hex2 in txRead payload)
       // SIGN-HUBLINKPRUNE1: the external sign page isn't in standalone bundles —
       // stripped builds leave this dot an inert emoji (no href, no target).
-      a.href = tx.txid
+      // SIGN-EXTGATE1: lab switch (board settings, nerd mode) — off by default, the dot is
+      // an inert emoji; on, it opens the full signing page. Flag published by katomia-board.js.
+      const extSign = !!window.__katomiaExtSign
+      a.href = (tx.txid && extSign)
         ? `/m/sign/?network=${encodeURIComponent(tx.network || "")}` +
           `&txid=${encodeURIComponent(tx.txid)}&pch=${encodeURIComponent(tx.pch || "")}`
         : "#"
-      if(!tx.txid) a.style.pointerEvents = "none"
+      if(!tx.txid || !extSign) a.style.pointerEvents = "none"
       a.target = "_blank"
       /* /KBUNDLE-STRIP:extsign */
       

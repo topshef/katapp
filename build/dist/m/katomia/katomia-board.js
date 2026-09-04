@@ -323,11 +323,18 @@ function boardSavePrefs(){
       zoneWalls: boardZoneWalls, hugRing: boardHugRing,
       stickyChips: boardStickyChips, autoArrange: boardAutoArrange, chipScale: boardChipScale,
       chatMode: boardChatMode, avatarPos: boardAvatarPos,
-      counterMode: boardCounterMode, chipStyle: boardChipStyle
+      counterMode: boardCounterMode, chipStyle: boardChipStyle,
+      extSign: boardExtSign
     }))
   } catch {}
 }
 const _bp = boardLoadPrefs()
+// SIGN-EXTGATE1 (user 2026-09-04): the external signing page (/m/sign) is a LAB feature —
+// alpha testers sign from the board with WalletConnect; multi-sig / KSIG offline / coming
+// back to a future-dated tx go through /m/sign. Off by default; nerd-mode switch in the
+// board settings. Published on window for katomia-render.js (the per-tx dots).
+let boardExtSign = _bp.extSign ?? false
+window.__katomiaExtSign = boardExtSign
 let boardSelfBottom = _bp.selfBottom ?? true   // me at 6 o'clock; off = shared (Prefs; default ON per user 2026-07-12)
 // net is the STANDARD view now (user 2026-07-14: "we're going to go with net
 // as the standard view, and we probably won't expose that option to turn it
@@ -768,6 +775,9 @@ function boardShowResult(txid, ok, tier, source){
     // confetti beat) and only the MOVEMENT waits 700ms.
     if(ok) boardSettleFlights()
   }
+  // BOARD-VERDICTHOLD1: the celebration has fired (and the settle clones were taken from
+  // the held paint) — NOW lift the spotlight and clear the chips, same beat.
+  boardVerdictHoldRelease(txid)
   // PERSISTENT, CLOSABLE TOAST (user 2026-07-15): the verdict used to be a
   // banner bubble + a blocking alert(); now it's a toast that stays until
   // the user closes it (timeout 0 = persistent, ✕ per GM-TOAST-X1) — the
@@ -850,6 +860,27 @@ let _boardTxSocketId = null
 // mirror ingest lag is a few seconds, so 12s past expiry preserves the
 // guarantee while removing most of the measured 57-62s verdict lateness.
 const BOARD_NO_RECEIPT_MS = 12000   // honest timeout: "unresolved", never a confident false failure guess
+
+// BOARD-VERDICTHOLD1 (user 2026-09-04: "confetti first, then everything else rolls off it —
+// not a fudge"). Two independent signals used to race at settle time: the game-state
+// broadcast that DROPS the tx from pending (this is what lifts the spotlight and clears the
+// chips — renderRingBoard's vanish branch) and the verdict that fires the celebration (the
+// tx socket's receipt push, or the mirror confirm loop when that push is late or lost). On a
+// slow/dropped socket the board went blank first and the confetti landed 1-3s later; on a
+// fast one the confetti came first. The order was luck. Now, when the watched tx has just
+// left pending with no verdict yet, renderRingBoard keeps the PREVIOUS paint on screen
+// (spotlight, countdown, chips exactly as they were) and boardShowResult releases it in the
+// same beat as the celebration — so the wipe is choreographed off the confetti by
+// construction, not by a timer. Bounded: the confirm loop always ends in a verdict, and the
+// cap below guards any path that doesn't.
+const BOARD_VERDICT_HOLD_CAP_MS = 20000
+let _boardVerdictHold = null   // { txid, since } while a paint is being held for its verdict
+function boardVerdictHoldRelease(txid){
+  if(!_boardVerdictHold || (txid && _boardVerdictHold.txid !== txid)) return
+  boardDiag("board:verdict-hold:release", { txid: _boardVerdictHold.txid, heldMs: Date.now() - _boardVerdictHold.since })
+  _boardVerdictHold = null
+  render()   // the vanish paint, now in the same beat as the celebration
+}
 
 // TXSTATUS-CONSOLIDATE1 S3: the mirror-node confirm loop, extracted from the
 // vanish branch so it can ALSO be armed at expiry+2s (boardEnsureTxSocket) —
@@ -1272,6 +1303,18 @@ function boardSyncPrefsUI(){
       render()
     }
   }
+  // SIGN-EXTGATE1: lab switch for the external signing page (see boardExtSign)
+  const extSignPref = document.getElementById("boardPrefExtSign")
+  if(extSignPref){
+    extSignPref.checked = boardExtSign
+    extSignPref.onchange = () => {
+      boardExtSign = extSignPref.checked
+      window.__katomiaExtSign = boardExtSign
+      boardDiag("board:pref:extSign", { value: boardExtSign })
+      boardSavePrefs()
+      render()
+    }
+  }
   // PROP-TICKETS1 phase-5a: nerd-mode lab switch, same effect as ?tickets=1.
   // Own localStorage key (not the _bp snapshot) so katomia-tickets.js can read it
   // at boot on every page without coupling to board prefs. Live-applies.
@@ -1518,6 +1561,32 @@ function renderBoard(){
 var _boardChatAnchors = {}
 
 function renderRingBoard(root){
+
+  // BOARD-VERDICTHOLD1: the watched tx just left pending and nobody has a verdict yet —
+  // keep this paint exactly as it is until boardShowResult releases it (or the cap fires).
+  // Runs BEFORE any per-paint state is reset, so the held DOM stays fully live (countdown,
+  // chat anchors, data-signing). boardSigning is deliberately left as the previous value.
+  {
+    const nowSig = boardDetectSigning()
+    const prev = _boardLastSigningTxid
+    if(!nowSig && prev && !boardSuccessAcked.has(prev) && !window.katomiaTxStatus?.snapshot(prev)?.verdict){
+      if(!_boardVerdictHold){
+        _boardVerdictHold = { txid: prev, since: Date.now() }
+        boardDiag("board:verdict-hold:start", { txid: prev })
+        // make sure a verdict IS coming: the mirror confirm loop is idempotent per txid
+        boardConfirmTxFromChain(prev, window.katomiaTxStatus?.snapshot(prev)?.expiry || 0)
+        setTimeout(() => {
+          if(_boardVerdictHold?.txid !== prev) return
+          boardDiag("board:verdict-hold:cap", { txid: prev })
+          _boardVerdictHold = null
+          render()
+        }, BOARD_VERDICT_HOLD_CAP_MS)
+      }
+      if(_boardVerdictHold.txid === prev && Date.now() - _boardVerdictHold.since < BOARD_VERDICT_HOLD_CAP_MS) return
+    } else if(_boardVerdictHold){
+      _boardVerdictHold = null   // a new tx arrived, or the verdict is in: paint normally
+    }
+  }
 
   _boardChatAnchors = {}
 
@@ -2153,7 +2222,8 @@ function renderRingBoard(root){
       // doesn't look good". Strip-tagged: dev estate keeps the external route ("we do
       // need a way for testing at least to be able to go external"), bundles cut it
       // and the hub stays a plain countdown.
-      if(ring16()){
+      // SIGN-EXTGATE1: only with the lab switch on (board settings, nerd mode)
+      if(ring16() && boardExtSign){
         hub.style.cursor = "pointer"
         hub.title += " — tap for the full signing page (all wallet options)"
         hub.onclick = () => window.open(

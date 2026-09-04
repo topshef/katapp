@@ -393,8 +393,16 @@ function buildWcPane(txState) {
 function buildWhatsAppPane(network, txid, pch) {
 	// SECURITY 2026-08-27: kpay.uk is compromised — do not iframe it or hand it
 	// txid/pch. Pane disabled until the WhatsApp signer moves to a trusted host.
+	// SIGNTABS-WA1 (user 2026-09-04): keep the tab VISIBLE — hiding it means it gets forgotten —
+	// but mark it parked. The route only ever produced a deep link / QR to the message service,
+	// so it comes back by re-enabling that service, not by changing this widget.
 	const pane = document.createElement('div')
-	pane.appendChild(makeDesc('WhatsApp signing is temporarily disabled.'))
+	const soon = document.createElement('div')
+	soon.className = 'kpsign-msg'
+	soon.style.cssText = 'display:inline-block;padding:4px 10px;border-radius:999px;background:#fff3cd;color:#7a5a00;font-weight:600;font-size:12px;letter-spacing:.04em;text-transform:uppercase'
+	soon.textContent = 'Coming soon'
+	pane.appendChild(soon)
+	pane.appendChild(makeDesc('Signing over WhatsApp is parked while its message service moves to a trusted host. Use WalletConnect, or the Offline (KSIG) tab for multi-signature.'))
 	return pane
 }
 
@@ -626,6 +634,9 @@ function buildSigningPanel(txState) {
 			icon.className = 'kpsign-tabicon'
 			icon.src = assetUrl(m.icon)
 			icon.alt = ''
+			// the assets/ folder ships with some hosts and not others (the static bundle has none):
+			// a missing icon must not leave a broken-image glyph on the tab
+			icon.onerror = () => icon.remove()
 			tab.appendChild(icon)
 		}
 

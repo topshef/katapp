@@ -297,6 +297,14 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
       <input type="checkbox" id="boardPrefClassicCounter" title="Lab: bring back the classic counter — visible counter band plus a ghost pile for partial offers. Off (default) = simplified: the remaining stack moves to the ring edge, decremented; only whole-item offers leave a ghost.">
       🧪 Classic counter
     </label>
+    <!-- SIGN-EXTGATE1 (user 2026-09-04): the external signing page (/m/sign — every wallet
+         option incl. KSIG offline multi-sig, and the index for coming back to a future-dated
+         tx) stays a LAB feature: alpha testers sign with WalletConnect from the board. Off by
+         default; on = the countdown hub and the per-tx dots open /m/sign in a new tab. -->
+    <label class="board-settings-label board-settings-nerd-only">
+      <input type="checkbox" id="boardPrefExtSign" title="Lab: the countdown and the per-transaction dots open the full signing page (/m/sign) in a new tab — WalletConnect, WhatsApp (parked) and KSIG offline signing for multi-sig and future-dated deals. Off (default) = sign from the board with WalletConnect only.">
+      🧪 Advanced signing page (multi-sig)
+    </label>
     <!-- PROP-TICKETS1 phase-5a (user 2026-08-20): lab switch for priced tickets in
          proposal circles — same effect as the ?tickets=1 dev flag, default off. -->
     <label class="board-settings-label board-settings-nerd-only">
