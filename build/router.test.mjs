@@ -72,7 +72,7 @@ const cases = [
   ['/m/feedback/?product=katomia',        A('/m/feedback/index.html')],
   ['/m/feedback',                         A('/m/feedback/index.html')],
   ['/assets/css/style.css.php?1788180897', A('/assets/css/style.php.css')],
-  ['/diag',                               { kind: 'empty' }],
+  ['/diag',                               { kind: 'alias', path: '/hapi/diag' }],
   ['/kflow',                              { kind: 'empty' }],
   ['/m/tools/glog/latest/glog.js',        A('/m/tools/glog/src/glog.js')],
   ['/feedback-widget.js',                 { kind: 'alias', path: '/feedback-widget.js' }],

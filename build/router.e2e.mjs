@@ -100,7 +100,9 @@ if (process.argv.includes('--serve')) {
   await call('/m/bid/explore/kpool?action=txRead&network=testnet&txid=0.0.1-2-3&detail=1');
   assert.equal(forwarded.at(-1).url, 'https://kpay-api-alias.tayloa17.workers.dev/hapi/kpool/txRead?network=testnet&txid=0.0.1-2-3&detail=1');
   r = await call('/m/katomia/hapi.php?action=..'); assert.equal(r.status, 400);
-  r = await call('/diag', { method: 'POST', body: '{}' }); assert.equal(r.status, 204);
+  r = await call('/diag', { method: 'POST', body: '{"k":"board:result:shown"}' }); assert.equal(r.status, 200);
+  assert.equal(forwarded.at(-1).url, 'https://kpay-api-alias.tayloa17.workers.dev/hapi/diag');
+  assert.equal(forwarded.at(-1).body, '{"k":"board:result:shown"}');
   r = await call('/m/katomia/build-info.json'); assert.equal(r.status, 200); assert.ok((await r.json()).source_sha);
   await call('/feedback-widget.js');
   assert.equal(forwarded.at(-1).url, 'https://kpay-api-alias.tayloa17.workers.dev/feedback-widget.js');

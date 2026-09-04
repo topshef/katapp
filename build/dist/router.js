@@ -34,7 +34,8 @@
 //                                                             used when a page runs with HAPI_BASE "")
 //   /kfeedback…, /feedback-widget.js   → same paths          (clean aliases on the alias Worker)
 //  local-only endpoints
-//   /diag, /kflow                      → 204  (lab22-local log drops; no backend equivalent)
+//   /diag                              → /hapi/diag  (DIAG-SINK1: the backend keeps the client trail)
+//   /kflow                             → 204  (lab22-local log drop; no backend equivalent)
 //   /m/tools/glog/latest/*             → /m/tools/glog/src/* (glog ships no dist build)
 //  config
 //   /vendor/walletconnect/config.json  → static file with metadata.url/name patched to the
@@ -132,7 +133,8 @@ export function route(url) {
   if (KPOOL.test(p)) return actionRoute(url, '/hapi/kpool/', 'txList');
   if ((m = p.match(RHAPI))) return { kind: 'alias', path: '/hapi/' + m[1] };
   if (p === '/feedback-widget.js' || p.startsWith('/kfeedback')) return { kind: 'alias', path: p };
-  if (p === '/diag' || p === '/kflow') return { kind: 'empty' };
+  if (p === '/diag') return { kind: 'alias', path: '/hapi/diag' };   // DIAG-SINK1: client diag beacons → backend data/diag
+  if (p === '/kflow') return { kind: 'empty' };
   if ((m = p.match(GLOG))) return { kind: 'asset', path: '/m/tools/glog/src/' + m[1] };
   if ((m = p.match(SIBLING))) return { kind: 'asset', path: K + '/' + m[1] };
   if ((m = p.match(IDPAGE))) return { kind: 'asset', path: K + `/${m[1]}.html` };
