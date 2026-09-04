@@ -123,8 +123,11 @@ copytree vendor/kpay/kpool_widget
 copytree m/tools/glog 2>/dev/null || true
 # SIGNPAGE-STATIC1: the site chrome the signing page inherits from headheader.php/footer.php
 # (bootstrap, jquery, owl/slick, fontawesome, GM.ico) + the page's own future.css
-copytree assets/css; copytree assets/js; copytree assets/images
+copytree assets/css; copytree assets/js
 copytree vendor/bootstrap; copytree vendor/jquery; copytree future
+# only the images the page actually references (the chrome's hero jpgs are not in the repo, and
+# the repo-wide *.gif ignore would leave a copied gif uncommitted → dist-fresh gate false alarm)
+mkdir -p "$DIST/assets/images"; cp "$PUB/assets/images/GM.ico" "$DIST/assets/images/"
 # the two HTML fragments pages fetch at runtime (footer) / link to (keakonnect → kea-bind.html)
 cp "$PUB/m/katomia/footer.html" "$PUB/m/katomia/kea-bind.html" "$DIST/m/katomia/"
 
