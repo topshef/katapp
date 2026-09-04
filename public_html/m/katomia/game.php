@@ -71,9 +71,16 @@
     <div class="section-controls">
       <button id="createOrderBtn" title="Create order" aria-label="Create order"><i class="fa-solid fa-plus"></i></button>
       <button id="cancelOrderBtn" title="Cancel order" aria-label="Cancel order"><i class="fa-solid fa-minus"></i></button>
-      <label><input id="showMyOrdersOnly" type="checkbox" checked> Only mine</label>
-      <label><input id="showPendingOrdersOnly" type="checkbox"> Only pending</label>
-      <label><input id="sortOrdersByPrice" type="checkbox"> Sort by price</label>
+      <!-- ORDER-FILTERS1 (user 2026-09-04: "only mine doesn't do anything… I put an order
+           in and I can't find it"). Three changes, all about making the filter legible:
+           autocomplete=off so a browser's form-state restore can't silently disagree with
+           the markup on reload; "Only mine" starts OFF because the book is the point of a
+           live market (and the mobile Book/Mine tabs default to Book, so the two now agree
+           at load); and the counts below say what each filter is actually doing. -->
+      <label><input id="showMyOrdersOnly" type="checkbox" autocomplete="off"> Only mine <span id="myOrdersCount" class="order-filter-n"></span></label>
+      <label><input id="showPendingOrdersOnly" type="checkbox" autocomplete="off"> Only pending</label>
+      <label><input id="sortOrdersByPrice" type="checkbox" autocomplete="off"> Sort by price</label>
+      <span id="orderFilterCount" class="order-filter-count"></span>
     </div>
 
     <div class="orders-list"></div>

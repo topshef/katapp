@@ -597,7 +597,12 @@
   max-width:360px;
   max-height:90vh;
   overflow-y:auto;
+  /* ORDER-MODALSCROLL1 (user 2026-09-04): the wheel over the modal scrolled the modal
+     AND the page behind it. Chaining stops here — at the card and at the backdrop, so
+     a wheel that reaches the end of the card doesn't hand the rest to the document. */
+  overscroll-behavior:contain;
 }
+.asset-modal{ overscroll-behavior:contain; }
 
 .asset-modal-preview img{
   width:72px;
@@ -962,6 +967,21 @@ zz-distracting-body[data-network="playnet"]{
 
   position:relative;
   top:-1px;
+}
+
+/* BRAND-RINGMARK1: the ring sits on the text baseline at roughly cap height, so the
+   wordmark reads as one thing rather than "title, then an icon". */
+.app-ring{ display:inline-flex; align-items:center; }
+.app-ring img{ display:block; width:.72em; height:.72em; font-size:42px; }
+/* ?mark=o — the ring BECOMES the O: the letter keeps the space (so kerning and the
+   font's own advance width still apply) and the ring is painted over it. */
+html.mark-o .app-ring{ display:none; }
+.app-title-o{ position:relative; }
+html.mark-o .app-title-o{ color:transparent; }
+html.mark-o .app-title-o::after{
+  content:""; position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  width:1.02em; height:1.02em;
+  background:url("assets/katomia-ring.svg") center/contain no-repeat;
 }
 
 /* inner layout */
@@ -2258,8 +2278,9 @@ select:focus{
 /* ── two-column game layout: trading left, chat right ───────────────────── */
 
 .game-layout{
-  /* padding-right reserves space for the fixed chat panel (260px + 16px gap) */
-  padding-right:276px;
+  /* padding-right reserves space for the fixed chat panel (ORDER-CHATSIDE1: one var,
+     so dragging the panel wider immediately gives the trading column the right room) */
+  padding-right:calc(var(--kchat-side-w) + 16px);
 }
 
 .game-left{
@@ -2285,15 +2306,33 @@ select:focus{
 
 /* fixed panel: out of flow entirely so it can never cause page overflow.
    top/height are set by positionChatPanel() in JS after first render. */
+/* ORDER-CHATSIDE1 (user 2026-09-04): "use the same messages sidebar we have in proposal
+   mode… a sixth of the width or so, and let me drag the split". Same glassy right-hand
+   column as the board's .kchat-dock--side, width from ONE var so the page padding and the
+   panel can never disagree, and a grab bar on its left edge (katomia-render-orders.js
+   wires the drag; the chosen width persists as katomiaChatSplitW, shared with the board). */
+:root{ --kchat-side-w:clamp(190px, 16.7vw, 460px); }
 #chatSection{
   position:fixed;
   top:0;
   right:16px;
-  width:260px;
+  width:var(--kchat-side-w);
   height:100vh;
   overflow:hidden;
   visibility:hidden; /* hidden until JS positions it */
 }
+/* the grab bar: full-height strip on the panel's left edge (pointer events only here,
+   so it can never eat clicks meant for the list) */
+/* inside the panel, not outside it: #chatSection is overflow:hidden, so a bar hung off
+   the left edge was clipped away and could never be grabbed */
+.chat-wdrag{
+  position:absolute; left:0; top:0; bottom:0; width:12px; z-index:2;
+  cursor:ew-resize; touch-action:none;
+  display:flex; align-items:center; justify-content:center;
+}
+.chat-wdrag::before{ content:""; width:4px; height:44px; border-radius:2px; background:rgba(20,28,45,.18); }
+.chat-wdrag:hover::before, body.chat-wdragging .chat-wdrag::before{ background:rgba(20,28,45,.38); }
+body.chat-wdragging{ user-select:none; cursor:ew-resize; }
 
 #chatSection.chat-ready{
   visibility:visible;
@@ -2302,6 +2341,7 @@ select:focus{
 #chatSection .orders-details{
   height:100%;
   overflow:hidden;
+  margin-left:12px;   /* clear the grab bar */
 }
 
 #chatSection .chat-list{
@@ -2357,6 +2397,20 @@ select:focus{
   font-weight:600;
   color:#444;
 }
+
+/* ORDER-CHATWHO1 (user 2026-09-04: "it says undefined for most of the messages"):
+   system lines carry no player, so they are the HOUSE speaking — mark them as such
+   and give player lines the account + 🔷/△ binding mark the board's log already uses. */
+/* ORDER-FILTERS1: the "showing N of M" line and the count beside "Only mine" */
+.order-filter-count{ font-size:11px; color:#888; margin-left:auto; }
+.order-filter-n{ font-size:11px; color:#888; }
+@media (max-width:699px){ .order-filter-count{ margin-left:0; width:100%; } }
+
+.chat-msg--sys .chat-who{ color:#6a5a2a; }
+.chat-msg--sys{ background:rgba(240,236,220,.5); }
+.chat-acct{ font-size:10px; color:#777; font-variant-numeric:tabular-nums; }
+.chat-verify{ font-size:10px; }
+.chat-sysmark{ flex:none; width:20px; text-align:center; font-size:15px; line-height:20px; }
 
 .chat-time{
   font-size:10px;
@@ -2863,7 +2917,13 @@ html.ksize-large{ --ui-scale: 1.45; }
 .kchat-drag{ height:14px; margin:-4px -8px 0; cursor:ns-resize; touch-action:none;
   display:flex; align-items:center; justify-content:center; flex:none; }
 .kchat-drag::before{ content:""; width:44px; height:4px; border-radius:2px; background:rgba(20,28,45,.25); }
-.kchat-dock--side .kchat-drag{ display:none; }
+/* BOARD-SIDEDRAG1 (user 2026-09-04): the landscape panel's grab bar moves to its LEFT
+   edge and drags width instead of height — same gesture, the axis the panel actually has. */
+.kchat-dock--side .kchat-drag{
+  position:absolute; left:0; top:0; bottom:0; width:12px; height:auto; margin:0;
+  cursor:ew-resize;
+}
+.kchat-dock--side .kchat-drag::before{ width:4px; height:44px; }
 /* bottom-dock height IS the board's yielded clearance — one var, no disagreement */
 body[data-kchat-mode="panel"] .kchat-dock:not(.kchat-dock--side){ height: var(--kchat-clear-b, min(30dvh, 240px)); }
 /* landscape: the dock is a full-height RIGHT-hand panel (~quarter width, set by JS);
@@ -2872,6 +2932,7 @@ body[data-kchat-mode="panel"] .kchat-dock:not(.kchat-dock--side){ height: var(--
    panel: settings, controls — messages only for now. */
 .kchat-dock--side{
   top:0; bottom:0 !important; left:auto; right:0;
+  padding-left:16px;   /* room for the width grab bar on the left edge */
   height:auto; max-height:none;
   border-top:none; border-left:1px solid rgba(20,28,45,.12);
   padding-top:52px;   /* clear the transparent header strip (hamburger) */

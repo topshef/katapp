@@ -7,7 +7,7 @@
        ENTRY-FADES1 treatment the entry pages carry; must be in <head> to arm the
        fade-in before first paint). -->
   <script src="kfade.js?v=1788180897"></script>
-  <link rel="stylesheet" href="katomia.css?v=1788180897" />
+  <link rel="stylesheet" href="katomia.css?v=1788551746" />
 <link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1788180897">  <link rel="stylesheet" href="katomia-board.css?v=1788520353" />
   <title>katomia — board</title>
 </head>
@@ -58,14 +58,30 @@
   body.nerd .app-menu-item.nerd-only { display: block; width: 100%; }
 </style>
 
+<script>
+// BRAND-RINGMARK1: ?mark=o|end chooses where the ring sits and remembers the choice.
+(function(){
+  try{
+    var q = new URLSearchParams(location.search).get("mark")
+    if(q === "o" || q === "end") localStorage.setItem("katomiaMark", q)
+    if((localStorage.getItem("katomiaMark") || "end") === "o") document.documentElement.classList.add("mark-o")
+  }catch(e){}
+})()
+</script>
+
 <div id="notifications"></div>
 
 <div class="app-banner">
   <div class="app-banner-inner">
     <h2>
       <a class="app-home-link" href="/m/katomia/" title="Katomia — home">
-        <span class="app-title">Katomia</span>
-        <span class="app-icons">💱 🐫</span>
+        <!-- BRAND-RINGMARK1 (user 2026-09-04): the 💱🐫 pair gives way to the brand ring
+             (assets/katomia-ring.svg — the same mark as the favicon and Kato's avatar),
+             set at cap height so it reads as a letter, not an icon. Default: after the
+             word. ?mark=o (remembered) swaps it INTO the word — Kat◍mia — which the
+             operator wanted to see before choosing; ?mark=end flips back. -->
+        <span class="app-title">Kat<span class="app-title-o">o</span>mia</span>
+        <span class="app-icons app-ring"><img src="/m/katomia/assets/katomia-ring.svg" alt="" width="30" height="30"></span>
       </a>
     </h2>
     <button id="appMenuBtn" class="app-menu-btn" aria-label="Menu" aria-expanded="false" title="Menu">☰</button>
@@ -972,7 +988,7 @@ addEventListener("load", () => setTimeout(() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "kpay-api-alias.tayloa17.workers.dev/hapi"
   }
-  window.KFLOW_COMMIT = "e30deee"
+  window.KFLOW_COMMIT = "9ceb6ea"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
 <script src="kflow.js?v=1788180897"></script>
@@ -1032,7 +1048,7 @@ addEventListener("load", () => setTimeout(() => {
 <!-- BOARD-CHAT1 (user 2026-07-30): renders state.chat — speech bubbles on the
      speaker's wedge + a glassy transcript. Must load AFTER katomia-board.js,
      which owns the _boardChatAnchors this reads. -->
-<script src="katomia-chat.js?v=1788180897"></script>
+<script src="katomia-chat.js?v=1788551028"></script>
 
 <!-- BOARD-HEADERINT1 follow-up (2026-07-14): board.php gained header.php +
      profile-modal.php but these two were missed — profile-modal.php's own

@@ -207,6 +207,11 @@
   // + send box; max = the larger of 55% of the viewport and what the 4:5 board
   // cap leaves over (a very tall phone gives the surplus to messages, not to a
   // board stretched past 4:5).
+  // BOARD-SIDEDRAG1: the landscape panel's bounds. Floor keeps the action rows readable;
+  // ceiling stops an ultrawide handing the whole screen to chat.
+  var sideW = 0;
+  function sideLimits() { return { min: 170, max: Math.max(220, Math.round(innerWidth * 0.5)) }; }
+
   function dockLimits() {
     var stackH = 0;
     [".ring-footer", ".kspec-ribbon"].forEach(function (s) {
@@ -336,10 +341,39 @@
         capEl.addEventListener("pointerup", up);
         capEl.addEventListener("pointercancel", up);
       };
+      // BOARD-SIDEDRAG1 (user 2026-09-04: "on proposal mode we also should be able to
+      // drag the split width"). Portrait keeps the height drag; landscape's side panel
+      // now drags its WIDTH, saved under the same key order mode uses (katomiaChatSplitW)
+      // so one choice follows the user between the two modes.
+      var startWidthDrag = function (e, capEl) {
+        capEl.setPointerCapture && capEl.setPointerCapture(e.pointerId);
+        var startX = e.clientX;
+        var dockNow = document.getElementById("boardChatDock") || d;
+        var startW = dockNow.getBoundingClientRect().width;
+        var lim = sideLimits();
+        document.body.classList.add("kchat-dragging");
+        var move = function (ev) {
+          var w = Math.max(lim.min, Math.min(lim.max, startW + (startX - ev.clientX)));
+          sideW = Math.round(w);
+          dockNow.style.width = sideW + "px";
+          document.documentElement.style.setProperty("--kchat-clear-r", sideW + "px");
+        };
+        var up = function () {
+          capEl.removeEventListener("pointermove", move);
+          capEl.removeEventListener("pointerup", up);
+          capEl.removeEventListener("pointercancel", up);
+          document.body.classList.remove("kchat-dragging");
+          try { localStorage.setItem("katomiaChatSplitW", String(sideW)); } catch (e2) {}
+          if (typeof render === "function") setTimeout(function () { try { render(); } catch (e3) {} }, 0);
+        };
+        capEl.addEventListener("pointermove", move);
+        capEl.addEventListener("pointerup", up);
+        capEl.addEventListener("pointercancel", up);
+      };
       drag.addEventListener("pointerdown", function (e) {
-        if (d.classList.contains("kchat-dock--side")) return;
         e.preventDefault();
-        startSplitDrag(e, drag);
+        if (d.classList.contains("kchat-dock--side")) startWidthDrag(e, drag);
+        else startSplitDrag(e, drag);
       });
       // BOARD-CTRLBAR-DRAG1 (feedback 44050cee): "extend that gesture to include
       // any blank area of the control bar… provided it doesn't conflict with
@@ -421,6 +455,11 @@
           var maxBoard = Math.round(innerHeight * 1.25);                // the 5:4 cap
           var boardW = Math.max(minBoard, Math.min(innerWidth - 420, maxBoard));
           clearR = Math.min(560, Math.max(250, innerWidth - boardW));
+          // BOARD-SIDEDRAG1: a width the user dragged wins over the computed default
+          var savedW = 0;
+          try { savedW = +(localStorage.getItem("katomiaChatSplitW") || 0); } catch (e) {}
+          if (savedW) { var sl = sideLimits(); clearR = Math.max(sl.min, Math.min(sl.max, savedW)); }
+          sideW = clearR;
           d.style.width = clearR + "px";
           d.style.bottom = "0px";
           d.style.height = "";        // side variant sizes via CSS (top/bottom pinned)

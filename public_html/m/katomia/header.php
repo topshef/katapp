@@ -55,14 +55,30 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
   body.nerd .app-menu-item.nerd-only { display: block; width: 100%; }
 </style>
 
+<script>
+// BRAND-RINGMARK1: ?mark=o|end chooses where the ring sits and remembers the choice.
+(function(){
+  try{
+    var q = new URLSearchParams(location.search).get("mark")
+    if(q === "o" || q === "end") localStorage.setItem("katomiaMark", q)
+    if((localStorage.getItem("katomiaMark") || "end") === "o") document.documentElement.classList.add("mark-o")
+  }catch(e){}
+})()
+</script>
+
 <div id="notifications"></div>
 
 <div class="app-banner">
   <div class="app-banner-inner">
     <h2>
       <a class="app-home-link" href="<?= $katomiaBase ?>/" title="Katomia — home">
-        <span class="app-title">Katomia</span>
-        <span class="app-icons">💱 🐫</span>
+        <!-- BRAND-RINGMARK1 (user 2026-09-04): the 💱🐫 pair gives way to the brand ring
+             (assets/katomia-ring.svg — the same mark as the favicon and Kato's avatar),
+             set at cap height so it reads as a letter, not an icon. Default: after the
+             word. ?mark=o (remembered) swaps it INTO the word — Kat◍mia — which the
+             operator wanted to see before choosing; ?mark=end flips back. -->
+        <span class="app-title">Kat<span class="app-title-o">o</span>mia</span>
+        <span class="app-icons app-ring"><img src="<?= $katomiaBase ?>/assets/katomia-ring.svg" alt="" width="30" height="30"></span>
       </a>
     </h2>
     <button id="appMenuBtn" class="app-menu-btn" aria-label="Menu" aria-expanded="false" title="Menu">☰</button>

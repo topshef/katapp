@@ -976,11 +976,87 @@ function positionChatPanel(){
   const list = panel.querySelector(".chat-list")
   if(list) list.style.height = (h - (summary?.offsetHeight || 36)) + "px"
 
+  wireChatWidthDrag(panel)
   panel.classList.add("chat-ready")
   _chatPositioned = true
 }
+restoreChatWidth()
 
 window.addEventListener("resize", () => { _chatPositioned = false; positionChatPanel() })
+
+// ORDER-CHATWHO1 helpers. The player's own name comes from live state (a message
+// carries the name at send time; a later rename would otherwise stick), and the account
+// is the one this player registered in the circle — the same "playerId:accountId" keys
+// katomia-chat.js reads. 🔷/△ only mean something where a binding does, so the mark is
+// gated to the real networks exactly as the board's log gates it.
+function escapeHtml(v){
+  return String(v ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]))
+}
+function chatPlayerName(playerId){
+  return state?.players?.[playerId]?.name || null
+}
+function chatAccountOf(playerId){
+  if(!playerId) return null
+  const entry = Object.entries(state?.accounts || {})
+    .find(([key]) => key.split(":")[0] === playerId)
+  if(!entry) return null
+  const acct = entry[1] || {}
+  const label = acct.label || acct.accountId || entry[0].split(":")[1]
+  if(!label) return null
+  const net = gameMeta?.network
+  const marked = net === "testnet" || net === "mainnet"
+  return {
+    label,
+    title: `account ${label}`,
+    mark: marked ? (acct.authBound ? "🔷" : "△") : "",
+    markTitle: acct.authBound ? "Reputation-bound & verified" : "No verified binding"
+  }
+}
+
+// ORDER-CHATSIDE1: the panel's width is the user's to set — grab the left edge and drag.
+// Shared storage key with the board's dock (katomia-chat.js) so one choice covers both
+// modes, and written to the --kchat-side-w var the layout padding also reads.
+const CHAT_W_KEY = "katomiaChatSplitW"
+const chatWLimits = () => ({ min: 170, max: Math.max(220, Math.round(window.innerWidth * 0.5)) })
+function applyChatWidth(px){
+  const lim = chatWLimits()
+  const w = Math.max(lim.min, Math.min(lim.max, Math.round(px)))
+  document.documentElement.style.setProperty("--kchat-side-w", w + "px")
+  return w
+}
+function restoreChatWidth(){
+  let saved = 0
+  try { saved = +(localStorage.getItem(CHAT_W_KEY) || 0) } catch {}
+  if(saved) applyChatWidth(saved)
+}
+function wireChatWidthDrag(panel){
+  if(!panel || panel.querySelector(".chat-wdrag")) return
+  const bar = document.createElement("div")
+  bar.className = "chat-wdrag"
+  bar.title = "Drag to resize messages"
+  bar.addEventListener("pointerdown", e => {
+    e.preventDefault()
+    bar.setPointerCapture?.(e.pointerId)
+    const startX = e.clientX
+    const startW = panel.getBoundingClientRect().width
+    document.body.classList.add("chat-wdragging")
+    const move = ev => applyChatWidth(startW + (startX - ev.clientX))
+    const up = () => {
+      bar.removeEventListener("pointermove", move)
+      bar.removeEventListener("pointerup", up)
+      bar.removeEventListener("pointercancel", up)
+      document.body.classList.remove("chat-wdragging")
+      const w = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--kchat-side-w")) || startW
+      try { localStorage.setItem(CHAT_W_KEY, String(Math.round(w))) } catch {}
+      _chatPositioned = false
+      positionChatPanel()
+    }
+    bar.addEventListener("pointermove", move)
+    bar.addEventListener("pointerup", up)
+    bar.addEventListener("pointercancel", up)
+  })
+  panel.appendChild(bar)
+}
 
 function renderChat(){
   const listEl = document.querySelector("#chatSection .chat-list")
@@ -994,18 +1070,35 @@ function renderChat(){
 
   msgs.forEach(msg => {
     const row = document.createElement("div")
-    row.className = "chat-msg"
+    // ORDER-CHATWHO1 (user 2026-09-04): the backend's own lines carry system:true and NO
+    // player at all (katomia.js pushes {system:true, text}), so "playerName || playerId"
+    // printed the word "undefined" on every strike/verdict/open line. Two kinds of row now:
+    // the house speaking, and a player — the latter named with its account and the same
+    // 🔷 bound / △ unbound mark the proposal-mode log uses (katomia-chat.js verifyMark).
+    const isSys = !!msg.system || !msg.playerId
+    row.className = "chat-msg" + (isSys ? " chat-msg--sys" : "")
 
-    if(typeof kemojiEl === "function")
+    if(isSys){
+      const mark = document.createElement("span")
+      mark.className = "chat-sysmark"
+      mark.textContent = "◍"                      // the brand ring, as a glyph
+      mark.title = "Katomia"
+      row.appendChild(mark)
+    } else if(typeof kemojiEl === "function"){
       row.appendChild(kemojiEl(msg.playerId, { size: 20, isSelf: msg.playerId === currentPlayerId }))
+    }
 
     const body = document.createElement("div")
     body.className = "chat-body"
 
     const meta = document.createElement("div")
     meta.className = "chat-meta"
+    const who = isSys ? "Katomia" : (msg.playerName || chatPlayerName(msg.playerId) || msg.playerId)
+    const acct = isSys ? null : chatAccountOf(msg.playerId)
     meta.innerHTML =
-      `<span class="chat-who">${msg.playerName || msg.playerId}</span>` +
+      `<span class="chat-who">${escapeHtml(who)}</span>` +
+      (acct ? `<span class="chat-acct" title="${escapeHtml(acct.title)}">${escapeHtml(acct.label)}</span>` +
+              (acct.mark ? `<span class="chat-verify" title="${escapeHtml(acct.markTitle)}">${acct.mark}</span>` : "") : "") +
       `<span class="chat-time" title="${new Date(msg.ts).toLocaleTimeString()}">${formatRelativeTime(msg.ts)}</span>`
 
     const text = document.createElement("div")
@@ -1672,13 +1765,38 @@ document.addEventListener("mouseout",e => {
   }
 })
 
+// ORDER-FILTERS1: the three order filters remember their state DELIBERATELY (one key,
+// written on change, applied at load) instead of relying on the browser's form-state
+// restore, which survives a reload invisibly and can leave the box disagreeing with the
+// markup default. Restored before the first render so the first paint is already right.
+const ORDER_FILTER_KEY = "katomiaOrderFilters"
+const ORDER_FILTER_IDS = ["showMyOrdersOnly", "showPendingOrdersOnly", "sortOrdersByPrice"]
+function saveOrderFilters(){
+  const out = {}
+  ORDER_FILTER_IDS.forEach(id => { const el = document.getElementById(id); if(el) out[id] = !!el.checked })
+  try { localStorage.setItem(ORDER_FILTER_KEY, JSON.stringify(out)) } catch {}
+}
+function restoreOrderFilters(){
+  let saved = null
+  try { saved = JSON.parse(localStorage.getItem(ORDER_FILTER_KEY) || "null") } catch {}
+  if(!saved) return
+  ORDER_FILTER_IDS.forEach(id => {
+    const el = document.getElementById(id)
+    if(el && typeof saved[id] === "boolean") el.checked = saved[id]
+  })
+}
+document.addEventListener("DOMContentLoaded", restoreOrderFilters)
+if(document.readyState !== "loading") restoreOrderFilters()
+
 document.addEventListener("change",e => {
   // Order controls only filter the ORDERS list (hideExpiredTx has its own handler
   // in game.php). The tx list is intentionally NOT filtered by "Only mine" — a
   // filled order is purged, so its settled tx can't be proven "mine" and would
   // wrongly disappear.
-  if(["showMyOrdersOnly","showPendingOrdersOnly","sortOrdersByPrice"].includes(e.target.id))
+  if(ORDER_FILTER_IDS.includes(e.target.id)){
+    saveOrderFilters()
     renderOrders()
+  }
 })
 
 document.addEventListener("mouseover",e => {
@@ -1988,13 +2106,19 @@ function renderOrderMarketSummary(){
       const selectedPair = getSelectedPair()
 
 
+      const myOnly = document.getElementById("showMyOrdersOnly")?.checked
+      let inPair = 0, shown = 0, mineTotal = 0
+
       orders.forEach(orderRec => {
 
         const pair = enrichOrder(orderRec.order)?.market?.pair
-        const myOnly = document.getElementById("showMyOrdersOnly")?.checked
+
+        if(orderRec.playerId == currentPlayerId) mineTotal++
 
         if(selectedPair && pair != selectedPair)
           return
+
+        inPair++
 
         if(myOnly && orderRec.playerId != currentPlayerId)
           return
@@ -2003,9 +2127,26 @@ function renderOrderMarketSummary(){
 
         if(pendingOnly && fillStatus.fullySettled)
           return
-                
+
+        shown++
         listEl.appendChild(createOrderRow(orderRec))
       })
+
+      // ORDER-FILTERS1: say out loud what the filters left on screen. A book that turns
+      // over every few seconds gives no other way to tell a working filter from a broken
+      // one — which is exactly how "only mine doesn't do anything" was read.
+      const nEl = document.getElementById("myOrdersCount")
+      if(nEl) nEl.textContent = mineTotal ? `(${mineTotal})` : ""
+      const cEl = document.getElementById("orderFilterCount")
+      if(cEl){
+        const filters = [myOnly && "mine", pendingOnly && "pending"].filter(Boolean)
+        cEl.textContent = filters.length
+          ? `showing ${shown} of ${inPair} — filtered by ${filters.join(" + ")}`
+          : `showing ${shown} order${shown === 1 ? "" : "s"}`
+        cEl.title = mineTotal
+          ? `${mineTotal} of these ${mineTotal === 1 ? "is" : "are"} yours`
+          : "none of these are yours"
+      }
 
       // Ghost rows. An order can be purged (expiry / IOC / FOK) while a fill for
       // it is still pending on kpool, so it disappears from the live list before
@@ -2985,14 +3126,19 @@ function normaliseOrder(input){
 // active tab (body[data-ktab]) and keeps Book/Mine in sync with the existing
 // "Only mine" filter so the two controls can never disagree.
 document.addEventListener("click", e => {
-  const b = e.target.closest?.("[data-ktab]")
+  // ORDER-KTABSCOPE1 (user 2026-09-04: "only mine isn't even allowing me to tick").
+  // The selector was bare [data-ktab] — and the load handler below stamps data-ktab on
+  // document.body, so closest() walked past the tab bar and matched BODY. Every click
+  // anywhere on the page therefore ran the "Book tab" branch and switched "Only mine"
+  // back off, one frame after the browser had just switched it on. Scope it to the bar.
+  const b = e.target.closest?.(".ktabs [data-ktab]")
   if(!b) return
   document.body.dataset.ktab = b.dataset.ktab
   try { sessionStorage.setItem("katomiaKtab", b.dataset.ktab) } catch {}
   document.querySelectorAll(".ktabs [data-ktab]").forEach(x => x.classList.toggle("on", x === b))
   const mineCb = document.getElementById("showMyOrdersOnly")
-  if(b.dataset.ktab === "book" && mineCb?.checked){ mineCb.checked = false; renderOrders() }
-  if(b.dataset.ktab === "mine" && mineCb && !mineCb.checked){ mineCb.checked = true; renderOrders() }
+  if(b.dataset.ktab === "book" && mineCb?.checked){ mineCb.checked = false; saveOrderFilters(); renderOrders() }
+  if(b.dataset.ktab === "mine" && mineCb && !mineCb.checked){ mineCb.checked = true; saveOrderFilters(); renderOrders() }
 })
 window.addEventListener("load", () => {
   if(!document.querySelector(".ktabs")) return

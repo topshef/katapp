@@ -148,6 +148,13 @@ elif [ -d "$STASH/$KWC_SNAP" ]; then
 else
   echo "   !! no KWC snapshot $KWC_SNAP available (shared store absent, dist had none)"; exit 1
 fi
+# KWC-SNAPMETA1 (2026-09-04): the bundle fetches release.json at boot, and an interrupted
+# build once left a dist holding only kwc.iife.js — which then became the stash source for
+# every later build, propagating the loss silently. Fail loudly instead.
+for meta in build.json release.json; do
+  [ -f "$DIST/vendor/walletconnect/snapshots/$KWC_SNAP/$meta" ] || {
+    echo "   !! KWC snapshot $KWC_SNAP is missing $meta — restore it (git checkout build/dist/vendor/walletconnect/snapshots/$KWC_SNAP) before building"; exit 1; }
+done
 rm -rf "$STASH"
 
 echo "→ router Worker + wrangler.toml ($NAME → $ALIAS_SERVICE); router mirrors lab22's .htaccess"
