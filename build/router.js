@@ -27,6 +27,7 @@
 //                                                             future/index_v2.php rendered at build; deep-link
 //                                                             ?network=&txid=&pch= is read client-side)
 //   /m/katomia/binding.php?…           → binding.html        (katomia-auth.js links the .php name)
+//   /m/feedback/?product=…             → m/feedback/index.html (the feedback widget's fallback link)
 //   /assets/css/style.css.php?ts       → /assets/css/style.php.css (site chrome, rendered at build)
 //   /m/bid/explore/kpool?action=X&qs   → /hapi/kpool/X?qs    (the kpool WIDGET's own txRead path)
 //   /hapi/<x>                          → /hapi/<x>           (root vhost /hapi/ reverse proxy: /hapi/ws,
@@ -126,6 +127,7 @@ export function route(url) {
   if (p === K + '/hapi.php') return actionRoute(url, '/hapi/katomia/', 'create');   // 'create' = hapi.php's own default
   if (SIGNPAGE.test(p)) return url.searchParams.has('action') ? actionRoute(url, '/hapi/kpool/', '') : { kind: 'asset', path: '/m/sign/index.html' };
   if (p === K + '/binding.php') return { kind: 'asset', path: K + '/binding.html' };
+  if (/^\/m\/feedback(?:\/|\/index\.php)?$/.test(p)) return { kind: 'asset', path: '/m/feedback/index.html' };   // widget fallback link
   if (p === '/assets/css/style.css.php') return { kind: 'asset', path: '/assets/css/style.php.css' };
   if (KPOOL.test(p)) return actionRoute(url, '/hapi/kpool/', 'txList');
   if ((m = p.match(RHAPI))) return { kind: 'alias', path: '/hapi/' + m[1] };

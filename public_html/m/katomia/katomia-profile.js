@@ -478,7 +478,9 @@ async function deleteCurrentGame(){
   }
 
   alert("Game deleted")
-  location.href = "../"
+  // TIDY-LINKS1: "../" from /board/<id> resolved to /m/katomia/board/ (an empty board shell),
+  // not the app root — go to the app root explicitly
+  location.href = (window.KBASE || "/m/katomia") + "/"
 }
 
 async function buildDeleteGameRequest(gameId){

@@ -106,6 +106,10 @@ sed -i -e 's#<base href="[^"]*">#<base href="/">#' \
 grep -q '<base href="/">' "$DIST/m/sign/index.html" || { echo "sign page: <base> rewrite failed" >&2; exit 1; }
 grep -q 'code YF72' "$DIST/m/sign/index.html" && { echo "sign page: gatekeep refused the render" >&2; exit 1; }
 
+echo "→ feedback fallback page (/m/feedback/?product=katomia; the widget's no-JS/failed-load link)"
+render "/m/feedback/?product=katomia"         m/feedback/index.html
+sed -i -e 's#<base href="[^"]*">#<base href="/">#' -e 's#assets/css/style\.css\.php?[0-9]*#assets/css/style.php.css#' "$DIST/m/feedback/index.html"
+
 echo "→ rendering widget config.js (config.js.php) + walletconnect config.json (config.php)"
 render /vendor/kpay/kpool_widget/config.js.php vendor/kpay/kpool_widget/config.js
 render /vendor/walletconnect/config.php        vendor/walletconnect/config.json

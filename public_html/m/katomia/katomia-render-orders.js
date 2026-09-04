@@ -236,7 +236,9 @@ function getTxMeta(tx){
     statusText: success ? "✅" : "❓",
     url: success
       ? `https://hashscan.io/${network}/transaction/${txid}`
-      : `https://swap.kpay.live/future/?network=${network}&txid=${tx.txid}&pch=${tx.pch}`
+      // TIDY-LINKS1: the external signing page is served by this site now (SIGNPAGE-STATIC1);
+      // swap.kpay.live was the pre-migration host and is no longer ours
+      : `/m/sign/?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(tx.txid)}&pch=${encodeURIComponent(tx.pch || "")}`
   }
 
 }

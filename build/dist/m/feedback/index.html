@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Send Feedback</title>
+  <style>
+    body{font-family:system-ui,-apple-system,sans-serif;background:#f7f7f8;color:#333;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px;box-sizing:border-box;text-align:center}
+  </style>
+</head>
+<body>
+  <div>
+    <p>Opening the feedback form…</p>
+    <p><a href="javascript:void(0)" onclick="window.KFeedbackWidget &amp;&amp; window.KFeedbackWidget.open()">Click here</a> if it didn't open.</p>
+    <!-- feedback 7b3d4bbf (2026-08-21): after sending, this page just sat here with
+         the spent launcher copy and the only link re-opened the form — "no way to
+         get out". A way back, always visible, going wherever the visitor came from
+         (or the app home when opened directly). -->
+    <p><a href="javascript:void(0)" onclick="history.length > 1 ? history.back() : location.href = '/m/katomia/circles.php'">← Done — go back</a></p>
+  </div>
+
+  <script>
+    window.CONFIG = { HAPI_BASE: "kpay-api-alias.tayloa17.workers.dev/hapi" }
+    // GCP feedback 2026-08-13 ("click to open form goes back to form already sent"):
+    // returning here via back/forward restores this page from bfcache with the OLD
+    // DOM — the auto-open never re-runs and the visitor sees the spent form. On a
+    // bfcache restore, open a fresh modal (openModal rebuilds from scratch).
+    addEventListener('pageshow', e => {
+      if(e.persisted && window.KFeedbackWidget) window.KFeedbackWidget.open()
+    })
+  </script>
+  <!-- KPAD-SELFFEED1: served from the backend (its canonical home) — no local copy -->
+  <script src="https://kpay-api-alias.tayloa17.workers.dev/hapi/feedback-widget.js"
+          data-product="katomia"
+          data-auto-open="1"></script>
+</body>
+</html>

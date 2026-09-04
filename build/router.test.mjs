@@ -69,6 +69,8 @@ const cases = [
   ['/m/sign/?action=txSave',              { kind: 'alias', path: '/hapi/kpool/txSave', search: '' }],
   ['/m/signs/',                           null],
   ['/m/katomia/binding.php?network=testnet&accountId=0.0.1879', A('/m/katomia/binding.html')],
+  ['/m/feedback/?product=katomia',        A('/m/feedback/index.html')],
+  ['/m/feedback',                         A('/m/feedback/index.html')],
   ['/assets/css/style.css.php?1788180897', A('/assets/css/style.php.css')],
   ['/diag',                               { kind: 'empty' }],
   ['/kflow',                              { kind: 'empty' }],
