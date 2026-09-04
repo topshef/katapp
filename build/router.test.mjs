@@ -73,6 +73,7 @@ const cases = [
   ['/m/feedback',                         A('/m/feedback/index.html')],
   ['/assets/css/style.css.php?1788180897', A('/assets/css/style.php.css')],
   ['/diag',                               { kind: 'alias', path: '/hapi/diag' }],
+  ['/m/katomia/qa/results.php?days=14',   { kind: 'alias', path: '/hapi/qa/results' }],
   ['/kflow',                              { kind: 'empty' }],
   ['/m/tools/glog/latest/glog.js',        A('/m/tools/glog/src/glog.js')],
   ['/feedback-widget.js',                 { kind: 'alias', path: '/feedback-widget.js' }],

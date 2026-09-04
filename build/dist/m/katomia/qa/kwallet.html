@@ -103,6 +103,9 @@ bare capitals mean a task, not a test). Scenario definitions:
 // Each entry declares what it means in plain English and how often it is SUPPOSED to
 // run. That cadence is what makes SILENT detectable — see the header comment.
 const TESTS = [
+  { id: "KWALLET-CI-01", every: 1,
+    what: "Pair + sign through the real relay, from CI",
+    plain: "Every hour a GitHub runner loads the production WalletConnect bundle on the live site, pairs a wallet simulator through the real relay, signs a (never submitted) testnet transfer and authenticates. This is the path that was silently broken on 2026-09-04." },
   { id: "HBARXFER-01", every: 2.5,
     what: "The whole thing, end to end",
     plain: "Two players join a board, one offers HBAR, both lock, the deal strikes, kWallet signs, it settles on Hedera." },

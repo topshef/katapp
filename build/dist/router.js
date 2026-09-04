@@ -133,7 +133,8 @@ export function route(url) {
   if (KPOOL.test(p)) return actionRoute(url, '/hapi/kpool/', 'txList');
   if ((m = p.match(RHAPI))) return { kind: 'alias', path: '/hapi/' + m[1] };
   if (p === '/feedback-widget.js' || p.startsWith('/kfeedback')) return { kind: 'alias', path: p };
-  if (p === '/diag') return { kind: 'alias', path: '/hapi/diag' };   // DIAG-SINK1: client diag beacons → backend data/diag
+  if (p === '/diag') return { kind: 'alias', path: '/hapi/diag' };
+  if (p === '/m/katomia/qa/results.php') return { kind: 'alias', path: '/hapi/qa/results' };   // QA-EVENTS1: kwallet.html's verdict feed, now served by the backend   // DIAG-SINK1: client diag beacons → backend data/diag
   if (p === '/kflow') return { kind: 'empty' };
   if ((m = p.match(GLOG))) return { kind: 'asset', path: '/m/tools/glog/src/' + m[1] };
   if ((m = p.match(SIBLING))) return { kind: 'asset', path: K + '/' + m[1] };
