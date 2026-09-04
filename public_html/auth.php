@@ -5,13 +5,16 @@
 	
 	require_once __DIR__ . '/readenv.php';
 	$ip_tester = $env['ip_tester'];
-	$is_tester_based_on_ip = strpos($ip_tester, $ip) !== false;
+	// SECURITY (audit F6): exact match, fail closed on an empty IP. strpos(list,$ip)
+	// matched any IP that is a SUBSTRING of the allowlist, and an empty REMOTE_ADDR
+	// made strpos return 0 (i.e. "allowed"). See SECURITY_AUDIT.md.
+	$is_tester_based_on_ip = ($ip !== '' && in_array($ip, preg_split('/[\s,]+/', trim((string)$ip_tester), -1, PREG_SPLIT_NO_EMPTY), true));
 	
 	// GMADMINMENU1 (revised 2026-08-27): Lincoln server IP (176.126.78.48) REMOVED —
 	// that host (kpay.uk) was compromised in the Aug 2026 breach and must not be
 	// trusted. Admin = the sole VPN admin IP only.
 	$ip_admin = '130.185.251.53 ';
-	$isAdmin = strpos($ip_admin, $ip) !== false;
+	$isAdmin = ($ip !== '' && in_array($ip, preg_split('/[\s,]+/', trim((string)$ip_admin), -1, PREG_SPLIT_NO_EMPTY), true));
 	if (!defined('IS_ADMIN')) define('IS_ADMIN', $isAdmin);
 	if ($isAdmin) $_SESSION['flags']['isAdmin'] = true;
 
