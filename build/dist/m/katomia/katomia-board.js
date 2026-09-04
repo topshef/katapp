@@ -735,6 +735,15 @@ function boardUpdateBanner(){
       boardSetBanner("⌛ Expired? — confirming with the network" + txSpan)
       return
     }
+    // SIGN-TWILIGHT2 (user 2026-09-04, parked #9 "chip goes dark green 8-9s early"): the
+    // dark green IS the no-man's-land forecast above (SIGN_NOMANSLAND_MS), but this banner
+    // kept saying "collecting signatures" through it, so the two disagreed and the dim read
+    // as a glitch. Say what the chip means: the network stops accepting NEW signatures in
+    // the last ~10s; the ones already in still count. Nothing is blocked, only narrated.
+    if(twilight){
+      boardSetBanner("⏳ Last 10s — too late for new signatures to land; signed ones still count" + txSpan)
+      return
+    }
     boardSetBanner("✍ Ready to submit — collecting signatures" + txSpan)
     return
   }
@@ -2213,6 +2222,9 @@ function renderRingBoard(root){
     if(boardSigning){
       const count = document.createElement("span")
       count.className = "ring-hub-count ring-hub-count--" + boardSigning.status
+      // SIGN-TWILIGHT2: the colours are signing status, never a success predictor; dark green
+      // in the last ~10s = still signed, but the network no longer accepts new signatures
+      count.title = "Time left in the signing window. Green = signed; dark green in the last ~10s = still signed, but too late for new signatures to land; amber = waiting for signatures"
       hub.appendChild(count)
       boardStartCountdown(count)
       /* KBUNDLE-STRIP:extsign */
