@@ -74,7 +74,15 @@ render(){ # $1 = source path, $2 = dist file
 # ── keep the committed KWC bundle when the shared store isn't on this box ─────────
 STASH="$(mktemp -d)"
 for d in "$DIST" "$ROOT/build/dist" "$ROOT/build/dist-gcp"; do
-  if [ -d "$d/vendor/walletconnect/snapshots/$KWC_SNAP" ]; then cp -r "$d/vendor/walletconnect/snapshots/$KWC_SNAP" "$STASH/"; break; fi
+  # KWC-SNAPMETA2 (2026-09-05): require a COMPLETE snapshot, not merely a directory. The
+  # old test took the first dist that had the folder at all, so a dist holding only
+  # kwc.iife.js became the stash source and re-propagated the loss to every later build —
+  # the exact mechanism KWC-SNAPMETA1 describes, still live because the check was "-d".
+  if [ -f "$d/vendor/walletconnect/snapshots/$KWC_SNAP/kwc.iife.js" ] \
+  && [ -f "$d/vendor/walletconnect/snapshots/$KWC_SNAP/build.json" ] \
+  && [ -f "$d/vendor/walletconnect/snapshots/$KWC_SNAP/release.json" ]; then
+    cp -r "$d/vendor/walletconnect/snapshots/$KWC_SNAP" "$STASH/"; break
+  fi
 done
 rm -rf "$DIST"; mkdir -p "$DIST/m/katomia"
 
@@ -129,6 +137,28 @@ copytree m/tools/glog 2>/dev/null || true
 # (bootstrap, jquery, owl/slick, fontawesome, GM.ico) + the page's own future.css
 copytree assets/css; copytree assets/js
 copytree vendor/bootstrap; copytree vendor/jquery; copytree future
+# SIGNPAGE-KBM1 (2026-09-05): vendor/kbuild-monitor.js is a loose file directly under
+# vendor/, so no copytree above reaches it — and kpool_widget/bootstrap.js TOP-LEVEL imports
+# it. A missing module there rejects the whole bootstrap, so index.js never runs, window.KPOOL
+# is never defined, and the sign page's modal reports "Signing widget failed to load".
+# Copy it explicitly and fail loudly if it goes missing, rather than shipping a dead widget.
+[ -f "$PUB/vendor/kbuild-monitor.js" ] || { echo "   !! vendor/kbuild-monitor.js missing — the kpool widget cannot boot without it"; exit 1; }
+mkdir -p "$DIST/vendor"; cp "$PUB/vendor/kbuild-monitor.js" "$DIST/vendor/kbuild-monitor.js"
+
+# SIGNPAGE-KBM2 (2026-09-05): and stop the widget BOOT depending on it. On the live PHP site
+# kbuild-monitor polls /build.php for live-reload diagnostics; a static bundle has no such
+# endpoint, so bootstrap.js paid a 404 round trip before importing the widget and then fell
+# back to Date.now() for the cache-bust -- which re-downloaded 47 KB of widget JS on EVERY
+# load and pushed window.KPOOL past the sign page's 5s whenReady() budget, surfacing as
+# "Signing widget failed to load". The bundle is immutable per deploy, so stamp the source
+# sha and import immediately. kbuild-monitor.js is still shipped above for any page that
+# loads it directly. Fails loudly if the boot block moves, rather than shipping a dead widget.
+BOOT="$DIST/vendor/kpay/kpool_widget/bootstrap.js"
+SRC_SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo static)"
+grep -q 'await initBuildBanner()' "$BOOT" || { echo "   !! bootstrap.js boot block changed - re-point SIGNPAGE-KBM2"; exit 1; }
+perl -0pi -e "s{import \\{ initBuildBanner \\}.*?Date\\.now\\(\\)}{// STATIC BUILD (SIGNPAGE-KBM2): no /build.php here and the bundle is immutable per\n// deploy, so the boot never waits on build diagnostics and the cache-bust is stable.\n// The live PHP site keeps the original kbuild-monitor behaviour.\nwindow.__BUILD_HASH__ = \"$SRC_SHA\"}s" "$BOOT"
+grep -q "__BUILD_HASH__ = \"$SRC_SHA\"" "$BOOT" || { echo "   !! bootstrap.js rewrite did not apply"; exit 1; }
+echo "   bootstrap.js  boot stamped $SRC_SHA (no /build.php round trip)"
 # only the images the page actually references (the chrome's hero jpgs are not in the repo, and
 # the repo-wide *.gif ignore would leave a copied gif uncommitted → dist-fresh gate false alarm)
 mkdir -p "$DIST/assets/images"; cp "$PUB/assets/images/GM.ico" "$DIST/assets/images/"

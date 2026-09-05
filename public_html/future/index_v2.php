@@ -322,7 +322,12 @@ window.showHapiDebug = function(res, label) {
   const _qs = new URLSearchParams(location.search)
   const DEEP = {
     txid:    <?php echo json_encode($txid); ?>    || _qs.get('txid')    || null,
-    network: <?php echo json_encode($network); ?> || _qs.get('network') || null,
+    // SIGNPAGE-NET1 (2026-09-05): the URL wins for network, unlike txid/pch above.
+    // $network always has a value (getNetwork() ?? $_GET ?? 'mainnet'), so on the static
+    // bundle the build-time value short-circuited the `||` and every visitor got whatever
+    // network the build box happened to be on — "testnet" — no matter what the deep link
+    // said. txid/pch are null at build time so their ordering is harmless; this one is not.
+    network: _qs.get('network') || <?php echo json_encode($network); ?> || null,
     pch:     <?php echo json_encode($pch); ?>     || _qs.get('pch')     || null
   }
 

@@ -11,11 +11,10 @@ if (0) {  // not needed but left for ref in case rewiring connection to hapi
   window.__HAPI_BASE__ = HAPI_BASE
 }
 
-import { initBuildBanner } from "/vendor/kbuild-monitor.js"
-
-const state = await initBuildBanner()
-
-window.__BUILD_HASH__ = state?.workingHash || Date.now()
+// STATIC BUILD (SIGNPAGE-KBM2): no /build.php here and the bundle is immutable per
+// deploy, so the boot never waits on build diagnostics and the cache-bust is stable.
+// The live PHP site keeps the original kbuild-monitor behaviour.
+window.__BUILD_HASH__ = "2655c20"
 
 let appRoot = `./index.js?v=${window.__BUILD_HASH__}`
 
