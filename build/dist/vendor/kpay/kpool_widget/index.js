@@ -431,6 +431,10 @@ function buildKsigPane(txState) {
 			saveUrl,   // SIGN-KSIG-SAVEURL1: same reason — the scan-back POST must hit the
 			           // host's kpool txSave endpoint, NOT the page-relative default (which
 			           // is the Katomia game HTML page → the sig silently vanished).
+			// KQR2 req= hint for KSIG v2: the keys kpool's readiness says must sign.
+			// Read live — keyInfo loads async, so readiness may land after this pane
+			// was built. Empty is fine: the hint is a shortlist, never a gate.
+			requiredKeys: () => [...(txState.readiness?.allRequiredKeys || [])],
 			onSigned: () => notify(txState, '✍️ Signature submitted', 'success')
 		})
 	}

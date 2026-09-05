@@ -28,7 +28,7 @@
 //   Override `submitSigUrl` if/when a same-origin `?action=txAddSignature` exists.
 
 import { kdiag } from './diag.js?v=20260628c'  // shared version tag — keep in sync with signer-walletconnect.js so both share one diag instance
-import { decodeTransaction, appendSignature } from './protobuf.js'
+import { decodeTransaction, appendSignature, bytesToHex } from './protobuf.js'
 
 
 const V = window.__BUILD_HASH__ || ''
@@ -54,10 +54,67 @@ function bytesToB64(bytes) {
 	return btoa(bin)
 }
 
-async function sha4(text) {
-	const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
-	const hex = [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('')
-	return hex.slice(0, 4).toUpperCase()
+async function sha256Hex(str) {
+	const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str))
+	return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+// ── KQR2 — the transaction payload KSIG v2 (KSIGN) reads ─────────────────────
+// Spec: ksig@lab23 ksign/SPEC-KQR2.md; reference codec ksign/lib/kqr2.js.
+//
+//   KQR2 <network> <txid> <pch6> <base64(bodyBytes)> [req=<suffix6>,…]
+//
+// KSIGN accepts ONLY this tagged form. The bare base64 this widget used to emit
+// is KSIG v1's payload and KSIGN refuses it outright ("v1 payloads dropped") —
+// the camera decoded fine, the app just threw the text away.
+//
+// PCH (pre-consensus hash) is kpool's SHA-256 of the LOWERCASE HEX STRING of
+// bodyBytes — not of the bytes, not of the base64. pch6 is its first 6 chars;
+// checksum4 is its first 4, uppercase. Both KSIGN and this caption show
+// checksum4, so the human check reads the same on both screens.
+//
+// req= is the last 6 hex of each public key kpool says must sign. It is a
+// shortlist hint for the signer's key picker: outside the signed bytes,
+// unauthenticated, never gating, and safe to omit. The signer re-decodes the
+// body and refuses the payload on any pch or txid mismatch — the bytes are the
+// truth, the envelope is convenience.
+const KQR2_NETWORKS = new Set(['mainnet', 'testnet', 'previewnet'])
+const KQR2_TXID_RE = /^\d+\.\d+\.\d+@\d+\.\d+$/
+const KQR2_B64_RE = /^[A-Za-z0-9+/]+={0,2}$/
+
+async function buildKqr2({ network, txid, bodyBytesHex, requiredKeys }) {
+	const hex = String(bodyBytesHex || '').toLowerCase().replace(/^0x/, '')
+	if (!KQR2_NETWORKS.has(network)) throw new Error(`KQR2: bad network "${network}"`)
+	if (!KQR2_TXID_RE.test(txid)) throw new Error(`KQR2: bad txid "${txid}"`)
+	if (!/^[0-9a-f]+$/.test(hex) || hex.length % 2) throw new Error('KQR2: bodyBytesHex is not hex')
+	const b64 = bytesToB64(hexToBytes(hex))
+	const pch = await sha256Hex(hex)
+	const keys = typeof requiredKeys === 'function' ? requiredKeys() : (requiredKeys || [])
+	const req = [...new Set(
+		[...(keys || [])].map(k => String(k).toLowerCase().slice(-6)).filter(x => /^[0-9a-f]{6}$/.test(x))
+	)]
+	const text = `KQR2 ${network} ${txid} ${pch.slice(0, 6)} ${b64}${req.length ? ` req=${req.join(',')}` : ''}`
+	return { text, checksum: pch.slice(0, 4).toUpperCase(), pch6: pch.slice(0, 6), b64, req }
+}
+
+// Re-parse our own payload exactly as KSIGN's parseTxQr does, so a bug here
+// fails loudly on this screen instead of as a silent non-scan on the phone.
+async function verifyKqr2(text, bodyBytesHex, decodedTxid) {
+	const parts = String(text).split(' ')
+	if (parts.length < 5) throw new Error('KQR2 self-check: field count')
+	const [tag, network, txid, claimedPch, b64] = parts
+	if (tag !== 'KQR2') throw new Error('KQR2 self-check: tag')
+	if (!KQR2_NETWORKS.has(network)) throw new Error(`KQR2 self-check: network "${network}"`)
+	if (!KQR2_TXID_RE.test(txid)) throw new Error(`KQR2 self-check: txid "${txid}"`)
+	if (!KQR2_B64_RE.test(b64) || b64.length % 4) throw new Error('KQR2 self-check: base64')
+	const bin = atob(b64)
+	let hex = ''
+	for (let i = 0; i < bin.length; i++) hex += bin.charCodeAt(i).toString(16).padStart(2, '0')
+	if (hex !== String(bodyBytesHex).toLowerCase().replace(/^0x/, '')) throw new Error('KQR2 self-check: base64 does not round-trip to bodyBytes')
+	const real = (await sha256Hex(hex)).slice(0, 6)
+	if (real !== claimedPch) throw new Error(`KQR2 self-check: pch ${claimedPch} ≠ ${real}`)
+	if (decodedTxid && decodedTxid !== txid) throw new Error(`KQR2 self-check: envelope txid ${txid} ≠ body ${decodedTxid}`)
+	return true
 }
 
 // ── lazy library loaders ───────────────────────────────────────────────────
@@ -102,7 +159,7 @@ function moduleCountOf(qrObj) {
 // Render `text` into `el` as large as the viewport sensibly allows, with whole-pixel
 // modules. Returns { modules, scale, px } for diagnostics.
 function drawQR(el, text, opts = {}) {
-	const { maxPx = 560, reservePx = 260, minScale = 2 } = opts
+	const { maxPx = 320, reservePx = 260, minScale = 2 } = opts
 
 	// pass 1 — any size will do, we only want the module count
 	let n = moduleCountOf(buildQR(el, text, 200))
@@ -122,36 +179,37 @@ function drawQR(el, text, opts = {}) {
 	return { modules: n, scale, px }
 }
 
-// Full-screen QR. Sized to the whole viewport so it can be scanned from a
-// comfortable distance, wherever the modal happens to sit on the page.
-function openQRFullscreen(text, checksum) {
+// Enlarged QR in a centred overlay — roughly 70% of the shorter viewport edge,
+// so it can be scanned from a comfortable distance without taking over the
+// whole screen. Backdrop click, ×, or Esc closes it.
+function openQRLarge(text, checksum) {
 	const ov = document.createElement('div')
-	ov.className = 'kpsign-qr-full'
-	ov.innerHTML = '<button type="button" class="kpsign-qr-full-x" aria-label="Close">&times;</button>'
-
+	ov.className = 'kpsign-qr-large'
+	const card = document.createElement('div')
+	card.className = 'kpsign-qr-large-card'
+	card.innerHTML = '<button type="button" class="kpsign-qr-large-x" aria-label="Close">&times;</button>'
 	const box = document.createElement('div')
 	box.className = 'kpsign-qr'
-	ov.appendChild(box)
-
+	card.appendChild(box)
 	const cap = document.createElement('div')
-	cap.className = 'kpsign-qr-full-cap'
-	cap.textContent = checksum ? `checksum ${checksum} · tap anywhere to close` : 'tap anywhere to close'
-	ov.appendChild(cap)
-
+	cap.className = 'kpsign-qr-large-cap'
+	cap.textContent = checksum ? `checksum ${checksum}` : ''
+	card.appendChild(cap)
+	ov.appendChild(card)
 	document.body.appendChild(ov)
-	document.body.style.overflow = 'hidden'
 
 	const close = () => {
 		ov.remove()
-		document.body.style.overflow = ''
 		window.removeEventListener('resize', redraw)
 		document.removeEventListener('keydown', onKey)
 	}
 	const onKey = (e) => { if (e.key === 'Escape') close() }
-	const redraw = () => drawQR(box, text, { maxPx: 1400, reservePx: 120, minScale: 3 })
-
+	const redraw = () => {
+		const edge = Math.min(window.innerWidth, window.innerHeight)
+		drawQR(box, text, { maxPx: Math.min(640, Math.round(edge * 0.7)), reservePx: 0, minScale: 2 })
+	}
 	redraw()
-	ov.addEventListener('click', close)
+	ov.addEventListener('click', (e) => { if (e.target === ov || e.target.classList.contains('kpsign-qr-large-x')) close() })
 	document.addEventListener('keydown', onKey)
 	window.addEventListener('resize', redraw)
 }
@@ -233,6 +291,7 @@ export async function renderKsig(container, {
 	readUrl = defaultReadUrl,
 	saveUrl = null,   // SIGN-KSIG-SAVEURL1: host's kpool txSave endpoint; null = same-origin page-relative
 	submitSigUrl = DEFAULT_SUBMIT_URL,
+	requiredKeys = null,   // KQR2 req= hint: array or () => array of pubkey hex (see buildKqr2)
 	onSigned = null
 } = {}) {
 	injectKsigCSS()
@@ -251,8 +310,13 @@ export async function renderKsig(container, {
 			return
 		}
 
-		const b64 = bytesToB64(hexToBytes(bodyBytesHex))
-		const checksum = await sha4(b64)
+		// Envelope txid comes from the bytes themselves — KSIGN compares the two
+		// and refuses on mismatch. The URL txid is only a fallback.
+		let bodyTxid = null
+		try { bodyTxid = decodeTransaction(bodyBytesHex)?.transactionId || null } catch {}
+		const payload = await buildKqr2({ network, txid: bodyTxid || txid, bodyBytesHex, requiredKeys })
+		await verifyKqr2(payload.text, bodyBytesHex, bodyTxid)
+		const { text: qrText, checksum } = payload
 
 		container.innerHTML = ''
 
@@ -260,8 +324,8 @@ export async function renderKsig(container, {
 		qr.className = 'kpsign-qr'
 		container.appendChild(qr)
 
-		const shown = drawQR(qr, b64)
-		kdiag('ksig:qr-size', shown)
+		const shown = drawQR(qr, qrText)
+		kdiag('ksig:qr-size', { ...shown, format: 'KQR2', chars: qrText.length, req: payload.req })
 
 		// Tap/click the QR to blow it up full-screen. On a laptop the modal sits
 		// low on the screen and you cannot get a phone close enough without
@@ -269,7 +333,7 @@ export async function renderKsig(container, {
 		// minimum focus distance and blurs. A big QR is scannable from further
 		// back, which fixes both.
 		qr.title = 'Tap to enlarge for scanning'
-		qr.addEventListener('click', () => openQRFullscreen(b64, checksum))
+		qr.addEventListener('click', () => openQRLarge(qrText, checksum))
 
 		const cap = document.createElement('div')
 		cap.className = 'kpsign-qr-cap'
@@ -296,7 +360,7 @@ export async function renderKsig(container, {
 			startScanBack({ network, txid, pch, bodyBytesHex, readUrl, saveUrl, submitSigUrl, onSigned, statusEl: status, btnEl: scanBtn })
 		)
 
-    kdiag('ksig:qr-rendered', { bytes: bodyBytesHex.length / 2, checksum })
+    kdiag('ksig:qr-rendered', { bytes: bodyBytesHex.length / 2, checksum, pch6: payload.pch6, format: 'KQR2' })
 
 		// Decode the transaction client-side so we can verify what's being signed.
 		// Prefer hex2 (full envelope — includes any sigs already attached); fall back
@@ -509,14 +573,15 @@ function injectKsigCSS() {
 		   This lets the QR be scrolled up to a comfortable height. */
 		.kpsign-tail { height:55vh; }
 
-		/* Full-screen QR — the reliable way to scan from a sensible distance. */
-		.kpsign-qr-full { position:fixed; inset:0; z-index:2147483000; background:#fff;
-			display:flex; flex-direction:column; align-items:center; justify-content:center;
-			gap:14px; cursor:zoom-out; }
-		.kpsign-qr-full .kpsign-qr { cursor:zoom-out; padding:var(--kpsign-quiet, 24px); }
-		.kpsign-qr-full-cap { font:13px ui-monospace,Menlo,Consolas,monospace; color:#666; }
-		.kpsign-qr-full-x { position:absolute; top:12px; right:16px; border:0; background:transparent;
-			font-size:34px; line-height:1; color:#666; cursor:pointer; padding:4px 10px; }
+		/* Enlarged QR: dimmed backdrop, centred card — not a full-screen takeover. */
+		.kpsign-qr-large { position:fixed; inset:0; z-index:2147483000; background:rgba(0,0,0,.55);
+			display:flex; align-items:center; justify-content:center; cursor:zoom-out; }
+		.kpsign-qr-large-card { position:relative; background:#fff; border-radius:12px; padding:18px 18px 12px;
+			box-shadow:0 12px 40px rgba(0,0,0,.35); cursor:default; }
+		.kpsign-qr-large-card .kpsign-qr { cursor:default; }
+		.kpsign-qr-large-cap { text-align:center; font:13px ui-monospace,Menlo,Consolas,monospace; color:#666; margin-top:8px; }
+		.kpsign-qr-large-x { position:absolute; top:2px; right:8px; border:0; background:transparent;
+			font-size:28px; line-height:1; color:#666; cursor:pointer; padding:4px 8px; }
 
 		.kpsign-scan-btn { display:block; margin:12px auto 0; padding:8px 14px; cursor:pointer;
 			font:13px/1.2 ui-monospace,Menlo,Consolas,monospace; color:#084298;
