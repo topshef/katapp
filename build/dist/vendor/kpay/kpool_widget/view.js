@@ -17,6 +17,16 @@ const SIGN_REASON = {
 	receiver_sig_required: { emoji:'📥', tip:'​    Receiver signature required' }
 }
 
+	// VALIDWINDOW1: the signing window in words. Never round a sub-minute window up to
+	// a minute — "1m" for a 40-second window is the whole bug in miniature, and someone
+	// deciding whether they have time to fetch a second signer needs the real number.
+	const formatValidFor = secs => {
+		const s = Math.max(0, Math.round(Number(secs) || 0))
+		if (s < 60) return `${s}s`
+		const m = Math.floor(s / 60), rem = s % 60
+		return rem ? `${m}m ${rem}s` : `${m}m`
+	}
+
 	// validSecs: the tx's REAL valid duration, decoded from the signed bytes
 	// (VALIDD1, data.validDurationSeconds). 180 stays as the fallback when the
 	// bytes aren't available — the old hardcoded assumption, now only a default.
@@ -535,17 +545,25 @@ const SIGN_REASON = {
 		}
 		scope.appendChild(ids)
 		// strike time (valid-start — fixed, from the txid) + valid duration. Wordy, locale-neutral
-		// date (en-GB "2 Jul 2026") so British/American reading is unambiguous. Duration stubbed
-		// 120s (Hedera default) — PROTO1 (protobuf decode) will supply the real value.
+		// date (en-GB "2 Jul 2026") so British/American reading is unambiguous.
+		//
+		// VALIDWINDOW1 (mainnet 2026-09-05): this line used to read `const validSecs = 120`
+		// — a stub, with a TODO on it, printed to the operator as fact. Mainnet
+		// 0.0.3833789@1788645137 was valid for FORTY seconds; the modal told its operator
+		// "valid 2m" and stayed green well past the point where the transaction could still
+		// be submitted, so the second signature of a 2-of-3 arrived a second after the
+		// window shut and read afterwards as a backend stall. txRead now sends the number
+		// decoded from the signed bytes (data.validDurationSeconds) — use it, and say
+		// nothing about the window when it isn't known rather than inventing a generous one.
 		const strikeInfo = parseTxId(txid)
 		if (strikeInfo?.seconds) {
-			const validSecs = 120   // TODO PROTO1: real transactionValidDuration
+			const validSecs = Number(data.validDurationSeconds) || null
 			const d = new Date(strikeInfo.seconds * 1000)
 			const datePart = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 			const timePart = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 			const due = document.createElement('div')
 			due.className = 'txread-scope-due'
-			due.textContent = `due ${datePart}, ${timePart} · valid ${Math.round(validSecs / 60)}m`
+			due.textContent = `due ${datePart}, ${timePart}${validSecs ? ` · valid ${formatValidFor(validSecs)}` : ''}`
 			due.title = 'Transaction valid-start (strike time) and valid duration'
 			scope.appendChild(due)
 		}
