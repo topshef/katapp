@@ -8588,12 +8588,6 @@ function boardSortAssetRows(list){
   rows.forEach(r => list.appendChild(r))
 }
 
-// The "N shown / Updated" line lives with the account's header, but the toggles are
-// built per row and one function down. A map keyed by account id joins them without
-// threading a callback through every row builder; it is rebuilt with the modal, so
-// nothing survives a close.
-const visStatusByAccount = new Map()
-
 function boardVisToggleFor(account, assetId, row){
   const onTable = !!(account.assets && assetId in account.assets)
   return katomiaVisToggle(onTable, next => {
@@ -8603,7 +8597,6 @@ function boardVisToggleFor(account, assetId, row){
     } else {
       if(typeof removeAssetFromTable === "function") removeAssetFromTable(account.id, assetId)
     }
-    visStatusByAccount.get(account.id)?.(true)
   })
 }
 
@@ -8647,10 +8640,89 @@ function boardCurateSwipe(row, set){
   row.addEventListener("pointercancel", end)
 }
 
+// ── MODALDRAG1 (user 2026-09-05) ─────────────────────────────────────────────
+// "Make that modal so that when you're on desktop you can move it around the screen
+// so you can see the effects happening behind, without covering the board… just
+// allow the whole modal to be click-draggable."
+//
+// No title bar: the user explicitly rejected one ("the header doesn't even need to
+// be visually defined"), so the grab handle is any BLANK part of the card. What
+// counts as blank is decided by what you pressed on, not by a region — anything
+// interactive (button, link, input, a row, the close ✕) keeps its own behaviour and
+// is never a drag start. That is also what keeps a click a click: the drag only
+// engages after 4px of movement, so pressing a row and releasing still expands it.
+//
+// Desktop only, deliberately. On a phone the modal already fills the screen, there
+// is nothing to uncover, and a drag would fight the scroll.
+function boardMakeCardDraggable(modal, card){
+  if(!window.matchMedia("(min-width: 900px)").matches) return
+  if(!window.matchMedia("(pointer: fine)").matches) return
+
+  const NODRAG = "button, a, input, textarea, select, label, summary, img, .kvis, .asset-modal-close, .board-playercard-asset, .board-playercard-curate"
+  let sx = 0, sy = 0, ox = 0, oy = 0, live = false, armed = false
+
+  card.style.touchAction = "none"
+  card.classList.add("board-playercard--draggable")
+
+  card.addEventListener("pointerdown", e => {
+    if(e.button !== 0) return
+    if(e.target.closest(NODRAG)) return
+    // The card scrolls its own content; a press on the scrollbar gutter is not a grab.
+    if(e.offsetX > card.clientWidth) return
+    armed = true; live = false
+    sx = e.clientX; sy = e.clientY
+    const r = card.getBoundingClientRect()
+    // Switch to explicit positioning ONCE, from wherever the flex layout had put it,
+    // so the card does not jump on the first pixel of movement.
+    if(!card.dataset.dragged){
+      card.style.position = "fixed"
+      card.style.left = r.left + "px"
+      card.style.top = r.top + "px"
+      card.style.margin = "0"
+      card.style.maxHeight = (window.innerHeight - 40) + "px"
+      card.dataset.dragged = "1"
+    }
+    ox = parseFloat(card.style.left) || r.left
+    oy = parseFloat(card.style.top) || r.top
+    // Capture on PRESS, not on the first qualifying move. Without it the very first
+    // move can already be outside the card — dragging left from near the left edge,
+    // say — and then pointermove never reaches this element again, so the drag never
+    // engages and the release lands on the backdrop as a close. Capture is safe here
+    // because we have already refused every interactive target above.
+    try { card.setPointerCapture(e.pointerId) } catch(_){}
+  })
+
+  const move = e => {
+    if(!armed) return
+    const dx = e.clientX - sx, dy = e.clientY - sy
+    if(!live && Math.abs(dx) + Math.abs(dy) < 4) return   // still a click, not a drag
+    if(!live){ live = true; card.classList.add("board-playercard--dragging") }
+    // Keep at least a strip of the card reachable, so it can never be parked
+    // entirely off-screen with no way back.
+    const w = card.offsetWidth, h = card.offsetHeight
+    card.style.left = Math.min(window.innerWidth - 60, Math.max(60 - w, ox + dx)) + "px"
+    card.style.top  = Math.min(window.innerHeight - 40, Math.max(0, oy + dy)) + "px"
+  }
+  // The dragging CLASS cannot gate the backdrop's close handler: pointerup clears it
+  // before click is dispatched. A flag on the modal, set here and cleared on the next
+  // tick, spans both events — modal.onclick reads it (see boardPlayerModal).
+  const end = e => {
+    try { card.releasePointerCapture(e.pointerId) } catch(_){}
+    if(live){
+      modal.__dragSwallow = true
+      setTimeout(() => { modal.__dragSwallow = false }, 0)
+    }
+    armed = false; live = false
+    card.classList.remove("board-playercard--dragging")
+  }
+  card.addEventListener("pointermove", move)
+  card.addEventListener("pointerup", end)
+  card.addEventListener("pointercancel", end)
+}
+
 function boardPlayerModal(playerId, focusAccountId = null){
   document.getElementById("boardAssetDetail")?.remove()
   document.getElementById("boardPlayerModal")?.remove()
-  visStatusByAccount.clear()
   const player = state?.players?.[playerId]
   const allAccounts = getAccounts().filter(a => a.playerId === playerId)
   if(!player && !allAccounts.length) return
@@ -8671,7 +8743,14 @@ function boardPlayerModal(playerId, focusAccountId = null){
   const modal = document.createElement("div")
   modal.id = "boardPlayerModal"
   modal.className = "asset-modal"
-  modal.onclick = e => { if(e.target === modal) modal.remove() }
+  // MODALDRAG1: __dragSwallow is set by boardMakeCardDraggable for one tick after a
+  // real drag. A drag that ends with the cursor over the backdrop fires a click whose
+  // target IS the backdrop, which this handler would otherwise read as "clicked
+  // outside, close" — the modal closed itself mid-drag every time. It has to be
+  // checked HERE rather than in a capture listener added later: both handlers sit on
+  // the same node, so they run in registration order and this one always went first,
+  // which no amount of stopPropagation from the other could undo.
+  modal.onclick = e => { if(e.target === modal && !modal.__dragSwallow) modal.remove() }
   const card = document.createElement("div")
   card.className = "asset-modal-card board-playercard"
   modal.appendChild(card)
@@ -8687,18 +8766,7 @@ function boardPlayerModal(playerId, focusAccountId = null){
   closeWrap.className = "board-playercard-closewrap"
   const close = document.createElement("div")
   close.className = "asset-modal-close"
-  // ASSETVIS1 R3 (user 2026-09-05, on the "UX smell" of editing then closing with
-  // the ✕): on YOUR OWN account this modal is a settings panel, not a form — every
-  // toggle already went to the server the moment you clicked it. A ✕ reads as
-  // "discard", which is the one thing it does not do. "Done" says what is true.
-  // Other players' accounts are read-only, so the ✕ stays what it always was.
-  if(self){
-    close.classList.add("asset-modal-close--done")
-    close.textContent = "Done"
-    close.title = "Close — your changes are already saved"
-  } else {
-    close.textContent = "✕"
-  }
+  close.textContent = "✕"
   close.onclick = () => modal.remove()
   closeWrap.appendChild(close)
   card.appendChild(closeWrap)
@@ -8804,27 +8872,15 @@ function boardPlayerModal(playerId, focusAccountId = null){
       const head = document.createElement("div")
       head.className = "board-playercard-vishead"
       const cap = document.createElement("span")
-      cap.className = "subtle board-playercard-viscap"
+      cap.className = "subtle"
       cap.textContent = "What others see in your store"
       head.appendChild(cap)
-      // ASSETVIS1 R3 (user 2026-09-05): the only feedback for a change used to be
-      // the row muting, which is why closing the modal felt like it might not have
-      // saved. This line carries the live count and says "Updated" for a beat after
-      // each change — the acknowledgement a settings panel owes you, without
-      // inventing an Apply button that would lie about when the change happens.
-      const status = document.createElement("span")
-      status.className = "board-playercard-visstatus"
-      head.appendChild(status)
-      let statusTimer = null
-      const shownCount = () => [...list.children].filter(r => !r.classList.contains("board-playercard-asset--hidden")).length
-      const paintStatus = (updated) => {
-        const n = shownCount()
-        status.textContent = (updated ? "Updated · " : "") + n + " shown"
-        status.classList.toggle("board-playercard-visstatus--flash", !!updated)
-        if(statusTimer) clearTimeout(statusTimer)
-        if(updated) statusTimer = setTimeout(() => paintStatus(false), 2200)
-      }
-      visStatusByAccount.set(account.id, paintStatus)
+      // NO count or status line here, deliberately (user 2026-09-05, on the version
+      // that had one): "the page moves, it expands, it updates, it waits a second and
+      // then it goes back… just have show all, none, and that's it." A live
+      // "N shown → Updated · N shown → N shown" reflowed this row twice per toggle,
+      // for information the rows already carry. If an acknowledgement is ever wanted
+      // here it has to sit in space that is reserved whether or not it says anything.
       const btns = document.createElement("span")
       btns.className = "board-playercard-visbtns"
       const mk = (text, title, fn) => {
@@ -8848,7 +8904,6 @@ function boardPlayerModal(playerId, focusAccountId = null){
         const ids = off.map(r => r.dataset.assetId).filter(Boolean)
         off.forEach(r => { r.classList.remove("board-playercard-asset--hidden"); r.querySelector(".kvis")?._kvisPaint?.(true) })
         if(typeof addAssetsToTable === "function") addAssetsToTable(account.id, ids)
-        paintStatus(true)
       })
       btns.appendChild(document.createTextNode(" · "))
       // No confirm (user 2026-09-05: "we don't need an alert box to confirm show
@@ -8862,7 +8917,6 @@ function boardPlayerModal(playerId, focusAccountId = null){
           r.querySelector(".kvis")?._kvisPaint?.(false)
           if(r.dataset.assetId && typeof removeAssetFromTable === "function") removeAssetFromTable(account.id, r.dataset.assetId)
         })
-        paintStatus(true)
       })
       head.appendChild(btns)
       sec.appendChild(head)
@@ -8969,7 +9023,6 @@ function boardPlayerModal(playerId, focusAccountId = null){
       list.appendChild(row)
     })
     boardSortAssetRows(list)
-    visStatusByAccount.get(account.id)?.(false)   // first count, no "Updated"
     sec.appendChild(list)
 
     // out-of-play: on-chain holdings not brought to the table (async, greyed)
@@ -9052,7 +9105,6 @@ function boardPlayerModal(playerId, focusAccountId = null){
             list.appendChild(r)
           })
           boardSortAssetRows(list)
-          visStatusByAccount.get(account.id)?.(false)
           return
         }
         // COLLAPSED BY DEFAULT (user 2026-08-06): "let's make that collapsible —
@@ -9102,6 +9154,8 @@ function boardPlayerModal(playerId, focusAccountId = null){
     }
     card.appendChild(sec)
   })
+
+  boardMakeCardDraggable(modal, card)
 
   if(focus){
     // "jump from one view to another, rather than having it as one long scroll

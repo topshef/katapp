@@ -2178,7 +2178,9 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
    the drag itself suppresses */
 .board-playercard-asset{ transition: transform .18s ease; touch-action: pan-y; }
 .board-playercard-asset--swiping{ transition: none; }
-.board-playercard-assetbtn:hover{ text-decoration: underline; }
+/* ASSETEXPAND1 (user 2026-09-05): NO hover underline. Tapping a row opens its detail
+   in place — it was never a hyperlink and should not dress as one. */
+.board-playercard-assetbtn:hover{ background: rgba(0,0,0,.035); }
 /* the 3-state curate toggle: no grey box, dead-centred, fixed box so the
    glyph swap ⭐⇄🚫⇄○ never moves anything (user: "get rid of the gray square…
    just put the star in the middle… no change in height, just a clean toggle") */
@@ -2397,10 +2399,9 @@ body.feat-tickets .tkt-act{ margin-top:6px; }
   cursor:default;
 }
 .board-playercard-vishead{
-  display:flex; align-items:baseline; justify-content:space-between;
-  gap:8px; margin:6px 0 2px; font-size:12px; flex-wrap:wrap;
+  display:flex; align-items:center; justify-content:space-between;
+  gap:8px; margin:6px 0 2px; font-size:12px;
 }
-.board-playercard-viscap{ flex:0 1 auto; min-width:0; }
 .board-playercard-visbtns{ flex:0 0 auto; white-space:nowrap; }
 
 /* BOARD-CURATE1 R4: the private-view legend on ANOTHER player's account. Quiet by
@@ -2446,19 +2447,17 @@ body.feat-tickets .tkt-act{ margin-top:6px; }
   #boardPlayerModal .board-playercard-thumb{ transition: none; }
 }
 
-/* ASSETVIS1 R3: "Done" instead of ✕ on your own account — a settings panel that has
-   already saved should not offer what looks like a discard. */
-.asset-modal-close--done{
-  width: auto; height: auto; padding: 4px 12px;
-  font: 600 12px system-ui, sans-serif; border-radius: 999px;
-  background: #eef4fb; color: #3f6ea3; border: 1px solid #d6e4f2;
-  display: inline-flex; align-items: center; justify-content: center;
+/* ── MODALDRAG1: drag the player card out of the way on desktop ─────────────
+   Grab handle is any blank part of the card (see boardMakeCardDraggable — what
+   counts as blank is decided per press, not by a region), so there is no title
+   bar and nothing new to look at. The cursor is the only affordance. */
+.board-playercard--draggable{ cursor: grab; }
+.board-playercard--draggable :where(button, a, input, .board-playercard-asset){ cursor: pointer; }
+.board-playercard--dragging{
+  cursor: grabbing;
+  user-select: none;
+  box-shadow: 0 12px 34px rgba(0,0,0,.22);
 }
-.asset-modal-close--done:hover{ background: #e2edf9; }
-
-/* the live acknowledgement next to it */
-.board-playercard-visstatus{
-  font-size: 11px; color: #8a8f98; margin-left: 8px; white-space: nowrap;
-  transition: color .2s ease;
-}
-.board-playercard-visstatus--flash{ color: #3d7a4a; font-weight: 600; }
+/* While a card is parked, the backdrop must not keep dimming the board it was
+   moved aside to reveal. */
+.asset-modal:has(.board-playercard[data-dragged]){ background: rgba(0,0,0,.06); }
