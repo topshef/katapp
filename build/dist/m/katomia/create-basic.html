@@ -6,9 +6,9 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <!-- ENTRY-FADES1 (user 2026-07-30): quiet cross-fade page transition. Must be in
      <head> — it arms the fade-in before first paint. -->
-<script src="kfade.js?v=1788560257"></script>
-<link rel="stylesheet" href="katomia.css?v=1788560257">
-<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1788560257"><title>Create your own circle — Katomia</title>
+<script src="kfade.js?v=1788180897"></script>
+<link rel="stylesheet" href="katomia.css?v=1788596726">
+<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1788180897"><title>Create your own circle — Katomia</title>
 
 <style>
 /* see above imported css todo organiase*/
@@ -1415,19 +1415,19 @@ drawThemeWheel()
 <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
 
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
-<script src="katomia-core.js?v=1788560257"></script>
-<script src="katomia-helpers.js?v=1788560257"></script>
-<script src="kemoji.js?v=1788560257"></script>
+<script src="katomia-core.js?v=1788180897"></script>
+<script src="katomia-helpers.js?v=1788180897"></script>
+<script src="kemoji.js?v=1788180897"></script>
 <script>
   // katomia-modals.js (the diag sender) isn't loaded here — shim so profile/auth
   // scripts' katomiaDiagSend?.() calls resolve instead of ReferenceError.
   window.katomiaDiagSend = window.katomiaDiagSend || function(){}
 </script>
-<script src="katomia-profile.js?v=1788560257"></script>
-<script src="katomia-auth.js?v=1788560257"></script>
+<script src="katomia-profile.js?v=1788522950"></script>
+<script src="katomia-auth.js?v=1788180897"></script>
 <!-- JOINRULE-COMPOSER1 phase 1: ⋯ quick-pick beside the access-control input. Loaded
      after katomia-auth.js — the composer reads kauthRecords() for "your accounts". -->
-<script src="katomia-composer.js?v=1788560257"></script>
+<script src="katomia-composer.js?v=1788180897"></script>
 <script>
   katomiaComposer.attach({ input: document.getElementById("joinRule"), getNetwork: () => getRadio("network") })
 </script>
