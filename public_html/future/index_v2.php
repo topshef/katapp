@@ -322,7 +322,12 @@ window.showHapiDebug = function(res, label) {
   const _qs = new URLSearchParams(location.search)
   const DEEP = {
     txid:    <?php echo json_encode($txid); ?>    || _qs.get('txid')    || null,
-    network: <?php echo json_encode($network); ?> || _qs.get('network') || null,
+    // SIGNPAGE-NET1 (2026-09-05): the URL wins for network, unlike txid/pch above.
+    // $network always has a value (getNetwork() ?? $_GET ?? 'mainnet'), so on the static
+    // bundle the build-time value short-circuited the `||` and every visitor got whatever
+    // network the build box happened to be on — "testnet" — no matter what the deep link
+    // said. txid/pch are null at build time so their ordering is harmless; this one is not.
+    network: _qs.get('network') || <?php echo json_encode($network); ?> || null,
     pch:     <?php echo json_encode($pch); ?>     || _qs.get('pch')     || null
   }
 
@@ -360,7 +365,11 @@ window.showHapiDebug = function(res, label) {
     new Date(ts * 1000).toISOString().slice(0, 19).replace('T', ' ') + ' UTC'
 
   // wait until the widget module has set window.KPOOL (bootstrap is async)
-  const whenReady = (cond, ms = 50, tries = 100) => new Promise((res, rej) => {
+  // SIGNPAGE-BUDGET1 (2026-09-05): was 100 tries = 5s. The widget is ~12 ES modules; on a
+  // cold cache over a slow mobile link that is genuinely reachable, and overrunning it shows
+  // "Signing widget failed to load" on a page that would have worked a second later. The
+  // timeout only gates the error message, so a generous budget costs nothing.
+  const whenReady = (cond, ms = 50, tries = 300) => new Promise((res, rej) => {
     const t = setInterval(() => {
       if (cond()) { clearInterval(t); res() }
       else if (--tries < 0) { clearInterval(t); rej(new Error('KPOOL not ready')) }
