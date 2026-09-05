@@ -1418,6 +1418,29 @@ body.nerd .tx-nerd-meta a{ color:inherit; }
   font-style:italic;
 }
 
+/* ORDER-TRAIL1: one of YOUR orders that has left the book, held for a few minutes
+   so signing does not end in the order silently vanishing. Deliberately NOT a
+   ghost: it is not dimmed into irrelevance, it is the receipt for what you just
+   did — muted ground, a left rail in the side colour, and a pointer when it has a
+   transaction to jump to. */
+#ordersSection .order-row.order-gone{
+  background:#f7f8fa;
+  border:1px solid #e2e5ea;
+  border-radius:6px;
+  border-left:3px solid #c8cdd6;
+  opacity:0.9;
+  cursor:default;
+}
+#ordersSection .order-row.order-gone[data-order-side="buy"]{ border-left-color:rgba(46,204,113,.6); }
+#ordersSection .order-row.order-gone[data-order-side="sell"]{ border-left-color:rgba(231,76,60,.6); }
+#ordersSection .order-row.order-gone .order-price{ opacity:.8; }
+.order-gone-tag{ color:#8a8f98; font-size:11px; }
+.order-gone-link{
+  color:#4a6fb5; font-size:11px; font-weight:600; cursor:pointer;
+  text-decoration:underline; text-underline-offset:2px;
+}
+#ordersSection .order-row.order-gone:hover{ background:#eef1f6; }
+
 
 #ordersSection .order-row-inner{
   display:flex;
@@ -3321,7 +3344,10 @@ body[data-trading-mode="orderBook"] .ktabs.mode-order{ display:none; }
     transition:background .12s, color .12s, box-shadow .12s;
   }
   .ktabs button.on{ background:#fff; color:#1f2733; box-shadow:0 1px 3px rgba(0,0,0,.14); }
-  body[data-trading-mode="orderBook"][data-ktab="book"] #transactionsSection,
-  body[data-trading-mode="orderBook"][data-ktab="mine"] #transactionsSection{ display:none; }
+  body[data-trading-mode="orderBook"][data-ktab="book"] #transactionsSection{ display:none; }
   body[data-trading-mode="orderBook"][data-ktab="trades"] #ordersSection{ display:none; }
+  /* ORDER-YOUTAB1: "You" is your whole side of the market — your orders, then your
+     trades under them. It used to hide the transactions list, which is why the
+     middle tab read as neither one thing nor the other. */
+  body[data-trading-mode="orderBook"][data-ktab="mine"] #transactionsSection{ margin-top:10px; }
 }

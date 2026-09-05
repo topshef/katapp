@@ -50,7 +50,9 @@
      exchange resolves this space. Desktop keeps the two columns (CSS-gated). -->
 <div class="ktabs mode-order">
   <button type="button" data-ktab="book">Book</button>
-  <button type="button" data-ktab="mine">Mine</button>
+  <!-- ORDER-YOUTAB1: the value stays "mine" (saved sessions + CSS), the label is
+       "You" because the tab now carries your orders AND your trades. -->
+  <button type="button" data-ktab="mine">You</button>
   <button type="button" data-ktab="trades">Trades</button>
 </div>
 
