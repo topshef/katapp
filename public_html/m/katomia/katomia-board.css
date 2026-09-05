@@ -2397,9 +2397,10 @@ body.feat-tickets .tkt-act{ margin-top:6px; }
   cursor:default;
 }
 .board-playercard-vishead{
-  display:flex; align-items:center; justify-content:space-between;
-  gap:8px; margin:6px 0 2px; font-size:12px;
+  display:flex; align-items:baseline; justify-content:space-between;
+  gap:8px; margin:6px 0 2px; font-size:12px; flex-wrap:wrap;
 }
+.board-playercard-viscap{ flex:0 1 auto; min-width:0; }
 .board-playercard-visbtns{ flex:0 0 auto; white-space:nowrap; }
 
 /* BOARD-CURATE1 R4: the private-view legend on ANOTHER player's account. Quiet by
@@ -2410,3 +2411,54 @@ body.feat-tickets .tkt-act{ margin-top:6px; }
   font-size: 11px; line-height: 1.45; color: #8a8f98;
   margin: 4px 0 6px; max-width: 46ch;
 }
+
+/* ── ASSETEXPAND1: tap a row to open it in place ────────────────────────────
+   The row becomes a wrapping flex line so the detail can take a full-width
+   second row inside the SAME element — no sibling to keep in sync, and the
+   hidden/shown styling above still applies to the whole thing. */
+#boardPlayerModal .board-playercard-asset{ flex-wrap: wrap; }
+.board-playercard-assetmore{
+  flex: 0 0 100%;
+  display: grid; grid-template-rows: 0fr;          /* 0fr→1fr animates to CONTENT
+                                                      height — no guessed max-height
+                                                      to clip or overshoot */
+  transition: grid-template-rows .22s ease;
+}
+.board-playercard-assetmore > div{ overflow: hidden; }
+.board-playercard-asset--open .board-playercard-assetmore{ grid-template-rows: 1fr; }
+.board-playercard-assetmoreline{
+  font-size: 11px; color: #71767e; line-height: 1.5;
+  padding: 2px 8px 0 38px;                          /* clears the eye + thumb column */
+}
+.board-playercard-assetmoreacts{ padding: 2px 8px 6px 38px; }
+.board-playercard-assetmoreacts .board-playercard-jumplink{ font-size: 11px; }
+
+/* the thumbnail grows with the row (user: "let the thumbnail grow a little bit,
+   maybe to double height") */
+#boardPlayerModal .board-playercard-thumb{ transition: width .22s ease, height .22s ease, flex-basis .22s ease; }
+#boardPlayerModal .board-playercard-asset--open .board-playercard-thumb{
+  width: 44px; height: 44px; flex: 0 0 44px;
+}
+#boardPlayerModal .board-playercard-asset--open{ background: rgba(0,0,0,.03); border-radius: 8px; }
+
+@media (prefers-reduced-motion: reduce){
+  .board-playercard-assetmore,
+  #boardPlayerModal .board-playercard-thumb{ transition: none; }
+}
+
+/* ASSETVIS1 R3: "Done" instead of ✕ on your own account — a settings panel that has
+   already saved should not offer what looks like a discard. */
+.asset-modal-close--done{
+  width: auto; height: auto; padding: 4px 12px;
+  font: 600 12px system-ui, sans-serif; border-radius: 999px;
+  background: #eef4fb; color: #3f6ea3; border: 1px solid #d6e4f2;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.asset-modal-close--done:hover{ background: #e2edf9; }
+
+/* the live acknowledgement next to it */
+.board-playercard-visstatus{
+  font-size: 11px; color: #8a8f98; margin-left: 8px; white-space: nowrap;
+  transition: color .2s ease;
+}
+.board-playercard-visstatus--flash{ color: #3d7a4a; font-weight: 600; }

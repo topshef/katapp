@@ -8505,11 +8505,94 @@ function boardAssetDetail(assetId, account, amount, offer){
 // off-table fetch merges its rows in, so shown and hidden interleave by name rather
 // than arriving in two blocks (user: "for now, it's just alphabetical" — filters are
 // the answer when someone turns up with hundreds).
+// ── ASSETEXPAND1 (user 2026-09-05) ───────────────────────────────────────────
+// "If you tap on an asset whilst you're in the account view, it would probably be
+// better to animate — expand that row to give the extra information… you don't lose
+// your context."
+//
+// Tapping a row used to REPLACE this modal with the asset card, which threw away the
+// account you were reading and the shown/hidden state you were part-way through
+// setting. Now the row opens in place: the thumbnail grows, a second line appears
+// with what the account view cannot fit, and a link on that line still goes to the
+// full card — which keeps its job (offers, pick, remove from table) and is where
+// richer detail will land later.
+//
+// The user also talked themselves round mid-ask — "there isn't much more to show,
+// you don't need to see who the owner is, you're in that account" — and they are
+// right, which is why this second line carries the token's IDENTITY (collection or
+// token name, id, serial, type) rather than restating the row.
+//
+// Animated with grid-template-rows 0fr→1fr, so it grows to whatever the content
+// actually is instead of a guessed max-height that clips or overshoots.
+function boardAssetMore(assetId, account, amount){
+  const wrap = document.createElement("div")
+  wrap.className = "board-playercard-assetmore"
+  const inner = document.createElement("div")
+  wrap.appendChild(inner)
+
+  const meta = (typeof getAssetMeta === "function") ? getAssetMeta(assetId) : null
+  const cls = meta?.token_class || {}
+  const [tokenId, serial] = String(assetId).split("#")
+
+  // Collection / token name first — the row's label often shows a symbol or an
+  // instance name instead, so this is the part that is genuinely new. Deduped
+  // case-insensitively: HBAR is name "Hedera HBAR", symbol "HBAR" and id "HBAR",
+  // which would otherwise print itself three times.
+  const bits = []
+  const push = v => {
+    v = String(v || "").trim()
+    if(!v) return
+    if(bits.some(b => b.toLowerCase() === v.toLowerCase())) return
+    bits.push(v)
+  }
+  push(cls.name)
+  if(!/^hedera:\/\//i.test(cls.symbol || "")) push(cls.symbol)
+  push(serial ? tokenId + " #" + serial : tokenId)
+  if(cls.type === "NON_FUNGIBLE_UNIQUE") push("NFT")
+  else if(Number(cls.decimals || 0)) push(cls.decimals + "dp")
+
+  const line = document.createElement("div")
+  line.className = "board-playercard-assetmoreline"
+  line.textContent = bits.join(" · ")
+  inner.appendChild(line)
+
+  const actions = document.createElement("div")
+  actions.className = "board-playercard-assetmoreacts"
+  const more = document.createElement("button")
+  more.type = "button"
+  more.className = "board-playercard-jumplink"
+  more.textContent = "Full details ↗"
+  more.title = "Open the asset card"
+  more.onclick = e => {
+    e.stopPropagation()
+    document.getElementById("boardPlayerModal")?.remove()
+    boardAssetDetail(assetId, account, amount)
+  }
+  actions.appendChild(more)
+  inner.appendChild(actions)
+  return wrap
+}
+
+// One tap opens, another closes. Built lazily — a list of thirty assets should not
+// pay for thirty detail panels nobody opened.
+function boardAssetRowExpand(row, assetId, account, amount){
+  const open = row.classList.contains("board-playercard-asset--open")
+  if(!open && !row.querySelector(".board-playercard-assetmore"))
+    row.appendChild(boardAssetMore(assetId, account, amount))
+  row.classList.toggle("board-playercard-asset--open", !open)
+}
+
 function boardSortAssetRows(list){
   const rows = [...list.children]
   rows.sort((a, b) => String(a.dataset.sortName || "").localeCompare(String(b.dataset.sortName || ""), undefined, { sensitivity: "base" }))
   rows.forEach(r => list.appendChild(r))
 }
+
+// The "N shown / Updated" line lives with the account's header, but the toggles are
+// built per row and one function down. A map keyed by account id joins them without
+// threading a callback through every row builder; it is rebuilt with the modal, so
+// nothing survives a close.
+const visStatusByAccount = new Map()
 
 function boardVisToggleFor(account, assetId, row){
   const onTable = !!(account.assets && assetId in account.assets)
@@ -8520,6 +8603,7 @@ function boardVisToggleFor(account, assetId, row){
     } else {
       if(typeof removeAssetFromTable === "function") removeAssetFromTable(account.id, assetId)
     }
+    visStatusByAccount.get(account.id)?.(true)
   })
 }
 
@@ -8566,6 +8650,7 @@ function boardCurateSwipe(row, set){
 function boardPlayerModal(playerId, focusAccountId = null){
   document.getElementById("boardAssetDetail")?.remove()
   document.getElementById("boardPlayerModal")?.remove()
+  visStatusByAccount.clear()
   const player = state?.players?.[playerId]
   const allAccounts = getAccounts().filter(a => a.playerId === playerId)
   if(!player && !allAccounts.length) return
@@ -8602,7 +8687,18 @@ function boardPlayerModal(playerId, focusAccountId = null){
   closeWrap.className = "board-playercard-closewrap"
   const close = document.createElement("div")
   close.className = "asset-modal-close"
-  close.textContent = "✕"
+  // ASSETVIS1 R3 (user 2026-09-05, on the "UX smell" of editing then closing with
+  // the ✕): on YOUR OWN account this modal is a settings panel, not a form — every
+  // toggle already went to the server the moment you clicked it. A ✕ reads as
+  // "discard", which is the one thing it does not do. "Done" says what is true.
+  // Other players' accounts are read-only, so the ✕ stays what it always was.
+  if(self){
+    close.classList.add("asset-modal-close--done")
+    close.textContent = "Done"
+    close.title = "Close — your changes are already saved"
+  } else {
+    close.textContent = "✕"
+  }
   close.onclick = () => modal.remove()
   closeWrap.appendChild(close)
   card.appendChild(closeWrap)
@@ -8708,9 +8804,27 @@ function boardPlayerModal(playerId, focusAccountId = null){
       const head = document.createElement("div")
       head.className = "board-playercard-vishead"
       const cap = document.createElement("span")
-      cap.className = "subtle"
+      cap.className = "subtle board-playercard-viscap"
       cap.textContent = "What others see in your store"
       head.appendChild(cap)
+      // ASSETVIS1 R3 (user 2026-09-05): the only feedback for a change used to be
+      // the row muting, which is why closing the modal felt like it might not have
+      // saved. This line carries the live count and says "Updated" for a beat after
+      // each change — the acknowledgement a settings panel owes you, without
+      // inventing an Apply button that would lie about when the change happens.
+      const status = document.createElement("span")
+      status.className = "board-playercard-visstatus"
+      head.appendChild(status)
+      let statusTimer = null
+      const shownCount = () => [...list.children].filter(r => !r.classList.contains("board-playercard-asset--hidden")).length
+      const paintStatus = (updated) => {
+        const n = shownCount()
+        status.textContent = (updated ? "Updated · " : "") + n + " shown"
+        status.classList.toggle("board-playercard-visstatus--flash", !!updated)
+        if(statusTimer) clearTimeout(statusTimer)
+        if(updated) statusTimer = setTimeout(() => paintStatus(false), 2200)
+      }
+      visStatusByAccount.set(account.id, paintStatus)
       const btns = document.createElement("span")
       btns.className = "board-playercard-visbtns"
       const mk = (text, title, fn) => {
@@ -8722,6 +8836,9 @@ function boardPlayerModal(playerId, focusAccountId = null){
         b.onclick = fn
         btns.appendChild(b)
       }
+      // "show all · none" rather than "show all · show none" — the second "show" was
+      // wrapping the pair onto two lines on a phone (user 2026-09-05), and the shared
+      // verb is already carried by the first.
       mk("show all", "Put every asset this account holds on the table", () => {
         // ONE add with a combined filter, not one per asset: every game_addAccount
         // re-seeds from the mirror server-side, so a per-row loop would fire N mirror
@@ -8731,12 +8848,13 @@ function boardPlayerModal(playerId, focusAccountId = null){
         const ids = off.map(r => r.dataset.assetId).filter(Boolean)
         off.forEach(r => { r.classList.remove("board-playercard-asset--hidden"); r.querySelector(".kvis")?._kvisPaint?.(true) })
         if(typeof addAssetsToTable === "function") addAssetsToTable(account.id, ids)
+        paintStatus(true)
       })
       btns.appendChild(document.createTextNode(" · "))
       // No confirm (user 2026-09-05: "we don't need an alert box to confirm show
       // none, just do it directly"). It is reversible with the show all next to it,
       // and nothing leaves the wallet — a prompt on that is friction, not safety.
-      mk("show none", "Take every asset off the table — your wallet is untouched", () => {
+      mk("none", "Take every asset off the table — your wallet is untouched", () => {
         const on = [...list.children].filter(r => !r.classList.contains("board-playercard-asset--hidden"))
         if(!on.length) return
         on.forEach(r => {
@@ -8744,6 +8862,7 @@ function boardPlayerModal(playerId, focusAccountId = null){
           r.querySelector(".kvis")?._kvisPaint?.(false)
           if(r.dataset.assetId && typeof removeAssetFromTable === "function") removeAssetFromTable(account.id, r.dataset.assetId)
         })
+        paintStatus(true)
       })
       head.appendChild(btns)
       sec.appendChild(head)
@@ -8845,11 +8964,12 @@ function boardPlayerModal(playerId, focusAccountId = null){
         le.title = "Limited edition"
         label.appendChild(le)
       }
-      label.onclick = () => { modal.remove(); boardAssetDetail(assetId, account, amount) }
+      label.onclick = () => boardAssetRowExpand(row, assetId, account, amount)
       row.appendChild(label)
       list.appendChild(row)
     })
     boardSortAssetRows(list)
+    visStatusByAccount.get(account.id)?.(false)   // first count, no "Updated"
     sec.appendChild(list)
 
     // out-of-play: on-chain holdings not brought to the table (async, greyed)
@@ -8889,10 +9009,37 @@ function boardPlayerModal(playerId, focusAccountId = null){
               oimg.onerror = () => oimg.remove()
               r.appendChild(oimg)
             }
-            const sp = document.createElement("span")
+            const sp = document.createElement("button")
+            sp.type = "button"
             sp.className = "board-playercard-assetbtn board-playercard-assetbtn--plain"
             sp.textContent = r.dataset.sortName
+            sp.onclick = () => boardAssetRowExpand(r, assetId, account, amount)
             r.appendChild(sp)
+
+            // ASSETVIS1 R3: enrich the OFF-TABLE ones too. enrichAccountAssets only
+            // walks account.assets, so anything not on the table had no name, no
+            // thumbnail and nothing for the expanded row to show — fine while these
+            // lived in a collapsed "not in play" aside, wrong now they are half of
+            // your own store list. Same call the add-account list makes, so a token
+            // seen once anywhere is instant everywhere after.
+            if(net && typeof enrichAsset === "function" && typeof getAssetMeta === "function" && !getAssetMeta(assetId)){
+              enrichAsset(net, assetId, amount).then(en => {
+                window.assetDisplayCache ||= {}
+                window.assetDisplayCache[assetId] = en.meta
+                sp.textContent = r.dataset.sortName = getAssetDisplay(assetId, amount)
+                const t = (typeof getAssetThumb === "function") ? getAssetThumb(en.meta) : null
+                if(t && !r.querySelector(".board-playercard-thumb")){
+                  const im = document.createElement("img")
+                  im.className = "board-playercard-thumb"
+                  im.src = (typeof getFastThumb === "function") ? getFastThumb(t, im) : t
+                  im.decoding = "async"
+                  im.alt = ""
+                  im.onerror = () => im.remove()
+                  r.insertBefore(im, sp)
+                }
+                boardSortAssetRows(list)
+              }).catch(() => {})
+            }
             // Serial trailer only when the name is not already the id — otherwise an
             // un-enriched NFT prints its id twice in the same row.
             if(String(assetId).includes("#") && !r.dataset.sortName.startsWith(String(assetId).split("#")[0])){
@@ -8905,6 +9052,7 @@ function boardPlayerModal(playerId, focusAccountId = null){
             list.appendChild(r)
           })
           boardSortAssetRows(list)
+          visStatusByAccount.get(account.id)?.(false)
           return
         }
         // COLLAPSED BY DEFAULT (user 2026-08-06): "let's make that collapsible —
