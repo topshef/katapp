@@ -218,6 +218,50 @@ function removeAssetFromTable(accountId, assetId){
   socket.send(JSON.stringify({ type: "game_removeAsset", gameId, accountId, assetId }))
 }
 
+// ── ASSETVIS1 (user 2026-09-05) — the other half of removeAssetFromTable ──────
+// "show/hide means show them to the world in the store… hide would mean don't show
+// them, the other people won't be able to pick them or review them."
+//
+// Hiding was already possible (removeAsset, or 🗑 Remove from table on the asset
+// card) but there was no way BACK, so it read as a one-way delete rather than a
+// visibility control. There is no new server action here and none is needed:
+// addAccount already re-adds a named asset to an account that is in the game —
+// "0.0.x(a,b)" filters the seed, and on an existing account that appends. So show
+// is the existing add path with a one-asset filter, which re-seeds the current
+// on-chain balance from the mirror.
+//
+// Deliberately NOT a client-side "hidden" flag: an asset that is off the table is
+// off it in the game state, so nobody can offer, pick or price it. A flag would
+// leave it live server-side and rely on every other surface to honour the hint.
+//
+// '#' is the display form of an NFT serial; '-' is the wire form the backend maps
+// back (katomiaActions.addAccount). Same convention as katomia-addaccount.js.
+// Several at once — "show all" on your own account. One message, one server-side
+// mirror seed, instead of N of each.
+function addAssetsToTable(accountId, assetIds){
+  const ids = (assetIds || []).filter(Boolean)
+  if(!ids.length) return
+  const label = (state?.accounts?.[accountId]?.label) || String(accountId).split(":")[1] || accountId
+  const filter = ids.map(id => String(id).replace("#", "-")).join(",")
+  connect(() => socket.send(JSON.stringify({
+    type: "game_addAccount",
+    gameId,
+    playerToken: getOrCreatePlayerToken(),
+    label: `${label}(${filter})`
+  })))
+}
+
+function addAssetToTable(accountId, assetId){
+  const label = (state?.accounts?.[accountId]?.label) || String(accountId).split(":")[1] || accountId
+  const filter = String(assetId).replace("#", "-")
+  connect(() => socket.send(JSON.stringify({
+    type: "game_addAccount",
+    gameId,
+    playerToken: getOrCreatePlayerToken(),
+    label: `${label}(${filter})`
+  })))
+}
+
 // PROP-ADDACCT1: the button opens the add-account modal (katomia-addaccount.js);
 // prompt() fallback keeps the game usable if the modal script ever fails to load.
 // Guarded: absent on board.php (BOARD-UI1).
@@ -321,6 +365,42 @@ function scheduleWsReconnect(){
   }, wsReconnectDelay)
 }
 
+// ── WS-KEEPALIVE1 (user 2026-09-05: "it's taken quite a long time for some of the
+// buttons like the add account and the sign button to work… quite a lag") ──────
+//
+// The /diag trail answered it. Their Mac session dropped the game socket every ~126
+// SECONDS, to the tick, all afternoon — ws:error + ws:close with an empty message,
+// then a clean reconnect, then another 126s:
+//
+//   11:10:27  11:12:34  11:14:41  11:16:47  11:18:53  11:21:00
+//
+// Metronomic timing with no user action is an IDLE TIMEOUT somewhere between the
+// browser and the backend, not a fault in either. In a quiet circle nothing crosses
+// the socket for minutes at a time, so the connection looks abandoned and gets culled.
+// The resilience layer above then does its job silently — which is why this never
+// showed up as an error, only as buttons that sometimes "take ages": a click landing
+// in the dead window waits on a fresh connect + game_join before its message moves.
+//
+// The fix is simply to stop being idle. A tiny frame every 45s (comfortably inside
+// the ~126s window) keeps the connection alive. No backend change is needed: the
+// server's message handler ignores any type it doesn't recognise, so this costs one
+// unread frame a minute and nothing else. Paused while the tab is hidden — a
+// backgrounded tab gets throttled anyway and the visibilitychange wake below already
+// covers the return.
+const WS_KEEPALIVE_MS = 45000
+let wsKeepaliveTimer = null
+function stopWsKeepalive(){
+  if(wsKeepaliveTimer){ clearInterval(wsKeepaliveTimer); wsKeepaliveTimer = null }
+}
+function startWsKeepalive(){
+  stopWsKeepalive()
+  wsKeepaliveTimer = setInterval(() => {
+    if(!socket || socket.readyState !== WebSocket.OPEN) return stopWsKeepalive()
+    if(document.visibilityState === "hidden") return
+    try { socket.send(JSON.stringify({ type: "keepalive" })) } catch(e){}
+  }, WS_KEEPALIVE_MS)
+}
+
 // reconnect promptly when the user returns to the tab or the network is restored
 if(!window.__katomiaWsLifecycle){
   window.__katomiaWsLifecycle = true
@@ -376,6 +456,7 @@ function connect(onOpenAction){
   socket.onopen = async () => {
 
     wsReconnectDelay = 1000   // healthy connection — reset backoff
+    startWsKeepalive()
 
 		// PROP-LOCKSIGN1: register the intent public key at join — the playerToken WS
 		// channel is the secure association. In order mode the backend learns the key from
@@ -419,6 +500,7 @@ function connect(onOpenAction){
 
   socket.onclose = () => {
     glog("ws onclose")
+    stopWsKeepalive()
     // WS-SIGNDIAG1 (user 2026-08-03, t-prop): sporadic "signature not picked up"
     // traced to sockets dying silently mid-signing (backend OOM storm that
     // afternoon). Every close is now a kdiag event, and a close DURING an active

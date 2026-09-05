@@ -13,6 +13,62 @@
 // when joining", profile → Preferences); this modal stays as the manual/curated path
 // and for turning the preference's result down to specific assets.
 
+// ── ASSETVIS1: the shared show/hide control ──────────────────────────────────
+// User 2026-09-05, on their own account's assets: "for your own assets, basically
+// you can only show/hide them. It's not about favourites… just come up with
+// something that intuitively looks like, yeah, that's show/hide. With a tooltip
+// as well."
+//
+// So NOT the ⭐/🚫/○ curate cycle other players' rows carry — that one is a private
+// opinion about someone else's goods, three states, and means nothing to anyone but
+// you. This is a two-state fact about YOUR store that everyone else sees, and the
+// user's own reasoning for keeping them apart is worth preserving: "I think what you
+// see should be what others see for your own store, otherwise it's going to get too
+// confusing."
+//
+// An eye, because a slashed eye is the one show/hide idiom nobody has to be taught,
+// and it sits at the LEFT EDGE like a bullet — the same slot the curate toggle uses
+// on other players' rows, so the lists still scan alike. Drawn rather than emoji:
+// ✕ was ruled out for colliding with the modal's own close, and emoji eyes render
+// differently on every platform.
+//
+// Both callers pass an onChange; neither owns the markup, so the control can only
+// ever look and read the same in both places.
+function katomiaVisToggle(on, onChange){
+  const btn = document.createElement("button")
+  btn.type = "button"
+  btn.className = "kvis"
+  const paint = v => {
+    btn.classList.toggle("kvis--off", !v)
+    btn.setAttribute("aria-pressed", String(!!v))
+    btn.setAttribute("aria-label", v ? "Shown in your store" : "Hidden from your store")
+    btn.title = v
+      ? "Shown — everyone in this circle can see and pick this. Click to hide it."
+      : "Hidden — nobody else can see or pick this. Click to show it."
+    btn.innerHTML = v ? KVIS_EYE : KVIS_EYE_OFF
+  }
+  paint(on)
+  // Bulk actions (show all / show none, and the add-account list's all/none) set many
+  // rows at once and must not have to know how this control is drawn — otherwise the
+  // row mutes while the eye still says "shown", which is exactly the disagreement this
+  // toggle exists to remove.
+  btn._kvisPaint = paint
+  btn.onclick = e => {
+    e.stopPropagation()          // the row itself opens the asset card
+    const next = btn.classList.contains("kvis--off")
+    paint(next)
+    onChange(next, paint)        // paint is handed back so a caller can revert on failure
+  }
+  return btn
+}
+const KVIS_EYE = '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">'
+  + '<path d="M10 4.5c-3.6 0-6.6 2.3-8 5.5 1.4 3.2 4.4 5.5 8 5.5s6.6-2.3 8-5.5c-1.4-3.2-4.4-5.5-8-5.5z" fill="none" stroke="currentColor" stroke-width="1.4"/>'
+  + '<circle cx="10" cy="10" r="2.4" fill="currentColor"/></svg>'
+const KVIS_EYE_OFF = '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true">'
+  + '<path d="M10 4.5c-3.6 0-6.6 2.3-8 5.5 1.4 3.2 4.4 5.5 8 5.5s6.6-2.3 8-5.5c-1.4-3.2-4.4-5.5-8-5.5z" fill="none" stroke="currentColor" stroke-width="1.4"/>'
+  + '<circle cx="10" cy="10" r="2.4" fill="currentColor"/>'
+  + '<line x1="3.5" y1="16.5" x2="16.5" y2="3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>'
+
 let addAcctLabel = null      // chosen account label (normalised)
 let addAcctList = []         // [assetId,...] from preview (assetId may be "token#serial")
 let addAcctSel = new Set()   // ticked assetIds
@@ -151,58 +207,122 @@ async function chooseAddAcct(raw, src){
   updateAddAcctJoinCount()
 }
 
-// Chips rendered like the game's asset chips (same .asset base class + hover
-// tooltip attrs); tap toggles ghosted-out = excluded. Labels upgrade in place as
-// the shared enrichment cache fills (symbol for FTs, collection #serial for NFTs)
-// — token id is the instant fallback so the list never waits on the mirror.
-// Thumbnails deliberately NOT yet (user 2026-07-07: keep it simple/fast first).
+// ── ADDACCT-LIST1 (user 2026-09-05) ──────────────────────────────────────────
+// Was a grid of chips you tapped to ghost out. Now the same LIST the player modal
+// uses, for the reason the user gave: "the normal modal we've got has got icons and
+// everything, so it's better, and it's a simple list as well — so it's easier to
+// read, and it's familiar, because it's the same format that clicking on an account
+// does." Same eye toggle at the left edge, same thumbnails, same alphabetical order.
+//
+// The other half of that ask was about WHEN you get to decide: "that all/none should
+// go onto the modal instead… so you can change that setting at any time." Which is
+// exactly what the toggle on your own account rows now gives you — this screen is no
+// longer the only chance to choose, just the first one.
+//
+// Labels upgrade in place as the shared enrichment cache fills (symbol for FTs,
+// collection #serial for NFTs); the token id is the instant fallback so the list
+// never waits on the mirror.
 function renderAddAcctAssets(assets){
   const box = document.getElementById("addAcctAssets")
   box.innerHTML = ""
   if(!addAcctList.length){ box.textContent = "No assets found on this account"; return }
   const net = addAcctNet()
 
-  addAcctList.forEach(id => {
-    const chip = document.createElement("div")
-    chip.className = "asset addacct-chip"
-    chip.dataset.assetId = id
-    chip.title = "Tap to exclude / include"
-    const labelEl = document.createElement("span")
-    labelEl.textContent = (typeof getAssetDisplay === "function") ? getAssetDisplay(id, assets[id]) : id
-    chip.appendChild(labelEl)
-    chip.onclick = () => {
-      const on = !addAcctSel.has(id)
+  // Alphabetical by what the reader actually sees. Ids sort by issue order, which
+  // is meaningless to anyone scanning for a token by name.
+  const display = id => (typeof getAssetDisplay === "function") ? getAssetDisplay(id, assets[id]) : String(id)
+  const sorted = [...addAcctList].sort((a, b) => display(a).localeCompare(display(b), undefined, { sensitivity: "base" }))
+
+  sorted.forEach(id => {
+    const row = document.createElement("div")
+    row.className = "addacct-row"
+    row.dataset.assetId = id
+    row.classList.toggle("addacct-row--off", !addAcctSel.has(id))
+
+    row.appendChild(katomiaVisToggle(addAcctSel.has(id), on => {
       on ? addAcctSel.add(id) : addAcctSel.delete(id)
-      chip.classList.toggle("addacct-ghost", !on)
+      row.classList.toggle("addacct-row--off", !on)
       updateAddAcctJoinCount()
+    }))
+
+    const thumb = (typeof getAssetMeta === "function" && typeof getAssetThumb === "function")
+      ? getAssetThumb(getAssetMeta(id)) : null
+    if(thumb){
+      const img = document.createElement("img")
+      img.className = "addacct-thumb"
+      img.src = (typeof getFastThumb === "function") ? getFastThumb(thumb, img) : thumb
+      img.decoding = "async"
+      img.alt = ""
+      img.onerror = () => img.remove()
+      row.appendChild(img)
     }
-    box.appendChild(chip)
+
+    const labelEl = document.createElement("span")
+    labelEl.className = "addacct-rowname"
+    labelEl.textContent = display(id)
+    row.appendChild(labelEl)
+
+    // NFT serials: two of the same collection are otherwise indistinguishable in a
+    // list (same reasoning as PLAYER-MODAL3 on the player modal's rows). Skipped when
+    // the name IS the id — an un-enriched NFT would otherwise print it twice.
+    if(String(id).includes("#") && !labelEl.textContent.startsWith(String(id).split("#")[0])){
+      const [tok, ser] = String(id).split("#")
+      const idl = document.createElement("span")
+      idl.className = "addacct-rowid"
+      idl.textContent = tok + " #" + ser
+      row.appendChild(idl)
+    }
+
+    // The whole row is the hit target, not just the 16px eye.
+    row.onclick = () => row.querySelector(".kvis")?.click()
+    box.appendChild(row)
 
     // async symbol/name — same cache the game fills, so repeat visits are instant
     if(net && typeof enrichAsset === "function" && typeof getAssetMeta === "function" && !getAssetMeta(id)){
       enrichAsset(net, id, assets[id]).then(e => {
         window.assetDisplayCache ||= {}
         window.assetDisplayCache[id] = e.meta
-        labelEl.textContent = getAssetDisplay(id, assets[id])
-        chip.dataset.assetName = e.meta?.token_class?.name || ""
+        labelEl.textContent = display(id)
+        row.dataset.assetName = e.meta?.token_class?.name || ""
       }).catch(() => {})
     } else if(typeof getAssetMeta === "function" && getAssetMeta(id)){
-      chip.dataset.assetName = getAssetMeta(id)?.token_class?.name || ""
+      row.dataset.assetName = getAssetMeta(id)?.token_class?.name || ""
     }
   })
 }
 
+// ADDACCT-LIST1: the button says what it is about to do, and the number moves as you
+// choose (user: "you can see that button changes the number as you've changed the
+// selection, so you're sure what you're adding into the store").
+//
+// Zero is the one count this screen cannot express: the wire format for a filtered
+// join is "0.0.x(a,b)", and "0.0.x()" is read by the backend as the WILDCARD — an
+// empty filter means everything (katomiaActions.addAccount). So an empty selection
+// would join with the whole wallet, the exact opposite of what it looks like. The
+// button therefore asks for one, rather than quietly doing the reverse; a store you
+// want empty is one asset in and then hidden from the account's own modal.
 function updateAddAcctJoinCount(){
-  document.getElementById("addAcctJoinCount").textContent = addAcctSel.size
+  const n = addAcctSel.size
+  const countEl = document.getElementById("addAcctJoinCount")
+  if(countEl) countEl.textContent = n
   const btn = document.getElementById("addAcctJoin")
-  btn.disabled = !addAcctList.length || !addAcctSel.size
-  // no preview loaded → selected-join is meaningless, all-join still fine
-  btn.classList.toggle("hidden", !addAcctList.length)
+  const lab = document.getElementById("addAcctJoinLabel")
+  if(lab) lab.textContent = !addAcctList.length ? "Add account"
+    : n === 0 ? "Choose at least one asset"
+    : n === 1 ? "Add account with 1 asset"
+    : `Add account with ${n} assets`
+  if(btn) btn.disabled = !!addAcctList.length && n === 0
+  // The preview failed to load → there is nothing to choose from, so the all-assets
+  // fallback is the only honest route in (ADDACCT-ROBUST1 keeps that path alive).
+  document.getElementById("addAcctJoinAll")?.classList.toggle("hidden", !!addAcctList.length)
 }
 
 function addAcctSelectAll(on){
   addAcctSel = on ? new Set(addAcctList) : new Set()
-  document.querySelectorAll("#addAcctAssets .addacct-chip").forEach(c => c.classList.toggle("addacct-ghost", !on))
+  document.querySelectorAll("#addAcctAssets .addacct-row").forEach(r => {
+    r.classList.toggle("addacct-row--off", !on)
+    r.querySelector(".kvis")?._kvisPaint?.(on)
+  })
   updateAddAcctJoinCount()
 }
 
@@ -269,6 +389,7 @@ function addAcctJoinGame(all){
 document.addEventListener("click", e => {
   switch(e.target.id){
     case "addAcctClose": closeAddAccountModal(); break
+    case "addAcctCancel": closeAddAccountModal(); break
     case "addAcctBack":
       document.getElementById("addAcctStepAssets").classList.add("hidden")
       document.getElementById("addAcctActions").classList.add("hidden")

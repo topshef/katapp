@@ -27,9 +27,13 @@
 
 		<div id="addAcctStepAssets" class="hidden">
 			<div class="addacct-chosen"><span id="addAcctChosen" class="addacct-chosen-id"></span> <button id="addAcctBack" type="button" class="addacct-link">change</button></div>
+			<!-- ADDACCT-LIST1 (user 2026-09-05): "assets to bring in" said what the
+			     screen did to the machine; this says what it does to other players.
+			     all/none stay here AND are mirrored on the account's own modal, so the
+			     choice is never a one-shot at join time. -->
 			<div class="addacct-assets-head">
-				<label>Assets to bring in</label>
-				<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">none</button></span>
+				<label>What others will see in your store</label>
+				<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">show all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">show none</button></span>
 			</div>
 			<div id="addAcctAssets" class="addacct-assets"></div>
 			<p id="addAcctHint" class="subtle addacct-hint hidden">🔷 Not bound yet — you can join anyway; bind this account in <button id="addAcctProfileLink" type="button" class="addacct-link">Profile → Wallet binding</button> to carry reputation.</p>
@@ -37,9 +41,15 @@
 
 		<div id="addAcctStatus" class="subtle addacct-status"></div>
 
+		<!-- ADDACCT-LIST1: one primary button whose LABEL carries the count, so the
+		     thing you are about to publish is stated on the control that does it.
+		     "Add with all assets" is no longer a peer choice — show all is one tap
+		     above — and survives only as the fallback when the asset preview failed
+		     to load and there is nothing to tick (shown/hidden by updateAddAcctJoinCount). -->
 		<div id="addAcctActions" class="addacct-actions hidden">
-			<button id="addAcctJoinAll" type="button">Join with all assets</button>
-			<button id="addAcctJoin" type="button">Join with selected (<span id="addAcctJoinCount">0</span>)</button>
+			<button id="addAcctCancel" type="button" class="addacct-secondary">Cancel</button>
+			<button id="addAcctJoinAll" type="button" class="hidden">Add with all assets</button>
+			<button id="addAcctJoin" type="button" class="addacct-primary"><span id="addAcctJoinLabel">Add account</span><span id="addAcctJoinCount" hidden>0</span></button>
 		</div>
 	</div>
 </div>

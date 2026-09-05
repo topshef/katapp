@@ -2360,3 +2360,33 @@ body.feat-tickets .tkt-tab{
 }
 body.feat-tickets .tkt-tab.on{ background:#c9b96a; color:#2b2200; font-weight:600; }
 body.feat-tickets .tkt-act{ margin-top:6px; }
+
+/* ── ASSETVIS1: your own store, in the player modal ─────────────────────────
+   A hidden asset is still YOURS and still listed — it is just not on the table.
+   So it reads as switched off, not as absent: muted, never removed, and always
+   one click from coming back. (The --offtable rule above is the other player's
+   case: what they hold and have not brought, which you cannot act on.) */
+#boardPlayerModal .board-playercard-asset--hidden{
+  opacity:.55;
+}
+#boardPlayerModal .board-playercard-asset--hidden .board-playercard-assetbtn{
+  text-decoration:line-through;
+  text-decoration-color:rgba(0,0,0,.28);
+}
+/* A hidden row is the SAME row, switched off — so it takes the in-play row's own
+   metrics (.board-playercard-assetbtn above) rather than inventing its own. The two
+   kinds now interleave alphabetically in one list; anything that made them look like
+   two lists would undo the point of merging them. Non-interactive because there is no
+   asset card to open for something that is not on the table. */
+#boardPlayerModal .board-playercard-assetbtn--plain{
+  flex:1; text-align:left; border:none; background:transparent;
+  border-radius:8px; padding:5px 8px; font-size:13px; color:inherit;
+  display:flex; align-items:center; gap:8px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  cursor:default;
+}
+.board-playercard-vishead{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:8px; margin:6px 0 2px; font-size:12px;
+}
+.board-playercard-visbtns{ flex:0 0 auto; white-space:nowrap; }

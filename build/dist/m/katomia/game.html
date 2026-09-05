@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-	<link rel="stylesheet" href="katomia.css?v=1788596726" />
+	<link rel="stylesheet" href="katomia.css?v=1788607786" />
 <link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1788180897">	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <title>katomia</title>
 
@@ -875,9 +875,13 @@ addEventListener("load", () => setTimeout(() => {
 
 		<div id="addAcctStepAssets" class="hidden">
 			<div class="addacct-chosen"><span id="addAcctChosen" class="addacct-chosen-id"></span> <button id="addAcctBack" type="button" class="addacct-link">change</button></div>
+			<!-- ADDACCT-LIST1 (user 2026-09-05): "assets to bring in" said what the
+			     screen did to the machine; this says what it does to other players.
+			     all/none stay here AND are mirrored on the account's own modal, so the
+			     choice is never a one-shot at join time. -->
 			<div class="addacct-assets-head">
-				<label>Assets to bring in</label>
-				<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">none</button></span>
+				<label>What others will see in your store</label>
+				<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">show all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">show none</button></span>
 			</div>
 			<div id="addAcctAssets" class="addacct-assets"></div>
 			<p id="addAcctHint" class="subtle addacct-hint hidden">🔷 Not bound yet — you can join anyway; bind this account in <button id="addAcctProfileLink" type="button" class="addacct-link">Profile → Wallet binding</button> to carry reputation.</p>
@@ -885,9 +889,15 @@ addEventListener("load", () => setTimeout(() => {
 
 		<div id="addAcctStatus" class="subtle addacct-status"></div>
 
+		<!-- ADDACCT-LIST1: one primary button whose LABEL carries the count, so the
+		     thing you are about to publish is stated on the control that does it.
+		     "Add with all assets" is no longer a peer choice — show all is one tap
+		     above — and survives only as the fallback when the asset preview failed
+		     to load and there is nothing to tick (shown/hidden by updateAddAcctJoinCount). -->
 		<div id="addAcctActions" class="addacct-actions hidden">
-			<button id="addAcctJoinAll" type="button">Join with all assets</button>
-			<button id="addAcctJoin" type="button">Join with selected (<span id="addAcctJoinCount">0</span>)</button>
+			<button id="addAcctCancel" type="button" class="addacct-secondary">Cancel</button>
+			<button id="addAcctJoinAll" type="button" class="hidden">Add with all assets</button>
+			<button id="addAcctJoin" type="button" class="addacct-primary"><span id="addAcctJoinLabel">Add account</span><span id="addAcctJoinCount" hidden>0</span></button>
 		</div>
 	</div>
 </div>
@@ -1060,7 +1070,7 @@ addEventListener("load", () => setTimeout(() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "kpay-api-alias.tayloa17.workers.dev/hapi"
   }
-  window.KFLOW_COMMIT = "f5744ce"
+  window.KFLOW_COMMIT = "6302c13"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — loads first so every later script can call window.kflow -->
 <script src="kflow.js?v=1788180897"></script>
@@ -1090,7 +1100,7 @@ addEventListener("load", () => setTimeout(() => {
 <script src="kemoji.js?v=1788180897"></script>
 <script src="katomia-helpers.js?v=1788180897"></script>
 <script src="katomia-enrich.js?v=1788180897"></script>
-<script src="katomia-network.js?v=1788180897"></script>
+<script src="katomia-network.js?v=1788607768"></script>
 <script src="katomia-modals.js?v=1788180897"></script>
 <script src="katomia-render.js?v=1788520353"></script>
 <!-- TXSTATUS-CONSOLIDATE1 S7: the tx/wallet status controller, so order-mode
@@ -1109,7 +1119,7 @@ addEventListener("load", () => setTimeout(() => {
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
 <script src="katomia-profile.js?v=1788522950"></script>
 <script src="katomia-auth.js?v=1788180897"></script>
-<script src="katomia-addaccount.js?v=1788180897"></script>
+<script src="katomia-addaccount.js?v=1788608321"></script>
 
 <!-- KAT-FEEDBACK1 dogfooding: long-press anywhere on the game page (2s) opens
      a "Send Feedback" modal. Signs with the intent keypair above if present. -->
