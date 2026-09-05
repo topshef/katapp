@@ -295,12 +295,12 @@ function renderAddAcctAssets(assets){
 // choose (user: "you can see that button changes the number as you've changed the
 // selection, so you're sure what you're adding into the store").
 //
-// Zero is the one count this screen cannot express: the wire format for a filtered
-// join is "0.0.x(a,b)", and "0.0.x()" is read by the backend as the WILDCARD — an
-// empty filter means everything (katomiaActions.addAccount). So an empty selection
-// would join with the whole wallet, the exact opposite of what it looks like. The
-// button therefore asks for one, rather than quietly doing the reverse; a store you
-// want empty is one asset in and then hidden from the account's own modal.
+// ADDACCT-NONE1 (user 2026-09-05): zero is a real answer — "you can enter the game
+// showing no assets. Part of a deal might be that you're RECEIVING some assets into
+// that account." It just could not be SAID on the wire: "0.0.x()" parses as the
+// wildcard, so an empty selection would have joined with the whole wallet. The
+// backend now takes an explicit "!none" sentinel (katomiaActions.addAccount), so the
+// button offers it plainly instead of refusing.
 function updateAddAcctJoinCount(){
   const n = addAcctSel.size
   const countEl = document.getElementById("addAcctJoinCount")
@@ -308,10 +308,10 @@ function updateAddAcctJoinCount(){
   const btn = document.getElementById("addAcctJoin")
   const lab = document.getElementById("addAcctJoinLabel")
   if(lab) lab.textContent = !addAcctList.length ? "Add account"
-    : n === 0 ? "Choose at least one asset"
+    : n === 0 ? "Add account with no assets"
     : n === 1 ? "Add account with 1 asset"
     : `Add account with ${n} assets`
-  if(btn) btn.disabled = !!addAcctList.length && n === 0
+  if(btn) btn.disabled = false
   // The preview failed to load → there is nothing to choose from, so the all-assets
   // fallback is the only honest route in (ADDACCT-ROBUST1 keeps that path alive).
   document.getElementById("addAcctJoinAll")?.classList.toggle("hidden", !!addAcctList.length)
@@ -346,9 +346,11 @@ function addAcctJoinGame(all){
   if(!addAcctLabel) return
   let label = addAcctLabel
   if(!all){
-    if(!addAcctSel.size) return
+    // ADDACCT-NONE1: an empty selection is joined EXPLICITLY as "!none" — see the
+    // note on updateAddAcctJoinCount for why it cannot just be "()".
+    if(!addAcctSel.size && addAcctList.length) label += "(!none)"
     // '#' is display; '-' is the wire form the backend maps back to '#'
-    if(addAcctSel.size < addAcctList.length)
+    else if(addAcctSel.size && addAcctSel.size < addAcctList.length)
       label += "(" + [...addAcctSel].map(id => id.replace("#", "-")).join(",") + ")"
   }
   addAcctStatus(`Adding ${addAcctLabel}…`)
@@ -386,8 +388,18 @@ function addAcctJoinGame(all){
   })
 }
 
+// ADDACCT-CLICKTARGET1 (user 2026-09-05: "on my MacBook I'm not able to add the
+// assets — when I click the add button it doesn't work… I was able to do it from
+// my mobile"). Self-inflicted, one commit earlier: the primary button gained a
+// <span id="addAcctJoinLabel"> to carry the live count, and this dispatcher read a
+// BARE e.target.id — so a click landing on the label text reported the span's id,
+// matched no case, and did nothing. A tap on a phone often lands on the button's
+// padding instead of the glyphs, which is exactly why it worked there and not with
+// a mouse. Resolve to the enclosing button first; #addAcctClose is a div and still
+// falls through to e.target.
 document.addEventListener("click", e => {
-  switch(e.target.id){
+  const targetId = (e.target.closest?.("button")?.id) || e.target.id
+  switch(targetId){
     case "addAcctClose": closeAddAccountModal(); break
     case "addAcctCancel": closeAddAccountModal(); break
     case "addAcctBack":

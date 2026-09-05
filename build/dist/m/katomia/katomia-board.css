@@ -2062,12 +2062,20 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
    hit area and a chevron; everything else here is the filtered view's furniture.
    Deliberately quiet — per BOARD-CURATE1's "fewer lines and borders" steer, the
    only strong shape on the card is the destructive button. */
+/* ASSETVIS1 R2 (user 2026-09-05): "make that link only as wide as it needs to be,
+   left side, so the arrow thing doesn't clash close with the show none fat finger."
+   Both header variants used to be a FULL-WIDTH flex row with the marker pushed to
+   the far right by margin-left:auto — which parked a live link directly above
+   "show none" and made a near miss open HashScan (or re-filter the modal) instead.
+   Content width, marker straight after the id, and the right-hand half of that line
+   is now dead space. */
 .board-playercard-acctid--tappable{
-  display: flex; align-items: center; gap: 6px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  width: fit-content; max-width: 100%;
   margin: 0 -8px 6px; padding: 5px 8px; border-radius: 7px;
 }
 .board-playercard-acctid--tappable:hover{ background: #eef4fb; }
-.board-playercard-acctchev{ margin-left: auto; color: #a1a1aa; font-size: 13px; }
+.board-playercard-acctchev{ color: #a1a1aa; font-size: 13px; }
 
 /* "a fairly muted link to show all" — a link-shaped button, not a chip */
 .board-playercard-showall,
@@ -2110,9 +2118,12 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
 }
 
 /* In the filtered view the id links out to the explorer instead of filtering */
-.board-playercard-acctid--link{ display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.board-playercard-acctid--link{
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  width: fit-content; max-width: 100%;
+}
 .board-playercard-acctid--link:hover{ color: #3f6ea3; }
-.board-playercard-acctext{ margin-left: auto; color: #a1a1aa; font-size: 11px; }
+.board-playercard-acctext{ color: #a1a1aa; font-size: 11px; }
 
 /* xproof: the attested DOMAIN leads, the self-chosen NAME follows in quieter
    type. Never the name alone — see boardXProofRow(). */
@@ -2390,3 +2401,12 @@ body.feat-tickets .tkt-act{ margin-top:6px; }
   gap:8px; margin:6px 0 2px; font-size:12px;
 }
 .board-playercard-visbtns{ flex:0 0 auto; white-space:nowrap; }
+
+/* BOARD-CURATE1 R4: the private-view legend on ANOTHER player's account. Quiet by
+   design — it answers a question rather than making a claim, so it must not compete
+   with the rows it explains. It sits where the own-account "what others see" line
+   sits, so the two accounts read as the same layout with different rules. */
+.board-playercard-curatenote{
+  font-size: 11px; line-height: 1.45; color: #8a8f98;
+  margin: 4px 0 6px; max-width: 46ch;
+}

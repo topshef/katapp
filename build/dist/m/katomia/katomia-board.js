@@ -8688,6 +8688,22 @@ function boardPlayerModal(playerId, focusAccountId = null){
     // screen, so what you see is exactly what they do.
     const list = document.createElement("div")
     list.className = "board-playercard-assets"
+    // BOARD-CURATE1 R4 (user 2026-09-05): "add a muted note or legend to make clear
+    // this is just your view, and does not affect that player's store display for
+    // other users… that info is also NOT passed on to anyone."
+    //
+    // Correct, and worth saying on the screen rather than only in the tooltips: the
+    // marks live in localStorage under katomiaCurate.<gameId>, are read by three
+    // render paths in this file, and are never sent over the socket or fetched. The
+    // toggle mutes a chip on YOUR board and nothing else. Two controls that sit in
+    // the same slot and look alike now say plainly which one other people can see.
+    if(!self){
+      const note = document.createElement("div")
+      note.className = "subtle board-playercard-curatenote"
+      const who = (player?.name && player.name !== "anon") ? player.name : "this player"
+      note.textContent = "⭐ / 🚫 are your view only — kept in this browser, never shared, and they don't change what " + who + " shows anyone else."
+      sec.appendChild(note)
+    }
     if(self){
       const head = document.createElement("div")
       head.className = "board-playercard-vishead"
@@ -8717,10 +8733,12 @@ function boardPlayerModal(playerId, focusAccountId = null){
         if(typeof addAssetsToTable === "function") addAssetsToTable(account.id, ids)
       })
       btns.appendChild(document.createTextNode(" · "))
+      // No confirm (user 2026-09-05: "we don't need an alert box to confirm show
+      // none, just do it directly"). It is reversible with the show all next to it,
+      // and nothing leaves the wallet — a prompt on that is friction, not safety.
       mk("show none", "Take every asset off the table — your wallet is untouched", () => {
         const on = [...list.children].filter(r => !r.classList.contains("board-playercard-asset--hidden"))
         if(!on.length) return
-        if(!confirm(`Hide all ${on.length} asset${on.length === 1 ? "" : "s"} from your store?\n\nOthers won't see or be able to pick them. Your wallet is untouched, and you can show them again from here.`)) return
         on.forEach(r => {
           r.classList.add("board-playercard-asset--hidden")
           r.querySelector(".kvis")?._kvisPaint?.(false)
