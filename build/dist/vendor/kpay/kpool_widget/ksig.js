@@ -65,6 +65,97 @@ async function sha4(text) {
 // load regardless of the host page's path or any <base href> — the same fix that
 // made the QR *display* reliable when it was brought in-house.
 
+// ── QR sizing ───────────────────────────────────────────────────────────────
+// davidshimjs draws each module by rounding to device pixels, so a size that is
+// not an exact multiple of the module count gives modules of uneven width. That
+// softens the edges and is what a phone camera struggles with most. We therefore
+// render once to learn the module count, then re-render at moduleCount * an
+// integer scale so every module is a whole number of pixels.
+//
+// The library also emits no quiet zone; the spec wants 4 modules of white all
+// round, which we add as padding in .kpsign-qr.
+//
+// Error correction is L rather than M deliberately: a ~450-char transaction at M
+// needs an 85x85 symbol, at L only 73x73. On a screen there is no print damage
+// or glare for the extra redundancy to protect against — the binding constraint
+// is camera resolution, and fewer, larger modules win.
+const QR_QUIET_MODULES = 4
+
+function buildQR(el, text, sizePx) {
+	el.innerHTML = ''
+	return new _QRCode(el, {
+		text,
+		width: sizePx,
+		height: sizePx,
+		colorDark: '#000000',
+		colorLight: '#ffffff',
+		correctLevel: _QRCode.CorrectLevel.L
+	})
+}
+
+function moduleCountOf(qrObj) {
+	// davidshimjs keeps the model on _oQRCode once makeCode() has run
+	const n = qrObj?._oQRCode?.getModuleCount?.()
+	return (typeof n === 'number' && n > 0) ? n : 0
+}
+
+// Render `text` into `el` as large as the viewport sensibly allows, with whole-pixel
+// modules. Returns { modules, scale, px } for diagnostics.
+function drawQR(el, text, opts = {}) {
+	const { maxPx = 560, reservePx = 260, minScale = 2 } = opts
+
+	// pass 1 — any size will do, we only want the module count
+	let n = moduleCountOf(buildQR(el, text, 200))
+	if (!n) return { modules: 0, scale: 0, px: 200 }   // fall back to what pass 1 drew
+
+	const budget = Math.min(
+		maxPx,
+		Math.max(240, window.innerWidth - 48),
+		Math.max(240, window.innerHeight - reservePx)
+	)
+	const scale = Math.max(minScale, Math.floor(budget / n))
+	const px = n * scale
+
+	// pass 2 — exact multiple, so no module straddles a pixel boundary
+	buildQR(el, text, px)
+	el.style.setProperty('--kpsign-quiet', (QR_QUIET_MODULES * scale) + 'px')
+	return { modules: n, scale, px }
+}
+
+// Full-screen QR. Sized to the whole viewport so it can be scanned from a
+// comfortable distance, wherever the modal happens to sit on the page.
+function openQRFullscreen(text, checksum) {
+	const ov = document.createElement('div')
+	ov.className = 'kpsign-qr-full'
+	ov.innerHTML = '<button type="button" class="kpsign-qr-full-x" aria-label="Close">&times;</button>'
+
+	const box = document.createElement('div')
+	box.className = 'kpsign-qr'
+	ov.appendChild(box)
+
+	const cap = document.createElement('div')
+	cap.className = 'kpsign-qr-full-cap'
+	cap.textContent = checksum ? `checksum ${checksum} · tap anywhere to close` : 'tap anywhere to close'
+	ov.appendChild(cap)
+
+	document.body.appendChild(ov)
+	document.body.style.overflow = 'hidden'
+
+	const close = () => {
+		ov.remove()
+		document.body.style.overflow = ''
+		window.removeEventListener('resize', redraw)
+		document.removeEventListener('keydown', onKey)
+	}
+	const onKey = (e) => { if (e.key === 'Escape') close() }
+	const redraw = () => drawQR(box, text, { maxPx: 1400, reservePx: 120, minScale: 3 })
+
+	redraw()
+	ov.addEventListener('click', close)
+	document.addEventListener('keydown', onKey)
+	window.addEventListener('resize', redraw)
+}
+
 // Module-local ref to the davidshimjs QRCode (the one with CorrectLevel).
 // We capture it privately so that if the page already has a different QRCode
 // library loaded (e.g. the soldair/npm build used by katomia-profile.js which
@@ -169,18 +260,20 @@ export async function renderKsig(container, {
 		qr.className = 'kpsign-qr'
 		container.appendChild(qr)
 
-		new _QRCode(qr, {
-			text: b64,
-			width: 200,
-			height: 200,
-			colorDark: '#000000',
-			colorLight: '#ffffff',
-			correctLevel: _QRCode.CorrectLevel.M
-		})
+		const shown = drawQR(qr, b64)
+		kdiag('ksig:qr-size', shown)
+
+		// Tap/click the QR to blow it up full-screen. On a laptop the modal sits
+		// low on the screen and you cannot get a phone close enough without
+		// fouling the keyboard — and moving closer just goes below the camera's
+		// minimum focus distance and blurs. A big QR is scannable from further
+		// back, which fixes both.
+		qr.title = 'Tap to enlarge for scanning'
+		qr.addEventListener('click', () => openQRFullscreen(b64, checksum))
 
 		const cap = document.createElement('div')
 		cap.className = 'kpsign-qr-cap'
-		cap.textContent = `Scan with the KSIG app · checksum ${checksum}`
+		cap.textContent = `Scan with the KSIG app · checksum ${checksum} · tap the QR to enlarge`
 		container.appendChild(cap)
 
 		// ── scan-back UI ────────────────────────────────────────────────────
@@ -193,6 +286,11 @@ export async function renderKsig(container, {
 		const status = document.createElement('div')
 		status.className = 'kpsign-scan-status'
 		container.appendChild(status)
+
+		// blank space so the QR can be scrolled up away from the screen edge
+		const tail = document.createElement('div')
+		tail.className = 'kpsign-tail'
+		container.appendChild(tail)
 
     scanBtn.addEventListener('click', () =>
 			startScanBack({ network, txid, pch, bodyBytesHex, readUrl, saveUrl, submitSigUrl, onSigned, statusEl: status, btnEl: scanBtn })
@@ -394,10 +492,31 @@ function injectKsigCSS() {
 	cssDone = true
 	const s = document.createElement('style')
 	s.textContent = `
-		.kpsign-qr { display:flex; justify-content:center; padding:8px; }
-		/* override any theme border-radius so the QR finder squares aren't clipped */
-		.kpsign-qr img, .kpsign-qr canvas, .kpsign-qr table, .kpsign-qr td { display:block; border-radius:0 !important; }
+		/* The white padding IS the quiet zone — the spec wants 4 modules all round
+		   and davidshimjs draws none. --kpsign-quiet is set by drawQR() to exactly
+		   4 modules at the current scale. */
+		.kpsign-qr { display:flex; justify-content:center; margin:0 auto; width:max-content;
+			background:#fff; padding:var(--kpsign-quiet, 16px); cursor:zoom-in; }
+		/* override any theme border-radius so the QR finder squares aren't clipped,
+		   and never let a browser smooth the modules when scaling */
+		.kpsign-qr img, .kpsign-qr canvas, .kpsign-qr table, .kpsign-qr td {
+			display:block; border-radius:0 !important;
+			image-rendering:pixelated; image-rendering:crisp-edges; }
 		.kpsign-qr-cap { text-align:center; font:12px ui-monospace,Menlo,Consolas,monospace; color:#888; margin-top:6px; }
+
+		/* Scroll room. On a laptop the modal sits low and the QR ends up near the
+		   bottom bezel, where a phone can't reach without fouling the keyboard.
+		   This lets the QR be scrolled up to a comfortable height. */
+		.kpsign-tail { height:55vh; }
+
+		/* Full-screen QR — the reliable way to scan from a sensible distance. */
+		.kpsign-qr-full { position:fixed; inset:0; z-index:2147483000; background:#fff;
+			display:flex; flex-direction:column; align-items:center; justify-content:center;
+			gap:14px; cursor:zoom-out; }
+		.kpsign-qr-full .kpsign-qr { cursor:zoom-out; padding:var(--kpsign-quiet, 24px); }
+		.kpsign-qr-full-cap { font:13px ui-monospace,Menlo,Consolas,monospace; color:#666; }
+		.kpsign-qr-full-x { position:absolute; top:12px; right:16px; border:0; background:transparent;
+			font-size:34px; line-height:1; color:#666; cursor:pointer; padding:4px 10px; }
 
 		.kpsign-scan-btn { display:block; margin:12px auto 0; padding:8px 14px; cursor:pointer;
 			font:13px/1.2 ui-monospace,Menlo,Consolas,monospace; color:#084298;
