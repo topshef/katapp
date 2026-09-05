@@ -34,6 +34,14 @@ zz*
 # BOARD-ARRANGE1 (2026-07-17): harness move scripts (scripted demo/replay
 # inputs) are authored test content — same source-of-truth rationale.
 !/public_html/m/katomia/qa/harness/moves/*.json
+# KWC-SNAPMETA1 (2026-09-05): the WalletConnect snapshot's build.json/release.json are
+# part of the shipped bundle — build-static.sh refuses to build without them, and the
+# katui `fresh` guard compares them. The blanket *.json rule above swallowed both, so
+# build/dist's pair were force-added at some point and build/dist-gcp's never were:
+# every `fresh` run since has reported dist-gcp STALE over two files the build itself
+# produces. Same source-of-truth rationale as the rules above — track them.
+!/build/dist/vendor/walletconnect/snapshots/**/*.json
+!/build/dist-gcp/vendor/walletconnect/snapshots/**/*.json
 # 2026-08-08: the test-index viewer. Caught by the blanket `test*` rule above
 # (meant for scratch files), which would have silently left the page untracked
 # and un-deployable — the same class of miss as the unpublished kwc snapshot
