@@ -879,6 +879,10 @@ async function renderTransactions(){
 
   if(token !== _txRenderToken) return   // a newer render superseded this one
 
+  // ORDER-TRAIL1: this is the only place holding the full tx union (stored history +
+  // live pending), so it is where a departed order of mine learns that it settled.
+  txs.forEach(noteTrailTx)
+
   const hideExpired =
     document.querySelector("#hideExpiredTx")
       ?.checked
@@ -904,9 +908,16 @@ async function renderTransactions(){
 
   // Filter first, then cap to the most-recent TX_LIST_MAX (txs is already sorted
   // newest-first), so the cap counts visible rows rather than pre-filter records.
+  // ORDER-YOUTAB1: on the You tab the transactions list is your side of the market
+  // too — otherwise "your activity" would still be showing everyone's prints.
+  const mineOnlyTx = isMobileTabs() && document.body.dataset.ktab === "mine"
+
   const visible = txs.filter(tx => {
 
     if(hideExpired && isTxExpired(tx))
+      return false
+
+    if(mineOnlyTx && !isMyTx(tx))
       return false
 
     const pair = getTxPair(tx)
@@ -2107,7 +2118,7 @@ function renderOrderMarketSummary(){
 
 
       const myOnly = document.getElementById("showMyOrdersOnly")?.checked
-      let inPair = 0, shown = 0, mineTotal = 0
+      let inPair = 0, shown = 0, mineTotal = 0, trailShown = 0
 
       orders.forEach(orderRec => {
 
@@ -2132,22 +2143,6 @@ function renderOrderMarketSummary(){
         listEl.appendChild(createOrderRow(orderRec))
       })
 
-      // ORDER-FILTERS1: say out loud what the filters left on screen. A book that turns
-      // over every few seconds gives no other way to tell a working filter from a broken
-      // one — which is exactly how "only mine doesn't do anything" was read.
-      const nEl = document.getElementById("myOrdersCount")
-      if(nEl) nEl.textContent = mineTotal ? `(${mineTotal})` : ""
-      const cEl = document.getElementById("orderFilterCount")
-      if(cEl){
-        const filters = [myOnly && "mine", pendingOnly && "pending"].filter(Boolean)
-        cEl.textContent = filters.length
-          ? `showing ${shown} of ${inPair} — filtered by ${filters.join(" + ")}`
-          : `showing ${shown} order${shown === 1 ? "" : "s"}`
-        cEl.title = mineTotal
-          ? `${mineTotal} of these ${mineTotal === 1 ? "is" : "are"} yours`
-          : "none of these are yours"
-      }
-
       // Ghost rows. An order can be purged (expiry / IOC / FOK) while a fill for
       // it is still pending on kpool, so it disappears from the live list before
       // its transaction settles — losing the context behind that pending tx. Each
@@ -2160,6 +2155,29 @@ function renderOrderMarketSummary(){
       const liveOrderIds = new Set(orders.map(o => String(o.orderId)))
       const ghostSeen = new Set()
 
+      // ORDER-TRAIL1 (user 2026-09-05: "I signed it and then it seemed to kind of
+      // disappear"). A filled order is PURGED from the book, and the ghost above only
+      // survives while a pending tx still references it — so the moment the settlement
+      // confirms, the last trace of your own order leaves the screen and the only thing
+      // left is a transaction row that never says which order it came from. Keep your
+      // own orders on screen for a few minutes after they leave the book, read-only,
+      // carrying their final state. Memory only: it self-heals on reload and never
+      // invents an order the backend did not send us.
+      orders.forEach(o => {
+        if(o.playerId === currentPlayerId) rememberMyOrder(o)
+      })
+      ;(state?.tx?.pending || []).forEach(tx => {
+        const src = tx?.source?.orders || {}
+        Object.keys(src).forEach(id => {
+          const rec = _myOrderTrail.get(String(id))
+          if(rec) rec.txkey = getTxKey(tx)
+        })
+      })
+
+      // The Book tab is the market itself; your own departed orders belong under You
+      // (and on desktop, where there is one list, they simply stay in it).
+      const hideTrail = isMobileTabs() && document.body.dataset.ktab === "book"
+
       ;(state?.tx?.pending || []).forEach(tx => {
         const srcOrders = tx?.source?.orders || {}
 
@@ -2167,6 +2185,13 @@ function renderOrderMarketSummary(){
           const id = String(orderId)
 
           if(liveOrderIds.has(id) || ghostSeen.has(id))
+            return
+
+          // ORDER-TRAIL1: one of MY orders is rendered by the trail pass below
+          // instead — same order, but carrying my identity, the fill status we
+          // snapshotted while it was live, and the link to its transaction. On the
+          // Book tab the trail pass is off, so the plain ghost still stands in.
+          if(!hideTrail && _myOrderTrail.has(id))
             return
 
           const order = srcOrders[id]
@@ -2181,6 +2206,41 @@ function renderOrderMarketSummary(){
           listEl.appendChild(createOrderRow({ orderId: id, order, playerId: null, ghost: true }))
         })
       })
+
+      // ORDER-TRAIL1: and then your own recently-departed orders, newest first, unless
+      // they are already on screen as live rows or as a pending-tx ghost.
+      for(const rec of hideTrail ? [] : myOrderTrail()){
+        const id = String(rec.orderId)
+        if(liveOrderIds.has(id) || ghostSeen.has(id)) continue
+        // "Only pending" means in flight: a gone order qualifies only while its
+        // transaction is still unsettled.
+        if(pendingOnly && !(rec.txkey && !rec.txSettled)) continue
+        const pair = enrichOrder(rec.order)?.market?.pair
+        if(selectedPair && pair != selectedPair) continue
+        ghostSeen.add(id)
+        trailShown++
+        listEl.appendChild(createOrderRow({ orderId: id, order: rec.order, playerId: currentPlayerId, gone: rec }))
+      }
+
+      // ORDER-FILTERS1: say out loud what the filters left on screen. A book that turns
+      // over every few seconds gives no other way to tell a working filter from a broken
+      // one — which is exactly how "only mine doesn't do anything" was read. Written
+      // AFTER the ghost/trail passes so the number matches the rows actually on screen
+      // (it used to read "showing 0" with your own just-departed order sitting there).
+      const nEl = document.getElementById("myOrdersCount")
+      if(nEl) nEl.textContent = mineTotal ? `(${mineTotal})` : ""
+      const cEl = document.getElementById("orderFilterCount")
+      if(cEl){
+        const filters = [myOnly && "mine", pendingOnly && "pending"].filter(Boolean)
+        const base = filters.length
+          ? `showing ${shown} of ${inPair} — filtered by ${filters.join(" + ")}`
+          : `showing ${shown} order${shown === 1 ? "" : "s"}`
+        cEl.textContent = base + (trailShown ? ` · ${trailShown} just gone` : "")
+        cEl.title = mineTotal
+          ? `${mineTotal} of these ${mineTotal === 1 ? "is" : "are"} yours`
+          : "none of these are yours"
+      }
+
 
     }
     // TODO:
@@ -2658,7 +2718,110 @@ function makeTxAuthBadge(txAuth){
   return badge
 }
 
-function createOrderRow({ orderId, order, playerId, ghost = false }){
+// ── ORDER-TRAIL1 ─────────────────────────────────────────────────────────────
+// User, 2026-09-05: "recording my own test trying to raise an order I found it
+// difficult to see what happened to it — I signed it and then it seemed to kind of
+// disappear."
+//
+// It genuinely did. The backend PURGES a filled order from the book, so it leaves
+// getAllOrders() the moment it trades. The ghost mechanism above only re-spawns an
+// order while a PENDING tx still references it — so once the settlement confirms, the
+// order is gone from the screen entirely and all that is left is a transaction row
+// that never says which order it came from. From the trader's seat: sign, blink, gone.
+//
+// So keep YOUR OWN orders on screen for a few minutes after they leave the book, as
+// read-only "gone" rows carrying the last state we could prove, plus a link to the
+// transaction they became. Memory only (no localStorage): it self-heals on reload,
+// and it can never invent an order the backend did not send us — every record is a
+// snapshot of something we rendered live.
+const TRAIL_TTL_MS = 6 * 60 * 1000
+const _myOrderTrail = new Map()
+
+function rememberMyOrder(rec){
+  const id  = String(rec.orderId)
+  const cur = _myOrderTrail.get(id) || { orderId: id, firstSeen: Date.now() }
+  cur.order    = rec.order
+  cur.lastSeen = Date.now()
+  // Snapshot the fill status WHILE the order is still live: getOrderFillStatus reads
+  // order.settled off getAllOrders(), which stops answering the moment it is purged.
+  cur.status   = getOrderFillStatus(id)
+  _myOrderTrail.set(id, cur)
+}
+
+function myOrderTrail(){
+  const now = Date.now()
+  const out = []
+  for(const [id, rec] of _myOrderTrail){
+    if(now - rec.lastSeen > TRAIL_TTL_MS){ _myOrderTrail.delete(id); continue }
+    out.push(rec)
+  }
+  return out.sort((a, b) => b.lastSeen - a.lastSeen)
+}
+
+// Called from renderTransactions, which is the one place that holds the FULL tx union
+// (IndexedDB history + live pending). That is how a trail row learns it settled.
+function noteTrailTx(tx){
+  const key = getTxKey(tx)
+  getTxOrderIds(tx).forEach(orderId => {
+    const rec = _myOrderTrail.get(String(orderId))
+    if(!rec) return
+    // A settled tx always wins: an order can appear in several txs (partial fills)
+    // and "it traded" is the answer the trader is looking for.
+    if(rec.txSettled && !isTxSuccessStatus(getTxStatus(tx))) return
+    rec.txkey    = key
+    rec.txid     = tx.txid
+    rec.txSettled = isTxSuccessStatus(getTxStatus(tx))
+  })
+}
+
+// What happened to a departed order, in the trader's vocabulary.
+function trailOutcome(rec){
+  if(rec.txSettled)                  return { cls: "kchip--ok",    text: "filled ✓", why: "This order traded — its transaction settled on-chain." }
+  if(rec.status?.fullySettled)       return { cls: "kchip--ok",    text: "filled ✓", why: "Fully settled before it left the book." }
+  if(rec.txkey)                      return { cls: "kchip--pend",  text: "settling ⏳", why: "Matched — waiting on its transaction to settle." }
+  const exp = Number(rec.order?.expiresAt || 0)
+  if(exp && exp <= Date.now())       return { cls: "kchip--muted", text: "expired",   why: "Reached its expiry without filling." }
+  return { cls: "kchip--muted", text: "cleared", why: "Left the book — cancelled, or cleared by its time-in-force." }
+}
+
+// Take the trader to the transaction a gone row became.
+async function focusTxByKey(txkey){
+  if(!txkey) return
+  // On mobile the tx list lives behind the Trades tab; switching there first is the
+  // whole point of the link. AWAIT the re-render: renderTransactions builds off-DOM
+  // and swaps the whole list, so a row grabbed before it finishes is a node that is
+  // about to be thrown away — highlight it and nothing appears to happen.
+  await (isMobileTabs() ? selectKtab("trades") : renderTransactions())
+  const row = document.querySelector(`.tx-row[data-txkey="${CSS.escape(txkey)}"]`)
+  if(!row) return
+  row.scrollIntoView({ behavior: "smooth", block: "center" })
+  highlightTxRowsByTxKey(txkey, true)
+  setTimeout(() => highlightTxRowsByTxKey(txkey, false), 2600)
+}
+
+// ORDER-YOUTAB1: is this transaction one of MINE? The old comment on the filter
+// handler said a settled tx "can't be proven mine, so it would wrongly disappear" —
+// true when the only evidence was the live order list. It isn't any more: the trail
+// remembers my order ids past the purge, and the pchbasis transfers name my accounts
+// directly, which survives everything.
+function isMyTx(tx){
+  const ids = getTxOrderIds(tx).map(String)
+  if(ids.some(id => _myOrderTrail.has(id))) return true
+  if(getAllOrders().some(o => o.playerId === currentPlayerId && ids.includes(String(o.orderId)))) return true
+
+  const mineAccts = new Set(
+    Object.values(state?.accounts || {})
+      .filter(a => a.playerId === currentPlayerId)
+      .map(a => a.accountId)
+  )
+  if(!mineAccts.size) return false
+
+  const b = tx.pchbasis?.transfers || {}
+  return [...(b.tokenTransfers || []), ...(b.hbarTransfers || [])]
+    .some(x => mineAccts.has(x.accountId))
+}
+
+function createOrderRow({ orderId, order, playerId, ghost = false, gone = null }){
 
   const row = document.createElement("div")
   row.className = "order-row"
@@ -2669,6 +2832,14 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
   if(ghost){
     row.classList.add("order-ghost")
     row.title = "Order cleared while a transaction is still pending — shown from transaction source for context"
+  }
+
+  // ORDER-TRAIL1: one of my own orders that has left the book, held on screen for a
+  // few minutes so signing an order does not end in it silently vanishing.
+  const outcome = gone ? trailOutcome(gone) : null
+  if(gone){
+    row.classList.add("order-gone")
+    row.title = outcome.why + (gone.txkey ? " Click to jump to the transaction." : "")
   }
 
   const pubkeyHex = order?.intentSignature?.pubkeyHex || null
@@ -2685,7 +2856,9 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
   const enriched   = enrichOrder(order)
   const orderType  = getOrderType(order) || "invalid-YE23998"
   const marketLabel = getOrderMarketLabel(orderId, playerId, enriched)
-  const fillStatus  = getOrderFillStatus(orderId)
+  // A gone order is no longer in getAllOrders(), so its live fill status reads as
+  // zero — use the snapshot taken while it was still on the book.
+  const fillStatus  = gone?.status || getOrderFillStatus(orderId)
 
   row.classList.toggle(
     "order-fully-settled",
@@ -2696,7 +2869,9 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
 
   row.dataset.orderSide = enriched.market?.side || ""
   // ghosts are display-only: no row interactions
-  if(!ghost)
+  if(gone)
+    row.onclick = () => focusTxByKey(gone.txkey)
+  else if(!ghost)
     row.onclick = makeOrderRowOnClick(orderId, playerId, enriched, order)
 
   // ── ORDER-UIPASS1 slice 1 (user-approved 2026-08-05): price-hero card grid ──
@@ -2733,14 +2908,17 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
   hero.appendChild(priceEl)
 
   // status chip — one lifecycle vocabulary (shared palette with the signing glow)
-  const chip = ghost
+  const chip = gone
+    ? makeSpan("kchip " + outcome.cls, outcome.text)
+    : ghost
     ? makeSpan("kchip kchip--muted", "clearing")
     : fillStatus.fullySettled
       ? makeSpan("kchip kchip--ok", "filled ✓")
       : fillStatus.pendingText
         ? makeSpan("kchip kchip--pend", "matching ⏳")
         : makeSpan("kchip kchip--open", "open")
-  if(fillStatus.pendingText) chip.title = fillStatus.pendingText.replace(/ \|$/, "")
+  if(gone) chip.title = outcome.why
+  else if(fillStatus.pendingText) chip.title = fillStatus.pendingText.replace(/ \|$/, "")
   hero.appendChild(chip)
   row.appendChild(hero)
 
@@ -2780,6 +2958,14 @@ function createOrderRow({ orderId, order, playerId, ghost = false }){
   if(order.minFill)
     foot.appendChild(makeSpan("order-minfill", `min ${order.minFill.numerator}/${order.minFill.denominator}`))
   if(mine) foot.appendChild(makeSpan("order-mine-tag", "you"))
+  if(gone){
+    foot.appendChild(makeSpan("order-gone-tag", "left the book " + formatRelativeTime(gone.lastSeen)))
+    if(gone.txkey){
+      const link = makeSpan("order-gone-link", "view trade →")
+      link.title = gone.txid || ""
+      foot.appendChild(link)
+    }
+  }
   // nerd trailers (same detail set as before, footer-resident now)
   foot.appendChild(makeSpan("nerd-only order-nerd-type", `[${orderType}]`))
   const keySuffix = getOrderSignerSuffix(order)
@@ -3125,6 +3311,35 @@ function normaliseOrder(input){
 // Tabs are display-gated to narrow viewports by CSS; this only tracks the
 // active tab (body[data-ktab]) and keeps Book/Mine in sync with the existing
 // "Only mine" filter so the two controls can never disagree.
+// The tabs are display-gated to narrow viewports by CSS, but body[data-ktab] is
+// stamped at every width — so anything that CHANGES BEHAVIOUR (rather than just
+// hiding a column) has to ask whether the tabs are actually on screen.
+function isMobileTabs(){
+  return window.matchMedia("(max-width:899px)").matches
+}
+
+// ORDER-YOUTAB1 (user 2026-09-05: "you've put mine as a separate Tab, not choosing
+// whether that's orders or transactions, so I'm not quite sure what the rationale
+// was"). It was orders-only, because at the time a settled tx could not be proven
+// mine. isMyTx() can now, so the middle tab means YOUR ACTIVITY: your orders (live
+// and just-departed) with your trades underneath, in one scroll. Book = the market,
+// You = your side of it, Trades = everyone's prints. The data-ktab VALUE stays "mine"
+// so saved sessions and the CSS keep working; only the label changed.
+function selectKtab(tab){
+  document.body.dataset.ktab = tab
+  try { sessionStorage.setItem("katomiaKtab", tab) } catch {}
+  document.querySelectorAll(".ktabs [data-ktab]").forEach(x => x.classList.toggle("on", x.dataset.ktab === tab))
+  const mineCb = document.getElementById("showMyOrdersOnly")
+  if(mineCb){
+    // Book and You disagree about "only mine" by definition; keep the checkbox
+    // honest rather than leaving the user to reconcile two controls.
+    const want = tab === "mine"
+    if(tab !== "trades" && mineCb.checked !== want){ mineCb.checked = want; saveOrderFilters() }
+  }
+  renderOrders()
+  return renderTransactions()
+}
+
 document.addEventListener("click", e => {
   // ORDER-KTABSCOPE1 (user 2026-09-04: "only mine isn't even allowing me to tick").
   // The selector was bare [data-ktab] — and the load handler below stamps data-ktab on
@@ -3133,12 +3348,7 @@ document.addEventListener("click", e => {
   // back off, one frame after the browser had just switched it on. Scope it to the bar.
   const b = e.target.closest?.(".ktabs [data-ktab]")
   if(!b) return
-  document.body.dataset.ktab = b.dataset.ktab
-  try { sessionStorage.setItem("katomiaKtab", b.dataset.ktab) } catch {}
-  document.querySelectorAll(".ktabs [data-ktab]").forEach(x => x.classList.toggle("on", x === b))
-  const mineCb = document.getElementById("showMyOrdersOnly")
-  if(b.dataset.ktab === "book" && mineCb?.checked){ mineCb.checked = false; saveOrderFilters(); renderOrders() }
-  if(b.dataset.ktab === "mine" && mineCb && !mineCb.checked){ mineCb.checked = true; saveOrderFilters(); renderOrders() }
+  selectKtab(b.dataset.ktab)
 })
 window.addEventListener("load", () => {
   if(!document.querySelector(".ktabs")) return

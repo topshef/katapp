@@ -2062,12 +2062,20 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
    hit area and a chevron; everything else here is the filtered view's furniture.
    Deliberately quiet — per BOARD-CURATE1's "fewer lines and borders" steer, the
    only strong shape on the card is the destructive button. */
+/* ASSETVIS1 R2 (user 2026-09-05): "make that link only as wide as it needs to be,
+   left side, so the arrow thing doesn't clash close with the show none fat finger."
+   Both header variants used to be a FULL-WIDTH flex row with the marker pushed to
+   the far right by margin-left:auto — which parked a live link directly above
+   "show none" and made a near miss open HashScan (or re-filter the modal) instead.
+   Content width, marker straight after the id, and the right-hand half of that line
+   is now dead space. */
 .board-playercard-acctid--tappable{
-  display: flex; align-items: center; gap: 6px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  width: fit-content; max-width: 100%;
   margin: 0 -8px 6px; padding: 5px 8px; border-radius: 7px;
 }
 .board-playercard-acctid--tappable:hover{ background: #eef4fb; }
-.board-playercard-acctchev{ margin-left: auto; color: #a1a1aa; font-size: 13px; }
+.board-playercard-acctchev{ color: #a1a1aa; font-size: 13px; }
 
 /* "a fairly muted link to show all" — a link-shaped button, not a chip */
 .board-playercard-showall,
@@ -2110,9 +2118,12 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
 }
 
 /* In the filtered view the id links out to the explorer instead of filtering */
-.board-playercard-acctid--link{ display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.board-playercard-acctid--link{
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  width: fit-content; max-width: 100%;
+}
 .board-playercard-acctid--link:hover{ color: #3f6ea3; }
-.board-playercard-acctext{ margin-left: auto; color: #a1a1aa; font-size: 11px; }
+.board-playercard-acctext{ color: #a1a1aa; font-size: 11px; }
 
 /* xproof: the attested DOMAIN leads, the self-chosen NAME follows in quieter
    type. Never the name alone — see boardXProofRow(). */
@@ -2167,7 +2178,9 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
    the drag itself suppresses */
 .board-playercard-asset{ transition: transform .18s ease; touch-action: pan-y; }
 .board-playercard-asset--swiping{ transition: none; }
-.board-playercard-assetbtn:hover{ text-decoration: underline; }
+/* ASSETEXPAND1 (user 2026-09-05): NO hover underline. Tapping a row opens its detail
+   in place — it was never a hyperlink and should not dress as one. */
+.board-playercard-assetbtn:hover{ background: rgba(0,0,0,.035); }
 /* the 3-state curate toggle: no grey box, dead-centred, fixed box so the
    glyph swap ⭐⇄🚫⇄○ never moves anything (user: "get rid of the gray square…
    just put the star in the middle… no change in height, just a clean toggle") */
@@ -2360,3 +2373,91 @@ body.feat-tickets .tkt-tab{
 }
 body.feat-tickets .tkt-tab.on{ background:#c9b96a; color:#2b2200; font-weight:600; }
 body.feat-tickets .tkt-act{ margin-top:6px; }
+
+/* ── ASSETVIS1: your own store, in the player modal ─────────────────────────
+   A hidden asset is still YOURS and still listed — it is just not on the table.
+   So it reads as switched off, not as absent: muted, never removed, and always
+   one click from coming back. (The --offtable rule above is the other player's
+   case: what they hold and have not brought, which you cannot act on.) */
+#boardPlayerModal .board-playercard-asset--hidden{
+  opacity:.55;
+}
+#boardPlayerModal .board-playercard-asset--hidden .board-playercard-assetbtn{
+  text-decoration:line-through;
+  text-decoration-color:rgba(0,0,0,.28);
+}
+/* A hidden row is the SAME row, switched off — so it takes the in-play row's own
+   metrics (.board-playercard-assetbtn above) rather than inventing its own. The two
+   kinds now interleave alphabetically in one list; anything that made them look like
+   two lists would undo the point of merging them. Non-interactive because there is no
+   asset card to open for something that is not on the table. */
+#boardPlayerModal .board-playercard-assetbtn--plain{
+  flex:1; text-align:left; border:none; background:transparent;
+  border-radius:8px; padding:5px 8px; font-size:13px; color:inherit;
+  display:flex; align-items:center; gap:8px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  cursor:default;
+}
+.board-playercard-vishead{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:8px; margin:6px 0 2px; font-size:12px;
+}
+.board-playercard-visbtns{ flex:0 0 auto; white-space:nowrap; }
+
+/* BOARD-CURATE1 R4: the private-view legend on ANOTHER player's account. Quiet by
+   design — it answers a question rather than making a claim, so it must not compete
+   with the rows it explains. It sits where the own-account "what others see" line
+   sits, so the two accounts read as the same layout with different rules. */
+.board-playercard-curatenote{
+  font-size: 11px; line-height: 1.45; color: #8a8f98;
+  margin: 4px 0 6px; max-width: 46ch;
+}
+
+/* ── ASSETEXPAND1: tap a row to open it in place ────────────────────────────
+   The row becomes a wrapping flex line so the detail can take a full-width
+   second row inside the SAME element — no sibling to keep in sync, and the
+   hidden/shown styling above still applies to the whole thing. */
+#boardPlayerModal .board-playercard-asset{ flex-wrap: wrap; }
+.board-playercard-assetmore{
+  flex: 0 0 100%;
+  display: grid; grid-template-rows: 0fr;          /* 0fr→1fr animates to CONTENT
+                                                      height — no guessed max-height
+                                                      to clip or overshoot */
+  transition: grid-template-rows .22s ease;
+}
+.board-playercard-assetmore > div{ overflow: hidden; }
+.board-playercard-asset--open .board-playercard-assetmore{ grid-template-rows: 1fr; }
+.board-playercard-assetmoreline{
+  font-size: 11px; color: #71767e; line-height: 1.5;
+  padding: 2px 8px 0 38px;                          /* clears the eye + thumb column */
+}
+.board-playercard-assetmoreacts{ padding: 2px 8px 6px 38px; }
+.board-playercard-assetmoreacts .board-playercard-jumplink{ font-size: 11px; }
+
+/* the thumbnail grows with the row (user: "let the thumbnail grow a little bit,
+   maybe to double height") */
+#boardPlayerModal .board-playercard-thumb{ transition: width .22s ease, height .22s ease, flex-basis .22s ease; }
+#boardPlayerModal .board-playercard-asset--open .board-playercard-thumb{
+  width: 44px; height: 44px; flex: 0 0 44px;
+}
+#boardPlayerModal .board-playercard-asset--open{ background: rgba(0,0,0,.03); border-radius: 8px; }
+
+@media (prefers-reduced-motion: reduce){
+  .board-playercard-assetmore,
+  #boardPlayerModal .board-playercard-thumb{ transition: none; }
+}
+
+/* ── MODALDRAG1: drag the player card out of the way on desktop ─────────────
+   Grab handle is any blank part of the card (see boardMakeCardDraggable — what
+   counts as blank is decided per press, not by a region), so there is no title
+   bar and nothing new to look at. The cursor is the only affordance. */
+.board-playercard--draggable{ cursor: grab; }
+.board-playercard--draggable :where(button, a, input, .board-playercard-asset){ cursor: pointer; }
+.board-playercard--dragging{
+  cursor: grabbing;
+  user-select: none;
+  box-shadow: 0 12px 34px rgba(0,0,0,.22);
+}
+/* While a card is parked, the backdrop must not keep dimming the board it was
+   moved aside to reveal. */
+.asset-modal:has(.board-playercard[data-dragged]){ background: rgba(0,0,0,.06); }

@@ -1418,6 +1418,29 @@ body.nerd .tx-nerd-meta a{ color:inherit; }
   font-style:italic;
 }
 
+/* ORDER-TRAIL1: one of YOUR orders that has left the book, held for a few minutes
+   so signing does not end in the order silently vanishing. Deliberately NOT a
+   ghost: it is not dimmed into irrelevance, it is the receipt for what you just
+   did — muted ground, a left rail in the side colour, and a pointer when it has a
+   transaction to jump to. */
+#ordersSection .order-row.order-gone{
+  background:#f7f8fa;
+  border:1px solid #e2e5ea;
+  border-radius:6px;
+  border-left:3px solid #c8cdd6;
+  opacity:0.9;
+  cursor:default;
+}
+#ordersSection .order-row.order-gone[data-order-side="buy"]{ border-left-color:rgba(46,204,113,.6); }
+#ordersSection .order-row.order-gone[data-order-side="sell"]{ border-left-color:rgba(231,76,60,.6); }
+#ordersSection .order-row.order-gone .order-price{ opacity:.8; }
+.order-gone-tag{ color:#8a8f98; font-size:11px; }
+.order-gone-link{
+  color:#4a6fb5; font-size:11px; font-weight:600; cursor:pointer;
+  text-decoration:underline; text-underline-offset:2px;
+}
+#ordersSection .order-row.order-gone:hover{ background:#eef1f6; }
+
 
 #ordersSection .order-row-inner{
   display:flex;
@@ -3321,7 +3344,46 @@ body[data-trading-mode="orderBook"] .ktabs.mode-order{ display:none; }
     transition:background .12s, color .12s, box-shadow .12s;
   }
   .ktabs button.on{ background:#fff; color:#1f2733; box-shadow:0 1px 3px rgba(0,0,0,.14); }
-  body[data-trading-mode="orderBook"][data-ktab="book"] #transactionsSection,
-  body[data-trading-mode="orderBook"][data-ktab="mine"] #transactionsSection{ display:none; }
+  body[data-trading-mode="orderBook"][data-ktab="book"] #transactionsSection{ display:none; }
   body[data-trading-mode="orderBook"][data-ktab="trades"] #ordersSection{ display:none; }
+  /* ORDER-YOUTAB1: "You" is your whole side of the market — your orders, then your
+     trades under them. It used to hide the transactions list, which is why the
+     middle tab read as neither one thing nor the other. */
+  body[data-trading-mode="orderBook"][data-ktab="mine"] #transactionsSection{ margin-top:10px; }
 }
+
+/* ── ASSETVIS1: the show/hide eye (shared by the add-account list and the
+   player modal's own-account rows — one control, one set of rules) ────────── */
+.kvis{
+  flex:0 0 auto;
+  display:inline-flex; align-items:center; justify-content:center;
+  width:26px; height:26px; padding:0; margin:0;
+  border:none; background:transparent; border-radius:6px;
+  color:#3d7a4a;                       /* shown: the same green the board reads as "live" */
+  cursor:pointer; line-height:0;
+  transition:color .12s, background .12s;
+}
+.kvis:hover{ background:rgba(0,0,0,.06); }
+.kvis:focus-visible{ outline:2px solid #4a6fb5; outline-offset:1px; }
+.kvis--off{ color:#9aa0a8; }            /* hidden: present, but plainly switched off */
+.kvis--off:hover{ color:#6b7178; }
+
+/* ── ADDACCT-LIST1: the add-account asset step, as a list rather than a chip
+   grid — same shape as the player modal's asset rows so the two read alike ── */
+.addacct-row{
+  display:flex; align-items:center; gap:8px;
+  padding:5px 6px; border-radius:7px;
+  cursor:pointer;
+}
+.addacct-row:hover{ background:rgba(0,0,0,.045); }
+.addacct-row--off .addacct-rowname,
+.addacct-row--off .addacct-rowid,
+.addacct-row--off .addacct-thumb{ opacity:.45; }
+.addacct-row--off .addacct-rowname{ text-decoration:line-through; text-decoration-color:rgba(0,0,0,.3); }
+.addacct-thumb{ width:22px; height:22px; border-radius:4px; object-fit:cover; flex:0 0 auto; }
+.addacct-rowname{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.addacct-rowid{ font-size:11px; color:#8a8f98; flex:0 0 auto; }
+.addacct-assets{ max-height:46vh; overflow-y:auto; }
+.addacct-actions{ display:flex; gap:8px; align-items:center; }
+.addacct-primary{ flex:1 1 auto; }
+.addacct-secondary{ flex:0 0 auto; }

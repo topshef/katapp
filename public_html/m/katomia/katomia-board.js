@@ -8488,6 +8488,118 @@ function boardAssetDetail(assetId, account, amount, offer){
 // filtered view, but make it quite clear at the top… showing one of three accounts,
 // [with] a fairly muted link to show all, which would then convert the modal into
 // the full list that we see at the moment."
+// ── ASSETVIS1: one toggle, used by both the on-table rows and the off-table ones ──
+// The control itself is katomiaVisToggle (katomia-addaccount.js, loaded on both
+// pages) so the add-account list and this list can never drift apart. What lives
+// here is only what the board knows: which account, and what the two directions mean.
+//
+//   shown → hidden   game_removeAsset          (off the table; nobody can pick it)
+//   hidden → shown   game_addAccount "0.0.x(a)" (re-seeds that asset from the mirror)
+//
+// Both are optimistic: the eye flips at once and the row mutes, then the next
+// broadcast is the truth. If the server disagrees — an asset in someone's basket
+// cannot be pulled, and a hidden asset the wallet no longer holds cannot come back —
+// the redraw simply shows the real state, and the backend's own message says why.
+// ASSETVIS1: one alphabetical list, by the name the reader sees. Ids sort by issue
+// order, which tells a person scanning for a token nothing. Called after the async
+// off-table fetch merges its rows in, so shown and hidden interleave by name rather
+// than arriving in two blocks (user: "for now, it's just alphabetical" — filters are
+// the answer when someone turns up with hundreds).
+// ── ASSETEXPAND1 (user 2026-09-05) ───────────────────────────────────────────
+// "If you tap on an asset whilst you're in the account view, it would probably be
+// better to animate — expand that row to give the extra information… you don't lose
+// your context."
+//
+// Tapping a row used to REPLACE this modal with the asset card, which threw away the
+// account you were reading and the shown/hidden state you were part-way through
+// setting. Now the row opens in place: the thumbnail grows, a second line appears
+// with what the account view cannot fit, and a link on that line still goes to the
+// full card — which keeps its job (offers, pick, remove from table) and is where
+// richer detail will land later.
+//
+// The user also talked themselves round mid-ask — "there isn't much more to show,
+// you don't need to see who the owner is, you're in that account" — and they are
+// right, which is why this second line carries the token's IDENTITY (collection or
+// token name, id, serial, type) rather than restating the row.
+//
+// Animated with grid-template-rows 0fr→1fr, so it grows to whatever the content
+// actually is instead of a guessed max-height that clips or overshoots.
+function boardAssetMore(assetId, account, amount){
+  const wrap = document.createElement("div")
+  wrap.className = "board-playercard-assetmore"
+  const inner = document.createElement("div")
+  wrap.appendChild(inner)
+
+  const meta = (typeof getAssetMeta === "function") ? getAssetMeta(assetId) : null
+  const cls = meta?.token_class || {}
+  const [tokenId, serial] = String(assetId).split("#")
+
+  // Collection / token name first — the row's label often shows a symbol or an
+  // instance name instead, so this is the part that is genuinely new. Deduped
+  // case-insensitively: HBAR is name "Hedera HBAR", symbol "HBAR" and id "HBAR",
+  // which would otherwise print itself three times.
+  const bits = []
+  const push = v => {
+    v = String(v || "").trim()
+    if(!v) return
+    if(bits.some(b => b.toLowerCase() === v.toLowerCase())) return
+    bits.push(v)
+  }
+  push(cls.name)
+  if(!/^hedera:\/\//i.test(cls.symbol || "")) push(cls.symbol)
+  push(serial ? tokenId + " #" + serial : tokenId)
+  if(cls.type === "NON_FUNGIBLE_UNIQUE") push("NFT")
+  else if(Number(cls.decimals || 0)) push(cls.decimals + "dp")
+
+  const line = document.createElement("div")
+  line.className = "board-playercard-assetmoreline"
+  line.textContent = bits.join(" · ")
+  inner.appendChild(line)
+
+  const actions = document.createElement("div")
+  actions.className = "board-playercard-assetmoreacts"
+  const more = document.createElement("button")
+  more.type = "button"
+  more.className = "board-playercard-jumplink"
+  more.textContent = "Full details ↗"
+  more.title = "Open the asset card"
+  more.onclick = e => {
+    e.stopPropagation()
+    document.getElementById("boardPlayerModal")?.remove()
+    boardAssetDetail(assetId, account, amount)
+  }
+  actions.appendChild(more)
+  inner.appendChild(actions)
+  return wrap
+}
+
+// One tap opens, another closes. Built lazily — a list of thirty assets should not
+// pay for thirty detail panels nobody opened.
+function boardAssetRowExpand(row, assetId, account, amount){
+  const open = row.classList.contains("board-playercard-asset--open")
+  if(!open && !row.querySelector(".board-playercard-assetmore"))
+    row.appendChild(boardAssetMore(assetId, account, amount))
+  row.classList.toggle("board-playercard-asset--open", !open)
+}
+
+function boardSortAssetRows(list){
+  const rows = [...list.children]
+  rows.sort((a, b) => String(a.dataset.sortName || "").localeCompare(String(b.dataset.sortName || ""), undefined, { sensitivity: "base" }))
+  rows.forEach(r => list.appendChild(r))
+}
+
+function boardVisToggleFor(account, assetId, row){
+  const onTable = !!(account.assets && assetId in account.assets)
+  return katomiaVisToggle(onTable, next => {
+    row.classList.toggle("board-playercard-asset--hidden", !next)
+    if(next){
+      if(typeof addAssetToTable === "function") addAssetToTable(account.id, assetId)
+    } else {
+      if(typeof removeAssetFromTable === "function") removeAssetFromTable(account.id, assetId)
+    }
+  })
+}
+
 function boardCurateKey(){ return "katomiaCurate." + (gameId || gameMeta?.id || "") }
 function boardCurateMap(){ try { return JSON.parse(localStorage.getItem(boardCurateKey()) || "{}") } catch { return {} } }
 function boardCurateGet(accountId, assetId){ return boardCurateMap()[accountId + "|" + assetId] || null }
@@ -8528,6 +8640,86 @@ function boardCurateSwipe(row, set){
   row.addEventListener("pointercancel", end)
 }
 
+// ── MODALDRAG1 (user 2026-09-05) ─────────────────────────────────────────────
+// "Make that modal so that when you're on desktop you can move it around the screen
+// so you can see the effects happening behind, without covering the board… just
+// allow the whole modal to be click-draggable."
+//
+// No title bar: the user explicitly rejected one ("the header doesn't even need to
+// be visually defined"), so the grab handle is any BLANK part of the card. What
+// counts as blank is decided by what you pressed on, not by a region — anything
+// interactive (button, link, input, a row, the close ✕) keeps its own behaviour and
+// is never a drag start. That is also what keeps a click a click: the drag only
+// engages after 4px of movement, so pressing a row and releasing still expands it.
+//
+// Desktop only, deliberately. On a phone the modal already fills the screen, there
+// is nothing to uncover, and a drag would fight the scroll.
+function boardMakeCardDraggable(modal, card){
+  if(!window.matchMedia("(min-width: 900px)").matches) return
+  if(!window.matchMedia("(pointer: fine)").matches) return
+
+  const NODRAG = "button, a, input, textarea, select, label, summary, img, .kvis, .asset-modal-close, .board-playercard-asset, .board-playercard-curate"
+  let sx = 0, sy = 0, ox = 0, oy = 0, live = false, armed = false
+
+  card.style.touchAction = "none"
+  card.classList.add("board-playercard--draggable")
+
+  card.addEventListener("pointerdown", e => {
+    if(e.button !== 0) return
+    if(e.target.closest(NODRAG)) return
+    // The card scrolls its own content; a press on the scrollbar gutter is not a grab.
+    if(e.offsetX > card.clientWidth) return
+    armed = true; live = false
+    sx = e.clientX; sy = e.clientY
+    const r = card.getBoundingClientRect()
+    // Switch to explicit positioning ONCE, from wherever the flex layout had put it,
+    // so the card does not jump on the first pixel of movement.
+    if(!card.dataset.dragged){
+      card.style.position = "fixed"
+      card.style.left = r.left + "px"
+      card.style.top = r.top + "px"
+      card.style.margin = "0"
+      card.style.maxHeight = (window.innerHeight - 40) + "px"
+      card.dataset.dragged = "1"
+    }
+    ox = parseFloat(card.style.left) || r.left
+    oy = parseFloat(card.style.top) || r.top
+    // Capture on PRESS, not on the first qualifying move. Without it the very first
+    // move can already be outside the card — dragging left from near the left edge,
+    // say — and then pointermove never reaches this element again, so the drag never
+    // engages and the release lands on the backdrop as a close. Capture is safe here
+    // because we have already refused every interactive target above.
+    try { card.setPointerCapture(e.pointerId) } catch(_){}
+  })
+
+  const move = e => {
+    if(!armed) return
+    const dx = e.clientX - sx, dy = e.clientY - sy
+    if(!live && Math.abs(dx) + Math.abs(dy) < 4) return   // still a click, not a drag
+    if(!live){ live = true; card.classList.add("board-playercard--dragging") }
+    // Keep at least a strip of the card reachable, so it can never be parked
+    // entirely off-screen with no way back.
+    const w = card.offsetWidth, h = card.offsetHeight
+    card.style.left = Math.min(window.innerWidth - 60, Math.max(60 - w, ox + dx)) + "px"
+    card.style.top  = Math.min(window.innerHeight - 40, Math.max(0, oy + dy)) + "px"
+  }
+  // The dragging CLASS cannot gate the backdrop's close handler: pointerup clears it
+  // before click is dispatched. A flag on the modal, set here and cleared on the next
+  // tick, spans both events — modal.onclick reads it (see boardPlayerModal).
+  const end = e => {
+    try { card.releasePointerCapture(e.pointerId) } catch(_){}
+    if(live){
+      modal.__dragSwallow = true
+      setTimeout(() => { modal.__dragSwallow = false }, 0)
+    }
+    armed = false; live = false
+    card.classList.remove("board-playercard--dragging")
+  }
+  card.addEventListener("pointermove", move)
+  card.addEventListener("pointerup", end)
+  card.addEventListener("pointercancel", end)
+}
+
 function boardPlayerModal(playerId, focusAccountId = null){
   document.getElementById("boardAssetDetail")?.remove()
   document.getElementById("boardPlayerModal")?.remove()
@@ -8551,7 +8743,14 @@ function boardPlayerModal(playerId, focusAccountId = null){
   const modal = document.createElement("div")
   modal.id = "boardPlayerModal"
   modal.className = "asset-modal"
-  modal.onclick = e => { if(e.target === modal) modal.remove() }
+  // MODALDRAG1: __dragSwallow is set by boardMakeCardDraggable for one tick after a
+  // real drag. A drag that ends with the cursor over the backdrop fires a click whose
+  // target IS the backdrop, which this handler would otherwise read as "clicked
+  // outside, close" — the modal closed itself mid-drag every time. It has to be
+  // checked HERE rather than in a capture listener added later: both handlers sit on
+  // the same node, so they run in registration order and this one always went first,
+  // which no amount of stopPropagation from the other could undo.
+  modal.onclick = e => { if(e.target === modal && !modal.__dragSwallow) modal.remove() }
   const card = document.createElement("div")
   card.className = "asset-modal-card board-playercard"
   modal.appendChild(card)
@@ -8646,14 +8845,102 @@ function boardPlayerModal(playerId, focusAccountId = null){
     const xp = boardXProofRow(account)
     if(xp) sec.appendChild(xp)
 
+    // ASSETVIS1 — show all / show none, on YOUR own account only. The user asked for
+    // these to live here rather than only on the add-account screen: "that all/none
+    // should go onto the modal instead, the normal modal, so you can change that
+    // setting at any time." Rendered up front; they act on whatever rows are on
+    // screen, so what you see is exactly what they do.
     const list = document.createElement("div")
     list.className = "board-playercard-assets"
+    // BOARD-CURATE1 R4 (user 2026-09-05): "add a muted note or legend to make clear
+    // this is just your view, and does not affect that player's store display for
+    // other users… that info is also NOT passed on to anyone."
+    //
+    // Correct, and worth saying on the screen rather than only in the tooltips: the
+    // marks live in localStorage under katomiaCurate.<gameId>, are read by three
+    // render paths in this file, and are never sent over the socket or fetched. The
+    // toggle mutes a chip on YOUR board and nothing else. Two controls that sit in
+    // the same slot and look alike now say plainly which one other people can see.
+    if(!self){
+      const note = document.createElement("div")
+      note.className = "subtle board-playercard-curatenote"
+      const who = (player?.name && player.name !== "anon") ? player.name : "this player"
+      note.textContent = "⭐ / 🚫 are your view only — kept in this browser, never shared, and they don't change what " + who + " shows anyone else."
+      sec.appendChild(note)
+    }
+    if(self){
+      const head = document.createElement("div")
+      head.className = "board-playercard-vishead"
+      const cap = document.createElement("span")
+      cap.className = "subtle"
+      cap.textContent = "What others see in your store"
+      head.appendChild(cap)
+      // NO count or status line here, deliberately (user 2026-09-05, on the version
+      // that had one): "the page moves, it expands, it updates, it waits a second and
+      // then it goes back… just have show all, none, and that's it." A live
+      // "N shown → Updated · N shown → N shown" reflowed this row twice per toggle,
+      // for information the rows already carry. If an acknowledgement is ever wanted
+      // here it has to sit in space that is reserved whether or not it says anything.
+      const btns = document.createElement("span")
+      btns.className = "board-playercard-visbtns"
+      const mk = (text, title, fn) => {
+        const b = document.createElement("button")
+        b.type = "button"
+        b.className = "addacct-link"
+        b.textContent = text
+        b.title = title
+        b.onclick = fn
+        btns.appendChild(b)
+      }
+      // "show all · none" rather than "show all · show none" — the second "show" was
+      // wrapping the pair onto two lines on a phone (user 2026-09-05), and the shared
+      // verb is already carried by the first.
+      mk("show all", "Put every asset this account holds on the table", () => {
+        // ONE add with a combined filter, not one per asset: every game_addAccount
+        // re-seeds from the mirror server-side, so a per-row loop would fire N mirror
+        // lookups for what the backend can do in a single pass.
+        const off = [...list.querySelectorAll(".board-playercard-asset--hidden")]
+        if(!off.length) return
+        const ids = off.map(r => r.dataset.assetId).filter(Boolean)
+        off.forEach(r => { r.classList.remove("board-playercard-asset--hidden"); r.querySelector(".kvis")?._kvisPaint?.(true) })
+        if(typeof addAssetsToTable === "function") addAssetsToTable(account.id, ids)
+      })
+      btns.appendChild(document.createTextNode(" · "))
+      // No confirm (user 2026-09-05: "we don't need an alert box to confirm show
+      // none, just do it directly"). It is reversible with the show all next to it,
+      // and nothing leaves the wallet — a prompt on that is friction, not safety.
+      mk("none", "Take every asset off the table — your wallet is untouched", () => {
+        const on = [...list.children].filter(r => !r.classList.contains("board-playercard-asset--hidden"))
+        if(!on.length) return
+        on.forEach(r => {
+          r.classList.add("board-playercard-asset--hidden")
+          r.querySelector(".kvis")?._kvisPaint?.(false)
+          if(r.dataset.assetId && typeof removeAssetFromTable === "function") removeAssetFromTable(account.id, r.dataset.assetId)
+        })
+      })
+      head.appendChild(btns)
+      sec.appendChild(head)
+    }
     Object.entries(account.assets || {}).forEach(([assetId, amount]) => {
       const row = document.createElement("div")
       row.className = "board-playercard-asset"
+      row.dataset.assetId = assetId          // ASSETVIS1: show all / show none act on these
       // R3 (user 2026-08-06): the ⭐/🚫/○ toggle moves to the LEFT EDGE — "perhaps
       // that could go at the start, so it's kind of like a bullet list initially,
       // and then you tap on the dots". Built first so it IS the bullet.
+      // ASSETVIS1 (user 2026-09-05): your own rows carry a SHOW/HIDE toggle in the
+      // same left-edge slot — "so you could have a little visibility toggle against
+      // each one… for your own assets, basically you can only show/hide them, it's
+      // not about favourites". The 🗑 Remove from table action on the asset card is
+      // the same operation; it just was not reachable from the list, which is what
+      // made taking something off the table feel like a hunt.
+      //
+      // No confirm() here, unlike the asset card. That prompt existed because remove
+      // was a one-way door; with show right next to it, it is a toggle, and a
+      // confirm on a reversible toggle is noise.
+      if(self){
+        row.appendChild(boardVisToggleFor(account, assetId, row))
+      }
       if(!self){
         const st = boardCurateGet(account.id, assetId)
         if(st === "out") row.classList.add("board-playercard-asset--out")
@@ -8704,6 +8991,7 @@ function boardPlayerModal(playerId, focusAccountId = null){
       }
       const txt = document.createElement("span")
       txt.textContent = (typeof getAssetDisplay === "function") ? getAssetDisplay(assetId, amount) : assetId
+      row.dataset.sortName = txt.textContent   // ASSETVIS1: what boardSortAssetRows orders by
       label.appendChild(txt)
       // PLAYER-MODAL3 (user 2026-08-21): NFTs showed only thumbnail + name, so two
       // serials of the same collection were indistinguishable at a glance — "mainly
@@ -8730,10 +9018,11 @@ function boardPlayerModal(playerId, focusAccountId = null){
         le.title = "Limited edition"
         label.appendChild(le)
       }
-      label.onclick = () => { modal.remove(); boardAssetDetail(assetId, account, amount) }
+      label.onclick = () => boardAssetRowExpand(row, assetId, account, amount)
       row.appendChild(label)
       list.appendChild(row)
     })
+    boardSortAssetRows(list)
     sec.appendChild(list)
 
     // out-of-play: on-chain holdings not brought to the table (async, greyed)
@@ -8747,6 +9036,77 @@ function boardPlayerModal(playerId, focusAccountId = null){
         const inPlay = new Set(Object.keys(account.assets || {}))
         const out = Object.entries(data.assets || {}).filter(([id]) => !inPlay.has(id))
         if(!out.length) return
+
+        // ASSETVIS1 — YOUR OWN account: these are not a separate curiosity, they are
+        // the hidden half of your own store. "Your modal always shows all your assets,
+        // or at least for now" (user 2026-09-05). So they join the SAME list, muted,
+        // each with the same eye — the difference between a shown and a hidden asset
+        // is one glyph, not one collapsed section you have to know to open.
+        // Other players' accounts keep the <details> below: what someone else holds
+        // but has not brought is context, not something you can act on.
+        if(self){
+          out.forEach(([assetId, amount]) => {
+            const r = document.createElement("div")
+            r.className = "board-playercard-asset board-playercard-asset--hidden"
+            r.dataset.assetId = assetId
+            r.dataset.sortName = (typeof getAssetDisplay === "function") ? getAssetDisplay(assetId, amount) : String(assetId)
+            r.appendChild(boardVisToggleFor(account, assetId, r))
+            const othumb = (typeof getAssetMeta === "function" && typeof getAssetThumb === "function")
+              ? getAssetThumb(getAssetMeta(assetId)) : null
+            if(othumb){
+              const oimg = document.createElement("img")
+              oimg.className = "board-playercard-thumb"
+              oimg.src = (typeof getFastThumb === "function") ? getFastThumb(othumb, oimg) : othumb
+              oimg.decoding = "async"
+              oimg.alt = ""
+              oimg.onerror = () => oimg.remove()
+              r.appendChild(oimg)
+            }
+            const sp = document.createElement("button")
+            sp.type = "button"
+            sp.className = "board-playercard-assetbtn board-playercard-assetbtn--plain"
+            sp.textContent = r.dataset.sortName
+            sp.onclick = () => boardAssetRowExpand(r, assetId, account, amount)
+            r.appendChild(sp)
+
+            // ASSETVIS1 R3: enrich the OFF-TABLE ones too. enrichAccountAssets only
+            // walks account.assets, so anything not on the table had no name, no
+            // thumbnail and nothing for the expanded row to show — fine while these
+            // lived in a collapsed "not in play" aside, wrong now they are half of
+            // your own store list. Same call the add-account list makes, so a token
+            // seen once anywhere is instant everywhere after.
+            if(net && typeof enrichAsset === "function" && typeof getAssetMeta === "function" && !getAssetMeta(assetId)){
+              enrichAsset(net, assetId, amount).then(en => {
+                window.assetDisplayCache ||= {}
+                window.assetDisplayCache[assetId] = en.meta
+                sp.textContent = r.dataset.sortName = getAssetDisplay(assetId, amount)
+                const t = (typeof getAssetThumb === "function") ? getAssetThumb(en.meta) : null
+                if(t && !r.querySelector(".board-playercard-thumb")){
+                  const im = document.createElement("img")
+                  im.className = "board-playercard-thumb"
+                  im.src = (typeof getFastThumb === "function") ? getFastThumb(t, im) : t
+                  im.decoding = "async"
+                  im.alt = ""
+                  im.onerror = () => im.remove()
+                  r.insertBefore(im, sp)
+                }
+                boardSortAssetRows(list)
+              }).catch(() => {})
+            }
+            // Serial trailer only when the name is not already the id — otherwise an
+            // un-enriched NFT prints its id twice in the same row.
+            if(String(assetId).includes("#") && !r.dataset.sortName.startsWith(String(assetId).split("#")[0])){
+              const [tok, ser] = String(assetId).split("#")
+              const idl = document.createElement("span")
+              idl.className = "board-playercard-assetid"
+              idl.textContent = tok + " #" + ser
+              r.appendChild(idl)
+            }
+            list.appendChild(r)
+          })
+          boardSortAssetRows(list)
+          return
+        }
         // COLLAPSED BY DEFAULT (user 2026-08-06): "let's make that collapsible —
         // in fact, default collapsed; if you tap it, it expands to show you the
         // not-in-play items". A native <details> does exactly that: the count
@@ -8794,6 +9154,8 @@ function boardPlayerModal(playerId, focusAccountId = null){
     }
     card.appendChild(sec)
   })
+
+  boardMakeCardDraggable(modal, card)
 
   if(focus){
     // "jump from one view to another, rather than having it as one long scroll
