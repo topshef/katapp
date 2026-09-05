@@ -17,8 +17,14 @@
 // DESTINATION solidifies on landing — so the preview ends swapped (which is also how a real
 // consensus should end). The swap is held briefly then reverted so the preview is replayable.
 //
-// Per-asset trail COLOUR: a stable hue derived from the asset key (HBAR stays blue) so each
-// asset's trajectory is distinguishable. Swap for a lookup table later if brand colours wanted.
+// Trail COLOUR: ONE hue for every asset (TRAILHUE1, feedback c5786027 2026-09-05 — "too many
+// colours being drawn… the animation lines should just be one colour… not green or red or
+// orange which have meanings otherwise… a cloudy blue would be fine"). This used to derive a
+// stable hue per asset key so each trajectory was distinguishable; on a real transfer that put
+// four or five saturated hues on screen at once, and two of them collided with the meanings
+// the rest of this modal spends its time establishing — green is settled, red is the send
+// side, orange is a warning. The lines say WHERE something went, not WHAT it was; the chips at
+// each end already say what. So they are all the same muted blue, chosen to carry no meaning.
 
 // ── MOTION timings — these ARE the production values (the animation runs at this speed, which
 // the user signed off as right). For slow-mo DEBUGGING only, temporarily raise TIME_SCALE; 1 = normal. ──
@@ -41,13 +47,9 @@ const centroid = pts => pts.reduce((a, p) => ({ x: a.x + p.x / pts.length, y: a.
 // ease-in-out-cubic: slow start → fastest at the middle → soft landing.
 const easeInOut = u => u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2
 
-// Stable hue per asset (HBAR keeps the familiar blue). Simple + zero-maintenance.
-function assetHue(key) {
-	if (key === 'tinybar') return 217
-	let h = 0
-	for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0
-	return h % 360
-}
+// One trail colour, for every asset. 213 is the muted blue HBAR already used (217) pulled a
+// few degrees cooler; the saturation drop is in trailMark, where the dot is painted.
+const TRAIL_HUE = 213
 
 function mkLayer(container, cls) {
 	// skip .txflow-hover layers — those are the hover-replay's own throwaway/fading
@@ -60,11 +62,13 @@ function mkLayer(container, cls) {
 
 // A tiny, barely-blurred, per-asset-coloured dot at (x,y) (layer-relative) — the dotted
 // trajectory. Held at full opacity a while (so the whole line reads) then fades slowly.
-function trailMark(back, x, y, hue) {
+function trailMark(back, x, y, hue = TRAIL_HUE) {
 	const mark = document.createElement('div')
 	mark.className = 'txflow-trail'
 	mark.style.left = x + 'px'; mark.style.top = y + 'px'
-	mark.style.background = `radial-gradient(circle, hsl(${hue} 80% 62% / .6) 0%, hsl(${hue} 80% 62% / 0) 70%)`
+	// 80% saturation was right when the hue itself was the information; with one colour it
+	// only shouts. 46% reads as the cloudy blue asked for and sits behind the chips.
+	mark.style.background = `radial-gradient(circle, hsl(${hue} 46% 58% / .55) 0%, hsl(${hue} 46% 58% / 0) 70%)`
 	back.appendChild(mark)
 	// NO fade-out (per user): the dotted trajectory is a genuinely useful record of where each
 	// asset came from / went to, so we LEAVE the lines drawn. They persist until the state is
@@ -222,7 +226,7 @@ export async function flowAssetOnce(container, assetKey) {
 	;(container._hoverTrails ||= new Map()).set(assetKey, back)
 	const prior = [...g.send, ...g.receive].map(c => [c, c.classList.contains('txcard-chip-ghost')])
 	try {
-		await animateAsset(front, back, container.getBoundingClientRect(), g.send, g.receive, assetHue(assetKey))
+		await animateAsset(front, back, container.getBoundingClientRect(), g.send, g.receive, TRAIL_HUE)
 	} finally {
 		prior.forEach(([c, was]) => { c.classList.toggle('txcard-chip-ghost', was); c.classList.remove('txflow-landed') })
 		front.remove()
@@ -257,7 +261,7 @@ export async function flowTravel(container) {
 		const base = container.getBoundingClientRect()
 		const entries = [...groupChips(container).entries()]
 		await Promise.all(entries.map(([key, g], i) =>
-			new Promise(res => setTimeout(() => animateAsset(front, back, base, g.send, g.receive, assetHue(key)).then(res), i * STAGGER_MS))
+			new Promise(res => setTimeout(() => animateAsset(front, back, base, g.send, g.receive, TRAIL_HUE).then(res), i * STAGGER_MS))
 		))
 		setFlowState(container, true)   // STICK: leave sources ghosted / dests solid (no auto-revert)
 		front.innerHTML = ''            // ghosts done; the trail lingers on the back layer and self-expires

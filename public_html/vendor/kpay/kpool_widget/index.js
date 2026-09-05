@@ -700,8 +700,48 @@ function buildSigningPanel(txState) {
 				panes.style.transition = ''
 				panes.style.height = 'auto'
 				panes.removeEventListener('transitionend', te)
+				revealActivePane()
 			}, { once: true })
+		} else {
+			revealActivePane()
 		}
+	}
+
+	// SIGNSCROLL1 (feedback 4bc3e7fe, 2026-09-05): "when choosing a wallet option the modal
+	// should auto scroll to bring the whole option into view — offline should reveal the
+	// full QR, WalletConnect the buttons — so the user doesn't have to choose and then
+	// manually scroll." The tabs sit well down a long modal, so on a phone the pane opens
+	// entirely below the fold and every choice needed a scroll to be worth making.
+	//
+	// Scrolls the modal body, not the page: scrollIntoView() would walk up to the document
+	// and drag the whole page around on hosts that embed the widget. Aims for the TABS
+	// (not the pane) so the choice stays visible above what it revealed — landing on the
+	// pane alone leaves the row of options off-screen and you can't tell what you picked.
+	// If the pane is short enough to fit under the tabs, it settles there; a tall pane
+	// (the QR) tops out at the tabs and shows as much of the rest as the viewport allows.
+	function revealActivePane() {
+		const pane = panes.querySelector('.kpsign-pane.active')
+		if (!pane) return
+		// inside the modal it's the modal body that scrolls; mounted bare into a host page
+		// (tx_approval.php) it's the window. Both are measured against the viewport, so the
+		// same arithmetic covers them — only the scroll target differs.
+		const scroller = panel.closest('.kpm-body') || panel.closest('[data-kpsign-scroll]')
+			|| document.scrollingElement || document.documentElement
+		if (!scroller) return
+		requestAnimationFrame(() => {
+			const sRect = scroller === document.scrollingElement || scroller === document.documentElement
+				? { top: 0, bottom: window.innerHeight }
+				: scroller.getBoundingClientRect()
+			const tRect = tabs.getBoundingClientRect()
+			const pRect = pane.getBoundingClientRect()
+			// how far past the bottom edge the pane runs, and how far the tabs would have
+			// to travel to reach the top — take the smaller move so the tabs stay on screen
+			const overflow = Math.max(0, pRect.bottom - sRect.bottom + 12)
+			const toTop = Math.max(0, tRect.top - sRect.top - 8)
+			const delta = Math.min(overflow, toTop)
+			if (delta < 8) return
+			scroller.scrollTo({ top: scroller.scrollTop + delta, behavior: 'smooth' })
+		})
 	}
 
 	panel.append(tabs, panes)

@@ -335,6 +335,56 @@ const _bp = boardLoadPrefs()
 // board settings. Published on window for katomia-render.js (the per-tx dots).
 let boardExtSign = _bp.extSign ?? false
 window.__katomiaExtSign = boardExtSign
+
+// SIGNINLINE1 (feedback e7d5ccc3, 2026-09-05): "this signing modal is currently initiated
+// externally through the m/sign routine… instead of taking us outside of the game to this
+// other site, invoke the modal directly from inside the game… the default should be that
+// the modal opens up within the game… but maybe put a URL parameter so we can A/B test it
+// in case I want to check the old flow meanwhile."
+//
+// The machinery was already here and only ever used as a hidden deep-link path: board.php
+// loads kpay-embed.js, which exposes window.KPaySign({network,txid,pch}) and opens the SAME
+// widget modal /m/sign renders — same code, same signer, no new surface to keep in step.
+// The hub tap just pointed at the other one.
+//
+//   (default)        tap the hub → the modal opens over the board
+//   ?sign=external   the old behaviour: a new tab to /m/sign
+//
+// The board keeps its own direct WalletConnect Sign (✍ on a wedge); this is the all-wallets
+// route — offline QR, WhatsApp, a second signer — which is exactly the case where being
+// thrown out of the game hurt most, because you come back to a board you've lost your place on.
+function boardSignInline(){
+	const v = (new URLSearchParams(location.search).get("sign") || "").trim().toLowerCase()
+	if(v === "external" || v === "ext" || v === "page") return false
+	return true
+}
+
+// Open the all-wallets signing surface for a tx. Inline when we can, external when asked —
+// and external is also the fallback if the embed script hasn't loaded, so a tap is never a
+// no-op. Returns true if something was opened, so callers can decide whether to offer the tap.
+function boardOpenSigning(tx){
+	if(!tx?.txid) return false
+	const network = gameMeta?.network || ""
+	if(boardSignInline() && typeof window.KPaySign === "function"){
+		boardDiag("board:sign:open", { via: "inline", network, txid: tx.txid })
+		window.KPaySign({ network, txid: tx.txid, pch: tx.pch || "no_pch" })
+		return true
+	}
+	let opened = false
+	/* KBUNDLE-STRIP:extsign */
+	// SIGN-HUBLINKPRUNE1: /m/sign lives outside m/katomia, so standalone bundles don't ship
+	// it and this branch is stripped from them. With the inline path above that no longer
+	// leaves the hub dead in a bundle — it only removes the escape hatch. Flagged rather
+	// than returned so the strip leaves valid, reachable code behind it either way.
+	boardDiag("board:sign:open", { via: "external", network, txid: tx.txid })
+	window.open(
+		`/m/sign/?network=${encodeURIComponent(network)}` +
+		`&txid=${encodeURIComponent(tx.txid)}&pch=${encodeURIComponent(tx.pch || "")}`,
+		"_blank")
+	opened = true
+	/* /KBUNDLE-STRIP:extsign */
+	return opened
+}
 let boardSelfBottom = _bp.selfBottom ?? true   // me at 6 o'clock; off = shared (Prefs; default ON per user 2026-07-12)
 // net is the STANDARD view now (user 2026-07-14: "we're going to go with net
 // as the standard view, and we probably won't expose that option to turn it
@@ -2227,23 +2277,21 @@ function renderRingBoard(root){
       count.title = "Time left in the signing window. Green = signed; dark green in the last ~10s = still signed, but too late for new signatures to land; amber = waiting for signatures"
       hub.appendChild(count)
       boardStartCountdown(count)
-      /* KBUNDLE-STRIP:extsign */
-      // SIGN-HUBLINKPRUNE1 (feedback c8dbd94c, 2026-08-17): the external signing page
-      // lives OUTSIDE m/katomia, so standalone bundles (pat/production) don't ship it
-      // and this tap landed on a 404 — "you just takes you to a broken link which
-      // doesn't look good". Strip-tagged: dev estate keeps the external route ("we do
-      // need a way for testing at least to be able to go external"), bundles cut it
-      // and the hub stays a plain countdown.
-      // SIGN-EXTGATE1: only with the lab switch on (board settings, nerd mode)
-      if(ring16() && boardExtSign){
+      // SIGNINLINE1 (feedback e7d5ccc3, 2026-09-05): the hub tap now opens the all-wallets
+      // signing modal OVER the board instead of hopping to /m/sign in another tab — see
+      // boardOpenSigning. It is no longer behind the SIGN-EXTGATE1 lab switch, because that
+      // switch exists to gate LEAVING the app; opening a modal in place is just the board
+      // doing its job. ?sign=external puts the old hop back for comparison, and that route
+      // still needs the lab switch (and still isn't in stripped bundles — SIGN-HUBLINKPRUNE1,
+      // feedback c8dbd94c: "you just takes you to a broken link which doesn't look good").
+      const hubInline = boardSignInline() && typeof window.KPaySign === "function"
+      if(ring16() && (hubInline || boardExtSign)){
         hub.style.cursor = "pointer"
-        hub.title += " — tap for the full signing page (all wallet options)"
-        hub.onclick = () => window.open(
-          `/m/sign/?network=${encodeURIComponent(gameMeta?.network || "")}` +
-          `&txid=${encodeURIComponent(boardSigning.tx.txid)}&pch=${encodeURIComponent(boardSigning.tx.pch || "")}`,
-          "_blank")
+        hub.title += hubInline
+          ? " — tap to sign (all wallet options)"
+          : " — tap for the full signing page (all wallet options)"
+        hub.onclick = () => boardOpenSigning(boardSigning.tx)
       }
-      /* /KBUNDLE-STRIP:extsign */
     }
   } else if(ring10()){
     // v10 HUB RING (review 9): per-account arcs in each player's colour (the

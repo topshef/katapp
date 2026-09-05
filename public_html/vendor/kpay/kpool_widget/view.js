@@ -475,6 +475,26 @@ const SIGN_REASON = {
 		})
 		container.addEventListener('mouseleave', clearAssetHl)
 
+		// SIGNSCROLL1 (feedback 7aed40c0, 2026-09-05): "when the user expands a card, allow
+		// the full card to scroll into view cleanly." A card near the bottom of the modal
+		// grows downwards into space the viewport doesn't have, so the detail you just asked
+		// for opens off-screen. Waits out the 220ms grid-template-rows transition rather than
+		// measuring mid-animation, and never scrolls the card's HEAD above the top edge —
+		// losing the account id you just tapped is worse than not seeing the last row.
+		function revealCard(card) {
+			const scroller = card.closest('.kpm-body') || card.closest('[data-kpsign-scroll]')
+			if (!scroller) return
+			setTimeout(() => {
+				const sRect = scroller.getBoundingClientRect()
+				const cRect = card.getBoundingClientRect()
+				const overflow = Math.max(0, cRect.bottom - sRect.bottom + 12)
+				const toTop = Math.max(0, cRect.top - sRect.top - 8)
+				const delta = Math.min(overflow, toTop)
+				if (delta < 8) return
+				scroller.scrollTo({ top: scroller.scrollTop + delta, behavior: 'smooth' })
+			}, 260)
+		}
+
 		// tap a card header (not the account link) to expand its detail. Multiple cards
 		// may be open at once (comparing accounts is a real task here). Lazy render on open.
 		container.addEventListener('click', e => {
@@ -484,7 +504,7 @@ const SIGN_REASON = {
 			if (!card) return
 			const open = card.classList.toggle('txcard--open')
 			card.querySelector('.txcard-chevron').textContent = open ? '▾' : '▸'
-			if (open) renderCardDetail(card)
+			if (open) { renderCardDetail(card); revealCard(card) }
 			// expanding/collapsing reflows the cards, so the drawn trajectory lines no longer line
 			// up — wipe them. Re-click AFTER to redraw. (per user)
 			container.querySelector('.txflow-layer-trail')?.replaceChildren()
@@ -555,15 +575,32 @@ const SIGN_REASON = {
 		// window shut and read afterwards as a backend stall. txRead now sends the number
 		// decoded from the signed bytes (data.validDurationSeconds) — use it, and say
 		// nothing about the window when it isn't known rather than inventing a generous one.
+		// SETTLEDLINE1 (feedback f5ce7942, 2026-09-05): "when a transaction has succeeded it
+		// shouldn't say due-by date and then valid duration — swap that for the consensus
+		// time that was achieved." A deadline is only information while it can still be
+		// missed; once the network has agreed a time, the deadline is noise and the agreed
+		// time is the fact. Keyed on the mirror's consensus_timestamp rather than on the
+		// status, so it says "settled" exactly when there IS a settled moment to name —
+		// a transaction that expired unsubmitted has none, and for that one the window it
+		// missed is still the story worth telling.
+		const consensusSec = Number(String(data.mirror?.transactions?.[0]?.consensus_timestamp || '').split('.')[0]) || null
 		const strikeInfo = parseTxId(txid)
-		if (strikeInfo?.seconds) {
-			const validSecs = Number(data.validDurationSeconds) || null
-			const d = new Date(strikeInfo.seconds * 1000)
-			const datePart = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-			const timePart = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+		const stamp = secs => {
+			const d = new Date(secs * 1000)
+			return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}, `
+				+ d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+		}
+		if (consensusSec) {
 			const due = document.createElement('div')
 			due.className = 'txread-scope-due'
-			due.textContent = `due ${datePart}, ${timePart}${validSecs ? ` · valid ${formatValidFor(validSecs)}` : ''}`
+			due.textContent = `settled ${stamp(consensusSec)}`
+			due.title = 'Consensus timestamp — when the Hedera network agreed this transaction'
+			scope.appendChild(due)
+		} else if (strikeInfo?.seconds) {
+			const validSecs = Number(data.validDurationSeconds) || null
+			const due = document.createElement('div')
+			due.className = 'txread-scope-due'
+			due.textContent = `due ${stamp(strikeInfo.seconds)}${validSecs ? ` · valid ${formatValidFor(validSecs)}` : ''}`
 			due.title = 'Transaction valid-start (strike time) and valid duration'
 			scope.appendChild(due)
 		}
@@ -2027,7 +2064,14 @@ export function injectTxReadCSS() {
 			display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline;
 			gap: 2px 10px; margin: 4px 0 12px; font-size: 12px; color: #888;   /* bottom gap so it isn't butted against the preview card */
 		}
-		.txread-scope-ids { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+		/* SCOPEWRAP1 (feedback 13830975, 2026-09-05): "the info at the top of this modal
+		   sometimes wraps; if it wraps it should wrap and CENTRE rather than wrap onto the
+		   left." The outer .txread-scope centres its children, but this inner flex row had
+		   no justify-content of its own, so it defaulted to flex-start — the first line
+		   looked centred (it filled the row) and every wrapped line jumped to the left
+		   edge. Centre the inner row too, and centre the text inside it so a long txid
+		   breaking mid-string stays centred rather than ragging left. */
+		.txread-scope-ids { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 4px 8px; text-align: center; }
 		.txread-scope-txid { word-break: break-all; }
 		.txread-sep { color: #ccc; }
 		.txread-memo { text-align: center; font-size: 12px; color: #888; margin: 10px 0 12px; word-break: break-word; }   /* bottom gap like the scope line, so it isn't butted against the card */
@@ -2150,7 +2194,16 @@ export function injectTxReadCSS() {
 		.txcard-chip--fee { border-style:dotted; font-style:italic; color:#71717a; }
 
 		/* expandable account detail (TX-CARDS9 step c) — grid-rows trick, no native arrow */
-		.txcard-head--toggle { cursor:pointer; user-select:none; }
+		.txcard-head--toggle { cursor:pointer; user-select:none; transition:background .15s ease; }
+		/* HEADHOVER1 (feedback 705f3951, 2026-09-05): "on hover, card headers slightly
+		   highlight to indicate that it's clickable." The chevron was the only affordance and
+		   it is small; the cursor change only arrives once you are already on it. A wash on
+		   the whole row says the row is the target, which it is. Hover only — :active would
+		   flash on touch, where there is no hover and no ambiguity to resolve. Same grey the
+		   wallet tabs use, so the two clickable rows in this modal behave alike. */
+		@media (hover: hover) {
+			.txcard-head--toggle:hover { background:#f1f1f3; }
+		}
 		/* A11Y NOTE (whole app): these expand/collapse chevrons — and lots of mobile text — are
 		   too small for low-vision users. We need a "low-vision" theme/skin (larger fonts, bigger
 		   hit targets, stronger contrast) as a future themeing pass. See task A11Y-LOWVISION1. */
@@ -2206,7 +2259,7 @@ export function injectTxReadCSS() {
 
 		/* overall status + countdown at the top of the modal (normal-visible header) */
 		.txread-status-header { font-weight:600; font-size:14px; margin:0 0 8px; }
-		.txread-scope-due { color:#71717a; }
+		.txread-scope-due { color:#71717a; text-align:center; }   /* SCOPEWRAP1: centre when it wraps */
 
 		/* two equal, symmetric columns — left send (rose), right receive (green).
 		   stays side-by-side on mobile (screen split in half), no edge labels */
@@ -2255,6 +2308,15 @@ export function injectTxReadCSS() {
 		.txpreview-before:hover { background:#fdf2f2; }
 		.txpreview-after:hover  { background:#eff7f1; }
 		.txpreview-half:hover   { box-shadow: inset 0 0 0 2px rgba(0,0,0,.14); }
+		/* PREVIEWCORNERS1 (feedback 9b704fde, 2026-09-05): "the highlight border's corners
+		   are getting slightly cropped — it should follow whatever the border shape already
+		   is rather than cropping on the corners." The halves are square boxes inside a
+		   10px-rounded, overflow:hidden parent, so the inset ring drew a right-angled
+		   corner into the parent's rounded clip and lost its tip. Give each half the
+		   matching corner on its OUTER side only (9px = the parent's 10px less its 1px
+		   border) so the ring curves with the card; the shared middle edge stays square. */
+		.txpreview-before { border-radius:9px 0 0 9px; }
+		.txpreview-after  { border-radius:0 9px 9px 0; }
 		.txcards-preview[data-state="before"] .txpreview-after,
 		.txcards-preview[data-state="after"]  .txpreview-before { opacity:.45; }
 		.txflow-pulse-out { animation: txflowPulseOut .42s ease; }
@@ -2270,8 +2332,11 @@ export function injectTxReadCSS() {
 		.txflow-layer { position:absolute; inset:0; overflow:visible; pointer-events:none; z-index:3; }
 		.txflow-layer-trail { position:absolute; inset:0; overflow:visible; pointer-events:none; z-index:1; }
 		.txflow-ghost { position:absolute; left:0; top:0; margin:0; background:#fff; box-shadow:0 5px 14px rgba(0,0,0,.18); will-change:transform,opacity; }
+		/* TRAILHUE1: the pool puff was amber (#ffd27f → orange), which is a WARNING colour
+		   everywhere else in this modal and was one of the colours making the animation
+		   busy. Same muted blue as the trail — it's part of the same drawn trajectory. */
 		.txflow-frizz { position:absolute; width:16px; height:16px; border-radius:50%; pointer-events:none;
-			background:radial-gradient(circle, #fff 0%, #ffd27f 45%, rgba(255,167,38,0) 70%); }
+			background:radial-gradient(circle, #fff 0%, rgba(129,171,214,.85) 45%, rgba(129,171,214,0) 70%); }
 		.txflow-trail { position:absolute; width:7px; height:7px; border-radius:50%; pointer-events:none; filter:blur(0.15px);
 			transform:translate(-50%,-50%);   /* centre the dot on its (x,y) — was provided by the (now-removed) fade animation */
 			background:radial-gradient(circle, rgba(96,165,250,.55) 0%, rgba(96,165,250,0) 70%); }

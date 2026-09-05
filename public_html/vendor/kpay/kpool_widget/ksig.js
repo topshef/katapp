@@ -179,40 +179,15 @@ function drawQR(el, text, opts = {}) {
 	return { modules: n, scale, px }
 }
 
-// Enlarged QR in a centred overlay — roughly 70% of the shorter viewport edge,
-// so it can be scanned from a comfortable distance without taking over the
-// whole screen. Backdrop click, ×, or Esc closes it.
-function openQRLarge(text, checksum) {
-	const ov = document.createElement('div')
-	ov.className = 'kpsign-qr-large'
-	const card = document.createElement('div')
-	card.className = 'kpsign-qr-large-card'
-	card.innerHTML = '<button type="button" class="kpsign-qr-large-x" aria-label="Close">&times;</button>'
-	const box = document.createElement('div')
-	box.className = 'kpsign-qr'
-	card.appendChild(box)
-	const cap = document.createElement('div')
-	cap.className = 'kpsign-qr-large-cap'
-	cap.textContent = checksum ? `checksum ${checksum}` : ''
-	card.appendChild(cap)
-	ov.appendChild(card)
-	document.body.appendChild(ov)
-
-	const close = () => {
-		ov.remove()
-		window.removeEventListener('resize', redraw)
-		document.removeEventListener('keydown', onKey)
-	}
-	const onKey = (e) => { if (e.key === 'Escape') close() }
-	const redraw = () => {
-		const edge = Math.min(window.innerWidth, window.innerHeight)
-		drawQR(box, text, { maxPx: Math.min(640, Math.round(edge * 0.7)), reservePx: 0, minScale: 2 })
-	}
-	redraw()
-	ov.addEventListener('click', (e) => { if (e.target === ov || e.target.classList.contains('kpsign-qr-large-x')) close() })
-	document.addEventListener('keydown', onKey)
-	window.addEventListener('resize', redraw)
-}
+// QRZOOM1 (feedback e61ecc7b, 2026-09-05): the tap-to-enlarge overlay that used to live
+// here is GONE — "the QR code is plenty large enough… on mobile it's quite large and when
+// you tap it it gets smaller, so that's quite weird. Just get rid of the tap to enlarge."
+// It was right about the maths: the overlay sized itself to 70% of the SHORTER viewport
+// edge, which on a 376px phone is ~263px — smaller than the inline QR, which is drawn to
+// the pane width. It was added for a laptop problem (the modal sits low, you can't get a
+// phone close enough without fouling the keyboard, and closer than the camera's minimum
+// focus just blurs). If that comes back the answer is a bigger INLINE QR on wide screens,
+// not a modal-over-a-modal that shrinks it on the device most people scan from.
 
 // Module-local ref to the davidshimjs QRCode (the one with CorrectLevel).
 // We capture it privately so that if the page already has a different QRCode
@@ -327,17 +302,9 @@ export async function renderKsig(container, {
 		const shown = drawQR(qr, qrText)
 		kdiag('ksig:qr-size', { ...shown, format: 'KQR2', chars: qrText.length, req: payload.req })
 
-		// Tap/click the QR to blow it up full-screen. On a laptop the modal sits
-		// low on the screen and you cannot get a phone close enough without
-		// fouling the keyboard — and moving closer just goes below the camera's
-		// minimum focus distance and blurs. A big QR is scannable from further
-		// back, which fixes both.
-		qr.title = 'Tap to enlarge for scanning'
-		qr.addEventListener('click', () => openQRLarge(qrText, checksum))
-
 		const cap = document.createElement('div')
 		cap.className = 'kpsign-qr-cap'
-		cap.textContent = `Scan with the KSIG app · checksum ${checksum} · tap the QR to enlarge`
+		cap.textContent = `Scan with the KSIG app · checksum ${checksum}`
 		container.appendChild(cap)
 
 		// ── scan-back UI ────────────────────────────────────────────────────
@@ -560,7 +527,7 @@ function injectKsigCSS() {
 		   and davidshimjs draws none. --kpsign-quiet is set by drawQR() to exactly
 		   4 modules at the current scale. */
 		.kpsign-qr { display:flex; justify-content:center; margin:0 auto; width:max-content;
-			background:#fff; padding:var(--kpsign-quiet, 16px); cursor:zoom-in; }
+			background:#fff; padding:var(--kpsign-quiet, 16px); }
 		/* override any theme border-radius so the QR finder squares aren't clipped,
 		   and never let a browser smooth the modules when scaling */
 		.kpsign-qr img, .kpsign-qr canvas, .kpsign-qr table, .kpsign-qr td {
@@ -572,16 +539,6 @@ function injectKsigCSS() {
 		   bottom bezel, where a phone can't reach without fouling the keyboard.
 		   This lets the QR be scrolled up to a comfortable height. */
 		.kpsign-tail { height:55vh; }
-
-		/* Enlarged QR: dimmed backdrop, centred card — not a full-screen takeover. */
-		.kpsign-qr-large { position:fixed; inset:0; z-index:2147483000; background:rgba(0,0,0,.55);
-			display:flex; align-items:center; justify-content:center; cursor:zoom-out; }
-		.kpsign-qr-large-card { position:relative; background:#fff; border-radius:12px; padding:18px 18px 12px;
-			box-shadow:0 12px 40px rgba(0,0,0,.35); cursor:default; }
-		.kpsign-qr-large-card .kpsign-qr { cursor:default; }
-		.kpsign-qr-large-cap { text-align:center; font:13px ui-monospace,Menlo,Consolas,monospace; color:#666; margin-top:8px; }
-		.kpsign-qr-large-x { position:absolute; top:2px; right:8px; border:0; background:transparent;
-			font-size:28px; line-height:1; color:#666; cursor:pointer; padding:4px 8px; }
 
 		.kpsign-scan-btn { display:block; margin:12px auto 0; padding:8px 14px; cursor:pointer;
 			font:13px/1.2 ui-monospace,Menlo,Consolas,monospace; color:#084298;

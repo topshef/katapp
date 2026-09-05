@@ -27,10 +27,19 @@ function injectModalCSS() {
 		.kpm-overlay { position: fixed; inset: 0; z-index: 100000; display: flex;
 			align-items: flex-start; justify-content: center; padding: 5vh 8px; overflow: hidden; }
 		.kpm-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.55); }
+		/* SILVERBG1 (feedback 705f3951, 2026-09-05): "make the modal background slightly
+		   silvery gradient to contrast with the cards." The card was #fff and every account
+		   card inside it is also #fff, so the cards had nothing to sit ON — their 1px grey
+		   border was doing all the work of separating them from the surface. The gradient
+		   goes on the CARD, not the scrolling body, so it stays put while the content
+		   scrolls over it rather than sliding around; the header keeps its own tone colour
+		   (which is opaque) so the status tint is unaffected. Deliberately shallow — two
+		   steps of grey — because it is a ground, not a feature. */
 		.kpm-card {
 			position: relative; margin: 0 auto;
 			width: min(900px, 96vw); max-height: 90vh;
-			background: #fff; border-radius: 10px;
+			background: linear-gradient(180deg, #f8f9fb 0%, #eceef2 100%);
+			border-radius: 10px;
 			box-shadow: 0 12px 48px rgba(0,0,0,.35);
 			display: flex; flex-direction: column; overflow: hidden;
 		}
