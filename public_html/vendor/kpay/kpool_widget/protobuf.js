@@ -270,13 +270,24 @@ function unwrap(buf) {
 		return { bodyBytes: first(stf, 1), sigMapBytes: first(stf, 2) }
 	}
 
-	// SignedTransaction handed directly: field 1 bodyBytes, field 2 sigMap
-	// (only treat as such if field 1 decodes as a TransactionBody — i.e. has a
-	// transactionID at field 1). Otherwise assume we were given a TransactionBody.
+	// Disambiguate bare TransactionBody vs bare SignedTransaction. Both can
+	// present as two LEN fields {1,2} (a TransactionID also has that shape, so
+	// "field 1 has a field 1" is NOT a valid body test — that heuristic
+	// misread a bare body's transactionID as bodyBytes, yielding a txid of
+	// 0.0.0@0.000000000 for the bare bodyBytesHex the KSIG QR carries).
+	// Structural markers: a TransactionBody carries a fee (3, varint), a
+	// validDuration (4), or a data field (≥7: cryptoTransfer=14,
+	// cryptoUpdateAccount=15, …); a SignedTransaction never has fields beyond 2.
+	// Ported from ksig@lab23 ksign/lib/protobuf.js (the fork of this file).
+	const looksLikeBody = fields => [...fields.keys()].some(k => k === 3 || k === 4 || k >= 7)
+
+	if (looksLikeBody(f)) return { bodyBytes: buf, sigMapBytes: undefined }
+
+	// SignedTransaction handed directly: field 1 must itself decode as a body
 	const maybeBody = first(f, 1)
 	if (maybeBody instanceof Uint8Array) {
 		const bf = (() => { try { return scanFields(maybeBody) } catch { return null } })()
-		if (bf && bf.has(1)) return { bodyBytes: maybeBody, sigMapBytes: first(f, 2) }
+		if (bf && looksLikeBody(bf)) return { bodyBytes: maybeBody, sigMapBytes: first(f, 2) }
 	}
 
 	// Fallback: the buffer itself is a TransactionBody
