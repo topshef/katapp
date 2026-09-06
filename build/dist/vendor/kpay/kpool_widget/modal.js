@@ -37,7 +37,7 @@ function injectModalCSS() {
 		   steps of grey — because it is a ground, not a feature. */
 		.kpm-card {
 			position: relative; margin: 0 auto;
-			width: min(900px, 96vw); max-height: 90vh;
+			width: min(900px, 96vw); max-height: 90vh; max-height: 90dvh;
 			background: linear-gradient(180deg, #f8f9fb 0%, #eceef2 100%);
 			border-radius: 10px;
 			box-shadow: 0 12px 48px rgba(0,0,0,.35);
@@ -132,9 +132,24 @@ function injectModalCSS() {
 		   Invisible to the user; lifts within ~350ms of the layout settling. */
 		.kpm-card[data-settling="1"] .kpm-body { pointer-events: none; }
 
+		/* MODALDVH1 (your report, 2026-09-06): "once the transaction has succeeded, on mobile
+		   I can't scroll right down — it's a little bit cropped, by about the size of the
+		   footer on mobile, the home and back buttons. It looks like it's counting that as
+		   part of the visible screen, but of course it's not."
+		   Exactly right, and that is what 100vh means. On a phone, vh is the LARGE viewport:
+		   the height the page would have if the browser's dynamic toolbars were retracted,
+		   which is taller than what you can actually see. So a full-height card overhangs the
+		   bottom bar by precisely that much, and the last slice of the body can never be
+		   scrolled into view. dvh is the DYNAMIC viewport — what is visible right now — so
+		   the card ends where the screen does. vh first as the fallback for anything too old
+		   to know dvh; dvh wins wherever it is understood.
+		   The body also takes the safe-area inset, for the iPhone home indicator, which sits
+		   inside the viewport rather than outside it and so is not covered by dvh alone. */
 		@media (max-width: 768px) {
 			.kpm-overlay { padding: 0; }
 			.kpm-card { width: 100vw; height: 100vh; max-height: 100vh; border-radius: 0; }
+			.kpm-card { height: 100dvh; max-height: 100dvh; }
+			.kpm-body { padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
 		}
 
 		/* WalletConnect's own modal must sit ABOVE this one. The live wcm bundle

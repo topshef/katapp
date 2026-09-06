@@ -323,7 +323,8 @@ function injectMethodsCSS() {
 		   it returns a lean layout) isn't cropped on desktop. Mobile gets 80vh. */
 		.kpsign-frame{ width:100%; height:min(72vh,560px); border:0; border-radius:8px; background:#fafafa; }
 		.kpsign-pane .kpsign{ margin:6px 0 0; }
-		@media (max-width:600px){ .kpsign-frame{ height:80vh; } }
+		/* MODALDVH1: same unit trap as the card — vh overhangs the phone's bottom bar */
+		@media (max-width:600px){ .kpsign-frame{ height:80vh; height:80dvh; } }
 	`
 	document.head.appendChild(s)
 }

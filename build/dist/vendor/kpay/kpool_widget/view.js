@@ -2390,7 +2390,8 @@ export function injectTxReadCSS() {
 		   tint with the strong hue laid over it at --txhatch-a. So the alpha IS the deviation;
 		   there is no separate base to tune unless the panel colour itself changes.
 		   One parameter drives all of it: ?hatch=dark,gap,alpha,deg — see qa/url-params. */
-		.txcards { --txhatch-d: 1px; --txhatch-g: 1px; --txhatch-a: .06; --txhatch-deg: 45deg; }
+		/* your pick, 2026-09-06: ?hatch=3,3,0.03 — 3px line, 3px gap, very low contrast */
+		.txcards { --txhatch-d: 3px; --txhatch-g: 3px; --txhatch-a: .03; --txhatch-deg: 45deg; }
 		.txpreview-before, .txcard-send {
 			background: repeating-linear-gradient(var(--txhatch-deg), rgba(185,28,28,var(--txhatch-a)) 0 var(--txhatch-d), transparent var(--txhatch-d) calc(var(--txhatch-d) + var(--txhatch-g))), #fdf2f2; }
 		.txpreview-after, .txcard-receive {

@@ -38,12 +38,12 @@ after one visit; everything else applies to that page load only. Case matters as
 <tr><td class="p"><code>?chipshape=tall</code> · <code>pill</code></td>
     <td>Fungible chips as a taller, squarer chip with the symbol on top and a smaller, muted amount beneath (<code>tall</code>), or the one-line default (<code>pill</code>). Same as ⚙ Settings → 🧪 Chip shape, but for this load only — the setting is not changed.</td>
     <td class="where">board</td></tr>
-<tr><td class="p"><code>?hatch=1,1,0.06,45</code></td>
+<tr><td class="p"><code>?hatch=3,3,0.03,45</code></td>
     <td><b>The BEFORE/AFTER texture, in one parameter</b>: <code>dark,gap,alpha,deg</code>.
       <b>dark</b> = width of the darker line in px. <b>gap</b> = width of the lighter gap between
       them in px. <b>alpha</b> = 0–1, how far the dark line deviates from the base. <b>deg</b> =
       the lean of the pink; the green always mirrors it.
-      Leave a part empty to keep its default (<code>?hatch=,,0.12</code> tunes only the alpha) and
+      Defaults are <code>3,3,0.03,45</code>. Leave a part empty to keep its default (<code>?hatch=,,0.12</code> tunes only the alpha) and
       drop the trailing ones you don't need (<code>?hatch=2,3</code>). <code>?hatch=0</code> turns
       the texture off.<br>
       <i>Where the base comes from:</i> the LIGHT band is the plain panel tint the card has always

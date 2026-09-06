@@ -229,5 +229,17 @@ window.KCHANGES_LOG = [
     detail: "?hatch=dark,gap,alpha,deg — e.g. ?hatch=2,3,0.08,45. Leave a part empty to keep its default (?hatch=,,0.12 tunes only the alpha), drop the trailing ones, ?hatch=0 off. On where the base comes from: the light band IS the plain panel tint; the dark band is that tint with the strong hue over it at alpha — so alpha is the deviation, and the only way to move the base is to change the panel colour itself.\nAlso two hover faults, one of which you were seeing on mobile. Tapping AFTER left it looking light: the colour was never hover's to change, but katomia.css has a global button:hover that paints buttons grey, and these halves are buttons, so the host was winning — on desktop hover too. The texture is now re-asserted on hover, focus and active, so the legend always matches the cards. Separately the ring stayed latched after a touch; hover styling is now limited to devices that really hover, and a click drops the ring at once while a real pointer leaving and returning brings it back.",
     from: "your round-6 note", feedback: null,
     needs: "while a transaction is being signed",
-    where: [{ page: "m/sign|board|game", sel: ".txpreview-after" }] }
+    where: [{ page: "m/sign|board|game", sel: ".txpreview-after" }] },
+  { ref: "F03", at: "2026-09-06T23:00:00Z",
+    title: "The modal was cropped by the height of your phone's bottom bar",
+    detail: "\"Once the transaction has succeeded, on mobile I can't scroll right down — it's a little bit cropped, by about the size of the footer on mobile, the home and back buttons. It looks like it's counting that as part of the visible screen, but of course it's not.\" That is exactly what it was doing, and it is what 100vh means: on a phone vh is the LARGE viewport — the height the page would have if the browser's toolbars were retracted — so a full-height card overhangs the bottom bar by precisely that much and the last slice can never be scrolled into view. It now uses dvh, the viewport that is actually visible, with vh left in front as the fallback. The body also takes the iPhone safe-area inset, which sits inside the viewport and so is not covered by dvh alone. Same fix applied to the WalletConnect frame, which had the same unit.",
+    from: "your round-7 note", feedback: null,
+    needs: "while a transaction is being signed",
+    where: [{ page: "m/sign|board|game", sel: ".kpm-card" }] },
+  { ref: "F04", at: "2026-09-06T23:00:00Z",
+    title: "Hatch default is now 3,3,0.03",
+    detail: "Your pick after tuning it from the address bar: a 3px line, a 3px gap and a very low contrast. ?hatch=dark,gap,alpha,deg still overrides it for the next pass.",
+    from: "your round-7 note", feedback: null,
+    needs: "while a transaction is being signed",
+    where: [{ page: "m/sign|board|game", sel: ".txcards-preview" }] }
 ]
