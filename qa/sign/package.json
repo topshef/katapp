@@ -1,0 +1,7 @@
+{
+  "name": "katomia-qa-sign",
+  "private": true,
+  "description": "Signing-modal precheck regression: every 'not enough' the backend can report must ring the right card red and explain itself in the card's detail.",
+  "scripts": { "test": "node run.mjs" },
+  "devDependencies": { "playwright": "1.58.2" }
+}

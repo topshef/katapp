@@ -1,0 +1,216 @@
+// qa/sign — SIGN-PRECHECK-QA1: the "not enough" regression suite for the signing modal.
+//
+// Operator, 2026-09-06, after an NFT the sender no longer held left the modal on "Ready to
+// submit" with every card green: "update the QA with some regression tests we can keep
+// running that can detect if this ever breaks — and generally cover this class of issue:
+// not enough balance in anything."
+//
+// The class: the backend's precheck refuses to submit and says why. Each reason must land
+// in the SAME three places on the account card — red ring, red chip, a plain-words line in
+// the expanded detail — and the header must not claim the transaction is ready. One
+// scenario per reason the precheck can produce, plus the clean / incomplete / expired
+// controls so a fix for one cannot silently regress another.
+//
+// Drives the REAL built bundle (build/dist) in headless Chromium, served locally. The one
+// backend call the modal makes (txRead) is answered from a fixture captured off the live
+// backend — public transaction bytes, public keys, signatures; nothing secret — with the
+// precheck verdict grafted on per scenario. Every other request is refused, so this never
+// touches a network. Clicks are real pointer clicks.
+//
+//   node qa/sign/run.mjs            (from the repo root; needs playwright + chromium)
+//   DIST=build/dist-gcp node …      to test the other variant
+import { chromium } from 'playwright'
+import { readFileSync } from 'node:fs'
+import { createServer } from 'node:http'
+import { extname, join, resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const ROOT = resolve(HERE, '..', '..')
+const DIST = resolve(ROOT, process.env.DIST || 'build/dist')
+const PCH  = 'e3de61ab30b8c852dfcf41a427f3cea54bca858fa33b707b807f4522d3a3b574'
+const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2' }
+
+let failed = 0, total = 0
+const ok = (c, m, x) => { total++; if (c) console.log('  PASS ' + m); else { failed++; console.log('  FAIL ' + m + (x !== undefined ? ' — ' + x : '')) } }
+
+// ── a tiny static server over the built dist (no python, no deps) ──────────────
+const server = createServer((req, res) => {
+  let p = decodeURIComponent(new URL(req.url, 'http://x').pathname)
+  if (p.endsWith('/')) p += 'index.html'
+  const file = join(DIST, p)
+  if (!file.startsWith(DIST)) { res.writeHead(403); return res.end() }
+  let body
+  try { body = readFileSync(file) } catch { res.writeHead(404); return res.end() }
+  res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' })
+  res.end(body)
+})
+await new Promise(r => server.listen(0, '127.0.0.1', r))
+const BASE = `http://127.0.0.1:${server.address().port}`
+
+// ── the fixture, and the per-scenario precheck grafts ──────────────────────────
+const SENDER = '0.0.3833789', RECEIVER = '0.0.9940704'
+const FT = '0.0.3833795'                     // a fungible the fixture already sends
+const NFT = '0.0.1263996', SERIAL = 8         // the real refused serial (KPLAY #8)
+function fixture({ precheck, nftLeg = false, expired = false }) {
+  const f = JSON.parse(readFileSync(join(HERE, 'fixtures', 'txread-open.json'), 'utf8'))
+  const r = f.result
+  // an OPEN, in-window transaction: re-stamp the valid-start and drop the captured
+  // EXPIRED status (the real tx expired after capture, and EXPIRED correctly outranks Held)
+  if (!expired) { r.txid = r.txid.replace(/@\d+/, '@' + Math.floor(Date.now() / 1000)); delete r.comboStatus; delete r.mirrorStatus; delete r.isStatusFinal; r.receiptSuccess = false }
+  if (nftLeg) {
+    // getAllTransfers reads NFT legs from PCH_basis.transfers (then the deal) and throws
+    // on mixed sources — an unsettled tx has no mirror transactions, so set both
+    const leg = { tokenId: NFT, serial: SERIAL, sender: SENDER, receiver: RECEIVER }
+    r.deal.addNftTransfer = [leg]
+    if (r.PCH_basis?.transfers) r.PCH_basis.transfers.nftTransfers = [leg]
+    if (r.deal?.pchbasis?.transfers) r.deal.pchbasis.transfers.nftTransfers = [leg]
+  }
+  r.precheck = precheck === undefined ? r.precheck : precheck
+  return f
+}
+const verdict = (fail = [], untested = [], balances = {}) => ({
+  status: fail.length ? 'fail' : 'pass', complete: true, checkedAt: new Date().toISOString(),
+  balances, tests: { fail, untested, pass: [] }
+})
+
+const browser = await chromium.launch()
+async function open(fx, { maxAutoAssoc } = {}) {
+  const page = await browser.newPage({ viewport: { width: 376, height: 900 } })
+  await page.route('**/*', route => {
+    const u = route.request().url()
+    if (/action=txRead|kpool\/txRead/.test(u))
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(fx) })
+    // the modal looks every card's account up on the mirror; the association wording and
+    // chip style branch on max_automatic_token_associations from that record. Answer it
+    // for the receiver when a scenario sets it, so the datum arrives the way it really does.
+    let m
+    if (maxAutoAssoc !== undefined && (m = /\/accounts\/(0\.0\.\d+)(?:[?#]|$)/.exec(u)) && m[1] === RECEIVER)
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ account: RECEIVER, deleted: false, max_automatic_token_associations: maxAutoAssoc, balance: { balance: 100000000, tokens: [] } }) })
+    if (u.startsWith(BASE)) return route.continue()
+    return route.abort()
+  })
+  page.on('pageerror', e => { if (!/\.slick is not a function|\.tabs is not a function/.test(e.message)) { failed++; total++; console.log('  FAIL page error: ' + e.message) } })
+  await page.goto(`${BASE}/m/sign/?network=mainnet&txid=${encodeURIComponent(fx.result.txid)}&pch=${PCH}`, { waitUntil: 'domcontentloaded' })
+  await page.waitForSelector('.txcard', { timeout: 45000 })
+  await page.evaluate(() => { document.getElementById('cookieNotice')?.remove(); document.getElementById('preloader')?.remove() })
+  await page.waitForTimeout(900)
+  return page
+}
+const state = (page, acct) => page.evaluate(({ acct }) => {
+  const card = document.querySelector(`.txcard-head[data-acct="${acct}"]`)?.closest('.txcard')
+  const chips = [...(card?.querySelectorAll('.txcard-chip') || [])]
+  return {
+    red: !!card?.classList.contains('txcard--balance-short'),
+    redChips: chips.filter(c => c.classList.contains('txcard-chip--short')).map(c => c.dataset.side + ':' + c.dataset.assetKey),
+    dashedChips: chips.filter(c => c.classList.contains('txcard-chip--unassoc') || c.classList.contains('txcard-chip--unassoc-hard')).map(c => c.dataset.side + ':' + c.dataset.assetKey + (c.classList.contains('txcard-chip--unassoc-hard') ? ':hard' : ':soft')),
+    pill: document.querySelector('.kpm-head')?.textContent?.replace(/\s+/g, ' ').trim() || '',
+    banner: !!document.body.contains(document.getElementById('txread-precheck'))
+  }
+}, { acct })
+async function expand(page, acct) {
+  await (await page.$(`.txcard-head[data-acct="${acct}"]`)).click()
+  await page.waitForTimeout(800)
+  return page.evaluate(({ acct }) => {
+    const card = document.querySelector(`.txcard-head[data-acct="${acct}"]`)?.closest('.txcard')
+    const link = card?.querySelector('.txcard-issue-link')
+    return { open: !!card?.classList.contains('txcard--open'), text: (card?.textContent || '').replace(/\s+/g, ' '),
+      link: link ? { text: link.textContent, href: link.href, target: link.target, rel: link.rel } : null }
+  }, { acct })
+}
+
+// ── scenarios ───────────────────────────────────────────────────────────────────
+console.log('1. NFT the sender no longer holds (the real 2026-09-06 case)')
+{
+  const page = await open(fixture({ nftLeg: true, precheck: verdict([`does sender ${SENDER} own ${NFT} #${SERIAL} ?`]) }))
+  const s = await state(page, SENDER), rc = await state(page, RECEIVER)
+  ok(s.red, 'sender card rings red')
+  ok(!rc.red, 'receiver card does not')
+  ok(s.redChips.includes(`send:${NFT}#${SERIAL}`), 'the NFT send chip is solid red', JSON.stringify(s.redChips))
+  ok(/\bHeld\b/.test(s.pill) && !/Ready to submit/.test(s.pill), 'header says Held, not Ready to submit', s.pill)
+  ok(!s.banner, 'no precheck banner at the top')
+  const d = await expand(page, SENDER)
+  ok(d.open, 'a real click expands the card')
+  ok(/doesn't hold .*#8/.test(d.text) && /would fail/.test(d.text), 'detail says the account does not hold that serial and the transfer would fail', d.text.slice(0, 220))
+  ok(!/Not enough/.test(d.text), 'not misdescribed as an amount shortfall')
+  ok(d.link?.text === 'another account' && d.link.href === `https://hashscan.io/mainnet/token/${NFT}/${SERIAL}`,
+     '"another account" links to that serial on HashScan (mainnet)', JSON.stringify(d.link))
+  ok(d.link?.target === '_blank' && /noopener/.test(d.link?.rel || ''), 'opens in a new tab with noopener')
+  await page.close()
+}
+
+console.log('2. fungible token shortfall')
+{
+  const page = await open(fixture({ precheck: verdict([`has sender ${SENDER} enough ${FT} ?`], [], { [SENDER]: { [FT]: { forecast: -50 } } }) }))
+  const s = await state(page, SENDER), rc = await state(page, RECEIVER)
+  ok(s.red && !rc.red, 'sender red, receiver not', JSON.stringify({ s: s.red, r: rc.red }))
+  ok(s.redChips.includes(`send:${FT}`), 'the token send chip is red', JSON.stringify(s.redChips))
+  ok(/\bHeld\b/.test(s.pill), 'header says Held', s.pill)
+  const d = await expand(page, SENDER)
+  ok(/Not enough/.test(d.text) && /won't cover/.test(d.text), 'detail: "Not enough … won\'t cover what this account sends"', d.text.slice(0, 200))
+  await page.close()
+}
+
+console.log('3. HBAR shortfall (fee payer)')
+{
+  const page = await open(fixture({ precheck: verdict([`has ${SENDER} sufficient hbar balance ?`], [], { [SENDER]: { hbar: { forecast: -1 } } }) }))
+  const s = await state(page, SENDER)
+  ok(s.red, 'sender card rings red')
+  ok(s.redChips.some(k => k === 'send:tinybar'), 'the HBAR chip is red (precheck says hbar, chip is keyed tinybar)', JSON.stringify(s.redChips))
+  const d = await expand(page, SENDER)
+  ok(/Not enough [\d.,]* ?HBAR/i.test(d.text), 'detail names HBAR (with the amount off the chip)', d.text.slice(0, 200))
+  await page.close()
+}
+
+console.log('4. receiver not associated — soft (has auto-association slots)')
+{
+  const page = await open(fixture({ precheck: verdict([`has receiver ${RECEIVER} associated ${FT} ?`]) }), { maxAutoAssoc: -1 })
+  const rc = await state(page, RECEIVER), s = await state(page, SENDER)
+  ok(rc.red && !s.red, 'RECEIVER card rings (it is their responsibility), sender does not', JSON.stringify({ r: rc.red, s: s.red }))
+  ok(rc.dashedChips.includes(`receive:${FT}:soft`), 'the receive chip is DASHED red (may still land via a free slot)', JSON.stringify(rc.dashedChips))
+  const d = await expand(page, RECEIVER)
+  ok(/not associated/.test(d.text) && /may still land/.test(d.text), 'detail: not associated, may still land', d.text.slice(0, 220))
+  await page.close()
+}
+
+console.log('5. receiver not associated — hard (no auto-association slots)')
+{
+  const page = await open(fixture({ precheck: verdict([`has receiver ${RECEIVER} associated ${FT} ?`]) }), { maxAutoAssoc: 0 })
+  const rc = await state(page, RECEIVER)
+  ok(rc.dashedChips.includes(`receive:${FT}:hard`), 'the receive chip is SOLID red (definite fail)', JSON.stringify(rc.dashedChips))
+  const d = await expand(page, RECEIVER)
+  ok(/no auto-association slots/.test(d.text) && /will fail/.test(d.text), 'detail: will fail until the account associates', d.text.slice(0, 220))
+  await page.close()
+}
+
+console.log('6. clean precheck — nothing rings, header ready')
+{
+  const page = await open(fixture({ precheck: verdict([]) }))
+  const s = await state(page, SENDER), rc = await state(page, RECEIVER)
+  ok(!s.red && !rc.red && !s.redChips.length && !rc.dashedChips.length, 'no card and no chip is red', JSON.stringify({ s, rc }))
+  ok(!/\bHeld\b/.test(s.pill), 'header does not say Held', s.pill)
+  await page.close()
+}
+
+console.log('7. incomplete precheck — could not verify is not "will fail"')
+{
+  const v = verdict([], [`⚠️ could not fetch token relationship for ${SENDER} / ${FT} (timeout)`]); v.complete = false
+  const page = await open(fixture({ precheck: v }))
+  const s = await state(page, SENDER)
+  ok(!s.red, 'sender card does NOT ring red on an unverified check')
+  ok(!/\bHeld\b/.test(s.pill), 'header does not say Held', s.pill)
+  await page.close()
+}
+
+console.log('8. window shut with nothing on chain')
+{
+  const page = await open(fixture({ expired: true, precheck: verdict([]) }))
+  const s = await state(page, SENDER)
+  ok(/Expired/.test(s.pill) && !/Ready to submit/.test(s.pill), 'header reads Expired, never Ready beside a dead clock', s.pill)
+  await page.close()
+}
+
+await browser.close(); server.close()
+console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — every "not enough" reaches the card'))
+process.exit(failed ? 1 : 0)

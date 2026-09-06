@@ -66,6 +66,7 @@ never look like more coverage than it is.</p>
     logic work"); mainnet runs daily at real cost ("is it true with real money") — a
     testnet-green/mainnet-red split is information, not a duplicate.</p>
     <ul>
+      <li><b>"Not enough" on the signing modal</b> — SIGN-PRECHECK-QA1 runs on every push to <code>pilot</code> (the <code>sign</code> job in <code>katui.yml</code>): the built modal is driven in a real browser and every reason the backend's precheck can refuse a transaction — a fungible or HBAR shortfall, a missing association, an NFT the sender no longer holds — must ring the right card red, mark the chip, and explain itself in the card's detail; the header must never stay on "Ready to submit". Added after 2026-09-06, when an unowned serial left every card green. <span class="note">qa/sign/run.mjs · fixture-driven, no network</span></li>
       <li><a href="kwallet.html"><b>Signing health</b></a> — the wallet/signing tests on one screen;
           a silent test is ranked as badly as a failing one</li>
       <li><b>State sync</b> — the incremental-update layer (STATSYNC1) is guarded daily by

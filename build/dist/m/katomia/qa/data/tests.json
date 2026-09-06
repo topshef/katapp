@@ -1,6 +1,6 @@
 {
   "_about": "THE TEST ID INDEX — every test identifier we use, what it asserts, where it runs, and how to run it. Created 2026-08-08 (user) after MAINNETSMOKE-01 and TXS-1 were quoted in chat and could not be found anywhere: they were not tasks, and TXS-* existed only as prose inside QA-XFAIL1.json's `next` field. A test id must resolve to something you can open — that is what this file is for. Viewer: tests.html. Naming convention (PROTOCOL.md): a bare CAPITALISED reference is a kPad TASK; a test id is written T:<id> in prose and chat, and must come with its URL. Each suite records what_it_does (the actual steps), pass_means, fails_when, its dimension and its cost — added 2026-08-08 after the user pointed out that 'real value, real network, once a day' does not tell anyone what the test IS.",
-  "updated": "2026-08-22",
+  "updated": "2026-09-06",
   "convention": {
     "task": "BARE CAPS — a kPad task, e.g. TXSTATUS-CONSOLIDATE1. Look it up in kPad.",
     "test": "T:<id> — a test case, e.g. T:HBARXFER-01. Defined in this file; results on the QA grid.",
@@ -1206,6 +1206,33 @@
       "fails_when": "The dial is refused off playnet again (the interlock crept back, or the signature stopped being verified); a Firm take stops auto-locking on testnet; or — most seriously — value moves on a real network from a transaction nobody signed.",
       "harness_url": "https://lab1.katlab.kpay.live/m/katomia/qa/harness/tickets-dialnet-check.cjs",
       "how_to_reproduce": "Run the harness. It prints the circle URL and leaves it in place for inspection. Each numbered assertion (T:TICKETS-DIALNET-01.n) prints PASS/FAIL with detail."
+    },
+    {
+      "id": "SIGNPRECHECK-01",
+      "title": "Every \"not enough\" reaches the signing modal's cards",
+      "asserts": "For each reason the backend's precheck can refuse a transaction — fungible shortfall, HBAR shortfall, missing association (soft and hard), an NFT the sender no longer holds — the RIGHT card rings red, its chip is marked, the expanded detail explains it in plain words (with a HashScan link for an unowned serial), and the header never stays on \"Ready to submit\". Clean, incomplete and expired controls guard the other direction.",
+      "kind": "browser-regression",
+      "network": "none (fixture)",
+      "module": "signing-widget",
+      "harness": "qa/sign/run.mjs",
+      "run": {
+        "ci": "katui.yml → job `sign`, on every push to pilot / claude/** touching build, public_html or qa/sign; both dist variants",
+        "any": "cd qa/sign && npm ci && npx playwright install chromium && node run.mjs   (DIST=build/dist-gcp for the other variant)"
+      },
+      "schedule": "every push (katui workflow), plus the 6-hourly katui schedule",
+      "reports": "GitHub Actions job status",
+      "dimension": "signing modal · precheck → card cues",
+      "cost": "none",
+      "what_it_does": [
+        "Serves the BUILT bundle (build/dist) from a tiny local static server and opens /m/sign/ in headless Chromium.",
+        "Answers the modal's one backend call (txRead) from a fixture captured off the live backend — public bytes, keys and signatures only — with a precheck verdict grafted on per scenario; refuses every other request, so no network is ever touched.",
+        "Scenario 1 grafts an NFT leg onto the fixture and the exact refusal recorded on 2026-09-06 (\"does sender X own T #S ?\"): sender card red, NFT send chip solid red, receiver untouched, header Held, no top banner; a real click expands the card and the detail names the serial, says the transfer would fail, does not say \"Not enough\", and \"another account\" links to hashscan.io/<net>/token/<id>/<serial> in a new tab.",
+        "Scenarios 2–3: fungible and HBAR shortfalls → sender red, the right chip red (HBAR is keyed tinybar on the chip, hbar in the precheck), \"Not enough …\" in the detail.",
+        "Scenarios 4–5: missing association → the RECEIVER rings, dashed chip when the account has auto-association slots (the mirror record is stubbed with max_automatic_token_associations, the datum's real source), solid when it has none, with the matching wording.",
+        "Scenarios 6–8: a clean precheck rings nothing and the header is not Held; an INCOMPLETE precheck (could not verify) rings nothing; a window that has shut with nothing on chain reads Expired, never Ready."
+      ],
+      "notes": "Born of mainnet 0.0.6026298@1788722674.000002001: the backend refused it four times over 90s because 0.0.25200 no longer held KPLAY #8, the reason was pushed to the browser every time, and the card path had patterns for fungible/HBAR/association faults but none for an unowned serial (its comment read \"NFTs skipped\") — so every card stayed green. Two fixture traps are written into the harness: NFT legs are read from PCH_basis.transfers (not PCH_basis) and mixed sources throw; and a fixture captured off a since-expired tx carries an EXPIRED status that correctly outranks Held.",
+      "repro": "Open any held transaction on /m/sign/. If the sender's card is green while the header or the countdown says otherwise, the card cue path has regressed; run qa/sign/run.mjs locally to see which scenario."
     }
   ],
   "expected_fail": {

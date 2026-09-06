@@ -5,6 +5,14 @@
 #              committed dist is stale: dist is a checked-in artifact (the git-connected
 #              Cloudflare deploy ships it as-is), so a source edit without a rebuild would
 #              silently deploy the old page. Run build/build-static.sh and commit.
+#   sign     — SIGN-PRECHECK-QA1: drives the built signing modal (build/dist) in headless
+#              Chromium and proves every "not enough" the backend's precheck can report —
+#              fungible shortfall, HBAR shortfall, missing association (soft and hard), an
+#              NFT the sender no longer holds — rings the right card red, marks the chip,
+#              explains itself in the card's detail, and never leaves the header on "Ready
+#              to submit". Plus the clean / incomplete / expired controls. Fixture-driven,
+#              no network: qa/sign/run.mjs. Born of the 2026-09-06 case where an unowned
+#              serial left every card green and the modal claiming readiness.
 #   smoke    — after a push, waits for the Cloudflare build then curls the live routes
 #              (the 404s this whole exercise started with). Origin comes from the
 #              repository VARIABLE KATUI_ORIGIN (Settings → Secrets and variables →
@@ -13,7 +21,7 @@ name: katui
 on:
   push:
     branches: [pilot, 'claude/**']
-    paths: [build/**, public_html/**, .github/workflows/katui.yml]
+    paths: [build/**, public_html/**, qa/sign/**, .github/workflows/katui.yml]
   schedule:
     - cron: '41 */6 * * *'
   workflow_dispatch:
@@ -40,6 +48,26 @@ jobs:
         run: php -v | head -1
       - name: committed dist == rebuilt dist (modulo mtime cache stamps + commit hash)
         run: bash build/dist-fresh.sh
+
+  sign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: qa/sign/package-lock.json
+      - name: install
+        working-directory: qa/sign
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: SIGN-PRECHECK-QA1 (katui dist)
+        run: node qa/sign/run.mjs
+      - name: SIGN-PRECHECK-QA1 (gcp dist)
+        run: DIST=build/dist-gcp node qa/sign/run.mjs
 
   smoke:
     runs-on: ubuntu-latest

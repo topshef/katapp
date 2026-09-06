@@ -1238,8 +1238,16 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 			items.push({ warn: true, text: `Not enough ${labelFor(a)} — the balance won't cover what this account sends.` })
 		// NFT-CARDOWN1: the NFT shape of the line above — there is no amount to be short of,
 		// the account simply does not hold that serial any more, so the transfer cannot execute.
-		for (const a of card?._balanceIssues?.notOwned || [])
-			items.push({ warn: true, text: `This account doesn't hold ${labelFor(a)} — the serial belongs to another account, so this transfer would fail.` })
+		// NFT-CARDOWN2 (operator, 2026-09-06): "make 'another account' a hyperlink to hashscan
+		// for that serial, so the user can verify and satisfy themselves about who owns it."
+		// The key is token#serial; HashScan's serial page is /token/<id>/<serial>.
+		for (const a of card?._balanceIssues?.notOwned || []) {
+			const [tok, ser] = String(a).split('#')
+			items.push({ warn: true,
+				text: `This account doesn't hold ${labelFor(a)} — the serial belongs to `,
+				link: { text: 'another account', href: `https://hashscan.io/${network}/token/${tok}/${ser}`, title: 'See the current owner on HashScan' },
+				after: `, so this transfer would fail.` })
+		}
 		// SIGN-ASSETASSOC1: association wording branches on the account's auto-association
 		// capacity (mirror max_automatic_token_associations, stashed on the card by
 		// updateCardSigning): 0 slots = the transfer WILL fail (solid red chip); otherwise
@@ -1286,6 +1294,17 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 				const li = document.createElement('div')
 				li.className = 'txcard-issue ' + (i.warn ? 'txcard-issue--warn' : 'txcard-issue--info')
 				li.textContent = `${i.bullet || (i.warn ? '⚠️' : 'ℹ️')} ${i.text}`
+				// NFT-CARDOWN2: an optional verifiable link inside the sentence. Built as nodes,
+				// never innerHTML — the surrounding text can carry asset names from token metadata.
+				if (i.link) {
+					const a = document.createElement('a')
+					a.className = 'txcard-issue-link'
+					a.href = i.link.href; a.target = '_blank'; a.rel = 'noopener'
+					a.textContent = i.link.text
+					if (i.link.title) a.title = i.link.title
+					li.appendChild(a)
+					if (i.after) li.appendChild(document.createTextNode(i.after))
+				}
 				list.appendChild(li)
 			})
 			wrap.appendChild(list)
@@ -2392,6 +2411,8 @@ export function injectTxReadCSS() {
 		}
 		.txcard-chip-icon { flex:0 0 auto; }
 		.txcard-chip-text { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+		.txcard-issue-link { color:inherit; text-decoration:underline; text-underline-offset:2px; }
+		.txcard-issue-link:hover { text-decoration-thickness:2px; }
 		.txcard-chip-ghost {
 			/* dashed + muted, but OPAQUE (solid bg + full opacity) so the dotted trail behind it
 			   is cleanly obscured — the chip sits on top of the trail (per user). */

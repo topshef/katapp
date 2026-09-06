@@ -78,6 +78,16 @@ async function sha256Hex(str) {
 // unauthenticated, never gating, and safe to omit. The signer re-decodes the
 // body and refuses the payload on any pch or txid mismatch — the bytes are the
 // truth, the envelope is convenience.
+//
+// KQR2-REQ-LIVE1: two things made req= unreliable in practice, and this fixes
+// both. (1) requiredKeys is read from kpool readiness, which loads keyInfo
+// async — so the QR, painted once when the Offline tab first opened, often
+// went out with req= EMPTY and the signer saw nothing to match. renderKsig now
+// returns a handle whose refresh() repaints the QR when the hinted set changes
+// (index.js calls it as readiness lands). (2) The host can switch the hint off
+// (the "Include requested keys" box in index.js) for a transaction with so
+// many keys that the QR gets dense — refresh() repaints for that too. The
+// scan-back UI below the QR is built once and left alone by a repaint.
 const KQR2_NETWORKS = new Set(['mainnet', 'testnet', 'previewnet'])
 const KQR2_TXID_RE = /^\d+\.\d+\.\d+@\d+\.\d+$/
 const KQR2_B64_RE = /^[A-Za-z0-9+/]+={0,2}$/
@@ -311,9 +321,6 @@ export async function renderKsig(container, {
 		// and refuses on mismatch. The URL txid is only a fallback.
 		let bodyTxid = null
 		try { bodyTxid = decodeTransaction(bodyBytesHex)?.transactionId || null } catch {}
-		const payload = await buildKqr2({ network, txid: bodyTxid || txid, bodyBytesHex, requiredKeys })
-		await verifyKqr2(payload.text, bodyBytesHex, bodyTxid)
-		const { text: qrText, checksum } = payload
 
 		container.innerHTML = ''
 
@@ -321,13 +328,35 @@ export async function renderKsig(container, {
 		qr.className = 'kpsign-qr'
 		container.appendChild(qr)
 
-		const shown = drawQR(qr, qrText)
-		kdiag('ksig:qr-size', { ...shown, format: 'KQR2', chars: qrText.length, req: payload.req })
-
 		const cap = document.createElement('div')
 		cap.className = 'kpsign-qr-cap'
-		cap.textContent = `Scan with the KSIG app · checksum ${checksum}`
 		container.appendChild(cap)
+
+		// The QR and its caption are the only parts that depend on req=, so they
+		// are the only parts a repaint touches. lastReq lets refresh() be called
+		// freely — from every readiness tick — and do nothing unless the hinted
+		// set actually changed.
+		let lastReq = null
+		let checksum = null
+		const paint = async () => {
+			const payload = await buildKqr2({ network, txid: bodyTxid || txid, bodyBytesHex, requiredKeys })
+			await verifyKqr2(payload.text, bodyBytesHex, bodyTxid)
+			const reqKey = payload.req.join(',')
+			if (reqKey === lastReq) return false
+			lastReq = reqKey
+			checksum = payload.checksum
+			qr.innerHTML = ''
+			const shown = drawQR(qr, payload.text)
+			kdiag('ksig:qr-size', { ...shown, format: 'KQR2', chars: payload.text.length, req: payload.req })
+			// the caption says whether the hint went out — the one thing you cannot
+			// see in the QR itself, and the thing to check when the signer's list
+			// comes up empty
+			const n = payload.req.length
+			cap.textContent = `Scan with the KSIG app · checksum ${checksum}`
+				+ (n ? ` · ${n} key${n > 1 ? 's' : ''} hinted` : ' · no key hint')
+			return true
+		}
+		await paint()
 
 		// ── scan-back UI ────────────────────────────────────────────────────
 		const scanBtn = document.createElement('button')
@@ -361,7 +390,7 @@ export async function renderKsig(container, {
 			startScanBack({ network, txid, pch, bodyBytesHex, readUrl, saveUrl, submitSigUrl, onSigned, statusEl: status, btnEl: scanBtn })
 		)
 
-    kdiag('ksig:qr-rendered', { bytes: bodyBytesHex.length / 2, checksum, pch6: payload.pch6, format: 'KQR2' })
+    kdiag('ksig:qr-rendered', { bytes: bodyBytesHex.length / 2, checksum, format: 'KQR2' })
 
 		// Decode the transaction client-side so we can verify what's being signed.
 		// Prefer hex2 (full envelope — includes any sigs already attached); fall back
@@ -379,12 +408,23 @@ export async function renderKsig(container, {
 			})
 		} catch (e) {
 			kdiag('ksig:decode:error', { error: String(e) })
-		} 
-    
-    
+		}
+
+		// refresh(): repaint the QR if the hinted key set has changed. Safe to
+		// call on every readiness tick; a no-op mid-scan so the code a camera is
+		// reading is never swapped underneath it (the scan-back reads the
+		// SIGNER's QR, not this one, but the operator may still be lining up).
+		return {
+			refresh: async () => {
+				if (scanning) return false
+				try { return await paint() }
+				catch (e) { kdiag('ksig:refresh:error', { error: String(e) }); return false }
+			}
+		}
 	} catch (err) {
 		kdiag('ksig:error', { error: String(err) })
 		container.innerHTML = `<div class="kpsign-msg">QR failed: ${err.message}</div>`
+		return { refresh: async () => false }
 	}
 }
 
