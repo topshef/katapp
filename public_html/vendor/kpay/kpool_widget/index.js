@@ -415,6 +415,34 @@ function buildKsigPane(txState) {
 		`Don't have it? <a href="https://ksig.uk/pwa" target="KPAYPWA">Get KSIG</a>.`
 	))
 
+	// KQR2-REQ-LIVE1: whether the QR carries req= — the last 6 hex of each key
+	// kpool says can sign — so KSIG can shortlist matching keys on the phone.
+	// On by default: it is the whole reason a transfer's signers show up in KSIG
+	// at all. Off is for a transaction with so many keys that the extra
+	// characters make the QR dense enough to trouble a camera; the hint is not
+	// part of the signed bytes, so leaving it out changes nothing but
+	// convenience.
+	const reqRow = document.createElement('label')
+	reqRow.className = 'kpsign-req'
+	const reqBox = document.createElement('input')
+	reqBox.type = 'checkbox'
+	reqBox.checked = true
+	reqRow.appendChild(reqBox)
+	reqRow.appendChild(document.createTextNode(' Include requested keys in the QR'))
+	reqRow.title = 'Adds the last 6 characters of each public key that can sign this transaction, so KSIG '
+		+ 'can shortlist the matching keys it holds instead of you finding them by hand. A hint only — not '
+		+ 'part of what gets signed; a wrong or missing hint cannot change the transaction. Untick for a '
+		+ 'transaction with many keys if the QR becomes too dense to scan.'
+	pane.appendChild(reqRow)
+	if (!document.getElementById('kpsign-req-css')) {
+		const css = document.createElement('style')
+		css.id = 'kpsign-req-css'
+		css.textContent = '.kpsign-req{display:flex;align-items:center;gap:6px;justify-content:center;'
+			+ 'font-size:12.5px;color:#5a6a78;margin:2px 0 8px;cursor:pointer;user-select:none}'
+			+ '.kpsign-req input{margin:0}'
+	 	document.head.appendChild(css)
+	}
+
 	const mount = document.createElement('div')
 	mount.className = 'kpsign-ksig'
 	pane.appendChild(mount)
@@ -424,7 +452,7 @@ function buildKsigPane(txState) {
 	// host page and gets HTML back, which is the "Unexpected token '<'" failure.
 	pane._lazyInit = async () => {
 		const { renderKsig } = await import(`./ksig.js?v=${V}`)
-		renderKsig(mount, {
+		pane._ksig = await renderKsig(mount, {
 			network,
 			txid,
 			pch,
@@ -433,14 +461,26 @@ function buildKsigPane(txState) {
 			           // host's kpool txSave endpoint, NOT the page-relative default (which
 			           // is the Katomia game HTML page → the sig silently vanished).
 			// KQR2 req= hint for KSIG v2: the keys kpool's readiness says must sign.
-			// Read live — keyInfo loads async, so readiness may land after this pane
-			// was built. Empty is fine: the hint is a shortlist, never a gate.
-			requiredKeys: () => [...(txState.readiness?.allRequiredKeys || [])],
+			// Read live — keyInfo loads async, so readiness usually lands AFTER this
+			// pane first paints; refreshKsigHint() below repaints when it does.
+			// Empty is fine: the hint is a shortlist, never a gate.
+			requiredKeys: () => reqBox.checked ? [...(txState.readiness?.allRequiredKeys || [])] : [],
 			onSigned: () => notify(txState, '✍️ Signature submitted', 'success')
 		})
+		// readiness may already have landed while the QR was being built
+		pane._ksig?.refresh()
 	}
+	reqBox.addEventListener('change', () => pane._ksig?.refresh())
+	txState.ksigPane = pane
 
 	return pane
+}
+
+// KQR2-REQ-LIVE1: called wherever readiness is recomputed. If the Offline pane
+// has painted, repaint its QR so req= reflects the keys now known. A no-op
+// until the pane exists, and inside renderKsig a no-op unless the set changed.
+function refreshKsigHint(txState) {
+	txState?.ksigPane?._ksig?.refresh?.()
 }
 
 // brand icons live alongside the widget (./assets), so resolve them relative to
@@ -961,6 +1001,7 @@ async function loadSigningState(txState, tx) {
 	txState.data = tx.data
 	txState.accounts = tx.accounts
 	txState.readiness = tx.readiness
+	refreshKsigHint(txState)
 
 	txState.container.querySelector('#txread-status')?.classList.remove('tx-loading')
 
@@ -1179,6 +1220,7 @@ function renderSigningSection(txState, { data, accounts }) {
 
 	const readiness = evaluateTxReadiness({ accounts, data })
 	txState.readiness = readiness
+	refreshKsigHint(txState)
 
 	renderReadinessInfo({ readiness })
 	renderSigningInfo({ data, network, accounts })
