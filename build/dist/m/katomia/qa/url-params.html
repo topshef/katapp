@@ -38,17 +38,23 @@ after one visit; everything else applies to that page load only. Case matters as
 <tr><td class="p"><code>?chipshape=tall</code> · <code>pill</code></td>
     <td>Fungible chips as a taller, squarer chip with the symbol on top and a smaller, muted amount beneath (<code>tall</code>), or the one-line default (<code>pill</code>). Same as ⚙ Settings → 🧪 Chip shape, but for this load only — the setting is not changed.</td>
     <td class="where">board</td></tr>
-<tr><td class="p"><code>?hatch=0</code></td>
-    <td>Turns off the diagonal hatch on the BEFORE/AFTER strip in the signing modal (on by default; very faint).</td>
+<tr><td class="p"><code>?hatch=1,1,0.06,45</code></td>
+    <td><b>The BEFORE/AFTER texture, in one parameter</b>: <code>dark,gap,alpha,deg</code>.
+      <b>dark</b> = width of the darker line in px. <b>gap</b> = width of the lighter gap between
+      them in px. <b>alpha</b> = 0–1, how far the dark line deviates from the base. <b>deg</b> =
+      the lean of the pink; the green always mirrors it.
+      Leave a part empty to keep its default (<code>?hatch=,,0.12</code> tunes only the alpha) and
+      drop the trailing ones you don't need (<code>?hatch=2,3</code>). <code>?hatch=0</code> turns
+      the texture off.<br>
+      <i>Where the base comes from:</i> the LIGHT band is the plain panel tint the card has always
+      had (<code>#fdf2f2</code> pink, <code>#eff7f1</code> green). The DARK band is that same tint
+      with the strong hue laid over it at <b>alpha</b> — so alpha <i>is</i> the deviation, and the
+      only way to move the base itself is to change the panel colour.</td>
     <td class="where">signing modal</td></tr>
-<tr><td class="p"><code>?hatchw=9</code></td>
-    <td>Hatch stripe pitch in px (default 9). Smaller = denser.</td>
-    <td class="where">signing modal</td></tr>
-<tr><td class="p"><code>?hatcha=0.06</code></td>
-    <td>Hatch stripe opacity, 0–1 (default 0.06). Raise it to see the pattern while tuning.</td>
-    <td class="where">signing modal</td></tr>
-<tr><td class="p"><code>?hatchdeg=45</code></td>
-    <td>Hatch angle in degrees for BEFORE (default 45); AFTER uses the mirror angle so the two lean opposite ways.</td>
+<tr><td class="p"><code>?hatchw=</code> · <code>?hatcha=</code> · <code>?hatchdeg=</code></td>
+    <td>The older single knobs, still honoured so anything bookmarked keeps working.
+      <code>?hatchw=</code> is the whole pitch (dark + gap), not the line. <code>?hatch=</code>
+      wins where both are given.</td>
     <td class="where">signing modal</td></tr>
 <tr><td class="p"><code>?txview=cards</code> · <code>table</code> · <code>nerd</code></td>
     <td>Which transfer view the signing modal renders: the T-account cards (normal default), the line-item table (nerd default), or every registered view stacked.</td>

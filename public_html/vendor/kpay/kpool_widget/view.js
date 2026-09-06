@@ -429,14 +429,30 @@ const SIGN_REASON = {
 		preview.className = 'txcards-preview'
 		// HATCH1 URL knobs — design-pass only, never persisted
 		{
-			// HATCH2: set on the CONTAINER, not the preview — the account cards are siblings
-			// of the preview and now carry the same texture, so the knobs have to reach both.
+			// HATCH4: ONE parameter for the whole texture, so a design pass is a URL edit:
+			//     ?hatch=dark,gap,alpha,deg      e.g. ?hatch=1,2,0.08,45
+			// Any part may be left empty to keep its default (?hatch=,,0.12 tunes only the
+			// alpha), trailing parts may be omitted, and ?hatch=0 still turns it off. The old
+			// single knobs keep working for anything already bookmarked; the CSV wins when
+			// both are present. Set on the CONTAINER, not the preview — the account cards are
+			// siblings of the preview and carry the same texture, so this has to reach both.
 			const q = new URLSearchParams(location.search)
-			if (q.get('hatch') === '0') container.dataset.hatch = '0'
-			const w = parseFloat(q.get('hatchw')), a = parseFloat(q.get('hatcha')), d = parseFloat(q.get('hatchdeg'))
-			if (w > 0) container.style.setProperty('--txhatch-w', w + 'px')
-			if (a >= 0 && a <= 1) container.style.setProperty('--txhatch-a', String(a))
-			if (!isNaN(d)) container.style.setProperty('--txhatch-deg', d + 'deg')
+			const raw = q.get('hatch')
+			let dark = NaN, gap = NaN, alpha = NaN, deg = NaN
+			if (raw === '0') container.dataset.hatch = '0'
+			else if (raw) {
+				const p = raw.split(',')
+				dark = parseFloat(p[0]); gap = parseFloat(p[1]); alpha = parseFloat(p[2]); deg = parseFloat(p[3])
+			}
+			const lw = parseFloat(q.get('hatchw')), la = parseFloat(q.get('hatcha')), ld = parseFloat(q.get('hatchdeg'))
+			if (isNaN(alpha) && la >= 0 && la <= 1) alpha = la
+			if (isNaN(deg) && !isNaN(ld)) deg = ld
+			// ?hatchw= meant the whole PITCH when the dark line was fixed at 1px — keep that meaning
+			if (isNaN(dark) && isNaN(gap) && lw > 0) { dark = 1; gap = Math.max(0, lw - 1) }
+			if (dark >= 0) container.style.setProperty('--txhatch-d', dark + 'px')
+			if (gap >= 0) container.style.setProperty('--txhatch-g', gap + 'px')
+			if (alpha >= 0 && alpha <= 1) container.style.setProperty('--txhatch-a', String(alpha))
+			if (!isNaN(deg)) container.style.setProperty('--txhatch-deg', deg + 'deg')
 		}
 		preview.dataset.state = 'before'
 		const beforeHalf = document.createElement('button')
@@ -447,6 +463,17 @@ const SIGN_REASON = {
 		afterHalf.type = 'button'
 		afterHalf.className = 'txpreview-half txpreview-after'
 		afterHalf.textContent = 'AFTER'
+		// HOVERSTICK1: a touch latches :hover until you tap elsewhere. Mark the button on
+		// click so the ring drops at once, and clear the mark when a real pointer leaves, so
+		// hovering it again behaves normally.
+		const dropHover = el => {
+			el.classList.add('txpreview-half--tapped')
+			try { el.blur() } catch (e) {}
+		}
+		;[beforeHalf, afterHalf].forEach(el => {
+			el.addEventListener('click', () => dropHover(el))
+			el.addEventListener('pointerleave', () => el.classList.remove('txpreview-half--tapped'))
+		})
 		beforeHalf.addEventListener('click', () => {
 			if (!container._flowRunning && preview.dataset.state === 'after') revertFlow(container)
 		})
@@ -2353,19 +2380,52 @@ export function injectTxReadCSS() {
 		   So: 1px dark, 1px light (pitch 2px), and the alpha down from .10 to .06. Knobs still
 		   work: --txhatch-w is the pitch (?hatchw=), --txhatch-a the alpha (?hatcha=),
 		   --txhatch-deg the pink lean (?hatchdeg=), green is always its mirror; ?hatch=0 off. */
-		.txcards { --txhatch-w: 2px; --txhatch-a: .06; --txhatch-deg: 45deg; }
+		/* HATCH4 (your note, 2026-09-06 late): the stripe geometry is now three separate knobs
+		   so it can be tuned from the address bar without a deploy —
+		     --txhatch-d   width of the DARK line
+		     --txhatch-g   width of the LIGHT gap between them
+		     --txhatch-a   how far the dark line deviates from the base
+		   On "where do we get the base from": the LIGHT band IS the plain tint (#fdf2f2 /
+		   #eff7f1) — the same colour the panel has always been. The DARK band is that same
+		   tint with the strong hue laid over it at --txhatch-a. So the alpha IS the deviation;
+		   there is no separate base to tune unless the panel colour itself changes.
+		   One parameter drives all of it: ?hatch=dark,gap,alpha,deg — see qa/url-params. */
+		.txcards { --txhatch-d: 1px; --txhatch-g: 1px; --txhatch-a: .06; --txhatch-deg: 45deg; }
 		.txpreview-before, .txcard-send {
-			background: repeating-linear-gradient(var(--txhatch-deg), rgba(185,28,28,var(--txhatch-a)) 0 1px, transparent 1px var(--txhatch-w)), #fdf2f2; }
+			background: repeating-linear-gradient(var(--txhatch-deg), rgba(185,28,28,var(--txhatch-a)) 0 var(--txhatch-d), transparent var(--txhatch-d) calc(var(--txhatch-d) + var(--txhatch-g))), #fdf2f2; }
 		.txpreview-after, .txcard-receive {
-			background: repeating-linear-gradient(calc(180deg - var(--txhatch-deg)), rgba(21,128,61,var(--txhatch-a)) 0 1px, transparent 1px var(--txhatch-w)), #eff7f1; }
+			background: repeating-linear-gradient(calc(180deg - var(--txhatch-deg)), rgba(21,128,61,var(--txhatch-a)) 0 var(--txhatch-d), transparent var(--txhatch-d) calc(var(--txhatch-d) + var(--txhatch-g))), #eff7f1; }
 		.txpreview-before { color:rgba(185,28,28,.38); }
 		.txpreview-after  { color:rgba(21,128,61,.4); }
 		.txcards[data-hatch="0"] .txpreview-before, .txcards[data-hatch="0"] .txcard-send    { background:#fdf2f2; }
 		.txcards[data-hatch="0"] .txpreview-after,  .txcards[data-hatch="0"] .txcard-receive { background:#eff7f1; }
-		/* hover: keep the tint (re-assert to beat host button:hover) + a subtle grey inset border
-		   so it still reads as a button; no colour change. */
+
+		/* HOVERSTICK1 (your note, 2026-09-06 late): "if I tap AFTER on mobile it shows as light
+		   because it's still kind of on hover, and it's only when I tap somewhere else that the
+		   hover goes away — the legend should match what it's describing."
+		   Two separate faults, both fixed here:
+		   1. The colour was never hover's to change. katomia.css has a global
+		      button:hover{background:#f3f3f3} and these halves are <button>s, so the host's
+		      grey was winning over the tint — on desktop hover too, not just after a tap. The
+		      textured background is now re-asserted on hover/focus/active at the same
+		      specificity the host uses, so the legend keeps its colour whatever the pointer is
+		      doing. That alone makes the legend always match the cards.
+		   2. The lingering RING after a tap. A touch leaves :hover latched until you tap
+		      elsewhere, so the ring stayed on the half you just chose. Hover styling is now
+		      gated to devices that actually hover, and a click marks the button so the ring
+		      drops immediately; leaving and re-entering with a real pointer brings it back. */
+		.txpreview-before:hover, .txpreview-before:focus, .txpreview-before:active,
+		.txpreview-before.txpreview-half--tapped {
+			background: repeating-linear-gradient(var(--txhatch-deg), rgba(185,28,28,var(--txhatch-a)) 0 var(--txhatch-d), transparent var(--txhatch-d) calc(var(--txhatch-d) + var(--txhatch-g))), #fdf2f2; }
+		.txpreview-after:hover, .txpreview-after:focus, .txpreview-after:active,
+		.txpreview-after.txpreview-half--tapped {
+			background: repeating-linear-gradient(calc(180deg - var(--txhatch-deg)), rgba(21,128,61,var(--txhatch-a)) 0 var(--txhatch-d), transparent var(--txhatch-d) calc(var(--txhatch-d) + var(--txhatch-g))), #eff7f1; }
+		.txcards[data-hatch="0"] .txpreview-before:hover, .txcards[data-hatch="0"] .txpreview-before:focus { background:#fdf2f2; }
+		.txcards[data-hatch="0"] .txpreview-after:hover,  .txcards[data-hatch="0"] .txpreview-after:focus  { background:#eff7f1; }
 		.txpreview-before:hover, .txpreview-after:hover { filter: none; }
-		.txpreview-half:hover   { box-shadow: inset 0 0 0 2px rgba(0,0,0,.14); }
+		@media (hover: hover) and (pointer: fine) {
+			.txpreview-half:hover:not(.txpreview-half--tapped) { box-shadow: inset 0 0 0 2px rgba(0,0,0,.14); }
+		}
 		/* PREVIEWCORNERS1 (feedback 9b704fde, 2026-09-05): "the highlight border's corners
 		   are getting slightly cropped — it should follow whatever the border shape already
 		   is rather than cropping on the corners." The halves are square boxes inside a

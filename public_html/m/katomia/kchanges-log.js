@@ -223,5 +223,11 @@ window.KCHANGES_LOG = [
     detail: "Two rounds of me getting this wrong; your words this time were unambiguous. The texture is now on exactly four things: the BEFORE label and each card's pink (send) column, thin lines leaning one way; the AFTER label and each card's green (receive) column, thin lines leaning the OPPOSITE way. The expanded detail under a card was never pink or green and carries nothing — the whole-card texture is gone. Lines are 1px dark, 1px light — even gaps — at a low contrast, so it reads as a texture rather than stripes (your second note: thinner gap, less contrast). ?hatcha=0.2 to see it clearly while judging; ?hatch=0 off.",
     from: "foxtrot-oscar-27 · your round-5 note", feedback: null,
     needs: "while a transaction is being signed",
-    where: [{ page: "m/sign|board|game", sel: ".txcard-receive" }, { page: "m/sign|board|game", sel: ".txpreview-after" }] }
+    where: [{ page: "m/sign|board|game", sel: ".txcard-receive" }, { page: "m/sign|board|game", sel: ".txpreview-after" }] },
+  { ref: "F02", at: "2026-09-06T22:00:00Z",
+    title: "The whole texture on one URL knob, and the legend keeps its colour when you tap it",
+    detail: "?hatch=dark,gap,alpha,deg — e.g. ?hatch=2,3,0.08,45. Leave a part empty to keep its default (?hatch=,,0.12 tunes only the alpha), drop the trailing ones, ?hatch=0 off. On where the base comes from: the light band IS the plain panel tint; the dark band is that tint with the strong hue over it at alpha — so alpha is the deviation, and the only way to move the base is to change the panel colour itself.\nAlso two hover faults, one of which you were seeing on mobile. Tapping AFTER left it looking light: the colour was never hover's to change, but katomia.css has a global button:hover that paints buttons grey, and these halves are buttons, so the host was winning — on desktop hover too. The texture is now re-asserted on hover, focus and active, so the legend always matches the cards. Separately the ring stayed latched after a touch; hover styling is now limited to devices that really hover, and a click drops the ring at once while a real pointer leaving and returning brings it back.",
+    from: "your round-6 note", feedback: null,
+    needs: "while a transaction is being signed",
+    where: [{ page: "m/sign|board|game", sel: ".txpreview-after" }] }
 ]
