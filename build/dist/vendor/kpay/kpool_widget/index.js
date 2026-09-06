@@ -739,7 +739,11 @@ function buildSigningPanel(txState) {
 			// to travel to reach the top — take the smaller move so the tabs stay on screen
 			const overflow = Math.max(0, pRect.bottom - sRect.bottom + 12)
 			const toTop = Math.max(0, tRect.top - sRect.top - 8)
-			const delta = Math.min(overflow, toTop)
+			// QRLAYOUT1: 'top' takes the options row all the way up instead of the smaller
+			// of the two moves, which is what lifts the QR high in the modal. Same reader as
+			// ksig.js (kept local — ksig is imported dynamically).
+			const qrLayoutTop = (new URLSearchParams(location.search).get('qrlayout') || '').toLowerCase() === 'top'
+			const delta = qrLayoutTop ? toTop : Math.min(overflow, toTop)
 			if (delta < 8) return
 			scroller.scrollTo({ top: scroller.scrollTop + delta, behavior: 'smooth' })
 		})

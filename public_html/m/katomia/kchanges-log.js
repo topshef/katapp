@@ -247,5 +247,17 @@ window.KCHANGES_LOG = [
     detail: "\"If there's a sudden U-turn it looks a bit weird — I think the issue might be how funds merge and then split out again.\" Exactly that. Every curve was forced THROUGH the one shared centre of all the chips. In a one-to-four fan-out like your screenshot that centre is the average of five points and sits above the nearer targets, so those curves overshot their destination and doubled back. The centre's pull is kept, since it is what makes a many-to-many flow read as one movement, but a curve may no longer leave its own segment: along its path it uses the centre's projection kept in the middle half, so it cannot go past its target; across it, the sideways bow is capped at a third of its length. One-to-one is still a straight glide. Proved on your screenshot's exact geometry (the old rule reproduced the loops on two of four curves; the new rule loops on none) and on a split payment; the puff now sits where the curves really cross.",
     from: "your round-8 note", feedback: null,
     needs: "tap AFTER while a transaction is showing",
-    where: [{ page: "m/sign|board|game", sel: ".txpreview-after" }] }
+    where: [{ page: "m/sign|board|game", sel: ".txpreview-after" }] },
+  { ref: "F06", at: "2026-09-07T09:00:00Z",
+    title: "Tall chips are the default now, on every player's row",
+    detail: "\"This change, taller chips, is good — let's make this the default, and you can still swap back using settings when in nerd mode. Also it should apply to the whole board; at the moment I'm just seeing it applied to my own shop.\" Tall is the default. On the second half: the shape is set on the page, not per player, so it always covered everyone — I checked it in a browser rather than take my own word for it, and on a five-player board every chip on every row gets the tall treatment. If your own row looked different it was the balances you have hidden on other players, which leaves those chips with a symbol and no amount to stack. ?chipshape=pill returns the one-line chip, and a shape you had already saved in Settings still wins over the new default.",
+    from: "foxtrot-lima-40", feedback: null,
+    goto: "@board",
+    where: [{ page: "board", sel: "#boardPrefChipShape" }, { page: "board", sel: ".board-chip" }] },
+  { ref: "F07", at: "2026-09-07T09:00:00Z",
+    title: "Three QR layouts on a switch — pick the one you want",
+    detail: "You asked for the blank space under the QR to go, then four minutes later said you'd rather I didn't make it worse and to put a test behind a URL switch instead. So nothing changed by default and all three are a link away: ?qrlayout=tail is what you have (the space stays), ?qrlayout=notail removes it, ?qrlayout=top removes it AND scrolls the row of wallet options to the very top so the QR rides as high as the modal allows. Tell me which and I'll make it the default. The third one is the one I'd expect you to like: it fixes the low QR without leaving dead space under it.",
+    from: "mike-juliett-55 · november-oscar-63", feedback: null,
+    needs: "while signing offline (the QR tab)",
+    where: [{ page: "m/sign|board|game", sel: ".kpsign-qr-cap" }] }
 ]

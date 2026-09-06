@@ -138,6 +138,15 @@ async function verifyKqr2(text, bodyBytesHex, decodedTxid) {
 // is camera resolution, and fewer, larger modules win.
 const QR_QUIET_MODULES = 4
 
+// QRLAYOUT1: 'tail' (default, unchanged) | 'notail' (no spacer) | 'top' (no spacer and the
+// options row scrolls to the very top, so the QR sits as high as the modal allows).
+// index.js reads the same switch for its half — kept as a plain reader in both rather than
+// an import, because index.js only pulls ksig.js in dynamically.
+export function qrLayout() {
+	const v = (new URLSearchParams(location.search).get('qrlayout') || '').toLowerCase()
+	return ['tail', 'notail', 'top'].includes(v) ? v : 'tail'
+}
+
 function buildQR(el, text, sizePx) {
 	el.innerHTML = ''
 	return new _QRCode(el, {
@@ -331,10 +340,22 @@ export async function renderKsig(container, {
 		status.className = 'kpsign-scan-status'
 		container.appendChild(status)
 
-		// blank space so the QR can be scrolled up away from the screen edge
-		const tail = document.createElement('div')
-		tail.className = 'kpsign-tail'
-		container.appendChild(tail)
+		// QRLAYOUT1 — two pieces of your feedback that cancel each other out, so neither one
+		// is the default and you can compare them from a link:
+		//   mike-juliett-55  "the space we added below the QR looks a bit clunky now … take
+		//                     out that space … but then the QR might sit low, so bring the
+		//                     wallet stuff up to the top of the modal"
+		//   november-oscar-63 "I've given some feedback on how to display the QR but I think
+		//                     it's okay as it is now, I don't want to make it worse — feed
+		//                     back some ideas or do a test that can be seen with a URL switch"
+		// The later message wins, so ?qrlayout=tail (what you have) stays the default and
+		// nothing changes unless you ask for it. See revealActivePane() in index.js for the
+		// 'top' half. Documented at qa/url-params.html.
+		if (qrLayout() === 'tail') {
+			const tail = document.createElement('div')
+			tail.className = 'kpsign-tail'
+			container.appendChild(tail)
+		}
 
     scanBtn.addEventListener('click', () =>
 			startScanBack({ network, txid, pch, bodyBytesHex, readUrl, saveUrl, submitSigUrl, onSigned, statusEl: status, btnEl: scanBtn })

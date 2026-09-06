@@ -36,8 +36,12 @@ after one visit; everything else applies to that page load only. Case matters as
 <div class="wrap"><table>
 <tr><th>Parameter</th><th>What it does</th><th>Where</th></tr>
 <tr><td class="p"><code>?chipshape=tall</code> · <code>pill</code></td>
-    <td>Fungible chips as a taller, squarer chip with the symbol on top and a smaller, muted amount beneath (<code>tall</code>), or the one-line default (<code>pill</code>). Same as ⚙ Settings → 🧪 Chip shape, but for this load only — the setting is not changed.</td>
+    <td>Fungible chips as a taller, squarer chip with the symbol on top and a smaller, muted amount beneath (<code>tall</code>, <b>now the default</b>), or the one-line original (<code>pill</code>). Same as ⚙ Settings → 🧪 Chip shape, but for this load only — the setting is not changed. A shape you have explicitly saved in Settings still wins over the default.</td>
     <td class="where">board</td></tr>
+<tr><td class="p"><code>?qrlayout=tail</code> · <code>notail</code> · <code>top</code></td>
+    <td><b>Where the offline QR sits.</b> <code>tail</code> (default, unchanged) keeps the blank scroll space below the QR so it can be pulled up away from the screen edge. <code>notail</code> removes that space. <code>top</code> removes it <i>and</i> scrolls the row of wallet options right to the top of the modal, so the QR rides as high as the modal allows.<br>
+      Two pieces of feedback pulled in opposite directions here — one asked for the space gone, the next said leave it alone rather than risk making it worse — so nothing changed by default and all three are a link away.</td>
+    <td class="where">signing modal</td></tr>
 <tr><td class="p"><code>?hatch=3,3,0.03,45</code></td>
     <td><b>The BEFORE/AFTER texture, in one parameter</b>: <code>dark,gap,alpha,deg</code>.
       <b>dark</b> = width of the darker line in px. <b>gap</b> = width of the lighter gap between

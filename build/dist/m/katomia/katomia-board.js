@@ -507,12 +507,19 @@ let boardCounterMode = _bp.counterMode === "classic" ? "classic" : "simple"
 // the default to owner colour for now, I think that's probably going to be the
 // default"). plain/dark stay selectable while the comparison finishes.
 let boardChipStyle = ["plain", "dark"].includes(_bp.chipStyle) ? _bp.chipStyle : "colour"
-// CHIP-SHAPE1 (feedback f213e4a2 + 9b22da29, 2026-09-06): "pill" = one line (default),
+// CHIP-SHAPE1 (feedback f213e4a2 + 9b22da29, 2026-09-06): "pill" = one line,
 // "tall" = symbol over a smaller muted amount. Nerd setting, persisted; ?chipshape=
 // on the URL wins for this load only so a design can be compared from a link.
+// R2 (foxtrot-lima-40, 2026-09-06): "this change, taller chips, is good — let's make this
+// the DEFAULT, and you can still swap back using settings when in nerd mode. Also it
+// should apply to the whole board; at the moment I'm just seeing it applied to my own
+// shop, it should apply to your view of all players — it's a player preference for how
+// they view the board." So: tall is the fallback now, a saved "pill" still wins (an
+// explicit choice you made), and the shape is a body-level attribute so it has always
+// covered every player's chips — see the note on the CSS rule in katomia.css.
 const _chipShapeUrl = (new URLSearchParams(location.search).get("chipshape") || "").toLowerCase()
 let boardChipShape = ["pill", "tall"].includes(_chipShapeUrl) ? _chipShapeUrl
-  : (["pill", "tall"].includes(_bp.chipShape) ? _bp.chipShape : "pill")
+  : (["pill", "tall"].includes(_bp.chipShape) ? _bp.chipShape : "tall")
 // Chip emboss RETIRED (user 2026-08-17, KATUI3 feedback pass) — the BOARD-CHIPDEPTH1
 // R3 engraved-lettering lab pref was default-off and causing problems; control,
 // wiring, pref and body-class toggle all removed. CSS rules keyed on .chip-emboss
