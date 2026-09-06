@@ -41,6 +41,9 @@ after one visit; everything else applies to that page load only. Case matters as
 <tr><td class="p"><code>?primary=hug</code> · <code>wide</code></td>
     <td>The emphasised primary button (Add account) sized to its label and centred in the row (<code>hug</code>, the default), or stretched across the full width as it was (<code>wide</code>).</td>
     <td class="where">board</td></tr>
+<tr><td class="p"><code>?counter=perzone</code></td>
+    <td><b>The counter (the ghost-only band between the ring and the store).</b> By default it is now ONE depth for the whole board, capped at a single NFT thumbnail, so no segment reads as more restricted than its neighbours. <code>perzone</code> restores the old rule, where each segment's counter was sized by its own tallest chip — which is why a segment full of NFTs reserved a visibly deeper counter, and had correspondingly less room to move its chips. Easiest to see with ⚙ Settings → 🧪 Show zone walls on.</td>
+    <td class="where">board</td></tr>
 <tr><td class="p"><code>?qrlayout=tail</code> · <code>notail</code> · <code>top</code></td>
     <td><b>Where the offline QR sits.</b> <code>tail</code> (default, unchanged) keeps the blank scroll space below the QR so it can be pulled up away from the screen edge. <code>notail</code> removes that space. <code>top</code> removes it <i>and</i> scrolls the row of wallet options right to the top of the modal, so the QR rides as high as the modal allows.<br>
       Two pieces of feedback pulled in opposite directions here — one asked for the space gone, the next said leave it alone rather than risk making it worse — so nothing changed by default and all three are a link away.</td>

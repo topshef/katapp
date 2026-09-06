@@ -582,6 +582,11 @@ boardApplyChipScale()
 // counter by construction: no pressure, no squeeze. Quantised to ¼ steps so
 // the physics isn't re-excited by trembling pressure readings.
 let _boardBandFlex = 1
+// COUNTER-UNIFORM1 comparison switch: ?counter=perzone brings back the old
+// per-zone reservation (each segment's counter sized by its own tallest chip),
+// so the two can be looked at from a link. Default = uniform and NFT-capped.
+const boardCounterPerZone =
+  (new URLSearchParams(location.search).get("counter") || "").toLowerCase() === "perzone"
 function boardBandAt(z){
   if(z.isBasket) return 0
   const full = z.bandFull ?? 40, min = z.bandMin ?? 12
@@ -3834,6 +3839,59 @@ function boardOrganicApply(cx, cy, W, H, oval){
     }
   }
 
+  // ── COUNTER-UNIFORM1 (user 2026-09-06, with the zone-walls screenshot) ──
+  // "the top right third's counter segment is much fatter than the other two
+  //  accounts … that particular segment has got a lot more assets, and it's
+  //  confusing that you can't move them around until you turn on the walls to
+  //  see that it's being restricted more than the others … I would expect the
+  //  counter to be uniformly narrow all around … we should basically be capping
+  //  the size of the counter to no more than the width of an NFT."
+  //
+  // He was looking at a real consequence of the old rule. bandFull was computed
+  // PER ZONE as (that zone's tallest chip) + 12, so a segment holding NFT
+  // thumbnails reserved a visibly deeper counter than one holding text chips —
+  // and a deeper counter eats that segment's store area, which is why the busiest
+  // segment was also the one whose chips would not move. The reservation grew in
+  // proportion to how much you owned, which is backwards.
+  //
+  // Two changes. The reservation is now ONE number for the whole board, so no
+  // segment reads as more restricted than its neighbours; and it is capped at a
+  // single NFT thumbnail — the tallest thing that can ever be set down on the
+  // counter — measured off a real .asset-thumb rather than hard-coded, so it
+  // tracks --chip-scale and the viewport clamp on its own. A stacked group chip
+  // is taller than the one thumbnail it can yield to the counter, and that is
+  // exactly what the cap exists to ignore.
+  //
+  // The counter still adapts DOWN: on a board of text chips the uniform value is
+  // the tallest of those, well under the cap. And _boardBandFlex still compresses
+  // it further under space pressure ("sometimes we allow it to compress further"),
+  // untouched by this.
+  //
+  // ?counter=perzone restores the old per-zone reservation for comparison.
+  //
+  // The cap is a CEILING ON WHAT ANY ONE CHIP MAY ASK FOR, applied to the
+  // reservation and to the compressed floor alike — otherwise the floor (which
+  // has to fit whatever ghost is actually sitting on the counter) quietly puts
+  // the variance back. Trade-off, stated plainly: a chip taller than a
+  // thumbnail now overhangs the counter slightly rather than deepening it for
+  // the whole segment. Chips that tall are stacks and groups, whose OFFER is a
+  // single item, so in practice nothing overhangs.
+  let counterCapH = Infinity, counterUniform = 40
+  {
+    let tallestChip = 40
+    zoneChips.forEach(({ zrec, recs }) => {
+      if(zrec.isBasket) return
+      recs.forEach(b => {
+        if(b.h) tallestChip = Math.max(tallestChip, b.h)
+        // the IMAGE box, not the chip: a stack of sleeves measures taller than
+        // the single thumbnail an offer actually puts on the counter
+        const t = b.el && b.el.querySelector(".asset-thumb")
+        if(t && t.offsetHeight) counterCapH = Math.min(counterCapH, t.offsetHeight + 4)
+      })
+    })
+    counterUniform = Math.min(tallestChip, counterCapH)
+  }
+
   // ── sync pass 2: per-zone derived geometry, shelf targets, spawns ───────
   zoneChips.forEach(({ zrec, recs }) => {
     const movers = recs.filter(b => !b.inner)
@@ -3846,10 +3904,14 @@ function boardOrganicApply(cx, cy, W, H, oval){
     // band's occupants actually need (tallest ghost/rim pile + breathing room,
     // or a 12px sliver when empty); _boardBandFlex slides between them under
     // space pressure. A real band move re-excites the sim so walls take hold.
-    zrec.bandFull = zrec.isBasket ? 0 :
-      Math.max(40, ...ghostsIn.map(b => b.h), ...movers.map(b => b.h)) + 12
-    zrec.bandMin = zrec.isBasket ? 0 :
-      (ghostsIn.length ? Math.max(...ghostsIn.map(b => b.h)) + 8 : 12)
+    const ghostH = ghostsIn.length ? Math.max(...ghostsIn.map(b => b.h)) : 0
+    zrec.bandMin = zrec.isBasket ? 0 : (ghostsIn.length
+      ? (boardCounterPerZone ? ghostH : Math.min(ghostH, counterCapH)) + 8
+      : 12)
+    // COUNTER-UNIFORM1: one reservation for every segment, capped at an NFT.
+    zrec.bandFull = zrec.isBasket ? 0 : (boardCounterPerZone
+      ? Math.max(40, ...ghostsIn.map(b => b.h), ...movers.map(b => b.h)) + 12
+      : Math.max(counterUniform + 12, zrec.bandMin))
     const bandWas = zrec.band
     zrec.band = boardBandAt(zrec)
     if(bandWas != null && Math.abs(zrec.band - bandWas) >= 4) changed = true
