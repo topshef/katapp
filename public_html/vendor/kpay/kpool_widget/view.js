@@ -2346,11 +2346,14 @@ export function injectTxReadCSS() {
 		     · BEFORE label (pink)  and each card's SEND column (pink)    — thin lines, one lean
 		     · AFTER label (green)  and each card's RECEIVE column (green) — thin lines, the OPPOSITE lean
 		     · the expanded detail below a card was never pink or green and is NOT textured
-		   HATCH2 put the weave across the whole card by state — wrong, and gone. Lines are 1px
-		   at a tight pitch, so it reads as a fine texture rather than fat bands. Knobs still
+		   HATCH2 put the weave across the whole card by state — wrong, and gone.
+		   HATCH3 r2 (your note, 2026-09-06 evening): "the thickness of the darker line is okay,
+		   but reduce the gap — even gaps between the dark and the light — and reduce the
+		   contrast; we're trying to get towards a really subtle effect, almost like a texture."
+		   So: 1px dark, 1px light (pitch 2px), and the alpha down from .10 to .06. Knobs still
 		   work: --txhatch-w is the pitch (?hatchw=), --txhatch-a the alpha (?hatcha=),
 		   --txhatch-deg the pink lean (?hatchdeg=), green is always its mirror; ?hatch=0 off. */
-		.txcards { --txhatch-w: 4px; --txhatch-a: .10; --txhatch-deg: 45deg; }
+		.txcards { --txhatch-w: 2px; --txhatch-a: .06; --txhatch-deg: 45deg; }
 		.txpreview-before, .txcard-send {
 			background: repeating-linear-gradient(var(--txhatch-deg), rgba(185,28,28,var(--txhatch-a)) 0 1px, transparent 1px var(--txhatch-w)), #fdf2f2; }
 		.txpreview-after, .txcard-receive {

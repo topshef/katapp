@@ -220,7 +220,7 @@ window.KCHANGES_LOG = [
   // ── batch F: 2026-09-06, the hatch, done right ─────────────────────────────
   { ref: "F01", at: "2026-09-06T21:00:00Z",
     title: "Hatch: only where the pink and green were — labels and the two card columns",
-    detail: "Two rounds of me getting this wrong; your words this time were unambiguous. The texture is now on exactly four things: the BEFORE label and each card's pink (send) column, thin lines leaning one way; the AFTER label and each card's green (receive) column, thin lines leaning the OPPOSITE way. The expanded detail under a card was never pink or green and carries nothing — the whole-card texture is gone. Lines are 1px at a 4px pitch, so it reads as a fine texture rather than fat bands. ?hatcha=0.25 to see it clearly while judging; ?hatch=0 off.",
+    detail: "Two rounds of me getting this wrong; your words this time were unambiguous. The texture is now on exactly four things: the BEFORE label and each card's pink (send) column, thin lines leaning one way; the AFTER label and each card's green (receive) column, thin lines leaning the OPPOSITE way. The expanded detail under a card was never pink or green and carries nothing — the whole-card texture is gone. Lines are 1px dark, 1px light — even gaps — at a low contrast, so it reads as a texture rather than stripes (your second note: thinner gap, less contrast). ?hatcha=0.2 to see it clearly while judging; ?hatch=0 off.",
     from: "foxtrot-oscar-27 · your round-5 note", feedback: null,
     needs: "while a transaction is being signed",
     where: [{ page: "m/sign|board|game", sel: ".txcard-receive" }, { page: "m/sign|board|game", sel: ".txpreview-after" }] }
