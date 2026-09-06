@@ -241,5 +241,11 @@ window.KCHANGES_LOG = [
     detail: "Your pick after tuning it from the address bar: a 3px line, a 3px gap and a very low contrast. ?hatch=dark,gap,alpha,deg still overrides it for the next pass.",
     from: "your round-7 note", feedback: null,
     needs: "while a transaction is being signed",
-    where: [{ page: "m/sign|board|game", sel: ".txcards-preview" }] }
+    where: [{ page: "m/sign|board|game", sel: ".txcards-preview" }] },
+  { ref: "F05", at: "2026-09-06T23:30:00Z",
+    title: "Trail lines no longer U-turn",
+    detail: "\"If there's a sudden U-turn it looks a bit weird — I think the issue might be how funds merge and then split out again.\" Exactly that. Every curve was forced THROUGH the one shared centre of all the chips. In a one-to-four fan-out like your screenshot that centre is the average of five points and sits above the nearer targets, so those curves overshot their destination and doubled back. The centre's pull is kept, since it is what makes a many-to-many flow read as one movement, but a curve may no longer leave its own segment: along its path it uses the centre's projection kept in the middle half, so it cannot go past its target; across it, the sideways bow is capped at a third of its length. One-to-one is still a straight glide. Proved on your screenshot's exact geometry (the old rule reproduced the loops on two of four curves; the new rule loops on none) and on a split payment; the puff now sits where the curves really cross.",
+    from: "your round-8 note", feedback: null,
+    needs: "tap AFTER while a transaction is showing",
+    where: [{ page: "m/sign|board|game", sel: ".txpreview-after" }] }
 ]

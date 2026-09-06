@@ -8,6 +8,14 @@
 // uniform line (clean glide). For N→M every ghost bows through the SHARED centroid, so they
 // converge/diverge at the same instant without ever stopping.
 //
+// TRAILUTURN1 (operator, 2026-09-06, with a screenshot): "the trailing lines show the path for
+// funds, but if there's a sudden U-turn it looks a bit weird … I think the issue might be how
+// funds merge and then split out again." Exactly that. Forcing every curve THROUGH the one
+// shared centroid G is fine when G lies between a curve's ends, but in a 1→4 fan-out G is the
+// average of five points and sits well past the nearer targets along their own S→D line — so
+// those curves overshoot the target, turn round, and come back. The fix keeps G's pull but
+// never lets a curve's through-point leave its own segment: see throughPoint().
+//
 // Layering (fixes dots-over-chips): the TRAIL layer sits ABOVE the card bodies but BELOW the
 // chips (chips get z-index:2, trail z-index:1) and the chips are OPAQUE — so the dotted trail
 // reads across the card body yet is cleanly obscured by any chip it passes under. Travelling
@@ -152,17 +160,45 @@ async function animateAsset(front, back, base, send, receive, hue) {
 	const G = centroid([...src, ...dst])
 
 	// only a real many-to-* flow gets the (subtle, parallel) pool puff — 1→1 stays a clean glide
-	if (send.length > 1 || receive.length > 1)
-		setTimeout(() => frizz(front, G, send.length + receive.length), TRAVEL_MS * 0.5)
 
 	// one continuous ghost per max(sources, dests), round-robined so every source AND every
 	// destination is touched; each glides its own S→D curve through the shared centroid.
 	const k = Math.max(send.length, receive.length)
-	await Promise.all(Array.from({ length: k }, (_, j) => {
+	const legs = Array.from({ length: k }, (_, j) => {
 		const S = src[j % src.length], D = dst[j % dst.length]
-		const ctrl = { x: 2 * G.x - (S.x + D.x) / 2, y: 2 * G.y - (S.y + D.y) / 2 }
-		return travel(front, back, base, send[j % send.length], S, D, ctrl, hue, () => land(receive[j % receive.length]))
-	}))
+		const M = throughPoint(S, D, G)
+		return { j, S, D, M, ctrl: { x: 2 * M.x - (S.x + D.x) / 2, y: 2 * M.y - (S.y + D.y) / 2 } }
+	})
+	// the puff sits where the curves actually cross the pool moment — the centroid of their
+	// through-points — not at G, which the curves no longer necessarily visit
+	if (send.length > 1 || receive.length > 1)
+		setTimeout(() => frizz(front, centroid(legs.map(l => l.M)), send.length + receive.length), TRAVEL_MS * 0.5)
+	await Promise.all(legs.map(({ j, S, D, ctrl }) =>
+		travel(front, back, base, send[j % send.length], S, D, ctrl, hue, () => land(receive[j % receive.length]))))
+}
+
+// TRAILUTURN1: the point one curve passes through at its midpoint. G is the shared pool
+// centroid and its pull is what makes a many-to-many flow read as one movement — but a curve
+// must never travel past its own destination to reach it. So:
+//   · ALONG S→D, use G's projection onto the segment, clamped to the middle half [0.25, 0.75].
+//     The control point then lies within the segment along that axis, which makes the curve
+//     monotone along it — it cannot overshoot and turn back. Ever.
+//   · ACROSS S→D, keep G's sideways offset, capped at 35% of the segment length: a bow toward
+//     the pool, not a hook.
+// 1→1: G is the midpoint, its projection is the midpoint, the sideways offset is zero — a
+// straight line, exactly as before.
+export function throughPoint(S, D, G) {
+	const vx = D.x - S.x, vy = D.y - S.y
+	const len2 = vx * vx + vy * vy
+	if (len2 < 1) return { x: (S.x + D.x) / 2, y: (S.y + D.y) / 2 }
+	const len = Math.sqrt(len2)
+	const t = Math.min(0.75, Math.max(0.25, ((G.x - S.x) * vx + (G.y - S.y) * vy) / len2))
+	const px = S.x + vx * t, py = S.y + vy * t          // G projected onto S→D, kept inside it
+	const nx = -vy / len, ny = vx / len                  // unit normal to S→D
+	const side = (G.x - px) * nx + (G.y - py) * ny       // G's signed sideways offset
+	const cap = 0.35 * len
+	const sw = Math.max(-cap, Math.min(cap, side))
+	return { x: px + nx * sw, y: py + ny * sw }
 }
 
 // Group animatable chips by asset + side. Excludes the operator HBAR fee chip (not part of the
