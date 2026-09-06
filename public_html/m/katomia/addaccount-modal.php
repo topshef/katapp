@@ -31,11 +31,17 @@
 			     screen did to the machine; this says what it does to other players.
 			     all/none stay here AND are mirrored on the account's own modal, so the
 			     choice is never a one-shot at join time. -->
+			<!-- ADDACCT-HEAD2 (feedback 570fbf32 + b7e0f7d7, 2026-09-06): "show all · none" to
+			     match the account's own modal (the second "show" wrapped on a phone); the label
+			     wraps as two deliberate lines instead of orphaning "store"; and the sentence
+			     the user asked for — you can change this later — folded in as the hint under
+			     the list rather than into the label, so the label stays a label. -->
 			<div class="addacct-assets-head">
-				<label>What others will see in your store</label>
-				<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">show all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">show none</button></span>
+				<label>What others will see<br>in your store</label>
+				<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">show all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">none</button></span>
 			</div>
 			<div id="addAcctAssets" class="addacct-assets"></div>
+			<p class="subtle addacct-hint addacct-later">You can change what's visible any time — tap your account on the board.</p>
 			<p id="addAcctHint" class="subtle addacct-hint hidden">🔷 Not bound yet — you can join anyway; bind this account in <button id="addAcctProfileLink" type="button" class="addacct-link">Profile → Wallet binding</button> to carry reputation.</p>
 		</div>
 

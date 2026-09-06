@@ -7,7 +7,7 @@
 <!-- ENTRY-FADES1 (user 2026-07-30): quiet cross-fade page transition. Must be in
      <head> — it arms the fade-in before first paint. -->
 <script src="kfade.js?v=1788180897"></script>
-<link rel="stylesheet" href="katomia.css?v=1788607786">
+<link rel="stylesheet" href="katomia.css?v=1788683982">
 <link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1788180897"><title>Create your own circle — Katomia</title>
 
 <style>
@@ -193,6 +193,10 @@ h3{
   .app-menu-item.mobile-only { display: none; }
   @media (max-width: 600px){ .app-menu-item.mobile-only { display: block; width: 100%; } }
   body.nerd .app-menu-item.nerd-only { display: block; width: 100%; }
+  /* KCHANGES1: the switch is rendered hidden and revealed by kchanges.js for admins —
+     .app-menu-item's own display would beat the UA's [hidden] rule without this */
+  .app-menu-kchanges[hidden] { display: none !important; }
+  .app-menu-kchanges--on { background: #fff7c2; }
 </style>
 
 <script>
@@ -271,7 +275,17 @@ h3{
          effectively public anyway. If parts of QA later need gating, do a split pass
          (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
     <a class="app-menu-item nerd-only" href="/m/katomia/qa/" target="_blank" rel="noopener">🧪 QA</a>
-      </nav>
+        <!-- KBUNDLE-STRIP:kchanges -->
+    <!-- KCHANGES1 (feedback tango-delta-81, 2026-09-06): "a development visibility toggle
+         in the hamburger menu, at the root of the menu, the last item — on/off for
+         post-it notes of every change on the screen". Rendered hidden; kchanges.js
+         reveals it for a browser authenticated as an admin account (or the IP admin, or
+         ?kchanges=1). Stays open on click — it's a switch, not a destination — hence
+         not .app-menu-item, which the menu closes on. -->
+    <button type="button" class="app-menu-item app-menu-kchanges" data-menu-kchanges hidden
+            title="Dev: show a 🗒️ tag beside everything that changed recently. Tap a tag for what changed and why; ✕ ticks it off. Fades over a week.">🗒️ Show changes</button>
+    <!-- /KBUNDLE-STRIP:kchanges -->
+  </nav>
 
   </div>
 
@@ -403,6 +417,7 @@ addEventListener("load", () => setTimeout(() => {
   // any item click closes the menu (MENU-TIDY1: the nerd toggle moved out, so the old
   // stay-open special case for it is gone)
   menu.addEventListener("click", e => {
+    if(e.target.closest("[data-menu-kchanges]")) return   // KCHANGES1: a switch, the menu stays
     if(e.target.closest(".app-menu-item")) setOpen(false)
   })
 
@@ -543,6 +558,15 @@ addEventListener("load", () => setTimeout(() => {
 </script>
 
 
+<!-- KBUNDLE-STRIP:kchanges -->
+<!-- KCHANGES1: the change notes (kchanges.js) + the log they read (kchanges-log.js).
+     kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
+     script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
+     the notes' popovers), so a page that already loads it is unaffected. -->
+<script src="kfeedbits.js?v=1788180897" defer></script>
+<script src="kchanges-log.js?v=1788684459" defer></script>
+<script src="kchanges.js?v=1788684776" defer></script>
+<!-- /KBUNDLE-STRIP:kchanges -->
 <div id="profileModal" class="profile-modal hidden">
 
   <div class="profile-card">

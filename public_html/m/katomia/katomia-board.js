@@ -323,7 +323,7 @@ function boardSavePrefs(){
       zoneWalls: boardZoneWalls, hugRing: boardHugRing,
       stickyChips: boardStickyChips, autoArrange: boardAutoArrange, chipScale: boardChipScale,
       chatMode: boardChatMode, avatarPos: boardAvatarPos,
-      counterMode: boardCounterMode, chipStyle: boardChipStyle,
+      counterMode: boardCounterMode, chipStyle: boardChipStyle, chipShape: boardChipShape,
       extSign: boardExtSign
     }))
   } catch {}
@@ -507,6 +507,12 @@ let boardCounterMode = _bp.counterMode === "classic" ? "classic" : "simple"
 // the default to owner colour for now, I think that's probably going to be the
 // default"). plain/dark stay selectable while the comparison finishes.
 let boardChipStyle = ["plain", "dark"].includes(_bp.chipStyle) ? _bp.chipStyle : "colour"
+// CHIP-SHAPE1 (feedback f213e4a2 + 9b22da29, 2026-09-06): "pill" = one line (default),
+// "tall" = symbol over a smaller muted amount. Nerd setting, persisted; ?chipshape=
+// on the URL wins for this load only so a design can be compared from a link.
+const _chipShapeUrl = (new URLSearchParams(location.search).get("chipshape") || "").toLowerCase()
+let boardChipShape = ["pill", "tall"].includes(_chipShapeUrl) ? _chipShapeUrl
+  : (["pill", "tall"].includes(_bp.chipShape) ? _bp.chipShape : "pill")
 // Chip emboss RETIRED (user 2026-08-17, KATUI3 feedback pass) — the BOARD-CHIPDEPTH1
 // R3 engraved-lettering lab pref was default-off and causing problems; control,
 // wiring, pref and body-class toggle all removed. CSS rules keyed on .chip-emboss
@@ -1338,6 +1344,17 @@ function boardSyncPrefsUI(){
     }
   }
   // BOARD-CHIPART1: chip face variant (plain / colour / dark)
+  const chipShape = document.getElementById("boardPrefChipShape")
+  if(chipShape){
+    chipShape.value = boardChipShape
+    if(chipShape.selectedIndex < 0) chipShape.value = "pill"
+    chipShape.onchange = () => {
+      boardChipShape = ["pill", "tall"].includes(chipShape.value) ? chipShape.value : "pill"
+      boardDiag("board:pref:chipShape", { value: boardChipShape })
+      boardSavePrefs()
+      render()   // chips are rebuilt from text, so the shape change needs a render
+    }
+  }
   const chipStyle = document.getElementById("boardPrefChipStyle")
   if(chipStyle){
     chipStyle.value = boardChipStyle
@@ -1482,6 +1499,7 @@ async function render(){
     susan5() && "susan5p",
   ].filter(Boolean).join(" ")
   document.body.dataset.chipStyle = boardChipStyle   // BOARD-CHIPART1 variant under comparison
+  document.body.dataset.chipShape = boardChipShape   // CHIP-SHAPE1 — katomia-render.js makeAssetEl reads this
   // (chip-emboss body class gone — pref retired 2026-08-17, nothing sets it now)
   if(gameMeta?.network)
     document.body.dataset.network = gameMeta.network.toLowerCase()
@@ -9229,6 +9247,21 @@ function boardPlayerModal(playerId, focusAccountId = null){
   // backend's removeAccount is guarded by canActOnAccount, so this button simply
   // must not be offered where it would be refused. Outside the focus block so a
   // single-account player still gets it (see actionAcct).
+  // ACCOUNT-MODAL-DONE1 (feedback 37c904c0, 2026-09-06): "removing the account isn't
+  // the primary thing you'd do in this modal any more — it's more likely you'd change
+  // the selection … demote Remove to a small link with the same confirmation, and put
+  // Done at the bottom … there's no action to confirm, the changes are made
+  // immediately, which is fine." So: Done is the one button (it only closes — every
+  // toggle already saved as it was made), and Remove is the quiet link beneath it.
+  // Own accounts only, as before; other players' cards keep just the ✕.
+  if(self){
+    const done = document.createElement("button")
+    done.type = "button"
+    done.className = "board-playercard-done"
+    done.textContent = "Done"
+    done.onclick = () => modal.remove()
+    card.appendChild(done)
+  }
   if(actionAcct && self && isMyAccount(actionAcct))
     card.appendChild(boardRemoveAccountBlock(actionAcct, modal, allAccounts.length === 1))
 
@@ -9318,25 +9351,21 @@ function boardRemoveAccountBlock(account, parentModal, isLastAccount){
   const wrap = document.createElement("div")
   wrap.className = "board-playercard-danger"
 
+  // ACCOUNT-MODAL-DONE1: a link, not a button, and no explainer paragraph under it —
+  // "you don't need the whole explanation on the modal, you can just tap it". The
+  // consequences moved INTO the confirm dialog, which already carried the important
+  // ones; the dialog is the moment they matter.
   const btn = document.createElement("button")
-  btn.className = "board-playercard-removebtn"
-  // The button names the actual consequence: your last account means you leave.
+  btn.type = "button"
+  btn.className = "board-playercard-removelink"
   btn.textContent = isLastAccount ? "Remove account and leave the circle"
                                   : "Remove this account from the circle"
-
-  const why = document.createElement("div")
-  why.className = "subtle board-playercard-removewhy"
-  const bits = ["Leaves this circle only — your wallet stays connected, and you can add it back any time."]
-  if(eng.offers) bits.push(eng.offers === 1 ? "It has 1 open offer, which unwinds back to its owner."
-                                            : "It has " + eng.offers + " open offers, which unwind back to their owners.")
-  if(eng.locked) bits.push("It is currently locked — removing it unlocks and withdraws it.")
-  if(isLastAccount) bits.push("It's your only account here, so you'll leave the circle.")
-  why.textContent = bits.join(" ")
 
   btn.onclick = () => {
     // Deliberately short: the detail is already on screen underneath the button,
     // and a long native dialog reads as a scare on a phone.
-    const lines = ["Remove " + hac + " from this circle?"]
+    const lines = ["Remove " + hac + " from this circle?",
+                   "Leaves this circle only — your wallet stays connected."]
     // Locked is the most committed state there is — if it makes the explainer it
     // belongs in the confirm too, otherwise the dialog under-states the moment.
     if(eng.locked) lines.push("It's locked right now — this unlocks and withdraws it.")
@@ -9354,7 +9383,7 @@ function boardRemoveAccountBlock(account, parentModal, isLastAccount){
     socket.send(JSON.stringify({ type: "game_removeAccount", gameId, accountId: account.id }))
     setTimeout(() => parentModal.remove(), 350)
   }
-  wrap.append(btn, why)
+  wrap.appendChild(btn)   // ACCOUNT-MODAL-DONE1: no explainer under the link any more
   return wrap
 }
 

@@ -427,6 +427,15 @@ const SIGN_REASON = {
 		// data-state drives the highlight and is kept in sync by setFlowState(). (TX-FLOW-ANIM1)
 		const preview = document.createElement('div')
 		preview.className = 'txcards-preview'
+		// HATCH1 URL knobs — design-pass only, never persisted
+		{
+			const q = new URLSearchParams(location.search)
+			if (q.get('hatch') === '0') preview.dataset.hatch = '0'
+			const w = parseFloat(q.get('hatchw')), a = parseFloat(q.get('hatcha')), d = parseFloat(q.get('hatchdeg'))
+			if (w > 0) preview.style.setProperty('--txhatch-w', w + 'px')
+			if (a >= 0 && a <= 1) preview.style.setProperty('--txhatch-a', String(a))
+			if (!isNaN(d)) preview.style.setProperty('--txhatch-deg', d + 'deg')
+		}
 		preview.dataset.state = 'before'
 		const beforeHalf = document.createElement('button')
 		beforeHalf.type = 'button'
@@ -543,27 +552,41 @@ const SIGN_REASON = {
 
 		// scope line: Hedera <network> · <txid> · #<pch6> on one row; the due date on the same
 		// line on desktop, wrapping to its own line on mobile (flex-wrap).
+		// SCOPELINE2 (feedback ccc2fbd7, 2026-09-06): "put the Hedera network on its own line
+		// and then the transaction id with the pch can fit on one line on mobile; remove the
+		// underline from the transaction id — it's muted information, let's not attract
+		// people to clicking it … a little arrow to the right indicating you can view it on
+		// HashScan, but that makes no sense until it's reached consensus." So: three pieces,
+		// two rows; the id is plain text until the mirror has a record, at which point it
+		// gains a quiet ↗ that is the only clickable thing on the line.
 		const scope = document.createElement('div')
 		scope.className = 'txread-scope'
-		const ids = document.createElement('div')
-		ids.className = 'txread-scope-ids'
-		const net = document.createElement('span')
+		const net = document.createElement('div')
 		net.className = 'txread-scope-net'
 		net.textContent = `Hedera ${network}`
-		const txLink = document.createElement('a')
-		txLink.className = 'txread-scope-txid'
-		txLink.href = `https://hashscan.io/${network}/transaction/${txid}`
-		txLink.target = '_blank'
-		txLink.rel = 'noopener'
-		txLink.textContent = txid
-		ids.append(net, sep(), txLink)
+		const ids = document.createElement('div')
+		ids.className = 'txread-scope-ids'
+		const txEl = document.createElement('span')
+		txEl.className = 'txread-scope-txid'
+		txEl.textContent = txid
+		ids.append(txEl)
 		if (pch && pch !== 'no_pch') {
 			const pchEl = document.createElement('span')
 			pchEl.className = 'txread-scope-pch'
 			pchEl.textContent = `#${String(pch).slice(0, 6)}`
 			ids.append(sep(), pchEl)
 		}
-		scope.appendChild(ids)
+		if (data.mirror?.transactions?.[0]?.consensus_timestamp) {
+			const go = document.createElement('a')
+			go.className = 'txread-scope-hashscan'
+			go.href = `https://hashscan.io/${network}/transaction/${txid}`
+			go.target = '_blank'
+			go.rel = 'noopener'
+			go.title = 'View on HashScan'
+			go.textContent = '↗'
+			ids.append(go)
+		}
+		scope.append(net, ids)
 		// strike time (valid-start — fixed, from the txid) + valid duration. Wordy, locale-neutral
 		// date (en-GB "2 Jul 2026") so British/American reading is unambiguous.
 		//
@@ -2072,7 +2095,13 @@ export function injectTxReadCSS() {
 		   edge. Centre the inner row too, and centre the text inside it so a long txid
 		   breaking mid-string stays centred rather than ragging left. */
 		.txread-scope-ids { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 4px 8px; text-align: center; }
-		.txread-scope-txid { word-break: break-all; }
+		/* SCOPELINE2: the network takes the whole first row; the id and its pch share the
+		   second; the id is plain text (no link, no underline) with a small ↗ beside it that
+		   only exists once there is a consensus record to look up. */
+		.txread-scope-net { flex: 0 0 100%; text-align: center; }
+		.txread-scope-txid { word-break: break-all; color: #71717a; text-decoration: none; }
+		.txread-scope-hashscan { color: #94a3b8; text-decoration: none; font-size: 13px; padding: 0 4px; line-height: 1; }
+		.txread-scope-hashscan:hover { color: #2563eb; }
 		.txread-sep { color: #ccc; }
 		.txread-memo { text-align: center; font-size: 12px; color: #888; margin: 10px 0 12px; word-break: break-word; }   /* bottom gap like the scope line, so it isn't butted against the card */
 		.txread-memo-label { font-weight: 600; color: #777; }
@@ -2301,12 +2330,26 @@ export function injectTxReadCSS() {
 		.txcards-preview { display:flex; border:1px solid #e4e4e7; border-radius:10px; overflow:hidden; }
 		.txpreview-half { all:revert; flex:1 1 0; cursor:pointer; border:none; padding:13px 10px;
 			font:800 18px/1 system-ui,-apple-system,"Segoe UI",sans-serif; letter-spacing:.08em; transition:filter .15s ease; }
-		.txpreview-before { background:#fdf2f2; color:rgba(185,28,28,.38); }   /* pink send side, FAINT red caps */
-		.txpreview-after  { background:#eff7f1; color:rgba(21,128,61,.4); }    /* green receive side, FAINT green caps */
+		/* HATCH1 (feedback fd9f36b5, 2026-09-06): "a very, very subtle diagonal hatch — the
+		   BEFORE pink at 45° going down, the AFTER green at 45° going up — so the connection
+		   between Before and After is shape-based, not just colour: in greyscale you'd still
+		   see it." The stripe is the same hue a few percent darker, so at a glance it's still
+		   a pink panel and a green panel; the pattern only shows up when you look for it.
+		   Tunable from the URL for design passes (see ?hatch= in qa/url-params):
+		     --txhatch-w  stripe pitch in px   (?hatchw=)
+		     --txhatch-a  stripe alpha 0..1     (?hatcha=)
+		     --txhatch-deg angle, degrees       (?hatchdeg=)  — BEFORE uses it, AFTER its mirror
+		   ?hatch=0 turns the stripes off for comparison. */
+		.txcards-preview { --txhatch-w: 9px; --txhatch-a: .06; --txhatch-deg: 45deg; }
+		.txpreview-before { color:rgba(185,28,28,.38);
+			background: repeating-linear-gradient(var(--txhatch-deg), rgba(185,28,28,var(--txhatch-a)) 0 1px, transparent 1px var(--txhatch-w)), #fdf2f2; }
+		.txpreview-after  { color:rgba(21,128,61,.4);
+			background: repeating-linear-gradient(calc(180deg - var(--txhatch-deg)), rgba(21,128,61,var(--txhatch-a)) 0 1px, transparent 1px var(--txhatch-w)), #eff7f1; }
+		.txcards-preview[data-hatch="0"] .txpreview-before { background:#fdf2f2; }
+		.txcards-preview[data-hatch="0"] .txpreview-after  { background:#eff7f1; }
 		/* hover: keep the tint (re-assert to beat host button:hover) + a subtle grey inset border
 		   so it still reads as a button; no colour change. */
-		.txpreview-before:hover { background:#fdf2f2; }
-		.txpreview-after:hover  { background:#eff7f1; }
+		.txpreview-before:hover, .txpreview-after:hover { filter: none; }
 		.txpreview-half:hover   { box-shadow: inset 0 0 0 2px rgba(0,0,0,.14); }
 		/* PREVIEWCORNERS1 (feedback 9b704fde, 2026-09-05): "the highlight border's corners
 		   are getting slightly cropped — it should follow whatever the border shape already
@@ -2357,4 +2400,4 @@ export function injectTxReadCSS() {
 
 	`
 	document.head.appendChild(style)
-}
+}

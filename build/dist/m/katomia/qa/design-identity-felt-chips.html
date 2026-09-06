@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Design note · names, identity, the felt, chips</title>
+<style>
+  body{font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1f2937;background:#f7f7f8;margin:0;padding:20px 16px 56px}
+  main{max-width:880px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px}
+  .lead{color:#6b7482;margin:0 0 18px}
+  h2{font-size:18px;margin:34px 0 8px;padding-top:14px;border-top:1px solid #e5e7eb}
+  h3{font-size:15px;margin:18px 0 6px}
+  p,li{max-width:70ch}
+  code{font:13px ui-monospace,Menlo,Consolas,monospace;background:#f3f4f6;padding:1px 5px;border-radius:5px}
+  .q{border-left:3px solid #e6cf5a;background:#fffbe6;padding:8px 12px;margin:10px 0;color:#5b4a00;font-size:14px}
+  .fact{background:#eef6ff;border:1px solid #cfe0ff;border-radius:8px;padding:8px 12px;font-size:14px}
+  .rec{background:#eefaf1;border:1px solid #cdeed6;border-radius:8px;padding:8px 12px;font-size:14px}
+  .back{font-size:13px;color:#2f6fed;text-decoration:none}
+  .row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;margin:12px 0}
+  figure{margin:0;flex:1 1 240px;max-width:300px}
+  figcaption{font-size:12.5px;color:#6b7482;margin-top:4px}
+  svg{width:100%;height:auto;display:block;border-radius:10px}
+  table{border-collapse:collapse;width:100%;font-size:14px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}
+  th,td{text-align:left;vertical-align:top;padding:7px 9px;border-top:1px solid #f0f2f5}
+  th{background:#fafafa;border-top:0}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:8px 0}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #d8dbe2;border-radius:10px;padding:5px 10px;font-size:13.5px;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  .chip.tall{flex-direction:column;gap:0;padding:6px 10px 5px;min-width:52px;line-height:1.12}
+  .chip .sym{font-weight:700}.chip .amt{font-size:.78em;opacity:.7}
+  .chip.dark{background:#2b2f36;color:#fff;border-color:#2b2f36}
+  .chip.owner{border-left:5px solid #e07b39}
+  .chip .ic{width:14px;height:14px;border-radius:50%;background:#f0b429;display:inline-block}
+</style>
+</head>
+<body>
+<main>
+<a class="back" href="./">← Katomia QA</a>
+<h1>Names, identity, the number on the felt, chip styles</h1>
+<p class="lead">A design note, not a decision. Written 2026-09-06 from feedback <code>hotel-oscar-25</code> (P-numbers and naming),
+<code>quebec-whiskey-46</code> (the account number set into the felt) and <code>foxtrot-delta-81</code> (chip styles, token metadata).
+Nothing on the board changed for this page except what's already listed in the change notes.</p>
+
+<!-- ───────────────────────────────────────────────────────────────────── -->
+<h2>1 · "P3" — can players name themselves today?</h2>
+<div class="q">"Confirm whether or not we've already got the functionality for the user to name themselves. Is there an API on the back end or web socket to do that?"</div>
+<p class="fact"><b>Half of it exists.</b> The join message already carries a name: <code>join(gameId, playerToken, playerName, intentPublicKey)</code> stores <code>game.players[token].name</code>, and the state broadcast sends <code>playerName</code> back out. But the frontend always sends <code>"anon"</code>, there is no rename message, no form, and no rendering of the name — every surface prints the P-number. So: the wire supports a name at join; nothing lets a person set one or change one.</p>
+<p>Two small pieces would make it real: a <code>game_setPlayerName</code> socket message (actor = the token's owner, validated length/charset, stored on the player), and a field in Profile. Rendering follows for free wherever <code>playerName</code> is already read.</p>
+
+<h3>What to show meanwhile</h3>
+<p>You were on the fence, and I'd keep the P-number for the closed test group exactly as you said — it is a debugging handle everyone in the room shares ("I'm P4"). The one change worth making now is in <em>your own</em> account modal: "P3 · (you)" reads oddly when you are the only reader of that line; "You" alone is enough there, and the P-number can live in the tooltip. Other players' cards keep the P-number until names exist.</p>
+
+<h3>What a name is, once it exists</h3>
+<p>Your question was the right one: a typed name is an <b>avatar name</b> — a label the player chose, attesting nothing. That is fine as long as the UI never lets it look like more. Three tiers, rendered differently so they can't be confused:</p>
+<table>
+<tr><th>Tier</th><th>Comes from</th><th>Attests</th><th>Show as</th></tr>
+<tr><td>Chosen</td><td>the player types it</td><td>nothing — "call me Sam"</td><td>plain text, no mark</td></tr>
+<tr><td>Bound</td><td>the account's key signed the binding (what Authenticate does today)</td><td>this browser controls account 0.0.x</td><td>the account id, ◆ mark</td></tr>
+<tr><td>Verified</td><td>a domain proof for the account (xproof: a record the domain owner publishes naming the account)</td><td>the domain vouches for the account</td><td>the domain, ✓ mark, link to the proof</td></tr>
+</table>
+<p>The confusion you described — one player, several accounts, an organisation's account controlled by one person, multi-sig — resolves if <b>identity always hangs off the account, never the player</b>. A player is a seat at the table; the accounts are what sit in it. A seat can be labelled with a chosen name; an account can carry a verified one. When a player has one account (most people), the account's label is the natural thing to print on the seat. When they have several, the seat shows the chosen name (or the P-number) and each account keeps its own label. Multi-sig changes nothing here: the account is verified or not; who holds the keys is the account's business.</p>
+
+<h3>What Hedera offers (a survey, not an endorsement)</h3>
+<table>
+<tr><th>Mechanism</th><th>What it gives</th><th>Fit</th></tr>
+<tr><td><b>xproof</b> (already integrated)</td><td>A domain publishes a signed statement naming an account; anyone can fetch and re-verify it. Verified-name tier above.</td><td>Best fit for organisations and merchants. The xproof site is currently down (feedback df07837d); the labelling should say "verified via xproof" only when the proof resolves live.</td></tr>
+<tr><td><b>HIP-27 / Hedera DID method</b> (<code>did:hedera:…</code>)</td><td>Decentralised identifiers anchored on HCS, with a DID document (keys, service endpoints) and optional verifiable credentials.</td><td>The formal route. Heavy for a game: needs a resolver, credential issuers, and a story for who issues what. Worth knowing exists; not a first step.</td></tr>
+<tr><td><b>Account memo</b> (100 bytes, on the account entity)</td><td>Free text the account's key set. Some wallets show it.</td><td>Cheap self-description, but anyone can write anything — a <em>chosen</em> name at best, with the twist that it's on-chain and costs a transaction to change.</td></tr>
+<tr><td><b>HCS profile topics</b> (the pattern HashPack/Kabila/Hashinals use: a topic per account holding a JSON profile — name, avatar, links)</td><td>A public, mutable profile the account controls.</td><td>Closest to "wallet-level display name". Convention-based, not a HIP; several dialects. Reading a known dialect when present would let a player's wallet name appear without us storing anything.</td></tr>
+<tr><td><b>Token metadata</b> (HIP-412 NFTs, HIP-405/HIP-646/HIP-765/HIP-766 fungible & collection metadata)</td><td>Name, symbol, image, description, <em>properties</em> per token/collection.</td><td>Identity of <em>assets</em>, not people — see §3. Not a person identity mechanism.</td></tr>
+<tr><td><b>Gaming convention</b></td><td>Games almost universally separate <em>gamertag</em> (chosen, unique-per-game) from <em>account</em> (auth). Uniqueness is enforced per game, changes are rate-limited, and impersonation is handled by marks, not by forbidding names.</td><td>Matches the tier model: chosen names are free and unremarkable; marks are what carry trust.</td></tr>
+</table>
+<p class="rec"><b>Suggestion.</b> Ship chosen names (small; the plumbing is half there), render the three tiers with three distinct marks, and treat verified names as an <em>account</em> attribute sourced from xproof when its proof resolves. Leave DIDs and HCS profiles as "read if present, never require" for later.</p>
+
+<!-- ───────────────────────────────────────────────────────────────────── -->
+<h2>2 · The account number, set into the felt</h2>
+<div class="q">"Put the user's account number on the felt very subtly — big bold letters, slightly lighter or darker than the felt, wrapping across the segment like a grid so you can read them even under the chips. Ignore the 0.0."</div>
+<p>Three treatments, drawn at roughly the proportions of a phone segment. The digits are <code>3833789</code> in every one; the idea is that you recognise the shape of the number the way you recognise a card's suit, without reading it.</p>
+<div class="row">
+<figure>
+<svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg" aria-label="Wrapped digits, tone on tone">
+  <path d="M150 210 L20 40 A160 160 0 0 1 280 40 Z" fill="#2e7d5b"/>
+  <g font-family="system-ui,sans-serif" font-weight="800" fill="#ffffff" fill-opacity=".09" text-anchor="middle">
+    <text x="150" y="98" font-size="58">383</text>
+    <text x="150" y="152" font-size="58">3789</text>
+  </g>
+  <g>
+    <rect x="86" y="70" width="64" height="24" rx="8" fill="#fff"/><text x="118" y="87" font-size="12" font-family="system-ui" text-anchor="middle">150 ℏ</text>
+    <rect x="160" y="112" width="70" height="24" rx="8" fill="#fff"/><text x="195" y="129" font-size="12" font-family="system-ui" text-anchor="middle">200 KGBP</text>
+    <rect x="104" y="150" width="64" height="24" rx="8" fill="#fff"/><text x="136" y="167" font-size="12" font-family="system-ui" text-anchor="middle">100 KBAR</text>
+  </g>
+</svg>
+<figcaption><b>A · Tone on tone, wrapped.</b> White at 9% over the felt, two rows, sized to the segment's width at that depth. Chips sit over it; the number stays legible between them. Closest to your description.</figcaption>
+</figure>
+<figure>
+<svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg" aria-label="Grid of digits">
+  <path d="M150 210 L20 40 A160 160 0 0 1 280 40 Z" fill="#2e7d5b"/>
+  <g font-family="ui-monospace,monospace" font-weight="700" fill="#000" fill-opacity=".10" text-anchor="middle" font-size="34">
+    <text x="150" y="70">3 8 3 3</text>
+    <text x="150" y="112">7 8 9</text>
+    <text x="150" y="154">3 8 3</text>
+  </g>
+  <g>
+    <rect x="86" y="70" width="64" height="24" rx="8" fill="#fff"/><text x="118" y="87" font-size="12" font-family="system-ui" text-anchor="middle">150 ℏ</text>
+    <rect x="160" y="112" width="70" height="24" rx="8" fill="#fff"/><text x="195" y="129" font-size="12" font-family="system-ui" text-anchor="middle">200 KGBP</text>
+  </g>
+</svg>
+<figcaption><b>B · Digit grid, darker.</b> Monospace digits spaced into a grid, repeating so the pattern fills the wedge whatever its width — three on the first row, more lower down, as you described. Reads as texture first, number second.</figcaption>
+</figure>
+<figure>
+<svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg" aria-label="Rim band">
+  <path d="M150 210 L20 40 A160 160 0 0 1 280 40 Z" fill="#2e7d5b"/>
+  <path id="arc" d="M34 58 A150 150 0 0 1 266 58" fill="none"/>
+  <text font-family="system-ui,sans-serif" font-weight="800" font-size="22" fill="#fff" fill-opacity=".22" letter-spacing="3">
+    <textPath href="#arc" startOffset="50%" text-anchor="middle">3833789</textPath>
+  </text>
+  <g>
+    <rect x="86" y="90" width="64" height="24" rx="8" fill="#fff"/><text x="118" y="107" font-size="12" font-family="system-ui" text-anchor="middle">150 ℏ</text>
+    <rect x="160" y="130" width="70" height="24" rx="8" fill="#fff"/><text x="195" y="147" font-size="12" font-family="system-ui" text-anchor="middle">200 KGBP</text>
+  </g>
+</svg>
+<figcaption><b>C · Along the rim.</b> One line following the outer arc, where chips rarely sit, so it is never covered and needs no wrapping logic. Less "in the felt", more "engraved on the edge". Cheapest to build.</figcaption>
+</figure>
+</div>
+<p>Implementation sketch for A/B: an SVG <code>&lt;text&gt;</code> per wedge in the board's own layer, beneath the chip layer, clipped to the wedge path; font-size from the wedge's chord at mid-depth; two or three rows; <code>fill-opacity</code> the only knob. Later, a verified account swaps the digits for its mark or name in the same slot. All three could go behind a URL switch (<code>?felt=a|b|c</code>) for a live look.</p>
+
+<!-- ───────────────────────────────────────────────────────────────────── -->
+<h2>3 · Chip styles, and what token metadata can supply</h2>
+<div class="q">"Maybe one option is that we make the amount a bit smaller so the symbol still dominates … have a think about different styles … make it modular, like a chip template … research what's in the token metadata we could use."</div>
+<p>The "tall" shape is live behind a nerd switch (B05). Here are the candidates side by side, then what the token itself could contribute.</p>
+<div class="chips">
+  <span class="chip">12.5 KGBP</span>
+  <span class="chip tall"><span class="sym">KGBP</span><span class="amt">12.5</span></span>
+  <span class="chip"><span class="ic"></span><span class="sym">KGBP</span> <span class="amt">12.5</span></span>
+  <span class="chip owner">12.5 <span class="sym">KGBP</span></span>
+  <span class="chip dark"><span class="sym">KGBP</span>&nbsp;<span class="amt">12.5</span></span>
+</div>
+<table>
+<tr><th>Style</th><th>Idea</th><th>Trade-off</th></tr>
+<tr><td>Pill (today)</td><td>amount then symbol, one line</td><td>Widest; the amount, not the asset, is what you read first.</td></tr>
+<tr><td>Tall (B05, lab)</td><td>symbol over a muted amount</td><td>Squarer target, asset-first. Costs height in a crowded wedge.</td></tr>
+<tr><td>Icon + symbol</td><td>a token icon (from metadata) before the symbol; amount muted</td><td>Recognition at a glance once icons exist; needs a fallback glyph for the many tokens without one.</td></tr>
+<tr><td>Owner sleeve</td><td>the existing owner colour as a thick left edge; symbol bold, amount plain</td><td>Already half-there (the "Owner colour" chip style); combines with any of the above.</td></tr>
+<tr><td>Dark face</td><td>charcoal chip, white symbol, grey amount</td><td>Highest contrast on the felt (the existing "Dark" style); pairs well with tall.</td></tr>
+</table>
+<h3>A chip template</h3>
+<p>Every chip is already built in one place (<code>makeAssetEl</code>). A template is a small function <code>(asset, amount, owner) → DOM</code> registered by name; the body attribute picks which one runs, and a token could <em>name</em> a template in its metadata. Nothing exotic is needed to get there — the tall shape is exactly that pattern in miniature. People designing their own chips later is a matter of letting a template be loaded from a URL, sandboxed to markup and CSS.</p>
+<h3>What the token can tell us</h3>
+<table>
+<tr><th>Standard</th><th>Fields worth reading</th><th>Use on a chip</th></tr>
+<tr><td>HIP-412 (NFT metadata JSON)</td><td><code>name</code>, <code>image</code>, <code>type</code>, <code>properties</code>, <code>attributes[]</code>, <code>localization</code></td><td>Art (already used), and <code>properties</code> is a free-form object where a collection could carry a <code>chip</code> hint — colour, template name, badge.</td></tr>
+<tr><td>HIP-405 / HIP-646 / HIP-765 / HIP-766</td><td>metadata for fungible tokens, NFT collections and non-fungible classes: the same JSON shape pointed to from the token's <code>metadata</code> field</td><td>A fungible token's <code>image</code> → the icon in "Icon + symbol"; <code>properties.brand</code> style hints if a token sets them.</td></tr>
+<tr><td>Token entity</td><td><code>symbol</code>, <code>name</code>, <code>decimals</code>, <code>memo</code></td><td>What we use now. <code>memo</code> is occasionally a URL or a brand line.</td></tr>
+</table>
+<p class="rec"><b>Suggestion.</b> Define the chip hint as <code>properties.katomia.chip = { template, colour, icon }</code> inside the token's HIP-412-style metadata, read it when present, and provide three built-in templates (pill, tall, icon). A token issuer then styles their own chips without us shipping anything per token — and a token with no hint looks exactly as it does today.</p>
+
+<p class="lead" style="margin-top:28px">Reply to the "select vs expand" note (<code>charlie-lima-48</code>): tapping anywhere on a row <em>selects</em> in the add-account list and <em>expands</em> in the account modal. The honest alignment would be an explicit eye control in both and tap-to-expand in both — but the add list has nothing to expand into yet, so the difference is real, not accidental. Left as is, per your instruction.</p>
+</main>
+</body>
+</html>

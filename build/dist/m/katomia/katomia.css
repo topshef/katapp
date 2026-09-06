@@ -3387,3 +3387,41 @@ body[data-trading-mode="orderBook"] .ktabs.mode-order{ display:none; }
 .addacct-actions{ display:flex; gap:8px; align-items:center; }
 .addacct-primary{ flex:1 1 auto; }
 .addacct-secondary{ flex:0 0 auto; }
+/* PRIMARY-ACTION1 (feedback 820533c1, 2026-09-06): "the Add account button is the
+   expected action on this modal — make it the emphasised button, solid colour with
+   contrasting text, rather than an outline … a house style for the next step in a
+   flow you have to go through." First use of that style; the class is generic on
+   purpose so the same rule can be applied wherever a modal has ONE expected next step
+   (as opposed to a modal you open, adjust, and close — those keep quiet buttons). */
+.addacct-primary,
+.k-primary-action{ background:#2f6fed; color:#fff; border:1px solid #2f6fed; border-radius:8px;
+  padding:9px 14px; font-weight:600; cursor:pointer; }
+.addacct-primary:hover,
+.k-primary-action:hover{ background:#255ed0; border-color:#255ed0; }
+.addacct-primary:disabled,
+.k-primary-action:disabled{ background:#9db6ec; border-color:#9db6ec; cursor:default; }
+/* ADDACCT-HEAD2: the head label may now be two lines; keep the all/none pair on the
+   baseline of the first and the whole row from squashing on a 360px screen */
+.addacct-assets-head label{ line-height:1.25; }
+.addacct-later{ color:#6b7482; }
+
+/* ACCOUNT-MODAL-DONE1 (feedback 37c904c0, 2026-09-06): the account modal is mostly
+   about changing what's visible now, so "Remove this account" is no longer the one
+   big button at the bottom. Done closes (the changes were already saved as you made
+   them); Remove is a quiet link underneath with the same confirmation it always had. */
+.board-playercard-done{ display:block; width:100%; margin:14px 0 6px; padding:10px 14px;
+  background:#2f6fed; color:#fff; border:1px solid #2f6fed; border-radius:8px; font-weight:600; cursor:pointer; }
+.board-playercard-done:hover{ background:#255ed0; }
+.board-playercard-removelink{ display:block; margin:6px auto 2px; background:none; border:0;
+  color:#8b8b95; font-size:12.5px; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
+.board-playercard-removelink:hover{ color:#b91c1c; }
+.board-playercard-removelink:disabled{ color:#bbb; cursor:default; text-decoration:none; }
+
+/* CHIP-SHAPE1 (feedback f213e4a2 + 9b22da29, 2026-09-06): lab shape for fungible chips —
+   symbol on top, amount smaller and muted beneath. Driven by body[data-chip-shape]
+   (katomia-board.js, nerd setting or ?chipshape=). Thumbnail chips are untouched. */
+body[data-chip-shape="tall"] .asset:not(.thumb-only){
+  display:inline-flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; min-width:46px; padding:5px 8px 4px; line-height:1.12; }
+body[data-chip-shape="tall"] .asset .chip-sym{ font-weight:700; }
+body[data-chip-shape="tall"] .asset .chip-amt{ font-size:.78em; opacity:.7; font-variant-numeric:tabular-nums; }

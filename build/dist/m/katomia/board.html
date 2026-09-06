@@ -7,7 +7,7 @@
        ENTRY-FADES1 treatment the entry pages carry; must be in <head> to arm the
        fade-in before first paint). -->
   <script src="kfade.js?v=1788180897"></script>
-  <link rel="stylesheet" href="katomia.css?v=1788607786" />
+  <link rel="stylesheet" href="katomia.css?v=1788683982" />
 <link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1788180897">  <link rel="stylesheet" href="katomia-board.css?v=1788614126" />
   <title>katomia — board</title>
 </head>
@@ -56,6 +56,10 @@
   .app-menu-item.mobile-only { display: none; }
   @media (max-width: 600px){ .app-menu-item.mobile-only { display: block; width: 100%; } }
   body.nerd .app-menu-item.nerd-only { display: block; width: 100%; }
+  /* KCHANGES1: the switch is rendered hidden and revealed by kchanges.js for admins —
+     .app-menu-item's own display would beat the UA's [hidden] rule without this */
+  .app-menu-kchanges[hidden] { display: none !important; }
+  .app-menu-kchanges--on { background: #fff7c2; }
 </style>
 
 <script>
@@ -163,7 +167,17 @@
          effectively public anyway. If parts of QA later need gating, do a split pass
          (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
     <a class="app-menu-item nerd-only" href="/m/katomia/qa/" target="_blank" rel="noopener">🧪 QA</a>
-      </nav>
+        <!-- KBUNDLE-STRIP:kchanges -->
+    <!-- KCHANGES1 (feedback tango-delta-81, 2026-09-06): "a development visibility toggle
+         in the hamburger menu, at the root of the menu, the last item — on/off for
+         post-it notes of every change on the screen". Rendered hidden; kchanges.js
+         reveals it for a browser authenticated as an admin account (or the IP admin, or
+         ?kchanges=1). Stays open on click — it's a switch, not a destination — hence
+         not .app-menu-item, which the menu closes on. -->
+    <button type="button" class="app-menu-item app-menu-kchanges" data-menu-kchanges hidden
+            title="Dev: show a 🗒️ tag beside everything that changed recently. Tap a tag for what changed and why; ✕ ticks it off. Fades over a week.">🗒️ Show changes</button>
+    <!-- /KBUNDLE-STRIP:kchanges -->
+  </nav>
 
     <!-- BOARD-HEADERINT1 round 2 (user 2026-07-14): board Preferences moved OUT
        of the profile modal (too tucked away, too much noise there) into this
@@ -270,6 +284,19 @@
     <label class="board-settings-label board-settings-nerd-only">
       <input type="checkbox" id="boardPrefHugRing" title="Lab: organic store blobs home slightly closer to the ring — a mild inward bias; the reserved rim band still keeps chips off the ring itself">
       🧪 Chips hug the ring
+    </label>
+    <!-- CHIP-SHAPE1 (feedback f213e4a2 + 9b22da29, 2026-09-06): "instead of fungible
+         token chips all on one line with the amount and then the symbol, make them more
+         square — the amount and the symbol underneath … the amount muted or smaller,
+         because the significant thing on the board is that you've got that asset, not
+         the balance." Nerd-mode toggle as asked, not the default; ?chipshape=tall|pill
+         on the URL overrides it for one load so it can be A/B'd from a link. -->
+    <label class="board-settings-label board-settings-nerd-only">
+      🧪 Chip shape
+      <select id="boardPrefChipShape" title="Lab: fungible chips as one line (amount then symbol) or a taller, squarer chip with the symbol on top and a smaller, muted amount beneath. ?chipshape=tall|pill on the URL overrides for one load.">
+        <option value="pill">▭ One line</option>
+        <option value="tall">▯ Symbol over amount</option>
+      </select>
     </label>
     <!-- BOARD-CHIPART1 (user 2026-08-04): chip face styling, three variants up
          for live comparison. NFTs never get their artwork recoloured — in the
@@ -463,6 +490,7 @@ addEventListener("load", () => setTimeout(() => {
   // any item click closes the menu (MENU-TIDY1: the nerd toggle moved out, so the old
   // stay-open special case for it is gone)
   menu.addEventListener("click", e => {
+    if(e.target.closest("[data-menu-kchanges]")) return   // KCHANGES1: a switch, the menu stays
     if(e.target.closest(".app-menu-item")) setOpen(false)
   })
 
@@ -603,6 +631,15 @@ addEventListener("load", () => setTimeout(() => {
 </script>
 
 
+<!-- KBUNDLE-STRIP:kchanges -->
+<!-- KCHANGES1: the change notes (kchanges.js) + the log they read (kchanges-log.js).
+     kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
+     script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
+     the notes' popovers), so a page that already loads it is unaffected. -->
+<script src="kfeedbits.js?v=1788180897" defer></script>
+<script src="kchanges-log.js?v=1788684459" defer></script>
+<script src="kchanges.js?v=1788684776" defer></script>
+<!-- /KBUNDLE-STRIP:kchanges -->
 <div id="profileModal" class="profile-modal hidden">
 
   <div class="profile-card">
@@ -911,11 +948,17 @@ addEventListener("load", () => setTimeout(() => {
 			     screen did to the machine; this says what it does to other players.
 			     all/none stay here AND are mirrored on the account's own modal, so the
 			     choice is never a one-shot at join time. -->
+			<!-- ADDACCT-HEAD2 (feedback 570fbf32 + b7e0f7d7, 2026-09-06): "show all · none" to
+			     match the account's own modal (the second "show" wrapped on a phone); the label
+			     wraps as two deliberate lines instead of orphaning "store"; and the sentence
+			     the user asked for — you can change this later — folded in as the hint under
+			     the list rather than into the label, so the label stays a label. -->
 			<div class="addacct-assets-head">
-				<label>What others will see in your store</label>
-				<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">show all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">show none</button></span>
+				<label>What others will see<br>in your store</label>
+				<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">show all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">none</button></span>
 			</div>
 			<div id="addAcctAssets" class="addacct-assets"></div>
+			<p class="subtle addacct-hint addacct-later">You can change what's visible any time — tap your account on the board.</p>
 			<p id="addAcctHint" class="subtle addacct-hint hidden">🔷 Not bound yet — you can join anyway; bind this account in <button id="addAcctProfileLink" type="button" class="addacct-link">Profile → Wallet binding</button> to carry reputation.</p>
 		</div>
 
@@ -998,7 +1041,7 @@ addEventListener("load", () => setTimeout(() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "kpay-api-alias.tayloa17.workers.dev/hapi"
   }
-  window.KFLOW_COMMIT = "14c8fc5"
+  window.KFLOW_COMMIT = "e9e5918"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
 <script src="kflow.js?v=1788180897"></script>
@@ -1047,12 +1090,12 @@ addEventListener("load", () => setTimeout(() => {
      wc:version, and boardDirectSign()'s window.kdiag?.() calls were silent
      no-ops. Ring16 direct-sign attempts left zero trace in kdiag. -->
 <script src="katomia-modals.js?v=1788180897"></script>
-<script src="katomia-render.js?v=1788520353"></script>
+<script src="katomia-render.js?v=1788684034"></script>
 <!-- TXSTATUS-CONSOLIDATE1: the tx/wallet status controller. Must load BEFORE
      katomia-board.js, whose reporters feed it and whose boardShowResult
      subscribes to it at module top level. -->
 <script src="katomia-txstatus.js?v=1788180897"></script>
-<script src="katomia-board.js?v=1788649462"></script>
+<script src="katomia-board.js?v=1788684034"></script>
 <script src="katomia-tickets.js?v=1788180897"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
 
 <!-- BOARD-CHAT1 (user 2026-07-30): renders state.chat — speech bubbles on the

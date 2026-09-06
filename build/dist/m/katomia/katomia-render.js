@@ -223,6 +223,27 @@ function getFastThumb(url, imgEl){
 			if(!useThumbnail)
 				el.textContent = text
 
+			// CHIP-SHAPE1 (feedback f213e4a2 + 9b22da29, 2026-09-06): the lab "tall" shape
+			// puts the SYMBOL on top and a smaller, muted amount beneath — "the significant
+			// thing on the board is that you've got that asset, the balance is secondary".
+			// One place for every chip (store, basket, ghost) rather than three: this is the
+			// only spot that turns an asset's text into a chip. Both text shapes
+			// boardAssetText produces are handled — "12.5 KGBP" and "KGBP ×3" — and anything
+			// else (ℏ alone, a name) stays a single line. Off = the textContent above.
+			if(!useThumbnail && document.body?.dataset?.chipShape === "tall"){
+				let amtTxt = null, symTxt = null
+				const a = /^([\d.,]+)\s+(\S.*)$/.exec(text)        // "12.5 KGBP"
+				const b = a ? null : /^(\S.*?)\s+×(\d+)$/.exec(text)  // "KGBP ×3"
+				if(a){ amtTxt = a[1]; symTxt = a[2] }
+				else if(b){ symTxt = b[1]; amtTxt = "×" + b[2] }
+				if(amtTxt){
+					el.textContent = ""
+					const sym = document.createElement("span"); sym.className = "chip-sym"; sym.textContent = symTxt
+					const amt = document.createElement("span"); amt.className = "chip-amt"; amt.textContent = amtTxt
+					el.append(sym, amt)
+				}
+			}
+
 			// BOARD-ARRANGE1: every chip carries its asset id — pair-line lookups
 			// and the physics' spawn-at-drop-point matching need it even for
 			// assets with no metadata yet (HBAR on the demo board, un-enriched

@@ -53,6 +53,10 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
   .app-menu-item.mobile-only { display: none; }
   @media (max-width: 600px){ .app-menu-item.mobile-only { display: block; width: 100%; } }
   body.nerd .app-menu-item.nerd-only { display: block; width: 100%; }
+  /* KCHANGES1: the switch is rendered hidden and revealed by kchanges.js for admins —
+     .app-menu-item's own display would beat the UA's [hidden] rule without this */
+  .app-menu-kchanges[hidden] { display: none !important; }
+  .app-menu-kchanges--on { background: #fff7c2; }
 </style>
 
 <script>
@@ -179,6 +183,16 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
     <a class="app-menu-item" href="<?= htmlspecialchars($katomiaLegacyGameHref) ?>"
        title="Site admin — visible because you are on the admin IP (KATOMIA-ADMIN1). Opens the legacy game.php view for cross-comparison.">🛠 Admin</a>
     <?php endif; ?>
+    <!-- KBUNDLE-STRIP:kchanges -->
+    <!-- KCHANGES1 (feedback tango-delta-81, 2026-09-06): "a development visibility toggle
+         in the hamburger menu, at the root of the menu, the last item — on/off for
+         post-it notes of every change on the screen". Rendered hidden; kchanges.js
+         reveals it for a browser authenticated as an admin account (or the IP admin, or
+         ?kchanges=1). Stays open on click — it's a switch, not a destination — hence
+         not .app-menu-item, which the menu closes on. -->
+    <button type="button" class="app-menu-item app-menu-kchanges" data-menu-kchanges hidden
+            title="Dev: show a 🗒️ tag beside everything that changed recently. Tap a tag for what changed and why; ✕ ticks it off. Fades over a week.">🗒️ Show changes</button>
+    <!-- /KBUNDLE-STRIP:kchanges -->
   </nav>
 
   <?php if (defined('KATOMIA_BOARD_CONTEXT')): ?>
@@ -287,6 +301,19 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
     <label class="board-settings-label board-settings-nerd-only">
       <input type="checkbox" id="boardPrefHugRing" title="Lab: organic store blobs home slightly closer to the ring — a mild inward bias; the reserved rim band still keeps chips off the ring itself">
       🧪 Chips hug the ring
+    </label>
+    <!-- CHIP-SHAPE1 (feedback f213e4a2 + 9b22da29, 2026-09-06): "instead of fungible
+         token chips all on one line with the amount and then the symbol, make them more
+         square — the amount and the symbol underneath … the amount muted or smaller,
+         because the significant thing on the board is that you've got that asset, not
+         the balance." Nerd-mode toggle as asked, not the default; ?chipshape=tall|pill
+         on the URL overrides it for one load so it can be A/B'd from a link. -->
+    <label class="board-settings-label board-settings-nerd-only">
+      🧪 Chip shape
+      <select id="boardPrefChipShape" title="Lab: fungible chips as one line (amount then symbol) or a taller, squarer chip with the symbol on top and a smaller, muted amount beneath. ?chipshape=tall|pill on the URL overrides for one load.">
+        <option value="pill">▭ One line</option>
+        <option value="tall">▯ Symbol over amount</option>
+      </select>
     </label>
     <!-- BOARD-CHIPART1 (user 2026-08-04): chip face styling, three variants up
          for live comparison. NFTs never get their artwork recoloured — in the
@@ -509,6 +536,7 @@ addEventListener("load", () => setTimeout(() => {
   // any item click closes the menu (MENU-TIDY1: the nerd toggle moved out, so the old
   // stay-open special case for it is gone)
   menu.addEventListener("click", e => {
+    if(e.target.closest("[data-menu-kchanges]")) return   // KCHANGES1: a switch, the menu stays
     if(e.target.closest(".app-menu-item")) setOpen(false)
   })
 
@@ -695,3 +723,12 @@ addEventListener("load", () => setTimeout(() => {
 </script>
 <?php endif; ?>
 
+<!-- KBUNDLE-STRIP:kchanges -->
+<!-- KCHANGES1: the change notes (kchanges.js) + the log they read (kchanges-log.js).
+     kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
+     script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
+     the notes' popovers), so a page that already loads it is unaffected. -->
+<script src="<?= function_exists('kasset') ? kasset('kfeedbits.js') : 'kfeedbits.js' ?>" defer></script>
+<script src="<?= function_exists('kasset') ? kasset('kchanges-log.js') : 'kchanges-log.js' ?>" defer></script>
+<script src="<?= function_exists('kasset') ? kasset('kchanges.js') : 'kchanges.js' ?>" defer></script>
+<!-- /KBUNDLE-STRIP:kchanges -->

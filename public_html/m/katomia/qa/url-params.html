@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Katomia · URL switches</title>
+<style>
+  body{font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1f2937;background:#f7f7f8;margin:0;padding:20px 16px 48px}
+  main{max-width:880px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px}
+  .lead{color:#6b7482;margin:0 0 20px}
+  h2{font-size:15px;text-transform:uppercase;letter-spacing:.05em;color:#6b7482;margin:28px 0 8px}
+  table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}
+  th,td{text-align:left;vertical-align:top;padding:8px 10px;border-top:1px solid #f0f2f5;font-size:14px}
+  th{background:#fafafa;color:#374151;font-weight:600;border-top:0}
+  code{font:13px ui-monospace,Menlo,Consolas,monospace;background:#f3f4f6;padding:1px 5px;border-radius:5px;white-space:nowrap}
+  td.p code{background:#fff7c2;border:1px solid #e6cf5a;color:#5b4a00}
+  .where{color:#6b7482;font-size:12.5px;white-space:nowrap}
+  .sticky{background:#eef6ff;color:#1e40af;font-size:11.5px;padding:1px 6px;border-radius:999px;margin-left:4px;white-space:nowrap}
+  .wrap{overflow-x:auto}
+  .back{font-size:13px;color:#2f6fed;text-decoration:none}
+  @media (max-width:600px){ .where{white-space:normal} }
+</style>
+</head>
+<body>
+<main>
+<a class="back" href="./">← Katomia QA</a>
+<h1>URL switches</h1>
+<p class="lead">Every parameter the pages read from the address bar that nothing in the UI discovers.
+Written up on request (feedback <code>mike-foxtrot-94</code>, 2026-09-06) so design passes can be
+done from a link. <span class="sticky">sticky</span> = the value is remembered in this browser
+after one visit; everything else applies to that page load only. Case matters as written.</p>
+
+<h2>Design passes</h2>
+<div class="wrap"><table>
+<tr><th>Parameter</th><th>What it does</th><th>Where</th></tr>
+<tr><td class="p"><code>?chipshape=tall</code> · <code>pill</code></td>
+    <td>Fungible chips as a taller, squarer chip with the symbol on top and a smaller, muted amount beneath (<code>tall</code>), or the one-line default (<code>pill</code>). Same as ⚙ Settings → 🧪 Chip shape, but for this load only — the setting is not changed.</td>
+    <td class="where">board</td></tr>
+<tr><td class="p"><code>?hatch=0</code></td>
+    <td>Turns off the diagonal hatch on the BEFORE/AFTER strip in the signing modal (on by default; very faint).</td>
+    <td class="where">signing modal</td></tr>
+<tr><td class="p"><code>?hatchw=9</code></td>
+    <td>Hatch stripe pitch in px (default 9). Smaller = denser.</td>
+    <td class="where">signing modal</td></tr>
+<tr><td class="p"><code>?hatcha=0.06</code></td>
+    <td>Hatch stripe opacity, 0–1 (default 0.06). Raise it to see the pattern while tuning.</td>
+    <td class="where">signing modal</td></tr>
+<tr><td class="p"><code>?hatchdeg=45</code></td>
+    <td>Hatch angle in degrees for BEFORE (default 45); AFTER uses the mirror angle so the two lean opposite ways.</td>
+    <td class="where">signing modal</td></tr>
+<tr><td class="p"><code>?txview=cards</code> · <code>table</code> · <code>nerd</code></td>
+    <td>Which transfer view the signing modal renders: the T-account cards (normal default), the line-item table (nerd default), or every registered view stacked.</td>
+    <td class="where">signing modal</td></tr>
+<tr><td class="p"><code>?signtabs=walletconnect,whatsapp,offline</code></td>
+    <td>Which signing methods the modal offers (comma list; aliases <code>wc</code>, <code>wallet</code>, <code>offline</code>=<code>ksig</code>). Unknown or empty → all.</td>
+    <td class="where">signing modal</td></tr>
+<tr><td class="p"><code>?sign=external</code></td>
+    <td>Tapping the board's hub during signing opens /m/sign in a new tab (the old flow) instead of the modal over the board. Default = in the game.</td>
+    <td class="where">board</td></tr>
+<tr><td class="p"><code>?skin=ring16</code></td>
+    <td>Board skin. Only one exists today; the id stays for when there are more.</td>
+    <td class="where">board</td></tr>
+<tr><td class="p"><code>?mark=o</code> · <code>end</code> <span class="sticky">sticky</span></td>
+    <td>Where the brand ring sits in the wordmark: inside the O (Kat◍mia) or after the word.</td>
+    <td class="where">every page</td></tr>
+<tr><td class="p"><code>?tickets=1</code></td>
+    <td>Priced tickets in proposal circles (lab feature; same as ⚙ Settings → 🎟 Allow tickets).</td>
+    <td class="where">board</td></tr>
+</table></div>
+
+<h2>Dev &amp; diagnostics</h2>
+<div class="wrap"><table>
+<tr><th>Parameter</th><th>What it does</th><th>Where</th></tr>
+<tr><td class="p"><code>?kchanges=1</code></td>
+    <td>Offers ☰ → 🗒️ Show changes without needing an admin account authenticated in this browser (the on/off state itself is then remembered).</td>
+    <td class="where">every page</td></tr>
+<tr><td class="p"><code>?kdiag=1</code> · <code>0</code> <span class="sticky">sticky</span></td>
+    <td>Client diagnostics to the backend on (<code>1</code>) or off (<code>0</code>). Remembered until set again.</td>
+    <td class="where">every page</td></tr>
+<tr><td class="p"><code>?ktag=1</code> · <code>0</code> <span class="sticky">session</span></td>
+    <td>Shows the correlation-tag badge (top-left) for cross-referencing diagnostics; remembered for the tab.</td>
+    <td class="where">every page</td></tr>
+<tr><td class="p"><code>?fullstate=1</code></td>
+    <td>Opts out of incremental (delta) state updates and receives full-state broadcasts — the old wire behaviour, for debugging sync.</td>
+    <td class="where">board / game</td></tr>
+<tr><td class="p"><code>?demo=1</code></td>
+    <td>Runs the board's scripted demo instead of connecting to a real circle.</td>
+    <td class="where">board</td></tr>
+<tr><td class="p"><code>?hapi_base=host</code></td>
+    <td>Admin override of which backend the signing widget talks to (cross-origin). Never forwarded upstream.</td>
+    <td class="where">signing modal / sign page</td></tr>
+<tr><td class="p"><code>?breakout=on-lock</code> · <code>off</code></td>
+    <td>Test hook for the create form's breakout rule, overriding the form's own selection.</td>
+    <td class="where">create</td></tr>
+<tr><td class="p"><code>?pair=KBRL/KGBP</code></td>
+    <td>Which market pair order mode shows.</td>
+    <td class="where">game (order mode)</td></tr>
+<tr><td class="p"><code>?autoload=…</code></td>
+    <td>Pre-selects a circle/action to load on arrival (legacy game page plumbing).</td>
+    <td class="where">game</td></tr>
+<tr><td class="p"><code>?created=1</code></td>
+    <td>Set by the create form on the way to a new circle: shows the share-link toast once, then strips itself from the address bar.</td>
+    <td class="where">board</td></tr>
+<tr><td class="p"><code>#sign=network:txid:pch</code></td>
+    <td>Not a query parameter — a hash. The open signing modal is mirrored here so a refresh or a bookmark reopens the same transaction.</td>
+    <td class="where">board / game</td></tr>
+</table></div>
+
+<p class="lead" style="margin-top:22px">Parameters combine freely: <code>/m/katomia/board/m-prop?chipshape=tall&amp;hatcha=0.15</code>.
+When one of these becomes a real setting, it moves out of here into ⚙ Settings or Profile and gets a line in the change notes.</p>
+</main>
+</body>
+</html>
