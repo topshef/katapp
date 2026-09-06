@@ -429,12 +429,14 @@ const SIGN_REASON = {
 		preview.className = 'txcards-preview'
 		// HATCH1 URL knobs — design-pass only, never persisted
 		{
+			// HATCH2: set on the CONTAINER, not the preview — the account cards are siblings
+			// of the preview and now carry the same texture, so the knobs have to reach both.
 			const q = new URLSearchParams(location.search)
-			if (q.get('hatch') === '0') preview.dataset.hatch = '0'
+			if (q.get('hatch') === '0') container.dataset.hatch = '0'
 			const w = parseFloat(q.get('hatchw')), a = parseFloat(q.get('hatcha')), d = parseFloat(q.get('hatchdeg'))
-			if (w > 0) preview.style.setProperty('--txhatch-w', w + 'px')
-			if (a >= 0 && a <= 1) preview.style.setProperty('--txhatch-a', String(a))
-			if (!isNaN(d)) preview.style.setProperty('--txhatch-deg', d + 'deg')
+			if (w > 0) container.style.setProperty('--txhatch-w', w + 'px')
+			if (a >= 0 && a <= 1) container.style.setProperty('--txhatch-a', String(a))
+			if (!isNaN(d)) container.style.setProperty('--txhatch-deg', d + 'deg')
 		}
 		preview.dataset.state = 'before'
 		const beforeHalf = document.createElement('button')
@@ -2340,13 +2342,32 @@ export function injectTxReadCSS() {
 		     --txhatch-a  stripe alpha 0..1     (?hatcha=)
 		     --txhatch-deg angle, degrees       (?hatchdeg=)  — BEFORE uses it, AFTER its mirror
 		   ?hatch=0 turns the stripes off for comparison. */
-		.txcards-preview { --txhatch-w: 9px; --txhatch-a: .06; --txhatch-deg: 45deg; }
+		/* HATCH2 (feedback yankee-oscar-81, 2026-09-06): "it should be almost like a texture
+		   — instead of being pinstripe, it alternates from one shade to another, so you just
+		   see a stripy kind of corduroy texture … both the same … and also texture the
+		   background of the cards. The Before & After labels are legend keys, and then below
+		   that you've got each card with its background, so that should have the same
+		   texture. That's why it needs to be quite subtle — you might want to make it even
+		   more subtle."
+		   So: equal bands (colour W, blank W) instead of a 1px line on a wide gap — that is
+		   what makes it read as woven cloth rather than pinstripe; ONE lean for both halves;
+		   finer pitch and lower alpha; and the same texture, in whichever state is showing,
+		   across the account cards below. Knobs (?hatchw= ?hatcha= ?hatchdeg=, ?hatch=0 off)
+		   now live on .txcards so they reach the cards too. */
+		.txcards { --txhatch-w: 5px; --txhatch-a: .045; --txhatch-deg: 45deg; }
 		.txpreview-before { color:rgba(185,28,28,.38);
-			background: repeating-linear-gradient(var(--txhatch-deg), rgba(185,28,28,var(--txhatch-a)) 0 1px, transparent 1px var(--txhatch-w)), #fdf2f2; }
+			background: repeating-linear-gradient(var(--txhatch-deg), rgba(185,28,28,var(--txhatch-a)) 0 var(--txhatch-w), transparent var(--txhatch-w) calc(var(--txhatch-w) * 2)), #fdf2f2; }
 		.txpreview-after  { color:rgba(21,128,61,.4);
-			background: repeating-linear-gradient(calc(180deg - var(--txhatch-deg)), rgba(21,128,61,var(--txhatch-a)) 0 1px, transparent 1px var(--txhatch-w)), #eff7f1; }
-		.txcards-preview[data-hatch="0"] .txpreview-before { background:#fdf2f2; }
-		.txcards-preview[data-hatch="0"] .txpreview-after  { background:#eff7f1; }
+			background: repeating-linear-gradient(var(--txhatch-deg), rgba(21,128,61,var(--txhatch-a)) 0 var(--txhatch-w), transparent var(--txhatch-w) calc(var(--txhatch-w) * 2)), #eff7f1; }
+		/* the cards are what the legend describes — same weave, same lean, over white, at
+		   half strength again so a card stays a white card you can read. */
+		.txcards-preview[data-state="before"] ~ .txcard {
+			background: repeating-linear-gradient(var(--txhatch-deg), rgba(185,28,28,calc(var(--txhatch-a) / 2)) 0 var(--txhatch-w), transparent var(--txhatch-w) calc(var(--txhatch-w) * 2)), #fff; }
+		.txcards-preview[data-state="after"] ~ .txcard {
+			background: repeating-linear-gradient(var(--txhatch-deg), rgba(21,128,61,calc(var(--txhatch-a) / 2)) 0 var(--txhatch-w), transparent var(--txhatch-w) calc(var(--txhatch-w) * 2)), #fff; }
+		.txcards[data-hatch="0"] .txpreview-before { background:#fdf2f2; }
+		.txcards[data-hatch="0"] .txpreview-after  { background:#eff7f1; }
+		.txcards[data-hatch="0"] .txcard { background:#fff; }
 		/* hover: keep the tint (re-assert to beat host button:hover) + a subtle grey inset border
 		   so it still reads as a button; no colour change. */
 		.txpreview-before:hover, .txpreview-after:hover { filter: none; }
@@ -2400,4 +2421,4 @@ export function injectTxReadCSS() {
 
 	`
 	document.head.appendChild(style)
-}
+}

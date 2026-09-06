@@ -168,10 +168,21 @@
         msg.textContent = "…";
         msg.className = "kfb-msg";
         try {
-          await send(host, verdict);
+          var res = await send(host, verdict);
           var m = readVoted(); m[host.getAttribute("data-kfb")] = verdict; writeVoted(m);
           mark(verdict);
           msg.textContent = "Thanks — noted.";
+          // KCHSAID1: say what was recorded, so a host that cares (the change notes) can
+          // mark its own item as "you've fed back on this" and link to the record. The
+          // stored map above is unchanged — this is additive and nobody has to listen.
+          var rec = null;
+          try { rec = (await res.clone().json()).feedback || null; } catch (e2) {}
+          try {
+            document.dispatchEvent(new CustomEvent("kfb:voted", { detail: {
+              id: host.getAttribute("data-kfb"), verdict: verdict,
+              record: rec && rec.id, tag: rec && rec.tag
+            } }));
+          } catch (e2) {}
         } catch (e) {
           // Say so. A thumb that silently failed is worse than no thumb.
           msg.textContent = "Didn't send — try again?";

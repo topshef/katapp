@@ -882,15 +882,20 @@ async function renderTxView(txState) {
   // nerd-view toggle — prefer the modal header (left of the close ✕) when mounted
   // in the signing modal; fall back to the widget's own top-right corner when the
   // widget is embedded inline (no .kpm-card ancestor). (ORDERS-UI1)
-  const nerdToggle = buildNerdToggle(txState)
+  // NERDHEAD-RETIRE1 (feedback kilo-yankee-58, 2026-09-06): "this signing modal
+  // currently has a nerd toggle in the header — I think we can take that off now. We've
+  // got the nerd toggle available in profile … if we do have nerd mode switched on,
+  // then yes, leave the nerd options visible. So we still apply nerd options if they
+  // exist, we just don't allow the user to toggle [here]."
+  // So the 🙂/🤓 button goes from the modal header; everything it used to switch is
+  // untouched and still follows body.nerd / katomia.nerd.v1 from ⚙ Profile — including
+  // the ↗ open-in-new-tab, which stays because it is a nerd option, not a toggle.
+  // The standalone /m/sign page has no profile panel to set nerd from, so the inline
+  // fallback keeps its toggle.
   const headActions = container.closest?.('.kpm-card')?.querySelector('.kpm-head-actions')
   if(headActions){
-    // header order (left→right): open-in-new-tab (nerd) · nerd toggle · close ✕
-    // (user 2026-08-05: the arrow lives leftmost so toggling nerd — which shows/
-    // hides it — never makes the emoji or the ✕ jump)
-    headActions.insertBefore(nerdToggle, headActions.firstChild)
     headActions.insertBefore(buildOpenInNewTab(txState), headActions.firstChild)
-  } else txState.view.el.appendChild(nerdToggle)
+  } else txState.view.el.appendChild(buildNerdToggle(txState))
 
   // signing panel: a clean method picker (WhatsApp · Wallet · KSIG). Choosing a
   // method reveals its short description + controls/QR/iframe in the pane below.

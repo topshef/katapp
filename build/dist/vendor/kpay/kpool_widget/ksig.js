@@ -165,12 +165,25 @@ function drawQR(el, text, opts = {}) {
 	let n = moduleCountOf(buildQR(el, text, 200))
 	if (!n) return { modules: 0, scale: 0, px: 200 }   // fall back to what pass 1 drew
 
+	// QRFIT1 (feedback november-quebec-18, 2026-09-06: "the QR code under the KSIG tab
+	// has butted up to the right … it should be centred, I'm on mobile"). It was not a
+	// centring bug: the drawn box was WIDER than the pane it sits in (308px inside 300px
+	// on a 360px phone), and a box wider than its container cannot be centred by
+	// `margin:0 auto` — it pins left and spills off the right, which is exactly what that
+	// looks like. Two causes, both fixed here:
+	//   · the budget came off the VIEWPORT (innerWidth - 48) while the QR lives inside the
+	//     modal's pane, which is narrower still — measure the pane instead;
+	//   · the quiet zone (4 modules of white each side, added as padding by .kpsign-qr)
+	//     was not in the sum, so the finished box was always 8 modules wider than planned.
+	// Scale is therefore chosen against n + 2 * QR_QUIET_MODULES, in the width actually
+	// available. Belt and braces, .kpsign-qr is max-width:100% so it can never spill again.
+	const paneW = el.parentElement?.clientWidth || el.clientWidth || window.innerWidth
 	const budget = Math.min(
 		maxPx,
-		Math.max(240, window.innerWidth - 48),
-		Math.max(240, window.innerHeight - reservePx)
+		Math.max(200, Math.min(paneW, window.innerWidth) - 8),
+		Math.max(200, window.innerHeight - reservePx)
 	)
-	const scale = Math.max(minScale, Math.floor(budget / n))
+	const scale = Math.max(minScale, Math.floor(budget / (n + 2 * QR_QUIET_MODULES)))
 	const px = n * scale
 
 	// pass 2 — exact multiple, so no module straddles a pixel boundary
@@ -527,6 +540,7 @@ function injectKsigCSS() {
 		   and davidshimjs draws none. --kpsign-quiet is set by drawQR() to exactly
 		   4 modules at the current scale. */
 		.kpsign-qr { display:flex; justify-content:center; margin:0 auto; width:max-content;
+			max-width:100%; box-sizing:border-box;
 			background:#fff; padding:var(--kpsign-quiet, 16px); }
 		/* override any theme border-radius so the QR finder squares aren't clipped,
 		   and never let a browser smooth the modules when scaling */

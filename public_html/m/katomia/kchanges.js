@@ -63,6 +63,8 @@
   var DONE_KEY = "katomia.kchanges.done.v1";     // JSON array of refs ticked off (✕)
   var ADMINS_KEY = "katomia.kchanges.admins";    // sessionStorage cache of /katomia/admins
   var BOARD_KEY = "katomia.kchanges.lastboard";  // last circle seen, for "@board" deep links
+  var SAID_KEY = "katomia.kchanges.said.v1";     // KCHSAID1: what I have already fed back on
+  var VOTED_KEY = "katomia.kfeedbits.voted.v1";  // kfeedbits' own map, read for thumbs
   var FADE_DAYS = 7, GONE_DAYS = 14;
 
   var log = Array.isArray(window.KCHANGES_LOG) ? window.KCHANGES_LOG : [];
@@ -80,6 +82,60 @@
   function markDone(ref) {
     var d = readDone(); if (d.indexOf(ref) === -1) d.push(ref); writeDone(d);
   }
+  // ── KCHSAID1: "I have already said something about this one" ───────────────
+  // Your feedback, 2026-09-06: "if I've already given a comment, recolour the post-it
+  // … grey it out … some indication that the feedback has already been given, maybe a
+  // link to that feedback, and then I can manually mark done if I've nothing more."
+  // So this is a THIRD state, not Done: Done is you closing an item; this is simply the
+  // record of what you have already told me, kept per browser, and it colours itself in
+  // the moment a vote or a comment lands. Every comment is its own feedback record —
+  // they are tied together by the change's reference, which the quote always carries.
+  function readSaid() { try { return JSON.parse(localStorage.getItem(SAID_KEY)) || {}; } catch (e) { return {}; } }
+  function writeSaid(m) { try { localStorage.setItem(SAID_KEY, JSON.stringify(m)); } catch (e) {} }
+  function noteSaid(ref, kind, id, tag) {
+    if (!ref) return;
+    var m = readSaid();
+    var list = m[ref] = (m[ref] || []);
+    list.push({ at: new Date().toISOString(), kind: kind, id: id || null, tag: tag || null });
+    if (list.length > 12) m[ref] = list.slice(-12);
+    writeSaid(m);
+    place();
+    if (sheet) renderSheet();
+    if (pop && openRef === ref) refreshSaidLine(openRef);
+  }
+  // What I have said about one change: this browser's own record, plus any thumb
+  // kfeedbits stored before KCHSAID1 shipped (that map is keyed "change-<REF>").
+  function saidFor(ref) {
+    var list = (readSaid()[ref] || []).slice();
+    var verdict = null, comments = 0, last = null;
+    list.forEach(function (e) {
+      if (e.kind === "comment") comments++; else verdict = e.kind;
+      if (!last || e.at > last.at) last = e;
+      if (e.kind === "comment" && (!last || e.at >= last.at)) last = e;
+    });
+    if (!verdict) {
+      try {
+        var v = (JSON.parse(localStorage.getItem(VOTED_KEY)) || {})["change-" + ref];
+        if (v === "up" || v === "down") verdict = v;
+      } catch (e) {}
+    }
+    if (!verdict && !comments) return null;
+    return { verdict: verdict, comments: comments, last: last };
+  }
+  function saidIcon(said) {
+    if (!said) return "\u{1F5D2}\uFE0F";
+    if (said.comments) return "\u{1F4AC}";
+    return said.verdict === "down" ? "\u{1F44E}" : "\u{1F44D}";
+  }
+  function saidWords(said) {
+    if (!said) return "";
+    var bits = [];
+    if (said.comments) bits.push(said.comments > 1 ? said.comments + " comments" : "commented");
+    if (said.verdict) bits.push(said.verdict === "up" ? "\u{1F44D}" : "\u{1F44E}");
+    var when = said.last && said.last.at ? " on " + fmtDate(said.last.at) : "";
+    return "You've fed back \u2014 " + bits.join(" \u00b7 ") + when;
+  }
+
   function ageDays(entry) {
     var t = Date.parse(entry.at || "");
     return isNaN(t) ? 0 : Math.max(0, (Date.now() - t) / 864e5);
@@ -204,6 +260,10 @@
       ".kch-tag,.kch-tag:hover,.kch-tag:active,.kch-tag:focus{transform:none!important}" +
       ".kch-tag:hover,.kch-tag:active{background:#ffef9a}" +
       ".kch-tag.kch-open{outline:2px solid #2f6fed;outline-offset:1px}" +
+      // KCHSAID1: already fed back → off the yellow, onto a quiet slate, so at a glance
+      // the page shows what is still waiting on you.
+      ".kch-tag--said{background:#eef1f5;border-color:#c9d2de;color:#5b6472;box-shadow:0 1px 3px rgba(0,0,0,.12)}" +
+      ".kch-tag--said:hover,.kch-tag--said:active{background:#e3e8ef}" +
       ".kch-tag.kch-flash{animation:kch-flash .9s ease 2}" +
       "@keyframes kch-flash{0%,100%{box-shadow:0 1px 4px rgba(0,0,0,.18)}50%{box-shadow:0 0 0 6px rgba(47,111,237,.35)}}" +
       ".kch-tag .kch-ico{font-size:12px;line-height:1}" +
@@ -219,6 +279,9 @@
       ".kch-pop-x:hover{color:#374151}" +
       ".kch-pop-meta{font-size:12px;color:#6b7482;margin-bottom:6px}" +
       ".kch-pop-meta a{color:#2f6fed}" +
+      ".kch-pop-said{font-size:12px;color:#41506a;background:#eef1f5;border:1px solid #dde3ec;border-radius:8px;" +
+        "padding:5px 8px;margin-bottom:7px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}" +
+      ".kch-pop-said a{color:#2f6fed}" +
       ".kch-pop-detail{font-size:13px;color:#374151;white-space:pre-wrap;max-height:40vh;overflow:auto;margin-bottom:8px}" +
       ".kch-pop-cite{font-size:11px;color:#9aa3b2}" +
       ".kch-pop-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid #f0f2f5;padding-top:8px}" +
@@ -256,6 +319,10 @@
       ".kch-cue--go{background:#eaf1fe;border-color:#c3d6fb;color:#1e40af}" +
       ".kch-cue--page{background:#fff5e5;border-color:#f0d9ac;color:#8a5a09}" +
       ".kch-cue--none{background:#f3f4f6;border-color:#e2e5ea;color:#6b7482}" +
+      ".kch-row--said .kch-row-ref{background:#eef1f5;border-color:#c9d2de;color:#5b6472}" +
+      ".kch-row--said .kch-row-title{color:#5b6472;font-weight:500}" +
+      ".kch-said-pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:1px 7px;border-radius:999px;" +
+        "background:#eef1f5;border:1px solid #d3dae4;color:#41506a;margin-top:4px;margin-left:6px;white-space:nowrap}" +
       ".kch-row-chev{border:0;background:none;color:#9ca3af;font-size:15px;cursor:pointer;padding:8px 10px;flex:none;" +
         "align-self:stretch;transform:none!important}" +
       ".kch-row-chev:hover{color:#2f6fed}" +
@@ -295,15 +362,25 @@
     t.className = "kch-tag";
     t.dataset.ref = entry.ref;
     t.title = entry.title || entry.ref;
-    t.innerHTML = '<span class="kch-ico">🗒️</span><span></span>';
+    t.innerHTML = '<span class="kch-ico"></span><span></span>';
     t.lastChild.textContent = entry.ref;
     t.style.opacity = String(strength(entry));
+    paintTag(t, entry.ref);
     // Freeze placement for the length of the press: a live board re-renders constantly,
     // and a tag that re-anchors between pointerdown and pointerup loses the tap.
     t.addEventListener("pointerdown", function (e) { pressing = true; e.stopPropagation(); });
     t.addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); togglePop(entry, t); });
     return t;
   }
+  // Grey with a 💬/👍/👎 once you have said something; yellow 🗒️ while it still wants
+  // your eye. Re-applied on every placement so it changes the moment feedback lands.
+  function paintTag(el, ref) {
+    var said = saidFor(ref);
+    el.classList.toggle("kch-tag--said", !!said);
+    el.firstChild.textContent = saidIcon(said);
+    el.title = said ? saidWords(said) : (el.title || ref);
+  }
+
   function pageEntries() {
     return liveEntries().filter(onThisPage);
   }
@@ -319,6 +396,7 @@
       if (!rec) rec = tags[entry.ref] = { el: makeTag(entry), anchor: null };
       rec.anchor = a;
       if (rec.el.parentNode !== layer) layer.appendChild(rec.el);
+      paintTag(rec.el, entry.ref);
       var r = a.getBoundingClientRect();
       var w = rec.el.offsetWidth || 52, h = rec.el.offsetHeight || 20;
       // top-right corner of the anchor, pulled in over the thing it labels
@@ -390,11 +468,33 @@
   }
   function kfbFor(entry, detailId) {
     var kfb = document.createElement("div");
+    kfb.addEventListener("click", function (e) {
+      if (e.target && e.target.closest && e.target.closest(".kfb-chat"))
+        pendingComment = { ref: entry.ref, at: Date.now() };
+    }, true);
     kfb.setAttribute("data-kfb", "change-" + entry.ref);
     kfb.setAttribute("data-kfb-label", "Change " + entry.ref + ": " + (entry.title || ""));
     kfb.setAttribute("data-kfb-target", "#" + detailId);
     return kfb;
   }
+  // A comment goes out through the feedback widget, which knows nothing about changes —
+  // so remember which change opened it, and claim the next record the widget reports.
+  // Five minutes, one shot: long enough to write a paragraph, short enough that an
+  // unrelated piece of feedback later is not filed against a change.
+  var pendingComment = null;
+  document.addEventListener("kfb:voted", function (e) {
+    var d = e.detail || {};
+    var m = /^change-(.+)$/.exec(d.id || "");
+    if (m) noteSaid(m[1], d.verdict === "down" ? "down" : "up", d.record, d.tag);
+  });
+  document.addEventListener("kfw:sent", function (e) {
+    if (!pendingComment || Date.now() - pendingComment.at > 3e5) { pendingComment = null; return; }
+    var d = e.detail || {};
+    var ref = pendingComment.ref;
+    pendingComment = null;
+    noteSaid(ref, "comment", d.id, d.tag);
+  });
+
   function renderKfb(kfb) {
     if (window.kfeedbits && window.kfeedbits.render) { try { window.kfeedbits.render(kfb); return; } catch (e) {} }
     kfb.remove();
@@ -413,6 +513,36 @@
     }
     return meta;
   }
+  // "You've fed back on this" — with a link to what you actually said, when we have the
+  // record id (a comment always; a thumb from KCHSAID1 onwards).
+  function saidLine(ref) {
+    var said = saidFor(ref);
+    if (!said) return null;
+    var d = document.createElement("div");
+    d.className = "kch-pop-said";
+    var t = document.createElement("span");
+    t.textContent = "\u2713 " + saidWords(said);
+    d.appendChild(t);
+    var id = said.last && said.last.id;
+    if (id) {
+      var a = document.createElement("a");
+      a.href = feedbackUrl(id);
+      a.target = "_blank"; a.rel = "noopener";
+      a.textContent = (said.last.tag ? said.last.tag + " " : "") + "\u2197";
+      a.title = "Open what you said";
+      d.appendChild(a);
+    }
+    return d;
+  }
+  function refreshSaidLine(ref) {
+    if (!pop) return;
+    var existing = pop.querySelector(".kch-pop-said");
+    var fresh = saidLine(ref);
+    if (existing && fresh) existing.replaceWith(fresh);
+    else if (fresh) pop.insertBefore(fresh, pop.querySelector(".kch-pop-detail"));
+    else if (existing) existing.remove();
+  }
+
   function togglePop(entry, tagEl) {
     if (openRef === entry.ref) { closePop(); return; }
     closePop();
@@ -440,11 +570,14 @@
     var done = document.createElement("button");
     done.type = "button"; done.className = "kch-pop-done";
     done.textContent = "✕ Done, remove";
-    done.title = "Tick this change off — the tag and the list entry go, in this browser";
+    done.title = "Tick this off your own list (this browser). Separate from feedback \u2014 saying something already greys the tag.";
     done.onclick = function () { markDone(entry.ref); closePop(); place(); if (sheet) renderSheet(); };
     foot.append(kfb, done);
 
-    pop.append(head, metaLine(entry), detail, foot);
+    var said = saidLine(entry.ref);
+    pop.append(head, metaLine(entry));
+    if (said) pop.appendChild(said);
+    pop.append(detail, foot);
     document.body.appendChild(pop);
     renderKfb(kfb);
     positionPop(tagEl);
@@ -500,6 +633,15 @@
     var sub = document.createElement("div"); sub.className = "kch-row-sub";
     sub.textContent = fmtDate(entry.at) + (entry.from ? " · " + entry.from : "");
     body.append(t, sub, cueFor(ctx));
+    var said = saidFor(entry.ref);
+    if (said) {
+      row.classList.add("kch-row--said");
+      var pill = document.createElement("span");
+      pill.className = "kch-said-pill";
+      pill.textContent = "\u2713 " + (said.comments ? "\u{1F4AC}" : (said.verdict === "down" ? "\u{1F44E}" : "\u{1F44D}")) + " fed back";
+      pill.title = saidWords(said);
+      body.appendChild(pill);
+    }
     main.append(ref, body);
 
     var chev = document.createElement("button");
@@ -536,7 +678,10 @@
       done.onclick = function () { markDone(entry.ref); renderSheet(); };
       right.appendChild(done);
       foot.append(kfb, right);
-      open.append(metaLine(entry), detail, foot);
+      var rowSaid = saidLine(entry.ref);
+      open.appendChild(metaLine(entry));
+      if (rowSaid) open.appendChild(rowSaid);
+      open.append(detail, foot);
       row.appendChild(open);
       renderKfb(kfb);
       chev.textContent = "⌃";

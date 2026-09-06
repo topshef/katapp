@@ -3393,9 +3393,15 @@ body[data-trading-mode="orderBook"] .ktabs.mode-order{ display:none; }
    flow you have to go through." First use of that style; the class is generic on
    purpose so the same rule can be applied wherever a modal has ONE expected next step
    (as opposed to a modal you open, adjust, and close — those keep quiet buttons). */
+/* PRIMARY-ACTION1 r2 (feedback foxtrot-echo-85, 2026-09-06): "it looks weird when
+   there's lots of blue space on the right hand side of the button … either shrink the
+   button or centre the text". The button stretches (flex:1) so the row fills the modal;
+   the LABEL was inheriting the modal's left alignment and sitting in one corner of it.
+   Centred — the button keeps its full width, which is what makes it read as the one
+   expected action, and the label now sits in the middle of it. */
 .addacct-primary,
 .k-primary-action{ background:#2f6fed; color:#fff; border:1px solid #2f6fed; border-radius:8px;
-  padding:9px 14px; font-weight:600; cursor:pointer; }
+  padding:9px 14px; font-weight:600; cursor:pointer; text-align:center; }
 .addacct-primary:hover,
 .k-primary-action:hover{ background:#255ed0; border-color:#255ed0; }
 .addacct-primary:disabled,
@@ -3420,8 +3426,13 @@ body[data-trading-mode="orderBook"] .ktabs.mode-order{ display:none; }
 /* CHIP-SHAPE1 (feedback f213e4a2 + 9b22da29, 2026-09-06): lab shape for fungible chips —
    symbol on top, amount smaller and muted beneath. Driven by body[data-chip-shape]
    (katomia-board.js, nerd setting or ?chipshape=). Thumbnail chips are untouched. */
+/* CHIP-SHAPE1 r2 (feedback papa-golf-43, 2026-09-06: "quite a lot of padding on both
+   sides left and right of the symbol, which isn't needed … take about a third off …
+   it should still be more than the top bottom, but not several times more"). Side
+   padding 8px → 6px, and the 46px floor down to 38px — most of the apparent width on a
+   short symbol was the floor, not the padding. Still wider than it is tall, as asked. */
 body[data-chip-shape="tall"] .asset:not(.thumb-only){
   display:inline-flex; flex-direction:column; align-items:center; justify-content:center;
-  text-align:center; min-width:46px; padding:5px 8px 4px; line-height:1.12; }
+  text-align:center; min-width:38px; padding:5px 6px 4px; line-height:1.12; }
 body[data-chip-shape="tall"] .asset .chip-sym{ font-weight:700; }
 body[data-chip-shape="tall"] .asset .chip-amt{ font-size:.78em; opacity:.7; font-variant-numeric:tabular-nums; }
