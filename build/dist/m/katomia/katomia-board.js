@@ -8031,6 +8031,16 @@ function boardAssetText(assetId, amount){
     return meta?.token_instance_name || meta?.token_class?.name || meta?.token_class?.symbol || id.split("#")[0]
   }
 
+  // NFT-SERIALPAGE1 (india-kilo-57, 2026-09-06): "an NFT is rendering as a fungible token,
+  // with no image." The serial is what this function used to key on, so an NFT that reached
+  // us WITHOUT one fell through to the fungible branch below and drew "SYMBOL ×N" — the
+  // generic chip, no name, no picture. The backend's mirror pagination was the cause and is
+  // fixed there; this is the guard that stops it ever reading as a fungible again, whatever
+  // the cause. A collection with no serial can only be named by its collection, and there
+  // is no single instance to draw, so the count moves into the tooltip rather than the face.
+  if(meta?.token_class?.type === "NON_FUNGIBLE_UNIQUE")
+    return meta?.token_class?.name || meta?.token_class?.symbol || id
+
   const isHbar = id.toUpperCase() === "HBAR"
   let sym = isHbar ? "ℏ" : (meta?.token_class?.symbol || meta?.token_class?.name || id)
   if(String(sym).toLowerCase().startsWith("hedera://")) sym = meta?.token_class?.name || id

@@ -271,5 +271,11 @@ window.KCHANGES_LOG = [
     detail: "\"The button is much wider than the text so it looks a bit funny having so much blue space next to it — either centre the text as it is, or make the button narrower. I leave that to your judgment.\" Centring it (last round) clearly wasn't enough, so this takes the other option: the button hugs its label with generous padding and the row centres it, instead of stretching the full width. ?primary=wide brings the full-width version back if you want to compare them side by side.",
     from: "quebec-tango-15", feedback: null,
     goto: "@board", needs: "with Add account open",
-    where: [{ page: "board", sel: "#addAcctJoin" }] }
+    where: [{ page: "board", sel: "#addAcctJoin" }] },
+  { ref: "F10", at: "2026-09-07T10:00:00Z",
+    title: "The NFT that was showing as a plain token, with no picture",
+    detail: "You asked what source was missing. It was the serial number. The mirror node hands back its lists 100 rows at a time and we were reading only the first page and ignoring the \"next\" link — so on an account past that mark the later collections arrived with no serials attached. An NFT collection also appears in the ordinary token list (where its \"balance\" is really the count of serials you hold), so those collections then came through as a plain token id with a number against them. With no serial there is no instance to name and no image to fetch, which is exactly the chip you were looking at. The backend now follows the pages through to the end (up to a sane cap), so both the serials and any token past the hundredth come back. On top of that the board no longer trusts the id shape alone: anything the token class says is an NFT is drawn as an NFT, so even if a serial ever goes missing again it names the collection rather than pretending to be a fungible pile. The second half of your message, about not being able to drag a text-only chip, was truncated in the log — send that again if it still bites.",
+    from: "india-kilo-57", feedback: null,
+    goto: "@board",
+    where: [{ page: "board", sel: ".board-chip" }] }
 ]
