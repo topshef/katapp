@@ -191,7 +191,13 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
          ?kchanges=1). Stays open on click — it's a switch, not a destination — hence
          not .app-menu-item, which the menu closes on. -->
     <button type="button" class="app-menu-item app-menu-kchanges" data-menu-kchanges hidden
-            title="Dev: show a 🗒️ tag beside everything that changed recently. Tap a tag for what changed and why; ✕ ticks it off. Fades over a week.">🗒️ Show changes</button>
+            title="Dev: show a 🗒️ tag beside everything on THIS page that changed recently. Tap a tag for what changed and why; ✕ ticks it off. Fades over a week.">🗒️ Show changes</button>
+    <!-- KCHANGES1 round 2 (2026-09-06): "another item on the hamburger menu to a list of
+         all the changes … tap it and it either takes you to the context if there is one,
+         or it opens up there so you can review it". A destination, so it IS an
+         .app-menu-item and the menu closes behind it. -->
+    <button type="button" class="app-menu-item app-menu-kchanges" data-menu-kchanges-list hidden
+            title="Dev: every recent change in one list — go to the one you want, or read and comment on it here.">📋 Changes</button>
     <!-- /KBUNDLE-STRIP:kchanges -->
   </nav>
 

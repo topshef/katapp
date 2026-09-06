@@ -74,7 +74,10 @@ after one visit; everything else applies to that page load only. Case matters as
 <div class="wrap"><table>
 <tr><th>Parameter</th><th>What it does</th><th>Where</th></tr>
 <tr><td class="p"><code>?kchanges=1</code></td>
-    <td>Offers ☰ → 🗒️ Show changes without needing an admin account authenticated in this browser (the on/off state itself is then remembered).</td>
+    <td>Offers ☰ → 🗒️ Show changes and ☰ → 📋 Changes without needing an admin account authenticated in this browser (the on/off state itself is then remembered).</td>
+    <td class="where">every page</td></tr>
+<tr><td class="p"><code>?kch=B07</code></td>
+    <td>Opens that change's note on arrival — what ☰ → 📋 Changes puts on a "take me there" link. Strips itself from the address bar; falls back to the list with the entry open if the thing it points at isn't on screen.</td>
     <td class="where">every page</td></tr>
 <tr><td class="p"><code>?kdiag=1</code> · <code>0</code> <span class="sticky">sticky</span></td>
     <td>Client diagnostics to the backend on (<code>1</code>) or off (<code>0</code>). Remembered until set again.</td>
