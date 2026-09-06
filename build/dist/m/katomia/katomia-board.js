@@ -1507,6 +1507,12 @@ async function render(){
   ].filter(Boolean).join(" ")
   document.body.dataset.chipStyle = boardChipStyle   // BOARD-CHIPART1 variant under comparison
   document.body.dataset.chipShape = boardChipShape   // CHIP-SHAPE1 — katomia-render.js makeAssetEl reads this
+  // PRIMARY-ACTION1 r3: ?primary=wide brings back the full-width primary button so the two
+  // can be compared from a link; "hug" (the default) sizes it to its label.
+  {
+    const p = (new URLSearchParams(location.search).get("primary") || "").toLowerCase()
+    if (["wide", "hug"].includes(p)) document.body.dataset.primary = p
+  }
   // (chip-emboss body class gone — pref retired 2026-08-17, nothing sets it now)
   if(gameMeta?.network)
     document.body.dataset.network = gameMeta.network.toLowerCase()

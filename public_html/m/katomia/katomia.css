@@ -3384,9 +3384,18 @@ body[data-trading-mode="orderBook"] .ktabs.mode-order{ display:none; }
 .addacct-rowname{ flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .addacct-rowid{ font-size:11px; color:#8a8f98; flex:0 0 auto; }
 .addacct-assets{ max-height:46vh; overflow-y:auto; }
-.addacct-actions{ display:flex; gap:8px; align-items:center; }
-.addacct-primary{ flex:1 1 auto; }
+.addacct-actions{ display:flex; gap:8px; align-items:center; justify-content:center; }
+/* PRIMARY-ACTION1 r3 (quebec-tango-15, 2026-09-06): "the button is much wider than the
+   text so it looks a bit funny having so much blue space next to it — either centre the
+   text on the button as it is, or make the button narrower … I leave that to your
+   judgment." r2 centred the label and you still found the emptiness odd, so this takes
+   the other option: the button hugs its label with generous padding instead of stretching
+   across the row, and the row centres it. ?primary=wide restores the full-width version
+   for comparison (body[data-primary="wide"]). */
+.addacct-primary{ flex:0 1 auto; min-width:0; }
 .addacct-secondary{ flex:0 0 auto; }
+body[data-primary="wide"] .addacct-actions{ justify-content:flex-start; }
+body[data-primary="wide"] .addacct-primary{ flex:1 1 auto; }
 /* PRIMARY-ACTION1 (feedback 820533c1, 2026-09-06): "the Add account button is the
    expected action on this modal — make it the emphasised button, solid colour with
    contrasting text, rather than an outline … a house style for the next step in a

@@ -259,5 +259,17 @@ window.KCHANGES_LOG = [
     detail: "You asked for the blank space under the QR to go, then four minutes later said you'd rather I didn't make it worse and to put a test behind a URL switch instead. So nothing changed by default and all three are a link away: ?qrlayout=tail is what you have (the space stays), ?qrlayout=notail removes it, ?qrlayout=top removes it AND scrolls the row of wallet options to the very top so the QR rides as high as the modal allows. Tell me which and I'll make it the default. The third one is the one I'd expect you to like: it fixes the low QR without leaving dead space under it.",
     from: "mike-juliett-55 · november-oscar-63", feedback: null,
     needs: "while signing offline (the QR tab)",
-    where: [{ page: "m/sign|board|game", sel: ".kpsign-qr-cap" }] }
+    where: [{ page: "m/sign|board|game", sel: ".kpsign-qr-cap" }] },
+  { ref: "F08", at: "2026-09-07T09:30:00Z",
+    title: "A balance in the thousands now renders tall like every other chip",
+    detail: "Your hunch was exactly right. \"It's got thousands in it and it's doing it in k — I wonder if the compression to k stops it rendering as tall.\" Past 10,000 the amount is compressed to \"200k\" or \"1.5M\", and the rule that splits a chip into symbol-over-amount only accepted digits before the space — so any big holding silently fell back to the one-line chip. That is why one of your accounts looked different from the rest. The suffix is part of the amount now. \"12.5 KGBP\" still splits correctly; the suffix cannot eat the K of a symbol because a space has to follow it.",
+    from: "papa-oscar-46 · tango-victor-71", feedback: null,
+    goto: "@board",
+    where: [{ page: "board", sel: ".board-chip" }] },
+  { ref: "F09", at: "2026-09-07T09:30:00Z",
+    title: "Add account: the button is the size of its label",
+    detail: "\"The button is much wider than the text so it looks a bit funny having so much blue space next to it — either centre the text as it is, or make the button narrower. I leave that to your judgment.\" Centring it (last round) clearly wasn't enough, so this takes the other option: the button hugs its label with generous padding and the row centres it, instead of stretching the full width. ?primary=wide brings the full-width version back if you want to compare them side by side.",
+    from: "quebec-tango-15", feedback: null,
+    goto: "@board", needs: "with Add account open",
+    where: [{ page: "board", sel: "#addAcctJoin" }] }
 ]

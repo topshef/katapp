@@ -232,7 +232,14 @@ function getFastThumb(url, imgEl){
 			// else (ℏ alone, a name) stays a single line. Off = the textContent above.
 			if(!useThumbnail && document.body?.dataset?.chipShape === "tall"){
 				let amtTxt = null, symTxt = null
-				const a = /^([\d.,]+)\s+(\S.*)$/.exec(text)        // "12.5 KGBP"
+				// R3 (papa-oscar-46, 2026-09-06): "one of my accounts isn't using taller chips …
+				// it's got thousands in it and it's doing it in k — I wonder if the compression
+				// to k stops it rendering as tall." Exactly right. boardNum() emits "200.0k"
+				// and "1.5M" past 10,000, and this pattern only accepted digits before the
+				// space, so a big balance silently fell through to the one-line chip. The
+				// suffix is now part of the amount. ("12.5 KGBP" still splits correctly: the
+				// optional suffix cannot eat the K of a symbol, because a space has to follow.)
+				const a = /^([\d.,]+[kKmMbB]?)\s+(\S.*)$/.exec(text)   // "12.5 KGBP", "200.0k KGBP"
 				const b = a ? null : /^(\S.*?)\s+×(\d+)$/.exec(text)  // "KGBP ×3"
 				if(a){ amtTxt = a[1]; symTxt = a[2] }
 				else if(b){ symTxt = b[1]; amtTxt = "×" + b[2] }
