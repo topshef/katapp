@@ -658,6 +658,21 @@ const SIGN_REASON = {
 		}
 		intent.appendChild(scope)
 
+		// TXWHYHELD1 (operator, 2026-09-06): "this transaction didn't submit … it's
+		// important that we surface the reason for a failed transaction." The reason WAS
+		// being computed and sent — the backend refused mainnet
+		// 0.0.6026298@1788722674.000002001 four times with "does sender 0.0.25200 own
+		// 0.0.1263996 #8 ?" and pushed each refusal down the socket as tx_precheck — but
+		// STATUS-TAB-RETIRE1 retired the pane that displayed it, and #txread-precheck has
+		// been created-but-never-inserted ever since. renderPrecheckInfo's
+		// getElementById therefore returned null and dropped every verdict on the floor,
+		// so the modal sat on "Ready to submit" until the window shut. Put the line back
+		// where the eye already is: directly under the txid and the due date.
+		const precheckEl = document.createElement('div')
+		precheckEl.id = 'txread-precheck'
+		precheckEl.className = 'txread-timing'
+		intent.appendChild(precheckEl)
+
 		// public memo (if present) on its own line
 		const memo = extractMemo(data)
 		if (memo) {
@@ -736,9 +751,7 @@ const SIGN_REASON = {
 		readinessEl.id = 'txread-readiness'
 		readinessEl.className = 'txread-timing'
 
-		const precheckEl = document.createElement('div')
-		precheckEl.id = 'txread-precheck'
-		precheckEl.className = 'txread-timing'
+		// (precheckEl is created and placed up in the intent block now — TXWHYHELD1)
 
 		const accountKeysEl = document.createElement('div')
 		accountKeysEl.id = 'account-keys'
@@ -795,17 +808,69 @@ const SIGN_REASON = {
 			return { label: `Awaiting approvals${n ? ` · ${n} more` : ''}`, tone: 'warn', shape: 'circle' }
 		}
 
+		// TXWHYHELD1 (operator, 2026-09-06): a HARD precheck failure is the backend
+		// refusing to submit — it is not a shade of ready. The old rule kept the words
+		// "Ready to submit" and only dropped the tone from success to info, so a
+		// transaction the backend had declined four times still read as good to go
+		// (mainnet 0.0.6026298@1788722674: "does sender 0.0.25200 own 0.0.1263996 #8 ?",
+		// refused every 30s until the window shut). Say what is wrong, in the header,
+		// where the eye already is.
+		const pc = data.precheck
+		if (pc && pc.status === 'fail')
+			return { label: 'Held · ' + humanisePrecheckFail(pc.tests?.fail?.[0]), tone: 'error', shape: 'circle' }
+
+		// …and once the window has shut with nothing on chain, it is not ready either.
+		// The countdown in the header was already showing a NEGATIVE number while the
+		// pill still said "Ready to submit".
+		if (isPastWindow(data))
+			return { label: 'Expired unsubmitted', tone: 'error', shape: 'circle' }
+
 		if (readiness && readiness.thresholdSatisfied) {
-			// All required keys are in. If the precheck is also clean (or N/A for a
-			// non-transfer tx), it's all-systems-go — show green even though it's
-			// not on chain yet (circle = off-chain). A failing/incomplete precheck
-			// keeps it neutral so we don't flash green over a problem.
-			const pc = data.precheck
-			const precheckOK = !pc || (pc.status !== 'fail' && pc.complete !== false)
+			// All required keys are in and nothing is blocking — all-systems-go, shown
+			// green even though it isn't on chain yet (circle = off-chain). An INCOMPLETE
+			// precheck (couldn't verify everything) stays neutral rather than green.
+			const precheckOK = !pc || pc.complete !== false
 			return { label: 'Ready to submit', tone: precheckOK ? 'success' : 'info', shape: 'circle' }
 		}
 
 		return { label: raw ? prettyStatus(raw) : 'Pending…', tone: 'info', shape: 'circle' }
+	}
+
+	// The precheck names its tests as questions ("does sender 0.0.25200 own 0.0.1263996
+	// #8 ?") because that reads well in the tooltip beside a ✓ or ✗. As a headline it
+	// has to be a statement of what is wrong. Anything we don't recognise falls through
+	// unchanged rather than being mangled — a slightly awkward true sentence beats a
+	// tidy wrong one, and the full text is on the tooltip either way.
+	function humanisePrecheckFail(check) {
+		const raw = String(check || '').replace(/^[⚠️\s]+/, '').replace(/\s*\?\s*$/, '').trim()
+		if (!raw) return 'the backend would not submit this'
+
+		let m = /^does sender (\S+) own (\S+) #(\d+)$/.exec(raw)
+		if (m) return `${m[1]} no longer holds #${m[3]}`
+
+		m = /^has (?:sender|receiver) (\S+) associated (\S+)(?: (.*))?$/.exec(raw)
+		if (m) return `${m[1]} has not associated ${m[3] || m[2]}`
+
+		m = /^(\S+) is deleted$/.exec(raw)
+		if (m) return `${m[1]} is a deleted account`
+
+		m = /^has sender (\S+) enough (.*)$/.exec(raw)
+		if (m) return `${m[1]} does not have enough ${m[2]}`
+
+		return raw
+	}
+
+	// True once the transaction's own validity window has closed and nothing has come
+	// back from the network. Uses the duration decoded from the signed bytes
+	// (VALIDWINDOW1) — never a guessed default, so a tx whose window we cannot read is
+	// left alone rather than declared dead.
+	function isPastWindow(data = {}) {
+		if (data.mirrorStatus || data.receiptSuccess === true) return false
+		const validSecs = Number(data.validDurationSeconds)
+		if (!Number.isFinite(validSecs) || validSecs <= 0) return false
+		const info = parseTxId(data.txid)
+		if (!info?.seconds) return false
+		return Math.floor(Date.now() / 1000) > info.seconds + validSecs
 	}
 
 	function prettyStatus(s) {
