@@ -26,6 +26,9 @@
   .chip-customer{background:#fff5e5;border-color:#f0d9ac;color:#8a5a09}
   .chip-anon{background:#f3f4f6;border-color:#e2e5ea;color:#6b7482}
   .chip-endorsed{background:#eaf1fe;border-color:#c3d6fb;color:#1e40af}
+  .chip-vote{background:#f3f4f6;border-color:#e2e5ea;color:#6b7482}
+  .chip-archived{background:#f3f4f6;border-color:#d3dae4;color:#6b7482}
+  .card.archived{opacity:.62;border-left-color:#c9d2de}
   .tagref{font:600 11.5px ui-monospace,Menlo,Consolas,monospace;background:#fff7c2;border:1px solid #e6cf5a;color:#5b4a00;
     padding:0 5px;border-radius:6px}
   .foot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:#6b7482}
@@ -43,7 +46,9 @@
 <a class="back" href="./">← Katomia QA</a>
 <h1>Feedback</h1>
 <p class="lead">Everything in the inbox, admin-only. Non-admin items are shown so you can see what is
-there and <b>endorse</b> anything worth acting on — endorsing is what lets it into the working set.</p>
+there and <b>endorse</b> anything worth acting on — endorsing is what lets it into the working set.
+<b>Archive</b> sets an item aside (reversible, and agents skip it). A 👍/👎 is a vote, not a request:
+votes sit under their own filter and never need endorsing.</p>
 
 <div class="note">
   <b>What an agent may read.</b> Only <span class="chip chip-actioning">actioning</span> items: signed by
@@ -54,8 +59,10 @@ there and <b>endorse</b> anything worth acting on — endorsing is what lets it 
 
 <div class="bar">
   <button data-filter="look" class="on">Needs a look</button>
-  <button data-filter="all">All</button>
   <button data-filter="actioning">Actionable</button>
+  <button data-filter="votes">Votes</button>
+  <button data-filter="archived">Archived</button>
+  <button data-filter="all">All</button>
   <span class="who" id="who"></span>
 </div>
 
@@ -127,10 +134,14 @@ there and <b>endorse</b> anything worth acting on — endorsing is what lets it 
   }
 
   function card(r) {
-    var c = el("div", "card " + (r.bucket === "actioning" ? "actionable" : "look"));
+    var isVote = r.kind === "vote" || /^[\u{1F44D}\u{1F44E}]/u.test(String(r.message || "").trim());
+    var isArch = !!(r.archived && r.archived.by);
+    var c = el("div", "card " + (r.bucket === "actioning" ? "actionable" : "look") + (isArch ? " archived" : ""));
     var head = el("div", "head");
     if (r.tag) head.appendChild(el("span", "tagref", r.tag));
     head.appendChild(chipFor(r));
+    if (isVote) head.appendChild(el("span", "chip chip-vote", "vote"));
+    if (isArch) head.appendChild(el("span", "chip chip-archived", "archived by " + r.archived.by));
     head.appendChild(el("span", null, new Date(r.ts).toLocaleString("en-GB")));
     head.appendChild(el("span", null, r.account ? r.account : (r.signatureValid ? "signed, unbound key" : "no signature")));
     if (r.status && r.status !== "new") head.appendChild(el("span", null, "· " + r.status));
@@ -155,43 +166,58 @@ there and <b>endorse</b> anything worth acting on — endorsing is what lets it 
     }
     var spacer = el("span"); spacer.style.marginLeft = "auto"; foot.appendChild(spacer);
 
-    // an admin-signed item is already actionable — endorsing it would mean nothing
-    var alreadyIn = r.groups && r.groups.indexOf("admin") !== -1;
-    if (!alreadyIn) {
-      var on = !!(r.endorsed && r.endorsed.by);
-      var btn = el("button", "act" + (on ? " off" : ""), on ? "Withdraw endorsement" : "Endorse →");
+    // one signed mark, four actions; the row comes back re-enriched
+    function markButton(label, path, action, cls) {
+      var btn = el("button", "act" + (cls ? " " + cls : ""), label);
       btn.onclick = async function () {
         btn.disabled = true;
         var was = btn.textContent;
         btn.textContent = "…";
         try {
-          var j = await post("/kfeedback/admin/endorse", on ? "kfeedback.unendorse" : "kfeedback.endorse", { id: r.id });
+          var j = await post(path, action, { id: r.id });
           var i = rows.findIndex(function (x) { return x.id === r.id; });
           if (i !== -1) rows[i] = j.row;
           render();
         } catch (e) {
           btn.disabled = false; btn.textContent = was;
-          var w = el("span", "err", " " + e.message);
-          foot.appendChild(w);
+          foot.appendChild(el("span", "err", " " + e.message));
         }
       };
-      foot.appendChild(btn);
+      return btn;
     }
+    // an admin-signed item is already actionable, a vote needs no action, and an archived
+    // item is set aside — none of those get an Endorse
+    var alreadyIn = r.groups && r.groups.indexOf("admin") !== -1;
+    if (!alreadyIn && !isVote && !isArch) {
+      var on = !!(r.endorsed && r.endorsed.by);
+      foot.appendChild(markButton(on ? "Withdraw endorsement" : "Endorse →", "/kfeedback/admin/endorse",
+                                  on ? "kfeedback.unendorse" : "kfeedback.endorse", on ? "off" : ""));
+    }
+    foot.appendChild(markButton(isArch ? "Unarchive" : "Archive", "/kfeedback/admin/archive",
+                                isArch ? "kfeedback.unarchive" : "kfeedback.archive", "off"));
     c.appendChild(foot);
     return c;
   }
 
   function render() {
+    var isVoteR = function (r) { return r.kind === "vote" || /^[\u{1F44D}\u{1F44E}]/u.test(String(r.message || "").trim()); };
+    var isArchR = function (r) { return !!(r.archived && r.archived.by); };
     var show = rows.filter(function (r) {
       if (filter === "all") return true;
+      if (filter === "archived") return isArchR(r);
+      if (filter === "votes") return isVoteR(r) && !isArchR(r);
+      if (isArchR(r) || isVoteR(r)) return false;          // the working views are comments only
       if (filter === "actioning") return r.bucket === "actioning";
-      return r.bucket !== "actioning";     // "needs a look"
+      return r.bucket !== "actioning";                      // "needs a look"
     });
     out.textContent = "";
-    var counts = { a: 0, l: 0 };
-    rows.forEach(function (r) { if (r.bucket === "actioning") counts.a++; else counts.l++; });
-    out.appendChild(el("p", "lead", rows.length + " in the inbox · " + counts.a + " actionable · " +
-      counts.l + " waiting on you · showing " + show.length));
+    var counts = { a: 0, l: 0, v: 0, z: 0 };
+    rows.forEach(function (r) {
+      if (isArchR(r)) counts.z++; else if (isVoteR(r)) counts.v++;
+      else if (r.bucket === "actioning") counts.a++; else counts.l++;
+    });
+    out.appendChild(el("p", "lead", rows.length + " in the inbox · " + counts.l + " waiting on you · " +
+      counts.a + " actionable · " + counts.v + " votes · " + counts.z + " archived · showing " + show.length));
     if (!show.length) out.appendChild(el("p", "lead", "Nothing here."));
     show.forEach(function (r) { out.appendChild(card(r)); });
   }
