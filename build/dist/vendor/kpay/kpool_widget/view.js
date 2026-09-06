@@ -2296,8 +2296,7 @@ export function injectTxReadCSS() {
 		   stays side-by-side on mobile (screen split in half), no edge labels */
 		.txcard-cols { display:grid; grid-template-columns:1fr 1fr; }
 		.txcard-col { padding:10px 12px; display:flex; flex-direction:column; gap:6px; align-items:flex-start; min-width:0; }
-		.txcard-send    { background:#fdf2f2; }   /* warm rose — giving */
-		.txcard-receive { background:#eff7f1; }   /* green — receiving */
+		/* .txcard-send / .txcard-receive tints: see HATCH3 above (pink + green, textured) */
 
 		.txcard-chip {
 			display:inline-flex; align-items:center; gap:6px;
@@ -2342,32 +2341,24 @@ export function injectTxReadCSS() {
 		     --txhatch-a  stripe alpha 0..1     (?hatcha=)
 		     --txhatch-deg angle, degrees       (?hatchdeg=)  — BEFORE uses it, AFTER its mirror
 		   ?hatch=0 turns the stripes off for comparison. */
-		/* HATCH2 (feedback yankee-oscar-81, 2026-09-06): "it should be almost like a texture
-		   — instead of being pinstripe, it alternates from one shade to another, so you just
-		   see a stripy kind of corduroy texture … both the same … and also texture the
-		   background of the cards. The Before & After labels are legend keys, and then below
-		   that you've got each card with its background, so that should have the same
-		   texture. That's why it needs to be quite subtle — you might want to make it even
-		   more subtle."
-		   So: equal bands (colour W, blank W) instead of a 1px line on a wide gap — that is
-		   what makes it read as woven cloth rather than pinstripe; ONE lean for both halves;
-		   finer pitch and lower alpha; and the same texture, in whichever state is showing,
-		   across the account cards below. Knobs (?hatchw= ?hatcha= ?hatchdeg=, ?hatch=0 off)
-		   now live on .txcards so they reach the cards too. */
-		.txcards { --txhatch-w: 5px; --txhatch-a: .045; --txhatch-deg: 45deg; }
-		.txpreview-before { color:rgba(185,28,28,.38);
-			background: repeating-linear-gradient(var(--txhatch-deg), rgba(185,28,28,var(--txhatch-a)) 0 var(--txhatch-w), transparent var(--txhatch-w) calc(var(--txhatch-w) * 2)), #fdf2f2; }
-		.txpreview-after  { color:rgba(21,128,61,.4);
-			background: repeating-linear-gradient(var(--txhatch-deg), rgba(21,128,61,var(--txhatch-a)) 0 var(--txhatch-w), transparent var(--txhatch-w) calc(var(--txhatch-w) * 2)), #eff7f1; }
-		/* the cards are what the legend describes — same weave, same lean, over white, at
-		   half strength again so a card stays a white card you can read. */
-		.txcards-preview[data-state="before"] ~ .txcard {
-			background: repeating-linear-gradient(var(--txhatch-deg), rgba(185,28,28,calc(var(--txhatch-a) / 2)) 0 var(--txhatch-w), transparent var(--txhatch-w) calc(var(--txhatch-w) * 2)), #fff; }
-		.txcards-preview[data-state="after"] ~ .txcard {
-			background: repeating-linear-gradient(var(--txhatch-deg), rgba(21,128,61,calc(var(--txhatch-a) / 2)) 0 var(--txhatch-w), transparent var(--txhatch-w) calc(var(--txhatch-w) * 2)), #fff; }
-		.txcards[data-hatch="0"] .txpreview-before { background:#fdf2f2; }
-		.txcards[data-hatch="0"] .txpreview-after  { background:#eff7f1; }
-		.txcards[data-hatch="0"] .txcard { background:#fff; }
+		/* HATCH3 (feedback foxtrot-oscar-27 + your round-5 note, 2026-09-06): the texture goes
+		   EXACTLY where the pink and the green already were, and nowhere else.
+		     · BEFORE label (pink)  and each card's SEND column (pink)    — thin lines, one lean
+		     · AFTER label (green)  and each card's RECEIVE column (green) — thin lines, the OPPOSITE lean
+		     · the expanded detail below a card was never pink or green and is NOT textured
+		   HATCH2 put the weave across the whole card by state — wrong, and gone. Lines are 1px
+		   at a tight pitch, so it reads as a fine texture rather than fat bands. Knobs still
+		   work: --txhatch-w is the pitch (?hatchw=), --txhatch-a the alpha (?hatcha=),
+		   --txhatch-deg the pink lean (?hatchdeg=), green is always its mirror; ?hatch=0 off. */
+		.txcards { --txhatch-w: 4px; --txhatch-a: .10; --txhatch-deg: 45deg; }
+		.txpreview-before, .txcard-send {
+			background: repeating-linear-gradient(var(--txhatch-deg), rgba(185,28,28,var(--txhatch-a)) 0 1px, transparent 1px var(--txhatch-w)), #fdf2f2; }
+		.txpreview-after, .txcard-receive {
+			background: repeating-linear-gradient(calc(180deg - var(--txhatch-deg)), rgba(21,128,61,var(--txhatch-a)) 0 1px, transparent 1px var(--txhatch-w)), #eff7f1; }
+		.txpreview-before { color:rgba(185,28,28,.38); }
+		.txpreview-after  { color:rgba(21,128,61,.4); }
+		.txcards[data-hatch="0"] .txpreview-before, .txcards[data-hatch="0"] .txcard-send    { background:#fdf2f2; }
+		.txcards[data-hatch="0"] .txpreview-after,  .txcards[data-hatch="0"] .txcard-receive { background:#eff7f1; }
 		/* hover: keep the tint (re-assert to beat host button:hover) + a subtle grey inset border
 		   so it still reads as a button; no colour change. */
 		.txpreview-before:hover, .txpreview-after:hover { filter: none; }

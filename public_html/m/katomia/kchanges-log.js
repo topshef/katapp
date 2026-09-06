@@ -215,5 +215,13 @@ window.KCHANGES_LOG = [
     detail: "\"Spin up a feedback page on QA which can only be seen by admin, which lists all the feedback so I can quickly see if there's any non-admin feedback there, and I've got the option to promote it, to accept it manually as an admin.\" It opens on what is waiting on you. Endorse promotes one item into the pool an agent may read, and records which admin account did it. The gate is the server, not the page: reading and endorsing both need a signature from the key this browser already signs feedback with, resolved to an account in the admin group — the same proof that decides the bucket, so endorsement can't be the weaker way in. Anything not admin-signed and not endorsed is for you to read first. Written up in infra/AGENT-FEEDBACK-RULES.md.",
     from: "your round-4 feedback", feedback: null,
     goto: "/m/katomia/qa/feedback.html", gotoLabel: "the feedback page",
-    where: [{ page: "qa", sel: "a[href*='feedback.html']" }] }
+    where: [{ page: "qa", sel: "a[href*='feedback.html']" }] },
+
+  // ── batch F: 2026-09-06, the hatch, done right ─────────────────────────────
+  { ref: "F01", at: "2026-09-06T21:00:00Z",
+    title: "Hatch: only where the pink and green were — labels and the two card columns",
+    detail: "Two rounds of me getting this wrong; your words this time were unambiguous. The texture is now on exactly four things: the BEFORE label and each card's pink (send) column, thin lines leaning one way; the AFTER label and each card's green (receive) column, thin lines leaning the OPPOSITE way. The expanded detail under a card was never pink or green and carries nothing — the whole-card texture is gone. Lines are 1px at a 4px pitch, so it reads as a fine texture rather than fat bands. ?hatcha=0.25 to see it clearly while judging; ?hatch=0 off.",
+    from: "foxtrot-oscar-27 · your round-5 note", feedback: null,
+    needs: "while a transaction is being signed",
+    where: [{ page: "m/sign|board|game", sel: ".txcard-receive" }, { page: "m/sign|board|game", sel: ".txpreview-after" }] }
 ]
