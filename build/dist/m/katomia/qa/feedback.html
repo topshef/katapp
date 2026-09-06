@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Katomia · Feedback (admin)</title>
+<style>
+  body{font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1f2937;background:#f7f7f8;margin:0;padding:18px 14px 60px}
+  main{max-width:900px;margin:0 auto}
+  h1{font-size:21px;margin:0 0 4px}
+  .lead{color:#6b7482;margin:0 0 16px;font-size:13.5px}
+  .back{font-size:13px;color:#2f6fed;text-decoration:none}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:14px 0}
+  .bar button{border:1px solid #dde3ec;background:#fff;border-radius:999px;padding:5px 12px;font:600 12.5px system-ui,sans-serif;
+    color:#374151;cursor:pointer}
+  .bar button.on{border-color:#2f6fed;background:#eaf1fe;color:#1e40af}
+  .who{margin-left:auto;font-size:12px;color:#6b7482}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:11px;padding:11px 12px;margin-bottom:9px}
+  .card.actionable{border-left:4px solid #16a34a}
+  .card.look{border-left:4px solid #d97706}
+  .head{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:12px;color:#6b7482}
+  .msg{margin:7px 0 8px;white-space:pre-wrap;font-size:14px;color:#1f2937;max-height:16em;overflow:auto}
+  .chip{font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+  .chip-actioning{background:#e7f6ec;border-color:#b7e2c6;color:#136c34}
+  .chip-customer{background:#fff5e5;border-color:#f0d9ac;color:#8a5a09}
+  .chip-anon{background:#f3f4f6;border-color:#e2e5ea;color:#6b7482}
+  .chip-endorsed{background:#eaf1fe;border-color:#c3d6fb;color:#1e40af}
+  .tagref{font:600 11.5px ui-monospace,Menlo,Consolas,monospace;background:#fff7c2;border:1px solid #e6cf5a;color:#5b4a00;
+    padding:0 5px;border-radius:6px}
+  .foot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:#6b7482}
+  .foot a{color:#2f6fed}
+  .act{border:1px solid #2f6fed;background:#2f6fed;color:#fff;border-radius:8px;padding:4px 11px;font:600 12px system-ui,sans-serif;cursor:pointer}
+  .act.off{background:#fff;color:#374151;border-color:#dde3ec}
+  .act:disabled{opacity:.55;cursor:default}
+  .note{background:#fff;border:1px solid #e5e7eb;border-left:4px solid #2f6fed;border-radius:10px;padding:11px 13px;margin:14px 0;font-size:13px}
+  .err{color:#b91c1c}
+  code{font:12.5px ui-monospace,Menlo,Consolas,monospace;background:#f3f4f6;padding:1px 5px;border-radius:5px}
+</style>
+</head>
+<body>
+<main>
+<a class="back" href="./">← Katomia QA</a>
+<h1>Feedback</h1>
+<p class="lead">Everything in the inbox, admin-only. Non-admin items are shown so you can see what is
+there and <b>endorse</b> anything worth acting on — endorsing is what lets it into the working set.</p>
+
+<div class="note">
+  <b>What an agent may read.</b> Only <span class="chip chip-actioning">actioning</span> items: signed by
+  an admin account, or endorsed by one. Everything else is for you to read first. Endorsing records
+  <i>which</i> admin did it. It does not make the content true or safe — it is still text somebody wrote,
+  and it is treated as data, never as instructions.
+</div>
+
+<div class="bar">
+  <button data-filter="look" class="on">Needs a look</button>
+  <button data-filter="all">All</button>
+  <button data-filter="actioning">Actionable</button>
+  <span class="who" id="who"></span>
+</div>
+
+<div id="out"><p class="lead">Reading…</p></div>
+</main>
+
+<script>
+/* FEEDENDORSE1 (operator, 2026-09-06): "spin up a feedback page on QA which can only be
+   seen by admin … lists all the feedback … I've got the option to promote it, to accept
+   it manually as an admin."
+
+   The GATE IS NOT THIS PAGE. Anyone may fetch this HTML; it can read nothing without a
+   signature the backend verifies (POST /kfeedback/admin/list). The proof is the device
+   keypair this browser already signs feedback with, resolved to a Hedera account and
+   checked against the admin group — the same proof that decides the bucket in the first
+   place, so this cannot be the weaker way in. See kfeedbackEndorse.js.
+
+   This page READS the stored key; it never mints one. A key minted here would be bound to
+   no account and could do nothing, so a missing key means "not the browser you
+   authenticated in", which is the honest thing to say. */
+(function () {
+  "use strict";
+  var KEY = "katomiaPlayerKeypair";
+  var out = document.getElementById("out");
+  var whoEl = document.getElementById("who");
+  var rows = [], filter = "look", viewer = null;
+
+  function api(path) { return location.origin + "/hapi" + path; }
+  function text(el, s) { el.textContent = s == null ? "" : String(s); return el; }
+  function el(tag, cls, txt) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (txt !== undefined) e.textContent = txt;
+    return e;
+  }
+
+  async function privateKey() {
+    var stored = null;
+    try { stored = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
+    if (!stored || !stored.privateKeyJwk || !stored.publicKeyJwk) return null;
+    var pk = await crypto.subtle.importKey("jwk", stored.privateKeyJwk, { name: "Ed25519" }, false, ["sign"]);
+    var hex = atob(stored.publicKeyJwk.x.replace(/-/g, "+").replace(/_/g, "/"))
+      .split("").map(function (c) { return c.charCodeAt(0).toString(16).padStart(2, "0"); }).join("");
+    return { pk: pk, pubkeyHex: hex };
+  }
+  async function signed(action, extra) {
+    var k = await privateKey();
+    if (!k) throw new Error("no-key");
+    var payload = Object.assign({ action: action, ts: new Date().toISOString() }, extra || {});
+    var sig = await crypto.subtle.sign("Ed25519", k.pk, new TextEncoder().encode(JSON.stringify(payload)));
+    var b64 = btoa(String.fromCharCode.apply(null, new Uint8Array(sig)));
+    return { signaturePayload: payload, signature: { alg: "Ed25519", pubkeyHex: k.pubkeyHex, sig: b64 } };
+  }
+  async function post(path, action, extra) {
+    var body = await signed(action, extra);
+    var res = await fetch(api(path), {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body)
+    });
+    var j = null;
+    try { j = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error((j && j.error) || ("HTTP " + res.status));
+    return j;
+  }
+
+  function chipFor(r) {
+    if (r.bucket === "actioning") return el("span", "chip chip-actioning", r.endorsed ? "actioning · endorsed" : "actioning");
+    if (r.bucket === "general customer") return el("span", "chip chip-customer", "authenticated, not admin");
+    return el("span", "chip chip-anon", "anonymous");
+  }
+
+  function card(r) {
+    var c = el("div", "card " + (r.bucket === "actioning" ? "actionable" : "look"));
+    var head = el("div", "head");
+    if (r.tag) head.appendChild(el("span", "tagref", r.tag));
+    head.appendChild(chipFor(r));
+    head.appendChild(el("span", null, new Date(r.ts).toLocaleString("en-GB")));
+    head.appendChild(el("span", null, r.account ? r.account : (r.signatureValid ? "signed, unbound key" : "no signature")));
+    if (r.status && r.status !== "new") head.appendChild(el("span", null, "· " + r.status));
+    c.appendChild(head);
+
+    c.appendChild(el("div", "msg", r.message));   // textContent — never parsed as markup
+
+    var foot = el("div", "foot");
+    if (r.target) foot.appendChild(el("span", null, "on " + r.target));
+    if (r.url) {
+      var a = el("a", null, "page ↗");
+      a.href = r.url; a.target = "_blank"; a.rel = "noopener";
+      foot.appendChild(a);
+    }
+    var view = el("a", null, "record ↗");
+    view.href = location.origin + "/hapi/kfeedback/view/" + encodeURIComponent(r.id);
+    view.target = "_blank"; view.rel = "noopener";
+    foot.appendChild(view);
+
+    if (r.endorsed && r.endorsed.by) {
+      foot.appendChild(el("span", "chip chip-endorsed", "endorsed by " + r.endorsed.by));
+    }
+    var spacer = el("span"); spacer.style.marginLeft = "auto"; foot.appendChild(spacer);
+
+    // an admin-signed item is already actionable — endorsing it would mean nothing
+    var alreadyIn = r.groups && r.groups.indexOf("admin") !== -1;
+    if (!alreadyIn) {
+      var on = !!(r.endorsed && r.endorsed.by);
+      var btn = el("button", "act" + (on ? " off" : ""), on ? "Withdraw endorsement" : "Endorse →");
+      btn.onclick = async function () {
+        btn.disabled = true;
+        var was = btn.textContent;
+        btn.textContent = "…";
+        try {
+          var j = await post("/kfeedback/admin/endorse", on ? "kfeedback.unendorse" : "kfeedback.endorse", { id: r.id });
+          var i = rows.findIndex(function (x) { return x.id === r.id; });
+          if (i !== -1) rows[i] = j.row;
+          render();
+        } catch (e) {
+          btn.disabled = false; btn.textContent = was;
+          var w = el("span", "err", " " + e.message);
+          foot.appendChild(w);
+        }
+      };
+      foot.appendChild(btn);
+    }
+    c.appendChild(foot);
+    return c;
+  }
+
+  function render() {
+    var show = rows.filter(function (r) {
+      if (filter === "all") return true;
+      if (filter === "actioning") return r.bucket === "actioning";
+      return r.bucket !== "actioning";     // "needs a look"
+    });
+    out.textContent = "";
+    var counts = { a: 0, l: 0 };
+    rows.forEach(function (r) { if (r.bucket === "actioning") counts.a++; else counts.l++; });
+    out.appendChild(el("p", "lead", rows.length + " in the inbox · " + counts.a + " actionable · " +
+      counts.l + " waiting on you · showing " + show.length));
+    if (!show.length) out.appendChild(el("p", "lead", "Nothing here."));
+    show.forEach(function (r) { out.appendChild(card(r)); });
+  }
+
+  document.querySelectorAll("[data-filter]").forEach(function (b) {
+    b.onclick = function () {
+      filter = b.getAttribute("data-filter");
+      document.querySelectorAll("[data-filter]").forEach(function (x) { x.classList.toggle("on", x === b); });
+      render();
+    };
+  });
+
+  (async function () {
+    try {
+      var j = await post("/kfeedback/admin/list", "kfeedback.list");
+      rows = j.rows || [];
+      viewer = j.viewer;
+      text(whoEl, "signed in as " + viewer);
+      render();
+    } catch (e) {
+      out.textContent = "";
+      var m = e.message === "no-key"
+        ? "This browser has no Katomia key. Open this page in the browser you authenticated your admin account in."
+        : e.message;
+      out.appendChild(el("div", "note", ""));
+      out.lastChild.appendChild(el("b", "err", "Can't read the inbox. "));
+      out.lastChild.appendChild(el("span", null, m));
+      out.lastChild.appendChild(el("p", "lead",
+        "This page shows nothing without a signature from a key bound to an admin account. That is the gate — the page itself is not."));
+    }
+  })();
+})();
+</script>
+</body>
+</html>

@@ -201,5 +201,19 @@ window.KCHANGES_LOG = [
     detail: "\"The QR code under the KSIG tab has butted up to the right — it should be centred, I'm on mobile.\" Not a centring bug: the QR box was drawn WIDER than the pane it sits in (308px inside 300px on a 360px phone), and a box wider than its container can't be centred — it pins left and spills off the right, which is what that looks like. Two causes, both fixed: the size was budgeted against the whole viewport rather than the modal's pane, and the white quiet zone around the symbol was left out of the sum, so the finished box was always 8 modules wider than planned. It now sizes to the space it actually has, and can't overflow even if that maths is ever wrong again.",
     from: "november-quebec-18", feedback: "e1fda4cb-8eb1-4541-8fa6-2d1c402dbecf",
     needs: "while signing offline (the QR tab)",
-    where: [{ page: "m/sign|board|game", sel: ".kpsign-qr-cap" }] }
+    where: [{ page: "m/sign|board|game", sel: ".kpsign-qr-cap" }] },
+
+  // ── batch E: 2026-09-06, the feedback process itself ───────────────────────
+  { ref: "E01", at: "2026-09-06T19:00:00Z",
+    title: "A tag no longer floats over a modal it isn't talking about",
+    detail: "\"When you've got modals you're seeing the little post-it on top of stuff when it's actually referring to stuff underneath the modal — it's not quite context correct.\" Right, and z-index alone can't fix it: a tag has to sit above the app to be tappable at all. So the test isn't \"what is my z-index\" but \"can you actually see the thing I'm pointing at\" — the tag hit-tests its own anchor and hides itself the moment something covers it, coming back when that closes. Works for any overlay, not just the modals we know about.",
+    from: "your round-4 feedback", feedback: null,
+    goto: "@board",
+    where: [{ page: "board", sel: ".ring-hub" }] },
+  { ref: "E02", at: "2026-09-06T19:00:00Z",
+    title: "QA → Feedback: the whole inbox, and an Endorse button",
+    detail: "\"Spin up a feedback page on QA which can only be seen by admin, which lists all the feedback so I can quickly see if there's any non-admin feedback there, and I've got the option to promote it, to accept it manually as an admin.\" It opens on what is waiting on you. Endorse promotes one item into the pool an agent may read, and records which admin account did it. The gate is the server, not the page: reading and endorsing both need a signature from the key this browser already signs feedback with, resolved to an account in the admin group — the same proof that decides the bucket, so endorsement can't be the weaker way in. Anything not admin-signed and not endorsed is for you to read first. Written up in infra/AGENT-FEEDBACK-RULES.md.",
+    from: "your round-4 feedback", feedback: null,
+    goto: "/m/katomia/qa/feedback.html", gotoLabel: "the feedback page",
+    where: [{ page: "qa", sel: "a[href*='feedback.html']" }] }
 ]

@@ -384,10 +384,50 @@
   function pageEntries() {
     return liveEntries().filter(onThisPage);
   }
+  // KCHZ1 (your feedback, 2026-09-06): "when you've got modals, you're seeing the little
+  // post-it on top of stuff when it's actually referring to stuff that's underneath the
+  // modal — it's not quite context correct."
+  // Right, and z-index alone can't fix it: the tags have to sit above the app to be
+  // tappable at all, so the honest test is not "what is my z-index" but "can you actually
+  // SEE the thing I am pointing at". Hit-test a few points inside the anchor with our own
+  // layer taken out of the test; if nothing inside it is reachable, something is over it
+  // (a modal, a sheet, a sticky bar) and the tag hides until it isn't. Costs a handful of
+  // elementFromPoint calls per placement pass.
+  function anchorCovered(el) {
+    var r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return true;
+    var ix = Math.min(8, r.width / 2), iy = Math.min(8, r.height / 2);
+    var pts = [
+      [r.left + r.width / 2, r.top + r.height / 2],
+      [r.left + ix, r.top + iy],
+      [r.right - ix, r.bottom - iy]
+    ];
+    for (var i = 0; i < pts.length; i++) {
+      var x = pts[i][0], y = pts[i][1];
+      if (x < 1 || y < 1 || x > window.innerWidth - 1 || y > window.innerHeight - 1) continue;
+      var hit = document.elementFromPoint(x, y);
+      if (!hit) continue;
+      // the anchor itself, something inside it, or an ancestor (the anchor may not be
+      // hit-testable itself) — all mean it is genuinely on top here
+      if (hit === el || el.contains(hit) || hit.contains(el)) return false;
+    }
+    return true;
+  }
   function place() {
     if (!on || pressing) return;
     ensureLayer();
     var seen = {};
+    // our own furniture must not shadow the anchors we are about to hit-test. Hidden for
+    // the length of one synchronous pass, so nothing is painted in between.
+    var hidden = [layer].concat(pop ? [pop] : []);
+    hidden.forEach(function (el) { el.style.visibility = "hidden"; });
+    var covered = {};
+    pageEntries().forEach(function (entry) {
+      var a0 = anchorFor(entry);
+      if (a0) covered[entry.ref] = anchorCovered(a0);
+    });
+    hidden.forEach(function (el) { el.style.visibility = ""; });
+
     pageEntries().forEach(function (entry) {
       var a = anchorFor(entry);
       if (!a) return;                       // no anchor here → it lives in the list only
@@ -404,12 +444,14 @@
       var top = Math.max(2, Math.min(window.innerHeight - h - 2, r.top + 2 - Math.round(h * 0.55)));
       rec.el.style.left = left + "px";
       rec.el.style.top = top + "px";
-      rec.el.style.display = (r.bottom < 0 || r.top > window.innerHeight) ? "none" : "";
+      var offScreen = r.bottom < 0 || r.top > window.innerHeight;
+      rec.el.style.display = (offScreen || covered[entry.ref]) ? "none" : "";
     });
     Object.keys(tags).forEach(function (ref) {
       if (!seen[ref]) { tags[ref].el.remove(); delete tags[ref]; }
     });
-    if (pop && openRef && tags[openRef]) positionPop(tags[openRef].el);
+    if (openRef && covered[openRef]) closePop();
+    else if (pop && openRef && tags[openRef]) positionPop(tags[openRef].el);
   }
   var placeQueued = false;
   function schedulePlace() {

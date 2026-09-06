@@ -103,6 +103,7 @@ never look like more coverage than it is.</p>
     <ul>
       <li><a href="guide.html"><b>Plain-language guide</b></a> — how testing works here, no jargon</li>
       <li><a href="config.html">Decisions &amp; configuration</a> — why things are the way they are</li>
+      <li><a href="feedback.html"><b>Feedback (admin)</b></a> — the whole inbox, and the endorse button that lets a non-admin item into the working set (2026-09-06)</li>
       <li><a href="url-params.html"><b>URL switches</b></a> — every design/debug parameter the pages read from the address bar (2026-09-06)</li>
       <li><a href="design-identity-felt-chips.html">Design note: names, identity, the number on the felt, chip styles</a> — options and mock-ups, nothing decided (2026-09-06)</li>
       <li class="demoted"><a href="strategy.html">Testing strategy</a> — the aspiration (planning doc)</li>
@@ -128,12 +129,28 @@ never look like more coverage than it is.</p>
   <span class="note">Work plan to close these: <a href="https://kpay.uk/devtools/kpad/file?p=servers/lincoln/docs/QA-REORG1-PLAN.html&amp;proj=katomia" target="_blank">QA-REORG1 plan</a> §5.</span>
 </div>
 
+<p class="note" id="qaVeilNote" hidden><b>Admin area.</b> These pages are development scaffolding.
+Nothing here is secret — every page under <code>qa/</code> is static and readable by anyone who has the
+URL — so treat this as a signpost, not a lock. The one page that holds real data, <a href="feedback.html">Feedback</a>,
+is gated server-side by an account signature and shows nothing without it.</p>
+
 <p class="note">Rule of this page: every page under <code>qa/</code> is linked from here, or it does
 not exist. Data lives in <code>qa/data/</code> (git-tracked); pages only display it. All testing —
 cron, scripted, manual — reports the same <code>test:start</code>/<code>test:verdict</code> kflow
 language. Home reorganised 2026-08-14 (QA-REORG1).</p>
 
 <script>
+/* QAVEIL1 (operator, 2026-09-06: "let's gate the QA to admin, and then we can open that up
+   later"). Said plainly: this is a SIGNPOST, not a gate. These pages are static files on a
+   CDN — anyone with the URL can read them, and a client-side check cannot change that. What
+   it does do is stop a casual visitor wandering in from the menu, and it says so. The one
+   page here with data behind it (feedback.html) is gated where it counts: on the server, by
+   an account signature. If QA itself ever needs to be truly closed, that has to happen at
+   the edge (the Worker) against a real credential — flagged on the checklist, not faked here. */
+(function(){
+  var note = document.getElementById("qaVeilNote")
+  if(note) note.hidden = false
+})()
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
 ;(async () => {
   const head = document.getElementById("stripHead"), box = document.getElementById("stripChips")
