@@ -658,20 +658,6 @@ const SIGN_REASON = {
 		}
 		intent.appendChild(scope)
 
-		// TXWHYHELD1 (operator, 2026-09-06): "this transaction didn't submit … it's
-		// important that we surface the reason for a failed transaction." The reason WAS
-		// being computed and sent — the backend refused mainnet
-		// 0.0.6026298@1788722674.000002001 four times with "does sender 0.0.25200 own
-		// 0.0.1263996 #8 ?" and pushed each refusal down the socket as tx_precheck — but
-		// STATUS-TAB-RETIRE1 retired the pane that displayed it, and #txread-precheck has
-		// been created-but-never-inserted ever since. renderPrecheckInfo's
-		// getElementById therefore returned null and dropped every verdict on the floor,
-		// so the modal sat on "Ready to submit" until the window shut. Put the line back
-		// where the eye already is: directly under the txid and the due date.
-		const precheckEl = document.createElement('div')
-		precheckEl.id = 'txread-precheck'
-		precheckEl.className = 'txread-timing'
-		intent.appendChild(precheckEl)
 
 		// public memo (if present) on its own line
 		const memo = extractMemo(data)
@@ -751,7 +737,13 @@ const SIGN_REASON = {
 		readinessEl.id = 'txread-readiness'
 		readinessEl.className = 'txread-timing'
 
-		// (precheckEl is created and placed up in the intent block now — TXWHYHELD1)
+		// NFT-CARDOWN1: NOT placed. renderPrecheckInfo null-guards on it and still runs
+		// updateCardBalances, which is where a precheck verdict is meant to show — as a red
+		// ring on the account card and a line in its detail. A one-line banner here was
+		// tried and rejected by the operator as legacy noise (2026-09-06).
+		const precheckEl = document.createElement('div')
+		precheckEl.id = 'txread-precheck'
+		precheckEl.className = 'txread-timing'
 
 		const accountKeysEl = document.createElement('div')
 		accountKeysEl.id = 'account-keys'
@@ -803,6 +795,21 @@ const SIGN_REASON = {
 		if (/FAIL|INVALID|ERROR|REJECT|DUPLICATE/.test(up))
 			return { label: prettyStatus(raw), tone: 'error', shape: 'square' }
 
+		// The specifics (which account, which asset) are on the account card — red ring, and
+		// a line in its detail — where every other precheck fault already lives (NFT-CARDOWN1).
+		// The header only says the transaction is held, and does not pretend it is ready.
+		// Placed ABOVE the signature checks: once the backend has refused the bytes, another
+		// signature changes nothing, so "Awaiting approvals" would be the wrong thing to act on.
+		const pc = data.precheck
+		if (pc && pc.status === 'fail')
+			return { label: 'Held', tone: 'error', shape: 'circle' }
+
+		// …and once the window has shut with nothing on chain, it is not ready either.
+		// The countdown in the header was already showing a NEGATIVE number while the
+		// pill still said "Ready to submit".
+		if (isPastWindow(data))
+			return { label: 'Expired unsubmitted', tone: 'error', shape: 'circle' }
+
 		if (readiness && !readiness.thresholdSatisfied) {
 			const n = readiness.minMoreKeyCount
 			return { label: `Awaiting approvals${n ? ` · ${n} more` : ''}`, tone: 'warn', shape: 'circle' }
@@ -815,16 +822,6 @@ const SIGN_REASON = {
 		// (mainnet 0.0.6026298@1788722674: "does sender 0.0.25200 own 0.0.1263996 #8 ?",
 		// refused every 30s until the window shut). Say what is wrong, in the header,
 		// where the eye already is.
-		const pc = data.precheck
-		if (pc && pc.status === 'fail')
-			return { label: 'Held · ' + humanisePrecheckFail(pc.tests?.fail?.[0]), tone: 'error', shape: 'circle' }
-
-		// …and once the window has shut with nothing on chain, it is not ready either.
-		// The countdown in the header was already showing a NEGATIVE number while the
-		// pill still said "Ready to submit".
-		if (isPastWindow(data))
-			return { label: 'Expired unsubmitted', tone: 'error', shape: 'circle' }
-
 		if (readiness && readiness.thresholdSatisfied) {
 			// All required keys are in and nothing is blocking — all-systems-go, shown
 			// green even though it isn't on chain yet (circle = off-chain). An INCOMPLETE
@@ -834,30 +831,6 @@ const SIGN_REASON = {
 		}
 
 		return { label: raw ? prettyStatus(raw) : 'Pending…', tone: 'info', shape: 'circle' }
-	}
-
-	// The precheck names its tests as questions ("does sender 0.0.25200 own 0.0.1263996
-	// #8 ?") because that reads well in the tooltip beside a ✓ or ✗. As a headline it
-	// has to be a statement of what is wrong. Anything we don't recognise falls through
-	// unchanged rather than being mangled — a slightly awkward true sentence beats a
-	// tidy wrong one, and the full text is on the tooltip either way.
-	function humanisePrecheckFail(check) {
-		const raw = String(check || '').replace(/^[⚠️\s]+/, '').replace(/\s*\?\s*$/, '').trim()
-		if (!raw) return 'the backend would not submit this'
-
-		let m = /^does sender (\S+) own (\S+) #(\d+)$/.exec(raw)
-		if (m) return `${m[1]} no longer holds #${m[3]}`
-
-		m = /^has (?:sender|receiver) (\S+) associated (\S+)(?: (.*))?$/.exec(raw)
-		if (m) return `${m[1]} has not associated ${m[3] || m[2]}`
-
-		m = /^(\S+) is deleted$/.exec(raw)
-		if (m) return `${m[1]} is a deleted account`
-
-		m = /^has sender (\S+) enough (.*)$/.exec(raw)
-		if (m) return `${m[1]} does not have enough ${m[2]}`
-
-		return raw
 	}
 
 	// True once the transaction's own validity window has closed and nothing has come
@@ -1148,7 +1121,8 @@ function paintCardRing(card) {
 // Per-asset balance cue on the account cards (TX-CARDS9 step d): ring a SEND chip red when
 // that account is short of that asset (overdraft), and flag the account balance-short for
 // the aggregate ring. Chip asset-key === precheck key (both the tokenId; HBAR is 'tinybar'
-// on the chip → 'hbar' in the precheck). NFTs skipped. No-op without cards.
+// on the chip → 'hbar' in the precheck). NFTs: an unowned serial rings the same way
+// (NFT-CARDOWN1). No-op without cards.
 //
 // Short is gathered from TWO sources so it's robust:
 //   1. precheck.balances[acct][asset].forecast < 0  (structured, when present)
@@ -1165,6 +1139,15 @@ export function updateCardBalances(precheck) {
 
 	const short = {}     // accountId -> Set(asset) : insufficient BALANCE (send side, solid red)
 	const unassoc = {}   // accountId -> Set(asset) : token NOT ASSOCIATED (receive side, dashed red)
+	// NFT-CARDOWN1 (operator, 2026-09-06): "each card is supposed to glow red if there's not
+	// enough balance to service that transaction. It went green. Maybe we tested that for
+	// fungible tokens only and never for NFTs — but it's the same idea, no different." It was.
+	// The precheck had been reporting "does sender 0.0.25200 own 0.0.1263996 #8 ?" on every
+	// refusal and this function (comment below, verbatim: "NFTs skipped") had no pattern for
+	// it, so the sender's card stayed green while the backend declined to submit. An NFT the
+	// sender does not hold is the NFT shape of "not enough": same solid-red send chip, same
+	// red card ring, same detail line under the card. No new UI.
+	const notOwned = {}  // accountId -> Set(token#serial) : NFT the sender does NOT HOLD (send side, solid red)
 	const add = (map, acct, key) => { (map[acct] ||= new Set()).add(key) }
 	for (const [acct, assets] of Object.entries(precheck?.balances || {}))
 		for (const [asset, f] of Object.entries(assets || {}))
@@ -1181,6 +1164,7 @@ export function updateCardBalances(precheck) {
 		if ((m = /has sender (\S+) enough (\S+)/.exec(line))) add(short, m[1], m[2])
 		else if ((m = /has (\S+) sufficient hbar balance/.exec(line))) add(short, m[1], 'hbar')
 		else if ((m = /has (?:sender|receiver) (\S+) associated (\S+)/.exec(line))) add(unassoc, m[1], m[2])
+		else if ((m = /does sender (\S+) own (\S+) #(\d+)/.exec(line))) add(notOwned, m[1], `${m[2]}#${m[3]}`)   // NFT-CARDOWN1: chip key is token#serial
 	}
 
 	const key = chip => chip.dataset.assetKey === 'tinybar' ? 'hbar' : chip.dataset.assetKey
@@ -1189,9 +1173,10 @@ export function updateCardBalances(precheck) {
 		const id = card.querySelector('.txcard-head[data-acct]')?.dataset.acct
 		const shortAssets = short[id] || new Set()
 		const unassocAssets = unassoc[id] || new Set()
-		card.dataset.balanceShort = (shortAssets.size || unassocAssets.size) ? '1' : '0'   // either blocks → red ring
+		const notOwnedAssets = notOwned[id] || new Set()
+		card.dataset.balanceShort = (shortAssets.size || unassocAssets.size || notOwnedAssets.size) ? '1' : '0'   // any of them blocks → red ring
 		card.querySelectorAll('.txcard-send .txcard-chip').forEach(chip =>
-			chip.classList.toggle('txcard-chip--short', shortAssets.has(key(chip))))
+			chip.classList.toggle('txcard-chip--short', shortAssets.has(key(chip)) || notOwnedAssets.has(key(chip))))
 		const assocHard = card.dataset.maxAutoAssoc === '0'   // no auto-assoc slots → definite fail
 		card.querySelectorAll('.txcard-receive .txcard-chip').forEach(chip => {
 			const is = unassocAssets.has(key(chip))
@@ -1201,9 +1186,9 @@ export function updateCardBalances(precheck) {
 		paintCardRing(card)
 		// SIGN-EXPLAIN1: stash the issue sets for the expanded detail's plain-words list,
 		// and refresh an already-open detail so the lines track live precheck updates.
-		card._balanceIssues = { short: [...shortAssets], unassoc: [...unassocAssets] }
+		card._balanceIssues = { short: [...shortAssets], unassoc: [...unassocAssets], notOwned: [...notOwnedAssets] }
 		if (card.classList.contains('txcard--open')) renderCardDetail(card)
-		diag.cards.push({ id, short: [...shortAssets], unassoc: [...unassocAssets] })
+		diag.cards.push({ id, short: [...shortAssets], unassoc: [...unassocAssets], notOwned: [...notOwnedAssets] })
 	})
 	try { globalThis.kdiag?.('cards:balances', diag) } catch {}
 }
@@ -1251,6 +1236,10 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 			items.push({ warn: true, bullet: '✍️', text: `${st.need - st.signed} more signature${st.need - st.signed === 1 ? '' : 's'} needed (${st.signed} of ${st.need} signed).` })
 		for (const a of card?._balanceIssues?.short || [])
 			items.push({ warn: true, text: `Not enough ${labelFor(a)} — the balance won't cover what this account sends.` })
+		// NFT-CARDOWN1: the NFT shape of the line above — there is no amount to be short of,
+		// the account simply does not hold that serial any more, so the transfer cannot execute.
+		for (const a of card?._balanceIssues?.notOwned || [])
+			items.push({ warn: true, text: `This account doesn't hold ${labelFor(a)} — the serial belongs to another account, so this transfer would fail.` })
 		// SIGN-ASSETASSOC1: association wording branches on the account's auto-association
 		// capacity (mirror max_automatic_token_associations, stashed on the card by
 		// updateCardSigning): 0 slots = the transfer WILL fail (solid red chip); otherwise
