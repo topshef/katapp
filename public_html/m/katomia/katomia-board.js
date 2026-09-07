@@ -4579,7 +4579,7 @@ function boardAnnounceIssues(txid, short, unassoc){
 // after boardSigning is (re)computed. Poll interval mirrors the widget's fallback
 // cadence; a live WS feed can supersede this later (PROP-SIGN-UNIFY1).
 function boardEnsureSignStatusPoll(){
-  if(boardSigning?.tx?.txid && ring16()){
+  if(boardSigning?.tx?.txid && (ring16() || carousel())){   // CAROUSEL2: per-account sign status too
     if(!_boardSignPoll){
       boardRefreshSignStatus()
       _boardSignPoll = setInterval(boardRefreshSignStatus, 4000)
@@ -4755,7 +4755,8 @@ function boardReserved(accounts){
 const BOARD_TX_EXPIRY_MS = 130000
 
 function boardDetectSigning(){
-  if(!ring15()) return null
+  // CAROUSEL2: the carousel carries the same signing phase (its centre line is the hub)
+  if(!ring15() && !carousel()) return null
   const txs = (state?.tx?.pending || []).filter(t => !t.lifecycle?.isFinalStatus)
   if(!txs.length) return null
   const tx = txs[0]
@@ -8218,11 +8219,11 @@ function boardStoreChips(account, container, reservedByAccount){
       el.onmouseleave = () => highlightTradePair(assetId, account.id, reservedHere[0].toAccountId, false)
     }
     ringTint(el, account.playerId)
-    if((ring13() || susan4()) && account.mode === "lock")
+    if((ring13() || susan4() || carousel()) && account.mode === "lock")
       el.classList.add("board-lockdim")   // assets leave the light on lock
 
     if(mine){
-      if((ring13() || susan4()) && playerAllowsPick(account.playerId)){
+      if((ring13() || susan4() || carousel()) && playerAllowsPick(account.playerId)){
         // uniform view (review 12): YOUR chips show the price-tag flag too
         el.classList.add("board-pickchip")
         el.style.setProperty("--pickflag", getPlayerColour(account.playerId))
@@ -8274,7 +8275,7 @@ function boardStoreChips(account, container, reservedByAccount){
       }
       boardTouchDrag(el, { tktTake: true, orderId: oid, assetId })
       boardTip(el, "Priced — drag it into your space to take it at this price")
-    } else if((ring11() || susan3()) && playerAllowsPick(account.playerId) && getAccounts().some(a => isMyAccount(a))){
+    } else if((ring11() || susan3() || carousel()) && playerAllowsPick(account.playerId) && getAccounts().some(a => isMyAccount(a))){
       // PICK (review 10 / KAT-PICK1): their player allows picking — grab the
       // chip and drop it into any of YOUR regions; game_pick lands it in
       // your basket as if they offered it (amount prompt as usual).
@@ -9512,7 +9513,7 @@ function boardReservedChips(account, container, reservedByAccount){
     el.classList.add("board-chip", "board-ghost")
     boardTip(el, "Reserved — already offered out")
     ringTint(el, account.playerId)
-    if((ring13() || susan4()) && account.mode === "lock")
+    if((ring13() || susan4() || carousel()) && account.mode === "lock")
       el.classList.add("board-lockdim")
 
     // hover shows the dotted line to where it landed (legacy pair rules)

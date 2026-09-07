@@ -94,12 +94,34 @@ console.log('2. Carousel: two stripes, baskets meeting in the middle, footer cle
   const b1 = await baskets(page)
   ok(b1 === b0 + 1, 'one more item in a basket in the game state', `${b0} → ${b1}`)
 
-  console.log('4. Carousel: the signing countdown lives in the centre strip')
-  await page.evaluate(() => { window.__real = boardDetectSigning; boardDetectSigning = () => ({ status: 'pending', expiry: Date.now() + 90000, tx: { txid: 'demo' }, legs: {} }); render() })
-  await page.waitForTimeout(1300)
-  const s = await page.evaluate(() => ({ pill: document.querySelector('.carousel-centre .ring-hub-count')?.textContent || '', counting: !!document.querySelector('.carousel-centre--counting') }))
-  ok(/^\d:\d\d$/.test(s.pill) && s.counting, 'the hub\'s countdown pill ticks in the strip', JSON.stringify(s))
-  await page.evaluate(() => { boardDetectSigning = window.__real; render() })
+  console.log('4. Carousel: the rows stay where you left them across a render')
+  await page.evaluate(() => { document.querySelector('.carousel-row--others .carousel-track').scrollLeft = 200 })
+  await page.waitForTimeout(300); await page.evaluate(() => render()); await page.waitForTimeout(300)
+  const kept = await page.evaluate(() => document.querySelector('.carousel-row--others .carousel-track').scrollLeft)
+  ok(kept > 150, 'the top row kept its scroll position (CAROUSEL2 sticky rows)', kept)
+
+  console.log('5. Carousel: the REAL strike — every side locks, the demo raises a tx, the board signs')
+  // the demo reducer strikes on the last lock exactly as the backend does: baskets are
+  // emptied server-side and a pending tx appears — the board must keep the picture
+  const active = await page.evaluate(() => { const s = new Set(); Object.values(state.accounts).forEach(x => { if (x.basket.length) s.add(x.id); x.basket.forEach(i => i.fromId && s.add(i.fromId)) }); return [...s] })
+  for (const id of active) { await page.evaluate(id => socket.send(JSON.stringify({ type: 'game_toggleLock', accountId: id })), id); await page.waitForTimeout(150) }
+  await page.waitForTimeout(700)
+  const s = await page.evaluate(() => ({
+    pending: (state.tx?.pending || []).length, signing: !!boardSigning,
+    pill: document.querySelector('.carousel-centre .ring-hub-count')?.textContent || '',
+    counting: !!document.querySelector('.carousel-centre--counting'),
+    txchipsInBaskets: document.querySelectorAll('.carousel-basket .board-txchip').length,
+    signBtn: document.querySelector('[data-testid=sign]')?.textContent || '',
+    banner: document.getElementById('boardBanner')?.textContent || '',
+    bodySigning: document.body.dataset.signing === '1',
+    rims: document.querySelectorAll('.carousel-rim[class*="carousel-rim--"]').length
+  }))
+  ok(s.pending === 1 && s.signing, 'the carousel detects the signing phase (boardDetectSigning admits it)', JSON.stringify(s))
+  ok(/^\d:\d\d$/.test(s.pill) && s.counting, 'the hub\'s countdown pill ticks on the centre line', s.pill)
+  ok(s.txchipsInBaskets > 0, 'the struck legs stay painted in the baskets — the table is not cleared', s.txchipsInBaskets)
+  ok(/Sign/.test(s.signBtn), 'the footer offers ✍ Sign', s.signBtn)
+  ok(/submit|signatures/i.test(s.banner), 'the banner narrates the signing phase', s.banner)
+  ok(s.bodySigning && s.rims > 0, 'read-only cues: body marked signing, rims carry signature status', `${s.bodySigning}/${s.rims}`)
   await page.close()
 }
 

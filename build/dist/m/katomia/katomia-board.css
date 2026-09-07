@@ -2462,13 +2462,11 @@ body.feat-tickets .tkt-act{ margin-top:6px; }
    moved aside to reveal. */
 .asset-modal:has(.board-playercard[data-dragged]){ background: rgba(0,0,0,.06); }
 
-/* ── CAROUSEL1 (2026-09-06): the board as two stripes, baskets meeting in the middle ──────
-   Lives inside #boardRoot (which already yields to the chat dock via --kchat-clear-b), clears
-   the top chrome and the footer, and splits what is left 1:1 around a centre strip. Each row
-   is a horizontal, snapping track of account cards; my cards put the basket on TOP, the
-   others put it at the BOTTOM, so the two baskets face each other across the strip — the
-   ring's inner rim unwrapped into a line. Colours and chip styling come from the shared
-   chip/band rules; only the layout is new. */
+/* ── CAROUSEL2 (operator, 2026-09-07): stripped back to the ring's language ───────────
+   Felt, dividing lines, and one line between store and basket. No cards, no boxes, no
+   shading on shading. Colours are the ring's own: divider #c9c2b3 (.ring-divider), rim
+   #a9c9ec trading blue / #f5a623 locked orange (.ring-lockarc), etched id at .30
+   (.ring-etchlabel), locked store wash rgba(45,35,15,.38) (.ring-storedim v16). */
 .carousel{
   position: absolute; inset: 0;
   padding: 50px 0 44px;                 /* chrome above, footer below */
@@ -2482,13 +2480,13 @@ body.feat-tickets .tkt-act{ margin-top:6px; }
 }
 .carousel-track{
   flex: 1; min-width: 0;
-  display: flex; gap: 10px;
+  display: flex;
   overflow-x: auto; overflow-y: hidden;
   scroll-snap-type: x mandatory;
-  scrollbar-width: thin;
-  padding: 6px 4px;
+  scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
+.carousel-track::-webkit-scrollbar{ display: none; }
 .carousel-arrow{
   flex: 0 0 26px;
   border: none; background: transparent;
@@ -2496,58 +2494,61 @@ body.feat-tickets .tkt-act{ margin-top:6px; }
   padding: 0;
 }
 .carousel-arrow:hover{ color: #776; }
-.carousel-conveyor{
-  position: absolute; right: 30px; top: 8px; z-index: 2;
-  width: 26px; height: 26px; border-radius: 50%;
-  border: 1px solid #e2dbc9; background: rgba(255,255,253,.85);
-  font-size: 15px; line-height: 1; color: #998; cursor: pointer;
-}
-.carousel-conveyor--on{ color: #2f6fed; border-color: #2f6fed; }
 
+/* a stall: a column of felt between two dividers */
 .carousel-card{
   scroll-snap-align: start;
   flex: 0 0 min(72vw, 260px);
   display: flex; flex-direction: column;
   min-height: 0;
-  background: #f1ece0;
-  border: 1px solid #e2dbc9;
-  border-radius: 12px;
-  padding: 6px 8px 8px;
-  overflow-y: auto;
-  --pc: #999;                           /* player colour, set inline per card */
+  padding: 0 6px;
+  border-right: 1px solid #c9c2b3;      /* = .ring-divider, unwrapped */
+  --pc: #999;                           /* player colour, set inline per stall */
 }
-.carousel-card--other{ border-top: 4px solid var(--pc); }
-.carousel-card--mine{ border-bottom: 4px solid var(--pc); }
-.carousel-card--selected{ box-shadow: 0 0 12px 3px rgba(74, 144, 217, .45); }
-.carousel-card--locked .carousel-store{ filter: brightness(.82); }
-.carousel-card.drag-over{ outline: 2px solid #4a90d9; outline-offset: 2px; background: #f7f3e9; }
+.carousel-card:first-child{ border-left: 1px solid #c9c2b3; }
+.carousel-card.drag-over{ background: rgba(255, 255, 253, .55); }   /* the wedge lights, no outline */
 
-.carousel-head{
-  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
-  color: var(--pc);
-  font-weight: 800; font-size: 13px; letter-spacing: .04em;
+/* the id, etched into the store like the wedge label */
+.carousel-etch{
+  flex-basis: 100%;
+  font-weight: 800; font-size: 14px; letter-spacing: .06em;
+  color: var(--pc); opacity: .30;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  user-select: none;
+  padding: 2px 0;
 }
-.carousel-head-tags{ font-weight: 600; font-size: 11px; opacity: .8; }
-.carousel-xsub{ flex-basis: 100%; font-size: 10px; color: #998; font-weight: 400; letter-spacing: 0; }
+.carousel-card--selected .carousel-etch{ opacity: .6; }
 
-.carousel-store{ flex: 1; align-content: flex-start; margin-top: 4px; min-height: 34px; }
-.carousel-basket{
-  background: rgba(255, 255, 253, .8);
-  border-radius: 8px;
-  min-height: 42px; padding: 3px;
-  align-content: flex-start;
-}
-.carousel-card--other .carousel-basket{ margin-top: 6px; }
-.carousel-card--mine .carousel-basket{ margin: 4px 0 6px; }
+.carousel-store{ flex: 1; min-height: 0; overflow-y: auto; align-content: flex-start; padding: 2px 0 4px; }
+.carousel-card--mine .carousel-store{ padding: 4px 0 2px; }
+.carousel-card--locked .carousel-store{ background: rgba(45, 35, 15, .38); }   /* store goes dark on lock */
 
-/* the centre strip: what the hub was, as an oblong the two basket rows meet at */
+/* the one line: rim, trading blue, orange once locked */
+.carousel-rim{ flex: 0 0 3px; background: #a9c9ec; margin: 0 -6px; }
+.carousel-card--locked .carousel-rim{ background: #f5a623; }
+.carousel-rim--pending{ background: #f5a623; }
+.carousel-rim--signed{ background: #35b06f; }
+body[data-signtwilight="1"] .carousel-rim--signed{ background: #1e7047; }   /* last ~10s: still green, lights going out */
+.carousel-rim--failed{ background: #d64541; }
+.carousel-rim--none{ background: #9a9a9a; opacity: .5; }
+
+.carousel-basket{ flex: 0 0 auto; min-height: 44px; padding: 4px 0; align-content: flex-start; }
+
+/* the centre line: the two basket rows meet here; the K sits on the line */
 .carousel-centre{
-  flex: 0 0 auto; min-height: 34px;
-  margin: 0 30px;
-  display: flex; align-items: center; justify-content: center; gap: 12px;
-  border-top: 1px dashed #d9d2c2; border-bottom: 1px dashed #d9d2c2;
-  background: rgba(255, 255, 253, .55);
+  flex: 0 0 auto; height: 34px;
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+.carousel-centre::before{
+  content: ""; position: absolute; left: 0; right: 0; top: 50%;
+  border-top: 1px solid #c9c2b3;
+}
+.carousel-centre-piece{
+  position: relative;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 14px;
+  background: #f5f1e8;                  /* felt — breaks the line behind the piece */
 }
 .carousel-centre-k{
   font-family: 'Poppins', sans-serif; font-weight: 900; font-size: 18px;
@@ -2555,6 +2556,13 @@ body.feat-tickets .tkt-act{ margin-top:6px; }
 }
 .carousel-centre-lp{ font-size: 12px; color: #8a8f98; }
 .carousel-centre--counting .ring-hub-count{ position: static; transform: none; }   /* the hub's pill, inline */
+.carousel-conveyor{
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 1px solid #c9c2b3; background: #f5f1e8;
+  font-size: 14px; line-height: 1; color: #998; cursor: pointer;
+}
+.carousel-conveyor--on{ color: #2f6fed; border-color: #2f6fed; }
 
 .carousel-empty{
   align-self: center; margin: 0 auto;

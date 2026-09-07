@@ -25,14 +25,15 @@
 //   boardDropTarget                                          offer / withdraw / pick semantics —
 //                                                             the whole card is the account
 //   ringFooter                                               lock, account select, ▶, 🔒 x/y
-//   boardStartCountdown / boardOpenSigning                   the signing countdown pill and the
-//                                                             tap-to-sign, verbatim from the hub
+//   boardDetectSigning / boardTxChips / boardUpdateBanner     the signing phase: detection,
+//   boardStartCountdown / boardOpenSigning                    the struck legs painted into the
+//                                                             baskets, the banner, the countdown
+//                                                             pill and the tap-to-sign — from the hub
 //   boardAnimateNewOffers                                    ghost→basket flight, DOM-keyed
 //
 // What it deliberately does NOT do (parity items, listed so nobody hunts for them):
-//   TODO(CAROUSEL1-parity) chat bubbles: the ring anchors them on segment geometry
-//     (_boardChatAnchors); here it is left empty, so bubbles are skipped and the docked
-//     strip carries messages. A card-anchored bubble is the obvious follow-up.
+//   chat bubbles: anchored per stall on its store (carouselChatAnchors), aimed away from
+//     the centre line — CAROUSEL2, was a parity gap.
 //   TODO(CAROUSEL1-parity) focus spotlight (▶ in the footer): the ring dims the felt and
 //     flies chips to baskets; here ▶ plays the offer animation only.
 //   TODO(CAROUSEL1-parity) the organic chip physics, zone walls, counter shade, lock arcs:
@@ -83,75 +84,93 @@ function carouselRunConveyor(track){
   _carouselConveyorRaf = requestAnimationFrame(step)
 }
 
-// ── one account as a card ─────────────────────────────────────────────────────────────────
-// mine: basket on TOP (facing the centre strip), store below. others: store on top, basket at
-// the BOTTOM (facing the centre strip). So the two baskets meet at the middle of the screen —
-// the ring's inner rim, unwrapped into a line.
+// ── one account as a stall ────────────────────────────────────────────────────────────────
+// CAROUSEL2 (operator, 2026-09-07): "what we've got on the circle is very simple — a felt,
+// dividing lines, and a ring that divides basket from store. Not formatting on top of
+// formatting." So an account is a column of bare felt: the id etched into the store the way
+// the ring etches it into the wedge, ONE line between store and basket (the lock arc,
+// unwrapped — trading blue, orange once locked), and a single divider to the next stall.
+// No card, no border, no basket box. mine: basket on TOP (facing the centre line), store
+// below; others: store on top, basket at the BOTTOM — the two basket rows meet in the middle,
+// the ring's inner rim as a line.
 function carouselCard(account, ctx, mine){
-  const card = document.createElement("div")
-  card.className = "carousel-card"
+  const stall = document.createElement("div")
+  stall.className = "carousel-card"
     + (mine ? " carousel-card--mine" : " carousel-card--other")
     + (account.mode === "lock" ? " carousel-card--locked" : "")
     + (account.id === boardSelectedAccount ? " carousel-card--selected" : "")
-  const colour = getPlayerColour(account.playerId)
-  card.style.setProperty("--pc", colour)
-  card.dataset.accountId = account.id
+  stall.style.setProperty("--pc", getPlayerColour(account.playerId))
+  stall.dataset.accountId = account.id
 
-  const head = document.createElement("div")
-  head.className = "carousel-head"
-  const id = document.createElement("span")
-  id.className = "carousel-head-id"
-  id.textContent = boardShortAcctId(account.id.split(":")[1] || account.id)
-  head.appendChild(id)
-  const tags = []
-  if(mine) tags.push("you")
-  if(account.mode === "lock") tags.push("🔒")
-  if(!mine && playerAllowsPick(account.playerId)) tags.push("◀ pick")
-  if(tags.length){
-    const t = document.createElement("span")
-    t.className = "carousel-head-tags"
-    t.textContent = tags.join(" · ")
-    head.appendChild(t)
-  }
-  if(mine){
-    head.style.cursor = "pointer"
-    head.title = "Tap to make this your active account"
-    head.onclick = () => { boardSelectedAccount = account.id; render() }
-  }
+  // the etched id: same words as the ring's wedge label (id · you · 🔒 · ◀)
+  const etch = document.createElement("div")
+  etch.className = "carousel-etch"
+  etch.textContent = boardShortAcctId(account.id.split(":")[1] || account.id)
+    + (mine ? " · you" : "")
+    + (account.mode === "lock" ? " 🔒" : "")
+    + (!mine && playerAllowsPick(account.playerId) ? " ◀" : "")
   const xl = window.accountLabelCache?.[account.id.split(":")[1] || account.id]
-  if(xl){
-    const sub = document.createElement("div")
-    sub.className = "carousel-xsub"
-    sub.textContent = xl
-    head.appendChild(sub)
+  if(xl) etch.title = xl
+  if(mine){
+    etch.style.cursor = "pointer"
+    etch.title = (xl ? xl + " — " : "") + "Tap to make this your active account"
+    etch.onclick = () => { boardSelectedAccount = account.id; render() }
   }
 
   const store = document.createElement("div")
   store.className = "board-band carousel-store"
   store.title = mine ? "Your store" : "Their store (available)"
+  store.appendChild(etch)
   boardStoreChips(account, store, ctx.reservedByAccount)
   boardReservedChips(account, store, ctx.reservedByAccount)
+
+  // the rim: the lock arc unwrapped — blue open, orange locked; while signing it takes the
+  // account's signature status (green signed / amber waiting / grey none), as the arcs do
+  const rim = document.createElement("div")
+  const hac = account.id.split(":")[1] || account.id
+  let sign = null
+  if(boardSigning && boardSigning.legs[hac]){
+    const per = boardSignStatus?.txid === boardSigning.tx?.txid ? boardSignStatus.byAccount?.[hac] : null
+    sign = (per === "loading" ? "pending" : per) ?? boardSigning.status
+  }
+  rim.className = "carousel-rim" + (sign ? " carousel-rim--" + sign : "")
+  rim.title = sign ? `Signature: ${sign}` : account.mode === "lock" ? "Locked" : "Store above the line, basket below — the ring's rim"
 
   const basket = document.createElement("div")
   basket.className = "board-band carousel-basket"
   basket.title = mine ? "Your basket — offers to you land here" : "Their basket — drop here to offer"
   boardBasketChips(account, basket, ctx.accountMap)
+  // signing phase: the strike cleared the baskets server-side, but the board keeps the
+  // picture — receiving legs render as tx chips in place (same call as the ring's wedge;
+  // the 4th arg names the basket so the success flight knows where each chip lands)
+  if(boardSigning){
+    const legs = boardSigning.legs[account.id.split(":")[1] || account.id]
+    if(legs && !basket.querySelector(".asset")) boardTxChips(legs, basket, ctx.accounts, account.id)
+  }
 
-  card.appendChild(head)
-  if(mine){ card.appendChild(basket); card.appendChild(store) }
-  else { card.appendChild(store); card.appendChild(basket) }
+  if(mine){ stall.append(basket, rim, store) }
+  else { stall.append(store, rim, basket) }
 
-  boardDropTarget(card, account)
-  return card
+  boardDropTarget(stall, account)
+  return stall
 }
 
-// ── a row: arrows + a snapping, scrollable track of cards ─────────────────────────────────
+// ── a row: arrows + a snapping, scrollable track of stalls ────────────────────────────────
+// CAROUSEL2: the row remembers where you left it. Every render replaces the DOM, and a fresh
+// track starts at 0 — so any action (an offer, a lock, someone else's move) threw both rows
+// back to the beginning and the trail you had just drawn pointed at a stall that had scrolled
+// away. The position is kept per row across renders and put back once the track is in the
+// document (scrollLeft on a detached node is a no-op).
+const _carouselScroll = { others: 0, mine: 0 }
+
 function carouselRow(kind, accounts, ctx, emptyText){
   const row = document.createElement("div")
   row.className = "carousel-row carousel-row--" + kind
   const track = document.createElement("div")
   track.className = "carousel-track"
+  track.dataset.kind = kind
   track.setAttribute("role", "list")
+  track.addEventListener("scroll", () => { _carouselScroll[kind] = track.scrollLeft }, { passive: true })
   const arrow = (txt, dir) => {
     const b = document.createElement("button")
     b.type = "button"
@@ -168,76 +187,170 @@ function carouselRow(kind, accounts, ctx, emptyText){
     hint.textContent = emptyText
     track.appendChild(hint)
   }
-  row.appendChild(arrow("‹", -1))
-  row.appendChild(track)
-  row.appendChild(arrow("›", +1))
-  if(kind === "others"){
-    const auto = document.createElement("button")
-    auto.type = "button"
-    auto.className = "carousel-conveyor" + (_carouselConveyor ? " carousel-conveyor--on" : "")
-    auto.textContent = "⟳"
-    auto.title = _carouselConveyor ? "Conveyor on — other players drift past. Tap to stop." : "Conveyor: let the other players drift past"
-    auto.onclick = () => { _carouselConveyor = !_carouselConveyor; render() }
-    row.appendChild(auto)
-    if(_carouselConveyor) carouselRunConveyor(track)
-  }
+  row.append(arrow("‹", -1), track, arrow("›", +1))
   return row
 }
 
-// ── the centre strip: the ring's hub, unwrapped into an oblong ────────────────────────────
-// Normally the small K and the lock tally. While signing, the SAME countdown pill the hub
-// shows (.ring-hub-count, ticked by boardStartCountdown) and the same tap-to-sign — so the
-// signing moment reads the same in both shapes.
+// after the DOM lands: put each row back where it was, then (re)start the belt from there,
+// and give the chat its bubble anchors — one per stall, on the store, aimed away from the
+// centre line (the ring's "radially outward": up for the top row, down for mine). Recorded
+// here because the positions need real layout; scroll moves them, and the next paint
+// re-aims the tails anyway (same caveat as the ring's avatar points).
+function carouselRestore(wrap){
+  wrap.querySelectorAll(".carousel-track").forEach(track => {
+    track.scrollLeft = _carouselScroll[track.dataset.kind] || 0
+    if(track.dataset.kind === "others" && _carouselConveyor) carouselRunConveyor(track)
+  })
+  carouselChatAnchors(wrap)
+  wrap.querySelectorAll(".carousel-track").forEach(track =>
+    track.addEventListener("scroll", () => carouselChatAnchors(wrap), { passive: true }))
+}
+
+function carouselChatAnchors(wrap){
+  const rb = document.getElementById("boardRoot")?.getBoundingClientRect()
+  if(!rb) return
+  const accountMap = getAccountMap()
+  _boardChatAnchors = {}
+  wrap.querySelectorAll(".carousel-card").forEach(stall => {
+    const id = stall.dataset.accountId
+    const mine = stall.classList.contains("carousel-card--mine")
+    const r = (stall.querySelector(".carousel-store") || stall).getBoundingClientRect()
+    _boardChatAnchors[id] = {
+      x: r.left + r.width / 2 - rb.left, y: r.top + r.height / 2 - rb.top,
+      am: mine ? Math.PI / 2 : -Math.PI / 2, mine, playerId: accountMap[id]?.playerId
+    }
+  })
+}
+
+// ── the centre line: the ring's hub, unwrapped ────────────────────────────────────────────
+// One line across the board where the two basket rows meet, with the K and the lock tally
+// sitting on it. While signing, the SAME countdown pill the hub shows (.ring-hub-count,
+// ticked by boardStartCountdown) and the same tap-to-sign — so the signing moment reads the
+// same in both shapes. The conveyor toggle (⟳) lives at the line's right end.
 function carouselCentre(mine, accounts){
   const strip = document.createElement("div")
   strip.className = "carousel-centre" + (boardSigning ? " carousel-centre--counting" : "")
   const lp = boardLockSummary(mine, accounts)
+  const piece = document.createElement("div")
+  piece.className = "carousel-centre-piece"
   if(boardSigning){
     const count = document.createElement("span")
     count.className = "ring-hub-count ring-hub-count--" + boardSigning.status
     count.title = "Time left in the signing window. Green = signed; dark green in the last ~10s = still signed, but too late for new signatures to land; amber = waiting for signatures"
-    strip.appendChild(count)
-    boardStartCountdown(count)
+    piece.appendChild(count)
+    // ticked by boardStartCountdown once the strip is in the document — it checks
+    // document.body.contains(el) on its first tick and would stop dead on a detached node
     const inline = (typeof boardSignInline === "function" && boardSignInline()) && typeof window.KPaySign === "function"
     if(inline || (typeof boardExtSign !== "undefined" && boardExtSign)){
-      strip.style.cursor = "pointer"
-      strip.title = inline ? "Tap to sign (all wallet options)" : "Tap for the full signing page (all wallet options)"
-      strip.onclick = () => boardOpenSigning(boardSigning.tx)
+      piece.style.cursor = "pointer"
+      piece.title = inline ? "Tap to sign (all wallet options)" : "Tap for the full signing page (all wallet options)"
+      piece.onclick = () => boardOpenSigning(boardSigning.tx)
     }
   } else {
     const k = document.createElement("span")
     k.className = "carousel-centre-k"
     k.textContent = "K"
-    strip.appendChild(k)
+    piece.appendChild(k)
     if(lp){
       const badge = document.createElement("span")
       badge.className = "carousel-centre-lp"
       badge.textContent = `🔒 ${lp.locked}/${lp.total}`
       badge.title = `${lp.locked} of ${lp.total} accounts locked (${lp.scope})`
-      strip.appendChild(badge)
+      piece.appendChild(badge)
     }
   }
+  strip.appendChild(piece)
+  const auto = document.createElement("button")
+  auto.type = "button"
+  auto.className = "carousel-conveyor" + (_carouselConveyor ? " carousel-conveyor--on" : "")
+  auto.textContent = "⟳"
+  auto.title = _carouselConveyor ? "Conveyor on — other players drift past. Tap to stop." : "Conveyor: let the other players drift past"
+  auto.onclick = () => { _carouselConveyor = !_carouselConveyor; render() }
+  strip.appendChild(auto)
   return strip
+}
+
+// ── the signing lifecycle, skin-agnostic ──────────────────────────────────────────────────
+// CAROUSEL2 (operator, 2026-09-07: "locking doesn't visibly show any transaction being
+// raised … no signing option … it just goes straight to clearing the table"). Two causes.
+// The detector itself, boardDetectSigning, answered null for every skin but ring15/16 — so
+// this renderer's countdown block was unreachable, the baskets the strike had emptied
+// server-side simply went blank, and the footer never turned into ✍ Sign. That gate now
+// admits the carousel. And the ring does a run of skin-agnostic work at the top of its own
+// renderer that nothing else shared: hold the last paint until a verdict lands, mark the
+// body signing (read-only CSS), the side-circle breadcrumb, and the vanish-from-pending
+// verdict that asks the chain (BOARD-TXTRUTH1 — never guess a failure). This is that run,
+// the same statements in the same order, for this skin.
+//   TODO(CAROUSEL2-refactor): renderRingBoard carries this block inline (katomia-board.js,
+//   top of renderRingBoard through `_boardLastSigningTxid = nowTxid`). Once this copy has
+//   proven itself in the wild, replace the ring's inline block with a call to this function
+//   (moved into katomia-board.js) — one lifecycle, two shapes. Not done now: the brief is to
+//   add without touching the ring.
+// Returns false when the paint must be held (the caller returns without painting).
+function carouselSigningPrologue(){
+  {
+    const nowSig = boardDetectSigning()
+    const prev = _boardLastSigningTxid
+    if(!nowSig && prev && !boardSuccessAcked.has(prev) && !window.katomiaTxStatus?.snapshot(prev)?.verdict){
+      if(!_boardVerdictHold){
+        _boardVerdictHold = { txid: prev, since: Date.now() }
+        boardDiag("board:verdict-hold:start", { txid: prev, skin: "carousel" })
+        boardConfirmTxFromChain(prev, window.katomiaTxStatus?.snapshot(prev)?.expiry || 0)
+        setTimeout(() => {
+          if(_boardVerdictHold?.txid !== prev) return
+          boardDiag("board:verdict-hold:cap", { txid: prev })
+          _boardVerdictHold = null
+          render()
+        }, BOARD_VERDICT_HOLD_CAP_MS)
+      }
+      if(_boardVerdictHold.txid === prev && Date.now() - _boardVerdictHold.since < BOARD_VERDICT_HOLD_CAP_MS) return false
+    } else if(_boardVerdictHold){
+      _boardVerdictHold = null
+    }
+  }
+
+  boardSigning = boardDetectSigning()
+  boardSigningWindowDiag(boardSigning)
+  if(boardSigning) document.body.dataset.signing = "1"
+  else delete document.body.dataset.signing
+
+  if(state?.moved && typeof currentPlayerId !== "undefined" && currentPlayerId){
+    for(const [accId, childId] of Object.entries(state.moved)){
+      if(accId.split(":")[0] !== currentPlayerId) continue
+      if(_boardMovedNotified.has(childId)) continue
+      _boardMovedNotified.add(childId)
+      try {
+        window.katomiaChat?.system?.(
+          `Your deal moved to side circle ${childId} while you were away — it settles there.`,
+          { link: childId, linkText: childId })
+      } catch(_){}
+    }
+  }
+
+  {
+    const nowTxid = boardSigning?.tx?.txid || null
+    if(_boardLastSigningTxid && _boardLastSigningTxid !== nowTxid && !boardSuccessAcked.has(_boardLastSigningTxid)){
+      const vanished = _boardLastSigningTxid
+      window.katomiaTxStatus?.report(vanished, { source: "board", kind: "progress", detail: { event: "left-pending" } })
+      boardConfirmTxFromChain(vanished, window.katomiaTxStatus?.snapshot(vanished)?.expiry || 0)
+    }
+    if(_boardLastSigningTxid && !nowTxid)
+      boardTrailLines().forEach(l => l.remove())
+    _boardLastSigningTxid = nowTxid
+  }
+  return true
 }
 
 // ── the board ─────────────────────────────────────────────────────────────────────────────
 function renderCarouselBoard(root){
+  if(!carouselSigningPrologue()) return
+
   const accounts = boardFilteredAccounts()
   const accountMap = getAccountMap()
-  const reservedByAccount = boardReserved(accounts)
+  const reservedByAccount = boardReserved(accounts)   // signing-phase ghosts merged in
   const mine = accounts.filter(a => isMyAccount(a))
   const others = accounts.filter(a => !isMyAccount(a))
-  const ctx = { reservedByAccount, accountMap }
-
-  // TODO(CAROUSEL1-parity): no segment geometry to anchor speech bubbles on — see the header
-  _boardChatAnchors = {}
-
-  // The signing phase is DETECTED per render, and the ring does it inside its own renderer
-  // (renderRingBoard) — so a skin that does not repeat it never sees the countdown. Same two
-  // lines, same order. (The older Lazy Susan skins have this gap too; left as they are —
-  // TODO(CAROUSEL1-refactor): hoist the detection into render() once susan* is folded in.)
-  boardSigning = boardDetectSigning()
-  boardSigningWindowDiag(boardSigning)
+  const ctx = { reservedByAccount, accountMap, accounts }
 
   const frag = document.createDocumentFragment()
   const wrap = document.createElement("div")
@@ -249,6 +362,18 @@ function renderCarouselBoard(root){
   frag.appendChild(ringFooter(mine))
   frag.appendChild(boardBrandmark())
   root.replaceChildren(frag)
+  carouselRestore(wrap)
+  const pill = wrap.querySelector(".carousel-centre .ring-hub-count")
+  if(pill) boardStartCountdown(pill)
+  boardUpdateBanner()   // signing narrative / hint / hidden — same as the ring
 
   boardAnimateNewOffers()
+
+  // the STRIKE moment: entering the signing phase auto-plays the choreography once (legs
+  // fly from the giver's ghost to the basket they now sit in); ▶ replays it
+  const txid = boardSigning?.tx?.txid || null
+  if(txid && window.__boardStruckTx !== txid) setTimeout(playTransfers, 80)
+  window.__boardStruckTx = txid
+
+  boardPruneOrphanTrails()
 }
