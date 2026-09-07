@@ -327,5 +327,10 @@ window.KCHANGES_LOG = [
     title: "Host options reaches the hamburger on every deploy",
     detail: "\"I'm on a circle I just created and I'm not seeing the Host options in the hamburger.\" The menu item and the check that reveals it to the host were only written into the page when the server rendered it with a circle id in the address — and the static site renders the board once, with none, so on labs the item was never in the page at all. It is always in the page now, hidden, and the browser works out the circle id (the same way the board itself does) and reveals it to the host. Also fixed on the way: \"hidden\" was not actually hiding it on the server-rendered page, so every player in a circle would have seen it.",
     from: "operator, 2026-09-07", feedback: null, goto: "@board", needs: "as the host of a circle, open ☰",
+    where: [{ page: "board", sel: "#katomiaHostOptions" }] },
+  { ref: "F20", at: "2026-09-07T16:00:00Z",
+    title: "Host options, second attempt: it now appears on the real circle address",
+    detail: "\"Still not seeing it, despite seeing the host emoji on my circles.\" The first fix put the item in the page, but the check that reveals it asked the board for the circle id before the board's own script had loaded, and on a clean circle address (/board/ABC123) there was nowhere else to read it from — so it gave up before it ever looked at who you are. The circles page never had that problem because it reads the list, not the address. The id is now read when the page has finished loading, with the address itself as the fallback. The regression check now opens the clean address, the same one the site serves, as the host, as another player, and with no key at all.",
+    from: "operator, 2026-09-07", feedback: null, goto: "@board", needs: "as the host of a circle, open ☰",
     where: [{ page: "board", sel: "#katomiaHostOptions" }] }
 ]

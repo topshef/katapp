@@ -710,11 +710,23 @@ addEventListener("load", () => setTimeout(() => {
   const item = document.getElementById("katomiaHostOptions")
   if(!item) return
   // HOSTMENU-STATIC1: the id comes from the CLIENT — on the static bundle the page was
-  // rendered with none, and getGameId() re-derives it from /board/<id> (katomia-core.js).
-  const gameId = (typeof getGameId === "function" ? getGameId() : null)
+  // rendered with none. HOSTMENU-STATIC2 (user 2026-09-07, "still not seeing it"): this
+  // block sits in the header and runs BEFORE katomia-core.js is even loaded, so
+  // getGameId() was "not a function" here, the clean /board/<id> URL has no ?game=, and
+  // the static page has no PHP id — every path gave "", and the early return below fired
+  // before the load handler was ever registered. Only ?game= URLs (the QA harness) worked,
+  // which is how it passed. The id is now resolved AT LOAD, when core is present, with the
+  // same /board/<id> parse as a fallback so the menu never depends on script order again.
+  const idFromPath = () => {
+    const parts = location.pathname.split("/").filter(Boolean)
+    const i = parts.findIndex(p => p === "board" || p === "game")
+    return (i >= 0 && parts[i + 1] && !/\./.test(parts[i + 1])) ? decodeURIComponent(parts[i + 1]) : ""
+  }
+  const resolveGameId = () => (typeof getGameId === "function" ? getGameId() : null)
     || new URLSearchParams(location.search).get("game")
-    || <?= json_encode($katomiaGameId, JSON_UNESCAPED_SLASHES) ?> || ""
-  if(!gameId) return                          // not on a circle: nothing to host
+    || <?= json_encode($katomiaGameId, JSON_UNESCAPED_SLASHES) ?>
+    || idFromPath() || ""
+  let gameId = ""
 
   const reveal = () => {
     item.href = "<?= $katomiaBase ?>/host?game=" + encodeURIComponent(gameId)
@@ -724,6 +736,8 @@ addEventListener("load", () => setTimeout(() => {
   const isHost = g => (typeof katomiaIsHostOf === "function" ? katomiaIsHostOf(g, mine()) : false)
 
   window.addEventListener("load", () => {
+    gameId = resolveGameId()
+    if(!gameId) return                       // not on a circle: nothing to host
     if(!mine()) return                       // no key in this browser: owns nothing
 
     // A: poll for the WS meta (covers private circles). ~6s at 400ms, then give up —

@@ -22,6 +22,9 @@ const ok = (c, m, x) => { total++; if (c) console.log('  PASS ' + m); else { fai
 
 const server = createServer((req, res) => {
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname); if (p.endsWith('/')) p += 'index.html'
+  // HOSTMENU-STATIC2: the Worker's clean-URL rewrites (build/router.js IDPAGE + SIBLING), so a
+  // scenario can load /m/katomia/board/<id> exactly as labs serves it — no ?game= to lean on
+  p = p.replace(/^\/m\/katomia\/(game|board)\/[^/.]+\/?$/, '/m/katomia/$1.html').replace(/^\/m\/katomia\/(?:game|board)\/([^/]+\.[^/]+)$/, '/m/katomia/$1')
   const file = join(DIST, p); if (!file.startsWith(DIST)) { res.writeHead(403); return res.end() }
   let body; try { body = readFileSync(file) } catch { res.writeHead(404); return res.end() }
   res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' }); res.end(body)
@@ -163,6 +166,35 @@ console.log('6. Player card on desktop: tapping an account header filters to it 
   ok(host.present && host.hidden && host.shown === 'none', 'Host options is in the static page, hidden, and hidden means not displayed', JSON.stringify(host))
   ok(!errs.length, 'no page errors', JSON.stringify(errs))
   await page.close()
+}
+
+console.log('7. Host options reveals to the host on the CLEAN /board/<id> URL (HOSTMENU-STATIC2)')
+{
+  // The first fix passed only because this suite loaded board.html?game=… — the header's
+  // reveal script runs before katomia-core.js exists, so on labs' /board/<id> (no ?game=)
+  // the id resolved to "" and the script quit before registering its load handler.
+  const adminHex = 'ab'.repeat(32)
+  const jwkX = Buffer.from(adminHex, 'hex').toString('base64url')
+  const open = async (keyHex) => {
+    const ctx = await browser.newContext({ viewport: { width: 1100, height: 800 } })
+    if (keyHex) await ctx.addInitScript(x => localStorage.setItem('katomiaPlayerKeypair', JSON.stringify({ publicKeyJwk: { kty: 'OKP', crv: 'Ed25519', x } })), Buffer.from(keyHex, 'hex').toString('base64url'))
+    const page = await ctx.newPage()
+    const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
+    await page.goto(`${BASE}/m/katomia/board/QA-HOST?demo=1`, { waitUntil: 'load' })
+    // the socket would deliver this meta ~600 ms after join; the demo has no socket, so hand it over
+    await page.evaluate(hex => { gameMeta = { ...(typeof gameMeta === 'object' && gameMeta ? gameMeta : {}), id: 'QA-HOST', admin: { type: 'ed25519PublicKeyHex', value: hex } } }, adminHex)
+    await page.waitForTimeout(1200)
+    const r = await page.evaluate(() => { const el = document.getElementById('katomiaHostOptions'); return { gameId: typeof getGameId === 'function' ? getGameId() : null, hidden: el.hidden, display: getComputedStyle(el).display, href: el.getAttribute('href'), errs: [] } })
+    r.errs = errs; await ctx.close(); return r
+  }
+  const asHost = await open(adminHex)
+  ok(asHost.gameId === 'QA-HOST', 'the clean URL yields the circle id client-side', JSON.stringify(asHost))
+  ok(asHost.hidden === false && asHost.display !== 'none' && asHost.href === '/m/katomia/host?game=QA-HOST', 'the host sees 🎪 Host options, linked to this circle', JSON.stringify(asHost))
+  ok(!asHost.errs.length, 'no page errors', JSON.stringify(asHost.errs))
+  const asGuest = await open('cd'.repeat(32))
+  ok(asGuest.hidden === true && asGuest.display === 'none', 'another key does not see it', JSON.stringify(asGuest))
+  const noKey = await open(null)
+  ok(noKey.hidden === true, 'a browser with no key does not see it', JSON.stringify(noKey))
 }
 
 await browser.close(); server.close()
