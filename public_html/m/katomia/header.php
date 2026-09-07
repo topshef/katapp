@@ -226,6 +226,7 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
            same value in BOARD_SKINS in katomia-board.js. -->
       <select id="boardSkinSelect" title="Board skin">
         <option value="ring16">⭕ Round Table</option>
+        <option value="carousel">🎠 Carousel</option>
       </select>
     </label>
     <label class="board-settings-label">

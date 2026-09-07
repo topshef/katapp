@@ -20,7 +20,7 @@
 // BOARD-SKINLABEL1: to add a new skin, register its identifier here AND add
 // a matching <option value="..."> in header.php's #boardSkinSelect — the two
 // lists aren't derived from each other, so keep them in sync by hand.
-const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "ring11", "ring12", "ring13", "ring14", "ring15", "ring16", "susan", "susan2", "susan3", "susan4", "susan5", "table", "market"]
+const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7", "ring8", "ring9", "ring10", "ring11", "ring12", "ring13", "ring14", "ring15", "ring16", "susan", "susan2", "susan3", "susan4", "susan5", "table", "market", "carousel"]   // carousel = CAROUSEL1, katomia-carousel.js
 
 // ring2/ring3 = the 2026-07-09 review-pass treatment (board-game feel): account
 // ids etched into the felt instead of label rows, oval faded+thickened (future
@@ -270,12 +270,16 @@ const BOARD_SKINS = ["ring", "ring2", "ring3", "ring4", "ring5", "ring6", "ring7
 // unlock-by-gifting then pick; workaround is part of the social game.
 // Colour contrast: palette reordered backend-side (navy/purple clashed at
 // review 16); with many players colour de-emphasises and layout carries.
-const ringEtched = () => /^ring([2-9]|1[0-6])$/.test(boardSkin) || susan()
-const ringSleeved = () => /^ring([4-9]|1[0-6])$/.test(boardSkin) || susan()
+// CAROUSEL1 (2026-09-06): the carousel skin (katomia-carousel.js) joins the same feature sets
+// the Lazy Susan does, so chips, labels, the party filter and the footer behave as on ring16.
+// Adding `|| carousel()` to a predicate cannot change how it evaluates for any other skin.
+const carousel = () => boardSkin === "carousel"
+const ringEtched = () => /^ring([2-9]|1[0-6])$/.test(boardSkin) || susan() || carousel()
+const ringSleeved = () => /^ring([4-9]|1[0-6])$/.test(boardSkin) || susan() || carousel()
 const ringArcs = () => /^ring([5-9]|1[0-6])$/.test(boardSkin)
 const ringNoOval = () => /^ring([6-9]|1[0-6])$/.test(boardSkin)
-const ring8 = () => /^ring(8|9|1[0-6])$/.test(boardSkin) || susan()   // v8 feature set
-const ring9 = () => /^ring(9|1[0-6])$/.test(boardSkin) || susan()     // v9 fix set
+const ring8 = () => /^ring(8|9|1[0-6])$/.test(boardSkin) || susan() || carousel()   // v8 feature set
+const ring9 = () => /^ring(9|1[0-6])$/.test(boardSkin) || susan() || carousel()     // v9 fix set
 const ring10 = () => /^ring1[0-6]$/.test(boardSkin)
 const ring11 = () => /^ring1[1-6]$/.test(boardSkin)
 const ring12 = () => /^ring1[2-6]$/.test(boardSkin)
@@ -1587,6 +1591,12 @@ function renderBoard(){
 
   const root = document.getElementById("boardRoot")
   if(!root) return
+
+  // CAROUSEL1: its own renderer, its own file; nothing below runs for it
+  if(carousel() && typeof renderCarouselBoard === "function"){
+    renderCarouselBoard(root)
+    return
+  }
 
   if(susan()){
     renderSusanBoard(root)
@@ -5512,7 +5522,7 @@ function ringFooter(mine){
     })
   }
 
-  if(ringArcs() || susan()){
+  if(ringArcs() || susan() || carousel()){
     const play = document.createElement("button")
     const focusOn = boardFocusMode || (ring16() && !!boardSigning)
     play.className = "ring-footer-play" + (focusOn ? " ring-footer-play--on" : "")
@@ -5548,7 +5558,7 @@ function ringFooter(mine){
     // runs on layout changes; only the footer affordance is gone.
   }
 
-  if(susan()){
+  if(susan() || carousel()){
     // no hub on the wheel — cluster progress rides the footer instead
     const lp = boardLockSummary(mine, boardFilteredAccounts())
     if(lp){

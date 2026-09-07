@@ -13,6 +13,14 @@
 #              to submit". Plus the clean / incomplete / expired controls. Fixture-driven,
 #              no network: qa/sign/run.mjs. Born of the 2026-09-06 case where an unowned
 #              serial left every card green and the modal claiming readiness.
+#   board    — BOARD-REGRESSION1: drives the built game board (build/dist, ?demo=1 — a local
+#              reducer behind a fake socket, no backend) in headless Chromium. The Round
+#              Table's baseline facts (ring16 default, hub, chip census, uniform counter
+#              bands, the skin dropdown) and the Carousel's contract (two stripes, centre
+#              strip, a real drag → amount modal → Offer lands in the basket, the signing
+#              countdown in the centre strip, the conveyor moves and its ⟳ stops it). Born
+#              with CAROUSEL1 on the operator's condition that a second board shape must not
+#              break the first: qa/board/run.mjs.
 #   smoke    — after a push, waits for the Cloudflare build then curls the live routes
 #              (the 404s this whole exercise started with). Origin comes from the
 #              repository VARIABLE KATUI_ORIGIN (Settings → Secrets and variables →
@@ -21,7 +29,7 @@ name: katui
 on:
   push:
     branches: [pilot, 'claude/**']
-    paths: [build/**, public_html/**, qa/sign/**, .github/workflows/katui.yml]
+    paths: [build/**, public_html/**, qa/sign/**, qa/board/**, .github/workflows/katui.yml]
   schedule:
     - cron: '41 */6 * * *'
   workflow_dispatch:
@@ -68,6 +76,26 @@ jobs:
         run: node qa/sign/run.mjs
       - name: SIGN-PRECHECK-QA1 (gcp dist)
         run: DIST=build/dist-gcp node qa/sign/run.mjs
+
+  board:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: qa/board/package-lock.json
+      - name: install
+        working-directory: qa/board
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: BOARD-REGRESSION1 (katui dist)
+        run: node qa/board/run.mjs
+      - name: BOARD-REGRESSION1 (gcp dist)
+        run: DIST=build/dist-gcp node qa/board/run.mjs
 
   smoke:
     runs-on: ubuntu-latest

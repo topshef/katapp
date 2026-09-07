@@ -174,6 +174,7 @@ require_once __DIR__ . '/kasset.php';
      subscribes to it at module top level. -->
 <script src="<?= kasset('katomia-txstatus.js') ?>"></script>
 <script src="<?= kasset('katomia-board.js') ?>"></script>
+<script src="<?= kasset('katomia-carousel.js') ?>"></script> <!-- CAROUSEL1: the two-stripe skin (?skin=carousel), after the board so it sees its state -->
 <script src="<?= kasset('katomia-tickets.js') ?>"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
 
 <!-- BOARD-CHAT1 (user 2026-07-30): renders state.chat — speech bubbles on the

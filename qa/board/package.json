@@ -1,0 +1,7 @@
+{
+  "name": "katomia-qa-board",
+  "private": true,
+  "description": "Board regression: the Round Table baseline and the Carousel skin, driven in a real browser over the built bundle with the demo fixture.",
+  "scripts": { "test": "node run.mjs" },
+  "devDependencies": { "playwright": "1.58.2" }
+}

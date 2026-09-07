@@ -1233,6 +1233,33 @@
       ],
       "notes": "Born of mainnet 0.0.6026298@1788722674.000002001: the backend refused it four times over 90s because 0.0.25200 no longer held KPLAY #8, the reason was pushed to the browser every time, and the card path had patterns for fungible/HBAR/association faults but none for an unowned serial (its comment read \"NFTs skipped\") — so every card stayed green. Two fixture traps are written into the harness: NFT legs are read from PCH_basis.transfers (not PCH_basis) and mixed sources throw; and a fixture captured off a since-expired tx carries an EXPIRED status that correctly outranks Held.",
       "repro": "Open any held transaction on /m/sign/. If the sender's card is green while the header or the countdown says otherwise, the card cue path has regressed; run qa/sign/run.mjs locally to see which scenario."
+    },
+    {
+      "id": "BOARDSKIN-01",
+      "title": "Both board shapes hold: Round Table baseline and Carousel contract",
+      "asserts": "The Round Table still renders as it did before CAROUSEL1 (ring16 default, SVG ring + hub, the demo's chip census, tall default chips, uniform counter bands, the skin dropdown listing the ring and the carousel). The Carousel renders two stripes (others top, mine bottom) around a centre strip; a real drag of a chip onto another account opens the board's amount modal and Offer lands the chip in that basket; a pending signing shows the countdown in the centre strip; the conveyor advances and its ⟳ stops it.",
+      "kind": "browser-regression",
+      "network": "none (?demo=1 local reducer)",
+      "module": "frontend-ui",
+      "harness": "qa/board/run.mjs",
+      "run": {
+        "ci": "katui.yml → job `board`, on every push to pilot / claude/** touching build, public_html or qa/board; both dist variants",
+        "any": "cd qa/board && npm ci && npx playwright install chromium && node run.mjs   (DIST=build/dist-gcp for the other variant)"
+      },
+      "schedule": "every push (katui workflow), plus the 6-hourly katui schedule",
+      "reports": "GitHub Actions job status",
+      "dimension": "game board · skins",
+      "cost": "none",
+      "what_it_does": [
+        "Serves the BUILT bundle (build/dist) from a tiny local static server and opens /m/katomia/board.php?demo=1 in headless Chromium — the demo's fake socket reducer stands in for the backend, so no network is touched.",
+        "Round Table (default): asserts the skin resolves to ring16, the ring SVG and hub exist, 15 chips over 5 owners, chips at the tall default height, counter bands within tolerance of each other (COUNTER-UNIFORM1), and that the nerd-mode skin dropdown carries both ring16 and carousel.",
+        "Carousel (?skin=carousel): two .carousel-row stripes with the owner's accounts in the bottom one, a .carousel-centre strip between them, every account rendered as a card with store and basket bands.",
+        "Offer by drag: locator.dragTo from a chip in the bottom stripe to a card in the top stripe, the board's amount modal appears, the amount is filled and Offer tapped; the demo state's basket count for that account goes up by one.",
+        "Signing: boardDetectSigning is stubbed to a pending tx with an expiry; the centre strip shows the .ring-hub-count pill and it ticks.",
+        "Conveyor (?conveyor=1): the top track's scrollLeft advances over a short wait; tapping ⟳ stops it."
+      ],
+      "notes": "Born with CAROUSEL1 (2026-09-07): the operator's condition for a second board shape was that it must not break the first, so the Round Table facts were captured and run green BEFORE the carousel was wired, then re-run after. Fixtures must be in place before the first render (addInitScript) — the board sim measures chip heights once on fresh bodies.",
+      "repro": "Open /m/katomia/board.php?demo=1 and ?demo=1&skin=carousel. If the ring hub or chips are missing, or the carousel has no centre strip, run qa/board/run.mjs locally to see which scenario."
     }
   ],
   "expected_fail": {

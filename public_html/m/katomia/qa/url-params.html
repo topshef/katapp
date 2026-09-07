@@ -41,6 +41,9 @@ after one visit; everything else applies to that page load only. Case matters as
 <tr><td class="p"><code>?primary=hug</code> · <code>wide</code></td>
     <td>The emphasised primary button (Add account) sized to its label and centred in the row (<code>hug</code>, the default), or stretched across the full width as it was (<code>wide</code>).</td>
     <td class="where">board</td></tr>
+<tr><td class="p"><code>?skin=carousel</code> · <code>?conveyor=1</code></td>
+    <td><b>The carousel board (CAROUSEL1).</b> The circle unwrapped into two stripes: other players' accounts as cards in a scrolling row on top, your accounts in a scrolling row below, baskets facing each other across a centre strip that carries the K, the lock tally and — while signing — the same countdown pill and tap-to-sign as the hub. Same chips, same drag-and-drop, same footer. Also in ⚙ Settings → Board skin (nerd mode) as 🎠 Carousel. <code>?conveyor=1</code> starts the top row drifting past on its own (the ⟳ button toggles it; it pauses while your finger or pointer is on the row). Round Table is untouched; this is a separate renderer in <code>katomia-carousel.js</code>.</td>
+    <td class="where">board</td></tr>
 <tr><td class="p"><code>?counter=perzone</code></td>
     <td><b>The counter (the ghost-only band between the ring and the store).</b> By default it is now ONE depth for the whole board, capped at a single NFT thumbnail, so no segment reads as more restricted than its neighbours. <code>perzone</code> restores the old rule, where each segment's counter was sized by its own tallest chip — which is why a segment full of NFTs reserved a visibly deeper counter, and had correspondingly less room to move its chips. Easiest to see with ⚙ Settings → 🧪 Show zone walls on.</td>
     <td class="where">board</td></tr>
