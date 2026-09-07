@@ -17,6 +17,7 @@ import {
     } from './kea-verify.js'
 
     import { fetchAndVerifyDeal, getCachedDeal } from './kea-deal.js'
+    import { isDealRecord, decideRecord, ledgerAppend } from './kea-core.js'   // KEA-WEB1: the same core node runs
 
     import {
       loadKeys,
@@ -532,6 +533,28 @@ import {
       e.strikeAt = parseTxStrikeAt(out.kea?.transaction?.txid || e.txid) || e.strikeAt
       e.debug = buildEventDebug(e, w, out.kea || null)
 
+      // KEA-WEB1: a pooled record that carries a deal template (klotto's claim / unlock,
+      // anything raised through deal-bytes) is judged by the KEA core — the same eight
+      // steps the node body runs: the id is computed from the template, must be in the
+      // pot files served beside this app, every chain read is re-fetched from the mirror,
+      // the replay is compared with what the BYTES move, caps and signers derived. The
+      // verdict's checks render like any other rule's; approval signs the body bytes.
+      if (isDealRecord(out)) {
+        let v
+        try { v = await decideRecord({ ...out, txid: e.txid, pch: e.pch }, e.network || w.network) }
+        catch (err) { v = { ok: false, reason: 'core error: ' + err.message, checks: [] } }
+        e.core = v
+        e.check = v.ok ? 'pass' : 'fail'
+        e.summary = v.ok ? `KEA core: ${v.reason} — sign as ${v.signers.join(' + ')}` : `KEA core refused: ${v.reason}`
+        e.verification = { ok: v.ok, msg: e.summary, checks: (v.checks || []).map(function(c) { return { name: c.id, ok: c.status === 'pass', msg: c.detail, status: c.status } }) }
+        e.debug = buildEventDebug(e, w, out.kea || null)
+        sortEvents(); renderEvents(); refreshOpenEventDetail(e)
+        setStatus(v.ok ? `KEA core passed ${shortHash(e.pch)} — ready to approve` : `KEA core refused: ${v.reason}`, v.ok ? 'ok' : 'bad')
+        const autoKey = isAuto(w) ? getKey(w.signPubkey, w.network) : null
+        if (v.ok && autoKey && !e.decision) await approveEvent(e, { auto: true })
+        return
+      }
+
       if (!out.kea) {
         e.check = 'fail'
         e.summary = out.keaError || 'No KEA detail in fetched package'
@@ -569,12 +592,15 @@ import {
     // -------------------------------------------------------------------------
 
     function eventIsReady(e) {
+      // KEA-WEB1: a core-judged claim needs every signer the core named (pool + lock); it
+      // stays approvable until this browser has signed with as many keys as that
+      if (e.core?.ok && e.core.signers?.length) return e.check === 'pass' && (e.approvals || []).length < e.core.signers.length
       return e.check === 'pass' && !e.decision
     }
 
     async function approveEvent(e, opts = {}) {
       if (e.check !== 'pass') throw new Error('Cannot approve — checks have not passed')
-      if (!e.kea) throw new Error('No approval package to sign')
+      if (!e.kea && !e.raw?.bodyBytesHex) throw new Error('No approval package to sign')   // KEA-WEB1: a core-judged record signs its body bytes
 
       const w = getWatch(e.watchId)
       if (!w) throw new Error('Watch no longer exists')
@@ -612,7 +638,7 @@ import {
 
       setStatus(`Signing ${shortHash(e.pch)}…`)
 
-      const sign = await signApprovalPackage(e.kea, key)
+      const sign = await signApprovalPackage(e.kea, key, e.raw?.bodyBytesHex || null)   // KEA-WEB1: body bytes when the record has them
       markKeyUsed(key.id)
       const payload = buildSignedPayload(e, sign)
       const submit = await submitSignedResult(w.baseUrl, payload)
@@ -620,6 +646,10 @@ import {
       const dec = { decision: 'approved', at: Date.now(), auto: !!opts.auto, sign, payload, submit }
       setDecision(e.key, dec)
       e.decision = dec
+      if (e.core?.ok) {   // KEA-WEB1: the caps, and which keys this browser has signed with
+        e.approvals = [...(e.approvals || []), key.pubkeyHex]
+        if (e.approvals.length === 1) ledgerAppend({ network: e.network, dealId: e.core.dealId, role: e.core.role, cc: e.core.cc, txid: e.txid, outflow: e.core.outflow })
+      }
 
       // Auto-approval upgrade: store the chosen key on the rule.
       let upgraded = false

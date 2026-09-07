@@ -10,6 +10,7 @@
 //                                        (create?skin=basic → create-basic.html)
 //   /m/katomia/game/<id>               → game.html
 //   /m/katomia/board/<id>              → board.html
+//   /m/katomia/KEA/                    → KEA/index.html   (KEA-WEB1: the signer's web app; /KEA and /kea/ redirect)
 //   /m/katomia/qa/                     → qa/index.html   (/qa and /m/katomia/qa 302 → the slash
 //                                        form, so the dashboard's relative data/… fetches resolve)
 //  sibling assets (pages use RELATIVE asset paths; under /game/<id> and /board/<id> the
@@ -124,6 +125,9 @@ export function route(url) {
   }
   if (p === '/qa' || p === '/qa/' || p === K + '/qa') return { kind: 'redirect', to: K + '/qa/' };
   if (p === K + '/qa/') return { kind: 'asset', path: K + '/qa/index.html' };
+  // KEA-WEB1: the KEA web app (the browser body of the signer) — index.php renders to KEA/index.html
+  if (p === K + '/KEA' || p === K + '/kea' || p === K + '/kea/') return { kind: 'redirect', to: K + '/KEA/' };
+  if (p === K + '/KEA/' || p === K + '/KEA/index.php' || p === K + '/KEA/app.html') return { kind: 'asset', path: K + '/KEA/index.html' };
   if ((m = p.match(KHAPI))) return { kind: 'alias', path: '/hapi/katomia/' + m[1] };
   if (p === K + '/hapi.php') return actionRoute(url, '/hapi/katomia/', 'create');   // 'create' = hapi.php's own default
   if (SIGNPAGE.test(p)) return url.searchParams.has('action') ? actionRoute(url, '/hapi/kpool/', '') : { kind: 'asset', path: '/m/sign/index.html' };

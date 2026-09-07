@@ -101,6 +101,7 @@ render "$K/index.php?page=create&skin=basic" m/katomia/create-basic.html   # ENT
 render "$K/game.php?game="                   m/katomia/game.html           # shell: id from URL
 render "$K/board.php"                        m/katomia/board.html          # shell: id from URL
 render "$K/binding.php"                      m/katomia/binding.html
+render "$K/KEA/index.php"                    m/katomia/KEA/index.html      # KEA-WEB1: the signer's web app (app.html via index.php)
 
 echo "→ external signing page: /m/sign = future/index.php → index_v2.php (SIGNPAGE-STATIC1)"
 # One game-agnostic shell; ?network=&txid=&pch= are read client-side (index_v2.php falls back

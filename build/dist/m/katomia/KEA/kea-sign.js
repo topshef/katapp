@@ -112,9 +112,11 @@ export async function generateKey(name, network) {
 // Import a key from a 32-byte (64 hex char) ed25519 seed into a network.
 export async function importKey(name, seedHex, network) {
   const net = String(network || 'mainnet').trim().toLowerCase()
-  const clean = String(seedHex || '').trim().toLowerCase().replace(/^0x/, '')
+  let clean = String(seedHex || '').trim().toLowerCase().replace(/^0x/, '')
+  // KEA-WEB1: accept the DER form the Hedera SDK prints (302e020100300506032b657004220420 + seed)
+  if (/^302e020100300506032b657004220420[0-9a-f]{64}$/.test(clean)) clean = clean.slice(-64)
   if (!/^[0-9a-f]{64}$/.test(clean))
-    throw new Error('Action key must be a 32-byte ed25519 seed (64 hex chars)')
+    throw new Error('Action key must be a 32-byte ed25519 seed (64 hex chars), or the SDK DER form')
 
   const seed = hexToBytes(clean)
   const pub = await ed.getPublicKeyAsync(seed)
@@ -168,20 +170,37 @@ function shortPub(hex) {
 // sigMap, returning a fully re-serialised signed transaction. That requires
 // the Hedera protobuf/SDK and is intentionally out of scope for this prototype.
 
-export async function signApprovalPackage(kea, key) {
-  if (!kea?.transaction?.txBytesHex) throw new Error('Approval package has no transaction bytes')
+// KEA-WEB1 (B1 in the browser): when the pooled record carries `bodyBytesHex` — every
+// txRead ?detail=1 does — sign THOSE bytes. That is what a Hedera node checks and what
+// the pool's getSignedTx places beside the body from a detached { pubKey, signature }
+// (/kpool/addSig). Identical to the node body's kea/sign.js, so a signature made here and
+// one made under pm2 are interchangeable. The txBytesHex path stays only as the legacy
+// demo fallback for packages with no body bytes.
+export async function signApprovalPackage(kea, key, bodyBytesHex) {
   if (!key?.privHex) throw new Error('No action key selected to sign with')
-
   const seed = hexToBytes(key.privHex)
+  if (bodyBytesHex) {
+    const sig = await ed.signAsync(hexToBytes(bodyBytesHex), seed)
+    return {
+      pubkeyHex: key.pubkeyHex,
+      keyId: key.id,
+      keyName: key.name,
+      signatureHex: bytesToHex(sig),
+      signatureBase64: bytesToBase64(sig),
+      signedOver: 'bodyBytes',
+      txHash: kea?.transaction?.txHash || null,
+      signedAt: new Date().toISOString()
+    }
+  }
+  if (!kea?.transaction?.txBytesHex) throw new Error('Approval package has no transaction bytes')
   const message = hexToBytes(kea.transaction.txBytesHex)
   const sig = await ed.signAsync(message, seed)
-
   return {
     pubkeyHex: key.pubkeyHex,
     keyId: key.id,
     keyName: key.name,
     signatureBase64: bytesToBase64(sig),
-    signedOver: 'kea.transaction.txBytesHex',  // adapter swap point: should be bodyBytes
+    signedOver: 'kea.transaction.txBytesHex',  // legacy demo adapter — worthless to a node
     txHash: kea.transaction.txHash || null,
     signedAt: new Date().toISOString()
   }
@@ -197,7 +216,7 @@ export function buildSignedPayload(e, signResult) {
     txid: e.txid,
     pch: e.pch,
     pubKey: signResult.pubkeyHex,
-    signature: signResult.signatureBase64,
+    signature: signResult.signatureHex || signResult.signatureBase64,
     signedOver: signResult.signedOver,
     txHash: signResult.txHash,
     orderIds: (e.debug?.watchedOrderIds || []).filter(Boolean),

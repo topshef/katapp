@@ -1,0 +1,157 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>KEA Prototype</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link rel="stylesheet" href="kea.css">
+
+  <script src="https://kpay.uk/assets/js/darkmode.js?v=0.4" data-float="0" ></script>
+</head>
+
+<body>
+  <header class="app-header">
+    <div>
+      <h1>KEA 🦜</h1>
+      <p class="subtitle">Watch trader intent keys. Check the promise matches the action. Sign only when the package is safe.</p>
+    </div>
+    <div class="header-controls">
+      <div class="net-toggle main-net-toggle" id="mainNetToggle" data-net="mainnet" title="Show only this network's rules and transactions">
+        <button type="button" data-net="testnet">Testnet</button>
+        <button type="button" data-net="mainnet">Mainnet</button>
+      </div>
+      <label class="pro-toggle" title="Show advanced controls: edit, clone, manual entry and debug">
+        <span class="pro-label">🤓 nerd</span>
+        <input type="checkbox" id="proToggle">
+        <span class="switch" aria-hidden="true"></span>
+      </label>
+    </div>
+  </header>
+
+  <div id="status" class="status-line">Ready.</div>
+  <input id="qrFile" type="file" accept="image/*" capture="environment" style="display:none">
+  <video id="qrVideo" playsinline></video>
+
+  <section>
+    <div class="section-head">
+      <h2>Rules</h2>
+      <div class="watch-actions">
+        <button id="scanQrBtn" class="primary">📷 Scan QR</button>
+        <button id="toolsBtn" class="icon-btn pro-only" title="Add rule manually" aria-label="Add rule manually">🛠️</button>
+        <button id="keysBtn" title="Manage action keys">🔑 Keys</button>
+        <button id="stopQrBtn" class="quiet" style="display:none">Stop camera</button>
+      </div>
+    </div>
+    <div id="watches" class="panel table-wrap"></div>
+  </section>
+
+  <section>
+    <h2>Transactions</h2>
+    <div id="events" class="panel table-wrap"></div>
+  </section>
+
+  <dialog id="watchModal">
+    <div class="modal-head">
+      <div id="watchModalTitle" class="modal-title">⚙️ Add watch</div>
+      <button id="watchModalCloseBtn" class="icon-btn" title="Close" aria-label="Close">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <p class="debug-note pro-only">Normal flow is scan QR. These fields are for local testing, editing/cloning a rule, or pasting a QR/link manually.</p>
+
+      <div class="row pro-only">
+        <button id="pasteQrBtn">Paste QR link</button>
+      </div>
+
+      <label>Display name</label>
+      <input id="watchName" placeholder="Optional, e.g. Tim the Trader">
+
+      <div class="pro-only">
+        <label>KPool base URL</label>
+        <input id="baseUrl" value="https://hapi5.katomia.com">
+
+        <label>WebSocket URL</label>
+        <input id="wsUrl" value="wss://hapi5.katomia.com/ws">
+      </div>
+
+      <!-- Query = the backend filter. Normal mode shows it as a plain read-only
+           list (keys are query parameters, not hard-coded form fields); Pro mode
+           is where it's edited. -->
+      <h3 class="modal-section">Query</h3>
+      <div id="queryView" class="query-view basic-only"></div>
+
+      <div class="pro-only">
+        <div id="queryEdit" class="query-edit"></div>
+        <button id="addQueryRowBtn" type="button" class="link-btn">+ Add field</button>
+
+        <label>Expires at <span class="muted">(ISO 8601, optional)</span></label>
+        <input id="expiresAt" placeholder="2026-12-31T23:59:59Z" class="mono">
+      </div>
+
+      <!-- Check indicators: dynamically populated from the query contents.
+           Shows which verifications will run (intent-sig, deal, both). -->
+      <h3 class="modal-section">Checks</h3>
+      <div id="checkIndicators" class="check-indicators"></div>
+
+      <h3 class="modal-section">Auto-approval</h3>
+      <select id="signPubkey"></select>
+      <p class="field-hint">If the rule passes, sign with this key. Leave on manual to approve each time.</p>
+
+      <div class="commitment-block">
+        <div class="row">
+          <button id="raiseCommitmentBtn" type="button">🪶 Raise commitment</button>
+          <span class="muted commitment-hint">Sign an execution commitment binding this rule to the key above.</span>
+        </div>
+        <div id="commitmentOut" class="commitment-out" style="display:none">
+          <label>Signed execution commitment</label>
+          <pre id="commitmentPre" class="mono"></pre>
+          <div class="row">
+            <button id="copyCommitmentBtn" type="button">📋 Copy JSON</button>
+          </div>
+        </div>
+      </div>
+
+      <details id="watchDebug" class="pro-only" style="display:none">
+        <summary>Debug</summary>
+        <pre id="watchDebugPre"></pre>
+      </details>
+
+      <div id="modalError" class="modal-error" style="display:none"></div>
+
+      <div class="modal-actions">
+        <button id="deleteWatchBtn" class="danger" style="display:none">Delete rule</button>
+        <button id="saveWatchBtn" class="primary">Add rule</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="keysModal" data-net="mainnet">
+    <div class="modal-head">
+      <div class="modal-title">🔑 Action keys</div>
+      <button id="keysModalCloseBtn" class="icon-btn" title="Close" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="net-scope-line">Managing <strong id="keysNetName" class="net-badge-inline" data-net="mainnet">mainnet</strong> keys. <span class="muted">Switch network from the main page to manage the other set.</span></p>
+      <p class="debug-note">DEMO ONLY — private keys live in this browser's localStorage; in production they move to secure device storage. Keys are scoped per network — we don't reuse keys across networks.</p>
+      <div id="keysList"></div>
+      <div class="modal-actions keys-create">
+        <button id="genKeyBtn" class="primary">➕ Generate new key</button>
+        <button id="importKeyBtn">📥 Import seed</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="detailModal">
+    <div class="modal-head">
+      <div id="detailModalTitle" class="modal-title">Detail</div>
+      <button id="detailModalCloseBtn" class="icon-btn" title="Close" aria-label="Close">✕</button>
+    </div>
+    <div id="detailModalBody" class="modal-body"></div>
+  </dialog>
+
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script type="module" src="./kea-app.js"></script>
+
+</body>
+</html>

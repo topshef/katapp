@@ -25,6 +25,11 @@ const cases = [
   ['/m/katomia/qa',                       { kind: 'redirect', to: '/m/katomia/qa/' }],
   ['/m/katomia/qa/',                      A('/m/katomia/qa/index.html')],
   ['/m/katomia/qa/tests.html',            null],                         // plain asset
+  ['/m/katomia/KEA',                      { kind: 'redirect', to: '/m/katomia/KEA/' }],   // KEA-WEB1
+  ['/m/katomia/kea/',                     { kind: 'redirect', to: '/m/katomia/KEA/' }],
+  ['/m/katomia/KEA/',                     A('/m/katomia/KEA/index.html')],
+  ['/m/katomia/KEA/app.html',             A('/m/katomia/KEA/index.html')],
+  ['/m/katomia/KEA/kea-app.js',           null],                         // plain asset
   ['/m/katomia/game/AbC123',              A('/m/katomia/game.html')],
   ['/m/katomia/game/AbC123/',             A('/m/katomia/game.html')],
   ['/m/katomia/board/AbC123',             A('/m/katomia/board.html')],
