@@ -56,6 +56,9 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
   /* KCHANGES1: the switch is rendered hidden and revealed by kchanges.js for admins —
      .app-menu-item's own display would beat the UA's [hidden] rule without this */
   .app-menu-kchanges[hidden] { display: none !important; }
+  /* HOSTMENU-STATIC1: same trap for the host item — without this, `hidden` did nothing on
+     the PHP-served page and every player in a circle saw "Host options" */
+  #katomiaHostOptions[hidden] { display: none !important; }
   .app-menu-kchanges--on { background: #fff7c2; }
 </style>
 
@@ -153,7 +156,13 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
     </div>
     <button type="button" class="app-menu-item" data-menu-settings>⚙ Settings</button>
     <?php endif; ?>
-    <?php if ($katomiaGameId): ?>
+    <!-- HOSTMENU-STATIC1 (user 2026-09-07: "I'm on a circle I just created and I'm not seeing
+         the Host options in the hamburger"). This item and its reveal script used to sit
+         inside `if ($katomiaGameId)`, a build-time $_GET — and the static bundle renders
+         board.php ONCE with no ?game=, so on every deploy served from build/dist the item was
+         compiled out and could never appear. The game id only ever exists client-side there
+         (getGameId(), katomia-core.js). So: always rendered, hidden; the script below sets the
+         link and reveals it from the client-derived id. -->
     <!-- CIRCLE-HOSTPAGE1 R2 (user 2026-08-08, revising the previous global entry): "when
          you are in a game, let's have the host menu only available ... if you are the
          host, then the hamburger can show host options. But if you're not the host of
@@ -164,8 +173,7 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
          default: a non-host who never sees it loses nothing, and the page + backend
          both re-check ownership anyway. -->
     <a class="app-menu-item" id="katomiaHostOptions" hidden
-       href="<?= $katomiaBase ?>/host?game=<?= rawurlencode($katomiaGameId) ?>">🎪 Host options</a>
-    <?php endif; ?>
+       href="<?= $katomiaBase ?>/host<?= $katomiaGameId ? '?game=' . rawurlencode($katomiaGameId) : '' ?>">🎪 Host options</a>
     <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
     <!-- KAT-FEEDBACK1-ENTRYPOINT1: explicit route to the feedback modal for users who
          don't know the long-press (falls back to the standalone page if the widget
@@ -683,7 +691,6 @@ addEventListener("load", () => setTimeout(() => {
 })()
 </script>
 
-<?php if ($katomiaGameId): ?>
 <script>
 // ── CIRCLE-HOSTPAGE1 R2: reveal "🎪 Host options" only to this circle's host ─────────
 // Host-ness is a comparison between the circle's admin identifier and a key held in
@@ -702,9 +709,17 @@ addEventListener("load", () => setTimeout(() => {
 (() => {
   const item = document.getElementById("katomiaHostOptions")
   if(!item) return
-  const gameId = <?= json_encode($katomiaGameId, JSON_UNESCAPED_SLASHES) ?>;
+  // HOSTMENU-STATIC1: the id comes from the CLIENT — on the static bundle the page was
+  // rendered with none, and getGameId() re-derives it from /board/<id> (katomia-core.js).
+  const gameId = (typeof getGameId === "function" ? getGameId() : null)
+    || new URLSearchParams(location.search).get("game")
+    || <?= json_encode($katomiaGameId, JSON_UNESCAPED_SLASHES) ?> || ""
+  if(!gameId) return                          // not on a circle: nothing to host
 
-  const reveal = () => { item.hidden = false }
+  const reveal = () => {
+    item.href = "<?= $katomiaBase ?>/host?game=" + encodeURIComponent(gameId)
+    item.hidden = false
+  }
   const mine = () => (typeof katomiaMyIntentKeyHex === "function" ? katomiaMyIntentKeyHex() : "")
   const isHost = g => (typeof katomiaIsHostOf === "function" ? katomiaIsHostOf(g, mine()) : false)
 
@@ -728,7 +743,6 @@ addEventListener("load", () => setTimeout(() => {
   })
 })()
 </script>
-<?php endif; ?>
 
 <!-- KBUNDLE-STRIP:kchanges -->
 <!-- KCHANGES1: the change notes (kchanges.js) + the log they read (kchanges-log.js).

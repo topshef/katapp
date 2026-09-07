@@ -3363,7 +3363,7 @@ body[data-trading-mode="orderBook"] .ktabs.mode-order{ display:none; }
   cursor:pointer; line-height:0;
   transition:color .12s, background .12s;
 }
-.kvis:hover{ background:rgba(0,0,0,.06); }
+.kvis:hover{ background:#f0e8d6; }   /* ASSETHOVER1: a deeper step of the row cream, not a grey wash */
 .kvis:focus-visible{ outline:2px solid #4a6fb5; outline-offset:1px; }
 .kvis--off{ color:#9aa0a8; }            /* hidden: present, but plainly switched off */
 .kvis--off:hover{ color:#6b7178; }

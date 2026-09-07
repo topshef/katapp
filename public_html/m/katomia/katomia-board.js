@@ -8820,7 +8820,13 @@ function boardMakeCardDraggable(modal, card){
   if(!window.matchMedia("(min-width: 900px)").matches) return
   if(!window.matchMedia("(pointer: fine)").matches) return
 
-  const NODRAG = "button, a, input, textarea, select, label, summary, img, .kvis, .asset-modal-close, .board-playercard-asset, .board-playercard-curate"
+  // ACCTFILTER1 (user 2026-09-07: "clicking an individual account used to filter the list —
+  // now it hovers and does nothing"). The account header (.board-playercard-acctid) is a DIV
+  // with an onclick, not a button, so it was not on this list; a press on it took pointer
+  // capture on pointerdown and the browser retargeted the click to the card — swallowed
+  // before it ever reached the header. Same for the filtered view's HashScan link. Rule for
+  // this list: anything that handles a click must be on it, whatever element it is.
+  const NODRAG = "button, a, input, textarea, select, label, summary, img, [onclick], .kvis, .asset-modal-close, .board-playercard-asset, .board-playercard-curate, .board-playercard-acctid"
   let sx = 0, sy = 0, ox = 0, oy = 0, live = false, armed = false
 
   card.style.touchAction = "none"

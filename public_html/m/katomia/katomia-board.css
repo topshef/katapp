@@ -2080,12 +2080,15 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
 /* "a fairly muted link to show all" — a link-shaped button, not a chip */
 .board-playercard-showall,
 .board-playercard-jumplink{
-  border: 0; background: none; padding: 0; cursor: pointer;
+  border: 0; background: none; padding: 0; border-radius: 0; font-weight: inherit; cursor: pointer;
   color: #3f6ea3; font-size: inherit; font-family: inherit;
 }
 .board-playercard-showall{ border-bottom: 1px dotted currentColor; }
+/* SHOWALL-CSS1 (user 2026-09-07): the global button:hover (katomia.css) outranked this
+   class and painted a #f3f3f3 box with a #bbb border under the text — "white on white with
+   a weird shadow below". The hover re-asserts the reset; the colour shift is the cue. */
 .board-playercard-showall:hover,
-.board-playercard-jumplink:hover{ color: #2c5580; }
+.board-playercard-jumplink:hover{ background: none; border-color: currentColor; color: #2c5580; }
 .board-playercard-jumplink{ font-family: ui-monospace, monospace; }
 .board-playercard-jump{
   margin-top: 12px; padding-top: 9px; border-top: 1px solid #ececf0; font-size: 12px;
@@ -2179,8 +2182,10 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
 .board-playercard-asset{ transition: transform .18s ease; touch-action: pan-y; }
 .board-playercard-asset--swiping{ transition: none; }
 /* ASSETEXPAND1 (user 2026-09-05): NO hover underline. Tapping a row opens its detail
-   in place — it was never a hyperlink and should not dress as one. */
-.board-playercard-assetbtn:hover{ background: rgba(0,0,0,.035); }
+   in place — it was never a hyperlink and should not dress as one.
+   ASSETHOVER1 (user 2026-09-07): the label used to carry its own grey wash on top of the
+   row's cream — two tones, "muddy water". The ROW is the hover; the label adds nothing.
+   The eye (.kvis) keeps a cue of its own, in the row's own colour family (katomia.css). */
 /* the 3-state curate toggle: no grey box, dead-centred, fixed box so the
    glyph swap ⭐⇄🚫⇄○ never moves anything (user: "get rid of the gray square…
    just put the star in the middle… no change in height, just a clean toggle") */

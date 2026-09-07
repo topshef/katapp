@@ -138,6 +138,33 @@ console.log('5. Carousel: the conveyor drifts and stops')
   await page.close()
 }
 
+console.log('6. Player card on desktop: tapping an account header filters to it (ACCTFILTER1), and Host options is in the page (HOSTMENU-STATIC1)')
+{
+  // desktop + fine pointer is exactly where the 2026-09-05 "drag the card aside" took pointer
+  // capture on press and swallowed the header's click
+  const page = await browser.newPage({ viewport: { width: 1100, height: 800 } })
+  const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
+  await page.goto(`${BASE}/m/katomia/board.html?demo=1`, { waitUntil: 'networkidle' })
+  await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove() })
+  await page.waitForTimeout(800)
+  await page.evaluate(() => boardPlayerModal('p1'))
+  await page.waitForTimeout(300)
+  const before = await page.evaluate(() => ({ heads: document.querySelectorAll('#boardPlayerModal .board-playercard-acctid').length, tappable: document.querySelectorAll('#boardPlayerModal .board-playercard-acctid--tappable').length }))
+  ok(before.heads === 2 && before.tappable === 2, 'the card shows both of p1\'s accounts, both tappable', JSON.stringify(before))
+  await page.locator('#boardPlayerModal .board-playercard-acctid--tappable').first().click()
+  await page.waitForTimeout(400)
+  const after = await page.evaluate(() => ({ heads: document.querySelectorAll('#boardPlayerModal .board-playercard-acctid').length, showAll: !!document.querySelector('#boardPlayerModal .board-playercard-showall'), sub: document.querySelector('#boardPlayerModal .board-playercard-sub')?.textContent || '' }))
+  ok(after.heads === 1 && after.showAll, 'a real click on the header filters the card to that account and offers Show all', JSON.stringify(after))
+  await page.locator('#boardPlayerModal .board-playercard-showall').click()
+  await page.waitForTimeout(300)
+  const back = await page.evaluate(() => document.querySelectorAll('#boardPlayerModal .board-playercard-acctid').length)
+  ok(back === 2, 'Show all brings both back', String(back))
+  const host = await page.evaluate(() => { const el = document.getElementById('katomiaHostOptions'); return { present: !!el, hidden: el?.hidden, shown: el ? getComputedStyle(el).display : null } })
+  ok(host.present && host.hidden && host.shown === 'none', 'Host options is in the static page, hidden, and hidden means not displayed', JSON.stringify(host))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)
