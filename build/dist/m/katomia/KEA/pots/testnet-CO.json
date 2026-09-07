@@ -1,0 +1,15 @@
+{
+ "network": "testnet",
+ "pool": "0.0.10406132",
+ "lock": "0.0.10406133",
+ "sale": "0.0.10325113",
+ "nftToken": "0.0.3626892",
+ "multiplier": 10,
+ "timelockSeconds": 180,
+ "cc": "CO",
+ "token": "0.0.2340687",
+ "decimals": 3,
+ "symbol": "COP$",
+ "serial": 31,
+ "_comment": "KLOTTO-TESTNET1 pot \u2014 one file per currency; kbot/klotto/pot.js turns it into the four deal documents. Serial = the Pink Chicken (CHICKFEB2024) that locks this currency. #36 is the spare."
+}

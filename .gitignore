@@ -77,3 +77,10 @@ scratchpad
 
 # nested vendor checkout of topshef/ksig (branch lab22) — its own repo, never committed here
 public_html/vendor/ksig/app/
+
+# KEA-WEB1 (2026-09-07): the klotto pot parameter files are the KEA web app's authority (public ids,
+# no keys). The blanket *.json rule would drop them from the source AND from both dists — the app
+# 404s on labs without them (found the hard way).
+!/public_html/m/katomia/KEA/pots/*.json
+!/build/dist/m/katomia/KEA/pots/*.json
+!/build/dist-gcp/m/katomia/KEA/pots/*.json
