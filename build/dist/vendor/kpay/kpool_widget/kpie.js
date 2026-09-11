@@ -1,25 +1,49 @@
-// kpie.js — standalone threshold pie chart widget
-// Replaces iframe-based ksig_pie_widget.php
+// kpie.js — standalone threshold pie widget: the ORBIT picture, plain SVG, no deps.
 //
 // Usage:
 //   <script src="kpie.js"></script>
-//   await window.kpie.render(containerEl, { keyInfo, signedPubkeys })
+//   await window.kpie.render(containerEl, { keyInfo, signedPubkeys, neutral })
+//   window.kpie.wireHover(scopeEl)   // hover a wedge or a key row → both light
+//
+// KPIE-ORBIT1 (2026-09-11): replaces the amCharts + d3 family tree. Same picture
+// as KPOP (kpos public_html/sign/kpop/js/kring.js orbit()), re-cut for signing:
+//   inner ring   the threshold: m black wedges of n, the rest grey — what the
+//                chain requires, nothing else
+//   outer ring   one wedge per MEMBER, in the key's own order, clockwise from
+//                12 o'clock:  green  signed
+//                             orange still needed — unsigned, and its group is
+//                                    not met yet
+//                             grey   spare — unsigned, but its group is already
+//                                    met, so it is not needed
+//                a nested group's wedge is green when the group is met, else
+//                orange / grey by the same rule as a key
+//   moons        each nested group is its own pie hung off the midpoint of its
+//                wedge, straight outward; its wedges start on the side facing
+//                its parent and run clockwise; its own groups hang off it the
+//                same way. The picture grows out from the root, so a branch
+//                sits where its wedge is, at every depth.
+// neutral (account shown for reference, no signature needed): the same shapes
+// in two-tone grey, so nothing reads as pending.
+// Every wedge carries data-leaf (a key's normalized hex) or data-group (an
+// index path, '0.2' = third member of the first member) + data-leaves (the
+// hexes under it), so the key list can light a key, or a whole branch, and back.
+// The old family-tree layout only ever drew one level of nesting and a branch
+// sat nowhere near its wedge; the amCharts appear() animation is replaced by a
+// CSS scale-in per pie, moons a beat after their parent.
 
 ;(function(global) {
   'use strict'
 
   // keynorm.js is the canonical normalizer shared by model.js + view.js (SIGN-NORM1).
   // kpie is a STANDALONE, dependency-free widget (classic <script>, not an ES module),
-  // so it can't import keynorm.js without losing that drop-in property — it keeps this
-  // local copy by design. In practice view.js feeds kpie an already-normalized tree +
-  // signedPubkeys (see view.js renderAccountKeyInfo), so this is only a defensive
-  // idempotent second pass. Keep these prefixes in sync with keynorm.KEY_PREFIXES.
+  // so it keeps this local copy by design. view.js feeds an already-normalized tree +
+  // signedPubkeys, so this is a defensive idempotent second pass. Keep these prefixes
+  // in sync with keynorm.KEY_PREFIXES.
   const KEY_DER_PREFIXES = [
     '302a300506032b6570032100',                          // ED25519
     '302d300706052b8104000a032200',                      // ECDSA secp256k1 DER
     '3036301006072a8648ce3d020106052b8104000a032200',    // ECDSA secp256k1 SPKI
   ]
-
   function normalizeKey(key) {
     if (!key) return key
     let k = String(key).toLowerCase()
@@ -27,311 +51,176 @@
     return k
   }
 
-  // ── Dependency loading ──────────────────────────────────────────────────────
-
-  let _depsPromise = null
-
-  function loadDeps() {
-    if (_depsPromise) return _depsPromise
-    _depsPromise = (async () => {
-      await loadScript('https://cdn.amcharts.com/lib/5/index.js')
-      await loadScript('https://cdn.amcharts.com/lib/5/percent.js')
-      await loadScript('https://cdn.amcharts.com/lib/5/themes/Animated.js')
-      if (!global.d3)
-        await loadScript('https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js')
-    })()
-    return _depsPromise
-  }
-
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      if (document.querySelector(`script[src="${src}"]`)) { resolve(); return }
-      const s = document.createElement('script')
-      s.src = src
-      s.onload = resolve
-      s.onerror = () => reject(new Error('[kpie] failed to load: ' + src))
-      document.head.appendChild(s)
-    })
-  }
-
-  // ── Key tree → graph ────────────────────────────────────────────────────────
-
-  function convertKeyTreeToGraph(keyNode, path = 'root') {
-    if (!keyNode) return { name: path, threshold: 1, keyCount: 0, keyLeaves: [], children: [] }
-
-    if (typeof keyNode === 'string') return {
-      name: path,
-      threshold: 1,
-      keyCount: 1,
-      keyLeaves: [keyNode],
-      children: []
+  // ── key tree → nodes ───────────────────────────────────────────────────────
+  // { hex } for a key; { m, n, kids, signed, met } for a group. A KeyList has
+  // threshold null/absent = ALL must sign. Member order is the key's own.
+  function toNode(keyNode) {
+    if (keyNode == null) return null
+    if (typeof keyNode === 'string') return { hex: normalizeKey(keyNode) }
+    if (!Array.isArray(keyNode.keys)) {
+      const raw = keyNode.key ?? keyNode.ed25519 ?? keyNode.ECDSASecp256k1 ?? null
+      return raw != null ? { hex: normalizeKey(String(raw)) } : null
     }
+    const kids = keyNode.keys.map(toNode).filter(Boolean)
+    return { m: keyNode.threshold ?? kids.length, n: kids.length, kids }
+  }
+  const isLeaf = n => typeof n.hex === 'string'
+  const leavesOf = n => isLeaf(n) ? [n.hex] : n.kids.flatMap(leavesOf)
 
-    const result = {
-      name: path,
-      // a Hedera KeyList has threshold null/absent = ALL must sign, not 1-of-n
-      threshold: keyNode.threshold ?? (keyNode.keys?.length || 1),
-      keyCount: keyNode.keys?.length ?? 0,
-      keyLeaves: [],
-      children: []
+  // signed count and met flag on every group, bottom-up
+  function score(node, signed) {
+    if (isLeaf(node)) { node.signed = signed.has(node.hex); return node.signed }
+    let c = 0
+    for (const k of node.kids) if (score(k, signed)) c++
+    node.signedCount = c
+    node.met = c >= node.m
+    return node.met
+  }
+  // a member's colour: signed / needed / spare — needed only while its group is
+  // not met; once the group is met, the rest are spare
+  const stateOf = (kid, parent) => (isLeaf(kid) ? kid.signed : kid.met) ? 'signed' : parent.met ? 'spare' : 'needed'
+
+  const FILL = {
+    live:    { signed: '#56c857', needed: '#f5a623', spare: '#F0F0F0', m: '#000000', rest: '#D9D9D9' },
+    neutral: { signed: '#a1a1aa', needed: '#dadade', spare: '#F0F0F0', m: '#000000', rest: '#D9D9D9' },
+  }
+  const BG = '#ffffff'   // hairline between wedges — the card is white
+
+  // ── SVG ────────────────────────────────────────────────────────────────────
+  const NS = 'http://www.w3.org/2000/svg'
+  const svgEl = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e }
+
+  // an annular wedge from a0 to a1 (radians, clockwise from 12 o'clock)
+  function wedge(cx, cy, r0, r1, a0, a1, fill) {
+    const p = (r, a) => [cx + r * Math.sin(a), cy - r * Math.cos(a)]
+    if (a1 - a0 >= 2 * Math.PI - 1e-6) {   // a full ring: two arcs, or the path collapses
+      const d = `M${p(r1, 0)} A${r1},${r1} 0 1 1 ${p(r1, Math.PI)} A${r1},${r1} 0 1 1 ${p(r1, 2 * Math.PI)} ` +
+        (r0 ? `M${p(r0, 0)} A${r0},${r0} 0 1 0 ${p(r0, Math.PI)} A${r0},${r0} 0 1 0 ${p(r0, 2 * Math.PI)}` : '')
+      return svgEl('path', { d, fill, 'fill-rule': 'evenodd', stroke: BG, 'stroke-width': 1 })
     }
+    const large = a1 - a0 > Math.PI ? 1 : 0
+    const [x0, y0] = p(r1, a0), [x1, y1] = p(r1, a1), [x2, y2] = p(r0, a1), [x3, y3] = p(r0, a0)
+    const d = r0 ? `M${x0},${y0} A${r1},${r1} 0 ${large} 1 ${x1},${y1} L${x2},${y2} A${r0},${r0} 0 ${large} 0 ${x3},${y3} Z`
+      : `M${cx},${cy} L${x0},${y0} A${r1},${r1} 0 ${large} 1 ${x1},${y1} Z`
+    return svgEl('path', { d, fill, stroke: BG, 'stroke-width': 1 })
+  }
+  const title = (el, text) => { const t = document.createElementNS(NS, 'title'); t.textContent = text; el.appendChild(t) }
+  const WORD = { signed: 'signed', needed: 'still needed', spare: 'not needed — its group is already met' }
 
-    ;(keyNode.keys || []).forEach((child, i) => {
-      const childPath = `${path}_${i + 1}`
-      // any node with a keys[] array is a GROUP (threshold OR keyList — a keyList's
-      // threshold is null, the old `child.threshold` truthy check dropped those into
-      // keyLeaves as objects and crashed normalizeKey downstream)
-      if (child && typeof child === 'object' && Array.isArray(child.keys))
-        result.children.push(convertKeyTreeToGraph(child, childPath))
-      else if (child && typeof child === 'object')
-        // raw leaf shapes ({ _type, key } / { ed25519 } / { ECDSASecp256k1 }) → string
-        result.keyLeaves.push(String(child.key ?? child.ed25519 ?? child.ECDSASecp256k1 ?? ''))
-      else if (child)
-        result.keyLeaves.push(child)
+  // one node's pie into `g` at (cx, cy) with outer radius R; wedge 0 starts at
+  // `start` (radians clockwise from 12 o'clock); `path` is the node's index path
+  function pie(g, node, cx, cy, R, start, path, fill, level) {
+    const grp = svgEl('g', { class: 'kpie-pie', style: `transform-origin:${cx}px ${cy}px; animation-delay:${level * 140}ms` })
+    const n = isLeaf(node) ? 1 : node.n, m = isLeaf(node) ? 1 : node.m
+    const kids = isLeaf(node) ? [node] : node.kids
+    const TAU = 2 * Math.PI, from = i => start + i / n * TAU, to = i => start + (i + 1) / n * TAU
+    const leaves = isLeaf(node) ? '' : leavesOf(node).join(' ')
+    // inner: threshold m of n — hovering it is hovering this group
+    for (let i = 0; i < n; i++) {
+      const w = wedge(cx, cy, 0, R * 0.58, from(i), to(i), i < m ? fill.m : fill.rest)
+      if (!isLeaf(node)) { w.setAttribute('data-group', path); w.setAttribute('data-leaves', leaves); title(w, `${m} of ${n} must sign · ${node.signedCount} signed${node.met ? ' · met' : ''}`) }
+      grp.appendChild(w)
+    }
+    // outer: one wedge per member, in order
+    kids.forEach((k, i) => {
+      const st = isLeaf(node) ? (k.signed ? 'signed' : 'needed') : stateOf(k, node)
+      const w = wedge(cx, cy, R * 0.66, R, from(i), to(i), fill[st])
+      if (isLeaf(k)) { w.setAttribute('data-leaf', k.hex); title(w, `…${k.hex.slice(-4)} · ${WORD[st]}`) }
+      else { w.setAttribute('data-group', path ? `${path}.${i}` : `${i}`); w.setAttribute('data-leaves', leavesOf(k).join(' ')); title(w, `group ${k.m} of ${k.n} · ${k.met ? 'met' : WORD[st]}`) }
+      grp.appendChild(w)
     })
-
-    return result
+    grp.appendChild(svgEl('circle', { cx, cy, r: R, fill: 'none', stroke: '#e5e7eb', 'stroke-width': 1 }))
+    grp.appendChild(svgEl('circle', { cx, cy, r: R * 0.58, fill: 'none', stroke: '#e5e7eb', 'stroke-width': 1 }))
+    g.appendChild(grp)
   }
 
-  function updateSigningStatus(keyGraph, signedPublicKeys = []) {
-    const normalizedSigned = signedPublicKeys.map(normalizeKey)
-    let keyCountSigned = 0
-
-    ;(keyGraph.children || []).forEach(child => {
-      updateSigningStatus(child, signedPublicKeys)
-      if (child.isThresholdMet) keyCountSigned++
-    })
-
-    ;(keyGraph.keyLeaves || []).forEach(leaf => {
-      if (normalizedSigned.includes(normalizeKey(leaf))) keyCountSigned++
-    })
-
-    keyGraph.keyCountSigned = keyCountSigned
-    keyGraph.isThresholdMet = keyCountSigned >= keyGraph.threshold
-  }
-
-  // ── amCharts pie ────────────────────────────────────────────────────────────
-
-  // unique id counter to avoid amcharts div collisions across multiple widgets
-  let _chartSeq = 0
-
-  function createThresholdPieChart(thresholdData, signedStatusData, divId, pieRadius, neutral = false) {
-    const root = am5.Root.new(divId)
-    root.setThemes([am5themes_Animated.new(root)])
-    // root._renderer.resolution = 10
-    root._renderer.resolution = Math.ceil(window.devicePixelRatio || 2)
-    //root.container.setAll({ paddingTop: 0, paddingBottom: 0, paddingLeft: 0, paddingRight: 0 })
-
-    const bgColor = root.interfaceColors.get('background')
-
-    const chart = root.container.children.push(am5percent.PieChart.new(root, {
-      layout: root.verticalLayout,
-      x: am5.percent(50),
-      y: am5.percent(50),
-      centerX: am5.percent(50),
-      centerY: am5.percent(50),
-      width: pieRadius * 2,
-      height: pieRadius * 2,
-      innerRadius: 0,
-      radius: pieRadius
-    }))
-
-    // inner ring — threshold proportion
-    const seriesThreshold = chart.series.push(am5percent.PieSeries.new(root, {
-      valueField: 'weight',
-      categoryField: 'category',
-      innerRadius: am5.percent(0),
-      radius: am5.percent(60)
-    }))
-    seriesThreshold.data.setAll(thresholdData)
-    seriesThreshold.slices.template.setAll({ stroke: bgColor, strokeWidth: 1, tooltip: null, tooltipText: '' })
-    seriesThreshold.slices.template.states.create('hover', { shiftRadius: 0, scale: 1 })
-    seriesThreshold.slices.template.states.create('active', { shiftRadius: 0, scale: 1 })
-    seriesThreshold.events.on('datavalidated', () => {
-      seriesThreshold.slices.each(slice => {
-        const color = slice.dataItem.dataContext.category === 'Threshold needed' ? 0x000000 : 0xD9D9D9
-        slice.set('fill', am5.color(color))
+  // the orbit: root at (0, 0) starting at 12 o'clock; each nested group a moon
+  // off the midpoint of its wedge, half its parent's size, and no wider than
+  // the gap between neighbouring moons allows; the viewBox fits whatever grew
+  function orbit(node, { size = 96, neutral = false } = {}) {
+    const R = size / 2 - 2, TAU = 2 * Math.PI, GAP = 5
+    const pies = [], spokes = []
+    function place(n, cx, cy, r, start, path, level) {
+      pies.push({ n, cx, cy, r, start, path, level })
+      if (isLeaf(n)) return
+      const k = n.n
+      n.kids.forEach((kid, i) => {
+        if (isLeaf(kid)) return
+        const mid = start + (i + 0.5) / k * TAU
+        let rm = r * 0.5
+        if (k > 1) { const sn = Math.sin(Math.PI / k); rm = Math.min(rm, ((r + GAP) * sn - 1.5) / (1 - sn)) }   // neighbours' moons must not touch
+        rm = Math.max(rm, 7)
+        const d = r + GAP + rm, sx = Math.sin(mid), cs = Math.cos(mid)
+        const mx = cx + d * sx, my = cy - d * cs
+        spokes.push([cx + r * sx, cy - r * cs, mx - rm * sx, my + rm * cs])
+        place(kid, mx, my, rm, mid + Math.PI, path ? `${path}.${i}` : `${i}`, level + 1)
       })
-    })
-    seriesThreshold.labels.template.setAll({ forceHidden: true })
-    seriesThreshold.ticks.template.setAll({ forceHidden: true })
-
-    // outer ring — per-key signed status
-    const seriesSigned = chart.series.push(am5percent.PieSeries.new(root, {
-      valueField: 'weight',
-      categoryField: 'publicKey',
-      innerRadius: am5.percent(50)
-    }))
-    seriesSigned.data.setAll(signedStatusData)
-    seriesSigned.slices.template.setAll({ stroke: bgColor, strokeWidth: 1, tooltip: null, tooltipText: '' })
-    seriesSigned.slices.template.states.create('hover', { shiftRadius: 0, scale: 1 })
-    seriesSigned.slices.template.states.create('active', { shiftRadius: 0, scale: 1 })
-    seriesSigned.events.on('datavalidated', () => {
-      seriesSigned.slices.each(slice => {
-        const v = slice.dataItem.dataContext.isSigned
-        // neutral (account shown for reference, no signature needed): drop the
-        // green/orange signing semantics — two-tone gray keeps the key structure
-        // readable without implying anything is pending.
-        const color = neutral
-          ? (v === 1 ? 0xa1a1aa : v === 0 ? 0xdadade : 0xF0F0F0)
-          : (v === 1 ? 0x56c857 : v === 0 ? 0xf5a623 : 0xF0F0F0)
-        slice.set('fill', am5.color(color))
-      })
-    })
-    seriesSigned.labels.template.setAll({ forceHidden: true })
-    seriesSigned.ticks.template.setAll({ forceHidden: true })
-
-    seriesThreshold.appear(1000, 100)
-    seriesSigned.appear(1000, 100)
+    }
+    place(node, 0, 0, R, 0, '', 0)
+    const x0 = Math.min(...pies.map(p => p.cx - p.r)) - 2, x1 = Math.max(...pies.map(p => p.cx + p.r)) + 2
+    const y0 = Math.min(...pies.map(p => p.cy - p.r)) - 2, y1 = Math.max(...pies.map(p => p.cy + p.r)) + 2
+    const svg = svgEl('svg', { viewBox: `${x0} ${y0} ${x1 - x0} ${y1 - y0}`, class: 'kpie-orbit', role: 'img' })
+    const fill = neutral ? FILL.neutral : FILL.live
+    for (const p of pies) pie(svg, p.n, p.cx, p.cy, p.r, p.start, p.path, fill, p.level)
+    for (const [a, b, c, d] of spokes) svg.appendChild(svgEl('path', { d: `M${a},${b} L${c},${d}`, fill: 'none', stroke: '#ccc', 'stroke-width': 1.5, class: 'kpie-link' }))
+    return svg
   }
 
-  // ── D3 tree layout ──────────────────────────────────────────────────────────
-
-  // KPIE-SCALE1 v2: FAMILY-TREE layout replacing the old radial cluster. The radial
-  // form needed a parent ring to say who the parent was and its connectors overcut the
-  // circle; a top-down tidy tree (d3.tree = Reingold–Tilford — deterministic, compact,
-  // no physics jitter) makes hierarchy positional: the parent sits ABOVE, children hang
-  // below, so the ring is gone entirely. Connector lines are trimmed to each pie's rim
-  // (no overcut). Everything is computed in real CSS pixels and the SVG gets explicit
-  // px width/height (no viewBox/meet scaling), so the lines and the amCharts divs can
-  // never disagree again (the lifted-pies bug class is structurally gone). The root pie
-  // renders slightly larger than its children — another "this is the parent" cue.
-  // Sizing: width is the budget (set by the caller from tree complexity, up to full
-  // detail width on desktop); pies shrink as the widest generation grows, floored for
-  // legibility; height follows generation count and is set here.
-  function drawTree(jsonData, container, neutral = false) {
-    container.innerHTML = ''
-    container.style.position = 'relative'
-    container.style.overflow = 'visible'
-
-    const rect = container.getBoundingClientRect()
-    const budget = rect.width || 220
-
-    // tidy tree in unit coordinates: 1 unit sibling gap, wider gap between subtrees
-    const root = d3.hierarchy(jsonData)
-    d3.tree().nodeSize([1, 1]).separation((a, b) => a.parent === b.parent ? 1 : 1.3)(root)
-
-    const nodes = root.descendants()
-    const xs = nodes.map(d => d.x)
-    const minX = Math.min(...xs)
-    const unitsW = (Math.max(...xs) - minX) || 1
-
-    // px per sibling-unit from the width budget; pie ~72% of a unit so neighbours never
-    // touch. Floor 14px (below that the m-of-n wedges are unreadable anyway), cap 56px.
-    const pxPerUnit = budget / (unitsW + 1)
-    const pieCssSize = Math.max(14, Math.min(56, Math.round(pxPerUnit * 0.72)))
-    // parent cue: bigger than its children, and never below 28px — the root's m-of-n is
-    // the single most important wedge on the chart, it stays readable even when a wide
-    // council squeezes the children to the floor.
-    const rootPieSize = Math.min(64, Math.max(28, Math.round(pieCssSize * 1.25)))
-    const levelGap = Math.round(pieCssSize * 1.9)
-    const pad = Math.round(rootPieSize / 2) + 4
-
-    const sizeOf = d => d.depth === 0 ? rootPieSize : pieCssSize
-    const boxW = Math.max(budget, Math.round(unitsW * pxPerUnit) + pad * 2)
-    // top pad clears the root's radius; bottom needs the deepest generation's radius
-    const boxH = (root.height * levelGap) + pad + pieCssSize / 2 + 4
-    const cx = d => Math.round((d.x - minX) * pxPerUnit) + pad
-    const cy = d => d.depth * levelGap + pad
-
-    container.style.height = Math.round(boxH) + 'px'
-
-    // SVG in the same pixel space as the divs — connector lines only, trimmed to rims
-    const svg = d3.select(container)
-      .append('svg')
-      .attr('width', boxW).attr('height', Math.round(boxH))
-      .style('position', 'absolute')
-      .style('top', '0').style('left', '0')
-      .style('overflow', 'visible')
-
-    // Org-chart ELBOW connectors: parent bottom → down to a rail midway between the
-    // generations → along the rail → down into the child's top. Straight point-to-point
-    // lines went nearly horizontal on wide fans and cut THROUGH sibling pies; elbows
-    // only ever travel in clear lanes, and they read as a family tree (per user). Ends
-    // stop at the pies' rims (no overcut).
-    svg.selectAll('.kpie-link')
-      .data(root.links())
-      .join('path')
-      .attr('class', 'kpie-link')
-      .attr('d', d => {
-        const x1 = cx(d.source), y1 = cy(d.source) + sizeOf(d.source) / 2 + 1
-        const x2 = cx(d.target), y2 = cy(d.target) - sizeOf(d.target) / 2 - 1
-        const rail = cy(d.source) + levelGap / 2
-        return `M${x1},${y1} V${rail} H${x2} V${y2}`
-      })
-      .attr('fill', 'none')
-      .attr('stroke', '#ccc')
-      .attr('stroke-width', 1.5)
-
-    // (the old parent ring is deliberately gone — position now carries the hierarchy;
-    // if a cue is ever wanted back, a THIN circle at r=sizeOf(root)/2+3 here would do)
-
-    // Absolutely-positioned divs for amCharts — same pixel space as the SVG
-    const seq = ++_chartSeq
-    nodes.forEach(d => {
-      const s = sizeOf(d)
-      const divId = `kpie_c_${d.data.name}_${seq}`
-      const div = document.createElement('div')
-      div.id = divId
-      div.style.cssText = [
-        'position:absolute',
-        `width:${s}px`,
-        `height:${s}px`,
-        `left:${Math.round(cx(d) - s / 2)}px`,
-        `top:${Math.round(cy(d) - s / 2)}px`,
-        'margin:0', 'padding:0'
-      ].join(';')
-      container.appendChild(div)
-      renderNodePie(d.data, divId, s / 2, neutral)
-    })
+  // ── hover ──────────────────────────────────────────────────────────────────
+  // Anything in `scope` with data-leaf (a wedge, a key row) lights every element
+  // with that hex; a data-group wedge lights every wedge of that group and every
+  // leaf under it. The outline is an overlay path appended last to each svg —
+  // the hovered wedge is never moved in the DOM (moving the element under the
+  // pointer leaves some browsers without a mouseout, and the highlight sticks).
+  // One thing lit at a time, all of it cleared on leaving the scope.
+  function wireHover(scope) {
+    if (!scope || scope._kpieHover) return
+    scope._kpieHover = true
+    const clear = () => { scope.querySelectorAll('.kpie-hi').forEach(x => x.classList.remove('kpie-hi')); scope.querySelectorAll('path.kpie-hl').forEach(x => x.remove()) }
+    const mark = sel => { for (const x of scope.querySelectorAll(sel)) { x.classList.add('kpie-hi'); if (x.tagName === 'path') x.ownerSVGElement.appendChild(svgEl('path', { d: x.getAttribute('d'), class: 'kpie-hl' })) } }
+    const light = t => {
+      clear()
+      if ('leaf' in t.dataset) return mark(`[data-leaf="${t.dataset.leaf}"]`)
+      mark(`[data-group="${t.dataset.group}"]`)
+      for (const hex of (t.dataset.leaves || '').split(' ').filter(Boolean)) mark(`[data-leaf="${hex}"]`)
+    }
+    const hit = e => e.target.closest && e.target.closest('[data-leaf],[data-group]')
+    scope.addEventListener('mouseover', e => { const t = hit(e); if (t) light(t) })
+    scope.addEventListener('mouseout', e => { const t = hit(e); if (t && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('[data-leaf],[data-group]') === t)) clear() })
+    scope.addEventListener('mouseleave', clear)
   }
-  
-  // ── Public API ──────────────────────────────────────────────────────────────
 
-  async function render(container, { keyInfo, signedPubkeys = [], neutral = false }) {
+  function injectCSS() {
+    if (document.getElementById('kpie-css')) return
+    const s = document.createElement('style')
+    s.id = 'kpie-css'
+    s.textContent = `
+      .kpie-orbit { display: block; width: 100%; height: auto; overflow: visible }
+      .kpie-orbit path[data-leaf], .kpie-orbit path[data-group] { cursor: pointer }
+      .kpie-orbit path.kpie-hl { fill: none; stroke: #ffd600; stroke-width: 2.5; pointer-events: none }
+      .kpie-pie { animation: kpie-in .55s cubic-bezier(.2,.8,.3,1) both }
+      @keyframes kpie-in { from { opacity: 0; transform: scale(.55) } to { opacity: 1; transform: scale(1) } }
+      @media (prefers-reduced-motion: reduce) { .kpie-pie { animation: none } }
+    `
+    document.head.appendChild(s)
+  }
+
+  // ── Public API ─────────────────────────────────────────────────────────────
+  //   hoverScope  an ancestor holding the pie AND the key rows (rows carry
+  //               data-leaf = normalized hex): hover is wired across it
+  async function render(container, { keyInfo, signedPubkeys = [], neutral = false, hoverScope = null }) {
     if (!keyInfo) return
-    await loadDeps()
-    const graph = convertKeyTreeToGraph(keyInfo)
-    updateSigningStatus(graph, signedPubkeys)
-
-    const hasTreeChildren = graph.children && graph.children.length > 0
-
-    if (!hasTreeChildren) {
-      // Render amCharts directly — no SVG wrapper, no foreignObject, no scaling
-      container.innerHTML = ''
-      container.style.overflow = 'visible'
-      let rect = container.getBoundingClientRect()
-      // a width-only container (height:auto) collapses to 0 → invisible pie; square it
-      if (!rect.height && rect.width) { container.style.height = Math.round(rect.width) + 'px'; rect = container.getBoundingClientRect() }
-      const size = Math.min(rect.width || 110, rect.height || 110)
-      const divId = `kpie_direct_${++_chartSeq}`
-      const div = document.createElement('div')
-      div.id = divId
-      div.style.cssText = 'width:100%;height:100%;margin:0;padding:0'
-      container.appendChild(div)
-      // renderNodePie(graph, divId, size * 0.38)
-      renderNodePie(graph, divId, 42, neutral)
-    } else {
-      drawTree(graph, container, neutral)
-    }
+    const node = toNode(keyInfo)
+    if (!node) return
+    score(node, new Set(signedPubkeys.map(normalizeKey)))
+    injectCSS()
+    container.innerHTML = ''
+    container.style.overflow = 'visible'
+    container.style.height = 'auto'
+    container.appendChild(orbit(node, { size: 96, neutral }))
+    wireHover(hoverScope || container)
   }
 
-  function renderNodePie(nodeData, divId, pieRadius, neutral = false) {
-    const numerator = nodeData.threshold ?? 1
-    const denominator = nodeData.keyCount || 1
-    const thresholdData = [
-      { category: 'Threshold needed', weight: numerator },
-      { category: '',                 weight: Math.max(0, denominator - numerator) }
-    ]
-    const signedStatusData = []
-    for (let i = 1; i <= denominator; i++) {
-      const isSigned = i <= nodeData.keyCountSigned ? 1 : i > nodeData.threshold ? null : 0
-      signedStatusData.push({ weight: 1, isSigned })
-    }
-    createThresholdPieChart(thresholdData, signedStatusData, divId, pieRadius, neutral)
-  }
-  
-
-  global.kpie = { render }
+  global.kpie = { render, wireHover }
 
 })(window)

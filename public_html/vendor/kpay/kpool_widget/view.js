@@ -1315,7 +1315,7 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 	// mobile) — chart first, keys second (see .txcard-detail-grid).
 	const layout = document.createElement('div')
 	layout.className = 'txcard-detail-grid'
-	layout.appendChild(buildThresholdWidget({ signedPubkeys, mustSign: acc.mustSign, keyInfo: acc.keyInfo }))
+	layout.appendChild(buildThresholdWidget({ signedPubkeys, mustSign: acc.mustSign, keyInfo: acc.keyInfo, hoverScope: layout }))
 
 	const scores = acc.keyInfo?.banzhafScores?.scores
 	const redundancy = acc.keyInfo?.banzhafScores?.redundancy
@@ -1342,6 +1342,7 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 			const bucket = buckets?.[pubkey]?.bucket ?? '-'
 			const row = document.createElement('div')
 			row.className = 'txcard-keys-row'
+			row.dataset.leaf = normalizePublicKey(pubkey)   // KPIE-ORBIT1: the pie's wedge carries the same hex — hover lights both
 			const tick = document.createElement('div'); tick.textContent = acc.mustSign ? (signed ? '☑' : '☐') : '–'   // plain ballot box (not the control-like ✅/⬜)
 			// key suffix links to the account's keys (hashscan account page for now — a
 			// per-key lookup could later point at explore.hbar.live?network=&key=). Clicking
@@ -1621,7 +1622,7 @@ function keyTreeStats(node, depth = 0) {
 // off or gated behind nerd mode; flip it here.
 const SHOW_AUTHORITY_WHEN_NOT_SIGNING = true
 
-function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo }) {
+function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo, hoverScope = null }) {
   const widget = document.createElement('div')
   if (!mustSign && !SHOW_AUTHORITY_WHEN_NOT_SIGNING) return widget
   widget.className = 'acctkeys-piechart'
@@ -1630,13 +1631,12 @@ function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo }) {
     // Feed kpie a normalized tree (leaf objects → pubkey strings) so its leaves match
     // the already-normalized signedPubkeys — otherwise every slice renders orange.
     const normTree = normalizeKeyTree(keyInfo)
-    // KPIE-SCALE1: budget the WIDTH by the widest generation of the family-tree layout
-    // (kpie owns the height — it hugs the generations). Wide councils (30 children) get
-    // up to the full detail width; the 560 cap plus max-width:100% keeps it sane.
-    // Numbers are a first heuristic, tune on sight.
+    // KPIE-ORBIT1: the orbit grows outward by nesting depth, not by generation width —
+    // a moon is half its parent, so each level adds about a root radius each side.
+    // A flat key keeps the 110px cell; nested ones widen with depth, capped.
     const stats = keyTreeStats(normTree)
     if (stats.groups > 1) {
-      const px = Math.min(640, Math.max(160, 40 * stats.maxRow + 40))
+      const px = Math.min(320, 110 + 70 * stats.depth)
       widget.style.width = px + 'px'
       widget.style.maxWidth = '100%'
       widget.style.height = 'auto'
@@ -1644,7 +1644,9 @@ function buildThresholdWidget({ signedPubkeys, mustSign, keyInfo }) {
     // neutral: account is shown for reference only (no signature needed) — the pie keeps
     // the key structure but drops green/orange signing colors for two-tone gray, so an
     // unsigned-but-irrelevant account doesn't read as "pending" (user 2026-07-07).
-    window.kpie.render(widget, { keyInfo: normTree, signedPubkeys: signedPubkeys || [], neutral: !mustSign })
+    // hoverScope: the detail grid holding pie + key rows — hover a wedge or a row and
+    // the key (or the whole branch) lights on both (KPIE-ORBIT1).
+    window.kpie.render(widget, { keyInfo: normTree, signedPubkeys: signedPubkeys || [], neutral: !mustSign, hoverScope })
       .catch(err => console.warn('[kpie] render failed', err))
   }
 
@@ -1862,7 +1864,8 @@ export function injectTxReadCSS() {
 
   //or add script tag <script src="/path/to/kpie.js"></script>
   const s = document.createElement('script')
-  s.src = new URL('./kpie.js', import.meta.url).href
+  // same ?v= as this module, so a new kpie.js is not served from cache behind a new view.js
+  s.src = new URL('./kpie.js' + new URL(import.meta.url).search, import.meta.url).href
   document.head.appendChild(s)
 
 
@@ -2365,6 +2368,8 @@ export function injectTxReadCSS() {
 		.txcard-keys-head { color:#a1a1aa; font-size:11px; }
 		.txcard-keys-row a { color:#3b82f6; text-decoration:none; }
 		.txcard-keys-row a:hover { text-decoration:underline; }
+		/* KPIE-ORBIT1: a hovered key (or every key of a hovered branch) — the same yellow as the wedge outline */
+		.txcard-keys-row.kpie-hi { background:#fff6b0; border-radius:3px; box-shadow:0 0 0 3px #fff6b0; }
 		.txcard-xproof { margin-top:8px; font-size:12px; color:#71717a; }
 		.txcard-xproof a { color:#3b82f6; }
 		.txcard-detail-note { font-size:12px; color:#3f3f46; background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:6px 8px; margin-bottom:8px; }
