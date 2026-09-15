@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="kfade.js?v=1788001244"></script>
-<link rel="stylesheet" href="katomia.css?v=1789145180">
-<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1788001244"><title>Katomia — what is a circle?</title>
+<script src="kfade.js?v=1789409315"></script>
+<link rel="stylesheet" href="katomia.css?v=1789409315">
+<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1789409315"><title>Katomia — what is a circle?</title>
 <style>
   body{ background:#f7f9fc; color:#2b3038; }
   .learn{ max-width: 720px; margin: 26px auto 60px; padding: 0 18px; line-height: 1.62; }
@@ -572,9 +572,9 @@ addEventListener("load", () => setTimeout(() => {
      kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
      script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
      the notes' popovers), so a page that already loads it is unaffected. -->
-<script src="kfeedbits.js?v=1788728679" defer></script>
-<script src="kchanges-log.js?v=1789145180" defer></script>
-<script src="kchanges.js?v=1788728679" defer></script>
+<script src="kfeedbits.js?v=1789409315" defer></script>
+<script src="kchanges-log.js?v=1789409315" defer></script>
+<script src="kchanges.js?v=1789409315" defer></script>
 <!-- /KBUNDLE-STRIP:kchanges -->
 <div id="profileModal" class="profile-modal hidden">
 
@@ -1166,6 +1166,18 @@ addEventListener("load", () => setTimeout(() => {
        button is the fastest way to push us on one.</p>
 
     <details>
+      <summary>Can I get an AI to help me read a circle?</summary>
+      <p>Yes — there's a <a href="/m/katomia/advisor">Katomia advisor</a> you can connect to
+         Claude. It can see every public circle at once
+         and the Hedera ledger underneath them, so it's good at questions no single screen answers —
+         "which circles have chickens in them?", or who
+         you'd need to invite to complete a swap.</p>
+      <p>It's an <b>advisor, not an agent</b>: it holds no keys, joins nothing, and has no way to act.
+         It answers and hands you a link — you do the rest.</p>
+      <div data-kfb="faq-advisor" data-kfb-scope="item" data-kfb-label="FAQ: the advisor" class="kfb-item"></div>
+    </details>
+
+    <details>
       <summary>Do I need a wallet to look around?</summary>
       <p>No. You can walk into a circle and watch without
          connecting anything. You need a connected account when you want to actually put something into
@@ -1463,10 +1475,10 @@ window.KTERMS = {"one":"circle","One":"Circle","many":"circles","Many":"Circles"
 </script>
 
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
-<script src="katomia-core.js?v=1788001244"></script>
-<script src="katomia-helpers.js?v=1788001244"></script>
-<script src="kemoji.js?v=1788001244"></script>
-<script src="katomia-profile.js?v=1788728679"></script>
+<script src="katomia-core.js?v=1789409315"></script>
+<script src="katomia-helpers.js?v=1789409315"></script>
+<script src="kemoji.js?v=1789409315"></script>
+<script src="katomia-profile.js?v=1789409315"></script>
 <!-- KAT-FEEDBACK1: the modal (long-press anywhere, or the buttons above). Served from
      the backend, its canonical home — the 💬 bits below hand off to it. -->
 <script src="https://kpay-api-alias.tayloa17.workers.dev/hapi/feedback-widget.js"
@@ -1477,6 +1489,6 @@ window.KTERMS = {"one":"circle","One":"Circle","many":"circles","Many":"Circles"
      widget, which kPad also uses and where capture DOES work. Re-enable by deleting this
      attribute once the capture is fixed. --></script>
 <!-- ENTRY-VARIANTS1: 👍/👎/💬 bits. Loaded AFTER the widget so 💬 finds it. -->
-<script src="kfeedbits.js?v=1788728679"></script>
+<script src="kfeedbits.js?v=1789409315"></script>
 </body>
 </html>

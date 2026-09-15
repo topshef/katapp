@@ -6,7 +6,7 @@
 //  page routes (clean URL → rendered shell; the shell's JS reads ids from the URL)
 //   /, /m, /m/                         → 302 /m/katomia/
 //   /m/katomia/, /m/katomia/welcome    → index.html   (?skin=liquid|clay|bubble → index-<skin>.html)
-//   /m/katomia/markets|circles|learn|host|create|binding → <name>.html
+//   /m/katomia/markets|circles|learn|host|create|binding|advisor → <name>.html
 //                                        (create?skin=basic → create-basic.html)
 //   /m/katomia/game/<id>               → game.html
 //   /m/katomia/board/<id>              → board.html
@@ -46,7 +46,7 @@
 // so an asset named board.html never captures /board/<id> — that bit KATUI-HOME1).
 
 const K = '/m/katomia';
-const PAGES = new Set(['welcome', 'markets', 'circles', 'learn', 'host', 'create', 'binding']);
+const PAGES = new Set(['welcome', 'markets', 'circles', 'learn', 'host', 'create', 'binding', 'advisor']);
 const LANDING_SKINS = new Set(['liquid', 'clay', 'bubble']);
 // The alias's own path allowlist is [A-Za-z0-9/_-]: no dots, so "..", hidden files and
 // traversal are unexpressible (same SAFE BY OMISSION rule as the .htaccess hapi rule).

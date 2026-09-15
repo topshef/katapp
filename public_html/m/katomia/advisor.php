@@ -21,16 +21,20 @@ require_once __DIR__ . '/config.php';
 // open the address in a browser. Keep the two saying the same thing; if they ever
 // disagree, landing.js is the one users hit first.
 //
-// The connect URL is DERIVED, not hard-coded, so it follows the site to
-// app.katomia.com without an edit here.
+// THE CONNECT URL IS FILLED IN BY THE BROWSER, not at render time. This page ships as a
+// STATIC SHELL (build/build-static.sh renders it once, with a build-time .env_hapi that
+// points at the alias Worker), so anything derived from $hapi_base here bakes in whatever
+// the build machine was configured with — the first render came out as
+// "https://kpay-api-alias.tayloa17.workers.dev/hapi/mcp", which works but is not an
+// address to hand a person, and would still say that on app.katomia.com.
+//
+// location.origin is the only thing that knows where the reader actually is, so the URL is
+// written client-side from it. The markup carries the canonical address as its initial
+// text, so the page is still correct with JavaScript off.
 $T = katomiaTerms();
 $siteConfig = katomiaSiteConfig();
 $brand = $siteConfig['landing']['title'] ?? 'Katomia';
-
-$host = $_SERVER['HTTP_HOST'] ?? 'labs.katomia.com';
-$mcpUrl = $hapi_base === ''
-  ? 'https://' . $host . '/hapi/mcp'      // same-origin: the alias serves /hapi/*
-  : 'https://' . $hapi_base . '/mcp';     // cross-origin: straight at the backend
+$mcpUrlFallback = 'https://labs.katomia.com/hapi/mcp';
 ?>
 <!DOCTYPE html>
 <html data-kfb-product="katomia">
@@ -92,7 +96,7 @@ $mcpUrl = $hapi_base === ''
   <p>It works with Claude — on the web, in the desktop app, or in Claude Code. There is nothing to
      install and nothing to sign in to. You only do this once; after that it's available in any chat.</p>
 
-  <span class="url"><?= htmlspecialchars($mcpUrl, ENT_QUOTES, 'UTF-8') ?></span>
+  <span class="url" id="mcp-url"><?= htmlspecialchars($mcpUrlFallback, ENT_QUOTES, 'UTF-8') ?></span>
 
   <ol>
     <li>In Claude, open <b>Settings → Connectors</b>.</li>
@@ -104,7 +108,21 @@ $mcpUrl = $hapi_base === ''
 
   <p class="small muted">Opening that address in a browser shows the same instructions, so it's a safe
      link to send someone. In Claude Code the one-liner is
-     <code>claude mcp add --scope user --transport http katomia <?= htmlspecialchars($mcpUrl, ENT_QUOTES, 'UTF-8') ?></code>.</p>
+     <code>claude mcp add --scope user --transport http katomia <span id="mcp-url-cli"><?= htmlspecialchars($mcpUrlFallback, ENT_QUOTES, 'UTF-8') ?></span></code>.</p>
+
+  <script>
+    // See the note at the top of advisor.php: this page is a static shell, so the reader's
+    // own origin is the only reliable source for the connect address.
+    (function () {
+      try {
+        var url = window.location.origin + '/hapi/mcp';
+        var a = document.getElementById('mcp-url');
+        var b = document.getElementById('mcp-url-cli');
+        if (a) a.textContent = url;
+        if (b) b.textContent = url;
+      } catch (e) { /* leave the canonical address in place */ }
+    })();
+  </script>
 
   <h2>Things to ask it</h2>
   <div class="asks">

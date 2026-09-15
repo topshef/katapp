@@ -95,6 +95,8 @@ done
 render "$K/index.php?page=markets"           m/katomia/markets.html
 render "$K/index.php?page=circles"           m/katomia/circles.html
 render "$K/index.php?page=learn"             m/katomia/learn.html
+# KATOMIA-MCP5: the advisor help page. Buried — reached from /learn's FAQ, not the menu.
+render "$K/index.php?page=advisor"           m/katomia/advisor.html
 render "$K/index.php?page=host"              m/katomia/host.html
 render "$K/index.php?page=create"            m/katomia/create.html
 render "$K/index.php?page=create&skin=basic" m/katomia/create-basic.html   # ENTRY-CREATEBASIC1
