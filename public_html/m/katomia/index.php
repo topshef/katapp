@@ -32,6 +32,14 @@ if ($page == 'learn') {
 	exit;
 }
 
+// KATOMIA-MCP5 (user 2026-09-15): the advisor help page. Deliberately NOT in the
+// header menu — "bury it in the documents ... not something we shout about from the
+// site". Reached from the learn/FAQ page and from links we hand out directly.
+if ($page == 'advisor') {
+	require_once("advisor.php");
+	exit;
+}
+
 // CIRCLE-HOSTPAGE1 (user 2026-08-08): the host console — pick a circle you own and edit
 // it. Also the "become a host" call to action, hence the menu entry: with no circles it
 // shows the create CTA rather than an empty list.

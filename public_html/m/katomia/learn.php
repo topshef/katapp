@@ -419,6 +419,18 @@ $brand = $siteConfig['landing']['title'] ?? 'Katomia';
        button is the fastest way to push us on one.</p>
 
     <details>
+      <summary>Can I get an AI to help me read a <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>?</summary>
+      <p>Yes — there's a <a href="<?= $katomiaBase ?>/advisor">Katomia advisor</a> you can connect to
+         Claude. It can see every public <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> at once
+         and the Hedera ledger underneath them, so it's good at questions no single screen answers —
+         "which <?= htmlspecialchars($T['many'], ENT_QUOTES, 'UTF-8') ?> have chickens in them?", or who
+         you'd need to invite to complete a swap.</p>
+      <p>It's an <b>advisor, not an agent</b>: it holds no keys, joins nothing, and has no way to act.
+         It answers and hands you a link — you do the rest.</p>
+      <div data-kfb="faq-advisor" data-kfb-scope="item" data-kfb-label="FAQ: the advisor" class="kfb-item"></div>
+    </details>
+
+    <details>
       <summary>Do I need a wallet to look around?</summary>
       <p>No. You can walk into a <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?> and watch without
          connecting anything. You need a connected account when you want to actually put something into
