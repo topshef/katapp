@@ -55,6 +55,9 @@ RewriteRule ^learn/?$ ?page=learn [L,QSA]
 # for the same reason as /circles and /learn: the displayed term is a config parameter,
 # shared links must not 404 when it changes.
 RewriteRule ^host/?$ ?page=host [L,QSA]
+# KATOMIA-MCP5 (2026-09-15): the advisor help page. Fixed path for the same reason as
+# /circles and /learn — this is the address we hand out, and a shared link must not 404.
+RewriteRule ^advisor/?$ ?page=advisor [L,QSA]
 
 
 
