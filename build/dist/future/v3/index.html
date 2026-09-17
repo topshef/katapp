@@ -446,8 +446,10 @@
     tb.innerHTML = rows.map(function (d) {
       var mode = d.mode === 'go'      ? '<span class="pill ok">will sign</span>'
                : d.mode === 'dry-run' ? '<span class="pill bad">dry run</span>'
+               : d.mode === 'stopped' ? '<span class="pill mute">stopped</span>'
                : '<span class="pill mute">unknown</span>';
-      var seen = d.fresh ? '<span class="pill ok">fresh</span>' : '<span class="pill warn">quiet</span>';
+      var seen = d.mode === 'stopped' ? '<span class="pill mute">said goodbye</span>'
+               : d.fresh ? '<span class="pill ok">fresh</span>' : '<span class="pill warn">quiet</span>';
       var keys = Object.keys(d.keys || {}).map(function (k) {
         var accts = (d.keys[k] || []);
         return '<div><span class="key">' + esc(String(k).slice(0, 12)) + '…</span>' +
