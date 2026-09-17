@@ -52,12 +52,16 @@ const BASE = `http://127.0.0.1:${server.address().port}`
 const SENDER = '0.0.3833789', RECEIVER = '0.0.9940704'
 const FT = '0.0.3833795'                     // a fungible the fixture already sends
 const NFT = '0.0.1263996', SERIAL = 8         // the real refused serial (KPLAY #8)
-function fixture({ precheck, nftLeg = false, expired = false }) {
+function fixture({ precheck, nftLeg = false, expired = false, succeeded = false }) {
   const f = JSON.parse(readFileSync(join(HERE, 'fixtures', 'txread-open.json'), 'utf8'))
   const r = f.result
   // an OPEN, in-window transaction: re-stamp the valid-start and drop the captured
   // EXPIRED status (the real tx expired after capture, and EXPIRED correctly outranks Held)
   if (!expired) { r.txid = r.txid.replace(/@\d+/, '@' + Math.floor(Date.now() / 1000)); delete r.comboStatus; delete r.mirrorStatus; delete r.isStatusFinal; r.receiptSuccess = false }
+  // SIGNSETTLED1: the same capture, landed. Re-stamped as above so nothing else in the modal
+  // thinks the clock has run out, then marked the way the backend marks a tx that reached
+  // consensus — which is what the settled-ring rules key off.
+  if (succeeded) { r.comboStatus = 'SUCCESS'; r.receiptSuccess = true; r.isStatusFinal = true }
   if (nftLeg) {
     // getAllTransfers reads NFT legs from PCH_basis.transfers (then the deal) and throws
     // on mixed sources — an unsettled tx has no mirror transactions, so set both
@@ -106,7 +110,22 @@ const state = (page, acct) => page.evaluate(({ acct }) => {
     redChips: chips.filter(c => c.classList.contains('txcard-chip--short')).map(c => c.dataset.side + ':' + c.dataset.assetKey),
     dashedChips: chips.filter(c => c.classList.contains('txcard-chip--unassoc') || c.classList.contains('txcard-chip--unassoc-hard')).map(c => c.dataset.side + ':' + c.dataset.assetKey + (c.classList.contains('txcard-chip--unassoc-hard') ? ':hard' : ':soft')),
     pill: document.querySelector('.kpm-head')?.textContent?.replace(/\s+/g, ' ').trim() || '',
-    banner: !!document.body.contains(document.getElementById('txread-precheck'))
+    banner: !!document.body.contains(document.getElementById('txread-precheck')),
+    // SIGNSETTLED1: which settled mode the body is in, and what the card's ring RESOLVES to —
+    // read off the cascade with getComputedStyle rather than from the class list, because the
+    // whole point of the feature is that a live ring class now paints a different colour once
+    // the transaction stops being live. Asserting the class would prove nothing.
+    settled: document.body.classList.contains('tx-settled-ok') ? 'ok'
+      : document.body.classList.contains('tx-settled-expired') ? 'expired' : '',
+    ring: card ? (cs => {
+      // a glow is a box-shadow layer with a BLUR radius; the settled ring keeps the 1px
+      // spread and drops the blur, so "no glow" is "every layer has blur 0". Computed
+      // box-shadow is `<color> <x> <y> <blur> <spread>` per layer — mask the colours (they
+      // contain commas) before splitting layers, then read the third length.
+      const layers = cs.boxShadow.replace(/rgba?\([^)]*\)/g, 'C').split(',')
+      const blur = l => parseFloat((l.trim().match(/-?[\d.]+px/g) || [])[2] || '0')
+      return { border: cs.borderTopColor, shadow: cs.boxShadow, glows: layers.some(l => blur(l) > 0) }
+    })(getComputedStyle(card)) : null
   }
 }, { acct })
 async function expand(page, acct) {
@@ -208,6 +227,80 @@ console.log('8. window shut with nothing on chain')
   const page = await open(fixture({ expired: true, precheck: verdict([]) }))
   const s = await state(page, SENDER)
   ok(/Expired/.test(s.pill) && !/Ready to submit/.test(s.pill), 'header reads Expired, never Ready beside a dead clock', s.pill)
+  await page.close()
+}
+
+// SIGNSETTLED1 (operator, 2026-09-17): the modal stays open, and is reopenable by URL, long
+// after the transaction stops being live — so the glowing "this can still change" rings
+// outlive what they were reporting on. The reported case: a card ringed red for "not enough
+// KUSD" sitting under a green Success header, because the last precheck ran before submission
+// and nothing re-runs it. Two settled treatments, and the contrast between them is the point,
+// so both are pinned here: SUCCESS forces one dark green over every ring (consensus overrules
+// the pre-flight guess); EXPIRED keeps each ring's own colour, darkened (nothing cleared, so
+// the last thing we knew is still the best answer to "why did this never go through").
+const DARK    = { green: 'rgb(15, 81, 50)', amber: 'rgb(102, 77, 3)', red: 'rgb(132, 32, 41)' }
+const LIVE    = { amber: 'rgb(245, 166, 35)', red: 'rgb(229, 72, 77)' }
+const NEUTRAL = 'rgb(228, 228, 231)'   // .txcard's own border — a card with no ring at all
+// This fixture's signer rings AMBER (signatures outstanding) on a clean precheck and RED on a
+// shortfall; the receiver has no obligation and never rings. That is enough to pin both rules,
+// and the amber case is the sharper one — the same card must go dark-AMBER when the window
+// shuts and dark-GREEN when the transaction lands. (A bright-green sign-ready card needs a
+// fully-signed capture we do not have; it takes the identical rule to the amber one.)
+const SHORT = [`has sender ${SENDER} enough ${FT} KUSD ? (-2.062561)`]
+
+console.log('9. SUCCESS settles every ring dark green — even one that was red')
+{
+  // the exact reported shape: the tx LANDED, but the precheck captured before submission says
+  // the sender was short. Consensus wins; that red ring must not survive it.
+  const page = await open(fixture({ succeeded: true, precheck: verdict(SHORT) }))
+  const s = await state(page, SENDER), rc = await state(page, RECEIVER)
+  ok(/Success/.test(s.pill), 'header reads Success', s.pill)
+  ok(s.settled === 'ok', 'body is in the settled-success mode', s.settled)
+  ok(s.red, 'the card still CARRIES the live red class — the record is not rewritten', JSON.stringify(s.ring))
+  ok(s.ring.border === DARK.green, '…but it PAINTS dark green, the same ink as the Success header', s.ring.border)
+  ok(!s.ring.glows, 'and it does not glow: nothing here can change any more', s.ring.shadow)
+  ok(rc.ring.border === NEUTRAL && !rc.ring.glows, 'a card that never rang does not GAIN a ring on settling', rc.ring.border)
+  await page.close()
+}
+
+console.log('9b. …and an amber "still waiting on signatures" ring goes green too')
+{
+  const page = await open(fixture({ succeeded: true, precheck: verdict([]) }))
+  const s = await state(page, SENDER)
+  ok(s.ring.border === DARK.green, 'signatures cannot have been outstanding if it reached consensus', s.ring.border)
+  ok(!s.ring.glows, 'no glow', s.ring.shadow)
+  await page.close()
+}
+
+console.log('10. EXPIRED puts the lights out but keeps each ring its own colour')
+{
+  const page = await open(fixture({ expired: true, precheck: verdict(SHORT) }))
+  const s = await state(page, SENDER), rc = await state(page, RECEIVER)
+  ok(s.settled === 'expired', 'body is in the settled-expired mode', s.settled)
+  ok(s.ring.border === DARK.red, 'a red card stays RED, darkened — it is the likely reason, not a verdict', s.ring.border)
+  ok(s.ring.border !== DARK.green, 'expired never flattens a red ring to green — that is the SUCCESS rule only', s.ring.border)
+  ok(!s.ring.glows, 'but the glow is gone', s.ring.shadow)
+  ok(rc.ring.border === NEUTRAL, 'an unringed card stays unringed', rc.ring.border)
+  await page.close()
+}
+
+console.log('10b. …the same card, same clock, amber instead of red')
+{
+  const page = await open(fixture({ expired: true, precheck: verdict([]) }))
+  const s = await state(page, SENDER)
+  ok(s.ring.border === DARK.amber, 'amber stays AMBER, darkened — the signatures never arrived', s.ring.border)
+  ok(!s.ring.glows, 'lights out', s.ring.shadow)
+  ok(s.ring.border !== LIVE.amber, 'and it is not simply the live amber left on the screen', s.ring.border)
+  await page.close()
+}
+
+console.log('11. a LIVE transaction still glows (the rings only settle when there is a result)')
+{
+  const page = await open(fixture({ precheck: verdict([`has sender ${SENDER} enough ${FT} KUSD ? (-2.062561)`]) }))
+  const s = await state(page, SENDER)
+  ok(s.settled === '', 'body carries neither settled class while the tx is open', s.settled)
+  ok(s.ring.border === LIVE.red, 'the red ring is the live red, not a darkened one', s.ring.border)
+  ok(s.ring.glows, 'and it glows — live status that can still change', s.ring.shadow)
   await page.close()
 }
 

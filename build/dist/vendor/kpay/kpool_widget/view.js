@@ -772,6 +772,46 @@ const SIGN_REASON = {
 	const isFinalStatus = (data = {}) =>
 		data.comboStatus === 'SUCCESS' || data.receiptSuccess === true || !!data.mirrorStatus
 
+	// SIGNSETTLED1: the account-card rings are LIVE status — a glowing border reads as
+	// something that can still change (see .txcard--sign-* in the stylesheet). Once the
+	// transaction has stopped being live they are a record instead, and the glow is a lie.
+	// Two settled shapes, argued for in full beside those rules:
+	//
+	//   settledOk      — SUCCESS. Consensus overrules every ring: the network took the
+	//                    transaction, so every account in it cleared. All rings (orange and
+	//                    red included) go to one dark green.
+	//   settledExpired — the window shut with nothing on chain. Nothing cleared, so there is
+	//                    no verdict to force; each ring keeps its own colour, darkened, so the
+	//                    last thing we knew is still legible as the likely reason.
+	//
+	// Body-scoped for the same reason `nerd` is, and mutually exclusive by construction.
+	const isSettledSuccess = (data = {}) =>
+		data.comboStatus === 'SUCCESS' || data.receiptSuccess === true
+
+	// Expired covers both the mirror saying so and our own clock saying the window shut with
+	// nothing on chain (isPastWindow — the same test the header uses for "Expired unsubmitted",
+	// so the ring and the header can never disagree about it).
+	//
+	// Edge cases, all deliberately left as they are (operator, 2026-09-17 — "we'll cross that
+	// bridge in terms of UX another time"):
+	//  · Status can move AFTER expiry — a late signature lands in the buffer window and the
+	//    mirror comes back SUCCESS. Self-correcting: this runs on every pushStatus, success is
+	//    tested first and wins, so the lights come back on green. The reverse cannot happen;
+	//    SUCCESS is absorbing.
+	//  · isPastWindow is a CLIENT-CLOCK judgement, not a mirror fact. A device with a skewed
+	//    clock can put the lights out on a tx that is still alive. Recovers as above.
+	//  · Other terminal failures (INVALID_SIGNATURE, DUPLICATE, contract reverts…) are just as
+	//    dead and still glow. They arguably want the expired treatment, but each has its own
+	//    story about which ring is to blame and none of them is "the window shut", so they are
+	//    left live rather than lumped in on a guess. isFinalStatus() already knows them if we
+	//    decide to.
+	//  · A ring on an expired tx is the LAST precheck taken before the window shut, not a
+	//    post-mortem — evidence, not a cause. Nothing re-runs it afterwards.
+	const isSettledExpired = (data = {}) =>
+		!isSettledSuccess(data) &&
+		(/EXPIR/.test(String(data.comboStatus || data.mirrorStatus || data.receiptStatus || '').toUpperCase())
+			|| isPastWindow(data))
+
 	// Hide the whole signing section once the tx is final — there's no action to take (the
 	// record stays visible). KEPT in nerd mode as a debug affordance: wallets will still
 	// sign an expired/consensus'd tx, and there may later be a "sign to endorse after the
@@ -779,6 +819,16 @@ const SIGN_REASON = {
 	export const updateFinalState = (data) => {
 		const panel = document.getElementById('txread-methods')
 		if (panel) panel.classList.toggle('tx-final', isFinalStatus(data))
+		const ok = isSettledSuccess(data)
+		document.body.classList.toggle('tx-settled-ok', ok)
+		document.body.classList.toggle('tx-settled-expired', !ok && isSettledExpired(data))
+	}
+
+	// Drop both settled classes. They live on <body>, so they outlive the modal that set them;
+	// a widget torn down mid-success would otherwise hand its lights-out ring to whatever tx
+	// opened next, for the moment between its cards rendering and its first status arriving.
+	export const clearSettledState = () => {
+		document.body.classList.remove('tx-settled-ok', 'tx-settled-expired')
 	}
 
 	export const summariseStatus = ({ data = {}, readiness } = {}) => {
@@ -1467,7 +1517,7 @@ export function playSuccessFlow() {
 // are heading — but it may clutter, so we're holding off.
 export function markSettledIfSuccess(data) {
 	const c = document.querySelector('.txcards')
-	if (!c || !(data?.comboStatus === 'SUCCESS' || data?.receiptSuccess === true)) return
+	if (!c || !isSettledSuccess(data || {})) return   // SIGNSETTLED1: one definition of "succeeded", shared with the settled rings
 	requestAnimationFrame(() => requestAnimationFrame(() => { flowTravel(c) }))
 }
 
@@ -2313,6 +2363,42 @@ export function injectTxReadCSS() {
 		.txcard--sign-pending   { border-color:#f5a623; box-shadow:0 0 0 1px #f5a623, 0 0 12px 2px rgba(245,166,35,.45); }
 		.txcard--sign-ready     { border-color:#56c857; box-shadow:0 0 0 1px #56c857, 0 0 12px 2px rgba(86,200,87,.45); }
 		.txcard--balance-short  { border-color:#e5484d; box-shadow:0 0 0 1px #e5484d, 0 0 12px 2px rgba(229,72,77,.5); }   /* overdraft — hard blocker, wins the ring */
+		/* SIGNSETTLED1 (operator, 2026-09-17): the modal stays open — and reopenable by URL —
+		   after the transaction has stopped being live, so those rings outlive the thing they
+		   were reporting on. Worse, they can outlive it while CONTRADICTING it: a card still
+		   ringed red for "not enough KUSD" sitting under a green Success header, because the
+		   last precheck we ran was the one taken before submission and nothing re-runs it
+		   afterwards. Settled gets two treatments, and they are deliberately opposites:
+
+		   SUCCESS — consensus is the authority and it overrules every ring. If the network took
+		   the transaction then every account in it cleared (signatures, balances, associations,
+		   the lot) at the moment it went through, whatever the pre-flight guesswork said. So
+		   every ringed card gets the SAME ring, orange and red included: green, because that is
+		   what they must have been.
+
+		   EXPIRED — nothing cleared, so there is no verdict to force. The last live ring IS the
+		   answer to "why did this never go through", and flattening it to one colour would throw
+		   away the only explanation on the screen. So each card keeps its OWN colour.
+
+		   Both lose the halo and take a darkened ink: a glow reads as live status that can still
+		   change, and neither of these can. The inks are the header tone text colours
+		   (.kpm-tone-* in modal.js) — #0f5132 success, #664d03 warn, #842029 error — the same
+		   three hues this palette already uses when it wants ink rather than signal, which is
+		   what a residue is. Geometry is unchanged (border + 1px spread) so nothing shifts as it
+		   settles; .txcard already transitions border-color and box-shadow, so the lights fade
+		   out rather than snap. It also means a green card looks identical settled or expired,
+		   which is honest: green meant the same thing both times, and the header says how it
+		   ended.
+
+		   Body-scoped rather than folded into paintCardRing: the rings are repainted from three
+		   places (updateCardSigning, updateCardBalances, paintCardRing itself) and a rule that
+		   sits above all of them cannot be repainted away by whichever one happens to run last. */
+		body.tx-settled-ok .txcard--sign-pending,
+		body.tx-settled-ok .txcard--sign-ready,
+		body.tx-settled-ok .txcard--balance-short { border-color:#0f5132; box-shadow:0 0 0 1px #0f5132; }
+		body.tx-settled-expired .txcard--sign-ready    { border-color:#0f5132; box-shadow:0 0 0 1px #0f5132; }
+		body.tx-settled-expired .txcard--sign-pending  { border-color:#664d03; box-shadow:0 0 0 1px #664d03; }
+		body.tx-settled-expired .txcard--balance-short { border-color:#842029; box-shadow:0 0 0 1px #842029; }
 		.txcard-head-right { margin-left:auto; display:flex; align-items:center; gap:8px; }
 		.txcard-sign { font-size:12px; color:#71717a; white-space:nowrap; font-weight:500; }
 		/* per-asset overdraft: solid red ring on the specific SEND chip that's short */

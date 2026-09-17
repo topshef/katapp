@@ -21,6 +21,7 @@ const {
 	showBanner,
 	summariseStatus,
 	updateFinalState,
+	clearSettledState,
 	markConnectedAccounts,
 	playSuccessFlow,
 	markSettledIfSuccess,
@@ -141,6 +142,9 @@ function teardownTxState(txState) {
 	txState.pollTimer = null
 	txState.countdownTimer = null
 	txState.socket = null
+	// SIGNSETTLED1: the settled-ring classes are on <body>, not on this widget's DOM, so they
+	// do not go away with it. Drop them here or the next tx opens wearing them.
+	try { clearSettledState() } catch {}
 	try { globalThis.kdiag?.('tx:teardown', { txid: txState.txid }) } catch {}
 }
 
