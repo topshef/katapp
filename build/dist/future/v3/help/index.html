@@ -455,6 +455,7 @@ so the board shows <em>stopped</em> rather than a device that silently went stal
 <ol>
   <li><strong>Check before you run.</strong> A doctor command answers the questions in the order they bite: is the config valid, is the key present, does the chain accept it, can this device reach the pool — and how much weight this key carries on its own, as against counting towards a group.</li>
   <li><strong>Watch first.</strong> Start in dry run: it decides on everything and reports each verdict — to its log, and, if you let it, back to the pool where the <a href="../">dashboard</a> shows who refused what and at which step — so you can read those against real traffic first.</li>
+  <li><strong>Expect most of the pool to be none of its business.</strong> A shared pool carries everyone's transactions. A signer stays silent about the ones that were never aimed at it (see below) — silence there is the filter working, not a fault.</li>
   <li><strong>Then let it sign.</strong> One flag.</li>
   <li><strong>Rehearse the threshold.</strong> Stop the signers that can act alone, and confirm the remaining ones behave as you expect. Do this while it is still a rehearsal.</li>
 </ol>
@@ -468,6 +469,23 @@ so the board shows <em>stopped</em> rather than a device that silently went stal
   <em>correlation</em> — these keys, this device, awake at this minute — which is why it is yours to
   switch on deliberately. Announcing is observation only: signing carries on the same either way.</p>
 </div>
+
+<h3>Addressed, or none of my business</h3>
+<p>The nine checks fall into two halves, and only one of them is worth anyone's attention.</p>
+<div class="scroll"><table>
+  <thead><tr><th>half</th><th>checks</th><th>the question</th><th>what a refusal means</th></tr></thead>
+  <tbody>
+    <tr><td class="g">addressing</td><td>policy, authority, signers</td><td class="r">Is this aimed at me?</td>
+      <td class="r"><strong>Nothing.</strong> It is not a deal, or not one of my deals, or it needs no key of mine. On a pool with many signers, most traffic is this for most signers — a hundred watchers would otherwise post a hundred shrugs against every raise. The signer says nothing and counts it.</td></tr>
+    <tr><td class="g">judgement</td><td>inputs, decode, observe, derive, require, reproduce, cap</td><td class="r">Is it valid, and will I sign it?</td>
+      <td class="r"><strong>News.</strong> This transaction was mine to decide and I turned it down — the rules did not hold, the chain had moved, or it was over my own limit. This is what gets reported and what a dashboard shows.</td></tr>
+  </tbody>
+</table></div>
+<p>The addressing checks run <em>before</em> any chain read, so deciding that something was never yours costs nothing.
+A signer chooses how much of its judgement to publish with <code>report</code>: <code>none</code>,
+<code>refusals</code> (the default), <code>all</code>, or <code>debug</code> — the last one also publishes the
+transactions that were never its business, flagged as such, which is only useful while working out why a
+signer is or is not being offered something.</p>
 
 <h3>Reading an announcement</h3>
 <p>What <a href="../?action=signers&amp;network=testnet">/kpool/signers</a> returns per device is the signed
@@ -504,7 +522,8 @@ That is the same primitive that signs a transaction body; the pool did exactly t
     <tr><td class="g">presence</td><td class="r">A signer announcing that it is here, signed with a key it claims to hold — so the claim carries its own evidence.</td></tr>
     <tr><td class="g">dry run</td><td class="r">Decide everything, report the verdict, hold the signature.</td></tr>
     <tr><td class="g">limit</td><td class="r">The most a signer will approve per asset per hour, whatever the rules allow — its own private budget, outside the rules.</td></tr>
-    <tr><td class="g">verdict</td><td class="r">A signer's signed report of what it decided about one transaction, and at which step it refused. Observation only; never a vote.</td></tr>
+    <tr><td class="g">verdict</td><td class="r">A signer's signed report of what it decided about one transaction, and at which step it refused — for transactions addressed to it. Observation only; never a vote.</td></tr>
+    <tr><td class="g">addressed</td><td class="r">A transaction that got past a signer's first three checks: it is one of that signer's deals and needs one of its keys. Anything else was never that signer's business, and it says nothing about it.</td></tr>
     <tr><td class="g">witness</td><td class="r">Signing a deal's transactions even when none of your keys is required — attesting rather than releasing.</td></tr>
   </tbody>
 </table></div>

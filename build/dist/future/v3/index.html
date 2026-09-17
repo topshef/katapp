@@ -234,7 +234,11 @@
   <div class="secbody">
     <p class="note">Transactions waiting for signatures, newest first, with the devices that have
     signed each one — matched by public key against the roster above. The pool keeps a transaction
-    for about an hour from its start time, so this is a live window, not a record.</p>
+    for about an hour from its start time, so this is a live window, not a record.
+    <strong>Verdicts</strong> are what a signer decided, and a signer only reports on transactions
+    addressed to it: its own deals, needing one of its keys. An empty verdicts cell means nobody
+    who is watching had any business with this transaction — the ordinary case on a shared pool,
+    not a missing answer.</p>
   </div>
   <div class="panel"><table id="txs">
     <thead><tr>
@@ -547,11 +551,16 @@
       var unknown = (r.sigs || []).some(function (s) { return !byKey[String(s.pubKey).toLowerCase()]; });
       // KEA-VERDICT1: what each signer decided, and the rung it fell off. A refusal from a
       // device that is announcing is the state that used to cost a morning to find.
+      // KEA-ADDRESSED1: a signer reports only on transactions ADDRESSED to it — past policy,
+      // authority and signers. So most rows on a shared pool carry no verdict at all, and that
+      // is the quiet, correct state, not a gap. A verdict flagged addressed:false only comes
+      // from a device running report:"debug"; render it muted so it never reads as a judgement.
       var verdicts = (r.verdicts || []).map(function (v) {
         var who = nameFor(v.by);
+        if (v.addressed === false) return '<div>' + who + ' <span class="pill mute" title="' + esc(v.reason || '') + '">not its deal</span></div>';
         if (v.verdict === 'pass') return '<div>' + who + ' <span class="pill ok">' + (v.signed ? 'signed' : v.mode === 'dry-run' ? 'would sign' : 'passed') + '</span></div>';
         return '<div>' + who + ' <span class="pill bad" title="' + esc(v.reason || '') + '">refused at ' + esc(v.droppedAt || '?') + '</span></div>';
-      }).join('') || '<span class="none">none reported</span>';
+      }).join('') || '<span class="none">\u2014</span>';
       var state = r.state || '—';
       var cls = /success/i.test(state) ? 'ok' : /expire|fail/i.test(state) ? 'bad' : 'mute';
       return '<tr class="tap' + (unknown ? ' warnrow' : '') + '" tabindex="0" role="button"' +
