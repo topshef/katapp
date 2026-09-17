@@ -24,6 +24,8 @@
 # router; only the Worker name, alias target and dist dir differ, so a front-end-vs-backend
 # issue can be bisected across the pairings. Both dist trees are committed.
 #   ALIAS=host/path  override the API alias (host+path, scheme-less — HAPI_BASE convention)
+#   ALIAS_SERVICE=x  override the alias WORKER'S NAME for the service binding. This is not
+#                    the hostname and must not be derived from it (see ALIASNAME1 below).
 #   SITE_HOST=…      Host header used for the render (router patches the WC config per request
 #                    anyway; kept for parity with lab22 renders)
 set -euo pipefail
@@ -37,12 +39,21 @@ if [ "$VARIANT" = "both" ]; then
 fi
 if [ "$VARIANT" = "gcp" ]; then
   NAME="katui-gcp"; ALIAS="${ALIAS:-kpay-api-alias-gcp.tayloa17.workers.dev/hapi}"; DIST_NAME="dist-gcp"
+  ALIAS_SERVICE="${ALIAS_SERVICE:-kpay-api-alias-gcp}"
 elif [ "$VARIANT" = "katui" ]; then
   NAME="katui";     ALIAS="${ALIAS:-api.katomia.com/hapi}";     DIST_NAME="dist"
+  ALIAS_SERVICE="${ALIAS_SERVICE:-kpay-api-alias}"
 else
   echo "unknown variant '$VARIANT' (expected: both | katui | gcp)"; exit 1
 fi
-ALIAS_SERVICE="${ALIAS%%.*}"          # the alias Worker's name = first label of its workers.dev host
+# ALIASNAME1 (2026-09-17): the service-binding name is DECLARED, not derived from the host.
+# It used to be `${ALIAS%%.*}` — "the first label of the alias's workers.dev host" — which was
+# true only while the alias was reached at kpay-api-alias.tayloa17.workers.dev. The moment it
+# got a custom domain (api.katomia.com) that expression started yielding "api", and every
+# Cloudflare deploy failed with `Service binding 'HAPI' references Worker 'api' which was not
+# found` [10143] — silently, because the failure is in Cloudflare's build log and not in CI.
+# A Worker's NAME and the HOSTNAME it answers on are independent, and this script now says so.
+: "${ALIAS_SERVICE:?internal: ALIAS_SERVICE must be set per variant above}"
 SITE_HOST="${SITE_HOST:-$NAME.tayloa17.workers.dev}"
 PORT="${PORT:-8099}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
