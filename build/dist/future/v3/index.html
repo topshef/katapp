@@ -76,6 +76,8 @@
           border:1px solid var(--line);border-radius:5px;padding:2px 7px;white-space:nowrap}
   .raws a:hover{color:var(--acc);border-color:var(--acc)}
   .rowraw{margin:6px 0 0;gap:4px}
+  .orphan{margin-top:5px;font-size:.76rem;color:var(--warn,#8a5a10);border-left:2px solid currentColor;
+          padding-left:7px;line-height:1.35}
 
   .panel{border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow-x:auto}
   table{border-collapse:collapse;width:100%;min-width:760px;font-size:13.5px}
@@ -418,6 +420,7 @@
 
   // ── the roster: pubkey -> device, so signatures can be named ────────────────
   var byKey = {};      // lowercase pubkey -> { label, mode, fresh, ageSeconds }
+  var coveredDeals = {};   // dealId -> true, from the FRESH devices only
   var freshSeconds = 180;
 
   function renderDevices(list, meta) {
@@ -427,7 +430,10 @@
     // KEA-PRESENCE2: a device announces keys: { pubKey: [accounts] } and deals: { dealId: [pubKeys] };
     // `accounts` (the union) and `dealIds` are derived by the pool. Nothing here is typed by
     // the operator — the accounts come from the chain, the deals from the signer's own config.
+    coveredDeals = {};
     list.forEach(function (d) {
+      // a stale device's promise is not coverage: only a fresh one is watching now
+      if (d.fresh) Object.keys(d.deals || {}).forEach(function (id) { coveredDeals[String(id).toLowerCase()] = true; });
       // derived here, not by the pool: the record is the signed announcement and nothing else
       d.accounts = uniq([].concat.apply([], Object.keys(d.keys || {}).map(function (k) { return d.keys[k] || []; }))).sort();
       d.dealIds = Object.keys(d.deals || {}).sort();
@@ -571,6 +577,11 @@
       }).join('') || '<span class="none">\u2014</span>';
       var state = r.state || '—';
       var cls = /success/i.test(state) ? 'ok' : /expire|fail/i.test(state) ? 'bad' : 'mute';
+      // SIGNER-VIEW1 §4.5: a raise nobody is listening for. The transaction declares a deal,
+      // no fresh device says it signs that deal, and nobody has signed it — so it will sit
+      // there and expire with no refusal to explain why. That is not a bug in the signers;
+      // it is a deal id that matches nothing on duty, and it is invisible without this line.
+      var orphan = r.dealId && !coveredDeals[String(r.dealId).toLowerCase()] && !(r.sigs || []).length;
       return '<tr class="tap' + (unknown ? ' warnrow' : '') + '" tabindex="0" role="button"' +
         ' data-txid="' + esc(r.txid) + '" data-pch="' + esc(r.pch || '') + '"' +
         ' aria-label="Inspect ' + esc(r.title || r.txid) + '">' +
@@ -578,7 +589,9 @@
           (r.title ? esc(r.title) : '<span class="none">not a deal</span>') + '</div>' +
           '<div class="inspect">inspect \u2192</div></td>' +
         '<td data-l="signed by"><div class="v">' + sigs + '</div></td>' +
-        '<td data-l="verdicts"><div class="v">' + verdicts + '</div></td>' +
+        '<td data-l="verdicts"><div class="v">' + verdicts +
+          (orphan ? '<div class="orphan" title="deal ' + esc(String(r.dealId).slice(0, 16)) + '… — no device on duty lists it">no signer covers this deal</div>' : '') +
+          '</div></td>' +
         '<td data-l="state"><div class="v"><span class="pill ' + cls + '">' + esc(state) + '</span></div></td>' +
         '<td class="mono" data-l="when"><div class="v">' + when + '</div></td>' +
         '<td class="mono" data-l="transaction"><div class="v">' + esc(r.txid) + (r.pch ? '<div class="key">pch ' + esc(r.pch) + '</div>' : '') +
@@ -698,6 +711,7 @@
                 txid: t.txid, pch: t.pch,
                 sigs: r.sigs || [],
                 verdicts: r.verdicts || [],
+                dealId: (r.source && r.source.dealId) || null,
                 title: (r.deal && r.deal.display && r.deal.display.title) || null,
                 state: r.comboStatus || null
               };
