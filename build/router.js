@@ -62,9 +62,16 @@ const IDPAGE = /^\/m\/katomia\/(game|board)(?:\/([^/.]+))?\/?$/;     // game, bo
 const KPOOL = /^\/m\/bid\/explore\/kpool(\.php)?$/;
 // SIGNPAGE-STATIC1: /m/sign/ is lab22's `require /future/index.php` shim, so both spellings are
 // the same page AND the same ?action= proxy (future/index.php dispatches to kpool.php on action).
-const SIGNERVIEW = /^\/future\/v3(?:\/|\/index\.html)?$/;    // SIGNER-VIEW1: the signer view
-const SIGNERHELP = /^\/future\/v3\/help(?:\/|\/index\.html)?$/;  // SIGNER-VIEW1: how KEA works
-const SIGNERBIZ  = /^\/future\/v3\/help\/business(?:\/|\/index\.html)?$/;  // the same, in business terms
+// SIGNER-SLASH1 (2026-09-17): these match the SLASH form only. The bare /future/v3 used to
+// match too and served the same page — but the page resolves its API base relatively, as
+// `new URL('../')`, which is /future/ from /future/v3/ and / from /future/v3. Without the
+// slash every call went to /?action=… , which 302s to the katomia home page, so the dashboard
+// parsed HTML as JSON and reported "could not reach the pool" while every endpoint was fine.
+// A directory-style page has to have its trailing slash; the bare form redirects to it below,
+// exactly as /qa and /m/katomia/KEA already do.
+const SIGNERVIEW = /^\/future\/v3(?:\/|\/index\.html)$/;    // SIGNER-VIEW1: the signer view
+const SIGNERHELP = /^\/future\/v3\/help(?:\/|\/index\.html)$/;  // SIGNER-VIEW1: how KEA works
+const SIGNERBIZ  = /^\/future\/v3\/help\/business(?:\/|\/index\.html)$/;  // the same, in business terms
 const SIGNPAGE = /^\/(?:m\/sign|future)(?:\/|\/index\.php)?$/;
 const GLOG = /^\/m\/tools\/glog\/latest\/(.+)$/;
 const BRANDS = [
@@ -136,6 +143,10 @@ export function route(url) {
   // SIGNER-VIEW1: the signer view, a plain static page. Matched BEFORE SIGNPAGE so the
   // /future prefix cannot swallow it, and it keeps its own ?action= proxy so the page can
   // call the pass-through relatively (../?action=…) exactly as it does on the PHP host.
+  // SIGNER-SLASH1: the slash-less forms, longest first, before the matchers above see them
+  if (p === '/future/v3')               return { kind: 'redirect', to: '/future/v3/' };
+  if (p === '/future/v3/help')          return { kind: 'redirect', to: '/future/v3/help/' };
+  if (p === '/future/v3/help/business') return { kind: 'redirect', to: '/future/v3/help/business/' };
   if (SIGNERBIZ.test(p))  return { kind: 'asset', path: '/future/v3/help/business/index.html' };
   if (SIGNERHELP.test(p)) return { kind: 'asset', path: '/future/v3/help/index.html' };
   if (SIGNERVIEW.test(p)) return url.searchParams.has('action')

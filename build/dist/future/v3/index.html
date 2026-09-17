@@ -306,7 +306,16 @@
   //   path      the api alias direct — <base>/kpool/<action> — for a copy of this
   //             folder dropped on any static host, which the alias allows by CORS
   var qs = new URLSearchParams(location.search);
-  var API = qs.get('api') || new URL('../', location.href).href;
+  // SIGNER-SLASH1: derive the pass-through's base from a KNOWN anchor in our own path, not
+  // from `new URL('../')` — that is /future/ when this page is at /future/v3/ and / when it
+  // is at /future/v3, and the slash-less form sent every call to /?action=… , which 302s to
+  // the site's home page. The router now redirects the bare form, so this is belt and braces
+  // for any other host that serves the page without one.
+  var API = qs.get('api') || (function () {
+    var m = /^(.*\/future\/)v3(?:\/|$)/.exec(location.pathname);
+    if (m) return new URL(m[1], location.href).href;
+    return new URL('../', location.href).href;
+  })();
   if (!/\/$/.test(API)) API += '/';
   var PATH_STYLE = /\/hapi\/$/.test(API) || qs.get('apistyle') === 'path';
   // ?readonly=1 — inspect without the means to sign. The widget already takes
