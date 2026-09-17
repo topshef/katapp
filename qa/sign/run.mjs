@@ -78,8 +78,15 @@ const verdict = (fail = [], untested = [], balances = {}) => ({
   balances, tests: { fail, untested, pass: [] }
 })
 
+// KEYCOLS1: a 2-of-3 ThresholdKey as the mirror really returns it (Key.thresholdKey,
+// field 5, ProtobufEncoded), built over the two pubkeys the fixture's signatures actually
+// carry plus one that never signs. hedera-mirror.js decodes this and computes the Banzhaf
+// and control scores locally, which is what makes the key table render at all — without a
+// `key` on the account there is no table to test.
+const KEY_2OF3 = '2a700802126c0a2212201b8c52be82f4310e42ec6078146d04902e11969197beb794684b6b3decee71940a221220650d41e75fe3162c64583c5563f82ebc4a87ae0700df7c726775b55d5dd7d60f0a221220a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1'
+
 const browser = await chromium.launch()
-async function open(fx, { maxAutoAssoc } = {}) {
+async function open(fx, { maxAutoAssoc, senderKey } = {}) {
   const page = await browser.newPage({ viewport: { width: 376, height: 900 } })
   await page.route('**/*', route => {
     const u = route.request().url()
@@ -92,6 +99,11 @@ async function open(fx, { maxAutoAssoc } = {}) {
     if (maxAutoAssoc !== undefined && (m = /\/accounts\/(0\.0\.\d+)(?:[?#]|$)/.exec(u)) && m[1] === RECEIVER)
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
         body: JSON.stringify({ account: RECEIVER, deleted: false, max_automatic_token_associations: maxAutoAssoc, balance: { balance: 100000000, tokens: [] } }) })
+    // the sender's key structure, same endpoint — getKeyInfo reads it off the account record
+    if (senderKey && (m = /\/accounts\/(0\.0\.\d+)(?:[?#]|$)/.exec(u)) && m[1] === SENDER)
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ account: SENDER, deleted: false, max_automatic_token_associations: 0,
+          key: { _type: 'ProtobufEncoded', key: senderKey }, balance: { balance: 100000000, tokens: [] } }) })
     if (u.startsWith(BASE)) return route.continue()
     return route.abort()
   })
@@ -310,6 +322,62 @@ console.log('11. a LIVE transaction still glows (the rings only settle when ther
   ok(s.ring.border === LIVE.red, 'the red ring is the live red, not a darkened one', s.ring.border)
   ok(s.ring.glows, 'and it glows — live status that can still change', s.ring.shadow)
   ok(s.ring.spread === 1, 'a live ring stays the thinner 1px spread', s.ring.spread)
+  await page.close()
+}
+
+console.log('12. the key columns explain themselves (KEYCOLS1)')
+{
+  // Those five headings carry title tooltips, which a touch device never shows. The heading
+  // row is now a button that opens the same text as a panel. Driven with real clicks, and
+  // the card must survive them — the heading sits inside an expanded card whose own header
+  // is a collapse toggle, so a stray bubble would shut the thing you are reading.
+  const page = await open(fixture({ precheck: verdict([]) }), { senderKey: KEY_2OF3 })
+  await (await page.$(`.txcard-head[data-acct="${SENDER}"]`)).click()   // expand the card
+  await page.waitForTimeout(900)
+
+  const read = () => page.evaluate(({ acct }) => {
+    const card = document.querySelector(`.txcard-head[data-acct="${acct}"]`)?.closest('.txcard')
+    const head = card?.querySelector('.txcard-keys-head')
+    const panel = card?.querySelector('.txcard-keys-explain')
+    const row = [...(card?.querySelectorAll('.txcard-keys-row') || [])].find(r => !r.classList.contains('txcard-keys-head'))
+    const vis = el => !!el && getComputedStyle(el).display !== 'none'
+    return {
+      hasTable: !!head, cardOpen: !!card?.classList.contains('txcard--open'),
+      expanded: head?.getAttribute('aria-expanded'), role: head?.getAttribute('role'),
+      panelShown: vis(panel), panelText: (panel?.textContent || '').replace(/\s+/g, ' ').trim(),
+      headings: [...(head?.children || [])].map(c => c.textContent),
+      headCursor: head ? getComputedStyle(head).cursor : null,
+      rowCursor: row ? getComputedStyle(row).cursor : null,
+      rowSelect: row ? (getComputedStyle(row).userSelect || getComputedStyle(row).webkitUserSelect) : null,
+      linkCursor: row?.querySelector('a') ? getComputedStyle(row.querySelector('a')).cursor : null
+    }
+  }, { acct: SENDER })
+
+  let st = await read()
+  ok(st.hasTable, 'the key table renders from the mirror key structure', JSON.stringify(st))
+  ok(st.headings.join('|') === '✍️|🔑|⚖️|Redund|Ctrl', 'five headings, unchanged', st.headings)
+  ok(!st.panelShown && st.expanded === 'false', 'the explainer starts closed', JSON.stringify({ p: st.panelShown, e: st.expanded }))
+  ok(st.role === 'button', 'the heading row announces itself as a button', st.role)
+
+  // CURSOR1: no I-beam anywhere in the table
+  ok(st.rowCursor === 'default', 'a value row shows the arrow, not the I-beam', st.rowCursor)
+  ok(st.rowSelect === 'none', 'and its values are not selectable', st.rowSelect)
+  ok(st.headCursor === 'pointer', 'the heading row shows the hand — it is a button (and wins the cascade)', st.headCursor)
+  ok(st.linkCursor === 'pointer', 'the key link keeps its own hand', st.linkCursor)
+
+  await (await page.$('.txcard-keys-head')).click()
+  await page.waitForTimeout(250)
+  st = await read()
+  ok(st.panelShown && st.expanded === 'true', 'tapping the headings opens the explainer', JSON.stringify({ p: st.panelShown, e: st.expanded }))
+  ok(st.cardOpen, 'and does NOT collapse the card it lives in', st.cardOpen)
+  for (const word of ['Banzhaf', 'Redundancy', 'Control', 'Signed yet', 'last 4 characters'])
+    ok(st.panelText.includes(word), `the panel explains ${word}`, st.panelText.slice(0, 90))
+
+  await (await page.$('.txcard-keys-head')).click()
+  await page.waitForTimeout(250)
+  st = await read()
+  ok(!st.panelShown && st.expanded === 'false', 'tapping again closes it', JSON.stringify({ p: st.panelShown, e: st.expanded }))
+  ok(st.cardOpen, 'card still open after both taps', st.cardOpen)
   await page.close()
 }
 

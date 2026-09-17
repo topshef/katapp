@@ -1378,14 +1378,48 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 		head.className = 'txcard-keys-row txcard-keys-head'
 		// tooltips carry the old Status-tab explainer (STATUS-TAB-RETIRE1): Banzhaf =
 		// voting power, redundancy = how replaceable a key is.
-		;[
+		const COLS = [
 			['✍️',     'Signed yet? ☑ = this key has signed'],
 			['🔑',     'Key — the last 4 characters of the public key'],
 			['⚖️',     "Banzhaf — this key's voting power: its share of all the ways the signing threshold can be met"],
 			['Redund', 'Redundancy — how replaceable the key is: how often the threshold could still be met without it'],
 			['Ctrl',   'Control — full-exclusive: this key alone can decide; shared: control is split across keys']
-		].forEach(([t, tip]) => { const c = document.createElement('div'); c.textContent = t; c.title = tip; head.appendChild(c) })
+		]
+		COLS.forEach(([t, tip]) => { const c = document.createElement('div'); c.textContent = t; c.title = tip; head.appendChild(c) })
 		grid.appendChild(head)
+
+		// KEYCOLS1 (operator, 2026-09-17): those title tooltips are desktop-only — a touch
+		// device has no hover, so on a phone these five headings were unexplained and there
+		// was no way to ask. Tapping the heading row opens the same text as a panel. Built
+		// from the SAME array, so the tooltip and the panel cannot drift apart; a sixth
+		// "explain" cell would have broken the five-column grid, so the row itself is the
+		// button and the dotted underline on each heading is the affordance. Inline rather
+		// than a modal on purpose: this lives inside an expanded card inside the signing
+		// modal, and a second overlay there is more machinery (stacking, focus, dismissal)
+		// than an explanation of five column headings is worth.
+		const explain = document.createElement('div')
+		explain.className = 'txcard-keys-explain'
+		COLS.forEach(([t, tip]) => {
+			const r = document.createElement('div')
+			const k = document.createElement('b'); k.textContent = t
+			const v = document.createElement('span'); v.textContent = tip
+			r.append(k, v); explain.appendChild(r)
+		})
+		grid.appendChild(explain)
+
+		head.setAttribute('role', 'button')
+		head.setAttribute('aria-expanded', 'false')
+		head.tabIndex = 0
+		head.title = 'What these columns mean'
+		const toggleExplain = e => {
+			e.stopPropagation()   // never let it reach the card header's collapse toggle
+			const on = grid.classList.toggle('txcard-keys--explain')
+			head.setAttribute('aria-expanded', String(on))
+		}
+		head.addEventListener('click', toggleExplain)
+		head.addEventListener('keydown', e => {
+			if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExplain(e) }
+		})
 		Object.entries(scores).forEach(([pubkey, score]) => {
 			const signed = signedPubkeys.includes(normalizePublicKey(pubkey))
 			const red = redundancy?.[pubkey] != null ? Math.round(redundancy[pubkey] * 100) + '%' : '-'
@@ -2466,9 +2500,26 @@ export function injectTxReadCSS() {
 		.txcard-detail-grid { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:12px 28px; }
 		.txcard-detail .acctkeys-piechart { margin:0; flex:0 0 auto; }
 		.txcard-keys { display:flex; flex-direction:column; gap:3px; font-size:12px; }
-		.txcard-keys-row { display:grid; grid-template-columns:22px 74px 48px 60px 56px; gap:10px; align-items:center; }
-		.txcard-keys-head { color:#a1a1aa; font-size:11px; }
-		.txcard-keys-row a { color:#3b82f6; text-decoration:none; }
+		/* CURSOR1 (operator, 2026-09-17): the I-beam was showing over the headings and the
+		   values, inviting a text selection nobody wants here — these are read, and the key
+		   itself is a link when you want the full thing. Arrow over the data; the heading
+		   row overrides to a hand below, because that one really is a button now. Declared
+		   HERE rather than beside that rule: .txcard-keys-head is itself a .txcard-keys-row,
+		   so at equal specificity whichever comes last wins, and the head must come last. */
+		.txcard-keys-row { display:grid; grid-template-columns:22px 74px 48px 60px 56px; gap:10px; align-items:center; cursor:default; -webkit-user-select:none; user-select:none; }
+		/* KEYCOLS1: the heading row is a button (tap → the explainer panel below it). The
+		   dotted underline is the affordance — there is no room for a sixth "?" cell in a
+		   five-column grid, and underlining each heading says "there is a definition here"
+		   on the headings themselves rather than somewhere off to one side. */
+		.txcard-keys-head { color:#a1a1aa; font-size:11px; cursor:pointer; }
+		.txcard-keys-head > * { text-decoration:underline dotted; text-decoration-color:#d4d4d8; text-underline-offset:3px; }
+		@media (hover: hover) { .txcard-keys-head:hover > * { text-decoration-color:#a1a1aa; } }
+		.txcard-keys-head:focus-visible { outline:2px solid #0891b2; outline-offset:2px; border-radius:3px; }
+		.txcard-keys-explain { display:none; font-size:11px; line-height:1.45; color:#52525b; background:#fafafa; border:1px solid #ececec; border-radius:6px; padding:7px 9px; margin:2px 0 4px; }
+		.txcard-keys--explain .txcard-keys-explain { display:block; }
+		.txcard-keys-explain > div + div { margin-top:5px; }
+		.txcard-keys-explain b { color:#3f3f46; margin-right:6px; }
+		.txcard-keys-row a { color:#3b82f6; text-decoration:none; cursor:pointer; }
 		.txcard-keys-row a:hover { text-decoration:underline; }
 		/* KPIE-ORBIT1: a hovered key (or every key of a hovered branch) — the same yellow as the wedge outline */
 		.txcard-keys-row.kpie-hi { background:#fff6b0; border-radius:3px; box-shadow:0 0 0 3px #fff6b0; }
