@@ -86,6 +86,7 @@
   <nav class="crumb">
     <a href="../">&larr; Signers dashboard</a>
     <span class="here">How it works</span>
+    <a href="business/">In business terms</a>
   </nav>
   <h1>How KEA works</h1>
   <p class="lede">KEA is a signer you control. It watches for transactions, checks each one against
@@ -96,19 +97,21 @@
 <h2>The one idea</h2>
 
 <p>Most systems that move money for you need to be trusted with the power to move money. KEA
-splits that in two: <strong>whoever assembles a transaction never has the key to release it</strong>,
-and whoever holds the key only releases transactions that match something published in advance.</p>
+splits that in two: <strong>whoever assembles a transaction holds no key that can approve it</strong>,
+and whoever holds a key approves only what matches something published in advance.</p>
 
-<p>So there are four separate jobs, and the useful part is that different people can do them:</p>
+<p>There are five jobs here, and the useful part is that <strong>they can be five different
+parties</strong> — whoever wrote the rule need not be the one proposing, and neither need be the one
+holding a key:</p>
 
 <div class="scroll"><table>
   <thead><tr><th>Job</th><th>Who does it</th><th>What they hold</th></tr></thead>
   <tbody>
-    <tr><td><strong>Publish the rules</strong></td><td>the application</td><td>Nothing at runtime. It writes down what it is willing to pay, and for what.</td></tr>
-    <tr><td><strong>Ask</strong></td><td>a bot, a page, a person</td><td>No key that can release funds. It proposes.</td></tr>
-    <tr><td><strong>Assemble and hold</strong></td><td>the pool (<code>kpool</code>)</td><td><strong>No keys at all.</strong> It builds the transaction and waits for signatures.</td></tr>
-    <tr><td><strong>Approve</strong></td><td><strong>KEA</strong> — one or more devices</td><td>A key. And the only thing it will use it for is a transaction matching a published rule.</td></tr>
-    <tr><td><strong>Settle</strong></td><td>Hedera</td><td>The ledger. It decides whether the signatures are sufficient.</td></tr>
+    <tr><td><strong>Write the rule</strong></td><td>anyone — a business, a person, a script</td><td>Nothing at runtime. They write down what they are willing to pay, and on what conditions, and publish it.</td></tr>
+    <tr><td><strong>Ask</strong></td><td>a bot, a page, a person</td><td>No key that can approve anything. It proposes; that is all.</td></tr>
+    <tr><td><strong>Assemble and hold</strong></td><td>the pool (<code>kpool</code>)</td><td><strong>No key for your accounts</strong>, and it adds no signature of its own. It builds the transaction, holds it, and later relays it exactly as it was signed.</td></tr>
+    <tr><td><strong>Approve</strong></td><td><strong>KEA</strong> — one or more devices</td><td>A key. The only thing it will use it for is adding <em>one approval</em> to a transaction matching a published rule.</td></tr>
+    <tr><td><strong>Settle</strong></td><td>Hedera</td><td>The ledger. It alone decides whether the signatures gathered are sufficient, and either settles or refuses.</td></tr>
   </tbody>
 </table></div>
 
@@ -117,6 +120,17 @@ and whoever holds the key only releases transactions that match something publis
   <p>You publish what you are willing to do; someone proposes it; a venue assembles it; and a signer
   you control approves it only if it matches what you published. Nobody in the middle can move your
   funds, because nobody in the middle has your key.</p>
+</div>
+
+<div class="box warn">
+  <b class="hd">One approval, not a release</b>
+  <p>A signer adds <em>a</em> signature. It does not decide the outcome and it does not release
+  anything. If the account requires two of three devices, one signature moves nothing at all — the
+  transaction simply sits there a little less unsigned than before. The ledger, and only the ledger,
+  decides when what has been gathered is enough.</p>
+  <p>This distinction matters more than it sounds: it is why adding a signer is safe, why a signer
+  going quiet cannot strand your funds, and why no single device on the list is a single point of
+  failure unless you built it that way.</p>
 </div>
 
 <h2>How the pieces connect</h2>
@@ -128,7 +142,7 @@ and whoever holds the key only releases transactions that match something publis
       <desc id="d1">The application publishes a deal catalogue. A raiser asks the pool to build a
       transaction. The pool holds it unsigned. KEA reads the catalogue and the pool, checks the
       transaction, and posts a signature back to the pool. The pool submits to Hedera, which
-      settles. The pool never holds a key.</desc>
+      settles. The pool adds no signature of its own.</desc>
       <defs>
         <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <polygon points="0,1 10,5 0,9" fill="currentColor"/>
@@ -152,7 +166,7 @@ and whoever holds the key only releases transactions that match something publis
         <rect x="266" y="118" width="176" height="68" rx="8" fill="var(--panel-2)" stroke="var(--line)" stroke-width="1.6"/>
         <text x="354" y="141" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">The pool &middot; kpool</text>
         <text x="354" y="158" text-anchor="middle" fill="var(--ink-3)">builds it, holds it</text>
-        <text x="354" y="175" text-anchor="middle" font-size="11" font-weight="700" fill="var(--bad)">HOLDS NO KEYS</text>
+        <text x="354" y="175" text-anchor="middle" font-size="11" font-weight="700" fill="var(--bad)">ADDS NO SIGNATURE</text>
         <line x1="180" y1="152" x2="260" y2="152" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
         <text x="220" y="145" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">asks</text>
 
@@ -288,8 +302,8 @@ signed.</p>
               stroke="currentColor" stroke-width="1.6" marker-end="url(#ar2)"/>
 
         <rect x="96" y="614" width="212" height="38" rx="19" fill="var(--ok-bg)" stroke="var(--ok)" stroke-width="1.8"/>
-        <text x="202" y="638" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ok)">signed &mdash; back to the pool</text>
-        <text x="202" y="672" text-anchor="middle" font-size="11" fill="var(--ink-3)">the pool submits when the account&rsquo;s key is satisfied</text>
+        <text x="202" y="638" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ok)">approved &mdash; signature to the pool</text>
+        <text x="202" y="672" text-anchor="middle" font-size="11" fill="var(--ink-3)">one approval added — the pool submits once the ledger&rsquo;s key is satisfied</text>
       </g>
     </svg>
   </div>
@@ -310,7 +324,7 @@ signed.</p>
     <tr><td class="g">observe</td><td>What does the chain say right now?</td><td class="r">The signer re-fetches every fact itself from a public mirror node. Nothing the raiser supplied is taken on trust.</td></tr>
     <tr><td class="g">derive / require</td><td>Do the conditions hold?</td><td class="r">The rule's own conditions — a deadline, a balance, a winner, an owner — evaluated against what was just observed.</td></tr>
     <tr><td class="g">reproduce</td><td>If I built this myself, would I get the same thing?</td><td class="r">The strongest check. The signer constructs the transaction from the rules and compares it leg by leg with what it was handed. Any difference is a refusal, not a warning.</td></tr>
-    <tr><td class="g">caps</td><td>Is this more than I agreed to release in an hour?</td><td class="r">A ceiling per asset, counting what this signer has already signed. The backstop for a rule that turns out to be wrong.</td></tr>
+    <tr><td class="g">caps</td><td>Is this more than I agreed to approve in an hour?</td><td class="r">A ceiling per asset, counting what this signer has already signed. The backstop for a rule that turns out to be wrong.</td></tr>
     <tr><td class="g">signers</td><td>Does this even need my key?</td><td class="r">Derived from the bytes: which of my accounts are debited, or pay the fee. If none, there is nothing to do.</td></tr>
   </tbody>
 </table></div>
@@ -362,7 +376,7 @@ is the point: your application can be rewritten, redeployed or compromised witho
     <tr><td><strong>Node.js process</strong><br><span style="color:var(--ink-3);font-size:13px">a server, a Raspberry Pi, a phone in Termux</span></td><td class="r">Unattended signing. The usual choice for a service that must keep running.</td><td class="r"><strong>Working today.</strong></td></tr>
     <tr><td><strong>Browser / PWA</strong></td><td class="r">A person approving on screen, or a device that should only sign when somebody opens it. Installable, no install ceremony.</td><td class="r"><strong>Working today</strong> as a web app; the same decision code as the Node body.</td></tr>
     <tr><td><strong>Native app</strong></td><td class="r">A phone as a dedicated signing device, with the key held by the platform's own secure storage.</td><td class="r">Planned.</td></tr>
-    <tr><td><strong>Edge / small nodes</strong></td><td class="r">Several cheap signers in different places, so no single location holds enough keys to release anything.</td><td class="r">Follows naturally — a signer is outbound-only and needs no inbound address.</td></tr>
+    <tr><td><strong>Edge / small nodes</strong></td><td class="r">Several cheap signers in different places, so no single location holds enough keys to reach a threshold on its own.</td><td class="r">Follows naturally — a signer is outbound-only and needs no inbound address.</td></tr>
   </tbody>
 </table></div>
 
@@ -419,7 +433,7 @@ that is exactly what the <a href="../">dashboard</a> is for.</p>
 <ul>
   <li><code>pin</code> — the signer refuses to start if the catalogue on disk does not hash to this.
   Updating your rules is a deliberate act: review, then change one line.</li>
-  <li><code>caps</code> — the most this signer will release per asset per hour, whatever the rules say.</li>
+  <li><code>caps</code> — the most this signer will <em>approve</em> per asset per hour, whatever the rules say.</li>
   <li><code>keys</code> — a <em>reference</em> (<code>env:NAME</code> or a file path), so the config
   can be committed, reviewed and shared without ever containing a secret.</li>
 </ul>
@@ -450,11 +464,11 @@ that is exactly what the <a href="../">dashboard</a> is for.</p>
     <tr><td class="g">deal</td><td class="r">A published document saying what you are willing to pay, to whom, and under what conditions. Its hash is its name.</td></tr>
     <tr><td class="g">catalogue</td><td class="r">The list of deals an application publishes. It has its own hash, so "the rules as of now" is a single value you can pin.</td></tr>
     <tr><td class="g">pool / kpool</td><td class="r">Where transactions wait for signatures. It assembles and holds; it never holds keys, and it forgets after about an hour.</td></tr>
-    <tr><td class="g">raiser</td><td class="r">Whoever asked for the transaction to be built. Has no power to release it.</td></tr>
+    <tr><td class="g">raiser</td><td class="r">Whoever asked for the transaction to be built. Holds no key that can approve it.</td></tr>
     <tr><td class="g">mirror node</td><td class="r">A public read-only view of Hedera. How a signer checks facts for itself.</td></tr>
     <tr><td class="g">presence</td><td class="r">A signer announcing that it is here, signed with a key it claims to hold — so the claim is evidence, not a note somebody wrote.</td></tr>
     <tr><td class="g">dry run</td><td class="r">Decide everything, sign nothing.</td></tr>
-    <tr><td class="g">cap</td><td class="r">The most a signer will release per asset per hour, regardless of what the rules permit.</td></tr>
+    <tr><td class="g">cap</td><td class="r">The most a signer will approve per asset per hour, regardless of what the rules permit.</td></tr>
   </tbody>
 </table></div>
 

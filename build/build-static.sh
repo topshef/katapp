@@ -147,6 +147,8 @@ mkdir -p "$DIST/future/v3"
 cp "$PUB/future/v3/index.html" "$DIST/future/v3/index.html"
 mkdir -p "$DIST/future/v3/help"
 cp "$PUB/future/v3/help/index.html" "$DIST/future/v3/help/index.html"
+mkdir -p "$DIST/future/v3/help/business"
+cp "$PUB/future/v3/help/business/index.html" "$DIST/future/v3/help/business/index.html"
 # The signer view mounts the REAL signing widget when a row is tapped. It asks this file
 # where the widget is rather than hard-coding it, which is what lets the same page run on a
 # host that has no widget (it falls back to opening the signing page). The WalletConnect

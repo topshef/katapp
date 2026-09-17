@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Approval without a custodian</title>
+<meta name="description" content="KEA in business terms: a published rule, a request, an approval, a settlement — and why nobody in the middle can move the money.">
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#fff; --panel-2:#eceef1; --line:#d8dce1; --line-2:#e6e9ec;
+    --ink:#171a1f; --ink-2:#555f6b; --ink-3:#7c8794;
+    --ok:#1d6b45; --ok-bg:#e0efe7;
+    --warn:#8a5a12; --warn-bg:#f6e9d5;
+    --bad:#a02f27; --bad-bg:#f8e2df;
+    --acc:#1c5580; --acc-bg:#e4edf5;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0f1319; --panel:#171c23; --panel-2:#1e242d; --line:#2a323c; --line-2:#222a33;
+    --ink:#e3e8ee; --ink-2:#9fabb8; --ink-3:#77838f;
+    --ok:#5cbc8b; --ok-bg:#15281f;
+    --warn:#d2a154; --warn-bg:#2b2416;
+    --bad:#e0817a; --bad-bg:#2e1b19;
+    --acc:#74aede; --acc-bg:#16202b;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16.5px/1.62 var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:720px;margin:0 auto;padding:0 16px 80px}
+  a{color:var(--acc)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--panel-2);padding:1px 5px;border-radius:4px}
+  p{margin:0 0 15px}
+  h1,h2{line-height:1.22;letter-spacing:-.012em}
+  h1{font-size:29px;font-weight:700;margin:0 0 10px}
+  h2{font-size:20px;font-weight:650;margin:40px 0 12px;padding-top:18px;border-top:1px solid var(--line)}
+  .lede{font-size:17.5px;color:var(--ink-2);margin-bottom:6px}
+  ul{margin:0 0 15px;padding-left:22px} li{margin-bottom:8px}
+
+  header{padding:22px 0 4px}
+  .crumb{display:flex;flex-wrap:wrap;gap:8px;font:12px var(--mono);margin-bottom:14px}
+  .crumb a{text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:3px 10px;color:var(--ink-3)}
+  .crumb a:hover{color:var(--acc);border-color:var(--acc)}
+  .crumb .here{border:1px solid var(--acc);background:var(--acc);color:var(--bg);border-radius:99px;padding:3px 10px}
+
+  .box{border:1px solid var(--line);border-left-width:3px;border-left-color:var(--acc);border-radius:8px;
+       background:var(--panel);padding:15px 17px;margin:20px 0}
+  .box b.hd{display:block;font-size:14px;margin-bottom:5px;color:var(--acc)}
+  .box p:last-child{margin-bottom:0}
+  .box.warn{border-left-color:var(--warn)} .box.warn b.hd{color:var(--warn)}
+
+  figure{margin:24px 0}
+  .fig{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px 10px;overflow-x:auto}
+  .fig svg{display:block;width:100%;height:auto;max-width:100%}
+  figcaption{font-size:14px;color:var(--ink-3);margin-top:10px;line-height:1.5}
+
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel);margin:20px 0}
+  table{border-collapse:collapse;width:100%;min-width:480px;font-size:15px}
+  th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);
+     font-weight:600;padding:10px 13px;background:var(--panel-2);border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:10px 13px;border-bottom:1px solid var(--line-2);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.w{font-weight:650;white-space:nowrap}
+  td.r{font-size:14px;color:var(--ink-2)}
+
+  footer{margin-top:46px;padding-top:16px;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink-3)}
+  @media (max-width:600px){
+    body{font-size:16px}
+    .wrap{padding:0 12px 60px}
+    h1{font-size:25px} h2{font-size:18.5px}
+    .fig{padding:12px 6px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <nav class="crumb">
+    <a href="../../">&larr; Signers dashboard</a>
+    <a href="../">How it works &mdash; technical</a>
+    <span class="here">In business terms</span>
+  </nav>
+  <h1>Approval without a custodian</h1>
+  <p class="lede">Every business already has an approval process: a policy, a request, a sign-off, a
+  payment. This is that, with one difference — the part that holds the money cannot act on it.</p>
+</header>
+
+<h2>Four things, and that is all</h2>
+
+<p>Strip away the technology and there are four:</p>
+
+<div class="scroll"><table>
+  <thead><tr><th>Thing</th><th>In your language</th><th>The one property that matters</th></tr></thead>
+  <tbody>
+    <tr><td class="w">A rule</td><td>A policy. "We pay this, to whoever meets these conditions."</td><td class="r">Published in advance, and fixed. It has a fingerprint, so "the policy we agreed" is a specific thing, not a shared memory.</td></tr>
+    <tr><td class="w">A request</td><td>A claim, an invoice, an order.</td><td class="r">Anyone may raise one. Raising it confers no power whatsoever.</td></tr>
+    <tr><td class="w">An approval</td><td>A signature on the sign-off sheet.</td><td class="r">Given only when the request matches the rule exactly. One approval, not a decision.</td></tr>
+    <tr><td class="w">Settlement</td><td>The payment actually leaving.</td><td class="r">Happens only when enough approvals are in. Nobody performs it; it follows.</td></tr>
+  </tbody>
+</table></div>
+
+<p>The four do not have to be four <em>people</em>. Whoever writes a rule need not be the one
+requesting against it, and neither need be the one approving. A rule is a public document: you can
+write your own, or approve against one somebody else wrote, having read it.</p>
+
+<figure>
+  <div class="fig">
+    <svg viewBox="0 0 660 176" role="img" aria-labelledby="bt bd">
+      <title id="bt">Rule, request, approval, settlement</title>
+      <desc id="bd">A published rule sits above the flow. A request is raised and waits unsigned.
+      Approvers check the request against the rule and each add one approval. When enough approvals
+      are gathered, settlement follows automatically.</desc>
+      <defs>
+        <marker id="b1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <polygon points="0,1 10,5 0,9" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g font-family="system-ui,sans-serif" font-size="12" color="var(--ink-2)" fill="currentColor">
+
+        <rect x="186" y="6" width="288" height="40" rx="8" fill="var(--acc-bg)" stroke="var(--acc)" stroke-width="1.6"/>
+        <text x="330" y="24" text-anchor="middle" font-size="13" font-weight="700" fill="var(--acc)">THE RULE &mdash; published, fingerprinted</text>
+        <text x="330" y="39" text-anchor="middle" font-size="11" fill="var(--ink-3)">anyone may write one &middot; anyone may read it</text>
+
+        <rect x="8" y="98" width="150" height="46" rx="8" fill="var(--panel-2)" stroke="var(--line)"/>
+        <text x="83" y="120" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--ink)">Request</text>
+        <text x="83" y="136" text-anchor="middle" font-size="11" fill="var(--ink-3)">anyone may raise</text>
+
+        <rect x="196" y="92" width="150" height="58" rx="8" fill="var(--panel-2)" stroke="var(--line)" stroke-width="1.6"/>
+        <text x="271" y="113" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--ink)">Waiting</text>
+        <text x="271" y="129" text-anchor="middle" font-size="11" fill="var(--ink-3)">unsigned, in the open</text>
+        <text x="271" y="144" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--bad)">CANNOT ACT ON ITSELF</text>
+
+        <rect x="384" y="92" width="150" height="58" rx="8" fill="var(--ok-bg)" stroke="var(--ok)" stroke-width="1.6"/>
+        <text x="459" y="113" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--ok)">Approvers</text>
+        <text x="459" y="129" text-anchor="middle" font-size="11" fill="var(--ink-3)">one signature each</text>
+        <text x="459" y="144" text-anchor="middle" font-size="11" fill="var(--ink-3)">check against the rule</text>
+
+        <rect x="556" y="98" width="96" height="46" rx="8" fill="var(--panel-2)" stroke="var(--line)"/>
+        <text x="604" y="120" text-anchor="middle" font-size="12.5" font-weight="650" fill="var(--ink)">Settles</text>
+        <text x="604" y="136" text-anchor="middle" font-size="11" fill="var(--ink-3)">when enough</text>
+
+        <line x1="162" y1="121" x2="190" y2="121" stroke="currentColor" stroke-width="1.5" marker-end="url(#b1)"/>
+        <line x1="350" y1="121" x2="378" y2="121" stroke="currentColor" stroke-width="1.5" marker-end="url(#b1)"/>
+        <line x1="538" y1="121" x2="550" y2="121" stroke="currentColor" stroke-width="1.5" marker-end="url(#b1)"/>
+        <path d="M240 50 L240 88" stroke="var(--acc)" stroke-width="1.5" marker-end="url(#b1)" fill="none"/>
+        <path d="M430 50 L430 88" stroke="var(--acc)" stroke-width="1.5" marker-end="url(#b1)" fill="none"/>
+      </g>
+    </svg>
+  </div>
+  <figcaption>The rule governs both sides: the request is built from it, and the approver checks
+  against it. Neither trusts the other — they both answer to the same published document.</figcaption>
+</figure>
+
+<h2>What is genuinely different</h2>
+
+<p>In a normal arrangement, something in the middle — a bank, a platform, a payments provider, your
+own server — holds the ability to move the money, and you rely on it behaving. Controls are things
+that thing agrees to apply to itself.</p>
+
+<p>Here, the part in the middle holds the request but <strong>cannot act on it</strong>. Not "is
+configured not to" — cannot. Approval lives on separate devices, and the ledger will not settle
+anything without them.</p>
+
+<div class="box">
+  <b class="hd">The row that sells it</b>
+  <p>Most organisations do not have a problem <em>making</em> a payment. They have a problem
+  controlling <em>who may authorise which</em> payment — and proving afterwards that the control held.
+  "Approve only what matches this published rule, under this hourly limit, and only when two of these
+  three devices agree" is an authorisation matrix that sits outside every system involved.</p>
+</div>
+
+<h2>What you can decide</h2>
+
+<div class="scroll"><table>
+  <thead><tr><th>Decision</th><th>What it buys you</th></tr></thead>
+  <tbody>
+    <tr><td class="w">How many approvers</td><td class="r">One device for something routine; two of three where the loss would hurt. Raising it is a key change, not a rebuild.</td></tr>
+    <tr><td class="w">Who holds them</td><td class="r">Different people, different places, different kinds of device. Collusion becomes the only route, and collusion is a different risk from a breach.</td></tr>
+    <tr><td class="w">An hourly ceiling</td><td class="r">The most an approver will approve per hour, whatever the rule permits. Your backstop for a rule that turns out to be wrong.</td></tr>
+    <tr><td class="w">What is visible</td><td class="r">Approvers can publish that they are on duty. Then "is our approval process actually running" is a page you look at, not a question you ask someone.</td></tr>
+  </tbody>
+</table></div>
+
+<h2>What it costs you in practice</h2>
+
+<ul>
+  <li><strong>Availability is the real risk, not theft.</strong> Requiring two of three is safer than one — until two devices are lost, and then nothing can be approved at all. Choose the number from how many independent losses you should survive, not from how nervous you feel.</li>
+  <li><strong>A rule is only as good as its review.</strong> The system guarantees that what gets approved matches the rule. It cannot tell you the rule was a sensible one. That reading is the work, and it happens once, in advance, in the quiet.</li>
+  <li><strong>Rehearse it.</strong> Stop the approvers that can act alone and confirm the rest behave as you expect. Organisations that skip this discover the arrangement does not work at the worst possible moment.</li>
+</ul>
+
+<div class="box warn">
+  <b class="hd">Said plainly</b>
+  <p>This removes the need to trust the machinery in the middle. It does not remove the need to
+  decide what you are willing to pay for, to whom, and on whose approval. It makes those decisions
+  explicit, reviewable and enforced — which is more than most arrangements manage, and less than
+  magic.</p>
+</div>
+
+<footer>
+  <p>The mechanics — every check an approver runs, and how to operate one — are in
+  <a href="../">how it works</a>. What is running right now is on the
+  <a href="../../">signers dashboard</a>.</p>
+</footer>
+
+</div>
+</body>
+</html>
