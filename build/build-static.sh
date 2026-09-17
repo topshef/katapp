@@ -140,6 +140,11 @@ copytree m/tools/glog 2>/dev/null || true
 # (bootstrap, jquery, owl/slick, fontawesome, GM.ico) + the page's own future.css
 copytree assets/css; copytree assets/js
 copytree vendor/bootstrap; copytree vendor/jquery; copytree future
+
+# SIGNER-VIEW1: future/v3 is a plain static page (no PHP) — the signer view next to the
+# transaction list. copytree takes only asset extensions, so the page itself is copied here.
+mkdir -p "$DIST/future/v3"
+cp "$PUB/future/v3/index.html" "$DIST/future/v3/index.html"
 # SIGNPAGE-KBM1 (2026-09-05): vendor/kbuild-monitor.js is a loose file directly under
 # vendor/, so no copytree above reaches it — and kpool_widget/bootstrap.js TOP-LEVEL imports
 # it. A missing module there rejects the whole bootstrap, so index.js never runs, window.KPOOL

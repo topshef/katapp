@@ -62,6 +62,7 @@ const IDPAGE = /^\/m\/katomia\/(game|board)(?:\/([^/.]+))?\/?$/;     // game, bo
 const KPOOL = /^\/m\/bid\/explore\/kpool(\.php)?$/;
 // SIGNPAGE-STATIC1: /m/sign/ is lab22's `require /future/index.php` shim, so both spellings are
 // the same page AND the same ?action= proxy (future/index.php dispatches to kpool.php on action).
+const SIGNERVIEW = /^\/future\/v3(?:\/|\/index\.html)?$/;    // SIGNER-VIEW1: the signer view
 const SIGNPAGE = /^\/(?:m\/sign|future)(?:\/|\/index\.php)?$/;
 const GLOG = /^\/m\/tools\/glog\/latest\/(.+)$/;
 const BRANDS = [
@@ -130,6 +131,12 @@ export function route(url) {
   if (p === K + '/KEA/' || p === K + '/KEA/index.php' || p === K + '/KEA/app.html') return { kind: 'asset', path: K + '/KEA/index.html' };
   if ((m = p.match(KHAPI))) return { kind: 'alias', path: '/hapi/katomia/' + m[1] };
   if (p === K + '/hapi.php') return actionRoute(url, '/hapi/katomia/', 'create');   // 'create' = hapi.php's own default
+  // SIGNER-VIEW1: the signer view, a plain static page. Matched BEFORE SIGNPAGE so the
+  // /future prefix cannot swallow it, and it keeps its own ?action= proxy so the page can
+  // call the pass-through relatively (../?action=…) exactly as it does on the PHP host.
+  if (SIGNERVIEW.test(p)) return url.searchParams.has('action')
+    ? actionRoute(url, '/hapi/kpool/', '')
+    : { kind: 'asset', path: '/future/v3/index.html' };
   if (SIGNPAGE.test(p)) return url.searchParams.has('action') ? actionRoute(url, '/hapi/kpool/', '') : { kind: 'asset', path: '/m/sign/index.html' };
   if (p === K + '/binding.php') return { kind: 'asset', path: K + '/binding.html' };
   if (/^\/m\/feedback(?:\/|\/index\.php)?$/.test(p)) return { kind: 'asset', path: '/m/feedback/index.html' };   // widget fallback link

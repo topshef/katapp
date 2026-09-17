@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Signers — what is on duty, and what is signing</title>
+<meta name="description" content="Every signer that is announcing itself to the pool, and every transaction waiting in the pool with the devices that have signed it. Read-only.">
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#fff; --panel-2:#eceef1; --line:#d8dce1; --line-2:#e6e9ec;
+    --ink:#171a1f; --ink-2:#555f6b; --ink-3:#7c8794;
+    --ok:#1d6b45; --ok-bg:#e0efe7;
+    --warn:#8a5a12; --warn-bg:#f6e9d5;
+    --bad:#a02f27; --bad-bg:#f8e2df;
+    --acc:#1c5580;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0f1319; --panel:#171c23; --panel-2:#1e242d; --line:#2a323c; --line-2:#222a33;
+    --ink:#e3e8ee; --ink-2:#9fabb8; --ink-3:#77838f;
+    --ok:#5cbc8b; --ok-bg:#15281f;
+    --warn:#d2a154; --warn-bg:#2b2416;
+    --bad:#e0817a; --bad-bg:#2e1b19;
+    --acc:#74aede;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 16px 72px}
+  a{color:var(--acc)}
+  code,.mono{font-family:var(--mono)}
+
+  header{padding:22px 0 14px;border-bottom:1px solid var(--line);margin-bottom:20px}
+  h1{margin:0 0 4px;font-size:21px;font-weight:650;letter-spacing:-.01em}
+  .sub{margin:0;color:var(--ink-2);font-size:14px;max-width:80ch}
+  .sub b{font-weight:600;color:var(--ink)}
+
+  .bar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;margin:16px 0 0}
+  .f{display:flex;flex-direction:column;gap:3px}
+  .f label{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+  .f input,.f select{font:13px var(--sans);padding:5px 8px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink);min-width:110px}
+  .f input.wide{min-width:200px}
+  button{font:13px var(--sans);padding:6px 12px;border:1px solid var(--line);border-radius:5px;background:var(--panel);color:var(--ink);cursor:pointer}
+  button:hover{border-color:var(--ink-3)}
+  button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+  .stamp{margin-left:auto;font:12px var(--mono);color:var(--ink-3);align-self:center}
+
+  section{margin:26px 0 0}
+  .shead{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin:0 0 8px}
+  h2{margin:0;font-size:15px;font-weight:650}
+  .note{font-size:13px;color:var(--ink-3);margin:0;max-width:86ch}
+  .count{font:12px var(--mono);color:var(--ink-3)}
+
+  .panel{border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow-x:auto}
+  table{border-collapse:collapse;width:100%;min-width:760px;font-size:13.5px}
+  th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);
+     font-weight:600;padding:9px 12px;background:var(--panel-2);border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:9px 12px;border-bottom:1px solid var(--line-2);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.mono{font-family:var(--mono);font-size:12px}
+  .msg{padding:16px 12px;color:var(--ink-3);font-size:13.5px}
+  .msg.err{color:var(--bad)}
+
+  .pill{display:inline-block;font-size:10.5px;font-weight:650;letter-spacing:.05em;text-transform:uppercase;
+        padding:2px 7px;border-radius:99px;border:1px solid;white-space:nowrap}
+  .pill.ok{color:var(--ok);border-color:var(--ok);background:var(--ok-bg)}
+  .pill.warn{color:var(--warn);border-color:var(--warn);background:var(--warn-bg)}
+  .pill.bad{color:var(--bad);border-color:var(--bad);background:var(--bad-bg)}
+  .pill.mute{color:var(--ink-3);border-color:var(--line)}
+  .age{color:var(--ink-3);font-family:var(--mono);font-size:12px}
+  .who{font-weight:600}
+  .key{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+  .sig{display:inline-block;font-size:12px;font-weight:600;padding:1px 7px;border-radius:4px;
+       background:var(--ok-bg);color:var(--ok);margin:1px 3px 1px 0;white-space:nowrap}
+  .sig.unknown{background:var(--panel-2);color:var(--ink-2);font-family:var(--mono);font-weight:400;font-size:11.5px}
+  .none{color:var(--ink-3)}
+  .self{font-size:11.5px;color:var(--ink-3);font-family:var(--mono)}
+  .warnrow td{background:var(--warn-bg)}
+  .dim{color:var(--ink-3)}
+  .deal{max-width:30ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-3);line-height:1.6}
+  footer code{font-size:11.5px}
+  @media (max-width:600px){ .stamp{margin-left:0;width:100%} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Signers</h1>
+  <p class="sub">Who is on duty, and what they are signing. Everything here is read from the pool —
+  nothing on this page can start, stop or authorise anything. A signer appears only if it is set to
+  <b>announce itself</b>; one that stays quiet still shows up under its signatures below.</p>
+  <div class="bar">
+    <div class="f"><label for="network">network</label>
+      <select id="network"><option>testnet</option><option>mainnet</option><option>previewnet</option></select></div>
+    <div class="f"><label for="since">pool window</label>
+      <select id="since">
+        <option value="300">5 min</option>
+        <option value="900" selected>15 min</option>
+        <option value="1800">30 min</option>
+        <option value="3600">1 hour</option>
+      </select></div>
+    <div class="f"><label for="account">account</label>
+      <input id="account" placeholder="0.0.7718,0.0.10343"></div>
+    <div class="f"><label for="q">filter</label>
+      <input id="q" class="wide" placeholder="label, key, txid, deal…"></div>
+    <div class="f"><label for="auto">refresh</label>
+      <select id="auto"><option value="0">manual</option><option value="30" selected>30 s</option><option value="60">60 s</option></select></div>
+    <button id="go" class="primary" type="button">Refresh</button>
+    <button id="link" type="button" title="copy a link that reproduces exactly this view">Copy link</button>
+    <span class="stamp" id="stamp">—</span>
+  </div>
+</header>
+
+<section>
+  <div class="shead">
+    <h2>On duty</h2>
+    <span class="count" id="dcount"></span>
+    <p class="note">Each row is one device. It signed its own announcement with a key it claims to
+    hold, so the label and the keys are the device's own word, proven. <b>Fresh</b> means it spoke
+    within the pool's freshness window; the age is always shown beside it, because "quiet" and
+    "gone" are different facts.</p>
+  </div>
+  <div class="panel"><table id="devices">
+    <thead><tr>
+      <th>device</th><th>signing?</th><th>last seen</th><th>keys held</th><th>watching</th><th>self-reported</th>
+    </tr></thead>
+    <tbody><tr><td colspan="6" class="msg">Loading…</td></tr></tbody>
+  </table></div>
+  <p class="note" id="dnote" style="margin-top:8px"></p>
+</section>
+
+<section>
+  <div class="shead">
+    <h2>In the pool</h2>
+    <span class="count" id="tcount"></span>
+    <p class="note">Transactions waiting for signatures, newest first, with the devices that have
+    signed each one — matched by public key against the roster above. The pool keeps a transaction
+    for about an hour from its start time, so this is a live window, not a record.</p>
+  </div>
+  <div class="panel"><table id="txs">
+    <thead><tr>
+      <th>when</th><th>deal</th><th>transaction</th><th>signed by</th><th>state</th>
+    </tr></thead>
+    <tbody><tr><td colspan="5" class="msg">Loading…</td></tr></tbody>
+  </table></div>
+</section>
+
+<section>
+  <div class="shead">
+    <h2>Seen before</h2>
+    <span class="count" id="scount"></span>
+    <p class="note">Devices this browser has seen announcing, kept locally so the list outlives the
+    pool's window. Nothing is sent anywhere — clearing it only clears this browser.</p>
+  </div>
+  <div class="panel"><table id="hist">
+    <thead><tr><th>device</th><th>first seen here</th><th>last seen here</th><th>keys</th></tr></thead>
+    <tbody><tr><td colspan="4" class="msg">Nothing remembered yet.</td></tr></tbody>
+  </table></div>
+  <div class="bar" style="margin-top:10px"><button id="clear" type="button">Clear remembered devices</button></div>
+</section>
+
+<footer>
+  <p>Reads <code>?action=signers</code>, <code>?action=txList</code> and <code>?action=txRead</code>
+  from the pool pass-through next to this page. Point it somewhere else with
+  <code>?api=https://host/future/</code>. Every control is in the URL, so a link shows the same view
+  to whoever opens it.</p>
+  <p id="apinote" class="dim"></p>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── where the data comes from ───────────────────────────────────────────────
+  // Default: the pass-through directory next to this page (this file lives in
+  // future/v3/, the pass-through answers at future/?action=…). Keeping it relative
+  // is what lets the whole folder be copied to another host and still work.
+  var qs = new URLSearchParams(location.search);
+  var API = qs.get('api') || new URL('../', location.href).href;
+  if (!/\/$/.test(API)) API += '/';
+  document.getElementById('apinote').textContent = 'pool: ' + API;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+    });
+  };
+
+  var MAX_READS = 40;          // how many pooled records to open per refresh
+  var CONCURRENCY = 4;         // the pass-through caches for 10s; be gentle
+  var LSKEY = 'kea.signers.seen.v1';
+
+  // ── little helpers ──────────────────────────────────────────────────────────
+  function ago(seconds) {
+    var s = Math.max(0, Math.round(seconds));
+    if (s < 60) return s + 's';
+    if (s < 3600) return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+    if (s < 86400) return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm';
+    return Math.floor(s / 86400) + 'd ' + Math.floor((s % 86400) / 3600) + 'h';
+  }
+  // a Hedera txid carries its own valid-start: 0.0.X@<seconds>.<nanos>
+  function txStartSec(txid) {
+    var m = /@(\d+)\./.exec(String(txid || ''));
+    return m ? Number(m[1]) : null;
+  }
+  function getJson(url) {
+    return fetch(url, { credentials: 'omit' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+  function api(action, params) {
+    var p = new URLSearchParams(params || {});
+    p.set('action', action);
+    return getJson(API + '?' + p.toString());
+  }
+  // run jobs n-at-a-time; one failure never sinks the batch
+  function pool(items, n, fn) {
+    var out = new Array(items.length), i = 0;
+    function next() {
+      if (i >= items.length) return Promise.resolve();
+      var k = i++;
+      return Promise.resolve(fn(items[k], k))
+        .then(function (v) { out[k] = v; }, function () { out[k] = null; })
+        .then(next);
+    }
+    var runners = [];
+    for (var j = 0; j < Math.min(n, items.length); j++) runners.push(next());
+    return Promise.all(runners).then(function () { return out; });
+  }
+
+  // ── state that the URL owns ─────────────────────────────────────────────────
+  var controls = ['network', 'since', 'account', 'q', 'auto'];
+  function readUrlIntoControls() {
+    controls.forEach(function (k) {
+      var v = qs.get(k);
+      if (v !== null && $(k)) $(k).value = v;
+    });
+  }
+  function writeControlsIntoUrl(push) {
+    var p = new URLSearchParams();
+    if (qs.get('api')) p.set('api', qs.get('api'));
+    controls.forEach(function (k) {
+      var el = $(k); if (!el) return;
+      if (el.value) p.set(k, el.value);
+    });
+    var url = location.pathname + (p.toString() ? '?' + p.toString() : '');
+    history[push ? 'pushState' : 'replaceState'](null, '', url);
+  }
+
+  function accountFilter() {
+    return $('account').value.split(/[,\s]+/).map(function (s) { return s.trim(); }).filter(Boolean);
+  }
+  function needle() { return $('q').value.trim().toLowerCase(); }
+
+  // ── the roster: pubkey -> device, so signatures can be named ────────────────
+  var byKey = {};      // lowercase pubkey -> { label, mode, fresh, ageSeconds }
+  var freshSeconds = 180;
+
+  function renderDevices(list, meta) {
+    var tb = $('devices').tBodies[0];
+    var acc = accountFilter(), nd = needle();
+    byKey = {};
+    list.forEach(function (d) {
+      Object.keys(d.accounts || {}).forEach(function (a) {
+        byKey[String(d.accounts[a]).toLowerCase()] = d;
+      });
+    });
+
+    var rows = list.filter(function (d) {
+      if (acc.length && !Object.keys(d.accounts || {}).some(function (a) { return acc.indexOf(a) >= 0; })) return false;
+      if (!nd) return true;
+      var hay = (d.label + ' ' + Object.keys(d.accounts || {}).join(' ') + ' ' +
+                 Object.values(d.accounts || {}).join(' ') + ' ' + (d.deals || []).join(' ')).toLowerCase();
+      return hay.indexOf(nd) >= 0;
+    });
+
+    $('dcount').textContent = rows.length + (rows.length === list.length ? '' : ' / ' + list.length) +
+      (list.length === 1 ? ' device' : ' devices');
+
+    if (!rows.length) {
+      tb.innerHTML = '<tr><td colspan="6" class="msg">' +
+        (list.length ? 'No device matches this filter.'
+                     : 'No device is announcing. Either none is running, or none has <code>presence.level</code> set in its config.') +
+        '</td></tr>';
+      return;
+    }
+
+    tb.innerHTML = rows.map(function (d) {
+      var mode = d.mode === 'go'      ? '<span class="pill ok">will sign</span>'
+               : d.mode === 'dry-run' ? '<span class="pill bad">dry run</span>'
+               : '<span class="pill mute">unknown</span>';
+      var seen = d.fresh ? '<span class="pill ok">fresh</span>' : '<span class="pill warn">quiet</span>';
+      var keys = Object.keys(d.accounts || {}).map(function (a) {
+        return '<div><span class="key">' + esc(a) + '</span> &middot; <span class="key">' +
+               esc(String(d.accounts[a]).slice(0, 12)) + '…</span></div>';
+      }).join('') || '<span class="none">none</span>';
+      var watching = d.deals
+        ? esc(String(d.deals.length)) + ' deal' + (d.deals.length === 1 ? '' : 's')
+        : '<span class="none">not saying</span>';
+      if (d.cataloguePin) {
+        watching += '<div class="key">pin ' + esc(String(d.cataloguePin).replace(/^sha256:/, '').slice(0, 10)) + '…</div>';
+      }
+      var u = d.unverified || {};
+      var self = [];
+      if (u.signed !== undefined) self.push('signed ' + u.signed);
+      if (u.refused !== undefined) self.push('refused ' + u.refused);
+      if (u.errors) self.push('errors ' + u.errors);
+      if (u.startedAt) self.push('up ' + ago((meta.now || 0) - u.startedAt));
+
+      return '<tr>' +
+        '<td><span class="who">' + esc(d.label) + '</span>' +
+          (d.restarted ? ' <span class="pill warn">restarted</span>' : '') +
+          (d.version ? '<div class="key">node ' + esc(d.version) + '</div>' : '') + '</td>' +
+        '<td>' + mode + '</td>' +
+        '<td>' + seen + '<div class="age">' + ago(d.ageSeconds) + ' ago</div></td>' +
+        '<td>' + keys + '</td>' +
+        '<td>' + watching + '</td>' +
+        '<td><span class="self">' + self.map(esc).join(' &middot; ') + '</span></td>' +
+        '</tr>';
+    }).join('');
+
+    // Two signers on different catalogues disagree about what is signable, and that
+    // disagreement is otherwise invisible until one of them mysteriously refuses.
+    var pins = {};
+    list.forEach(function (d) { if (d.cataloguePin) pins[d.cataloguePin] = 1; });
+    $('dnote').innerHTML = Object.keys(pins).length > 1
+      ? '<span class="pill bad">mixed</span> These devices are pinned to different deal catalogues — they will not agree about what is signable.'
+      : "Counters are the device's own count, not attested — they ride alongside the signed announcement, not inside it. Freshness window: " + freshSeconds + 's.';
+  }
+
+  // ── the pool: what is waiting, and who has signed it ────────────────────────
+  function nameFor(pubKey) {
+    var d = byKey[String(pubKey).toLowerCase()];
+    return d
+      ? '<span class="sig">' + esc(d.label) + '</span>'
+      : '<span class="sig unknown">' + esc(String(pubKey).slice(0, 10)) + '…</span>';
+  }
+
+  function renderTxs(rows) {
+    var tb = $('txs').tBodies[0], nd = needle(), now = Math.floor(Date.now() / 1000);
+    var shown = rows.filter(function (r) {
+      if (!r) return false;
+      if (!nd) return true;
+      var hay = (r.txid + ' ' + (r.pch || '') + ' ' + (r.title || '')).toLowerCase();
+      return hay.indexOf(nd) >= 0;
+    });
+    $('tcount').textContent = shown.length + (shown.length === rows.length ? '' : ' / ' + rows.length) +
+      (shown.length === 1 ? ' transaction' : ' transactions');
+
+    if (!shown.length) {
+      tb.innerHTML = '<tr><td colspan="5" class="msg">Nothing in the pool for this window.</td></tr>';
+      return;
+    }
+
+    tb.innerHTML = shown.map(function (r) {
+      var start = txStartSec(r.txid);
+      var when = start === null ? '<span class="none">?</span>'
+        : (start > now ? 'in ' + ago(start - now) : ago(now - start) + ' ago');
+      var sigs = (r.sigs || []).map(function (s) { return nameFor(s.pubKey); }).join(' ')
+        || '<span class="none">nobody yet</span>';
+      // A transaction whose signatures came only from devices that are NOT announcing
+      // is worth seeing: it means the roster is not the whole story.
+      var unknown = (r.sigs || []).some(function (s) { return !byKey[String(s.pubKey).toLowerCase()]; });
+      var state = r.state || '—';
+      var cls = /success/i.test(state) ? 'ok' : /expire|fail/i.test(state) ? 'bad' : 'mute';
+      return '<tr' + (unknown ? ' class="warnrow"' : '') + '>' +
+        '<td class="mono">' + when + '</td>' +
+        '<td><div class="deal" title="' + esc(r.title || '') + '">' + (r.title ? esc(r.title) : '<span class="none">not a deal</span>') + '</div></td>' +
+        '<td class="mono">' + esc(r.txid) + (r.pch ? '<div class="key">pch ' + esc(r.pch) + '</div>' : '') + '</td>' +
+        '<td>' + sigs + '</td>' +
+        '<td><span class="pill ' + cls + '">' + esc(state) + '</span></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  // ── remembered devices (this browser only) ──────────────────────────────────
+  function loadSeen() {
+    try { return JSON.parse(localStorage.getItem(LSKEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function saveSeen(v) {
+    try { localStorage.setItem(LSKEY, JSON.stringify(v)); } catch (e) { /* private window, blocked storage */ }
+  }
+  function rememberAndRenderSeen(list) {
+    var seen = loadSeen(), nowIso = new Date().toISOString();
+    list.forEach(function (d) {
+      var k = String(d.by || '').toLowerCase();
+      if (!k) return;
+      var prev = seen[k] || {};
+      seen[k] = {
+        label: d.label, first: prev.first || nowIso, last: nowIso,
+        accounts: d.accounts || prev.accounts || {}
+      };
+    });
+    saveSeen(seen);
+
+    var keys = Object.keys(seen).sort(function (a, b) {
+      return String(seen[b].last).localeCompare(String(seen[a].last));
+    });
+    var tb = $('hist').tBodies[0];
+    $('scount').textContent = keys.length + (keys.length === 1 ? ' device' : ' devices');
+    if (!keys.length) { tb.innerHTML = '<tr><td colspan="4" class="msg">Nothing remembered yet.</td></tr>'; return; }
+    tb.innerHTML = keys.map(function (k) {
+      var s = seen[k];
+      var live = !!byKey[k];
+      return '<tr>' +
+        '<td><span class="who">' + esc(s.label || '?') + '</span>' +
+          (live ? ' <span class="pill ok">announcing now</span>' : ' <span class="pill mute">not now</span>') +
+          '<div class="key">' + esc(k.slice(0, 16)) + '…</div></td>' +
+        '<td class="mono">' + esc(String(s.first).replace('T', ' ').slice(0, 19)) + '</td>' +
+        '<td class="mono">' + esc(String(s.last).replace('T', ' ').slice(0, 19)) + '</td>' +
+        '<td>' + Object.keys(s.accounts || {}).map(esc).join('<br>') + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  // ── one refresh ─────────────────────────────────────────────────────────────
+  var busy = false;
+  function refresh() {
+    if (busy) return Promise.resolve();
+    busy = true;
+    $('stamp').textContent = 'loading…';
+    var network = $('network').value;
+
+    var devices = api('signers', { network: network }).then(function (d) {
+      var r = (d && d.result) || d || {};
+      freshSeconds = r.freshSeconds || freshSeconds;
+      var list = r.signers || [];
+      renderDevices(list, r);
+      rememberAndRenderSeen(list);
+    }).catch(function (e) {
+      $('devices').tBodies[0].innerHTML =
+        '<tr><td colspan="6" class="msg err">Could not reach the pool: ' + esc(e.message) + '</td></tr>';
+    });
+
+    var txs = api('txList', { network: network, since: $('since').value, until: '600' })
+      .then(function (d) {
+        var list = ((d && d.result && d.result.tx) || []).filter(function (t) { return t && t.txid && t.pch; });
+        list.sort(function (a, b) { return (txStartSec(b.txid) || 0) - (txStartSec(a.txid) || 0); });
+        var slice = list.slice(0, MAX_READS);
+        return pool(slice, CONCURRENCY, function (t) {
+          return api('txRead', { network: t.network || network, txid: t.txid, pch: t.pch, detail: '1', mirror: '0' })
+            .then(function (d2) {
+              var r = (d2 && d2.result) || {};
+              return {
+                txid: t.txid, pch: t.pch,
+                sigs: r.sigs || [],
+                title: (r.deal && r.deal.display && r.deal.display.title) || null,
+                state: r.comboStatus || null
+              };
+            })
+            .catch(function () { return { txid: t.txid, pch: t.pch, sigs: [], title: null, state: 'unreadable' }; });
+        }).then(function (rows) {
+          renderTxs(rows);
+          if (list.length > slice.length) {
+            $('tcount').textContent += ' · newest ' + slice.length + ' of ' + list.length;
+          }
+        });
+      }).catch(function (e) {
+        $('txs').tBodies[0].innerHTML =
+          '<tr><td colspan="5" class="msg err">Could not reach the pool: ' + esc(e.message) + '</td></tr>';
+      });
+
+    return Promise.all([devices, txs]).then(function () {
+      busy = false;
+      $('stamp').textContent = 'as of ' + new Date().toISOString().replace('T', ' ').slice(0, 19) + 'Z';
+    });
+  }
+
+  // ── wiring ──────────────────────────────────────────────────────────────────
+  var timer = null;
+  function resetTimer() {
+    if (timer) { clearInterval(timer); timer = null; }
+    var s = Number($('auto').value || 0);
+    if (s > 0) timer = setInterval(refresh, s * 1000);
+  }
+
+  readUrlIntoControls();
+  $('go').addEventListener('click', function () { writeControlsIntoUrl(false); refresh(); });
+  ['network', 'since', 'auto'].forEach(function (k) {
+    $(k).addEventListener('change', function () { writeControlsIntoUrl(false); resetTimer(); refresh(); });
+  });
+  ['account', 'q'].forEach(function (k) {
+    var t = null;
+    $(k).addEventListener('input', function () {
+      clearTimeout(t);
+      t = setTimeout(function () { writeControlsIntoUrl(false); refresh(); }, 350);
+    });
+  });
+  $('link').addEventListener('click', function () {
+    writeControlsIntoUrl(false);
+    var url = location.href;
+    var done = function () { $('link').textContent = 'Copied'; setTimeout(function () { $('link').textContent = 'Copy link'; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, done);
+    else done();
+  });
+  $('clear').addEventListener('click', function () {
+    try { localStorage.removeItem(LSKEY); } catch (e) { /* nothing to clear */ }
+    rememberAndRenderSeen([]);
+  });
+  window.addEventListener('popstate', function () {
+    qs = new URLSearchParams(location.search);
+    readUrlIntoControls(); resetTimer(); refresh();
+  });
+
+  writeControlsIntoUrl(false);
+  resetTimer();
+  refresh();
+})();
+</script>
+</body>
+</html>
