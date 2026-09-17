@@ -2380,25 +2380,41 @@ export function injectTxReadCSS() {
 		   answer to "why did this never go through", and flattening it to one colour would throw
 		   away the only explanation on the screen. So each card keeps its OWN colour.
 
-		   Both lose the halo and take a darkened ink: a glow reads as live status that can still
-		   change, and neither of these can. The inks are the header tone text colours
-		   (.kpm-tone-* in modal.js) — #0f5132 success, #664d03 warn, #842029 error — the same
-		   three hues this palette already uses when it wants ink rather than signal, which is
-		   what a residue is. Geometry is unchanged (border + 1px spread) so nothing shifts as it
-		   settles; .txcard already transitions border-color and box-shadow, so the lights fade
-		   out rather than snap. It also means a green card looks identical settled or expired,
-		   which is honest: green meant the same thing both times, and the header says how it
-		   ended.
+		   Both lose the halo, because a glow reads as live status that can still change and
+		   neither of these can. What they keep is the COLOUR, and that is the constraint the
+		   inks are chosen against (operator, 2026-09-17): "like a traffic light — you can still
+		   see the green even when it's not lit up, it just looks darker green."
+
+		   So each ink is its own live colour taken down a notch and no further: lightness ×0.78,
+		   saturation ×0.90, hue untouched.
+
+		       #56c857 → #3ca33d      #f5a623 → #c78313      #e5484d → #c5262b
+
+		   The first attempt used the header's tone TEXT colours (#0f5132/#664d03/#842029) on the
+		   theory that ink beats signal for a record. Wrong twice over: too dark to identify at a
+		   glance, which loses the one thing the ring is still there to say, and dark enough that
+		   the hues stopped being themselves — the amber went olive and the red went maroon. A
+		   darkened red has to still read RED. Anything much past ×0.72 lightness takes the amber
+		   into brown, so this is close to as far down as the three can go together.
+
+		   Losing the glow also loses visual weight, so the ring spread goes 1px → 2px (a 3px
+		   line with the border, against the live ring's 2px) to hand some of it back and give
+		   the colour enough area to be recognised. Spread does not affect layout, so nothing
+		   reflows, and .txcard already transitions border-color and box-shadow — the lights fade
+		   out rather than snap.
+
+		   A green card therefore looks the same settled or expired, which is honest: green meant
+		   the same thing both times, and the header is what says how it ended.
 
 		   Body-scoped rather than folded into paintCardRing: the rings are repainted from three
 		   places (updateCardSigning, updateCardBalances, paintCardRing itself) and a rule that
 		   sits above all of them cannot be repainted away by whichever one happens to run last. */
 		body.tx-settled-ok .txcard--sign-pending,
 		body.tx-settled-ok .txcard--sign-ready,
-		body.tx-settled-ok .txcard--balance-short { border-color:#0f5132; box-shadow:0 0 0 1px #0f5132; }
-		body.tx-settled-expired .txcard--sign-ready    { border-color:#0f5132; box-shadow:0 0 0 1px #0f5132; }
-		body.tx-settled-expired .txcard--sign-pending  { border-color:#664d03; box-shadow:0 0 0 1px #664d03; }
-		body.tx-settled-expired .txcard--balance-short { border-color:#842029; box-shadow:0 0 0 1px #842029; }
+		body.tx-settled-ok .txcard--balance-short { border-color:#3ca33d; box-shadow:0 0 0 2px #3ca33d; }
+		body.tx-settled-expired .txcard--sign-ready    { border-color:#3ca33d; box-shadow:0 0 0 2px #3ca33d; }
+		body.tx-settled-expired .txcard--sign-pending  { border-color:#c78313; box-shadow:0 0 0 2px #c78313; }
+		body.tx-settled-expired .txcard--balance-short { border-color:#c5262b; box-shadow:0 0 0 2px #c5262b; }
 		.txcard-head-right { margin-left:auto; display:flex; align-items:center; gap:8px; }
 		.txcard-sign { font-size:12px; color:#71717a; white-space:nowrap; font-weight:500; }
 		/* per-asset overdraft: solid red ring on the specific SEND chip that's short */

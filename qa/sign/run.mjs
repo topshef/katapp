@@ -123,8 +123,12 @@ const state = (page, acct) => page.evaluate(({ acct }) => {
       // box-shadow is `<color> <x> <y> <blur> <spread>` per layer — mask the colours (they
       // contain commas) before splitting layers, then read the third length.
       const layers = cs.boxShadow.replace(/rgba?\([^)]*\)/g, 'C').split(',')
-      const blur = l => parseFloat((l.trim().match(/-?[\d.]+px/g) || [])[2] || '0')
-      return { border: cs.borderTopColor, shadow: cs.boxShadow, glows: layers.some(l => blur(l) > 0) }
+      const len = (l, i) => parseFloat((l.trim().match(/-?[\d.]+px/g) || [])[i] || '0')
+      return {
+        border: cs.borderTopColor, shadow: cs.boxShadow,
+        glows: layers.some(l => len(l, 2) > 0),      // any layer with a blur radius
+        spread: len(layers[0], 3)                    // the ring layer's spread
+      }
     })(getComputedStyle(card)) : null
   }
 }, { acct })
@@ -238,7 +242,9 @@ console.log('8. window shut with nothing on chain')
 // so both are pinned here: SUCCESS forces one dark green over every ring (consensus overrules
 // the pre-flight guess); EXPIRED keeps each ring's own colour, darkened (nothing cleared, so
 // the last thing we knew is still the best answer to "why did this never go through").
-const DARK    = { green: 'rgb(15, 81, 50)', amber: 'rgb(102, 77, 3)', red: 'rgb(132, 32, 41)' }
+// each live colour taken down a notch (L x0.78, S x0.90, hue untouched) — see the rules in
+// view.js. Dark enough to read as off, light enough that red is still red.
+const DARK    = { green: 'rgb(60, 163, 61)', amber: 'rgb(199, 131, 19)', red: 'rgb(197, 38, 43)' }
 const LIVE    = { amber: 'rgb(245, 166, 35)', red: 'rgb(229, 72, 77)' }
 const NEUTRAL = 'rgb(228, 228, 231)'   // .txcard's own border — a card with no ring at all
 // This fixture's signer rings AMBER (signatures outstanding) on a clean precheck and RED on a
@@ -259,6 +265,7 @@ console.log('9. SUCCESS settles every ring dark green — even one that was red'
   ok(s.red, 'the card still CARRIES the live red class — the record is not rewritten', JSON.stringify(s.ring))
   ok(s.ring.border === DARK.green, '…but it PAINTS dark green, the same ink as the Success header', s.ring.border)
   ok(!s.ring.glows, 'and it does not glow: nothing here can change any more', s.ring.shadow)
+  ok(s.ring.spread === 2, 'the ring fattens to 2px spread, paying back the weight the glow carried', s.ring.spread)
   ok(rc.ring.border === NEUTRAL && !rc.ring.glows, 'a card that never rang does not GAIN a ring on settling', rc.ring.border)
   await page.close()
 }
@@ -280,6 +287,7 @@ console.log('10. EXPIRED puts the lights out but keeps each ring its own colour'
   ok(s.ring.border === DARK.red, 'a red card stays RED, darkened — it is the likely reason, not a verdict', s.ring.border)
   ok(s.ring.border !== DARK.green, 'expired never flattens a red ring to green — that is the SUCCESS rule only', s.ring.border)
   ok(!s.ring.glows, 'but the glow is gone', s.ring.shadow)
+  ok(s.ring.spread === 2, 'and fattens the same way success does', s.ring.spread)
   ok(rc.ring.border === NEUTRAL, 'an unringed card stays unringed', rc.ring.border)
   await page.close()
 }
@@ -301,6 +309,7 @@ console.log('11. a LIVE transaction still glows (the rings only settle when ther
   ok(s.settled === '', 'body carries neither settled class while the tx is open', s.settled)
   ok(s.ring.border === LIVE.red, 'the red ring is the live red, not a darkened one', s.ring.border)
   ok(s.ring.glows, 'and it glows — live status that can still change', s.ring.shadow)
+  ok(s.ring.spread === 1, 'a live ring stays the thinner 1px spread', s.ring.spread)
   await page.close()
 }
 
