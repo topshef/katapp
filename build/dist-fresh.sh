@@ -25,15 +25,19 @@ norm(){ # $1 = dist dir, $2 = out dir  (build-info.json carries a timestamp: ski
   done
 }
 rc=0
-for variant in "" gcp; do
-  DIST="$ROOT/build/dist${variant:+-$variant}"
+# DISTBOTH1: name the variant explicitly — a bare build-static.sh now builds BOTH, and this
+# loop wants one at a time so a diff can be attributed to the variant it came from.
+for variant in katui gcp; do
+  # plain case, not $( [ ] && echo ): a false test inside a command substitution returns
+  # non-zero, and under `set -e` that kills the assignment and the whole script silently
+  case "$variant" in gcp) DIST="$ROOT/build/dist-gcp" ;; *) DIST="$ROOT/build/dist" ;; esac
   cp -r "$DIST" "$TMP/committed$variant"
-  bash "$ROOT/build/build-static.sh" $variant >"$TMP/build$variant.log" 2>&1 || { cat "$TMP/build$variant.log"; echo "build $variant FAILED"; exit 1; }
+  bash "$ROOT/build/build-static.sh" "$variant" >"$TMP/build$variant.log" 2>&1 || { cat "$TMP/build$variant.log"; echo "build $variant FAILED"; exit 1; }
   rm -rf "$TMP/a" "$TMP/b"; norm "$TMP/committed$variant" "$TMP/a"; norm "$DIST" "$TMP/b"
   if diff -r "$TMP/a" "$TMP/b" >"$TMP/diff.txt"; then
     echo "fresh: committed ${DIST#$ROOT/} matches a rebuild from source ($(find "$DIST" -type f | wc -l) files)"
   else
-    head -40 "$TMP/diff.txt"; echo "${DIST#$ROOT/} is STALE — run build/build-static.sh ${variant} and commit the result"; rc=1
+    head -40 "$TMP/diff.txt"; echo "${DIST#$ROOT/} is STALE — run build/build-static.sh (builds both) and commit the result"; rc=1
   fi
 done
 exit $rc

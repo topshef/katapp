@@ -10,8 +10,16 @@
 # URL (getGameId() in katomia-core.js). Config is rendered straight to the API alias
 # via a build-time .env_hapi, so HTTP + WS go through the Worker.
 #
-# Usage:  build/build-static.sh          → katui      via kpay-api-alias      (build/dist)
+# Usage:  build/build-static.sh          → BOTH variants (this is the point — see below)
+#         build/build-static.sh katui    → katui      via api.katomia.com     (build/dist)
 #         build/build-static.sh gcp      → katui-gcp  via kpay-api-alias-gcp  (build/dist-gcp)
+#
+# DISTBOTH1 (2026-09-17): a bare run used to build ONLY build/dist, so an edit to
+# public_html followed by a rebuild left build/dist-gcp carrying the old page — and since
+# both dists are committed artifacts the git-connected deploy ships, dist-fresh.sh (the
+# katui "fresh" CI job) went red. That happened twice in one day, to two different sessions,
+# which is a trap in the tool rather than two mistakes. A bare run now builds both; name a
+# variant to build just one.
 # KATOMIA-GCP1: two deployable variants for comparison testing — same page renders, same
 # router; only the Worker name, alias target and dist dir differ, so a front-end-vs-backend
 # issue can be bisected across the pairings. Both dist trees are committed.
@@ -19,13 +27,20 @@
 #   SITE_HOST=…      Host header used for the render (router patches the WC config per request
 #                    anyway; kept for parity with lab22 renders)
 set -euo pipefail
-VARIANT="${1:-}"
+VARIANT="${1:-both}"
+if [ "$VARIANT" = "both" ]; then
+  # one variant at a time, in this same shell's environment, so a failure in either stops here
+  "$0" katui
+  "$0" gcp
+  echo "✓ both variants built — build/dist and build/dist-gcp"
+  exit 0
+fi
 if [ "$VARIANT" = "gcp" ]; then
   NAME="katui-gcp"; ALIAS="${ALIAS:-kpay-api-alias-gcp.tayloa17.workers.dev/hapi}"; DIST_NAME="dist-gcp"
-elif [ -z "$VARIANT" ]; then
+elif [ "$VARIANT" = "katui" ]; then
   NAME="katui";     ALIAS="${ALIAS:-api.katomia.com/hapi}";     DIST_NAME="dist"
 else
-  echo "unknown variant '$VARIANT' (expected: none | gcp)"; exit 1
+  echo "unknown variant '$VARIANT' (expected: both | katui | gcp)"; exit 1
 fi
 ALIAS_SERVICE="${ALIAS%%.*}"          # the alias Worker's name = first label of its workers.dev host
 SITE_HOST="${SITE_HOST:-$NAME.tayloa17.workers.dev}"
