@@ -79,10 +79,52 @@
   .warnrow td{background:var(--warn-bg)}
   .dim{color:var(--ink-3)}
   .deal{max-width:30ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .v{min-width:0}
 
   footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--ink-3);line-height:1.6}
   footer code{font-size:11.5px}
-  @media (max-width:600px){ .stamp{margin-left:0;width:100%} }
+
+  /* ── phone: every table becomes a stack of cards ──────────────────────────
+     One row is one card. The column heading travels with the value as a label,
+     so nothing has to be read against a header that has scrolled away — and
+     nothing scrolls sideways, which on a phone is how a value gets missed. */
+  @media (max-width:720px){
+    .wrap{padding:0 12px 56px}
+    header{padding-top:16px}
+    .bar{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
+    .f{min-width:0}
+    .f input,.f select{min-width:0;width:100%;font-size:16px}  /* 16px: iOS won't zoom the page on focus */
+    .f.wideCell,.bar>button{grid-column:1 / -1}
+    .bar>button{width:100%;padding:10px}
+    .stamp{grid-column:1 / -1;margin-left:0;text-align:right}
+
+    .panel{border:0;background:transparent;overflow-x:visible}
+    table{min-width:0;width:100%;display:block}
+    thead{display:none}
+    tbody{display:block}
+    tr{display:block;border:1px solid var(--line);border-radius:10px;background:var(--panel);
+       padding:4px 2px;margin-bottom:10px}
+    tr:last-child{margin-bottom:0}
+    td{display:grid;grid-template-columns:8.5em 1fr;gap:10px;align-items:baseline;
+       padding:7px 12px;border-bottom:1px solid var(--line-2)}
+    tr td:last-child{border-bottom:0}
+    td::before{content:attr(data-l);font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+               color:var(--ink-3);font-weight:600;line-height:1.7}
+    /* the value is ONE grid item, so a two-line value cannot wrap back under the
+       label; a pill inside it keeps its own width instead of being stretched */
+    td>.v{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+    td[data-l=""]::before{content:none}
+    /* the first cell of a card is its title: full width, no label, bigger */
+    td.cardtitle{display:block;font-size:15.5px;padding-top:10px}
+    td.cardtitle::before{content:none}
+    td.cardtitle>.v{display:block}
+    /* a whole-row message (loading, empty, error) must not be laid out as a pair */
+    td.msg{display:block;grid-template-columns:none}
+    td.msg::before{content:none}
+    .deal{max-width:none;white-space:normal}
+    td.mono{font-size:12px;overflow-wrap:anywhere}
+    .key{white-space:normal;overflow-wrap:anywhere}
+  }
 </style>
 </head>
 <body>
@@ -105,7 +147,7 @@
       </select></div>
     <div class="f"><label for="account">account</label>
       <input id="account" placeholder="0.0.7718,0.0.10343"></div>
-    <div class="f"><label for="q">filter</label>
+    <div class="f wideCell"><label for="q">filter</label>
       <input id="q" class="wide" placeholder="label, key, txid, deal…"></div>
     <div class="f"><label for="auto">refresh</label>
       <select id="auto"><option value="0">manual</option><option value="30" selected>30 s</option><option value="60">60 s</option></select></div>
@@ -143,7 +185,7 @@
   </div>
   <div class="panel"><table id="txs">
     <thead><tr>
-      <th>when</th><th>deal</th><th>transaction</th><th>signed by</th><th>state</th>
+      <th>deal</th><th>signed by</th><th>state</th><th>when</th><th>transaction</th>
     </tr></thead>
     <tbody><tr><td colspan="5" class="msg">Loading…</td></tr></tbody>
   </table></div>
@@ -323,14 +365,14 @@
       if (u.startedAt) self.push('up ' + ago((meta.now || 0) - u.startedAt));
 
       return '<tr>' +
-        '<td><span class="who">' + esc(d.label) + '</span>' +
+        '<td class="cardtitle" data-l="device"><span class="who">' + esc(d.label) + '</span>' +
           (d.restarted ? ' <span class="pill warn">restarted</span>' : '') +
           (d.version ? '<div class="key">node ' + esc(d.version) + '</div>' : '') + '</td>' +
-        '<td>' + mode + '</td>' +
-        '<td>' + seen + '<div class="age">' + ago(d.ageSeconds) + ' ago</div></td>' +
-        '<td>' + keys + '</td>' +
-        '<td>' + watching + '</td>' +
-        '<td><span class="self">' + self.map(esc).join(' &middot; ') + '</span></td>' +
+        '<td data-l="signing?"><div class="v">' + mode + '</div></td>' +
+        '<td data-l="last seen"><div class="v">' + seen + '<div class="age">' + ago(d.ageSeconds) + ' ago</div></div></td>' +
+        '<td data-l="keys held"><div class="v">' + keys + '</div></td>' +
+        '<td data-l="watching"><div class="v">' + watching + '</div></td>' +
+        '<td data-l="self-reported"><div class="v"><span class="self">' + self.map(esc).join(' &middot; ') + '</span></div></td>' +
         '</tr>';
     }).join('');
 
@@ -379,11 +421,12 @@
       var state = r.state || '—';
       var cls = /success/i.test(state) ? 'ok' : /expire|fail/i.test(state) ? 'bad' : 'mute';
       return '<tr' + (unknown ? ' class="warnrow"' : '') + '>' +
-        '<td class="mono">' + when + '</td>' +
-        '<td><div class="deal" title="' + esc(r.title || '') + '">' + (r.title ? esc(r.title) : '<span class="none">not a deal</span>') + '</div></td>' +
-        '<td class="mono">' + esc(r.txid) + (r.pch ? '<div class="key">pch ' + esc(r.pch) + '</div>' : '') + '</td>' +
-        '<td>' + sigs + '</td>' +
-        '<td><span class="pill ' + cls + '">' + esc(state) + '</span></td>' +
+        '<td class="cardtitle" data-l="deal"><div class="deal" title="' + esc(r.title || '') + '">' +
+          (r.title ? esc(r.title) : '<span class="none">not a deal</span>') + '</div></td>' +
+        '<td data-l="signed by"><div class="v">' + sigs + '</div></td>' +
+        '<td data-l="state"><div class="v"><span class="pill ' + cls + '">' + esc(state) + '</span></div></td>' +
+        '<td class="mono" data-l="when"><div class="v">' + when + '</div></td>' +
+        '<td class="mono" data-l="transaction"><div class="v">' + esc(r.txid) + (r.pch ? '<div class="key">pch ' + esc(r.pch) + '</div>' : '') + '</div></td>' +
         '</tr>';
     }).join('');
   }
@@ -418,12 +461,12 @@
       var s = seen[k];
       var live = !!byKey[k];
       return '<tr>' +
-        '<td><span class="who">' + esc(s.label || '?') + '</span>' +
+        '<td class="cardtitle" data-l="device"><span class="who">' + esc(s.label || '?') + '</span>' +
           (live ? ' <span class="pill ok">announcing now</span>' : ' <span class="pill mute">not now</span>') +
           '<div class="key">' + esc(k.slice(0, 16)) + '…</div></td>' +
-        '<td class="mono">' + esc(String(s.first).replace('T', ' ').slice(0, 19)) + '</td>' +
-        '<td class="mono">' + esc(String(s.last).replace('T', ' ').slice(0, 19)) + '</td>' +
-        '<td>' + Object.keys(s.accounts || {}).map(esc).join('<br>') + '</td>' +
+        '<td class="mono" data-l="first seen"><div class="v">' + esc(String(s.first).replace('T', ' ').slice(0, 19)) + '</div></td>' +
+        '<td class="mono" data-l="last seen"><div class="v">' + esc(String(s.last).replace('T', ' ').slice(0, 19)) + '</div></td>' +
+        '<td data-l="accounts"><div class="v">' + Object.keys(s.accounts || {}).map(esc).join('<br>') + '</div></td>' +
         '</tr>';
     }).join('');
   }
