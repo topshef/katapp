@@ -15,14 +15,20 @@ import { getAccountLabel } from './xproof.js'
 const glog = globalThis.glog ?? (() => {})
 
 
-export async function txRead({ network, txid, pch = 'no_pch' }) { //todo pch
+export async function txRead({ network, txid, pch = 'no_pch' }) {
 
   // const hapiBase = window.__HAPI_BASE__ || 0  //works but only needed for kpos
 	// const url = `https://kpos.uk/pool/txRead?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}&detail=1&endpoint=${hapiBase}`
 	// const url = `/m/bid/explore/kpool.php?action=txRead&network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}&detail=1`
 	const hapiBase = new URLSearchParams(window.location.search).get('hapi_base')
 	const hapiBaseQS = hapiBase ? `&hapi_base=${encodeURIComponent(hapiBase)}` : ''
-	const url = `/m/bid/explore/kpool?action=txRead&network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}&detail=1${hapiBaseQS}`
+	// KPOOL-PCH1 (2026-09-17): pin the read to the pch when the caller has one. Two pooled
+	// records can share a txid (two raises with the same valid-start), and an unpinned read
+	// is then refused by the pool as ambiguous (AM41902) rather than guessed — so the
+	// dashboard's "inspect" opened a modal that said "no record found" for a record that
+	// was right there. The pch was already passed all the way down to here and dropped.
+	const pchQS = (pch && pch !== 'no_pch') ? `&pch=${encodeURIComponent(pch)}` : ''
+	const url = `/m/bid/explore/kpool?action=txRead&network=${encodeURIComponent(network)}&txid=${encodeURIComponent(txid)}${pchQS}&detail=1${hapiBaseQS}`
 
 	const res = await fetch(url)
 	window.showHapiDebug?.(res, 'widget:txRead')

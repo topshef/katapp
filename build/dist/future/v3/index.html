@@ -191,7 +191,7 @@
     <div class="f wideCell"><label for="q">filter</label>
       <input id="q" class="wide" placeholder="label, key, txid, deal…"></div>
     <div class="f"><label for="auto">refresh</label>
-      <select id="auto"><option value="0">manual</option><option value="30" selected>30 s</option><option value="60">60 s</option></select></div>
+      <select id="auto"><option value="0">manual</option><option value="30">30 s</option><option value="60" selected>60 s</option><option value="120">2 min</option></select></div>
     <button id="go" class="primary" type="button">Refresh</button>
     <button id="link" type="button" title="copy a link that reproduces exactly this view">Copy link</button>
   </div>
@@ -215,7 +215,7 @@
   </div>
   <div class="panel"><table id="devices">
     <thead><tr>
-      <th>device</th><th>signing?</th><th>last seen</th><th>keys held</th><th>watching</th><th>self-reported</th>
+      <th>device</th><th>signing?</th><th>last seen</th><th>keys held</th><th>watching</th><th>subscribed to</th>
     </tr></thead>
     <tbody><tr><td colspan="6" class="msg">Loading…</td></tr></tbody>
   </table></div>
@@ -237,9 +237,9 @@
   </div>
   <div class="panel"><table id="txs">
     <thead><tr>
-      <th>deal</th><th>signed by</th><th>state</th><th>when</th><th>transaction</th>
+      <th>deal</th><th>signed by</th><th>verdicts</th><th>state</th><th>when</th><th>transaction</th>
     </tr></thead>
-    <tbody><tr><td colspan="5" class="msg">Loading…</td></tr></tbody>
+    <tbody><tr><td colspan="6" class="msg">Loading…</td></tr></tbody>
   </table></div>
   </div>
 </details>
@@ -310,8 +310,8 @@
     });
   };
 
-  var MAX_READS = 40;          // how many pooled records to open per refresh
-  var CONCURRENCY = 4;         // the pass-through caches for 10s; be gentle
+  var MAX_READS = 25;          // how many pooled records to open per refresh — every one is a request
+  var CONCURRENCY = 4;         // through the edge alias, which has a daily budget; be gentle
   var LSKEY = 'kea.signers.seen.v1';
 
   // ── little helpers ──────────────────────────────────────────────────────────
@@ -414,17 +414,20 @@
     var tb = $('devices').tBodies[0];
     var acc = accountFilter(), nd = needle();
     byKey = {};
+    // KEA-PRESENCE2: a device announces keys: { pubKey: [accounts] } and deals: { dealId: [pubKeys] };
+    // `accounts` (the union) and `dealIds` are derived by the pool. Nothing here is typed by
+    // the operator — the accounts come from the chain, the deals from the signer's own config.
     list.forEach(function (d) {
-      Object.keys(d.accounts || {}).forEach(function (a) {
-        byKey[String(d.accounts[a]).toLowerCase()] = d;
-      });
+      Object.keys(d.keys || {}).forEach(function (k) { byKey[String(k).toLowerCase()] = d; });
+      if (d.by) byKey[String(d.by).toLowerCase()] = d;
     });
 
     var rows = list.filter(function (d) {
-      if (acc.length && !Object.keys(d.accounts || {}).some(function (a) { return acc.indexOf(a) >= 0; })) return false;
+      var accts = d.accounts || [];
+      if (acc.length && !accts.some(function (a) { return acc.indexOf(a) >= 0; })) return false;
       if (!nd) return true;
-      var hay = (d.label + ' ' + Object.keys(d.accounts || {}).join(' ') + ' ' +
-                 Object.values(d.accounts || {}).join(' ') + ' ' + (d.deals || []).join(' ')).toLowerCase();
+      var hay = (d.label + ' ' + accts.join(' ') + ' ' + Object.keys(d.keys || {}).join(' ') + ' ' +
+                 (d.dealIds || []).join(' ') + ' ' + ((d.version || {}).code || '')).toLowerCase();
       return hay.indexOf(nd) >= 0;
     });
 
@@ -435,7 +438,7 @@
     if (!rows.length) {
       tb.innerHTML = '<tr><td colspan="6" class="msg">' +
         (list.length ? 'No device matches this filter.'
-                     : 'No device is announcing. Either none is running, or none has <code>presence.level</code> set in its config.') +
+                     : 'No device is announcing. Either none is running, or none has <code>presence</code> in its config.') +
         '</td></tr>';
       return;
     }
@@ -443,44 +446,55 @@
     tb.innerHTML = rows.map(function (d) {
       var mode = d.mode === 'go'      ? '<span class="pill ok">will sign</span>'
                : d.mode === 'dry-run' ? '<span class="pill bad">dry run</span>'
+               : d.mode === 'stopped' ? '<span class="pill mute">stopped</span>'
                : '<span class="pill mute">unknown</span>';
-      var seen = d.fresh ? '<span class="pill ok">fresh</span>' : '<span class="pill warn">quiet</span>';
-      var keys = Object.keys(d.accounts || {}).map(function (a) {
-        return '<div><span class="key">' + esc(a) + '</span> &middot; <span class="key">' +
-               esc(String(d.accounts[a]).slice(0, 12)) + '…</span></div>';
+      var seen = d.mode === 'stopped' ? '<span class="pill mute">said goodbye</span>'
+               : d.fresh ? '<span class="pill ok">fresh</span>' : '<span class="pill warn">quiet</span>';
+      var keys = Object.keys(d.keys || {}).map(function (k) {
+        var accts = (d.keys[k] || []);
+        return '<div><span class="key">' + esc(String(k).slice(0, 12)) + '…</span>' +
+               (accts.length ? ' &middot; ' + accts.map(esc).join(', ') : ' &middot; <span class="none">no account lists it</span>') + '</div>';
       }).join('') || '<span class="none">none</span>';
-      var watching = d.deals
-        ? esc(String(d.deals.length)) + ' deal' + (d.deals.length === 1 ? '' : 's')
+      var dealIds = d.dealIds || Object.keys(d.deals || {});
+      var watching = dealIds.length
+        ? esc(String(dealIds.length)) + ' deal' + (dealIds.length === 1 ? '' : 's') +
+          '<div class="key">' + dealIds.slice(0, 3).map(function (id) { return esc(String(id).slice(0, 8)) + '…'; }).join(' ') + (dealIds.length > 3 ? ' …' : '') + '</div>'
         : '<span class="none">not saying</span>';
-      if (d.cataloguePin) {
-        watching += '<div class="key">pin ' + esc(String(d.cataloguePin).replace(/^sha256:/, '').slice(0, 10)) + '…</div>';
-      }
-      var u = d.unverified || {};
-      var self = [];
-      if (u.signed !== undefined) self.push('signed ' + u.signed);
-      if (u.refused !== undefined) self.push('refused ' + u.refused);
-      if (u.errors) self.push('errors ' + u.errors);
-      if (u.startedAt) self.push('up ' + ago((meta.now || 0) - u.startedAt));
+      // the literal socket filters the device sent: what it is actually rung for
+      var sub = d.subscription;
+      var subText = !sub ? '<span class="none">not saying</span>'
+        : !sub.length ? '<span class="none">nothing</span>'
+        : sub.every(function (f) { return f && f.dealId; }) ? esc(String(sub.length)) + ' deal watch' + (sub.length === 1 ? '' : 'es')
+        : sub.some(function (f) { return f && !f.dealId && !f.account && !f.token; }) ? '<span class="pill warn">everything on ' + esc(sub[0].network || 'the network') + '</span>'
+        : esc(String(sub.length)) + ' filter' + (sub.length === 1 ? '' : 's');
+      var up = d.startedAt ? '<div class="age">up ' + ago((meta.now || 0) - d.startedAt) + '</div>' : '';
+      var ver = d.version && typeof d.version === 'object'
+        ? (d.version.code ? 'code ' + esc(d.version.code) + ' &middot; ' : '') + (d.version.node ? 'node ' + esc(d.version.node) : '')
+        : (d.version ? 'node ' + esc(d.version) : '');
 
       return '<tr>' +
         '<td class="cardtitle" data-l="device"><span class="who">' + esc(d.label) + '</span>' +
           (d.restarted ? ' <span class="pill warn">restarted</span>' : '') +
-          (d.version ? '<div class="key">node ' + esc(d.version) + '</div>' : '') + '</td>' +
+          (ver ? '<div class="key">' + ver + '</div>' : '') + '</td>' +
         '<td data-l="signing?"><div class="v">' + mode + '</div></td>' +
-        '<td data-l="last seen"><div class="v">' + seen + '<div class="age">' + ago(d.ageSeconds) + ' ago</div></div></td>' +
+        '<td data-l="last seen"><div class="v">' + seen + '<div class="age">' + ago(d.ageSeconds) + ' ago</div>' + up + '</div></td>' +
         '<td data-l="keys held"><div class="v">' + keys + '</div></td>' +
         '<td data-l="watching"><div class="v">' + watching + '</div></td>' +
-        '<td data-l="self-reported"><div class="v"><span class="self">' + self.map(esc).join(' &middot; ') + '</span></div></td>' +
+        '<td data-l="subscribed to"><div class="v">' + subText + '</div></td>' +
         '</tr>';
     }).join('');
 
-    // Two signers on different catalogues disagree about what is signable, and that
-    // disagreement is otherwise invisible until one of them mysteriously refuses.
-    var pins = {};
-    list.forEach(function (d) { if (d.cataloguePin) pins[d.cataloguePin] = 1; });
-    $('dnote').innerHTML = Object.keys(pins).length > 1
-      ? '<span class="pill bad">mixed</span> These devices are pinned to different deal catalogues — they will not agree about what is signable.'
-      : "Counters are the device's own count, not attested — they ride alongside the signed announcement, not inside it. Freshness window: " + freshSeconds + 's.';
+    // Two signers running different code, or one still asking for everything on the
+    // network, are the two disagreements worth a line here.
+    var codes = {}, broad = 0;
+    list.forEach(function (d) {
+      if (d.version && d.version.code) codes[d.version.code] = 1;
+      if (d.subscription && d.subscription.some(function (f) { return f && !f.dealId && !f.account && !f.token; })) broad++;
+    });
+    $('dnote').innerHTML =
+      (Object.keys(codes).length > 1 ? '<span class="pill warn">mixed code</span> devices run different versions (' + Object.keys(codes).map(esc).join(', ') + '). ' : '') +
+      (broad ? '<span class="pill warn">' + broad + ' broad</span> device' + (broad === 1 ? ' is' : 's are') + ' subscribed to everything on the network and reading it all — an older signer. ' : '') +
+      'Everything on a row is signed by the device key except age, freshness and the derived <em>accounts</em>. Freshness window: ' + freshSeconds + 's.';
   }
 
   // ── the pool: what is waiting, and who has signed it ────────────────────────
@@ -509,7 +523,7 @@
       var acc = accountFilter(), why = [];
       if (acc.length) why.push('for ' + acc.map(esc).join(' or '));
       if (needle()) why.push('matching \u201c' + esc(needle()) + '\u201d');
-      tb.innerHTML = '<tr><td colspan="5" class="msg">Nothing in the pool ' +
+      tb.innerHTML = '<tr><td colspan="6" class="msg">Nothing in the pool ' +
         (why.length ? why.join(' ') + ' ' : '') + 'in this window. ' +
         (acc.length ? 'The pool holds about an hour; a quiet account simply has nothing waiting.' : '') +
         '</td></tr>';
@@ -525,6 +539,13 @@
       // A transaction whose signatures came only from devices that are NOT announcing
       // is worth seeing: it means the roster is not the whole story.
       var unknown = (r.sigs || []).some(function (s) { return !byKey[String(s.pubKey).toLowerCase()]; });
+      // KEA-VERDICT1: what each signer decided, and the rung it fell off. A refusal from a
+      // device that is announcing is the state that used to cost a morning to find.
+      var verdicts = (r.verdicts || []).map(function (v) {
+        var who = nameFor(v.by);
+        if (v.verdict === 'pass') return '<div>' + who + ' <span class="pill ok">' + (v.signed ? 'signed' : v.mode === 'dry-run' ? 'would sign' : 'passed') + '</span></div>';
+        return '<div>' + who + ' <span class="pill bad" title="' + esc(v.reason || '') + '">refused at ' + esc(v.droppedAt || '?') + '</span></div>';
+      }).join('') || '<span class="none">none reported</span>';
       var state = r.state || '—';
       var cls = /success/i.test(state) ? 'ok' : /expire|fail/i.test(state) ? 'bad' : 'mute';
       return '<tr class="tap' + (unknown ? ' warnrow' : '') + '" tabindex="0" role="button"' +
@@ -534,6 +555,7 @@
           (r.title ? esc(r.title) : '<span class="none">not a deal</span>') + '</div>' +
           '<div class="inspect">inspect \u2192</div></td>' +
         '<td data-l="signed by"><div class="v">' + sigs + '</div></td>' +
+        '<td data-l="verdicts"><div class="v">' + verdicts + '</div></td>' +
         '<td data-l="state"><div class="v"><span class="pill ' + cls + '">' + esc(state) + '</span></div></td>' +
         '<td class="mono" data-l="when"><div class="v">' + when + '</div></td>' +
         '<td class="mono" data-l="transaction"><div class="v">' + esc(r.txid) + (r.pch ? '<div class="key">pch ' + esc(r.pch) + '</div>' : '') + '</div></td>' +
@@ -556,7 +578,7 @@
       var prev = seen[k] || {};
       seen[k] = {
         label: d.label, first: prev.first || nowIso, last: nowIso,
-        accounts: d.accounts || prev.accounts || {}
+        accounts: Array.isArray(d.accounts) ? d.accounts : Object.keys(d.accounts || prev.accounts || {})
       };
     });
     saveSeen(seen);
@@ -576,7 +598,7 @@
           '<div class="key">' + esc(k.slice(0, 16)) + '…</div></td>' +
         '<td class="mono" data-l="first seen"><div class="v">' + esc(String(s.first).replace('T', ' ').slice(0, 19)) + '</div></td>' +
         '<td class="mono" data-l="last seen"><div class="v">' + esc(String(s.last).replace('T', ' ').slice(0, 19)) + '</div></td>' +
-        '<td data-l="accounts"><div class="v">' + Object.keys(s.accounts || {}).map(esc).join('<br>') + '</div></td>' +
+        '<td data-l="accounts"><div class="v">' + (Array.isArray(s.accounts) ? s.accounts : Object.keys(s.accounts || {})).map(esc).join('<br>') + '</div></td>' +
         '</tr>';
     }).join('');
   }
@@ -641,6 +663,7 @@
               return {
                 txid: t.txid, pch: t.pch,
                 sigs: r.sigs || [],
+                verdicts: r.verdicts || [],
                 title: (r.deal && r.deal.display && r.deal.display.title) || null,
                 state: r.comboStatus || null
               };
@@ -654,7 +677,7 @@
         });
       }).catch(function (e) {
         $('txs').tBodies[0].innerHTML =
-          '<tr><td colspan="5" class="msg err">Could not reach the pool: ' + esc(e.message) + '</td></tr>';
+          '<tr><td colspan="6" class="msg err">Could not reach the pool: ' + esc(e.message) + '</td></tr>';
         $('tcount').textContent = 'could not reach the pool';
         $('tcount').className = 'count bad';
         $('spool').open = true;

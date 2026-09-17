@@ -187,7 +187,7 @@ different people:</p>
       </g>
     </svg>
   </div>
-  <figcaption>KEA takes its authority from the catalogue. That is what lets the pool be treated as
+  <figcaption>KEA takes its authority from its own config — a list of deal ids, each the hash of its document. That is what lets the pool be treated as
   a convenience rather than a trusted party, and what makes "approve" a job of its own.</figcaption>
 </figure>
 
@@ -321,7 +321,7 @@ signed.</p>
     <tr><td class="g">derive / require</td><td>Do the conditions hold?</td><td class="r">The rule's own conditions — a deadline, a balance, a winner, an owner — evaluated against what was just observed.</td></tr>
     <tr><td class="g">reproduce</td><td>If I built this myself, would I get the same thing?</td><td class="r">The strongest check. The signer constructs the transaction from the rules and compares it leg by leg with what it was handed; an exact match is the condition for going on.</td></tr>
     <tr><td class="g">caps</td><td>Is this more than I agreed to approve in an hour?</td><td class="r">A ceiling per asset, counting what this signer has already approved this hour. Your backstop, set by you.</td></tr>
-    <tr><td class="g">signers</td><td>Does this even need my key?</td><td class="r">Derived from the bytes: which of my accounts are debited, or pay the fee. Those are the ones I sign for.</td></tr>
+    <tr><td class="g">signers</td><td>Does this even need my key?</td><td class="r">Derived from the bytes and the chain: which accounts are debited or pay the fee, and whether one of the keys this deal is signed with is on their key list. Those are the keys I use — or all of them, if the deal is marked witness.</td></tr>
   </tbody>
 </table></div>
 
@@ -399,10 +399,10 @@ side.</p>
 
 <h3>What you will need</h3>
 <ol>
-  <li><strong>Rules you have published.</strong> One document per thing you are willing to pay for, listed in a catalogue, each identified by its own hash.</li>
+  <li><strong>Rules you have published.</strong> One document per thing you are willing to pay for, each identified by its own hash. A catalogue is just how others find them.</li>
   <li><strong>An account whose key you control</strong>, set to require whichever devices you want — one, or two of three, or whatever suits what is at stake.</li>
   <li><strong>A key on each device</strong>, generated on that device. The public half goes onto the account; the private half stays where it was made.</li>
-  <li><strong>A config file per signer</strong>: which network, where the pool is, which catalogue and which exact hash of it, the caps, and a <em>reference</em> to the key.</li>
+  <li><strong>A config file per signer</strong>: which keys it holds (as <em>references</em>), which deals it will sign and with which of those keys, and where the deal documents are. Nothing else about your application.</li>
 </ol>
 
 <h3>The shape of it</h3>
@@ -412,31 +412,35 @@ side.</p>
   "pool":    { "base": "https://&lt;the pool&gt;" },
   "mirror":  "https://testnet.mirrornode.hedera.com/api/v1",
 
-  "keys":    { "0.0.YOURACCOUNT": "env:MY_SIGNING_KEY" },
+  "keysets": { "mine": ["env:MY_SIGNING_KEY"] },
+  "resolve": ["vendor/&lt;your app&gt;/deals"],
 
-  "deals": [
-    { "from": "catalogue",
-      "dir":  "vendor/&lt;your app&gt;/deals",
-      "pin":  "sha256:&lt;the exact catalogue you reviewed&gt;",
-      "caps": { "&lt;asset&gt;": 1000000 } }
-  ],
+  "deals": {
+    "&lt;dealId&gt;": { "sign": ["mine"], "limits": { "&lt;asset&gt;": 1000000 } },
+    "&lt;dealId&gt;": { "sign": ["mine"], "witness": true }
+  },
 
-  "presence": { "level": "advertise", "everyMs": 30000 }
+  "report":   "refusals",
+  "presence": { "everyMs": 30000 }
 }</code></pre>
 
 <p>Three things in that file carry most of the safety:</p>
 <ul>
-  <li><code>pin</code> — the signer starts once the catalogue on disk hashes to exactly this.
-  Updating your rules is therefore a deliberate act: review, then change one line.</li>
-  <li><code>caps</code> — the most this signer will <em>approve</em> per asset per hour, whatever the rules allow.</li>
-  <li><code>keys</code> — a <em>reference</em> (<code>env:NAME</code> or a file path), so the config is
-  a file you can commit, review and share freely.</li>
+  <li><code>deals</code> — a deal's id <em>is</em> the hash of its document, so listing it pins it: the
+  signer refuses a document that does not hash to the id it was asked for. Updating your rules is
+  therefore a deliberate act: review, then change one line. <strong>No accounts appear anywhere</strong>:
+  which accounts a key answers for is read from the chain, per transaction.</li>
+  <li><code>limits</code> — the most this signer will <em>approve</em> per asset per hour, whatever the rules allow.
+  This is the signer's own private budget; a rule can only see the chain, and your signature is not on it yet.</li>
+  <li><code>keysets</code> — <em>references</em> (<code>env:NAME</code> or a file path), so the config is
+  a file you can commit, review and share freely. The first key is the device key: it signs the
+  signer's announcements and verdicts.</li>
 </ul>
 
 <h3>Bringing one up</h3>
 <ol>
   <li><strong>Check before you run.</strong> A doctor command answers the questions in the order they bite: is the config valid, is the key present, does the chain accept it, can this device reach the pool — and how much weight this key carries on its own, as against counting towards a group.</li>
-  <li><strong>Watch first.</strong> Start in dry run: it decides on everything and reports its verdict, so you can read those against real traffic first.</li>
+  <li><strong>Watch first.</strong> Start in dry run: it decides on everything and reports each verdict — to its log, and, if you let it, back to the pool where the <a href="../">dashboard</a> shows who refused what and at which step — so you can read those against real traffic first.</li>
   <li><strong>Then let it sign.</strong> One flag.</li>
   <li><strong>Rehearse the threshold.</strong> Stop the signers that can act alone, and confirm the remaining ones behave as you expect. Do this while it is still a rehearsal.</li>
 </ol>
@@ -444,7 +448,8 @@ side.</p>
 <div class="box key">
   <b class="hd">Announcing is optional, and off by default</b>
   <p>A signer can announce itself so it appears on the <a href="../">dashboard</a> — its name,
-  whether it will sign, what it is watching. You turn that on in its config or on its command line.
+  whether it will sign, which keys it holds and which accounts list them, which deals it will sign and with what,
+  and the exact filters it is subscribed to. You turn that on in its config or on its command line.
   Everything announced is already public on its own; what announcing adds is the
   <em>correlation</em> — these keys, this device, awake at this minute — which is why it is yours to
   switch on deliberately. Announcing is observation only: signing carries on the same either way.</p>
@@ -456,13 +461,15 @@ side.</p>
   <thead><tr><th>Word</th><th>Means</th></tr></thead>
   <tbody>
     <tr><td class="g">deal</td><td class="r">A published document saying what you are willing to pay, to whom, and under what conditions. Its hash is its name.</td></tr>
-    <tr><td class="g">catalogue</td><td class="r">The list of deals an application publishes. It has its own hash, so "the rules as of now" is a single value you can pin.</td></tr>
+    <tr><td class="g">catalogue</td><td class="r">The list of deals an application publishes — how a signer's operator finds them. The signer itself trusts only the deal ids in its own config.</td></tr>
     <tr><td class="g">pool / kpool</td><td class="r">Where transactions wait for signatures. It assembles and holds them, and keeps them for about an hour.</td></tr>
     <tr><td class="g">raiser</td><td class="r">Whoever asked for the transaction to be built.</td></tr>
     <tr><td class="g">mirror node</td><td class="r">A public read-only view of Hedera. How a signer checks facts for itself.</td></tr>
     <tr><td class="g">presence</td><td class="r">A signer announcing that it is here, signed with a key it claims to hold — so the claim carries its own evidence.</td></tr>
     <tr><td class="g">dry run</td><td class="r">Decide everything, report the verdict, hold the signature.</td></tr>
-    <tr><td class="g">cap</td><td class="r">The most a signer will approve per asset per hour, whatever the rules allow.</td></tr>
+    <tr><td class="g">limit</td><td class="r">The most a signer will approve per asset per hour, whatever the rules allow — its own private budget, outside the rules.</td></tr>
+    <tr><td class="g">verdict</td><td class="r">A signer's signed report of what it decided about one transaction, and at which step it refused. Observation only; never a vote.</td></tr>
+    <tr><td class="g">witness</td><td class="r">Signing a deal's transactions even when none of your keys is required — attesting rather than releasing.</td></tr>
   </tbody>
 </table></div>
 
