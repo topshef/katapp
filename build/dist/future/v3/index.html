@@ -76,6 +76,10 @@
           border:1px solid var(--line);border-radius:5px;padding:2px 7px;white-space:nowrap}
   .raws a:hover{color:var(--acc);border-color:var(--acc)}
   .rowraw{margin:6px 0 0;gap:4px}
+  .stale{margin:0 0 12px;padding:9px 13px;border-radius:6px;font-size:.88rem;
+         background:var(--warnbg,#fdf3e0);color:var(--warnink,#7a5310);
+         border:1px solid var(--warnline,#e8d3a8)}
+  .stale a{color:inherit;font-weight:600}
   .orphan{margin-top:5px;font-size:.76rem;color:var(--warn,#8a5a10);border-left:2px solid currentColor;
           padding-left:7px;line-height:1.35}
 
@@ -216,6 +220,7 @@
     within the pool's freshness window; the age is always shown beside it, because "quiet" and
     "gone" are different facts.</p>
   </div>
+  <div class="stale" id="stale" hidden></div>
   <div class="panel"><table id="devices">
     <thead><tr>
       <th>device</th><th>signing?</th><th>last seen</th><th>keys held</th><th>watching</th><th>subscribed to</th>
@@ -338,10 +343,23 @@
     var m = /@(\d+)\./.exec(String(txid || ''));
     return m ? Number(m[1]) : null;
   }
+  // An error here used to read "Could not reach the pool: Unexpected token '<'", which says
+  // nothing a reader can act on and cost an evening. Carry the status, the URL and — when the
+  // body is not JSON at all — the first of what did come back, because the two likeliest
+  // causes both send HTML: a login page from an access rule, and a 5xx from the edge.
   function getJson(url) {
+    var short = String(url).replace(/^https?:\/\/[^/]+/, '');
     return fetch(url, { credentials: 'omit' }).then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
+      return r.text().then(function (body) {
+        if (!r.ok) throw new Error('HTTP ' + r.status + ' from ' + short + (body ? ' — ' + body.slice(0, 120) : ''));
+        try { return JSON.parse(body); }
+        catch (e) {
+          var head = body.slice(0, 80).replace(/\s+/g, ' ');
+          throw new Error(/^\s*</.test(body)
+            ? 'got a web page, not data, from ' + short + ' — “' + head + '…”. A sign-in page or an error page in front of the API would look like this.'
+            : 'unreadable answer from ' + short + ' — “' + head + '…”');
+        }
+      });
     });
   }
   // Built once and used twice: to fetch, and to SHOW. Every call this page makes is
@@ -651,8 +669,29 @@
   }
 
   // ── one refresh ─────────────────────────────────────────────────────────────
+  // KAT-BUILDSTAMP1: this page is meant to be left open for hours, so it will happily go on
+  // running the code it loaded while a newer one is being served — which looks like the site
+  // misbehaving rather than the tab being old. Compare the stamp we booted with against the
+  // one on the server and say so, once.
+  var myStamp = null, staleTold = false;
+  function checkStamp() {
+    return getJson('/m/katomia/build-info.json?t=' + Date.now()).then(function (b) {
+      var sha = b && b.source_sha;
+      if (!sha) return;
+      if (!myStamp) { myStamp = sha; return; }
+      if (sha !== myStamp && !staleTold) {
+        staleTold = true;
+        var el = $('stale');
+        if (el) { el.innerHTML = 'This page is running an older build (' + esc(myStamp) +
+          '); the server now serves ' + esc(sha) + '. <a href="#" id="reloadnow">Reload</a> to catch up.'; el.hidden = false;
+          var a = $('reloadnow'); if (a) a.addEventListener('click', function (ev) { ev.preventDefault(); location.reload(); }); }
+      }
+    }).catch(function () { /* the stamp is a courtesy; never let it break a refresh */ });
+  }
+
   var busy = false;
   function refresh() {
+    checkStamp();
     if (busy) return Promise.resolve();
     busy = true;
     $('stamp').textContent = 'loading…';
