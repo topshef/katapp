@@ -145,6 +145,8 @@ copytree vendor/bootstrap; copytree vendor/jquery; copytree future
 # transaction list. copytree takes only asset extensions, so the page itself is copied here.
 mkdir -p "$DIST/future/v3"
 cp "$PUB/future/v3/index.html" "$DIST/future/v3/index.html"
+mkdir -p "$DIST/future/v3/help"
+cp "$PUB/future/v3/help/index.html" "$DIST/future/v3/help/index.html"
 # The signer view mounts the REAL signing widget when a row is tapped. It asks this file
 # where the widget is rather than hard-coding it, which is what lets the same page run on a
 # host that has no widget (it falls back to opening the signing page). The WalletConnect

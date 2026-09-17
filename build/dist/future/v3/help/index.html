@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How KEA works — a signer you control</title>
+<meta name="description" content="What a KEA signer is, how it connects to the pool and to Hedera, every check a transaction passes through before it is signed, and the ways you can run one.">
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#fff; --panel-2:#eceef1; --line:#d8dce1; --line-2:#e6e9ec;
+    --ink:#171a1f; --ink-2:#555f6b; --ink-3:#7c8794;
+    --ok:#1d6b45; --ok-bg:#e0efe7;
+    --warn:#8a5a12; --warn-bg:#f6e9d5;
+    --bad:#a02f27; --bad-bg:#f8e2df;
+    --acc:#1c5580; --acc-bg:#e4edf5;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0f1319; --panel:#171c23; --panel-2:#1e242d; --line:#2a323c; --line-2:#222a33;
+    --ink:#e3e8ee; --ink-2:#9fabb8; --ink-3:#77838f;
+    --ok:#5cbc8b; --ok-bg:#15281f;
+    --warn:#d2a154; --warn-bg:#2b2416;
+    --bad:#e0817a; --bad-bg:#2e1b19;
+    --acc:#74aede; --acc-bg:#16202b;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:820px;margin:0 auto;padding:0 16px 80px}
+  a{color:var(--acc)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--panel-2);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+  p{margin:0 0 14px}
+  h1,h2,h3{line-height:1.25;letter-spacing:-.01em}
+  h1{font-size:28px;font-weight:700;margin:0 0 8px}
+  h2{font-size:20px;font-weight:650;margin:38px 0 10px;padding-top:18px;border-top:1px solid var(--line)}
+  h3{font-size:16px;font-weight:650;margin:22px 0 6px}
+  ul,ol{margin:0 0 14px;padding-left:22px}
+  li{margin-bottom:7px}
+  .lede{font-size:17px;color:var(--ink-2);margin-bottom:18px}
+
+  header{padding:22px 0 4px}
+  .crumb{display:flex;flex-wrap:wrap;gap:8px;font:12px var(--mono);margin-bottom:14px}
+  .crumb a{text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:3px 10px;color:var(--ink-3)}
+  .crumb a:hover{color:var(--acc);border-color:var(--acc)}
+  .crumb .here{border:1px solid var(--acc);background:var(--acc);color:var(--bg);border-radius:99px;padding:3px 10px}
+
+  .box{border:1px solid var(--line);border-left-width:3px;border-radius:8px;background:var(--panel);padding:14px 16px;margin:18px 0}
+  .box b.hd{display:block;font-size:14px;margin-bottom:5px}
+  .box p:last-child{margin-bottom:0}
+  .box.key{border-left-color:var(--acc)} .box.key b.hd{color:var(--acc)}
+  .box.warn{border-left-color:var(--warn)} .box.warn b.hd{color:var(--warn)}
+  .box.wip{border-left-color:var(--ink-3);background:var(--panel-2)} .box.wip b.hd{color:var(--ink-3)}
+
+  figure{margin:22px 0}
+  .fig{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px 10px;overflow-x:auto}
+  .fig svg{display:block;width:100%;height:auto;max-width:100%}
+  figcaption{font-size:14px;color:var(--ink-3);margin-top:9px;line-height:1.5}
+
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel);margin:18px 0}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:14.5px}
+  th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);
+     font-weight:600;padding:9px 12px;background:var(--panel-2);border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:9px 12px;border-bottom:1px solid var(--line-2);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.g{font-family:var(--mono);font-size:12.5px;white-space:nowrap;color:var(--acc);font-weight:600}
+  td.r{font-size:13.5px;color:var(--ink-2)}
+
+  pre{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:13px 15px;
+      overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;margin:14px 0}
+  pre code{background:none;padding:0;font-size:inherit}
+
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink-3)}
+  @media (max-width:600px){
+    body{font-size:15.5px}
+    .wrap{padding:0 12px 60px}
+    h1{font-size:24px} h2{font-size:18px}
+    .fig{padding:10px 6px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <nav class="crumb">
+    <a href="../">&larr; Signers dashboard</a>
+    <span class="here">How it works</span>
+  </nav>
+  <h1>How KEA works</h1>
+  <p class="lede">KEA is a signer you control. It watches for transactions, checks each one against
+  rules <em>you</em> published, and signs only the ones that match. It never builds a transaction,
+  never holds anyone else's money, and never takes instructions from the thing asking it to sign.</p>
+</header>
+
+<h2>The one idea</h2>
+
+<p>Most systems that move money for you need to be trusted with the power to move money. KEA
+splits that in two: <strong>whoever assembles a transaction never has the key to release it</strong>,
+and whoever holds the key only releases transactions that match something published in advance.</p>
+
+<p>So there are four separate jobs, and the useful part is that different people can do them:</p>
+
+<div class="scroll"><table>
+  <thead><tr><th>Job</th><th>Who does it</th><th>What they hold</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Publish the rules</strong></td><td>the application</td><td>Nothing at runtime. It writes down what it is willing to pay, and for what.</td></tr>
+    <tr><td><strong>Ask</strong></td><td>a bot, a page, a person</td><td>No key that can release funds. It proposes.</td></tr>
+    <tr><td><strong>Assemble and hold</strong></td><td>the pool (<code>kpool</code>)</td><td><strong>No keys at all.</strong> It builds the transaction and waits for signatures.</td></tr>
+    <tr><td><strong>Approve</strong></td><td><strong>KEA</strong> — one or more devices</td><td>A key. And the only thing it will use it for is a transaction matching a published rule.</td></tr>
+    <tr><td><strong>Settle</strong></td><td>Hedera</td><td>The ledger. It decides whether the signatures are sufficient.</td></tr>
+  </tbody>
+</table></div>
+
+<div class="box key">
+  <b class="hd">The sentence worth remembering</b>
+  <p>You publish what you are willing to do; someone proposes it; a venue assembles it; and a signer
+  you control approves it only if it matches what you published. Nobody in the middle can move your
+  funds, because nobody in the middle has your key.</p>
+</div>
+
+<h2>How the pieces connect</h2>
+
+<figure>
+  <div class="fig">
+    <svg viewBox="0 0 700 300" role="img" aria-labelledby="t1 d1">
+      <title id="t1">How an application, a raiser, the pool, KEA and Hedera connect</title>
+      <desc id="d1">The application publishes a deal catalogue. A raiser asks the pool to build a
+      transaction. The pool holds it unsigned. KEA reads the catalogue and the pool, checks the
+      transaction, and posts a signature back to the pool. The pool submits to Hedera, which
+      settles. The pool never holds a key.</desc>
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <polygon points="0,1 10,5 0,9" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g font-family="system-ui,sans-serif" font-size="12" fill="currentColor" color="var(--ink-2)">
+
+        <rect x="8" y="14" width="168" height="52" rx="8" fill="var(--panel-2)" stroke="var(--line)"/>
+        <text x="92" y="36" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">Application</text>
+        <text x="92" y="53" text-anchor="middle" fill="var(--ink-3)">publishes the rules</text>
+
+        <rect x="266" y="14" width="176" height="52" rx="8" fill="var(--acc-bg)" stroke="var(--acc)"/>
+        <text x="354" y="36" text-anchor="middle" font-size="13" font-weight="700" fill="var(--acc)">Deal catalogue</text>
+        <text x="354" y="53" text-anchor="middle" fill="var(--ink-3)">hashed &middot; public &middot; pinned</text>
+        <line x1="180" y1="40" x2="260" y2="40" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+
+        <rect x="8" y="124" width="168" height="56" rx="8" fill="var(--panel-2)" stroke="var(--line)"/>
+        <text x="92" y="147" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">Raiser</text>
+        <text x="92" y="164" text-anchor="middle" fill="var(--ink-3)">a bot, a page, a person</text>
+
+        <rect x="266" y="118" width="176" height="68" rx="8" fill="var(--panel-2)" stroke="var(--line)" stroke-width="1.6"/>
+        <text x="354" y="141" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">The pool &middot; kpool</text>
+        <text x="354" y="158" text-anchor="middle" fill="var(--ink-3)">builds it, holds it</text>
+        <text x="354" y="175" text-anchor="middle" font-size="11" font-weight="700" fill="var(--bad)">HOLDS NO KEYS</text>
+        <line x1="180" y1="152" x2="260" y2="152" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+        <text x="220" y="145" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">asks</text>
+
+        <rect x="524" y="118" width="168" height="68" rx="8" fill="var(--ok-bg)" stroke="var(--ok)" stroke-width="1.6"/>
+        <text x="608" y="141" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ok)">KEA</text>
+        <text x="608" y="158" text-anchor="middle" fill="var(--ink-3)">holds the key</text>
+        <text x="608" y="175" text-anchor="middle" fill="var(--ink-3)">checks, then signs</text>
+
+        <path d="M442 138 L518 138" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+        <text x="480" y="131" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">reads</text>
+        <path d="M518 168 L444 168" stroke="var(--ok)" stroke-width="1.8" marker-end="url(#ar)"/>
+        <text x="481" y="183" text-anchor="middle" font-size="10.5" fill="var(--ok)">signature</text>
+
+        <path d="M442 40 L608 40 L608 112" fill="none" stroke="var(--acc)" stroke-width="1.8" marker-end="url(#ar)"/>
+        <text x="616" y="80" font-size="10.5" fill="var(--acc)">pins</text>
+
+        <rect x="266" y="234" width="176" height="52" rx="8" fill="var(--panel-2)" stroke="var(--line)"/>
+        <text x="354" y="257" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">Hedera</text>
+        <text x="354" y="274" text-anchor="middle" fill="var(--ink-3)">settles, or refuses</text>
+        <line x1="354" y1="190" x2="354" y2="228" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
+        <text x="362" y="212" font-size="10.5" fill="var(--ink-3)">submits</text>
+      </g>
+    </svg>
+  </div>
+  <figcaption>KEA's authority comes from the catalogue, not from the pool. That is exactly why the
+  pool can be untrusted — and why "approve" is a separate job from "execute".</figcaption>
+</figure>
+
+<p>KEA talks <strong>outbound only</strong>. It opens a connection to the pool and to a public
+Hedera mirror node; nothing connects <em>to</em> it. That is what lets a signer live on a phone
+behind a home router with no ports open and no fixed address.</p>
+
+<h2>The machine: what happens to one transaction</h2>
+
+<p>This is the part worth understanding properly. Think of a transaction as a ball dropped into the
+top of a machine. It falls through a series of gates. <strong>Every gate can drop it out</strong>,
+and every drop-out has a name. Only a ball that clears every gate reaches the bottom and gets
+signed.</p>
+
+<figure>
+  <div class="fig">
+    <svg viewBox="0 0 660 690" role="img" aria-labelledby="t2 d2">
+      <title id="t2">The gates a transaction passes through before KEA will sign it</title>
+      <desc id="d2">A transaction enters at the top and falls through ten gates in order: is it a
+      deal, policy, authority, inputs, decode, observe, derive and require, reproduce, caps, and
+      signers. Each gate can reject it with a named reason, shown to the right. Only a transaction
+      clearing every gate is signed and returned to the pool.</desc>
+      <defs>
+        <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <polygon points="0,1 10,5 0,9" fill="currentColor"/>
+        </marker>
+        <marker id="arx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <polygon points="0,1 10,5 0,9" fill="var(--bad)"/>
+        </marker>
+      </defs>
+      <g font-family="system-ui,sans-serif" font-size="11.5" color="var(--ink-2)">
+
+        <rect x="96" y="8" width="212" height="34" rx="17" fill="var(--acc-bg)" stroke="var(--acc)" stroke-width="1.6"/>
+        <text x="202" y="30" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--acc)">a transaction is pooled</text>
+
+        <g id="gates">
+          <!-- each gate: box, number, name, and a reject chute to the right -->
+          <!-- y positions step by 62 -->
+          <g>
+            <rect x="60" y="56" width="284" height="40" rx="7" fill="var(--panel-2)" stroke="var(--line)"/>
+            <text x="76" y="81" font-size="11" font-weight="700" fill="var(--ink-3)">1</text>
+            <text x="96" y="81" font-size="12.5" font-weight="650" fill="var(--ink)">Is this even a deal?</text>
+            <path d="M348 76 L432 76" stroke="var(--bad)" stroke-width="1.3" marker-end="url(#arx)" fill="none"/>
+            <text x="440" y="80" font-size="11" fill="var(--bad)">not a deal &mdash; ignored quietly</text>
+          </g>
+          <g>
+            <rect x="60" y="118" width="284" height="40" rx="7" fill="var(--panel-2)" stroke="var(--line)"/>
+            <text x="76" y="143" font-size="11" font-weight="700" fill="var(--ink-3)">2</text>
+            <text x="96" y="143" font-size="12.5" font-weight="650" fill="var(--ink)">policy &mdash; hash the rules</text>
+            <path d="M348 138 L432 138" stroke="var(--bad)" stroke-width="1.3" marker-end="url(#arx)" fill="none"/>
+            <text x="440" y="142" font-size="11" fill="var(--bad)">dealId mismatch</text>
+          </g>
+          <g>
+            <rect x="60" y="180" width="284" height="40" rx="7" fill="var(--ok-bg)" stroke="var(--ok)"/>
+            <text x="76" y="205" font-size="11" font-weight="700" fill="var(--ink-3)">3</text>
+            <text x="96" y="205" font-size="12.5" font-weight="650" fill="var(--ink)">authority &mdash; is it MINE?</text>
+            <path d="M348 200 L432 200" stroke="var(--bad)" stroke-width="1.3" marker-end="url(#arx)" fill="none"/>
+            <text x="440" y="204" font-size="11" fill="var(--bad)">not a deal this signer signs</text>
+          </g>
+          <g>
+            <rect x="60" y="242" width="284" height="40" rx="7" fill="var(--panel-2)" stroke="var(--line)"/>
+            <text x="76" y="267" font-size="11" font-weight="700" fill="var(--ink-3)">4</text>
+            <text x="96" y="267" font-size="12.5" font-weight="650" fill="var(--ink)">inputs &amp; decode the bytes</text>
+            <path d="M348 262 L432 262" stroke="var(--bad)" stroke-width="1.3" marker-end="url(#arx)" fill="none"/>
+            <text x="440" y="266" font-size="11" fill="var(--bad)">unexpected input, bad bytes</text>
+          </g>
+          <g>
+            <rect x="60" y="304" width="284" height="40" rx="7" fill="var(--panel-2)" stroke="var(--line)"/>
+            <text x="76" y="329" font-size="11" font-weight="700" fill="var(--ink-3)">5</text>
+            <text x="96" y="329" font-size="12.5" font-weight="650" fill="var(--ink)">observe &mdash; go look myself</text>
+            <path d="M348 324 L432 324" stroke="var(--bad)" stroke-width="1.3" marker-end="url(#arx)" fill="none"/>
+            <text x="440" y="328" font-size="11" fill="var(--bad)">could not read the chain</text>
+          </g>
+          <g>
+            <rect x="60" y="366" width="284" height="40" rx="7" fill="var(--panel-2)" stroke="var(--line)"/>
+            <text x="76" y="391" font-size="11" font-weight="700" fill="var(--ink-3)">6</text>
+            <text x="96" y="391" font-size="12.5" font-weight="650" fill="var(--ink)">require &mdash; do the rules hold?</text>
+            <path d="M348 386 L432 386" stroke="var(--bad)" stroke-width="1.3" marker-end="url(#arx)" fill="none"/>
+            <text x="440" y="390" font-size="11" fill="var(--bad)">a condition is not met</text>
+          </g>
+          <g>
+            <rect x="60" y="428" width="284" height="40" rx="7" fill="var(--ok-bg)" stroke="var(--ok)"/>
+            <text x="76" y="453" font-size="11" font-weight="700" fill="var(--ink-3)">7</text>
+            <text x="96" y="453" font-size="12.5" font-weight="650" fill="var(--ink)">reproduce &mdash; rebuild &amp; compare</text>
+            <path d="M348 448 L432 448" stroke="var(--bad)" stroke-width="1.3" marker-end="url(#arx)" fill="none"/>
+            <text x="440" y="452" font-size="11" fill="var(--bad)">stale or tampered</text>
+          </g>
+          <g>
+            <rect x="60" y="490" width="284" height="40" rx="7" fill="var(--panel-2)" stroke="var(--line)"/>
+            <text x="76" y="515" font-size="11" font-weight="700" fill="var(--ink-3)">8</text>
+            <text x="96" y="515" font-size="12.5" font-weight="650" fill="var(--ink)">caps &mdash; under my hourly limit?</text>
+            <path d="M348 510 L432 510" stroke="var(--bad)" stroke-width="1.3" marker-end="url(#arx)" fill="none"/>
+            <text x="440" y="514" font-size="11" fill="var(--bad)">cap exceeded</text>
+          </g>
+          <g>
+            <rect x="60" y="552" width="284" height="40" rx="7" fill="var(--panel-2)" stroke="var(--line)"/>
+            <text x="76" y="577" font-size="11" font-weight="700" fill="var(--ink-3)">9</text>
+            <text x="96" y="577" font-size="12.5" font-weight="650" fill="var(--ink)">signers &mdash; is my key needed?</text>
+            <path d="M348 572 L432 572" stroke="var(--bad)" stroke-width="1.3" marker-end="url(#arx)" fill="none"/>
+            <text x="440" y="576" font-size="11" fill="var(--bad)">nothing here for me to sign</text>
+          </g>
+        </g>
+
+        <!-- the channel the ball falls down -->
+        <path d="M202 42 L202 56 M202 96 L202 118 M202 158 L202 180 M202 220 L202 242
+                 M202 282 L202 304 M202 344 L202 366 M202 406 L202 428 M202 468 L202 490
+                 M202 530 L202 552 M202 592 L202 614"
+              stroke="currentColor" stroke-width="1.6" marker-end="url(#ar2)"/>
+
+        <rect x="96" y="614" width="212" height="38" rx="19" fill="var(--ok-bg)" stroke="var(--ok)" stroke-width="1.8"/>
+        <text x="202" y="638" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ok)">signed &mdash; back to the pool</text>
+        <text x="202" y="672" text-anchor="middle" font-size="11" fill="var(--ink-3)">the pool submits when the account&rsquo;s key is satisfied</text>
+      </g>
+    </svg>
+  </div>
+  <figcaption>Gates 3 and 7 are the two that carry the most weight: <em>authority</em> is the signer
+  consulting its own list rather than the payload's claim, and <em>reproduce</em> is the signer
+  rebuilding the transaction from the rules and refusing anything that differs by a single unit.</figcaption>
+</figure>
+
+<h3>What each gate is actually doing</h3>
+
+<div class="scroll"><table>
+  <thead><tr><th>Gate</th><th>The question</th><th>Why it matters</th></tr></thead>
+  <tbody>
+    <tr><td class="g">policy</td><td>What is the identity of these rules?</td><td class="r">The rule document is hashed, and that hash <em>is</em> its id. The id is computed, never read from what arrived — so nobody can relabel one deal as another.</td></tr>
+    <tr><td class="g">authority</td><td>Is this id on <em>my</em> list?</td><td class="r">The allowlist belongs to the signer, not the request. This is the line that makes an untrusted venue safe: it can ask for anything, and get a refusal.</td></tr>
+    <tr><td class="g">inputs</td><td>Were only the declared inputs supplied?</td><td class="r">A rule declares what it accepts. Anything extra is refused rather than ignored.</td></tr>
+    <tr><td class="g">decode</td><td>What do these bytes actually move?</td><td class="r">Read from the raw transaction, never from the friendly summary next to it. The summary is a claim; the bytes are the thing that will execute.</td></tr>
+    <tr><td class="g">observe</td><td>What does the chain say right now?</td><td class="r">The signer re-fetches every fact itself from a public mirror node. Nothing the raiser supplied is taken on trust.</td></tr>
+    <tr><td class="g">derive / require</td><td>Do the conditions hold?</td><td class="r">The rule's own conditions — a deadline, a balance, a winner, an owner — evaluated against what was just observed.</td></tr>
+    <tr><td class="g">reproduce</td><td>If I built this myself, would I get the same thing?</td><td class="r">The strongest check. The signer constructs the transaction from the rules and compares it leg by leg with what it was handed. Any difference is a refusal, not a warning.</td></tr>
+    <tr><td class="g">caps</td><td>Is this more than I agreed to release in an hour?</td><td class="r">A ceiling per asset, counting what this signer has already signed. The backstop for a rule that turns out to be wrong.</td></tr>
+    <tr><td class="g">signers</td><td>Does this even need my key?</td><td class="r">Derived from the bytes: which of my accounts are debited, or pay the fee. If none, there is nothing to do.</td></tr>
+  </tbody>
+</table></div>
+
+<div class="box key">
+  <b class="hd">This is already machine-readable</b>
+  <p>Every gate emits <code>{ id, status, detail }</code> as the transaction passes — <code>pass</code>,
+  <code>fail</code>, <code>refuse</code>, <code>skip</code> or <code>error</code>. That list comes back
+  on every decision, including refusals. So a picture of the ball falling through the machine is not a
+  thing that needs building from scratch; the data is already there, waiting to be drawn.</p>
+</div>
+
+<div class="box warn">
+  <b class="hd">Two rules that never bend</b>
+  <p><strong>A refusal is loud.</strong> Every refusal names the gate that stopped it. A signer that
+  silently does nothing is indistinguishable from a broken one, which is the failure the dashboard
+  exists to end.</p>
+  <p><strong>A hint is never authority.</strong> Anything that narrows what a signer looks at — a
+  filter, a notification — is an optimisation only. The signer re-checks everything after reading it,
+  so a wrong hint costs a missed transaction, never a wrong signature.</p>
+</div>
+
+<h2>How signatures add up</h2>
+
+<p>KEA does not know or care whether its signature is enough. It holds a key, it signs, and it posts
+the signature back to the pool. Whether that is <em>sufficient</em> is the ledger's question.</p>
+
+<p>A Hedera account can require one key, or several, or a nested arrangement — "any one of these
+three", or "any two of these three", or "this one, or any two of those three". So a payout can be
+made to need two separate devices held by two separate people, neither able to act alone. Nothing in
+the signer changes to do that; you change the account's key.</p>
+
+<div class="box key">
+  <b class="hd">Why that is the interesting part</b>
+  <p>The approval rule lives <em>outside</em> the venue and outside any custodian. "Sign only
+  transactions matching these published rules, under these limits, and only when two of these three
+  devices agree" is an authorisation policy that no single compromised machine can override.</p>
+</div>
+
+<h2>Ways to run a signer</h2>
+
+<p>A signer is <strong>its own thing</strong>, running beside your application — not inside it. It
+watches the pool, and it happens to hold a key your application's accounts depend on. That separation
+is the point: your application can be rewritten, redeployed or compromised without the key moving.</p>
+
+<div class="scroll"><table>
+  <thead><tr><th>Shape</th><th>Good for</th><th>Status</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Node.js process</strong><br><span style="color:var(--ink-3);font-size:13px">a server, a Raspberry Pi, a phone in Termux</span></td><td class="r">Unattended signing. The usual choice for a service that must keep running.</td><td class="r"><strong>Working today.</strong></td></tr>
+    <tr><td><strong>Browser / PWA</strong></td><td class="r">A person approving on screen, or a device that should only sign when somebody opens it. Installable, no install ceremony.</td><td class="r"><strong>Working today</strong> as a web app; the same decision code as the Node body.</td></tr>
+    <tr><td><strong>Native app</strong></td><td class="r">A phone as a dedicated signing device, with the key held by the platform's own secure storage.</td><td class="r">Planned.</td></tr>
+    <tr><td><strong>Edge / small nodes</strong></td><td class="r">Several cheap signers in different places, so no single location holds enough keys to release anything.</td><td class="r">Follows naturally — a signer is outbound-only and needs no inbound address.</td></tr>
+  </tbody>
+</table></div>
+
+<p>All of these run <strong>the same decision</strong>. The checks in the machine above are one piece
+of code with no keys and no network of its own; each shape only supplies the surroundings — how it
+hears about a transaction, where the key is kept, how it reads the chain. That is why a phone and a
+server reach identical verdicts, and why adding a new shape does not mean rewriting the rules.</p>
+
+<h3>Running more than one</h3>
+
+<p>Signers do not coordinate and do not need to. Each hears about the same transaction, decides
+independently, and posts its own signature. Two signers reaching the same conclusion is not
+duplication — it is the point. If they disagree, the disagreement is visible rather than silent:
+that is exactly what the <a href="../">dashboard</a> is for.</p>
+
+<h2>Using KEA yourself</h2>
+
+<div class="box wip">
+  <b class="hd">Work in progress</b>
+  <p>KEA currently lives inside a larger backend repository and is being separated into its own
+  public repository. The shape below is what integrating will look like; the repository link and the
+  package name will be filled in here when the split lands. Nothing described above is speculative —
+  it is all running — but the <em>packaging</em> is not finished.</p>
+</div>
+
+<h3>What you will need</h3>
+<ol>
+  <li><strong>Rules you have published.</strong> One document per thing you are willing to pay for, listed in a catalogue, each identified by its own hash.</li>
+  <li><strong>An account whose key you control</strong>, set to require whichever devices you want — one, or two of three, or whatever suits what is at stake.</li>
+  <li><strong>A key on each device</strong>, generated on that device. The public half goes onto the account; the private half never leaves.</li>
+  <li><strong>A config file per signer</strong>: which network, where the pool is, which catalogue and which exact hash of it, the caps, and a <em>reference</em> to the key — never the key itself.</li>
+</ol>
+
+<h3>The shape of it</h3>
+
+<pre><code>{
+  "network": "testnet",
+  "pool":    { "base": "https://&lt;the pool&gt;" },
+  "mirror":  "https://testnet.mirrornode.hedera.com/api/v1",
+
+  "keys":    { "0.0.YOURACCOUNT": "env:MY_SIGNING_KEY" },
+
+  "deals": [
+    { "from": "catalogue",
+      "dir":  "vendor/&lt;your app&gt;/deals",
+      "pin":  "sha256:&lt;the exact catalogue you reviewed&gt;",
+      "caps": { "&lt;asset&gt;": 1000000 } }
+  ],
+
+  "presence": { "level": "advertise", "everyMs": 30000 }
+}</code></pre>
+
+<p>Three things in that file carry most of the safety:</p>
+<ul>
+  <li><code>pin</code> — the signer refuses to start if the catalogue on disk does not hash to this.
+  Updating your rules is a deliberate act: review, then change one line.</li>
+  <li><code>caps</code> — the most this signer will release per asset per hour, whatever the rules say.</li>
+  <li><code>keys</code> — a <em>reference</em> (<code>env:NAME</code> or a file path), so the config
+  can be committed, reviewed and shared without ever containing a secret.</li>
+</ul>
+
+<h3>Bringing one up</h3>
+<ol>
+  <li><strong>Check before you run.</strong> A doctor command answers the questions in the order they bite: is the config valid, is the key present, does the chain accept it, can this device reach the pool — and, importantly, whether this key is enough <em>on its own</em> or only counts towards a group.</li>
+  <li><strong>Watch first.</strong> Start in dry run. It decides on everything and signs nothing, so you can read its verdicts against real traffic before it has any power.</li>
+  <li><strong>Then let it sign.</strong> One flag.</li>
+  <li><strong>Rehearse the failure.</strong> Stop the signers that can act alone, and confirm the remaining ones do what you expect. Do this before it matters, not after.</li>
+</ol>
+
+<div class="box key">
+  <b class="hd">Announcing is optional, and off by default</b>
+  <p>A signer can announce itself so it appears on the <a href="../">dashboard</a> — its name, whether
+  it will actually sign, what it is watching. That is opt-in: a signer says nothing unless its config
+  or its command line turns it on. Nothing announced is secret, but the <em>correlation</em> — these
+  keys, this device, awake at this minute — is new information, so it is a choice rather than a
+  default. Announcing never affects whether anything gets signed; a quiet signer signs exactly as
+  much as a talkative one.</p>
+</div>
+
+<h2>Words used here</h2>
+
+<div class="scroll"><table>
+  <thead><tr><th>Word</th><th>Means</th></tr></thead>
+  <tbody>
+    <tr><td class="g">deal</td><td class="r">A published document saying what you are willing to pay, to whom, and under what conditions. Its hash is its name.</td></tr>
+    <tr><td class="g">catalogue</td><td class="r">The list of deals an application publishes. It has its own hash, so "the rules as of now" is a single value you can pin.</td></tr>
+    <tr><td class="g">pool / kpool</td><td class="r">Where transactions wait for signatures. It assembles and holds; it never holds keys, and it forgets after about an hour.</td></tr>
+    <tr><td class="g">raiser</td><td class="r">Whoever asked for the transaction to be built. Has no power to release it.</td></tr>
+    <tr><td class="g">mirror node</td><td class="r">A public read-only view of Hedera. How a signer checks facts for itself.</td></tr>
+    <tr><td class="g">presence</td><td class="r">A signer announcing that it is here, signed with a key it claims to hold — so the claim is evidence, not a note somebody wrote.</td></tr>
+    <tr><td class="g">dry run</td><td class="r">Decide everything, sign nothing.</td></tr>
+    <tr><td class="g">cap</td><td class="r">The most a signer will release per asset per hour, regardless of what the rules permit.</td></tr>
+  </tbody>
+</table></div>
+
+<footer>
+  <p>Written 2026-09-17 alongside the <a href="../">signers dashboard</a>. The gates described here
+  are the ones the signer actually runs, in this order, and each one's name matches what appears in a
+  decision's own check list.</p>
+</footer>
+
+</div>
+</body>
+</html>
