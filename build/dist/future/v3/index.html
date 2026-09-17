@@ -415,11 +415,19 @@
       var hay = (r.txid + ' ' + (r.pch || '') + ' ' + (r.title || '')).toLowerCase();
       return hay.indexOf(nd) >= 0;
     });
+    var acc = accountFilter();
     $('tcount').textContent = shown.length + (shown.length === rows.length ? '' : ' / ' + rows.length) +
-      (shown.length === 1 ? ' transaction' : ' transactions');
+      (shown.length === 1 ? ' transaction' : ' transactions') +
+      (acc.length ? ' \u00b7 ' + acc.join(' + ') : '');
 
     if (!shown.length) {
-      tb.innerHTML = '<tr><td colspan="5" class="msg">Nothing in the pool for this window.</td></tr>';
+      var acc = accountFilter(), why = [];
+      if (acc.length) why.push('for ' + acc.map(esc).join(' or '));
+      if (needle()) why.push('matching \u201c' + esc(needle()) + '\u201d');
+      tb.innerHTML = '<tr><td colspan="5" class="msg">Nothing in the pool ' +
+        (why.length ? why.join(' ') + ' ' : '') + 'in this window. ' +
+        (acc.length ? 'The pool holds about an hour; a quiet account simply has nothing waiting.' : '') +
+        '</td></tr>';
       return;
     }
 
@@ -507,9 +515,28 @@
         '<tr><td colspan="6" class="msg err">Could not reach the pool: ' + esc(e.message) + '</td></tr>';
     });
 
-    var txs = api('txList', { network: network, since: $('since').value, until: '600' })
-      .then(function (d) {
-        var list = ((d && d.result && d.result.tx) || []).filter(function (t) { return t && t.txid && t.pch; });
+    // The account box filters BOTH lists. The pool side is done by the backend —
+    // txList takes an account and matches on the declared transfer parties — so a
+    // filtered view also costs fewer txRead calls rather than more. Several accounts
+    // means one call each, merged: txList takes one account, and asking for the union
+    // client-side would mean reading every record in the window to throw most away.
+    var accounts = accountFilter();
+    var base = { network: network, since: $('since').value, until: '600' };
+    var lists = accounts.length
+      ? accounts.map(function (a) { return api('txList', Object.assign({ account: a }, base)); })
+      : [api('txList', base)];
+
+    var txs = Promise.all(lists)
+      .then(function (results) {
+        var seenTx = {}, list = [];
+        results.forEach(function (d) {
+          ((d && d.result && d.result.tx) || []).forEach(function (t) {
+            if (!t || !t.txid || !t.pch) return;
+            var k = t.txid + ':' + t.pch;
+            if (seenTx[k]) return;            // an account pair on one transaction returns it twice
+            seenTx[k] = 1; list.push(t);
+          });
+        });
         list.sort(function (a, b) { return (txStartSec(b.txid) || 0) - (txStartSec(a.txid) || 0); });
         var slice = list.slice(0, MAX_READS);
         return pool(slice, CONCURRENCY, function (t) {
