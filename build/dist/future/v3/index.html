@@ -75,6 +75,7 @@
   .raws a{font:11px var(--mono);color:var(--ink-3);text-decoration:none;
           border:1px solid var(--line);border-radius:5px;padding:2px 7px;white-space:nowrap}
   .raws a:hover{color:var(--acc);border-color:var(--acc)}
+  .rowraw{margin:6px 0 0;gap:4px}
 
   .panel{border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow-x:auto}
   table{border-collapse:collapse;width:100%;min-width:760px;font-size:13.5px}
@@ -346,6 +347,7 @@
   function api(action, params) { return getJson(apiUrl(action, params)); }
 
   // the raw links for a section: one per call actually made
+  function uniq(a) { var o = {}; return a.filter(function (x) { return o[x] ? false : (o[x] = 1); }); }
   function showRaw(slotId, calls) {
     var slot = $(slotId);
     if (!slot) return;
@@ -418,6 +420,9 @@
     // `accounts` (the union) and `dealIds` are derived by the pool. Nothing here is typed by
     // the operator — the accounts come from the chain, the deals from the signer's own config.
     list.forEach(function (d) {
+      // derived here, not by the pool: the record is the signed announcement and nothing else
+      d.accounts = uniq([].concat.apply([], Object.keys(d.keys || {}).map(function (k) { return d.keys[k] || []; }))).sort();
+      d.dealIds = Object.keys(d.deals || {}).sort();
       Object.keys(d.keys || {}).forEach(function (k) { byKey[String(k).toLowerCase()] = d; });
       if (d.by) byKey[String(d.by).toLowerCase()] = d;
     });
@@ -471,6 +476,7 @@
       var ver = d.version && typeof d.version === 'object'
         ? (d.version.code ? 'code ' + esc(d.version.code) + ' &middot; ' : '') + (d.version.node ? 'node ' + esc(d.version.node) : '')
         : (d.version ? 'node ' + esc(d.version) : '');
+      if (d.v === 1) ver = '<span class="pill warn">old announcer</span> ' + ver;   // a phone that has not pulled KEA-PRESENCE2 yet
 
       return '<tr>' +
         '<td class="cardtitle" data-l="device"><span class="who">' + esc(d.label) + '</span>' +
@@ -506,7 +512,7 @@
   }
 
   function renderTxs(rows) {
-    var tb = $('txs').tBodies[0], nd = needle(), now = Math.floor(Date.now() / 1000);
+    var tb = $('txs').tBodies[0], nd = needle(), now = Math.floor(Date.now() / 1000), network = $('network').value;
     var shown = rows.filter(function (r) {
       if (!r) return false;
       if (!nd) return true;
@@ -558,7 +564,12 @@
         '<td data-l="verdicts"><div class="v">' + verdicts + '</div></td>' +
         '<td data-l="state"><div class="v"><span class="pill ' + cls + '">' + esc(state) + '</span></div></td>' +
         '<td class="mono" data-l="when"><div class="v">' + when + '</div></td>' +
-        '<td class="mono" data-l="transaction"><div class="v">' + esc(r.txid) + (r.pch ? '<div class="key">pch ' + esc(r.pch) + '</div>' : '') + '</div></td>' +
+        '<td class="mono" data-l="transaction"><div class="v">' + esc(r.txid) + (r.pch ? '<div class="key">pch ' + esc(r.pch) + '</div>' : '') +
+          // the raw answers this row was drawn from — for anyone designing against the data
+          '<span class="raws rowraw">' +
+            '<a href="' + esc(apiUrl('txRead', { network: network, txid: r.txid, pch: r.pch || '', detail: '1', mirror: '0' })) + '" target="_blank" rel="noopener" title="the pooled record, signatures and verdicts">\u2699 txRead</a>' +
+            '<a href="' + esc(apiUrl('verdicts', { network: network, txid: r.txid, pch: r.pch || '' })) + '" target="_blank" rel="noopener" title="every signer\'s decision on this transaction">verdicts</a>' +
+          '</span></div></td>' +
         '</tr>';
     }).join('');
   }
