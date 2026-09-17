@@ -6,9 +6,9 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <!-- ENTRY-FADES1 (user 2026-07-30): quiet cross-fade page transition. Must be in
      <head> — it arms the fade-in before first paint. -->
-<script src="kfade.js?v=1789638391"></script>
-<link rel="stylesheet" href="katomia.css?v=1789638391">
-<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1789638391">
+<script src="kfade.js?v=1789663292"></script>
+<link rel="stylesheet" href="katomia.css?v=1789663292">
+<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1789663292">
 
 <title>Katomia markets 🍎🥬🥕</title>
 
@@ -663,9 +663,9 @@ addEventListener("load", () => setTimeout(() => {
      kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
      script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
      the notes' popovers), so a page that already loads it is unaffected. -->
-<script src="kfeedbits.js?v=1789638391" defer></script>
-<script src="kchanges-log.js?v=1789638391" defer></script>
-<script src="kchanges.js?v=1789638391" defer></script>
+<script src="kfeedbits.js?v=1789663292" defer></script>
+<script src="kchanges-log.js?v=1789663292" defer></script>
+<script src="kchanges.js?v=1789663292" defer></script>
 <!-- /KBUNDLE-STRIP:kchanges -->
 <div id="profileModal" class="profile-modal hidden">
 
@@ -1175,7 +1175,7 @@ window.onKatomiaBindingPublished = () => loadGames()
 </script>
 
 <script>  window.CONFIG = {
-    HAPI_BASE: "kpay-api-alias.tayloa17.workers.dev/hapi"
+    HAPI_BASE: "api.katomia.com/hapi"
   }
 </script>
 
@@ -1184,16 +1184,16 @@ window.onKatomiaBindingPublished = () => loadGames()
 <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
 
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
-<script src="katomia-core.js?v=1789638391"></script>
-<script src="katomia-helpers.js?v=1789638391"></script>
-<script src="kemoji.js?v=1789638391"></script>
+<script src="katomia-core.js?v=1789663292"></script>
+<script src="katomia-helpers.js?v=1789663292"></script>
+<script src="kemoji.js?v=1789663292"></script>
 <script>
   // katomia-modals.js (the diag sender) isn't loaded on this page — shim so the
   // profile/auth scripts' katomiaDiagSend?.() calls resolve instead of ReferenceError.
   window.katomiaDiagSend = window.katomiaDiagSend || function(){}
 </script>
-<script src="katomia-profile.js?v=1789638391"></script>
-<script src="katomia-auth.js?v=1789638391"></script>
+<script src="katomia-profile.js?v=1789663292"></script>
+<script src="katomia-auth.js?v=1789663292"></script>
 
 <script>
 // loadGames needs getOrCreatePlayerToken (katomia-core.js above), so it runs here
@@ -1212,7 +1212,7 @@ fetch("./footer.html")
 <!-- KAT-FEEDBACK1-ENTRYPOINT1: widget on the welcome/games-list page too — long-press
      works here and the header menu's Send feedback opens in place instead of falling
      back to /m/feedback (backend-served canonical copy, KPAD-SELFFEED1) -->
-<script src="https://kpay-api-alias.tayloa17.workers.dev/hapi/feedback-widget.js"
+<script src="https://api.katomia.com/hapi/feedback-widget.js"
         data-product="katomia-home"
         data-screenshot="0"><!-- KAT-FEEDSHOT-BROKEN1 (user 2026-08-08): attach-screenshot never
      succeeds on these pages, so the checkbox is a control for a feature that does not

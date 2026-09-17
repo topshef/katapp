@@ -487,6 +487,22 @@ A signer chooses how much of its judgement to publish with <code>report</code>: 
 transactions that were never its business, flagged as such, which is only useful while working out why a
 signer is or is not being offered something.</p>
 
+<h3>How much a signer says is its own choice</h3>
+<p>Three separate decisions, each the signer's:</p>
+<ol>
+  <li><strong>Appear at all.</strong> No <code>presence</code> in the config and nothing leaves the device — it
+  signs exactly as before and is invisible here unless it puts a signature on something.</li>
+  <li><strong>How much to say.</strong> <code>presence.disclose</code> names which of <em>keys</em>, <em>deals</em>
+  and <em>subscription</em> go out. Anything left out is emptied <em>and</em> named in <code>withheld</code>, so
+  "I hold no keys" and "I am not saying" are different answers rather than the same blank — and the difference is
+  inside the signature. What cannot be withheld: who you are, your label, go-vs-dry-run, uptime and version. That
+  is what announcing <em>is</em>; a device unwilling to say those should stay silent instead.</li>
+  <li><strong>How much to report.</strong> <code>report</code> governs verdicts, separately — see above.</li>
+</ol>
+<p>Nothing announced is secret on its own: deal ids are published and public keys are on chain. What announcing
+adds is the <em>correlation</em> — these keys, this device, awake at this minute — which is why it is switched on
+deliberately and can be turned down a notch without being turned off.</p>
+
 <h3>Reading an announcement</h3>
 <p>What <a href="../?action=signers&amp;network=testnet">/kpool/signers</a> returns per device is the signed
 announcement, kept whole, plus four things the pool adds. Nothing derived is added beside it: the accounts
@@ -500,11 +516,12 @@ are the values of <code>keys</code>, the deal ids are the keys of <code>deals</c
     <tr><td class="g">subscription</td><td>signed</td><td class="r">The literal <code>kpool_watch</code> filters on its socket — what it is actually rung for. <code>null</code> from a device that has not pulled the version that says so.</td></tr>
     <tr><td class="g">mode</td><td>signed</td><td class="r"><code>go</code>, <code>dry-run</code>, or <code>stopped</code> (it said goodbye).</td></tr>
     <tr><td class="g">version, startedAt, label, at, network</td><td>signed</td><td class="r">Runtime and git sha of the code; when it started (a moved start time is flagged <em>restarted</em>); its nickname; the announcement's own clock; the network.</td></tr>
-    <tr><td class="g">sig, v</td><td>signed</td><td class="r">The ed25519 signature and the wire version it covers. <code>v: 1</code> means an older device, normalised into this shape by the pool; its signature covered a shape this record no longer holds, so it is not returned.</td></tr>
+    <tr><td class="g">withheld</td><td>signed</td><td class="r">The fields this device chose not to send (<code>keys</code>, <code>deals</code>, <code>subscription</code>). Empty for a device saying everything. Inside the signature, so "not saying" cannot be added or removed in transit.</td></tr>
+    <tr><td class="g">sig, v</td><td>signed</td><td class="r">The ed25519 signature and the wire version it covers. <code>v: 2</code> is an ordinary announcement, <code>v: 3</code> one that withholds something. <code>v: 1</code> means an older device, normalised into this shape by the pool; its signature covered a shape this record no longer holds, so it is not returned.</td></tr>
     <tr><td class="g">firstSeen, restarted, ageSeconds, fresh</td><td>the pool</td><td class="r">Bookkeeping: first sight of this key, whether startedAt moved, seconds since <code>at</code>, and whether that is within <code>freshSeconds</code>.</td></tr>
   </tbody>
 </table></div>
-<p><strong>To verify one yourself</strong> (v2): build the JSON object <code>{ v, network, label, mode, at, startedAt, version, keys, deals, subscription }</code>
+<p><strong>To verify one yourself</strong>: build the JSON object <code>{ v, network, label, mode, at, startedAt, version, keys, deals, subscription }</code> — and, when <code>v</code> is 3, <code>withheld</code> last —
 with the keys in exactly that order and the values as returned (<code>startedAt</code>, <code>version</code>, <code>subscription</code> as <code>null</code> when absent),
 take <code>JSON.stringify</code> of it as UTF-8 bytes, and check <code>sig</code> against <code>by</code> as a raw ed25519 signature over those bytes.
 That is the same primitive that signs a transaction body; the pool did exactly this before storing the record.</p>

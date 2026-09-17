@@ -23,7 +23,7 @@ VARIANT="${1:-}"
 if [ "$VARIANT" = "gcp" ]; then
   NAME="katui-gcp"; ALIAS="${ALIAS:-kpay-api-alias-gcp.tayloa17.workers.dev/hapi}"; DIST_NAME="dist-gcp"
 elif [ -z "$VARIANT" ]; then
-  NAME="katui";     ALIAS="${ALIAS:-kpay-api-alias.tayloa17.workers.dev/hapi}";     DIST_NAME="dist"
+  NAME="katui";     ALIAS="${ALIAS:-api.katomia.com/hapi}";     DIST_NAME="dist"
 else
   echo "unknown variant '$VARIANT' (expected: none | gcp)"; exit 1
 fi

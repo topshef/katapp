@@ -25,7 +25,7 @@ require_once __DIR__ . '/config.php';
 // STATIC SHELL (build/build-static.sh renders it once, with a build-time .env_hapi that
 // points at the alias Worker), so anything derived from $hapi_base here bakes in whatever
 // the build machine was configured with — the first render came out as
-// "https://kpay-api-alias.tayloa17.workers.dev/hapi/mcp", which works but is not an
+// "https://api.katomia.com/hapi/mcp", which works but is not an
 // address to hand a person, and would still say that on app.katomia.com.
 //
 // location.origin is the only thing that knows where the reader actually is, so the URL is

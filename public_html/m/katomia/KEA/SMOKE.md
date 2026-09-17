@@ -18,8 +18,8 @@ unlocks, then signs one.
 ## 1. Open the app, add the rule
 
 1. https://labs.katomia.com/m/katomia/KEA/ → **Rules** → new rule.
-2. KPool base URL: `https://kpay-api-alias.tayloa17.workers.dev/hapi`
-   Doorbell socket: `wss://kpay-api-alias.tayloa17.workers.dev/hapi/ws`
+2. KPool base URL: `https://api.katomia.com/hapi`
+   Doorbell socket: `wss://api.katomia.com/hapi/ws`
 3. Query: `network` = `testnet`, leave `orderPubkey` and `gameId` empty (blank = every
    transaction pooled on testnet rings; the core decides which are the lottery's).
 4. Auto-approval key: *Manual approval* for the first pass.
