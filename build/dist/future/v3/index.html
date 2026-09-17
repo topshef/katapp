@@ -76,6 +76,10 @@
           border:1px solid var(--line);border-radius:5px;padding:2px 7px;white-space:nowrap}
   .raws a:hover{color:var(--acc);border-color:var(--acc)}
   .rowraw{margin:6px 0 0;gap:4px}
+  .crumb{display:flex;flex-wrap:wrap;gap:8px;font:12px var(--mono);margin:0 0 14px}
+  .crumb a{text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:3px 10px;color:var(--ink-3)}
+  .crumb a:hover{color:var(--acc);border-color:var(--acc)}
+  .crumb .here{border:1px solid var(--acc);background:var(--acc);color:var(--bg);border-radius:99px;padding:3px 10px}
   .stale{margin:0 0 12px;padding:9px 13px;border-radius:6px;font-size:.88rem;
          background:var(--warnbg,#fdf3e0);color:var(--warnink,#7a5310);
          border:1px solid var(--warnline,#e8d3a8)}
@@ -220,6 +224,12 @@
     within the pool's freshness window; the age is always shown beside it, because "quiet" and
     "gone" are different facts.</p>
   </div>
+  <nav class="crumb">
+    <span class="here">Signers dashboard</span>
+    <a href="help/">How it works</a>
+    <a href="help/business/">In business terms</a>
+    <a href="notes/">Notes</a>
+  </nav>
   <div class="stale" id="stale" hidden></div>
   <div class="panel"><table id="devices">
     <thead><tr>
