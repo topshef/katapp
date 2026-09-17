@@ -89,48 +89,44 @@
     <a href="business/">In business terms</a>
   </nav>
   <h1>How KEA works</h1>
-  <p class="lede">KEA is a signer you control. It watches for transactions, checks each one against
-  rules <em>you</em> published, and signs only the ones that match. It never builds a transaction,
-  never holds anyone else's money, and never takes instructions from the thing asking it to sign.</p>
+  <p class="lede">KEA is a signer you control. It reads a transaction, checks it against rules
+  <em>you</em> published, and signs the ones that match. Its authority is the rule; its answer is a
+  signature.</p>
 </header>
 
 <h2>The one idea</h2>
 
-<p>Most systems that move money for you need to be trusted with the power to move money. KEA
-splits that in two: <strong>whoever assembles a transaction holds no key that can approve it</strong>,
-and whoever holds a key approves only what matches something published in advance.</p>
+<p><strong>Assembling a transaction and approving one are separate jobs, done by separate parties.</strong>
+Whoever builds it hands it on; whoever holds a key approves what matches a rule published in advance.</p>
 
-<p>There are five jobs here, and the useful part is that <strong>they can be five different
-parties</strong> — whoever wrote the rule need not be the one proposing, and neither need be the one
-holding a key:</p>
+<p>Five jobs, and the useful part is that <strong>five different parties can do them</strong> — the
+author of a rule, the one proposing against it, and the one holding a key are free to be three
+different people:</p>
 
 <div class="scroll"><table>
   <thead><tr><th>Job</th><th>Who does it</th><th>What they hold</th></tr></thead>
   <tbody>
-    <tr><td><strong>Write the rule</strong></td><td>anyone — a business, a person, a script</td><td>Nothing at runtime. They write down what they are willing to pay, and on what conditions, and publish it.</td></tr>
-    <tr><td><strong>Ask</strong></td><td>a bot, a page, a person</td><td>No key that can approve anything. It proposes; that is all.</td></tr>
-    <tr><td><strong>Assemble and hold</strong></td><td>the pool (<code>kpool</code>)</td><td><strong>No keys at all.</strong> It builds the transaction, holds it, and relays it exactly as it was signed — it adds no signature of its own, because it has none to add.</td></tr>
-    <tr><td><strong>Approve</strong></td><td><strong>KEA</strong> — one or more devices</td><td>A key. The only thing it will use it for is adding <em>one approval</em> to a transaction matching a published rule.</td></tr>
-    <tr><td><strong>Settle</strong></td><td>Hedera</td><td>The ledger. It alone decides whether the signatures gathered are sufficient, and either settles or refuses.</td></tr>
+    <tr><td><strong>Write the rule</strong></td><td>anyone — a business, a person, a script</td><td>Writes down what they are willing to pay, and on what conditions, and publishes it. That document is the authority everything else answers to.</td></tr>
+    <tr><td><strong>Ask</strong></td><td>a bot, a page, a person</td><td>Proposes. That is the whole job — approval is a separate step, taken by someone else.</td></tr>
+    <tr><td><strong>Assemble and hold</strong></td><td>the pool (<code>kpool</code>)</td><td>The transaction itself, in the open, while approvals arrive. It relays the bytes onward exactly as they were signed.</td></tr>
+    <tr><td><strong>Approve</strong></td><td><strong>KEA</strong> — one or more devices</td><td>A key, used for one purpose: adding <em>one approval</em> to a transaction that matches a published rule.</td></tr>
+    <tr><td><strong>Settle</strong></td><td>Hedera</td><td>The ledger. It counts the approvals against the account's own rule and settles once they satisfy it.</td></tr>
   </tbody>
 </table></div>
 
 <div class="box key">
   <b class="hd">The sentence worth remembering</b>
   <p>You publish what you are willing to do; someone proposes it; a venue assembles it; and a signer
-  you control approves it only if it matches what you published. Nobody in the middle can move your
-  funds, because nobody in the middle has your key.</p>
+  you control approves it when it matches what you published. Your key stays with you throughout.</p>
 </div>
 
-<div class="box warn">
-  <b class="hd">One approval, not a release</b>
-  <p>A signer adds <em>a</em> signature. It does not decide the outcome and it does not release
-  anything. If the account requires two of three devices, one signature moves nothing at all — the
-  transaction simply sits there a little less unsigned than before. The ledger, and only the ledger,
-  decides when what has been gathered is enough.</p>
-  <p>This distinction matters more than it sounds: it is why adding a signer is safe, why a signer
-  going quiet cannot strand your funds, and why no single device on the list is a single point of
-  failure unless you built it that way.</p>
+<div class="box key">
+  <b class="hd">A signature is one approval</b>
+  <p>A signer adds one signature and hands it back. The ledger keeps count, and settles the moment
+  the approvals satisfy the account's own rule — so with two of three devices, the first signature
+  moves the transaction one step closer and the second completes it.</p>
+  <p>That is what makes approvers cheap to add and safe to spread around: each one carries a share
+  of the decision, and the ledger does the arithmetic.</p>
 </div>
 
 <h2>How the pieces connect</h2>
@@ -142,7 +138,7 @@ holding a key:</p>
       <desc id="d1">The application publishes a deal catalogue. A raiser asks the pool to build a
       transaction. The pool holds it unsigned. KEA reads the catalogue and the pool, checks the
       transaction, and posts a signature back to the pool. The pool submits to Hedera, which
-      settles. The pool holds no keys and adds no signature of its own.</desc>
+      settles. The pool holds the transaction while approvals arrive.</desc>
       <defs>
         <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <polygon points="0,1 10,5 0,9" fill="currentColor"/>
@@ -166,7 +162,7 @@ holding a key:</p>
         <rect x="266" y="118" width="176" height="68" rx="8" fill="var(--panel-2)" stroke="var(--line)" stroke-width="1.6"/>
         <text x="354" y="141" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">The pool &middot; kpool</text>
         <text x="354" y="158" text-anchor="middle" fill="var(--ink-3)">builds it, holds it</text>
-        <text x="354" y="175" text-anchor="middle" font-size="11" font-weight="700" fill="var(--bad)">HOLDS NO KEYS</text>
+        <text x="354" y="175" text-anchor="middle" font-size="11" font-weight="700" fill="var(--acc)">HOLDS THE TRANSACTION</text>
         <line x1="180" y1="152" x2="260" y2="152" stroke="currentColor" stroke-width="1.4" marker-end="url(#ar)"/>
         <text x="220" y="145" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">asks</text>
 
@@ -191,19 +187,19 @@ holding a key:</p>
       </g>
     </svg>
   </div>
-  <figcaption>KEA's authority comes from the catalogue, not from the pool. That is exactly why the
-  pool can be untrusted — and why "approve" is a separate job from "execute".</figcaption>
+  <figcaption>KEA takes its authority from the catalogue. That is what lets the pool be treated as
+  a convenience rather than a trusted party, and what makes "approve" a job of its own.</figcaption>
 </figure>
 
-<p>KEA talks <strong>outbound only</strong>. It opens a connection to the pool and to a public
-Hedera mirror node; nothing connects <em>to</em> it. That is what lets a signer live on a phone
-behind a home router with no ports open and no fixed address.</p>
+<p>KEA talks <strong>outbound only</strong>: it opens a connection to the pool and to a public
+Hedera mirror node, and everything it needs arrives over those. That is what lets a signer live on a
+phone behind an ordinary home router.</p>
 
 <h2>The machine: what happens to one transaction</h2>
 
 <p>This is the part worth understanding properly. Think of a transaction as a ball dropped into the
-top of a machine. It falls through a series of gates. <strong>Every gate can drop it out</strong>,
-and every drop-out has a name. Only a ball that clears every gate reaches the bottom and gets
+top of a machine. It falls through a series of gates, and <strong>each gate either passes it on or
+sets it aside with a named reason</strong>. A ball that clears every gate reaches the bottom and gets
 signed.</p>
 
 <figure>
@@ -307,9 +303,9 @@ signed.</p>
       </g>
     </svg>
   </div>
-  <figcaption>Gates 3 and 7 are the two that carry the most weight: <em>authority</em> is the signer
-  consulting its own list rather than the payload's claim, and <em>reproduce</em> is the signer
-  rebuilding the transaction from the rules and refusing anything that differs by a single unit.</figcaption>
+  <figcaption>Gates 3 and 7 carry the most weight: <em>authority</em> is the signer consulting its
+  own list, and <em>reproduce</em> is the signer rebuilding the transaction from the rules and
+  requiring an exact match, to the unit.</figcaption>
 </figure>
 
 <h3>What each gate is actually doing</h3>
@@ -317,97 +313,96 @@ signed.</p>
 <div class="scroll"><table>
   <thead><tr><th>Gate</th><th>The question</th><th>Why it matters</th></tr></thead>
   <tbody>
-    <tr><td class="g">policy</td><td>What is the identity of these rules?</td><td class="r">The rule document is hashed, and that hash <em>is</em> its id. The id is computed, never read from what arrived — so nobody can relabel one deal as another.</td></tr>
-    <tr><td class="g">authority</td><td>Is this id on <em>my</em> list?</td><td class="r">The allowlist belongs to the signer, not the request. This is the line that makes an untrusted venue safe: it can ask for anything, and get a refusal.</td></tr>
-    <tr><td class="g">inputs</td><td>Were only the declared inputs supplied?</td><td class="r">A rule declares what it accepts. Anything extra is refused rather than ignored.</td></tr>
-    <tr><td class="g">decode</td><td>What do these bytes actually move?</td><td class="r">Read from the raw transaction, never from the friendly summary next to it. The summary is a claim; the bytes are the thing that will execute.</td></tr>
-    <tr><td class="g">observe</td><td>What does the chain say right now?</td><td class="r">The signer re-fetches every fact itself from a public mirror node. Nothing the raiser supplied is taken on trust.</td></tr>
+    <tr><td class="g">policy</td><td>What is the identity of these rules?</td><td class="r">The rule document is hashed, and that hash <em>is</em> its id. The signer computes it from the document in front of it, so the name always follows the contents.</td></tr>
+    <tr><td class="g">authority</td><td>Is this id on <em>my</em> list?</td><td class="r">The allowlist belongs to the signer. Whatever arrives, the answer comes from the signer's own list — which is what lets it listen to an open venue.</td></tr>
+    <tr><td class="g">inputs</td><td>Were only the declared inputs supplied?</td><td class="r">A rule declares exactly what it accepts, and the signer hands it precisely those inputs.</td></tr>
+    <tr><td class="g">decode</td><td>What do these bytes actually move?</td><td class="r">Read straight from the raw transaction — the bytes are the thing that will execute, so the bytes are what gets examined.</td></tr>
+    <tr><td class="g">observe</td><td>What does the chain say right now?</td><td class="r">The signer fetches every fact for itself from a public mirror node, so its verdict rests on what it read.</td></tr>
     <tr><td class="g">derive / require</td><td>Do the conditions hold?</td><td class="r">The rule's own conditions — a deadline, a balance, a winner, an owner — evaluated against what was just observed.</td></tr>
-    <tr><td class="g">reproduce</td><td>If I built this myself, would I get the same thing?</td><td class="r">The strongest check. The signer constructs the transaction from the rules and compares it leg by leg with what it was handed. Any difference is a refusal, not a warning.</td></tr>
-    <tr><td class="g">caps</td><td>Is this more than I agreed to approve in an hour?</td><td class="r">A ceiling per asset, counting what this signer has already signed. The backstop for a rule that turns out to be wrong.</td></tr>
-    <tr><td class="g">signers</td><td>Does this even need my key?</td><td class="r">Derived from the bytes: which of my accounts are debited, or pay the fee. If none, there is nothing to do.</td></tr>
+    <tr><td class="g">reproduce</td><td>If I built this myself, would I get the same thing?</td><td class="r">The strongest check. The signer constructs the transaction from the rules and compares it leg by leg with what it was handed; an exact match is the condition for going on.</td></tr>
+    <tr><td class="g">caps</td><td>Is this more than I agreed to approve in an hour?</td><td class="r">A ceiling per asset, counting what this signer has already approved this hour. Your backstop, set by you.</td></tr>
+    <tr><td class="g">signers</td><td>Does this even need my key?</td><td class="r">Derived from the bytes: which of my accounts are debited, or pay the fee. Those are the ones I sign for.</td></tr>
   </tbody>
 </table></div>
 
 <div class="box key">
   <b class="hd">This is already machine-readable</b>
   <p>Every gate emits <code>{ id, status, detail }</code> as the transaction passes — <code>pass</code>,
-  <code>fail</code>, <code>refuse</code>, <code>skip</code> or <code>error</code>. That list comes back
-  on every decision, including refusals. So a picture of the ball falling through the machine is not a
-  thing that needs building from scratch; the data is already there, waiting to be drawn.</p>
+  <code>fail</code>, <code>refuse</code>, <code>skip</code> or <code>error</code> — and that list comes
+  back on every decision. A picture of the ball falling through the machine is therefore a rendering
+  job: the data is already there, waiting to be drawn.</p>
 </div>
 
-<div class="box warn">
-  <b class="hd">Two rules that never bend</b>
-  <p><strong>A refusal is loud.</strong> Every refusal names the gate that stopped it. A signer that
-  silently does nothing is indistinguishable from a broken one, which is the failure the dashboard
-  exists to end.</p>
-  <p><strong>A hint is never authority.</strong> Anything that narrows what a signer looks at — a
-  filter, a notification — is an optimisation only. The signer re-checks everything after reading it,
-  so a wrong hint costs a missed transaction, never a wrong signature.</p>
+<div class="box key">
+  <b class="hd">Two rules that hold</b>
+  <p><strong>Every refusal is loud, and names its gate.</strong> A verdict always says which gate
+  produced it, so an answer you did not expect is traceable to the line that made it.</p>
+  <p><strong>Authority lives in the rule; a hint is only a shortcut.</strong> Filters and
+  notifications narrow what a signer looks at first. The signer then re-checks everything it reads
+  against its own rules, so the verdict is the same either way.</p>
 </div>
 
 <h2>How signatures add up</h2>
 
-<p>KEA does not know or care whether its signature is enough. It holds a key, it signs, and it posts
-the signature back to the pool. Whether that is <em>sufficient</em> is the ledger's question.</p>
+<p>KEA's job ends at the signature: it holds a key, it signs, it posts the signature back. Counting
+the approvals is the ledger's job.</p>
 
-<p>A Hedera account can require one key, or several, or a nested arrangement — "any one of these
-three", or "any two of these three", or "this one, or any two of those three". So a payout can be
-made to need two separate devices held by two separate people, neither able to act alone. Nothing in
-the signer changes to do that; you change the account's key.</p>
+<p>A Hedera account states its own requirement — "any one of these three", "any two of these three",
+or "this one, or any two of those three". So a payout can be made to require two separate devices
+held by two separate people, each contributing a share of the approval. That is a change to the
+account's key; the signer carries on exactly as before.</p>
 
 <div class="box key">
   <b class="hd">Why that is the interesting part</b>
-  <p>The approval rule lives <em>outside</em> the venue and outside any custodian. "Sign only
-  transactions matching these published rules, under these limits, and only when two of these three
-  devices agree" is an authorisation policy that no single compromised machine can override.</p>
+  <p>The approval rule lives on the ledger and on your devices. "Sign transactions matching these
+  published rules, under these limits, when two of these three devices agree" is an authorisation
+  policy enforced where the funds are, by the ledger itself.</p>
 </div>
 
 <h2>Ways to run a signer</h2>
 
-<p>A signer is <strong>its own thing</strong>, running beside your application — not inside it. It
-watches the pool, and it happens to hold a key your application's accounts depend on. That separation
-is the point: your application can be rewritten, redeployed or compromised without the key moving.</p>
+<p>A signer is <strong>its own thing</strong>, running beside your application. It watches the pool
+and holds a key your application's accounts depend on. That separation is the point: your application
+can be rewritten and redeployed as often as you like while the key stays exactly where you put it.</p>
 
 <div class="scroll"><table>
   <thead><tr><th>Shape</th><th>Good for</th><th>Status</th></tr></thead>
   <tbody>
     <tr><td><strong>Node.js process</strong><br><span style="color:var(--ink-3);font-size:13px">a server, a Raspberry Pi, a phone in Termux</span></td><td class="r">Unattended signing. The usual choice for a service that must keep running.</td><td class="r"><strong>Working today.</strong></td></tr>
-    <tr><td><strong>Browser / PWA</strong></td><td class="r">A person approving on screen, or a device that should only sign when somebody opens it. Installable, no install ceremony.</td><td class="r"><strong>Working today</strong> as a web app; the same decision code as the Node body.</td></tr>
+    <tr><td><strong>Browser / PWA</strong></td><td class="r">A person approving on screen, or a device that signs while somebody has it open. Installable straight from the browser.</td><td class="r"><strong>Working today</strong> as a web app; the same decision code as the Node body.</td></tr>
     <tr><td><strong>Native app</strong></td><td class="r">A phone as a dedicated signing device, with the key held by the platform's own secure storage.</td><td class="r">Planned.</td></tr>
-    <tr><td><strong>Edge / small nodes</strong></td><td class="r">Several cheap signers in different places, so no single location holds enough keys to reach a threshold on its own.</td><td class="r">Follows naturally — a signer is outbound-only and needs no inbound address.</td></tr>
+    <tr><td><strong>Edge / small nodes</strong></td><td class="r">Several cheap signers in different places, so reaching a threshold takes agreement across locations.</td><td class="r">Follows naturally — a signer is outbound-only and needs no inbound address.</td></tr>
   </tbody>
 </table></div>
 
-<p>All of these run <strong>the same decision</strong>. The checks in the machine above are one piece
-of code with no keys and no network of its own; each shape only supplies the surroundings — how it
-hears about a transaction, where the key is kept, how it reads the chain. That is why a phone and a
-server reach identical verdicts, and why adding a new shape does not mean rewriting the rules.</p>
+<p>All of these run <strong>the same decision</strong>. The checks in the machine above are one pure
+piece of code; each shape supplies the surroundings around it — how it hears about a transaction,
+where the key is kept, how it reads the chain. That is why a phone and a server reach identical
+verdicts, and why a new shape is a new set of surroundings rather than a new rulebook.</p>
 
 <h3>Running more than one</h3>
 
-<p>Signers do not coordinate and do not need to. Each hears about the same transaction, decides
-independently, and posts its own signature. Two signers reaching the same conclusion is not
-duplication — it is the point. If they disagree, the disagreement is visible rather than silent:
-that is exactly what the <a href="../">dashboard</a> is for.</p>
+<p>Each signer works alone: it hears about the same transaction, decides for itself, and posts its
+own signature. Two signers reaching the same conclusion is the point — that is the agreement the
+ledger counts. When they differ, the <a href="../">dashboard</a> shows you both verdicts side by
+side.</p>
 
 <h2>Using KEA yourself</h2>
 
 <div class="box wip">
   <b class="hd">Work in progress</b>
   <p>KEA currently lives inside a larger backend repository and is being separated into its own
-  public repository. The shape below is what integrating will look like; the repository link and the
-  package name will be filled in here when the split lands. Nothing described above is speculative —
-  it is all running — but the <em>packaging</em> is not finished.</p>
+  public one. Everything described above is running today; what is still in progress is the
+  <em>packaging</em>. The shape below is what integrating will look like, and the repository link and
+  package name land here when the split does.</p>
 </div>
 
 <h3>What you will need</h3>
 <ol>
   <li><strong>Rules you have published.</strong> One document per thing you are willing to pay for, listed in a catalogue, each identified by its own hash.</li>
   <li><strong>An account whose key you control</strong>, set to require whichever devices you want — one, or two of three, or whatever suits what is at stake.</li>
-  <li><strong>A key on each device</strong>, generated on that device. The public half goes onto the account; the private half never leaves.</li>
-  <li><strong>A config file per signer</strong>: which network, where the pool is, which catalogue and which exact hash of it, the caps, and a <em>reference</em> to the key — never the key itself.</li>
+  <li><strong>A key on each device</strong>, generated on that device. The public half goes onto the account; the private half stays where it was made.</li>
+  <li><strong>A config file per signer</strong>: which network, where the pool is, which catalogue and which exact hash of it, the caps, and a <em>reference</em> to the key.</li>
 </ol>
 
 <h3>The shape of it</h3>
@@ -431,29 +426,28 @@ that is exactly what the <a href="../">dashboard</a> is for.</p>
 
 <p>Three things in that file carry most of the safety:</p>
 <ul>
-  <li><code>pin</code> — the signer refuses to start if the catalogue on disk does not hash to this.
-  Updating your rules is a deliberate act: review, then change one line.</li>
-  <li><code>caps</code> — the most this signer will <em>approve</em> per asset per hour, whatever the rules say.</li>
-  <li><code>keys</code> — a <em>reference</em> (<code>env:NAME</code> or a file path), so the config
-  can be committed, reviewed and shared without ever containing a secret.</li>
+  <li><code>pin</code> — the signer starts once the catalogue on disk hashes to exactly this.
+  Updating your rules is therefore a deliberate act: review, then change one line.</li>
+  <li><code>caps</code> — the most this signer will <em>approve</em> per asset per hour, whatever the rules allow.</li>
+  <li><code>keys</code> — a <em>reference</em> (<code>env:NAME</code> or a file path), so the config is
+  a file you can commit, review and share freely.</li>
 </ul>
 
 <h3>Bringing one up</h3>
 <ol>
-  <li><strong>Check before you run.</strong> A doctor command answers the questions in the order they bite: is the config valid, is the key present, does the chain accept it, can this device reach the pool — and, importantly, whether this key is enough <em>on its own</em> or only counts towards a group.</li>
-  <li><strong>Watch first.</strong> Start in dry run. It decides on everything and signs nothing, so you can read its verdicts against real traffic before it has any power.</li>
+  <li><strong>Check before you run.</strong> A doctor command answers the questions in the order they bite: is the config valid, is the key present, does the chain accept it, can this device reach the pool — and how much weight this key carries on its own, as against counting towards a group.</li>
+  <li><strong>Watch first.</strong> Start in dry run: it decides on everything and reports its verdict, so you can read those against real traffic first.</li>
   <li><strong>Then let it sign.</strong> One flag.</li>
-  <li><strong>Rehearse the failure.</strong> Stop the signers that can act alone, and confirm the remaining ones do what you expect. Do this before it matters, not after.</li>
+  <li><strong>Rehearse the threshold.</strong> Stop the signers that can act alone, and confirm the remaining ones behave as you expect. Do this while it is still a rehearsal.</li>
 </ol>
 
 <div class="box key">
   <b class="hd">Announcing is optional, and off by default</b>
-  <p>A signer can announce itself so it appears on the <a href="../">dashboard</a> — its name, whether
-  it will actually sign, what it is watching. That is opt-in: a signer says nothing unless its config
-  or its command line turns it on. Nothing announced is secret, but the <em>correlation</em> — these
-  keys, this device, awake at this minute — is new information, so it is a choice rather than a
-  default. Announcing never affects whether anything gets signed; a quiet signer signs exactly as
-  much as a talkative one.</p>
+  <p>A signer can announce itself so it appears on the <a href="../">dashboard</a> — its name,
+  whether it will sign, what it is watching. You turn that on in its config or on its command line.
+  Everything announced is already public on its own; what announcing adds is the
+  <em>correlation</em> — these keys, this device, awake at this minute — which is why it is yours to
+  switch on deliberately. Announcing is observation only: signing carries on the same either way.</p>
 </div>
 
 <h2>Words used here</h2>
@@ -463,12 +457,34 @@ that is exactly what the <a href="../">dashboard</a> is for.</p>
   <tbody>
     <tr><td class="g">deal</td><td class="r">A published document saying what you are willing to pay, to whom, and under what conditions. Its hash is its name.</td></tr>
     <tr><td class="g">catalogue</td><td class="r">The list of deals an application publishes. It has its own hash, so "the rules as of now" is a single value you can pin.</td></tr>
-    <tr><td class="g">pool / kpool</td><td class="r">Where transactions wait for signatures. It assembles and holds; it never holds keys, and it forgets after about an hour.</td></tr>
-    <tr><td class="g">raiser</td><td class="r">Whoever asked for the transaction to be built. Holds no key that can approve it.</td></tr>
+    <tr><td class="g">pool / kpool</td><td class="r">Where transactions wait for signatures. It assembles and holds them, and keeps them for about an hour.</td></tr>
+    <tr><td class="g">raiser</td><td class="r">Whoever asked for the transaction to be built.</td></tr>
     <tr><td class="g">mirror node</td><td class="r">A public read-only view of Hedera. How a signer checks facts for itself.</td></tr>
-    <tr><td class="g">presence</td><td class="r">A signer announcing that it is here, signed with a key it claims to hold — so the claim is evidence, not a note somebody wrote.</td></tr>
-    <tr><td class="g">dry run</td><td class="r">Decide everything, sign nothing.</td></tr>
-    <tr><td class="g">cap</td><td class="r">The most a signer will approve per asset per hour, regardless of what the rules permit.</td></tr>
+    <tr><td class="g">presence</td><td class="r">A signer announcing that it is here, signed with a key it claims to hold — so the claim carries its own evidence.</td></tr>
+    <tr><td class="g">dry run</td><td class="r">Decide everything, report the verdict, hold the signature.</td></tr>
+    <tr><td class="g">cap</td><td class="r">The most a signer will approve per asset per hour, whatever the rules allow.</td></tr>
+  </tbody>
+</table></div>
+
+<h2>Questions this raises</h2>
+
+<p>Everything above says what each part does. These are the questions that tend to follow, and the
+answers are the boundaries of it.</p>
+
+<div class="scroll"><table>
+  <thead><tr><th>Question</th><th>Answer</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Does the pool hold keys?</strong></td><td class="r">No. It holds transactions and relays them. It has no key for your accounts and adds no signature of its own, which is why it can be treated as a convenience rather than a trusted party.</td></tr>
+    <tr><td><strong>Can whoever raised the request approve it?</strong></td><td class="r">Only if they also hold a key the account requires. Raising and approving are separate steps, and being the one who asked carries no weight at the approval step.</td></tr>
+    <tr><td><strong>Does one signature move the money?</strong></td><td class="r">Only when the account requires exactly one. With two of three, a single signature settles nothing on its own — the transaction waits for a second.</td></tr>
+    <tr><td><strong>What if a signer goes offline?</strong></td><td class="r">Nothing is stuck by it, so long as enough other approvers remain to satisfy the account. This is the reason to choose the threshold from how many losses you should survive.</td></tr>
+    <tr><td><strong>What if a device is stolen?</strong></td><td class="r">That key can approve whatever the account's rule lets it approve alone — which is exactly why thresholds and hourly caps exist. Rotate the account's key list to retire it.</td></tr>
+    <tr><td><strong>Does KEA build transactions?</strong></td><td class="r">No. It reads one that already exists and answers yes or no. Building is the venue's job, proposing is the raiser's.</td></tr>
+    <tr><td><strong>Does KEA hold funds?</strong></td><td class="r">No. It holds a key for accounts that hold funds. The funds stay in the accounts throughout.</td></tr>
+    <tr><td><strong>Can a bad rule still be approved?</strong></td><td class="r">Yes. The signer guarantees the transaction matches the rule; judging whether the rule was sensible is the review you do once, in advance. The hourly cap is the backstop for a rule that turns out to be wrong.</td></tr>
+    <tr><td><strong>Can the venue trick a signer by sending something misleading?</strong></td><td class="r">It can send anything it likes. The signer computes the rule's identity from the document, re-reads the facts from the chain, and rebuilds the transaction itself, so what arrives alongside the bytes carries no authority.</td></tr>
+    <tr><td><strong>Is a signer that stays quiet a problem?</strong></td><td class="r">A quiet signer signs exactly as much as a talkative one — announcing is observation only. It simply appears on the dashboard under its signatures rather than in the roster.</td></tr>
+    <tr><td><strong>How long does the pool remember?</strong></td><td class="r">About an hour from a transaction's start time. Anything you want as a durable record should come from the chain.</td></tr>
   </tbody>
 </table></div>
 
