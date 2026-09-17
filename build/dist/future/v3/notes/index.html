@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Working notes — KEA notes</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#fff; --panel-2:#eceef1; --line:#d8dce1; --line-2:#e6e9ec;
+    --ink:#171a1f; --ink-2:#555f6b; --ink-3:#7c8794;
+    --ok:#1d6b45; --ok-bg:#e0efe7;
+    --warn:#8a5a12; --warn-bg:#f6e9d5;
+    --bad:#a02f27; --bad-bg:#f8e2df;
+    --acc:#1c5580; --acc-bg:#e4edf5;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0f1319; --panel:#171c23; --panel-2:#1e242d; --line:#2a323c; --line-2:#222a33;
+    --ink:#e3e8ee; --ink-2:#9fabb8; --ink-3:#77838f;
+    --ok:#5cbc8b; --ok-bg:#15281f;
+    --warn:#d2a154; --warn-bg:#2b2416;
+    --bad:#e0817a; --bad-bg:#2e1b19;
+    --acc:#74aede; --acc-bg:#16202b;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:820px;margin:0 auto;padding:0 16px 80px}
+  a{color:var(--acc)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--panel-2);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+  p{margin:0 0 14px}
+  h1,h2,h3{line-height:1.25;letter-spacing:-.01em}
+  h1{font-size:28px;font-weight:700;margin:0 0 8px}
+  h2{font-size:20px;font-weight:650;margin:38px 0 10px;padding-top:18px;border-top:1px solid var(--line)}
+  h3{font-size:16px;font-weight:650;margin:22px 0 6px}
+  ul,ol{margin:0 0 14px;padding-left:22px}
+  li{margin-bottom:7px}
+  .lede{font-size:17px;color:var(--ink-2);margin-bottom:18px}
+
+  header{padding:22px 0 4px}
+  .crumb{display:flex;flex-wrap:wrap;gap:8px;font:12px var(--mono);margin-bottom:14px}
+  .crumb a{text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:3px 10px;color:var(--ink-3)}
+  .crumb a:hover{color:var(--acc);border-color:var(--acc)}
+  .crumb .here{border:1px solid var(--acc);background:var(--acc);color:var(--bg);border-radius:99px;padding:3px 10px}
+
+  .box{border:1px solid var(--line);border-left-width:3px;border-radius:8px;background:var(--panel);padding:14px 16px;margin:18px 0}
+  .box b.hd{display:block;font-size:14px;margin-bottom:5px}
+  .box p:last-child{margin-bottom:0}
+  .box.key{border-left-color:var(--acc)} .box.key b.hd{color:var(--acc)}
+  .box.warn{border-left-color:var(--warn)} .box.warn b.hd{color:var(--warn)}
+  .box.wip{border-left-color:var(--ink-3);background:var(--panel-2)} .box.wip b.hd{color:var(--ink-3)}
+
+  figure{margin:22px 0}
+  .fig{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px 10px;overflow-x:auto}
+  .fig svg{display:block;width:100%;height:auto;max-width:100%}
+  figcaption{font-size:14px;color:var(--ink-3);margin-top:9px;line-height:1.5}
+
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel);margin:18px 0}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:14.5px}
+  th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);
+     font-weight:600;padding:9px 12px;background:var(--panel-2);border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:9px 12px;border-bottom:1px solid var(--line-2);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.g{font-family:var(--mono);font-size:12.5px;white-space:nowrap;color:var(--acc);font-weight:600}
+  td.r{font-size:13.5px;color:var(--ink-2)}
+
+  pre{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:13px 15px;
+      overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;margin:14px 0}
+  pre code{background:none;padding:0;font-size:inherit}
+
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink-3)}
+  @media (max-width:600px){
+    body{font-size:15.5px}
+    .wrap{padding:0 12px 60px}
+    h1{font-size:24px} h2{font-size:18px}
+    .fig{padding:10px 6px}
+  }
+
+  /* NOTES-CHROME1: the note bodies were written as standalone pages; these rules re-express
+     their classes in the site's tokens so nothing here declares a colour of its own. */
+  .standfirst{font-size:17px;color:var(--ink-2);margin:0 0 6px;text-wrap:balance}
+  .meta{font:11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:0 0 26px}
+  h2 .n{font:11px var(--mono);color:var(--acc);margin-right:9px}
+  .lede{border-left:3px solid var(--acc);background:var(--acc-bg);padding:13px 16px;border-radius:0 8px 8px 0;margin:18px 0}
+  .lede p:first-child{margin-top:0} .lede p:last-child{margin-bottom:0}
+  .opt,.case,.act{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px 18px;margin:18px 0}
+  .opt.pick{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-bg)}
+  .opt h3,.case h3,.act h3{margin-top:0;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .act.done{border-left:4px solid var(--ok)} .act.todo{border-left:4px solid var(--warn)} .act.no{border-left:4px solid var(--bad)}
+  .tag,.st{font:10px var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:3px;font-weight:600}
+  .tag.pick,.st.done{background:var(--acc);color:var(--bg)}
+  .tag.later,.st.todo{background:var(--warn-bg);color:var(--warn)}
+  .tag.no,.st.no{background:var(--bad-bg);color:var(--bad)}
+  .tag.now{background:var(--panel-2);color:var(--ink-2);border:1px solid var(--line)}
+  .case h3 .t{font:11px var(--mono);color:var(--ink-3);white-space:nowrap}
+  .grid{display:grid;gap:12px;margin:16px 0}
+  @media (min-width:640px){.grid.two{grid-template-columns:1fr 1fr}}
+  .kv{background:var(--panel-2);border-radius:8px;padding:12px 14px}
+  .kv .k{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);display:block;margin-bottom:4px}
+  .kv .v{font:12px var(--mono);color:var(--ink)}
+  .tblwrap{overflow-x:auto;margin:16px 0;border:1px solid var(--line);border-radius:8px}
+  .tblwrap table{margin:0;border:0}
+  .flag{display:flex;gap:11px;padding:13px 15px;border-radius:8px;margin:16px 0}
+  .flag .b{font-weight:600;font-size:11px;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .flag.open{background:var(--warn-bg)} .flag.open .b{color:var(--warn)}
+  .flag.stop{background:var(--bad-bg)} .flag.stop .b{color:var(--bad)}
+  .flag.good{background:var(--ok-bg)} .flag.good .b{color:var(--ok)}
+  .flag .body{flex:1;color:var(--ink)}
+  .flag .body p:first-child{margin-top:0} .flag .body p:last-child{margin-bottom:0}
+  .seq{list-style:none;padding:0;counter-reset:s}
+  .seq li{counter-increment:s;display:flex;gap:14px;padding:11px 0;border-top:1px solid var(--line)}
+  .seq li::before{content:counter(s);font:11px var(--mono);color:var(--acc);font-weight:600;padding-top:4px;min-width:20px}
+  .seq li:first-child{border-top:0}
+  .seq .t{font-weight:600;display:block} .seq .d{color:var(--ink-2);font-size:14px}
+  .seq .cost{font:10px var(--mono);color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-left:8px}
+  .split{display:grid;gap:0;margin:14px 0 0;border-top:1px solid var(--line)}
+  @media (min-width:600px){.split{grid-template-columns:1fr 1fr;gap:0 22px}}
+  .split div{padding:10px 0;border-bottom:1px solid var(--line)}
+  .split .k{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);display:block;margin-bottom:3px}
+  .split .saw{color:var(--bad)} .split .was{color:var(--ok)}
+  .tiers{display:grid;gap:10px;margin:16px 0}
+  .tier{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;
+        border:1px solid var(--line);border-left-width:4px;border-radius:8px;padding:13px 15px;background:var(--panel)}
+  .tier.proven{border-left-color:var(--ok)} .tier.checkable{border-left-color:var(--warn)} .tier.claimed{border-left-color:var(--bad)}
+  .tier .lbl{font-size:11px;letter-spacing:.07em;text-transform:uppercase;font-weight:600;padding-top:2px;white-space:nowrap}
+  .tier.proven .lbl{color:var(--ok)} .tier.checkable .lbl{color:var(--warn)} .tier.claimed .lbl{color:var(--bad)}
+  .yes{color:var(--ok);font-weight:600} .no{color:var(--bad);font-weight:600} .part{color:var(--warn);font-weight:600}
+  .notelist{display:grid;gap:12px;margin:20px 0}
+  .notecard{display:block;border:1px solid var(--line);border-radius:8px;background:var(--panel);
+            padding:16px 18px;text-decoration:none;color:inherit}
+  .notecard:hover{border-color:var(--acc)}
+  .notecard b{display:block;font-size:16px;margin-bottom:4px;color:var(--acc)}
+  .notecard span{color:var(--ink-2);font-size:14px}
+  .notecard .when{font:10px var(--mono);color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;display:block;margin-top:7px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <nav class="crumb">
+    <a href="../">&larr; Signers dashboard</a>
+    <a href="../help/">How it works</a>
+    <a href="../help/business/">In business terms</a>
+    <span class="here">Notes</span>
+  </nav>
+  <h1>Working notes</h1>
+  <p class="lede">Design notes and post-mortems written while KEA was being built. They are
+  working documents, not specifications — each one says what was decided, what it cost, and what
+  is still open. Kept here because the reasoning is usually the part that goes missing.</p>
+</header>
+
+<div class="notelist">
+  <a class="notecard" href="bots/"><b>Bots off the box</b><span>Three ways to run klotto's ticket-buying and raising as their own process.</span><span class="when">17 Sep 2026</span></a>
+  <a class="notecard" href="phones/"><b>KEA in your pocket</b><span>Why a PWA cannot be a notary, the smallest Android app that can, and what the device list actually proves.</span><span class="when">17 Sep 2026</span></a>
+  <a class="notecard" href="postmortem/"><b>Four failures, one blind spot</b><span>An evening of “the server is fine” while the screen said otherwise — and the safe shape of front-end error reporting.</span><span class="when">17 Sep 2026</span></a>
+</div>
+
+<div class="box wip">
+  <b class="hd">These are snapshots</b>
+  <p>Each note is dated and was true when written. Where one disagrees with the code, the code is
+  right — the notes are a record of the thinking, not a description of the current build. The
+  commit history beside them is the trail.</p>
+</div>
+
+</div>
+</body>
+</html>

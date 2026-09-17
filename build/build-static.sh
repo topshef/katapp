@@ -169,12 +169,14 @@ copytree vendor/bootstrap; copytree vendor/jquery; copytree future
 
 # SIGNER-VIEW1: future/v3 is a plain static page (no PHP) — the signer view next to the
 # transaction list. copytree takes only asset extensions, so the page itself is copied here.
+# NOTES-CHROME1 (2026-09-17): copy the WHOLE tree, not a hand-kept list of three files.
+# It used to name index.html, help/ and help/business/ one line each, so a new page under
+# future/v3 was written, committed, and silently never shipped — the same shape of trap as
+# the one-variant build. The router matches /future/v3/notes/<slug>/ as a pattern for the
+# same reason: adding a page should be a directory, and nothing else.
+# widget.json is GENERATED below and deliberately overwrites whatever the copy brought.
 mkdir -p "$DIST/future/v3"
-cp "$PUB/future/v3/index.html" "$DIST/future/v3/index.html"
-mkdir -p "$DIST/future/v3/help"
-cp "$PUB/future/v3/help/index.html" "$DIST/future/v3/help/index.html"
-mkdir -p "$DIST/future/v3/help/business"
-cp "$PUB/future/v3/help/business/index.html" "$DIST/future/v3/help/business/index.html"
+cp -R "$PUB/future/v3/." "$DIST/future/v3/"
 # The signer view mounts the REAL signing widget when a row is tapped. It asks this file
 # where the widget is rather than hard-coding it, which is what lets the same page run on a
 # host that has no widget (it falls back to opening the signing page). The WalletConnect
