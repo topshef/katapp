@@ -463,18 +463,22 @@
                : '<span class="pill mute">unknown</span>';
       var seen = d.mode === 'stopped' ? '<span class="pill mute">said goodbye</span>'
                : d.fresh ? '<span class="pill ok">fresh</span>' : '<span class="pill warn">quiet</span>';
-      var keys = Object.keys(d.keys || {}).map(function (k) {
+      // KEA-DISCLOSE1: a device may appear without saying what it holds. "not saying" and
+      // "none" are different facts and the page must never render one as the other.
+      var withheld = d.withheld || [];
+      var hid = function (f) { return withheld.indexOf(f) >= 0; };
+      var keys = hid('keys') ? '<span class="none">not saying</span>' : Object.keys(d.keys || {}).map(function (k) {
         var accts = (d.keys[k] || []);
         return '<div><span class="key">' + esc(String(k).slice(0, 12)) + '…</span>' +
                (accts.length ? ' &middot; ' + accts.map(esc).join(', ') : ' &middot; <span class="none">no account lists it</span>') + '</div>';
       }).join('') || '<span class="none">none</span>';
-      var dealIds = d.dealIds || Object.keys(d.deals || {});
-      var watching = dealIds.length
+      var dealIds = hid('deals') ? [] : (d.dealIds || Object.keys(d.deals || {}));
+      var watching = hid('deals') ? '<span class="none">not saying</span>' : dealIds.length
         ? esc(String(dealIds.length)) + ' deal' + (dealIds.length === 1 ? '' : 's') +
           '<div class="key">' + dealIds.slice(0, 3).map(function (id) { return esc(String(id).slice(0, 8)) + '…'; }).join(' ') + (dealIds.length > 3 ? ' …' : '') + '</div>'
         : '<span class="none">not saying</span>';
       // the literal socket filters the device sent: what it is actually rung for
-      var sub = d.subscription;
+      var sub = hid('subscription') ? null : d.subscription;
       var subText = !sub ? '<span class="none">not saying</span>'
         : !sub.length ? '<span class="none">nothing</span>'
         : sub.every(function (f) { return f && f.dealId; }) ? esc(String(sub.length)) + ' deal watch' + (sub.length === 1 ? '' : 'es')
@@ -482,7 +486,7 @@
         : esc(String(sub.length)) + ' filter' + (sub.length === 1 ? '' : 's');
       var up = d.startedAt ? '<div class="age">up ' + ago((meta.now || 0) - d.startedAt) + '</div>' : '';
       var ver = d.version && typeof d.version === 'object'
-        ? (d.version.code ? 'code ' + esc(d.version.code) + ' &middot; ' : '') + (d.version.node ? 'node ' + esc(d.version.node) : '')
+        ? (d.version.code ? 'kea ' + esc(d.version.code) + ' &middot; ' : '') + (d.version.node ? 'node ' + esc(d.version.node) : '')
         : (d.version ? 'node ' + esc(d.version) : '');
       if (d.v === 1) ver = '<span class="pill warn">old announcer</span> ' + ver;   // a phone that has not pulled KEA-PRESENCE2 yet
 
@@ -615,10 +619,16 @@
     if (!keys.length) { tb.innerHTML = '<tr><td colspan="4" class="msg">Nothing remembered yet.</td></tr>'; return; }
     tb.innerHTML = keys.map(function (k) {
       var s = seen[k];
-      var live = !!byKey[k];
+      // /kpool/signers returns everything the pool still holds (a week), not only what is
+      // live — so being in the roster is not the same as announcing NOW. Saying "announcing
+      // now" about a device that went quiet hours ago is exactly the confusion presence
+      // exists to end, so this reads freshness, and says how long ago when it is stale.
+      var dev = byKey[k];
+      var badge = !dev ? '<span class="pill mute">not in the roster</span>'
+        : dev.fresh ? '<span class="pill ok">announcing now</span>'
+        : '<span class="pill warn">quiet ' + esc(ago(dev.ageSeconds)) + '</span>';
       return '<tr>' +
-        '<td class="cardtitle" data-l="device"><span class="who">' + esc(s.label || '?') + '</span>' +
-          (live ? ' <span class="pill ok">announcing now</span>' : ' <span class="pill mute">not now</span>') +
+        '<td class="cardtitle" data-l="device"><span class="who">' + esc(s.label || '?') + '</span> ' + badge +
           '<div class="key">' + esc(k.slice(0, 16)) + '…</div></td>' +
         '<td class="mono" data-l="first seen"><div class="v">' + esc(String(s.first).replace('T', ' ').slice(0, 19)) + '</div></td>' +
         '<td class="mono" data-l="last seen"><div class="v">' + esc(String(s.last).replace('T', ' ').slice(0, 19)) + '</div></td>' +
