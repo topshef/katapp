@@ -72,6 +72,10 @@ const KPOOL = /^\/m\/bid\/explore\/kpool(\.php)?$/;
 const SIGNERVIEW = /^\/future\/v3(?:\/|\/index\.html)$/;    // SIGNER-VIEW1: the signer view
 const SIGNERHELP = /^\/future\/v3\/help(?:\/|\/index\.html)$/;  // SIGNER-VIEW1: how KEA works
 const SIGNERBIZ  = /^\/future\/v3\/help\/business(?:\/|\/index\.html)$/;  // the same, in business terms
+// NOTES-CHROME1: the working notes — design notes and post-mortems, one directory each, so the
+// set can grow without touching this file again. Served at /future/v3/notes/<slug>/.
+const SIGNERNOTE  = /^\/future\/v3\/notes(?:\/|\/index\.html)$/;
+const SIGNERNOTES = /^\/future\/v3\/notes\/([a-z0-9-]+)(?:\/|\/index\.html)$/;
 const SIGNPAGE = /^\/(?:m\/sign|future)(?:\/|\/index\.php)?$/;
 const GLOG = /^\/m\/tools\/glog\/latest\/(.+)$/;
 const BRANDS = [
@@ -147,6 +151,10 @@ export function route(url) {
   if (p === '/future/v3')               return { kind: 'redirect', to: '/future/v3/' };
   if (p === '/future/v3/help')          return { kind: 'redirect', to: '/future/v3/help/' };
   if (p === '/future/v3/help/business') return { kind: 'redirect', to: '/future/v3/help/business/' };
+  if (p === '/future/v3/notes')         return { kind: 'redirect', to: '/future/v3/notes/' };
+  if (/^\/future\/v3\/notes\/[a-z0-9-]+$/.test(p)) return { kind: 'redirect', to: p + '/' };
+  if (SIGNERNOTES.test(p)) return { kind: 'asset', path: '/future/v3/notes/' + SIGNERNOTES.exec(p)[1] + '/index.html' };
+  if (SIGNERNOTE.test(p))  return { kind: 'asset', path: '/future/v3/notes/index.html' };
   if (SIGNERBIZ.test(p))  return { kind: 'asset', path: '/future/v3/help/business/index.html' };
   if (SIGNERHELP.test(p)) return { kind: 'asset', path: '/future/v3/help/index.html' };
   if (SIGNERVIEW.test(p)) return url.searchParams.has('action')

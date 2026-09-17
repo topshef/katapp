@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Four failures, one blind spot — KEA notes</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#fff; --panel-2:#eceef1; --line:#d8dce1; --line-2:#e6e9ec;
+    --ink:#171a1f; --ink-2:#555f6b; --ink-3:#7c8794;
+    --ok:#1d6b45; --ok-bg:#e0efe7;
+    --warn:#8a5a12; --warn-bg:#f6e9d5;
+    --bad:#a02f27; --bad-bg:#f8e2df;
+    --acc:#1c5580; --acc-bg:#e4edf5;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0f1319; --panel:#171c23; --panel-2:#1e242d; --line:#2a323c; --line-2:#222a33;
+    --ink:#e3e8ee; --ink-2:#9fabb8; --ink-3:#77838f;
+    --ok:#5cbc8b; --ok-bg:#15281f;
+    --warn:#d2a154; --warn-bg:#2b2416;
+    --bad:#e0817a; --bad-bg:#2e1b19;
+    --acc:#74aede; --acc-bg:#16202b;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:820px;margin:0 auto;padding:0 16px 80px}
+  a{color:var(--acc)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--panel-2);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+  p{margin:0 0 14px}
+  h1,h2,h3{line-height:1.25;letter-spacing:-.01em}
+  h1{font-size:28px;font-weight:700;margin:0 0 8px}
+  h2{font-size:20px;font-weight:650;margin:38px 0 10px;padding-top:18px;border-top:1px solid var(--line)}
+  h3{font-size:16px;font-weight:650;margin:22px 0 6px}
+  ul,ol{margin:0 0 14px;padding-left:22px}
+  li{margin-bottom:7px}
+  .lede{font-size:17px;color:var(--ink-2);margin-bottom:18px}
+
+  header{padding:22px 0 4px}
+  .crumb{display:flex;flex-wrap:wrap;gap:8px;font:12px var(--mono);margin-bottom:14px}
+  .crumb a{text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:3px 10px;color:var(--ink-3)}
+  .crumb a:hover{color:var(--acc);border-color:var(--acc)}
+  .crumb .here{border:1px solid var(--acc);background:var(--acc);color:var(--bg);border-radius:99px;padding:3px 10px}
+
+  .box{border:1px solid var(--line);border-left-width:3px;border-radius:8px;background:var(--panel);padding:14px 16px;margin:18px 0}
+  .box b.hd{display:block;font-size:14px;margin-bottom:5px}
+  .box p:last-child{margin-bottom:0}
+  .box.key{border-left-color:var(--acc)} .box.key b.hd{color:var(--acc)}
+  .box.warn{border-left-color:var(--warn)} .box.warn b.hd{color:var(--warn)}
+  .box.wip{border-left-color:var(--ink-3);background:var(--panel-2)} .box.wip b.hd{color:var(--ink-3)}
+
+  figure{margin:22px 0}
+  .fig{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px 10px;overflow-x:auto}
+  .fig svg{display:block;width:100%;height:auto;max-width:100%}
+  figcaption{font-size:14px;color:var(--ink-3);margin-top:9px;line-height:1.5}
+
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel);margin:18px 0}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:14.5px}
+  th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);
+     font-weight:600;padding:9px 12px;background:var(--panel-2);border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:9px 12px;border-bottom:1px solid var(--line-2);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.g{font-family:var(--mono);font-size:12.5px;white-space:nowrap;color:var(--acc);font-weight:600}
+  td.r{font-size:13.5px;color:var(--ink-2)}
+
+  pre{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:13px 15px;
+      overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;margin:14px 0}
+  pre code{background:none;padding:0;font-size:inherit}
+
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink-3)}
+  @media (max-width:600px){
+    body{font-size:15.5px}
+    .wrap{padding:0 12px 60px}
+    h1{font-size:24px} h2{font-size:18px}
+    .fig{padding:10px 6px}
+  }
+
+  /* NOTES-CHROME1: the note bodies were written as standalone pages; these rules re-express
+     their classes in the site's tokens so nothing here declares a colour of its own. */
+  .standfirst{font-size:17px;color:var(--ink-2);margin:0 0 6px;text-wrap:balance}
+  .meta{font:11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:0 0 26px}
+  h2 .n{font:11px var(--mono);color:var(--acc);margin-right:9px}
+  .lede{border-left:3px solid var(--acc);background:var(--acc-bg);padding:13px 16px;border-radius:0 8px 8px 0;margin:18px 0}
+  .lede p:first-child{margin-top:0} .lede p:last-child{margin-bottom:0}
+  .opt,.case,.act{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px 18px;margin:18px 0}
+  .opt.pick{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-bg)}
+  .opt h3,.case h3,.act h3{margin-top:0;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .act.done{border-left:4px solid var(--ok)} .act.todo{border-left:4px solid var(--warn)} .act.no{border-left:4px solid var(--bad)}
+  .tag,.st{font:10px var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:3px;font-weight:600}
+  .tag.pick,.st.done{background:var(--acc);color:var(--bg)}
+  .tag.later,.st.todo{background:var(--warn-bg);color:var(--warn)}
+  .tag.no,.st.no{background:var(--bad-bg);color:var(--bad)}
+  .tag.now{background:var(--panel-2);color:var(--ink-2);border:1px solid var(--line)}
+  .case h3 .t{font:11px var(--mono);color:var(--ink-3);white-space:nowrap}
+  .grid{display:grid;gap:12px;margin:16px 0}
+  @media (min-width:640px){.grid.two{grid-template-columns:1fr 1fr}}
+  .kv{background:var(--panel-2);border-radius:8px;padding:12px 14px}
+  .kv .k{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);display:block;margin-bottom:4px}
+  .kv .v{font:12px var(--mono);color:var(--ink)}
+  .tblwrap{overflow-x:auto;margin:16px 0;border:1px solid var(--line);border-radius:8px}
+  .tblwrap table{margin:0;border:0}
+  .flag{display:flex;gap:11px;padding:13px 15px;border-radius:8px;margin:16px 0}
+  .flag .b{font-weight:600;font-size:11px;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .flag.open{background:var(--warn-bg)} .flag.open .b{color:var(--warn)}
+  .flag.stop{background:var(--bad-bg)} .flag.stop .b{color:var(--bad)}
+  .flag.good{background:var(--ok-bg)} .flag.good .b{color:var(--ok)}
+  .flag .body{flex:1;color:var(--ink)}
+  .flag .body p:first-child{margin-top:0} .flag .body p:last-child{margin-bottom:0}
+  .seq{list-style:none;padding:0;counter-reset:s}
+  .seq li{counter-increment:s;display:flex;gap:14px;padding:11px 0;border-top:1px solid var(--line)}
+  .seq li::before{content:counter(s);font:11px var(--mono);color:var(--acc);font-weight:600;padding-top:4px;min-width:20px}
+  .seq li:first-child{border-top:0}
+  .seq .t{font-weight:600;display:block} .seq .d{color:var(--ink-2);font-size:14px}
+  .seq .cost{font:10px var(--mono);color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-left:8px}
+  .split{display:grid;gap:0;margin:14px 0 0;border-top:1px solid var(--line)}
+  @media (min-width:600px){.split{grid-template-columns:1fr 1fr;gap:0 22px}}
+  .split div{padding:10px 0;border-bottom:1px solid var(--line)}
+  .split .k{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);display:block;margin-bottom:3px}
+  .split .saw{color:var(--bad)} .split .was{color:var(--ok)}
+  .tiers{display:grid;gap:10px;margin:16px 0}
+  .tier{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;
+        border:1px solid var(--line);border-left-width:4px;border-radius:8px;padding:13px 15px;background:var(--panel)}
+  .tier.proven{border-left-color:var(--ok)} .tier.checkable{border-left-color:var(--warn)} .tier.claimed{border-left-color:var(--bad)}
+  .tier .lbl{font-size:11px;letter-spacing:.07em;text-transform:uppercase;font-weight:600;padding-top:2px;white-space:nowrap}
+  .tier.proven .lbl{color:var(--ok)} .tier.checkable .lbl{color:var(--warn)} .tier.claimed .lbl{color:var(--bad)}
+  .yes{color:var(--ok);font-weight:600} .no{color:var(--bad);font-weight:600} .part{color:var(--warn);font-weight:600}
+  .notelist{display:grid;gap:12px;margin:20px 0}
+  .notecard{display:block;border:1px solid var(--line);border-radius:8px;background:var(--panel);
+            padding:16px 18px;text-decoration:none;color:inherit}
+  .notecard:hover{border-color:var(--acc)}
+  .notecard b{display:block;font-size:16px;margin-bottom:4px;color:var(--acc)}
+  .notecard span{color:var(--ink-2);font-size:14px}
+  .notecard .when{font:10px var(--mono);color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;display:block;margin-top:7px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <nav class="crumb">
+    <a href="../../">&larr; Signers dashboard</a>
+    <a href="../../help/">How it works</a>
+    <a href="../../help/business/">In business terms</a>
+    <span class="here">Notes</span>
+  </nav>
+  <h1>Four failures, one blind spot</h1>
+  <p class="lede">An evening of “the server is fine” while the screen said otherwise — what actually broke each time, and the one thing all four had in common.</p>
+  <p class="meta">Post-mortem · 17 Sep 2026 · katomia / kpay</p>
+</header>
+
+
+<div class="lede">
+<p><strong>The thread.</strong> Four separate faults, and in every one of them the evidence that would have identified it in seconds sat somewhere I could not reach: a Cloudflare build log, a browser tab, an address bar, a config file on a phone. Every time, I checked the things I <em>could</em> reach, found them healthy, and said so — which was true, useless, and misleading in roughly equal measure.</p>
+</div>
+
+<h2><span class="n">01</span>What actually broke</h2>
+
+<div class="case">
+<h3>The deploy that never ran <span class="t">~1 hour</span></h3>
+<p>Moving the API alias to <code>api.katomia.com</code> silently broke the front-end deploy. <code>build-static.sh</code> computed the service-binding name as <code>${ALIAS%%.*}</code> — “the first label of the alias's workers.dev host” — which was true only while the alias <em>was</em> a workers.dev host. The custom domain made it yield <code>api</code>, and no Worker is called that.</p>
+<div class="split">
+  <div><span class="k">Where the error was</span><span class="saw">Cloudflare's build log: <code>Service binding 'HAPI' references Worker 'api' which was not found [10143]</code></span></div>
+  <div><span class="k">What I could see</span><span class="was">GitHub Actions green · commit correct on <code>pilot</code> · both dists matching their source</span></div>
+</div>
+</div>
+
+<div class="case">
+<h3>The patch that never saved <span class="t">~30 min</span></h3>
+<p>A patch script hit a failed assertion and exited <em>before</em> its write step, so five edits were lost while the explanatory note describing them was saved. The page then documented behaviour it did not have. I reported the change as shipped because the commit existed.</p>
+<div class="split">
+  <div><span class="k">Where the error was</span><span class="saw">Nowhere — the script exited 0-ish and the commit looked ordinary</span></div>
+  <div><span class="k">What I could see</span><span class="was">A commit, a green build, a note in the diff saying the right things</span></div>
+</div>
+</div>
+
+<div class="case">
+<h3>The stale tab <span class="t">~20 min</span></h3>
+<p>A browser left open across a deploy keeps running the JavaScript it loaded. Nothing tells it otherwise, and nothing tells the person looking at it either.</p>
+<div class="split">
+  <div><span class="k">Where the error was</span><span class="saw">In the tab. Invisible from the server, invisible from the repo</span></div>
+  <div><span class="k">What I could see</span><span class="was">The correct bundle being served, and every endpoint at 200</span></div>
+</div>
+</div>
+
+<div class="case">
+<h3>The missing trailing slash <span class="t">~45 min, and the one that finally paid</span></h3>
+<p>The dashboard resolves the API base as <code>new URL('../')</code> — which is <code>/future/</code> from <code>/future/v3/</code> and <code>/</code> from <code>/future/v3</code>. The router matched <em>both</em> forms and served the page for each, so the slash-less URL loaded a working-looking dashboard whose every call went to the site root, which 302s to the home page. The page parsed HTML as JSON.</p>
+<div class="split">
+  <div><span class="k">Where the error was</span><span class="saw">The address bar. I probed the correct path perfectly, 10/10 and 12/12 clean</span></div>
+  <div><span class="k">What ended it</span><span class="was">One improved error message, first time it ran: <code>got a web page, not data, from /?…action=signers</code></span></div>
+</div>
+</div>
+
+<h2><span class="n">02</span>The pattern</h2>
+
+<p>These are four different bugs — a shell expansion, a script exiting early, browser caching, a URL normalisation. They do not share a cause. They share a <em>diagnostic shape</em>:</p>
+
+<div class="tblwrap"><table>
+<thead><tr><th>&nbsp;</th><th>Could I see it?</th><th>What I concluded instead</th></tr></thead>
+<tbody>
+<tr><td>Cloudflare build log</td><td>No — token is read-only and cannot see Workers Builds</td><td>“the deploy must be slow”</td></tr>
+<tr><td>The browser's console</td><td>No</td><td>“the server is healthy, so it must be cache”</td></tr>
+<tr><td>The URL being visited</td><td>No — I assumed the one in an old screenshot</td><td>“I cannot reproduce it”</td></tr>
+<tr><td>A config file on a phone</td><td>No</td><td>correct, but only after three claims had expired</td></tr>
+</tbody>
+</table></div>
+
+<p>In each case I had a <em>green</em> signal from the half of the system I could observe, and treated it as evidence about the whole. That is the actual failure, and it is mine: a check that cannot fail on the broken half is not evidence, and reporting it as reassurance is worse than saying nothing.</p>
+
+<div class="flag good"><span class="b">What worked</span><div class="body">
+<p>Exactly one thing broke the deadlock, and it was not more server-side probing. It was making the <strong>client</strong> say what it tried and what came back. That message was written an hour before it was needed, for a different reason, and it identified the fault on its first run. Every hour of this evening's investigation could have been replaced by it.</p>
+</div></div>
+
+<h2><span class="n">03</span>What is already fixed</h2>
+
+<div class="act done"><h3>Errors that name the call <span class="st done">done</span></h3>
+<p><code>getJson</code> now reads the body before deciding. A non-2xx carries its status, the path and the start of the response; a 2xx that is not JSON quotes what did arrive and says a sign-in or error page would look like this. The two likeliest causes both send HTML, and both used to surface as <code>Unexpected token '&lt;'</code> — a message that names the symptom and hides the cause.</p></div>
+
+<div class="act done"><h3>The page notices when it is stale <span class="st done">done</span></h3>
+<p>It compares the build stamp it booted with against <code>build-info.json</code> on each refresh and offers a reload once when they differ. Its own failure is swallowed deliberately: a courtesy must not take down the thing it decorates.</p></div>
+
+<div class="act done"><h3>The trailing slash, at both ends <span class="st done">done</span></h3>
+<p>The router redirects <code>/future/v3</code>, <code>/future/v3/help</code> and <code>/future/v3/help/business</code> to their slash forms, preserving the query string — the convention <code>/qa</code> already followed. And the page derives its base from a known anchor in its own path rather than <code>../</code>, so it survives any host that serves it without one.</p></div>
+
+<div class="act done"><h3>The service-binding name is declared <span class="st done">done</span></h3>
+<p>Not derived from a hostname. A Worker's name and the address it answers on are independent facts, and the build script now says so rather than assuming.</p></div>
+
+<div class="act done"><h3>A clash detector, and both build variants <span class="st done">done</span></h3>
+<p><code>ops/clash-check.sh</code> reports whether the base branch moved and separates a source clash from a generated one. <code>build-static.sh</code> with no argument builds both dists — the stale <code>dist-gcp</code> caught two sessions in one day, which is a trap in the tool rather than two mistakes.</p></div>
+
+<h2><span class="n">04</span>What is still open</h2>
+
+<div class="act todo"><h3>A deploy that fails after CI is green must be loud <span class="st todo">next</span></h3>
+<p>This is the biggest remaining hole. The katui workflow already has a <code>smoke</code> job meant to curl the live routes after a push, and it did not catch an hour of failed deploys. Give it something version-shaped to assert: <code>build-info.json</code> already carries <code>source_sha</code>, so “the bundle in git” and “the bundle being served” can be <em>compared</em> rather than assumed equal. Roughly ten lines, and it closes the single worst case in this list. <strong>kpayuk and kmigrate have the same blind spot</strong> and have not been bitten yet.</p></div>
+
+<div class="act todo"><h3>Patch scripts must not be able to half-apply <span class="st todo">soon</span></h3>
+<p>The lost-edits case was a script whose write came after its last assertion. Any edit script should verify its result <em>after</em> writing — grep for what it claimed to add — rather than trusting that reaching the end meant success. This is a habit, not a tool, and it is mine to hold.</p></div>
+
+<div class="act todo"><h3>Put the URL where a report can carry it <span class="st todo">cheap</span></h3>
+<p>Three of the four cases would have been shorter if the first message had included the exact URL being visited. The page could show its own resolved API base in the raw-links row it already has, so a screenshot carries it without anyone having to think of it.</p></div>
+
+<h2><span class="n">05</span>On posting front-end logs to the backend</h2>
+
+<p>This is the obvious answer to “I cannot see the client”, and it has bitten this estate before. Worth being precise about <em>which</em> part is dangerous, because the useful part and the dangerous part are separable.</p>
+
+<div class="flag stop"><span class="b">The trap</span><div class="body">
+<p>An open <code>POST /log</code> that accepts arbitrary text is an unauthenticated write endpoint with unbounded storage, it will faithfully record whatever happens to be in scope — tokens, account ids, query strings, a signing key someone pasted into a form — and a log viewer that renders it becomes stored XSS aimed squarely at an admin. That is three separate incidents waiting in one convenience.</p>
+</div></div>
+
+<div class="flag good"><span class="b">The version worth having</span><div class="body">
+<p>Do not ship logs. Ship a <strong>fingerprint</strong>: on a failure, the page reports a small fixed-shape record — <code>{ page, buildSha, apiBase, action, httpStatus, bodyKind }</code> — where <code>bodyKind</code> is one of a handful of enum values (<code>json</code> / <code>html</code> / <code>empty</code>), never the body itself. No free text, so nothing can leak through it and nothing can be rendered as markup. Every one of tonight's four would have been identified by that record alone.</p>
+</div></div>
+
+<p>Even that should be rate-limited per IP, capped in size, and written to a store the admin page renders as <em>text</em>, never HTML. And it is worth noting the cheaper alternative first: the improved error message already puts all of that on the screen, so a screenshot carries it. The endpoint only buys you the cases where nobody is looking — which, for a dashboard meant to run unattended overnight, is a real category, but not today's.</p>
+
+<hr>
+
+<h2><span class="n">06</span>The rule I should have been following</h2>
+
+<p>Say which half I checked. “All three endpoints return 200 through the front-end path, ten consecutive calls clean” is a useful sentence. “The server is fine” is the same information with the boundary sanded off, and it invites exactly the wrong conclusion. When the person looking at the screen and the person reading the logs disagree, the screen is the one with the fault in front of it — and the next question should be <em>what does it say, exactly</em>, not <em>let me check the server again</em>.</p>
+
+
+</div>
+</body>
+</html>
