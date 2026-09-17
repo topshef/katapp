@@ -2515,10 +2515,23 @@ export function injectTxReadCSS() {
 		.txcard-keys-head > * { text-decoration:underline dotted; text-decoration-color:#d4d4d8; text-underline-offset:3px; }
 		@media (hover: hover) { .txcard-keys-head:hover > * { text-decoration-color:#a1a1aa; } }
 		.txcard-keys-head:focus-visible { outline:2px solid #0891b2; outline-offset:2px; border-radius:3px; }
-		.txcard-keys-explain { display:none; font-size:11px; line-height:1.45; color:#52525b; background:#fafafa; border:1px solid #ececec; border-radius:6px; padding:7px 9px; margin:2px 0 4px; }
+		/* KEYCOLS1 R2 (operator, 2026-09-17): this went out at 11px, which is smaller than
+		   anything else on the card — the muted body text here (.txcard-xproof,
+		   .txcard-detail-note) and the key rows themselves are all 12px, and 11px is used
+		   only for column LABELS, which are glanced at rather than read. This panel is prose
+		   and it is the one thing on the card someone reads deliberately, so it should be the
+		   largest text in the table, not the smallest. 13px sets a floor above the card's
+		   body text; the phone goes to 14px, since that is where it is actually needed and
+		   where there is room (the table stacks below the chart rather than beside it). Rule
+		   of thumb for anything added here later: never below the 12px this card already
+		   uses for text meant to be read. */
+		.txcard-keys-explain { display:none; font-size:13px; line-height:1.5; color:#3f3f46; background:#fafafa; border:1px solid #ececec; border-radius:6px; padding:9px 11px; margin:3px 0 5px; }
 		.txcard-keys--explain .txcard-keys-explain { display:block; }
-		.txcard-keys-explain > div + div { margin-top:5px; }
-		.txcard-keys-explain b { color:#3f3f46; margin-right:6px; }
+		.txcard-keys-explain > div + div { margin-top:7px; }
+		.txcard-keys-explain b { color:#18181b; margin-right:6px; }
+		@media (max-width:600px){
+			.txcard-keys-explain { font-size:14px; line-height:1.55; padding:10px 12px; }
+		}
 		.txcard-keys-row a { color:#3b82f6; text-decoration:none; cursor:pointer; }
 		.txcard-keys-row a:hover { text-decoration:underline; }
 		/* KPIE-ORBIT1: a hovered key (or every key of a hovered branch) — the same yellow as the wedge outline */
