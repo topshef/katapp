@@ -145,6 +145,19 @@ copytree vendor/bootstrap; copytree vendor/jquery; copytree future
 # transaction list. copytree takes only asset extensions, so the page itself is copied here.
 mkdir -p "$DIST/future/v3"
 cp "$PUB/future/v3/index.html" "$DIST/future/v3/index.html"
+# The signer view mounts the REAL signing widget when a row is tapped. It asks this file
+# where the widget is rather than hard-coding it, which is what lets the same page run on a
+# host that has no widget (it falls back to opening the signing page). The WalletConnect
+# snapshot hash is only known here, so it is written in rather than committed stale.
+cat > "$DIST/future/v3/widget.json" <<WJSON
+{
+  "widget": "/vendor/kpay/kpool_widget/bootstrap.js",
+  "localbase": "/m/bid/localbase.min.js",
+  "wc": "/vendor/walletconnect/snapshots/$KWC_SNAP/kwc.iife.js",
+  "wcConfig": "/vendor/walletconnect/config.json",
+  "signPage": "/m/sign/"
+}
+WJSON
 # SIGNPAGE-KBM1 (2026-09-05): vendor/kbuild-monitor.js is a loose file directly under
 # vendor/, so no copytree above reaches it — and kpool_widget/bootstrap.js TOP-LEVEL imports
 # it. A missing module there rejects the whole bootstrap, so index.js never runs, window.KPOOL

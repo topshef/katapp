@@ -78,6 +78,11 @@
   .self{font-size:11.5px;color:var(--ink-3);font-family:var(--mono)}
   .warnrow td{background:var(--warn-bg)}
   .dim{color:var(--ink-3)}
+  tr.tap{cursor:pointer}
+  tr.tap:hover td{background:var(--panel-2)}
+  tr.tap:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+  .inspect{font-size:11px;color:var(--acc);font-weight:600;white-space:nowrap}
+  tr.tap:hover .inspect{text-decoration:underline}
   .deal{max-width:30ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .v{min-width:0}
 
@@ -420,9 +425,12 @@
       var unknown = (r.sigs || []).some(function (s) { return !byKey[String(s.pubKey).toLowerCase()]; });
       var state = r.state || '—';
       var cls = /success/i.test(state) ? 'ok' : /expire|fail/i.test(state) ? 'bad' : 'mute';
-      return '<tr' + (unknown ? ' class="warnrow"' : '') + '>' +
+      return '<tr class="tap' + (unknown ? ' warnrow' : '') + '" tabindex="0" role="button"' +
+        ' data-txid="' + esc(r.txid) + '" data-pch="' + esc(r.pch || '') + '"' +
+        ' aria-label="Inspect ' + esc(r.title || r.txid) + '">' +
         '<td class="cardtitle" data-l="deal"><div class="deal" title="' + esc(r.title || '') + '">' +
-          (r.title ? esc(r.title) : '<span class="none">not a deal</span>') + '</div></td>' +
+          (r.title ? esc(r.title) : '<span class="none">not a deal</span>') + '</div>' +
+          '<div class="inspect">inspect \u2192</div></td>' +
         '<td data-l="signed by"><div class="v">' + sigs + '</div></td>' +
         '<td data-l="state"><div class="v"><span class="pill ' + cls + '">' + esc(state) + '</span></div></td>' +
         '<td class="mono" data-l="when"><div class="v">' + when + '</div></td>' +
@@ -524,6 +532,85 @@
     });
   }
 
+  // ── inspecting one transaction ──────────────────────────────────────────────
+  // Tapping a row opens the SAME signing widget the /m/sign page opens — the real
+  // one, mounted in place, not a copy of it. window.KPOOL.open() does that, and the
+  // widget only reads window.WC when you actually press connect or sign, so a
+  // read-only inspection needs no wallet at all. That is the point: seeing the
+  // charts, the readiness and who has signed so far is useful whether or not this
+  // device is ever going to sign.
+  //
+  // Where the widget lives is not this page's business to know, so it asks: the
+  // build writes widget.json beside this file. Without it (a copy of this folder on
+  // some other static host) the page stays useful and the row opens the full signing
+  // page in a new tab instead.
+  var WIDGET = null, widgetLoad = null;
+  function loadWidget() {
+    if (widgetLoad) return widgetLoad;
+    widgetLoad = getJson(new URL('widget.json', location.href).href).then(function (cfg) {
+      WIDGET = cfg;
+      if (window.KPOOL) return true;
+      return new Promise(function (resolve, reject) {
+        // localbase first: the widget uses it to remember terminal statuses. Optional —
+        // a failure here must not cost us the modal.
+        if (cfg.localbase) {
+          var lb = document.createElement('script');
+          lb.src = cfg.localbase; lb.onerror = function () {}; document.head.appendChild(lb);
+        }
+        // WalletConnect, if the build named a snapshot. Only needed to SIGN; its absence
+        // leaves the modal fully readable.
+        if (cfg.wc) {
+          var wc = document.createElement('script');
+          wc.src = cfg.wc; wc.setAttribute('data-mode', 'headless');
+          if (cfg.wcConfig) wc.setAttribute('data-config', cfg.wcConfig);
+          wc.onerror = function () {}; document.head.appendChild(wc);
+        }
+        var m = document.createElement('script');
+        m.type = 'module'; m.src = cfg.widget;
+        m.onerror = function () { reject(new Error('the signing widget did not load')); };
+        document.head.appendChild(m);
+        // bootstrap.js is async and sets window.KPOOL a few modules later
+        var tries = 0;
+        var t = setInterval(function () {
+          if (window.KPOOL && window.KPOOL.open) { clearInterval(t); resolve(true); }
+          else if (++tries > 200) { clearInterval(t); reject(new Error('the signing widget did not finish loading')); }
+        }, 100);
+      });
+    });
+    return widgetLoad;
+  }
+
+  function inspect(txid, pch) {
+    var network = $('network').value;
+    // the open modal is itself a link worth sending
+    var addr = new URL(location);
+    addr.searchParams.set('txid', txid);
+    if (pch) addr.searchParams.set('pch', pch); else addr.searchParams.delete('pch');
+    history.replaceState(null, '', addr);
+    var clear = function () {
+      var a = new URL(location);
+      a.searchParams.delete('txid'); a.searchParams.delete('pch');
+      history.replaceState(null, '', a);
+    };
+    $('stamp').textContent = 'opening\u2026';
+    return loadWidget().then(function () {
+      $('stamp').textContent = '';
+      return window.KPOOL.open({
+        network: network, txid: txid, pch: pch || 'no_pch',
+        brand: { title: 'Transaction \u00b7 ' + network, onClose: clear }
+      });
+    }).catch(function (e) {
+      clear();
+      // No widget here — hand over to the page that certainly has one.
+      var url = (WIDGET && WIDGET.signPage ? WIDGET.signPage : '/m/sign/') +
+        '?network=' + encodeURIComponent(network) + '&txid=' + encodeURIComponent(txid) +
+        (pch ? '&pch=' + encodeURIComponent(pch) : '');
+      $('stamp').textContent = 'opening the signing page\u2026';
+      window.open(url, '_blank', 'noopener');
+      setTimeout(function () { $('stamp').textContent = ''; }, 1500);
+    });
+  }
+
   // ── wiring ──────────────────────────────────────────────────────────────────
   var timer = null;
   function resetTimer() {
@@ -533,6 +620,16 @@
   }
 
   readUrlIntoControls();
+  $('txs').addEventListener('click', function (e) {
+    var tr = e.target.closest('tr.tap');
+    if (tr) inspect(tr.dataset.txid, tr.dataset.pch);
+  });
+  $('txs').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var tr = e.target.closest('tr.tap');
+    if (tr) { e.preventDefault(); inspect(tr.dataset.txid, tr.dataset.pch); }
+  });
+
   $('go').addEventListener('click', function () { writeControlsIntoUrl(false); refresh(); });
   ['network', 'since', 'auto'].forEach(function (k) {
     $(k).addEventListener('change', function () { writeControlsIntoUrl(false); resetTimer(); refresh(); });
@@ -563,6 +660,8 @@
   writeControlsIntoUrl(false);
   resetTimer();
   refresh();
+  // a link carrying ?txid= opens straight onto that transaction, as /future does
+  if (qs.get('txid')) inspect(qs.get('txid'), qs.get('pch'));
 })();
 </script>
 </body>

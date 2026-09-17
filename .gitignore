@@ -84,3 +84,9 @@ public_html/vendor/ksig/app/
 !/public_html/m/katomia/KEA/pots/*.json
 !/build/dist/m/katomia/KEA/pots/*.json
 !/build/dist-gcp/m/katomia/KEA/pots/*.json
+# SIGNER-VIEW1 (2026-09-17): the signer view asks this file where the signing widget
+# lives, rather than hard-coding it. It is config under review like any other, and the
+# bundle's copy carries the WalletConnect snapshot the build resolved.
+!/public_html/future/v3/widget.json
+!/build/dist/future/v3/widget.json
+!/build/dist-gcp/future/v3/widget.json
