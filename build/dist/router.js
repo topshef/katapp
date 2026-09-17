@@ -78,7 +78,7 @@ function asset(env, request, url, path) {
 }
 
 async function proxyAlias(env, request, url, path, search = url.search) {
-  const target = new URL(path + search, env.ALIAS_ORIGIN || 'https://kpay-api-alias.tayloa17.workers.dev');
+  const target = new URL(path + search, env.ALIAS_ORIGIN || 'https://api.katomia.com');
   const headers = new Headers(request.headers);
   headers.set('X-Forwarded-Host', url.host);   // backend-built permalinks point at THIS origin
   const init = { method: request.method, headers, redirect: 'manual' };
