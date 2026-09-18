@@ -1078,7 +1078,7 @@ function signedAtTitle(pubkey) {
 	const rel = (elapsed >= 0 ? '+' : '') + elapsed + 's'
 	const base = `Signed ${rel} after this transaction's start time · ${abs}`
 	if (SIG_WINDOW_SEC == null || elapsed <= SIG_WINDOW_SEC) return base
-	return base + ` — ${elapsed - SIG_WINDOW_SEC}s AFTER it expired (valid ${SIG_WINDOW_SEC}s), so this signature can never be submitted`
+	return base + ` — ${elapsed - SIG_WINDOW_SEC}s after it expired (valid ${SIG_WINDOW_SEC}s): recorded, but too late to be submitted`
 }
 
 // KPOOL-SIGTIME1 R2 (owner, 2026-09-18): how far PAST the validity window a signature
@@ -1087,11 +1087,11 @@ function signedAtTitle(pubkey) {
 // the txid start time, and the decoded window. Any missing → null.
 //
 // Late is not an error here. The owner's position (2026-09-18) is that a late signature is
-// allowed: the signer simply becomes a witness, and the pool is right not to refuse it.
-// What was missing was that nobody could SEE it — the transaction goes fully green and then
-// never submits, because the submit path refuses anything past the window. So this is
-// reporting, not enforcement, and the wording says "can never be submitted" (a fact about
-// the transaction) rather than anything about the signer having done wrong.
+// allowed and is still recorded, and the pool is right not to refuse it. Deliberately NOT
+// called a "witness" anywhere a user can read: `witness` is already a SPECIFIC kea config
+// concept (a deal marked witness signs with every named key even when none is required), and
+// borrowing it here would collide with that. The wording states what happened and nothing
+// more: the signature was recorded, it was too late to be submitted.
 function signedLateBySec(pubkey) {
 	const at = SIG_AT.get(normalizePublicKey(pubkey))
 	if (!at || !Number.isFinite(SIG_START_SEC) || SIG_WINDOW_SEC == null) return null
@@ -1448,7 +1448,7 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 		// tooltips carry the old Status-tab explainer (STATUS-TAB-RETIRE1): Banzhaf =
 		// voting power, redundancy = how replaceable a key is.
 		const COLS = [
-			['✍️',     'Signed yet? ☑ = this key has signed. ☑⏱ = it signed, but after the transaction expired — that signature counts as a witness and the transaction can no longer be submitted'],
+			['✍️',     'Signed yet? ☑ = this key has signed. ☑⏱ = this key signed, but after the transaction expired — the signature was recorded, it was just too late to be submitted'],
 			['🔑',     'Key — the last 4 characters of the public key'],
 			['⚖️',     "Banzhaf — this key's voting power: its share of all the ways the signing threshold can be met"],
 			['Redund', 'Redundancy — how replaceable the key is: how often the threshold could still be met without it'],
@@ -1502,7 +1502,7 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 			const tick = document.createElement('div'); tick.textContent = acc.mustSign ? (signed ? '☑' : '☐') : '–'   // plain ballot box (not the control-like ✅/⬜)
 			// KPOOL-SIGTIME1 R2/R3: a late signature gets a stopwatch beside its tick and a subtle
 			// purple tint on the row. Not red — the key did nothing wrong, late signing is allowed
-			// and the signer becomes a witness. Not amber either: see the CSS, expiry is outside
+			// and the signature is still recorded. Not amber either: see the CSS, expiry is outside
 			// the green/amber/red signing-progress language rather than a stage within it.
 			const lateBy = signed ? signedLateBySec(pubkey) : null
 			if (lateBy != null) {
@@ -1541,8 +1541,8 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 			const note = document.createElement('div')
 			note.className = 'txcard-keys-latenote'
 			note.textContent = lateSigs.length === 1
-				? `⏱ One signature arrived ${worst}s after this transaction expired. It still counts as a witness, but the transaction can no longer be submitted.`
-				: `⏱ ${lateSigs.length} signatures arrived after this transaction expired (the latest by ${worst}s). They still count as witnesses, but the transaction can no longer be submitted.`
+				? `⏱ One signature arrived ${worst}s after this transaction expired. It was recorded, but it was too late to be submitted.`
+				: `⏱ ${lateSigs.length} signatures arrived after this transaction expired (the latest by ${worst}s). They were recorded, but they were too late to be submitted.`
 			grid.appendChild(note)
 		}
 		// reference-only account (no signature needed): soften the key table like the

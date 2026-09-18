@@ -109,6 +109,11 @@
   .sig{display:inline-block;font-size:12px;font-weight:600;padding:1px 7px;border-radius:4px;
        background:var(--ok-bg);color:var(--ok);margin:1px 3px 1px 0;white-space:nowrap}
   .sig.unknown{background:var(--panel-2);color:var(--ink-2);font-family:var(--mono);font-weight:400;font-size:11.5px}
+  /* KPOOL-SIGTIME1: a signature that landed after the window closed. Purple on purpose —
+     green/amber/red on these surfaces are signing PROGRESS, and an expired transaction has
+     left that lifecycle rather than being a worse stage of it. Subtle: the clock mark and its tooltip
+     carry the message, so this is a mark beside a name, not a highlight on the row. */
+  .sig-late{margin-left:3px;font-size:11px;color:#7e22ce;cursor:default}
   .none{color:var(--ink-3)}
   .self{font-size:11.5px;color:var(--ink-3);font-family:var(--mono)}
   .warnrow td{background:var(--warn-bg)}
@@ -560,11 +565,39 @@
   }
 
   // ── the pool: what is waiting, and who has signed it ────────────────────────
-  function nameFor(pubKey) {
+  // KEYEND1 (owner, 2026-09-18): a public key is identified by its END, everywhere, always.
+  // This showed the first 10 characters, which is the one part of a key that carries no
+  // information — an Ed25519 key rendered with a DER prefix starts with the same bytes for
+  // everybody, so "302a3005…" told you nothing and looked like every other row. The signing
+  // modal has always used '…' + the last characters; this is now the same. Eight rather than
+  // the modal's four because the modal disambiguates within ONE account's short key list,
+  // while this table mixes keys from the whole estate — and eight is what the pool itself
+  // uses for its own pubSuffix.
+  //
+  // Label OR key, never both: a key the roster knows is shown by its label, because that is
+  // the more useful name; a key nothing is announcing for has no label to show, so it falls
+  // back to the key. Two different-looking cells in this column mean "known device" and
+  // "device not announcing", which is information rather than inconsistency.
+  function nameFor(pubKey, lateBy) {
     var d = byKey[String(pubKey).toLowerCase()];
+    var late = (typeof lateBy === 'number' && lateBy > 0)
+      ? '<span class="sig-late" title="\u2139\uFE0F\u200B   Signed ' + lateBy + 's after this transaction expired \u2014 recorded, but too late to be submitted">\u23F1</span>'
+      : '';
     return d
-      ? '<span class="sig">' + esc(d.label) + '</span>'
-      : '<span class="sig unknown">' + esc(String(pubKey).slice(0, 10)) + '…</span>';
+      ? '<span class="sig">' + esc(d.label) + '</span>' + late
+      : '<span class="sig unknown">\u2026' + esc(String(pubKey).slice(-8)) + '</span>' + late;
+  }
+
+  // How far past the validity window a signature landed, or null when it was in time — or
+  // when we cannot know, which is not the same thing and must never render as late. Needs
+  // all three of a recorded `at`, the txid's start time and the decoded window.
+  function lateBySec(sig, row) {
+    var at = Number(sig && sig.at);
+    var start = txStartSec(row.txid);
+    var win = Number(row.validDurationSeconds);
+    if (!at || !isFinite(at) || start === null || !win) return null;
+    var late = Math.round(at / 1000 - start) - win;
+    return late > 0 ? late : null;
   }
 
   function renderTxs(rows) {
@@ -596,7 +629,7 @@
       var start = txStartSec(r.txid);
       var when = start === null ? '<span class="none">?</span>'
         : (start > now ? 'in ' + ago(start - now) : ago(now - start) + ' ago');
-      var sigs = (r.sigs || []).map(function (s) { return nameFor(s.pubKey); }).join(' ')
+      var sigs = (r.sigs || []).map(function (s) { return nameFor(s.pubKey, lateBySec(s, r)); }).join(' ')
         || '<span class="none">nobody yet</span>';
       // A transaction whose signatures came only from devices that are NOT announcing
       // is worth seeing: it means the roster is not the whole story.
@@ -775,6 +808,10 @@
               return {
                 txid: t.txid, pch: t.pch,
                 sigs: r.sigs || [],
+                // KPOOL-SIGTIME1: txRead already decodes this out of the bytes; the dashboard
+                // just never read it. Needed to say whether a signature's `at` was past the
+                // window, which is the whole point of having recorded `at`.
+                validDurationSeconds: r.validDurationSeconds || null,
                 verdicts: r.verdicts || [],
                 dealId: (r.source && r.source.dealId) || null,
                 // A v1 template carries its human name at display.title; a v2 policy carries
