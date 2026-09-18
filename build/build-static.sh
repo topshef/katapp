@@ -175,6 +175,12 @@ copytree vendor/bootstrap; copytree vendor/jquery; copytree future
 # the one-variant build. The router matches /future/v3/notes/<slug>/ as a pattern for the
 # same reason: adding a page should be a directory, and nothing else.
 # widget.json is GENERATED below and deliberately overwrites whatever the copy brought.
+# LEGACY-DEALS1: the V1 deal archive lookup at /legacy/deals/. A plain static page (no PHP),
+# copied whole for the same reason as future/v3 above — a new file under it should ship without
+# anyone remembering to edit this script. It is deliberately NOT linked from any other page.
+mkdir -p "$DIST/legacy"
+cp -R "$PUB/legacy/." "$DIST/legacy/"
+
 mkdir -p "$DIST/future/v3"
 cp -R "$PUB/future/v3/." "$DIST/future/v3/"
 # The signer view mounts the REAL signing widget when a row is tapped. It asks this file
