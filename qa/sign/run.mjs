@@ -349,7 +349,13 @@ console.log('12. the key columns explain themselves (KEYCOLS1)')
       headCursor: head ? getComputedStyle(head).cursor : null,
       rowCursor: row ? getComputedStyle(row).cursor : null,
       rowSelect: row ? (getComputedStyle(row).userSelect || getComputedStyle(row).webkitUserSelect) : null,
-      linkCursor: row?.querySelector('a') ? getComputedStyle(row.querySelector('a')).cursor : null
+      linkCursor: row?.querySelector('a') ? getComputedStyle(row.querySelector('a')).cursor : null,
+      // KEYCOLS1 R2: the panel is prose and must not be the smallest text on the card.
+      // Measured against the card's own body text rather than a hard number, so the rule
+      // survives someone rescaling the card: the row is the key table's text, the xproof
+      // line and the detail note are the muted body copy elsewhere in the same card.
+      explainFont: panel ? parseFloat(getComputedStyle(panel).fontSize) : null,
+      rowFont: row ? parseFloat(getComputedStyle(row).fontSize) : null
     }
   }, { acct: SENDER })
 
@@ -364,6 +370,11 @@ console.log('12. the key columns explain themselves (KEYCOLS1)')
   ok(st.rowSelect === 'none', 'and its values are not selectable', st.rowSelect)
   ok(st.headCursor === 'pointer', 'the heading row shows the hand — it is a button (and wins the cascade)', st.headCursor)
   ok(st.linkCursor === 'pointer', 'the key link keeps its own hand', st.linkCursor)
+
+  // KEYCOLS1 R2: it shipped at 11px — smaller than everything else on the card
+  ok(st.explainFont >= st.rowFont, 'the explainer is never smaller than the key rows it explains',
+     JSON.stringify({ explain: st.explainFont, row: st.rowFont }))
+  ok(st.explainFont >= 13, 'and clears the card\'s 12px body-text floor with room to spare', st.explainFont)
 
   await (await page.$('.txcard-keys-head')).click()
   await page.waitForTimeout(250)
