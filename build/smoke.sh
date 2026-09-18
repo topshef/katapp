@@ -29,6 +29,9 @@ check '/m/sign/?network=testnet&txid=0.0.1@2.3&pch=x' 200 '<base href="/">'   # 
 check '/m/sign/?action=txList&network=testnet&since=60&until=60' 200 'tx'     # its own ?action= proxy → backend /kpool/txList
 check '/m/katomia/binding.php?network=testnet&accountId=0.0.1879' 200 'bindings'
 check /future/future.css                         200
+check /future/v3/                                200 'Signers'      # SIGNER-VIEW1 the signer view
+check /future/v3/convert/                        200 'Converter'    # DEAL-CONVERT1 the v1 → v2 converter page
+check /future/v3/convert/kea-convert.browser.js  200 'convertV1'
 check '/m/feedback/?product=katomia'             200 'feedback-widget'
 check /vendor/bootstrap/css/bootstrap.min.css    200
 check /m/katomia/game/SMOKE1                     200 'HAPI_BASE'

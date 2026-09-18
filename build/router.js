@@ -75,6 +75,8 @@ const SIGNERBIZ  = /^\/future\/v3\/help\/business(?:\/|\/index\.html)$/;  // the
 // NOTES-CHROME1: the working notes — design notes and post-mortems, one directory each, so the
 // set can grow without touching this file again. Served at /future/v3/notes/<slug>/.
 const SIGNERNOTE  = /^\/future\/v3\/notes(?:\/|\/index\.html)$/;
+// DEAL-CONVERT1: the v1 → v2 deal converter, a static page + a bundled module beside it.
+const SIGNERCONV  = /^\/future\/v3\/convert(?:\/|\/index\.html)$/;
 const SIGNERNOTES = /^\/future\/v3\/notes\/([a-z0-9-]+)(?:\/|\/index\.html)$/;
 const SIGNPAGE = /^\/(?:m\/sign|future)(?:\/|\/index\.php)?$/;
 const GLOG = /^\/m\/tools\/glog\/latest\/(.+)$/;
@@ -152,9 +154,11 @@ export function route(url) {
   if (p === '/future/v3/help')          return { kind: 'redirect', to: '/future/v3/help/' };
   if (p === '/future/v3/help/business') return { kind: 'redirect', to: '/future/v3/help/business/' };
   if (p === '/future/v3/notes')         return { kind: 'redirect', to: '/future/v3/notes/' };
+  if (p === '/future/v3/convert')       return { kind: 'redirect', to: '/future/v3/convert/' };
   if (/^\/future\/v3\/notes\/[a-z0-9-]+$/.test(p)) return { kind: 'redirect', to: p + '/' };
   if (SIGNERNOTES.test(p)) return { kind: 'asset', path: '/future/v3/notes/' + SIGNERNOTES.exec(p)[1] + '/index.html' };
   if (SIGNERNOTE.test(p))  return { kind: 'asset', path: '/future/v3/notes/index.html' };
+  if (SIGNERCONV.test(p))  return { kind: 'asset', path: '/future/v3/convert/index.html' };
   if (SIGNERBIZ.test(p))  return { kind: 'asset', path: '/future/v3/help/business/index.html' };
   if (SIGNERHELP.test(p)) return { kind: 'asset', path: '/future/v3/help/index.html' };
   if (SIGNERVIEW.test(p)) return url.searchParams.has('action')

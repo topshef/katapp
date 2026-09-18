@@ -84,6 +84,17 @@ const cases = [
   ['/feedback-widget.js',                 { kind: 'alias', path: '/feedback-widget.js' }],
   ['/kfeedback/vote',                     { kind: 'alias', path: '/kfeedback/vote' }],
   ['/vendor/walletconnect/config.json',   { kind: 'wc' }],
+  // SIGNER-VIEW1 / NOTES-CHROME1 / DEAL-CONVERT1: the static pages under /future/v3
+  ['/future/v3',                          { kind: 'redirect', to: '/future/v3/' }],
+  ['/future/v3/',                         A('/future/v3/index.html')],
+  ['/future/v3/?action=txList&network=testnet', { kind: 'alias', path: '/hapi/kpool/txList', search: '?network=testnet' }],
+  ['/future/v3/help/',                    A('/future/v3/help/index.html')],
+  ['/future/v3/notes/bots/',              A('/future/v3/notes/bots/index.html')],
+  ['/future/v3/notes/bots',               { kind: 'redirect', to: '/future/v3/notes/bots/' }],
+  ['/future/v3/convert',                  { kind: 'redirect', to: '/future/v3/convert/' }],
+  ['/future/v3/convert/',                 A('/future/v3/convert/index.html')],
+  ['/future/v3/convert/index.html',       A('/future/v3/convert/index.html')],
+  ['/future/v3/convert/kea-convert.browser.js', null],                  // plain asset beside the page
   ['/m/katomia/katomia-core.js?v=1',      null],
   ['/m/katomia/nope',                     null],
 ];

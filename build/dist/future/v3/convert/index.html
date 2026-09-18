@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deal converter — v1 template to v2 policy</title>
+<meta name="description" content="Turn a v1 deal template into its v2 policy in the browser, and check that the policy hashes to the deal the signers already verify.">
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#fff; --panel-2:#eceef1; --line:#d8dce1; --line-2:#e6e9ec;
+    --ink:#171a1f; --ink-2:#555f6b; --ink-3:#7c8794;
+    --ok:#1d6b45; --ok-bg:#e0efe7;
+    --warn:#8a5a12; --warn-bg:#f6e9d5;
+    --bad:#a02f27; --bad-bg:#f8e2df;
+    --acc:#1c5580; --acc-bg:#e4edf5;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0f1319; --panel:#171c23; --panel-2:#1e242d; --line:#2a323c; --line-2:#222a33;
+    --ink:#e3e8ee; --ink-2:#9fabb8; --ink-3:#77838f;
+    --ok:#5cbc8b; --ok-bg:#15281f;
+    --warn:#d2a154; --warn-bg:#2b2416;
+    --bad:#e0817a; --bad-bg:#2e1b19;
+    --acc:#74aede; --acc-bg:#16202b;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 16px 80px}
+  a{color:var(--acc)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--panel-2);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+  p{margin:0 0 14px}
+  h1,h2,h3{line-height:1.25;letter-spacing:-.01em}
+  h1{font-size:28px;font-weight:700;margin:0 0 8px}
+  h2{font-size:20px;font-weight:650;margin:38px 0 10px;padding-top:18px;border-top:1px solid var(--line)}
+  h3{font-size:16px;font-weight:650;margin:22px 0 6px}
+  ul,ol{margin:0 0 14px;padding-left:22px}
+  li{margin-bottom:7px}
+  .lede{font-size:17px;color:var(--ink-2);margin-bottom:18px;border-left:3px solid var(--acc);background:var(--acc-bg);padding:13px 16px;border-radius:0 8px 8px 0}
+  .lede p:last-child{margin-bottom:0}
+  header{padding:22px 0 4px}
+  .crumb{display:flex;flex-wrap:wrap;gap:8px;font:12px var(--mono);margin-bottom:14px}
+  .crumb a{text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:3px 10px;color:var(--ink-3)}
+  .crumb a:hover{color:var(--acc);border-color:var(--acc)}
+  .crumb .here{border:1px solid var(--acc);background:var(--acc);color:var(--bg);border-radius:99px;padding:3px 10px}
+
+  .box{border:1px solid var(--line);border-left-width:3px;border-radius:8px;background:var(--panel);padding:14px 16px;margin:18px 0}
+  .box b.hd{display:block;font-size:14px;margin-bottom:5px}
+  .box p:last-child{margin-bottom:0}
+  .box.key{border-left-color:var(--acc)} .box.key b.hd{color:var(--acc)}
+  .box.warn{border-left-color:var(--warn)} .box.warn b.hd{color:var(--warn)}
+  .box.good{border-left-color:var(--ok)} .box.good b.hd{color:var(--ok)}
+  .box.bad{border-left-color:var(--bad)} .box.bad b.hd{color:var(--bad)}
+
+  .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+  button{font:14px var(--sans);padding:7px 13px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink);cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  button.go{background:var(--acc);color:var(--bg);border-color:var(--acc);font-weight:600}
+  button.go:hover{color:var(--bg);filter:brightness(1.1)}
+  select,input[type=text]{font:14px var(--sans);padding:6px 9px;border:1px solid var(--line);border-radius:7px;background:var(--panel);color:var(--ink);max-width:100%}
+  input[type=text]{min-width:260px}
+  textarea{width:100%;min-height:180px;font:12.5px/1.5 var(--mono);padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink);resize:vertical}
+  label.f{font-size:12px;color:var(--ink-3);letter-spacing:.05em;text-transform:uppercase;display:block;margin:12px 0 4px}
+
+  .two{display:grid;gap:14px;margin:16px 0}
+  @media (min-width:860px){.two{grid-template-columns:1fr 1fr}}
+  .card{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px 16px;min-width:0}
+  .card h3{margin-top:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .tag{font:10px var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:3px;font-weight:600;background:var(--panel-2);color:var(--ink-2);border:1px solid var(--line)}
+  .tag.v1{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+  .tag.v2{background:var(--acc-bg);color:var(--acc);border-color:transparent}
+  .hash{font:12px var(--mono);overflow-wrap:anywhere;color:var(--acc);font-weight:600}
+  .hash.dim{color:var(--ink-3);font-weight:400}
+  pre{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow-x:auto;font-family:var(--mono);font-size:12px;line-height:1.5;margin:10px 0;max-height:520px}
+  pre code{background:none;padding:0;font-size:inherit}
+  details summary{cursor:pointer;color:var(--ink-2);font-size:14px}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:14px;margin:8px 0}
+  .kv .k{color:var(--ink-3);font:11px var(--mono);letter-spacing:.06em;text-transform:uppercase;padding-top:3px}
+  .verdict{padding:12px 15px;border-radius:8px;margin:12px 0;font-size:15px}
+  .verdict.good{background:var(--ok-bg);color:var(--ok)} .verdict.bad{background:var(--bad-bg);color:var(--bad)} .verdict.warn{background:var(--warn-bg);color:var(--warn)}
+  .verdict b{display:block;font-size:11px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px}
+  .notes li{font-size:14.5px}
+  .sec{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:14px 0;font-size:14.5px}
+  .sec b{font:12.5px var(--mono);color:var(--acc);padding-top:2px}
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel);margin:18px 0}
+  table{border-collapse:collapse;width:100%;min-width:560px;font-size:14px}
+  th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600;padding:9px 12px;background:var(--panel-2);border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:9px 12px;border-bottom:1px solid var(--line-2);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.g{font-family:var(--mono);font-size:12px;white-space:nowrap}
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink-3)}
+  .hidden{display:none}
+  @media (max-width:600px){ body{font-size:15.5px} .wrap{padding:0 12px 60px} h1{font-size:24px} h2{font-size:18px} input[type=text]{min-width:0;width:100%} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <nav class="crumb">
+    <a href="../">&larr; Signers dashboard</a>
+    <a href="../help/">How it works</a>
+    <a href="../help/business/">In business terms</a>
+    <a href="../notes/">Notes</a>
+    <span class="here">Converter</span>
+  </nav>
+  <h1>One deal, two documents</h1>
+  <div class="lede">
+    <p>A deal is a document, and its id is the sha256 of that document. The lottery's deals exist in two
+    forms: a <b>v1 template</b> (the shape the raise path has always used, hashed the way PHP's
+    <code>json_encode</code> happened to serialise it) and a <b>v2 policy</b> (the shape the signers
+    verify — six named sections, hashed with RFC&nbsp;8785). Same deal, two documents, so two different ids.</p>
+    <p>This page runs the converter in your browser. Paste a v1 template, or load one of klotto's, and it
+    produces the v2 policy — then hashes it and tells you whether that hash is the one klotto already
+    publishes. If it is, the conversion is not "close": it is byte-for-byte the policy the signers run.</p>
+  </div>
+</header>
+
+<h2>Try it</h2>
+<div class="bar">
+  <button id="ex-claim">Load testnet BR claim</button>
+  <button id="ex-unlock">Load testnet BR unlock</button>
+  <select id="pub" title="every v1 deal klotto publishes"><option value="">Fetch from klotto.kpay.uk…</option></select>
+</div>
+<label class="f" for="src">v1 template, or a deal envelope <code>{ dealId, role, network, cc, deal }</code></label>
+<textarea id="src" spellcheck="false" placeholder='{"network":"testnet","display":{"title":"KLOTTO claim — R$ 10x (testnet BR)"}, …}'></textarea>
+<div class="bar">
+  <button class="go" id="run">Convert →</button>
+  <input type="text" id="name" placeholder="display name (optional — only when the title cannot yield one)">
+</div>
+<div id="err" class="box bad hidden"><b class="hd">Refused</b><p id="errmsg"></p></div>
+
+<div id="out" class="hidden">
+  <div id="verdict" class="verdict"></div>
+  <div class="two">
+    <div class="card">
+      <h3>v1 template <span class="tag v1">PHP json_encode form</span></h3>
+      <div class="kv"><span class="k">dealId</span><span class="hash" id="id1"></span><span class="k">role</span><span id="role1"></span><span class="k">bytes hashed</span><span id="len1"></span></div>
+      <details><summary>the canonical string (slashes and non-ASCII escaped, key order as minted)</summary><pre><code id="can1"></code></pre></details>
+      <details><summary>the template</summary><pre><code id="doc1"></code></pre></details>
+    </div>
+    <div class="card">
+      <h3>v2 policy <span class="tag v2">RFC 8785 JCS</span></h3>
+      <div class="kv"><span class="k">dealId</span><span class="hash" id="id2"></span><span class="k">name</span><span id="name2"></span><span class="k">bytes hashed</span><span id="len2"></span></div>
+      <details><summary>the canonical string (keys sorted, no whitespace)</summary><pre><code id="can2"></code></pre></details>
+      <details open><summary>the policy</summary><pre><code id="doc2"></code></pre></details>
+    </div>
+  </div>
+  <h3>What changed on the way across</h3>
+  <ul class="notes" id="notes"></ul>
+  <h3>The six sections</h3>
+  <div class="sec" id="sections"></div>
+</div>
+
+<h2>Why the id changes, and why that is the point</h2>
+<p>A signer's authority is a list of dealIds. It refuses a transaction whose template does not hash to a
+listed id — that is the whole trust model, and it is why the id must be the hash of <em>exactly</em> the
+document, not of "the deal in spirit". Convert a v1 template and you get a new document, so a new id; a
+signer that lists the v1 id does not sign the v2 raise, and vice versa. That is not a bug in the converter.
+It is the reason a signer config lists both versions of a deal until the raise side has moved
+(<a href="../notes/postmortem/">the BR claims that expired on 17&nbsp;September</a> were exactly this
+mismatch).</p>
+
+<div class="scroll"><table>
+  <thead><tr><th></th><th>v1 template</th><th>v2 policy</th></tr></thead>
+  <tbody>
+    <tr><td class="g">hash</td><td>sha256 of PHP's <code>json_encode</code> output: every <code>/</code> escaped, every non-ASCII character as <code>\uXXXX</code>, keys in the order the producer wrote them. An accident, kept so 1,865 existing deals keep verifying.</td><td>sha256 of RFC&nbsp;8785 JCS: keys sorted, no whitespace, ECMAScript number formatting. Any implementation in any language reaches the same bytes.</td></tr>
+    <tr><td class="g">reads</td><td><code>api</code>: full URLs with <code>{name}</code> holes and a <code>#path</code> the PHP walked. A template names the host it reads from.</td><td><code>observe</code>: a registry <em>name</em> (<code>hedera.mirror</code>), a path and a JMESPath select. The <em>verifier</em> decides which host that name is.</td></tr>
+    <tr><td class="g">rules</td><td><code>conditions</code>: PCRE regexes with named captures, <code>range</code> comparisons, <code>timelock</code>, <code>mathFormula</code> — a dialect of PHP scripts.</td><td><code>derive</code> (JMESPath or JSONLogic) then <code>require</code> (JSONLogic booleans, each with a reason). The draw's digit is one op, <code>digitAfterPoint</code>.</td></tr>
+    <tr><td class="g">inputs</td><td>Everything the raiser sent in <code>user_parameters</code> — its inputs <em>and</em> the values it resolved.</td><td>Only what <code>inputs</code> declares, typed. Everything else is re-observed from the chain; a supplied value is never trusted.</td></tr>
+    <tr><td class="g">amounts</td><td>Strings like <code>-{ticket_price}*{PAYOUT_MULTIPLIER}</code>, evaluated at replay and rounded to 8 places.</td><td>Integers in smallest units, by construction; a non-integer result is a refusal, not a rounding.</td></tr>
+  </tbody>
+</table></div>
+
+<div class="box key">
+  <b class="hd">How this is tested</b>
+  <p>The converter is <code>kea/tools/convert.cjs</code> in <code>hbarlive_hts</code>, a CommonJS module with a
+  CLI; this page loads the same code bundled for a browser. Its acceptance test,
+  <code>qa/klotto/convert-tests.js</code>, converts every v1 deal in the vendored klotto catalogue and asserts
+  that the result hashes to the v2 twin klotto already publishes — eight testnet pairs, hash for hash — and
+  that the three hand-written 2024 mainnet unlocks are <em>refused</em> with a named reason rather than guessed
+  at. It never produces a policy quietly: a template it does not understand is an error, because a policy
+  that means something other than the template would be signed by a machine that trusts the hash.</p>
+</div>
+
+<footer>
+  DEAL-CONVERT1, 18 Sep 2026. Nothing here talks to a signer or a pool: the page fetches published deal
+  documents (optionally) and computes hashes. The published catalogue is
+  <a href="https://klotto.kpay.uk/deals/index.json">klotto.kpay.uk/deals/index.json</a>.
+</footer>
+
+</div>
+
+<script type="application/json" id="example-claim">{"dealId":"c9ce3a3071f1411fabc3e1d176d9aed24cf8c7f93839d47a689f8b6a519e0990","role":"claim","network":"testnet","cc":"BR","v":1,"deal":{"network":"testnet","display":{"title":"KLOTTO claim — R$ 10x (testnet BR)","description":"this deal pays out a reward to the claimant if all conditions are met. Anyone can issue a claim (and pay the hedera fees) and the prize gets paid to the account that paid for the ticket","button":"Claim now"},"alias":{"POOL_TOKEN":"0.0.2340890","POOL_ACCOUNT":"0.0.7718","LOCK_ACCOUNT":"0.0.10343","LOCK_TOKEN":"0.0.3626892","LOCK_SERIAL":"24"},"parameters":{"txid_ticket":"Enter txid [eg 0.0.55492-1716502979-131670478] txid"},"constants":{"url_hedera_mirror":"https://testnet.mirrornode.hedera.com/api/v1","POOL_TOKEN":"0.0.2340890","POOL_TOKEN_SYMBOL":"R$","POOL_TOKEN_DECIMALS":"6","PAYOUT_MULTIPLIER":"10","POOL_ACCOUNT":"0.0.7718","LOCK_ACCOUNT":"0.0.10343","LOCK_TOKEN":"0.0.3626892","LOCK_SERIAL":"24"},"api":{"ct_ticket":"{url_hedera_mirror}/transactions/{txid_ticket}#transactions/0/consensus_timestamp","ct_lastpayout":"{url_hedera_mirror}/tokens/{LOCK_TOKEN}/nfts/{LOCK_SERIAL}/transactions#transactions/1/consensus_timestamp","ticketFundPayerId":"{url_hedera_mirror}/transactions/{txid_ticket}#transactions/0/token_transfers/token_id={POOL_TOKEN},amount<0/account","ticketFundReceiverId":"{url_hedera_mirror}/transactions/{txid_ticket}#transactions/0/token_transfers/token_id={POOL_TOKEN},amount>0/account","ticket_price":"{url_hedera_mirror}/transactions/{txid_ticket}#transactions/0/token_transfers/token_id={POOL_TOKEN},amount>0/amount","pool_balance":"{url_hedera_mirror}/balances/?account.id={POOL_ACCOUNT}#balances/0/tokens/token_id={POOL_TOKEN}/balance","ct_lock_modified":"{url_hedera_mirror}/tokens/{LOCK_TOKEN}/nfts/?account.id={POOL_ACCOUNT}&serialnumber={LOCK_SERIAL}#nfts/0/modified_timestamp"},"conditions":[{"scriptName":"regex","txid_ticket":"/^(?P<ticket_operator>\\d+\\.\\d+\\.\\d+)-\\d+-\\d+$/","ct_lastpayout":"/^\\d+\\.\\d+$/","ct_lock_modified":"/^\\d+\\.\\d+$/"},{"scriptName":"regex","txid_ticket":"/^(?P<memo_suffix>.+)$/","ct_lastpayout":"/\\.\\d{3}(?P<jackpot>\\d{1})/","ct_ticket":"/\\.\\d{3}(?P<ticket>\\d{1})/"},{"scriptName":"range","ct_lastpayout":"LT ct_ticket","ticketFundReceiverId":"EQ POOL_ACCOUNT","ticket_price":"GT 0","ticket":"EQ jackpot"}],"addHbarTransfer":[],"addTokenTransfer":[{"tokenId":"0.0.2340890","accountId":"0.0.7718","value":"-{ticket_price}*{PAYOUT_MULTIPLIER}","userInput":"POOL_ACCOUNT sends {ticket_price}*{PAYOUT_MULTIPLIER} POOL_TOKEN"},{"tokenId":"0.0.2340890","accountId":"{ticketFundPayerId}","value":"{ticket_price}*{PAYOUT_MULTIPLIER}","userInput":"{ticketFundPayerId} receives {ticket_price}*{PAYOUT_MULTIPLIER} POOL_TOKEN"}],"addNftTransfer":[{"sender":"0.0.7718","tokenId":"0.0.3626892","serial":"24","receiver":"0.0.10343","userInput":"POOL_ACCOUNT sends NFT LOCK_TOKEN-LOCK_SERIAL to LOCK_ACCOUNT"}],"pendingLines":[],"comments":["generated by kbot/klotto/pot.js — testnet BR pot: pool 0.0.7718, lock 0.0.10343, token 0.0.2340890, lock NFT 0.0.3626892#24"]}}</script>
+<script type="application/json" id="example-unlock">{"dealId":"255f4d5df3aa046f68f18ab2e749e2ff078bed4684fde3dfc9028fb5277ba8f1","role":"unlock","network":"testnet","cc":"BR","v":1,"deal":{"network":"testnet","display":{"title":"KLOTTO unlock — R$ (testnet BR), 180s timelock, 50% sales commission","description":"this deal returns the lock NFT to the pool account if all conditions are met. this deal also pays out a sales commission to the klotto sales account","button":"Unlock pool"},"alias":{"operator":"0.0.10343","POOL_ACCOUNT":"0.0.7718","POOL_TOKEN":"0.0.2340890","LOCK_ACCOUNT":"0.0.10343","LOCK_TOKEN":"0.0.3626892","LOCK_SERIAL":"24","SALE_ACCOUNT":"0.0.10325113"},"parameters":{},"constants":{"url_hedera_mirror":"https://testnet.mirrornode.hedera.com/api/v1","operator":"0.0.10343","POOL_ACCOUNT":"0.0.7718","POOL_TOKEN":"0.0.2340890","LOCK_ACCOUNT":"0.0.10343","LOCK_TOKEN":"0.0.3626892","LOCK_SERIAL":"24","SALE_ACCOUNT":"0.0.10325113"},"api":{"ct_lastpayout":"{url_hedera_mirror}/tokens/{LOCK_TOKEN}/nfts/{LOCK_SERIAL}/transactions#transactions/0/consensus_timestamp","sender_account":"{url_hedera_mirror}/tokens/{LOCK_TOKEN}/nfts/{LOCK_SERIAL}/transactions#transactions/0/sender_account_id","ct_any_recent_tx":"{url_hedera_mirror}/transactions?order=desc&limit=1#transactions/0/consensus_timestamp","modified_timestamp":"{url_hedera_mirror}/tokens/{LOCK_TOKEN}/nfts/?account.id={LOCK_ACCOUNT}&serialnumber={LOCK_SERIAL}#nfts/0/modified_timestamp","pool_balance":"{url_hedera_mirror}/tokens/{POOL_TOKEN}/balances?account.id={POOL_ACCOUNT}#balances/0/balance"},"conditions":[{"scriptName":"regex","ct_lastpayout":"/^\\d+\\.\\d+$/","modified_timestamp":"/^\\d+\\.\\d+$/"},{"scriptName":"timelock","seconds":"180"},{"scriptName":"range","sender_account":"EQ {POOL_ACCOUNT}"},{"scriptName":"mathFormula","seconds_since_payout":"{ct_any_recent_tx}-{ct_lastpayout}"},{"scriptName":"range","seconds_since_payout":"GT 180"}],"addHbarTransfer":[],"addTokenTransfer":[{"tokenId":"0.0.2340890","accountId":"0.0.7718","value":"-{pool_balance}*0.5","userInput":"POOL_ACCOUNT sends {pool_balance}*0.5 POOL_TOKEN"},{"tokenId":"0.0.2340890","accountId":"0.0.10325113","value":"{pool_balance}*0.5","userInput":"SALE_ACCOUNT receives {pool_balance}*0.5 POOL_TOKEN"}],"addNftTransfer":[{"sender":"0.0.10343","tokenId":"0.0.3626892","serial":"24","receiver":"0.0.7718","userInput":"LOCK_ACCOUNT sends NFT LOCK_TOKEN-LOCK_SERIAL to POOL_ACCOUNT"}],"pendingLines":[],"comments":["generated by kbot/klotto/pot.js — testnet BR pot"]}}</script>
+<script type="module">
+import * as K from './kea-convert.browser.js'
+
+// the v2 ids klotto publishes, so the page can say "this IS the published twin" — the same
+// list hbarlive_hts qa/klotto/golden-ids.json freezes (v2 id → the v1 it twins)
+const TWINS = {
+  "6dc6ece78d0446d48ac674099a627377d327fcc8354ccdf28924df029e5a8542": "mainnet-GB-claim",
+  "4b51086507c5dbce156aab74c9eef74a294c660cddb8b4097d1b480326093fdd": "testnet-BR-claim",
+  "a4bb27cf43de28888983a9652afa56ff7416a6b101abadc24b13f50dd5435e82": "testnet-BR-unlock",
+  "db1edc3e9eaf378a4b799eee2058d3aadbb8ec578e3ca0a22d091afe658d38fe": "testnet-CO-claim",
+  "23876319474f92d96b087022b878f548bca72bab06b42be501a39742260d691d": "testnet-CO-unlock",
+  "b90d65e48fe00193939d1a15cd8a7946ffaab3fea5a2fd973ce284a124e1a07b": "testnet-GB-claim",
+  "65212254ad43c189c08d54d4dc57c95913b9e4393a6bf2249de8440b7b84f15d": "testnet-GB-unlock",
+  "9fc80d7a259bdfd4de7ace32b689cda75040b113d2f22aeb79a7acce4bc82aa6": "testnet-US-claim",
+  "a9a13bf326c89e60d6bd6c48105559d1d5d9066a9a56e26c00461ee4698a1c18": "testnet-US-unlock"
+}
+const CATALOGUE = 'https://klotto.kpay.uk/deals/'
+
+const $ = (id) => document.getElementById(id)
+const show = (el, on) => el.classList.toggle('hidden', !on)
+const pretty = (o) => JSON.stringify(o, null, 2)
+const load = (id) => { $('src').value = pretty(JSON.parse($(id).textContent)); $('name').value = ''; run() }
+$('ex-claim').onclick = () => load('example-claim')
+$('ex-unlock').onclick = () => load('example-unlock')
+$('run').onclick = run
+$('src').addEventListener('keydown', (e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') run() })
+
+function run() {
+  show($('err'), false); show($('out'), false)
+  let input
+  try { input = JSON.parse($('src').value) } catch (e) { return fail('not JSON: ' + e.message) }
+  let x
+  try { x = K.explain(input, { name: $('name').value.trim() || undefined }) }
+  catch (e) { return fail(e.message + (e.at ? ' (at ' + e.at + ')' : '')) }
+  const t = input && input.deal && typeof input.deal === 'object' ? input.deal : input
+  $('id1').textContent = x.v1.dealId; $('role1').textContent = x.role + ' · ' + x.network + (x.cc ? ' ' + x.cc : '')
+  $('len1').textContent = new TextEncoder().encode(x.v1.canonical).length.toLocaleString()
+  $('can1').textContent = x.v1.canonical; $('doc1').textContent = pretty(t)
+  $('id2').textContent = x.v2.dealId; $('name2').textContent = x.policy.name
+  $('len2').textContent = new TextEncoder().encode(x.v2.canonical).length.toLocaleString()
+  $('can2').textContent = x.v2.canonical; $('doc2').textContent = pretty(x.policy)
+  $('notes').innerHTML = x.notes.map((s) => '<li>' + esc(s) + '</li>').join('')
+  $('sections').innerHTML = Object.entries(x.sections).map(([k, v]) => '<b>' + k + '</b><span>' + esc(v) + '</span>').join('')
+  const twin = TWINS[x.v2.dealId]
+  const v = $('verdict')
+  if (twin) { v.className = 'verdict good'; v.innerHTML = '<b>matches the published twin</b>' + esc(twin) + '.v2 — the policy klotto publishes and the signers verify is exactly this document, hash for hash.' }
+  else if (input && input.dealId && TWINS[Object.keys(TWINS).find((k) => TWINS[k] === (input.role ? input.network + '-' + input.cc + '-' + input.role : ''))]) { v.className = 'verdict bad'; v.innerHTML = '<b>does not match the published twin</b>a v2 twin of this deal exists with a different hash — the template, or the name, differs from what was published.' }
+  else { v.className = 'verdict warn'; v.innerHTML = '<b>no published twin with this id</b>the policy converted; nothing in klotto\'s catalogue has this hash (a template klotto does not publish, a changed constant, or a name it did not use).' }
+  show($('out'), true)
+}
+function fail(msg) { $('errmsg').textContent = msg; show($('err'), true) }
+function esc(s) { return String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])) }
+
+// the published catalogue, if it will talk to us (it is on another origin)
+;(async () => {
+  try {
+    const r = await fetch(CATALOGUE + 'index.json'); if (!r.ok) throw new Error(r.status)
+    const idx = await r.json()
+    const v1 = (idx.deals || []).filter((d) => (d.v || 1) === 1).sort((a, b) => (a.network + a.cc + a.role).localeCompare(b.network + b.cc + b.role))
+    for (const d of v1) { const o = document.createElement('option'); o.value = d.file || d.dealId + '.json'; o.textContent = `${d.network} ${d.cc} ${d.role} · ${d.dealId.slice(0, 12)}…`; $('pub').appendChild(o) }
+    $('pub').onchange = async () => {
+      if (!$('pub').value) return
+      try { const d = await (await fetch(CATALOGUE + $('pub').value)).json(); $('src').value = pretty(d); $('name').value = ''; run() }
+      catch (e) { fail('could not fetch ' + $('pub').value + ': ' + e.message) }
+    }
+  } catch (e) {
+    $('pub').innerHTML = '<option value="">klotto.kpay.uk not reachable from here (' + esc(e.message) + ') — paste a template instead</option>'
+  }
+})()
+
+if (!$('src').value) load('example-claim')
+</script>
+</body>
+</html>
