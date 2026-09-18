@@ -95,6 +95,16 @@ const cases = [
   ['/future/v3/convert/',                 A('/future/v3/convert/index.html')],
   ['/future/v3/convert/index.html',       A('/future/v3/convert/index.html')],
   ['/future/v3/convert/kea-convert.browser.js', null],                  // plain asset beside the page
+  // LEGACY-DEALS1: the V1 deal archive lookup, on its own prefix
+  ['/legacy/deals',                       { kind: 'redirect', to: '/legacy/deals/' }],
+  ['/legacy/deals/',                      A('/legacy/deals/index.html')],
+  ['/legacy/deals/index.html',            A('/legacy/deals/index.html')],
+  ['/legacy/deals/?action=search&id=35d71e', { kind: 'alias', path: '/hapi/legacy/search', search: '?id=35d71e' }],
+  ['/legacy/deals/?action=status',        { kind: 'alias', path: '/hapi/legacy/status', search: '' }],
+  ['/legacy/deals/?action=deal&dealId=35d71e', { kind: 'alias', path: '/hapi/legacy/deal', search: '?dealId=35d71e' }],
+  ['/legacy/deals/?action=../evil',       { kind: 'bad' }],          // the action allowlist, not a path
+  ['/legacy/',                            null],                     // no index of its own
+  ['/legacy/deals/nope',                  null],
   ['/m/katomia/katomia-core.js?v=1',      null],
   ['/m/katomia/nope',                     null],
 ];

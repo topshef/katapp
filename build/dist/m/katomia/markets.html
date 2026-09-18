@@ -6,9 +6,9 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <!-- ENTRY-FADES1 (user 2026-07-30): quiet cross-fade page transition. Must be in
      <head> — it arms the fade-in before first paint. -->
-<script src="kfade.js?v=1789690913"></script>
-<link rel="stylesheet" href="katomia.css?v=1789690913">
-<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1789690913">
+<script src="kfade.js?v=1789727471"></script>
+<link rel="stylesheet" href="katomia.css?v=1789727471">
+<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1789727471">
 
 <title>Katomia markets 🍎🥬🥕</title>
 
@@ -663,9 +663,9 @@ addEventListener("load", () => setTimeout(() => {
      kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
      script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
      the notes' popovers), so a page that already loads it is unaffected. -->
-<script src="kfeedbits.js?v=1789690913" defer></script>
-<script src="kchanges-log.js?v=1789690913" defer></script>
-<script src="kchanges.js?v=1789690913" defer></script>
+<script src="kfeedbits.js?v=1789727471" defer></script>
+<script src="kchanges-log.js?v=1789727471" defer></script>
+<script src="kchanges.js?v=1789727471" defer></script>
 <!-- /KBUNDLE-STRIP:kchanges -->
 <div id="profileModal" class="profile-modal hidden">
 
@@ -1184,16 +1184,16 @@ window.onKatomiaBindingPublished = () => loadGames()
 <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
 
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
-<script src="katomia-core.js?v=1789690913"></script>
-<script src="katomia-helpers.js?v=1789690913"></script>
-<script src="kemoji.js?v=1789690913"></script>
+<script src="katomia-core.js?v=1789727471"></script>
+<script src="katomia-helpers.js?v=1789727471"></script>
+<script src="kemoji.js?v=1789727471"></script>
 <script>
   // katomia-modals.js (the diag sender) isn't loaded on this page — shim so the
   // profile/auth scripts' katomiaDiagSend?.() calls resolve instead of ReferenceError.
   window.katomiaDiagSend = window.katomiaDiagSend || function(){}
 </script>
-<script src="katomia-profile.js?v=1789690913"></script>
-<script src="katomia-auth.js?v=1789690913"></script>
+<script src="katomia-profile.js?v=1789727471"></script>
+<script src="katomia-auth.js?v=1789727471"></script>
 
 <script>
 // loadGames needs getOrCreatePlayerToken (katomia-core.js above), so it runs here

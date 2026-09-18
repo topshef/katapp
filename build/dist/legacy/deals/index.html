@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>V1 deal archive</title>
+<meta name="description" content="Look up a deal in the retired V1 deal database by id, keyword or Hedera id.">
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#fff; --panel-2:#eceef1; --line:#d8dce1; --line-2:#e6e9ec;
+    --ink:#171a1f; --ink-2:#555f6b; --ink-3:#7c8794;
+    --ok:#1d6b45; --ok-bg:#e0efe7;
+    --warn:#8a5a12; --warn-bg:#f6e9d5;
+    --bad:#a02f27; --bad-bg:#f8e2df;
+    --acc:#1c5580; --acc-bg:#e4edf5;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0f1319; --panel:#171c23; --panel-2:#1e242d; --line:#2a323c; --line-2:#222a33;
+    --ink:#e3e8ee; --ink-2:#9fabb8; --ink-3:#77838f;
+    --ok:#5cbc8b; --ok-bg:#15281f;
+    --warn:#d2a154; --warn-bg:#2b2416;
+    --bad:#e0817a; --bad-bg:#2e1b19;
+    --acc:#74aede; --acc-bg:#16202b;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 16px 80px}
+  a{color:var(--acc)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--panel-2);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+  h1{font-size:28px;font-weight:700;margin:26px 0 8px;letter-spacing:-.01em}
+  h2{font-size:17px;font-weight:650;margin:26px 0 10px}
+  p{margin:0 0 14px}
+  .lede{font-size:17px;color:var(--ink-2);margin-bottom:18px;border-left:3px solid var(--acc);background:var(--acc-bg);padding:13px 16px;border-radius:0 8px 8px 0}
+  .lede b{color:var(--ink)}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 10px}
+  input[type=text],select{font:15px var(--sans);color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+  input[type=text]{flex:1 1 320px;min-width:0;font-family:var(--mono);font-size:14px}
+  button{font:15px var(--sans);font-weight:600;color:var(--ink);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:9px 15px;cursor:pointer}
+  button:hover{border-color:var(--ink-3)}
+  button.go{background:var(--acc);border-color:var(--acc);color:#fff}
+  .hint{font-size:13px;color:var(--ink-3);margin:0 0 18px;min-height:20px}
+  .hint b{color:var(--ink-2);font-weight:600}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:0 0 16px}
+  .msg{color:var(--ink-3);padding:18px 2px}
+  .msg.err{color:var(--bad);background:var(--bad-bg);border-radius:8px;padding:12px 14px}
+  .count{font-size:13px;color:var(--ink-3);margin:0 0 8px}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{border-collapse:collapse;width:100%;font-size:14px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line-2);vertical-align:top}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3);font-weight:600;white-space:nowrap}
+  tbody tr{cursor:pointer}
+  tbody tr:hover{background:var(--panel-2)}
+  tbody tr.on{background:var(--acc-bg)}
+  .hash{font-family:var(--mono);font-size:12.5px;word-break:break-all}
+  .hash .chunk{margin-right:.35em}
+  .t{max-width:380px}
+  .mute{color:var(--ink-3)}
+  .pill{display:inline-block;font-size:11.5px;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2);background:var(--panel-2);white-space:nowrap}
+  .pill.ok{color:var(--ok);background:var(--ok-bg);border-color:transparent}
+  .pill.bad{color:var(--bad);background:var(--bad-bg);border-color:transparent}
+  .kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:14px;margin:0 0 14px}
+  .kv dt{color:var(--ink-3)}
+  .kv dd{margin:0;overflow-wrap:anywhere}
+  pre{background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:12px;overflow:auto;max-height:460px;font-family:var(--mono);font-size:12.5px;line-height:1.5;margin:0}
+  .foot{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink-3)}
+  @media (max-width:640px){
+    .t{max-width:none}
+    thead{display:none}
+    tbody tr{display:block;border:1px solid var(--line);border-radius:9px;margin-bottom:9px;padding:4px 2px;background:var(--panel)}
+    td{display:block;border:0;padding:3px 11px}
+    td::before{content:attr(data-l);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3)}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>V1 deal archive</h1>
+<p class="lede">A read-only lookup over <b>deals-v1.db</b> — the deal database from the retired kpos/gomint estate.
+Nothing here can change anything: the file is opened read-only and this page only reads it.
+It is kept for development while old deals still need looking up, and it will be retired.</p>
+
+<div class="bar">
+  <input type="text" id="q" spellcheck="false" autocomplete="off"
+         placeholder="deal id (6+ hex), a Hedera id like 0.0.25200, or any keyword">
+  <select id="network" title="network">
+    <option value="">any network</option>
+    <option value="mainnet">mainnet</option>
+    <option value="testnet">testnet</option>
+  </select>
+  <button class="go" id="go">Search</button>
+  <button id="clear" title="clear the search">Clear</button>
+</div>
+<p class="hint" id="hint"></p>
+
+<div id="out"></div>
+<div id="detail"></div>
+
+<p class="foot" id="foot"></p>
+
+</div>
+<script>
+(function () {
+  'use strict'
+  // The page lives at /legacy/deals/ and calls its own path with ?action=, which the router
+  // forwards to the backend's /legacy/<action>. Everything this feature touches therefore sits
+  // under /legacy, so one Cloudflare rule can gate the page and the API together.
+  var API = new URL('./', location.href)
+
+  var $ = function (id) { return document.getElementById(id) }
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] }) }
+
+  // one box, three kinds of thing in it
+  function classify(text) {
+    var t = String(text || '').trim()
+    if (!t) return null
+    if (/^[0-9a-fA-F]{6,64}$/.test(t)) return { key: 'id', value: t.toLowerCase(), as: 'a deal id prefix' }
+    if (/^\d+\.\d+\.\d+$/.test(t) || t.toLowerCase() === 'hbar') return { key: 'ref', value: t, as: 'a Hedera account or token' }
+    if (/^[0-9a-fA-F]{1,5}$/.test(t)) return { key: null, as: null, why: 'a deal id needs at least 6 hex characters — that is what makes it unique' }
+    return { key: 'q', value: t, as: 'text, searched across the whole deal document' }
+  }
+
+  function url(action, params) {
+    var u = new URL(API)
+    u.searchParams.set('action', action)
+    Object.keys(params).forEach(function (k) { if (params[k]) u.searchParams.set(k, params[k]) })
+    return u
+  }
+
+  function getJson(u) {
+    return fetch(u, { headers: { accept: 'application/json' } }).then(function (r) {
+      return r.text().then(function (body) {
+        var data = null
+        try { data = JSON.parse(body) } catch (e) {}
+        if (!data) {
+          // a sign-in page or an error page in front of the API looks exactly like this
+          throw new Error('got a web page, not data (HTTP ' + r.status + ') — is something in front of ' + u.pathname + '?')
+        }
+        if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status))
+        return data
+      })
+    })
+  }
+
+  function chunk(id) {
+    return String(id).replace(/.{1,8}/g, function (c) { return '<span class="chunk">' + c + '</span>' })
+  }
+
+  // ── state lives in the URL, so a result set is a link ──────────────────────────────────
+  function readUrl() {
+    var p = new URLSearchParams(location.search)
+    $('q').value = p.get('find') || ''
+    $('network').value = p.get('network') || ''
+  }
+  function writeUrl(push) {
+    var u = new URL(location.href)
+    u.search = ''
+    if ($('q').value.trim()) u.searchParams.set('find', $('q').value.trim())
+    if ($('network').value) u.searchParams.set('network', $('network').value)
+    history[push ? 'pushState' : 'replaceState'](null, '', u)
+  }
+
+  function setHint(c) {
+    if (!c) { $('hint').innerHTML = ''; return }
+    if (!c.key) { $('hint').innerHTML = '<b>' + esc(c.why) + '</b>'; return }
+    $('hint').innerHTML = 'reading that as <b>' + esc(c.as) + '</b>'
+  }
+
+  var lastRows = []
+
+  function search() {
+    var c = classify($('q').value)
+    setHint(c)
+    $('detail').innerHTML = ''
+    if (!c) { $('out').innerHTML = ''; return }
+    if (!c.key) { $('out').innerHTML = ''; return }
+
+    var params = {}
+    params[c.key] = c.value
+    params.network = $('network').value
+    params.limit = 50
+
+    $('out').innerHTML = '<p class="msg">searching…</p>'
+    getJson(url('search', params)).then(function (d) {
+      lastRows = d.rows || []
+      if (!lastRows.length) {
+        $('out').innerHTML = '<p class="msg">Nothing in the archive for <b>' + esc($('q').value.trim()) + '</b>' +
+          ($('network').value ? ' on ' + esc($('network').value) : '') + '.</p>'
+        return
+      }
+      var shown = lastRows.length
+      var head = '<p class="count">' + (d.total > shown ? 'showing the first ' + shown + ' of <b>' + d.total + '</b> deals' : shown + (shown === 1 ? ' deal' : ' deals')) + '</p>'
+      var rows = lastRows.map(function (r, i) {
+        return '<tr data-i="' + i + '">' +
+          '<td data-l="created" class="mute" style="white-space:nowrap">' + esc(r.created || '') + '</td>' +
+          '<td data-l="network"><span class="pill">' + esc(r.network || '?') + '</span></td>' +
+          '<td data-l="domain" class="mute">' + esc(r.domain || '') + '</td>' +
+          '<td data-l="deal id" class="hash">' + chunk(r.dealId) + '</td>' +
+          '<td data-l="title" class="t">' + (r.title ? esc(r.title) : '<span class="mute">— no title —</span>') + '</td>' +
+        '</tr>'
+      }).join('')
+      $('out').innerHTML = head + '<div class="panel" style="padding:2px 4px"><div class="scroll"><table>' +
+        '<thead><tr><th>created</th><th>network</th><th>domain</th><th>deal id</th><th>title</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody></table></div></div>'
+      Array.prototype.forEach.call($('out').querySelectorAll('tbody tr'), function (tr) {
+        tr.addEventListener('click', function () {
+          Array.prototype.forEach.call($('out').querySelectorAll('tbody tr'), function (o) { o.classList.remove('on') })
+          tr.classList.add('on')
+          open(lastRows[+tr.getAttribute('data-i')].dealId)
+        })
+      })
+    }).catch(function (e) {
+      $('out').innerHTML = '<p class="msg err">' + esc(e.message) + '</p>'
+    })
+  }
+
+  function open(dealId) {
+    $('detail').innerHTML = '<p class="msg">loading the deal…</p>'
+    getJson(url('deal', { dealId: dealId })).then(function (d) {
+      var x = d.deal
+      var ft = x.transfers.ft, nft = x.transfers.nft
+      var legs = ''
+      if (ft.length) {
+        legs += '<h2>Token and HBAR legs</h2><div class="scroll"><table><thead><tr><th>token</th><th>account</th><th>amount</th></tr></thead><tbody>' +
+          ft.map(function (r) { return '<tr><td data-l="token" class="hash">' + esc(r.tokenId) + '</td><td data-l="account" class="hash">' + esc(r.accountId) + '</td><td data-l="amount" class="hash">' + esc(r.amount) + '</td></tr>' }).join('') +
+          '</tbody></table></div>'
+      }
+      if (nft.length) {
+        legs += '<h2>NFT legs</h2><div class="scroll"><table><thead><tr><th>token</th><th>serial</th><th>sender</th><th>receiver</th></tr></thead><tbody>' +
+          nft.map(function (r) { return '<tr><td data-l="token" class="hash">' + esc(r.tokenId) + '</td><td data-l="serial" class="hash">' + esc(r.serial) + '</td><td data-l="sender" class="hash">' + esc(r.sender) + '</td><td data-l="receiver" class="hash">' + esc(r.receiver) + '</td></tr>' }).join('') +
+          '</tbody></table></div>'
+      }
+      var intact = x.verified === true
+        ? '<span class="pill ok">intact</span>'
+        : x.verified === false ? '<span class="pill bad">does not match its own id</span>' : '<span class="pill">not checked</span>'
+
+      $('detail').innerHTML =
+        '<div class="panel">' +
+          '<h2 style="margin-top:4px">' + (x.title ? esc(x.title) : '<span class="mute">— no title —</span>') + '</h2>' +
+          (x.description ? '<p class="mute">' + esc(x.description) + '</p>' : '') +
+          '<dl class="kv">' +
+            '<dt>deal id</dt><dd class="hash">' + chunk(x.dealId) + '</dd>' +
+            '<dt>network</dt><dd>' + esc(x.network || '') + '</dd>' +
+            '<dt>domain</dt><dd>' + esc(x.domain || '') + '</dd>' +
+            '<dt>created</dt><dd>' + esc(x.created || '') + '</dd>' +
+            (x.createdBy ? '<dt>created by</dt><dd>' + esc(x.createdBy) + '</dd>' : '') +
+            (x.dealOperator ? '<dt>operator</dt><dd class="hash">' + esc(x.dealOperator) + '</dd>' : '') +
+            '<dt>document</dt><dd>' + intact + ' <span class="mute">a v1 deal id is the hash of its own document, so this re-checks it</span></dd>' +
+          '</dl>' +
+          '<div class="bar">' +
+            '<button id="copyid">Copy deal id</button>' +
+            '<button id="copyjson">Copy the deal JSON</button>' +
+          '</div>' +
+          legs +
+          '<h2>The deal, as stored</h2>' +
+          '<pre id="doc">' + esc(JSON.stringify(x.deal, null, 2)) + '</pre>' +
+        '</div>'
+
+      var copy = function (btn, text, done) {
+        $(btn).addEventListener('click', function () {
+          navigator.clipboard.writeText(text).then(function () {
+            var b = $(btn), was = b.textContent
+            b.textContent = done
+            setTimeout(function () { b.textContent = was }, 1200)
+          })
+        })
+      }
+      copy('copyid', x.dealId, 'copied')
+      copy('copyjson', JSON.stringify(x.deal, null, 2), 'copied')
+      $('detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }).catch(function (e) {
+      $('detail').innerHTML = '<p class="msg err">' + esc(e.message) + '</p>'
+    })
+  }
+
+  // ── wire up ───────────────────────────────────────────────────────────────────────────
+  $('go').addEventListener('click', function () { writeUrl(true); search() })
+  $('clear').addEventListener('click', function () { $('q').value = ''; $('network').value = ''; writeUrl(true); $('out').innerHTML = ''; $('detail').innerHTML = ''; setHint(null); $('q').focus() })
+  $('q').addEventListener('keydown', function (e) { if (e.key === 'Enter') { writeUrl(true); search() } })
+  $('q').addEventListener('input', function () { setHint(classify($('q').value)) })
+  $('network').addEventListener('change', function () { writeUrl(true); if ($('q').value.trim()) search() })
+  window.addEventListener('popstate', function () { readUrl(); search() })
+
+  // say what is actually there, so an empty page is never a mystery
+  getJson(url('status', {})).then(function (s) {
+    if (!s.available) { $('foot').innerHTML = 'The archive is not on this host (<code>' + esc(s.reason || 'not present') + '</code>), so nothing can be looked up here.'; return }
+    var c = s.counts || {}
+    $('foot').innerHTML = 'Archive: <b>' + (c.deal || 0) + '</b> deals, ' + (c.xfer_FT || 0) + ' token legs, ' + (c.xfer_NFT || 0) + ' NFT legs' +
+      (s.range && s.range.first ? ', authored ' + esc(String(s.range.first).slice(0, 10)) + ' to ' + esc(String(s.range.last).slice(0, 10)) : '') +
+      '. Read-only. <span class="mute">A deal id is 64 hex characters; the first 6 are enough to find one.</span>'
+  }).catch(function (e) { $('foot').textContent = 'Could not reach the archive: ' + e.message })
+
+  readUrl()
+  setHint(classify($('q').value))
+  if ($('q').value.trim()) search()
+  else $('q').focus()
+})()
+</script>
+</body>
+</html>
