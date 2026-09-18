@@ -1031,8 +1031,59 @@ const SIGN_REASON = {
 // Key normalisation lives in keynorm.js — shared with model.js so the per-account
 // ✅/pie here and the header threshold there normalise keys identically (SIGN-NORM1).
 
+
+// ╔═╗╦╔═╗  ╔╦╗╦╔╦╗╔═╗╔═╗
+// ╚═╗║║ ╦   ║ ║║║║║╣ ╚═╗
+// ╚═╝╩╚═╝   ╩ ╩╩ ╩╚═╝╚═╝
+// KPOOL-SIGTIME1 (2026-09-18): when each signature actually arrived.
+//
+// The pool now stamps every signature with `at` (epoch MILLISECONDS, the pool's own clock)
+// as it stores it, and txRead hands that back on each entry of data.sigs — for any signer,
+// wallet or bot alike. Kept here keyed by NORMALISED pubkey so it lines up with the same
+// keys the ✍️ column is drawn from.
+//
+// The number that actually diagnoses anything is not the wall-clock time, it is how far
+// into the transaction's life the signature landed. A Hedera transaction is valid from its
+// txid's start time for validDurationSeconds (the header already says "valid 2m"), so "+9s"
+// is healthy and "+134s" against a 120s window is a signature that arrived after the
+// transaction was already dead — which is exactly the state that renders as fully green and
+// then never submits, because the submit path refuses anything past the window. Both
+// numbers go in the tooltip: elapsed first, because that is the one being read, and the
+// absolute UTC time second, for cross-referencing against a signer's log.
+//
+// A signature stored before this shipped has no `at`, and says so. Never substitute now,
+// and never the time the page happened to be opened.
+let SIG_AT = new Map()
+let SIG_START_SEC = null
+let SIG_WINDOW_SEC = null
+
+function rememberSignatureTimes(data) {
+	SIG_AT = new Map()
+	;(data?.sigs || []).forEach(s => {
+		const k = normalizePublicKey(s?.pubKey)
+		const at = Number(s?.at)
+		if (k && Number.isFinite(at) && at > 0) SIG_AT.set(k, at)
+	})
+	SIG_START_SEC = parseTxId(data?.txid || '')?.seconds ?? null
+	SIG_WINDOW_SEC = Number(data?.validDurationSeconds) > 0 ? Number(data.validDurationSeconds) : null
+}
+
+// the ✍️ cell's tooltip for one key that HAS signed
+function signedAtTitle(pubkey) {
+	const at = SIG_AT.get(normalizePublicKey(pubkey))
+	if (!at) return 'This key has signed — the pool did not record when (signature predates KPOOL-SIGTIME1)'
+	const abs = formatUtcTime(Math.floor(at / 1000)) + 'Z'
+	if (!Number.isFinite(SIG_START_SEC)) return `Signed at ${abs}`
+	const elapsed = Math.round(at / 1000 - SIG_START_SEC)
+	const rel = (elapsed >= 0 ? '+' : '') + elapsed + 's'
+	const base = `Signed ${rel} after this transaction's start time · ${abs}`
+	if (SIG_WINDOW_SEC == null || elapsed <= SIG_WINDOW_SEC) return base
+	return base + ` — ${elapsed - SIG_WINDOW_SEC}s AFTER it expired (valid ${SIG_WINDOW_SEC}s), so this signature can never be submitted`
+}
+
 export function renderSigningInfo({ data, accounts }) {
 	// derive signed keys ONCE
+	rememberSignatureTimes(data)   // KPOOL-SIGTIME1: before anything renders a ✍️ cell
 	const signedPubkeys = (data.sigs || [])
 		.map(s => s.pubKey)
 		.filter(Boolean)
@@ -1428,6 +1479,9 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 			row.className = 'txcard-keys-row'
 			row.dataset.leaf = normalizePublicKey(pubkey)   // KPIE-ORBIT1: the pie's wedge carries the same hex — hover lights both
 			const tick = document.createElement('div'); tick.textContent = acc.mustSign ? (signed ? '☑' : '☐') : '–'   // plain ballot box (not the control-like ✅/⬜)
+			// KPOOL-SIGTIME1: "signed yet" becomes "signed yet, and how late". Only on a key that
+			// HAS signed — there is nothing to say about the time of a signature that never came.
+			if (signed) tick.title = signedAtTitle(pubkey)
 			// key suffix links to the account's keys (hashscan account page for now — a
 			// per-key lookup could later point at explore.hbar.live?network=&key=). Clicking
 			// it won't collapse the card: the header toggle ignores <a> targets.
