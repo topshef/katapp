@@ -34,6 +34,10 @@
 //   /hapi/<x>                          → /hapi/<x>           (root vhost /hapi/ reverse proxy: /hapi/ws,
 //                                                             used when a page runs with HAPI_BASE "")
 //   /kfeedback…, /feedback-widget.js   → same paths          (clean aliases on the alias Worker)
+//   /legacy/deals/                     → legacy/deals/index.html   (LEGACY-DEALS1: the V1 deal
+//   /legacy/deals/?action=X&qs         → /hapi/legacy/X?qs           archive lookup. Own top-level
+//                                                                    prefix so ONE Cloudflare rule
+//                                                                    gates the page and its API.)
 //  local-only endpoints
 //   /diag                              → /hapi/diag  (DIAG-SINK1: the backend keeps the client trail)
 //   /kflow                             → 204  (lab22-local log drop; no backend equivalent)
@@ -77,6 +81,11 @@ const SIGNERBIZ  = /^\/future\/v3\/help\/business(?:\/|\/index\.html)$/;  // the
 const SIGNERNOTE  = /^\/future\/v3\/notes(?:\/|\/index\.html)$/;
 // DEAL-CONVERT1: the v1 → v2 deal converter, a static page + a bundled module beside it.
 const SIGNERCONV  = /^\/future\/v3\/convert(?:\/|\/index\.html)$/;
+// LEGACY-DEALS1: the V1 deal archive lookup. Its own top-level prefix on purpose — the page
+// AND every call it makes live under /legacy, so one Cloudflare rule gates the whole feature
+// without touching code, and removing the feature is deleting these lines plus the directory.
+// Same ?action= convention as the v3 pages: /legacy/deals/?action=search → /hapi/legacy/search.
+const LEGACYDEALS = /^\/legacy\/deals(?:\/|\/index\.html)$/;
 const SIGNERNOTES = /^\/future\/v3\/notes\/([a-z0-9-]+)(?:\/|\/index\.html)$/;
 const SIGNPAGE = /^\/(?:m\/sign|future)(?:\/|\/index\.php)?$/;
 const GLOG = /^\/m\/tools\/glog\/latest\/(.+)$/;
@@ -164,6 +173,10 @@ export function route(url) {
   if (SIGNERVIEW.test(p)) return url.searchParams.has('action')
     ? actionRoute(url, '/hapi/kpool/', '')
     : { kind: 'asset', path: '/future/v3/index.html' };
+  if (p === '/legacy/deals') return { kind: 'redirect', to: '/legacy/deals/' };
+  if (LEGACYDEALS.test(p)) return url.searchParams.has('action')
+    ? actionRoute(url, '/hapi/legacy/', '')
+    : { kind: 'asset', path: '/legacy/deals/index.html' };
   if (SIGNPAGE.test(p)) return url.searchParams.has('action') ? actionRoute(url, '/hapi/kpool/', '') : { kind: 'asset', path: '/m/sign/index.html' };
   if (p === K + '/binding.php') return { kind: 'asset', path: K + '/binding.html' };
   if (/^\/m\/feedback(?:\/|\/index\.php)?$/.test(p)) return { kind: 'asset', path: '/m/feedback/index.html' };   // widget fallback link

@@ -1031,8 +1031,59 @@ const SIGN_REASON = {
 // Key normalisation lives in keynorm.js — shared with model.js so the per-account
 // ✅/pie here and the header threshold there normalise keys identically (SIGN-NORM1).
 
+
+// ╔═╗╦╔═╗  ╔╦╗╦╔╦╗╔═╗╔═╗
+// ╚═╗║║ ╦   ║ ║║║║║╣ ╚═╗
+// ╚═╝╩╚═╝   ╩ ╩╩ ╩╚═╝╚═╝
+// KPOOL-SIGTIME1 (2026-09-18): when each signature actually arrived.
+//
+// The pool now stamps every signature with `at` (epoch MILLISECONDS, the pool's own clock)
+// as it stores it, and txRead hands that back on each entry of data.sigs — for any signer,
+// wallet or bot alike. Kept here keyed by NORMALISED pubkey so it lines up with the same
+// keys the ✍️ column is drawn from.
+//
+// The number that actually diagnoses anything is not the wall-clock time, it is how far
+// into the transaction's life the signature landed. A Hedera transaction is valid from its
+// txid's start time for validDurationSeconds (the header already says "valid 2m"), so "+9s"
+// is healthy and "+134s" against a 120s window is a signature that arrived after the
+// transaction was already dead — which is exactly the state that renders as fully green and
+// then never submits, because the submit path refuses anything past the window. Both
+// numbers go in the tooltip: elapsed first, because that is the one being read, and the
+// absolute UTC time second, for cross-referencing against a signer's log.
+//
+// A signature stored before this shipped has no `at`, and says so. Never substitute now,
+// and never the time the page happened to be opened.
+let SIG_AT = new Map()
+let SIG_START_SEC = null
+let SIG_WINDOW_SEC = null
+
+function rememberSignatureTimes(data) {
+	SIG_AT = new Map()
+	;(data?.sigs || []).forEach(s => {
+		const k = normalizePublicKey(s?.pubKey)
+		const at = Number(s?.at)
+		if (k && Number.isFinite(at) && at > 0) SIG_AT.set(k, at)
+	})
+	SIG_START_SEC = parseTxId(data?.txid || '')?.seconds ?? null
+	SIG_WINDOW_SEC = Number(data?.validDurationSeconds) > 0 ? Number(data.validDurationSeconds) : null
+}
+
+// the ✍️ cell's tooltip for one key that HAS signed
+function signedAtTitle(pubkey) {
+	const at = SIG_AT.get(normalizePublicKey(pubkey))
+	if (!at) return 'This key has signed — the pool did not record when (signature predates KPOOL-SIGTIME1)'
+	const abs = formatUtcTime(Math.floor(at / 1000)) + 'Z'
+	if (!Number.isFinite(SIG_START_SEC)) return `Signed at ${abs}`
+	const elapsed = Math.round(at / 1000 - SIG_START_SEC)
+	const rel = (elapsed >= 0 ? '+' : '') + elapsed + 's'
+	const base = `Signed ${rel} after this transaction's start time · ${abs}`
+	if (SIG_WINDOW_SEC == null || elapsed <= SIG_WINDOW_SEC) return base
+	return base + ` — ${elapsed - SIG_WINDOW_SEC}s AFTER it expired (valid ${SIG_WINDOW_SEC}s), so this signature can never be submitted`
+}
+
 export function renderSigningInfo({ data, accounts }) {
 	// derive signed keys ONCE
+	rememberSignatureTimes(data)   // KPOOL-SIGTIME1: before anything renders a ✍️ cell
 	const signedPubkeys = (data.sigs || [])
 		.map(s => s.pubKey)
 		.filter(Boolean)
@@ -1428,6 +1479,9 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 			row.className = 'txcard-keys-row'
 			row.dataset.leaf = normalizePublicKey(pubkey)   // KPIE-ORBIT1: the pie's wedge carries the same hex — hover lights both
 			const tick = document.createElement('div'); tick.textContent = acc.mustSign ? (signed ? '☑' : '☐') : '–'   // plain ballot box (not the control-like ✅/⬜)
+			// KPOOL-SIGTIME1: "signed yet" becomes "signed yet, and how late". Only on a key that
+			// HAS signed — there is nothing to say about the time of a signature that never came.
+			if (signed) tick.title = signedAtTitle(pubkey)
 			// key suffix links to the account's keys (hashscan account page for now — a
 			// per-key lookup could later point at explore.hbar.live?network=&key=). Clicking
 			// it won't collapse the card: the header toggle ignores <a> targets.
@@ -2515,10 +2569,23 @@ export function injectTxReadCSS() {
 		.txcard-keys-head > * { text-decoration:underline dotted; text-decoration-color:#d4d4d8; text-underline-offset:3px; }
 		@media (hover: hover) { .txcard-keys-head:hover > * { text-decoration-color:#a1a1aa; } }
 		.txcard-keys-head:focus-visible { outline:2px solid #0891b2; outline-offset:2px; border-radius:3px; }
-		.txcard-keys-explain { display:none; font-size:11px; line-height:1.45; color:#52525b; background:#fafafa; border:1px solid #ececec; border-radius:6px; padding:7px 9px; margin:2px 0 4px; }
+		/* KEYCOLS1 R2 (operator, 2026-09-17): this went out at 11px, which is smaller than
+		   anything else on the card — the muted body text here (.txcard-xproof,
+		   .txcard-detail-note) and the key rows themselves are all 12px, and 11px is used
+		   only for column LABELS, which are glanced at rather than read. This panel is prose
+		   and it is the one thing on the card someone reads deliberately, so it should be the
+		   largest text in the table, not the smallest. 13px sets a floor above the card's
+		   body text; the phone goes to 14px, since that is where it is actually needed and
+		   where there is room (the table stacks below the chart rather than beside it). Rule
+		   of thumb for anything added here later: never below the 12px this card already
+		   uses for text meant to be read. */
+		.txcard-keys-explain { display:none; font-size:13px; line-height:1.5; color:#3f3f46; background:#fafafa; border:1px solid #ececec; border-radius:6px; padding:9px 11px; margin:3px 0 5px; }
 		.txcard-keys--explain .txcard-keys-explain { display:block; }
-		.txcard-keys-explain > div + div { margin-top:5px; }
-		.txcard-keys-explain b { color:#3f3f46; margin-right:6px; }
+		.txcard-keys-explain > div + div { margin-top:7px; }
+		.txcard-keys-explain b { color:#18181b; margin-right:6px; }
+		@media (max-width:600px){
+			.txcard-keys-explain { font-size:14px; line-height:1.55; padding:10px 12px; }
+		}
 		.txcard-keys-row a { color:#3b82f6; text-decoration:none; cursor:pointer; }
 		.txcard-keys-row a:hover { text-decoration:underline; }
 		/* KPIE-ORBIT1: a hovered key (or every key of a hovered branch) — the same yellow as the wedge outline */
