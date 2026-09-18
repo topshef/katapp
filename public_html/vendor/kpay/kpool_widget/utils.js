@@ -75,3 +75,27 @@ export const isHederaSystemAccount = accountId => {
 	const n = parseInt(String(accountId).split('.')[2], 10)
 	return Number.isFinite(n) && KEYLESS_SYSTEM_ACCOUNTS.has(n)
 }
+
+// ── KPOOL-TIPLEAD1 (owner, 2026-09-18) ──────────────────────────────────────────────
+// Every native tooltip in this widget leads with ℹ️ and a run of spaces. A large mouse
+// pointer sits ON TOP of the first characters of a title tooltip, so the first word was
+// routinely unreadable — you had to move the pointer and hover again to read it. Leading
+// with a glyph that carries no information means the pointer covers something disposable.
+//
+// The zero-width space after the glyph is load-bearing: a browser is free to collapse or
+// trim leading whitespace in a title attribute, and the ZWSP gives the spaces a non-space
+// character to hang off. SIGN_REASON in view.js used to carry a bare ZWSP + spaces inline
+// for exactly this reason; that hack is now this function, in one place.
+//
+// Use tip() for EVERY title you set. Empty text stays empty — a tooltip that says nothing
+// should not exist at all, and "ℹ️" alone on hover is worse than no tooltip.
+export const TIP_LEAD = '\u2139\uFE0F\u200B   '
+// Idempotent on purpose. Three separate places in this widget had each invented their own
+// leading-pad hack (SIGN_REASON, the asset-class `pad`, and whatever a vendored QR library
+// writes into the element it renders into), and code that re-renders would otherwise stack
+// one lead on top of another. Strip any lead — ours, or a bare ZWSP+spaces — then add ours.
+const TIP_STRIP = /^(?:\u2139\uFE0F)?\u200B?[\s\u00A0]*/
+export const tip = text => {
+	const s = String(text ?? '').replace(TIP_STRIP, '').trim()
+	return s ? TIP_LEAD + s : ''
+}

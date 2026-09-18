@@ -392,6 +392,31 @@ console.log('12. the key columns explain themselves (KEYCOLS1)')
   await page.close()
 }
 
+console.log('13. every tooltip leads with ℹ️ (KPOOL-TIPLEAD1)')
+{
+  // A large mouse pointer covers the first characters of a native title tooltip, so every
+  // title in the widget leads with ℹ️ + a zero-width space + spaces: the pointer covers
+  // the disposable part instead of the first word. Asserted across EVERY element carrying a
+  // title, because the failure mode is a new tooltip added later without the lead — and one
+  // bare tooltip is exactly the one someone cannot read.
+  const page = await open(fixture({ precheck: verdict([]) }), { senderKey: KEY_2OF3 })
+  await (await page.$(`.txcard-head[data-acct="${SENDER}"]`)).click()
+  await page.waitForTimeout(900)
+  const tips = await page.evaluate(() =>
+    [...document.querySelectorAll('[title]')]
+      .map(el => ({
+        title: el.getAttribute('title'),
+        where: el.tagName.toLowerCase() + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).join('.') : '')
+      }))
+      .filter(t => t.title && t.title.trim()))
+  const bare = tips.filter(t => !t.title.startsWith('\u2139\uFE0F'))
+  ok(tips.length > 0, 'the modal carries tooltips at all', tips.length)
+  ok(bare.length === 0, 'every tooltip leads with the ℹ️ mark',
+    bare.slice(0, 4).map(b => `${b.where} => ${JSON.stringify(b.title.slice(0, 40))}`).join('  |  '))
+  ok(tips.every(t => !/^\u2139\uFE0F\u200B?\s*$/.test(t.title)), 'no tooltip is the lead and nothing else', 'a title had no text after the mark')
+  await page.close()
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — every "not enough" reaches the card'))
 process.exit(failed ? 1 : 0)

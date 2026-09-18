@@ -27,7 +27,8 @@
 //   loop surface the new signer — same contract the WalletConnect signer uses.
 //   Override `submitSigUrl` if/when a same-origin `?action=txAddSignature` exists.
 
-import { kdiag } from './diag.js?v=20260628c'  // shared version tag — keep in sync with signer-walletconnect.js so both share one diag instance
+import { kdiag } from './diag.js?v=20260628c'
+import { tip } from './utils.js'  // KPOOL-TIPLEAD1  // shared version tag — keep in sync with signer-walletconnect.js so both share one diag instance
 import { decodeTransaction, appendSignature, bytesToHex } from './protobuf.js'
 
 
@@ -159,7 +160,12 @@ export function qrLayout() {
 
 function buildQR(el, text, sizePx) {
 	el.innerHTML = ''
-	return new _QRCode(el, {
+	// KPOOL-TIPLEAD1: the vendored davidshimjs QRCode writes the raw payload into the
+	// container's title attribute itself. Keep it — it is genuinely useful when a scan fails
+	// and you want to see what was encoded — but give it the same ℹ️ lead as every other
+	// tooltip, so a big pointer does not sit on the first characters. tip() is idempotent, so
+	// a re-render cannot stack two leads.
+	const qrObj = new _QRCode(el, {
 		text,
 		width: sizePx,
 		height: sizePx,
@@ -167,6 +173,8 @@ function buildQR(el, text, sizePx) {
 		colorLight: '#ffffff',
 		correctLevel: _QRCode.CorrectLevel.L
 	})
+	if (el.title) el.title = tip(el.title)
+	return qrObj
 }
 
 function moduleCountOf(qrObj) {

@@ -3,7 +3,8 @@ import {
 		parseTxId,
 		formatUtcTime,
 		formatCountdown,
-		isHederaSystemAccount
+		isHederaSystemAccount,
+		tip
 	} from './utils.js'
 import { normalizePublicKey, normalizeKeyTree } from './keynorm.js'
 import { getThresholdSummary } from './threshold.js'
@@ -297,7 +298,7 @@ const SIGN_REASON = {
 			const amt = Math.abs(Number(item.amountFormatted ?? item.amount ?? 0))
 			txt.textContent = `${_fmtAmt(amt)} ${sym}`
 		}
-		txt.title = txt.textContent   // full label on hover (chip is ellipsis-clipped)
+		txt.title = tip(txt.textContent) // full label on hover (chip is ellipsis-clipped)
 
 		chip.append(iconEl, txt)
 		return chip
@@ -338,7 +339,7 @@ const SIGN_REASON = {
 			const payer = document.createElement('span')
 			payer.className = 'txcard-payer'
 			payer.textContent = '⬡'   // neutral shape (per user — nothing payment-branded)
-			payer.title = 'Fee payer — this account pays the Hedera network fee for this transaction'
+			payer.title = tip('Fee payer — this account pays the Hedera network fee for this transaction')
 			head.appendChild(payer)
 		}
 
@@ -611,7 +612,7 @@ const SIGN_REASON = {
 			go.href = `https://hashscan.io/${network}/transaction/${txid}`
 			go.target = '_blank'
 			go.rel = 'noopener'
-			go.title = 'View on HashScan'
+			go.title = tip('View on HashScan')
 			go.textContent = '↗'
 			ids.append(go)
 		}
@@ -646,14 +647,14 @@ const SIGN_REASON = {
 			const due = document.createElement('div')
 			due.className = 'txread-scope-due'
 			due.textContent = `settled ${stamp(consensusSec)}`
-			due.title = 'Consensus timestamp — when the Hedera network agreed this transaction'
+			due.title = tip('Consensus timestamp — when the Hedera network agreed this transaction')
 			scope.appendChild(due)
 		} else if (strikeInfo?.seconds) {
 			const validSecs = Number(data.validDurationSeconds) || null
 			const due = document.createElement('div')
 			due.className = 'txread-scope-due'
 			due.textContent = `due ${stamp(strikeInfo.seconds)}${validSecs ? ` · valid ${formatValidFor(validSecs)}` : ''}`
-			due.title = 'Transaction valid-start (strike time) and valid duration'
+			due.title = tip('Transaction valid-start (strike time) and valid duration')
 			scope.appendChild(due)
 		}
 		intent.appendChild(scope)
@@ -945,10 +946,9 @@ const SIGN_REASON = {
       let assetIcon=''
       let assetTooltip=''
 
-      const pad='\u200B\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0'
-      if(asset.assetClass=='FT') assetIcon='🪙',assetTooltip=pad+'Fungible Token'
-      if(asset.assetClass=='LE') assetIcon='🖼️',assetTooltip=pad+'Limited Edition'
-      if(asset.assetClass=='NFT') assetIcon='💎',assetTooltip=pad+'NFT'
+      if(asset.assetClass=='FT') assetIcon='🪙',assetTooltip=tip('Fungible Token')
+      if(asset.assetClass=='LE') assetIcon='🖼️',assetTooltip=tip('Limited Edition')
+      if(asset.assetClass=='NFT') assetIcon='💎',assetTooltip=tip('NFT')
 
       assetLabel=`<span class='cursor-default' title='${assetTooltip}'>${assetIcon}</span> ${asset.assetClass=='NFT'?pickAssetLabel(asset):assetLabel} ${assetLink}`
    
@@ -1081,6 +1081,24 @@ function signedAtTitle(pubkey) {
 	return base + ` — ${elapsed - SIG_WINDOW_SEC}s AFTER it expired (valid ${SIG_WINDOW_SEC}s), so this signature can never be submitted`
 }
 
+// KPOOL-SIGTIME1 R2 (owner, 2026-09-18): how far PAST the validity window a signature
+// landed, in seconds, or null when it was in time — or when we cannot know, which is not
+// the same thing and must never render as "late". Requires all three of: a recorded `at`,
+// the txid start time, and the decoded window. Any missing → null.
+//
+// Late is not an error here. The owner's position (2026-09-18) is that a late signature is
+// allowed: the signer simply becomes a witness, and the pool is right not to refuse it.
+// What was missing was that nobody could SEE it — the transaction goes fully green and then
+// never submits, because the submit path refuses anything past the window. So this is
+// reporting, not enforcement, and the wording says "can never be submitted" (a fact about
+// the transaction) rather than anything about the signer having done wrong.
+function signedLateBySec(pubkey) {
+	const at = SIG_AT.get(normalizePublicKey(pubkey))
+	if (!at || !Number.isFinite(SIG_START_SEC) || SIG_WINDOW_SEC == null) return null
+	const late = Math.round(at / 1000 - SIG_START_SEC) - SIG_WINDOW_SEC
+	return late > 0 ? late : null
+}
+
 export function renderSigningInfo({ data, accounts }) {
 	// derive signed keys ONCE
 	rememberSignatureTimes(data)   // KPOOL-SIGTIME1: before anything renders a ✍️ cell
@@ -1176,11 +1194,11 @@ export function updateCardSigning(accounts, signedPubkeys = [], network) {
 		// evident from the send column, and the operator (⚙️) is now shown by its HBAR
 		// fee chip — so those glyphs are dropped from the header (per user).
 		const glyphs = (acc.mustSignReason || []).includes('receiver_sig_required') ? SIGN_REASON.receiver_sig_required.emoji : ''
-		if (st.state === 'loading') { sign.textContent = `${glyphs} …`.trim(); sign.title = 'Loading signing keys…' }
+		if (st.state === 'loading') { sign.textContent = `${glyphs} …`.trim(); sign.title = tip('Loading signing keys…') }
 		// keep the ratio always; add a PLAIN tick (not the ✅ box — it read as a clickable
 		// control) once the threshold is met. The green border already signals "go".
-		else if (st.state === 'ready') { sign.textContent = `${glyphs} ✍️ ${st.signed}/${st.need} ✓`.trim(); sign.title = 'Threshold satisfied' }
-		else { sign.textContent = `${glyphs} ✍️ ${st.signed}/${st.need}`.trim(); sign.title = `${st.signed} of ${st.need} required signatures` }
+		else if (st.state === 'ready') { sign.textContent = `${glyphs} ✍️ ${st.signed}/${st.need} ✓`.trim(); sign.title = tip('Threshold satisfied') }
+		else { sign.textContent = `${glyphs} ✍️ ${st.signed}/${st.need}`.trim(); sign.title = tip(`${st.signed} of ${st.need} required signatures`) }
 	})
 }
 
@@ -1200,7 +1218,7 @@ function ensureOperatorFeeChip(card, isOperator) {
 	chip.className = 'txcard-chip txcard-chip--fee'
 	chip.dataset.side = 'send'
 	chip.dataset.assetKey = 'tinybar'
-	chip.title = 'Network fee — paid by the operator (estimated)'
+	chip.title = tip('Network fee — paid by the operator (estimated)')
 	chip.innerHTML = `<span class="txcard-chip-icon">ℏ</span><span class="txcard-chip-text">HBAR fee</span>`
 	sendCol.appendChild(chip)
 }
@@ -1402,7 +1420,7 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 					a.className = 'txcard-issue-link'
 					a.href = i.link.href; a.target = '_blank'; a.rel = 'noopener'
 					a.textContent = i.link.text
-					if (i.link.title) a.title = i.link.title
+					if (i.link.title) a.title = tip(i.link.title)
 					li.appendChild(a)
 					if (i.after) li.appendChild(document.createTextNode(i.after))
 				}
@@ -1430,13 +1448,13 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 		// tooltips carry the old Status-tab explainer (STATUS-TAB-RETIRE1): Banzhaf =
 		// voting power, redundancy = how replaceable a key is.
 		const COLS = [
-			['✍️',     'Signed yet? ☑ = this key has signed'],
+			['✍️',     'Signed yet? ☑ = this key has signed. ☑⏱ = it signed, but after the transaction expired — that signature counts as a witness and the transaction can no longer be submitted'],
 			['🔑',     'Key — the last 4 characters of the public key'],
 			['⚖️',     "Banzhaf — this key's voting power: its share of all the ways the signing threshold can be met"],
 			['Redund', 'Redundancy — how replaceable the key is: how often the threshold could still be met without it'],
 			['Ctrl',   'Control — full-exclusive: this key alone can decide; shared: control is split across keys']
 		]
-		COLS.forEach(([t, tip]) => { const c = document.createElement('div'); c.textContent = t; c.title = tip; head.appendChild(c) })
+		COLS.forEach(([t, tipText]) => { const c = document.createElement('div'); c.textContent = t; c.title = tip(tipText); head.appendChild(c) })
 		grid.appendChild(head)
 
 		// KEYCOLS1 (operator, 2026-09-17): those title tooltips are desktop-only — a touch
@@ -1450,10 +1468,10 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 		// than an explanation of five column headings is worth.
 		const explain = document.createElement('div')
 		explain.className = 'txcard-keys-explain'
-		COLS.forEach(([t, tip]) => {
+		COLS.forEach(([t, tipText]) => {
 			const r = document.createElement('div')
 			const k = document.createElement('b'); k.textContent = t
-			const v = document.createElement('span'); v.textContent = tip
+			const v = document.createElement('span'); v.textContent = tipText
 			r.append(k, v); explain.appendChild(r)
 		})
 		grid.appendChild(explain)
@@ -1461,7 +1479,7 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 		head.setAttribute('role', 'button')
 		head.setAttribute('aria-expanded', 'false')
 		head.tabIndex = 0
-		head.title = 'What these columns mean'
+		head.title = tip('What these columns mean')
 		const toggleExplain = e => {
 			e.stopPropagation()   // never let it reach the card header's collapse toggle
 			const on = grid.classList.toggle('txcard-keys--explain')
@@ -1471,6 +1489,9 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 		head.addEventListener('keydown', e => {
 			if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExplain(e) }
 		})
+		// KPOOL-SIGTIME1 R2: gathered across the rows so the note below the table can state the
+		// consequence once, rather than each row hinting at it.
+		const lateSigs = []
 		Object.entries(scores).forEach(([pubkey, score]) => {
 			const signed = signedPubkeys.includes(normalizePublicKey(pubkey))
 			const red = redundancy?.[pubkey] != null ? Math.round(redundancy[pubkey] * 100) + '%' : '-'
@@ -1479,16 +1500,30 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 			row.className = 'txcard-keys-row'
 			row.dataset.leaf = normalizePublicKey(pubkey)   // KPIE-ORBIT1: the pie's wedge carries the same hex — hover lights both
 			const tick = document.createElement('div'); tick.textContent = acc.mustSign ? (signed ? '☑' : '☐') : '–'   // plain ballot box (not the control-like ✅/⬜)
+			// KPOOL-SIGTIME1 R2: a late signature gets a stopwatch beside its tick and the row is
+			// tinted. Deliberately NOT red-on-the-tick: red here would read as "this key failed",
+			// and the key did nothing wrong. The amber is the same family as .txcard-detail-note
+			// (#fff7ed/#fed7aa) which already means "read this" on these cards, and it cannot be
+			// confused with the KPIE-ORBIT1 hover yellow (#fff6b0) because that one is transient.
+			const lateBy = signed ? signedLateBySec(pubkey) : null
+			if (lateBy != null) {
+				row.classList.add('txcard-keys-row--late')
+				const mark = document.createElement('span')
+				mark.className = 'txcard-keys-latemark'
+				mark.textContent = '⏱'
+				tick.appendChild(mark)
+				lateSigs.push(lateBy)
+			}
 			// KPOOL-SIGTIME1: "signed yet" becomes "signed yet, and how late". Only on a key that
 			// HAS signed — there is nothing to say about the time of a signature that never came.
-			if (signed) tick.title = signedAtTitle(pubkey)
+			if (signed) tick.title = tip(signedAtTitle(pubkey))
 			// key suffix links to the account's keys (hashscan account page for now — a
 			// per-key lookup could later point at explore.hbar.live?network=&key=). Clicking
 			// it won't collapse the card: the header toggle ignores <a> targets.
 			const keyCell = document.createElement('div')
 			const keyLink = document.createElement('a')
 			keyLink.textContent = '…' + pubkey.slice(-4)
-			keyLink.title = pubkey
+			keyLink.title = tip(pubkey)
 			keyLink.href = (network && accountId) ? `https://hashscan.io/${network}/account/${accountId}` : '#'
 			keyLink.target = '_blank'; keyLink.rel = 'noopener'
 			keyCell.appendChild(keyLink)
@@ -1498,6 +1533,19 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 			row.append(tick, keyCell, banz, redC, ctrl)
 			grid.appendChild(row)
 		})
+		// KPOOL-SIGTIME1 R2: say the consequence ON THE PAGE, not only in a tooltip. KEYCOLS1
+		// and SIGNER-COVER1 both learned this the same way: a hover is invisible on a phone and
+		// invisible to anyone who does not already suspect there is something to hover over.
+		// One line for the whole table, in the same voice as "no signer covers this deal".
+		if (lateSigs.length) {
+			const worst = Math.max(...lateSigs)
+			const note = document.createElement('div')
+			note.className = 'txcard-keys-latenote'
+			note.textContent = lateSigs.length === 1
+				? `⏱ One signature arrived ${worst}s after this transaction expired. It still counts as a witness, but the transaction can no longer be submitted.`
+				: `⏱ ${lateSigs.length} signatures arrived after this transaction expired (the latest by ${worst}s). They still count as witnesses, but the transaction can no longer be submitted.`
+			grid.appendChild(note)
+		}
 		// reference-only account (no signature needed): soften the key table like the
 		// neutral pie — one opacity layer, content untouched (user 2026-07-07).
 		if (!acc.mustSign) grid.classList.add('txcard-detail--refonly')
@@ -1548,7 +1596,7 @@ export function markConnectedAccounts(ids = []) {
 			u = document.createElement('span')
 			u.className = 'txcard-you'
 			u.textContent = '(you)'
-			u.title = 'One of your connected accounts'
+			u.title = tip('One of your connected accounts')
 			head.querySelector('.txcard-acct').after(u)
 		} else if (!on && u) u.remove()
 	})
@@ -1585,7 +1633,7 @@ export function renderWitnessList(readiness) {
 		const chip = document.createElement('span')
 		chip.className = 'txwitness-chip'
 		chip.textContent = '…' + String(k).slice(-4)
-		chip.title = k
+		chip.title = tip(k)
 		list.appendChild(chip)
 	})
 	el.append(lbl, list)
@@ -1629,7 +1677,7 @@ export function renderReadinessInfo({readiness}) {
 		const tooltip = readiness.witnessKeys.map(k => '.    ...' + k.slice(-4)).join('\n')
 		const span = document.createElement('span')
 		span.style.cursor = 'default'
-		span.title = tooltip
+		span.title = tip(tooltip)
 		span.textContent = ` • 👀 ${readiness.witnessKeys.length} witness`
 		el.appendChild(span)
 	}
@@ -1675,7 +1723,7 @@ export function renderPrecheckInfo({ precheck }) {
 	if (warns.length) {
 		const w = document.createElement('span')
 		w.style.cursor = 'default'
-		w.title = warns.join('\n')
+		w.title = tip(warns.join('\n'))
 		w.textContent = ` • ⚠️ ${warns.length}`
 		el.appendChild(w)
 	}
@@ -1891,7 +1939,7 @@ export function renderAccountKeyInfo(accounts, signedPubkeys = [], network)	{
     }
 
     const reasons=(acc.mustSignReason||[])
-      .map(r=>reasonMap[r]?`<span class='cursor-default signing-reason' title='${reasonMap[r].tip}'>${reasonMap[r].emoji}</span>`:'')
+      .map(r=>reasonMap[r]?`<span class='cursor-default signing-reason' title='${tip(reasonMap[r].tip)}'>${reasonMap[r].emoji}</span>`:'')
       .join(' ')
 
     const domain=acc.label?.domain
@@ -2590,6 +2638,15 @@ export function injectTxReadCSS() {
 		.txcard-keys-row a:hover { text-decoration:underline; }
 		/* KPIE-ORBIT1: a hovered key (or every key of a hovered branch) — the same yellow as the wedge outline */
 		.txcard-keys-row.kpie-hi { background:#fff6b0; border-radius:3px; box-shadow:0 0 0 3px #fff6b0; }
+		/* KPOOL-SIGTIME1 R2: a signature that arrived after the window closed. Amber, not red:
+		   the key did nothing wrong — late signing is allowed and the signer becomes a witness —
+		   so this is "note this", which is what #fff7ed/#fed7aa already means on these cards
+		   (.txcard-detail-note). The transient KPIE-ORBIT1 hover yellow sits on top of it and
+		   still wins while hovered, which is correct: that one is a pointer, this one is state. */
+		.txcard-keys-row--late { background:#fff7ed; border-radius:3px; box-shadow:0 0 0 3px #fff7ed; }
+		.txcard-keys-latemark { margin-left:1px; font-size:10px; }
+		.txcard-keys-latenote { margin-top:6px; font-size:12px; line-height:1.45; color:#7c2d12; background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:6px 8px; }
+		@media (max-width:600px){ .txcard-keys-latenote { font-size:13px; } }
 		.txcard-xproof { margin-top:8px; font-size:12px; color:#71717a; }
 		.txcard-xproof a { color:#3b82f6; }
 		.txcard-detail-note { font-size:12px; color:#3f3f46; background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:6px 8px; margin-bottom:8px; }

@@ -36,7 +36,8 @@ const {
 	parseTxId,
 	formatUtcTime,
 	formatCountdown,
-	loadScript
+	loadScript,
+	tip
 } = await import(`./utils.js?v=${V}`)
 
 const { getHederaMirrorData } = await import(`./hedera-mirror.js?v=${V}`)
@@ -433,10 +434,10 @@ function buildKsigPane(txState) {
 	reqBox.checked = true
 	reqRow.appendChild(reqBox)
 	reqRow.appendChild(document.createTextNode(' Include requested keys in the QR'))
-	reqRow.title = 'Adds the last 6 characters of each public key that can sign this transaction, so KSIG '
+	reqRow.title = tip('Adds the last 6 characters of each public key that can sign this transaction, so KSIG '
 		+ 'can shortlist the matching keys it holds instead of you finding them by hand. A hint only — not '
 		+ 'part of what gets signed; a wrong or missing hint cannot change the transaction. Untick for a '
-		+ 'transaction with many keys if the QR becomes too dense to scan.'
+		+ 'transaction with many keys if the QR becomes too dense to scan.')
 	pane.appendChild(reqRow)
 	if (!document.getElementById('kpsign-req-css')) {
 		const css = document.createElement('style')
@@ -544,7 +545,7 @@ function setNerd(on) {
 function buildOpenInNewTab(txState) {
 	const a = document.createElement('a')
 	a.className = 'kpm-open-tab'
-	a.title = 'Open this signing view in a new tab (standalone)'
+	a.title = tip('Open this signing view in a new tab (standalone)')
 	a.target = '_blank'
 	a.rel = 'noopener'
 	const pchPart = (txState.pch && txState.pch !== 'no_pch') ? '&pch=' + encodeURIComponent(txState.pch) : ''
@@ -559,7 +560,7 @@ function buildNerdToggle(txState) {
 	const btn = document.createElement('button')
 	btn.type = 'button'
 	btn.className = 'txread-nerd-toggle'
-	btn.title = 'Nerd view — show the line-item table instead of the account cards (dev)'
+	btn.title = tip('Nerd view — show the line-item table instead of the account cards (dev)')
 	let on = resolveTxView() === 'table'
 	const paint = () => { btn.textContent = on ? '🤓' : '🙂' }
 	paint()

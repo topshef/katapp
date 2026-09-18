@@ -24,6 +24,7 @@
 
 import { kdiag } from './diag.js?v=20260628c'  // shared version tag — keep in sync with ksig.js so both share one diag instance
 import { decodeTransaction } from './protobuf.js'  // SIGN-DEADTX1: read the tx's own validity window
+import { tip } from './utils.js'  // KPOOL-TIPLEAD1: every tooltip leads with ℹ️ + space
 
 const glog = globalThis.glog ?? (() => {})
 
@@ -346,7 +347,7 @@ export function renderWalletConnectSigner(container, {
 			// <select> works well on mobile. Switching sets the active signer.
 			acct = document.createElement('select')
 			acct.className = 'kpsign-acct kpsign-select'
-			acct.title = 'Signing account'
+			acct.title = tip('Signing account')
 			accounts.forEach(id => {
 				const opt = document.createElement('option')
 				opt.value = id
@@ -399,7 +400,7 @@ export function renderWalletConnectSigner(container, {
 		const disc = document.createElement('button')
 		disc.className = 'kpsign-btn kpsign-ghost'
 		disc.textContent = '✕'
-		disc.title = 'Disconnect this account'
+		disc.title = tip('Disconnect this account')
 		disc.onclick = async () => {
 			const selected = (hasMulti && acct.value && acct.value !== ADD_NEW) ? acct.value : account
 			kdiag('signer:disconnect:click', { account: selected })
