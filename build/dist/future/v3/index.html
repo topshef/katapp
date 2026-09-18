@@ -777,7 +777,10 @@
                 sigs: r.sigs || [],
                 verdicts: r.verdicts || [],
                 dealId: (r.source && r.source.dealId) || null,
-                title: (r.deal && r.deal.display && r.deal.display.title) || null,
+                // A v1 template carries its human name at display.title; a v2 policy carries
+                // it at the top level as `name`. Reading only the v1 place made every deal
+                // raised as a v2 policy — every option C ticket — render as "not a deal".
+                title: (r.deal && ((r.deal.display && r.deal.display.title) || r.deal.name)) || null,
                 state: r.comboStatus || null
               };
             })
