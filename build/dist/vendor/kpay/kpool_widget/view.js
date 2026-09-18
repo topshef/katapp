@@ -1500,11 +1500,10 @@ function buildAccountDetail(acc, signedPubkeys = [], network, accountId, card) {
 			row.className = 'txcard-keys-row'
 			row.dataset.leaf = normalizePublicKey(pubkey)   // KPIE-ORBIT1: the pie's wedge carries the same hex — hover lights both
 			const tick = document.createElement('div'); tick.textContent = acc.mustSign ? (signed ? '☑' : '☐') : '–'   // plain ballot box (not the control-like ✅/⬜)
-			// KPOOL-SIGTIME1 R2: a late signature gets a stopwatch beside its tick and the row is
-			// tinted. Deliberately NOT red-on-the-tick: red here would read as "this key failed",
-			// and the key did nothing wrong. The amber is the same family as .txcard-detail-note
-			// (#fff7ed/#fed7aa) which already means "read this" on these cards, and it cannot be
-			// confused with the KPIE-ORBIT1 hover yellow (#fff6b0) because that one is transient.
+			// KPOOL-SIGTIME1 R2/R3: a late signature gets a stopwatch beside its tick and a subtle
+			// purple tint on the row. Not red — the key did nothing wrong, late signing is allowed
+			// and the signer becomes a witness. Not amber either: see the CSS, expiry is outside
+			// the green/amber/red signing-progress language rather than a stage within it.
 			const lateBy = signed ? signedLateBySec(pubkey) : null
 			if (lateBy != null) {
 				row.classList.add('txcard-keys-row--late')
@@ -2638,14 +2637,20 @@ export function injectTxReadCSS() {
 		.txcard-keys-row a:hover { text-decoration:underline; }
 		/* KPIE-ORBIT1: a hovered key (or every key of a hovered branch) — the same yellow as the wedge outline */
 		.txcard-keys-row.kpie-hi { background:#fff6b0; border-radius:3px; box-shadow:0 0 0 3px #fff6b0; }
-		/* KPOOL-SIGTIME1 R2: a signature that arrived after the window closed. Amber, not red:
-		   the key did nothing wrong — late signing is allowed and the signer becomes a witness —
-		   so this is "note this", which is what #fff7ed/#fed7aa already means on these cards
-		   (.txcard-detail-note). The transient KPIE-ORBIT1 hover yellow sits on top of it and
-		   still wins while hovered, which is correct: that one is a pointer, this one is state. */
-		.txcard-keys-row--late { background:#fff7ed; border-radius:3px; box-shadow:0 0 0 3px #fff7ed; }
-		.txcard-keys-latemark { margin-left:1px; font-size:10px; }
-		.txcard-keys-latenote { margin-top:6px; font-size:12px; line-height:1.45; color:#7c2d12; background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:6px 8px; }
+		/* KPOOL-SIGTIME1 R3 (owner, 2026-09-18): PURPLE, and deliberately none of the traffic
+		   lights. Green/amber/red on these cards are the SIGNING PROGRESS language — they say
+		   how far a transaction has got on its way to being submitted. An expired transaction
+		   has left that lifecycle: it is not a worse shade of in-progress, it is a different
+		   kind of fact, and an amber tint here read as "in progress, with a warning" when the
+		   truth is "this is over". R2 used amber (#fff7ed/#fed7aa) and that was the mistake —
+		   it is also literally .txcard-detail-note's colour, so the two were indistinguishable.
+		   Purple sits outside the status set entirely, so it cannot be read as a stage.
+		   Kept subtle on purpose: the ⏱ and the tooltip already carry the message, so the tint
+		   is a whisper, not a highlight. The transient KPIE-ORBIT1 hover yellow still wins while
+		   hovered, which is correct — that one is a pointer, this one is state. */
+		.txcard-keys-row--late { background:#faf5ff; border-radius:3px; box-shadow:0 0 0 3px #faf5ff; }
+		.txcard-keys-latemark { margin-left:1px; font-size:10px; color:#6b21a8; }
+		.txcard-keys-latenote { margin-top:6px; font-size:12px; line-height:1.45; color:#581c87; background:#faf5ff; border:1px solid #e9d5ff; border-radius:6px; padding:6px 8px; }
 		@media (max-width:600px){ .txcard-keys-latenote { font-size:13px; } }
 		.txcard-xproof { margin-top:8px; font-size:12px; color:#71717a; }
 		.txcard-xproof a { color:#3b82f6; }
