@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-	<link rel="stylesheet" href="katomia.css?v=1789663292" />
-<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1789663292">	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+	<link rel="stylesheet" href="katomia.css?v=1789690913" />
+<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1789690913">	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <title>katomia</title>
 
 </head>
@@ -506,9 +506,9 @@ addEventListener("load", () => setTimeout(() => {
      kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
      script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
      the notes' popovers), so a page that already loads it is unaffected. -->
-<script src="kfeedbits.js?v=1789663292" defer></script>
-<script src="kchanges-log.js?v=1789663292" defer></script>
-<script src="kchanges.js?v=1789663292" defer></script>
+<script src="kfeedbits.js?v=1789690913" defer></script>
+<script src="kchanges-log.js?v=1789690913" defer></script>
+<script src="kchanges.js?v=1789690913" defer></script>
 <!-- /KBUNDLE-STRIP:kchanges -->
 <div id="profileModal" class="profile-modal hidden">
 
@@ -1192,10 +1192,10 @@ addEventListener("load", () => setTimeout(() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "b58aba5"
+  window.KFLOW_COMMIT = "2f662ca"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — loads first so every later script can call window.kflow -->
-<script src="kflow.js?v=1789663292"></script>
+<script src="kflow.js?v=1789690913"></script>
 
 <script src="/m/bid/localbase.min.js"></script> <!-- beware spelling of Localbase -->
 <script type="module" data-global src="/m/tools/glog/latest/glog.js" ></script>
@@ -1216,32 +1216,32 @@ addEventListener("load", () => setTimeout(() => {
 
 
 
-<script type="module" src="katomia-init.js?v=1789663292" data-glog="on"></script>
-<script src="katomia-core.js?v=1789663292"></script>
-<script src="katomia-localdb.js?v=1789663292"></script>
-<script src="kemoji.js?v=1789663292"></script>
-<script src="katomia-helpers.js?v=1789663292"></script>
-<script src="katomia-enrich.js?v=1789663292"></script>
-<script src="katomia-network.js?v=1789663292"></script>
-<script src="katomia-modals.js?v=1789663292"></script>
-<script src="katomia-render.js?v=1789663292"></script>
+<script type="module" src="katomia-init.js?v=1789690913" data-glog="on"></script>
+<script src="katomia-core.js?v=1789690913"></script>
+<script src="katomia-localdb.js?v=1789690913"></script>
+<script src="kemoji.js?v=1789690913"></script>
+<script src="katomia-helpers.js?v=1789690913"></script>
+<script src="katomia-enrich.js?v=1789690913"></script>
+<script src="katomia-network.js?v=1789690913"></script>
+<script src="katomia-modals.js?v=1789690913"></script>
+<script src="katomia-render.js?v=1789690913"></script>
 <!-- TXSTATUS-CONSOLIDATE1 S7: the tx/wallet status controller, so order-mode
      auto-sign reports through it (terminal dedup + settle window + a real
      user-visible surface) instead of kdiag-only. Must load BEFORE
      katomia-render-orders.js, which subscribes at module top level. -->
-<script src="katomia-txstatus.js?v=1789663292"></script>
-<script src="katomia-render-orders.js?v=1789663292"></script>
-<script src="katomia-market.js?v=1789663292"></script>
-<script src="katomia-tickets.js?v=1789663292"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
+<script src="katomia-txstatus.js?v=1789690913"></script>
+<script src="katomia-render-orders.js?v=1789690913"></script>
+<script src="katomia-market.js?v=1789690913"></script>
+<script src="katomia-tickets.js?v=1789690913"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
 
 <!-- QR: davidshimjs build already bundled with kpool_widget — same file the offline
      signing widget uses. CDN removed to keep all assets in-house.
      TODO(bundling): when kpool_widget is rolled into a proper JS bundle, fold
      qrcode.min.js in and remove this script tag entirely. -->
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
-<script src="katomia-profile.js?v=1789663292"></script>
-<script src="katomia-auth.js?v=1789663292"></script>
-<script src="katomia-addaccount.js?v=1789663292"></script>
+<script src="katomia-profile.js?v=1789690913"></script>
+<script src="katomia-auth.js?v=1789690913"></script>
+<script src="katomia-addaccount.js?v=1789690913"></script>
 
 <!-- KAT-FEEDBACK1 dogfooding: long-press anywhere on the game page (2s) opens
      a "Send Feedback" modal. Signs with the intent keypair above if present. -->
