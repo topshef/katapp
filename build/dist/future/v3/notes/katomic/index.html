@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Katomic v2 — writing a deal by hand — KEA notes</title>
+<meta name="description" content="A plain-text script that compiles to a v2 deal and prints back from one: the grammar, section by section, against klotto's live deals; a round-trip test; an editor mock-up; where it would live.">
+<meta name="robots" content="noindex,nofollow">
+<style>  :root{
+    --bg:#f4f5f7; --panel:#fff; --panel-2:#eceef1; --line:#d8dce1; --line-2:#e6e9ec;
+    --ink:#171a1f; --ink-2:#555f6b; --ink-3:#7c8794;
+    --ok:#1d6b45; --ok-bg:#e0efe7;
+    --warn:#8a5a12; --warn-bg:#f6e9d5;
+    --bad:#a02f27; --bad-bg:#f8e2df;
+    --acc:#1c5580; --acc-bg:#e4edf5;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0f1319; --panel:#171c23; --panel-2:#1e242d; --line:#2a323c; --line-2:#222a33;
+    --ink:#e3e8ee; --ink-2:#9fabb8; --ink-3:#77838f;
+    --ok:#5cbc8b; --ok-bg:#15281f;
+    --warn:#d2a154; --warn-bg:#2b2416;
+    --bad:#e0817a; --bad-bg:#2e1b19;
+    --acc:#74aede; --acc-bg:#16202b;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:820px;margin:0 auto;padding:0 16px 80px}
+  a{color:var(--acc)}
+  code{font-family:var(--mono);font-size:.86em;background:var(--panel-2);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+  p{margin:0 0 14px}
+  h1,h2,h3{line-height:1.25;letter-spacing:-.01em}
+  h1{font-size:28px;font-weight:700;margin:0 0 8px}
+  h2{font-size:20px;font-weight:650;margin:38px 0 10px;padding-top:18px;border-top:1px solid var(--line)}
+  h3{font-size:16px;font-weight:650;margin:22px 0 6px}
+  ul,ol{margin:0 0 14px;padding-left:22px}
+  li{margin-bottom:7px}
+  .lede{font-size:17px;color:var(--ink-2);margin-bottom:18px}
+
+  header{padding:22px 0 4px}
+  .crumb{display:flex;flex-wrap:wrap;gap:8px;font:12px var(--mono);margin-bottom:14px}
+  .crumb a{text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:3px 10px;color:var(--ink-3)}
+  .crumb a:hover{color:var(--acc);border-color:var(--acc)}
+  .crumb .here{border:1px solid var(--acc);background:var(--acc);color:var(--bg);border-radius:99px;padding:3px 10px}
+
+  .box{border:1px solid var(--line);border-left-width:3px;border-radius:8px;background:var(--panel);padding:14px 16px;margin:18px 0}
+  .box b.hd{display:block;font-size:14px;margin-bottom:5px}
+  .box p:last-child{margin-bottom:0}
+  .box.key{border-left-color:var(--acc)} .box.key b.hd{color:var(--acc)}
+  .box.warn{border-left-color:var(--warn)} .box.warn b.hd{color:var(--warn)}
+  .box.wip{border-left-color:var(--ink-3);background:var(--panel-2)} .box.wip b.hd{color:var(--ink-3)}
+
+  figure{margin:22px 0}
+  .fig{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:14px 10px;overflow-x:auto}
+  .fig svg{display:block;width:100%;height:auto;max-width:100%}
+  figcaption{font-size:14px;color:var(--ink-3);margin-top:9px;line-height:1.5}
+
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--panel);margin:18px 0}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:14.5px}
+  th{text-align:left;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);
+     font-weight:600;padding:9px 12px;background:var(--panel-2);border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:9px 12px;border-bottom:1px solid var(--line-2);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.g{font-family:var(--mono);font-size:12.5px;white-space:nowrap;color:var(--acc);font-weight:600}
+  td.r{font-size:13.5px;color:var(--ink-2)}
+
+  pre{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:13px 15px;
+      overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;margin:14px 0}
+  pre code{background:none;padding:0;font-size:inherit}
+
+  footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--line);font-size:13.5px;color:var(--ink-3)}
+  @media (max-width:600px){
+    body{font-size:15.5px}
+    .wrap{padding:0 12px 60px}
+    h1{font-size:24px} h2{font-size:18px}
+    .fig{padding:10px 6px}
+  }
+
+  /* NOTES-CHROME1: the note bodies were written as standalone pages; these rules re-express
+     their classes in the site's tokens so nothing here declares a colour of its own. */
+  .standfirst{font-size:17px;color:var(--ink-2);margin:0 0 6px;text-wrap:balance}
+  .meta{font:11px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:0 0 26px}
+  h2 .n{font:11px var(--mono);color:var(--acc);margin-right:9px}
+  .lede{border-left:3px solid var(--acc);background:var(--acc-bg);padding:13px 16px;border-radius:0 8px 8px 0;margin:18px 0}
+  .lede p:first-child{margin-top:0} .lede p:last-child{margin-bottom:0}
+  .opt,.case,.act{border:1px solid var(--line);border-radius:8px;background:var(--panel);padding:16px 18px;margin:18px 0}
+  .opt.pick{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-bg)}
+  .opt h3,.case h3,.act h3{margin-top:0;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .act.done{border-left:4px solid var(--ok)} .act.todo{border-left:4px solid var(--warn)} .act.no{border-left:4px solid var(--bad)}
+  .tag,.st{font:10px var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:3px;font-weight:600}
+  .tag.pick,.st.done{background:var(--acc);color:var(--bg)}
+  .tag.later,.st.todo{background:var(--warn-bg);color:var(--warn)}
+  .tag.no,.st.no{background:var(--bad-bg);color:var(--bad)}
+  .tag.now{background:var(--panel-2);color:var(--ink-2);border:1px solid var(--line)}
+  .case h3 .t{font:11px var(--mono);color:var(--ink-3);white-space:nowrap}
+  .grid{display:grid;gap:12px;margin:16px 0}
+  @media (min-width:640px){.grid.two{grid-template-columns:1fr 1fr}}
+  .kv{background:var(--panel-2);border-radius:8px;padding:12px 14px}
+  .kv .k{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);display:block;margin-bottom:4px}
+  .kv .v{font:12px var(--mono);color:var(--ink)}
+  .tblwrap{overflow-x:auto;margin:16px 0;border:1px solid var(--line);border-radius:8px}
+  .tblwrap table{margin:0;border:0}
+  .flag{display:flex;gap:11px;padding:13px 15px;border-radius:8px;margin:16px 0}
+  .flag .b{font-weight:600;font-size:11px;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;padding-top:2px}
+  .flag.open{background:var(--warn-bg)} .flag.open .b{color:var(--warn)}
+  .flag.stop{background:var(--bad-bg)} .flag.stop .b{color:var(--bad)}
+  .flag.good{background:var(--ok-bg)} .flag.good .b{color:var(--ok)}
+  .flag .body{flex:1;color:var(--ink)}
+  .flag .body p:first-child{margin-top:0} .flag .body p:last-child{margin-bottom:0}
+  .seq{list-style:none;padding:0;counter-reset:s}
+  .seq li{counter-increment:s;display:flex;gap:14px;padding:11px 0;border-top:1px solid var(--line)}
+  .seq li::before{content:counter(s);font:11px var(--mono);color:var(--acc);font-weight:600;padding-top:4px;min-width:20px}
+  .seq li:first-child{border-top:0}
+  .seq .t{font-weight:600;display:block} .seq .d{color:var(--ink-2);font-size:14px}
+  .seq .cost{font:10px var(--mono);color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-left:8px}
+  .split{display:grid;gap:0;margin:14px 0 0;border-top:1px solid var(--line)}
+  @media (min-width:600px){.split{grid-template-columns:1fr 1fr;gap:0 22px}}
+  .split div{padding:10px 0;border-bottom:1px solid var(--line)}
+  .split .k{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);display:block;margin-bottom:3px}
+  .split .saw{color:var(--bad)} .split .was{color:var(--ok)}
+  .tiers{display:grid;gap:10px;margin:16px 0}
+  .tier{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;
+        border:1px solid var(--line);border-left-width:4px;border-radius:8px;padding:13px 15px;background:var(--panel)}
+  .tier.proven{border-left-color:var(--ok)} .tier.checkable{border-left-color:var(--warn)} .tier.claimed{border-left-color:var(--bad)}
+  .tier .lbl{font-size:11px;letter-spacing:.07em;text-transform:uppercase;font-weight:600;padding-top:2px;white-space:nowrap}
+  .tier.proven .lbl{color:var(--ok)} .tier.checkable .lbl{color:var(--warn)} .tier.claimed .lbl{color:var(--bad)}
+  .yes{color:var(--ok);font-weight:600} .no{color:var(--bad);font-weight:600} .part{color:var(--warn);font-weight:600}
+  .notelist{display:grid;gap:12px;margin:20px 0}
+  .notecard{display:block;border:1px solid var(--line);border-radius:8px;background:var(--panel);
+            padding:16px 18px;text-decoration:none;color:inherit}
+  .notecard:hover{border-color:var(--acc)}
+  .notecard b{display:block;font-size:16px;margin-bottom:4px;color:var(--acc)}
+  .notecard span{color:var(--ink-2);font-size:14px}
+  .notecard .when{font:10px var(--mono);color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;display:block;margin-top:7px}
+
+  /* the editor mock-up */
+  .fig.editor{padding:0;overflow:hidden}
+  .ed-bar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--panel-2);font:12px var(--mono)}
+  .ed-name{font-weight:600}
+  .ed-id{color:var(--ink-3)} .ed-id b{color:var(--ink);font-weight:600}
+  .ed-btns{margin-left:auto;display:flex;gap:6px}
+  .ed-btn{border:1px solid var(--line);border-radius:5px;padding:3px 9px;color:var(--ink-2);background:var(--panel)}
+  .ed-btn.pri{background:var(--acc);border-color:var(--acc);color:var(--bg)}
+  .ed-panes{display:grid;grid-template-columns:1fr}
+  @media (min-width:700px){.ed-panes{grid-template-columns:1.1fr 1fr}}
+  .ed-panes pre{margin:0;border:0;border-radius:0;background:var(--panel);font-size:12px;line-height:1.6;min-height:200px}
+  .ed-src{border-right:1px solid var(--line)!important}
+  .ed-src .ln{display:inline-block;width:2.2em;color:var(--ink-3);user-select:none;text-align:right;padding-right:.9em}
+  .ed-src .ln.err{color:var(--bad);font-weight:700}
+  .ed-src .cm{color:var(--ink-3);font-style:italic}
+  .ed-src .bad{text-decoration:underline wavy var(--bad);text-underline-offset:3px}
+  .ed-out{display:flex;flex-direction:column}
+  .ed-prob{padding:9px 12px;background:var(--bad-bg);color:var(--bad);font-size:13px;border-bottom:1px solid var(--line)}
+  .ed-prob code{background:rgba(0,0,0,.06)}
+  .ed-json{color:var(--ink-2);flex:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <nav class="crumb">
+    <a href="../../">&larr; Signers dashboard</a>
+    <a href="../../help/">How it works</a>
+    <a href="../">Notes</a>
+    <span class="here">Katomic v2</span>
+    <a href="/deal/">Look up a deal</a>
+  </nav>
+  <h1>Katomic v2 — writing a deal by hand</h1>
+  <p class="lede">A plain-text script that compiles to a v2 deal, and a v2 deal that prints back as the script. Looking ahead: this is a design pass, not a shipped tool.</p>
+  <p class="meta">Design note · 20 Sep 2026 · nothing here is built yet</p>
+</header>
+
+<div class="lede">
+<p><strong>The short version.</strong> A v2 deal is already a small program — six sections, two expression languages, no I/O — but it is written in JSON, and JSON is where people stop. Katomic v2 is the same program written the way the 2023 hackathon script wrote a swap: <code>Alice sends 1 hbar</code>. It adds <em>no</em> semantics. Every line is one node of the JSON, comments and layout are thrown away, and the dealId is still the hash of the compiled JSON — so a script can be reformatted, annotated and reordered without changing which deal it is. The acceptance test is a round trip: print every published deal as a script, compile it back, and every id must come out identical.</p>
+</div>
+
+<h2>What the 2023 script got right, and what changed underneath it</h2>
+<p>The hackathon language (<a href="https://github.com/topshef/katomia">topshef/katomia</a>) had three ideas worth keeping: <strong>sections</strong> introduced by <code>#name</code>, <strong>aliases</strong> declared with <code>is</code> (<code>Alice is 0.0.12345</code>), and transfers as <strong>subject–verb–amount</strong> lines (<code>Alice sends 1.2 my_token</code>, <code>Alice sends NFT my_collection #7 to Bob</code>). It compiled to the SDK's transfer lists and checked that fungible legs summed to zero.</p>
+<p>What it did not have — because the deal format did not have it — is everything that makes a v2 deal a <em>deal</em> rather than a transaction: typed inputs the raiser supplies, chain reads, derived values, and rules a signer refuses on. Those are now the bulk of any real deal (the klotto claim below is four reads, eight derivations and six rules around a two-leg transfer). So v2 keeps the three ideas and gives each of the six policy sections its own line grammar.</p>
+
+<div class="flag good"><span class="b">Rule</span><div class="body">The script is a <strong>projection</strong> of the JSON, not a new format. If something cannot be said in the JSON, it cannot be said in the script. Validation is the engine's own <code>validatePolicy</code>, run on the compiled output — the compiler has no opinions of its own.</div></div>
+
+<h2>The grammar, one section at a time</h2>
+<p>The running example is klotto's live testnet ticket deal, <a href="/deal/?id=0c516f051d7e8035d4f9cbf941ec5555e45a15072b29ede1158d211cc8ce0d38">0c516f…</a>. Left is the script; right is the JSON it compiles to — the exact bytes that hash to that id.</p>
+
+<h3><code>#deal</code> — the name and the network</h3>
+<div class="grid two">
+<pre><code>#deal
+name     KLOTTO ticket — COP$ (testnet CO)
+network  testnet</code></pre>
+<pre><code>{ "v": 2,
+  "name": "KLOTTO ticket — COP$ (testnet CO)",
+  "network": "testnet", …</code></pre>
+</div>
+<p><code>v</code> is never written; the compiler stamps 2. There is no envelope: a <code>.kat</code> file compiles to the bare deal, and the id is its filename.</p>
+
+<h3><code>#constants</code> — public ids and numbers, by name</h3>
+<div class="grid two">
+<pre><code>#constants
+POOL_ACCOUNT  is 0.0.7718
+POOL_TOKEN    is 0.0.2340687
+LOCK_TOKEN    is 0.0.3626892
+LOCK_SERIAL   is 31
+STAKE_MIN     is 50000     // smallest units: COP$ has 2 dp, so 500.00
+STAKE_MAX     is 1000000</code></pre>
+<pre><code>"constants": {
+  "POOL_ACCOUNT": "0.0.7718",
+  "POOL_TOKEN":   "0.0.2340687",
+  "LOCK_TOKEN":   "0.0.3626892",
+  "LOCK_SERIAL":  31,
+  "STAKE_MIN":    50000,
+  "STAKE_MAX":    1000000 }</code></pre>
+</div>
+<p><code>is</code> survives from 2023. An account id stays a string; a bare number is a number. Nothing is ever scaled: the engine works in smallest units and refuses a non-integer, so the script does too — the comment is where the human reading goes.</p>
+
+<h3><code>#inputs</code> — what the raiser supplies, typed</h3>
+<div class="grid two">
+<pre><code>#inputs
+player  account
+stake   integer
+ref     string</code></pre>
+<pre><code>"inputs": {
+  "player": { "type": "hedera.account" },
+  "stake":  { "type": "integer" },
+  "ref":    { "type": "string" } }</code></pre>
+</div>
+<p>Five types, spelt short: <code>account</code>, <code>txid</code>, <code>timestamp</code> (the three <code>hedera.*</code> types), <code>integer</code>, <code>string</code>. That is the whole type system, because that is the engine's whole type system.</p>
+
+<h3><code>#observe</code> — chain reads</h3>
+<div class="grid two">
+<pre><code>#observe
+lock_now = hedera.mirror /tokens/{LOCK_TOKEN}/nfts/{LOCK_SERIAL}
+           -> account_id</code></pre>
+<pre><code>"observe": {
+  "lock_now": {
+    "source": "hedera.mirror",
+    "get":    "/tokens/{LOCK_TOKEN}/nfts/{LOCK_SERIAL}",
+    "select": "account_id" } }</code></pre>
+</div>
+<p><code>NAME = SOURCE PATH -> SELECT</code>. The source is a registry <em>name</em> — never a URL, exactly as the engine insists — and <code>{NAME}</code> substitution inside the path is the engine's own. An indented continuation line carries the two optional keys the xproof oracle work added: <code>pin: &lt;jmespath&gt;</code> and <code>attest: &lt;jmespath&gt;</code>.</p>
+
+<h3><code>#derive</code> — worked-out values, in two languages</h3>
+<p>This is the one place the JSON has two expression languages side by side — a JMESPath <em>string</em> or a JSONLogic <em>object</em> — and the one place the script needs a marker to keep them apart. From the claim deal:</p>
+<div class="grid two">
+<pre><code>#derive
+ct_ticket  = query ticket.consensus_timestamp
+payer      = query ticket.token_transfers[?token_id=='{POOL_TOKEN}'
+                     &amp;&amp; amount &lt; `0`] | [0].account
+jackpot    = digitAfterPoint(ct_lastpayout, 4)
+payout     = ticket_price * PAYOUT_MULTIPLIER</code></pre>
+<pre><code>"derive": {
+  "ct_ticket": "ticket.consensus_timestamp",
+  "payer": "ticket.token_transfers[?token_id=='{POOL_TOKEN}'
+            &amp;&amp; amount &lt; `0`] | [0].account",
+  "jackpot": { "digitAfterPoint": [ { "var": "ct_lastpayout" }, 4 ] },
+  "payout":  { "*": [ { "var": "ticket_price" },
+                      { "var": "PAYOUT_MULTIPLIER" } ] } }</code></pre>
+</div>
+<p><strong><code>query</code> means "the rest of this line is a JMESPath, verbatim."</strong> Without it, the right-hand side is an ordinary infix expression that compiles to JSONLogic: names become <code>{"var"}</code>, the usual operators (<code>+ - * / == != &lt; &lt;= &gt; &gt;= and or not</code>) become their JSONLogic spellings, and a function call is one of the engine's four custom ops — <code>digitAfterPoint</code>, <code>tsSeconds</code>, <code>hederaAccount</code>, <code>sha256</code> — or a refusal. The compiler is deliberately unable to invent an operator the engine does not have.</p>
+
+<h3><code>#require</code> — the rules, each with its reason</h3>
+<div class="grid two">
+<pre><code>#require
+the pot is open (lock NFT at the pool, no draw in progress)
+    lock_now == POOL_ACCOUNT
+stake is at least the minimum
+    stake &gt;= STAKE_MIN
+stake is at most the maximum
+    stake &lt;= STAKE_MAX
+the player is not the pool
+    player != POOL_ACCOUNT</code></pre>
+<pre><code>"require": [
+  { "reason": "the pot is open (lock NFT at the pool, no draw in progress)",
+    "rule": { "==": [ { "var": "lock_now" }, { "var": "POOL_ACCOUNT" } ] } },
+  { "reason": "stake is at least the minimum",
+    "rule": { "&gt;=": [ { "var": "stake" }, { "var": "STAKE_MIN" } ] } },
+  { "reason": "stake is at most the maximum",
+    "rule": { "&lt;=": [ { "var": "stake" }, { "var": "STAKE_MAX" } ] } },
+  { "reason": "the player is not the pool",
+    "rule": { "!=": [ { "var": "player" }, { "var": "POOL_ACCOUNT" } ] } } ]</code></pre>
+</div>
+<p>A rule is two lines: the reason in plain words at the margin, the expression indented under it. The reason is not a comment — it is inside the JSON and inside the hash, and it is the sentence a signer's refusal quotes back. Which is the right incentive: write the reason a player would want to read.</p>
+
+<h3><code>#transaction</code> — where the 2023 verbs live on</h3>
+<div class="grid two">
+<pre><code>#transaction
+transfer
+player        sends     stake POOL_TOKEN
+POOL_ACCOUNT  receives  stake POOL_TOKEN
+memo      klotto ticket CO {ref}
+operator  player
+valid     from +15s, for 120s</code></pre>
+<pre><code>"transaction": {
+  "type": "TransferTransaction",
+  "tokenTransfers": [
+    { "token": "POOL_TOKEN", "account": "player",
+      "amount": { "-": [ 0, { "var": "stake" } ] } },
+    { "token": "POOL_TOKEN", "account": "POOL_ACCOUNT",
+      "amount": { "var": "stake" } } ],
+  "memo": "klotto ticket CO {ref}",
+  "operator": "player",
+  "schedule": { "validStartOffset": 15, "validDuration": 120 } }</code></pre>
+</div>
+<p><code>sends</code> compiles to the negated amount in exactly the shape the published deals already use (<code>{"-": [0, …]}</code>), so the round trip holds. An NFT leg reads as it did in 2023: <code>POOL_ACCOUNT sends LOCK_TOKEN #LOCK_SERIAL to LOCK_ACCOUNT</code> → one <code>nftTransfers</code> entry. The 2023 sum-to-zero check comes back as a compile-time warning, never an error — a deal that deliberately leaves a leg to the operator's account is legal.</p>
+
+<h2>The claim deal, whole</h2>
+<p>The point of the exercise is that a real deal fits on a screen and reads top to bottom. This is klotto's live testnet claim for CO (<a href="/deal/?id=db1edc3e9eaf378a4b799eee2058d3aadbb8ec578e3ca0a22d091afe658d38fe">db1edc3e…</a>), which today is 140 lines of JSON:</p>
+<pre><code>#deal
+name     KLOTTO claim — COP$, 10x (testnet CO)
+network  testnet
+
+#constants
+POOL_ACCOUNT       is 0.0.7718
+LOCK_ACCOUNT       is 0.0.10343
+POOL_TOKEN         is 0.0.2340687
+LOCK_TOKEN         is 0.0.3626892
+LOCK_SERIAL        is 31
+PAYOUT_MULTIPLIER  is 10
+
+#inputs
+txid_ticket  txid
+
+#observe
+ticket      = hedera.mirror /transactions/{txid_ticket}                         -> transactions[0]
+lock_moves  = hedera.mirror /tokens/{LOCK_TOKEN}/nfts/{LOCK_SERIAL}/transactions?limit=50 -> transactions
+lock_now    = hedera.mirror /tokens/{LOCK_TOKEN}/nfts/{LOCK_SERIAL}            -> account_id
+pool        = hedera.mirror /balances?account.id={POOL_ACCOUNT}
+              -> balances[0].tokens[?token_id=='{POOL_TOKEN}'] | [0].balance
+
+#derive
+ct_ticket     = query ticket.consensus_timestamp
+payer         = query ticket.token_transfers[?token_id=='{POOL_TOKEN}' &amp;&amp; amount &lt; `0`] | [0].account
+receiver      = query ticket.token_transfers[?token_id=='{POOL_TOKEN}' &amp;&amp; amount &gt; `0`] | [0].account
+ticket_price  = query ticket.token_transfers[?token_id=='{POOL_TOKEN}' &amp;&amp; amount &gt; `0`] | [0].amount
+ct_lastpayout = query lock_moves[?receiver_account_id=='{LOCK_ACCOUNT}'] | sort_by(@, &amp;consensus_timestamp) | [-1].consensus_timestamp
+jackpot       = digitAfterPoint(ct_lastpayout, 4)     // the draw: 4th decimal of the last payout's timestamp
+ticket_digit  = digitAfterPoint(ct_ticket, 4)
+payout        = ticket_price * PAYOUT_MULTIPLIER
+
+#require
+ticket bought after the last payout
+    ct_lastpayout &lt; ct_ticket
+ticket really paid the pool
+    receiver == POOL_ACCOUNT
+ticket price is positive
+    ticket_price &gt; 0
+ticket digit matches the jackpot
+    ticket_digit == jackpot
+no draw in progress (lock NFT at pool)
+    lock_now == POOL_ACCOUNT
+pool can cover the payout
+    payout &lt;= pool
+
+#transaction
+transfer
+POOL_ACCOUNT  sends     payout POOL_TOKEN
+payer         receives  payout POOL_TOKEN
+POOL_ACCOUNT  sends     LOCK_TOKEN #LOCK_SERIAL to LOCK_ACCOUNT
+memo      klotto claim {txid_ticket}
+operator  LOCK_ACCOUNT
+valid     from +300s, for 120s</code></pre>
+<p>Forty-odd lines. Every one is one JSON node, and nothing is in the script that is not in the JSON — the comment on <code>jackpot</code> is the only thing the compiler drops.</p>
+
+<h2>Comments, layout, and why they are free</h2>
+<ul>
+  <li><code>//</code> starts a comment anywhere on a line. <code># </code> (hash, space) at the start of a line is also a comment, for the 2023 habit; <code>#word</code> at column 0 is a section, and <code>#7</code> after a token is a serial, as before.</li>
+  <li>Blank lines and alignment are ignored. Sections may come in any order and may be omitted when empty (<code>#derive</code> above the ticket deal is not needed).</li>
+  <li>None of that touches the id, because the id is over the JCS-canonical JSON — key order sorted, whitespace gone. Two scripts that differ only in comments compile to the same bytes and the same dealId. <strong>The script is never hashed.</strong></li>
+</ul>
+
+<h2>Printing goes the other way</h2>
+<p>The same module prints a deal as a script — <code>print(policy) → string</code> — so every deal already published gets a readable form for free, and the <a href="/deal/">deal page</a> gains an "as script" view next to "friendly" and "raw JSON". That is also the test: <em>print then compile</em> over every deal klotto and xproof publish, and the id must survive. The four ops, the two amount shapes, the schedule keys — all of it is pinned by that one loop, and a compiler that drifts from the engine fails it on the first run.</p>
+
+<h2>An editor</h2>
+<p>Two panes, nothing clever. Script on the left; on the right, the compiled JSON, the dealId it hashes to, and the engine's validation — the same <code>validatePolicy</code> a signer runs — with each problem pointing at a script line. A third button raises it on testnet, which is the existing <code>deal-bytes</code> path with this JSON in place of a published one.</p>
+<figure>
+<div class="fig editor">
+  <div class="ed-bar"><span class="ed-name">ticket-co.kat</span><span class="ed-id">dealId <b>0c516f05…ce0d38</b> · valid ✓ · testnet</span><span class="ed-btns"><span class="ed-btn">Copy JSON</span><span class="ed-btn pri">Raise on testnet</span></span></div>
+  <div class="ed-panes">
+    <pre class="ed-src"><span class="ln">1</span>#deal
+<span class="ln">2</span>name     KLOTTO ticket — COP$ (testnet CO)
+<span class="ln">3</span>network  testnet
+<span class="ln">4</span>
+<span class="ln">5</span>#constants
+<span class="ln">6</span>POOL_ACCOUNT  is 0.0.7718
+<span class="ln">7</span>POOL_TOKEN    is 0.0.2340687
+<span class="ln">8</span>STAKE_MIN     is 50000   <span class="cm">// 500.00 COP$</span>
+<span class="ln">9</span>
+<span class="ln">10</span>#inputs
+<span class="ln">11</span>player  account
+<span class="ln">12</span>stake   integer
+<span class="ln">13</span>
+<span class="ln">14</span>#require
+<span class="ln">15</span>stake is at least the minimum
+<span class="ln">16</span>    stake &gt;= STAKE_MIN
+<span class="ln">17</span>the player is not the pool
+<span class="ln err">18</span>    <span class="bad">plyer</span> != POOL_ACCOUNT
+<span class="ln">19</span>
+<span class="ln">20</span>#transaction
+<span class="ln">21</span>transfer
+<span class="ln">22</span>player        sends     stake POOL_TOKEN
+<span class="ln">23</span>POOL_ACCOUNT  receives  stake POOL_TOKEN</pre>
+    <div class="ed-out">
+      <div class="ed-prob"><b>line 18</b> <code>plyer</code> is not a constant, input, observation or derived value — did you mean <code>player</code>?</div>
+      <pre class="ed-json">{
+  "v": 2,
+  "name": "KLOTTO ticket — COP$ (testnet CO)",
+  "network": "testnet",
+  "constants": {
+    "POOL_ACCOUNT": "0.0.7718",
+    "POOL_TOKEN": "0.0.2340687",
+    "STAKE_MIN": 50000
+  },
+  "inputs": {
+    "player": { "type": "hedera.account" },
+    "stake":  { "type": "integer" }
+  },
+  "require": [
+    { "reason": "stake is at least the minimum",
+      "rule": { "&gt;=": [ {"var":"stake"}, {"var":"STAKE_MIN"} ] } },
+    …</pre>
+    </div>
+  </div>
+</div>
+<figcaption>Mock-up. The problem list is the engine's validation plus the compiler's name check; both point at a line. The dealId updates as you type — a useful reminder that every keystroke in a rule is a different deal.</figcaption>
+</figure>
+
+<h2>Where it would live</h2>
+<div class="scroll"><table>
+<tr><th>piece</th><th>where</th><th>why there</th></tr>
+<tr><td class="g">parse.js, print.js</td><td>hbarlive_hts <code>dealkit/katomic/</code></td><td class="r">Beside the v2 engine they target, browser-safe and dependency-free like <code>jcs.js</code>, so the same code runs in the editor, the CLI and a signer.</td></tr>
+<tr><td class="g">round-trip test</td><td><code>qa/katomic/roundtrip-tests.js</code></td><td class="r">Every published klotto and xproof deal: print → compile → same id. Runs in <code>test:units</code>.</td></tr>
+<tr><td class="g">katomic.cjs</td><td><code>kea/tools/</code></td><td class="r"><code>compile deal.kat</code> and <code>print deal.json</code>, next to <code>convert.cjs</code>. What a publisher runs before <code>publish-deals</code>.</td></tr>
+<tr><td class="g">/deal/edit/</td><td>phpjabbers, at the root beside <code>/deal/</code></td><td class="r">Deals are v2; the editor is v2. Not under <code>/future/v3/</code>, which is the dashboard.</td></tr>
+<tr><td class="g">"as script" view</td><td><code>/deal/</code></td><td class="r">Printing is free once <code>print.js</code> exists, and it is the friendliest of the three views.</td></tr>
+</table></div>
+<p>Order of work: <strong>print.js first</strong>, because it costs nothing to be wrong (it changes no deal) and immediately makes every existing deal readable; then parse.js against the round-trip test; then the editor. The 2023 repo is the reference for the transfer lines and nothing else — its parser is a set of regexes over SDK transfer lists, and none of it targets the v2 shape.</p>
+
+<h2>Three choices worth arguing about</h2>
+<ol>
+  <li><strong><code>query</code> as the JMESPath marker.</strong> The alternative is guessing from the shape of the line, which fails the moment a JMESPath contains <code>&amp;&amp;</code> or <code>&lt;</code> — and the claim deal's do. One explicit word is cheaper than a heuristic that is right most of the time.</li>
+  <li><strong><code>is</code> for constants, <code>=</code> for computed things.</strong> Two spellings for two ideas: a constant is declared, a derivation is worked out. It also reads aloud. The cost is one more thing to learn.</li>
+  <li><strong>Reasons are free text at the margin, not quoted strings.</strong> It makes <code>#require</code> read like a list of promises, which is what it is. The cost is that a reason cannot start with four spaces — which nothing will miss.</li>
+</ol>
+<p>None of the three changes what a deal can say. They are about what a person sees, and that is the whole point of having a script at all.</p>
+
+</div>
+</body>
+</html>
