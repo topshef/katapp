@@ -80,7 +80,6 @@ const SIGNERBIZ  = /^\/future\/v3\/help\/business(?:\/|\/index\.html)$/;  // the
 // set can grow without touching this file again. Served at /future/v3/notes/<slug>/.
 const SIGNERNOTE  = /^\/future\/v3\/notes(?:\/|\/index\.html)$/;
 // DEAL-CONVERT1: the v1 → v2 deal converter, a static page + a bundled module beside it.
-const SIGNERCONV  = /^\/future\/v3\/convert(?:\/|\/index\.html)$/;
 // LEGACY-DEALS1: the V1 deal archive lookup. Its own top-level prefix on purpose — the page
 // AND every call it makes live under /legacy, so one Cloudflare rule gates the whole feature
 // without touching code, and removing the feature is deleting these lines plus the directory.
@@ -95,6 +94,7 @@ const DEALPAGE = /^\/deal(?:\/|\/index\.html)$/;
 // KATOMIC1: the script editor and its spec, beside the deal page — deals are v2, the editor
 // is v2, and neither belongs under /future/v3/ (the dashboard).
 const DEALEDIT = /^\/deal\/edit(?:\/|\/index\.html)$/;
+const DEALCONV = /^\/deal\/convert(?:\/|\/index\.html)$/;
 const DEALSPEC = /^\/deal\/edit\/spec(?:\/|\/index\.html)$/;
 const SIGNPAGE = /^\/(?:m\/sign|future)(?:\/|\/index\.php)?$/;
 const GLOG = /^\/m\/tools\/glog\/latest\/(.+)$/;
@@ -172,11 +172,14 @@ export function route(url) {
   if (p === '/future/v3/help')          return { kind: 'redirect', to: '/future/v3/help/' };
   if (p === '/future/v3/help/business') return { kind: 'redirect', to: '/future/v3/help/business/' };
   if (p === '/future/v3/notes')         return { kind: 'redirect', to: '/future/v3/notes/' };
-  if (p === '/future/v3/convert')       return { kind: 'redirect', to: '/future/v3/convert/' };
+  // DEAL-CONVERT2: the converter moved beside the deal page — it is a v1 → v2 tool for ANY
+  // deal, not a dashboard feature; the old address redirects so nothing bookmarked breaks
+  if (/^\/future\/v3\/convert(?:\/|\/index\.html)?$/.test(p)) return { kind: 'redirect', to: '/deal/convert/' };
+  if (p === '/deal/convert') return { kind: 'redirect', to: '/deal/convert/' };
+  if (DEALCONV.test(p)) return { kind: 'asset', path: '/deal/convert/index.html' };
   if (/^\/future\/v3\/notes\/[a-z0-9-]+$/.test(p)) return { kind: 'redirect', to: p + '/' };
   if (SIGNERNOTES.test(p)) return { kind: 'asset', path: '/future/v3/notes/' + SIGNERNOTES.exec(p)[1] + '/index.html' };
   if (SIGNERNOTE.test(p))  return { kind: 'asset', path: '/future/v3/notes/index.html' };
-  if (SIGNERCONV.test(p))  return { kind: 'asset', path: '/future/v3/convert/index.html' };
   if (SIGNERBIZ.test(p))  return { kind: 'asset', path: '/future/v3/help/business/index.html' };
   if (SIGNERHELP.test(p)) return { kind: 'asset', path: '/future/v3/help/index.html' };
   if (SIGNERVIEW.test(p)) return url.searchParams.has('action')

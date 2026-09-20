@@ -28,6 +28,11 @@ const cases = [
   ['/deal',                               { kind: 'redirect', to: '/deal/' }],            // DEALPAGE1
   ['/deal/',                              A('/deal/index.html')],
   ['/deal/?id=0c516f',                    A('/deal/index.html')],
+  ['/future/v3/convert/',                 { kind: 'redirect', to: '/deal/convert/' }],    // DEAL-CONVERT2: moved
+  ['/future/v3/convert',                  { kind: 'redirect', to: '/deal/convert/' }],
+  ['/deal/convert',                       { kind: 'redirect', to: '/deal/convert/' }],
+  ['/deal/convert/',                      A('/deal/convert/index.html')],
+  ['/deal/convert/?id=0c516f',            A('/deal/convert/index.html')],
   ['/deal/edit',                          { kind: 'redirect', to: '/deal/edit/' }],       // KATOMIC1
   ['/deal/edit/',                         A('/deal/edit/index.html')],
   ['/deal/edit/?id=0c516f',               A('/deal/edit/index.html')],
@@ -99,10 +104,6 @@ const cases = [
   ['/future/v3/help/',                    A('/future/v3/help/index.html')],
   ['/future/v3/notes/bots/',              A('/future/v3/notes/bots/index.html')],
   ['/future/v3/notes/bots',               { kind: 'redirect', to: '/future/v3/notes/bots/' }],
-  ['/future/v3/convert',                  { kind: 'redirect', to: '/future/v3/convert/' }],
-  ['/future/v3/convert/',                 A('/future/v3/convert/index.html')],
-  ['/future/v3/convert/index.html',       A('/future/v3/convert/index.html')],
-  ['/future/v3/convert/kea-convert.browser.js', null],                  // plain asset beside the page
   // LEGACY-DEALS1: the V1 deal archive lookup, on its own prefix
   ['/legacy/deals',                       { kind: 'redirect', to: '/legacy/deals/' }],
   ['/legacy/deals/',                      A('/legacy/deals/index.html')],

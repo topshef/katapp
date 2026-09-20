@@ -123,7 +123,7 @@
     <a href="/future/v3/help/">How it works</a>
     <a href="/future/v3/help/business/">In business terms</a>
     <a href="/future/v3/notes/">Notes</a>
-    <a href="/future/v3/convert/">Converter</a>
+    <a href="/deal/convert/">Converter</a>
     <span class="here">Look up a deal</span>
     <a href="/deal/edit/">Write a deal</a>
     <a href="/legacy/deals/">v1 archive</a>
@@ -225,14 +225,14 @@
 
 <p class="foot">
   Part of the signer tooling: <a href="/future/v3/">who is on duty and what is in the pool</a> ·
-  <a href="/future/v3/convert/">turn a v1 template into its v2 policy</a> ·
+  <a href="/deal/convert/">turn a v1 template into its v2 policy</a> ·
   <a href="/future/v3/notes/">design notes</a>
 </p>
 
 </div>
 
 <script type="module">
-import { canonicalize, computeDealId, v2DealId } from '/future/v3/convert/kea-convert.browser.js'
+import { canonicalize, computeDealId, v2DealId } from '/deal/convert/kea-convert.browser.js'
 
 // Publishers this page knows about. A deal id names content, never a location, so this list is
 // the only thing standing between an id and a body — keep it honest and short, and let anyone
@@ -460,7 +460,7 @@ function render(found, meta) {
   } else {
     html += `<div class="sec"><p class="what">This is a <b>v1 template</b>, the older shape. It is shown as
       published and verified against its id, but the sections below are the raw blocks — the
-      <a href="/future/v3/convert/">converter</a> turns one into a v2 policy and explains it in
+      <a href="/deal/convert/">converter</a> turns one into a v2 policy and explains it in
       these terms.</p></div>`
     for (const k of Object.keys(policy)) {
       html += `<div class="sec"><h3>${esc(k)}</h3>${kvTable(typeof policy[k] === 'object' && !Array.isArray(policy[k]) ? policy[k] : { [k]: policy[k] })}</div>`
