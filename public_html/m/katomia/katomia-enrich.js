@@ -257,31 +257,29 @@ window.accountXProofCache ||= {}
 
 async function getAccountLabelXProof(network, accountId){
 
-  if (network != 'mainnet') return
-  const params = { network, accountId }   // XPROOF-ROUTE1: /api/ keys on accountId
-
-  // XPROOF-ROUTE1 (user 2026-08-21, "I'm not seeing it working"): switched from
-  // /domain/query/<id> to /api/. The two endpoints answer the same question from
-  // DIFFERENT sources and only one of them still works:
-  //   /domain/query/<id> → api_query_domain.php → https://explore.hbar.live/DG/
-  //                        …which is DEAD. Verified: no response in 20s+ for every
-  //                        account tried, so this route hangs 100% of the time.
-  //   /api/?accountId=   → a LOCAL sqlite db (xproof api/db_xproof.db) that
-  //                        db_update.php fills straight from the Hedera mirror
-  //                        node. Answers in ~30ms. Verified live: 0.0.27500 →
-  //                        kpay.live, attested by verifier 0.0.26027.
+  // XPROOF-VERIFY2 (2026-09-20): moved to /XVERIFY/?account=, which is the route that
+  // actually answers this question safely.
   //
-  // TIMEOUT, FOR REAL THIS TIME. The old line passed 5000 as Kache.getData's 4th
-  // argument under a comment calling it a "5s cap" — but that argument is
-  // staleSeconds. Kache.getData has no timeout and no AbortController; its fetch
-  // is unguarded. So it was really an 83-minute STALE WINDOW and the hung lookup
-  // went on stalling the enrich pass exactly as it did before that fix. A cosmetic
-  // label must never be able to do that, so the cap is applied here, where it
-  // actually binds. Losing the race rejects, the caller's catch drops the label,
-  // and the board shows the bare account id — the honest pre-label state.
+  // The history, because this line got it wrong twice. XPROOF-ROUTE1 (2026-08-21) switched
+  // this from /domain/query/<id> to /api/ because /domain/query had stopped answering — its
+  // upstream explore.hbar.live was dead, so the lookup hung every time. That swap was
+  // reverted the NEXT DAY in xbar's cdn/xproof.js as a SECURITY REGRESSION (XPROOF-REVERT1):
+  // /api/ reports the ON-CHAIN claim alone, so a domain named in an attestation renders as
+  // identity whether or not that domain agrees. The revert reached that one file and neither
+  // of the two consumers that mattered — this one and the signing widget.
+  //
+  // /XVERIFY/ re-reads the evidence LIVE through the same oracles the notaries use, and
+  // `label` is built from AGREEING identities only, so the board cannot show a domain that
+  // has since dropped its TXT record. Both networks now: a proof is looked up by which
+  // ledger it is on, and testnet proofs are real proofs.
+  //
+  // TIMEOUT KEPT, and for the same reason as before: Kache.getData has no timeout and no
+  // AbortController, and its 4th argument is staleSeconds, not a cap. A cosmetic label must
+  // never be able to stall the enrich pass, so the race is applied here where it binds.
+  const params = { account: accountId, network }
   const XPROOF_TIMEOUT_MS = 5000
   return await Promise.race([
-    Kache.getData("https://xproof.live/api/", params, 86400),
+    Kache.getData("https://xproof.live/XVERIFY/", params, 86400),
     new Promise((_, rej) => setTimeout(() => rej(new Error("xproof timeout")), XPROOF_TIMEOUT_MS))
   ])
 
@@ -289,9 +287,24 @@ async function getAccountLabelXProof(network, accountId){
 
 async function enrichAccountLabel(network, accountId){
 
-  if(network != "mainnet") return {label:null}
-
   const data = await getAccountLabelXProof(network, accountId)
+
+  // XPROOF-VERIFY2 shape: { label:{kind,subject,name}, identities:[{kind,subject,name,agrees}] }
+  // `label` is already filtered to identities the other side still confirms, so trusting it
+  // here is the whole point — the board must not render a claim the evidence has dropped.
+  if(data?.label?.subject){
+    return {
+      label: data.label.name ? `${data.label.subject} | ${data.label.name}` : data.label.subject,
+      domain: data.label.subject,
+      kind: data.label.kind || "domain",
+      // The attested half is the SUBJECT (xproof proves control of it); the NAME is
+      // self-chosen and anyone could put it on a lookalike. Kept separate on purpose so
+      // surfaces with room can weight them differently — PLAYER-MODAL3.
+      name: data.label.name || null,
+      verifiedAt: (data.identities || []).find(i => i.subject === data.label.subject)?.consensusAt || null
+    }
+  }
+  if(data?.ok && Array.isArray(data.identities)) return {label:null}
   // XPROOF-ROUTE1: /api/ answers {"<acct>": [events…], "latest": {"<acct>": {<type>: {…}}}}
   // — latest is keyed by IDENTITY TYPE ("domain", and whatever xproof adds later).
   // Prefer an attested domain; otherwise take whatever attested identity exists, so

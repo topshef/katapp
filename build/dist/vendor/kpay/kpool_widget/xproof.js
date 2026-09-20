@@ -13,34 +13,45 @@ const WELL_KNOWN_ACCOUNTS={
 	'0.0.802': { domain:null, name:'Hedera fee collection' },
 }
 
-// XPROOF-ROUTE1 (2026-08-21): moved off /domain/query/<id>, which is DEAD.
-// That route runs xproof's api_query_domain.php, which fetches
-// https://explore.hbar.live/DG/ — an upstream that no longer answers at all
-// (verified: no response in 20s+, every account). Since the fetch below had no
-// timeout either, this call simply never settled, and the signing modal's
-// identity enrichment silently never arrived. /api/?accountId= answers the same
-// question in ~30ms from xproof's own local sqlite db (filled from the Hedera
-// mirror node) and is the endpoint katomia's board now uses too.
-// See misc:XPROOF-EXPLOREDEAD1 for the still-broken legacy route.
+// XPROOF-VERIFY2 (2026-09-20): back on, and on the BIDIRECTIONAL route.
+//
+// The history this line has been through is worth keeping, because it is one mistake made
+// twice. XPROOF-ROUTE1 (2026-08-21) moved this off /domain/query/<id> to /api/?accountId=
+// because /domain/query had stopped answering — its upstream explore.hbar.live had died and
+// the fetch had no timeout, so the modal's enrichment silently never arrived. The swap was
+// reverted the NEXT DAY in xbar's cdn/xproof.js as a security regression (XPROOF-REVERT1):
+// /api/ reported the ON-CHAIN claim alone, so a domain named in an attestation showed as
+// identity whether or not that domain agreed — and it carried no name at all, so every label
+// went blank. That revert never reached THIS file, which sat on the weaker route until it
+// was disabled outright on 2026-08-27 (xproof.live was then the compromised box).
+//
+// Both conditions are now gone. xproof.live is a Cloudflare Worker — verified 2026-09-20:
+// it resolves to Cloudflare anycast (104.21.79.85 / 172.67.169.105), not 176.126.78.48, and
+// every route including the retired ones is answered by the Worker with no origin behind it.
+//
+// /XVERIFY/?account= replaces both old routes and keeps the stronger contract: it re-reads
+// the evidence LIVE through the same oracles the notaries use, and `label` is computed from
+// AGREEING identities only, so this cannot render an identity the other side no longer
+// confirms. The name is back too — it lives in the evidence, never on-chain.
 const XPROOF_TIMEOUT_MS=5000
 
 async function getAccountLabelXProof(network,accountId){
 
-	// SECURITY 2026-08-27: xproof.live resolves to 176.126.78.48 — the same
-	// compromised box as kpay.uk. No account ids go there until it's rebuilt.
-	return null
-
-	if(network!='mainnet')
-		return null
-
 	// A cosmetic label must never be able to hang the modal: cap the request and
 	// treat any failure as "no label", which is the pre-label state anyway.
-	const res=await fetch(`https://xproof.live/api/?network=${encodeURIComponent(network)}&accountId=${encodeURIComponent(accountId)}`,
+	const res=await fetch(`https://xproof.live/XVERIFY/?account=${encodeURIComponent(accountId)}&network=${encodeURIComponent(network)}`,
 		{ signal:AbortSignal.timeout(XPROOF_TIMEOUT_MS) })
 	if(!res.ok)
 		return null
 
-	return await res.json()
+	const out=await res.json()
+	if(!out||!out.ok||!out.label)
+		return null
+
+	// The shape this module already renders: { domain: name }. `subject` is the thing proved
+	// (a domain, a page, x.com/handle); `name` is the human label where the evidence carries
+	// one. Falling back to the subject keeps a label present rather than blank.
+	return { [out.label.subject]: out.label.name || out.label.subject }
 }
 
 export async function getAccountLabel(network,accountId){
