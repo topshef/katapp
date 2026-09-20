@@ -104,6 +104,10 @@
     .f.grow{flex:1 1 auto}
     .bar button{width:100%}
   }
+  .crumb{display:flex;flex-wrap:wrap;gap:8px;font:12px var(--mono);margin:10px 0 4px}
+  .crumb a{text-decoration:none;border:1px solid var(--line);border-radius:99px;padding:3px 10px;color:var(--ink-3)}
+  .crumb a:hover{color:var(--acc);border-color:var(--acc)}
+  .crumb .here{border:1px solid var(--acc);background:var(--acc);color:var(--bg);border-radius:99px;padding:3px 10px}
 </style>
 </head>
 <body>
@@ -114,13 +118,17 @@
   <p class="sub">Paste a deal id — or just the first few characters of one — and read the policy it
   names: what it is allowed to move, what has to be true before it may, and whether the body really
   hashes to that id. Read-only, and nothing here can sign anything.</p>
-  <p class="crumbs">
-    <a href="/future/v3/">signers dashboard</a><span>·</span>
-    <a href="/future/v3/convert/">v1 → v2 converter</a><span>·</span>
-    <a href="/future/v3/help/">how signing works</a><span>·</span>
-    <a href="/legacy/deals/">v1 archive (being retired)</a><span>·</span>
+  <nav class="crumb">
+    <a href="/future/v3/">Signers dashboard</a>
+    <a href="/future/v3/help/">How it works</a>
+    <a href="/future/v3/help/business/">In business terms</a>
+    <a href="/future/v3/notes/">Notes</a>
+    <a href="/future/v3/convert/">Converter</a>
+    <span class="here">Look up a deal</span>
+    <a href="/deal/edit/">Write a deal</a>
+    <a href="/legacy/deals/">v1 archive</a>
     <a href="https://klotto.kpay.uk/faq/">klotto docs</a>
-  </p>
+  </nav>
 </header>
 
 <div class="panel">
@@ -160,7 +168,8 @@
   <div class="pbody" style="padding-bottom:6px">
     <div class="id" id="r-id"></div>
     <p style="margin:8px 0 0;font-size:.85rem;color:var(--ink-2)">
-      Fetched from <a id="r-src" href="#" target="_blank" rel="noopener">—</a> — that link is the
+      Fetched from <a id="r-src" href="#" target="_blank" rel="noopener">—</a>
+      <a id="r-edit" href="/deal/edit/" target="_blank" rel="noopener" hidden title="see this policy as a Katomic script, and edit a copy">edit as script ↗</a> — that link is the
       whole of the lookup: a plain GET returning this document and nothing else.
     </p>
   </div>
@@ -434,6 +443,8 @@ function render(found, meta) {
 
   $('r-src').textContent = found.src
   $('r-src').href = found.src
+  // KATOMIC1: a v2 policy reads better as a script; the editor prints it and can edit a copy
+  if ($('r-edit')) { $('r-edit').hidden = policy.v !== 2; $('r-edit').href = '/deal/edit/?id=' + encodeURIComponent(declaredId || found.id || '') }
 
   let html = ''
   if (isV2) {

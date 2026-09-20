@@ -92,6 +92,10 @@ const SIGNERNOTES = /^\/future\/v3\/notes\/([a-z0-9-]+)(?:\/|\/index\.html)$/;
 // as though they were the same version idea. It is not a signer view, so it needs no ?action=
 // proxy — it calls /hapi/kpool/... and the publishers' catalogues directly.
 const DEALPAGE = /^\/deal(?:\/|\/index\.html)$/;
+// KATOMIC1: the script editor and its spec, beside the deal page — deals are v2, the editor
+// is v2, and neither belongs under /future/v3/ (the dashboard).
+const DEALEDIT = /^\/deal\/edit(?:\/|\/index\.html)$/;
+const DEALSPEC = /^\/deal\/edit\/spec(?:\/|\/index\.html)$/;
 const SIGNPAGE = /^\/(?:m\/sign|future)(?:\/|\/index\.php)?$/;
 const GLOG = /^\/m\/tools\/glog\/latest\/(.+)$/;
 const BRANDS = [
@@ -179,6 +183,10 @@ export function route(url) {
     ? actionRoute(url, '/hapi/kpool/', '')
     : { kind: 'asset', path: '/future/v3/index.html' };
   if (p === '/deal') return { kind: 'redirect', to: '/deal/' };
+  if (p === '/deal/edit') return { kind: 'redirect', to: '/deal/edit/' };
+  if (p === '/deal/edit/spec') return { kind: 'redirect', to: '/deal/edit/spec/' };
+  if (DEALSPEC.test(p)) return { kind: 'asset', path: '/deal/edit/spec/index.html' };
+  if (DEALEDIT.test(p)) return { kind: 'asset', path: '/deal/edit/index.html' };
   if (DEALPAGE.test(p)) return { kind: 'asset', path: '/deal/index.html' };
   if (p === '/legacy/deals') return { kind: 'redirect', to: '/legacy/deals/' };
   if (LEGACYDEALS.test(p)) return url.searchParams.has('action')

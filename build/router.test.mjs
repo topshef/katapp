@@ -25,6 +25,14 @@ const cases = [
   ['/m/katomia/qa',                       { kind: 'redirect', to: '/m/katomia/qa/' }],
   ['/m/katomia/qa/',                      A('/m/katomia/qa/index.html')],
   ['/m/katomia/qa/tests.html',            null],                         // plain asset
+  ['/deal',                               { kind: 'redirect', to: '/deal/' }],            // DEALPAGE1
+  ['/deal/',                              A('/deal/index.html')],
+  ['/deal/?id=0c516f',                    A('/deal/index.html')],
+  ['/deal/edit',                          { kind: 'redirect', to: '/deal/edit/' }],       // KATOMIC1
+  ['/deal/edit/',                         A('/deal/edit/index.html')],
+  ['/deal/edit/?id=0c516f',               A('/deal/edit/index.html')],
+  ['/deal/edit/spec',                     { kind: 'redirect', to: '/deal/edit/spec/' }],
+  ['/deal/edit/spec/',                    A('/deal/edit/spec/index.html')],
   ['/m/katomia/KEA',                      { kind: 'redirect', to: '/m/katomia/KEA/' }],   // KEA-WEB1
   ['/m/katomia/kea/',                     { kind: 'redirect', to: '/m/katomia/KEA/' }],
   ['/m/katomia/KEA/',                     A('/m/katomia/KEA/index.html')],

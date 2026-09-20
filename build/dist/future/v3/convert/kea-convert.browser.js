@@ -2032,7 +2032,7 @@ var require_policy = __commonJS({
     "use strict";
     var jmespath = require_jmespath();
     var jsonLogic = require_logic();
-    var { canonicalize: canonicalize2, hashCanonical } = require_jcs();
+    var { canonicalize: canonicalize2, hashCanonical, sha256hex } = require_jcs();
     function digitAfterPoint(ts, n) {
       const s = String(ts ?? "");
       const i = s.indexOf(".");
@@ -2047,6 +2047,12 @@ var require_policy = __commonJS({
       return m ? Number(m[1]) : null;
     }
     jsonLogic.add_operation("tsSeconds", tsSeconds);
+    function hederaAccount(s) {
+      const m = /^(\d+\.\d+\.\d+)(?:-[a-z]{5})?$/.exec(String(s ?? "").trim());
+      return m ? m[1] : null;
+    }
+    jsonLogic.add_operation("hederaAccount", hederaAccount);
+    jsonLogic.add_operation("sha256", (s) => sha256hex(String(s ?? "")));
     function substitute(str, names) {
       return String(str).replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (m, k) => {
         if (!(k in names)) throw new Error(`unbound name {${k}}`);
@@ -2071,6 +2077,9 @@ var require_policy = __commonJS({
       for (const [name, o] of Object.entries(policy.observe || {})) {
         if (typeof o?.source !== "string" || !/^[a-z][a-z0-9.]*$/.test(o.source)) errs.push(`observe ${name}: source must be a registry NAME`);
         if (/^[a-z]+:\/\//i.test(String(o?.get || ""))) errs.push(`observe ${name}: get must be a path, never a URL`);
+        if (o?.pin !== void 0 && typeof o.pin !== "string") errs.push(`observe ${name}: pin must be a JMESPath string`);
+        if (o?.attest !== void 0 && typeof o.attest !== "string") errs.push(`observe ${name}: attest must be a JMESPath string naming where the attestation sits`);
+        if (o?.attest !== void 0 && !o.pin) errs.push(`observe ${name}: attest requires pin \u2014 the signed answer must be a part of the response, not the whole of it`);
       }
       const names = /* @__PURE__ */ new Set([...Object.keys(policy.constants || {}), ...Object.keys(policy.inputs || {}), ...Object.keys(policy.observe || {}), ...Object.keys(policy.derive || {})]);
       const seen = /* @__PURE__ */ new Set();
@@ -2078,6 +2087,7 @@ var require_policy = __commonJS({
         if (seen.has(n)) errs.push(`name ${n} defined twice`);
         seen.add(n);
       }
+      if (names.has("observed")) errs.push("`observed` is reserved \u2014 it holds the evidence of each read (observed.<name>.pinSha256)");
       return errs;
     }
     function validateInputs(policy, inputs) {
@@ -2093,13 +2103,99 @@ var require_policy = __commonJS({
       return errs;
     }
     var dealId = (policy) => hashCanonical(policy);
+    var TEXT = new TextEncoder();
+    function hexToBytes(hex) {
+      const h = String(hex || "");
+      if (h.length % 2 || !/^[0-9a-fA-F]*$/.test(h)) return null;
+      const out = new Uint8Array(h.length / 2);
+      for (let i = 0; i < out.length; i++) out[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16);
+      return out;
+    }
+    async function checkAttestation(att, { pinned, verifyEd25519 }) {
+      const no = (why) => ({ attestedBy: null, attestNote: why });
+      if (!att || typeof att !== "object") return no("no attestation in the response");
+      if (typeof verifyEd25519 !== "function") return no("this verifier has no verifyEd25519 port, so nothing can be attested");
+      if (att.alg !== "ed25519") return no(`unsupported alg ${JSON.stringify(att.alg)}`);
+      const sig = hexToBytes(att.sig), pub = hexToBytes(att.key);
+      if (!sig || sig.length !== 64) return no("signature is not 64 bytes of hex");
+      if (!pub || pub.length !== 32) return no("key is not 32 bytes of hex");
+      if (pinned === void 0 || pinned === null) return no("there is nothing pinned for it to have signed");
+      let ok = false;
+      try {
+        ok = await verifyEd25519(sig, TEXT.encode(canonicalize2(pinned)), pub);
+      } catch {
+        ok = false;
+      }
+      return ok ? { attestedBy: att.key, attestNote: null } : no("the signature does not verify over the pinned answer");
+    }
     var DEFAULT_REGISTRY = {
       "hedera.mirror": {
         mainnet: "https://mainnet-public.mirrornode.hedera.com/api/v1",
         testnet: "https://testnet.mirrornode.hedera.com/api/v1"
+      },
+      // XPROOF-ORACLE1 (2026-09-18) — the first source here that is NOT the chain, and the
+      // reason the registry is a registry rather than a constant. It answers one question:
+      // "does the webpage at this URL carry a meta tag naming this Hedera account?" That is
+      // not a fact the chain holds, and xproof exists to put it there.
+      //
+      // WHAT IS DIFFERENT ABOUT IT, and it is not a detail:
+      //
+      //   A mirror read is deterministic by construction — a past Hedera transaction never
+      //   changes, so every signer re-fetching it gets the same answer, which is the whole
+      //   basis of "a signer signs only a transaction it could have produced itself". A
+      //   WEBPAGE is not that. Its owner can change or delete the tag between one signer
+      //   reading it and the next, and then the signers disagree: some sign, some refuse,
+      //   and the transaction sits in the pool fully green and never submits.
+      //
+      //   So naming this source is necessary but NOT sufficient. A deal that observes it is
+      //   not safe to sign until the answer is PINNED — the raiser carries the response hash
+      //   (observe() already computes responseSha256 for every read) and a require rule
+      //   asserts the re-fetched hash equals it, so either every signer agrees or every
+      //   signer refuses with a named reason. That is phase 2; see SECURITY.md.
+      //
+      //   klotto never needed this because its txid IS its as-of. xproof has no such anchor,
+      //   which is precisely why it is the deal worth building the general mechanism on.
+      //
+      // One host for both networks on purpose: the chain is named INSIDE the question
+      // (filter[c]=295 mainnet, 296 testnet), not by which host is asked.
+      "xproof.htmlmeta": {
+        mainnet: "https://xproof.live/htmlmeta",
+        testnet: "https://xproof.live/htmlmeta"
+      },
+      // The second one, and the reason the first was worth generalising: same question about a
+      // different kind of place. htmlmeta reads a <meta> tag off a webpage; xtxt reads a DNS TXT
+      // record off a domain. One row each, and the converter looks the host up rather than
+      // matching a set.
+      //
+      // A NOTE ON TRUST LEVELS, since it is easy to read phases 3-4 as a requirement: a policy
+      // states the trust it needs. One that carries no `attest` rule is content to take this
+      // endpoint's word — which is the right level for plenty of deals, and the only level
+      // available for an API that does not sign. Pinning (phase 2) still applies and is what
+      // stops signers disagreeing; attestation is a separate, higher bar on top of it.
+      "xproof.xtxt": {
+        mainnet: "https://xproof.live/XTXT",
+        testnet: "https://xproof.live/XTXT"
+      },
+      // The third, and the first whose SUBJECT is not a place. htmlmeta proves control of a
+      // page and xtxt of a domain; a tweet proves control of an ACCOUNT, so the author handle
+      // is inside what the oracle attests and a policy can require it. It is also the first
+      // source that costs money per read (twitterapi.io, metered) and the first that needs a
+      // credential — which lives as a Worker secret at the endpoint, not here: a registry row
+      // names WHO to ask, never how to authenticate to them.
+      "xproof.x1984": {
+        mainnet: "https://xproof.live/X1984",
+        testnet: "https://xproof.live/X1984"
+      },
+      // The fourth: the same tweet, read as a STRUCTURED CLAIM rather than as a tweet. It
+      // answers with a template NAME, which is the part a policy pins — a deal says which claim
+      // shape it accepts and the dealId hashes that, so a reader can tell what a proof under
+      // that id was allowed to mean without trusting the endpoint's current behaviour.
+      "xproof.xassert": {
+        mainnet: "https://xproof.live/XASSERT",
+        testnet: "https://xproof.live/XASSERT"
       }
     };
-    async function observe(policy, inputs, { registry = DEFAULT_REGISTRY, fetchJson, now = () => /* @__PURE__ */ new Date() } = {}) {
+    async function observe(policy, inputs, { registry = DEFAULT_REGISTRY, fetchJson, now = () => /* @__PURE__ */ new Date(), verifyEd25519 } = {}) {
       if (typeof fetchJson !== "function") throw new Error("observe: fetchJson port required");
       const names = { ...policy.constants, ...inputs };
       const out = [];
@@ -2111,6 +2207,16 @@ var require_policy = __commonJS({
         const raw = await fetchJson(url);
         const select = o.select ? substitute(o.select, names) : "@";
         const value = jmespath.search(raw, select);
+        const pin = o.pin ? substitute(o.pin, names) : null;
+        const pinned = pin ? jmespath.search(raw, pin) : raw;
+        const pinSha256 = hashCanonical(pinned === void 0 ? null : pinned);
+        let attestedBy = null, attestNote = null;
+        if (o.attest) {
+          ({ attestedBy, attestNote } = await checkAttestation(
+            jmespath.search(raw, o.attest),
+            { pinned, verifyEd25519 }
+          ));
+        }
         out.push({
           name,
           source: o.source,
@@ -2118,8 +2224,12 @@ var require_policy = __commonJS({
           get,
           select,
           value,
+          pin,
           observedAt: now().toISOString(),
-          responseSha256: hashCanonical(raw)
+          responseSha256: hashCanonical(raw),
+          pinSha256,
+          attestedBy,
+          attestNote
         });
       }
       return out;
@@ -2127,6 +2237,16 @@ var require_policy = __commonJS({
     function evaluate(policy, { inputs, observations }) {
       const env = { ...policy.constants, ...inputs };
       for (const ob of observations) env[ob.name] = ob.value;
+      env.observed = Object.fromEntries(observations.map((ob) => [ob.name, {
+        value: ob.value,
+        responseSha256: ob.responseSha256,
+        pinSha256: ob.pinSha256,
+        observedAt: ob.observedAt,
+        source: ob.source,
+        // null unless a signature verified AND bound the query, network, source and pin — so
+        // `observed.x.attestedBy == ORACLE_KEY` is one rule for "signed, and by the right key".
+        attestedBy: ob.attestedBy ?? null
+      }]));
       const names = { ...policy.constants, ...inputs };
       const derived = {};
       for (const [name, expr] of Object.entries(policy.derive)) {
@@ -2188,6 +2308,8 @@ var require_policy = __commonJS({
       for (const x of hbarTransfers) net.HBAR = (net.HBAR || 0) + x.amount;
       for (const [asset, sum] of Object.entries(net)) if (sum !== 0) throw new Error(`transfers do not balance for ${asset} (net ${sum})`);
       const memo = t.memo != null ? substitute(t.memo, Object.fromEntries(Object.entries(names).filter(([, v]) => typeof v !== "object"))) : "";
+      const memoBytes = Buffer.byteLength(memo, "utf8");
+      if (memoBytes > 100) throw new Error(`memo is ${memoBytes} bytes, over Hedera's 100-byte limit \u2014 ${JSON.stringify(memo.slice(0, 40) + "\u2026")}`);
       const operator = t.operator != null ? asAccount(resolveValue(t.operator, env), "transaction.operator") : null;
       return {
         type: "TransferTransaction",
@@ -2250,7 +2372,7 @@ var require_policy = __commonJS({
       step("inputs", "pass", Object.keys(bundle.inputs).join(","));
       let observations;
       try {
-        observations = await observe(bundle.policy, bundle.inputs, { registry: ports.registry || DEFAULT_REGISTRY, fetchJson: ports.fetchJson, now: ports.now });
+        observations = await observe(bundle.policy, bundle.inputs, { registry: ports.registry || DEFAULT_REGISTRY, fetchJson: ports.fetchJson, now: ports.now, verifyEd25519: ports.verifyEd25519 });
         step("observe", "pass", observations.map((o) => o.name).join(","));
       } catch (e) {
         step("observe", "error", e.message);
@@ -2301,7 +2423,7 @@ var require_policy = __commonJS({
       for (const k of Object.keys(actual)) if (!(k in expected)) out.push(`${k}: transaction moves ${actual[k]}, policy has nothing`);
       return out;
     }
-    module.exports = { validatePolicy: validatePolicy2, validateInputs, dealId, observe, evaluate, instantiate, canonicalTransfers, buildBundle, verify, digitAfterPoint, tsSeconds, substitute, DEFAULT_REGISTRY, canonicalize: canonicalize2 };
+    module.exports = { validatePolicy: validatePolicy2, validateInputs, dealId, observe, evaluate, instantiate, canonicalTransfers, buildBundle, verify, digitAfterPoint, tsSeconds, hederaAccount, sha256hex, substitute, DEFAULT_REGISTRY, canonicalize: canonicalize2 };
   }
 });
 
@@ -3488,7 +3610,24 @@ var require_convert = __commonJS({
     var v22 = require_policy();
     var { canonicalize: canonicalize2 } = require_jcs();
     var ACCOUNT = /^\d+\.\d+\.\d+$/;
-    var MIRROR_HOSTS = /* @__PURE__ */ new Set(["mainnet-public.mirrornode.hedera.com", "testnet.mirrornode.hedera.com", "previewnet.mirrornode.hedera.com", "explore.hbar.live"]);
+    var SOURCES = [
+      { source: "hedera.mirror", base: /^\/api\/v1/, hosts: [
+        "mainnet-public.mirrornode.hedera.com",
+        "testnet.mirrornode.hedera.com",
+        "previewnet.mirrornode.hedera.com",
+        // the one dead proxy dealkit/sources.js rewrites onto them (its /txn/ endpoint
+        // returned the mirror shape)
+        "explore.hbar.live"
+      ] },
+      // Both xproof oracles live on one host, so the PATH decides which source a v1 url is: the
+      // rows are tried in order and the first whose host matches and whose base the path starts
+      // with wins.
+      { source: "xproof.htmlmeta", base: /^\/htmlmeta/, hosts: ["xproof.live"] },
+      { source: "xproof.xtxt", base: /^\/XTXT/i, hosts: ["xproof.live"] },
+      { source: "xproof.x1984", base: /^\/X1984/i, hosts: ["xproof.live"] },
+      { source: "xproof.xassert", base: /^\/XASSERT/i, hosts: ["xproof.live"] }
+    ];
+    var sourceForHost = (host, path = "") => SOURCES.find((s) => s.hosts.includes(host) && s.base.test(path)) || SOURCES.find((s) => s.hosts.includes(host)) || null;
     var ConvertError2 = class extends Error {
       constructor(msg, at) {
         super(msg);
@@ -3516,9 +3655,10 @@ var require_convert = __commonJS({
       } catch {
         refuse(`api.${name} is not a URL after substituting the template's constants: ${url}`, "api");
       }
-      if (!MIRROR_HOSTS.has(u.hostname)) refuse(`api.${name} reads from ${u.hostname}, which is not a Hedera mirror \u2014 a v2 policy names the READ and the verifier chooses the host, so a read from an unknown host has no v2 form`, "api");
-      const path = (u.pathname + u.search).replace(/__(\w+)__/g, "{$1}").replace(/^\/api\/v1/, "");
-      return { name, host: u.hostname, path, select, raw };
+      const src = sourceForHost(u.hostname, u.pathname);
+      if (!src) refuse(`api.${name} reads from ${u.hostname}, which no registry name covers \u2014 a v2 policy names the READ and the verifier chooses the host, so a read from an unregistered host cannot be expressed. Add it to SOURCES (and to DEFAULT_REGISTRY) if it should be`, "api");
+      const path = (u.pathname + u.search).replace(/__(\w+)__/g, "{$1}").replace(src.base, "");
+      return { name, host: u.hostname, source: src.source, path, select, raw };
     }
     var condsOf = (t, script) => (t.conditions || []).filter((c) => String(c.scriptName || "").replace(/\.php$/, "") === script);
     function ranges(t) {
@@ -3890,24 +4030,565 @@ var require_convert = __commonJS({
   }
 });
 
+// dealkit/katomic/parse.js
+var require_parse = __commonJS({
+  "dealkit/katomic/parse.js"(exports, module) {
+    "use strict";
+    var SECTIONS = ["deal", "constants", "inputs", "observe", "derive", "require", "transaction"];
+    var TYPE_SHORT = { account: "hedera.account", txid: "hedera.txid", timestamp: "hedera.timestamp", integer: "integer", string: "string" };
+    var INFIX = { or: 1, and: 2, "==": 3, "!=": 3, "<": 4, "<=": 4, ">": 4, ">=": 4, "+": 5, "-": 5, "*": 6, "/": 6, "%": 6 };
+    var UNARY_PREC = 7;
+    var CALLS = /* @__PURE__ */ new Set([
+      "digitAfterPoint",
+      "tsSeconds",
+      "hederaAccount",
+      "sha256",
+      "substr",
+      "in",
+      "cat",
+      "if",
+      "min",
+      "max",
+      "merge",
+      "missing",
+      "missing_some",
+      "log",
+      "var"
+    ]);
+    var VAR = /^[A-Za-z_][A-Za-z0-9_.]*$/;
+    var KatomicError2 = class extends Error {
+      constructor(message, line) {
+        super(line ? `line ${line}: ${message}` : message);
+        this.name = "KatomicError";
+        this.line = line || null;
+      }
+    };
+    var fail = (msg, line) => {
+      throw new KatomicError2(msg, line);
+    };
+    function stripComment(s) {
+      let q = null;
+      for (let i = 0; i < s.length; i++) {
+        const c = s[i];
+        if (q) {
+          if (c === "\\" && q === '"') i++;
+          else if (c === q) q = null;
+          continue;
+        }
+        if (c === '"' || c === "'" || c === "`") {
+          q = c;
+          continue;
+        }
+        if (c === "/" && s[i + 1] === "/") return s.slice(0, i);
+      }
+      return s;
+    }
+    function tokenize(src, line) {
+      const out = [];
+      let i = 0;
+      const prefixPosition = () => !out.length || out[out.length - 1].t === "op" || out[out.length - 1].v === "(" || out[out.length - 1].v === ",";
+      while (i < src.length) {
+        const c = src[i];
+        if (/\s/.test(c)) {
+          i++;
+          continue;
+        }
+        if (c === '"') {
+          let j = i + 1;
+          while (j < src.length && src[j] !== '"') {
+            if (src[j] === "\\") j++;
+            j++;
+          }
+          if (j >= src.length) fail("unterminated string", line);
+          let v;
+          try {
+            v = JSON.parse(src.slice(i, j + 1));
+          } catch (e) {
+            fail(`bad string ${src.slice(i, j + 1)}`, line);
+          }
+          out.push({ t: "str", v });
+          i = j + 1;
+          continue;
+        }
+        const num = /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(src.slice(i));
+        if (num && (num[0][0] !== "-" || prefixPosition())) {
+          out.push({ t: "num", v: Number(num[0]) });
+          i += num[0].length;
+          continue;
+        }
+        const op = /^(==|!=|<=|>=|!!|[<>+\-*/%!(),])/.exec(src.slice(i));
+        if (op) {
+          out.push({ t: "op", v: op[1] });
+          i += op[1].length;
+          continue;
+        }
+        const id = /^[A-Za-z_][A-Za-z0-9_.]*/.exec(src.slice(i));
+        if (id) {
+          const w = id[0];
+          if (w === "and" || w === "or" || w === "not") out.push({ t: "op", v: w });
+          else if (w === "true" || w === "false" || w === "null") out.push({ t: "lit", v: w === "true" ? true : w === "false" ? false : null });
+          else out.push({ t: "id", v: w });
+          i += w.length;
+          continue;
+        }
+        fail(`unexpected character "${c}"`, line);
+      }
+      return out;
+    }
+    function parseExpression2(src, line) {
+      const toks = tokenize(src, line);
+      let p = 0;
+      const peek = () => toks[p];
+      const next = () => toks[p++];
+      const expect = (v) => {
+        const t = next();
+        if (!t || t.v !== v) fail(`expected "${v}"${t ? ` before "${t.v}"` : " at the end"}`, line);
+        return t;
+      };
+      const chained = /* @__PURE__ */ new WeakSet();
+      function atom() {
+        const t = next();
+        if (!t) fail("expression ends early", line);
+        if (t.t === "num" || t.t === "str" || t.t === "lit") return t.v;
+        if (t.v === "(") {
+          const e2 = expr(0);
+          expect(")");
+          if (e2 && typeof e2 === "object") chained.delete(e2);
+          return e2;
+        }
+        if (t.t === "id") {
+          if (peek() && peek().v === "(") {
+            next();
+            if (!CALLS.has(t.v)) fail(`unknown function ${t.v}() \u2014 the engine has: ${[...CALLS].join(", ")}`, line);
+            const args = [];
+            if (peek() && peek().v === ")") next();
+            else {
+              do {
+                args.push(expr(0));
+              } while (peek() && peek().v === "," && next());
+              expect(")");
+            }
+            return { [t.v]: args };
+          }
+          if (!VAR.test(t.v)) fail(`bad name ${t.v}`, line);
+          return { var: t.v };
+        }
+        fail(`unexpected "${t.v}"`, line);
+      }
+      function unary() {
+        const t = peek();
+        if (t && t.t === "op" && (t.v === "not" || t.v === "!")) {
+          next();
+          return { "!": [unary()] };
+        }
+        if (t && t.t === "op" && t.v === "!!") {
+          next();
+          return { "!!": [unary()] };
+        }
+        if (t && t.t === "op" && t.v === "-") {
+          next();
+          return { "-": [unary()] };
+        }
+        return atom();
+      }
+      function expr(minPrec) {
+        let left = unary();
+        for (; ; ) {
+          const t = peek();
+          if (!t || t.t !== "op" || !(t.v in INFIX) || INFIX[t.v] < minPrec) return left;
+          const op = t.v, prec = INFIX[op];
+          next();
+          const right = expr(prec + 1);
+          if (chained.has(left) && Object.keys(left)[0] === op && INFIX[op] === prec) left[op].push(right);
+          else {
+            left = { [op]: [left, right] };
+            chained.add(left);
+          }
+        }
+      }
+      const e = expr(0);
+      if (p < toks.length) fail(`unexpected "${toks[p].v}" after the expression`, line);
+      return e;
+    }
+    function constantValue(raw, line) {
+      const s = raw.trim();
+      if (s === "") fail("a constant needs a value", line);
+      if (/^["[{]/.test(s) || s === "true" || s === "false" || s === "null") {
+        try {
+          return JSON.parse(s);
+        } catch (e) {
+          fail(`bad literal ${s}`, line);
+        }
+      }
+      if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(s)) return Number(s);
+      return s;
+    }
+    function parse(text) {
+      if (typeof text !== "string") fail("a script is a string");
+      const policy = { v: 2, name: void 0, network: void 0, constants: {}, inputs: {}, observe: {}, derive: {}, require: [], transaction: {} };
+      const legs = { hbar: [], token: [], nft: [] };
+      const seenSections = /* @__PURE__ */ new Set();
+      let section = null;
+      let last = null;
+      let pendingReason = null;
+      const flushDerive = () => {
+        if (!last || last.kind !== "derive") return;
+        const m = /^query\s+(.*)$/s.exec(last.text);
+        policy.derive[last.name] = m ? m[1].trim() : parseExpression2(last.text, last.line);
+        last = null;
+      };
+      const lines = text.split(/\r?\n/);
+      for (let n = 1; n <= lines.length; n++) {
+        const rawLine = lines[n - 1];
+        if (/^#\s/.test(rawLine) || rawLine.trim() === "#") continue;
+        const isMemo = section === "transaction" && /^\s*memo(\s|$)/.test(rawLine);
+        const line = isMemo ? rawLine : stripComment(rawLine);
+        if (!line.trim()) continue;
+        const indented = /^\s/.test(line);
+        const body = line.trim();
+        const sec = /^#([a-z]+)\s*$/.exec(body);
+        if (sec && !indented) {
+          if (!SECTIONS.includes(sec[1])) fail(`unknown section #${sec[1]} \u2014 one of ${SECTIONS.map((s) => "#" + s).join(" ")}`, n);
+          if (seenSections.has(sec[1])) fail(`#${sec[1]} appears twice`, n);
+          if (pendingReason) fail(`the rule for "${pendingReason.text}" is missing (it goes on the next line, indented)`, pendingReason.line);
+          flushDerive();
+          last = null;
+          seenSections.add(sec[1]);
+          section = sec[1];
+          continue;
+        }
+        if (!section) fail("a script starts with a section header, e.g. #deal", n);
+        switch (section) {
+          case "deal": {
+            const m = /^(name|network)\s+(.*)$/.exec(body);
+            if (!m) fail("#deal takes `name \u2026` and `network \u2026`", n);
+            policy[m[1]] = m[2].trim();
+            break;
+          }
+          case "constants": {
+            const m = /^([A-Za-z_][A-Za-z0-9_]*)\s+is\s+(.*)$/.exec(body);
+            if (!m) fail("a constant is `NAME is VALUE`", n);
+            if (m[1] in policy.constants) fail(`constant ${m[1]} defined twice`, n);
+            policy.constants[m[1]] = constantValue(m[2], n);
+            break;
+          }
+          case "inputs": {
+            const m = /^([A-Za-z_][A-Za-z0-9_]*)\s+([A-Za-z_.]+)$/.exec(body);
+            if (!m) fail("an input is `NAME type` \u2014 account, txid, timestamp, integer or string", n);
+            const type = TYPE_SHORT[m[2]] || m[2];
+            if (!Object.values(TYPE_SHORT).includes(type)) fail(`unknown input type ${m[2]}`, n);
+            policy.inputs[m[1]] = { type };
+            break;
+          }
+          case "observe": {
+            if (indented) {
+              if (!last || last.kind !== "observe") fail("an indented line here continues an observation, but there is none", n);
+              const o2 = policy.observe[last.name];
+              let m2;
+              if (m2 = /^->\s*(.*)$/.exec(body)) o2.select = (o2.select ? o2.select + " " : "") + m2[1].trim();
+              else if (m2 = /^(pin|attest):\s*(.*)$/.exec(body)) o2[m2[1]] = m2[2].trim();
+              else if (o2.select !== void 0) o2.select += " " + body;
+              else o2.get += body;
+              break;
+            }
+            const m = /^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([a-z][a-z0-9.]*)\s+(\S+)(?:\s+->\s*(.*))?$/.exec(body);
+            if (!m) fail("an observation is `NAME = SOURCE PATH -> SELECT` (source is a registry name, never a URL)", n);
+            if (m[1] in policy.observe) fail(`observation ${m[1]} defined twice`, n);
+            const o = { source: m[2], get: m[3] };
+            if (m[4] !== void 0) o.select = m[4].trim();
+            policy.observe[m[1]] = o;
+            last = { kind: "observe", name: m[1] };
+            break;
+          }
+          case "derive": {
+            if (indented) {
+              if (!last || last.kind !== "derive") fail("an indented line here continues a derivation, but there is none", n);
+              last.text += " " + body;
+              break;
+            }
+            flushDerive();
+            const m = /^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(body);
+            if (!m) fail("a derivation is `NAME = query JMESPATH` or `NAME = EXPRESSION`", n);
+            if (m[1] in policy.derive) fail(`derivation ${m[1]} defined twice`, n);
+            last = { kind: "derive", name: m[1], text: m[2].trim(), line: n };
+            break;
+          }
+          case "require": {
+            if (indented) {
+              if (!pendingReason) fail("a rule needs its reason on the line above it, at the margin", n);
+              policy.require.push({ reason: pendingReason.text, rule: parseExpression2(body, n) });
+              pendingReason = null;
+            } else {
+              if (pendingReason) fail(`the rule for "${pendingReason.text}" is missing (it goes on the next line, indented)`, pendingReason.line);
+              pendingReason = { text: body, line: n };
+            }
+            break;
+          }
+          case "transaction": {
+            let m;
+            if (body === "transfer") {
+              policy.transaction.type = "TransferTransaction";
+              break;
+            }
+            if (m = /^type\s+(\S+)$/.exec(body)) {
+              policy.transaction.type = m[1];
+              break;
+            }
+            if (isMemo) {
+              policy.transaction.memo = rawLine.replace(/^\s*memo\s*/, "").replace(/\s+$/, "");
+              break;
+            }
+            if (m = /^operator\s+(\S+)$/.exec(body)) {
+              policy.transaction.operator = m[1];
+              break;
+            }
+            if (m = /^valid\s+from\s+\+(\d+)s,\s*for\s+(\d+)s$/.exec(body)) {
+              policy.transaction.schedule = { validStartOffset: Number(m[1]), validDuration: Number(m[2]) };
+              break;
+            }
+            if (m = /^(\S+)\s+sends\s+(\S+)\s+#(\S+)\s+to\s+(\S+)$/.exec(body)) {
+              legs.nft.push({ token: m[2], serial: /^\d+$/.test(m[3]) ? Number(m[3]) : m[3], from: m[1], to: m[4] });
+              break;
+            }
+            if (m = /^(\S+)\s+(sends|receives)\s+(.+?)\s+(\S+)$/.exec(body)) {
+              const expr = parseExpression2(m[3], n);
+              const amount = m[2] === "sends" ? { "-": [0, expr] } : expr;
+              if (/^hbar$/i.test(m[4])) legs.hbar.push({ account: m[1], amount });
+              else legs.token.push({ token: m[4], account: m[1], amount });
+              break;
+            }
+            if (m = /^([A-Za-z][A-Za-z0-9]*)\s+([[{"].*)$/.exec(body)) {
+              try {
+                policy.transaction[m[1]] = JSON.parse(m[2]);
+              } catch (e) {
+                fail(`bad JSON for ${m[1]}`, n);
+              }
+              break;
+            }
+            fail("not a transaction line \u2014 transfer \xB7 A sends AMOUNT TOKEN \xB7 A receives AMOUNT TOKEN \xB7 A sends TOKEN #SERIAL to B \xB7 memo \xB7 operator \xB7 valid from +Ns, for Ms", n);
+          }
+        }
+      }
+      if (pendingReason) fail(`the rule for "${pendingReason.text}" is missing (it goes on the next line, indented)`, pendingReason.line);
+      flushDerive();
+      if (policy.name === void 0) fail("#deal needs `name \u2026`");
+      if (policy.network === void 0) fail("#deal needs `network \u2026`");
+      if (!seenSections.has("transaction")) fail("a deal has a #transaction");
+      const t = policy.transaction;
+      const tx = {};
+      if (t.type !== void 0) tx.type = t.type;
+      if (legs.hbar.length) tx.hbarTransfers = legs.hbar;
+      if (legs.token.length) tx.tokenTransfers = legs.token;
+      if (legs.nft.length) tx.nftTransfers = legs.nft;
+      for (const k of ["memo", "operator", "schedule"]) if (t[k] !== void 0) tx[k] = t[k];
+      for (const k of Object.keys(t)) if (!(k in tx)) tx[k] = t[k];
+      policy.transaction = tx;
+      return policy;
+    }
+    module.exports = { parse, parseExpression: parseExpression2, stripComment, KatomicError: KatomicError2, SECTIONS, TYPE_SHORT, INFIX, CALLS, UNARY_PREC };
+  }
+});
+
+// dealkit/katomic/print.js
+var require_print = __commonJS({
+  "dealkit/katomic/print.js"(exports, module) {
+    "use strict";
+    var { INFIX, UNARY_PREC, TYPE_SHORT, KatomicError: KatomicError2 } = require_parse();
+    var VAR = /^[A-Za-z_][A-Za-z0-9_.]*$/;
+    var NUM = /^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
+    var fail = (msg) => {
+      throw new KatomicError2(msg);
+    };
+    var SHORT_TYPE = Object.fromEntries(Object.entries(TYPE_SHORT).map(([k, v]) => [v, k]));
+    function literal(v) {
+      if (typeof v === "string") return JSON.stringify(v);
+      if (typeof v === "number") {
+        if (!Number.isFinite(v)) fail(`${v} is not a JSON number`);
+        return String(v);
+      }
+      if (typeof v === "boolean" || v === null) return String(v);
+      fail(`cannot write a ${typeof v} in an expression`);
+    }
+    function printExpr2(node, parentPrec = 0) {
+      if (node === null || typeof node !== "object") return literal(node);
+      if (Array.isArray(node)) fail("a bare array is not an expression");
+      const keys = Object.keys(node);
+      if (keys.length !== 1) fail(`an expression node has one key, this has ${keys.length}: ${keys.join(", ")}`);
+      const op = keys[0], args = node[op];
+      if (op === "var") {
+        if (typeof args !== "string" || !VAR.test(args)) fail(`a var must be a plain name, not ${JSON.stringify(args)}`);
+        return args;
+      }
+      if (!Array.isArray(args)) fail(`${op} with a non-array argument cannot be written as a script`);
+      if (op in INFIX && args.length >= 2) {
+        const prec = INFIX[op];
+        const s = args.map((a) => printExpr2(a, prec)).join(` ${op} `);
+        return parentPrec >= prec ? `(${s})` : s;
+      }
+      if ((op === "-" || op === "!" || op === "!!") && args.length === 1) {
+        const inner = args[0];
+        const child = op === "-" && typeof inner === "number" ? `(${literal(inner)})` : printExpr2(inner, UNARY_PREC);
+        return (op === "!" ? "not " : op) + child;
+      }
+      return `${op}(${args.map((a) => printExpr2(a, 0)).join(", ")})`;
+    }
+    function constantText(v) {
+      if (typeof v === "string") {
+        const plain = v === v.trim() && v !== "" && !/^["[{]/.test(v) && !["true", "false", "null"].includes(v) && !NUM.test(v) && !v.includes("//") && !/[\r\n]/.test(v);
+        return plain ? v : JSON.stringify(v);
+      }
+      if (typeof v === "number" || typeof v === "boolean" || v === null) return String(v);
+      return JSON.stringify(v);
+    }
+    var pad = (s, w) => s + " ".repeat(Math.max(1, w - s.length + 1));
+    var widest = (names) => names.reduce((w, n) => Math.max(w, n.length), 0);
+    var oneLine = (s, what) => {
+      if (/[\r\n]/.test(s)) fail(`${what} spans more than one line`);
+      return s;
+    };
+    function print(policy) {
+      if (!policy || typeof policy !== "object") fail("not a policy");
+      const known = ["v", "name", "network", "constants", "inputs", "observe", "derive", "require", "transaction"];
+      for (const k of Object.keys(policy)) if (!known.includes(k)) fail(`the script has no line for a top-level "${k}"`);
+      if (policy.v !== 2) fail(`only a v2 policy prints as a script (v is ${JSON.stringify(policy.v)})`);
+      const out = [];
+      out.push("#deal");
+      out.push(`name     ${oneLine(String(policy.name ?? ""), "name")}`);
+      out.push(`network  ${oneLine(String(policy.network ?? ""), "network")}`);
+      const constants = Object.entries(policy.constants || {});
+      if (constants.length) {
+        out.push("", "#constants");
+        const w2 = widest(constants.map(([k]) => k));
+        for (const [k, v] of constants) out.push(`${pad(k, w2)} is ${constantText(v)}`);
+      }
+      const inputs = Object.entries(policy.inputs || {});
+      if (inputs.length) {
+        out.push("", "#inputs");
+        const w2 = widest(inputs.map(([k]) => k));
+        for (const [k, spec] of inputs) {
+          const extra = Object.keys(spec || {}).filter((x) => x !== "type");
+          if (extra.length) fail(`input ${k} carries ${extra.join(", ")}, which the script cannot say`);
+          out.push(`${pad(k, w2)} ${SHORT_TYPE[spec.type] || spec.type}`);
+        }
+      }
+      const observe = Object.entries(policy.observe || {});
+      if (observe.length) {
+        out.push("", "#observe");
+        const w2 = widest(observe.map(([k]) => k));
+        for (const [k, o] of observe) {
+          const extra = Object.keys(o).filter((x) => !["source", "get", "select", "pin", "attest"].includes(x));
+          if (extra.length) fail(`observation ${k} carries ${extra.join(", ")}, which the script cannot say`);
+          if (/\s/.test(String(o.get))) fail(`observation ${k}: a path with whitespace in it cannot be written`);
+          let line = `${pad(k, w2)} = ${o.source} ${o.get}`;
+          if (o.select !== void 0) line += ` -> ${oneLine(String(o.select), `observation ${k} select`)}`;
+          out.push(line);
+          if (o.pin !== void 0) out.push(`${" ".repeat(w2 + 4)}pin: ${oneLine(String(o.pin), `observation ${k} pin`)}`);
+          if (o.attest !== void 0) out.push(`${" ".repeat(w2 + 4)}attest: ${oneLine(String(o.attest), `observation ${k} attest`)}`);
+        }
+      }
+      const derive = Object.entries(policy.derive || {});
+      if (derive.length) {
+        out.push("", "#derive");
+        const w2 = widest(derive.map(([k]) => k));
+        for (const [k, v] of derive) {
+          out.push(`${pad(k, w2)} = ${typeof v === "string" ? "query " + oneLine(v, `derivation ${k}`) : printExpr2(v)}`);
+        }
+      }
+      const require_ = policy.require || [];
+      if (require_.length) {
+        out.push("", "#require");
+        for (const r of require_) {
+          const extra = Object.keys(r).filter((x) => x !== "reason" && x !== "rule");
+          if (extra.length) fail(`a rule carries ${extra.join(", ")}, which the script cannot say`);
+          const reason = String(r.reason ?? "");
+          if (!reason.trim() || reason !== reason.trim() || reason.includes("//") || /^#/.test(reason) || /[\r\n]/.test(reason)) {
+            fail(`the reason ${JSON.stringify(reason)} cannot be written at the margin of a script`);
+          }
+          out.push(reason, `    ${printExpr2(r.rule)}`);
+        }
+      }
+      out.push("", "#transaction");
+      const t = policy.transaction || {};
+      const seen = /* @__PURE__ */ new Set(["type", "hbarTransfers", "tokenTransfers", "nftTransfers", "memo", "operator", "schedule"]);
+      if (t.type === "TransferTransaction") out.push("transfer");
+      else if (t.type !== void 0) out.push(`type ${oneLine(String(t.type), "type")}`);
+      const amount = (a) => {
+        if (a && typeof a === "object" && Array.isArray(a["-"]) && a["-"].length === 2 && a["-"][0] === 0) return `sends ${printExpr2(a["-"][1])}`;
+        return `receives ${printExpr2(a)}`;
+      };
+      const nameOrFail = (v, what) => {
+        if (typeof v !== "string" || /\s/.test(v) || v === "") fail(`${what} ${JSON.stringify(v)} cannot be written`);
+        return v;
+      };
+      const legLines = [];
+      for (const leg of t.tokenTransfers || []) {
+        const extra = Object.keys(leg).filter((x) => !["token", "account", "amount"].includes(x));
+        if (extra.length) fail(`a token leg carries ${extra.join(", ")}`);
+        legLines.push([nameOrFail(leg.account, "account"), amount(leg.amount), nameOrFail(leg.token, "token")]);
+      }
+      for (const leg of t.hbarTransfers || []) {
+        const extra = Object.keys(leg).filter((x) => !["account", "amount"].includes(x));
+        if (extra.length) fail(`an hbar leg carries ${extra.join(", ")}`);
+        legLines.push([nameOrFail(leg.account, "account"), amount(leg.amount), "hbar"]);
+      }
+      const w = widest(legLines.map((l) => l[0]));
+      for (const [acct, amt, token] of legLines) {
+        const [verb, ...rest] = amt.split(" ");
+        out.push(`${pad(acct, w)} ${pad(verb, 8)} ${rest.join(" ")} ${token}`);
+      }
+      for (const leg of t.nftTransfers || []) {
+        const extra = Object.keys(leg).filter((x) => !["token", "serial", "from", "to"].includes(x));
+        if (extra.length) fail(`an nft leg carries ${extra.join(", ")}`);
+        const serial = typeof leg.serial === "number" ? String(leg.serial) : nameOrFail(leg.serial, "serial");
+        out.push(`${pad(nameOrFail(leg.from, "from"), w)} sends    ${nameOrFail(leg.token, "token")} #${serial} to ${nameOrFail(leg.to, "to")}`);
+      }
+      if (t.memo !== void 0) {
+        if (typeof t.memo !== "string") fail("a memo that is not a string cannot be written");
+        if (t.memo !== t.memo.trim()) fail("a memo with leading or trailing whitespace cannot be written");
+        out.push(`memo      ${oneLine(t.memo, "memo")}`);
+      }
+      if (t.operator !== void 0) out.push(`operator  ${nameOrFail(t.operator, "operator")}`);
+      if (t.schedule !== void 0) {
+        const s = t.schedule;
+        const keys = Object.keys(s || {}).sort().join(",");
+        if (keys === "validDuration,validStartOffset" && Number.isInteger(s.validStartOffset) && Number.isInteger(s.validDuration)) {
+          out.push(`valid     from +${s.validStartOffset}s, for ${s.validDuration}s`);
+        } else out.push(`schedule ${JSON.stringify(s)}`);
+      }
+      for (const k of Object.keys(t)) if (!seen.has(k)) out.push(`${k} ${JSON.stringify(t[k])}`);
+      return out.join("\n") + "\n";
+    }
+    module.exports = { print, printExpr: printExpr2 };
+  }
+});
+
 // kea/convert-web.mjs
 var import_convert = __toESM(require_convert(), 1);
 var import_canonical = __toESM(require_canonical(), 1);
 var import_policy = __toESM(require_policy(), 1);
 var import_jcs = __toESM(require_jcs(), 1);
+var import_parse = __toESM(require_parse(), 1);
+var import_print = __toESM(require_print(), 1);
 var { convert: convertV1, explain, envelopeOf, roleOf, ConvertError } = import_convert.default;
 var { computeDealId, phpJsonEncode } = import_canonical.default;
 var v2DealId = import_policy.default.dealId;
 var validatePolicy = import_policy.default.validatePolicy;
 var { canonicalize } = import_jcs.default;
+var { parse: parseKatomic, parseExpression, KatomicError } = import_parse.default;
+var { print: printKatomic, printExpr } = import_print.default;
 export {
   ConvertError,
+  KatomicError,
   canonicalize,
   computeDealId,
   convertV1,
   envelopeOf,
   explain,
+  parseExpression,
+  parseKatomic,
   phpJsonEncode,
+  printExpr,
+  printKatomic,
   roleOf,
   v2DealId,
   validatePolicy
