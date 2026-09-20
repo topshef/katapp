@@ -74,10 +74,18 @@
      while it is not. */
   .prog{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin:0 0 8px;opacity:0;transition:opacity .25s}
   .prog.on{opacity:1}
-  .prog>i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
-  .prog.indet>i{width:30%;animation:progsweep 1.1s linear infinite}
-  @keyframes progsweep{from{margin-left:-30%}to{margin-left:100%}}
-  @media (prefers-reduced-motion:reduce){.prog.indet>i{animation:none;width:100%;opacity:.5}}
+  .prog>i{display:block;height:100%;width:0;background:var(--acc);opacity:.55;transition:width .2s}
+  /* the sweep is a soft gradient drifting past — enough to say "working", no more */
+  .prog.indet>i{width:45%;opacity:.35;background:linear-gradient(90deg,transparent,var(--acc) 50%,transparent);animation:progsweep 1.8s ease-in-out infinite}
+  @keyframes progsweep{from{margin-left:-45%}to{margin-left:100%}}
+  @media (prefers-reduced-motion:reduce){.prog.indet>i{animation:none;width:100%;background:var(--acc);opacity:.25}}
+  /* one deal per line, the whole line a link: six hex of the id, then its name once known */
+  details.deals .dl{display:flex;flex-direction:column;gap:2px;margin-top:4px}
+  details.deals a.dline{display:block;text-decoration:none;color:inherit;font-size:12px;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34ch}
+  details.deals a.dline:hover .dn{text-decoration:underline}
+  details.deals a.dline .key{color:var(--ink-3)}
+  details.deals a.dline .dn{color:var(--ink-2)}
+  details.deals a.dline .dn.none{color:var(--ink-3);font-style:italic}
   /* a failure has to be legible while the section is shut, or a phone shows a tidy
      page that is quietly telling you nothing */
   .count.bad{color:var(--bad);font-weight:600}
@@ -492,6 +500,70 @@
            ' title="look this deal up">' + esc(full.slice(0, 8)) + '\u2026</a>';
   }
 
+  // DEALNAMES1: a deal's published name, looked up the way /deal/ does — each known
+  // publisher's index says whether it has the id, then the file itself carries the name
+  // (v2 `name`, v1 `display.label` / `display.title`). Cached per page: an id's name never
+  // changes, because the id IS the hash of the document that carries it. A publisher that
+  // is unreachable (no CORS yet, offline) just contributes nothing, and the id stays a
+  // working link either way.
+  var PUBLISHERS = ['https://klotto.kpay.uk', 'https://xproof.live'];
+  var PUBINDEX = {};       // base -> Promise<{ id: true }>
+  var DEALNAMES = {};      // id -> Promise<string|null>
+  function publisherIndex(base) {
+    if (!PUBINDEX[base]) PUBINDEX[base] = fetch(base + '/deals/index.json', { mode: 'cors' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        var has = {};
+        ((j && (j.deals || j.rows)) || []).forEach(function (row) { if (row && row.dealId) has[String(row.dealId).toLowerCase()] = true; });
+        return has;
+      })
+      .catch(function () { return {}; });
+    return PUBINDEX[base];
+  }
+  function dealName(id) {
+    id = String(id).toLowerCase();
+    if (!DEALNAMES[id]) DEALNAMES[id] = Promise.all(PUBLISHERS.map(publisherIndex)).then(function (idx) {
+      var i = idx.findIndex(function (has) { return has[id]; });
+      if (i < 0) return null;
+      return fetch(PUBLISHERS[i] + '/deals/' + id + '.json', { mode: 'cors' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (doc) {
+          var d = doc && doc.deal && typeof doc.deal === 'object' ? doc.deal : doc;
+          if (!d) return null;
+          var disp = d.display || {};
+          return disp.label || d.name || disp.title || null;
+        })
+        .catch(function () { return null; });
+    });
+    return DEALNAMES[id];
+  }
+  // "KLOTTO claim — COP$ 10x (testnet CO)" → "KLOTTO claim — COP$ 10x": the parenthetical
+  // is the part the row already says (network) and the cap keeps a line a line.
+  function shortName(n) {
+    var t = String(n).replace(/\s*\([^)]*\)\s*$/, '').trim();
+    return t.length > 28 ? t.slice(0, 27).replace(/\s+\S*$/, '') + '\u2026' : t;
+  }
+  // toggle does not bubble, so listen in the capture phase; fill the list the first time only
+  document.addEventListener('toggle', function (e) {
+    var det = e.target;
+    if (!det || !det.classList || !det.classList.contains('deals') || !det.open) return;
+    var box = det.querySelector('.dl');
+    if (!box || box.childElementCount) return;
+    var ids = (det.getAttribute('data-ids') || '').split(',').filter(Boolean);
+    box.innerHTML = ids.map(function (id) {
+      return '<a class="dline" href="/deal/?id=' + encodeURIComponent(id) + '" target="_blank" rel="noopener" data-id="' + esc(id) + '">' +
+        '<span class="key">' + esc(id.slice(0, 6)) + '\u2026</span> <span class="dn none">\u2026</span></a>';
+    }).join('');
+    ids.forEach(function (id) {
+      dealName(id).then(function (n) {
+        var a = box.querySelector('a[data-id="' + id + '"]'), dn = a && a.querySelector('.dn');
+        if (!dn) return;
+        if (n) { dn.textContent = shortName(n); dn.className = 'dn'; a.title = n; }
+        else { dn.textContent = 'not published'; dn.className = 'dn none'; }
+      });
+    });
+  }, true);
+
   // the raw links for a section: one per call actually made
   function uniq(a) { var o = {}; return a.filter(function (x) { return o[x] ? false : (o[x] = 1); }); }
   function showRaw(slotId, calls) {
@@ -641,8 +713,10 @@
       var watching = hid('deals') ? '<span class="none">not saying</span>' : dealIds.length
         ? esc(String(dealIds.length)) + ' deal' + (dealIds.length === 1 ? '' : 's') +
           '<div class="key">' + dealIds.slice(0, 3).map(dealLink).join(' ') + '</div>' +
-          (dealIds.length > 3 ? '<details class="more"><summary>and ' + (dealIds.length - 3) + ' more</summary><div class="key">' +
-            dealIds.slice(3).map(dealLink).join(' ') + '</div></details>' : '')
+          // DEALNAMES1: the full list, one deal per line with its published name, fetched
+          // only when this row is opened — 9 devices × 16 deals is not a page load.
+          '<details class="more deals" data-ids="' + esc(dealIds.join(',')) + '"><summary>' +
+            (dealIds.length > 3 ? 'all ' + dealIds.length + ', with names' : 'with names') + '</summary><div class="dl"></div></details>'
         : '<span class="none">not saying</span>';
       // the literal socket filters the device sent: what it is actually rung for
       var sub = hid('subscription') ? null : d.subscription;
