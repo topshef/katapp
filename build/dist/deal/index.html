@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deal — look one up by its id</title>
+<meta name="description" content="Paste a deal id, or the first few characters of one, and read the policy it names: what it is allowed to move, what has to be true first, and whether the body really hashes to that id.">
+<link rel="icon" href="data:,">
+<style>
+  :root{
+    --bg:#f4f5f7; --panel:#fff; --panel-2:#eceef1; --line:#d8dce1; --line-2:#e6e9ec;
+    --ink:#171a1f; --ink-2:#555f6b; --ink-3:#7c8794;
+    --ok:#1d6b45; --ok-bg:#e0efe7;
+    --warn:#8a5a12; --warn-bg:#f6e9d5;
+    --bad:#a02f27; --bad-bg:#f8e2df;
+    --acc:#1c5580; --acc-bg:#e4edf5;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --bg:#0f1319; --panel:#171c23; --panel-2:#1e242d; --line:#2a323c; --line-2:#222a33;
+    --ink:#e3e8ee; --ink-2:#9fabb8; --ink-3:#77838f;
+    --ok:#5cbc8b; --ok-bg:#15281f;
+    --warn:#d2a154; --warn-bg:#2b2416;
+    --bad:#e0817a; --bad-bg:#2e1b19;
+    --acc:#74aede; --acc-bg:#16202b;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 16px 80px}
+  header{padding:28px 0 8px}
+  h1{font-size:clamp(1.5rem,3.4vw,2rem);margin:0 0 6px;font-weight:650;letter-spacing:-.01em}
+  .sub{color:var(--ink-2);margin:0;max-width:70ch}
+  .sub a,.crumbs a{color:var(--acc)}
+  .crumbs{margin:10px 0 0;font-size:.85rem;color:var(--ink-3);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .crumbs span{color:var(--ink-3)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-top:16px;overflow:hidden}
+  .phead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+         padding:10px 14px;background:var(--panel-2);border-bottom:1px solid var(--line);font-size:.85rem;color:var(--ink-2)}
+  .phead h2{font-size:.95rem;margin:0;font-weight:640;color:var(--ink)}
+  .pbody{padding:14px}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+  .f{display:flex;flex-direction:column;gap:4px}
+  .f.grow{flex:1 1 320px}
+  label{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:650}
+  input,select{font:14px var(--mono);padding:8px 10px;border:1px solid var(--line);border-radius:7px;
+               background:var(--panel);color:var(--ink);width:100%}
+  input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
+  button{font:600 14px var(--sans);padding:8px 14px;border:1px solid var(--line);border-radius:7px;
+         background:var(--panel);color:var(--ink);cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
+  button.primary:hover{opacity:.9;color:#fff}
+  .pill{display:inline-block;font:650 11px/1.5 var(--sans);letter-spacing:.04em;text-transform:uppercase;
+        padding:2px 7px;border-radius:5px;background:var(--panel-2);color:var(--ink-2);white-space:nowrap}
+  .pill.ok{background:var(--ok-bg);color:var(--ok)} .pill.bad{background:var(--bad-bg);color:var(--bad)}
+  .pill.warn{background:var(--warn-bg);color:var(--warn)} .pill.acc{background:var(--acc-bg);color:var(--acc)}
+  .mono{font-family:var(--mono);font-size:.86em}
+  .id{font-family:var(--mono);font-size:.8rem;color:var(--ink-3);word-break:break-all}
+  .msg{padding:14px;color:var(--ink-2)}
+  .msg.bad{color:var(--bad)}
+  .hits{list-style:none;margin:0;padding:0}
+  .hits li{border-bottom:1px solid var(--line-2);padding:9px 14px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .hits li:last-child{border-bottom:none}
+  .hits a{color:var(--acc);font-weight:600;text-decoration:none}
+  .hits a:hover{text-decoration:underline}
+  .tabs{display:flex;gap:4px;padding:8px 14px 0;background:var(--panel-2);border-bottom:1px solid var(--line)}
+  .tabs button{border-radius:7px 7px 0 0;border-bottom-color:transparent;font-size:13px;padding:6px 12px}
+  .tabs button[aria-selected="true"]{background:var(--panel);border-color:var(--line);border-bottom-color:var(--panel);color:var(--acc)}
+  pre{margin:0;padding:14px;overflow-x:auto;font:13px/1.55 var(--mono);background:var(--panel);color:var(--ink)}
+  .sec{border-top:1px solid var(--line-2);padding:14px}
+  .sec:first-child{border-top:none}
+  .sec h3{margin:0 0 2px;font-size:.9rem;font-weight:650}
+  .sec .what{margin:0 0 10px;color:var(--ink-3);font-size:.84rem;max-width:80ch}
+  table{border-collapse:collapse;width:100%;font-size:.88rem}
+  th,td{text-align:left;padding:6px 10px;border-bottom:1px solid var(--line-2);vertical-align:top}
+  th{font-size:.7rem;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:650}
+  tr:last-child td{border-bottom:none}
+  td.k{font-family:var(--mono);color:var(--acc);white-space:nowrap}
+  td.v{font-family:var(--mono);word-break:break-word}
+  .rule{border-left:2px solid var(--ok);background:var(--panel-2);border-radius:0 7px 7px 0;padding:8px 12px;margin-bottom:8px}
+  .rule .why{font-weight:600;font-size:.9rem}
+  .rule code{font:12px var(--mono);color:var(--ink-2);word-break:break-word}
+  .mv{display:flex;gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line-2);flex-wrap:wrap}
+  .mv:last-child{border-bottom:none}
+  .mv .amt{font-family:var(--mono);font-weight:650}
+  .neg{color:var(--bad)} .pos{color:var(--ok)}
+  details.help{margin-top:16px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+  details.help>summary{cursor:pointer;padding:12px 14px;font-weight:640;list-style:none}
+  details.help>summary::-webkit-details-marker{display:none}
+  details.help>summary::before{content:"▸ ";color:var(--ink-3)}
+  details.help[open]>summary::before{content:"▾ "}
+  .help .pbody{border-top:1px solid var(--line);padding-top:14px}
+  .help p,.help li{max-width:80ch;color:var(--ink-2)}
+  .help code{font:13px var(--mono);background:var(--panel-2);padding:1px 5px;border-radius:4px}
+  .foot{margin-top:24px;font-size:.85rem;color:var(--ink-3)}
+  .foot a{color:var(--acc)}
+  .hidden{display:none}
+  @media (max-width:640px){ .bar{flex-direction:column;align-items:stretch} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Deal</h1>
+  <p class="sub">Paste a deal id — or just the first few characters of one — and read the policy it
+  names: what it is allowed to move, what has to be true before it may, and whether the body really
+  hashes to that id. Read-only, and nothing here can sign anything.</p>
+  <p class="crumbs">
+    <a href="/future/v3/">signers dashboard</a><span>·</span>
+    <a href="/future/v3/convert/">v1 → v2 converter</a><span>·</span>
+    <a href="/future/v3/help/">how signing works</a><span>·</span>
+    <a href="/legacy/deals/">v1 archive (being retired)</a><span>·</span>
+    <a href="https://klotto.kpay.uk/faq/">klotto docs</a>
+  </p>
+</header>
+
+<div class="panel">
+  <div class="pbody">
+    <div class="bar">
+      <div class="f grow">
+        <label for="q">deal id, or the start of one</label>
+        <input id="q" placeholder="a1b0398a   or the full 64 characters" spellcheck="false" autocomplete="off">
+      </div>
+      <div class="f">
+        <label for="net">network</label>
+        <select id="net"><option>testnet</option><option>mainnet</option><option>previewnet</option></select>
+      </div>
+      <button id="go" class="primary" type="button">Look it up</button>
+    </div>
+    <div class="bar" style="margin-top:10px">
+      <div class="f grow">
+        <label for="base">publisher, if it is not one of the known ones</label>
+        <input id="base" placeholder="https://example.com   (it is asked for /deals/index.json)" spellcheck="false" autocomplete="off">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="status" class="panel hidden"><div class="msg" id="statusmsg"></div></div>
+
+<div id="hits" class="panel hidden">
+  <div class="phead"><h2>More than one deal starts with that</h2><span id="hitcount"></span></div>
+  <ul class="hits" id="hitlist"></ul>
+</div>
+
+<div id="result" class="panel hidden">
+  <div class="phead">
+    <h2 id="r-name">—</h2>
+    <span id="r-pills"></span>
+  </div>
+  <div class="pbody" style="padding-bottom:6px">
+    <div class="id" id="r-id"></div>
+    <p style="margin:8px 0 0;font-size:.85rem;color:var(--ink-2)">
+      Fetched from <a id="r-src" href="#" target="_blank" rel="noopener">—</a> — that link is the
+      whole of the lookup: a plain GET returning this document and nothing else.
+    </p>
+  </div>
+  <div class="tabs" role="tablist">
+    <button id="tab-read" role="tab" aria-selected="true">Readable</button>
+    <button id="tab-json" role="tab" aria-selected="false">JSON</button>
+  </div>
+  <div id="pane-read"></div>
+  <pre id="pane-json" class="hidden"></pre>
+</div>
+
+<details class="help" id="how">
+  <summary>How a deal is found, and why it cannot simply be looked up</summary>
+  <div class="pbody">
+    <p><b>A deal id is a hash of the deal, not an address.</b> It says exactly <i>what</i> the
+    document is — change one character of the body and the id no longer matches — but it says
+    nothing about <i>where</i> a copy lives. That is the whole point: a deal is verifiable wherever
+    you got it, so it needs no trusted registry. It is also the catch: from an id alone, nothing
+    tells you who published it.</p>
+
+    <p>So this page tries, in order:</p>
+    <ol>
+      <li><b>Publishers it knows.</b> Each one publishes <code>&lt;base&gt;/deals/index.json</code>
+      listing every deal it has, and <code>&lt;base&gt;/deals/&lt;id&gt;.json</code> for the body —
+      the same files a signer vendors with
+      <code>kea/tools/catalogue.cjs vendor --from &lt;base&gt;</code>. Known here:
+      <span id="known-list" class="mono"></span>.</li>
+      <li><b>The pool.</b> Anything being raised right now carries its policy with it, so a live
+      deal resolves even if nobody publishes it. The pool holds about an hour, so this only finds
+      deals in flight.</li>
+      <li><b>A publisher you name.</b> Put a base URL in the second box and it is asked the same
+      two questions. This is the decentralised case: you knew who to ask, so you asked them.</li>
+    </ol>
+
+    <p><b>Every answer is checked.</b> Whatever the source, the body is re-hashed here in your
+    browser and compared to the id — JCS (RFC 8785) for a v2 policy, PHP <code>json_encode</code>
+    form for a v1 template. A <span class="pill ok">verified</span> badge means this really is the
+    deal that id names. <span class="pill bad">does not match</span> means the copy is wrong or
+    altered, and you should not trust it whoever served it.</p>
+
+    <p><b>What is not here.</b> There is no database of v2 deals, and deliberately so — a registry
+    would be a thing to trust, and the hash already does that job. A quiet deal that nobody
+    publishes and nobody is raising is not findable from its id, by design. If you want a deal to
+    be findable, publish it: a directory of <code>deals/</code> on any web host is the entire
+    protocol.</p>
+
+    <p><b>v1 deals.</b> The 2022–2026 archive has its own browser at
+    <a href="/legacy/deals/">/legacy/deals/</a> and its own lookup, and is being retired. This page
+    is v2-first: it will read and verify a v1 template if a publisher serves one, but it does not
+    search the archive. If nothing is found here, that is the other place to look.</p>
+  </div>
+</details>
+
+<p class="foot">
+  Part of the signer tooling: <a href="/future/v3/">who is on duty and what is in the pool</a> ·
+  <a href="/future/v3/convert/">turn a v1 template into its v2 policy</a> ·
+  <a href="/future/v3/notes/">design notes</a>
+</p>
+
+</div>
+
+<script type="module">
+import { canonicalize, computeDealId, v2DealId } from '/future/v3/convert/kea-convert.browser.js'
+
+// Publishers this page knows about. A deal id names content, never a location, so this list is
+// the only thing standing between an id and a body — keep it honest and short, and let anyone
+// name a base the page has never heard of. Same convention every signer vendors from:
+// <base>/deals/index.json + <base>/deals/<id>.json
+const KNOWN = [
+  { name: 'klotto',  base: 'https://klotto.kpay.uk' },
+  { name: 'xproof',  base: 'https://xproof.live' },
+]
+const POOL = '/hapi/kpool'
+const MIN_FRAGMENT = 6
+
+const $ = (id) => document.getElementById(id)
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c])
+const show = (el, on) => el.classList.toggle('hidden', !on)
+const qs = new URLSearchParams(location.search)
+
+$('known-list').textContent = KNOWN.map((k) => k.base).join(' · ')
+
+function say(msg, bad) {
+  $('statusmsg').className = 'msg' + (bad ? ' bad' : '')
+  $('statusmsg').innerHTML = msg
+  show($('status'), true)
+}
+
+async function getJson(url, init) {
+  const r = await fetch(url, init)
+  if (!r.ok) throw new Error(r.status + ' ' + url)
+  return r.json()
+}
+
+// ── the search ────────────────────────────────────────────────────────────────────
+// Returns { doc, src } where doc is the ENVELOPE as published ({dealId, deal, …}) or a bare
+// policy, and src is the exact URL it came from — shown to the reader, because a lookup you
+// cannot repeat by hand is a lookup you have to take on faith.
+async function findInCatalogue(base, frag) {
+  const idx = await getJson(base.replace(/\/$/, '') + '/deals/index.json')
+  const rows = (idx.deals || []).filter((d) => String(d.dealId || '').toLowerCase().startsWith(frag))
+  if (!rows.length) return { hits: [] }
+  return { hits: rows.map((r) => ({ ...r, base })) }
+}
+
+async function fetchBody(base, dealId) {
+  const src = base.replace(/\/$/, '') + '/deals/' + dealId + '.json'
+  return { doc: await getJson(src), src }
+}
+
+// The pool carries the policy with every raise, so a deal in flight resolves without anyone
+// publishing it. Bounded on purpose: newest first, a capped number of reads, and it gives up
+// rather than walking a busy pool for a deal that is probably not there.
+async function findInPool(frag, network) {
+  const l = await getJson(`${POOL}/txList?network=${encodeURIComponent(network)}&since=3600&until=600`)
+  const tx = ((l.result && l.result.tx) || []).filter((t) => t && t.txid && t.pch)
+  tx.sort((a, b) => Number(String(b.txid).split('@')[1] || 0) - Number(String(a.txid).split('@')[1] || 0))
+  for (const t of tx.slice(0, 40)) {
+    let r
+    try {
+      r = await getJson(`${POOL}/txRead?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(t.txid)}&pch=${encodeURIComponent(t.pch)}&detail=1&mirror=0`)
+    } catch (e) { continue }
+    const s = (r && r.result && r.result.source) || {}
+    const id = String(s.dealId || '').toLowerCase()
+    if (id && id.startsWith(frag) && s.dealTemplate) {
+      return { doc: { dealId: id, deal: s.dealTemplate }, src: `${POOL}/txRead?network=${network}&txid=${encodeURIComponent(t.txid)}&pch=${encodeURIComponent(t.pch)}&detail=1&mirror=0` }
+    }
+  }
+  return null
+}
+
+async function lookup(raw, network, extraBase) {
+  const frag = String(raw || '').trim().toLowerCase().replace(/^0x/, '')
+  show($('result'), false); show($('hits'), false); show($('status'), false)
+  if (!/^[0-9a-f]+$/.test(frag) || frag.length < MIN_FRAGMENT) {
+    return say(`Give at least ${MIN_FRAGMENT} hex characters of a deal id.`, true)
+  }
+  say('Looking…')
+
+  const bases = extraBase ? [{ name: 'you named it', base: extraBase }, ...KNOWN] : KNOWN
+  let hits = [], reached = 0, blocked = []
+  for (const k of bases) {
+    try {
+      const r = await findInCatalogue(k.base, frag)
+      reached++
+      hits = hits.concat((r.hits || []).map((h) => ({ ...h, publisher: k.name })))
+    } catch (e) { blocked.push(k.base) }
+  }
+
+  if (hits.length === 1) return render(await fetchBody(hits[0].base, hits[0].dealId), hits[0])
+  if (hits.length > 1) return renderHits(hits)
+
+  // nothing published — is it in flight?
+  say('Not in a published catalogue. Asking the pool…')
+  let live = null
+  try { live = await findInPool(frag, network) } catch (e) { /* pool unreachable, say so below */ }
+  if (live) return render(live, { publisher: 'the pool (in flight)', network })
+
+  const why = []
+  if (blocked.length) why.push(`could not read ${blocked.map(esc).join(', ')} — the publisher may not allow cross-origin reads`)
+  if (!reached && !blocked.length) why.push('no publisher answered')
+  say(`<b>No deal starts with <span class="mono">${esc(frag)}</span>.</b><br>` +
+      `Nothing published by ${esc(KNOWN.map((k) => k.base).join(' or '))}${extraBase ? ' or ' + esc(extraBase) : ''}, ` +
+      `and nothing in the ${esc(network)} pool's window.` +
+      (why.length ? `<br><span style="color:var(--warn)">${why.map(esc).join('; ')}</span>` : '') +
+      `<br><br>If it is an old v1 deal, try the <a href="/legacy/deals/">v1 archive</a>. ` +
+      `If you know who published it, put their base URL in the second box.`, true)
+}
+
+function renderHits(hits) {
+  $('hitcount').textContent = hits.length + ' matches'
+  $('hitlist').innerHTML = hits.map((h) => (
+    `<li><a href="?id=${encodeURIComponent(h.dealId)}">${esc(String(h.dealId).slice(0, 20))}…</a>` +
+    `<span class="pill acc">${esc(h.publisher || '')}</span>` +
+    (h.role ? `<span class="pill">${esc(h.role)}</span>` : '') +
+    (h.cc ? `<span class="pill">${esc(h.cc)}</span>` : '') +
+    (h.network ? `<span class="pill">${esc(h.network)}</span>` : '') +
+    (h.v ? `<span class="pill">v${esc(h.v)}</span>` : '') + `</li>`
+  )).join('')
+  show($('hits'), true); show($('status'), false)
+}
+
+// ── rendering a policy ────────────────────────────────────────────────────────────
+// The section blurbs are lifted from the converter's own `explain`, so the two pages describe
+// the v2 shape in the same words rather than inventing a second vocabulary for it.
+const BLURB = {
+  constants: 'Public ids and numbers the policy refers to by name. Fixed when the deal was minted — changing one makes a different deal with a different id.',
+  inputs: 'What the raiser supplies, and its type. Everything else is read from the chain rather than taken on trust.',
+  observe: 'The chain reads this policy makes for itself, as source + path + what to select. The verifier decides which host answers for the registry name.',
+  derive: 'Values computed from constants, inputs and reads, in order.',
+  require: 'Every one of these must hold. A refusal names the one that did not — which is why a deal can say no in words rather than in a stack trace.',
+  transaction: 'What may move if all of the above holds. Nothing outside this can be signed under this deal.',
+}
+
+function kvTable(obj) {
+  const keys = Object.keys(obj || {})
+  if (!keys.length) return '<p class="what" style="margin:0">none</p>'
+  return '<table><tbody>' + keys.map((k) => {
+    const v = obj[k]
+    const txt = (v && typeof v === 'object') ? JSON.stringify(v) : String(v)
+    return `<tr><td class="k">${esc(k)}</td><td class="v">${esc(txt)}</td></tr>`
+  }).join('') + '</tbody></table>'
+}
+
+function renderTransaction(t) {
+  if (!t) return '<p class="what" style="margin:0">none</p>'
+  let out = ''
+  const amount = (a) => (a && typeof a === 'object') ? JSON.stringify(a) : String(a)
+  const isNeg = (a) => typeof a === 'object' && a && Array.isArray(a['-']) && Number(a['-'][0]) === 0
+  for (const leg of (t.tokenTransfers || [])) {
+    const neg = isNeg(leg.amount) || Number(leg.amount) < 0
+    out += `<div class="mv"><span class="amt ${neg ? 'neg' : 'pos'}">${neg ? '−' : '+'}</span>` +
+           `<span class="mono">${esc(amount(leg.amount))}</span> of <span class="mono">${esc(leg.token)}</span>` +
+           ` <span style="color:var(--ink-3)">${neg ? 'from' : 'to'}</span> <span class="mono">${esc(leg.account)}</span></div>`
+  }
+  for (const leg of (t.hbarTransfers || [])) {
+    const neg = isNeg(leg.amount) || Number(leg.amount) < 0
+    out += `<div class="mv"><span class="amt ${neg ? 'neg' : 'pos'}">${neg ? '−' : '+'}</span>` +
+           `<span class="mono">${esc(amount(leg.amount))}</span> HBAR <span style="color:var(--ink-3)">${neg ? 'from' : 'to'}</span> <span class="mono">${esc(leg.account)}</span></div>`
+  }
+  for (const leg of (t.nftTransfers || [])) {
+    out += `<div class="mv"><span class="amt">NFT</span><span class="mono">${esc(leg.token)}</span>` +
+           ` #<span class="mono">${esc(leg.serial)}</span> <span style="color:var(--ink-3)">from</span> ` +
+           `<span class="mono">${esc(leg.from || leg.sender)}</span> <span style="color:var(--ink-3)">to</span> ` +
+           `<span class="mono">${esc(leg.to || leg.receiver)}</span></div>`
+  }
+  const rest = {}
+  for (const k of ['type', 'memo', 'operator']) if (t[k] != null) rest[k] = t[k]
+  if (t.schedule) rest.schedule = t.schedule
+  return out + (Object.keys(rest).length ? '<div style="margin-top:10px">' + kvTable(rest) + '</div>' : '')
+}
+
+function renderRequire(list) {
+  if (!Array.isArray(list) || !list.length) return '<p class="what" style="margin:0">nothing — this deal requires no conditions</p>'
+  return list.map((r) => (
+    `<div class="rule"><div class="why">${esc(r.reason || 'unnamed condition')}</div>` +
+    `<code>${esc(JSON.stringify(r.rule))}</code></div>`
+  )).join('')
+}
+
+function render(found, meta) {
+  const doc = found.doc || {}
+  const policy = (doc.deal && typeof doc.deal === 'object') ? doc.deal : doc
+  const declaredId = String(doc.dealId || meta.dealId || '').toLowerCase()
+  const isV2 = Number(policy.v) === 2
+
+  // The check that makes the whole thing trustworthy wherever it was fetched from.
+  let computed = null, verdict
+  try { computed = isV2 ? v2DealId(policy) : computeDealId(policy) } catch (e) { computed = null }
+  if (!declaredId) verdict = { cls: 'warn', text: 'no id declared' }
+  else if (!computed) verdict = { cls: 'warn', text: 'could not hash' }
+  else if (computed === declaredId) verdict = { cls: 'ok', text: 'verified' }
+  else verdict = { cls: 'bad', text: 'does not match' }
+
+  $('r-name').textContent = policy.name || (doc.role ? doc.role + ' deal' : 'deal')
+  $('r-pills').innerHTML =
+    `<span class="pill ${verdict.cls}">${esc(verdict.text)}</span> ` +
+    `<span class="pill">${isV2 ? 'v2 policy' : 'v1 template'}</span> ` +
+    (policy.network || doc.network ? `<span class="pill">${esc(policy.network || doc.network)}</span> ` : '') +
+    (doc.role ? `<span class="pill">${esc(doc.role)}</span> ` : '') +
+    (meta && meta.publisher ? `<span class="pill acc">${esc(meta.publisher)}</span>` : '')
+
+  $('r-id').innerHTML = esc(declaredId || '(none declared)') +
+    (verdict.cls === 'bad' ? `<br><span style="color:var(--bad)">body hashes to ${esc(computed)}</span>` : '')
+
+  $('r-src').textContent = found.src
+  $('r-src').href = found.src
+
+  let html = ''
+  if (isV2) {
+    const order = ['constants', 'inputs', 'observe', 'derive', 'require', 'transaction']
+    for (const k of order) {
+      if (policy[k] == null) continue
+      html += `<div class="sec"><h3>${esc(k)}</h3><p class="what">${esc(BLURB[k] || '')}</p>`
+      html += k === 'require' ? renderRequire(policy[k])
+            : k === 'transaction' ? renderTransaction(policy[k])
+            : kvTable(policy[k])
+      html += '</div>'
+    }
+  } else {
+    html += `<div class="sec"><p class="what">This is a <b>v1 template</b>, the older shape. It is shown as
+      published and verified against its id, but the sections below are the raw blocks — the
+      <a href="/future/v3/convert/">converter</a> turns one into a v2 policy and explains it in
+      these terms.</p></div>`
+    for (const k of Object.keys(policy)) {
+      html += `<div class="sec"><h3>${esc(k)}</h3>${kvTable(typeof policy[k] === 'object' && !Array.isArray(policy[k]) ? policy[k] : { [k]: policy[k] })}</div>`
+    }
+  }
+  $('pane-read').innerHTML = html
+  $('pane-json').textContent = JSON.stringify(doc, null, 2)
+  show($('result'), true); show($('status'), false); show($('hits'), false)
+  if (declaredId) history.replaceState(null, '', '?id=' + encodeURIComponent(declaredId))
+}
+
+// ── wiring ────────────────────────────────────────────────────────────────────────
+$('tab-read').onclick = () => { $('tab-read').setAttribute('aria-selected', 'true'); $('tab-json').setAttribute('aria-selected', 'false'); show($('pane-read'), true); show($('pane-json'), false) }
+$('tab-json').onclick = () => { $('tab-json').setAttribute('aria-selected', 'true'); $('tab-read').setAttribute('aria-selected', 'false'); show($('pane-json'), true); show($('pane-read'), false) }
+
+const run = () => lookup($('q').value, $('net').value, $('base').value.trim())
+$('go').onclick = run
+$('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') run() })
+$('base').addEventListener('keydown', (e) => { if (e.key === 'Enter') run() })
+
+if (qs.get('network')) $('net').value = qs.get('network')
+if (qs.get('base')) $('base').value = qs.get('base')
+const initial = qs.get('id') || qs.get('dealId') || ''
+if (initial) { $('q').value = initial; run() }
+</script>
+</body>
+</html>
