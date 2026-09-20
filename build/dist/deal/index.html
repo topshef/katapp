@@ -411,7 +411,10 @@ function render(found, meta) {
   else if (computed === declaredId) verdict = { cls: 'ok', text: 'verified' }
   else verdict = { cls: 'bad', text: 'does not match' }
 
-  $('r-name').textContent = policy.name || (doc.role ? doc.role + ' deal' : 'deal')
+  // v2 puts the human name at `name`; a v1 template puts it in display.title. Six of the
+  // eight xproof deals sampled on 2026-09-20 were v1, so falling back matters here.
+  $('r-name').textContent = policy.name || (policy.display && policy.display.title) ||
+                            (doc.role ? doc.role + ' deal' : 'deal')
   $('r-pills').innerHTML =
     `<span class="pill ${verdict.cls}">${esc(verdict.text)}</span> ` +
     `<span class="pill">${isV2 ? 'v2 policy' : 'v1 template'}</span> ` +
