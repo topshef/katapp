@@ -319,7 +319,10 @@ async function lookup(raw, network, extraBase) {
       `Nothing published by ${esc(KNOWN.map((k) => k.base).join(' or '))}${extraBase ? ' or ' + esc(extraBase) : ''}, ` +
       `and nothing in the ${esc(network)} pool's window.` +
       (why.length ? `<br><span style="color:var(--warn)">${why.map(esc).join('; ')}</span>` : '') +
-      `<br><br>If it is an old v1 deal, try the <a href="/legacy/deals/">v1 archive</a>. ` +
+      `<br><br>If it is an old v1 deal, ` +
+      `<a href="/legacy/deals/?find=${encodeURIComponent(frag)}">look for ${esc(frag)} in the v1 archive</a> ` +
+      `— that is a separate, deprecated store with its own search, deep-linked here rather than ` +
+      `wired into this page. ` +
       `If you know who published it, put their base URL in the second box.`, true)
 }
 
