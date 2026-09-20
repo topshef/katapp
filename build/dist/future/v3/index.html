@@ -115,6 +115,18 @@
      carry the message, so this is a mark beside a name, not a highlight on the row. */
   .sig-late{margin-left:3px;font-size:11px;color:#7e22ce;cursor:default}
   .none{color:var(--ink-3)}
+  /* KEA-NOTES1 */
+  .notesbtn{font:600 11px var(--sans);padding:2px 8px;border:1px solid var(--line);border-radius:5px;
+            background:var(--panel-2);color:var(--acc);cursor:pointer;white-space:nowrap}
+  .notesbtn:hover{border-color:var(--acc)}
+  #notesdlg{border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);
+            padding:0;max-width:min(900px,92vw);width:100%}
+  #notesdlg::backdrop{background:rgba(0,0,0,.45)}
+  #notesdlg .dhead{display:flex;justify-content:space-between;align-items:center;gap:12px;
+                   padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel-2)}
+  #notesdlg .dhead b{font-size:.95rem}
+  #notesdlg pre{margin:0;padding:14px;max-height:65vh;overflow:auto;font:12.5px/1.5 var(--mono);white-space:pre-wrap;word-break:break-word}
+  #notesdlg .dnote{padding:8px 14px;border-top:1px solid var(--line);color:var(--ink-3);font-size:11.5px}
   .self{font-size:11.5px;color:var(--ink-3);font-family:var(--mono)}
   .warnrow td{background:var(--warn-bg)}
   .dim{color:var(--ink-3)}
@@ -240,7 +252,7 @@
   <div class="stale" id="stale" hidden></div>
   <div class="panel"><table id="devices">
     <thead><tr>
-      <th>device</th><th>signing?</th><th>last seen</th><th>keys held</th><th>watching</th><th>subscribed to</th>
+      <th>device</th><th>signing?</th><th>last seen</th><th>keys held</th><th>watching</th><th>subscribed to</th><th>notes</th>
     </tr></thead>
     <tbody><tr><td colspan="6" class="msg">Loading…</td></tr></tbody>
   </table></div>
@@ -399,6 +411,39 @@
     return API + '?' + p.toString();
   }
   function api(action, params) { return getJson(apiUrl(action, params)); }
+
+  // KEA-NOTES1: whatever the device chose to say about itself, signed with the rest of the
+  // announcement. It is NOT modelled and must never be trusted: anyone who can run a signer
+  // can put anything here, so it is stored verbatim by the pool and rendered here as TEXT —
+  // JSON.stringify into a <pre>'s textContent, never innerHTML, never parsed for markup,
+  // never eval'd. A device that says nothing has no note, which is not the same as one that
+  // withheld keys or deals: `withheld` covers those three, and notes are simply absent.
+  var NOTES = {};        // by deviceKey, so the dialog can read one without re-fetching
+
+  // One delegated listener rather than one per row: the device table is re-rendered on every
+  // refresh, and per-row handlers would be re-bound (or leaked) each time.
+  document.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest && e.target.closest('.notesbtn');
+    if (!b) return;
+    var by = b.getAttribute('data-by'), n = NOTES[by];
+    $('notestitle').textContent = 'notes \u00b7 ' + String(by).slice(0, 10) + '\u2026';
+    // textContent, not innerHTML: this string came off the wire from a device we do not
+    // control, and the only safe thing to do with it is show it.
+    $('notesbody').textContent = (function () {
+      try { return JSON.stringify(n, null, 2); } catch (err) { return String(n); }
+    })();
+    var d = $('notesdlg');
+    if (d.showModal) d.showModal(); else d.setAttribute('open', '');
+  });
+  function notesCell(d) {
+    if (d.notes == null) return '<span class="none">\u2014</span>';
+    NOTES[String(d.by)] = d.notes;
+    var n = d.notes, kind = (n && typeof n === 'object' && !Array.isArray(n))
+      ? (n._dropped ? 'dropped' : (n.report !== undefined && n.deals !== undefined ? 'config' : Object.keys(n).length + ' fields'))
+      : (typeof n);
+    return '<button type="button" class="notesbtn" data-by="' + esc(String(d.by)) + '">' +
+           esc(kind) + '</button>';
+  }
 
   // DEALPAGE1: a dealId is worth following — /deal/ resolves it from whoever published it
   // (or from the pool, if it is in flight) and checks the body really hashes to the id.
@@ -571,6 +616,7 @@
         '<td data-l="keys held"><div class="v">' + keys + '</div></td>' +
         '<td data-l="watching"><div class="v">' + watching + '</div></td>' +
         '<td data-l="subscribed to"><div class="v">' + subText + '</div></td>' +
+        '<td data-l="notes"><div class="v">' + notesCell(d) + '</div></td>' +
         '</tr>';
     }).join('');
 
@@ -1036,8 +1082,18 @@
   resetTimer();
   refresh();
   // a link carrying ?txid= opens straight onto that transaction, as /future does
+  (function () {
+    var d = $('notesdlg'), c = $('notesclose');
+    if (c) c.onclick = function () { d.close ? d.close() : d.removeAttribute('open'); };
+  })();
   if (qs.get('txid')) inspect(qs.get('txid'), qs.get('pch'));
 })();
 </script>
+<dialog id="notesdlg">
+  <div class="dhead"><b id="notestitle">notes</b><button type="button" id="notesclose">close</button></div>
+  <pre id="notesbody"></pre>
+  <div class="dnote">Published by that device and signed with the key it announces as. That makes it
+    <i>what the device said</i> — not that any of it is true. Shown as text, never interpreted.</div>
+</dialog>
 </body>
 </html>
