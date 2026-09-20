@@ -475,10 +475,17 @@
     // the operator — the accounts come from the chain, the deals from the signer's own config.
     coveredDeals = {};
     list.forEach(function (d) {
+      if (d.accounts && !Array.isArray(d.accounts)) d.accounts_v1 = d.accounts;   // v1 shape: { account: pubkey }
       // a stale device's promise is not coverage: only a fresh one is watching now
       if (d.fresh) Object.keys(d.deals || {}).forEach(function (id) { coveredDeals[String(id).toLowerCase()] = true; });
       // derived here, not by the pool: the record is the signed announcement and nothing else
-      d.accounts = uniq([].concat.apply([], Object.keys(d.keys || {}).map(function (k) { return d.keys[k] || []; }))).sort();
+      // Normally derived from the PRESENCE2 keys map. A row the pool stored BEFORE
+      // PRESENCE2 has no `keys`, only the v1 `accounts` map — without this fallback such a
+      // device has no accounts at all and an account filter drops it silently, which is the
+      // one device you are most likely to be hunting for.
+      d.accounts = uniq([].concat.apply([], Object.keys(d.keys || {}).map(function (k) { return d.keys[k] || []; })));
+      if (!d.accounts.length && d.accounts_v1) d.accounts = Object.keys(d.accounts_v1);
+      d.accounts = uniq(d.accounts).sort();
       d.dealIds = Object.keys(d.deals || {}).sort();
       Object.keys(d.keys || {}).forEach(function (k) { byKey[String(k).toLowerCase()] = d; });
       if (d.by) byKey[String(d.by).toLowerCase()] = d;
@@ -542,6 +549,12 @@
       return '<tr>' +
         '<td class="cardtitle" data-l="device"><span class="who">' + esc(d.label) + '</span>' +
           (d.restarted ? ' <span class="pill warn">restarted</span>' : '') +
+          // The label is a nickname the device picks and can change between announcements;
+          // the pool files a row under the key that SIGNED it. So this is what says whether
+          // two rows are two processes or one process renamed — and it is the only part of
+          // the row that is evidence rather than a claim. One row per signing key, always:
+          // two instances sharing a key share a row, and the later announcement wins.
+          (d.by ? '<div class="key" title="the key that signed this announcement — the pool files one row per key, whatever the label says">id ' + esc(String(d.by).slice(0, 10)) + '…</div>' : '') +
           (ver ? '<div class="key">' + ver + '</div>' : '') + '</td>' +
         '<td data-l="signing?"><div class="v">' + mode + '</div></td>' +
         '<td data-l="last seen"><div class="v">' + seen + '<div class="age">' + ago(d.ageSeconds) + ' ago</div>' + up + '</div></td>' +
