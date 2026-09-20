@@ -45,6 +45,7 @@
   button:hover{border-color:var(--ink-3)}
   button.primary{background:var(--acc);border-color:var(--acc);color:#fff}
   .stamp{font:12px var(--mono);color:var(--ink-3)}
+  .stamp.busy{color:var(--acc)}
   .stampline{display:flex;justify-content:flex-end;padding-top:6px}
   #sview{border-top:0;padding-top:0;margin-top:10px}
 
@@ -66,6 +67,17 @@
   h2{margin:0;font-size:15px;font-weight:650}
   .note{font-size:13px;color:var(--ink-3);margin:0 0 8px;max-width:86ch}
   .count{font:12px var(--mono);color:var(--ink-3)}
+  .count.busy{color:var(--acc)}
+  /* The pool read is one request PER RECORD — 25 of them, four at a time, through the edge
+     alias — and takes seconds with no filter. A page that shows nothing for those seconds
+     reads as hung. The bar is determinate once the list is known (n of 25 read) and sweeps
+     while it is not. */
+  .prog{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin:0 0 8px;opacity:0;transition:opacity .25s}
+  .prog.on{opacity:1}
+  .prog>i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
+  .prog.indet>i{width:30%;animation:progsweep 1.1s linear infinite}
+  @keyframes progsweep{from{margin-left:-30%}to{margin-left:100%}}
+  @media (prefers-reduced-motion:reduce){.prog.indet>i{animation:none;width:100%;opacity:.5}}
   /* a failure has to be legible while the section is shut, or a phone shows a tidy
      page that is quietly telling you nothing */
   .count.bad{color:var(--bad);font-weight:600}
@@ -127,6 +139,8 @@
   #notesdlg{border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);
             padding:0;max-width:min(900px,92vw);width:100%}
   #notesdlg::backdrop{background:rgba(0,0,0,.45)}
+  #notesdlg .dhead button{padding:4px 10px}
+  #notesdlg>*{pointer-events:auto}   /* so a backdrop click is the dialog element and nothing else */
   #notesdlg .dhead{display:flex;justify-content:space-between;align-items:center;gap:12px;
                    padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel-2)}
   #notesdlg .dhead b{font-size:.95rem}
@@ -282,6 +296,7 @@
     <span class="raws" id="traw"></span>
   </summary>
   <div class="secbody">
+  <div class="prog" id="tprog" aria-hidden="true"><i></i></div>
     <p class="note">Transactions waiting for signatures, newest first, with the devices that have
     signed each one — matched by public key against the roster above. The pool keeps a transaction
     for about an hour from its start time, so this is a live window, not a record.
@@ -437,6 +452,15 @@
   // One delegated listener rather than one per row: the device table is re-rendered on every
   // refresh, and per-row handlers would be re-bound (or leaked) each time.
   document.addEventListener('click', function (e) {
+    // Closing is delegated too — the <dialog> sits AFTER this script in the document, so a
+    // handler bound at load time found no button and the modal could only be left by
+    // reloading the page. A click on the dialog element itself (not its contents) is the
+    // backdrop; Escape is handled by the browser for showModal().
+    var dlg = $('notesdlg');
+    if (dlg && dlg.open && (e.target === dlg || (e.target.closest && e.target.closest('#notesclose')))) {
+      if (dlg.close) dlg.close(); else dlg.removeAttribute('open');
+      return;
+    }
     var b = e.target && e.target.closest && e.target.closest('.notesbtn');
     if (!b) return;
     var by = b.getAttribute('data-by'), n = NOTES[by];
@@ -479,18 +503,30 @@
     }).join('');
   }
   // run jobs n-at-a-time; one failure never sinks the batch
-  function pool(items, n, fn) {
-    var out = new Array(items.length), i = 0;
+  function pool(items, n, fn, onEach) {
+    var out = new Array(items.length), i = 0, done = 0;
     function next() {
       if (i >= items.length) return Promise.resolve();
       var k = i++;
       return Promise.resolve(fn(items[k], k))
         .then(function (v) { out[k] = v; }, function () { out[k] = null; })
+        .then(function () { if (onEach) onEach(++done, items.length); })
         .then(next);
     }
     var runners = [];
     for (var j = 0; j < Math.min(n, items.length); j++) runners.push(next());
     return Promise.all(runners).then(function () { return out; });
+  }
+
+  // the pool section's progress: total 0 = "listing" (indeterminate), else n of total read
+  function progress(done, total) {
+    var bar = $('tprog'), c = $('tcount');
+    if (!bar) return;
+    if (done === null) { bar.className = 'prog'; return; }
+    bar.className = 'prog on' + (total ? '' : ' indet');
+    bar.firstElementChild.style.width = total ? Math.round(100 * done / total) + '%' : '';
+    c.className = 'count busy';
+    c.textContent = total ? 'reading ' + done + ' / ' + total + '\u2026' : 'listing the pool\u2026';
   }
 
   // ── state that the URL owns ─────────────────────────────────────────────────
@@ -862,7 +898,9 @@
     checkStamp();
     if (busy) return Promise.resolve();
     busy = true;
-    $('stamp').textContent = 'loading…';
+    $('stamp').textContent = 'refreshing…';
+    $('stamp').className = 'stamp busy';
+    progress(0, 0);
     var network = $('network').value;
 
     showRaw('draw', [{ label: 'signers', url: apiUrl('signers', { network: network }) }]);
@@ -910,6 +948,7 @@
         });
         list.sort(function (a, b) { return (txStartSec(b.txid) || 0) - (txStartSec(a.txid) || 0); });
         var slice = list.slice(0, MAX_READS);
+        progress(0, slice.length);
         return pool(slice, CONCURRENCY, function (t) {
           return api('txRead', { network: t.network || network, txid: t.txid, pch: t.pch, detail: '1', mirror: '0' })
             .then(function (d2) {
@@ -931,13 +970,15 @@
               };
             })
             .catch(function () { return { txid: t.txid, pch: t.pch, sigs: [], title: null, state: 'unreadable' }; });
-        }).then(function (rows) {
+        }, progress).then(function (rows) {
+          progress(null);
           renderTxs(rows);
           if (list.length > slice.length) {
             $('tcount').textContent += ' · newest ' + slice.length + ' of ' + list.length;
           }
         });
       }).catch(function (e) {
+        progress(null);
         $('txs').tBodies[0].innerHTML =
           '<tr><td colspan="6" class="msg err">Could not reach the pool: ' + esc(e.message) + '</td></tr>';
         $('tcount').textContent = 'could not reach the pool';
@@ -947,6 +988,7 @@
 
     return Promise.all([devices, txs]).then(function () {
       busy = false;
+      $('stamp').className = 'stamp';
       $('stamp').textContent = 'as of ' + new Date().toISOString().replace('T', ' ').slice(0, 19) + 'Z';
     });
   }
@@ -1122,10 +1164,6 @@
   resetTimer();
   refresh();
   // a link carrying ?txid= opens straight onto that transaction, as /future does
-  (function () {
-    var d = $('notesdlg'), c = $('notesclose');
-    if (c) c.onclick = function () { d.close ? d.close() : d.removeAttribute('open'); };
-  })();
   if (qs.get('txid')) inspect(qs.get('txid'), qs.get('pch'));
 })();
 </script>
