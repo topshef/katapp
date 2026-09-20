@@ -96,7 +96,14 @@
   .foot{margin-top:24px;font-size:.85rem;color:var(--ink-3)}
   .foot a{color:var(--acc)}
   .hidden{display:none}
-  @media (max-width:640px){ .bar{flex-direction:column;align-items:stretch} }
+  @media (max-width:640px){
+    .bar{flex-direction:column;align-items:stretch}
+    /* `flex: 1 1 320px` sets flex-BASIS, which is a height once the bar stacks into a column —
+       so the search field rendered about an inch and a half tall on a phone, with the same gap
+       again under the button. The basis only ever meant "at least this wide". */
+    .f.grow{flex:1 1 auto}
+    .bar button{width:100%}
+  }
 </style>
 </head>
 <body>
