@@ -84,7 +84,7 @@
     <a href="/future/v3/help/">How it works</a>
     <a href="/future/v3/help/business/">In business terms</a>
     <a href="/future/v3/notes/">Notes</a>
-    <a href="/future/v3/convert/">Converter</a>
+    <a href="/deal/convert/">Converter</a>
     <a href="/deal/">Look up a deal</a>
     <span class="here">Write a deal</span>
     <a href="spec/">.kat spec</a>
@@ -127,7 +127,7 @@
 </div>
 
 <script type="module">
-import { parseKatomic, printKatomic, validatePolicy, v2DealId, canonicalize } from '/future/v3/convert/kea-convert.browser.js'
+import { parseKatomic, printKatomic, validatePolicy, v2DealId, canonicalize } from '/deal/convert/kea-convert.browser.js'
 
 const $ = (id) => document.getElementById(id)
 const src = $('src'), gutter = $('gutter')
@@ -276,7 +276,7 @@ async function loadId(frag) {
   status.innerHTML = '<span class="pill mute">loading…</span>'
   try {
     const { id, base, body } = await resolve(frag)
-    if (body.v !== 2) throw new Error(`${id.slice(0, 8)}… is a v${body.v || 1} deal; only a v2 policy prints as a script. The <a href="/future/v3/convert/">converter</a> makes a v2 from it.`)
+    if (body.v !== 2) throw new Error(`${id.slice(0, 8)}… is a v${body.v || 1} deal; only a v2 policy prints as a script. The <a href="/deal/convert/">converter</a> makes a v2 from it.`)
     src.value = printKatomic(body)
     $('fname').textContent = `${id.slice(0, 12)}.kat · from ${base.replace(/^https?:\/\//, '')}`
     history.replaceState(null, '', `?id=${id}`)
