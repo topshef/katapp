@@ -235,6 +235,7 @@
     <a href="help/business/">In business terms</a>
     <a href="notes/">Notes</a>
     <a href="convert/">Converter</a>
+    <a href="/deal/">Look up a deal</a>
   </nav>
   <div class="stale" id="stale" hidden></div>
   <div class="panel"><table id="devices">
@@ -399,6 +400,15 @@
   }
   function api(action, params) { return getJson(apiUrl(action, params)); }
 
+  // DEALPAGE1: a dealId is worth following — /deal/ resolves it from whoever published it
+  // (or from the pool, if it is in flight) and checks the body really hashes to the id.
+  // New tab on purpose: this page auto-refreshes and losing it mid-investigation is a nuisance.
+  function dealLink(id) {
+    var full = String(id);
+    return '<a href="/deal/?id=' + encodeURIComponent(full) + '" target="_blank" rel="noopener"' +
+           ' title="look this deal up">' + esc(full.slice(0, 8)) + '\u2026</a>';
+  }
+
   // the raw links for a section: one per call actually made
   function uniq(a) { var o = {}; return a.filter(function (x) { return o[x] ? false : (o[x] = 1); }); }
   function showRaw(slotId, calls) {
@@ -531,7 +541,7 @@
       var dealIds = hid('deals') ? [] : (d.dealIds || Object.keys(d.deals || {}));
       var watching = hid('deals') ? '<span class="none">not saying</span>' : dealIds.length
         ? esc(String(dealIds.length)) + ' deal' + (dealIds.length === 1 ? '' : 's') +
-          '<div class="key">' + dealIds.slice(0, 3).map(function (id) { return esc(String(id).slice(0, 8)) + '…'; }).join(' ') + (dealIds.length > 3 ? ' …' : '') + '</div>'
+          '<div class="key">' + dealIds.slice(0, 3).map(dealLink).join(' ') + (dealIds.length > 3 ? ' …' : '') + '</div>'
         : '<span class="none">not saying</span>';
       // the literal socket filters the device sent: what it is actually rung for
       var sub = hid('subscription') ? null : d.subscription;

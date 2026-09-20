@@ -87,6 +87,11 @@ const SIGNERCONV  = /^\/future\/v3\/convert(?:\/|\/index\.html)$/;
 // Same ?action= convention as the v3 pages: /legacy/deals/?action=search → /hapi/legacy/search.
 const LEGACYDEALS = /^\/legacy\/deals(?:\/|\/index\.html)$/;
 const SIGNERNOTES = /^\/future\/v3\/notes\/([a-z0-9-]+)(?:\/|\/index\.html)$/;
+// DEALPAGE1: /deal/ — look a deal up by id. Deliberately at the ROOT, not under /future/v3:
+// v3 is this dashboard's version and a deal is on v2, and nesting one inside the other reads
+// as though they were the same version idea. It is not a signer view, so it needs no ?action=
+// proxy — it calls /hapi/kpool/... and the publishers' catalogues directly.
+const DEALPAGE = /^\/deal(?:\/|\/index\.html)$/;
 const SIGNPAGE = /^\/(?:m\/sign|future)(?:\/|\/index\.php)?$/;
 const GLOG = /^\/m\/tools\/glog\/latest\/(.+)$/;
 const BRANDS = [
@@ -173,6 +178,8 @@ export function route(url) {
   if (SIGNERVIEW.test(p)) return url.searchParams.has('action')
     ? actionRoute(url, '/hapi/kpool/', '')
     : { kind: 'asset', path: '/future/v3/index.html' };
+  if (p === '/deal') return { kind: 'redirect', to: '/deal/' };
+  if (DEALPAGE.test(p)) return { kind: 'asset', path: '/deal/index.html' };
   if (p === '/legacy/deals') return { kind: 'redirect', to: '/legacy/deals/' };
   if (LEGACYDEALS.test(p)) return url.searchParams.has('action')
     ? actionRoute(url, '/hapi/legacy/', '')

@@ -181,6 +181,10 @@ copytree vendor/bootstrap; copytree vendor/jquery; copytree future
 mkdir -p "$DIST/legacy"
 cp -R "$PUB/legacy/." "$DIST/legacy/"
 
+# DEALPAGE1: /deal/ — the deal lookup, copied whole for the same reason as future/v3 below.
+mkdir -p "$DIST/deal"
+cp -R "$PUB/deal/." "$DIST/deal/"
+
 mkdir -p "$DIST/future/v3"
 cp -R "$PUB/future/v3/." "$DIST/future/v3/"
 # The signer view mounts the REAL signing widget when a row is tapped. It asks this file
