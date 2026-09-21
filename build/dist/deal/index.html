@@ -27,7 +27,7 @@
   }}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1100px;margin:0 auto;padding:0 16px 80px}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 16px 80px}
   header{padding:28px 0 8px}
   h1{font-size:clamp(1.5rem,3.4vw,2rem);margin:0 0 6px;font-weight:650;letter-spacing:-.01em}
   .sub{color:var(--ink-2);margin:0;max-width:70ch}
@@ -67,7 +67,15 @@
   .tabs{display:flex;gap:4px;padding:8px 14px 0;background:var(--panel-2);border-bottom:1px solid var(--line)}
   .tabs button{border-radius:7px 7px 0 0;border-bottom-color:transparent;font-size:13px;padding:6px 12px}
   .tabs button[aria-selected="true"]{background:var(--panel);border-color:var(--line);border-bottom-color:var(--panel);color:var(--acc)}
-  pre{margin:0;padding:14px;overflow-x:auto;font:13px/1.55 var(--mono);background:var(--panel);color:var(--ink)}
+  pre{margin:0;padding:14px;overflow-x:auto;font:13px/1.6 var(--mono);background:var(--panel);color:var(--ink)}
+  #pane-kat{padding:16px 18px;white-space:pre}
+  .tabs button[hidden]{display:none}
+  /* a rule is a numbered condition with its reason above it — the reason is inside the hash
+     and a refusal quotes it back, so it is the sentence to read first */
+  .rule .rn{display:inline-block;min-width:1.4em;color:var(--ink-3);font:12px var(--mono)}
+  .rule code{display:block;margin-top:3px;padding-left:1.4em}
+  td.v .kw-t,td.v .kw-n,td.v .kw-m,td.v .kw-k,td.v .kw-p{font-family:var(--mono)}
+  .dim{color:var(--ink-3)}
   .sec{border-top:1px solid var(--line-2);padding:14px}
   .sec:first-child{border-top:none}
   .sec h3{margin:0 0 2px;font-size:.9rem;font-weight:650}
@@ -174,10 +182,12 @@
     </p>
   </div>
   <div class="tabs" role="tablist">
-    <button id="tab-read" role="tab" aria-selected="true">Readable</button>
+    <button id="tab-kat" role="tab" aria-selected="true">Script</button>
+    <button id="tab-read" role="tab" aria-selected="false">Readable</button>
     <button id="tab-json" role="tab" aria-selected="false">JSON</button>
   </div>
-  <div id="pane-read"></div>
+  <pre id="pane-kat"></pre>
+  <div id="pane-read" class="hidden"></div>
   <pre id="pane-json" class="hidden"></pre>
 </div>
 
@@ -232,7 +242,10 @@
 </div>
 
 <script type="module">
-import { canonicalize, computeDealId, v2DealId } from '/deal/convert/kea-convert.browser.js'
+import { canonicalize, computeDealId, v2DealId, printKatomic, printExpr } from '/deal/convert/kea-convert.browser.js'
+import { katHtml, exprHtml, jsonHtml, installSyntaxCss } from '/deal/kat-syntax.js'
+
+installSyntaxCss()
 
 // Publishers this page knows about. A deal id names content, never a location, so this list is
 // the only thing standing between an id and a body — keep it honest and short, and let anyone
@@ -367,49 +380,77 @@ const BLURB = {
   transaction: 'What may move if all of the above holds. Nothing outside this can be signed under this deal.',
 }
 
-function kvTable(obj) {
+// KATSYN1: one expression, as the script writes it. printExpr turns a JSONLogic node back
+// into `elapsed >= TIMELOCK_SECONDS`; katHtml then colours it in the same vocabulary the
+// Script tab and the editor use, so the same name is the same colour wherever it appears.
+// Anything printExpr refuses (it is strict about what a script may say) falls back to the
+// JSON, which is honest: this page must never pretend a deal says something it does not.
+function asExpr(node) {
+  if (node == null) return '<span class="dim">—</span>'
+  if (typeof node === 'string') return exprHtml(node)             // a JMESPath query, verbatim
+  try { return exprHtml(printExpr(node)) } catch { return '<code>' + esc(JSON.stringify(node)) + '</code>' }
+}
+
+function kvTable(obj, kind) {
   const keys = Object.keys(obj || {})
   if (!keys.length) return '<p class="what" style="margin:0">none</p>'
   return '<table><tbody>' + keys.map((k) => {
     const v = obj[k]
-    const txt = (v && typeof v === 'object') ? JSON.stringify(v) : String(v)
-    return `<tr><td class="k">${esc(k)}</td><td class="v">${esc(txt)}</td></tr>`
+    let cell
+    if (kind === 'derive') cell = asExpr(v)
+    else if (kind === 'observe' && v && typeof v === 'object') {
+      // source + path + select is three facts, not one JSON blob
+      cell = '<span class="kw-k">' + esc(v.source || '?') + '</span> <span class="kw-p">' + esc(v.get || '') + '</span>' +
+             (v.select ? ' <span class="kw-k">-&gt;</span> <span class="kw-p">' + esc(v.select) + '</span>' : '') +
+             (v.pin ? '<div class="dim">pin ' + esc(JSON.stringify(v.pin)) + '</div>' : '') +
+             (v.attest ? '<div class="dim">attest ' + esc(JSON.stringify(v.attest)) + '</div>' : '')
+    } else if (kind === 'inputs' && v && typeof v === 'object') cell = '<span class="kw-k">' + esc(v.type || JSON.stringify(v)) + '</span>'
+    else if (kind === 'constants') cell = typeof v === 'number' || typeof v === 'boolean' || v === null
+      ? '<span class="kw-m">' + esc(String(v)) + '</span>' : '<span class="kw-t">' + esc(String(v)) + '</span>'
+    else if (kind === 'tx') cell = (k === 'operator' ? '<span class="kw-n">' : '<span class="kw-t">') + esc(String(v)) + '</span>'
+    else cell = esc((v && typeof v === 'object') ? JSON.stringify(v) : String(v))
+    return `<tr><td class="k">${esc(k)}</td><td class="v">${cell}</td></tr>`
   }).join('') + '</tbody></table>'
 }
 
 function renderTransaction(t) {
   if (!t) return '<p class="what" style="margin:0">none</p>'
   let out = ''
-  const amount = (a) => (a && typeof a === 'object') ? JSON.stringify(a) : String(a)
+  // an amount is an expression: `commission`, or `ticket_price * PAYOUT_MULTIPLIER`
+  const amount = (a) => (a && typeof a === 'object') ? asExpr(stripNeg(a)) : `<span class="kw-m">${esc(String(a))}</span>`
+  // `{"-":[0,X]}` is how a script's `sends` is written; the row already says "from", so
+  // showing the negation as well is the JSON leaking through
+  const stripNeg = (a) => (a && Array.isArray(a['-']) && Number(a['-'][0]) === 0 && a['-'].length === 2) ? a['-'][1] : a
   const isNeg = (a) => typeof a === 'object' && a && Array.isArray(a['-']) && Number(a['-'][0]) === 0
   for (const leg of (t.tokenTransfers || [])) {
     const neg = isNeg(leg.amount) || Number(leg.amount) < 0
     out += `<div class="mv"><span class="amt ${neg ? 'neg' : 'pos'}">${neg ? '−' : '+'}</span>` +
-           `<span class="mono">${esc(amount(leg.amount))}</span> of <span class="mono">${esc(leg.token)}</span>` +
-           ` <span style="color:var(--ink-3)">${neg ? 'from' : 'to'}</span> <span class="mono">${esc(leg.account)}</span></div>`
+           `<span class="mono">${amount(leg.amount)}</span> of <span class="kw-n">${esc(leg.token)}</span>` +
+           ` <span style="color:var(--ink-3)">${neg ? 'from' : 'to'}</span> <span class="kw-n">${esc(leg.account)}</span></div>`
   }
   for (const leg of (t.hbarTransfers || [])) {
     const neg = isNeg(leg.amount) || Number(leg.amount) < 0
     out += `<div class="mv"><span class="amt ${neg ? 'neg' : 'pos'}">${neg ? '−' : '+'}</span>` +
-           `<span class="mono">${esc(amount(leg.amount))}</span> HBAR <span style="color:var(--ink-3)">${neg ? 'from' : 'to'}</span> <span class="mono">${esc(leg.account)}</span></div>`
+           `<span class="mono">${amount(leg.amount)}</span> <span class="kw-k">hbar</span> <span style="color:var(--ink-3)">${neg ? 'from' : 'to'}</span> <span class="kw-n">${esc(leg.account)}</span></div>`
   }
   for (const leg of (t.nftTransfers || [])) {
-    out += `<div class="mv"><span class="amt">NFT</span><span class="mono">${esc(leg.token)}</span>` +
-           ` #<span class="mono">${esc(leg.serial)}</span> <span style="color:var(--ink-3)">from</span> ` +
-           `<span class="mono">${esc(leg.from || leg.sender)}</span> <span style="color:var(--ink-3)">to</span> ` +
-           `<span class="mono">${esc(leg.to || leg.receiver)}</span></div>`
+    out += `<div class="mv"><span class="amt">NFT</span><span class="kw-n">${esc(leg.token)}</span>` +
+           ` #<span class="kw-n">${esc(leg.serial)}</span> <span style="color:var(--ink-3)">from</span> ` +
+           `<span class="kw-n">${esc(leg.from || leg.sender)}</span> <span style="color:var(--ink-3)">to</span> ` +
+           `<span class="kw-n">${esc(leg.to || leg.receiver)}</span></div>`
   }
   const rest = {}
   for (const k of ['type', 'memo', 'operator']) if (t[k] != null) rest[k] = t[k]
-  if (t.schedule) rest.schedule = t.schedule
-  return out + (Object.keys(rest).length ? '<div style="margin-top:10px">' + kvTable(rest) + '</div>' : '')
+  // `valid from +300s, for 120s` — the schedule as the script says it (spec §3)
+  if (t.schedule) rest.valid = `from +${Number(t.schedule.validStartOffset || 0)}s, for ${Number(t.schedule.validDuration || 0)}s`
+  return out + (Object.keys(rest).length ? '<div style="margin-top:10px">' + kvTable(rest, 'tx') + '</div>' : '')
 }
 
 function renderRequire(list) {
   if (!Array.isArray(list) || !list.length) return '<p class="what" style="margin:0">nothing — this deal requires no conditions</p>'
-  return list.map((r) => (
-    `<div class="rule"><div class="why">${esc(r.reason || 'unnamed condition')}</div>` +
-    `<code>${esc(JSON.stringify(r.rule))}</code></div>`
+  return list.map((r, i) => (
+    `<div class="rule"><div class="why"><span class="rn">${i + 1}</span>${esc(r.reason || 'unnamed condition')}</div>` +
+    `<code>${asExpr(r.rule)}</code></div>`
   )).join('')
 }
 
@@ -454,7 +495,7 @@ function render(found, meta) {
       html += `<div class="sec"><h3>${esc(k)}</h3><p class="what">${esc(BLURB[k] || '')}</p>`
       html += k === 'require' ? renderRequire(policy[k])
             : k === 'transaction' ? renderTransaction(policy[k])
-            : kvTable(policy[k])
+            : kvTable(policy[k], k)
       html += '</div>'
     }
   } else {
@@ -467,14 +508,40 @@ function render(found, meta) {
     }
   }
   $('pane-read').innerHTML = html
-  $('pane-json').textContent = JSON.stringify(doc, null, 2)
+
+  // KATSYN1: the Script tab. A v2 policy IS a Katomic script — the printer is the same one
+  // the editor uses, and `parse(print(P))` canonicalises back to P (spec, conformance), so
+  // what is shown here is the deal, not a summary of it. A v1 template has no script form;
+  // the tab says so and points at the converter rather than printing something misleading.
+  if (isV2) {
+    try {
+      $('pane-kat').innerHTML = katHtml(printKatomic(policy))
+      $('tab-kat').hidden = false
+      tab('kat')
+    } catch (e) {
+      $('pane-kat').innerHTML = `<span class="dim">This policy cannot be printed as a script: ${esc(e.message)}. The JSON tab has it whole.</span>`
+      $('tab-kat').hidden = false
+      tab('read')
+    }
+  } else {
+    $('pane-kat').innerHTML = '<span class="dim">A v1 template has no script form — the <a href="/deal/convert/">converter</a> turns one into a v2 policy, which does.</span>'
+    $('tab-kat').hidden = true
+    tab('read')
+  }
+  $('pane-json').innerHTML = jsonHtml(doc)
   show($('result'), true); show($('status'), false); show($('hits'), false)
   if (declaredId) history.replaceState(null, '', '?id=' + encodeURIComponent(declaredId))
 }
 
 // ── wiring ────────────────────────────────────────────────────────────────────────
-$('tab-read').onclick = () => { $('tab-read').setAttribute('aria-selected', 'true'); $('tab-json').setAttribute('aria-selected', 'false'); show($('pane-read'), true); show($('pane-json'), false) }
-$('tab-json').onclick = () => { $('tab-json').setAttribute('aria-selected', 'true'); $('tab-read').setAttribute('aria-selected', 'false'); show($('pane-json'), true); show($('pane-read'), false) }
+const TABS = ['kat', 'read', 'json']
+function tab(which) {
+  for (const t of TABS) {
+    $('tab-' + t).setAttribute('aria-selected', String(t === which))
+    show($('pane-' + t), t === which)
+  }
+}
+for (const t of TABS) $('tab-' + t).onclick = () => tab(t)
 
 const run = () => lookup($('q').value, $('net').value, $('base').value.trim())
 $('go').onclick = run

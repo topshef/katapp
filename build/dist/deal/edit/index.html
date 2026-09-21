@@ -23,7 +23,7 @@
   }}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1240px;margin:0 auto;padding:0 16px 60px}
+  .wrap{max-width:min(2000px,98vw);margin:0 auto;padding:0 20px 60px}
   a{color:var(--acc)}
   code{font-family:var(--mono);font-size:.9em;background:var(--panel-2);padding:1px 5px;border-radius:4px}
   header{padding:18px 0 6px}
@@ -47,6 +47,7 @@
 
   .panes{display:grid;grid-template-columns:1fr;gap:12px}
   @media (min-width:900px){.panes{grid-template-columns:1.05fr 1fr}}
+  @media (min-width:1600px){.panes{grid-template-columns:1fr 1fr}}
   .pane{border:1px solid var(--line);border-radius:8px;background:var(--panel);overflow:hidden;display:flex;flex-direction:column;min-height:320px}
   .phead{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--line);background:var(--panel-2);font:12px var(--mono);color:var(--ink-3)}
   .phead b{color:var(--ink);font-weight:600}
@@ -55,7 +56,18 @@
   .editor{display:flex;flex:1;min-height:0}
   .gutter{padding:10px 6px 10px 10px;text-align:right;color:var(--ink-3);font:12.5px/1.6 var(--mono);user-select:none;white-space:pre;overflow:hidden;border-right:1px solid var(--line-2);background:var(--panel)}
   .gutter .e{color:var(--bad);font-weight:700}
-  textarea{flex:1;border:0;resize:vertical;min-height:520px;padding:10px 12px;background:var(--panel);color:var(--ink);font:12.5px/1.6 var(--mono);white-space:pre;overflow:auto;tab-size:4}
+  /* KATSYN1: the script is coloured by painting a <pre> UNDER a transparent textarea. The
+     two must agree on every metric that moves a glyph — font, size, line-height, padding,
+     white-space, tab-size — or the colour drifts off the text as you scroll. They are set
+     together here for that reason; change one and change the other. */
+  .ta{position:relative;flex:1;min-width:0;min-height:520px}
+  .ta>pre.hl,.ta>textarea{margin:0;padding:10px 12px;border:0;
+    font:12.5px/1.6 var(--mono);white-space:pre;tab-size:4;overflow:auto}
+  .ta>pre.hl{position:absolute;inset:0;pointer-events:none;color:var(--ink);background:var(--panel);overflow:hidden}
+  .ta>textarea{position:absolute;inset:0;width:100%;height:100%;resize:none;
+    background:transparent;color:transparent;caret-color:var(--acc)}
+  .ta>textarea::selection{background:rgba(28,85,128,.28);color:transparent}
+  @media (prefers-color-scheme:dark){.ta>textarea::selection{background:rgba(116,174,222,.3)}}
   textarea:focus{outline:none}
 
   .status{padding:10px 12px;border-bottom:1px solid var(--line);font-size:13px}
@@ -69,6 +81,7 @@
   .probs li b{font-family:var(--mono);font-weight:600;margin-right:6px}
   .probs li:hover{text-decoration:underline}
   pre.out{margin:0;padding:10px 12px;flex:1;overflow:auto;font:12.5px/1.55 var(--mono);color:var(--ink-2);white-space:pre;min-height:200px}
+  pre.out{color:var(--ink)}
   .links{padding:8px 12px;border-top:1px solid var(--line);font-size:12.5px;display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--ink-3)}
   .note{font-size:13px;color:var(--ink-3);margin:12px 0 0;max-width:90ch}
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:6px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
@@ -111,7 +124,9 @@
   <section class="pane">
     <div class="phead"><b>script</b> <span id="fname">untitled.kat</span>
       <span class="btns"><button id="copysrc" type="button">Copy</button><button id="dl" type="button">Download .kat</button><button id="link" type="button">Permalink</button></span></div>
-    <div class="editor"><div class="gutter" id="gutter">1</div><textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Katomic script"></textarea></div>
+    <div class="editor"><div class="gutter" id="gutter">1</div><div class="ta"
+      ><pre class="hl" id="hl" aria-hidden="true"></pre
+      ><textarea id="src" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Katomic script"></textarea></div></div>
   </section>
   <section class="pane">
     <div class="status" id="status"><span class="pill mute">nothing yet</span></div>
@@ -128,9 +143,19 @@
 
 <script type="module">
 import { parseKatomic, printKatomic, validatePolicy, v2DealId, canonicalize } from '/deal/convert/kea-convert.browser.js'
+import { katHtml, jsonHtml, installSyntaxCss } from '/deal/kat-syntax.js'
 
+installSyntaxCss()
 const $ = (id) => document.getElementById(id)
-const src = $('src'), gutter = $('gutter')
+const src = $('src'), gutter = $('gutter'), hl = $('hl')
+
+// KATSYN1: repaint the colour layer and keep it exactly where the text is. The trailing
+// newline matters — without it the last line of a script ending in \n has nothing under it
+// and the layer's scroll height differs from the textarea's by one line.
+function paint() {
+  hl.innerHTML = katHtml(src.value) + '\n'
+  hl.scrollTop = src.scrollTop; hl.scrollLeft = src.scrollLeft
+}
 const PUBLISHERS = ['https://klotto.kpay.uk', 'https://xproof.live']
 const BLANK = `#deal
 name     my first deal
@@ -197,6 +222,7 @@ function lineOf(text, needle) {
 let current = { policy: null, id: null, ok: false }
 function compile() {
   const text = src.value
+  paint()
   renderGutter(null)
   const probs = $('probs'), status = $('status'), links = $('links')
   probs.innerHTML = ''; links.innerHTML = ''
@@ -225,7 +251,7 @@ function compile() {
   probs.innerHTML = items.join('')
   const firstErr = [...unbound.values()].length ? Number(probs.querySelector('li[data-line]:not([data-line=""])')?.dataset.line) || null : null
   renderGutter(firstErr)
-  $('json').textContent = JSON.stringify(policy, null, 2)
+  $('json').innerHTML = jsonHtml(policy)
   links.innerHTML = `<a href="/deal/?id=${id}" target="_blank" rel="noopener">look this id up ↗</a><span>·</span><span>${(canonicalize(policy).length).toLocaleString()} canonical bytes</span>`
   // is it published? (a deal only exists to a signer once a site lists it)
   publishedAt(id).then((base) => { if (base && current.id === id) links.insertAdjacentHTML('beforeend', `<span>·</span><span>published by <a href="${base}/deals/${id}.json" target="_blank" rel="noopener">${esc(base.replace(/^https?:\/\//, ''))}</a></span>`) })
@@ -290,8 +316,10 @@ async function loadId(frag) {
 
 // ── wiring ──────────────────────────────────────────────────────────────────────────────
 let t = null
-src.addEventListener('input', () => { clearTimeout(t); t = setTimeout(compile, 120); renderGutter(null) })
-src.addEventListener('scroll', () => { gutter.scrollTop = src.scrollTop })
+// paint on EVERY keystroke (it is a regex pass over the visible text, not a parse); the
+// compile behind it is what is debounced
+src.addEventListener('input', () => { paint(); clearTimeout(t); t = setTimeout(compile, 120); renderGutter(null) })
+src.addEventListener('scroll', () => { gutter.scrollTop = src.scrollTop; hl.scrollTop = src.scrollTop; hl.scrollLeft = src.scrollLeft })
 src.addEventListener('keydown', (e) => {          // Tab indents (a rule's expression is indented)
   if (e.key !== 'Tab') return
   e.preventDefault()

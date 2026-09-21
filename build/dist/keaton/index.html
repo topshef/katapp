@@ -27,7 +27,7 @@
   }}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1180px;margin:0 auto;padding:0 16px 72px}
+  .wrap{max-width:1440px;margin:0 auto;padding:0 16px 72px}
   a{color:var(--acc)}
   code,.mono{font-family:var(--mono)}
 
@@ -147,9 +147,22 @@
   .det{padding:14px 14px 16px;display:grid;gap:14px}
   .det h3{margin:0 0 6px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:650}
   .det .blk{min-width:0}
-  .det table.sub{min-width:0;width:100%;font-size:12.5px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
-  .det table.sub th{background:transparent;padding:6px 10px;font-size:10px}
-  .det table.sub td{padding:6px 10px;vertical-align:top;border-bottom:1px solid var(--line-2)}
+  /* the deals a device watches. A GRID rather than a table: a <table width:100%> inside a
+     table cell does not get 100% — the percentage resolves against an indefinite width
+     during the outer table's auto layout and falls back to shrink-to-fit, which is why this
+     list sat in 636px of a 1406px row however wide the screen was. Here the id and the
+     chips are max-content and the NAME takes everything left, so a deal's name — the part
+     worth reading — only wraps when the screen really is that narrow. */
+  .dealgrid{display:grid;grid-template-columns:max-content 1fr max-content;
+            border:1px solid var(--line);border-radius:6px;background:var(--panel);font-size:12.5px;overflow:hidden}
+  .dealgrid>*{padding:6px 10px;border-bottom:1px solid var(--line-2);min-width:0}
+  .dealgrid>.dh{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:650;background:var(--panel-2)}
+  .dealgrid>:nth-last-child(-n+3){border-bottom:0}
+  .dealgrid>.did{white-space:nowrap}
+  .dealgrid>.dn{color:var(--ink-2);overflow-wrap:anywhere}
+  .dealgrid>.dn.none{color:var(--ink-3);font-style:italic}
+  /* chips sit on one line and wrap only if the row is genuinely too narrow for them */
+  .dealgrid>.dsign{white-space:normal;text-align:right}
   .det table.sub tr:last-child td{border-bottom:0}
   .det .krow{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line-2)}
   .det .krow:last-child{border-bottom:0}
@@ -177,6 +190,8 @@
   tr.tap:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
   .inspect{font-size:11px;color:var(--acc);font-weight:600;white-space:nowrap}
   tr.tap:hover .inspect{text-decoration:underline}
+  td.act .inspect{font-size:14px;text-decoration:none}
+  tr.tap:hover td.act .inspect{text-decoration:none;color:var(--ink)}
   .deal{max-width:30ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .v{min-width:0}
 
@@ -237,12 +252,12 @@
     #detdlg{max-width:100vw;width:100vw;height:100dvh;max-height:100dvh;border:0;border-radius:0;margin:0}
     #detdlg .body{max-height:calc(100dvh - 46px)}
     .det{padding:12px}
-    .det table.sub{display:block}
-    .det table.sub thead{display:none}
-    .det table.sub tbody,.det table.sub tr{display:block}
-    .det table.sub tr{border-bottom:1px solid var(--line-2);padding:6px 0}
-    .det table.sub tr:last-child{border-bottom:0}
-    .det table.sub td{display:block;border:0;padding:1px 10px}
+    .dealgrid{grid-template-columns:1fr}
+    .dealgrid>.dh{display:none}
+    .dealgrid>*{border-bottom:0;padding:1px 10px}
+    .dealgrid>.did{padding-top:8px}
+    .dealgrid>.dsign{text-align:left;padding-bottom:8px;border-bottom:1px solid var(--line-2)}
+    .dealgrid>:last-child{border-bottom:0}
   }
 </style>
 </head>
@@ -788,7 +803,7 @@
         '<td data-l="last seen"><div class="v">' + seen + '<div class="age">' + ago(d.ageSeconds) + ' ago</div>' + up + '</div></td>' +
         '<td data-l="signing with"><div class="v chips">' + signing + '</div></td>' +
         '<td data-l="watching"><div class="v">' + watching + '</div></td>' +
-        '<td class="act"><div class="v"><span class="inspect">details \u2193</span></div></td>' +
+        '<td class="act"><div class="v"><span class="inspect" title="show this device in full">\u25b8</span></div></td>' +
         '</tr>';
     }).join('');
 
@@ -844,7 +859,7 @@
     //    and the keyset it is signed under — the config's own `sign` line.
     var deals = hid('deals')
       ? '<div class="none">not saying which deals it watches</div>'
-      : (dealIds.length ? '<table class="sub"><thead><tr><th>deal</th><th>name</th><th>signed with</th></tr></thead><tbody>' +
+      : (dealIds.length ? '<div class="dealgrid"><div class="dh">deal</div><div class="dh">name</div><div class="dh">signed with</div>' +
           dealIds.map(function (id) {
             var labels = (d.signWith || {})[String(id).toLowerCase()];
             var keysOfDeal = (d.deals || {})[id] || [];
@@ -852,11 +867,10 @@
               : keysOfDeal.length
                 ? keysOfDeal.map(function (k) { return chip('\u2026' + String(k).slice(-8), 'mute', k); }).join('')
                 : '<span class="none">\u2014</span>';
-            return '<tr data-id="' + esc(id) + '">' +
-              '<td>' + dealLink(id) + '</td>' +
-              '<td class="dn none">\u2026</td>' +
-              '<td class="chips">' + cell + '</td></tr>';
-          }).join('') + '</tbody></table>'
+            return '<div class="did">' + dealLink(id) + '</div>' +
+              '<div class="dn none" data-id="' + esc(id) + '">\u2026</div>' +
+              '<div class="dsign">' + cell + '</div>';
+          }).join('') + '</div>'
         : '<div class="none">no deals — this device signs nothing</div>');
 
     // 3. the socket, reconciled against those deals rather than listed a second time
@@ -893,10 +907,10 @@
   // DEALNAMES1: fill in each deal's published name once the block is on the page — the
   // publisher indexes are cached per page, so opening a second device costs nothing.
   function fillDealNames(root) {
-    Array.prototype.forEach.call(root.querySelectorAll('tr[data-id]'), function (tr) {
-      var cell = tr.querySelector('.dn'); if (!cell || cell.dataset.done) return;
+    Array.prototype.forEach.call(root.querySelectorAll('.dn[data-id]'), function (cell) {
+      if (cell.dataset.done) return;
       cell.dataset.done = '1';
-      dealName(tr.getAttribute('data-id')).then(function (n) {
+      dealName(cell.getAttribute('data-id')).then(function (n) {
         if (n) { cell.textContent = n; cell.className = 'dn'; cell.title = n; }
         else { cell.textContent = 'not published'; cell.className = 'dn none'; }
       });
@@ -908,9 +922,11 @@
   // Desktop: the detail opens as a row under the summary, so the rest of the table stays
   // where it is. Phone: the same block is a full-screen sheet (an expanded row inside a
   // card is a card inside a card).
+  // ▸ / ▾ — the same pair the help pages' <details> use. No word: nothing is being closed,
+  // the row is collapsing, and an arrow says which way it will go.
   function setToggleLabel(tr, open) {
     var t = tr.querySelector('.inspect');
-    if (t) t.innerHTML = open ? 'close \u2191' : 'details \u2193';
+    if (t) { t.innerHTML = open ? '\u25be' : '\u25b8'; t.title = open ? 'collapse' : 'show this device in full'; }
   }
   function expand(tr, keepOpen) {
     var by = tr.getAttribute('data-by'), d = byDevice[by];
