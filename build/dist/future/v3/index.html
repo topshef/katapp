@@ -79,13 +79,6 @@
   .prog.indet>i{width:45%;opacity:.35;background:linear-gradient(90deg,transparent,var(--acc) 50%,transparent);animation:progsweep 1.8s ease-in-out infinite}
   @keyframes progsweep{from{margin-left:-45%}to{margin-left:100%}}
   @media (prefers-reduced-motion:reduce){.prog.indet>i{animation:none;width:100%;background:var(--acc);opacity:.25}}
-  /* one deal per line, the whole line a link: six hex of the id, then its name once known */
-  details.deals .dl{display:flex;flex-direction:column;gap:2px;margin-top:4px}
-  details.deals a.dline{display:block;text-decoration:none;color:inherit;font-size:12px;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34ch}
-  details.deals a.dline:hover .dn{text-decoration:underline}
-  details.deals a.dline .key{color:var(--ink-3)}
-  details.deals a.dline .dn{color:var(--ink-2)}
-  details.deals a.dline .dn.none{color:var(--ink-3);font-style:italic}
   /* a failure has to be legible while the section is shut, or a phone shows a tidy
      page that is quietly telling you nothing */
   .count.bad{color:var(--bad);font-weight:600}
@@ -140,20 +133,42 @@
      carry the message, so this is a mark beside a name, not a highlight on the row. */
   .sig-late{margin-left:3px;font-size:11px;color:#7e22ce;cursor:default}
   .none{color:var(--ink-3)}
-  /* KEA-NOTES1 */
-  .notesbtn{font:600 11px var(--sans);padding:2px 8px;border:1px solid var(--line);border-radius:5px;
-            background:var(--panel-2);color:var(--acc);cursor:pointer;white-space:nowrap}
-  .notesbtn:hover{border-color:var(--acc)}
-  #notesdlg{border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);
-            padding:0;max-width:min(900px,92vw);width:100%}
-  #notesdlg::backdrop{background:rgba(0,0,0,.45)}
-  #notesdlg .dhead button{padding:4px 10px}
-  #notesdlg>*{pointer-events:auto}   /* so a backdrop click is the dialog element and nothing else */
-  #notesdlg .dhead{display:flex;justify-content:space-between;align-items:center;gap:12px;
-                   padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel-2)}
-  #notesdlg .dhead b{font-size:.95rem}
-  #notesdlg pre{margin:0;padding:14px;max-height:65vh;overflow:auto;font:12.5px/1.5 var(--mono);white-space:pre-wrap;word-break:break-word}
-  #notesdlg .dnote{padding:8px 14px;border-top:1px solid var(--line);color:var(--ink-3);font-size:11.5px}
+  /* KEA-KEYSETS1: a keyset name is a LABEL, not data — same shape everywhere it appears
+     (the summary row, a key's line, a deal's line), so the same word is recognisably the
+     same thing in all three places. */
+  .chip{display:inline-block;font:600 11px/1.5 var(--sans);padding:1px 8px;border-radius:99px;
+        border:1px solid var(--acc);color:var(--acc);background:transparent;white-space:nowrap;margin:1px 4px 1px 0}
+  .chip.mute{color:var(--ink-3);border-color:var(--line)}
+  .chips{display:block}
+  /* the expanded row: everything the summary had to leave out, in full, with no column to
+     squeeze it into. One per table at a time. */
+  tr.detail>td.detcell{background:var(--panel-2);padding:0;border-bottom:1px solid var(--line)}
+  td.act{text-align:right}
+  .det{padding:14px 14px 16px;display:grid;gap:14px}
+  .det h3{margin:0 0 6px;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:650}
+  .det .blk{min-width:0}
+  .det table.sub{min-width:0;width:100%;font-size:12.5px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+  .det table.sub th{background:transparent;padding:6px 10px;font-size:10px}
+  .det table.sub td{padding:6px 10px;vertical-align:top;border-bottom:1px solid var(--line-2)}
+  .det table.sub tr:last-child td{border-bottom:0}
+  .det .krow{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;padding:6px 0;border-bottom:1px solid var(--line-2)}
+  .det .krow:last-child{border-bottom:0}
+  .det .facts{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;color:var(--ink-2)}
+  .det .facts b{color:var(--ink);font-weight:600}
+  .det .dn{color:var(--ink-2)}
+  .det .dn.none{color:var(--ink-3);font-style:italic}
+  /* on a phone the same block is a full-screen sheet instead — an expanded row inside a
+     card is a card inside a card, and sixteen deals of it is unreadable */
+  #detdlg{border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink);
+          padding:0;max-width:min(920px,92vw);width:100%}
+  #detdlg::backdrop{background:rgba(0,0,0,.45)}
+  #detdlg>*{pointer-events:auto}   /* so a backdrop click is the dialog element and nothing else */
+  #detdlg .dhead{display:flex;justify-content:space-between;align-items:center;gap:12px;
+                 padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel-2);
+                 position:sticky;top:0}
+  #detdlg .dhead b{font-size:.95rem}
+  #detdlg .dhead button{padding:4px 10px}
+  #detdlg .body{max-height:76vh;overflow:auto}
   .self{font-size:11.5px;color:var(--ink-3);font-family:var(--mono)}
   .warnrow td{background:var(--warn-bg)}
   .dim{color:var(--ink-3)}
@@ -201,7 +216,14 @@
     /* the value is ONE grid item, so a two-line value cannot wrap back under the
        label; a pill inside it keeps its own width instead of being stretched */
     td>.v{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+    /* chips are a row of labels, not a stack of one-word lines */
+    td>.v.chips{flex-direction:row;flex-wrap:wrap;align-items:center;gap:0}
     td[data-l=""]::before{content:none}
+    /* the "details" cell is an affordance, not a value: on a phone the whole card is the
+       control and it opens the sheet, so a labelled row saying "details" is noise */
+    td.act{display:none}
+    td.detcell{display:block;padding:0}
+    td.detcell::before{content:none}
     /* the first cell of a card is its title: full width, no label, bigger */
     td.cardtitle{display:block;font-size:15.5px;padding-top:10px}
     td.cardtitle::before{content:none}
@@ -212,6 +234,15 @@
     .deal{max-width:none;white-space:normal}
     td.mono{font-size:12px;overflow-wrap:anywhere}
     .key{white-space:normal;overflow-wrap:anywhere}
+    #detdlg{max-width:100vw;width:100vw;height:100dvh;max-height:100dvh;border:0;border-radius:0;margin:0}
+    #detdlg .body{max-height:calc(100dvh - 46px)}
+    .det{padding:12px}
+    .det table.sub{display:block}
+    .det table.sub thead{display:none}
+    .det table.sub tbody,.det table.sub tr{display:block}
+    .det table.sub tr{border-bottom:1px solid var(--line-2);padding:6px 0}
+    .det table.sub tr:last-child{border-bottom:0}
+    .det table.sub td{display:block;border:0;padding:1px 10px}
   }
 </style>
 </head>
@@ -275,7 +306,10 @@
     <p class="note">Each row is one device. It signed its own announcement with a key it claims to
     hold, so the label and the keys are the device's own word, proven. <b>Fresh</b> means it spoke
     within the pool's freshness window; the age is always shown beside it, because "quiet" and
-    "gone" are different facts.</p>
+    "gone" are different facts. <b>Signing with</b> names the keysets the device's own config
+    names — <code>pool</code>, <code>lock</code>, <code>player</code>. Open a row for the rest:
+    every key with the accounts that accept it, every deal with its name and the keyset it is
+    signed under, and what the socket is actually subscribed to.</p>
   </div>
   <nav class="crumb">
     <span class="here">Signers dashboard</span>
@@ -289,7 +323,7 @@
   <div class="stale" id="stale" hidden></div>
   <div class="panel"><table id="devices">
     <thead><tr>
-      <th>device</th><th>signing?</th><th>last seen</th><th>keys held</th><th>watching</th><th>subscribed to</th><th>notes</th>
+      <th>device</th><th>signing?</th><th>last seen</th><th>signing with</th><th>watching</th><th></th>
     </tr></thead>
     <tbody><tr><td colspan="6" class="msg">Loading…</td></tr></tbody>
   </table></div>
@@ -450,48 +484,6 @@
   }
   function api(action, params) { return getJson(apiUrl(action, params)); }
 
-  // KEA-NOTES1: whatever the device chose to say about itself, signed with the rest of the
-  // announcement. It is NOT modelled and must never be trusted: anyone who can run a signer
-  // can put anything here, so it is stored verbatim by the pool and rendered here as TEXT —
-  // JSON.stringify into a <pre>'s textContent, never innerHTML, never parsed for markup,
-  // never eval'd. A device that says nothing has no note, which is not the same as one that
-  // withheld keys or deals: `withheld` covers those three, and notes are simply absent.
-  var NOTES = {};        // by deviceKey, so the dialog can read one without re-fetching
-
-  // One delegated listener rather than one per row: the device table is re-rendered on every
-  // refresh, and per-row handlers would be re-bound (or leaked) each time.
-  document.addEventListener('click', function (e) {
-    // Closing is delegated too — the <dialog> sits AFTER this script in the document, so a
-    // handler bound at load time found no button and the modal could only be left by
-    // reloading the page. A click on the dialog element itself (not its contents) is the
-    // backdrop; Escape is handled by the browser for showModal().
-    var dlg = $('notesdlg');
-    if (dlg && dlg.open && (e.target === dlg || (e.target.closest && e.target.closest('#notesclose')))) {
-      if (dlg.close) dlg.close(); else dlg.removeAttribute('open');
-      return;
-    }
-    var b = e.target && e.target.closest && e.target.closest('.notesbtn');
-    if (!b) return;
-    var by = b.getAttribute('data-by'), n = NOTES[by];
-    $('notestitle').textContent = 'notes \u00b7 ' + String(by).slice(0, 10) + '\u2026';
-    // textContent, not innerHTML: this string came off the wire from a device we do not
-    // control, and the only safe thing to do with it is show it.
-    $('notesbody').textContent = (function () {
-      try { return JSON.stringify(n, null, 2); } catch (err) { return String(n); }
-    })();
-    var d = $('notesdlg');
-    if (d.showModal) d.showModal(); else d.setAttribute('open', '');
-  });
-  function notesCell(d) {
-    if (d.notes == null) return '<span class="none">\u2014</span>';
-    NOTES[String(d.by)] = d.notes;
-    var n = d.notes, kind = (n && typeof n === 'object' && !Array.isArray(n))
-      ? (n._dropped ? 'dropped' : (n.report !== undefined && n.deals !== undefined ? 'config' : Object.keys(n).length + ' fields'))
-      : (typeof n);
-    return '<button type="button" class="notesbtn" data-by="' + esc(String(d.by)) + '">' +
-           esc(kind) + '</button>';
-  }
-
   // DEALPAGE1: a dealId is worth following — /deal/ resolves it from whoever published it
   // (or from the pool, if it is in flight) and checks the body really hashes to the id.
   // New tab on purpose: this page auto-refreshes and losing it mid-investigation is a nuisance.
@@ -538,33 +530,6 @@
     });
     return DEALNAMES[id];
   }
-  // "KLOTTO claim — COP$ 10x (testnet CO)" → "KLOTTO claim — COP$ 10x": the parenthetical
-  // is the part the row already says (network) and the cap keeps a line a line.
-  function shortName(n) {
-    var t = String(n).replace(/\s*\([^)]*\)\s*$/, '').trim();
-    return t.length > 28 ? t.slice(0, 27).replace(/\s+\S*$/, '') + '\u2026' : t;
-  }
-  // toggle does not bubble, so listen in the capture phase; fill the list the first time only
-  document.addEventListener('toggle', function (e) {
-    var det = e.target;
-    if (!det || !det.classList || !det.classList.contains('deals') || !det.open) return;
-    var box = det.querySelector('.dl');
-    if (!box || box.childElementCount) return;
-    var ids = (det.getAttribute('data-ids') || '').split(',').filter(Boolean);
-    box.innerHTML = ids.map(function (id) {
-      return '<a class="dline" href="/deal/?id=' + encodeURIComponent(id) + '" target="_blank" rel="noopener" data-id="' + esc(id) + '">' +
-        '<span class="key">' + esc(id.slice(0, 6)) + '\u2026</span> <span class="dn none">\u2026</span></a>';
-    }).join('');
-    ids.forEach(function (id) {
-      dealName(id).then(function (n) {
-        var a = box.querySelector('a[data-id="' + id + '"]'), dn = a && a.querySelector('.dn');
-        if (!dn) return;
-        if (n) { dn.textContent = shortName(n); dn.className = 'dn'; a.title = n; }
-        else { dn.textContent = 'not published'; dn.className = 'dn none'; }
-      });
-    });
-  }, true);
-
   // the raw links for a section: one per call actually made
   function uniq(a) { var o = {}; return a.filter(function (x) { return o[x] ? false : (o[x] = 1); }); }
   function showRaw(slotId, calls) {
@@ -642,13 +607,101 @@
 
   // ── the roster: pubkey -> device, so signatures can be named ────────────────
   var byKey = {};      // lowercase pubkey -> { label, mode, fresh, ageSeconds }
+  var byDevice = {};   // lowercase device key (`by`) -> the record, for the detail view
   var coveredDeals = {};   // dealId -> true, from the FRESH devices only
   var freshSeconds = 180;
+  var OPEN_BY = null;  // the device whose row is expanded in place (desktop)
+  var DLG_BY = null;   // the device whose sheet is open (phone)
+  var LAST_META = {};  // the roster's own { now, freshSeconds } — ages are measured against it
+
+  // ── the names a device publishes (KEA-KEYSETS1) ─────────────────────────────
+  // A signer's config says `keysets: { pool: [...], lock: [...] }` and, per deal,
+  // `sign: ["pool", "lock"]`. Both travel inside the signed announcement, so this page can
+  // show the operator's own words instead of `302a3005…` — which is the one part of an
+  // ed25519 key that is identical for everybody.
+  //
+  // A device older than KEA-KEYSETS1 sends no names at all. That is not "no keysets", so it
+  // is never drawn as an empty list: it falls back to the keys themselves, said plainly.
+  function isKey(s) { return /^[0-9a-f]{64}$/i.test(String(s)); }
+  function chip(label, cls, title) {
+    return '<span class="chip' + (cls ? ' ' + cls : '') + '"' + (title ? ' title="' + esc(title) + '"' : '') + '>' + esc(label) + '</span>';
+  }
+  // a `sign` entry that is a raw public key is shown as a key, by its END (KEYEND1)
+  function signChip(label) {
+    return isKey(label)
+      ? chip('\u2026' + String(label).slice(-8), 'mute', 'a raw public key in this deal\'s sign list, not a keyset name')
+      : chip(label);
+  }
+  function setChips(d) {
+    var names = Object.keys(d.keysets || {});
+    if (names.length) return names.map(function (n) {
+      var held = (d.keysets[n] || []).length;
+      return chip(n, '', n + ': ' + held + (held === 1 ? ' key' : ' keys'));
+    }).join('');
+    var n = Object.keys(d.keys || {}).length;
+    if (!n) return '<span class="none">none</span>';
+    return chip(n + (n === 1 ? ' key' : ' keys') + ', unnamed', 'mute',
+      'this device is older than KEA-KEYSETS1 and does not publish what its keysets are called — the keys are in the detail');
+  }
+  // Which keysets a given key belongs to. One key may be in two (klotto's testnet pool and
+  // lock accounts carry the same key list), which is exactly why the announcement publishes
+  // the sets instead of leaving a reader to work them out from the key.
+  function setsOfKey(d, pub) {
+    var out = [];
+    Object.keys(d.keysets || {}).forEach(function (n) {
+      if ((d.keysets[n] || []).some(function (p) { return String(p).toLowerCase() === String(pub).toLowerCase(); })) out.push(n);
+    });
+    return out;
+  }
+
+  // ── watching vs subscribed ──────────────────────────────────────────────────
+  // These were two columns saying the same thing. Since KEA-DOORBELL2 a signer sends one
+  // socket filter PER DEAL in its config, so "subscribed to" is "watching" re-listed — and
+  // a column that repeats another is a column a reader has to check for no reason.
+  //
+  // They can still disagree, and that disagreement is the only part worth the space:
+  //   * an older signer subscribed to EVERYTHING on the network (pre-DOORBELL2), reading all
+  //     of it and discarding ~98% — the `broad` warning this page has always carried;
+  //   * a socket watching deals this device does not sign, or missing ones it does, which
+  //     means a ring it needs may never arrive (the 20 s sweep is the backstop, not the plan);
+  //   * a device disclosing one and withholding the other.
+  // So: one "watching" count in the summary, plus a pill when the socket does not match it,
+  // and the full reconciliation in the detail.
+  function socketState(d, dealIds) {
+    var withheld = d.withheld || [];
+    if (withheld.indexOf('subscription') >= 0) return { kind: 'hidden', text: 'not saying what its socket is subscribed to', warn: '' };
+    var sub = d.subscription;
+    if (!sub) return { kind: 'none', text: 'no socket filters published (a signer before KEA-PRESENCE2, or one that watches nothing)', warn: '' };
+    if (!sub.length) return { kind: 'empty', text: 'subscribed to nothing — the doorbell will never ring for this device', warn: '<span class="pill warn">socket: nothing</span>' };
+    var broad = sub.some(function (f) { return f && !f.dealId && !f.account && !f.token; });
+    if (broad) return {
+      kind: 'broad',
+      text: 'subscribed to EVERYTHING on ' + (sub[0].network || 'the network') + ' — it reads every pooled transaction and discards what is not its business (a signer before KEA-DOORBELL2)',
+      warn: '<span class="pill warn">socket: everything</span>'
+    };
+    var subIds = uniq(sub.filter(function (f) { return f && f.dealId; }).map(function (f) { return String(f.dealId).toLowerCase(); })).sort();
+    var other = sub.length - subIds.length;
+    var want = (dealIds || []).map(function (i) { return String(i).toLowerCase(); }).sort();
+    var missing = want.filter(function (i) { return subIds.indexOf(i) < 0; });
+    var extra = subIds.filter(function (i) { return want.indexOf(i) < 0; });
+    if (!missing.length && !extra.length && !other) {
+      return { kind: 'match', text: 'one socket filter per deal, and they are exactly the deals above', warn: '', ids: subIds };
+    }
+    return {
+      kind: 'differs', ids: subIds, missing: missing, extra: extra,
+      text: 'the socket does not match the deals: ' +
+        (missing.length ? missing.length + ' deal' + (missing.length === 1 ? '' : 's') + ' this device signs but is not rung for' : '') +
+        (missing.length && (extra.length || other) ? '; ' : '') +
+        (extra.length ? extra.length + ' filter' + (extra.length === 1 ? '' : 's') + ' for deals it does not sign' : '') +
+        (other ? (missing.length || extra.length ? '; ' : '') + other + ' filter' + (other === 1 ? '' : 's') + ' on something other than a deal' : ''),
+      warn: '<span class="pill warn">socket differs</span>'
+    };
+  }
 
   function renderDevices(list, meta) {
     var tb = $('devices').tBodies[0];
     var acc = accountFilter(), nd = needle();
-    byKey = {};
+    byKey = {}; byDevice = {}; LAST_META = meta || {};
     // KEA-PRESENCE2: a device announces keys: { pubKey: [accounts] } and deals: { dealId: [pubKeys] };
     // `accounts` (the union) and `dealIds` are derived by the pool. Nothing here is typed by
     // the operator — the accounts come from the chain, the deals from the signer's own config.
@@ -667,7 +720,7 @@
       d.accounts = uniq(d.accounts).sort();
       d.dealIds = Object.keys(d.deals || {}).sort();
       Object.keys(d.keys || {}).forEach(function (k) { byKey[String(k).toLowerCase()] = d; });
-      if (d.by) byKey[String(d.by).toLowerCase()] = d;
+      if (d.by) { byKey[String(d.by).toLowerCase()] = d; byDevice[String(d.by).toLowerCase()] = d; }
     });
 
     var rows = list.filter(function (d) {
@@ -702,39 +755,22 @@
       // "none" are different facts and the page must never render one as the other.
       var withheld = d.withheld || [];
       var hid = function (f) { return withheld.indexOf(f) >= 0; };
-      var keys = hid('keys') ? '<span class="none">not saying</span>' : Object.keys(d.keys || {}).map(function (k) {
-        var accts = (d.keys[k] || []);
-        return '<div><span class="key">' + esc(String(k).slice(0, 12)) + '…</span>' +
-               (accts.length ? ' &middot; ' + accts.map(esc).join(', ') : ' &middot; <span class="none">no account lists it</span>') + '</div>';
-      }).join('') || '<span class="none">none</span>';
       var dealIds = hid('deals') ? [] : (d.dealIds || Object.keys(d.deals || {}));
-      // Every deal, on demand. Three inline keeps the row short; the rest sit behind an
-      // "and N more" that opens IN the cell — a device watching sixteen deals and showing three
-      // of them was the opposite of visibility, and visibility is what this page is for.
-      var watching = hid('deals') ? '<span class="none">not saying</span>' : dealIds.length
-        ? esc(String(dealIds.length)) + ' deal' + (dealIds.length === 1 ? '' : 's') +
-          '<div class="key">' + dealIds.slice(0, 3).map(dealLink).join(' ') + '</div>' +
-          // DEALNAMES1: the full list, one deal per line with its published name, fetched
-          // only when this row is opened — 9 devices × 16 deals is not a page load.
-          '<details class="more deals" data-ids="' + esc(dealIds.join(',')) + '"><summary>' +
-            (dealIds.length > 3 ? 'all ' + dealIds.length + ', with names' : 'with names') + '</summary><div class="dl"></div></details>'
-        : '<span class="none">not saying</span>';
-      // the literal socket filters the device sent: what it is actually rung for
-      var sub = hid('subscription') ? null : d.subscription;
-      var subText = !sub ? '<span class="none">not saying</span>'
-        : !sub.length ? '<span class="none">nothing</span>'
-        : sub.every(function (f) { return f && f.dealId; }) ? esc(String(sub.length)) + ' deal watch' + (sub.length === 1 ? '' : 'es') +
-          // the literal filters, each one a deal the socket is rung for — same "show it all" rule
-          '<details class="more"><summary>which</summary><div class="key">' + sub.map(function (f) { return dealLink(f.dealId); }).join(' ') + '</div></details>'
-        : sub.some(function (f) { return f && !f.dealId && !f.account && !f.token; }) ? '<span class="pill warn">everything on ' + esc(sub[0].network || 'the network') + '</span>'
-        : esc(String(sub.length)) + ' filter' + (sub.length === 1 ? '' : 's');
+      // KEA-KEYSETS1: the summary says WHAT IT WILL SIGN WITH, by name, because that is the
+      // sentence the config writes and the only one a reader can check against it. The keys
+      // themselves are in the detail: holding a key is the means, not the point.
+      var signing = hid('keys') ? '<span class="none">not saying</span>' : setChips(d);
+      var sub = socketState(d, dealIds);
+      var watching = hid('deals') ? '<span class="none">not saying</span>'
+        : (dealIds.length ? esc(String(dealIds.length)) + ' deal' + (dealIds.length === 1 ? '' : 's') : '<span class="none">none</span>') +
+          (sub.warn ? '<div>' + sub.warn + '</div>' : '');
       var up = d.startedAt ? '<div class="age">up ' + ago((meta.now || 0) - d.startedAt) + '</div>' : '';
       var ver = d.version && typeof d.version === 'object'
         ? (d.version.code ? 'kea ' + esc(d.version.code) + ' &middot; ' : '') + (d.version.node ? 'node ' + esc(d.version.node) : '')
         : (d.version ? 'node ' + esc(d.version) : '');
       if (d.v === 1) ver = '<span class="pill warn">old announcer</span> ' + ver;   // a phone that has not pulled KEA-PRESENCE2 yet
 
-      return '<tr>' +
+      return '<tr class="tap" tabindex="0" role="button" aria-expanded="false" data-by="' + esc(String(d.by || '')) + '">' +
         '<td class="cardtitle" data-l="device"><span class="who">' + esc(d.label) + '</span>' +
           (d.restarted ? ' <span class="pill warn">restarted</span>' : '') +
           // The label is a nickname the device picks and can change between announcements;
@@ -746,12 +782,19 @@
           (ver ? '<div class="key">' + ver + '</div>' : '') + '</td>' +
         '<td data-l="signing?"><div class="v">' + mode + '</div></td>' +
         '<td data-l="last seen"><div class="v">' + seen + '<div class="age">' + ago(d.ageSeconds) + ' ago</div>' + up + '</div></td>' +
-        '<td data-l="keys held"><div class="v">' + keys + '</div></td>' +
+        '<td data-l="signing with"><div class="v chips">' + signing + '</div></td>' +
         '<td data-l="watching"><div class="v">' + watching + '</div></td>' +
-        '<td data-l="subscribed to"><div class="v">' + subText + '</div></td>' +
-        '<td data-l="notes"><div class="v">' + notesCell(d) + '</div></td>' +
+        '<td class="act"><div class="v"><span class="inspect">details \u2193</span></div></td>' +
         '</tr>';
     }).join('');
+
+    // A refresh re-renders the whole table every 60 s. Whatever was open stays open, or
+    // reading a device's deals would be a race against the clock.
+    if (OPEN_BY) {
+      var back = tb.querySelector('tr.tap[data-by="' + OPEN_BY + '"]');
+      if (back) expand(back, true); else OPEN_BY = null;
+    }
+    if (DLG_BY && byDevice[DLG_BY]) fillDialog(byDevice[DLG_BY], meta);
 
     // Two signers running different code, or one still asking for everything on the
     // network, are the two disagreements worth a line here.
@@ -765,6 +808,171 @@
       (broad ? '<span class="pill warn">' + broad + ' broad</span> device' + (broad === 1 ? ' is' : 's are') + ' subscribed to everything on the network and reading it all — an older signer. ' : '') +
       'Everything on a row is signed by the device key except age, freshness and the derived <em>accounts</em>. Freshness window: ' + freshSeconds + 's.';
   }
+
+  // ── one device, in full ─────────────────────────────────────────────────────
+  // The summary row is deliberately short; this is where everything else goes, because the
+  // alternative — collapsing sixteen deals into a table cell — is how this page ended up
+  // telling you less than the config file it was supposed to save you opening.
+  //
+  // Everything here comes off the signed announcement. Nothing is computed for the device:
+  // where two published facts disagree (the socket vs the deals) both are shown and the
+  // disagreement is named.
+  function detailHtml(d, meta) {
+    var withheld = d.withheld || [];
+    var hid = function (f) { return withheld.indexOf(f) >= 0; };
+    var dealIds = hid('deals') ? [] : (d.dealIds || Object.keys(d.deals || {}));
+    var sub = socketState(d, dealIds);
+
+    // 1. the keys, each under the name(s) its config gave it, with the accounts the CHAIN
+    //    says accept it (kea reads those from the mirror; they are not typed by anyone).
+    var keys = hid('keys')
+      ? '<div class="none">not saying which keys it holds</div>'
+      : (Object.keys(d.keys || {}).map(function (k) {
+          var sets = setsOfKey(d, k), accts = d.keys[k] || [];
+          return '<div class="krow">' +
+            '<span class="chips">' + (sets.length ? sets.map(function (n) { return chip(n); }).join('') : chip('unnamed', 'mute', 'this device does not publish keyset names')) + '</span>' +
+            '<span class="key" title="' + esc(k) + '">\u2026' + esc(String(k).slice(-8)) + '</span>' +
+            '<span class="dim">' + (accts.length ? 'accepted by ' + accts.map(esc).join(', ') : 'no account this device watches lists this key') + '</span>' +
+            '</div>';
+        }).join('') || '<div class="none">no keys</div>');
+
+    // 2. the deals, one line each: the id (a link to the lookup page), its published name,
+    //    and the keyset it is signed under — the config's own `sign` line.
+    var deals = hid('deals')
+      ? '<div class="none">not saying which deals it watches</div>'
+      : (dealIds.length ? '<table class="sub"><thead><tr><th>deal</th><th>name</th><th>signed with</th></tr></thead><tbody>' +
+          dealIds.map(function (id) {
+            var labels = (d.signWith || {})[String(id).toLowerCase()];
+            var keysOfDeal = (d.deals || {})[id] || [];
+            var cell = labels && labels.length ? labels.map(signChip).join('')
+              : keysOfDeal.length
+                ? keysOfDeal.map(function (k) { return chip('\u2026' + String(k).slice(-8), 'mute', k); }).join('')
+                : '<span class="none">\u2014</span>';
+            return '<tr data-id="' + esc(id) + '">' +
+              '<td>' + dealLink(id) + '</td>' +
+              '<td class="dn none">\u2026</td>' +
+              '<td class="chips">' + cell + '</td></tr>';
+          }).join('') + '</tbody></table>'
+        : '<div class="none">no deals — this device signs nothing</div>');
+
+    // 3. the socket, reconciled against those deals rather than listed a second time
+    var socket = '<div class="dim">' + esc(sub.text) + '</div>' +
+      (sub.kind === 'differs'
+        ? (sub.missing.length ? '<div class="orphan">not rung for: ' + sub.missing.map(dealLink).join(' ') + ' \u2014 only the 20 s catch-up sweep will find these</div>' : '') +
+          (sub.extra.length ? '<div class="orphan">rung for deals it does not sign: ' + sub.extra.map(dealLink).join(' ') + '</div>' : '')
+        : '');
+
+    var vname = d.v === 1 ? 'v1 (KEA-PRESENCE1)' : d.v === 2 ? 'v2 (KEA-PRESENCE2)' : d.v === 3 ? 'v3 (KEA-DISCLOSE1)' : 'v4 (KEA-KEYSETS1)';
+    var facts = [
+      ['network', esc(d.network || $('network').value)],
+      ['announcement', esc(vname)],
+      ['code', d.version && d.version.code ? esc(d.version.code) : '<span class="none">not saying</span>'],
+      ['node', d.version && d.version.node ? esc(d.version.node) : '<span class="none">not saying</span>'],
+      ['last seen', ago(d.ageSeconds) + ' ago' + (d.fresh ? '' : ' \u2014 past the ' + freshSeconds + 's freshness window')],
+      ['started', d.startedAt ? ago((meta.now || 0) - d.startedAt) + ' ago' + (d.restarted ? ' (restarted since the last announcement)' : '') : '<span class="none">not saying</span>'],
+      ['first seen by the pool', d.firstSeen ? ago((meta.now || 0) - d.firstSeen) + ' ago' : '<span class="none">\u2014</span>'],
+      ['withholding', withheld.length ? withheld.map(esc).join(', ') : 'nothing']
+    ].map(function (r) { return '<span><b>' + r[0] + '</b> ' + r[1] + '</span>'; }).join('');
+
+    return '<div class="det">' +
+      '<div class="blk"><h3>keys held ' + (hid('keys') ? '' : '(' + Object.keys(d.keys || {}).length + ')') + '</h3>' + keys + '</div>' +
+      '<div class="blk"><h3>deals watched ' + (hid('deals') ? '' : '(' + dealIds.length + ')') + '</h3>' + deals + '</div>' +
+      '<div class="blk"><h3>socket</h3>' + socket + '</div>' +
+      '<div class="blk"><h3>this device</h3><div class="facts">' + facts + '</div>' +
+        '<div class="key" style="margin-top:6px" title="the key that signed this announcement">id ' + esc(String(d.by || '')) + '</div>' +
+        '<div class="dim" style="margin-top:6px;font-size:11.5px">Everything above is inside the signature except the ages and the accounts, ' +
+        'which the pool and this page derive. It is what that device SAID — proven to come from that key, which is not the same as being true.</div>' +
+      '</div>' +
+      '</div>';
+  }
+
+  // DEALNAMES1: fill in each deal's published name once the block is on the page — the
+  // publisher indexes are cached per page, so opening a second device costs nothing.
+  function fillDealNames(root) {
+    Array.prototype.forEach.call(root.querySelectorAll('tr[data-id]'), function (tr) {
+      var cell = tr.querySelector('.dn'); if (!cell || cell.dataset.done) return;
+      cell.dataset.done = '1';
+      dealName(tr.getAttribute('data-id')).then(function (n) {
+        if (n) { cell.textContent = n; cell.className = 'dn'; cell.title = n; }
+        else { cell.textContent = 'not published'; cell.className = 'dn none'; }
+      });
+    });
+  }
+
+  var PHONE = function () { return window.matchMedia && window.matchMedia('(max-width:720px)').matches; };
+
+  // Desktop: the detail opens as a row under the summary, so the rest of the table stays
+  // where it is. Phone: the same block is a full-screen sheet (an expanded row inside a
+  // card is a card inside a card).
+  function setToggleLabel(tr, open) {
+    var t = tr.querySelector('.inspect');
+    if (t) t.innerHTML = open ? 'close \u2191' : 'details \u2193';
+  }
+  function expand(tr, keepOpen) {
+    var by = tr.getAttribute('data-by'), d = byDevice[by];
+    if (!d) return;
+    var next = tr.nextElementSibling;
+    if (next && next.classList.contains('detail')) {
+      if (keepOpen) return;
+      next.parentNode.removeChild(next); tr.setAttribute('aria-expanded', 'false'); setToggleLabel(tr, false); OPEN_BY = null; return;
+    }
+    var open = tr.parentNode.querySelector('tr.detail');
+    if (open) {
+      var prev = open.previousElementSibling;
+      if (prev) { prev.setAttribute('aria-expanded', 'false'); setToggleLabel(prev, false); }
+      open.parentNode.removeChild(open);
+    }
+    var row = document.createElement('tr');
+    row.className = 'detail';
+    row.innerHTML = '<td class="detcell" colspan="6">' + detailHtml(d, LAST_META) + '</td>';
+    tr.parentNode.insertBefore(row, tr.nextSibling);
+    tr.setAttribute('aria-expanded', 'true');
+    OPEN_BY = by;
+    fillDealNames(row);
+    setToggleLabel(tr, true);
+  }
+
+  function fillDialog(d, meta) {
+    $('dettitle').textContent = d.label + ' \u00b7 ' + String(d.by || '').slice(0, 10) + '\u2026';
+    $('detbody').innerHTML = detailHtml(d, meta || LAST_META);
+    fillDealNames($('detbody'));
+  }
+  function openSheet(tr) {
+    var by = tr.getAttribute('data-by'), d = byDevice[by];
+    if (!d) return;
+    DLG_BY = by;
+    fillDialog(d, LAST_META);
+    var dlg = $('detdlg');
+    // The <dialog> sits AFTER this script in the document, so it cannot be bound at load
+    // time — that is what made the old notes modal impossible to close. Bind it the first
+    // time it is opened instead, which is also when it certainly exists. `close` fires on
+    // Escape too, which the browser handles for showModal().
+    if (!dlg.dataset.wired) { dlg.dataset.wired = '1'; dlg.addEventListener('close', function () { DLG_BY = null; }); }
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+  }
+  function closeSheet() {
+    var dlg = $('detdlg');
+    DLG_BY = null;
+    if (dlg.close) dlg.close(); else dlg.removeAttribute('open');
+  }
+  // Delegated, and bound once: the table is re-rendered on every refresh, so per-row
+  // handlers would be re-bound (or leaked) each time.
+  document.addEventListener('click', function (e) {
+    var dlg = $('detdlg');
+    if (dlg && dlg.open && (e.target === dlg || (e.target.closest && e.target.closest('#detclose')))) { closeSheet(); return; }
+    if (!e.target.closest) return;
+    if (e.target.closest('#detbody') || e.target.closest('tr.detail')) return;   // links inside the detail are links
+    var tr = e.target.closest('#devices tr.tap');
+    if (!tr) return;
+    if (PHONE()) openSheet(tr); else expand(tr);
+  });
+  $('devices').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var tr = e.target.closest && e.target.closest('tr.tap');
+    if (!tr) return;
+    e.preventDefault();
+    if (PHONE()) openSheet(tr); else expand(tr);
+  });
 
   // ── the pool: what is waiting, and who has signed it ────────────────────────
   // KEYEND1 (owner, 2026-09-18): a public key is identified by its END, everywhere, always.
@@ -1242,11 +1450,9 @@
   if (qs.get('txid')) inspect(qs.get('txid'), qs.get('pch'));
 })();
 </script>
-<dialog id="notesdlg">
-  <div class="dhead"><b id="notestitle">notes</b><button type="button" id="notesclose">close</button></div>
-  <pre id="notesbody"></pre>
-  <div class="dnote">Published by that device and signed with the key it announces as. That makes it
-    <i>what the device said</i> — not that any of it is true. Shown as text, never interpreted.</div>
+<dialog id="detdlg">
+  <div class="dhead"><b id="dettitle">device</b><button type="button" id="detclose">close</button></div>
+  <div class="body" id="detbody"></div>
 </dialog>
 </body>
 </html>
