@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>KEA in your pocket — KEA notes</title>
+<title>Keaton in your pocket — Keaton notes</title>
 <style>
   :root{
     --bg:#f4f5f7; --panel:#fff; --panel-2:#eceef1; --line:#d8dce1; --line-2:#e6e9ec;
@@ -139,13 +139,13 @@
 
 <header>
   <nav class="crumb">
-    <a href="../../">&larr; Signers dashboard</a>
+    <a href="../../">&larr; Keaton dashboard</a>
     <a href="../../help/">How it works</a>
     <a href="../../help/business/">In business terms</a>
     <span class="here">Notes</span>
     <a href="/deal/convert/">Converter</a>
   </nav>
-  <h1>KEA in your pocket</h1>
+  <h1>Keaton in your pocket</h1>
   <p class="lede">Why a notary in Termux keeps dropping its doorbell, what a PWA can and cannot do about it, and the smallest Android app that would actually work.</p>
   <p class="meta">Scoping note · 17 Sep 2026 · companion to “Bots off the box”</p>
 </header>
@@ -200,7 +200,7 @@
 <li><strong>Push needs a server you do not have.</strong> Web Push means VAPID keys and a push service, so the pool would have to become a push sender — new code, new secret, new failure mode — and even then iOS only delivers push to an installed PWA and gives the handler a few seconds.</li>
 <li><strong>The key sits in IndexedDB.</strong> Non-extractable WebCrypto keys help, but the browser can evict storage, and "your signing key was cleared with the site data" is not a sentence you want in an incident note.</li>
 </ul>
-<p><strong>What it <em>is</em> good for:</strong> everything that is not signing. A PWA wrapper around the <code>/future/v3</code> dashboard — installable, on the home screen, notifying you when a deal you care about has been waiting too long — is a genuinely nice thing and costs almost nothing, because the page already exists. Just don't let it hold a key.</p>
+<p><strong>What it <em>is</em> good for:</strong> everything that is not signing. A PWA wrapper around the <code>/keaton/</code> dashboard — installable, on the home screen, notifying you when a deal you care about has been waiting too long — is a genuinely nice thing and costs almost nothing, because the page already exists. Just don't let it hold a key.</p>
 <p><strong>The one exception:</strong> the KEA web app (signer C) already signs in a browser, and that is fine, because a human is sitting there with it open. Attended signing is a different job from unattended signing.</p>
 </div>
 

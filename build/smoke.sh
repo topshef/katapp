@@ -29,10 +29,11 @@ check '/m/sign/?network=testnet&txid=0.0.1@2.3&pch=x' 200 '<base href="/">'   # 
 check '/m/sign/?action=txList&network=testnet&since=60&until=60' 200 'tx'     # its own ?action= proxy → backend /kpool/txList
 check '/m/katomia/binding.php?network=testnet&accountId=0.0.1879' 200 'bindings'
 check /future/future.css                         200
-check /future/v3/                                200 'Signers'      # SIGNER-VIEW1 the signer view
-check /future/v3/convert/                        200 'Converter'    # DEAL-CONVERT1 the v1 → v2 converter page
+check /keaton/                                   200 'Keaton signers'   # SIGNER-VIEW1 the dashboard
+check /future/v3/                                301                # KEATON-HOME1 the old home, permanently
+check /deal/convert/                             200 'Converter'    # DEAL-CONVERT2 the v1 → v2 converter page
 check /legacy/deals/                             200 'V1 deal archive'   # LEGACY-DEALS1 the v1 archive lookup
-check /future/v3/convert/kea-convert.browser.js  200 'convertV1'
+check /deal/convert/kea-convert.browser.js       200 'convertV1'
 check '/m/feedback/?product=katomia'             200 'feedback-widget'
 check /vendor/bootstrap/css/bootstrap.min.css    200
 check /m/katomia/game/SMOKE1                     200 'HAPI_BASE'

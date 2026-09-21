@@ -21,6 +21,8 @@
 //  The alias maps /hapi/<path> → <BACKEND_ORIGIN>/<path>.
 //   /m/katomia/hapi/<x>                → /hapi/katomia/<x>   (.htaccess ^hapi/… → hapi.php → /katomia/<x>)
 //   /m/katomia/hapi.php?action=X&qs    → /hapi/katomia/X?qs  (lab22 hapi.php convention, default create)
+//   /keaton/, /keaton/help/, /keaton/notes/<slug>/   → the Keaton dashboard and its notes
+//   /future/v3…                        → 301 /keaton…      (KEATON-HOME1: the old home)
 //   /future/?action=X&qs               → /hapi/kpool/X?qs    (lab22 future/kpool.php; board signing
 //   /m/sign/?action=X&qs                                       reads tx bytes from /future/?action=txRead;
 //                                                             the sign page lists via /m/sign/?action=txList)
@@ -66,33 +68,40 @@ const IDPAGE = /^\/m\/katomia\/(game|board)(?:\/([^/.]+))?\/?$/;     // game, bo
 const KPOOL = /^\/m\/bid\/explore\/kpool(\.php)?$/;
 // SIGNPAGE-STATIC1: /m/sign/ is lab22's `require /future/index.php` shim, so both spellings are
 // the same page AND the same ?action= proxy (future/index.php dispatches to kpool.php on action).
+// KEATON-HOME1 (2026-09-21): the dashboard lives at /keaton/ — KEATON is the name of a signer
+// instance (KEA stays the module name), and the page was never a version of /future. Every
+// /future/v3* address 301s to the /keaton equivalent below, permanently, because those links
+// are in notes, READMEs and other people's bookmarks.
 // SIGNER-SLASH1 (2026-09-17): these match the SLASH form only. The bare /future/v3 used to
-// match too and served the same page — but the page resolves its API base relatively, as
+// match too and served the same page — but the page resolved its API base relatively, as
 // `new URL('../')`, which is /future/ from /future/v3/ and / from /future/v3. Without the
 // slash every call went to /?action=… , which 302s to the katomia home page, so the dashboard
 // parsed HTML as JSON and reported "could not reach the pool" while every endpoint was fine.
 // A directory-style page has to have its trailing slash; the bare form redirects to it below,
 // exactly as /qa and /m/katomia/KEA already do.
-const SIGNERVIEW = /^\/future\/v3(?:\/|\/index\.html)$/;    // SIGNER-VIEW1: the signer view
-const SIGNERHELP = /^\/future\/v3\/help(?:\/|\/index\.html)$/;  // SIGNER-VIEW1: how KEA works
-const SIGNERBIZ  = /^\/future\/v3\/help\/business(?:\/|\/index\.html)$/;  // the same, in business terms
+const SIGNERVIEW = /^\/keaton(?:\/|\/index\.html)$/;    // SIGNER-VIEW1: the signer view
+const SIGNERHELP = /^\/keaton\/help(?:\/|\/index\.html)$/;  // SIGNER-VIEW1: how Keaton works
+const SIGNERBIZ  = /^\/keaton\/help\/business(?:\/|\/index\.html)$/;  // the same, in business terms
 // NOTES-CHROME1: the working notes — design notes and post-mortems, one directory each, so the
-// set can grow without touching this file again. Served at /future/v3/notes/<slug>/.
-const SIGNERNOTE  = /^\/future\/v3\/notes(?:\/|\/index\.html)$/;
+// set can grow without touching this file again. Served at /keaton/notes/<slug>/.
+const SIGNERNOTE  = /^\/keaton\/notes(?:\/|\/index\.html)$/;
+// the old home, matched whole so one rule redirects the page, the help, the notes and anything
+// else that was under it — with its query string, which the redirect below preserves
+const OLDHOME = /^\/future\/v3(?:\/(.*))?$/;
 // DEAL-CONVERT1: the v1 → v2 deal converter, a static page + a bundled module beside it.
 // LEGACY-DEALS1: the V1 deal archive lookup. Its own top-level prefix on purpose — the page
 // AND every call it makes live under /legacy, so one Cloudflare rule gates the whole feature
 // without touching code, and removing the feature is deleting these lines plus the directory.
 // Same ?action= convention as the v3 pages: /legacy/deals/?action=search → /hapi/legacy/search.
 const LEGACYDEALS = /^\/legacy\/deals(?:\/|\/index\.html)$/;
-const SIGNERNOTES = /^\/future\/v3\/notes\/([a-z0-9-]+)(?:\/|\/index\.html)$/;
-// DEALPAGE1: /deal/ — look a deal up by id. Deliberately at the ROOT, not under /future/v3:
-// v3 is this dashboard's version and a deal is on v2, and nesting one inside the other reads
-// as though they were the same version idea. It is not a signer view, so it needs no ?action=
+const SIGNERNOTES = /^\/keaton\/notes\/([a-z0-9-]+)(?:\/|\/index\.html)$/;
+// DEALPAGE1: /deal/ — look a deal up by id. Deliberately at the ROOT, not under the
+// dashboard: a deal is not a Keaton view, it is the document every signer answers to, and it
+// is read by people who are not running one. It is not a signer view, so it needs no ?action=
 // proxy — it calls /hapi/kpool/... and the publishers' catalogues directly.
 const DEALPAGE = /^\/deal(?:\/|\/index\.html)$/;
-// KATOMIC1: the script editor and its spec, beside the deal page — deals are v2, the editor
-// is v2, and neither belongs under /future/v3/ (the dashboard).
+// KATOMIC1: the script editor and its spec, beside the deal page — you write a deal whether
+// or not you run a signer, so neither belongs under /keaton/ (the dashboard).
 const DEALEDIT = /^\/deal\/edit(?:\/|\/index\.html)$/;
 const DEALCONV = /^\/deal\/convert(?:\/|\/index\.html)$/;
 const DEALSPEC = /^\/deal\/edit\/spec(?:\/|\/index\.html)$/;
@@ -164,27 +173,29 @@ export function route(url) {
   if (p === K + '/KEA/' || p === K + '/KEA/index.php' || p === K + '/KEA/app.html') return { kind: 'asset', path: K + '/KEA/index.html' };
   if ((m = p.match(KHAPI))) return { kind: 'alias', path: '/hapi/katomia/' + m[1] };
   if (p === K + '/hapi.php') return actionRoute(url, '/hapi/katomia/', 'create');   // 'create' = hapi.php's own default
-  // SIGNER-VIEW1: the signer view, a plain static page. Matched BEFORE SIGNPAGE so the
-  // /future prefix cannot swallow it, and it keeps its own ?action= proxy so the page can
-  // call the pass-through relatively (../?action=…) exactly as it does on the PHP host.
-  // SIGNER-SLASH1: the slash-less forms, longest first, before the matchers above see them
-  if (p === '/future/v3')               return { kind: 'redirect', to: '/future/v3/' };
-  if (p === '/future/v3/help')          return { kind: 'redirect', to: '/future/v3/help/' };
-  if (p === '/future/v3/help/business') return { kind: 'redirect', to: '/future/v3/help/business/' };
-  if (p === '/future/v3/notes')         return { kind: 'redirect', to: '/future/v3/notes/' };
-  // DEAL-CONVERT2: the converter moved beside the deal page — it is a v1 → v2 tool for ANY
-  // deal, not a dashboard feature; the old address redirects so nothing bookmarked breaks
-  if (/^\/future\/v3\/convert(?:\/|\/index\.html)?$/.test(p)) return { kind: 'redirect', to: '/deal/convert/' };
+  // SIGNER-VIEW1: the dashboard, a plain static page, and its help and notes.
+  // KEATON-HOME1: its old home under /future/v3 redirects here PERMANENTLY — matched before
+  // everything else it could fall into, SIGNPAGE's /future prefix included. /future/v3/convert
+  // kept its own destination (DEAL-CONVERT2) and is matched first.
+  // SIGNER-SLASH1: the slash-less forms, so a directory page always gets its trailing slash.
+  if (/^\/future\/v3\/convert(?:\/|\/index\.html)?$/.test(p)) return { kind: 'redirect', to: '/deal/convert/', code: 301 };
+  if ((m = p.match(OLDHOME))) return { kind: 'redirect', to: '/keaton/' + (m[1] || ''), code: 301 };
+  if (p === '/keaton')               return { kind: 'redirect', to: '/keaton/' };
+  if (p === '/keaton/help')          return { kind: 'redirect', to: '/keaton/help/' };
+  if (p === '/keaton/help/business') return { kind: 'redirect', to: '/keaton/help/business/' };
+  if (p === '/keaton/notes')         return { kind: 'redirect', to: '/keaton/notes/' };
   if (p === '/deal/convert') return { kind: 'redirect', to: '/deal/convert/' };
   if (DEALCONV.test(p)) return { kind: 'asset', path: '/deal/convert/index.html' };
-  if (/^\/future\/v3\/notes\/[a-z0-9-]+$/.test(p)) return { kind: 'redirect', to: p + '/' };
-  if (SIGNERNOTES.test(p)) return { kind: 'asset', path: '/future/v3/notes/' + SIGNERNOTES.exec(p)[1] + '/index.html' };
-  if (SIGNERNOTE.test(p))  return { kind: 'asset', path: '/future/v3/notes/index.html' };
-  if (SIGNERBIZ.test(p))  return { kind: 'asset', path: '/future/v3/help/business/index.html' };
-  if (SIGNERHELP.test(p)) return { kind: 'asset', path: '/future/v3/help/index.html' };
+  if (/^\/keaton\/notes\/[a-z0-9-]+$/.test(p)) return { kind: 'redirect', to: p + '/' };
+  if (SIGNERNOTES.test(p)) return { kind: 'asset', path: '/keaton/notes/' + SIGNERNOTES.exec(p)[1] + '/index.html' };
+  if (SIGNERNOTE.test(p))  return { kind: 'asset', path: '/keaton/notes/index.html' };
+  if (SIGNERBIZ.test(p))  return { kind: 'asset', path: '/keaton/help/business/index.html' };
+  if (SIGNERHELP.test(p)) return { kind: 'asset', path: '/keaton/help/index.html' };
+  // the dashboard reads the pass-through at /future/ (SIGNPAGE below), so ?action= here is
+  // only the old relative habit — kept working rather than left to 404
   if (SIGNERVIEW.test(p)) return url.searchParams.has('action')
     ? actionRoute(url, '/hapi/kpool/', '')
-    : { kind: 'asset', path: '/future/v3/index.html' };
+    : { kind: 'asset', path: '/keaton/index.html' };
   if (p === '/deal') return { kind: 'redirect', to: '/deal/' };
   if (p === '/deal/edit') return { kind: 'redirect', to: '/deal/edit/' };
   if (p === '/deal/edit/spec') return { kind: 'redirect', to: '/deal/edit/spec/' };
@@ -218,7 +229,7 @@ export default {
     const r = route(url);
     if (!r) return env.ASSETS.fetch(request);
     switch (r.kind) {
-      case 'redirect': return Response.redirect(new URL(r.to + url.search, url), 302);
+      case 'redirect': return Response.redirect(new URL(r.to + url.search, url), r.code || 302);
       case 'asset':    return asset(env, request, url, r.path);
       case 'alias':    return proxyAlias(env, request, url, r.path, r.search);
       case 'wc':       return wcConfig(env, request, url);

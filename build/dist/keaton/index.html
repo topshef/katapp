@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Signers — what is on duty, and what is signing</title>
+<title>Keaton signers — what is on duty, and what is signing</title>
 <meta name="description" content="Every signer that is announcing itself to the pool, and every transaction waiting in the pool with the devices that have signed it. Read-only.">
 <link rel="icon" href="data:,">
 <style>
@@ -250,7 +250,7 @@
 <div class="wrap">
 
 <header>
-  <h1>Signers</h1>
+  <h1>Keaton signers</h1>
   <p class="sub">Who is on duty, and what they are signing. Everything here is read from the pool —
   nothing on this page can start, stop or authorise anything. A signer appears only if it is set to
   <b>announce itself</b>; one that stays quiet still shows up under its signatures below.
@@ -312,10 +312,10 @@
     signed under, and what the socket is actually subscribed to.</p>
   </div>
   <nav class="crumb">
-    <span class="here">Signers dashboard</span>
-    <a href="/future/v3/help/">How it works</a>
-    <a href="/future/v3/help/business/">In business terms</a>
-    <a href="/future/v3/notes/">Notes</a>
+    <span class="here">Keaton dashboard</span>
+    <a href="/keaton/help/">How it works</a>
+    <a href="/keaton/help/business/">In business terms</a>
+    <a href="/keaton/notes/">Notes</a>
     <a href="/deal/convert/">Converter</a>
     <a href="/deal/">Look up a deal</a>
     <a href="/deal/edit/">Write a deal</a>
@@ -381,7 +381,7 @@
 
 <footer>
   <p>Reads <code>?action=signers</code>, <code>?action=txList</code> and <code>?action=txRead</code>
-  from the pool pass-through next to this page. Point it somewhere else with
+  from the pool pass-through at <code>/future/</code>. Point it somewhere else with
   <code>?api=https://host/future/</code>. Every control is in the URL, so a link shows the same view
   to whoever opens it.</p>
   <p class="dim">Tap a pooled transaction to inspect it — the same widget the signing page uses.
@@ -399,20 +399,24 @@
   'use strict';
 
   // ── where the data comes from ───────────────────────────────────────────────
-  // Default: the pass-through directory next to this page (this file lives in
-  // future/v3/, the pass-through answers at future/?action=…). Keeping it relative
-  // is what lets the whole folder be copied to another host and still work.
+  // The pass-through is /future/ — future/index.php on the PHP host, and on the Worker a
+  // route that forwards ?action= to the api alias. It is NOT beside this page any anymore:
+  // KEATON-HOME1 (2026-09-21) moved the dashboard from /future/v3/ to /keaton/, and a
+  // static directory cannot answer ?action= on the PHP host, so the page NAMES the
+  // pass-through rather than deriving it from wherever it happens to be sitting.
   // Two call styles, because the page has to work in both places it might live:
   //   ?action=  the PHP/Worker pass-through next to this page (same origin, no CORS)
   //   path      the api alias direct — <base>/kpool/<action> — for a copy of this
   //             folder dropped on any static host, which the alias allows by CORS
   var qs = new URLSearchParams(location.search);
-  // SIGNER-SLASH1: derive the pass-through's base from a KNOWN anchor in our own path, not
-  // from `new URL('../')` — that is /future/ when this page is at /future/v3/ and / when it
-  // is at /future/v3, and the slash-less form sent every call to /?action=… , which 302s to
-  // the site's home page. The router now redirects the bare form, so this is belt and braces
-  // for any other host that serves the page without one.
+  // SIGNER-SLASH1 (2026-09-17, kept as the reason this is not `new URL('../')`): deriving
+  // the base relatively gave /future/ from /future/v3/ but / from the slash-less /future/v3,
+  // and that form sent every call to /?action=… , which 302s to the site's home page — a
+  // working-looking dashboard parsing HTML as JSON. Naming the base cannot go wrong either
+  // way. ?api= still overrides it, which is what a copy of this folder on another host uses.
   var API = qs.get('api') || (function () {
+    if (/^\/keaton(?:\/|$)/.test(location.pathname)) return new URL('/future/', location.href).href;
+    // the old home, for as long as anything is still served from it
     var m = /^(.*\/future\/)v3(?:\/|$)/.exec(location.pathname);
     if (m) return new URL(m[1], location.href).href;
     return new URL('../', location.href).href;

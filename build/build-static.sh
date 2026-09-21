@@ -167,31 +167,32 @@ copytree m/tools/glog 2>/dev/null || true
 copytree assets/css; copytree assets/js
 copytree vendor/bootstrap; copytree vendor/jquery; copytree future
 
-# SIGNER-VIEW1: future/v3 is a plain static page (no PHP) — the signer view next to the
-# transaction list. copytree takes only asset extensions, so the page itself is copied here.
+# SIGNER-VIEW1: /keaton is a plain static page (no PHP) — the Keaton dashboard, its help and
+# its notes. copytree takes only asset extensions, so the pages themselves are copied here.
+# KEATON-HOME1 (2026-09-21): it used to be /future/v3; the router 301s every old address.
 # NOTES-CHROME1 (2026-09-17): copy the WHOLE tree, not a hand-kept list of three files.
 # It used to name index.html, help/ and help/business/ one line each, so a new page under
-# future/v3 was written, committed, and silently never shipped — the same shape of trap as
-# the one-variant build. The router matches /future/v3/notes/<slug>/ as a pattern for the
+# the dashboard was written, committed, and silently never shipped — the same shape of trap
+# as the one-variant build. The router matches /keaton/notes/<slug>/ as a pattern for the
 # same reason: adding a page should be a directory, and nothing else.
 # widget.json is GENERATED below and deliberately overwrites whatever the copy brought.
 # LEGACY-DEALS1: the V1 deal archive lookup at /legacy/deals/. A plain static page (no PHP),
-# copied whole for the same reason as future/v3 above — a new file under it should ship without
+# copied whole for the same reason as /keaton above — a new file under it should ship without
 # anyone remembering to edit this script. It is deliberately NOT linked from any other page.
 mkdir -p "$DIST/legacy"
 cp -R "$PUB/legacy/." "$DIST/legacy/"
 
-# DEALPAGE1: /deal/ — the deal lookup, copied whole for the same reason as future/v3 below.
+# DEALPAGE1: /deal/ — the deal lookup, copied whole for the same reason as /keaton below.
 mkdir -p "$DIST/deal"
 cp -R "$PUB/deal/." "$DIST/deal/"
 
-mkdir -p "$DIST/future/v3"
-cp -R "$PUB/future/v3/." "$DIST/future/v3/"
+mkdir -p "$DIST/keaton"
+cp -R "$PUB/keaton/." "$DIST/keaton/"
 # The signer view mounts the REAL signing widget when a row is tapped. It asks this file
 # where the widget is rather than hard-coding it, which is what lets the same page run on a
 # host that has no widget (it falls back to opening the signing page). The WalletConnect
 # snapshot hash is only known here, so it is written in rather than committed stale.
-cat > "$DIST/future/v3/widget.json" <<WJSON
+cat > "$DIST/keaton/widget.json" <<WJSON
 {
   "widget": "/vendor/kpay/kpool_widget/bootstrap.js",
   "localbase": "/m/bid/localbase.min.js",

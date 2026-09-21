@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Katomic v2 — writing a deal by hand — KEA notes</title>
+<title>Katomic v2 — writing a deal by hand — Keaton notes</title>
 <meta name="description" content="A plain-text script that compiles to a v2 deal and prints back from one: the grammar, section by section, against klotto's live deals; a round-trip test; an editor mock-up; where it would live.">
 <meta name="robots" content="noindex,nofollow">
 <style>  :root{
@@ -160,9 +160,9 @@
 <div class="wrap">
 <header>
   <nav class="crumb">
-    <a href="/future/v3/">Signers dashboard</a>
-    <a href="/future/v3/help/">How it works</a>
-    <a href="/future/v3/help/business/">In business terms</a>
+    <a href="/keaton/">Keaton dashboard</a>
+    <a href="/keaton/help/">How it works</a>
+    <a href="/keaton/help/business/">In business terms</a>
     <span class="here">Notes</span>
     <a href="/deal/convert/">Converter</a>
     <a href="/deal/">Look up a deal</a>
@@ -435,7 +435,7 @@ valid     from +300s, for 120s</code></pre>
 <tr><td class="g">parse.js, print.js</td><td>hbarlive_hts <code>dealkit/katomic/</code></td><td class="r">Beside the v2 engine they target, browser-safe and dependency-free like <code>jcs.js</code>, so the same code runs in the editor, the CLI and a signer.</td></tr>
 <tr><td class="g">round-trip test</td><td><code>qa/katomic/roundtrip-tests.js</code></td><td class="r">Every published klotto and xproof deal: print → compile → same id. Runs in <code>test:units</code>.</td></tr>
 <tr><td class="g">katomic.cjs</td><td><code>kea/tools/</code></td><td class="r"><code>compile deal.kat</code> and <code>print deal.json</code>, next to <code>convert.cjs</code>. What a publisher runs before <code>publish-deals</code>.</td></tr>
-<tr><td class="g">/deal/edit/</td><td>phpjabbers, at the root beside <code>/deal/</code></td><td class="r">Deals are v2; the editor is v2. Not under <code>/future/v3/</code>, which is the dashboard.</td></tr>
+<tr><td class="g">/deal/edit/</td><td>phpjabbers, at the root beside <code>/deal/</code></td><td class="r">Deals are v2; the editor is v2. Not under <code>/keaton/</code>, which is the dashboard.</td></tr>
 <tr><td class="g">"as script" view</td><td><code>/deal/</code></td><td class="r">Printing is free once <code>print.js</code> exists, and it is the friendliest of the three views.</td></tr>
 </table></div>
 <p>Order of work: <strong>print.js first</strong>, because it costs nothing to be wrong (it changes no deal) and immediately makes every existing deal readable; then parse.js against the round-trip test; then the editor. The 2023 repo is the reference for the transfer lines and nothing else — its parser is a set of regexes over SDK transfer lists, and none of it targets the v2 shape.</p>

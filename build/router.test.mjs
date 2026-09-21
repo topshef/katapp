@@ -28,8 +28,8 @@ const cases = [
   ['/deal',                               { kind: 'redirect', to: '/deal/' }],            // DEALPAGE1
   ['/deal/',                              A('/deal/index.html')],
   ['/deal/?id=0c516f',                    A('/deal/index.html')],
-  ['/future/v3/convert/',                 { kind: 'redirect', to: '/deal/convert/' }],    // DEAL-CONVERT2: moved
-  ['/future/v3/convert',                  { kind: 'redirect', to: '/deal/convert/' }],
+  ['/future/v3/convert/',                 { kind: 'redirect', to: '/deal/convert/', code: 301 }],    // DEAL-CONVERT2: moved
+  ['/future/v3/convert',                  { kind: 'redirect', to: '/deal/convert/', code: 301 }],
   ['/deal/convert',                       { kind: 'redirect', to: '/deal/convert/' }],
   ['/deal/convert/',                      A('/deal/convert/index.html')],
   ['/deal/convert/?id=0c516f',            A('/deal/convert/index.html')],
@@ -97,13 +97,21 @@ const cases = [
   ['/feedback-widget.js',                 { kind: 'alias', path: '/feedback-widget.js' }],
   ['/kfeedback/vote',                     { kind: 'alias', path: '/kfeedback/vote' }],
   ['/vendor/walletconnect/config.json',   { kind: 'wc' }],
-  // SIGNER-VIEW1 / NOTES-CHROME1 / DEAL-CONVERT1: the static pages under /future/v3
-  ['/future/v3',                          { kind: 'redirect', to: '/future/v3/' }],
-  ['/future/v3/',                         A('/future/v3/index.html')],
-  ['/future/v3/?action=txList&network=testnet', { kind: 'alias', path: '/hapi/kpool/txList', search: '?network=testnet' }],
-  ['/future/v3/help/',                    A('/future/v3/help/index.html')],
-  ['/future/v3/notes/bots/',              A('/future/v3/notes/bots/index.html')],
-  ['/future/v3/notes/bots',               { kind: 'redirect', to: '/future/v3/notes/bots/' }],
+  // SIGNER-VIEW1 / NOTES-CHROME1: the static pages under /keaton
+  ['/keaton',                             { kind: 'redirect', to: '/keaton/' }],
+  ['/keaton/',                            A('/keaton/index.html')],
+  ['/keaton/?action=txList&network=testnet', { kind: 'alias', path: '/hapi/kpool/txList', search: '?network=testnet' }],
+  ['/keaton/help/',                       A('/keaton/help/index.html')],
+  ['/keaton/notes/bots/',                 A('/keaton/notes/bots/index.html')],
+  ['/keaton/notes/bots',                  { kind: 'redirect', to: '/keaton/notes/bots/' }],
+  // KEATON-HOME1: every old address, permanently, whole path and query kept
+  ['/future/v3',                          { kind: 'redirect', to: '/keaton/', code: 301 }],
+  ['/future/v3/',                         { kind: 'redirect', to: '/keaton/', code: 301 }],
+  ['/future/v3/index.html',               { kind: 'redirect', to: '/keaton/index.html', code: 301 }],
+  ['/future/v3/help/',                    { kind: 'redirect', to: '/keaton/help/', code: 301 }],
+  ['/future/v3/help/business/',           { kind: 'redirect', to: '/keaton/help/business/', code: 301 }],
+  ['/future/v3/notes/bots/',              { kind: 'redirect', to: '/keaton/notes/bots/', code: 301 }],
+  ['/future/v3/widget.json',              { kind: 'redirect', to: '/keaton/widget.json', code: 301 }],
   // LEGACY-DEALS1: the V1 deal archive lookup, on its own prefix
   ['/legacy/deals',                       { kind: 'redirect', to: '/legacy/deals/' }],
   ['/legacy/deals/',                      A('/legacy/deals/index.html')],

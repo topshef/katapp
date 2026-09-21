@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>How KEA works — a signer you control</title>
-<meta name="description" content="What a KEA signer is, how it connects to the pool and to Hedera, every check a transaction passes through before it is signed, and the ways you can run one.">
+<title>How Keaton works — a signer you control</title>
+<meta name="description" content="What a Keaton signer is, how it connects to the pool and to Hedera, every check a transaction passes through before it is signed, and the ways you can run one.">
 <link rel="icon" href="data:,">
 <style>
   :root{
@@ -84,16 +84,16 @@
 
 <header>
   <nav class="crumb">
-    <a href="/future/v3/">Signers dashboard</a>
+    <a href="/keaton/">Keaton dashboard</a>
     <span class="here">How it works</span>
-    <a href="/future/v3/help/business/">In business terms</a>
-    <a href="/future/v3/notes/">Notes</a>
+    <a href="/keaton/help/business/">In business terms</a>
+    <a href="/keaton/notes/">Notes</a>
     <a href="/deal/convert/">Converter</a>
     <a href="/deal/">Look up a deal</a>
     <a href="/deal/edit/">Write a deal</a>
   </nav>
-  <h1>How KEA works</h1>
-  <p class="lede">KEA is a signer you control. It reads a transaction, checks it against rules
+  <h1>How Keaton works</h1>
+  <p class="lede">Keaton is a signer you control. It reads a transaction, checks it against rules
   <em>you</em> published, and signs the ones that match. Its authority is the rule; its answer is a
   signature.</p>
 </header>
@@ -113,7 +113,7 @@ different people:</p>
     <tr><td><strong>Write the rule</strong></td><td>anyone — a business, a person, a script</td><td>Writes down what they are willing to pay, and on what conditions, and publishes it. That document is the authority everything else answers to.</td></tr>
     <tr><td><strong>Ask</strong></td><td>a bot, a page, a person</td><td>Proposes. That is the whole job — approval is a separate step, taken by someone else.</td></tr>
     <tr><td><strong>Assemble and hold</strong></td><td>the pool (<code>kpool</code>)</td><td>The transaction itself, in the open, while approvals arrive. It relays the bytes onward exactly as they were signed.</td></tr>
-    <tr><td><strong>Approve</strong></td><td><strong>KEA</strong> — one or more devices</td><td>A key, used for one purpose: adding <em>one approval</em> to a transaction that matches a published rule.</td></tr>
+    <tr><td><strong>Approve</strong></td><td><strong>Keaton</strong> — one or more devices</td><td>A key, used for one purpose: adding <em>one approval</em> to a transaction that matches a published rule.</td></tr>
     <tr><td><strong>Settle</strong></td><td>Hedera</td><td>The ledger. It counts the approvals against the account's own rule and settles once they satisfy it.</td></tr>
   </tbody>
 </table></div>
@@ -138,9 +138,9 @@ different people:</p>
 <figure>
   <div class="fig">
     <svg viewBox="0 0 700 300" role="img" aria-labelledby="t1 d1">
-      <title id="t1">How an application, a raiser, the pool, KEA and Hedera connect</title>
+      <title id="t1">How an application, a raiser, the pool, Keaton and Hedera connect</title>
       <desc id="d1">The application publishes a deal catalogue. A raiser asks the pool to build a
-      transaction. The pool holds it unsigned. KEA reads the catalogue and the pool, checks the
+      transaction. The pool holds it unsigned. Keaton reads the catalogue and the pool, checks the
       transaction, and posts a signature back to the pool. The pool submits to Hedera, which
       settles. The pool holds the transaction while approvals arrive.</desc>
       <defs>
@@ -171,7 +171,7 @@ different people:</p>
         <text x="220" y="145" text-anchor="middle" font-size="10.5" fill="var(--ink-3)">asks</text>
 
         <rect x="524" y="118" width="168" height="68" rx="8" fill="var(--ok-bg)" stroke="var(--ok)" stroke-width="1.6"/>
-        <text x="608" y="141" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ok)">KEA</text>
+        <text x="608" y="141" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ok)">Keaton</text>
         <text x="608" y="158" text-anchor="middle" fill="var(--ink-3)">holds the key</text>
         <text x="608" y="175" text-anchor="middle" fill="var(--ink-3)">checks, then signs</text>
 
@@ -191,11 +191,11 @@ different people:</p>
       </g>
     </svg>
   </div>
-  <figcaption>KEA takes its authority from its own config — a list of deal ids, each the hash of its document. That is what lets the pool be treated as
+  <figcaption>Keaton takes its authority from its own config — a list of deal ids, each the hash of its document. That is what lets the pool be treated as
   a convenience rather than a trusted party, and what makes "approve" a job of its own.</figcaption>
 </figure>
 
-<p>KEA talks <strong>outbound only</strong>: it opens a connection to the pool and to a public
+<p>Keaton talks <strong>outbound only</strong>: it opens a connection to the pool and to a public
 Hedera mirror node, and everything it needs arrives over those. That is what lets a signer live on a
 phone behind an ordinary home router.</p>
 
@@ -209,7 +209,7 @@ signed.</p>
 <figure>
   <div class="fig">
     <svg viewBox="0 0 660 690" role="img" aria-labelledby="t2 d2">
-      <title id="t2">The gates a transaction passes through before KEA will sign it</title>
+      <title id="t2">The gates a transaction passes through before Keaton will sign it</title>
       <desc id="d2">A transaction enters at the top and falls through ten gates in order: is it a
       deal, policy, authority, inputs, decode, observe, derive and require, reproduce, caps, and
       signers. Each gate can reject it with a named reason, shown to the right. Only a transaction
@@ -348,7 +348,7 @@ signed.</p>
 
 <h2>How signatures add up</h2>
 
-<p>KEA's job ends at the signature: it holds a key, it signs, it posts the signature back. Counting
+<p>Keaton's job ends at the signature: it holds a key, it signs, it posts the signature back. Counting
 the approvals is the ledger's job.</p>
 
 <p>A Hedera account states its own requirement — "any one of these three", "any two of these three",
@@ -391,11 +391,12 @@ own signature. Two signers reaching the same conclusion is the point — that is
 ledger counts. When they differ, the <a href="../">dashboard</a> shows you both verdicts side by
 side.</p>
 
-<h2>Using KEA yourself</h2>
+<h2>Using Keaton yourself</h2>
 
 <div class="box wip">
   <b class="hd">Work in progress</b>
-  <p>KEA currently lives inside a larger backend repository and is being separated into its own
+  <p>Keaton's code (the <code>kea</code> module) currently lives inside a larger backend repository
+  and is being separated into its own
   public one. Everything described above is running today; what is still in progress is the
   <em>packaging</em>. The shape below is what integrating will look like, and the repository link and
   package name land here when the split does.</p>
@@ -562,8 +563,8 @@ answers are the boundaries of it.</p>
     <tr><td><strong>Does one signature move the money?</strong></td><td class="r">Only when the account requires exactly one. With two of three, a single signature settles nothing on its own — the transaction waits for a second.</td></tr>
     <tr><td><strong>What if a signer goes offline?</strong></td><td class="r">Nothing is stuck by it, so long as enough other approvers remain to satisfy the account. This is the reason to choose the threshold from how many losses you should survive.</td></tr>
     <tr><td><strong>What if a device is stolen?</strong></td><td class="r">That key can approve whatever the account's rule lets it approve alone — which is exactly why thresholds and hourly caps exist. Rotate the account's key list to retire it.</td></tr>
-    <tr><td><strong>Does KEA build transactions?</strong></td><td class="r">No. It reads one that already exists and answers yes or no. Building is the venue's job, proposing is the raiser's.</td></tr>
-    <tr><td><strong>Does KEA hold funds?</strong></td><td class="r">No. It holds a key for accounts that hold funds. The funds stay in the accounts throughout.</td></tr>
+    <tr><td><strong>Does Keaton build transactions?</strong></td><td class="r">No. It reads one that already exists and answers yes or no. Building is the venue's job, proposing is the raiser's.</td></tr>
+    <tr><td><strong>Does Keaton hold funds?</strong></td><td class="r">No. It holds a key for accounts that hold funds. The funds stay in the accounts throughout.</td></tr>
     <tr><td><strong>Can a bad rule still be approved?</strong></td><td class="r">Yes. The signer guarantees the transaction matches the rule; judging whether the rule was sensible is the review you do once, in advance. The hourly cap is the backstop for a rule that turns out to be wrong.</td></tr>
     <tr><td><strong>Can the venue trick a signer by sending something misleading?</strong></td><td class="r">It can send anything it likes. The signer computes the rule's identity from the document, re-reads the facts from the chain, and rebuilds the transaction itself, so what arrives alongside the bytes carries no authority.</td></tr>
     <tr><td><strong>Is a signer that stays quiet a problem?</strong></td><td class="r">A quiet signer signs exactly as much as a talkative one — announcing is observation only. It simply appears on the dashboard under its signatures rather than in the roster.</td></tr>
