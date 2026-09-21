@@ -104,6 +104,9 @@
   .foot{margin-top:24px;font-size:.85rem;color:var(--ink-3)}
   .foot a{color:var(--acc)}
   .hidden{display:none}
+  /* DEALV1DEP1: which deal replaced which — one line, under the id it is about */
+  .rel{margin:8px 0 0;font-size:.85rem;color:var(--ink-2);max-width:90ch}
+  .rel a{color:var(--acc)}
   @media (max-width:640px){
     .bar{flex-direction:column;align-items:stretch}
     /* `flex: 1 1 320px` sets flex-BASIS, which is a height once the bar stacks into a column —
@@ -175,6 +178,7 @@
   </div>
   <div class="pbody" style="padding-bottom:6px">
     <div class="id" id="r-id"></div>
+    <p class="rel" id="r-rel" hidden></p>
     <p style="margin:8px 0 0;font-size:.85rem;color:var(--ink-2)">
       Fetched from <a id="r-src" href="#" target="_blank" rel="noopener">—</a>
       <a id="r-edit" href="/deal/edit/" target="_blank" rel="noopener" hidden title="see this policy as a Katomic script, and edit a copy">edit as script ↗</a> — that link is the
@@ -474,13 +478,34 @@ function render(found, meta) {
                             (doc.role ? doc.role + ' deal' : 'deal')
   $('r-pills').innerHTML =
     `<span class="pill ${verdict.cls}">${esc(verdict.text)}</span> ` +
-    `<span class="pill">${isV2 ? 'v2 policy' : 'v1 template'}</span> ` +
+    `<span class="pill${!isV2 && meta && (meta.deprecated || meta.replacedBy) ? ' warn' : ''}">${isV2 ? 'v2 policy' : 'v1 template'}</span> ` +
     (policy.network || doc.network ? `<span class="pill">${esc(policy.network || doc.network)}</span> ` : '') +
     (doc.role ? `<span class="pill">${esc(doc.role)}</span> ` : '') +
     (meta && meta.publisher ? `<span class="pill acc">${esc(meta.publisher)}</span>` : '')
 
   $('r-id').innerHTML = esc(declaredId || '(none declared)') +
     (verdict.cls === 'bad' ? `<br><span style="color:var(--bad)">body hashes to ${esc(computed)}</span>` : '')
+
+  // DEALV1DEP1 (2026-09-21): which deal replaced which. A v2 envelope names the v1 deal it
+  // was minted from (`replaces`, outside `deal` so it is not hashed and no id moved); the
+  // catalogue row carries the same fact and the reverse one (`replacedBy`), because the v1
+  // documents are frozen artifacts and are not rewritten to hold it.
+  //
+  // Deprecated means the DOCUMENT is superseded — not that nothing raises it. A signer that
+  // drops a v1 deal its application still raises simply stops seeing those raises, which is
+  // how two sets of klotto payouts expired in September. So this says what it means.
+  const link = (id) => `<a href="?id=${encodeURIComponent(id)}" class="mono">${esc(String(id).slice(0, 12))}…</a>`
+  const replaces = doc.replaces || (meta && meta.replaces) || null
+  const replacedBy = (meta && meta.replacedBy) || null
+  const deprecated = !!(meta && meta.deprecated) || !!replacedBy
+  $('r-rel').innerHTML = replacedBy
+    ? `<span class="pill warn">deprecated</span> This v1 template is superseded by ${link(replacedBy)}, which says the same thing as a v2 policy. ` +
+      `It is kept, published and verifiable — a deal id names a document for ever — and it is still raised by anything that has not moved on, ` +
+      `so a signer that watches it should keep watching it until whatever raises it has switched.`
+    : replaces
+      ? `Replaces ${link(replaces)}, the v1 template this policy was minted from. Informational: it sits outside the hashed body, so it is not part of the deal.`
+      : ''
+  $('r-rel').hidden = !(replacedBy || replaces)
 
   $('r-src').textContent = found.src
   $('r-src').href = found.src

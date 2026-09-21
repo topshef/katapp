@@ -220,6 +220,10 @@ function lineOf(text, needle) {
 }
 
 let current = { policy: null, id: null, ok: false }
+// the v1 deal the LOADED policy replaces — kept with the id it belongs to, so editing the
+// script into a different deal drops the backlink instead of carrying it onto a policy the
+// publisher never said that about
+let loadedFrom = null        // { forId, replaces }
 function compile() {
   const text = src.value
   paint()
@@ -252,7 +256,8 @@ function compile() {
   const firstErr = [...unbound.values()].length ? Number(probs.querySelector('li[data-line]:not([data-line=""])')?.dataset.line) || null : null
   renderGutter(firstErr)
   $('json').innerHTML = jsonHtml(policy)
-  links.innerHTML = `<a href="/deal/?id=${id}" target="_blank" rel="noopener">look this id up ↗</a><span>·</span><span>${(canonicalize(policy).length).toLocaleString()} canonical bytes</span>`
+  links.innerHTML = `<a href="/deal/?id=${id}" target="_blank" rel="noopener">look this id up ↗</a><span>·</span><span>${(canonicalize(policy).length).toLocaleString()} canonical bytes</span>` +
+    (loadedFrom && loadedFrom.forId === id ? `<span>·</span><span>replaces <a href="/deal/?id=${esc(loadedFrom.replaces)}" target="_blank" rel="noopener" title="the v1 template this policy was minted from. It is outside the hashed body, so it is not in the script and editing cannot change it — and an edited policy is a different deal, which this stops claiming.">${esc(loadedFrom.replaces.slice(0, 12))}… ↗</a></span>` : '')
   // is it published? (a deal only exists to a signer once a site lists it)
   publishedAt(id).then((base) => { if (base && current.id === id) links.insertAdjacentHTML('beforeend', `<span>·</span><span>published by <a href="${base}/deals/${id}.json" target="_blank" rel="noopener">${esc(base.replace(/^https?:\/\//, ''))}</a></span>`) })
 }
@@ -292,7 +297,7 @@ async function resolve(frag) {
       const r = await fetch(`${base}/deals/${hits[0]}.json`, { mode: 'cors' })
       if (!r.ok) throw new Error(`${base} lists ${hits[0].slice(0, 8)}… but its file answered ${r.status}`)
       const doc = await r.json()
-      return { id: hits[0], base, body: doc && doc.deal && typeof doc.deal === 'object' ? doc.deal : doc }
+      return { id: hits[0], base, doc, body: doc && doc.deal && typeof doc.deal === 'object' ? doc.deal : doc }
     }
   }
   throw new Error(`no publisher this page knows lists ${frag}… — it may be a v1 deal (try the <a href="/deal/?id=${frag}">deal page</a>), or unpublished`)
@@ -301,9 +306,12 @@ async function loadId(frag) {
   const status = $('status')
   status.innerHTML = '<span class="pill mute">loading…</span>'
   try {
-    const { id, base, body } = await resolve(frag)
+    const { id, base, doc, body } = await resolve(frag)
     if (body.v !== 2) throw new Error(`${id.slice(0, 8)}… is a v${body.v || 1} deal; only a v2 policy prints as a script. The <a href="/deal/convert/">converter</a> makes a v2 from it.`)
     src.value = printKatomic(body)
+    // DEALV1DEP1: the v1 deal this policy replaces, if the publisher says so. Envelope-level
+    // and informational — it is not in the script, because it is not in the hashed body.
+    loadedFrom = doc && doc.replaces ? { forId: id, replaces: doc.replaces } : null
     $('fname').textContent = `${id.slice(0, 12)}.kat · from ${base.replace(/^https?:\/\//, '')}`
     history.replaceState(null, '', `?id=${id}`)
     compile()
@@ -331,7 +339,7 @@ $('load').addEventListener('click', () => loadId($('id').value))
 $('id').addEventListener('keydown', (e) => { if (e.key === 'Enter') loadId($('id').value) })
 $('ex').addEventListener('change', () => {
   const v = $('ex').value; $('ex').value = ''
-  if (v === 'blank') { src.value = BLANK; $('fname').textContent = 'untitled.kat'; history.replaceState(null, '', location.pathname); compile() }
+  if (v === 'blank') { src.value = BLANK; loadedFrom = null; $('fname').textContent = 'untitled.kat'; history.replaceState(null, '', location.pathname); compile() }
   else if (v) loadId(v)
 })
 $('copysrc').addEventListener('click', () => navigator.clipboard.writeText(src.value).then(() => toast('script copied')))
@@ -351,7 +359,7 @@ $('fromjson').addEventListener('click', () => {
   try {
     const doc = JSON.parse(raw)
     const body = doc && doc.deal && typeof doc.deal === 'object' ? doc.deal : doc
-    src.value = printKatomic(body); $('fname').textContent = 'pasted.kat'; history.replaceState(null, '', location.pathname); compile(); toast('printed')
+    src.value = printKatomic(body); loadedFrom = doc && doc.replaces ? { forId: String(doc.dealId || '').toLowerCase(), replaces: doc.replaces } : null; $('fname').textContent = 'pasted.kat'; history.replaceState(null, '', location.pathname); compile(); toast('printed')
   } catch (e) { $('probs').innerHTML = `<li class="bad">${esc(e.message)}</li>`; $('status').innerHTML = '<span class="pill bad">could not print that</span>' }
 })
 

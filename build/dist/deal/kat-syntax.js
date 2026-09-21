@@ -196,10 +196,13 @@ export function exprHtml(text) {
 }
 
 /** A Katomic script → HTML, one line at a time. Never throws: an unparseable line is
- *  returned escaped and uncoloured, because an editor must keep showing what you typed. */
-export function katHtml(text) {
+ *  returned escaped and uncoloured, because an editor must keep showing what you typed.
+ *
+ *  `section` starts the reader inside a section, for a FRAGMENT quoted without its header —
+ *  the line forms in the spec, which are `NAME is VALUE` rather than a whole script. */
+export function katHtml(text, { section: start = null } = {}) {
   const lines = String(text == null ? '' : text).split('\n')
-  let section = null, prevIndented = false
+  let section = start, prevIndented = false
   const out = []
   for (const line of lines) {
     const head = /^#([a-z]+)\s*$/.exec(line)
@@ -300,4 +303,16 @@ export function installSyntaxCss() {
   st.id = 'kat-syntax-css'
   st.textContent = SYNTAX_CSS
   document.head.appendChild(st)
+}
+
+/** Colour every <code class="kat"> already in the page — what a prose page (the spec) needs,
+ *  so a script quoted in documentation is coloured by the same code as the editor and cannot
+ *  drift from it. `data-section` names the section a FRAGMENT belongs to. Idempotent. */
+export function paintKatBlocks(root = document) {
+  installSyntaxCss()
+  for (const el of root.querySelectorAll('code.kat')) {
+    if (el.dataset.painted) continue
+    el.dataset.painted = '1'
+    el.innerHTML = katHtml(el.textContent, { section: el.dataset.section || null })
+  }
 }

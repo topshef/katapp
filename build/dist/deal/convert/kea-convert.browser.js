@@ -4749,7 +4749,7 @@ var require_convert = __commonJS({
       return { policy, dealId: v22.dealId(policy), role, network: p.network, cc: p.cc, from, notes, weakened: [] };
     }
     function envelopeOf2(c) {
-      return { _comment: `converted from v1 ${c.from.dealId} by hbarlive_hts kea/tools/convert.cjs \u2014 only \`deal\` is hashed (RFC 8785 JCS)`, dealId: c.dealId, role: c.role, network: c.network, cc: c.cc, v: 2, convertedFrom: c.from, deal: c.policy };
+      return { _comment: `converted from v1 ${c.from.dealId} by hbarlive_hts kea/tools/convert.cjs \u2014 only \`deal\` is hashed (RFC 8785 JCS)`, dealId: c.dealId, role: c.role, network: c.network, cc: c.cc, v: 2, replaces: c.from.dealId, convertedFrom: c.from, deal: c.policy };
     }
     function explain2(input, opts = {}) {
       const c = convert2(input, opts);

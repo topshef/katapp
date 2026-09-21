@@ -185,31 +185,31 @@
 <h2>3. Sections</h2>
 
 <h3><code>#deal</code></h3>
-<pre><code>name     TEXT
+<pre><code class="kat" data-section="deal">name     TEXT
 network  TEXT</code></pre>
 <p>→ <code>name</code>, <code>network</code> (strings, trimmed). <code>v</code> is never written; the compiler emits <code>"v": 2</code>. Both lines are required.</p>
 
 <h3><code>#constants</code></h3>
-<pre><code>NAME is VALUE</code></pre>
+<pre><code class="kat" data-section="constants">NAME is VALUE</code></pre>
 <p>→ <code>constants[NAME] = VALUE</code>. <code>VALUE</code> is a JSON literal if it begins with <code>"</code>, <code>[</code> or <code>{</code>, or is exactly <code>true</code>, <code>false</code> or <code>null</code>; a number if it matches <code>-?\d+(\.\d+)?([eE][+-]?\d+)?</code>; otherwise the trimmed text as a string. So <code>0.0.7718</code> is a string, <code>31</code> is a number, <code>"296"</code> is the string <code>"296"</code>. A name may not be defined twice.</p>
 
 <h3><code>#inputs</code></h3>
-<pre><code>NAME TYPE</code></pre>
+<pre><code class="kat" data-section="inputs">NAME TYPE</code></pre>
 <p>→ <code>inputs[NAME] = { "type": T }</code>. <code>TYPE</code> is one of <code>account</code> (<code>hedera.account</code>), <code>txid</code> (<code>hedera.txid</code>), <code>timestamp</code> (<code>hedera.timestamp</code>), <code>integer</code>, <code>string</code>; the long spellings are also accepted. There is no other input type, because the engine has no other input type.</p>
 
 <h3><code>#observe</code></h3>
-<pre><code>NAME = SOURCE PATH [-> SELECT]
+<pre><code class="kat" data-section="observe">NAME = SOURCE PATH [-> SELECT]
     pin: JMESPATH
     attest: JMESPATH</code></pre>
 <p>→ <code>observe[NAME] = { source, get, select?, pin?, attest? }</code>. <code>SOURCE</code> is a registry name (<code>[a-z][a-z0-9.]*</code>, e.g. <code>hedera.mirror</code>, <code>xproof.xtxt</code>) — <b>never a URL</b>; the verifier's registry decides where a name resolves. <code>PATH</code> is one token without whitespace and may contain <code>{NAME}</code> substitutions, which are the engine's own. <code>SELECT</code> is a JMESPath taken verbatim to the end of the line. Indented continuation lines: <code>-> …</code> sets or extends <code>select</code>; <code>pin:</code> and <code>attest:</code> set those keys; other indented text extends <code>select</code> if present, else <code>get</code>.</p>
 
 <h3><code>#derive</code></h3>
-<pre><code>NAME = query JMESPATH
+<pre><code class="kat" data-section="derive">NAME = query JMESPATH
 NAME = EXPRESSION</code></pre>
 <p>→ <code>derive[NAME]</code>: with <code>query</code>, the rest of the line verbatim as a JMESPath <b>string</b>; otherwise the <code>EXPRESSION</code> compiled to a JSONLogic <b>object</b> (§4). An indented line continues the previous entry, joined by one space. <code>query</code> exists because the JSON holds two expression languages side by side and nothing about a line's shape reliably tells them apart.</p>
 
 <h3><code>#require</code></h3>
-<pre><code>REASON
+<pre><code class="kat" data-section="require">REASON
     EXPRESSION</code></pre>
 <p>→ one element <code>{ "reason": REASON, "rule": EXPRESSION }</code> of <code>require</code>, in order. <code>REASON</code> is the margin line, verbatim and trimmed; the rule is the next line, indented. A reason without a rule, or a rule without a reason, is an error. Reasons are inside the JSON and inside the hash: a signer's refusal quotes them back.</p>
 
@@ -253,7 +253,7 @@ NAME = EXPRESSION</code></pre>
 
 <h2>7. Example</h2>
 <p>The live testnet klotto ticket deal, dealId <a href="/deal/?id=0c516f051d7e8035d4f9cbf941ec5555e45a15072b29ede1158d211cc8ce0d38"><code>0c516f051d7e…</code></a>, is exactly this script — <a href="../?id=0c516f051d7e8035d4f9cbf941ec5555e45a15072b29ede1158d211cc8ce0d38">open it in the editor</a>:</p>
-<pre><code>#deal
+<pre><code class="kat">#deal
 name     KLOTTO ticket — COP$ (testnet CO)
 network  testnet
 
@@ -292,5 +292,12 @@ operator  player
 valid     from +15s, for 120s</code></pre>
 <p>The canonical copy of this document is <code>dealkit/katomic/SPEC.md</code> in <a href="https://github.com/topshef/hbarlive_hts">hbarlive_hts</a>, next to the implementation. Where the two differ, the one beside the code is right.</p>
 </div>
+<script type="module">
+// KATSYN1: every script in this page is coloured by the SAME module the editor and the deal
+// page use (/deal/kat-syntax.js) — a spec whose examples are coloured by their own copy of
+// the rules is a spec that will eventually disagree with the implementation it specifies.
+import { paintKatBlocks } from '/deal/kat-syntax.js'
+paintKatBlocks()
+</script>
 </body>
 </html>
