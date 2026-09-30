@@ -90,3 +90,9 @@ public_html/vendor/ksig/app/
 !/public_html/future/v3/widget.json
 !/build/dist/future/v3/widget.json
 !/build/dist-gcp/future/v3/widget.json
+
+# KEATON-WIDGETJSON1 (2026-09-30): build-static.sh GENERATES keaton/widget.json into both dists and the
+# git-connected Cloudflare deploy ships build/dist as-is, but the *.json rule above kept it out of git —
+# the live site 404s on /keaton/widget.json and the katui "fresh" job has been red on every run.
+!build/dist/keaton/widget.json
+!build/dist-gcp/keaton/widget.json

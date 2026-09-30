@@ -1,0 +1,7 @@
+{
+  "widget": "/vendor/kpay/kpool_widget/bootstrap.js",
+  "localbase": "/m/bid/localbase.min.js",
+  "wc": "/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js",
+  "wcConfig": "/vendor/walletconnect/config.json",
+  "signPage": "/m/sign/"
+}
