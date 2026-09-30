@@ -6,9 +6,9 @@
   <!-- KAT-BREAKOUT1 P1: quiet cross-fade for the board→side-circle handoff (same
        ENTRY-FADES1 treatment the entry pages carry; must be in <head> to arm the
        fade-in before first paint). -->
-  <script src="kfade.js?v=1789980563"></script>
-  <link rel="stylesheet" href="katomia.css?v=1789980563" />
-<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1789980563">  <link rel="stylesheet" href="katomia-board.css?v=1789980563" />
+  <script src="kfade.js?v=1790601853"></script>
+  <link rel="stylesheet" href="katomia.css?v=1790601852" />
+<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1790601852">  <link rel="stylesheet" href="katomia-board.css?v=1790601852" />
   <title>katomia — board</title>
 </head>
 
@@ -729,9 +729,9 @@ addEventListener("load", () => setTimeout(() => {
      kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
      script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
      the notes' popovers), so a page that already loads it is unaffected. -->
-<script src="kfeedbits.js?v=1789980563" defer></script>
-<script src="kchanges-log.js?v=1789980563" defer></script>
-<script src="kchanges.js?v=1789980563" defer></script>
+<script src="kfeedbits.js?v=1790601853" defer></script>
+<script src="kchanges-log.js?v=1790601852" defer></script>
+<script src="kchanges.js?v=1790601852" defer></script>
 <!-- /KBUNDLE-STRIP:kchanges -->
 <div id="profileModal" class="profile-modal hidden">
 
@@ -1134,10 +1134,10 @@ addEventListener("load", () => setTimeout(() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "ca7fada"
+  window.KFLOW_COMMIT = "f3518df"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
-<script src="kflow.js?v=1789980563"></script>
+<script src="kflow.js?v=1790601853"></script>
 <!-- KAT-FEEDBACK1 + FEEDBACK-COMMENTARY1: long-press feedback, now WITH
      session mode (start → REC pill top-left → stop → paste transcript/debrief
      → send & close through the normal signed /kfeedback route). Activated on
@@ -1169,33 +1169,33 @@ addEventListener("load", () => setTimeout(() => {
 <script src="/vendor/kpay/kpool_widget/kpay-embed.js" defer></script>
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
 
-<script type="module" src="katomia-init.js?v=1789980563"></script>
-<script src="katomia-core.js?v=1789980563"></script>
-<script src="katomia-localdb.js?v=1789980563"></script>
-<script src="kemoji.js?v=1789980563"></script>
-<script src="katomia-helpers.js?v=1789980563"></script>
-<script src="katomia-enrich.js?v=1789980563"></script>
-<script src="katomia-network.js?v=1789980563"></script>
+<script type="module" src="katomia-init.js?v=1790601852"></script>
+<script src="katomia-core.js?v=1790601852"></script>
+<script src="katomia-localdb.js?v=1790601852"></script>
+<script src="kemoji.js?v=1790601853"></script>
+<script src="katomia-helpers.js?v=1790601852"></script>
+<script src="katomia-enrich.js?v=1790601852"></script>
+<script src="katomia-network.js?v=1790601852"></script>
 <!-- KDIAG-BOARDBLIND1: board.php never loaded this, so katomiaDiagSend()
      (the self-contained /diag sender — the create-order-modal comment in this
      file explains window.kdiag from the kpool widget is lazy and NOT reliably
      present here) didn't exist on the board page at all: no katomia:build, no
      wc:version, and boardDirectSign()'s window.kdiag?.() calls were silent
      no-ops. Ring16 direct-sign attempts left zero trace in kdiag. -->
-<script src="katomia-modals.js?v=1789980563"></script>
-<script src="katomia-render.js?v=1789980563"></script>
+<script src="katomia-modals.js?v=1790601852"></script>
+<script src="katomia-render.js?v=1790601852"></script>
 <!-- TXSTATUS-CONSOLIDATE1: the tx/wallet status controller. Must load BEFORE
      katomia-board.js, whose reporters feed it and whose boardShowResult
      subscribes to it at module top level. -->
-<script src="katomia-txstatus.js?v=1789980563"></script>
-<script src="katomia-board.js?v=1789980563"></script>
-<script src="katomia-carousel.js?v=1789980563"></script> <!-- CAROUSEL1: the two-stripe skin (?skin=carousel), after the board so it sees its state -->
-<script src="katomia-tickets.js?v=1789980563"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
+<script src="katomia-txstatus.js?v=1790601852"></script>
+<script src="katomia-board.js?v=1790783509"></script>
+<script src="katomia-carousel.js?v=1790601852"></script> <!-- CAROUSEL1: the two-stripe skin (?skin=carousel), after the board so it sees its state -->
+<script src="katomia-tickets.js?v=1790601852"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
 
 <!-- BOARD-CHAT1 (user 2026-07-30): renders state.chat — speech bubbles on the
      speaker's wedge + a glassy transcript. Must load AFTER katomia-board.js,
      which owns the _boardChatAnchors this reads. -->
-<script src="katomia-chat.js?v=1789980563"></script>
+<script src="katomia-chat.js?v=1790783509"></script>
 
 <!-- BOARD-HEADERINT1 follow-up (2026-07-14): board.php gained header.php +
      profile-modal.php but these two were missed — profile-modal.php's own
@@ -1206,9 +1206,9 @@ addEventListener("load", () => setTimeout(() => {
      katomia-addaccount.js joined later the same day: the footer's ➕ Add
      account now opens the shared composer modal (addaccount-modal.php)
      instead of the prompt() stopgap. -->
-<script src="katomia-profile.js?v=1789980563"></script>
-<script src="katomia-auth.js?v=1789980563"></script>
-<script src="katomia-addaccount.js?v=1789980563"></script>
+<script src="katomia-profile.js?v=1790601852"></script>
+<script src="katomia-auth.js?v=1790601852"></script>
+<script src="katomia-addaccount.js?v=1790601852"></script>
 
 <script>
 window.addEventListener("load", () => {

@@ -5092,7 +5092,24 @@ async function boardDirectSign(account){
     if(!save.ok) throw new Error(`signature save failed (${save.status})`)
     boardDiag("board:sign:saved", { txid: tx.txid, accountId: signAs })
     boardMySignedTx.set(tx.txid, Date.now())   // feeds boardCheckJustSucceeded's "vanished from pending" detector
-    notify(`✍ Signed as ${signAs}`, "success", { timeout: 4000 })
+    // SIGN-WHY1 (2026-09-30): the pool now judges the signature AT SAVE TIME (txSave →
+    // signingReadiness). A wallet holding a key the account no longer uses — 0.0.1879 was
+    // rotated 2026-09-02 and the owner's holiday wallet still had the old ECDSA key —
+    // used to read "Signed as 0.0.1879" here and "Expired?" 40 s later, and nothing in
+    // between said WHY. Now the sentence the pool gives is the notice, and it lands in the
+    // chat too so it is still there after the toast.
+    let verdict = null
+    try { const j = await save.json(); verdict = (j && (j.result || j)) || null } catch {}
+    const sr = verdict?.signingReadiness
+    if(sr && Array.isArray(sr.unexplained) && sr.unexplained.length && sr.hint){
+      boardDiag("board:sign:wrong-key", { txid: tx.txid, accountId: signAs, unexplained: sr.unexplained.map(k => String(k).slice(-8)), accountKeys: sr.accountKeys })
+      notify(`⚠️ Signature saved but it will NOT count: ${sr.hint}`, "warning", { timeout: 15000 })
+      try { if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system) window.katomiaChat.system(`⚠️ ${signAs}: ${sr.hint}`) } catch {}
+    } else if(sr && sr.hint && !sr.ready){
+      notify(`✍ Signed as ${signAs} — ${sr.hint}`, "success", { timeout: 6000 })
+    } else {
+      notify(`✍ Signed as ${signAs}`, "success", { timeout: 4000 })
+    }
   } catch(e){
     // SIGN-ERRSTR1: readable message + the raw rejection as a structured field
     // (not a string) so the next incident is self-explaining in kdiag.

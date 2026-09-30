@@ -850,6 +850,13 @@
       var c = m.action ? colourFor(m.action.actor) : (m.system ? null : colourFor(m.playerId));
       var t = new Date(m.ts);
       var hh = String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0");
+      // CHAT-DATE1 (2026-09-30): the feed persists across days (circles are saved and
+      // reloaded), so a row from three nights ago read as "21:13" beside today's — the
+      // owner asked whether it was from today. A row not from today carries its date.
+      var today = new Date();
+      if (t.getFullYear() !== today.getFullYear() || t.getMonth() !== today.getMonth() || t.getDate() !== today.getDate()) {
+        hh = t.toLocaleDateString("en-GB", { day: "numeric", month: "short" }) + " " + hh;
+      }
       var bar = document.createElement("span");
       bar.className = "kchat-row-bar";
       if (c) bar.style.background = c;
