@@ -5244,6 +5244,12 @@ function boardPlayMoveOut(frame, then){
   }
 }
 
+// SIDECIRCLE-SOFTSWAP1: the side circle's own state is on the wire (katomia-network.js
+// lifts the freeze on its first game_state) — its account set IS the party, so the
+// move-out filter has nothing left to do and must not outlive the switch (a later
+// joiner to the side circle would otherwise be filtered out forever).
+function boardMoveOutDone(){ _boardMoveOutParty = null }
+
 // is this account party to MY proposal? Rule-aware, shared by the Party-only
 // filter and the hub-ring party cue. cluster → shares a lock group with any
 // of my accounts (my own accounts only count if they're IN a group); active →
@@ -9791,7 +9797,9 @@ function boardDemoInit(){
   // already LEFT its giver's store (so Kat #12 is in p2's basket, not p1's assets)
 
   currentPlayerId = "p1"
-  socket = { readyState: 1, send: m => boardDemoApply(JSON.parse(m)) }
+  // __joined: connect() queues actions behind the join on a socket that has not joined —
+  // the sandbox has no join, so say so (SIDECIRCLE-SOFTSWAP1 routes its switch through connect)
+  socket = { readyState: 1, __joined: true, send: m => boardDemoApply(JSON.parse(m)) }
 
   // fake xproof label so the etched sublabel (ring8) can be previewed
   window.accountLabelCache = { ...(window.accountLabelCache || {}), "0.0.2002": "ada.kpay.id" }
@@ -9807,9 +9815,23 @@ function boardDemoSvg(emoji, bg){
   )
 }
 
+// SIDECIRCLE-SOFTSWAP1: ?demo=1&breakout=1 makes the sandbox strike like a breakout:"on-lock"
+// circle — the deal's cluster is split into a side circle (DEMO~1), game_moved is fed to the
+// real frame handler, and the side circle's state is served to the game_join that the
+// in-page switch sends. The parent fixture is NOT mutated (its post-split broadcast is
+// exactly what the client freezes out), so the move-out tween runs on intact baskets.
+let boardDemoChild = null
+const boardDemoBreakout = () => { try { return new URLSearchParams(location.search).get("breakout") === "1" } catch(_){ return false } }
+
 function boardDemoApply(msg){
 
   const acc = id => state.accounts[id]
+
+  if(msg.type === "game_join"){
+    if(boardDemoChild && msg.gameId === boardDemoChild.meta.id && typeof katomiaHandleFrame === "function")
+      katomiaHandleFrame({ data: JSON.stringify({ type: "game_state", meta: boardDemoChild.meta, state: boardDemoChild.state, myPlayerId: currentPlayerId }) })
+    return
+  }
 
   // BOARD-ACTIONMSG1 (user 2026-08-04: "I'm not sure in the demo mode we're
   // getting the action messages" — correct, the sandbox reducer emitted
@@ -9856,6 +9878,55 @@ function boardDemoApply(msg){
         `${item.fromId} withdrew ${item.assetId}`)
   }
 
+  // SIDECIRCLE-SOFTSWAP1 sandbox breakout — decided BEFORE the strike below mutates the
+  // fixture: the cluster (every active account; the sandbox has one deal) goes to a side
+  // circle with its baskets cleared and the struck tx, the parent keeps the rest and a
+  // `moved` breadcrumb. The client's copy of the parent stays as it was (the real parent's
+  // post-split broadcast is frozen out), so the tween and the switch see what a live
+  // mover's tab sees.
+  if(msg.type === "game_toggleLock" && boardDemoBreakout() && !boardDemoChild && typeof katomiaHandleFrame === "function"){
+    const a = acc(msg.accountId)
+    const willLock = a && a.mode !== "lock"
+    const active = new Set()
+    Object.values(state.accounts).forEach(x => {
+      if((x.basket || []).length) active.add(x.id)
+      ;(x.basket || []).forEach(i => i.fromId && active.add(i.fromId))
+    })
+    if(a && willLock && active.size && [...active].every(id => id === a.id || state.accounts[id]?.mode === "lock")){
+      const cluster = [...active]
+      const snapshot = JSON.parse(JSON.stringify(state))
+      snapshot.accounts[a.id].mode = "lock"
+      // strike the snapshot (same shapes as the in-place strike above) and split it
+      const hbar = [], tok = [], nft = []
+      cluster.forEach(id => {
+        const x = snapshot.accounts[id], to = id.split(":")[1]
+        ;(x.basket || []).forEach(i => {
+          const from = String(i.fromId || "").split(":")[1], amt = i.amount || 1, aid = String(i.assetId)
+          if(aid === "HBAR"){ hbar.push({ accountId: from, amount: -amt }, { accountId: to, amount: amt }) }
+          else if(aid.includes("#")){ const [tokenId, serial] = aid.split("#"); nft.push({ tokenId, serialNumber: serial, senderAccountId: from, receiverAccountId: to }) }
+          else { tok.push({ accountId: from, tokenId: aid, amount: -amt }, { accountId: to, tokenId: aid, amount: amt }) }
+        })
+        x.basket = []; x.mode = "shop"
+      })
+      const childAccounts = {}, childPlayers = {}
+      cluster.forEach(id => { childAccounts[id] = snapshot.accounts[id]; childPlayers[snapshot.accounts[id].playerId] = snapshot.players[snapshot.accounts[id].playerId] })
+      const childId = (gameMeta?.id || "DEMO") + "~1"
+      boardDemoChild = {
+        meta: { ...gameMeta, id: childId, parent: gameMeta?.id || "DEMO", profile: { name: (gameMeta?.profile?.name || "Board demo") + " · side circle" } },
+        state: { players: childPlayers, accounts: childAccounts, parent: gameMeta?.id || "DEMO", chat: [],
+          tx: { pending: [{ txid: `0.0.999@${Math.floor(Date.now() / 1000)}.000000000`, pch: "demo",
+            pchbasis: { network: "playnet", type: "TransferTransaction", transfers: { hbarTransfers: hbar, tokenTransfers: tok, nftTransfers: nft } },
+            lifecycle: { status: "PENDING" }, createdAt: Date.now() }] } }
+      }
+      // the lock itself still lands on the client's parent copy (the frame a live tab
+      // would have had before the strike), then the mover is told to follow the deal
+      a.mode = "lock"
+      render()
+      katomiaHandleFrame({ data: JSON.stringify({ type: "game_moved", from: gameMeta?.id || "DEMO", to: childId, pch: "demo" }) })
+      return
+    }
+  }
+
   if(msg.type === "game_toggleLock"){
     const a = acc(msg.accountId)
     if(a) a.mode = a.mode === "lock" ? "shop" : "lock"
@@ -9899,6 +9970,7 @@ function boardDemoApply(msg){
       }] }
     }
   }
+
 
   if(msg.type === "game_setPref"){
     const p = state.players?.[currentPlayerId]

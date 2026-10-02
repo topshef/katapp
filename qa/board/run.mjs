@@ -141,6 +141,40 @@ console.log('5. Carousel: the conveyor drifts and stops')
   await page.close()
 }
 
+console.log('8. SIDECIRCLE-SOFTSWAP1: the last lock on a breakout circle follows the deal in place — no page load')
+{
+  const page = await browser.newPage({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true })
+  const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
+  page.on('dialog', d => d.accept('1'))
+  // the clean /board/<id> route, as labs serves it, so the switch has a real address to rewrite
+  await page.goto(`${BASE}/m/katomia/board/DEMO?demo=1&skin=ring16&breakout=1`, { waitUntil: 'networkidle' })
+  await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove(); window.__pageLived = 1 })
+  await page.waitForTimeout(1000)
+  const before = await page.evaluate(() => ({ id: window.katomiaGameId(), n: boardFilteredAccounts().length, name: window.name }))
+  ok(before.id === 'DEMO' && before.n === 5 && before.name === 'DEMO', 'starts on the parent with all five accounts', JSON.stringify(before))
+  // per-frame trace of the membership tween — the leavers must shrink out, not vanish
+  await page.evaluate(() => { window.__trace = []; const t0 = performance.now(); const tick = () => { window.__trace.push({ t: (performance.now() - t0) | 0, n: boardFilteredAccounts().length, anim: !!_boardPartyAnim, id: window.katomiaGameId(), signing: !!boardSigning }); if (performance.now() - t0 < 3000) requestAnimationFrame(tick) }; requestAnimationFrame(tick) })
+  // Bud (0.0.3003) is locked in the fixture; Ada then You complete the cluster's locks
+  for (const id of ['p2:0.0.2002', 'p1:0.0.1001']) { await page.evaluate(id => socket.send(JSON.stringify({ type: 'game_toggleLock', accountId: id })), id); await page.waitForTimeout(200) }
+  await page.waitForTimeout(2500)
+  const r = await page.evaluate(() => ({
+    id: window.katomiaGameId(), path: location.pathname, search: location.search, name: window.name, title: document.title,
+    parent: state.parent, accounts: Object.keys(state.accounts).sort(), signing: !!boardSigning, lived: window.__pageLived,
+    moveOut: _boardMoveOutParty, movedTo: window.__kMovedTo, switching: window.__kSwitchingTo,
+    signBtn: document.querySelector('[data-testid=sign]')?.textContent || '', banner: document.getElementById('boardBanner')?.textContent || '',
+    tweened: window.__trace.some(s => s.anim && s.id === 'DEMO'), framesWhileTweening: window.__trace.filter(s => s.anim).length,
+    neverFewerThanParty: window.__trace.every(s => s.n >= 3)
+  }))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  ok(r.lived === 1 && r.id === 'DEMO~1', 'the tab is now in the side circle without a page load', JSON.stringify({ lived: r.lived, id: r.id }))
+  ok(r.path.endsWith('/board/DEMO~1') && r.search.includes('demo=1') && r.name === 'DEMO~1' && /^DEMO~1 /.test(r.title), 'address bar, tab name and title follow the circle (query kept)', `${r.path}${r.search} / ${r.name} / ${r.title}`)
+  ok(r.parent === 'DEMO' && r.accounts.join() === 'p1:0.0.1001,p2:0.0.2002,p3:0.0.3003', 'the side circle holds exactly the deal\'s three accounts', JSON.stringify(r.accounts))
+  ok(r.tweened && r.framesWhileTweening > 5 && r.neverFewerThanParty, 'the two non-party segments tweened out on the parent before the switch', JSON.stringify({ tweened: r.tweened, frames: r.framesWhileTweening }))
+  ok(r.signing && /Sign/.test(r.signBtn) && /submit|signatures/i.test(r.banner), 'the side circle arrives in the signing phase', `${r.signBtn} / ${r.banner}`)
+  ok(r.moveOut === null && r.movedTo === null && r.switching === null, 'the move-out filter and the switch guards are released on arrival', JSON.stringify({ moveOut: r.moveOut, movedTo: r.movedTo, switching: r.switching }))
+  await page.close()
+}
+
 console.log('6. Player card on desktop: tapping an account header filters to it (ACCTFILTER1), and Host options is in the page (HOSTMENU-STATIC1)')
 {
   // desktop + fine pointer is exactly where the 2026-09-05 "drag the card aside" took pointer

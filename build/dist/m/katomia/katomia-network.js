@@ -77,7 +77,9 @@ async function kwcEarlyScope(net){
     .catch(e => window.kdiag?.("wc:early-scope-fail", { network: net, error: String(e?.message || e) }))
 }
 
-const ACCOUNT_CACHE_KEY = `katomiaAccounts:${gameId}:${getOrCreatePlayerToken()}`
+// SIDECIRCLE-SOFTSWAP1: recomputed by switchGame — the key names the circle this tab is IN
+function accountCacheKey(){ return `katomiaAccounts:${gameId}:${getOrCreatePlayerToken()}` }
+let ACCOUNT_CACHE_KEY = accountCacheKey()
 
 function getCachedAccountLabels(){
   try { return JSON.parse(localStorage.getItem(ACCOUNT_CACHE_KEY) || "[]") }
@@ -471,25 +473,18 @@ function connect(onOpenAction){
 			catch(e){ console.error("[join] intent key unavailable", e) }
 		}
 
-		const payload = {
-      type: "game_join",
-      gameId,
-      playerToken: getOrCreatePlayerToken(),
-      playerName: "anon",
-      // KFLOW1: thread the frontend run + visit ids so backend checkpoints on this
-      // socket join the same flow fingerprint (stored on the socket server-side)
-      ...(window.kflow ? { kflowRun: window.kflow.run, kflowVisit: window.kflow.visit } : {}),
-      ...(intentPublicKey ? { intentPublicKey } : {}),
-      ...(wantDelta ? { wantDelta: true } : {})   // STATSYNC1 P5
-    }
+		const payload = buildJoinPayload(intentPublicKey)
 
     window.kflow?.("game:join", intentPublicKey ? "keyed" : "plain", { gameId })
     socket.send(JSON.stringify(payload))
+    socket.__joinedGame = gameId   // SIDECIRCLE-SOFTSWAP1: which circle this socket last joined
 		glog("payload for game_join", payload)
 
 		// DEMO-SPECTATE1 R2: expose a re-join so a spectator can be upgraded in place the
 		// moment they raise a commitment (see onKatomiaBindingPublished below).
-		window.katomiaRejoin = () => { try { socket.send(JSON.stringify(payload)) } catch(e){ console.warn("[rejoin] failed", e) } }
+		// SIDECIRCLE-SOFTSWAP1: built fresh each time, so a re-join after a switch names
+		// the circle the tab is in now, not the one this socket first opened on.
+		window.katomiaRejoin = () => { try { socket.send(JSON.stringify(buildJoinPayload(cachedIntentKey))) } catch(e){ console.warn("[rejoin] failed", e) } }
 
 		// join is on the wire — release anything queued behind it (see connect()).
 		socket.__joined = true
@@ -528,6 +523,10 @@ function connect(onOpenAction){
     try { socket.close() } catch {}
   }
 
+	
+	socket.onmessage = katomiaHandleFrame   // SIDECIRCLE-SOFTSWAP1: lifted out of connect() — see below
+	
+}
 	
 	const alertTimeouts = {warning: 3000, error: 0, info: 3000, success: 4000, event: 3000}
 
@@ -581,7 +580,12 @@ function connect(onOpenAction){
 	// new class of no-action notice; the backend tags it via ctx.info(msg, code).
 	const QUIET_CODES = new Set(["asset-dupe"])
 
-	socket.onmessage = async msg => {
+// SIDECIRCLE-SOFTSWAP1: the socket's message handler, lifted out of connect() so it has
+// a name — the demo sandbox (katomia-board.js boardDemoApply) feeds it synthetic frames
+// (game_moved, the side circle's game_state) to exercise the in-page switch offline,
+// and the real socket simply points at it. Nothing inside changed by the move except
+// what the SIDECIRCLE-SOFTSWAP1 comments mark.
+async function katomiaHandleFrame(msg){
 
 		let data = JSON.parse(msg.data)   // let: a game_delta is normalised into a game_state below (STATSYNC1 P5)
 		console.log("websocket data received", data)
@@ -632,31 +636,59 @@ function connect(onOpenAction){
 			}
 		// KAT-BREAKOUT1 P1 (spec §5): your cluster struck a deal and the game broke it
 		// out — follow it. The side circle contains exactly the ceremony members, so
-		// the landing board is the collapsed view the strike would have shown here;
-		// kfade masks the page swap (the spec's soft in-page swap remains an upgrade
-		// path — hard navigation was chosen for reliability, the user's #1 concern).
-		// Guarded once per target: a re-broadcast must not double-navigate.
+		// the landing board is the collapsed view the strike would have shown here.
+		// SIDECIRCLE-SOFTSWAP1 (owner 2026-10-02, after BREAKOUT-LEAVEANIM1: "you still get
+		// this flash of jumping from one page to another … smooth and seamless"): the
+		// spec's soft in-page swap, now built. The tab stays on this page: the non-party
+		// segments shrink out (boardPlayMoveOut), then switchGame re-points the tab at the
+		// side circle — same socket, a second game_join (the server moves the subscription,
+		// WSMAPS-CLEAN1), the URL/tab name rewritten in place — and the side circle's first
+		// game_state paints over the collapsed board with the same accounts already in
+		// their seats, so the only visible change is the signing phase arriving. The hard
+		// navigation stays as the fallback (localStorage katomiaSoftSwap=0, for comparison
+		// or if the in-place path ever misbehaves). Guarded once per target: a re-broadcast
+		// must not double-switch.
 		if(data.type === "game_moved"){
 			if(data.to && window.__kMovedTo !== data.to){
 				window.__kMovedTo = data.to
 				const url = location.pathname.replace(/\/board\/[^/]+/, "/board/" + data.to) + location.search
-				try { window.katomiaChat?.system?.("Your deal moved to side circle " + data.to + " — taking you there…") } catch(_){}
+				let soft = true
+				try { soft = localStorage.getItem("katomiaSoftSwap") !== "0" } catch(_){}
+				try { window.katomiaChat?.system?.("Your deal moved to side circle " + data.to + (soft ? " — following it…" : " — taking you there…")) } catch(_){}
 				const go = () => { location.href = url }
-				const leave = () => { if(window.kfade?.enabled) kfade.leave(go); else go() }
+				const leave = soft ? () => switchGame(data.to) : () => { if(window.kfade?.enabled) kfade.leave(go); else go() }
 				// BREAKOUT-LEAVEANIM1 (feedback oscar-xray-50, 2026-10-02): the non-party segments
-				// shrink out first — the membership tween a joiner/leaver gets — THEN the fade and
-				// the hop, so the swap lands on a board that already looks like the side circle
-				// instead of the parent vanishing mid-frame. Falls through to the plain fade when
-				// the board has nothing to animate (other skins, no leavers, not on a board).
+				// shrink out first — the membership tween a joiner/leaver gets — THEN the switch
+				// (or, on the fallback path, the fade and the hop), so what follows lands on a
+				// board that already looks like the side circle instead of the parent vanishing
+				// mid-frame. Falls through when the board has nothing to animate (other skins,
+				// no leavers, not on a board).
 				if(!(typeof boardPlayMoveOut === "function" && boardPlayMoveOut(data, leave))) leave()
 			}
 			return
 		}
 		// KAT-BREAKOUT1 (transition polish, user 2026-08-18 "some kind of jump"): once
 		// we're leaving for the side circle, the PARENT's post-split broadcast (our
-		// accounts removed → membership tween) races the 170ms fade — freeze the board
-		// on its last frame instead of repainting a world we're already leaving.
-		if(window.__kMovedTo && (data.type === "game_state" || data.type === "game_delta")) return
+		// accounts removed → membership tween) races the exit — freeze the board on its
+		// last frame instead of repainting a world we're already leaving.
+		// SIDECIRCLE-SOFTSWAP1: while the switch is in flight the freeze holds for every
+		// frame that is not the side circle's own full state: a delta would patch whichever
+		// base it matched (the parent's post-split patch removes OUR accounts), and a late
+		// parent game_state is the world we left. The first game_state whose meta names the
+		// new circle lifts the freeze and lets the board drop its move-out filter — from here
+		// on the server only sends this circle.
+		if(window.__kMovedTo){
+			if(data.type === "game_delta") return
+			if(data.type === "game_state"){
+				if(!window.__kSwitchingTo) return
+				const got = (data.meta && data.meta.id) || data.gameId || null
+				if(got !== window.__kSwitchingTo){ glog("state for another circle ignored during switch", { got, want: window.__kSwitchingTo }); return }
+				window.__kSwitchingTo = null
+				window.__kMovedTo = null
+				try { if(typeof boardMoveOutDone === "function") boardMoveOutDone() } catch(_){}
+				try { window.kdiag?.("board:sidecircle:arrived", { id: got }) } catch(_){}
+			}
+		}
 		if(data.type === "game_error") return  // errors included in notify
 
 		// STATSYNC1 P5: normalise an incremental update into a full game_state (or
@@ -758,8 +790,73 @@ function connect(onOpenAction){
 		render()
 
 	}
-	
+
+// SIDECIRCLE-SOFTSWAP1: the join frame, built fresh each time it is sent — on open, on
+// reconnect, on a spectator re-join and on a switch — so it always names the circle
+// this tab is in NOW (gameId is reassigned by switchGame).
+function buildJoinPayload(intentPublicKey){
+	return {
+		type: "game_join",
+		gameId,
+		playerToken: getOrCreatePlayerToken(),
+		playerName: "anon",
+		// KFLOW1: thread the frontend run + visit ids so backend checkpoints on this
+		// socket join the same flow fingerprint (stored on the socket server-side)
+		...(window.kflow ? { kflowRun: window.kflow.run, kflowVisit: window.kflow.visit } : {}),
+		...(intentPublicKey ? { intentPublicKey } : {}),
+		...(wantDelta ? { wantDelta: true } : {})   // STATSYNC1 P5
+	}
 }
+
+// SIDECIRCLE-SOFTSWAP1: re-point this tab at another circle without a page load. What a
+// fresh load of /board/<to> would have established, re-established here: the circle id
+// every outgoing frame carries (gameId), the per-circle account cache key, the address
+// bar (replaceState — Back still returns to wherever the tab came from, not to the
+// parent mid-ceremony), the tab name and title (TABTARGET1 / TABTITLE1), the chat
+// stream's dedupe baseline (the side circle's ids restart at 1), and the server-side
+// subscription via a second game_join on the same socket (the player record already
+// exists in the child — splitGame cloned it — so joinGame finds it and does not
+// re-greet; WSMAPS-CLEAN1 drops the socket from the parent's set). The reply is the
+// child's broadcast, and katomiaHandleFrame lets exactly that frame through the freeze.
+// If the socket is mid-reconnect, onopen's own join already names the new circle, so
+// the queued action skips its duplicate.
+// read-only peek for QA and other scripts (the binding itself lives in the page's shared
+// script scope, so a probe cannot reach it by name)
+window.katomiaGameId = () => gameId
+function switchGame(to){
+	window.__kSwitchingTo = to
+	gameId = to
+	ACCOUNT_CACHE_KEY = accountCacheKey()
+	try {
+		// the clean route (/board/<id>) and the legacy query form (?game=<id>) both name the circle
+		const u = new URL(location.href)
+		u.pathname = u.pathname.replace(/\/board\/[^/]+/, "/board/" + to)
+		if(u.searchParams.has("game")) u.searchParams.set("game", to)
+		history.replaceState(history.state, "", u.pathname + u.search + u.hash)
+	} catch(_){}
+	try { window.name = decodeURIComponent(to) } catch(_){ try { window.name = to } catch(__){} }
+	try { document.title = window.name + " · katomia" } catch(_){}
+	try { window.katomiaChat?.rebase?.() } catch(_){}
+	try { window.kdiag?.("board:sidecircle:switch", { to }) } catch(_){}
+	window.kflow?.("game:switch", "", { gameId: to })
+	connect(() => {
+		if(!socket || socket.readyState !== 1) return
+		try {
+			if(socket.__joinedGame !== gameId){
+				socket.__joinedGame = gameId
+				socket.send(JSON.stringify(buildJoinPayload(cachedIntentKey)))
+			}
+			// The join's broadcast is a FULL state unless the server happens to see this socket
+			// as one seq behind the new circle (its delta base is per socket, carried over from
+			// the parent) — a coincidence, but a delta is dropped during the switch and nothing
+			// else would follow. A refresh is always answered with the full state, to this
+			// socket only, and lands after the join (same socket, in order), so arrival is
+			// guaranteed either way; a second full state is harmless.
+			socket.send(JSON.stringify({ type: "game_refresh", gameId }))
+		} catch(e){ console.warn("[switch] join failed", e) }
+	})
+}
+
 
 
 

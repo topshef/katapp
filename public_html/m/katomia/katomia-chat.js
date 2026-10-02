@@ -1410,6 +1410,10 @@
     action: action,                 // BOARD-ACTIONMSG1 — structured player actions
     canRender: actionRenderable,    // …so the network layer knows to suppress the toast
     get live() { return live.length; },
+    // SIDECIRCLE-SOFTSWAP1: the tab switched circle in place — the next paint adopts
+    // the new circle's backlog silently (as a fresh load would), instead of popping
+    // every row whose id happens not to collide with the old circle's.
+    rebase: function () { seen = new Set(); booted = false; lastCount = 0; },
     openLog: function (on) {
       logOpen = on !== false;
       var p = panel();

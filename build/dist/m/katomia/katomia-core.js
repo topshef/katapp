@@ -31,7 +31,9 @@
 			return null
 		}
 		
-		const gameId = getGameId() //|| "demo-playnet"
+		// SIDECIRCLE-SOFTSWAP1: `let`, not `const` — following a deal to its side circle now
+		// re-points this tab in place (katomia-network.js switchGame) instead of reloading
+		let gameId = getGameId() //|| "demo-playnet"
 
 		// TABTARGET1 R2 (user 2026-08-19, retest fail): chat links target a tab by circle
 		// name (a.target = <circle id>, katomia-chat.js) — but named targeting only finds
