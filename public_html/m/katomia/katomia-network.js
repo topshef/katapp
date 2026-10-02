@@ -642,7 +642,13 @@ function connect(onOpenAction){
 				const url = location.pathname.replace(/\/board\/[^/]+/, "/board/" + data.to) + location.search
 				try { window.katomiaChat?.system?.("Your deal moved to side circle " + data.to + " — taking you there…") } catch(_){}
 				const go = () => { location.href = url }
-				if(window.kfade?.enabled) kfade.leave(go); else go()
+				const leave = () => { if(window.kfade?.enabled) kfade.leave(go); else go() }
+				// BREAKOUT-LEAVEANIM1 (feedback oscar-xray-50, 2026-10-02): the non-party segments
+				// shrink out first — the membership tween a joiner/leaver gets — THEN the fade and
+				// the hop, so the swap lands on a board that already looks like the side circle
+				// instead of the parent vanishing mid-frame. Falls through to the plain fade when
+				// the board has nothing to animate (other skins, no leavers, not on a board).
+				if(!(typeof boardPlayMoveOut === "function" && boardPlayMoveOut(data, leave))) leave()
 			}
 			return
 		}

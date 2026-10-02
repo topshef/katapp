@@ -2569,6 +2569,14 @@ function boardFilteredAccounts(){
     accounts = all.filter(a => vis.has(a.id))
   }
 
+  // BREAKOUT-LEAVEANIM1: leaving for the side circle — only the deal's party stays on this
+  // board (see boardPlayMoveOut). Applied after the party filter so a looser rule ("active",
+  // "all") cannot widen it back out.
+  if(_boardMoveOutParty){
+    const keep = accounts.filter(a => _boardMoveOutParty.has(a.id))
+    if(keep.length) accounts = keep
+  }
+
   // net view (viewer-local): FULL pairwise netting per FT asset — A→B $1 and
   // B→A $3 collapse to a single B→A $2 (review 7; the tx nets exactly like
   // this, so net-on previews the after and removes the strike jolt). NFTs
@@ -4347,6 +4355,9 @@ function boardScrollOthers(step){
 // asset); send legs reserved for the ghost side later.
 let boardSigning = null   // set per render; footer reads it
 let _boardMovedNotified = new Set()   // KAT-BREAKOUT1: side-circle breadcrumbs already shown
+// BREAKOUT-LEAVEANIM1: while we are leaving for a side circle, the account ids that go with
+// the deal — boardFilteredAccounts narrows to them so the non-party segments tween out
+let _boardMoveOutParty = null
 let _boardSignersAnnounced = new Set()   // SIGN-STRIKEMSG1 R2: txids whose ✍️ signer row posted
 let _boardLastSigningTxid = null   // previous render's watched txid — vanish-from-pending expiry verdict (2026-07-15)
 
@@ -5175,6 +5186,62 @@ function boardStartCountdown(el){
   }
   tick()
   _boardCountdownTimer = setInterval(tick, 1000)
+}
+
+// BREAKOUT-LEAVEANIM1 (feedback 3c939b3a / oscar-xray-50, owner 2026-10-02): "the transition
+// from last lock to filtered party signing mode needs work … on final lock the non party
+// players could be animated out instead of disappearing suddenly, maybe using same animation
+// as when adding accounts?" On a breakout:"on-lock" circle the last lock splits the deal's
+// cluster into a side circle and game_moved makes this tab NAVIGATE there (katomia-network.js)
+// — a page swap, so the parent simply vanished mid-frame and the side circle appeared fully
+// formed. This plays the leaving half HERE, before the hop: narrow the board to the accounts
+// that move with the deal, and BOARD-SEGANIM1 (the very tween a joiner/leaver gets) shrinks
+// the others out of their seams. `then` runs once the tween has settled (or at once if there
+// is nothing to animate), and the caller fades + navigates as before — so the hop lands on a
+// board that already looks like the side circle. Returns false when it did nothing, so the
+// caller keeps its old path. The party is mirrored from the backend's split (katomia.js
+// strike → splitGame(cluster)): the basket-edge component(s) holding my accounts, active
+// members only; where several hold my accounts, the one whose other members are all locked
+// is the one that struck. The client's state here is the last broadcast BEFORE the strike
+// (the parent's post-split push is frozen out by the network layer), so the baskets that
+// define the cluster are still present.
+function boardPlayMoveOut(frame, then){
+  const short = id => String(id).split(":")[1] || String(id)
+  try{
+    if(!ring16() || _boardMoveOutParty) return false
+    const all = getAccounts()
+    const mine = new Set(all.filter(a => isMyAccount(a)).map(a => a.id))
+    if(!mine.size) return false
+    const active = new Set()
+    for(const a of all){
+      if((a.basket || []).length) active.add(a.id)
+      for(const item of a.basket || []) if(item.fromId) active.add(item.fromId)
+    }
+    const comps = tradeClusters()
+      .map(comp => comp.filter(id => active.has(id)))
+      .filter(comp => comp.length >= 2 && comp.some(id => mine.has(id)))
+    if(!comps.length) return false
+    const struck = comps.filter(comp => comp.every(id => mine.has(id) || state?.accounts?.[id]?.mode === "lock"))
+    const party = new Set((struck.length ? struck : comps).flat())
+    const leaving = boardFilteredAccounts().map(a => a.id).filter(id => !party.has(id))
+    if(!leaving.length) return false
+    _boardMoveOutParty = party
+    boardClearTrails()   // the leavers' offer lines go with their segments
+    boardDiag("board:moveout:start", { to: frame?.to || null, party: [...party].map(short), leaving: leaving.map(short) })
+    render()   // membership changed → BOARD-SEGANIM1 starts the shrink-out tween
+    // hand over once the tween has settled; capped so a stalled frame can never strand the hop
+    const t0 = performance.now()
+    let handed = false
+    const hand = () => { if(handed) return; handed = true; boardDiag("board:moveout:end", { to: frame?.to || null, ms: Math.round(performance.now() - t0) }); then() }
+    const wait = () => { if(_boardPartyAnim && performance.now() - t0 < 1600) return requestAnimationFrame(wait); hand() }
+    requestAnimationFrame(() => requestAnimationFrame(wait))   // one frame for render() to arm the tween
+    setTimeout(hand, 1800)
+    return true
+  }catch(e){
+    _boardMoveOutParty = null
+    boardDiag("board:moveout:error", { error: String(e) })
+    return false
+  }
 }
 
 // is this account party to MY proposal? Rule-aware, shared by the Party-only
