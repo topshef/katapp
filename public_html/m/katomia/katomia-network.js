@@ -98,6 +98,60 @@ function forgetAccountLabel(label){
   setCachedAccountLabels(getCachedAccountLabels().filter(x => x !== label))
 }
 
+// ── ASSETMEM1 (owner 2026-10-03): "when autoloading an account … all assets are added
+// automatically even if they weren't before. So a timeout kicking out then refresh
+// results in adding all assets … the last set of assets loaded should reload."
+//
+// Every automatic re-add (the per-game account cache after a backend restart or the
+// idle sweep, ENTRY-AUTOADD1's connected-wallet add, a ?autoload= deep link) used to
+// send the bare label, which the backend reads as the wildcard — every asset the mirror
+// knows, including the ones the player had taken off the table (ASSETVIS1 hide, 🗑
+// Remove from table). The table's composition is a choice the player made; it should
+// survive the account being bounced.
+//
+// So: on every broadcast, remember per (circle, player) which assets each of my
+// accounts has ON THE TABLE — its store, plus anything of its sitting in someone's
+// basket as a standing offer (that left the store but is still the account's to give).
+// Entries for accounts that are NOT in the broadcast are kept: an account the idle sweep
+// just removed is exactly the one whose memory matters. An explicit 🗑 Remove account
+// forgets it (a deliberate removal followed by a fresh add is a fresh add, everything
+// in). The automatic paths then send "label(a,b)" — the filter the backend already
+// honours, '#' as '-' on the wire — or "label(!none)" for an account that was on the
+// table with nothing showing (ADDACCT-NONE1). A label with no memory (never seen in
+// this circle) stays bare: first-time adds still bring everything, unchanged.
+function assetsOnTableKey(){ return `katomiaAssetsOnTable:${gameId}:${getOrCreatePlayerToken()}` }
+function readAssetsOnTable(){
+  try { const v = JSON.parse(localStorage.getItem(assetsOnTableKey()) || "{}"); return v && typeof v === "object" ? v : {} }
+  catch(_){ return {} }
+}
+function rememberAssetsOnTable(){
+  if(!gameId || !state?.accounts) return
+  try {
+    const mem = readAssetsOnTable()
+    const accounts = Object.values(state.accounts)
+    for(const a of accounts){
+      if(!isMyAccount(a) || !a.label) continue
+      const ids = new Set(Object.keys(a.assets || {}))
+      for(const other of accounts)
+        for(const item of other.basket || [])
+          if(item.fromId === a.id && item.assetId) ids.add(String(item.assetId))
+      mem[a.label] = [...ids]
+    }
+    localStorage.setItem(assetsOnTableKey(), JSON.stringify(mem))
+  } catch(_){}
+}
+function forgetAssetsOnTable(label){
+  try { const mem = readAssetsOnTable(); delete mem[label]; localStorage.setItem(assetsOnTableKey(), JSON.stringify(mem)) } catch(_){}
+}
+// the add-label an automatic re-add should send for this account
+function rememberedAddLabel(label){
+  if(/\(/.test(label)) return label          // the caller already chose a filter
+  const ids = readAssetsOnTable()[label]
+  if(!Array.isArray(ids)) return label        // never seen here — everything, as before
+  if(!ids.length) return `${label}(!none)`
+  return `${label}(${ids.map(id => String(id).replace("#", "-")).join(",")})`
+}
+
 function restoreCachedAccounts(){
   // KAT-BREAKOUT1 R3 (user 2026-08-19, second four-accounts report): NEVER restore
   // into a side circle — it starts as exactly the deal's accounts, full stop. The
@@ -112,7 +166,7 @@ function restoreCachedAccounts(){
   const mine = new Set(getAccounts().filter(a => isMyAccount(a)).map(a => a.label))
   const missing = getCachedAccountLabels().filter(label => !mine.has(label))
 
-  if(missing.length) addAccounts(missing.join(","))
+  if(missing.length) addAccounts(missing.map(rememberedAddLabel).join(","))   // ASSETMEM1
 }
 
 // ENTRY-AUTOADD1 (user-approved 2026-08-05): connected wallet accounts join the
@@ -148,7 +202,7 @@ async function maybeAutoAddAccounts(){
   if(!missing.length) return
   window.kflow?.("acct:autoadd", "go", { count: missing.length })
   try { notify?.(`Adding your connected account${missing.length > 1 ? "s" : ""} to the game — turn this off in Profile → Preferences`, "info", { timeout: 4000 }) } catch {}
-  addAccounts(missing.join(","))
+  addAccounts(missing.map(rememberedAddLabel).join(","))   // ASSETMEM1
 }
 
 function addAccounts(raw){
@@ -166,7 +220,10 @@ function addAccounts(raw){
     return out
   })
 
-  rememberAccountLabels(labels)
+  // ASSETMEM1: the cache holds the BARE label. It is compared against account labels
+  // on restore and cleared by label on remove — a cached "0.0.x(a,b)" matched neither,
+  // so it was re-added on every load and came back after a 🗑 Remove account.
+  rememberAccountLabels(labels.map(l => l.replace(/\(.*\)$/, "")))
 
   const playerToken = getOrCreatePlayerToken()
   
@@ -205,6 +262,7 @@ function removeAccount(accountId, opts = {}){
   if(!ok) return
 
   forgetAccountLabel(account.label)
+  forgetAssetsOnTable(account.label)   // ASSETMEM1: a deliberate removal — the next add is a fresh add
 
   socket.send(JSON.stringify({
     type:"game_removeAccount",
@@ -748,13 +806,16 @@ async function katomiaHandleFrame(msg){
     window.katomiaWatching = Number.isFinite(data.watching) ? data.watching : null
     window.katomiaPlaying = Number.isFinite(data.playing) ? data.playing : null
 
+    rememberAssetsOnTable()   // ASSETMEM1: before any re-add below reads the memory
     restoreCachedAccounts()
     maybeAutoAddAccounts()
 
     if(window.pendingAutoload){
       // PROP-ADDACCT1: autoload adds directly — the old path staged it via the
       // (now removed) inline account input before clicking Add.
-      addAccounts(window.pendingAutoload)
+      // ASSETMEM1: a bare label in the link re-adds what this account last had on the
+      // table here; a label the link itself filters is sent as written.
+      addAccounts(splitAccountLabels(String(window.pendingAutoload)).map(rememberedAddLabel).join(","))
       window.pendingAutoload = null
     }
 

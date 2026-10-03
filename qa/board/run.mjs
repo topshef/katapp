@@ -175,6 +175,46 @@ console.log('8. SIDECIRCLE-SOFTSWAP1: the last lock on a breakout circle follows
   await page.close()
 }
 
+console.log('9. ASSETMEM1: an automatic re-add brings back what the account last had on the table, not everything')
+{
+  const page = await browser.newPage({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true })
+  const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
+  await page.goto(`${BASE}/m/katomia/board/DEMO?demo=1&skin=ring16`, { waitUntil: 'networkidle' })
+  await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove() })
+  await page.waitForTimeout(800)
+  const r = await page.evaluate(() => {
+    const out = {}
+    // the sandbox has no circle id; the in-place switch gives it one (the fake socket swallows the join)
+    switchGame('DEMO')
+    rememberAssetsOnTable()
+    out.full = rememberedAddLabel('0.0.1001')          // store + its two standing offers, deduped
+    out.second = rememberedAddLabel('0.0.1111')
+    out.unknown = rememberedAddLabel('0.0.9999')       // never seen here → bare (everything, as before)
+    out.filtered = rememberedAddLabel('0.0.1001(0.0.555)')   // a caller's own filter is kept
+    delete state.accounts['p1:0.0.1001'].assets['0.0.555']   // hidden / taken off the table
+    rememberAssetsOnTable()
+    out.afterHide = rememberedAddLabel('0.0.1001')
+    delete state.accounts['p1:0.0.1001']                     // the idle sweep bounced it
+    rememberAssetsOnTable()
+    out.afterKick = rememberedAddLabel('0.0.1001')
+    state.accounts['p1:0.0.1111'].assets = {}                // on the table with nothing showing
+    rememberAssetsOnTable()
+    out.empty = rememberedAddLabel('0.0.1111')
+    forgetAssetsOnTable('0.0.1001')                          // 🗑 Remove account — a fresh add next time
+    out.afterForget = rememberedAddLabel('0.0.1001')
+    out.key = Object.keys(localStorage).find(k => k.startsWith('katomiaAssetsOnTable:DEMO:')) || null
+    return out
+  })
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  ok(r.full === '0.0.1001(HBAR,0.0.456,0.0.555,0.0.789-12)', 'store plus standing offers, NFT serial in wire form, no duplicates', r.full)
+  ok(r.second === '0.0.1111(HBAR)' && r.unknown === '0.0.9999' && r.filtered === '0.0.1001(0.0.555)', 'a second account, an unseen label (bare) and a caller-filtered label', `${r.second} / ${r.unknown} / ${r.filtered}`)
+  ok(r.afterHide === '0.0.1001(HBAR,0.0.456,0.0.789-12)', 'a hidden asset stays hidden on re-add', r.afterHide)
+  ok(r.afterKick === '0.0.1001(HBAR,0.0.456,0.0.789-12)', 'the memory survives the account being bounced from the game', r.afterKick)
+  ok(r.empty === '0.0.1111(!none)', 'an account that showed nothing comes back showing nothing', r.empty)
+  ok(r.afterForget === '0.0.1001' && !!r.key, 'a deliberate Remove account forgets it; memory is scoped per circle and player', `${r.afterForget} / ${r.key}`)
+  await page.close()
+}
+
 console.log('6. Player card on desktop: tapping an account header filters to it (ACCTFILTER1), and Host options is in the page (HOSTMENU-STATIC1)')
 {
   // desktop + fine pointer is exactly where the 2026-09-05 "drag the card aside" took pointer
