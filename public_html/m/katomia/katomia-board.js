@@ -596,6 +596,32 @@ function boardBandAt(z){
   const full = z.bandFull ?? 40, min = z.bandMin ?? 12
   return Math.round(min + (full - min) * _boardBandFlex)
 }
+// COUNTER-NFT1: the height one NFT thumbnail takes on THIS board, read from the CSS
+// (a hidden .board-chip with an .asset-thumb inside boardRoot, so every skin/family/
+// --chip-scale rule applies to it exactly as to a real chip), cached per viewport,
+// skin and scale. This is the counter's gauge whether or not an NFT is on the table.
+let _boardThumbProbe = { key: null, h: 0 }
+function boardThumbHeight(W, H){
+  const key = W + "x" + H + "|" + (document.body.dataset.boardSkin || "") + "|" + (document.body.dataset.boardFam || "")
+    + "|" + (document.body.style.getPropertyValue("--chip-scale") || "") + "|" + (document.body.dataset.chipShape || "")
+  if(_boardThumbProbe.key === key && _boardThumbProbe.h) return _boardThumbProbe.h
+  let h = 0
+  try {
+    const root = document.getElementById("boardRoot") || document.body
+    const chip = document.createElement("div")
+    chip.className = "asset board-chip"
+    chip.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;pointer-events:none"
+    const t = document.createElement("div")
+    t.className = "asset-thumb"
+    chip.appendChild(t)
+    root.appendChild(chip)
+    h = t.offsetHeight
+    chip.remove()
+  } catch(_){}
+  if(!(h > 0)) h = 34   // the stylesheet's floor, if the probe could not run
+  _boardThumbProbe = { key, h }
+  return h
+}
 
 // BOARD-WHEEL1 (user 2026-07-11): Lazy Susan is retired (scope, not code —
 // still in git history / renderSusanBoard if ever needed). Its job — "too
@@ -3416,6 +3442,17 @@ function boardDrawZoneWalls(){
   const NS = "http://www.w3.org/2000/svg"
   const svg = document.createElementNS(NS, "svg")
   svg.setAttribute("class", "board-zonewalls")
+  // BOARD-SAFEAREA2: the wedges are clipped to the safe rect. A store's outer wall
+  // is the screen edge, so its corners used to run up under the header and down
+  // behind the footer — "out of bounds" — while the chips themselves were always
+  // clamped to the rect. Now the drawing shows the region chips can actually reach.
+  const defs = document.createElementNS(NS, "defs")
+  const clip = document.createElementNS(NS, "clipPath")
+  clip.setAttribute("id", "board-zonewalls-clip")
+  const crect = document.createElementNS(NS, "rect")
+  crect.setAttribute("x", env.safeL); crect.setAttribute("y", env.safeTop)
+  crect.setAttribute("width", Math.max(0, env.safeR - env.safeL)); crect.setAttribute("height", Math.max(0, env.safeBot - env.safeTop))
+  clip.appendChild(crect); defs.appendChild(clip); svg.appendChild(defs)
   // oval-true: each boundary radius is a FUNCTION of the absolute screen
   // angle, evaluated per sample — the exact same boardRimAt/boardEdgeAt the
   // physics clamps use, so the drawing IS the enforcement (the 2026-07-16
@@ -3441,6 +3478,7 @@ function boardDrawZoneWalls(){
     const p = document.createElementNS(NS, "path")
     p.setAttribute("d", d)
     p.setAttribute("class", cls)
+    p.setAttribute("clip-path", "url(#board-zonewalls-clip)")
     svg.appendChild(p)
   }
   _boardSimZones.forEach(z => {
@@ -3647,9 +3685,23 @@ function boardOrganicApply(cx, cy, W, H, oval){
   // constants, because their heights vary with skin and wrap on mobile).
   const bannerEl = document.querySelector("body.board-page .app-banner")
   const footerEl = document.querySelector(".ring-footer")
+  // BOARD-SAFEAREA2 (owner 2026-10-03): "the disallowed area in the header is too
+  // tall … it only really needs to be enough for the hamburger menu height and a
+  // tiny bit more." The banner BOX is 12px of padding either side of a 30px row, so
+  // reserving to its bottom (+6) kept 60px clear for 42px of content. Reserve to the
+  // lowest visible thing INSIDE it (the menu button, the playing pill) plus a hair.
+  let bannerBottom = 0
+  if(bannerEl){
+    for(const el of bannerEl.querySelectorAll("*")){
+      if(!el.getClientRects().length) continue
+      const r = el.getBoundingClientRect()
+      if(r.height > 0) bannerBottom = Math.max(bannerBottom, r.bottom)
+    }
+    if(!bannerBottom) bannerBottom = bannerEl.getBoundingClientRect().bottom
+  }
   _boardSimEnv = {
     cx, cy, W, H, oval, party: !!_boardPartyAnim,
-    safeTop: (bannerEl ? bannerEl.getBoundingClientRect().bottom : 0) + 6,
+    safeTop: bannerBottom + 4,
     safeBot: (footerEl ? footerEl.getBoundingClientRect().top : H) - 6,
     safeL: 6, safeR: W - 6,
     labelRects: tween ? [] : [...document.querySelectorAll("text.ring-etchlabel")]
@@ -3894,20 +3946,38 @@ function boardOrganicApply(cx, cy, W, H, oval){
   // thumbnail now overhangs the counter slightly rather than deepening it for
   // the whole segment. Chips that tall are stacks and groups, whose OFFER is a
   // single item, so in practice nothing overhangs.
-  let counterCapH = Infinity, counterUniform = 40
+  // ── COUNTER-NFT1 (owner 2026-10-03, with the zone-walls screenshot again) ──
+  // "the counter circle is still too wide … sometimes really wide, sometimes
+  //  narrow … the default was always meant to be the width or the height of one
+  //  NFT, and that seems to be two or three times … a chip width is more than
+  //  enough to reserve the counter."
+  //
+  // What COUNTER-UNIFORM1 actually did: the NFT cap was measured off a thumbnail
+  // THAT HAPPENED TO BE ON THE BOARD. A board of text chips had no thumbnail, so
+  // the cap stayed at Infinity and the reservation fell back to the tallest chip
+  // with a 40px floor and 12px of padding — 52px on the owner's phone, against a
+  // 34px thumbnail. Which is also why it looked different from board to board:
+  // put one NFT on the table and the cap engaged (50); take it off and it did not
+  // (52); let space pressure in and _boardBandFlex squeezed it toward the ghost
+  // height. The gauge is now the NFT thumbnail's CSS size, probed off a hidden
+  // chip so it tracks --chip-scale, the viewport clamp and the skin on its own,
+  // whatever is on the board: one thumbnail plus the same 8px of breathing room
+  // the occupied floor (bandMin) uses. No chip-height floor, no extra padding.
+  // A real thumbnail on the board can only make it smaller (the ring-box layouts
+  // size thumbs down). The flex rule is untouched: under pressure the band still
+  // compresses toward what actually sits on it.
+  let counterCapH = boardThumbHeight(W, H) + 4, counterUniform
   {
-    let tallestChip = 40
     zoneChips.forEach(({ zrec, recs }) => {
       if(zrec.isBasket) return
       recs.forEach(b => {
-        if(b.h) tallestChip = Math.max(tallestChip, b.h)
         // the IMAGE box, not the chip: a stack of sleeves measures taller than
         // the single thumbnail an offer actually puts on the counter
         const t = b.el && b.el.querySelector(".asset-thumb")
         if(t && t.offsetHeight) counterCapH = Math.min(counterCapH, t.offsetHeight + 4)
       })
     })
-    counterUniform = Math.min(tallestChip, counterCapH)
+    counterUniform = counterCapH
   }
 
   // ── sync pass 2: per-zone derived geometry, shelf targets, spawns ───────
@@ -3927,9 +3997,10 @@ function boardOrganicApply(cx, cy, W, H, oval){
       ? (boardCounterPerZone ? ghostH : Math.min(ghostH, counterCapH)) + 8
       : 12)
     // COUNTER-UNIFORM1: one reservation for every segment, capped at an NFT.
+    // COUNTER-NFT1: thumbnail + 4 (the cap) + 4 = thumbnail + 8, the breathing room bandMin uses
     zrec.bandFull = zrec.isBasket ? 0 : (boardCounterPerZone
       ? Math.max(40, ...ghostsIn.map(b => b.h), ...movers.map(b => b.h)) + 12
-      : Math.max(counterUniform + 12, zrec.bandMin))
+      : Math.max(counterUniform + 4, zrec.bandMin))
     const bandWas = zrec.band
     zrec.band = boardBandAt(zrec)
     if(bandWas != null && Math.abs(zrec.band - bandWas) >= 4) changed = true

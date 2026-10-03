@@ -215,6 +215,35 @@ console.log('9. ASSETMEM1: an automatic re-add brings back what the account last
   await page.close()
 }
 
+console.log('10. COUNTER-NFT1 + BOARD-SAFEAREA2: the counter is one thumbnail deep whatever is on the board; the header reserve hugs its content; walls stay in bounds')
+{
+  const page = await browser.newPage({ viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true })
+  const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
+  await page.goto(`${BASE}/m/katomia/board.html?demo=1&skin=ring16`, { waitUntil: 'networkidle' })
+  await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove(); boardZoneWalls = true; render() })
+  await page.waitForTimeout(1200)
+  const probe = () => page.evaluate(() => {
+    const root = document.getElementById('boardRoot')
+    const thumb = boardThumbHeight(root.clientWidth, root.clientHeight)
+    const stores = [...(_boardSimZones ? _boardSimZones.entries() : [])].filter(([, z]) => !z.isBasket).map(([, z]) => z.bandFull)
+    const banner = document.querySelector('body.board-page .app-banner')
+    let contentBottom = 0; for (const el of banner.querySelectorAll('*')) { if (el.getClientRects().length) contentBottom = Math.max(contentBottom, el.getBoundingClientRect().bottom) }
+    const walls = [...document.querySelectorAll('.board-zonewalls path')]
+    return { thumb, stores, uniform: new Set(stores).size === 1, safeTop: _boardSimEnv.safeTop, bannerBox: banner.getBoundingClientRect().bottom, contentBottom,
+      hasThumbOnBoard: !!document.querySelector('.board-chip .asset-thumb'), walls: walls.length, clipped: walls.every(p => /board-zonewalls-clip/.test(p.getAttribute('clip-path') || '')) }
+  })
+  const a = await probe()
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  ok(a.hasThumbOnBoard && a.uniform && a.stores[0] === a.thumb + 8, 'with NFTs on the board: every store reserves exactly one thumbnail + 8px', JSON.stringify({ thumb: a.thumb, stores: a.stores }))
+  await page.evaluate(() => { for (const x of Object.values(state.accounts)) { for (const k of Object.keys(x.assets)) if (k.includes('#')) delete x.assets[k]; x.basket = x.basket.filter(i => !String(i.assetId).includes('#')) } render() })
+  await page.waitForTimeout(1200)
+  const b = await probe()
+  ok(!b.hasThumbOnBoard && b.uniform && b.stores[0] === a.stores[0], 'with no NFT anywhere: the same reservation — the gauge is the CSS, not whatever chip is present', JSON.stringify({ stores: b.stores, before: a.stores[0] }))
+  ok(a.safeTop === Math.round(a.contentBottom) + 4 && a.safeTop < a.bannerBox, 'the header reserve ends 4px under the banner\'s content, inside the banner box', JSON.stringify({ safeTop: a.safeTop, contentBottom: a.contentBottom, bannerBox: a.bannerBox }))
+  ok(a.walls > 0 && a.clipped, 'every zone wall is clipped to the safe rect', `${a.walls} paths`)
+  await page.close()
+}
+
 console.log('6. Player card on desktop: tapping an account header filters to it (ACCTFILTER1), and Host options is in the page (HOSTMENU-STATIC1)')
 {
   // desktop + fine pointer is exactly where the 2026-09-05 "drag the card aside" took pointer
