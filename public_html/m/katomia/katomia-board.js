@@ -1217,10 +1217,9 @@ function boardSetView(mode){
   // (no ⚙ Settings checkbox to sync any more — the Message panel alias was removed
   // 2026-08-17, KATUI3 feedback pass; the View row is the one control)
   boardMarkView()
-  // close the menu — it sits over the board you just switched to. (The messages
-  // view closes it via openFull already; this covers board/split.)
-  document.getElementById("appMenu")?.classList.add("hidden")
-  document.getElementById("appMenuBtn")?.setAttribute("aria-expanded", "false")
+  // VIEW-MSGS1 (owner 2026-10-09): the menu STAYS OPEN — "the same as if you're choosing
+  // one of the other options", so you can flip between the three views to compare them.
+  // (It used to close here, and openFull closed it for messages.)
 }
 
 function boardMarkView(){
@@ -1243,6 +1242,28 @@ if(!window.__boardViewSwitchInit){
     if(e.target.closest?.("#appMenuBtn")) setTimeout(boardMarkView, 0)
   })
   document.addEventListener("DOMContentLoaded", boardMarkView)
+}
+
+// HUB-PREVIEW1 (owner 2026-10-09): the preview, as one action with two doors — the K hub on
+// the ring, the ▶ on the shapes that have no hub. Body unchanged from the ▶'s old onclick.
+function boardTogglePreview(){
+  if(!ring16()){ playTransfers(); return }
+  if(boardSigning){ playTransfers(); return }   // spotlight is permanent here
+  boardFocusMode = !boardFocusMode
+  if(boardFocusMode){ playTransfers(); render() }
+  else {
+    // graceful lift: fade the shade out before repainting (review 17 —
+    // the instant switch was jarring). __boardShadeOn cleared here so the
+    // render's else-if (--wipe fade, for the RESOLVE path) doesn't fade a
+    // second shade on top of this one.
+    const shade = document.querySelector(".ring-focusshade")
+    if(shade){
+      shade.classList.add("ring-focusshade--out")
+      window.__boardShadeOn = false
+      setTimeout(render, 560)
+    }
+    else render()
+  }
 }
 
 function boardSyncPrefsUI(){
@@ -2334,6 +2355,16 @@ function renderRingBoard(root){
   // ON TOP of the mark. Done once here rather than as a guard inside each skin branch, so
   // it covers every K variant (img, geometric svg, glyph) and any future one.
   if(boardSigning) hub.querySelectorAll(".ring-hub-ksvg, .ring-hub-k").forEach(n => n.remove())
+  // HUB-PREVIEW1 (owner 2026-10-09): the K is the preview button — the ▶ left the bar so the
+  // bar holds only the account and its one action. A tap on the hub toggles the preview
+  // (boardTogglePreview, the old ▶'s action, unchanged). While signing the hub is the
+  // countdown and its tap opens the signing modal (below) — that wins; the strike already
+  // plays the preview once on its own.
+  if(ringArcs()){
+    hub.classList.add("ring-hub--preview")
+    hub.style.cursor = "pointer"
+    hub.onclick = e => { e.stopPropagation(); boardTogglePreview() }
+  }
 
   if(ring12()){
     // v12 (review 11): the hub is CLEAN — thin grey border + K only. The
@@ -2381,7 +2412,8 @@ function renderRingBoard(root){
   // "accounts" spelled out (user 2026-07-09): locking counts ACCOUNTS —
   // segments are accounts, a multi-account player locks each separately
   hub.title = (gameMeta?.profile?.name || gameMeta?.id || "") +
-    (lp ? ` — ${lp.locked} of ${lp.total} accounts locked (${lp.scope})` : "")
+    (lp ? ` — ${lp.locked} of ${lp.total} accounts locked (${lp.scope})` : "") +
+    (ringArcs() && !boardSigning ? " — tap the K to preview the deal" : "")
   frag.appendChild(hub)
 
   if(etched) frag.appendChild(ringFooter(accounts.filter(a => isMyAccount(a))))
@@ -5688,7 +5720,8 @@ function ringFooter(mine){
     })
   }
 
-  if(ringArcs() || susan() || carousel()){
+  // HUB-PREVIEW1: on the ring the K hub IS this button now; the shapes without a hub keep ▶
+  if(!ringArcs() && (susan() || carousel())){
     const play = document.createElement("button")
     const focusOn = boardFocusMode || (ring16() && !!boardSigning)
     play.className = "ring-footer-play" + (focusOn ? " ring-footer-play--on" : "")
@@ -5696,25 +5729,7 @@ function ringFooter(mine){
     play.title = ring16()
       ? "Focus preview: assets fly to their baskets and the spotlight closes on the deal — press again to lift it"
       : "Preview: animate every standing offer from its ghost to where it landed"
-    play.onclick = () => {
-      if(!ring16()){ playTransfers(); return }
-      if(boardSigning){ playTransfers(); return }   // spotlight is permanent here
-      boardFocusMode = !boardFocusMode
-      if(boardFocusMode){ playTransfers(); render() }
-      else {
-        // graceful lift: fade the shade out before repainting (review 17 —
-        // the instant switch was jarring). __boardShadeOn cleared here so the
-        // render's else-if (--wipe fade, for the RESOLVE path) doesn't fade a
-        // second shade on top of this one.
-        const shade = document.querySelector(".ring-focusshade")
-        if(shade){
-          shade.classList.add("ring-focusshade--out")
-          window.__boardShadeOn = false
-          setTimeout(render, 560)
-        }
-        else render()
-      }
-    }
+    play.onclick = () => boardTogglePreview()
     bar.appendChild(play)
 
     // 🧹 tidy RETIRED (user 2026-08-06): "players can move their assets around

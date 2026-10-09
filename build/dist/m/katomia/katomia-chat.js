@@ -212,6 +212,13 @@
   var sideW = 0;
   function sideLimits() { return { min: 170, max: Math.max(220, Math.round(innerWidth * 0.5)) }; }
 
+  // VIEW-SNAP1: the top edge of the space a dock can grow into — just under the ☰ row
+  function splitBarTop() {
+    var row = document.querySelector(".app-banner-inner") || document.querySelector(".app-banner");
+    var f = document.querySelector(".ring-footer");
+    return (row ? row.getBoundingClientRect().bottom : 0) + (f ? f.getBoundingClientRect().height : 0);
+  }
+
   function dockLimits() {
     var stackH = 0;
     [".ring-footer", ".kspec-ribbon"].forEach(function (s) {
@@ -323,16 +330,34 @@
         // where it was when the drag started; the CSS override reads it.
         document.documentElement.style.setProperty("--kchat-clear-b0", startB + "px");
         document.body.classList.add("kchat-dragging");
+        // VIEW-SNAP1 (owner 2026-10-09): the three views are a convenience, the drag is the
+        // control. Past the limits the dock keeps following the finger, and letting go far
+        // enough beyond one snaps to that extreme — all the way down is the board alone, all
+        // the way up is messages alone — with the bar left in place to drag back. Between
+        // the limits nothing changes: no sliver of board, no sliver of messages.
+        var avail = Math.max(lim.max, innerHeight - splitBarTop());
+        var raw = startB, snap = null;
         var move = function (ev) {
-          var b = Math.max(lim.min, Math.min(lim.max, startB + (startY - ev.clientY)));
+          raw = startB + (startY - ev.clientY);
+          snap = raw < lim.min * 0.5 ? "board" : raw > lim.max + (avail - lim.max) * 0.5 ? "messages" : null;
+          document.body.classList.toggle("kchat-snap-board", snap === "board");
+          document.body.classList.toggle("kchat-snap-messages", snap === "messages");
+          var b = Math.max(0, Math.min(avail, raw));
           document.documentElement.style.setProperty("--kchat-clear-b", Math.round(b) + "px");
         };
         var up = function (ev) {
           capEl.removeEventListener("pointermove", move);
           capEl.removeEventListener("pointerup", up);
           capEl.removeEventListener("pointercancel", up);
-          document.body.classList.remove("kchat-dragging");   // BOARD-SPLITDRAG1: board yields again, then re-solves below
-          var b = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--kchat-clear-b")) || startB;
+          document.body.classList.remove("kchat-dragging", "kchat-snap-board", "kchat-snap-messages");   // BOARD-SPLITDRAG1: board yields again, then re-solves below
+          if (snap && typeof boardSetView === "function") {
+            // the split you had is kept for the way back; the view takes over
+            document.documentElement.style.setProperty("--kchat-clear-b", Math.round(Math.max(lim.min, Math.min(lim.max, startB))) + "px");
+            boardSetView(snap);
+            return;
+          }
+          var b = Math.max(lim.min, Math.min(lim.max, raw));
+          document.documentElement.style.setProperty("--kchat-clear-b", Math.round(b) + "px");
           try { localStorage.setItem("katomiaChatSplit", String(b)); } catch (e2) {}
           // one geometry re-solve at rest — dragging only moves the CSS var
           if (typeof render === "function") setTimeout(function () { try { render(); } catch (e3) {} }, 0);
@@ -352,8 +377,13 @@
         var startW = dockNow.getBoundingClientRect().width;
         var lim = sideLimits();
         document.body.classList.add("kchat-dragging");
+        // VIEW-SNAP1: the side panel snaps the same way — narrower than half its floor is the
+        // board alone, past halfway from its ceiling to the screen edge is messages alone
+        var snap = null, keepW = Math.round(Math.max(lim.min, Math.min(lim.max, startW)));
         var move = function (ev) {
-          var w = Math.max(lim.min, Math.min(lim.max, startW + (startX - ev.clientX)));
+          var raw = startW + (startX - ev.clientX);
+          snap = raw < lim.min * 0.5 ? "board" : raw > lim.max + (innerWidth - lim.max) * 0.5 ? "messages" : null;
+          var w = Math.max(lim.min, Math.min(lim.max, raw));
           sideW = Math.round(w);
           dockNow.style.width = sideW + "px";
           document.documentElement.style.setProperty("--kchat-clear-r", sideW + "px");
@@ -363,6 +393,7 @@
           capEl.removeEventListener("pointerup", up);
           capEl.removeEventListener("pointercancel", up);
           document.body.classList.remove("kchat-dragging");
+          if (snap && typeof boardSetView === "function") { sideW = keepW; boardSetView(snap); return; }
           try { localStorage.setItem("katomiaChatSplitW", String(sideW)); } catch (e2) {}
           if (typeof render === "function") setTimeout(function () { try { render(); } catch (e3) {} }, 0);
         };
@@ -389,12 +420,32 @@
           var bar = e.target.closest(".ring-footer");
           if (!bar) return;
           if (e.target.closest("button, input, select, textarea, a, label, [role=button]")) return;
+          // VIEW-SNAP1: a mouse drag on the bar's blank space must not start a text selection —
+          // it did, and the NEXT drag then picked that selection up as a native drag-and-drop,
+          // which cancels the pointer mid-gesture (desktop only; touch never selects here)
+          if (e.pointerType === "mouse") { e.preventDefault(); window.getSelection && window.getSelection().removeAllRanges(); }
           var dock = document.getElementById("boardChatDock");
-          if (!dock || dock.classList.contains("kchat-dock--side")) return;
+          // VIEW-SNAP1 (owner 2026-10-09): the bar stays a grip in the two extreme views too.
+          // Board alone (no dock): drag it UP and the split opens. Messages alone (the bar sits
+          // at the top, under the ☰): drag it DOWN and the split comes back.
+          // (the dock element outlives a switch to the board alone — it is only hidden — so the
+          // view is read from the chat mode, not from whether a dock exists)
+          var full = document.body.classList.contains("kchat-fullopen");
+          var alone = !full && document.body.dataset.kchatMode !== "panel";
+          var extreme = full ? "messages" : (alone ? "board" : null);
+          if (!extreme && (!dock || dock.classList.contains("kchat-dock--side"))) return;
           var sx = e.clientX, sy = e.clientY, pid = e.pointerId;
           var probe = function (ev) {
             if (ev.pointerId !== pid) return;
             var dx = ev.clientX - sx, dy = ev.clientY - sy;
+            if (extreme) {
+              if (Math.abs(dx) >= 12 && Math.abs(dx) > Math.abs(dy)) { cleanup(); return; }
+              if ((extreme === "board" && dy <= -24) || (extreme === "messages" && dy >= 24)) {
+                cleanup();
+                if (typeof boardSetView === "function") boardSetView("split");
+              }
+              return;
+            }
             if (Math.abs(dy) >= 8 && Math.abs(dy) > Math.abs(dx)) { cleanup(); startSplitDrag(ev, bar, sy); }
             else if (Math.abs(dx) >= 12) cleanup();   // horizontal — the bar's own scroll, not ours
           };
@@ -1037,12 +1088,28 @@
     // of this overlay (was z60), parking the hamburger exactly over the ✕. The
     // overlay now outranks the banner (CSS z2000) and the banner hides while open.
     document.body.classList.toggle("kchat-fullopen", on !== false);
+    // VIEW-MSGS1 (owner 2026-10-09, carried from lab2 KMAP2): messages is one of the three
+    // VIEWS, not a modal — no Close button; the ☰ row stays on top of it, so ☰ → View switches
+    // back like any other view, and the menu is NOT closed when you pick it (you toggle the
+    // views to compare them). The bar (account · lock/sign) moves to the top, under the ☰ row,
+    // and stays a grip: drag it down for the split (VIEW-SNAP1). fitFull places the list below.
+    fitFull();
     if (on !== false) {
       var l = document.getElementById("boardChatFullList");
       if (l) l.scrollTop = l.scrollHeight;
-      document.getElementById("appMenu")?.classList.add("hidden");
     }
   }
+  function fitFull() {
+    var root = document.documentElement;
+    // under the banner's whole box, not just its ☰ row: the (transparent) box sits above the
+    // view at z2100 and would otherwise swallow the top of the bar — the part you grab
+    var row = document.querySelector(".app-banner");
+    var top = row ? Math.round(row.getBoundingClientRect().bottom) : 0;
+    var f = document.querySelector(".ring-footer");
+    root.style.setProperty("--kchat-full-bar", top + "px");
+    root.style.setProperty("--kchat-full-top", (top + (f ? Math.round(f.getBoundingClientRect().height) : 0)) + "px");
+  }
+  addEventListener("resize", function () { if (document.body.classList.contains("kchat-fullopen")) fitFull(); });
 
   /* ── bubbles ──────────────────────────────────────────────────────────────── */
   function anchorFor(playerId) {

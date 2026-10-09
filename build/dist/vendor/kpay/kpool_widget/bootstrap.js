@@ -14,7 +14,7 @@ if (0) {  // not needed but left for ref in case rewiring connection to hapi
 // STATIC BUILD (SIGNPAGE-KBM2): no /build.php here and the bundle is immutable per
 // deploy, so the boot never waits on build diagnostics and the cache-bust is stable.
 // The live PHP site keeps the original kbuild-monitor behaviour.
-window.__BUILD_HASH__ = "e229c6d"
+window.__BUILD_HASH__ = "8e249ba"
 
 let appRoot = `./index.js?v=${window.__BUILD_HASH__}`
 

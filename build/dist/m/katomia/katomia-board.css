@@ -578,7 +578,24 @@ body.board-page .app-banner{
      touches keep firing pointermoves so blank-space drags can claim the
      chat-split gesture (katomia-chat.js delegated starter) */
   touch-action: pan-x;
+  user-select: none; -webkit-user-select: none;   /* VIEW-SNAP1: a grip, not text */
 }
+/* VIEW-SNAP1 (owner 2026-10-09): the bar is the split's grip in every view — two faint lines
+   say so. Board alone: it sits at the bottom (drag up for the split); split: between board and
+   messages; messages alone: under the ☰ row (drag down for the split). */
+.ring-footer::before{
+  content: ""; position: absolute; left: 50%; top: 2px; width: 30px; height: 3px;
+  transform: translateX(-50%); pointer-events: none;
+  border-top: 1px solid rgba(20,28,45,.2); border-bottom: 1px solid rgba(20,28,45,.2);
+}
+body.board-page.kchat-fullopen .ring-footer{
+  top: var(--kchat-full-bar, 56px); bottom: auto; right: 0;
+  border-top: 0; border-bottom: 1px solid #e5e0d4; box-shadow: 0 3px 12px rgba(0,0,0,.07);
+  padding-bottom: 7px;
+}
+/* while a split drag is past the snap point, say which view letting go will give */
+body.kchat-snap-board .ring-footer, body.kchat-snap-messages .ring-footer{ background: #fff3d6; }
+.ring-hub--preview{ cursor: pointer; }
 .ring-footer-filter{ display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .ring-footer-lock{
   border: 1px solid #ddd6c6;

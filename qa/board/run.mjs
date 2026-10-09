@@ -639,6 +639,76 @@ console.log('14. LANDING-NET1 + RECENT-VISITS1 + LIVE-NOW1 + LIST-MINE1: Home by
   }
 }
 
+console.log('15. VIEW-MSGS1 + VIEW-SNAP1 + HUB-PREVIEW1: messages is a view, the menu stays open, the bar drags between all three views, the K is the preview')
+{
+  const { page, errs } = await open('')
+  const view = () => page.evaluate(() => ({ v: boardCurrentView(), menuOpen: !document.getElementById('appMenu').classList.contains('hidden'),
+    dock: !!document.getElementById('boardChatDock'), close: !!document.getElementById('boardChatFullClose'),
+    bar: (r => r && [Math.round(r.top), Math.round(r.bottom)])(document.querySelector('.ring-footer')?.getBoundingClientRect()),
+    menuBtnOnTop: (b => { const r = b.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === b })(document.getElementById('appMenuBtn')),
+    listTop: Math.round(document.getElementById('boardChatFullList')?.getBoundingClientRect().top || 0),
+    sendOk: (i => { if (!i || !i.getClientRects().length) return null; const r = i.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === i })(document.querySelector('#boardChatFull.open .kchat-send input')),
+    play: !!document.querySelector('.ring-footer .ring-footer-play'), focus: typeof boardFocusMode !== 'undefined' && boardFocusMode }))
+  // drag the bar's blank grip area (its top-centre, where the two lines are) by dy
+  const dragBar = async dy => {
+    const r = await page.evaluate(() => { const b = document.querySelector('.ring-footer').getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + 3 } })
+    await page.mouse.move(r.x, r.y); await page.mouse.down()
+    for (let i = 1; i <= 12; i++) await page.mouse.move(r.x, r.y + dy * i / 12)
+    await page.mouse.up(); await page.waitForTimeout(500)
+  }
+  await page.click('#appMenuBtn'); await page.waitForTimeout(200)
+  if (!(await page.evaluate(() => document.querySelector('[data-menu-group="view"]').classList.contains('is-open')))) { await page.click('[data-menu-group="view"] > .app-menu-grouphead'); await page.waitForTimeout(350) }
+  await page.click('[data-menu-view="split"]'); await page.waitForTimeout(400)
+  const a = await view()
+  ok(a.v === 'split' && a.menuOpen && a.dock, 'Split from ☰ → View: the menu stays open', JSON.stringify(a))
+  await page.click('[data-menu-view="messages"]'); await page.waitForTimeout(400)
+  const b = await view()
+  ok(b.v === 'messages' && b.menuOpen && !b.close && b.menuBtnOnTop, 'Messages: a view — no Close, the menu still open, the ☰ on top of it', JSON.stringify(b))
+  ok(b.bar && b.bar[0] < 90 && b.listTop >= b.bar[1] - 1 && b.sendOk === true, 'the bar sits under the ☰ row, the transcript starts below it, and the send box is reachable', JSON.stringify(b))
+  await page.click('[data-menu-view="board"]'); await page.waitForTimeout(400)
+  const c = await view()
+  ok(c.v === 'board' && c.menuOpen, 'Board alone from the menu, menu still open', JSON.stringify(c))
+  await page.click('#appMenuBtn'); await page.waitForTimeout(200)
+  // board alone → drag the bar up → split
+  await dragBar(-80)
+  const d = await view()
+  ok(d.v === 'split', 'board alone: dragging the bar UP opens the split', JSON.stringify(d))
+  // split → drag way down → board alone (snap)
+  await dragBar(600)
+  const e = await view()
+  ok(e.v === 'board', 'split: dragging the bar all the way DOWN snaps to the board alone', JSON.stringify(e))
+  await dragBar(-80)
+  const e2 = await view()
+  const keep = await page.evaluate(() => localStorage.getItem('katomiaChatSplit'))
+  // split → drag way up → messages (snap)
+  await dragBar(-700)
+  const f = await view()
+  ok(e2.v === 'split' && f.v === 'messages', 'split: dragging the bar all the way UP snaps to messages alone', JSON.stringify({ e2: e2.v, f }))
+  await dragBar(120)
+  const g = await view()
+  const keep2 = await page.evaluate(() => localStorage.getItem('katomiaChatSplit'))
+  ok(g.v === 'split' && keep2 === keep, 'messages alone: dragging the bar DOWN brings the split back, at the height you had', JSON.stringify({ g: g.v, keep, keep2 }))
+  // a small drag inside the limits stays a split (no sliver, no snap)
+  await dragBar(-30)
+  const h = await view()
+  ok(h.v === 'split', 'a small drag inside the limits stays a split', JSON.stringify(h))
+  // K hub = preview
+  ok(!h.play, 'the ring\'s bar has no ▶ any more', JSON.stringify(h))
+  const hubPt = await page.evaluate(() => { const r = document.querySelector('.ring-hub').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
+  await page.mouse.click(hubPt.x, hubPt.y); await page.waitForTimeout(500)
+  const i1 = await view()
+  const shade = await page.evaluate(() => !!document.querySelector('.ring-focusshade'))
+  await page.mouse.click(hubPt.x, hubPt.y); await page.waitForTimeout(900)
+  const i2 = await view()
+  ok(i1.focus && shade && !i2.focus, 'tapping the K toggles the preview on (spotlight) and off', JSON.stringify({ on: i1.focus, shade, off: !i2.focus }))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+  const cr = await open('skin=carousel')
+  const cp = await cr.page.evaluate(() => !!document.querySelector('.ring-footer .ring-footer-play'))
+  ok(cp, 'the Carousel (no K hub) keeps its ▶', String(cp))
+  await cr.page.close()
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)

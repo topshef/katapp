@@ -73,7 +73,8 @@ require_once __DIR__ . '/kasset.php';
 <div id="boardChatFull" class="kchat-full" role="dialog" aria-modal="true" aria-label="Messages">
   <div class="kchat-full-head">
     <b>💬 Messages<span class="sub" id="boardChatFullSub"></span></b>
-    <button type="button" class="kchat-full-close" id="boardChatFullClose">Close</button>
+    <!-- VIEW-MSGS1 (owner 2026-10-09, from lab2 KMAP2): no Close — messages is one of the three
+         views; ☰ → View switches back, or drag the bar (now at the top) down for the split. -->
   </div>
   <div class="kchat-full-list"><div class="kchat-panel-list" id="boardChatFullList"></div></div>
   <!-- GCP feedback 2026-08-08 ("the messages view should be the same like the messages

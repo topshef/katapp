@@ -3091,7 +3091,14 @@ body[data-board-fam~="v16"] .kchat-bub{ /* light ring felt — defaults are fine
   background:rgba(247,249,252,.97);
   backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
 }
-body.kchat-fullopen .app-banner{ visibility:hidden; }
+/* VIEW-MSGS1 (owner 2026-10-09, from lab2 KMAP2): messages is a VIEW — the ☰ row stays on top
+   of it (no Close; ☰ → View switches back), the bar sits under that row (katomia-board.css),
+   and the transcript starts below both (--kchat-full-top, set by katomia-chat.js fitFull).
+   R2's hidden banner was the fix for a ☰ floating over the old ✕; there is no ✕ now. */
+body.board-page.kchat-fullopen .app-banner{ visibility:visible; z-index:2100; background:rgba(247,249,252,.97); }
+/* the view starts BELOW the bar: the bar lives inside #boardRoot's stacking context (z5), so
+   no z-index can lift it over this overlay — the overlay leaves its strip uncovered instead */
+body.board-page .kchat-full.open{ top: var(--kchat-full-top, 0px); }
 .kchat-full.open{ display:flex; }
 .kchat-full-head{
   display:flex; align-items:center; justify-content:space-between; gap:10px;
