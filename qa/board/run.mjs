@@ -300,6 +300,98 @@ console.log('7. Host options reveals to the host on the CLEAN /board/<id> URL (H
   ok(noKey.hidden === true, 'a browser with no key does not see it', JSON.stringify(noKey))
 }
 
+console.log('11. MENU-SPEC1 + MENU-NET1: the ☰ by page — network only on Home, no row for the page you are on, You, Developer nested')
+{
+  const GAMES = { ok: true, games: {
+    'QA-T1': { id: 'QA-T1', config: { tradingMode: 'proposal', network: 'testnet' }, profile: { name: 'Test circle' } },
+    'QA-T1~1': { id: 'QA-T1~1', config: { tradingMode: 'proposal', network: 'testnet' }, profile: { name: 'Side circle' } },
+    'QA-M1': { id: 'QA-M1', config: { tradingMode: 'proposal', network: 'mainnet' }, profile: { name: 'Main circle' } },
+    'demo-play': { id: 'demo-play', config: { tradingMode: 'proposal', network: 'playnet' }, profile: { name: 'Play demo' } } } }
+  const visit = async (path, { nerd = false, net = null, width = 390 } = {}) => {
+    const ctx = await browser.newContext({ viewport: { width, height: 800 } })
+    await ctx.addInitScript(([n, v]) => { localStorage.setItem('katomia.nerd.v1', n ? '1' : '0'); if (v) localStorage.setItem('katomiaNetwork', v) }, [nerd, net])
+    await ctx.route('**/hapi/games*', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(GAMES) }))
+    const page = await ctx.newPage()
+    const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
+    await page.goto(`${BASE}/m/katomia/${path}`, { waitUntil: 'load' })
+    await page.waitForTimeout(900)
+    await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove() })
+    const rows = () => page.evaluate(() => {
+      const shown = el => !!el && el.getClientRects().length > 0
+      const menu = document.getElementById('appMenu')
+      return { items: [...menu.querySelectorAll(':scope > .app-menu-item')].filter(shown).map(e => e.textContent.trim()),
+        netrow: shown(menu.querySelector('[data-menu-network]')), dev: shown(menu.querySelector('[data-menu-group="dev"]')),
+        playnet: shown(menu.querySelector('[data-net="playnet"]')),
+        pressed: [...menu.querySelectorAll('[data-net][aria-pressed="true"]')].map(b => b.dataset.net) }
+    })
+    return { ctx, page, errs, rows }
+  }
+  // Home
+  {
+    const { ctx, page, errs, rows } = await visit('index.html')
+    await page.click('#appMenuBtn'); await page.waitForTimeout(250)
+    const r = await rows()
+    ok(r.netrow && !r.items.some(t => /Home/.test(t)), 'Home: the network row heads the menu and there is no 🏠 Home row', JSON.stringify(r))
+    ok(['Circles', 'You', 'Send feedback'].every(w => r.items.some(t => t.includes(w))) && !r.items.some(t => /Profile/.test(t)), 'Home: ⭕ Circles, 👤 You, 💬 Send feedback — and "Profile" is gone', JSON.stringify(r.items))
+    ok(!r.dev && !r.playnet && r.pressed.join() === 'testnet', 'Home, normal mode: no Developer group, no Playnet, testnet until chosen', JSON.stringify(r))
+    for (const n of ['mainnet', 'testnet', 'mainnet', 'testnet', 'mainnet']) await page.click(`[data-net="${n}"]`)
+    const s = await page.evaluate(() => ({ stored: localStorage.getItem('katomiaNetwork'), open: !document.getElementById('appMenu').classList.contains('hidden'),
+      auth: document.getElementById('authNetwork')?.value, kam: document.getElementById('kamNetwork')?.value,
+      notes: document.querySelectorAll('[data-network-note]').length, noteText: document.querySelector('[data-network-note="authNetwork"]')?.textContent,
+      rows: [...document.querySelectorAll('#authNetworkRow, #kamNetworkRow')].map(e => e.classList.contains('hidden')) }))
+    ok(s.stored === 'mainnet' && s.open, 'tapping Mainnet stores it and the menu stays open (a switch, not a destination)', JSON.stringify(s))
+    ok(s.auth === 'mainnet' && s.kam === 'mainnet' && s.noteText === 'Mainnet', 'the You and Authenticate wallet pickers follow it, and the note names it', JSON.stringify(s))
+    ok(s.notes === 2 && s.rows.every(Boolean), 'five switches later there is still exactly one note per modal and both picker rows stay hidden (lab2 piled notes up)', JSON.stringify(s))
+    ok(!errs.length, 'no page errors on Home', JSON.stringify(errs))
+    await ctx.close()
+  }
+  {
+    const { ctx, page, rows } = await visit('index.html', { nerd: true, net: 'playnet' })
+    await page.click('#appMenuBtn'); await page.waitForTimeout(250)
+    const r = await rows()
+    ok(r.dev && r.playnet && r.pressed.join() === 'playnet', 'developer mode: a 🧪 Developer group and Playnet appear', JSON.stringify(r))
+    const clip = () => page.evaluate(() => { const i = document.querySelector('[data-menu-group="dev"] .app-menu-groupinner'); return { h: Math.round(i.getBoundingClientRect().height), vis: getComputedStyle(i).visibility,
+      w: Math.round(document.getElementById('appMenu').getBoundingClientRect().width), open: !document.getElementById('appMenu').classList.contains('hidden'),
+      items: [...i.querySelectorAll('.app-menu-item')].filter(e => e.getClientRects().length).map(e => e.textContent.trim()) } })
+    const before = await clip()
+    await page.click('[data-menu-group="dev"] > .app-menu-grouphead'); await page.waitForTimeout(400)
+    const after = await clip()
+    ok(before.h === 0 && before.vis === 'hidden' && after.h > 40 && after.vis === 'visible' && after.open, 'the group is collapsed until tapped, then unrolls in place with the menu still open', JSON.stringify({ before, after }))
+    ok(after.items.some(t => /All markets/.test(t)) && after.items.some(t => /QA/.test(t)), 'inside: All markets (raw) and QA', JSON.stringify(after.items))
+    ok(before.w === after.w, 'the menu does not get wider as the group opens — it was full width from the start', `${before.w} → ${after.w}`)
+    await ctx.close()
+  }
+  {
+    const { ctx, page, rows } = await visit('index.html', { nerd: false, net: 'playnet' })
+    await page.click('#appMenuBtn'); await page.waitForTimeout(250)
+    const r = await rows()
+    ok(r.pressed.join() === 'testnet', 'a stored Playnet reads as Testnet once developer mode is off', JSON.stringify(r))
+    await ctx.close()
+  }
+  // Circles
+  {
+    const { ctx, page, errs, rows } = await visit('circles.html', { net: 'testnet' })
+    await page.click('#appMenuBtn'); await page.waitForTimeout(250)
+    const r = await rows()
+    ok(!r.netrow && r.items.some(t => /Home/.test(t)) && !r.items.some(t => /Circles/.test(t)), 'Circles: 🏠 Home, no ⭕ Circles row, no network row', JSON.stringify(r))
+    const l = await page.evaluate(() => ({ names: [...document.querySelectorAll('#circlesList .circle-name')].map(e => e.textContent), chips: !!document.querySelector('.circles-filters .circles-filter'), note: document.querySelector('.circles-netnote')?.textContent || '' }))
+    ok(l.names.includes('Test circle') && l.names.includes('Play demo') && !l.names.includes('Main circle'), 'the list follows the network: testnet circles plus play demos, no mainnet', JSON.stringify(l))
+    ok(!l.names.includes('Side circle'), 'side circles (<parent>~<n>) are never listed', JSON.stringify(l.names))
+    ok(/Testnet/.test(l.note) && /Home/.test(l.note), 'no network control for a normal user — a note says which network and where it changes', JSON.stringify(l))
+    ok(!errs.length, 'no page errors on Circles', JSON.stringify(errs))
+    await ctx.close()
+  }
+  // Board
+  {
+    const { ctx, page, errs, rows } = await visit('board.html?demo=1')
+    await page.click('#appMenuBtn'); await page.waitForTimeout(250)
+    const r = await rows()
+    ok(!r.netrow && r.items.some(t => /Home/.test(t)) && !r.items.some(t => /Circles/.test(t)) && r.items.some(t => /You/.test(t)), 'on a board: 🏠 Home and 👤 You, no Circles, no network row (a circle is one network)', JSON.stringify(r))
+    ok(!errs.length, 'no page errors on the board', JSON.stringify(errs))
+    await ctx.close()
+  }
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)

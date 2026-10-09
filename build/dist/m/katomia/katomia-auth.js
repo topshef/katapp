@@ -592,7 +592,10 @@ async function katomiaAuthOnProfileOpen(){
   // show the network picker; inside a game it stays hidden and the game wins.
   // Likewise "This game only" scope makes no sense with no game to point at.
   const inGame = !!(gameMeta?.network)
-  document.getElementById("authNetworkRow")?.classList.toggle("hidden", inGame)
+  // MENU-NET1 (owner 2026-10-09): outside a game the network comes from ☰ on Home — the
+  // picker row stays hidden and follows it; a one-line note says which network it is.
+  window.katomiaNet?.paint()
+  document.getElementById("authNetworkNote")?.classList.toggle("hidden", inGame)
   const gameScopeOpt = document.querySelector('#authScope option[value="game"]')
   if(gameScopeOpt) gameScopeOpt.hidden = !inGame && !gameId
 
@@ -1008,8 +1011,13 @@ window.katomiaAuthenticateModal = {
     const msg = document.getElementById("kamMessage")
     if(msg){ msg.textContent = opts.message || ""; msg.classList.toggle("hidden", !opts.message) }
     const inGame = !!(gameMeta?.network)
-    document.getElementById("kamNetworkRow")?.classList.toggle("hidden", inGame)
+    // MENU-NET1: the picker follows ☰ on Home (row hidden, note shown) — a caller that names
+    // a network (opts.network) still wins for this one open, and the note says so
+    window.katomiaNet?.paint()
+    document.getElementById("kamNetworkNote")?.classList.toggle("hidden", inGame)
     if(!inGame && opts.network){ const sel = document.getElementById("kamNetwork"); if(sel) sel.value = opts.network }
+    const kamNote = document.querySelector('[data-network-note="kamNetwork"]')
+    if(kamNote) kamNote.textContent = window.katomiaNet?.label(kamNetworkVal()) || kamNetworkVal()
     window.__kamOnDone = opts.onDone || null
     kamSetStatus("")
     modal.classList.remove("hidden")

@@ -42,7 +42,7 @@
 			</div>
 			<div id="addAcctAssets" class="addacct-assets"></div>
 			<p class="subtle addacct-hint addacct-later">You can change what's visible any time — tap your account on the board.</p>
-			<p id="addAcctHint" class="subtle addacct-hint hidden">🔷 Not bound yet — you can join anyway; bind this account in <button id="addAcctProfileLink" type="button" class="addacct-link">Profile → Wallet binding</button> to carry reputation.</p>
+			<p id="addAcctHint" class="subtle addacct-hint hidden">🔷 Not bound yet — you can join anyway; bind this account in <button id="addAcctProfileLink" type="button" class="addacct-link">You → Reputation</button> to carry reputation.</p>
 		</div>
 
 		<div id="addAcctStatus" class="subtle addacct-status"></div>

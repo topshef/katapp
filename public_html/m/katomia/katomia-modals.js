@@ -523,7 +523,7 @@ async function updateCreateOrderAuthHint(){
   const auth = (typeof getAccountAuthState === "function") ? getAccountAuthState(val) : null
   if(!auth){
     el.textContent = nerd
-      ? "Not reputation-bound — optionally bind your intent key to a wallet in Profile → Reputation binding to back your orders."
+      ? "Not reputation-bound — optionally bind your intent key to a wallet in You → Reputation to back your orders."
       : "Not reputation-bound (optional)"
     el.className = "create-order-auth-hint unbound"
     return
@@ -543,8 +543,8 @@ async function updateCreateOrderAuthHint(){
     el.className = "create-order-auth-hint bound"
   } else {
     el.textContent = nerd
-      ? "This account has a verified binding, but for a DIFFERENT intent key than this session's — re-raise the commitment (Profile → Reputation binding) so these orders are bound."
-      : "Account bound to a different key — re-raise in Profile to back these orders"
+      ? "This account has a verified binding, but for a DIFFERENT intent key than this session's — commit again (You → Reputation) so these orders are bound."
+      : "Account bound to a different key — commit again in You to back these orders"
     el.className = "create-order-auth-hint warn"
   }
 }

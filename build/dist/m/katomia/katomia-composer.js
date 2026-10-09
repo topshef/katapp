@@ -171,7 +171,7 @@
       const sel = $("kcompTokens")
       if(!accounts.length){
         sel.innerHTML = `<option value="">No connected accounts on ${network} — paste a token ID below</option>`
-        $("kcompTokNote").textContent = "Connect & authenticate an account (☰ → Profile) and your tokens appear here to pick from."
+        $("kcompTokNote").textContent = "Connect & authenticate an account (☰ → You) and your tokens appear here to pick from."
       } else post("./hapi/held-tokens", { network, accounts }).then(r => {
         const toks = r?.tokens || []
         sel.innerHTML = toks.length

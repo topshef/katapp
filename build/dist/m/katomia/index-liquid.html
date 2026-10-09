@@ -216,6 +216,65 @@
      the PHP-served page and every player in a circle saw "Host options" */
   #katomiaHostOptions[hidden] { display: none !important; }
   .app-menu-kchanges--on { background: #fff7c2; }
+
+  /* ═══ MENU-SPEC1 (owner 2026-10-09) — pilot takes the parts of lab2 the owner named ═══ */
+  /* The menu is as wide as its widest row from the moment it opens (collapsed groups are laid
+     out, just zero-height), so unrolling a group never jolts it wider. Capped for phones; it
+     scrolls inside itself rather than running off the bottom of the screen. */
+  .app-menu{ max-width: min(330px, calc(100vw - 16px)); max-height: calc(100dvh - 72px);
+    overflow-y: auto; overscroll-behavior: contain; }
+
+  /* Network — ONE place to choose it: the ☰ on Home. Orange testnet, purple mainnet. */
+  .app-menu-netrow{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:6px 10px 10px; border-bottom:1px solid #eee; margin-bottom:4px; }
+  .app-menu-netlabel{ font-size:15px; color:#333; }
+  .app-menu-net{ display:inline-flex; border:1px solid #d7d3c8; border-radius:999px; overflow:hidden; background:#fff; }
+  .app-menu-net button{ border:0; border-radius:0; background:transparent; box-shadow:none;
+    font:700 11px/1 system-ui,sans-serif; letter-spacing:.04em; text-transform:uppercase;
+    padding:8px 10px; color:#666; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .app-menu-net button:hover{ background:#f3f3f3; transform:none; box-shadow:none; }
+  .app-menu-net button[aria-pressed="true"][data-net="testnet"]{ background:#e8731a; color:#fff; }
+  .app-menu-net button[aria-pressed="true"][data-net="mainnet"]{ background:#6e3fd3; color:#fff; }
+  .app-menu-net button[aria-pressed="true"][data-net="playnet"]{ background:#1f8f4e; color:#fff; }
+  .app-menu-net button[data-net="playnet"]{ display:none; }
+  body.nerd .app-menu-net button[data-net="playnet"]{ display:inline-block; }
+
+  /* Nested groups (like a Windows submenu, but unrolling in place). The body is a one-row grid
+     that animates 0fr → 1fr, so it rolls open at its real height with no measuring. */
+  .app-menu-group{ display:flex; flex-direction:column; }
+  .app-menu-grouphead{ display:flex; align-items:center; gap:8px; width:100%; box-sizing:border-box;
+    padding:10px 12px; border:0; border-radius:8px; background:transparent; box-shadow:none;
+    font:inherit; font-size:15px; color:#333; text-align:left; cursor:pointer; user-select:none; }
+  .app-menu-grouphead:hover{ background:#f3f3f3; transform:none; box-shadow:none; }
+  .app-menu-grouplabel{ flex:1; }
+  .app-menu-groupcaret{ color:#999; font-size:12px; transition:transform .22s ease; }
+  .app-menu-group.is-open > .app-menu-grouphead .app-menu-groupcaret{ transform:rotate(90deg); }
+  .app-menu-groupbody{ display:grid; grid-template-rows:0fr; transition:grid-template-rows .22s ease; }
+  .app-menu-group.is-open > .app-menu-groupbody{ grid-template-rows:1fr; }
+  .app-menu-groupinner{ min-height:0; overflow:hidden; visibility:hidden; transition:visibility 0s linear .22s; }
+  .app-menu-group.is-open > .app-menu-groupbody > .app-menu-groupinner{ visibility:visible; transition-delay:0s; }
+  .app-menu-grouppad{ display:flex; flex-direction:column; gap:6px; margin:0 0 6px 18px; padding:2px 0 2px 10px; border-left:2px solid #eee; }
+  .app-menu-grouppad .app-menu-item{ font-size:14px; padding:8px 10px; }
+  .app-menu-grouppad .app-menu-grouphead{ font-size:14px; padding:7px 8px; }
+  @media (prefers-reduced-motion: reduce){
+    .app-menu-groupbody, .app-menu-groupcaret, .app-menu-groupinner{ transition:none; }
+  }
+  /* Developer: shown in nerd mode, or whenever it holds a row that is not nerd-gated (the
+     IP-admin row, or the kchanges rows kchanges.js reveals to admin accounts) */
+  .app-menu-devgroup{ display:none; }
+  body.nerd .app-menu-devgroup,
+  .app-menu-devgroup:has(.app-menu-item:not([hidden]):not(.nerd-only)){ display:flex; }
+  body.nerd .app-menu-item.nerd-only{ display:flex; }
+
+  /* View (board): its settings are plain rows inside the group — no popover any more */
+  .app-menu-settings{ display:flex; flex-direction:column; gap:8px; margin:0; padding:2px 0; }
+  .app-menu-settings .board-settings-label{ font-size:14px; color:#444; }
+  .app-menu-settings .board-settings-label select{ font-size:13px; }
+  .app-menu-settings .app-menu-group .app-menu-grouppad{ margin-left:2px; }
+  .app-menu-grouppad .app-menu-viewrow{ border:0; margin:0; padding:2px 0 4px; justify-content:flex-start; }
+  [data-board-ringonly][hidden]{ display:none !important; }
+  .app-menu-devonly{ display:none !important; }
+  body.nerd .app-menu-devonly{ display:flex !important; }
 </style>
 
 <script>
@@ -251,15 +310,27 @@
        "Create market" (a button on the Markets page — contextual, not navigation)
        and "Nerd mode" (a preference — lives in Profile → Preferences & diagnostics). -->
   <nav id="appMenu" class="app-menu hidden">
-    <!-- ENTRY-DEFAULTROOT1 (user 2026-07-29): Home first — always a way back to the
-         welcome page (which is now the default root); Markets moved to /markets. -->
-    <a class="app-menu-item" href="/m/katomia/">🏠 Home</a>
-    <!-- ENTRY-CIRCLES1 (user 2026-07-30): the everyday destination is now the
+        <!-- MENU-SPEC1 (owner 2026-10-09): the network is chosen HERE and nowhere else — the ☰ on
+         Home. "You have to go to the home page, and then choose your network there." Inside a
+         circle the circle's own network applies; the wallet pickers in the You and Authenticate
+         modals follow this switch and say where it is changed. Playnet is developer-only.
+         Wired by the MENU-NET1 script below; a switch, so the menu stays open on a tap. -->
+    <div class="app-menu-netrow" data-menu-network>
+      <span class="app-menu-netlabel">Network</span>
+      <div class="app-menu-net" role="group" aria-label="Network">
+        <button type="button" data-net="testnet" aria-pressed="false" title="Test assets — nothing real moves">Testnet</button>
+        <button type="button" data-net="mainnet" aria-pressed="false" title="Real assets">Mainnet</button>
+        <button type="button" data-net="playnet" aria-pressed="false" title="Play money — demos and QA (developer mode)">Playnet</button>
+      </div>
+    </div>
+            <!-- ENTRY-CIRCLES1 (user 2026-07-30): the everyday destination is now the
          proposal-only index, labelled with the configured term. 🏛️ Markets kept the
          bank emoji and the word "markets" — both wrong once the product calls these
-         circles — so it moves behind nerd mode as the raw, unfiltered grid. -->
+         circles — so it moves behind nerd mode as the raw, unfiltered grid.
+         MENU-SPEC1: not inside a circle (owner: on a board the menu is Home, View, You),
+         and not on the list itself, by the same rule as Home on Home. -->
     <a class="app-menu-item" href="/m/katomia/circles">⭕ Circles</a>
-    <!-- MENU-ORDER1 (user 2026-08-19): "profile, then view, then settings, then host
+        <!-- MENU-ORDER1 (user 2026-08-19): "profile, then view, then settings, then host
          options … feels off". New order groups by what the rows ARE:
            places (Home, Circles) → this-circle controls (View, Settings, Host options)
            → you (Profile, Send feedback) → internal (nerd + admin rows, bottom).
@@ -299,35 +370,46 @@
          both re-check ownership anyway. -->
     <a class="app-menu-item" id="katomiaHostOptions" hidden
        href="/m/katomia/host">🎪 Host options</a>
-    <button type="button" class="app-menu-item" data-menu-profile>👤 Profile</button>
+    <!-- MENU-SPEC1 (owner 2026-10-09): "Profile" reads as "You" — the modal is about the
+         person (wallet, reputation, preferences), the word now says so. -->
+    <button type="button" class="app-menu-item" data-menu-profile>👤 You</button>
     <!-- KAT-FEEDBACK1-ENTRYPOINT1: explicit route to the feedback modal for users who
          don't know the long-press (falls back to the standalone page if the widget
          script isn't on this page for any reason) -->
     <button type="button" class="app-menu-item"
             onclick="if(window.KFeedbackWidget){KFeedbackWidget.open()}else{location.href='/m/feedback/?product=katomia'}"
             title="Tell us anything — you can also long-press anywhere on the page.">💬 Send feedback</button>
-    <a class="app-menu-item nerd-only" href="/m/katomia/markets">🏛️ All markets (raw)</a>
-    <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
-         results — in the main menu rather than behind the admin gate; the pages are
-         effectively public anyway. If parts of QA later need gating, do a split pass
-         (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
-    <a class="app-menu-item nerd-only" href="/m/katomia/qa/" target="_blank" rel="noopener">🧪 QA</a>
-        <!-- KBUNDLE-STRIP:kchanges -->
-    <!-- KCHANGES1 (feedback tango-delta-81, 2026-09-06): "a development visibility toggle
-         in the hamburger menu, at the root of the menu, the last item — on/off for
-         post-it notes of every change on the screen". Rendered hidden; kchanges.js
-         reveals it for a browser authenticated as an admin account (or the IP admin, or
-         ?kchanges=1). Stays open on click — it's a switch, not a destination — hence
-         not .app-menu-item, which the menu closes on. -->
-    <button type="button" class="app-menu-item app-menu-kchanges" data-menu-kchanges hidden
-            title="Dev: show a 🗒️ tag beside everything on THIS page that changed recently. Tap a tag for what changed and why; ✕ ticks it off. Fades over a week.">🗒️ Show changes</button>
-    <!-- KCHANGES1 round 2 (2026-09-06): "another item on the hamburger menu to a list of
-         all the changes … tap it and it either takes you to the context if there is one,
-         or it opens up there so you can review it". A destination, so it IS an
-         .app-menu-item and the menu closes behind it. -->
-    <button type="button" class="app-menu-item app-menu-kchanges" data-menu-kchanges-list hidden
-            title="Dev: every recent change in one list — go to the one you want, or read and comment on it here.">📋 Changes</button>
-    <!-- /KBUNDLE-STRIP:kchanges -->
+    <!-- MENU-SPEC1 (owner 2026-10-09): nerd mode no longer lengthens the menu row by row —
+         its rows nest under ONE 🧪 Developer group (the lab2 shape). Shown in nerd mode, or
+         when it holds a row that is not nerd-gated (the IP-admin row; the kchanges rows
+         kchanges.js reveals to admin accounts) — CSS :has() in the style block above. -->
+    <div class="app-menu-group app-menu-devgroup" data-menu-group="dev">
+      <button type="button" class="app-menu-grouphead" aria-expanded="false"><span class="app-menu-groupicon">🧪</span><span class="app-menu-grouplabel">Developer</span><span class="app-menu-groupcaret" aria-hidden="true">▸</span></button>
+      <div class="app-menu-groupbody"><div class="app-menu-groupinner"><div class="app-menu-grouppad">
+          <a class="app-menu-item nerd-only" href="/m/katomia/markets">🏛️ All markets (raw)</a>
+          <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
+               results — in the main menu rather than behind the admin gate; the pages are
+               effectively public anyway. If parts of QA later need gating, do a split pass
+               (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
+          <a class="app-menu-item nerd-only" href="/m/katomia/qa/" target="_blank" rel="noopener">🧪 QA</a>
+                    <!-- KBUNDLE-STRIP:kchanges -->
+          <!-- KCHANGES1 (feedback tango-delta-81, 2026-09-06): "a development visibility toggle
+               in the hamburger menu, at the root of the menu, the last item — on/off for
+               post-it notes of every change on the screen". Rendered hidden; kchanges.js
+               reveals it for a browser authenticated as an admin account (or the IP admin, or
+               ?kchanges=1). Stays open on click — it's a switch, not a destination — hence
+               not .app-menu-item, which the menu closes on. -->
+          <button type="button" class="app-menu-item app-menu-kchanges" data-menu-kchanges hidden
+                  title="Dev: show a 🗒️ tag beside everything on THIS page that changed recently. Tap a tag for what changed and why; ✕ ticks it off. Fades over a week.">🗒️ Show changes</button>
+          <!-- KCHANGES1 round 2 (2026-09-06): "another item on the hamburger menu to a list of
+               all the changes … tap it and it either takes you to the context if there is one,
+               or it opens up there so you can review it". A destination, so it IS an
+               .app-menu-item and the menu closes behind it. -->
+          <button type="button" class="app-menu-item app-menu-kchanges" data-menu-kchanges-list hidden
+                  title="Dev: every recent change in one list — go to the one you want, or read and comment on it here.">📋 Changes</button>
+      <!-- /KBUNDLE-STRIP:kchanges -->
+      </div></div></div>
+    </div>
   </nav>
 
   </div>
@@ -418,6 +500,57 @@ addEventListener("load", () => setTimeout(() => {
 </script>
 
 <script>
+// ── MENU-NET1 (owner 2026-10-09): the network is a MODE, chosen in one place — the ☰ on
+// Home — and read everywhere else. Stored per device (katomiaNetwork); testnet until you
+// choose. Playnet only while developer (nerd) mode is on; off again, it reads as testnet.
+// Inside a circle nothing here applies: the circle's own network (gameMeta.network) wins, as
+// it always did. Followers:
+//   · the wallet pickers in the You and Authenticate modals (#authNetwork, #kamNetwork) —
+//     their rows are hidden and a one-line note says which network and where to change it
+//     (static markup, one per modal: lab2 inserted the note on every repaint and it piled up)
+//   · the circles list filters to it (circles.php)
+window.katomiaNet = (() => {
+  const KEY = "katomiaNetwork", NETS = ["testnet", "mainnet"], DEV = ["playnet"], DEF = "testnet"
+  const LABEL = { testnet: "Testnet", mainnet: "Mainnet", playnet: "Playnet" }
+  const read = k => { try { return localStorage.getItem(k) } catch { return null } }
+  const nerd = () => read("katomia.nerd.v1") === "1"
+  const get = () => {
+    const v = read(KEY)
+    if(NETS.includes(v)) return v
+    if(DEV.includes(v) && nerd()) return v
+    return DEF
+  }
+  const paint = () => {
+    const v = get()
+    document.querySelectorAll("[data-menu-network] [data-net]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.net === v)))
+    ;["authNetwork", "kamNetwork"].forEach(id => {
+      const s = document.getElementById(id)
+      if(s && [...s.options].some(o => o.value === v)) s.value = v
+    })
+    // the note names what the wallet will actually use — the picker's value
+    document.querySelectorAll("[data-network-note]").forEach(n => {
+      const s = document.getElementById(n.dataset.networkNote)
+      const shown = s ? s.value : v
+      n.textContent = LABEL[shown] || shown
+    })
+  }
+  const set = v => {
+    if(!NETS.includes(v) && !DEV.includes(v)) return
+    const was = get()
+    try { localStorage.setItem(KEY, v) } catch {}
+    paint()
+    if(was !== v) document.dispatchEvent(new CustomEvent("katomia:network", { detail: { network: v, was } }))
+  }
+  document.addEventListener("click", e => {
+    const b = e.target.closest?.("[data-menu-network] [data-net]")
+    if(b){ e.stopPropagation(); set(b.dataset.net) }
+  })
+  document.addEventListener("DOMContentLoaded", paint)
+  return { get, set, paint, label: v => LABEL[v] || v }
+})()
+</script>
+
+<script>
 // Menu behaviour — self-contained, no dependencies on the page's other scripts.
 // Profile opening itself is wired by katomia-profile.js ([data-menu-profile]).
 (() => {
@@ -454,6 +587,7 @@ addEventListener("load", () => setTimeout(() => {
     // No timing guards remain anywhere on this path (user's instruction): dead
     // taps are prevented at the source by touch-action:none on ✕ and ☰.
     if(settings && !settings.classList.contains("hidden")){ settingsOpen(false); return }
+    if(menu.classList.contains("hidden")) window.katomiaNet?.paint()   // MENU-NET1: nerd mode may have changed since
     setOpen(menu.classList.contains("hidden"))
   }
 
@@ -462,6 +596,24 @@ addEventListener("load", () => setTimeout(() => {
   menu.addEventListener("click", e => {
     if(e.target.closest("[data-menu-kchanges]")) return   // KCHANGES1: a switch, the menu stays
     if(e.target.closest(".app-menu-item")) setOpen(false)
+  })
+
+  // MENU-SPEC1: nested groups unroll in place (CSS animates the body's grid row). A group
+  // head is not an .app-menu-item, so tapping it keeps the menu open. Each group remembers
+  // whether you left it open, per device.
+  const GROUP_KEY = "katomiaMenuGroup:"
+  const setGroup = (g, open, remember) => {
+    g.classList.toggle("is-open", open)
+    g.querySelector(":scope > .app-menu-grouphead")?.setAttribute("aria-expanded", String(open))
+    if(remember) try { localStorage.setItem(GROUP_KEY + g.dataset.menuGroup, open ? "1" : "0") } catch {}
+    if(open) document.dispatchEvent(new CustomEvent("katomia:menugroup", { detail: { group: g.dataset.menuGroup } }))
+  }
+  menu.querySelectorAll(".app-menu-group[data-menu-group]").forEach(g => {
+    let was = null
+    try { was = localStorage.getItem(GROUP_KEY + g.dataset.menuGroup) } catch {}
+    if(was === "1") setGroup(g, true, false)
+    g.querySelector(":scope > .app-menu-grouphead")?.addEventListener("click", () =>
+      setGroup(g, !g.classList.contains("is-open"), true))
   })
 
   // Diagnostic tripwire (2026-07-14, after board.php shipped without
@@ -710,12 +862,19 @@ addEventListener("load", () => setTimeout(() => {
 
         <!-- Network picker — ONLY outside a game (no gameMeta to inherit from);
              inside a game the game's network wins and this row stays hidden. -->
+        <!-- MENU-NET1 (owner 2026-10-09): the picker stays (katomia-auth.js reads it) but is
+             never shown — it FOLLOWS the network chosen from ☰ on Home, and this note says
+             which and where. Hidden inside a circle, where the circle's network wins. -->
         <div id="authNetworkRow" class="profile-auth-account hidden">
           <span class="profile-label">Network</span>
           <select id="authNetwork" class="profile-auth-select">
             <option value="mainnet">🟣 Mainnet</option>
             <option value="testnet">🟠 Testnet</option>
           </select>
+        </div>
+        <div id="authNetworkNote" class="profile-auth-account hidden">
+          <span class="profile-label">Network</span>
+          <span class="profile-netnote"><b data-network-note="authNetwork"></b> <span class="subtle">· change it from ☰ on Home</span></span>
         </div>
 
         <!-- Account picker — KAT-ACCTNORM1 (user 2026-08-05): ONE list, everywhere.
@@ -942,6 +1101,11 @@ addEventListener("load", () => setTimeout(() => {
           <option value="mainnet">🟣 Mainnet</option>
           <option value="testnet">🟠 Testnet</option>
         </select>
+      </div>
+      <!-- MENU-NET1: the picker above follows ☰ on Home and is never shown; this says which -->
+      <div id="kamNetworkNote" class="profile-auth-account hidden">
+        <span class="profile-label">Network</span>
+        <span class="profile-netnote"><b data-network-note="kamNetwork"></b> <span class="subtle">· change it from ☰ on Home</span></span>
       </div>
 
       <div class="profile-auth-account">
@@ -1192,7 +1356,7 @@ window.addEventListener("load", () => {
 <script src="katomia-helpers.js?v=1790956864"></script>
 <script src="kemoji.js?v=1790956864"></script>
 <script src="katomia-profile.js?v=1790956864"></script>
-<script src="katomia-auth.js?v=1790956864"></script>
+<script src="katomia-auth.js?v=1791543736"></script>
 <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
 
 <!-- GCP feedback 2026-08-13: widget in place so Send feedback never navigates away

@@ -78,6 +78,8 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
      Rows only render when they'd actually cut something (one network in the
      list = no network row), so a small estate never sees the chrome. */
   .circles-filters{ display:flex; flex-direction:column; gap:8px; margin: 0 0 16px; }
+  .circles-netnote{ font-size:13px; color:#333; font-weight:600; }
+  .circles-netnote span{ color:#8b93a0; font-weight:400; }
   .circles-filterrow{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
   .circles-filterlabel{ font-size:12px; color:#98a0ad; margin-right:2px; }
   .circles-filter{
@@ -109,6 +111,7 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
 </head>
 <body>
 <?php
+  define('KATOMIA_PAGE', 'circles');   // MENU-SPEC1: header.php shapes the ☰ by page
   require __DIR__ . '/header.php';
   require __DIR__ . '/profile-modal.php';
 ?>
@@ -210,7 +213,9 @@ async function loadCircles(){
 
   const all = Object.values(data.games || {})
   // THE filter that makes this page different from the markets grid: proposal mode only.
-  _circles = all.filter(g => (g.config?.tradingMode || g.tradingMode) === "proposal")
+  // MENU-SPEC1 (owner 2026-10-09, carried from lab2 KMAP3): side circles (<parent>~<n>,
+  // KAT-BREAKOUT1) are settlement rooms you are moved into from their parent — never listed.
+  _circles = all.filter(g => (g.config?.tradingMode || g.tradingMode) === "proposal" && !/~\d+$/.test(String(g.id)))
   _circlesGated = all.some(g => g.joinRule && g.joinRule !== "*")
   renderCircles()
 }
@@ -237,7 +242,12 @@ const CIRCLE_KINDS = ["open", "demo", "qa"]
 const KIND_URL = { open: "open", demo: "demos", qa: "qa" }   // "demo" reads as "demos" in URLs
 const KIND_FROM_URL = { open: "open", demo: "demo", demos: "demo", qa: "qa" }
 const KIND_DEFAULT = ["open", "demo"]
-const _circlesFilter = { network: "all", kinds: new Set(KIND_DEFAULT) }
+// MENU-NET1 (owner 2026-10-09): the network is a MODE chosen from ☰ on Home, not a filter
+// picked here — the list starts on it. ?network= on the URL still wins for one load (deep
+// links), and developer mode keeps the old chip row (All / Mainnet / Testnet / Playnet).
+const _circlesMode = () => (window.katomiaNet ? katomiaNet.get() : "all")
+const _circlesFilter = { network: _circlesMode(), kinds: new Set(KIND_DEFAULT) }
+const _circlesDev = () => { try { return localStorage.getItem("katomia.nerd.v1") === "1" } catch { return false } }
 
 function circlesReadUrl(){
   const p = new URLSearchParams(location.search)
@@ -254,7 +264,7 @@ function circlesReadUrl(){
 
 function circlesWriteUrl(){
   const p = new URLSearchParams(location.search)
-  _circlesFilter.network === "all" ? p.delete("network") : p.set("network", _circlesFilter.network)
+  ;(_circlesFilter.network === "all" || _circlesFilter.network === _circlesMode()) ? p.delete("network") : p.set("network", _circlesFilter.network)
   const sel = CIRCLE_KINDS.filter(k => _circlesFilter.kinds.has(k))
   const isDefault = sel.length === KIND_DEFAULT.length && KIND_DEFAULT.every(k => _circlesFilter.kinds.has(k))
   if(isDefault) p.delete("type")
@@ -283,7 +293,9 @@ function renderCircles(){
   // With only one kind on the estate there's no Type row to change the selection
   // with, so the kind filter must not silently hide the whole list — bypass it.
   const kindsPresent = CIRCLE_KINDS.filter(v => _circles.some(g => circleKind(g) === v))
+  // MENU-NET1 (lab2 KMAP1): play-money demos show under either real network
   const netOk = g => _circlesFilter.network === "all" || netOf(g) === _circlesFilter.network
+    || (netOf(g) === "playnet" && _circlesFilter.network !== "playnet" && !_circlesDev())
   const kindOk = g => kindsPresent.length < 2 || _circlesFilter.kinds.has(circleKind(g))
 
   bar.innerHTML = ""
@@ -310,13 +322,19 @@ function renderCircles(){
   {
     const pool = _circles.filter(kindOk)
     const values = ["mainnet", "testnet", "playnet"].filter(v => pool.some(g => netOf(g) === v))
-    if(values.length >= 2){
+    if(values.length >= 2 && _circlesDev()){
       const row = makeRow("Network")
       makeChip(row, "All", _circlesFilter.network === "all", pool.length,
         () => { _circlesFilter.network = "all" })
       values.forEach(v => makeChip(row, displayValue("network", v), _circlesFilter.network === v,
         pool.filter(g => netOf(g) === v).length, () => { _circlesFilter.network = v }))
       bar.appendChild(row)
+    } else if(!_circlesDev() && _circlesFilter.network !== "all"){
+      // MENU-NET1: say which network this is and where it changes — no control here
+      const note = document.createElement("div")
+      note.className = "circles-netnote"
+      note.innerHTML = `${esc(displayValue("network", _circlesFilter.network))} <span>· change it from ☰ on Home</span>`
+      bar.appendChild(note)
     }
   }
 

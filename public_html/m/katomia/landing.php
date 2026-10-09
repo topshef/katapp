@@ -196,6 +196,7 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
 </head>
 <body class="lskin-<?= htmlspecialchars($landingSkin, ENT_QUOTES, 'UTF-8') ?>">
 <?php
+  define('KATOMIA_PAGE', 'home');   // MENU-SPEC1: header.php shapes the ☰ by page
   require __DIR__ . '/header.php';
   require __DIR__ . '/profile-modal.php';
 ?>

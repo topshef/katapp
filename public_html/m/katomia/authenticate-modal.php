@@ -31,6 +31,11 @@
           <option value="testnet">🟠 Testnet</option>
         </select>
       </div>
+      <!-- MENU-NET1: the picker above follows ☰ on Home and is never shown; this says which -->
+      <div id="kamNetworkNote" class="profile-auth-account hidden">
+        <span class="profile-label">Network</span>
+        <span class="profile-netnote"><b data-network-note="kamNetwork"></b> <span class="subtle">· change it from ☰ on Home</span></span>
+      </div>
 
       <div class="profile-auth-account">
         <span class="profile-label">Account</span>

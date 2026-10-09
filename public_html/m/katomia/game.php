@@ -17,6 +17,7 @@
     // HEADER-UNIFY: shared banner + hamburger (profile, markets, create, nerd) and
     // the shared profile modal — same partials on every page. The old KATLAB
     // body-padding/banner-bleed fix lives inside header.php now.
+    define('KATOMIA_PAGE', 'game');   // MENU-SPEC1: header.php shapes the ☰ by page
     require __DIR__ . '/header.php';
     require __DIR__ . '/profile-modal.php';
   ?>

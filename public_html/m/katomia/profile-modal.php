@@ -42,12 +42,19 @@
 
         <!-- Network picker — ONLY outside a game (no gameMeta to inherit from);
              inside a game the game's network wins and this row stays hidden. -->
+        <!-- MENU-NET1 (owner 2026-10-09): the picker stays (katomia-auth.js reads it) but is
+             never shown — it FOLLOWS the network chosen from ☰ on Home, and this note says
+             which and where. Hidden inside a circle, where the circle's network wins. -->
         <div id="authNetworkRow" class="profile-auth-account hidden">
           <span class="profile-label">Network</span>
           <select id="authNetwork" class="profile-auth-select">
             <option value="mainnet">🟣 Mainnet</option>
             <option value="testnet">🟠 Testnet</option>
           </select>
+        </div>
+        <div id="authNetworkNote" class="profile-auth-account hidden">
+          <span class="profile-label">Network</span>
+          <span class="profile-netnote"><b data-network-note="authNetwork"></b> <span class="subtle">· change it from ☰ on Home</span></span>
         </div>
 
         <!-- Account picker — KAT-ACCTNORM1 (user 2026-08-05): ONE list, everywhere.

@@ -201,7 +201,7 @@ async function maybeAutoAddAccounts(){
   const missing = wc.filter(id => !mine.has(id))
   if(!missing.length) return
   window.kflow?.("acct:autoadd", "go", { count: missing.length })
-  try { notify?.(`Adding your connected account${missing.length > 1 ? "s" : ""} to the game — turn this off in Profile → Preferences`, "info", { timeout: 4000 }) } catch {}
+  try { notify?.(`Adding your connected account${missing.length > 1 ? "s" : ""} to the game — turn this off in You → Preferences`, "info", { timeout: 4000 }) } catch {}
   addAccounts(missing.map(rememberedAddLabel).join(","))   // ASSETMEM1
 }
 
