@@ -392,6 +392,93 @@ console.log('11. MENU-SPEC1 + MENU-NET1: the ☰ by page — network only on Hom
   }
 }
 
+console.log('12. MENU-VIEW1: one 👁 View group on the board — screen views, layout, Round-Table rows, Chips, Lab; the board does not shrink under an open menu')
+{
+  const visit = async ({ nerd = false, width = 390 } = {}) => {
+    const ctx = await browser.newContext({ viewport: { width, height: 800 } })
+    await ctx.addInitScript(n => { localStorage.setItem('katomia.nerd.v1', n ? '1' : '0') }, nerd)
+    const page = await ctx.newPage()
+    const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
+    await page.goto(`${BASE}/m/katomia/board.html?demo=1`, { waitUntil: 'networkidle' })
+    await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove() })
+    await page.waitForTimeout(1000)
+    return { ctx, page, errs }
+  }
+  const look = page => page.evaluate(() => {
+    const shown = el => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden' && el.closest('.app-menu-groupinner')?.getBoundingClientRect().height !== 0
+    const lab = id => document.getElementById(id)?.closest('label')
+    const menu = document.getElementById('appMenu')
+    return { top: [...menu.querySelectorAll(':scope > .app-menu-item, :scope > .app-menu-group > .app-menu-grouphead')].filter(e => e.getClientRects().length).map(e => e.textContent.trim()),
+      w: Math.round(menu.getBoundingClientRect().width),
+      viewRow: shown(menu.querySelector('[data-menu-view="split"]')), layout: shown(lab('boardSkinSelect')), layoutText: lab('boardSkinSelect')?.firstChild?.textContent.trim(),
+      selfBottom: shown(lab('boardPrefSelfBottom')), maxSeg: shown(lab('boardPrefMaxSeg')), partyOnly: shown(lab('boardPrefPartyOnly')),
+      chips: ['boardPrefAutoArrange', 'boardPrefUiSize', 'boardPrefLayout', 'boardPrefChipShape', 'boardPrefChipStyle', 'boardPrefNet', 'boardPrefSticky', 'boardPrefTrailResidual'].map(id => shown(lab(id))),
+      labHead: shown(menu.querySelector('[data-menu-group="view.lab"] > .app-menu-grouphead')),
+      lab: ['boardPrefChipScale', 'boardPrefAnimSpeed', 'boardPrefHugRing', 'boardPrefClassicCounter', 'boardPrefAvatarSpoke', 'boardPrefZoneWalls'].map(id => shown(lab(id))),
+      inMenu: ['boardPrefPickable', 'boardPrefExtSign', 'boardPrefTickets'].map(id => !!menu.querySelector('#' + id)),
+      safeTop: Math.round(_boardSimEnv?.safeTop || 0), skin: document.body.dataset.boardSkin }
+  })
+  {
+    const { ctx, page, errs } = await visit()
+    const closedTop = await page.evaluate(() => Math.round(_boardSimEnv?.safeTop || 0))
+    await page.click('#appMenuBtn'); await page.waitForTimeout(300)
+    const a = await look(page)
+    ok(a.top.join('|') === '🏠 Home|👁View▸|👤 You|💬 Send feedback', 'the board ☰ reads Home, View, You (and Send feedback) — no ⚙ Settings, no Circles', JSON.stringify(a.top))
+    ok(!a.viewRow && !a.layout, 'View starts collapsed', JSON.stringify(a))
+    await page.click('[data-menu-group="view"] > .app-menu-grouphead'); await page.waitForTimeout(400)
+    const b = await look(page)
+    ok(b.viewRow && b.layout && b.layoutText === 'Board layout' && b.partyOnly, 'View unrolls: the three screen views first, then Board layout, then Party only', JSON.stringify(b))
+    ok(b.selfBottom && b.maxSeg && b.skin === 'ring16', 'Round Table shows You at bottom and Max on ring', JSON.stringify(b))
+    ok(b.w === a.w, 'the menu kept its width while View unrolled', `${a.w} → ${b.w}`)
+    ok(b.inMenu.every(x => !x), 'Pickable, Advanced signing and Allow tickets are no longer in the board menu', JSON.stringify(b.inMenu))
+    ok(!b.labHead, 'normal mode: no Lab group', JSON.stringify(b))
+    await page.click('[data-menu-group="view.chips"] > .app-menu-grouphead'); await page.waitForTimeout(400)
+    const c = await look(page)
+    ok(c.chips.every(Boolean), 'Chips: auto-arrange, size, layout, shape, style, net, sticky, trail after-glow', JSON.stringify(c.chips))
+    ok(c.w === a.w, 'still the same width with Chips open too', `${a.w} → ${c.w}`)
+    await page.selectOption('#boardPrefChipStyle', 'dark'); await page.waitForTimeout(700)
+    const d = await look(page)
+    ok(d.safeTop === closedTop, 'changing a chip setting with the menu open does not push the board down (header reserve ignores the open menu)', `${closedTop} → ${d.safeTop}`)
+    await page.selectOption('#boardSkinSelect', 'carousel'); await page.waitForTimeout(700)
+    const e = await look(page)
+    ok(e.skin === 'carousel' && !e.selfBottom && !e.maxSeg && e.layout, 'Carousel: You at bottom and Max on ring step out of the way', JSON.stringify(e))
+    await page.selectOption('#boardSkinSelect', 'ring16'); await page.waitForTimeout(500)
+    const f = await look(page)
+    ok(f.skin === 'ring16' && f.selfBottom && f.maxSeg, 'back to Round Table, they come back', JSON.stringify(f))
+    // You → Preferences on a board: the three gameplay switches, live
+    await page.click('#appMenuBtn'); await page.waitForTimeout(150)
+    await page.evaluate(() => { document.getElementById('appMenu').classList.remove('hidden'); document.querySelector('[data-menu-profile]').click() })
+    await page.waitForTimeout(500)
+    const p = await page.evaluate(() => { const pk = document.getElementById('boardPrefPickable'); return { inModal: !!pk?.closest('#profileModal'), disabled: pk?.disabled,
+      ext: !!document.getElementById('boardPrefExtSign')?.closest('#profileModal'), tix: !!document.getElementById('boardPrefTickets')?.closest('#profileModal'),
+      uiSizeInModal: !!document.querySelector('#profileModal #boardPrefUiSize') } })
+    ok(p.inModal && p.disabled === false && p.ext && p.tix && !p.uiSizeInModal, 'You → Preferences holds Pickable (live on a board), Advanced signing and Allow tickets; Size is gone from it', JSON.stringify(p))
+    ok(!errs.length, 'no page errors', JSON.stringify(errs))
+    await ctx.close()
+  }
+  {
+    const { ctx, page, errs } = await visit({ nerd: true })
+    await page.click('#appMenuBtn'); await page.waitForTimeout(200)
+    const st = await page.evaluate(() => ({ view: document.querySelector('[data-menu-group="view"]').classList.contains('is-open'), chips: document.querySelector('[data-menu-group="view.chips"]').classList.contains('is-open') }))
+    if (!st.view) { await page.click('[data-menu-group="view"] > .app-menu-grouphead'); await page.waitForTimeout(400) }
+    await page.click('[data-menu-group="view.lab"] > .app-menu-grouphead'); await page.waitForTimeout(400)
+    const g = await look(page)
+    ok(g.labHead && g.lab.every(Boolean), 'developer mode: a 🧪 Lab group with chip scale, anim speed, hug ring, classic counter, avatar spoke, zone walls', JSON.stringify(g.lab))
+    ok(g.top.some(t => /Developer/.test(t)), 'and the 🧪 Developer group at the foot of the menu', JSON.stringify(g.top))
+    ok(!errs.length, 'no page errors (developer mode)', JSON.stringify(errs))
+    await ctx.close()
+  }
+  {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } })
+    const page = await ctx.newPage()
+    await page.goto(`${BASE}/m/katomia/index.html`, { waitUntil: 'load' }); await page.waitForTimeout(800)
+    await page.evaluate(() => document.querySelector('[data-menu-profile]').click()); await page.waitForTimeout(500)
+    const p = await page.evaluate(() => ({ disabled: document.getElementById('boardPrefPickable')?.disabled, note: document.getElementById('kprefPickableScope')?.textContent }))
+    ok(p.disabled === true && /inside a circle/.test(p.note), 'off a board Pickable shows disabled and says it is set inside a circle', JSON.stringify(p))
+    await ctx.close()
+  }
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)

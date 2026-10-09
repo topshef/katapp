@@ -2635,6 +2635,10 @@ details.profile-commit > *:not(summary){ margin-top:10px; }
 /* nerd-only profile rows (KVAC etc.) — hidden unless body.nerd */
 .profile-nerd-only{ display:none; margin-top:6px; }
 body.nerd .profile-nerd-only{ display:block; }
+/* MENU-VIEW1: a nerd-only preference row keeps its flex row layout */
+body.nerd label.profile-debug-label.profile-nerd-only{ display:flex; margin-top:0; }
+.profile-pref-scope{ color:#9aa0a6; font-size:.92em; }
+label.profile-debug-label:has(input:disabled){ cursor:default; opacity:.7; }
 .profile-kvac-balance{ margin-top:4px; display:flex; align-items:center; gap:8px; }
 .profile-ghost{
   padding:3px 8px; font-size:11px; border:1px solid #e3e6ea; border-radius:6px;

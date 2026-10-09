@@ -117,6 +117,9 @@ $katomiaInCircle = in_array($katomiaPage, ['board', 'game'], true);
   body.nerd .app-menu-devgroup,
   .app-menu-devgroup:has(.app-menu-item:not([hidden]):not(.nerd-only)){ display:flex; }
   body.nerd .app-menu-item.nerd-only{ display:flex; }
+  /* one weight for every row: button rows (You, Send feedback) took the global button weight
+     and read bolder than the link rows and group heads around them */
+  .app-menu button.app-menu-item{ font-family:inherit; font-weight:inherit; }
 
   /* View (board): its settings are plain rows inside the group — no popover any more */
   .app-menu-settings{ display:flex; flex-direction:column; gap:8px; margin:0; padding:2px 0; }
@@ -215,35 +218,183 @@ $katomiaInCircle = in_array($katomiaPage, ['board', 'game'], true);
          any page can drive it, and a stored preference is re-applied on load. -->
 
     <?php if (defined('KATOMIA_BOARD_CONTEXT')): ?>
-    <!-- BOARD-VIEWSWITCH1 (user 2026-08-06): the three board views are picked
-         DIRECTLY here, one tap, instead of the old single "💬 Messages" item that
-         opened the stream and made you hit Close to get back. "It's kind of your
-         view — it's either board full screen, it's split screen, or it's messages
-         only." Frequently toggled (different device, different view), which is
-         exactly what earns a slot in the hamburger rather than in Settings.
-         Wired by katomia-board.js (boardSetView); the ✓ marks the live one. -->
-    <!-- R2 (user 2026-08-06): three full-width rows was "quite a lot of space on
-         the menu… and it's not really navigation, it's changing the view mode —
-         a little bit like the idea of a layout view". So: ONE row, labelled, with
-         three icon buttons — the label says what the control is (the thing a
-         submenu would have given us) without costing a second tap or three rows.
-         Icons are hand-rolled inline SVG per the user's own sketch: board = a
-         frame with the ring in it; split = a frame divided; messages = a frame
-         of text lines. currentColor throughout so the active state is one CSS
-         rule. -->
-    <div class="app-menu-viewrow" data-menu-viewgroup>
-      <span class="app-menu-viewlabel">View</span>
-      <button type="button" class="app-menu-viewbtn" data-menu-view="board" title="Board only" aria-label="Board only">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="12" cy="12" r="4"/></svg>
-      </button>
-      <button type="button" class="app-menu-viewbtn" data-menu-view="split" title="Split — board and messages" aria-label="Split view">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="3" y1="14" x2="21" y2="14"/><line x1="7" y1="17.5" x2="14" y2="17.5"/></svg>
-      </button>
-      <button type="button" class="app-menu-viewbtn" data-menu-view="messages" data-menu-chat title="Messages only" aria-label="Messages only">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="12.5" x2="17" y2="12.5"/><line x1="7" y1="16" x2="13" y2="16"/></svg>
-      </button>
+    <!-- MENU-VIEW1 (owner 2026-10-09): ONE expandable 👁 View group holds everything about how
+         YOU see this board — the three screen views first, then the board layout (with You at
+         bottom and Max on ring only for the Round Table), Party only, a Chips group and, in
+         developer mode, a Lab group. The ⚙ Settings popover is gone: every control in it was a
+         view preference except three that change what HAPPENS — Pickable, Advanced signing,
+         Allow tickets — which moved to You → Preferences. Ids are unchanged, so katomia-board.js
+         boardSyncPrefsUI() still wires every control wherever it sits; the form keeps
+         autocomplete=off (BOARD-HEADERINT1 forensics: Chrome form-state restore once flipped the
+         layout select behind the variable's back). Anim speed is a board-wide debug throttle
+         (every animation divides by it), so it sits in Lab rather than Chips. -->
+    <div class="app-menu-group" data-menu-group="view">
+      <button type="button" class="app-menu-grouphead" aria-expanded="false"><span class="app-menu-groupicon">👁</span><span class="app-menu-grouplabel">View</span><span class="app-menu-groupcaret" aria-hidden="true">▸</span></button>
+      <div class="app-menu-groupbody"><div class="app-menu-groupinner"><div class="app-menu-grouppad">
+        <!-- BOARD-VIEWSWITCH1 (user 2026-08-06): the three board views are picked
+             DIRECTLY here, one tap, instead of the old single "💬 Messages" item that
+             opened the stream and made you hit Close to get back. "It's kind of your
+             view — it's either board full screen, it's split screen, or it's messages
+             only." Frequently toggled (different device, different view), which is
+             exactly what earns a slot in the hamburger rather than in Settings.
+             Wired by katomia-board.js (boardSetView); the ✓ marks the live one. -->
+        <!-- R2 (user 2026-08-06): three full-width rows was "quite a lot of space on
+             the menu… and it's not really navigation, it's changing the view mode —
+             a little bit like the idea of a layout view". So: ONE row, labelled, with
+             three icon buttons — the label says what the control is (the thing a
+             submenu would have given us) without costing a second tap or three rows.
+             Icons are hand-rolled inline SVG per the user's own sketch: board = a
+             frame with the ring in it; split = a frame divided; messages = a frame
+             of text lines. currentColor throughout so the active state is one CSS
+             rule. -->
+        <div class="app-menu-viewrow" data-menu-viewgroup>
+          <button type="button" class="app-menu-viewbtn" data-menu-view="board" title="Board only" aria-label="Board only">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="12" cy="12" r="4"/></svg>
+          </button>
+          <button type="button" class="app-menu-viewbtn" data-menu-view="split" title="Split — board and messages" aria-label="Split view">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="3" y1="14" x2="21" y2="14"/><line x1="7" y1="17.5" x2="14" y2="17.5"/></svg>
+          </button>
+          <button type="button" class="app-menu-viewbtn" data-menu-view="messages" data-menu-chat title="Messages only" aria-label="Messages only">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="12.5" x2="17" y2="12.5"/><line x1="7" y1="16" x2="13" y2="16"/></svg>
+          </button>
+        </div>
+        <form id="boardSettingsPanel" class="app-menu-settings" autocomplete="off" onsubmit="return false">
+          <!-- What is deliberately NOT here (so nobody re-adds it): no 💬 Message panel checkbox
+               (KATUI3 2026-08-17 — it aliased the screen views above); no 🧪 Chip emboss (retired
+               2026-08-17, "it was causing problems"). The per-control history (BOARD-HEADERINT1,
+               MVP-SETTINGSDECLUTTER1, BOARD-AUTOARRANGE1, BOARD-CHIPSIZE1, CHIP-SHAPE1,
+               BOARD-CHIPART1, BOARD-COUNTERMODE1) is in the old ⚙ Settings form at df236e1.
+               One behaviour changed with the move: the popover stayed open on outside taps so
+               you could poke the board; the menu closes on them like any menu — a change still
+               shows on the board the moment you make it. -->
+          <label class="board-settings-label">
+              Board layout
+              <!-- KATOMIA-CONFIG1: option text is the public-facing theme name only
+                   ("Round Table") — no ring16/mode internals in the label; value="ring16"
+                   stays the dev-facing id. BOARD-SKINLABEL1: to add a new skin, add
+                   another <option value="...">Label</option> here, and register the
+                   same value in BOARD_SKINS in katomia-board.js. -->
+              <select id="boardSkinSelect" title="Board layout — how the board is drawn">
+                <option value="ring16">⭕ Round Table</option>
+                <option value="carousel">🎠 Carousel</option>
+              </select>
+          </label>
+          <div class="app-menu-settings" data-board-ringonly>
+            <label class="board-settings-label">
+                <input type="checkbox" id="boardPrefSelfBottom" title="On: the board rotates so your accounts face you (default). Off: everyone sees the identical layout (screen-share / spectator)">
+                You at bottom
+            </label>
+            <label class="board-settings-label">
+                Max on ring
+                <input type="number" id="boardPrefMaxSeg" min="2" max="24" class="board-settings-num" title="Maximum players shown on the ring at once (yours + others). Above this, the rest scroll behind a tap-to-advance divider.">
+            </label>
+          </div>
+          <label class="board-settings-label">
+              <input type="checkbox" id="boardPrefPartyOnly" title="Show only accounts party to your proposal (follows the game's lock rule)">
+              Party only
+          </label>
+          <div class="app-menu-group" data-menu-group="view.chips">
+            <button type="button" class="app-menu-grouphead" aria-expanded="false"><span class="app-menu-groupicon"></span><span class="app-menu-grouplabel">Chips</span><span class="app-menu-groupcaret" aria-hidden="true">▸</span></button>
+            <div class="app-menu-groupbody"><div class="app-menu-groupinner"><div class="app-menu-grouppad">
+              <label class="board-settings-label">
+                  <input type="checkbox" id="boardPrefAutoArrange" title="On: chips shuffle apart so they never overlap. Off: chips stay exactly where you put them and may stack — arrange the board yourself. Either way a chip can't leave its own segment.">
+                  Auto-arrange chips
+              </label>
+              <label class="board-settings-label">
+                  Size
+                  <select id="boardPrefUiSize" title="Display size — chips first, and the messages and board labels with them. Normal is tuned to be readable on a phone; Large helps if you'd rather not squint.">
+                    <option value="small">Small</option>
+                    <option value="normal">Normal</option>
+                    <option value="large">Large</option>
+                  </select>
+              </label>
+              <label class="board-settings-label">
+                  Layout
+                  <select id="boardPrefLayout" title="Dev design knob: how chips arrange inside each segment. Shelves = tidy concentric rows clustered at the rim; Organic = the physics relax. Comparing live — the loser gets removed.">
+                    <option value="shelves">🗄 Shelves</option>
+                    <option value="organic">🫧 Organic</option>
+                  </select>
+              </label>
+              <label class="board-settings-label">
+                  Shape
+                  <select id="boardPrefChipShape" title="Lab: fungible chips as one line (amount then symbol) or a taller, squarer chip with the symbol on top and a smaller, muted amount beneath. ?chipshape=tall|pill on the URL overrides for one load.">
+                    <option value="pill">▭ One line</option>
+                    <option value="tall">▯ Symbol over amount</option>
+                  </select>
+              </label>
+              <label class="board-settings-label">
+                  Style
+                  <select id="boardPrefChipStyle" title="Lab: how chips are painted. Plain = white face + thin owner sleeve (current). Colour = fungible chips take the owner's colour with contrast-picked text, NFTs keep their art and gain a wide owner tag. Dark = charcoal face, white text, owner colour as a rim — highest contrast against the felt, best on phones.">
+                    <option value="plain">⬜ Plain</option>
+                    <option value="colour">🎨 Owner colour</option>
+                    <option value="dark">🌑 Dark</option>
+                  </select>
+              </label>
+              <label class="board-settings-label">
+                  <input type="checkbox" id="boardPrefNet" title="Net is the standard view (the transaction nets exactly like this). 🧪 escape hatch: untick to see every individual offer un-netted — dev/testing only, likely to be removed.">
+                  Net
+              </label>
+              <label class="board-settings-label">
+                  <input type="checkbox" id="boardPrefSticky" title="Lab: chips stay where they settle, board-game style — new arrivals find space without moving them. The footer 🧹 re-runs the layout on demand">
+                  Sticky chips
+              </label>
+              <label class="board-settings-label">
+                  Trail after-glow
+                  <select id="boardPrefTrailResidual" title="Dev design knob: after the ▶ replay trail fades, this fraction of its opacity persists as a burn-in showing where each asset came from. Wiped on the next replay.">
+                    <option value="0">off</option>
+                    <option value="0.25">25%</option>
+                    <option value="0.5">50%</option>
+                    <option value="0.75">75%</option>
+                    <option value="1">100%</option>
+                  </select>
+              </label>
+            </div></div></div>
+          </div>
+          <div class="app-menu-group app-menu-devonly" data-menu-group="view.lab">
+            <button type="button" class="app-menu-grouphead" aria-expanded="false"><span class="app-menu-groupicon">🧪</span><span class="app-menu-grouplabel">Lab</span><span class="app-menu-groupcaret" aria-hidden="true">▸</span></button>
+            <div class="app-menu-groupbody"><div class="app-menu-groupinner"><div class="app-menu-grouppad">
+              <label class="board-settings-label">
+                  Chip scale
+                  <select id="boardPrefChipScale" title="Base chip size multiplier. Chips auto-shrink below this only when a segment actually gets crowded.">
+                    <option value="0.8">80%</option>
+                    <option value="0.9">90%</option>
+                    <option value="1">100%</option>
+                    <option value="1.15">115%</option>
+                    <option value="1.3">130%</option>
+                    <option value="1.5">150%</option>
+                  </select>
+              </label>
+              <label class="board-settings-label">
+                  Anim speed
+                  <select id="boardPrefAnimSpeed" title="Animation speed — slow everything down to inspect the choreography">
+                    <option value="2">2×</option>
+                    <option value="1">1×</option>
+                    <option value="0.5">½×</option>
+                    <option value="0.25">¼×</option>
+                    <option value="0.1">⅒×</option>
+                  </select>
+              </label>
+              <label class="board-settings-label">
+                  <input type="checkbox" id="boardPrefHugRing" title="Lab: organic store blobs home slightly closer to the ring — a mild inward bias; the reserved rim band still keeps chips off the ring itself">
+                  Chips hug the ring
+              </label>
+              <label class="board-settings-label">
+                  <input type="checkbox" id="boardPrefClassicCounter" title="Lab: bring back the classic counter — visible counter band plus a ghost pile for partial offers. Off (default) = simplified: the remaining stack moves to the ring edge, decremented; only whole-item offers leave a ghost.">
+                  Classic counter
+              </label>
+              <label class="board-settings-label">
+                  <input type="checkbox" id="boardPrefAvatarSpoke" title="Lab: avatar placement experiment — ticked returns faces to the boundary spoke (R2); default centres them on the arc inside the account id (R3). One will win and this switch will go.">
+                  Avatar on spoke
+              </label>
+              <label class="board-settings-label">
+                  <input type="checkbox" id="boardPrefZoneWalls" title="Debug: draw each zone's physics walls — where chip edges may exist (solid), the ghost-only rim band (dashed), and the safe screen rect. On an obtuse segment the walls are visibly narrower than the wedge: that's the real ±80° clamp, not a drawing bug">
+                  Show zone walls
+              </label>
+            </div></div></div>
+          </div>
+        </form>
+      </div></div></div>
     </div>
-    <button type="button" class="app-menu-item" data-menu-settings>⚙ Settings</button>
     <?php endif; ?>
     <!-- HOSTMENU-STATIC1 (user 2026-09-07: "I'm on a circle I just created and I'm not seeing
          the Host options in the hamburger"). This item and its reveal script used to sit
@@ -309,190 +460,6 @@ $katomiaInCircle = in_array($katomiaPage, ['board', 'game'], true);
     </div>
   </nav>
 
-  <?php if (defined('KATOMIA_BOARD_CONTEXT')): ?>
-  <!-- BOARD-HEADERINT1 round 2 (user 2026-07-14): board Preferences moved OUT
-       of the profile modal (too tucked away, too much noise there) into this
-       compact popover that REPLACES the hamburger menu in place — small on
-       purpose so setting changes are visible on the board behind it. Opens
-       via the ⚙ Settings menu item; closes via the hamburger button (no ✕ —
-       user's call). Deliberately does NOT close on outside click: you want to
-       poke the board while it's open to see the effect. Controls are wired by
-       katomia-board.js boardSyncPrefsUI() (same ids as before the move). -->
-  <!-- autocomplete=off (2026-07-15 forensics): Chrome form-state restore can
-       repopulate these controls with STALE values after a soft reload,
-       desyncing them from the JS variables — prime suspect for the layout
-       select silently flipping organic→shelves and rearranging every chip. -->
-  <form id="boardSettingsPanel" class="board-settings-panel hidden" autocomplete="off" onsubmit="return false">
-    <!-- NERD-ONLY since 2026-08-17 (KATUI3 feedback pass): only one skin exists and
-         none are planned soon — a one-item dropdown is noise in normal mode. -->
-    <label class="board-settings-label board-settings-nerd-only">
-      Board skin
-      <!-- KATOMIA-CONFIG1: option text is the public-facing theme name only
-           ("Round Table") — no ring16/mode internals in the label; value="ring16"
-           stays the dev-facing id. BOARD-SKINLABEL1: to add a new skin, add
-           another <option value="...">Label</option> here, and register the
-           same value in BOARD_SKINS in katomia-board.js. -->
-      <select id="boardSkinSelect" title="Board skin">
-        <option value="ring16">⭕ Round Table</option>
-        <option value="carousel">🎠 Carousel</option>
-      </select>
-    </label>
-    <label class="board-settings-label">
-      <input type="checkbox" id="boardPrefSelfBottom" title="On: the board rotates so your accounts face you (default). Off: everyone sees the identical layout (screen-share / spectator)">
-      You at bottom
-    </label>
-    <label class="board-settings-label">
-      Max on ring
-      <input type="number" id="boardPrefMaxSeg" min="2" max="24" class="board-settings-num" title="Maximum players shown on the ring at once (yours + others). Above this, the rest scroll behind a tap-to-advance divider.">
-    </label>
-    <hr>
-    <label class="board-settings-label">
-      <input type="checkbox" id="boardPrefPartyOnly" title="Show only accounts party to your proposal (follows the game's lock rule)">
-      Party only
-    </label>
-    <label class="board-settings-label">
-      <input type="checkbox" id="boardPrefPickable" title="Allow other players to pick assets straight from your store (they shop, you agreed in advance)">
-      Pickable
-    </label>
-    <!-- BOARD-AUTOARRANGE1 (user 2026-08-07): normal-mode, default ON. Off lets
-         chips sit on top of each other so a player with a lot of assets can lay
-         the board out entirely by hand. Walls still apply either way. -->
-    <label class="board-settings-label">
-      <input type="checkbox" id="boardPrefAutoArrange" title="On: chips shuffle apart so they never overlap. Off: chips stay exactly where you put them and may stack — arrange the board yourself. Either way a chip can't leave its own segment.">
-      Auto-arrange chips
-    </label>
-    <!-- NO 💬 Message panel checkbox (user 2026-08-17, KATUI3 feedback pass): it was an
-         alias for the hamburger's View row (BOARD-VIEWSWITCH1 split view) — the same
-         state reachable two ways. Declutter: the View row is the one control.
-         boardChatMode + the chat-mode machinery are untouched. -->
-    <!-- BOARD-CHATMODE1 (user 2026-08-03) context lives on in the View row wiring. -->
-    <!-- BOARD-UISIZE1's Size select MOVED to Profile → Preferences (user
-         2026-08-06, IA pass): this panel is scoped to THIS GAME's board, and
-         Size is neither — it's a device-wide display preference ("within a
-         device, I don't think it makes sense to have different size
-         preferences across different games"). Same control, same id
-         (#boardPrefUiSize), same storage; boardSyncPrefsUI still wires it
-         wherever it renders, and katomia-profile.js wires it on the pages that
-         don't load the board. -->
-
-    <!-- MVP-SETTINGSDECLUTTER1: dev/lab knobs (self-labeled 🧪/Debug/Lab below) — nerd-mode
-         only, same mechanism as everywhere else (body.nerd, katomia-profile.js). Reverses the
-         2026-07-12 "NOT nerd-gated" call now the panel's grown past its original 4 controls. -->
-    <hr class="board-settings-nerd-only">
-    <label class="board-settings-label board-settings-nerd-only">
-      <input type="checkbox" id="boardPrefNet" title="Net is the standard view (the transaction nets exactly like this). 🧪 escape hatch: untick to see every individual offer un-netted — dev/testing only, likely to be removed.">
-      🧪 Net
-    </label>
-    <!-- BOARD-CHIPSIZE1 (user 2026-07-31): base chip size multiplier — the
-         crowd auto-shrink still applies on top of whatever is picked here -->
-    <label class="board-settings-label board-settings-nerd-only">
-      🧪 Chip size
-      <select id="boardPrefChipScale" title="Base chip size multiplier. Chips auto-shrink below this only when a segment actually gets crowded.">
-        <option value="0.8">80%</option>
-        <option value="0.9">90%</option>
-        <option value="1">100%</option>
-        <option value="1.15">115%</option>
-        <option value="1.3">130%</option>
-        <option value="1.5">150%</option>
-      </select>
-    </label>
-    <label class="board-settings-label board-settings-nerd-only">
-      Anim speed
-      <select id="boardPrefAnimSpeed" title="Animation speed — slow everything down to inspect the choreography">
-        <option value="2">2×</option>
-        <option value="1">1×</option>
-        <option value="0.5">½×</option>
-        <option value="0.25">¼×</option>
-        <option value="0.1">⅒×</option>
-      </select>
-    </label>
-    <label class="board-settings-label board-settings-nerd-only">
-      🧪 Chip layout
-      <select id="boardPrefLayout" title="Dev design knob: how chips arrange inside each segment. Shelves = tidy concentric rows clustered at the rim; Organic = the physics relax. Comparing live — the loser gets removed.">
-        <option value="shelves">🗄 Shelves</option>
-        <option value="organic">🫧 Organic</option>
-      </select>
-    </label>
-    <label class="board-settings-label board-settings-nerd-only">
-      <input type="checkbox" id="boardPrefHugRing" title="Lab: organic store blobs home slightly closer to the ring — a mild inward bias; the reserved rim band still keeps chips off the ring itself">
-      🧪 Chips hug the ring
-    </label>
-    <!-- CHIP-SHAPE1 (feedback f213e4a2 + 9b22da29, 2026-09-06): "instead of fungible
-         token chips all on one line with the amount and then the symbol, make them more
-         square — the amount and the symbol underneath … the amount muted or smaller,
-         because the significant thing on the board is that you've got that asset, not
-         the balance." Nerd-mode toggle as asked, not the default; ?chipshape=tall|pill
-         on the URL overrides it for one load so it can be A/B'd from a link. -->
-    <label class="board-settings-label board-settings-nerd-only">
-      🧪 Chip shape
-      <select id="boardPrefChipShape" title="Lab: fungible chips as one line (amount then symbol) or a taller, squarer chip with the symbol on top and a smaller, muted amount beneath. ?chipshape=tall|pill on the URL overrides for one load.">
-        <option value="pill">▭ One line</option>
-        <option value="tall">▯ Symbol over amount</option>
-      </select>
-    </label>
-    <!-- BOARD-CHIPART1 (user 2026-08-04): chip face styling, three variants up
-         for live comparison. NFTs never get their artwork recoloured — in the
-         non-plain variants they keep the picture and gain a fat owner tag. -->
-    <label class="board-settings-label board-settings-nerd-only">
-      🧪 Chip style
-      <select id="boardPrefChipStyle" title="Lab: how chips are painted. Plain = white face + thin owner sleeve (current). Colour = fungible chips take the owner's colour with contrast-picked text, NFTs keep their art and gain a wide owner tag. Dark = charcoal face, white text, owner colour as a rim — highest contrast against the felt, best on phones.">
-        <option value="plain">⬜ Plain</option>
-        <option value="colour">🎨 Owner colour</option>
-        <option value="dark">🌑 Dark</option>
-      </select>
-    </label>
-    <!-- NO 🧪 Chip emboss checkbox (user 2026-08-17, KATUI3 feedback pass): "let's get
-         rid of that. It's default off anyway, but it was causing problems." The whole
-         pref is retired — wiring and the body-class toggle are gone from
-         katomia-board.js too, so a previously-ticked browser reverts to plain.
-         History: BOARD-CHIPDEPTH1 R3 made it opt-in default-off on 2026-08-06. -->
-    <!-- BOARD-COUNTERMODE1 (user 2026-08-04): simple is the new default — no
-         counter band, partial fungible offers move the decremented remainder
-         stack to the rim instead of leaving a ghost. This 🧪 switch restores
-         the status quo (counter ring + ghost pile) for live comparison;
-         the loser gets removed. -->
-    <label class="board-settings-label board-settings-nerd-only">
-      <input type="checkbox" id="boardPrefClassicCounter" title="Lab: bring back the classic counter — visible counter band plus a ghost pile for partial offers. Off (default) = simplified: the remaining stack moves to the ring edge, decremented; only whole-item offers leave a ghost.">
-      🧪 Classic counter
-    </label>
-    <!-- SIGN-EXTGATE1 (user 2026-09-04): the external signing page (/m/sign — every wallet
-         option incl. KSIG offline multi-sig, and the index for coming back to a future-dated
-         tx) stays a LAB feature: alpha testers sign with WalletConnect from the board. Off by
-         default; on = the countdown hub and the per-tx dots open /m/sign in a new tab. -->
-    <label class="board-settings-label board-settings-nerd-only">
-      <input type="checkbox" id="boardPrefExtSign" title="Lab: the countdown and the per-transaction dots open the full signing page (/m/sign) in a new tab — WalletConnect, WhatsApp (parked) and KSIG offline signing for multi-sig and future-dated deals. Off (default) = sign from the board with WalletConnect only.">
-      🧪 Advanced signing page (multi-sig)
-    </label>
-    <!-- PROP-TICKETS1 phase-5a (user 2026-08-20): lab switch for priced tickets in
-         proposal circles — same effect as the ?tickets=1 dev flag, default off. -->
-    <label class="board-settings-label board-settings-nerd-only">
-      <input type="checkbox" id="boardPrefTickets" title="Lab: allow priced tickets in proposal circles — price an asset from its card, anyone can take the ticket. Same as the ?tickets=1 URL flag; default off.">
-      🎟 Allow tickets
-    </label>
-    <label class="board-settings-label board-settings-nerd-only">
-      <input type="checkbox" id="boardPrefAvatarSpoke" title="Lab: avatar placement experiment — ticked returns faces to the boundary spoke (R2); default centres them on the arc inside the account id (R3). One will win and this switch will go.">
-      🧪 Avatar on spoke
-    </label>
-    <label class="board-settings-label board-settings-nerd-only">
-      <input type="checkbox" id="boardPrefZoneWalls" title="Debug: draw each zone's physics walls — where chip edges may exist (solid), the ghost-only rim band (dashed), and the safe screen rect. On an obtuse segment the walls are visibly narrower than the wedge: that's the real ±80° clamp, not a drawing bug">
-      🧪 Show zone walls
-    </label>
-    <label class="board-settings-label board-settings-nerd-only">
-      <input type="checkbox" id="boardPrefSticky" title="Lab: chips stay where they settle, board-game style — new arrivals find space without moving them. The footer 🧹 re-runs the layout on demand">
-      🧪 Sticky chips
-    </label>
-    <label class="board-settings-label board-settings-nerd-only">
-      🧪 Trail after-glow
-      <select id="boardPrefTrailResidual" title="Dev design knob: after the ▶ replay trail fades, this fraction of its opacity persists as a burn-in showing where each asset came from. Wiped on the next replay.">
-        <option value="0">off</option>
-        <option value="0.25">25%</option>
-        <option value="0.5">50%</option>
-        <option value="0.75">75%</option>
-        <option value="1">100%</option>
-      </select>
-    </label>
-  </form>
-  <?php endif; ?>
 </div>
 
 <?php /* KBUNDLE-STRIP:admin-disclose */ if ($katomiaIsAdmin): ?>
@@ -672,19 +639,18 @@ window.katomiaNet = (() => {
     btn.setAttribute("aria-expanded", String(open))
   }
 
-  // Board settings popover (BOARD-HEADERINT1 round 2): the ⚙ Settings menu
-  // item swaps the menu for the settings panel in the same spot; the
-  // hamburger button closes it again (acts as the panel's dismiss while
-  // it's open — no ✕). Panel markup only exists on board.php.
-  const settings = document.getElementById("boardSettingsPanel")
-  const settingsOpen = open => {
-    if(!settings) return
-    settings.classList.toggle("hidden", !open)
-    if(open && typeof boardSyncPrefsUI === "function") boardSyncPrefsUI()
+  // MENU-VIEW1 (owner 2026-10-09): the ⚙ Settings popover is gone — its controls live in the
+  // menu's 👁 View group (board pages only). Whenever the menu or a View group opens, the
+  // controls are re-read from the board's live state (boardSyncPrefsUI, katomia-board.js) and
+  // the Round-Table-only rows follow the layout select.
+  const syncView = () => {
+    if(typeof boardSyncPrefsUI === "function") boardSyncPrefsUI()
+    if(typeof boardMarkView === "function") boardMarkView()
+    const skin = document.getElementById("boardSkinSelect")
+    document.querySelectorAll("[data-board-ringonly]").forEach(el => { el.hidden = !!skin && skin.value === "carousel" })
   }
-  document.querySelectorAll("[data-menu-settings]").forEach(el =>
-    el.addEventListener("click", () => settingsOpen(true))
-  )
+  document.getElementById("boardSkinSelect")?.addEventListener("change", syncView)
+  document.addEventListener("katomia:menugroup", e => { if(/^view/.test(e.detail?.group || "")) syncView() })
 
   btn.onclick = e => {
     e.stopPropagation()
@@ -695,8 +661,10 @@ window.katomiaNet = (() => {
     // "there's a delay before the hamburger menu opens" was this very guard.
     // No timing guards remain anywhere on this path (user's instruction): dead
     // taps are prevented at the source by touch-action:none on ✕ and ☰.
-    if(settings && !settings.classList.contains("hidden")){ settingsOpen(false); return }
-    if(menu.classList.contains("hidden")) window.katomiaNet?.paint()   // MENU-NET1: nerd mode may have changed since
+    if(menu.classList.contains("hidden")){
+      window.katomiaNet?.paint()   // MENU-NET1: nerd mode may have changed since
+      if(document.getElementById("boardSettingsPanel")) syncView()
+    }
     setOpen(menu.classList.contains("hidden"))
   }
 

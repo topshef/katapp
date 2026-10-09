@@ -3690,9 +3690,13 @@ function boardOrganicApply(cx, cy, W, H, oval){
   // tiny bit more." The banner BOX is 12px of padding either side of a 30px row, so
   // reserving to its bottom (+6) kept 60px clear for 42px of content. Reserve to the
   // lowest visible thing INSIDE it (the menu button, the playing pill) plus a hair.
+  // MENU-VIEW1 (owner 2026-10-09; the fix lab2 KMAP1 found): scan the banner's ROW only. The
+  // ☰ dropdown is a sibling of the row inside .app-banner, and it now holds the 👁 View
+  // controls — every one of which re-renders the board while the menu is OPEN. Scanning the
+  // whole banner counted the open menu's rows, and the board shrank under it on each change.
   let bannerBottom = 0
   if(bannerEl){
-    for(const el of bannerEl.querySelectorAll("*")){
+    for(const el of (bannerEl.querySelector(".app-banner-inner") || bannerEl).querySelectorAll("*")){
       if(!el.getClientRects().length) continue
       const r = el.getBoundingClientRect()
       if(r.height > 0) bannerBottom = Math.max(bannerBottom, r.bottom)

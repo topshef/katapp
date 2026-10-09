@@ -222,20 +222,6 @@
     <details class="profile-section profile-debug-section">
       <summary class="profile-section-title">Preferences &amp; diagnostics</summary>
       <div class="profile-debug">
-        <!-- BOARD-UISIZE1, relocated 2026-08-06 (user): display size is a
-             DEVICE preference, not a per-game board setting — it belongs with
-             the other app-wide preferences, not in the board's ⚙ popover.
-             Same id/storage as before the move (localStorage katomiaUiSize →
-             html.ksize-* → CSS --ui-scale); the nerd 🧪 Chip size knob stays on
-             the board panel as a dev multiplier on top of this. -->
-        <label class="profile-debug-label">
-          Size
-          <select id="boardPrefUiSize" title="Overall display size — chips, messages and labels together. Normal is tuned to be readable on a phone; Large helps if you'd rather not squint.">
-            <option value="small">Small</option>
-            <option value="normal">Normal</option>
-            <option value="large">Large</option>
-          </select>
-        </label>
         <!-- ENTRY-AUTOADD1 (user-approved 2026-08-05): normal-mode preference, ON by
              default — connected accounts join a game automatically with all assets.
              Unticked, the ➕ Add account composer stays the only path (connected
@@ -250,6 +236,32 @@
         <label class="profile-debug-label">
           <input type="checkbox" id="kprefAutoSignReq">
           Auto-request signatures for matched orders
+        </label>
+        <!-- MENU-VIEW1 (owner 2026-10-09): the three board switches that change what HAPPENS,
+             not how it looks, moved here from the old ⚙ Settings popover — everything left on
+             the board's ☰ is now 👁 View. Same ids, so katomia-board.js boardSyncPrefsUI()
+             wires them on a board; katomia-profile.js wires them off one.
+             Pickable is the exception to "preferences are yours everywhere": it is a server
+             setting for YOUR SEAT IN ONE CIRCLE (game_setPref allowPick, the only per-player
+             key the backend has — PLAYER_PREF_KEYS). So it says so, and off a circle it is
+             shown but disabled. (Owner: it may become per account later; not used much yet.) -->
+        <label class="profile-debug-label" id="kprefPickableRow">
+          <input type="checkbox" id="boardPrefPickable" title="Allow other players to pick assets straight from your store (they shop, you agreed in advance). Applies to the circle you are in.">
+          <span>Pickable <span class="profile-pref-scope" id="kprefPickableScope">— this circle only</span></span>
+        </label>
+        <!-- SIGN-EXTGATE1 (user 2026-09-04): the external signing page (/m/sign — every wallet
+             option incl. KSIG offline multi-sig, and the index for coming back to a future-dated
+             tx) stays a LAB feature: alpha testers sign with WalletConnect from the board. Off by
+             default; on = the countdown hub and the per-tx dots open /m/sign in a new tab. -->
+        <label class="profile-debug-label profile-nerd-only">
+          <input type="checkbox" id="boardPrefExtSign" title="Lab: the countdown and the per-transaction dots open the full signing page (/m/sign) in a new tab — WalletConnect, WhatsApp (parked) and KSIG offline signing for multi-sig and future-dated deals. Off (default) = sign from the board with WalletConnect only.">
+          🧪 Advanced signing page (multi-sig)
+        </label>
+        <!-- PROP-TICKETS1 phase-5a (user 2026-08-20): lab switch for priced tickets in
+             proposal circles — same effect as the ?tickets=1 dev flag, default off. -->
+        <label class="profile-debug-label profile-nerd-only">
+          <input type="checkbox" id="boardPrefTickets" title="Lab: allow priced tickets in proposal circles — price an asset from its card, anyone can take the ticket. Same as the ?tickets=1 URL flag; default off.">
+          🎟 Allow tickets (proposal circles)
         </label>
         <label class="profile-debug-label nerd-control">
           <input type="checkbox" id="katomia-nerd-toggle" class="nerd-toggle-input">

@@ -217,6 +217,9 @@ async function openKatomiaProfile(){
   // is the only wiring, so the preference is settable off a board too. Guarded
   // so it never double-binds: the board's handler, when present, wins because
   // it also drives render().
+  // MENU-VIEW1 (owner 2026-10-09): Size moved on again, to the board's ☰ → 👁 View → Chips —
+  // it is a view setting, and the board is where it shows. Off a board the control no longer
+  // exists, so this block is dormant; kept so the preference can come back here unchanged.
   const uiSize = document.getElementById("boardPrefUiSize")
   if(uiSize && typeof boardSyncPrefsUI !== "function"){
     const cur = (() => { try { return localStorage.getItem("katomiaUiSize") } catch { return null } })()
@@ -230,6 +233,8 @@ async function openKatomiaProfile(){
       window.katomiaDiagSend?.("pref:uiSize", { value: v })
     }
   }
+
+  kprofWireGameplayPrefs()
 
   const diagToggle = document.getElementById("kdiagRemoteToggle")
   if(diagToggle){
@@ -253,6 +258,41 @@ async function openKatomiaProfile(){
 
   await renderKatomiaProfile()
   window.katomiaDiagSend?.("profile:open", { totalMs: Math.round(performance.now() - t0) })
+}
+
+// MENU-VIEW1 (owner 2026-10-09): Pickable, Advanced signing and Allow tickets live in
+// You → Preferences now. On a board, katomia-board.js boardSyncPrefsUI() owns all three (it
+// knows the live seat and re-renders); it is re-run here because it used to run only when the
+// ⚙ popover opened. Off a board this wires the two device-wide ones against the SAME storage
+// the board reads (katomiaBoardPrefs.extSign, katomiaTickets), and shows Pickable disabled —
+// it is a setting for your seat in one circle, so there is nothing to set until you are in one.
+function kprofWireGameplayPrefs(){
+  if(typeof boardSyncPrefsUI === "function"){ boardSyncPrefsUI(); return }
+  const pick = document.getElementById("boardPrefPickable")
+  if(pick){
+    pick.checked = false
+    pick.disabled = true
+    const scope = document.getElementById("kprefPickableScope")
+    if(scope) scope.textContent = "— set it inside a circle; it applies to that circle"
+  }
+  const ext = document.getElementById("boardPrefExtSign")
+  if(ext){
+    const read = () => { try { return JSON.parse(localStorage.getItem("katomiaBoardPrefs") || "{}") } catch { return {} } }
+    ext.checked = !!read().extSign
+    ext.onchange = () => {
+      try { localStorage.setItem("katomiaBoardPrefs", JSON.stringify({ ...read(), extSign: ext.checked })) } catch {}
+      window.katomiaDiagSend?.("pref:extSign", { value: ext.checked, offBoard: true })
+    }
+  }
+  const tix = document.getElementById("boardPrefTickets")
+  if(tix){
+    const q = new URLSearchParams(location.search).get("tickets")
+    tix.checked = q === "1" || (q !== "0" && (() => { try { return localStorage.getItem("katomiaTickets") === "1" } catch { return false } })())
+    tix.onchange = () => {
+      try { tix.checked ? localStorage.setItem("katomiaTickets", "1") : localStorage.removeItem("katomiaTickets") } catch {}
+      window.katomiaDiagSend?.("pref:tickets", { value: tix.checked, offBoard: true })
+    }
+  }
 }
 
 async function renderKatomiaProfile(){
