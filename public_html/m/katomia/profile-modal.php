@@ -111,8 +111,16 @@
              breaking proposal-mode gating or signed locks. Kept in for now — the
              Mock A structure is worth having settled either way. -->
         <details class="profile-commit" id="profileCommitSection">
-          <summary class="profile-section-title" title="Go further than authenticating: put this account behind your intent key for a period you choose. Published commitments let others see who stands behind your intents.">🔗 Raise a commitment <span class="profile-tag profile-tag-optional" title="Optional. Adds reputation to your intents — authenticating alone already unlocks members-only access.">optional</span></summary>
-          <p class="subtle profile-section-sub">A commitment goes further than authenticating: you put this account behind your <b>intent key</b> — the key this browser signs your proposals with — for a period you choose. Publishing lets others see who stands behind your intents.</p>
+          <!-- MENU-YOU1 (owner 2026-10-09): "Raise a commitment" is now REPUTATION, its button just
+               "Commit" — "people don't want wordy long shit anymore". One short line says what it
+               does; the ⓘ unrolls the longer explanation (a tap, so it works on a phone, where a
+               title tooltip never shows). The signed statement below stays in full: that is the
+               part that matters. -->
+          <summary class="profile-section-title" title="Bind your activity to your reputation: put this account behind your intent key for a period you choose.">🔗 Reputation <span class="profile-tag profile-tag-optional" title="Optional. Adds reputation to your intents — authenticating alone already unlocks members-only access.">optional</span></summary>
+          <p class="subtle profile-section-sub">Commit to bind your activity here to this account's reputation.
+            <button type="button" class="profile-info" aria-expanded="false" aria-controls="authCommitMore" title="What does committing do?"
+                    onclick="var m=document.getElementById('authCommitMore');m.hidden=!m.hidden;this.setAttribute('aria-expanded',String(!m.hidden))">ⓘ</button></p>
+          <p class="subtle profile-section-sub" id="authCommitMore" hidden>Committing goes further than authenticating: you put this account behind your <b>intent key</b> — the key this browser signs your proposals with — for a period you choose. Publishing lets others see who stands behind your intents.</p>
 
           <!-- Commitment options — shown once a signable account is chosen. Flat grid
                items (not wrapping <label>s) so Expiry sits in the same 64px label
@@ -138,7 +146,7 @@
           <!-- Plain-English statement of what the user is committing to. -->
           <p id="authStatement" class="profile-auth-statement hidden"></p>
 
-          <button id="authBtn" type="button">◈ Raise commitment</button>
+          <button id="authBtn" type="button">◈ Commit</button>
           <!-- PROFILE-TIDY1: the signed envelope + copy button are tech detail — nerd-only,
                and collapsed even then. Normal mode just gets the status line above. -->
           <details id="authResultDetails" class="profile-nerd-only profile-auth-result hidden">
@@ -155,40 +163,39 @@
             <div class="profile-label">Intent key <span class="profile-tag profile-tag-public" title="Public. This browser's signing identity — the commitment binds your account to it.">public</span></div>
             <div id="profileCommitPubkey" class="profile-mono" title="Your session's Ed25519 intent key. It says WHAT you want — the commitment says WHO you are."></div>
             <p class="subtle profile-section-sub">This browser's signing identity — it says <em>what</em> you want; the commitment says <em>who</em> you are.</p>
+            <!-- MENU-YOU1: the key's scope, moved here from the old nerd identity section — it
+                 describes this key, so it sits with it -->
+            <div class="profile-nerd-only">
+              <div class="profile-label">Scope</div>
+              <div id="profileScope" class="profile-scope" title="Where this intent key operates: domain | network | game."></div>
+            </div>
           </div>
         </details>
       </div>
     </div>
 
-    <!-- ═══ IDENTITY — nerd-only since WALLET-CONNECT-IA1 (was the modal's opening
-         section): full intent-key/KVAC/scope readout for the design-curious. The
-         normal-mode home of the intent key is the commitment fold above.
-         (INTENT-RENAME1: display copy says "intent" — the key signs orders AND proposal
-         commitments; wire params/JS names still say orderPubkey pending the compat pass.
-         KEY ROTATION — deliberately NOT a feature, user 2026-07-07: the key lives in
-         localStorage katomiaPlayerKeypair; clearing site data rotates it naturally.) ═══ -->
-    <div class="profile-section profile-identity profile-nerd-only">
+    <!-- ═══ FEES AND REWARDS — nerd-only (MENU-YOU1, owner 2026-10-09). This was the IDENTITY
+         readout (nerd-only since WALLET-CONNECT-IA1): intent public key, KVAC, scope. The key
+         showed TWICE in nerd mode — here and in the Reputation fold — "that's fucking
+         confusing", so it lives only in the fold now, with its scope beside it. What is left is
+         the prepaid-access handle, which is about paying fees and earning rewards, not identity:
+         hence the name. (INTENT-RENAME1 and the no-key-rotation ruling of 2026-07-07 are
+         unchanged: the key lives in localStorage katomiaPlayerKeypair.) ═══ -->
+    <details class="profile-section profile-fees profile-nerd-only">
+      <summary class="profile-section-title">Fees and rewards</summary>
       <div class="profile-list">
-        <div class="profile-label">Intent public key <span class="profile-tag profile-tag-public" title="Public. Your intent key — everything you sign in Katomia (proposals, orders, feedback) carries it, so others can recognise your intents across games.">public</span></div>
-        <div id="profilePubkey" class="profile-mono" title="Your session's Ed25519 intent key. It says WHAT you want — a wallet commitment says WHO you are."></div>
-
         <!-- KVAC / prepaid access id — NERD ONLY, STUBBED. HKSAT = SHA256(player token):
              the PUBLIC handle for prepaid fees (KSAT/KVAC model — see kpay.uk/kvac). The
              player token (KSAT) itself stays private in the browser. Balance + top-up are
              display-only stubs for now; wiring is FEE1 / a backend HKSAT balance lookup. -->
-        <div class="profile-nerd-only">
-          <div class="profile-label">Access token · KVAC <span class="profile-tag profile-tag-public" title="Public hash (HKSAT = SHA256 of your player token). The handle you'd top up to prepay fees. Your player token itself stays private in this browser.">public</span></div>
-          <div id="profileKvac" class="profile-mono" title="HKSAT — public hash of your player token (KSAT). Used as a prepaid balance handle (KSAT/KVAC fee model). STUB: balance + top-up not wired yet."></div>
-          <div class="profile-kvac-balance subtle">
-            Balance: <span id="profileKvacBalance">— (stub)</span>
-            <button id="profileKvacTopupBtn" type="button" class="profile-ghost" disabled title="Prepaid top-up — not wired yet (KSAT/KVAC, FEE1)">Top up…</button>
-          </div>
+        <div class="profile-label">Access token · KVAC <span class="profile-tag profile-tag-public" title="Public hash (HKSAT = SHA256 of your player token). The handle you'd top up to prepay fees. Your player token itself stays private in this browser.">public</span></div>
+        <div id="profileKvac" class="profile-mono" title="HKSAT — public hash of your player token (KSAT). Used as a prepaid balance handle (KSAT/KVAC fee model). STUB: balance + top-up not wired yet."></div>
+        <div class="profile-kvac-balance subtle">
+          Balance: <span id="profileKvacBalance">— (stub)</span>
+          <button id="profileKvacTopupBtn" type="button" class="profile-ghost" disabled title="Prepaid top-up — not wired yet (KSAT/KVAC, FEE1)">Top up…</button>
         </div>
-
-        <div class="profile-label">Scope</div>
-        <div id="profileScope" class="profile-scope" title="Where this intent key operates: domain | network | game."></div>
       </div>
-    </div>
+    </details>
 
     <!-- KBUNDLE-STRIP:kea -->
     <!-- ═══ EXECUTION AGENT — KEA (QR → link → copy). Collapsed by default so the
@@ -218,9 +225,11 @@
          day to header.php's #boardSettingsPanel popover (user: too tucked
          away in the modal, and the modal covered the board it was adjusting). -->
 
-    <!-- ═══ PREFERENCES & DIAGNOSTICS — dev controls. Collapsed by default. ═══ -->
-    <details class="profile-section profile-debug-section">
-      <summary class="profile-section-title">Preferences &amp; diagnostics</summary>
+    <!-- ═══ PREFERENCES — MENU-YOU1 (owner 2026-10-09): split from the old "Preferences &
+         diagnostics". Only switches that change what HAPPENS for you live here; how the board
+         LOOKS is the board's ☰ → 👁 View. Collapsed by default. ═══ -->
+    <details class="profile-section profile-debug-section profile-prefs">
+      <summary class="profile-section-title">Preferences</summary>
       <div class="profile-debug">
         <!-- ENTRY-AUTOADD1 (user-approved 2026-08-05): normal-mode preference, ON by
              default — connected accounts join a game automatically with all assets.
@@ -263,6 +272,15 @@
           <input type="checkbox" id="boardPrefTickets" title="Lab: allow priced tickets in proposal circles — price an asset from its card, anyone can take the ticket. Same as the ?tickets=1 URL flag; default off.">
           🎟 Allow tickets (proposal circles)
         </label>
+      </div>
+    </details>
+
+    <!-- ═══ TECH — MENU-YOU1: the other half of the old "Preferences & diagnostics" — nerd mode,
+         remote logging, the local diagnostics copy and the build stamp. Not nerd-gated: the
+         nerd-mode switch itself lives here. ═══ -->
+    <details class="profile-section profile-debug-section profile-tech">
+      <summary class="profile-section-title">Tech</summary>
+      <div class="profile-debug">
         <label class="profile-debug-label nerd-control">
           <input type="checkbox" id="katomia-nerd-toggle" class="nerd-toggle-input">
           🤓 Nerd mode

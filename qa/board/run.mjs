@@ -479,6 +479,54 @@ console.log('12. MENU-VIEW1: one 👁 View group on the board — screen views, 
   }
 }
 
+console.log('13. MENU-YOU1: the You modal — Reputation / Commit, one intent key, Fees and rewards, Preferences, Tech')
+{
+  const youModal = async nerd => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } })
+    await ctx.addInitScript(n => localStorage.setItem('katomia.nerd.v1', n ? '1' : '0'), nerd)
+    const page = await ctx.newPage()
+    const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
+    await page.goto(`${BASE}/m/katomia/index.html`, { waitUntil: 'load' }); await page.waitForTimeout(800)
+    await page.evaluate(() => { document.querySelector('[data-menu-profile]').click(); document.querySelectorAll('#profileModal details.profile-section').forEach(d => { d.open = true }) })
+    await page.waitForTimeout(500)
+    // the Reputation fold shows once a signable wallet account is chosen (kauthRenderLadder) — no wallet here, so show it
+    await page.evaluate(() => document.getElementById('profileCommitSection').classList.remove('hidden'))
+    const r = await page.evaluate(() => {
+      const M = document.getElementById('profileModal')
+      const shown = el => !!el && el.getClientRects().length > 0
+      const sec = cls => M.querySelector('details.' + cls)
+      const has = (d, id) => !!d?.querySelector('#' + id) && shown(d.querySelector('#' + id).closest('label, div, button'))
+      return {
+        titles: [...M.querySelectorAll('details.profile-section > summary, .profile-section > .profile-section-title, details.profile-commit > summary')].filter(shown).map(e => e.textContent.replace(/\s+/g, ' ').trim()),
+        commitBtn: document.getElementById('authBtn')?.textContent.trim(),
+        keys: [...M.querySelectorAll('#profilePubkey, #profileCommitPubkey')].map(e => e.id),
+        scopeInFold: !!document.getElementById('profileScope')?.closest('#profileCommitSection'),
+        kvacInFees: !!document.getElementById('profileKvac')?.closest('details.profile-fees'),
+        prefs: ['kprefAutoAdd', 'kprefAutoSignReq', 'boardPrefPickable', 'boardPrefExtSign', 'boardPrefTickets'].map(id => has(sec('profile-prefs'), id)),
+        tech: ['katomia-nerd-toggle', 'kdiagRemoteToggle', 'profileCopyDiagBtn', 'profileBuildStamp'].map(id => has(sec('profile-tech'), id)),
+        prefWords: (sec('profile-prefs')?.textContent || '').replace(/\s+/g, ' ')
+      }
+    })
+    await page.evaluate(() => { document.getElementById('profileCommitSection').open = true })
+    const more0 = await page.evaluate(() => document.getElementById('authCommitMore').hidden)
+    await page.click('#profileCommitSection .profile-info'); await page.waitForTimeout(150)
+    const more1 = await page.evaluate(() => document.getElementById('authCommitMore').hidden)
+    r.more = [more0, more1]; r.errs = errs
+    await ctx.close(); return r
+  }
+  const a = await youModal(false)
+  ok(a.titles.join('|') === 'Wallet connection|🔗 Reputation optional|Preferences|Tech', 'normal mode: Wallet connection, 🔗 Reputation, Preferences, Tech — no Fees and rewards', JSON.stringify(a.titles))
+  ok(a.commitBtn === '◈ Commit', 'the button is just "Commit"', a.commitBtn)
+  ok(a.more[0] === true && a.more[1] === false, 'the short line\'s ⓘ unrolls the longer explanation on a tap', JSON.stringify(a.more))
+  ok(a.prefs.join() === 'true,true,true,false,false' && !/Size/.test(a.prefWords), 'Preferences: auto-add, auto-request signatures, Pickable — the two lab switches only in developer mode, no Size', JSON.stringify(a.prefs))
+  ok(a.tech.every(Boolean), 'Tech: nerd mode, remote logging, copy diagnostics, build stamp', JSON.stringify(a.tech))
+  ok(!a.errs.length, 'no page errors', JSON.stringify(a.errs))
+  const b = await youModal(true)
+  ok(b.titles.join('|') === 'Wallet connection|🔗 Reputation optional|Fees and rewards|Preferences|Tech', 'developer mode adds Fees and rewards', JSON.stringify(b.titles))
+  ok(b.keys.join() === 'profileCommitPubkey' && b.scopeInFold && b.kvacInFees, 'the intent key appears once (in Reputation, with its scope); the access token sits in Fees and rewards', JSON.stringify(b))
+  ok(b.prefs.every(Boolean), 'developer mode: Advanced signing and Allow tickets join Preferences', JSON.stringify(b.prefs))
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)

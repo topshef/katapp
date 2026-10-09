@@ -703,7 +703,7 @@ async function runKatomiaRaiseCommitment(){
   }
   // belt-and-braces behind the greyed button: a ⌨️ manual account can't sign
   if(window.__kauthWcSet && !window.__kauthWcSet.has(accountId)){
-    notify?.("This account has no wallet connection — connect it (➕ Add account) to raise a commitment", "info", { timeout: 4000 })
+    notify?.("This account has no wallet connection — connect it (➕ Add account) to commit", "info", { timeout: 4000 })
     return
   }
 
@@ -715,8 +715,8 @@ async function runKatomiaRaiseCommitment(){
     if(!r) return
     kauthRenderEnvelope(r.envelope)
     kauthSetStatus(wantPublish
-      ? (r.published ? "Commitment raised & published ✓" : "Raised ✓ — publish failed (see console)")
-      : "Commitment raised ✓ — not published (copy below)")
+      ? (r.published ? "Committed & published ✓" : "Committed ✓ — publish failed (see console)")
+      : "Committed ✓ — not published (copy below)")
   } finally {
     if(btn) btn.disabled = false
     kauthRenderLadder()

@@ -2635,9 +2635,19 @@ details.profile-commit > *:not(summary){ margin-top:10px; }
 /* nerd-only profile rows (KVAC etc.) — hidden unless body.nerd */
 .profile-nerd-only{ display:none; margin-top:6px; }
 body.nerd .profile-nerd-only{ display:block; }
-/* MENU-VIEW1: a nerd-only preference row keeps its flex row layout */
+/* MENU-VIEW1: a nerd-only preference row — hidden (.profile-debug-label's own display:flex,
+   later in this file, would otherwise beat .profile-nerd-only) and a flex row once shown */
+label.profile-debug-label.profile-nerd-only{ display:none; }
 body.nerd label.profile-debug-label.profile-nerd-only{ display:flex; margin-top:0; }
 .profile-pref-scope{ color:#9aa0a6; font-size:.92em; }
+/* MENU-NET1: "Network Testnet · change it from ☰ on Home" — the wallet pickers' one-line note */
+.profile-netnote{ font-size:13px; color:#333; }
+.profile-netnote b{ font-size:13px; font-weight:700; }
+/* MENU-YOU1: the ⓘ that unrolls Reputation's longer explanation */
+.profile-card .profile-info{ border:0; background:transparent; box-shadow:none; padding:0 2px; margin:0; font:inherit;
+  color:#1a56c4; cursor:pointer; vertical-align:baseline;
+  display:inline; width:auto; height:auto; min-width:0; min-height:0; line-height:inherit; }
+.profile-card .profile-info:hover{ background:transparent; transform:none; box-shadow:none; text-decoration:underline; }
 label.profile-debug-label:has(input:disabled){ cursor:default; opacity:.7; }
 .profile-kvac-balance{ margin-top:4px; display:flex; align-items:center; gap:8px; }
 .profile-ghost{

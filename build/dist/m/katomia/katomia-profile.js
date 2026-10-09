@@ -302,8 +302,8 @@ async function renderKatomiaProfile(){
   const gid = gameId || gameMeta?.id || ""
 
   setText("profileTitle", getKatomiaProfileTitle())
-  setText("profilePubkey", pubkey || "not ready")
-  setText("profileCommitPubkey", pubkey || "not ready")   // Mock A: the fold's copy of the key
+  // MENU-YOU1: the key shows ONCE now — in the Reputation fold (the nerd identity copy is gone)
+  setText("profileCommitPubkey", pubkey || "not ready")
   setText("profileScope", [domain, network, gid].filter(Boolean).join(" | "))
 
   renderKatomiaAvatar(pubkey)
