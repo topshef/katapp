@@ -580,19 +580,31 @@ body.board-page .app-banner{
   touch-action: pan-x;
   user-select: none; -webkit-user-select: none;   /* VIEW-SNAP1: a grip, not text */
 }
-/* VIEW-SNAP1 (owner 2026-10-09): the bar is the split's grip in every view — two faint lines
-   say so. Board alone: it sits at the bottom (drag up for the split); split: between board and
-   messages; messages alone: under the ☰ row (drag down for the split). */
-.ring-footer::before{
-  content: ""; position: absolute; left: 50%; top: 2px; width: 30px; height: 3px;
-  transform: translateX(-50%); pointer-events: none;
+/* VIEW-SNAP1/2 (owner 2026-10-09): the bar is the split's grip in every view. Board alone: at
+   the bottom (drag up for the split); split: between board and messages; messages alone: right
+   at the top, under the ☰ (drag down for the split). Two faint lines in the middle of its free
+   space say so (.ring-footer-grip, a flex filler). A spectator's "You're watching" ribbon is the
+   same grip, without the lines — they would sit on its text. */
+.ring-footer-grip{
+  flex: 1 1 auto; align-self: stretch; min-width: 36px; position: relative; pointer-events: none;
+}
+.ring-footer-grip::before{
+  content: ""; position: absolute; left: 50%; top: 50%; width: 30px; height: 3px;
+  transform: translate(-50%, -50%);
   border-top: 1px solid rgba(20,28,45,.2); border-bottom: 1px solid rgba(20,28,45,.2);
 }
-body.board-page.kchat-fullopen .ring-footer{
-  top: var(--kchat-full-bar, 56px); bottom: auto; right: 0;
+body.board-page.kchat-fullopen .ring-footer,
+body.board-page.kchat-fullopen .kspec-ribbon{
+  top: var(--kchat-full-bar, 0px); bottom: auto; right: 0;
   border-top: 0; border-bottom: 1px solid #e5e0d4; box-shadow: 0 3px 12px rgba(0,0,0,.07);
-  padding-bottom: 7px;
+  padding-bottom: 7px; min-height: 0;
 }
+/* the ribbon lives outside #boardRoot, so it CAN outrank the messages overlay */
+body.board-page.kchat-fullopen .kspec-ribbon{ z-index: 2050; }
+.kspec-ribbon{ cursor: ns-resize; touch-action: pan-x; user-select: none; -webkit-user-select: none; }
+/* one handle: on the board the bar is the grip, so the dock's own line goes (portrait only —
+   the landscape panel's left edge stays its width grip) */
+body.board-page .kchat-dock:not(.kchat-dock--side) .kchat-drag{ display: none; }
 /* while a split drag is past the snap point, say which view letting go will give */
 body.kchat-snap-board .ring-footer, body.kchat-snap-messages .ring-footer{ background: #fff3d6; }
 .ring-hub--preview{ cursor: pointer; }

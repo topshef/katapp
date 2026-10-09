@@ -212,13 +212,12 @@
   var sideW = 0;
   function sideLimits() { return { min: 170, max: Math.max(220, Math.round(innerWidth * 0.5)) }; }
 
-  // VIEW-SNAP1: the top edge of the space a dock can grow into — just under the ☰ row
-  function splitBarTop() {
-    var row = document.querySelector(".app-banner-inner") || document.querySelector(".app-banner");
-    var f = document.querySelector(".ring-footer");
-    return (row ? row.getBoundingClientRect().bottom : 0) + (f ? f.getBoundingClientRect().height : 0);
+  // VIEW-SNAP2: the bar on screen — players' control bar, or a spectator's ribbon
+  function barNow() {
+    var els = document.querySelectorAll(".ring-footer, .kspec-ribbon");
+    for (var i = 0; i < els.length; i++) if (els[i].getClientRects().length) return els[i];
+    return null;
   }
-
   function dockLimits() {
     var stackH = 0;
     [".ring-footer", ".kspec-ribbon"].forEach(function (s) {
@@ -313,14 +312,26 @@
       // gesture at pointerdown, as before) and the control bar's blank space
       // (claims only after vertical intent — see the delegated starter below).
       // startY is the claim point so the split tracks the finger, not the jump.
-      var startSplitDrag = function (e, capEl, startY) {
-        capEl.setPointerCapture && capEl.setPointerCapture(e.pointerId);
+      // VIEW-SNAP2 (owner 2026-10-09, second pass): the split follows the finger from ANY of the
+      // three views — "once it's at an extreme you should be able to drag it back, it shouldn't
+      // just jump". opts.startB is where the dock starts (0 from the board alone, the full
+      // height from messages alone); the view is already switched to the split by the caller.
+      // Listeners are on the WINDOW, keyed by pointer: the bar is rebuilt by every render, so a
+      // listener on it (the old capEl) went deaf the moment a render landed mid-drag.
+      var startSplitDrag = function (e, capEl, startY, opts) {
+        opts = opts || {};
+        try { capEl.setPointerCapture && capEl.setPointerCapture(e.pointerId); } catch (e0) {}
         if (startY == null) startY = e.clientY;
+        var root = document.documentElement, pid = e.pointerId;
         // dock looked up fresh — the delegated starter below outlives d's closure
         // (the dock is torn down and rebuilt when chat mode toggles)
         var dockNow = document.getElementById("boardChatDock") || d;
-        var startB = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--kchat-clear-b")) || dockNow.getBoundingClientRect().height;
+        var cur = parseInt(getComputedStyle(root).getPropertyValue("--kchat-clear-b")) || dockNow.getBoundingClientRect().height;
+        var startB = opts.startB != null ? opts.startB : cur;
         var lim = dockLimits();
+        var saved = 0;
+        try { saved = +(localStorage.getItem("katomiaChatSplit") || 0); } catch (e1) {}
+        var keep = Math.round(Math.max(lim.min, Math.min(lim.max, saved || cur || lim.def)));
         // BOARD-SPLITDRAG1 (user 2026-08-06): while the divider moves, the BOARD
         // MUST NOT RESIZE. It used to yield live — "the whole board scales down
         // and then it redraws to go big again… it squashes everything up and
@@ -328,43 +339,44 @@
         // board during the drag ("you're just covering it up"), and the board
         // re-solves once, at rest. --kchat-clear-b0 pins the board's bottom to
         // where it was when the drag started; the CSS override reads it.
-        document.documentElement.style.setProperty("--kchat-clear-b0", startB + "px");
+        root.style.setProperty("--kchat-clear-b0", (opts.from === "board" ? 0 : opts.from === "messages" ? keep : startB) + "px");
+        root.style.setProperty("--kchat-clear-b", Math.round(startB) + "px");
         document.body.classList.add("kchat-dragging");
-        // VIEW-SNAP1 (owner 2026-10-09): the three views are a convenience, the drag is the
-        // control. Past the limits the dock keeps following the finger, and letting go far
-        // enough beyond one snaps to that extreme — all the way down is the board alone, all
-        // the way up is messages alone — with the bar left in place to drag back. Between
-        // the limits nothing changes: no sliver of board, no sliver of messages.
-        var avail = Math.max(lim.max, innerHeight - splitBarTop());
+        // VIEW-SNAP1/2: below the dock's floor the drag has no effect — letting go there closes
+        // the messages (the board alone), "the same as if you were trying to close it"; far
+        // enough past the ceiling it opens messages alone. In between, a split at that height.
+        var bar = barNow();
+        var avail = Math.max(lim.max, innerHeight - (bar ? bar.getBoundingClientRect().height : 40));
         var raw = startB, snap = null;
         var move = function (ev) {
+          if (ev.pointerId !== pid) return;
           raw = startB + (startY - ev.clientY);
-          snap = raw < lim.min * 0.5 ? "board" : raw > lim.max + (avail - lim.max) * 0.5 ? "messages" : null;
+          snap = raw < lim.min ? "board" : raw > lim.max + (avail - lim.max) * 0.5 ? "messages" : null;
           document.body.classList.toggle("kchat-snap-board", snap === "board");
           document.body.classList.toggle("kchat-snap-messages", snap === "messages");
-          var b = Math.max(0, Math.min(avail, raw));
-          document.documentElement.style.setProperty("--kchat-clear-b", Math.round(b) + "px");
+          root.style.setProperty("--kchat-clear-b", Math.round(Math.max(0, Math.min(avail, raw))) + "px");
         };
         var up = function (ev) {
-          capEl.removeEventListener("pointermove", move);
-          capEl.removeEventListener("pointerup", up);
-          capEl.removeEventListener("pointercancel", up);
+          if (ev.pointerId !== pid) return;
+          removeEventListener("pointermove", move);
+          removeEventListener("pointerup", up);
+          removeEventListener("pointercancel", up);
           document.body.classList.remove("kchat-dragging", "kchat-snap-board", "kchat-snap-messages");   // BOARD-SPLITDRAG1: board yields again, then re-solves below
           if (snap && typeof boardSetView === "function") {
             // the split you had is kept for the way back; the view takes over
-            document.documentElement.style.setProperty("--kchat-clear-b", Math.round(Math.max(lim.min, Math.min(lim.max, startB))) + "px");
+            root.style.setProperty("--kchat-clear-b", keep + "px");
             boardSetView(snap);
             return;
           }
-          var b = Math.max(lim.min, Math.min(lim.max, raw));
-          document.documentElement.style.setProperty("--kchat-clear-b", Math.round(b) + "px");
+          var b = Math.round(Math.max(lim.min, Math.min(lim.max, raw)));
+          root.style.setProperty("--kchat-clear-b", b + "px");
           try { localStorage.setItem("katomiaChatSplit", String(b)); } catch (e2) {}
           // one geometry re-solve at rest — dragging only moves the CSS var
           if (typeof render === "function") setTimeout(function () { try { render(); } catch (e3) {} }, 0);
         };
-        capEl.addEventListener("pointermove", move);
-        capEl.addEventListener("pointerup", up);
-        capEl.addEventListener("pointercancel", up);
+        addEventListener("pointermove", move);
+        addEventListener("pointerup", up);
+        addEventListener("pointercancel", up);
       };
       // BOARD-SIDEDRAG1 (user 2026-09-04: "on proposal mode we also should be able to
       // drag the split width"). Portrait keeps the height drag; landscape's side panel
@@ -417,7 +429,10 @@
       if (!window.__kbarDragInit) {
         window.__kbarDragInit = true;
         document.addEventListener("pointerdown", function (e) {
-          var bar = e.target.closest(".ring-footer");
+          // VIEW-SNAP2: the grip is the BAR — the players' control bar, or for a spectator the
+          // "You're watching" ribbon that stands in for it — in every view, and nothing else
+          // (the dock's own line below it is gone: one handle, one place).
+          var bar = e.target.closest(".ring-footer, .kspec-ribbon");
           if (!bar) return;
           if (e.target.closest("button, input, select, textarea, a, label, [role=button]")) return;
           // VIEW-SNAP1: a mouse drag on the bar's blank space must not start a text selection —
@@ -425,28 +440,24 @@
           // which cancels the pointer mid-gesture (desktop only; touch never selects here)
           if (e.pointerType === "mouse") { e.preventDefault(); window.getSelection && window.getSelection().removeAllRanges(); }
           var dock = document.getElementById("boardChatDock");
-          // VIEW-SNAP1 (owner 2026-10-09): the bar stays a grip in the two extreme views too.
-          // Board alone (no dock): drag it UP and the split opens. Messages alone (the bar sits
-          // at the top, under the ☰): drag it DOWN and the split comes back.
-          // (the dock element outlives a switch to the board alone — it is only hidden — so the
-          // view is read from the chat mode, not from whether a dock exists)
+          // the view the drag starts from (the dock element outlives a switch to the board
+          // alone — it is only hidden — so the view is read from the chat mode)
           var full = document.body.classList.contains("kchat-fullopen");
-          var alone = !full && document.body.dataset.kchatMode !== "panel";
-          var extreme = full ? "messages" : (alone ? "board" : null);
-          if (!extreme && (!dock || dock.classList.contains("kchat-dock--side"))) return;
+          var from = full ? "messages" : (document.body.dataset.kchatMode !== "panel" ? "board" : "split");
+          if (from === "split" && (!dock || dock.classList.contains("kchat-dock--side"))) return;
+          if (from !== "split" && innerWidth > innerHeight && innerWidth > 700) return;   // landscape: the side panel's edge is its grip
           var sx = e.clientX, sy = e.clientY, pid = e.pointerId;
           var probe = function (ev) {
             if (ev.pointerId !== pid) return;
             var dx = ev.clientX - sx, dy = ev.clientY - sy;
-            if (extreme) {
-              if (Math.abs(dx) >= 12 && Math.abs(dx) > Math.abs(dy)) { cleanup(); return; }
-              if ((extreme === "board" && dy <= -24) || (extreme === "messages" && dy >= 24)) {
-                cleanup();
-                if (typeof boardSetView === "function") boardSetView("split");
-              }
-              return;
+            if (Math.abs(dy) >= 8 && Math.abs(dy) > Math.abs(dx)) {
+              cleanup();
+              if (from === "split") { startSplitDrag(ev, bar, sy); return; }
+              // from an extreme: become the split NOW, at the finger, and keep following it
+              var startB = from === "board" ? 0 : Math.max(0, innerHeight - bar.getBoundingClientRect().height);
+              if (typeof boardSetView === "function") boardSetView("split");
+              startSplitDrag(ev, bar, sy, { from: from, startB: startB });
             }
-            if (Math.abs(dy) >= 8 && Math.abs(dy) > Math.abs(dx)) { cleanup(); startSplitDrag(ev, bar, sy); }
             else if (Math.abs(dx) >= 12) cleanup();   // horizontal — the bar's own scroll, not ours
           };
           var cleanup = function () {
@@ -1099,15 +1110,15 @@
       if (l) l.scrollTop = l.scrollHeight;
     }
   }
+  // VIEW-SNAP2 (owner 2026-10-09): in messages alone the bar goes right to the TOP, under the ☰
+  // ("the hamburger menu basically just ends up sitting on top of the drag bar") — the banner
+  // lets touches through everywhere but the ☰ and its menu (katomia.css) — and the transcript
+  // starts below the bar.
   function fitFull() {
     var root = document.documentElement;
-    // under the banner's whole box, not just its ☰ row: the (transparent) box sits above the
-    // view at z2100 and would otherwise swallow the top of the bar — the part you grab
-    var row = document.querySelector(".app-banner");
-    var top = row ? Math.round(row.getBoundingClientRect().bottom) : 0;
-    var f = document.querySelector(".ring-footer");
-    root.style.setProperty("--kchat-full-bar", top + "px");
-    root.style.setProperty("--kchat-full-top", (top + (f ? Math.round(f.getBoundingClientRect().height) : 0)) + "px");
+    var f = barNow();
+    root.style.setProperty("--kchat-full-bar", "0px");
+    root.style.setProperty("--kchat-full-top", (f ? Math.round(f.getBoundingClientRect().height) : 0) + "px");
   }
   addEventListener("resize", function () { if (document.body.classList.contains("kchat-fullopen")) fitFull(); });
 

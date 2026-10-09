@@ -77,8 +77,11 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
     text-transform: none; color: #7a8595; background: none; border: 0; padding: 0; cursor: pointer; box-shadow: none; }
   .landing-places-h .landing-places-act:hover{ text-decoration: underline; transform: none; box-shadow: none; background: none; }
   .landing-rows{ display: flex; flex-direction: column; gap: 6px; }
-  .landing-row{ display: flex; align-items: center; gap: 8px; padding: 9px 10px 9px 12px; border-radius: 10px;
-    background: #fff; border: 1px solid #e6e1d6; }
+  .landing-row{ position: relative; display: flex; align-items: center; gap: 8px; padding: 9px 10px 9px 12px; border-radius: 10px;
+    background: #fff; border: 1px solid #e6e1d6; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  /* BUBBLE-LINKS1: the shared bubble takes the border over while it runs (as on Circles) */
+  .landing-row.kbubble-on{ border-color: transparent !important; }
+  .landing-row.kbubble-filled{ background: transparent !important; }
   .landing-row a{ flex: 1; min-width: 0; color: inherit; text-decoration: none; }
   .landing-row-name{ display: block; font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .landing-row-meta{ display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 2px; font-size: 12px; color: #888; }
@@ -420,11 +423,27 @@ window.addEventListener("load", () => {
   // trigger that, so phones get calm static cards; the kbubbleOpen entry
   // transition below is transient and stays for everyone.
   if(window.kbubble && !matchMedia("(hover: none)").matches){
-    const handles = cards.map(el => kbubble.attach(el, Object.assign({ style: "iridescent" }, KB_CIRCLE))).filter(Boolean)
+    // LANDING-NET1 fix (owner 2026-10-09: "the mainnet button doesn't show the bubble"): the
+    // border used to attach once at load to EVERY door — including the one the network switch
+    // had hidden, which got a zero-size canvas and never recovered when it was shown. It now
+    // attaches only to the doors on screen, and re-syncs when the switch changes them.
+    const handles = new Map()
+    let perfLow = false
+    const sync = () => {
+      if(perfLow) return
+      cards.forEach(el => {
+        const shown = !el.hidden && el.getClientRects().length > 0
+        const h = handles.get(el)
+        if(shown && !h){ const nh = kbubble.attach(el, Object.assign({ style: "iridescent" }, KB_CIRCLE)); if(nh) handles.set(el, nh) }
+        else if(!shown && h){ try { h.destroy() } catch(e){} handles.delete(el) }
+      })
+    }
+    sync()
+    document.addEventListener("katomia:network", () => requestAnimationFrame(sync))
     // KPERF (R9): a hover-capable but WEAK device (old laptop, cheap tablet with a
     // mouse) gets the animations torn down the moment the header's frame-cadence
     // sampler flags it — same reasoning as the phone exclusion above.
-    document.addEventListener("kperf:low", () => handles.forEach(h => { try { h.destroy() } catch(e){} }), { once: true })
+    document.addEventListener("kperf:low", () => { perfLow = true; handles.forEach(h => { try { h.destroy() } catch(e){} }); handles.clear() }, { once: true })
   }
 
   // click → inflate into the board. bind() intercepts the click itself and navigates
@@ -519,9 +538,18 @@ window.addEventListener("load", () => {
       </a>${x ? `<button type="button" class="landing-row-x" data-forget="${esc(id)}" title="Forget this visit — your accounts stay where they are" aria-label="Forget this visit">×</button>` : ""}
     </div>`
 
+  // NETWORK-PAGE1 (owner 2026-10-09): the ☰ network filters the WHOLE page — doors, Recent and
+  // Live now — "we shouldn't be on testnet and see mainnet recently visited". A visit whose
+  // network is unknown is left out rather than guessed. TENSION (owner, same day): a mixed
+  // history across networks has its uses (one list of everywhere you have been); kept clean —
+  // one network or the other — for now, and this is the one line to change if that flips.
+  // Play demos follow the lists' rule: shown under either real network outside developer mode.
+  const netOk = (net, v) => !v || net === v || (net === "playnet" && v !== "playnet" && !dev())
+
   function render(){
     const recentEl = document.getElementById("landingRecent"), liveEl = document.getElementById("landingLive")
-    const hist = window.katomiaRecent ? katomiaRecent.list() : []
+    const vNet = window.katomiaNet ? katomiaNet.get() : ""
+    const hist = (window.katomiaRecent ? katomiaRecent.list() : []).filter(h => netOk(netOf(games[h.id]) || h.net, vNet))
     const shown = expanded ? hist : hist.slice(0, SHOW)
     recentEl.hidden = !hist.length
     if(hist.length){
@@ -535,22 +563,26 @@ window.addEventListener("load", () => {
         }).join("")}</div>`
     }
     // Live now — the chosen network (play demos under either, as on Circles), minus what is above
-    const v = window.katomiaNet ? katomiaNet.get() : ""
+    const v = vNet
     const skip = new Set(shown.map(h => h.id))
     const live = Object.values(games)
       .filter(g => modeOf(g) === "proposal" && !/~\d+$/.test(String(g.id)) && !skip.has(g.id))
-      .filter(g => !v || netOf(g) === v || (netOf(g) === "playnet" && v !== "playnet" && !dev()))
+      .filter(g => netOk(netOf(g), v))
       .map(g => ({ g, s: window.katomiaAudienceScore ? katomiaAudienceScore(g.activity) : 0 }))
       .filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, LIVE)
     liveEl.hidden = !live.length
     if(live.length)
       liveEl.innerHTML = `<div class="landing-places-h">Live now</div><div class="landing-rows">${live.map(({ g }) =>
         row({ id: g.id, view: "board", name: g.profile?.name, net: netOf(g), aud: window.katomiaAudienceHtml?.(g.activity), mine: g.you?.accounts })).join("")}</div>`
+    // BUBBLE-LINKS1: every row is a door — the Circles list's plain bubble (katomia-places.js)
+    window.katomiaDressCircleLinks?.(document.querySelectorAll("#landingRecent .landing-row, #landingLive .landing-row"))
+    // × forgets a visit — its own listener, so the tap never reaches the row's bubble entry
+    recentEl.querySelectorAll("[data-forget]").forEach(b => b.addEventListener("click", e => {
+      e.preventDefault(); e.stopPropagation(); katomiaRecent.remove(b.dataset.forget); render()
+    }))
   }
 
   document.addEventListener("click", e => {
-    const f = e.target.closest?.("[data-forget]")
-    if(f){ e.preventDefault(); katomiaRecent.remove(f.dataset.forget); render(); return }
     if(e.target.closest?.("#landingRecent [data-more]")){ expanded = !expanded; render(); return }
     if(e.target.closest?.("#landingRecent [data-clear]")){ katomiaRecent.clear(); expanded = false; render() }
   })

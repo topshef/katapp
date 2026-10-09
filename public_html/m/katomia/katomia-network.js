@@ -773,6 +773,7 @@ async function katomiaHandleFrame(msg){
 
     gameMeta = data.meta || null
     state = data.state
+    window.katomiaLockProgressReset?.()   // LOCKPROG-STALE1: a delta patched `state` in place
     // STATSYNC1 P5: track the broadcast seq (delta base) and clear any pending
     // gap-refresh — a full game_state (broadcast or refresh reply) is a clean base.
     if(data.seq != null) window.__stateSeq = data.seq
@@ -783,8 +784,9 @@ async function katomiaHandleFrame(msg){
     // RECENT-VISITS1 (owner 2026-10-09): this circle goes on top of Home's "recently visited"
     // (katomia-places.js — writes only when something changed). Keyed on the id the STATE
     // names, so a soft swap into a side circle records the side circle.
-    window.katomiaRecent?.touch(gameMeta?.id || data.gameId || gameId, { view: document.getElementById("boardRoot") ? "board" : "game",
-      net: gameMeta?.network || "", name: gameMeta?.profile?.name || "" })
+    if(!window.KATOMIA_PREVIEW)   // PREVIEW-FRAME1: a hover pre-load is not a visit
+      window.katomiaRecent?.touch(gameMeta?.id || data.gameId || gameId, { view: document.getElementById("boardRoot") ? "board" : "game",
+        net: gameMeta?.network || "", name: gameMeta?.profile?.name || "" })
     window.katomiaNet?.paint()   // MENU-NET2: the ☰'s read-only network row follows the circle
 
     if(gameMeta?.network) kwcEarlyScope(gameMeta.network)
@@ -812,6 +814,15 @@ async function katomiaHandleFrame(msg){
     window.katomiaWatching = Number.isFinite(data.watching) ? data.watching : null
     window.katomiaPlaying = Number.isFinite(data.playing) ? data.playing : null
 
+    // PREVIEW-FRAME1: a board pre-loaded by the bubble entry only PAINTS — it never seats your
+    // accounts (auto-add, cache restore, autoload link), and it lets its socket go a moment
+    // after the first state, so hovering a list of circles leaves no trace in any of them.
+    if(window.KATOMIA_PREVIEW){
+      if(!window.__kpreviewClosing){
+        window.__kpreviewClosing = true
+        setTimeout(() => { wsShouldRun = false; try { socket?.close() } catch(e){} }, 2500)
+      }
+    } else {
     rememberAssetsOnTable()   // ASSETMEM1: before any re-add below reads the memory
     restoreCachedAccounts()
     maybeAutoAddAccounts()
@@ -824,6 +835,7 @@ async function katomiaHandleFrame(msg){
       addAccounts(splitAccountLabels(String(window.pendingAutoload)).map(rememberedAddLabel).join(","))
       window.pendingAutoload = null
     }
+    }   // /PREVIEW-FRAME1
 
 		glog(`state received for ${currentPlayerId}`, {gameMeta, state})
 

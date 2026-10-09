@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ENTRY-FADES1: in <head> — arms the fade-in before first paint. -->
 <script src="kfade.js?v=1790956864"></script>
-<link rel="stylesheet" href="katomia.css?v=1791556275">
+<link rel="stylesheet" href="katomia.css?v=1791561163">
 <link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1790956864"><title>Katomia Circles</title>
 <style>
   *{ -webkit-tap-highlight-color: transparent; }
@@ -1384,138 +1384,10 @@ window.onKatomiaBindingPublished = () => loadCircles()
 <script src="kbubble.js?v=1790956864"></script>
 <script src="kbubbleopen.js?v=1790956864"></script>
 <script>
-// The LIST tuning is deliberately calmer than the welcome page's two cards, by the
-// user's own reasoning: the welcome pair could be "more bubbly ... since it's now
-// focussed on the circles options only not all buttons" — restraint was a crowding
-// tax. On this page the crowding is back (24 live proposal games today), so the tax
-// applies again. Two concrete differences from landing.php's KB_CIRCLE:
-//   · fill:null — an iridescent AUTO fill on two cards is a signature; on twenty-four
-//     it is a rainbow wall that drowns the names and chips you came here to read.
-//     Border only, white card, content stays legible.
-//   · ambient .25 vs .9 — twenty-four idling loops should breathe, not shimmer.
-// The ENTRY gesture is unchanged: clicking still runs the full 800ms bubble, so the
-// page is calm to read and loud to leave.
-const KB_LIST = { spread: 0.75, iters: 8, smooth: 0.3, tension: 25, spring: 28,
-                  damp: 6, puff: 9, ambient: 0.25, width: 1.1, blur: 4, fill: null }
-// Matches landing.php's KBO_CIRCLE — entering a {one} feels identical from either page.
-const KBO_CIRCLE = { ms: 800, style: "iridescent", width: 1.6, coverage: 1.22,
-                     fill: "auto", fillAlpha: 0.22, backdrop: "auto" }
-
-// ── CIRCLES-BUBBLECOST1 (user 2026-08-06) ──────────────────────────────────
-// "I can hear my laptop fan spinning now, and I'm wondering if that page is
-// generating too much noise due to the processing needed for the bubble effect."
-// It was: kbubble runs an unconditional rAF loop PER attached element, and the
-// previous IntersectionObserver policy kept one running for every card on screen
-// — a dozen idling simulations, forever, on a page you mostly sit and read.
-//
-// New policy, which is the user's own proposal: "there's a way to optimize the
-// animation to prevent it doing anything until you actually hover on it… so they
-// don't really oscillate until you get a hover, and then only that particular one
-// has the animation, and then once it settles down, if you hover away it finishes
-// its bounce and then it switches back to being static again."
-//   · resting state = the plain CSS rounded-rect border. Zero JS, zero rAF.
-//   · hover/focus = attach ONE bubble, puff it, let it live while the pointer is
-//     there. At most one loop on the page, and only while you are pointing at it.
-//   · leaving = a settle delay, then destroy — the bounce finishes, then the card
-//     goes back to being a static rectangle.
-//   · touch (no hover at all) = never ambient. The click still runs kbubbleOpen's
-//     full 800ms entry gesture, untouched — the loud bit was never the problem.
-// The user also floated keeping a bubble or two "in memory" to avoid attach cost;
-// not needed — with one live at a time, attach is a canvas + a point loop, and it
-// happens under the pointer where a few ms is invisible.
-//
-// And because only one runs at a time we can afford a much finer outline: the
-// corners looked "slightly Jaggedy" because kbubble distributes its points evenly
-// by perimeter LENGTH, so on a long, wide card the short corner arcs got barely
-// one sample each. points: 320 (default 140) puts real samples on the corners.
-const KB_HOVER = Object.assign({}, KB_LIST, { style: "iridescent", points: 320, ambient: 0.5 })
-const SETTLE_MS = 900
-
-// ── CIRCLES-BUBBLEHOLD1 (user 2026-08-07) ──────────────────────────────────
-// "when you hover on a circle it does the animation thing, but if you keep
-// hovering on it the animation disappears — it just times out. If the mouse is
-// still over the button area that animation should persist. It should keep
-// going until you exit, and then it fades away."
-// Not a timeout — nothing was cancelling it. kbubble's ONLY sustained forcing is
-// the `ambient` term (0.5 · 0.05 · sin), which against damp:6 settles to a
-// sub-pixel shimmer, so the entry puff visibly decays to a still outline in
-// about a second. Movement hid it: kbubble impulses on pointermove, so the
-// border only died when you held the mouse still — exactly the "keep hovering"
-// case being reported.
-// Fix is a STIR: while the pointer is on the card, keep feeding the same gentle
-// impulses the pointer would. Strength and interval are jittered so it reads as
-// a living border rather than a metronome. Costs nothing extra — the rAF loop is
-// already running (that IS the hover state, per CIRCLES-BUBBLECOST1); we are
-// only stopping it from converging. On leave the stir stops first, so the last
-// wave still gets its full SETTLE_MS bounce before the FADE_MS dissolve — the
-// "keep going until you exit, then fade away" shape, unchanged.
-const STIR_MIN_MS = 420, STIR_MAX_MS = 760
-function stirOn(el, h){
-  stirOff(el)
-  const tick = () => {
-    if(!live.get(el)) return
-    try { h.puff?.(KB_HOVER.puff * (0.22 + Math.random() * 0.26)) } catch(e){}
-    el.__kbStir = setTimeout(tick, STIR_MIN_MS + Math.random() * (STIR_MAX_MS - STIR_MIN_MS))
-  }
-  el.__kbStir = setTimeout(tick, STIR_MIN_MS)
-}
-function stirOff(el){ clearTimeout(el.__kbStir); el.__kbStir = null }
-
-const live = new WeakMap()
-function bubbleOn(el){
-  if(!window.kbubble) return
-  clearTimeout(el.__kbOff)
-  const existing = live.get(el)
-  if(existing){                                  // re-entered during the settle/fade: revive, don't re-attach
-    const cv = el.querySelector("canvas")
-    if(cv){ cv.style.transition = ""; cv.style.opacity = "" }   // undo a fade already in flight
-    el.classList.add("kbubble-on")
-    stirOn(el, existing)
-    return
-  }
-  const h = kbubble.attach(el, KB_HOVER)
-  if(!h) return                    // prefers-reduced-motion: kbubble opts out
-  live.set(el, h)
-  try { h.puff?.() } catch(e){}
-  stirOn(el, h)
-}
-// R2 (user 2026-08-06): "if you leave it and let them fade out, they suddenly pop
-// away — I think we should have them fade out." The bubble still gets its full
-// settle (the bounce finishes, as before); what changed is the END: the canvas
-// dissolves instead of vanishing, and the card's own CSS border is restored at
-// the START of that dissolve so the two cross-fade — there is never a frame with
-// no border at all, which is what the pop actually was.
-// (The user's preferred alternative — a resting border that IS the bubble's
-// iridescent colouring, just not moving — is logged on CIRCLES-BUBBLECOST1: it
-// needs kbubble's palette expressed as a CSS gradient, and guessing at it would
-// land somewhere between "close" and "wrong".)
-const FADE_MS = 420
-function bubbleOff(el){
-  stirOff(el)                        // stop feeding it; the last wave still gets its full settle
-  clearTimeout(el.__kbOff)
-  el.__kbOff = setTimeout(() => {
-    const h = live.get(el)
-    if(!h) return
-    const cv = el.querySelector("canvas")
-    if(!cv){ h.destroy(); live.delete(el); return }
-    el.classList.remove("kbubble-on", "kbubble-filled")   // CSS border back, under the fading canvas
-    cv.style.transition = `opacity ${FADE_MS}ms ease`
-    cv.style.opacity = "0"
-    el.__kbOff = setTimeout(() => { h.destroy(); live.delete(el) }, FADE_MS)
-  }, SETTLE_MS)
-}
-
-function dressCards(){
-  document.querySelectorAll(".circle-card").forEach(el => {
-    if(el.dataset.kbDressed) return          // loadCircles() is re-entrant
-    el.dataset.kbDressed = "1"
-    window.kbubbleOpen?.bind(el, Object.assign({}, KBO_CIRCLE, { target: el.getAttribute("href") }))
-    el.addEventListener("mouseenter", () => bubbleOn(el))
-    el.addEventListener("mouseleave", () => bubbleOff(el))
-    el.addEventListener("focus", () => bubbleOn(el))       // keyboard parity
-    el.addEventListener("blur", () => bubbleOff(el))
-  })
-}
+// BUBBLE-LINKS1 (owner 2026-10-09): the list's hover bubble (CIRCLES-BUBBLECOST1 / HOLD1 —
+// a plain card at rest, ONE living outline under the pointer, the 800ms entry on click) moved
+// to katomia-places.js so Home's rows wear the very same effect. History and tuning live there.
+function dressCards(){ window.katomiaDressCircleLinks?.(document.querySelectorAll(".circle-card")) }
 
 window.addEventListener("load", () => { circlesReadUrl(); loadCircles() })
 // MENU-NET2: the ☰ on this page switches the network — the list follows at once
@@ -1531,9 +1403,9 @@ document.addEventListener("katomia:network", e => { _circlesFilter.network = e.d
 </script>
 
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
-<script src="katomia-core.js?v=1790965938"></script>
+<script src="katomia-core.js?v=1791561163"></script>
 <script src="katomia-helpers.js?v=1790956864"></script>
-<script src="katomia-places.js?v=1791554863"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
+<script src="katomia-places.js?v=1791561163"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
 <script src="kemoji.js?v=1790956864"></script>
 <script src="katomia-profile.js?v=1791556496"></script>
 <script src="katomia-auth.js?v=1791554280"></script>

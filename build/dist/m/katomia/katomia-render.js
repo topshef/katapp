@@ -1045,7 +1045,16 @@ function getFastThumb(url, imgEl){
     //   all     → every account, from the get-go (everyone is required)
     // Keep in sync with the backend if its settlement rules change. Memoized per
     // state broadcast (recomputed once per game_state, not per account row).
+    // LOCKPROG-STALE1 (owner 2026-10-09, "I drop an asset … I'm not seeing the lock button"):
+    // the memo was keyed on the IDENTITY of `state` — but incremental updates (STATSYNC1 P6,
+    // the default since then) patch that object IN PLACE (kdeltaApply), so after the first
+    // full state the identity never changed and the map never recomputed: a deal made after
+    // you arrived did not exist for anything reading it (the bar's Lock button, BAR-ACTONLY1;
+    // Party only; the lock tallies). The memo is now dropped on every applied update and at
+    // the start of every board render (katomiaLockProgressReset), and still keyed on identity
+    // for a fresh full state.
     let _lpState = null, _lpMap = null
+    window.katomiaLockProgressReset = () => { _lpState = null }
     function getLockProgress(accountId){
       if(_lpState !== state){ _lpState = state; _lpMap = computeLockProgressMap() }
       return _lpMap.get(accountId) || null

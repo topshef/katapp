@@ -1555,6 +1555,7 @@ async function render(){
   }
 
   boardCheckJustSucceeded()
+  window.katomiaLockProgressReset?.()   // LOCKPROG-STALE1: once per render, never per account
 
   document.body.dataset.viewMode = "board"
   document.body.dataset.boardSkin = boardSkin
@@ -5797,6 +5798,14 @@ function ringFooter(mine){
     rot.appendChild(ri)
     bar.appendChild(rot)
   }
+
+  // VIEW-SNAP2 (owner 2026-10-09): the grip mark sits in the MIDDLE of the bar's free space —
+  // the whole bar drags (katomia-chat.js), the two faint lines just say so. It used to sit at
+  // the bar's top edge, a second handle just above the dock's own; that one is gone.
+  const grip = document.createElement("span")
+  grip.className = "ring-footer-grip"
+  grip.setAttribute("aria-hidden", "true")
+  bar.appendChild(grip)
 
   return bar
 }

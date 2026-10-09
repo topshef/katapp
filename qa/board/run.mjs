@@ -562,7 +562,8 @@ console.log('14. LANDING-NET1 + RECENT-VISITS1 + LIVE-NOW1 + LIST-MINE1: Home by
     't-prop~3': G('t-prop~3', 'testnet', 'side room', A(2, 0, 0), 1) } }
   const visit = async (path, { net = 'testnet', nerd = false, recent = null } = {}) => {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 900 } })
-    await ctx.addInitScript(([v, n, r]) => { localStorage.setItem('katomiaNetwork', v); localStorage.setItem('katomia.nerd.v1', n ? '1' : '0'); if (r) localStorage.setItem('katomiaRecent', JSON.stringify(r)) }, [net, nerd, recent])
+    // seed the TOP page only — the bubble entry's hidden preview frames run init scripts too
+    await ctx.addInitScript(([v, n, r]) => { if (window.top !== window) return; localStorage.setItem('katomiaNetwork', v); localStorage.setItem('katomia.nerd.v1', n ? '1' : '0'); if (r) localStorage.setItem('katomiaRecent', JSON.stringify(r)) }, [net, nerd, recent])
     let token = null
     await ctx.route('**/hapi/games*', r => { token = r.request().headers()['x-player-token']; r.fulfill({ contentType: 'application/json', body: JSON.stringify(GAMES) }) })
     const page = await ctx.newPage()
@@ -583,16 +584,18 @@ console.log('14. LANDING-NET1 + RECENT-VISITS1 + LIVE-NOW1 + LIST-MINE1: Home by
       { id: 'm-prop', view: 'board', net: 'mainnet', at: 3 }, { id: 't-quiet', view: 'board', net: 'testnet', at: 2 }, { id: 'kqa-x', view: 'game', net: 'testnet', name: 'Old order book', at: 1 }] })
     const h = await home(page)
     ok(h.doors.some(t => /Testnet/.test(t)) && !h.doors.some(t => /Mainnet|Playnet/.test(t)) && h.doors.some(t => /Watch/.test(t)), 'Home on Testnet: the Testnet door (and the watch-only demo), not Mainnet or Playnet', JSON.stringify(h.doors))
-    ok(h.recentShown && h.recent.join() === 't-prop~3,t-busy,m-prop' && /Show all \(5\)/.test(h.more || ''), 'Recently visited: newest first, the last three, "Show all (5)"', JSON.stringify(h))
+    ok(h.recentShown && h.recent.join() === 't-prop~3,t-busy,t-quiet' && /Show all \(4\)/.test(h.more || ''), 'Recently visited: newest first, the last three, "Show all (4)" — and the mainnet visit is not shown on Testnet (NETWORK-PAGE1)', JSON.stringify(h))
     ok(h.sideHref === '/m/katomia/board/t-prop~3', 'side circles are in your history (unlike the Circles list) and link straight back', String(h.sideHref))
     ok(!h.live.includes('t-busy') && h.live.join() === 't-a,t-bench,t-b,t-prop,t-stands', 'Live now: top five on Testnet by playing, then waiting, then watching — minus what Recent already shows, no side circles, no mainnet', JSON.stringify(h.live))
     ok(typeof token() === 'string' && token().length > 8, 'Home asks the games list with this browser\'s player token (so `you` can come back)', String(token()))
     await page.click('#landingRecent [data-more]'); await page.waitForTimeout(100)
     const all = await home(page)
-    ok(all.recent.length === 5 && /Show fewer/.test(all.more || ''), 'Show all lists the whole history', JSON.stringify(all.recent))
-    await page.click('#landingRecent [data-forget="m-prop"]'); await page.waitForTimeout(100)
+    ok(all.recent.length === 4 && !all.recent.includes('m-prop') && /Show fewer/.test(all.more || ''), 'Show all lists the whole history on this network', JSON.stringify(all.recent))
+    await page.click('#landingRecent [data-forget="t-quiet"]'); await page.waitForTimeout(400)
     const forgot = await page.evaluate(() => ({ rows: [...document.querySelectorAll('#landingRecent .landing-row')].map(r => r.dataset.id), stored: JSON.parse(localStorage.getItem('katomiaRecent')).map(x => x.id), url: location.pathname }))
-    ok(!forgot.rows.includes('m-prop') && !forgot.stored.includes('m-prop') && forgot.url.endsWith('/index.html'), '× forgets one visit, here and in storage, without navigating', JSON.stringify(forgot))
+    ok(!forgot.rows.includes('t-quiet') && !forgot.stored.includes('t-quiet') && forgot.url.endsWith('/index.html'), '× forgets one visit, here and in storage, without navigating (the row\'s bubble entry never fires)', JSON.stringify(forgot))
+    const dressed = await page.evaluate(() => [...document.querySelectorAll('#landingRecent .landing-row, #landingLive .landing-row')].every(r => r.dataset.kbDressed === '1'))
+    ok(dressed, 'every Recent and Live row is dressed with the Circles bubble (BUBBLE-LINKS1)', String(dressed))
     await page.click('#landingRecent [data-clear]'); await page.waitForTimeout(100)
     const cleared = await home(page)
     const stored = await page.evaluate(() => localStorage.getItem('katomiaRecent'))
@@ -622,6 +625,20 @@ console.log('14. LANDING-NET1 + RECENT-VISITS1 + LIVE-NOW1 + LIST-MINE1: Home by
       return JSON.parse(localStorage.getItem('katomiaRecent') || '[]')
     })
     ok(r.length === 1 && r[0].id === 'QA-VISIT~2' && r[0].view === 'board' && r[0].net === 'testnet' && r[0].name === 'Visit me', 'a board state records the visit under the circle it names — side circles included', JSON.stringify(r))
+    await ctx.close()
+  }
+  // PREVIEW-FRAME1: a board pre-loaded in the bubble entry's hidden frame paints, but records
+  // no visit (and, live, seats nothing and lets its socket go)
+  {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } })
+    const page = await ctx.newPage()
+    await page.goto(`${BASE}/m/katomia/index.html`, { waitUntil: 'load' }); await page.waitForTimeout(500)
+    await page.evaluate(b => { localStorage.removeItem('katomiaRecent'); const f = document.createElement('iframe'); f.dataset.kboWarm = b; f.src = b; f.id = 'qaWarm'; document.body.appendChild(f) }, `${BASE}/m/katomia/board.html?demo=1`)
+    await page.waitForTimeout(2500)
+    const r = await page.evaluate(() => { const w = document.getElementById('qaWarm').contentWindow
+      w.katomiaHandleFrame({ data: JSON.stringify({ type: 'game_state', meta: { id: 'QA-PREVIEW', network: 'testnet' }, state: w.state, myPlayerId: w.currentPlayerId }) })
+      return { preview: w.KATOMIA_PREVIEW, recent: localStorage.getItem('katomiaRecent'), top: window.KATOMIA_PREVIEW || false } })
+    ok(r.preview === true && r.top === false && r.recent === null, 'a hover pre-load knows it is a preview and records no visit', JSON.stringify(r))
     await ctx.close()
   }
   // Circles: Mine row + the audience on each card
@@ -669,29 +686,40 @@ console.log('15. VIEW-MSGS1 + VIEW-SNAP1 + HUB-PREVIEW1: messages is a view, the
   const c = await view()
   ok(c.v === 'board' && c.menuOpen, 'Board alone from the menu, menu still open', JSON.stringify(c))
   await page.click('#appMenuBtn'); await page.waitForTimeout(200)
-  // board alone → drag the bar up → split
-  await dragBar(-80)
+  const lim = await page.evaluate(() => { const b = document.querySelector('.ring-footer').getBoundingClientRect(); return { barH: Math.round(b.height) } })
+  // VIEW-SNAP2: from the board alone the drag FOLLOWS the finger; too short and it snaps closed again
+  await dragBar(-40)
+  const d0 = await view()
+  ok(d0.v === 'board', 'board alone: a short drag up (under the dock\'s floor) snaps closed again', JSON.stringify(d0))
+  await dragBar(-200)
   const d = await view()
-  ok(d.v === 'split', 'board alone: dragging the bar UP opens the split', JSON.stringify(d))
+  const dH = await page.evaluate(() => parseInt(getComputedStyle(document.documentElement).getPropertyValue('--kchat-clear-b')))
+  ok(d.v === 'split' && Math.abs(dH - 200) <= 12, 'board alone: dragging the bar UP opens the split where the finger lets go (no jump)', JSON.stringify({ d: d.v, dH }))
   // split → drag way down → board alone (snap)
   await dragBar(600)
   const e = await view()
   ok(e.v === 'board', 'split: dragging the bar all the way DOWN snaps to the board alone', JSON.stringify(e))
-  await dragBar(-80)
+  await dragBar(-200)
   const e2 = await view()
-  const keep = await page.evaluate(() => localStorage.getItem('katomiaChatSplit'))
   // split → drag way up → messages (snap)
   await dragBar(-700)
   const f = await view()
   ok(e2.v === 'split' && f.v === 'messages', 'split: dragging the bar all the way UP snaps to messages alone', JSON.stringify({ e2: e2.v, f }))
-  await dragBar(120)
+  ok(f.bar && f.bar[0] <= 1 && f.menuBtnOnTop && f.listTop >= f.bar[1] - 1, 'messages alone: the bar is right at the top, the ☰ sits on it, the transcript starts below it', JSON.stringify(f))
+  // messages → a short drag down snaps back; a longer one follows into a split
+  await dragBar(60)
+  const g0 = await view()
+  ok(g0.v === 'messages', 'messages alone: a short drag down snaps back to messages', JSON.stringify(g0))
+  await dragBar(320)
   const g = await view()
-  const keep2 = await page.evaluate(() => localStorage.getItem('katomiaChatSplit'))
-  ok(g.v === 'split' && keep2 === keep, 'messages alone: dragging the bar DOWN brings the split back, at the height you had', JSON.stringify({ g: g.v, keep, keep2 }))
+  ok(g.v === 'split', 'messages alone: dragging the bar further DOWN follows the finger into a split', JSON.stringify(g))
   // a small drag inside the limits stays a split (no sliver, no snap)
   await dragBar(-30)
   const h = await view()
   ok(h.v === 'split', 'a small drag inside the limits stays a split', JSON.stringify(h))
+  const one = await page.evaluate(() => ({ dockGrip: (g => !!g && g.getClientRects().length > 0)(document.querySelector('#boardChatDock .kchat-drag')),
+    grip: (g => g && (r => ({ mid: Math.abs((r.top + r.height / 2) - (b => b.top + b.height / 2)(document.querySelector('.ring-footer').getBoundingClientRect())) < 3 }))(g.getBoundingClientRect()))(document.querySelector('.ring-footer .ring-footer-grip')) }))
+  ok(!one.dockGrip && one.grip && one.grip.mid, 'one handle: the bar\'s grip lines sit in its middle, and the dock\'s own line is gone', JSON.stringify(one))
   // K hub = preview
   ok(!h.play, 'the ring\'s bar has no ▶ any more', JSON.stringify(h))
   const hubPt = await page.evaluate(() => { const r = document.querySelector('.ring-hub').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 } })
@@ -707,6 +735,16 @@ console.log('15. VIEW-MSGS1 + VIEW-SNAP1 + HUB-PREVIEW1: messages is a view, the
   const cp = await cr.page.evaluate(() => !!document.querySelector('.ring-footer .ring-footer-play'))
   ok(cp, 'the Carousel (no K hub) keeps its ▶', String(cp))
   await cr.page.close()
+  // a spectator's "You're watching" ribbon is the grip too
+  const sp = await open('')
+  await sp.page.evaluate(() => { document.body.classList.add('spectating'); boardSetView('board') }); await sp.page.waitForTimeout(400)
+  const rib = await sp.page.evaluate(() => { const r = document.querySelector('.kspec-ribbon').getBoundingClientRect(); return { x: r.left + 20, y: r.top + r.height / 2, shown: r.height > 0 } })
+  await sp.page.mouse.move(rib.x, rib.y); await sp.page.mouse.down()
+  for (let i = 1; i <= 12; i++) await sp.page.mouse.move(rib.x, rib.y - 220 * i / 12)
+  await sp.page.mouse.up(); await sp.page.waitForTimeout(500)
+  const sv = await sp.page.evaluate(() => boardCurrentView())
+  ok(rib.shown && sv === 'split', 'watching only: dragging the "You\'re watching" ribbon up opens the split, like the players\' bar', JSON.stringify({ rib, sv }))
+  await sp.page.close()
 }
 
 console.log('16. BAR-ACTONLY1: the bar lists only the accounts that need to lock or sign, and has no button when there is nothing to do')
@@ -746,6 +784,25 @@ console.log('16. BAR-ACTONLY1: the bar lists only the accounts that need to lock
   await page.evaluate(() => { localStorage.removeItem('katomiaBarActOnly'); window.boardDetectSigning = window.__realDetect; boardSignStatus = null; state = window.__dealState; render() })
   const pref = await page.evaluate(() => ({ el: !!document.querySelector('#profileModal .profile-prefs #kprefBarActOnly') }))
   ok(pref.el, 'the switch lives in You → Preferences', JSON.stringify(pref))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+
+console.log('17. LOCKPROG-STALE1: a deal that arrives as an INCREMENTAL update (the live default) brings the Lock button')
+{
+  const { page, errs } = await open('')
+  const frame = f => page.evaluate(f => katomiaHandleFrame({ data: JSON.stringify(f) }), f)
+  // a full state with no deal, seq 5 (as a fresh join gets) …
+  await page.evaluate(() => { const s = JSON.parse(JSON.stringify(state)); Object.values(s.accounts).forEach(x => { x.basket = [] }); window.__qaS = s })
+  await page.evaluate(() => katomiaHandleFrame({ data: JSON.stringify({ type: 'game_state', seq: 5, meta: gameMeta, state: window.__qaS, myPlayerId: currentPlayerId }) }))
+  await page.waitForTimeout(400)
+  const a = await page.evaluate(() => ({ btn: document.querySelector('.ring-footer [data-testid="lock"]')?.textContent || null }))
+  // … then the drop arrives as a game_delta that patches the SAME state object in place
+  await frame({ type: 'game_delta', baseSeq: 5, seq: 6, myPlayerId: 'p1', patch: [{ op: 'set', path: ['accounts', 'p2:0.0.2002', 'basket'], value: [{ assetId: 'HBAR', amount: 1000000, fromId: 'p1:0.0.1111' }] }] })
+  await page.waitForTimeout(500)
+  const b = await page.evaluate(() => ({ btn: document.querySelector('.ring-footer [data-testid="lock"]')?.textContent || null, seq: window.__stateSeq,
+    opts: [...document.querySelectorAll('.ring-footer .ring-footer-accsel option')].map(o => o.value).filter(v => v !== '__add') }))
+  ok(a.btn === null && b.seq === 6 && /Lock/.test(b.btn || '') && b.opts.join() === 'p1:0.0.1111', 'no deal → no Lock; the drop arrives as a delta → Lock appears for the account in the deal', JSON.stringify({ a, b }))
   ok(!errs.length, 'no page errors', JSON.stringify(errs))
   await page.close()
 }

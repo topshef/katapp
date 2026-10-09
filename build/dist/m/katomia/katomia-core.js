@@ -8,6 +8,16 @@
     // absolute app URL (PHP twin: $katomiaBase in site-config.php).
     window.KBASE = location.pathname.startsWith("/m/katomia") ? "/m/katomia" : ""
 
+    // PREVIEW-FRAME1 (owner 2026-10-09, found chasing "you're in nearly everything"): the bubble
+    // entry (kbubbleopen.js) PRE-LOADS a circle in a hidden full-size iframe the moment you hover
+    // or touch its card, so the reveal is instant. That hidden board ran for real: it joined the
+    // circle, auto-added your connected accounts (ENTRY-AUTOADD1), recorded a visit, and kept a
+    // socket open for as long as the list page lived — so every card you merely brushed seated
+    // you, and kept you "active" there. A board that knows it is a preview only paints:
+    // katomia-network.js skips seating, restoring and the visit record, and lets the socket go
+    // once the first state has painted. The real page (navigated to on click) is unaffected.
+    window.KATOMIA_PREVIEW = (() => { try { return !!window.frameElement?.dataset?.kboWarm } catch(e){ return false } })()
+
 
 		function getGameId(){
 
