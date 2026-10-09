@@ -246,6 +246,13 @@
           <input type="checkbox" id="kprefAutoSignReq">
           Auto-request signatures for matched orders
         </label>
+        <!-- BAR-ACTONLY1 (owner 2026-10-09): the board's bar lists only the accounts that need
+             to lock or sign, and hides the button when there is nothing to do. Default ON;
+             unticked = the old bar (every account, the button always there), kept for A/B. -->
+        <label class="profile-debug-label">
+          <input type="checkbox" id="kprefBarActOnly">
+          Board bar: only show accounts that need to lock or sign
+        </label>
         <!-- MENU-VIEW1 (owner 2026-10-09): the three board switches that change what HAPPENS,
              not how it looks, moved here from the old ⚙ Settings popover — everything left on
              the board's ☰ is now 👁 View. Same ids, so katomia-board.js boardSyncPrefsUI()

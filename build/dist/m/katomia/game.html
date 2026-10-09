@@ -900,6 +900,13 @@ window.katomiaNet = (() => {
           <input type="checkbox" id="kprefAutoSignReq">
           Auto-request signatures for matched orders
         </label>
+        <!-- BAR-ACTONLY1 (owner 2026-10-09): the board's bar lists only the accounts that need
+             to lock or sign, and hides the button when there is nothing to do. Default ON;
+             unticked = the old bar (every account, the button always there), kept for A/B. -->
+        <label class="profile-debug-label">
+          <input type="checkbox" id="kprefBarActOnly">
+          Board bar: only show accounts that need to lock or sign
+        </label>
         <!-- MENU-VIEW1 (owner 2026-10-09): the three board switches that change what HAPPENS,
              not how it looks, moved here from the old ⚙ Settings popover — everything left on
              the board's ☰ is now 👁 View. Same ids, so katomia-board.js boardSyncPrefsUI()
@@ -1395,7 +1402,7 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "8e249ba"
+  window.KFLOW_COMMIT = "fefe805"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — loads first so every later script can call window.kflow -->
 <script src="kflow.js?v=1790956864"></script>
@@ -1443,7 +1450,7 @@ window.katomiaNet = (() => {
      TODO(bundling): when kpool_widget is rolled into a proper JS bundle, fold
      qrcode.min.js in and remove this script tag entirely. -->
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
-<script src="katomia-profile.js?v=1791544439"></script>
+<script src="katomia-profile.js?v=1791556496"></script>
 <script src="katomia-auth.js?v=1791554280"></script>
 <script src="katomia-addaccount.js?v=1790956864"></script>
 

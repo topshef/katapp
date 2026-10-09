@@ -197,6 +197,16 @@ function initKatomiaProfile(){
     autoSign.onchange = () => { try { localStorage.setItem("katomiaAutoSignReq", autoSign.checked ? "1" : "0") } catch {} }
   }
 
+  // BAR-ACTONLY1: same absent-key-means-ON pattern; the board re-renders its bar at once
+  const actOnly = document.getElementById("kprefBarActOnly")
+  if(actOnly){
+    actOnly.checked = localStorage.getItem("katomiaBarActOnly") !== "0"
+    actOnly.onchange = () => {
+      try { localStorage.setItem("katomiaBarActOnly", actOnly.checked ? "1" : "0") } catch {}
+      if(typeof render === "function" && typeof boardBarActOnly === "function") render()
+    }
+  }
+
   loadNerdMode()
 }
 

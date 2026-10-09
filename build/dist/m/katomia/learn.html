@@ -965,6 +965,13 @@ window.katomiaNet = (() => {
           <input type="checkbox" id="kprefAutoSignReq">
           Auto-request signatures for matched orders
         </label>
+        <!-- BAR-ACTONLY1 (owner 2026-10-09): the board's bar lists only the accounts that need
+             to lock or sign, and hides the button when there is nothing to do. Default ON;
+             unticked = the old bar (every account, the button always there), kept for A/B. -->
+        <label class="profile-debug-label">
+          <input type="checkbox" id="kprefBarActOnly">
+          Board bar: only show accounts that need to lock or sign
+        </label>
         <!-- MENU-VIEW1 (owner 2026-10-09): the three board switches that change what HAPPENS,
              not how it looks, moved here from the old ⚙ Settings popover — everything left on
              the board's ☰ is now 👁 View. Same ids, so katomia-board.js boardSyncPrefsUI()
@@ -1680,7 +1687,7 @@ window.KTERMS = {"one":"circle","One":"Circle","many":"circles","Many":"Circles"
 <script src="katomia-core.js?v=1790965938"></script>
 <script src="katomia-helpers.js?v=1790956864"></script>
 <script src="kemoji.js?v=1790956864"></script>
-<script src="katomia-profile.js?v=1791544439"></script>
+<script src="katomia-profile.js?v=1791556496"></script>
 <!-- KAT-FEEDBACK1: the modal (long-press anywhere, or the buttons above). Served from
      the backend, its canonical home — the 💬 bits below hand off to it. -->
 <script src="https://api.katomia.com/hapi/feedback-widget.js"

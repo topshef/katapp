@@ -709,6 +709,47 @@ console.log('15. VIEW-MSGS1 + VIEW-SNAP1 + HUB-PREVIEW1: messages is a view, the
   await cr.page.close()
 }
 
+console.log('16. BAR-ACTONLY1: the bar lists only the accounts that need to lock or sign, and has no button when there is nothing to do')
+{
+  const { page, errs } = await open('')
+  const bar = () => page.evaluate(() => ({
+    opts: [...document.querySelectorAll('.ring-footer .ring-footer-accsel option')].map(o => o.value).filter(v => v !== '__add'),
+    btn: document.querySelector('.ring-footer [data-testid="lock"], .ring-footer [data-testid="sign"]')?.textContent.trim() || null,
+    sel: document.querySelector('.ring-footer .ring-footer-accsel')?.value,
+    mine: getAccounts().filter(a => isMyAccount(a)).map(a => a.id),
+    party: getAccounts().filter(a => isMyAccount(a) && boardInMyParty(a, getAccounts())).map(a => a.id) }))
+  const a = await bar()
+  ok(a.party.length >= 1 && a.party.length < a.mine.length, 'fixture: some of my accounts are in a deal and some are not', JSON.stringify(a))
+  ok(a.opts.join() === a.party.join() && /Lock/.test(a.btn || ''), 'in a deal: the list holds only my accounts in it, and Lock is there', JSON.stringify(a))
+  // no deal anywhere → no button, every account listed (the list is also how you add one)
+  // a NEW state object — lock progress is cached per state (as each broadcast is a new one)
+  await page.evaluate(() => { window.__dealState = state; state = JSON.parse(JSON.stringify(state)); Object.values(state.accounts).forEach(x => { x.basket = [] }); render() }); await page.waitForTimeout(300)
+  const b = await bar()
+  ok(b.btn === null && b.opts.join() === b.mine.join(), 'nothing in a deal: no Lock button, all my accounts in the list', JSON.stringify(b))
+  // signing: party accounts that have not signed, the next one already selected
+  await page.evaluate(() => {
+    const mine = getAccounts().filter(a => isMyAccount(a)).map(a => a.id.split(':')[1])
+    window.__realDetect = boardDetectSigning
+    window.boardDetectSigning = () => ({ tx: { txid: 'QA-TX' }, legs: { [mine[0]]: { recv: [], send: [] }, [mine[1]]: { recv: [], send: [] } }, status: 'pending', expiry: Date.now() + 60000 })
+    boardSignStatus = { txid: 'QA-TX', byAccount: { [mine[0]]: 'signed', [mine[1]]: 'pending' } }
+    render()
+  }); await page.waitForTimeout(300)
+  const c = await bar()
+  ok(c.opts.length === 1 && c.opts[0] === c.mine[1] && c.sel === c.mine[1] && /Sign/.test(c.btn || ''), 'signing: only the party account still to sign is listed — selected, Sign ready', JSON.stringify(c))
+  await page.evaluate(() => { const m = getAccounts().filter(a => isMyAccount(a)).map(a => a.id.split(':')[1]); boardSignStatus.byAccount[m[1]] = 'signed'; render() }); await page.waitForTimeout(300)
+  const d = await bar()
+  ok(d.btn === null, 'everyone of mine has signed: no Sign button', JSON.stringify(d))
+  // the preference off = the old bar
+  await page.evaluate(() => { localStorage.setItem('katomiaBarActOnly', '0'); render() }); await page.waitForTimeout(300)
+  const e = await bar()
+  ok(e.opts.join() === e.mine.join() && /Sign/.test(e.btn || ''), 'You → Preferences off: every account and the button, as before', JSON.stringify(e))
+  await page.evaluate(() => { localStorage.removeItem('katomiaBarActOnly'); window.boardDetectSigning = window.__realDetect; boardSignStatus = null; state = window.__dealState; render() })
+  const pref = await page.evaluate(() => ({ el: !!document.querySelector('#profileModal .profile-prefs #kprefBarActOnly') }))
+  ok(pref.el, 'the switch lives in You → Preferences', JSON.stringify(pref))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)

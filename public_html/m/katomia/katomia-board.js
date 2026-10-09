@@ -1246,6 +1246,11 @@ if(!window.__boardViewSwitchInit){
 
 // HUB-PREVIEW1 (owner 2026-10-09): the preview, as one action with two doors — the K hub on
 // the ring, the ▶ on the shapes that have no hub. Body unchanged from the ▶'s old onclick.
+// BAR-ACTONLY1: You → Preferences "Only show accounts that need to act" — absent key = ON
+function boardBarActOnly(){
+  try { return localStorage.getItem("katomiaBarActOnly") !== "0" } catch { return true }
+}
+
 function boardTogglePreview(){
   if(!ring16()){ playTransfers(); return }
   if(boardSigning){ playTransfers(); return }   // spotlight is permanent here
@@ -5602,8 +5607,25 @@ function ringFooter(mine){
     const freshMine = _boardSeenMineIds.size ? mine.find(a => !_boardSeenMineIds.has(a.id)) : null
     if(freshMine) boardSelectedAccount = freshMine.id
     mine.forEach(a => _boardSeenMineIds.add(a.id))
-    if(!boardSelectedAccount || !mine.some(a => a.id === boardSelectedAccount))
-      boardSelectedAccount = mine[0]?.id || null
+
+    // BAR-ACTONLY1 (owner 2026-10-09): the bar shows an action only when there is one to take,
+    // and only the accounts it applies to — "we don't encourage anyone to lock if they've got
+    // nothing in the trade". Signing: the accounts that are party to the struck deal and have
+    // not signed yet (boardSignStatus), so the next one is already selected. Locking: your
+    // accounts that are in a deal (boardInMyParty — the lock rule's own grouping), so pressing
+    // Lock again and again locks everything you are party to. Nothing to act on: no Lock/Sign
+    // button at all, and the list keeps every account (it is also how you add one).
+    // You → Preferences turns it off (status quo: every account, the button always there) —
+    // kept as a switch for A/B; if nobody misses the old bar, the switch can go.
+    const actOnly = boardBarActOnly()
+    const hacOf = a => a.id.split(":")[1] || a.id
+    const actable = !actOnly ? mine
+      : boardSigning ? mine.filter(a => !!boardSigning.legs[hacOf(a)] && boardSignStatus?.byAccount?.[hacOf(a)] !== "signed")
+      : mine.filter(a => boardInMyParty(a, getAccounts()))
+    const nothingToDo = actOnly && !actable.length
+    const listed = nothingToDo ? mine : actable
+    if(!boardSelectedAccount || !listed.some(a => a.id === boardSelectedAccount))
+      boardSelectedAccount = (listed.find(a => !boardSigning && a.mode !== "lock") || listed[0])?.id || null
 
     // shared composer modal (addaccount-modal.php + katomia-addaccount.js,
     // user 2026-07-14) — WC-connected / connect / manual, same as the
@@ -5626,7 +5648,7 @@ function ringFooter(mine){
     } else {
     const sel = document.createElement("select")
     sel.className = "ring-footer-accsel"
-    mine.forEach(a => {
+    listed.forEach(a => {
       const o = document.createElement("option")
       o.value = a.id
       // 🔒 AFTER the id (review 7) — appears/disappears without the id jumping
@@ -5651,6 +5673,12 @@ function ringFooter(mine){
     }
 
     const selected = () => mine.find(a => a.id === boardSelectedAccount)
+    // BAR-ACTONLY1: after a lock, move the selection to your next unlocked account in the deal
+    const advanceAfterLock = a => {
+      if(!actOnly || boardSigning || a.mode === "lock") return
+      const next = listed.find(x => x.id !== a.id && x.mode !== "lock")
+      if(next) boardSelectedAccount = next.id
+    }
 
     const lockBtn = document.createElement("button")
     const cur = selected()
@@ -5684,7 +5712,7 @@ function ringFooter(mine){
       lockBtn.dataset.testid = "lock"          // QA-TESTHOOKS1
       lockBtn.textContent = cur?.mode === "lock" ? "🔓 Unlock" : "🔒 Lock"
       lockBtn.disabled = !cur
-      lockBtn.onclick = () => { const a = selected(); if(a) boardToggleLock(a) }
+      lockBtn.onclick = () => { const a = selected(); if(a){ advanceAfterLock(a); boardToggleLock(a) } }
       if(ring16() && cur){
         // hover previews WHICH arc this would lock — SAME pale orange as hovering
         // the arc itself (user 2026-08-03; was a thin dashed line). No asset
@@ -5702,11 +5730,12 @@ function ringFooter(mine){
           if(!a) return
           boardLockPreviewArmed = false
           arcOf()?.classList.remove("ring-lockpreview")
+          advanceAfterLock(a)
           boardToggleLock(a)
         }
       }
     }
-    bar.appendChild(lockBtn)
+    if(!nothingToDo) bar.appendChild(lockBtn)   // BAR-ACTONLY1: no button when there is nothing to lock or sign
   } else {
     mine.forEach(account => {
       const b = document.createElement("button")
