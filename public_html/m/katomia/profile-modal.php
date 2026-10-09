@@ -54,7 +54,7 @@
         </div>
         <div id="authNetworkNote" class="profile-auth-account hidden">
           <span class="profile-label">Network</span>
-          <span class="profile-netnote"><b data-network-note="authNetwork"></b> <span class="subtle">· change it from ☰ on Home</span></span>
+          <span class="profile-netnote"><b data-network-note="authNetwork"></b> <span class="subtle">· change it from ☰ on Home or Circles</span></span>
         </div>
 
         <!-- Account picker — KAT-ACCTNORM1 (user 2026-08-05): ONE list, everywhere.

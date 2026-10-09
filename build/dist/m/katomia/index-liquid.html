@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ENTRY-FADES1: must be in <head> — it arms the fade-IN before first paint. -->
 <script src="kfade.js?v=1790956864"></script>
-<link rel="stylesheet" href="katomia.css?v=1791544888">
+<link rel="stylesheet" href="katomia.css?v=1791554997">
 <link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1790956864"><title>Katomia</title>
 <style>
   /* KATOMIA-LANDING1: intentionally tiny — a hand-picked jumping-off point,
@@ -47,6 +47,30 @@
   .landing-card:hover{ border-color: #c9c2b3; }
   .landing-card-label{ font-weight: 600; }
   .landing-card-net{ font-size: 12px; color: #888; margin-top: 2px; }
+  .landing-card[hidden]{ display: none !important; }
+  /* RECENT-VISITS1 + LIVE-NOW1: compact rows, deliberately NOT bubble cards — the bubble
+     marks the curated doors; these are a list you scan */
+  .landing-places{ margin: 18px 0 0; }
+  .landing-places[hidden]{ display: none; }
+  .landing-places-h{ display: flex; align-items: baseline; gap: 10px; margin: 0 2px 6px;
+    font: 700 11px/1 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #8a8f99; }
+  .landing-places-h .landing-places-act{ margin-left: auto; font: 500 12px/1 system-ui, sans-serif; letter-spacing: 0;
+    text-transform: none; color: #7a8595; background: none; border: 0; padding: 0; cursor: pointer; box-shadow: none; }
+  .landing-places-h .landing-places-act:hover{ text-decoration: underline; transform: none; box-shadow: none; background: none; }
+  .landing-rows{ display: flex; flex-direction: column; gap: 6px; }
+  .landing-row{ display: flex; align-items: center; gap: 8px; padding: 9px 10px 9px 12px; border-radius: 10px;
+    background: #fff; border: 1px solid #e6e1d6; }
+  .landing-row a{ flex: 1; min-width: 0; color: inherit; text-decoration: none; }
+  .landing-row-name{ display: block; font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .landing-row-meta{ display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 2px; font-size: 12px; color: #888; }
+  .landing-row-id{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .landing-row-dot{ display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #bbb; }
+  .landing-row-dot[data-net="testnet"]{ background: #e8731a; } .landing-row-dot[data-net="mainnet"]{ background: #6e3fd3; }
+  .landing-row-dot[data-net="playnet"]{ background: #1f8f4e; }
+  .landing-row-in{ color: #1a56c4; font-weight: 600; }
+  .landing-row-x{ flex: none; border: 0; background: transparent; color: #aaa; font-size: 15px; padding: 4px 6px; cursor: pointer; box-shadow: none; }
+  .landing-row-x:hover{ color: #555; background: transparent; transform: none; box-shadow: none; }
+
   /* ENTRY-WELCOME1: See-all demoted to small + muted (user 2026-07-29) — the curated
      cards + create button are the happy path; the full list is a power-user door.
      ENTRY-CIRCLES1 (2026-07-30): and now nerd-ONLY — normal mode gets "More {many}",
@@ -238,6 +262,12 @@
   .app-menu-net button[aria-pressed="true"][data-net="playnet"]{ background:#1f8f4e; color:#fff; }
   .app-menu-net button[data-net="playnet"]{ display:none; }
   body.nerd .app-menu-net button[data-net="playnet"]{ display:inline-block; }
+  /* MENU-NET2: the read-only row inside a circle — one pill in the network's colour */
+  .app-menu-netpill{ font:700 11px/1 system-ui,sans-serif; letter-spacing:.04em; text-transform:uppercase;
+    padding:7px 11px; border-radius:999px; background:#eee; color:#666; }
+  .app-menu-netpill[data-net="testnet"]{ background:#e8731a; color:#fff; }
+  .app-menu-netpill[data-net="mainnet"]{ background:#6e3fd3; color:#fff; }
+  .app-menu-netpill[data-net="playnet"]{ background:#1f8f4e; color:#fff; }
 
   /* Nested groups (like a Windows submenu, but unrolling in place). The body is a one-row grid
      that animates 0fr → 1fr, so it rolls open at its real height with no measuring. */
@@ -314,7 +344,8 @@
        and "Nerd mode" (a preference — lives in Profile → Preferences & diagnostics). -->
   <nav id="appMenu" class="app-menu hidden">
         <!-- MENU-SPEC1 (owner 2026-10-09): the network is chosen HERE and nowhere else — the ☰ on
-         Home. "You have to go to the home page, and then choose your network there." Inside a
+         Home (and, MENU-NET2 the same day, on Circles: the same control and the same setting,
+         so the two pages can never disagree). "You have to go to the home page, and then choose your network there." Inside a
          circle the circle's own network applies; the wallet pickers in the You and Authenticate
          modals follow this switch and say where it is changed. Playnet is developer-only.
          Wired by the MENU-NET1 script below; a switch, so the menu stays open on a tap. -->
@@ -326,7 +357,7 @@
         <button type="button" data-net="playnet" aria-pressed="false" title="Play money — demos and QA (developer mode)">Playnet</button>
       </div>
     </div>
-            <!-- ENTRY-CIRCLES1 (user 2026-07-30): the everyday destination is now the
+                    <!-- ENTRY-CIRCLES1 (user 2026-07-30): the everyday destination is now the
          proposal-only index, labelled with the configured term. 🏛️ Markets kept the
          bank emoji and the word "markets" — both wrong once the product calls these
          circles — so it moves behind nerd mode as the raw, unfiltered grid.
@@ -507,7 +538,8 @@ addEventListener("load", () => setTimeout(() => {
 // Home — and read everywhere else. Stored per device (katomiaNetwork); testnet until you
 // choose. Playnet only while developer (nerd) mode is on; off again, it reads as testnet.
 // Inside a circle nothing here applies: the circle's own network (gameMeta.network) wins, as
-// it always did. Followers:
+// it always did (the ☰ there shows it read-only, MENU-NET2). MENU-NET2 also puts the same
+// switch on the Circles page — one setting, so Home and Circles can never disagree. Followers:
 //   · the wallet pickers in the You and Authenticate modals (#authNetwork, #kamNetwork) —
 //     their rows are hidden and a one-line note says which network and where to change it
 //     (static markup, one per modal: lab2 inserted the note on every repaint and it piled up)
@@ -531,6 +563,11 @@ window.katomiaNet = (() => {
       if(s && [...s.options].some(o => o.value === v)) s.value = v
     })
     // the note names what the wallet will actually use — the picker's value
+    // MENU-NET2: inside a circle the read-only row names the circle's own network
+    const here = window.__katomiaNetwork || (typeof gameMeta !== "undefined" && gameMeta?.network) || ""
+    document.querySelectorAll("[data-menu-network-ro] .app-menu-netpill").forEach(p => {
+      p.dataset.net = here; p.textContent = here ? (LABEL[here] || here) : "…"
+    })
     document.querySelectorAll("[data-network-note]").forEach(n => {
       const s = document.getElementById(n.dataset.networkNote)
       const shown = s ? s.value : v
@@ -878,7 +915,7 @@ window.katomiaNet = (() => {
         </div>
         <div id="authNetworkNote" class="profile-auth-account hidden">
           <span class="profile-label">Network</span>
-          <span class="profile-netnote"><b data-network-note="authNetwork"></b> <span class="subtle">· change it from ☰ on Home</span></span>
+          <span class="profile-netnote"><b data-network-note="authNetwork"></b> <span class="subtle">· change it from ☰ on Home or Circles</span></span>
         </div>
 
         <!-- Account picker — KAT-ACCTNORM1 (user 2026-08-05): ONE list, everywhere.
@@ -1139,7 +1176,7 @@ window.katomiaNet = (() => {
       <!-- MENU-NET1: the picker above follows ☰ on Home and is never shown; this says which -->
       <div id="kamNetworkNote" class="profile-auth-account hidden">
         <span class="profile-label">Network</span>
-        <span class="profile-netnote"><b data-network-note="kamNetwork"></b> <span class="subtle">· change it from ☰ on Home</span></span>
+        <span class="profile-netnote"><b data-network-note="kamNetwork"></b> <span class="subtle">· change it from ☰ on Home or Circles</span></span>
       </div>
 
       <div class="profile-auth-account">
@@ -1173,19 +1210,39 @@ window.katomiaNet = (() => {
        that get the bubble — the gesture is reserved for "entering a {one}" (user
        2026-07-30), so administrative buttons below stay plain and use the quiet fade. -->
   <div class="landing-list">
-              <a class="landing-card" data-kbubble-open href="/m/katomia/board/t-prop">
+              <a class="landing-card" data-net="testnet" data-kbubble-open href="/m/katomia/board/t-prop">
         <div class="landing-card-label">
           🟠 Testnet Circle                  </div>
         <div class="landing-card-net">Play money — nothing at stake.</div>      </a>
-          <a class="landing-card" data-kbubble-open href="/m/katomia/board/m-prop">
+          <a class="landing-card" data-net="mainnet" data-kbubble-open href="/m/katomia/board/m-prop">
         <div class="landing-card-label">
           🟣 Mainnet Circle                  </div>
         <div class="landing-card-net">The real thing — live value.</div>      </a>
+          <a class="landing-card" data-net="playnet" data-kbubble-open href="/m/katomia/board/p-prop">
+        <div class="landing-card-label">
+          🟢 Playnet Circle                  </div>
+        <div class="landing-card-net">Developer sandbox — no chain, nothing settles.</div>      </a>
           <a class="landing-card landing-card--watch" data-kbubble-open href="/m/katomia/board/t-trio">
         <div class="landing-card-label">
           📺 Watch a live demo          <span class="landing-watch-badge" title="A demo running right now, played by bots. You can watch it live — there is nothing to join.">live · watch only</span>        </div>
         <div class="landing-card-net">Three people, one loop — a swap none of them could do in pairs. Running now.</div>      </a>
       </div>
+  <script>
+  // LANDING-NET1: show the doors for the chosen network — inline, right after the cards, so
+  // the other network's door never flashes up first. katomiaNet is the header's (MENU-NET1).
+  window.landingNetCards = () => {
+    const v = window.katomiaNet ? katomiaNet.get() : ""
+    document.querySelectorAll(".landing-list .landing-card[data-net]").forEach(c => { c.hidden = !!v && c.dataset.net !== v })
+  }
+  landingNetCards()
+  document.addEventListener("katomia:network", landingNetCards)
+  </script>
+
+  <!-- RECENT-VISITS1 + LIVE-NOW1 (owner 2026-10-09): your way back, then who is here now.
+       Filled from this browser's history (katomia-places.js) and the games list; both stay
+       hidden until they have something to show. -->
+  <section class="landing-places" id="landingRecent" hidden></section>
+  <section class="landing-places" id="landingLive" hidden></section>
 
   <!-- ENTRY-WELCOME1/ENTRY-CREATEBASIC1: one button, straight to the trimmed-down
        create form (name + network + visibility only) — the full form stays at /create.
@@ -1388,6 +1445,76 @@ window.addEventListener("load", () => {
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
 <script src="katomia-core.js?v=1790965938"></script>
 <script src="katomia-helpers.js?v=1790956864"></script>
+<script src="katomia-places.js?v=1791554863"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
+<script>
+// ── RECENT-VISITS1 + LIVE-NOW1 (owner 2026-10-09) ───────────────────────────────────────
+// "Recently visited": this browser's history, newest first, side circles included — the
+// last three, "Show all" for the rest, × to forget one, Clear to forget them all. It is
+// history, not membership: forgetting a visit leaves your accounts where they are.
+// "Live now": the five busiest circles on the chosen network by who is on the pitch, then
+// the bench, then the stands (▶ playing, ⏸ waiting, 👁 watching — AUDIENCE-WWP1), skipping
+// any circle already in the recent rows above so the page never lists one twice. Proposal
+// circles only and no side circles, the same pool as the Circles list.
+(() => {
+  const BASE = "\/m\/katomia";
+  const T = window.KTERMS || { one: "circle", many: "circles" }
+  const SHOW = 3, LIVE = 5
+  let games = {}, expanded = false
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]))
+  const netOf = g => g?.config?.network || g?.network || ""
+  const modeOf = g => g?.config?.tradingMode || g?.tradingMode || ""
+  const dev = () => { try { return localStorage.getItem("katomia.nerd.v1") === "1" } catch { return false } }
+  const href = (id, view) => BASE + "/" + (view === "game" ? "game" : "board") + "/" + encodeURIComponent(id)
+  const row = ({ id, view, name, net, aud, mine, x }) => `
+    <div class="landing-row" data-id="${esc(id)}">
+      <a href="${href(id, view)}">
+        <span class="landing-row-name">${esc(name || id)}</span>
+        <span class="landing-row-meta"><span class="landing-row-dot" data-net="${esc(net)}" title="${esc(net)}"></span>
+          <span class="landing-row-id">${esc(id)}</span>${mine ? `<span class="landing-row-in" title="You have ${mine} account${mine > 1 ? "s" : ""} on this board">you're in</span>` : ""}${aud || ""}</span>
+      </a>${x ? `<button type="button" class="landing-row-x" data-forget="${esc(id)}" title="Forget this visit — your accounts stay where they are" aria-label="Forget this visit">×</button>` : ""}
+    </div>`
+
+  function render(){
+    const recentEl = document.getElementById("landingRecent"), liveEl = document.getElementById("landingLive")
+    const hist = window.katomiaRecent ? katomiaRecent.list() : []
+    const shown = expanded ? hist : hist.slice(0, SHOW)
+    recentEl.hidden = !hist.length
+    if(hist.length){
+      recentEl.innerHTML = `<div class="landing-places-h">Recently visited
+          ${hist.length > SHOW ? `<button type="button" class="landing-places-act" data-more>${expanded ? "Show fewer" : `Show all (${hist.length})`}</button>` : ""}
+          <button type="button" class="landing-places-act" data-clear title="Forget every visit in this browser">Clear history</button></div>
+        <div class="landing-rows">${shown.map(h => {
+          const g = games[h.id]
+          return row({ id: h.id, view: h.view, name: g?.profile?.name || h.name, net: netOf(g) || h.net,
+                       aud: window.katomiaAudienceHtml?.(g?.activity), mine: g?.you?.accounts, x: true })
+        }).join("")}</div>`
+    }
+    // Live now — the chosen network (play demos under either, as on Circles), minus what is above
+    const v = window.katomiaNet ? katomiaNet.get() : ""
+    const skip = new Set(shown.map(h => h.id))
+    const live = Object.values(games)
+      .filter(g => modeOf(g) === "proposal" && !/~\d+$/.test(String(g.id)) && !skip.has(g.id))
+      .filter(g => !v || netOf(g) === v || (netOf(g) === "playnet" && v !== "playnet" && !dev()))
+      .map(g => ({ g, s: window.katomiaAudienceScore ? katomiaAudienceScore(g.activity) : 0 }))
+      .filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, LIVE)
+    liveEl.hidden = !live.length
+    if(live.length)
+      liveEl.innerHTML = `<div class="landing-places-h">Live now</div><div class="landing-rows">${live.map(({ g }) =>
+        row({ id: g.id, view: "board", name: g.profile?.name, net: netOf(g), aud: window.katomiaAudienceHtml?.(g.activity), mine: g.you?.accounts })).join("")}</div>`
+  }
+
+  document.addEventListener("click", e => {
+    const f = e.target.closest?.("[data-forget]")
+    if(f){ e.preventDefault(); katomiaRecent.remove(f.dataset.forget); render(); return }
+    if(e.target.closest?.("#landingRecent [data-more]")){ expanded = !expanded; render(); return }
+    if(e.target.closest?.("#landingRecent [data-clear]")){ katomiaRecent.clear(); expanded = false; render() }
+  })
+  document.addEventListener("katomia:network", render)
+  render()   // history first, from this browser — no wait for the network
+  fetch(BASE + "/hapi/games", { headers: { "x-player-token": (typeof getOrCreatePlayerToken === "function") ? getOrCreatePlayerToken() : "" } })
+    .then(r => r.json()).then(d => { games = d?.games || {}; render() }).catch(() => {})
+})()
+</script>
 <script src="kemoji.js?v=1790956864"></script>
 <script src="katomia-profile.js?v=1791544439"></script>
 <script src="katomia-auth.js?v=1791554280"></script>

@@ -780,6 +780,12 @@ async function katomiaHandleFrame(msg){
     // PROP-ADDACCT1: survives exitGame() (which nulls gameMeta) so the add-account
     // modal still knows the game's network when re-adding after a 🗑️ exit.
     if(gameMeta?.network) window.__katomiaNetwork = gameMeta.network
+    // RECENT-VISITS1 (owner 2026-10-09): this circle goes on top of Home's "recently visited"
+    // (katomia-places.js — writes only when something changed). Keyed on the id the STATE
+    // names, so a soft swap into a side circle records the side circle.
+    window.katomiaRecent?.touch(gameMeta?.id || data.gameId || gameId, { view: document.getElementById("boardRoot") ? "board" : "game",
+      net: gameMeta?.network || "", name: gameMeta?.profile?.name || "" })
+    window.katomiaNet?.paint()   // MENU-NET2: the ☰'s read-only network row follows the circle
 
     if(gameMeta?.network) kwcEarlyScope(gameMeta.network)
     

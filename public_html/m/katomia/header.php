@@ -23,8 +23,10 @@ $katomiaLegacyGameHref = $katomiaGameId ? $katomiaBase . '/game/' . rawurlencode
 // this header says which page it is (define KATOMIA_PAGE before the require); the static
 // bundle renders every page once, so this has to be decided per page, not per request.
 //   home    — the welcome page: the network row replaces 🏠 Home (Home on Home does nothing)
-//   circles — the list: no ⭕ Circles row, for the same reason
-//   board / game — inside a circle: no network row (a circle IS one network), no Circles
+//   circles — the list: no ⭕ Circles row, for the same reason; the same network row as Home
+//             (MENU-NET2, owner 2026-10-09 — one control, one setting, no conflict)
+//   board / game — inside a circle: no Circles row; the network row is READ-ONLY (a circle IS
+//             one network — it says which, so nobody wonders whether to switch)
 $katomiaPage = defined('KATOMIA_PAGE') ? KATOMIA_PAGE : (defined('KATOMIA_BOARD_CONTEXT') ? 'board' : '');
 $katomiaInCircle = in_array($katomiaPage, ['board', 'game'], true);
 ?>
@@ -90,6 +92,12 @@ $katomiaInCircle = in_array($katomiaPage, ['board', 'game'], true);
   .app-menu-net button[aria-pressed="true"][data-net="playnet"]{ background:#1f8f4e; color:#fff; }
   .app-menu-net button[data-net="playnet"]{ display:none; }
   body.nerd .app-menu-net button[data-net="playnet"]{ display:inline-block; }
+  /* MENU-NET2: the read-only row inside a circle — one pill in the network's colour */
+  .app-menu-netpill{ font:700 11px/1 system-ui,sans-serif; letter-spacing:.04em; text-transform:uppercase;
+    padding:7px 11px; border-radius:999px; background:#eee; color:#666; }
+  .app-menu-netpill[data-net="testnet"]{ background:#e8731a; color:#fff; }
+  .app-menu-netpill[data-net="mainnet"]{ background:#6e3fd3; color:#fff; }
+  .app-menu-netpill[data-net="playnet"]{ background:#1f8f4e; color:#fff; }
 
   /* Nested groups (like a Windows submenu, but unrolling in place). The body is a one-row grid
      that animates 0fr → 1fr, so it rolls open at its real height with no measuring. */
@@ -165,9 +173,10 @@ $katomiaInCircle = in_array($katomiaPage, ['board', 'game'], true);
        "Create market" (a button on the Markets page — contextual, not navigation)
        and "Nerd mode" (a preference — lives in Profile → Preferences & diagnostics). -->
   <nav id="appMenu" class="app-menu hidden">
-    <?php if ($katomiaPage === 'home'): ?>
+    <?php if ($katomiaPage === 'home' || $katomiaPage === 'circles'): ?>
     <!-- MENU-SPEC1 (owner 2026-10-09): the network is chosen HERE and nowhere else — the ☰ on
-         Home. "You have to go to the home page, and then choose your network there." Inside a
+         Home (and, MENU-NET2 the same day, on Circles: the same control and the same setting,
+         so the two pages can never disagree). "You have to go to the home page, and then choose your network there." Inside a
          circle the circle's own network applies; the wallet pickers in the You and Authenticate
          modals follow this switch and say where it is changed. Playnet is developer-only.
          Wired by the MENU-NET1 script below; a switch, so the menu stays open on a tap. -->
@@ -179,7 +188,18 @@ $katomiaInCircle = in_array($katomiaPage, ['board', 'game'], true);
         <button type="button" data-net="playnet" aria-pressed="false" title="Play money — demos and QA (developer mode)">Playnet</button>
       </div>
     </div>
-    <?php else: ?>
+    <?php endif; ?>
+    <?php if ($katomiaInCircle): ?>
+    <!-- MENU-NET2 (owner 2026-10-09): inside a circle the network is not a choice — the circle
+         IS one network — but it is shown, read-only, so nobody opens the ☰ wondering whether to
+         switch. Filled from the circle's own network (window.__katomiaNetwork, set from the game
+         state by katomia-network.js) by the MENU-NET1 script. -->
+    <div class="app-menu-netrow app-menu-netrow--ro" data-menu-network-ro title="This circle's network — go Home to switch">
+      <span class="app-menu-netlabel">Network</span>
+      <span class="app-menu-netpill" data-net="">…</span>
+    </div>
+    <?php endif; ?>
+    <?php if ($katomiaPage !== 'home'): ?>
     <!-- ENTRY-DEFAULTROOT1 (user 2026-07-29): Home first — always a way back to the
          welcome page (which is now the default root); Markets moved to /markets.
          MENU-SPEC1: not on Home itself — "selecting home when you're on the home page does
@@ -580,7 +600,8 @@ addEventListener("load", () => setTimeout(() => {
 // Home — and read everywhere else. Stored per device (katomiaNetwork); testnet until you
 // choose. Playnet only while developer (nerd) mode is on; off again, it reads as testnet.
 // Inside a circle nothing here applies: the circle's own network (gameMeta.network) wins, as
-// it always did. Followers:
+// it always did (the ☰ there shows it read-only, MENU-NET2). MENU-NET2 also puts the same
+// switch on the Circles page — one setting, so Home and Circles can never disagree. Followers:
 //   · the wallet pickers in the You and Authenticate modals (#authNetwork, #kamNetwork) —
 //     their rows are hidden and a one-line note says which network and where to change it
 //     (static markup, one per modal: lab2 inserted the note on every repaint and it piled up)
@@ -604,6 +625,11 @@ window.katomiaNet = (() => {
       if(s && [...s.options].some(o => o.value === v)) s.value = v
     })
     // the note names what the wallet will actually use — the picker's value
+    // MENU-NET2: inside a circle the read-only row names the circle's own network
+    const here = window.__katomiaNetwork || (typeof gameMeta !== "undefined" && gameMeta?.network) || ""
+    document.querySelectorAll("[data-menu-network-ro] .app-menu-netpill").forEach(p => {
+      p.dataset.net = here; p.textContent = here ? (LABEL[here] || here) : "…"
+    })
     document.querySelectorAll("[data-network-note]").forEach(n => {
       const s = document.getElementById(n.dataset.networkNote)
       const shown = s ? s.value : v

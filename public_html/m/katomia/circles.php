@@ -78,8 +78,8 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' ' . $T['Many'];
      Rows only render when they'd actually cut something (one network in the
      list = no network row), so a small estate never sees the chrome. */
   .circles-filters{ display:flex; flex-direction:column; gap:8px; margin: 0 0 16px; }
-  .circles-netnote{ font-size:13px; color:#333; font-weight:600; }
-  .circles-netnote span{ color:#8b93a0; font-weight:400; }
+  .circle-chip--mine{ background:#e8f0fe; color:#1a56c4; font-weight:600; }
+  .circle-chip--aud .katomia-aud{ display:inline-flex; gap:7px; }
   .circles-filterrow{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
   .circles-filterlabel{ font-size:12px; color:#98a0ad; margin-right:2px; }
   .circles-filter{
@@ -242,17 +242,24 @@ const CIRCLE_KINDS = ["open", "demo", "qa"]
 const KIND_URL = { open: "open", demo: "demos", qa: "qa" }   // "demo" reads as "demos" in URLs
 const KIND_FROM_URL = { open: "open", demo: "demo", demos: "demo", qa: "qa" }
 const KIND_DEFAULT = ["open", "demo"]
-// MENU-NET1 (owner 2026-10-09): the network is a MODE chosen from ☰ on Home, not a filter
-// picked here — the list starts on it. ?network= on the URL still wins for one load (deep
-// links), and developer mode keeps the old chip row (All / Mainnet / Testnet / Playnet).
+// MENU-NET1 (owner 2026-10-09): the network is a MODE, not a filter picked here.
+// MENU-NET2 (same day): the switch is in THIS page's ☰ too — the same control and the same
+// setting as Home's, so the two can never disagree — and the chip row is gone, developer
+// mode included (the raw markets grid stays the unfiltered developer view). A ?network= deep
+// link SETS the mode (it is the same setting), then drops out of the URL.
+// LIST-MINE1 (same day): a "Mine" row — circles where you have accounts on the board (the
+// games list's `you`, sent for this browser's player token) and the rest; multi-select,
+// both on by default, shown only when you are in at least one. ?mine=in|out deep-links.
 const _circlesMode = () => (window.katomiaNet ? katomiaNet.get() : "all")
-const _circlesFilter = { network: _circlesMode(), kinds: new Set(KIND_DEFAULT) }
+const _circlesFilter = { network: _circlesMode(), kinds: new Set(KIND_DEFAULT), mine: new Set(["in", "out"]) }
 const _circlesDev = () => { try { return localStorage.getItem("katomia.nerd.v1") === "1" } catch { return false } }
 
 function circlesReadUrl(){
   const p = new URLSearchParams(location.search)
   const net = p.get("network")
-  if(["mainnet", "testnet", "playnet"].includes(net)) _circlesFilter.network = net
+  if(["mainnet", "testnet", "playnet"].includes(net)){ window.katomiaNet?.set(net); _circlesFilter.network = _circlesMode() }
+  const mine = (p.get("mine") || "").toLowerCase()
+  if(mine === "in" || mine === "out") _circlesFilter.mine = new Set([mine])
   const t = (p.get("type") || "").toLowerCase()
   if(t === "all") _circlesFilter.kinds = new Set(CIRCLE_KINDS)
   else if(t === "none") _circlesFilter.kinds = new Set()
@@ -264,7 +271,8 @@ function circlesReadUrl(){
 
 function circlesWriteUrl(){
   const p = new URLSearchParams(location.search)
-  ;(_circlesFilter.network === "all" || _circlesFilter.network === _circlesMode()) ? p.delete("network") : p.set("network", _circlesFilter.network)
+  p.delete("network")   // MENU-NET2: the ☰ holds it
+  _circlesFilter.mine.size === 1 ? p.set("mine", [..._circlesFilter.mine][0]) : p.delete("mine")
   const sel = CIRCLE_KINDS.filter(k => _circlesFilter.kinds.has(k))
   const isDefault = sel.length === KIND_DEFAULT.length && KIND_DEFAULT.every(k => _circlesFilter.kinds.has(k))
   if(isDefault) p.delete("type")
@@ -317,26 +325,9 @@ function renderCircles(){
     row.appendChild(b)
   }
 
-  // Network row — single-select, counts taken against the live Type selection so
-  // each chip's number is what you'd actually get by pressing it
-  {
-    const pool = _circles.filter(kindOk)
-    const values = ["mainnet", "testnet", "playnet"].filter(v => pool.some(g => netOf(g) === v))
-    if(values.length >= 2 && _circlesDev()){
-      const row = makeRow("Network")
-      makeChip(row, "All", _circlesFilter.network === "all", pool.length,
-        () => { _circlesFilter.network = "all" })
-      values.forEach(v => makeChip(row, displayValue("network", v), _circlesFilter.network === v,
-        pool.filter(g => netOf(g) === v).length, () => { _circlesFilter.network = v }))
-      bar.appendChild(row)
-    } else if(!_circlesDev() && _circlesFilter.network !== "all"){
-      // MENU-NET1: say which network this is and where it changes — no control here
-      const note = document.createElement("div")
-      note.className = "circles-netnote"
-      note.innerHTML = `${esc(displayValue("network", _circlesFilter.network))} <span>· change it from ☰ on Home</span>`
-      bar.appendChild(note)
-    }
-  }
+  // (MENU-NET2: no Network row — the ☰ is the switch, on this page as on Home)
+  const isMine = g => (g.you?.accounts || 0) > 0
+  const mineOk = g => _circlesFilter.mine.has(isMine(g) ? "in" : "out")
 
   // Type row — multi-select toggles (R2), counts against the live Network selection
   {
@@ -357,7 +348,23 @@ function renderCircles(){
     }
   }
 
-  const games = _circles.filter(g => netOk(g) && kindOk(g))
+  // Mine row (LIST-MINE1) — only when you are in at least one listed circle on this network
+  {
+    const pool = _circles.filter(g => netOk(g) && kindOk(g))
+    const n = pool.filter(isMine).length
+    if(n){
+      const row = makeRow("Mine")
+      const chip = (v, text, count) => makeChip(row, text, _circlesFilter.mine.has(v), count, () => {
+        const m = _circlesFilter.mine
+        m.has(v) && m.size > 1 ? m.delete(v) : m.add(v)
+      })
+      chip("in", "I'm in", n)
+      chip("out", "Others", pool.length - n)
+      bar.appendChild(row)
+    }
+  }
+
+  const games = _circles.filter(g => netOk(g) && kindOk(g) && mineOk(g))
 
   list.innerHTML = ""
   if(!games.length){
@@ -389,7 +396,9 @@ function renderCircles(){
           ${katomiaIsHostOf(g, MY_KEY) ? `<span class="circle-host" title="You host this ${esc(KTERMS.one)}">🎪</span>` : ""}
         </div>
         <div class="circle-chips">
+          ${isMine(g) ? `<span class="circle-chip circle-chip--mine" title="You have ${g.you.accounts} account${g.you.accounts > 1 ? "s" : ""} on this board">you're in</span>` : ""}
           ${chips.map(c => `<span class="circle-chip ${c.cls || ""}"${c.title ? ` title="${esc(c.title)}"` : ""}>${esc(c.text)}</span>`).join("")}
+          ${window.katomiaAudienceHtml ? (h => h ? `<span class="circle-chip circle-chip--aud">${h}</span>` : "")(katomiaAudienceHtml(g.activity)) : ""}
         </div>
       </a>`)
   })
@@ -543,6 +552,8 @@ function dressCards(){
 }
 
 window.addEventListener("load", () => { circlesReadUrl(); loadCircles() })
+// MENU-NET2: the ☰ on this page switches the network — the list follows at once
+document.addEventListener("katomia:network", e => { _circlesFilter.network = e.detail.network; circlesWriteUrl(); renderCircles() })
 
 // (the page's connect widget and its glue were removed 2026-08-17 — KATUI3 feedback
 // pass; wallet connection is consolidated into the profile modal)
@@ -557,6 +568,7 @@ window.addEventListener("load", () => { circlesReadUrl(); loadCircles() })
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
 <script src="<?= kasset('katomia-core.js') ?>"></script>
 <script src="<?= kasset('katomia-helpers.js') ?>"></script>
+<script src="<?= kasset('katomia-places.js') ?>"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
 <script src="<?= kasset('kemoji.js') ?>"></script>
 <script src="<?= kasset('katomia-profile.js') ?>"></script>
 <script src="<?= kasset('katomia-auth.js') ?>"></script>

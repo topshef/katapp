@@ -409,6 +409,7 @@
 <script src="<?= kasset('katomia-localdb.js') ?>"></script>
 <script src="<?= kasset('kemoji.js') ?>"></script>
 <script src="<?= kasset('katomia-helpers.js') ?>"></script>
+<script src="<?= kasset('katomia-places.js') ?>"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
 <script src="<?= kasset('katomia-enrich.js') ?>"></script>
 <script src="<?= kasset('katomia-network.js') ?>"></script>
 <script src="<?= kasset('katomia-modals.js') ?>"></script>

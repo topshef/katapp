@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="kfade.js?v=1790956864"></script>
-<link rel="stylesheet" href="katomia.css?v=1791544888">
+<link rel="stylesheet" href="katomia.css?v=1791554997">
 <link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1790956864"><title>Katomia — host</title>
 <style>
   *{ -webkit-tap-highlight-color: transparent; }
@@ -151,6 +151,12 @@
   .app-menu-net button[aria-pressed="true"][data-net="playnet"]{ background:#1f8f4e; color:#fff; }
   .app-menu-net button[data-net="playnet"]{ display:none; }
   body.nerd .app-menu-net button[data-net="playnet"]{ display:inline-block; }
+  /* MENU-NET2: the read-only row inside a circle — one pill in the network's colour */
+  .app-menu-netpill{ font:700 11px/1 system-ui,sans-serif; letter-spacing:.04em; text-transform:uppercase;
+    padding:7px 11px; border-radius:999px; background:#eee; color:#666; }
+  .app-menu-netpill[data-net="testnet"]{ background:#e8731a; color:#fff; }
+  .app-menu-netpill[data-net="mainnet"]{ background:#6e3fd3; color:#fff; }
+  .app-menu-netpill[data-net="playnet"]{ background:#1f8f4e; color:#fff; }
 
   /* Nested groups (like a Windows submenu, but unrolling in place). The body is a one-row grid
      that animates 0fr → 1fr, so it rolls open at its real height with no measuring. */
@@ -226,7 +232,7 @@
        "Create market" (a button on the Markets page — contextual, not navigation)
        and "Nerd mode" (a preference — lives in Profile → Preferences & diagnostics). -->
   <nav id="appMenu" class="app-menu hidden">
-        <!-- ENTRY-DEFAULTROOT1 (user 2026-07-29): Home first — always a way back to the
+                <!-- ENTRY-DEFAULTROOT1 (user 2026-07-29): Home first — always a way back to the
          welcome page (which is now the default root); Markets moved to /markets.
          MENU-SPEC1: not on Home itself — "selecting home when you're on the home page does
          nothing". From a circle it leaves the circle; your accounts stay seated. -->
@@ -412,7 +418,8 @@ addEventListener("load", () => setTimeout(() => {
 // Home — and read everywhere else. Stored per device (katomiaNetwork); testnet until you
 // choose. Playnet only while developer (nerd) mode is on; off again, it reads as testnet.
 // Inside a circle nothing here applies: the circle's own network (gameMeta.network) wins, as
-// it always did. Followers:
+// it always did (the ☰ there shows it read-only, MENU-NET2). MENU-NET2 also puts the same
+// switch on the Circles page — one setting, so Home and Circles can never disagree. Followers:
 //   · the wallet pickers in the You and Authenticate modals (#authNetwork, #kamNetwork) —
 //     their rows are hidden and a one-line note says which network and where to change it
 //     (static markup, one per modal: lab2 inserted the note on every repaint and it piled up)
@@ -436,6 +443,11 @@ window.katomiaNet = (() => {
       if(s && [...s.options].some(o => o.value === v)) s.value = v
     })
     // the note names what the wallet will actually use — the picker's value
+    // MENU-NET2: inside a circle the read-only row names the circle's own network
+    const here = window.__katomiaNetwork || (typeof gameMeta !== "undefined" && gameMeta?.network) || ""
+    document.querySelectorAll("[data-menu-network-ro] .app-menu-netpill").forEach(p => {
+      p.dataset.net = here; p.textContent = here ? (LABEL[here] || here) : "…"
+    })
     document.querySelectorAll("[data-network-note]").forEach(n => {
       const s = document.getElementById(n.dataset.networkNote)
       const shown = s ? s.value : v
@@ -792,7 +804,7 @@ window.katomiaNet = (() => {
         </div>
         <div id="authNetworkNote" class="profile-auth-account hidden">
           <span class="profile-label">Network</span>
-          <span class="profile-netnote"><b data-network-note="authNetwork"></b> <span class="subtle">· change it from ☰ on Home</span></span>
+          <span class="profile-netnote"><b data-network-note="authNetwork"></b> <span class="subtle">· change it from ☰ on Home or Circles</span></span>
         </div>
 
         <!-- Account picker — KAT-ACCTNORM1 (user 2026-08-05): ONE list, everywhere.
@@ -1053,7 +1065,7 @@ window.katomiaNet = (() => {
       <!-- MENU-NET1: the picker above follows ☰ on Home and is never shown; this says which -->
       <div id="kamNetworkNote" class="profile-auth-account hidden">
         <span class="profile-label">Network</span>
-        <span class="profile-netnote"><b data-network-note="kamNetwork"></b> <span class="subtle">· change it from ☰ on Home</span></span>
+        <span class="profile-netnote"><b data-network-note="kamNetwork"></b> <span class="subtle">· change it from ☰ on Home or Circles</span></span>
       </div>
 
       <div class="profile-auth-account">

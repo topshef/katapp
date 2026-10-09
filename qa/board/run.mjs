@@ -368,25 +368,39 @@ console.log('11. MENU-SPEC1 + MENU-NET1: the ☰ by page — network only on Hom
     ok(r.pressed.join() === 'testnet', 'a stored Playnet reads as Testnet once developer mode is off', JSON.stringify(r))
     await ctx.close()
   }
-  // Circles
+  // Circles — MENU-NET2: the same switch as Home, no chips, the list follows it live
   {
     const { ctx, page, errs, rows } = await visit('circles.html', { net: 'testnet' })
     await page.click('#appMenuBtn'); await page.waitForTimeout(250)
     const r = await rows()
-    ok(!r.netrow && r.items.some(t => /Home/.test(t)) && !r.items.some(t => /Circles/.test(t)), 'Circles: 🏠 Home, no ⭕ Circles row, no network row', JSON.stringify(r))
-    const l = await page.evaluate(() => ({ names: [...document.querySelectorAll('#circlesList .circle-name')].map(e => e.textContent), chips: !!document.querySelector('.circles-filters .circles-filter'), note: document.querySelector('.circles-netnote')?.textContent || '' }))
+    ok(r.netrow && r.pressed.join() === 'testnet' && r.items.some(t => /Home/.test(t)) && !r.items.some(t => /Circles/.test(t)), 'Circles: the network switch heads the ☰ (as on Home), 🏠 Home, no ⭕ Circles row', JSON.stringify(r))
+    const names = () => page.evaluate(() => ({ names: [...document.querySelectorAll('#circlesList .circle-name')].map(e => e.textContent),
+      netChips: [...document.querySelectorAll('.circles-filterrow .circles-filterlabel')].map(e => e.textContent), url: location.search }))
+    const l = await names()
     ok(l.names.includes('Test circle') && l.names.includes('Play demo') && !l.names.includes('Main circle'), 'the list follows the network: testnet circles plus play demos, no mainnet', JSON.stringify(l))
     ok(!l.names.includes('Side circle'), 'side circles (<parent>~<n>) are never listed', JSON.stringify(l.names))
-    ok(/Testnet/.test(l.note) && /Home/.test(l.note), 'no network control for a normal user — a note says which network and where it changes', JSON.stringify(l))
+    ok(!l.netChips.includes('Network'), 'no network chips on the page — the ☰ is the switch', JSON.stringify(l.netChips))
+    await page.click('#appMenu [data-net="mainnet"]'); await page.waitForTimeout(300)
+    const m = await names()
+    const stored = await page.evaluate(() => localStorage.getItem('katomiaNetwork'))
+    ok(m.names.includes('Main circle') && !m.names.includes('Test circle') && stored === 'mainnet' && !/network=/.test(m.url), 'switching to Mainnet in this ☰ re-lists at once and sets the same setting Home reads', JSON.stringify({ m, stored }))
     ok(!errs.length, 'no page errors on Circles', JSON.stringify(errs))
     await ctx.close()
   }
-  // Board
+  {
+    const { ctx, page } = await visit('circles.html?network=mainnet', { net: 'testnet' })
+    const st = await page.evaluate(() => ({ stored: localStorage.getItem('katomiaNetwork'), url: location.search, names: [...document.querySelectorAll('#circlesList .circle-name')].map(e => e.textContent) }))
+    ok(st.stored === 'mainnet' && st.names.includes('Main circle') && !/network=/.test(st.url), 'a ?network= deep link sets the network (the one setting) and leaves the URL', JSON.stringify(st))
+    await ctx.close()
+  }
+  // Board — MENU-NET2: the network is shown, read-only
   {
     const { ctx, page, errs, rows } = await visit('board.html?demo=1')
     await page.click('#appMenuBtn'); await page.waitForTimeout(250)
     const r = await rows()
-    ok(!r.netrow && r.items.some(t => /Home/.test(t)) && !r.items.some(t => /Circles/.test(t)) && r.items.some(t => /You/.test(t)), 'on a board: 🏠 Home and 👤 You, no Circles, no network row (a circle is one network)', JSON.stringify(r))
+    const ro = await page.evaluate(() => { const p = document.querySelector('[data-menu-network-ro] .app-menu-netpill'); return { shown: !!p && p.getClientRects().length > 0, text: p?.textContent, net: p?.dataset.net, buttons: document.querySelectorAll('#appMenu [data-net] button, #appMenu button[data-net]').length, first: document.querySelector('#appMenu > *:not(script)')?.matches('[data-menu-network-ro]') } })
+    ok(!r.netrow && r.items.some(t => /Home/.test(t)) && !r.items.some(t => /Circles/.test(t)) && r.items.some(t => /You/.test(t)), 'on a board: 🏠 Home and 👤 You, no Circles, no network SWITCH', JSON.stringify(r))
+    ok(ro.shown && ro.first && ro.net && ro.text === { playnet: 'Playnet', testnet: 'Testnet', mainnet: 'Mainnet' }[ro.net] && ro.buttons === 0, 'the ☰ opens on "Network <this circle\'s network>", read-only', JSON.stringify(ro))
     ok(!errs.length, 'no page errors on the board', JSON.stringify(errs))
     await ctx.close()
   }
@@ -534,6 +548,95 @@ console.log('13. MENU-YOU1: the You modal — Reputation / Commit, one intent ke
   ok(b.titles.join('|') === 'Wallet connection|🔗 Reputation optional|Fees and rewards|Preferences|Tech', 'developer mode adds Fees and rewards', JSON.stringify(b.titles))
   ok(b.keys.join() === 'profileCommitPubkey' && b.scopeInFold && b.kvacInFees, 'the intent key appears once (in Reputation, with its scope); the access token sits in Fees and rewards', JSON.stringify(b))
   ok(b.prefs.every(Boolean), 'developer mode: Advanced signing and Allow tickets join Preferences', JSON.stringify(b.prefs))
+}
+
+console.log('14. LANDING-NET1 + RECENT-VISITS1 + LIVE-NOW1 + LIST-MINE1: Home by network, your way back, who is here now; Circles "Mine" and ▶ ⏸ 👁')
+{
+  const A = (playing, waiting, watching) => ({ accounts: 2, pending: 0, playing, waiting, watching, lastActivity: Date.now() })
+  const G = (id, net, name, act, you) => ({ id, config: { tradingMode: 'proposal', network: net }, profile: { name }, activity: act, ...(you ? { you: { accounts: you } } : {}) })
+  const GAMES = { ok: true, games: {
+    't-prop': G('t-prop', 'testnet', '🐫 proposal', A(0, 1, 0), 1), 'm-prop': G('m-prop', 'mainnet', '🐫 Silk Road', A(0, 0, 0)),
+    't-busy': G('t-busy', 'testnet', 'Busy', A(4, 1, 2)), 't-bench': G('t-bench', 'testnet', 'Bench', A(0, 3, 0)), 't-stands': G('t-stands', 'testnet', 'Stands', A(0, 0, 5)),
+    't-quiet': G('t-quiet', 'testnet', 'Quiet', A(0, 0, 0)), 't-a': G('t-a', 'testnet', 'Alpha', A(1, 0, 0)), 't-b': G('t-b', 'testnet', 'Bravo', A(0, 1, 1)),
+    't-c': G('t-c', 'testnet', 'Charlie', A(0, 0, 1)), 'm-live': G('m-live', 'mainnet', 'Main live', A(2, 0, 0)),
+    't-prop~3': G('t-prop~3', 'testnet', 'side room', A(2, 0, 0), 1) } }
+  const visit = async (path, { net = 'testnet', nerd = false, recent = null } = {}) => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 900 } })
+    await ctx.addInitScript(([v, n, r]) => { localStorage.setItem('katomiaNetwork', v); localStorage.setItem('katomia.nerd.v1', n ? '1' : '0'); if (r) localStorage.setItem('katomiaRecent', JSON.stringify(r)) }, [net, nerd, recent])
+    let token = null
+    await ctx.route('**/hapi/games*', r => { token = r.request().headers()['x-player-token']; r.fulfill({ contentType: 'application/json', body: JSON.stringify(GAMES) }) })
+    const page = await ctx.newPage()
+    const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
+    await page.goto(`${BASE}/m/katomia/${path}`, { waitUntil: 'load' }); await page.waitForTimeout(900)
+    return { ctx, page, errs, token: () => token }
+  }
+  const home = page => page.evaluate(() => ({
+    doors: [...document.querySelectorAll('.landing-list .landing-card')].filter(c => !c.hidden && c.getClientRects().length).map(c => c.querySelector('.landing-card-label').textContent.trim().split('\n')[0]),
+    recent: [...document.querySelectorAll('#landingRecent .landing-row')].map(r => r.dataset.id), recentShown: !document.getElementById('landingRecent').hidden,
+    live: [...document.querySelectorAll('#landingLive .landing-row')].map(r => r.dataset.id),
+    more: document.querySelector('#landingRecent [data-more]')?.textContent.trim() || null,
+    aud: document.querySelector('#landingLive .landing-row[data-id="t-busy"] .katomia-aud')?.textContent.replace(/\s+/g, ' ').trim() || '',
+    sideHref: document.querySelector('#landingRecent .landing-row[data-id="t-prop~3"] a')?.getAttribute('href') || null }))
+  {
+    const { ctx, page, errs, token } = await visit('index.html', { net: 'testnet', recent: [
+      { id: 't-prop~3', view: 'board', net: 'testnet', name: '', at: 5 }, { id: 't-busy', view: 'board', net: 'testnet', at: 4 },
+      { id: 'm-prop', view: 'board', net: 'mainnet', at: 3 }, { id: 't-quiet', view: 'board', net: 'testnet', at: 2 }, { id: 'kqa-x', view: 'game', net: 'testnet', name: 'Old order book', at: 1 }] })
+    const h = await home(page)
+    ok(h.doors.some(t => /Testnet/.test(t)) && !h.doors.some(t => /Mainnet|Playnet/.test(t)) && h.doors.some(t => /Watch/.test(t)), 'Home on Testnet: the Testnet door (and the watch-only demo), not Mainnet or Playnet', JSON.stringify(h.doors))
+    ok(h.recentShown && h.recent.join() === 't-prop~3,t-busy,m-prop' && /Show all \(5\)/.test(h.more || ''), 'Recently visited: newest first, the last three, "Show all (5)"', JSON.stringify(h))
+    ok(h.sideHref === '/m/katomia/board/t-prop~3', 'side circles are in your history (unlike the Circles list) and link straight back', String(h.sideHref))
+    ok(!h.live.includes('t-busy') && h.live.join() === 't-a,t-bench,t-b,t-prop,t-stands', 'Live now: top five on Testnet by playing, then waiting, then watching — minus what Recent already shows, no side circles, no mainnet', JSON.stringify(h.live))
+    ok(typeof token() === 'string' && token().length > 8, 'Home asks the games list with this browser\'s player token (so `you` can come back)', String(token()))
+    await page.click('#landingRecent [data-more]'); await page.waitForTimeout(100)
+    const all = await home(page)
+    ok(all.recent.length === 5 && /Show fewer/.test(all.more || ''), 'Show all lists the whole history', JSON.stringify(all.recent))
+    await page.click('#landingRecent [data-forget="m-prop"]'); await page.waitForTimeout(100)
+    const forgot = await page.evaluate(() => ({ rows: [...document.querySelectorAll('#landingRecent .landing-row')].map(r => r.dataset.id), stored: JSON.parse(localStorage.getItem('katomiaRecent')).map(x => x.id), url: location.pathname }))
+    ok(!forgot.rows.includes('m-prop') && !forgot.stored.includes('m-prop') && forgot.url.endsWith('/index.html'), '× forgets one visit, here and in storage, without navigating', JSON.stringify(forgot))
+    await page.click('#landingRecent [data-clear]'); await page.waitForTimeout(100)
+    const cleared = await home(page)
+    const stored = await page.evaluate(() => localStorage.getItem('katomiaRecent'))
+    ok(!cleared.recentShown && stored === null && cleared.live.includes('t-busy'), 'Clear history empties it (section hidden), and Live now can show what Recent was hiding', JSON.stringify({ cleared, stored }))
+    await page.click('#appMenuBtn'); await page.waitForTimeout(150)
+    await page.click('#appMenu [data-net="mainnet"]'); await page.waitForTimeout(200)
+    const m = await home(page)
+    ok(m.doors.some(t => /Mainnet/.test(t)) && !m.doors.some(t => /Testnet/.test(t)) && m.live.join() === 'm-live', 'switching to Mainnet swaps the door and Live now with it', JSON.stringify(m))
+    ok(!errs.length, 'no page errors on Home', JSON.stringify(errs))
+    await ctx.close()
+  }
+  {
+    const { ctx, page } = await visit('index.html', { net: 'playnet', nerd: true })
+    const h = await home(page)
+    ok(h.doors.some(t => /Playnet/.test(t)) && !h.doors.some(t => /Testnet|Mainnet/.test(t)), 'developer mode on Playnet: the Playnet door (p-prop)', JSON.stringify(h.doors))
+    ok(!h.recentShown, 'no history yet: no Recently visited section at all', JSON.stringify(h))
+    await ctx.close()
+  }
+  // a visit is recorded from the board, under the circle's own id
+  {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } })
+    const page = await ctx.newPage()
+    await page.goto(`${BASE}/m/katomia/board.html?demo=1`, { waitUntil: 'networkidle' }); await page.waitForTimeout(1200)
+    // the sandbox sets its first state directly; a real board gets every state through the frame handler
+    const r = await page.evaluate(() => {
+      katomiaHandleFrame({ data: JSON.stringify({ type: 'game_state', meta: { id: 'QA-VISIT~2', network: 'testnet', profile: { name: 'Visit me' } }, state, myPlayerId: currentPlayerId }) })
+      return JSON.parse(localStorage.getItem('katomiaRecent') || '[]')
+    })
+    ok(r.length === 1 && r[0].id === 'QA-VISIT~2' && r[0].view === 'board' && r[0].net === 'testnet' && r[0].name === 'Visit me', 'a board state records the visit under the circle it names — side circles included', JSON.stringify(r))
+    await ctx.close()
+  }
+  // Circles: Mine row + the audience on each card
+  {
+    const { ctx, page, errs } = await visit('circles.html', { net: 'testnet' })
+    const c = await page.evaluate(() => ({ rows: [...document.querySelectorAll('.circles-filterrow')].map(r => r.textContent.replace(/\s+/g, ' ').trim()),
+      mine: !!document.querySelector('.circle-card .circle-chip--mine'), aud: [...document.querySelectorAll('.circle-card')].find(c => /Busy/.test(c.textContent))?.querySelector('.katomia-aud')?.textContent.replace(/\s+/g, ' ').trim() }))
+    ok(c.rows.some(r => /^Mine ?I'm in ?1 ?Others ?\d+/.test(r)) && c.mine, 'Circles: a "Mine" row (I\'m in / Others) and a "you\'re in" chip on the circle you are seated at', JSON.stringify(c))
+    ok(/▶.?4/.test(c.aud || '') && /⏸.?1/.test(c.aud || '') && /👁.?2/.test(c.aud || ''), 'each card carries ▶ playing ⏸ waiting 👁 watching', JSON.stringify(c.aud))
+    await page.click('.circles-filterrow:has(.circles-filterlabel:text-is("Mine")) .circles-filter >> nth=1'); await page.waitForTimeout(200)
+    const only = await page.evaluate(() => ({ names: [...document.querySelectorAll('#circlesList .circle-name')].map(e => e.textContent), url: location.search }))
+    ok(only.names.join() === '🐫 proposal' && /mine=in/.test(only.url), 'untick Others: only the circles you are in, and ?mine=in in the URL', JSON.stringify(only))
+    ok(!errs.length, 'no page errors on Circles', JSON.stringify(errs))
+    await ctx.close()
+  }
 }
 
 await browser.close(); server.close()

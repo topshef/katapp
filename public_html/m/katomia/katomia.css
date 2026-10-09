@@ -3459,3 +3459,8 @@ body[data-chip-shape="tall"] .asset:not(.thumb-only){
   text-align:center; min-width:38px; padding:5px 6px 4px; line-height:1.12; }
 body[data-chip-shape="tall"] .asset .chip-sym{ font-weight:700; }
 body[data-chip-shape="tall"] .asset .chip-amt{ font-size:.78em; opacity:.7; font-variant-numeric:tabular-nums; }
+
+/* AUDIENCE-WWP1 (owner 2026-10-09): ▶ playing · ⏸ waiting · 👁 watching — katomia-places.js
+   katomiaAudienceHtml renders it on Home's rows and the Circles cards */
+.katomia-aud{ display:inline-flex; gap:7px; color:#555; }
+.katomia-aud-bit{ white-space:nowrap; }

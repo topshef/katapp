@@ -66,6 +66,30 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
   .landing-card:hover{ border-color: #c9c2b3; }
   .landing-card-label{ font-weight: 600; }
   .landing-card-net{ font-size: 12px; color: #888; margin-top: 2px; }
+  .landing-card[hidden]{ display: none !important; }
+  /* RECENT-VISITS1 + LIVE-NOW1: compact rows, deliberately NOT bubble cards — the bubble
+     marks the curated doors; these are a list you scan */
+  .landing-places{ margin: 18px 0 0; }
+  .landing-places[hidden]{ display: none; }
+  .landing-places-h{ display: flex; align-items: baseline; gap: 10px; margin: 0 2px 6px;
+    font: 700 11px/1 system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #8a8f99; }
+  .landing-places-h .landing-places-act{ margin-left: auto; font: 500 12px/1 system-ui, sans-serif; letter-spacing: 0;
+    text-transform: none; color: #7a8595; background: none; border: 0; padding: 0; cursor: pointer; box-shadow: none; }
+  .landing-places-h .landing-places-act:hover{ text-decoration: underline; transform: none; box-shadow: none; background: none; }
+  .landing-rows{ display: flex; flex-direction: column; gap: 6px; }
+  .landing-row{ display: flex; align-items: center; gap: 8px; padding: 9px 10px 9px 12px; border-radius: 10px;
+    background: #fff; border: 1px solid #e6e1d6; }
+  .landing-row a{ flex: 1; min-width: 0; color: inherit; text-decoration: none; }
+  .landing-row-name{ display: block; font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .landing-row-meta{ display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 2px; font-size: 12px; color: #888; }
+  .landing-row-id{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .landing-row-dot{ display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #bbb; }
+  .landing-row-dot[data-net="testnet"]{ background: #e8731a; } .landing-row-dot[data-net="mainnet"]{ background: #6e3fd3; }
+  .landing-row-dot[data-net="playnet"]{ background: #1f8f4e; }
+  .landing-row-in{ color: #1a56c4; font-weight: 600; }
+  .landing-row-x{ flex: none; border: 0; background: transparent; color: #aaa; font-size: 15px; padding: 4px 6px; cursor: pointer; box-shadow: none; }
+  .landing-row-x:hover{ color: #555; background: transparent; transform: none; box-shadow: none; }
+
   /* ENTRY-WELCOME1: See-all demoted to small + muted (user 2026-07-29) — the curated
      cards + create button are the happy path; the full list is a power-user door.
      ENTRY-CIRCLES1 (2026-07-30): and now nerd-ONLY — normal mode gets "More {many}",
@@ -232,8 +256,13 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
       // you go in to observe, not to play. Badged so that's clear BEFORE the click,
       // which is also the first hint that watching and joining are different rights.
       $watch = !empty($g['watch']);
+      // LANDING-NET1 (owner 2026-10-09): a door belongs to one network and shows only while
+      // that network is chosen in the ☰ — "if you select testnet, you just see the testnet
+      // circle button". `net` in site-config.json; older entries fall back to the words in
+      // `network`. Watch-only demo cards carry no network filter: anyone may watch.
+      $net = $g['net'] ?? (preg_match('/(mainnet|testnet|playnet)/i', (string)($g['network'] ?? ''), $nm) ? strtolower($nm[1]) : '');
     ?>
-      <a class="landing-card<?= $watch ? ' landing-card--watch' : '' ?>" data-kbubble-open href="<?= $katomiaBase ?>/board/<?= rawurlencode($id) ?>">
+      <a class="landing-card<?= $watch ? ' landing-card--watch' : '' ?>"<?= (!$watch && $net) ? ' data-net="' . htmlspecialchars($net, ENT_QUOTES, 'UTF-8') . '"' : '' ?> data-kbubble-open href="<?= $katomiaBase ?>/board/<?= rawurlencode($id) ?>">
         <div class="landing-card-label">
           <?= katomiaTermEsc($label) ?>
           <?php if ($watch): ?><span class="landing-watch-badge" title="A demo running right now, played by bots. You can watch it live — there is nothing to join.">live · watch only</span><?php endif; ?>
@@ -242,6 +271,22 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
       </a>
     <?php endforeach; ?>
   </div>
+  <script>
+  // LANDING-NET1: show the doors for the chosen network — inline, right after the cards, so
+  // the other network's door never flashes up first. katomiaNet is the header's (MENU-NET1).
+  window.landingNetCards = () => {
+    const v = window.katomiaNet ? katomiaNet.get() : ""
+    document.querySelectorAll(".landing-list .landing-card[data-net]").forEach(c => { c.hidden = !!v && c.dataset.net !== v })
+  }
+  landingNetCards()
+  document.addEventListener("katomia:network", landingNetCards)
+  </script>
+
+  <!-- RECENT-VISITS1 + LIVE-NOW1 (owner 2026-10-09): your way back, then who is here now.
+       Filled from this browser's history (katomia-places.js) and the games list; both stay
+       hidden until they have something to show. -->
+  <section class="landing-places" id="landingRecent" hidden></section>
+  <section class="landing-places" id="landingLive" hidden></section>
 
   <!-- ENTRY-WELCOME1/ENTRY-CREATEBASIC1: one button, straight to the trimmed-down
        create form (name + network + visibility only) — the full form stays at /create.
@@ -445,6 +490,76 @@ window.addEventListener("load", () => {
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
 <script src="<?= kasset('katomia-core.js') ?>"></script>
 <script src="<?= kasset('katomia-helpers.js') ?>"></script>
+<script src="<?= kasset('katomia-places.js') ?>"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
+<script>
+// ── RECENT-VISITS1 + LIVE-NOW1 (owner 2026-10-09) ───────────────────────────────────────
+// "Recently visited": this browser's history, newest first, side circles included — the
+// last three, "Show all" for the rest, × to forget one, Clear to forget them all. It is
+// history, not membership: forgetting a visit leaves your accounts where they are.
+// "Live now": the five busiest circles on the chosen network by who is on the pitch, then
+// the bench, then the stands (▶ playing, ⏸ waiting, 👁 watching — AUDIENCE-WWP1), skipping
+// any circle already in the recent rows above so the page never lists one twice. Proposal
+// circles only and no side circles, the same pool as the Circles list.
+(() => {
+  const BASE = <?= json_encode($katomiaBase) ?>;
+  const T = window.KTERMS || { one: "circle", many: "circles" }
+  const SHOW = 3, LIVE = 5
+  let games = {}, expanded = false
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]))
+  const netOf = g => g?.config?.network || g?.network || ""
+  const modeOf = g => g?.config?.tradingMode || g?.tradingMode || ""
+  const dev = () => { try { return localStorage.getItem("katomia.nerd.v1") === "1" } catch { return false } }
+  const href = (id, view) => BASE + "/" + (view === "game" ? "game" : "board") + "/" + encodeURIComponent(id)
+  const row = ({ id, view, name, net, aud, mine, x }) => `
+    <div class="landing-row" data-id="${esc(id)}">
+      <a href="${href(id, view)}">
+        <span class="landing-row-name">${esc(name || id)}</span>
+        <span class="landing-row-meta"><span class="landing-row-dot" data-net="${esc(net)}" title="${esc(net)}"></span>
+          <span class="landing-row-id">${esc(id)}</span>${mine ? `<span class="landing-row-in" title="You have ${mine} account${mine > 1 ? "s" : ""} on this board">you're in</span>` : ""}${aud || ""}</span>
+      </a>${x ? `<button type="button" class="landing-row-x" data-forget="${esc(id)}" title="Forget this visit — your accounts stay where they are" aria-label="Forget this visit">×</button>` : ""}
+    </div>`
+
+  function render(){
+    const recentEl = document.getElementById("landingRecent"), liveEl = document.getElementById("landingLive")
+    const hist = window.katomiaRecent ? katomiaRecent.list() : []
+    const shown = expanded ? hist : hist.slice(0, SHOW)
+    recentEl.hidden = !hist.length
+    if(hist.length){
+      recentEl.innerHTML = `<div class="landing-places-h">Recently visited
+          ${hist.length > SHOW ? `<button type="button" class="landing-places-act" data-more>${expanded ? "Show fewer" : `Show all (${hist.length})`}</button>` : ""}
+          <button type="button" class="landing-places-act" data-clear title="Forget every visit in this browser">Clear history</button></div>
+        <div class="landing-rows">${shown.map(h => {
+          const g = games[h.id]
+          return row({ id: h.id, view: h.view, name: g?.profile?.name || h.name, net: netOf(g) || h.net,
+                       aud: window.katomiaAudienceHtml?.(g?.activity), mine: g?.you?.accounts, x: true })
+        }).join("")}</div>`
+    }
+    // Live now — the chosen network (play demos under either, as on Circles), minus what is above
+    const v = window.katomiaNet ? katomiaNet.get() : ""
+    const skip = new Set(shown.map(h => h.id))
+    const live = Object.values(games)
+      .filter(g => modeOf(g) === "proposal" && !/~\d+$/.test(String(g.id)) && !skip.has(g.id))
+      .filter(g => !v || netOf(g) === v || (netOf(g) === "playnet" && v !== "playnet" && !dev()))
+      .map(g => ({ g, s: window.katomiaAudienceScore ? katomiaAudienceScore(g.activity) : 0 }))
+      .filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, LIVE)
+    liveEl.hidden = !live.length
+    if(live.length)
+      liveEl.innerHTML = `<div class="landing-places-h">Live now</div><div class="landing-rows">${live.map(({ g }) =>
+        row({ id: g.id, view: "board", name: g.profile?.name, net: netOf(g), aud: window.katomiaAudienceHtml?.(g.activity), mine: g.you?.accounts })).join("")}</div>`
+  }
+
+  document.addEventListener("click", e => {
+    const f = e.target.closest?.("[data-forget]")
+    if(f){ e.preventDefault(); katomiaRecent.remove(f.dataset.forget); render(); return }
+    if(e.target.closest?.("#landingRecent [data-more]")){ expanded = !expanded; render(); return }
+    if(e.target.closest?.("#landingRecent [data-clear]")){ katomiaRecent.clear(); expanded = false; render() }
+  })
+  document.addEventListener("katomia:network", render)
+  render()   // history first, from this browser — no wait for the network
+  fetch(BASE + "/hapi/games", { headers: { "x-player-token": (typeof getOrCreatePlayerToken === "function") ? getOrCreatePlayerToken() : "" } })
+    .then(r => r.json()).then(d => { games = d?.games || {}; render() }).catch(() => {})
+})()
+</script>
 <script src="<?= kasset('kemoji.js') ?>"></script>
 <script src="<?= kasset('katomia-profile.js') ?>"></script>
 <script src="<?= kasset('katomia-auth.js') ?>"></script>
