@@ -316,6 +316,16 @@ function kauthReadScope(){
 
 // ── Plain-English statement of what the user is committing to ────────────────
 
+// AUTH-NETSTATEMENT1 (feedback e4751a47 / zulu-november-92, owner 2026-10-09): the statement a
+// person agrees to names the NETWORK — "I control Hedera Testnet account 0.0.1879", not just
+// "account 0.0.1879" — so it is explicit what is being signed, and stays explicit when Katomia
+// supports chains other than Hedera. Display copy only: the signed challenge already carries
+// `network` (buildAuthChallenge) and its bytes are untouched, so nothing a verifier checks moves.
+// A network this table does not know is shown by its raw id rather than guessed at.
+const KAUTH_NETWORK_NAMES = { mainnet: "Hedera Mainnet", testnet: "Hedera Testnet", previewnet: "Hedera Previewnet",
+  playnet: "Katomia Playnet (no chain)" }
+function kauthNetworkName(network){ return KAUTH_NETWORK_NAMES[network] || String(network || "unknown network") }
+
 function kauthShortKey(hex){
   const s = String(hex || "").replace(/^0x/, "")
   return s.length > 14 ? `${s.slice(0, 8)}…${s.slice(-6)}` : (s || "(intent key)")
@@ -356,7 +366,7 @@ function updateAuthStatement(){
   // Display copy only — the SIGNED challenge JSON is untouched (INTENT-RENAME1
   // keeps wire names for compat).
   el.textContent =
-    `I control account ${account} and I authorise my intent key ${kauthShortKey(window.__kauthIntentKey)} ` +
+    `I control ${kauthNetworkName(kauthNetwork())} account ${account} and I authorise my intent key ${kauthShortKey(window.__kauthIntentKey)} ` +
     `to place and sign orders on my behalf. Scope: ${kauthScopeLabel()}; ${kauthExpiryLabel()}.`
 }
 
@@ -894,7 +904,7 @@ function kamUpdateStatement(){
   if(!el) return
   const account = kamActiveAccount()
   el.classList.toggle("hidden", !account)
-  if(account) el.textContent = `I confirm that I control account ${account}. Signing links it to this browser's session so Katomia can recognise you.`
+  if(account) el.textContent = `I confirm that I control ${kauthNetworkName(kamNetworkVal())} account ${account}. Signing links it to this browser's session so Katomia can recognise you.`   // AUTH-NETSTATEMENT1
 }
 
 // Same picker pattern as kauthRenderAccounts, kam-scoped ids. Kept separate rather

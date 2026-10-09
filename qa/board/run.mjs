@@ -512,6 +512,14 @@ console.log('13. MENU-YOU1: the You modal — Reputation / Commit, one intent ke
     await page.click('#profileCommitSection .profile-info'); await page.waitForTimeout(150)
     const more1 = await page.evaluate(() => document.getElementById('authCommitMore').hidden)
     r.more = [more0, more1]; r.errs = errs
+    // AUTH-NETSTATEMENT1: the statements name the network (feedback zulu-november-92)
+    r.statements = await page.evaluate(() => {
+      window.__kauthActive = '0.0.1879'; window.__kauthWcSet = new Set(['0.0.1879']); window.__kamActive = '0.0.1879'
+      const sel = document.getElementById('authAccount'); if (sel) sel.innerHTML = '<option value="0.0.1879">0.0.1879</option>'
+      const ksel = document.getElementById('kamAccount'); if (ksel) ksel.innerHTML = '<option value="0.0.1879">0.0.1879</option>'
+      updateAuthStatement(); kamUpdateStatement()
+      return [document.getElementById('authStatement').textContent, document.getElementById('kamStatement').textContent]
+    })
     await ctx.close(); return r
   }
   const a = await youModal(false)
@@ -520,6 +528,7 @@ console.log('13. MENU-YOU1: the You modal — Reputation / Commit, one intent ke
   ok(a.more[0] === true && a.more[1] === false, 'the short line\'s ⓘ unrolls the longer explanation on a tap', JSON.stringify(a.more))
   ok(a.prefs.join() === 'true,true,true,false,false' && !/Size/.test(a.prefWords), 'Preferences: auto-add, auto-request signatures, Pickable — the two lab switches only in developer mode, no Size', JSON.stringify(a.prefs))
   ok(a.tech.every(Boolean), 'Tech: nerd mode, remote logging, copy diagnostics, build stamp', JSON.stringify(a.tech))
+  ok(a.statements.every(t => /control Hedera Testnet account 0\.0\.1879/.test(t)), 'both statements say "I control Hedera Testnet account 0.0.1879"', JSON.stringify(a.statements))
   ok(!a.errs.length, 'no page errors', JSON.stringify(a.errs))
   const b = await youModal(true)
   ok(b.titles.join('|') === 'Wallet connection|🔗 Reputation optional|Fees and rewards|Preferences|Tech', 'developer mode adds Fees and rewards', JSON.stringify(b.titles))
