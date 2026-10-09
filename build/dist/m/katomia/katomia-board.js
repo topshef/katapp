@@ -3172,7 +3172,13 @@ function boardSimTick(iters, cap){
   _boardSimCalm++
   const shelves = boardLayoutMode === "shelves"
   const byZone = new Map()
+  const heldByZone = new Map()   // COUNTER-THIRD1: the counter's occupants, as fixed obstacles
   _boardSimBodies.forEach(b => {
+    if(b.el && b.inner && b.x != null && !shelves){
+      let h = heldByZone.get(b.zoneKey)
+      if(!h) heldByZone.set(b.zoneKey, h = [])
+      h.push(b)
+    }
     if(!b.el || b.inner) return
     let arr = byZone.get(b.zoneKey)
     if(!arr) byZone.set(b.zoneKey, arr = [])
@@ -3236,6 +3242,27 @@ function boardSimTick(iters, cap){
         if(!aStick){ A.x -= plx * (bStick ? 2 : 1); A.y -= ply * (bStick ? 2 : 1) }
         if(!bStick){ B.x += plx * (aStick ? 2 : 1); B.y += ply * (aStick ? 2 : 1) }
       }
+      // COUNTER-THIRD1: a ghost or rim pile sits on the counter, pinned at the ring and outside
+      // this sim — the thin band no longer reserves its height across the whole wedge, so a
+      // store chip is kept off it here, locally: the occupant never moves, the store chip
+      // takes the whole separation (the pinned-chip rule above), with an 8px seam so "on the
+      // counter" and "in the store" still read apart. Outside the auto-arrange gate, like the
+      // walls: with auto-arrange off store chips may stack on each other, not on the counter.
+      const held = heldByZone.get(zk)
+      if(held) movers.forEach(B => held.forEach(A => {
+        const dx = B.x - A.x, dy = B.y - A.y
+        const dxs = dx * z.cos - dy * z.sin, dys = dx * z.sin + dy * z.cos
+        const ox = (A.w + B.w) / 2 + 8 - Math.abs(dxs)
+        const oy = (A.h + B.h) / 2 + 8 - Math.abs(dys)
+        if(ox <= 0 || oy <= 0) return
+        let px = 0, py = 0
+        if(dxs === 0 && dys === 0) py = 8
+        else if(ox < oy) px = (dxs >= 0 ? 1 : -1) * ox
+        else py = (dys >= 0 ? 1 : -1) * oy
+        const f = 0.6 * speed
+        B.x += (px * z.cos + py * z.sin) * f
+        B.y += (-px * z.sin + py * z.cos) * f
+      }))
       movers.forEach(b => {
         // walls: oval-true radial (at the chip's own angle) + angular +
         // safe rect — the shared clamp, soft outer (pressure spills)
@@ -4021,6 +4048,38 @@ function boardOrganicApply(cx, cy, W, H, oval){
     })
     counterUniform = counterCapH
   }
+  // ── COUNTER-THIRD1 (owner 2026-10-09: "the counter ring is still often too big, especially on
+  //  mobile … make it a third of the thickness that it currently is … that just gives a little
+  //  bit of padding to chips that are not in active play") ──
+  // What the eye reads as the counter's thickness is the clear gap between the ring and the
+  // nearest store chip: the wall's fixed 8px (boardWallClamp: rim + 8 + band) plus the band.
+  // COUNTER-NFT1 made that 8 + one thumbnail + 8 (≈50px on a phone). It is now a third of that
+  // gap (≈17px) in EVERY store zone, the band being that third minus the fixed 8 — including a
+  // zone whose counter holds something. Those occupants (an NFT ghost, a rim pile) are pinned
+  // at the ring and are not in the collision sim (b.inner), so the band used to be the only
+  // thing keeping store chips off them: one offer fattened its owner's band to a whole
+  // thumbnail at EVERY angle of the wedge. They are now fixed obstacles in boardSimTick
+  // instead, so store chips clear them only where they actually are.
+  //
+  // WHY IT KEPT LOOKING WRONG — intel for the next pass:
+  //  1. The band is a HARD WALL for store chips (boardWallClamp minR). Dragging a chip toward
+  //     the ring stops at the band; nothing a player does by hand can press it thinner.
+  //  2. Counter flex (_boardBandFlex) slid each band between bandFull and bandMin from chip
+  //     AREA against wedge area in the single most crowded zone — never from where chips sit.
+  //     So whether the band came out thin or fat depended on how crowded the fullest wedge was
+  //     at the last apply that measured it, not on where the chips came to rest: the owner's
+  //     "if the chips are already in a position that pushes it, it gets small; if they end up
+  //     somewhere they're not pushing it, they can no longer be moved to push it in".
+  //  3. That measurement is skipped during tweens (party animation, rotation, scrolling the
+  //     others), reads bandFull/bandMin cached by the PREVIOUS apply (one-apply lag; the first
+  //     apply on load uses the 40/12 defaults), and is quantised to ¼ steps — so the
+  //     auto-arrange that deals the chips out settled against stale numbers and then held.
+  //  4. Occupied zones were sized by their ghosts (above): one offer, a fat wedge.
+  // Now bandFull = bandMin = the third (organic layout, the default), so flex has nothing to
+  // slide and (2)/(3) cannot show; (4) is the obstacle pass. The Shelves layout keeps the old
+  // occupied reservation — its rows are computed targets that know nothing of obstacles, and a
+  // target inside one would fight the push forever (the jitter BOARD-PHYSICS1 warns about).
+  const counterThird = Math.max(0, Math.round((8 + counterUniform + 4) / 3) - 8)
 
   // ── sync pass 2: per-zone derived geometry, shelf targets, spawns ───────
   zoneChips.forEach(({ zrec, recs }) => {
@@ -4035,12 +4094,15 @@ function boardOrganicApply(cx, cy, W, H, oval){
     // or a 12px sliver when empty); _boardBandFlex slides between them under
     // space pressure. A real band move re-excites the sim so walls take hold.
     const ghostH = ghostsIn.length ? Math.max(...ghostsIn.map(b => b.h)) : 0
-    zrec.bandMin = zrec.isBasket ? 0 : (ghostsIn.length
+    // COUNTER-THIRD1: organic layout (the default) — one thin band everywhere; the counter's
+    // occupants are obstacles in the tick instead (see the note above counterThird)
+    const thin = !boardCounterPerZone && boardLayoutMode !== "shelves"
+    zrec.bandMin = zrec.isBasket ? 0 : thin ? counterThird : (ghostsIn.length
       ? (boardCounterPerZone ? ghostH : Math.min(ghostH, counterCapH)) + 8
       : 12)
     // COUNTER-UNIFORM1: one reservation for every segment, capped at an NFT.
     // COUNTER-NFT1: thumbnail + 4 (the cap) + 4 = thumbnail + 8, the breathing room bandMin uses
-    zrec.bandFull = zrec.isBasket ? 0 : (boardCounterPerZone
+    zrec.bandFull = zrec.isBasket ? 0 : thin ? counterThird : (boardCounterPerZone
       ? Math.max(40, ...ghostsIn.map(b => b.h), ...movers.map(b => b.h)) + 12
       : Math.max(counterUniform + 4, zrec.bandMin))
     const bandWas = zrec.band
@@ -8813,11 +8875,17 @@ function boardAssetDetail(assetId, account, amount, offer){
       // that cannot lose anything.
       say("Priced on a ticket — tear the ticket up before you can take this off the table.")
     } else {
-      addAction("kbtn-red", "🗑 Remove from table", "Take this asset off the board. Your wallet is untouched.", () => {
-        if(!confirm(`Remove ${name.textContent} from the table?\n\nThis only changes what you're playing — your wallet is untouched.`)) return
+      // ASSETHIDE1 (owner 2026-10-09): this is the SAME operation as the eye toggle on your rows
+      // in the player card (boardVisToggleFor) — a visibility switch, one tap back — so it looks
+      // like one: the slashed eye, a neutral button, no confirm. It was a red 🗑 behind a
+      // "Remove … from the table?" prompt, dressed as a one-way door it never was (ASSETVIS1
+      // already dropped the confirm from the list for exactly this reason).
+      const hide = addAction("", "", "Hide this asset from the table — the eye in your player card shows it again. Your wallet is untouched.", () => {
         if(typeof removeAssetFromTable === "function") removeAssetFromTable(account.id, assetId)
         modal.remove()
-      })
+      }, "asset-hide")
+      hide.classList.add("board-assetdetail-hide")
+      hide.innerHTML = (typeof KVIS_EYE_OFF === "string" ? KVIS_EYE_OFF : "") + "<span>Hide from table</span>"
     }
   }
   if(actions.children.length) card.appendChild(actions)
@@ -9317,8 +9385,8 @@ function boardPlayerModal(playerId, focusAccountId = null){
       // ASSETVIS1 (user 2026-09-05): your own rows carry a SHOW/HIDE toggle in the
       // same left-edge slot — "so you could have a little visibility toggle against
       // each one… for your own assets, basically you can only show/hide them, it's
-      // not about favourites". The 🗑 Remove from table action on the asset card is
-      // the same operation; it just was not reachable from the list, which is what
+      // not about favourites". The asset card's Hide from table (was 🗑 Remove from
+      // table; ASSETHIDE1 gave it this eye) is the same operation; it just was not reachable from the list, which is what
       // made taking something off the table feel like a hunt.
       //
       // No confirm() here, unlike the asset card. That prompt existed because remove

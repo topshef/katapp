@@ -226,19 +226,27 @@ console.log('10. COUNTER-NFT1 + BOARD-SAFEAREA2: the counter is one thumbnail de
     const root = document.getElementById('boardRoot')
     const thumb = boardThumbHeight(root.clientWidth, root.clientHeight)
     const stores = [...(_boardSimZones ? _boardSimZones.entries() : [])].filter(([, z]) => !z.isBasket).map(([, z]) => z.bandFull)
+    // COUNTER-THIRD1: a ghost / rim pile is an obstacle now, not a fat band — no store chip may sit on one
+    const rects = [...(_boardSimBodies ? _boardSimBodies.values() : [])].filter(b => b.el && !_boardSimZones.get(b.zoneKey)?.isBasket).map(b => ({ inner: b.inner, z: b.zoneKey, r: b.el.getBoundingClientRect() }))
+    const held = rects.filter(a => a.inner)
+    const onCounter = held.reduce((n, a) => n + rects.filter(b => !b.inner && b.z === a.z && a.r.left < b.r.right && b.r.left < a.r.right && a.r.top < b.r.bottom && b.r.top < a.r.bottom).length, 0)
     const banner = document.querySelector('body.board-page .app-banner')
     let contentBottom = 0; for (const el of banner.querySelectorAll('*')) { if (el.getClientRects().length) contentBottom = Math.max(contentBottom, el.getBoundingClientRect().bottom) }
     const walls = [...document.querySelectorAll('.board-zonewalls path')]
-    return { thumb, stores, uniform: new Set(stores).size === 1, safeTop: _boardSimEnv.safeTop, bannerBox: banner.getBoundingClientRect().bottom, contentBottom,
+    return { thumb, stores, held: held.length, onCounter, uniform: new Set(stores).size === 1, safeTop: _boardSimEnv.safeTop, bannerBox: banner.getBoundingClientRect().bottom, contentBottom,
       hasThumbOnBoard: !!document.querySelector('.board-chip .asset-thumb'), walls: walls.length, clipped: walls.every(p => /board-zonewalls-clip/.test(p.getAttribute('clip-path') || '')) }
   })
   const a = await probe()
   ok(!errs.length, 'no page errors', JSON.stringify(errs))
-  ok(a.hasThumbOnBoard && a.uniform && a.stores[0] === a.thumb + 8, 'with NFTs on the board: every store reserves exactly one thumbnail + 8px', JSON.stringify({ thumb: a.thumb, stores: a.stores }))
+  // COUNTER-THIRD1 (owner 2026-10-09): the clear gap ring → store chip (the wall's 8px + the band) is a
+  // third of COUNTER-NFT1's 8 + thumbnail + 8
+  const third = t => Math.max(0, Math.round((t + 16) / 3) - 8)
+  ok(a.hasThumbOnBoard && a.uniform && a.stores[0] === third(a.thumb), 'with NFTs on the board: every store, occupied or not, reserves a third of the old gap (8 + thumbnail + 8)', JSON.stringify({ thumb: a.thumb, stores: a.stores, want: third(a.thumb) }))
+  ok(a.held > 0 && a.onCounter === 0, 'the counter\'s occupants (ghosts, rim piles) are obstacles: no store chip sits on one', JSON.stringify({ held: a.held, onCounter: a.onCounter }))
   await page.evaluate(() => { for (const x of Object.values(state.accounts)) { for (const k of Object.keys(x.assets)) if (k.includes('#')) delete x.assets[k]; x.basket = x.basket.filter(i => !String(i.assetId).includes('#')) } render() })
   await page.waitForTimeout(1200)
   const b = await probe()
-  ok(!b.hasThumbOnBoard && b.uniform && b.stores[0] === a.stores[0], 'with no NFT anywhere: the same reservation — the gauge is the CSS, not whatever chip is present', JSON.stringify({ stores: b.stores, before: a.stores[0] }))
+  ok(!b.hasThumbOnBoard && b.uniform && b.stores[0] === a.stores[0] && b.onCounter === 0, 'with no NFT anywhere: the same reservation — the gauge is the CSS, not whatever chip is present', JSON.stringify({ stores: b.stores, before: a.stores[0] }))
   ok(a.safeTop === Math.round(a.contentBottom) + 4 && a.safeTop < a.bannerBox, 'the header reserve ends 4px under the banner\'s content, inside the banner box', JSON.stringify({ safeTop: a.safeTop, contentBottom: a.contentBottom, bannerBox: a.bannerBox }))
   ok(a.walls > 0 && a.clipped, 'every zone wall is clipped to the safe rect', `${a.walls} paths`)
   await page.close()
@@ -601,9 +609,16 @@ console.log('14. LANDING-NET1 + RECENT-VISITS1 + LIVE-NOW1 + LIST-MINE1: Home by
     const stored = await page.evaluate(() => localStorage.getItem('katomiaRecent'))
     ok(!cleared.recentShown && stored === null && cleared.live.includes('t-busy'), 'Clear history empties it (section hidden), and Live now can show what Recent was hiding', JSON.stringify({ cleared, stored }))
     await page.click('#appMenuBtn'); await page.waitForTimeout(150)
-    await page.click('#appMenu [data-net="mainnet"]'); await page.waitForTimeout(200)
+    await page.click('#appMenu [data-net="mainnet"]'); await page.waitForTimeout(120)
+    // MENU-NETCLOSE1: applied at once, the pick blinks, and the menu then closes by itself
+    const mid = await page.evaluate(() => ({ open: !document.getElementById('appMenu').classList.contains('hidden'), blink: document.querySelector('#appMenu [data-net="mainnet"]').classList.contains('is-picked'), net: localStorage.getItem('katomiaNetwork') }))
+    await page.waitForTimeout(400)
+    const closed = await page.evaluate(() => document.getElementById('appMenu').classList.contains('hidden'))
+    ok(mid.open && mid.blink && mid.net === 'mainnet' && closed, 'picking a network applies it at once, blinks the pick, then closes the menu', JSON.stringify({ mid, closed }))
     const m = await home(page)
     ok(m.doors.some(t => /Mainnet/.test(t)) && !m.doors.some(t => /Testnet/.test(t)) && m.live.join() === 'm-live', 'switching to Mainnet swaps the door and Live now with it', JSON.stringify(m))
+    const nerdRow = await page.evaluate(() => ({ home: !!document.querySelector('.landing-skin-picker, #landingSkinSel, .landing-tuner'), pref: !!document.querySelector('#profileModal .kpref-design #kprefHomeSkin'), shown: (e => !!e && e.getClientRects().length > 0)(document.querySelector('.kpref-design')) }))
+    ok(!nerdRow.home && nerdRow.pref, 'HOME-NERDPREFS1: no skin picker / theme test / tuner on Home — they live in You → Preferences', JSON.stringify(nerdRow))
     ok(!errs.length, 'no page errors on Home', JSON.stringify(errs))
     await ctx.close()
   }
@@ -612,6 +627,14 @@ console.log('14. LANDING-NET1 + RECENT-VISITS1 + LIVE-NOW1 + LIST-MINE1: Home by
     const h = await home(page)
     ok(h.doors.some(t => /Playnet/.test(t)) && !h.doors.some(t => /Testnet|Mainnet/.test(t)), 'developer mode on Playnet: the Playnet door (p-prop)', JSON.stringify(h.doors))
     ok(!h.recentShown, 'no history yet: no Recently visited section at all', JSON.stringify(h))
+    // HOME-NERDPREFS1: in nerd mode the moved row shows in You → Preferences, and the skin pick still reloads Home with ?skin=
+    await page.evaluate(() => { openKatomiaProfile(); const d = document.querySelector('#profileModal .profile-prefs'); if (d) d.open = true })
+    await page.waitForTimeout(300)
+    const pr = await page.evaluate(() => ({ shown: (e => !!e && e.getClientRects().length > 0)(document.querySelector('#profileModal .kpref-design')), skin: document.getElementById('kprefHomeSkin')?.value, dark: !!document.querySelector('#profileModal .kpref-design [data-kdark-btn]'), tuner: !!document.getElementById('kprefTuneBox') }))
+    ok(pr.shown && pr.skin === 'paper' && pr.dark && pr.tuner, 'nerd mode: Home page skin, the 🌗 theme test and the entry tuning are in You → Preferences', JSON.stringify(pr))
+    await Promise.all([page.waitForNavigation({ waitUntil: 'load' }), page.selectOption('#kprefHomeSkin', 'clay')])
+    const sk = await page.evaluate(() => ({ q: location.search, body: document.body.className.match(/lskin-\w+/)?.[0] }))
+    ok(/skin=clay/.test(sk.q), 'picking a skin there reloads Home with ?skin= (the URL still carries it)', JSON.stringify(sk))
     await ctx.close()
   }
   // a visit is recorded from the board, under the circle's own id
@@ -656,15 +679,18 @@ console.log('14. LANDING-NET1 + RECENT-VISITS1 + LIVE-NOW1 + LIST-MINE1: Home by
   }
 }
 
-console.log('15. VIEW-MSGS1 + VIEW-SNAP1 + HUB-PREVIEW1: messages is a view, the menu stays open, the bar drags between all three views, the K is the preview')
+console.log('15. VIEW-MSGS1/2 + VIEW-SNAP1 + HUB-PREVIEW1: messages is a view, the menu stays open, the bar drags between all three views, the K is the preview')
 {
   const { page, errs } = await open('')
   const view = () => page.evaluate(() => ({ v: boardCurrentView(), menuOpen: !document.getElementById('appMenu').classList.contains('hidden'),
     dock: !!document.getElementById('boardChatDock'), close: !!document.getElementById('boardChatFullClose'),
     bar: (r => r && [Math.round(r.top), Math.round(r.bottom)])(document.querySelector('.ring-footer')?.getBoundingClientRect()),
     menuBtnOnTop: (b => { const r = b.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === b })(document.getElementById('appMenuBtn')),
-    listTop: Math.round(document.getElementById('boardChatFullList')?.getBoundingClientRect().top || 0),
-    sendOk: (i => { if (!i || !i.getClientRects().length) return null; const r = i.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === i })(document.querySelector('#boardChatFull.open .kchat-send input')),
+    listTop: Math.round(document.querySelector('#boardChatDock .kchat-dock-list')?.getBoundingClientRect().top || 0),
+    // VIEW-MSGS2: the messages view is the dock itself — full height, the split's own look
+    dockBox: (d => d && d.getClientRects().length ? [Math.round(d.getBoundingClientRect().top), Math.round(d.getBoundingClientRect().bottom), innerHeight] : null)(document.getElementById('boardChatDock')),
+    look: (d => d && { bg: getComputedStyle(d).backgroundColor, font: getComputedStyle(d.querySelector('.kchat-row') || d.querySelector('.kchat-dock-list')).fontSize })(document.getElementById('boardChatDock')),
+    sendOk: (i => { if (!i || !i.getClientRects().length) return null; const r = i.getBoundingClientRect(); return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === i })(document.querySelector('#boardChatDock .kchat-send input')),
     play: !!document.querySelector('.ring-footer .ring-footer-play'), focus: typeof boardFocusMode !== 'undefined' && boardFocusMode }))
   // drag the bar's blank grip area (its top-centre, where the two lines are) by dy
   const dragBar = async dy => {
@@ -682,6 +708,8 @@ console.log('15. VIEW-MSGS1 + VIEW-SNAP1 + HUB-PREVIEW1: messages is a view, the
   const b = await view()
   ok(b.v === 'messages' && b.menuOpen && !b.close && b.menuBtnOnTop, 'Messages: a view — no Close, the menu still open, the ☰ on top of it', JSON.stringify(b))
   ok(b.bar && b.bar[0] < 90 && b.listTop >= b.bar[1] - 1 && b.sendOk === true, 'the bar sits under the ☰ row, the transcript starts below it, and the send box is reachable', JSON.stringify(b))
+  ok(b.dockBox && Math.abs(b.dockBox[0] - b.bar[1]) <= 2 && b.dockBox[1] >= b.dockBox[2] - 1, 'VIEW-MSGS2: the transcript runs from under the bar to the foot of the screen (it was cropped at ~44vh)', JSON.stringify(b.dockBox))
+  ok(a.look && b.look && a.look.bg === b.look.bg && a.look.font === b.look.font, 'VIEW-MSGS2: messages alone looks exactly like the split\'s messages (same background, same font size)', JSON.stringify({ split: a.look, messages: b.look }))
   await page.click('[data-menu-view="board"]'); await page.waitForTimeout(400)
   const c = await view()
   ok(c.v === 'board' && c.menuOpen, 'Board alone from the menu, menu still open', JSON.stringify(c))
@@ -803,6 +831,33 @@ console.log('17. LOCKPROG-STALE1: a deal that arrives as an INCREMENTAL update (
   const b = await page.evaluate(() => ({ btn: document.querySelector('.ring-footer [data-testid="lock"]')?.textContent || null, seq: window.__stateSeq,
     opts: [...document.querySelectorAll('.ring-footer .ring-footer-accsel option')].map(o => o.value).filter(v => v !== '__add') }))
   ok(a.btn === null && b.seq === 6 && /Lock/.test(b.btn || '') && b.opts.join() === 'p1:0.0.1111', 'no deal → no Lock; the drop arrives as a delta → Lock appears for the account in the deal', JSON.stringify({ a, b }))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+
+console.log('18. ASSETHIDE1: your own asset card hides the asset with the eye, in one tap, no confirm')
+{
+  const { page, errs } = await open('')
+  let dialogs = 0; page.on('dialog', () => { dialogs++ })
+  const pick = await page.evaluate(() => {
+    const res = boardReserved(getAccounts())
+    for (const a of getAccounts()) {
+      if (!isMyAccount(a)) continue
+      const out = new Set((res[a.id] || []).map(i => String(i.assetId)))
+      const id = Object.keys(a.assets || {}).find(k => !out.has(String(k)))
+      if (id) { boardAssetDetail(id, a, a.assets[id]); return { acc: a.id, id } }
+    }
+    return null
+  })
+  await page.waitForTimeout(300)
+  const btn = await page.evaluate(() => { const b = document.querySelector('#boardAssetDetail [data-testid="asset-hide"]')
+    return b && { text: b.textContent.trim(), eye: !!b.querySelector('svg line'), red: b.classList.contains('kbtn-red'), trash: /🗑/.test(document.getElementById('boardAssetDetail').textContent) } })
+  ok(pick && btn && btn.text === 'Hide from table' && btn.eye && !btn.red && !btn.trash, 'the card offers "Hide from table" with the slashed eye, in a plain button — no red 🗑', JSON.stringify({ pick, btn }))
+  // the demo's local reducer has no game_removeAsset, so the proof is the message the tap sends
+  await page.evaluate(() => { window.__sent = []; const s0 = socket.send.bind(socket); socket.send = m => { window.__sent.push(JSON.parse(m)); return s0(m) } })
+  await page.click('#boardAssetDetail [data-testid="asset-hide"]'); await page.waitForTimeout(400)
+  const after = await page.evaluate(() => ({ open: !!document.getElementById('boardAssetDetail'), sent: window.__sent.filter(m => m.type === 'game_removeAsset') }))
+  ok(dialogs === 0 && !after.open && after.sent.length === 1 && after.sent[0].assetId === pick.id && after.sent[0].accountId === pick.acc, 'one tap: no confirm, the card closes and the asset is taken off the table', JSON.stringify({ dialogs, after }))
   ok(!errs.length, 'no page errors', JSON.stringify(errs))
   await page.close()
 }

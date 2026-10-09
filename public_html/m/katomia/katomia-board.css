@@ -2005,6 +2005,9 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
 .board-assetdetail-state{ font-size: 12.5px; margin: 8px 0 2px; }
 .board-assetdetail-actions{ display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .board-assetdetail-act{ width: 100%; text-align: center; }
+/* ASSETHIDE1: the hide action carries the eye toggle's slashed eye, inline with its label */
+.board-assetdetail-hide{ display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.board-assetdetail-hide svg{ flex: none; }
 /* superseded by .board-assetdetail-act — kept until nothing references it */
 .board-assetdetail-remove{
   margin-top: 10px; padding: 7px 12px; border-radius: 10px; cursor: pointer;

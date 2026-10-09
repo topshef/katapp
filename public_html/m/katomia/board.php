@@ -66,25 +66,10 @@ require_once __DIR__ . '/kasset.php';
 <div id="boardChatLayer" class="kchat-layer"></div>
 <div id="boardChatPanel" class="kchat-panel"></div>
 
-<!-- BOARD-CHAT1 R2: mobile transcript, opened from ☰ (the floating panel is
-     desktop-only — on a phone it covered the board controls). Full screen because
-     there is no room for board + transcript on a phone; two devices side by side is
-     the intended way to watch both. -->
-<div id="boardChatFull" class="kchat-full" role="dialog" aria-modal="true" aria-label="Messages">
-  <div class="kchat-full-head">
-    <b>💬 Messages<span class="sub" id="boardChatFullSub"></span></b>
-    <!-- VIEW-MSGS1 (owner 2026-10-09, from lab2 KMAP2): no Close — messages is one of the three
-         views; ☰ → View switches back, or drag the bar (now at the top) down for the split. -->
-  </div>
-  <div class="kchat-full-list"><div class="kchat-panel-list" id="boardChatFullList"></div></div>
-  <!-- GCP feedback 2026-08-08 ("the messages view should be the same like the messages
-       in the split view"): the full-screen stream gets the SAME send box as the split
-       dock — wired by the shared handler in katomia-chat.js (wireChatSend). -->
-  <form class="kchat-send" autocomplete="off">
-    <input type="text" maxlength="280" placeholder="Message the table…" aria-label="Message">
-    <button type="submit" title="Send">➤</button>
-  </form>
-</div>
+<!-- BOARD-CHAT1 R2's full-screen transcript (#boardChatFull) is gone — VIEW-MSGS2 (owner
+     2026-10-09): the messages view is the split's dock at full height, one surface for both
+     (GCP feedback 2026-08-08 had already asked for "the same like the messages in the split
+     view"; the overlay only ever copied its send box). katomia-chat.js openFull. -->
 
 <!-- Same asset modal as game.php — openAssetModal() (helpers) is the tap-to-offer
      path for chips; board taps reuse it verbatim. -->

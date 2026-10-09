@@ -92,6 +92,11 @@ $katomiaInCircle = in_array($katomiaPage, ['board', 'game'], true);
   .app-menu-net button[aria-pressed="true"][data-net="playnet"]{ background:#1f8f4e; color:#fff; }
   .app-menu-net button[data-net="playnet"]{ display:none; }
   body.nerd .app-menu-net button[data-net="playnet"]{ display:inline-block; }
+  /* MENU-NETCLOSE1 (owner 2026-10-09): the pick blinks twice — the old Mac menu-selection
+     flash, read as "done" — and then the menu closes (header.php MENU-NET1 script) */
+  @keyframes kmenuPick{ 0%, 50%, 100%{ filter:none; } 25%, 75%{ filter:brightness(1.45) saturate(.5); } }
+  .app-menu-net button.is-picked{ animation:kmenuPick .3s steps(1, end) 1; }
+  @media (prefers-reduced-motion: reduce){ .app-menu-net button.is-picked{ animation:none; } }
   /* MENU-NET2: the read-only row inside a circle — one pill in the network's colour */
   .app-menu-netpill{ font:700 11px/1 system-ui,sans-serif; letter-spacing:.04em; text-transform:uppercase;
     padding:7px 11px; border-radius:999px; background:#eee; color:#666; }
@@ -179,7 +184,8 @@ $katomiaInCircle = in_array($katomiaPage, ['board', 'game'], true);
          so the two pages can never disagree). "You have to go to the home page, and then choose your network there." Inside a
          circle the circle's own network applies; the wallet pickers in the You and Authenticate
          modals follow this switch and say where it is changed. Playnet is developer-only.
-         Wired by the MENU-NET1 script below; a switch, so the menu stays open on a tap. -->
+         Wired by the MENU-NET1 script below. MENU-NETCLOSE1: a tap applies the network at
+         once, the pick blinks, and the menu closes — no second tap to get it out of the way. -->
     <div class="app-menu-netrow" data-menu-network>
       <span class="app-menu-netlabel">Network</span>
       <div class="app-menu-net" role="group" aria-label="Network">
@@ -643,9 +649,21 @@ window.katomiaNet = (() => {
     paint()
     if(was !== v) document.dispatchEvent(new CustomEvent("katomia:network", { detail: { network: v, was } }))
   }
+  // MENU-NETCLOSE1 (owner 2026-10-09: "in order to exit, we need to tap somewhere else … it
+  // feels a little bit backwards"): the network applies on the tap (the page re-filters under
+  // the menu straight away), the picked button blinks twice like a classic menu selection, and
+  // the menu closes ~0.3s later. Re-tapping the current network does the same — it is how you
+  // say "yes, this one" and leave. A second tap inside the blink just restarts it.
+  let pickTimer = 0
   document.addEventListener("click", e => {
     const b = e.target.closest?.("[data-menu-network] [data-net]")
-    if(b){ e.stopPropagation(); set(b.dataset.net) }
+    if(!b) return
+    e.stopPropagation()
+    set(b.dataset.net)
+    b.classList.remove("is-picked"); void b.offsetWidth; b.classList.add("is-picked")
+    clearTimeout(pickTimer)
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches
+    pickTimer = setTimeout(() => { b.classList.remove("is-picked"); window.katomiaMenu?.close() }, reduced ? 150 : 320)
   })
   document.addEventListener("DOMContentLoaded", paint)
   return { get, set, paint, label: v => LABEL[v] || v }
@@ -664,6 +682,7 @@ window.katomiaNet = (() => {
     menu.classList.toggle("hidden", !open)
     btn.setAttribute("aria-expanded", String(open))
   }
+  window.katomiaMenu = { close: () => setOpen(false) }   // MENU-NETCLOSE1: the network pick closes it
 
   // MENU-VIEW1 (owner 2026-10-09): the ⚙ Settings popover is gone — its controls live in the
   // menu's 👁 View group (board pages only). Whenever the menu or a View group opens, the

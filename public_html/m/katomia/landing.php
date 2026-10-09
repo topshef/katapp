@@ -195,30 +195,8 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
   /* no mobile tap flash — it fights the bubble's own feedback (user 2026-07-29) */
   body.lskin-bubble *{ -webkit-tap-highlight-color:transparent; }
 
-  /* — nerd-mode skin picker (ENTRY-SKINS1): visible only with body.nerd — */
-  .landing-skin-picker{ display:none; margin-top:22px; font-size:13px; color:#888;
-    gap:8px; align-items:center; flex-wrap:wrap; }
-  body.nerd .landing-skin-picker{ display:flex; }
-  .landing-skin-picker select{ padding:5px 8px; border-radius:6px; border:1px solid #ccc; }
-
-  /* — nerd-mode bubble tuning (ENTRY-CIRCLES1, user 2026-07-30): "nerd option to
-       apply alternative settings would be amazing (local to the user)". Stored in
-       this browser's localStorage only — it overrides the entry transition on the
-       real pages, for this tester, without touching the deployed defaults. — */
-  .landing-tuner{ display:none; margin-top:14px; font-size:12.5px; color:#888; }
-  body.nerd .landing-tuner{ display:block; }
-  .landing-tuner summary{ cursor:pointer; color:#7a8595; }
-  .landing-tuner textarea{
-    width:100%; box-sizing:border-box; margin-top:8px; min-height:104px; padding:9px 11px;
-    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; line-height:1.5;
-    border:1px solid #ccd2da; border-radius:8px; background:#fbfcfe; color:#333; resize:vertical;
-  }
-  .landing-tuner-row{ display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
-  .landing-tuner-row button{ padding:5px 11px; font-size:12.5px; border-radius:6px;
-    border:1px solid #ccd2da; background:#fff; cursor:pointer; }
-  .landing-tuner-row button:hover{ border-color:#2f6fed; color:#2f6fed; }
-  .landing-tuner-msg{ color:#2f6fed; }
-  .landing-tuner-msg.warn{ color:#b4690e; }
+  /* (the nerd-mode skin picker, theme toggle and entry-transition tuner moved to You →
+     Preferences — HOME-NERDPREFS1, profile-modal.php; the skins themselves stay here) */
 </style>
 </head>
 <body class="lskin-<?= htmlspecialchars($landingSkin, ENT_QUOTES, 'UTF-8') ?>">
@@ -316,33 +294,8 @@ $landingSkin = in_array($_GET['skin'] ?? '', $landingSkins, true) ? $_GET['skin'
        every column). Normal mode never sees the word "markets". -->
   <p class="landing-more"><a href="<?= $katomiaBase ?>/markets">See all markets →</a></p>
 
-  <!-- ENTRY-SKINS1: nerd-mode-only skin picker — reloads with ?skin= so each variant
-       initialises cleanly (the bubble skin attaches canvases at load). -->
-  <div class="landing-skin-picker" title="Design exploration (nerd mode): try this page in different skins. The URL carries the choice — share it.">
-    🎨 Page skin
-    <select id="landingSkinSel">
-      <option value="paper">📄 Paper (default)</option>
-      <option value="liquid">🫧 Liquid glass</option>
-      <option value="clay">🏺 Soft clay</option>
-      <option value="bubble">💠 Bubble everything</option>
-    </select>
-    <!-- ENTRY-DARKMODE1 R2 (user 2026-07-29): this nerd-mode theme-test row is the ONLY
-         home for the dark/light toggle — it was removed from the hamburger menu. -->
-    <button type="button" id="landingDarkBtn" data-kdark-btn title="Toggle DarkReader dark mode on this skin" onclick="window.kdarkToggle?.()">🌗</button>
-  </div>
-
-  <!-- ENTRY-CIRCLES1: per-user entry-transition tuning (nerd mode, localStorage). -->
-  <details class="landing-tuner">
-    <summary>⚙ Entry transition — my settings</summary>
-    <p style="margin:8px 0 0">Overrides the <?= htmlspecialchars($T['one'], ENT_QUOTES, 'UTF-8') ?>-entry bubble <b>for this browser only</b>. Same knob names as the
-      <a href="<?= $katomiaBase ?>/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
-    <textarea id="landingTuneBox" spellcheck="false" placeholder='{ "ms": 800, "style": "iridescent" }'></textarea>
-    <div class="landing-tuner-row">
-      <button type="button" id="landingTuneApply">▶ Apply</button>
-      <button type="button" id="landingTuneClear">↺ Site defaults</button>
-      <span class="landing-tuner-msg" id="landingTuneMsg"></span>
-    </div>
-  </details>
+  <!-- HOME-NERDPREFS1 (owner 2026-10-09): the nerd-mode skin picker, 🌗 theme test and the
+       entry-transition tuner that sat here now live in You → Preferences (nerd mode only). -->
 </div>
 
 <script>
@@ -355,16 +308,7 @@ window.KTERMS = <?= json_encode($T, JSON_UNESCAPED_UNICODE) ?>;
 
 // (welcome-page connect widget removed 2026-08-17 — see the card's removal note above)
 
-// ENTRY-SKINS1: picker → reload with the chosen skin in the URL.
-{
-  const sel = document.getElementById("landingSkinSel")
-  sel.value = "<?= $landingSkin ?>"
-  sel.onchange = () => {
-    const p = new URLSearchParams(location.search)
-    if(sel.value === "paper") p.delete("skin"); else p.set("skin", sel.value)
-    location.search = p.toString()
-  }
-}
+// (ENTRY-SKINS1's picker → You → Preferences, HOME-NERDPREFS1; katomia-profile.js)
 </script>
 
 <!-- ═══ ENTRY-CIRCLES1 (user 2026-07-30): the entry gesture ═══
@@ -462,42 +406,7 @@ window.addEventListener("load", () => {
   }
 })
 
-// ── nerd-mode per-user transition tuning (localStorage, this browser only) ──
-{
-  const box = document.getElementById("landingTuneBox")
-  const msg = document.getElementById("landingTuneMsg")
-  const say = (t, warn) => { msg.textContent = t; msg.classList.toggle("warn", !!warn) }
-
-  const load = () => {
-    let raw = null
-    try { raw = localStorage.getItem(window.kbubbleOpen?.TUNE_KEY || "katomia.kbubbleopen.tuning.v1") } catch {}
-    box.value = raw ? raw : ""
-  }
-  load()
-
-  document.getElementById("landingTuneApply").onclick = () => {
-    const txt = box.value.trim()
-    if(!txt){ window.kbubbleOpen?.setUserTuning(null); say("Cleared — using site defaults."); return }
-    let obj
-    // Tolerate the lab's copy-paste forms: a bare object, or trailing commas.
-    try { obj = JSON.parse(txt) }
-    catch {
-      try { obj = JSON.parse(txt.replace(/,\s*([}\]])/g, "$1")) }
-      catch { say("Not valid JSON — expected something like { \"ms\": 800 }", true); return }
-    }
-    if(!obj || typeof obj !== "object" || Array.isArray(obj)){ say("Expected a JSON object.", true); return }
-    const known = Object.keys(window.kbubbleOpen?.DEF || {})
-    const ignored = Object.keys(obj).filter(k => !known.includes(k))
-    if(!window.kbubbleOpen?.setUserTuning(obj)){ say("Couldn't save — localStorage is blocked in this browser.", true); return }
-    say(ignored.length
-      ? `Saved. Ignored unknown key${ignored.length > 1 ? "s" : ""}: ${ignored.join(", ")}`
-      : "Saved — click a " + (window.KTERMS?.one || "circle") + " to see it.", ignored.length)
-  }
-
-  document.getElementById("landingTuneClear").onclick = () => {
-    window.kbubbleOpen?.setUserTuning(null); box.value = ""; say("Cleared — using site defaults.")
-  }
-}
+// (the per-user transition tuning → You → Preferences, HOME-NERDPREFS1)
 </script>
 
 <script><?php require_once('config.php'); ?>

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ENTRY-FADES1: must be in <head> — it arms the fade-IN before first paint. -->
 <script src="kfade.js?v=1790956864"></script>
-<link rel="stylesheet" href="katomia.css?v=1791561163">
+<link rel="stylesheet" href="katomia.css?v=1791578484">
 <link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1790956864"><title>Katomia</title>
 <style>
   /* KATOMIA-LANDING1: intentionally tiny — a hand-picked jumping-off point,
@@ -176,30 +176,8 @@
   /* no mobile tap flash — it fights the bubble's own feedback (user 2026-07-29) */
   body.lskin-bubble *{ -webkit-tap-highlight-color:transparent; }
 
-  /* — nerd-mode skin picker (ENTRY-SKINS1): visible only with body.nerd — */
-  .landing-skin-picker{ display:none; margin-top:22px; font-size:13px; color:#888;
-    gap:8px; align-items:center; flex-wrap:wrap; }
-  body.nerd .landing-skin-picker{ display:flex; }
-  .landing-skin-picker select{ padding:5px 8px; border-radius:6px; border:1px solid #ccc; }
-
-  /* — nerd-mode bubble tuning (ENTRY-CIRCLES1, user 2026-07-30): "nerd option to
-       apply alternative settings would be amazing (local to the user)". Stored in
-       this browser's localStorage only — it overrides the entry transition on the
-       real pages, for this tester, without touching the deployed defaults. — */
-  .landing-tuner{ display:none; margin-top:14px; font-size:12.5px; color:#888; }
-  body.nerd .landing-tuner{ display:block; }
-  .landing-tuner summary{ cursor:pointer; color:#7a8595; }
-  .landing-tuner textarea{
-    width:100%; box-sizing:border-box; margin-top:8px; min-height:104px; padding:9px 11px;
-    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; line-height:1.5;
-    border:1px solid #ccd2da; border-radius:8px; background:#fbfcfe; color:#333; resize:vertical;
-  }
-  .landing-tuner-row{ display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
-  .landing-tuner-row button{ padding:5px 11px; font-size:12.5px; border-radius:6px;
-    border:1px solid #ccd2da; background:#fff; cursor:pointer; }
-  .landing-tuner-row button:hover{ border-color:#2f6fed; color:#2f6fed; }
-  .landing-tuner-msg{ color:#2f6fed; }
-  .landing-tuner-msg.warn{ color:#b4690e; }
+  /* (the nerd-mode skin picker, theme toggle and entry-transition tuner moved to You →
+     Preferences — HOME-NERDPREFS1, profile-modal.php; the skins themselves stay here) */
 </style>
 </head>
 <body class="lskin-paper">
@@ -265,6 +243,11 @@
   .app-menu-net button[aria-pressed="true"][data-net="playnet"]{ background:#1f8f4e; color:#fff; }
   .app-menu-net button[data-net="playnet"]{ display:none; }
   body.nerd .app-menu-net button[data-net="playnet"]{ display:inline-block; }
+  /* MENU-NETCLOSE1 (owner 2026-10-09): the pick blinks twice — the old Mac menu-selection
+     flash, read as "done" — and then the menu closes (header.php MENU-NET1 script) */
+  @keyframes kmenuPick{ 0%, 50%, 100%{ filter:none; } 25%, 75%{ filter:brightness(1.45) saturate(.5); } }
+  .app-menu-net button.is-picked{ animation:kmenuPick .3s steps(1, end) 1; }
+  @media (prefers-reduced-motion: reduce){ .app-menu-net button.is-picked{ animation:none; } }
   /* MENU-NET2: the read-only row inside a circle — one pill in the network's colour */
   .app-menu-netpill{ font:700 11px/1 system-ui,sans-serif; letter-spacing:.04em; text-transform:uppercase;
     padding:7px 11px; border-radius:999px; background:#eee; color:#666; }
@@ -351,7 +334,8 @@
          so the two pages can never disagree). "You have to go to the home page, and then choose your network there." Inside a
          circle the circle's own network applies; the wallet pickers in the You and Authenticate
          modals follow this switch and say where it is changed. Playnet is developer-only.
-         Wired by the MENU-NET1 script below; a switch, so the menu stays open on a tap. -->
+         Wired by the MENU-NET1 script below. MENU-NETCLOSE1: a tap applies the network at
+         once, the pick blinks, and the menu closes — no second tap to get it out of the way. -->
     <div class="app-menu-netrow" data-menu-network>
       <span class="app-menu-netlabel">Network</span>
       <div class="app-menu-net" role="group" aria-label="Network">
@@ -584,9 +568,21 @@ window.katomiaNet = (() => {
     paint()
     if(was !== v) document.dispatchEvent(new CustomEvent("katomia:network", { detail: { network: v, was } }))
   }
+  // MENU-NETCLOSE1 (owner 2026-10-09: "in order to exit, we need to tap somewhere else … it
+  // feels a little bit backwards"): the network applies on the tap (the page re-filters under
+  // the menu straight away), the picked button blinks twice like a classic menu selection, and
+  // the menu closes ~0.3s later. Re-tapping the current network does the same — it is how you
+  // say "yes, this one" and leave. A second tap inside the blink just restarts it.
+  let pickTimer = 0
   document.addEventListener("click", e => {
     const b = e.target.closest?.("[data-menu-network] [data-net]")
-    if(b){ e.stopPropagation(); set(b.dataset.net) }
+    if(!b) return
+    e.stopPropagation()
+    set(b.dataset.net)
+    b.classList.remove("is-picked"); void b.offsetWidth; b.classList.add("is-picked")
+    clearTimeout(pickTimer)
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches
+    pickTimer = setTimeout(() => { b.classList.remove("is-picked"); window.katomiaMenu?.close() }, reduced ? 150 : 320)
   })
   document.addEventListener("DOMContentLoaded", paint)
   return { get, set, paint, label: v => LABEL[v] || v }
@@ -605,6 +601,7 @@ window.katomiaNet = (() => {
     menu.classList.toggle("hidden", !open)
     btn.setAttribute("aria-expanded", String(open))
   }
+  window.katomiaMenu = { close: () => setOpen(false) }   // MENU-NETCLOSE1: the network pick closes it
 
   // MENU-VIEW1 (owner 2026-10-09): the ⚙ Settings popover is gone — its controls live in the
   // menu's 👁 View group (board pages only). Whenever the menu or a View group opens, the
@@ -1133,6 +1130,40 @@ window.katomiaNet = (() => {
           <input type="checkbox" id="boardPrefTickets" title="Lab: allow priced tickets in proposal circles — price an asset from its card, anyone can take the ticket. Same as the ?tickets=1 URL flag; default off.">
           🎟 Allow tickets (proposal circles)
         </label>
+        <!-- HOME-NERDPREFS1 (owner 2026-10-09: "on the homepage, if we're in dev mode, we've got
+             this option to change the page skin … and a light dark mode toggle, and a little
+             expandable section below that. Let's get rid of that from the homepage … move all
+             of that to You → Preferences … only if you're in nerd mode"). Moved as they were:
+             ENTRY-SKINS1's skin picker (still URL-carried — it reloads Home with ?skin=, so a
+             variant is shareable and initialises cleanly), ENTRY-DARKMODE1's theme test (its only
+             home since it left the hamburger), and ENTRY-CIRCLES1's per-browser entry-transition
+             tuning. Wired by katomia-profile.js; nerd-only like the two rows above. -->
+        <div class="profile-nerd-only kpref-design">
+          <label class="profile-debug-label" title="Design exploration: Home in different skins. Opens Home with ?skin= — the URL carries the choice, so it can be shared.">
+            🎨 Home page skin
+            <select id="kprefHomeSkin">
+              <option value="paper">📄 Paper (default)</option>
+              <option value="liquid">🫧 Liquid glass</option>
+              <option value="clay">🏺 Soft clay</option>
+              <option value="bubble">💠 Bubble everything</option>
+            </select>
+          </label>
+          <label class="profile-debug-label" title="Toggle DarkReader dark mode (a test instrument: explicit toggle only, no system-theme follow)">
+            <button type="button" data-kdark-btn onclick="window.kdarkToggle?.()">🌗</button>
+            Dark mode (test)
+          </label>
+          <details class="kpref-tuner">
+            <summary>⚙ Entry transition — my settings</summary>
+            <p>Overrides the circle-entry bubble <b>for this browser only</b>. Same knob names as the
+              <a href="/m/katomia/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
+            <textarea id="kprefTuneBox" spellcheck="false" placeholder='{ "ms": 800, "style": "iridescent" }'></textarea>
+            <div class="kpref-tuner-row">
+              <button type="button" id="kprefTuneApply">▶ Apply</button>
+              <button type="button" id="kprefTuneClear">↺ Site defaults</button>
+              <span class="kpref-tuner-msg" id="kprefTuneMsg"></span>
+            </div>
+          </details>
+        </div>
       </div>
     </details>
 
@@ -1279,33 +1310,8 @@ window.katomiaNet = (() => {
        every column). Normal mode never sees the word "markets". -->
   <p class="landing-more"><a href="/m/katomia/markets">See all markets →</a></p>
 
-  <!-- ENTRY-SKINS1: nerd-mode-only skin picker — reloads with ?skin= so each variant
-       initialises cleanly (the bubble skin attaches canvases at load). -->
-  <div class="landing-skin-picker" title="Design exploration (nerd mode): try this page in different skins. The URL carries the choice — share it.">
-    🎨 Page skin
-    <select id="landingSkinSel">
-      <option value="paper">📄 Paper (default)</option>
-      <option value="liquid">🫧 Liquid glass</option>
-      <option value="clay">🏺 Soft clay</option>
-      <option value="bubble">💠 Bubble everything</option>
-    </select>
-    <!-- ENTRY-DARKMODE1 R2 (user 2026-07-29): this nerd-mode theme-test row is the ONLY
-         home for the dark/light toggle — it was removed from the hamburger menu. -->
-    <button type="button" id="landingDarkBtn" data-kdark-btn title="Toggle DarkReader dark mode on this skin" onclick="window.kdarkToggle?.()">🌗</button>
-  </div>
-
-  <!-- ENTRY-CIRCLES1: per-user entry-transition tuning (nerd mode, localStorage). -->
-  <details class="landing-tuner">
-    <summary>⚙ Entry transition — my settings</summary>
-    <p style="margin:8px 0 0">Overrides the circle-entry bubble <b>for this browser only</b>. Same knob names as the
-      <a href="/m/katomia/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
-    <textarea id="landingTuneBox" spellcheck="false" placeholder='{ "ms": 800, "style": "iridescent" }'></textarea>
-    <div class="landing-tuner-row">
-      <button type="button" id="landingTuneApply">▶ Apply</button>
-      <button type="button" id="landingTuneClear">↺ Site defaults</button>
-      <span class="landing-tuner-msg" id="landingTuneMsg"></span>
-    </div>
-  </details>
+  <!-- HOME-NERDPREFS1 (owner 2026-10-09): the nerd-mode skin picker, 🌗 theme test and the
+       entry-transition tuner that sat here now live in You → Preferences (nerd mode only). -->
 </div>
 
 <script>
@@ -1318,16 +1324,7 @@ window.KTERMS = {"one":"circle","One":"Circle","many":"circles","Many":"Circles"
 
 // (welcome-page connect widget removed 2026-08-17 — see the card's removal note above)
 
-// ENTRY-SKINS1: picker → reload with the chosen skin in the URL.
-{
-  const sel = document.getElementById("landingSkinSel")
-  sel.value = "paper"
-  sel.onchange = () => {
-    const p = new URLSearchParams(location.search)
-    if(sel.value === "paper") p.delete("skin"); else p.set("skin", sel.value)
-    location.search = p.toString()
-  }
-}
+// (ENTRY-SKINS1's picker → You → Preferences, HOME-NERDPREFS1; katomia-profile.js)
 </script>
 
 <!-- ═══ ENTRY-CIRCLES1 (user 2026-07-30): the entry gesture ═══
@@ -1425,42 +1422,7 @@ window.addEventListener("load", () => {
   }
 })
 
-// ── nerd-mode per-user transition tuning (localStorage, this browser only) ──
-{
-  const box = document.getElementById("landingTuneBox")
-  const msg = document.getElementById("landingTuneMsg")
-  const say = (t, warn) => { msg.textContent = t; msg.classList.toggle("warn", !!warn) }
-
-  const load = () => {
-    let raw = null
-    try { raw = localStorage.getItem(window.kbubbleOpen?.TUNE_KEY || "katomia.kbubbleopen.tuning.v1") } catch {}
-    box.value = raw ? raw : ""
-  }
-  load()
-
-  document.getElementById("landingTuneApply").onclick = () => {
-    const txt = box.value.trim()
-    if(!txt){ window.kbubbleOpen?.setUserTuning(null); say("Cleared — using site defaults."); return }
-    let obj
-    // Tolerate the lab's copy-paste forms: a bare object, or trailing commas.
-    try { obj = JSON.parse(txt) }
-    catch {
-      try { obj = JSON.parse(txt.replace(/,\s*([}\]])/g, "$1")) }
-      catch { say("Not valid JSON — expected something like { \"ms\": 800 }", true); return }
-    }
-    if(!obj || typeof obj !== "object" || Array.isArray(obj)){ say("Expected a JSON object.", true); return }
-    const known = Object.keys(window.kbubbleOpen?.DEF || {})
-    const ignored = Object.keys(obj).filter(k => !known.includes(k))
-    if(!window.kbubbleOpen?.setUserTuning(obj)){ say("Couldn't save — localStorage is blocked in this browser.", true); return }
-    say(ignored.length
-      ? `Saved. Ignored unknown key${ignored.length > 1 ? "s" : ""}: ${ignored.join(", ")}`
-      : "Saved — click a " + (window.KTERMS?.one || "circle") + " to see it.", ignored.length)
-  }
-
-  document.getElementById("landingTuneClear").onclick = () => {
-    window.kbubbleOpen?.setUserTuning(null); box.value = ""; say("Cleared — using site defaults.")
-  }
-}
+// (the per-user transition tuning → You → Preferences, HOME-NERDPREFS1)
 </script>
 
 <script>  window.CONFIG = {
@@ -1555,7 +1517,7 @@ window.addEventListener("load", () => {
 })()
 </script>
 <script src="kemoji.js?v=1790956864"></script>
-<script src="katomia-profile.js?v=1791556496"></script>
+<script src="katomia-profile.js?v=1791578449"></script>
 <script src="katomia-auth.js?v=1791554280"></script>
 <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
 

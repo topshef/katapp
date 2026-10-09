@@ -207,6 +207,63 @@ function initKatomiaProfile(){
     }
   }
 
+  // HOME-NERDPREFS1 (owner 2026-10-09): Home's nerd-mode design row, moved here.
+  // Page skin — ENTRY-SKINS1, still URL-carried: on Home it reloads with ?skin= exactly as the
+  // old picker did; anywhere else it opens Home in that skin. The select shows the skin Home
+  // is wearing (its body class) and otherwise the last one picked here.
+  const skinSel = document.getElementById("kprefHomeSkin")
+  if(skinSel){
+    const onHome = document.body.className.match(/\blskin-(\w+)/)
+    let last = null
+    try { last = localStorage.getItem("katomiaHomeSkin") } catch {}
+    skinSel.value = (onHome && onHome[1]) || last || "paper"
+    skinSel.onchange = () => {
+      const v = skinSel.value
+      try { localStorage.setItem("katomiaHomeSkin", v) } catch {}
+      const p = new URLSearchParams(onHome ? location.search : "")
+      if(v === "paper") p.delete("skin"); else p.set("skin", v)
+      const q = p.toString()
+      if(onHome) location.search = q
+      else location.href = (window.KBASE || "") + "/" + (q ? "?" + q : "")
+    }
+  }
+  // Dark mode (test) — ENTRY-DARKMODE1: header.php owns the toggle (window.kdarkToggle) and
+  // repaints every [data-kdark-btn]; this only makes sure the button starts with the right face.
+  try { if(localStorage.getItem("dark-mode") === "1") document.querySelectorAll("[data-kdark-btn]").forEach(b => { b.textContent = "☀️" }) } catch {}
+  // Entry-transition tuning — ENTRY-CIRCLES1, per browser. kbubbleopen.js is only loaded on
+  // pages that HAVE circle links (Home, Circles), so the storage key is the fallback: a value
+  // saved on a board still reaches the next circle opened from Home.
+  const tuneBox = document.getElementById("kprefTuneBox")
+  if(tuneBox){
+    const KEY = window.kbubbleOpen?.TUNE_KEY || "katomia.kbubbleopen.tuning.v1"
+    const msg = document.getElementById("kprefTuneMsg")
+    const say = (t, warn) => { msg.textContent = t; msg.classList.toggle("warn", !!warn) }
+    const save = obj => {
+      if(window.kbubbleOpen?.setUserTuning) return window.kbubbleOpen.setUserTuning(obj)
+      try { obj == null ? localStorage.removeItem(KEY) : localStorage.setItem(KEY, JSON.stringify(obj)); return true } catch { return false }
+    }
+    try { tuneBox.value = localStorage.getItem(KEY) || "" } catch {}
+    document.getElementById("kprefTuneApply").onclick = () => {
+      const txt = tuneBox.value.trim()
+      if(!txt){ save(null); say("Cleared — using site defaults."); return }
+      let obj
+      // Tolerate the lab's copy-paste forms: a bare object, or trailing commas.
+      try { obj = JSON.parse(txt) }
+      catch {
+        try { obj = JSON.parse(txt.replace(/,\s*([}\]])/g, "$1")) }
+        catch { say("Not valid JSON — expected something like { \"ms\": 800 }", true); return }
+      }
+      if(!obj || typeof obj !== "object" || Array.isArray(obj)){ say("Expected a JSON object.", true); return }
+      const known = Object.keys(window.kbubbleOpen?.DEF || {})
+      const ignored = known.length ? Object.keys(obj).filter(k => !known.includes(k)) : []
+      if(!save(obj)){ say("Couldn't save — localStorage is blocked in this browser.", true); return }
+      say(ignored.length
+        ? `Saved. Ignored unknown key${ignored.length > 1 ? "s" : ""}: ${ignored.join(", ")}`
+        : "Saved — open a " + (window.KTERMS?.one || "circle") + " to see it.", ignored.length)
+    }
+    document.getElementById("kprefTuneClear").onclick = () => { save(null); tuneBox.value = ""; say("Cleared — using site defaults.") }
+  }
+
   loadNerdMode()
 }
 

@@ -279,6 +279,40 @@
           <input type="checkbox" id="boardPrefTickets" title="Lab: allow priced tickets in proposal circles — price an asset from its card, anyone can take the ticket. Same as the ?tickets=1 URL flag; default off.">
           🎟 Allow tickets (proposal circles)
         </label>
+        <!-- HOME-NERDPREFS1 (owner 2026-10-09: "on the homepage, if we're in dev mode, we've got
+             this option to change the page skin … and a light dark mode toggle, and a little
+             expandable section below that. Let's get rid of that from the homepage … move all
+             of that to You → Preferences … only if you're in nerd mode"). Moved as they were:
+             ENTRY-SKINS1's skin picker (still URL-carried — it reloads Home with ?skin=, so a
+             variant is shareable and initialises cleanly), ENTRY-DARKMODE1's theme test (its only
+             home since it left the hamburger), and ENTRY-CIRCLES1's per-browser entry-transition
+             tuning. Wired by katomia-profile.js; nerd-only like the two rows above. -->
+        <div class="profile-nerd-only kpref-design">
+          <label class="profile-debug-label" title="Design exploration: Home in different skins. Opens Home with ?skin= — the URL carries the choice, so it can be shared.">
+            🎨 Home page skin
+            <select id="kprefHomeSkin">
+              <option value="paper">📄 Paper (default)</option>
+              <option value="liquid">🫧 Liquid glass</option>
+              <option value="clay">🏺 Soft clay</option>
+              <option value="bubble">💠 Bubble everything</option>
+            </select>
+          </label>
+          <label class="profile-debug-label" title="Toggle DarkReader dark mode (a test instrument: explicit toggle only, no system-theme follow)">
+            <button type="button" data-kdark-btn onclick="window.kdarkToggle?.()">🌗</button>
+            Dark mode (test)
+          </label>
+          <details class="kpref-tuner">
+            <summary>⚙ Entry transition — my settings</summary>
+            <p>Overrides the <?= htmlspecialchars((function_exists('katomiaTerms') ? katomiaTerms() : ['one' => 'circle'])['one'], ENT_QUOTES, 'UTF-8') ?>-entry bubble <b>for this browser only</b>. Same knob names as the
+              <a href="<?= $katomiaBase ?? '/m/katomia' ?>/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
+            <textarea id="kprefTuneBox" spellcheck="false" placeholder='{ "ms": 800, "style": "iridescent" }'></textarea>
+            <div class="kpref-tuner-row">
+              <button type="button" id="kprefTuneApply">▶ Apply</button>
+              <button type="button" id="kprefTuneClear">↺ Site defaults</button>
+              <span class="kpref-tuner-msg" id="kprefTuneMsg"></span>
+            </div>
+          </details>
+        </div>
       </div>
     </details>
 

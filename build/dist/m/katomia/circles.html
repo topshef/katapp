@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ENTRY-FADES1: in <head> — arms the fade-in before first paint. -->
 <script src="kfade.js?v=1790956864"></script>
-<link rel="stylesheet" href="katomia.css?v=1791561163">
+<link rel="stylesheet" href="katomia.css?v=1791578484">
 <link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1790956864"><title>Katomia Circles</title>
 <style>
   *{ -webkit-tap-highlight-color: transparent; }
@@ -152,6 +152,11 @@
   .app-menu-net button[aria-pressed="true"][data-net="playnet"]{ background:#1f8f4e; color:#fff; }
   .app-menu-net button[data-net="playnet"]{ display:none; }
   body.nerd .app-menu-net button[data-net="playnet"]{ display:inline-block; }
+  /* MENU-NETCLOSE1 (owner 2026-10-09): the pick blinks twice — the old Mac menu-selection
+     flash, read as "done" — and then the menu closes (header.php MENU-NET1 script) */
+  @keyframes kmenuPick{ 0%, 50%, 100%{ filter:none; } 25%, 75%{ filter:brightness(1.45) saturate(.5); } }
+  .app-menu-net button.is-picked{ animation:kmenuPick .3s steps(1, end) 1; }
+  @media (prefers-reduced-motion: reduce){ .app-menu-net button.is-picked{ animation:none; } }
   /* MENU-NET2: the read-only row inside a circle — one pill in the network's colour */
   .app-menu-netpill{ font:700 11px/1 system-ui,sans-serif; letter-spacing:.04em; text-transform:uppercase;
     padding:7px 11px; border-radius:999px; background:#eee; color:#666; }
@@ -238,7 +243,8 @@
          so the two pages can never disagree). "You have to go to the home page, and then choose your network there." Inside a
          circle the circle's own network applies; the wallet pickers in the You and Authenticate
          modals follow this switch and say where it is changed. Playnet is developer-only.
-         Wired by the MENU-NET1 script below; a switch, so the menu stays open on a tap. -->
+         Wired by the MENU-NET1 script below. MENU-NETCLOSE1: a tap applies the network at
+         once, the pick blinks, and the menu closes — no second tap to get it out of the way. -->
     <div class="app-menu-netrow" data-menu-network>
       <span class="app-menu-netlabel">Network</span>
       <div class="app-menu-net" role="group" aria-label="Network">
@@ -469,9 +475,21 @@ window.katomiaNet = (() => {
     paint()
     if(was !== v) document.dispatchEvent(new CustomEvent("katomia:network", { detail: { network: v, was } }))
   }
+  // MENU-NETCLOSE1 (owner 2026-10-09: "in order to exit, we need to tap somewhere else … it
+  // feels a little bit backwards"): the network applies on the tap (the page re-filters under
+  // the menu straight away), the picked button blinks twice like a classic menu selection, and
+  // the menu closes ~0.3s later. Re-tapping the current network does the same — it is how you
+  // say "yes, this one" and leave. A second tap inside the blink just restarts it.
+  let pickTimer = 0
   document.addEventListener("click", e => {
     const b = e.target.closest?.("[data-menu-network] [data-net]")
-    if(b){ e.stopPropagation(); set(b.dataset.net) }
+    if(!b) return
+    e.stopPropagation()
+    set(b.dataset.net)
+    b.classList.remove("is-picked"); void b.offsetWidth; b.classList.add("is-picked")
+    clearTimeout(pickTimer)
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches
+    pickTimer = setTimeout(() => { b.classList.remove("is-picked"); window.katomiaMenu?.close() }, reduced ? 150 : 320)
   })
   document.addEventListener("DOMContentLoaded", paint)
   return { get, set, paint, label: v => LABEL[v] || v }
@@ -490,6 +508,7 @@ window.katomiaNet = (() => {
     menu.classList.toggle("hidden", !open)
     btn.setAttribute("aria-expanded", String(open))
   }
+  window.katomiaMenu = { close: () => setOpen(false) }   // MENU-NETCLOSE1: the network pick closes it
 
   // MENU-VIEW1 (owner 2026-10-09): the ⚙ Settings popover is gone — its controls live in the
   // menu's 👁 View group (board pages only). Whenever the menu or a View group opens, the
@@ -1018,6 +1037,40 @@ window.katomiaNet = (() => {
           <input type="checkbox" id="boardPrefTickets" title="Lab: allow priced tickets in proposal circles — price an asset from its card, anyone can take the ticket. Same as the ?tickets=1 URL flag; default off.">
           🎟 Allow tickets (proposal circles)
         </label>
+        <!-- HOME-NERDPREFS1 (owner 2026-10-09: "on the homepage, if we're in dev mode, we've got
+             this option to change the page skin … and a light dark mode toggle, and a little
+             expandable section below that. Let's get rid of that from the homepage … move all
+             of that to You → Preferences … only if you're in nerd mode"). Moved as they were:
+             ENTRY-SKINS1's skin picker (still URL-carried — it reloads Home with ?skin=, so a
+             variant is shareable and initialises cleanly), ENTRY-DARKMODE1's theme test (its only
+             home since it left the hamburger), and ENTRY-CIRCLES1's per-browser entry-transition
+             tuning. Wired by katomia-profile.js; nerd-only like the two rows above. -->
+        <div class="profile-nerd-only kpref-design">
+          <label class="profile-debug-label" title="Design exploration: Home in different skins. Opens Home with ?skin= — the URL carries the choice, so it can be shared.">
+            🎨 Home page skin
+            <select id="kprefHomeSkin">
+              <option value="paper">📄 Paper (default)</option>
+              <option value="liquid">🫧 Liquid glass</option>
+              <option value="clay">🏺 Soft clay</option>
+              <option value="bubble">💠 Bubble everything</option>
+            </select>
+          </label>
+          <label class="profile-debug-label" title="Toggle DarkReader dark mode (a test instrument: explicit toggle only, no system-theme follow)">
+            <button type="button" data-kdark-btn onclick="window.kdarkToggle?.()">🌗</button>
+            Dark mode (test)
+          </label>
+          <details class="kpref-tuner">
+            <summary>⚙ Entry transition — my settings</summary>
+            <p>Overrides the circle-entry bubble <b>for this browser only</b>. Same knob names as the
+              <a href="/m/katomia/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
+            <textarea id="kprefTuneBox" spellcheck="false" placeholder='{ "ms": 800, "style": "iridescent" }'></textarea>
+            <div class="kpref-tuner-row">
+              <button type="button" id="kprefTuneApply">▶ Apply</button>
+              <button type="button" id="kprefTuneClear">↺ Site defaults</button>
+              <span class="kpref-tuner-msg" id="kprefTuneMsg"></span>
+            </div>
+          </details>
+        </div>
       </div>
     </details>
 
@@ -1407,7 +1460,7 @@ document.addEventListener("katomia:network", e => { _circlesFilter.network = e.d
 <script src="katomia-helpers.js?v=1790956864"></script>
 <script src="katomia-places.js?v=1791561163"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
 <script src="kemoji.js?v=1790956864"></script>
-<script src="katomia-profile.js?v=1791556496"></script>
+<script src="katomia-profile.js?v=1791578449"></script>
 <script src="katomia-auth.js?v=1791554280"></script>
 <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
 

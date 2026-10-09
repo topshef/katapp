@@ -165,7 +165,7 @@
     try { if (typeof boardChatMode !== "undefined" && boardChatMode) return boardChatMode; } catch (e) {}
     return "bubbles";
   }
-  function bubblesAllowed() { return chatMode() !== "panel" && !logOpen; }
+  function bubblesAllowed() { return chatMode() !== "panel" && !logOpen && !document.body.classList.contains("kchat-fullopen"); }
 
   // A new message pulses the speaker's board avatar (scale up, settle back) — the
   // "someone is talking" cue that survives whichever chat surface is active. The
@@ -238,8 +238,9 @@
   }
 
   // Shared send-box wiring (GCP feedback 2026-08-08, messages-view parity): the split
-  // dock and the full-screen messages view carry the SAME .kchat-send form; both are
-  // wired here so send behaviour (and CHAT-COMMITGATE1 recovery) can't drift apart.
+  // dock and the full-screen messages view carried the SAME .kchat-send form, both wired
+  // here so send behaviour (and CHAT-COMMITGATE1 recovery) couldn't drift apart. Since
+  // VIEW-MSGS2 the messages view IS the dock, so there is one form; the helper stays.
   function wireChatSend(form) {
     if (!form || form._kwired) return;
     form._kwired = true;
@@ -256,8 +257,6 @@
       inp.value = "";
     });
   }
-  // the full-screen view's form is static markup (board.php) — wire it now if present
-  wireChatSend(document.querySelector("#boardChatFull .kchat-send"));
 
   // First-screen fit (lab1 seat 2026-08-13, chat first-row clip): with no user-chosen
   // split, the 3-line welcome message overflows the ~120px default dock by a few px and
@@ -288,8 +287,10 @@
   function syncDock() {
     document.body.dataset.kchatMode = chatMode();
     var on = chatMode() === "panel";
+    // VIEW-MSGS2: the messages view is this dock at full height, in either chat mode
+    var full = document.body.classList.contains("kchat-fullopen");
     var d = document.getElementById("boardChatDock");
-    if (on && !d) {
+    if ((on || full) && !d) {
       d = document.createElement("div");
       d.id = "boardChatDock";
       d.className = "kchat-dock";
@@ -481,10 +482,8 @@
           var m = e.detail;
           if (!m || m.code !== "chat-identity") return;
           var last = window.__kchatLastSent;
-          // refill whichever send box the player is actually looking at (the
-          // full-screen messages view has its own since the parity fix)
-          var inp2 = document.querySelector("#boardChatFull.open .kchat-send input")
-                  || document.querySelector("#boardChatDock .kchat-send input");
+          // refill the send box (one box since VIEW-MSGS2 — the dock's, in every view)
+          var inp2 = document.querySelector("#boardChatDock .kchat-send input");
           if (inp2 && last && Date.now() - last.ts < 15000 && !inp2.value) inp2.value = last.text;
           if (window.katomiaAuthenticateModal) window.katomiaAuthenticateModal.open({
             message: "Your message wasn't sent — messaging needs a verified account. Authenticate with one wallet signature; your message is back in the box, just hit send again after.",
@@ -501,7 +500,7 @@
     var side = on && innerWidth > innerHeight && innerWidth >= 700;
     var clearB = 0, clearR = 0;
     if (d) {
-      d.style.display = on ? "" : "none";
+      d.style.display = (on || full) ? "" : "none";
       d.classList.toggle("kchat-dock--side", side);
       if (on) {
         if (side) {
@@ -546,6 +545,7 @@
         }
       }
     }
+    if (full) fitFull();
     var rootStyle = document.documentElement.style;
     // snap to a 10px grid: the bar-height measurements wobble a few px between passes
     // (ribbon appearing, safe-area padding) and would otherwise churn the var
@@ -599,14 +599,11 @@
     var p = panel();
     var count = p && p.querySelector(".kchat-panel-count");
     if (count) count.textContent = chat.length ? String(chat.length) : "";
-    // BOARD-CHAT1 R2: two destinations — the desktop panel and the mobile full-screen
-    // stream. Both get the same rows; CSS decides which one the device can see.
+    // BOARD-CHAT1 R2: the desktop panel and the dock (split AND messages views, VIEW-MSGS2)
+    // get the same rows; CSS decides which one the device can see.
     renderInto(p && p.querySelector(".kchat-panel-list"), chat);
-    renderInto(document.getElementById("boardChatFullList"), chat);
     renderInto(document.querySelector("#boardChatDock .kchat-dock-list"), chat);
     autoFitDock();
-    var sub = document.getElementById("boardChatFullSub");
-    if (sub) sub.textContent = chat.length ? chat.length + " so far" : "nothing said yet";
   }
 
   /* ── BOARD-ACTIONMSG1 action rendering (user 2026-08-04) ───────────────────
@@ -1091,29 +1088,35 @@
   }
 
   // BOARD-CHAT1 R2: full-screen transcript for phones, opened from ☰ → 💬 Messages.
+  // VIEW-MSGS1 (owner 2026-10-09, carried from lab2 KMAP2): messages is one of the three
+  // VIEWS, not a modal — no Close button; the ☰ row stays on top of it, so ☰ → View switches
+  // back like any other view, and the menu is NOT closed when you pick it (you toggle the
+  // views to compare them). The bar (account · lock/sign) moves to the top, under the ☰ row,
+  // and stays a grip: drag it down for the split (VIEW-SNAP1).
+  // VIEW-MSGS2 (owner 2026-10-09, third pass: "use the normal message style when you've got
+  // split screen and just make that full height. Don't introduce a new style"): messages alone
+  // IS the split's dock, stretched from under the bar to the foot of the screen. It used to be a
+  // separate overlay (#boardChatFull) with its own look, and its list carried .kchat-panel-list —
+  // the desktop panel's class, capped at min(44vh,300px) — so the transcript stopped just past
+  // half the screen, in a bigger font on a different background. Dragging the bar showed the
+  // dock, which is why the view "self-corrected" the moment a drag began and went back on
+  // release. One surface now: the same rows, font, background and send box in all three views.
   function openFull(on) {
-    var el = document.getElementById("boardChatFull");
-    if (!el) return;
-    el.classList.toggle("open", on !== false);
-    // R2 (user 2026-08-03, got STUCK in here on mobile): the banner (z70) sat on top
-    // of this overlay (was z60), parking the hamburger exactly over the ✕. The
-    // overlay now outranks the banner (CSS z2000) and the banner hides while open.
     document.body.classList.toggle("kchat-fullopen", on !== false);
-    // VIEW-MSGS1 (owner 2026-10-09, carried from lab2 KMAP2): messages is one of the three
-    // VIEWS, not a modal — no Close button; the ☰ row stays on top of it, so ☰ → View switches
-    // back like any other view, and the menu is NOT closed when you pick it (you toggle the
-    // views to compare them). The bar (account · lock/sign) moves to the top, under the ☰ row,
-    // and stays a grip: drag it down for the split (VIEW-SNAP1). fitFull places the list below.
-    fitFull();
+    syncDock();   // creates the dock if the board-alone view never had one; fitFull runs inside
+    var st = (typeof state !== "undefined" && state) || null;
     if (on !== false) {
-      var l = document.getElementById("boardChatFullList");
-      if (l) l.scrollTop = l.scrollHeight;
+      live.slice().forEach(retire);   // no bubbles over the transcript
+      if (st && Array.isArray(st.chat)) renderLog(st.chat);
+      var l = document.querySelector("#boardChatDock .kchat-dock-list");
+      if (l) { l._kpinned = true; l.scrollTop = l.scrollHeight; }
     }
   }
   // VIEW-SNAP2 (owner 2026-10-09): in messages alone the bar goes right to the TOP, under the ☰
   // ("the hamburger menu basically just ends up sitting on top of the drag bar") — the banner
-  // lets touches through everywhere but the ☰ and its menu (katomia.css) — and the transcript
-  // starts below the bar.
+  // lets touches through everywhere but the ☰ and its menu (katomia.css) — and the dock starts
+  // below the bar. Re-measured on every syncDock (every render): the bar's height changes as
+  // its contents do (an account select, Lock appearing).
   function fitFull() {
     var root = document.documentElement;
     var f = barNow();
@@ -1566,7 +1569,6 @@
 
   document.addEventListener("click", function (e) {
     if (e.target.closest("[data-menu-chat]")) { e.preventDefault(); openFull(true); }
-    else if (e.target.closest("#boardChatFullClose")) { e.preventDefault(); openFull(false); }
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") openFull(false); });
 
