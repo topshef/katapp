@@ -128,13 +128,21 @@ function carouselCard(account, ctx, mine){
   // account's signature status (green signed / amber waiting / grey none), as the arcs do
   const rim = document.createElement("div")
   const hac = account.id.split(":")[1] || account.id
-  let sign = null
-  if(boardSigning && boardSigning.legs[hac]){
-    const per = boardSignStatus?.txid === boardSigning.tx?.txid ? boardSignStatus.byAccount?.[hac] : null
-    sign = (per === "loading" ? "pending" : per) ?? boardSigning.status
-  }
-  rim.className = "carousel-rim" + (sign ? " carousel-rim--" + sign : "")
-  rim.title = sign ? `Signature: ${sign}` : account.mode === "lock" ? "Locked" : "Store above the line, basket below — the ring's rim"
+  const sign = boardAccountSignState(hac)   // LOCKBAR1: the ring's rule, shared
+  // LOCKBAR1 (owner 2026-10-13): the rim IS the lock bar — the ring's arc laid flat. Same
+  // classes, tube width, tones, hover and tap as the arc (katomia-board.js boardWireLockBar),
+  // so the footer's Lock preview and the optimistic lock paint find it like an arc.
+  const locked = account.mode === "lock"
+  const party = boardLockBarParty(account, ctx.accounts, sign, locked)
+  rim.className = "carousel-rim ring-lockarc"
+    + (locked ? " ring-lockarc--locked" : "")
+    + (mine ? " ring-lockarc--mine ring-lockarc--open" : " ring-lockarc--wall")
+    + (party ? " ring-lockarc--target" : "")
+    + (sign ? " carousel-rim--" + sign : "")
+  rim.dataset.accountId = account.id
+  rim.style.setProperty("--tstrip", boardLockBarTone(account, party))
+  if(mine && !sign) boardWireLockBar(rim, account, locked)
+  else rim.title = sign ? `Signature: ${sign}` : locked ? "Locked" : "Store above the line, basket below — the ring's rim, laid flat"
 
   const basket = document.createElement("div")
   basket.className = "board-band carousel-basket"

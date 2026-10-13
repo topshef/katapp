@@ -906,6 +906,50 @@ console.log('19. CAROUSEL-FIT1 + SIM-NOBUNCH1: the carousel uses the full width 
   await rp.close()
 }
 
+console.log('20. LOCKBAR1 + CAROUSEL-FLIGHT1: the carousel locks like the ring (a 14px bar, hover, tap, the Lock preview), and an own→own offer flies straight from the chip')
+{
+  const { page, errs } = await open('skin=carousel')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.evaluate(() => boardSetView('board')); await page.waitForTimeout(600)
+  const bar = id => page.evaluate(id => { const r = document.querySelector(`.carousel-rim[data-account-id="${id}"]`); return r && { h: Math.round(r.getBoundingClientRect().height), bg: getComputedStyle(r).backgroundColor, locked: r.classList.contains('ring-lockarc--locked') } }, id)
+  const me = await page.evaluate(() => { const r = document.querySelector('.carousel-rim.ring-lockarc--mine:not(.ring-lockarc--locked)'); const b = r.getBoundingClientRect(); return { id: r.dataset.accountId, x: b.left + b.width / 2, y: b.top + b.height / 2, all: [...document.querySelectorAll('.carousel-rim')].every(x => Math.round(x.getBoundingClientRect().height) === 14) } })
+  ok(me.all, 'every stall\'s rim is the ring\'s 14px tube, laid flat', JSON.stringify(me))
+  await page.mouse.move(me.x, me.y); await page.waitForTimeout(150)
+  const hv = await bar(me.id)
+  ok(hv.bg === 'rgb(248, 213, 165)', 'hovering your bar previews the lock in the ring\'s pale orange', JSON.stringify(hv))
+  await page.mouse.click(me.x, me.y); await page.waitForTimeout(700)
+  const lk = await bar(me.id)
+  const mode = await page.evaluate(id => state.accounts[id].mode, me.id)
+  ok(mode === 'lock' && lk.locked && lk.bg === 'rgb(245, 166, 35)', 'tapping your bar locks the account — solid lock orange, as on the ring', JSON.stringify({ mode, lk }))
+  await page.mouse.click(me.x, me.y); await page.waitForTimeout(700)
+  ok(await page.evaluate(id => state.accounts[id].mode !== 'lock', me.id), 'tapping it again unlocks', '')
+  // the footer Lock button previews the selected account's bar, like an arc
+  await page.evaluate(id => { boardSelectedAccount = id; render() }, me.id); await page.waitForTimeout(300)
+  await page.hover('.ring-footer [data-testid="lock"]'); await page.waitForTimeout(150)
+  const pv = await page.evaluate(id => document.querySelector(`.carousel-rim[data-account-id="${id}"]`).classList.contains('ring-lockpreview'), me.id)
+  ok(pv, 'hovering the footer Lock button lights the bar it would lock', String(pv))
+  await page.mouse.move(5, 5)
+  // CAROUSEL-FLIGHT1: plant a stale ring-era launch point (as a ring session leaves behind), then
+  // offer between my own two accounts — the clone must start at the dragged chip, not there
+  const src = await page.evaluate(() => {
+    const mine = getAccounts().filter(a => isMyAccount(a))
+    const chip = document.querySelector(`.carousel-card[data-account-id="${mine[0].id}"] .carousel-store .asset:not(.reserved)`)
+    _boardChipPrevPosOld.set(`${mine[0].id}|store|${chip.dataset.assetId}|s#1`, { left: 1100, top: 50 })
+    window.__flyStart = null
+    new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (!window.__flyStart && n.classList?.contains('board-fly')) { const t = /translate\(([-\d.]+)px, ([-\d.]+)px\)/.exec(n.style.transform) || [0, 0, 0]; window.__flyStart = [(parseFloat(n.style.left) || 0) + +t[1], (parseFloat(n.style.top) || 0) + +t[2]] } }))).observe(document.body, { childList: true })
+    chip.id = 'qaOwnChip'; document.querySelector(`.carousel-card[data-account-id="${mine[1].id}"]`).id = 'qaOwnDest'
+    const r = chip.getBoundingClientRect(); return { x: r.left, y: r.top }
+  })
+  await page.locator('#qaOwnChip').dragTo(page.locator('#qaOwnDest'))
+  const offer = page.locator('.board-amount-btn', { hasText: /^Offer$/ })
+  if (await offer.count()) { await page.locator('input[type=number], input[inputmode=decimal]').last().fill('1'); await offer.click() }
+  await page.waitForTimeout(400)
+  const fs = await page.evaluate(() => window.__flyStart)
+  ok(fs && Math.hypot(fs[0] - src.x, fs[1] - src.y) < 120, 'an own→own offer on the carousel flies from the dragged chip (not from a stale ring-era spot)', JSON.stringify({ fs, src }))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)

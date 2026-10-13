@@ -2131,14 +2131,9 @@ function renderRingBoard(root){
     // has, even "none" is a real, distinct answer and must win over the generic
     // orange (user 2026-07-12: a party member who's just receiving, with no
     // signature required, was showing orange like everyone else).
-    let perAcct = boardSigning && boardSignStatus?.txid === boardSigning.tx?.txid
-      ? boardSignStatus.byAccount?.[hac] : null
-    if(perAcct === "loading") perAcct = "pending"   // orange while keyInfo loads; no --loading CSS class
     segs.push({ account, a0, a1, am, mine, wclip: !!inWheel,
       weight: slot.weight,   // party-tween fade: felt elements (etched id, arcs) dim with the closing segment
-      sign: boardSigning && boardSigning.legs[hac]
-        ? (perAcct ?? boardSigning.status)
-        : null })
+      sign: boardAccountSignState(hac) })
 
     // wash + fat drop target: the whole slice IS the account (own segments
     // accept drops too — acct → acct moves, and drag-home = withdraw)
@@ -5528,6 +5523,20 @@ function boardNoteLocalMove(toId, fromId, assetId){
 }
 window.boardNoteLocalMove = boardNoteLocalMove   // core.js calls it optionally
 
+// CAROUSEL-FLIGHT1 (owner 2026-10-13: dragging between two of my own accounts on the carousel
+// "animates as if it's starting from the account I'm sending to, coming into my account, and
+// then going into the basket of the destination account, like a loop"). The offer flight's
+// launch point — where the store chip stood a paint ago, for the store → counter → basket arc —
+// comes from _boardChipPrevPosOld, which ONLY the ring's physics apply records. The carousel
+// never writes it, so on the carousel it held ring-era coordinates (or nothing): the clone
+// launched from an unrelated spot, arced round to the ghost in your store, then went on to
+// the basket. The carousel has no counter ring to arc via, so it takes the plain leg — store
+// chip straight to the basket — and the ring keeps its arc unchanged.
+function boardOfferLaunchPos(fromId, assetId){
+  if(carousel()) return null
+  return _boardChipPrevPosOld.get(`${fromId}|store|${assetId}|s#1`) || null
+}
+
 let _prevOfferKeys = null
 let _prevOfferRects = new Map()
 function boardAnimateNewOffers(){
@@ -5589,7 +5598,7 @@ function boardAnimateNewOffers(){
           // NFT (whole chip moved): store→(arc)→ghost→(straight)→basket in
           // one clone flight, launched from where the store chip stood last
           // frame; plain ghost→basket if that spot is unknown
-          const oldStore = _boardChipPrevPosOld.get(`${fromId}|store|${assetId}|s#1`)
+          const oldStore = boardOfferLaunchPos(fromId, assetId)
           if(oldStore) boardFlyNftOffer(oldStore, ghost, basket, colour, k)
           else boardFlyLeg(ghost, basket, colour, 0, k)
         }
@@ -5605,7 +5614,7 @@ function boardAnimateNewOffers(){
         const pile = document.querySelector(
           `.asset:not(.basket):not(.reserved)[data-owner-account="${CSS.escape(fromId)}"][data-asset-id="${CSS.escape(assetId)}"]`)
         if(pile){
-          const oldStore = _boardChipPrevPosOld.get(`${fromId}|store|${assetId}|s#1`)
+          const oldStore = boardOfferLaunchPos(fromId, assetId)
           if(oldStore) boardFlyNftOffer(oldStore, pile, basket, colour, k)
           else boardFlyLeg(pile, basket, colour, 0, k)
         }
@@ -5820,7 +5829,7 @@ function ringFooter(mine){
       lockBtn.textContent = cur?.mode === "lock" ? "🔓 Unlock" : "🔒 Lock"
       lockBtn.disabled = !cur
       lockBtn.onclick = () => { const a = selected(); if(a){ advanceAfterLock(a); boardToggleLock(a) } }
-      if(ring16() && cur){
+      if((ring16() || carousel()) && cur){   // LOCKBAR1: the carousel's bar previews like an arc
         // hover previews WHICH arc this would lock — SAME pale orange as hovering
         // the arc itself (user 2026-08-03; was a thin dashed line). No asset
         // highlighting: a lock commits the whole ring, not just your legs.
@@ -7189,6 +7198,43 @@ function boardRingToneColour(playerHex, active){
   return "#" + [r, gC, b].map(c => c.toString(16).padStart(2, "0")).join("")
 }
 
+// ── LOCKBAR1 (owner 2026-10-13: the carousel "should be similar to ring view … instead of the
+// ring there should be a horizontal bar across your own accounts, exactly the same thickness …
+// you can hover on that bar and you can lock in exactly the same way") ───────────────────────
+// One account's lock bar, whatever shape the board draws it in: the ring's arc on the oval, the
+// carousel's straight rim between store and basket. Both now take their state, colour and tap
+// from here, so the two can't drift apart again. The element carries the ring's own classes
+// (.ring-lockarc + modifiers, data-account-id), which is what makes the footer Lock button's
+// hover preview and boardToggleLock's optimistic paint find a carousel bar exactly as they find
+// an arc — no second code path for either.
+// `party` = in the live proposal and still to lock: the bar takes its player's lighter tone.
+// LOCKBAR1: the account's signing light, one rule for the ring's arc and the carousel's bar
+// (moved here from renderRingBoard; the carousel had its own copy). Only party accounts get a
+// light; the whole-tx status stands in until the per-account status for THIS tx has loaded.
+function boardAccountSignState(hac){
+  if(!boardSigning || !boardSigning.legs[hac]) return null
+  let perAcct = boardSignStatus?.txid === boardSigning.tx?.txid ? boardSignStatus.byAccount?.[hac] : null
+  if(perAcct === "loading") perAcct = "pending"   // orange while keyInfo loads; no --loading CSS class
+  return perAcct ?? boardSigning.status
+}
+function boardLockBarParty(account, accounts, sign, locked){
+  return !sign && !locked && boardInMyParty(account, accounts)
+}
+function boardLockBarTone(account, party){
+  return boardRingToneColour(getPlayerColour(account.playerId), party)
+}
+// mine: tap toggles the lock, with the ring's own wording; the tooltip is an SVG <title> on
+// an arc and a plain title on the carousel's div
+function boardWireLockBar(el, account, locked){
+  el.onclick = () => boardToggleLock(account)
+  const text = locked ? "Locked — tap your arc to unlock" : "Tap your arc to lock"
+  if(el instanceof SVGElement){
+    const t = document.createElementNS("http://www.w3.org/2000/svg", "title")
+    t.textContent = text
+    el.appendChild(t)
+  } else el.title = text.replace("arc", "bar")
+}
+
 function ringFelt(segs, g){
   const NS = "http://www.w3.org/2000/svg"
   const svg = document.createElementNS(NS, "svg")
@@ -7442,8 +7488,7 @@ function ringFelt(segs, g){
       // rides the tonal ladder instead: the same player-coloured ring, one
       // tone LIGHTER than their basket. Kept on the --target class so the
       // (now tone-based) resting/active pair keeps one selector.
-      const party = ring16() && !seg.sign && !locked
-        && boardInMyParty(seg.account, segs.map(s => s.account))
+      const party = ring16() && boardLockBarParty(seg.account, segs.map(s => s.account), seg.sign, locked)
       const arc = document.createElementNS(NS, "path")
       arc.setAttribute("d", ringArcPath(seg, g))
       arc.dataset.accountId = seg.account.id
@@ -7478,13 +7523,8 @@ function ringFelt(segs, g){
       // than their store wash) or active (lighter than their basket). Still a
       // custom property, never an inline stroke, for the override reasons the
       // block above documents at length.
-      arc.style.setProperty("--tstrip", boardRingToneColour(getPlayerColour(seg.account.playerId), party))
-      if(seg.mine){
-        arc.onclick = () => boardToggleLock(seg.account)
-        const t = document.createElementNS(NS, "title")
-        t.textContent = locked ? "Locked — tap your arc to unlock" : "Tap your arc to lock"
-        arc.appendChild(t)
-      }
+      arc.style.setProperty("--tstrip", boardLockBarTone(seg.account, party))
+      if(seg.mine) boardWireLockBar(arc, seg.account, locked)   // LOCKBAR1: shared with the carousel
       // signing-status arcs are LIGHTS (user 2026-07-12): they must
       // illuminate over the focus/signing darkness, not be buried under it —
       // "only glowing on the inside… the glow needs to sit on top of the

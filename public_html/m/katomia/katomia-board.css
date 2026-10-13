@@ -2574,13 +2574,25 @@ body.feat-tickets .tkt-act{ margin-top:6px; }
 .carousel-card--locked .carousel-store{ background: rgba(45, 35, 15, .38); }   /* store goes dark on lock */
 
 /* the one line: rim, trading blue, orange once locked */
-.carousel-rim{ flex: 0 0 3px; background: #a9c9ec; margin: 0 -6px; }
+/* LOCKBAR1 (owner 2026-10-13): the rim is the lock bar — the ring's v16 tube laid flat. 14px
+   (the arc's stroke-width), the player's tone (--tstrip, set like the arc's), lighter when the
+   account is party to the live proposal; YOUR bar is the tap target: pale orange on hover (and
+   when the footer's Lock button previews it), solid lock orange when locked. Signing lights
+   below keep priority, as on the ring. */
+.carousel-rim{ flex: 0 0 14px; background: var(--tstrip, #d9d3c4); margin: 0 -6px; }
+/* the arc classes ride along for the shared lookups; their SVG-only paint (stroke opacity,
+   pointer-events: stroke) must not dim or deafen a div */
+.carousel-rim.ring-lockarc{ opacity: 1; pointer-events: auto; }
+.carousel-rim.ring-lockarc--mine{ cursor: pointer; }
+.carousel-rim.ring-lockarc--open:not(.ring-lockarc--locked):hover,
+.carousel-rim.ring-lockpreview{ background: #f8d5a5; }
+.carousel-rim.ring-lockarc--locked,
 .carousel-card--locked .carousel-rim{ background: #f5a623; }
-.carousel-rim--pending{ background: #f5a623; }
-.carousel-rim--signed{ background: #35b06f; }
-body[data-signtwilight="1"] .carousel-rim--signed{ background: #1e7047; }   /* last ~10s: still green, lights going out */
-.carousel-rim--failed{ background: #d64541; }
-.carousel-rim--none{ background: #9a9a9a; opacity: .5; }
+.carousel-rim.carousel-rim--pending{ background: #f5a623; }
+.carousel-rim.carousel-rim--signed{ background: #35b06f; }
+body[data-signtwilight="1"] .carousel-rim.carousel-rim--signed{ background: #1e7047; }   /* last ~10s: still green, lights going out */
+.carousel-rim.carousel-rim--failed{ background: #d64541; }
+.carousel-rim.carousel-rim--none{ background: #9a9a9a; opacity: .5; }
 
 .carousel-basket{ flex: 0 0 auto; min-height: 44px; padding: 4px 0; align-content: flex-start; }
 
