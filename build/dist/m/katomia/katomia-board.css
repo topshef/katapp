@@ -970,7 +970,8 @@ body.kchat-snap-board .ring-footer, body.kchat-snap-messages .ring-footer{ backg
   /* BOARD-PLAYERARC1 (user 2026-08-06): "we should thicken those arcs because
      they're quite thin — we want to accentuate the player colours… make it 50%
      thicker for now and see how that goes." 4 → 6. The party strip-light sits
-     at rc+12 (this arc is at rc+6), so a 6px tube still clears it. */
+     at rc+12 (this arc is at rc+6), so a 6px tube still clears it.
+     HUBRING-HUG1 (2026-10-13): arc at rc+3 (hugs the hub edge), strip-light at rc+9. */
   stroke-width: 6;
   stroke-linecap: butt;
   opacity: .85;

@@ -7545,10 +7545,19 @@ function ringFelt(segs, g){
         // the asset chips (segTop z6 > chips z5) — "chips should always be on top".
         // Same call as BOARD-YOUFELT1: felt cues belong on the labels layer (z4),
         // visible on the felt but under the chips.
-        circArc(g.rc + 6, seg.a0, seg.a1, "ring-playerarc",
+        // HUBRING-HUG1 (owner 2026-10-13, w/ screenshot: "the blue border around the K should be
+        // a border. It shouldn't be kind of stretched a little bit away"): the arc used to sit at
+        // rc+6, a 6px stroke whose inner edge (rc+3) cleared the hub's 2px grey border (outer edge
+        // rc+2, the hub is content-box) by ONE pixel. Two layers draw that pair — the hub is an
+        // HTML circle, this arc is on the felt SVG — and each lands on its own sub-pixel, so the
+        // 1px gap antialiased to ~0 on one side and ~2 on the other: an off-centre, "slightly
+        // oval" ring that changed with the window's shape. Now the arc's inner edge IS the hub's
+        // edge (rc+3 centre → rc..rc+6), covering the grey border, so there is no gap to wobble.
+        // The party strip-light keeps its old half-pixel seam to the arc (rc+12 → rc+9).
+        circArc(g.rc + 3, seg.a0, seg.a1, "ring-playerarc",
           getPlayerColour(seg.account.playerId), segLabels(seg))
         if(boardInMyParty(seg.account, allAccounts))
-          circArc(g.rc + 12, seg.a0, seg.a1, "ring-partylight", null, segLabels(seg))
+          circArc(g.rc + 9, seg.a0, seg.a1, "ring-partylight", null, segLabels(seg))
       } else if(boardInMyParty(seg.account, allAccounts))
         circArc(g.rc + 5, seg.a0 + 3, seg.a1 - 3, "ring-partyarc", null, segTop(seg))
       if(seg.mine){
