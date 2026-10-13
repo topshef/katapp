@@ -408,4 +408,12 @@ function renderCarouselBoard(root){
   window.__boardStruckTx = txid
 
   boardPruneOrphanTrails()
+  // SIGN-TRAILS2 (owner 2026-10-13: on the carousel "we're seeing [the dotted line] until after
+  // we lock, and then once we lock, the link is gone" — the Round Table keeps it). The trail
+  // lines live on one persistent layer inside #boardRoot; every render's replaceChildren
+  // detaches it, and the ring re-adopts it (and re-aims every line at its chips' new places)
+  // in boardReanchorTrails after each paint. The carousel never called it, so the first
+  // render after the strike — the signing phase's own repaint — took the lines with it. Same
+  // pass now, after the carousel's DOM is in: re-adopt, re-aim, prune what lost an end.
+  boardReanchorTrails()
 }

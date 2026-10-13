@@ -5065,6 +5065,19 @@ function boardTxChips(legs, container, accounts, toAccountId, ownerId = toAccoun
     ringTint(el, giver?.playerId)
     if(leg.from) el.dataset.fromHac = leg.from
     if(toAccountId) el.dataset.toAccount = toAccountId   // BOARD-SWEEPWIN1: settle flight target
+    // SIGN-HOVER1 (owner 2026-10-13: "once you're in signing mode, you can hover on the counter
+    // side of the chip and it highlights the transaction. But if you hover on the basket side,
+    // it doesn't … it's important that you can review clearly what the transaction is"). At the
+    // strike the basket chips are replaced by these leg chips, and the replacement carried no
+    // hover — while the counter-side ghost kept its own, and highlightTradePair already finds
+    // THIS chip as the basket end (same owner / asset / to-account attributes). So the leg gets
+    // the basket chip's hover, and the same tap-to-flash for touch. Ring and carousel alike.
+    el.dataset.assetId = leg.assetId
+    if(giver && toAccountId){
+      el.onmouseenter = () => highlightTradePair(leg.assetId, giver.id, toAccountId, true)
+      el.onmouseleave = () => highlightTradePair(leg.assetId, giver.id, toAccountId, false)
+      el.onclick = () => flashTradePair(leg.assetId, giver.id, toAccountId)
+    }
     boardTip(el, "Pending transaction leg — awaiting signatures")
     container.appendChild(el)
   })

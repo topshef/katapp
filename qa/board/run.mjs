@@ -950,6 +950,28 @@ console.log('20. LOCKBAR1 + CAROUSEL-FLIGHT1: the carousel locks like the ring (
   await page.close()
 }
 
+console.log('21. SIGN-TRAILS2 + SIGN-HOVER1: in signing, the legs keep their dotted lines (carousel too) and the basket-side leg highlights the trade on hover')
+{
+for (const skin of ['carousel', '']) {
+  const { page, errs } = await open(skin ? 'skin=' + skin : '')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.evaluate(() => boardSetView('board')); await page.waitForTimeout(800)
+  const lines = () => page.evaluate(() => [...document.querySelectorAll('#boardRoot .board-trailline')].filter(l => getComputedStyle(l).opacity !== '0').length)
+  const pre = await lines()
+  const active = await page.evaluate(() => { const s = new Set(); Object.values(state.accounts).forEach(x => { if (x.basket.length) s.add(x.id); x.basket.forEach(i => i.fromId && s.add(i.fromId)) }); return [...s] })
+  for (const id of active) { await page.evaluate(id => socket.send(JSON.stringify({ type: 'game_toggleLock', accountId: id })), id); await page.waitForTimeout(150) }
+  await page.waitForTimeout(2500)
+  await page.evaluate(() => render()); await page.waitForTimeout(800)   // a later repaint must keep them
+  const post = await page.evaluate(() => ({ signing: !!boardSigning, tx: document.querySelectorAll('.board-txchip').length, lines: [...document.querySelectorAll('#boardRoot .board-trailline[data-seg="tx"]')].length }))
+  ok(post.signing && post.tx > 0 && post.lines > 0, `${skin || 'ring'}: in signing, the legs keep their dotted lines across repaints`, JSON.stringify({ pre, post }))
+  // hover the basket-side leg chip: the trade line appears and both ends light
+  const hv = await page.evaluate(() => { const c = [...document.querySelectorAll('.board-txchip')].find(e => e.onmouseenter); if (!c) return { handler: false }; c.onmouseenter(); const n = document.querySelectorAll('.trade-line-layer line, .trade-line-layer path').length; c.onmouseleave(); return { handler: true, drawn: n } })
+  ok(hv.handler && hv.drawn > 0, `${skin || 'ring'}: in signing, hovering the basket-side leg draws the trade line (as the counter side does)`, JSON.stringify(hv))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)
