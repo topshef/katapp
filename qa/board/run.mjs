@@ -805,6 +805,18 @@ console.log('16. BAR-ACTONLY1: the bar lists only the accounts that need to lock
   await page.evaluate(() => { const m = getAccounts().filter(a => isMyAccount(a)).map(a => a.id.split(':')[1]); boardSignStatus.byAccount[m[1]] = 'signed'; render() }); await page.waitForTimeout(300)
   const d = await bar()
   ok(d.btn === null, 'everyone of mine has signed: no Sign button', JSON.stringify(d))
+  // SIGN-SENDFIRST1: before the async signer read lands, senders come first (and are selected);
+  // once it lands, an account that need not sign ("none") leaves the list
+  await page.evaluate(() => {
+    const mine = getAccounts().filter(a => isMyAccount(a)).map(a => a.id.split(':')[1])
+    window.boardDetectSigning = () => ({ tx: { txid: 'QA-TX2' }, legs: { [mine[0]]: { recv: [{ assetId: 'HBAR', amount: 1 }], send: [] }, [mine[1]]: { recv: [], send: [{ assetId: 'HBAR', amount: 1 }] } }, status: 'pending', expiry: Date.now() + 60000 })
+    boardSelectedAccount = null; render()
+  }); await page.waitForTimeout(300)
+  const s1 = await bar()
+  ok(s1.opts.join() === [s1.mine[1], s1.mine[0]].join() && s1.sel === s1.mine[1] && /Sign/.test(s1.btn || ''), 'signing, signers not known yet: the sending account is listed first and selected (the stale last-tx status is ignored)', JSON.stringify(s1))
+  await page.evaluate(() => { const m = getAccounts().filter(a => isMyAccount(a)).map(a => a.id.split(':')[1]); boardSignStatus = { txid: 'QA-TX2', byAccount: { [m[0]]: 'none', [m[1]]: 'pending' } }; render() }); await page.waitForTimeout(300)
+  const s2 = await bar()
+  ok(s2.opts.join() === s2.mine[1] && /Sign/.test(s2.btn || ''), 'the signer read lands: the receive-only account that need not sign drops off the list', JSON.stringify(s2))
   // the preference off = the old bar
   await page.evaluate(() => { localStorage.setItem('katomiaBarActOnly', '0'); render() }); await page.waitForTimeout(300)
   const e = await bar()

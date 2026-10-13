@@ -5680,10 +5680,35 @@ function ringFooter(mine){
     // button at all, and the list keeps every account (it is also how you add one).
     // You → Preferences turns it off (status quo: every account, the button always there) —
     // kept as a switch for A/B; if nobody misses the old bar, the switch can go.
+    // SIGN-SENDFIRST1 (owner 2026-10-13: "sometimes an account that's just receiving appears on
+    // the list … sort the list so that the sending accounts appear first, because those will
+    // definitely need to sign … and if asynchronously we worked out that we don't need to sign
+    // with the other accounts, they get removed"). Two cheap steps, no new waiting:
+    //  1. At the strike we only know the LEGS. An account that SENDS something must sign; one
+    //     that only receives usually need not (unless receiverSigRequired is set on it, which
+    //     only the async read knows). So senders go first, and the first one is selected — you
+    //     sign the account that certainly needs it while the read runs.
+    //  2. boardRefreshSignStatus (the signing modal's own calcAccountsThatSign, a few seconds
+    //     in) marks every account "pending" | "signed" | "none" (need not sign) | "loading" |
+    //     "failed". "signed" already left the list; "none" now leaves too — that was the gap:
+    //     a pure receiver stayed listed for the whole round. "failed" (balance / association
+    //     trouble) stays, so the red arc still has an account to point at.
+    // Over-signing stays harmless if the read never lands: the signature is recorded as a
+    // witness. Only a status for THIS tx counts (a stale one from the last strike must not
+    // drop anyone).
+    // DEEPER-SESSION NOTE: the precise list could come sooner — the backend already knows the
+    // payer and the senders when it builds the tx (katomia.js postCluster); sending a
+    // `mustSign` hint with the pending record would make step 2 instant and spare the mirror
+    // round-trips. Not done here: it touches the backend contract.
     const actOnly = boardBarActOnly()
     const hacOf = a => a.id.split(":")[1] || a.id
+    const signSt = (boardSigning && boardSignStatus && boardSignStatus.txid === boardSigning.tx?.txid)
+      ? boardSignStatus.byAccount || {} : {}
+    const sends = a => !!boardSigning?.legs[hacOf(a)]?.send?.length
     const actable = !actOnly ? mine
-      : boardSigning ? mine.filter(a => !!boardSigning.legs[hacOf(a)] && boardSignStatus?.byAccount?.[hacOf(a)] !== "signed")
+      : boardSigning ? mine
+          .filter(a => !!boardSigning.legs[hacOf(a)] && signSt[hacOf(a)] !== "signed" && signSt[hacOf(a)] !== "none")
+          .sort((x, y) => sends(y) - sends(x))   // stable: senders first, join order otherwise
       : mine.filter(a => boardInMyParty(a, getAccounts()))
     const nothingToDo = actOnly && !actable.length
     const listed = nothingToDo ? mine : actable
