@@ -1402,6 +1402,8 @@ function boardSyncPrefsUI(){
     sticky.checked = boardStickyChips
     sticky.onchange = () => {
       boardStickyChips = sticky.checked
+      // CAROUSEL-ARRANGE1: the carousel keeps its own held places (no sim bodies there)
+      if(carousel() && typeof carouselStickyChanged === "function") carouselStickyChanged(boardStickyChips)
       if(boardStickyChips)
         _boardSimBodies.forEach(b => { b.stick = true })    // freeze the board as it stands
       else {
@@ -2845,6 +2847,8 @@ function boardFenceClamp(env, z, body, lx, ly){
 }
 
 function boardArrangeClamp(srcEl, x, y){
+  // CAROUSEL-ARRANGE1: the carousel has no bodies — its own fence (the chip's band)
+  if(carousel()) return typeof carouselArrangeClamp === "function" ? carouselArrangeClamp(srcEl, x, y) : null
   const env = _boardSimEnv
   if(!env || !srcEl) return null
   let body = null
@@ -2872,6 +2876,10 @@ function boardArrangeClamp(srcEl, x, y){
 }
 
 function boardArrangeAt(srcEl, x, y){
+  // CAROUSEL-ARRANGE1: the carousel has no bodies to pin — it places chips in its bands
+  // itself (katomia-carousel.js carouselArrangeAt). Same callers, same meaning: true = this
+  // release was an arrange inside the chip's own space, so nothing else may fire.
+  if(carousel()) return typeof carouselArrangeAt === "function" ? carouselArrangeAt(srcEl, x, y) : false
   const env = _boardSimEnv
   if(!env || !srcEl) return false
   let body = null

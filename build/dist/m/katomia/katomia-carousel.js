@@ -37,7 +37,8 @@
 //   TODO(CAROUSEL1-parity) focus spotlight (▶ in the footer): the ring dims the felt and
 //     flies chips to baskets; here ▶ plays the offer animation only.
 //   TODO(CAROUSEL1-parity) the organic chip physics, zone walls, counter shade, lock arcs:
-//     ring geometry, no equivalent in a flow layout — cards are the walls.
+//     ring geometry, no equivalent in a flow layout — cards are the walls. Arranging chips
+//     by hand and "Sticky chips" DO work here now, without physics (CAROUSEL-ARRANGE1).
 //   TODO(CAROUSEL1-refactor) the Lazy Susan's susanCard/susanMineRow and this file's card
 //     builder are two takes on "an account as a card with two bands". Once this skin has been
 //     kicked around, fold them into one builder with a {basketFirst} switch and retire the
@@ -404,6 +405,250 @@ function carouselFit(wrap){
   wrap.classList.toggle("carousel--others-fit", !!wrap.querySelector(".carousel-row--others.carousel-row--fits"))
 }
 
+// ── arranging chips by hand, and sticky chips ─────────────────────────────────────────────
+// CAROUSEL-ARRANGE1 (owner 2026-10-13: "in carousel mode I don't seem to be able to rearrange
+// my chips like I can in round table … if you do rearrange them, they stay in that arrangement
+// … there is a tick option in View for sticky chips, and I'm assuming that should work in both
+// modes"). Not a design limit, an omission: the Round Table's arranging and its sticky option
+// both live in its chip physics (boardArrangeAt pins a body, sticky freezes settled bodies),
+// and this skin lays chips out as plain wrapping rows with no bodies — so a drop inside your
+// own space found nothing to pin and did nothing, and the sticky tick had nothing to freeze.
+//
+// The same two ideas, without physics, per band (a stall's store, or its basket):
+//   · ARRANGE: drag a chip and let go inside the band it lives in, and it stays exactly where
+//     you let go (pinned, kept per circle in this browser — the ring's pins are kept the same
+//     way, and as there, nobody else's board moves). The other chips make room around it.
+//     Released anywhere else, the drag means what it always meant (offer, redirect, pick).
+//     Someone else's chip can be slid about inside their space too, as on the ring
+//     (BOARD-ARRANGEOTHERS1) — it is fenced to that space.
+//   · STICKY (View → Sticky chips, on by default): a chip keeps the place it was given while
+//     others come and go — a chip that leaves leaves its gap, a newcomer takes the first free
+//     place. Off: everything not hand-placed closes up in reading order, as before. A change
+//     of shape (the stall gets wider or narrower) lets the unpinned chips re-flow — the
+//     owner's "stable until the shape changes".
+// A band with nothing to honour stays in the ordinary flow layout, untouched (including
+// CAROUSEL-FIT1's compression); only a band that needs it is switched to placed chips.
+// Ghosts (an offer's reservation in your store) and signing-phase legs are placed like any
+// chip but are not themselves arranged by a drop: their drags already mean withdraw/redirect.
+const CAROUSEL_CHIP_GAP = 2   // = .board-band gap
+
+function carouselPinsKey(){ return "katomiaCarouselPins:" + (typeof gameId !== "undefined" && gameId ? gameId : "demo") }
+let _carouselPins = null
+function carouselPins(){
+  if(!_carouselPins){
+    try { _carouselPins = JSON.parse(localStorage.getItem(carouselPinsKey()) || "{}") } catch(_){ _carouselPins = {} }
+  }
+  return _carouselPins
+}
+function carouselPinsSave(){
+  try {
+    const pins = carouselPins(), keys = Object.keys(pins)
+    keys.slice(0, Math.max(0, keys.length - 200)).forEach(k => delete pins[k])   // cap, oldest first
+    localStorage.setItem(carouselPinsKey(), JSON.stringify(pins))
+  } catch(_){}
+}
+
+// sticky places, this session: ident → {x, y, gen}; per band: the layout generation and the
+// width it was laid out at (a different width = a change of shape)
+const _carouselSpots = new Map()
+const _carouselBandState = new Map()
+
+function carouselBandKey(band){
+  const stall = band.closest(".carousel-card")
+  return (stall?.dataset.accountId || "") + "|" + (band.classList.contains("carousel-basket") ? "basket" : "store")
+}
+function carouselChipIdent(el, bandKey){
+  const d = el.dataset
+  const kind = el.classList.contains("board-txchip") ? "t" : el.classList.contains("reserved") ? "g" : ""
+  return [bandKey, d.ownerAccount || "", d.assetId || "", d.toAccount || "", kind].join("|")
+}
+
+// where chips may sit in a band, in the band's own coordinates (its padding box)
+function carouselBandRegion(band){
+  const cs = getComputedStyle(band)
+  const etch = band.querySelector(":scope > .carousel-etch")
+  const top = Math.max(parseFloat(cs.paddingTop) || 0, etch ? etch.offsetTop + etch.offsetHeight : 0)
+  return {
+    x0: parseFloat(cs.paddingLeft) || 0, y0: top,
+    x1: band.clientWidth - (parseFloat(cs.paddingRight) || 0),
+    y1: band.clientHeight - (parseFloat(cs.paddingBottom) || 0)
+  }
+}
+
+function carouselOverlaps(a, list){
+  return list.some(b => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h)
+}
+
+// first free place in reading order around what is already placed, or null
+function carouselFirstFit(w, h, placed, R, maxY, rowTop = R.y0){
+  const g = CAROUSEL_CHIP_GAP
+  const cands = [{ x: R.x0, y: rowTop }]
+  placed.forEach(p => {
+    cands.push({ x: p.x + p.w + g, y: p.y }, { x: R.x0, y: p.y + p.h + g }, { x: p.x, y: p.y + p.h + g })
+  })
+  cands.sort((a, b) => a.y - b.y || a.x - b.x)
+  for(const c of cands){
+    if(c.x + w > R.x1 + 0.5 || c.y > maxY + 0.5) continue
+    if(!carouselOverlaps({ x: c.x, y: c.y, w, h }, placed)) return c
+  }
+  return null
+}
+
+function carouselClampTo(R, w, h, x, y, maxY){
+  return {
+    x: Math.max(R.x0, Math.min(R.x1 - w, x)),
+    y: Math.max(R.y0, Math.min(maxY, y))
+  }
+}
+
+function carouselLayoutBand(band){
+  // back to the plain flow first: every pass measures it fresh
+  band.classList.remove("carousel-band--placed")
+  band.style.height = ""
+  const chips = [...band.children].filter(c => c.classList.contains("asset"))
+  chips.forEach(c => { c.style.removeProperty("--cx"); c.style.removeProperty("--cy"); c.classList.remove("carousel-chip--out") })
+  // nothing to place — or the board is not on screen (another view is showing): every
+  // chip would measure 0,0, and sticky would keep that as everyone's place (found by harness)
+  if(!chips.length || !band.clientWidth || !band.offsetParent) return
+
+  const key = carouselBandKey(band)
+  const st = _carouselBandState.get(key) || { gen: 0, width: 0 }
+  const gen = st.gen + 1
+  const reshaped = st.width && Math.abs(st.width - band.clientWidth) > 1
+  // a crowded band (CAROUSEL-FIT1 tucks its chips under each other) packs itself: held
+  // places would only fight the compression. Hand-placed chips still count there.
+  const crowded = parseFloat(band.style.getPropertyValue("--cz")) > 0
+  const pins = carouselPins(), sticky = !!boardStickyChips && !crowded
+  const seen = new Map()
+  const items = chips.map(el => {
+    let id = carouselChipIdent(el, key)
+    const n = (seen.get(id) || 0) + 1
+    seen.set(id, n)
+    if(n > 1) id += "#" + n
+    el.dataset.cslot = id
+    const pin = el.classList.contains("reserved") || el.classList.contains("board-txchip") ? null : pins[id]
+    const spot = sticky && !reshaped ? _carouselSpots.get(id) : null
+    return { el, id, pin, spot, live: spot && spot.gen === st.gen }
+  })
+  // the flow is measured WITHOUT the hand-placed chips, so the rest read as they would if
+  // those had been lifted off the row — the natural rows to fall back on (and to close up into)
+  items.forEach(it => { if(it.pin) it.el.classList.add("carousel-chip--out") })
+  items.forEach(it => { it.x = it.el.offsetLeft; it.y = it.el.offsetTop; it.w = it.el.offsetWidth; it.h = it.el.offsetHeight })
+  const flowH = band.offsetHeight
+  const record = list => {
+    _carouselBandState.set(key, { gen, width: band.clientWidth })
+    if(sticky) list.forEach(it => _carouselSpots.set(it.id, { x: it.x, y: it.y, gen }))
+  }
+
+  // nothing to honour, or everything already where the flow puts it: stay a flow band
+  const same = (a, it) => Math.abs(a.x - it.x) < 1 && Math.abs(a.y - it.y) < 1
+  if(items.every(it => !it.pin && (!it.spot || same(it.spot, it)))){ record(items); return }
+
+  const R = carouselBandRegion(band)
+  const isBasket = band.classList.contains("carousel-basket")
+  // a basket grows to hold what was placed in it (it sizes to its content in the flow too);
+  // a store keeps the height the stall gives it
+  const maxYFor = h => isBasket ? Infinity : Math.max(R.y0, R.y1 - h)
+  const placed = []
+  const put = (it, p) => { it.x = p.x; it.y = p.y; placed.push(it) }
+  // hand-placed first, exactly (overlapping another hand-placed chip is the hand's choice);
+  // then places still held from the last layout; then a place that was left empty and came
+  // back. A held place that would now sit on a chip already placed — a hand-placed one, or a
+  // neighbour that grew when its picture loaded — is given up, and the chip takes the first
+  // free place like a newcomer.
+  items.filter(it => it.pin).forEach(it => put(it, carouselClampTo(R, it.w, it.h, it.pin.x, it.pin.y, maxYFor(it.h))))
+  const free = []
+  const hold = it => {
+    const p = carouselClampTo(R, it.w, it.h, it.spot.x, it.spot.y, maxYFor(it.h))
+    if(carouselOverlaps({ ...p, w: it.w, h: it.h }, placed)) free.push(it)
+    else put(it, p)
+  }
+  items.filter(it => !it.pin && it.spot && it.live).forEach(hold)
+  items.filter(it => !it.pin && it.spot && !it.live).forEach(hold)
+  items.filter(it => !it.pin && !it.spot).forEach(it => free.push(it))
+  // the rest keep their place in the natural rows where that is free, else the first free
+  // place in reading order; with no room at all, the row place (overlapping, as a full band does)
+  // (the search starts on the first row's line, so a chip it moves still sits in the row)
+  free.sort((a, b) => chips.indexOf(a.el) - chips.indexOf(b.el))
+  const rowTop = Math.max(R.y0, Math.min(...items.filter(it => !it.pin).map(it => it.y)))
+  free.forEach(it => {
+    const flow = carouselClampTo(R, it.w, it.h, it.x, it.y, maxYFor(it.h))
+    put(it, !carouselOverlaps({ ...flow, w: it.w, h: it.h }, placed) ? flow
+      : carouselFirstFit(it.w, it.h, placed, R, maxYFor(it.h), rowTop) || flow)
+  })
+
+  band.classList.add("carousel-band--placed")
+  // placed chips no longer give a basket its height (it is sized by its content); hold it at
+  // least at its flow height, taller if a chip was placed lower. A store's height comes from
+  // its stall (flex), placed or not.
+  if(isBasket){
+    const pb = (parseFloat(getComputedStyle(band).paddingBottom) || 0) + band.clientTop * 2
+    band.style.height = Math.max(flowH, ...items.map(it => it.y + it.h + pb)) + "px"
+  }
+  // through custom properties, NOT inline left/top: boardChipRect (trails, flights) reads an
+  // inline left/top as the ring sim's SCREEN position, and these are band coordinates — the
+  // first cut aimed every dotted line at the top of the screen (found by harness)
+  items.forEach(it => { it.el.style.setProperty("--cx", it.x + "px"); it.el.style.setProperty("--cy", it.y + "px") })
+  record(items)
+}
+
+// fit (CAROUSEL-FIT1) then place, on the plain flow each time
+function carouselSettle(wrap){
+  const bands = [...wrap.querySelectorAll(".carousel-card .board-band")]
+  bands.forEach(b => {
+    b.classList.remove("carousel-band--placed"); b.style.height = ""
+    b.querySelectorAll(":scope > .carousel-chip--out").forEach(c => c.classList.remove("carousel-chip--out"))
+  })
+  carouselFit(wrap)
+  bands.forEach(carouselLayoutBand)
+}
+
+// the drop: inside the band the chip lives in → it stays there (boardArrangeAt calls this
+// on the carousel, from the mouse drop, the drag-end fallback and the touch release)
+function carouselArrangeAt(srcEl, x, y){
+  const band = srcEl?.closest?.(".carousel-card .board-band")
+  if(!band || !document.body.contains(band)) return false
+  if(srcEl.classList.contains("reserved") || srcEl.classList.contains("board-txchip")) return false
+  const r = band.getBoundingClientRect()
+  if(x < r.left || x > r.right || y < r.top || y > r.bottom) return false   // left its space
+  const R = carouselBandRegion(band)
+  const w = srcEl.offsetWidth, h = srcEl.offsetHeight
+  const isBasket = band.classList.contains("carousel-basket")
+  const p = carouselClampTo(R, w, h,
+    x - r.left - band.clientLeft - w / 2, y - r.top - band.clientTop - h / 2,
+    isBasket ? Math.max(R.y0, band.clientHeight - h) : Math.max(R.y0, R.y1 - h))
+  const id = srcEl.dataset.cslot || carouselChipIdent(srcEl, carouselBandKey(band))
+  carouselPins()[id] = { x: Math.round(p.x), y: Math.round(p.y) }
+  carouselPinsSave()
+  boardDiag("board:carousel:arrange", { band: carouselBandKey(band) })
+  carouselLayoutBand(band)
+  carouselTrails()
+  return true
+}
+
+// the fence for someone else's chip (arrange-only drag): the chip's centre may not leave
+// their band; the same shape as the ring's boardArrangeClamp answer
+function carouselArrangeClamp(srcEl, x, y){
+  const band = srcEl?.closest?.(".carousel-card .board-band")
+  if(!band) return null
+  const r = band.getBoundingClientRect(), R = carouselBandRegion(band)
+  const w = srcEl.offsetWidth, h = srcEl.offsetHeight
+  const cx = Math.max(r.left + R.x0 + w / 2, Math.min(r.left + R.x1 - w / 2, x))
+  const cy = Math.max(r.top + R.y0 + h / 2, Math.min(r.bottom - h / 2, y))
+  return { x: cx, y: cy, outside: Math.hypot(cx - x, cy - y) > 20 }
+}
+
+// View → Sticky chips, flipped while on the carousel: on = keep everything where it is now;
+// off = forget the held places and let the unpinned chips close up
+function carouselStickyChanged(on){
+  _carouselSpots.clear()
+  _carouselBandState.clear()
+  if(on){
+    const wrap = document.querySelector("#boardRoot .carousel")
+    if(wrap) wrap.querySelectorAll(".carousel-card .board-band").forEach(carouselLayoutBand)
+  } else render()
+}
+
 function carouselChatAnchors(wrap){
   const rb = document.getElementById("boardRoot")?.getBoundingClientRect()
   if(!rb) return
@@ -568,8 +813,11 @@ function renderCarouselBoard(root){
   frag.appendChild(boardBrandmark())
   root.replaceChildren(frag)
   carouselRestore(wrap)
-  carouselFit(wrap)
-  wrap.querySelectorAll("img").forEach(img => { if(!img.complete) img.addEventListener("load", () => carouselFit(wrap), { once: true }) })
+  carouselSettle(wrap)
+  // a thumbnail landing changes its chip's size: fit and place again, and re-aim the lines
+  wrap.querySelectorAll("img").forEach(img => {
+    if(!img.complete) img.addEventListener("load", () => { carouselSettle(wrap); carouselTrails() }, { once: true })
+  })
   const pill = wrap.querySelector(".carousel-centre .ring-hub-count")
   if(pill) boardStartCountdown(pill)
   boardUpdateBanner()   // signing narrative / hint / hidden — same as the ring

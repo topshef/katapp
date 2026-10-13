@@ -722,6 +722,13 @@ body.kchat-snap-board .ring-footer, body.kchat-snap-messages .ring-footer{ backg
 
 /* ── ring10 (review 9) ──────────────────────────────────────────────────── */
 
+/* CAROUSEL-ARRANGE1 (found by harness, 2026-10-13): a stacked chip (.asset.asset-le, katomia.css)
+   carries position: relative and margin-left: 20px !important at TWO-class weight, which beat
+   .board-fly's one-class position: fixed — so a stacked chip's touch-drag clone and its offer
+   flight were laid out in the page flow and drawn off by a constant (67px at 390×800), the drop
+   landing that far from the finger. Ring and carousel alike. The clone is always fixed, flush. */
+.asset.board-fly{ position: fixed; margin: 0 !important; }
+
 /* touch drag REAL-TIME: the fly clone inherited .board-fly's 0.85s transform
    transition — that was the "asset chases the finger" lag (global fix) */
 /* BOARD-DRAGREPAINT1 (user 2026-08-06): the dragged clone gets its own
@@ -2595,6 +2602,16 @@ body[data-signtwilight="1"] .carousel-rim.carousel-rim--signed{ background: #1e7
 .carousel-rim.carousel-rim--none{ background: #9a9a9a; opacity: .5; }
 
 .carousel-basket{ flex: 0 0 auto; min-height: 44px; padding: 4px 0; align-content: flex-start; }
+
+/* CAROUSEL-ARRANGE1: a band holding a hand-placed or sticky chip places its chips itself
+   (katomia-carousel.js carouselLayoutBand) — left/top in the band's own coordinates, no flow
+   margins. A band with nothing to honour stays in the flow above. */
+.carousel-card .board-band{ position: relative; }
+.carousel-band--placed{ box-sizing: border-box; }   /* the basket's held height is its whole box */
+/* (two classes and a parent, to outweigh the stacked chip's 20px !important margin above) */
+.carousel-card .carousel-band--placed > .asset, .carousel-card .board-band > .asset.carousel-chip--out{
+  position: absolute; left: var(--cx, 0px); top: var(--cy, 0px); margin: 0 !important;
+}
 
 /* the centre line: the two basket rows meet here; the K sits on the line */
 .carousel-centre{

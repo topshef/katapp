@@ -1065,6 +1065,74 @@ console.log('22. CAROUSEL-TRAILS3 + CAROUSEL-WHEEL1 + CAROUSEL-DRAG1: the dotted
   await page.close()
 }
 
+console.log('23. CAROUSEL-ARRANGE1: chips can be arranged by hand on the carousel and stay put; Sticky chips works there; a stacked chip\'s drag clone follows the finger')
+{
+  const { page, errs } = await open('skin=carousel')
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await page.evaluate(() => { localStorage.removeItem('katomiaCarouselPins:demo'); boardSetView('board') }); await page.waitForTimeout(700)
+  const store = '.carousel-card[data-account-id="p1:0.0.1001"] .carousel-store'
+  const pos = () => page.evaluate(s => { const b = document.querySelector(s); const r = b.getBoundingClientRect(); return Object.fromEntries([...b.querySelectorAll('.asset')].map(c => { const q = c.getBoundingClientRect(); return [c.dataset.assetId + (c.classList.contains('reserved') ? 'g' : ''), [Math.round(q.left - r.left + q.width / 2), Math.round(q.top - r.top + q.height / 2)]] })) }, store)
+  const p0 = await pos()
+  const st = await page.locator(store).boundingBox()
+  const tgt = [Math.round(st.width - 80), Math.round(st.height - 60)]
+  await page.locator(store + ' .asset[data-asset-id="0.0.456"]').dragTo(page.locator(store), { targetPosition: { x: tgt[0], y: tgt[1] } })
+  await page.waitForTimeout(800)
+  const p1 = await pos()
+  const near = (a, b) => a && Math.hypot(a[0] - b[0], a[1] - b[1]) <= 3
+  ok(near(p1['0.0.456'], tgt) && near(p1.HBAR, p0.HBAR) && near(p1['0.0.555'], p0['0.0.555']), 'desktop: a chip dropped inside its own store stays exactly where it was let go; with Sticky on the others keep their places', JSON.stringify({ p0, p1, tgt }))
+  const b1 = await page.evaluate(() => Object.values(state.accounts).reduce((n, a) => n + a.basket.length, 0))
+  await page.evaluate(() => render()); await page.waitForTimeout(400)
+  ok(JSON.stringify(await pos()) === JSON.stringify(p1) && b1 === 5, 'the arrangement survives a repaint, and arranging made no offer', JSON.stringify(await pos()))
+  await page.reload({ waitUntil: 'networkidle' }); await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove(); boardSetView('board') }); await page.waitForTimeout(1000)
+  const p2 = await pos()
+  ok(near(p2['0.0.456'], tgt), 'a hand-placed chip is still there after a reload (kept per circle, like the ring\'s)', JSON.stringify(p2))
+  // sticky: a chip leaves — the rest hold their places; off — they close up
+  await page.evaluate(() => { delete state.accounts['p1:0.0.1001'].assets['HBAR']; state = JSON.parse(JSON.stringify(state)); render() }); await page.waitForTimeout(500)
+  const p3 = await pos()
+  ok(!p3.HBAR && near(p3['0.0.555'], p2['0.0.555']), 'Sticky chips on: a chip leaving the store leaves its gap, the others do not move', JSON.stringify({ p2, p3 }))
+  await page.evaluate(() => { const c = document.getElementById('boardPrefSticky'); c.checked = false; c.onchange() }); await page.waitForTimeout(500)
+  const p4 = await pos()
+  ok(p4['0.0.555'][0] < p3['0.0.555'][0] - 20 && near(p4['0.0.456'], tgt), 'Sticky chips off: the rest close up; the hand-placed chip stays', JSON.stringify(p4))
+  await page.evaluate(() => { const c = document.getElementById('boardPrefSticky'); c.checked = true; c.onchange() })
+  // someone else's chip: slid with the mouse, fenced inside their store
+  const their = '.carousel-card[data-account-id="p2:0.0.2002"] .carousel-store'
+  const g = await page.evaluate(s => { const e = document.querySelector(s + ' .asset').getBoundingClientRect(); return { x: e.left + e.width / 2, y: e.top + e.height / 2 } }, their)
+  await page.mouse.move(g.x, g.y); await page.mouse.down()
+  for (let i = 1; i <= 10; i++) { await page.mouse.move(g.x + 40 * i, g.y + 80 * i); await page.waitForTimeout(16) }
+  await page.mouse.up(); await page.waitForTimeout(500)
+  const fence = await page.evaluate(s => { const b = document.querySelector(s); const q = b.getBoundingClientRect(); const r = b.querySelector('.asset').getBoundingClientRect(); return { moved: r.top - q.top > 100, inside: r.left >= q.left - 1 && r.right <= q.right + 1 && r.bottom <= q.bottom + 1 } }, their)
+  ok(fence.moved && fence.inside, 'someone else\'s chip can be slid about their store, and stops at its edge', JSON.stringify(fence))
+  // dropping on another stall is still an offer
+  await page.locator(store + ' .asset[data-asset-id="0.0.555"]').dragTo(page.locator('.carousel-card[data-account-id="p3:0.0.3003"]'))
+  ok(await page.locator('.board-amount-btn', { hasText: /^Offer$/ }).count() === 1, 'a drop on another stall still offers (the amount modal opens)')
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+for (const skin of ['carousel', '']) {
+  // phone, the touch path: a stacked chip (GOLD ×3) — its drag clone must follow the finger
+  const { page, errs } = await open(skin ? 'skin=' + skin : '')
+  await page.evaluate(() => { localStorage.removeItem('katomiaCarouselPins:demo'); boardSetView('board') }); await page.waitForTimeout(800)
+  const r = await page.evaluate(async () => {
+    const el = [...document.querySelectorAll('.asset[data-owner-account="p1:0.0.1001"][data-asset-id="0.0.555"]:not(.reserved):not(.basket)')][0]
+    const band = el.closest('.carousel-store')
+    const e = el.getBoundingClientRect(), x0 = e.left + e.width / 2, y0 = e.top + e.height / 2
+    const b = band ? band.getBoundingClientRect() : null
+    const tx = b ? b.left + b.width / 2 : x0, ty = b ? b.bottom - 50 : y0 + 40
+    const fr = () => new Promise(r => requestAnimationFrame(r))
+    el.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', pointerId: 7, clientX: x0, clientY: y0, bubbles: true, isPrimary: true }))
+    let lag = 0
+    for (let i = 1; i <= 10; i++) { const x = x0 + (tx - x0) * i / 10, y = y0 + (ty - y0) * i / 10; window.dispatchEvent(new PointerEvent('pointermove', { pointerType: 'touch', pointerId: 7, clientX: x, clientY: y, bubbles: true })); await fr(); await fr(); const f = document.querySelector('.board-touchfly')?.getBoundingClientRect(); if (f) lag = Math.max(lag, Math.hypot(f.left + f.width / 2 - x, f.top + f.height / 2 - y)) }
+    window.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'touch', pointerId: 7, clientX: tx, clientY: ty, bubbles: true }))
+    await new Promise(r => setTimeout(r, 500))
+    const now = document.querySelector('.carousel-card[data-account-id="p1:0.0.1001"] .carousel-store .asset[data-asset-id="0.0.555"]')?.getBoundingClientRect()
+    return { lag: Math.round(lag), landed: now ? Math.round(Math.hypot(now.left + now.width / 2 - tx, now.top + now.height / 2 - ty)) : null }
+  })
+  ok(r.lag <= 3, `${skin || 'ring'}: a stacked chip's touch-drag clone stays under the finger`, JSON.stringify(r))
+  if (skin) ok(r.landed !== null && r.landed <= 3, 'carousel, touch: the chip lands where the finger let go, inside its own store', JSON.stringify(r))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)
