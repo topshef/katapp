@@ -2940,7 +2940,7 @@ function boardArrangeAt(srcEl, x, y){
   body.x = p.x; body.y = p.y
   body.pin = true
   boardPinRecord(body)
-  boardSimExcite()   // neighbours make room; the pinned chip itself won't budge
+  boardSimExcite(false)   // neighbours make room (SIM-NOBUNCH1: without re-arming everyone's spring)
   return true
 }
 
@@ -2967,7 +2967,7 @@ function boardArrangeRim(body, z, lx, ly){
   body.pin = true
   body.rimpin = true      // paint: respect this angle, skip the pile→basket alignment
   boardPinRecord(body)
-  boardSimExcite()
+  boardSimExcite(false)   // SIM-NOBUNCH1
   return true
 }
 
@@ -3035,7 +3035,19 @@ window.boardModalHold = on => {
   }, 0))
 }
 
-function boardSimExcite(){
+// SIM-NOBUNCH1 (owner 2026-10-13, feedback echo-juliett-18: "when I've got a number of chips
+// crowded together on a segment and I move some of them away, the whole bunch bounces together
+// really tightly and then springs away again"). The anchor spring that gathers a store into its
+// blob used to be ONE global strength, re-armed to full for every chip by any excitement — a
+// hand-placed chip (boardArrangeAt), an offer leaving the store (the apply pass's `changed`).
+// A settled crowd was then yanked toward the anchor all at once, faster than the collision pass
+// can push 26 chips back apart (kdiag on the owner's board: board:sim:giveup, 26 bodies still
+// moving 15px/tick after the 150-frame budget, paints jumping up to 231px). Now each body
+// carries its own spring age: it starts strong only for a chip that is NEW to its zone, or for
+// a whole zone whose anchor actually moved (layout/geometry — `rehome`). A settled chip keeps
+// its soft spring, so the neighbours of a removed or moved chip close the gap gently.
+function boardSimExcite(rehome = true){
+  if(rehome) _boardSimBodies.forEach(b => { b.age = 0 })
   _boardSimCalm = 0
   _boardSimQuiet = 0
   _boardSimFrames = 0
@@ -3168,8 +3180,7 @@ function boardSimTick(iters, cap){
   const env = _boardSimEnv
   if(!env) return 0
   const speed = Math.min(1, boardAnimSpeed || 1)   // Prefs debug throttle rides the sim too
-  const damp = 1 / (1 + _boardSimCalm * 0.05)
-  _boardSimCalm++
+  _boardSimCalm++   // (SIM-NOBUNCH1: the spring's strength is per body now — b.age below)
   const shelves = boardLayoutMode === "shelves"
   const byZone = new Map()
   const heldByZone = new Map()   // COUNTER-THIRD1: the counter's occupants, as fixed obstacles
@@ -3184,6 +3195,7 @@ function boardSimTick(iters, cap){
     if(!arr) byZone.set(b.zoneKey, arr = [])
     arr.push(b)
     b.px0 = b.x; b.py0 = b.y
+    b.age = (b.age || 0) + 1
   })
   for(let it = 0; it < iters; it++){
     byZone.forEach((movers, zk) => {
@@ -3195,6 +3207,7 @@ function boardSimTick(iters, cap){
         if(shelves){
           if(b.tx != null){ b.x += (b.tx - b.x) * 0.22 * speed; b.y += (b.ty - b.y) * 0.22 * speed }
         } else if(boardAutoArrange){             // BOARD-AUTOARRANGE1: off = chips don't re-home
+          const damp = 1 / (1 + (b.age || 0) * 0.05)   // SIM-NOBUNCH1: per-body spring age
           b.x += (z.ax - b.x) * 0.03 * speed * damp
           b.y -= b.y * 0.03 * speed * damp
         }
@@ -3846,6 +3859,7 @@ function boardOrganicApply(cx, cy, W, H, oval){
         // flight covers the move); inbound becomes a mover again and the
         // springs glide it back into the store rows
         b.inner = isInner
+        b.age = 0   // SIM-NOBUNCH1: back in the store (or out of it) — it needs to find its place
         // BOARD-RIMARRANGE1: a ring placement is only meaningful while the
         // chip IS on offer — coming home, drop it so the chip rejoins the
         // shelf flow instead of sticking to the rim it no longer belongs on
@@ -4120,7 +4134,12 @@ function boardOrganicApply(cx, cy, W, H, oval){
     // keeps chip edges off it. Baskets keep the midpoint (their "inward" is
     // the rim itself).
     const home = inW + (outW - inW) * (boardHugRing && !zrec.isBasket ? 0.38 : 0.5)
+    const axWas = zrec.ax
     zrec.ax = lo <= hi ? Math.min(Math.max(home, lo), hi) : lo
+    // SIM-NOBUNCH1: the anchor itself moved (resize, layout, a band change) — this zone's
+    // chips re-home with a full-strength spring; a store that only lost or gained a chip keeps
+    // its anchor, so its settled chips keep their soft spring
+    if(axWas == null || Math.abs(zrec.ax - axWas) > 8) recs.forEach(b => { b.age = 0 })
 
     // shelves: deterministic targets, recomputed every apply (pure math, no
     // DOM), sprung to in the tick — an honest animated re-flow

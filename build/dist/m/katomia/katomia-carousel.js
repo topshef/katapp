@@ -206,6 +206,28 @@ function carouselRestore(wrap){
     track.addEventListener("scroll", () => carouselChatAnchors(wrap), { passive: true }))
 }
 
+// CAROUSEL-FIT1 (owner 2026-10-13, feedback alpha-yankee-44): no nested scrollbars. A band
+// (store or basket) whose chips overflow its stall is compressed — the overlap (--cz, see
+// katomia-board.css) grows in 4px steps until the chips fit or the cap is reached; past the
+// cap the band clips rather than scroll (the stall is already at its widest share of the row).
+// The arrows only show when the row really overflows. Re-run when thumbnails land, since an
+// image arriving changes a chip's size.
+const CAROUSEL_CZ_MAX = 36
+function carouselFit(wrap){
+  wrap.querySelectorAll(".carousel-card .board-band").forEach(band => {
+    let cz = 0
+    band.style.setProperty("--cz", "0px")
+    while(band.scrollHeight > band.clientHeight + 1 && cz < CAROUSEL_CZ_MAX){
+      cz += 4
+      band.style.setProperty("--cz", cz + "px")
+    }
+  })
+  wrap.querySelectorAll(".carousel-row").forEach(row => {
+    const track = row.querySelector(".carousel-track")
+    row.classList.toggle("carousel-row--fits", !!track && track.scrollWidth <= track.clientWidth + 1)
+  })
+}
+
 function carouselChatAnchors(wrap){
   const rb = document.getElementById("boardRoot")?.getBoundingClientRect()
   if(!rb) return
@@ -363,6 +385,8 @@ function renderCarouselBoard(root){
   frag.appendChild(boardBrandmark())
   root.replaceChildren(frag)
   carouselRestore(wrap)
+  carouselFit(wrap)
+  wrap.querySelectorAll("img").forEach(img => { if(!img.complete) img.addEventListener("load", () => carouselFit(wrap), { once: true }) })
   const pill = wrap.querySelector(".carousel-centre .ring-hub-count")
   if(pill) boardStartCountdown(pill)
   boardUpdateBanner()   // signing narrative / hint / hidden — same as the ring

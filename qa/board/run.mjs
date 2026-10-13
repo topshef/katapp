@@ -874,6 +874,38 @@ console.log('18. ASSETHIDE1: your own asset card hides the asset with the eye, i
   await page.close()
 }
 
+console.log('19. CAROUSEL-FIT1 + SIM-NOBUNCH1: the carousel uses the full width with no nested scrollbars; moving one chip does not squeeze the rest')
+{
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } })
+  const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
+  await page.goto(`${BASE}/m/katomia/board.html?demo=1&skin=carousel`, { waitUntil: 'networkidle' })
+  await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove(); boardSetView('board') }); await page.waitForTimeout(800)
+  const car = () => page.evaluate(() => ({
+    rows: [...document.querySelectorAll('.carousel-row')].map(r => { const t = r.querySelector('.carousel-track'); const used = [...t.querySelectorAll('.carousel-card')].reduce((w, c) => w + c.getBoundingClientRect().width, 0); return { fill: Math.round(100 * used / t.clientWidth), fits: r.classList.contains('carousel-row--fits'), arrows: [...r.querySelectorAll('.carousel-arrow')].some(a => getComputedStyle(a).visibility !== 'hidden') } }),
+    scrollers: [...document.querySelectorAll('.carousel-card .board-band')].filter(b => ['auto', 'scroll'].includes(getComputedStyle(b).overflowY)).length,
+    overflowing: [...document.querySelectorAll('.carousel-card .board-band')].filter(b => b.scrollHeight > b.clientHeight + 1 && getComputedStyle(b).overflowY !== 'visible').length }))
+  const a = await car()
+  ok(a.rows.every(r => r.fill >= 98 && r.fits && !r.arrows) && a.scrollers === 0, 'desktop: every row\'s stalls share the full width (was a fixed 260px each), no arrows when they fit, no scrolling store', JSON.stringify(a))
+  await page.evaluate(() => { const x = Object.values(state.accounts).find(q => isMyAccount(q)); for (let i = 0; i < 200; i++) x.assets['0.0.7' + (700 + i)] = 100 + i; state = JSON.parse(JSON.stringify(state)); render() }); await page.waitForTimeout(600)
+  const b = await car()
+  const cz = await page.evaluate(() => [...document.querySelectorAll('.carousel-card .board-band')].some(x => parseFloat(x.style.getPropertyValue('--cz')) > 0))
+  ok(b.scrollers === 0 && cz, 'a crowded store compresses its chips (overlap) instead of growing a scrollbar', JSON.stringify({ b, cz }))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+  // SIM-NOBUNCH1: a settled crowd keeps its soft spring when one chip is moved by hand
+  const { page: rp, errs: rerrs } = await open('')
+  await rp.setViewportSize({ width: 1278, height: 1270 })
+  await rp.evaluate(() => { boardSetView('board'); const x = Object.values(state.accounts).find(q => isMyAccount(q)); for (let i = 0; i < 24; i++) x.assets['0.0.7' + (700 + i)] = 100 + i; state = JSON.parse(JSON.stringify(state)); render() })
+  await rp.waitForTimeout(6000)
+  const spread = () => rp.evaluate(() => { const zk = [..._boardSimBodies.values()].find(b => b.el && b.el.dataset.assetId === '0.0.7705').zoneKey; const bs = [..._boardSimBodies.values()].filter(b => b.zoneKey === zk && b.el && !b.inner); const cx = bs.reduce((t, b) => t + b.x, 0) / bs.length, cy = bs.reduce((t, b) => t + b.y, 0) / bs.length; return bs.reduce((t, b) => t + Math.hypot(b.x - cx, b.y - cy), 0) / bs.length })
+  const d0 = await spread()
+  const moved = await rp.evaluate(() => { const b = [..._boardSimBodies.values()].find(b => b.el && b.el.dataset.assetId === '0.0.7703'); const r = b.el.getBoundingClientRect(); for (const [dx, dy] of [[0, 120], [-120, 0], [120, 0], [0, -120]]) if (boardArrangeAt(b.el, r.left + r.width / 2 + dx, r.top + r.height / 2 + dy)) return true; return false })
+  let min = 1e9; for (let i = 0; i < 20; i++) { await rp.waitForTimeout(100); min = Math.min(min, await spread()) }
+  ok(moved && min >= d0 - 0.5, 'moving one chip by hand: the rest of a 26-chip store does not get pulled together (mean radius never dips)', JSON.stringify({ moved, d0: Math.round(d0), min: Math.round(min) }))
+  ok(!rerrs.length, 'no page errors', JSON.stringify(rerrs))
+  await rp.close()
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)

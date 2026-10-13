@@ -2536,7 +2536,12 @@ body.feat-tickets .tkt-act{ margin-top:6px; }
 /* a stall: a column of felt between two dividers */
 .carousel-card{
   scroll-snap-align: start;
-  flex: 0 0 min(72vw, 260px);
+  /* CAROUSEL-FIT1 (owner 2026-10-13, feedback alpha-yankee-44: "for some reason there's a max
+     width … only 40% being used … allow the Carousel to use the full width"): the 260px
+     stall was a fixed width (flex 0 0), so two accounts filled 520px of a 1388px row. It is
+     now the FLOOR — stalls grow to share the row; only when they cannot all fit at the floor
+     does the row scroll, by the ‹ › arrows (hidden when everything fits). */
+  flex: 1 0 min(72vw, 260px);
   display: flex; flex-direction: column;
   min-height: 0;
   padding: 0 6px;
@@ -2557,7 +2562,14 @@ body.feat-tickets .tkt-act{ margin-top:6px; }
 }
 .carousel-card--selected .carousel-etch{ opacity: .6; }
 
-.carousel-store{ flex: 1; min-height: 0; overflow-y: auto; align-content: flex-start; padding: 2px 0 4px; }
+/* CAROUSEL-FIT1: no scrollbar inside a stall ("nested scroll bars is so 1990s") — a store
+   or basket whose chips do not fit COMPRESSES instead: katomia-carousel.js carouselFit sets
+   --cz, and each chip tucks that much under its neighbour, the carousel's version of the
+   ring's crowded segment where chips push together. A hovered chip comes to the top. */
+.carousel-store{ flex: 1; min-height: 0; overflow: hidden; align-content: flex-start; padding: 2px 0 4px; }
+.carousel-card .board-band > .asset{ margin-right: calc(-1 * var(--cz, 0px)); margin-bottom: calc(-.5 * var(--cz, 0px)); }   /* sideways first: a chip reads by its left edge and top line */
+.carousel-card .board-band > .asset:hover{ z-index: 3; }
+.carousel-row--fits .carousel-arrow{ visibility: hidden; }
 .carousel-card--mine .carousel-store{ padding: 4px 0 2px; }
 .carousel-card--locked .carousel-store{ background: rgba(45, 35, 15, .38); }   /* store goes dark on lock */
 
