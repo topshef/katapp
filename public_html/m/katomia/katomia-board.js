@@ -4350,7 +4350,14 @@ let _boardLastSlotLayout = null
 // inflate from the seam rather than rolling in behind an animated clip — if
 // that reads wrong live, the clip-roll is the follow-up.
 function boardTogglePartyOnly(v){
-  boardClearTrails()   // segments collapse/expand — every drawn trail goes stale
+  // CAROUSEL-TRAILS3 (owner 2026-10-13: "if a connection is visible — and it should be if you
+  // choose party only — we should redraw the connections each time"). Party-only keeps every
+  // account that is party to an offer, so both ends of every line stay on the board. The
+  // Round Table re-aims every line at its chips on each painted frame of the collapse tween
+  // (boardOrganicApply → boardReanchorTrails) and the carousel re-aims after each render, so
+  // there the lines now follow the chips instead of being wiped. Renderers that do not re-aim
+  // (the older skins) still clear, as before.
+  if(!boardSkin.startsWith("ring") && !carousel()) boardClearTrails()
   const oldL = ring16() ? boardComputeSlotLayout(boardFilteredAccounts()) : null
   boardPartyOnly = v
   boardSavePrefs()
@@ -6219,10 +6226,15 @@ function boardClearTrails(){
 // "drag $1 into a basket, move the residual pile along the ring, and the old
 // dotted line just stays where it was". The rim pile IS that anchor now, so
 // both passes resolve it the same way, in one place.
+// CAROUSEL-TRAILS3 (owner 2026-10-13): the carousel has no rim pile — a part-amount offer's
+// line starts at the store chip itself (boardAnimateNewOffers flies pile → basket), so on the
+// carousel that chip is the anchor. Without it the line had no anchor, was never re-aimed, and
+// stayed where it was drawn when the row scrolled. The ring's ladder is unchanged.
 function boardTrailAnchorEl(from, asset, to){
   const sel = `[data-owner-account="${CSS.escape(from)}"][data-asset-id="${CSS.escape(asset)}"]`
   return document.querySelector(`.asset.reserved${sel}[data-to-account="${CSS.escape(to)}"]`)
     || document.querySelector(`.board-rimpile${sel}`)
+    || (carousel() ? document.querySelector(`.carousel-store .asset:not(.basket):not(.reserved)${sel}`) : null)
 }
 
 function boardReanchorTrails(){

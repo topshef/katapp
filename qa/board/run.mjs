@@ -71,7 +71,7 @@ console.log('2. Carousel: two stripes, baskets meeting in the middle, footer cle
   const r = await page.evaluate(() => {
     const b = el => { if (!el) return null; const r = el.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] }
     const q = s => [...document.querySelectorAll(s)]
-    return { skin: document.body.dataset.boardSkin, root: !!document.querySelector('.carousel'), svg: !!document.querySelector('#boardRoot svg'),
+    return { skin: document.body.dataset.boardSkin, root: !!document.querySelector('.carousel'), svg: !!document.querySelector('#boardRoot svg.ring-felt'), /* the ring's felt; the conveyor button's icon is an svg too (CAROUSEL-WHEEL1) */
       others: q('.carousel-row--others .carousel-card').length, mine: q('.carousel-row--mine .carousel-card').length, chips: q('.asset').length,
       top: b(document.querySelector('.carousel-row--others')), centre: b(document.querySelector('.carousel-centre')), bottom: b(document.querySelector('.carousel-row--mine')), footer: b(document.querySelector('.ring-footer')),
       otherBasketLow: (() => { const c = document.querySelector('.carousel-card--other'); return c && c.querySelector('.carousel-basket').getBoundingClientRect().top > c.querySelector('.carousel-store').getBoundingClientRect().top })(),
@@ -98,10 +98,15 @@ console.log('2. Carousel: two stripes, baskets meeting in the middle, footer cle
   ok(b1 === b0 + 1, 'one more item in a basket in the game state', `${b0} → ${b1}`)
 
   console.log('4. Carousel: the rows stay where you left them across a render')
-  await page.evaluate(() => { document.querySelector('.carousel-row--others .carousel-track').scrollLeft = 200 })
-  await page.waitForTimeout(300); await page.evaluate(() => render()); await page.waitForTimeout(300)
-  const kept = await page.evaluate(() => document.querySelector('.carousel-row--others .carousel-track').scrollLeft)
-  ok(kept > 150, 'the top row kept its scroll position (CAROUSEL2 sticky rows)', kept)
+  // CAROUSEL-WHEEL1: the row is a wheel at phone width, so "where you left it" is which stall
+  // is at the left edge — move one stall on, repaint, and the same stall must still be there
+  const first = () => page.evaluate(() => { const t = document.querySelector('.carousel-row--others .carousel-track'), b = t.getBoundingClientRect(); return [...t.querySelectorAll('.carousel-card')].map(c => [c.dataset.accountId, Math.round(c.getBoundingClientRect().left - b.left)]).find(([, x]) => x === 0)?.[0] || null })
+  const f0 = await first()
+  await page.evaluate(() => { const t = document.querySelector('.carousel-row--others .carousel-track'); t.scrollBy({ left: t._wheel ? t._wheel.W : 274, behavior: 'instant' }) })
+  await page.waitForTimeout(300); const f1 = await first()
+  await page.evaluate(() => render()); await page.waitForTimeout(300)
+  const kept = await first()
+  ok(f1 && f1 !== f0 && kept === f1, 'the top row kept its scroll position (CAROUSEL2 sticky rows)', JSON.stringify({ f0, f1, kept }))
 
   console.log('5. Carousel: the REAL strike — every side locks, the demo raises a tx, the board signs')
   // the demo reducer strikes on the last lock exactly as the backend does: baskets are
@@ -970,6 +975,94 @@ for (const skin of ['carousel', '']) {
   ok(!errs.length, 'no page errors', JSON.stringify(errs))
   await page.close()
 }
+}
+
+console.log('22. CAROUSEL-TRAILS3 + CAROUSEL-WHEEL1 + CAROUSEL-DRAG1: the dotted lines follow a scroll; rows are a wheel with a seam; the felt drags on desktop; the conveyor never jumps back; party-only keeps the lines on the ring')
+{
+  const { page, errs } = await open('skin=carousel')
+  await page.evaluate(() => boardSetView('board')); await page.waitForTimeout(600)
+  // an offer with no counter-flow (USDC 1001 → 2002), so it lands as its own basket chip and line
+  await page.locator('.carousel-card--mine .carousel-store .asset[data-asset-id="0.0.456"]').first().dragTo(page.locator('.carousel-card--other[data-account-id="p2:0.0.2002"]'))
+  const offerBtn = page.locator('.board-amount-btn', { hasText: /^Offer$/ })
+  await offerBtn.waitFor({ timeout: 8000 })
+  await page.locator('input[type=number], input[inputmode=decimal]').last().fill('1')
+  await offerBtn.click(); await page.waitForTimeout(2500)
+  const line = () => page.evaluate(() => { const l = boardTrailLines('.board-trailline[data-seg]').find(l => l.dataset.pairKey === 'p2:0.0.2002|p1:0.0.1001|0.0.456'); if (!l) return null; const b = document.querySelector('.asset.basket[data-owner-account="p1:0.0.1001"][data-asset-id="0.0.456"][data-to-account="p2:0.0.2002"]').getBoundingClientRect(); return { off: Math.round(Math.hypot(b.left + b.width / 2 - l.getAttribute('x2'), b.top + b.height / 2 - l.getAttribute('y2'))), shown: getComputedStyle(l).visibility !== 'hidden', inView: b.right > 30 && b.left < 360 } })
+  const step = n => page.evaluate(n => { const t = document.querySelector('.carousel-row--others .carousel-track'); t.scrollBy({ left: n * (t._wheel ? t._wheel.W : 274), behavior: 'instant' }) }, n)
+  const l0 = await line()
+  await step(1); await page.waitForTimeout(250); const l1 = await line()
+  await step(1); await page.waitForTimeout(250); const l2 = await line()
+  ok(l0 && l0.shown && l0.off <= 2, 'the offer leaves a dotted line on its chips', JSON.stringify(l0))
+  ok(l1 && l2 && [l1, l2].every(l => l.shown ? l.inView && l.off <= 2 : !l.inView), 'scrolling the row re-aims the line at its chip, or hides it while that chip is out of view — never left where it was drawn', JSON.stringify({ l1, l2 }))
+  // the wheel: stepping right goes round past the last player back to the first
+  const lefts = []
+  for (let i = 0; i < 4; i++) { lefts.push(await page.evaluate(() => { const t = document.querySelector('.carousel-row--others .carousel-track'), b = t.getBoundingClientRect(); return [...t.querySelectorAll('.carousel-card')].find(c => Math.abs(c.getBoundingClientRect().left - b.left) < 2)?.dataset.accountId.split(':')[1] || null })); await step(1); await page.waitForTimeout(200) }
+  const seam = await page.evaluate(() => { const c = document.querySelector('.carousel-row--others .carousel-card--seam'); return c ? { id: c.dataset.accountId, w: getComputedStyle(c).borderLeftWidth, others: [...document.querySelectorAll('.carousel-row--others .carousel-card:not(.carousel-card--seam)')].map(x => getComputedStyle(x).borderLeftWidth) } : null })
+  ok(lefts.every(Boolean) && new Set(lefts).size === 3 && lefts[3] === lefts[0], 'the top row is a wheel: after the last player the first comes round again', JSON.stringify(lefts))
+  ok(seam && seam.id === 'p2:0.0.2002' && parseFloat(seam.w) === 2 && seam.others.every(w => parseFloat(w) === 0), 'a thicker seam line marks where the last player meets the first', JSON.stringify(seam))
+  // a real touch swipe past the end keeps going (native scroll, the stalls wrap)
+  const cdp = await page.context().newCDPSession(page)
+  const swipe = async kind => { const r = await page.evaluate(k => { const t = document.querySelector(`.carousel-row--${k} .carousel-track`), b = t.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height * 0.85 } }, kind); const x0 = Math.round(r.x + 120), y = Math.round(r.y)
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }] })
+    for (let i = 1; i <= 8; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 - 25 * i, y }] }); await page.waitForTimeout(8) }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await page.waitForTimeout(1200) }
+  const seen = new Set()
+  for (let i = 0; i < 4; i++) { await swipe('mine'); seen.add(await page.evaluate(() => { const t = document.querySelector('.carousel-row--mine .carousel-track'), b = t.getBoundingClientRect(); return [...t.querySelectorAll('.carousel-card')].find(c => Math.abs(c.getBoundingClientRect().left - b.left) < 2)?.dataset.accountId || null })) }
+  ok(seen.size === 2 && !seen.has(null), 'swiping on and on goes round my accounts (no end to hit)', JSON.stringify([...seen]))
+  // the conveyor: a centred icon in a true circle; running, it never jumps back to the start
+  const btn = await page.evaluate(() => { const b = document.querySelector('.carousel-conveyor'), r = b.getBoundingClientRect(), s = b.querySelector('svg')?.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), pad: getComputedStyle(b).padding, svg: !!s, dx: s ? Math.round(Math.abs(s.left + s.width / 2 - r.left - r.width / 2)) : 99, dy: s ? Math.round(Math.abs(s.top + s.height / 2 - r.top - r.height / 2)) : 99 } })
+  ok(btn.w === btn.h && btn.pad === '0px' && btn.svg && btn.dx <= 1 && btn.dy <= 1, 'the conveyor button is a drawn icon centred in a true circle', JSON.stringify(btn))
+  // belt on; hold it (a finger on the row), park the row 4px from its far end, let go — the
+  // belt carries on from there (the old belt snapped back to the first player at the end)
+  await page.locator('.carousel-conveyor').click(); await page.waitForTimeout(300)
+  await page.evaluate(() => { const t = document.querySelector('.carousel-row--others .carousel-track'); t.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', bubbles: true })); t.scrollLeft = t.scrollWidth - t.clientWidth - 4 })
+  await page.waitForTimeout(200)
+  await page.evaluate(() => document.querySelector('.carousel-row--others .carousel-track').dispatchEvent(new PointerEvent('pointerup', { pointerType: 'touch', bubbles: true })))
+  const trace = await page.evaluate(() => new Promise(res => { const out = []; const tick = () => { const t = document.querySelector('.carousel-row--others .carousel-track'), b = t.getBoundingClientRect(); const c = [...t.querySelectorAll('.carousel-card')].map(c => c.getBoundingClientRect().left - b.left).filter(x => x > -400 && x < 400).sort((a, b) => Math.abs(a) - Math.abs(b))[0]; out.push(c); if (out.length < 90) requestAnimationFrame(tick); else res(out) }; requestAnimationFrame(tick) }))
+  // a frame-to-frame move of more than 20px is a jump — except the reading switching to the
+  // neighbouring stall (one stall width), which is just which edge is nearest
+  const jumps = trace.slice(1).filter((x, i) => Math.abs(x - trace[i]) > 20 && Math.abs(Math.abs(x - trace[i]) - 274) > 20).length
+  const drift = Math.round(trace[0] - trace[trace.length - 1])
+  ok(drift > 5 && jumps === 0, 'the conveyor drifts on past the end of the row without jumping back to the start', JSON.stringify({ drift, jumps }))
+  await page.locator('.carousel-conveyor').click()
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+{
+  // desktop: everyone fits → a plain row and no conveyor; eight others → a wheel the mouse can drag
+  const { page, errs } = await open('skin=carousel')
+  await page.setViewportSize({ width: 1280, height: 900 }); await page.evaluate(() => boardSetView('board')); await page.waitForTimeout(600)
+  const fit = await page.evaluate(() => ({ wheel: !!document.querySelector('.carousel-track--wheel'), conveyor: getComputedStyle(document.querySelector('.carousel-conveyor')).display }))
+  ok(!fit.wheel && fit.conveyor === 'none', 'desktop, everyone in view: plain rows, no wheel and no conveyor button (nothing to drift)', JSON.stringify(fit))
+  await page.evaluate(() => { const src = state.accounts['p4:0.0.4004']; for (let i = 0; i < 5; i++) { const id = `p${5 + i}:0.0.${5005 + i}`; state.accounts[id] = { ...JSON.parse(JSON.stringify(src)), id, playerId: `p${5 + i}`, basket: [] } } state = JSON.parse(JSON.stringify(state)); render() })
+  await page.waitForTimeout(600)
+  const at = () => page.evaluate(() => { const t = document.querySelector('.carousel-row--others .carousel-track'); return { s: t.scrollLeft, W: t._wheel?.W || 0 } })
+  const p = await page.evaluate(() => { const r = document.querySelector('.carousel-row--others .carousel-card .carousel-store').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.bottom - 12 } })
+  const a0 = await at()
+  await page.mouse.click(p.x, p.y); await page.waitForTimeout(300)
+  const a1 = await at()
+  await page.mouse.move(p.x, p.y); await page.mouse.down()
+  for (let i = 1; i <= 10; i++) { await page.mouse.move(p.x - i * 45, p.y); await page.waitForTimeout(16) }
+  await page.mouse.up(); await page.waitForTimeout(900)
+  const a2 = await at()
+  ok(a0.W > 0 && a1.s === a0.s, 'a plain click on the felt does not move the row', JSON.stringify({ a0, a1 }))
+  ok(a2.s - a0.s >= a0.W && (a2.s % a2.W) === 0, 'dragging the felt with the mouse scrolls the row and settles on a stall', JSON.stringify({ a0, a2 }))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+{
+  // Round Table: "party only" keeps the dotted line and re-aims it (it used to wipe it)
+  const { page, errs } = await open('')
+  await page.setViewportSize({ width: 1280, height: 900 }); await page.evaluate(() => boardSetView('board')); await page.waitForTimeout(800)
+  await page.evaluate(() => socket.send(JSON.stringify({ type: 'game_offer', gameId, fromId: 'p1:0.0.1001', toId: 'p2:0.0.2002', assetId: '0.0.456', amount: 1000000 })))
+  await page.waitForTimeout(2500)
+  const look = () => page.evaluate(() => { const l = boardTrailLines('.board-trailline[data-seg]').find(l => l.dataset.pairKey === 'p2:0.0.2002|p1:0.0.1001|0.0.456'); if (!l) return null; const c = el => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] }; const a = c(boardTrailAnchorEl('p1:0.0.1001', '0.0.456', 'p2:0.0.2002')), b = c(document.querySelector('.asset.basket[data-owner-account="p1:0.0.1001"][data-asset-id="0.0.456"][data-to-account="p2:0.0.2002"]')); return Math.round(Math.max(Math.hypot(a[0] - l.getAttribute('x1'), a[1] - l.getAttribute('y1')), Math.hypot(b[0] - l.getAttribute('x2'), b[1] - l.getAttribute('y2')))) })
+  const r0 = await look()
+  await page.evaluate(() => boardTogglePartyOnly(true)); await page.waitForTimeout(1200); const r1 = await look()
+  await page.evaluate(() => boardTogglePartyOnly(false)); await page.waitForTimeout(1200); const r2 = await look()
+  ok(r0 !== null && r0 <= 2 && r1 !== null && r1 <= 2 && r2 !== null && r2 <= 2, 'ring: party only on and off keeps the dotted line, on its chips', JSON.stringify([r0, r1, r2]))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
 }
 
 await browser.close(); server.close()

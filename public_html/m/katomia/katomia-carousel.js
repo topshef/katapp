@@ -48,12 +48,23 @@
 // board's top-level state and helpers by name.
 
 // ── conveyor (the "other players drift past" mode) ────────────────────────────────────────
-// ?conveyor=1 starts it; the ⟳ button on the top row toggles it. Pauses while a finger or the
-// pointer is on the track (you cannot drop onto a moving target), resumes on release, wraps
-// at the end. Stops itself once its track leaves the document (a re-render replaces it).
+// ?conveyor=1 starts it; the button at the right end of the centre line toggles it. Pauses
+// while a finger or the pointer is on the track (you cannot drop onto a moving target),
+// resumes on release. Stops itself once its track leaves the document (a re-render replaces
+// it). CAROUSEL-WHEEL1 (owner 2026-10-13: "it should be infinite scroll as well, so it
+// shouldn't jump back to the beginning when it gets to the end"): the row is a wheel now, so
+// the belt simply keeps turning — the first player comes round again after the last, past
+// the seam line — and it never snaps back to the start. A row where everyone fits has nothing
+// to drift, and the button is hidden for it (carouselFit).
 let _carouselConveyor = (new URLSearchParams(location.search).get("conveyor") || "") === "1"
 let _carouselConveyorRaf = 0
 const CAROUSEL_CONVEYOR_PX_PER_FRAME = 0.35
+
+// snapping is suspended while the belt runs (see below) or a mouse drags the row; this puts
+// back whatever the row should have now
+function carouselSnapRestore(track){
+  track.style.scrollSnapType = track.dataset.kind === "others" && _carouselConveyor ? "none" : ""
+}
 
 function carouselRunConveyor(track){
   cancelAnimationFrame(_carouselConveyorRaf)
@@ -71,14 +82,9 @@ function carouselRunConveyor(track){
   let pos = track.scrollLeft
   const step = () => {
     _carouselConveyorRaf = 0
-    if(!_carouselConveyor || !document.body.contains(track)){ track.style.scrollSnapType = ""; return }
-    if(!held){
-      const max = track.scrollWidth - track.clientWidth
-      if(max > 2){
-        pos = pos >= max - 1 ? 0 : pos + CAROUSEL_CONVEYOR_PX_PER_FRAME
-        track.scrollLeft = pos
-      }
-    } else pos = track.scrollLeft   // a finger moved it — carry on from there
+    if(!_carouselConveyor || !document.body.contains(track)){ carouselSnapRestore(track); return }
+    if(!held && track._wheel) pos = carouselScrollTo(track, pos + CAROUSEL_CONVEYOR_PX_PER_FRAME)
+    else pos = track.scrollLeft   // a finger moved it (or nothing to drift) — carry on from there
     _carouselConveyorRaf = requestAnimationFrame(step)
   }
   _carouselConveyorRaf = requestAnimationFrame(step)
@@ -168,7 +174,8 @@ function carouselCard(account, ctx, mine){
 // track starts at 0 — so any action (an offer, a lock, someone else's move) threw both rows
 // back to the beginning and the trail you had just drawn pointed at a stall that had scrolled
 // away. The position is kept per row across renders and put back once the track is in the
-// document (scrollLeft on a detached node is a no-op).
+// document (scrollLeft on a detached node is a no-op). On a wheel row (below) it is kept as
+// the offset into one turn of the wheel, so a re-render puts back the same stalls.
 const _carouselScroll = { others: 0, mine: 0 }
 
 function carouselRow(kind, accounts, ctx, emptyText){
@@ -178,14 +185,17 @@ function carouselRow(kind, accounts, ctx, emptyText){
   track.className = "carousel-track"
   track.dataset.kind = kind
   track.setAttribute("role", "list")
-  track.addEventListener("scroll", () => { _carouselScroll[kind] = track.scrollLeft }, { passive: true })
   const arrow = (txt, dir) => {
     const b = document.createElement("button")
     b.type = "button"
     b.className = "carousel-arrow carousel-arrow--" + (dir < 0 ? "prev" : "next")
     b.textContent = txt
     b.title = dir < 0 ? "Previous" : "Next"
-    b.onclick = () => track.scrollBy({ left: dir * Math.max(160, track.clientWidth * 0.7), behavior: "smooth" })
+    // a wheel steps whole stalls (the snap would round it anyway; this keeps it even)
+    b.onclick = () => {
+      const page = Math.max(160, track.clientWidth * 0.7), W = track._wheel?.W
+      track.scrollBy({ left: dir * (W ? Math.max(1, Math.round(page / W)) * W : page), behavior: "smooth" })
+    }
     return b
   }
   accounts.forEach(a => track.appendChild(carouselCard(a, ctx, kind === "mine")))
@@ -195,23 +205,179 @@ function carouselRow(kind, accounts, ctx, emptyText){
     hint.textContent = emptyText
     track.appendChild(hint)
   }
+  carouselDragScroll(track)
   row.append(arrow("‹", -1), track, arrow("›", +1))
   return row
 }
 
-// after the DOM lands: put each row back where it was, then (re)start the belt from there,
-// and give the chat its bubble anchors — one per stall, on the store, aimed away from the
-// centre line (the ring's "radially outward": up for the top row, down for mine). Recorded
-// here because the positions need real layout; scroll moves them, and the next paint
-// re-aims the tails anyway (same caveat as the ring's avatar points).
+// ── the wheel ─────────────────────────────────────────────────────────────────────────────
+// CAROUSEL-WHEEL1 (owner 2026-10-13: "an infinite scroll so that you don't get to the end.
+// When you get to the end, you're back at the beginning again — effectively like a wheel,
+// just like on round table … a slightly thicker dividing line so you can see that you're
+// back at the beginning … default behaviour, no setting"). A row whose stalls do not all fit
+// becomes a wheel; a row where everyone fits stays as it was (there is no end to reach).
+//
+// HOW, and why this way. The track keeps NATIVE scrolling — the phone swipe the owner likes
+// and the browser's own momentum and snapping are untouched. Its content is one long empty
+// span (many turns of the wheel), and each stall is absolutely positioned at its place in
+// whichever turn is nearest the middle of the view, re-placed on every scroll. A stall only
+// ever jumps a whole turn, and only while it is out of sight, so nothing visibly moves.
+// Nothing is CLONED: every chip, basket and drop target exists once, so the trails, hover
+// lines, flights and drop logic — all of which find chips by data-* selectors — see exactly
+// the DOM they always did. The price of no clones: a stall can be on screen in only one place,
+// so one turn must be at least the view plus one stall (C ≥ V + W). A stall is therefore
+// widened when the row holds few of them — W ≥ V / (N − 1) — which on a phone with two
+// accounts means one full-width stall at a time. scrollLeft is written only on restore, by a
+// mouse drag and by the conveyor, never during a finger swipe.
+const CAROUSEL_WHEEL_SPAN_PX = 240000
+const CAROUSEL_WHEEL_SLACK_PX = 24   // a little more than one stall of slack where we can afford it
+
+function carouselWheelSetup(track){
+  const cards = [...track.querySelectorAll(":scope > .carousel-card")]
+  const V = track.clientWidth
+  if(cards.length < 2 || V <= 0 || track.scrollWidth <= V + 1) return null
+  const floor = Math.max(...cards.map(c => c.getBoundingClientRect().width))
+  const N = cards.length
+  const W = Math.min(V, Math.max(Math.ceil(floor), Math.ceil((V + CAROUSEL_WHEEL_SLACK_PX) / (N - 1))))
+  const C = N * W
+  const turns = Math.max(4, Math.ceil(CAROUSEL_WHEEL_SPAN_PX / C))
+  const span = document.createElement("div")
+  span.className = "carousel-span"
+  span.style.width = turns * C + "px"
+  track.prepend(span)
+  track.classList.add("carousel-track--wheel")
+  track.style.setProperty("--cw", W + "px")
+  // the seam: the first account's left edge, where the last one comes round to meet it
+  cards.forEach((c, i) => c.classList.toggle("carousel-card--seam", i === 0))
+  track._wheel = { cards, W, C, V, turns, home: Math.floor(turns / 2) * C }
+  return track._wheel
+}
+
+// each stall in the turn nearest the middle of the view at scroll position s
+function carouselWheelPlace(track, s = track.scrollLeft){
+  const w = track._wheel
+  if(!w) return
+  const mid = s + w.V / 2
+  w.cards.forEach((card, i) => {
+    const base = i * w.W
+    const x = base + w.C * Math.round((mid - base - w.W / 2) / w.C)
+    if(card._wheelX !== x){ card._wheelX = x; card.style.left = x + "px" }
+  })
+}
+
+// a scroll WE make: place the stalls for the destination first, so the frame that shows it
+// already has them there (a scroll event would only arrive a frame later). Far from home —
+// hours of conveyor — the wheel is turned back a whole number of turns, which looks the same.
+function carouselScrollTo(track, s){
+  const w = track._wheel
+  if(w && (s < w.C || s > (w.turns - 2) * w.C)) s = w.home + (((s % w.C) + w.C) % w.C)
+  carouselWheelPlace(track, s)
+  track.scrollLeft = s
+  return s
+}
+
+// where the row is, as kept across renders: the offset into one turn on a wheel
+function carouselOffset(track){
+  const w = track._wheel, s = track.scrollLeft
+  return w ? ((s % w.C) + w.C) % w.C : s
+}
+
+// ── drag to scroll, desktop ───────────────────────────────────────────────────────────────
+// CAROUSEL-DRAG1 (owner 2026-10-13: "on mobile you can just do that by swiping … on desktop it
+// doesn't have that feature … click and drag on the background to scroll"). Mouse only — touch
+// keeps the native swipe. A press on a chip, a button or a link is theirs (chips drag to make
+// offers), so the row only takes presses on the felt; it starts moving after a few pixels, so
+// a plain click on the felt, the etched id or your lock bar still does what it did. Letting go
+// carries a little momentum and settles on a stall, the way a swipe does, and the click that
+// ends a drag is swallowed so it cannot also tap whatever is under the pointer.
+const CAROUSEL_DRAG_START_PX = 6
+function carouselDragScroll(track){
+  let d = null
+  track.addEventListener("pointerdown", e => {
+    if(e.pointerType !== "mouse" || e.button !== 0 || !track._wheel) return
+    if(e.target.closest(".asset, button, a, input, select, textarea")) return
+    d = { id: e.pointerId, x: e.clientX, s: track.scrollLeft, on: false, trace: [] }
+  })
+  track.addEventListener("pointermove", e => {
+    if(!d || e.pointerId !== d.id) return
+    const dx = e.clientX - d.x
+    if(!d.on){
+      if(Math.abs(dx) < CAROUSEL_DRAG_START_PX) return
+      d.on = true
+      try { track.setPointerCapture(d.id) } catch(_){}
+      track.classList.add("carousel-track--dragging")
+      track.style.scrollSnapType = "none"   // follow the hand; settle on a stall on release
+      try { window.getSelection()?.removeAllRanges() } catch(_){}
+    }
+    carouselScrollTo(track, d.s - dx)
+    const now = performance.now()
+    d.trace.push([now, track.scrollLeft])
+    while(d.trace.length > 2 && now - d.trace[0][0] > 100) d.trace.shift()
+  })
+  const end = e => {
+    if(!d || e.pointerId !== d.id) return
+    const was = d
+    d = null
+    if(!was.on) return
+    track.classList.remove("carousel-track--dragging")
+    const t = was.trace, a = t[0], b = t[t.length - 1]
+    const v = t.length > 1 && b[0] > a[0] ? (b[1] - a[1]) / (b[0] - a[0]) : 0   // px per ms
+    const w = track._wheel
+    const aim = track.scrollLeft + v * 180
+    const left = w ? Math.round(aim / w.W) * w.W : aim
+    track.scrollTo({ left, behavior: "smooth" })
+    setTimeout(() => { if(document.body.contains(track)) carouselSnapRestore(track) }, 500)
+    const eat = ev => { ev.stopPropagation(); ev.preventDefault() }
+    window.addEventListener("click", eat, { capture: true, once: true })
+    setTimeout(() => window.removeEventListener("click", eat, { capture: true }), 0)
+  }
+  track.addEventListener("pointerup", end)
+  track.addEventListener("pointercancel", end)
+}
+
+// after the DOM lands: make each row a wheel if it needs one, put it back where it was, then
+// (re)start the belt from there, and give the chat its bubble anchors — one per stall, on the
+// store, aimed away from the centre line (the ring's "radially outward": up for the top row,
+// down for mine). Recorded here because the positions need real layout; every scroll
+// re-records them, re-places the wheel and re-aims the dotted lines.
 function carouselRestore(wrap){
   wrap.querySelectorAll(".carousel-track").forEach(track => {
-    track.scrollLeft = _carouselScroll[track.dataset.kind] || 0
-    if(track.dataset.kind === "others" && _carouselConveyor) carouselRunConveyor(track)
+    const kind = track.dataset.kind
+    const w = carouselWheelSetup(track)
+    const off = _carouselScroll[kind] || 0
+    if(w) carouselScrollTo(track, w.home + (((off % w.C) + w.C) % w.C))
+    else track.scrollLeft = off
+    track.addEventListener("scroll", () => {
+      carouselWheelPlace(track)
+      _carouselScroll[kind] = carouselOffset(track)
+      carouselChatAnchors(wrap)
+      carouselTrails()
+    }, { passive: true })
+    if(kind === "others" && _carouselConveyor) carouselRunConveyor(track)
   })
   carouselChatAnchors(wrap)
-  wrap.querySelectorAll(".carousel-track").forEach(track =>
-    track.addEventListener("scroll", () => carouselChatAnchors(wrap), { passive: true }))
+}
+
+// ── the dotted lines follow the rows ──────────────────────────────────────────────────────
+// CAROUSEL-TRAILS3 (owner 2026-10-13: "when a chip has been dropped into another basket, so
+// there's a dotted line joining them, if you then scroll the carousel … that dotted line
+// doesn't get cleared … you end up with a random dotted line just sitting in the wrong
+// place"). The lines are drawn in screen space and were only re-aimed after a render; a
+// scroll is not a render. Now every scroll re-aims them at their chips (the ring's own pass,
+// boardReanchorTrails), and a line with an end scrolled out of its row's view is hidden until
+// that end comes back — a line into the arrows or off the screen says nothing true.
+function carouselTrails(){
+  boardReanchorTrails()
+  const rows = [...document.querySelectorAll(".carousel .carousel-track")].map(t => t.getBoundingClientRect())
+  if(!rows.length) return
+  const seen = (x, y) => {
+    const r = rows.find(r => y >= r.top && y <= r.bottom)
+    return !r || (x >= r.left - 1 && x <= r.right + 1)
+  }
+  boardTrailLines().forEach(line => {
+    const at = k => Number(line.getAttribute(k))
+    line.classList.toggle("board-trailline--offstage", !(seen(at("x1"), at("y1")) && seen(at("x2"), at("y2"))))
+  })
 }
 
 // CAROUSEL-FIT1 (owner 2026-10-13, feedback alpha-yankee-44): no nested scrollbars. A band
@@ -232,8 +398,10 @@ function carouselFit(wrap){
   })
   wrap.querySelectorAll(".carousel-row").forEach(row => {
     const track = row.querySelector(".carousel-track")
-    row.classList.toggle("carousel-row--fits", !!track && track.scrollWidth <= track.clientWidth + 1)
+    row.classList.toggle("carousel-row--fits", !!track && !track._wheel && track.scrollWidth <= track.clientWidth + 1)
   })
+  // nothing to drift when every other player is already in view (CAROUSEL-WHEEL1)
+  wrap.classList.toggle("carousel--others-fit", !!wrap.querySelector(".carousel-row--others.carousel-row--fits"))
 }
 
 function carouselChatAnchors(wrap){
@@ -256,7 +424,7 @@ function carouselChatAnchors(wrap){
 // One line across the board where the two basket rows meet, with the K and the lock tally
 // sitting on it. While signing, the SAME countdown pill the hub shows (.ring-hub-count,
 // ticked by boardStartCountdown) and the same tap-to-sign — so the signing moment reads the
-// same in both shapes. The conveyor toggle (⟳) lives at the line's right end.
+// same in both shapes. The conveyor toggle (a turning arrow) lives at the line's right end.
 function carouselCentre(mine, accounts){
   const strip = document.createElement("div")
   strip.className = "carousel-centre" + (boardSigning ? " carousel-centre--counting" : "")
@@ -290,11 +458,18 @@ function carouselCentre(mine, accounts){
     }
   }
   strip.appendChild(piece)
+  // CAROUSEL-WHEEL1 (owner 2026-10-13: "the UI of the button is messed up … the ring is not —
+  // the icon is just messed up"). It was the text glyph ⟳ in a 24px circle that kept the
+  // browser's 6px/12px button padding: the glyph was pushed off-centre and clipped by its own
+  // ring. Now a drawn icon (a wheel's turning arrow) centred in a true circle, padding zeroed,
+  // and while the belt runs the icon turns slowly, so on/off reads without the colour alone.
   const auto = document.createElement("button")
   auto.type = "button"
   auto.className = "carousel-conveyor" + (_carouselConveyor ? " carousel-conveyor--on" : "")
-  auto.textContent = "⟳"
+  auto.innerHTML = '<svg viewBox="-1 -1 26 26" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>'
   auto.title = _carouselConveyor ? "Conveyor on — other players drift past. Tap to stop." : "Conveyor: let the other players drift past"
+  auto.setAttribute("aria-label", auto.title)
+  auto.setAttribute("aria-pressed", _carouselConveyor ? "true" : "false")
   auto.onclick = () => { _carouselConveyor = !_carouselConveyor; render() }
   strip.appendChild(auto)
   return strip
@@ -415,5 +590,7 @@ function renderCarouselBoard(root){
   // in boardReanchorTrails after each paint. The carousel never called it, so the first
   // render after the strike — the signing phase's own repaint — took the lines with it. Same
   // pass now, after the carousel's DOM is in: re-adopt, re-aim, prune what lost an end.
-  boardReanchorTrails()
+  // CAROUSEL-TRAILS3: the same pass runs on every scroll, and hides a line whose end is
+  // scrolled out of view (carouselTrails).
+  carouselTrails()
 }
