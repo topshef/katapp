@@ -401,6 +401,10 @@ $katomiaInCircle = in_array($katomiaPage, ['board', 'game'], true);
                   </select>
               </label>
               <label class="board-settings-label">
+                  <input type="checkbox" id="boardPrefLockBevel" title="Lab (LOCKBEVEL1): your lock bars drawn raised — a light top edge, a faint dark lower edge and a soft shadow — as the cue that they can be tapped. Untick to compare with the flat bar.">
+                  Raised lock bars
+              </label>
+              <label class="board-settings-label">
                   <input type="checkbox" id="boardPrefHugRing" title="Lab: organic store blobs home slightly closer to the ring — a mild inward bias; the reserved rim band still keeps chips off the ring itself">
                   Chips hug the ring
               </label>

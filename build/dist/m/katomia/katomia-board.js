@@ -324,7 +324,7 @@ function boardSavePrefs(){
       netView: boardNetView, partyOnly: boardPartyOnly,
       maxSegments: boardMaxSegments, animSpeed: boardAnimSpeed,
       trailResidual: boardTrailResidual, layoutMode: boardLayoutMode,
-      zoneWalls: boardZoneWalls, hugRing: boardHugRing,
+      zoneWalls: boardZoneWalls, hugRing: boardHugRing, lockBevel: boardLockBevel,
       stickyChips: boardStickyChips, autoArrange: boardAutoArrange, chipScale: boardChipScale,
       chatMode: boardChatMode, avatarPos: boardAvatarPos,
       counterMode: boardCounterMode, chipStyle: boardChipStyle, chipShape: boardChipShape,
@@ -455,6 +455,9 @@ let boardLockPreviewArmed = true
 // organic anchor inward in STORE zones (0.38 of the radial band instead of
 // the 0.5 midpoint). Baskets and shelves unaffected. Default off.
 let boardHugRing = _bp.hugRing ?? false
+// LOCKBEVEL1 (owner 2026-10-13): your lock bars drawn raised — the cue that they are pressable.
+// Default on; View → Lab → "Raised lock bars" turns it off for an A/B look (nerd only).
+let boardLockBevel = _bp.lockBevel ?? true
 // 🧪 lab (user 2026-07-16, board-game feel / BOARD-ARRANGE1 first slice):
 // once the sim settles, chips become STICKY — springs skip them and
 // collisions can't move them (a newcomer takes the whole separation push and
@@ -1374,6 +1377,15 @@ function boardSyncPrefsUI(){
     zoneWalls.checked = boardZoneWalls
     zoneWalls.onchange = () => { boardZoneWalls = zoneWalls.checked; boardSavePrefs(); render() }
   }
+  const lockBevel = document.getElementById("boardPrefLockBevel")
+  if(lockBevel){
+    lockBevel.checked = boardLockBevel
+    lockBevel.onchange = () => {
+      boardLockBevel = lockBevel.checked
+      boardSavePrefs()
+      boardApplyLockBevel()   // CSS only — nothing to re-render
+    }
+  }
   const hugRing = document.getElementById("boardPrefHugRing")
   if(hugRing){
     hugRing.checked = boardHugRing
@@ -1569,6 +1581,7 @@ async function render(){
     susan2() && "susan2p", susan3() && "susan3p", susan4() && "susan4p",
     susan5() && "susan5p",
   ].filter(Boolean).join(" ")
+  boardApplyLockBevel()                               // LOCKBEVEL1
   document.body.dataset.chipStyle = boardChipStyle   // BOARD-CHIPART1 variant under comparison
   document.body.dataset.chipShape = boardChipShape   // CHIP-SHAPE1 — katomia-render.js makeAssetEl reads this
   // PRIMARY-ACTION1 r3: ?primary=wide brings back the full-width primary button so the two
@@ -7258,6 +7271,57 @@ function boardLockBarTone(account, party){
 }
 // mine: tap toggles the lock, with the ring's own wording; the tooltip is an SVG <title> on
 // an arc and a plain title on the carousel's div
+// ── LOCKBEVEL1 (owner 2026-10-13): the lock bar, raised ──────────────────────────────────
+// "The lock ring in Round Table and the lock bar in Carousel are just a flat colour … give it
+// a little bit of a bevel, as if it's a raised bar … an indication that it is a tappable bar
+// … fairly modern, not Windows 1990 … without tons of code." So: YOUR bars only (the ones a
+// tap locks or unlocks — someone else's bar is a wall, and stays flat, which is itself the
+// cue), lit from the top-left like everything on a screen: a crisp light edge on the upper
+// side, a faint dark edge on the lower side, a soft shadow on the felt beneath. It is laid
+// over whatever colour the bar has — white and black at low alpha — so every state (open,
+// hover, the Lock preview, locked orange) gets it with no per-colour rule. Not while signing:
+// the bars are not tappable then, and the ring's signature arcs are LIGHTS (their own glow).
+//   Round Table: the arc is an SVG stroke along an OVAL, so no CSS gradient can follow its
+//   cross-section; one shared SVG filter does (below), referenced by every arc of yours.
+//   Carousel: the bar is a plain box — the same three layers as box-shadows, in the CSS.
+// The filter only offsets, cuts and recolours the arc's own alpha (no lighting primitives,
+// no flood), so its cost stays at the arc's size. Its region is the whole board, on purpose:
+// a region sized to the arc's box (the default) clips the stroke of a nearly straight arc,
+// whose box has almost no height. It is given in absolute board pixels (the felt's user
+// space is screen px): as percentages, Chrome resolved them against THIS 0×0 svg and the
+// arcs vanished (found by screenshot). katomia-board.css carries the rules (LOCKBEVEL1).
+function boardLockBevelDefs(){
+  if(document.getElementById("kLockBevel")) return
+  const host = document.createElement("div")
+  host.innerHTML = `<svg width="0" height="0" aria-hidden="true" focusable="false"
+      style="position:absolute;width:0;height:0;overflow:hidden">
+    <filter id="kLockBevel" filterUnits="userSpaceOnUse" x="-200" y="-200" width="6000" height="6000"
+        color-interpolation-filters="sRGB">
+      <feOffset in="SourceAlpha" dx="1" dy="1.5" result="dn"/>
+      <feComposite in="SourceAlpha" in2="dn" operator="out" result="litEdge"/>
+      <feColorMatrix in="litEdge" type="matrix" result="hi"
+        values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .55 0"/>
+      <feOffset in="SourceAlpha" dx="-1" dy="-1.5" result="up"/>
+      <feComposite in="SourceAlpha" in2="up" operator="out" result="shadeEdge"/>
+      <feColorMatrix in="shadeEdge" type="matrix" result="lo"
+        values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .2 0"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1.2" result="blur"/>
+      <feOffset in="blur" dx="0" dy="1.2" result="fall"/>
+      <feColorMatrix in="fall" type="matrix" result="drop"
+        values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .22 0"/>
+      <feMerge>
+        <feMergeNode in="drop"/><feMergeNode in="SourceGraphic"/>
+        <feMergeNode in="hi"/><feMergeNode in="lo"/>
+      </feMerge>
+    </filter>
+  </svg>`
+  document.body.appendChild(host.firstElementChild)
+}
+function boardApplyLockBevel(){
+  boardLockBevelDefs()
+  document.body.dataset.lockBevel = boardLockBevel ? "1" : "0"
+}
+
 function boardWireLockBar(el, account, locked){
   el.onclick = () => boardToggleLock(account)
   const text = locked ? "Locked — tap your arc to unlock" : "Tap your arc to lock"

@@ -1133,6 +1133,58 @@ for (const skin of ['carousel', '']) {
   await page.close()
 }
 
+console.log('24. LOCKBEVEL1: your lock bars are drawn raised (ring arc and carousel bar), others stay flat; Lab → Raised lock bars turns it off; not while signing')
+{
+  // pixels from a screenshot, decoded by the page itself (no image library here)
+  const pixels = async (page, clip) => {
+    const b64 = (await page.screenshot({ clip })).toString('base64')
+    return page.evaluate(async b64 => {
+      const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode()
+      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height
+      const x = c.getContext('2d'); x.drawImage(img, 0, 0)
+      return { w: img.width, h: img.height, d: [...x.getImageData(0, 0, img.width, img.height).data] }
+    }, b64)
+  }
+  const at = (p, x, y) => p.d.slice((y * p.w + x) * 4, (y * p.w + x) * 4 + 3)
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
+  for (const skin of ['', 'carousel']) {
+    const { page, errs } = await open(skin ? 'skin=' + skin : '')
+    await page.setViewportSize({ width: 1000, height: 900 }); await page.evaluate(() => boardSetView('board')); await page.waitForTimeout(1200)
+    const st = await page.evaluate(() => {
+      const mine = [...document.querySelectorAll('.ring-lockarc--mine')], other = [...document.querySelectorAll('.ring-lockarc--wall')]
+      const raised = el => getComputedStyle(el).filter.includes('kLockBevel') || getComputedStyle(el).boxShadow.includes('inset')
+      return { mine: mine.length, mineRaised: mine.every(raised), otherFlat: other.length > 0 && !other.some(raised), def: !!document.getElementById('kLockBevel'), on: typeof boardLockBevel !== 'undefined' && boardLockBevel }
+    })
+    ok(st.on && st.def && st.mine > 0 && st.mineRaised && st.otherFlat, `${skin || 'ring'}: by default your lock bars are raised, other players' bars stay flat`, JSON.stringify(st))
+    // the arc/bar must still be PAINTED with the bevel on (a bad filter region once made the
+    // ring arcs vanish): the middle of the bar keeps its colour, and its edge changes
+    const geo = await page.evaluate(() => {
+      const el = document.querySelector('.ring-lockarc--mine[data-account-id="p1:0.0.1001"]')
+      if (el instanceof SVGPathElement) { const L = el.getTotalLength(), p = el.getPointAtLength(L / 2), m = el.getScreenCTM(); return { x: p.x * m.a + p.y * m.c + m.e, y: p.x * m.b + p.y * m.d + m.f } }
+      const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+    })
+    const clip = { x: Math.round(geo.x) - 15, y: Math.round(geo.y) - 15, width: 30, height: 30 }
+    const set = v => page.evaluate(v => { const c = document.getElementById('boardPrefLockBevel'); if (c) { c.checked = v; c.onchange() } }, v)
+    await set(false); await page.waitForTimeout(150); const off = await pixels(page, clip)
+    await set(true); await page.waitForTimeout(150); const on = await pixels(page, clip)
+    const centreSame = dist(at(off, 15, 15), at(on, 15, 15)) <= 12
+    let changed = 0; for (let i = 0; i < on.d.length; i += 4) if (Math.hypot(on.d[i] - off.d[i], on.d[i + 1] - off.d[i + 1], on.d[i + 2] - off.d[i + 2]) > 6) changed++
+    ok(centreSame && changed > 20, `${skin || 'ring'}: with the bevel on the bar is still painted (its middle unchanged) and its edges are shaded`, JSON.stringify({ centreOff: at(off, 15, 15), centreOn: at(on, 15, 15), changed }))
+    await set(false); await page.waitForTimeout(100)
+    const offNow = await page.evaluate(() => { const el = document.querySelector('.ring-lockarc--mine'); return { f: getComputedStyle(el).filter, s: getComputedStyle(el).boxShadow, saved: JSON.parse(localStorage.getItem(BOARD_PREFS_KEY) || '{}').lockBevel } })
+    ok(offNow.f === 'none' && !offNow.s.includes('inset') && offNow.saved === false, `${skin || 'ring'}: Lab → Raised lock bars off flattens them, and the choice is kept`, JSON.stringify(offNow))
+    await set(true)
+    // signing: not tappable, not raised
+    const active = await page.evaluate(() => { const s = new Set(); Object.values(state.accounts).forEach(x => { if (x.basket.length) s.add(x.id); x.basket.forEach(i => i.fromId && s.add(i.fromId)) }); return [...s] })
+    for (const id of active) { await page.evaluate(id => socket.send(JSON.stringify({ type: 'game_toggleLock', accountId: id })), id); await page.waitForTimeout(150) }
+    await page.waitForTimeout(1200)
+    const sg = await page.evaluate(() => ({ signing: !!boardSigning, raised: [...document.querySelectorAll('.ring-lockarc--mine')].filter(el => getComputedStyle(el).filter.includes('kLockBevel') || getComputedStyle(el).boxShadow.includes('inset')).length }))
+    ok(sg.signing && sg.raised === 0, `${skin || 'ring'}: while signing no bar is drawn raised`, JSON.stringify(sg))
+    ok(!errs.length, 'no page errors', JSON.stringify(errs))
+    await page.close()
+  }
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)

@@ -2601,6 +2601,23 @@ body[data-signtwilight="1"] .carousel-rim.carousel-rim--signed{ background: #1e7
 .carousel-rim.carousel-rim--failed{ background: #d64541; }
 .carousel-rim.carousel-rim--none{ background: #9a9a9a; opacity: .5; }
 
+/* LOCKBEVEL1 (owner 2026-10-13): YOUR lock bars, raised — light from the top-left: a crisp light
+   upper edge, a faint dark lower edge, a soft shadow on the felt. White/black over the bar's own
+   colour, so every state carries it. Not while signing (not tappable; the ring's signature arcs
+   glow instead). Round Table: one SVG filter (#kLockBevel, katomia-board.js boardLockBevelDefs);
+   carousel: the same three layers as box-shadows. View → Lab → Raised lock bars (nerd) turns it
+   off. */
+body[data-lock-bevel="1"]:not([data-signing="1"]) .ring-lockarc--mine:not(.ring-signarc):not(.carousel-rim){
+  filter: url(#kLockBevel);
+}
+body[data-lock-bevel="1"]:not([data-signing="1"]) .carousel-rim.ring-lockarc--mine{
+  position: relative; z-index: 1;   /* its shadow lies on the band below, not under it */
+  box-shadow:
+    inset 1px 1.5px 0 rgba(255, 255, 255, .55),
+    inset -1px -1.5px 0 rgba(0, 0, 0, .2),
+    0 1.2px 2.4px rgba(0, 0, 0, .22);
+}
+
 .carousel-basket{ flex: 0 0 auto; min-height: 44px; padding: 4px 0; align-content: flex-start; }
 
 /* CAROUSEL-ARRANGE1: a band holding a hand-placed or sticky chip places its chips itself
