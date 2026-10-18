@@ -654,8 +654,10 @@
   function setChips(d) {
     var names = Object.keys(d.keysets || {});
     if (names.length) return names.map(function (n) {
-      var held = (d.keysets[n] || []).length;
-      return chip(n, '', n + ': ' + held + (held === 1 ? ' key' : ' keys'));
+      var ks = d.keysets[n] || [], held = ks.length;
+      // the label, then the last four of each key it holds — so two slots on one key read the same
+      var tail = ks.map(function (k) { return '\u2026' + String(k).slice(-4); }).join(' ');
+      return chip(n + (tail ? ' ' + tail : ''), '', n + ': ' + held + (held === 1 ? ' key' : ' keys'));
     }).join('');
     var n = Object.keys(d.keys || {}).length;
     if (!n) return '<span class="none">none</span>';
@@ -797,7 +799,7 @@
           // two rows are two processes or one process renamed — and it is the only part of
           // the row that is evidence rather than a claim. One row per signing key, always:
           // two instances sharing a key share a row, and the later announcement wins.
-          (d.by ? '<div class="key" title="the key that signed this announcement — the pool files one row per key, whatever the label says">id ' + esc(String(d.by).slice(0, 10)) + '…</div>' : '') +
+          (d.by ? '<div class="key" title="the key that signed this announcement — the pool files one row per key, whatever the label says">id ' + esc(String(d.by).slice(0, 4)) + '\u2026' + esc(String(d.by).slice(-4)) + '</div>' : '') +
           (ver ? '<div class="key">' + ver + '</div>' : '') + '</td>' +
         '<td data-l="signing?"><div class="v">' + mode + '</div></td>' +
         '<td data-l="last seen"><div class="v">' + seen + '<div class="age">' + ago(d.ageSeconds) + ' ago</div>' + up + '</div></td>' +
