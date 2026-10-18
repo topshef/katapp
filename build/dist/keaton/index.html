@@ -300,6 +300,8 @@
         <option value="failed">failed</option>
         <option value="unreadable">unreadable</option>
       </select></div>
+    <div class="f"><label for="dealsOnly">deals only</label>
+      <input id="dealsOnly" type="checkbox" checked title="Hide pooled transactions that carry no deal document — mostly circle trades from the demo bots. Untick to see everything the pool holds."></div>
     <div class="f"><label for="auto">refresh</label>
       <select id="auto"><option value="0">manual</option><option value="30">30 s</option><option value="60" selected>60 s</option><option value="120">2 min</option></select></div>
     <button id="go" class="primary" type="button">Refresh</button>
@@ -456,6 +458,7 @@
   };
 
   var MAX_READS = 25;          // how many pooled records to open per refresh — every one is a request
+  var MAX_READS_DEALS = 100;   // with 'deals only' on, look further back: the newest are mostly circle trades
   var CONCURRENCY = 4;         // through the edge alias, which has a daily budget; be gentle
   var LSKEY = 'kea.signers.seen.v1';
 
@@ -1047,20 +1050,30 @@
     return 'failed';
   }
 
+  // 'deals only' (default on): a pooled transaction with no deal document is not a Keaton
+  // signer's business — on a shared pool that is mostly circle trades struck by the demo bots.
+  function dealsOnly() { return $('dealsOnly').checked; }
+  try { if (localStorage.getItem('keaton.dealsOnly') === '0') $('dealsOnly').checked = false; } catch (e) {}
+  $('dealsOnly').addEventListener('change', function () {
+    try { localStorage.setItem('keaton.dealsOnly', dealsOnly() ? '1' : '0'); } catch (e) {}
+    refresh();
+  });
   function renderTxs(rows) {
     var tb = $('txs').tBodies[0], nd = needle(), now = Math.floor(Date.now() / 1000), network = $('network').value;
-    var want = $('state').value;
+    var want = $('state').value, hidden = 0;
     var shown = rows.filter(function (r) {
       if (!r) return false;
       if (want && stateBucket(r.state) !== want) return false;
+      if (dealsOnly() && !r.title && !r.dealId) { hidden++; return false; }
       if (!nd) return true;
       var hay = (r.txid + ' ' + (r.pch || '') + ' ' + (r.title || '')).toLowerCase();
       return hay.indexOf(nd) >= 0;
     });
     var acc = accountFilter();
     $('tcount').className = 'count';
-    $('tcount').textContent = shown.length + (shown.length === rows.length ? '' : ' / ' + rows.length) +
+    $('tcount').textContent = shown.length + (shown.length === rows.length || hidden ? '' : ' / ' + rows.length) +
       (shown.length === 1 ? ' transaction' : ' transactions') +
+      (hidden ? ' \u00b7 ' + hidden + ' non-deal hidden (untick \u201cdeals only\u201d to see them)' : '') +
       (acc.length ? ' \u00b7 ' + acc.join(' + ') : '');
 
     if (!shown.length) {
@@ -1068,7 +1081,7 @@
       if (acc.length) why.push('for ' + acc.map(esc).join(' or '));
       if (needle()) why.push('matching \u201c' + esc(needle()) + '\u201d');
       if ($('state').value) why.push('with status ' + esc($('state').selectedOptions[0].text));
-      tb.innerHTML = '<tr><td colspan="6" class="msg">Nothing in the pool ' +
+      tb.innerHTML = '<tr><td colspan="6" class="msg">' + (hidden ? hidden + ' pooled transaction' + (hidden === 1 ? ' is' : 's are') + ' hidden because ' + (hidden === 1 ? 'it carries' : 'they carry') + ' no deal document (circle trades from the demo bots, mostly). Untick \u201cdeals only\u201d above to see ' + (hidden === 1 ? 'it' : 'them') + '.<br>' : '') + 'No deals in the pool ' +
         (why.length ? why.join(' ') + ' ' : '') + 'in this window. ' +
         (acc.length ? 'The pool holds about an hour; a quiet account simply has nothing waiting.' : '') +
         '</td></tr>';
@@ -1252,7 +1265,7 @@
           });
         });
         list.sort(function (a, b) { return (txStartSec(b.txid) || 0) - (txStartSec(a.txid) || 0); });
-        var slice = list.slice(0, MAX_READS);
+        var slice = list.slice(0, dealsOnly() ? MAX_READS_DEALS : MAX_READS);
         progress(0, slice.length);
         return pool(slice, CONCURRENCY, function (t) {
           return api('txRead', { network: t.network || network, txid: t.txid, pch: t.pch, detail: '1', mirror: '0' })
