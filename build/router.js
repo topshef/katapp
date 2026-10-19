@@ -1,4 +1,4 @@
-// katui router — the Worker in front of the static katomia bundle (build/dist, build/dist-gcp).
+// katui router — the Worker in front of the static katomia bundle (build/dist).
 // Mirrors lab22's Apache rules (public_html/m/katomia/.htaccess + the root vhost) so the
 // URLs people already share keep working on Cloudflare, plus shims for the lab22 PHP
 // endpoints the static bundle lost (KATUI-SHIMS1). Route map:
@@ -48,10 +48,21 @@
 //   /vendor/walletconnect/config.json  → static file with metadata.url/name patched to the
 //     serving origin (what vendor/walletconnect/config.php does per request on lab22)
 //
+//  hand-through (KATAPP-SPLIT1) — pages that are not Katomia and stayed in phpjabbers
+//   /keaton…, /deal…, /legacy…, /future/v3…  → env.PAGES (the Worker that still builds them),
+//                                               request unchanged; checked before route()
+//
 // Everything else is served straight from assets (html_handling = none: no auto redirects,
 // so an asset named board.html never captures /board/<id> — that bit KATUI-HOME1).
 
 const K = '/m/katomia';
+// KATAPP-SPLIT1 (owner 2026-10-19): katapp is the Katomia front end alone. Keaton (/keaton and
+// its old home /future/v3), the deal pages (/deal) and the V1 archive (/legacy) stayed in
+// phpjabbers, so this Worker hands those paths, request unchanged, to the PAGES service binding —
+// the Worker that still builds them — and the host answers them exactly as labs does. With no
+// binding (local harnesses) they fall through to route() and 404 on the files katapp lacks.
+const HANDTHROUGH = /^\/(?:keaton|deal|legacy)(?:\/|$)|^\/future\/v3(?:\/|$)/;
+export const handThrough = (url) => HANDTHROUGH.test(url.pathname);
 const PAGES = new Set(['welcome', 'markets', 'circles', 'learn', 'host', 'create', 'binding', 'advisor']);
 const LANDING_SKINS = new Set(['liquid', 'clay', 'bubble']);
 // The alias's own path allowlist is [A-Za-z0-9/_-]: no dots, so "..", hidden files and
@@ -226,6 +237,7 @@ export function route(url) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (env.PAGES && handThrough(url)) return env.PAGES.fetch(request);   // KATAPP-SPLIT1
     const r = route(url);
     if (!r) return env.ASSETS.fetch(request);
     switch (r.kind) {

@@ -108,5 +108,18 @@ if (process.argv.includes('--serve')) {
   assert.equal(forwarded.at(-1).url, 'https://api.katomia.com/feedback-widget.js');
   r = await call('/m/katomia/hapi/../x'); assert.equal(r.status, 404);
   r = await call('/m/katomia/nope'); assert.equal(r.status, 404);
+  // KATAPP-SPLIT1: with a PAGES binding, the pages that stayed in phpjabbers are handed through
+  // untouched (method, URL, body) and Katomia's own routes never are
+  const handed = [];
+  const envP = { ...env, PAGES: { async fetch(req) { handed.push({ url: req.url, method: req.method, body: await req.text() }); return new Response('pages'); } } };
+  const callP = (p, init) => worker.fetch(new Request('https://lab1.example' + p, init), envP);
+  r = await callP('/keaton/notes/bots/'); assert.equal(await r.text(), 'pages');
+  assert.equal(handed.at(-1).url, 'https://lab1.example/keaton/notes/bots/');
+  r = await callP('/legacy/deals/?action=search&id=35d71e'); assert.equal(handed.at(-1).url, 'https://lab1.example/legacy/deals/?action=search&id=35d71e');
+  r = await callP('/deal/edit/', { method: 'POST', body: 'x=1' }); assert.equal(handed.at(-1).method, 'POST'); assert.equal(handed.at(-1).body, 'x=1');
+  const before = handed.length;
+  r = await callP('/m/katomia/'); assert.equal(r.status, 200);
+  r = await callP('/m/sign/'); assert.equal(r.status, 200);
+  assert.equal(handed.length, before, 'Katomia routes must not be handed through');
   console.log('router e2e: bundle + Worker contract OK');
 }

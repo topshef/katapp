@@ -27,7 +27,7 @@ norm(){ # $1 = dist dir, $2 = out dir  (build-info.json carries a timestamp: ski
 rc=0
 # DISTBOTH1: name the variant explicitly — a bare build-static.sh now builds BOTH, and this
 # loop wants one at a time so a diff can be attributed to the variant it came from.
-for variant in katui gcp; do
+for variant in katui; do   # KATAPP-SPLIT1: katapp builds one variant (no dist-gcp)
   # plain case, not $( [ ] && echo ): a false test inside a command substitution returns
   # non-zero, and under `set -e` that kills the assignment and the whole script silently
   case "$variant" in gcp) DIST="$ROOT/build/dist-gcp" ;; *) DIST="$ROOT/build/dist" ;; esac
@@ -37,7 +37,7 @@ for variant in katui gcp; do
   if diff -r "$TMP/a" "$TMP/b" >"$TMP/diff.txt"; then
     echo "fresh: committed ${DIST#$ROOT/} matches a rebuild from source ($(find "$DIST" -type f | wc -l) files)"
   else
-    head -40 "$TMP/diff.txt"; echo "${DIST#$ROOT/} is STALE — run build/build-static.sh (builds both) and commit the result"; rc=1
+    head -40 "$TMP/diff.txt"; echo "${DIST#$ROOT/} is STALE — run build/build-static.sh and commit the result"; rc=1
   fi
 done
 exit $rc

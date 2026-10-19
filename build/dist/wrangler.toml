@@ -1,4 +1,4 @@
-name = "katui"
+name = "katui-lab1"
 main = "router.js"
 compatibility_date = "2026-08-01"
 [assets]
@@ -21,5 +21,14 @@ run_worker_first = ["/vendor/walletconnect/config.json"]
 binding = "HAPI"
 service = "kpay-api-alias"
 
+# KATAPP-SPLIT1: /keaton, /deal and /legacy are handed to the Worker that still builds them
+# (router.js, PAGES) — katapp does not carry those pages.
+[[services]]
+binding = "PAGES"
+service = "katui"
+
 [vars]
 ALIAS_ORIGIN = "https://api.katomia.com"
+
+# LAB2-DEPLOY1: wrangler attaches the custom domain on deploy (zone on the same account)
+routes = [{ pattern = "lab1.katomia.com", custom_domain = true }]

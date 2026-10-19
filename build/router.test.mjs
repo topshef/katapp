@@ -1,7 +1,7 @@
 // Route-map unit test for the katui router Worker: node build/router.test.mjs
 // Pure function `route(url)` — no Cloudflare runtime needed. Keep this in step with
 // public_html/m/katomia/.htaccess whenever a clean URL is added there.
-import { route } from './router.js';
+import { route, handThrough } from './router.js';
 import assert from 'node:assert/strict';
 
 const O = 'https://katui.example';
@@ -132,3 +132,13 @@ for (const [path, want] of cases) {
   n++;
 }
 console.log(`router: ${n}/${cases.length} route cases OK`);
+// KATAPP-SPLIT1: what goes to the PAGES Worker — the three prefixes that stayed in phpjabbers,
+// whole segments only, and nothing Katomia uses (its signing page, widget, feedback, API shims)
+const handed = ['/keaton', '/keaton/', '/keaton/notes/bots/', '/deal', '/deal/convert/?id=1', '/deal/edit/spec/',
+  '/legacy/deals/', '/legacy/deals/?action=status', '/future/v3', '/future/v3/help/'];
+const kept = ['/', '/m/katomia/', '/m/katomia/board/t-trio', '/m/sign/', '/future/', '/future/?action=txRead',
+  '/m/bid/explore/kpool', '/m/feedback/', '/hapi/kpool/txList', '/dealer', '/keatonx', '/legacyx', '/future/v30',
+  '/vendor/walletconnect/config.json', '/m/katomia/deal'];
+for (const p of handed) assert.equal(handThrough(new URL(O + p)), true, `handThrough(${p}) should be true`);
+for (const p of kept) assert.equal(handThrough(new URL(O + p)), false, `handThrough(${p}) should be false`);
+console.log(`router: ${handed.length + kept.length} hand-through cases OK`);

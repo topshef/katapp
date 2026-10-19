@@ -1,4 +1,5 @@
-# katui — the static katomia bundle on Cloudflare Workers.
+# katui — the static katomia bundle on Cloudflare Workers (katapp: deploys as katui-lab1 on
+# lab1.katomia.com, named by build/variant.env — KATAPP-SPLIT1).
 #
 #   router   — route map + Worker contract over build/dist (node, no deps, no network)
 #   fresh    — rebuilds build/dist from the repo with the runner's php and fails if the
@@ -28,7 +29,7 @@
 name: katui
 on:
   push:
-    branches: [pilot, 'claude/**']
+    branches: [main, lab1, 'claude/**', 'ccr-**']   # KATAPP-SPLIT1: katapp's trunk is main; lab1 deploys lab1.katomia.com
     paths: [build/**, public_html/**, qa/sign/**, qa/board/**, .github/workflows/katui.yml]
   schedule:
     - cron: '41 */6 * * *'
@@ -72,10 +73,8 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
-      - name: SIGN-PRECHECK-QA1 (katui dist)
+      - name: SIGN-PRECHECK-QA1
         run: node qa/sign/run.mjs
-      - name: SIGN-PRECHECK-QA1 (gcp dist)
-        run: DIST=build/dist-gcp node qa/sign/run.mjs
 
   board:
     runs-on: ubuntu-latest
@@ -92,16 +91,14 @@ jobs:
         run: |
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
-      - name: BOARD-REGRESSION1 (katui dist)
+      - name: BOARD-REGRESSION1
         run: node qa/board/run.mjs
-      - name: BOARD-REGRESSION1 (gcp dist)
-        run: DIST=build/dist-gcp node qa/board/run.mjs
 
   smoke:
     runs-on: ubuntu-latest
     needs: [router]
     env:
-      ORIGIN: ${{ inputs.origin || vars.KATUI_ORIGIN || 'https://katui.tayloa17.workers.dev' }}
+      ORIGIN: ${{ inputs.origin || vars.KATUI_ORIGIN || 'https://lab1.katomia.com' }}
     steps:
       - uses: actions/checkout@v4
       - name: wait for the Cloudflare git-connected build

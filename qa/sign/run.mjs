@@ -18,7 +18,7 @@
 // touches a network. Clicks are real pointer clicks.
 //
 //   node qa/sign/run.mjs            (from the repo root; needs playwright + chromium)
-//   DIST=build/dist-gcp node …      to test the other variant
+//   DIST=<another dist> node …      to test another build
 import { chromium } from 'playwright'
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'

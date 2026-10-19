@@ -1,7 +1,7 @@
 {
-  "source_sha": "22e459b",
-  "variant": "katui",
+  "source_sha": "8a2f4bf0",
+  "variant": "katui-lab1",
   "alias": "api.katomia.com/hapi",
   "kwc_snapshot": "4a3351b",
-  "built": "2026-10-18T22:42:32Z"
+  "built": "2026-10-19T21:26:37Z"
 }

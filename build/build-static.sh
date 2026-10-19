@@ -10,41 +10,31 @@
 # URL (getGameId() in katomia-core.js). Config is rendered straight to the API alias
 # via a build-time .env_hapi, so HTTP + WS go through the Worker.
 #
-# Usage:  build/build-static.sh          → BOTH variants (this is the point — see below)
-#         build/build-static.sh katui    → katui      via api.katomia.com     (build/dist)
-#         build/build-static.sh gcp      → katui-gcp  via kpay-api-alias-gcp  (build/dist-gcp)
+# Usage:  build/build-static.sh          → build/dist, named by build/variant.env (see below)
 #
-# DISTBOTH1 (2026-09-17): a bare run used to build ONLY build/dist, so an edit to
-# public_html followed by a rebuild left build/dist-gcp carrying the old page — and since
-# both dists are committed artifacts the git-connected deploy ships, dist-fresh.sh (the
-# katui "fresh" CI job) went red. That happened twice in one day, to two different sessions,
-# which is a trap in the tool rather than two mistakes. A bare run now builds both; name a
-# variant to build just one.
-# KATOMIA-GCP1: two deployable variants for comparison testing — same page renders, same
-# router; only the Worker name, alias target and dist dir differ, so a front-end-vs-backend
-# issue can be bisected across the pairings. Both dist trees are committed.
+# KATAPP-SPLIT1 (owner 2026-10-19): this is katapp, the Katomia front end split out of
+# phpjabbers with its history. Three differences from the phpjabbers script, all deliberate:
+#   - ONE variant. phpjabbers also built build/dist-gcp (katui-gcp, a comparison rig that was
+#     never deployed); katapp does not carry it, so a bare run builds build/dist and nothing else.
+#   - The Worker's NAME and custom domain come from build/variant.env, which katapp ALWAYS
+#     carries (LAB2-DEPLOY1's hook, made mandatory). Today it names katui-lab1 on
+#     lab1.katomia.com, so nothing built from this repo can deploy over katui (labs), which
+#     stays on phpjabbers as the benchmark until the owner rewires it.
+#   - Keaton (/keaton), the deal pages (/deal) and the V1 archive (/legacy) are not Katomia and
+#     stayed in phpjabbers. They are not copied; router.js hands those paths to the PAGES
+#     service binding (the katui Worker) so this host still answers them identically.
 #   ALIAS=host/path  override the API alias (host+path, scheme-less — HAPI_BASE convention)
 #   ALIAS_SERVICE=x  override the alias WORKER'S NAME for the service binding. This is not
 #                    the hostname and must not be derived from it (see ALIASNAME1 below).
 #   SITE_HOST=…      Host header used for the render (router patches the WC config per request
 #                    anyway; kept for parity with lab22 renders)
 set -euo pipefail
-VARIANT="${1:-both}"
-if [ "$VARIANT" = "both" ]; then
-  # one variant at a time, in this same shell's environment, so a failure in either stops here
-  "$0" katui
-  "$0" gcp
-  echo "✓ both variants built — build/dist and build/dist-gcp"
-  exit 0
-fi
-if [ "$VARIANT" = "gcp" ]; then
-  NAME="katui-gcp"; ALIAS="${ALIAS:-kpay-api-alias-gcp.tayloa17.workers.dev/hapi}"; DIST_NAME="dist-gcp"
-  ALIAS_SERVICE="${ALIAS_SERVICE:-kpay-api-alias-gcp}"
-elif [ "$VARIANT" = "katui" ]; then
+VARIANT="${1:-katui}"
+if [ "$VARIANT" = "katui" ] || [ "$VARIANT" = "both" ]; then   # "both": phpjabbers muscle memory, same thing here
   NAME="katui";     ALIAS="${ALIAS:-api.katomia.com/hapi}";     DIST_NAME="dist"
   ALIAS_SERVICE="${ALIAS_SERVICE:-kpay-api-alias}"
 else
-  echo "unknown variant '$VARIANT' (expected: both | katui | gcp)"; exit 1
+  echo "unknown variant '$VARIANT' (katapp builds one variant: katui, named by build/variant.env)"; exit 1
 fi
 # ALIASNAME1 (2026-09-17): the service-binding name is DECLARED, not derived from the host.
 # It used to be `${ALIAS%%.*}` — "the first label of the alias's workers.dev host" — which was
@@ -54,9 +44,21 @@ fi
 # found` [10143] — silently, because the failure is in Cloudflare's build log and not in CI.
 # A Worker's NAME and the HOSTNAME it answers on are independent, and this script now says so.
 : "${ALIAS_SERVICE:?internal: ALIAS_SERVICE must be set per variant above}"
-SITE_HOST="${SITE_HOST:-$NAME.tayloa17.workers.dev}"
+SITE_HOST="${SITE_HOST:-$NAME.tayloa17.workers.dev}"   # before variant.env renames the Worker: same render as labs
 PORT="${PORT:-8099}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# LAB2-DEPLOY1 / KATAPP-SPLIT1: build/variant.env names the Worker this checkout deploys as, its
+# custom domain, and the Worker that serves what katapp does not carry (PAGES_SERVICE). Missing
+# file = refuse: a katapp build named plain "katui" would be one git connection away from
+# deploying over labs.
+[ -f "$ROOT/build/variant.env" ] || { echo "build/variant.env missing — it names the Worker this repo deploys as (see README)"; exit 1; }
+KATUI_NAME=""; KATUI_DOMAIN=""; PAGES_SERVICE=""
+# shellcheck disable=SC1091
+. "$ROOT/build/variant.env"
+NAME="${KATUI_NAME:?build/variant.env must set KATUI_NAME}"
+PAGES_SERVICE="${PAGES_SERVICE:-katui}"
+[ "$PAGES_SERVICE" = "$NAME" ] && { echo "PAGES_SERVICE=$PAGES_SERVICE is this Worker itself — the hand-through would loop"; exit 1; }
+echo "→ variant.env: Worker $NAME${KATUI_DOMAIN:+ on $KATUI_DOMAIN}; /keaton /deal /legacy handed to $PAGES_SERVICE"
 PUB="$ROOT/public_html"; DIST="$ROOT/build/$DIST_NAME"; SRC="http://127.0.0.1:$PORT"
 KWC_SNAP="4a3351b"   # KWC-CLEANBUILD1 bundle (see vendor/walletconnect/kwcScriptTag.php)
 
@@ -99,7 +101,7 @@ render(){ # $1 = source path, $2 = dist file
 
 # ── keep the committed KWC bundle when the shared store isn't on this box ─────────
 STASH="$(mktemp -d)"
-for d in "$DIST" "$ROOT/build/dist" "$ROOT/build/dist-gcp"; do
+for d in "$DIST" "$ROOT/build/dist"; do
   # KWC-SNAPMETA2 (2026-09-05): require a COMPLETE snapshot, not merely a directory. The
   # old test took the first dist that had the folder at all, so a dist holding only
   # kwc.iife.js became the stash source and re-propagated the loss to every later build —
@@ -167,40 +169,10 @@ copytree m/tools/glog 2>/dev/null || true
 copytree assets/css; copytree assets/js
 copytree vendor/bootstrap; copytree vendor/jquery; copytree future
 
-# SIGNER-VIEW1: /keaton is a plain static page (no PHP) — the Keaton dashboard, its help and
-# its notes. copytree takes only asset extensions, so the pages themselves are copied here.
-# KEATON-HOME1 (2026-09-21): it used to be /future/v3; the router 301s every old address.
-# NOTES-CHROME1 (2026-09-17): copy the WHOLE tree, not a hand-kept list of three files.
-# It used to name index.html, help/ and help/business/ one line each, so a new page under
-# the dashboard was written, committed, and silently never shipped — the same shape of trap
-# as the one-variant build. The router matches /keaton/notes/<slug>/ as a pattern for the
-# same reason: adding a page should be a directory, and nothing else.
-# widget.json is GENERATED below and deliberately overwrites whatever the copy brought.
-# LEGACY-DEALS1: the V1 deal archive lookup at /legacy/deals/. A plain static page (no PHP),
-# copied whole for the same reason as /keaton above — a new file under it should ship without
-# anyone remembering to edit this script. It is deliberately NOT linked from any other page.
-mkdir -p "$DIST/legacy"
-cp -R "$PUB/legacy/." "$DIST/legacy/"
-
-# DEALPAGE1: /deal/ — the deal lookup, copied whole for the same reason as /keaton below.
-mkdir -p "$DIST/deal"
-cp -R "$PUB/deal/." "$DIST/deal/"
-
-mkdir -p "$DIST/keaton"
-cp -R "$PUB/keaton/." "$DIST/keaton/"
-# The signer view mounts the REAL signing widget when a row is tapped. It asks this file
-# where the widget is rather than hard-coding it, which is what lets the same page run on a
-# host that has no widget (it falls back to opening the signing page). The WalletConnect
-# snapshot hash is only known here, so it is written in rather than committed stale.
-cat > "$DIST/keaton/widget.json" <<WJSON
-{
-  "widget": "/vendor/kpay/kpool_widget/bootstrap.js",
-  "localbase": "/m/bid/localbase.min.js",
-  "wc": "/vendor/walletconnect/snapshots/$KWC_SNAP/kwc.iife.js",
-  "wcConfig": "/vendor/walletconnect/config.json",
-  "signPage": "/m/sign/"
-}
-WJSON
+# KATAPP-SPLIT1: /keaton (the Keaton dashboard and its widget.json), /deal and /legacy are NOT
+# copied — they are not Katomia and stayed in phpjabbers. router.js hands those paths to the
+# PAGES service binding (PAGES_SERVICE in build/variant.env) so this host answers them exactly
+# as labs does, from the Worker that still builds them.
 # SIGNPAGE-KBM1 (2026-09-05): vendor/kbuild-monitor.js is a loose file directly under
 # vendor/, so no copytree above reaches it — and kpool_widget/bootstrap.js TOP-LEVEL imports
 # it. A missing module there rejects the whole bootstrap, so index.js never runs, window.KPOOL
@@ -277,8 +249,15 @@ run_worker_first = ["/vendor/walletconnect/config.json"]
 binding = "HAPI"
 service = "$ALIAS_SERVICE"
 
+# KATAPP-SPLIT1: /keaton, /deal and /legacy are handed to the Worker that still builds them
+# (router.js, PAGES) — katapp does not carry those pages.
+[[services]]
+binding = "PAGES"
+service = "$PAGES_SERVICE"
+
 [vars]
 ALIAS_ORIGIN = "https://${ALIAS%%/*}"
+$( [ -n "$KATUI_DOMAIN" ] && printf '\n# LAB2-DEPLOY1: wrangler attaches the custom domain on deploy (zone on the same account)\nroutes = [{ pattern = "%s", custom_domain = true }]\n' "$KATUI_DOMAIN" )
 WT
 
 echo "→ .assetsignore (keep Worker config + wrangler's own droppings out of the PUBLIC bundle:"

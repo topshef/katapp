@@ -7,7 +7,7 @@
 // a local reducer behind a fake socket, no backend, no network). Real pointer input; an
 // offer is made by an actual drag, the board's own amount modal and its Offer button.
 //
-//   node qa/board/run.mjs            DIST=build/dist-gcp node qa/board/run.mjs
+//   node qa/board/run.mjs            DIST=<another dist> node qa/board/run.mjs
 import { chromium } from 'playwright'
 import { readFileSync } from 'node:fs'
 import { createServer } from 'node:http'
