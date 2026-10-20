@@ -13,7 +13,7 @@ katapp was split out of `topshef/phpjabbers` on 2026-10-19 with its history. See
 
 | Host | Worker | Built from | Backend |
 | --- | --- | --- | --- |
-| `lab1.katomia.com` | `katui-lab1` | this repo, branch `lab1`, root `build/dist` | `api.katomia.com` → hapi8 |
+| `lab1.katomia.com` | `katui-lab1` | this repo, branch `lab1`, root `build/dist` (git connection moved here from phpjabbers by the owner, 2026-10-20) | `api.katomia.com` → hapi8 |
 | `labs.katomia.com` | `katui` | **still phpjabbers** `pilot` — the benchmark, deliberately untouched | same |
 
 Both hosts reach the same backend through the same API alias Worker (`kpay-api-alias`,
