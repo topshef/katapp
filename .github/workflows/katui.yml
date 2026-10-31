@@ -59,7 +59,10 @@ jobs:
         run: bash build/dist-fresh.sh
 
   sign:
-    runs-on: ubuntu-latest
+    # CI-UBUNTU2604 (2026-10-31): ubuntu-latest moved to 26.04, which Playwright 1.58.2 cannot
+    # install a browser on ("does not support chromium on ubuntu26.04-x64"); pinned until the
+    # suites' playwright is bumped to a version that supports it.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -77,7 +80,10 @@ jobs:
         run: node qa/sign/run.mjs
 
   board:
-    runs-on: ubuntu-latest
+    # CI-UBUNTU2604 (2026-10-31): ubuntu-latest moved to 26.04, which Playwright 1.58.2 cannot
+    # install a browser on ("does not support chromium on ubuntu26.04-x64"); pinned until the
+    # suites' playwright is bumped to a version that supports it.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
