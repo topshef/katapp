@@ -157,7 +157,7 @@ window.KTERMS = <?= json_encode($T, JSON_UNESCAPED_UNICODE) ?>;
 // local copy rather than shared: this page is an explicit playground for renaming and
 // re-presenting, and the user does NOT want that experimentation reaching the markets
 // grid. If the two ever settle on the same presentation, factor it out then.
-const API_URL = "<?= $katomiaBase ?>/hapi/games"
+const API_URL = "<?= $katomiaApi ?>/games"
 
 const displayLookup = {
   tradingMode: { proposal: "💡 Proposal", orderBook: "📊 Order Book", debug: "🛠️ debug" },

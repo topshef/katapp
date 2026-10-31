@@ -13,8 +13,14 @@ katapp was split out of `topshef/phpjabbers` on 2026-10-19 with its history. See
 
 | Host | Worker | Built from | Backend |
 | --- | --- | --- | --- |
-| `lab1.katomia.com` | `katui-lab1` | this repo, branch `lab1`, root `build/dist` (git connection moved here from phpjabbers by the owner, 2026-10-20) | `api.katomia.com` → hapi8 |
-| `labs.katomia.com` | `katui` | **still phpjabbers** `pilot` — the benchmark, deliberately untouched | same |
+| `lab1.katomia.com` (Katomia at `/`) | `katui-lab1` | this repo, branch `lab1`, root `build/dist` (git connection moved here from phpjabbers by the owner, 2026-10-20) | `api.katomia.com` → hapi8 |
+| `labs.katomia.com` (Katomia at `/m/katomia/`) | `katui` | **still phpjabbers** `pilot` — the benchmark, deliberately untouched | same |
+
+**The two hosts differ on purpose (ROOT-MOVE1, 2026-10-31):** lab1 serves Katomia at the
+hostname root (`lab1.katomia.com/board/t-trio`); labs still serves it under `/m/katomia/`
+(`labs.katomia.com/m/katomia/board/t-trio`). On lab1 every old `/m/katomia/…` page address
+redirects to the root form, and the old API and file addresses keep answering, so links shared
+before the move still open. See `build/router.js` for the map.
 
 Both hosts reach the same backend through the same API alias Worker (`kpay-api-alias`,
 service binding `HAPI`), so lab1 and labs can be compared like for like. `app.katomia.com`
@@ -45,8 +51,9 @@ They are copies, not links. Either side can change without the other; if one is 
 as its own package, both would pull it in.
 
 Not here, by design: Keaton (`/keaton`), the deal pages (`/deal`), the V1 archive (`/legacy`)
-and the GoMint shop. The router hands `/keaton`, `/deal`, `/legacy` and `/future/v3` to the
-`PAGES` service binding (the `katui` Worker), so lab1 answers them exactly as labs does.
+and the GoMint shop (`/deals`). The router hands `/keaton`, `/deal`, `/deals`, `/legacy`,
+`/future/v3` and `/assets/js/page-feedback.js` to the `PAGES` service binding (the `katui`
+Worker), so lab1 answers them exactly as labs does.
 
 ## Build and test
 

@@ -3,24 +3,41 @@
 // URLs people already share keep working on Cloudflare, plus shims for the lab22 PHP
 // endpoints the static bundle lost (KATUI-SHIMS1). Route map:
 //
+//  ROOT-MOVE1 (owner 2026-10-31): katapp serves Katomia at the hostname ROOT. The files still
+//  live under m/katomia/ in the bundle (so the old addresses keep their files); the URLs drop it.
 //  page routes (clean URL → rendered shell; the shell's JS reads ids from the URL)
-//   /, /m, /m/                         → 302 /m/katomia/
-//   /m/katomia/, /m/katomia/welcome    → index.html   (?skin=liquid|clay|bubble → index-<skin>.html)
-//   /m/katomia/markets|circles|learn|host|create|binding|advisor → <name>.html
+//   /, /welcome                        → m/katomia/index.html   (?skin=liquid|clay|bubble → index-<skin>.html)
+//   /markets|circles|learn|host|create|binding|advisor → m/katomia/<name>.html
 //                                        (create?skin=basic → create-basic.html)
-//   /m/katomia/game/<id>               → game.html
-//   /m/katomia/board/<id>              → board.html
-//   /m/katomia/KEA/                    → KEA/index.html   (KEA-WEB1: the signer's web app; /KEA and /kea/ redirect)
-//   /m/katomia/qa/                     → qa/index.html   (/qa and /m/katomia/qa 302 → the slash
-//                                        form, so the dashboard's relative data/… fetches resolve)
-//  sibling assets (pages use RELATIVE asset paths; under /game/<id> and /board/<id> the
-//  browser resolves them one level deep, so rewrite back to the /m/katomia/ sibling)
+//   /game/<id>                         → m/katomia/game.html
+//   /board/<id>                        → m/katomia/board.html
+//   /KEA/                              → m/katomia/KEA/index.html (KEA-WEB1; /KEA and /kea/ redirect)
+//   /qa/                               → m/katomia/qa/index.html  (/qa redirects to the slash form,
+//                                        so the dashboard's relative data/… fetches resolve)
+//   /m, /m/                            → 302 /
+//  the old page addresses (shared links, QR codes, bookmarks, advisor answers) → the same path
+//  without /m/katomia, query kept: /m/katomia/board/t-trio → /board/t-trio. 302 while lab1 is
+//  on trial — a browser caches a 301 for good, and with a rollback to the old layout (which
+//  sends / to /m/katomia/) that cached 301 would loop. Flip OLDPAGE_CODE to 301 once it holds.
+//   /m/katomia[/], /m/katomia/<page>, /m/katomia/(game|board)[/<id>], /m/katomia/KEA…, /m/katomia/qa[/],
+//   /m/katomia/binding.php             → OLDPAGE_CODE to the root form
+//  files: pages use RELATIVE asset paths, so at the root they ask for /katomia-core.js,
+//  /assets/katomia-ring.svg, /KEA/kea-app.js, /qa/data/tests.json … Anything the bundle does not
+//  have at the root is looked up under m/katomia/ (the fetch fallback at the bottom). Old
+//  /m/katomia/<file> addresses are still real files, so a page cached before the move works.
+//  sibling assets (under /game/<id> and /board/<id> the browser resolves relative paths one
+//  level deep, so rewrite back to the m/katomia/ sibling — at the root and at the old prefix)
+//   /(game|board)/<file>.<ext>         → /m/katomia/<file>.<ext>
 //   /m/katomia/(game|board)/<file>.<ext> → /m/katomia/<file>.<ext>
 //  API — everything below is forwarded to the kpay-api-alias Worker over the HAPI SERVICE
 //  BINDING (Workers cannot fetch sibling *.workers.dev URLs on the same account, error 1042).
 //  The alias maps /hapi/<path> → <BACKEND_ORIGIN>/<path>.
 //   /m/katomia/hapi/<x>                → /hapi/katomia/<x>   (.htaccess ^hapi/… → hapi.php → /katomia/<x>)
 //   /m/katomia/hapi.php?action=X&qs    → /hapi/katomia/X?qs  (lab22 hapi.php convention, default create)
+//   /hapi.php?action=X&qs              → /hapi/katomia/X?qs  (ROOT-MOVE1: KBASE + "/hapi.php" at the root.
+//                                        The old /m/katomia API paths keep SERVING, never redirect:
+//                                        a redirect turns a POST into a GET, so a cached page's call
+//                                        would silently fail. Pages at the root call /hapi/katomia/<x>.)
 //   /keaton/, /keaton/help/, /keaton/notes/<slug>/   → the Keaton dashboard and its notes
 //   /future/v3…                        → 301 /keaton…      (KEATON-HOME1: the old home)
 //   /future/?action=X&qs               → /hapi/kpool/X?qs    (lab22 future/kpool.php; board signing
@@ -49,19 +66,28 @@
 //     serving origin (what vendor/walletconnect/config.php does per request on lab22)
 //
 //  hand-through (KATAPP-SPLIT1) — pages that are not Katomia and stayed in phpjabbers
-//   /keaton…, /deal…, /legacy…, /future/v3…  → env.PAGES (the Worker that still builds them),
+//   /keaton…, /deal…, /deals…, /legacy…, /future/v3…, /assets/js/page-feedback.js
+//                                            → env.PAGES (the Worker that still builds them),
 //                                               request unchanged; checked before route()
 //
 // Everything else is served straight from assets (html_handling = none: no auto redirects,
 // so an asset named board.html never captures /board/<id> — that bit KATUI-HOME1).
 
 const K = '/m/katomia';
+// ROOT-MOVE1: how the old /m/katomia page addresses redirect to the root. 302 during the lab1
+// trial (see the route map); 301 once the owner keeps the root layout.
+const OLDPAGE_CODE = 302;
+// the old page addresses, matched whole; the redirect target is the same path without K
+const OLDPAGE = /^\/m\/katomia(?:\/?|\/(?:welcome|markets|circles|learn|host|create|binding|advisor)\/?|\/(?:game|board)(?:\/[^/.]+)?\/?|\/(?:KEA|kea)(?:\/|\/index\.php|\/app\.html)?|\/qa\/?|\/binding\.php)$/;
 // KATAPP-SPLIT1 (owner 2026-10-19): katapp is the Katomia front end alone. Keaton (/keaton and
 // its old home /future/v3), the deal pages (/deal) and the V1 archive (/legacy) stayed in
 // phpjabbers, so this Worker hands those paths, request unchanged, to the PAGES service binding —
 // the Worker that still builds them — and the host answers them exactly as labs does. With no
 // binding (local harnesses) they fall through to route() and 404 on the files katapp lacks.
-const HANDTHROUGH = /^\/(?:keaton|deal|legacy)(?:\/|$)|^\/future\/v3(?:\/|$)/;
+// ROOT-MOVE1 (2026-10-31): plus what phpjabbers gained after the split, so lab1 answers every
+// path labs does — /deals (SHOP-KBAR1, the GoMint shop) and /assets/js/page-feedback.js
+// (FEEDBACK-TAG1, the feedback tag the handed-through pages load from THIS origin).
+const HANDTHROUGH = /^\/(?:keaton|deal|deals|legacy)(?:\/|$)|^\/future\/v3(?:\/|$)|^\/assets\/js\/page-feedback\.js$/;
 export const handThrough = (url) => HANDTHROUGH.test(url.pathname);
 const PAGES = new Set(['welcome', 'markets', 'circles', 'learn', 'host', 'create', 'binding', 'advisor']);
 const LANDING_SKINS = new Set(['liquid', 'clay', 'bubble']);
@@ -70,8 +96,8 @@ const LANDING_SKINS = new Set(['liquid', 'clay', 'bubble']);
 const KHAPI = /^\/m\/katomia\/hapi\/([A-Za-z0-9/_-]+)\/?$/;
 const RHAPI = /^\/hapi\/([A-Za-z0-9/_-]+)\/?$/;
 const ACTION = /^[A-Za-z0-9_-]+$/;
-const SIBLING = /^\/m\/katomia\/(?:game|board)\/(.+\.[^/]+)$/;       // …/game/<any>.<ext>
-const IDPAGE = /^\/m\/katomia\/(game|board)(?:\/([^/.]+))?\/?$/;     // game, board, or …/<id>
+const SIBLING = /^(?:\/m\/katomia)?\/(?:game|board)\/(.+\.[^/]+)$/;   // [/m/katomia]/game/<any>.<ext>
+const IDPAGE = /^\/(game|board)(?:\/([^/.]+))?\/?$/;                  // game, board, or …/<id> (ROOT-MOVE1: at the root)
 // The kpool widget's txRead is hardcoded to this absolute path (model.js), which lab22
 // served via m/bid/explore/.htaccess `^kpool$ -> kpool.php` -> <backend>/kpool/<action>.
 // Missing it cost a real signing flow: the tx signs and submits fine, but the status
@@ -168,22 +194,24 @@ export function route(url) {
   // | { kind: 'empty' } | { kind: 'bad' } | null (plain asset)
   const p = url.pathname;
   let m;
-  if (p === '/' || p === '/m' || p === '/m/') return { kind: 'redirect', to: K + '/' };
-  if (p === K || p === K + '/' || p === K + '/welcome' || p === K + '/welcome/') {
+  // ROOT-MOVE1: Katomia's pages at the root; every old /m/katomia page address redirects there
+  if (p === '/m' || p === '/m/') return { kind: 'redirect', to: '/' };
+  if (OLDPAGE.test(p)) return { kind: 'redirect', to: p.slice(K.length) || '/', code: OLDPAGE_CODE };
+  if (p === '/' || p === '/welcome' || p === '/welcome/') {
     const skin = url.searchParams.get('skin');
     return { kind: 'asset', path: K + (skin && LANDING_SKINS.has(skin) ? `/index-${skin}.html` : '/index.html') };
   }
-  if ((m = p.match(/^\/m\/katomia\/([a-z]+)\/?$/)) && PAGES.has(m[1])) {
+  if ((m = p.match(/^\/([a-z]+)\/?$/)) && PAGES.has(m[1])) {
     if (m[1] === 'create' && url.searchParams.get('skin') === 'basic') return { kind: 'asset', path: K + '/create-basic.html' };
     return { kind: 'asset', path: K + `/${m[1]}.html` };
   }
-  if (p === '/qa' || p === '/qa/' || p === K + '/qa') return { kind: 'redirect', to: K + '/qa/' };
-  if (p === K + '/qa/') return { kind: 'asset', path: K + '/qa/index.html' };
+  if (p === '/qa') return { kind: 'redirect', to: '/qa/' };
+  if (p === '/qa/') return { kind: 'asset', path: K + '/qa/index.html' };
   // KEA-WEB1: the KEA web app (the browser body of the signer) — index.php renders to KEA/index.html
-  if (p === K + '/KEA' || p === K + '/kea' || p === K + '/kea/') return { kind: 'redirect', to: K + '/KEA/' };
-  if (p === K + '/KEA/' || p === K + '/KEA/index.php' || p === K + '/KEA/app.html') return { kind: 'asset', path: K + '/KEA/index.html' };
+  if (p === '/KEA' || p === '/kea' || p === '/kea/') return { kind: 'redirect', to: '/KEA/' };
+  if (p === '/KEA/' || p === '/KEA/index.php' || p === '/KEA/app.html') return { kind: 'asset', path: K + '/KEA/index.html' };
   if ((m = p.match(KHAPI))) return { kind: 'alias', path: '/hapi/katomia/' + m[1] };
-  if (p === K + '/hapi.php') return actionRoute(url, '/hapi/katomia/', 'create');   // 'create' = hapi.php's own default
+  if (p === K + '/hapi.php' || p === '/hapi.php') return actionRoute(url, '/hapi/katomia/', 'create');   // 'create' = hapi.php's own default
   // SIGNER-VIEW1: the dashboard, a plain static page, and its help and notes.
   // KEATON-HOME1: its old home under /future/v3 redirects here PERMANENTLY — matched before
   // everything else it could fall into, SIGNPAGE's /future prefix included. /future/v3/convert
@@ -218,14 +246,14 @@ export function route(url) {
     ? actionRoute(url, '/hapi/legacy/', '')
     : { kind: 'asset', path: '/legacy/deals/index.html' };
   if (SIGNPAGE.test(p)) return url.searchParams.has('action') ? actionRoute(url, '/hapi/kpool/', '') : { kind: 'asset', path: '/m/sign/index.html' };
-  if (p === K + '/binding.php') return { kind: 'asset', path: K + '/binding.html' };
+  if (p === '/binding.php') return { kind: 'asset', path: K + '/binding.html' };   // ROOT-MOVE1 (the old address redirects above)
   if (/^\/m\/feedback(?:\/|\/index\.php)?$/.test(p)) return { kind: 'asset', path: '/m/feedback/index.html' };   // widget fallback link
   if (p === '/assets/css/style.css.php') return { kind: 'asset', path: '/assets/css/style.php.css' };
   if (KPOOL.test(p)) return actionRoute(url, '/hapi/kpool/', 'txList');
   if ((m = p.match(RHAPI))) return { kind: 'alias', path: '/hapi/' + m[1] };
   if (p === '/feedback-widget.js' || p.startsWith('/kfeedback')) return { kind: 'alias', path: p };
   if (p === '/diag') return { kind: 'alias', path: '/hapi/diag' };
-  if (p === '/m/katomia/qa/results.php') return { kind: 'alias', path: '/hapi/qa/results' };   // QA-EVENTS1: kwallet.html's verdict feed, now served by the backend   // DIAG-SINK1: client diag beacons → backend data/diag
+  if (p === '/m/katomia/qa/results.php' || p === '/qa/results.php') return { kind: 'alias', path: '/hapi/qa/results' };   // QA-EVENTS1: kwallet.html's verdict feed, now served by the backend   // DIAG-SINK1: client diag beacons → backend data/diag
   if (p === '/kflow') return { kind: 'empty' };
   if ((m = p.match(GLOG))) return { kind: 'asset', path: '/m/tools/glog/src/' + m[1] };
   if ((m = p.match(SIBLING))) return { kind: 'asset', path: K + '/' + m[1] };
@@ -239,7 +267,14 @@ export default {
     const url = new URL(request.url);
     if (env.PAGES && handThrough(url)) return env.PAGES.fetch(request);   // KATAPP-SPLIT1
     const r = route(url);
-    if (!r) return env.ASSETS.fetch(request);
+    if (!r) {
+      const res = await env.ASSETS.fetch(request);
+      // ROOT-MOVE1: a file the bundle does not have at the root is Katomia's, from a page at the
+      // root asking relatively (/katomia-core.js, /assets/katomia-ring.svg, /KEA/kea-app.js,
+      // /qa/data/tests.json). Not under /m/: those are real prefixes with their own files.
+      if (res.status !== 404 || url.pathname.startsWith('/m/')) return res;
+      return asset(env, request, url, K + url.pathname);
+    }
     switch (r.kind) {
       case 'redirect': return Response.redirect(new URL(r.to + url.search, url), r.code || 302);
       case 'asset':    return asset(env, request, url, r.path);

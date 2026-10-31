@@ -304,7 +304,7 @@
           <details class="kpref-tuner">
             <summary>⚙ Entry transition — my settings</summary>
             <p>Overrides the <?= htmlspecialchars((function_exists('katomiaTerms') ? katomiaTerms() : ['one' => 'circle'])['one'], ENT_QUOTES, 'UTF-8') ?>-entry bubble <b>for this browser only</b>. Same knob names as the
-              <a href="<?= $katomiaBase ?? '/m/katomia' ?>/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
+              <a href="<?= $katomiaBase ?? '' ?>/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
             <textarea id="kprefTuneBox" spellcheck="false" placeholder='{ "ms": 800, "style": "iridescent" }'></textarea>
             <div class="kpref-tuner-row">
               <button type="button" id="kprefTuneApply">▶ Apply</button>

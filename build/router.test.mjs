@@ -6,25 +6,77 @@ import assert from 'node:assert/strict';
 
 const O = 'https://katui.example';
 const A = path => ({ kind: 'asset', path });
+const R = to => ({ kind: 'redirect', to, code: 302 });   // ROOT-MOVE1: an old page address → the root
 const cases = [
-  ['/',                                   { kind: 'redirect', to: '/m/katomia/' }],
-  ['/m/katomia',                          A('/m/katomia/index.html')],
-  ['/m/katomia/',                         A('/m/katomia/index.html')],
-  ['/m/katomia/welcome',                  A('/m/katomia/index.html')],
-  ['/m/katomia/?skin=clay',               A('/m/katomia/index-clay.html')],
-  ['/m/katomia/?skin=nope',               A('/m/katomia/index.html')],
-  ['/m/katomia/markets',                  A('/m/katomia/markets.html')],
-  ['/m/katomia/circles/',                 A('/m/katomia/circles.html')],
-  ['/m/katomia/learn',                    A('/m/katomia/learn.html')],
-  ['/m/katomia/host',                     A('/m/katomia/host.html')],
-  ['/m/katomia/create',                   A('/m/katomia/create.html')],
-  ['/m/katomia/create?skin=basic',        A('/m/katomia/create-basic.html')],
-  ['/m/katomia/create/?skin=basic&x=1',   A('/m/katomia/create-basic.html')],
-  ['/m/katomia/binding?network=testnet',  A('/m/katomia/binding.html')],
-  ['/qa',                                 { kind: 'redirect', to: '/m/katomia/qa/' }],
-  ['/m/katomia/qa',                       { kind: 'redirect', to: '/m/katomia/qa/' }],
-  ['/m/katomia/qa/',                      A('/m/katomia/qa/index.html')],
+  // ROOT-MOVE1 (owner 2026-10-31): Katomia at the hostname root
+  ['/',                                   A('/m/katomia/index.html')],
+  ['/welcome',                            A('/m/katomia/index.html')],
+  ['/?skin=clay',                         A('/m/katomia/index-clay.html')],
+  ['/?skin=nope',                         A('/m/katomia/index.html')],
+  ['/markets',                            A('/m/katomia/markets.html')],
+  ['/circles/',                           A('/m/katomia/circles.html')],
+  ['/learn',                              A('/m/katomia/learn.html')],
+  ['/host',                               A('/m/katomia/host.html')],
+  ['/advisor',                            A('/m/katomia/advisor.html')],
+  ['/create',                             A('/m/katomia/create.html')],
+  ['/create?skin=basic',                  A('/m/katomia/create-basic.html')],
+  ['/create/?skin=basic&x=1',             A('/m/katomia/create-basic.html')],
+  ['/binding?network=testnet',            A('/m/katomia/binding.html')],
+  ['/binding.php?network=testnet&accountId=0.0.1879', A('/m/katomia/binding.html')],
+  ['/qa',                                 { kind: 'redirect', to: '/qa/' }],
+  ['/qa/',                                A('/m/katomia/qa/index.html')],
+  ['/qa/tests.html',                      null],                         // the fetch falls back to m/katomia/
+  ['/qa/results.php?days=14',             { kind: 'alias', path: '/hapi/qa/results' }],
+  ['/m',                                  { kind: 'redirect', to: '/' }],
+  ['/m/',                                 { kind: 'redirect', to: '/' }],
+  ['/KEA',                                { kind: 'redirect', to: '/KEA/' }],   // KEA-WEB1
+  ['/kea/',                               { kind: 'redirect', to: '/KEA/' }],
+  ['/KEA/',                               A('/m/katomia/KEA/index.html')],
+  ['/KEA/app.html',                       A('/m/katomia/KEA/index.html')],
+  ['/KEA/kea-app.js',                     null],                         // the fetch falls back to m/katomia/
+  ['/game/AbC123',                        A('/m/katomia/game.html')],
+  ['/game/AbC123/',                       A('/m/katomia/game.html')],
+  ['/board/AbC123',                       A('/m/katomia/board.html')],
+  ['/board/t-prop~3',                     A('/m/katomia/board.html')],
+  ['/board',                              A('/m/katomia/board.html')],
+  // sibling rewrite: a relative "kemoji.js" on /board/<id> resolves to /board/kemoji.js
+  // (ONE segment deep — P3 router fix 8b60244)
+  ['/board/kemoji.js',                    A('/m/katomia/kemoji.js')],
+  ['/game/katomia.css?v=1',               A('/m/katomia/katomia.css')],
+  ['/game/assets/k.svg',                  A('/m/katomia/assets/k.svg')],
+  ['/katomia-core.js?v=1',                null],                         // the fetch falls back to m/katomia/
+  ['/nope',                               null],
+  ['/hapi.php?action=assets',             { kind: 'alias', path: '/hapi/katomia/assets', search: '' }],
+  ['/hapi.php?action=authenticate&x=1',   { kind: 'alias', path: '/hapi/katomia/authenticate', search: '?x=1' }],
+  ['/hapi.php?action=a.b',                { kind: 'bad' }],
+  ['/hapi/katomia/games',                 { kind: 'alias', path: '/hapi/katomia/games' }],
+  // every old page address redirects to the same path without /m/katomia (the Worker keeps the
+  // query); 302 during the lab1 trial, see OLDPAGE_CODE
+  ['/m/katomia',                          R('/')],
+  ['/m/katomia/',                         R('/')],
+  ['/m/katomia/welcome',                  R('/welcome')],
+  ['/m/katomia/?skin=clay',               R('/')],
+  ['/m/katomia/markets',                  R('/markets')],
+  ['/m/katomia/circles/',                 R('/circles/')],
+  ['/m/katomia/create?skin=basic',        R('/create')],
+  ['/m/katomia/advisor',                  R('/advisor')],
+  ['/m/katomia/binding.php?network=testnet&accountId=0.0.1879', R('/binding.php')],
+  ['/m/katomia/qa',                       R('/qa')],
+  ['/m/katomia/qa/',                      R('/qa/')],
+  ['/m/katomia/KEA',                      R('/KEA')],
+  ['/m/katomia/kea/',                     R('/kea/')],
+  ['/m/katomia/KEA/',                     R('/KEA/')],
+  ['/m/katomia/KEA/app.html',             R('/KEA/app.html')],
+  ['/m/katomia/game/AbC123',              R('/game/AbC123')],
+  ['/m/katomia/board/t-trio',             R('/board/t-trio')],
+  ['/m/katomia/board',                    R('/board')],
+  // ...but the old FILES and API stay where they were, so a page cached before the move works
   ['/m/katomia/qa/tests.html',            null],                         // plain asset
+  ['/m/katomia/KEA/kea-app.js',           null],
+  ['/m/katomia/board/kemoji.js',          A('/m/katomia/kemoji.js')],
+  ['/m/katomia/game/katomia.css?v=1',     A('/m/katomia/katomia.css')],
+  ['/m/katomia/game/assets/k.svg',        A('/m/katomia/assets/k.svg')],
+  ['/m/katomia/qa/results.php?days=14',   { kind: 'alias', path: '/hapi/qa/results' }],
   ['/deal',                               { kind: 'redirect', to: '/deal/' }],            // DEALPAGE1
   ['/deal/',                              A('/deal/index.html')],
   ['/deal/?id=0c516f',                    A('/deal/index.html')],
@@ -38,20 +90,6 @@ const cases = [
   ['/deal/edit/?id=0c516f',               A('/deal/edit/index.html')],
   ['/deal/edit/spec',                     { kind: 'redirect', to: '/deal/edit/spec/' }],
   ['/deal/edit/spec/',                    A('/deal/edit/spec/index.html')],
-  ['/m/katomia/KEA',                      { kind: 'redirect', to: '/m/katomia/KEA/' }],   // KEA-WEB1
-  ['/m/katomia/kea/',                     { kind: 'redirect', to: '/m/katomia/KEA/' }],
-  ['/m/katomia/KEA/',                     A('/m/katomia/KEA/index.html')],
-  ['/m/katomia/KEA/app.html',             A('/m/katomia/KEA/index.html')],
-  ['/m/katomia/KEA/kea-app.js',           null],                         // plain asset
-  ['/m/katomia/game/AbC123',              A('/m/katomia/game.html')],
-  ['/m/katomia/game/AbC123/',             A('/m/katomia/game.html')],
-  ['/m/katomia/board/AbC123',             A('/m/katomia/board.html')],
-  ['/m/katomia/board',                    A('/m/katomia/board.html')],
-  // sibling rewrite: a relative "kemoji.js" on /m/katomia/board/<id> resolves to
-  // /m/katomia/board/kemoji.js (ONE segment deep — P3 router fix 8b60244)
-  ['/m/katomia/board/kemoji.js',          A('/m/katomia/kemoji.js')],
-  ['/m/katomia/game/katomia.css?v=1',     A('/m/katomia/katomia.css')],
-  ['/m/katomia/game/assets/k.svg',        A('/m/katomia/assets/k.svg')],
   // same-origin API: /m/katomia/hapi/<x> is the .htaccess hapi rule → backend /katomia/<x>
   ['/m/katomia/hapi/create',              { kind: 'alias', path: '/hapi/katomia/create' }],
   ['/m/katomia/hapi/circle/update',       { kind: 'alias', path: '/hapi/katomia/circle/update' }],
@@ -86,12 +124,10 @@ const cases = [
                                           { kind: 'alias', path: '/hapi/kpool/txList', search: '?network=testnet&since=600&until=600' }],
   ['/m/sign/?action=txSave',              { kind: 'alias', path: '/hapi/kpool/txSave', search: '' }],
   ['/m/signs/',                           null],
-  ['/m/katomia/binding.php?network=testnet&accountId=0.0.1879', A('/m/katomia/binding.html')],
   ['/m/feedback/?product=katomia',        A('/m/feedback/index.html')],
   ['/m/feedback',                         A('/m/feedback/index.html')],
   ['/assets/css/style.css.php?1788180897', A('/assets/css/style.php.css')],
   ['/diag',                               { kind: 'alias', path: '/hapi/diag' }],
-  ['/m/katomia/qa/results.php?days=14',   { kind: 'alias', path: '/hapi/qa/results' }],
   ['/kflow',                              { kind: 'empty' }],
   ['/m/tools/glog/latest/glog.js',        A('/m/tools/glog/src/glog.js')],
   ['/feedback-widget.js',                 { kind: 'alias', path: '/feedback-widget.js' }],
@@ -135,8 +171,9 @@ console.log(`router: ${n}/${cases.length} route cases OK`);
 // KATAPP-SPLIT1: what goes to the PAGES Worker — the three prefixes that stayed in phpjabbers,
 // whole segments only, and nothing Katomia uses (its signing page, widget, feedback, API shims)
 const handed = ['/keaton', '/keaton/', '/keaton/notes/bots/', '/deal', '/deal/convert/?id=1', '/deal/edit/spec/',
+  '/deals', '/deals/', '/deals/kbar/', '/deals/index.json', '/assets/js/page-feedback.js',   // ROOT-MOVE1: added to phpjabbers after the split
   '/legacy/deals/', '/legacy/deals/?action=status', '/future/v3', '/future/v3/help/'];
-const kept = ['/', '/m/katomia/', '/m/katomia/board/t-trio', '/m/sign/', '/future/', '/future/?action=txRead',
+const kept = ['/', '/m/katomia/', '/m/katomia/board/t-trio', '/board/t-trio', '/circles', '/dealsx', '/assets/js/page-feedback.jsx', '/assets/js/x.js', '/dealer', '/m/sign/', '/future/', '/future/?action=txRead',
   '/m/bid/explore/kpool', '/m/feedback/', '/hapi/kpool/txList', '/dealer', '/keatonx', '/legacyx', '/future/v30',
   '/vendor/walletconnect/config.json', '/m/katomia/deal'];
 for (const p of handed) assert.equal(handThrough(new URL(O + p)), true, `handThrough(${p}) should be true`);

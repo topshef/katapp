@@ -21,6 +21,16 @@ if (!function_exists('katomiaSiteConfig')) {
 // PHP uses $katomiaBase, JS uses KBASE (katomia-core.js) or the same
 // location.pathname test inline on core-less pages.
 $katomiaBase = (realpath($_SERVER['DOCUMENT_ROOT'] ?? '') === __DIR__) ? '' : '/m/katomia';
+// ROOT-MOVE1 (owner 2026-10-31): katapp serves Katomia at the hostname ROOT on lab1
+// (lab1.katomia.com/board/<id>, no /m/katomia). The static build renders with the shared
+// docroot (its includes need it), so it says "root" explicitly: build-static.sh starts the
+// render server with KATOMIA_AT_ROOT=1.
+if (getenv('KATOMIA_AT_ROOT') === '1') $katomiaBase = '';
+// The same-origin Katomia API. Under /m/katomia it is the app's own hapi/ (the router maps
+// /m/katomia/hapi/<x> to /hapi/katomia/<x>); at the root, /hapi/<x> is the backend's WHOLE
+// namespace (/hapi/ws, /hapi/kpool/…), so Katomia's calls name /hapi/katomia/ themselves.
+// JS has the same pair as window.KBASE / window.KAPI (katomia-core.js).
+$katomiaApi = $katomiaBase === '' ? '/hapi/katomia' : $katomiaBase . '/hapi';
 
 // ═══ ENTRY-CIRCLES1 (user 2026-07-30): parameterised product vocabulary ═══
 // The word for "the space people meet in" is config, not code. Internally it is

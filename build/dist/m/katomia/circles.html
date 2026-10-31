@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ENTRY-FADES1: in <head> — arms the fade-in before first paint. -->
-<script src="kfade.js?v=1792444814"></script>
-<link rel="stylesheet" href="katomia.css?v=1792444814">
-<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1792444814"><title>Katomia Circles</title>
+<script src="kfade.js?v=1793403648"></script>
+<link rel="stylesheet" href="katomia.css?v=1793403648">
+<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648"><title>Katomia Circles</title>
 <style>
   *{ -webkit-tap-highlight-color: transparent; }
   body{ background:#f7f9fc; color:#333; }
@@ -221,14 +221,14 @@
 <div class="app-banner">
   <div class="app-banner-inner">
     <h2>
-      <a class="app-home-link" href="/m/katomia/" title="Katomia — home">
+      <a class="app-home-link" href="/" title="Katomia — home">
         <!-- BRAND-RINGMARK1 (user 2026-09-04): the 💱🐫 pair gives way to the brand ring
              (assets/katomia-ring.svg — the same mark as the favicon and Kato's avatar),
              set at cap height so it reads as a letter, not an icon. Default: after the
              word. ?mark=o (remembered) swaps it INTO the word — Kat◍mia — which the
              operator wanted to see before choosing; ?mark=end flips back. -->
         <span class="app-title">Kat<span class="app-title-o">o</span>mia</span>
-        <span class="app-icons app-ring"><img src="/m/katomia/assets/katomia-ring.svg" alt="" width="30" height="30"></span>
+        <span class="app-icons app-ring"><img src="/assets/katomia-ring.svg" alt="" width="30" height="30"></span>
       </a>
     </h2>
     <button id="appMenuBtn" class="app-menu-btn" aria-label="Menu" aria-expanded="false" title="Menu">☰</button>
@@ -257,7 +257,7 @@
          welcome page (which is now the default root); Markets moved to /markets.
          MENU-SPEC1: not on Home itself — "selecting home when you're on the home page does
          nothing". From a circle it leaves the circle; your accounts stay seated. -->
-    <a class="app-menu-item" href="/m/katomia/">🏠 Home</a>
+    <a class="app-menu-item" href="/">🏠 Home</a>
             <!-- MENU-ORDER1 (user 2026-08-19): "profile, then view, then settings, then host
          options … feels off". New order groups by what the rows ARE:
            places (Home, Circles) → this-circle controls (View, Settings, Host options)
@@ -297,7 +297,7 @@
          default: a non-host who never sees it loses nothing, and the page + backend
          both re-check ownership anyway. -->
     <a class="app-menu-item" id="katomiaHostOptions" hidden
-       href="/m/katomia/host">🎪 Host options</a>
+       href="/host">🎪 Host options</a>
     <!-- MENU-SPEC1 (owner 2026-10-09): "Profile" reads as "You" — the modal is about the
          person (wallet, reputation, preferences), the word now says so. -->
     <button type="button" class="app-menu-item" data-menu-profile>👤 You</button>
@@ -314,12 +314,12 @@
     <div class="app-menu-group app-menu-devgroup" data-menu-group="dev">
       <button type="button" class="app-menu-grouphead" aria-expanded="false"><span class="app-menu-groupicon">🧪</span><span class="app-menu-grouplabel">Developer</span><span class="app-menu-groupcaret" aria-hidden="true">▸</span></button>
       <div class="app-menu-groupbody"><div class="app-menu-groupinner"><div class="app-menu-grouppad">
-          <a class="app-menu-item nerd-only" href="/m/katomia/markets">🏛️ All markets (raw)</a>
+          <a class="app-menu-item nerd-only" href="/markets">🏛️ All markets (raw)</a>
           <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
                results — in the main menu rather than behind the admin gate; the pages are
                effectively public anyway. If parts of QA later need gating, do a split pass
                (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
-          <a class="app-menu-item nerd-only" href="/m/katomia/qa/" target="_blank" rel="noopener">🧪 QA</a>
+          <a class="app-menu-item nerd-only" href="/qa/" target="_blank" rel="noopener">🧪 QA</a>
                     <!-- KBUNDLE-STRIP:kchanges -->
           <!-- KCHANGES1 (feedback tango-delta-81, 2026-09-06): "a development visibility toggle
                in the hamburger menu, at the root of the menu, the last item — on/off for
@@ -737,7 +737,7 @@ window.katomiaNet = (() => {
   let gameId = ""
 
   const reveal = () => {
-    item.href = "/m/katomia/host?game=" + encodeURIComponent(gameId)
+    item.href = "/host?game=" + encodeURIComponent(gameId)
     item.hidden = false
   }
   const mine = () => (typeof katomiaMyIntentKeyHex === "function" ? katomiaMyIntentKeyHex() : "")
@@ -758,7 +758,7 @@ window.katomiaNet = (() => {
     }, 400)
 
     // B: API check in parallel (covers pages with no socket)
-    fetch("/m/katomia/hapi/game/" + encodeURIComponent(gameId))
+    fetch("/hapi/katomia/game/" + encodeURIComponent(gameId))
       .then(r => r.json())
       .then(d => { if(d?.ok && isHost(d.game)){ clearInterval(t); reveal() } })
       .catch(() => {})
@@ -771,9 +771,9 @@ window.katomiaNet = (() => {
      kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
      script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
      the notes' popovers), so a page that already loads it is unaffected. -->
-<script src="kfeedbits.js?v=1792444814" defer></script>
-<script src="kchanges-log.js?v=1792444814" defer></script>
-<script src="kchanges.js?v=1792444814" defer></script>
+<script src="kfeedbits.js?v=1793403648" defer></script>
+<script src="kchanges-log.js?v=1793408360" defer></script>
+<script src="kchanges.js?v=1793407665" defer></script>
 <!-- /KBUNDLE-STRIP:kchanges -->
 <div id="profileModal" class="profile-modal hidden">
 
@@ -1062,7 +1062,7 @@ window.katomiaNet = (() => {
           <details class="kpref-tuner">
             <summary>⚙ Entry transition — my settings</summary>
             <p>Overrides the circle-entry bubble <b>for this browser only</b>. Same knob names as the
-              <a href="/m/katomia/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
+              <a href="/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
             <textarea id="kprefTuneBox" spellcheck="false" placeholder='{ "ms": 800, "style": "iridescent" }'></textarea>
             <div class="kpref-tuner-row">
               <button type="button" id="kprefTuneApply">▶ Apply</button>
@@ -1160,9 +1160,9 @@ window.katomiaNet = (() => {
   </div>
 
   <div class="circles-actions">
-    <a class="kbtn kbtn-green" href="/m/katomia/create?skin=basic">➕ Create your own circle</a>
+    <a class="kbtn kbtn-green" href="/create?skin=basic">➕ Create your own circle</a>
     <!-- Nerd-only escape hatch to the unfiltered grid, mirroring the welcome page. -->
-    <a class="circles-morelink" href="/m/katomia/markets">See all markets →</a>
+    <a class="circles-morelink" href="/markets">See all markets →</a>
   </div>
 
   <!-- The 2026-08-13 connect widget was REMOVED on 2026-08-17 (KATUI3 feedback pass):
@@ -1176,7 +1176,7 @@ window.KTERMS = {"one":"circle","One":"Circle","many":"circles","Many":"Circles"
 // local copy rather than shared: this page is an explicit playground for renaming and
 // re-presenting, and the user does NOT want that experimentation reaching the markets
 // grid. If the two ever settle on the same presentation, factor it out then.
-const API_URL = "/m/katomia/hapi/games"
+const API_URL = "/hapi/katomia/games"
 
 const displayLookup = {
   tradingMode: { proposal: "💡 Proposal", orderBook: "📊 Order Book", debug: "🛠️ debug" },
@@ -1408,7 +1408,7 @@ function renderCircles(){
     ].filter(c => c.text)
 
     list.insertAdjacentHTML("beforeend", `
-      <a class="circle-card" data-kbubble-open href="/m/katomia/board/${encodeURIComponent(g.id)}">
+      <a class="circle-card" data-kbubble-open href="/board/${encodeURIComponent(g.id)}">
         <div class="circle-top">
           <span class="circle-name">${esc(g.profile?.name || g.id)}</span>
           <span class="circle-id">${esc(g.id)}</span>
@@ -1434,8 +1434,8 @@ window.onKatomiaBindingPublished = () => loadCircles()
 <!-- ENTRY-CIRCLES1: cards ARE bubbles here (user: "That cards view should be basically
      bubble view... which if you click on they open up into that game, into the circle").
      Same tuning + the same 800ms entry transition as the welcome page. -->
-<script src="kbubble.js?v=1792444814"></script>
-<script src="kbubbleopen.js?v=1792444814"></script>
+<script src="kbubble.js?v=1793403648"></script>
+<script src="kbubbleopen.js?v=1793403648"></script>
 <script>
 // BUBBLE-LINKS1 (owner 2026-10-09): the list's hover bubble (CIRCLES-BUBBLECOST1 / HOLD1 —
 // a plain card at rest, ONE living outline under the pointer, the 800ms entry on click) moved
@@ -1456,12 +1456,12 @@ document.addEventListener("katomia:network", e => { _circlesFilter.network = e.d
 </script>
 
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
-<script src="katomia-core.js?v=1792444814"></script>
-<script src="katomia-helpers.js?v=1792444814"></script>
-<script src="katomia-places.js?v=1792444814"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
-<script src="kemoji.js?v=1792444814"></script>
-<script src="katomia-profile.js?v=1792444814"></script>
-<script src="katomia-auth.js?v=1792444814"></script>
+<script src="katomia-core.js?v=1793407665"></script>
+<script src="katomia-helpers.js?v=1793403648"></script>
+<script src="katomia-places.js?v=1793403648"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
+<script src="kemoji.js?v=1793403648"></script>
+<script src="katomia-profile.js?v=1793407665"></script>
+<script src="katomia-auth.js?v=1793403648"></script>
 <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
 
 <!-- GCP feedback 2026-08-13 ("mobile after feedback flow breaks"): this page had no

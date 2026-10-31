@@ -23,10 +23,12 @@ const ok = (c, m, x) => { total++; if (c) console.log('  PASS ' + m); else { fai
 const server = createServer((req, res) => {
   let p = decodeURIComponent(new URL(req.url, 'http://x').pathname); if (p.endsWith('/')) p += 'index.html'
   // HOSTMENU-STATIC2: the Worker's clean-URL rewrites (build/router.js IDPAGE + SIBLING), so a
-  // scenario can load /m/katomia/board/<id> exactly as labs serves it — no ?game= to lean on
-  p = p.replace(/^\/m\/katomia\/(game|board)\/[^/.]+\/?$/, '/m/katomia/$1.html').replace(/^\/m\/katomia\/(?:game|board)\/([^/]+\.[^/]+)$/, '/m/katomia/$1')
-  const file = join(DIST, p); if (!file.startsWith(DIST)) { res.writeHead(403); return res.end() }
-  let body; try { body = readFileSync(file) } catch { res.writeHead(404); return res.end() }
+  // scenario can load /board/<id> exactly as lab1 serves it — no ?game= to lean on.
+  // ROOT-MOVE1: at the hostname root, as the router serves it; a file the bundle lacks at the
+  // root is looked up under m/katomia/, like the router's fetch fallback.
+  p = p.replace(/^\/(game|board)\/[^/.]+\/?$/, '/$1.html').replace(/^\/(?:game|board)\/([^/]+\.[^/]+)$/, '/$1')
+  const read = q => { const f = join(DIST, q); if (!f.startsWith(DIST)) throw 0; return readFileSync(f) }
+  let body, file = p; try { body = read(p) } catch { try { file = '/m/katomia' + p; body = read(file) } catch { res.writeHead(404); return res.end() } }
   res.writeHead(200, { 'content-type': MIME[extname(file)] || 'application/octet-stream' }); res.end(body)
 })
 await new Promise(r => server.listen(0, '127.0.0.1', r))
@@ -37,7 +39,7 @@ async function open(q) {
   const page = await browser.newPage({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true })
   const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
   page.on('dialog', d => d.accept('1'))
-  await page.goto(`${BASE}/m/katomia/board.html?demo=1${q ? '&' + q : ''}`, { waitUntil: 'networkidle' })
+  await page.goto(`${BASE}/board.html?demo=1${q ? '&' + q : ''}`, { waitUntil: 'networkidle' })
   await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove() })
   await page.waitForTimeout(1000)
   return { page, errs }
@@ -152,7 +154,7 @@ console.log('8. SIDECIRCLE-SOFTSWAP1: the last lock on a breakout circle follows
   const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
   page.on('dialog', d => d.accept('1'))
   // the clean /board/<id> route, as labs serves it, so the switch has a real address to rewrite
-  await page.goto(`${BASE}/m/katomia/board/DEMO?demo=1&skin=ring16&breakout=1`, { waitUntil: 'networkidle' })
+  await page.goto(`${BASE}/board/DEMO?demo=1&skin=ring16&breakout=1`, { waitUntil: 'networkidle' })
   await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove(); window.__pageLived = 1 })
   await page.waitForTimeout(1000)
   const before = await page.evaluate(() => ({ id: window.katomiaGameId(), n: boardFilteredAccounts().length, name: window.name }))
@@ -184,7 +186,7 @@ console.log('9. ASSETMEM1: an automatic re-add brings back what the account last
 {
   const page = await browser.newPage({ viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true })
   const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
-  await page.goto(`${BASE}/m/katomia/board/DEMO?demo=1&skin=ring16`, { waitUntil: 'networkidle' })
+  await page.goto(`${BASE}/board/DEMO?demo=1&skin=ring16`, { waitUntil: 'networkidle' })
   await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove() })
   await page.waitForTimeout(800)
   const r = await page.evaluate(() => {
@@ -224,7 +226,7 @@ console.log('10. COUNTER-NFT1 + BOARD-SAFEAREA2: the counter is one thumbnail de
 {
   const page = await browser.newPage({ viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true })
   const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
-  await page.goto(`${BASE}/m/katomia/board.html?demo=1&skin=ring16`, { waitUntil: 'networkidle' })
+  await page.goto(`${BASE}/board.html?demo=1&skin=ring16`, { waitUntil: 'networkidle' })
   await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove(); boardZoneWalls = true; render() })
   await page.waitForTimeout(1200)
   const probe = () => page.evaluate(() => {
@@ -263,7 +265,7 @@ console.log('6. Player card on desktop: tapping an account header filters to it 
   // capture on press and swallowed the header's click
   const page = await browser.newPage({ viewport: { width: 1100, height: 800 } })
   const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
-  await page.goto(`${BASE}/m/katomia/board.html?demo=1`, { waitUntil: 'networkidle' })
+  await page.goto(`${BASE}/board.html?demo=1`, { waitUntil: 'networkidle' })
   await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove() })
   await page.waitForTimeout(800)
   await page.evaluate(() => boardPlayerModal('p1'))
@@ -296,7 +298,7 @@ console.log('7. Host options reveals to the host on the CLEAN /board/<id> URL (H
     if (keyHex) await ctx.addInitScript(x => localStorage.setItem('katomiaPlayerKeypair', JSON.stringify({ publicKeyJwk: { kty: 'OKP', crv: 'Ed25519', x } })), Buffer.from(keyHex, 'hex').toString('base64url'))
     const page = await ctx.newPage()
     const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
-    await page.goto(`${BASE}/m/katomia/board/QA-HOST?demo=1`, { waitUntil: 'load' })
+    await page.goto(`${BASE}/board/QA-HOST?demo=1`, { waitUntil: 'load' })
     // the socket would deliver this meta ~600 ms after join; the demo has no socket, so hand it over
     await page.evaluate(hex => { gameMeta = { ...(typeof gameMeta === 'object' && gameMeta ? gameMeta : {}), id: 'QA-HOST', admin: { type: 'ed25519PublicKeyHex', value: hex } } }, adminHex)
     await page.waitForTimeout(1200)
@@ -305,7 +307,7 @@ console.log('7. Host options reveals to the host on the CLEAN /board/<id> URL (H
   }
   const asHost = await open(adminHex)
   ok(asHost.gameId === 'QA-HOST', 'the clean URL yields the circle id client-side', JSON.stringify(asHost))
-  ok(asHost.hidden === false && asHost.display !== 'none' && asHost.href === '/m/katomia/host?game=QA-HOST', 'the host sees 🎪 Host options, linked to this circle', JSON.stringify(asHost))
+  ok(asHost.hidden === false && asHost.display !== 'none' && asHost.href === '/host?game=QA-HOST', 'the host sees 🎪 Host options, linked to this circle', JSON.stringify(asHost))
   ok(!asHost.errs.length, 'no page errors', JSON.stringify(asHost.errs))
   const asGuest = await open('cd'.repeat(32))
   ok(asGuest.hidden === true && asGuest.display === 'none', 'another key does not see it', JSON.stringify(asGuest))
@@ -323,10 +325,10 @@ console.log('11. MENU-SPEC1 + MENU-NET1: the ☰ by page — network only on Hom
   const visit = async (path, { nerd = false, net = null, width = 390 } = {}) => {
     const ctx = await browser.newContext({ viewport: { width, height: 800 } })
     await ctx.addInitScript(([n, v]) => { localStorage.setItem('katomia.nerd.v1', n ? '1' : '0'); if (v) localStorage.setItem('katomiaNetwork', v) }, [nerd, net])
-    await ctx.route('**/hapi/games*', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(GAMES) }))
+    await ctx.route('**/hapi/katomia/games*', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify(GAMES) }))
     const page = await ctx.newPage()
     const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
-    await page.goto(`${BASE}/m/katomia/${path}`, { waitUntil: 'load' })
+    await page.goto(`${BASE}/${path}`, { waitUntil: 'load' })
     await page.waitForTimeout(900)
     await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove() })
     const rows = () => page.evaluate(() => {
@@ -426,7 +428,7 @@ console.log('12. MENU-VIEW1: one 👁 View group on the board — screen views, 
     await ctx.addInitScript(n => { localStorage.setItem('katomia.nerd.v1', n ? '1' : '0') }, nerd)
     const page = await ctx.newPage()
     const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
-    await page.goto(`${BASE}/m/katomia/board.html?demo=1`, { waitUntil: 'networkidle' })
+    await page.goto(`${BASE}/board.html?demo=1`, { waitUntil: 'networkidle' })
     await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove() })
     await page.waitForTimeout(1000)
     return { ctx, page, errs }
@@ -498,7 +500,7 @@ console.log('12. MENU-VIEW1: one 👁 View group on the board — screen views, 
   {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } })
     const page = await ctx.newPage()
-    await page.goto(`${BASE}/m/katomia/index.html`, { waitUntil: 'load' }); await page.waitForTimeout(800)
+    await page.goto(`${BASE}/index.html`, { waitUntil: 'load' }); await page.waitForTimeout(800)
     await page.evaluate(() => document.querySelector('[data-menu-profile]').click()); await page.waitForTimeout(500)
     const p = await page.evaluate(() => ({ disabled: document.getElementById('boardPrefPickable')?.disabled, note: document.getElementById('kprefPickableScope')?.textContent }))
     ok(p.disabled === true && /inside a circle/.test(p.note), 'off a board Pickable shows disabled and says it is set inside a circle', JSON.stringify(p))
@@ -513,7 +515,7 @@ console.log('13. MENU-YOU1: the You modal — Reputation / Commit, one intent ke
     await ctx.addInitScript(n => localStorage.setItem('katomia.nerd.v1', n ? '1' : '0'), nerd)
     const page = await ctx.newPage()
     const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
-    await page.goto(`${BASE}/m/katomia/index.html`, { waitUntil: 'load' }); await page.waitForTimeout(800)
+    await page.goto(`${BASE}/index.html`, { waitUntil: 'load' }); await page.waitForTimeout(800)
     await page.evaluate(() => { document.querySelector('[data-menu-profile]').click(); document.querySelectorAll('#profileModal details.profile-section').forEach(d => { d.open = true }) })
     await page.waitForTimeout(500)
     // the Reputation fold shows once a signable wallet account is chosen (kauthRenderLadder) — no wallet here, so show it
@@ -578,10 +580,10 @@ console.log('14. LANDING-NET1 + RECENT-VISITS1 + LIVE-NOW1 + LIST-MINE1: Home by
     // seed the TOP page only — the bubble entry's hidden preview frames run init scripts too
     await ctx.addInitScript(([v, n, r]) => { if (window.top !== window) return; localStorage.setItem('katomiaNetwork', v); localStorage.setItem('katomia.nerd.v1', n ? '1' : '0'); if (r) localStorage.setItem('katomiaRecent', JSON.stringify(r)) }, [net, nerd, recent])
     let token = null
-    await ctx.route('**/hapi/games*', r => { token = r.request().headers()['x-player-token']; r.fulfill({ contentType: 'application/json', body: JSON.stringify(GAMES) }) })
+    await ctx.route('**/hapi/katomia/games*', r => { token = r.request().headers()['x-player-token']; r.fulfill({ contentType: 'application/json', body: JSON.stringify(GAMES) }) })
     const page = await ctx.newPage()
     const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
-    await page.goto(`${BASE}/m/katomia/${path}`, { waitUntil: 'load' }); await page.waitForTimeout(900)
+    await page.goto(`${BASE}/${path}`, { waitUntil: 'load' }); await page.waitForTimeout(900)
     return { ctx, page, errs, token: () => token }
   }
   const home = page => page.evaluate(() => ({
@@ -598,7 +600,7 @@ console.log('14. LANDING-NET1 + RECENT-VISITS1 + LIVE-NOW1 + LIST-MINE1: Home by
     const h = await home(page)
     ok(h.doors.some(t => /Testnet/.test(t)) && !h.doors.some(t => /Mainnet|Playnet/.test(t)) && h.doors.some(t => /Watch/.test(t)), 'Home on Testnet: the Testnet door (and the watch-only demo), not Mainnet or Playnet', JSON.stringify(h.doors))
     ok(h.recentShown && h.recent.join() === 't-prop~3,t-busy,t-quiet' && /Show all \(4\)/.test(h.more || ''), 'Recently visited: newest first, the last three, "Show all (4)" — and the mainnet visit is not shown on Testnet (NETWORK-PAGE1)', JSON.stringify(h))
-    ok(h.sideHref === '/m/katomia/board/t-prop~3', 'side circles are in your history (unlike the Circles list) and link straight back', String(h.sideHref))
+    ok(h.sideHref === '/board/t-prop~3', 'side circles are in your history (unlike the Circles list) and link straight back', String(h.sideHref))
     ok(!h.live.includes('t-busy') && h.live.join() === 't-a,t-bench,t-b,t-prop,t-stands', 'Live now: top five on Testnet by playing, then waiting, then watching — minus what Recent already shows, no side circles, no mainnet', JSON.stringify(h.live))
     ok(typeof token() === 'string' && token().length > 8, 'Home asks the games list with this browser\'s player token (so `you` can come back)', String(token()))
     await page.click('#landingRecent [data-more]'); await page.waitForTimeout(100)
@@ -646,7 +648,7 @@ console.log('14. LANDING-NET1 + RECENT-VISITS1 + LIVE-NOW1 + LIST-MINE1: Home by
   {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } })
     const page = await ctx.newPage()
-    await page.goto(`${BASE}/m/katomia/board.html?demo=1`, { waitUntil: 'networkidle' }); await page.waitForTimeout(1200)
+    await page.goto(`${BASE}/board.html?demo=1`, { waitUntil: 'networkidle' }); await page.waitForTimeout(1200)
     // the sandbox sets its first state directly; a real board gets every state through the frame handler
     const r = await page.evaluate(() => {
       katomiaHandleFrame({ data: JSON.stringify({ type: 'game_state', meta: { id: 'QA-VISIT~2', network: 'testnet', profile: { name: 'Visit me' } }, state, myPlayerId: currentPlayerId }) })
@@ -660,8 +662,8 @@ console.log('14. LANDING-NET1 + RECENT-VISITS1 + LIVE-NOW1 + LIST-MINE1: Home by
   {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } })
     const page = await ctx.newPage()
-    await page.goto(`${BASE}/m/katomia/index.html`, { waitUntil: 'load' }); await page.waitForTimeout(500)
-    await page.evaluate(b => { localStorage.removeItem('katomiaRecent'); const f = document.createElement('iframe'); f.dataset.kboWarm = b; f.src = b; f.id = 'qaWarm'; document.body.appendChild(f) }, `${BASE}/m/katomia/board.html?demo=1`)
+    await page.goto(`${BASE}/index.html`, { waitUntil: 'load' }); await page.waitForTimeout(500)
+    await page.evaluate(b => { localStorage.removeItem('katomiaRecent'); const f = document.createElement('iframe'); f.dataset.kboWarm = b; f.src = b; f.id = 'qaWarm'; document.body.appendChild(f) }, `${BASE}/board.html?demo=1`)
     await page.waitForTimeout(2500)
     const r = await page.evaluate(() => { const w = document.getElementById('qaWarm').contentWindow
       w.katomiaHandleFrame({ data: JSON.stringify({ type: 'game_state', meta: { id: 'QA-PREVIEW', network: 'testnet' }, state: w.state, myPlayerId: w.currentPlayerId }) })
@@ -883,7 +885,7 @@ console.log('19. CAROUSEL-FIT1 + SIM-NOBUNCH1: the carousel uses the full width 
 {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } })
   const errs = []; page.on('pageerror', e => errs.push(e.message.slice(0, 160)))
-  await page.goto(`${BASE}/m/katomia/board.html?demo=1&skin=carousel`, { waitUntil: 'networkidle' })
+  await page.goto(`${BASE}/board.html?demo=1&skin=carousel`, { waitUntil: 'networkidle' })
   await page.evaluate(() => { document.getElementById('preloader')?.remove(); document.getElementById('cookieNotice')?.remove(); boardSetView('board') }); await page.waitForTimeout(800)
   const car = () => page.evaluate(() => ({
     rows: [...document.querySelectorAll('.carousel-row')].map(r => { const t = r.querySelector('.carousel-track'); const used = [...t.querySelectorAll('.carousel-card')].reduce((w, c) => w + c.getBoundingClientRect().width, 0); return { fill: Math.round(100 * used / t.clientWidth), fits: r.classList.contains('carousel-row--fits'), arrows: [...r.querySelectorAll('.carousel-arrow')].some(a => getComputedStyle(a).visibility !== 'hidden') } }),

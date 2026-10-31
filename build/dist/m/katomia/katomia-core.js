@@ -7,6 +7,9 @@
     // standalone bundle domain where the app is the docroot. Use for every
     // absolute app URL (PHP twin: $katomiaBase in site-config.php).
     window.KBASE = location.pathname.startsWith("/m/katomia") ? "/m/katomia" : ""
+    // ROOT-MOVE1: the same-origin Katomia API. At the root /hapi/<x> is the backend's whole
+    // namespace, so Katomia names /hapi/katomia/ itself (site-config.php has the PHP twin).
+    window.KAPI = window.KBASE ? window.KBASE + "/hapi" : "/hapi/katomia"
 
     // PREVIEW-FRAME1 (owner 2026-10-09, found chasing "you're in nearly everything"): the bubble
     // entry (kbubbleopen.js) PRE-LOADS a circle in a hidden full-size iframe the moment you hover

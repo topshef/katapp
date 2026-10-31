@@ -430,6 +430,7 @@ window.addEventListener("load", () => {
 // circles only and no side circles, the same pool as the Circles list.
 (() => {
   const BASE = <?= json_encode($katomiaBase) ?>;
+  const API = <?= json_encode($katomiaApi, JSON_UNESCAPED_SLASHES) ?>;
   const T = window.KTERMS || { one: "circle", many: "circles" }
   const SHOW = 3, LIVE = 5
   let games = {}, expanded = false
@@ -497,7 +498,7 @@ window.addEventListener("load", () => {
   })
   document.addEventListener("katomia:network", render)
   render()   // history first, from this browser — no wait for the network
-  fetch(BASE + "/hapi/games", { headers: { "x-player-token": (typeof getOrCreatePlayerToken === "function") ? getOrCreatePlayerToken() : "" } })
+  fetch(API + "/games", { headers: { "x-player-token": (typeof getOrCreatePlayerToken === "function") ? getOrCreatePlayerToken() : "" } })
     .then(r => r.json()).then(d => { games = d?.games || {}; render() }).catch(() => {})
 })()
 </script>

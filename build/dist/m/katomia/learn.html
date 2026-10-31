@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="kfade.js?v=1792444814"></script>
-<link rel="stylesheet" href="katomia.css?v=1792444814">
-<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1792444814"><title>Katomia — what is a circle?</title>
+<script src="kfade.js?v=1793403648"></script>
+<link rel="stylesheet" href="katomia.css?v=1793403648">
+<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648"><title>Katomia — what is a circle?</title>
 <style>
   body{ background:#f7f9fc; color:#2b3038; }
   .learn{ max-width: 720px; margin: 26px auto 60px; padding: 0 18px; line-height: 1.62; }
@@ -208,14 +208,14 @@
 <div class="app-banner">
   <div class="app-banner-inner">
     <h2>
-      <a class="app-home-link" href="/m/katomia/" title="Katomia — home">
+      <a class="app-home-link" href="/" title="Katomia — home">
         <!-- BRAND-RINGMARK1 (user 2026-09-04): the 💱🐫 pair gives way to the brand ring
              (assets/katomia-ring.svg — the same mark as the favicon and Kato's avatar),
              set at cap height so it reads as a letter, not an icon. Default: after the
              word. ?mark=o (remembered) swaps it INTO the word — Kat◍mia — which the
              operator wanted to see before choosing; ?mark=end flips back. -->
         <span class="app-title">Kat<span class="app-title-o">o</span>mia</span>
-        <span class="app-icons app-ring"><img src="/m/katomia/assets/katomia-ring.svg" alt="" width="30" height="30"></span>
+        <span class="app-icons app-ring"><img src="/assets/katomia-ring.svg" alt="" width="30" height="30"></span>
       </a>
     </h2>
     <button id="appMenuBtn" class="app-menu-btn" aria-label="Menu" aria-expanded="false" title="Menu">☰</button>
@@ -229,14 +229,14 @@
          welcome page (which is now the default root); Markets moved to /markets.
          MENU-SPEC1: not on Home itself — "selecting home when you're on the home page does
          nothing". From a circle it leaves the circle; your accounts stay seated. -->
-    <a class="app-menu-item" href="/m/katomia/">🏠 Home</a>
+    <a class="app-menu-item" href="/">🏠 Home</a>
             <!-- ENTRY-CIRCLES1 (user 2026-07-30): the everyday destination is now the
          proposal-only index, labelled with the configured term. 🏛️ Markets kept the
          bank emoji and the word "markets" — both wrong once the product calls these
          circles — so it moves behind nerd mode as the raw, unfiltered grid.
          MENU-SPEC1: not inside a circle (owner: on a board the menu is Home, View, You),
          and not on the list itself, by the same rule as Home on Home. -->
-    <a class="app-menu-item" href="/m/katomia/circles">⭕ Circles</a>
+    <a class="app-menu-item" href="/circles">⭕ Circles</a>
         <!-- MENU-ORDER1 (user 2026-08-19): "profile, then view, then settings, then host
          options … feels off". New order groups by what the rows ARE:
            places (Home, Circles) → this-circle controls (View, Settings, Host options)
@@ -276,7 +276,7 @@
          default: a non-host who never sees it loses nothing, and the page + backend
          both re-check ownership anyway. -->
     <a class="app-menu-item" id="katomiaHostOptions" hidden
-       href="/m/katomia/host">🎪 Host options</a>
+       href="/host">🎪 Host options</a>
     <!-- MENU-SPEC1 (owner 2026-10-09): "Profile" reads as "You" — the modal is about the
          person (wallet, reputation, preferences), the word now says so. -->
     <button type="button" class="app-menu-item" data-menu-profile>👤 You</button>
@@ -293,12 +293,12 @@
     <div class="app-menu-group app-menu-devgroup" data-menu-group="dev">
       <button type="button" class="app-menu-grouphead" aria-expanded="false"><span class="app-menu-groupicon">🧪</span><span class="app-menu-grouplabel">Developer</span><span class="app-menu-groupcaret" aria-hidden="true">▸</span></button>
       <div class="app-menu-groupbody"><div class="app-menu-groupinner"><div class="app-menu-grouppad">
-          <a class="app-menu-item nerd-only" href="/m/katomia/markets">🏛️ All markets (raw)</a>
+          <a class="app-menu-item nerd-only" href="/markets">🏛️ All markets (raw)</a>
           <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
                results — in the main menu rather than behind the admin gate; the pages are
                effectively public anyway. If parts of QA later need gating, do a split pass
                (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
-          <a class="app-menu-item nerd-only" href="/m/katomia/qa/" target="_blank" rel="noopener">🧪 QA</a>
+          <a class="app-menu-item nerd-only" href="/qa/" target="_blank" rel="noopener">🧪 QA</a>
                     <!-- KBUNDLE-STRIP:kchanges -->
           <!-- KCHANGES1 (feedback tango-delta-81, 2026-09-06): "a development visibility toggle
                in the hamburger menu, at the root of the menu, the last item — on/off for
@@ -716,7 +716,7 @@ window.katomiaNet = (() => {
   let gameId = ""
 
   const reveal = () => {
-    item.href = "/m/katomia/host?game=" + encodeURIComponent(gameId)
+    item.href = "/host?game=" + encodeURIComponent(gameId)
     item.hidden = false
   }
   const mine = () => (typeof katomiaMyIntentKeyHex === "function" ? katomiaMyIntentKeyHex() : "")
@@ -737,7 +737,7 @@ window.katomiaNet = (() => {
     }, 400)
 
     // B: API check in parallel (covers pages with no socket)
-    fetch("/m/katomia/hapi/game/" + encodeURIComponent(gameId))
+    fetch("/hapi/katomia/game/" + encodeURIComponent(gameId))
       .then(r => r.json())
       .then(d => { if(d?.ok && isHost(d.game)){ clearInterval(t); reveal() } })
       .catch(() => {})
@@ -750,9 +750,9 @@ window.katomiaNet = (() => {
      kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
      script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
      the notes' popovers), so a page that already loads it is unaffected. -->
-<script src="kfeedbits.js?v=1792444814" defer></script>
-<script src="kchanges-log.js?v=1792444814" defer></script>
-<script src="kchanges.js?v=1792444814" defer></script>
+<script src="kfeedbits.js?v=1793403648" defer></script>
+<script src="kchanges-log.js?v=1793408360" defer></script>
+<script src="kchanges.js?v=1793407665" defer></script>
 <!-- /KBUNDLE-STRIP:kchanges -->
 <div id="profileModal" class="profile-modal hidden">
 
@@ -1041,7 +1041,7 @@ window.katomiaNet = (() => {
           <details class="kpref-tuner">
             <summary>⚙ Entry transition — my settings</summary>
             <p>Overrides the circle-entry bubble <b>for this browser only</b>. Same knob names as the
-              <a href="/m/katomia/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
+              <a href="/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
             <textarea id="kprefTuneBox" spellcheck="false" placeholder='{ "ms": 800, "style": "iridescent" }'></textarea>
             <div class="kpref-tuner-row">
               <button type="button" id="kprefTuneApply">▶ Apply</button>
@@ -1428,7 +1428,7 @@ window.katomiaNet = (() => {
 
     <details>
       <summary>Can I get an AI to help me read a circle?</summary>
-      <p>Yes — there's a <a href="/m/katomia/advisor">Katomia advisor</a> you can connect to
+      <p>Yes — there's a <a href="/advisor">Katomia advisor</a> you can connect to
          Claude. It can see every public circle at once
          and the Hedera ledger underneath them, so it's good at questions no single screen answers —
          "which circles have chickens in them?", or who
@@ -1719,7 +1719,7 @@ window.katomiaNet = (() => {
   <!-- ═══ CTA ═══ -->
   <div class="cta">
     <p class="cta-note">Anything here unclear, wrong, or missing? Tell us — especially now.</p>
-    <a class="kbtn kbtn-green" href="/m/katomia/">← Back to home</a>
+    <a class="kbtn kbtn-green" href="/">← Back to home</a>
     <button type="button" class="kbtn kbtn-blue"
             onclick="if(window.KFeedbackWidget){KFeedbackWidget.open()}else{location.href='/m/feedback/?product=katomia'}">💬 Send feedback</button>
     <a class="kbtn" href="https://x.com/kpaylive" target="_blank" rel="noopener">Follow us on X ↗</a>
@@ -1736,10 +1736,10 @@ window.KTERMS = {"one":"circle","One":"Circle","many":"circles","Many":"Circles"
 </script>
 
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
-<script src="katomia-core.js?v=1792444814"></script>
-<script src="katomia-helpers.js?v=1792444814"></script>
-<script src="kemoji.js?v=1792444814"></script>
-<script src="katomia-profile.js?v=1792444814"></script>
+<script src="katomia-core.js?v=1793407665"></script>
+<script src="katomia-helpers.js?v=1793403648"></script>
+<script src="kemoji.js?v=1793403648"></script>
+<script src="katomia-profile.js?v=1793407665"></script>
 <!-- KAT-FEEDBACK1: the modal (long-press anywhere, or the buttons above). Served from
      the backend, its canonical home — the 💬 bits below hand off to it. -->
 <script src="https://api.katomia.com/hapi/feedback-widget.js"
@@ -1750,6 +1750,6 @@ window.KTERMS = {"one":"circle","One":"Circle","many":"circles","Many":"Circles"
      widget, which kPad also uses and where capture DOES work. Re-enable by deleting this
      attribute once the capture is fixed. --></script>
 <!-- ENTRY-VARIANTS1: 👍/👎/💬 bits. Loaded AFTER the widget so 💬 finds it. -->
-<script src="kfeedbits.js?v=1792444814"></script>
+<script src="kfeedbits.js?v=1793403648"></script>
 </body>
 </html>

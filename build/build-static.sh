@@ -84,7 +84,10 @@ printf 'ip_allowed=any\n' > "$GK_FILE"
 mkdir -p "$ROOT/logs"   # elog.php writes here; must exist or the render dies noisily
 
 # ── local PHP server over public_html (DOCUMENT_ROOT = public_html, as on lab22) ──
-php -S "127.0.0.1:$PORT" -t "$PUB" >"$ROOT/logs/build-static-php.log" 2>&1 &
+# ROOT-MOVE1 (owner 2026-10-31): katapp serves Katomia at the hostname root, so the pages are
+# rendered with root links ($katomiaBase = '', site-config.php). The files still go to
+# m/katomia/ in dist; router.js maps the root URLs onto them.
+KATOMIA_AT_ROOT=1 php -S "127.0.0.1:$PORT" -t "$PUB" >"$ROOT/logs/build-static-php.log" 2>&1 &
 PHP_PID=$!
 for i in $(seq 1 30); do curl -s -o /dev/null "$SRC/" && break; sleep 0.2; done
 

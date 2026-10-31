@@ -15,38 +15,47 @@ check(){ # path  expected-status  [needle in body]
 }
 echo "smoke: $ORIGIN"
 # the API hop first: a 521/5xx here means the alias cannot reach its backend (not a page problem)
-check /m/katomia/hapi/games                      200 '['        # same-origin API → alias → backend /katomia/games
-check /                                          302
-check /m/katomia/                                200 'Katomia'
-check /m/katomia/create                          200 'Create your own'
-check '/m/katomia/create?skin=basic'             200 'skin-basic'
-check /m/katomia/circles                         200 'Katomia'
-check /m/katomia/host                            200 'Katomia'
-check /m/katomia/learn                           200 'Katomia'
-check /m/katomia/markets                         200 'Katomia'
-check /m/katomia/board/SMOKE1                    200 'HAPI_BASE'
+check /hapi/katomia/games                        200 '['        # same-origin API → alias → backend /katomia/games (ROOT-MOVE1: what root pages call)
+check /m/katomia/hapi/games                      200 '['        # the old address still SERVES (a cached page's call)
+# ROOT-MOVE1: Katomia at the root; the old page addresses redirect (302 while lab1 is on trial)
+check /                                          200 'Katomia'
+check /m/katomia/                                302
+check /m/katomia/board/SMOKE1                    302
+check /create                                    200 'Create your own'
+check '/create?skin=basic'                       200 'skin-basic'
+check /circles                                   200 '/hapi/katomia/games'
+check /host                                      200 'Katomia'
+check /learn                                     200 'Katomia'
+check /markets                                   200 'Katomia'
+check /board/SMOKE1                              200 'HAPI_BASE'
+check /KEA/                                      200
+check /assets/katomia-ring.svg                   200 '<svg'
 check '/m/sign/?network=testnet&txid=0.0.1@2.3&pch=x' 200 '<base href="/">'   # SIGNPAGE-STATIC1 external signing page
 check '/m/sign/?action=txList&network=testnet&since=60&until=60' 200 'tx'     # its own ?action= proxy → backend /kpool/txList
-check '/m/katomia/binding.php?network=testnet&accountId=0.0.1879' 200 'bindings'
+check '/binding.php?network=testnet&accountId=0.0.1879' 200 'bindings'
 check /future/future.css                         200
 check /keaton/                                   200 'Keaton signers'   # SIGNER-VIEW1 the dashboard
 check /future/v3/                                301                # KEATON-HOME1 the old home, permanently
 check /deal/convert/                             200 'Converter'    # DEAL-CONVERT2 the v1 → v2 converter page
 check /legacy/deals/                             200 'V1 deal archive'   # LEGACY-DEALS1 the v1 archive lookup
 check /deal/convert/kea-convert.browser.js       200 'convertV1'
+check /deals/                                    200            # SHOP-KBAR1 (phpjabbers, handed through on lab1)
+check /assets/js/page-feedback.js                200 'feedback' # FEEDBACK-TAG1 (phpjabbers, handed through on lab1)
 check '/m/feedback/?product=katomia'             200 'feedback-widget'
 check /vendor/bootstrap/css/bootstrap.min.css    200
-check /m/katomia/game/SMOKE1                     200 'HAPI_BASE'
-check /m/katomia/board/kemoji.js                 200
-check /m/katomia/katomia-core.js                 200 'getGameId'
-check /m/katomia/footer.html                     200
+check /game/SMOKE1                               200 'HAPI_BASE'
+check /board/kemoji.js                           200
+check /katomia-core.js                           200 'getGameId'
+check /m/katomia/katomia-core.js                 200 'getGameId'   # old file address, for cached pages
+check /footer.html                               200
 check /qa                                        302
-check /m/katomia/qa/                             200 'Katomia QA'
-check /m/katomia/qa/data/tests.json              200 'suites'
+check /qa/                                       200 'Katomia QA'
+check /qa/data/tests.json                        200 'suites'
 check /vendor/walletconnect/config.json          200 "\"url\": \"$ORIGIN\""
 check /vendor/kpay/kpool_widget/config.js        200 'HAPI_BASE'
 check /vendor/walletconnect/snapshots/4a3351b/kwc.iife.js 200
 check /diag                                      204   # DIAG-SINK1: forwarded to the backend, which answers 204
 check /m/katomia/build-info.json                 200 'source_sha'
 check /m/katomia/nope                            404
+check /nope                                      404
 exit $fail

@@ -20,6 +20,7 @@ if (!function_exists('kasset')) {
   // trap BOARD-CLEANUP3 hit with the ring hub's K logo).
   function kicon() {
     $base = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'])), '/');
+    if (getenv('KATOMIA_AT_ROOT') === '1') $base = '';   // ROOT-MOVE1: the root build (site-config.php)
     return '<link rel="icon" type="image/svg+xml" href="' . $base . '/' . kasset('assets/katomia-ring.svg') . '">';
   }
 

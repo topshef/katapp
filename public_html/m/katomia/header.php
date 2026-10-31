@@ -937,7 +937,7 @@ window.katomiaNet = (() => {
     }, 400)
 
     // B: API check in parallel (covers pages with no socket)
-    fetch("<?= $katomiaBase ?>/hapi/game/" + encodeURIComponent(gameId))
+    fetch("<?= $katomiaApi ?>/game/" + encodeURIComponent(gameId))
       .then(r => r.json())
       .then(d => { if(d?.ok && isHost(d.game)){ clearInterval(t); reveal() } })
       .catch(() => {})

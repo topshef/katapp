@@ -38,29 +38,44 @@ if (process.argv.includes('--serve')) {
   }).listen(8787, '127.0.0.1', () => console.log('katui bundle on http://127.0.0.1:8787 (alias calls stubbed)'));
 } else {
   let r;
-  r = await call('/'); assert.equal(r.status, 302); assert.equal(new URL(r.headers.get('location')).pathname, '/m/katomia/');
-  r = await call('/qa'); assert.equal(r.status, 302); assert.equal(new URL(r.headers.get('location')).pathname, '/m/katomia/qa/');
+  // ROOT-MOVE1: Katomia at the root; the old page addresses redirect there with the query kept
+  r = await call('/qa'); assert.equal(r.status, 302); assert.equal(new URL(r.headers.get('location')).pathname, '/qa/');
+  for (const [from, to] of [['/m/katomia/', '/'], ['/m/katomia', '/'], ['/m/katomia/board/t-trio?skin=ring16', '/board/t-trio?skin=ring16'],
+      ['/m/katomia/create?skin=basic', '/create?skin=basic'], ['/m/katomia/qa/', '/qa/'], ['/m/katomia/KEA/', '/KEA/'], ['/m', '/']]) {
+    r = await call(from); assert.equal(r.status, 302, from);
+    const loc = new URL(r.headers.get('location')); assert.equal(loc.pathname + loc.search, to, from);
+  }
   r = await call('/m/katomia/qa/data/tests.json'); assert.equal(r.status, 200);
+  r = await call('/qa/data/tests.json'); assert.equal(r.status, 200);
   for (const [p, needle] of [
-    ['/m/katomia/',               'Katomia'],
-    ['/m/katomia/create',         'Create your own circle'],
-    ['/m/katomia/create?skin=basic', 'class="form skin-basic"'],
-    ['/m/katomia/circles',        'Katomia'],
-    ['/m/katomia/host',           'Katomia'],
-    ['/m/katomia/learn',          'Katomia'],
-    ['/m/katomia/markets',        'Katomia'],
-    ['/m/katomia/game/AbC123',    'HAPI_BASE: "api.katomia.com/hapi"'],
-    ['/m/katomia/board/AbC123',   'HAPI_BASE: "api.katomia.com/hapi"'],
-    ['/m/katomia/qa/',            'data/tests.json'],
-    ['/m/katomia/qa/tests.html',  '<html'],
-    ['/m/katomia/board/kemoji.js', ''],
+    ['/',                         'Katomia'],
+    ['/create',                   'Create your own circle'],
+    ['/create?skin=basic',        'class="form skin-basic"'],
+    ['/circles',                  'Katomia'],
+    ['/host',                     'Katomia'],
+    ['/learn',                    'Katomia'],
+    ['/markets',                  'Katomia'],
+    ['/advisor',                  'Katomia'],
+    ['/game/AbC123',              'HAPI_BASE: "api.katomia.com/hapi"'],
+    ['/board/AbC123',             'HAPI_BASE: "api.katomia.com/hapi"'],
+    ['/KEA/',                     '<html'],
+    ['/qa/',                      'data/tests.json'],
+    ['/qa/tests.html',            '<html'],
+    ['/board/kemoji.js',          ''],
+    ['/katomia-core.js',          'getGameId'],
+    ['/katomia.css',              ''],
+    ['/assets/katomia-ring.svg',  '<svg'],
+    ['/footer.html',              ''],
+    ['/build-info.json',          'source_sha'],
+    // the old file addresses keep working for a page cached before the move
     ['/m/katomia/katomia-core.js', 'getGameId'],
+    ['/m/katomia/board/kemoji.js', ''],
     ['/m/katomia/footer.html',    ''],
     ['/vendor/kpay/kpool_widget/config.js', 'HAPI_BASE: "api.katomia.com/hapi"'],
     // SIGNPAGE-STATIC1: the external signing page + the site chrome it pulls in
     ['/m/sign/?network=testnet&txid=0.0.1@2.3&pch=abc', '<base href="/">'],
     ['/future/',                  'kpool_widget/bootstrap.js'],
-    ['/m/katomia/binding.php?network=testnet&accountId=0.0.1879', 'hapi.php?action=bindings'],
+    ['/binding.php?network=testnet&accountId=0.0.1879', 'hapi.php?action=bindings'],
     ['/assets/css/style.css.php?1', ''],
     ['/future/future.css',        ''],
     ['/vendor/bootstrap/css/bootstrap.min.css', ''],
@@ -72,15 +87,30 @@ if (process.argv.includes('--serve')) {
     assert.ok(!/<\?php|<\?=/.test(body), `${p}: unrendered PHP`);
   }
   // every page shell references the alias, never a backend host and never lab22
-  for (const p of ['/m/katomia/', '/m/katomia/create', '/m/katomia/board/x', '/m/katomia/game/x', '/m/katomia/circles', '/m/katomia/host', '/m/sign/']) {
+  for (const p of ['/', '/create', '/board/x', '/game/x', '/circles', '/host', '/m/sign/']) {
     const body = await (await call(p)).text();
     assert.ok(!/hapi2\.hbar\.live|lab22\.kpay\.uk|127\.0\.0\.1/.test(body), `${p}: leaks a backend/lab/render host`);
   }
+  // ROOT-MOVE1: the root pages link the root and call the API by its root name — no page
+  // link, asset or API call is left pointing under /m/katomia (only the both-layouts path tests)
+  for (const p of ['/', '/create', '/board/x', '/game/x', '/circles', '/host', '/learn', '/markets']) {
+    const body = (await (await call(p)).text()).replace(/location\.pathname\.startsWith\("\/m\/katomia"\)[^\n]*/g, '').replace(/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\//g, '');
+    assert.ok(!/["'`(]\/m\/katomia/.test(body), `${p}: still links under /m/katomia: ${(body.match(/.{0,60}["'`(]\/m\/katomia.{0,40}/) || [''])[0]}`);
+  }
+  assert.ok((await (await call('/circles')).text()).includes('"/hapi/katomia/games"'), '/circles lists games from /hapi/katomia/games');
+  assert.ok((await (await call('/create')).text()).includes('"/hapi/katomia/create"'), '/create posts to /hapi/katomia/create');
   // domain-aware walletconnect config
   const wc = await (await call('/vendor/walletconnect/config.json')).json();
   assert.equal(wc.metadata.url, 'https://katui.example');
-  // same-origin API: the create form POSTs ./hapi/create → alias /hapi/katomia/create (= backend
-  // /katomia/create), body intact, over the HAPI service binding
+  // same-origin API: the create form POSTs /hapi/katomia/create (ROOT-MOVE1; it was ./hapi/create
+  // under /m/katomia) → alias /hapi/katomia/create (= backend /katomia/create), body intact
+  r = await call('/hapi/katomia/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"name":"qa"}' });
+  assert.equal(r.status, 200);
+  assert.deepEqual(forwarded.at(-1), { url: 'https://api.katomia.com/hapi/katomia/create', method: 'POST', body: '{"name":"qa"}', xfh: 'katui.example' });
+  // the root hapi.php shim (KBASE "" + "/hapi.php") reaches the same backend route, POST body intact
+  r = await call('/hapi.php?action=assets', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"a":1}' });
+  assert.deepEqual(forwarded.at(-1), { url: 'https://api.katomia.com/hapi/katomia/assets', method: 'POST', body: '{"a":1}', xfh: 'katui.example' });
+  // the old API addresses SERVE (never redirect: a redirect turns a cached page's POST into a GET)
   r = await call('/m/katomia/hapi/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"name":"qa"}' });
   assert.equal(r.status, 200);
   assert.deepEqual(forwarded.at(-1), { url: 'https://api.katomia.com/hapi/katomia/create', method: 'POST', body: '{"name":"qa"}', xfh: 'katui.example' });
@@ -118,7 +148,8 @@ if (process.argv.includes('--serve')) {
   r = await callP('/legacy/deals/?action=search&id=35d71e'); assert.equal(handed.at(-1).url, 'https://lab1.example/legacy/deals/?action=search&id=35d71e');
   r = await callP('/deal/edit/', { method: 'POST', body: 'x=1' }); assert.equal(handed.at(-1).method, 'POST'); assert.equal(handed.at(-1).body, 'x=1');
   const before = handed.length;
-  r = await callP('/m/katomia/'); assert.equal(r.status, 200);
+  r = await callP('/'); assert.equal(r.status, 200);
+  r = await callP('/board/t-trio'); assert.equal(r.status, 200);
   r = await callP('/m/sign/'); assert.equal(r.status, 200);
   assert.equal(handed.length, before, 'Katomia routes must not be handed through');
   console.log('router e2e: bundle + Worker contract OK');

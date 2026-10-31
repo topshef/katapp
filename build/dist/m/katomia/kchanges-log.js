@@ -128,7 +128,7 @@ window.KCHANGES_LOG = [
     where: [{ page: "m/sign|board|game", sel: ".txread-scope-ids" }] },
   { ref: "B07", at: "2026-09-06T10:00:00Z",
     title: "BEFORE/AFTER: a very subtle diagonal hatch",
-    detail: "Pink stripes at 45° down, green at 45° up, so the pairing reads in greyscale too. Faint by design. Tune from the URL: ?hatchw=9 (pitch px) ?hatcha=0.06 (alpha) ?hatchdeg=45 (angle), ?hatch=0 off. All URL knobs are listed at /m/katomia/qa/url-params.html.",
+    detail: "Pink stripes at 45° down, green at 45° up, so the pairing reads in greyscale too. Faint by design. Tune from the URL: ?hatchw=9 (pitch px) ?hatcha=0.06 (alpha) ?hatchdeg=45 (angle), ?hatch=0 off. All URL knobs are listed at /qa/url-params.html.",
     from: "mike-foxtrot-94", feedback: "fd9f36b5-a0c2-48df-a153-ced4ae5aef76",
     needs: "while a transaction is being signed",
     where: [{ page: "m/sign|board|game", sel: ".txcards-preview" }] },
@@ -140,15 +140,15 @@ window.KCHANGES_LOG = [
     where: [{ page: ".", sel: ".kfw-toast" }] },
   { ref: "B09", at: "2026-09-06T10:00:00Z",
     title: "Written up: every hidden URL switch",
-    detail: "/m/katomia/qa/url-params.html — the design and debug parameters nothing in the UI discovers (?chipshape, ?sign=external, ?hatch…, ?signtabs, ?skin, ?tickets, ?kdiag, ?kchanges …). Linked from ☰ → 🧪 QA.",
+    detail: "/qa/url-params.html — the design and debug parameters nothing in the UI discovers (?chipshape, ?sign=external, ?hatch…, ?signtabs, ?skin, ?tickets, ?kdiag, ?kchanges …). Linked from ☰ → 🧪 QA.",
     from: "mike-foxtrot-94", feedback: "fd9f36b5-a0c2-48df-a153-ced4ae5aef76",
-    goto: "/m/katomia/qa/", gotoLabel: "the QA index",
+    goto: "/qa/", gotoLabel: "the QA index",
     where: [{ page: "qa", sel: "a[href*='url-params']" }] },
   { ref: "B10", at: "2026-09-06T10:00:00Z",
     title: "Design note: names, identity, and the number on the felt",
-    detail: "/m/katomia/qa/design-identity-felt-chips.html — what naming exists today (nothing user-facing yet), what Hedera offers for identity (xproof, DIDs, HCS profiles, token metadata), mock-ups of the account number set into the felt, and chip styles worth trying. No behaviour changed; the P-number stays until you choose.",
+    detail: "/qa/design-identity-felt-chips.html — what naming exists today (nothing user-facing yet), what Hedera offers for identity (xproof, DIDs, HCS profiles, token metadata), mock-ups of the account number set into the felt, and chip styles worth trying. No behaviour changed; the P-number stays until you choose.",
     from: "hotel-oscar-25 · quebec-whiskey-46", feedback: "9748b79a-6098-42be-bf4b-cf55ed727c31",
-    goto: "/m/katomia/qa/", gotoLabel: "the QA index",
+    goto: "/qa/", gotoLabel: "the QA index",
     where: [{ page: "qa", sel: "a[href*='design-identity']" }] },
 
   // ── batch C: 2026-09-06, from using B ──────────────────────────────────────
@@ -214,7 +214,7 @@ window.KCHANGES_LOG = [
     title: "QA → Feedback: the whole inbox, and an Endorse button",
     detail: "\"Spin up a feedback page on QA which can only be seen by admin, which lists all the feedback so I can quickly see if there's any non-admin feedback there, and I've got the option to promote it, to accept it manually as an admin.\" It opens on what is waiting on you. Endorse promotes one item into the pool an agent may read, and records which admin account did it. The gate is the server, not the page: reading and endorsing both need a signature from the key this browser already signs feedback with, resolved to an account in the admin group — the same proof that decides the bucket, so endorsement can't be the weaker way in. Anything not admin-signed and not endorsed is for you to read first. Written up in infra/AGENT-FEEDBACK-RULES.md.",
     from: "your round-4 feedback", feedback: null,
-    goto: "/m/katomia/qa/feedback.html", gotoLabel: "the feedback page",
+    goto: "/qa/feedback.html", gotoLabel: "the feedback page",
     where: [{ page: "qa", sel: "a[href*='feedback.html']" }] },
 
   // ── batch F: 2026-09-06, the hatch, done right ─────────────────────────────
@@ -332,5 +332,11 @@ window.KCHANGES_LOG = [
     title: "Host options, second attempt: it now appears on the real circle address",
     detail: "\"Still not seeing it, despite seeing the host emoji on my circles.\" The first fix put the item in the page, but the check that reveals it asked the board for the circle id before the board's own script had loaded, and on a clean circle address (/board/ABC123) there was nowhere else to read it from — so it gave up before it ever looked at who you are. The circles page never had that problem because it reads the list, not the address. The id is now read when the page has finished loading, with the address itself as the fallback. The regression check now opens the clean address, the same one the site serves, as the host, as another player, and with no key at all.",
     from: "operator, 2026-09-07", feedback: null, goto: "@board", needs: "as the host of a circle, open ☰",
-    where: [{ page: "board", sel: "#katomiaHostOptions" }] }
+    where: [{ page: "board", sel: "#katomiaHostOptions" }] },
+
+  // ── batch G: katapp on lab1, 2026-10-31 ─────────────────────────────────────
+  { ref: "G01", at: "2026-10-31T12:00:00Z",
+    title: "No more /m/katomia in the address",
+    detail: "\"Deploy without the /m/katomia nesting.\" On lab1 Katomia now lives at the root: lab1.katomia.com/ is Home, a circle is /board/<id>, the list is /circles. Every old /m/katomia address still works and lands on the same page without the prefix, query kept, so shared links and QR codes keep opening. labs.katomia.com is unchanged, for comparison.",
+    from: "owner, 2026-10-31", feedback: null, goto: "/circles", gotoLabel: "the Circles list" }
 ]

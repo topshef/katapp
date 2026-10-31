@@ -51,6 +51,8 @@
   const norm = s => { s = String(s || "").trim(); return /^\d+$/.test(s) ? "0.0." + s : s }
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]))
 
+  // ROOT-MOVE1: was "./hapi/…", page-relative — right under /m/katomia/create, wrong at /create
+  const kapi = () => window.KAPI || (location.pathname.startsWith("/m/katomia") ? "/m/katomia/hapi" : "/hapi/katomia")
   const post = (path, body) => fetch(path, { method: "POST",
     headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
     .then(r => r.json()).catch(() => null)
@@ -146,7 +148,7 @@
       if(!ID_RE.test(id)) return
       if(!onChain){ addEntry({ id, kind: "account" }); return }
       addEntry({ id, kind: "unknown" })                       // instant feedback…
-      const r = await post("./hapi/entities", { network, ids: [id] })
+      const r = await post(kapi() + "/entities", { network, ids: [id] })
       const info = r?.entities?.[id]
       if(info){ Object.assign(entries.find(x => x.id === id) || {}, info); render() }   // …then the classified truth
     }
@@ -157,7 +159,7 @@
     if(current && current !== "*" && !current.startsWith("{") && !/[()]/.test(current)){
       const ids = current.split(",").map(norm).filter(s => ID_RE.test(s))
       ids.forEach(id => addEntry({ id, kind: "unknown" }))
-      if(ids.length && onChain) post("./hapi/entities", { network, ids }).then(r => {
+      if(ids.length && onChain) post(kapi() + "/entities", { network, ids }).then(r => {
         if(!r?.entities) return
         entries.forEach(e => Object.assign(e, r.entities[e.id] || {}))
         render()
@@ -172,7 +174,7 @@
       if(!accounts.length){
         sel.innerHTML = `<option value="">No connected accounts on ${network} — paste a token ID below</option>`
         $("kcompTokNote").textContent = "Connect & authenticate an account (☰ → You) and your tokens appear here to pick from."
-      } else post("./hapi/held-tokens", { network, accounts }).then(r => {
+      } else post(kapi() + "/held-tokens", { network, accounts }).then(r => {
         const toks = r?.tokens || []
         sel.innerHTML = toks.length
           ? `<option value="">Pick a token you hold…</option>` + toks.map(t =>

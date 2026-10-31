@@ -193,7 +193,7 @@
     if (g === "@board") {
       var last = "";
       try { last = localStorage.getItem(BOARD_KEY) || ""; } catch (e) {}
-      url = last || "/m/katomia/circles";
+      url = last || (window.KBASE || "") + "/circles";   // ROOT-MOVE1
       label = label || (last ? "your last circle" : "pick a circle");
     }
     if (!url || url.indexOf(location.pathname) === 0 && url.length === location.pathname.length) return null;

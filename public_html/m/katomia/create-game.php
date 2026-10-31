@@ -399,7 +399,7 @@ h3{
 
 <script>
 
-const API_URL = "./hapi/create"
+const API_URL = <?= json_encode($katomiaApi . '/create', JSON_UNESCAPED_SLASHES) ?>   // ROOT-MOVE1: was ./hapi/create (page-relative, wrong at the root)
 window.KTERMS = <?= json_encode($T, JSON_UNESCAPED_UNICODE) ?>;   // CIRCLE-TERM1: statuses speak the configured word too
 
 // ENTRY-CREATEBASIC1: the basic skin's happy-path defaults. The hidden controls stay

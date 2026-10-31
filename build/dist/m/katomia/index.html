@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ENTRY-FADES1: must be in <head> — it arms the fade-IN before first paint. -->
-<script src="kfade.js?v=1792444814"></script>
-<link rel="stylesheet" href="katomia.css?v=1792444814">
-<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1792444814"><title>Katomia</title>
+<script src="kfade.js?v=1793403648"></script>
+<link rel="stylesheet" href="katomia.css?v=1793403648">
+<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648"><title>Katomia</title>
 <style>
   /* KATOMIA-LANDING1: intentionally tiny — a hand-picked jumping-off point,
      not a second games list (that's contents.php's job, reachable from here
@@ -312,14 +312,14 @@
 <div class="app-banner">
   <div class="app-banner-inner">
     <h2>
-      <a class="app-home-link" href="/m/katomia/" title="Katomia — home">
+      <a class="app-home-link" href="/" title="Katomia — home">
         <!-- BRAND-RINGMARK1 (user 2026-09-04): the 💱🐫 pair gives way to the brand ring
              (assets/katomia-ring.svg — the same mark as the favicon and Kato's avatar),
              set at cap height so it reads as a letter, not an icon. Default: after the
              word. ?mark=o (remembered) swaps it INTO the word — Kat◍mia — which the
              operator wanted to see before choosing; ?mark=end flips back. -->
         <span class="app-title">Kat<span class="app-title-o">o</span>mia</span>
-        <span class="app-icons app-ring"><img src="/m/katomia/assets/katomia-ring.svg" alt="" width="30" height="30"></span>
+        <span class="app-icons app-ring"><img src="/assets/katomia-ring.svg" alt="" width="30" height="30"></span>
       </a>
     </h2>
     <button id="appMenuBtn" class="app-menu-btn" aria-label="Menu" aria-expanded="false" title="Menu">☰</button>
@@ -350,7 +350,7 @@
          circles — so it moves behind nerd mode as the raw, unfiltered grid.
          MENU-SPEC1: not inside a circle (owner: on a board the menu is Home, View, You),
          and not on the list itself, by the same rule as Home on Home. -->
-    <a class="app-menu-item" href="/m/katomia/circles">⭕ Circles</a>
+    <a class="app-menu-item" href="/circles">⭕ Circles</a>
         <!-- MENU-ORDER1 (user 2026-08-19): "profile, then view, then settings, then host
          options … feels off". New order groups by what the rows ARE:
            places (Home, Circles) → this-circle controls (View, Settings, Host options)
@@ -390,7 +390,7 @@
          default: a non-host who never sees it loses nothing, and the page + backend
          both re-check ownership anyway. -->
     <a class="app-menu-item" id="katomiaHostOptions" hidden
-       href="/m/katomia/host">🎪 Host options</a>
+       href="/host">🎪 Host options</a>
     <!-- MENU-SPEC1 (owner 2026-10-09): "Profile" reads as "You" — the modal is about the
          person (wallet, reputation, preferences), the word now says so. -->
     <button type="button" class="app-menu-item" data-menu-profile>👤 You</button>
@@ -407,12 +407,12 @@
     <div class="app-menu-group app-menu-devgroup" data-menu-group="dev">
       <button type="button" class="app-menu-grouphead" aria-expanded="false"><span class="app-menu-groupicon">🧪</span><span class="app-menu-grouplabel">Developer</span><span class="app-menu-groupcaret" aria-hidden="true">▸</span></button>
       <div class="app-menu-groupbody"><div class="app-menu-groupinner"><div class="app-menu-grouppad">
-          <a class="app-menu-item nerd-only" href="/m/katomia/markets">🏛️ All markets (raw)</a>
+          <a class="app-menu-item nerd-only" href="/markets">🏛️ All markets (raw)</a>
           <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
                results — in the main menu rather than behind the admin gate; the pages are
                effectively public anyway. If parts of QA later need gating, do a split pass
                (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
-          <a class="app-menu-item nerd-only" href="/m/katomia/qa/" target="_blank" rel="noopener">🧪 QA</a>
+          <a class="app-menu-item nerd-only" href="/qa/" target="_blank" rel="noopener">🧪 QA</a>
                     <!-- KBUNDLE-STRIP:kchanges -->
           <!-- KCHANGES1 (feedback tango-delta-81, 2026-09-06): "a development visibility toggle
                in the hamburger menu, at the root of the menu, the last item — on/off for
@@ -830,7 +830,7 @@ window.katomiaNet = (() => {
   let gameId = ""
 
   const reveal = () => {
-    item.href = "/m/katomia/host?game=" + encodeURIComponent(gameId)
+    item.href = "/host?game=" + encodeURIComponent(gameId)
     item.hidden = false
   }
   const mine = () => (typeof katomiaMyIntentKeyHex === "function" ? katomiaMyIntentKeyHex() : "")
@@ -851,7 +851,7 @@ window.katomiaNet = (() => {
     }, 400)
 
     // B: API check in parallel (covers pages with no socket)
-    fetch("/m/katomia/hapi/game/" + encodeURIComponent(gameId))
+    fetch("/hapi/katomia/game/" + encodeURIComponent(gameId))
       .then(r => r.json())
       .then(d => { if(d?.ok && isHost(d.game)){ clearInterval(t); reveal() } })
       .catch(() => {})
@@ -864,9 +864,9 @@ window.katomiaNet = (() => {
      kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
      script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
      the notes' popovers), so a page that already loads it is unaffected. -->
-<script src="kfeedbits.js?v=1792444814" defer></script>
-<script src="kchanges-log.js?v=1792444814" defer></script>
-<script src="kchanges.js?v=1792444814" defer></script>
+<script src="kfeedbits.js?v=1793403648" defer></script>
+<script src="kchanges-log.js?v=1793408360" defer></script>
+<script src="kchanges.js?v=1793407665" defer></script>
 <!-- /KBUNDLE-STRIP:kchanges -->
 <div id="profileModal" class="profile-modal hidden">
 
@@ -1155,7 +1155,7 @@ window.katomiaNet = (() => {
           <details class="kpref-tuner">
             <summary>⚙ Entry transition — my settings</summary>
             <p>Overrides the circle-entry bubble <b>for this browser only</b>. Same knob names as the
-              <a href="/m/katomia/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
+              <a href="/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
             <textarea id="kprefTuneBox" spellcheck="false" placeholder='{ "ms": 800, "style": "iridescent" }'></textarea>
             <div class="kpref-tuner-row">
               <button type="button" id="kprefTuneApply">▶ Apply</button>
@@ -1244,26 +1244,26 @@ window.katomiaNet = (() => {
   <!-- Feedback a8977343 (2026-08-18): tagline emptied ("trader-style wording") — the
        Learn more link must survive an empty tagline, so it renders unconditionally. -->
   <p class="landing-tagline">
-        <a class="landing-learn" href="/m/katomia/learn">Learn more →</a>
+        <a class="landing-learn" href="/learn">Learn more →</a>
   </p>
 
   <!-- ENTRY-CIRCLES1: the two curated doors. These are the ONLY elements on the page
        that get the bubble — the gesture is reserved for "entering a {one}" (user
        2026-07-30), so administrative buttons below stay plain and use the quiet fade. -->
   <div class="landing-list">
-              <a class="landing-card" data-net="testnet" data-kbubble-open href="/m/katomia/board/t-prop">
+              <a class="landing-card" data-net="testnet" data-kbubble-open href="/board/t-prop">
         <div class="landing-card-label">
           🟠 Testnet Circle                  </div>
         <div class="landing-card-net">Play money — nothing at stake.</div>      </a>
-          <a class="landing-card" data-net="mainnet" data-kbubble-open href="/m/katomia/board/m-prop">
+          <a class="landing-card" data-net="mainnet" data-kbubble-open href="/board/m-prop">
         <div class="landing-card-label">
           🟣 Mainnet Circle                  </div>
         <div class="landing-card-net">The real thing — live value.</div>      </a>
-          <a class="landing-card" data-net="playnet" data-kbubble-open href="/m/katomia/board/p-prop">
+          <a class="landing-card" data-net="playnet" data-kbubble-open href="/board/p-prop">
         <div class="landing-card-label">
           🟢 Playnet Circle                  </div>
         <div class="landing-card-net">Developer sandbox — no chain, nothing settles.</div>      </a>
-          <a class="landing-card landing-card--watch" data-kbubble-open href="/m/katomia/board/t-trio">
+          <a class="landing-card landing-card--watch" data-kbubble-open href="/board/t-trio">
         <div class="landing-card-label">
           📺 Watch a live demo          <span class="landing-watch-badge" title="A demo running right now, played by bots. You can watch it live — there is nothing to join.">live · watch only</span>        </div>
         <div class="landing-card-net">Three people, one loop — a swap none of them could do in pairs. Running now.</div>      </a>
@@ -1291,15 +1291,15 @@ window.katomiaNet = (() => {
        It points at /{many} (proposal-mode only, card view), NOT the full markets grid;
        the grid stays behind the nerd-only link below. -->
   <div class="landing-actions">
-    <a class="landing-create kbtn kbtn-green" href="/m/katomia/create?skin=basic">➕ Create your own circle</a>
+    <a class="landing-create kbtn kbtn-green" href="/create?skin=basic">➕ Create your own circle</a>
     <!-- The PATH is fixed infrastructure (/circles); only the LABEL is the parameter.
          Renaming the term must not 404 a URL people have bookmarked or shared. If a
          rename ever needs a matching URL too, that's one extra alias line in .htaccess. -->
-    <a class="landing-morelink" href="/m/katomia/circles">More circles →</a>
+    <a class="landing-morelink" href="/circles">More circles →</a>
   </div>
 
   <p class="landing-what">
-    <a href="/m/katomia/learn#what-is-it">What is a circle?</a>
+    <a href="/learn#what-is-it">What is a circle?</a>
   </p>
 
   <!-- Connect-your-wallet card REMOVED here (user 2026-08-17, KATUI3 feedback pass) —
@@ -1308,7 +1308,7 @@ window.katomiaNet = (() => {
 
   <!-- ENTRY-CIRCLES1: nerd mode keeps the raw markets grid (every game, every mode,
        every column). Normal mode never sees the word "markets". -->
-  <p class="landing-more"><a href="/m/katomia/markets">See all markets →</a></p>
+  <p class="landing-more"><a href="/markets">See all markets →</a></p>
 
   <!-- HOME-NERDPREFS1 (owner 2026-10-09): the nerd-mode skin picker, 🌗 theme test and the
        entry-transition tuner that sat here now live in You → Preferences (nerd mode only). -->
@@ -1332,8 +1332,8 @@ window.KTERMS = {"one":"circle","One":"Circle","many":"circles","Many":"Circles"
      one into the inflate-into-a-window transition. Loaded on EVERY skin now, because
      the bubble marks "this is a door into a {one}" rather than decorating the page.
      Degrades silently: no canvas / reduced motion → plain cards, plain navigation. -->
-<script src="kbubble.js?v=1792444814"></script>
-<script src="kbubbleopen.js?v=1792444814"></script>
+<script src="kbubble.js?v=1793403648"></script>
+<script src="kbubbleopen.js?v=1793403648"></script>
 <script>
 // ENTRY-BUBBLE1 — user tuning, revision 2 (2026-07-29, exported verbatim from
 // kdemo/bubble.html): near-whole-element response (spread .75), fast wave with light
@@ -1431,9 +1431,9 @@ window.addEventListener("load", () => {
 </script>
 
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
-<script src="katomia-core.js?v=1792444814"></script>
-<script src="katomia-helpers.js?v=1792444814"></script>
-<script src="katomia-places.js?v=1792444814"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
+<script src="katomia-core.js?v=1793407665"></script>
+<script src="katomia-helpers.js?v=1793403648"></script>
+<script src="katomia-places.js?v=1793403648"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
 <script>
 // ── RECENT-VISITS1 + LIVE-NOW1 (owner 2026-10-09) ───────────────────────────────────────
 // "Recently visited": this browser's history, newest first, side circles included — the
@@ -1444,7 +1444,8 @@ window.addEventListener("load", () => {
 // any circle already in the recent rows above so the page never lists one twice. Proposal
 // circles only and no side circles, the same pool as the Circles list.
 (() => {
-  const BASE = "\/m\/katomia";
+  const BASE = "";
+  const API = "/hapi/katomia";
   const T = window.KTERMS || { one: "circle", many: "circles" }
   const SHOW = 3, LIVE = 5
   let games = {}, expanded = false
@@ -1512,13 +1513,13 @@ window.addEventListener("load", () => {
   })
   document.addEventListener("katomia:network", render)
   render()   // history first, from this browser — no wait for the network
-  fetch(BASE + "/hapi/games", { headers: { "x-player-token": (typeof getOrCreatePlayerToken === "function") ? getOrCreatePlayerToken() : "" } })
+  fetch(API + "/games", { headers: { "x-player-token": (typeof getOrCreatePlayerToken === "function") ? getOrCreatePlayerToken() : "" } })
     .then(r => r.json()).then(d => { games = d?.games || {}; render() }).catch(() => {})
 })()
 </script>
-<script src="kemoji.js?v=1792444814"></script>
-<script src="katomia-profile.js?v=1792444814"></script>
-<script src="katomia-auth.js?v=1792444814"></script>
+<script src="kemoji.js?v=1793403648"></script>
+<script src="katomia-profile.js?v=1793407665"></script>
+<script src="katomia-auth.js?v=1793403648"></script>
 <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
 
 <!-- GCP feedback 2026-08-13: widget in place so Send feedback never navigates away

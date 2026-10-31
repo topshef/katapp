@@ -587,7 +587,7 @@ async function deleteCurrentGame(){
   alert("Game deleted")
   // TIDY-LINKS1: "../" from /board/<id> resolved to /m/katomia/board/ (an empty board shell),
   // not the app root — go to the app root explicitly
-  location.href = (window.KBASE || "/m/katomia") + "/"
+  location.href = (window.KBASE || "") + "/"   // ROOT-MOVE1: home is the root now
 }
 
 async function buildDeleteGameRequest(gameId){

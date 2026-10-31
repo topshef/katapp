@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-	<link rel="stylesheet" href="katomia.css?v=1792444814" />
-<link rel="icon" type="image/svg+xml" href="/m/katomia/assets/katomia-ring.svg?v=1792444814">	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+	<link rel="stylesheet" href="katomia.css?v=1793403648" />
+<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648">	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <title>katomia</title>
 
 </head>
@@ -142,14 +142,14 @@
 <div class="app-banner">
   <div class="app-banner-inner">
     <h2>
-      <a class="app-home-link" href="/m/katomia/" title="Katomia — home">
+      <a class="app-home-link" href="/" title="Katomia — home">
         <!-- BRAND-RINGMARK1 (user 2026-09-04): the 💱🐫 pair gives way to the brand ring
              (assets/katomia-ring.svg — the same mark as the favicon and Kato's avatar),
              set at cap height so it reads as a letter, not an icon. Default: after the
              word. ?mark=o (remembered) swaps it INTO the word — Kat◍mia — which the
              operator wanted to see before choosing; ?mark=end flips back. -->
         <span class="app-title">Kat<span class="app-title-o">o</span>mia</span>
-        <span class="app-icons app-ring"><img src="/m/katomia/assets/katomia-ring.svg" alt="" width="30" height="30"></span>
+        <span class="app-icons app-ring"><img src="/assets/katomia-ring.svg" alt="" width="30" height="30"></span>
       </a>
     </h2>
     <button id="appMenuBtn" class="app-menu-btn" aria-label="Menu" aria-expanded="false" title="Menu">☰</button>
@@ -171,7 +171,7 @@
          welcome page (which is now the default root); Markets moved to /markets.
          MENU-SPEC1: not on Home itself — "selecting home when you're on the home page does
          nothing". From a circle it leaves the circle; your accounts stay seated. -->
-    <a class="app-menu-item" href="/m/katomia/" title="Leaves this circle — your accounts stay seated">🏠 Home</a>
+    <a class="app-menu-item" href="/" title="Leaves this circle — your accounts stay seated">🏠 Home</a>
             <!-- MENU-ORDER1 (user 2026-08-19): "profile, then view, then settings, then host
          options … feels off". New order groups by what the rows ARE:
            places (Home, Circles) → this-circle controls (View, Settings, Host options)
@@ -211,7 +211,7 @@
          default: a non-host who never sees it loses nothing, and the page + backend
          both re-check ownership anyway. -->
     <a class="app-menu-item" id="katomiaHostOptions" hidden
-       href="/m/katomia/host">🎪 Host options</a>
+       href="/host">🎪 Host options</a>
     <!-- MENU-SPEC1 (owner 2026-10-09): "Profile" reads as "You" — the modal is about the
          person (wallet, reputation, preferences), the word now says so. -->
     <button type="button" class="app-menu-item" data-menu-profile>👤 You</button>
@@ -228,12 +228,12 @@
     <div class="app-menu-group app-menu-devgroup" data-menu-group="dev">
       <button type="button" class="app-menu-grouphead" aria-expanded="false"><span class="app-menu-groupicon">🧪</span><span class="app-menu-grouplabel">Developer</span><span class="app-menu-groupcaret" aria-hidden="true">▸</span></button>
       <div class="app-menu-groupbody"><div class="app-menu-groupinner"><div class="app-menu-grouppad">
-          <a class="app-menu-item nerd-only" href="/m/katomia/markets">🏛️ All markets (raw)</a>
+          <a class="app-menu-item nerd-only" href="/markets">🏛️ All markets (raw)</a>
           <!-- QA entry (user 2026-08-03): nerd mode surfaces the QA layer — docs, config,
                results — in the main menu rather than behind the admin gate; the pages are
                effectively public anyway. If parts of QA later need gating, do a split pass
                (internal vs public layers) — noted in katomia task QA-PUBLICSPLIT1. -->
-          <a class="app-menu-item nerd-only" href="/m/katomia/qa/" target="_blank" rel="noopener">🧪 QA</a>
+          <a class="app-menu-item nerd-only" href="/qa/" target="_blank" rel="noopener">🧪 QA</a>
                     <!-- KBUNDLE-STRIP:kchanges -->
           <!-- KCHANGES1 (feedback tango-delta-81, 2026-09-06): "a development visibility toggle
                in the hamburger menu, at the root of the menu, the last item — on/off for
@@ -651,7 +651,7 @@ window.katomiaNet = (() => {
   let gameId = ""
 
   const reveal = () => {
-    item.href = "/m/katomia/host?game=" + encodeURIComponent(gameId)
+    item.href = "/host?game=" + encodeURIComponent(gameId)
     item.hidden = false
   }
   const mine = () => (typeof katomiaMyIntentKeyHex === "function" ? katomiaMyIntentKeyHex() : "")
@@ -672,7 +672,7 @@ window.katomiaNet = (() => {
     }, 400)
 
     // B: API check in parallel (covers pages with no socket)
-    fetch("/m/katomia/hapi/game/" + encodeURIComponent(gameId))
+    fetch("/hapi/katomia/game/" + encodeURIComponent(gameId))
       .then(r => r.json())
       .then(d => { if(d?.ok && isHost(d.game)){ clearInterval(t); reveal() } })
       .catch(() => {})
@@ -685,9 +685,9 @@ window.katomiaNet = (() => {
      kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
      script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
      the notes' popovers), so a page that already loads it is unaffected. -->
-<script src="kfeedbits.js?v=1792444814" defer></script>
-<script src="kchanges-log.js?v=1792444814" defer></script>
-<script src="kchanges.js?v=1792444814" defer></script>
+<script src="kfeedbits.js?v=1793403648" defer></script>
+<script src="kchanges-log.js?v=1793408360" defer></script>
+<script src="kchanges.js?v=1793407665" defer></script>
 <!-- /KBUNDLE-STRIP:kchanges -->
 <div id="profileModal" class="profile-modal hidden">
 
@@ -976,7 +976,7 @@ window.katomiaNet = (() => {
           <details class="kpref-tuner">
             <summary>⚙ Entry transition — my settings</summary>
             <p>Overrides the circle-entry bubble <b>for this browser only</b>. Same knob names as the
-              <a href="/m/katomia/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
+              <a href="/kdemo/bubble-open.html">bubble-open lab</a> — tune there, paste here. Empty = site defaults.</p>
             <textarea id="kprefTuneBox" spellcheck="false" placeholder='{ "ms": 800, "style": "iridescent" }'></textarea>
             <div class="kpref-tuner-row">
               <button type="button" id="kprefTuneApply">▶ Apply</button>
@@ -1454,10 +1454,10 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "8a2f4bf"
+  window.KFLOW_COMMIT = "6587000"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — loads first so every later script can call window.kflow -->
-<script src="kflow.js?v=1792444814"></script>
+<script src="kflow.js?v=1793403648"></script>
 
 <script src="/m/bid/localbase.min.js"></script> <!-- beware spelling of Localbase -->
 <script type="module" data-global src="/m/tools/glog/latest/glog.js" ></script>
@@ -1478,33 +1478,33 @@ window.katomiaNet = (() => {
 
 
 
-<script type="module" src="katomia-init.js?v=1792444814" data-glog="on"></script>
-<script src="katomia-core.js?v=1792444814"></script>
-<script src="katomia-localdb.js?v=1792444814"></script>
-<script src="kemoji.js?v=1792444814"></script>
-<script src="katomia-helpers.js?v=1792444814"></script>
-<script src="katomia-places.js?v=1792444814"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
-<script src="katomia-enrich.js?v=1792444814"></script>
-<script src="katomia-network.js?v=1792444814"></script>
-<script src="katomia-modals.js?v=1792444814"></script>
-<script src="katomia-render.js?v=1792444814"></script>
+<script type="module" src="katomia-init.js?v=1793403648" data-glog="on"></script>
+<script src="katomia-core.js?v=1793407665"></script>
+<script src="katomia-localdb.js?v=1793403648"></script>
+<script src="kemoji.js?v=1793403648"></script>
+<script src="katomia-helpers.js?v=1793403648"></script>
+<script src="katomia-places.js?v=1793403648"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
+<script src="katomia-enrich.js?v=1793403648"></script>
+<script src="katomia-network.js?v=1793403648"></script>
+<script src="katomia-modals.js?v=1793403648"></script>
+<script src="katomia-render.js?v=1793403648"></script>
 <!-- TXSTATUS-CONSOLIDATE1 S7: the tx/wallet status controller, so order-mode
      auto-sign reports through it (terminal dedup + settle window + a real
      user-visible surface) instead of kdiag-only. Must load BEFORE
      katomia-render-orders.js, which subscribes at module top level. -->
-<script src="katomia-txstatus.js?v=1792444814"></script>
-<script src="katomia-render-orders.js?v=1792444814"></script>
-<script src="katomia-market.js?v=1792444814"></script>
-<script src="katomia-tickets.js?v=1792444814"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
+<script src="katomia-txstatus.js?v=1793403648"></script>
+<script src="katomia-render-orders.js?v=1793403648"></script>
+<script src="katomia-market.js?v=1793403648"></script>
+<script src="katomia-tickets.js?v=1793403648"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
 
 <!-- QR: davidshimjs build already bundled with kpool_widget — same file the offline
      signing widget uses. CDN removed to keep all assets in-house.
      TODO(bundling): when kpool_widget is rolled into a proper JS bundle, fold
      qrcode.min.js in and remove this script tag entirely. -->
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
-<script src="katomia-profile.js?v=1792444814"></script>
-<script src="katomia-auth.js?v=1792444814"></script>
-<script src="katomia-addaccount.js?v=1792444814"></script>
+<script src="katomia-profile.js?v=1793407665"></script>
+<script src="katomia-auth.js?v=1793403648"></script>
+<script src="katomia-addaccount.js?v=1793403648"></script>
 
 <!-- KAT-FEEDBACK1 dogfooding: long-press anywhere on the game page (2s) opens
      a "Send Feedback" modal. Signs with the intent keypair above if present. -->

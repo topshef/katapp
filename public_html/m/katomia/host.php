@@ -135,7 +135,7 @@ $pageTitle = ($siteConfig['landing']['title'] ?? 'Katomia') . ' — host';
 <script src="<?= kasset('katomia-profile.js') ?>"></script>
 
 <script>
-const HOST_API = "<?= $katomiaBase ?>/hapi"
+const HOST_API = "<?= $katomiaApi ?>"
 const KTERMS = <?= json_encode($T, JSON_UNESCAPED_UNICODE) ?>;
 const CREATE_HREF = "<?= $katomiaBase ?>/create"
 const BOARD_HREF  = "<?= $katomiaBase ?>/board/"
