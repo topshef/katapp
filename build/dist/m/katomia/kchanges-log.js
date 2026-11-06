@@ -338,5 +338,15 @@ window.KCHANGES_LOG = [
   { ref: "G01", at: "2026-10-31T12:00:00Z",
     title: "No more /m/katomia in the address",
     detail: "\"Deploy without the /m/katomia nesting.\" On lab1 Katomia now lives at the root: lab1.katomia.com/ is Home, a circle is /board/<id>, the list is /circles. Every old /m/katomia address still works and lands on the same page without the prefix, query kept, so shared links and QR codes keep opening. labs.katomia.com is unchanged, for comparison.",
-    from: "owner, 2026-10-31", feedback: null, goto: "/circles", gotoLabel: "the Circles list" }
+    from: "owner, 2026-10-31", feedback: null, goto: "/circles", gotoLabel: "the Circles list" },
+  { ref: "G02", at: "2026-11-06T20:00:00Z",
+    title: "Account numbers on the felt, big enough to read without glasses",
+    detail: "Each account's number is set into its segment in large upright digits: two rows of four, padded with zeros like a bank account, so the top row also tells you how old the account is (0000 = the earliest accounts, no zeros = since September 2025). Nine-digit accounts, far off, will show as three rows of three. Chips sit on top of it; the curved number inside the rim stays, and tapping the segment still opens the details. On by default on phones. ☰ → 👁 View → Account numbers: On the felt, On the felt (faint), or Along the spoke as before.",
+    from: "owner, 2026-11-06", feedback: null, goto: "@board",
+    where: [{ page: "board", sel: ".ring-feltnum" }] },
+  { ref: "G03", at: "2026-11-06T20:00:00Z",
+    title: "Identity: the felt shows the verified domain only",
+    detail: "Where an account has an xproof identity, the felt now shows only the domain xproof has verified. The extra label a domain's owner writes for themselves is shown in the account's details, with an ⓘ that says it is their own words and not checked. A domain using letters from another alphabet, which could imitate a different name, is shown in its encoded xn-- form with a ⚠.",
+    from: "owner, 2026-11-06", feedback: null, goto: "@board",
+    where: [{ page: "board", sel: ".board-playercard-xproof" }] }
 ]

@@ -1187,6 +1187,95 @@ console.log('24. LOCKBEVEL1: your lock bars are drawn raised (ring arc and carou
   }
 }
 
+// ── FELT-NUMBER1 + XPROOF-FELTDOMAIN1 + XPROOF-IDN1 (owner 2026-11-06) ───────────────────
+console.log('FELT-NUMBER1: the account number set into the felt — upright 2×4 blocks under the chips; the felt shows the attested domain only')
+{
+  const { page, errs } = await open('skin=ring16')
+  const felt = () => page.evaluate(() => {
+    const banner = (() => { let b = 0; for (const el of document.querySelectorAll('body.board-page .app-banner .app-banner-inner *')) { const r = el.getBoundingClientRect(); if (r.height > 0 && el.getClientRects().length) b = Math.max(b, r.bottom) } return b })()
+    const foot = document.querySelector('.ring-footer')?.getBoundingClientRect().top ?? innerHeight
+    return [...document.querySelectorAll('.ring-feltnum')].map(g => {
+      const r = g.getBoundingClientRect()
+      let rotated = false
+      for (let n = g; n && n.tagName !== 'svg'; n = n.parentNode) if ((n.getAttribute && n.getAttribute('transform') || '').includes('rotate')) rotated = true
+      return { acct: g.dataset.feltAcct, fs: +g.dataset.feltFs, cls: g.getAttribute('class'), layer: g.ownerSVGElement?.getAttribute('class'),
+        rows: [...g.querySelectorAll('.ring-feltnum-row')].map(t => t.textContent), pads: g.querySelectorAll('.ring-feltnum-pad').length,
+        tail: g.querySelector('.ring-feltnum-tail')?.textContent || '', rotated,
+        box: { l: Math.round(r.left), t: Math.round(r.top), r: Math.round(r.right), b: Math.round(r.bottom) }, banner: Math.round(banner), foot: Math.round(foot) }
+    })
+  })
+  const a = await felt()
+  const ring = await page.evaluate(() => document.querySelectorAll('.ring-lockarc[data-account-id], .ring-wedge[data-account-id]').length ? new Set([...document.querySelectorAll('[data-account-id]')].filter(e => e.closest('svg')).map(e => e.dataset.accountId)).size : Object.keys(state.accounts).length)
+  const spoke = await page.evaluate(() => document.querySelectorAll('text.ring-etchlabel:not(.ring-etchsub):not(.ring-etchlock)').length)
+  ok(a.length >= 4 && a.length + spoke === ring, 'on a phone, by default, every account on the ring has its number on the felt (or, where no readable block fits, the spoke id)', JSON.stringify({ felt: a.length, spoke, ring }))
+  ok(a.every(f => f.cls.includes('ring-feltnum--clear')), 'the phone default is "clear"', JSON.stringify(a.map(f => f.cls)))
+  const ada = a.find(f => f.acct === '0.0.2002')
+  ok(ada && ada.rows.join('/') === '0000/2002' && ada.pads === 4, '0.0.2002 reads 0000 / 2002, its four padding zeros marked softer', JSON.stringify(ada))
+  ok(a.every(f => f.rows.length === 2 && f.rows.every(r => r.length === 4) && f.fs >= 16), 'every block is two rows of four digits, at 16px or more', JSON.stringify(a.map(f => [f.acct, f.rows, f.fs])))
+  ok(a.every(f => !f.rotated), 'every block is upright — no rotation anywhere above it', JSON.stringify(a.map(f => f.rotated)))
+  ok(a.every(f => f.box.l >= 0 && f.box.r <= 390 && f.box.t >= f.banner - 2 && f.box.b <= f.foot + 2), 'every block stays on screen, under the banner and above the footer', JSON.stringify(a.map(f => [f.acct, f.box, f.banner, f.foot])))
+  const z = await page.evaluate(() => ({ labels: +getComputedStyle(document.querySelector('.ring-felt--labels')).zIndex, chips: +getComputedStyle(document.querySelector('.ring-organic') || document.body).zIndex }))
+  ok(a.every(f => (f.layer || '').includes('ring-felt--labels')) && z.labels < z.chips, 'the blocks are written ON the felt — the labels layer, under the chips', JSON.stringify({ layers: [...new Set(a.map(f => f.layer))], z }))
+  ok(ada && ada.tail.includes('ada.kpay.id'), "the demo's attested domain sits under its block", JSON.stringify(ada && ada.tail))
+
+  // sticky: a repaint with nothing changed puts every block exactly where it was
+  await page.evaluate(() => { render(); render() }); await page.waitForTimeout(150)
+  const b = await felt()
+  ok(JSON.stringify(a.map(f => [f.acct, f.box, f.fs])) === JSON.stringify(b.map(f => [f.acct, f.box, f.fs])), 'a repaint does not move a block (sticky, like the etched id)', JSON.stringify({ before: a.map(f => f.box), after: b.map(f => f.box) }))
+
+  // XPROOF-FELTDOMAIN1: the holder's own label never reaches the felt; the card shows it with an ⓘ
+  await page.evaluate(() => { window.accountXProofCache = { ...(window.accountXProofCache || {}), '0.0.2002': { domain: 'ada.kpay.id', idn: false, idnNote: '', name: 'Ada Treasury' } }; render() })
+  await page.waitForTimeout(150)
+  const onFelt = await page.evaluate(() => [...document.querySelectorAll('#boardRoot svg text')].map(t => t.textContent).join(' | '))
+  ok(onFelt.includes('ada.kpay.id') && !onFelt.includes('Ada Treasury'), 'the felt shows the domain and never the self-chosen label', onFelt.slice(0, 300))
+  await page.evaluate(() => boardPlayerModal('p2', 'p2:0.0.2002')); await page.waitForTimeout(250)
+  const card = await page.evaluate(() => {
+    const row = document.querySelector('.board-playercard-xproof'); const info = row?.querySelector('.board-playercard-xpinfo'); const note = row?.querySelector('.board-playercard-xpnote')
+    const before = note ? note.hidden : null; info?.click(); const after = note ? note.hidden : null
+    return { domain: row?.querySelector('.board-playercard-xpdomain')?.textContent, name: row?.querySelector('.board-playercard-xpname')?.textContent, info: !!info, before, after, note: note?.textContent || '' }
+  })
+  ok(card.domain === 'ada.kpay.id' && card.name === 'Ada Treasury', "the player card still shows the holder's label, after the verified domain", JSON.stringify(card))
+  ok(card.info && card.before === true && card.after === false && /not checked/.test(card.note), 'its ⓘ opens a note saying xproof verifies the domain only and the label is not checked', JSON.stringify(card))
+  await page.evaluate(() => document.querySelectorAll('.board-modal, .modal, [class*="playercard"]').forEach(m => m.closest('.board-modal-backdrop, .modal-backdrop')?.remove()))
+
+  // XPROOF-IDN1: a lookalike domain shows encoded
+  const idn = await page.evaluate(() => [katomiaDomainDisplay('exаmple.org'), katomiaDomainDisplay('example.org'), katomiaDomainDisplay('xn--exmple-4nf.org')])
+  ok(idn[0].text === 'xn--exmple-4nf.org' && idn[0].idn && /outside the Latin alphabet/.test(idn[0].note) && idn[1].text === 'example.org' && !idn[1].idn && idn[2].idn,
+    'a domain with a Cyrillic letter shows in its xn-- form with a note; a plain domain shows as it is', JSON.stringify(idn))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+
+  // the choice: the URL overrides for one visit; the View menu's choice is kept
+  {
+    const { page, errs } = await open('skin=ring16&felt=off')
+    const r = await page.evaluate(() => ({ felt: document.querySelectorAll('.ring-feltnum').length, spoke: document.querySelectorAll('text.ring-etchlabel:not(.ring-etchsub):not(.ring-etchlock)').length, saved: JSON.parse(localStorage.getItem(BOARD_PREFS_KEY) || '{}').feltNumber ?? null }))
+    ok(r.felt === 0 && r.spoke >= 4 && r.saved === null, '?felt=off brings the spoke ids back for this visit without saving anything', JSON.stringify(r))
+    await page.close()
+  }
+  {
+    const { page, errs } = await open('skin=ring16&felt=subtle')
+    const cls = await page.evaluate(() => [...new Set([...document.querySelectorAll('.ring-feltnum')].map(g => g.getAttribute('class')))])
+    ok(cls.length === 1 && cls[0].includes('--subtle'), '?felt=subtle draws the faint style', JSON.stringify(cls))
+    await page.evaluate(() => { const s = document.getElementById('boardPrefFeltNumber'); s.value = 'off'; s.onchange() }); await page.waitForTimeout(200)
+    const r = await page.evaluate(() => ({ felt: document.querySelectorAll('.ring-feltnum').length, saved: JSON.parse(localStorage.getItem(BOARD_PREFS_KEY) || '{}').feltNumber }))
+    ok(r.felt === 0 && r.saved === 'off', 'View → Account numbers → Along the spoke switches it off at once, and the choice is kept', JSON.stringify(r))
+    await page.goto(`${BASE}/board.html?demo=1&skin=ring16`, { waitUntil: 'networkidle' }); await page.waitForTimeout(800)
+    const after = await page.evaluate(() => ({ felt: document.querySelectorAll('.ring-feltnum').length, select: document.getElementById('boardPrefFeltNumber')?.value }))
+    ok(after.felt === 0 && after.select === 'off', 'and it holds on the next visit', JSON.stringify(after))
+    await page.evaluate(() => localStorage.removeItem(BOARD_PREFS_KEY))
+    ok(!errs.length, 'no page errors', JSON.stringify(errs))
+    await page.close()
+  }
+  {
+    // desktop: the etched id is ~2× bigger there, so the felt number is opt-in
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+    await page.goto(`${BASE}/board.html?demo=1&skin=ring16`, { waitUntil: 'networkidle' }); await page.waitForTimeout(800)
+    const r = await page.evaluate(() => ({ felt: document.querySelectorAll('.ring-feltnum').length, select: document.getElementById('boardPrefFeltNumber')?.value }))
+    ok(r.felt === 0 && r.select === 'off', 'on a desktop the default stays the spoke id', JSON.stringify(r))
+    await page.close()
+  }
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)

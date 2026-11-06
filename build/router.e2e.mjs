@@ -67,6 +67,9 @@ if (process.argv.includes('--serve')) {
     ['/assets/katomia-ring.svg',  '<svg'],
     ['/footer.html',              ''],
     ['/build-info.json',          'source_sha'],
+    // FELT-NUMBER1: the digit face, from katomia-board.css at the root and under /board/<id>
+    ['/assets/fonts/felt-digits.woff2', 'wOF2'],
+    ['/board/assets/fonts/felt-digits.woff2', 'wOF2'],
     // the old file addresses keep working for a page cached before the move
     ['/m/katomia/katomia-core.js', 'getGameId'],
     ['/m/katomia/board/kemoji.js', ''],

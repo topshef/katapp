@@ -30,6 +30,7 @@ check /markets                                   200 'Katomia'
 check /board/SMOKE1                              200 'HAPI_BASE'
 check /KEA/                                      200
 check /assets/katomia-ring.svg                   200 '<svg'
+check /assets/fonts/felt-digits.woff2            200            # FELT-NUMBER1 digit face
 check '/m/sign/?network=testnet&txid=0.0.1@2.3&pch=x' 200 '<base href="/">'   # SIGNPAGE-STATIC1 external signing page
 check '/m/sign/?action=txList&network=testnet&since=60&until=60' 200 'tx'     # its own ?action= proxy → backend /kpool/txList
 check '/binding.php?network=testnet&accountId=0.0.1879' 200 'bindings'

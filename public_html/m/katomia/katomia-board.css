@@ -374,6 +374,29 @@ body.board-page .app-banner{
 
 /* ── etched variants (ring2/ring3) ──────────────────────────────────────── */
 
+/* FELT-NUMBER1 (owner 2026-11-06): the account number set into the felt — big upright
+   digits, two rows of four, padding zeros softer. Digit face: Atkinson Hyperlegible Mono Bold,
+   digits only (assets/fonts/felt-digits.woff2, OFL — see assets/fonts/README.md). The url is
+   page-relative like every other asset here; the router resolves it at / and under /board/. */
+@font-face{
+  font-family: "KatFeltDigits";
+  src: url("assets/fonts/felt-digits.woff2") format("woff2");
+  font-weight: 700; font-style: normal; font-display: swap;
+  unicode-range: U+30-39;
+}
+.ring-feltnum{ user-select: none; pointer-events: none; }
+.ring-feltnum-row{
+  font-family: "KatFeltDigits", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.ring-feltnum-tail{ font-weight: 700; letter-spacing: .02em; }
+.ring-feltnum--clear  .ring-feltnum-sig{ fill-opacity: .55; }
+.ring-feltnum--clear  .ring-feltnum-pad{ fill-opacity: .28; }
+.ring-feltnum--clear  .ring-feltnum-tail{ fill-opacity: .6; }
+.ring-feltnum--subtle .ring-feltnum-sig{ fill-opacity: .24; }
+.ring-feltnum--subtle .ring-feltnum-pad{ fill-opacity: .13; }
+.ring-feltnum--subtle .ring-feltnum-tail{ fill-opacity: .45; }
+
 /* account ids written into the felt — big, bold, faded, owner-coloured */
 .ring-etchlabel{
   font-weight: 800;
@@ -2178,11 +2201,20 @@ body[data-signing="1"] .ring-lockarc{ pointer-events: none !important; cursor: d
 .board-playercard-xpdomain{ color: #27272a; font-weight: 600; }
 .board-playercard-xpname{ color: #71717a; font-size: 11.5px; }
 .board-playercard-xpname::before{ content: "· "; color: #c4c4cc; }
+/* XPROOF-LABELNOTE1: ⓘ beside the holder's own label, and the note it opens */
+.board-playercard-xpinfo{
+  border: 0; background: none; padding: 0 2px; margin: 0; cursor: pointer;
+  font: inherit; font-size: 12px; line-height: 1; color: #71717a;
+}
+.board-playercard-xpinfo:focus-visible{ outline: 2px solid #5865c2; outline-offset: 1px; border-radius: 3px; }
+.board-playercard-xpnote{ flex-basis: 100%; font-size: 11.5px; color: #71717a; line-height: 1.35; }
+.board-playercard-xpidn{ color: #b4530d; font-size: 12px; cursor: help; }
 
 @media (prefers-color-scheme: dark){
   .board-playercard-assetid{ color: #8b8b96; }
   .board-playercard-xpdomain{ color: #e7ecf4; }
   .board-playercard-xpname{ color: #a9adb8; }
+  .board-playercard-xpinfo, .board-playercard-xpnote{ color: #a9adb8; }
   .board-playercard-xpmark{ color: #5fd08a; }
   .board-playercard-acctid--tappable:hover{ background: rgba(255,255,255,.07); }
   .board-playercard-removewhy{ color: #a9adb8; }

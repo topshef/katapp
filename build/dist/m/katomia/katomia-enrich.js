@@ -285,6 +285,26 @@ async function getAccountLabelXProof(network, accountId){
 
 }
 
+// XPROOF-IDN1 (owner 2026-11-06): a domain with letters from outside the Latin alphabet can
+// imitate another name ("exаmple.org" with a Cyrillic а). Such a domain is shown in its encoded
+// xn-- form — the one spelling that cannot pass for anything else — with a note saying why.
+// The browser's own URL parser does the IDNA encoding, so no punycode library is needed.
+// UNCERTAIN: whether xproof itself refuses or normalises internationalised domains (not read).
+function katomiaDomainDisplay(domain){
+  const raw = String(domain || "").trim()
+  if(!raw) return null
+  const nonLatin = /[^\x00-\x7f]/.test(raw)
+  let ascii = raw
+  try { ascii = new URL("http://" + raw).hostname || raw } catch {}
+  const encoded = /(^|\.)xn--/i.test(ascii)
+  if(!nonLatin && !encoded) return { text: raw, idn: false, note: "" }
+  return { text: ascii, idn: true,
+    note: nonLatin
+      ? `Shown in its encoded form: "${raw}" uses letters from outside the Latin alphabet, which can imitate another name.`
+      : "An internationalised domain, shown in its encoded form." }
+}
+window.katomiaDomainDisplay = katomiaDomainDisplay
+
 async function enrichAccountLabel(network, accountId){
 
   const data = await getAccountLabelXProof(network, accountId)
@@ -370,9 +390,16 @@ async function enrichAccountLabels(){
       (async () => {
         try{
           const enriched = await enrichAccountLabel(gameMeta.network, id)
-          window.accountLabelCache[id] = enriched.label
-          if(enriched.domain || enriched.name)
-            window.accountXProofCache[id] = { domain: enriched.domain, name: enriched.name }
+          // XPROOF-FELTDOMAIN1 (owner 2026-11-06): every glance surface — the felt, the carousel,
+          // chat, order rows — shows the ATTESTED domain only. accountLabelCache is that glance
+          // value, so it holds the domain alone (encoded if it is internationalised). The holder's
+          // self-chosen label stays in accountXProofCache for the player card, which marks it as
+          // theirs (boardXProofRow).
+          const shown = katomiaDomainDisplay(enriched.domain)
+          window.accountLabelCache[id] = shown ? shown.text : null
+          if(shown || enriched.name)
+            window.accountXProofCache[id] = { domain: shown?.text || null, idn: !!shown?.idn,
+              idnNote: shown?.note || "", name: enriched.name || null }
         }catch(err){
           console.error("account label enrichment failed", id, err)
         }finally{

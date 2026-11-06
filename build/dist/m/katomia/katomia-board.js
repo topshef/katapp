@@ -328,7 +328,7 @@ function boardSavePrefs(){
       stickyChips: boardStickyChips, autoArrange: boardAutoArrange, chipScale: boardChipScale,
       chatMode: boardChatMode, avatarPos: boardAvatarPos,
       counterMode: boardCounterMode, chipStyle: boardChipStyle, chipShape: boardChipShape,
-      extSign: boardExtSign
+      extSign: boardExtSign, feltNumber: boardFeltPref
     }))
   } catch {}
 }
@@ -417,6 +417,21 @@ let boardChatMode = _bp.chatMode || "panel"
 // "arc" = centred on the segment along the ring inside the coin-lettered id (default);
 // "spoke" = the R2 boundary-spoke position, kept as a 🧪 switch for comparison.
 let boardAvatarPos = _bp.avatarPos === "spoke" ? "spoke" : "arc"
+// FELT-NUMBER1 (owner 2026-11-06 — "I need to put my glasses on to see the account numbers"):
+// the account number set INTO the felt as an upright block of big digits — two rows of four,
+// zero-padded like a bank account (the top row's zeros say how old the account is), three rows
+// of three at nine digits — in the widest part of the segment, under the chips. Design notes
+// and the live mock-up: https://claude.ai/artifact/VmhfRyYvSGeLQATg383cBU
+// A VIEW preference — this browser only, never sent to the table: "clear" | "subtle" | "off"
+// ("off" = the etched spoke id as before). Unset = the device default: clear on phones (the
+// etched id floors at 13.4px there), off on desktop (owner, 2026-11-06: "Clear" on phones).
+// ?felt=clear|subtle|off overrides for one load and is not saved (advisor view links use it).
+const FELT_STYLES = ["clear", "subtle", "off"]
+let _feltUrl = (new URLSearchParams(location.search).get("felt") || "").toLowerCase()
+if(!FELT_STYLES.includes(_feltUrl)) _feltUrl = null
+// FELT-NUMBER1: the saved choice (null = device default); boardFeltStyle() is what renders
+let boardFeltPref = FELT_STYLES.includes(_bp.feltNumber) ? _bp.feltNumber : null
+const boardFeltStyle = () => _feltUrl || boardFeltPref || (boardSmallScreen() ? "clear" : "off")
 // boardPrefsOpen (⚙ popover open/closed) retired BOARD-HEADERINT1 — Preferences
 // now lives in profile-modal.php, opened via the normal Profile menu item.
 // 🧪 chip layout (BOARD-LAYOUT1, user 2026-07-14): "shelves" = deterministic
@@ -1435,6 +1450,18 @@ function boardSyncPrefsUI(){
       boardDiag("board:pref:chipShape", { value: boardChipShape })
       boardSavePrefs()
       render()   // chips are rebuilt from text, so the shape change needs a render
+    }
+  }
+  // FELT-NUMBER1: account number on the felt (clear / subtle) or along the spoke (off)
+  const feltNum = document.getElementById("boardPrefFeltNumber")
+  if(feltNum){
+    feltNum.value = boardFeltStyle()
+    feltNum.onchange = () => {
+      boardFeltPref = FELT_STYLES.includes(feltNum.value) ? feltNum.value : null
+      _feltUrl = null                                   // a deliberate choice beats the link's
+      boardDiag("board:pref:feltNumber", { value: boardFeltPref })
+      boardSavePrefs()
+      render()
     }
   }
   const chipStyle = document.getElementById("boardPrefChipStyle")
@@ -7649,7 +7676,17 @@ function ringFelt(segs, g){
     svg.appendChild(oval)
   }
 
-  if(g.etched) segs.forEach(seg => segLabels(seg).appendChild(ringEtchLabel(seg, g, NS)))
+  // FELT-NUMBER1: the number set into the felt takes the spoke id's place where a readable
+  // block fits; where it does not (a crowded table on a small phone) the spoke id stays, so
+  // no segment ever loses its number. Same labels layer — under the chips.
+  if(g.etched){
+    const feltStyle = boardFeltStyle()
+    const band = feltStyle !== "off" ? boardFeltBand(g) : null
+    segs.forEach(seg => {
+      const felt = band ? ringFeltNumber(seg, g, NS, feltStyle, band) : null
+      segLabels(seg).appendChild(felt || ringEtchLabel(seg, g, NS))
+    })
+  }
   // BOARD-IDCOIN1: additive "coin lettering" comparison — same id, curved
   // along the hub rim instead of the segment boundary. Not a replacement;
   // kept side by side with the etched label above per the user's ask.
@@ -7990,6 +8027,171 @@ function ringBindBadge(account){
   return account?.authBound ? " 🔷" : " △"
 }
 
+// ── FELT-NUMBER1: the account number set into the felt ─────────────────────────────────
+// Digit face: Atkinson Hyperlegible Mono Bold, ten-digit subset (assets/fonts/felt-digits.woff2,
+// @font-face KatFeltDigits in katomia-board.css). Its metrics, per em: advance 0.632, digit
+// height ~0.70 (cap height 0.668); a fallback monospace face is close enough to the same box.
+const FELT_EM = { adv: 0.632, digit: 0.70, lead: 0.98, track: 0.06 }
+const FELT_MIN_FS = 16        // smaller than this and the spoke id is the better read
+const FELT_MAX_FS = 72
+const _boardFeltSpot = new Map()   // account id → { u, t, fs }: last spot (hysteresis, like _boardEtchSide)
+
+// The convention. 1–8 digits → 2×4, zero-padded on the left; 9 → 3×3; 10–12 → 3×4 padded;
+// beyond that, 4 per row. The protocol allows 19 digits (int64); mainnet is at 8 (0.0.10.9M,
+// Nov 2026) and nine digits begin at 0.0.100,000,000.
+function feltDigitGrid(acctId){
+  const parts = String(acctId).split(".")
+  const num = parts.pop() || ""
+  const n = num.length
+  const [cols, rows] = n <= 8 ? [4, 2] : n === 9 ? [3, 3] : n <= 12 ? [4, 3] : [4, Math.ceil(n / 4)]
+  const pad = Math.max(0, cols * rows - n)
+  const digits = "0".repeat(pad) + num
+  const lines = []
+  for(let r = 0; r < rows; r++) lines.push(digits.slice(r * cols, (r + 1) * cols))
+  // shard.realm: dropped while it is 0.0 (as boardShortAcctId does on phones); a non-zero one,
+  // if Hedera ever uses one, rides above the block in small type
+  const prefix = parts.join(".")
+  return { lines, cols, rows, pad, prefix: prefix && !/^0(\.0)*$/.test(prefix) ? prefix : "" }
+}
+
+// the screen band the felt can use: under the banner's row, above the footer (the same two
+// edges BOARD-SAFEAREA2 gives the chips), measured once per paint
+function boardFeltBand(g){
+  let top = 0
+  const banner = document.querySelector("body.board-page .app-banner")
+  if(banner){
+    const row = banner.querySelector(".app-banner-inner") || banner
+    for(const el of row.querySelectorAll("*")){
+      if(!el.getClientRects().length) continue
+      const r = el.getBoundingClientRect()
+      if(r.height > 0) top = Math.max(top, r.bottom)
+    }
+  }
+  const footer = document.querySelector(".ring-footer")
+  const bottom = footer ? footer.getBoundingClientRect().top : g.H
+  return { top: top + 4, bottom: Math.min(g.H, bottom) - 4 }
+}
+
+function _feltInside(x, y, poly){
+  let c = false
+  for(let i = 0, j = poly.length - 1; i < poly.length; j = i++){
+    const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1]
+    if(((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) c = !c
+  }
+  return c
+}
+
+function ringFeltNumber(seg, g, NS, style, band){
+  const hac = seg.account.id.split(":")[1] || seg.account.id
+  const grid = feltDigitGrid(hac)
+  const a0 = seg.a0, a1 = seg.a1 - seg.a0 >= 360 ? seg.a0 + 359.9 : seg.a1
+  if(a1 - a0 < 4) return null
+
+  // the badges the spoke id carried, and the attested domain, ride one small line under
+  // the block: 🔒 locked, 🔷/△ binding (BIND-BADGE1), ◀ allows picking (ring11)
+  const lock = seg.account.mode === "lock" ? "🔒" : ""
+  const pick = (ring11() && playerAllowsPick(seg.account.playerId) && !seg.mine) ? "◀" : ""
+  const bind = ringBindBadge(seg.account).trim()
+  const domain = boardXProofDomain(hac)
+  const tail = [lock + bind + pick, domain ? domain.text : ""].filter(Boolean).join("  ")
+  const tailEm = tail ? 0.36 : 0                     // its size, relative to the digits
+  const box = fs => {
+    const w = (grid.cols * FELT_EM.adv + (grid.cols - 1) * FELT_EM.track) * fs
+    let h = ((grid.rows - 1) * FELT_EM.lead + FELT_EM.digit) * fs
+    if(grid.prefix) h += 0.5 * fs
+    if(tail) h += (0.22 + tailEm) * fs
+    const tw = tail ? Math.min(tail.length * 0.56 * tailEm * fs, g.W * 0.9) : 0
+    return { w: Math.max(w, tw), h }
+  }
+
+  // the segment's own shape: the basket oval out to the screen edge, between its two spokes
+  const poly = []
+  for(let i = 0; i <= 12; i++){ const t = g.rad(a0 + (a1 - a0) * i / 12), r = g.ovalR(t); poly.push([g.cx + r * Math.cos(t), g.cy + r * Math.sin(t)]) }
+  for(let i = 0; i <= 24; i++){ const t = g.rad(a1 - (a1 - a0) * i / 24), r = g.edgeR(t); poly.push([g.cx + r * Math.cos(t), g.cy + r * Math.sin(t)]) }
+  const fits = (x, y, b) => {
+    const pad = 6
+    const x0 = x - b.w / 2 - pad, x1 = x + b.w / 2 + pad, y0 = y - b.h / 2 - pad, y1 = y + b.h / 2 + pad
+    if(y0 < band.top || y1 > band.bottom || x0 < 2 || x1 > g.W - 2) return false
+    for(let i = 0; i <= 4; i++){
+      const fx = x0 + (x1 - x0) * i / 4, fy = y0 + (y1 - y0) * i / 4
+      if(!_feltInside(fx, y0, poly) || !_feltInside(fx, y1, poly) || !_feltInside(x0, fy, poly) || !_feltInside(x1, fy, poly)) return false
+    }
+    return true
+  }
+  // the largest upright block whose centre sits at fraction u across the segment and t out
+  // from the oval to the edge
+  const tryAt = (u, t) => {
+    const th = g.rad(a0 + (a1 - a0) * u), r0 = g.ovalR(th), r1 = g.edgeR(th), r = r0 + (r1 - r0) * t
+    const x = g.cx + r * Math.cos(th), y = g.cy + r * Math.sin(th)
+    let lo = 0, hi = FELT_MAX_FS
+    for(let k = 0; k < 9; k++){ const mid = (lo + hi) / 2; if(fits(x, y, box(mid))) lo = mid; else hi = mid }
+    return { u, t, fs: lo, x, y }
+  }
+  // STICKY (the _boardEtchSide lesson, user 2026-07-12: a label must not flash between two
+  // spots mid-animation): keep last paint's spot unless it has lost more than ~12% of its
+  // size; only then search again. Steady state costs one candidate, not seventy.
+  const prev = _boardFeltSpot.get(seg.account.id)
+  let spot = prev ? tryAt(prev.u, prev.t) : null
+  if(!spot || spot.fs < prev.fs / 1.12 || spot.fs < FELT_MIN_FS){
+    let best = spot && spot.fs >= FELT_MIN_FS ? spot : null
+    for(const u of [0.22, 0.36, 0.5, 0.64, 0.78])
+      for(let t = 0.1; t <= 0.96; t += 0.07){
+        const c = tryAt(u, t)
+        // bigger wins; near-ties go to the outer spot (the widest part of the wedge)
+        if(!best || c.fs > best.fs + 0.25 || (c.fs > best.fs - 0.25 && c.t > best.t)) best = c
+      }
+    spot = best
+  }
+  if(!spot || spot.fs < FELT_MIN_FS){ _boardFeltSpot.delete(seg.account.id); return null }
+  _boardFeltSpot.set(seg.account.id, { u: spot.u, t: spot.t, fs: spot.fs })
+
+  const fs = spot.fs, b = box(fs), colour = getPlayerColour(seg.account.playerId)
+  const grp = document.createElementNS(NS, "g")
+  grp.setAttribute("class", "ring-feltnum ring-feltnum--" + style)
+  grp.dataset.feltAcct = hac
+  grp.dataset.feltFs = Math.round(fs)
+  grp.setAttribute("fill", colour)
+  let y = spot.y - b.h / 2
+  if(grid.prefix){
+    const p = document.createElementNS(NS, "text")
+    p.setAttribute("class", "ring-feltnum-tail")
+    p.setAttribute("x", spot.x); p.setAttribute("y", y + 0.38 * fs)
+    p.setAttribute("text-anchor", "middle"); p.setAttribute("font-size", (0.36 * fs).toFixed(1))
+    p.textContent = grid.prefix
+    grp.appendChild(p)
+    y += 0.5 * fs
+  }
+  grid.lines.forEach((line, r) => {
+    const t = document.createElementNS(NS, "text")
+    t.setAttribute("class", "ring-feltnum-row")
+    t.setAttribute("x", spot.x)
+    t.setAttribute("y", (y + FELT_EM.digit * fs + r * FELT_EM.lead * fs).toFixed(1))
+    t.setAttribute("text-anchor", "middle")
+    t.setAttribute("font-size", fs.toFixed(1))
+    t.setAttribute("letter-spacing", (FELT_EM.track * fs).toFixed(2))
+    for(let i = 0; i < line.length; i++){
+      const d = document.createElementNS(NS, "tspan")
+      // the padding zeros are softer: the era still shows, the digits that identify stand out
+      d.setAttribute("class", (r * grid.cols + i) < grid.pad ? "ring-feltnum-pad" : "ring-feltnum-sig")
+      d.textContent = line[i]
+      t.appendChild(d)
+    }
+    grp.appendChild(t)
+  })
+  if(tail){
+    const t = document.createElementNS(NS, "text")
+    t.setAttribute("class", "ring-feltnum-tail")
+    t.setAttribute("x", spot.x)
+    t.setAttribute("y", (y + ((grid.rows - 1) * FELT_EM.lead + FELT_EM.digit + 0.22 + tailEm * 0.8) * fs).toFixed(1))
+    t.setAttribute("text-anchor", "middle")
+    t.setAttribute("font-size", (tailEm * fs).toFixed(1))
+    t.textContent = tail
+    if(domain?.idn) t.appendChild(Object.assign(document.createElementNS(NS, "title"), { textContent: domain.note }))
+    grp.appendChild(t)
+  }
+  return grp
+}
+
 function ringEtchLabel(seg, g, NS){
 
   const text = document.createElementNS(NS, "text")
@@ -8105,9 +8307,9 @@ function ringEtchLabel(seg, g, NS){
     // separate verified-green, no tick. The attested/self-chosen distinction is
     // carried by weight and opacity alone here; the ✓ and the explicit split live
     // in the player modal, which has the room to explain itself.
-    const xp = window.accountXProofCache?.[hac]
-    const domain = xp?.domain || String(xLabel).split(" | ")[0]
-    const name   = xp?.name   || String(xLabel).split(" | ").slice(1).join(" | ") || null
+    // XPROOF-FELTDOMAIN1 (owner 2026-11-06): the felt carries the ATTESTED domain only. The
+    // holder's self-chosen label is in the player card (boardXProofRow), marked as theirs.
+    const domain = boardXProofDomain(hac)?.text || String(xLabel).split(" | ")[0]
     const sub = document.createElementNS(NS, "text")
     sub.setAttribute("class", "ring-etchlabel ring-etchsub")
     sub.setAttribute("x", x)
@@ -8154,17 +8356,6 @@ function ringEtchLabel(seg, g, NS){
     dom.textContent = domain
     sub.appendChild(dom)
 
-    // MOBILE: at ring scale this sub-line is only a few px tall, so the name is
-    // dropped on narrow screens and the domain — the part that must never be
-    // truncated or half-shown — keeps the whole line to itself.
-    const roomForName = name && window.innerWidth >= 700
-    if(roomForName){
-      const nm = document.createElementNS(NS, "tspan")
-      nm.setAttribute("class", "ring-etchxp-name")
-      nm.setAttribute("fill", getPlayerColour(seg.account.playerId))
-      nm.textContent = "  ·  " + name
-      sub.appendChild(nm)
-    }
     sub.setAttribute("fill", getPlayerColour(seg.account.playerId))
     grp.appendChild(sub)
   }
@@ -9857,10 +10048,9 @@ function boardPlayerModal(playerId, focusAccountId = null){
 // Reference implementation to copy from: the kpay signing widget, which already
 // renders xproof identity in its modal — vendor/kpay/kpool_widget/xproof.js
 // (getAccountLabel, plus its hard-coded names for well-known Hedera system
-// accounts, which we do NOT have here) consumed via model.js and modal.js. Note
-// when borrowing from it: that file still fetches the DEAD /domain/query/<id>
-// route, so it has the same silent failure this file was just fixed for — see
-// XPROOF-ROUTE1 above and misc:XPROOF-EXPLOREDEAD1.
+// accounts, which we do NOT have here) consumed via model.js and modal.js. (An
+// older note here warned that file still fetched the dead /domain/query route; it
+// moved to /XVERIFY/ in September — vendor/kpay/kpool_widget/xproof.js:19–32.)
 //
 // TWO FACTS, DELIBERATELY UNEQUAL (user 2026-08-21): xproof attests control of a
 // DOMAIN; the NAME on top of it is chosen by whoever holds that domain. "You
@@ -9869,14 +10059,21 @@ function boardPlayerModal(playerId, focusAccountId = null){
 // is the prominent half and always present when we claim anything at all; the
 // name is secondary and never renders alone. A name with no domain behind it is
 // treated as no identity — that is the whole point of the check.
+// the attested domain for display (encoded xn-- form when internationalised — XPROOF-IDN1),
+// or null. Every glance surface reads it through here.
+function boardXProofDomain(hac){
+  const xp = window.accountXProofCache?.[hac]
+  const joined = window.accountLabelCache?.[hac]
+  const text = xp?.domain || (joined ? String(joined).split(" | ")[0] : null)
+  return text ? { text, idn: !!xp?.idn, note: xp?.idnNote || "" } : null
+}
+
 function boardXProofRow(account){
   const id = account.id.split(":")[1] || account.id
   const parts = window.accountXProofCache?.[id]
-  const joined = window.accountLabelCache?.[id]
-  // fall back to splitting the legacy joined label so this works even for
-  // accounts enriched before the structured cache existed
-  const domain = parts?.domain || (joined ? String(joined).split(" | ")[0] : null)
-  const name   = parts?.name   || (joined ? String(joined).split(" | ").slice(1).join(" | ") || null : null)
+  const shown = boardXProofDomain(id)
+  const domain = shown?.text || null
+  const name = parts?.name || null
   if(!domain) return null
 
   const row = document.createElement("div")
@@ -9889,12 +10086,36 @@ function boardXProofRow(account){
   dom.className = "board-playercard-xpdomain"
   dom.textContent = domain
   row.append(mark, dom)
+  if(shown.idn){
+    // XPROOF-IDN1: say why the domain looks encoded
+    const warn = document.createElement("span")
+    warn.className = "board-playercard-xpidn"
+    warn.textContent = "⚠"
+    warn.title = shown.note
+    row.appendChild(warn)
+  }
   if(name){
+    // XPROOF-LABELNOTE1 (owner 2026-11-06): the holder's own label stays in the card — useful,
+    // and "a way for the domain owners to sort of label within a domain, like a sub folder" —
+    // but it is NOT verified: xproof proves control of the domain only. An ⓘ says so, tappable
+    // because phones have no hover. FUTURE (owner, same day): xproof as a service may curate
+    // these labels, so a label cannot assert something nobody has checked; until then it is
+    // shown as the holder's words and never on the felt (XPROOF-FELTDOMAIN1).
     const nm = document.createElement("span")
     nm.className = "board-playercard-xpname"
     nm.textContent = name
-    nm.title = "Label chosen by the holder of " + domain + " — the domain is the attested part"
-    row.appendChild(nm)
+    const info = document.createElement("button")
+    info.type = "button"
+    info.className = "board-playercard-xpinfo"
+    info.textContent = "ⓘ"
+    info.setAttribute("aria-label", "About this label")
+    info.setAttribute("aria-expanded", "false")
+    const note = document.createElement("div")
+    note.className = "board-playercard-xpnote"
+    note.hidden = true
+    note.textContent = "“" + name + "” is written by the holder of " + domain + ". xproof verifies the domain only; this label is not checked."
+    info.onclick = e => { e.stopPropagation(); note.hidden = !note.hidden; info.setAttribute("aria-expanded", String(!note.hidden)) }
+    row.append(nm, info, note)
   }
   row.title = "xproof: " + domain + (name ? " · labelled “" + name + "”" : "")
   return row

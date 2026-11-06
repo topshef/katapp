@@ -311,6 +311,14 @@ $katomiaInCircle = in_array($katomiaPage, ['board', 'game'], true);
                 You at bottom
             </label>
             <label class="board-settings-label">
+                Account numbers
+                <select id="boardPrefFeltNumber" title="FELT-NUMBER1: how each account's number is written on the table. On the felt = big upright digits in two rows of four (padded with zeros, so the top row shows how old the account is), under the chips. Along the spoke = the small etched id as before. This changes your view only. ?felt=clear|subtle|off on the address overrides for one visit.">
+                  <option value="clear">On the felt</option>
+                  <option value="subtle">On the felt, faint</option>
+                  <option value="off">Along the spoke</option>
+                </select>
+            </label>
+            <label class="board-settings-label">
                 Max on ring
                 <input type="number" id="boardPrefMaxSeg" min="2" max="24" class="board-settings-num" title="Maximum players shown on the ring at once (yours + others). Above this, the rest scroll behind a tap-to-advance divider.">
             </label>
