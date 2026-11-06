@@ -1360,7 +1360,7 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "73f2456"
+  window.KFLOW_COMMIT = "79009d2"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
 <script src="kflow.js?v=1793403648"></script>
@@ -1423,6 +1423,9 @@ window.katomiaNet = (() => {
      speaker's wedge + a glassy transcript. Must load AFTER katomia-board.js,
      which owns the _boardChatAnchors this reads. -->
 <script src="katomia-chat.js?v=1793403648"></script>
+<!-- VIEW-API1 (owner 2026-11-06): window.katomiaView — read and change this browser's view
+     through the menu's own controls (for an assistant, a test, later a "mirror my view"). -->
+<script src="katomia-view.js?v=1793993200"></script>
 
 <!-- BOARD-HEADERINT1 follow-up (2026-07-14): board.php gained header.php +
      profile-modal.php but these two were missed — profile-modal.php's own

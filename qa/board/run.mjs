@@ -1276,6 +1276,41 @@ console.log('FELT-NUMBER1: the account number set into the felt — upright 2×4
   }
 }
 
+// ── VIEW-API1 (owner 2026-11-06): window.katomiaView drives the menu's own controls ──────────
+console.log('VIEW-API1: katomiaView reads and changes this browser\'s view through the menu\'s own controls — and nothing else')
+{
+  const { page, errs } = await open('skin=ring16')
+  const sent = []
+  await page.evaluate(() => { const s = socket.send; window.__qaSent = []; socket.send = m => { window.__qaSent.push(JSON.parse(m).type); return s(m) } })
+  const r = await page.evaluate(() => {
+    const k = katomiaView.keys().map(x => x.key)
+    const before = katomiaView.get()
+    const res = katomiaView.set({ feltNumber: 'off', chipStyle: 'dark', selfBottom: false, bogus: 1, skin: 'nope' })
+    const after = { felt: document.querySelectorAll('.ring-feltnum').length, saved: JSON.parse(localStorage.getItem(BOARD_PREFS_KEY) || '{}') }
+    return { k, before, res, after }
+  })
+  ok(['feltNumber', 'skin', 'uiSize', 'chipStyle', 'selfBottom', 'view'].every(x => r.k.includes(x)), 'keys() lists what can be set', JSON.stringify(r.k))
+  ok(r.res.applied.feltNumber === 'off' && r.res.applied.chipStyle === 'dark' && r.res.applied.selfBottom === false, 'set() applies through the controls…', JSON.stringify(r.res))
+  ok(r.after.felt === 0 && r.after.saved.feltNumber === 'off' && r.after.saved.chipStyle === 'dark' && r.after.saved.selfBottom === false, '…with the same effect as a tap: re-rendered and saved', JSON.stringify(r.after))
+  ok(r.res.refused.bogus && /one of/.test(r.res.refused.skin || ''), 'unknown keys and values not on the menu are refused, with the reason', JSON.stringify(r.res.refused))
+  const ev = await page.evaluate(() => new Promise(res => { document.addEventListener('katomia:view', e => res(e.detail), { once: true }); katomiaView.set({ feltNumber: 'clear' }) }))
+  ok(ev.changed.feltNumber === 'clear' && ev.now.feltNumber === 'clear', 'a change fires katomia:view with what changed', JSON.stringify(ev))
+  const v = await page.evaluate(() => { const a = katomiaView.set({ view: 'split' }); const b = katomiaView.get().view; katomiaView.set({ view: 'board' }); return { a: a.applied.view, b } })
+  ok(v.a === 'split' && v.b === 'split', 'view: board / split / messages', JSON.stringify(v))
+  const m = await page.evaluate(() => { const o = katomiaView.openMenu(); const shown = !document.getElementById('appMenu').classList.contains('hidden'); katomiaView.closeMenu(); return { o, shown, closed: document.getElementById('appMenu').classList.contains('hidden') } })
+  ok(m.o && m.shown && m.closed, 'openMenu() / closeMenu()', JSON.stringify(m))
+  const p = await page.evaluate(() => { const ok = katomiaView.openPlayer('0.0.2002'); return { ok, card: !!document.querySelector('.board-playercard-xproof, .board-playercard-acctid, [class*="board-playercard"]'), none: katomiaView.openPlayer('0.0.999999') } })
+  ok(p.ok && p.card && p.none === false, "openPlayer('0.0.2002') opens that account's card; an unknown account is false", JSON.stringify(p))
+  const l = await page.evaluate(() => katomiaView.link({ felt: 'subtle', skin: 'carousel' }))
+  ok(/[?&]felt=subtle/.test(l) && /[?&]skin=carousel/.test(l), 'link() gives this circle\'s address with view switches', l)
+  const types = await page.evaluate(() => window.__qaSent)
+  ok(!types.length, 'none of it sent anything to the table', JSON.stringify(types))
+  ok(await page.evaluate(() => Object.isFrozen(katomiaView)), 'katomiaView itself cannot be rewritten by a page script', '')
+  await page.evaluate(() => localStorage.removeItem(BOARD_PREFS_KEY))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)

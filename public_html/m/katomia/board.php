@@ -168,6 +168,9 @@ require_once __DIR__ . '/kasset.php';
      speaker's wedge + a glassy transcript. Must load AFTER katomia-board.js,
      which owns the _boardChatAnchors this reads. -->
 <script src="<?= kasset('katomia-chat.js') ?>"></script>
+<!-- VIEW-API1 (owner 2026-11-06): window.katomiaView — read and change this browser's view
+     through the menu's own controls (for an assistant, a test, later a "mirror my view"). -->
+<script src="<?= kasset('katomia-view.js') ?>"></script>
 
 <!-- BOARD-HEADERINT1 follow-up (2026-07-14): board.php gained header.php +
      profile-modal.php but these two were missed — profile-modal.php's own
