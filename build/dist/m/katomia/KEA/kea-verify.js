@@ -11,9 +11,9 @@ import {
   shortKey
 } from './kea-utils.js'
 
-import * as ed from 'https://esm.sh/@noble/ed25519@2.1.0'
-import { sha512 } from 'https://esm.sh/@noble/hashes@1.4.0/sha512'
-import { sha256 } from 'https://esm.sh/@noble/hashes@1.4.0/sha256'
+import * as ed from './vendor/noble/noble-ed25519-2.1.0.js'
+import { sha512 } from './vendor/noble/noble-hashes-1.4.0-sha512.js'
+import { sha256 } from './vendor/noble/noble-hashes-1.4.0-sha256.js'
 
 ed.etc.sha512Sync = function(...m) { return sha512(ed.etc.concatBytes(...m)) }
 

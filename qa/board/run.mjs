@@ -1311,6 +1311,57 @@ console.log('VIEW-API1: katomiaView reads and changes this browser\'s view throu
   await page.close()
 }
 
+// ── INTENTKEY-SAFE1 (owner 2026-11-06): the intent key can sign but cannot be read out ──────────
+console.log('INTENTKEY-SAFE1: the private intent key lives in IndexedDB, non-extractable; an old browser\'s JWK is moved and deleted')
+{
+  const { generateKeyPairSync, createPublicKey, verify } = await import('node:crypto')
+  const probe = () => page => page.evaluate(async () => {
+    const kp = await getOrCreatePlayerKeypair()
+    const again = await getOrCreatePlayerKeypair()
+    const raw = JSON.parse(localStorage.getItem('katomiaPlayerKeypair') || 'null')
+    const sig = await signOrder({ specVersion: 'qa', n: 1 }, kp.privateKey, kp.publicKeyJwk)
+    let exported = 'refused'
+    try { await crypto.subtle.exportKey('jwk', kp.privateKey); exported = 'EXPORTED' } catch {}
+    const inDb = await new Promise(res => { const r = indexedDB.open('katomia-keys'); r.onsuccess = () => { const g = r.result.transaction('keys').objectStore('keys').get('intent'); g.onsuccess = () => res(!!g.result); g.onerror = () => res(false) }; r.onerror = () => res(false) })
+    return { x: kp.publicKeyJwk.x, same: again.publicKeyJwk.x === kp.publicKeyJwk.x, extractable: kp.privateKey.extractable, exported,
+      storedKeys: raw ? Object.keys(raw) : null, inDb, sig, myHex: katomiaMyIntentKeyHex() }
+  })
+  const verifies = r => verify(null, Buffer.from(JSON.stringify({ specVersion: 'qa', n: 1 })), createPublicKey({ key: { kty: 'OKP', crv: 'Ed25519', x: r.x }, format: 'jwk' }), Buffer.from(r.sig.sig, 'base64'))
+
+  // a new browser: minted non-extractable, public half only in localStorage
+  {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } })
+    const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message))
+    await page.goto(`${BASE}/board.html?demo=1`, { waitUntil: 'networkidle' })
+    const r = await probe()(page)
+    ok(r.extractable === false && r.exported === 'refused' && r.inDb, 'a new key is born non-extractable and kept in IndexedDB', JSON.stringify(r))
+    ok(JSON.stringify(r.storedKeys) === '["publicKeyJwk"]' && r.myHex.length === 64, 'localStorage holds the public half only, and the host check still reads it', JSON.stringify(r.storedKeys))
+    ok(r.same && verifies(r), 'it signs, the signature verifies against the public half, and a second call returns the same key', '')
+    await page.reload({ waitUntil: 'networkidle' })
+    const r2 = await probe()(page)
+    ok(r2.x === r.x && r2.extractable === false && verifies(r2), 'after a reload it is the same key, still non-extractable', JSON.stringify({ a: r.x, b: r2.x }))
+    ok(!errs.length, 'no page errors', JSON.stringify(errs))
+    await ctx.close()
+  }
+  // an older browser: the JWK pair it already has is moved over, same identity, and deleted
+  {
+    const { privateKey, publicKey } = generateKeyPairSync('ed25519')
+    const legacy = { publicKeyJwk: publicKey.export({ format: 'jwk' }), privateKeyJwk: privateKey.export({ format: 'jwk' }) }
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } })
+    await ctx.addInitScript(l => { if (!sessionStorage.getItem('qaSeeded')) { localStorage.setItem('katomiaPlayerKeypair', JSON.stringify(l)); sessionStorage.setItem('qaSeeded', '1') } }, legacy)
+    const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message))
+    await page.goto(`${BASE}/board.html?demo=1`, { waitUntil: 'networkidle' })
+    const r = await probe()(page)
+    ok(r.x === legacy.publicKeyJwk.x && verifies(r), "an old browser keeps its identity: the same public key, and it still signs", JSON.stringify({ want: legacy.publicKeyJwk.x, got: r.x }))
+    ok(JSON.stringify(r.storedKeys) === '["publicKeyJwk"]' && r.inDb && r.extractable === false, 'and its readable private JWK is gone from localStorage', JSON.stringify(r.storedKeys))
+    await page.reload({ waitUntil: 'networkidle' })
+    const r2 = await probe()(page)
+    ok(r2.x === legacy.publicKeyJwk.x && r2.extractable === false && verifies(r2), 'after a reload it signs from IndexedDB with the same identity', JSON.stringify({ got: r2.x }))
+    ok(!errs.length, 'no page errors', JSON.stringify(errs))
+    await ctx.close()
+  }
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)

@@ -7,7 +7,9 @@
 
   <link rel="stylesheet" href="kea.css">
 
-  <script src="https://kpay.uk/assets/js/darkmode.js?v=0.4" data-float="0" ></script>
+  <!-- KEA-VENDOR1 (2026-11-06): a cross-site <script> from kpay.uk/assets/js/darkmode.js was here. That
+       address now answers with an HTML page, so browsers blocked it and it never ran; a signer page
+       must not load script from another origin anyway. Removed. -->
 </head>
 
 <body>
@@ -150,7 +152,7 @@
     <div id="detailModalBody" class="modal-body"></div>
   </dialog>
 
-  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script src="vendor/jsQR-1.4.0.js"></script> <!-- KEA-VENDOR1: vendored, no CDN at run time -->
   <script type="module" src="./kea-app.js"></script>
 
 </body>

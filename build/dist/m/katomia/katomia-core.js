@@ -98,43 +98,108 @@
     }
 
 
-    // Stored as JWK (JSON) in localStorage — same pattern as playerToken.
+    // The intent keypair (INTENTKEY-SAFE1 below says where each half lives).
     // KEY ROTATION is deliberately NOT a feature (user decision 2026-07-07): clearing
     // the browser's site data deletes this key and a fresh one is minted on next load —
     // that IS the rotation path. Anonymous users churn identity that way for free;
     // wallet-bound users have no reason to (they'd just re-raise a binding anyway).
     const PLAYER_KEY_STORAGE = "katomiaPlayerKeypair"
 
-    async function getOrCreatePlayerKeypair() {
+    // INTENTKEY-SAFE1 (owner 2026-11-06; kmigrate SECURITY.md 2026-11-06): the PRIVATE half used
+    // to sit in localStorage as a JWK, generated extractable — so any script running on the site
+    // (an injected one, a compromised third-party file, an extension with page access) could copy
+    // it and sign locks and orders as this player. Now the private key is a NON-EXTRACTABLE
+    // CryptoKey kept in IndexedDB: it can still sign, and nothing — not even this code — can read
+    // it out. localStorage keeps the PUBLIC half only ({ publicKeyJwk }), because two readers need
+    // it synchronously (katomiaMyIntentKeyHex, create-game.php's host check).
+    //   - an old browser's JWK is moved over once, on first use, and then deleted;
+    //   - rotation is unchanged: clearing site data clears both stores and a new key is minted;
+    //   - no IndexedDB (some private windows): the old localStorage JWK path, so signing never
+    //     breaks; that case is logged and the key is still created non-extractable when it can be.
+    const INTENT_DB = "katomia-keys", INTENT_STORE = "keys", INTENT_ID = "intent"
+    function intentDb(){
+      return new Promise((resolve, reject) => {
+        if (!window.indexedDB) return reject(new Error("no IndexedDB"))
+        const req = indexedDB.open(INTENT_DB, 1)
+        req.onupgradeneeded = () => req.result.createObjectStore(INTENT_STORE)
+        req.onsuccess = () => resolve(req.result)
+        req.onerror = () => reject(req.error)
+      })
+    }
+    async function intentKeyGet(){
+      const db = await intentDb()
+      return new Promise((resolve, reject) => {
+        const r = db.transaction(INTENT_STORE, "readonly").objectStore(INTENT_STORE).get(INTENT_ID)
+        r.onsuccess = () => { resolve(r.result || null); db.close() }
+        r.onerror = () => { reject(r.error); db.close() }
+      })
+    }
+    async function intentKeyPut(privateKey){
+      const db = await intentDb()
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(INTENT_STORE, "readwrite")
+        tx.objectStore(INTENT_STORE).put(privateKey, INTENT_ID)
+        tx.oncomplete = () => { resolve(); db.close() }
+        tx.onerror = () => { reject(tx.error); db.close() }
+      })
+    }
 
-      const stored = localStorage.getItem(PLAYER_KEY_STORAGE)
+    let _playerKeypairPromise = null   // one key per tab, however many callers race for it
+    function getOrCreatePlayerKeypair() {
+      if (!_playerKeypairPromise)
+        _playerKeypairPromise = loadOrCreatePlayerKeypair().catch(err => { _playerKeypairPromise = null; throw err })
+      return _playerKeypairPromise
+    }
 
-      if (stored) {
+    async function loadOrCreatePlayerKeypair() {
+      let stored = null
+      try { stored = JSON.parse(localStorage.getItem(PLAYER_KEY_STORAGE) || "null") } catch {}
+      const publicOf = jwk => crypto.subtle.importKey("jwk", jwk, { name: "Ed25519" }, true, ["verify"])
+
+      if (stored?.publicKeyJwk) {
         try {
-          const { publicKeyJwk, privateKeyJwk } = JSON.parse(stored)
-          const privateKey = await crypto.subtle.importKey(
-            "jwk", privateKeyJwk,
-            { name: "Ed25519" }, false, ["sign"]
-          )
-          const publicKey = await crypto.subtle.importKey(
-            "jwk", publicKeyJwk,
-            { name: "Ed25519" }, true, ["verify"]
-          )
-          return { publicKey, privateKey, publicKeyJwk }
+          // 1. the current shape: public half here, private CryptoKey in IndexedDB
+          const held = await intentKeyGet().catch(() => null)
+          if (held && !stored.privateKeyJwk)
+            return { publicKey: await publicOf(stored.publicKeyJwk), privateKey: held, publicKeyJwk: stored.publicKeyJwk }
+          // 2. an older browser: move the JWK into a non-extractable key, then drop the JWK
+          if (stored.privateKeyJwk) {
+            const privateKey = await crypto.subtle.importKey("jwk", stored.privateKeyJwk, { name: "Ed25519" }, false, ["sign"])
+            const publicKey = await publicOf(stored.publicKeyJwk)
+            try {
+              await intentKeyPut(privateKey)
+              localStorage.setItem(PLAYER_KEY_STORAGE, JSON.stringify({ publicKeyJwk: stored.publicKeyJwk }))
+            } catch (err) {
+              console.warn("[intent key] IndexedDB unavailable — the key stays in localStorage", err)
+            }
+            return { publicKey, privateKey, publicKeyJwk: stored.publicKeyJwk }
+          }
+          // 3. public half without its private key (IndexedDB cleared on its own): a new key
+          console.warn("[intent key] private key missing — minting a new one")
         } catch (err) {
           console.warn("Failed to restore keypair, regenerating", err)
         }
       }
 
-      const keypair = await crypto.subtle.generateKey(
-        { name: "Ed25519" }, true, ["sign", "verify"]
-      )
+      // mint: the private key is born non-extractable when IndexedDB can hold it
+      let keypair = await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"])
+      const publicKeyJwk = await crypto.subtle.exportKey("jwk", keypair.publicKey)   // public keys always export
+      try {
+        await intentKeyPut(keypair.privateKey)
+        localStorage.setItem(PLAYER_KEY_STORAGE, JSON.stringify({ publicKeyJwk }))
+      } catch (err) {
+        // no IndexedDB: fall back to the old shape so the key survives a reload at all
+        console.warn("[intent key] IndexedDB unavailable — falling back to localStorage", err)
+        keypair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])
+        const pub = await crypto.subtle.exportKey("jwk", keypair.publicKey)
+        const priv = await crypto.subtle.exportKey("jwk", keypair.privateKey)
+        localStorage.setItem(PLAYER_KEY_STORAGE, JSON.stringify({ publicKeyJwk: pub, privateKeyJwk: priv }))
+        return finishMint(keypair, pub)
+      }
+      return finishMint(keypair, publicKeyJwk)
+    }
 
-      const publicKeyJwk  = await crypto.subtle.exportKey("jwk", keypair.publicKey)
-      const privateKeyJwk = await crypto.subtle.exportKey("jwk", keypair.privateKey)
-
-      localStorage.setItem(PLAYER_KEY_STORAGE, JSON.stringify({ publicKeyJwk, privateKeyJwk }))
-
+    function finishMint(keypair, publicKeyJwk) {
       // KATO-PERSONA1: a freshly minted keypair = a brand-new user (key scope IS
       // user scope here — see the rotation note above). Flag Kato's one-time
       // self-intro; katomia-chat.js delivers it in the first circle feed they
