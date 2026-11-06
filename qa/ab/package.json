@@ -1,0 +1,7 @@
+{
+  "name": "katomia-qa-ab",
+  "private": true,
+  "description": "AB-LABS1: labs (phpjabbers) against lab1 (katapp), live, in a phone-sized browser.",
+  "scripts": { "test": "node run.mjs" },
+  "devDependencies": { "playwright": "1.58.2" }
+}

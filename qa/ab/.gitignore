@@ -1,0 +1,6 @@
+# the root .gitignore drops every *.json; this suite needs its manifest, lockfile and fixture tracked
+!package.json
+!package-lock.json
+!fixtures/
+!fixtures/*.json
+node_modules/

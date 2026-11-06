@@ -30,7 +30,7 @@ name: katui
 on:
   push:
     branches: [main, lab1, 'claude/**', 'ccr-**']   # KATAPP-SPLIT1: katapp's trunk is main; lab1 deploys lab1.katomia.com
-    paths: [build/**, public_html/**, qa/sign/**, qa/board/**, .github/workflows/katui.yml]
+    paths: [build/**, public_html/**, qa/sign/**, qa/board/**, qa/ab/**, .github/workflows/katui.yml]
   schedule:
     - cron: '41 */6 * * *'
   workflow_dispatch:
@@ -99,6 +99,29 @@ jobs:
           npx playwright install --with-deps chromium
       - name: BOARD-REGRESSION1
         run: node qa/board/run.mjs
+
+  # AB-LABS1 (owner 2026-11-06): labs (phpjabbers) against lab1 (katapp), live — manual runs
+  # only, since it reads two production hosts. qa/ab/README.md says what it compares.
+  ab:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: qa/ab/package-lock.json
+      - name: install
+        working-directory: qa/ab
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: AB-LABS1
+        run: OUT=qa/ab/reports/ci.md node qa/ab/run.mjs
+      - if: always()
+        run: cat qa/ab/reports/ci.md >> "$GITHUB_STEP_SUMMARY"
 
   smoke:
     runs-on: ubuntu-latest
